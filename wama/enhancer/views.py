@@ -19,6 +19,7 @@ from ..accounts.views import get_or_create_anonymous_user
 from ..common.utils.console_utils import get_console_lines
 from ..common.utils.video_utils import upload_media_from_url, get_media_info
 from ..common.utils.queue_duplication import safe_delete_file, duplicate_instance
+from ..common.utils.scoping import visible_or_404
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +136,8 @@ def _auto_wrap_audio_orphans(user):
         BatchAudioEnhancementItem.objects.filter(batch__user=user)
         .values_list('audio_enhancement_id', flat=True)
     )
+    # `user=user` VOLONTAIRE (pas un oubli de portage) : on n'enrôle jamais la card partagée
+    # par quelqu'un d'autre dans SON batch — ce serait une mutation sur le bien d'autrui.
     orphans = list(
         AudioEnhancement.objects.filter(user=user).exclude(id__in=existing_ids).order_by('id')
     )
@@ -468,7 +471,9 @@ def start(request, pk: int):
 def progress(request, pk: int):
     """Get enhancement progress."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    enhancement = get_object_or_404(Enhancement, pk=pk, user=user)
+    # LECTURE → `visible_or_404` : une card partagée doit pouvoir être suivie par son
+    # destinataire (PROFILES_PERMISSIONS §7). Les vues mutantes gardent `user=user`.
+    enhancement = visible_or_404(Enhancement, user, pk=pk)
 
     # Get progress from cache
     progress = int(cache.get(f"enhancer_progress_{pk}", enhancement.progress or 0))
@@ -492,7 +497,7 @@ def progress(request, pk: int):
 def download(request, pk: int):
     """Download enhanced file."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    enhancement = get_object_or_404(Enhancement, pk=pk, user=user)
+    enhancement = visible_or_404(Enhancement, user, pk=pk)   # LECTURE
 
     logger.info(f"Download request for enhancement {pk}")
     logger.info(f"  - output_file field: {enhancement.output_file}")
@@ -675,7 +680,9 @@ def clear_all(request):
 def download_all(request):
     """Download all enhanced files as ZIP."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    enhancements = Enhancement.objects.filter(user=user, status='SUCCESS').exclude(output_file='')
+    # LECTURE : inclut les cards partagées (leur résultat est consultable, pas modifiable).
+    enhancements = Enhancement.objects.visible_to(user).filter(
+        status='SUCCESS').exclude(output_file='')
 
     if not enhancements.exists():
         return HttpResponseBadRequest('No enhanced files available')
@@ -1208,7 +1215,7 @@ def audio_start(request, pk: int):
 def audio_progress(request, pk: int):
     """Get audio enhancement progress."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    ae = get_object_or_404(AudioEnhancement, pk=pk, user=user)
+    ae = visible_or_404(AudioEnhancement, user, pk=pk)        # LECTURE
     progress = int(cache.get(f"audio_enhancer_progress_{pk}", ae.progress or 0))
     payload = {
         'progress': progress,
@@ -1229,7 +1236,7 @@ def audio_progress(request, pk: int):
 def audio_download(request, pk: int):
     """Download enhanced audio file."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    ae = get_object_or_404(AudioEnhancement, pk=pk, user=user)
+    ae = visible_or_404(AudioEnhancement, user, pk=pk)        # LECTURE
 
     if not ae.output_file:
         return HttpResponseBadRequest('No output file available')
@@ -1693,7 +1700,7 @@ def global_progress(request):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
     try:
-        enhancements = Enhancement.objects.filter(user=user)
+        enhancements = Enhancement.objects.visible_to(user)   # LECTURE (barre globale)
 
         if not enhancements.exists():
             return JsonResponse({

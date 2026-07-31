@@ -49,11 +49,15 @@ def index(request):
     except Exception as exc:
         logger.debug(f"[imager] reconcile_orphaned_running ignoré: {exc}")
 
-    # Cards VISIBLES : les siennes + celles qu'on lui a partagées (unité / projet / public) —
-    # brique commune `ScopedManager`, cf. PROFILES_PERMISSIONS §7. C'est le chemin NOMMÉ : un
-    # `filter(user=user)` ici rendrait le partage inopérant sans que rien ne le signale.
-    # Les vues mutantes, elles, restent sur `owned_by()` → partage en lecture seule.
-    generations = ImageGeneration.objects.visible_to(user).filter(
+    # NOTE PARTAGE (PROFILES_PERMISSIONS §7) : le mixin `ScopedVisibility` est en place sur le
+    # modèle, mais imager n'est PAS porté — c'est l'app la moins avancée de la grille mesurée
+    # (56 %, dernière sur 10 au 31/07) et elle n'a pas besoin du partage : elle crée ses cards
+    # par prompt. Passer cette seule vue en `visible_to()` rendait une card partagée VISIBLE
+    # dans la file puis 404 au moindre clic (10 autres sites filtrent encore `user=user`) —
+    # une porte à moitié ouverte, pire qu'une porte fermée. On reste donc propriétaire-seul
+    # jusqu'au portage complet des chemins de LECTURE.
+    generations = ImageGeneration.objects.filter(
+        user=user,
         parent_generation__isnull=True  # Only show top-level generations
     ).order_by('-created_at')
 

@@ -1,13 +1,21 @@
 from django.db import models
 from django.contrib.auth.models import User
-from wama.common.models import ProcessingTimeMixin
+from wama.common.models import ProcessingTimeMixin, ScopedManager, ScopedVisibility
 from wama.common.utils.media_paths import UploadToUserPath, upload_to_user_input
 
 
-class Enhancement(ProcessingTimeMixin, models.Model):
+class Enhancement(ProcessingTimeMixin, ScopedVisibility):
     """
     Represents an image or video enhancement task.
+
+    Partageable (PROFILES_PERMISSIONS §7) : privée par défaut, partage possible à l'unité, à un
+    projet ou publiquement. **Lecture seule par construction** — les chemins de LECTURE (liste,
+    progression, téléchargement, batchs) passent par `visible_to(user)`, tout ce qui mute reste
+    sur le propriétaire. Enhancer est porté en premier car c'est l'app la plus mature de la
+    grille mesurée (89,6 % au 31/07).
     """
+
+    objects = ScopedManager()
     # Ingest URL déclaratif — consommé par la brique commune
     # common/utils/source_ingest.ensure_local_input() au démarrage de la tâche.
     WAMA_INGEST = {
@@ -114,11 +122,15 @@ class Enhancement(ProcessingTimeMixin, models.Model):
         return os.path.basename(self.output_file.name) if self.output_file else ''
 
 
-class AudioEnhancement(ProcessingTimeMixin, models.Model):
+class AudioEnhancement(ProcessingTimeMixin, ScopedVisibility):
     """
     Represents an audio speech enhancement task.
     Engines: Resemble Enhance (quality) | DeepFilterNet 3 (speed).
+
+    Partageable — mêmes règles que `Enhancement` (PROFILES_PERMISSIONS §7).
     """
+
+    objects = ScopedManager()
     # Ingest URL déclaratif (brique commune, cf. Enhancement.WAMA_INGEST).
     WAMA_INGEST = {
         'source': 'source_url',
