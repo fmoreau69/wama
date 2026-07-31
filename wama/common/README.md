@@ -84,6 +84,21 @@ elle lit le **catalogue**.
 | `_global_progress.html` + `wama-eta.js` (+ `eta_estimator` serveur) | | barre globale + moteur ETA — **jamais d'ETA par app** |
 | `queue_duplication.py`, `batch_parsers.py`, `batch_import.js`, `media-picker.js` (chargé globalement) | `utils/`, `static/` | duplication/suppression sûres, imports batch, médiathèque |
 | `output_format_params_for_app` | `utils/output_formats.py` | params format/qualité de sortie (domaine + early/late binding déduits d'APP_CATALOG) |
+| Réception « Envoyer vers app » | `static/common/js/wama-app-base.js` | listener `wama:fileimported` **GÉNÉRIQUE** (2026-07-31) : cible l'app via `window.WAMA_CURRENT_APP` (posé par `base.html` depuis `APP_CATALOG`). Il était recopié à l'identique dans **7 apps**, dont 3 l'avaient oublié. Une app qui sait intégrer l'item SANS recharger (reader : insertion de card) pose `detail.handled = true` ; le repli commun est reporté d'un tick pour rendre cette échappatoire possible. |
+
+### Reclaim VRAM (une SEULE mécanique — 2026-07-31)
+| Brique | Fichier | Rôle |
+|---|---|---|
+| Registre d'instances RÉSIDENTES | `backends/base.py` (`_LIVE_BACKENDS`, `unload_app_backends`) | `BaseModelBackend` enveloppe déjà `load`/`unload` à **toute profondeur d'héritage** : il tient donc un `WeakSet` des backends chargés et **enregistre l'unloader de l'app à la première résidence réelle**. Une app sous contrat n'a **rien à déclarer**. |
+| `register_vram_unloader(name, fn)` | `model_manager/services/memory_manager.py` | déclaration EXPLICITE, réservée à ce qui échappe au contrat de backend : modèle en variable de module (describer/BLIP), pipeline caché (transcriber/pyannote). Plusieurs unloaders par app admis (`<app>` + `<app>-suffixe`). |
+| `vram_reservation(owner, gb)` | `common/services/resource_governor.py` | modèles **HORS PROCESS** (sous-processus) — l'héritage ne s'y applique pas, rien n'est résident dans le worker. Adopté : avatarizer. |
+
+> ⚠ **Deux `release_vram` homonymes, sémantiques opposées** — ne pas les confondre :
+> `resource_governor.release_vram(owner)` efface une ligne de **comptabilité** Redis ;
+> `MemoryManager.release_vram(exclude)` **décharge réellement** les modèles via le registre.
+> Les unloaders codés en dur par app (`_unload_<app>_model`) ont été SUPPRIMÉS : ils formaient une
+> seconde liste à tenir à jour, et trois d'entre eux (anonymizer, synthesizer, enhancer) faisaient
+> un `gc.collect()` puis retournaient `True` — succès annoncé, VRAM non libérée, indétectable.
 
 ### Pilier prompts (JAMAIS par app)
 `PROMPT_TARGETS` (déclaration) → `prompt_pipeline.py` (orchestre) → `lang_routing.py` (décide via

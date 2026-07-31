@@ -29,6 +29,23 @@
 Ce n'est donc PAS « deux sources qui se contredisent » : c'est **une source riche (APP_CATALOG + briques
 communes) et des vues partielles/simplifiées (GENERIC_APPS, modales hand-built) à régénérer depuis elle**.
 
+> **Pourquoi ces écarts existent — cadrage (Fabien, 2026-07-31).** Les applications ont été construites
+> **au fur et à mesure, AVANT la centralisation des mécanismes**. Les divergences relevées dans ce
+> document ne sont donc pas des erreurs de conception ni des régressions : ce sont les **traces d'une
+> antériorité**. Chaque app a résolu son problème avec les moyens de son époque, puis la brique commune
+> est arrivée après.
+>
+> Deux conséquences pratiques, qui doivent guider la lecture de tout ce document :
+> 1. **Ne pas lire un écart comme une faute.** Le vocabulaire local d'une app (`total`/`done_count`
+>    de l'avatarizer, `supports_cloning` du synthesizer, la cascade OCR du reader) était correct
+>    quand il a été écrit. Le travail est de le **traduire** vers le contrat commun, pas de le corriger.
+> 2. **Le danger n'est pas l'écart, c'est le DOUBLON silencieux.** Tant qu'une app fait « à sa façon »,
+>    c'est visible et inoffensif. Le vrai risque naît quand la brique commune est posée **à côté** de
+>    l'ancien mécanisme sans le retirer : deux listes à tenir (reclaim VRAM), deux sélecteurs qui
+>    divergent (seuil de 10 Go du reader vs `vram_gb` du catalogue), ou un mécanisme **présent mais
+>    inerte** (alias de classe sur `BaseModelBackend` ; `data-duplicate-url` posé sans la classe
+>    `.duplicate-btn` attendue par `queue-actions.js`). **Porter = remplacer, jamais juxtaposer.**
+
 ---
 
 ## 1. La carte des registres — « qui déclare, qui tire » (réponse à la question de fond)
@@ -178,11 +195,24 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   catalogue vide/model_manager KO ; pont granularité backend↔model_key via `_backend_for_model_key`).
   anonymizer a **son propre** sélecteur (dupliqué). Converter = **pas de modèle** (ffmpeg/pandoc) →
   `models: null` doit être toléré.
-- **Reclaim/coordination VRAM** (brique commune neuve 2026-07-24, `memory_manager.py`) : registre d'unloaders
-  `register_vram_unloader(name, fn)` + `MemoryManager.release_vram(exclude)` / `ensure_free_vram(needed_gb)`.
-  Chaque app DÉCLARE comment libérer sa VRAM (ex. transcriber dans `apps.py ready()`) → reclaim cross-app
-  AVANT un `load()`. Complète `select_model()` (qui choisit *quel* modèle mais ne libère rien). ADOPTION
-  1/10 (transcriber) ; `_unload_{synthesizer,enhancer,anonymizer}_model` restent des stubs no-op.
+- **Reclaim/coordination VRAM** — ✅ **UNIFIÉ 2026-07-31** (`1c31c94`). Le diagnostic « adopté 1/10 »
+  était trompeur : le problème n'était pas l'adoption mais **TROIS mécaniques concurrentes**, dont deux
+  dans le même fichier — (1) le registre `_VRAM_UNLOADERS`, (2) `MemoryManager._unload_<app>_model()` +
+  `_unload_all_backends()` qui énuméraient les apps EN DUR (une app adoptant (1) était invisible de (2)
+  et réciproquement ; le transcriber était dans les deux, logique écrite deux fois), (3)
+  `resource_governor.release_vram(owner)`, **homonyme exact** de `MemoryManager.release_vram(exclude)`
+  mais de sémantique opposée (effacer une ligne de comptabilité Redis vs décharger réellement).
+  Trois des unloaders en dur (anonymizer, synthesizer, enhancer) faisaient un `gc.collect()` puis
+  retournaient **`True`** : succès annoncé, rien libéré, **indétectable**.
+  **Levier retenu** : `BaseModelBackend` enveloppant déjà `load`/`unload` à toute profondeur, il tient
+  désormais un registre d'instances résidentes (`_LIVE_BACKENDS`, WeakSet) et **enregistre l'unloader de
+  l'app à la première résidence réelle** → 6 apps couvertes **sans boilerplate**, présentes et futures.
+  Déclaration explicite réservée au hors-contrat (describer/BLIP en variable de module,
+  transcriber/pyannote), **dans l'`apps.py` de l'app** — auparavant le model_manager devait connaître
+  les internes de chaque app. `unload_model()` route par préfixe d'app et répond `False` en l'absence
+  d'unloader. Hors process (sous-processus) → `vram_reservation` (avatarizer).
+  ⚠ Non applicable au synthesizer : il ne charge **rien** en process (aucun `torch`, aucun
+  `from_pretrained` — tout part au service TTS).
 - **Redondances** : `ModelType`/`ModelSource` dupliqués (`models.py` + `model_registry.py`) ; capabilities
   canonicalisées dans la découverte, pas dans les `model_config` d'app.
 - **Manifeste** : `models.{consumes, selection:{strategy: select_model|app_custom|fixed, requires, classes,
@@ -303,7 +333,8 @@ réversible / `verify`). On préserve tout le riche, on régénère le simplifi�
 | 2 | modale **batch** jamais rendue par WamaParams (hand-built partout) | F3 | adoption |
 | 3 | studio `renderNodeParams` appauvri (réinvente WamaParams en dégradant) | F3/F8 | réinvention à supprimer |
 | 4 | ✅ **périmé (2026-07-30)** — le front consomme bien `?side=during` (`wama-inspector.js::_startDuring`). Trou RÉEL reformulé : l'**émission** de partiels n'existe que dans le composer (1/10) | F3b | adoption, pas frontend |
-| 5 | `select_model()` adopté par 2 apps / 10 (composer + transcriber ; anonymizer = sélecteur concurrent) ; reclaim VRAM commun adopté 1/10 | F4 | adoption |
+| 5 | `select_model()` : composer, transcriber, imager, **reader** (2026-07-31, `61a666f`). Reclaim VRAM ✅ **unifié** (cf. F4). Ce qui restait n'était PAS un trou : enhancer/avatarizer/synthesizer n'ont **aucune sélection automatique à faire** (l'utilisateur désigne, ou le modèle vit hors process) ; describer = unification différée par CLAUDE.md (Phase 4) ; anonymizer = `select_best_models()` couvre un **jeu de classes avec plusieurs modèles** là où la brique n'en choisit qu'un, et lit déjà le catalogue → sur-ensemble légitime | F4 | ✅ pour l'essentiel |
+| 5b | **Capacités canoniques** ✅ (2026-07-31, `8ffac24`) : `inputs_required/optional` n'était produit que par **2 découvertes sur 9** → `WamaInputMatch` n'avait rien à comparer (c'est la cause de `input_match_ui` 9/10 KO, pas un défaut d'UI). Les 98 modèles portent désormais `task` + `modalities` + `inputs_*`, zéro clé hors `CANONICAL_CAPABILITIES`. ⚠ La canonicalisation se fait **à la DÉCOUVERTE**, pas dans les `model_config` d'app : frontière **délibérée** (l'app déclare en son vocabulaire, le catalogue est la source unique) | F4 | ✅ |
 | 6 | **statuts non uniformes** → 3 tables d'alias | F5 | dette de schéma |
 | 7 | gating d'app **non ré-appliqué au RUN** d'un pipeline studio | F7 | sécurité |
 | 8 | **pas de test de contrat** sur la triade tool_api | F6 | robustesse |

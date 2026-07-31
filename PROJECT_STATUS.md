@@ -582,8 +582,27 @@ describer), ETA commune (eta_estimator + WamaEta), batch import unifié (balises
 multi-délimiteurs/positionnel + template généré), catégories d'apps + couleurs d'identité
 dérivées (menu/accueil//apps/ générés du catalogue).
 
+> ⚠️ **Les scores `x/40` ci-dessous sont DATÉS (grille de juillet 2026) — ne plus les lire comme
+> « conformité totale ».** La grille est passée à **72 critères le 2026-07-31** : elle ne mesurait
+> que F1–F5 (dont 25 critères pour la seule F5) et était **aveugle** au contrat backend, au reclaim
+> VRAM, au tirage, aux capacités canoniques, aux prompts, aux permissions et au nœud studio. Un
+> « 40/40 » de l'époque vaut aujourd'hui ~85 % (converter mesuré 86 % au 2026-07-31, sur 60 critères
+> applicables). **Source vivante : `logs/conformity_report.json` (`/apps/`), jamais ces lignes.**
+
+**Photo MESURÉE au 2026-07-31** (grille 72 critères, dénominateur variable — un critère non
+applicable sort du calcul) :
+
+| app | score | app | score |
+|---|---|---|---|
+| enhancer | **89 %** (60/67) | describer | 79 % (53/67) |
+| converter | **86 %** (52/60) | anonymizer | 60 % (42/72) |
+| transcriber | **85 %** (57/68) | imager | 56 % (39/72) |
+| composer | 84 % (60/72) | avatarizer | 65 % (42/67) |
+| synthesizer | 82 % (58/70) | reader | 80 % (55/68) |
+
 **Restent à porter (5)** — ordre recommandé :
-1. ~~**Reader**~~ ✅ porté (4e app — 33/40 mesuré au 2026-07-26, écarts résiduels au rapport) ;
+1. ~~**Reader**~~ ✅ porté (4e app — 33/40 mesuré au 2026-07-26, écarts résiduels au rapport ;
+   **80 % sur la grille à 72 au 2026-07-31**, après bascule sur `select_model`) ;
 2. ~~**Converter**~~ ✅ **PORTÉ À 100 % MESURÉ (40/40) — 2026-07-26, 1re app à conformité
    totale** : 14 écarts comblés en une session (triade tool_api, console, Help/About, gabarit
    batch, WAMA_INGEST+`source_url` (migration 0006 ×2 bases), slot médiathèque, footer modale
@@ -2241,9 +2260,63 @@ travail**. La base LIVE est celle de **WSL2 (Postgres 16)**, conforme à
 exécute WAMA nativement sous Windows (`venv_win runserver`) ; sinon c'est une taxe d'entretien
 supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 
-## §REPRISE — handoff 2026-07-30 (session « contrat backend + tirage »)
+## §REPRISE — handoff 2026-07-31 (session « grille élargie + unification F4 + avatarizer »)
 
-> **PREMIÈRE ACTION RECOMMANDÉE : compléter `common/services/conformity_checker.py`.**
+> **CADRAGE, à lire avant tout le reste (Fabien, 2026-07-31).** Les apps ont été construites
+> **au fur et à mesure, AVANT la centralisation des mécanismes**. Les écarts mesurés par la grille
+> ne sont donc pas des fautes : ce sont des **traces d'antériorité**. Porter une app = **traduire**
+> son vocabulaire local vers le contrat commun. Le danger n'est pas l'écart — c'est le **doublon
+> silencieux** créé quand on pose la brique commune *à côté* de l'ancien mécanisme sans le retirer.
+> **Porter = remplacer, jamais juxtaposer.** (Développé : `WAMA_APP_GENERATION_ROUTE.md` §0.)
+>
+> ### Fait ce jour
+>
+> 1. **Grille : 40 → 72 critères mesurés** (`ccbc48f`), les 8 facettes couvertes —
+>    **F1:4 · F2:9 · F3:13 · F4:9 · F5:27 · F6:5 · F7:3 · F8:2**. Le dénominateur **varie par app**
+>    (60–72) : un critère peut être **non applicable** (état `None`) et sortir du calcul — tout F4
+>    pour le converter (ffmpeg/pandoc), les critères prompt pour une app sans champ prompt.
+>    5 booléens encore *déclarés* sont passés en *mesurés* (`filemanager_import`, `recursive_import`,
+>    `modes`, `layout`, `during_preview`) — ce sont ceux qui dérivaient.
+> 2. **Reclaim VRAM unifié** (`1c31c94`) — 3 mécaniques concurrentes réduites à 1 ; auto-enregistrement
+>    par `BaseModelBackend`. Détail en F4 de la route.
+> 3. **Capacités canoniques** (`8ffac24`) — 98 modèles portent `task`+`modalities`+`inputs_*`.
+> 4. **Reader → `select_model`** (`61a666f`) ; **avatarizer 55 → 65 %** (`db21e62`).
+> 5. Trous rapides (`31b1edd`) : garde anti-crash converter+reader, réception filemanager **en brique
+>    commune** (7 copies supprimées, 3 apps oubliées récupérées), cards d'entrée repliables.
+>
+> ### ⚠ QUATRE de mes propres critères mesuraient FAUX — vérifier avant de porter sur un score
+>
+> | Critère | Erreur de mesure |
+> |---|---|
+> | `during_preview` | Le trou #4 de la route était **périmé** : `wama-inspector.js::_startDuring` consomme bien `?side=during`. Le trou réel = 1 app sur 10 **émet** un partiel. |
+> | `model_caps_canonical` | Cherchait le vocabulaire canonique dans les fichiers de l'app → sanctionnait une frontière **délibérée**. Se mesure dans la **découverte**. |
+> | `select_model` | Comptait comme trous 3 apps sans aucune sélection à faire. |
+> | `vram_unloader` | Faux négatif sur le synthesizer (aucun modèle en process). |
+>
+> **Règle qui en découle : un critère rouge se confronte au code AVANT d'être porté.** Deux fois
+> ce jour, la cible évidente était la mauvaise.
+>
+> ### Prochaine action
+>
+> **Finir l'avatarizer** (65 %, 21 écarts). Restent : F5 file (`card_html_endpoint`, `cycle_button`,
+> `wama_card`, `processing_time` — ⚠ **migration sur les DEUX bases**) · F3 UI (`card_chips`,
+> `model_help`, `inspector_actions`, `model_caps_ui`) · **F4 à trancher** : l'avatarizer lance
+> MuseTalk/CodeFormer en **sous-processus**, donc `backend_contract`/`backend_packages`/
+> `hf_cache_isolation` sont probablement des **faux négatifs** (même famille que le synthesizer) →
+> si confirmé, dénominateur 64 et portage réel ≈ 70 %. **Question ouverte, non tranchée seul.**
+>
+> Ensuite : **imager** (56 %, chantier long) et **anonymizer** (60 %).
+>
+> ⚠️ **Avant tout test réel** : redémarrer les workers WSL2 (ils tiennent l'ancien `model_registry`
+> en mémoire). `sync_models` a été passé ce jour (99 modèles, +1 = `glm-ocr`).
+>
+> ---
+>
+> <details><summary>Handoff précédent — 2026-07-30 (« contrat backend + tirage »), conservé pour la
+> leçon de méthode</summary>
+>
+> **PREMIÈRE ACTION RECOMMANDÉE : compléter `common/services/conformity_checker.py`.** ✅ **FAIT**
+> le 2026-07-31 (40 → 72).
 > Motif mesuré ce jour : la grille compte 40 critères répartis **F1:3 · F2:5 · F3:6 · F4:1 ·
 > F5:25 · F6/F7/F8:0**. C'est une mesure de F5, pas du portage. Un audit humain comptait
 > **54 mécanismes** — l'écart n'est pas une erreur d'audit, c'est la grille qui ne voit pas.
@@ -2272,6 +2345,8 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > `INPUT_MODEL_MATCHING.md`, `wama/common/README.md`, puis le pattern « résoudre l'auto au
 > lancement » que composer appliquait déjà. Les deux documents sont raccrochés au graphe et le
 > skill `/port-app` porte désormais la règle : **lire l'app qui l'a déjà fait avant d'écrire.**
+>
+> </details>
 
 ## §REPRISE — handoff 2026-07-29
 
