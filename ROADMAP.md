@@ -1497,6 +1497,59 @@ rattraper), la garantie de sûreté aussi.
 ⚠ Non vérifié : nom de fichier exact et liste complète des champs du manifeste de plugin Hermes, et
 nom du groupe d'`entry_points` (le site coupe la connexion ; lu via le dépôt uniquement).
 
+### 16.8 Twenty (CRM open source) — confrontation (2026-07-30)
+
+Point de comparaison **plus pertinent qu'Hermes** : Twenty est métadonnée-driven de bout en bout et a
+résolu en production ce qui nous bloque. **Il valide notre formalisme plutôt qu'il ne le conteste.**
+
+**Convergence indépendante** : l'unité centrale de Twenty est un **manifeste** (`src/manifest.ts`,
+typé `TwentyAppManifest` : `name`, `label`, `version`, `objects`, `functions`, `permissions`,
+`settings`), avec des définitions **par unité** (`defineObject`, `defineField`, `defineLogicFunction`)
+et des registres derrière. Un manifeste = une unité. Deux projets sans lien ont convergé vers la même
+forme — c'est un argument fort pour ne PAS dévier du formalisme WAMA.
+
+**NE PAS remplacer notre génération d'apps** : (a) l'unité d'extension de Twenty est un **objet de
+données** (deal, person) + champs — la nôtre est une **capacité de traitement média** (empreinte GPU,
+ports, file, ETA) : le modèle objet ne transfère pas ; (b) substrat TS/NestJS vs Python/Django/Celery
+— la valeur de Twenty est dans son runtime, non transportable ; (c) `GENERIC_APPS` est à **10/10**,
+remplacer jetterait un acquis mesuré. À écarter aussi : le DSL TypeScript et les conteneurs par app.
+
+**À EXTRAIRE — 3 éléments, par valeur décroissante :**
+
+**1. Le pipeline d'apply UNIFIÉ — la leçon de fond.** Twenty a *« a unified manifest apply pipeline
+shared between application install and dev sync »* : **un seul chemin d'application, deux points
+d'entrée** (installation d'app / synchro de développement). ⇒ **Diagnostic de notre blocage** : notre
+projection est conçue comme une opération **rare et dangereuse**, donc jamais exercée, donc jamais
+fiable, donc laissée en dry-run (1 kind/6, cf. §16.7 et `WAMA_MANIFEST_ARCHITECTURE.md` §7). Twenty la
+rend **fréquente** : le dev-sync la déclenche en continu et toute non-idempotence saute aux yeux
+immédiatement. **Inversion à adopter** : ne pas construire « la projection » comme un chantier à part,
+mais **UN apply** branché d'abord sur le cas le moins risqué. Le live-sync n'est alors pas une
+fonctionnalité de plus — c'est le **banc d'essai qui rend la projection sûre**.
+
+**2. Permissions déclarées et granulaires — PRÉREQUIS, pas confort.** Twenty déclare dans le manifeste
+ce que l'app demande : `permissions: [{ object: 'person', actions: ['read','write','delete'] }]`,
+au-dessus d'un système multi-couches **objet / champ / ligne**. ⚠ Ne PAS dire que WAMA n'a rien :
+`ScopedVisibility` (`common/models.py:184`) offre déjà 4 niveaux — `private` / `project` / `unit` /
+`public` — avec hiérarchie `OrgUnit` (labo→équipes) et un scope **projet qui traverse les orgs**
+(partenaires externes), filtré par `scoped_visible_q()`. C'est un modèle **ligne**, solide sur l'axe
+**organisationnel**. Ce qui manque est ailleurs : **l'axe ACTION** (read / write / delete) et **l'axe
+CHAMP**. Or c'est exactement l'axe action qu'un manifeste généré par LLM doit déclarer — « qui peut
+voir » ne borne pas « ce que la capacité peut faire ». ⚠ **C'est un prérequis de la vision « l'assistant explore, un LLM
+local écrit le manifeste, le reste est automatique »** : un manifeste écrit par un LLM **sans surface
+de permission déclarée est une capacité non bornée**. Faisabilité favorable : la seule facette que
+WAMA projette déjà est justement `access` → `AppAccessPolicy` ⇒ passer du binaire à des permissions
+granulaires **réutilise le seul chemin d'apply qui fonctionne**. Extraction la moins risquée du lot.
+
+**3. `settings` typés avec type `secret`** (`required`, `defaultValue`) — **même réponse que le
+`requires_env` d'Hermes, atteinte indépendamment** : deux systèmes sans lien déclarent les secrets
+**dans le manifeste**. Vu l'externalisation des secrets en `.env`, déclarer par manifeste ce qu'une
+capacité exige ferme la boucle, à faible coût.
+
+⚠ Non vérifié : mécanisme d'isolation exact de Twenty (les notes évoquent un *local function runner*
+à IPC, donc plutôt processus séparé que V8 isolate). De toute façon besoin différent — Twenty est un
+SaaS multi-tenant ; chez nous l'isolation est déjà au bon endroit (`UserFunction` + sandbox
+`Manifest` + `ScopedVisibility`, F7).
+
 **Décision** :
 1. **PAS d'adoption comme couche d'orchestration de prod.** Un agent qui écrit et exécute son propre
    code, sur serveur UGE, sur données de recherche ⇒ revue RSSI, pas décision d'intégration.
@@ -1508,6 +1561,12 @@ nom du groupe d'`entry_points` (le site coupe la connexion ; lu via le dépôt u
    du signal (accepté / corrigé / rejeté / relancé). **Toutes** les boucles d'auto-amélioration
    visées (résultat, enrichissement de prompt, prospection de modèles) sont bloquées sur son absence,
    et aucun framework ne récupérera ce signal rétroactivement.
+   ⚠ **Capture IMPLICITE obligatoire, jamais un formulaire de notation.** Leçon transposée d'un SI de
+   labo réel : les chaînes qui vivent sont celles où le contributeur obtient quelque chose *au moment
+   où il saisit* ; celles qui reposent sur la bonne volonté (« notez ce résultat pour améliorer le
+   système ») meurent, même bien conçues. ⇒ `RunOutcome` se nourrit de ce que l'utilisateur fait
+   **déjà** — téléchargé / relancé / supprimé / corrigé — et **jamais** d'un geste ajouté pour le
+   bénéfice du système.
 4. Garde-fous §16.5 applicables tels quels ; métrique d'abord, boucle ensuite, autonomie en dernier
    (un agent qui réécrit ses prompts sans métrique mesurée **dérive** au lieu de s'améliorer).
 

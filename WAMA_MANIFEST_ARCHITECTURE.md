@@ -254,6 +254,17 @@ pas dans les intentions :
 en dry-run par défaut. **Un manifeste de modèle ne crée aujourd'hui aucun `AIModel`.** Le manifeste
 est donc la source **par architecture**, le registre l'est encore **en pratique** pour 5 kinds sur 6.
 
+**`apply` n'est PAS une sur-couche de l'ingest** — ce sont les **deux moitiés de la même traversée** :
+`ingest` = le pont gaté qui fait *entrer* le manifeste et le commit dans le store ; `project` = la
+*sortie* qui met la réalité en correspondance. L'« apply » de Twenty, c'est **les deux en une seule
+transaction**. La chaîne se lit donc :
+
+> demande → LLM → manifeste → **apply ( = ingest ∘ project )** → mécanismes → UI
+
+⚠ Défaut actuel : nos deux moitiés sont **découplées**. On peut ingérer sans projeter (c'est le cas
+pour 5 kinds/6) ⇒ le store et la réalité peuvent **diverger silencieusement**, sans rien qui le
+signale. L'apply n'ajoute pas une couche : il **referme un circuit ouvert**.
+
 **Pourquoi c'est coûteux ici** — comparaison Hermes (cf. `ROADMAP.md` §16.7) : leur registre est
 **éphémère**, rebâti par scan à chaque démarrage ⇒ pas de write-back, donc ni idempotence ni
 réversibilité à garantir. Nos registres sont **persistés et vivants** (ils servent les pages de
@@ -266,6 +277,11 @@ formalisme s'y combinent **champ par champ** :
   remontés par `verify`) : version installée, dérive dev/prod ;
 - **déclaré** (le manifeste est l'origine, précédent `dataset`) : `apps_dépendantes`,
   `fonctions_exposées`, `criticité`, `version_min`, `licence`, `dernier_audit`.
+
+⚠ `library` ne peut PAS être « Python seulement » : une UI spécialisée tire presque toujours une lib
+**front** (cartographie pour le Lab, forme d'onde pour le Transcriber). Prévoir un axe
+**`runtime: python | js`** dès la conception — côté JS la lib hérite de la règle « assets vendorés en
+local, jamais de CDN ». Même cycle de vie cumulatif : ingérée une fois, elle reste.
 
 Intérêt : **aucun registre hérité à réconcilier** — son registre *naîtrait de* la projection au lieu
 de la précéder. Terrain vierge pour prouver la chaîne `library.fonctions_exposées` → manifestes

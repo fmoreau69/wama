@@ -358,3 +358,31 @@ réversible / `verify`). On préserve tout le riche, on régénère le simplifi�
 - **Chaînage manifeste** : chaque facette ci-dessus renvoie à `WAMA_MANIFEST_SPEC §Fx` (déclaration) et la
   carte `WAMA_MANIFEST_ARCHITECTURE §3` (facette→mécanisme). Toute évolution d'un mécanisme doit mettre à jour
   la facette correspondante ici ET son pendant manifeste.
+
+---
+
+## 13. PROPOSITION (non validée) — N archétypes déclarés, pas une UI générique
+
+> Issue de la confrontation Twenty (`ROADMAP.md` §16.8), **posée pour discussion**, pas actée.
+
+**Constat** : la génération actuelle ne sait produire que des apps partageant **le même gabarit d'UI**
+(`GENERIC_APPS` + `build_generic_runner()`, 10/10). D'où la tentation de viser une « génération d'UI
+quelconque ».
+
+**Objection** : Twenty ne génère pas d'UI arbitraire non plus — il génère **dans une coquille**, à des
+points d'extension déclarés, avec un contrat de composants. Et l'UI arbitraire est **contraire au
+principe 2 de WAMA** (« l'utilisateur doit retrouver les mêmes gestes partout » — l'homogénéité est un
+objectif de design). La bonne question n'est donc pas « gabarit ou pas », mais **un archétype contre
+plusieurs archétypes déclarés + emplacements** (= principe 4, « spécificités déclarées »).
+
+**Point encourageant : les archétypes existent DÉJÀ dans le code, non déclarés.**
+
+| Archétype | Incarnation actuelle | État |
+|---|---|---|
+| File d'attente média | `GENERIC_APPS` + `build_generic_runner()` | déclaré, 10/10 |
+| Canvas / overlays / mini-carte | `wama_lab/cam_analyzer` | **construit à la main** |
+| Timeline / segments / heatmap | éditeur de correction Transcriber | **construit à la main** |
+
+⇒ Le chantier n'est **pas** d'inventer une génération d'UI, mais d'**extraire et déclarer les
+archétypes déjà présents**, comme cela a été fait pour F1–F8. À arbitrer avant tout engagement : c'est
+un chantier de nature très différente de « générer des UI », et il ne doit pas être lancé par défaut.
