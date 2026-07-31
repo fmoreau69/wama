@@ -78,6 +78,16 @@ travail est de CONSOMMER, pas de créer. Route d'ensemble : `WAMA_APP_GENERATION
    `initFromSchema` ; contrat `.wama-card`.
 9. ETA : `eta_estimator` + `WamaEta` ; temps réel persisté `ProcessingTimeMixin`.
 10. Réglages user : `user_settings.py` ; toasts : `WamaApp.toast` (jamais alert()).
+11. **Partage (F7, depuis 2026-07-31)** — mesuré par `shareable_models` + `scoped_reads` :
+    `class Card(…, ScopedVisibility)` + `objects = ScopedManager()`, **ET IDEM SUR LE MODÈLE DE
+    BATCH** (la file est bâtie à partir des batchs : une card partagée sans son batch n'apparaît
+    pas), migration, puis chemins de LECTURE (progress/download/status) → `visible_or_404`
+    (`common/utils/scoping.py`). Ce qui mute reste inchangé → lecture seule par construction.
+    Détail : `PROFILES_PERMISSIONS §7.4bis`. **Ne pas porter à moitié** : une card visible dans la
+    file mais qui 404 au clic est pire que pas de partage.
+12. **Prompt (si l'app en a un)** : hériter de `PromptScoped` + déclarer
+    `'model': '<app>.<Modèle>'` dans `PROMPT_TARGETS` + `apply_prompt_state()` dans la vue de
+    sauvegarde = 3 lignes, le reste est générique (`PROMPT_PIPELINE.md`).
 
 ## 2. Pièges récurrents (chacun a déjà coûté une session)
 - `{# #}` multi-ligne Django PAS strippé → toujours `{% comment %}`.

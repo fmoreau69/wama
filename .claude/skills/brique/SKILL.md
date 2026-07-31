@@ -9,6 +9,16 @@ Règle CLAUDE.md : tout code utilisé par plus d'une app va dans `wama/common/`.
 à copier-coller entre apps, c'est LE signal d'extraire d'abord.
 
 ## 1. Avant d'écrire — la brique existe-t-elle déjà ?
+
+> ⛔ **Étape non négociable, elle prend 2 minutes.** Sautée le 2026-07-31 : j'ai raisonné pendant
+> trois apps avant de découvrir que la file est construite par `batch_common.build_batches_list()`
+> + `queue_view.py` — donc UN seul domicile pour les 10 apps, pas dix. Lire la facette F d'abord.
+
+```bash
+ls wama/common/utils/ wama/common/services/ wama/common/static/common/js/
+grep -nE "^#{2,3} " WAMA_APP_GENERATION_ROUTE.md        # repérer la facette F concernée
+```
+
 - Grep `wama/common/utils/`, `templates/common/`, `static/common/js/` + l'index
   `WAMA_APP_CONVENTIONS §12.2` + `WAMA_APP_GENERATION_ROUTE.md` (facette concernée).
 - Grep `app_registry.py` avant toute nouvelle taxonomie (piège récidivé 3× : MEDIA_CATEGORIES,
@@ -25,6 +35,18 @@ Règle CLAUDE.md : tout code utilisé par plus d'une app va dans `wama/common/`.
   codent pas en dur dans la brique.
 
 ## 3. Adopter immédiatement (une brique sans consommateur = dette)
+
+> ⚠ **Piège distinct : brique JUSTE, prise FAUSSE.** Une brique correcte peut être branchée à la
+> main (identifiants de champs en dur dans le JS d'une app, récepteur `post_save` recopié par app,
+> logique réimplémentée dans chaque vue). Elle marche, mais **ne se propage pas** : le porter vers
+> la 2e app demande de recopier le câblage. Test : *« que doit écrire la prochaine app ? »* — si
+> la réponse est « plus de trois lignes », le branchement doit être **déduit d'une déclaration**
+> (ex. `PROMPT_TARGETS[...]['model']` → récepteur générique ; convention `dom_id` de `params.py`).
+> Vécu 2026-07-31 : ~20 lignes par app, généralisées ensuite en mixin + récepteur + helper.
+
+- Regarder **comment les autres apps consomment** une brique voisine (déclaration ? schéma ?)
+  avant de choisir le mode de branchement. 8 apps sur 10 passent par `WamaParams` — s'en écarter
+  doit être un choix motivé, pas un défaut.
 - Recâbler l'app source + au moins un 2e consommateur dans la même passe si possible.
 - Supprimer le code local remplacé (pas de double chemin) ; si la suppression doit attendre une
   validation navigateur → l'inscrire dans `REMOVAL_LEDGER.md` (R*).

@@ -28,3 +28,13 @@ Objectif : repartir de l'état RÉEL du projet, pas d'un souvenir. À dérouler 
 - Jamais de `cd` en préfixe de commande shell.
 - Commits par chemins explicites (jamais `git add -A`), au palier ; push = demander.
 - Pas de tests destructifs (`delete()` en masse) ; user id=1 = compte réel.
+- **Avant toute nouvelle brique** : lire la facette F concernée dans `WAMA_APP_GENERATION_ROUTE.md`
+  puis `ls wama/common/{utils,services}` et les JS communs (cf. `/brique §1`). Sauté le 31/07 →
+  briques de batch ratées et câblage à refaire.
+- **Une seule base de données depuis le 2026-07-31** : `settings._resolve_db_host()` fait pointer
+  le Django lancé depuis Windows sur le Postgres de WSL2. UN seul `migrate` suffit désormais (la
+  base Postgres de Windows est orpheline). Les migrations sont **gitignorées** (`.gitignore:8`) :
+  ne pas tenter de les commiter.
+- **Vérifier empiriquement, ne jamais deviner** un sélecteur, une URL (`reverse()`), un nom de
+  champ de modèle ou une commande : chaque supposition de la session du 31/07 a coûté un
+  aller-retour (`main`, `Project(slug=…)`, URLs enhancer, `BatchEnhancement(name=…)`).

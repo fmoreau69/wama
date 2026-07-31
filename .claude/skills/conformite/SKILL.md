@@ -1,6 +1,6 @@
 ---
 name: conformite
-description: Mesurer la conformité RÉELLE des apps WAMA (check_app_conformity, 72 critères couvrant les 8 facettes F1-F8) et trier les écarts en plan d'action. Utiliser après un palier de portage, quand l'utilisateur demande « où en est la conformité », « re-mesure », ou pour choisir la prochaine app/critère à porter. Le score n'est PAS l'avancement du portage : voir l'avertissement en tête du skill.
+description: Mesurer la conformité RÉELLE des apps WAMA (check_app_conformity, 74 critères couvrant les 8 facettes F1-F8) et trier les écarts en plan d'action. Utiliser après un palier de portage, quand l'utilisateur demande « où en est la conformité », « re-mesure », ou pour choisir la prochaine app/critère à porter. Le score n'est PAS l'avancement du portage : voir l'avertissement en tête du skill.
 ---
 
 # /conformite — Mesure réelle + triage
@@ -9,7 +9,8 @@ La grille `/apps/` est MESURÉE, plus déclarée : ne JAMAIS éditer à la main 
 `_conv(...)` d'`app_registry.py` pour les critères mesurés (le rapport les écrase).
 
 > 🔴 **CE QUE LE SCORE DIT — ET NE DIT PAS.** Répartition des critères (élargie 2026-07-30,
-> **40 → 72**) : **F1:4 · F2:9 · F3:13 · F4:9 · F5:27 · F6:5 · F7:3 · F8:2.** Les 8 facettes de
+> **40 → 72** ; puis **74** le 2026-07-31 avec les 2 critères de partage) :
+> **F1:4 · F2:9 · F3:13 · F4:9 · F5:27 · F6:5 · F7:5 · F8:2.** Les 8 facettes de
 > `WAMA_APP_GENERATION_ROUTE.md` sont désormais **toutes** couvertes — avant cet élargissement la
 > grille ne voyait que F1–F5 (dont 25 critères de F5 à eux seuls) et était donc **aveugle** au
 > contrat `BaseModelBackend`, à la déclaration VRAM, au tirage `select_model`, aux capacités
