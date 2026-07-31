@@ -219,6 +219,35 @@ def scoped_visible_q(user, owner_field='user'):
     return q
 
 
+class ScopedQuerySet(models.QuerySet):
+    """QuerySet des modèles `ScopedVisibility` : expose `visible_to(user)`."""
+
+    def visible_to(self, user, owner_field='user'):
+        """Objets que `user` a le droit de VOIR : les siens + publics + unité + projet."""
+        return self.filter(scoped_visible_q(user, owner_field=owner_field))
+
+    def owned_by(self, user, owner_field='user'):
+        """Objets que `user` a le droit de MODIFIER — aujourd'hui : les siens, point.
+
+        Le partage est en LECTURE SEULE par construction : les vues mutantes (start, delete,
+        enregistrement des paramètres) passent par ici, les vues de liste par `visible_to`.
+        L'écriture sur objet partagé viendra avec `ObjectGrant` (PROFILES_PERMISSIONS §7.3) ;
+        d'ici là, aucune vue ne peut accorder l'écriture par inadvertance.
+        """
+        return self.filter(**{owner_field: user})
+
+
+class ScopedManager(models.Manager.from_queryset(ScopedQuerySet)):
+    """
+    Manager par défaut des modèles partageables.
+
+    Pourquoi un manager et pas un helper : les droits par objet **fuient dans toutes les
+    requêtes** — il suffit d'une vue qui oublie le filtre pour tout ouvrir. En faisant de
+    `Model.objects.visible_to(user)` le chemin nommé, l'oubli devient visible à la relecture et
+    **mesurable** par la grille de conformité (PROFILES_PERMISSIONS §7.4).
+    """
+
+
 class UserFunction(ScopedVisibility):
     """Fonction de traitement CRÉÉE PAR UN UTILISATEUR (WAMA Data), stockée en BDD, avec
     confidentialité par scope (privée / partagée à une unité / publique). Distincte des

@@ -164,3 +164,69 @@ Préférences **par utilisateur** sur `UserProfile` :
 - **Redémarrer le serveur WSL2** pour charger le nouveau code (migration + seed déjà appliqués sur la base partagée).
 - **Les utilisateurs non-admin sans rôle ne voient que les apps communes** (converter). Leur **assigner des rôles** via l'admin, sinon accès réduit. (Décision possible : seed « soft » donnant tous les rôles aux users existants — non fait, à ta demande.)
 - admin/superuser & développeur **bypassent** → tu n'es pas verrouillé.
+
+---
+
+## 7. Partage d'objets (cards, sessions wama-lab) — état réel et cible (2026-07-31)
+
+> **Besoin** : partager une card / une session, **en lecture seule par défaut**, l'écriture ne
+> s'obtenant que **sur demande acceptée**. Premier usage concret : partager **1 card par app** avec
+> l'utilisateur de test du nocturne (`wama_nightly_test`), ce qui permet de tester la chaîne
+> complète **sans réingérer de fichiers d'entrée** (décision Fabien 31/07 — le partage *sert* les
+> tests au lieu d'être un chantier parallèle).
+
+### 7.1 Ce qui EXISTE (et qui est bon)
+
+| Brique | Fichier | État |
+|---|---|---|
+| `OrgUnit` — arbre LDAP/SUPANN | `common/models.py` | ✅ |
+| `Project` — collaboration **traversant l'arbre** (partenaires hors établissement) | `common/models.py` | ✅ |
+| `ProjectMembership` — rôles `lead`/`member`/`partner`/**`viewer` (lecture seule)** | `common/models.py` | ✅ |
+| `ScopedVisibility` — `private`/`unit`/`project`/`public` + filtre `visible_to_q(user)` | `common/models.py` | ✅ écrit |
+
+### 7.2 Ce qui MANQUE (les trois trous, mesurés)
+
+1. **L'ADOPTION.** `ScopedVisibility` n'est hérité que par **2 modèles** : `media_library.UserAsset`
+   et `common.UserFunction`. **Aucun** modèle de card d'app, ni les sessions wama-lab ; leurs vues
+   filtrent `user=user` en dur. Mécanisme **présent mais inerte** — le doublon silencieux contre
+   lequel le cadrage du 31/07 met en garde. **C'est le vrai chantier.**
+2. **L'AXE ÉCRITURE.** `visibility` dit qui **voit**. Il n'existe **aucun** droit d'écriture par
+   objet. `ProjectMembership.role` distingue `viewer` de `member`, mais c'est un rôle **de projet**,
+   pas un droit **sur un objet**.
+3. **LE WORKFLOW demande → acceptation.** Inexistant.
+
+### 7.3 Cible : UNE table générique, pas un troisième axe
+
+`ObjectGrant` : cible en clé générique (`content_type` + `object_id`), bénéficiaire = **user OU
+project OU org_unit**, `level = read|write`, `state = requested|granted|refused`, `granted_by`,
+`expires_at`.
+
+- **La demande ET le droit sont la même ligne** : demander l'écriture = un grant `requested/write`
+  que le propriétaire bascule en `granted`. Pas de second modèle à synchroniser.
+- **Une seule table pour tout** : cards des apps, sessions wama-lab, objets futurs. **Zéro code par
+  app** (règle de centralisation).
+- **Traçabilité gratuite** : `AccessLog` (accounts) existe déjà.
+
+### 7.4 Le danger, et sa parade
+
+Les droits par objet **fuient dans toutes les requêtes** : une seule vue qui oublie le filtre ouvre
+tout. Parade : rendre le chemin correct **le seul disponible** (manager `Model.objects.visible_to(user)`)
+**et en faire un critère de la grille de conformité** — l'adoption devient alors **mesurée**, pas
+espérée. C'est ce qui distingue cette cible de `ScopedVisibility`, écrit puis oublié sur 2 modèles.
+
+### 7.5 Ordre de mise en place (décidé 31/07)
+
+1. **Adopter `ScopedVisibility` sur les modèles de cards** + manager + critère de conformité.
+2. **Ensuite seulement** `ObjectGrant` et l'écriture sur demande.
+
+Construire l'escalade d'écriture sur une visibilité inerte reviendrait à empiler du neuf sur du
+non-branché.
+
+### 7.6 Prior art
+
+**Twenty** = la bonne référence : la leçon déjà retenue (*les permissions déclarées sont un
+prérequis à l'ingestion automatique par LLM*) impose que **le manifeste déclare** qu'un modèle est
+partageable et à quelle granularité — pas chaque app qui le code. Le partage se branche donc sur le
+chantier manifestes. **Hermes n'apporte rien ici** : son runtime a été écarté (second ordonnanceur
+GPU en production), seule l'idée des skills avait été retenue ; il n'a pas de modèle de permissions
+à emprunter.

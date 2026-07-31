@@ -49,9 +49,11 @@ def index(request):
     except Exception as exc:
         logger.debug(f"[imager] reconcile_orphaned_running ignoré: {exc}")
 
-    # Get user's generations (exclude batch children from main list)
-    generations = ImageGeneration.objects.filter(
-        user=user,
+    # Cards VISIBLES : les siennes + celles qu'on lui a partagées (unité / projet / public) —
+    # brique commune `ScopedManager`, cf. PROFILES_PERMISSIONS §7. C'est le chemin NOMMÉ : un
+    # `filter(user=user)` ici rendrait le partage inopérant sans que rien ne le signale.
+    # Les vues mutantes, elles, restent sur `owned_by()` → partage en lecture seule.
+    generations = ImageGeneration.objects.visible_to(user).filter(
         parent_generation__isnull=True  # Only show top-level generations
     ).order_by('-created_at')
 

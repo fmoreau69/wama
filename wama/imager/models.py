@@ -6,6 +6,7 @@ Image generation using Diffusers with multi-modal input support
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator, FileExtensionValidator
+from wama.common.models import ScopedManager, ScopedVisibility
 from wama.common.utils.media_paths import UploadToUserPath
 
 
@@ -159,8 +160,17 @@ def get_recommended_resolutions(model_name: str) -> list:
     ]
 
 
-class ImageGeneration(models.Model):
-    """Model for an image generation task"""
+class ImageGeneration(ScopedVisibility):
+    """Model for an image generation task.
+
+    `ScopedVisibility` (brique COMMUNE) : la card est privée par défaut et peut être partagée à
+    l'unité, à un projet ou publiquement — cf. PROFILES_PERMISSIONS §7. Le partage est en
+    **lecture seule par construction** : les vues de liste filtrent par `visible_to(user)`, les
+    vues mutantes gardent `owned_by(user)`. Aucune vue ne peut donc accorder l'écriture par
+    inadvertance avant que `ObjectGrant` (§7.3) n'existe.
+    """
+
+    objects = ScopedManager()
 
     STATUS_CHOICES = [
         ('PENDING', 'Pending'),
