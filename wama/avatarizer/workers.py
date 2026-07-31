@@ -162,8 +162,12 @@ def generate_avatar(self, job_id: int):
             audio_path = tmp_audio_path
             _console(job.user_id, "Audio TTS généré.", 'info')
         else:
+            # Import par URL : télécharger l'audio si pas encore de fichier local
+            # (mécanisme commun déclaratif ensure_local_input, spec WAMA_INGEST du modèle).
+            from wama.common.utils.source_ingest import ensure_local_input
+            ensure_local_input(job, console=lambda m: _console(job.user_id, m, 'info'))
             if not job.audio_input:
-                raise ValueError("Mode Standalone : aucun fichier audio fourni.")
+                raise ValueError("Mode Standalone : aucun fichier audio (ni URL) fourni.")
             audio_path = job.audio_input.path
 
         _set_progress(job, 20)

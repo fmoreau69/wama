@@ -111,6 +111,19 @@ APP_MODES = {
         ],
     },
 
+    # ── AVATARIZER (mono-domaine, mono-mode → AUCUN onglet/switch rendu ; décision route F2 :
+    # rapide/qualité = simple paramètre (quality_mode/use_enhancer), PAS un mode. L'entrée vaut
+    # surtout pour les PORTS : seul cas double-entrée du catalogue, image + audio requis.) ──
+    'avatarizer': {
+        'domains': [
+            {'id': 'video', 'label': 'Avatar parlant', 'icon': 'fa-user-astronaut', 'modes': [
+                {'id': 'standalone', 'label': 'Standalone', 'icon': 'fa-film',
+                 'inputs': ['work_image', 'work_audio'],
+                 'settings': ['quality_mode', 'use_enhancer', 'bbox_shift']},
+            ]},
+        ],
+    },
+
     # ── TRANSCRIBER (mono-domaine ; le MODE temps réel = « Speak », normal = fichier) ──
     'transcriber': {
         'domains': [

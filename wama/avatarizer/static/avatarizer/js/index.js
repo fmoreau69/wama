@@ -216,6 +216,8 @@
     // (standalone-only 2026-07-11 — le pipeline texte→TTS→avatar = composition studio).
 
     function handleAudioFile(file) {
+        // Fichier batch déposé sur la zone audio → flux d'import de lot commun
+        if (file && batchImport && batchImport.detectAndHandle(file)) return;
         if (!file) return;
         audioFile = file;
         audioFilename.textContent = file.name;
@@ -230,13 +232,26 @@
         const btn = $('#btn-generate');
         if (!btn) return;
 
-        // Standalone-only (2026-07-11) : audio + avatar requis
-        btn.disabled = !(audioFile && selectedAvatarSource);
+        // Standalone-only (2026-07-11) : audio (fichier OU URL) + avatar requis
+        const urlInputEl = $('#avatarizerUrlInput');
+        const hasUrl = !!(urlInputEl && urlInputEl.value.trim());
+        btn.disabled = !((audioFile || hasUrl) && selectedAvatarSource);
     }
 
     if (textArea) {
         textArea.addEventListener('input', updateGenerateButton);
     }
+
+    // Import par URL (brique _new_item_card show_url → WAMA_INGEST) : l'URL vaut fichier audio
+    const avatarizerUrlInput = $('#avatarizerUrlInput');
+    const avatarizerUrlSubmit = $('#avatarizerUrlSubmit');
+    if (avatarizerUrlInput) avatarizerUrlInput.addEventListener('input', updateGenerateButton);
+    if (avatarizerUrlSubmit) avatarizerUrlSubmit.addEventListener('click', (e) => {
+        e.preventDefault();
+        const btn = $('#btn-generate');
+        if (btn && !btn.disabled) btn.click();
+        else WamaApp.toast("URL prise en compte — choisissez aussi l'avatar (galerie ou photo).", 'info');
+    });
 
     // -----------------------------------------------------------------------
     // Generate button → create + start job
@@ -260,6 +275,7 @@
                 audioFile = null;
                 if (audioInfo) audioInfo.classList.add('d-none');
                 if (audioInput) audioInput.value = '';
+                if (avatarizerUrlInput) avatarizerUrlInput.value = '';
 
             } catch (err) {
                 WamaApp.toast('Erreur : ' + err.message, 'error');
@@ -280,10 +296,24 @@
     // -----------------------------------------------------------------------
     // Create job (POST /avatarizer/create/)
     // -----------------------------------------------------------------------
+    // Import de LOT (brique commune batch-import.js) : détection des fichiers batch
+    // (txt/csv/pdf/docx → parseur serveur commun parse_unified_batch) + barre de détection.
+    const batchImport = window.WamaBatchImport ? WamaBatchImport({
+        batchPreviewUrl: `${cfg.urls.batch}preview/`,
+        batchCreateUrl: `${cfg.urls.batch}create/`,
+        csrfToken: csrf,
+        batchExts: ['txt', 'csv', 'pdf', 'docx'],
+        afterCreate: () => window.location.reload(),
+    }) : null;
+
     async function createJob() {
         const fd = new FormData();
         fd.append('mode', getMode());          // standalone (pipeline = studio, 2026-07-11)
-        fd.append('audio_input', audioFile);
+        if (audioFile) {
+            fd.append('audio_input', audioFile);
+        } else if (avatarizerUrlInput && avatarizerUrlInput.value.trim()) {
+            fd.append('source_url', avatarizerUrlInput.value.trim());
+        }
 
         fd.append('avatar_source', selectedAvatarSource);
         if (selectedAvatarSource === 'gallery') {
@@ -706,42 +736,6 @@
     /* ============================================================
      * Import par fichier batch (format à balises)
      * ============================================================ */
-    (function initBatchImport() {
-        const fileInput = $('#batch-file-input');
-        const importBtn = $('#btn-batch-import');
-        const msg = $('#batch-import-msg');
-        if (!fileInput || !importBtn) return;
-
-        fileInput.addEventListener('change', () => {
-            importBtn.disabled = !fileInput.files.length;
-            if (msg) msg.textContent = '';
-        });
-
-        importBtn.addEventListener('click', async () => {
-            if (!fileInput.files.length) return;
-            const fd = new FormData();
-            fd.append('batch_file', fileInput.files[0]);
-            importBtn.disabled = true;
-            if (msg) msg.textContent = 'Import en cours…';
-            try {
-                const r = await fetch(cfg.urls.batchCreate, {
-                    method: 'POST', headers: { 'X-CSRFToken': csrf }, body: fd,
-                });
-                const data = await r.json();
-                if (r.ok) {
-                    if (msg) msg.textContent = `${data.jobs} job(s) dans ${data.batches} lot(s).`;
-                    if (window.WamaFM) WamaFM.uploaded();
-                    window.location.reload();
-                } else {
-                    if (msg) msg.textContent = data.error || 'Erreur d\'import.';
-                    importBtn.disabled = false;
-                }
-            } catch (_) {
-                if (msg) msg.textContent = 'Erreur réseau.';
-                importBtn.disabled = false;
-            }
-        });
-    })();
 
     /* ============================================================
      * Duplication (item) + actions de lot (start / duplicate / delete)
@@ -791,6 +785,47 @@
             } catch (_) { WamaApp.toast('Erreur réseau.', 'error'); }
             return;
         }
+    });
+
+
+    // ── Parametres de LOT : la ⚙ des cards batch communes ouvre la modale WamaParams
+    // (context='batch'), le save POST vers batch_update (applique a tous les jobs du lot).
+    let _batchSettingsModal = null;
+    function ensureBatchSettingsModal() {
+        if (_batchSettingsModal) return _batchSettingsModal;
+        const el = document.getElementById('batchSettingsModal');
+        if (!el || !window.bootstrap) return null;
+        _batchSettingsModal = new bootstrap.Modal(el);
+        const saveBtn = document.getElementById('saveBatchSettingsBtn');
+        if (saveBtn) saveBtn.addEventListener('click', saveBatchSettings);
+        return _batchSettingsModal;
+    }
+
+    async function saveBatchSettings() {
+        const batchId = (document.getElementById('batchSettingsBatchId') || {}).value;
+        const host = document.getElementById('avatarizerBatchParams');
+        if (!batchId || !host || !window.WamaParams) return;
+        const fd = new FormData();
+        Object.entries(WamaParams.read(host)).forEach(([k, v]) => fd.append(k, v));
+        try {
+            const r = await fetch(`${cfg.urls.batch}${batchId}/update/`, {
+                method: 'POST', headers: { 'X-CSRFToken': csrf }, body: fd,
+            });
+            if (!r.ok) throw new Error(`batch_update ${r.status}`);
+            _batchSettingsModal.hide();
+            WamaApp.toast('Paramètres appliqués au lot', 'success');
+            window.location.reload();
+        } catch (e) { WamaApp.toast(e.message || 'Erreur', 'error'); }
+    }
+
+    document.addEventListener('click', (e) => {
+        const b = e.target.closest('.batch-settings-btn');
+        if (!b) return;
+        e.preventDefault();
+        const m = ensureBatchSettingsModal();
+        const idInput = document.getElementById('batchSettingsBatchId');
+        if (idInput) idInput.value = b.dataset.batchId || '';
+        if (m) m.show();
     });
 
 })();

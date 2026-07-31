@@ -12,6 +12,7 @@ from wama.avatarizer.models import AvatarJob
 
 PANEL = ("panel",)
 PANEL_ITEM = ("panel", "item")   # P1 : la MODALE est générée par WamaParams (IDs legacy via dom_id)
+PANEL_ITEM_BATCH = ("panel", "item", "batch")   # + modale de LOT (context='batch' → batch_update)
 
 PARAMS = derive_from_model(
     AvatarJob,
@@ -24,14 +25,15 @@ PARAMS = derive_from_model(
                              icon="fa-bolt",
                              dom_id={"panel": "quality_mode"},
                              radio_name={"panel": "quality_mode", "item": "settings_quality_mode"},
-                             contexts=PANEL_ITEM),
+                             contexts=PANEL_ITEM_BATCH),
         "use_enhancer": dict(type="toggle", label="Enhancer IA (CodeFormer)", chip=True,
                              icon="fa-wand-magic-sparkles",
+                             show_if={"field": "quality_mode", "equals": "quality"},
                              dom_id={"panel": "use_enhancer", "item": "settingsUseEnhancer"},
-                             contexts=PANEL_ITEM),
+                             contexts=PANEL_ITEM_BATCH),
         "bbox_shift":   dict(type="range", label="Bbox shift", icon="fa-arrows-up-down", chip=True,
                              dom_id={"panel": "bbox_shift", "item": "settingsBboxShift"},
-                             min=-9, max=9, step=1, contexts=PANEL_ITEM,
+                             min=-9, max=9, step=1, contexts=PANEL_ITEM_BATCH,
                              help="Décalage vertical de la zone bouche (px). 0 = auto."),
     },
 )

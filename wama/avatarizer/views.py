@@ -149,17 +149,21 @@ def create(request):
         job.language = request.POST.get('language', 'fr')
         job.voice_preset = request.POST.get('voice_preset', 'default')
 
-    # --- Standalone : fichier audio ---
+    # --- Standalone : fichier audio OU URL (WAMA_INGEST → téléchargé par le worker) ---
     if mode == 'standalone':
         audio_file = request.FILES.get('audio_input')
-        if not audio_file:
-            return JsonResponse({'error': 'Un fichier audio est obligatoire en mode Standalone.'}, status=400)
-        validator = FileExtensionValidator(allowed_extensions=['wav', 'mp3', 'ogg', 'flac'])
-        try:
-            validator(audio_file)
-        except ValidationError as e:
-            return JsonResponse({'error': str(e)}, status=400)
-        job.audio_input = audio_file
+        source_url = request.POST.get('source_url', '').strip()
+        if not audio_file and not source_url:
+            return JsonResponse({'error': 'Un fichier audio (ou une URL) est obligatoire en mode Standalone.'}, status=400)
+        if audio_file:
+            validator = FileExtensionValidator(allowed_extensions=['wav', 'mp3', 'ogg', 'flac'])
+            try:
+                validator(audio_file)
+            except ValidationError as e:
+                return JsonResponse({'error': str(e)}, status=400)
+            job.audio_input = audio_file
+        else:
+            job.source_url = source_url
 
     # --- Source de l'avatar ---
     avatar_source = request.POST.get('avatar_source', 'gallery')

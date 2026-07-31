@@ -119,27 +119,6 @@ dans le Studio (runner avatarizer : mode=standalone fixe).{% endcomment %}
 {% comment %}Bouton Générer déplacé dans la card « Nouvel élément » en tête de file (2026-07-11 —
 action primaire de la card, conventions CARD_DESIGN §2 ; id #btn-generate inchangé){% endcomment %}
 
-{# ── Import par fichier batch (format à balises) ── #}
-<div class="mb-2">
-    <button class="btn btn-outline-info w-100 btn-sm" type="button"
-            data-bs-toggle="collapse" data-bs-target="#batchImportPanel">
-        <i class="fas fa-file-import me-1"></i> Importer un lot (fichier batch)
-    </button>
-    <div class="collapse mt-2" id="batchImportPanel">
-        <input type="file" id="batch-file-input" class="form-control form-control-sm mb-1"
-               accept=".txt,.md,.csv,.pdf,.docx">
-        <div class="d-flex gap-1">
-            <a href="{% url 'avatarizer:batch_template' %}" class="btn btn-outline-secondary btn-sm flex-grow-1"
-               title="Télécharger un modèle">
-                <i class="fas fa-download"></i> Modèle
-            </a>
-            <button id="btn-batch-import" class="btn btn-info btn-sm flex-grow-1" disabled>
-                <i class="fas fa-upload"></i> Importer
-            </button>
-        </div>
-        <small id="batch-import-msg" class="text-white-50 d-block mt-1"></small>
-    </div>
-</div>
 
 {# Boutons globaux standard (CONV §21.4) — start_all/download_all ajoutés audit 2026-07-11 #}
 <button id="btn-start-all" class="btn btn-success w-100 btn-sm mb-1">
@@ -174,7 +153,7 @@ action primaire de la card, conventions CARD_DESIGN §2 ; id #btn-generate incha
         standalone) ; galerie d'avatars + badge audio via le slot déclaré extra_zone_template ;
         ids historiques conservés (#audio-dropzone, #audio_input, #btn-generate) → handlers
         de index.js intacts. STANDALONE-ONLY depuis 2026-07-11 (pipeline = studio).{% endcomment %}
-        {% include 'common/_new_item_card.html' with collapsible=True card_id='avatarizerNewCard' drop_zone_id='audio-dropzone' file_input_id='audio_input' file_accept='.wav,.mp3,.ogg,.flac' formats_label='WAV, MP3, OGG, FLAC — la voix de l’avatar' show_media_library=True media_library_type='audio' extra_zone_template='avatarizer/_new_item_extra.html' primary_btn_id='btn-generate' primary_btn_label='Générer la vidéo' primary_btn_icon='fa-play-circle' %}
+        {% include 'common/_new_item_card.html' with collapsible=True card_id='avatarizerNewCard' drop_zone_id='audio-dropzone' file_input_id='audio_input' file_accept='.wav,.mp3,.ogg,.flac' formats_label='WAV, MP3, OGG, FLAC — la voix de l’avatar' show_media_library=True media_library_type='audio' show_url=True url_input_id='avatarizerUrlInput' url_submit_id='avatarizerUrlSubmit' url_placeholder='https://youtube.com/watch?v=… (audio de la voix)' show_batch_bar=True batch_template_url='/avatarizer/batch/template/' extra_zone_template='avatarizer/_new_item_extra.html' primary_btn_id='btn-generate' primary_btn_label='Générer la vidéo' primary_btn_icon='fa-play-circle' %}
 
         {% comment %}
           Barre de tri/filtre/disposition COMMUNE — mêmes gestes que les autres files.
@@ -365,6 +344,27 @@ window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'avatarizer:global_progress' %}";
 </script>
 <script src="{% static_v 'common/js/wama-eta.js' %}"></script>
 <script src="{% static_v 'common/js/wama-params.js' %}"></script>  {# rendu des champs modale (P1) #}
+<!-- Batch Settings Modal (brique WamaParams context='batch' -> batch_update, miroir reader) -->
+<div class="modal fade" id="batchSettingsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-cog me-2"></i>Paramètres du lot</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body py-2">
+                <input type="hidden" id="batchSettingsBatchId">
+                <div id="avatarizerBatchParams"></div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" id="saveBatchSettingsBtn">
+                    <i class="fas fa-save me-1"></i>Appliquer au lot</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 // Modale « Paramètres » : champs GÉNÉRÉS par WamaParams (params.py, context 'item') — P1.
 // AVANT index.js (qui met en cache les éléments par id à l'exécution). Voix : groupes
@@ -378,8 +378,11 @@ window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'avatarizer:global_progress' %}";
     var resolver = function (p) { return p.options_source === 'voices' ? voiceGroups : null; };
     var hostMt = document.getElementById('avatarizerMtFields');
     if (hostMt) WamaParams.render(hostMt, schema, { context: 'item', optionsResolver: resolver });
+    var bhost = document.getElementById('avatarizerBatchParams');
+    if (bhost) WamaParams.render(bhost, schema, { context: 'batch', values: {} });
 })();
 </script>
+<script src="{% static_v 'common/js/batch-import.js' %}"></script>
 <script src="{% static_v 'avatarizer/js/index.js' %}"></script>
 <script src="{% static_v 'common/js/wama-global-progress.js' %}"></script>
 <script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
