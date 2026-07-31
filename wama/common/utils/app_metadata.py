@@ -28,8 +28,12 @@ PROMPT_TARGETS = {
         # `enrich=True` : le prompt positif est « upsamplé » si l'enrichissement est activé
         # (settings.WAMA_PROMPT_ENRICH, OFF par défaut). PAS le négatif (liste de choses à éviter,
         # l'étoffer n'aurait pas de sens).
+        # `model` : nomme le modèle Django porteur du prompt → le branchement de l'enrichissement
+        # À L'INGESTION en est DÉDUIT ([[prompt_ingest]]). Aucune app n'écrit de récepteur ni de
+        # tâche Celery ; il suffit que le modèle hérite du mixin `PromptScoped`.
         {'field': 'prompt',          'kind': 'generative', 'model_field': 'model',
          'source': 'imager', 'default_model_type': 'diffusion', 'enrich': True,
+         'model': 'imager.ImageGeneration',
          'domain_field': 'output_type'},   # image|video → skill imager-image / imager-video
         {'field': 'negative_prompt', 'kind': 'generative', 'model_field': 'model',
          'source': 'imager', 'default_model_type': 'diffusion'},
@@ -169,6 +173,30 @@ def _when_ok(instance, tgt):
 # n'est jamais touché (comportement d'avant strictement conservé).
 PROCESSED_SUFFIX = '_processed'
 TRACE_FIELD = 'prompt_trace'
+
+
+def apply_prompt_state(instance, field, value, state):
+    """
+    Écrit une édition de prompt DANS LE BON CHAMP, selon l'état à deux faces de l'UI.
+
+    Contrat unique pour toutes les apps (avant : réimplémenté dans chaque vue de sauvegarde) —
+    cf. [[wama-prompt-enrich]] et PROMPT_PIPELINE.md :
+    - `state == 'processed'` : l'utilisateur édite l'ENRICHI → n'écrase surtout pas son original ;
+    - sinon : il a repris ou modifié SON prompt → l'enrichi devient périmé et est **vidé**.
+
+    C'est le piège des deux champs éditables : ici l'invalidation est explicite au lieu d'être
+    silencieuse. Retourne la liste des attributs modifiés (pour `update_fields`).
+    """
+    pfield = f"{field}{PROCESSED_SUFFIX}"
+    if state == 'processed' and hasattr(instance, pfield):
+        setattr(instance, pfield, value)
+        return [pfield]
+    setattr(instance, field, value)
+    touched = [field]
+    if hasattr(instance, pfield) and getattr(instance, pfield, ''):
+        setattr(instance, pfield, '')
+        touched.append(pfield)
+    return touched
 
 
 def detected_keywords(text, user=None, domain=None):

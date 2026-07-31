@@ -35,37 +35,8 @@ def _console(user_id: int, message: str, level: str = None) -> None:
         pass
 
 
-@shared_task(bind=True, name='wama.imager.enrich_prompt_at_ingest')
-def enrich_prompt_at_ingest_task(self, generation_id):
-    """
-    Enrichit le prompt d'une card DÈS SON DÉPÔT (déclenché par signal, cf. imager/signals.py).
-
-    Ne fait que déléguer à la brique commune : les champs traités viennent de la déclaration
-    `PROMPT_TARGETS` (`enrich=True`), pas d'ici. Aucune logique imager.
-
-    Tâche volontairement légère et sans GPU : c'est une passe LLM courte (Ollama), pas une
-    génération. Elle ne prend donc PAS le verrou de ressources GPU et ne bloque pas la file.
-    """
-    from wama.imager.models import ImageGeneration
-    from wama.common.utils.app_metadata import enrich_instance_prompts
-
-    try:
-        gen = ImageGeneration.objects.get(pk=generation_id)
-    except ImageGeneration.DoesNotExist:
-        return {'enriched': [], 'reason': 'introuvable'}
-
-    # Course possible avec un lancement immédiat : si la génération est déjà partie, la pipeline
-    # de la tâche s'en occupe — ne pas réécrire le prompt sous ses pieds.
-    if gen.status != 'PENDING':
-        return {'enriched': [], 'reason': f'statut {gen.status}'}
-
-    done = enrich_instance_prompts(
-        'imager', gen, user=gen.user,
-        glossary=list(getattr(gen, 'prompt_keywords', None) or []) or None)
-    if done:
-        _console(gen.user_id, f"[Imager] ✨ Prompt enrichi ({', '.join(done)}) — "
-                              f"vous pouvez le relire, l'éditer ou revenir au vôtre.")
-    return {'enriched': done}
+# `enrich_prompt_at_ingest_task` (propre à imager) SUPPRIMÉE le 31/07 : remplacée par la tâche
+# GÉNÉRIQUE `common.tasks.enrich_prompt_at_ingest_task`, branchée par déclaration.
 
 
 @shared_task(bind=True)

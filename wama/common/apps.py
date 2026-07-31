@@ -19,6 +19,16 @@ class CommonConfig(AppConfig):
             logging.getLogger(__name__).debug(
                 'Gouverneur de ressources non initialisé', exc_info=True)
 
+        # Branche l'enrichissement de prompt à l'INGESTION sur tout modèle DÉCLARÉ
+        # enrichissable (PROMPT_TARGETS). Générique : aucune app n'écrit de récepteur.
+        try:
+            from wama.common.prompt_ingest import register_prompt_ingest_receivers
+            register_prompt_ingest_receivers()
+        except Exception:
+            import logging
+            logging.getLogger(__name__).debug(
+                'Récepteurs prompt_ingest non enregistrés', exc_info=True)
+
         # Enregistre les fonctions WAMA Data pures (toolbox tierce : map-matching, freinage…)
         # dans le catalogue au démarrage.
         try:

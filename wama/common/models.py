@@ -219,6 +219,32 @@ def scoped_visible_q(user, owner_field='user'):
     return q
 
 
+class PromptScoped(models.Model):
+    """
+    Modèle portant un prompt utilisateur TRAITÉ par la PromptPipeline (enrichissement).
+
+    Convention commune (cf. `common/utils/app_metadata.py`, PROMPT_PIPELINE.md) :
+    - `prompt` (déclaré par l'app) reste **ce que l'utilisateur a tapé** — jamais écrasé ;
+    - `prompt_processed` = ce qui part réellement au modèle (vide → on envoie `prompt`) ;
+    - `prompt_trace` = ce que la pipeline a fait, pour pouvoir le montrer et l'annuler ;
+    - `prompt_keywords` = les mots-clés cliqués, conservés comme DONNÉE (glossaire verbatim).
+
+    Hériter de ce mixin suffit : l'enrichissement à l'ingestion, le champ à deux états et le
+    retour au prompt d'origine viennent avec, sans une ligne de code par app.
+    """
+
+    prompt_processed = models.TextField(
+        blank=True, default="",
+        help_text="Prompt traité effectivement envoyé au modèle (vide = utiliser `prompt`)")
+    prompt_trace = models.JSONField(
+        default=dict, blank=True,
+        help_text="Trace PromptPipeline par champ : {enriched, source, language, keywords}")
+    prompt_keywords = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        abstract = True
+
+
 class ScopedQuerySet(models.QuerySet):
     """QuerySet des modèles `ScopedVisibility` : expose `visible_to(user)`."""
 

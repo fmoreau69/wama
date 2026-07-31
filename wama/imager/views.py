@@ -1213,16 +1213,12 @@ def save_generation_settings(request, generation_id):
             prompt = request.POST.get('prompt', '').strip()
             if not prompt:
                 return JsonResponse({'error': 'Prompt is required'}, status=400)
-            # Champ à DEUX ÉTATS ([[wama-prompt-enrich]]) : le client dit dans QUEL champ écrire.
-            # - 'processed' : l'utilisateur édite l'enrichi → n'écrase surtout pas son original ;
-            # - 'user' : il a repris son prompt (retour arrière) ou l'a modifié → l'enrichi
-            #   devient périmé, on le vide. C'est le piège des deux champs éditables : ici
-            #   l'invalidation est explicite au lieu d'être silencieuse.
-            if request.POST.get('prompt_state') == 'processed':
-                generation.prompt_processed = prompt
-            else:
-                generation.prompt = prompt
-                generation.prompt_processed = ''
+            # Champ à DEUX ÉTATS : l'arbitrage « dans quel champ écrire » est une brique
+            # COMMUNE (`apply_prompt_state`) — il était réimplémenté ici le 30/07, ce qui
+            # aurait obligé chaque app à le recopier.
+            from wama.common.utils.app_metadata import apply_prompt_state
+            apply_prompt_state(generation, 'prompt', prompt,
+                               request.POST.get('prompt_state'))
 
         if 'negative_prompt' in request.POST:
             generation.negative_prompt = request.POST.get('negative_prompt', '').strip()

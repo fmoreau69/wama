@@ -8,6 +8,42 @@ from celery import shared_task
 logger = logging.getLogger(__name__)
 
 
+@shared_task(name='common.enrich_prompt_at_ingest')
+def enrich_prompt_at_ingest_task(app_label, model_name, pk):
+    """
+    Enrichit le prompt d'un objet DÈS SON DÉPÔT — pour TOUTE app, sans code par app.
+
+    Déclenchée par le récepteur générique ([[prompt_ingest]]) sur les modèles dont l'app déclare
+    `enrich=True` dans `PROMPT_TARGETS`. Les champs traités viennent de la DÉCLARATION.
+
+    ASYNCHRONE volontairement : la passe LLM coûte ~1,3 s à chaud mais ~12 s à froid — inacceptable
+    dans la requête HTTP de dépôt. La card apparaît tout de suite, le prompt enrichi arrive juste
+    après. Si la tâche de traitement démarre avant, la pipeline l'enrichit au lancement : il n'y a
+    pas de fenêtre où un prompt non enrichi partirait.
+
+    Tâche LÉGÈRE et SANS GPU (une passe Ollama, pas une génération) → ne prend pas le verrou de
+    ressources et ne bloque pas la file.
+    """
+    from django.apps import apps as django_apps
+
+    from wama.common.utils.app_metadata import enrich_instance_prompts
+
+    try:
+        model = django_apps.get_model(app_label, model_name)
+        obj = model.objects.get(pk=pk)
+    except Exception as exc:
+        logger.debug(f"[prompt_ingest] {app_label}.{model_name}#{pk} introuvable ({exc})")
+        return {'enriched': [], 'reason': 'introuvable'}
+
+    # Course avec un lancement immédiat : si le traitement est parti, la pipeline s'en charge —
+    # ne pas réécrire le prompt sous ses pieds.
+    if getattr(obj, 'status', 'PENDING') not in ('PENDING', '', None):
+        return {'enriched': [], 'reason': f"statut {getattr(obj, 'status', '?')}"}
+
+    done = enrich_instance_prompts(app_label, obj, user=getattr(obj, 'user', None))
+    return {'enriched': done}
+
+
 @shared_task(name='common.run_nightly_tests')
 def run_nightly_tests_task(app=None, stage=None):
     """

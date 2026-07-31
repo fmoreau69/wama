@@ -52,31 +52,7 @@ def _notify_terminal(sender, instance, created, **kwargs):
         instance._old_status = new  # éviter une re-notification sur un save suivant
 
 
-@receiver(post_save, sender=ImageGeneration)
-def _enrich_prompt_at_ingest(sender, instance, created, **kwargs):
-    """
-    Met en file l'enrichissement du prompt dès la création de la card.
-
-    ASYNCHRONE volontairement : la passe LLM coûte ~1,3 s à chaud mais ~12 s à froid (chargement
-    des poids) — inacceptable dans la requête HTTP de dépôt. La card apparaît tout de suite ; le
-    prompt enrichi arrive juste après et le polling de la file l'affiche.
-
-    Garde-fou : si l'utilisateur lance la génération avant que l'enrichissement soit revenu, la
-    tâche de génération enrichit elle-même (la pipeline reste appelée au lancement) — il n'y a donc
-    pas de fenêtre où le prompt partirait non enrichi.
-    """
-    if not created or getattr(instance, 'prompt_processed', ''):
-        return
-    if not (getattr(instance, 'prompt', '') or '').strip():
-        return
-    try:
-        from django.db import transaction
-        from wama.imager.tasks import enrich_prompt_at_ingest_task
-
-        pk = instance.pk
-        # `on_commit` et pas `delay()` direct : si la création est dans une transaction (batch,
-        # vue atomique, import), le worker peut prendre la tâche AVANT le commit et ne pas
-        # trouver la ligne. Hors transaction, on_commit s'exécute immédiatement.
-        transaction.on_commit(lambda: enrich_prompt_at_ingest_task.delay(pk))
-    except Exception:
-        pass  # broker indisponible → la tâche de génération enrichira au lancement (fail-safe)
+# L'enrichissement du prompt À L'INGESTION était câblé ici (récepteur + tâche Celery propres à
+# imager, 30/07). SUPPRIMÉ le 31/07 au profit du branchement GÉNÉRIQUE `common/prompt_ingest.py`,
+# déduit de la déclaration `PROMPT_TARGETS[...]['model']` : aucune app n'écrit plus ces 20 lignes.
+# Remplacement, pas juxtaposition — laisser les deux aurait produit un double enrichissement.

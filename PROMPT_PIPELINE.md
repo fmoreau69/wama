@@ -14,7 +14,9 @@ et la méta-app.
 ## Modules (`wama/common/utils/`)
 | Module | Rôle |
 |--------|------|
-| `app_metadata.py` | `PROMPT_TARGETS` (déclaration par app) + `process_prompt_for(...)` (options `enrich=` / `glossary=` / `full=`). Résout modèle (`AIModel`), `enrich`, `reference_field`. Plus les briques d'ingestion : `enrich_instance_prompts()`, `effective_prompt()`, `detected_keywords()`. |
+| `app_metadata.py` | `PROMPT_TARGETS` (déclaration par app) + `process_prompt_for(...)` (options `enrich=` / `glossary=` / `full=`). Résout modèle (`AIModel`), `enrich`, `reference_field`. Plus les briques d'ingestion : `enrich_instance_prompts()`, `effective_prompt()`, `detected_keywords()`, `apply_prompt_state()`. |
+| `prompt_ingest.py` | **Branchement générique** de l'enrichissement à l'ingestion, déduit de `PROMPT_TARGETS[...]['model']`. Aucune app n'écrit de récepteur `post_save` ni de tâche Celery. |
+| `models.PromptScoped` | Mixin apportant `prompt_processed` / `prompt_trace` / `prompt_keywords`. |
 | `prompt_pipeline.py` | `process_prompt(...)` — orchestre détection langue → routing → traduction → enrichissement → fichiers de référence. Fail-safe. |
 | `lang_routing.py` | DÉCIDEUR : `routing_for_model(caps, model_type, input_lang, …)` → `{direct, input_translate, input_pivot, …}`. `_TYPE_LANG_DEFAULT` (diffusion/upscaling/music/audio_gen → `['en']`). Inconnu → `['*']` (direct). |
 | `translator.py` | ACTEUR : `TranslatorService` via `translategemma` (Ollama), cache, glossaire do-not-translate, découpage. Passthrough si même langue. |
@@ -90,12 +92,28 @@ locales `_prompt`/`_negative`, la base garde l'original) ; composer `enrich=True
 
 | Étape | Ce qui s'y fait | Pourquoi là |
 |---|---|---|
-| **Ingestion** (création de la card) | **Enrichissement** — `enrich_instance_prompts()`, un hook `post_save` par app (`on_commit`), tâche Celery légère | L'utilisateur VOIT et peut éditer/annuler ce qui partira ; la passe LLM ne recouvre plus le chargement du modèle de génération |
+| **Ingestion** (création de la card) | **Enrichissement** — `enrich_instance_prompts()`, déclenché par un récepteur **générique** (`common/prompt_ingest.py`, `on_commit`) + tâche Celery commune | L'utilisateur VOIT et peut éditer/annuler ce qui partira ; la passe LLM ne recouvre plus le chargement du modèle de génération |
 | **Lancement de la tâche** | **Traduction** + rattrapage d'enrichissement si absent | La traduction dépend du modèle cible, encore modifiable après le dépôt |
 
 - `<field>_processed` = ce qui part au modèle ; `<field>` = **ce que l'utilisateur a tapé, jamais
   écrasé** (seule façon de revenir en arrière). `effective_prompt(instance, field)` arbitre.
   Convention **opt-in par modèle** : un modèle sans `_processed` garde le comportement d'avant.
+
+### Ce qu'une app doit faire pour en bénéficier (2026-07-31)
+
+**Trois lignes, aucun code.** Le reste est générique — il n'y a plus ni récepteur, ni tâche
+Celery, ni logique d'état à écrire par app (c'était le cas jusqu'au 30/07 : ~20 lignes recopiées).
+
+1. le modèle hérite du mixin commun **`PromptScoped`** (`common/models.py`) → apporte
+   `prompt_processed`, `prompt_trace`, `prompt_keywords` ;
+2. la déclaration `PROMPT_TARGETS` nomme le modèle : **`'model': '<app>.<Modèle>'`** → le
+   branchement de l'enrichissement à l'ingestion en est **déduit** (`common/prompt_ingest.py`,
+   connecté depuis `CommonConfig.ready()`) ;
+3. la vue d'enregistrement appelle **`apply_prompt_state(instance, field, value, state)`** —
+   l'arbitrage « dans quel champ écrire » est commun, pas réimplémenté.
+
+Un modèle non migré est **ignoré** par le récepteur : l'app garde exactement son comportement
+d'avant tant qu'elle n'a pas adopté le mixin.
 - `prompt_trace` (JSON) trace `{enriched, source, language, keywords}` ; `prompt_keywords` conserve
   les mots-clés comme **donnée**.
 - **VRAM** : `keep_alive='0'` sur le chemin critique (juste avant la diffusion), `'60s'` à
