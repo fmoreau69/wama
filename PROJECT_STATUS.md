@@ -300,7 +300,31 @@ Doc : [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md).
 - ✅ **Charpente** : `common/services/nightly_tests.py` (registre déclaratif `Scenario` + runner
   **sérialisé VRAM-aware** avec téardown avant/après + rapport JSON + **user de test dédié**
   `wama_nightly_test`, jamais id=1) + commande `python manage.py run_nightly_tests [--app][--stage][--dry-run]`.
-  Étapes : `wired` | `model_loaded` | `output`. **Skip vs fail** (`SkipScenario` → ⊘, dépendance absente).
+  Étapes : `wired` | **`ui`** | `model_loaded` | `output`. **Skip vs fail** (`SkipScenario` → ⊘, dépendance absente).
+- ✅ **Smoke UI (2026-07-31)** : `common/services/ui_smoke.py`, **13 scénarios auto-enregistrés**
+  (apps DÉDUITES des URLs via `reverse("<app>:index")` — aucune liste en dur). Étape `ui` à part :
+  ~45 s au total, **aucun GPU côté WSL2**. Trois couches, **une seule décide** :
+  1. **barrière déterministe** (seule à faire échouer) : HTTP 200, **zéro erreur console JS**,
+     coquille de contenu présente, + **parcours des onglets** (la majorité des erreurs JS vivent
+     dans les gestionnaires et n'apparaissent qu'au clic) ;
+  2. **diff de capture** vs référence (`logs/ui_smoke/reference/`, hors git) : dit OÙ ça a bougé,
+     **ne fait pas échouer** (file d'attente et barre de ressources changent chaque nuit) ;
+  3. **triage VLM local** (`gemma4:12b`) **uniquement sur les captures modifiées** : dit QUOI, en
+     français. **Pas juge** — même précaution que `bench_describer`, le juge final reste humain.
+  Calibré : 2 passages consécutifs à références fraîches → **0 triage sur 13** (pas de coût VLM
+  les nuits sans changement). **Sessions nettoyées** (les anonymes créées par le passage ; une
+  session portant `_auth_user_id` est épargnée — ne jamais déconnecter un utilisateur réel).
+  ⚠ **CRON : exporter `OLLAMA_HOST`** (Ollama est sur l'hôte Windows) sinon la couche 3 échoue en
+  silence. Trouvailles dès la 1re exécution : double inclusion de `media-picker.js` (imager +
+  avatarizer → `pageerror` qui interrompt le script) et `vision_probe` qui envoyait l'appel Ollama
+  LOCAL dans le proxy UGE (504) — deux bugs invisibles dans les logs serveur.
+- 🗑 **`wama-analysis/` SUPPRIMÉ (2026-07-31)** : extracteur de fonctionnalités par VLM sur 101
+  captures **manuelles**. Échec **structurel**, pas d'ingénierie : le modèle recopiait l'exemple de
+  format du prompt (113 « fonctionnalités » en 74 min, toutes `OTHER`, du type « Feature 1 — This
+  is a real feature »). Un VLM devant une capture décrit des **pixels** ; il ignore qu'un bouton
+  déclenche une tâche Celery. La bonne idée (faire regarder l'UI par un modèle vision) est reprise
+  correctement en couche 3 ci-dessus : le VLM y **commente un écart détecté**, il n'est pas source
+  de vérité. Archivé hors dépôt par Fabien.
 - ✅ **Gabarits `model_loaded`** : `transcriber.asr_load` (VALIDÉ runtime, charge Whisper ~10 s) +
   `enhancer.deepfilternet_load` (skippe si `df` absent). Pattern : `<app>/nightly_scenarios.py` +
   `register_scenarios()` dans `apps.py::ready()`.
