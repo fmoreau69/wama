@@ -190,7 +190,18 @@ def build_batches_list(user, *, batch_model, work_attr, items_related='items',
         extra      : callable(batch, items, works)->dict — enrichissements d'app
                      (ex. transcriber : success_pct + méta communes aux filles).
     """
-    batches = (batch_model.objects.filter(user=user)
+    # Visibilité : un modèle de batch ayant adopté `ScopedVisibility` fait remonter aussi ce qui
+    # est PARTAGÉ avec l'utilisateur (unité / projet / public) ; les autres gardent exactement le
+    # comportement d'avant. Opt-in par modèle, donc aucun risque pour les apps non portées.
+    #
+    # Pourquoi ici et pas dans chaque app : la file est construite à UN seul endroit pour les
+    # 10 apps (contrat de la toolbar commune, cf. queue_view.py). Et pourquoi le BATCH est la
+    # bonne unité de partage : une card isolée est déjà auto-enveloppée dans son propre batch
+    # (cf. `_auto_wrap_orphans`), donc partager ce batch revient à partager la card — sans avoir
+    # à faire remonter des works dont le contenant, lui, ne serait pas partagé.
+    _mgr = batch_model.objects
+    base = _mgr.visible_to(user) if hasattr(_mgr, 'visible_to') else _mgr.filter(user=user)
+    batches = (base
                .prefetch_related(f'{items_related}__{work_attr}')
                .order_by(order_by))
     result = []

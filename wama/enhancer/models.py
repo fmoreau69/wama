@@ -239,8 +239,16 @@ class UserSettings(models.Model):
 from wama.common.models import BatchMixin
 
 
-class BatchEnhancement(BatchMixin, models.Model):
-    """Groupe d'améliorations créé depuis un fichier batch."""
+class BatchEnhancement(BatchMixin, ScopedVisibility):
+    """Groupe d'améliorations créé depuis un fichier batch.
+
+    **Unité de partage de la file** (cf. `batch_common.build_batches_list`) : une card isolée
+    ayant déjà son propre batch, partager ce batch revient à partager la card. Lecture seule
+    pour le destinataire.
+    """
+
+    objects = ScopedManager()
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_enhancements')
     created_at = models.DateTimeField(auto_now_add=True)
     batch_file = models.FileField(
@@ -271,8 +279,14 @@ class BatchEnhancementItem(models.Model):
         ordering = ['row_index']
 
 
-class BatchAudioEnhancement(BatchMixin, models.Model):
-    """Groupe d'améliorations audio créé depuis un fichier batch ou upload multiple."""
+class BatchAudioEnhancement(BatchMixin, ScopedVisibility):
+    """Groupe d'améliorations audio créé depuis un fichier batch ou upload multiple.
+
+    Même règle de partage que `BatchEnhancement`.
+    """
+
+    objects = ScopedManager()
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_audio_enhancements')
     created_at = models.DateTimeField(auto_now_add=True)
     batch_file = models.FileField(
