@@ -3,6 +3,7 @@ import io
 import zipfile
 import logging
 from django.shortcuts import render, get_object_or_404
+from wama.accounts.permissions import app_access
 from django.views import View
 from django.http import JsonResponse, FileResponse, HttpResponseBadRequest
 from django.contrib.auth.decorators import login_required
@@ -228,6 +229,7 @@ class IndexView(View):
 
 
 @require_POST
+@app_access('enhancer')
 def upload(request):
     """Upload and analyze image/video file, or download from URL."""
     print("=== ENHANCER UPLOAD CALLED ===")  # DEBUG

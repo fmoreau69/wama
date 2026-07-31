@@ -21,6 +21,7 @@ import datetime
 from .models import Transcript, BatchTranscript, BatchTranscriptItem
 from .utils.speakers import normalize_speaker_label, normalize_segments_speakers, unique_speakers, display_speaker
 from wama.common.utils.console_utils import get_console_lines
+from wama.accounts.permissions import app_access
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance
 from wama.common.utils.scoping import visible_or_404
@@ -241,6 +242,7 @@ class HelpView(TemplateView):
 
 
 @require_POST
+@app_access('transcriber')
 def upload(request):
     file = request.FILES.get('file')
     if not file:
