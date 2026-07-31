@@ -108,6 +108,36 @@ def _tool_api_triad(f: _AppFiles):
     return False, None
 
 
+def _shareable_models(f: _AppFiles):
+    """
+    Les modèles de card/batch héritent-ils de `ScopedVisibility` ?
+
+    C'est la CONDITION du partage (PROFILES_PERMISSIONS §7) : sans le mixin, aucune card n'est
+    partageable et le mécanisme reste inerte — ce qui lui est arrivé pendant des mois, adopté
+    par 2 modèles seulement. Mesuré ici pour que l'adoption ne repose plus sur la bonne volonté.
+
+    `partial` si un seul modèle l'a adopté : la file étant construite à partir des BATCHES
+    (`batch_common.build_batches_list`), une card partagée sans son batch n'apparaît pas.
+    """
+    text = f.text(MODELS)
+    n = len(re.findall(r'class\s+\w+\([^)]*ScopedVisibility', text))
+    if n == 0:
+        return False, None
+    ev = f.find(MODELS, r'class\s+\w+\([^)]*ScopedVisibility')
+    return (True, ev) if n >= 2 else ('partial', f"{ev} (1 seul modèle : card OU batch)")
+
+
+def _scoped_reads(f: _AppFiles):
+    """
+    Les chemins de LECTURE passent-ils par les accès NOMMÉS (`visible_or_404` / `visible_to`) ?
+
+    Un `get_object_or_404(Model, pk=pk, user=user)` écrit machinalement dans une nouvelle vue
+    désactive le partage pour cette route — sans erreur, sans test rouge, sans trace. Ce critère
+    rend l'oubli visible (PROFILES_PERMISSIONS §7.4).
+    """
+    return _present(f, VIEWS, r'visible_or_404|objects\.visible_to\(')
+
+
 def _url_ingest(f: _AppFiles):
     ev = f.find(MODELS, r'WAMA_INGEST')
     if ev:
@@ -689,6 +719,10 @@ CRITERIA: list[Criterion] = [
               lambda f: _present(f, VIEWS, r'@app_access')),
     Criterion('user_scope', 'F7', 'Requêtes filtrées par utilisateur (scope données)',
               lambda f: _present(f, VIEWS, r'user\s*=\s*(request\.user|self\.request\.user|user)\b')),
+    Criterion('shareable_models', 'F7', 'Cards ET batchs partageables (ScopedVisibility)',
+              _shareable_models),
+    Criterion('scoped_reads', 'F7', 'Lectures via les accès nommés (visible_or_404/visible_to)',
+              _scoped_reads),
     # ── F8 studio ──
     Criterion('studio_runnable', 'F8', 'Nœud studio câblé (GENERIC_APPS)',
               lambda f: (f.app in _registry_keys('GENERIC_APPS', GENERIC_RUNNER_PY),

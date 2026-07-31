@@ -23,6 +23,7 @@ from .utils.speakers import normalize_speaker_label, normalize_segments_speakers
 from wama.common.utils.console_utils import get_console_lines
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance
+from wama.common.utils.scoping import visible_or_404
 
 logger = logging.getLogger(__name__)
 
@@ -834,7 +835,7 @@ def card_html(request, pk: int):
 
 def progress(request, pk: int):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    t = get_object_or_404(Transcript, pk=pk, user=user)
+    t = visible_or_404(Transcript, user, pk=pk)              # LECTURE
     p = int(cache.get(f"transcriber_progress_{t.id}", t.progress or 0))
 
     # Get partial text for live display
@@ -939,7 +940,9 @@ def _build_transcript_bytes(t: Transcript, fmt: str):
 def download(request, pk: int):
     """Download transcript in requested format: txt (default), srt, pdf, docx."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    t = get_object_or_404(Transcript, pk=pk, user=user)
+    # LECTURE → accès nommé : un transcript PARTAGÉ est téléchargeable, pas modifiable
+    # (PROFILES_PERMISSIONS §7).
+    t = visible_or_404(Transcript, user, pk=pk)
     if not t.text:
         return HttpResponseBadRequest('No transcript yet')
 

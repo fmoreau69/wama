@@ -18,6 +18,8 @@ import logging
 from pathlib import Path
 
 from django.shortcuts import render, get_object_or_404
+
+from wama.common.utils.scoping import visible_or_404
 from django.views import View
 from django.http import JsonResponse, FileResponse, Http404
 from django.contrib.auth.decorators import login_required
@@ -303,7 +305,8 @@ def start(request, pk):
 @login_required
 def status(request, pk):
     """Return job status JSON."""
-    job = get_object_or_404(ConversionJob, pk=pk, user=request.user)
+    # LECTURE → accès nommé : suit aussi une card PARTAGÉE (PROFILES_PERMISSIONS §7).
+    job = visible_or_404(ConversionJob, request.user, pk=pk)
     pct = cache.get(f"converter_progress_{job.id}", job.progress)
     payload = {
         'status':          job.status,
@@ -403,7 +406,7 @@ def update_job(request, pk):
 @login_required
 def download(request, pk):
     """Serve the converted output file."""
-    job = get_object_or_404(ConversionJob, pk=pk, user=request.user)
+    job = visible_or_404(ConversionJob, request.user, pk=pk)   # LECTURE
     if not job.output_file:
         raise Http404("Fichier de sortie indisponible")
 

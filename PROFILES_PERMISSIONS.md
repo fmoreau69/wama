@@ -214,6 +214,27 @@ tout. Parade : rendre le chemin correct **le seul disponible** (manager `Model.o
 **et en faire un critère de la grille de conformité** — l'adoption devient alors **mesurée**, pas
 espérée. C'est ce qui distingue cette cible de `ScopedVisibility`, écrit puis oublié sur 2 modèles.
 
+### 7.4bis État d'adoption — MESURÉ par la grille (31/07)
+
+Deux critères F7 ont été ajoutés à `check_app_conformity`, donc **plus aucune app ne peut
+prétendre au partage sans l'avoir branché** :
+
+| Critère | Ce qu'il mesure |
+|---|---|
+| `shareable_models` | La card **ET** son batch héritent de `ScopedVisibility`. 🔶 si un seul des deux — la file étant construite à partir des BATCHES, une card partagée sans son batch **n'apparaît pas**. |
+| `scoped_reads` | Les vues de lecture passent par les accès **nommés** (`visible_or_404` / `visible_to`). |
+
+Photo au 31/07 : ✅ **converter, enhancer, transcriber** · 🔶 **imager** (mixin sur la card, pas
+sur son batch — et lectures volontairement non portées, cf. §7.5) · ❌ anonymizer, avatarizer,
+composer, describer, reader, synthesizer.
+
+**Geste de portage d'une app** (désormais mécanique, ~15 min) :
+1. `class Card(…, ScopedVisibility)` + `objects = ScopedManager()` ;
+2. **idem sur le modèle de BATCH** (sinon le partage ne remonte pas dans la file) ;
+3. `makemigrations` + `migrate` ;
+4. chemins de LECTURE (progress, download, status…) → `visible_or_404` ; tout ce qui mute reste
+   inchangé — le partage est en lecture seule **par construction**, pas par vigilance.
+
 ### 7.5 Ordre de mise en place (décidé 31/07)
 
 1. **Adopter `ScopedVisibility` sur les modèles de cards** + manager + critère de conformité.
@@ -221,6 +242,17 @@ espérée. C'est ce qui distingue cette cible de `ScopedVisibility`, écrit puis
 
 Construire l'escalade d'écriture sur une visibilité inerte reviendrait à empiler du neuf sur du
 non-branché.
+
+**Reste à faire (au 31/07, fin de session)** :
+- porter les 6 apps ❌ ci-dessus (geste mécanique du §7.4bis) ;
+- **`cam_analyzer` : les SESSIONS de wama-lab ne sont pas regardées du tout** — leur structure
+  diffère des cards (pas de batch, pas la même file). Reporté explicitement (décision Fabien
+  31/07), à traiter comme un cas propre, pas par analogie ;
+- **imager** : mixin sur son batch + chemins de lecture, quand l'app sera portée sur
+  l'uniformisation (dernière de la grille, 56 % — ne pas industrialiser l'état partiel) ;
+- il n'existe **aucune interface de partage** : passer par l'admin Django, ou écrire la commande
+  de gestion prévue (`partager_card --app … --user wama_nightly_test`) pour le nocturne ;
+- puis `ObjectGrant` (§7.3), en **extension de `scoped_visible_q`** — jamais un second chemin.
 
 ### 7.6 Prior art
 

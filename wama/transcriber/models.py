@@ -1,14 +1,17 @@
 from django.db import models
 from django.contrib.auth.models import User
 from wama.common.utils.media_paths import upload_to_user_input
-from wama.common.models import ProcessingTimeMixin
+from wama.common.models import ProcessingTimeMixin, ScopedManager, ScopedVisibility
 
 
-class Transcript(ProcessingTimeMixin, models.Model):
+class Transcript(ProcessingTimeMixin, ScopedVisibility):
     # Ingest média déclaratif commun (common/utils/source_ingest.ensure_local_input) :
     # une URL/chemin dans source_url est téléchargée vers audio. mode 'audio' =
     # plateformes média → extraction audio (yt-dlp) / sinon → download direct.
     # (stopgap avant facette manifeste F5)
+    # Card de transcription — partageable en lecture seule (PROFILES_PERMISSIONS §7).
+    objects = ScopedManager()
+
     WAMA_INGEST = {
         'source': 'source_url', 'target': 'audio', 'mode': 'audio',
         'title_field': 'title',
@@ -191,8 +194,14 @@ class TranscriptSegment(models.Model):
 from wama.common.models import BatchMixin
 
 
-class BatchTranscript(BatchMixin, models.Model):
-    """Groupe de transcriptions créé depuis un fichier batch."""
+class BatchTranscript(BatchMixin, ScopedVisibility):
+    """Groupe de transcriptions créé depuis un fichier batch.
+
+    **Unité de partage de la file** — lecture seule pour le destinataire.
+    """
+
+    objects = ScopedManager()
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_transcripts')
     created_at = models.DateTimeField(auto_now_add=True)
     batch_file = models.FileField(

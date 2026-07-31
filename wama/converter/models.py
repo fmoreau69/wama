@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
-from wama.common.models import ProcessingTimeMixin
+from wama.common.models import ProcessingTimeMixin, ScopedManager, ScopedVisibility
 from wama.common.utils.media_paths import UploadToUserPath
 
 
@@ -21,13 +21,19 @@ class ConversionProfile(models.Model):
         return f"{self.name} ({self.output_format})"
 
 
-class ConversionBatch(models.Model):
+class ConversionBatch(ScopedVisibility):
     """Groupe de conversions partageant la même nature (image/vidéo/audio/…).
 
     Créé soit par import multi-fichiers (1 batch par nature), soit par fichier
     batch d'URLs/chemins. Les réglages de sortie (format/qualité) sont communs
     à tous les jobs du batch — d'où le regroupement par nature.
+
+    **Unité de partage de la file** (cf. `batch_common.build_batches_list`) — lecture seule
+    pour le destinataire, PROFILES_PERMISSIONS §7.
     """
+
+    objects = ScopedManager()
+
     user        = models.ForeignKey(User, on_delete=models.CASCADE, related_name='conversion_batches')
     created_at  = models.DateTimeField(auto_now_add=True)
     batch_file  = models.FileField(upload_to=UploadToUserPath('converter', 'input'),
@@ -42,7 +48,11 @@ class ConversionBatch(models.Model):
         return f"ConversionBatch #{self.id} — {self.media_type} ({self.total})"
 
 
-class ConversionJob(ProcessingTimeMixin, models.Model):
+class ConversionJob(ProcessingTimeMixin, ScopedVisibility):
+    """Card de conversion — partageable en lecture seule (PROFILES_PERMISSIONS §7)."""
+
+    objects = ScopedManager()
+
     STATUS_CHOICES = [
         ('PENDING',  'En attente'),
         ('RUNNING',  'En cours'),
