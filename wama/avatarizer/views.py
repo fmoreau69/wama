@@ -22,8 +22,13 @@ from .models import AvatarJob, BatchAvatarJob, BatchAvatarJobItem
 from .params import PARAMS_JSON as _AVATAR_PARAMS_JSON
 from wama.synthesizer.models import CustomVoice
 from wama.accounts.views import get_or_create_anonymous_user
+from wama.accounts.permissions import app_access
 from wama.common.utils.queue_duplication import duplicate_instance, safe_delete_file
 from wama.common.utils.batch_common import group_into_batches_by_nature
+from wama.common.utils.console_utils import get_console_lines
+from wama.common.utils.queue_manipulation import make_queue_manipulation_views
+from wama.common.utils.scoping import visible_or_404
+from wama.common.utils.user_settings import get_user_app_settings, save_user_app_settings
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +60,12 @@ def _gallery_images():
     ]
 
 
+from django.utils.decorators import method_decorator
+
+
+# Défense en profondeur (phase 2) : même décision `accessible()` que le middleware
+# de gating — le décorateur ne change pas le comportement, il le garantit au niveau vue.
+@method_decorator(app_access('avatarizer'), name='dispatch')
 class IndexView(View):
     """Page principale de l'Avatarizer."""
 
@@ -118,6 +129,7 @@ def _voice_groups_safe(user):
         return []
 
 
+@app_access('avatarizer')
 def create(request):
     """POST : Crée un AvatarJob avec les paramètres fournis."""
     if request.method != 'POST':
@@ -170,15 +182,24 @@ def create(request):
         job.avatar_upload = avatar_file
 
     # --- Paramètres pipeline MuseTalk ---
-    quality_mode = request.POST.get('quality_mode', 'fast')
+    # Réglages user (brique commune) : les derniers réglages employés servent de défauts
+    # quand le POST ne les précise pas (dépôt rapide drag & drop sans passer par la modale).
+    prefs = get_user_app_settings(user, 'avatarizer', {
+        'quality_mode': 'fast', 'use_enhancer': False, 'bbox_shift': 0})
+    quality_mode = request.POST.get('quality_mode', prefs['quality_mode'])
     job.quality_mode = quality_mode if quality_mode in ('fast', 'quality') else 'fast'
-    job.use_enhancer = request.POST.get('use_enhancer', 'false') == 'true'
+    job.use_enhancer = request.POST.get('use_enhancer', str(prefs['use_enhancer']).lower()) == 'true'
     try:
-        job.bbox_shift = max(-10, min(10, int(request.POST.get('bbox_shift', 0))))
+        job.bbox_shift = max(-10, min(10, int(request.POST.get('bbox_shift', prefs['bbox_shift']))))
     except (ValueError, TypeError):
         job.bbox_shift = 0
 
     job.save()
+    save_user_app_settings(user, 'avatarizer', {
+        'quality_mode': job.quality_mode,
+        'use_enhancer': job.use_enhancer,
+        'bbox_shift': job.bbox_shift,
+    })
     return JsonResponse({'job_id': job.id, 'status': 'created'})
 
 
@@ -220,9 +241,9 @@ def start(request, pk):
 
 
 def progress(request, pk):
-    """GET : Retourne l'état de progression d'un AvatarJob."""
+    """GET : Retourne l'état de progression d'un AvatarJob (lecture → objets partagés inclus)."""
     user = _get_user(request)
-    job = get_object_or_404(AvatarJob, pk=pk, user=user)
+    job = visible_or_404(AvatarJob, user, pk=pk)
 
     cached_progress = cache.get(f"avatarizer_progress_{job.id}")
     prog = cached_progress if cached_progress is not None else job.progress
@@ -391,10 +412,37 @@ def duplicate(request, pk):
     return JsonResponse({'status': 'duplicated', 'job_id': copy.id})
 
 
-def download(request, pk):
-    """GET : Télécharge la vidéo avatar générée."""
+def card_html(request, pk):
+    """GET : fragment HTML d'une card (partial serveur unique, rafraîchi par le polling)."""
+    from django.template.loader import render_to_string
+    from django.http import HttpResponse
     user = _get_user(request)
-    job = get_object_or_404(AvatarJob, pk=pk, user=user)
+    job = visible_or_404(AvatarJob, user, pk=pk)
+    from django.conf import settings as dj_settings
+    html = render_to_string('avatarizer/_avatar_card.html',
+                            {'job': job, 'media_url': dj_settings.MEDIA_URL}, request=request)
+    return HttpResponse(html)
+
+
+def console_content(request):
+    """GET : contenu de la console applicative (brique commune Redis)."""
+    user = _get_user(request)
+    all_lines = get_console_lines(user.id, limit=200)
+    return JsonResponse({'output': all_lines})
+
+
+class AboutView(IndexView):
+    """Page À propos (bloc about_content d'index.html, contexte complet)."""
+
+
+class HelpView(IndexView):
+    """Page Aide (bloc help_content d'index.html, contexte complet)."""
+
+
+def download(request, pk):
+    """GET : Télécharge la vidéo avatar générée (lecture → objets partagés inclus)."""
+    user = _get_user(request)
+    job = visible_or_404(AvatarJob, user, pk=pk)
 
     if job.status != 'SUCCESS' or not job.output_video:
         raise Http404("Vidéo non disponible.")
@@ -789,39 +837,21 @@ def batch_create(request):
     })
 
 
-@require_POST
-def consolidate(request):
-    """POST : Regroupe les jobs autonomes en lots par nature (mode)."""
-    user = _get_user(request)
-    # défait les lots-de-1 existants puis regroupe par nature
-    singles = list(BatchAvatarJob.objects.filter(user=user, total=1))
-    job_ids = []
-    for b in singles:
-        job_ids += [it.job_id for it in b.items.all() if it.job_id]
-    jobs = list(AvatarJob.objects.filter(id__in=job_ids).order_by('id')) if job_ids else \
-        list(AvatarJob.objects.filter(user=user, batch_item__isnull=True).order_by('id'))
+# Manipulation directe de file (brique commune) : consolidate / reorder /
+# move_to_batch / remove_from_batch. Remplace le consolidate maison (regroupement
+# global par nature) par le contrat uniforme sur ids selectionnes.
+_qm = make_queue_manipulation_views(
+    work_model=AvatarJob, batch_model=BatchAvatarJob,
+    item_model=BatchAvatarJobItem, fk_name='job',
+    get_user=_get_user,
+)
 
-    if not jobs:
-        return JsonResponse({'status': 'noop', 'batches': 0})
-
-    def _unwrap(ids):
-        BatchAvatarJobItem.objects.filter(job_id__in=ids).delete()
-        BatchAvatarJob.objects.filter(user=user, total=1, items__isnull=True).delete()
-
-    batches = group_into_batches_by_nature(
-        jobs,
-        nature_of=_avatar_nature,
-        create_batch=lambda nature, total: BatchAvatarJob.objects.create(user=user, total=total),
-        link_item=lambda batch, job, idx: BatchAvatarJobItem.objects.create(
-            batch=batch, job=job, row_index=idx),
-        unwrap_singletons=_unwrap,
-    )
-    # purge des lots devenus vides
-    BatchAvatarJob.objects.filter(user=user, items__isnull=True).delete()
-    return JsonResponse({'status': 'ok', 'batches': len(batches)})
+consolidate = _qm['consolidate']
+reorder = _qm['reorder']
+move_to_batch = _qm['move_to_batch']
+remove_from_batch = _qm['remove_from_batch']
 
 
-@require_POST
 def batch_update(request, pk):
     """Applique les réglages du volet à TOUS les items du lot (édition batch, hors RUNNING)."""
     user = _get_user(request)
@@ -908,7 +938,7 @@ def batch_download(request, pk):
     import zipfile
     from django.http import HttpResponse
     user = _get_user(request)
-    batch = get_object_or_404(BatchAvatarJob, pk=pk, user=user)
+    batch = visible_or_404(BatchAvatarJob, user, pk=pk)
 
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:

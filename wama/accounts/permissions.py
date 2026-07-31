@@ -185,13 +185,18 @@ def app_access(app_id):
       @app_access('imager')
       def index(request): ...
     À appliquer app par app APRÈS validation en conditions réelles (ne pas verrouiller en masse).
+    MÊME décision que AppAccessMiddleware : les requêtes anonymes passent (le tier anonyme est
+    servi via compte anonyme, comme partout dans WAMA) — les deux couches ne doivent jamais
+    diverger, sinon le décorateur casse l'usage anonyme au lieu de doubler le middleware.
     """
     from functools import wraps
 
     def deco(view):
         @wraps(view)
         def wrapped(request, *args, **kwargs):
-            if not accessible(request.user, app_id):
+            user = getattr(request, 'user', None)
+            if (user is not None and getattr(user, 'is_authenticated', False)
+                    and not accessible(user, app_id)):
                 from django.core.exceptions import PermissionDenied
                 raise PermissionDenied(f"Accès non autorisé à l'app '{app_id}'.")
             return view(request, *args, **kwargs)

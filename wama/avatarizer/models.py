@@ -7,14 +7,21 @@ Pipeline : MuseTalk (lip sync) + CodeFormer (amélioration faciale optionnelle)
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.validators import FileExtensionValidator
+from wama.common.models import BatchMixin, ProcessingTimeMixin, ScopedManager, ScopedVisibility
 from wama.common.utils.media_paths import UploadToUserPath
 from wama.common.tts.constants import TTS_MODEL_CHOICES, LANGUAGE_CHOICES, VOICE_PRESET_CHOICES
 
 User = get_user_model()
 
 
-class AvatarJob(models.Model):
+class AvatarJob(ProcessingTimeMixin, ScopedVisibility):
     """Représente une tâche de génération d'avatar animé (pipeline MuseTalk)."""
+
+    WAMA_INGEST = {
+        'source': 'source_url',
+        'target': 'audio_input',
+        'mode': 'audio',
+    }
 
     STATUS_CHOICES = [
         ('PENDING', 'En attente'),
@@ -63,7 +70,8 @@ class AvatarJob(models.Model):
     language = models.CharField(max_length=10, choices=LANGUAGE_CHOICES, default='fr')
     voice_preset = models.CharField(max_length=50, choices=VOICE_PRESET_CHOICES, default='default')
 
-    # Standalone : audio uploadé
+    # Standalone : audio uploadé (ou récupéré depuis source_url via ensure_local_input)
+    source_url = models.CharField(max_length=1000, blank=True)
     audio_input = models.FileField(
         upload_to=UploadToUserPath('avatarizer', 'input'),
         blank=True, null=True,
@@ -100,6 +108,16 @@ class AvatarJob(models.Model):
     )
     duration_seconds = models.FloatField(null=True, blank=True)
 
+    objects = ScopedManager()
+
+    @property
+    def chips(self):
+        """Chips méta de la card (brique card_chips), dérivées du schéma de params.
+        Imports paresseux : params.py importe ce module (derive_from_model)."""
+        from wama.common.utils.card_chips import chips_for
+        from wama.avatarizer.params import PARAMS_JSON
+        return chips_for(self, PARAMS_JSON)
+
     class Meta:
         verbose_name = "Job d'avatar"
         verbose_name_plural = "Jobs d'avatars"
@@ -119,10 +137,7 @@ class AvatarJob(models.Model):
         return "N/A"
 
 
-from wama.common.models import BatchMixin
-
-
-class BatchAvatarJob(BatchMixin, models.Model):
+class BatchAvatarJob(BatchMixin, ScopedVisibility):
     """Conteneur d'un lot de jobs d'avatar (import par fichier batch)."""
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_avatar_jobs')
@@ -132,6 +147,8 @@ class BatchAvatarJob(BatchMixin, models.Model):
         blank=True, null=True,
     )
     total = models.IntegerField(default=0)
+
+    objects = ScopedManager()
 
     class Meta:
         verbose_name = "Lot de jobs d'avatars"

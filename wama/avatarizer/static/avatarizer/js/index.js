@@ -338,89 +338,34 @@
     // -----------------------------------------------------------------------
     // Add job card dynamically (new job) — synthesis-card layout
     // -----------------------------------------------------------------------
-    function addJobCard(jobId) {
+    // Card = partial SERVEUR unique (_avatar_card.html via card_html) — le JS ne fabrique
+    // plus de markup : il insere/remplace le fragment rendu par Django.
+    async function fetchCardHtml(jobId) {
+        const r = await fetch(`${cfg.urls.card}${jobId}/html/`);
+        if (!r.ok) throw new Error(`card_html ${r.status}`);
+        const tmp = document.createElement('div');
+        tmp.innerHTML = (await r.text()).trim();
+        return tmp.firstElementChild;
+    }
+
+    async function addJobCard(jobId) {
         const container = $('#jobs-container');
-        const noJobsMsg = $('#no-jobs-msg');
-        if (noJobsMsg) noJobsMsg.remove();
+        if (!container) return;
+        try {
+            const fresh = await fetchCardHtml(jobId);
+            container.prepend(fresh);
+            bindJobCardEvents(fresh);
+        } catch (e) { /* la card apparaitra au prochain rechargement */ }
+    }
 
-        const mode = getMode();
-        const qualityMode  = $('input[name="quality_mode"]:checked');
-        const qIsQuality   = qualityMode && qualityMode.value === 'quality';
-        const useEnhancer  = $('#use_enhancer') && $('#use_enhancer').checked;
-        const bboxShiftVal = bboxSlider ? bboxSlider.value : '0';
-        const now          = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-
-        // Avatar thumbnail
-        let thumbHtml;
-        let avatarDisplayName;
-        if (selectedAvatarSource === 'gallery' && selectedAvatarName) {
-            const url = cfg.mediaUrl + 'avatarizer/gallery/' + selectedAvatarName;
-            thumbHtml = `<img src="${url}" style="width:48px;height:48px;object-fit:cover;border-radius:4px;flex-shrink:0;" alt="${selectedAvatarName}">`;
-            avatarDisplayName = selectedAvatarName.length > 14 ? selectedAvatarName.substring(0, 14) + '…' : selectedAvatarName;
-        } else if (selectedAvatarSource === 'upload' && avatarUploadFile) {
-            const objUrl = URL.createObjectURL(avatarUploadFile);
-            thumbHtml = `<img src="${objUrl}" style="width:48px;height:48px;object-fit:cover;border-radius:4px;flex-shrink:0;" alt="Avatar">`;
-            avatarDisplayName = 'Photo importée';
-        } else {
-            thumbHtml = `<div style="width:48px;height:48px;border-radius:4px;background:#343a40;flex-shrink:0;display:flex;align-items:center;justify-content:center;"><i class="fas fa-user text-muted"></i></div>`;
-            avatarDisplayName = '—';
-        }
-
-        // Col 2: paramètres (standalone-only 2026-07-15)
-        let col2Html = '<i class="fas fa-upload"></i> Audio<br>';
-        col2Html += `<i class="fas fa-${qIsQuality ? 'star' : 'bolt'}"></i> ${qIsQuality ? 'Qualité' : 'Rapide'}`;
-        if (useEnhancer) col2Html += ` <span class="badge bg-secondary" style="font-size:0.6rem;">CF</span>`;
-        if (bboxShiftVal !== '0') col2Html += ` &bull; <i class="fas fa-arrows-alt-v"></i> ${bboxShiftVal}`;
-
-        const card = document.createElement('div');
-        card.className = 'synthesis-card';
-        card.id = `job-${jobId}`;
-        card.dataset.jobId = jobId;
-        card.dataset.status = 'PENDING';
-        card.dataset.mode = 'standalone';
-        card.innerHTML = `
-            <div class="row align-items-center g-2">
-                <div class="col-3 d-flex align-items-start gap-2">
-                    ${thumbHtml}
-                    <div>
-                        <strong class="text-light d-block">${avatarDisplayName}</strong>
-                        <small class="text-white-50">${now}</small>
-                    </div>
-                </div>
-                <div class="col-3">
-                    <small class="job-params-display">${col2Html}</small>
-                </div>
-                <div class="col-2">
-                    <small class="text-white-50 step-desc">En attente…</small>
-                </div>
-                <div class="col-2">
-                    <span class="badge bg-secondary job-status-badge">En attente</span>
-                    <div class="progress-bar-custom mt-2">
-                        <div class="progress-fill" style="width:0%"></div>
-                    </div>
-                    <small class="text-light progress-text">0%</small>
-                </div>
-                <div class="col-2">
-                    <div class="btn-group-actions flex-wrap">
-                        <button class="btn btn-sm btn-outline-secondary btn-settings-job"
-                                data-job-id="${jobId}"
-                                data-quality-mode="${qualityMode ? qualityMode.value : 'fast'}"
-                                data-use-enhancer="${useEnhancer ? 'true' : 'false'}"
-                                data-bbox-shift="${bboxShiftVal}"
-                                title="Paramètres">
-                            <i class="fas fa-cog"></i>
-                        </button>
-                        ${window.WamaCycleButton ? WamaCycleButton.html('PENDING', jobId) : ''}
-                        <button class="btn btn-sm btn-outline-danger btn-delete-job" data-job-id="${jobId}" title="Supprimer">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <div id="preview-row-${jobId}"></div>
-        `;
-        container.prepend(card);
-        bindJobCardEvents(card);
+    async function refreshCard(jobId) {
+        const card = $(`#job-${jobId}`);
+        if (!card) return;
+        try {
+            const fresh = await fetchCardHtml(jobId);
+            card.replaceWith(fresh);
+            bindJobCardEvents(fresh);   // RE-BIND apres re-rendu (lecon describer)
+        } catch (e) { /* non-fatal */ }
     }
 
     // -----------------------------------------------------------------------
@@ -480,86 +425,30 @@
         const card = $(`#job-${jobId}`);
         if (!card) return;
 
-        const badge      = $('.job-status-badge', card);
-        const fill       = $('.progress-fill', card);
-        const progText   = $('.progress-text', card);
-        const stepDesc   = $('.step-desc', card);
-        const actionsDiv = $('.btn-group-actions', card);
-
-        const statusMap = {
-            PENDING: { label: 'En attente',  cls: 'bg-secondary',        cardCls: '' },
-            RUNNING: { label: 'En cours',    cls: 'bg-warning text-dark', cardCls: 'processing' },
-            SUCCESS: { label: 'Terminé',     cls: 'bg-success',           cardCls: 'success' },
-            FAILURE: { label: 'Échec',       cls: 'bg-danger',            cardCls: 'error' },
-        };
-        const st = statusMap[data.status] || { label: data.status, cls: 'bg-secondary', cardCls: '' };
-
-        // Colored left border via card class
-        card.className = `synthesis-card${st.cardCls ? ' ' + st.cardCls : ''}`;
-
-        if (badge) {
-            badge.textContent = st.label;
-            badge.className = `badge ${st.cls} job-status-badge`;
+        // Transition d'etat -> la card est re-rendue par le serveur (source unique du markup)
+        if ((card.dataset.status || '') !== data.status) {
+            card.dataset.status = data.status;
+            refreshCard(jobId);
+            return;
         }
+
+        // Meme etat : progression/ETA/etape mises a jour en place (pas de re-fetch a chaque poll)
+        const fill     = $('.progress-fill', card);
+        const progText = $('.progress-text', card);
         if (fill)     fill.style.width = data.progress + '%';
         if (progText) progText.textContent = data.progress + '%';
 
-        // ETA (moteur commun) — débit observé + seed serveur (apprentissage)
+        // ETA (moteur commun) — debit observe + seed serveur (apprentissage)
         if (window.WamaEta) {
             const est = WamaEta.update(jobId, { progress: data.progress, status: data.status,
                                                 seedSeconds: data.estimated_seconds, modelLoaded: false });
             WamaEta.render($('.wama-eta', card), est);
         }
 
-        // Step description (col 3)
-        if (stepDesc) {
-            const mode = data.mode || card.dataset.mode || 'pipeline';
-            if (data.status === 'RUNNING' || data.status === 'PENDING') {
-                stepDesc.textContent = getStepLabel(data.progress, mode);
-            } else if (data.status === 'SUCCESS') {
-                const preview = data.text_preview || '';
-                stepDesc.textContent = preview ? `"${preview}"` : 'Vidéo générée ✓';
-            } else if (data.status === 'FAILURE') {
-                stepDesc.textContent = (data.error || 'Erreur').substring(0, 50);
-            }
+        const stepDesc = $('.step-desc', card);
+        if (stepDesc && (data.status === 'RUNNING' || data.status === 'PENDING')) {
+            stepDesc.textContent = getStepLabel(data.progress, data.mode || card.dataset.mode || 'pipeline');
         }
-
-        // Boutons TOUJOURS visibles (le bouton de cycle ▶/⏹/↻ gère start/stop/relance lui-même).
-        // ⚙ Paramètres reste accessible même pendant le traitement.
-        const startBtnEl    = $('.btn-start-job', card);   // legacy (plus rendu) — conservé null-safe
-        const settingsBtnEl = $('.btn-settings-job', card);
-
-        // SUCCESS : injecter download + prévisualisation vidéo
-        if (data.status === 'SUCCESS' && data.video_url && actionsDiv) {
-            if (!$('.btn-download-job', actionsDiv)) {
-                const dlLink = document.createElement('a');
-                dlLink.href = `${cfg.urls.download}${jobId}/`;
-                dlLink.className = 'btn btn-sm btn-info btn-download-job';
-                dlLink.title = 'Télécharger';
-                dlLink.innerHTML = '<i class="fas fa-download"></i>';
-                const deleteBtn = $('.btn-delete-job', actionsDiv);
-                actionsDiv.insertBefore(dlLink, deleteBtn);
-            }
-
-            const previewRow = $(`#preview-row-${jobId}`);
-            if (previewRow && !$('video', previewRow)) {
-                previewRow.innerHTML = `
-                    <div class="row mt-2">
-                        <div class="col-12">
-                            <video class="w-100" controls style="border-radius:6px;max-height:220px;">
-                                <source src="${data.video_url}" type="video/mp4">
-                            </video>
-                        </div>
-                    </div>`;
-            }
-        }
-
-        // FAILURE : s'assurer que le bouton retry est visible (il est déjà dans le DOM, juste caché)
-        if (data.status === 'FAILURE' && startBtnEl) {
-            startBtnEl.style.display = '';
-        }
-
-        card.dataset.status = data.status;
     }
 
     // -----------------------------------------------------------------------
@@ -720,18 +609,6 @@
             });
         }
 
-        const startBtn = $('.btn-start-job', card);
-        if (startBtn) {
-            startBtn.addEventListener('click', async () => {
-                const jid = startBtn.dataset.jobId;
-                try {
-                    await startJob(jid);
-                    startPolling(jid);
-                } catch (err) {
-                    WamaApp.toast('Erreur : ' + err.message, 'error');
-                }
-            });
-        }
 
         const settingsBtn = $('.btn-settings-job', card);
         if (settingsBtn) {
@@ -876,7 +753,7 @@
     document.addEventListener('click', async (e) => {
         // ── Dupliquer un job : brique COMMUNE `queue-actions.js` ──────────────────
         // Ce handler local a été retiré (2026-07-31). Le bouton porte maintenant la
-        // classe `.duplicate-btn` + `data-duplicate-url`, sur lesquelles la brique
+        // classe et data-attribut de duplication communs, sur lesquels la brique
         // globale se branche. Le garder EN PLUS aurait duplique deux fois par clic :
         // la brique exige la classe ET l'attribut, poser l'un sans retirer l'autre
         // produit soit un doublon, soit un mécanisme présent mais inerte.

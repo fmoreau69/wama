@@ -27,6 +27,15 @@ urlpatterns = [
     path('batch/preview/', views.batch_preview, name='batch_preview'),
     path('batch/create/', views.batch_create, name='batch_create'),
     path('batch/consolidate/', views.consolidate, name='consolidate'),
+    # Manipulation directe de file (fabrique commune)
+    path('reorder/', views.reorder, name='reorder'),
+    path('move-to-batch/<int:pk>/', views.move_to_batch, name='move_to_batch'),
+    path('remove-from-batch/<int:pk>/', views.remove_from_batch, name='remove_from_batch'),
+    # Card serveur unique + console + pages
+    path('card/<int:pk>/html/', views.card_html, name='card_html'),
+    path('console/', views.console_content, name='console'),
+    path('about/', views.AboutView.as_view(), name='about'),
+    path('help/', views.HelpView.as_view(), name='help'),
     path('batch/<int:pk>/start/', views.batch_start, name='batch_start'),
     path('batch/<int:pk>/update/', views.batch_update, name='batch_update'),
     path('batch/<int:pk>/duplicate/', views.batch_duplicate, name='batch_duplicate'),
