@@ -175,31 +175,28 @@ action primaire de la card, conventions CARD_DESIGN §2 ; id #btn-generate incha
         de index.js intacts. STANDALONE-ONLY depuis 2026-07-11 (pipeline = studio).{% endcomment %}
         {% include 'common/_new_item_card.html' with collapsible=True card_id='avatarizerNewCard' drop_zone_id='audio-dropzone' file_input_id='audio_input' file_accept='.wav,.mp3,.ogg,.flac' formats_label='WAV, MP3, OGG, FLAC — la voix de l’avatar' show_media_library=True media_library_type='audio' extra_zone_template='avatarizer/_new_item_extra.html' primary_btn_id='btn-generate' primary_btn_label='Générer la vidéo' primary_btn_icon='fa-play-circle' %}
 
-        <div id="jobs-container">
+        {% comment %}
+          Barre de tri/filtre/disposition COMMUNE — mêmes gestes que les autres files.
+          `q_sort`/`q_filter` viennent de `apply_queue_sort_filter` (persistés en session).
+        {% endcomment %}
+        {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='startAllBtn' clear_id='clearAllBtn' download_id='downloadAllBtn' show_download=True %}
+
+        <div id="jobs-container" class="wama-queue-{{ card_layout|default:'list' }}">
             {% if batches_list %}
                 {% for b in batches_list %}
-                {% if b.total > 1 %}
-                {# ── En-tête de lot ── #}
-                <div class="batch-group mb-2 border rounded" data-batch-id="{{ b.obj.id }}" style="border-color:#0dcaf0 !important;">
-                    <div class="batch-group-header d-flex align-items-center gap-2 p-2"
-                         style="background:#0c2730; cursor:pointer;"
-                         data-bs-toggle="collapse" data-bs-target="#batchItems{{ b.obj.id }}" aria-expanded="true">
-                        <i class="fas fa-layer-group" style="color:#0dcaf0;"></i>
-                        <strong class="text-light">Lot #{{ b.obj.id }}</strong>
-                        <span class="badge bg-secondary">{{ b.done_count }}/{{ b.total }}</span>
-                        <span class="wama-eta" data-eta-ids="{% for j in b.items %}{{ j.id }},{% endfor %}"></span>
-                        <i class="fas fa-chevron-down text-muted ms-auto" style="font-size:.7rem;"></i>
-                        <div class="d-flex gap-1 flex-shrink-0" onclick="event.stopPropagation()">
-                            <button class="btn btn-sm btn-outline-success py-0 px-2 batch-start-btn" data-batch-id="{{ b.obj.id }}" title="Démarrer le lot"><i class="fas fa-play"></i></button>
-                            {% if b.has_success %}<a class="btn btn-sm btn-outline-info py-0 px-2" href="{% url 'avatarizer:batch_download' b.obj.id %}" title="Télécharger le lot (ZIP)"><i class="fas fa-download"></i></a>{% endif %}
-                            <button class="btn btn-sm btn-outline-secondary py-0 px-2 batch-duplicate-btn" data-batch-id="{{ b.obj.id }}" title="Dupliquer le lot"><i class="fas fa-copy"></i></button>
-                            <button class="btn btn-sm btn-outline-danger py-0 px-2 batch-delete-btn" data-batch-id="{{ b.obj.id }}" title="Supprimer le lot"><i class="fas fa-trash"></i></button>
-                        </div>
-                    </div>
+                {% if b.obj.total > 1 %}
+                {% comment %}
+                  En-tête de lot : card COMMUNE (_batch_card.html). L'avatarizer en avait une
+                  écrite à la main, visuellement proche mais divergente — compteurs, ETA et
+                  actions y étaient re-câblés à part. Elle lit le contrat de `build_batches_list`.
+                {% endcomment %}
+                <div class="batch-group mb-2" data-batch-id="{{ b.obj.id }}">
+                    {% url 'avatarizer:batch_download' b.obj.id as batch_dl_url %}
+                    {% include 'common/_batch_card.html' with batch_info=b download_url=batch_dl_url %}
                     <div class="collapse show ps-2 pt-1" id="batchItems{{ b.obj.id }}" data-wama-batch-key="avatarizer_{{ b.obj.id }}" style="border-left:2px solid #0dcaf0; margin-left:.5rem;">
                 {% endif %}
-                {% for job in b.items %}
-                <div class="synthesis-card {% if job.status == 'RUNNING' %}processing{% elif job.status == 'SUCCESS' %}success{% elif job.status == 'FAILURE' %}error{% endif %}"
+                {% for it in b.items %}{% with job=it.job %}
+                <div class="wama-card synthesis-card {% if job.status == 'RUNNING' %}processing{% elif job.status == 'SUCCESS' %}success{% elif job.status == 'FAILURE' %}error{% endif %}"
                      id="job-{{ job.id }}" data-job-id="{{ job.id }}"
                      data-status="{{ job.status }}" data-mode="standalone">
                     <div class="row align-items-center g-2">
@@ -253,11 +250,13 @@ action primaire de la card, conventions CARD_DESIGN §2 ; id #btn-generate incha
                                 {% elif job.status == 'SUCCESS' %}bg-success
                                 {% elif job.status == 'FAILURE' %}bg-danger
                                 {% endif %}">{{ job.get_status_display }}</span>
-                            <div class="progress-bar-custom mt-2">
-                                <div class="progress-fill" style="width:{{ job.progress }}%"></div>
-                            </div>
-                            <small class="text-light progress-text">{{ job.progress }}%</small>
-                            <span class="wama-eta d-block mt-1"></span>
+                            {% comment %}
+                              Progression + ETA : brique COMMUNE. L'avatarizer avait ses
+                              propres classes (`progress-bar-custom`/`progress-fill`), donc
+                              une barre qui ne réagissait pas aux mêmes règles que les autres
+                              files et que le JS commun ne savait pas cibler.
+                            {% endcomment %}
+                            {% include 'common/_card_progress.html' with status=job.status progress=job.progress %}
                         </div>
 
                         <!-- Col 5 : Actions -->
@@ -284,8 +283,15 @@ action primaire de la card, conventions CARD_DESIGN §2 ; id #btn-generate incha
                                     <i class="fas fa-download"></i>
                                 </a>
                                 {% endif %}
-                                <button class="btn btn-sm btn-outline-warning btn-duplicate-job"
-                                        data-job-id="{{ job.id }}" title="Dupliquer">
+                                {% comment %}
+                                  Dupliquer : classe `.duplicate-btn` + `data-duplicate-url`,
+                                  le couple exigé par la brique commune queue-actions.js
+                                  (montée globalement). Le handler local a été retiré.
+                                {% endcomment %}
+                                <button class="btn btn-sm btn-outline-warning duplicate-btn"
+                                        data-job-id="{{ job.id }}"
+                                        data-duplicate-url="{% url 'avatarizer:duplicate' job.id %}"
+                                        title="Dupliquer">
                                     <i class="fas fa-copy"></i>
                                 </button>
                                 <button class="btn btn-sm btn-outline-danger btn-delete-job"
@@ -310,8 +316,8 @@ action primaire de la card, conventions CARD_DESIGN §2 ; id #btn-generate incha
                     <div id="preview-row-{{ job.id }}"></div>
                     {% endif %}
                 </div>
-                {% endfor %}{# job in b.items #}
-                {% if b.total > 1 %}
+                {% endwith %}{% endfor %}{# it in b.items #}
+                {% if b.obj.total > 1 %}
                     </div><!-- /collapse -->
                 </div><!-- /batch-group -->
                 {% endif %}

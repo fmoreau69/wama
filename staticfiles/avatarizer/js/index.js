@@ -874,17 +874,13 @@
     }
 
     document.addEventListener('click', async (e) => {
-        // ── Dupliquer un job (item) ──
-        const dupBtn = e.target.closest('.btn-duplicate-job');
-        if (dupBtn) {
-            e.preventDefault();
-            try {
-                const r = await postJson(`${cfg.urls.duplicate}${dupBtn.dataset.jobId}/`);
-                if (r.ok) { if (window.WamaFM) WamaFM.uploaded(); window.location.reload(); }
-                else WamaApp.toast('Erreur lors de la duplication.', 'error');
-            } catch (_) { WamaApp.toast('Erreur réseau.', 'error'); }
-            return;
-        }
+        // ── Dupliquer un job : brique COMMUNE `queue-actions.js` ──────────────────
+        // Ce handler local a été retiré (2026-07-31). Le bouton porte maintenant la
+        // classe `.duplicate-btn` + `data-duplicate-url`, sur lesquelles la brique
+        // globale se branche. Le garder EN PLUS aurait duplique deux fois par clic :
+        // la brique exige la classe ET l'attribut, poser l'un sans retirer l'autre
+        // produit soit un doublon, soit un mécanisme présent mais inerte.
+
         // ── Démarrer un lot ──
         const startBtn = e.target.closest('.batch-start-btn');
         if (startBtn) {

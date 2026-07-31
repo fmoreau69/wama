@@ -61,13 +61,40 @@ class IndexView(View):
     def get(self, request):
         user = _get_user(request)
         jobs = AvatarJob.objects.filter(user=user).order_by('-id')
+
+        # Réconciliation des RUNNING orphelins (brique COMMUNE) : un worker tué laisse des
+        # jobs bloqués en RUNNING pour toujours. La bascule n'a lieu que sur PREUVE POSITIVE
+        # de mort — si aucun worker ne répond, on ne touche à rien (un job réellement en
+        # cours ne doit jamais être déclaré en échec parce que l'inspection a échoué).
+        try:
+            from wama.common.utils.process_control import reconcile_orphaned_running
+            reconcile_orphaned_running(
+                [j for j in jobs if j.status == 'RUNNING'], error_field='error_message')
+        except Exception:
+            logger.debug("[avatarizer] réconciliation des orphelins ignorée", exc_info=True)
+
         gallery = _gallery_images()
 
         custom_voices = CustomVoice.objects.filter(user=user)
 
+        # Tri / filtre de la file (brique COMMUNE) — porte sur la liste de LOTS, qui est
+        # l'unité affichée par la toolbar partagée.
+        batches_list = _get_batches_list(user)
+        try:
+            from wama.common.utils.queue_view import apply_queue_sort_filter
+            # `name_of` reçoit l'ENTRÉE de lot. Un AvatarJob n'a pas de champ de nom :
+            # son identité lisible est l'avatar utilisé (galerie ou fichier téléversé).
+            batches_list, q_sort, q_filter = apply_queue_sort_filter(
+                request, batches_list, name_of=_batch_display_name)
+        except Exception:
+            q_sort, q_filter = '', ''
+            logger.debug("[avatarizer] tri/filtre de file ignoré", exc_info=True)
+
         context = {
             'jobs': jobs,
-            'batches_list': _get_batches_list(user),
+            'q_sort': q_sort,
+            'q_filter': q_filter,
+            'batches_list': batches_list,
             'gallery_images': gallery,
             'tts_models': AvatarJob.TTS_MODEL_CHOICES,
             'languages': AvatarJob.LANGUAGE_CHOICES,
@@ -543,25 +570,48 @@ def _auto_wrap_orphans(user) -> None:
         _wrap_job_in_batch(job)
 
 
+def _batch_display_name(entry) -> str:
+    """Nom lisible d'un lot, pour le tri alphabétique de la toolbar commune.
+
+    Un AvatarJob n'a pas de champ de nom : son identité visible est l'avatar employé
+    (image de la galerie, ou fichier téléversé). On prend celui du premier job du lot.
+    """
+    items = entry.get('items') or []
+    # `items` = lignes de LIAISON (BatchAvatarJobItem) ; la FK métier est `job`.
+    job = next((getattr(it, 'job', None) for it in items if getattr(it, 'job', None)), None)
+    if job is None:
+        return ''
+    if job.avatar_gallery_name:
+        return job.avatar_gallery_name
+    if job.avatar_upload:
+        return os.path.basename(job.avatar_upload.name)
+    return ''
+
+
 def _get_batches_list(user):
-    """Liste de dicts {obj, items, total, done_count, has_success} pour le template."""
+    """Agrégats de file via la brique COMMUNE `build_batches_list`.
+
+    Cette fonction recalculait à la main ce que la brique produit déjà (items ordonnés,
+    compteurs SUCCESS/RUNNING/FAILURE, `has_success`), mais avec un vocabulaire à elle :
+    `total`/`done_count` au lieu des clés du contrat commun. La toolbar et la card de lot
+    partagées lisent le contrat commun — c'est ce décalage de noms qui empêchait
+    l'avatarizer de les réutiliser telles quelles.
+
+    `has_output` : un lot n'est « réussi » que si au moins un job a produit une VIDÉO —
+    un SUCCESS sans fichier ne doit pas activer le téléchargement du lot.
+    """
     _auto_wrap_orphans(user)
-    batches = BatchAvatarJob.objects.filter(user=user).prefetch_related('items__job').order_by('-created_at')
-    result = []
-    for batch in batches:
-        items = [it.job for it in batch.items.select_related('job').order_by('row_index') if it.job]
-        done = sum(1 for j in items if j.status == 'SUCCESS')
-        has_success = any(j.status == 'SUCCESS' and j.output_video for j in items)
-        result.append({
-            'obj': batch,
-            'items': items,
-            'total': len(items),
-            'done_count': done,
-            'has_success': has_success,
-        })
-    # lots multi-éléments en premier
-    result.sort(key=lambda b: 0 if b['total'] > 1 else 1)
-    return result
+    from wama.common.utils.batch_common import build_batches_list
+    batches = build_batches_list(
+        user,
+        batch_model=BatchAvatarJob,
+        work_attr='job',
+        order_by='-created_at',
+        has_output=lambda job: bool(job.output_video),
+    )
+    # Lots multi-éléments en premier (un lot d'un seul job se lit comme une card simple).
+    batches.sort(key=lambda b: 0 if len(b['items']) > 1 else 1)
+    return batches
 
 
 def batch_template(request):
