@@ -13,26 +13,28 @@
    perdre exactement ce que la v3 apporte sur la v2.
    ═══════════════════════════════════════════════════════════════════════════════════════ */
 
-/* ── Grille à pistes partagées — dimensionnée sur le CONTENU RÉEL ───────────────────
-   Les chiffres de la maquette (232 · 1fr · 1,15fr · 118 · 188) ne sont PAS repris : la
-   maquette est un outil de réflexion, ses largeurs viennent de données factices. Mesure des
-   largeurs naturelles sur la file réelle du reader (2026-08-01) :
-       ENTRÉE 208 · RÉGLAGES 234 · SORTIE 243 · ÉTAT 75 · ACTIONS 171
-   → la maquette sur-dotait Entrée/État/Actions et étranglait Réglages/Sortie, qui sont les
-   deux sections réellement verbeuses (libellés de moteur, formats de sortie).
-   Les proportions ci-dessous suivent ce relevé ; refaire la mesure pour chaque app portée. */
+/* ── Grille à pistes partagées — dimensionnement MESURÉ, jamais écrit en dur ────────
+   Des largeurs constantes ne peuvent pas convenir : le contenu d'une piste dépend de l'app
+   (un reader n'affiche pas ce qu'affiche un synthesizer), du nombre de boutons d'action de
+   chaque card, de la longueur des libellés de moteur… Toute constante est donc juste pour
+   une app et fausse pour les neuf autres — c'est ce qui faisait repasser la corbeille à la
+   ligne malgré trois ajustements successifs.
+
+   Mécanisme : `wama-card-v3.js` MESURE le contenu réel de la file et pose les variables
+   ci-dessous sur le conteneur. Les pistes sont donc :
+     • IDENTIQUES pour toutes les cards d'une même file (l'alignement, raison d'être de la v3)
+     • PROPRES à chaque app, déduites de ce qu'elle affiche vraiment
+     • recalculées quand le contenu change (card mise à jour, resize, changement de mode)
+   Les valeurs de repli ci-dessous ne servent qu'avant le premier passage du JS (ou s'il est
+   absent) : ce ne sont PAS les largeurs de référence. */
 .wcv3 {
   display: grid;
   grid-template-columns:
-    minmax(0, 1.25fr)   /* ENTRÉE   — la plus dotée : le nom est ce qu'on lit en PREMIER pour
-                           identifier une card. À 1fr il tronquait dès « pw_test_1.… ». */
-    minmax(0, 1.15fr)   /* RÉGLAGES — verbeux (mesuré 234) */
-    minmax(0, 1.2fr)    /* SORTIE   — le plus verbeux (mesuré 243), et il grandit au fil du run */
-    122px               /* ÉTAT     — statut + identité de card (#id · date) */
-    186px;              /* ACTIONS  — plancher mesuré 171 + le padding du séparateur, qui est
-                           INCLUS dans la piste (box-sizing: border-box). Chiffrer une piste
-                           fixe sur le seul contenu la rend trop étroite de ~10 px, et les
-                           5 boutons repassent à la ligne. */
+    var(--wcv3-c-input,    minmax(0, 1.25fr))   /* ENTRÉE   — nom + propriétés du média */
+    var(--wcv3-c-settings, minmax(0, 1.15fr))   /* RÉGLAGES */
+    var(--wcv3-c-output,   minmax(0, 1.2fr))    /* SORTIE   — grandit au fil du run */
+    var(--wcv3-c-state,    minmax(0, 96px))     /* ÉTAT     — statut + ETA/durée */
+    var(--wcv3-c-actions,  minmax(0, 186px));   /* ACTIONS  — dépend du NOMBRE de boutons */
   column-gap: .55rem;
   row-gap: .45rem;
 }
@@ -48,50 +50,69 @@
   padding-left: .55rem;
 }
 
-/* Micro-étiquettes de section (§11 : 0,55rem uppercase) — repères de colonne, pas du contenu. */
+/* Micro-étiquettes de section — repères de colonne, pas du contenu.
+   0,62rem et non 0,55 : à 0,55 elles étaient à la limite du lisible. Le §11 partait des
+   proportions de la maquette, plus dense que le rendu réel. */
 .wcv3-lbl {
   display: block;
-  font-size: .55rem;
+  font-size: .62rem;
   text-transform: uppercase;
-  letter-spacing: .07em;
-  color: #6c757d;
+  letter-spacing: .06em;
+  color: #7a838c;
   margin-bottom: .2rem;
   user-select: none;
 }
 
+/* ── Bandeau d'identité de la CARD ──────────────────────────────────────────────────
+   #id + date de création ne sont NI une propriété du fichier d'entrée, NI un élément d'état :
+   ils identifient l'élément de file lui-même. Essayés successivement dans ENTRÉE (mêlés aux
+   propriétés du média) puis dans ÉTAT (encore moins à leur place), ils ont désormais leur
+   propre bandeau, hors des 5 sections — discret, au-dessus de la grille. */
+.wcv3-head {
+  font-size: .66rem;
+  color: #6c757d;
+  margin-bottom: .3rem;
+  user-select: none;
+}
+.wcv3-head .sep { opacity: .5; margin: 0 .3rem; }
+
 /* ── Section ENTRÉE — sous-lignes : nom → propriétés réelles → #id · date ───────────── */
 .wcv3-in { display: flex; align-items: flex-start; gap: .5rem; }
 
+/* Vignette / icône d'entrée — DISCRÈTE. À 48 px avec cadre et fond elle pesait autant que le
+   nom du fichier alors qu'elle ne fait que typer le média. Le cadre n'apparaît qu'au survol,
+   pour signaler qu'elle est cliquable (aperçu de la source). */
 .wcv3-thumb {
   flex: 0 0 auto;
-  width: 48px; height: 48px;
-  border-radius: .3rem;
+  width: 30px; height: 30px;
+  border-radius: .25rem;
   object-fit: cover;
-  background: #16191c;
-  border: 1px solid #2a2d30;
+  background: transparent;
+  border: 1px solid transparent;
   display: flex; align-items: center; justify-content: center;
   color: #6c757d;
+  transition: background .12s, border-color .12s;
 }
+.wcv3-thumb:hover { background: #16191c; border-color: #2a2d30; }
 
 .wcv3-in-lines { min-width: 0; }
 
+/* Le nom est l'information la plus lue de la card : il porte la taille la plus grande.
+   Tronque à l'ellipsis quand il dépasse sa piste — le title porte le nom complet. */
 .wcv3-in-name {
   display: block;
   font-weight: 600;
   color: #e9ecef;
-  font-size: .82rem;
+  font-size: .88rem;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
 /* Propriétés RÉELLES du média (mp3 · 44,1 kHz · stéréo · durée / pdf · 12 pages · 2,4 Mo) —
    relevées de l'entrée, jamais des réglages. */
-.wcv3-in-props { font-size: .66rem; color: #adb5bd; }
+.wcv3-in-props { font-size: .72rem; color: #adb5bd; }
 .wcv3-in-props .sep { opacity: .45; margin: 0 .28rem; }
 
-/* Identité de la CARD — vit dans la section ÉTAT, pas dans ENTRÉE : #31 et la date de création
-   décrivent l'élément de file, pas le fichier déposé. Les mêler aux propriétés du média
-   (« pdf · 12 pages · 2,4 Mo ») faisait lire deux natures d'information sur la même ligne. */
-.wcv3-card-id { display: block; font-size: .62rem; color: #6c757d; margin-top: .15rem; }
+
 
 /* ── Chips « blueprint » — sortie ESTIMÉE, pas encore produite (§11) ────────────────
    Pointillés + teinte éteinte : l'utilisateur doit voir au premier coup d'œil que c'est
@@ -106,12 +127,12 @@
 /* ── Section SORTIE — temporelle : blueprint AVANT → étape live PENDANT → solide APRÈS ── */
 .wcv3-out { display: flex; flex-wrap: wrap; gap: .25rem; align-items: center; }
 
-.wcv3-out-step { font-size: .68rem; color: #9ec5d4; }
+.wcv3-out-step { font-size: .74rem; color: #9ec5d4; }
 .wcv3-out-step .pct { font-weight: 600; color: #e9ecef; }
 
 /* En ÉCHEC l'erreur REMPLACE la sortie au même endroit (§11) — même piste, même altitude. */
 .wcv3-out-error {
-  font-size: .68rem; color: #ea868f;
+  font-size: .74rem; color: #ea868f;
   display: block;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
@@ -119,7 +140,7 @@
 /* ── Section ÉTAT — point + libellé + ETA/durée + barre ─────────────────────────────
    Barre VERTE sur tout le cycle (décision Fabien : l'état est déjà porté par le liseré,
    le point et le badge — une 4e redite en couleur sature la card). Réversible. */
-.wcv3-state { font-size: .72rem; color: rgba(255, 255, 255, .55); }
+.wcv3-state { font-size: .78rem; color: rgba(255, 255, 255, .72); }
 .wcv3-state-line { display: flex; align-items: center; gap: .35rem; }
 
 /* ÉCHEC : la barre reste FIGÉE au % atteint et GARDE le dégradé vert — on voit OÙ le
@@ -149,7 +170,7 @@
   border-radius: .3rem;
   background: rgba(0, 0, 0, .32);
   border: 1px solid rgba(255, 255, 255, .05);
-  font-size: .72rem;
+  font-size: .76rem;
   color: #dee2e6;
   max-height: 80px;      /* aligné sur expandPreview() (reader.js) qui replie à '80px' */
   overflow: hidden;
@@ -244,5 +265,4 @@
     border-top: 1px solid rgba(255, 255, 255, .08);
     padding-top: .35rem;
   }
-  .wcv3-card-id { display: inline; margin-left: .4rem; }
 }
