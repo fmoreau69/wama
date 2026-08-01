@@ -444,6 +444,12 @@ tranchent une fois sur les briques communes et se propagent. Consignés au fil d
 
 ## 11. Card v3 « sections × chips » — décisions de maquette (2026-08-01, itérations Fabien×Claude)
 
+> ⚠️ **La maquette est un OUTIL DE RÉFLEXION, PAS du code à porter.** Elle n'est pas
+> représentative du fonctionnement réel (repli des lots inactif, dimensions/boutons simulés,
+> icônes emoji, données factices). Ce qui se transfère : les DÉCISIONS de ce §11, les pistes de
+> grille, les couleurs relevées du réel, l'anatomie des 5 sections, les comportements décrits.
+> L'implémentation part des briques EXISTANTES (_batch_card, card_chips, _cycle_button,
+> _card_progress, preview_utils, wama-queue…) — traduire, jamais recopier la maquette.
 > Maquette vivante : docs/card_designs/card_v3.5_maquette.html (URL stable, versions étiquetées ; v3.4 = arbitrages du 2026-08-01). ⚠ v3.4 : l exemple de card en ÉCHEC (barre figée) manque encore dans la maquette — à ajouter. Fusion
 > v1 Transcriber (sections nommées) × v2 chips (compacité). RIEN de nouveau côté mécanismes :
 > déclaratif → briques → UI. Pilote de portage : **SYNTHESIZER** (décision 2026-08-01 —
