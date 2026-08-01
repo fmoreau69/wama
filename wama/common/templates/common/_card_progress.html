@@ -7,19 +7,27 @@ Variables :
   status   — 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILURE'
   progress — 0–100
   elapsed  — (optionnel) durée de traitement formatée, affichée sur SUCCESS
+  no_bar   — (optionnel) rend TOUT sauf la barre (badge, %, ETA, durée)
+  bar_only — (optionnel) rend UNIQUEMENT la barre
+
+Pourquoi ces deux modes : dans la card v3 (CARD_DESIGN §11), l'état vit dans SA section — une
+colonne étroite — tandis que la barre traverse la card sur toute sa largeur. Rendre le bloc
+entier en pleine largeur emportait le badge et l'ETA en bas de card, loin de la section ÉTAT.
+Deux appels au même partial valent mieux qu'un second partial qui dériverait.
+Sans ces variables, le comportement est INCHANGÉ (bloc complet) pour toutes les apps.
 
 Usage :
   {% include 'common/_card_progress.html' with status=obj.status progress=obj.progress elapsed=obj.processing_display %}
 {% endcomment %}
-<span class="badge status-badge
+{% if not bar_only %}<span class="badge status-badge
     {% if status == 'PENDING' %}bg-secondary
     {% elif status == 'RUNNING' %}bg-warning
     {% elif status == 'SUCCESS' %}bg-success
     {% elif status == 'FAILURE' %}bg-danger
-    {% endif %}">{{ status }}</span>
-<div class="wama-progress-track mt-2">
+    {% endif %}">{{ status }}</span>{% endif %}
+{% if not no_bar %}<div class="wama-progress-track mt-2">
     <div class="wama-progress-fill {% if status == 'RUNNING' %}active{% endif %}" style="width: {{ progress|default:0 }}%"></div>
-</div>
-<small class="text-light progress-text">{{ progress|default:0 }}%</small>
+</div>{% endif %}
+{% if not bar_only %}<small class="text-light progress-text">{{ progress|default:0 }}%</small>
 <span class="wama-eta d-block"></span>
-{% if status == 'SUCCESS' %}<span class="d-block">{% include 'common/_processing_time.html' with elapsed=elapsed %}</span>{% endif %}
+{% if status == 'SUCCESS' %}<span class="d-block">{% include 'common/_processing_time.html' with elapsed=elapsed %}</span>{% endif %}{% endif %}

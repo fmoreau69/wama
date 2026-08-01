@@ -82,12 +82,13 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                     </div>
                     <div class="wcv3-sec wcv3-sec--state">
                         {% include 'common/_card_state.html' with status=t.status text=t.text %}
+                    
+                        {% comment %}Badge, %, ETA et durée vivent dans la section ÉTAT — pas en bas
+                        de card. Seule la BARRE traverse toute la largeur (voir wcv3-bar-cell).{% endcomment %}
+                        {% include 'common/_card_progress.html' with status=t.status progress=t.progress elapsed=t.processing_display no_bar=True %}
                     </div>
 
                     <!-- Statut + progression + ETA + temps écoulé (brique commune) -->
-                    <div class="wcv3-bar-cell">
-                        {% include 'common/_card_progress.html' with status=t.status progress=t.progress elapsed=t.processing_display %}
-                    </div>
 
                     <!-- Actions -->
                     <div class="wcv3-sec wcv3-sec--actions">
@@ -156,6 +157,13 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                                 <i class="fas fa-trash"></i>
                             </button>
                         </div>
+                    </div>
+                    {% comment %}Barre en FIN de grille et pleine largeur, comme le reader.
+                    Placée au milieu de l'ordre DOM (là où vivait sa colonne), un grid-column 1/-1
+                    COUPE la première ligne : État restait en haut et les Actions basculaient sur une
+                    rangée suivante. La position dans le DOM compte autant que le CSS.{% endcomment %}
+                    <div class="wcv3-bar-cell">
+                        {% include 'common/_card_progress.html' with status=t.status progress=t.progress elapsed=t.processing_display bar_only=True %}
                     </div>
                 </div>
                 {# Preview compacte (niveau 1) sous la barre ; double-clic -> overlay (niveau 3) ; composant commun .wama-card-preview #}
