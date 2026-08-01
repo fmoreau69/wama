@@ -1,0 +1,196 @@
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   WAMA — Card v3 « sections × chips »   (CARD_DESIGN §11, décisions du 2026-08-01)
+   Pilote : READER (remplace la card v2 §10, dont il était déjà le pilote).
+
+   La maquette artifact v3.5 est un OUTIL DE RÉFLEXION, pas du code à porter : ce fichier
+   TRADUIT les décisions actées du §11 sur les briques réelles (wama-chip, wama-status-dot,
+   wama-progress-track/fill, _cycle_button, _card_chips) — il n'en recopie pas le markup.
+
+   Anatomie : 5 sections à pistes FIXES partagées — Entrée · Réglages · Sortie · État · Actions.
+   La propriété qui porte tout le formalisme est l'ALIGNEMENT VERTICAL d'une card à l'autre :
+   dans la pile, chaque section occupe la même colonne, donc l'œil balaye une colonne au lieu
+   de relire chaque card. Ne pas remplacer ces pistes par un flex « qui s'adapte » — ce serait
+   perdre exactement ce que la v3 apporte sur la v2.
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Grille à pistes fixes (§11 : 232px · 1fr · 1,15fr · 118px · 188px) ─────────────── */
+.wcv3 {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr) minmax(0, 1.15fr) 118px 188px;
+  column-gap: .85rem;
+  row-gap: .45rem;
+  align-items: start;
+}
+
+.wcv3-sec { min-width: 0; }          /* sans ça, le contenu long force la piste à grandir */
+
+/* Micro-étiquettes de section (§11 : 0,55rem uppercase) — repères de colonne, pas du contenu. */
+.wcv3-lbl {
+  display: block;
+  font-size: .55rem;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: #6c757d;
+  margin-bottom: .2rem;
+  user-select: none;
+}
+
+/* ── Section ENTRÉE — sous-lignes : nom → propriétés réelles → #id · date ───────────── */
+.wcv3-in { display: flex; align-items: flex-start; gap: .5rem; }
+
+.wcv3-thumb {
+  flex: 0 0 auto;
+  width: 48px; height: 48px;
+  border-radius: .3rem;
+  object-fit: cover;
+  background: #16191c;
+  border: 1px solid #2a2d30;
+  display: flex; align-items: center; justify-content: center;
+  color: #6c757d;
+}
+
+.wcv3-in-lines { min-width: 0; }
+
+.wcv3-in-name {
+  display: block;
+  font-weight: 600;
+  color: #e9ecef;
+  font-size: .82rem;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Propriétés RÉELLES du média (mp3 · 44,1 kHz · stéréo · durée / pdf · 12 pages · 2,4 Mo) —
+   relevées de l'entrée, jamais des réglages. */
+.wcv3-in-props { font-size: .66rem; color: #adb5bd; }
+.wcv3-in-props .sep { opacity: .45; margin: 0 .28rem; }
+
+.wcv3-in-id { font-size: .62rem; color: #6c757d; }
+
+/* ── Chips « blueprint » — sortie ESTIMÉE, pas encore produite (§11) ────────────────
+   Pointillés + teinte éteinte : l'utilisateur doit voir au premier coup d'œil que c'est
+   une prévision (dérivée des réglages + ETA apprise), pas un fait mesuré. */
+.wama-chip--blueprint {
+  border-style: dashed;
+  background: transparent;
+  color: #8d969e;
+  border-color: rgba(255, 255, 255, .22);
+}
+
+/* ── Section SORTIE — temporelle : blueprint AVANT → étape live PENDANT → solide APRÈS ── */
+.wcv3-out { display: flex; flex-wrap: wrap; gap: .25rem; align-items: center; }
+
+.wcv3-out-step { font-size: .68rem; color: #9ec5d4; }
+.wcv3-out-step .pct { font-weight: 600; color: #e9ecef; }
+
+/* En ÉCHEC l'erreur REMPLACE la sortie au même endroit (§11) — même piste, même altitude. */
+.wcv3-out-error {
+  font-size: .68rem; color: #ea868f;
+  display: block;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ── Section ÉTAT — point + libellé + ETA/durée + barre ─────────────────────────────
+   Barre VERTE sur tout le cycle (décision Fabien : l'état est déjà porté par le liseré,
+   le point et le badge — une 4e redite en couleur sature la card). Réversible. */
+.wcv3-state { font-size: .72rem; color: rgba(255, 255, 255, .55); }
+.wcv3-state-line { display: flex; align-items: center; gap: .35rem; }
+
+/* ÉCHEC : la barre reste FIGÉE au % atteint et GARDE le dégradé vert — on voit OÙ le
+   process est mort. Ne jamais la vider ni la compléter à 100 % (§11, comportement jugé
+   précieux sur les batchs réels). L'échec se lit au point, au liseré et à l'erreur. */
+.wcv3-bar { margin-top: .3rem; }
+.wcv3-bar .wama-progress-fill.is-frozen { animation: none; opacity: .8; }
+
+/* ── Section ACTIONS — doit TENIR dans sa piste, wrap autorisé, débordement JAMAIS ──── */
+.wcv3-actions {
+  display: flex; flex-wrap: wrap; gap: .25rem;
+  justify-content: flex-end;
+}
+.wcv3-actions .btn { flex: 0 0 auto; }
+
+/* ── Zone de PREVIEW PERMANENTE (§11 : jamais retirée) ──────────────────────────────
+   Dès l'ajout elle annonce ce qui sortira ; pendant, la préviz de process ; après, la
+   préviz réelle. C'est le même contrat de faces que l'inspecteur (preview_utils) — la
+   card en est un consommateur COMPACT, pas un second système. */
+.wcv3-preview {
+  margin-top: .5rem;
+  padding: .4rem .55rem;
+  border-radius: .3rem;
+  background: rgba(0, 0, 0, .32);
+  border: 1px solid rgba(255, 255, 255, .05);
+  font-size: .72rem;
+  color: #dee2e6;
+  max-height: 80px;      /* aligné sur expandPreview() (reader.js) qui replie à '80px' */
+  overflow: hidden;
+  word-break: break-word;
+}
+.wcv3-preview[data-action="expand"] { cursor: pointer; }
+
+/* État « rien encore produit » : récapitulatif de ce qui sortira, en retrait typographique. */
+.wcv3-preview--blueprint { color: #868e96; font-style: italic; }
+
+/* ── Famille de LOT — cyan des codes RÉELS is-batch (§11 v3.5) ──────────────────────
+   #0d1a1a / #0dcaf0 relevés de l'existant (reader/index.html), pas réinventés.
+   Pointillés VOLONTAIREMENT non utilisés ici : ils sont réservés à la card d'entrée. */
+.wcv3--batch-parent { border-color: rgba(13, 202, 240, .55) !important; }
+
+/* Les filles portent le FOND teinté seulement : le rail cyan de liaison est déjà porté par
+   le conteneur .collapse (reader/index.html) — un rail CONTINU pour la famille est plus juste
+   qu'un trait répété par card, et évite le doublon de la même décision à deux endroits. */
+.wcv3--batch-child { background: #0d1a1a !important; }
+
+/* Survol-famille : trait PLEIN cyan (jamais pointillé) sur la mère ET ses filles. */
+.wcv3-family-hl { box-shadow: 0 0 0 1px #0dcaf0 inset; }
+
+/* ── Repli responsive — CONTAINER queries, PAS media queries ────────────────────────
+   Leçon du pilote reader (mesurée, 2026-08-01) : la largeur utile de la file ne découle
+   PAS de celle de la fenêtre. Avec l'explorateur et l'inspecteur ouverts, une fenêtre de
+   1600 px ne laisse que 888 px à la file — un `@media (max-width:1400px)` ne se déclenche
+   donc jamais alors que les pistes débordent déjà. Les volets sont la norme dans WAMA, pas
+   l'exception : la card doit se mesurer à SON conteneur.
+   La card est elle-même le conteneur : sa largeur EST la largeur utile. */
+.wama-card { container-type: inline-size; }
+
+/* Chips : bornés à leur piste, jamais par-dessus la voisine. Le libellé complet reste
+   accessible par le title (déjà posé par la brique card_chips). */
+.wcv3-sec--settings .wcv3-out,
+.wcv3-sec--output .wcv3-out { overflow: hidden; }
+
+/* inline-BLOCK (et non inline-flex) : c'est la seule forme où text-overflow s'applique au
+   libellé, qui est un nœud texte direct du chip. On perd le `gap` de la brique commune —
+   restitué par la marge de l'icône. Scopé à .wcv3-out : la brique _card_chips reste intacte
+   pour ses autres consommateurs (avatarizer). */
+.wcv3-out .wama-chip {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: top;
+}
+.wcv3-out .wama-chip i { margin-right: .25rem; }
+
+@container (max-width: 1180px) {
+  /* La piste ACTIONS ne se resserre PAS avec les autres : 5 boutons de 34 px + gaps ont un
+     plancher incompressible (~176 px). Mesuré à 150 px : la corbeille passait à la ligne et
+     la card gagnait une rangée — exactement le débordement que §11 interdit. Ce sont les
+     pistes de CONTENU qui absorbent la contrainte, jamais celle des actions. */
+  .wcv3 { grid-template-columns: 208px minmax(0, 1fr) minmax(0, 1.1fr) 104px 178px; column-gap: .6rem; }
+}
+
+@container (max-width: 760px) {
+  /* Sortie sur une 2e ligne, pleine largeur : c'est la section la plus verbeuse, et la
+     seule dont le contenu grandit avec le traitement (blueprint → étape → réel).
+     Seuil à 760 et non 980 : mesuré, les 5 pistes du palier ci-dessus tiennent encore à
+     888 px (la largeur réelle de la file, deux volets ouverts). Replier plus tôt privait
+     du formalisme canonique dans la configuration la PLUS COURANTE de l'écran. */
+  .wcv3 { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) 104px 150px; }
+  .wcv3-sec--output { grid-column: 1 / -1; }
+}
+
+@container (max-width: 640px) {
+  .wcv3 { grid-template-columns: minmax(0, 1fr) auto; }
+  .wcv3-sec--settings,
+  .wcv3-sec--output { grid-column: 1 / -1; }
+  .wcv3-actions { justify-content: flex-start; }
+}

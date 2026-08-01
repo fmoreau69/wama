@@ -104,8 +104,12 @@ def _auto_wrap_orphans(user):
 
 
 def _chips(reading):
-    """Chips méta de la card v2 (brique card_chips, CARD_DESIGN §10) : moteur EFFECTIF
-    (used_backend) prioritaire sur le réglage + « X pages » en extra (différence consignée §10.1)."""
+    """Chips de la section RÉGLAGES (card v3, CARD_DESIGN §11) : moteur EFFECTIF
+    (used_backend) prioritaire sur le réglage — brique commune card_chips.
+
+    ⚠ « X pages » n'est PLUS ici : c'est une propriété de l'ENTRÉE (mesurée sur le fichier),
+    pas un réglage. La v2 les mélangeait sur une seule ligne ; la v3 sépare les sections,
+    donc chaque donnée rejoint la sienne (→ _input_props)."""
     from wama.common.utils.card_chips import chips_for
     from wama.reader.params import PARAMS_JSON
 
@@ -117,12 +121,77 @@ def _chips(reading):
                 return self._o.used_backend or self._o.backend
             return getattr(self._o, k)
 
-    extra = []
+    return chips_for(_View(reading), PARAMS_JSON)
+
+
+def _input_props(reading):
+    """Sous-ligne « propriétés RÉELLES du média » de la section ENTRÉE (§11).
+
+    Relevées sur le fichier déposé, jamais dérivées des réglages : type, poids, pagination.
+    Équivalent reader du « mp3 · 44,1 kHz · stéréo · durée » de la maquette."""
+    import os
+    props = []
+
+    name = reading.filename or ''
+    ext = os.path.splitext(name)[1].lstrip('.').lower()
+    if ext:
+        props.append(ext)
+
     pages = getattr(reading, 'page_count', 0) or 0
     if pages:
-        extra.append({'label': f"{pages} page" + ('s' if pages > 1 else ''),
-                      'icon': 'fa-file-lines', 'title': 'Pages', 'variant': ''})
-    return chips_for(_View(reading), PARAMS_JSON, extra=extra)
+        props.append(f"{pages} page" + ('s' if pages > 1 else ''))
+
+    try:
+        size = reading.input_file.size if reading.input_file else 0
+    except (OSError, ValueError):
+        size = 0          # fichier absent du disque (purge, tiering) — la card reste lisible
+    if size >= 1048576:
+        props.append(f"{size / 1048576:.1f} Mo")
+    elif size >= 1024:
+        props.append(f"{size // 1024} Ko")
+    elif size:
+        props.append(f"{size} o")      # sinon un fichier <1 Ko s'affichait « 0 Ko »
+
+    return props
+
+
+def _output_chips(reading):
+    """Section SORTIE **temporelle** (§11) — prototype du futur hook commun `predicted_output()`.
+
+    AVANT/PENDANT : chips « blueprint » (pointillés) dérivés des réglages — ce qui VA sortir.
+    APRÈS         : chips solides = propriétés RÉELLES mesurées sur le résultat.
+    En ÉCHEC, le template remplace la sortie par l'erreur (même piste) — rien à produire ici.
+
+    Volontairement dans la vue reader et pas dans common/ : le §11 pose l'anatomie, mais la
+    forme du hook ne sera figée qu'une fois vue en réel sur le pilote (démarche de la v2)."""
+    fmt = 'Markdown' if reading.output_format == 'markdown' else 'Texte brut'
+
+    if reading.status == 'SUCCESS' and reading.result_text:
+        words = len(reading.result_text.split())
+        chips = [{'label': f"{words:,} mots".replace(',', ' '),
+                  'icon': 'fa-align-left', 'title': 'Mots extraits', 'variant': ''}]
+        pages = getattr(reading, 'page_count', 0) or 0
+        if pages:
+            label = f"{pages} pages lues" if pages > 1 else "1 page lue"
+            chips.append({'label': label, 'icon': 'fa-file-lines',
+                          'title': 'Pages traitées', 'variant': ''})
+        return chips
+
+    # Pas encore produit → prévision, signalée comme telle (variant blueprint = pointillés).
+    return [{'label': fmt, 'icon': 'fa-file-lines',
+             'title': 'Format de sortie (prévu)', 'variant': 'blueprint'},
+            {'label': 'TXT · MD · PDF · DOCX', 'icon': 'fa-download',
+             'title': 'Formats téléchargeables après traitement', 'variant': 'blueprint'}]
+
+
+def _decorate_card(reading):
+    """Attache les 3 jeux de données des sections v3 à l'instance (Entrée · Réglages · Sortie).
+    Point d'attache UNIQUE : appelé par IndexView ET par card_html — sinon la card rendue par
+    l'endpoint diverge de celle du chargement (leçon describer)."""
+    reading.chips = _chips(reading)
+    reading.input_props = _input_props(reading)
+    reading.output_chips = _output_chips(reading)
+    return reading
 
 
 class IndexView(View):
@@ -139,7 +208,7 @@ class IndexView(View):
             success_count = sum(1 for r in readings if r.status == 'SUCCESS')
             first = readings[0] if readings else None
             for r in readings:
-                r.chips = _chips(r)   # chips card v2 (générés, CARD_DESIGN §10)
+                _decorate_card(r)     # sections card v3 (générées, CARD_DESIGN §11)
             return {
                 'success_pct': int(success_count / batch.total * 100) if batch.total > 0 else 0,
                 'first_backend': first.backend if first else '',
@@ -284,10 +353,10 @@ def start(request, pk: int):
 
 
 def card_html(request, pk: int):
-    """Card RENDUE serveur — source UNIQUE du markup v2 (partial _item_card.html ;
+    """Card RENDUE serveur — source UNIQUE du markup v3 (partial _item_card.html ;
     CARD_DESIGN §3, update JS en place). Le flag in_batch est déduit du batch parent."""
     item = get_object_or_404(ReadingItem, pk=pk, user=_get_user(request))
-    item.chips = _chips(item)
+    _decorate_card(item)
     link = BatchReadingItemLink.objects.filter(reading=item).select_related('batch').first()
     in_batch = bool(link and link.batch.total > 1)
     return render(request, 'reader/_item_card.html', {'item': item, 'in_batch': in_batch})

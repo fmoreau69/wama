@@ -1,127 +1,184 @@
 {% load i18n reader_tags %}
 {% comment %}
-WAMA Reader — CARD v2 « synthétique » (PILOTE du formalisme CARD_DESIGN §10, 2026-07-06).
+WAMA Reader — CARD v3 « sections × chips » (PILOTE du formalisme CARD_DESIGN §11, 2026-08-01 ;
+remplace la card v2 §10 dont le reader était déjà le pilote — traduite, pas juxtaposée).
 Source UNIQUE du markup (racine incluse) : rendue au chargement (index.html, autonome ET fille
-de batch via in_batch=True) et par l'endpoint reader:card_html (update JS en place, PAS de rebuild).
+de batch via in_batch=True) et par l'endpoint reader:card_html (upsertCard remplace le nœud
+entier — le JS ne reconstruit AUCUN markup, cf. reader.js:67).
 
-Anatomie (spec §10.3) :
-  ligne 1  identité (icône+nom+sous-ligne #id·date) · CHIPS générés depuis params.py (chip=True,
-           brique card_chips — item.chips posé par la vue) · point d'état tricolore + ETA · actions
-  ligne 2  barre de progression PLEINE LARGEUR qui SE TRANSFORME (jamais absente après lancement)
-  ligne 3  aperçu sortie systématique (texte 1 bloc tronqué) · erreur inline compacte
-Contexte : item = ReadingItem (avec .chips) ; in_batch = fille de batch.
+Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card à l'autre :
+  ENTRÉE   miniature/icône + nom → propriétés RÉELLES du média → #id · date
+  RÉGLAGES chips générés depuis params.py (chip=True, brique card_chips ; moteur EFFECTIF)
+  SORTIE   TEMPORELLE : chips blueprint (pointillés) AVANT → étape live PENDANT → chips
+           solides APRÈS ; en ÉCHEC l'erreur REMPLACE la sortie au même endroit
+  ÉTAT     point tricolore + libellé + ETA (WamaEta) / durée réelle
+  ACTIONS  ⚙ ▶(cycle) ⬇ ⧉ 🗑 — ordre conventionnel, wrap autorisé, débordement jamais
+  puis     barre pleine largeur (verte sur TOUT le cycle, FIGÉE au % atteint en échec)
+           + zone de preview PERMANENTE (récap avant → réel après)
+
+Contexte : item = ReadingItem décoré par _decorate_card() (.chips, .input_props, .output_chips)
+           in_batch = fille de batch.
+
+⚠ Contrats JS à ne pas casser (relevés dans reader.js) : .reader-card[data-id][data-status],
+  .wama-eta (l.90), .btn-group-actions (cloné par l'inspecteur l.618), .reader-preview
+  (dblclick l.121/715 + data-action=expand → maxHeight 80px l.342), .source-preview-btn,
+  data-action settings|duplicate|delete, data-backend/mode/language sur ⚙.
 {% endcomment %}
 
 {% with item.filename as fname %}
-<div class="reader-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1{% else %}mb-2{% endif %} {% if item.status == 'RUNNING' %}processing{% elif item.status == 'SUCCESS' %}success{% elif item.status == 'FAILURE' %}error{% endif %}"
+<div class="reader-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if item.status == 'RUNNING' %}processing{% elif item.status == 'SUCCESS' %}success{% elif item.status == 'FAILURE' %}error{% endif %}"
      {% if in_batch %}style="border-radius:0 0.375rem 0.375rem 0;"{% endif %}
      data-id="{{ item.id }}" data-status="{{ item.status }}"
      data-preview-url="{% url 'common:unified_preview' 'reader' item.id %}">
 <div class="card-body py-2">
 
-  {# ── Ligne 1 : identité + chips + état + actions ──────────────────────────── #}
-  <div class="d-flex justify-content-between align-items-center gap-2">
+  <div class="wcv3">
 
-    <div class="d-flex align-items-center flex-wrap gap-1 me-auto overflow-hidden">
-      <span role="button" class="source-preview-btn d-flex align-items-center gap-1"
-            data-id="{{ item.id }}" data-filename="{{ fname }}" title="Aperçu du fichier source">
-        <i class="fas fa-file-alt text-info me-1"></i>
-        <span class="fw-semibold text-light text-truncate" style="max-width:240px;">{{ fname }}</span>
-      </span>
-      <small class="text-muted ms-1" style="font-size:.65rem;">#{{ item.id }} · {{ item.created_at|date:"d/m H:i" }}</small>
-      {# Chips méta — GÉNÉRÉS (brique commune ; moteur/mode/langue + « X pages » en extra) #}
-      {% include 'common/_card_chips.html' with chips=item.chips %}
-    </div>
-
-    {# État compact : point tricolore + libellé court + ETA (WamaEta) #}
-    <span class="d-inline-flex align-items-center gap-1 flex-shrink-0 small">
-      <span class="wama-status-dot" data-s="{{ item.status }}"></span>
-      <span class="text-white-50" style="font-size:.72rem;">
-        {% if item.status == 'PENDING' %}En attente{% elif item.status == 'RUNNING' %}En cours{% elif item.status == 'SUCCESS' %}Terminé{% elif item.status == 'FAILURE' %}Échec{% else %}{{ item.status }}{% endif %}
-      </span>
-      {% if item.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ item.id }}"></span>{% endif %}
-      {% if item.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=item.processing_display %}{% endif %}
-    </span>
-
-    {# Actions — ordre conventionnel ⚙ ▶(cycle) ⬇ ⧉ 🗑 (conventions §6) #}
-    <div class="btn-group-actions d-flex gap-1 flex-shrink-0">
-      <button class="btn btn-sm btn-outline-secondary" data-action="settings" title="Paramètres"
-              data-id="{{ item.id }}"
-              data-backend="{{ item.backend }}"
-              data-mode="{{ item.mode }}"
-              data-language="{{ item.language }}">
-        <i class="fas fa-cog"></i>
-      </button>
-      {% include 'common/_cycle_button.html' with id=item.id status=item.status %}
-      {% if item.result_text %}
-        <div class="btn-group">
-          <a href="{% url 'reader:download' item.id %}?format=txt" class="btn btn-sm btn-outline-info" title="Télécharger TXT">
-            <i class="fas fa-download"></i>
-          </a>
-          <button type="button" class="btn btn-sm btn-outline-info dropdown-toggle dropdown-toggle-split"
-                  data-bs-toggle="dropdown" aria-expanded="false">
-            <span class="visually-hidden">Autres formats</span>
-          </button>
-          <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
-            <li><a class="dropdown-item" href="{% url 'reader:download' item.id %}?format=txt">
-                <i class="fas fa-file-alt me-2"></i>TXT</a></li>
-            <li><a class="dropdown-item" href="{% url 'reader:download' item.id %}?format=md">
-                <i class="fab fa-markdown me-2"></i>Markdown</a></li>
-            <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item" href="{% url 'reader:download' item.id %}?format=pdf">
-                <i class="fas fa-file-pdf me-2 text-danger"></i>PDF</a></li>
-            <li><a class="dropdown-item" href="{% url 'reader:download' item.id %}?format=docx">
-                <i class="fas fa-file-word me-2 text-primary"></i>DOCX</a></li>
-            {% if item.raw_result %}
-            <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item" href="{% url 'reader:download' item.id %}?format=json">
-                <i class="fas fa-code me-2 text-warning"></i>JSON brut</a></li>
-            {% endif %}
-          </ul>
+    {# ── ENTRÉE : nom → propriétés réelles → identité ────────────────────────────── #}
+    <div class="wcv3-sec wcv3-sec--input">
+      <span class="wcv3-lbl">{% trans "Entrée" %}</span>
+      <div class="wcv3-in">
+        <span role="button" class="wcv3-thumb source-preview-btn"
+              data-id="{{ item.id }}" data-filename="{{ fname }}"
+              title="{% trans "Aperçu du fichier source" %}">
+          <i class="fas fa-file-alt text-info"></i>
+        </span>
+        <div class="wcv3-in-lines">
+          <span class="wcv3-in-name" title="{{ fname }}">{{ fname }}</span>
+          {% if item.input_props %}
+          <span class="wcv3-in-props">{% for p in item.input_props %}{% if not forloop.first %}<span class="sep">·</span>{% endif %}{{ p }}{% endfor %}</span>
+          {% endif %}
+          <span class="wcv3-in-id">#{{ item.id }} · {{ item.created_at|date:"d/m H:i" }}</span>
         </div>
-      {% else %}
-        <button class="btn btn-sm btn-outline-info" disabled title="Pas encore de résultat">
-          <i class="fas fa-download"></i>
-        </button>
-      {% endif %}
-      <button class="btn btn-sm btn-outline-warning" data-action="duplicate" title="Dupliquer">
-        <i class="fas fa-copy"></i>
-      </button>
-      <button class="btn btn-sm btn-outline-danger" data-action="delete" title="Supprimer">
-        <i class="fas fa-trash"></i>
-      </button>
+      </div>
     </div>
-  </div>
 
-  {# ── Ligne 2 : barre PLEINE LARGEUR qui se transforme (§10.3-2 : jamais absente) ── #}
-  {% if item.status == 'RUNNING' %}
-  <div class="wama-progress-track mt-2">
-    <div class="wama-progress-fill active" style="width:{{ item.progress }}%"></div>
-  </div>
-  <small class="progress-text text-warning">{{ item.progress }}% — En cours…</small>
-  {% elif item.status == 'SUCCESS' %}
-  <div class="wama-progress-track mt-2">
-    <div class="wama-progress-fill" style="width:100%"></div>
-  </div>
-  {% elif item.status == 'FAILURE' %}
-  <div class="wama-progress-track mt-2">
-    <div class="wama-progress-fill" style="width:100%; background:#dc3545;"></div>
-  </div>
-  {% endif %}
+    {# ── RÉGLAGES : chips GÉNÉRÉS (brique commune, jamais écrits à la main) ──────── #}
+    <div class="wcv3-sec wcv3-sec--settings">
+      <span class="wcv3-lbl">{% trans "Réglages" %}</span>
+      <div class="wcv3-out">
+        {% include 'common/_card_chips.html' with chips=item.chips %}
+      </div>
+    </div>
 
-  {# ── Ligne 3 : aperçu sortie (clic = développer) · erreur inline compacte ──── #}
+    {# ── SORTIE (temporelle) : blueprint → étape live → réel ; l'erreur la remplace ─ #}
+    <div class="wcv3-sec wcv3-sec--output">
+      <span class="wcv3-lbl">{% trans "Sortie" %}</span>
+      {% if item.status == 'FAILURE' and item.error_message %}
+        <span class="wcv3-out-error" title="{{ item.error_message|escape }}">
+          <i class="fas fa-triangle-exclamation"></i> {{ item.error_message|escape }}
+        </span>
+      {% else %}
+        <div class="wcv3-out">
+          {% include 'common/_card_chips.html' with chips=item.output_chips %}
+          {% if item.status == 'RUNNING' %}
+            <span class="wcv3-out-step"><span class="pct">{{ item.progress }}%</span> — {% trans "extraction…" %}</span>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+
+    {# ── ÉTAT : point + libellé + ETA/durée (la barre est en ligne 2, pleine largeur) ─ #}
+    <div class="wcv3-sec wcv3-sec--state">
+      <span class="wcv3-lbl">{% trans "État" %}</span>
+      <div class="wcv3-state">
+        <span class="wcv3-state-line">
+          <span class="wama-status-dot" data-s="{{ item.status }}"></span>
+          <span>{% if item.status == 'PENDING' %}{% trans "En attente" %}{% elif item.status == 'RUNNING' %}{% trans "En cours" %}{% elif item.status == 'SUCCESS' %}{% trans "Terminé" %}{% elif item.status == 'FAILURE' %}{% trans "Échec" %}{% else %}{{ item.status }}{% endif %}</span>
+        </span>
+        {% if item.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ item.id }}"></span>{% endif %}
+        {% if item.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=item.processing_display %}{% endif %}
+      </div>
+    </div>
+
+    {# ── ACTIONS : ordre conventionnel ⚙ ▶ ⬇ ⧉ 🗑 (conventions §6) ────────────────── #}
+    <div class="wcv3-sec wcv3-sec--actions">
+      <span class="wcv3-lbl">{% trans "Actions" %}</span>
+      <div class="btn-group-actions wcv3-actions">
+        <button class="btn btn-sm btn-outline-secondary" data-action="settings" title="{% trans "Paramètres" %}"
+                data-id="{{ item.id }}"
+                data-backend="{{ item.backend }}"
+                data-mode="{{ item.mode }}"
+                data-language="{{ item.language }}">
+          <i class="fas fa-cog"></i>
+        </button>
+        {% include 'common/_cycle_button.html' with id=item.id status=item.status %}
+        {% if item.result_text %}
+          <div class="btn-group">
+            <a href="{% url 'reader:download' item.id %}?format=txt" class="btn btn-sm btn-outline-info" title="{% trans "Télécharger TXT" %}">
+              <i class="fas fa-download"></i>
+            </a>
+            <button type="button" class="btn btn-sm btn-outline-info dropdown-toggle dropdown-toggle-split"
+                    data-bs-toggle="dropdown" aria-expanded="false">
+              <span class="visually-hidden">{% trans "Autres formats" %}</span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
+              <li><a class="dropdown-item" href="{% url 'reader:download' item.id %}?format=txt">
+                  <i class="fas fa-file-alt me-2"></i>TXT</a></li>
+              <li><a class="dropdown-item" href="{% url 'reader:download' item.id %}?format=md">
+                  <i class="fab fa-markdown me-2"></i>Markdown</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="{% url 'reader:download' item.id %}?format=pdf">
+                  <i class="fas fa-file-pdf me-2 text-danger"></i>PDF</a></li>
+              <li><a class="dropdown-item" href="{% url 'reader:download' item.id %}?format=docx">
+                  <i class="fas fa-file-word me-2 text-primary"></i>DOCX</a></li>
+              {% if item.raw_result %}
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="{% url 'reader:download' item.id %}?format=json">
+                  <i class="fas fa-code me-2 text-warning"></i>{% trans "JSON brut" %}</a></li>
+              {% endif %}
+            </ul>
+          </div>
+        {% else %}
+          <button class="btn btn-sm btn-outline-info" disabled title="{% trans "Pas encore de résultat" %}">
+            <i class="fas fa-download"></i>
+          </button>
+        {% endif %}
+        <button class="btn btn-sm btn-outline-warning" data-action="duplicate" title="{% trans "Dupliquer" %}">
+          <i class="fas fa-copy"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-danger" data-action="delete" title="{% trans "Supprimer" %}">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>
+
+    {% comment %}Barre pleine largeur — VERTE sur tout le cycle (§11). En ÉCHEC : FIGÉE au %
+    atteint, jamais vidée ni complétée : on voit OÙ le process est mort.
+    ⚠ Commentaire dièse INTERDIT ici : Django ne gère pas les commentaires dièse multi-lignes,
+    le texte serait rendu tel quel — et dans une GRILLE il crée en plus une boîte anonyme qui
+    ajoute une ligne fantôme (mesuré ici : +168 px de vide). Toujours {% templatetag openblock %} comment {% templatetag closeblock %}.{% endcomment %}
+    {% if item.status != 'PENDING' %}
+    <div class="wcv3-bar" style="grid-column:1/-1;">
+      <div class="wama-progress-track">
+        <div class="wama-progress-fill{% if item.status == 'RUNNING' %} active{% elif item.status == 'FAILURE' %} is-frozen{% endif %}"
+             style="width:{% if item.status == 'SUCCESS' %}100{% else %}{{ item.progress }}{% endif %}%"></div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>{# /.wcv3 #}
+
+  {% comment %}Preview PERMANENTE (§11 : jamais retirée) — récap avant, réel après.
+  Clic = développer · double-clic = texte complet (contrats reader.js).{% endcomment %}
   {% if item.result_text %}
-  <div class="reader-preview mt-2 p-2 rounded bg-black bg-opacity-50 small text-light"
-       style="max-height:80px;overflow:hidden;cursor:pointer;word-break:break-word;"
-       data-action="expand" title="Clic : développer · Double-clic : texte complet">
+  <div class="wcv3-preview reader-preview" data-action="expand"
+       title="{% trans "Clic : développer · Double-clic : texte complet" %}">
     <span class="preview-text">{{ item.result_text|compact_preview:400|escape }}</span>
     {% if item.result_text|length > 100 %}<span class="text-muted"> …</span>{% endif %}
   </div>
-  {% endif %}
-  {% if item.error_message %}
-  <small class="d-block mt-1 text-danger text-truncate" title="{{ item.error_message|escape }}">
-    <i class="fas fa-triangle-exclamation"></i> {{ item.error_message|escape }}
-  </small>
+  {% else %}
+  <div class="wcv3-preview wcv3-preview--blueprint reader-preview">
+    {% if item.status == 'RUNNING' %}
+      {% trans "Extraction du texte en cours…" %}
+    {% elif item.status == 'FAILURE' %}
+      {% comment %}La zone reste (elle est PERMANENTE) mais n'annonce PLUS les formats : promettre
+      une sortie qui ne viendra pas est pire que ne rien dire. Le détail est en piste SORTIE.{% endcomment %}
+      {% trans "Aucun texte extrait — le traitement a échoué." %}
+    {% else %}
+      {% trans "Texte extrait" %} — {% trans "formats après traitement" %} : TXT · MD · PDF · DOCX
+    {% endif %}
+  </div>
   {% endif %}
 
 </div>

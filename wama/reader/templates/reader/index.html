@@ -192,7 +192,9 @@ window._batchImport = WamaBatchImport({
         <!-- Multi-item batch: collapsible group -->
         <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
             {# Card MÈRE : brique COMMUNE _batch_card.html (pilote card v2, 2026-07-06) #}
-            {% include 'common/_batch_card.html' with card_class='reader-card' download_menu_template='reader/_batch_download_menu.html' eta_ids=batch_info.eta_ids %}
+            {% comment %}wcv3--batch-parent : bord cyan de la MÈRE (famille de lot, CARD_DESIGN §11
+            v3.5). Passé par card_class — la brique commune _batch_card.html reste intacte.{% endcomment %}
+            {% include 'common/_batch_card.html' with card_class='reader-card wcv3--batch-parent' download_menu_template='reader/_batch_download_menu.html' eta_ids=batch_info.eta_ids %}
             <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
                  data-wama-batch-key="reader_{{ batch_info.obj.id }}"
                  style="border-left:2px solid #0dcaf0; margin-left:0.75rem;">

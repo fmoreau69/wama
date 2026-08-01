@@ -503,3 +503,53 @@ tranchent une fois sur les briques communes et se propagent. Consignés au fil d
   brouillon + mini-onglets de modalité » à titre d'étude ; en mosaïque elle devra avoir la MÊME
   forme que les autres tuiles (pas pleine largeur) + contour pointillé.
 - Choix barre verte vs barre couleur-d'état : tranché vert, à réévaluer après usage.
+
+### 11.3 PORTAGE PILOTE — Reader (2026-08-01, session d'implémentation)
+
+> **Le Reader était le pilote de la v2 (§10) : il est donc le pilote de la v3.** Choix de Fabien —
+> porter là où la v2 vivait déjà, plutôt que sur une app en v1 : on remplace un formalisme obsolète
+> au lieu d'en superposer un troisième, et **aucune app en v1 n'est mise en risque**.
+> `reader/_item_card.html` n'est inclus que par `reader/index.html` (autonome + fille de lot) et
+> l'endpoint `reader:card_html` — périmètre de casse strictement nul.
+
+**Fait.** Les 5 sections à pistes fixes (alignement vérifié au navigateur : piste ÉTAT à la même
+abscisse sur les 4 cards), section Sortie temporelle (blueprint pointillés → étape live → chips
+solides), preview permanente, barre verte sur tout le cycle, échec figé au % atteint, famille de lot
+cyan (mère `wcv3--batch-parent`, filles fond `#0d1a1a`).
+
+**Où vit quoi** — CSS = brique commune `common/static/common/css/wama-card-v3.css` (chargée par
+`base.html`) ; markup = `reader/_item_card.html` (pilote). Remontée du markup en
+`common/_card_v3.html` **après** validation d'usage, comme le prévoyait déjà §10.4 pour la v2 : on ne
+fige pas une anatomie avant de l'avoir vue tourner. La brique `_card_chips.html` n'a PAS été touchée
+(elle sert aussi l'avatarizer) — l'attribut `section=` du §11 reste à faire.
+
+**Ce que la maquette ne pouvait pas révéler** (et qui a coûté 4 itérations mesurées) :
+
+1. **Container queries, PAS media queries.** La largeur utile de la file ne découle pas de celle de
+   la fenêtre : **fenêtre 1600 px → file 888 px** une fois l'explorateur et l'inspecteur ouverts. Un
+   `@media (max-width:1400px)` ne se déclenche donc JAMAIS alors que les pistes débordent déjà. La
+   card se déclare `container-type: inline-size` et se mesure à elle-même. **Les volets sont la
+   norme dans WAMA, pas l'exception** — toute future brique de card doit partir de là.
+2. **La piste ACTIONS a un plancher incompressible** (~176 px = 5 boutons + gaps). La resserrer avec
+   les autres faisait passer la corbeille à la ligne — le débordement que §11 interdit. Ce sont les
+   pistes de CONTENU qui absorbent la contrainte, jamais celle des actions.
+3. **Les seuils de repli se mesurent, ils ne se devinent pas.** Premier jet à 980 px : la file réelle
+   (888 px) tombait toujours dans le repli, donc le formalisme canonique n'était JAMAIS visible dans
+   la configuration la plus courante. Seuil ramené à 760 px après mesure.
+4. **Ellipsis des chips** : `text-overflow` ne s'applique qu'en `inline-block` (le libellé est un
+   nœud texte direct du chip, pas un élément). Scopé à `.wcv3-out` pour ne pas toucher la brique.
+5. **En échec, la preview permanente ne doit plus annoncer les formats de sortie.** Elle reste
+   (§11 : jamais retirée) mais promettre « TXT · MD · PDF · DOCX » après un échec est pire que se
+   taire. Attrapé par une assertion, pas par l'œil.
+
+> ⚠ **7e récidive du piège `{# … #}` multi-lignes.** Django ne gère pas les commentaires dièse
+> multi-lignes : le texte est rendu tel quel. **Dans une grille c'est pire qu'ailleurs** — le texte
+> crée une boîte anonyme de grille, donc une LIGNE FANTÔME (mesuré : +168 px de vide sur chaque
+> card, invisible à la lecture du template). Toujours `{% comment %}`.
+
+**Exemple d'échec** — le cas manquant de la maquette est désormais couvert et testé (barre figée à
+43 %, verte, non animée ; erreur en piste SORTIE remplaçant le blueprint).
+
+**Reste ouvert** : attribut `section=` sur les `Param chip=True` + hook commun `predicted_output()`
+(prototypé dans `reader/views.py::_output_chips`) ; miniature réelle au lieu de l'icône typée ;
+pile × mosaïque (toujours non tranché) ; remontée du markup en brique commune.
