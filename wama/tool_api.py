@@ -30,6 +30,10 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 
+# Réglages déclarés au schéma d'une app (`wama/<app>/params.py`) → kwargs de son modèle.
+# Permet aux outils `add_to_<app>` d'accepter TOUT ce que l'UI règle sans recopier la liste.
+from wama.common.utils.param_schema import schema_model_kwargs, schema_extra_params
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -119,6 +123,7 @@ def add_to_anonymizer(
     sam3_prompt: str = '',
     classes: list = None,
     precision_level: int = 50,
+    **params,
 ) -> dict:
     """
     Copy a file into the anonymizer input queue and create a Media DB entry.
@@ -192,7 +197,15 @@ def add_to_anonymizer(
         if use_sam3:
             media.use_sam3 = True
             media.sam3_prompt = sam3_prompt or ''
-        media.save(update_fields=['precision_level', 'classes2blur', 'use_sam3', 'sam3_prompt'])
+        touched = ['precision_level', 'classes2blur', 'use_sam3', 'sam3_prompt']
+        # Tout autre réglage DÉCLARÉ au schéma (détection, modèle, flou, tracking…) : appliqué
+        # sans être recopié dans la signature. Les kwargs explicites ci-dessus priment.
+        for field, value in schema_model_kwargs('anonymizer', params).items():
+            if field in touched:
+                continue
+            setattr(media, field, value)
+            touched.append(field)
+        media.save(update_fields=touched)
     except Exception as e:
         logger.warning(f'[tool_api] Could not update Media #{media_id} settings: {e}')
 
@@ -342,6 +355,7 @@ def create_image(
     negative_prompt: str = '',
     seed: int = None,
     num_images: int = 1,
+    **params,
 ) -> dict:
     """
     Create a txt2img generation job (status: PENDING).
@@ -385,6 +399,7 @@ def create_image(
             seed=seed if seed else None,
             num_images=num_images,
             status='PENDING',
+            **schema_model_kwargs('imager', params),
         )
     except Exception as e:
         return {'error': f'Erreur création ImageGeneration : {e}'}
@@ -834,6 +849,7 @@ def synthesize_text(
     speed: float = 1.0,
     pitch: float = 1.0,
     emotion_intensity: float = 1.0,
+    **params,
 ) -> dict:
     """
     Create a VoiceSynthesis job from raw text.
@@ -880,6 +896,7 @@ def synthesize_text(
             speed=speed,
             pitch=pitch,
             emotion_intensity=emotion_intensity,
+            **schema_model_kwargs('synthesizer', params),
         )
 
         # Extract text and compute metadata
@@ -1018,6 +1035,7 @@ def compose_music(
     prompt: str,
     model: str = 'musicgen-small',
     duration: float = 10.0,
+    **params,
 ) -> dict:
     """
     Create a Composer generation job (music or SFX) and start it immediately.
@@ -1053,6 +1071,7 @@ def compose_music(
         prompt=prompt,
         model=model,
         duration=duration,
+        **schema_model_kwargs('composer', params),
     )
 
     # Wrap in batch-of-1
@@ -1134,6 +1153,7 @@ def add_to_describer(
     output_format: str = 'detailed',
     output_language: str = 'fr',
     max_length: int = 500,
+    **params,
 ) -> dict:
     """
     Copy a file into the describer queue and create a Description DB entry.
@@ -1183,6 +1203,10 @@ def add_to_describer(
                 output_style=output_format,
                 output_language=output_language,
                 max_length=int(max_length),
+                # Le kwarg explicite `output_format` ci-dessus prime ; schema_model_kwargs
+                # n'apporte que les réglages du schéma non déjà nommés.
+                **{k: v for k, v in schema_model_kwargs('describer', params).items()
+                   if k != 'output_style'},
             )
     except Exception as e:
         return {'error': f'Erreur création Description : {e}'}
@@ -1303,6 +1327,7 @@ def add_to_transcriber(
     preprocess_audio: bool = False,
     hotwords: str = '',
     enable_diarization: bool = True,
+    **params,
 ) -> dict:
     """
     Copy a file into the transcriber queue and create a Transcript DB entry.
@@ -1314,6 +1339,10 @@ def add_to_transcriber(
         preprocess_audio:   Apply audio preprocessing before transcription
         hotwords:           Domain-specific terms to improve recognition
         enable_diarization: Enable speaker diarization (VibeVoice only)
+        **params:           Tout autre réglage DÉCLARÉ au schéma (`transcriber/params.py`) et
+                            porté par le modèle — `generate_summary`, `summary_type`,
+                            `verify_coherence`… Appliqués via `schema_model_kwargs()` : la
+                            signature n'a pas à recopier la liste, qui dériverait.
 
     Returns:
         {"transcript_id": int, "filename": str, "duration_display": str, "status": "pending"}
@@ -1343,6 +1372,7 @@ def add_to_transcriber(
                 preprocess_audio=bool(preprocess_audio),
                 hotwords=hotwords or '',
                 enable_diarization=bool(enable_diarization),
+                **schema_model_kwargs('transcriber', params),
             )
 
         # Populate duration / properties via ffprobe
@@ -1637,6 +1667,7 @@ def convert_file(
     file_path: str,
     output_format: str,
     quality_preset: str = 'balanced',
+    **params,
 ) -> dict:
     """
     Queue a file conversion and start it immediately.
@@ -1688,6 +1719,14 @@ def convert_file(
             output_format=out_fmt,
             quality_preset=preset,
             status='RUNNING',
+            # `media_type` est DÉTECTÉ depuis le fichier : on ne laisse pas un appelant
+            # l'écraser, même s'il est déclaré au schéma pour l'UI.
+            **{k: v for k, v in schema_model_kwargs('converter', params).items()
+               if k != 'media_type'},
+            # Réglages transitoires (resize/rotation/fps/bitrate…) : rangés dans `options`,
+            # liste tirée du SCHÉMA. ⚠ `converter/views.py:229` en garde une copie en dur
+            # (14 clés) — à faire adopter quand cette app redeviendra modifiable.
+            options=schema_extra_params('converter', params) or {},
         )
         task = convert_media_task.delay(job.id)
         job.task_id = task.id
@@ -2457,12 +2496,16 @@ def sanitize_tool_args(tool_name: str, args: dict):
     (chez lui) ; l'assistant et l'API passaient les arguments bruts et récoltaient un
     `TypeError` sur un argument inconnu ou une valeur de type texte.
 
-    Un outil qui accepte `**kwargs` (les alias normalisés) n'est PAS filtré : il transmet.
+    **Surface acceptée = paramètres explicites de la signature ∪ params DÉCLARÉS au schéma**
+    de l'app. Un outil qui ouvre `**params` accepte donc tout ce que l'UI sait régler, sans
+    recopier la liste dans sa signature — c'est la règle descriptive, pas une liste en dur.
+    Les alias normalisés (`*args, **kwargs`, sans app résoluble) transmettent tel quel.
 
     Retourne (kwargs_propres, noms_ignorés).
     """
     from wama.accounts.permissions import app_id_for_tool
-    from wama.common.utils.param_schema import schema_for_app, coerce_schema_values
+    from wama.common.utils.param_schema import (schema_for_app, coerce_schema_values,
+                                                schema_arg_names)
 
     args = dict(args or {})
     app_id = app_id_for_tool(tool_name)
@@ -2471,9 +2514,16 @@ def sanitize_tool_args(tool_name: str, args: dict):
 
     fn = TOOL_REGISTRY.get(tool_name)
     sig = _tool_signature(fn) if fn else None
-    if sig is None or any(p.kind == p.VAR_KEYWORD for p in sig.parameters.values()):
+    if sig is None:
         return merged, []
-    keep = {k: v for k, v in merged.items() if k in sig.parameters and k != 'user'}
+    allowed = {n for n, p in sig.parameters.items()
+               if p.kind not in (p.VAR_POSITIONAL, p.VAR_KEYWORD)}
+    if any(p.kind == p.VAR_KEYWORD for p in sig.parameters.values()):
+        extra = schema_arg_names(app_id) if app_id else set()
+        if not extra:
+            return merged, []          # alias sans schéma : on ne sait pas filtrer, on transmet
+        allowed |= extra
+    keep = {k: v for k, v in merged.items() if k in allowed and k != 'user'}
     return keep, sorted(set(merged) - set(keep))
 
 

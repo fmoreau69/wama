@@ -228,6 +228,57 @@ def schema_for_app(app_id: str) -> List[dict]:
         return []
 
 
+def schema_model_kwargs(app_id: str, params: dict) -> dict:
+    """
+    Sous-ensemble de `params` qui est À LA FOIS déclaré au schéma de l'app ET un champ
+    concret de son modèle — prêt à passer à `Model.objects.create(**…)`.
+
+    Sert à ce qu'un outil `add_to_<app>` accepte TOUT ce que le schéma expose à l'UI, sans
+    recopier la liste des champs dans sa signature (elle dériverait au prochain param ajouté).
+    Le schéma étant lui-même dérivé du modèle (`derive_from_model`), la correspondance est la
+    règle ; les params « transitoires UI » (déclarés par override, sans champ) sont écartés
+    ici et restent à la charge de l'outil qui sait quoi en faire.
+
+    Les valeurs sont coercées par le schéma (bornes + booléens) avant d'être rendues.
+    """
+    schema = schema_for_app(app_id)
+    if not schema or not params:
+        return {}
+    try:
+        from wama.common.utils.detail_registry import DetailRegistry
+        entry = DetailRegistry.get(app_id)
+        model = entry['model'] if entry else None
+    except Exception:
+        model = None
+    if model is None:
+        return {}
+    concrete = {f.name for f in model._meta.get_fields() if getattr(f, 'concrete', False)}
+    declared = {_pget(p, 'name') for p in schema}
+    coerced = coerce_schema_values(schema, params)
+    return {k: v for k, v in coerced.items() if k in declared and k in concrete}
+
+
+def schema_extra_params(app_id: str, params: dict) -> dict:
+    """
+    Symétrique de `schema_model_kwargs` : les params DÉCLARÉS au schéma qui ne sont PAS des
+    champs du modèle — les « réglages transitoires » que l'app range dans un champ JSON
+    (`ConversionJob.options`, par ex.).
+
+    Évite de re-lister ces clés à la main chez chaque appelant : la liste vit au schéma.
+    """
+    schema = schema_for_app(app_id)
+    if not schema or not params:
+        return {}
+    model_keys = set(schema_model_kwargs(app_id, params))
+    coerced = coerce_schema_values(schema, params)
+    return {k: v for k, v in coerced.items() if k not in model_keys}
+
+
+def schema_arg_names(app_id: str) -> set:
+    """Noms de params qu'une app DÉCLARE — surface d'arguments acceptable d'un outil `**params`."""
+    return {_pget(p, 'name') for p in schema_for_app(app_id)}
+
+
 _TRUTHY = ('1', 'true', 'on', 'oui', 'yes')
 
 
