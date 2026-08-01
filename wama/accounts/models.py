@@ -35,6 +35,19 @@ class UserProfile(models.Model):
         default='list',
         verbose_name="Disposition des cards",
     )
+    # DESIGN de card — trois densités coexistantes (CARD_DESIGN §11.4, décision 2026-08-01).
+    # Ce n'est PAS la disposition de la file (card_layout) ni la pile : c'est l'anatomie d'une
+    # card. Les trois lisent la même source générée (schéma → chips) et ne diffèrent que par
+    # leur mise en page — d'où trois feuilles de style, jamais un branchement côté serveur.
+    CARD_DESIGNS = [
+        ('v1', 'Détaillé — tout lisible sans cliquer'),
+        ('v2', 'Compact — une ligne par élément'),
+        ('v3', 'Affiné — sections alignées entre cards'),
+    ]
+    card_design = models.CharField(
+        max_length=4, choices=CARD_DESIGNS, default='v3',
+        verbose_name="Design des cards",
+    )
     # Pile : MODIFICATEUR de la géométrie ci-dessus, pas une 3e valeur (CARD_DESIGN §11 v3.5).
     # Les cards se compressent selon leur distance à la card focalisée (46 px → 28 px →
     # lamelles) ; seule celle qui a le focus reste entière. C'est orthogonal au layout, d'où un

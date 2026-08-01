@@ -554,7 +554,7 @@ fige pas une anatomie avant de l'avoir vue tourner. La brique `_card_chips.html`
 (prototypé dans `reader/views.py::_output_chips`) ; miniature réelle au lieu de l'icône typée ;
 pile × mosaïque (toujours non tranché) ; remontée du markup en brique commune.
 
-### 11.4 DEUX DESIGNS COEXISTANTS — v1 « riche » et v3 « minimaliste » (décision 2026-08-01)
+### 11.4 TROIS DESIGNS COEXISTANTS — v1 · v2 · v3 (décision 2026-08-01, précisée le même jour)
 
 **Décision** : on ne remplace pas un design par l'autre, on garde les DEUX, sélectionnables.
 Le second n'est pas une variante esthétique du premier : c'est un **design MINIMALISTE**, dont
@@ -604,3 +604,38 @@ Deux pièges, tous deux trouvés par la mesure et invisibles à la lecture du co
 2. **Le focus doit survivre au rendu serveur.** `upsertCard` remplace le nœud entier, la classe
    de focus part avec : à chaque tour de polling la pile se repliait sur sa première card. Le
    focus est donc mémorisé par `data-id` et rétabli après remplacement.
+
+
+### 11.6 TROIS DENSITÉS — implémentation (2026-08-01)
+
+La décision §11.4 s'est précisée : **trois** designs coexistants, pas deux.
+
+| | Design | Ce qu'il montre | Hauteur mesurée (reader) |
+|---|---|---|---|
+| **v1** | Détaillé | tout lisible sans cliquer ; réglages en liste verticale à icônes | 143 px |
+| **v2** | Compact | *minimaliste* — sans étiquettes, bandeau d'identité, propriétés média ni aperçu | **62 px** |
+| **v3** | Affiné | 5 sections alignées d'une card à l'autre (défaut) | 143 px |
+
+**La v2 n'était pas perdue** : elle avait été écrasée dans `reader/_item_card.html` au premier
+commit v3, mais git l'avait. Restaurée pour référence en `docs/card_designs/reader_card_v2_reference.html`
+(129 l.) — c'est la card « §10.3 » : identité + chips sur une ligne, barre, aperçu.
+
+**Mise en œuvre** : `card_design` au profil (migration 0014), diffusé par le context processor
+existant donc disponible dans les 10 apps ; menu dans le toolbar commun ; attribut
+`data-card-design` sur la file ; **trois blocs CSS**. Le markup ne change pas — ce sont les
+5 sections nommées émises par le template d'app. Aucun `{% if design %}` : le garde-fou tient.
+
+Deux pièges rencontrés, tous deux visibles seulement à l'écran :
+
+1. **Ne pas replier deux sections dans la MÊME cellule de grille.** Une première version de la
+   v2 mettait Réglages et Sortie en `grid-column: 2; grid-row: 1` pour gagner de la hauteur :
+   elles ne se suivaient pas, elles se **superposaient** — les libellés se chevauchaient. En v2
+   la compacité vient de ce qu'on RETIRE, pas d'un repli de colonnes. Les 5 pistes restent.
+2. **Le toolbar commun est un espace fini.** Le sélecteur de densité en liste déroulante à
+   libellés poussait « Démarrer tout / Télécharger tout / Tout effacer » à la ligne sur les
+   10 apps. Remplacé par un bouton-icône à menu, qui tient dans la place d'un bouton.
+
+> ⚠ **v1 et v3 font la même hauteur sur le reader** (143 px) : cette app n'a pas plus à montrer
+> en détaillé. La distinction v1/v3 ne se voit que sur les apps riches (Transcriber : badges
+> temps réel/prétraité, propriétés audio, métriques de sortie). Ne pas conclure de l'écart nul
+> sur le reader que les deux designs se valent — le comparer sur le Transcriber.

@@ -15,6 +15,7 @@ def user_role(request):
     ui_mode = 'advanced'
     card_layout = 'list'
     card_stacked = False
+    card_design = 'v3'
     inspector_autoplay = False
     if user.is_authenticated:
         try:
@@ -22,6 +23,7 @@ def user_role(request):
             ui_mode = user.profile.ui_mode
             card_layout = user.profile.card_layout
             card_stacked = user.profile.card_stacked
+            card_design = user.profile.card_design
             inspector_autoplay = user.profile.inspector_autoplay
         except Exception:
             pass
@@ -127,6 +129,7 @@ def user_role(request):
         'ui_mode': ui_mode,
         'card_layout': card_layout,
         'card_stacked': card_stacked,
+        'card_design': card_design,
         'inspector_autoplay': inspector_autoplay,
         'app_catalog_json': app_catalog_json,
         'nav_apps_grouped': nav_apps_grouped,

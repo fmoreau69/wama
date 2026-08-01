@@ -46,6 +46,28 @@ Usage :
         d'où un bouton séparé du groupe ci-dessus et non un 3e bouton dedans. Les cards se
         compressent selon leur distance à la sélection ; seule la card focalisée reste entière.
         Réservé à l'affichage en ligne — pile × mosaïque n'est pas tranché.{% endcomment %}
+        {% comment %}DESIGN de card — 3 densités coexistantes (CARD_DESIGN §11.4). Ce n'est ni la
+        disposition de la file ni la pile : c'est l'anatomie d'une card. Les 3 lisent la MÊME source
+        générée et ne diffèrent que par leur mise en page, d'où un simple attribut posé sur la file
+        et 3 feuilles de style — aucun branchement côté serveur.{% endcomment %}
+        {% comment %}Menu et non liste déroulante : le toolbar porte déjà tri, filtre, disposition,
+        pile puis les actions de file — un select à libellés poussait « Démarrer tout / Télécharger
+        tout / Tout effacer » à la ligne sur les 10 apps. Un bouton-icône tient dans la place d'un
+        bouton.{% endcomment %}
+        <div class="btn-group wama-design-select" data-design="{{ card_design|default:'v3' }}">
+            <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                    data-bs-toggle="dropdown" aria-expanded="false"
+                    title="Densité d'affichage des cards"><i class="fas fa-text-height"></i></button>
+            <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
+                <li><h6 class="dropdown-header">Densité des cards</h6></li>
+                <li><button class="dropdown-item wama-design-opt" data-value="v1" type="button">
+                    Détaillé <small class="text-muted d-block">tout lisible sans cliquer</small></button></li>
+                <li><button class="dropdown-item wama-design-opt" data-value="v2" type="button">
+                    Compact <small class="text-muted d-block">une ligne par élément</small></button></li>
+                <li><button class="dropdown-item wama-design-opt" data-value="v3" type="button">
+                    Affiné <small class="text-muted d-block">sections alignées entre cards</small></button></li>
+            </ul>
+        </div>
         {% comment %}L'état initial est porté par le BOUTON et non par le conteneur de file :
         le toolbar est commun aux 10 apps, alors que le conteneur est déclaré dans chaque
         index.html — le poser ici évite d'aller éditer dix fichiers pour la même donnée.{% endcomment %}

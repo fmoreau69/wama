@@ -319,11 +319,20 @@ def layout_update(request):
         profile.card_stacked = bool(data.get('card_stacked'))
         changed.append('card_stacked')
 
+    if 'card_design' in data:
+        design = data.get('card_design')
+        valid = [c[0] for c in UserProfile.CARD_DESIGNS]
+        if design not in valid:
+            return JsonResponse({'error': f"Design inconnu : '{design}'"}, status=400)
+        profile.card_design = design
+        changed.append('card_design')
+
     if not changed:
         return JsonResponse({'error': 'Aucune clé reconnue'}, status=400)
     profile.save(update_fields=changed)
     return JsonResponse({'success': True, 'card_layout': profile.card_layout,
-                         'card_stacked': profile.card_stacked})
+                         'card_stacked': profile.card_stacked,
+                         'card_design': profile.card_design})
 
 
 @login_required

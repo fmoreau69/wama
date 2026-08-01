@@ -303,3 +303,80 @@
    couleur du chip et son title (qui donne le moteur demandé et celui retenu). */
 .wama-chips--list .wama-chip--warn { color: #ffc107; }
 .wama-chips--list .wama-chip--warn::after { content: " ⚠"; }
+
+/* ═══ TROIS DENSITÉS DE CARD (CARD_DESIGN §11.4) ══════════════════════════════════════
+   V1 « Détaillé » · V2 « Compact » · V3 « Affiné » (défaut, règles principales ci-dessus).
+
+   Le markup est le MÊME pour les trois : les 5 sections nommées émises par le template d'app.
+   Seule leur mise en page change. C'est ce qui rend la coexistence sûre — deux designs ne
+   peuvent pas dire des choses différentes s'ils lisent le même DOM. Corollaire à tenir :
+   AUCUN `{% if design %}` côté serveur. Si une différence en réclame un, elle n'est pas
+   esthétique et doit être traitée comme une capacité déclarée.
+   ─────────────────────────────────────────────────────────────────────────────────────── */
+
+/* ── V2 « Compact » — la version MINIMALISTE ────────────────────────────────────────
+   Règle de conception : tout ce que l'inspecteur donne déjà au clic SORT de la card. Il
+   reste de quoi identifier, situer et agir — rien de plus. Objectif : voir beaucoup
+   d'éléments d'un coup d'œil (~48 px contre ~110 en v3).
+   Ce qui sort : micro-étiquettes de section, bandeau d'identité, propriétés du média,
+   aperçu du résultat. Tout est dans le volet droit, à un clic. */
+[data-card-design="v2"] .wcv3-lbl,
+[data-card-design="v2"] .wcv3-head,
+[data-card-design="v2"] .wcv3-in-props,
+[data-card-design="v2"] .wcv3-preview { display: none; }
+
+[data-card-design="v2"] .wcv3 {
+  grid-template-columns:
+    var(--wcv3-c-input, minmax(0, 1.2fr))
+    minmax(0, 1fr)                              /* réglages */
+    minmax(0, 1fr)                              /* sortie   */
+    var(--wcv3-c-state, minmax(0, 96px))
+    var(--wcv3-c-actions, minmax(0, 186px));
+  align-items: center;                          /* une seule ligne : tout se centre dessus */
+  row-gap: .25rem;
+}
+/* Les 5 sections gardent CHACUNE leur piste. Une version précédente les repliait deux par
+   deux dans la même cellule de grille : elles ne se suivaient pas, elles se SUPERPOSAIENT —
+   les libellés se chevauchaient à l'écran. En v2 la compacité vient de ce qu'on RETIRE
+   (étiquettes, bandeau, propriétés, aperçu), pas d'un repli de colonnes. */
+[data-card-design="v2"] .wcv3-sec { border-left: none; padding-left: 0; }
+[data-card-design="v2"] .wcv3-thumb { width: 24px; height: 24px; }
+[data-card-design="v2"] .wcv3-in-name { font-size: .82rem; }
+[data-card-design="v2"] .card-body { padding-top: .35rem; padding-bottom: .35rem; }
+/* La barre reste : elle est le seul repère de progression une fois l'aperçu retiré. */
+[data-card-design="v2"] .wcv3-bar { margin-top: .2rem; }
+
+/* ── V1 « Détaillé » — densité du Transcriber ───────────────────────────────────────
+   Tout est lisible sans cliquer : réglages en liste verticale à icônes (plus lisible qu'une
+   rangée de chips dans une colonne étroite), propriétés du média visibles, aperçu conservé.
+   Les pistes sont plus larges et moins nombreuses à s'aligner : on privilégie la lecture
+   d'une card sur le balayage de la colonne. */
+[data-card-design="v1"] .wcv3 {
+  grid-template-columns:
+    minmax(0, 1.5fr) minmax(0, 1.1fr) minmax(0, 1.1fr)
+    var(--wcv3-c-state, minmax(0, 96px))
+    var(--wcv3-c-actions, minmax(0, 186px));
+}
+/* Chips en liste verticale — même règle que .wama-chips--list, appliquée par le design. */
+[data-card-design="v1"] .wcv3-out .wama-chip {
+  display: block;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0 0 .1rem 0;
+  color: rgba(255, 255, 255, .75);
+  font-size: .72rem;
+}
+[data-card-design="v1"] .wcv3-out .wama-chip i { width: 1em; margin-right: .35rem; opacity: .85; }
+[data-card-design="v1"] .wcv3-out .wama-chip--blueprint { opacity: .7; font-style: italic; }
+[data-card-design="v1"] .wcv3-preview { max-height: 120px; }
+
+
+/* Le sélecteur de densité s'insère dans un toolbar déjà chargé (tri, filtre, disposition,
+   pile, puis les actions de file) : à taille normale il le faisait passer à la ligne sur les
+   10 apps. Il s'aligne donc sur la compacité des boutons voisins. */
+.wama-design-select {
+  font-size: .78rem;
+  padding: .2rem 1.4rem .2rem .5rem;
+  max-width: 7.5rem;
+}

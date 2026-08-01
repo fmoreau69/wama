@@ -87,6 +87,45 @@
         mark();
     }
 
+    // ── DESIGN de card — 3 densités coexistantes (CARD_DESIGN §11.4) ─────────────
+    // Le design ne change QUE la mise en page : les 3 densités lisent la même source générée
+    // (schéma → chips). D'où un simple attribut sur la file, que 3 feuilles de style
+    // interprètent — et surtout aucun rendu conditionnel côté serveur, qui rouvrirait la porte
+    // à ce que les designs divergent fonctionnellement.
+    function initDesignSelect() {
+        const sel = document.querySelector('.wama-design-select');
+        const queue = document.querySelector('.wama-queue-list, .wama-queue-grid');
+        if (!sel || !queue) return;
+
+        function csrf() { const m = document.cookie.match(/csrftoken=([^;]+)/); return m ? m[1] : ''; }
+
+        function apply(design, persist) {
+            queue.dataset.cardDesign = design;
+            if (persist === false) return;
+            fetch('/accounts/profile/layout/', {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+                body: JSON.stringify({ card_design: design }),
+            }).catch(function () {});
+            // Les pistes se remesurent : changer de densité change ce que les sections contiennent.
+            if (window.WamaCardV3) window.WamaCardV3.measure();
+        }
+
+        function mark(design) {
+            sel.querySelectorAll('.wama-design-opt').forEach(function (o) {
+                o.classList.toggle('active', o.dataset.value === design);
+            });
+        }
+        sel.querySelectorAll('.wama-design-opt').forEach(function (opt) {
+            opt.addEventListener('click', function () {
+                apply(opt.dataset.value, true);
+                mark(opt.dataset.value);
+            });
+        });
+        const initial = sel.dataset.design || 'v3';
+        mark(initial);
+        apply(initial, false);   // état venu du profil : ne pas re-persister
+    }
+
     // ── Modificateur PILE (CARD_DESIGN §11 v3.5) ─────────────────────────────────
     // Orthogonal au layout : c'est un on/off, PAS une 3e disposition — d'où un bouton séparé
     // et un booléen de profil distinct de card_layout. Les cards se compressent selon leur
@@ -303,7 +342,7 @@
 
     // ── Init ─────────────────────────────────────────────────────────────────
 
-    function init() { injectStyle(); initBatchCollapse(); initOnePileOpen(); initLayoutToggle(); initStackToggle(); focusFromSession(); }
+    function init() { injectStyle(); initBatchCollapse(); initOnePileOpen(); initLayoutToggle(); initDesignSelect(); initStackToggle(); focusFromSession(); }
 
     // API publique
     window.WamaQueue = window.WamaQueue || {};
