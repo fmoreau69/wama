@@ -444,7 +444,7 @@ tranchent une fois sur les briques communes et se propagent. Consignés au fil d
 
 ## 11. Card v3 « sections × chips » — décisions de maquette (2026-08-01, itérations Fabien×Claude)
 
-> Maquette vivante : artifact « WAMA — Card v3.x » (URL stable, versions étiquetées). Fusion
+> Maquette vivante : docs/card_designs/card_v3.5_maquette.html (URL stable, versions étiquetées ; v3.4 = arbitrages du 2026-08-01). ⚠ v3.4 : l exemple de card en ÉCHEC (barre figée) manque encore dans la maquette — à ajouter. Fusion
 > v1 Transcriber (sections nommées) × v2 chips (compacité). RIEN de nouveau côté mécanismes :
 > déclaratif → briques → UI. Pilote de portage : **SYNTHESIZER** (décision 2026-08-01 —
 > pas le Transcriber), puis composer.
