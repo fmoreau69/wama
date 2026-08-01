@@ -294,18 +294,36 @@ def notifications_update(request):
 @login_required
 @require_POST
 def layout_update(request):
-    """AJAX: enregistre la disposition des cards (list = ligne, grid = mosaïque)."""
+    """AJAX: enregistre la géométrie de file — disposition (list/grid) et/ou pile.
+
+    Un seul endpoint pour les deux : la pile est un MODIFICATEUR de la disposition
+    (CARD_DESIGN §11 v3.5), pas un réglage d'une autre nature. Les deux clés sont
+    indépendantes et facultatives — on n'écrit que ce qui est envoyé.
+    """
     try:
         data = json.loads(request.body)
     except json.JSONDecodeError:
         return JsonResponse({'error': 'JSON invalide'}, status=400)
-    layout = data.get('card_layout', 'list')
-    if layout not in ('list', 'grid'):
-        return JsonResponse({'error': f"Valeur invalide : '{layout}'"}, status=400)
+
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
-    profile.card_layout = layout
-    profile.save(update_fields=['card_layout'])
-    return JsonResponse({'success': True, 'card_layout': layout})
+    changed = []
+
+    if 'card_layout' in data:
+        layout = data.get('card_layout', 'list')
+        if layout not in ('list', 'grid'):
+            return JsonResponse({'error': f"Valeur invalide : '{layout}'"}, status=400)
+        profile.card_layout = layout
+        changed.append('card_layout')
+
+    if 'card_stacked' in data:
+        profile.card_stacked = bool(data.get('card_stacked'))
+        changed.append('card_stacked')
+
+    if not changed:
+        return JsonResponse({'error': 'Aucune clé reconnue'}, status=400)
+    profile.save(update_fields=changed)
+    return JsonResponse({'success': True, 'card_layout': profile.card_layout,
+                         'card_stacked': profile.card_stacked})
 
 
 @login_required

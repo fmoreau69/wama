@@ -35,6 +35,14 @@ class UserProfile(models.Model):
         default='list',
         verbose_name="Disposition des cards",
     )
+    # Pile : MODIFICATEUR de la géométrie ci-dessus, pas une 3e valeur (CARD_DESIGN §11 v3.5).
+    # Les cards se compressent selon leur distance à la card focalisée (46 px → 28 px →
+    # lamelles) ; seule celle qui a le focus reste entière. C'est orthogonal au layout, d'où un
+    # booléen séparé et non un choix supplémentaire de card_layout.
+    card_stacked = models.BooleanField(
+        default=False,
+        verbose_name="Empiler les cards autour de la sélection",
+    )
     # Lecture auto de l'aperçu (audio/vidéo) dans l'inspecteur au clic d'une card.
     # Défaut OFF (opt-in) le temps de valider l'absence de lag ; à basculer ON ensuite.
     inspector_autoplay = models.BooleanField(

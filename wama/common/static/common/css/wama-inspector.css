@@ -154,3 +154,29 @@
 .wama-compare-badge.in { left: 4px; }
 .wama-compare-badge.out { right: 4px; }
 .wama-compare-range { max-width: 100%; margin-top: .25rem; }
+
+/* ═══ PILE — modificateur de file (CARD_DESIGN §11 v3.5) ═══════════════════════════════
+   Orthogonal au layout : ce n'est pas une 3e disposition mais un on/off qui COMPRIME les
+   cards selon leur distance à la sélection (attribut data-stack posé par wama-queue.js,
+   0 = focus). Objectif : garder toute la file à l'écran tout en lisant une card en entier —
+   la géométrie « jeu de cartes » du §4.
+   Réservé à l'affichage en LIGNE : pile × mosaïque reste un point ouvert du §11, on ne le
+   tranche pas ici (d'où l'absence de règle sous .wama-queue-grid). */
+.wama-stack-btn.active { background: rgba(255,255,255,.14); }
+
+.wama-queue-stacked .wama-card[data-stack] {
+    overflow: hidden;
+    transition: max-height .18s ease, opacity .18s ease;
+}
+/* La card focalisée est ENTIÈRE : c'est elle qu'on lit. */
+.wama-queue-stacked .wama-card[data-stack="0"] { max-height: none; }
+/* Voisines immédiates : en-tête + première ligne de sections restent lisibles. */
+.wama-queue-stacked .wama-card[data-stack="1"] { max-height: 46px; opacity: .92; }
+/* Puis le nom seul. */
+.wama-queue-stacked .wama-card[data-stack="2"] { max-height: 28px; opacity: .82; }
+/* Au-delà : lamelles — on ne lit plus, on compte et on vise. */
+.wama-queue-stacked .wama-card[data-stack="3"] { max-height: 14px; opacity: .6; }
+.wama-queue-stacked .wama-card[data-stack]:not([data-stack="0"]) { cursor: pointer; }
+.wama-queue-stacked .wama-card[data-stack]:not([data-stack="0"]):hover { opacity: 1; }
+/* Resserrer l'empilement : sans ça les marges des cards annulent le gain de compression. */
+.wama-queue-stacked .wama-card[data-stack]:not([data-stack="0"]) { margin-bottom: .15rem !important; }

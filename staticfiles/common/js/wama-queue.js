@@ -87,6 +87,110 @@
         mark();
     }
 
+    // ── Modificateur PILE (CARD_DESIGN §11 v3.5) ─────────────────────────────────
+    // Orthogonal au layout : c'est un on/off, PAS une 3e disposition — d'où un bouton séparé
+    // et un booléen de profil distinct de card_layout. Les cards se compressent selon leur
+    // DISTANCE à la card focalisée ; seule celle-ci reste entière.
+    //
+    // La distance est posée en attribut par le JS plutôt que déduite en CSS : les sélecteurs
+    // de fratrie ne portent qu'à un ou deux crans, et la file contient des groupes de lot
+    // intercalés — la fratrie DOM ne reflète pas l'ordre visible.
+    //
+    // Réservé à l'affichage en ligne : pile × mosaïque reste un point ouvert du §11, on ne le
+    // tranche pas ici. Le focus lui-même réutilise focusCard() ci-dessous — rien de réinventé.
+    function initStackToggle() {
+        const btn = document.querySelector('.wama-stack-btn');
+        const queue = document.querySelector('.wama-queue-list, .wama-queue-grid');
+        if (!btn || !queue) return;
+
+        function csrf() { const m = document.cookie.match(/csrftoken=([^;]+)/); return m ? m[1] : ''; }
+        function on() { return queue.classList.contains('wama-queue-stacked'); }
+
+        // Cards empilables = celles de la file, dans l'ordre VISIBLE. La card « nouvel élément »
+        // en tête n'en fait jamais partie : elle est le point d'entrée, la comprimer priverait
+        // du geste de dépôt (§11 : jamais compressée).
+        function cards() {
+            return Array.prototype.slice
+                .call(queue.querySelectorAll('.wama-card'))
+                .filter(function (c) {
+                    return !c.classList.contains('wama-new-item-card') &&
+                           !c.classList.contains('wama-new-card') &&
+                           c.offsetParent !== null;
+                });
+        }
+
+        function spread() {
+            const list = cards();
+            if (!list.length) return;
+            let focusIdx = list.findIndex(function (c) { return c.classList.contains('is-stack-focus'); });
+            if (focusIdx < 0) {
+                focusIdx = list.findIndex(function (c) { return c.classList.contains('selected'); });
+            }
+            if (focusIdx < 0) focusIdx = 0;
+            list.forEach(function (c, i) {
+                c.classList.toggle('is-stack-focus', i === focusIdx);
+                // 0 = entière · 1 = 46 px · 2 = 28 px · 3+ = lamelle
+                c.dataset.stack = String(Math.min(3, Math.abs(i - focusIdx)));
+            });
+        }
+
+        function clear() {
+            cards().forEach(function (c) {
+                c.classList.remove('is-stack-focus');
+                delete c.dataset.stack;
+            });
+        }
+
+        function apply(state, persist) {
+            queue.classList.toggle('wama-queue-stacked', state);
+            btn.classList.toggle('active', state);
+            btn.setAttribute('aria-pressed', state ? 'true' : 'false');
+            if (state) spread(); else clear();
+            if (persist === false) return;
+            fetch('/accounts/profile/layout/', {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+                body: JSON.stringify({ card_stacked: state }),
+            }).catch(function () {});
+        }
+
+        btn.addEventListener('click', function () { apply(!on(), true); });
+
+        // Clic sur une card comprimée = la déplier (elle prend le focus de la pile).
+        queue.addEventListener('click', function (ev) {
+            if (!on()) return;
+            const card = ev.target.closest('.wama-card');
+            if (!card || card.classList.contains('is-stack-focus')) return;
+            cards().forEach(function (c) { c.classList.remove('is-stack-focus'); });
+            card.classList.add('is-stack-focus');
+            spread();
+        }, true);
+
+        // Flèches ↑/↓ : navigation dans la pile, sans voler le clavier à un champ de saisie.
+        document.addEventListener('keydown', function (ev) {
+            if (!on() || (ev.key !== 'ArrowUp' && ev.key !== 'ArrowDown')) return;
+            const t = ev.target;
+            if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+            const list = cards();
+            if (!list.length) return;
+            let i = list.findIndex(function (c) { return c.classList.contains('is-stack-focus'); });
+            if (i < 0) i = 0;
+            const next = Math.max(0, Math.min(list.length - 1, i + (ev.key === 'ArrowDown' ? 1 : -1)));
+            if (next === i) return;
+            ev.preventDefault();
+            list.forEach(function (c) { c.classList.remove('is-stack-focus'); });
+            list[next].classList.add('is-stack-focus');
+            spread();
+            focusCard(list[next], { scroll: 'center' });
+        });
+
+        // Les cards sont remplacées entières par le rendu serveur : réattribuer les distances.
+        new MutationObserver(function () { if (on()) spread(); })
+            .observe(queue, { childList: true, subtree: true });
+
+        // false = ne pas re-persister ce qui vient justement du profil.
+        if (btn.dataset.stacked === '1') apply(true, false);
+    }
+
     // ── Focus d'une card : scroll centré + halo pulse + (option) sélection ───────
     // Usage commun à l'AJOUT (card unique ou mère de batch) ET à la navigation clavier :
     //   WamaQueue.focusCard('cardId', { scroll:'center', pulse:true, select:true });
@@ -145,7 +249,7 @@
 
     // ── Init ─────────────────────────────────────────────────────────────────
 
-    function init() { injectStyle(); initBatchCollapse(); initOnePileOpen(); initLayoutToggle(); focusFromSession(); }
+    function init() { injectStyle(); initBatchCollapse(); initOnePileOpen(); initLayoutToggle(); initStackToggle(); focusFromSession(); }
 
     // API publique
     window.WamaQueue = window.WamaQueue || {};
