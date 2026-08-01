@@ -27,12 +27,18 @@ class ListToolsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        # Filtré par le gating d'app (§F7) : un outil non exécutable par ce compte ne doit pas
+        # non plus être ANNONCÉ — sinon un client (assistant, agent externe) le propose puis
+        # se prend un 403, et `tools/list` ment sur ce que `tools/run/` accepte.
+        from wama.accounts.permissions import tool_accessible
+
         tools = [
             {
                 "name": name,
                 **TOOL_DESCRIPTIONS.get(name, {"description": "", "args": {}}),
             }
             for name in TOOL_REGISTRY
+            if tool_accessible(request.user, name)
         ]
         return Response({"tools": tools})
 
@@ -63,6 +69,9 @@ class RunToolView(APIView):
             )
 
         result = execute_tool(tool_name, args, request.user)
+
+        if result.get("error") == "forbidden":
+            return Response(result, status=status.HTTP_403_FORBIDDEN)
 
         if "error" in result:
             return Response(result, status=status.HTTP_400_BAD_REQUEST)

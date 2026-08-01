@@ -2437,6 +2437,16 @@ def execute_tool(tool_name: str, args: dict, user) -> dict:
         available = ', '.join(TOOL_REGISTRY.keys())
         return {'error': f"Outil inconnu : '{tool_name}'. Disponibles : {available}"}
 
+    # Gating d'app (§F7) — MÊME décision et MÊME forme de réponse que AppAccessMiddleware._deny,
+    # les deux couches ne doivent jamais diverger. Import non gardé : un échec ici doit être
+    # bruyant, pas silencieusement permissif.
+    from wama.accounts.permissions import app_id_for_tool, tool_accessible
+    if not tool_accessible(user, tool_name):
+        app_id = app_id_for_tool(tool_name)
+        logger.warning(f"[tool_api] accès refusé : user={getattr(user, 'id', None)} tool={tool_name}")
+        return {'error': 'forbidden',
+                'detail': f"Accès non autorisé à l'application « {app_id} »."}
+
     try:
         # Tools that don't take a user argument
         if tool_name == 'sam3_examples':
