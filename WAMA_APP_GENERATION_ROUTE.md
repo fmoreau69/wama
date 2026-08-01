@@ -278,8 +278,27 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   `tool_api.py:2050`). **Deux consommateurs du MÊME contrat** : l'assistant IA (`api/v1/views.py:18`) ET le
   studio (`build_generic_runner:149` fait `getattr(tool_api,f'add_to_{app}')` + filtre par
   `inspect.signature` + exige `item_id` en retour). **Le studio ne connaît aucune app en dur.**
+- ✅ **Point d'exécution UNIQUE (2026-08-01, `86889ca`)** — le studio ne court-circuite plus
+  `execute_tool` : `create`/`start` passent par lui. La logique que le runner avait ré-implémentée chez
+  lui est promue au commun : `sanitize_tool_args()` (coercition par schéma + filtre de signature) et
+  `primary_arg_name()` (nom du 1er paramètre DÉRIVÉ de la signature → plus besoin de connaître
+  `media_id`/`transcript_id`/`generation_id`). Deux briques dans `param_schema.py` :
+  `schema_for_app()` (accesseur unique F3, résolution par le pointeur déclaratif) et
+  `coerce_schema_values()` (délègue les bornes à `coerce_params`). Gains : l'assistant et l'API
+  filtrent/coercent comme le studio (avant : `TypeError` sur argument inconnu) ; le studio applique
+  enfin les **bornes** du schéma (son `_coerce` local typait sans clamper) ; le cas spécial
+  `if tool_name == 'sam3_examples'` disparaît. ⚠ Reste à migrer : `manifests/builtin/app.py::_params`
+  garde sa propre copie de la résolution (territoire d'une autre instance).
 - **Trous** : garde MEDIA_ROOT dupliquée ~8× ; **pas de test de contrat** sur la triade (bug describer
   output_format→output_style découvert au runtime).
+  - ⚠ **MESURÉ (2026-08-01) — le contrat est rompu à 52 %** : seuls **34 / 71 params du schéma sont
+    acceptés par `add_to_<app>`** (anonymizer 3/17, converter 1/12, avatarizer 2/5). Ces params sont
+    réglables dans l'UI mais **tombent silencieusement** quand on passe par un outil (assistant, API,
+    studio) — le studio les jetait déjà, sans le dire ; `sanitize_tool_args` les **LOGGE** désormais.
+  - 🔴 **Conséquence pour le chantier « supprimer `TOOL_DESCRIPTIONS` »** : dériver les descriptions
+    du schéma **ne suffit pas** et serait même nuisible — on annoncerait à l'assistant des params que
+    la fonction refuse. **Ordre correct : (a) aligner les signatures de la triade sur le schéma,
+    (b) puis supprimer `TOOL_DESCRIPTIONS`.** Le test de contrat (a) est le vrai préalable.
   - ✅ **Tranché (2026-08-01)** : l'alias `add_to_imager` EXISTE (`tool_api.py:2088`, bloc « aliases
     normalisés » STUDIO_VISION 2026-07-12) — le runner studio fonctionne. Mais il n'a **pas de description**.
 - ⚠ **CHAÎNE CONCURRENTE MESURÉE (2026-08-01) — `TOOL_DESCRIPTIONS` double `PARAMS_JSON`.**

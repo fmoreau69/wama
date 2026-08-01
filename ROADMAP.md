@@ -854,7 +854,22 @@ WAMA utilise alors le provider cloud à la place d'Ollama pour les tâches séle
 | Mistral AI | `mistral-large-latest` | Francophone, SHS, souveraineté EU |
 
 **Architecture :**
-- Clés stockées via `UserProviderConfig` (déjà en place dans media_library)
+- ⚠ **CORRECTION (vérifié 2026-08-01)** : « clés stockées via `UserProviderConfig` (déjà en place) »
+  était **inexact**. `UserProviderConfig` (`media_library/models.py:196`) porte les clés des
+  **banques de médias** (`MediaProvider` = Wikimedia / Pixabay / Freesound), pas des LLM. Il n'existe
+  **aucun stockage de clé LLM par utilisateur** — c'est le PATRON à reproduire (`requires_api_key`,
+  `api_key_label`, `api_key_help_url`, section dédiée du profil), pas une brique à réutiliser telle
+  quelle. Le commentaire de `settings.py:587` induit la même erreur et reste à corriger.
+- **Ce qui marche DÉJÀ** : LiteLLM lit les clés **nativement depuis l'environnement**
+  (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `XAI_API_KEY`…). Passer `api_key=` n'est pas requis, et
+  aucun appelant ne le fait. Preuve outillée : `python manage.py llm_gateway_check`
+  (`--provider xai --model grok-3` = appel cloud réel). `ANTHROPIC_API_KEY` est renseignée dans
+  `.env`. Le chemin cloud est donc fonctionnel **au niveau instance** ; ce qui manque est le
+  **par-utilisateur** (multi-tenant) — optionnel pour un labo mono-instance.
+- **Le vrai verrou pour « lever le goulot local »** : le choix du provider est **global**
+  (`LITELLM_PROVIDER`, tout ou rien). Pour qu'un modèle cloud alimente une app, il doit se déclarer
+  **par tâche**, dans la chaîne descriptive (registres) comme le reste — pas par un réglage global
+  ni par un `if` dans chaque app. Sans ça : on connecte, mais on ne peut pas utiliser.
 - `llm_chat(provider=user_provider, api_key=user_key)` → LiteLLM route vers le bon provider
 - UI : section "Providers IA" dans le profil utilisateur + indicateur "mode hybride actif"
 - ⚠️ À préciser dans l'UI : **abonnement ChatGPT Plus / Claude.ai ≠ accès API**
