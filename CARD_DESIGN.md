@@ -439,3 +439,56 @@ tranchent une fois sur les briques communes et se propagent. Consignés au fil d
   describer/composer/reader/converter, affichage via `_processing_time.html`/`_card_progress.html`.
   Restent SANS le mixin : enhancer (2 modèles), synthesizer, anonymizer, imager, avatarizer —
   à poser lors de leur port (grille `processing_time` dans `/apps/`).
+
+---
+
+## 11. Card v3 « sections × chips » — décisions de maquette (2026-08-01, itérations Fabien×Claude)
+
+> Maquette vivante : artifact « WAMA — Card v3.x » (URL stable, versions étiquetées). Fusion
+> v1 Transcriber (sections nommées) × v2 chips (compacité). RIEN de nouveau côté mécanismes :
+> déclaratif → briques → UI. Pilote de portage : **SYNTHESIZER** (décision 2026-08-01 —
+> pas le Transcriber), puis composer.
+
+### Décisions ACTÉES
+- **Grille à pistes FIXES partagées** par toutes les cards (232px · 1fr · 1,15fr · 118px · 188px
+  indicatif) → les 5 sections (Entrée · Réglages · Sortie · État · Actions) s'alignent
+  verticalement dans la pile. Micro-étiquettes 0,55rem uppercase par section.
+- **Entrée sur sous-lignes** : nom → propriétés réelles du média (mp3 · 44,1 kHz · stéréo ·
+  durée) → #id · date. Miniature 48px pour les apps à entrée visuelle.
+- **Section SORTIE temporelle** : chips « blueprint » (pointillés, ~estimations, dérivées des
+  réglages + ETA apprise) AVANT → étape live + % PENDANT → chips solides (propriétés réelles,
+  détail par étape façon Transcriber : « 8 742 mots · 3 locuteurs · cohérence 85/100 ») APRÈS ;
+  l'erreur remplace la sortie au même endroit en échec. Chips = brique card_chips, futur attribut
+  `section=` (input/settings/output) sur les Param `chip=True` + hook `predicted_output()` par app.
+- **Zone de PREVIEW PERMANENTE** (jamais retirée) : récapitulatif de sortie dès l'ajout (fond
+  légèrement distinct, ex. « Transcription (texte) + diarisation · formats après traitement :
+  TXT · SRT · PDF · DOCX ») → PENDANT : préviz de process si disponible → APRÈS : préviz réelle.
+  **Orientation : réutiliser le système de faces de l'inspecteur** (`preview_utils`
+  entrée / pendant `?side=during` / sortie, clic pour switcher) — un seul système de preview,
+  la card en devient un consommateur compact. Étude des meilleures préviz par app = 2e temps.
+- **Barre de progression : VERTE (dégradé reader) sur tout le cycle** (décision Fabien —
+  « trop de couleurs » sinon ; l'état est déjà porté par liseré + point + badge). Réversible.
+- **ÉCHEC : la barre reste FIGÉE au % atteint** (comportement observé sur les batchs actuels,
+  jugé PRÉCIEUX : on voit où le process est mort). Ne jamais vider/compléter la barre en échec.
+- **Boutons : slot d'actions SPÉCIFIQUES d'app** entre ▶ et ⬇ (ex. ✏️ correction Transcriber).
+  ⚠ Les actions doivent TENIR dans leur piste (wrap autorisé, jamais de débordement).
+- **PILE (jeu de cartes) = MODIFICATEUR orthogonal, PAS un 3e mode** : un sélecteur on/off qui
+  s'applique à la file ET à la mosaïque — compression progressive selon la distance au focus
+  (46px → 28px → lamelles), navigation clic + flèches (WamaQueue.focusCard). En mosaïque :
+  atténuation/scale plutôt que reflow (éviter les sauts de grille).
+  **La card d'entrée n'est JAMAIS compressée par la pile** (sinon remonter toute la pile pour
+  ajouter).
+- **Mosaïque : le lot ne déforme pas la grille** (PAS de bande pleine largeur — rejetée) :
+  mère = tuile normale, filles À LA SUITE dans le flux (liseré haut pointillé + fond #1e2124),
+  cards hors lot ensuite sans marqueur.
+
+### Points OUVERTS
+- **Raccord mère↔filles en mosaïque insuffisant** (surtout mère en bout de ligne). Pistes :
+  survol/sélection de la mère → surbrillance des filles (cohérent « une pile ouverte à la
+  fois ») ; chip 📦 lot-#id sur les filles ; couleur d'identité par lot (⚠ collision avec les
+  codes d'état — prudence).
+- **Card d'entrée : NE PAS TOUCHER à l'existant** (elles vivent hors file volontairement ;
+  réintégration en 1re card = chantier ultérieur). La maquette garde la proposition « card v3
+  brouillon + mini-onglets de modalité » à titre d'étude ; en mosaïque elle devra avoir la MÊME
+  forme que les autres tuiles (pas pleine largeur) + contour pointillé.
+- Choix barre verte vs barre couleur-d'état : tranché vert, à réévaluer après usage.
