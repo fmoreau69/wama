@@ -48,7 +48,6 @@ Contexte : item = ReadingItem décoré par _decorate_card() (.chips, .input_prop
           {% if item.input_props %}
           <span class="wcv3-in-props">{% for p in item.input_props %}{% if not forloop.first %}<span class="sep">·</span>{% endif %}{{ p }}{% endfor %}</span>
           {% endif %}
-          <span class="wcv3-in-id">#{{ item.id }} · {{ item.created_at|date:"d/m H:i" }}</span>
         </div>
       </div>
     </div>
@@ -88,6 +87,11 @@ Contexte : item = ReadingItem décoré par _decorate_card() (.chips, .input_prop
         </span>
         {% if item.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ item.id }}"></span>{% endif %}
         {% if item.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=item.processing_display %}{% endif %}
+        {% comment %}Identité de la CARD (#id + date de création) — ce n'est PAS une propriété du
+        fichier d'entrée : la mélanger aux « pdf · 12 pages · 2,4 Mo » brouillait les deux natures.
+        Placée ici parce que la section ÉTAT décrit la vie de la card (créée quand, où elle en est).
+        À réévaluer si une zone d'identité dédiée émerge du formalisme.{% endcomment %}
+        <span class="wcv3-card-id">#{{ item.id }} · {{ item.created_at|date:"d/m H:i" }}</span>
       </div>
     </div>
 

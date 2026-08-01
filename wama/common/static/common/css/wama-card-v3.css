@@ -13,16 +13,40 @@
    perdre exactement ce que la v3 apporte sur la v2.
    ═══════════════════════════════════════════════════════════════════════════════════════ */
 
-/* ── Grille à pistes fixes (§11 : 232px · 1fr · 1,15fr · 118px · 188px) ─────────────── */
+/* ── Grille à pistes partagées — dimensionnée sur le CONTENU RÉEL ───────────────────
+   Les chiffres de la maquette (232 · 1fr · 1,15fr · 118 · 188) ne sont PAS repris : la
+   maquette est un outil de réflexion, ses largeurs viennent de données factices. Mesure des
+   largeurs naturelles sur la file réelle du reader (2026-08-01) :
+       ENTRÉE 208 · RÉGLAGES 234 · SORTIE 243 · ÉTAT 75 · ACTIONS 171
+   → la maquette sur-dotait Entrée/État/Actions et étranglait Réglages/Sortie, qui sont les
+   deux sections réellement verbeuses (libellés de moteur, formats de sortie).
+   Les proportions ci-dessous suivent ce relevé ; refaire la mesure pour chaque app portée. */
 .wcv3 {
   display: grid;
-  grid-template-columns: 232px minmax(0, 1fr) minmax(0, 1.15fr) 118px 188px;
-  column-gap: .85rem;
+  grid-template-columns:
+    minmax(0, 1.25fr)   /* ENTRÉE   — la plus dotée : le nom est ce qu'on lit en PREMIER pour
+                           identifier une card. À 1fr il tronquait dès « pw_test_1.… ». */
+    minmax(0, 1.15fr)   /* RÉGLAGES — verbeux (mesuré 234) */
+    minmax(0, 1.2fr)    /* SORTIE   — le plus verbeux (mesuré 243), et il grandit au fil du run */
+    122px               /* ÉTAT     — statut + identité de card (#id · date) */
+    186px;              /* ACTIONS  — plancher mesuré 171 + le padding du séparateur, qui est
+                           INCLUS dans la piste (box-sizing: border-box). Chiffrer une piste
+                           fixe sur le seul contenu la rend trop étroite de ~10 px, et les
+                           5 boutons repassent à la ligne. */
+  column-gap: .55rem;
   row-gap: .45rem;
-  align-items: start;
 }
 
 .wcv3-sec { min-width: 0; }          /* sans ça, le contenu long force la piste à grandir */
+
+/* ── Séparateurs de section ─────────────────────────────────────────────────────────
+   Sans eux les 5 pistes se lisent comme une bouillie : le trait est ce qui rend l'alignement
+   PERCEPTIBLE (l'œil suit la colonne). Hauteur uniforme = les sections s'étirent (align-items
+   par défaut : stretch — surtout ne pas remettre `start`, les traits seraient inégaux). */
+.wcv3-sec + .wcv3-sec {
+  border-left: 1px solid rgba(255, 255, 255, .08);
+  padding-left: .55rem;
+}
 
 /* Micro-étiquettes de section (§11 : 0,55rem uppercase) — repères de colonne, pas du contenu. */
 .wcv3-lbl {
@@ -64,7 +88,10 @@
 .wcv3-in-props { font-size: .66rem; color: #adb5bd; }
 .wcv3-in-props .sep { opacity: .45; margin: 0 .28rem; }
 
-.wcv3-in-id { font-size: .62rem; color: #6c757d; }
+/* Identité de la CARD — vit dans la section ÉTAT, pas dans ENTRÉE : #31 et la date de création
+   décrivent l'élément de file, pas le fichier déposé. Les mêler aux propriétés du média
+   (« pdf · 12 pages · 2,4 Mo ») faisait lire deux natures d'information sur la même ligne. */
+.wcv3-card-id { display: block; font-size: .62rem; color: #6c757d; margin-top: .15rem; }
 
 /* ── Chips « blueprint » — sortie ESTIMÉE, pas encore produite (§11) ────────────────
    Pointillés + teinte éteinte : l'utilisateur doit voir au premier coup d'œil que c'est
@@ -101,10 +128,14 @@
 .wcv3-bar { margin-top: .3rem; }
 .wcv3-bar .wama-progress-fill.is-frozen { animation: none; opacity: .8; }
 
-/* ── Section ACTIONS — doit TENIR dans sa piste, wrap autorisé, débordement JAMAIS ──── */
+/* ── Section ACTIONS — doit TENIR dans sa piste, débordement JAMAIS ─────────────────
+   `flex-start` et non `flex-end` : aligné à droite, les boutons laissaient un vide de 7 px
+   AVANT le premier (mesuré), qui décrochait la rangée de sa micro-étiquette et poussait la
+   corbeille à la ligne dès que la piste se resserrait. Les boutons partent du bord gauche
+   de leur piste, comme le contenu de toutes les autres sections. */
 .wcv3-actions {
   display: flex; flex-wrap: wrap; gap: .25rem;
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 .wcv3-actions .btn { flex: 0 0 auto; }
 
@@ -132,7 +163,11 @@
 /* ── Famille de LOT — cyan des codes RÉELS is-batch (§11 v3.5) ──────────────────────
    #0d1a1a / #0dcaf0 relevés de l'existant (reader/index.html), pas réinventés.
    Pointillés VOLONTAIREMENT non utilisés ici : ils sont réservés à la card d'entrée. */
-.wcv3--batch-parent { border-color: rgba(13, 202, 240, .55) !important; }
+/* La card MÈRE vient de la brique commune _batch_card.html, restée en layout Bootstrap
+   row/col-md-* (v2) et — surtout — SANS `.card-body` : son contenu touchait les bords de la
+   card, sans aucune marge. Padding restitué ici, scopé au reader, en attendant le portage v3
+   de la brique (qui, lui, touchera les 10 apps et doit donc être fait d'un bloc). */
+.wcv3--batch-parent { border-color: rgba(13, 202, 240, .55) !important; padding: .45rem .7rem; }
 
 /* Les filles portent le FOND teinté seulement : le rail cyan de liaison est déjà porté par
    le conteneur .collapse (reader/index.html) — un rail CONTINU pour la famille est plus juste
@@ -170,13 +205,10 @@
 }
 .wcv3-out .wama-chip i { margin-right: .25rem; }
 
-@container (max-width: 1180px) {
-  /* La piste ACTIONS ne se resserre PAS avec les autres : 5 boutons de 34 px + gaps ont un
-     plancher incompressible (~176 px). Mesuré à 150 px : la corbeille passait à la ligne et
-     la card gagnait une rangée — exactement le débordement que §11 interdit. Ce sont les
-     pistes de CONTENU qui absorbent la contrainte, jamais celle des actions. */
-  .wcv3 { grid-template-columns: 208px minmax(0, 1fr) minmax(0, 1.1fr) 104px 178px; column-gap: .6rem; }
-}
+/* Le palier intermédiaire qui figeait ENTRÉE à 208 px a été SUPPRIMÉ : les trois pistes de
+   contenu sont déjà élastiques (minmax(0, Nfr)), elles absorbent seules le resserrement.
+   Seules ÉTAT et ACTIONS restent fixes — ACTIONS parce que 5 boutons ont un plancher
+   mesuré à 171 px. */
 
 @container (max-width: 760px) {
   /* Sortie sur une 2e ligne, pleine largeur : c'est la section la plus verbeuse, et la
@@ -184,13 +216,33 @@
      Seuil à 760 et non 980 : mesuré, les 5 pistes du palier ci-dessus tiennent encore à
      888 px (la largeur réelle de la file, deux volets ouverts). Replier plus tôt privait
      du formalisme canonique dans la configuration la PLUS COURANTE de l'écran. */
-  .wcv3 { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) 104px 150px; }
-  .wcv3-sec--output { grid-column: 1 / -1; }
+  .wcv3 { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) 112px 176px; }
+  /* Passée en tête de sa propre ligne, la Sortie ne sépare plus rien : le trait la ferait
+     lire comme la suite de la piste précédente. */
+  .wcv3-sec--output { grid-column: 1 / -1; border-left: none; padding-left: 0; }
 }
 
 @container (max-width: 640px) {
   .wcv3 { grid-template-columns: minmax(0, 1fr) auto; }
   .wcv3-sec--settings,
   .wcv3-sec--output { grid-column: 1 / -1; }
-  .wcv3-actions { justify-content: flex-start; }
+  .wcv3-sec--settings,
+  .wcv3-sec--output { border-left: none; padding-left: 0; }
+}
+
+/* ── MOSAÏQUE en colonne étroite — la card devient une PILE de sections ─────────────
+   Cas réel : `.wama-queue-grid` fait `repeat(auto-fill, minmax(290px, 1fr))`. À 3-4 colonnes
+   la card tombe à ~290 px : la piste ACTIONS (186 px, incompressible) ne laissait alors que
+   ~104 px à TOUT le reste, et le texte s'écrivait à la verticale, une lettre par ligne.
+   Sous ce seuil il n'y a plus de pistes à partager : les 5 sections s'empilent, et le trait
+   de séparation bascule de VERTICAL à HORIZONTAL — l'alignement se lit en profondeur, plus
+   en colonnes. C'est le même formalisme, tourné de 90°. */
+@container (max-width: 430px) {
+  .wcv3 { grid-template-columns: minmax(0, 1fr); row-gap: .35rem; }
+  .wcv3-sec { grid-column: 1 / -1; border-left: none; padding-left: 0; }
+  .wcv3-sec + .wcv3-sec {
+    border-top: 1px solid rgba(255, 255, 255, .08);
+    padding-top: .35rem;
+  }
+  .wcv3-card-id { display: inline; margin-left: .4rem; }
 }
