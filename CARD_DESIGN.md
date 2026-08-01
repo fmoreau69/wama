@@ -483,6 +483,11 @@ tranchent une fois sur les briques communes et se propagent. Consignés au fil d
   cards hors lot ensuite sans marqueur.
 
 ### Points OUVERTS
+- **TRANCHÉ 2026-08-01 (v3.5)** : famille de lot = CYAN du réel ( :
+  fond #0d1a1a, bordure #0dcaf0) — mère bord cyan, filles fond teinté + liaison cyan (rail en
+  ligne / liseré haut en mosaïque), survol-famille en trait PLEIN cyan (pointillés réservés à la
+  card d'entrée). **Pile × mosaïque : OUVERT** (v3.4 atténuation/scale REJETÉE — à re-imaginer ;
+  la pile ne s'applique qu'à la file pour l'instant).
 - **Raccord mère↔filles en mosaïque insuffisant** (surtout mère en bout de ligne). Pistes :
   survol/sélection de la mère → surbrillance des filles (cohérent « une pile ouverte à la
   fois ») ; chip 📦 lot-#id sur les filles ; couleur d'identité par lot (⚠ collision avec les
