@@ -1,3 +1,7 @@
-{% comment %}Chips méta d'une card (CARD_DESIGN §10.3) — GÉNÉRÉS par card_chips.chips_for
-(champs chip=True du schéma params + extras d'app). Var : chips = [{'label','icon','title','variant'}].{% endcomment %}
-{% for chip in chips %}<span class="wama-chip{% if chip.variant %} wama-chip--{{ chip.variant }}{% endif %}" title="{{ chip.title }}">{% if chip.icon %}<i class="fas {{ chip.icon }}"></i>{% endif %}{{ chip.label }}</span>{% endfor %}
+{% comment %}Chips méta d'une card (CARD_DESIGN §10.3, §11) — GÉNÉRÉS par card_chips.chips_for
+(champs chip=True du schéma params + extras d'app). Var : chips = [{'label','icon','title','variant','section'}].
+
+Le libellé est enveloppé dans un <span> : c'est ce qui permet de le TRONQUER proprement quand
+la piste est étroite (text-overflow ne s'applique pas à un nœud texte nu dans un inline-flex).
+Le chip garde donc son display d'origine — pas de bascule en inline-block côté app.{% endcomment %}
+{% for chip in chips %}<span class="wama-chip{% if chip.variant %} wama-chip--{{ chip.variant }}{% endif %}" title="{{ chip.title }}{% if chip.label %} : {{ chip.label }}{% endif %}">{% if chip.icon %}<i class="fas {{ chip.icon }}"></i>{% endif %}<span class="wama-chip-label">{{ chip.label }}</span></span>{% endfor %}

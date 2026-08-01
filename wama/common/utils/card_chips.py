@@ -53,7 +53,27 @@ def chips_for(instance, params_json, extra=None):
             'icon': field.get('icon') or '',
             'title': field.get('label') or name,
             'variant': '',
+            # Section de card v3 où ce chip doit atterrir (CARD_DESIGN §11). Déclaré à la
+            # SOURCE, dans le schéma de params : un champ « format de sortie » décrit ce qui
+            # va sortir, pas comment on traite — il appartient à la section SORTIE. Défaut
+            # 'settings' : sans déclaration, un chip reste un réglage (comportement d'avant).
+            'section': field.get('section') or 'settings',
         })
     if extra:
+        for c in extra:
+            c.setdefault('section', 'settings')
         chips.extend(extra)
     return chips
+
+
+def chips_by_section(instance, params_json, extra=None):
+    """Mêmes chips que `chips_for`, mais GROUPÉS par section de card v3 (CARD_DESIGN §11).
+
+    Renvoie {'settings': [...], 'output': [...], …} — une clé par section rencontrée.
+    Permet à une card de remplir ses sections depuis la SEULE déclaration du schéma, sans
+    qu'aucune app ne réparte ses chips à la main (métadonnée-driven, philosophie WAMA §3).
+    """
+    grouped = {}
+    for chip in chips_for(instance, params_json, extra=extra):
+        grouped.setdefault(chip.get('section') or 'settings', []).append(chip)
+    return grouped

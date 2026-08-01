@@ -27,7 +27,6 @@ Contexte : item = ReadingItem décoré par _decorate_card() (.chips, .input_prop
 
 {% with item.filename as fname %}
 <div class="reader-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if item.status == 'RUNNING' %}processing{% elif item.status == 'SUCCESS' %}success{% elif item.status == 'FAILURE' %}error{% endif %}"
-     {% if in_batch %}style="border-radius:0 0.375rem 0.375rem 0;"{% endif %}
      data-id="{{ item.id }}" data-status="{{ item.status }}"
      data-preview-url="{% url 'common:unified_preview' 'reader' item.id %}">
 <div class="card-body py-2">
@@ -61,7 +60,9 @@ Contexte : item = ReadingItem décoré par _decorate_card() (.chips, .input_prop
     <div class="wcv3-sec wcv3-sec--settings">
       <span class="wcv3-lbl">{% trans "Réglages" %}</span>
       <div class="wcv3-out">
-        {% include 'common/_card_chips.html' with chips=item.chips %}
+        {% comment %}.settings : le schéma déclare où va chaque chip (section=…), la card lit
+        le groupe correspondant. Un champ « format de sortie » n'atterrit donc plus ici.{% endcomment %}
+        {% include 'common/_card_chips.html' with chips=item.chips.settings %}
       </div>
     </div>
 

@@ -61,6 +61,10 @@ class Param:
     chip: bool = False                          # CARD_DESIGN §10.3 : le champ produit un CHIP méta sur la
                                                 # card (état concis) — valeur courte (label d'option si
                                                 # select), icône du schéma. Rendu : common/utils/card_chips.py.
+    section: str = "settings"                   # CARD_DESIGN §11 : SECTION de la card v3 où le chip atterrit
+                                                # ("settings" par défaut, "output" pour un champ qui décrit ce
+                                                # qui va SORTIR — ex. format de sortie). Déclaré à la source :
+                                                # ni la vue ni le template ne trient les chips.
 
     def to_dict(self) -> dict:
         return asdict(self)

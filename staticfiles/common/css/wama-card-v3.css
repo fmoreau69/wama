@@ -188,12 +188,23 @@
    row/col-md-* (v2) et — surtout — SANS `.card-body` : son contenu touchait les bords de la
    card, sans aucune marge. Padding restitué ici, scopé au reader, en attendant le portage v3
    de la brique (qui, lui, touchera les 10 apps et doit donc être fait d'un bloc). */
-.wcv3--batch-parent { border-color: rgba(13, 202, 240, .55) !important; padding: .45rem .7rem; }
+.wcv3--batch-parent {
+  border-color: rgba(13, 202, 240, .55) !important;
+  padding: .45rem .7rem;
+  border-radius: .5rem !important;
+}
 
 /* Les filles portent le FOND teinté seulement : le rail cyan de liaison est déjà porté par
    le conteneur .collapse (reader/index.html) — un rail CONTINU pour la famille est plus juste
    qu'un trait répété par card, et évite le doublon de la même décision à deux endroits. */
-.wcv3--batch-child { background: #0d1a1a !important; }
+/* Les filles gardent leurs 4 angles arrondis. La version précédente carrait les deux angles
+   gauches (style inline) pour « souder » la card au rail cyan de la famille — à l'écran ça ne
+   se lisait pas comme une soudure mais comme un défaut de rendu. Le rail suffit à dire
+   l'appartenance ; la card reste une card. */
+.wcv3--batch-child {
+  background: #0d1a1a !important;
+  border-radius: .375rem !important;
+}
 
 /* Survol-famille : trait PLEIN cyan (jamais pointillé) sur la mère ET ses filles. */
 .wcv3-family-hl { box-shadow: 0 0 0 1px #0dcaf0 inset; }
@@ -212,19 +223,17 @@
 .wcv3-sec--settings .wcv3-out,
 .wcv3-sec--output .wcv3-out { overflow: hidden; }
 
-/* inline-BLOCK (et non inline-flex) : c'est la seule forme où text-overflow s'applique au
-   libellé, qui est un nœud texte direct du chip. On perd le `gap` de la brique commune —
-   restitué par la marge de l'icône. Scopé à .wcv3-out : la brique _card_chips reste intacte
-   pour ses autres consommateurs (avatarizer). */
-.wcv3-out .wama-chip {
-  display: inline-block;
-  max-width: 100%;
+/* Le libellé est désormais un <span> dans la brique _card_chips : on tronque CE span, et le
+   chip garde son display d'origine (l'ancien contournement le basculait en inline-block, ce
+   qui cassait l'alignement icône/texte et n'était qu'un pis-aller). Le title porte le libellé
+   complet. */
+.wcv3-out .wama-chip { max-width: 100%; min-width: 0; }
+.wcv3-out .wama-chip-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  vertical-align: top;
+  min-width: 0;
 }
-.wcv3-out .wama-chip i { margin-right: .25rem; }
 
 /* Le palier intermédiaire qui figeait ENTRÉE à 208 px a été SUPPRIMÉ : les trois pistes de
    contenu sont déjà élastiques (minmax(0, Nfr)), elles absorbent seules le resserrement.

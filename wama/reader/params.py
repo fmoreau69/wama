@@ -11,7 +11,10 @@ from wama.reader.models import ReadingItem
 
 PARAMS = derive_from_model(
     ReadingItem,
-    include=["backend", "mode", "language"],
+    # output_format ajouté 2026-08-01 : il était sur le modèle mais absent du schéma, donc
+    # NI réglable dans l'inspecteur, NI affiché sur la card. C'est le champ qui décrit ce qui
+    # va SORTIR — il alimente la section Sortie de la card v3 via section="output".
+    include=["backend", "mode", "language", "output_format"],
     overrides={
         "backend": dict(
             type="select", label="Moteur OCR", icon="fa-microchip", chip=True,
@@ -33,6 +36,15 @@ PARAMS = derive_from_model(
             type="text", label="Langue", icon="fa-language", chip=True,
             dom_id={"panel": "languageInput", "batch": "batchSettingsLanguage", "item": "rSettings_language"},
             help="Optionnel (ex. fr, en). Auto-détection si vide.",
+        ),
+        "output_format": dict(
+            type="select", label="Format de sortie", icon="fa-file-lines", chip=True,
+            # section="output" : ce chip décrit ce qui va SORTIR, pas comment on traite. La card
+            # v3 le range donc en section Sortie sans que la vue ait à le savoir (§11).
+            section="output",
+            dom_id={"panel": "outputFormatSelect", "batch": "batchSettingsOutputFormat",
+                    "item": "rSettings_output_format"},
+            help="Format du texte produit. Les autres formats restent téléchargeables ensuite.",
         ),
     },
 )

@@ -110,7 +110,7 @@ def _chips(reading):
     ⚠ « X pages » n'est PLUS ici : c'est une propriété de l'ENTRÉE (mesurée sur le fichier),
     pas un réglage. La v2 les mélangeait sur une seule ligne ; la v3 sépare les sections,
     donc chaque donnée rejoint la sienne (→ _input_props)."""
-    from wama.common.utils.card_chips import chips_for
+    from wama.common.utils.card_chips import chips_by_section
     from wama.reader.params import PARAMS_JSON
 
     class _View:
@@ -121,7 +121,9 @@ def _chips(reading):
                 return self._o.used_backend or self._o.backend
             return getattr(self._o, k)
 
-    return chips_for(_View(reading), PARAMS_JSON)
+    # Le groupement vient du SCHÉMA (section=…), pas d'un tri écrit ici : la vue ne décide pas
+    # où va un chip, elle lit ce que le champ déclare (métadonnée-driven).
+    return chips_by_section(_View(reading), PARAMS_JSON)
 
 
 def _input_props(reading):
@@ -164,8 +166,6 @@ def _output_chips(reading):
 
     Volontairement dans la vue reader et pas dans common/ : le §11 pose l'anatomie, mais la
     forme du hook ne sera figée qu'une fois vue en réel sur le pilote (démarche de la v2)."""
-    fmt = 'Markdown' if reading.output_format == 'markdown' else 'Texte brut'
-
     if reading.status == 'SUCCESS' and reading.result_text:
         words = len(reading.result_text.split())
         chips = [{'label': f"{words:,} mots".replace(',', ' '),
@@ -178,10 +178,17 @@ def _output_chips(reading):
         return chips
 
     # Pas encore produit → prévision, signalée comme telle (variant blueprint = pointillés).
-    return [{'label': fmt, 'icon': 'fa-file-lines',
-             'title': 'Format de sortie (prévu)', 'variant': 'blueprint'},
-            {'label': 'TXT · MD · PDF · DOCX', 'icon': 'fa-download',
-             'title': 'Formats téléchargeables après traitement', 'variant': 'blueprint'}]
+    # Le format prévu n'est PLUS écrit ici : il vient des chips déclarés section="output" dans
+    # le schéma (params.py), qu'on repasse simplement en blueprint. Ajouter un futur champ de
+    # sortie au schéma suffira à le voir apparaître — aucune vue à modifier.
+    blueprint = []
+    for chip in (reading.chips or {}).get('output', []):
+        blueprint.append(dict(chip, variant='blueprint',
+                              title=(chip.get('title') or '') + ' (prévu)'))
+    blueprint.append({'label': 'TXT · MD · PDF · DOCX', 'icon': 'fa-download',
+                      'title': 'Formats téléchargeables après traitement',
+                      'variant': 'blueprint', 'section': 'output'})
+    return blueprint
 
 
 def _decorate_card(reading):

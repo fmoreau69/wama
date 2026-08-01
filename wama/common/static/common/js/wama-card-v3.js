@@ -36,15 +36,41 @@
     return w + gap * (kids.length - 1);
   }
 
-  /** Largeur du contenu d'une section si rien ne le contraignait. */
+  /**
+   * Largeur du contenu d'une section si rien ne le contraignait.
+   *
+   * ⚠ La mesure DOIT être idempotente : elle sert à calculer une largeur qu'on applique
+   * ensuite à la piste. Toute mesure qui dépend de la largeur ACTUELLE crée une boucle de
+   * rétroaction — mesurer, élargir, remesurer plus grand, élargir encore… La première version
+   * lisait `scrollWidth` des enfants : pour un bloc, il vaut la largeur déjà contrainte, donc
+   * chaque passage reposait « piste + marge » et la colonne avançait de 10 px par
+   * rafraîchissement (mesuré : 126 → 176 px en six passages, sans qu'aucun contenu ne change).
+   *
+   * On mesure donc sur un CLONE détaché en `width: max-content`, dont la largeur ne doit rien
+   * à la piste courante. Même contenu → même résultat, indéfiniment.
+   */
   function naturalWidth(sec) {
-    var w = 0;
-    var kids = sec.children;
-    for (var i = 0; i < kids.length; i++) {
-      // scrollWidth voit le texte complet même quand l'ellipsis le masque
-      w = Math.max(w, kids[i].scrollWidth);
-    }
+    var clone = sec.cloneNode(true);
+    clone.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;' +
+                          'width:max-content;max-width:none;border-left:0;padding-left:0';
+    document.body.appendChild(clone);
+    var w = clone.getBoundingClientRect().width;
+    document.body.removeChild(clone);
     return w;
+  }
+
+  /**
+   * Pose une piste — sans réécrire une valeur identique.
+   *
+   * Deuxième garde-fou contre la dérive : écrire dans `style` déclenche l'observateur de
+   * mutations, donc une nouvelle mesure. Si l'écriture n'apporte rien, on ne l'émet pas, et
+   * la boucle s'arrête d'elle-même au lieu de tourner à chaque frame. Le seuil de 1 px absorbe
+   * les arrondis sub-pixels (un écart de 0,4 px ne doit pas relancer le cycle).
+   */
+  function setTrack(queue, name, px) {
+    var prev = parseFloat(queue.style.getPropertyValue(name));
+    if (!isNaN(prev) && Math.abs(prev - px) < 1) return;
+    queue.style.setProperty(name, px + 'px');
   }
 
   function measure(queue) {
@@ -87,8 +113,8 @@
     // les boutons. Une piste calibrée au pixel près sur la mesure d'avant-polices laissait donc
     // la corbeille passer à la ligne pendant ~1 s au chargement, avant que `fonts.ready` ne
     // corrige. Mieux vaut 10 px de jeu qu'un affichage juste-puis-faux-puis-juste.
-    queue.style.setProperty('--wcv3-c-state', Math.ceil(maxState + extra + SAFETY) + 'px');
-    queue.style.setProperty('--wcv3-c-actions', Math.ceil(maxActions + extra + SAFETY) + 'px');
+    setTrack(queue, '--wcv3-c-state', Math.ceil(maxState + extra + SAFETY));
+    setTrack(queue, '--wcv3-c-actions', Math.ceil(maxActions + extra + SAFETY));
   }
 
   var pending = null;
