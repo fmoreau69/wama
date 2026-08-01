@@ -291,14 +291,23 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   garde sa propre copie de la résolution (territoire d'une autre instance).
 - **Trous** : garde MEDIA_ROOT dupliquée ~8× ; **pas de test de contrat** sur la triade (bug describer
   output_format→output_style découvert au runtime).
-  - ⚠ **MESURÉ (2026-08-01) — le contrat est rompu à 52 %** : seuls **34 / 71 params du schéma sont
-    acceptés par `add_to_<app>`** (anonymizer 3/17, converter 1/12, avatarizer 2/5). Ces params sont
-    réglables dans l'UI mais **tombent silencieusement** quand on passe par un outil (assistant, API,
-    studio) — le studio les jetait déjà, sans le dire ; `sanitize_tool_args` les **LOGGE** désormais.
-  - 🔴 **Conséquence pour le chantier « supprimer `TOOL_DESCRIPTIONS` »** : dériver les descriptions
-    du schéma **ne suffit pas** et serait même nuisible — on annoncerait à l'assistant des params que
-    la fonction refuse. **Ordre correct : (a) aligner les signatures de la triade sur le schéma,
-    (b) puis supprimer `TOOL_DESCRIPTIONS`.** Le test de contrat (a) est le vrai préalable.
+  - ✅ **CONTRAT ALIGNÉ (2026-08-02, `14332b8`) — 34/71 → 71/71 sur les 10 apps.** Avant : anonymizer
+    3/17, converter 1/12, describer/transcriber/composer −3 ou −2 ; ces params étaient réglables dans
+    l'UI mais **tombaient silencieusement** dès qu'on passait par un outil (le studio les jetait déjà,
+    sans le dire).
+    **Mécanique descriptive, aucune liste recopiée** : chaque `add_to_<app>` ouvre `**params`, et
+    `schema_model_kwargs()` (params déclarés QUI SONT des champs du modèle — 27/37) +
+    `schema_extra_params()` (transitoires → champ JSON de l'app, 10 pour `converter.options`) les
+    appliquent. `sanitize_tool_args` accepte **signature ∪ noms du schéma** : un param ajouté au
+    schéma devient transmissible **sans toucher à la signature** — c'était la dérive à éviter.
+    Pièges traités : collision `describer output_format`↔`output_style` (kwarg public ≠ champ modèle) ;
+    `converter.media_type` DÉTECTÉ depuis le fichier, exclu pour qu'un appelant ne l'écrase pas ;
+    converter auto-démarre → `options` posé À LA CRÉATION, pas après coup.
+  - ⚠ **3e copie restante** : `converter/views.py:229` re-liste **14 clés d'options en dur** avec son
+    propre casting, alors que le schéma les déclare. À faire adopter `schema_extra_params()` (app en
+    lecture seule pendant le chantier design des cards).
+  - **Le chantier « supprimer `TOOL_DESCRIPTIONS` » est maintenant DÉBLOQUÉ** : il était nuisible tant
+    que le contrat était rompu (on aurait annoncé à l'assistant des params que la fonction refuse).
   - ✅ **Tranché (2026-08-01)** : l'alias `add_to_imager` EXISTE (`tool_api.py:2088`, bloc « aliases
     normalisés » STUDIO_VISION 2026-07-12) — le runner studio fonctionne. Mais il n'a **pas de description**.
 - ⚠ **CHAÎNE CONCURRENTE MESURÉE (2026-08-01) — `TOOL_DESCRIPTIONS` double `PARAMS_JSON`.**
