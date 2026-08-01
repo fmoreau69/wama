@@ -310,7 +310,29 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     que le contrat était rompu (on aurait annoncé à l'assistant des params que la fonction refuse).
   - ✅ **Tranché (2026-08-01)** : l'alias `add_to_imager` EXISTE (`tool_api.py:2088`, bloc « aliases
     normalisés » STUDIO_VISION 2026-07-12) — le runner studio fonctionne. Mais il n'a **pas de description**.
-- ⚠ **CHAÎNE CONCURRENTE MESURÉE (2026-08-01) — `TOOL_DESCRIPTIONS` double `PARAMS_JSON`.**
+- ✅ **CHAÎNE CONCURRENTE SUPPRIMÉE (2026-08-02, `6650617`)** — `TOOL_DESCRIPTIONS` (dict manuel de
+  278 lignes) remplacé par `tool_descriptions()`, **dérivé** : `APP_CATALOG` (phrase FR) + docstring +
+  schéma + signature réelle. Mesuré : **43/43 outils décrits** (était 40/43), **157 arguments
+  documentés** avec types/choix/bornes/défauts (le dict en décrivait 21 sur 71 params).
+  `build_tools_list()` itère désormais le registre → le prompt de l'assistant est exhaustif **par
+  construction**, et `start_composer` y est enfin. Le nom `TOOL_DESCRIPTIONS` reste importable via un
+  `__getattr__` de module (PEP 562) et rend la version dérivée — `manifests/builtin/app.py` (autre
+  instance) en bénéficie sans être modifié. **Convention de nommage de la triade rapatriée** dans
+  `tool_api` (`app_id_for_tool`, `tool_role`, overrides) ; `accounts/permissions` ne garde que la
+  DÉCISION d'accès.
+- 🔴 **PANNE TROUVÉE ET CORRIGÉE au passage — `describer.output_format`** (signalée par Fabien) :
+  `output_style` est un **STYLE de description** (résumé / détaillée / synthèse scientifique / points
+  clés / **compte-rendu de réunion**), PAS un format de fichier — celui-ci est choisi par
+  l'utilisateur APRÈS le traitement. Le champ a été renommé (migration `0008`) sans alias sur le
+  modèle et sans répercussion complète : `get_describer_status` faisait `desc.output_format` →
+  **AttributeError dès qu'un utilisateur avait une description** (panne reproduite). De plus la
+  validation était une liste EN DUR de 4 styles alors que le schéma en déclare 5 : `meeting` était
+  proposé par l'UI et **refusé par l'outil**. Valeurs désormais dérivées du schéma, kwarg public
+  renommé `output_style` (son nom entrait en collision de sens avec le `output_format` de
+  reader/converter, qui désigne un vrai format de fichier).
+  ⚠ **Reste** : `describer/utils/text_describer.py:128,172` lisent encore `description.output_format`
+  → même AttributeError au traitement (app en lecture seule pendant le chantier cards).
+- ~~⚠ CHAÎNE CONCURRENTE MESURÉE (2026-08-01) — `TOOL_DESCRIPTIONS` double `PARAMS_JSON`.~~ (soldé)
   Les params sont déclarés une fois, typés, dérivés du modèle Django (`params.py` → `derive_from_model`,
   consommé par les modales, l'inspecteur ET le studio via `params_module/params_attr`). `TOOL_DESCRIPTIONS`
   en est une **recopie manuelle en français**, non typée, qui dérive :
