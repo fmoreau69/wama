@@ -107,47 +107,6 @@ def app_id_for_path(path):
     return seg if seg in DEFAULT_APP_ACCESS else None
 
 
-# ── Résolution outil `tool_api` → app gardée ───────────────────────────────
-# Pendant de PATH_APP_MAP pour la surface OUTILS. La triade normalisée
-# (`add_to_<app>` / `start_<app>` / `get_<app>_status`, cf. WAMA_APP_GENERATION_ROUTE §F6)
-# se dérive ; ce tableau ne couvre que les noms HISTORIQUES (antérieurs aux alias canoniques)
-# et les outils dont l'app diffère du suffixe. `None` = outil TRANSVERSE (pas de gating d'app).
-TOOL_APP_OVERRIDE = {
-    # Noms historiques, conservés en registre à côté de leur alias canonique
-    'create_image':        'imager',
-    'synthesize_text':     'synthesizer',
-    'compose_music':       'composer',
-    'convert_file':        'converter',
-    'sam3_examples':       'anonymizer',
-    # Médiathèque
-    'list_media_assets':   'media_library',
-    'get_media_asset_url': 'media_library',
-    # Transverses : fichiers de l'utilisateur, traduction, préférence d'affichage
-    'list_user_files':     None,
-    'translate_text':      None,
-    'switch_ui_mode':      None,
-}
-
-# Sous-domaines portés par une app gardée (l'enhancer couvre image/vidéo ET audio).
-TOOL_APP_ALIAS = {'audio_enhancer': 'enhancer'}
-
-
-def app_id_for_tool(tool_name):
-    """app_id gardé correspondant à un outil `tool_api`, ou None si l'outil est transverse."""
-    if tool_name in TOOL_APP_OVERRIDE:
-        return TOOL_APP_OVERRIDE[tool_name]
-    app = None
-    if tool_name.startswith('add_to_'):
-        app = tool_name[len('add_to_'):]
-    elif tool_name.startswith('start_'):
-        app = tool_name[len('start_'):]
-    elif tool_name.startswith('get_') and tool_name.endswith('_status'):
-        app = tool_name[len('get_'):-len('_status')]
-    if not app:
-        return None
-    return TOOL_APP_ALIAS.get(app, app)
-
-
 def tool_accessible(user, tool_name):
     """
     Un user peut-il exécuter cet outil `tool_api` ? MÊME décision que `accessible()` : la
@@ -159,7 +118,11 @@ def tool_accessible(user, tool_name):
 
     Outil transverse (app None) → autorisé : l'ownership reste porté par `tool_api` (filtres
     `user=user` sur les querysets), qui est une garantie orthogonale au gating d'app.
+
+    La correspondance outil→app vit dans `tool_api` (le pivot possède sa convention de
+    nommage) ; ce module ne garde que la DÉCISION.
     """
+    from wama.tool_api import app_id_for_tool
     app_id = app_id_for_tool(tool_name)
     return True if app_id is None else accessible(user, app_id)
 

@@ -1150,7 +1150,7 @@ def get_composer_status(user) -> dict:
 def add_to_describer(
     user,
     file_path: str,
-    output_format: str = 'detailed',
+    output_style: str = 'detailed',
     output_language: str = 'fr',
     max_length: int = 500,
     **params,
@@ -1161,16 +1161,24 @@ def add_to_describer(
     Args:
         user:            Django User instance
         file_path:       Path relative to MEDIA_ROOT (from list_user_files)
-        output_format:   'summary' | 'detailed' | 'scientific' | 'bullet_points'
+        output_style:    STYLE de description (résumé, détaillée, compte-rendu…), PAS un format
+                         de fichier — le format d'export est choisi par l'utilisateur APRÈS le
+                         traitement. Valeurs : celles déclarées au schéma `describer/params.py`.
         output_language: 'fr' | 'en' | 'auto'
         max_length:      Maximum length of result in words (default: 500)
 
     Returns:
         {"description_id": int, "filename": str, "detected_type": str, "status": "pending"}
     """
-    valid_formats = {'summary', 'detailed', 'scientific', 'bullet_points'}
-    if output_format not in valid_formats:
-        return {'error': f"Format invalide : '{output_format}'. Disponibles : {', '.join(sorted(valid_formats))}"}
+    # Valeurs valides DÉRIVÉES du schéma. La liste en dur qui était ici en oubliait une :
+    # 'meeting' (compte-rendu de réunion) était proposé par l'UI et refusé par l'outil.
+    from wama.common.utils.param_schema import schema_for_app
+    _styles = next((p for p in schema_for_app('describer') if p['name'] == 'output_style'), None)
+    valid_styles = {str(c[0]) if isinstance(c, (list, tuple)) else str(c)
+                    for c in ((_styles or {}).get('choices') or [])}
+    if valid_styles and output_style not in valid_styles:
+        return {'error': f"Style invalide : '{output_style}'. "
+                         f"Disponibles : {', '.join(sorted(valid_styles))}"}
 
     src = (Path(settings.MEDIA_ROOT) / file_path).resolve()
     media_root = Path(settings.MEDIA_ROOT).resolve()
@@ -1197,16 +1205,10 @@ def add_to_describer(
                 filename=src.name,
                 file_size=src.stat().st_size,
                 detected_type=detected_type,
-                # kwarg public output_format → champ modèle output_style (renommage modèle
-                # jamais répercuté ici : le tool était CASSÉ — découvert par le runner
-                # générique du studio, 2026-07-13)
-                output_style=output_format,
+                output_style=output_style,
                 output_language=output_language,
                 max_length=int(max_length),
-                # Le kwarg explicite `output_format` ci-dessus prime ; schema_model_kwargs
-                # n'apporte que les réglages du schéma non déjà nommés.
-                **{k: v for k, v in schema_model_kwargs('describer', params).items()
-                   if k != 'output_style'},
+                **schema_model_kwargs('describer', params),
             )
     except Exception as e:
         return {'error': f'Erreur création Description : {e}'}
@@ -1216,7 +1218,7 @@ def add_to_describer(
         'item_id': description.id,   # clé UNIFORME du contrat méta-app (STUDIO_VISION)
         'filename': src.name,
         'detected_type': detected_type,
-        'output_format': output_format,
+        'output_style': output_style,
         'output_language': output_language,
         'status': 'pending',
     }
@@ -1307,7 +1309,7 @@ def get_describer_status(user) -> dict:
             'id': desc.id,
             'filename': desc.filename or desc.input_filename,
             'detected_type': desc.detected_type,
-            'output_format': desc.output_format,
+            'output_style': desc.output_style,
             'output_language': desc.output_language,
             'status': desc.status,
             'progress': progress,
@@ -2178,285 +2180,159 @@ TOOL_REGISTRY = {
     'switch_ui_mode':         switch_ui_mode,
 }
 
-# Metadata consumed by GET /api/v1/tools/ — update this when adding a new tool.
-TOOL_DESCRIPTIONS = {
-    'translate_text': {
-        'description': "Traduit un texte d'une langue vers une autre (translategemma). Passthrough si identiques.",
-        'args': {
-            'text':        'str — texte à traduire',
-            'source_lang': "str — code langue source (défaut: 'fr')",
-            'target_lang': "str — code langue cible (défaut: 'en')",
-            'glossary':    'list — termes à NE PAS traduire (optionnel)',
-        },
-    },
-    'list_user_files': {
-        'description': "Liste les fichiers média de l'utilisateur dans un dossier.",
-        'args': {
-            'folder': "str — 'temp' | 'anon_input' | 'anon_output'  (défaut: 'temp')",
-        },
-    },
-    'add_to_anonymizer': {
-        'description': "Copie un fichier dans la file d'entrée de l'anonymizer et crée l'entrée DB.",
-        'args': {
-            'file_path':       'str  — chemin relatif à MEDIA_ROOT (valeur "path" de list_user_files)',
-            'use_sam3':        'bool — utiliser SAM3 pour la segmentation (défaut: false)',
-            'sam3_prompt':     'str  — prompt texte SAM3 (ex: "all human faces")',
-            'classes':         'list — classes YOLO à flouter (défaut: ["face"])',
-            'precision_level': 'int  — précision 0–100 (0=Rapide, 50=Équilibré, 100=Précis)',
-        },
-    },
-    'start_anonymizer': {
-        'description': "Lance le traitement Celery de l'anonymizer pour un ou tous les médias en attente.",
-        'args': {
-            'media_id': 'int|null — ID retourné par add_to_anonymizer, ou null pour traiter tous',
-        },
-    },
-    'get_anonymizer_status': {
-        'description': "Retourne l'état des 10 derniers jobs de l'anonymizer pour l'utilisateur connecté.",
-        'args': {},
-    },
-    'sam3_examples': {
-        'description': "Retourne des exemples de prompts texte recommandés pour SAM3.",
-        'args': {},
-    },
-    'create_image': {
-        'description': "Crée un job de génération d'image (txt2img) en attente.",
-        'args': {
-            'prompt':          'str  — description de l\'image (requis)',
-            'model':           "str  — modèle (ex: 'hunyuan-image-2.1', 'stable-diffusion-xl', 'dreamshaper-8') (défaut: 'hunyuan-image-2.1')",
-            'width':           'int  — largeur en pixels 256–2048 (défaut: 512)',
-            'height':          'int  — hauteur en pixels 256–2048 (défaut: 512)',
-            'steps':           'int  — nombre de pas de diffusion 1–100 (défaut: 30)',
-            'guidance_scale':  'float — échelle de guidage 1.0–20.0 (défaut: 7.5)',
-            'negative_prompt': 'str  — ce qu\'il faut éviter dans l\'image (défaut: "")',
-            'seed':            'int|null — graine aléatoire pour reproductibilité (défaut: null)',
-            'num_images':      'int  — nombre d\'images à générer 1–4 (défaut: 1)',
-        },
-    },
-    'start_imager': {
-        'description': "Lance la génération Celery pour un job ou tous les jobs en attente.",
-        'args': {
-            'generation_id': 'int|null — ID retourné par create_image, ou null pour tous les jobs PENDING',
-        },
-    },
-    'get_imager_status': {
-        'description': "Retourne l'état des 10 derniers jobs Imager de l'utilisateur.",
-        'args': {},
-    },
-    'add_to_enhancer': {
-        'description': "Enregistre un fichier image/vidéo pour amélioration (upscaling/débruitage).",
-        'args': {
-            'file_path':    'str  — chemin relatif à MEDIA_ROOT (valeur "path" de list_user_files)',
-            'ai_model':     "str  — modèle IA : 'RealESR_Gx4' (défaut), 'RealESR_Animex4', 'BSRGANx2', 'BSRGANx4', 'RealESRGANx4', 'IRCNN_Mx1', 'IRCNN_Lx1'",
-            'denoise':      'bool — appliquer un débruitage avant l\'upscaling (défaut: false)',
-            'blend_factor': 'float — 0.0 = 100% IA, 1.0 = original (défaut: 0.0)',
-        },
-    },
-    'start_enhancer': {
-        'description': "Lance le traitement Celery de l'enhancer pour un ou tous les jobs en attente.",
-        'args': {
-            'enhancement_id': 'int|null — ID retourné par add_to_enhancer, ou null pour tous les PENDING',
-        },
-    },
-    'get_enhancer_status': {
-        'description': "Retourne l'état des 10 derniers jobs Enhancer image/vidéo de l'utilisateur.",
-        'args': {},
-    },
-    'add_to_audio_enhancer': {
-        'description': "Enregistre un fichier audio pour amélioration de la parole (alternative à Adobe Podcast).",
-        'args': {
-            'file_path':          'str   — chemin relatif à MEDIA_ROOT (valeur "path" de list_user_files)',
-            'engine':             "str   — 'resemble' (qualité, défaut) | 'deepfilternet' (rapide)",
-            'mode':               "str   — 'both' (défaut), 'denoise' (rapide), 'enhance' (qualité seule) — Resemble uniquement",
-            'denoising_strength': 'float — force de débruitage 0.0–1.0 (défaut: 0.5) — Resemble uniquement',
-            'quality':            'int   — qualité NFE 32/64/128 (défaut: 64) — Resemble uniquement',
-        },
-    },
-    'start_audio_enhancer': {
-        'description': "Lance le traitement Celery audio pour un job ou tous les jobs en attente.",
-        'args': {
-            'audio_enhancement_id': 'int|null — ID retourné par add_to_audio_enhancer, ou null pour tous les PENDING',
-        },
-    },
-    'get_audio_enhancer_status': {
-        'description': "Retourne l'état des 10 derniers jobs Audio Enhancer de l'utilisateur.",
-        'args': {},
-    },
-    'synthesize_text': {
-        'description': "Crée un job de synthèse vocale à partir d'un texte brut.",
-        'args': {
-            'text':              'str   — texte à synthétiser (requis)',
-            'language':          "str   — code langue (ex: 'fr', 'en', 'es', 'de') (défaut: 'fr')",
-            'tts_model':         "str   — modèle TTS ('xtts_v2', 'higgs_audio_v2', etc.) (défaut: 'xtts_v2')",
-            'voice_preset':      "str   — preset de voix ('default', 'male_1', 'female_1', etc.) (défaut: 'default')",
-            'speed':             'float — vitesse de parole 0.5–2.0 (défaut: 1.0)',
-            'pitch':             'float — hauteur de la voix 0.5–2.0 (défaut: 1.0)',
-            'emotion_intensity': 'float — intensité émotionnelle 0.0–2.0 (défaut: 1.0)',
-        },
-    },
-    'add_to_synthesizer': {
-        'description': "Alias canonique de synthesize_text (ajoute une synthèse vocale à la file). Retourne item_id.",
-        'args': {
-            'text': 'str — texte à synthétiser',
-            'voice': "str — préréglage voix (optionnel, défaut de l'app)",
-            'language': 'str — code langue (optionnel)',
-        },
-    },
-    'start_synthesizer': {
-        'description': "Lance la synthèse Celery pour un job ou tous les jobs en attente.",
-        'args': {
-            'synthesis_id': 'int|null — ID retourné par synthesize_text, ou null pour tous les PENDING',
-        },
-    },
-    'get_synthesizer_status': {
-        'description': "Retourne l'état des 10 derniers jobs Synthesizer de l'utilisateur.",
-        'args': {},
-    },
-    'compose_music': {
-        'description': "Génère de la musique ou des bruitages à partir d'un prompt texte via AudioCraft.",
-        'args': {
-            'prompt':   "str   — description textuelle du son à générer (en anglais de préférence)",
-            'model':    "str   — 'musicgen-small' (rapide, défaut), 'musicgen-medium' (qualité), "
-                        "'musicgen-melody' (avec mélodie de référence), 'audiogen-medium' (bruitages)",
-            'duration': "float — durée en secondes 1–30 (défaut: 10)",
-        },
-    },
-    'get_composer_status': {
-        'description': "Retourne l'état des 10 derniers jobs Composer (music/SFX) de l'utilisateur.",
-        'args': {},
-    },
-    'add_to_describer': {
-        'description': "Enregistre un fichier (image, vidéo, audio, texte, PDF) pour description/résumé IA.",
-        'args': {
-            'file_path':       'str  — chemin relatif à MEDIA_ROOT (valeur "path" de list_user_files)',
-            'output_format':   "str  — 'summary' (court), 'detailed' (défaut), 'scientific', 'bullet_points'",
-            'output_language': "str  — 'fr' (défaut), 'en', 'auto'",
-            'max_length':      'int  — longueur max du résultat en mots (défaut: 500)',
-        },
-    },
-    'start_describer': {
-        'description': "Lance le traitement Celery du Describer pour un job ou tous les jobs en attente.",
-        'args': {
-            'description_id': 'int|null — ID retourné par add_to_describer, ou null pour tous les PENDING',
-        },
-    },
-    'get_describer_status': {
-        'description': "Retourne l'état des 10 derniers jobs Describer, avec un aperçu du résultat.",
-        'args': {},
-    },
-    'add_to_transcriber': {
-        'description': "Enregistre un fichier audio ou vidéo pour transcription.",
-        'args': {
-            'file_path':          'str  — chemin relatif à MEDIA_ROOT (audio ou vidéo)',
-            'backend':            "str  — 'auto' (défaut), 'whisper', 'vibevoice'",
-            'preprocess_audio':   'bool — prétraitement audio avant transcription (défaut: false)',
-            'hotwords':           'str  — termes spécifiques au domaine séparés par des virgules',
-            'enable_diarization': 'bool — identification des locuteurs (VibeVoice) (défaut: true)',
-        },
-    },
-    'start_transcriber': {
-        'description': "Lance la transcription Celery pour un job ou tous les jobs en attente.",
-        'args': {
-            'transcript_id': 'int|null — ID retourné par add_to_transcriber, ou null pour tous les PENDING',
-        },
-    },
-    'get_transcriber_status': {
-        'description': "Retourne l'état des 10 derniers jobs Transcriber, avec un aperçu du texte.",
-        'args': {},
-    },
-    'add_to_reader': {
-        'description': "Enregistre un fichier PDF ou image pour extraction de texte OCR.",
-        'args': {
-            'file_path':     'str  — chemin relatif à MEDIA_ROOT (PDF, JPG, PNG, TIFF, WEBP, BMP)',
-            'backend':       "str  — 'auto' (défaut), 'olmocr' (qualité, GPU), 'doctr' (rapide, CPU)",
-            'mode':          "str  — 'auto' (défaut), 'printed' (typographié), 'handwritten' (manuscrit)",
-            'output_format': "str  — 'txt' (défaut) | 'markdown'",
-            'language':      "str  — code langue (ex: 'fr', 'en') ou vide pour auto-détection",
-        },
-    },
-    'start_reader': {
-        'description': "Lance l'extraction OCR Celery pour un job ou tous les jobs en attente.",
-        'args': {
-            'item_id': 'int|null — ID retourné par add_to_reader, ou null pour tous les PENDING',
-        },
-    },
-    'get_reader_status': {
-        'description': "Retourne l'état des 10 derniers jobs Reader (OCR), avec un aperçu du texte extrait.",
-        'args': {},
-    },
-    'convert_file': {
-        'description': "Convertit un fichier (image/vidéo/audio/document/archive) vers un autre format et démarre la conversion.",
-        'args': {
-            'file_path':      'str — chemin relatif à MEDIA_ROOT du fichier source',
-            'output_format':  "str — format cible (ex: 'mp4', 'webp', 'pdf', 'docx', 'mp3', 'zip', 'tar.gz')",
-            'quality_preset': "str — 'web' | 'balanced' (défaut) | 'max'",
-        },
-    },
-    'add_to_converter': {
-        'description': "Alias canonique de convert_file (ajoute une conversion ; démarre immédiatement — auto_start). Retourne item_id.",
-        'args': {
-            'file_path':      'str — chemin relatif à MEDIA_ROOT du fichier source',
-            'output_format':  "str — format cible (ex: 'mp4', 'webp', 'pdf', 'docx', 'mp3', 'zip', 'tar.gz')",
-            'quality_preset': "str — 'web' | 'balanced' (défaut) | 'max'",
-        },
-    },
-    'start_converter': {
-        'description': "(Re)lance une conversion précise (job_id) ou toutes les conversions PENDING.",
-        'args': {
-            'job_id': 'int — id du job à (re)lancer (optionnel ; défaut = tous les PENDING)',
-        },
-    },
-    'get_converter_status': {
-        'description': "Retourne l'état des 10 derniers jobs de conversion (Converter), avec progression et nom de sortie.",
-        'args': {},
-    },
-    'list_media_assets': {
-        'description': "Liste les assets de la Médiathèque personnelle de l'utilisateur (voix, images, musiques, etc.).",
-        'args': {
-            'asset_type': "str — filtre par type : 'voice' | 'audio_music' | 'audio_sfx' | 'image' | 'video' | 'document' | 'avatar' (vide = tous)",
-            'q':          'str — recherche dans le nom / tags / description',
-        },
-    },
-    'get_media_asset_url': {
-        'description': "Retourne l'URL de fichier d'un asset spécifique de la Médiathèque.",
-        'args': {
-            'asset_id': 'int — ID de l\'UserAsset',
-        },
-    },
-    'add_to_avatarizer': {
-        'description': "Crée un job d'avatar parlant (vidéo) en attente : pipeline (texte → TTS → avatar) ou standalone (audio fourni).",
-        'args': {
-            'mode':                "str  — 'pipeline' (texte → TTS) | 'standalone' (audio fourni) (défaut: 'pipeline')",
-            'text_content':        'str  — texte à synthétiser (requis si mode=pipeline)',
-            'tts_model':           "str  — modèle TTS (ex: 'xtts_v2') (mode pipeline)",
-            'language':            "str  — langue TTS (ex: 'fr') (mode pipeline)",
-            'voice_preset':        "str  — voix TTS (ex: 'default') (mode pipeline)",
-            'audio_path':          'str  — chemin relatif à MEDIA_ROOT d\'un audio (requis si mode=standalone)',
-            'avatar_source':       "str  — 'gallery' (galerie partagée) | 'upload' (image fournie) (défaut: 'gallery')",
-            'avatar_gallery_name': 'str  — nom de l\'avatar dans la galerie (requis si avatar_source=gallery)',
-            'avatar_image_path':   'str  — chemin relatif à MEDIA_ROOT d\'une image avatar (requis si avatar_source=upload)',
-            'quality_mode':        "str  — 'fast' (MuseTalk) | 'quality' (MuseTalk + CodeFormer) (défaut: 'fast')",
-            'use_enhancer':        'bool — appliquer l\'enhancer facial (défaut: false)',
-            'bbox_shift':          'int  — décalage bbox -10..10 (défaut: 0)',
-        },
-    },
-    'start_avatarizer': {
-        'description': "Lance la génération Celery d'un avatar (ou de tous les jobs en attente).",
-        'args': {
-            'job_id': 'int|null — ID retourné par add_to_avatarizer, ou null pour lancer tous les jobs en attente',
-        },
-    },
-    'get_avatarizer_status': {
-        'description': "Retourne l'état des 10 derniers jobs avatar de l'utilisateur connecté (mode, progression, URL de sortie).",
-        'args': {},
-    },
-    'switch_ui_mode': {
-        'description': "Bascule le mode d'interface WAMA pour l'utilisateur (vue simple/chatbot ou avancée/complète).",
-        'args': {
-            'mode': "str — 'simple' (vue chatbot) | 'advanced' (interface complète) (défaut: 'simple')",
-        },
-    },
+# ── Convention de nommage de la triade — DOMICILE UNIQUE ────────────────────────
+# `add_to_<app>` / `start_<app>` / `get_<app>_status` (WAMA_APP_GENERATION_ROUTE §F6).
+# Vit ICI parce que le pivot possède sa propre convention ; `accounts.permissions` ne garde
+# que la DÉCISION d'accès et appelle `app_id_for_tool()`.
+_TRIAD = (('add', 'add_to_', ''), ('start', 'start_', ''), ('status', 'get_', '_status'))
+
+# Noms HISTORIQUES (antérieurs aux alias canoniques) + outils dont l'app diffère du suffixe.
+# `None` = outil TRANSVERSE (aucun gating d'app).
+TOOL_APP_OVERRIDE = {
+    'create_image':        'imager',
+    'synthesize_text':     'synthesizer',
+    'compose_music':       'composer',
+    'convert_file':        'converter',
+    'sam3_examples':       'anonymizer',
+    'list_media_assets':   'media_library',
+    'get_media_asset_url': 'media_library',
+    'list_user_files':     None,
+    'translate_text':      None,
+    'switch_ui_mode':      None,
 }
+
+# Sous-domaines portés par une app gardée (l'enhancer couvre image/vidéo ET audio).
+TOOL_APP_ALIAS = {'audio_enhancer': 'enhancer'}
+
+
+def _split_triad(tool_name):
+    """(rôle, app_id) d'un outil de la triade, sinon (None, None)."""
+    for role, prefix, suffix in _TRIAD:
+        if tool_name.startswith(prefix) and tool_name.endswith(suffix) and \
+                len(tool_name) > len(prefix) + len(suffix):
+            app = tool_name[len(prefix):len(tool_name) - len(suffix) or None]
+            return role, TOOL_APP_ALIAS.get(app, app)
+    return None, None
+
+
+def tool_role(tool_name):
+    """Rôle d'un outil dans la triade : 'add' | 'start' | 'status', sinon None."""
+    return _split_triad(tool_name)[0]
+
+
+def app_id_for_tool(tool_name):
+    """app_id gardé correspondant à un outil, ou None si l'outil est transverse."""
+    if tool_name in TOOL_APP_OVERRIDE:
+        return TOOL_APP_OVERRIDE[tool_name]
+    return _split_triad(tool_name)[1]
+
+
+# ── Descriptions d'outils — DÉRIVÉES, plus jamais tenues à la main ──────────────
+# Remplace le dict `TOOL_DESCRIPTIONS` (278 lignes) qui recopiait à la main, en français et
+# sans types, ce que le schéma de chaque app déclare déjà (`wama/<app>/params.py`). Cette
+# copie avait dérivé : 21/71 params décrits, 3 outils sans aucune entrée, et `composer` privé
+# d'outil de démarrage visible pour l'assistant (mesuré 2026-08-01).
+#
+# Sources, dans l'ordre : APP_CATALOG (libellé + description FR de l'app) pour la phrase des
+# outils de la triade ; docstring de la fonction pour les autres ; schéma de l'app + signature
+# réelle pour les arguments. Ajouter un param au schéma le fait apparaître ici tout seul.
+
+_ROLE_SENTENCE = {
+    'add':    "Ajoute un élément à la file d'attente de {label} ({desc}) et renvoie son item_id.",
+    'start':  "Lance le traitement {label} : l'item indiqué, ou tous ceux en attente si aucun id.",
+    'status': "État des travaux {label} de l'utilisateur : statut, progression, résultat.",
+}
+
+
+def _first_doc_line(fn):
+    import inspect
+    doc = (inspect.getdoc(fn) or '').strip()
+    return doc.splitlines()[0].strip() if doc else ''
+
+
+def _tool_sentence(tool_name, fn):
+    """Phrase de description : métadonnée d'app pour la triade, docstring sinon."""
+    role = tool_role(tool_name)
+    app_id = app_id_for_tool(tool_name)
+    if role and app_id:
+        try:
+            from wama.common.app_registry import APP_CATALOG
+            cat = APP_CATALOG.get(app_id) or {}
+        except Exception:
+            cat = {}
+        label = cat.get('label') or app_id
+        desc = (cat.get('description') or '').rstrip('.')
+        if desc:
+            return _ROLE_SENTENCE[role].format(label=label, desc=desc)
+    return _first_doc_line(fn)
+
+
+def _arg_text(entry, sig_param):
+    """Ligne lisible d'un argument, dérivée du SCHÉMA puis, à défaut, de la signature."""
+    import inspect
+    bits = []
+    default = None
+    requis = False
+
+    if entry:
+        bits.append(entry.get('type') or 'param')
+        label = (entry.get('help') or entry.get('label') or '').strip()
+        if label:
+            bits.append('— ' + label)
+        raw = entry.get('choices') or []
+        vals = [str(c[0]) if isinstance(c, (list, tuple)) else str(c) for c in raw]
+        if vals:
+            bits.append('(choix : ' + ' | '.join(vals[:8]) + (' …' if len(vals) > 8 else '') + ')')
+        if entry.get('min') is not None or entry.get('max') is not None:
+            bits.append('[%s–%s%s]' % (entry.get('min'), entry.get('max'), entry.get('unit') or ''))
+        default = entry.get('default')
+    else:
+        ann = getattr(sig_param, 'annotation', inspect.Parameter.empty) if sig_param else None
+        bits.append(getattr(ann, '__name__', None) if ann is not inspect.Parameter.empty else 'param')
+
+    if sig_param is not None:
+        if sig_param.default is inspect.Parameter.empty:
+            requis = True
+        elif default is None:
+            default = sig_param.default
+
+    if requis:
+        bits.append('(requis)')
+    elif default not in (None, ''):
+        bits.append('(défaut : %r)' % (default,))
+    return ' '.join(b for b in bits if b)
+
+
+def tool_descriptions():
+    """
+    Descriptions de TOUS les outils du registre, dérivées à la volée.
+
+    Forme inchangée pour les consommateurs : {tool: {'description': str, 'args': {nom: str}}}.
+    Exhaustive par construction (elle itère `TOOL_REGISTRY`), là où le dict manuel qu'elle
+    remplace pouvait en oublier — et en oubliait trois.
+    """
+    import inspect
+    from wama.common.utils.param_schema import schema_for_app
+
+    out = {}
+    for name, fn in TOOL_REGISTRY.items():
+        app_id = app_id_for_tool(name)
+        index = {p['name']: p for p in (schema_for_app(app_id) if app_id else [])}
+        sig = _tool_signature(fn)
+        params = dict(sig.parameters) if sig else {}
+        ouvert = any(p.kind == p.VAR_KEYWORD for p in params.values())
+
+        noms = [n for n, p in params.items()
+                if n != 'user' and p.kind not in (p.VAR_POSITIONAL, p.VAR_KEYWORD)]
+        if ouvert:
+            # L'outil accepte tout ce que le schéma déclare (cf. sanitize_tool_args).
+            noms += [n for n in index if n not in noms]
+
+        out[name] = {
+            'description': _tool_sentence(name, fn),
+            'args': {n: _arg_text(index.get(n), params.get(n)) for n in noms},
+        }
+    return out
 
 
 def _tool_signature(fn):
@@ -2503,7 +2379,6 @@ def sanitize_tool_args(tool_name: str, args: dict):
 
     Retourne (kwargs_propres, noms_ignorés).
     """
-    from wama.accounts.permissions import app_id_for_tool
     from wama.common.utils.param_schema import (schema_for_app, coerce_schema_values,
                                                 schema_arg_names)
 
@@ -2547,7 +2422,7 @@ def execute_tool(tool_name: str, args: dict, user) -> dict:
     # Gating d'app (§F7) — MÊME décision et MÊME forme de réponse que AppAccessMiddleware._deny,
     # les deux couches ne doivent jamais diverger. Import non gardé : un échec ici doit être
     # bruyant, pas silencieusement permissif.
-    from wama.accounts.permissions import app_id_for_tool, tool_accessible
+    from wama.accounts.permissions import tool_accessible
     if not tool_accessible(user, tool_name):
         app_id = app_id_for_tool(tool_name)
         logger.warning(f"[tool_api] accès refusé : user={getattr(user, 'id', None)} tool={tool_name}")
@@ -2706,16 +2581,29 @@ def get_converter_status_view(request):
 
 
 def build_tools_list() -> str:
-    """Génère la liste des outils (nom + args + description) depuis TOOL_DESCRIPTIONS.
+    """Génère la liste des outils (nom + args + description) pour le prompt de l'assistant.
 
-    Source UNIQUE pour le prompt système de l'AI-Assistant → liste toujours exhaustive
-    et à jour (avatarizer/composer/converter inclus), plus de divergence prompt↔registre.
+    Itère `tool_descriptions()`, donc `TOOL_REGISTRY` — exhaustif PAR CONSTRUCTION. La version
+    précédente itérait le dict manuel `TOOL_DESCRIPTIONS` tout en annonçant l'exhaustivité :
+    elle en montrait 40 sur 43, et privait le composer de tout outil de démarrage visible.
     """
     # Ordre alphabétique systématique (convention WAMA : applications listées par ordre
     # alphabétique) — l'ordre de définition reflétait l'ordre d'implémentation, sans logique.
     lines = ['Available tools:']
-    for name, meta in sorted(TOOL_DESCRIPTIONS.items()):
+    for name, meta in sorted(tool_descriptions().items()):
         args = ', '.join((meta.get('args') or {}).keys())
         desc = meta.get('description', '')
         lines.append(f'- {name}({args}): {desc}')
     return '\n'.join(lines)
+
+
+def __getattr__(name):
+    """
+    Compat : `TOOL_DESCRIPTIONS` reste importable mais est désormais DÉRIVÉ.
+
+    Un consommateur hors périmètre (`common/manifests/builtin/app.py`, territoire d'une autre
+    instance) l'importe encore ; il obtient la version dérivée, donc à jour, sans modification.
+    """
+    if name == 'TOOL_DESCRIPTIONS':
+        return tool_descriptions()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

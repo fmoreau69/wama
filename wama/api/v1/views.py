@@ -15,7 +15,7 @@ from rest_framework import status
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
 
-from wama.tool_api import TOOL_REGISTRY, TOOL_DESCRIPTIONS, execute_tool
+from wama.tool_api import TOOL_REGISTRY, execute_tool, tool_descriptions
 
 
 class ListToolsView(APIView):
@@ -32,11 +32,11 @@ class ListToolsView(APIView):
         # se prend un 403, et `tools/list` ment sur ce que `tools/run/` accepte.
         from wama.accounts.permissions import tool_accessible
 
+        # Descriptions DÉRIVÉES (schéma de l'app + signature réelle) : plus de `.get(name, {})`
+        # à vide — tout outil du registre est décrit, avec ses types, choix et défauts.
+        described = tool_descriptions()
         tools = [
-            {
-                "name": name,
-                **TOOL_DESCRIPTIONS.get(name, {"description": "", "args": {}}),
-            }
+            {"name": name, **described[name]}
             for name in TOOL_REGISTRY
             if tool_accessible(request.user, name)
         ]
