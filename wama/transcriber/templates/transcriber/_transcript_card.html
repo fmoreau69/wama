@@ -13,6 +13,7 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                 <div class="wcv3">
                     <!-- File Info -->
                     <div class="wcv3-sec wcv3-sec--input">
+                        <span class="wcv3-lbl">Entrée</span>
                         <span class="wcv3-head">#{{ t.id }}<span class="sep">·</span>{{ t.created_at|date:"d/m H:i" }}</span><small class="text-muted d-block" style="font-size:.65rem;"></small>
                         {% if t.audio %}
                         <button type="button" class="btn btn-link p-0 text-decoration-none preview-media-link filename"
@@ -52,6 +53,7 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                     (chips_for filtre les valeurs vides/False), le moteur montre used_backend, et le
                     repli sur un autre moteur est signalé (variant warn + title).{% endcomment %}
                     <div class="wcv3-sec wcv3-sec--settings">
+                        <span class="wcv3-lbl">Réglages</span>
                         <small class="wcv3-out">
                             {% include 'common/_card_chips.html' with chips=t.chips.settings %}
                         </small>
@@ -81,6 +83,7 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                         {% endif %}
                     </div>
                     <div class="wcv3-sec wcv3-sec--state">
+                        <span class="wcv3-lbl">État</span>
                         {% include 'common/_card_state.html' with status=t.status text=t.text %}
                     
                         {% comment %}Badge, %, ETA et durée vivent dans la section ÉTAT — pas en bas
@@ -92,7 +95,8 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
 
                     <!-- Actions -->
                     <div class="wcv3-sec wcv3-sec--actions">
-                        <div class="btn-group-actions">
+                        <span class="wcv3-lbl">Actions</span>
+                        <div class="btn-group-actions wcv3-actions">
                             {% if t.status != 'RUNNING' %}
                             {# Ordre conventionnel : ⚙ Paramètres → ▶ Start (cf. WAMA_APP_CONVENTIONS §6) #}
                             <button class="btn btn-sm btn-outline-secondary settings-btn"
