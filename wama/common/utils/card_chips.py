@@ -35,7 +35,11 @@ def chips_for(instance, params_json, extra=None):
             continue
         display = value
         if value is True:
-            display = field.get('label') or name
+            # Une case cochée s'affiche par son NOM (le réglage est actif) ; décochée, elle ne
+            # produit aucun chip (filtré plus haut) — une card ne liste pas ce qui est inactif.
+            # chip_label permet un libellé court : « Diarisation » plutôt que « Identifier les
+            # locuteurs », qui tiendrait mal dans une piste. Le libellé complet reste au title.
+            display = field.get('chip_label') or field.get('label') or name
         else:
             # choices Django = [(value, label), …] (schema_to_dicts) ; options = [{value,label}] (fallback).
             for opt in field.get('choices') or []:

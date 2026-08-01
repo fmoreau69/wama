@@ -43,16 +43,17 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                         </small>
                     </div>
 
-                    <!-- Options (en colonne) -->
+                    {% comment %}Options — GÉNÉRÉES depuis le schéma (transcriber/params.py, chip=True)
+                    via la brique commune, au lieu d'une ligne + une condition écrites à la main par
+                    réglage (CARD_DESIGN §11.4). Le rendu « liste verticale à icônes » de la v1 est
+                    conservé : c'est la classe .wama-chips--list qui le donne, pas le markup — même
+                    source pour tous les designs, donc aucune divergence possible.
+                    Comportement identique à l'ancien code : un réglage inactif ne produit AUCUN chip
+                    (chips_for filtre les valeurs vides/False), le moteur montre used_backend, et le
+                    repli sur un autre moteur est signalé (variant warn + title).{% endcomment %}
                     <div class="col-md-2">
-                        <small>
-                            <i class="fas fa-microchip"></i> {% if t.used_backend and t.backend != 'auto' and t.used_backend != t.backend %}{{ t.used_backend }} <i class="fas fa-triangle-exclamation text-warning" title="Demandé : {{ t.backend }} (indisponible) — repli sur {{ t.used_backend }}"></i>{% elif t.backend == 'auto' and t.used_backend %}{{ t.used_backend }} (auto){% else %}{{ t.backend|default:"auto" }}{% endif %}<br>
-                            {% if t.hotwords %}
-                            <i class="fas fa-tags"></i> {{ t.hotwords|truncatechars:20 }}<br>
-                            {% endif %}
-                            {% if t.enable_diarization %}<i class="fas fa-users"></i> Diarisation<br>{% endif %}
-                            {% if t.generate_summary %}<i class="fas fa-file-lines"></i> Résumé<br>{% endif %}
-                            {% if t.verify_coherence %}<i class="fas fa-spell-check"></i> Cohérence{% endif %}
+                        <small class="wama-chips--list">
+                            {% include 'common/_card_chips.html' with chips=t.chips.settings %}
                         </small>
                     </div>
 

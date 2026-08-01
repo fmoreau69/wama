@@ -164,6 +164,12 @@ class IndexView(View):
                                           work_attr='transcript', order_by='-id',
                                           extra=_extra)
 
+        # Chips générés — MÊME point d'attache que card_html, sinon la card du chargement
+        # diverge de celle que l'endpoint renvoie ensuite (leçon describer).
+        for _b in batches_list:
+            for _it in _b['items']:
+                if getattr(_it, 'transcript', None):
+                    _decorate_card(_it.transcript)
         queue_count = sum(len(b['items']) for b in batches_list)
 
         # ── Tri + filtrage de la file — brique COMMUNE (extraite d'ici le 2026-07-03) ──
@@ -821,6 +827,46 @@ def save_correction(request, pk: int):
     return JsonResponse({'status': 'saved', 'correction_status': t.correction_status})
 
 
+def _decorate_card(t):
+    """Attache les chips GÉNÉRÉS d'un transcript (CARD_DESIGN §11.4).
+
+    Portage au commun : la card listait ses réglages à la main (une ligne + une condition par
+    réglage). Ils viennent désormais du SCHÉMA (`transcriber/params.py`, chip=True) via la
+    brique commune — même source pour tous les designs de card, donc aucune divergence possible.
+    Le schéma existait déjà : ce portage n'a ajouté aucun mécanisme, seulement des déclarations.
+
+    Deux spécificités du transcriber, conservées à l'identique (rien ne devait être perdu) :
+      • le chip moteur montre le backend EFFECTIF (used_backend), pas le réglage demandé ;
+      • si le moteur demandé n'était pas disponible, le repli est signalé — sur la card v1 par
+        une icône d'alerte, ici par le variant du chip et son title.
+    """
+    from wama.common.utils.card_chips import chips_by_section
+    from wama.transcriber.params import PARAMS_JSON
+
+    class _View:
+        def __init__(self, o): self._o = o
+        def __getattr__(self, k):
+            if k == 'backend':
+                return self._o.used_backend or self._o.backend
+            return getattr(self._o, k)
+
+    t.chips = chips_by_section(_View(t), PARAMS_JSON)
+
+    fallback = bool(t.used_backend and t.backend != 'auto' and t.used_backend != t.backend)
+    for chip in t.chips.get('settings', []):
+        if chip.get('icon') == 'fa-microchip':
+            if fallback:
+                chip['variant'] = 'warn'
+                chip['title'] = f"Demandé : {t.backend} (indisponible) — repli sur {t.used_backend}"
+            elif t.backend == 'auto':
+                # Tant qu'aucun moteur n'a tourné, la card v1 affichait « auto » — et non le
+                # libellé complet du choix (« Auto (meilleur disponible) »), trop long pour la
+                # colonne. Une fois le run fait, elle montre le moteur RETENU.
+                chip['label'] = f"{t.used_backend} (auto)" if t.used_backend else 'auto'
+            break
+    return t
+
+
 def card_html(request, pk: int):
     """Card RENDUE serveur — source UNIQUE du markup (partial _transcript_card.html ;
     CARD_DESIGN « partial server-side + update JS en place, PAS de rebuild », audit A2-9/10).
@@ -830,6 +876,7 @@ def card_html(request, pk: int):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     t = get_object_or_404(Transcript, pk=pk, user=user)
     in_batch = BatchTranscriptItem.objects.filter(transcript=t, batch__total__gt=1).exists()
+    _decorate_card(t)
     html = render_to_string('transcriber/_transcript_card.html',
                             {'t': t, 'in_batch': in_batch}, request=request)
     return HttpResponse(html)

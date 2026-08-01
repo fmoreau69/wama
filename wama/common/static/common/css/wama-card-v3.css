@@ -275,3 +275,31 @@
     padding-top: .35rem;
   }
 }
+
+/* ═══ SKIN « liste » des chips — rendu v1 (CARD_DESIGN §11.4) ═════════════════════════
+   Même markup que la card v3, autre présentation : c'est ici que se joue la coexistence des
+   deux designs. Un chip et une ligne de réglage portent la même donnée (icône + libellé +
+   title) ; la différence est un `display`. Tant qu'elle reste dans une feuille de style, les
+   deux designs ne PEUVENT pas diverger — et aucun `{% if design %}` n'a à exister côté serveur.
+
+   Ici : la densité verticale de la v1 (une ligne par réglage, icône devant, pas de pastille),
+   qui reste plus lisible qu'une rangée de chips dans une colonne étroite. */
+.wama-chips--list .wama-chip {
+  display: block;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0 0 .1rem 0;
+  max-width: 100%;
+  color: rgba(255, 255, 255, .75);
+  font-size: .72rem;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wama-chips--list .wama-chip i { width: 1em; margin-right: .35rem; opacity: .85; }
+/* Repli de moteur : la v1 le signalait par une icône d'alerte — même information, porté par la
+   couleur du chip et son title (qui donne le moteur demandé et celui retenu). */
+.wama-chips--list .wama-chip--warn { color: #ffc107; }
+.wama-chips--list .wama-chip--warn::after { content: " ⚠"; }
