@@ -279,8 +279,25 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   studio (`build_generic_runner:149` fait `getattr(tool_api,f'add_to_{app}')` + filtre par
   `inspect.signature` + exige `item_id` en retour). **Le studio ne connaît aucune app en dur.**
 - **Trous** : garde MEDIA_ROOT dupliquée ~8× ; **pas de test de contrat** sur la triade (bug describer
-  output_format→output_style découvert au runtime) ; **à vérifier** : imager expose `create_image`, le runner
-  appelle `add_to_imager` (alias à confirmer).
+  output_format→output_style découvert au runtime).
+  - ✅ **Tranché (2026-08-01)** : l'alias `add_to_imager` EXISTE (`tool_api.py:2088`, bloc « aliases
+    normalisés » STUDIO_VISION 2026-07-12) — le runner studio fonctionne. Mais il n'a **pas de description**.
+- ⚠ **CHAÎNE CONCURRENTE MESURÉE (2026-08-01) — `TOOL_DESCRIPTIONS` double `PARAMS_JSON`.**
+  Les params sont déclarés une fois, typés, dérivés du modèle Django (`params.py` → `derive_from_model`,
+  consommé par les modales, l'inspecteur ET le studio via `params_module/params_attr`). `TOOL_DESCRIPTIONS`
+  en est une **recopie manuelle en français**, non typée, qui dérive :
+  - **21 / 71 params typés décrits (30 %)** — ex. transcriber : `generate_summary`, `summary_type`,
+    `verify_coherence` invisibles pour l'assistant IA.
+  - **`build_tools_list()` itère `TOOL_DESCRIPTIONS`, pas `TOOL_REGISTRY`** — malgré son docstring qui
+    annonce « source unique → liste exhaustive → plus de divergence prompt↔registre ». L'assistant voit
+    **40 outils sur 43**.
+  - **Conséquence fonctionnelle réelle** : `start_composer` ET `add_to_composer` sont invisibles et
+    `auto_start` n'est pas posé sur composer → **l'assistant peut créer une composition et suivre son
+    statut, mais ne peut pas la lancer**. (imager s'en sort : `start_imager` est décrit.)
+  - **Cible** : supprimer `TOOL_DESCRIPTIONS`, tirer la description des params du REGISTRE (`params.py`,
+    via le pointeur déclaratif `GENERIC_APPS.params_module/params_attr`) — conformément à la chaîne
+    `manifeste → ingest → registres → mécanismes` : le manifeste NE DOIT PAS être lu à l'exécution,
+    il sert à valider/confronter les registres, qui restent la source des mécanismes.
 - **Manifeste** : `prompts.{targets, skills}` + `tool_api.{add,start,status,descriptions}`.
 
 ### F7 — Permissions & scope données  ⟷ `SPEC §F7`
@@ -291,7 +308,10 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   pendant de `app_id_for_path` : dérive l'app de la triade F6, `TOOL_APP_OVERRIDE` pour les noms historiques
   `create_image`/`synthesize_text`/`compose_music`/`convert_file`, alias `audio_enhancer`→`enhancer`).
   **Mesuré : 40 outils gardés / 43, 3 transverses assumés** (`list_user_files`, `translate_text`,
-  `switch_ui_mode`), 0 app inconnue. Appliqué aux **3 consommateurs** de `TOOL_REGISTRY` :
+  `switch_ui_mode`), 0 app inconnue. `TOOL_REGISTRY` a **4 consommateurs** : 2 d'EXÉCUTION (`execute_tool`
+  et `generic_runner` qui le court-circuite via `getattr`), 1 de LISTAGE (`ListToolsView`), 1 de PROMPT
+  (`build_tools_list`, qui itère en fait `TOOL_DESCRIPTIONS` — cf. divergence F6 ci-dessous).
+  Garde appliquée aux 3 premiers :
   `execute_tool` (assistant IA + `POST /api/v1/tools/run/` → **403**, payload aligné sur
   `AppAccessMiddleware._deny`), `ListToolsView` (**`tools/list` filtré** — il annonçait des outils que
   `run` refuse), et la boucle de nœuds de `studio/tasks.py:181` (**clôt le trou #7**, le RUN ne repassait
