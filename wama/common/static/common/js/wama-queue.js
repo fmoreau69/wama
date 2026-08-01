@@ -106,29 +106,77 @@
         function csrf() { const m = document.cookie.match(/csrftoken=([^;]+)/); return m ? m[1] : ''; }
         function on() { return queue.classList.contains('wama-queue-stacked'); }
 
-        // Cards empilables = celles de la file, dans l'ordre VISIBLE. La card « nouvel élément »
-        // en tête n'en fait jamais partie : elle est le point d'entrée, la comprimer priverait
-        // du geste de dépôt (§11 : jamais compressée).
+        // Identifiant de la card focalisée — survit au remplacement du nœud par le rendu serveur.
+        let focusKey = null;
+
+        // Cards empilables, dans l'ordre DOM — qui est l'ordre de lecture, mère de lot puis ses
+        // filles. La card « nouvel élément » n'en fait jamais partie : elle est le point
+        // d'entrée, la comprimer priverait du geste de dépôt (§11 : jamais compressée).
+        //
+        // ⚠ On n'exclut PAS les cards masquées. Une première version filtrait sur la visibilité
+        // (offsetParent) : les filles d'un lot REPLIÉ sortaient de la liste, donc la navigation
+        // sautait le lot entier et ses cards étaient injoignables au clavier — la pile n'avait
+        // plus d'usage. Les cards d'un lot font partie de la file : on les traverse, et c'est le
+        // lot qui s'ouvre pour les laisser passer (voir syncBatch).
         function cards() {
             return Array.prototype.slice
                 .call(queue.querySelectorAll('.wama-card'))
                 .filter(function (c) {
                     return !c.classList.contains('wama-new-item-card') &&
-                           !c.classList.contains('wama-new-card') &&
-                           c.offsetParent !== null;
+                           !c.classList.contains('wama-new-card');
                 });
         }
 
-        function spread() {
-            const list = cards();
-            if (!list.length) return;
-            let focusIdx = list.findIndex(function (c) { return c.classList.contains('is-stack-focus'); });
-            if (focusIdx < 0) {
-                focusIdx = list.findIndex(function (c) { return c.classList.contains('selected'); });
+        function batchOf(card) { return card.closest('.collapse[data-wama-batch-key]'); }
+
+        /**
+         * Ouvre le lot de la card focalisée, replie celui qu'on vient de quitter.
+         *
+         * L'accordéon « une seule pile ouverte » est déjà tenu par initOnePileOpen() : ouvrir
+         * ici suffit à refermer les autres, on ne réimplémente pas cette règle. Ne reste que le
+         * cas qu'il ne couvre pas : sortir d'un lot pour une card qui n'appartient à aucun lot.
+         */
+        function syncBatch(card) {
+            if (!window.bootstrap || !bootstrap.Collapse) return;
+            const target = batchOf(card);
+            if (target && !target.classList.contains('show')) {
+                bootstrap.Collapse.getOrCreateInstance(target, { toggle: false }).show();
+                return;
             }
+            if (!target) {
+                queue.querySelectorAll('.collapse[data-wama-batch-key].show').forEach(function (el) {
+                    bootstrap.Collapse.getOrCreateInstance(el, { toggle: false }).hide();
+                });
+            }
+        }
+
+        /**
+         * Pose la distance au focus sur chaque card.
+         *
+         * La NAVIGATION porte sur toutes les cards (lots repliés compris), mais la COMPRESSION
+         * se calcule sur les seules cards visibles : sinon un lot replié de 8 items compterait
+         * pour 8 crans, et la card qui le suit serait déjà en lamelle alors qu'elle est
+         * visuellement la voisine immédiate. Deux listes, deux rôles.
+         */
+        function spread() {
+            const all = cards();
+            if (!all.length) return;
+            if (!all.some(function (c) { return c.classList.contains('is-stack-focus'); })) {
+                // Le focus a disparu : soit c'est le premier passage, soit la card focalisée
+                // vient d'être REMPLACÉE par le rendu serveur (upsertCard remplace le nœud
+                // entier, la classe part avec). On le rétablit par son identifiant, sinon la
+                // pile se replie sur sa première card à chaque tour de polling — ce qui rendait
+                // la navigation inutilisable dès qu'un traitement tournait.
+                let back = focusKey && all.find(function (c) { return c.dataset.id === focusKey; });
+                if (!back) back = all.find(function (c) { return c.classList.contains('selected'); });
+                (back || all[0]).classList.add('is-stack-focus');
+            }
+            const cur = all.find(function (c) { return c.classList.contains('is-stack-focus'); });
+            focusKey = cur && cur.dataset.id ? cur.dataset.id : focusKey;
+            const shown = all.filter(function (c) { return c.offsetParent !== null; });
+            let focusIdx = shown.findIndex(function (c) { return c.classList.contains('is-stack-focus'); });
             if (focusIdx < 0) focusIdx = 0;
-            list.forEach(function (c, i) {
-                c.classList.toggle('is-stack-focus', i === focusIdx);
+            shown.forEach(function (c, i) {
                 // 0 = entière · 1 = 46 px · 2 = 28 px · 3+ = lamelle
                 c.dataset.stack = String(Math.min(3, Math.abs(i - focusIdx)));
             });
@@ -162,6 +210,8 @@
             if (!card || card.classList.contains('is-stack-focus')) return;
             cards().forEach(function (c) { c.classList.remove('is-stack-focus'); });
             card.classList.add('is-stack-focus');
+            focusKey = card.dataset.id || focusKey;
+            syncBatch(card);
             spread();
         }, true);
 
@@ -179,6 +229,10 @@
             ev.preventDefault();
             list.forEach(function (c) { c.classList.remove('is-stack-focus'); });
             list[next].classList.add('is-stack-focus');
+            focusKey = list[next].dataset.id || focusKey;
+            // Le lot s'ouvre AVANT le scroll : viser une card encore repliée centrerait sur
+            // une hauteur nulle.
+            syncBatch(list[next]);
             spread();
             focusCard(list[next], { scroll: 'center' });
         });

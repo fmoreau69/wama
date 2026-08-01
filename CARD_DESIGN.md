@@ -553,3 +553,54 @@ fige pas une anatomie avant de l'avoir vue tourner. La brique `_card_chips.html`
 **Reste ouvert** : attribut `section=` sur les `Param chip=True` + hook commun `predicted_output()`
 (prototypé dans `reader/views.py::_output_chips`) ; miniature réelle au lieu de l'icône typée ;
 pile × mosaïque (toujours non tranché) ; remontée du markup en brique commune.
+
+### 11.4 DEUX DESIGNS COEXISTANTS — v1 « riche » et v3 « minimaliste » (décision 2026-08-01)
+
+**Décision** : on ne remplace pas un design par l'autre, on garde les DEUX, sélectionnables.
+Le second n'est pas une variante esthétique du premier : c'est un **design MINIMALISTE**, dont
+la règle de conception est explicite —
+
+> **Tout ce qui est déjà accessible dans l'inspecteur sort de la card.**
+
+Concrètement, la card minimaliste **retire** les informations et l'aperçu que le volet droit
+donne déjà au clic, pour ne garder que ce qui sert à *identifier, situer et agir* sans ouvrir
+quoi que ce soit. Elle est donc nettement plus courte — c'est le but : voir beaucoup d'éléments
+d'un coup d'œil. Le design v1 (riche) reste pour qui veut tout lire sans cliquer.
+
+**Ce que cela suppose, et qui n'est pas négociable** : les deux designs doivent être alimentés
+par la MÊME source générée (schéma de params → `chips_by_section`), sinon ils divergeront et on
+aura sanctuarisé du HTML écrit à la main sous le nom de « design v1 ».
+
+> ⚠ Garde-fou : **aucun `{% if design == … %}` dans les templates.** Si une différence entre les
+> deux designs réclame une condition côté serveur, c'est qu'elle n'est PAS esthétique — et il
+> faut alors la traiter comme une capacité déclarée, pas comme un branchement. Un chip et une
+> ligne de réglage portent la même donnée (icône + libellé + title) : la différence entre les
+> deux designs est un `display`, donc une feuille de style.
+
+**État du prérequis (audité 2026-08-01)** : le Transcriber a déjà un registre complet
+(`transcriber/params.py` : backend, hotwords, preprocess_audio, enable_diarization,
+generate_summary, summary_type, verify_coherence — avec labels, ordre, dom_id). Il lui manque
+UNIQUEMENT les attributs déclaratifs `chip=True` / `section=` pour que sa card se génère au lieu
+d'être écrite à la main. **Le portage n'est pas une réécriture, c'est une déclaration.**
+
+### 11.5 MODE PILE — câblé (2026-08-01)
+
+Conforme au comportement de la maquette v3.5, vérifié au navigateur. Modificateur **on/off**
+orthogonal au layout (pas une 3e disposition) : `card_stacked` au profil, bouton dans le toolbar
+commun, donc présent d'emblée dans les 10 apps.
+
+- Compression par distance au focus : **0 = entière · 1 = 46 px · 2 = 28 px · 3+ = lamelle**.
+- Card d'entrée JAMAIS compressée.
+- **La navigation traverse les lots** : le lot s'ouvre quand on y entre, se replie quand on en
+  sort, un seul ouvert à la fois (l'accordéon vient de `initOnePileOpen`, déjà existant).
+
+Deux pièges, tous deux trouvés par la mesure et invisibles à la lecture du code :
+
+1. **Ne pas filtrer la liste de navigation sur la visibilité.** Une première version excluait les
+   cards masquées : les filles d'un lot replié sortaient de la liste, le lot entier était sauté
+   et ses cards injoignables au clavier — la pile n'avait aucun usage. Deux listes, deux rôles :
+   on NAVIGUE sur toutes les cards, on COMPRIME sur les seules visibles (sinon un lot replié de
+   8 items compte 8 crans et la card suivante est déjà en lamelle).
+2. **Le focus doit survivre au rendu serveur.** `upsertCard` remplace le nœud entier, la classe
+   de focus part avec : à chaque tour de polling la pile se repliait sur sa première card. Le
+   focus est donc mémorisé par `data-id` et rétabli après remplacement.
