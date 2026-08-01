@@ -277,6 +277,10 @@
 }
 
 /* ═══ SKIN « liste » des chips — rendu v1 (CARD_DESIGN §11.4) ═════════════════════════
+   ⚠ Ne PAS poser .wama-chips--list dans un template d'app : le style appartient au DESIGN,
+   pas à l'app. Le transcriber l'a portée un temps — ses chips restaient alors en liste
+   verticale même en v2/v3, où ils doivent tenir sur une ligne. C'est le sélecteur
+   [data-card-design="v1"] qui applique ce rendu, à toutes les apps d'un coup.
    Même markup que la card v3, autre présentation : c'est ici que se joue la coexistence des
    deux designs. Un chip et une ligne de réglage portent la même donnée (icône + libellé +
    title) ; la différence est un `display`. Tant qu'elle reste dans une feuille de style, les
@@ -323,7 +327,8 @@
 [data-card-design="v2"] .wcv3-lbl,
 [data-card-design="v2"] .wcv3-head,
 [data-card-design="v2"] .wcv3-in-props,
-[data-card-design="v2"] .wcv3-preview { display: none; }
+[data-card-design="v2"] .wcv3-preview,
+[data-card-design="v2"] .wama-card-preview { display: none; }
 
 [data-card-design="v2"] .wcv3 {
   grid-template-columns:
@@ -380,3 +385,39 @@
   padding: .2rem 1.4rem .2rem .5rem;
   max-width: 7.5rem;
 }
+
+/* ── Cellule de progression (apps dont la barre vient de la brique _card_progress) ──
+   Le transcriber la rendait dans une colonne ; en v2/v3 elle occupe toute la largeur sous
+   les sections, comme la barre du reader. La brique commune reste inchangée : c'est sa
+   CELLULE qui change de forme selon le design. */
+.wcv3-bar-cell { grid-column: 1 / -1; }
+
+/* ── V1 « Détaillé » : la Sortie repasse SOUS les sections ──────────────────────────
+   Sur les apps riches (transcriber), les propriétés de sortie s'affichaient sous la card et
+   non en colonne. On garde cet emplacement en v1 — le design v1 doit rester à l'identique —
+   sans dupliquer le markup : la même section change simplement de place dans la grille. */
+[data-card-design="v1"] .wcv3 {
+  grid-template-columns:
+    minmax(0, 1.5fr) minmax(0, 1.1fr)
+    var(--wcv3-c-state, minmax(0, 96px))
+    var(--wcv3-c-actions, minmax(0, 186px));
+}
+[data-card-design="v1"] .wcv3-sec--output {
+  grid-column: 1 / -1;
+  border-left: none;
+  padding-left: 0;
+}
+[data-card-design="v1"] .wcv3-sec--output .wcv3-lbl { display: none; }
+[data-card-design="v1"] .wcv3-sec--output .wcv3-out { gap: .75rem; }
+
+/* Placement EXPLICITE en v1 — sans lui, la Sortie (grid-column 1/-1) coupe la première ligne
+   et repousse État puis Actions sur des rangées suivantes : la card s'étirait en hauteur au
+   lieu de reproduire l'agencement d'origine (4 colonnes, sortie et barre dessous).
+   L'ordre DOM reste Entrée→Réglages→Sortie→État→Actions pour les trois designs ; seul le
+   PLACEMENT change. C'est exactement ce que CSS Grid permet et pourquoi un seul markup suffit. */
+[data-card-design="v1"] .wcv3-sec--input    { grid-row: 1; grid-column: 1; }
+[data-card-design="v1"] .wcv3-sec--settings { grid-row: 1; grid-column: 2; }
+[data-card-design="v1"] .wcv3-sec--state    { grid-row: 1; grid-column: 3; }
+[data-card-design="v1"] .wcv3-sec--actions  { grid-row: 1; grid-column: 4; }
+[data-card-design="v1"] .wcv3-sec--output   { grid-row: 2; grid-column: 1 / -1; }
+[data-card-design="v1"] .wcv3-bar-cell      { grid-row: 3; grid-column: 1 / -1; }

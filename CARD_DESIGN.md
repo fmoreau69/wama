@@ -639,3 +639,36 @@ Deux pièges rencontrés, tous deux visibles seulement à l'écran :
 > en détaillé. La distinction v1/v3 ne se voit que sur les apps riches (Transcriber : badges
 > temps réel/prétraité, propriétés audio, métriques de sortie). Ne pas conclure de l'écart nul
 > sur le reader que les deux designs se valent — le comparer sur le Transcriber.
+
+### 11.7 TRANSCRIBER — émission des 5 sections (2026-08-01)
+
+Le Transcriber émet désormais les 5 sections nommées : il peut donc basculer entre les trois
+densités, ce qui était le dernier verrou. Portage **chirurgical** (remplacement des balises de
+structure `row`/`col-md-*`, contenu intact) et non réécriture — aucun des ~19 éléments
+d'information de la card n'a été retouché.
+
+**Section SORTIE créée** : le contrat (« Transcription + diarisation · formats… ») et les
+métriques réelles (mots, voix, résumé, cohérence) vivaient dans le bloc d'aperçu ; ils rejoignent
+leur section, où les trois designs savent les placer. L'extrait de texte reste à l'aperçu : c'est
+un CONTENU, pas une propriété de sortie.
+
+Hauteurs mesurées (card réelle, un transcript SUCCESS complet) : **v1 301 px · v2 242 px · v3 332 px**.
+
+Trois pièges, tous rencontrés :
+
+1. **Le template ne doit JAMAIS imposer le style des chips.** Le transcriber portait
+   `.wama-chips--list` en dur : ses chips restaient en liste verticale même en v2/v3, où ils
+   doivent tenir sur une ligne. C'est le sélecteur `[data-card-design="v1"]` qui applique ce
+   rendu — à toutes les apps d'un coup. Une classe de présentation dans un template d'app est
+   le premier pas vers la divergence que §11.4 interdit.
+2. **Placer explicitement les sections en v1.** Sans `grid-row`, la Sortie (`grid-column: 1/-1`)
+   coupait la première ligne et repoussait État puis Actions sur des rangées suivantes : la card
+   s'étirait au lieu de reproduire l'agencement d'origine. L'ordre DOM reste le même pour les
+   trois designs ; seul le PLACEMENT change — c'est précisément ce qui permet un markup unique.
+3. **Uniformiser ce qui doit disparaître en v2.** L'identité (`#id · date`) et l'aperçu du
+   transcriber n'utilisaient pas les classes communes : ils survivaient en mode Compact alors
+   qu'ils doivent en sortir. Portés sur `.wcv3-head` et `.wama-card-preview`.
+
+> ⚠ **`speaker_count` est une `@property`, pas un champ.** Interroger `_meta.get_fields()` le
+> déclare absent — faux négatif : « Diarisation (2 voix) » s'affiche bien. Vérifier une donnée de
+> modèle par `hasattr()` sur une instance, jamais par la seule liste des champs.

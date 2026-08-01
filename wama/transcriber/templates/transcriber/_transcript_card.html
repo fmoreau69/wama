@@ -10,10 +10,10 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
             <div class="synthesis-card wama-card {% if t.status == 'RUNNING' %}processing{% elif t.status == 'SUCCESS' %}success{% elif t.status == 'FAILURE' %}error{% endif %}"
                  data-id="{{ t.id }}" data-status="{{ t.status }}"
                  {% if t.is_realtime %}data-cycle-restart-title="Re-transcrire via le pipeline complet (diarisation, résumé…)" data-cycle-restart-icon="fa-rotate"{% endif %}>
-                <div class="row align-items-center">
+                <div class="wcv3">
                     <!-- File Info -->
-                    <div class="col-md-3">
-                        <small class="text-muted d-block" style="font-size:.65rem;">#{{ t.id }} · <i class="fas fa-calendar-alt" title="Ajouté le"></i> {{ t.created_at|date:"d/m H:i" }}</small>
+                    <div class="wcv3-sec wcv3-sec--input">
+                        <span class="wcv3-head">#{{ t.id }}<span class="sep">·</span>{{ t.created_at|date:"d/m H:i" }}</span><small class="text-muted d-block" style="font-size:.65rem;"></small>
                         {% if t.audio %}
                         <button type="button" class="btn btn-link p-0 text-decoration-none preview-media-link filename"
                                 data-preview-url="{% url 'common:unified_preview' 'transcriber' t.id %}"
@@ -51,24 +51,46 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                     Comportement identique à l'ancien code : un réglage inactif ne produit AUCUN chip
                     (chips_for filtre les valeurs vides/False), le moteur montre used_backend, et le
                     repli sur un autre moteur est signalé (variant warn + title).{% endcomment %}
-                    <div class="col-md-2">
-                        <small class="wama-chips--list">
+                    <div class="wcv3-sec wcv3-sec--settings">
+                        <small class="wcv3-out">
                             {% include 'common/_card_chips.html' with chips=t.chips.settings %}
                         </small>
                     </div>
 
                     <!-- État (brique commune ; le résultat va dans la preview en bas de card) -->
-                    <div class="col-md-2">
+                    
+                    {% comment %}SORTIE — section TEMPORELLE (CARD_DESIGN §11) : avant/pendant, le
+                    CONTRAT de ce qui va sortir ; après, les propriétés RÉELLES mesurées. Ces
+                    informations étaient dans le bloc d'aperçu ; elles rejoignent leur section, où
+                    les trois designs savent les placer. L'extrait de texte, lui, reste à l'aperçu :
+                    c'est un CONTENU, pas une propriété de sortie.{% endcomment %}
+                    <div class="wcv3-sec wcv3-sec--output">
+                        <span class="wcv3-lbl">Sortie</span>
+                        {% if t.status == 'SUCCESS' and t.text %}
+                        <div class="wcv3-out">
+                            <span class="wama-chip"><i class="fas fa-align-left"></i><span class="wama-chip-label">Transcription {{ t.text|wordcount }} mots</span></span>
+                            {% if t.enable_diarization %}<span class="wama-chip"><i class="fas fa-users"></i><span class="wama-chip-label">Diarisation{% if t.speaker_count %} ({{ t.speaker_count }} voix){% endif %}</span></span>{% endif %}
+                            {% if t.summary %}<span class="wama-chip"><i class="fas fa-file-lines"></i><span class="wama-chip-label">Résumé {{ t.summary|wordcount }} mots</span></span>{% endif %}
+                            {% if t.coherence_score is not None %}<span class="wama-chip"><i class="fas fa-spell-check"></i><span class="wama-chip-label">Cohérence {{ t.coherence_score }}/100</span></span>{% endif %}
+                        </div>
+                        {% else %}
+                        <div class="wcv3-out">
+                            <span class="wama-chip wama-chip--blueprint"><i class="fas fa-align-left"></i><span class="wama-chip-label">Transcription{% if t.enable_diarization %} + diarisation{% endif %}{% if t.generate_summary %} + résumé{% endif %}</span></span>
+                            <span class="wama-chip wama-chip--blueprint"><i class="fas fa-download"></i><span class="wama-chip-label">TXT · SRT · PDF · DOCX</span></span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="wcv3-sec wcv3-sec--state">
                         {% include 'common/_card_state.html' with status=t.status text=t.text %}
                     </div>
 
                     <!-- Statut + progression + ETA + temps écoulé (brique commune) -->
-                    <div class="col-md-2">
+                    <div class="wcv3-bar-cell">
                         {% include 'common/_card_progress.html' with status=t.status progress=t.progress elapsed=t.processing_display %}
                     </div>
 
                     <!-- Actions -->
-                    <div class="col-md-3">
+                    <div class="wcv3-sec wcv3-sec--actions">
                         <div class="btn-group-actions">
                             {% if t.status != 'RUNNING' %}
                             {# Ordre conventionnel : ⚙ Paramètres → ▶ Start (cf. WAMA_APP_CONVENTIONS §6) #}
@@ -137,27 +159,10 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                     </div>
                 </div>
                 {# Preview compacte (niveau 1) sous la barre ; double-clic -> overlay (niveau 3) ; composant commun .wama-card-preview #}
-                {# Section SORTIE jamais vide (décision 2026-07-05, principe « la barre se transforme ») : #}
-                {# avant/pendant = CONTRAT de sortie déclaré — le format, lui, se choisit APRÈS coup. #}
-                {% if t.status != 'SUCCESS' %}
-                <div class="wama-card-preview mt-2 p-2 rounded bg-black bg-opacity-25 text-white-50"
-                     style="font-size:.72rem;">
-                    <i class="fas fa-arrow-right-long opacity-50"></i> Transcription (texte)
-                    {% if t.enable_diarization %}+ diarisation {% endif %}
-                    {% if t.generate_summary %}+ résumé {% endif %}
-                    · formats au choix après traitement : TXT · SRT · PDF · DOCX
-                </div>
-                {% endif %}
                 {% if t.status == 'SUCCESS' and t.text %}
                 <div class="wama-card-preview mt-2 p-2 rounded bg-black bg-opacity-50 small"
                      data-id="{{ t.id }}" title="Double-cliquez pour voir le résultat">
                     <span class="text-light d-block" style="max-height:48px; overflow:hidden;">{{ t.text|truncatechars:160 }}</span>
-                    <div class="mt-1 d-flex flex-wrap gap-2 text-white-50" style="font-size:.72rem;">
-                        <span><i class="fas fa-align-left"></i> Transcription {{ t.text|wordcount }} mots</span>
-                        {% if t.enable_diarization %}<span><i class="fas fa-users"></i> Diarisation{% if t.speaker_count %} ({{ t.speaker_count }} voix){% endif %}</span>{% endif %}
-                        {% if t.summary %}<span><i class="fas fa-file-lines"></i> Résumé {{ t.summary|wordcount }} mots</span>{% endif %}
-                        {% if t.coherence_score is not None %}<span><i class="fas fa-spell-check"></i> Cohérence {{ t.coherence_score }}/100</span>{% endif %}
-                    </div>
                 </div>
                 {% endif %}
             </div>
