@@ -178,14 +178,9 @@ def run_pipeline_task(self, run_id):
                 _console(user.id, f"Studio run #{run.pk} : sortie rangée — {note}")
                 continue
 
-            # Gating d'app au RUN, par nœud (§F7, trou #7). La PALETTE est déjà filtrée
-            # (studio/views.py:34), mais un graphe peut être exécuté après un retrait de rôle,
-            # ou avoir été construit hors palette — l'ownership porté par tool_api ne remplace
-            # pas le gating. Même décision que la nav : `accessible()`.
-            from wama.accounts.permissions import accessible
-            if not accessible(user, app):
-                raise ValueError(f"Nœud « {app} » : accès non autorisé à cette application.")
-
+            # Gating d'app au RUN (§F7, trou #7) : plus rien à faire ICI — le runner passe
+            # par `execute_tool`, qui applique `tool_accessible()` sur create ET start. Un
+            # seul point de décision, partagé avec l'assistant IA et l'API REST.
             runner = runner_for(app)
             if runner is None:
                 # Nœud non exécutable : toléré s'il n'a PAS d'amont — sinon erreur claire.

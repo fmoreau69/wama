@@ -20,7 +20,6 @@ déjà — start = no-op) ; `extra_params_spec` (params de nœud ABSENTS du sch�
 """
 from __future__ import annotations
 
-import inspect
 
 
 # Manifeste des apps NORMALISÉES (contrat rempli). L'ordre d'input_kinds = priorité de
@@ -98,28 +97,20 @@ GENERIC_APPS = {
 }
 
 
-def _coerce(value, ptype):
-    if ptype == 'toggle':
-        return str(value).lower() in ('1', 'true', 'on', 'oui')
-    if ptype == 'range':
-        try:
-            f = float(value)
-            return int(f) if f == int(f) else f
-        except (TypeError, ValueError):
-            return value
-    return value
+def _error_text(res):
+    """Texte LISIBLE d'un retour d'outil en erreur : `detail` s'il existe, sinon `error`.
+
+    Les refus de permission renvoient {'error': 'forbidden', 'detail': '<phrase>'} (forme
+    partagée avec `AppAccessMiddleware._deny`) — sans ça, le run afficherait « forbidden ».
+    """
+    return res.get('detail') or res.get('error')
 
 
-def _params_json(conf):
-    import importlib
-    mod = importlib.import_module(conf['params_module'])
-    return getattr(mod, conf['params_attr'])
-
-
-def _node_params_spec(conf):
+def _node_params_spec(app_id, conf):
     """Schéma params.py → spec de nœud studio (mapping de FORME, pas de contenu)."""
+    from wama.common.utils.param_schema import schema_for_app
     spec = []
-    for p in _params_json(conf):
+    for p in schema_for_app(app_id):
         if 'item' not in (p.get('contexts') or []):
             continue
         entry = {'name': p['name'], 'label': p.get('label') or p['name']}
@@ -145,10 +136,11 @@ def build_generic_runner(app_id):
     conf = GENERIC_APPS[app_id]
 
     def create(user, inputs, params):
-        from wama import tool_api
-        fn = getattr(tool_api, f'add_to_{app_id}', None)
-        if fn is None:
-            raise ValueError(f"{app_id} : add_to_{app_id} absent du registre central (contrat).")
+        # Passe par execute_tool : MÊME point d'exécution que l'assistant IA et l'API REST
+        # (gating d'app, coercition par schéma, filtre de signature). Le studio n'ajoute que
+        # ce qui relève du GRAPHE : d'où vient l'entrée principale, et les kwargs figés.
+        from wama.tool_api import execute_tool, primary_arg_name
+        tool = f'add_to_{app_id}'
         if conf.get('primary_input') == 'prompt':
             primary = (inputs.get('prompt') or inputs.get('text')
                        or (params or {}).get('prompt') or (params or {}).get('text')
@@ -161,21 +153,26 @@ def build_generic_runner(app_id):
             if not primary:
                 raise ValueError(f"Nœud {app_id} : aucune entrée "
                                  f"({' / '.join(conf['input_kinds'])}).")
-        # Filtre des params sur la signature RÉELLE + coercition par type du schéma
-        sig = inspect.signature(fn)
-        types_by_name = {p['name']: p.get('type') for p in _params_json(conf)}
+        # Params du nœud : on écarte ceux qui ont SERVI à construire l'entrée principale, et
+        # les valeurs vides (un champ de formulaire non renseigné arrive à '' — il ne doit pas
+        # écraser le défaut de la fonction). Le typage/bornage, lui, est fait par execute_tool.
         consumed = {'prompt', 'text', 'text_content'} if conf.get('primary_input') == 'prompt' else set()
-        kwargs = {k: _coerce(v, types_by_name.get(k))
-                  for k, v in (params or {}).items()
-                  if k in sig.parameters and k not in consumed and v not in (None, '')}
-        kwargs.update(conf.get('fixed_kwargs') or {})
-        if conf.get('input_kwarg'):
-            kwargs[conf['input_kwarg']] = primary
-            res = fn(user, **kwargs)
-        else:
-            res = fn(user, primary, **kwargs)
+        call_args = {k: v for k, v in (params or {}).items()
+                     if k not in consumed and v not in (None, '')}
+        call_args.update(conf.get('fixed_kwargs') or {})
+
+        # L'entrée principale est passée PAR NOM : déclaré (`input_kwarg`) ou dérivé de la
+        # signature. Plus de position à deviner, et l'appel devient un appel d'outil normal.
+        kwarg = conf.get('input_kwarg') or primary_arg_name(tool)
+        if not kwarg:
+            raise ValueError(f"{app_id} : {tool} n'expose aucun paramètre d'entrée (contrat).")
+        call_args[kwarg] = primary
+
+        res = execute_tool(tool, call_args, user)
+        if not isinstance(res, dict):
+            raise ValueError(f"{app_id} : {tool} n'a pas renvoyé de dict (contrat).")
         if 'error' in res:
-            raise ValueError(f"{app_id} : {res['error']}")
+            raise ValueError(f"{app_id} : {_error_text(res)}")
         if 'item_id' not in res:
             raise ValueError(f"{app_id} : retour non conforme au contrat (clé item_id absente) "
                              f"— normaliser la triade dans wama/tool_api.py.")
@@ -184,13 +181,14 @@ def build_generic_runner(app_id):
     def start(user, item_id):
         if conf.get('auto_start'):
             return   # le créateur a déjà dispatché (déclaré au manifeste)
-        from wama import tool_api
-        fn = getattr(tool_api, f'start_{app_id}', None)
-        if fn is None:
-            raise ValueError(f"{app_id} : start_{app_id} absent du registre central (contrat).")
-        res = fn(user, item_id)
+        from wama.tool_api import execute_tool, primary_arg_name
+        tool = f'start_{app_id}'
+        kwarg = primary_arg_name(tool)
+        if not kwarg:
+            raise ValueError(f"{app_id} : {tool} absent du registre central (contrat).")
+        res = execute_tool(tool, {kwarg: item_id}, user)
         if isinstance(res, dict) and res.get('error'):
-            raise ValueError(f"{app_id} : {res['error']}")
+            raise ValueError(f"{app_id} : {_error_text(res)}")
 
     def poll(user, item_id):
         from wama.common.utils.detail_registry import DetailRegistry
@@ -219,6 +217,6 @@ def build_generic_runner(app_id):
         'start': start,
         'poll': poll,
         'output_type': conf.get('output_type', 'auto'),
-        'params_spec': _node_params_spec(conf),
+        'params_spec': _node_params_spec(app_id, conf),
         'generic': True,
     }

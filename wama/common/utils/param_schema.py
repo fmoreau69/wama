@@ -192,3 +192,74 @@ def coerce_params(schema, data, caps=None):
             val = min(float(hi), val)
         out[name] = val
     return out
+
+
+# ── Accès au schéma d'une app (accesseur UNIQUE, facette F3) ─────────────────
+def schema_for_app(app_id: str) -> List[dict]:
+    """
+    Schéma de params d'une app, résolu depuis le REGISTRE (`wama/<app>/params.py`).
+
+    Accesseur UNIQUE de la facette F3 — pendant de `app_capabilities()` (F2 capacités) et de
+    `studio_node_ports()` (F2 ports). Consommateurs : runner studio, surface outils
+    (`tool_api.sanitize_tool_args`). Évite que chaque consommateur recopie la résolution.
+
+    Résolution : pointeur DÉCLARATIF `GENERIC_APPS[app_id]` (`params_module`/`params_attr`),
+    sinon convention `wama.<app_id>.params.PARAMS_JSON`. Aucun nom de module en dur.
+
+    Retourne [] si l'app n'en déclare pas — l'appelant ne doit pas s'en trouver bloqué.
+
+    ⚠ Une app à plusieurs domaines (imager image/vidéo, enhancer média/audio) n'expose ici que
+    son attribut PRINCIPAL : c'est ce que `params_attr` déclare aujourd'hui, pas une limite de
+    cette fonction. Le jour où le pointeur devient multiple, il ne bouge qu'ICI.
+    """
+    import importlib
+    module_name = attr = None
+    try:
+        from wama.studio.services.generic_runner import GENERIC_APPS
+        conf = GENERIC_APPS.get(app_id) or {}
+        module_name, attr = conf.get('params_module'), conf.get('params_attr')
+    except Exception:
+        pass
+    if not module_name:
+        module_name, attr = f'wama.{app_id}.params', 'PARAMS_JSON'
+    try:
+        return list(getattr(importlib.import_module(module_name), attr, []) or [])
+    except Exception:
+        return []
+
+
+_TRUTHY = ('1', 'true', 'on', 'oui', 'yes')
+
+
+def coerce_schema_values(schema, data, only_present: bool = True) -> dict:
+    """
+    Coercition COMPLÈTE d'un mapping selon le schéma : types (booléens) + bornes (numériques).
+
+    COMPLÈTE `coerce_params()` sans la ré-implémenter : les bornes restent calculées par elle
+    (la « borne unique » du schéma), on n'ajoute ici que le typage des toggles et le passage
+    des autres champs. Remplace le `_coerce()` local du runner studio, qui convertissait les
+    types SANS appliquer les bornes — le studio échappait donc au clamp serveur.
+
+    only_present=True (défaut) : ne retourne QUE les clés réellement fournies. C'est ce qu'il
+    faut pour un appel d'outil, où une clé absente doit laisser jouer le défaut de la fonction
+    Python — à l'inverse d'un POST de formulaire, où `coerce_params` réinjecte le défaut du
+    schéma pour tous les numériques.
+    """
+    get = data.get if hasattr(data, 'get') else (lambda k, d=None: d)
+    numeric = coerce_params(schema, data)
+    out = {}
+    for p in schema:
+        name, ptype = _pget(p, 'name'), _pget(p, 'type')
+        raw = get(name)
+        if only_present and raw is None:
+            continue
+        if ptype in ('range', 'number'):
+            val = numeric.get(name)
+            if val is not None and float(val).is_integer():
+                val = int(val)          # 3.0 → 3 : les champs entiers n'aiment pas les floats
+            out[name] = val
+        elif ptype == 'toggle':
+            out[name] = raw if isinstance(raw, bool) else str(raw).strip().lower() in _TRUTHY
+        else:
+            out[name] = raw
+    return out

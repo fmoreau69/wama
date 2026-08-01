@@ -2420,6 +2420,63 @@ TOOL_DESCRIPTIONS = {
 }
 
 
+def _tool_signature(fn):
+    import inspect
+    try:
+        return inspect.signature(fn)
+    except (TypeError, ValueError):
+        return None
+
+
+def primary_arg_name(tool_name: str):
+    """
+    Nom du 1er paramètre « utile » d'un outil (celui qui suit `user`), ou None.
+
+    Permet d'appeler la triade PAR NOM sans connaître la convention de chaque app
+    (`media_id`, `transcript_id`, `generation_id`…) : le nom est DÉRIVÉ de la signature,
+    jamais déclaré en dur quelque part.
+    """
+    fn = TOOL_REGISTRY.get(tool_name)
+    sig = _tool_signature(fn) if fn else None
+    if sig is None:
+        return None
+    for name, p in sig.parameters.items():
+        if name == 'user' or p.kind in (p.VAR_POSITIONAL, p.VAR_KEYWORD):
+            continue
+        return name
+    return None
+
+
+def sanitize_tool_args(tool_name: str, args: dict):
+    """
+    Prépare les arguments d'un appel d'outil : coercition par le SCHÉMA de l'app puis
+    filtrage sur la signature réelle.
+
+    Point commun à TOUTES les surfaces (assistant IA, API REST v1, runner studio) : le même
+    appel doit se comporter à l'identique partout. Avant, seul le studio filtrait et coerçait
+    (chez lui) ; l'assistant et l'API passaient les arguments bruts et récoltaient un
+    `TypeError` sur un argument inconnu ou une valeur de type texte.
+
+    Un outil qui accepte `**kwargs` (les alias normalisés) n'est PAS filtré : il transmet.
+
+    Retourne (kwargs_propres, noms_ignorés).
+    """
+    from wama.accounts.permissions import app_id_for_tool
+    from wama.common.utils.param_schema import schema_for_app, coerce_schema_values
+
+    args = dict(args or {})
+    app_id = app_id_for_tool(tool_name)
+    schema = schema_for_app(app_id) if app_id else []
+    merged = {**args, **coerce_schema_values(schema, args)}
+
+    fn = TOOL_REGISTRY.get(tool_name)
+    sig = _tool_signature(fn) if fn else None
+    if sig is None or any(p.kind == p.VAR_KEYWORD for p in sig.parameters.values()):
+        return merged, []
+    keep = {k: v for k, v in merged.items() if k in sig.parameters and k != 'user'}
+    return keep, sorted(set(merged) - set(keep))
+
+
 def execute_tool(tool_name: str, args: dict, user) -> dict:
     """
     Dispatch a tool call from the agentic loop.
@@ -2448,10 +2505,16 @@ def execute_tool(tool_name: str, args: dict, user) -> dict:
                 'detail': f"Accès non autorisé à l'application « {app_id} »."}
 
     try:
-        # Tools that don't take a user argument
-        if tool_name == 'sam3_examples':
-            return fn()
-        return fn(user=user, **args)
+        # Filtre + coercition (mêmes règles pour l'assistant, l'API et le studio).
+        clean, ignored = sanitize_tool_args(tool_name, args)
+        if ignored:
+            logger.info(f"[tool_api] {tool_name} : arguments hors signature ignorés : {ignored}")
+        # `user` n'est passé que si l'outil le déclare — remplace le cas spécial
+        # `if tool_name == 'sam3_examples'` codé en dur : la signature le dit déjà.
+        sig = _tool_signature(fn)
+        if sig is not None and 'user' in sig.parameters:
+            clean['user'] = user
+        return fn(**clean)
     except TypeError as e:
         return {'error': f"Mauvais arguments pour '{tool_name}' : {e}"}
     except Exception as e:
