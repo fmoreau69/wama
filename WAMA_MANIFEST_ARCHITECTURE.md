@@ -235,6 +235,41 @@ la surface des registres.**
 
 ---
 
+## 6bis. Round-trip OUTILLÉ — `manage.py manifest_roundtrip` (2026-08-02, `c8d0c2a`)
+
+> L'état de la régénération se jugeait jusqu'ici sur des `.md`, qui **surestiment**. Les briques
+> (`extract`/`validate`/`verify`/`project`/`facet_report`/`studio_redundancy`) existaient
+> séparément ; **aucune commande ne les reliait**. C'est fait, et ça ne modifie rien
+> (`project(apply=False)`).
+
+```
+python manage.py manifest_roundtrip transcriber          # détail d'une app
+python manage.py manifest_roundtrip --all                # tableau des 10 apps
+python manage.py manifest_roundtrip transcriber --json   # sortie machine
+```
+
+**Mesure au 2026-08-02 — aucune app n'est régénérable, et l'écart est identique partout :**
+
+| | Transcriber |
+|---|---|
+| Facettes extraites | **12** |
+| Fidélité `extract → verify` | ✅ **aucun écart** (l'extraction est déterministe) |
+| Validation | ✅ OK |
+| Réellement projetable | **1 / 11** — `access` seule |
+| Code-gen requis | **10** |
+| Absente | `prompts` (transcriber ne déclare pas de `PROMPT_TARGETS`) |
+
+**Les 10 cibles de code-gen à écrire** (c'est LA liste de travail de l'app_gen) :
+`identity`/`capabilities`/`ports`/`modes` → `app_registry.py` + `app_modes.py` · `params` →
+`<app>/params.py` · `inspector` → `apps.py` · `models` → `<app>/models.py` · `processing` →
+`models.py` + `tasks.py` · `tool_api` → `tool_api.py` · `studio` → `generic_runner.py`.
+
+**Lecture** : le préalable est ACQUIS (extraction fidèle et validée sur les 12 facettes) ; ce qui
+manque est uniquement l'écriture. Le manifeste décrit assez ; personne ne sait encore le rendre
+en code sauf pour `access`.
+
+---
+
 ## 7. État MESURÉ de la projection + kind `library` proposé (vérifié 2026-07-30)
 
 Relevé **dans le code** (`grep` des hooks passés à `register_kind()` dans `common/manifests/builtin/`),
