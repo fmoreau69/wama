@@ -125,7 +125,7 @@ def describe_text(description, set_progress, set_partial, console):
     """
     user_id = description.user_id
     file_path = description.input_file.path
-    output_format = description.output_format
+    output_style = description.output_style
     output_language = description.output_language
     max_length = description.max_length
 
@@ -145,7 +145,7 @@ def describe_text(description, set_progress, set_partial, console):
         set_progress(description, 30)
 
         # Meeting compte-rendu: bypass BART, use LLM directly
-        if output_format == 'meeting':
+        if output_style == 'meeting':
             console(user_id, "Génération du compte-rendu de réunion (Ollama)…")
             set_partial(description, "Rédaction du compte-rendu…")
             from wama.common.utils.llm_utils import generate_meeting_summary, get_describer_model
@@ -158,7 +158,7 @@ def describe_text(description, set_progress, set_partial, console):
         # If text is short, just format it
         if word_count <= max_length:
             console(user_id, "Text is short, formatting directly...")
-            result = format_text_result(text, output_format)
+            result = format_text_result(text, output_style)
             set_partial(description, result[:500])
             return result
 
@@ -169,7 +169,7 @@ def describe_text(description, set_progress, set_partial, console):
 
         try:
             from wama.common.utils.llm_utils import generate_structured_summary, get_describer_model
-            _model = get_describer_model('text', output_format)
+            _model = get_describer_model('text', output_style)
             console(user_id, f"Modèle LLM : {_model}")
             summary_data = generate_structured_summary(
                 text, content_hint='text', language=output_language or 'fr',
@@ -177,18 +177,18 @@ def describe_text(description, set_progress, set_partial, console):
             )
             set_progress(description, 85)
 
-            if output_format == 'bullet_points' and summary_data['key_points']:
+            if output_style == 'bullet_points' and summary_data['key_points']:
                 lines = [f"- {p}" for p in summary_data['key_points']]
                 if summary_data['action_items']:
                     lines += ['', 'Actions :'] + [f"- {a}" for a in summary_data['action_items']]
                 result = '\n'.join(lines)
-            elif output_format == 'scientific':
+            elif output_style == 'scientific':
                 parts = [summary_data['summary']]
                 if summary_data['key_points']:
                     parts += ['', 'Key points:'] + [f"- {p}" for p in summary_data['key_points']]
                 body = '\n'.join(parts)
                 result = f"Summary:\n\n{body}\n\n---\nThis summary was generated automatically using AI-based text summarization."
-            elif output_format == 'detailed':
+            elif output_style == 'detailed':
                 parts = [summary_data['summary']]
                 if summary_data['key_points']:
                     parts += ['', 'Points clés :'] + [f"- {p}" for p in summary_data['key_points']]
@@ -215,11 +215,11 @@ def describe_text(description, set_progress, set_partial, console):
         raise
 
 
-def format_text_result(text: str, output_format: str) -> str:
+def format_text_result(text: str, output_style: str) -> str:
     """Format the summary based on output format."""
     text = text.strip()
 
-    if output_format == 'bullet_points':
+    if output_style == 'bullet_points':
         # Split into sentences and format as bullets
         import re
         sentences = re.split(r'(?<=[.!?])\s+', text)
@@ -232,10 +232,10 @@ def format_text_result(text: str, output_format: str) -> str:
                 bullets.append(f"- {s}")
         return '\n'.join(bullets)
 
-    elif output_format == 'scientific':
+    elif output_style == 'scientific':
         return f"Summary:\n\n{text}\n\n---\nThis summary was generated automatically using AI-based text summarization."
 
-    elif output_format == 'summary':
+    elif output_style == 'summary':
         # Keep it concise
         if len(text) > 500:
             text = text[:497] + '...'

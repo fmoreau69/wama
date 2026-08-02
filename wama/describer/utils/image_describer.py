@@ -195,9 +195,9 @@ def _is_multilingual_vision(model: Optional[str]) -> bool:
     return m.startswith('gemma4') or 'qwen' in m  # moondream = anglophone
 
 
-def _vision_prompt(output_format: str, output_language: str, model: Optional[str]) -> str:
+def _vision_prompt(output_style: str, output_language: str, model: Optional[str]) -> str:
     """Prompt vision dans output_language si le modèle est multilingue, sinon EN (reformaté en aval)."""
-    spec = _VISION_PROMPTS.get(output_format, _VISION_PROMPTS['brief'])
+    spec = _VISION_PROMPTS.get(output_style, _VISION_PROMPTS['brief'])
     lang = output_language if (_is_multilingual_vision(model) and output_language in spec) else 'en'
     return spec[lang]
 
@@ -217,13 +217,13 @@ def describe_image(description, set_progress, set_partial, console):
     """
     user_id = description.user_id
     file_path = description.input_file.path
-    output_format = description.output_format
+    output_style = description.output_style
     output_language = description.output_language
     max_length = description.max_length
 
     # Meeting format not applicable to images — silently use detailed
-    if output_format == 'meeting':
-        output_format = 'detailed'
+    if output_style == 'meeting':
+        output_style = 'detailed'
 
     console(user_id, "Chargement de l'image…")
     set_progress(description, 20)
@@ -243,7 +243,7 @@ def describe_image(description, set_progress, set_partial, console):
         # Graine §10.B : prompter direct dans la langue de sortie si le modèle est multilingue
         # (gemma4/qwen), au lieu de la chaîne « caption EN → reformatage FR » en aval.
         ollama_model = _best_ollama_vision_model()
-        moondream_prompt = _vision_prompt(output_format, output_language, ollama_model)
+        moondream_prompt = _vision_prompt(output_style, output_language, ollama_model)
         caption = None
         if ollama_model:
             console(user_id, f"Essai {ollama_model} (Ollama)…")
@@ -268,9 +268,9 @@ def describe_image(description, set_progress, set_partial, console):
             device = str(next(model.parameters()).device)
 
             # Conditional captioning prefix
-            if output_format == 'detailed':
+            if output_style == 'detailed':
                 blip_text = "a photograph of"
-            elif output_format == 'scientific':
+            elif output_style == 'scientific':
                 blip_text = "this image shows"
             else:
                 blip_text = None
@@ -280,7 +280,7 @@ def describe_image(description, set_progress, set_partial, console):
             else:
                 inputs = processor(image, return_tensors="pt").to(device)
 
-            max_new_tokens = min(200 if output_format in ('detailed', 'scientific') else 100, max_length)
+            max_new_tokens = min(200 if output_style in ('detailed', 'scientific') else 100, max_length)
             out = model.generate(
                 **inputs,
                 max_new_tokens=max_new_tokens,
@@ -293,7 +293,7 @@ def describe_image(description, set_progress, set_partial, console):
             set_partial(description, caption)
 
         # Post-process based on format
-        result = format_image_result(caption, output_format, output_language)
+        result = format_image_result(caption, output_style, output_language)
 
         set_progress(description, 85)
         console(user_id, "Description generated successfully")
@@ -310,7 +310,7 @@ def describe_image(description, set_progress, set_partial, console):
         raise
 
 
-def format_image_result(caption: str, output_format: str, language: str) -> str:
+def format_image_result(caption: str, output_style: str, language: str) -> str:
     """Format the caption based on output format."""
     caption = caption.strip()
 
@@ -322,15 +322,15 @@ def format_image_result(caption: str, output_format: str, language: str) -> str:
     if caption and not caption.endswith('.'):
         caption += '.'
 
-    if output_format == 'bullet_points':
+    if output_style == 'bullet_points':
         # Convert to bullet points
         sentences = caption.replace('. ', '.\n').split('\n')
         return '\n'.join(f"- {s.strip()}" for s in sentences if s.strip())
 
-    elif output_format == 'scientific':
+    elif output_style == 'scientific':
         return f"Image Analysis:\n\n{caption}\n\nNote: This description was generated automatically using computer vision."
 
-    elif output_format == 'summary':
+    elif output_style == 'summary':
         # Keep it short
         if len(caption) > 200:
             caption = caption[:197] + '...'

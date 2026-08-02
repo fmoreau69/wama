@@ -11,9 +11,9 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
-def get_describer_model(content_type: str, output_format: str) -> str:
+def get_describer_model(content_type: str, output_style: str) -> str:
     """
-    Return the Ollama model name to use for a given (content_type, output_format) pair.
+    Return the Ollama model name to use for a given (content_type, output_style) pair.
 
     Tier routing (configured via settings.DESCRIBER_LLM_MODELS):
       image   → multimodal vision model (moondream)
@@ -29,9 +29,9 @@ def get_describer_model(content_type: str, output_format: str) -> str:
 
     if content_type == 'image':
         return models.get('image', 'moondream')
-    if output_format in ('meeting', 'scientific'):
+    if output_style in ('meeting', 'scientific'):
         return models.get('heavy', default)
-    if output_format in ('summary', 'bullet_points'):
+    if output_style in ('summary', 'bullet_points'):
         return models.get('fast', default)
     return default
 
