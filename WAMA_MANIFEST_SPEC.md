@@ -337,8 +337,18 @@ que le catalogue n'a pas. Autre facette, pas redondance.
    Semée : `faster-whisper` (l'exemple du §7.3). Probe de composition : un manifeste d'app
    avec `{"kind": "library", "key": "faster-whisper"}` valide et se résout ; la même référence
    était refusée avant la création du kind.
-4. Alors seulement : rôle wama-dev-ai « projet GitHub → manifeste `library` », avec le corpus en
-   exemples.
+4. 🔄 **PILOTE LIVRÉ (2026-08-02)** — rôle « librarian » (`wama-dev-ai/prompts/librarian.txt` +
+   `run_librarian.py`) : one-shot borné (pas de boucle agentique), corpus en exemples, sortie
+   validée MÉCANIQUEMENT (`ingest.validate`) et diffée contre `extract_library` quand la lib est
+   installée ; écrit en `outputs/` avec `PENDING_HUMAN_VALIDATION`, n'ingère jamais.
+   Mesuré : mode `--dist` (métadonnées installées) → manifeste **valide, accord total** avec
+   l'extraction mécanique (qwen3.5:9b) ; mode `--repo` (GitHub : pyproject+README) → valide
+   structurellement, **`null` honnêtes** là où les sources ne prouvent pas (version dynamique
+   lue depuis `version.py`, licence dans un fichier non fourni) — zéro invention, la règle
+   « null plutôt que plausible » tient. Récolte élargie (requirements/LICENSE d'abord, README
+   tronqué en dernier) codée mais non re-testée (session interrompue par le crash hôte du
+   2026-08-02 18:09). Reste : passe de revue humaine des sorties, puis semis au corpus des
+   libraries validées.
 
 **État courant du corpus** (couche factuelle auto-générée, ROADMAP §16.9 ①) :
 
