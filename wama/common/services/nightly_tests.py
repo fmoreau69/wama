@@ -43,7 +43,10 @@ TEST_USERNAME = "wama_nightly_test"
 # Étapes cibles d'un scénario, du plus léger au plus complet.
 # `ui` est à part : ~2 s par app, aucun GPU — à ne pas noyer dans la série lourde à teardown
 # VRAM (`python manage.py run_nightly_tests --stage ui` doit rester quasi instantané).
-STAGES = ("wired", "ui", "model_loaded", "output")
+# `consistency` est à part aussi : contrôles DÉCLARATIFS (docs↔code, corpus de manifestes,
+# faits générés, redondances) — CPU pur, aucun média. Le runner nocturne est le SEUL
+# ordonnanceur de ces contrôles : ne pas leur créer de cron concurrent (§16.9).
+STAGES = ("wired", "ui", "consistency", "model_loaded", "output")
 
 
 class SkipScenario(Exception):

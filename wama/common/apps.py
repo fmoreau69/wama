@@ -11,6 +11,14 @@ class CommonConfig(AppConfig):
         # couverts par le signal `worker_process_init` (wama/celery.py) et le
         # service TTS par son `startup`. Idempotent — un process déjà configuré
         # ne refait rien. Point d'entrée unique : common/services/resource_governor.py
+        # Scénarios nocturnes `consistency` (AVANT le guard RUN_MAIN, comme l'enhancer :
+        # ils doivent exister aussi pour les management commands, run_nightly_tests inclus).
+        try:
+            from .nightly_scenarios import register_scenarios
+            register_scenarios()
+        except Exception:
+            pass
+
         try:
             from wama.common.services.resource_governor import configure_cuda_process
             configure_cuda_process()
