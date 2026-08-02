@@ -1604,7 +1604,7 @@ déjà formellement chaque entité. Les deux outils sont donc des **CONSOMMATEUR
 existante `manifeste → ingest → registres → mécanismes`, pas de nouvelles sources. C'est ce qui
 les empêche de devenir eux-mêmes des mécanismes concurrents.
 
-#### ① Générateur de documentation — n'existe pas
+#### ① Générateur de documentation — ✅ LIVRÉ le 2026-08-03 (`manage.py doc_facts`)
 
 Frontière **impérative** (sans elle, l'outil détruit la valeur des docs) :
 
@@ -1619,6 +1619,16 @@ cf. règle « un domaine = un fichier »), régénérés par commande, avec `--c
 périmé — même contrat que `manifest_export --check`.
 **Motivation directe** : les chiffres recopiés à la main périment ET sont inventables. Constaté
 le 2026-08-02 — « 42 » puis « 31/42 » annoncés par déduction ; le vrai chiffre était **91/91**.
+
+**Livré (2026-08-03)** : `wama/common/management/commands/doc_facts.py` — 3 faits v1, chacun
+dans SON doc de référence : `outils` → `WAMA_APP_GENERATION_ROUTE.md` (registre, décrits, args
+documentés) ; `modeles` → `WAMA_MANIFEST_SPEC.md` (corpus, références résolues contre
+`AIModel.model_key`) ; `roundtrip` → `WAMA_MANIFEST_ARCHITECTURE.md` (tableau des 10 apps via
+`manifest_roundtrip._roundtrip`, consommé, pas recalculé). Marqueurs
+`<!-- WAMA:FAITS(id) -->…<!-- /WAMA:FAITS(id) -->`, `--check` = sortie 1 si périmé, `--only <id>`.
+Preuve immédiate de l'utilité : la première génération a mesuré **165 arguments documentés** là
+où la prose du 02/08 en recopiait 157 (les 4 params converter avaient déjà déplacé le réel).
+Ajouter un fait = une fonction + une entrée dans `FAITS` + poser les marqueurs dans le doc.
 
 #### ② Vérificateur de consistance — ✅ LIVRÉ le 2026-08-03 (`manage.py check_redundancy`)
 

@@ -326,3 +326,10 @@ que le catalogue n'a pas. Autre facette, pas redondance.
 3. Créer le kind `library` (extraction depuis `requirements.txt` / dépôt) + l'ajouter au corpus.
 4. Alors seulement : rôle wama-dev-ai « projet GitHub → manifeste `library` », avec le corpus en
    exemples.
+
+**État courant du corpus** (couche factuelle auto-générée, ROADMAP §16.9 ①) :
+
+<!-- WAMA:FAITS(modeles) — généré par « python manage.py doc_facts », ne pas éditer -->
+- Manifestes du corpus (`manifests/apps/`) : **10**
+- Références de modèles (`body.models.catalog_keys`) : **91/91 résolvables** contre le catalogue `AIModel.model_key`
+<!-- /WAMA:FAITS(modeles) -->

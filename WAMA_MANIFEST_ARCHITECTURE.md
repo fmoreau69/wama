@@ -311,6 +311,23 @@ python manage.py manifest_roundtrip transcriber --json   # sortie machine
 manque est uniquement l'écriture. Le manifeste décrit assez ; personne ne sait encore le rendre
 en code sauf pour `access`.
 
+**État courant des 10 apps** (couche factuelle auto-générée, §16.9 ①) :
+
+<!-- WAMA:FAITS(roundtrip) — généré par « python manage.py doc_facts », ne pas éditer -->
+| App | Facettes | Projetables | Fidélité | Validation |
+|---|---|---|---|---|
+| anonymizer | 13 | 1/12 | ✅ aucun écart | ✅ OK |
+| avatarizer | 12 | 1/11 | ✅ aucun écart | ✅ OK |
+| composer | 12 | 1/11 | ✅ aucun écart | ✅ OK |
+| converter | 10 | 1/9 | ✅ aucun écart | ✅ OK |
+| describer | 11 | 1/10 | ✅ aucun écart | ✅ OK |
+| enhancer | 12 | 1/11 | ✅ aucun écart | ✅ OK |
+| imager | 13 | 1/12 | ✅ aucun écart | ✅ OK |
+| reader | 11 | 1/10 | ✅ aucun écart | ✅ OK |
+| synthesizer | 12 | 1/11 | ✅ aucun écart | ✅ OK |
+| transcriber | 12 | 1/11 | ✅ aucun écart | ✅ OK |
+<!-- /WAMA:FAITS(roundtrip) -->
+
 ---
 
 ## 7. État MESURÉ de la projection + kind `library` proposé (vérifié 2026-07-30)
