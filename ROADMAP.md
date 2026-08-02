@@ -1620,7 +1620,7 @@ périmé — même contrat que `manifest_export --check`.
 **Motivation directe** : les chiffres recopiés à la main périment ET sont inventables. Constaté
 le 2026-08-02 — « 42 » puis « 31/42 » annoncés par déduction ; le vrai chiffre était **91/91**.
 
-#### ② Vérificateur de consistance — moitié fait
+#### ② Vérificateur de consistance — ✅ LIVRÉ le 2026-08-03 (`manage.py check_redundancy`)
 
 `check_app_conformity` (74 critères, F1–F8) couvre l'**ADOPTION** : cette app utilise-t-elle la
 brique commune ? Il ne couvre PAS la **REDONDANCE** : une copie locale subsiste-t-elle À CÔTÉ de
@@ -1639,6 +1639,20 @@ forme — *une implémentation locale vivant à côté d'un domicile unique déc
 **Corpus d'acceptation** : ces 6 cas sont le jeu de test du détecteur. Il doit tous les retrouver
 sur le code d'avant leurs correctifs. **Ne pas écrire le détecteur sans cette validation** — un
 contrôle qui rate sa propre classe d'erreurs installe une fausse confiance, ce qui est pire.
+
+**Livré (2026-08-03)** : `wama/common/management/commands/check_redundancy.py` — 3 classes :
+A vocabulaire recopié (collections littérales ∩ noms de params / choices / TOOL_REGISTRY),
+B bornes divergentes (clamp `max(a, min(b, x))` vs min/max du schéma), C brique doublée
+(def privé en relation de préfixe avec une brique publique de `common/utils|services`, hors
+modules qui la référencent déjà = adoptants ; + rechargement local du schéma via
+`import_module`). Consommateur des registres LIVE (`APP_CATALOG`, `schema_for_app`,
+`TOOL_REGISTRY`) — aucun vocabulaire recopié dans l'outil. **Acceptation : 6/6 retrouvés**
+sur l'arbre pré-correctif reconstruit par `git show <commit>^:<fichier>` (+ 10 bonus réels,
+dont les blocs par-app de `TOOL_DESCRIPTIONS` et `_ENHANCER_VALID_MODELS`).
+Photo de l'arbre courant au 2026-08-03 : **73 trouvailles (58 A / 0 B / 15 C)** — backlog de
+triage, PAS un score : contient les dettes documentées (copie 14 clés `converter/views.py:229`)
+et des familles ×3 apps à instruire (`_derive`, `_enrich`, `_probe`). Lancer depuis Windows
+(`./venv_win/Scripts/python.exe`), comme `check_docs`.
 
 **Déjà en place à réutiliser** : `check_app_conformity` (adoption), `check_docs` (intégrité
 doc→code, 217 références), `manifest_roundtrip` (fidélité + round-trip ports), `manifest_export
