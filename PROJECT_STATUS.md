@@ -2455,3 +2455,13 @@ assumés par pragma `# wama:redondance-ok — <raison>` ; les 5 trouvailles rest
 port anonymizer, laissées VISIBLES exprès. ⚠ Leçon re-vécue : un worker Celery solo n'importe le
 code qu'une fois — redémarrer après édition d'un backend (le 1er gif « SUCCESS » tournait sur
 l'ancien code).
+
+**Addendum 03/08 soir — crash hôte 18:09 + rôle librarian livré.**
+Crash hôte pendant le 3ᵉ pilote du rôle wama-dev-ai « librarian » : 1er crash INSTRUMENTÉ —
+signature FREEZE (hwlog : VRAM 13,4 Go → 60 Mo à 18:09:42, lignes horaires jusqu'au reboot
+21:48, cap 320 W actif, 20-70 W au décrochage) ≠ coupure froide du 31/07. Analyse dans la
+mémoire d'enquête ; règle élargie : pas d'enchaînements de chargements Ollama hôte par Claude.
+Le rôle « librarian » (§7.4-4) est LIVRÉ en pilote : --dist = accord total avec l'extraction
+mécanique ; --repo = null honnêtes, zéro invention ; sorties PENDING_HUMAN_VALIDATION dans
+`wama-dev-ai/outputs/` (2 à relire). Pile relancée post-reboot : gunicorn + 3 workers
+(gpu/default/studio) + beat, vérifiés.
