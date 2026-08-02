@@ -2430,6 +2430,19 @@ def execute_tool(tool_name: str, args: dict, user) -> dict:
         clean, ignored = sanitize_tool_args(tool_name, args)
         if ignored:
             logger.info(f"[tool_api] {tool_name} : arguments hors signature ignorés : {ignored}")
+        # Bornes de CHOIX du schéma — pendant des bornes numériques de la coercition, au
+        # point d'exécution UNIQUE : les selects des 43 outils sont bornés ici, sans
+        # validation recopiée par app (les listes en dur divergeaient : styles describer,
+        # modèles enhancer). None/'' passent (défaut) ; l'erreur nomme les valeurs valides.
+        app_id = app_id_for_tool(tool_name)
+        if app_id:
+            from wama.common.utils.param_schema import invalid_choice_values, schema_for_app
+            bad = invalid_choice_values(schema_for_app(app_id), clean)
+            if bad:
+                detail = ' ; '.join(
+                    f"{k}={', '.join(map(repr, refusees))} (valides : {', '.join(valides)})"
+                    for k, (refusees, valides) in sorted(bad.items()))
+                return {'error': f"Valeur hors schéma pour '{tool_name}' : {detail}"}
         # `user` n'est passé que si l'outil le déclare — remplace le cas spécial
         # `if tool_name == 'sam3_examples'` codé en dur : la signature le dit déjà.
         sig = _tool_signature(fn)

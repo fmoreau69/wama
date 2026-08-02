@@ -279,6 +279,30 @@ def schema_arg_names(app_id: str) -> set:
     return {_pget(p, 'name') for p in schema_for_app(app_id)}
 
 
+def invalid_choice_values(schema, data) -> dict:
+    """{nom: (valeurs_refusées, choices_valides_triés)} pour chaque valeur PRÉSENTE hors
+    des `choices` déclarés du schéma.
+
+    Pendant de `coerce_params` pour les selects : la coercition borne les nombres, ceci
+    borne les énumérations — au point d'exécution unique (`execute_tool`), pour que les
+    43 outils soient couverts sans validation recopiée par app. `None` et `''` passent
+    toujours (absence / « défaut ») ; les listes sont validées élément par élément."""
+    out = {}
+    for p in schema:
+        name, choices = _pget(p, 'name'), _pget(p, 'choices')
+        if not choices or name not in data:
+            continue
+        valides = {str(c[0]) if isinstance(c, (list, tuple)) else str(c) for c in choices}
+        v = data[name]
+        if v is None or v == '':
+            continue
+        elems = v if isinstance(v, (list, tuple)) else [v]
+        refusees = [x for x in elems if str(x) not in valides]
+        if refusees:
+            out[name] = (refusees, sorted(x for x in valides if x))
+    return out
+
+
 def schema_choice_values(app_id, name) -> set:
     """Valeurs valides d'un param à `choices`, DÉRIVÉES du schéma — jamais recopiées.
 
