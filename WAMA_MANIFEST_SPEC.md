@@ -195,7 +195,13 @@ body:                                   # (sous l'enveloppe commune)
   # F6 PROMPTS / IA        [PROMPT_TARGETS + prompt_skills + tool_api]
   prompts: {targets:[{field,kind,model_field,source,default_model_type,enrich,domain_field,reference_field}],
             skills:["<app>-<domain>.md"]}
-  tool_api: {add, start, status, descriptions:{...}}           # TOOL_REGISTRY/DESCRIPTIONS
+  tool_api: {add, start, status, descriptions:{...}}           # TOOL_REGISTRY + tool_descriptions()
+  # ⚠ 2026-08-02 : `descriptions` venait de TOOL_DESCRIPTIONS (dict manuel de mars 2026), que
+  # cette ligne a figé comme source. Il est SUPPRIMÉ : `tool_api.tool_descriptions()` les DÉRIVE
+  # (APP_CATALOG + docstring + schéma `params.py` + signature). Même source unique que F3 —
+  # l'alignement de F3 avait été fait à la création du manifeste (2026-07-21), pas celui de F6.
+  # `_tool_api()` importe encore `TOOL_DESCRIPTIONS` : un `__getattr__` de module lui rend la
+  # version dérivée. **Passer l'appel à `tool_descriptions()` et retirer la béquille.**
 
   # F7 PERMISSIONS & SCOPE [accounts/permissions.py AppAccessPolicy + ScopedVisibility]
   access: {roles:[...], public: bool, min_tier: null}
