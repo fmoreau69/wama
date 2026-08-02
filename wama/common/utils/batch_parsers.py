@@ -308,6 +308,14 @@ def _parse_composer_lines(
     warnings: List[str] = []
     valid_models = set(COMPOSER_MODELS.keys())
 
+    # Bornes de durée : DÉCLARÉES au schéma, pas recopiées ici. La version précédente clampait
+    # à 1–30 s alors que le schéma dit 10–600 s : un import batch à 120 s (valeur pourtant
+    # réglable dans l'UI) était silencieusement ramené à 30 s, avec un avertissement faux.
+    from wama.common.utils.param_schema import schema_for_app
+    _dur = next((p for p in schema_for_app('composer') if p['name'] == 'duration'), {}) or {}
+    dur_min = float(_dur.get('min') if _dur.get('min') is not None else 1.0)
+    dur_max = float(_dur.get('max') if _dur.get('max') is not None else 600.0)
+
     for line_num, line in enumerate(text.splitlines(), start=1):
         line = line.strip()
         if not line or line.startswith('#'):
@@ -351,11 +359,12 @@ def _parse_composer_lines(
         if len(parts) > 3 and parts[3]:
             try:
                 duration = float(parts[3])
-                if not (1.0 <= duration <= 30.0):
+                if not (dur_min <= duration <= dur_max):
                     warnings.append(
-                        f"Ligne {line_num} : durée {duration}s hors limites (1–30s), ajustée"
+                        f"Ligne {line_num} : durée {duration}s hors limites "
+                        f"({dur_min:g}–{dur_max:g}s), ajustée"
                     )
-                    duration = max(1.0, min(30.0, duration))
+                    duration = max(dur_min, min(dur_max, duration))
             except ValueError:
                 warnings.append(
                     f"Ligne {line_num} : durée invalide '{parts[3]}', "
