@@ -1,6 +1,17 @@
+"""
+Forms LEGACY de l'anonymizer — en sursis (palier 2 du port : modales `WamaParams`
+rendues depuis le schéma, ces ModelForms disparaîtront avec elles).
+
+D'ici là, UNE règle : plus aucune borne recopiée. Les min/max/step des sliders sont
+DÉRIVÉS de `params.py` (schema_for_app) — les copies locales avaient déjà divergé
+(blur_ratio 1–49/2 ici contre 1–100/1 au schéma, roi_enlargement 0.5–1.5 contre
+1.0–2.0 : un ROI < 1 rétrécit la zone floutée sous la détection). Le backend
+normalise les noyaux (`normalize_blur_ratio`) : les steps impairs n'ont plus lieu d'être.
+"""
 from django import forms
 from django.forms import CheckboxSelectMultiple, HiddenInput, TextInput, Select
-from .models import Media, GlobalSettings, UserSettings
+
+from .models import Media, UserSettings
 from wama.anonymizer.utils.yolo_utils import get_all_class_choices, get_model_choices_grouped
 
 
@@ -23,36 +34,14 @@ class SwitchWidget(TextInput):
         self.attrs["oninput"] = "this.nextElementSibling.value = setting.value"
 
 
-# class CustomWidget(RangeWidget):
-#     template_name = 'medias/upload/setting_button.html'
-#
-#     def __init__(self, name, min, max, step, *args, **kwargs):
-#         super(CustomWidget, self).__init__(*args, **kwargs)
-#         self.attrs["name"] = name
-#         self.attrs["min"] = min
-#         self.attrs["max"] = max
-#         self.attrs["step"] = step
-#         self.attrs["oninput"] = "this.nextElementSibling.value = setting.value"
-#         dir(self)
-#
-#     def render(self, name, value, attrs=None, renderer=None):
-#         if value is None:
-#             value = 0
-#         context = {
-#             'name': name,
-#             'value': value,
-#             'min': self.attrs["min"],
-#             'max': self.attrs["max"],
-#             'step': self.attrs["step"]
-#         }
-#         return render_to_string(self.template_name, context)
-
-
-class MediaForm(forms.ModelForm):
-    class Meta:
-        model = Media
-        fields = ('file', )
-        widgets = {'classes2blur': CheckboxSelectMultiple}
+def _range_widgets():
+    """Sliders aux bornes du SCHÉMA (domicile unique, params.py) — jamais recopiées ici."""
+    from wama.common.utils.param_schema import schema_for_app
+    return {
+        p["name"]: RangeWidget(min=p["min"], max=p["max"], step=p.get("step") or 1)
+        for p in schema_for_app("anonymizer")
+        if p.get("type") == "range" and p.get("min") is not None
+    }
 
 
 class MediaSettingsForm(forms.ModelForm):
@@ -69,26 +58,16 @@ class MediaSettingsForm(forms.ModelForm):
 
     class Meta:
         model = Media
-        fields = ('id', 'blur_ratio', 'roi_enlargement', 'progressive_blur',
-                  'detection_threshold', 'classes2blur', 'precision_level')
+        # Sous-ensemble édité par CETTE modale (déclaration à la app_modes) ;
+        # meurt au palier 2 avec le form (modale WamaParams).
+        fields = (  # wama:redondance-ok — sous-ensemble déclaré du form
+            'id', 'blur_ratio', 'roi_enlargement', 'progressive_blur',
+            'detection_threshold', 'classes2blur', 'precision_level')
         widgets = {
             'id': HiddenInput,
-            'blur_ratio': RangeWidget(min=1, max=49, step=2),
-            'roi_enlargement': RangeWidget(min=0.5, max=1.5, step=.05),
-            'progressive_blur': RangeWidget(min=3, max=31, step=2),
-            'detection_threshold': RangeWidget(min=0, max=1, step=.05),
-            'precision_level': RangeWidget(min=0, max=100, step=5),
             'classes2blur': CheckboxSelectMultiple,
+            **_range_widgets(),
         }
-
-
-class GlobalSettingsForm(forms.ModelForm):
-    class Meta:
-        model = GlobalSettings
-        fields = "__all__"
-
-    def __init__(self, *args, **kwargs):
-        super(GlobalSettingsForm, self).__init__(*args, **kwargs)
 
 
 class UserSettingsForm(forms.ModelForm):
@@ -108,25 +87,27 @@ class UserSettingsForm(forms.ModelForm):
 
     class Meta:
         model = UserSettings
-        fields = ('id', 'blur_ratio', 'roi_enlargement', 'progressive_blur', 'detection_threshold',
-                  'show_preview', 'show_boxes', 'show_labels', 'show_conf', 'classes2blur', 'model_to_use', 'precision_level')
+        # Sous-ensemble édité par CE panneau (déclaration à la app_modes) ;
+        # meurt au palier 2 avec le form (modale WamaParams).
+        fields = (  # wama:redondance-ok — sous-ensemble déclaré du form
+            'id', 'blur_ratio', 'roi_enlargement', 'progressive_blur', 'detection_threshold',
+            'show_preview', 'show_boxes', 'show_labels', 'show_conf', 'classes2blur',
+            'model_to_use', 'precision_level')
         widgets = {
             'id': HiddenInput,
-            'blur_ratio': RangeWidget(min=1, max=49, step=2),
-            'roi_enlargement': RangeWidget(min=0.5, max=1.5, step=.05),
-            'progressive_blur': RangeWidget(min=3, max=31, step=2),
-            'detection_threshold': RangeWidget(min=0, max=1, step=.05),
-            'precision_level': RangeWidget(min=0, max=100, step=5),
             'show_preview': SwitchWidget(),
             'show_boxes': SwitchWidget(),
             'show_labels': SwitchWidget(),
             'show_conf': SwitchWidget(),
             'classes2blur': CheckboxSelectMultiple,
             'model_to_use': Select(),
+            **_range_widgets(),
         }
 
 
 class UserSettingsEdit(forms.ModelForm):
+    """Consommé par accounts/views.py (page profil) — pas par l'app elle-même."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['classes2blur'].choices = get_all_class_choices()

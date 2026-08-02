@@ -18,7 +18,7 @@ from io import StringIO
 from wama.common.services.nightly_tests import register
 
 CASSE_ASSUMES = 3        # contrat REPRISE §3a (cibles à créer)
-REDONDANCES_ASSUMEES = 5  # contrat ROADMAP §16.9 ② (dette du port anonymizer)
+REDONDANCES_ASSUMEES = 0  # dette anonymizer résorbée au palier 1 du port (03/08) — toute trouvaille = nouvelle recopie
 
 
 def _capture(cmd, *args, **opts):

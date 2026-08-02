@@ -1677,6 +1677,8 @@ pré-schéma), laissées VISIBLES exprès. Le triage a produit :
   `# wama:redondance-ok — <raison>`** pour assumer explicitement un câblage déclaratif
   (mappings langue→voix, contrats de réglages utilisateur…) — jamais sans raison.
 Lancer depuis Windows (`./venv_win/Scripts/python.exe`), comme `check_docs`.
+**03/08, palier 1 du port anonymizer : les 5 dernières sont résorbées → « Aucune recopie
+détectée », seuil nocturne `REDONDANCES_ASSUMEES = 0`** (toute trouvaille = nouvelle recopie).
 
 **Déjà en place à réutiliser** : `check_app_conformity` (adoption), `check_docs` (intégrité
 doc→code, 217 références), `manifest_roundtrip` (fidélité + round-trip ports), `manifest_export

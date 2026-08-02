@@ -32,6 +32,9 @@ PARAMS = derive_from_model(
         "blur_ratio", "rounded_edges", "roi_enlargement", "progressive_blur",
         # ── Temporel (vidéo) ──
         "interpolate_detections", "max_interpolation_frames",
+        # ── Segmentation ── (consommé par save_media_settings/tasks : le schéma est la
+        # source, un champ consommé mais non déclaré y était invisible — leçon converter)
+        "use_segmentation",
         # ── Quoi afficher ──
         "show_preview", "show_boxes", "show_labels", "show_conf",
         # ── Format de sortie ──
@@ -90,6 +93,11 @@ PARAMS = derive_from_model(
             type="number", label="Frames max à interpoler", icon="fa-film",
             min=1, max=60, step=1, advanced=True,
             show_if={"field": "interpolate_detections", "equals": True},
+        ),
+        "use_segmentation": dict(
+            type="toggle", label="Segmentation fine (contours)", icon="fa-draw-polygon",
+            help="Masque au contour de l'objet plutôt qu'au rectangle détecté.",
+            advanced=True,
         ),
         "show_preview": dict(type="toggle", label="Afficher l'aperçu", icon="fa-eye", advanced=True),
         "show_boxes": dict(type="toggle", label="Afficher les boîtes", icon="fa-vector-square", advanced=True),

@@ -2465,3 +2465,16 @@ Le rôle « librarian » (§7.4-4) est LIVRÉ en pilote : --dist = accord total 
 mécanique ; --repo = null honnêtes, zéro invention ; sorties PENDING_HUMAN_VALIDATION dans
 `wama-dev-ai/outputs/` (2 à relire). Pile relancée post-reboot : gunicorn + 3 workers
 (gpu/default/studio) + beat, vérifiés.
+
+**Addendum 03/08 — port anonymizer PALIER 1 (cœur schéma-driven, F3 backend).**
+`save_media_settings` réécrit sur `coerce_schema_values` (les listes slider/bool en dur sont
+mortes) + **fix sécurité : scoping par user** (l'ancien `get(pk=…)` laissait éditer le média
+d'autrui — probe : autre user → 404, valeur intacte). `use_segmentation` déclaré au schéma
+(consommé mais invisible — leçon converter). Forms : bornes des sliders DÉRIVÉES du schéma —
+les copies locales avaient divergé (`blur_ratio` 1–49/2 vs 1–100/1, `roi_enlargement` 0.5–1.5
+vs 1.0–2.0 ; le backend normalise les noyaux, le schéma fait foi) ; `MediaForm`/
+`GlobalSettingsForm` morts supprimés ; `UserSettingsEdit` conservé (consommé par accounts).
+**check_redundancy : « Aucune recopie détectée »** — seuil nocturne à 0. Gate consistency 6/6
+(il a d'ailleurs attrapé en direct le corpus et le bloc de faits périmés par l'ajout au schéma).
+**Reste du port (paliers suivants)** : 29 rouges mesurés — modales WamaParams (les forms legacy
+meurent), card partial + toolbar + batch (F5), partage F7, prompt_skill/enrich (F6).

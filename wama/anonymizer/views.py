@@ -1387,40 +1387,32 @@ def get_media_settings(request, media_id):
 
 @require_POST
 def save_media_settings(request):
-    """Save settings for a specific media from the modal."""
+    """Réglages d'un média depuis la modale — SCHÉMA-DRIVEN (typage/bornes = params.py).
+
+    Les listes en dur slider_fields/bool_fields recopiaient les noms ET les types du
+    schéma (redondance résorbée, ROADMAP §16.9 ②) : `coerce_schema_values` fait foi.
+    Restent explicites les seuls cas à sémantique PROPRE : classes2blur (liste),
+    sam3_prompt (validation + None), model_to_use ('' = retour à l'auto/global).
+    """
     try:
         media_id = request.POST.get('media_id')
         if not media_id:
             return JsonResponse({'success': False, 'error': 'No media_id provided'}, status=400)
 
-        media = Media.objects.get(pk=media_id)
+        # Scope par UTILISATEUR : l'ancien get(pk=…) laissait éditer le média d'autrui.
+        media = Media.objects.get(pk=media_id, user=request.user)
 
         # Save classes2blur (checkboxes)
         classes2blur = request.POST.getlist('classes2blur')
         if classes2blur:
             media.classes2blur = classes2blur
 
-        # Save slider values
-        slider_fields = ['blur_ratio', 'roi_enlargement', 'progressive_blur', 'detection_threshold', 'precision_level']
-        for field in slider_fields:
-            value = request.POST.get(field)
-            if value is not None:
-                if field in ['blur_ratio', 'progressive_blur', 'precision_level']:
-                    setattr(media, field, int(float(value)))
-                else:
-                    setattr(media, field, float(value))
-
-        # Save boolean values
-        bool_fields = ['show_preview', 'show_boxes', 'show_labels', 'show_conf', 'interpolate_detections', 'use_segmentation']
-        for field in bool_fields:
-            value = request.POST.get(field)
-            if value is not None:
-                setattr(media, field, value.lower() == 'true')
-
-        # Save SAM3 settings
-        use_sam3 = request.POST.get('use_sam3')
-        if use_sam3 is not None:
-            media.use_sam3 = use_sam3.lower() == 'true'
+        from wama.common.utils.param_schema import coerce_schema_values, schema_for_app
+        valeurs = coerce_schema_values(schema_for_app('anonymizer'), request.POST)
+        for cle in ('sam3_prompt', 'model_to_use', 'classes2blur'):
+            valeurs.pop(cle, None)
+        for champ, valeur in valeurs.items():
+            setattr(media, champ, valeur)
 
         sam3_prompt = request.POST.get('sam3_prompt')
         if sam3_prompt is not None:
