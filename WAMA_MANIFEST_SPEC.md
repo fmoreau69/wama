@@ -320,9 +320,14 @@ que le catalogue n'a pas. Autre facette, pas redondance.
 
 1. ✅ **FAIT (`ad68e75`)** — `body.models.catalog_keys` porte les clés canoniques du catalogue :
    **91/91 résolvables**.
-2. Champ `requires` dans l'enveloppe + `resolve_requires()` + refus des références pendantes.
-   Aujourd'hui les références sont enfouies dans une facette : seul du code qui connaît
-   `body.models` sait les lire, donc la composition n'est pas kind-agnostique.
+2. ✅ **FAIT (2026-08-03)** — Champ `requires` dans l'enveloppe (`envelope.py`, validé en forme),
+   émis par `extract_app` depuis la facette `models` (même source, deux projections) ;
+   `ingest.resolve_requires(manifest)` → `(résolus, pendantes)`, kind-agnostique via
+   `get_kind(kind).extract(key)` ; `ingest.validate()` refuse toute référence pendante — donc
+   `manifest_export` refuse un corpus aux références cassées, par construction. Probes : les
+   4 requires du transcriber se résolvent en manifestes `model` ; une clé fantôme ET un kind
+   inconnu (`library`) sont refusés. Corpus régénéré : les 10 manifestes portent `requires`
+   (91 références au total).
 3. Créer le kind `library` (extraction depuis `requirements.txt` / dépôt) + l'ajouter au corpus.
 4. Alors seulement : rôle wama-dev-ai « projet GitHub → manifeste `library` », avec le corpus en
    exemples.

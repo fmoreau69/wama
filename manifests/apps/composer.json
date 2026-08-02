@@ -408,6 +408,24 @@
   "manifest_kind": "app",
   "name": "Composer",
   "projects": [],
+  "requires": [
+    {
+      "key": "composer:audiogen-medium",
+      "kind": "model"
+    },
+    {
+      "key": "composer:musicgen-medium",
+      "kind": "model"
+    },
+    {
+      "key": "composer:musicgen-melody",
+      "kind": "model"
+    },
+    {
+      "key": "composer:musicgen-small",
+      "kind": "model"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "APP_CATALOG:composer",

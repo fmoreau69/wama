@@ -403,6 +403,44 @@
   "manifest_kind": "app",
   "name": "Enhancer",
   "projects": [],
+  "requires": [
+    {
+      "key": "enhancer:BSRGANx2_fp16",
+      "kind": "model"
+    },
+    {
+      "key": "enhancer:BSRGANx4_fp16",
+      "kind": "model"
+    },
+    {
+      "key": "enhancer:IRCNN_Lx1_fp16",
+      "kind": "model"
+    },
+    {
+      "key": "enhancer:IRCNN_Mx1_fp16",
+      "kind": "model"
+    },
+    {
+      "key": "enhancer:RealESRGANx4_fp16",
+      "kind": "model"
+    },
+    {
+      "key": "enhancer:RealESR_Animex4_fp16",
+      "kind": "model"
+    },
+    {
+      "key": "enhancer:RealESR_Gx4_fp16",
+      "kind": "model"
+    },
+    {
+      "key": "enhancer:deepfilternet",
+      "kind": "model"
+    },
+    {
+      "key": "enhancer:resemble",
+      "kind": "model"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "APP_CATALOG:enhancer",

@@ -865,6 +865,7 @@
   "manifest_kind": "app",
   "name": "Converter",
   "projects": [],
+  "requires": [],
   "schema_version": "1.0",
   "source": {
     "ref": "APP_CATALOG:converter",

@@ -407,6 +407,16 @@
   "manifest_kind": "app",
   "name": "Describer",
   "projects": [],
+  "requires": [
+    {
+      "key": "describer:blip",
+      "kind": "model"
+    },
+    {
+      "key": "describer:whisper",
+      "kind": "model"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "APP_CATALOG:describer",

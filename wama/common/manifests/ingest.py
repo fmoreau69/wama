@@ -26,7 +26,8 @@ from .kinds import get_kind
 
 # ── Validation ─────────────────────────────────────────────────────────────────
 def validate(manifest: dict) -> list[str]:
-    """Erreurs d'enveloppe + erreurs de body (déléguées au kind). Liste vide = valide."""
+    """Erreurs d'enveloppe + erreurs de body (déléguées au kind) + références pendantes.
+    Liste vide = valide."""
     env = Envelope.from_dict(manifest)
     errs = list(env.envelope_errors())
     if env.manifest_kind:
@@ -39,7 +40,37 @@ def validate(manifest: dict) -> list[str]:
             errs += list(kind.validate(body) or [])
         except Exception as e:   # un validateur ne doit jamais casser l'ingest
             errs.append(f"validateur '{kind.kind}' a levé: {e!r}")
+    # Composition (SPEC §7.3) : une référence pendante rend le manifeste INVALIDE — le corpus
+    # est du matériel d'apprentissage, un exemple aux références cassées enseigne le faux.
+    _, pendantes = resolve_requires(manifest)
+    errs += [f"requires: référence pendante {p} (aucun manifeste extractible)" for p in pendantes]
     return errs
+
+
+def resolve_requires(manifest: dict) -> tuple[list[dict], list[str]]:
+    """Résout les références `requires` de l'ENVELOPPE (SPEC §7.3) — kind-agnostique.
+
+    Retourne (résolus, pendantes) :
+      - résolus  : les manifestes cités, extraits via `get_kind(kind).extract(key)` ;
+      - pendantes: les références 'kind:key' qu'aucun extracteur ne sait produire
+        (kind inconnu, extracteur absent, ou clé introuvable).
+    """
+    resolus, pendantes = [], []
+    for ref in (manifest.get('requires') or []):
+        kind_id, key = (ref or {}).get('kind'), (ref or {}).get('key')
+        if not kind_id or not key:
+            pendantes.append(repr(ref))
+            continue
+        try:
+            kind = get_kind(kind_id)
+            cible = kind.extract(key) if kind.extract else None
+        except Exception:
+            cible = None
+        if cible:
+            resolus.append(cible)
+        else:
+            pendantes.append(f"{kind_id}:{key}")
+    return resolus, pendantes
 
 
 # ── Store (idempotent, transactionnel, sandbox par défaut) ──────────────────────

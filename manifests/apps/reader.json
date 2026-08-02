@@ -341,6 +341,20 @@
   "manifest_kind": "app",
   "name": "Reader (OCR)",
   "projects": [],
+  "requires": [
+    {
+      "key": "reader:doctr",
+      "kind": "model"
+    },
+    {
+      "key": "reader:glm-ocr",
+      "kind": "model"
+    },
+    {
+      "key": "reader:olmocr",
+      "kind": "model"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "APP_CATALOG:reader",

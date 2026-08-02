@@ -148,6 +148,11 @@ def extract_app(app_id: str) -> Optional[dict]:
         'visibility': 'public',        # les apps builtin sont publiques
         'projects': [],
         'source': {'type': 'extract', 'ref': f'APP_CATALOG:{app_id}'},
+        # Composition (SPEC §7.3) : les références de la facette models, RECOPIÉES dans
+        # l'enveloppe sous forme kind-agnostique. Même source (le catalogue), deux projections —
+        # `resolve_requires()` ne lit que l'enveloppe, sans connaître les facettes.
+        'requires': [{'kind': 'model', 'key': k}
+                     for k in ((body.get('models') or {}).get('catalog_keys') or [])],
         'body': body,
     }
 

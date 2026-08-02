@@ -656,6 +656,36 @@
   "manifest_kind": "app",
   "name": "Synthesizer",
   "projects": [],
+  "requires": [
+    {
+      "key": "synthesizer:bark",
+      "kind": "model"
+    },
+    {
+      "key": "synthesizer:coqui-xtts",
+      "kind": "model"
+    },
+    {
+      "key": "synthesizer:higgs-audio",
+      "kind": "model"
+    },
+    {
+      "key": "synthesizer:kokoro",
+      "kind": "model"
+    },
+    {
+      "key": "synthesizer:speedy-speech",
+      "kind": "model"
+    },
+    {
+      "key": "synthesizer:tacotron2",
+      "kind": "model"
+    },
+    {
+      "key": "synthesizer:vits",
+      "kind": "model"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "APP_CATALOG:synthesizer",

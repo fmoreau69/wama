@@ -853,6 +853,200 @@
   "manifest_kind": "app",
   "name": "Anonymizer",
   "projects": [],
+  "requires": [
+    {
+      "key": "anonymizer:sam3",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:face_yolov8m-seg_60.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:license-plate-finetune-v1l.onnx",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:license-plate-finetune-v1m.onnx",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:license-plate-finetune-v1n.onnx",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:license-plate-finetune-v1s.onnx",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:license-plate-finetune-v1x.onnx",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo11l-cls.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo11l-obb.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo11l-pose.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo11l-seg.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo11l.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo11l_face_plate_signs.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo11m-cls.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo11m-obb.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo11m-pose.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo11m-seg.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo11m.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo11n-cls.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo11n-obb.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo11n-pose.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo11n-seg.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo11n.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo11s-cls.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo11s-obb.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo11s-pose.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo11s-seg.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo11s.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo11x-cls.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo11x-obb.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo11x-pose.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo11x-seg.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo11x.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo26n-seg.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolo26s-seg.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolopv2.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolov12n-seg.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolov8m_face_plate_1080p.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolov8m_face_plate_720p.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolov8n.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolov8n_face_plate_1080p.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolov8n_face_plate_360p.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolov8n_face_plate_720p.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolov8s_face_plate_1080p.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolov8s_face_plate_360p.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolov8s_face_plate_720p.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolov9s-face-lindevs.pt",
+      "kind": "model"
+    },
+    {
+      "key": "anonymizer:yolo:yolov9t-face-lindevs.pt",
+      "kind": "model"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "APP_CATALOG:anonymizer",

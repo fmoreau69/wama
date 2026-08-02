@@ -470,6 +470,24 @@
   "manifest_kind": "app",
   "name": "Transcriber",
   "projects": [],
+  "requires": [
+    {
+      "key": "transcriber:qwen3-asr-0.6b",
+      "kind": "model"
+    },
+    {
+      "key": "transcriber:qwen3-asr-1.7b",
+      "kind": "model"
+    },
+    {
+      "key": "transcriber:vibevoice-asr",
+      "kind": "model"
+    },
+    {
+      "key": "transcriber:whisper",
+      "kind": "model"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "APP_CATALOG:transcriber",

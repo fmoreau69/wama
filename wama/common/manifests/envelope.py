@@ -39,6 +39,10 @@ class Envelope:
     scope_org_unit: Optional[str] = None     # code OrgUnit (si visibility=unit)
     projects: list = field(default_factory=list)   # traçabilité qualité (['ENA', …])
     source: dict = field(default_factory=dict)     # {type: builtin|library|folder|extract, ref: '...'}
+    # Composition (SPEC §7.3) : références vers d'AUTRES manifestes, dans l'ENVELOPPE pour que
+    # la résolution soit kind-agnostique — une référence enfouie dans une facette du body n'est
+    # lisible que par du code qui connaît cette facette.
+    requires: list = field(default_factory=list)   # [{'kind': 'model'|'library'|…, 'key': '…'}]
     body: dict = field(default_factory=dict)       # spécifique au kind
 
     # ── Validation d'enveloppe (indépendante du kind) ──────────────────────────
@@ -64,6 +68,13 @@ class Envelope:
             errs.append("projects doit être une liste")
         if not isinstance(self.source, dict):
             errs.append("source doit être un dict {type, ref}")
+        if not isinstance(self.requires, list):
+            errs.append("requires doit être une liste de {kind, key}")
+        else:
+            for r in self.requires:
+                if not (isinstance(r, dict) and isinstance(r.get('kind'), str) and r.get('kind')
+                        and isinstance(r.get('key'), str) and r.get('key')):
+                    errs.append(f"requires: référence malformée {r!r} (attendu {{kind, key}})")
         if not isinstance(self.body, dict):
             errs.append("body doit être un dict")
         return errs

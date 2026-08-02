@@ -325,6 +325,16 @@
   "manifest_kind": "app",
   "name": "Avatarizer",
   "projects": [],
+  "requires": [
+    {
+      "key": "avatarizer:musetalk-v1.0",
+      "kind": "model"
+    },
+    {
+      "key": "avatarizer:musetalk-v1.5",
+      "kind": "model"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "APP_CATALOG:avatarizer",

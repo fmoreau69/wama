@@ -627,6 +627,56 @@
   "manifest_kind": "app",
   "name": "Imager",
   "projects": [],
+  "requires": [
+    {
+      "key": "imager:cogvideox-5b-i2v",
+      "kind": "model"
+    },
+    {
+      "key": "imager:flux-1-dev",
+      "kind": "model"
+    },
+    {
+      "key": "imager:flux-lora-logo-design",
+      "kind": "model"
+    },
+    {
+      "key": "imager:flux2-klein-4b",
+      "kind": "model"
+    },
+    {
+      "key": "imager:hunyuan-image-2.1",
+      "kind": "model"
+    },
+    {
+      "key": "imager:ltx-video-13b-0.9.8-distilled",
+      "kind": "model"
+    },
+    {
+      "key": "imager:ltx-video-13b-0.9.8-distilled-fp8",
+      "kind": "model"
+    },
+    {
+      "key": "imager:mochi-1-preview",
+      "kind": "model"
+    },
+    {
+      "key": "imager:qwen-image-2",
+      "kind": "model"
+    },
+    {
+      "key": "imager:qwen-image-edit",
+      "kind": "model"
+    },
+    {
+      "key": "imager:stable-diffusion-v1-5",
+      "kind": "model"
+    },
+    {
+      "key": "imager:stable-diffusion-xl",
+      "kind": "model"
+    }
+  ],
   "schema_version": "1.0",
   "source": {
     "ref": "APP_CATALOG:imager",
