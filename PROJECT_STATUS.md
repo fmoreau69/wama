@@ -2443,3 +2443,15 @@ Première action au redémarrage : **bande de couverture sous la timeline du cam
 - Composition (SPEC §7.4) : **étapes 2 et 3 faites** (`requires` + `resolve_requires()` +
   refus des pendantes ; kind `library`, `faster-whisper` semé, corpus = 11 manifestes).
   Reste l'étape 4 : rôle wama-dev-ai « projet GitHub → manifeste library ».
+
+**Addendum 03/08 (même session) — triage des 73 redondances : 73 → 5.**
+Un vrai bug trouvé et corrigé au passage (`document_export` lisait `description.output_format`,
+champ renommé 0008 → tout export PDF/DOCX de description crashait ; validé sur PDF réel).
+Résorptions : `schema_choice_values()` (nouvelle brique param_schema, valide enhancer + describer),
+`probe_duration_seconds` adopté par le video_backend (gif réel validé), jeux d'extensions du
+describer unifiés (`content_analyzer.DESCRIBER_*_EXTS`), `app_registry.VOICE_SAMPLE_EXTENSIONS`
+(recopié ×5 avant, migration avatarizer 0008 appliquée). Les câblages déclaratifs légitimes sont
+assumés par pragma `# wama:redondance-ok — <raison>` ; les 5 trouvailles restantes = dette du
+port anonymizer, laissées VISIBLES exprès. ⚠ Leçon re-vécue : un worker Celery solo n'importe le
+code qu'une fois — redémarrer après édition d'un backend (le 1er gif « SUCCESS » tournait sur
+l'ancien code).
