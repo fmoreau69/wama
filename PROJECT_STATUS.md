@@ -163,7 +163,7 @@
    `_discover_imager_models` — deux chemins d'ingest pour une même source.
 4bis. ✅ **TIRAGE IMAGER — adoption de `select_model()` (29/07)** : l'imager n'avait **aucun**
    tirage ; la vue prenait `DEFAULT_IMAGE_MODEL`, pointé sur `qwen-image-2` → **offload CPU
-   garanti** pour tout utilisateur qui ne choisissait pas. `imager/utils/model_selection.py`
+   garanti** pour tout utilisateur qui ne choisissait pas. `imager/utils/auto_model.py`
    adopte la brique commune (3ᵉ adopteur après composer et transcriber) : « pas d'offload » s'y
    traduit en un **budget** (VRAM libre − marge) passé à `select_model()`, qui retient déjà le
    plus gros modèle qui rentre — aucune règle de sélection n'est réécrite.

@@ -257,9 +257,20 @@ python manage.py manifest_export --check    # sort en erreur si le corpus est p�
 État : **10 apps, 11–12 facettes chacune, 100 % validées** (~5 500 lignes).
 
 > ⚠ Préalable rempli in extremis (`30a89ac`) : `_ports()` lisait `outputs` (pluriel) là où
-> `studio_node_ports()` renvoie `output` (singulier) — **les 10 exemples auraient enseigné une
-> app SANS PORT DE SORTIE**. Trouvé parce que le round-trip préexistant `studio_redundancy()`
-> le signalait depuis 2026-07-21, sans que rien n'affiche son verdict.
+> `studio_node_ports()` renvoie `output` (singulier) → la facette `ports` du manifeste sortait
+> avec une liste d'outputs vide pour les 10 apps. Trouvé parce que le round-trip préexistant
+> `studio_redundancy()` le signalait depuis 2026-07-21, sans que rien n'affiche son verdict.
+>
+> **Portée EXACTE de ce bug — correction d'une formulation trompeuse de ma part (2026-08-02)** :
+> il ne concernait que **le port de sortie du nœud STUDIO tel que recopié dans le manifeste**.
+> Ni le studio, ni les apps, ni la chaîne de sortie n'ont jamais été affectés. **La gestion des
+> sorties est faite et centralisée** : `output_type` (catégorie média, `APP_CATALOG`) →
+> `CONVERTER_OUTPUT_FORMATS` (`converter/utils/format_router.py`, source des formats par domaine)
+> → `common/utils/output_formats.py` (`get_output_formats`, `get_output_qualities`,
+> `output_format_params_for_app`) → params `output_format`/`output_quality` déclarés au schéma
+> des apps early-binding (anonymizer, composer, converter, reader, synthesizer). Les apps
+> late-binding (transcriber…) choisissent le format **au téléchargement**, pas à la création :
+> c'est l'archétype `export_binding` de `WAMA_APP_CONVENTIONS.md §6.4`, pas un manque.
 
 ---
 
