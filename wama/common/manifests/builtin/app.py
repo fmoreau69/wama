@@ -210,25 +210,16 @@ def _modes(app_id):
 
 
 def _params(app_id):
-    # 1) via GENERIC_APPS (pointe params_module + params_attr = source de vérité studio)
-    try:
-        from wama.studio.services.generic_runner import GENERIC_APPS
-        g = GENERIC_APPS.get(app_id)
-        if g and g.get('params_module') and g.get('params_attr'):
-            import importlib
-            mod = importlib.import_module(g['params_module'])
-            val = getattr(mod, g['params_attr'], None)
-            if val is not None:
-                return val
-    except Exception:
-        pass
-    # 2) fallback : wama.<app>.params.PARAMS_JSON
-    try:
-        import importlib
-        mod = importlib.import_module(f'wama.{app_id}.params')
-        return getattr(mod, 'PARAMS_JSON', None)
-    except Exception:
-        return None
+    """Schéma de params de l'app — via l'accesseur COMMUN, pas une résolution recopiée.
+
+    `schema_for_app()` (`common/utils/param_schema.py`) applique la même règle qu'avant
+    (pointeur déclaratif `GENERIC_APPS.params_module/params_attr`, repli sur la convention
+    `wama.<app>.params.PARAMS_JSON`) mais en un seul endroit, partagé avec le runner studio
+    et la surface outils. Retour `None` (et pas `[]`) quand l'app n'en déclare pas, pour que
+    la facette reste ABSENTE du manifeste plutôt que présente et vide.
+    """
+    from wama.common.utils.param_schema import schema_for_app
+    return schema_for_app(app_id) or None
 
 
 def _inspector(app_id):
@@ -328,15 +319,23 @@ def _skill_files(app_id):
 
 
 def _tool_api(app_id):
+    """Triade d'outils de l'app + leurs descriptions.
+
+    Les descriptions viennent de `tool_descriptions()`, qui les DÉRIVE (APP_CATALOG + docstring
+    + schéma + signature réelle). Avant : le dict manuel `TOOL_DESCRIPTIONS`, qui datait de
+    mars 2026 et avait dérivé — 21 params décrits sur 71, 3 outils sans entrée. La facette F3
+    de ce même fichier était déjà alignée sur `params.py` ; F6 ne l'était pas.
+    """
     try:
-        from wama.tool_api import TOOL_REGISTRY, TOOL_DESCRIPTIONS
+        from wama.tool_api import TOOL_REGISTRY, tool_descriptions
     except Exception:
         return None
     names = {'add': f'add_to_{app_id}', 'start': f'start_{app_id}', 'status': f'get_{app_id}_status'}
     present = {role: n for role, n in names.items() if n in TOOL_REGISTRY}
     if not present:
         return None
-    present['descriptions'] = {n: TOOL_DESCRIPTIONS.get(n) for n in present.values() if isinstance(n, str)}
+    described = tool_descriptions()
+    present['descriptions'] = {n: described.get(n) for n in present.values() if isinstance(n, str)}
     return present
 
 

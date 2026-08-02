@@ -2595,15 +2595,3 @@ def build_tools_list() -> str:
         desc = meta.get('description', '')
         lines.append(f'- {name}({args}): {desc}')
     return '\n'.join(lines)
-
-
-def __getattr__(name):
-    """
-    Compat : `TOOL_DESCRIPTIONS` reste importable mais est désormais DÉRIVÉ.
-
-    Un consommateur hors périmètre (`common/manifests/builtin/app.py`, territoire d'une autre
-    instance) l'importe encore ; il obtient la version dérivée, donc à jour, sans modification.
-    """
-    if name == 'TOOL_DESCRIPTIONS':
-        return tool_descriptions()
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
