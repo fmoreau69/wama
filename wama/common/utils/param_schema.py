@@ -302,7 +302,10 @@ def coerce_schema_values(schema, data, only_present: bool = True) -> dict:
     for p in schema:
         name, ptype = _pget(p, 'name'), _pget(p, 'type')
         raw = get(name)
-        if only_present and raw is None:
+        # `''` = champ de formulaire laissé vide = NON FOURNI. Sans ça, un `resize_w=''` posté
+        # par un <input number> vide serait clampé au minimum du schéma (0) au lieu d'être
+        # ignoré, et écraserait la valeur par défaut du traitement.
+        if only_present and (raw is None or raw == ''):
             continue
         if ptype in ('range', 'number'):
             val = numeric.get(name)

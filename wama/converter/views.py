@@ -33,6 +33,7 @@ from .models import ConversionJob, ConversionProfile, ConversionBatch
 from .utils.format_router import detect_media_type, get_output_formats, SUPPORTED_CONVERSIONS
 from ..accounts.views import get_or_create_anonymous_user
 from ..common.utils.queue_duplication import safe_delete_file, duplicate_instance
+from ..common.utils.param_schema import schema_extra_params
 
 logger = logging.getLogger(__name__)
 
@@ -224,24 +225,13 @@ def upload(request):
     if output_fmt not in allowed_formats:
         return JsonResponse({'error': f"Format de sortie non supporté pour {media_type} : {output_fmt}"}, status=400)
 
-    # Parse extra options from POST
-    options = {}
-    for key in ['quality', 'resize_w', 'resize_h', 'fps', 'video_quality',
-                'audio_bitrate', 'gif_fps', 'gif_width', 'normalize',
-                'sample_rate', 'channels',
-                'rotation', 'flip_h', 'flip_v']:
-        if request.POST.get(key):
-            val = request.POST[key]
-            # Cast booleans
-            if val.lower() in ('true', '1'):
-                options[key] = True
-            elif val.lower() in ('false', '0'):
-                options[key] = False
-            else:
-                try:
-                    options[key] = int(val)
-                except ValueError:
-                    options[key] = val
+    # Options : la LISTE et le TYPAGE viennent du schéma (`converter/params.py`), pas d'une
+    # liste recopiée ici. Même source que la modale, l'inspecteur et `tool_api.convert_file`.
+    # L'ancienne version castait `'1'` en booléen True pour TOUTES les clés : `channels=1`
+    # (mono) partait en `-ac True` vers ffmpeg. Le schéma sait que `channels` est un select,
+    # `flip_h` un toggle et `resize_w` un nombre borné.
+    options = {k: v for k, v in schema_extra_params('converter', request.POST).items()
+               if v not in (None, '')}
 
     job = ConversionJob.objects.create(
         user=user,

@@ -70,11 +70,27 @@ PARAMS = [
           help="0 = sans perte, 23 = défaut, 51 = pire qualité."),
     Param(name="fps", type="number", label="Images/s (FPS)", icon="fa-video",
           min=1, max=120, show_if=VID, contexts=ITEM, help="Vide = inchangé."),
+    # Sortie GIF uniquement (video_backend._to_gif). Déclarés ici parce que le SCHÉMA est la
+    # source : ils étaient consommés par le backend et acceptés par la vue, mais invisibles de
+    # l'UI comme de l'API — la vue en gardait une liste en dur.
+    Param(name="gif_fps", type="number", label="FPS du GIF", icon="fa-images",
+          min=1, max=50, default=12, show_if=VID, contexts=ITEM,
+          help="Sortie GIF uniquement."),
+    Param(name="gif_width", type="number", label="Largeur du GIF (px)", icon="fa-arrows-left-right",
+          min=64, max=1920, default=480, show_if=VID, contexts=ITEM,
+          help="Sortie GIF uniquement — hauteur calculée pour garder les proportions."),
 
     # ── Audio ─────────────────────────────────────────────────────────────────
     Param(name="audio_bitrate", type="select", label="Débit audio", icon="fa-music", show_if=AUD, contexts=ITEM,
           choices=[("", "Auto"), ("128k", "128 kbps"), ("192k", "192 kbps"),
                    ("256k", "256 kbps"), ("320k", "320 kbps")]),
+    Param(name="sample_rate", type="select", label="Fréquence d'échantillonnage", icon="fa-wave-square",
+          show_if=AUD, contexts=ITEM,
+          choices=[("", "Inchangée"), ("22050", "22 050 Hz"), ("44100", "44 100 Hz"),
+                   ("48000", "48 000 Hz")]),
+    Param(name="channels", type="select", label="Canaux", icon="fa-headphones",
+          show_if=AUD, contexts=ITEM,
+          choices=[("", "Inchangés"), ("1", "Mono"), ("2", "Stéréo")]),
     Param(name="normalize", type="toggle", label="Normaliser le volume", icon="fa-wave-square",
           show_if=AUD, contexts=ITEM),
 ]
