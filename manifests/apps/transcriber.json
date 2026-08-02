@@ -1,0 +1,480 @@
+{
+  "body": {
+    "access": {
+      "min_tier": null,
+      "public": false,
+      "roles": [
+        "recherche"
+      ]
+    },
+    "capabilities": {
+      "accepts_url": true,
+      "anti_race": true,
+      "batch_type": "media_list",
+      "during_preview": false,
+      "has_batch": true,
+      "has_url_import": true,
+      "has_youtube": true,
+      "inspector": true,
+      "layout": true,
+      "multi_format_download": true,
+      "settings_modal_item": true,
+      "streaming": false
+    },
+    "identity": {
+      "category": "understand",
+      "color": "#70bbe1",
+      "icon": "fas fa-file-alt",
+      "input_extensions": [
+        ".mp3",
+        ".wav",
+        ".flac",
+        ".ogg",
+        ".m4a",
+        ".aac",
+        ".opus",
+        ".wma",
+        ".aiff",
+        ".aif",
+        ".mp4",
+        ".webm",
+        ".mkv",
+        ".avi",
+        ".mov",
+        ".flv",
+        ".mpg",
+        ".mpeg",
+        ".qt",
+        ".3gp",
+        ".wmv",
+        ".ts",
+        ".m4v"
+      ],
+      "url_name": "transcriber:index"
+    },
+    "inspector": {
+      "detail_registered": true,
+      "preview_registered": true
+    },
+    "models": {
+      "catalog_keys": [
+        "qwen3-asr-0.6b",
+        "qwen3-asr-1.7b",
+        "vibevoice-asr",
+        "whisper"
+      ],
+      "source_attr": "TRANSCRIBER_MODELS"
+    },
+    "modes": {
+      "domains": [
+        {
+          "icon": "fa-microphone-lines",
+          "id": "audio",
+          "label": "Transcription",
+          "modes": [
+            {
+              "icon": "fa-file-audio",
+              "id": "normal",
+              "inputs": [
+                "work_file"
+              ],
+              "label": "Normal",
+              "settings": [
+                "model",
+                "language",
+                "diarization",
+                "summary"
+              ]
+            },
+            {
+              "icon": "fa-microphone",
+              "id": "realtime",
+              "inputs": [],
+              "label": "Temps réel",
+              "realtime": true,
+              "settings": [
+                "language"
+              ]
+            }
+          ],
+          "variant": "info"
+        }
+      ]
+    },
+    "params": [
+      {
+        "advanced": false,
+        "chip": true,
+        "chip_label": "",
+        "choices": [
+          [
+            "auto",
+            "Auto (meilleur disponible)"
+          ]
+        ],
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": "auto",
+        "dom_id": {
+          "item": "settingsBackend",
+          "panel": "backendSelect"
+        },
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-microchip",
+        "inline": false,
+        "label": "Moteur de transcription",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "backend",
+        "option_groups": null,
+        "options_source": "backends",
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "select",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": true,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": "",
+        "dom_id": {
+          "item": "settingsHotwords",
+          "panel": "hotwordsInput"
+        },
+        "help": "Séparés par des virgules",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-tags",
+        "inline": false,
+        "label": "Mots-clés contextuels",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "hotwords",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "textarea",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": false,
+        "dom_id": {
+          "item": "settingsPreprocess",
+          "panel": "preprocessingToggle"
+        },
+        "help": "",
+        "help_fallback": null,
+        "help_html": "Débruitage IA (DeepFilterNet) + 16 kHz mono<br><a href=\"#\" class=\"text-info text-decoration-none\" data-bs-toggle=\"modal\" data-bs-target=\"#preprocessingModal\"><i class=\"fas fa-circle-question\"></i> En savoir plus</a>",
+        "help_source": null,
+        "icon": "fa-wand-magic-sparkles",
+        "inline": false,
+        "label": "Prétraitement audio",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "preprocess_audio",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "toggle",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": true,
+        "chip_label": "Diarisation",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": true,
+        "dom_id": {
+          "item": "settingsDiarization",
+          "panel": "diarizationToggle"
+        },
+        "help": "Séparation des locuteurs (pyannote)",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-users",
+        "inline": false,
+        "label": "Identifier les locuteurs",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "enable_diarization",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "toggle",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": true,
+        "chip_label": "Résumé",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": false,
+        "dom_id": {
+          "item": "settingsGenerateSummary",
+          "panel": "globalGenerateSummary"
+        },
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-file-lines",
+        "inline": false,
+        "label": "Générer un résumé",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "generate_summary",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "toggle",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": [
+          [
+            "structured",
+            "Structuré"
+          ],
+          [
+            "meeting",
+            "Réunion"
+          ]
+        ],
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": "structured",
+        "dom_id": "",
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-list",
+        "inline": true,
+        "label": "",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "summary_type",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": {
+          "item": "summary_type",
+          "panel": "globalSummaryType"
+        },
+        "section": "settings",
+        "show_if": "generate_summary",
+        "step": null,
+        "type": "radio",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": true,
+        "chip_label": "Cohérence",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": false,
+        "dom_id": {
+          "item": "settingsVerifyCoherence",
+          "panel": "globalVerifyCoherence"
+        },
+        "help": "Score + correction proposée côte à côte",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-check-double",
+        "inline": false,
+        "label": "Vérifier la cohérence",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "verify_coherence",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "toggle",
+        "unit": ""
+      }
+    ],
+    "ports": {
+      "inputs": [
+        {
+          "group": "travail",
+          "id": "work",
+          "label": "Entrée",
+          "multi": true,
+          "types": [
+            "audio",
+            "video"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "id": "out",
+          "label": "Sortie",
+          "types": [
+            "text"
+          ]
+        }
+      ]
+    },
+    "processing": {
+      "anti_race": true,
+      "endpoints": [
+        "index",
+        "upload",
+        "start",
+        "status",
+        "download",
+        "delete",
+        "duplicate",
+        "update",
+        "start_all",
+        "clear_all",
+        "download_all",
+        "global_progress"
+      ],
+      "ingest": {
+        "mode": "audio",
+        "source": "source_url",
+        "target": "audio",
+        "title_field": "title"
+      },
+      "processing_time": true,
+      "statuses": [
+        "PENDING",
+        "RUNNING",
+        "SUCCESS",
+        "FAILURE"
+      ]
+    },
+    "studio": {
+      "auto_start": null,
+      "fixed_kwargs": null,
+      "input_kinds": [
+        "audio",
+        "video"
+      ],
+      "input_kwarg": null,
+      "output_type": "text",
+      "primary_input": null,
+      "runnable": true
+    },
+    "tool_api": {
+      "add": "add_to_transcriber",
+      "descriptions": {
+        "add_to_transcriber": {
+          "args": {
+            "backend": "select — Moteur de transcription (choix : auto) (défaut : 'auto')",
+            "enable_diarization": "toggle — Séparation des locuteurs (pyannote) (défaut : True)",
+            "file_path": "str (requis)",
+            "generate_summary": "toggle — Générer un résumé (défaut : False)",
+            "hotwords": "textarea — Séparés par des virgules",
+            "preprocess_audio": "toggle — Prétraitement audio (défaut : False)",
+            "summary_type": "radio (choix : structured | meeting) (défaut : 'structured')",
+            "verify_coherence": "toggle — Score + correction proposée côte à côte (défaut : False)"
+          },
+          "description": "Ajoute un élément à la file d'attente de Transcriber (Transcription audio/vidéo en texte (Whisper)) et renvoie son item_id."
+        },
+        "get_transcriber_status": {
+          "args": {},
+          "description": "État des travaux Transcriber de l'utilisateur : statut, progression, résultat."
+        },
+        "start_transcriber": {
+          "args": {
+            "transcript_id": "int"
+          },
+          "description": "Lance le traitement Transcriber : l'item indiqué, ou tous ceux en attente si aucun id."
+        }
+      },
+      "start": "start_transcriber",
+      "status": "get_transcriber_status"
+    }
+  },
+  "description": "Transcription audio/vidéo en texte (Whisper).",
+  "key": "transcriber",
+  "manifest_kind": "app",
+  "name": "Transcriber",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "APP_CATALOG:transcriber",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

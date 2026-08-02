@@ -1,0 +1,875 @@
+{
+  "body": {
+    "access": {
+      "min_tier": null,
+      "public": false,
+      "roles": []
+    },
+    "capabilities": {
+      "accepts_url": true,
+      "anti_race": true,
+      "batch_type": "media_list",
+      "during_preview": false,
+      "has_batch": true,
+      "has_url_import": true,
+      "has_youtube": false,
+      "inspector": true,
+      "layout": true,
+      "multi_format_download": null,
+      "settings_modal_item": true,
+      "streaming": false
+    },
+    "identity": {
+      "category": "transform",
+      "color": "#46d8a7",
+      "icon": "fas fa-exchange-alt",
+      "input_extensions": [
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".webp",
+        ".bmp",
+        ".tif",
+        ".tiff",
+        ".heic",
+        ".gif",
+        ".heif",
+        ".avif",
+        ".mp4",
+        ".webm",
+        ".mkv",
+        ".avi",
+        ".mov",
+        ".flv",
+        ".mpg",
+        ".mpeg",
+        ".qt",
+        ".3gp",
+        ".wmv",
+        ".ts",
+        ".m4v",
+        ".mp3",
+        ".wav",
+        ".flac",
+        ".ogg",
+        ".m4a",
+        ".aac",
+        ".opus",
+        ".wma",
+        ".aiff",
+        ".aif",
+        ".pdf",
+        ".docx",
+        ".md",
+        ".markdown",
+        ".html",
+        ".htm",
+        ".txt",
+        ".rtf",
+        ".odt",
+        ".epub",
+        ".fb2",
+        ".tex",
+        ".latex",
+        ".mobi",
+        ".azw3",
+        ".azw",
+        ".zip",
+        ".tar",
+        ".gz",
+        ".tgz",
+        ".bz2",
+        ".tbz2",
+        ".xz",
+        ".txz",
+        ".7z",
+        ".rar"
+      ],
+      "url_name": "converter:index"
+    },
+    "inspector": {
+      "detail_registered": true,
+      "preview_registered": true
+    },
+    "params": [
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item"
+        ],
+        "default": null,
+        "dom_id": "",
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "",
+        "inline": false,
+        "label": "",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "media_type",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "hidden",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": true,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item"
+        ],
+        "default": null,
+        "dom_id": "",
+        "help": "",
+        "help_fallback": {
+          "7z": "Moteur : zipfile / tarfile / py7zr.",
+          "aac": "Moteur : FFmpeg — débit, normalisation du volume.",
+          "avi": "Moteur : FFmpeg — CRF, FPS, rotations ; extraction audio possible.",
+          "avif": "Moteur : Pillow — qualité, redimensionnement, rotations/miroirs.",
+          "azw3": "Moteur : Pandoc (PDF→DOCX via pdf2docx) ; ebooks via Calibre.",
+          "bmp": "Moteur : Pillow — qualité, redimensionnement, rotations/miroirs.",
+          "docx": "Moteur : Pandoc (PDF→DOCX via pdf2docx) ; ebooks via Calibre.",
+          "epub": "Moteur : Pandoc (PDF→DOCX via pdf2docx) ; ebooks via Calibre.",
+          "fb2": "Moteur : Pandoc (PDF→DOCX via pdf2docx) ; ebooks via Calibre.",
+          "flac": "Moteur : FFmpeg — débit, normalisation du volume.",
+          "gif": "Moteur : Pillow — qualité, redimensionnement, rotations/miroirs.",
+          "html": "Moteur : Pandoc (PDF→DOCX via pdf2docx) ; ebooks via Calibre.",
+          "jpg": "Moteur : Pillow — qualité, redimensionnement, rotations/miroirs.",
+          "m4a": "Moteur : FFmpeg — débit, normalisation du volume.",
+          "md": "Moteur : Pandoc (PDF→DOCX via pdf2docx) ; ebooks via Calibre.",
+          "mkv": "Moteur : FFmpeg — CRF, FPS, rotations ; extraction audio possible.",
+          "mobi": "Moteur : Pandoc (PDF→DOCX via pdf2docx) ; ebooks via Calibre.",
+          "mov": "Moteur : FFmpeg — CRF, FPS, rotations ; extraction audio possible.",
+          "mp3": "Moteur : FFmpeg — CRF, FPS, rotations ; extraction audio possible.",
+          "mp4": "Moteur : FFmpeg — CRF, FPS, rotations ; extraction audio possible.",
+          "odt": "Moteur : Pandoc (PDF→DOCX via pdf2docx) ; ebooks via Calibre.",
+          "ogg": "Moteur : FFmpeg — CRF, FPS, rotations ; extraction audio possible.",
+          "opus": "Moteur : FFmpeg — débit, normalisation du volume.",
+          "pdf": "Moteur : Pillow — qualité, redimensionnement, rotations/miroirs.",
+          "png": "Moteur : Pillow — qualité, redimensionnement, rotations/miroirs.",
+          "rtf": "Moteur : Pandoc (PDF→DOCX via pdf2docx) ; ebooks via Calibre.",
+          "tar": "Moteur : zipfile / tarfile / py7zr.",
+          "tar.bz2": "Moteur : zipfile / tarfile / py7zr.",
+          "tar.gz": "Moteur : zipfile / tarfile / py7zr.",
+          "tar.xz": "Moteur : zipfile / tarfile / py7zr.",
+          "tiff": "Moteur : Pillow — qualité, redimensionnement, rotations/miroirs.",
+          "txt": "Moteur : Pandoc (PDF→DOCX via pdf2docx) ; ebooks via Calibre.",
+          "wav": "Moteur : FFmpeg — CRF, FPS, rotations ; extraction audio possible.",
+          "webm": "Moteur : FFmpeg — CRF, FPS, rotations ; extraction audio possible.",
+          "webp": "Moteur : Pillow — qualité, redimensionnement, rotations/miroirs.",
+          "zip": "Moteur : zipfile / tarfile / py7zr."
+        },
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-file-export",
+        "inline": false,
+        "label": "Format de sortie",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "output_format",
+        "option_groups": null,
+        "options_source": "formats",
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "select",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item"
+        ],
+        "default": 85,
+        "dom_id": "",
+        "help": "Qualité d'encodage de l'image (1–100).",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-gauge",
+        "inline": false,
+        "label": "Qualité",
+        "max": 100,
+        "max_label": "",
+        "min": 1,
+        "min_label": "",
+        "name": "quality",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": {
+          "equals": "image",
+          "field": "media_type"
+        },
+        "step": 1,
+        "type": "range",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item"
+        ],
+        "default": null,
+        "dom_id": "",
+        "help": "0 = inchangé.",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-arrows-left-right",
+        "inline": false,
+        "label": "Largeur (px)",
+        "max": null,
+        "max_label": "",
+        "min": 0,
+        "min_label": "",
+        "name": "resize_w",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": {
+          "equals": "image",
+          "field": "media_type"
+        },
+        "step": null,
+        "type": "number",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item"
+        ],
+        "default": null,
+        "dom_id": "",
+        "help": "0 = inchangé.",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-arrows-up-down",
+        "inline": false,
+        "label": "Hauteur (px)",
+        "max": null,
+        "max_label": "",
+        "min": 0,
+        "min_label": "",
+        "name": "resize_h",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": {
+          "equals": "image",
+          "field": "media_type"
+        },
+        "step": null,
+        "type": "number",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": [
+          [
+            "0",
+            "Aucune"
+          ],
+          [
+            "90",
+            "90° horaire"
+          ],
+          [
+            "180",
+            "180°"
+          ],
+          [
+            "270",
+            "90° anti-horaire"
+          ]
+        ],
+        "contexts": [
+          "item"
+        ],
+        "default": null,
+        "dom_id": "",
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-rotate",
+        "inline": false,
+        "label": "Rotation",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "rotation",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": {
+          "field": "media_type",
+          "in": [
+            "image",
+            "video"
+          ]
+        },
+        "step": null,
+        "type": "select",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item"
+        ],
+        "default": null,
+        "dom_id": "",
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-left-right",
+        "inline": false,
+        "label": "Miroir horizontal",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "flip_h",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": {
+          "field": "media_type",
+          "in": [
+            "image",
+            "video"
+          ]
+        },
+        "step": null,
+        "type": "toggle",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item"
+        ],
+        "default": null,
+        "dom_id": "",
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-up-down",
+        "inline": false,
+        "label": "Miroir vertical",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "flip_v",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": {
+          "field": "media_type",
+          "in": [
+            "image",
+            "video"
+          ]
+        },
+        "step": null,
+        "type": "toggle",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item"
+        ],
+        "default": null,
+        "dom_id": "",
+        "help": "0 = sans perte, 23 = défaut, 51 = pire qualité.",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-film",
+        "inline": false,
+        "label": "Qualité vidéo (CRF)",
+        "max": 51,
+        "max_label": "",
+        "min": 0,
+        "min_label": "",
+        "name": "video_quality",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": {
+          "equals": "video",
+          "field": "media_type"
+        },
+        "step": null,
+        "type": "number",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item"
+        ],
+        "default": null,
+        "dom_id": "",
+        "help": "Vide = inchangé.",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-video",
+        "inline": false,
+        "label": "Images/s (FPS)",
+        "max": 120,
+        "max_label": "",
+        "min": 1,
+        "min_label": "",
+        "name": "fps",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": {
+          "equals": "video",
+          "field": "media_type"
+        },
+        "step": null,
+        "type": "number",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item"
+        ],
+        "default": 12,
+        "dom_id": "",
+        "help": "Sortie GIF uniquement.",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-images",
+        "inline": false,
+        "label": "FPS du GIF",
+        "max": 50,
+        "max_label": "",
+        "min": 1,
+        "min_label": "",
+        "name": "gif_fps",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": {
+          "equals": "video",
+          "field": "media_type"
+        },
+        "step": null,
+        "type": "number",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item"
+        ],
+        "default": 480,
+        "dom_id": "",
+        "help": "Sortie GIF uniquement — hauteur calculée pour garder les proportions.",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-arrows-left-right",
+        "inline": false,
+        "label": "Largeur du GIF (px)",
+        "max": 1920,
+        "max_label": "",
+        "min": 64,
+        "min_label": "",
+        "name": "gif_width",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": {
+          "equals": "video",
+          "field": "media_type"
+        },
+        "step": null,
+        "type": "number",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": [
+          [
+            "",
+            "Auto"
+          ],
+          [
+            "128k",
+            "128 kbps"
+          ],
+          [
+            "192k",
+            "192 kbps"
+          ],
+          [
+            "256k",
+            "256 kbps"
+          ],
+          [
+            "320k",
+            "320 kbps"
+          ]
+        ],
+        "contexts": [
+          "item"
+        ],
+        "default": null,
+        "dom_id": "",
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-music",
+        "inline": false,
+        "label": "Débit audio",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "audio_bitrate",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": {
+          "equals": "audio",
+          "field": "media_type"
+        },
+        "step": null,
+        "type": "select",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": [
+          [
+            "",
+            "Inchangée"
+          ],
+          [
+            "22050",
+            "22 050 Hz"
+          ],
+          [
+            "44100",
+            "44 100 Hz"
+          ],
+          [
+            "48000",
+            "48 000 Hz"
+          ]
+        ],
+        "contexts": [
+          "item"
+        ],
+        "default": null,
+        "dom_id": "",
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-wave-square",
+        "inline": false,
+        "label": "Fréquence d'échantillonnage",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "sample_rate",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": {
+          "equals": "audio",
+          "field": "media_type"
+        },
+        "step": null,
+        "type": "select",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": [
+          [
+            "",
+            "Inchangés"
+          ],
+          [
+            "1",
+            "Mono"
+          ],
+          [
+            "2",
+            "Stéréo"
+          ]
+        ],
+        "contexts": [
+          "item"
+        ],
+        "default": null,
+        "dom_id": "",
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-headphones",
+        "inline": false,
+        "label": "Canaux",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "channels",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": {
+          "equals": "audio",
+          "field": "media_type"
+        },
+        "step": null,
+        "type": "select",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item"
+        ],
+        "default": null,
+        "dom_id": "",
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-wave-square",
+        "inline": false,
+        "label": "Normaliser le volume",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "normalize",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": {
+          "equals": "audio",
+          "field": "media_type"
+        },
+        "step": null,
+        "type": "toggle",
+        "unit": ""
+      }
+    ],
+    "ports": {
+      "inputs": [
+        {
+          "group": "travail",
+          "id": "work",
+          "label": "Entrée",
+          "multi": true,
+          "types": [
+            "image",
+            "video",
+            "audio",
+            "document",
+            "archive"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "id": "out",
+          "label": "Sortie",
+          "types": [
+            "image",
+            "video",
+            "audio",
+            "document",
+            "archive"
+          ]
+        }
+      ]
+    },
+    "processing": {
+      "anti_race": true,
+      "endpoints": [
+        "index",
+        "upload",
+        "start",
+        "status",
+        "download",
+        "delete",
+        "duplicate",
+        "update",
+        "start_all",
+        "clear_all",
+        "download_all",
+        "global_progress"
+      ],
+      "ingest": {
+        "mode": "media",
+        "name_field": "input_filename",
+        "source": "source_url",
+        "target": "input_file"
+      },
+      "processing_time": true,
+      "statuses": [
+        "PENDING",
+        "RUNNING",
+        "SUCCESS",
+        "FAILURE"
+      ]
+    },
+    "studio": {
+      "auto_start": true,
+      "fixed_kwargs": null,
+      "input_kinds": [
+        "image",
+        "video",
+        "audio",
+        "document"
+      ],
+      "input_kwarg": null,
+      "output_type": "auto",
+      "primary_input": null,
+      "runnable": true
+    },
+    "tool_api": {
+      "add": "add_to_converter",
+      "descriptions": {
+        "add_to_converter": {
+          "args": {
+            "audio_bitrate": "select — Débit audio (choix :  | 128k | 192k | 256k | 320k)",
+            "channels": "select — Canaux (choix :  | 1 | 2)",
+            "file_path": "str (requis)",
+            "flip_h": "toggle — Miroir horizontal",
+            "flip_v": "toggle — Miroir vertical",
+            "fps": "number — Vide = inchangé. [1–120]",
+            "gif_fps": "number — Sortie GIF uniquement. [1–50] (défaut : 12)",
+            "gif_width": "number — Sortie GIF uniquement — hauteur calculée pour garder les proportions. [64–1920] (défaut : 480)",
+            "media_type": "hidden",
+            "normalize": "toggle — Normaliser le volume",
+            "output_format": "select — Format de sortie (requis)",
+            "quality": "range — Qualité d'encodage de l'image (1–100). [1–100] (défaut : 85)",
+            "quality_preset": "str (défaut : 'balanced')",
+            "resize_h": "number — 0 = inchangé. [0–None]",
+            "resize_w": "number — 0 = inchangé. [0–None]",
+            "rotation": "select — Rotation (choix : 0 | 90 | 180 | 270)",
+            "sample_rate": "select — Fréquence d'échantillonnage (choix :  | 22050 | 44100 | 48000)",
+            "video_quality": "number — 0 = sans perte, 23 = défaut, 51 = pire qualité. [0–51]"
+          },
+          "description": "Ajoute un élément à la file d'attente de Converter (Conversion de formats : image, vidéo, audio, documents, archives (Pillow + FFmpeg + Pandoc)) et renvoie son item_id."
+        },
+        "get_converter_status": {
+          "args": {},
+          "description": "État des travaux Converter de l'utilisateur : statut, progression, résultat."
+        },
+        "start_converter": {
+          "args": {
+            "job_id": "int"
+          },
+          "description": "Lance le traitement Converter : l'item indiqué, ou tous ceux en attente si aucun id."
+        }
+      },
+      "start": "start_converter",
+      "status": "get_converter_status"
+    }
+  },
+  "description": "Conversion de formats : image, vidéo, audio, documents, archives (Pillow + FFmpeg + Pandoc).",
+  "key": "converter",
+  "manifest_kind": "app",
+  "name": "Converter",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "APP_CATALOG:converter",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

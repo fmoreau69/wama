@@ -1,0 +1,418 @@
+{
+  "body": {
+    "access": {
+      "min_tier": null,
+      "public": false,
+      "roles": [
+        "communication"
+      ]
+    },
+    "capabilities": {
+      "accepts_url": false,
+      "anti_race": true,
+      "batch_type": "pipe",
+      "during_preview": true,
+      "has_batch": true,
+      "has_url_import": false,
+      "has_youtube": false,
+      "inspector": true,
+      "layout": true,
+      "multi_format_download": null,
+      "settings_modal_item": true,
+      "streaming": false
+    },
+    "identity": {
+      "category": "create",
+      "color": "#a638d5",
+      "icon": "fas fa-music",
+      "input_extensions": [
+        ".txt",
+        ".md",
+        ".csv",
+        ".pdf",
+        ".docx"
+      ],
+      "url_name": "composer:index"
+    },
+    "inspector": {
+      "detail_registered": true,
+      "preview_registered": true
+    },
+    "models": {
+      "catalog_keys": [
+        "audiogen-medium",
+        "musicgen-medium",
+        "musicgen-melody",
+        "musicgen-small"
+      ],
+      "source_attr": "COMPOSER_MODELS"
+    },
+    "params": [
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "panel",
+          "item"
+        ],
+        "default": null,
+        "dom_id": {
+          "item": "settingsModel",
+          "panel": "modelSelect"
+        },
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-music",
+        "inline": false,
+        "label": "Modèle",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "model",
+        "option_groups": [
+          [
+            "🎵 Musique (MusicGen)",
+            [
+              [
+                "auto-music",
+                "🧠 Choix automatique — le plus gros modèle musique tenant dans la VRAM libre au lancement"
+              ],
+              [
+                "musicgen-small",
+                "MusicGen Small — génération rapide, 300M params"
+              ],
+              [
+                "musicgen-medium",
+                "MusicGen Medium — meilleure qualité, 1.5B params"
+              ],
+              [
+                "musicgen-melody",
+                "MusicGen Melody — conditionné par mélodie de référence"
+              ]
+            ]
+          ],
+          [
+            "⚡ Bruitages (AudioGen)",
+            [
+              [
+                "auto-sfx",
+                "🧠 Choix automatique — le plus gros modèle bruitages tenant dans la VRAM libre au lancement"
+              ],
+              [
+                "audiogen-medium",
+                "AudioGen Medium — bruitages et sons d'ambiance, 1.5B params"
+              ]
+            ]
+          ]
+        ],
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "select",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "panel",
+          "item"
+        ],
+        "default": null,
+        "dom_id": {
+          "item": "settingsDuration",
+          "panel": "durationSlider"
+        },
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-clock",
+        "inline": false,
+        "label": "Durée",
+        "max": 600,
+        "max_label": "10min",
+        "min": 10,
+        "min_label": "10s",
+        "name": "duration",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": 5,
+        "type": "range",
+        "unit": "s"
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item"
+        ],
+        "default": null,
+        "dom_id": {
+          "item": "settingsPrompt"
+        },
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-pen",
+        "inline": false,
+        "label": "Prompt",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "prompt",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "textarea",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": [
+          [
+            "original",
+            "Original (inchangé)"
+          ],
+          [
+            "mp3",
+            ".MP3"
+          ],
+          [
+            "wav",
+            ".WAV"
+          ],
+          [
+            "flac",
+            ".FLAC"
+          ],
+          [
+            "ogg",
+            ".OGG"
+          ],
+          [
+            "m4a",
+            ".M4A"
+          ],
+          [
+            "aac",
+            ".AAC"
+          ],
+          [
+            "opus",
+            ".OPUS"
+          ]
+        ],
+        "contexts": [
+          "panel",
+          "item"
+        ],
+        "default": null,
+        "dom_id": {
+          "item": "settingsOutputFormat",
+          "panel": "output_format"
+        },
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-file-export",
+        "inline": false,
+        "label": "Format de sortie",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "output_format",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "select",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": [
+          [
+            "web",
+            "Web (léger)"
+          ],
+          [
+            "balanced",
+            "Équilibré"
+          ],
+          [
+            "max",
+            "Maximum"
+          ]
+        ],
+        "contexts": [
+          "panel",
+          "item"
+        ],
+        "default": null,
+        "dom_id": {
+          "item": "settingsOutputQuality",
+          "panel": "output_quality"
+        },
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-sliders",
+        "inline": false,
+        "label": "Qualité",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "output_quality",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "select",
+        "unit": ""
+      }
+    ],
+    "ports": {
+      "inputs": [
+        {
+          "group": "prompt",
+          "id": "prompt",
+          "label": "Prompt",
+          "multi": false,
+          "types": [
+            "prompt"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "id": "out",
+          "label": "Sortie",
+          "types": [
+            "audio"
+          ]
+        }
+      ]
+    },
+    "processing": {
+      "anti_race": true,
+      "endpoints": [
+        "index",
+        "upload",
+        "start",
+        "status",
+        "download",
+        "delete",
+        "duplicate",
+        "update",
+        "start_all",
+        "clear_all",
+        "download_all",
+        "global_progress"
+      ],
+      "ingest": null,
+      "processing_time": true,
+      "statuses": [
+        "PENDING",
+        "RUNNING",
+        "SUCCESS",
+        "FAILURE"
+      ]
+    },
+    "prompts": {
+      "skills": [
+        "composer-music.md"
+      ],
+      "targets": [
+        {
+          "default_model_type": "music",
+          "domain": "music",
+          "enrich": true,
+          "field": "prompt",
+          "kind": "generative",
+          "model_field": "model",
+          "source": "composer"
+        }
+      ]
+    },
+    "studio": {
+      "auto_start": null,
+      "fixed_kwargs": null,
+      "input_kinds": null,
+      "input_kwarg": null,
+      "output_type": "audio",
+      "primary_input": "prompt",
+      "runnable": true
+    },
+    "tool_api": {
+      "add": "add_to_composer",
+      "descriptions": {
+        "add_to_composer": {
+          "args": {
+            "duration": "range — Durée [10–600s] (défaut : 10.0)",
+            "model": "select — Modèle (défaut : 'musicgen-small')",
+            "output_format": "select — Format de sortie (choix : original | mp3 | wav | flac | ogg | m4a | aac | opus)",
+            "output_quality": "select — Qualité (choix : web | balanced | max)",
+            "prompt": "textarea — Prompt (requis)"
+          },
+          "description": "Ajoute un élément à la file d'attente de Composer (Génération de musique et effets sonores par IA) et renvoie son item_id."
+        },
+        "get_composer_status": {
+          "args": {},
+          "description": "État des travaux Composer de l'utilisateur : statut, progression, résultat."
+        },
+        "start_composer": {
+          "args": {
+            "generation_id": "int (requis)"
+          },
+          "description": "Lance le traitement Composer : l'item indiqué, ou tous ceux en attente si aucun id."
+        }
+      },
+      "start": "start_composer",
+      "status": "get_composer_status"
+    }
+  },
+  "description": "Génération de musique et effets sonores par IA.",
+  "key": "composer",
+  "manifest_kind": "app",
+  "name": "Composer",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "APP_CATALOG:composer",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

@@ -1,0 +1,811 @@
+{
+  "body": {
+    "access": {
+      "min_tier": null,
+      "public": false,
+      "roles": [
+        "administratif",
+        "communication",
+        "recherche"
+      ]
+    },
+    "capabilities": {
+      "accepts_url": true,
+      "anti_race": false,
+      "batch_type": "media_list",
+      "during_preview": false,
+      "has_batch": true,
+      "has_url_import": true,
+      "has_youtube": true,
+      "inspector": false,
+      "layout": true,
+      "multi_format_download": null,
+      "settings_modal_item": true,
+      "streaming": false
+    },
+    "identity": {
+      "category": "transform",
+      "color": "#29c28f",
+      "icon": "fas fa-user-secret",
+      "input_extensions": [
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".webp",
+        ".bmp",
+        ".tif",
+        ".tiff",
+        ".heic",
+        ".gif",
+        ".heif",
+        ".avif",
+        ".mp4",
+        ".webm",
+        ".mkv",
+        ".avi",
+        ".mov",
+        ".flv",
+        ".mpg",
+        ".mpeg",
+        ".qt",
+        ".3gp",
+        ".wmv",
+        ".ts",
+        ".m4v"
+      ],
+      "url_name": "anonymizer:index"
+    },
+    "inspector": {
+      "detail_registered": true,
+      "preview_registered": true
+    },
+    "modes": {
+      "domains": [
+        {
+          "icon": "fa-photo-film",
+          "id": "image_video",
+          "label": "Image / Vidéo",
+          "modes": [
+            {
+              "icon": "fa-crosshairs",
+              "id": "yolo",
+              "inputs": [
+                "work_file"
+              ],
+              "label": "Détection (YOLO)",
+              "settings": [
+                "model",
+                "classes",
+                "blur_ratio",
+                "detection_threshold"
+              ],
+              "variant": "primary"
+            },
+            {
+              "icon": "fa-wand-magic-sparkles",
+              "id": "sam3",
+              "inputs": [
+                "work_file",
+                "prompt"
+              ],
+              "label": "Prompt (SAM3)",
+              "settings": [
+                "blur_ratio"
+              ],
+              "variant": "info"
+            }
+          ]
+        }
+      ]
+    },
+    "params": [
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": false,
+        "dom_id": "",
+        "help": "Segmentation par prompt texte au lieu des classes YOLO.",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-wand-magic-sparkles",
+        "inline": false,
+        "label": "Utiliser SAM3 (prompt texte)",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "use_sam3",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "toggle",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": null,
+        "dom_id": {
+          "panel": "user_setting_sam3_prompt"
+        },
+        "help": "Ex. « blur all faces and license plates ».",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-comment-dots",
+        "inline": false,
+        "label": "Prompt SAM3",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "sam3_prompt",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": {
+          "equals": true,
+          "field": "use_sam3"
+        },
+        "step": null,
+        "type": "textarea",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": null,
+        "dom_id": {
+          "panel": "user_setting_model_to_use"
+        },
+        "help": "Modèle de détection YOLO (vide = auto selon la précision).",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-microchip",
+        "inline": false,
+        "label": "Modèle YOLO",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "model_to_use",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": {
+          "equals": false,
+          "field": "use_sam3"
+        },
+        "step": null,
+        "type": "select",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": 50,
+        "dom_id": {
+          "panel": "user_setting_precision_level"
+        },
+        "help": "0=Rapide · 50=Équilibré · 100=Précis (lent).",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-gauge-high",
+        "inline": false,
+        "label": "Niveau de précision",
+        "max": 100,
+        "max_label": "",
+        "min": 0,
+        "min_label": "",
+        "name": "precision_level",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": 1,
+        "type": "range",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": 0.25,
+        "dom_id": {
+          "panel": "user_setting_detection_threshold"
+        },
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-crosshairs",
+        "inline": false,
+        "label": "Seuil de détection",
+        "max": 1,
+        "max_label": "",
+        "min": 0,
+        "min_label": "",
+        "name": "detection_threshold",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": 0.05,
+        "type": "range",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": 25,
+        "dom_id": {
+          "panel": "user_setting_blur_ratio"
+        },
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-droplet",
+        "inline": false,
+        "label": "Intensité du flou",
+        "max": 100,
+        "max_label": "",
+        "min": 1,
+        "min_label": "",
+        "name": "blur_ratio",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": 1,
+        "type": "range",
+        "unit": ""
+      },
+      {
+        "advanced": true,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": 5,
+        "dom_id": "",
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-border-top-left",
+        "inline": false,
+        "label": "Bords arrondis",
+        "max": 50,
+        "max_label": "",
+        "min": 0,
+        "min_label": "",
+        "name": "rounded_edges",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": 1,
+        "type": "number",
+        "unit": ""
+      },
+      {
+        "advanced": true,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": 1.05,
+        "dom_id": {
+          "panel": "user_setting_roi_enlargement"
+        },
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-up-right-and-down-left-from-center",
+        "inline": false,
+        "label": "Agrandissement de la zone",
+        "max": 2.0,
+        "max_label": "",
+        "min": 1.0,
+        "min_label": "",
+        "name": "roi_enlargement",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": 0.05,
+        "type": "range",
+        "unit": ""
+      },
+      {
+        "advanced": true,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": 25,
+        "dom_id": {
+          "panel": "user_setting_progressive_blur"
+        },
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-chart-line",
+        "inline": false,
+        "label": "Flou progressif",
+        "max": 100,
+        "max_label": "",
+        "min": 0,
+        "min_label": "",
+        "name": "progressive_blur",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": 1,
+        "type": "range",
+        "unit": ""
+      },
+      {
+        "advanced": true,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": true,
+        "dom_id": "",
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-wave-square",
+        "inline": false,
+        "label": "Interpoler les détections manquantes",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "interpolate_detections",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "toggle",
+        "unit": ""
+      },
+      {
+        "advanced": true,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": 15,
+        "dom_id": "",
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-film",
+        "inline": false,
+        "label": "Frames max à interpoler",
+        "max": 60,
+        "max_label": "",
+        "min": 1,
+        "min_label": "",
+        "name": "max_interpolation_frames",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": {
+          "equals": true,
+          "field": "interpolate_detections"
+        },
+        "step": 1,
+        "type": "number",
+        "unit": ""
+      },
+      {
+        "advanced": true,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": true,
+        "dom_id": "",
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-eye",
+        "inline": false,
+        "label": "Afficher l'aperçu",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "show_preview",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "toggle",
+        "unit": ""
+      },
+      {
+        "advanced": true,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": true,
+        "dom_id": "",
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-vector-square",
+        "inline": false,
+        "label": "Afficher les boîtes",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "show_boxes",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "toggle",
+        "unit": ""
+      },
+      {
+        "advanced": true,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": true,
+        "dom_id": "",
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-tag",
+        "inline": false,
+        "label": "Afficher les libellés",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "show_labels",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "toggle",
+        "unit": ""
+      },
+      {
+        "advanced": true,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": true,
+        "dom_id": "",
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-percent",
+        "inline": false,
+        "label": "Afficher la confiance",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "show_conf",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "toggle",
+        "unit": ""
+      },
+      {
+        "advanced": true,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": "original",
+        "dom_id": "",
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-file-export",
+        "inline": false,
+        "label": "Format de sortie",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "output_format",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "select",
+        "unit": ""
+      },
+      {
+        "advanced": true,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": "balanced",
+        "dom_id": "",
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-gem",
+        "inline": false,
+        "label": "Qualité de sortie",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "output_quality",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "select",
+        "unit": ""
+      }
+    ],
+    "ports": {
+      "inputs": [
+        {
+          "group": "travail",
+          "id": "work",
+          "label": "Entrée",
+          "multi": true,
+          "types": [
+            "image",
+            "video"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "id": "out",
+          "label": "Sortie",
+          "types": [
+            "image",
+            "video"
+          ]
+        }
+      ]
+    },
+    "processing": {
+      "anti_race": false,
+      "endpoints": [
+        "index",
+        "upload",
+        "start",
+        "status",
+        "download",
+        "delete",
+        "duplicate",
+        "update",
+        "start_all",
+        "clear_all",
+        "download_all",
+        "global_progress"
+      ],
+      "ingest": null,
+      "processing_time": true,
+      "statuses": [
+        "PENDING",
+        "RUNNING",
+        "SUCCESS",
+        "FAILURE"
+      ]
+    },
+    "prompts": {
+      "targets": [
+        {
+          "field": "sam3_prompt",
+          "kind": "concept",
+          "when": "use_sam3"
+        }
+      ]
+    },
+    "studio": {
+      "auto_start": null,
+      "fixed_kwargs": null,
+      "input_kinds": [
+        "image",
+        "video"
+      ],
+      "input_kwarg": null,
+      "output_type": "auto",
+      "primary_input": null,
+      "runnable": true
+    },
+    "tool_api": {
+      "add": "add_to_anonymizer",
+      "descriptions": {
+        "add_to_anonymizer": {
+          "args": {
+            "blur_ratio": "range — Intensité du flou [1–100] (défaut : 25)",
+            "classes": "list",
+            "detection_threshold": "range — Seuil de détection [0–1] (défaut : 0.25)",
+            "file_path": "str (requis)",
+            "interpolate_detections": "toggle — Interpoler les détections manquantes (défaut : True)",
+            "max_interpolation_frames": "number — Frames max à interpoler [1–60] (défaut : 15)",
+            "model_to_use": "select — Modèle de détection YOLO (vide = auto selon la précision).",
+            "output_format": "select — Format de sortie (défaut : 'original')",
+            "output_quality": "select — Qualité de sortie (défaut : 'balanced')",
+            "precision_level": "range — 0=Rapide · 50=Équilibré · 100=Précis (lent). [0–100] (défaut : 50)",
+            "progressive_blur": "range — Flou progressif [0–100] (défaut : 25)",
+            "roi_enlargement": "range — Agrandissement de la zone [1.0–2.0] (défaut : 1.05)",
+            "rounded_edges": "number — Bords arrondis [0–50] (défaut : 5)",
+            "sam3_prompt": "textarea — Ex. « blur all faces and license plates ».",
+            "show_boxes": "toggle — Afficher les boîtes (défaut : True)",
+            "show_conf": "toggle — Afficher la confiance (défaut : True)",
+            "show_labels": "toggle — Afficher les libellés (défaut : True)",
+            "show_preview": "toggle — Afficher l'aperçu (défaut : True)",
+            "use_sam3": "toggle — Segmentation par prompt texte au lieu des classes YOLO. (défaut : False)"
+          },
+          "description": "Ajoute un élément à la file d'attente de Anonymizer (Floutage automatique de visages et plaques sur images et vidéos) et renvoie son item_id."
+        },
+        "get_anonymizer_status": {
+          "args": {},
+          "description": "État des travaux Anonymizer de l'utilisateur : statut, progression, résultat."
+        },
+        "start_anonymizer": {
+          "args": {
+            "media_id": "int"
+          },
+          "description": "Lance le traitement Anonymizer : l'item indiqué, ou tous ceux en attente si aucun id."
+        }
+      },
+      "start": "start_anonymizer",
+      "status": "get_anonymizer_status"
+    }
+  },
+  "description": "Floutage automatique de visages et plaques sur images et vidéos.",
+  "key": "anonymizer",
+  "manifest_kind": "app",
+  "name": "Anonymizer",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "APP_CATALOG:anonymizer",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

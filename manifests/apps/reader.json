@@ -1,0 +1,351 @@
+{
+  "body": {
+    "access": {
+      "min_tier": null,
+      "public": false,
+      "roles": [
+        "recherche"
+      ]
+    },
+    "capabilities": {
+      "accepts_url": true,
+      "anti_race": true,
+      "batch_type": "media_list",
+      "during_preview": false,
+      "has_batch": true,
+      "has_url_import": false,
+      "has_youtube": false,
+      "inspector": true,
+      "layout": true,
+      "multi_format_download": true,
+      "settings_modal_item": true,
+      "streaming": false
+    },
+    "identity": {
+      "category": "understand",
+      "color": "#46a7d8",
+      "icon": "fas fa-book-open",
+      "input_extensions": [
+        ".pdf",
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".tiff",
+        ".tif",
+        ".webp",
+        ".bmp"
+      ],
+      "url_name": "reader:index"
+    },
+    "inspector": {
+      "detail_registered": true,
+      "preview_registered": true
+    },
+    "models": {
+      "catalog_keys": [
+        "doctr",
+        "glm-ocr",
+        "olmocr"
+      ],
+      "source_attr": "READER_MODELS"
+    },
+    "params": [
+      {
+        "advanced": false,
+        "chip": true,
+        "chip_label": "",
+        "choices": [
+          [
+            "auto",
+            "Auto (meilleur disponible)"
+          ],
+          [
+            "olmocr",
+            "olmOCR-2 7B"
+          ],
+          [
+            "doctr",
+            "docTR (CPU-friendly)"
+          ],
+          [
+            "glm-ocr",
+            "GLM-OCR 0.9B (Ollama, léger)"
+          ]
+        ],
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": "auto",
+        "dom_id": {
+          "batch": "batchSettingsBackend",
+          "item": "rSettings_backend",
+          "panel": "backendSelect"
+        },
+        "help": "",
+        "help_fallback": {
+          "auto": "Choisit automatiquement le meilleur moteur disponible selon le document et le GPU.",
+          "doctr": "docTR — pipeline détection + reconnaissance, tourne sur CPU. Idéal documents imprimés simples.",
+          "glm-ocr": "GLM-OCR 0.9B (via Ollama) — léger et rapide, bon compromis pour texte imprimé courant.",
+          "olmocr": "olmOCR-2 7B — OCR vision haute qualité (mise en page, tableaux, manuscrit). ~16 Go VRAM."
+        },
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-microchip",
+        "inline": false,
+        "label": "Moteur OCR",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "backend",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "select",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": true,
+        "chip_label": "",
+        "choices": [
+          [
+            "auto",
+            "Auto"
+          ],
+          [
+            "printed",
+            "Imprimé / Typographié"
+          ],
+          [
+            "handwritten",
+            "Manuscrit"
+          ]
+        ],
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": "auto",
+        "dom_id": {
+          "batch": "batchSettingsMode",
+          "item": "rSettings_mode",
+          "panel": "modeSelect"
+        },
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-pen-nib",
+        "inline": false,
+        "label": "Mode de lecture",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "mode",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "select",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": true,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": "",
+        "dom_id": {
+          "batch": "batchSettingsLanguage",
+          "item": "rSettings_language",
+          "panel": "languageInput"
+        },
+        "help": "Optionnel (ex. fr, en). Auto-détection si vide.",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-language",
+        "inline": false,
+        "label": "Langue",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "language",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "text",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": true,
+        "chip_label": "",
+        "choices": [
+          [
+            "txt",
+            "Texte brut (.txt)"
+          ],
+          [
+            "markdown",
+            "Markdown (.md)"
+          ]
+        ],
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": "txt",
+        "dom_id": {
+          "batch": "batchSettingsOutputFormat",
+          "item": "rSettings_output_format",
+          "panel": "outputFormatSelect"
+        },
+        "help": "Format du texte produit. Les autres formats restent téléchargeables ensuite.",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-file-lines",
+        "inline": false,
+        "label": "Format de sortie",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "output_format",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "output",
+        "show_if": null,
+        "step": null,
+        "type": "select",
+        "unit": ""
+      }
+    ],
+    "ports": {
+      "inputs": [
+        {
+          "group": "travail",
+          "id": "work",
+          "label": "Entrée",
+          "multi": true,
+          "types": [
+            "document",
+            "image"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "id": "out",
+          "label": "Sortie",
+          "types": [
+            "text"
+          ]
+        }
+      ]
+    },
+    "processing": {
+      "anti_race": true,
+      "endpoints": [
+        "index",
+        "upload",
+        "start",
+        "status",
+        "download",
+        "delete",
+        "duplicate",
+        "update",
+        "start_all",
+        "clear_all",
+        "download_all",
+        "global_progress"
+      ],
+      "ingest": {
+        "mode": "smart",
+        "name_field": "original_filename",
+        "source": "source_url",
+        "target": "input_file"
+      },
+      "processing_time": true,
+      "statuses": [
+        "PENDING",
+        "RUNNING",
+        "SUCCESS",
+        "FAILURE"
+      ]
+    },
+    "studio": {
+      "auto_start": null,
+      "fixed_kwargs": null,
+      "input_kinds": [
+        "document",
+        "image"
+      ],
+      "input_kwarg": null,
+      "output_type": "text",
+      "primary_input": null,
+      "runnable": true
+    },
+    "tool_api": {
+      "add": "add_to_reader",
+      "descriptions": {
+        "add_to_reader": {
+          "args": {
+            "backend": "select — Moteur OCR (choix : auto | olmocr | doctr | glm-ocr) (défaut : ReadingItem.Backend.AUTO)",
+            "file_path": "str (requis)",
+            "language": "text — Optionnel (ex. fr, en). Auto-détection si vide.",
+            "mode": "select — Mode de lecture (choix : auto | printed | handwritten) (défaut : ReadingItem.Mode.AUTO)",
+            "output_format": "select — Format du texte produit. Les autres formats restent téléchargeables ensuite. (choix : txt | markdown) (défaut : ReadingItem.OutputFormat.TXT)"
+          },
+          "description": "Ajoute un élément à la file d'attente de Reader (OCR) (Extraction de texte par OCR (Tesseract, PaddleOCR, EasyOCR)) et renvoie son item_id."
+        },
+        "get_reader_status": {
+          "args": {},
+          "description": "État des travaux Reader (OCR) de l'utilisateur : statut, progression, résultat."
+        },
+        "start_reader": {
+          "args": {
+            "item_id": "int"
+          },
+          "description": "Lance le traitement Reader (OCR) : l'item indiqué, ou tous ceux en attente si aucun id."
+        }
+      },
+      "start": "start_reader",
+      "status": "get_reader_status"
+    }
+  },
+  "description": "Extraction de texte par OCR (Tesseract, PaddleOCR, EasyOCR).",
+  "key": "reader",
+  "manifest_kind": "app",
+  "name": "Reader (OCR)",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "APP_CATALOG:reader",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

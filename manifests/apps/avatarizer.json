@@ -1,0 +1,336 @@
+{
+  "body": {
+    "access": {
+      "min_tier": null,
+      "public": false,
+      "roles": [
+        "communication"
+      ]
+    },
+    "capabilities": {
+      "accepts_url": true,
+      "anti_race": true,
+      "batch_type": null,
+      "during_preview": false,
+      "has_batch": false,
+      "has_url_import": false,
+      "has_youtube": false,
+      "inspector": true,
+      "layout": false,
+      "multi_format_download": null,
+      "settings_modal_item": true,
+      "streaming": false
+    },
+    "identity": {
+      "category": "create",
+      "color": "#9429c2",
+      "icon": "fas fa-user-circle",
+      "input_extensions": [
+        ".mp3",
+        ".wav",
+        ".flac",
+        ".ogg",
+        ".m4a",
+        ".aac",
+        ".opus",
+        ".wma",
+        ".aiff",
+        ".aif",
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".webp",
+        ".bmp",
+        ".tif",
+        ".tiff",
+        ".heic",
+        ".gif",
+        ".heif",
+        ".avif"
+      ],
+      "url_name": "avatarizer:index"
+    },
+    "inspector": {
+      "detail_registered": true,
+      "preview_registered": true
+    },
+    "models": {
+      "catalog_keys": [
+        "codeformer",
+        "musetalk-v1.0",
+        "musetalk-v1.5"
+      ],
+      "source_attr": "AVATARIZER_MODELS"
+    },
+    "modes": {
+      "domains": [
+        {
+          "icon": "fa-user-astronaut",
+          "id": "video",
+          "label": "Avatar parlant",
+          "modes": [
+            {
+              "icon": "fa-film",
+              "id": "standalone",
+              "inputs": [
+                "work_image",
+                "work_audio"
+              ],
+              "label": "Standalone",
+              "settings": [
+                "quality_mode",
+                "use_enhancer",
+                "bbox_shift"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "params": [
+      {
+        "advanced": false,
+        "chip": true,
+        "chip_label": "",
+        "choices": [
+          [
+            "fast",
+            "Rapide (MuseTalk seul)"
+          ],
+          [
+            "quality",
+            "Qualité (MuseTalk + CodeFormer)"
+          ]
+        ],
+        "contexts": [
+          "panel",
+          "item",
+          "batch"
+        ],
+        "default": "fast",
+        "dom_id": {
+          "panel": "quality_mode"
+        },
+        "help": "Rapide (MuseTalk) ou Qualité (MuseTalk + CodeFormer)",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-bolt",
+        "inline": true,
+        "label": "Qualité",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "quality_mode",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": {
+          "item": "settings_quality_mode",
+          "panel": "quality_mode"
+        },
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "radio",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": true,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "panel",
+          "item",
+          "batch"
+        ],
+        "default": false,
+        "dom_id": {
+          "item": "settingsUseEnhancer",
+          "panel": "use_enhancer"
+        },
+        "help": "Amélioration faciale CodeFormer (mode Qualité uniquement)",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-wand-magic-sparkles",
+        "inline": false,
+        "label": "Enhancer IA (CodeFormer)",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "use_enhancer",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": {
+          "equals": "quality",
+          "field": "quality_mode"
+        },
+        "step": null,
+        "type": "toggle",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": true,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "panel",
+          "item",
+          "batch"
+        ],
+        "default": 0,
+        "dom_id": {
+          "item": "settingsBboxShift",
+          "panel": "bbox_shift"
+        },
+        "help": "Décalage vertical de la zone bouche (px). 0 = auto.",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-arrows-up-down",
+        "inline": false,
+        "label": "Bbox shift",
+        "max": 9,
+        "max_label": "",
+        "min": -9,
+        "min_label": "",
+        "name": "bbox_shift",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": 1,
+        "type": "range",
+        "unit": ""
+      }
+    ],
+    "ports": {
+      "inputs": [
+        {
+          "group": "travail",
+          "id": "work",
+          "label": "Entrée",
+          "multi": true,
+          "types": [
+            "audio",
+            "image"
+          ]
+        },
+        {
+          "group": "prompt",
+          "id": "prompt",
+          "label": "Prompt",
+          "multi": false,
+          "types": [
+            "prompt"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "id": "out",
+          "label": "Sortie",
+          "types": [
+            "video"
+          ]
+        }
+      ]
+    },
+    "processing": {
+      "anti_race": true,
+      "endpoints": [
+        "index",
+        "upload",
+        "start",
+        "status",
+        "download",
+        "delete",
+        "duplicate",
+        "update",
+        "start_all",
+        "clear_all",
+        "download_all",
+        "global_progress"
+      ],
+      "ingest": {
+        "mode": "audio",
+        "source": "source_url",
+        "target": "audio_input"
+      },
+      "processing_time": false,
+      "statuses": [
+        "PENDING",
+        "RUNNING",
+        "SUCCESS",
+        "FAILURE"
+      ]
+    },
+    "studio": {
+      "auto_start": null,
+      "fixed_kwargs": {
+        "avatar_source": "gallery",
+        "mode": "standalone"
+      },
+      "input_kinds": [
+        "audio"
+      ],
+      "input_kwarg": "audio_path",
+      "output_type": "video",
+      "primary_input": null,
+      "runnable": true
+    },
+    "tool_api": {
+      "add": "add_to_avatarizer",
+      "descriptions": {
+        "add_to_avatarizer": {
+          "args": {
+            "audio_path": "str",
+            "avatar_gallery_name": "str",
+            "avatar_image_path": "str",
+            "avatar_source": "str (défaut : 'gallery')",
+            "bbox_shift": "range — Décalage vertical de la zone bouche (px). 0 = auto. [-9–9] (défaut : 0)",
+            "language": "str (défaut : 'fr')",
+            "mode": "str (défaut : 'pipeline')",
+            "quality_mode": "radio — Rapide (MuseTalk) ou Qualité (MuseTalk + CodeFormer) (choix : fast | quality) (défaut : 'fast')",
+            "text_content": "str",
+            "tts_model": "str (défaut : 'xtts_v2')",
+            "use_enhancer": "toggle — Amélioration faciale CodeFormer (mode Qualité uniquement) (défaut : False)",
+            "voice_preset": "str (défaut : 'default')"
+          },
+          "description": "Ajoute un élément à la file d'attente de Avatarizer (Génération de vidéos d'avatars lip-sync animés par IA (MuseTalk + CodeFormer)) et renvoie son item_id."
+        },
+        "get_avatarizer_status": {
+          "args": {},
+          "description": "État des travaux Avatarizer de l'utilisateur : statut, progression, résultat."
+        },
+        "start_avatarizer": {
+          "args": {
+            "job_id": "int"
+          },
+          "description": "Lance le traitement Avatarizer : l'item indiqué, ou tous ceux en attente si aucun id."
+        }
+      },
+      "start": "start_avatarizer",
+      "status": "get_avatarizer_status"
+    }
+  },
+  "description": "Génération de vidéos d'avatars lip-sync animés par IA (MuseTalk + CodeFormer).",
+  "key": "avatarizer",
+  "manifest_kind": "app",
+  "name": "Avatarizer",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "APP_CATALOG:avatarizer",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

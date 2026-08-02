@@ -1,0 +1,417 @@
+{
+  "body": {
+    "access": {
+      "min_tier": null,
+      "public": false,
+      "roles": [
+        "recherche"
+      ]
+    },
+    "capabilities": {
+      "accepts_url": true,
+      "anti_race": true,
+      "batch_type": "media_list",
+      "during_preview": false,
+      "has_batch": true,
+      "has_url_import": true,
+      "has_youtube": true,
+      "inspector": true,
+      "layout": true,
+      "multi_format_download": true,
+      "settings_modal_item": true,
+      "streaming": false
+    },
+    "identity": {
+      "category": "understand",
+      "color": "#298fc2",
+      "icon": "fas fa-search-plus",
+      "input_extensions": [
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".webp",
+        ".bmp",
+        ".tif",
+        ".tiff",
+        ".heic",
+        ".gif",
+        ".heif",
+        ".avif",
+        ".mp4",
+        ".webm",
+        ".mkv",
+        ".avi",
+        ".mov",
+        ".flv",
+        ".mpg",
+        ".mpeg",
+        ".qt",
+        ".3gp",
+        ".wmv",
+        ".ts",
+        ".m4v",
+        ".mp3",
+        ".wav",
+        ".flac",
+        ".ogg",
+        ".m4a",
+        ".aac",
+        ".opus",
+        ".wma",
+        ".aiff",
+        ".aif",
+        ".txt",
+        ".md",
+        ".csv",
+        ".pdf",
+        ".docx"
+      ],
+      "url_name": "describer:index"
+    },
+    "inspector": {
+      "detail_registered": true,
+      "preview_registered": true
+    },
+    "models": {
+      "catalog_keys": [
+        "blip",
+        "whisper"
+      ],
+      "source_attr": "DESCRIBER_MODELS"
+    },
+    "params": [
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": [
+          [
+            "summary",
+            "Resume court"
+          ],
+          [
+            "detailed",
+            "Description detaillee"
+          ],
+          [
+            "scientific",
+            "Synthese scientifique"
+          ],
+          [
+            "bullet_points",
+            "Points cles"
+          ],
+          [
+            "meeting",
+            "Compte-rendu de reunion"
+          ]
+        ],
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": "detailed",
+        "dom_id": {
+          "item": "settingsOutputFormat",
+          "panel": "output_style"
+        },
+        "help": "Niveau de détail de la description générée.",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-align-left",
+        "inline": false,
+        "label": "Format de sortie",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "output_style",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "select",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": [
+          [
+            "fr",
+            "Francais"
+          ],
+          [
+            "en",
+            "English"
+          ],
+          [
+            "auto",
+            "Langue source"
+          ]
+        ],
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": "fr",
+        "dom_id": {
+          "item": "settingsOutputLanguage",
+          "panel": "output_language"
+        },
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-language",
+        "inline": false,
+        "label": "Langue de sortie",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "output_language",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "select",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": 500,
+        "dom_id": {
+          "item": "settingsMaxLength",
+          "panel": "max_length"
+        },
+        "help": "Longueur maximale (caractères) de la description.",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-text-width",
+        "inline": false,
+        "label": "Longueur max",
+        "max": 2000,
+        "max_label": "",
+        "min": 100,
+        "min_label": "",
+        "name": "max_length",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": 50,
+        "type": "range",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": false,
+        "dom_id": {
+          "item": "settingsGenerateSummary",
+          "panel": "globalGenerateSummary"
+        },
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-file-lines",
+        "inline": false,
+        "label": "Générer un résumé LLM",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "generate_summary",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "toggle",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": false,
+        "dom_id": {
+          "item": "settingsVerifyCoherence",
+          "panel": "globalVerifyCoherence"
+        },
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-spell-check",
+        "inline": false,
+        "label": "Vérifier la cohérence",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "verify_coherence",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "toggle",
+        "unit": ""
+      }
+    ],
+    "ports": {
+      "inputs": [
+        {
+          "group": "travail",
+          "id": "work",
+          "label": "Entrée",
+          "multi": true,
+          "types": [
+            "image",
+            "video",
+            "audio"
+          ]
+        },
+        {
+          "group": "prompt",
+          "id": "prompt",
+          "label": "Prompt",
+          "multi": false,
+          "types": [
+            "prompt"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "id": "out",
+          "label": "Sortie",
+          "types": [
+            "text"
+          ]
+        }
+      ]
+    },
+    "processing": {
+      "anti_race": true,
+      "endpoints": [
+        "index",
+        "upload",
+        "start",
+        "status",
+        "download",
+        "delete",
+        "duplicate",
+        "update",
+        "start_all",
+        "clear_all",
+        "download_all",
+        "global_progress"
+      ],
+      "ingest": {
+        "mode": "smart",
+        "name_field": "filename",
+        "size_field": "file_size",
+        "source": "source_url",
+        "target": "input_file"
+      },
+      "processing_time": true,
+      "statuses": [
+        "PENDING",
+        "RUNNING",
+        "SUCCESS",
+        "FAILURE"
+      ]
+    },
+    "studio": {
+      "auto_start": null,
+      "fixed_kwargs": null,
+      "input_kinds": [
+        "image",
+        "video",
+        "audio",
+        "document"
+      ],
+      "input_kwarg": null,
+      "output_type": "text",
+      "primary_input": null,
+      "runnable": true
+    },
+    "tool_api": {
+      "add": "add_to_describer",
+      "descriptions": {
+        "add_to_describer": {
+          "args": {
+            "file_path": "str (requis)",
+            "generate_summary": "toggle — Générer un résumé LLM (défaut : False)",
+            "max_length": "range — Longueur maximale (caractères) de la description. [100–2000] (défaut : 500)",
+            "output_language": "select — Langue de sortie (choix : fr | en | auto) (défaut : 'fr')",
+            "output_style": "select — Niveau de détail de la description générée. (choix : summary | detailed | scientific | bullet_points | meeting) (défaut : 'detailed')",
+            "verify_coherence": "toggle — Vérifier la cohérence (défaut : False)"
+          },
+          "description": "Ajoute un élément à la file d'attente de Describer (Description automatique d'images, vidéos, fichiers audio et documents par LLM) et renvoie son item_id."
+        },
+        "get_describer_status": {
+          "args": {},
+          "description": "État des travaux Describer de l'utilisateur : statut, progression, résultat."
+        },
+        "start_describer": {
+          "args": {
+            "description_id": "int"
+          },
+          "description": "Lance le traitement Describer : l'item indiqué, ou tous ceux en attente si aucun id."
+        }
+      },
+      "start": "start_describer",
+      "status": "get_describer_status"
+    }
+  },
+  "description": "Description automatique d'images, vidéos, fichiers audio et documents par LLM.",
+  "key": "describer",
+  "manifest_kind": "app",
+  "name": "Describer",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "APP_CATALOG:describer",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

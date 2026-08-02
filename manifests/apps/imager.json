@@ -1,0 +1,637 @@
+{
+  "body": {
+    "access": {
+      "min_tier": null,
+      "public": false,
+      "roles": [
+        "communication"
+      ]
+    },
+    "capabilities": {
+      "accepts_url": false,
+      "anti_race": true,
+      "batch_type": null,
+      "during_preview": false,
+      "has_batch": false,
+      "has_url_import": false,
+      "has_youtube": false,
+      "inspector": false,
+      "layout": false,
+      "multi_format_download": null,
+      "settings_modal_item": true,
+      "streaming": false
+    },
+    "identity": {
+      "category": "create",
+      "color": "#b254db",
+      "icon": "fas fa-image",
+      "input_extensions": [
+        ".txt",
+        ".md",
+        ".csv",
+        ".pdf",
+        ".docx",
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".webp",
+        ".bmp",
+        ".tif",
+        ".tiff",
+        ".heic",
+        ".gif",
+        ".heif",
+        ".avif"
+      ],
+      "url_name": "imager:index"
+    },
+    "inspector": {
+      "detail_registered": true,
+      "preview_registered": false
+    },
+    "models": {
+      "catalog_keys": [
+        "cogvideox-5b-i2v",
+        "flux-1-dev",
+        "flux-lora-logo-design",
+        "flux2-klein-4b",
+        "hunyuan-image-2.1",
+        "ltx-video-13b-0.9.8-distilled",
+        "ltx-video-13b-0.9.8-distilled-fp8",
+        "mochi-1-preview",
+        "qwen-image-2",
+        "qwen-image-edit",
+        "stable-diffusion-v1-5",
+        "stable-diffusion-xl"
+      ],
+      "source_attr": "IMAGER_MODELS"
+    },
+    "modes": {
+      "domains": [
+        {
+          "icon": "fa-image",
+          "id": "image",
+          "label": "Image",
+          "modes": [
+            {
+              "icon": "fa-font",
+              "id": "txt2img",
+              "inputs": [
+                "prompt",
+                "negative_prompt"
+              ],
+              "label": "Texte → Image",
+              "settings": [
+                "model",
+                "seed",
+                "steps",
+                "guidance",
+                "resolution"
+              ]
+            },
+            {
+              "icon": "fa-wand-magic-sparkles",
+              "id": "img2img",
+              "inputs": [
+                "work_image",
+                "prompt"
+              ],
+              "label": "Édition (img2img)",
+              "settings": [
+                "model",
+                "strength",
+                "seed",
+                "steps"
+              ]
+            },
+            {
+              "icon": "fa-palette",
+              "id": "style2img",
+              "inputs": [
+                "reference_image",
+                "prompt"
+              ],
+              "label": "Transfert de style",
+              "settings": [
+                "model",
+                "style_weight",
+                "seed",
+                "steps"
+              ]
+            },
+            {
+              "icon": "fa-list",
+              "id": "file2img",
+              "inputs": [
+                "prompt_file"
+              ],
+              "label": "Batch (fichier de prompts)",
+              "settings": [
+                "model",
+                "seed",
+                "steps",
+                "resolution"
+              ]
+            },
+            {
+              "icon": "fa-comment-dots",
+              "id": "describe2img",
+              "inputs": [
+                "work_image"
+              ],
+              "label": "Décrire → Image",
+              "pipeline_hint": "Describer→Imager",
+              "settings": [
+                "model",
+                "seed",
+                "steps"
+              ]
+            }
+          ],
+          "variant": "primary"
+        },
+        {
+          "icon": "fa-film",
+          "id": "video",
+          "label": "Vidéo",
+          "modes": [
+            {
+              "icon": "fa-font",
+              "id": "txt2vid",
+              "inputs": [
+                "prompt"
+              ],
+              "label": "Texte → Vidéo",
+              "settings": [
+                "video_model",
+                "frames",
+                "fps",
+                "resolution"
+              ]
+            },
+            {
+              "icon": "fa-image",
+              "id": "img2vid",
+              "inputs": [
+                "work_image",
+                "prompt"
+              ],
+              "label": "Image → Vidéo",
+              "settings": [
+                "video_model",
+                "frames",
+                "fps"
+              ]
+            }
+          ],
+          "variant": "success"
+        }
+      ]
+    },
+    "params": [
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": "stable-diffusion-v1-5",
+        "dom_id": {
+          "item": "settings_model",
+          "panel": "imgDefaultModel"
+        },
+        "help": "AI model to use",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-microchip",
+        "inline": false,
+        "label": "Modèle",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "model",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "select",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": "",
+        "dom_id": {
+          "item": "settings_negative_prompt"
+        },
+        "help": "Ce qu'il faut éviter dans l'image.",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-ban",
+        "inline": false,
+        "label": "Prompt négatif",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "negative_prompt",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "textarea",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": [
+          [
+            "1",
+            "1"
+          ],
+          [
+            "2",
+            "2"
+          ],
+          [
+            "3",
+            "3"
+          ],
+          [
+            "4",
+            "4"
+          ]
+        ],
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": 1,
+        "dom_id": {
+          "item": "settings_num_images"
+        },
+        "help": "Number of images to generate",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-images",
+        "inline": false,
+        "label": "Nombre d'images",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "num_images",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "select",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": 30,
+        "dom_id": {
+          "item": "settings_steps"
+        },
+        "help": "Nombre d'étapes de diffusion.",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-shoe-prints",
+        "inline": false,
+        "label": "Steps",
+        "max": 100,
+        "max_label": "",
+        "min": 1,
+        "min_label": "",
+        "name": "steps",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": 1,
+        "type": "range",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": 7.5,
+        "dom_id": {
+          "item": "settings_guidance_scale"
+        },
+        "help": "À quel point suivre le prompt.",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-sliders-h",
+        "inline": false,
+        "label": "Guidance scale",
+        "max": 20,
+        "max_label": "",
+        "min": 1,
+        "min_label": "",
+        "name": "guidance_scale",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": 0.5,
+        "type": "range",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": null,
+        "dom_id": {
+          "item": "settings_seed"
+        },
+        "help": "Graine aléatoire (vide = aléatoire).",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-dice",
+        "inline": false,
+        "label": "Seed",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "seed",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "number",
+        "unit": ""
+      },
+      {
+        "advanced": true,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": 0.75,
+        "dom_id": {
+          "item": "settings_image_strength"
+        },
+        "help": "Influence de l'image de référence (img2img / style). 0=ignorer, 1=copier.",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-image",
+        "inline": false,
+        "label": "Force de l'image de référence",
+        "max": 1,
+        "max_label": "",
+        "min": 0,
+        "min_label": "",
+        "name": "image_strength",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": 0.05,
+        "type": "range",
+        "unit": ""
+      },
+      {
+        "advanced": true,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": false,
+        "dom_id": {
+          "item": "settings_upscale"
+        },
+        "help": "Upscale the generated image",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-expand",
+        "inline": false,
+        "label": "Upscaler la sortie",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "upscale",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "toggle",
+        "unit": ""
+      }
+    ],
+    "ports": {
+      "inputs": [
+        {
+          "group": "travail",
+          "id": "work",
+          "label": "Entrée",
+          "multi": true,
+          "types": [
+            "image"
+          ]
+        },
+        {
+          "group": "prompt",
+          "id": "prompt",
+          "label": "Prompt",
+          "multi": false,
+          "types": [
+            "prompt"
+          ]
+        },
+        {
+          "group": "reference",
+          "id": "reference_image",
+          "label": "Image de référence (style)",
+          "multi": false,
+          "types": [
+            "image"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "id": "out",
+          "label": "Sortie",
+          "types": [
+            "image",
+            "video"
+          ]
+        }
+      ]
+    },
+    "processing": {
+      "anti_race": true,
+      "endpoints": [
+        "index",
+        "upload",
+        "start",
+        "status",
+        "download",
+        "delete",
+        "duplicate",
+        "update",
+        "start_all",
+        "clear_all",
+        "download_all",
+        "global_progress"
+      ],
+      "ingest": null,
+      "processing_time": false,
+      "statuses": [
+        "PENDING",
+        "RUNNING",
+        "SUCCESS",
+        "FAILURE"
+      ]
+    },
+    "prompts": {
+      "skills": [
+        "imager-image.md",
+        "imager-video.md"
+      ],
+      "targets": [
+        {
+          "default_model_type": "diffusion",
+          "domain_field": "output_type",
+          "enrich": true,
+          "field": "prompt",
+          "kind": "generative",
+          "model": "imager.ImageGeneration",
+          "model_field": "model",
+          "source": "imager"
+        },
+        {
+          "default_model_type": "diffusion",
+          "field": "negative_prompt",
+          "kind": "generative",
+          "model_field": "model",
+          "source": "imager"
+        }
+      ]
+    },
+    "studio": {
+      "auto_start": null,
+      "fixed_kwargs": null,
+      "input_kinds": null,
+      "input_kwarg": null,
+      "output_type": "auto",
+      "primary_input": "prompt",
+      "runnable": true
+    },
+    "tool_api": {
+      "add": "add_to_imager",
+      "descriptions": {
+        "add_to_imager": {
+          "args": {
+            "guidance_scale": "range — À quel point suivre le prompt. [1–20] (défaut : 7.5)",
+            "height": "int (défaut : 512)",
+            "image_strength": "range — Influence de l'image de référence (img2img / style). 0=ignorer, 1=copier. [0–1] (défaut : 0.75)",
+            "model": "select — AI model to use (défaut : 'stable-diffusion-v1-5')",
+            "negative_prompt": "textarea — Ce qu'il faut éviter dans l'image.",
+            "num_images": "select — Number of images to generate (choix : 1 | 2 | 3 | 4) (défaut : 1)",
+            "prompt": "str (requis)",
+            "seed": "number — Graine aléatoire (vide = aléatoire).",
+            "steps": "range — Nombre d'étapes de diffusion. [1–100] (défaut : 30)",
+            "upscale": "toggle — Upscale the generated image (défaut : False)",
+            "width": "int (défaut : 512)"
+          },
+          "description": "Ajoute un élément à la file d'attente de Imager (Génération d'images et vidéos par IA (Stable Diffusion, Hunyuan, Mochi…)) et renvoie son item_id."
+        },
+        "get_imager_status": {
+          "args": {},
+          "description": "État des travaux Imager de l'utilisateur : statut, progression, résultat."
+        },
+        "start_imager": {
+          "args": {
+            "generation_id": "int"
+          },
+          "description": "Lance le traitement Imager : l'item indiqué, ou tous ceux en attente si aucun id."
+        }
+      },
+      "start": "start_imager",
+      "status": "get_imager_status"
+    }
+  },
+  "description": "Génération d'images et vidéos par IA (Stable Diffusion, Hunyuan, Mochi…).",
+  "key": "imager",
+  "manifest_kind": "app",
+  "name": "Imager",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "APP_CATALOG:imager",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

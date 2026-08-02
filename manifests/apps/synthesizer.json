@@ -1,0 +1,666 @@
+{
+  "body": {
+    "access": {
+      "min_tier": null,
+      "public": false,
+      "roles": [
+        "communication"
+      ]
+    },
+    "capabilities": {
+      "accepts_url": true,
+      "anti_race": true,
+      "batch_type": "pipe",
+      "during_preview": false,
+      "has_batch": true,
+      "has_url_import": false,
+      "has_youtube": false,
+      "inspector": true,
+      "layout": true,
+      "multi_format_download": null,
+      "settings_modal_item": true,
+      "streaming": false
+    },
+    "identity": {
+      "category": "create",
+      "color": "#bf70e1",
+      "icon": "fas fa-microphone",
+      "input_extensions": [
+        ".txt",
+        ".md",
+        ".csv",
+        ".pdf",
+        ".docx"
+      ],
+      "url_name": "synthesizer:index"
+    },
+    "inspector": {
+      "detail_registered": true,
+      "preview_registered": true
+    },
+    "models": {
+      "catalog_keys": [
+        "bark",
+        "higgs_audio",
+        "kokoro",
+        "speedy_speech",
+        "tacotron2",
+        "vits",
+        "xtts_v2"
+      ],
+      "source_attr": "SYNTHESIZER_MODELS"
+    },
+    "modes": {
+      "domains": [
+        {
+          "icon": "fa-volume-high",
+          "id": "audio",
+          "label": "Audio",
+          "modes": [
+            {
+              "icon": "fa-play",
+              "id": "normal",
+              "inputs": [
+                "prompt",
+                "reference_voice"
+              ],
+              "label": "Synthèse",
+              "settings": [
+                "voice",
+                "language",
+                "speed"
+              ]
+            },
+            {
+              "icon": "fa-bolt",
+              "id": "realtime",
+              "inputs": [
+                "prompt",
+                "reference_voice"
+              ],
+              "label": "Temps réel",
+              "realtime": true,
+              "settings": [
+                "voice",
+                "language",
+                "speed"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "params": [
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": [
+          [
+            "xtts_v2",
+            "XTTS v2 (Clonage vocal, 16 langues)"
+          ],
+          [
+            "bark",
+            "Bark (Naturel, Expressif, Effets sonores, 14 langues)"
+          ],
+          [
+            "kokoro",
+            "Kokoro 82M (Léger, FR/EN/ES/IT/PT/JA/ZH)"
+          ],
+          [
+            "vits",
+            "VITS (Rapide, EN uniquement)"
+          ],
+          [
+            "tacotron2",
+            "Tacotron2 (Classique, EN uniquement)"
+          ],
+          [
+            "speedy_speech",
+            "SpeedySpeech (Très rapide, EN uniquement)"
+          ],
+          [
+            "higgs_audio",
+            "Higgs Audio v2 (Multilocuteur, Clonage vocal, 9 langues, 24 Go VRAM)"
+          ]
+        ],
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": "xtts_v2",
+        "dom_id": {
+          "batch": "batchSettingsTtsModel",
+          "item": "settingsTtsModel",
+          "panel": "tts_model"
+        },
+        "help": "Modèle TTS à utiliser",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-microchip",
+        "inline": false,
+        "label": "Modèle TTS",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "tts_model",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "select",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": [
+          [
+            "fr",
+            "Français"
+          ],
+          [
+            "en",
+            "English"
+          ],
+          [
+            "es",
+            "Español"
+          ],
+          [
+            "de",
+            "Deutsch"
+          ],
+          [
+            "it",
+            "Italiano"
+          ],
+          [
+            "pt",
+            "Português"
+          ],
+          [
+            "pl",
+            "Polski"
+          ],
+          [
+            "tr",
+            "Türkçe"
+          ],
+          [
+            "ru",
+            "Русский"
+          ],
+          [
+            "nl",
+            "Nederlands"
+          ],
+          [
+            "cs",
+            "Čeština"
+          ],
+          [
+            "ar",
+            "العربية"
+          ],
+          [
+            "zh-cn",
+            "中文"
+          ],
+          [
+            "ja",
+            "日本語"
+          ],
+          [
+            "ko",
+            "한국어"
+          ]
+        ],
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": "fr",
+        "dom_id": {
+          "batch": "batchSettingsLanguage",
+          "item": "settingsLanguage",
+          "panel": "language"
+        },
+        "help": "Langue de synthèse",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-language",
+        "inline": false,
+        "label": "Langue",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "language",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "select",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": [
+          [
+            "default",
+            "Voix par défaut"
+          ],
+          [
+            "male_1",
+            "Voix masculine 1"
+          ],
+          [
+            "male_2",
+            "Voix masculine 2"
+          ],
+          [
+            "female_1",
+            "Voix féminine 1"
+          ],
+          [
+            "female_2",
+            "Voix féminine 2"
+          ],
+          [
+            "custom",
+            "Voix personnalisée (clonage)"
+          ],
+          [
+            "bark_v2_en_0",
+            "Bark EN Speaker 0"
+          ],
+          [
+            "bark_v2_en_1",
+            "Bark EN Speaker 1"
+          ],
+          [
+            "bark_v2_en_2",
+            "Bark EN Speaker 2"
+          ],
+          [
+            "bark_v2_en_3",
+            "Bark EN Speaker 3"
+          ],
+          [
+            "bark_v2_en_4",
+            "Bark EN Speaker 4"
+          ],
+          [
+            "bark_v2_en_5",
+            "Bark EN Speaker 5"
+          ],
+          [
+            "bark_v2_fr_0",
+            "Bark FR Speaker 0"
+          ],
+          [
+            "bark_v2_fr_1",
+            "Bark FR Speaker 1"
+          ],
+          [
+            "bark_v2_es_0",
+            "Bark ES Speaker 0"
+          ],
+          [
+            "bark_v2_de_0",
+            "Bark DE Speaker 0"
+          ]
+        ],
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": "default",
+        "dom_id": {
+          "batch": "batchSettingsVoicePreset",
+          "item": "settingsVoicePreset",
+          "panel": "voice_preset"
+        },
+        "help": "Preset de voix",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-user",
+        "inline": false,
+        "label": "Voix",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "voice_preset",
+        "option_groups": null,
+        "options_source": "voices",
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "select",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": 1.0,
+        "dom_id": {
+          "batch": "batchSettingsSpeed",
+          "item": "settingsSpeed",
+          "panel": "speed"
+        },
+        "help": "Vitesse de parole (0.5 = lent, 2.0 = rapide)",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-gauge",
+        "inline": false,
+        "label": "Vitesse",
+        "max": 2.0,
+        "max_label": "",
+        "min": 0.5,
+        "min_label": "",
+        "name": "speed",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": 0.1,
+        "type": "range",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": null,
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": 1.0,
+        "dom_id": {
+          "batch": "batchSettingsPitch",
+          "item": "settingsPitch",
+          "panel": "pitch"
+        },
+        "help": "Hauteur de la voix (0.5 = grave, 2.0 = aigu)",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-music",
+        "inline": false,
+        "label": "Hauteur",
+        "max": 2.0,
+        "max_label": "",
+        "min": 0.5,
+        "min_label": "",
+        "name": "pitch",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": 0.1,
+        "type": "range",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": [
+          [
+            "original",
+            "Original (inchangé)"
+          ],
+          [
+            "mp3",
+            ".MP3"
+          ],
+          [
+            "wav",
+            ".WAV"
+          ],
+          [
+            "flac",
+            ".FLAC"
+          ],
+          [
+            "ogg",
+            ".OGG"
+          ],
+          [
+            "m4a",
+            ".M4A"
+          ],
+          [
+            "aac",
+            ".AAC"
+          ],
+          [
+            "opus",
+            ".OPUS"
+          ]
+        ],
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": null,
+        "dom_id": {
+          "item": "settingsOutputFormat",
+          "panel": "output_format"
+        },
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-file-export",
+        "inline": false,
+        "label": "Format de sortie",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "output_format",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "select",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": [
+          [
+            "web",
+            "Web (léger)"
+          ],
+          [
+            "balanced",
+            "Équilibré"
+          ],
+          [
+            "max",
+            "Maximum"
+          ]
+        ],
+        "contexts": [
+          "item",
+          "batch",
+          "panel"
+        ],
+        "default": null,
+        "dom_id": {
+          "item": "settingsOutputQuality",
+          "panel": "output_quality"
+        },
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-sliders",
+        "inline": false,
+        "label": "Qualité",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "output_quality",
+        "option_groups": null,
+        "options_source": null,
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "select",
+        "unit": ""
+      }
+    ],
+    "ports": {
+      "inputs": [
+        {
+          "group": "prompt",
+          "id": "prompt",
+          "label": "Prompt",
+          "multi": false,
+          "types": [
+            "prompt"
+          ]
+        },
+        {
+          "group": "reference",
+          "id": "reference_voice",
+          "label": "Voix de référence",
+          "multi": false,
+          "types": [
+            "audio"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "id": "out",
+          "label": "Sortie",
+          "types": [
+            "audio"
+          ]
+        }
+      ]
+    },
+    "processing": {
+      "anti_race": true,
+      "endpoints": [
+        "index",
+        "upload",
+        "start",
+        "status",
+        "download",
+        "delete",
+        "duplicate",
+        "update",
+        "start_all",
+        "clear_all",
+        "download_all",
+        "global_progress"
+      ],
+      "ingest": {
+        "mode": "audio",
+        "source": "source_url",
+        "target": "voice_reference"
+      },
+      "processing_time": true,
+      "statuses": [
+        "PENDING",
+        "RUNNING",
+        "SUCCESS",
+        "FAILURE"
+      ]
+    },
+    "studio": {
+      "auto_start": null,
+      "fixed_kwargs": null,
+      "input_kinds": null,
+      "input_kwarg": null,
+      "output_type": "audio",
+      "primary_input": "prompt",
+      "runnable": true
+    },
+    "tool_api": {
+      "add": "add_to_synthesizer",
+      "descriptions": {
+        "add_to_synthesizer": {
+          "args": {
+            "emotion_intensity": "float (défaut : 1.0)",
+            "language": "select — Langue de synthèse (choix : fr | en | es | de | it | pt | pl | tr …) (défaut : 'fr')",
+            "output_format": "select — Format de sortie (choix : original | mp3 | wav | flac | ogg | m4a | aac | opus)",
+            "output_quality": "select — Qualité (choix : web | balanced | max)",
+            "pitch": "range — Hauteur de la voix (0.5 = grave, 2.0 = aigu) [0.5–2.0] (défaut : 1.0)",
+            "speed": "range — Vitesse de parole (0.5 = lent, 2.0 = rapide) [0.5–2.0] (défaut : 1.0)",
+            "text": "str (requis)",
+            "tts_model": "select — Modèle TTS à utiliser (choix : xtts_v2 | bark | kokoro | vits | tacotron2 | speedy_speech | higgs_audio) (défaut : 'xtts_v2')",
+            "voice_preset": "select — Preset de voix (choix : default | male_1 | male_2 | female_1 | female_2 | custom | bark_v2_en_0 | bark_v2_en_1 …) (défaut : 'default')"
+          },
+          "description": "Ajoute un élément à la file d'attente de Synthesizer (Synthèse vocale TTS (XTTS, Higgs Audio, Kokoro…)) et renvoie son item_id."
+        },
+        "get_synthesizer_status": {
+          "args": {},
+          "description": "État des travaux Synthesizer de l'utilisateur : statut, progression, résultat."
+        },
+        "start_synthesizer": {
+          "args": {
+            "synthesis_id": "int"
+          },
+          "description": "Lance le traitement Synthesizer : l'item indiqué, ou tous ceux en attente si aucun id."
+        }
+      },
+      "start": "start_synthesizer",
+      "status": "get_synthesizer_status"
+    }
+  },
+  "description": "Synthèse vocale TTS (XTTS, Higgs Audio, Kokoro…).",
+  "key": "synthesizer",
+  "manifest_kind": "app",
+  "name": "Synthesizer",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "APP_CATALOG:synthesizer",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}
