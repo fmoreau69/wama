@@ -6,5 +6,6 @@ from . import model as _model      # noqa: F401
 from . import pipeline as _pipeline  # noqa: F401
 from . import project as _project  # noqa: F401
 from . import function as _function  # noqa: F401
+from . import library as _library  # noqa: F401
 
-__all__ = ['_app', '_dataset', '_model', '_pipeline', '_project', '_function']
+__all__ = ['_app', '_dataset', '_model', '_pipeline', '_project', '_function', '_library']

@@ -1,0 +1,36 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "av",
+      "ctranslate2",
+      "huggingface-hub",
+      "onnxruntime",
+      "tokenizers",
+      "tqdm"
+    ],
+    "entry_points": {},
+    "identity": {
+      "license": "MIT",
+      "repository": "https://github.com/SYSTRAN/faster-whisper",
+      "summary": "Faster Whisper transcription with CTranslate2",
+      "version": "1.2.1"
+    },
+    "install": {
+      "pip": "faster-whisper==1.2.1",
+      "requires_python": ">=3.9"
+    }
+  },
+  "description": "Faster Whisper transcription with CTranslate2",
+  "key": "faster-whisper",
+  "manifest_kind": "library",
+  "name": "faster-whisper",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:faster-whisper==1.2.1",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

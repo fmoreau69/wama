@@ -7,8 +7,13 @@ des supports d'apprentissage : un manifeste invalide exporté enseignerait une e
 commande REFUSE de l'écrire.
 
   python manage.py manifest_export                  # les 10 apps → manifests/apps/
-  python manage.py manifest_export transcriber      # une seule
+                                                    #  + libraries déjà semées → manifests/libraries/
+  python manage.py manifest_export transcriber      # une seule app
+  python manage.py manifest_export --kind library faster-whisper   # SEMER une library au corpus
   python manage.py manifest_export --check          # n'écrit rien ; sort en erreur si périmé
+
+Libraries (SPEC §7.4-3) : le semis est EXPLICITE (`--kind library <clé>`) — aucun critère de
+sélection inventé ; sans clé, la commande rafraîchit/contrôle ce qui a déjà été semé.
 
 Le corpus est un artefact DÉRIVÉ mais VERSIONNÉ : le `git diff` du corpus est la revue de ce
 qui change dans la surface déclarée d'une app. `--check` permet de refuser un commit qui
@@ -19,15 +24,20 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand
 
-DEFAUT_SORTIE = 'manifests/apps'
+DOSSIERS = {'app': 'manifests/apps', 'library': 'manifests/libraries'}
 
 
 class Command(BaseCommand):
-    help = "Exporte les manifestes d'app en JSON (corpus d'exemples de référence)."
+    help = "Exporte les manifestes (apps + libraries semées) en JSON — corpus d'exemples."
 
     def add_arguments(self, parser):
-        parser.add_argument('app_id', nargs='?', help="App à exporter (défaut : toutes).")
-        parser.add_argument('--out', default=DEFAUT_SORTIE, help=f"Dossier (défaut {DEFAUT_SORTIE}).")
+        parser.add_argument('cle', nargs='?',
+                            help="Clé à exporter (app_id, ou nom de library avec --kind library). "
+                                 "Défaut : toutes les apps + les libraries déjà semées.")
+        parser.add_argument('--kind', default='app', choices=sorted(DOSSIERS),
+                            help="Kind de la clé explicite (défaut app).")
+        parser.add_argument('--out', default=None,
+                            help="Dossier de sortie (défaut : celui du kind).")
         parser.add_argument('--check', action='store_true',
                             help="N'écrit rien ; code de sortie 1 si le corpus est périmé.")
         parser.add_argument('--force', action='store_true',
@@ -38,16 +48,22 @@ class Command(BaseCommand):
         from wama.common.app_registry import APP_CATALOG
         from wama.common.manifests.ingest import extract, validate
 
-        cibles = [o['app_id']] if o['app_id'] else sorted(APP_CATALOG)
-        dossier = Path(settings.BASE_DIR) / o['out']
-        if not o['check']:
-            dossier.mkdir(parents=True, exist_ok=True)
+        base = Path(settings.BASE_DIR)
+        if o['cle']:
+            cibles = [(o['kind'], o['cle'])]
+        else:
+            cibles = [('app', a) for a in sorted(APP_CATALOG)]
+            cibles += [('library', f.stem)
+                       for f in sorted((base / DOSSIERS['library']).glob('*.json'))]
 
         w, s, e, warn = self.stdout.write, self.style.SUCCESS, self.style.ERROR, self.style.WARNING
         ecrits, perimes, refuses, inchanges = [], [], [], []
 
-        for app_id in cibles:
-            manifest = extract('app', app_id)
+        for kind, app_id in cibles:
+            dossier = base / (o['out'] or DOSSIERS[kind])
+            if not o['check']:
+                dossier.mkdir(parents=True, exist_ok=True)
+            manifest = extract(kind, app_id)
             if not manifest:
                 w(e(f"  {app_id:14s} extraction impossible"))
                 continue
@@ -100,7 +116,7 @@ class Command(BaseCommand):
             return
 
         w(f"{len(ecrits)} écrit(s), {len(inchanges)} inchangé(s), {len(refuses)} refusé(s) "
-          f"→ {dossier.relative_to(settings.BASE_DIR)}")
+          f"→ {', '.join(sorted({DOSSIERS[k] for k, _ in cibles}))}")
         if refuses:
             w(warn("Les manifestes refusés ne sont PAS des exemples utilisables : corriger "
                    "l'extraction ou la donnée source avant de les faire servir de référence."))

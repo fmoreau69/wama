@@ -328,7 +328,15 @@ que le catalogue n'a pas. Autre facette, pas redondance.
    4 requires du transcriber se résolvent en manifestes `model` ; une clé fantôme ET un kind
    inconnu (`library`) sont refusés. Corpus régénéré : les 10 manifestes portent `requires`
    (91 références au total).
-3. Créer le kind `library` (extraction depuis `requirements.txt` / dépôt) + l'ajouter au corpus.
+3. ✅ **FAIT (2026-08-03)** — Kind `library` (`builtin/library.py`) : extraction MÉCANIQUE des
+   métadonnées du paquet installé (`importlib.metadata` — version, licence, dépôt, `install.pip`,
+   `entry_points`, dépendances PEP 508 normalisées) ; `constraints` reste VIDE plutôt qu'inventé
+   (c'est le rôle wama-dev-ai, étape 4, qui le remplira). `manifest_export --kind library <clé>`
+   sème une library au corpus (`manifests/libraries/`) — semis EXPLICITE, aucun critère de
+   sélection inventé ; sans clé la commande rafraîchit/contrôle les libraries déjà semées.
+   Semée : `faster-whisper` (l'exemple du §7.3). Probe de composition : un manifeste d'app
+   avec `{"kind": "library", "key": "faster-whisper"}` valide et se résout ; la même référence
+   était refusée avant la création du kind.
 4. Alors seulement : rôle wama-dev-ai « projet GitHub → manifeste `library` », avec le corpus en
    exemples.
 
