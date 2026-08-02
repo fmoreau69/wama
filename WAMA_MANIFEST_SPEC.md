@@ -254,3 +254,69 @@ les **besoins de modèles** de l'app. Le manifeste `app` les rend explicites.
    - ⏳ **Projection des 11 autres facettes = CODE-GEN** (models.py/urls/params/nœud studio…) — chantier.
 4. **Round-trip** : extraire le manifeste d'une app existante → régénérer en sandbox → diff → itérer.
 5. Puis kind `dataset` (toolbox tierce généralisé), et convergence `app` (APP_CATALOG ⟷ GENERIC_APPS).
+
+---
+
+## 7. COMPOSITION des manifestes — « une app = app + model(s) + library(ies) »
+
+> **Cadrage Fabien, 2026-08-02.** Le manifeste d'app ne doit PAS tout décrire : il **compose**.
+> Ce qui appartient à un modèle vit dans un manifeste `model`, ce qui appartient à une brique
+> open-source dans un manifeste `library`. C'est la règle zéro-duplication appliquée aux
+> manifestes eux-mêmes — sans quoi le manifeste d'app redevient un monolithe qui recopie tout.
+>
+> C'est aussi ce qui rend praticable l'objectif suivant : **wama-dev-ai traduit un projet GitHub
+> en manifeste `library`**, unité autonome et réutilisable, que plusieurs apps référencent.
+
+### 7.1 Qui possède quoi (frontière de responsabilité)
+
+| Kind | Possède | Ne possède PAS |
+|---|---|---|
+| `library` *(à créer)* | dépôt, licence, version, install, points d'entrée, capacités techniques, contraintes (GPU, OS) | l'usage qu'une app en fait |
+| `model` | poids, `hf_id`, VRAM/disque, format, capacités, provenance | le réglage utilisateur qui le pilote |
+| `app` | identité, ports, params, permissions, cycle de vie, **et les RÉFÉRENCES** vers `model`/`library` | tout ce qui précède — jamais recopié |
+
+### 7.2 État MESURÉ de la composition (2026-08-02)
+
+| Constat | Mesure |
+|---|---|
+| Kinds enregistrés | `app`, `dataset`, `function`, `model`, `pipeline`, `project` — **`library` absent** |
+| Références déjà présentes | `body.models.catalog_keys` — le principe est **amorcé**, pas inventé |
+| Champ de référence dans l'ENVELOPPE | **aucun** (`requires`/`references`/`depends_on` inexistants) |
+| Références résolvables telles quelles | **0 / 42** |
+| Résolvables via la règle `<app>:<clé>` | **31 / 42 (74 %)** |
+
+**Cause du 0/42** : deux espaces de noms. L'app référence les clés de son `model_config`
+(`whisper`, `qwen3-asr-0.6b`) ; le catalogue `AIModel` est **namespacé** `<app>:<clé>`
+(`transcriber:whisper`). Ce n'est pas une table de correspondance à écrire — c'est une **règle**.
+
+**Les 11 non résolues ne sont PAS un problème de nommage** : ce sont des modèles absents du
+catalogue `AIModel` (7 upscalers enhancer, 3 TTS synthesizer, 1 avatarizer) — des trous de
+catalogue réels, à combler côté `model_registry`.
+
+### 7.3 Conception retenue
+
+1. **Déclarer les références dans l'ENVELOPPE, pas dans une facette.** Une référence enfouie
+   dans `body.models` n'est résolvable que par du code qui connaît cette facette. Un champ
+   uniforme rend la composition **kind-agnostique** :
+   ```json
+   "requires": [
+     {"kind": "model",   "key": "transcriber:whisper"},
+     {"kind": "library", "key": "faster-whisper"}
+   ]
+   ```
+2. **Un résolveur unique** `resolve_requires(manifest)` → manifestes cités, et un **validateur**
+   qui refuse une référence pendante. `manifest_export` doit refuser d'exporter un manifeste aux
+   références cassées : le corpus est du matériel d'apprentissage (cf. ARCHITECTURE §6ter).
+3. **Clés canoniques = celles du catalogue** (`AIModel.model_key`, namespacé). La facette
+   `models` de l'app cesse de porter des clés locales : elle porte des références canoniques.
+4. **`library` se crée en dernier**, une fois 1–3 en place : il n'apporte rien tant que le
+   mécanisme de référence n'existe pas.
+
+### 7.4 Ordre d'exécution (rien ne doit être fait avant ce qui le précède)
+
+1. Champ `requires` dans l'enveloppe + `resolve_requires()` + validation des références pendantes.
+2. Basculer `body.models.catalog_keys` sur les clés canoniques `<app>:<clé>` → 31/42 résolus.
+3. Combler les 11 trous de catalogue `AIModel` → 42/42.
+4. Créer le kind `library` (extraction depuis `requirements.txt` / dépôt) + l'ajouter au corpus.
+5. Alors seulement : rôle wama-dev-ai « projet GitHub → manifeste `library` », avec le corpus en
+   exemples.
