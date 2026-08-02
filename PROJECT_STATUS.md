@@ -2412,3 +2412,34 @@ Première action au redémarrage : **bande de couverture sous la timeline du cam
 
 ⚠ Partition : une autre instance tient l'infra GPU/ressources (`resource_governor.py`,
 `remote_backup.py` modifié non commité, `wama/celery.py`, `memory_manager.py`) — ne pas y toucher.
+
+## §REPRISE — session 2026-08-03 (validation smoke + outils §16.9 + composition)
+
+> Session mono-instance, champ libre. Le handoff `REPRISE_2026-08-02.md` §4 (« rien n'est
+> validé navigateur/Celery ») est SOLDÉ, et les chantiers §16.9 ①② + SPEC §7.4-2/3 sont livrés.
+
+**Smoke réel (tout vert, corrections comprises)** :
+- **Pipeline studio de bout en bout** : runs #10 (converter), #11 (describer image), #12
+  (describer texte) SUCCESS via `execute_tool`. Sortie vérifiée ffprobe (mp3 mono 22 050 Hz).
+- **2 pannes réelles trouvées et corrigées** : ① les workers Celery tournaient sur du code
+  ANTÉRIEUR aux commits du 02/08 (redémarrés — après une modif de code, redémarrer les
+  workers, pas seulement gunicorn) ; ② **interblocage structurel** : `run_pipeline_task`
+  (pool solo, file `default`) attendait sa propre tâche converter dispatchée dans la MÊME
+  file → route `wama.studio.tasks.*` vers une file `studio` dédiée + worker dans les deux
+  start scripts (`fix(studio)`). Un run studio lancé depuis l'UI nécessite le gunicorn
+  rechargé (fait, HUP).
+- **Converter UI** : les 4 réglages (`gif_fps`, `gif_width`, `sample_rate`, `channels`)
+  visibles dans la modale ⚙, filtrés par type de média, valeurs persistées, 0 erreur console
+  (Playwright + session `pw_smoke` ; cookie = `wama_sessionid`, pas `sessionid`).
+- **Describer** : les 2 chemins corrigés exercés sur vrais médias ; le retour « texte brut »
+  sur un texte court est VOULU (`word_count ≤ max_length` → formatage direct, pas de LLM).
+
+**Livré** :
+- `manage.py check_redundancy` (§16.9 ②) — acceptation **6/6** sur le code pré-correctif ;
+  arbre courant : **73 trouvailles (58 A / 0 B / 15 C)** = backlog de triage (familles ×3 apps
+  `_derive`/`_enrich`/`_probe`, `_ENHANCER_VALID_MODELS`, copie `converter/views.py:229`).
+- `manage.py doc_facts` (§16.9 ①) — blocs `WAMA:FAITS(id)` dans GENERATION_ROUTE / SPEC /
+  ARCHITECTURE, `--check` refuse un bloc périmé. Première passe : 165 args mesurés vs 157 recopiés.
+- Composition (SPEC §7.4) : **étapes 2 et 3 faites** (`requires` + `resolve_requires()` +
+  refus des pendantes ; kind `library`, `faster-whisper` semé, corpus = 11 manifestes).
+  Reste l'étape 4 : rôle wama-dev-ai « projet GitHub → manifeste library ».
