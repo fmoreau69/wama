@@ -56,9 +56,8 @@
     },
     "models": {
       "catalog_keys": [
-        "codeformer",
-        "musetalk-v1.0",
-        "musetalk-v1.5"
+        "avatarizer:musetalk-v1.0",
+        "avatarizer:musetalk-v1.5"
       ],
       "source_attr": "AVATARIZER_MODELS"
     },

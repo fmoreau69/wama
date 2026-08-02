@@ -249,17 +249,45 @@ def _inspector(app_id):
 
 
 def _models(app_id):
-    """Best-effort : catalogue <APP>_MODELS dans wama.<app>.utils.model_config."""
+    """
+    Modèles de l'app, RÉFÉRENCÉS depuis le catalogue `AIModel` — la source unique.
+
+    Le lien app↔modèles existe déjà et n'est pas à réinventer : `AIModel.source` porte l'app,
+    et `model_key` vaut `{source}:{id}` (convention documentée dans
+    `model_manager/services/model_registry.py`). Les clés rendues ici sont donc **canoniques**,
+    directement résolvables vers un manifeste de kind `model` (composition, SPEC §7).
+
+    La version précédente lisait `wama/<app>/utils/model_config.py`, une source PARALLÈLE et
+    incomplète : elle déclarait 42 modèles là où le catalogue en lie 91 aux apps, et **0 pour
+    l'anonymizer alors qu'il en a 48** — le manifeste affirmait donc qu'il n'utilise aucun modèle.
+
+    `model_config` reste cité comme provenance (`source_attr`) : il porte le câblage runtime
+    par app, que le catalogue n'a pas. Ce n'est pas une redondance, c'est une autre facette.
+    """
+    try:
+        from wama.model_manager.models import AIModel
+        cles = sorted(AIModel.objects.filter(source=app_id)
+                      .values_list('model_key', flat=True))
+    except Exception:
+        cles = []
+
+    provenance = None
     try:
         import importlib
         mod = importlib.import_module(f'wama.{app_id}.utils.model_config')
+        for attr in (f'{app_id.upper()}_MODELS', 'MODELS', 'MODEL_CATALOG'):
+            if isinstance(getattr(mod, attr, None), dict) and getattr(mod, attr):
+                provenance = attr
+                break
     except Exception:
+        pass
+
+    if not cles and not provenance:
         return None
-    for attr in (f'{app_id.upper()}_MODELS', 'MODELS', 'MODEL_CATALOG'):
-        val = getattr(mod, attr, None)
-        if isinstance(val, dict) and val:
-            return {'catalog_keys': sorted(val.keys()), 'source_attr': attr}
-    return None
+    out = {'catalog_keys': cles}
+    if provenance:
+        out['source_attr'] = provenance
+    return out
 
 
 def _processing(cat: dict, app_id: str) -> dict:

@@ -40,13 +40,13 @@
     },
     "models": {
       "catalog_keys": [
-        "bark",
-        "higgs_audio",
-        "kokoro",
-        "speedy_speech",
-        "tacotron2",
-        "vits",
-        "xtts_v2"
+        "synthesizer:bark",
+        "synthesizer:coqui-xtts",
+        "synthesizer:higgs-audio",
+        "synthesizer:kokoro",
+        "synthesizer:speedy-speech",
+        "synthesizer:tacotron2",
+        "synthesizer:vits"
       ],
       "source_attr": "SYNTHESIZER_MODELS"
     },

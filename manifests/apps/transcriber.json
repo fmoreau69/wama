@@ -58,10 +58,10 @@
     },
     "models": {
       "catalog_keys": [
-        "qwen3-asr-0.6b",
-        "qwen3-asr-1.7b",
-        "vibevoice-asr",
-        "whisper"
+        "transcriber:qwen3-asr-0.6b",
+        "transcriber:qwen3-asr-1.7b",
+        "transcriber:vibevoice-asr",
+        "transcriber:whisper"
       ],
       "source_attr": "TRANSCRIBER_MODELS"
     },

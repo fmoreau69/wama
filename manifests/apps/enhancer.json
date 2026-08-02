@@ -69,13 +69,15 @@
     },
     "models": {
       "catalog_keys": [
-        "BSRGANx2",
-        "BSRGANx4",
-        "IRCNN_Lx1",
-        "IRCNN_Mx1",
-        "RealESRGANx4",
-        "RealESR_Animex4",
-        "RealESR_Gx4"
+        "enhancer:BSRGANx2_fp16",
+        "enhancer:BSRGANx4_fp16",
+        "enhancer:IRCNN_Lx1_fp16",
+        "enhancer:IRCNN_Mx1_fp16",
+        "enhancer:RealESRGANx4_fp16",
+        "enhancer:RealESR_Animex4_fp16",
+        "enhancer:RealESR_Gx4_fp16",
+        "enhancer:deepfilternet",
+        "enhancer:resemble"
       ],
       "source_attr": "ENHANCER_MODELS"
     },

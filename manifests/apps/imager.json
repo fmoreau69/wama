@@ -51,18 +51,18 @@
     },
     "models": {
       "catalog_keys": [
-        "cogvideox-5b-i2v",
-        "flux-1-dev",
-        "flux-lora-logo-design",
-        "flux2-klein-4b",
-        "hunyuan-image-2.1",
-        "ltx-video-13b-0.9.8-distilled",
-        "ltx-video-13b-0.9.8-distilled-fp8",
-        "mochi-1-preview",
-        "qwen-image-2",
-        "qwen-image-edit",
-        "stable-diffusion-v1-5",
-        "stable-diffusion-xl"
+        "imager:cogvideox-5b-i2v",
+        "imager:flux-1-dev",
+        "imager:flux-lora-logo-design",
+        "imager:flux2-klein-4b",
+        "imager:hunyuan-image-2.1",
+        "imager:ltx-video-13b-0.9.8-distilled",
+        "imager:ltx-video-13b-0.9.8-distilled-fp8",
+        "imager:mochi-1-preview",
+        "imager:qwen-image-2",
+        "imager:qwen-image-edit",
+        "imager:stable-diffusion-v1-5",
+        "imager:stable-diffusion-xl"
       ],
       "source_attr": "IMAGER_MODELS"
     },

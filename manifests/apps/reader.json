@@ -43,9 +43,9 @@
     },
     "models": {
       "catalog_keys": [
-        "doctr",
-        "glm-ocr",
-        "olmocr"
+        "reader:doctr",
+        "reader:glm-ocr",
+        "reader:olmocr"
       ],
       "source_attr": "READER_MODELS"
     },

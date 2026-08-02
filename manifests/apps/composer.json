@@ -40,10 +40,10 @@
     },
     "models": {
       "catalog_keys": [
-        "audiogen-medium",
-        "musicgen-medium",
-        "musicgen-melody",
-        "musicgen-small"
+        "composer:audiogen-medium",
+        "composer:musicgen-medium",
+        "composer:musicgen-melody",
+        "composer:musicgen-small"
       ],
       "source_attr": "COMPOSER_MODELS"
     },

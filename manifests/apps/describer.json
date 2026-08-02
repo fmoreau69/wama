@@ -74,8 +74,8 @@
     },
     "models": {
       "catalog_keys": [
-        "blip",
-        "whisper"
+        "describer:blip",
+        "describer:whisper"
       ],
       "source_attr": "DESCRIBER_MODELS"
     },
