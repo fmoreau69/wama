@@ -282,16 +282,20 @@ les **besoins de modèles** de l'app. Le manifeste `app` les rend explicites.
 | Kinds enregistrés | `app`, `dataset`, `function`, `model`, `pipeline`, `project` — **`library` absent** |
 | Références déjà présentes | `body.models.catalog_keys` — le principe est **amorcé**, pas inventé |
 | Champ de référence dans l'ENVELOPPE | **aucun** (`requires`/`references`/`depends_on` inexistants) |
-| Références résolvables telles quelles | **0 / 42** |
-| Résolvables via la règle `<app>:<clé>` | **31 / 42 (74 %)** |
+| Références de modèle résolvables | ✅ **91 / 91 (100 %)** depuis `ad68e75` — était **0 / 42** |
 
-**Cause du 0/42** : deux espaces de noms. L'app référence les clés de son `model_config`
-(`whisper`, `qwen3-asr-0.6b`) ; le catalogue `AIModel` est **namespacé** `<app>:<clé>`
-(`transcriber:whisper`). Ce n'est pas une table de correspondance à écrire — c'est une **règle**.
+**Le lien app↔modèles EXISTAIT** et n'était pas à réinventer : `AIModel.source` porte l'app, et
+`model_key` vaut `{source}:{id}` (convention documentée dans `model_registry.py`). La facette
+`models` lisait à la place `wama/<app>/utils/model_config.py`, une source **parallèle et
+incomplète** : 42 modèles déclarés là où le catalogue en lie **91** aux apps, et **0 pour
+l'anonymizer alors qu'il en a 48** — le corpus enseignait qu'un anonymizer n'utilise aucun modèle.
 
-**Les 11 non résolues ne sont PAS un problème de nommage** : ce sont des modèles absents du
-catalogue `AIModel` (7 upscalers enhancer, 3 TTS synthesizer, 1 avatarizer) — des trous de
-catalogue réels, à combler côté `model_registry`.
+`model_config` reste cité en provenance (`source_attr`) : il porte le **câblage runtime par app**,
+que le catalogue n'a pas. Autre facette, pas redondance.
+
+> ⚠ Leçon : je m'apprêtais à déduire une règle de namespace `<app>:<clé>` à la main et à
+> conclure « 31/42, il manque 11 modèles au catalogue ». Les 11 « manquants » étaient un artefact
+> de ma mauvaise source. **Chercher l'accesseur existant avant de déduire une règle.**
 
 ### 7.3 Conception retenue
 
@@ -314,9 +318,11 @@ catalogue réels, à combler côté `model_registry`.
 
 ### 7.4 Ordre d'exécution (rien ne doit être fait avant ce qui le précède)
 
-1. Champ `requires` dans l'enveloppe + `resolve_requires()` + validation des références pendantes.
-2. Basculer `body.models.catalog_keys` sur les clés canoniques `<app>:<clé>` → 31/42 résolus.
-3. Combler les 11 trous de catalogue `AIModel` → 42/42.
-4. Créer le kind `library` (extraction depuis `requirements.txt` / dépôt) + l'ajouter au corpus.
-5. Alors seulement : rôle wama-dev-ai « projet GitHub → manifeste `library` », avec le corpus en
+1. ✅ **FAIT (`ad68e75`)** — `body.models.catalog_keys` porte les clés canoniques du catalogue :
+   **91/91 résolvables**.
+2. Champ `requires` dans l'enveloppe + `resolve_requires()` + refus des références pendantes.
+   Aujourd'hui les références sont enfouies dans une facette : seul du code qui connaît
+   `body.models` sait les lire, donc la composition n'est pas kind-agnostique.
+3. Créer le kind `library` (extraction depuis `requirements.txt` / dépôt) + l'ajouter au corpus.
+4. Alors seulement : rôle wama-dev-ai « projet GitHub → manifeste `library` », avec le corpus en
    exemples.
