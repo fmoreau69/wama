@@ -17,6 +17,25 @@ Objectif : repartir de l'état RÉEL du projet, pas d'un souvenir. À dérouler 
 - Pour un chantier UI/apps : relire la section correspondante de `WAMA_APP_GENERATION_ROUTE.md` (facettes F1–F8) avant de coder.
 
 ## 3. Confrontation au réel (obligatoire)
+
+### 3a. Contrôles MÉCANIQUES — lancer les 4, ne pas les paraphraser
+> Un statut lu dans un `.md` est une intention ; seules ces commandes disent le réel. Elles sont
+> rapides et ne modifient rien. **Reporter leurs chiffres tels quels, ne jamais les déduire.**
+
+```bash
+python manage.py check_docs                 # références doc→code
+python manage.py manifest_export --check    # corpus de manifestes périmé ?
+python manage.py manifest_roundtrip --all   # régénération : facettes projetables, fidélité
+python manage.py check_app_conformity       # grille 74 critères par app
+```
+- ⚠ `check_docs` : lancer depuis **Windows** (`./venv_win/Scripts/python.exe`) — il parcourt
+  l'arborescence, et `/mnt/d` depuis WSL2 met plusieurs minutes.
+- **État attendu au 2026-08-02** : `check_docs` = **3 CASSÉ** (cibles à créer : `_result_tabs.html`,
+  `wama/common/middleware.py`, `_settings_modal.html`). **Une 4ᵉ = vraie dérive, à traiter.**
+- `manifest_export --check` doit dire « corpus à jour ». Sinon un registre a bougé sans que le
+  corpus soit régénéré (`python manage.py manifest_export`).
+
+### 3b. Confrontation ciblée
 - Les statuts des `.md` SURESTIMENT souvent l'avancement : vérifier par Grep/Read les 2-3 affirmations dont dépend le travail du jour.
 - Vérifier les migrations : `wsl.exe -e bash -lc 'cd /mnt/d/WAMA/web-app-for-media-automation && venv_linux/bin/python manage.py migrate --check'` (base WSL2 = la vraie ; la base Windows est une copie dev — si on touche aux modèles, appliquer DES DEUX côtés).
 
@@ -38,3 +57,12 @@ Objectif : repartir de l'état RÉEL du projet, pas d'un souvenir. À dérouler 
 - **Vérifier empiriquement, ne jamais deviner** un sélecteur, une URL (`reverse()`), un nom de
   champ de modèle ou une commande : chaque supposition de la session du 31/07 a coûté un
   aller-retour (`main`, `Project(slug=…)`, URLs enhancer, `BatchEnhancement(name=…)`).
+- **Lire la FORME d'un retour, ne jamais la deviner** (02/08, deux fois) : `facet_report` expose
+  déjà `runtime_projectable`/`codegen_required` ; `studio_redundancy` rend `diffs` en LISTE — un
+  `isinstance(dict)` masquait le verdict d'un round-trip existant depuis 2026-07-21.
+- **Chercher l'accesseur AVANT de déduire une règle** (02/08) : un motif dans les données est la
+  TRACE d'un mécanisme, pas une règle. Le lien app↔modèles est `AIModel.source` ; ma déduction
+  donnait « 31/42 + 11 trous », le réel est **91/91**.
+- **`manage.py check` ne voit PAS les imports paresseux** : il est passé au vert sur un
+  `ImportError` introduit dans un import local. Relancer la suite complète après tout déplacement
+  de symbole.
