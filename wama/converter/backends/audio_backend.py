@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 # Output format → FFmpeg codec + container settings
-_AUDIO_PRESETS = {
+_AUDIO_PRESETS = {  # wama:redondance-ok — préréglages ffmpeg par format (info nouvelle)
     'mp3':  {'acodec': 'libmp3lame', 'container': 'mp3',  'quality_flag': '-q:a',  'default_quality': '2'},
     'wav':  {'acodec': 'pcm_s16le',  'container': 'wav',  'quality_flag': None,    'default_quality': None},
     'flac': {'acodec': 'flac',       'container': 'flac', 'quality_flag': None,    'default_quality': None},

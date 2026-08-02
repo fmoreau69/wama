@@ -177,7 +177,7 @@ def get_blip_model():
 # Prompts vision localisés — graine de l'orchestration de traduction (ROADMAP §10.B) :
 # si le modèle vision est multilingue, on le prompte DIRECTEMENT dans la langue de sortie
 # (évite la chaîne « caption EN → reformatage FR » en aval). Sinon EN.
-_VISION_PROMPTS = {
+_VISION_PROMPTS = {  # wama:redondance-ok — prompts vision par style (info nouvelle ; styles manquants → fallback)
     'detailed':      {'en': "Describe this image in detail.",
                       'fr': "Décris cette image en détail."},
     'scientific':    {'en': "Provide a scientific analysis of this image.",

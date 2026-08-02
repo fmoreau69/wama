@@ -279,6 +279,18 @@ def schema_arg_names(app_id: str) -> set:
     return {_pget(p, 'name') for p in schema_for_app(app_id)}
 
 
+def schema_choice_values(app_id, name) -> set:
+    """Valeurs valides d'un param à `choices`, DÉRIVÉES du schéma — jamais recopiées.
+
+    C'est l'anti-« liste en dur » : la copie locale des styles describer avait oublié
+    'meeting' (proposé par l'UI, refusé par l'outil), celle des modèles enhancer vivait
+    dans tool_api. Ensemble vide si le param n'existe pas ou n'a pas de choices —
+    l'appelant décide alors de ne pas valider (plutôt que de tout refuser)."""
+    p = next((p for p in schema_for_app(app_id) if _pget(p, 'name') == name), None)
+    return {str(c[0]) if isinstance(c, (list, tuple)) else str(c)
+            for c in ((_pget(p, 'choices') if p else None) or [])}
+
+
 _TRUTHY = ('1', 'true', 'on', 'oui', 'yes')
 
 

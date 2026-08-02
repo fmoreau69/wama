@@ -37,7 +37,7 @@ def _read_creation_options(request, user):
     Persiste ce qui est posté (les prochains éléments héritent des derniers choix).
     Remplace 4 lectures POST dupliquées (défauts recopiés à l'identique)."""
     from wama.common.utils.user_settings import get_user_app_settings, save_user_app_settings
-    stored = get_user_app_settings(user, 'describer', {
+    stored = get_user_app_settings(user, 'describer', {  # wama:redondance-ok — défauts du contrat de réglages utilisateur (décision d'app)
         'output_style': 'detailed', 'output_language': 'fr', 'max_length': 500})
     output_style = request.POST.get('output_style') or stored['output_style']
     output_language = request.POST.get('output_language') or stored['output_language']
@@ -57,10 +57,15 @@ def get_user(request):
     return get_or_create_anonymous_user()
 
 
-_DESCRIBER_IMG_EXTS = {'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'tiff', 'tif', 'heic', 'avif'}
-_DESCRIBER_VID_EXTS = {'mp4', 'webm', 'mkv', 'avi', 'mov', 'flv', 'mpg', 'mpeg', 'm4v', '3gp'}
-_DESCRIBER_AUD_EXTS = {'mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac', 'opus', 'wma'}
-_DESCRIBER_DOC_EXTS = {'txt', 'md', 'csv', 'docx', 'doc', 'pdf', 'rtf', 'odt'}
+# Jeux d'extensions : domicile unique de l'app (content_analyzer) — trois copies
+# divergeaient en silence (heic accepté à l'upload, inconnu du routage).
+from wama.describer.utils.content_analyzer import (
+    DESCRIBER_AUD_EXTS as _DESCRIBER_AUD_EXTS,
+    DESCRIBER_DOC_EXTS as _DESCRIBER_DOC_EXTS,
+    DESCRIBER_IMG_EXTS as _DESCRIBER_IMG_EXTS,
+    DESCRIBER_TEXT_LIKE_EXTS as _DESCRIBER_TEXT_LIKE_EXTS,
+    DESCRIBER_VID_EXTS as _DESCRIBER_VID_EXTS,
+)
 
 
 def _describer_nature(description):
@@ -353,22 +358,16 @@ def upload(request):
 
 
 def detect_type_from_extension(ext):
-    """Detect content type from file extension."""
-    image_exts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp']
-    video_exts = ['mp4', 'avi', 'mov', 'mkv', 'webm']
-    audio_exts = ['mp3', 'wav', 'flac', 'ogg', 'm4a']
-    text_exts = ['txt', 'md', 'csv', 'docx']
-    pdf_exts = ['pdf']
-
-    if ext in image_exts:
+    """Detect content type from file extension (jeux d'extensions : content_analyzer)."""
+    if ext in _DESCRIBER_IMG_EXTS:
         return 'image'
-    elif ext in video_exts:
+    if ext in _DESCRIBER_VID_EXTS:
         return 'video'
-    elif ext in audio_exts:
+    if ext in _DESCRIBER_AUD_EXTS:
         return 'audio'
-    elif ext in pdf_exts:
+    if ext == 'pdf':
         return 'pdf'
-    elif ext in text_exts:
+    if ext in _DESCRIBER_DOC_EXTS or ext in _DESCRIBER_TEXT_LIKE_EXTS:
         return 'text'
     return 'text'  # Default to text
 

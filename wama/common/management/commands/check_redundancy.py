@@ -25,6 +25,10 @@ Classes de détection :
 Le détecteur est un CONSOMMATEUR des registres (schema_for_app, APP_CATALOG,
 TOOL_REGISTRY) : aucun vocabulaire n'est recopié ici — sinon il se signalerait lui-même.
 
+Triage humain : un site LÉGITIME (mapping keyé par le vocabulaire qui porte une info
+NOUVELLE, politique d'acceptation volontairement étroite) s'assume par le pragma
+`# wama:redondance-ok — <raison>` sur la ligne du littéral/def. Jamais sans raison.
+
 Usage :
     python manage.py check_redundancy                 # arbre courant
     python manage.py check_redundancy --root DIR      # arbre d'acceptation (code pré-fix)
@@ -44,14 +48,23 @@ DOSSIERS_EXCLUS = {
     'musetalk',   # code vendored (upstream) — ses redondances ne nous appartiennent pas
 }
 # Domiciles du vocabulaire : les recopies y sont LÉGITIMES (c'est la source).
-# model_config.py y figure parce que le schéma DÉRIVE ses choices des catalogues
-# (options_source) : le sens de la copie s'inverse, le catalogue n'est pas un recopieur.
+# model_config.py / model_registry.py / quality_presets.py : le schéma DÉRIVE ses
+# choices de ces catalogues (options_source) — le sens de la copie s'inverse.
 # tests.py : un test qui énumère les params exerce le schéma, il ne le double pas.
+# admin.py : un list_display énumère les champs du modèle par nature.
 # check_redundancy.py : ses motifs de détection contiennent le vocabulaire cherché.
 FICHIERS_SOURCE = {'params.py', 'param_schema.py', 'output_formats.py',
-                   'model_config.py', 'tests.py', 'check_redundancy.py'}
-# Assignations autorisées à énumérer les outils (le registre lui-même).
-NOMS_REGISTRE_OUTILS = {'TOOL_REGISTRY'}
+                   'model_config.py', 'model_registry.py', 'quality_presets.py',
+                   'app_registry.py',   # MEDIA_CATEGORIES/EXTENSIONS : LE domicile des vocabulaires média
+                   'app_modes.py',      # les MODES déclarent leurs sous-ensembles de params par nom
+                   'tests.py', 'admin.py', 'check_redundancy.py'}
+# Assignations autorisées à énumérer les outils (l'infrastructure du registre).
+NOMS_REGISTRE_OUTILS = {'TOOL_REGISTRY', 'TOOL_APP_OVERRIDE'}
+
+# Pragma de triage HUMAIN : posé sur la ligne du littéral/def, il assume explicitement
+# un câblage déclaratif (mapping keyé par le vocabulaire qui porte une info NOUVELLE,
+# politique d'acceptation volontairement plus étroite…). Toujours avec une raison.
+PRAGMA = 'wama:redondance-ok'
 
 SEUIL_INTERSECTION = 3      # moins de 3 éléments communs = coïncidence probable
 SEUIL_RATIO = 0.5           # la moitié de la collection doit venir du vocabulaire
@@ -59,14 +72,25 @@ SEUIL_OUTILS = 5            # les noms d'outils sont plus génériques → seuil
 LONGUEUR_TOKEN_BRIQUE = 5   # 'coerce' oui, 'get'/'run' non
 
 
+# Kwargs dont la LISTE est de la mécanique Django (champs à sauver/afficher), pas une
+# redéfinition de vocabulaire : `item.save(update_fields=[...])` cite les champs par nature.
+KWARGS_MECANIQUE = {'update_fields', 'fields', 'list_display', 'list_filter', 'search_fields'}
+
+
 def _collections_litterales(tree):
     """(node, valeurs, nom_assigné, est_dict_données) pour chaque collection littérale."""
-    assignations = {}
+    assignations, mecanique = {}, set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign) and len(node.targets) == 1 \
                 and isinstance(node.targets[0], ast.Name):
             assignations[id(node.value)] = node.targets[0].id
+        elif isinstance(node, ast.Call):
+            for kw in node.keywords:
+                if kw.arg in KWARGS_MECANIQUE:
+                    mecanique.add(id(kw.value))
     for node in ast.walk(tree):
+        if id(node) in mecanique:
+            continue
         if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
             vals = [e.value for e in node.elts
                     if isinstance(e, ast.Constant) and isinstance(e.value, str)]
@@ -156,7 +180,8 @@ class Command(BaseCommand):
                     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) \
                             and not node.name.startswith('_') \
                             and len(node.name.split('_')[0]) >= LONGUEUR_TOKEN_BRIQUE:
-                        briques.setdefault(node.name, []).append(f"{sousdir}/{f.name}::{node.name}")
+                        briques.setdefault(node.name, (f.stem, []))[1].append(
+                            f"{sousdir}/{f.name}::{node.name}")
         return briques
 
     def _fichiers(self, racine):
@@ -185,10 +210,18 @@ class Command(BaseCommand):
                 tree = ast.parse(source)
             except SyntaxError:
                 continue
+            lignes = source.splitlines()
+
+            def _assume(node):
+                """Pragma de triage sur la ligne du nœud (ou la précédente) → assumé."""
+                for i in (node.lineno - 1, node.lineno - 2):
+                    if 0 <= i < len(lignes) and PRAGMA in lignes[i]:
+                        return True
+                return False
 
             # ── Classe A : vocabulaire recopié ─────────────────────────────────
             for node, vals, nom, _dict in _collections_litterales(tree):
-                if nom in NOMS_REGISTRE_OUTILS:
+                if nom in NOMS_REGISTRE_OUTILS or _assume(node):
                     continue
                 inter_outils = vals & noms_outils
                 if len(inter_outils) >= SEUIL_OUTILS:
@@ -217,6 +250,8 @@ class Command(BaseCommand):
 
             # ── Classe B : bornes divergentes ──────────────────────────────────
             for node, basse, haute, var in _clamps(tree):
+                if _assume(node):
+                    continue
                 for app_id, param, pmin, pmax in bornes:
                     if var != param:
                         continue
@@ -229,26 +264,39 @@ class Command(BaseCommand):
 
             # ── Classe C : brique doublée ──────────────────────────────────────
             est_common = str(rel).replace('\\', '/').startswith('wama/common/')
-            for node in ast.walk(tree):
-                if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    continue
-                # (i) def privé homonyme d'une brique commune (hors common/ lui-même).
-                # Deux garde-fous contre les coïncidences (200+ faux positifs sinon) :
-                #   - relation de PRÉFIXE entre les noms complets (« _coerce » ⊂ coerce_params ;
-                #     _decode_mask vs decode_audio ne matche pas) ;
-                #   - un module qui RÉFÉRENCE la brique l'a adoptée (wrapper `_console` →
-                #     push_console_line) : c'est de l'adoption, pas un doublon.
-                if not est_common and node.name.startswith('_'):
+            # (i) def privé de NIVEAU MODULE homonyme d'une brique commune (hors common/).
+            # Garde-fous contre les coïncidences (200+ faux positifs sinon) :
+            #   - niveau module seulement : une closure imbriquée est un helper local — les
+            #     briques doublées vécues (`_coerce`, `_params_json`) étaient top-level, et
+            #     les faux positifs étaient des CALLBACKS (`derive=_derive`, `_probe`) ;
+            #   - relation de PRÉFIXE entre les noms complets, avec COUVERTURE ≥ ½ des
+            #     tokens du plus long (« _analyze » vs analyze_segments_coherence : 1/3, out) ;
+            #   - un module qui référence la brique OU son module l'a adoptée (wrapper
+            #     `_console` → push_console_line, `_chips` → card_chips) : pas un doublon.
+            if not est_common:
+                for node in tree.body:
+                    if not (isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                            and node.name.startswith('_')) or _assume(node):
+                        continue
                     tl = node.name.lstrip('_').split('_')
-                    for bnom, cibles in briques.items():
+                    for bnom, (stem, cibles) in briques.items():
                         tb = bnom.split('_')
                         court = min(len(tl), len(tb))
-                        if court and (tl[:court] == tb[:court]) and bnom not in source:
-                            trouvailles.append(('C', rel, node.lineno,
-                                                f"def {node.name}() double une brique commune "
-                                                f"({', '.join(cibles[:2])})"))
-                            break
-                # (ii) rechargement local du schéma d'app
+                        if not court or tl[:court] != tb[:court]:
+                            continue
+                        if court / max(len(tl), len(tb)) < 0.5:
+                            continue
+                        if bnom in source or stem in source:
+                            continue
+                        trouvailles.append(('C', rel, node.lineno,
+                                            f"def {node.name}() double une brique commune "
+                                            f"({', '.join(cibles[:2])})"))
+                        break
+            # (ii) rechargement local du schéma d'app (même imbriqué)
+            for node in ast.walk(tree):
+                if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) \
+                        or _assume(node):
+                    continue
                 segment = ast.get_source_segment(source, node) or ''
                 if 'import_module' in segment \
                         and re.search(r"params_module|params_attr|PARAMS_JSON", segment):

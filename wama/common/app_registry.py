@@ -24,6 +24,11 @@ Usage:
 AUDIO_EXTENSIONS = ('.mp3', '.wav', '.flac', '.ogg', '.m4a', '.aac', '.opus', '.wma',
                     '.aiff', '.aif')
 
+# Échantillons de VOIX (clonage/consigne) : politique d'acceptation partagée
+# synthesizer/avatarizer — le même quadruplet était recopié 5 fois. SANS points
+# (format attendu par FileExtensionValidator).
+VOICE_SAMPLE_EXTENSIONS = ['wav', 'mp3', 'flac', 'ogg']
+
 IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tif', '.tiff', '.heic', '.gif',
                     '.heif', '.avif')
 

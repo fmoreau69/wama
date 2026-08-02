@@ -10,6 +10,7 @@ from django.core.validators import FileExtensionValidator
 from wama.common.models import BatchMixin, ProcessingTimeMixin, ScopedManager, ScopedVisibility
 from wama.common.utils.media_paths import UploadToUserPath
 from wama.common.tts.constants import TTS_MODEL_CHOICES, LANGUAGE_CHOICES, VOICE_PRESET_CHOICES
+from wama.common.app_registry import VOICE_SAMPLE_EXTENSIONS
 
 User = get_user_model()
 
@@ -75,7 +76,7 @@ class AvatarJob(ProcessingTimeMixin, ScopedVisibility):
     audio_input = models.FileField(
         upload_to=UploadToUserPath('avatarizer', 'input'),
         blank=True, null=True,
-        validators=[FileExtensionValidator(allowed_extensions=['wav', 'mp3', 'ogg', 'flac'])],
+        validators=[FileExtensionValidator(allowed_extensions=VOICE_SAMPLE_EXTENSIONS)],
     )
 
     # Image avatar

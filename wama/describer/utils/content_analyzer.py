@@ -5,6 +5,19 @@ Content type detection utilities.
 import os
 import mimetypes
 
+# ── Jeux d'extensions du describer : domicile UNIQUE de l'app ────────────────────
+# Trois classifications coexistaient (ici, detect_type_from_extension des views et
+# _DESCRIBER_*_EXTS) avec des jeux DIVERGENTS en silence : heic accepté à l'upload
+# mais inconnu du routage, wma audio ici et texte là. Un seul jeu, trois usages ;
+# chaque fonction garde son VOCABULAIRE de retour (image/video/audio/pdf/text).
+DESCRIBER_IMG_EXTS = {'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'tiff', 'tif',
+                      'heic', 'avif', 'ico'}
+DESCRIBER_VID_EXTS = {'mp4', 'webm', 'mkv', 'avi', 'mov', 'flv', 'mpg', 'mpeg',
+                      'm4v', '3gp', 'wmv'}
+DESCRIBER_AUD_EXTS = {'mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac', 'opus', 'wma'}  # wama:redondance-ok — domicile unique des jeux d'extensions du describer
+DESCRIBER_DOC_EXTS = {'txt', 'md', 'csv', 'docx', 'doc', 'pdf', 'rtf', 'odt'}
+DESCRIBER_TEXT_LIKE_EXTS = {'json', 'xml', 'html'}   # texte brut lisible, hors documents
+
 
 def detect_content_type(file_path: str) -> str:
     """Detect content type from file path."""
@@ -14,28 +27,20 @@ def detect_content_type(file_path: str) -> str:
     # Get extension
     ext = file_path.rsplit('.', 1)[-1].lower() if '.' in file_path else ''
 
-    # Image extensions
-    image_exts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff', 'ico']
-    if ext in image_exts:
+    if ext in DESCRIBER_IMG_EXTS:
         return 'image'
 
-    # Video extensions
-    video_exts = ['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv', 'm4v']
-    if ext in video_exts:
+    if ext in DESCRIBER_VID_EXTS:
         return 'video'
 
-    # Audio extensions
-    audio_exts = ['mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac', 'wma']
-    if ext in audio_exts:
+    if ext in DESCRIBER_AUD_EXTS:
         return 'audio'
 
-    # PDF
+    # PDF (avant les documents : DESCRIBER_DOC_EXTS le contient)
     if ext == 'pdf':
         return 'pdf'
 
-    # Text formats
-    text_exts = ['txt', 'md', 'csv', 'json', 'xml', 'html', 'docx', 'doc', 'rtf']
-    if ext in text_exts:
+    if ext in DESCRIBER_DOC_EXTS or ext in DESCRIBER_TEXT_LIKE_EXTS:
         return 'text'
 
     # Try mimetype detection

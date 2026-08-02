@@ -73,7 +73,7 @@ VOICE_PRESET_CHOICES = [
 # Coqui TTS — mapping modèle → chemin HuggingFace (utilisé par tts_service.py)
 # ---------------------------------------------------------------------------
 
-COQUI_MODEL_MAPPING = {
+COQUI_MODEL_MAPPING = {  # wama:redondance-ok — mapping keyé par le vocabulaire, porte les ids Coqui (info nouvelle)
     "xtts_v2":       "tts_models/multilingual/multi-dataset/xtts_v2",
     "vits":          "tts_models/en/vctk/vits",
     "tacotron2":     "tts_models/en/ljspeech/tacotron2-DDC",
@@ -84,7 +84,7 @@ COQUI_MODEL_MAPPING = {
 # Bark — speaker par défaut par langue (utilisé par tts_service.py)
 # ---------------------------------------------------------------------------
 
-BARK_LANG_DEFAULTS = {
+BARK_LANG_DEFAULTS = {  # wama:redondance-ok — voix Bark par langue (info nouvelle)
     "en":    "v2/en_speaker_0",
     "fr":    "v2/fr_speaker_0",
     "es":    "v2/es_speaker_0",
@@ -105,7 +105,7 @@ BARK_LANG_DEFAULTS = {
 # Higgs Audio v2 — noms de langues en anglais (utilisés dans le system prompt)
 # ---------------------------------------------------------------------------
 
-HIGGS_LANGUAGE_NAMES = {
+HIGGS_LANGUAGE_NAMES = {  # wama:redondance-ok — noms affichables Higgs par langue (info nouvelle)
     "fr": "French",    "en": "English",    "de": "German",   "es": "Spanish",
     "it": "Italian",   "pt": "Portuguese", "nl": "Dutch",    "pl": "Polish",
     "ru": "Russian",   "zh": "Chinese",    "ja": "Japanese", "ko": "Korean",
@@ -129,7 +129,7 @@ VOICE_REFS_SUBDIR = "synthesizer/voice_references"
 
 _LJ_BASE = "https://github.com/idiap/coqui-ai-TTS/raw/main/tests/data/ljspeech/wavs"
 
-PRESET_DOWNLOAD_MAPPING = {
+PRESET_DOWNLOAD_MAPPING = {  # wama:redondance-ok — URLs de téléchargement par preset (info nouvelle)
     "default":  ("default.wav",  f"{_LJ_BASE}/LJ001-0001.wav"),
     "male_1":   ("male_1.wav",   f"{_LJ_BASE}/LJ001-0015.wav"),
     "male_2":   ("male_2.wav",   f"{_LJ_BASE}/LJ001-0020.wav"),
@@ -141,7 +141,7 @@ PRESET_DOWNLOAD_MAPPING = {
 # Kokoro — mapping langue WAMA → lang_code Kokoro
 # ---------------------------------------------------------------------------
 
-KOKORO_LANG_MAP = {
+KOKORO_LANG_MAP = {  # wama:redondance-ok — codes Kokoro par langue (info nouvelle)
     'fr':    'f',   # French (EspeakG2P)
     'en':    'a',   # American English
     'es':    'e',   # Spanish (EspeakG2P)

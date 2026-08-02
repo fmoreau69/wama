@@ -65,7 +65,7 @@ _LANG_DIR_TO_CODE: Dict[str, str] = {
     'dutch': 'nl', 'polish': 'pl', 'russian': 'ru',
 }
 
-_LANG_CODE_TO_LABEL: Dict[str, str] = {
+_LANG_CODE_TO_LABEL: Dict[str, str] = {  # wama:redondance-ok — labels d'affichage par langue (info nouvelle)
     'fr': 'Français', 'en': 'English', 'es': 'Español',
     'de': 'Deutsch', 'it': 'Italiano', 'pt': 'Português',
     'ja': '日本語', 'zh': '中文', 'ko': '한국어',
@@ -94,7 +94,7 @@ _FILE_PATTERN = re.compile(
 # ---------------------------------------------------------------------------
 
 # Fichiers plats dans voice_references/ (ou default_voices/) pour les anciens IDs
-_LEGACY_IDS = {'default', 'male_1', 'male_2', 'female_1', 'female_2'}
+_LEGACY_IDS = {'default', 'male_1', 'male_2', 'female_1', 'female_2'}  # wama:redondance-ok — ids historiques de presets plats (compat)
 
 
 # ---------------------------------------------------------------------------

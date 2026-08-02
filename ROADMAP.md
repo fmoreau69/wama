@@ -1659,10 +1659,24 @@ modules qui la référencent déjà = adoptants ; + rechargement local du schém
 `TOOL_REGISTRY`) — aucun vocabulaire recopié dans l'outil. **Acceptation : 6/6 retrouvés**
 sur l'arbre pré-correctif reconstruit par `git show <commit>^:<fichier>` (+ 10 bonus réels,
 dont les blocs par-app de `TOOL_DESCRIPTIONS` et `_ENHANCER_VALID_MODELS`).
-Photo de l'arbre courant au 2026-08-03 : **73 trouvailles (58 A / 0 B / 15 C)** — backlog de
-triage, PAS un score : contient les dettes documentées (copie 14 clés `converter/views.py:229`)
-et des familles ×3 apps à instruire (`_derive`, `_enrich`, `_probe`). Lancer depuis Windows
-(`./venv_win/Scripts/python.exe`), comme `check_docs`.
+Photo de l'arbre courant au 2026-08-03 : 73 trouvailles brutes (58 A / 0 B / 15 C), puis
+**TRIAGE COMPLET le jour même → 5 restantes**, toutes = dette du port anonymizer (forms/views
+pré-schéma), laissées VISIBLES exprès. Le triage a produit :
+- **1 vrai bug trouvé et corrigé** : `document_export.py` lisait `description.output_format`
+  (champ renommé `output_style` par la migration 0008) → `AttributeError` sur tout export
+  PDF/DOCX de description — 4ᵉ consommateur raté par le correctif du 02/08 (validé : PDF réel) ;
+- **résorptions** : `_ENHANCER_VALID_MODELS` → brique `schema_choice_values()` (aussi adoptée
+  par la validation describer) ; `_probe_duration` du video_backend → `probe_duration_seconds`
+  (passe par ffmpeg_utils, validé par un gif réel) ; 3 classifications d'extensions divergentes
+  du describer → domicile unique `content_analyzer.DESCRIBER_*_EXTS` ; quadruplet voix recopié
+  ×5 → `app_registry.VOICE_SAMPLE_EXTENSIONS` (+ migration avatarizer 0008) ;
+- **précision du détecteur** : C(i) restreint au niveau module + couverture de tokens ≥ ½ +
+  garde adoptant (brique OU son module référencés) ; kwargs Django mécaniques ignorés
+  (`update_fields`, `list_display`…) ; domiciles reclassés sources (`app_registry`,
+  `app_modes`, `model_registry`, `quality_presets`, `admin.py`) ; **pragma
+  `# wama:redondance-ok — <raison>`** pour assumer explicitement un câblage déclaratif
+  (mappings langue→voix, contrats de réglages utilisateur…) — jamais sans raison.
+Lancer depuis Windows (`./venv_win/Scripts/python.exe`), comme `check_docs`.
 
 **Déjà en place à réutiliser** : `check_app_conformity` (adoption), `check_docs` (intégrité
 doc→code, 217 références), `manifest_roundtrip` (fidélité + round-trip ports), `manifest_export

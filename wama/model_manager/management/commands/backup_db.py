@@ -37,7 +37,7 @@ def _default_remote_dir() -> str:
     return r"\\vrlescot\SAVES\DEEP_LEARNING\DB"
 
 
-def _rotate(directory: Path, keep: int) -> list[str]:
+def _rotate(directory: Path, keep: int) -> list[str]:  # wama:redondance-ok — purge keep-N de dumps, mécanique distincte du décalage de logs (rotate_file)
     """Supprime les dumps les plus anciens, garde les `keep` plus récents."""
     dumps = sorted(directory.glob(f"{PREFIX}*{SUFFIX}"), key=lambda p: p.name, reverse=True)
     removed = []

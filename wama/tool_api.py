@@ -197,7 +197,7 @@ def add_to_anonymizer(
         if use_sam3:
             media.use_sam3 = True
             media.sam3_prompt = sam3_prompt or ''
-        touched = ['precision_level', 'classes2blur', 'use_sam3', 'sam3_prompt']
+        touched = ['precision_level', 'classes2blur', 'use_sam3', 'sam3_prompt']  # wama:redondance-ok — kwargs EXPLICITES de la signature, gérés à part du balayage schéma
         # Tout autre réglage DÉCLARÉ au schéma (détection, modèle, flou, tracking…) : appliqué
         # sans être recopié dans la signature. Les kwargs explicites ci-dessus priment.
         for field, value in schema_model_kwargs('anonymizer', params).items():
@@ -508,12 +508,6 @@ def get_imager_status(user) -> dict:
 # Enhancer tools
 # ===========================================================================
 
-_ENHANCER_VALID_MODELS = {
-    'RealESR_Gx4', 'RealESR_Animex4', 'BSRGANx2',
-    'BSRGANx4', 'RealESRGANx4', 'IRCNN_Mx1', 'IRCNN_Lx1',
-}
-
-
 def add_to_enhancer(
     user,
     file_path: str,
@@ -534,8 +528,12 @@ def add_to_enhancer(
     Returns:
         {"enhancement_id": int, "name": str, "media_type": str, "status": "pending"}
     """
-    if ai_model not in _ENHANCER_VALID_MODELS:
-        return {'error': f"Modèle inconnu : '{ai_model}'. Disponibles : {', '.join(sorted(_ENHANCER_VALID_MODELS))}"}
+    # Valeurs valides DÉRIVÉES du schéma (la copie locale supprimée ici divergeait déjà
+    # du catalogue — même maladie que les styles describer, corrigés le 2026-08-02).
+    from wama.common.utils.param_schema import schema_choice_values
+    valid_models = schema_choice_values('enhancer', 'ai_model')
+    if valid_models and ai_model not in valid_models:
+        return {'error': f"Modèle inconnu : '{ai_model}'. Disponibles : {', '.join(sorted(valid_models))}"}
 
     blend_factor = max(0.0, min(1.0, float(blend_factor)))
 
@@ -1172,10 +1170,8 @@ def add_to_describer(
     """
     # Valeurs valides DÉRIVÉES du schéma. La liste en dur qui était ici en oubliait une :
     # 'meeting' (compte-rendu de réunion) était proposé par l'UI et refusé par l'outil.
-    from wama.common.utils.param_schema import schema_for_app
-    _styles = next((p for p in schema_for_app('describer') if p['name'] == 'output_style'), None)
-    valid_styles = {str(c[0]) if isinstance(c, (list, tuple)) else str(c)
-                    for c in ((_styles or {}).get('choices') or [])}
+    from wama.common.utils.param_schema import schema_choice_values
+    valid_styles = schema_choice_values('describer', 'output_style')
     if valid_styles and output_style not in valid_styles:
         return {'error': f"Style invalide : '{output_style}'. "
                          f"Disponibles : {', '.join(sorted(valid_styles))}"}

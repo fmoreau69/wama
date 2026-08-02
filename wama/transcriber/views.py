@@ -1819,7 +1819,7 @@ def save_user_transcriber_settings(request):
 # Réglages user — brique commune user_settings (clés user_{id}_transcriber_*, A5-22).
 # NB : preprocessing_enabled était stocké SANS préfixe d'app (user_{id}_preprocessing_enabled) ;
 # la clé est normalisée 2026-07-06 (ancienne valeur perdue → défaut True, sans gravité).
-USER_SETTINGS_DEFAULTS = {
+USER_SETTINGS_DEFAULTS = {  # wama:redondance-ok — contrat de persistance des réglages utilisateur (sous-ensemble + défauts décidés)
     'backend': 'auto',
     'hotwords': '',
     'diarization': True,
@@ -1829,7 +1829,7 @@ USER_SETTINGS_DEFAULTS = {
     'summary_type': 'structured',
     'verify_coherence': False,
 }
-USER_SETTINGS_JSON_NAMES = ('backend', 'hotwords', 'enable_diarization', 'preprocessing_enabled',
+USER_SETTINGS_JSON_NAMES = ('backend', 'hotwords', 'enable_diarization', 'preprocessing_enabled',  # wama:redondance-ok — contrat de persistance des réglages utilisateur
                             'generate_summary', 'summary_type', 'verify_coherence')
 _JSON_TO_SETTING = {'enable_diarization': 'diarization'}
 

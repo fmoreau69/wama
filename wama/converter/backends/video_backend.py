@@ -7,7 +7,6 @@ Supported conversions: mp4, avi, mov, mkv, webm, flv, mpg, mpeg, 3gp, wmv, ts, m
 
 import logging
 import subprocess
-import shutil
 from pathlib import Path
 from typing import Optional, Callable
 
@@ -187,7 +186,10 @@ def _run_ffmpeg(cmd: list, input_path: str,
                 progress_callback: Optional[Callable[[int], None]]) -> None:
     """Execute FFmpeg, streaming stderr for progress parsing."""
     import re
-    duration_sec = _probe_duration(input_path)
+    # Brique commune (audio_decode) : passe par ffmpeg_utils (exe centralisé + adaptation
+    # de chemin WSL2), là où la copie locale supprimée faisait un shutil.which brut.
+    from wama.common.utils.audio_decode import probe_duration_seconds
+    duration_sec = probe_duration_seconds(input_path)
 
     proc = subprocess.Popen(
         cmd,
@@ -212,20 +214,3 @@ def _run_ffmpeg(cmd: list, input_path: str,
         raise RuntimeError(f"FFmpeg a échoué (code {proc.returncode}):\n{stderr_text}")
 
 
-def _probe_duration(input_path: str) -> Optional[float]:
-    """Use ffprobe to get video duration in seconds."""
-    from wama.common.utils.video_utils import _get_ffmpeg_path
-    ffprobe = shutil.which('ffprobe')
-    if not ffprobe:
-        return None
-    try:
-        result = subprocess.run(
-            [ffprobe, '-v', 'quiet', '-print_format', 'json',
-             '-show_format', input_path],
-            capture_output=True, text=True, timeout=15,
-        )
-        import json
-        data = json.loads(result.stdout)
-        return float(data.get('format', {}).get('duration', 0)) or None
-    except Exception:
-        return None

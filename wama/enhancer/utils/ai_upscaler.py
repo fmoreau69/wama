@@ -33,7 +33,7 @@ MODELS_INFO = {
         'file': config['file']
     }
     for key, config in ENHANCER_MODELS.items()
-} if MODEL_CONFIG_AVAILABLE else {
+} if MODEL_CONFIG_AVAILABLE else {  # wama:redondance-ok — fallback dégradé si model_config indisponible (copie assumée)
     'RealESR_Gx4': {
         'scale': 4,
         'vram_usage': 2.5,

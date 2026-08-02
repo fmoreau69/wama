@@ -384,7 +384,7 @@ def _get_speaker_wav(voice_preset: str) -> Optional[str]:
 
     # Auto-download missing legacy presets (LJSpeech fallback)
     _LJ_BASE = "https://github.com/idiap/coqui-ai-TTS/raw/main/tests/data/ljspeech/wavs"
-    legacy_mapping = {
+    legacy_mapping = {  # wama:redondance-ok — compat presets plats historiques (même nature que _LEGACY_IDS)
         'default':  ('default.wav',  f'{_LJ_BASE}/LJ001-0001.wav'),
         'male_1':   ('male_1.wav',   f'{_LJ_BASE}/LJ001-0015.wav'),
         'male_2':   ('male_2.wav',   f'{_LJ_BASE}/LJ001-0020.wav'),

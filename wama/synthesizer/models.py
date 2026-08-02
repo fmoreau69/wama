@@ -9,6 +9,7 @@ from wama.common.models import ProcessingTimeMixin
 from django.core.validators import FileExtensionValidator
 from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output, UploadToUserPath
 from wama.common.tts.constants import TTS_MODEL_CHOICES, LANGUAGE_CHOICES, VOICE_PRESET_CHOICES
+from wama.common.app_registry import VOICE_SAMPLE_EXTENSIONS
 
 User = get_user_model()
 
@@ -62,7 +63,7 @@ class VoiceSynthesis(ProcessingTimeMixin, models.Model):
         upload_to=upload_to_user_input('synthesizer'),
         blank=True,
         null=True,
-        validators=[FileExtensionValidator(allowed_extensions=['wav', 'mp3', 'flac', 'ogg'])],
+        validators=[FileExtensionValidator(allowed_extensions=VOICE_SAMPLE_EXTENSIONS)],
         help_text="Échantillon audio pour clonage de voix (6-10 secondes recommandé)"
     )
     source_url = models.CharField(
@@ -283,7 +284,7 @@ class VoicePreset(models.Model):
     # Fichier de référence
     reference_audio = models.FileField(
         upload_to='synthesizer/presets/',
-        validators=[FileExtensionValidator(allowed_extensions=['wav', 'mp3', 'flac'])]
+        validators=[FileExtensionValidator(allowed_extensions=['wav', 'mp3', 'flac'])]  # wama:redondance-ok — presets internes : politique volontairement plus étroite que VOICE_SAMPLE_EXTENSIONS
     )
 
     # Métadonnées
@@ -323,7 +324,7 @@ class CustomVoice(models.Model):
     name = models.CharField(max_length=100)
     audio = models.FileField(
         upload_to=UploadToUserPath('synthesizer', 'custom_voices'),
-        validators=[FileExtensionValidator(allowed_extensions=['wav', 'mp3', 'flac', 'ogg'])]
+        validators=[FileExtensionValidator(allowed_extensions=VOICE_SAMPLE_EXTENSIONS)]
     )
     created_at = models.DateTimeField(auto_now_add=True)
 

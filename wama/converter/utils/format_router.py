@@ -30,7 +30,7 @@ SUPPORTED_CONVERSIONS = {
     'audio': {
         'input':  ['.mp3', '.wav', '.flac', '.ogg', '.m4a', '.aac',
                    '.opus', '.wma', '.aiff', '.aif'],
-        'output': ['mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac', 'opus'],
+        'output': ['mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac', 'opus'],  # wama:redondance-ok — capacités de SORTIE du converter (déclaration propre, pas une classification)
         'label':  'Audio',
     },
     'document': {

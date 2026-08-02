@@ -156,7 +156,8 @@ def create(request):
         if not audio_file and not source_url:
             return JsonResponse({'error': 'Un fichier audio (ou une URL) est obligatoire en mode Standalone.'}, status=400)
         if audio_file:
-            validator = FileExtensionValidator(allowed_extensions=['wav', 'mp3', 'ogg', 'flac'])
+            from wama.common.app_registry import VOICE_SAMPLE_EXTENSIONS
+            validator = FileExtensionValidator(allowed_extensions=VOICE_SAMPLE_EXTENSIONS)
             try:
                 validator(audio_file)
             except ValidationError as e:
@@ -188,7 +189,7 @@ def create(request):
     # --- Paramètres pipeline MuseTalk ---
     # Réglages user (brique commune) : les derniers réglages employés servent de défauts
     # quand le POST ne les précise pas (dépôt rapide drag & drop sans passer par la modale).
-    prefs = get_user_app_settings(user, 'avatarizer', {
+    prefs = get_user_app_settings(user, 'avatarizer', {  # wama:redondance-ok — défauts du contrat de réglages utilisateur (décision d'app)
         'quality_mode': 'fast', 'use_enhancer': False, 'bbox_shift': 0})
     quality_mode = request.POST.get('quality_mode', prefs['quality_mode'])
     job.quality_mode = quality_mode if quality_mode in ('fast', 'quality') else 'fast'

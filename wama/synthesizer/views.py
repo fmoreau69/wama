@@ -857,8 +857,9 @@ def upload_custom_voice(request):
         return JsonResponse({'error': 'Le fichier audio est requis'}, status=400)
 
     ext = os.path.splitext(audio.name)[1][1:].lower()
-    if ext not in ('wav', 'mp3', 'flac', 'ogg'):
-        return JsonResponse({'error': 'Format non supporté (wav, mp3, flac, ogg)'}, status=400)
+    from wama.common.app_registry import VOICE_SAMPLE_EXTENSIONS
+    if ext not in VOICE_SAMPLE_EXTENSIONS:
+        return JsonResponse({'error': f"Format non supporté ({', '.join(VOICE_SAMPLE_EXTENSIONS)})"}, status=400)
 
     if UserAsset.objects.filter(user=user, name=name, asset_type='voice').exists():
         return JsonResponse({'error': f'Une voix "{name}" existe déjà'}, status=409)

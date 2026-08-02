@@ -475,7 +475,7 @@ def _synthesize_via_service(synthesis, text, output_path, speaker_wav,
     scene_description = getattr(synthesis, 'scene_description', '')
 
     # Determine chunk size based on model
-    chunk_limits = {
+    chunk_limits = {  # wama:redondance-ok — limites de chunk par moteur (info nouvelle)
         'bark': 200,
         'kokoro': 400,   # EspeakG2P (FR/ES/IT/PT) truncates long texts — keep short
         'higgs_audio': 500,
