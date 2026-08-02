@@ -1,9 +1,14 @@
 """
 Round-trip de manifeste d'app : extraire → valider → confronter → projeter (dry-run).
 
-Répond par la MESURE à « peut-on régénérer cette app depuis son manifeste ? ». Assemble les
-briques qui existaient déjà séparément (`extract`/`validate`/`verify`/`project`/`facet_report`/
-`studio_redundancy`) et qu'aucune commande ne reliait.
+Répond par la MESURE à « peut-on régénérer cette app depuis son manifeste ? ».
+
+⚠ Le round-trip lui-même n'est PAS nouveau : `projection.studio_redundancy()` (2026-07-21)
+en est un, ciblé sur la redondance APP_CATALOG⟷GENERIC_APPS, et cette commande l'exécute
+parmi les autres contrôles. Ce qui manquait était le RUNNER : les briques
+(`extract`/`validate`/`verify`/`project`/`facet_report`/`studio_redundancy`) existaient
+séparément et aucune commande ne les enchaînait, si bien que l'état de la régénération se
+jugeait sur des `.md` — qui surestiment.
 
   python manage.py manifest_roundtrip transcriber
   python manage.py manifest_roundtrip transcriber --json     # sortie machine
@@ -117,10 +122,17 @@ class Command(BaseCommand):
         if r['facettes_absentes']:
             w(f"    non applicables : {', '.join(r['facettes_absentes'])}")
 
+        # Round-trip ciblé PRÉEXISTANT (`studio_redundancy`, projection.py, 2026-07-21) :
+        # dérive les E/S depuis la facette ports et les diffe contre GENERIC_APPS.
         div = r.get('divergence_catalogue_studio') or {}
-        ecarts = div.get('diffs') or div.get('divergences') or div
-        if isinstance(ecarts, dict) and ecarts and '_erreur' not in ecarts:
-            w(f"\n  APP_CATALOG ⟷ GENERIC_APPS : {ecarts}")
+        if div.get('runnable'):
+            if div.get('agree'):
+                w(s("\n  Round-trip ports ⟷ GENERIC_APPS : accord"))
+            else:
+                w(warn("\n  Round-trip ports ⟷ GENERIC_APPS : DÉSACCORD"))
+                for d in (div.get('diffs') or []):
+                    w(warn(f"    - {d.get('path')} : manifeste={d.get('manifest')!r} "
+                           f"runner={d.get('current')!r}"))
 
         w("")
         if r['regenerable']:

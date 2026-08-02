@@ -164,8 +164,15 @@ def _app_group(app_id):
 def _ports(raw) -> dict:
     """studio_node_ports() renvoie déjà des ports {id,label,group,types,multi}. On les répartit
     entrées/sorties et on NE régresse PAS la preview (group=travail|prompt = entrée de travail)."""
-    if isinstance(raw, dict) and ('inputs' in raw or 'outputs' in raw):
-        return {'inputs': list(raw.get('inputs', [])), 'outputs': list(raw.get('outputs', []))}
+    if isinstance(raw, dict) and ('inputs' in raw or 'outputs' in raw or 'output' in raw):
+        # `studio_node_ports()` nomme la sortie `output` (SINGULIER, un dict) — la lecture de
+        # `outputs` seule rendait une liste VIDE pour les 10 apps : la facette perdait le type
+        # de sortie, et `studio_redundancy()` signalait à juste titre 10/10 désaccords sur
+        # `output_type`. Les deux formes sont acceptées, la sortie du manifeste reste une liste.
+        outs = list(raw.get('outputs') or [])
+        if not outs and raw.get('output'):
+            outs = [raw['output']]
+        return {'inputs': list(raw.get('inputs', [])), 'outputs': outs}
     # certains renvoient une liste plate → séparer par présence d'un flag 'side'/'kind'
     if isinstance(raw, (list, tuple)):
         ins, outs = [], []

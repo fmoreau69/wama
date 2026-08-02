@@ -167,7 +167,10 @@ def studio_node_ports(app_id):
                 inputs.append({'id': kind, 'label': spec.get('label', kind),
                                'group': 'reference', 'types': types or ['image'], 'multi': bool(spec.get('multi'))})
 
-    return {'inputs': inputs, 'output': {'label': 'Sortie', 'types': out_cats}}
+    # `id` sur la sortie comme sur les entrées : un port sans identifiant n'est pas câblable
+    # (le schéma de manifeste l'exige, et la génération d'un nœud studio en aura besoin pour
+    # relier les liens). Ajout ADDITIF — les consommateurs existants lisent label/types.
+    return {'inputs': inputs, 'output': {'id': 'out', 'label': 'Sortie', 'types': out_cats}}
 
 
 # ---------------------------------------------------------------------------
