@@ -2478,3 +2478,29 @@ vs 1.0–2.0 ; le backend normalise les noyaux, le schéma fait foi) ; `MediaFor
 (il a d'ailleurs attrapé en direct le corpus et le bloc de faits périmés par l'ajout au schéma).
 **Reste du port (paliers suivants)** : 29 rouges mesurés — modales WamaParams (les forms legacy
 meurent), card partial + toolbar + batch (F5), partage F7, prompt_skill/enrich (F6).
+
+## §REPRISE — prochaine session : port anonymizer PALIER 2 (UI)
+
+> Préparé le 03/08 au soir, pile relancée et vérifiée (gunicorn 200, workers gpu/default/studio
+> + beat, migrations OK, gate consistency 6/6, grille régénérée sans régression).
+
+**Rituel** : `/reprise` (les 4 confrontations sont aussi jouables d'un coup :
+`python manage.py run_nightly_tests --stage consistency`).
+
+**Chantier** : `/port-app anonymizer` — palier 2 = UI. Le palier 1 (03/08) a livré le cœur
+schéma-driven backend (`coerce_schema_values`, bornes dérivées, scoping user, `use_segmentation`
+au schéma, redondances à ZÉRO). Le score 42/74 n'a PAS bougé : attendu, la grille mesure l'UI —
+c'est le palier 2 qui la fera monter.
+
+**Ordre du palier 2 (recette §1 de /port-app, briques dans `common/README.md`)** :
+1. Toolbar + tri/filtre (`queue_view.py` + `_queue_toolbar.html`) ;
+2. Card d'entrée `_new_item_card` + `WAMA_INGEST`/`ensure_local_input` ;
+3. Card partial serveur + `card_html` + re-bind (leçon describer) ;
+4. Modales item/batch via `WamaParams.render` → les ModelForms legacy de `forms.py` meurent
+   (retirer alors leurs 2 pragmas `wama:redondance-ok`) ;
+5. Batch commun (`build_batches_list`), anti-race (`begin_processing`), `reconcile_orphans` ;
+6. F7 partage (`ScopedVisibility` sur Media ET le batch, `visible_or_404`) ; F6 prompt_skill.
+
+**Sources vivantes** : les 29 rouges = `logs/conformity_report.json` (apps.anonymizer.conv) ;
+tâche #8 du task-tracker ; pièges récurrents = /port-app §2 (`{% comment %}`, statics dupliqués,
+HUP gunicorn, restart workers après édition de code exécuté par Celery).
