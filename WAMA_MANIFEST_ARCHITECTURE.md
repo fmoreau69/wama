@@ -235,7 +235,39 @@ la surface des registres.**
 
 ---
 
+## 6ter. CORPUS d'exemples — `manifests/apps/*.json` (2026-08-02, `de519d3`)
+
+> **Direction cadrée par Fabien** : la priorité n'est PAS la projection (manifeste → code) mais
+> le **corpus d'exemples réels**, à partir duquel **wama-dev-ai traduira des projets GitHub en
+> manifestes WAMA**. Ce sont des supports d'apprentissage — d'où deux règles.
+
+```
+python manage.py manifest_export            # les 10 apps → manifests/apps/<app>.json
+python manage.py manifest_export --check    # sort en erreur si le corpus est périmé (CI)
+```
+
+- **Règle 1 — aucun exemple invalide.** La commande refuse d'écrire un manifeste qui ne passe
+  pas `validate()`. Un corpus qui enseigne une erreur est pire que pas de corpus.
+- **Règle 2 — que du déclaratif.** `_missing_facets` (diagnostic DÉRIVÉ, calculé pour
+  `facet_report`) est retiré du fichier et remonté en console : un LLM entraîné dessus
+  apprendrait à l'inventer.
+- **JSON trié, indentation stable** → le `git diff` du corpus devient la **revue de ce qui change
+  dans la surface déclarée d'une app**. C'est la raison de le versionner malgré son caractère dérivé.
+
+État : **10 apps, 11–12 facettes chacune, 100 % validées** (~5 500 lignes).
+
+> ⚠ Préalable rempli in extremis (`30a89ac`) : `_ports()` lisait `outputs` (pluriel) là où
+> `studio_node_ports()` renvoie `output` (singulier) — **les 10 exemples auraient enseigné une
+> app SANS PORT DE SORTIE**. Trouvé parce que le round-trip préexistant `studio_redundancy()`
+> le signalait depuis 2026-07-21, sans que rien n'affiche son verdict.
+
+---
+
 ## 6bis. Round-trip OUTILLÉ — `manage.py manifest_roundtrip` (2026-08-02, `c8d0c2a`)
+
+> ⚠ Le round-trip lui-même **préexistait** : `projection.studio_redundancy()` (2026-07-21) est un
+> round-trip ciblé APP_CATALOG⟷GENERIC_APPS. Ce qui manquait était le **runner** qui enchaîne
+> les briques et affiche leurs verdicts.
 
 > L'état de la régénération se jugeait jusqu'ici sur des `.md`, qui **surestiment**. Les briques
 > (`extract`/`validate`/`verify`/`project`/`facet_report`/`studio_redundancy`) existaient
