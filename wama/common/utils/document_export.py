@@ -163,7 +163,7 @@ def _bullet_list(pdf, items):
 # DESCRIBER — PDF
 # ──────────────────────────────────────────────────────────────────────────────
 
-_FORMAT_TITLES = {
+_FORMAT_TITLES = {  # wama:redondance-ok — titres PDF spécialisés par style (≠ labels du schéma)
     'summary':       'RÉSUMÉ',
     'detailed':      'DESCRIPTION DÉTAILLÉE',
     'scientific':    'SYNTHÈSE SCIENTIFIQUE',
@@ -175,13 +175,13 @@ _FORMAT_TITLES = {
 def generate_description_pdf(description) -> bytes:
     """
     Generate a PDF from a Description instance.
-    Adapts layout to description.output_format.
+    Adapts layout to description.output_style.
     Returns raw PDF bytes.
     """
     pdf = _make_pdf()
     pdf.add_page()
 
-    doc_title = _FORMAT_TITLES.get(description.output_format, 'DESCRIPTION')
+    doc_title = _FORMAT_TITLES.get(description.output_style, 'DESCRIPTION')
 
     # ── Title block ──
     pdf.set_font(_PDF_FONT, 'B', 16)
@@ -199,7 +199,7 @@ def generate_description_pdf(description) -> bytes:
     pdf.ln(4)
 
     # ── Main result ──
-    if description.output_format == 'bullet_points':
+    if description.output_style == 'bullet_points':
         _section_title(pdf, 'Points Clés')
         lines = [l.lstrip('•- ').strip() for l in (description.result_text or '').splitlines() if l.strip()]
         _bullet_list(pdf, lines)
@@ -242,7 +242,7 @@ def generate_description_docx(description) -> bytes:
 
     doc = Document()
 
-    doc_title = _FORMAT_TITLES.get(description.output_format, 'DESCRIPTION')
+    doc_title = _FORMAT_TITLES.get(description.output_style, 'DESCRIPTION')
     doc.add_heading(doc_title, 0)
 
     # Metadata table
@@ -261,7 +261,7 @@ def generate_description_docx(description) -> bytes:
 
     # Main result
     doc.add_heading(doc_title.title(), 1)
-    if description.output_format == 'bullet_points':
+    if description.output_style == 'bullet_points':
         for line in (description.result_text or '').splitlines():
             line = line.lstrip('•- ').strip()
             if line:
