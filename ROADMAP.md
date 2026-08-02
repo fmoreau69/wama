@@ -1591,6 +1591,61 @@ imager gardées vs supprimées (préférence), prompts enrichis acceptés vs ré
 
 ---
 
+### 16.9 Auto-maintenance de la BASE DE CONNAISSANCE — 2 outils (cadré 2026-08-02)
+
+> **Cadrage Fabien** : l'auto-amélioration continue passe par **deux outils distincts** —
+> ① un **générateur de documentation** complète de WAMA (qui nécessite un formalisme), et
+> ② un **vérificateur de consistance** de l'arborescence et du code, par entité, capable de
+> détecter erreurs et **redondances**.
+
+**Le formalisme est déjà là : c'est le MANIFESTE.** Ne pas en définir un troisième. Les 6 kinds
+(`app`, `model`, `dataset`, `function`, `pipeline`, `project` — plus `library` à créer) décrivent
+déjà formellement chaque entité. Les deux outils sont donc des **CONSOMMATEURS** de la chaîne
+existante `manifeste → ingest → registres → mécanismes`, pas de nouvelles sources. C'est ce qui
+les empêche de devenir eux-mêmes des mécanismes concurrents.
+
+#### ① Générateur de documentation — n'existe pas
+
+Frontière **impérative** (sans elle, l'outil détruit la valeur des docs) :
+
+| Généré (jamais saisi à la main) | Écrit à la main (jamais généré) |
+|---|---|
+| chiffres et tableaux d'adoption : « 43 outils », « 75/75 params », « 91 références », « 1/11 facettes projetables » | l'intention, les décisions et leur **pourquoi** |
+| inventaires : facettes par app, briques et leurs consommateurs, cibles de code-gen | les pièges, les leçons, les non-choix assumés |
+| statuts ✅/🔄/⏳ dérivés d'une mesure | la route, les priorités, les arbitrages |
+
+Mécanisme : **blocs délimités** dans les `.md` existants (surtout pas de nouveaux fichiers,
+cf. règle « un domaine = un fichier »), régénérés par commande, avec `--check` refusant un bloc
+périmé — même contrat que `manifest_export --check`.
+**Motivation directe** : les chiffres recopiés à la main périment ET sont inventables. Constaté
+le 2026-08-02 — « 42 » puis « 31/42 » annoncés par déduction ; le vrai chiffre était **91/91**.
+
+#### ② Vérificateur de consistance — moitié fait
+
+`check_app_conformity` (74 critères, F1–F8) couvre l'**ADOPTION** : cette app utilise-t-elle la
+brique commune ? Il ne couvre PAS la **REDONDANCE** : une copie locale subsiste-t-elle À CÔTÉ de
+la brique ? C'est précisément la classe d'erreurs de la session du 2026-08-02, toutes de la même
+forme — *une implémentation locale vivant à côté d'un domicile unique déclaré* :
+
+| Copie locale | Doublait | Conséquence réelle |
+|---|---|---|
+| `TOOL_DESCRIPTIONS` | `PARAMS_JSON` | 21 params décrits sur 71 ; composer non démarrable par l'assistant |
+| `generic_runner._coerce` | `coerce_params` | le studio échappait aux **bornes** du schéma |
+| `generic_runner._params_json` | `schema_for_app` | résolution recopiée |
+| 14 clés d'options dans `converter/views.py` | schéma converter | `channels=1` → `ffmpeg -ac True` |
+| clamp `1–30 s` dans `batch_parsers` | bornes du schéma (`10–600`) | import batch à 120 s ramené à 30 |
+| liste de 4 styles dans `add_to_describer` | `choices` du schéma (5) | `meeting` proposé par l'UI, refusé par l'outil |
+
+**Corpus d'acceptation** : ces 6 cas sont le jeu de test du détecteur. Il doit tous les retrouver
+sur le code d'avant leurs correctifs. **Ne pas écrire le détecteur sans cette validation** — un
+contrôle qui rate sa propre classe d'erreurs installe une fausse confiance, ce qui est pire.
+
+**Déjà en place à réutiliser** : `check_app_conformity` (adoption), `check_docs` (intégrité
+doc→code, 217 références), `manifest_roundtrip` (fidélité + round-trip ports), `manifest_export
+--check` (corpus), `projection.studio_redundancy` (redondance APP_CATALOG⟷GENERIC_APPS).
+
+---
+
 ## 17. Capacité détection open-vocabulary — brique commune + LocateAnything (ouvert 2026-07-27)
 
 > Décision (évaluation session 2026-07-27) : intégrer **NVIDIA LocateAnything-3B** comme
