@@ -1744,3 +1744,50 @@ la brique (2) est agnostique au backend, l'investissement reste bon dans tous le
   refactoring d'imports transverse casse toutes les partitions à la fois).
 - **D'ici là** : structurer l'INTÉRIEUR de `common/` (sous-packages par facette, ex. détection §17)
   — rend le déménagement ultérieur trivial.
+
+### 18.1 Analyse critique en anticipation du monde DATA (2026-08-03, revue avec Fabien)
+
+**Ce qui est sain** : le précédent `wama_lab/` (monde = package frère) fonctionne ; l'enveloppe
+des manifestes porte déjà `world` ; les kinds `dataset`/`function`/`pipeline` existent ; tout
+l'outillage d'auto-maintenance (grille, redondances, faits, gate nocturne) est world-agnostique.
+
+**Trois problèmes structurels du couple `wama/` + `common/`** :
+1. **`wama/` confond trois étages** — plomberie projet (settings/celery/urls), monde MÉDIA
+   (10 apps) et plateforme TRANSVERSE (`common`, `accounts`, `model_manager`, `media_library`,
+   `studio`, `filemanager`, `api`). Décision ACTÉE : monde = package frère (`wama_data/` dès son
+   premier commit, avec ses commons internes) ; `wama/` = plateforme + monde média ASSUMÉ et
+   documenté (déplacer 10 apps portées serait un churn injustifié).
+2. **`common/` mélange les étages, et le bon critère de tri n'est PAS le sujet** mais la
+   **largeur de consommation** : ≥ 2 mondes = transverse (`ffmpeg_utils` : média + lab + data
+   toolbox tierce) ; 1 seul monde = ça appartient au monde (`tts/` : synthesizer + avatarizer = média).
+   Étiqueter les sous-packages dans `common/README.md` AVANT la naissance de data — sinon les
+   briques data (dataframes, map-matching — embryons déjà dans cam_analyzer) tomberont dans
+   `common/` par gravité.
+3. **`wama/tool_api.py` (~2 700 l.) confond moteur et implémentations** — moteur transverse
+   (`execute_tool`, sanitize, bornes) + outils du monde média. Scission au fil du code-gen F6
+   (chaque app générée possède son `tool_api.py`, la racine garde moteur + registre) — pas avant.
+
+**Le risque data** : la médiathèque (`media_library`/`UserAsset`) est médiacentrée ; sans
+généralisation en *bibliothèque d'assets typés* AVANT la première app data, un `data_library`
+jumeau naîtra (duplication fondatrice). **La chance data** : premier monde **manifests-first** —
+corpus, roundtrip, rôle librarian et grille existent AVANT sa première ligne ; écrire le
+manifeste d'abord et développer le code-gen facette par facette contre lui, au lieu de créer un
+4ᵉ legacy à porter.
+
+### 18.2 Contrôle MÉCANIQUE de la structure — `check_structure` (outil ③ de l'auto-maintenance, à créer)
+
+> Même patron que §16.9 : règles = contrats déclarés, vocabulaire consommé depuis les registres
+> (`APP_CATALOG` — jamais recopié), corpus d'acceptation = les violations VIVANTES, pragma
+> d'exception motivé (`wama:structure-ok — <raison>`), scénario au stage `consistency` nocturne.
+
+Règles sur le graphe d'imports (AST, top-level ET locaux) — **état MESURÉ au 2026-08-03** :
+| Règle | Mesure | Statut |
+|---|---|---|
+| `common/` n'importe JAMAIS d'une app (inversion d'étage) | **12 violations** (`app_registry`, `batch_parsers`, `batch_utils`, `document_export`, `llm_utils`, `reference_comprehension`…) | backlog de triage (comme les 73 du détecteur de redondance) |
+| app média → app média interdit | **0** | acquis à VERROUILLER |
+| monde → monde hors glu déclarée (common/tool_api/capacités) | **1** (`cam_analyzer/utils/sam3_road_analyzer.py` → anonymizer) | à instruire : la brique SAM3 est-elle transverse ? |
+| module de `common/` consommé par UNE seule app | à mesurer | informatif : candidat au rapatriement (symétrique du détecteur de redondance) |
+
+**Acceptation** : l'outil doit retrouver les 12+1 violations ci-dessus. Ne pas le livrer sans.
+Création : idéalement AVANT l'ouverture du §18 (il mesure le point de départ du déménagement)
+et AVANT la première app data (il garde la frontière du monde naissant).
