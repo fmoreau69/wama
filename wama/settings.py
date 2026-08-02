@@ -496,6 +496,10 @@ if ENABLE_CELERY:
         'wama_lab.cam_analyzer.tasks.*': {'queue': 'gpu', 'priority': _prio('cam_analyzer')},
         'wama.converter.tasks.*': {'queue': 'default'},
         'wama.model_manager.tasks.*': {'queue': 'default'},
+        # Orchestrateur studio : file DÉDIÉE. run_pipeline_task retient son worker pendant
+        # toute la durée du pipeline (boucle de poll) ; sur une file partagée avec les tâches
+        # d'app il attendait sa propre tâche converter (deadlock en pool solo, smoke 03/08).
+        'wama.studio.tasks.*': {'queue': 'studio'},
         # Charge des modèles → queue GPU, mais palier le plus BAS : une campagne
         # de tests nocturnes ne doit jamais passer devant un traitement demandé.
         'common.run_nightly_tests': {'queue': 'gpu', 'priority': _prio('_nightly_tests')},

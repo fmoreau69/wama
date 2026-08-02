@@ -319,6 +319,24 @@ else
     echo "Celery Default worker is already running."
 fi
 
+# Studio Worker: ORCHESTRATEUR de pipelines (run_pipeline_task retient le worker pendant
+# toute la durée du run — boucle de poll). File DÉDIÉE : sur une file partagée, N runs
+# studio simultanés peuvent occuper tous les slots et affamer la tâche d'app qu'ils
+# attendent (deadlock observé en dev/solo, smoke 03/08).
+if ! pgrep -f "celery.*studio@" > /dev/null; then
+    echo "=== Starting Celery Studio Worker (solo) ==="
+    celery -A wama worker \
+        --pool=solo \
+        --queues=studio \
+        --hostname=studio@%h \
+        --statedb=$LOG_DIR/celery-studio.state \
+        --loglevel=INFO \
+        --detach \
+        --logfile $LOG_DIR/celery-studio.log
+else
+    echo "Celery Studio worker is already running."
+fi
+
 # ------------------------------------------------------
 # CELERY BEAT (optionnel)
 # ------------------------------------------------------
