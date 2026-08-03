@@ -519,6 +519,14 @@ document.addEventListener('DOMContentLoaded', function () {
             return { ai_model: d.aiModel, denoise: d.denoise, blend_factor: d.blendFactor };
         },
         saveItem: function (id, fd) { return postPanel('/enhancer/update_settings/' + id + '/', fd); },
+        renderItemActions: function (host, card) {
+            WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
+                '<i class="fas fa-crosshairs text-info"></i> Actions — élément #' + card.dataset.id);
+        },
+        renderBatchActions: function (host, group) {
+            WamaInspector.cloneActions(host, group.querySelector('.btn-group-actions'),
+                '<i class="fas fa-layer-group text-info"></i> Actions — batch #' + group.dataset.batchId);
+        },
     });
     // ── Domaine AUDIO : data-* sur le bouton ⚙, endpoint audio/update ──
     WamaInspector.initFromSchema({
@@ -533,6 +541,14 @@ document.addEventListener('DOMContentLoaded', function () {
             return { engine: d.engine, mode: d.mode, strength: d.strength, quality: d.quality };
         },
         saveItem: function (id, fd) { return postPanel('/enhancer/audio/update/' + id + '/', fd); },
+        renderItemActions: function (host, card) {
+            WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
+                '<i class="fas fa-crosshairs text-info"></i> Actions — élément #' + card.dataset.id);
+        },
+        renderBatchActions: function (host, group) {
+            WamaInspector.cloneActions(host, group.querySelector('.btn-group-actions'),
+                '<i class="fas fa-layer-group text-info"></i> Actions — batch #' + group.dataset.batchId);
+        },
     });
 });
 </script>

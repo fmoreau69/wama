@@ -89,6 +89,8 @@ class AvatarJob(ProcessingTimeMixin, ScopedVisibility):
     )
 
     # Paramètres pipeline MuseTalk
+    # DÉRIVÉ de use_enhancer depuis 2026-08-03 (l'UI n'expose plus de mode) —
+    # conservé pour les clés ETA (avatarizer:<mode>) et les données existantes.
     quality_mode = models.CharField(
         max_length=20, choices=QUALITY_MODE_CHOICES, default='fast',
         help_text="Rapide (MuseTalk) ou Qualité (MuseTalk + CodeFormer)"

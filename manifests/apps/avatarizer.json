@@ -77,7 +77,6 @@
               ],
               "label": "Standalone",
               "settings": [
-                "quality_mode",
                 "use_enhancer",
                 "bbox_shift"
               ]
@@ -87,53 +86,6 @@
       ]
     },
     "params": [
-      {
-        "advanced": false,
-        "chip": true,
-        "chip_label": "",
-        "choices": [
-          [
-            "fast",
-            "Rapide (MuseTalk seul)"
-          ],
-          [
-            "quality",
-            "Qualité (MuseTalk + CodeFormer)"
-          ]
-        ],
-        "contexts": [
-          "panel",
-          "item",
-          "batch"
-        ],
-        "default": "fast",
-        "dom_id": {
-          "panel": "quality_mode"
-        },
-        "help": "Rapide (MuseTalk) ou Qualité (MuseTalk + CodeFormer)",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-bolt",
-        "inline": true,
-        "label": "Qualité",
-        "max": null,
-        "max_label": "",
-        "min": null,
-        "min_label": "",
-        "name": "quality_mode",
-        "option_groups": null,
-        "options_source": null,
-        "radio_name": {
-          "item": "settings_quality_mode",
-          "panel": "quality_mode"
-        },
-        "section": "settings",
-        "show_if": null,
-        "step": null,
-        "type": "radio",
-        "unit": ""
-      },
       {
         "advanced": false,
         "chip": true,
@@ -149,13 +101,13 @@
           "item": "settingsUseEnhancer",
           "panel": "use_enhancer"
         },
-        "help": "Amélioration faciale CodeFormer (mode Qualité uniquement)",
+        "help": "Restauration faciale haute qualité — légèrement plus lent.",
         "help_fallback": null,
         "help_html": "",
         "help_source": null,
         "icon": "fa-wand-magic-sparkles",
         "inline": false,
-        "label": "Enhancer IA (CodeFormer)",
+        "label": "Amélioration CodeFormer",
         "max": null,
         "max_label": "",
         "min": null,
@@ -165,10 +117,7 @@
         "options_source": null,
         "radio_name": "",
         "section": "settings",
-        "show_if": {
-          "equals": "quality",
-          "field": "quality_mode"
-        },
+        "show_if": null,
         "step": null,
         "type": "toggle",
         "unit": ""
@@ -297,10 +246,10 @@
             "bbox_shift": "range — Décalage vertical de la zone bouche (px). 0 = auto. [-9–9] (défaut : 0)",
             "language": "str (défaut : 'fr')",
             "mode": "str (défaut : 'pipeline')",
-            "quality_mode": "radio — Rapide (MuseTalk) ou Qualité (MuseTalk + CodeFormer) (choix : fast | quality) (défaut : 'fast')",
+            "quality_mode": "str (défaut : 'fast')",
             "text_content": "str",
             "tts_model": "str (défaut : 'xtts_v2')",
-            "use_enhancer": "toggle — Amélioration faciale CodeFormer (mode Qualité uniquement) (défaut : False)",
+            "use_enhancer": "toggle — Restauration faciale haute qualité — légèrement plus lent. (défaut : False)",
             "voice_preset": "str (défaut : 'default')"
           },
           "description": "Ajoute un élément à la file d'attente de Avatarizer (Génération de vidéos d'avatars lip-sync animés par IA (MuseTalk + CodeFormer)) et renvoie son item_id."

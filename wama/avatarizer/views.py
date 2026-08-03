@@ -110,7 +110,6 @@ class IndexView(View):
             'tts_models': AvatarJob.TTS_MODEL_CHOICES,
             'languages': AvatarJob.LANGUAGE_CHOICES,
             'custom_voices': custom_voices,
-            'quality_mode_choices': AvatarJob.QUALITY_MODE_CHOICES,
             'media_url': settings.MEDIA_URL,
             'params_json': json.dumps(_AVATAR_PARAMS_JSON),
             # Groupes de voix (brique commune, per-user) pour le select GÉNÉRÉ de la modale
@@ -190,10 +189,11 @@ def create(request):
     # Réglages user (brique commune) : les derniers réglages employés servent de défauts
     # quand le POST ne les précise pas (dépôt rapide drag & drop sans passer par la modale).
     prefs = get_user_app_settings(user, 'avatarizer', {  # wama:redondance-ok — défauts du contrat de réglages utilisateur (décision d'app)
-        'quality_mode': 'fast', 'use_enhancer': False, 'bbox_shift': 0})
-    quality_mode = request.POST.get('quality_mode', prefs['quality_mode'])
-    job.quality_mode = quality_mode if quality_mode in ('fast', 'quality') else 'fast'
+        'use_enhancer': False, 'bbox_shift': 0})
     job.use_enhancer = request.POST.get('use_enhancer', str(prefs['use_enhancer']).lower()) == 'true'
+    # quality_mode DÉRIVÉ (2026-08-03) : le backend ne lit que use_enhancer, le champ ne
+    # sert plus qu'aux clés ETA et aux données existantes.
+    job.quality_mode = 'quality' if job.use_enhancer else 'fast'
     try:
         job.bbox_shift = max(-10, min(10, int(request.POST.get('bbox_shift', prefs['bbox_shift']))))
     except (ValueError, TypeError):
@@ -201,7 +201,6 @@ def create(request):
 
     job.save()
     save_user_app_settings(user, 'avatarizer', {
-        'quality_mode': job.quality_mode,
         'use_enhancer': job.use_enhancer,
         'bbox_shift': job.bbox_shift,
     })
@@ -348,12 +347,9 @@ def update_options(request, pk):
         if voice_preset:
             job.voice_preset = voice_preset
 
-    # MuseTalk params
-    quality_mode = request.POST.get('quality_mode')
-    if quality_mode in ('fast', 'quality'):
-        job.quality_mode = quality_mode
-
+    # MuseTalk params — quality_mode DÉRIVÉ de use_enhancer (2026-08-03)
     job.use_enhancer = request.POST.get('use_enhancer', 'false') == 'true'
+    job.quality_mode = 'quality' if job.use_enhancer else 'fast'
 
     try:
         job.bbox_shift = max(-10, min(10, int(request.POST.get('bbox_shift', job.bbox_shift))))
@@ -746,6 +742,8 @@ def _unified_item_to_avatar_row(it: dict) -> dict:
     else:
         return {'error': 'ni texte (-p) ni audio (-i) fourni'}
 
+    # --quality reste accepté (compat des fichiers batch existants) mais n'est plus
+    # qu'un ALIAS de l'amélioration CodeFormer (2026-08-03) — le mode UI est mort.
     quality = opts.get('quality', 'fast')
     quality = quality if quality in ('fast', 'quality') else 'fast'
     try:
@@ -761,8 +759,8 @@ def _unified_item_to_avatar_row(it: dict) -> dict:
         'tts_model': opts.get('tts') or opts.get('model') or 'xtts_v2',
         'language': opts.get('language', 'fr'),
         'voice_preset': opts.get('voice', 'default'),
-        'quality_mode': quality,
-        'use_enhancer': str(opts.get('enhancer', '')).lower() in ('1', 'true', 'yes'),
+        'use_enhancer': (str(opts.get('enhancer', '')).lower() in ('1', 'true', 'yes')
+                         or quality == 'quality'),
         'bbox_shift': bbox,
         'output': it.get('output', ''),
         'line_num': it.get('line_num'),
@@ -809,8 +807,8 @@ def batch_create(request):
             voice_preset=row['voice_preset'],
             avatar_source='gallery',
             avatar_gallery_name=row['avatar_gallery_name'],
-            quality_mode=row['quality_mode'],
             use_enhancer=row['use_enhancer'],
+            quality_mode='quality' if row['use_enhancer'] else 'fast',
             bbox_shift=row['bbox_shift'],
         )
         # Standalone : rattacher l'audio s'il résout sous MEDIA_ROOT (partage, pas de copie)
@@ -861,7 +859,11 @@ def batch_update(request, pk):
     """Applique les réglages du volet à TOUS les items du lot (édition batch, hors RUNNING)."""
     user = _get_user(request)
     batch = get_object_or_404(BatchAvatarJob, pk=pk, user=user)
-    fields = ['mode', 'tts_model', 'language', 'voice_preset', 'quality_mode', 'use_enhancer', 'bbox_shift']
+    # quality_mode n'est plus posté (mode UI mort 2026-08-03) — dérivé après coup.
+    # Champs éditables = le SCHÉMA (domicile unique) + héritage pipeline.
+    from wama.avatarizer.params import PARAMS_JSON
+    fields = [p['name'] for p in PARAMS_JSON]
+    fields += ['mode', 'tts_model', 'language', 'voice_preset']  # wama:redondance-ok — héritage du mode pipeline (TTS relève du synthesizer, standalone-only 2026-07-15)
     updated = 0
     for it in batch.items.select_related('job'):
         job = it.job
@@ -879,6 +881,7 @@ def batch_update(request, pk):
                 except (ValueError, TypeError):
                     continue
             setattr(job, f, val)
+        job.quality_mode = 'quality' if job.use_enhancer else 'fast'  # champ dérivé
         job.save()
         updated += 1
     return JsonResponse({'success': True, 'updated': updated})

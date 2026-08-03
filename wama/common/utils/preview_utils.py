@@ -258,9 +258,16 @@ def unified_preview(request, app_name: str, pk: int):
         elif side == 'output' and has_output:
             data = dict(output_data)
             data['side'] = 'output'
-        else:
+        elif has_input:
             data = dict(preview_data)
             data['side'] = 'input'
+        elif has_output:
+            # Repli : app à entrée NON-fichier (synthesizer = texte) — l'adapter d'entrée
+            # rend None et `dict(None)` faisait un 500 sur ?side=input (constat 03/08).
+            data = dict(output_data)
+            data['side'] = 'output'
+        else:
+            data = {'error': "Aucun aperçu disponible pour cet élément", 'side': side}
         data['sides'] = sides
         return JsonResponse(data)
     except Exception as e:

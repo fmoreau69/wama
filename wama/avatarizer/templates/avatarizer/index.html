@@ -73,22 +73,6 @@ dans le Studio (runner avatarizer : mode=standalone fixe).{% endcomment %}
     <label class="form-label small fw-bold text-light"><i class="fas fa-sliders-h"></i> Paramètres MuseTalk</label>
 </div>
 
-<!-- Mode qualité -->
-<div class="mb-3">
-    <label class="form-label small text-light">Mode</label>
-    <div class="btn-group w-100" role="group">
-        <input type="radio" class="btn-check" name="quality_mode" id="qmode_fast" value="fast" checked>
-        <label class="btn btn-outline-secondary btn-sm" for="qmode_fast">
-            <i class="fas fa-bolt"></i> Rapide
-        </label>
-        <input type="radio" class="btn-check" name="quality_mode" id="qmode_quality" value="quality">
-        <label class="btn btn-outline-info btn-sm" for="qmode_quality">
-            <i class="fas fa-star"></i> Qualité
-        </label>
-    </div>
-    <small class="text-muted d-block mt-1" id="qmode_hint">MuseTalk seul — temps réel</small>
-</div>
-
 <!-- Décalage bbox -->
 <div class="mb-2">
     <label for="bbox_shift" class="form-label small text-light">
@@ -98,7 +82,8 @@ dans le Studio (runner avatarizer : mode=standalone fixe).{% endcomment %}
     <small class="text-muted">Ajustez si la zone détectée est mal positionnée</small>
 </div>
 
-<!-- CodeFormer enhancer (visible en mode qualité) -->
+{% comment %} Amélioration CodeFormer — SEUL contrôle de qualité (2026-08-03) : l'ancien
+couple de modes rapide/qualité n'était qu'un alias de ce toggle (décision route F2). {% endcomment %}
 <div id="enhancer_section">
     <div class="form-check form-switch mb-2">
         <input class="form-check-input" type="checkbox" id="use_enhancer">
@@ -106,6 +91,7 @@ dans le Studio (runner avatarizer : mode=standalone fixe).{% endcomment %}
             Amélioration CodeFormer
         </label>
     </div>
+    <small class="text-muted d-block">Restauration faciale haute qualité — légèrement plus lent</small>
 </div>
 </div>{# /avatarPanelParams (inspecteur contextuel) #}
 
@@ -253,9 +239,9 @@ action primaire de la card, conventions CARD_DESIGN §2 ; id #btn-generate incha
         <h5>Paramètres MuseTalk</h5>
         <ul class="text-light">
             <li><strong>Mode Rapide</strong> : MuseTalk seul — temps réel, 6–8 GB VRAM</li>
-            <li><strong>Mode Qualité</strong> : MuseTalk + CodeFormer — meilleure netteté faciale, légèrement plus lent</li>
+            <li><strong>Amélioration CodeFormer</strong> : MuseTalk + restauration faciale — meilleure netteté, légèrement plus lent</li>
             <li><strong>Décalage visage</strong> : si la zone de la bouche est mal détectée, ajustez de ±1 à ±5</li>
-            <li><strong>Amélioration CodeFormer</strong> : restauration faciale haute qualité (actif en mode Qualité)</li>
+            <li><strong>Sans amélioration</strong> : MuseTalk seul — le plus rapide</li>
         </ul>
     </div>
 </div>
@@ -420,11 +406,18 @@ document.addEventListener('DOMContentLoaded', function () {
             var b = card.querySelector('.btn-settings-job');
             if (!b) return {};
             return {
-                quality_mode: b.dataset.qualityMode,
                 use_enhancer: b.dataset.useEnhancer, bbox_shift: b.dataset.bboxShift,
             };
         },
         saveItem: function (id) { return postPanel('/avatarizer/update-options/' + id + '/').then(function () { window.location.reload(); }); },
+        renderItemActions: function (host, card) {
+            WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
+                '<i class="fas fa-crosshairs text-info"></i> Actions — élément #' + card.dataset.id);
+        },
+        renderBatchActions: function (host, group) {
+            WamaInspector.cloneActions(host, group.querySelector('.btn-group-actions'),
+                '<i class="fas fa-layer-group text-info"></i> Actions — batch #' + group.dataset.batchId);
+        },
     });
 });
 </script>

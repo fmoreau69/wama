@@ -1,7 +1,11 @@
 {% comment %}Card serveur UNIQUE d'un AvatarJob — rendue au chargement (boucle b.items d'index.html) ET par l'endpoint card_html (rafraichissement par polling). Contexte requis : job (chips = propriete du modele), media_url.{% endcomment %}
+                {% comment %} data-id = CONTRAT des briques communes (WamaInspector.selectItem
+                cherche [data-id] : sans lui la card n'était PAS sélectionnable — constat 03/08).
+                data-job-id conservé pour les handlers historiques de l'app. {% endcomment %}
                 <div class="wama-card synthesis-card {% if job.status == 'RUNNING' %}processing{% elif job.status == 'SUCCESS' %}success{% elif job.status == 'FAILURE' %}error{% endif %}"
-                     id="job-{{ job.id }}" data-job-id="{{ job.id }}"
-                     data-status="{{ job.status }}" data-mode="standalone">
+                     id="job-{{ job.id }}" data-id="{{ job.id }}" data-job-id="{{ job.id }}"
+                     data-status="{{ job.status }}" data-mode="standalone"
+                     data-preview-url="{% url 'common:unified_preview' 'avatarizer' job.id %}">
                     <div class="row align-items-center g-2">
 
                         <!-- Col 1 : Avatar + miniature -->
@@ -66,7 +70,6 @@
                                 {% if job.status != 'RUNNING' %}
                                 <button class="btn btn-sm btn-outline-secondary btn-settings-job"
                                         data-job-id="{{ job.id }}"
-                                        data-quality-mode="{{ job.quality_mode }}"
                                         data-use-enhancer="{{ job.use_enhancer|yesno:'true,false' }}"
                                         data-bbox-shift="{{ job.bbox_shift }}"
                                         title="Paramètres">

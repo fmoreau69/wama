@@ -119,7 +119,7 @@ APP_MODES = {
             {'id': 'video', 'label': 'Avatar parlant', 'icon': 'fa-user-astronaut', 'modes': [
                 {'id': 'standalone', 'label': 'Standalone', 'icon': 'fa-film',
                  'inputs': ['work_image', 'work_audio'],
-                 'settings': ['quality_mode', 'use_enhancer', 'bbox_shift']},
+                 'settings': ['use_enhancer', 'bbox_shift']},
             ]},
         ],
     },

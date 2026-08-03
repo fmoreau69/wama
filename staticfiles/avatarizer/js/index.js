@@ -54,28 +54,8 @@
         });
     }
 
-    // -----------------------------------------------------------------------
-    // Quality mode toggle — hint text + enhancer visibility
-    // -----------------------------------------------------------------------
-    const qmodeHint       = $('#qmode_hint');
-    const enhancerSection = $('#enhancer_section');
-
-    function updateQualityModeUI() {
-        const mode = $('input[name="quality_mode"]:checked');
-        if (!mode) return;
-        if (mode.value === 'quality') {
-            if (qmodeHint) qmodeHint.textContent = 'MuseTalk + CodeFormer — meilleure netteté';
-            if (enhancerSection) enhancerSection.style.display = '';
-        } else {
-            if (qmodeHint) qmodeHint.textContent = 'MuseTalk seul — temps réel';
-            if (enhancerSection) enhancerSection.style.display = 'none';
-            const enhancerCb = $('#use_enhancer');
-            if (enhancerCb) enhancerCb.checked = false;
-        }
-    }
-
-    $$('input[name="quality_mode"]').forEach(r => r.addEventListener('change', updateQualityModeUI));
-    updateQualityModeUI(); // init
+    // Le couple de modes rapide/qualité est MORT (2026-08-03) : l'Amélioration
+    // CodeFormer (#use_enhancer) est le SEUL contrôle de qualité, toujours visible.
 
     // -----------------------------------------------------------------------
     // Avatar gallery selection
@@ -321,9 +301,6 @@
         } else {
             fd.append('avatar_upload', avatarUploadFile);
         }
-
-        const qmode = $('input[name="quality_mode"]:checked');
-        fd.append('quality_mode', qmode ? qmode.value : 'fast');
         fd.append('bbox_shift', bboxSlider ? bboxSlider.value : '0');
         fd.append('use_enhancer', $('#use_enhancer') && $('#use_enhancer').checked ? 'true' : 'false');
 
@@ -499,7 +476,6 @@
     function openSettingsModal(btn) {
         if (!settingsModal) return;
         const jobId      = btn.dataset.jobId;
-        const qmode      = btn.dataset.qualityMode || 'fast';
         const enhancer   = btn.dataset.useEnhancer === 'true';
         const bboxShift  = parseInt(btn.dataset.bboxShift || '0', 10);
 
@@ -507,10 +483,7 @@
         if (jobIdInput) jobIdInput.value = jobId;
 
         // Standalone-only (2026-07-15) : plus de TTS (relève du synthesizer). Réglages MuseTalk.
-        // Quality mode
-        const qRadio = $(`input[name="settings_quality_mode"][value="${qmode}"]`);
-        if (qRadio) qRadio.checked = true;
-
+        // Le mode rapide/qualité est MORT (2026-08-03) : CodeFormer = seul contrôle de qualité.
         // Enhancer
         const enhancerCb = $('#settingsUseEnhancer');
         if (enhancerCb) enhancerCb.checked = enhancer;
@@ -526,12 +499,12 @@
         settingsModal.show();
     }
 
-    function buildParamsHtml(qmode, useEnhancer, bboxShift) {
+    function buildParamsHtml(useEnhancer, bboxShift) {
         // Standalone-only (2026-07-15) : l'audio vient d'amont/import, plus de TTS.
         let html = '<i class="fas fa-upload"></i> Audio<br>';
-        const qIsQuality = qmode === 'quality';
-        html += `<i class="fas fa-${qIsQuality ? 'star' : 'bolt'}"></i> ${qIsQuality ? 'Qualité' : 'Rapide'}`;
-        if (useEnhancer) html += ` <span class="badge bg-secondary" style="font-size:0.6rem;">CF</span>`;
+        html += useEnhancer
+            ? '<i class="fas fa-wand-magic-sparkles"></i> CodeFormer'
+            : '<i class="fas fa-bolt"></i> MuseTalk seul';
         if (bboxShift !== '0' && bboxShift !== 0) html += ` &bull; <i class="fas fa-arrows-alt-v"></i> ${bboxShift}`;
         return html;
     }
@@ -540,15 +513,12 @@
         const jobId = $('#settingsJobId') ? $('#settingsJobId').value : null;
         if (!jobId) return;
 
-        const qRadio      = $('input[name="settings_quality_mode"]:checked');
         const enhancerCb  = $('#settingsUseEnhancer');
 
-        const newQmode     = qRadio     ? qRadio.value     : 'fast';
         const newEnhancer  = !!(enhancerCb && enhancerCb.checked);
         const newBbox      = settingsBboxSlider ? settingsBboxSlider.value : '0';
 
         const fd = new FormData();
-        fd.append('quality_mode', newQmode);
         fd.append('use_enhancer', newEnhancer ? 'true' : 'false');
         fd.append('bbox_shift',   newBbox);
 
@@ -569,13 +539,12 @@
                 // 1. Rafraîchir le bloc paramètres (col-2)
                 const paramsEl = $('.job-params-display', card);
                 if (paramsEl) {
-                    paramsEl.innerHTML = buildParamsHtml(newQmode, newEnhancer, newBbox);
+                    paramsEl.innerHTML = buildParamsHtml(newEnhancer, newBbox);
                 }
 
                 // 2. Mettre à jour les data-* du bouton settings (pour le prochain ouverture du modal)
                 const settBtn = $('.btn-settings-job', card);
                 if (settBtn) {
-                    settBtn.dataset.qualityMode = newQmode;
                     settBtn.dataset.useEnhancer = newEnhancer ? 'true' : 'false';
                     settBtn.dataset.bboxShift   = newBbox;
                 }

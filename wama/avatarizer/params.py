@@ -19,16 +19,14 @@ PARAMS = derive_from_model(
     # STANDALONE-ONLY (2026-07-15) : l'audio vient d'AMONT (synthesizer, ou fichier),
     # PAS d'un TTS interne. Le TTS relève du synthesizer ; en pipeline studio, c'est la
     # composition synthesizer -> avatarizer. Donc AUCUN paramètre TTS ici (source unique).
-    include=["quality_mode", "use_enhancer", "bbox_shift"],
+    # Le couple de modes rapide/qualité est MORT (2026-08-03, décision route F2 enfin
+    # appliquée à l'UI) : la « qualité » n'a jamais été qu'un alias du toggle CodeFormer —
+    # le backend ne lit QUE use_enhancer. quality_mode survit en champ DÉRIVÉ (ETA/data).
+    include=["use_enhancer", "bbox_shift"],
     overrides={
-        "quality_mode": dict(type="radio", label="Qualité", inline=True, chip=True,
-                             icon="fa-bolt",
-                             dom_id={"panel": "quality_mode"},
-                             radio_name={"panel": "quality_mode", "item": "settings_quality_mode"},
-                             contexts=PANEL_ITEM_BATCH),
-        "use_enhancer": dict(type="toggle", label="Enhancer IA (CodeFormer)", chip=True,
+        "use_enhancer": dict(type="toggle", label="Amélioration CodeFormer", chip=True,
                              icon="fa-wand-magic-sparkles",
-                             show_if={"field": "quality_mode", "equals": "quality"},
+                             help="Restauration faciale haute qualité — légèrement plus lent.",
                              dom_id={"panel": "use_enhancer", "item": "settingsUseEnhancer"},
                              contexts=PANEL_ITEM_BATCH),
         "bbox_shift":   dict(type="range", label="Bbox shift", icon="fa-arrows-up-down", chip=True,
