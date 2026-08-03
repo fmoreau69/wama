@@ -200,6 +200,25 @@ def api_apps(request):
     return JsonResponse({'apps': apps})
 
 
+@require_POST
+def conformity_refresh(request):
+    """Re-mesure la grille de conformité (bouton « Re-mesurer » de /apps/).
+
+    Même mécanique que `manage.py check_app_conformity` — brique commune
+    measure_and_write_conformity (domicile unique). Staff uniquement : la mesure
+    est peu coûteuse (~1 s, greps de code) mais écrit le rapport global.
+    """
+    if not (request.user.is_authenticated and request.user.is_staff):
+        return JsonResponse({'error': 'Réservé au staff'}, status=403)
+    from wama.common.app_registry import measure_and_write_conformity
+    report = measure_and_write_conformity()
+    return JsonResponse({
+        'success': True,
+        'generated_at': report['generated_at'],
+        'scores': {a: d['pct'] for a, d in report['apps'].items()},
+    })
+
+
 def apps_catalog_view(request):
     """Render the WAMA application catalog page."""
     from .app_registry import APP_CATALOG, get_conformity_summary
@@ -237,5 +256,13 @@ def apps_catalog_view(request):
         if items or links:
             apps_grouped.append({'id': cid, 'meta': meta, 'apps': items, 'links': links})
 
+    # Horodatage de la dernière MESURE (le plus récent des measured_at par app) —
+    # affiché à côté du bouton « Re-mesurer » de la grille.
+    measured_at = max((a.get('conformity', {}).get('measured_at') or ''
+                       for a in apps_list), default='') or None
+    if measured_at:
+        measured_at = measured_at.replace('T', ' ')[:16]
+
     return render(request, 'common/apps.html',
-                  {'apps_list': apps_list, 'apps_grouped': apps_grouped})
+                  {'apps_list': apps_list, 'apps_grouped': apps_grouped,
+                   'conformity_measured_at': measured_at})

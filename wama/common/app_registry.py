@@ -897,6 +897,28 @@ def _measured_conformity(app_name: str) -> tuple[dict, str | None]:
     return app.get('conv', {}), data.get('generated_at')
 
 
+def measure_and_write_conformity() -> dict:
+    """Mesure les 10 apps (conformity_checker.run_checks) et ÉCRIT le rapport JSON.
+
+    Domicile UNIQUE de la mesure-écriture — consommé par la commande
+    `check_app_conformity` (CLI/skill /conformite) ET par le bouton « Re-mesurer »
+    de la page /apps/ (2026-08-04). Le cache mtime de `_measured_conformity` voit
+    le nouveau fichier au prochain accès (pas d'invalidation à faire ici).
+    """
+    import json as _json
+    from datetime import datetime, timezone
+    from pathlib import Path as _Path
+    from django.conf import settings as _settings
+    from wama.common.services.conformity_checker import run_checks
+
+    report = run_checks(sorted(APP_CATALOG.keys()))
+    report['generated_at'] = datetime.now(timezone.utc).isoformat(timespec='seconds')
+    path = _Path(_settings.BASE_DIR) / 'logs' / 'conformity_report.json'
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_json.dumps(report, ensure_ascii=False, indent=1), encoding='utf-8')
+    return report
+
+
 def get_conformity_summary() -> dict:
     """
     Returns per-app conformity score:

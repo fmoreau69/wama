@@ -35,8 +35,14 @@ class Command(BaseCommand):
 
     def handle(self, *args, **opts):
         apps = [opts['app']] if opts.get('app') else sorted(APP_CATALOG.keys())
-        report = run_checks(apps)
-        report['generated_at'] = datetime.now(timezone.utc).isoformat(timespec='seconds')
+        # Run COMPLET avec écriture → brique commune (partagée avec le bouton /apps/) ;
+        # run partiel ou --no-write → mesure seule, la photo globale est préservée.
+        if not opts.get('app') and not opts.get('no_write'):
+            from wama.common.app_registry import measure_and_write_conformity
+            report = measure_and_write_conformity()
+        else:
+            report = run_checks(apps)
+            report['generated_at'] = datetime.now(timezone.utc).isoformat(timespec='seconds')
 
         for app in apps:
             data = report['apps'][app]
@@ -60,7 +66,5 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.WARNING(
                     "\nRun partiel (--app) : rapport JSON NON écrit (photo globale préservée)."))
             else:
-                REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
-                REPORT_PATH.write_text(json.dumps(report, ensure_ascii=False, indent=1),
-                                       encoding='utf-8')
+                # écriture déjà faite par la brique measure_and_write_conformity
                 self.stdout.write(self.style.SUCCESS(f"\nRapport écrit → {REPORT_PATH}"))
