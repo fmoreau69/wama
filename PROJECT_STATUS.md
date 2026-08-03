@@ -2623,3 +2623,21 @@ Composer/imager à traiter lors de leurs ports respectifs.
    - synthesizer : `?side=input` sur une entrée NON-fichier (texte) → `dict(None)` = 500 dans
      l'aperçu commun → repli gracieux (sortie sinon message) dans preview_utils.
    - Résultat final : 9/9 sélection + actions + modale, 0 erreur console, 0 HTTP 5xx.
+
+
+---
+
+## §REPRISE — addendum 03/08 tard : résidus volet ACTIONS + erreur résumée + RESTART pile (`901cd22`)
+
+1. **Volet ACTIONS = contextuel UNIQUEMENT** : le trio Tout démarrer/télécharger/vider a quitté
+   le volet droit d'avatarizer ET d'anonymizer (résidu — le domicile des actions de FILE est la
+   toolbar commune). Découverte au passage : la toolbar avatarizer pointait des ids que son JS
+   n'écoutait PAS (boutons décoratifs) → rebranchée ; anonymizer/process.js (bouton global mort)
+   supprimé. ⚠ Le seul « stop global » anonymizer restant = ⏹ par card.
+2. **7e récidive `{# #}` multi-ligne** (modale avatarizer, commentaire rendu en texte) → comment.
+3. **Erreur résumée à l'inspecteur** : `_short_error()` au domicile commun (detail_registry) —
+   la traceback complète reste en base/logs, le volet INFOS n'affiche que la ligne d'exception.
+4. **RESTART COMPLET de la pile WSL2** (start_wama_prod.sh, vérifié 0 RUNNING avant) — le restart
+   Celery différé deux fois est SOLDÉ : les workers tournaient depuis AVANT les patches xformers
+   (GroupName) et le port anonymizer. La traceback MuseTalk de Fabien venait de là (patch déjà
+   sur disque, module pré-patch en mémoire). MuseTalk, ingest anonymizer et ETA record_run actifs.
