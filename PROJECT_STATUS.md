@@ -2566,3 +2566,40 @@ commentaires sans le littéral mesuré.
 **Restes connus** : imager (55 %) = prochaine passe ; params_modal_batch composer/synthesizer/
 describer + card_chips composer/synthesizer/describer/reader = paliers ciblés restants ;
 worker Celery à relancer pour tasks.py anonymizer (ingest+ETA) ; gunicorn déjà rechargé.
+
+
+---
+
+## §REPRISE — addendum 03/08 soir : harmonisation UI des cards (`825b5ed`) + INVENTAIRE design
+
+Constats Fabien vérifiés au Playwright (9 apps, styles calculés + clics, 0 erreur console) :
+1. **Card mère à bords droits sur 9 apps** — la brique `_batch_card` était bien utilisée
+   PARTOUT (synthesizer compris) mais l'arrondi/padding vivait dans un patch SCOPÉ reader
+   (`.wcv3--batch-parent`, wama-card-v3.css) qui attendait « le portage d'un bloc ». → Passé
+   au COMMUN (`.wama-card.is-batch`, wama-inspector.css), patch reader absorbé/retiré.
+2. **Cards d'entrée qui ne se dépliaient pas** — deux causes empilées : (a) le JS
+   `wama-new-item-card.js` n'écoutait que l'en-tête + le focus de l'entrée primaire, or pour
+   les apps « fichier » l'entrée primaire est un input CACHÉ (composer marchait car son prompt
+   est visible) → dépliage à TOUTE interaction avec la card repliée ; (b) describer/avatarizer
+   passaient `collapsible=True` sans jamais inclure le script (support ≠ adoption) → la brique
+   PORTE désormais son `<script>` (précédent `_global_progress.html`) + garde anti-double-init.
+3. **Anonymizer** — filles sans contour (il manquait le squelette `.synthesis-card`) ; barre
+   de progression coincée dans la section État → état en `no_bar` + barre `bar_only` pleine
+   largeur seule en bas.
+
+### INVENTAIRE : éléments de design des cards — commun vs app-local (mesuré 03/08)
+
+| Élément | Domicile | Adoption réelle |
+|---|---|---|
+| Squelette card fille (contour/arrondi/padding/accents d'état) | `.synthesis-card` app_modern.css (COMMUN) | 7 cards (anonymizer, avatarizer, describer, enhancer×2, synthesizer, transcriber) + la mère commune ; reader = wcv3 auto-stylé ; **composer = `.generation-card` app-local ; converter = `.job-card` ?** |
+| Card mère batch | brique `_batch_card.html` + `.is-batch` (COMMUN depuis ce soir) | **10/10** |
+| Progression (badge/%/ETA/barre) | `_card_progress.html` (COMMUN) | 7 cards — manquent **composer, reader** (reader a son équivalent wcv3) |
+| Chips de réglages | `_card_chips.html` + `chips_by_section` (COMMUN) | 7 cards — manquent **composer, synthesizer, describer** (describer a la brique dans d'autres zones ?) et imager |
+| Aperçu d'état textuel | `_card_state.html` (COMMUN) | **2 seulement** (converter, transcriber) |
+| **Anatomie v3 « sections × labels »** (`wcv3-sec`, `wcv3-lbl` ENTRÉE/RÉGLAGES/SORTIE/ÉTAT, séparateurs, cellule barre pleine largeur) | CSS commun `wama-card-v3.css`… | …mais consommée par **2 cards seulement (reader, transcriber)** — c'est LE gros écart : lignes de séparation et noms de sections restent invisibles sur 7 apps |
+| Card d'entrée | `_new_item_card.html` (auto-portée depuis ce soir) | 9/10 (imager ?) |
+
+**Prochain palier UI proposé** : porter l'anatomie v3 (sections/labels/séparateurs) de
+reader/transcriber vers les 7 autres cards — c'est le « portage v3 de la brique » annoncé dans
+wama-card-v3.css ; candidates faciles d'abord (enhancer/anonymizer, déjà chips+progress).
+Composer/imager à traiter lors de leurs ports respectifs.
