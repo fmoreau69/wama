@@ -22,7 +22,8 @@ Contexte : item = ReadingItem décoré par _decorate_card() (.chips, .input_prop
 ⚠ Contrats JS à ne pas casser (relevés dans reader.js) : .reader-card[data-id][data-status],
   .wama-eta (l.90), .btn-group-actions (cloné par l'inspecteur l.618), .reader-preview
   (dblclick l.121/715 + data-action=expand → maxHeight 80px l.342), .source-preview-btn,
-  data-action settings|duplicate|delete, data-backend/mode/language sur ⚙.
+  data-action settings|delete, data-backend/mode/language sur ⚙ (duplication = brique
+  commune queue-actions.js via [data-duplicate-url], plus de branche locale).
 {% endcomment %}
 
 {% with item.filename as fname %}
@@ -139,7 +140,8 @@ Contexte : item = ReadingItem décoré par _decorate_card() (.chips, .input_prop
             <i class="fas fa-download"></i>
           </button>
         {% endif %}
-        <button class="btn btn-sm btn-outline-warning" data-action="duplicate" title="{% trans "Dupliquer" %}">
+        <button class="btn btn-sm btn-outline-warning duplicate-btn"
+                data-duplicate-url="{% url 'reader:duplicate' item.id %}" title="{% trans "Dupliquer" %}">
           <i class="fas fa-copy"></i>
         </button>
         <button class="btn btn-sm btn-outline-danger" data-action="delete" title="{% trans "Supprimer" %}">

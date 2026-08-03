@@ -114,7 +114,6 @@
                 if (action === 'settings') openItemSettings(btn);
                 if (action === 'start' || action === 'restart') startItem(item.id);
                 if (action === 'delete') deleteItem(item.id);
-                if (action === 'duplicate') duplicateItem(item.id);
                 if (action === 'expand') expandPreview(item.id);
             });
         });
@@ -225,15 +224,8 @@
         }
     }
 
-    async function duplicateItem(id) {
-        try {
-            const r = await csrfFetch(urlFor('duplicate', id), { method: 'POST' });
-            const item = await r.json();
-            upsertCard(item);
-        } catch (e) {
-            console.error('[Reader] duplicate error:', e);
-        }
-    }
+    // Duplication : brique commune queue-actions.js (bouton [data-duplicate-url]),
+    // qui pose aussi le focus de la card dupliquée avant le reload.
 
     // ─── Settings modal ───────────────────────────────────────────────────────
 
@@ -707,7 +699,6 @@
                     if (action === 'settings') openItemSettings(btn);
                     if (action === 'start' || action === 'restart') startItem(id);
                     if (action === 'delete') deleteItem(id);
-                    if (action === 'duplicate') duplicateItem(id);
                     if (action === 'expand') expandPreview(id);
                 });
             });

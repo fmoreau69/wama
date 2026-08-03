@@ -5,7 +5,7 @@ Gère la synthèse vocale (Text-to-Speech)
 
 from django.db import models
 from django.contrib.auth import get_user_model
-from wama.common.models import ProcessingTimeMixin
+from wama.common.models import ProcessingTimeMixin, ScopedVisibility, ScopedManager
 from django.core.validators import FileExtensionValidator
 from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output, UploadToUserPath
 from wama.common.tts.constants import TTS_MODEL_CHOICES, LANGUAGE_CHOICES, VOICE_PRESET_CHOICES
@@ -14,7 +14,10 @@ from wama.common.app_registry import VOICE_SAMPLE_EXTENSIONS
 User = get_user_model()
 
 
-class VoiceSynthesis(ProcessingTimeMixin, models.Model):
+class VoiceSynthesis(ProcessingTimeMixin, ScopedVisibility):
+    # Partage F7 : lectures via visible_to()/visible_or_404, mutations par user.
+    objects = ScopedManager()
+
     """
     Modèle représentant une tâche de synthèse vocale.
     """
@@ -339,7 +342,10 @@ class CustomVoice(models.Model):
 from wama.common.models import BatchMixin
 
 
-class BatchSynthesis(BatchMixin, models.Model):
+class BatchSynthesis(BatchMixin, ScopedVisibility):
+    # ScopedVisibility AUSSI sur le batch : la file est bâtie à partir des batchs.
+    objects = ScopedManager()
+
     """Groupe de synthèses vocales créé depuis un fichier batch."""
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_syntheses')

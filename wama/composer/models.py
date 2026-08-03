@@ -1,11 +1,15 @@
 from django.db import models
-from wama.common.models import ProcessingTimeMixin
+from wama.common.models import ProcessingTimeMixin, ScopedVisibility, ScopedManager
 from django.contrib.auth.models import User
 
 from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output
 
 
-class ComposerGeneration(ProcessingTimeMixin, models.Model):
+class ComposerGeneration(ProcessingTimeMixin, ScopedVisibility):
+    # Partage F7 (PROFILES_PERMISSIONS §7.4bis) : lectures via visible_to()/visible_or_404,
+    # mutations inchangées (filtrées par user) → lecture seule par construction.
+    objects = ScopedManager()
+
     """Single music/SFX generation job."""
 
     GENERATION_TYPE_CHOICES = [
@@ -92,7 +96,10 @@ class ComposerGeneration(ProcessingTimeMixin, models.Model):
 from wama.common.models import BatchMixin
 
 
-class ComposerBatch(BatchMixin, models.Model):
+class ComposerBatch(BatchMixin, ScopedVisibility):
+    # ScopedVisibility AUSSI sur le batch : la file est bâtie à partir des batchs.
+    objects = ScopedManager()
+
     """Container grouping one or more ComposerGeneration jobs."""
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='composer_batches')

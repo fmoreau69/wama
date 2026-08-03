@@ -244,7 +244,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Duplication : gérée par la brique commune queue-actions.js (base.html) via
-    // .duplicate-btn[data-duplicate-url] — pas de handler local (un doublon ici
+    // le bouton [data-duplicate-url] — pas de handler local (un doublon ici
     // provoquait DEUX copies par clic).
 
     function openBatchSettings(btn) {

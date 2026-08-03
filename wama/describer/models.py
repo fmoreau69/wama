@@ -4,7 +4,7 @@ AI-powered content description and summarization
 """
 
 from django.db import models
-from wama.common.models import ProcessingTimeMixin
+from wama.common.models import ProcessingTimeMixin, ScopedVisibility, ScopedManager
 from django.contrib.auth import get_user_model
 from django.core.validators import FileExtensionValidator
 from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output
@@ -12,7 +12,10 @@ from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_o
 User = get_user_model()
 
 
-class Description(ProcessingTimeMixin, models.Model):
+class Description(ProcessingTimeMixin, ScopedVisibility):
+    # Partage F7 : lectures via visible_to()/visible_or_404, mutations par user.
+    objects = ScopedManager()
+
     """Model for a description/summarization task."""
 
     # Ingest média déclaratif commun (common/utils/source_ingest.ensure_local_input) :
@@ -187,7 +190,10 @@ class Description(ProcessingTimeMixin, models.Model):
 from wama.common.models import BatchMixin
 
 
-class BatchDescription(BatchMixin, models.Model):
+class BatchDescription(BatchMixin, ScopedVisibility):
+    # ScopedVisibility AUSSI sur le batch : la file est bâtie à partir des batchs.
+    objects = ScopedManager()
+
     """Groupe de descriptions créé depuis un fichier batch."""
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_descriptions')
     created_at = models.DateTimeField(auto_now_add=True)

@@ -1,10 +1,13 @@
 from django.db import models
-from wama.common.models import ProcessingTimeMixin
+from wama.common.models import ProcessingTimeMixin, ScopedVisibility, ScopedManager
 from django.contrib.auth.models import User
 from wama.common.utils.media_paths import upload_to_user_input
 
 
-class ReadingItem(ProcessingTimeMixin, models.Model):
+class ReadingItem(ProcessingTimeMixin, ScopedVisibility):
+    # Partage F7 : lectures via visible_to()/visible_or_404, mutations par user.
+    objects = ScopedManager()
+
 
     class Status(models.TextChoices):
         PENDING = 'PENDING', 'En attente'
@@ -89,7 +92,10 @@ class ReadingItem(ProcessingTimeMixin, models.Model):
 from wama.common.models import BatchMixin
 
 
-class BatchReadingItem(BatchMixin, models.Model):
+class BatchReadingItem(BatchMixin, ScopedVisibility):
+    # ScopedVisibility AUSSI sur le batch : la file est bâtie à partir des batchs.
+    objects = ScopedManager()
+
     """Groupe de lectures OCR créé depuis un fichier batch."""
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_readings')
     created_at = models.DateTimeField(auto_now_add=True)

@@ -4,6 +4,7 @@ AI-powered content description and summarization
 """
 
 import os
+from wama.accounts.permissions import app_access
 import io
 import json
 import logging
@@ -409,6 +410,7 @@ def get_file_properties(description):
 
 
 @require_POST
+@app_access('describer')
 def stop(request, pk):
     """
     Stoppe la description en cours (révoque la tâche Celery) → item relançable (bouton de cycle ↻).
@@ -437,6 +439,7 @@ def _reset_for_relaunch(description):
     description.coherence_suggestion = ''
 
 
+@app_access('describer')
 def start(request, pk):
     """Start processing a description — anti-race via la brique commune (2026-07-06 :
     l'implémentation inline d'origine a été PROMUE en process_control.begin_processing)."""
@@ -468,7 +471,9 @@ def card_html(request, pk):
     from django.http import HttpResponse
     from django.template.loader import render_to_string
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    desc = get_object_or_404(Description, pk=pk, user=user)
+    # Lecture → partage F7 (le sien, ou partagé unité/projet/public)
+    from wama.common.utils.scoping import visible_or_404
+    desc = visible_or_404(Description, user, pk=pk)
     in_batch = BatchDescriptionItem.objects.filter(description=desc, batch__total__gt=1).exists()
     html = render_to_string('describer/_description_card.html',
                             {'desc': desc, 'in_batch': in_batch}, request=request)
@@ -478,7 +483,9 @@ def card_html(request, pk):
 def progress(request, pk):
     """Get processing progress."""
     user = get_user(request)
-    description = get_object_or_404(Description, pk=pk, user=user)
+    # Lecture → partage F7 (le sien, ou partagé unité/projet/public)
+    from wama.common.utils.scoping import visible_or_404
+    description = visible_or_404(Description, user, pk=pk)
 
     # Get progress from cache or model
     cache_key = f"describer_progress_{description.id}"
@@ -526,7 +533,9 @@ def progress(request, pk):
 def download(request, pk):
     """Download result in requested format: txt (default), pdf, docx."""
     user = get_user(request)
-    description = get_object_or_404(Description, pk=pk, user=user)
+    # Lecture → partage F7 (le sien, ou partagé unité/projet/public)
+    from wama.common.utils.scoping import visible_or_404
+    description = visible_or_404(Description, user, pk=pk)
 
     if description.status != 'SUCCESS':
         return JsonResponse({'error': 'No result available'}, status=400)
@@ -661,6 +670,7 @@ def preview(request, pk):
 
 
 @require_POST
+@app_access('describer')
 def start_all(request):
     """Start all pending descriptions."""
     user = get_user(request)
@@ -910,6 +920,7 @@ def batch_list(request):
 
 
 @require_POST
+@app_access('describer')
 def batch_start(request, pk):
     """Start all PENDING descriptions in a batch."""
     user = get_user(request)

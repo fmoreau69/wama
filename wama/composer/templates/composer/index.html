@@ -327,6 +327,15 @@ document.addEventListener('DOMContentLoaded', function () {
             statusId: 'inputMatchStatus',
         });
     }
+    // Enrichissement ✨ du prompt musical — pipeline commune (skill composer-music,
+    // PROMPT_TARGETS['composer']), brique GLOBALE WamaPromptEnrich (base.html).
+    if (window.WamaPromptEnrich && document.getElementById('promptInput')) {
+        WamaPromptEnrich.attach('#promptInput', {
+            app: 'composer',
+            domain: 'music',
+            csrf: '{{ csrf_token }}',
+        });
+    }
     // Estimation (~20s) : placée à côté de la valeur du slider Durée (comme le volet).
     var dur = document.getElementById('settingsDuration');
     var est = document.getElementById('settingsEstimate');

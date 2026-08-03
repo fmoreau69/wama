@@ -4,6 +4,7 @@ Interface de synthèse vocale
 """
 
 import os
+from wama.accounts.permissions import app_access
 import io
 import zipfile
 import logging
@@ -569,6 +570,7 @@ def text_preview(request, pk: int):
         }, status=500)
 
 
+@app_access('synthesizer')
 def stop(request, pk: int):
     """
     Stoppe la synthèse en cours (révoque la tâche Celery) → item relançable (bouton de cycle ↻).
@@ -595,6 +597,7 @@ def _reset_synthesis_for_relaunch(s):
             pass
 
 
+@app_access('synthesizer')
 def start(request, pk: int):
     """
     Démarre la synthèse vocale pour un fichier.
@@ -640,7 +643,9 @@ def progress(request, pk: int):
     Récupère la progression d'une synthèse.
     """
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
+    # Lecture → partage F7 (le sien, ou partagé unité/projet/public)
+    from wama.common.utils.scoping import visible_or_404
+    synthesis = visible_or_404(VoiceSynthesis, user, pk=pk)
     p = int(cache.get(f"synthesizer_progress_{synthesis.id}", synthesis.progress or 0))
 
     resp = {
@@ -718,7 +723,9 @@ def download(request, pk: int):
     Télécharge le fichier audio généré.
     """
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
+    # Lecture → partage F7 (le sien, ou partagé unité/projet/public)
+    from wama.common.utils.scoping import visible_or_404
+    synthesis = visible_or_404(VoiceSynthesis, user, pk=pk)
 
     if not synthesis.audio_output:
         return HttpResponseBadRequest('Aucun audio généré')
@@ -892,6 +899,7 @@ def console_content(request):
 
 
 @require_POST
+@app_access('synthesizer')
 def start_all(request):
     """
     Démarre toutes les synthèses en attente.
@@ -1357,6 +1365,7 @@ def batch_create(request):
 
 
 @require_POST
+@app_access('synthesizer')
 def batch_start(request, pk: int):
     """Start all PENDING syntheses in a batch."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()

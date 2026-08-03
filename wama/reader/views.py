@@ -2,6 +2,7 @@
 Reader — OCR document views.
 """
 import io
+from wama.accounts.permissions import app_access
 import os
 import json
 import logging
@@ -321,6 +322,7 @@ def upload(request):
 
 
 @require_POST
+@app_access('reader')
 def stop(request, pk: int):
     """
     Stoppe l'OCR en cours (révoque la tâche Celery) → item relançable (bouton de cycle ↻).
@@ -343,6 +345,7 @@ def _reset_for_relaunch(item):
     item.progress = 0
 
 
+@app_access('reader')
 def start(request, pk: int):
     """Start OCR processing for a single item — anti-race via la brique commune."""
     user = _get_user(request)
@@ -362,7 +365,8 @@ def start(request, pk: int):
 def card_html(request, pk: int):
     """Card RENDUE serveur — source UNIQUE du markup v3 (partial _item_card.html ;
     CARD_DESIGN §3, update JS en place). Le flag in_batch est déduit du batch parent."""
-    item = get_object_or_404(ReadingItem, pk=pk, user=_get_user(request))
+    from wama.common.utils.scoping import visible_or_404  # lecture → partage F7
+    item = visible_or_404(ReadingItem, _get_user(request), pk=pk)
     _decorate_card(item)
     link = BatchReadingItemLink.objects.filter(reading=item).select_related('batch').first()
     in_batch = bool(link and link.batch.total > 1)
@@ -371,19 +375,22 @@ def card_html(request, pk: int):
 
 def progress(request, pk: int):
     """Poll the current processing status of an item."""
-    item = get_object_or_404(ReadingItem, pk=pk, user=_get_user(request))
+    from wama.common.utils.scoping import visible_or_404  # lecture → partage F7
+    item = visible_or_404(ReadingItem, _get_user(request), pk=pk)
     return JsonResponse(_item_to_dict(item))
 
 
 def text_view(request, pk: int):
     """Return the full extracted text as JSON (used by the in-page full-text modal)."""
-    item = get_object_or_404(ReadingItem, pk=pk, user=_get_user(request))
+    from wama.common.utils.scoping import visible_or_404  # lecture → partage F7
+    item = visible_or_404(ReadingItem, _get_user(request), pk=pk)
     return JsonResponse({'text': _extract_natural_text(item.result_text) or '', 'filename': item.filename})
 
 
 def download(request, pk: int):
     """Download the OCR result. Supported formats: txt (default), md, pdf, docx, json."""
-    item = get_object_or_404(ReadingItem, pk=pk, user=_get_user(request))
+    from wama.common.utils.scoping import visible_or_404  # lecture → partage F7
+    item = visible_or_404(ReadingItem, _get_user(request), pk=pk)
 
     fmt = request.GET.get('format', 'txt').lower()
     base = os.path.splitext(item.filename)[0]
@@ -479,10 +486,12 @@ def duplicate(request, pk: int):
             'error_message': '',
         },
     )
-    return JsonResponse(_item_to_dict(new_item))
+    # 'duplicated' = contrat de la brique commune queue-actions.js (focus + reload)
+    return JsonResponse({**_item_to_dict(new_item), 'duplicated': new_item.id})
 
 
 @require_POST
+@app_access('reader')
 def start_all(request):
     """Start all PENDING items for the current user."""
     user = _get_user(request)
@@ -691,6 +700,7 @@ def batch_list(request):
 
 
 @require_POST
+@app_access('reader')
 def batch_start(request, pk):
     """Start all PENDING readings in a batch."""
     user = _get_user(request)

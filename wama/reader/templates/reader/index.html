@@ -72,15 +72,8 @@ commune de la file (_queue_toolbar.html) — cohérence T/D/C, 2026-07-07. Reste
 
                     <div id="readerBatchParams"></div>{# WamaParams context=batch #}
             </div>
-            <div class="modal-footer border-secondary">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                <button type="button" class="btn btn-primary" id="saveBatchSettingsBtn">
-                    <i class="fas fa-save"></i> Sauvegarder
-                </button>
-                <button type="button" class="btn btn-success" id="saveBatchSettingsAndStartBtn">
-                    <i class="fas fa-play"></i> Sauvegarder et relancer
-                </button>
-            </div>
+            {% comment %} Pied de modale COMMUN (mêmes ids → JS inchangé). {% endcomment %}
+            {% include 'common/_settings_modal_footer.html' with save_id='saveBatchSettingsBtn' save_label='Sauvegarder' save_start_id='saveBatchSettingsAndStartBtn' save_start_label='Sauvegarder et relancer' %}
         </div>
     </div>
 </div>

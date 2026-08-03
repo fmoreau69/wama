@@ -3,6 +3,7 @@ Composer Views — Music and SFX generation.
 """
 
 import json
+from wama.accounts.permissions import app_access
 import logging
 import os
 
@@ -270,6 +271,7 @@ def batch_preview(request):
 
 
 @require_POST
+@app_access('composer')
 def batch_start(request, pk):
     """Lance toutes les générations EN ATTENTE d'un batch (contrat WamaBatchImport :
     créer ≠ démarrer ; appelé par afterCreate quand « Créer et lancer »)."""
@@ -381,6 +383,7 @@ def import_batch(request):
 # ---------------------------------------------------------------------------
 
 @require_POST
+@app_access('composer')
 def start(request, pk):
     """Relance la génération d'une composition (bouton de cycle ▶/↻) sans changer les réglages."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -399,6 +402,7 @@ def start(request, pk):
 
 
 @require_POST
+@app_access('composer')
 def stop(request, pk):
     """
     Stoppe la génération en cours (révoque la tâche Celery) → composition relançable (bouton ↻).
@@ -512,7 +516,8 @@ def update_settings(request, pk):
 @require_GET
 def progress(request, pk):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    gen = get_object_or_404(ComposerGeneration, id=pk, user=user)
+    from wama.common.utils.scoping import visible_or_404  # lecture → partage F7
+    gen = visible_or_404(ComposerGeneration, user, id=pk)
     cached = cache.get(f'composer_progress_{pk}')
     pct = cached if cached is not None else gen.progress
 
@@ -554,7 +559,8 @@ def progress(request, pk):
 
 def download(request, pk):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    gen = get_object_or_404(ComposerGeneration, id=pk, user=user)
+    from wama.common.utils.scoping import visible_or_404  # lecture → partage F7
+    gen = visible_or_404(ComposerGeneration, user, id=pk)
     if not gen.audio_output:
         return JsonResponse({'error': 'Aucun fichier disponible'}, status=404)
 
@@ -843,6 +849,7 @@ def download_all(request):
 # ---------------------------------------------------------------------------
 
 @require_POST
+@app_access('composer')
 def start_all(request):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     from .tasks import compose_task
@@ -901,7 +908,8 @@ def card_html(request, pk):
     from django.http import HttpResponse
     from django.template.loader import render_to_string
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    gen = get_object_or_404(ComposerGeneration, id=pk, user=user)
+    from wama.common.utils.scoping import visible_or_404  # lecture → partage F7
+    gen = visible_or_404(ComposerGeneration, user, id=pk)
     try:
         label = gen.batch_item.output_filename
     except ComposerBatchItem.DoesNotExist:
