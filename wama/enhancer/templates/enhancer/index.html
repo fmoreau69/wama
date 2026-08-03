@@ -427,6 +427,28 @@ par les modales générées en JS (un par domaine, data-id posé au clonage).{% 
 <template id="audioSettingsFooterTpl">
     {% include 'common/_settings_modal_footer.html' with save_class='modal-audio-save' save_label='Sauvegarder' save_start_class='modal-audio-save-start' save_start_label='Sauvegarder et lancer' %}
 </template>
+
+{% comment %} Modale paramètres de BATCH (média) — contrat reader : champs générés par
+WamaParams.render(context:'batch') dans #enhancerBatchParams, appliqués aux items non-RUNNING
+(batch_update). Remplace le détournement de la modale item du 1er élément. {% endcomment %}
+<div class="modal fade" id="batchSettingsModal" tabindex="-1" aria-labelledby="batchSettingsLabel">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-light">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="batchSettingsLabel">
+                    <i class="fas fa-layer-group me-2"></i>Paramètres du batch
+                    <span class="badge bg-secondary ms-1" id="batchSettingsBatchId"></span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-white-50 mb-2">Appliqués à tous les éléments du batch (sauf ceux en cours).</p>
+                <div id="enhancerBatchParams"></div>
+            </div>
+            {% include 'common/_settings_modal_footer.html' with save_id='saveBatchSettingsBtn' save_label='Appliquer' save_start_id='saveBatchSettingsAndStartBtn' save_start_label='Appliquer & lancer' %}
+        </div>
+    </div>
+</div>
 <script>
 // Descriptif moteur sous les selects du volet — brique COMMUNE WamaModelHelp,
 // fallback = help_fallback des schémas déclaratifs (params.py, métadonnée-driven).

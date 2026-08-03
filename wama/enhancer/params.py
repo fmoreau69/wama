@@ -57,13 +57,14 @@ AUDIO_ENGINE_HELP = {
 # ── Domaine MEDIA (image / vidéo) — modèle Enhancement ────────────────────────
 # name = clé POST (update_settings) ET data-attr de la card ; dom_id.panel/item = ids des champs volet/modale.
 MEDIA_PARAMS = [
-    Param(name='ai_model', type='select', label='Modèle AI', icon='fa-brain',
+    Param(name='ai_model', type='select', label='Modèle AI', icon='fa-brain', chip=True,
           dom_id={'panel': 'defaultAiModel', 'item': 'settingsAiModel'}, contexts=('panel', 'item'),
           choices=list(Enhancement.AI_MODEL_CHOICES),
           help_fallback=MEDIA_MODEL_HELP),
     Param(name='denoise', type='toggle', label='Débruitage', icon='fa-broom',
+          chip=True, chip_label='Débruitage',
           dom_id={'panel': 'defaultDenoise', 'item': 'settingsDenoise'}, contexts=('panel', 'item')),
-    Param(name='blend_factor', type='range', label='Blend', icon='fa-sliders-h',
+    Param(name='blend_factor', type='range', label='Blend', icon='fa-sliders-h', chip=True,
           dom_id={'panel': 'defaultBlendFactor', 'item': 'settingsBlendFactor'},
           min=0, max=1, step=0.1, contexts=('panel', 'item')),
 ]
@@ -71,13 +72,13 @@ MEDIA_PARAMS = [
 # ── Domaine AUDIO — modèle AudioEnhancement ───────────────────────────────────
 # 'strength' colle à la card data-strength (le champ modèle est denoising_strength, mappé côté vue).
 AUDIO_PARAMS = [
-    Param(name='engine', type='select', label='Moteur', icon='fa-cogs',
+    Param(name='engine', type='select', label='Moteur', icon='fa-cogs', chip=True,
           dom_id={'panel': 'audioEngine', 'item': 'settingsAudioEngine'}, contexts=('panel', 'item'),
           choices=[('resemble', 'Resemble Enhance (Recommandé)'),
                    ('deepfilternet', 'DeepFilterNet 3 (Rapide — temps réel)')],
           help_fallback=AUDIO_ENGINE_HELP),
     # mode/force/qualité = spécifiques Resemble → affichés seulement si engine=resemble (show_if).
-    Param(name='mode', type='select', label='Mode', icon='fa-sliders-h',
+    Param(name='mode', type='select', label='Mode', icon='fa-sliders-h', chip=True,
           dom_id={'panel': 'audioMode', 'item': 'settingsAudioMode'}, contexts=('panel', 'item'),
           choices=[('both', 'Débruitage + Amélioration (Recommandé)'),
                    ('denoise', 'Débruitage seul (Rapide)'),

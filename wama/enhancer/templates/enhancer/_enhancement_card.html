@@ -23,11 +23,9 @@ ne pas renommer sans mettre à jour le JS.
             </small>
         </div>
         <div class="col-md-2">
-            <small>
-                <span class="badge bg-info">{{ e.get_ai_model_display }}</span>
-                {% if e.denoise %}<br><span class="badge bg-primary mt-1">Débruitage</span>{% endif %}
-                {% if e.blend_factor > 0 %}<br><span class="badge bg-secondary mt-1">Blend {{ e.blend_factor }}</span>{% endif %}
-            </small>
+            {% comment %} Chips générés du SCHÉMA (params.py chip=True) — brique commune,
+            remplacent les badges hand-built (modèle/Débruitage/Blend). {% endcomment %}
+            {% include 'common/_card_chips.html' with chips=e.chips.settings %}
         </div>
         <div class="col-md-3">
             {# Statut + progression + ETA + temps écoulé — brique COMMUNE #}

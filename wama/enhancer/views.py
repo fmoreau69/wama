@@ -46,16 +46,14 @@ def _group_enhancements_into_batches(user, enhancements, unwrap_singletons=None)
 
 
 def _auto_wrap_orphans(user):
-    """Range les Enhancement (médias) pas encore en batch, groupés PAR NATURE (image/vidéo)."""
-    existing_ids = set(
-        BatchEnhancementItem.objects.filter(batch__user=user)
-        .values_list('enhancement_id', flat=True)
+    """Range les Enhancement (médias) pas encore en batch — brique COMMUNE, avec la
+    stratégie d'app « un batch PAR NATURE » (image/vidéo) comme wrap_group."""
+    from wama.common.utils.batch_common import auto_wrap_orphans
+    auto_wrap_orphans(
+        user, work_model=Enhancement, batch_model=BatchEnhancement,
+        item_model=BatchEnhancementItem, fk_name='enhancement',
+        wrap_group=lambda orphans: _group_enhancements_into_batches(user, orphans),
     )
-    orphans = list(
-        Enhancement.objects.filter(user=user).exclude(id__in=existing_ids).order_by('id')
-    )
-    if orphans:
-        _group_enhancements_into_batches(user, orphans)
 
 
 @require_POST
@@ -129,37 +127,41 @@ def _wrap_audio_in_batch(audio_enhancement):
 
 
 def _auto_wrap_audio_orphans(user):
-    """Range les AudioEnhancement pas encore en batch (chargement de page).
+    """Range les AudioEnhancement pas encore en batch — brique COMMUNE.
+    Stratégie d'app : 1 orphelin → batch-of-1 ; plusieurs (import multi-fichiers) → UN of-N.
+    Le scope user=user est porté par la brique : on n'enrôle jamais la card partagée d'autrui."""
+    from wama.common.utils.batch_common import auto_wrap_orphans
 
-    1 orphelin → batch-of-1 ; plusieurs (import multi-fichiers) → UN batch-of-N.
-    """
-    existing_ids = set(
-        BatchAudioEnhancementItem.objects.filter(batch__user=user)
-        .values_list('audio_enhancement_id', flat=True)
-    )
-    # `user=user` VOLONTAIRE (pas un oubli de portage) : on n'enrôle jamais la card partagée
-    # par quelqu'un d'autre dans SON batch — ce serait une mutation sur le bien d'autrui.
-    orphans = list(
-        AudioEnhancement.objects.filter(user=user).exclude(id__in=existing_ids).order_by('id')
-    )
-    if not orphans:
-        return
-    if len(orphans) == 1:
-        try:
+    def _wrap_group(orphans):
+        if len(orphans) == 1:
             _wrap_audio_in_batch(orphans[0])
-        except Exception:
-            pass
-        return
-    try:
+            return
         batch = BatchAudioEnhancement.objects.create(user=user, total=len(orphans))
         for idx, orphan in enumerate(orphans):
-            BatchAudioEnhancementItem.objects.create(batch=batch, audio_enhancement=orphan, row_index=idx)
-    except Exception:
-        for orphan in orphans:
-            try:
-                _wrap_audio_in_batch(orphan)
-            except Exception:
-                pass
+            BatchAudioEnhancementItem.objects.create(
+                batch=batch, audio_enhancement=orphan, row_index=idx)
+
+    auto_wrap_orphans(
+        user, work_model=AudioEnhancement, batch_model=BatchAudioEnhancement,
+        item_model=BatchAudioEnhancementItem, fk_name='audio_enhancement',
+        wrap_group=_wrap_group,
+    )
+
+
+def _decorate_media_card(e):
+    """Chips de card générés du SCHÉMA (card_chips) — remplace les badges hand-built.
+    Point d'attache UNIQUE : IndexView ET card_html."""
+    from wama.common.utils.card_chips import chips_by_section
+    from wama.enhancer.params import MEDIA_PARAMS_JSON
+    e.chips = chips_by_section(e, MEDIA_PARAMS_JSON)
+    return e
+
+
+def _decorate_audio_card(ae):
+    from wama.common.utils.card_chips import chips_by_section
+    from wama.enhancer.params import AUDIO_PARAMS_JSON
+    ae.chips = chips_by_section(ae, AUDIO_PARAMS_JSON)
+    return ae
 
 
 class IndexView(View):
@@ -187,17 +189,24 @@ class IndexView(View):
         from wama.common.utils.batch_common import build_batches_list
         from wama.common.utils.queue_view import apply_queue_sort_filter
 
-        def _extra(batch, items, works):
-            done = sum(1 for w in works if w.status == 'SUCCESS')
-            return {
-                'success_pct': int(done / batch.total * 100) if batch.total > 0 else 0,
-                'eta_ids': [w.id for w in works],
-            }
+        def _make_extra(decorate):
+            def _extra(batch, items, works):
+                done = sum(1 for w in works if w.status == 'SUCCESS')
+                for w in works:
+                    decorate(w)
+                return {
+                    'success_pct': int(done / batch.total * 100) if batch.total > 0 else 0,
+                    # CSV (contrat _batch_card data-eta-ids) — une LISTE ne matche jamais
+                    'eta_ids': ','.join(str(w.id) for w in works),
+                }
+            return _extra
 
         batches_list = build_batches_list(
-            user, batch_model=BatchEnhancement, work_attr='enhancement', extra=_extra)
+            user, batch_model=BatchEnhancement, work_attr='enhancement',
+            extra=_make_extra(_decorate_media_card))
         audio_batches_list = build_batches_list(
-            user, batch_model=BatchAudioEnhancement, work_attr='audio_enhancement', extra=_extra)
+            user, batch_model=BatchAudioEnhancement, work_attr='audio_enhancement',
+            extra=_make_extra(_decorate_audio_card))
 
         batches_list.sort(key=lambda b: 0 if b['obj'].total > 1 else 1)
         audio_batches_list.sort(key=lambda b: 0 if b['obj'].total > 1 else 1)
@@ -215,9 +224,12 @@ class IndexView(View):
 
         import json as _json
         from wama.enhancer.params import MEDIA_PARAMS_JSON, AUDIO_PARAMS_JSON
+        queue_count = sum(len(b['items']) for b in batches_list) +                       sum(len(b['items']) for b in audio_batches_list)
+
         return render(request, 'enhancer/index.html', {
             'batches_list': batches_list,
             'audio_batches_list': audio_batches_list,
+            'queue_count': queue_count,
             'q_sort': q_sort,
             'q_filter': q_filter,
             'user_settings': user_settings,
@@ -1758,6 +1770,7 @@ def _req_user(request):
 def card_html(request, pk):
     """Card média = partial serveur UNIQUE (source du markup, remplace appendRow JS)."""
     e = get_object_or_404(Enhancement, pk=pk, user=_req_user(request))
+    _decorate_media_card(e)  # chips du schéma — même décoration que l'IndexView
     in_batch = BatchEnhancementItem.objects.filter(enhancement=e).exists()
     return render(request, 'enhancer/_enhancement_card.html', {'e': e, 'in_batch': in_batch})
 
@@ -1765,6 +1778,7 @@ def card_html(request, pk):
 def audio_card_html(request, pk):
     """Card audio = partial serveur UNIQUE (remplace appendAudioRow JS)."""
     ae = get_object_or_404(AudioEnhancement, pk=pk, user=_req_user(request))
+    _decorate_audio_card(ae)  # chips du schéma — même décoration que l'IndexView
     in_batch = BatchAudioEnhancementItem.objects.filter(audio_enhancement=ae).exists()
     return render(request, 'enhancer/_audio_card.html', {'ae': ae, 'in_batch': in_batch})
 

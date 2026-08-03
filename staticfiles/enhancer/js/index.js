@@ -463,23 +463,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const formData = new FormData(form);
 
-    // Mode batch : applique les réglages du form à tous les items du batch.
-    if (window._enhancerBatchId) {
-      const bid = window._enhancerBatchId;
-      window._enhancerBatchId = null;
-      fetch(getUrl(config.batchUpdateUrlTemplate, bid), {
-        method: 'POST', headers: csrfHeaders(), body: formData,
-      })
-        .then((r) => r.json())
-        .then(() => {
-          const m = bootstrap.Modal.getInstance(document.getElementById(`settingsModal${enhancementId}`));
-          if (m) m.hide();
-          location.reload();
-        })
-        .catch(() => {});
-      return;
-    }
-
     fetch(getUrl(config.updateSettingsUrlTemplate, enhancementId), {
       method: 'POST',
       headers: csrfHeaders(),
@@ -842,15 +825,48 @@ document.addEventListener('DOMContentLoaded', function () {
   // Duplication d'item : gérée par la brique commune queue-actions.js (chargée
   // globalement par base.html) — le handler local dupliquait la requête.
 
-  // ── ⚙ Batch settings : réutilise la modale du 1er item en mode batch ────
+  // ── ⚙ Batch settings : modale BATCH commune (WamaParams context:'batch') ──
+  let _batchParamsRendered = false;
   document.addEventListener('click', function(e) {
     const bs = e.target.closest('.batch-settings-btn');
     if (!bs || !bs.closest('#enhancer-queue')) return;
-    const group = bs.closest('.batch-group');
-    const firstOpen = group ? group.querySelector('.js-open-settings') : null;
-    if (!firstOpen) return;
-    window._enhancerBatchId = bs.dataset.batchId;   // bascule la sauvegarde vers batch_update
-    firstOpen.click();                               // construit + affiche la modale du 1er item
+    const modal = document.getElementById('batchSettingsModal');
+    if (!modal || !window.WamaParams) return;
+    if (!_batchParamsRendered) {
+      WamaParams.render(document.getElementById('enhancerBatchParams'),
+                        window.ENHANCER_MEDIA_SCHEMA || [], { context: 'batch', values: {} });
+      _batchParamsRendered = true;
+    }
+    modal.dataset.batchId = bs.dataset.batchId;
+    const idBadge = document.getElementById('batchSettingsBatchId');
+    if (idBadge) idBadge.textContent = '#' + bs.dataset.batchId;
+    new bootstrap.Modal(modal).show();
+  });
+
+  async function saveBatchSettings(andStart) {
+    const modal = document.getElementById('batchSettingsModal');
+    const bid = modal && modal.dataset.batchId;
+    if (!bid) return;
+    const vals = WamaParams.read(document.getElementById('enhancerBatchParams'));
+    const fd = new FormData();
+    Object.keys(vals).forEach(k => fd.append(k, vals[k]));
+    try {
+      await fetch(getUrl(config.batchUpdateUrlTemplate, bid), {
+        method: 'POST', headers: csrfHeaders(), body: fd,
+      });
+      if (andStart) {
+        await fetch(getUrl(config.batchStartUrlTemplate, bid), {
+          method: 'POST', headers: csrfHeaders(),
+        });
+      }
+    } catch (err) { /* réseau */ }
+    const inst = bootstrap.Modal.getInstance(modal);
+    if (inst) inst.hide();
+    location.reload();
+  }
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('#saveBatchSettingsBtn')) saveBatchSettings(false);
+    if (e.target.closest('#saveBatchSettingsAndStartBtn')) saveBatchSettings(true);
   });
 
   // ── Batch duplicate ────────────────────────────────────────────────────

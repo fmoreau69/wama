@@ -18,11 +18,11 @@ audio-enhancer.js — ne pas renommer sans mettre à jour le JS.
             {% if ae.duration %}<br><small class="text-white-50">{{ ae.duration|floatformat:1 }}s</small>{% endif %}
         </div>
         <div class="col-md-3">
-            <small>
-                <span class="badge bg-info audio-engine-badge">{{ ae.get_engine_display }}</span>
-                <span class="text-white-50 ms-1">{% if ae.engine == 'resemble' %}Force {{ ae.denoising_strength }} / NFE {{ ae.quality }}{% else %}Rapide{% endif %}</span>
-                <br><span class="badge bg-secondary audio-mode-badge mt-1">{{ ae.get_mode_display }}</span>
-            </small>
+            {% comment %} Chips générés du SCHÉMA (params.py chip=True) — brique commune,
+            remplacent les badges hand-built. Le détail Force/NFE (spécifique resemble)
+            reste en clair : propriété d'exécution, pas un chip de réglage. {% endcomment %}
+            {% include 'common/_card_chips.html' with chips=ae.chips.settings %}
+            <small class="text-white-50 d-block mt-1">{% if ae.engine == 'resemble' %}Force {{ ae.denoising_strength }} / NFE {{ ae.quality }}{% else %}Rapide{% endif %}</small>
         </div>
         <div class="col-md-2">
             {# Statut + progression + ETA + temps écoulé — brique COMMUNE #}
