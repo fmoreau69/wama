@@ -823,7 +823,11 @@ def batch_create(request):
     image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp', '.heic'}
     video_extensions = {'.mp4', '.webm', '.mkv', '.flv', '.gif', '.avi', '.mov', '.mpg', '.qt', '.3gp'}
 
-    batch_file.seek(0)
+    # parse_batch_file_from_request a consommé FILES['batch_file'] : on le re-lit
+    # pour l'archiver sur le batch (NameError avant 2026-08-03).
+    batch_file = request.FILES.get('batch_file')
+    if batch_file:
+        batch_file.seek(0)
     batch = BatchEnhancement.objects.create(
         user=user,
         total=len(items),
@@ -1515,7 +1519,9 @@ def audio_batch_create(request):
     if not items:
         return JsonResponse({'error': 'Aucun élément valide trouvé dans le fichier'}, status=400)
 
-    batch_file.seek(0)
+    batch_file = request.FILES.get('batch_file')  # re-lu après parsing (NameError avant 2026-08-03)
+    if batch_file:
+        batch_file.seek(0)
     batch = BatchAudioEnhancement.objects.create(user=user, total=len(items), batch_file=batch_file)
 
     created_ids = []

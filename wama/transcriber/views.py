@@ -1286,8 +1286,11 @@ def batch_create(request):
     if not items:
         return JsonResponse({'error': 'Aucun élément valide trouvé dans le fichier'}, status=400)
 
-    # Save the batch file reference, then seek back
-    batch_file.seek(0)
+    # parse_batch_file_from_request a consommé FILES['batch_file'] : on le re-lit
+    # pour l'archiver sur le batch (NameError avant 2026-08-03).
+    batch_file = request.FILES.get('batch_file')
+    if batch_file:
+        batch_file.seek(0)
     batch = BatchTranscript.objects.create(
         user=user,
         total=len(items),
