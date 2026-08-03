@@ -339,10 +339,23 @@ pas dans les intentions :
 |---|---|---|
 | `app` | `extract_app` | ✅ `project_app` / `un_project_app` — **le seul** |
 | `function` | `extract_function` | `project=None` |
+| `library` | `extract_library` | ❌ |
 | `model` | `extract_model` | ❌ |
 | `pipeline` | `extract_pipeline` | ❌ |
 | `project` | `extract_project` | ❌ |
 | `dataset` | `None` — *le manifeste est l'origine* | ❌ |
+
+> **Re-mesuré le 2026-08-04** (7 kinds depuis l'ajout de `library`) — la photo ci-dessus est
+> INCHANGÉE sur le fond : `app` reste le seul kind qui projette, et `manifest_roundtrip --all`
+> le confirme facette par facette (**1/10 à 1/12 projetées, le reste en `codegen`**).
+> Commande de re-mesure (ne pas recopier ce tableau sans la relancer) : voir skill `/manifeste` §2.
+>
+> **Composition mesurée le 2026-08-04** — `requires` dans `manifests/apps/*.json` :
+> **91 liens `app → model`** répartis sur 9 apps (converter = 0, normal : ffmpeg/pandoc, aucun
+> modèle IA) et **0 lien `app → library`**. La jambe `library` de la composition est donc VIDE,
+> faute de registre `Library` où projeter — c'est le trou ouvert, et la raison pour laquelle
+> ROADMAP §16.7 désigne `library` comme **kind pilote** du manifeste-first (aucun registre legacy
+> à réconcilier : son registre naît de la projection).
 
 **Lecture** : le formalisme, l'enveloppe et l'ingest sont en place, mais le sens **génératif**
 (manifeste → réalité) n'existe que pour `app`, sur une seule facette (`access` → `AppAccessPolicy`),
