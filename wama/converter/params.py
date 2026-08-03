@@ -38,14 +38,23 @@ AUD = {"field": "media_type", "equals": "audio"}
 IMG_VID = {"field": "media_type", "in": ["image", "video"]}
 
 ITEM = ("item",)
+ITEM_BATCH = ("item", "batch")   # rendu aussi dans la modale de BATCH (application en masse)
 
 PARAMS = [
     # Porteur (invisible) : pilote les show_if + le resolver de formats. Non sauvegardé (type fixe du job).
     Param(name="media_type", type="hidden", contexts=ITEM),
 
     Param(name="output_format", type="select", label="Format de sortie", icon="fa-file-export",
-          options_source="formats", contexts=ITEM,
+          options_source="formats", contexts=ITEM_BATCH,
           chip=True, help_fallback=_FORMAT_HELP),
+
+    # Préréglage de qualité GLOBAL (ffmpeg/pillow) — consommé par batch_update
+    # (quality_preset) ; déclaré au schéma depuis le port batch (03/08) : un champ
+    # consommé mais non déclaré y était invisible (leçon converter).
+    Param(name="quality_preset", type="select", label="Qualité (préréglage)", icon="fa-gem",
+          contexts=("batch",),
+          choices=[("", "— inchangé —"), ("web", "Web (léger)"),
+                   ("balanced", "Équilibré"), ("max", "Maximum")]),
 
     # ── Image ───────────────────────────────────────────────────────────────
     Param(name="quality", type="range", label="Qualité", icon="fa-gauge",

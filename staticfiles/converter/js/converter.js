@@ -455,23 +455,31 @@
     let _currentBatchId = null;
     function openBatchSettingsModal(batchId, mediaType) {
         _currentBatchId = batchId;
-        const fmtSel = document.getElementById('batchSettingsFormat');
-        const errEl  = document.getElementById('batchSettingsError');
+        const errEl = document.getElementById('batchSettingsError');
         if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
-        // Peuple le dropdown avec les formats de la nature du batch
-        const formats = (FORMATS[mediaType] || {}).output || [];
-        fmtSel.innerHTML = '<option value="">— inchangé —</option>';
-        formats.forEach(f => {
-            const o = document.createElement('option');
-            o.value = f; o.textContent = '.' + f.toUpperCase();
-            fmtSel.appendChild(o);
-        });
+        // Champs générés du SCHÉMA (context:'batch') — re-rendus à chaque ouverture :
+        // les options de format dépendent de la NATURE du lot (optionsResolver).
+        const host = document.getElementById('converterBatchParams');
+        if (host && window.WamaParams && APP.schema) {
+            WamaParams.render(host, APP.schema, {
+                context: 'batch',
+                values: {},
+                optionsResolver: function (p) {
+                    if (p.options_source !== 'formats') return null;
+                    const formats = (FORMATS[mediaType] || {}).output || [];
+                    return [{ value: '', label: '— inchangé —' }].concat(
+                        formats.map(function (f) { return { value: f, label: '.' + f.toUpperCase() }; }));
+                },
+            });
+        }
         new bootstrap.Modal(document.getElementById('batchSettingsModal')).show();
     }
 
     async function applyBatchSettings(thenStart) {
-        const fmt  = document.getElementById('batchSettingsFormat').value;
-        const qual = document.getElementById('batchSettingsQuality').value;
+        const vals = window.WamaParams
+            ? WamaParams.read(document.getElementById('converterBatchParams')) : {};
+        const fmt  = vals.output_format || '';
+        const qual = vals.quality_preset || '';
         const errEl = document.getElementById('batchSettingsError');
         const fd = new FormData();
         fd.append('output_format', fmt);

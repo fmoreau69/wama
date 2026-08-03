@@ -143,6 +143,8 @@ class IndexView(View):
         batches_list = []
         for items in grouped.values():
             items_sorted = sorted(items, key=lambda j: j.batch_row_index)
+            for j in items_sorted:
+                _decorate_job(j)  # chips du SCHÉMA (card_chips) — même décoration que card_html
             batch = items[0].batch
             total = batch.total if batch else len(items_sorted)
             # Contrat de _batch_card.html (même forme que build_batches_list — converter groupe
@@ -978,11 +980,21 @@ def quick_convert(request):
 # Vues standard communes (port schéma-driven 2026-07-26)
 # ═══════════════════════════════════════════════════════════════════════════
 
+def _decorate_job(job):
+    """Chips de card générés du SCHÉMA (params.py chip=True) — brique commune card_chips.
+    Point d'attache UNIQUE : IndexView ET card_html (leçon describer)."""
+    from wama.common.utils.card_chips import chips_by_section
+    from wama.converter.params import PARAMS_JSON
+    job.chips = chips_by_section(job, PARAMS_JSON)
+    return job
+
+
 def card_html(request, pk):
     """Card = partial serveur UNIQUE : le JS remplace la card par ce rendu
     (source unique du markup — pas de reconstruction côté client)."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     job = get_object_or_404(ConversionJob, pk=pk, user=user)
+    _decorate_job(job)
     return render(request, 'converter/_job_card.html', {'job': job})
 
 

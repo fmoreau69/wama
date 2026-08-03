@@ -258,14 +258,10 @@ Actions de l'inspecteur ne s'affichait jamais pour converter (aucune erreur cons
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <label class="form-label small fw-bold mb-1">Format de sortie (commun)</label>
-                <select id="batchSettingsFormat" class="form-select form-select-sm bg-dark text-light border-secondary"></select>
-                <label class="form-label small fw-bold mb-1 mt-2">Qualité</label>
-                <select id="batchSettingsQuality" class="form-select form-select-sm bg-dark text-light border-secondary">
-                    <option value="web">Web (léger)</option>
-                    <option value="balanced" selected>Équilibré</option>
-                    <option value="max">Maximum</option>
-                </select>
+                {% comment %} Champs générés du SCHÉMA (context:'batch' — output_format +
+                quality_preset, params.py) ; options de format résolues par nature du lot
+                (optionsResolver, converter.js). Remplace les selects hand-built. {% endcomment %}
+                <div id="converterBatchParams"></div>
                 <div id="batchSettingsError" class="text-danger small mt-2" style="display:none;"></div>
             </div>
             {# Pied de modale COMMUN — ids conservés pour converter.js #}

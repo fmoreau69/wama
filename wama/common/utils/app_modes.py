@@ -138,6 +138,40 @@ APP_MODES = {
         ],
     },
 
+    # ── CONVERTER (multi-domaine par NATURE, mono-mode « convertir » ; aucun modèle IA —
+    # les settings par domaine = les show_if réels de params.py) ──────────────────────
+    'converter': {
+        'domains': [
+            {'id': 'image', 'label': 'Image', 'icon': 'fa-image', 'variant': 'info', 'modes': [
+                {'id': 'convert', 'label': 'Convertir', 'icon': 'fa-right-left',
+                 'inputs': ['work_file'],
+                 'settings': ['output_format', 'quality', 'resize_w', 'resize_h',
+                              'rotation', 'flip_h', 'flip_v']},
+            ]},
+            {'id': 'video', 'label': 'Vidéo', 'icon': 'fa-film', 'variant': 'warning', 'modes': [
+                {'id': 'convert', 'label': 'Convertir', 'icon': 'fa-right-left',
+                 'inputs': ['work_file'],
+                 'settings': ['output_format', 'video_quality', 'fps', 'resize_w', 'resize_h',
+                              'rotation', 'flip_h', 'flip_v', 'gif_fps', 'gif_width']},
+            ]},
+            {'id': 'audio', 'label': 'Audio', 'icon': 'fa-volume-high', 'variant': 'success', 'modes': [
+                {'id': 'convert', 'label': 'Convertir', 'icon': 'fa-right-left',
+                 'inputs': ['work_file'],
+                 'settings': ['output_format', 'audio_bitrate', 'sample_rate', 'channels', 'normalize']},
+            ]},
+            {'id': 'document', 'label': 'Document', 'icon': 'fa-file-lines', 'modes': [
+                {'id': 'convert', 'label': 'Convertir', 'icon': 'fa-right-left',
+                 'inputs': ['work_file'],
+                 'settings': ['output_format']},
+            ]},
+            {'id': 'archive', 'label': 'Archive', 'icon': 'fa-file-zipper', 'modes': [
+                {'id': 'convert', 'label': 'Convertir', 'icon': 'fa-right-left',
+                 'inputs': ['work_file'],
+                 'settings': ['output_format']},
+            ]},
+        ],
+    },
+
     # ── ANONYMIZER (multi-domaine futur ; prouve le switch de MODE yolo/sam3) ──
     'anonymizer': {
         'domains': [

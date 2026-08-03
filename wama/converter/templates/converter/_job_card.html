@@ -21,9 +21,9 @@ donc l'imbrication dans un groupe ne change rien à son fonctionnement.
             {% else %}
             <span class="small fw-bold text-light">{{ job.input_filename }}</span>
             {% endif %}
-            {% if job.output_format %}
-            <span class="badge bg-secondary badge-media ms-1">→ .{{ job.output_format }}</span>
-            {% endif %}
+            {% comment %} Chips générés du SCHÉMA (params.py chip=True) — brique commune,
+            remplacent le badge « → .fmt » hand-built. {% endcomment %}
+            {% include 'common/_card_chips.html' with chips=job.chips.settings %}
         </div>
 
         <!-- Action buttons (WAMA convention order) — .btn-group-actions = cible du clonage inspecteur -->
