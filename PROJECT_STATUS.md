@@ -2603,3 +2603,23 @@ Constats Fabien vérifiés au Playwright (9 apps, styles calculés + clics, 0 er
 reader/transcriber vers les 7 autres cards — c'est le « portage v3 de la brique » annoncé dans
 wama-card-v3.css ; candidates faciles d'abord (enhancer/anonymizer, déjà chips+progress).
 Composer/imager à traiter lors de leurs ports respectifs.
+
+
+---
+
+## §REPRISE — addendum 03/08 nuit : avatarizer sans « modes » + audit cliquabilité (`2890c3c`)
+
+1. **Avatarizer : le couple rapide/qualité est MORT** (décision route F2 enfin appliquée à
+   l'UI — le backend n'a jamais lu que `use_enhancer`) : l'« Amélioration CodeFormer » est le
+   seul contrôle de qualité, partout (panel, modale item, modale batch, chips). `quality_mode`
+   survit en champ DÉRIVÉ (`'quality' si use_enhancer sinon 'fast'`) pour les clés ETA et les
+   données ; `--quality` des fichiers batch = alias de l'enhancer (compat).
+2. **Audit cliquabilité Playwright (9 apps)** — clic card → sélection inspecteur + modale ⚙ :
+   - avatarizer : la card n'avait PAS de `data-id` (seulement `data-job-id`) →
+     `WamaInspector.selectItem` échouait en silence = « cards pas cliquables ». data-id +
+     data-preview-url posés. **data-id = contrat des briques, à vérifier à chaque nouvelle card.**
+   - volet ACTIONS vide sur enhancer (2 domaines), synthesizer, avatarizer :
+     `renderItemActions`/`renderBatchActions` (cloneActions) manquaient — ajoutés.
+   - synthesizer : `?side=input` sur une entrée NON-fichier (texte) → `dict(None)` = 500 dans
+     l'aperçu commun → repli gracieux (sortie sinon message) dans preview_utils.
+   - Résultat final : 9/9 sélection + actions + modale, 0 erreur console, 0 HTTP 5xx.
