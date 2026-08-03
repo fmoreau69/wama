@@ -120,6 +120,11 @@
     var modalHost = document.getElementById('settingsParams');
     if (modalHost) WamaParams.render(modalHost, schema, { context: 'item', values: {} });
 
+    {% comment %} Modale de BATCH dédiée (contrat reader) — même schéma, context 'batch'.
+    Remplace le détournement de la modale item (titre échangé + _settingsBatchId). {% endcomment %}
+    var batchHost = document.getElementById('transcriberBatchParams');
+    if (batchHost) WamaParams.render(batchHost, schema, { context: 'batch', values: {} });
+
     var bs = document.getElementById('backendSelect');
     // Descriptif moteur : repositionner #backendHelp DANS le champ moteur (juste sous le select).
     var bh = document.getElementById('backendHelp');
@@ -262,6 +267,27 @@ window._batchImport = WamaBatchImport({
             </div>
             {# Pied de modale COMMUN (convention MODAL_ACTIONS_AUDIT §3) — ids conservés (JS inchangé). #}
             {% include 'common/_settings_modal_footer.html' with save_id='saveSettingsBtn' save_start_id='saveAndStartBtn' save_start_label='Enregistrer et démarrer' %}
+        </div>
+    </div>
+</div>
+
+{% comment %} Modale paramètres de BATCH — champs générés du schéma (context:'batch'),
+appliqués à tous les items non-RUNNING (batch_update_settings). {% endcomment %}
+<div class="modal fade" id="batchSettingsModal" tabindex="-1" aria-labelledby="batchSettingsLabel">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-light">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="batchSettingsLabel">
+                    <i class="fas fa-layer-group me-2"></i>Paramètres du batch
+                    <span class="badge bg-secondary ms-1" id="batchSettingsBatchId"></span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-white-50 mb-2">Appliqués à tous les éléments du batch (sauf ceux en cours).</p>
+                <div id="transcriberBatchParams"></div>
+            </div>
+            {% include 'common/_settings_modal_footer.html' with save_id='saveBatchSettingsBtn' save_label='Appliquer' save_start_id='saveBatchSettingsAndStartBtn' save_start_label='Appliquer et démarrer' %}
         </div>
     </div>
 </div>

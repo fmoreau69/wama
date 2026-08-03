@@ -653,7 +653,8 @@ def transcribe(self, transcript_id: int):
         print(f"[Transcriber] Error: {traceback.format_exc()}")
 
         t.status = 'FAILURE'
-        t.save(update_fields=['status'])
+        t.error_message = error_msg[:2000]
+        t.save(update_fields=['status', 'error_message'])
         _set_progress(t, 0, force=True)
         _set_partial_text(t.id, f"❌ Erreur lors de la transcription:\n\n{error_msg}")
 

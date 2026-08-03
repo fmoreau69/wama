@@ -100,7 +100,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   }
 
-  // ── Toast : brique commune (wama-app-base.js) — plus d'alert() bloquant ──
+  // ── Toast : brique commune (wama-app-base.js), zéro dialogue bloquant ──
   function showToast(message, type) {
     if (window.WamaApp && WamaApp.toast) WamaApp.toast(message, type);
     else console.info('[Transcriber]', message);
@@ -367,11 +367,8 @@ document.addEventListener('DOMContentLoaded', function () {
       btn.addEventListener('click', () => handleDelete(btn.dataset.id));
     });
 
-    root.querySelectorAll('.duplicate-btn').forEach(btn => {
-      if (btn.dataset.bound === '1') return;
-      btn.dataset.bound = '1';
-      btn.addEventListener('click', () => handleDuplicate(btn.dataset.id));
-    });
+    // Duplication : brique commune queue-actions.js (data-duplicate-url sur le bouton),
+    // qui pose aussi le focus de la card dupliquée avant le reload — le binder local est mort.
   }
 
   // ⏹ Stop : arrête le traitement en cours (endpoint commun) → item relançable (↻). La card est
@@ -465,32 +462,10 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch(err => showToast(err.message || 'Erreur lors de la suppression', 'danger'));
   }
 
-  function handleDuplicate(id) {
-    const url = getUrl(config.duplicateUrlTemplate, id);
-    fetch(url, {
-      method: 'POST',
-      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({}),
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (!data.duplicated) throw new Error('Duplication impossible');
-        // Focus la card dupliquée après rechargement (WamaQueue.focusFromSession) — la repérer
-        // facilement, surtout sortie/isolée d'un batch ou si elle n'atterrit pas en tête.
-        try { sessionStorage.setItem('wama_focus_card', '.synthesis-card[data-id="' + data.duplicated + '"]'); } catch (e) {}
-        location.reload();
-      })
-      .catch(err => showToast(err.message || 'Erreur lors de la duplication', 'danger'));
-  }
 
   // ======================================================================
   // Settings modal
   // ======================================================================
-  // Mode batch de la modale de paramètres : la même modale individuelle est
-  // réutilisée pour le batch (pas de modale dédiée). _settingsBatchId != null
-  // → la sauvegarde s'applique à TOUS les items du batch (conventions §9.8/§9.9).
-  let _settingsBatchId = null;
-
   document.addEventListener('click', function (e) {
     const bbtn = e.target.closest('.batch-settings-btn');
     if (!bbtn) return;
@@ -498,23 +473,56 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   function openBatchSettingsModal(btn) {
-    const group = btn.closest('.batch-group');
-    const firstItemBtn = group ? group.querySelector('.settings-btn') : null;
-    if (firstItemBtn) {
-      openSettingsModal(firstItemBtn);   // pré-remplit avec les réglages du 1er élément
-    } else {
-      const m = document.getElementById('settingsModal');
-      if (m) new bootstrap.Modal(m).show();
+    // Modale de BATCH dédiée (champs générés du schéma, context 'batch') — le
+    // détournement de la modale item (titre échangé + _settingsBatchId) est mort.
+    const modal = document.getElementById('batchSettingsModal');
+    if (!modal) return;
+    modal.dataset.batchId = btn.dataset.batchId;
+    const idBadge = document.getElementById('batchSettingsBatchId');
+    if (idBadge) idBadge.textContent = '#' + btn.dataset.batchId;
+    // Les moteurs sont découverts en asynchrone dans le select de la modale item :
+    // recopie des options vers le select batch (source unique de la découverte).
+    const src = document.getElementById('settingsBackend');
+    const dst = document.querySelector('#transcriberBatchParams [name="backend"]');
+    if (src && dst && src.options.length > dst.options.length) {
+      dst.innerHTML = src.innerHTML;
     }
-    _settingsBatchId = btn.dataset.batchId;   // bascule en mode batch APRÈS le prefill
-    const title = document.querySelector('#settingsModal .modal-title');
-    if (title) title.textContent = 'Paramètres du batch — appliqués à tous les éléments';
+    new bootstrap.Modal(modal).show();
   }
+
+  function saveBatchSettings(andStart) {
+    const modal = document.getElementById('batchSettingsModal');
+    const bid = modal && modal.dataset.batchId;
+    if (!bid || !window.WamaParams) return;
+    const payload = WamaParams.read(document.getElementById('transcriberBatchParams'));
+    payload.temperature = 0;      // réglages retirés de l'UI (ASR = reproductibilité)
+    payload.max_tokens = 32768;
+    fetch(getUrl(config.batchUpdateUrlTemplate, bid), {
+      method: 'POST',
+      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(payload),
+    })
+      .then(r => r.json())
+      .then(() => {
+        const m = bootstrap.Modal.getInstance(modal);
+        if (m) m.hide();
+        if (andStart) {
+          fetch(getUrl(config.batchStartUrlTemplate, bid), { method: 'POST', headers: csrfHeaders() })
+            .finally(() => location.reload());
+        } else {
+          location.reload();
+        }
+      })
+      .catch(() => showToast('Erreur lors de la mise à jour du batch', 'danger'));
+  }
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('#saveBatchSettingsBtn')) saveBatchSettings(false);
+    if (e.target.closest('#saveBatchSettingsAndStartBtn')) saveBatchSettings(true);
+  });
 
   function openSettingsModal(btn) {
     const modal = document.getElementById('settingsModal');
     if (!modal) return;
-    _settingsBatchId = null;                   // mode individuel par défaut
     const _t = modal.querySelector('.modal-title');
     if (_t) _t.textContent = 'Paramètres de transcription';
 
@@ -568,30 +576,6 @@ document.addEventListener('DOMContentLoaded', function () {
       summary_type: summaryTypeEl ? summaryTypeEl.value : 'structured',
       verify_coherence: document.getElementById('settingsVerifyCoherence')?.checked || false,
     };
-
-    // Mode batch : applique à tous les items + relance éventuelle du batch.
-    if (_settingsBatchId) {
-      const bid = _settingsBatchId;
-      _settingsBatchId = null;
-      fetch(getUrl(config.batchUpdateUrlTemplate, bid), {
-        method: 'POST',
-        headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify(payload),
-      })
-        .then(r => r.json())
-        .then(() => {
-          const m = bootstrap.Modal.getInstance(document.getElementById('settingsModal'));
-          if (m) m.hide();
-          if (andStart) {
-            fetch(getUrl(config.batchStartUrlTemplate, bid), { method: 'POST', headers: csrfHeaders() })
-              .finally(() => location.reload());
-          } else {
-            location.reload();
-          }
-        })
-        .catch(() => showToast('Erreur lors de la mise à jour du batch', 'danger'));
-      return;
-    }
 
     const url = getUrl(config.settingsUrlTemplate, id);
     fetch(url, {

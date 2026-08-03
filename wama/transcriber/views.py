@@ -136,7 +136,7 @@ class IndexView(View):
         try:
             from wama.common.utils.process_control import reconcile_orphaned_running
             running = list(Transcript.objects.filter(user=user, status='RUNNING'))
-            n = reconcile_orphaned_running(running)
+            n = reconcile_orphaned_running(running, error_field='error_message')
             if n:
                 logger.info(f"[transcriber] {n} tâche(s) RUNNING orpheline(s) réconciliée(s) → échec relançable")
         except Exception as exc:

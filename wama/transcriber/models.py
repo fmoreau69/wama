@@ -37,7 +37,15 @@ class Transcript(ProcessingTimeMixin, ScopedVisibility):
 
     # Processing state
     task_id = models.CharField(max_length=255, blank=True, default='')
-    status = models.CharField(max_length=32, default='PENDING')  # PENDING/RUNNING/SUCCESS/FAILURE
+    # Statut canonique WAMA (contrat F5) — vocabulaire déclaré, plus un commentaire
+    STATUS_CHOICES = [
+        ('PENDING', 'En attente'),
+        ('RUNNING', 'En cours'),
+        ('SUCCESS', 'Terminé'),
+        ('FAILURE', 'Erreur'),
+    ]
+    status = models.CharField(max_length=32, choices=STATUS_CHOICES, default='PENDING')
+    error_message = models.TextField(blank=True, default='')  # persisté au FAILURE (worker)
     progress = models.IntegerField(default=0)
     properties = models.CharField(max_length=128, blank=True, default='')
     duration_seconds = models.FloatField(default=0)

@@ -78,7 +78,10 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                         {% else %}
                         <div class="wcv3-out">
                             <span class="wama-chip wama-chip--blueprint"><i class="fas fa-align-left"></i><span class="wama-chip-label">Transcription{% if t.enable_diarization %} + diarisation{% endif %}{% if t.generate_summary %} + résumé{% endif %}</span></span>
-                            <span class="wama-chip wama-chip--blueprint"><i class="fas fa-download"></i><span class="wama-chip-label">TXT · SRT · PDF · DOCX</span></span>
+                            {% comment %} Icône export (pas celle du bouton Télécharger) : le chip
+                            précède les actions dans le DOM et l'ordre canonique ⚙▶⬇⧉🗑 est MESURÉ
+                            sur la première occurrence de chaque icône (btn_order). {% endcomment %}
+                            <span class="wama-chip wama-chip--blueprint"><i class="fas fa-file-export"></i><span class="wama-chip-label">TXT · SRT · PDF · DOCX</span></span>
                         </div>
                         {% endif %}
                     </div>
@@ -89,6 +92,9 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                         {% comment %}Badge, %, ETA et durée vivent dans la section ÉTAT — pas en bas
                         de card. Seule la BARRE traverse toute la largeur (voir wcv3-bar-cell).{% endcomment %}
                         {% include 'common/_card_progress.html' with status=t.status progress=t.progress elapsed=t.processing_display no_bar=True %}
+                        {% if t.status == 'FAILURE' and t.error_message %}
+                        <small class="text-danger d-block mt-1 text-truncate" title="{{ t.error_message }}">{{ t.error_message|truncatechars:120 }}</small>
+                        {% endif %}
                     </div>
 
                     <!-- Statut + progression + ETA + temps écoulé (brique commune) -->
@@ -151,7 +157,7 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                             {% endif %}
 
                             <button class="btn btn-sm btn-outline-warning duplicate-btn"
-                                    data-id="{{ t.id }}"
+                                    data-duplicate-url="{% url 'transcriber:duplicate' t.id %}"
                                     title="Dupliquer{% if in_batch %} dans le batch{% endif %} (tester un autre modèle)">
                                 <i class="fas fa-copy"></i>
                             </button>

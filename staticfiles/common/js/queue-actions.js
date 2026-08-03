@@ -41,6 +41,15 @@
         .then(function (r) { return r.json(); })
         .then(function (data) {
             if (data.duplicated || data.success) {
+                // Focus la card dupliquée après rechargement (WamaQueue.focusFromSession) —
+                // comportement remonté du transcriber (03/08) : la repérer facilement,
+                // surtout sortie/isolée d'un batch ou si elle n'atterrit pas en tête.
+                if (data.duplicated && data.duplicated !== true) {
+                    try {
+                        sessionStorage.setItem('wama_focus_card',
+                            '.wama-card[data-id="' + data.duplicated + '"]');
+                    } catch (e) { /* stockage indisponible */ }
+                }
                 location.reload();
             } else {
                 alert(data.error || 'Duplication impossible');
