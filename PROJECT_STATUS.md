@@ -2641,3 +2641,29 @@ Composer/imager à traiter lors de leurs ports respectifs.
    Celery différé deux fois est SOLDÉ : les workers tournaient depuis AVANT les patches xformers
    (GroupName) et le port anonymizer. La traceback MuseTalk de Fabien venait de là (patch déjà
    sur disque, module pré-patch en mémoire). MuseTalk, ingest anonymizer et ETA record_run actifs.
+
+
+---
+
+## §REPRISE — prochaine session (photo au 2026-08-03 fin de soirée)
+
+**État vérifié en clôture** : arbre git PROPRE sur dev, consistency **6/6**, grille re-mesurée
+(bouton « Re-mesurer » sur /common/apps/ désormais, staff), pile WSL2 RESTARTÉE ce soir
+(gunicorn + workers Celery — patches xformers et tasks.py anonymizer actifs). Scores :
+enhancer 94 · transcriber 94 · anonymizer 93 · converter 93 · avatarizer 92 · composer 87 ·
+reader 85 · synthesizer 84 · describer 83 · imager 55.
+
+**Ordre de reprise recommandé** :
+1. **Re-tester MuseTalk** (relancer ↻ la card avatarizer en échec — le crash GroupName venait
+   des workers pré-patch, restart fait) ; vérifier au passage l'ETA record_run anonymizer.
+2. **Imager** (55 %) : dernier gros port schéma-driven (recette /port-app, anonymizer = gabarit
+   le plus récent ; lire le §REPRISE 03/08 pour les pièges — config d'app AVANT scripts, data-id).
+3. **Portage v3 de l'anatomie de card** (sections/labels/séparateurs) : consommée par 2 cards
+   sur 10 seulement — candidates faciles enhancer/anonymizer (inventaire §03/08 soir).
+4. Paliers ciblés : chips + modale batch composer/synthesizer/describer (+chips reader).
+5. §18.2 `check_structure` (conçu, acceptation 12+1 violations) — à créer AVANT la 1re app data.
+
+**Leçons durcies cette session** (détail dans les addenda 03/08) : data-id = contrat des
+briques sur toute card ; config d'app AVANT les scripts qui la capturent ; un littéral mesuré
+par le checker ne va JAMAIS dans un commentaire ; {% templatetag opencomment %} multi-ligne
+interdit (7 récidives) ; support ≠ adoption (script porté par la brique désormais).
