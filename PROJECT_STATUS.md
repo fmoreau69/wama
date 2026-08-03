@@ -2525,3 +2525,44 @@ de **enhancer (×2), describer, transcriber** (l'anonymizer avait le même). Re-
 **Restes connus** : restart du worker Celery à faire pour activer `tasks.py` (ensure_local_input
 + ETA record_run) — non fait en session, des tâches GPU d'autres apps pouvaient tourner ;
 avatarizer = dernière app à porter (post-studio).
+
+
+---
+
+## §REPRISE — addendum 03/08 après-midi : PASSE DE FINITION des apps avancées (imager exclu)
+
+> Suite immédiate du port anonymizer, demande Fabien : « terminer au mieux les plus avancées,
+> Imager pour une prochaine passe ». 4 commits (`7a54e22` enhancer, transcriber+brique,
+> converter, `a57fd48` balayage), consistency 6/6, corpus régénéré.
+
+**Grille finale (hors imager 55 %)** : enhancer **94** · transcriber **94** · anonymizer **93** ·
+converter **93** · avatarizer **92** · composer **87** · reader **85** · synthesizer **84** ·
+describer **83**. Les rouges restants sont majoritairement la famille ASSUMÉE
+(input_match/model_caps inertes sans cas réel, during_preview = feature pipeline,
+recursive_import = 0/10) — voir triages ci-dessous.
+
+**Livré par app** :
+- enhancer : chips du schéma (remplacent les badges hand-built des 2 cards), modale batch
+  WamaParams context:'batch' (mort du détournement `_enhancerBatchId`), **ETA batch RÉPARÉE**
+  (eta_ids liste→CSV : le data-eta-ids ne matchait jamais), auto_wrap par brique, queue_count.
+- transcriber : STATUS_CHOICES + champ `error_message` (migration 0017, persisté au FAILURE,
+  affiché card, branché reconcile), modale batch dédiée context:'batch' (mort de
+  `_settingsBatchId`), duplication par brique commune — **le focus post-duplication REMONTE
+  dans queue-actions.js** (toutes les apps l'ont maintenant), ordre boutons rétabli à la mesure.
+- converter : APP_MODES 5 domaines par nature, chips schéma (badge « → .fmt » mort), modale
+  batch schéma-driven avec le MÊME optionsResolver que la modale item ; `quality_preset` entre
+  au schéma (champ consommé par batch_update mais non déclaré — récidive leçon converter).
+- avatarizer : TRIAGE seulement — model_help NON câblable honnêtement (aucun select de modèle,
+  MuseTalk v1.5 unique). Reste 92 %.
+- composer/synthesizer/reader/describer (balayage) : **F7 complet** (ScopedVisibility work+batch,
+  migrations, lectures visible_or_404) + `@app_access` sur 16 vues de lancement ; reader passe à
+  la brique de duplication + pied de modale commun ; composer gagne le ✨ prompt musical ;
+  describer débarrassé d'un faux DOUBLE-FIRE (littéral dans un commentaire).
+
+**Récidive à retenir** : 3 faux rouges/partiels venaient de LITTÉRAUX dans des commentaires
+(`.duplicate-btn`, `fa-download`, `alert()`) — le checker greppe le fichier entier. Formuler les
+commentaires sans le littéral mesuré.
+
+**Restes connus** : imager (55 %) = prochaine passe ; params_modal_batch composer/synthesizer/
+describer + card_chips composer/synthesizer/describer/reader = paliers ciblés restants ;
+worker Celery à relancer pour tasks.py anonymizer (ingest+ETA) ; gunicorn déjà rechargé.
