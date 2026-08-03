@@ -39,7 +39,8 @@ PROMPT_TARGETS = {
          'source': 'imager', 'default_model_type': 'diffusion'},
     ],
     'anonymizer': [
-        {'field': 'sam3_prompt', 'kind': 'concept', 'when': 'use_sam3'},
+        {'field': 'sam3_prompt', 'kind': 'concept', 'when': 'use_sam3',
+         'domain': 'detection'},
     ],
     'cam_analyzer': [
         # Prompts de marquages SAM3 : LISTE de {label, prompt}. Enrichis en « concept »

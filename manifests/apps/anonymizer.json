@@ -153,8 +153,8 @@
     "params": [
       {
         "advanced": false,
-        "chip": false,
-        "chip_label": "",
+        "chip": true,
+        "chip_label": "SAM3",
         "choices": null,
         "contexts": [
           "item",
@@ -224,7 +224,7 @@
       },
       {
         "advanced": false,
-        "chip": false,
+        "chip": true,
         "chip_label": "",
         "choices": null,
         "contexts": [
@@ -262,7 +262,7 @@
       },
       {
         "advanced": false,
-        "chip": false,
+        "chip": true,
         "chip_label": "",
         "choices": null,
         "contexts": [
@@ -470,8 +470,8 @@
       },
       {
         "advanced": true,
-        "chip": false,
-        "chip_label": "",
+        "chip": true,
+        "chip_label": "Interpolation",
         "choices": null,
         "contexts": [
           "item",
@@ -539,8 +539,8 @@
       },
       {
         "advanced": true,
-        "chip": false,
-        "chip_label": "",
+        "chip": true,
+        "chip_label": "Segmentation",
         "choices": null,
         "contexts": [
           "item",
@@ -809,7 +809,11 @@
         "download_all",
         "global_progress"
       ],
-      "ingest": null,
+      "ingest": {
+        "mode": "media",
+        "source": "source_url",
+        "target": "file"
+      },
       "processing_time": true,
       "statuses": [
         "PENDING",
@@ -819,8 +823,12 @@
       ]
     },
     "prompts": {
+      "skills": [
+        "anonymizer-detection.md"
+      ],
       "targets": [
         {
+          "domain": "detection",
           "field": "sam3_prompt",
           "kind": "concept",
           "when": "use_sam3"

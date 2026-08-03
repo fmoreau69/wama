@@ -1,19 +1,30 @@
+/**
+ * Anonymizer — import de médias (port 2026-08-03).
+ *
+ * La zone d'import est la card d'entrée COMMUNE `_new_item_card` (drag&drop + URL +
+ * batch + médiathèque) : ids `dropZoneAnonymizer` / `fileupload` / `anonUrlInput` /
+ * `anonUrlSubmit`. L'upload passe par jQuery-file-upload (séquentiel + modale de
+ * progression) vers IndexView.post ; en fin d'import les fichiers déposés ensemble
+ * sont consolidés en UN batch, puis la page recharge (file re-rendue serveur).
+ */
 $(function () {
+  const cfg = window.WAMA_ANON || {};
+
   // Consolidation des fichiers uploadés ensemble en UN batch (débouncé).
   let _anonUploadedIds = [];
   let _anonUploadTimer = null;
   function _finalizeAnonUpload() {
     const ids = _anonUploadedIds.slice();
     _anonUploadedIds = [];
-    const refresh = () => { if (typeof window.refreshMediaTable === 'function') window.refreshMediaTable(); };
+    const done = () => location.reload();
     if (ids.length > 1) {
       fetch('/anonymizer/batch/consolidate/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': $("input[name=csrfmiddlewaretoken]").val() },
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': cfg.csrfToken },
         body: JSON.stringify({ ids }),
-      }).then(refresh).catch(refresh);
+      }).then(done).catch(done);
     } else {
-      refresh();
+      done();
     }
   }
 
@@ -22,52 +33,37 @@ $(function () {
   const modalElement = document.getElementById('modal-progress');
 
   if (modalElement) {
-    // Create modal instance with proper configuration
     progressModal = new bootstrap.Modal(modalElement, {
       backdrop: 'static',
       keyboard: false,
       focus: true
     });
 
-    // Prevent focus retention on hide
     modalElement.addEventListener('hide.bs.modal', function () {
-      // Blur any focused element inside the modal before closing
       const focusedElement = modalElement.querySelector(':focus');
       if (focusedElement) {
         focusedElement.blur();
       }
     });
-
-    // Clean aria-hidden after modal is fully hidden
     modalElement.addEventListener('hidden.bs.modal', function () {
       modalElement.setAttribute('aria-hidden', 'true');
     });
-
-    // Set aria-hidden to false when modal is shown
     modalElement.addEventListener('shown.bs.modal', function () {
       modalElement.setAttribute('aria-hidden', 'false');
     });
   }
 
-  // Ouvre le sélecteur de fichiers
-  $(".js-upload-medias").click(function () {
-    $("#fileupload").click();
-  });
-
-  // Support Drag & Drop pour la zone d'upload
+  // Drag & drop : la card d'entrée commune gère l'apparence ; on branche l'upload.
   const dropZone = document.getElementById('dropZoneAnonymizer');
   const fileInput = document.getElementById('fileupload');
 
   if (dropZone && fileInput) {
-    // Click sur la zone = ouvrir le sélecteur
-    dropZone.addEventListener('click', function(e) {
-      // Ne pas déclencher si on clique sur le bouton (qui a déjà son handler)
-      if (!e.target.closest('.js-upload-medias')) {
+    dropZone.addEventListener('click', function (e) {
+      if (!e.target.closest('button')) {
         fileInput.click();
       }
     });
 
-    // Empêcher le comportement par défaut du navigateur
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
       dropZone.addEventListener(eventName, preventDefaults, false);
       document.body.addEventListener(eventName, preventDefaults, false);
@@ -78,36 +74,24 @@ $(function () {
       e.stopPropagation();
     }
 
-    // Highlight de la zone au survol
     ['dragenter', 'dragover'].forEach(eventName => {
-      dropZone.addEventListener(eventName, highlight, false);
+      dropZone.addEventListener(eventName, () => dropZone.classList.add('drag-over'), false);
     });
-
     ['dragleave', 'drop'].forEach(eventName => {
-      dropZone.addEventListener(eventName, unhighlight, false);
+      dropZone.addEventListener(eventName, () => dropZone.classList.remove('drag-over'), false);
     });
 
-    function highlight() {
-      dropZone.classList.add('drag-over');
-    }
-
-    function unhighlight() {
-      dropZone.classList.remove('drag-over');
-    }
-
-    // Gestion du drop
-    dropZone.addEventListener('drop', handleDrop, false);
-
-    function handleDrop(e) {
+    dropZone.addEventListener('drop', function (e) {
       const dt = e.dataTransfer;
       if (dt.files.length > 0) {
         $(fileInput).fileupload('add', { files: dt.files });
       }
-    }
+    });
   }
 
-  // Upload des fichiers
+  // Upload des fichiers (endpoint et CSRF via config — l'input commun n'a pas de data-url)
   $("#fileupload").fileupload({
+    url: cfg.uploadUrl,
     dataType: 'json',
     sequentialUploads: true,
 
@@ -116,13 +100,13 @@ $(function () {
       const fmt = (document.getElementById('output_format') || {}).value || 'original';
       const qual = (document.getElementById('output_quality') || {}).value || 'balanced';
       return [
+        { name: 'csrfmiddlewaretoken', value: cfg.csrfToken },
         { name: 'output_format', value: fmt },
         { name: 'output_quality', value: qual },
       ];
     },
 
     start: function () {
-      // Use the pre-initialized modal instance
       if (progressModal) {
         progressModal.show();
         $("#modal-progress .progress-bar").css({ width: "0%" }).text("0%").attr('aria-valuenow', 0);
@@ -130,7 +114,6 @@ $(function () {
     },
 
     stop: function () {
-      // Use the pre-initialized modal instance
       if (progressModal) {
         progressModal.hide();
       }
@@ -144,16 +127,6 @@ $(function () {
     done: function (e, data) {
       if (data.result && data.result.success) {
         const medias = data.result.added || (data.result.media ? [data.result.media] : []);
-
-        medias.forEach(function (media) {
-          $("#gallery tbody").prepend(
-            `<tr><td><button type="button" class="btn btn-link p-0 preview-media-link" data-preview-url="${media.preview_url}">${media.name}</button></td></tr>`
-          );
-        });
-
-        if (typeof window.initMediaPreview === 'function') {
-          window.initMediaPreview();
-        }
         // Collecte des ids pour consolidation en batch (upload multi-fichiers)
         medias.forEach(function (m) { if (m.id) _anonUploadedIds.push(m.id); });
         if (window.WamaFM) WamaFM.uploaded();  // fichier ajouté → refresh filemanager
@@ -166,60 +139,48 @@ $(function () {
         WamaApp.toast(error, 'error');
       }
 
-      // Consolidation débouncée : un seul batch si plusieurs fichiers uploadés ensemble.
+      // Consolidation débouncée puis reload : un seul batch si plusieurs fichiers ensemble.
       clearTimeout(_anonUploadTimer);
       _anonUploadTimer = setTimeout(_finalizeAnonUpload, 600);
     },
 
     fail: function (e, data) {
       WamaApp.toast("Échec du téléchargement : " + (data.errorThrown || "erreur inconnue"), 'error');
-      // Use the pre-initialized modal instance
       if (progressModal) {
         progressModal.hide();
       }
     }
   });
 
-  // Formulaire d'URL
-  $("#media-url-form").submit(function (e) {
-    e.preventDefault();
-    const $form = $(this);
-    const mediaUrl = $form.find("input[name='media_url']").val();
-
+  // Import par URL (champ de la card d'entrée commune)
+  function submitUrlImport() {
+    const input = document.getElementById('anonUrlInput');
+    const mediaUrl = input ? input.value.trim() : '';
     if (!mediaUrl) {
       WamaApp.toast("Veuillez entrer une URL de média.", 'warning');
       return;
     }
-
-    // Use the pre-initialized modal instance
-    if (progressModal) {
-      progressModal.show();
-    }
+    if (progressModal) progressModal.show();
 
     const _fmt = (document.getElementById('output_format') || {}).value || 'original';
     const _qual = (document.getElementById('output_quality') || {}).value || 'balanced';
     $.ajax({
       type: 'POST',
-      url: $form.attr("action"),
-      data: $form.serialize()
-            + '&output_format=' + encodeURIComponent(_fmt)
-            + '&output_quality=' + encodeURIComponent(_qual),
+      url: cfg.uploadUrl,
+      data: {
+        csrfmiddlewaretoken: cfg.csrfToken,
+        media_url: mediaUrl,
+        output_format: _fmt,
+        output_quality: _qual,
+      },
       dataType: 'json',
       success: function (data) {
         if (data.success && data.media) {
-          $("#gallery tbody").prepend(
-            `<tr><td><button type="button" class="btn btn-link p-0 preview-media-link" data-preview-url="${data.media.preview_url}">${data.media.name}</button></td></tr>`
-          );
-          if (typeof window.initMediaPreview === 'function') {
-            window.initMediaPreview();
-          }
+          if (window.WamaFM) WamaFM.uploaded();
+          location.reload();
         } else {
-          const error = data.error || "Le téléchargement a échoué.";
-          WamaApp.toast(error, 'error');
+          WamaApp.toast(data.error || "Le téléchargement a échoué.", 'error');
         }
-
-        // Rafraîchir uniquement la table des médias après ajout par URL
-        refreshMediaTable();
       },
       error: function (xhr) {
         let msg = "Une erreur s'est produite";
@@ -227,127 +188,26 @@ $(function () {
         WamaApp.toast("Erreur téléchargement URL : " + msg, 'error');
       },
       complete: function () {
-        // Use the pre-initialized modal instance
-        if (progressModal) {
-          progressModal.hide();
-        }
-        $form[0].reset();
-      }
-    });
-  });
-
-  // Fonction pour rafraîchir uniquement la table des médias (plus moderne)
-  function refreshMediaTable(after) {
-    $.ajax({
-      type: 'GET',
-      url: '/anonymizer/refresh/',
-      data: { template_name: 'media_table' },
-      success: function (res) {
-        if (res.render) {
-          $("#media_table_container").html(res.render);
-
-          // Re-initialize event handlers
-          if (typeof window.initProcessControls === 'function') {
-            window.initProcessControls();
-          }
-          if (typeof window.initMediaPreview === 'function') {
-            window.initMediaPreview();
-          }
-
-          // Update queue count badge
-          updateQueueCount();
-
-          if (typeof after === 'function') after();
-        }
-      },
-      error: function () {
-        console.warn("Échec du rafraîchissement de la table.");
+        if (progressModal) progressModal.hide();
+        if (input) input.value = '';
       }
     });
   }
 
-  // Fonction pour rafraîchir tout le contenu (utiliser si nécessaire)
-  function refreshContent(after) {
-    // Clean up old modals and backdrops before refreshing
-    cleanupModals();
-
-    $.ajax({
-      type: 'GET',
-      url: '/anonymizer/refresh/',
-      data: { template_name: 'content' },
-      success: function (res) {
-        if (res.render) {
-          $("#main_container").html(res.render);
-
-          // Re-initialize modals after content refresh
-          reinitializeModals();
-
-          if (typeof attachCollapseEvents === 'function') {
-            attachCollapseEvents();
-          }
-          if (typeof window.initProcessControls === 'function') {
-            window.initProcessControls();
-          }
-          if (typeof window.initMediaPreview === 'function') {
-            window.initMediaPreview();
-          }
-          if (typeof after === 'function') after();
-        }
-      },
-      error: function () {
-        console.warn("Échec du rafraîchissement du contenu.");
+  const urlSubmit = document.getElementById('anonUrlSubmit');
+  if (urlSubmit) {
+    urlSubmit.addEventListener('click', function (e) {
+      e.preventDefault();
+      submitUrlImport();
+    });
+  }
+  const urlInput = document.getElementById('anonUrlInput');
+  if (urlInput) {
+    urlInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        submitUrlImport();
       }
     });
   }
-
-  // Met à jour le compteur de la file d'attente
-  function updateQueueCount() {
-    $.ajax({
-      type: 'GET',
-      url: '/anonymizer/queue_count/',
-      success: function (data) {
-        const badge = document.getElementById('queueCount');
-        if (badge && data.count !== undefined) {
-          badge.textContent = data.count;
-        }
-      }
-    });
-  }
-
-  // Clean up old modal instances and backdrops
-  function cleanupModals() {
-    // Find all modals that were moved to body level
-    document.querySelectorAll('[id^="modal_classes2blur"]').forEach(function(modal) {
-      const bsModal = bootstrap.Modal.getInstance(modal);
-      if (bsModal) {
-        bsModal.dispose();
-      }
-      modal.remove();
-    });
-
-    // Remove any leftover modal backdrops
-    document.querySelectorAll('.modal-backdrop').forEach(function(backdrop) {
-      backdrop.remove();
-    });
-
-    // Remove modal-open class from body
-    document.body.classList.remove('modal-open');
-    document.body.style.overflow = '';
-    document.body.style.paddingRight = '';
-  }
-
-  // Re-initialize modals after content refresh
-  function reinitializeModals() {
-    // Move all modals that start with "modal_classes2blur" to body level
-    document.querySelectorAll('[id^="modal_classes2blur"]').forEach(function(modal) {
-      document.body.appendChild(modal);
-    });
-  }
-
-  // Expose these functions globally for use by other scripts
-  window.cleanupModals = cleanupModals;
-  window.reinitializeModals = reinitializeModals;
-  window.refreshMediaTable = refreshMediaTable;
-  window.refreshContent = refreshContent;
-  window.updateQueueCount = updateQueueCount;
 });

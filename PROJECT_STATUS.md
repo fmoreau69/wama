@@ -2479,28 +2479,49 @@ vs 1.0–2.0 ; le backend normalise les noyaux, le schéma fait foi) ; `MediaFor
 **Reste du port (paliers suivants)** : 29 rouges mesurés — modales WamaParams (les forms legacy
 meurent), card partial + toolbar + batch (F5), partage F7, prompt_skill/enrich (F6).
 
-## §REPRISE — prochaine session : port anonymizer PALIER 2 (UI)
+## §REPRISE — session 2026-08-03 : port anonymizer PALIER 2 (UI) — ✅ LIVRÉ
 
-> Préparé le 03/08 au soir, pile relancée et vérifiée (gunicorn 200, workers gpu/default/studio
-> + beat, migrations OK, gate consistency 6/6, grille régénérée sans régression).
+> Session mono-instance. Palier 2 exécuté d'un trait (6 étapes du handoff), validé
+> navigateur (Playwright authentifié, 0 erreur console) et re-mesuré.
 
-**Rituel** : `/reprise` (les 4 confrontations sont aussi jouables d'un coup :
-`python manage.py run_nightly_tests --stage consistency`).
+**Résultat grille** : anonymizer **58 % → 93 %** (68✅/2🔶/4❌ sur 74) — meilleure app de la
+grille. Les 4 rouges restants sont ASSUMÉS (justification confrontée au code, pas des trous) :
+- `input_match_ui` + `model_caps_ui` : câblage volontairement NON posé — tous les modèles
+  anonymizer déclarent `modalities image+vidéo` (48 entrées catalogue vérifiées) et aucun
+  `<select>` ne dépend du modèle choisi → la brique serait un mécanisme PRÉSENT MAIS INERTE
+  (danger nommé du cadrage 31/07). L'équivalent réel côté serveur : `get_model_recommendations`.
+- `during_preview` : demanderait une émission d'aperçu PENDANT le floutage côté pipeline (feature,
+  pas un câblage) ; `recursive_import` : rouge sur 10/10 apps (trou de grille, pas d'app).
 
-**Chantier** : `/port-app anonymizer` — palier 2 = UI. Le palier 1 (03/08) a livré le cœur
-schéma-driven backend (`coerce_schema_values`, bornes dérivées, scoping user, `use_segmentation`
-au schéma, redondances à ZÉRO). Le score 42/74 n'a PAS bougé : attendu, la grille mesure l'UI —
-c'est le palier 2 qui la fera monter.
+**Livré (palier 2)** — REMPLACEMENTS, pas de juxtaposition :
+1. IndexView : `auto_wrap_orphans`+`build_batches_list`+`apply_queue_sort_filter`+
+   `reconcile_orphaned_running` (les `_get_anonymizer_batches_list`/refresh legacy sont MORTS,
+   partials `upload/*` et `widgets/` supprimés, `batch.js` orphelin supprimé) ;
+2. `_new_item_card` en tête (fichier+URL+batch+médiathèque, repliable) — le volet droit ne porte
+   plus l'import ; `WAMA_INGEST` sur Media + `ensure_local_input` en tête de tâche ;
+3. Card = partial serveur unique `_media_card.html` (.wama-card, chips du SCHÉMA via
+   `chips_by_section`, `_card_progress`, `_cycle_button`) + endpoint `card_html` + `queue.js`
+   (polling par card, refresh sur transition) ;
+4. Modale item = **1er consommateur de `WamaParams.renderSettingsModal`** + pied commun
+   `_settings_modal_footer` + save&restart (contrat composer) ; modale batch context:'batch'
+   (contrat reader) + `batch_update` ; inspecteur `initFromSchema` (pont `dom_id.panel` legacy) ;
+   ModelForms legacy morts (les 2 pragmas `wama:redondance-ok` sont partis avec) ;
+5. `start`/`stop`/`start_all`/`batch_start` avec `begin_processing` + `@app_access` ; ETA seedée
+   (`anonymizer_eta_key_size` partagée estimate↔record_run, simulation seedée par l'EMA) ;
+6. F7 : `ScopedVisibility`+`ScopedManager` sur Media ET BatchAnonymizer (migration 0023),
+   lectures `visible_or_404` (preview/download/progress/card_html/batch_download) ;
+   F6 : skill `common/prompt_skills/anonymizer-detection.md` + domain déclaré dans
+   PROMPT_TARGETS + ✨ WamaPromptEnrich (panel + modale).
 
-**Ordre du palier 2 (recette §1 de /port-app, briques dans `common/README.md`)** :
-1. Toolbar + tri/filtre (`queue_view.py` + `_queue_toolbar.html`) ;
-2. Card d'entrée `_new_item_card` + `WAMA_INGEST`/`ensure_local_input` ;
-3. Card partial serveur + `card_html` + re-bind (leçon describer) ;
-4. Modales item/batch via `WamaParams.render` → les ModelForms legacy de `forms.py` meurent
-   (retirer alors leurs 2 pragmas `wama:redondance-ok`) ;
-5. Batch commun (`build_batches_list`), anti-race (`begin_processing`), `reconcile_orphans` ;
-6. F7 partage (`ScopedVisibility` sur Media ET le batch, `visible_or_404`) ; F6 prompt_skill.
+**Leçon de smoke (03/08)** : la config d'app (`window.WAMA_ANON`) doit être définie AVANT les
+scripts d'app qui la capturent au chargement — inline APRÈS eux, toutes les URLs étaient vides
+(toast « Impossible de charger les paramètres »). Corrigé + consigné dans le template.
 
-**Sources vivantes** : les 29 rouges = `logs/conformity_report.json` (apps.anonymizer.conv) ;
-tâche #8 du task-tracker ; pièges récurrents = /port-app §2 (`{% comment %}`, statics dupliqués,
-HUP gunicorn, restart workers après édition de code exécuté par Celery).
+**Bug transverse corrigé au passage** : `batch_file.seek(0)` ORPHELIN après adoption de
+`parse_batch_file_from_request` (la brique consomme FILES) → NameError latent dans batch_create
+de **enhancer (×2), describer, transcriber** (l'anonymizer avait le même). Re-lire
+`request.FILES.get('batch_file')` avant l'archivage. Commit séparé.
+
+**Restes connus** : restart du worker Celery à faire pour activer `tasks.py` (ensure_local_input
++ ETA record_run) — non fait en session, des tâches GPU d'autres apps pouvaient tourner ;
+avatarizer = dernière app à porter (post-studio).

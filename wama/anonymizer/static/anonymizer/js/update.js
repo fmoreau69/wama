@@ -1,8 +1,19 @@
+/**
+ * Anonymizer — pont AJAX du VOLET DROIT legacy + actions de batch (port 2026-08-03).
+ *
+ * Reste ici :
+ *   • .setting-button (sliders/switches/selects du panneau droit) → update_settings ;
+ *   • .batch-duplicate-btn / .batch-delete-btn (handlers d'app, contrat _batch_card) ;
+ *   • #clear_all_media_btn (bouton du volet droit — la toolbar a le sien dans queue.js).
+ *
+ * Parti au port :
+ *   • handler de duplication → brique GLOBALE queue-actions.js (double-fire sinon) ;
+ *   • updateGlobalProgress → brique commune wama-global-progress.js (_global_progress.html) ;
+ *   • refreshMediaTable/.ajax-form/expand_area → mécanisme legacy `refresh` supprimé
+ *     (card = partial serveur via card_html, structure re-rendue par reload).
+ */
 $(document).ready(function () {
 
-    /* ============================
-     * 🕒 Debounce utilitaire
-     * ============================ */
     function debounce(func, wait) {
         let timeout;
         return function (...args) {
@@ -12,7 +23,7 @@ $(document).ready(function () {
     }
 
     /* ============================
-     * 🔍 Extraction des infos ID
+     * 🔍 Extraction des infos ID (user_setting_* / global_setting_* / media_setting_*_<id>)
      * ============================ */
     function extractSettingName(inputId) {
         const parts = inputId.split('_');
@@ -33,8 +44,6 @@ $(document).ready(function () {
      * 🚀 Envoi AJAX principal
      * ============================ */
     function submitValues(inputId, inputValue) {
-        console.log("%c[update.js] ▶ Sending update", "color:#00BCD4", { inputId, inputValue });
-
         const { setting_type, media_id, setting_name } = extractSettingName(inputId);
 
         let data = {
@@ -51,28 +60,17 @@ $(document).ready(function () {
             url: "/anonymizer/update_settings/",
             data,
             success: function (res) {
-                if (res.success) {
-                    console.log("%c[update.js] ✔ Setting updated successfully", "color:#4CAF50", res);
-                } else if (res.render) {
+                if (res.render) {
                     const container = $("#setting_button_container_" + inputId);
-                    container.replaceWith(res.render);
-                    console.log("%c[update.js] ✔ DOM re-rendered", "color:#4CAF50");
-                } else {
-                    console.warn("%c[update.js] ⚠ Unexpected server response", "color:#FFC107", res);
+                    if (container.length) container.replaceWith(res.render);
                 }
             },
             error: function (xhr) {
-                console.error("%c[update.js] ✖ AJAX error", "color:red", {
-                    status: xhr.status,
-                    response: xhr.responseText
-                });
+                console.error("[update.js] update_settings error", xhr.status, xhr.responseText);
             },
         });
     }
 
-    /* ============================
-     * 🎚 Gestion des sliders / switches
-     * ============================ */
     const debouncedSubmit = debounce(submitValues, 250);
 
     $(document).on("input change", ".setting-button", function () {
@@ -83,26 +81,22 @@ $(document).ready(function () {
 
         if (inputType === "checkbox") {
             inputValue = $el.prop("checked") ? "true" : "false";
-        } else if (inputType === 'select') {
-            inputValue = $el.val();
         } else {
             inputValue = $el.val();
         }
 
-        // Met à jour le <output> voisin s’il existe (utile pour sliders)
+        // Met à jour le <output> voisin s'il existe (utile pour sliders)
         const $output = $el.next("output");
         if ($output.length) {
             $output.text(inputValue);
         }
 
-        console.log("%c[update.js] ✏ Change detected", "color:#2196F3", { inputId, inputValue });
         debouncedSubmit(inputId, inputValue);
     });
 
     /* ============================
-     * 🧹 Bouton "Clear All Media"
+     * 📦 Actions de batch (contrat _batch_card : handlers d'app .batch-*-btn)
      * ============================ */
-    // Duplication d'un groupe batch (et de tous ses médias)
     $(document).on("click", ".batch-duplicate-btn", function (e) {
         e.preventDefault();
         const batchId = $(this).data("batch-id");
@@ -110,17 +104,13 @@ $(document).ready(function () {
             type: "POST",
             url: `/anonymizer/batch/${batchId}/duplicate/`,
             data: { csrfmiddlewaretoken: $("input[name=csrfmiddlewaretoken]").val() },
-            success: function () {
-                if (typeof window.refreshMediaTable === 'function') window.refreshMediaTable();
-                else window.location.reload();
-            },
+            success: function () { window.location.reload(); },
             error: function (xhr) {
                 WamaApp.toast("Erreur lors de la duplication du batch : " + (xhr.responseText || "Erreur inconnue"), 'error');
             },
         });
     });
 
-    // Suppression d'un groupe batch (et de tous ses médias)
     $(document).on("click", ".batch-delete-btn", function (e) {
         e.preventDefault();
         const batchId = $(this).data("batch-id");
@@ -130,9 +120,8 @@ $(document).ready(function () {
             url: `/anonymizer/batch/${batchId}/delete/`,
             data: { csrfmiddlewaretoken: $("input[name=csrfmiddlewaretoken]").val() },
             success: function () {
-                if (typeof window.refreshMediaTable === 'function') window.refreshMediaTable();
-                else window.location.reload();
                 if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
+                window.location.reload();
             },
             error: function (xhr) {
                 WamaApp.toast("Erreur lors de la suppression du batch : " + (xhr.responseText || "Erreur inconnue"), 'error');
@@ -140,198 +129,24 @@ $(document).ready(function () {
         });
     });
 
+    /* ============================
+     * 🧹 Bouton "Tout effacer" du volet droit
+     * ============================ */
     $(document).on("click", "#clear_all_media_btn", function (e) {
         e.preventDefault();
         if (!confirm("Voulez-vous vraiment supprimer tous les médias ?")) return;
-
-        console.log("%c[update.js] 🧹 Clearing all media…", "color:purple");
 
         $.ajax({
             type: "POST",
             url: "/anonymizer/clear_all_media/",
             data: { csrfmiddlewaretoken: $("input[name=csrfmiddlewaretoken]").val() },
-            success: function (res) {
-                if (res.success) {
-                    console.log("%c[update.js] ✔ Médias supprimés", "color:#4CAF50");
-                    // Refresh media table without full page reload
-                    if (typeof window.refreshMediaTable === 'function') {
-                        window.refreshMediaTable();
-                    } else {
-                        window.location.reload();
-                    }
-                    if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
-                    // Update queue count
-                    if (typeof window.updateQueueCount === 'function') {
-                        window.updateQueueCount();
-                    }
-                } else {
-                    console.warn("%c[update.js] ⚠ Unexpected response", "color:#FFC107", res);
-                    window.location.reload();
-                }
+            success: function () {
+                if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
+                window.location.reload();
             },
             error: function (xhr) {
-                console.error("%c[update.js] ✖ Erreur clear_all_media", "color:red", xhr.responseText);
                 WamaApp.toast("Erreur lors de la suppression des médias : " + (xhr.responseText || "Erreur inconnue"), 'error');
             },
         });
     });
-
-    /* ============================
-     * 📦 Gestion des formulaires AJAX
-     * ============================ */
-    $(document).on("submit", ".ajax-form", function (e) {
-        e.preventDefault();
-
-        const $form = $(this);
-        const actionUrl = $form.attr("action");
-        const method = $form.attr("method") || "POST";
-        const targetSelector = $form.data("target") || "#main_container";
-        const formData = $form.serialize();
-
-        // Clean up old modals before submitting
-        if (typeof window.cleanupModals === 'function') {
-            window.cleanupModals();
-        }
-
-        $.ajax({
-            type: method,
-            url: actionUrl,
-            data: formData,
-            success: function (res) {
-                if (res.render) {
-                    $(targetSelector).html(res.render);
-
-                    // Re-initialize modals after content update
-                    if (typeof window.reinitializeModals === 'function') {
-                        window.reinitializeModals();
-                    }
-
-                    attachCollapseEvents();
-                    if (typeof window.initProcessControls === 'function') {
-                        window.initProcessControls();
-                    }
-                    if (typeof window.initMediaPreview === 'function') {
-                        window.initMediaPreview();
-                    }
-                    console.log("%c[update.js] ✔ Section reloaded", "color:#4CAF50");
-                } else {
-                    console.warn("%c[update.js] ⚠ Réponse inattendue", "color:#FFC107", res);
-                }
-            },
-            error: function (xhr) {
-                console.error("%c[update.js] ✖ Erreur AJAX formulaire", "color:red", xhr.responseText);
-                WamaApp.toast("Erreur lors de l'envoi du formulaire : " + (xhr.responseText || "Erreur inconnue"), 'error');
-            },
-        });
-    });
-
-    /* ============================
-     * 📊 Update global progress bar
-     * ============================ */
-    function updateGlobalProgress() {
-        $.ajax({
-            type: "GET",
-            url: "/anonymizer/global_progress/",
-            success: function (data) {
-                const progressBar = document.getElementById('globalProgressBar');
-                const statsText = document.getElementById('globalProgressStats');
-                const pctText = document.getElementById('globalProgressPct');
-
-                if (progressBar && statsText) {
-                    const progress = data.overall_progress || 0;
-                    progressBar.style.width = progress + '%';
-                    if (pctText) pctText.textContent = progress + '%';
-
-                    statsText.textContent = `${data.success}/${data.total} terminé · ${data.running || 0} en cours · ${data.failure || 0} échoué`;
-                    if (window.WamaEta) WamaEta.render(document.getElementById('globalEta'), WamaEta.aggregateAll());
-
-                    // Style WAMA standard (.wama-progress-fill) : actif/erreur
-                    progressBar.className = 'wama-progress-fill';
-                    if (data.failure > 0) {
-                        progressBar.classList.add('error');
-                    } else {
-                        progressBar.classList.add('active');  // balayage bleu/vert permanent (homogène avec les autres apps)
-                    }
-                }
-            },
-            error: function (xhr) {
-                console.error("%c[update.js] ✖ Error updating global progress", "color:red", xhr.responseText);
-            }
-        });
-    }
-
-    /* ============================
-     * ⧉ Bouton "Dupliquer un média"
-     * ============================ */
-    $(document).on("click", ".duplicate-btn", function (e) {
-        e.preventDefault();
-        const url = $(this).data("duplicate-url");
-        if (!url) return;
-
-        console.log("%c[update.js] ⧉ Duplicating media…", "color:#00BCD4");
-
-        $.ajax({
-            type: "POST",
-            url: url,
-            data: { csrfmiddlewaretoken: $("input[name=csrfmiddlewaretoken]").val() },
-            success: function (res) {
-                if (res.duplicated) {
-                    console.log("%c[update.js] ✔ Média dupliqué #" + res.duplicated, "color:#4CAF50");
-                    if (typeof window.refreshMediaTable === "function") {
-                        window.refreshMediaTable();
-                    } else {
-                        window.location.reload();
-                    }
-                    if (typeof window.updateQueueCount === "function") {
-                        window.updateQueueCount();
-                    }
-                }
-            },
-            error: function (xhr) {
-                console.error("%c[update.js] ✖ Erreur duplication", "color:red", xhr.responseText);
-                WamaApp.toast("Erreur lors de la duplication : " + (xhr.responseText || "Erreur inconnue"), 'error');
-            },
-        });
-    });
-
-    attachCollapseEvents();
-
-    // Update global progress every 2 seconds
-    updateGlobalProgress();
-    setInterval(updateGlobalProgress, 2000);
 });
-
-/* ============================
- * ⬇️ Collapse state handler
- * ============================ */
-function sendButtonState(buttonId, buttonState) {
-    $.ajax({
-        type: "POST",
-        url: "/anonymizer/expand_area/",
-        data: {
-            button_id: buttonId,
-            button_state: buttonState,
-            csrfmiddlewaretoken: $("input[name=csrfmiddlewaretoken]").val(),
-        },
-        success: function () {
-            console.log("%c[update.js] ↕ Collapse state saved", "color:#9C27B0", buttonId, buttonState);
-        },
-        error: function (xhr) {
-            console.error("%c[update.js] ✖ AJAX error expand_area", "color:red", xhr.responseText);
-        },
-    });
-}
-
-/* ============================
- * 🔁 Réattache les événements Bootstrap
- * ============================ */
-function attachCollapseEvents() {
-    $(".collapse").each(function () {
-        const buttonId = $(this).attr("id");
-        if (!buttonId.includes('collapseContent')) {
-            $(this).off("hidden.bs.collapse shown.bs.collapse");
-            $(this).on("hidden.bs.collapse", function () { sendButtonState(buttonId, 0); });
-            $(this).on("shown.bs.collapse", function () { sendButtonState(buttonId, 1); });
-        }
-    });
-}

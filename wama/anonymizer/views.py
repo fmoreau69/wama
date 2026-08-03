@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 import subprocess as sp
 from celery.result import AsyncResult
 
-from django.http import FileResponse, HttpResponseBadRequest, HttpResponseForbidden, HttpResponseNotAllowed, JsonResponse
+from django.http import FileResponse, Http404, HttpResponseBadRequest, HttpResponseForbidden, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
@@ -23,14 +23,16 @@ from django.template.loader import render_to_string
 from django.views import View
 from django.views.generic import TemplateView
 from django.urls import reverse
+from django.utils.decorators import method_decorator
 from django.utils.encoding import iri_to_uri
+
+from wama.accounts.permissions import app_access
 
 from .models import Media, GlobalSettings, UserSettings, BatchAnonymizer, BatchAnonymizerItem
 from wama.common.utils.queue_duplication import duplicate_instance, safe_delete_file
-from .forms import MediaSettingsForm, UserSettingsForm
 from .tasks import process_single_media, process_user_media_batch, stop_process
 from .utils.media_utils import get_input_media_path, get_output_media_path, get_blurred_media_path, get_unique_filename
-from .utils.yolo_utils import get_model_path, list_available_models, list_models_by_type
+from .utils.yolo_utils import get_model_path, list_models_by_type
 from .utils.sam3_manager import (
     get_sam3_status, setup_hf_auth, validate_sam3_prompt,
     get_sam3_requirements, get_recommended_prompt_examples
@@ -44,11 +46,25 @@ from ..common.utils.video_utils import upload_media_from_url
 from ..common.utils.media_paths import get_app_media_path, ensure_app_media_dirs
 
 
+@method_decorator(app_access('anonymizer'), name='dispatch')
 class IndexView(View):
     """Page principale de Anonymizer."""
 
     def get(self, request):
-        return render(request, 'anonymizer/index.html', get_context(request))
+        user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+        # Réconcilie les tâches RUNNING orphelines (worker mort/crash) — brique COMMUNE,
+        # preuve positive de mort uniquement (reference_orphan_task_reconcile).
+        try:
+            from wama.common.utils.process_control import reconcile_orphaned_running
+            running = list(Media.objects.filter(user=user, status='RUNNING'))
+            reconcile_orphaned_running(running, error_field='error_message')
+        except Exception:
+            pass
+
+        context = get_context(request)
+        context.update(_queue_context(request, user))
+        return render(request, 'anonymizer/index.html', context)
 
     def post(self, request):
         user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -332,12 +348,11 @@ class ProcessView(View):
 
 
 def preview_media(request, media_id):
-    """Return metadata + absolute URL to play a media file in-place."""
-    viewer = request.user if request.user.is_authenticated else User.objects.filter(username="anonymous").first()
-    media = get_object_or_404(Media, pk=media_id)
-
-    if media.user != viewer and not (request.user.is_authenticated and request.user.is_staff):
-        return HttpResponseForbidden("You do not have access to this media.")
+    """Return metadata + absolute URL to play a media file in-place.
+    Lecture → partage F7 (visible_or_404 : le sien, ou partagé unité/projet/public)."""
+    from wama.common.utils.scoping import visible_or_404
+    viewer = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    media = visible_or_404(Media, viewer, pk=media_id)
 
     media_url = request.build_absolute_uri(iri_to_uri(media.file.url))
     mime_type, _ = mimetypes.guess_type(media.file.path)
@@ -463,17 +478,31 @@ def get_process_progress(request):
 
     media_id = request.GET.get('media_id')
     if media_id:
+        viewer = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
         try:
-            media = Media.objects.get(pk=int(media_id))
+            # Lecture → partage F7 (visible_to : le sien, ou partagé)
+            media = Media.objects.visible_to(viewer).get(pk=int(media_id))
             cache_progress = cache.get(f"media_progress_{media.id}")
             db_progress = media.blur_progress or 0
 
             # Prefer cache, fallback to DB
             progress = int(cache_progress if cache_progress is not None else db_progress)
 
-            logger.info(f"[get_process_progress] media_id={media_id}, cache={cache_progress}, db={db_progress}, final={progress}, processed={media.processed}")
-
-            return JsonResponse({"progress": max(0, min(100, progress))})
+            payload = {
+                "progress": max(0, min(100, progress)),
+                "status": media.status,
+                "error": media.error_message or '',
+            }
+            # ETA seedée (a-priori → EMA apprise par record_run en fin de tâche)
+            if media.status in ('PENDING', 'RUNNING'):
+                try:
+                    from wama.model_manager.services.eta_estimator import estimate
+                    from .tasks import anonymizer_eta_key_size
+                    _k, _s, _u = anonymizer_eta_key_size(media)
+                    payload['estimated_seconds'] = estimate(_k, size=_s, unit=_u, model_loaded=True)
+                except Exception:
+                    pass
+            return JsonResponse(payload)
         except Media.DoesNotExist:
             logger.warning(f"[get_process_progress] Media {media_id} not found")
             return JsonResponse({"progress": 0})
@@ -515,7 +544,10 @@ def download_media(request):
         print("[download_media] ✗ Missing media_id")
         return HttpResponseBadRequest("Missing media_id.")
 
-    media = get_object_or_404(Media, pk=media_id)
+    # Lecture → partage F7 (le sien, ou partagé unité/projet/public)
+    from wama.common.utils.scoping import visible_or_404
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    media = visible_or_404(Media, user, pk=media_id)
     print(f"[download_media] Media found: {media.file.name} (ext: {media.file_ext}, processed: {media.processed})")
 
     # Generate the canonical blurred output path; the actual file written
@@ -639,21 +671,108 @@ def stop_process_view(request):
     return JsonResponse({"status": "stopped"})
 
 
-def refresh(request):
-    """
-    Refreshes template according to the argument supplied: 'content', 'media_table', 'media_settings', 'global_settings'
-    """
-    template_name = request.GET.get('template_name')
-    if not template_name:
-        return JsonResponse({'error': "Paramètre 'template_name' manquant."}, status=400)
+def card_html(request, pk):
+    """Card média = partial serveur UNIQUE (source du markup, remplace le re-render
+    de table legacy `refresh`). Lecture → partage F7 (visible_or_404)."""
+    from wama.common.utils.scoping import visible_or_404
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    media = visible_or_404(Media, user, pk=pk)
+    _decorate_card(media)
+    item = BatchAnonymizerItem.objects.filter(media=media).select_related('batch').first()
+    in_batch = bool(item and item.batch.total > 1)
+    return render(request, 'anonymizer/_media_card.html',
+                  {'media': media, 'in_batch': in_batch, 'user': user})
 
+
+def _reset_for_relaunch(media):
+    """Remise à zéro d'un média AVANT relance (sous le verrou begin_processing)."""
+    media.blur_progress = 0
+    media.error_message = ''
+
+
+@require_POST
+@app_access('anonymizer')
+def start(request, pk):
+    """Lance/relance UN média (bouton de cycle ▶/↻) — anti-race par brique commune."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    from wama.common.utils.process_control import begin_processing
+    media, err = begin_processing(Media, pk, user=user, reset=_reset_for_relaunch)
+    if err:
+        return JsonResponse({'error': err}, status=404 if err == 'not_found' else 400)
+    cache.delete(f"media_progress_{media.id}")
+    task = process_single_media.delay(media.id, force_individual=True)
+    media.task_id = task.id
+    media.save(update_fields=['task_id'])
+    return JsonResponse({'success': True, 'task_id': task.id, 'status': 'RUNNING'})
+
+
+@require_POST
+@app_access('anonymizer')
+def stop(request, pk):
+    """Arrête UN média (bouton de cycle ⏹) : revoke + libération des verrous."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    media = get_object_or_404(Media, pk=pk, user=user)
+    if media.task_id:
+        try:
+            AsyncResult(media.task_id).revoke(terminate=False)
+        except Exception:
+            pass
+    cache.delete(f"anon_lock:media:{media.id}")
+    cache.delete(f"anon_task_owner:media:{media.id}")
+    cache.delete(f"media_progress_{media.id}")
+    if media.status == 'RUNNING':
+        media.status = 'PENDING'
+        media.blur_progress = 0
+        media.save(update_fields=['status', 'blur_progress'])
+    return JsonResponse({'success': True, 'status': media.status})
+
+
+@require_POST
+@app_access('anonymizer')
+def batch_start(request, pk):
+    """Lance/relance tous les médias d'UN batch (card mère) — même brique que start."""
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchAnonymizer, pk=pk, user=user)
+    from wama.common.utils.process_control import begin_processing
+    started = []
+    for item in batch.items.select_related('media').order_by('row_index'):
+        if not item.media:
+            continue
+        locked, err = begin_processing(Media, item.media.pk, user=user, reset=_reset_for_relaunch)
+        if err:
+            continue  # already_running / not_found
+        cache.delete(f"media_progress_{locked.id}")
+        task = process_single_media.delay(locked.id)
+        locked.task_id = task.id
+        locked.save(update_fields=['task_id'])
+        started.append(locked.id)
+    return JsonResponse({'success': True, 'started': started})
+
+
+@require_POST
+def batch_update(request, pk):
+    """Réglages d'un BATCH : applique le payload schéma-driven à tous les items
+    non-RUNNING (modale batch commune, contrat reader)."""
+    import json as _json
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(BatchAnonymizer, pk=pk, user=user)
     try:
-        template = loader.get_template(f'anonymizer/upload/{template_name}.html')
-    except Exception as e:
-        return JsonResponse({'error': f"Template introuvable : {e}"}, status=500)
-
-    context = get_context(request)
-    return JsonResponse({'render': template.render(context, request)})
+        payload = _json.loads(request.body or '{}')
+    except (ValueError, TypeError):
+        payload = request.POST
+    from wama.common.utils.param_schema import coerce_schema_values, schema_for_app
+    valeurs = coerce_schema_values(schema_for_app('anonymizer'), payload)
+    updated = 0
+    for item in batch.items.select_related('media'):
+        m = item.media
+        if not m or m.status == 'RUNNING':
+            continue
+        for champ, valeur in valeurs.items():
+            setattr(m, champ, valeur)
+        m.MSValues_customised = True
+        m.save()
+        updated += 1
+    return JsonResponse({'success': True, 'updated': updated})
 
 
 def queue_count(request):
@@ -661,6 +780,14 @@ def queue_count(request):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     count = Media.objects.filter(user=user).count()
     return JsonResponse({'count': count})
+
+
+@require_POST
+@app_access('anonymizer')
+def start_all(request):
+    """« Tout lancer » (toolbar commune) — délègue au traitement global historique
+    (ProcessView : verrou batch atomique cache.add + chaîne process_user_media_batch)."""
+    return ProcessView().post(request)
 
 
 def _wrap_media_in_batch(media):
@@ -684,34 +811,70 @@ def _group_medias_into_batches(user, medias, unwrap_singletons=None):
 
 
 def _auto_wrap_orphans(user):
-    """Range les Media pas encore en batch (au build du contexte / refresh table),
-    groupés PAR NATURE (image/vidéo/audio) — règle générale commune."""
-    existing_ids = set(
-        BatchAnonymizerItem.objects.filter(batch__user=user).values_list('media_id', flat=True)
+    """Range les Media pas encore en batch — brique COMMUNE, avec la stratégie
+    d'app « un batch PAR NATURE » (image/vidéo/audio) comme wrap_group."""
+    from wama.common.utils.batch_common import auto_wrap_orphans
+    auto_wrap_orphans(
+        user, work_model=Media, batch_model=BatchAnonymizer,
+        item_model=BatchAnonymizerItem, fk_name='media',
+        wrap_group=lambda orphans: _group_medias_into_batches(user, orphans),
     )
-    orphans = list(Media.objects.filter(user=user).exclude(id__in=existing_ids).order_by('id'))
-    if orphans:
-        _group_medias_into_batches(user, orphans)
 
 
-def _get_anonymizer_batches_list(user):
-    """Groupe les Media par batch pour le rendu (multi-batches d'abord)."""
+def _decorate_card(media):
+    """Attache les chips de card (générés du SCHÉMA, card_chips) à l'instance.
+    Point d'attache UNIQUE : appelé par IndexView ET par card_html — sinon la card
+    rendue par l'endpoint diverge de celle du chargement (leçon describer)."""
+    from wama.common.utils.card_chips import chips_by_section
+    from wama.anonymizer.params import PARAMS_JSON
+    extra = []
+    if not media.use_sam3 and media.classes2blur:
+        extra.append({'label': ', '.join(media.classes2blur[:3])
+                                + ('…' if len(media.classes2blur) > 3 else ''),
+                      'icon': 'fa-eye-slash',
+                      'title': 'Objets floutés : ' + ', '.join(media.classes2blur),
+                      'section': 'settings'})
+    media.chips = chips_by_section(media, PARAMS_JSON, extra=extra)
+    return media
+
+
+def _queue_context(request, user):
+    """Contexte de FILE (toolbar + batches + schéma params) — briques communes."""
+    import json as _json
+    from wama.common.utils.batch_common import build_batches_list
+    from wama.common.utils.queue_view import apply_queue_sort_filter
+    from wama.anonymizer.params import PARAMS_JSON
+
     _auto_wrap_orphans(user)
-    batches = (BatchAnonymizer.objects.filter(user=user)
-               .prefetch_related('items__media').order_by('-created_at'))
-    result = []
-    for batch in batches:
-        items = [it.media for it in batch.items.order_by('row_index') if it.media]
-        if not items:
-            continue
-        result.append({
-            'obj': batch,
-            'items': items,
-            'total': batch.total,
-            'done_count': sum(1 for m in items if m.processed),
-        })
-    result.sort(key=lambda b: 0 if b['total'] > 1 else 1)
-    return result
+
+    def _extra(batch, items, medias):
+        success_count = sum(1 for m in medias if m.status == 'SUCCESS')
+        for m in medias:
+            _decorate_card(m)
+        return {
+            'success_pct': int(success_count / batch.total * 100) if batch.total else 0,
+            # ETA agrégée de la card mère (brique _batch_card.html) — CSV, pas liste
+            'eta_ids': ','.join(str(m.id) for m in medias),
+        }
+
+    batches_list = build_batches_list(user, batch_model=BatchAnonymizer,
+                                      work_attr='media', order_by='-created_at',
+                                      extra=_extra)
+
+    def _name(b):
+        m = b['items'][0].media if b['obj'].total == 1 and b['items'] and b['items'][0].media else None
+        return (m.get_filename() or '').lower() if m else ''
+
+    batches_list, q_sort, q_filter = apply_queue_sort_filter(request, batches_list, name_of=_name)
+
+    return {
+        'batches_list': batches_list,
+        'queue_count': sum(len(b['items']) for b in batches_list),
+        'q_sort': q_sort,
+        'q_filter': q_filter,
+        # Schéma params (source unique modale item/batch + inspecteur). Voir params.py.
+        'params_json': _json.dumps(PARAMS_JSON),
+    }
 
 
 def consolidate(request):
@@ -743,6 +906,9 @@ def consolidate(request):
 
 
 def get_context(request):
+    """Contexte du VOLET DROIT (réglages user legacy `setting-button`) — la file, elle,
+    vient de `_queue_context` (briques communes). Les ModelForms et grilles `ms_values`/
+    `range_widths` legacy sont mortes avec les partials upload/ (port 2026-08-03)."""
     if request.user.is_authenticated:
         user = request.user
     else:
@@ -753,35 +919,8 @@ def get_context(request):
     if user_settings.show_preview is None:
         user_settings.show_preview = True
         user_settings.save(update_fields=['show_preview'])
-    user_settings_form = UserSettingsForm(instance=user_settings)
 
     global_settings = GlobalSettings.objects.all()
-    medias = Media.objects.filter(user=user).order_by('id')
-
-    media_settings_form = {}
-    ms_values = {}
-
-    for media in medias:
-        media_settings_form[media.id] = MediaSettingsForm(instance=media)
-        ms_values[media.id] = {}
-        for setting in global_settings:
-            # Lecture directe depuis l'instance, JSONField gère la conversion
-            ms_values[media.id][setting.name] = getattr(media, setting.name, setting.value)
-
-    # range_widths par média et par setting (FLOAT → col-12)
-    range_widths_media = {
-        media.id: {
-            setting.name: 'col-12' if setting.type == 'FLOAT' else ''
-            for setting in global_settings
-        }
-        for media in medias
-    }
-
-    # range_widths global (FLOAT → col-3)
-    range_widths_global = {
-        setting.name: 'col-3' if setting.type == 'FLOAT' else ''
-        for setting in global_settings
-    }
 
     # valeurs par défaut pour les global_settings
     gs_values = {}
@@ -795,25 +934,16 @@ def get_context(request):
     # Add SAM3 settings (not in GlobalSettings but needed for the right panel)
     gs_values['use_sam3'] = getattr(user_settings, 'use_sam3', False)
     gs_values['sam3_prompt'] = getattr(user_settings, 'sam3_prompt', '') or ''
+    gs_values['model_to_use'] = getattr(user_settings, 'model_to_use', '') or ''
 
-    # Get class choices from form field (which uses get_all_class_choices())
-    class_list = user_settings_form.fields['classes2blur'].choices
-    available_models = list_available_models()
+    from .utils.yolo_utils import get_all_class_choices
     models_by_type = list_models_by_type()
 
     return {
         'user': user,
-        'medias': medias,
-        'batches_list': _get_anonymizer_batches_list(user),
-        'media_settings_form': media_settings_form,
         'global_settings': global_settings,
-        'user_settings_form': user_settings_form,
-        'ms_values': ms_values,
         'gs_values': gs_values,
-        'classes': class_list,
-        'range_widths_media': range_widths_media,
-        'range_widths_global': range_widths_global,
-        'available_models': available_models,
+        'classes': get_all_class_choices(),
         'models_by_type': models_by_type,
         'model_help_meta': _model_help_meta(models_by_type),
     }
@@ -1097,12 +1227,9 @@ def clear_media(request):
             # Hide global settings section when no media remains
             UserSettings.objects.filter(user_id=user.id).update(show_gs=0)
 
-        context = get_context(request)
-        template = loader.get_template('anonymizer/upload/content.html')
-        return JsonResponse({
-            'success': True,
-            'render': template.render(context, request)
-        })
+        # Plus de re-render de table (mécanisme legacy `refresh`) : le JS retire la
+        # card du DOM, la structure de batch est recalée par le signal batch_sync.
+        return JsonResponse({'success': True})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
@@ -1116,14 +1243,17 @@ def reset_media_settings(request):
         if not media_id:
             return JsonResponse({'success': False, 'error': 'Missing media_id'}, status=400)
 
-        media = get_object_or_404(Media, pk=media_id)
-        media_settings_form = MediaSettingsForm(instance=media)
+        user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+        media = get_object_or_404(Media, pk=media_id, user=user)
         global_settings_list = GlobalSettings.objects.all()
 
+        # Champs éditables = le SCHÉMA (params.py), plus le ModelForm legacy.
+        from wama.anonymizer.params import PARAMS_JSON
+        schema_names = {f['name'] for f in PARAMS_JSON} | {'classes2blur'}
         updated_fields = {
             setting.name: setting.default
             for setting in global_settings_list
-            if setting.name in media_settings_form.fields
+            if setting.name in schema_names
         }
 
         if updated_fields:
@@ -1256,126 +1386,48 @@ def reset_global_settings_safe():
 # ========================================
 
 def get_media_settings(request, media_id):
-    """Get settings for a specific media to populate the settings modal."""
+    """Valeurs COURANTES d'un média pour la modale paramètres — SCHÉMA-DRIVEN.
+
+    Le payload est plat : `values[name]` pour chaque champ du schéma (params.py),
+    + les deux cas à sémantique propre (classes2blur = liste à cocher ; modèles =
+    options du select peuplées côté JS). Les listes sliders/booleans en dur ont
+    disparu avec settings_modal.js (port 2026-08-03) : la modale est rendue par
+    WamaParams.renderSettingsModal depuis le schéma."""
     try:
-        media = Media.objects.get(pk=media_id)
-        global_settings = GlobalSettings.objects.all()
+        from wama.common.utils.scoping import visible_or_404
+        from wama.anonymizer.params import PARAMS_JSON
+        user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+        media = visible_or_404(Media, user, pk=media_id)
 
-        # Build settings data for the modal
-        classes2blur_list = []
-        sliders_list = []
-        booleans_list = []
+        values = {}
+        for field in PARAMS_JSON:
+            v = getattr(media, field['name'], None)
+            if v is not None:
+                values[field['name']] = v
+        values['model_to_use'] = media.model_to_use or ''
+        values['sam3_prompt'] = media.sam3_prompt or ''
 
-        # Use the same class list as global settings for consistency
-        from .utils.yolo_utils import get_all_class_choices
-        available_classes = get_all_class_choices()  # Returns [(code, label), ...]
-
-        media_classes = media.classes2blur if media.classes2blur else []
-        for cls_code, cls_label in available_classes:
-            classes2blur_list.append({
-                'value': cls_code,
-                'label': cls_label,
-                'checked': cls_code in media_classes
-            })
-
-        # Slider settings (FLOAT type)
-        slider_configs = [
-            {'name': 'blur_ratio', 'title': 'Blur Ratio', 'min': 1, 'max': 49, 'step': 2},
-            {'name': 'roi_enlargement', 'title': 'ROI Enlargement', 'min': 0.5, 'max': 1.5, 'step': 0.05},
-            {'name': 'progressive_blur', 'title': 'Progressive Blur', 'min': 3, 'max': 31, 'step': 2},
-            {'name': 'detection_threshold', 'title': 'Detection Threshold', 'min': 0, 'max': 1, 'step': 0.05},
-            {'name': 'precision_level', 'title': 'Precision Level', 'min': 0, 'max': 100, 'step': 5},
+        from .utils.yolo_utils import get_all_class_choices, get_model_choices_grouped
+        media_classes = media.classes2blur or []
+        classes2blur_list = [
+            {'value': code, 'label': label, 'checked': code in media_classes}
+            for code, label in get_all_class_choices()
         ]
-
-        for config in slider_configs:
-            media_value = getattr(media, config['name'], None)
-            if media_value is None:
-                # Get default from global settings
-                setting = global_settings.filter(name=config['name']).first()
-                if setting:
-                    default_val = setting.default
-                    if isinstance(default_val, str):
-                        media_value = float(default_val)
-                    else:
-                        media_value = float(default_val) if default_val else config['min']
-                else:
-                    media_value = config['min']
-
-            sliders_list.append({
-                'name': config['name'],
-                'title': config['title'],
-                'value': float(media_value),
-                'min': config['min'],
-                'max': config['max'],
-                'step': config['step'],
-                'description': ''
-            })
-
-        # Boolean settings
-        bool_configs = [
-            {'name': 'show_preview', 'title': 'Show Preview'},
-            {'name': 'show_boxes', 'title': 'Show Boxes'},
-            {'name': 'show_labels', 'title': 'Show Labels'},
-            {'name': 'show_conf', 'title': 'Show Confidence'},
-            {'name': 'interpolate_detections', 'title': 'Interpolate Detections'},
-            {'name': 'use_segmentation', 'title': 'Use Segmentation'},
+        model_choices = [
+            {'value': value, 'label': label, 'group': group_label}
+            for group_label, group_choices in get_model_choices_grouped()
+            for value, label in group_choices
         ]
-
-        for config in bool_configs:
-            media_value = getattr(media, config['name'], False)
-            booleans_list.append({
-                'name': config['name'],
-                'title': config['title'],
-                'value': bool(media_value)
-            })
-
-        # SAM3 settings - status is loaded asynchronously by frontend to avoid slow modal opening
-        sam3_data = {
-            'use_sam3': media.use_sam3,
-            'prompt': media.sam3_prompt or '',
-            # Don't include status here - let frontend fetch it asynchronously when needed
-            # 'status': get_sam3_status(),  # SLOW - removed for performance
-            # 'examples': get_recommended_prompt_examples(),  # Also loaded async
-        }
-
-        # Model selection - get available models grouped by type
-        from .utils.yolo_utils import get_model_choices_grouped
-        model_choices_grouped = get_model_choices_grouped()
-
-        # Flatten grouped choices for easier frontend handling
-        model_choices = []
-        for group_label, group_choices in model_choices_grouped:
-            for value, label in group_choices:
-                model_choices.append({
-                    'value': value,
-                    'label': label,
-                    'group': group_label
-                })
-
-        # Get user's global model setting as default
-        user_settings, _ = UserSettings.objects.get_or_create(user=media.user)
-        global_model = getattr(user_settings, 'model_to_use', '') or ''
-
-        model_data = {
-            'current': media.model_to_use or '',  # Empty means use global/auto
-            'global_default': global_model,
-            'choices': model_choices,
-        }
 
         return JsonResponse({
             'success': True,
+            'values': values,
             'classes2blur': classes2blur_list,
-            'sliders': sliders_list,
-            'booleans': booleans_list,
-            'sam3': sam3_data,
-            'model': model_data,
+            'model_choices': model_choices,
         })
 
-    except Media.DoesNotExist:
-        return JsonResponse({
-            'success': False,
-            'error': 'Media not found'
-        }, status=404)
+    except Http404:
+        raise
     except Exception as e:
         import traceback
         return JsonResponse({
@@ -1437,8 +1489,24 @@ def save_media_settings(request):
         media.MSValues_customised = True
         media.save()
 
+        # « Enregistrer & relancer » (contrat composer) : restart=1 → relance sous verrou.
+        if request.POST.get('restart', '0') == '1':
+            from wama.common.utils.process_control import begin_processing
+            locked, err = begin_processing(Media, media.pk, user=request.user,
+                                           reset=_reset_for_relaunch)
+            if err:
+                return JsonResponse({'success': True, 'restarted': False, 'error': err})
+            cache.delete(f"media_progress_{locked.id}")
+            task = process_single_media.delay(locked.id, force_individual=True)
+            locked.task_id = task.id
+            locked.save(update_fields=['task_id'])
+            return JsonResponse({'success': True, 'restarted': True,
+                                 'status': 'RUNNING', 'task_id': task.id})
+
         return JsonResponse({
             'success': True,
+            'restarted': False,
+            'status': media.status,
             'message': 'Settings saved successfully'
         })
 
@@ -1448,67 +1516,6 @@ def save_media_settings(request):
             'error': 'Media not found'
         }, status=404)
     except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        }, status=500)
-
-
-@require_POST
-def restart_media(request):
-    """Restart processing for a specific media."""
-    import logging
-    logger = logging.getLogger('anonymizer.process')
-
-    logger.info(f"[restart_media] Request received: {request.method}")
-    logger.info(f"[restart_media] POST data: {request.POST}")
-
-    try:
-        media_id = request.POST.get('media_id')
-        logger.info(f"[restart_media] media_id={media_id}")
-
-        if not media_id:
-            logger.warning("[restart_media] No media_id provided")
-            return JsonResponse({'success': False, 'error': 'No media_id provided'}, status=400)
-
-        media = Media.objects.get(pk=media_id)
-        logger.info(f"[restart_media] Found media: {media.title} (id={media.id})")
-
-        # Dedup: prise de verrou ATOMIQUE (cache.add = set-si-absent) — l'ancien
-        # get() puis set() laissait une fenêtre de course sur double-clic.
-        lock_key = f"anon_lock:media:{media_id}"
-        if not cache.add(lock_key, True, timeout=7200):
-            logger.info(f"[restart_media] Media {media_id} already locked (in progress)")
-            return JsonResponse({
-                'success': False,
-                'error': 'Ce média est déjà en cours de traitement'
-            }, status=409)
-
-        # Reset processing status
-        media.status = 'PENDING'
-        media.blur_progress = 0
-        media.save()
-        logger.info(f"[restart_media] Reset media processing status")
-
-        # Launch the processing task — individual button = explicit signal
-        # to apply this media's settings rather than fall back to global.
-        task = process_single_media.delay(media.id, force_individual=True)
-        logger.info(f"[restart_media] Launched task {task.id} for media {media.id} (force_individual=True)")
-
-        return JsonResponse({
-            'success': True,
-            'message': 'Processing started',
-            'task_id': task.id
-        })
-
-    except Media.DoesNotExist:
-        logger.error(f"[restart_media] Media not found: {media_id}")
-        return JsonResponse({
-            'success': False,
-            'error': 'Media not found'
-        }, status=404)
-    except Exception as e:
-        logger.error(f"[restart_media] Error: {e}")
         return JsonResponse({
             'success': False,
             'error': str(e)
@@ -1534,9 +1541,10 @@ def global_progress(request):
 
         total = medias.count()
         # Statut canonique depuis 2026-07-11 (audit §31) — l'ancien booléen `processed` = property dérivée
-        pending = medias.exclude(status='SUCCESS').count()
         success = medias.filter(status='SUCCESS').count()
-        running = 0  # Anonymizer doesn't have explicit RUNNING status
+        failure = medias.filter(status='FAILURE').count()
+        running = medias.filter(status='RUNNING').count()
+        pending = total - success - failure - running
 
         # Calculate overall progress using cache
         total_progress = 0
@@ -1551,7 +1559,8 @@ def global_progress(request):
             'pending': pending,
             'running': running,
             'success': success,
-            'failure': 0,  # Anonymizer doesn't track failures separately
+            'failure': failure,
+            'done': success,  # contrat wama-global-progress.js ({total, done, running, overall_progress})
             'overall_progress': overall_progress
         })
     except Exception as e:
@@ -1647,11 +1656,12 @@ def batch_duplicate(request, pk):
 
 
 def batch_download(request, pk):
-    """ZIP de toutes les sorties traitées d'un batch."""
+    """ZIP de toutes les sorties traitées d'un batch. Lecture → partage F7."""
     import io
     import zipfile
+    from wama.common.utils.scoping import visible_or_404
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(BatchAnonymizer, pk=pk, user=user)
+    batch = visible_or_404(BatchAnonymizer, user, pk=pk)
     buf = io.BytesIO()
     added = 0
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
@@ -1721,7 +1731,11 @@ def batch_create(request):
     if not items:
         return JsonResponse({'error': 'Aucun élément valide trouvé dans le fichier'}, status=400)
 
-    batch_file.seek(0)
+    # parse_batch_file_from_request a consommé FILES['batch_file'] : on le re-lit
+    # pour l'archiver sur le batch (NameError avant 2026-08-03).
+    batch_file = request.FILES.get('batch_file')
+    if batch_file:
+        batch_file.seek(0)
     batch = BatchAnonymizer.objects.create(
         user=user,
         total=len(items),

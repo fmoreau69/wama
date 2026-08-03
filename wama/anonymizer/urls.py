@@ -16,8 +16,11 @@ urlpatterns = [
     path('help/', views.HelpView.as_view(), name='help'),
 
     # Opérations
-    path('refresh/', views.refresh, name='refresh'),
     path('queue_count/', views.queue_count, name='queue_count'),
+    path('card/<int:pk>/html/', views.card_html, name='card_html'),
+    path('start/<int:pk>/', views.start, name='start'),
+    path('stop/<int:pk>/', views.stop, name='stop'),
+    path('start_all/', views.start_all, name='start_all'),
     path('update_settings/', views.update_settings, name='update_settings'),
     path('clear_media/', views.clear_media, name='clear_media'),
     path('reset_media_settings/', views.reset_media_settings, name='reset_media_settings'),
@@ -49,7 +52,6 @@ urlpatterns = [
     # Modern Modal-Based Settings
     path('get_media_settings/<int:media_id>/', views.get_media_settings, name='get_media_settings'),
     path('save_media_settings/', views.save_media_settings, name='save_media_settings'),
-    path('restart_media/', views.restart_media, name='restart_media'),
 
     # SAM3 (Segment Anything Model 3) Endpoints
     path('sam3/status/', views.get_sam3_status_view, name='sam3_status'),
@@ -65,6 +67,8 @@ urlpatterns = [
     path('batch/<int:pk>/delete/', views.batch_delete, name='batch_delete'),
     path('batch/<int:pk>/duplicate/', views.batch_duplicate, name='batch_duplicate'),
     path('batch/<int:pk>/download/', views.batch_download, name='batch_download'),
+    path('batch/<int:pk>/start/', views.batch_start, name='batch_start'),
+    path('batch/<int:pk>/update/', views.batch_update, name='batch_update'),
 
     # Unused
     # path('display_console/', views.ProcessView.display_console, name='display_console'),

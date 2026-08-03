@@ -7,7 +7,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from wama.settings import BASE_DIR, AI_MODELS_DIR
-from wama.common.models import ProcessingTimeMixin
+from wama.common.models import ProcessingTimeMixin, ScopedVisibility, ScopedManager
 from wama.common.utils.media_paths import upload_to_user_input
 import os
 
@@ -27,7 +27,15 @@ def default_classes2blur():
     return ["face"]
 
 
-class Media(ProcessingTimeMixin, models.Model):
+class Media(ProcessingTimeMixin, ScopedVisibility):
+    # Partage F7 (PROFILES_PERMISSIONS §7.4bis) : lectures via visible_to()/visible_or_404,
+    # mutations inchangées (filtrées par user) → lecture seule par construction.
+    objects = ScopedManager()
+
+    # Ingest commun (source_ingest.ensure_local_input, appelé en tête de tâche) :
+    # télécharge source_url vers le FileField si le fichier n'est pas encore local.
+    WAMA_INGEST = {'source': 'source_url', 'target': 'file', 'mode': 'media'}
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="media")
     title = models.CharField(max_length=255, blank=True)
     file = models.FileField(upload_to=upload_to_user_input('anonymizer'))
@@ -246,8 +254,14 @@ def create_user_profile(sender, instance, created, **kwargs):
 from wama.common.models import BatchMixin
 
 
-class BatchAnonymizer(BatchMixin, models.Model):
-    """Groupe de médias créé depuis un fichier batch (liste d'URLs/chemins)."""
+class BatchAnonymizer(BatchMixin, ScopedVisibility):
+    """Groupe de médias créé depuis un fichier batch (liste d'URLs/chemins).
+
+    ScopedVisibility AUSSI sur le batch : la file est bâtie à partir des batchs
+    (build_batches_list) — une card partagée sans son batch n'apparaîtrait pas.
+    """
+    objects = ScopedManager()
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='batch_anonymizers')
     created_at = models.DateTimeField(auto_now_add=True)
     batch_file = models.FileField(

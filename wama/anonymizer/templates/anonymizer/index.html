@@ -7,37 +7,12 @@
 
 {% block console_app_name %}anonymizer{% endblock %}
 
-{# ── Right panel : médias ─────────────────────────────────────────────────── #}
-{% block app_right_panel_media %}
-<div class="drop-zone drop-zone-sm" id="dropZoneAnonymizer">
-    <i class="fas fa-cloud-upload-alt text-primary"></i>
-    <p class="mb-0 small text-light mt-1">Glissez ou cliquez pour importer</p>
-    <small class="text-muted">JPG, PNG, MP4, AVI, MKV…</small>
-    <input id="fileupload" type="file" name="file" multiple
-           accept="image/*,video/*"
-           style="display:none"
-           data-url="{% url 'anonymizer:upload' %}"
-           data-form-data='{"csrfmiddlewaretoken": "{{ csrf_token }}"}'>
-    <small class="text-muted d-block mt-1">
-        Batch ?
-        <a href="{% url 'anonymizer:batch_template' %}" class="text-muted" download>
-            <i class="fas fa-download"></i> Template
-        </a>
-    </small>
-</div>
-{% include 'common/batch_detect_bar.html' %}
-<div class="text-center text-muted my-2" style="font-size:0.72rem;">— ou depuis une URL —</div>
-<form id="media-url-form" method="post" action="{% url 'anonymizer:upload' %}">
-    {% csrf_token %}
-    <div class="input-group input-group-sm">
-        <input type="text" class="form-control bg-dark text-white border-secondary"
-               id="media_url" name="media_url" placeholder="https://… ou YouTube">
-        <button class="btn btn-primary" type="submit" title="Télécharger">
-            <i class="fas fa-download"></i>
-        </button>
-    </div>
-</form>
-{% endblock %}
+{% comment %}
+Volet droit « médias » : plus rien ici — l'import (drag&drop, URL, batch,
+médiathèque) vit dans la card d'entrée commune `_new_item_card` en tête de la file
+(ordre canonique). Le block reste défini (vide) pour écraser un éventuel défaut.
+{% endcomment %}
+{% block app_right_panel_media %}{% endblock %}
 
 {# ── Right panel : paramètres ────────────────────────────────────────────── #}
 {% block app_right_panel_settings %}
@@ -345,6 +320,8 @@
         <i class="fas fa-trash"></i> Tout effacer
     </button>
 </div>
+{% comment %} Actions contextuelles de l'inspecteur (card/batch sélectionné) — brique commune. {% endcomment %}
+{% include 'common/_inspector_actions.html' %}
 {% endblock %}
 
 {% block javascript %}
@@ -354,13 +331,41 @@
 <script src="{% static_v 'js/jquery-file-upload/jquery.iframe-transport.js' %}"></script>
 <script src="{% static_v 'js/jquery-file-upload/jquery.fileupload.js' %}"></script>
 
+{% comment %} Config d'app AVANT les scripts d'app : ils capturent window.WAMA_ANON au
+chargement (leçon smoke 03/08 — config après scripts = cfg vide, toutes URLs mortes).
+Schéma params = source unique modale item/batch + inspecteur ; gabarits '/0/' résolus
+par remplacement d'id côté JS (pattern enhancer). {% endcomment %}
+<script>
+window.WAMA_ANONYMIZER_SCHEMA = {{ params_json|safe }};
+window.WAMA_GLOBAL_PROGRESS_URL = '{% url "anonymizer:global_progress" %}';
+window.WAMA_ANON = {
+    uploadUrl:           '{% url "anonymizer:upload" %}',
+    cardHtmlUrlTemplate: '{% url "anonymizer:card_html" 0 %}',
+    startUrlTemplate:    '{% url "anonymizer:start" 0 %}',
+    stopUrlTemplate:     '{% url "anonymizer:stop" 0 %}',
+    startAllUrl:         '{% url "anonymizer:start_all" %}',
+    progressUrl:         '{% url "anonymizer:process_progress" %}',
+    settingsGetUrlTemplate: '{% url "anonymizer:get_media_settings" 0 %}',
+    settingsSaveUrl:     '{% url "anonymizer:save_media_settings" %}',
+    clearMediaUrl:       '{% url "anonymizer:clear_media" %}',
+    clearAllUrl:         '{% url "anonymizer:clear_all_media" %}',
+    downloadAllUrl:      '{% url "anonymizer:download_all_media" %}',
+    batchStartUrlTemplate:  '{% url "anonymizer:batch_start" 0 %}',
+    batchUpdateUrlTemplate: '{% url "anonymizer:batch_update" 0 %}',
+    csrfToken:           '{{ csrf_token }}',
+};
+</script>
+
 {# MEDIAS PAGE SCRIPTS #}
 <script src="{% static_v 'common/js/console.js' %}"></script>
 <script src="{% static_v 'common/js/wama-eta.js' %}"></script>
+<script src="{% static_v 'common/js/wama-params.js' %}"></script>
+<script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
 <script src="{% static_v 'anonymizer/js/process.js' %}"></script>
 <script src="{% static_v 'anonymizer/js/update.js' %}"></script>
 <script src="{% static_v 'anonymizer/js/upload.js' %}"></script>
 <script src="{% static_v 'anonymizer/js/settings_modal.js' %}"></script>
+<script src="{% static_v 'anonymizer/js/queue.js' %}"></script>
 <script src="{% static_v 'anonymizer/js/right_panel.js' %}"></script>
 <script src="{% static_v 'common/js/batch-import.js' %}"></script>
 <script>
@@ -389,14 +394,83 @@ if (window.WamaModelHelp) {
 {% block anonymizer_content %}
 <div style="overflow-x:hidden;">
 
-<!-- Main Content Container -->
-<div id="main_container">
-    {% include "anonymizer/upload/content.html" %}
+{% comment %} Card d'entrée commune (drag&drop + URL + batch + médiathèque), repliable.
+Modalité principale = fichier → repliée avec en-tête quand la file n'est pas vide. {% endcomment %}
+{% url 'anonymizer:batch_template' as anon_batch_template_url %}
+{% include 'common/_new_item_card.html' with card_id='anonNewItem' drop_zone_id='dropZoneAnonymizer' file_input_id='fileupload' file_accept='image/*,video/*' formats_label='Images · Vidéos — JPG, PNG, MP4, AVI, MKV…' show_batch_bar=True batch_template_url=anon_batch_template_url show_media_library=True show_url=True url_input_id='anonUrlInput' url_submit_id='anonUrlSubmit' url_placeholder='https://… ou YouTube' collapsible=True %}
+
+{% comment %} Barre de progression globale — composant commun (wama-global-progress.js). {% endcomment %}
+<div class="mb-3 mt-3">
+    {% include 'common/_global_progress.html' %}
 </div>
-</div>{# /overflow-x:hidden #}
+
+<h4 class="mb-2">
+    <i class="fas fa-list"></i> File d'attente
+    <span class="badge bg-secondary" id="queueCount">{{ queue_count }}</span>
+</h4>
+
+{% comment %} Toolbar commune : tri/filtre (session) + Tout lancer / Tout effacer / Tout télécharger. {% endcomment %}
+{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='anon-start-all-btn' clear_id='anon-clear-all-btn' download_id='anon-download-all-btn' show_download=True %}
+
+<div id="anonymizer-queue" class="wama-queue-{{ card_layout|default:'list' }}">
+    {% for batch_info in batches_list %}
+    {% if batch_info.obj.total == 1 %}
+        {% for item in batch_info.items %}{% if item.media %}
+        {% include 'anonymizer/_media_card.html' with media=item.media in_batch=False %}
+        {% endif %}{% endfor %}
+    {% else %}
+        <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
+            {% url 'anonymizer:batch_download' batch_info.obj.id as batch_dl_url %}
+            {% include 'common/_batch_card.html' with card_class='anon-card' eta_ids=batch_info.eta_ids download_url=batch_dl_url %}
+            <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
+                 data-wama-batch-key="anonymizer_{{ batch_info.obj.id }}"
+                 style="border-left:2px solid #6f42c1; margin-left:0.75rem;">
+                {% for item in batch_info.items %}{% if item.media %}
+                {% include 'anonymizer/_media_card.html' with media=item.media in_batch=True %}
+                {% endif %}{% endfor %}
+            </div>
+        </div>
+    {% endif %}
+    {% empty %}
+    <div class="text-center text-white-50 py-5">
+        <i class="fas fa-inbox fa-3x mb-3"></i>
+        <p class="mb-2">Aucun fichier dans la file d'attente</p>
+        <p class="small">Déposez des photos/vidéos ci-dessus pour commencer</p>
+    </div>
+    {% endfor %}
+</div>
+
+</div>
 {% endblock %}
 
 {% block extra_modals %}
+{% comment %} Pied de modale commun (cloné par settings_modal.js dans la modale item générée).
+Délégation par CLASSE (save_class/save_start_class) — la modale est générée en JS. {% endcomment %}
+<template id="mediaSettingsFooterTpl">
+    {% include 'common/_settings_modal_footer.html' with save_class='save-settings-btn' save_start_class='save-and-restart-btn' save_label='Enregistrer' save_start_label='Enregistrer & relancer' %}
+</template>
+
+{% comment %} Modale paramètres de BATCH (contrat reader) : champs générés par
+WamaParams.render(context:'batch') dans #anonBatchParams, appliqués à tous les items. {% endcomment %}
+<div class="modal fade" id="batchSettingsModal" tabindex="-1" aria-labelledby="batchSettingsLabel">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark text-light">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="batchSettingsLabel">
+                    <i class="fas fa-layer-group me-2"></i>Paramètres du batch
+                    <span class="badge bg-secondary ms-1" id="batchSettingsBatchId"></span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="max-height: 65vh; overflow-y: auto;">
+                <p class="small text-white-50 mb-2">Appliqués à tous les éléments du batch (sauf ceux en cours).</p>
+                <div id="anonBatchParams"></div>
+            </div>
+            {% include 'common/_settings_modal_footer.html' with save_id='saveBatchSettingsBtn' save_start_id='saveBatchSettingsAndStartBtn' save_label='Appliquer' save_start_label='Appliquer & lancer' %}
+        </div>
+    </div>
+</div>
+
 <!-- Classes Selection Modal -->
 <div class="modal fade" id="modal_classes2blur_{{ user.id }}" tabindex="-1" aria-labelledby="modalClasses2blurLabel">
     <div class="modal-dialog modal-lg">

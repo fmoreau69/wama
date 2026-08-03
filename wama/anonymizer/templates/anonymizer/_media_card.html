@@ -1,0 +1,88 @@
+{% comment %}
+Card d'un Media anonymizer — partial serveur UNIQUE (source du markup) :
+rendu par IndexView (boucle de file) ET par l'endpoint card_html (refreshCard JS).
+Contexte : media (décoré par _decorate_card → media.chips), in_batch, user.
+
+Contrats JS (queue.js) :
+  .anon-card[data-id][data-status]     — racine (inspecteur, cycle button autoSync)
+  [data-preview-url] sur la racine     — volet inspecteur (aperçu unified_preview)
+  .preview-media-link[data-preview-url]— aperçu au clic sur le nom (brique commune)
+  .settings-btn[data-id]               — modale paramètres (WamaParams)
+  .wama-cycle-btn                      — ▶/⏹/↻ (brique _cycle_button + WamaCycleButton)
+  .duplicate-btn[data-duplicate-url]   — brique GLOBALE queue-actions.js (ne pas re-binder)
+  .delete-btn[data-id]                 — suppression (queue.js)
+{% endcomment %}
+<div class="anon-card wama-card {% if media.status == 'RUNNING' %}processing{% elif media.status == 'SUCCESS' %}success{% elif media.status == 'FAILURE' %}error{% endif %}"
+     data-id="{{ media.id }}"
+     data-status="{{ media.status }}"
+     data-media-name="{{ media.get_filename }}"
+     data-preview-url="{% url 'common:unified_preview' 'anonymizer' media.id %}">
+    <div class="card-body py-2 px-3">
+
+        {% comment %} Ligne 1 : identité + actions (ordre canonique ⚙ ▶ ⬇ ⧉ 🗑) {% endcomment %}
+        <div class="d-flex justify-content-between align-items-center mb-1">
+            <button type="button"
+                    class="btn btn-link p-0 preview-media-link text-decoration-none d-flex align-items-center gap-2 overflow-hidden"
+                    data-preview-url="{% url 'common:unified_preview' 'anonymizer' media.id %}">
+                {% if media.media_type == 'image' %}
+                    <i class="fas fa-image text-info flex-shrink-0"></i>
+                {% elif media.media_type == 'video' %}
+                    <i class="fas fa-video text-warning flex-shrink-0"></i>
+                {% else %}
+                    <i class="fas fa-file text-secondary flex-shrink-0"></i>
+                {% endif %}
+                <span class="fw-semibold text-light text-truncate" style="max-width:260px;">{{ media.get_filename }}</span>
+            </button>
+
+            <div class="btn-group-actions d-flex gap-1 flex-shrink-0 ms-2">
+                <button type="button" class="btn btn-outline-secondary btn-sm settings-btn"
+                        data-id="{{ media.id }}" title="Configurer les paramètres">
+                    <i class="fas fa-cog"></i>
+                </button>
+                {% include 'common/_cycle_button.html' with id=media.id status=media.status %}
+                <form method="post" action="{% url 'anonymizer:download_media' %}" class="d-inline m-0">
+                    {% csrf_token %}
+                    <input type="hidden" name="media_id" value="{{ media.id }}">
+                    <button type="submit"
+                            class="btn btn-outline-info btn-sm download-btn {% if not media.processed %}disabled{% endif %}"
+                            {% if not media.processed %}disabled aria-disabled="true" tabindex="-1"{% endif %}
+                            title="Télécharger le média traité">
+                        <i class="fas fa-download"></i>
+                    </button>
+                </form>
+                <button type="button" class="btn btn-outline-warning btn-sm duplicate-btn"
+                        data-duplicate-url="{% url 'anonymizer:duplicate_media' media.id %}"
+                        title="Dupliquer (tester d'autres paramètres)">
+                    <i class="fas fa-copy"></i>
+                </button>
+                <button type="button" class="btn btn-outline-danger btn-sm delete-btn"
+                        data-id="{{ media.id }}" title="Supprimer le média">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            </div>
+        </div>
+
+        {% comment %} Ligne 2 : propriétés du média + chips de réglages (générés du SCHÉMA) {% endcomment %}
+        <div class="d-flex flex-wrap align-items-center gap-1" style="font-size:0.78rem;">
+            {% if media.width and media.height %}
+            <span class="text-muted">{{ media.width }}×{{ media.height }}{% if media.fps %} · {{ media.fps }} fps{% endif %}</span>
+            {% endif %}
+            {% if media.duration_inMinSec %}
+            <span class="text-muted">{{ media.duration_inMinSec }}</span>
+            {% endif %}
+            {% if media.MSValues_customised %}
+            <span class="badge bg-info text-dark" title="Paramètres personnalisés pour ce média">Personnalisé</span>
+            {% endif %}
+            {% include 'common/_card_chips.html' with chips=media.chips.settings %}
+            {% include 'common/_card_chips.html' with chips=media.chips.output %}
+        </div>
+
+        {% comment %} Ligne 3 : état + progression + ETA (brique commune) {% endcomment %}
+        {% include 'common/_card_progress.html' with status=media.status progress=media.blur_progress elapsed=media.processing_display %}
+
+        {% if media.status == 'FAILURE' and media.error_message %}
+        <small class="text-danger d-block mt-1 text-truncate" title="{{ media.error_message }}">{{ media.error_message|truncatechars:160 }}</small>
+        {% endif %}
+
+    </div>
+</div>

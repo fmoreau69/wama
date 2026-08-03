@@ -1,663 +1,76 @@
-document.addEventListener("DOMContentLoaded", function() {
+/**
+ * Anonymizer — bouton GLOBAL ▶ Démarrer / ⏹ Arrêter du volet droit (port 2026-08-03).
+ *
+ * Le suivi par card (polling, refreshCard, ETA) vit dans queue.js (AnonQueue) ; la barre
+ * globale est la brique commune wama-global-progress. Ce fichier ne garde que le cycle
+ * du traitement GLOBAL : POST process/ (verrou batch serveur) puis stop_process/.
+ * Remplace l'ancienne machine de polling legacy ([data-media-id], refreshMediaTable).
+ */
+document.addEventListener("DOMContentLoaded", function () {
+    const cfg = window.WAMA_ANON || {};
+    const btn = document.getElementById('process-toggle-btn');
+    if (!btn) return;
+
     let isRunning = false;
-    let taskId = null;
-    const progressIntervals = {};
-    let pollingYOLO = null;
-    let pollingGlobal = null;
 
-    function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie) {
-            document.cookie.split(';').forEach(cookie => {
-                cookie = cookie.trim();
-                if (cookie.startsWith(name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                }
-            });
-        }
-        return cookieValue;
-    }
-
-    // Start polling for a specific media's progress
-    function startMediaProgressPolling(mediaId) {
-        if (progressIntervals[mediaId]) {
-            return; // Already polling this media
-        }
-
-        console.log(`[process.js] Starting progress polling for media ${mediaId}`);
-
-        progressIntervals[mediaId] = setInterval(() => {
-            fetch(`/anonymizer/process_progress/?media_id=${mediaId}`)
-                .then(r => r.json())
-                .then(progressData => {
-                    const pct = progressData.progress || 0;
-                    console.log(`[process.js] Media ${mediaId} progress: ${pct}%`);
-
-                    // Find card fresh each time (handles table refreshes)
-                    const tr = document.querySelector(`[data-media-id="${mediaId}"]`);
-                    if (!tr) {
-                        console.warn(`[process.js] Card not found for media ${mediaId}`);
-                        return;
-                    }
-
-                    const progressBar = tr.querySelector(".progress-bar");
-                    if (progressBar) {
-                        progressBar.style.width = pct + '%';
-                    }
-                    const pctEl = tr.querySelector('.progress-pct');
-                    if (pctEl) pctEl.textContent = (pct > 0 && pct < 100) ? pct + '%' : '';
-                    if (window.WamaEta) WamaEta.render(tr.querySelector('.wama-eta'), WamaEta.update(mediaId, { progress: pct, status: pct >= 100 ? 'DONE' : 'RUNNING' }));
-
-                    // Update status badge
-                    const statusBadge = tr.querySelector('.status-badge');
-                    if (statusBadge) {
-                        if (pct >= 100) {
-                            statusBadge.className = 'badge bg-success status-badge';
-                            statusBadge.textContent = 'Terminé';
-                        } else if (pct > 0) {
-                            statusBadge.className = 'badge bg-warning text-dark status-badge';
-                            statusBadge.textContent = 'En cours';
-                        }
-                    }
-
-                    if (pct >= 100) {
-                        clearInterval(progressIntervals[mediaId]);
-                        delete progressIntervals[mediaId];
-                        if (window.WamaFM) WamaFM.processed();  // sortie créée → refresh filemanager
-                        console.log(`[process.js] Completed polling for media ${mediaId}`);
-
-                        // Update the row to reflect processed state
-                        tr.dataset.mediaProcessed = 'true';
-
-                        // Enable download button (form POST preserved in card layout)
-                        const btn = tr.querySelector("form[action$='download_media/'] button");
-                        if (btn) {
-                            btn.removeAttribute('disabled');
-                            btn.removeAttribute('aria-disabled');
-                            btn.removeAttribute('tabindex');
-                            btn.classList.remove('disabled');
-                            console.log(`[process.js] Download button enabled for media ${mediaId}`);
-                        } else {
-                            console.warn(`[process.js] Download button not found for media ${mediaId}`);
-                        }
-
-                        // Check if all media are processed to enable download all
-                        if (typeof checkDownloadAll === 'function') {
-                            checkDownloadAll();
-                        }
-
-                        // Refresh media table to update UI (more efficient than full content refresh)
-                        if (typeof window.refreshMediaTable === 'function') {
-                            console.log(`[process.js] Refreshing media table after media ${mediaId} completion`);
-                            setTimeout(() => window.refreshMediaTable(), 1000);
-                        } else if (typeof refreshContent === 'function') {
-                            console.log(`[process.js] Fallback: Refreshing content after media ${mediaId} completion`);
-                            setTimeout(() => refreshContent(), 1000);
-                        }
-
-                        // Check if all polling is complete (all medias processed)
-                        if (isRunning && Object.keys(progressIntervals).length === 0) {
-                            document.body.removeAttribute('data-wama-processing');
-                            console.log('[process.js] All media polling complete, resetting button state');
-
-                            // Stop global polling if exists
-                            if (pollingGlobal) {
-                                clearInterval(pollingGlobal);
-                                pollingGlobal = null;
-                            }
-                            if (pollingYOLO) {
-                                clearInterval(pollingYOLO);
-                                pollingYOLO = null;
-                            }
-
-                            // Hide loader
-                            const loader = getLoader();
-                            if (loader) loader.style.display = 'none';
-
-                            // Reset button to initial state
-                            resetButton();
-
-                            // Show success message
-                            const resultDiv = getResultDiv();
-                            if (resultDiv) {
-                                resultDiv.innerHTML = '<span class="text-success">✅ Traitement terminé</span>';
-                            }
-                        }
-                    }
-                })
-                .catch(err => {
-                    console.error(`[process.js] Error polling media ${mediaId}:`, err);
-                    clearInterval(progressIntervals[mediaId]);
-                    delete progressIntervals[mediaId];
-                });
-        }, 1000);
-    }
-
-    // Auto-start polling for all in-progress media on page load
-    function initializeProgressPolling() {
-        console.log('[process.js] Initializing progress polling for in-progress media...');
-
-        ["#medias", "#medias_process"].forEach(tableId => {
-            const table = document.querySelector(tableId);
-            if (!table) return;
-
-            table.querySelectorAll('[data-media-id]').forEach(tr => {
-                const mediaId = tr.dataset.mediaId;
-                const processed = tr.dataset.mediaProcessed === 'true';
-                const progressBar = tr.querySelector('.progress-bar');
-
-                if (!progressBar) return;
-
-                const currentProgress = parseInt(progressBar.style.width) || 0;
-
-                // Start polling if media is in progress (0 < progress < 100) and not yet processed
-                if (currentProgress > 0 && currentProgress < 100 && !processed) {
-                    console.log(`[process.js] Found in-progress media ${mediaId} at ${currentProgress}%`);
-                    startMediaProgressPolling(mediaId);
-                }
-            });
-        });
-    }
-
-    // Initialize polling on page load
-    initializeProgressPolling();
-
-    function getButton() {
-        return document.getElementById('process-toggle-btn');
-    }
-
-    function getLoader() {
-        return document.getElementById('process-loader');
-    }
-
-    function getResultDiv() {
-        return document.getElementById('process-result');
-    }
-
-    window.initProcessControls = initProcessControls;
-    window.initMediaPreview = initMediaPreview;
-    window.startMediaProgressPolling = startMediaProgressPolling;  // Expose for settings_modal.js
-    initProcessControls();
-    initMediaPreview();
-
-    function initProcessControls() {
-        const btnToggle = document.getElementById('process-toggle-btn');
-        if (!btnToggle) {
-            console.warn('[process.js] Process button not found');
-            return;
-        }
-
-        // Remove existing listener if any (to prevent duplicates)
-        if (btnToggle._processClickHandler) {
-            btnToggle.removeEventListener('click', btnToggle._processClickHandler);
-        }
-
-        // Create and store the handler
-        btnToggle._processClickHandler = function(event) {
-            event.preventDefault();
-            console.log('[process.js] Button clicked, isRunning:', isRunning);
-            if (isRunning) {
-                stopProcess(btnToggle);
-            } else {
-                startProcess(btnToggle);
-            }
-        };
-
-        btnToggle.addEventListener('click', btnToggle._processClickHandler);
-        console.log('[process.js] Process button initialized');
-    }
-
-    function initMediaPreview() {
-        document.querySelectorAll('.preview-media-link').forEach(btn => {
-            if (btn.dataset.previewBound === '1') {
-                return;
-            }
-            btn.dataset.previewBound = '1';
-            btn.addEventListener('click', function(event) {
-                event.preventDefault();
-                const endpoint = btn.dataset.previewUrl;
-                if (!endpoint) return;
-                fetch(endpoint)
-                    .then(r => {
-                        if (!r.ok) throw new Error("Preview unavailable");
-                        return r.json();
-                    })
-                    .then(data => applyPreviewData(data))
-                    .catch(err => showPreviewError(err.message));
-            });
-        });
-    }
-
-    function getPreviewElements() {
-        return {
-            video: document.getElementById('media-preview-player'),
-            placeholder: document.getElementById('media-preview-empty'),
-            meta: document.getElementById('media-preview-meta')
-        };
-    }
-
-    function applyPreviewData(data) {
-        if (!data || !data.url) return;
-
-        // Show preview in modal (like FileManager)
-        showPreviewModal(data);
-    }
-
-    function showPreviewModal(data) {
-        let modal = document.getElementById('mediaPreviewModal');
-
-        if (!modal) {
-            modal = document.createElement('div');
-            modal.id = 'mediaPreviewModal';
-            modal.className = 'modal fade';
-            modal.innerHTML = `
-                <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-                    <div class="modal-content bg-dark text-white">
-                        <div class="modal-header border-secondary">
-                            <h5 class="modal-title"></h5>
-                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body p-0">
-                            <div class="preview-container d-flex justify-content-center align-items-center" style="min-height: 300px;"></div>
-                        </div>
-                        <div class="modal-footer border-secondary py-2">
-                            <small class="preview-meta"></small>
-                        </div>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modal);
-
-            // Clean up video/audio when modal is hidden
-            modal.addEventListener('hidden.bs.modal', function() {
-                const video = modal.querySelector('video');
-                const audio = modal.querySelector('audio');
-                if (video) video.pause();
-                if (audio) audio.pause();
-            });
-        }
-
-        const title = modal.querySelector('.modal-title');
-        const container = modal.querySelector('.preview-container');
-        const metaEl = modal.querySelector('.preview-meta');
-
-        title.textContent = data.name || 'Aperçu';
-
-        // Build meta info
-        const metaParts = [data.resolution, data.duration].filter(Boolean);
-        metaEl.textContent = metaParts.join(' • ');
-
-        // Determine content type and render accordingly
-        const mimeType = data.mime_type || '';
-
-        if (mimeType.startsWith('image/')) {
-            container.innerHTML = `
-                <div class="preview-image-wrapper" ondblclick="openAnonymizerFullscreen('${data.url}', '${escapeHtmlAttr(data.name)}')">
-                    <img src="${data.url}" alt="${data.name}" style="max-width:100%; max-height:70vh; object-fit: contain;">
-                    <button class="preview-fullscreen-btn" onclick="event.stopPropagation(); openAnonymizerFullscreen('${data.url}', '${escapeHtmlAttr(data.name)}')" title="Plein écran (double-clic)">
-                        <i class="fas fa-expand"></i>
-                    </button>
-                </div>
-            `;
-        } else if (mimeType.startsWith('video/')) {
-            container.innerHTML = `
-                <video controls autoplay muted style="max-width:100%; max-height:70vh;">
-                    <source src="${data.url}" type="${mimeType}">
-                </video>
-                <div class="video-error-message d-none text-center p-4">
-                    <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
-                    <h5>Lecture impossible</h5>
-                    <p class="mb-2">Le codec de cette vidéo n'est pas supporté par le navigateur.</p>
-                    <a href="${data.url}" download class="btn btn-outline-light btn-sm">
-                        <i class="fas fa-download me-2"></i>Télécharger le fichier
-                    </a>
-                </div>
-            `;
-            // Handle video playback errors
-            const video = container.querySelector('video');
-            const errorMsg = container.querySelector('.video-error-message');
-            video.addEventListener('error', function() {
-                video.classList.add('d-none');
-                errorMsg.classList.remove('d-none');
-            });
-        } else if (mimeType.startsWith('audio/')) {
-            container.innerHTML = `<audio src="${data.url}" controls autoplay style="width:100%;"></audio>`;
+    function setButton(running) {
+        isRunning = running;
+        btn.innerHTML = running
+            ? '<i class="fas fa-stop"></i> Arrêter'
+            : '<i class="fas fa-play"></i> Démarrer';
+        btn.classList.toggle('btn-danger', running);
+        btn.classList.toggle('btn-success', !running);
+        if (running) {
+            document.body.setAttribute('data-wama-processing', '1');
         } else {
-            // Default to video player for unknown types
-            container.innerHTML = `
-                <video controls autoplay muted style="max-width:100%; max-height:70vh;">
-                    <source src="${data.url}" type="video/mp4">
-                </video>
-                <div class="video-error-message d-none text-center p-4">
-                    <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
-                    <h5>Lecture impossible</h5>
-                    <p class="mb-2">Le codec de cette vidéo n'est pas supporté par le navigateur.</p>
-                    <a href="${data.url}" download class="btn btn-outline-light btn-sm">
-                        <i class="fas fa-download me-2"></i>Télécharger le fichier
-                    </a>
-                </div>
-            `;
-            const video = container.querySelector('video');
-            const errorMsg = container.querySelector('.video-error-message');
-            video.addEventListener('error', function() {
-                video.classList.add('d-none');
-                errorMsg.classList.remove('d-none');
-            });
+            document.body.removeAttribute('data-wama-processing');
         }
-
-        const bsModal = new bootstrap.Modal(modal);
-        bsModal.show();
     }
 
-    function showPreviewError(message) {
-        // Show error in a toast or alert
-        const toastContainer = document.getElementById('toast-container') || createToastContainer();
-
-        const toast = document.createElement('div');
-        toast.className = 'toast align-items-center text-white bg-danger border-0';
-        toast.setAttribute('role', 'alert');
-        toast.innerHTML = `
-            <div class="d-flex">
-                <div class="toast-body"><i class="fas fa-exclamation-triangle me-2"></i>${message}</div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-            </div>
-        `;
-
-        toastContainer.appendChild(toast);
-        const bsToast = new bootstrap.Toast(toast, { delay: 4000 });
-        bsToast.show();
-
-        toast.addEventListener('hidden.bs.toast', () => toast.remove());
-    }
-
-    function createToastContainer() {
-        let container = document.getElementById('toast-container');
-        if (!container) {
-            container = document.createElement('div');
-            container.id = 'toast-container';
-            container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
-            container.style.zIndex = '1100';
-            document.body.appendChild(container);
-        }
-        return container;
-    }
-
-    function startProcess(btnRef) {
-        console.log('[process.js] startProcess() called');
-
-        const btnToggle = btnRef || getButton();
-        const loader = getLoader();
-        const resultDiv = getResultDiv();
-
-        if (!btnToggle) {
-            console.error('[process.js] Button not found!');
+    async function startAll() {
+        let d;
+        try {
+            d = await (await fetch('/anonymizer/process/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': cfg.csrfToken },
+            })).json();
+        } catch (e) {
+            WamaApp.toast('Erreur réseau au lancement', 'error');
             return;
         }
+        if (d.error) {
+            WamaApp.toast(d.error, 'warning');
+            return;
+        }
+        setButton(true);
+        WamaApp.toast('Traitement global lancé', 'success');
+        // Cards re-rendues PENDING côté serveur → reload puis polling au chargement
+        setTimeout(() => location.reload(), 500);
+    }
 
-        console.log('[process.js] Changing button state and sending request...');
-        btnToggle.innerHTML = '<i class="fas fa-stop"></i> Arrêter';
-        btnToggle.className = 'btn btn-danger btn-sm';
-        if (loader) loader.style.display = 'block';
-        if (resultDiv) resultDiv.innerHTML = '';
-
-        // Reset all progress bars to 0% before starting
-        ["#medias", "#medias_process"].forEach(tableId => {
-            document.querySelectorAll(`${tableId} [data-media-id]`).forEach(tr => {
-                const progressBar = tr.querySelector(".progress-bar");
-                if (progressBar) {
-                    progressBar.style.width = '0%';
-                }
-                const pctEl = tr.querySelector('.progress-pct');
-                if (pctEl) pctEl.textContent = '';
-                // Reset status badge
-                const statusBadge = tr.querySelector('.status-badge');
-                if (statusBadge) {
-                    statusBadge.className = 'badge bg-secondary status-badge';
-                    statusBadge.textContent = 'En attente';
-                }
-                // Mark as not processed
-                tr.dataset.mediaProcessed = 'false';
+    async function stopAll() {
+        try {
+            await fetch('/anonymizer/stop_process/', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': cfg.csrfToken },
             });
-        });
+        } catch (e) { /* réseau */ }
+        setButton(false);
+        setTimeout(() => location.reload(), 300);
+    }
 
-        // Reset global progress bar
-        const globalBarReset = document.getElementById('globalProgressBar');
-        if (globalBarReset) {
-            globalBarReset.style.width = '0%';
-            globalBarReset.className = 'wama-progress-fill';
+    btn.addEventListener('click', function () {
+        if (isRunning) {
+            stopAll();
+        } else {
+            startAll();
         }
-        const globalPctReset = document.getElementById('globalProgressPct');
-        if (globalPctReset) globalPctReset.textContent = '0%';
+    });
 
-        // Clear any existing polling intervals
-        Object.keys(progressIntervals).forEach(mediaId => {
-            clearInterval(progressIntervals[mediaId]);
-            delete progressIntervals[mediaId];
-        });
-        if (pollingGlobal) {
-            clearInterval(pollingGlobal);
-            pollingGlobal = null;
-        }
-        if (pollingYOLO) {
-            clearInterval(pollingYOLO);
-            pollingYOLO = null;
-        }
-
-        console.log('[process.js] Sending POST to /anonymizer/process/');
-        fetch("/anonymizer/process/", {
-            method: "POST",
-            headers: { "X-CSRFToken": getCookie('csrftoken') }
-        })
-        .then(r => {
-            console.log(`[process.js] Response status: ${r.status}`);
-            return r.json();
-        })
-        .then(data => {
-            console.log('[process.js] Response data:', data);
-            if (!data.task_id) {
-                if (loader) loader.style.display = 'none';
-                resetButton();
-                if (resultDiv) resultDiv.innerHTML = '<span class="text-warning">⚠️ Add media first</span>';
-                return;
-            }
-
-            taskId = data.task_id;
-            isRunning = true;
-            document.body.setAttribute('data-wama-processing', 'true');
-
-            // Polling progress per media row (upload page & process page)
-            ["#medias", "#medias_process"].forEach(tableId => {
-                const table = document.querySelector(tableId);
-                console.log(`[process.js] Looking for table: ${tableId}, found:`, table);
-
-                if (!table) return;
-
-                const rows = table.querySelectorAll('[data-media-id]');
-                console.log(`[process.js] Found ${rows.length} media rows in ${tableId}`);
-
-                rows.forEach(tr => {
-                    const mediaId = tr.dataset.mediaId;
-                    console.log(`[process.js] Starting polling for media ${mediaId}`);
-
-                    // Use the centralized polling function
-                    startMediaProgressPolling(mediaId);
-                });
-            });
-
-            // Polling global progress bar
-            const globalBar = document.getElementById('globalProgressBar');
-            if (globalBar) {
-                pollingGlobal = setInterval(() => {
-                    fetch('/anonymizer/process_progress/')
-                        .then(r => r.json())
-                        .then(data => {
-                            const pct = data.progress || 0;
-                            globalBar.style.width = pct + '%';
-                            globalBar.classList.add('active');
-                            const gp = document.getElementById('globalProgressPct');
-                            if (gp) gp.textContent = pct + '%';
-
-                            // Check if all processing is complete
-                            if (pct >= 100 && isRunning) {
-                                console.log('[process.js] All media processing complete, resetting button');
-
-                                // Stop all polling intervals
-                                if (pollingGlobal) {
-                                    clearInterval(pollingGlobal);
-                                    pollingGlobal = null;
-                                }
-                                if (pollingYOLO) {
-                                    clearInterval(pollingYOLO);
-                                    pollingYOLO = null;
-                                }
-
-                                // Hide loader
-                                const loader = getLoader();
-                                if (loader) loader.style.display = 'none';
-
-                                // Reset button to initial state
-                                resetButton();
-
-                                // Show success message
-                                const resultDiv = getResultDiv();
-                                if (resultDiv) {
-                                    resultDiv.innerHTML = '<span class="text-success">✅ Traitement terminé</span>';
-                                }
-                            }
-                        })
-                        .catch(() => {});
-                }, 1000);
-            }
-
-            // YOLO preview polling (still commented)
-            /*
-            const previewContainer = document.querySelector("#collapsePreview .empty-box");
-            if (previewContainer) {
-                pollingYOLO = setInterval(() => {
-                    fetch("/anonymizer/yolo_preview/")
-                        .then(r => r.text())
-                        .then(html => { previewContainer.innerHTML = html; })
-                        .catch(() => {});
-                }, 2000);
-            }
-            */
-        })
-        .catch(err => {
-            if (loader) loader.style.display = 'none';
-            resetButton();
-            if (resultDiv) resultDiv.innerHTML = `<span class="text-danger">Error: ${err}</span>`;
-        });
-    }
-
-    function stopProcess(btnRef) {
-        const loader = getLoader();
-        const resultDiv = getResultDiv();
-
-        fetch("/anonymizer/stop_process/", {
-            method: "POST",
-            headers: { "X-CSRFToken": getCookie('csrftoken') }
-        })
-        .then(() => {
-            Object.values(progressIntervals).forEach(interval => clearInterval(interval));
-
-            if (pollingYOLO) clearInterval(pollingYOLO);
-            if (pollingGlobal) clearInterval(pollingGlobal);
-
-            if (loader) loader.style.display = 'none';
-            resetButton();
-            if (resultDiv) resultDiv.innerHTML = '<span class="text-warning">⚠️ Process stopped</span>';
-
-            taskId = null;
-            isRunning = false;
-        })
-        .catch(() => {
-            if (resultDiv) {
-                resultDiv.innerHTML = '<span class="text-danger">Error stopping process</span>';
-            }
-        });
-    }
-
-    function resetButton() {
-        const btnToggle = getButton();
-        if (btnToggle) {
-            btnToggle.innerHTML = '<i class="fas fa-play"></i> Démarrer';
-            btnToggle.className = 'btn btn-success btn-sm';
-        }
-        isRunning = false;
-        taskId = null;
-        console.log('[process.js] Button reset, isRunning:', isRunning);
-    }
-
-    function checkDownloadAll() {
-        const url = '/anonymizer/check_all_processed/';
-
-        fetch(url)
-            .then(response => response.json())
-            .then(data => {
-                const btn = document.getElementById("download-all-btn");
-                if (!btn) {
-                    console.warn('[process.js] Download all button not found');
-                    return;
-                }
-                if (data.all_processed) {
-                    btn.removeAttribute("disabled");
-                    console.log('[process.js] Download all button enabled');
-                } else {
-                    btn.setAttribute("disabled", "true");
-                    console.log('[process.js] Download all button disabled - not all media processed');
-                }
-            })
-            .catch(err => console.error("[process.js] Error checking all processed:", err));
-    }
-
-    // Poll every second
-    setInterval(checkDownloadAll, 1000);
-});
-
-// === FULLSCREEN FUNCTIONS (Global scope for inline handlers) ===
-
-function escapeHtmlAttr(text) {
-    if (!text) return '';
-    return text.replace(/'/g, "\\'").replace(/"/g, '\\"');
-}
-
-function openAnonymizerFullscreen(imageUrl, imageName) {
-    closeAnonymizerFullscreen();
-
-    const overlay = document.createElement('div');
-    overlay.id = 'wamaFullscreenOverlay';
-    overlay.onclick = function(e) {
-        if (e.target === overlay) closeAnonymizerFullscreen();
-    };
-
-    overlay.innerHTML = `
-        <button class="fullscreen-close-btn" onclick="event.stopPropagation(); closeAnonymizerFullscreen()" title="Fermer (Échap)">
-            <i class="fas fa-times"></i>
-        </button>
-        <img src="${imageUrl}" alt="${imageName || 'Image'}" onclick="event.stopPropagation()">
-        <div class="fullscreen-info">
-            <span class="filename">${imageName || 'Image'}</span>
-        </div>
-    `;
-
-    document.body.appendChild(overlay);
-    document.body.style.overflow = 'hidden';
-}
-
-function closeAnonymizerFullscreen() {
-    const overlay = document.getElementById('wamaFullscreenOverlay');
-    if (overlay) {
-        overlay.remove();
-        document.body.style.overflow = '';
-    }
-}
-
-// Keyboard handler for fullscreen
-document.addEventListener('keydown', function(e) {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-    const fullscreenOverlay = document.getElementById('wamaFullscreenOverlay');
-    if (fullscreenOverlay && e.key === 'Escape') {
-        e.preventDefault();
-        closeAnonymizerFullscreen();
+    // État initial : des cards tournent déjà → bouton en mode Arrêter + polling par card
+    const anyRunning = document.querySelector('.anon-card[data-status="RUNNING"]');
+    if (anyRunning) {
+        setButton(true);
+        if (window.AnonQueue) AnonQueue.pollAllCards();
     }
 });

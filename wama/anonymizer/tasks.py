@@ -27,6 +27,18 @@ from .parallel_detection import (
 logger = logging.getLogger(__name__)
 
 
+def anonymizer_eta_key_size(media):
+    """Clé + taille ETA — PARTAGÉE entre record_run (fin de tâche) et estimate
+    (endpoint progress) : même clé des deux côtés ou l'EMA n'apprend jamais."""
+    engine = 'sam3' if media.use_sam3 else (media.model_to_use or 'auto')
+    is_video = (media.media_type == 'video' or
+                (media.file_ext or '').lower() in ('mp4', 'avi', 'mov', 'mkv', 'webm'))
+    if is_video:
+        return (f'anonymizer:vid:{engine}', float(media.duration_inSec or 1.0), 'video_sec')
+    mpx = (media.width or 0) * (media.height or 0) / 1_000_000.0 or 1.0
+    return (f'anonymizer:img:{engine}', mpx, 'megapixel')
+
+
 def _resolve_output_rel(media):
     """Chemin MEDIA-relatif de la sortie floutée. Sortie RÉELLE = dossier output/ de
     l'utilisateur, base sans extension + _blurred* (ext vidéo coercée .mp4, variante
@@ -150,30 +162,27 @@ def process_single_media(self, media_id, force_individual=False):
         user = media.user
         user_settings, _ = UserSettings.objects.get_or_create(user=user)
 
-        # ── Batch: download source file if not yet on disk ──────────────────
-        if not media.file and media.source_url:
-            _console(user.id, f"[Batch] Téléchargement : {media.source_url}")
-            try:
-                from wama.common.utils.media_paths import get_app_media_path
-                from wama.common.utils.video_utils import upload_media_from_url
-                output_dir = get_app_media_path('anonymizer', user.id, 'input')
-                output_dir.mkdir(parents=True, exist_ok=True)
-                save_path = upload_media_from_url(media.source_url, str(output_dir))
-                # Compute a storage-relative path for the FileField
-                from django.conf import settings
-                rel_path = os.path.relpath(save_path, settings.MEDIA_ROOT)
-                media.file.name = rel_path.replace('\\', '/')
-                # Populate metadata
+        # ── Ingest commun (WAMA_INGEST sur le modèle, brique source_ingest) :
+        # télécharge source_url vers le FileField si pas encore local — idempotent. ──
+        try:
+            from wama.common.utils.source_ingest import ensure_local_input
+
+            def _derive(inst, save_path, fname):
+                # Métadonnées relevées sur le fichier téléchargé (mêmes champs que l'upload)
                 from wama.anonymizer.views import add_media_to_db
-                add_media_to_db(media, save_path)
-                media.file_ext = os.path.splitext(save_path)[1].lstrip('.').lower()
-                media.save(update_fields=['file', 'file_ext', 'width', 'height', 'fps',
-                                          'duration_inSec', 'duration_inMinSec', 'media_type'])
-                _console(user.id, f"[Batch] Fichier téléchargé : {os.path.basename(save_path)}")
-            except Exception as dl_err:
-                _console(user.id, f"[Batch] Erreur téléchargement : {dl_err}", level='error')
-                logger.error(f"[Batch] Download failed for media {media_id}: {dl_err}")
-                return {"error": "download_failed", "media_id": media_id}
+                add_media_to_db(inst, save_path)
+                inst.file_ext = os.path.splitext(save_path)[1].lstrip('.').lower()
+                return ['file_ext', 'width', 'height', 'fps',
+                        'duration_inSec', 'duration_inMinSec', 'media_type']
+
+            ensure_local_input(media, console=lambda m: _console(user.id, m), derive=_derive)
+        except Exception as dl_err:
+            _console(user.id, f"[Batch] Erreur téléchargement : {dl_err}", level='error')
+            logger.error(f"[Batch] Download failed for media {media_id}: {dl_err}")
+            return {"error": "download_failed", "media_id": media_id}
+        if not media.file:
+            _console(user.id, f"[Batch] Média {media_id} sans fichier — ignoré", level='error')
+            return {"error": "no_file", "media_id": media_id}
         # ────────────────────────────────────────────────────────────────────
 
         # When the user clicks "Process this media" on the card, the
@@ -396,11 +405,19 @@ def process_single_media(self, media_id, force_individual=False):
         set_media_progress(media.id, 10)
         _console(user.id, f"Running anonymization for media {media.id} ...")
 
-        # Estimate processing time based on media type and size (rough estimate)
-        # Video: ~60 seconds, Image: ~10 seconds
-        # Adjust based on actual experience
+        # Durée estimée pour la simulation de progression : ETA apprise (EMA par
+        # clé modèle/taille) avec repli sur l'a-priori historique 60 s vidéo / 10 s image.
         is_video = media.file_ext.lower() in ['mp4', 'avi', 'mov', 'mkv', 'webm']
         estimated_duration = 60 if is_video else 10
+        try:
+            from wama.model_manager.services.eta_estimator import estimate
+            _k, _s, _u = anonymizer_eta_key_size(media)
+            _est = estimate(_k, size=_s, unit=_u, model_loaded=True,
+                            fallback_seconds=estimated_duration)
+            if _est:
+                estimated_duration = max(3, int(_est))
+        except Exception:
+            pass
 
         # Start progress simulation in background thread (10% -> 90%)
         stop_flag = f"stop_progress_sim_{media.id}"
@@ -431,6 +448,14 @@ def process_single_media(self, media_id, force_individual=False):
             media.output_file = _resolve_output_rel(media)
             media.save(update_fields=["status", "processing_seconds", "output_file"])
             set_media_progress(media.id, 100)
+            # ETA auto-apprenante : consigne le temps réel (même clé que estimate)
+            try:
+                from wama.model_manager.services.eta_estimator import record_run
+                _k, _s, _u = anonymizer_eta_key_size(media)
+                record_run(_k, size=_s, unit=_u,
+                           process_seconds=media.processing_seconds, load_seconds=None)
+            except Exception:
+                pass
             _console(user.id, f"Finished media {media.id} ✔")
             try:
                 from wama.common.utils.notifications import notify_job

@@ -44,6 +44,7 @@ PARAMS = derive_from_model(
         "use_sam3": dict(
             type="toggle", label="Utiliser SAM3 (prompt texte)", icon="fa-wand-magic-sparkles",
             help="Segmentation par prompt texte au lieu des classes YOLO.",
+            chip=True, chip_label="SAM3",
         ),
         "sam3_prompt": dict(
             type="textarea", label="Prompt SAM3", icon="fa-comment-dots",
@@ -55,6 +56,7 @@ PARAMS = derive_from_model(
             type="select", label="Modèle YOLO", icon="fa-microchip",
             dom_id={"panel": "user_setting_model_to_use"},
             show_if={"field": "use_sam3", "equals": False},
+            chip=True,
             # Options peuplées par le JS anonymizer (modèles YOLO découverts) — bridge par dom_id legacy.
             help="Modèle de détection YOLO (vide = auto selon la précision).",
         ),
@@ -62,6 +64,7 @@ PARAMS = derive_from_model(
             type="range", label="Niveau de précision", icon="fa-gauge-high",
             dom_id={"panel": "user_setting_precision_level"}, min=0, max=100, step=1,
             help="0=Rapide · 50=Équilibré · 100=Précis (lent).",
+            chip=True,
         ),
         "detection_threshold": dict(
             type="range", label="Seuil de détection", icon="fa-crosshairs",
@@ -87,7 +90,7 @@ PARAMS = derive_from_model(
         ),
         "interpolate_detections": dict(
             type="toggle", label="Interpoler les détections manquantes", icon="fa-wave-square",
-            advanced=True,
+            advanced=True, chip=True, chip_label="Interpolation",
         ),
         "max_interpolation_frames": dict(
             type="number", label="Frames max à interpoler", icon="fa-film",
@@ -97,7 +100,7 @@ PARAMS = derive_from_model(
         "use_segmentation": dict(
             type="toggle", label="Segmentation fine (contours)", icon="fa-draw-polygon",
             help="Masque au contour de l'objet plutôt qu'au rectangle détecté.",
-            advanced=True,
+            advanced=True, chip=True, chip_label="Segmentation",
         ),
         "show_preview": dict(type="toggle", label="Afficher l'aperçu", icon="fa-eye", advanced=True),
         "show_boxes": dict(type="toggle", label="Afficher les boîtes", icon="fa-vector-square", advanced=True),
