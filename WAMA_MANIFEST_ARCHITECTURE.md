@@ -319,7 +319,7 @@ en code sauf pour `access`.
 | anonymizer | 13 | 1/12 | ✅ aucun écart | ✅ OK |
 | avatarizer | 12 | 1/11 | ✅ aucun écart | ✅ OK |
 | composer | 12 | 1/11 | ✅ aucun écart | ✅ OK |
-| converter | 10 | 1/9 | ✅ aucun écart | ✅ OK |
+| converter | 11 | 1/10 | ✅ aucun écart | ✅ OK |
 | describer | 11 | 1/10 | ✅ aucun écart | ✅ OK |
 | enhancer | 12 | 1/11 | ✅ aucun écart | ✅ OK |
 | imager | 13 | 1/12 | ✅ aucun écart | ✅ OK |

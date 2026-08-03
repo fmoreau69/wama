@@ -135,7 +135,7 @@
     "params": [
       {
         "advanced": false,
-        "chip": false,
+        "chip": true,
         "chip_label": "",
         "choices": [
           [
@@ -235,8 +235,8 @@
       },
       {
         "advanced": false,
-        "chip": false,
-        "chip_label": "",
+        "chip": true,
+        "chip_label": "Débruitage",
         "choices": null,
         "contexts": [
           "panel",
@@ -270,7 +270,7 @@
       },
       {
         "advanced": false,
-        "chip": false,
+        "chip": true,
         "chip_label": "",
         "choices": null,
         "contexts": [

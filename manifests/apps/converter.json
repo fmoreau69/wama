@@ -91,6 +91,122 @@
       "detail_registered": true,
       "preview_registered": true
     },
+    "modes": {
+      "domains": [
+        {
+          "icon": "fa-image",
+          "id": "image",
+          "label": "Image",
+          "modes": [
+            {
+              "icon": "fa-right-left",
+              "id": "convert",
+              "inputs": [
+                "work_file"
+              ],
+              "label": "Convertir",
+              "settings": [
+                "output_format",
+                "quality",
+                "resize_w",
+                "resize_h",
+                "rotation",
+                "flip_h",
+                "flip_v"
+              ]
+            }
+          ],
+          "variant": "info"
+        },
+        {
+          "icon": "fa-film",
+          "id": "video",
+          "label": "Vidéo",
+          "modes": [
+            {
+              "icon": "fa-right-left",
+              "id": "convert",
+              "inputs": [
+                "work_file"
+              ],
+              "label": "Convertir",
+              "settings": [
+                "output_format",
+                "video_quality",
+                "fps",
+                "resize_w",
+                "resize_h",
+                "rotation",
+                "flip_h",
+                "flip_v",
+                "gif_fps",
+                "gif_width"
+              ]
+            }
+          ],
+          "variant": "warning"
+        },
+        {
+          "icon": "fa-volume-high",
+          "id": "audio",
+          "label": "Audio",
+          "modes": [
+            {
+              "icon": "fa-right-left",
+              "id": "convert",
+              "inputs": [
+                "work_file"
+              ],
+              "label": "Convertir",
+              "settings": [
+                "output_format",
+                "audio_bitrate",
+                "sample_rate",
+                "channels",
+                "normalize"
+              ]
+            }
+          ],
+          "variant": "success"
+        },
+        {
+          "icon": "fa-file-lines",
+          "id": "document",
+          "label": "Document",
+          "modes": [
+            {
+              "icon": "fa-right-left",
+              "id": "convert",
+              "inputs": [
+                "work_file"
+              ],
+              "label": "Convertir",
+              "settings": [
+                "output_format"
+              ]
+            }
+          ]
+        },
+        {
+          "icon": "fa-file-zipper",
+          "id": "archive",
+          "label": "Archive",
+          "modes": [
+            {
+              "icon": "fa-right-left",
+              "id": "convert",
+              "inputs": [
+                "work_file"
+              ],
+              "label": "Convertir",
+              "settings": [
+                "output_format"
+              ]
+            }
+          ]
+        }
+      ]
+    },
     "params": [
       {
         "advanced": false,
@@ -129,7 +245,8 @@
         "chip_label": "",
         "choices": null,
         "contexts": [
-          "item"
+          "item",
+          "batch"
         ],
         "default": null,
         "dom_id": "",
@@ -184,6 +301,54 @@
         "name": "output_format",
         "option_groups": null,
         "options_source": "formats",
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "select",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": [
+          [
+            "",
+            "— inchangé —"
+          ],
+          [
+            "web",
+            "Web (léger)"
+          ],
+          [
+            "balanced",
+            "Équilibré"
+          ],
+          [
+            "max",
+            "Maximum"
+          ]
+        ],
+        "contexts": [
+          "batch"
+        ],
+        "default": null,
+        "dom_id": "",
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-gem",
+        "inline": false,
+        "label": "Qualité (préréglage)",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "quality_preset",
+        "option_groups": null,
+        "options_source": null,
         "radio_name": "",
         "section": "settings",
         "show_if": null,
@@ -836,7 +1001,7 @@
             "normalize": "toggle — Normaliser le volume",
             "output_format": "select — Format de sortie (requis)",
             "quality": "range — Qualité d'encodage de l'image (1–100). [1–100] (défaut : 85)",
-            "quality_preset": "str (défaut : 'balanced')",
+            "quality_preset": "select — Qualité (préréglage) (choix :  | web | balanced | max) (défaut : 'balanced')",
             "resize_h": "number — 0 = inchangé. [0–None]",
             "resize_w": "number — 0 = inchangé. [0–None]",
             "rotation": "select — Rotation (choix : 0 | 90 | 180 | 270)",
