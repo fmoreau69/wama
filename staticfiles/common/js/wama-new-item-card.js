@@ -18,6 +18,11 @@
     'use strict';
 
     function wire(card) {
+        // Garde anti-double-init : le script est porté par la brique _new_item_card.html
+        // (2026-08-03) ET encore inclus par d'anciens templates d'app — deux exécutions
+        // sans garde = deux toggles par clic (la card se refermait instantanément).
+        if (card.dataset.nicWired === '1') return;
+        card.dataset.nicWired = '1';
         var body = document.getElementById(card.id + 'Body');
         if (!body || typeof bootstrap === 'undefined') return;
         var collapse = bootstrap.Collapse.getOrCreateInstance(body, { toggle: false });
@@ -42,6 +47,16 @@
             primary.addEventListener('focus', open);
             primary.addEventListener('input', open);
         }
+
+        // Dépliage à TOUTE interaction avec la card repliée (2026-08-03, référence composer) :
+        // pour les apps à modalité fichier, l'entrée primaire est un input CACHÉ — focus/saisie
+        // ne se produisent jamais, et seul l'en-tête dépliait. Un clic n'importe où sur la card
+        // repliée la déplie (l'en-tête garde son toggle ; les contrôles visibles restent actifs).
+        card.addEventListener('click', function (e) {
+            if (card.classList.contains('is-deployed')) return;   // repliée seulement
+            if (e.target.closest('[data-nic-toggle]')) return;    // l'en-tête gère déjà le toggle
+            open();
+        });
 
         // Drag de fichier au-dessus de la card : révéler les zones de dépôt.
         card.addEventListener('dragover', open);

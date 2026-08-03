@@ -93,8 +93,16 @@
 .batch-group:has(.collapse[data-wama-batch-key]:not(.show)) .batch-group-header:hover::after { opacity: .85; }
 .batch-group-header { position: relative; }
 .batch-group:has(.collapse[data-wama-batch-key].show) .batch-group-header { box-shadow: none; }
-/* Card MÈRE de batch = même squelette que les filles ; .is-batch = seul le style diffère. */
-.wama-card.is-batch { background: #0d1a1a; border: 1px solid #0dcaf0; }
+/* Card MÈRE de batch = même squelette que les filles ; .is-batch = seul le style diffère.
+   Arrondi + padding COMMUNS (2026-08-03) : valeurs absorbées du patch reader
+   .wcv3--batch-parent — la brique _batch_card n'a pas de .card-body, sans padding son
+   contenu touchait les bords et les angles restaient droits sur 9 apps. */
+.wama-card.is-batch {
+    background: #0d1a1a;
+    border: 1px solid rgba(13, 202, 240, .55);
+    border-radius: .5rem;
+    padding: .45rem .7rem;
+}
 .wama-card.is-batch:hover { background: #0f2222; }
 
 /* ── Liseré d'IDENTITÉ d'app (CARD_DESIGN §9) : teinte de catégorie dérivée, posée par la

@@ -12,12 +12,14 @@ Contrats JS (queue.js) :
   .duplicate-btn[data-duplicate-url]   — brique GLOBALE queue-actions.js (ne pas re-binder)
   .delete-btn[data-id]                 — suppression (queue.js)
 {% endcomment %}
-<div class="anon-card wama-card {% if media.status == 'RUNNING' %}processing{% elif media.status == 'SUCCESS' %}success{% elif media.status == 'FAILURE' %}error{% endif %}"
+{% comment %} .synthesis-card = squelette standard (contour, arrondi, padding, accents d'état
+— app_modern.css) : sans lui la card n'avait AUCUN contour (constat 03/08). {% endcomment %}
+<div class="anon-card synthesis-card wama-card {% if media.status == 'RUNNING' %}processing{% elif media.status == 'SUCCESS' %}success{% elif media.status == 'FAILURE' %}error{% endif %}"
      data-id="{{ media.id }}"
      data-status="{{ media.status }}"
      data-media-name="{{ media.get_filename }}"
      data-preview-url="{% url 'common:unified_preview' 'anonymizer' media.id %}">
-    <div class="card-body py-2 px-3">
+    <div>
 
         {% comment %} Ligne 1 : identité + actions (ordre canonique ⚙ ▶ ⬇ ⧉ 🗑) {% endcomment %}
         <div class="d-flex justify-content-between align-items-center mb-1">
@@ -77,12 +79,16 @@ Contrats JS (queue.js) :
             {% include 'common/_card_chips.html' with chips=media.chips.output %}
         </div>
 
-        {% comment %} Ligne 3 : état + progression + ETA (brique commune) {% endcomment %}
-        {% include 'common/_card_progress.html' with status=media.status progress=media.blur_progress elapsed=media.processing_display %}
+        {% comment %} Ligne 3 : ÉTAT (badge + % + ETA + temps, sans barre) — la barre vit
+        seule en bas de card, pleine largeur, hors de la section État (design v3 : une barre
+        coincée dans la section écrasait la mise en page — constat 03/08). {% endcomment %}
+        {% include 'common/_card_progress.html' with status=media.status progress=media.blur_progress elapsed=media.processing_display no_bar=True %}
 
         {% if media.status == 'FAILURE' and media.error_message %}
         <small class="text-danger d-block mt-1 text-truncate" title="{{ media.error_message }}">{{ media.error_message|truncatechars:160 }}</small>
         {% endif %}
+
+        {% include 'common/_card_progress.html' with status=media.status progress=media.blur_progress bar_only=True %}
 
     </div>
 </div>

@@ -46,6 +46,12 @@ Usage (transcriber) :
   {% include 'common/_new_item_card.html' with drop_zone_id='dropZoneTranscriber' file_input_id='transcriber-file' file_accept='audio/*,video/*' formats_label='MP3, WAV, FLAC, MP4, MKV…' batch_template_url=batch_tpl show_batch_bar=True show_url=True url_input_id='youtubeUrl' url_submit_id='youtubeSubmitBtn' url_placeholder='https://youtube.com/watch?v=…' url_label='ou depuis une URL' url_hint='YouTube, ou lien direct vers un fichier audio/vidéo.' url_icon='fab fa-youtube' url_icon_class='text-danger' %}
 {% endcomment %}
 {# Look « nouveau » (gris pointillés, hover cyan) : CSS commun .wama-new-item-card (wama-inspector.css). #}
+{% if collapsible %}{% load wama_static %}{% comment %} Le JS du dépliage est porté par la
+brique elle-même (2026-08-03) : describer/avatarizer passaient collapsible=True sans jamais
+inclure le script → card repliée MORTE (support ≠ adoption). Auto-init + garde anti-double
+(les inclusions d'app restantes sont inoffensives). {% endcomment %}
+<script src="{% static_v 'common/js/wama-new-item-card.js' %}"></script>
+{% endif %}
 <div class="card mb-3 shadow-sm wama-new-item-card" id="{{ card_id|default:'newItemCard' }}"{% if collapsible %} data-wama-nic{% if show_prompt %} data-nic-primary="{{ prompt_input_id }}"{% endif %}{% endif %}>
     <div class="card-body py-2">
         <div class="d-flex align-items-center gap-2 mb-2 small text-white-50"{% if collapsible %} data-nic-toggle role="button" title="Déplier / replier les options d'import"{% endif %}>

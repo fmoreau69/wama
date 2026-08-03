@@ -184,15 +184,9 @@
 /* ── Famille de LOT — cyan des codes RÉELS is-batch (§11 v3.5) ──────────────────────
    #0d1a1a / #0dcaf0 relevés de l'existant (reader/index.html), pas réinventés.
    Pointillés VOLONTAIREMENT non utilisés ici : ils sont réservés à la card d'entrée. */
-/* La card MÈRE vient de la brique commune _batch_card.html, restée en layout Bootstrap
-   row/col-md-* (v2) et — surtout — SANS `.card-body` : son contenu touchait les bords de la
-   card, sans aucune marge. Padding restitué ici, scopé au reader, en attendant le portage v3
-   de la brique (qui, lui, touchera les 10 apps et doit donc être fait d'un bloc). */
-.wcv3--batch-parent {
-  border-color: rgba(13, 202, 240, .55) !important;
-  padding: .45rem .7rem;
-  border-radius: .5rem !important;
-}
+/* Le padding/arrondi de la card MÈRE est passé au COMMUN (.wama-card.is-batch,
+   wama-inspector.css, 2026-08-03) — le patch scopé reader .wcv3--batch-parent est absorbé
+   (mêmes valeurs) ; la classe reste sans effet le temps de disparaître des templates. */
 
 /* Les filles portent le FOND teinté seulement : le rail cyan de liaison est déjà porté par
    le conteneur .collapse (reader/index.html) — un rail CONTINU pour la famille est plus juste
