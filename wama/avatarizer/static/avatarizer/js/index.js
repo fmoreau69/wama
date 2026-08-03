@@ -635,7 +635,7 @@
     // Clear all
     // -----------------------------------------------------------------------
     // Boutons globaux serveur (audit 2026-07-11)
-    const btnStartAll = $('#btn-start-all');
+    const btnStartAll = $('#startAllBtn');
     if (btnStartAll) {
         btnStartAll.addEventListener('click', async () => {
             try {
@@ -656,14 +656,14 @@
         });
     }
 
-    const btnDownloadAll = $('#btn-download-all');
+    const btnDownloadAll = $('#downloadAllBtn');
     if (btnDownloadAll) {
         btnDownloadAll.addEventListener('click', () => {
             window.location.href = cfg.urls.downloadAll;
         });
     }
 
-    const btnClearAll = $('#btn-clear-all');
+    const btnClearAll = $('#clearAllBtn');
     if (btnClearAll) {
         btnClearAll.addEventListener('click', async () => {
             if (!confirm('Supprimer tous les jobs et leurs fichiers ?')) return;

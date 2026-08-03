@@ -54,6 +54,30 @@ def register_app_detail(app_name, model_class, adapter):
     DetailRegistry.register(app_name, model_class, adapter)
 
 
+def _short_error(err: str, limit: int = 280) -> str:
+    """Résumé LISIBLE d'un message d'erreur pour le volet inspecteur (2026-08-03).
+
+    Les workers stockent parfois la traceback complète (précieuse en console/logs) —
+    affichée brute elle NOIE le volet INFOS. La ligne utile d'une traceback est la
+    DERNIÈRE non vide (l'exception levée) : on la garde, tronquée, avec un marqueur.
+    """
+    err = (err or '').strip()
+    if not err:
+        return err
+    lines = [l.strip() for l in err.splitlines() if l.strip()]
+    if len(lines) > 1:
+        # traceback / multi-lignes → la dernière ligne porte l'exception
+        summary = lines[-1]
+        if len(summary) < 20 and len(lines) >= 2:
+            summary = lines[-2] + ' — ' + summary
+        summary = '[…] ' + summary if len(lines) > 2 else summary
+    else:
+        summary = lines[0]
+    if len(summary) > limit:
+        summary = summary[:limit - 1] + '…'
+    return summary
+
+
 def build_detail(instance, *, source_file=None, source_type=None, engine=None,
                  engine_effective=None, result_file=None, result_text=None,
                  source_text=None, extra=None):
@@ -141,7 +165,7 @@ def build_detail(instance, *, source_file=None, source_type=None, engine=None,
     d['status'] = normalize_status(getattr(instance, 'status', ''))
     err = getattr(instance, 'error_message', None)
     if err:
-        d['error_message'] = err
+        d['error_message'] = _short_error(err)
 
     pt = getattr(instance, 'processing_display', None)
     if pt:

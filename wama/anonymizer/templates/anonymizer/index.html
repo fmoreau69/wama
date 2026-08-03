@@ -306,21 +306,9 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card` en tête de l
 {% endblock %}
 
 {% block app_right_panel_actions %}
-<div class="d-grid gap-2">
-    <button id="process-toggle-btn" class="btn btn-success btn-sm">
-        <i class="fas fa-play"></i> Démarrer
-    </button>
-    <form action="{% url 'anonymizer:download_all_media' %}" method="post" class="d-grid">
-        {% csrf_token %}
-        <button id="download-all-btn" type="submit" class="btn btn-info btn-sm" disabled>
-            <i class="fas fa-download"></i> Télécharger tout
-        </button>
-    </form>
-    <button type="button" id="clear_all_media_btn" class="btn btn-outline-danger btn-sm">
-        <i class="fas fa-trash"></i> Tout effacer
-    </button>
-</div>
-{% comment %} Actions contextuelles de l'inspecteur (card/batch sélectionné) — brique commune. {% endcomment %}
+{% comment %} Volet ACTIONS = CONTEXTUEL (inspecteur) uniquement — le trio global
+Démarrer/Télécharger tout/Tout effacer a quitté ce volet (2026-08-03, résidu) :
+les actions de FILE vivent dans la toolbar commune (queue.js). {% endcomment %}
 {% include 'common/_inspector_actions.html' %}
 {% endblock %}
 
@@ -361,7 +349,6 @@ window.WAMA_ANON = {
 <script src="{% static_v 'common/js/wama-eta.js' %}"></script>
 <script src="{% static_v 'common/js/wama-params.js' %}"></script>
 <script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
-<script src="{% static_v 'anonymizer/js/process.js' %}"></script>
 <script src="{% static_v 'anonymizer/js/update.js' %}"></script>
 <script src="{% static_v 'anonymizer/js/upload.js' %}"></script>
 <script src="{% static_v 'anonymizer/js/settings_modal.js' %}"></script>

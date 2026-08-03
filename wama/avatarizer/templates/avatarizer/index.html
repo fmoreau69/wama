@@ -103,19 +103,10 @@ couple de modes rapide/qualité n'était qu'un alias de ce toggle (décision rou
 {% block app_right_panel_actions %}
   {% include 'common/_inspector_actions.html' %}
 {% comment %}Bouton Générer déplacé dans la card « Nouvel élément » en tête de file (2026-07-11 —
-action primaire de la card, conventions CARD_DESIGN §2 ; id #btn-generate inchangé){% endcomment %}
-
-
-{# Boutons globaux standard (CONV §21.4) — start_all/download_all ajoutés audit 2026-07-11 #}
-<button id="btn-start-all" class="btn btn-success w-100 btn-sm mb-1">
-    <i class="fas fa-play me-1"></i> Tout démarrer
-</button>
-<button id="btn-download-all" class="btn btn-info w-100 btn-sm mb-1">
-    <i class="fas fa-download me-1"></i> Tout télécharger
-</button>
-<button id="btn-clear-all" class="btn btn-outline-danger w-100 btn-sm">
-    <i class="fas fa-trash-alt me-1"></i> Vider l'historique
-</button>
+action primaire de la card, conventions CARD_DESIGN §2 ; id #btn-generate inchangé).
+Le trio Tout démarrer/télécharger/vider a quitté ce volet (2026-08-03) : le volet ACTIONS
+est CONTEXTUEL (inspecteur) — les actions de FILE vivent dans la toolbar commune
+(startAllBtn/downloadAllBtn/clearAllBtn), désormais réellement câblée.{% endcomment %}
 {% endblock %}
 
 {# ===================================================================== #}
@@ -263,9 +254,11 @@ action primaire de la card, conventions CARD_DESIGN §2 ; id #btn-generate incha
             <div class="modal-body">
                 <input type="hidden" id="settingsJobId">
 
-                {# Réglages GÉNÉRÉS par WamaParams (params.py, context 'item') — source unique.
-                   Avatarizer = STANDALONE : uniquement les paramètres MuseTalk (le TTS relève du
-                   synthesizer ; en pipeline c'est la composition studio synthesizer -> avatarizer). #}
+                {% comment %} Réglages GÉNÉRÉS par WamaParams (params.py, context 'item') — source
+                unique. Avatarizer = STANDALONE : uniquement les paramètres MuseTalk (le TTS relève
+                du synthesizer ; en pipeline = composition studio synthesizer → avatarizer).
+                ⚠ 7e récidive du piège {% templatetag opencomment %} multi-ligne : Django ne strippe
+                ce commentaire QUE sur une ligne — multi-ligne il est RENDU en texte dans la modale. {% endcomment %}
                 <h6 class="text-info mb-3"><i class="fas fa-sliders-h me-1"></i>Paramètres</h6>
                 <div class="wama-params" id="avatarizerMtFields"></div>
             </div>

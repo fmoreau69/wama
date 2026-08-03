@@ -129,24 +129,6 @@ $(document).ready(function () {
         });
     });
 
-    /* ============================
-     * 🧹 Bouton "Tout effacer" du volet droit
-     * ============================ */
-    $(document).on("click", "#clear_all_media_btn", function (e) {
-        e.preventDefault();
-        if (!confirm("Voulez-vous vraiment supprimer tous les médias ?")) return;
-
-        $.ajax({
-            type: "POST",
-            url: "/anonymizer/clear_all_media/",
-            data: { csrfmiddlewaretoken: $("input[name=csrfmiddlewaretoken]").val() },
-            success: function () {
-                if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
-                window.location.reload();
-            },
-            error: function (xhr) {
-                WamaApp.toast("Erreur lors de la suppression des médias : " + (xhr.responseText || "Erreur inconnue"), 'error');
-            },
-        });
-    });
+    // Le « Tout effacer » du volet droit est MORT (2026-08-03) : l'action vit
+    // dans la toolbar commune (queue.js, #anon-clear-all-btn).
 });
