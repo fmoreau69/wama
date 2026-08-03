@@ -1745,6 +1745,30 @@ la brique (2) est agnostique au backend, l'investissement reste bon dans tous le
 - **D'ici là** : structurer l'INTÉRIEUR de `common/` (sous-packages par facette, ex. détection §17)
   — rend le déménagement ultérieur trivial.
 
+### 18.0bis Génération-MIROIR + surfaces de travail (idées Fabien 2026-08-03 soir, cadrées)
+
+**① Génération-miroir (pilote)** — régénérer UNE app simple depuis son manifeste (bac à sable
+worktree) et la CONFRONTER à l'app portée. Le diff devient un instrument qui sépare :
+trou de PORTAGE (la générée l'a, la portée non) vs spécificité NON DÉCLARÉE (la portée l'a,
+le manifeste l'ignore → trou du FORMALISME, à déclarer). Garde-fous : comparaison par le
+COMPORTEMENT (grille + smoke Playwright + endpoints sur l'app générée), jamais par diff
+textuel ; PROLONGEMENT du roundtrip existant (même corpus, même gate consistency), pas un
+2ᵉ mécanisme. Candidat n°1 : converter (93 %, zéro modèle IA) ; sinon reader. Bénéfice :
+même sans finir les ports à la main, la boucle générer→diff→corriger-le-manifeste converge.
+
+**② Surfaces de TRAVAIL déclarées** — les apps exigent souvent une UI dédiée complémentaire
+(édition médias, correction transcription, édition texte). Germe EXISTANT : la page de
+correction du transcriber (TRANSCRIBER_CORRECTION.md) = première « surface de travail »
+attachée à une card, hors file. Cible : la DÉCLARER comme facette du manifeste (type de média,
+primitives requises — forme d'onde, synchro texte, recadrage, diff…) + petit catalogue de
+primitives d'édition vendorées que les manifestes composent. Le pipeline « cloner une app
+GitHub → l'observer au Playwright → transposer » = récolte de PRIOR-ART UX (précédent
+MusicVideoGenerator), pas une transposition automatique (colle spéculative).
+
+**③ Portage wama-lab** — EN DERNIER : la valeur des apps lab EST leur UI dédiée ; ② est le
+prérequis (sinon on les aplatit dans le moule card-centric ou on re-code du spécifique).
+**Séquence actée : imager → pilote ① → formalisme ② → lab.**
+
 ### 18.1 Analyse critique en anticipation du monde DATA (2026-08-03, revue avec Fabien)
 
 **Ce qui est sain** : le précédent `wama_lab/` (monde = package frère) fonctionne ; l'enveloppe
