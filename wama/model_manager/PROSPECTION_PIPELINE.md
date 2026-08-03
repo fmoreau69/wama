@@ -3,6 +3,9 @@
 > Vision énoncée par Fabien (2026-07-17) : l'utilisateur exprime un BESOIN à l'assistant ;
 > la chaîne va jusqu'au modèle installé dans la bonne app — ou jusqu'à la génération de
 > l'app manquante. Ce document fige la cible, l'état des briques et l'ordre de réalisation.
+>
+> **Mise à jour : 2026-08-04** — confrontation au réel après l'arrivée de la couche manifestes
+> (voir « Mise en conformité » plus bas). L'état des briques et l'ordre ont été révisés.
 
 ## Le pipeline en 6 étapes
 
@@ -26,12 +29,12 @@
 
 | Étape | État | Brique |
 |---|---|---|
-| 1 | ✅ | AI-Assistant + `tool_api.py` par app — **manque le `tool_api.py` du model_manager** (exposer prospect/install/spec à l'assistant) |
+| 1 | 🟡 | AI-Assistant + `tool_api.py` — **un SEUL fichier central `wama/tool_api.py`** (`TOOL_REGISTRY`, `/api/v1/tools/`), pas un par app. Il couvre les 10 apps média et **zéro outil model_manager** : `search_models` / `model_catalog` / `prepare_install_spec` / `install_model` restent à écrire |
 | 2 | 🟡 | `services/prospector.py` (HF API déjà interrogée : `pipeline_tag`, librairie, downloads) + `prospect_agents.py` (évaluation LLM des candidats) — chaîne Ollama-first opérationnelle, à étendre : beat vision (releases Ultralytics + HF vision) |
-| 3 | 🟡 | HF fournit `library_name` par modèle ; heuristique + passe LLM à écrire (petite) |
+| 3 | ✅ | **SUBSUMÉ par la couche manifestes** (2026-08-02) : le kind `library` (SPEC §7.4-3) porte dépôt/licence/version/`install.pip`, extrait mécaniquement par `extract_library()` ; la « passe LLM » est le rôle wama-dev-ai « librarian » (§7.4-4, `run_librarian.py`). Reste à **brancher** sur la prospection, plus à écrire |
 | 4 | 🟡 | Capacités d'apps déclarées (`APP_CATALOG`, `app_registry`) ; le matching besoin↔capacité est à écrire |
 | 5 | ✅ | `install_from_spec()` (descripteur déclaratif, ce commit) + drivers `pull_ollama_model` / `pull_hf_model` / `pull_yolo_weights` / `pip_install_packages` + `register_after_install` |
-| 6 | ⏳ | = chantier « manifests → génération LLM » DÉJÀ priorisé (voir `UI_MECHANISMS_CONSOLIDATION.md`, mémoire projet) — la vision s'y branche, ne pas dupliquer |
+| 6 | 🔄 | = chantier « manifests → génération LLM » DÉJÀ priorisé (voir **`WAMA_APP_GENERATION_ROUTE.md`** — `UI_MECHANISMS_CONSOLIDATION.md` est archivé dans `docs/archive/` — et `WAMA_MANIFEST_SPEC.md`) — la vision s'y branche, ne pas dupliquer. Avancé depuis : 7 kinds, enveloppe `requires`, ingest, corpus |
 
 ## Garde-fous (non négociables)
 
@@ -42,13 +45,40 @@
 - **Path d'abord** (règle CLAUDE.md) : chaque driver installe dans l'arborescence dédiée
   (`model_locations` / `vision/yolo/<task>/`), jamais dans le cache HF global.
 
+## Mise en conformité avec la couche manifestes (2026-08-04)
+
+> Ce document a été écrit le 2026-07-17, **avant** la couche manifestes (7 kinds : `app`,
+> `dataset`, `function`, `library`, `model`, `pipeline`, `project`). Confrontation au code :
+
+- **Un candidat de prospection EST DÉJÀ un manifeste `model`.** `common/manifests/builtin/model.py`
+  extrait `provenance.is_proposed / proposal_kind / confidence / update_complexity`. Il ne faut donc
+  PAS inventer un format de candidat parallèle.
+- **Le « spec attaché » n'a pas de domicile.** `model.body` expose `identity` / `resources` /
+  `formats` / `capabilities` / `provenance` / `extra_info` — **aucun bloc `install`**, alors que
+  `library.body.install.pip` existe ET est validé (`install.pip manquant` = erreur de validation).
+  → **Décision : le descripteur `install_from_spec` devient `model.body.install`**
+  (`{'kind': 'ollama'|'hf'|'yolo', 'ref': …, 'category'/'family'/'allow_patterns'}`), symétrique de
+  `library.body.install`. PAS dans `extra_info['prospect']['spec']` : ce serait un champ surchargé,
+  invisible du validateur et du round-trip.
+- **Le kind `model` est « store+verify only »** (pas de `project`, cf. `kinds.py`) : un candidat
+  validé ne s'écrit pas en base par la couche manifeste — l'installation reste
+  `api_prospect_install` → `install_from_spec`. Le manifeste DÉCRIT, l'endpoint EXÉCUTE.
+- **Trous ouverts par cette confrontation** : (a) `manifests/` ne contient que `apps/` et
+  `libraries/` — **pas de `models/`**, donc aucun corpus d'exemples pour un rôle LLM ; (b) SPEC §7.4
+  s'arrête à l'étape 4 (rôle « librarian ») — **aucun rôle « scout modèles »**, qui en est pourtant
+  le pendant exact pour les modèles ; (c) `api_prospect_install` refuse tout ce qui n'est pas Ollama
+  (`views.py`, « phase 1 ») alors que les drivers `hf`/`yolo` existent depuis l'étape 5.
+
 ## Ordre de réalisation recommandé
 
 1. ✅ `install_from_spec` (fait — point d'entrée unique, endpoint `{'spec': …}`).
-2. `tool_api.py` du model_manager : exposer `search_models` (prospector), `model_catalog`
+2. `model.body.install` (bloc + validation, sur le patron de `library`) puis levée de la
+   restriction Ollama-only de `api_prospect_install` : c'est ce qui débloque 3.
+3. `tool_api.py` du model_manager : exposer `search_models` (prospector), `model_catalog`
    (AIModel), `prepare_install_spec` (retourne le spec SANS exécuter), `install_model`
    (exécute un spec validé) à l'assistant.
-3. Beat de prospection vision : candidats `is_proposed` avec spec attaché (Ultralytics
-   releases + HF `pipeline_tag` vision), même UI « Proposés par IA » qu'Ollama.
-4. Matching besoin↔app (capacités APP_CATALOG) — fonction pure, testable.
-5. Génération d'app : rejoindre le chantier manifeste existant (P0).
+4. Beat de prospection vision : candidats `is_proposed` avec `body.install` renseigné (Ultralytics
+   releases + HF `pipeline_tag` vision), même UI « Proposés par IA » qu'Ollama. Remplace le stub
+   jamais exécutable `AI-models/weekly_model_discovery.py` (à supprimer alors).
+5. Matching besoin↔app (capacités APP_CATALOG) — fonction pure, testable.
+6. Génération d'app : rejoindre le chantier manifeste existant (P0).
