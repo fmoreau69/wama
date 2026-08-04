@@ -2722,6 +2722,38 @@ interdit (7 récidives) ; support ≠ adoption (script porté par la brique dés
 
 ---
 
+## §REPRISE — 2026-08-05 : PARTITION MULTI-INSTANCES (à lire avant de toucher au dépôt)
+
+> **Deux instances travaillent en parallèle. Partition déclarée par Fabien le 2026-08-05.**
+>
+> | Instance | Périmètre RÉSERVÉ | Ne touche pas |
+> |---|---|---|
+> | **Cam analyzer / profondeur** | `wama_lab/**` — chaîne de traitement, modèles de profondeur | `wama/model_manager/**` |
+> | **Catalogue / taxonomie** (celle-ci) | `wama/model_manager/**`, `wama/common/services/**`, prospection, banc | `wama_lab/**` |
+>
+> **Ce que l'instance catalogue a déjà livré et qui SERT directement le chantier profondeur** —
+> à reprendre plutôt qu'à refaire :
+> - `CAM_ANALYZER_CHAINE_TRAITEMENT.md` §[E] : piste profondeur instruite (5 usages, limites
+>   chiffrées, ancrage sur la limite connue n°7 « reflets fantômes ») — commit `16a70b8`,
+>   **documentation seule, aucun code**. C'est le seul fichier de `wama_lab/` que j'aie touché ;
+>   il est COMMITTÉ, donc pas de conflit avec des éditions en cours.
+> - Candidat identifié : **`depth-anything/DA3METRIC-LARGE`, métrique et Apache-2.0** (716 k dl,
+>   relevé via `manage.py prospect_models --app <app> --search`). Licence sans objet.
+> - Le rig est fait de caméras **perspectives** (61°/31°), PAS d'un capteur équirectangulaire :
+>   les modèles monoculaires s'appliquent caméra par caméra, sans reprojection ni couture.
+> - `manage.py bench --task <tâche>` (commit `082c419`) accueillerait un protocole
+>   `depth-estimation` — une entrée dans `PROTOCOLES` (`model_manager/services/bench.py`),
+>   pas une commande de plus.
+> - ⚠ **Si un modèle de profondeur entre au catalogue** : la tâche `depth-estimation` n'est PAS
+>   déclarée dans `ModelTask` (elle figure en `TACHES_CONNUES_NON_PORTEES`).
+>   `check_model_taxonomy` sortira en 1. C'est voulu — il faut la déclarer, pas contourner.
+>   Cette déclaration est dans MON périmètre : me la demander plutôt que d'éditer `models.py`.
+>
+> Rappels de discipline : `git commit <chemins explicites>` uniquement — jamais `git add -A`,
+> l'index est partagé. `PROJECT_STATUS.md` s'édite en petits blocs, relus avant chaque édition.
+
+---
+
 ## §REPRISE — session 2026-08-04 (nuit) : retest MuseTalk ✅ + 3 fixes issus de l'usage réel
 
 > Session mono-instance côté apps ; une AUTRE instance travaillait en parallèle sur
