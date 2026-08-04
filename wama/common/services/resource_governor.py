@@ -166,8 +166,17 @@ def reserve_vram(owner: str, gb: float) -> bool:
         return False
 
 
-def release_vram(owner: str) -> bool:
-    """Libère la réservation de `owner`. Sans effet s'il n'en avait pas."""
+def release_reservation(owner: str) -> bool:
+    """
+    Libère la RÉSERVATION de `owner` dans le registre Redis. Sans effet s'il n'en avait pas.
+
+    ⚠ NE TOUCHE PAS AU GPU — c'est de la comptabilité, pas un déchargement. Le vrai
+    déchargement est `model_manager.services.memory_manager.MemoryManager.release_vram()`.
+
+    Renommée le 2026-08-04 : les deux fonctions s'appelaient `release_vram` avec des sémantiques
+    OPPOSÉES (l'une écrit une ligne de registre, l'autre vide la VRAM). Un appel confondu ne
+    libérait rien, ou déchargeait tout — et rien dans le nom ne permettait de s'en apercevoir.
+    """
     client = _redis()
     if client is None:
         return False
@@ -175,8 +184,14 @@ def release_vram(owner: str) -> bool:
         client.hdel(_LEDGER_KEY, owner)
         return True
     except Exception as exc:
-        logger.debug(f"[ResourceGovernor] release_vram({owner}) : {exc}")
+        logger.debug(f"[ResourceGovernor] release_reservation({owner}) : {exc}")
         return False
+
+
+#: Alias RÉTROCOMPATIBLE, à retirer une fois les appelants hors-dépôt (le cas échéant) migrés.
+#: Conservé parce qu'un `release_vram` absent échouerait à l'import — donc au démarrage — alors
+#: que le renommage vise justement à éviter les accidents.
+release_vram = release_reservation
 
 
 @contextmanager
@@ -201,7 +216,7 @@ def vram_reservation(owner: str, gb: float):
     try:
         yield
     finally:
-        release_vram(owner)
+        release_reservation(owner)
 
 
 def reservations(exclude: str | None = None) -> dict[str, float]:

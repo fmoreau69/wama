@@ -129,10 +129,14 @@ def _wrap_unload(func):
     def wrapper(self, *args, **kwargs):
         result = func(self, *args, **kwargs)
         try:
-            from wama.common.services.resource_governor import release_vram
-            release_vram(_governor_owner(self))
+            # `release_reservation` et NON `release_vram` : ici on rend la LIGNE DE REGISTRE du
+            # gouverneur, on ne décharge rien du GPU (le déchargement vient de se produire
+            # juste au-dessus, dans `func`). L'ancien nom était l'homonyme de
+            # `MemoryManager.release_vram()`, qui lui vide réellement la VRAM.
+            from wama.common.services.resource_governor import release_reservation
+            release_reservation(_governor_owner(self))
         except Exception:
-            logger.debug("Libération VRAM au gouverneur ignorée", exc_info=True)
+            logger.debug("Libération de la réservation au gouverneur ignorée", exc_info=True)
         _untrack_live(self)
         return result
 
