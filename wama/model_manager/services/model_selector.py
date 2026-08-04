@@ -48,18 +48,36 @@ def _supports(model, requires, classes) -> bool:
     return True
 
 
+def _rang_qualite(m):
+    """
+    Clé de tri : (déjà chargé, qualité).
+
+    La qualité vient de `quality_index` (indice structurel, cf. `services/model_quality.py`).
+    Repli sur `vram_gb` quand il est inconnu — c'était l'ancien critère unique, il reste un
+    proxy grossier acceptable pour les modèles pas encore qualifiés (HF, YOLO…). Un indice
+    NULL ne doit surtout pas valoir 0, sinon un modèle non qualifié passerait pour mauvais.
+    """
+    return (m.is_loaded, m.quality_index if m.quality_index is not None else (m.vram_gb or 0))
+
+
 def _best_by_vram(models, budget_gb: Optional[float]):
     """
-    Parmi `models`, choisir le meilleur compromis qualité/VRAM :
-      - déjà chargé prioritaire (tuple de tri),
-      - sinon le plus « gros » (vram_gb) qui TIENT dans le budget (meilleure qualité sans OOM),
+    Parmi `models`, choisir le meilleur compromis QUALITÉ/VRAM :
+      - déjà chargé prioritaire (évite un déchargement/rechargement) ;
+      - sinon le plus QUALITATIF qui TIENT dans le budget ;
       - si rien ne tient, le plus léger (meilleure chance de charger).
+
+    ⚠ Le nom `_best_by_vram` est conservé (appelé ailleurs) mais il ne dit plus la vérité : le
+    classement ne se fait plus par taille. Le critère précédent — « le plus gros qui tient » —
+    assimilait volume et qualité, ce qu'un MoE dément frontalement : `qwen3.6:35b` active 8
+    experts sur 256, donc la qualité d'un 36B pour le coût de calcul d'un 3B. La VRAM reste une
+    CONTRAINTE (le budget ci-dessous), elle n'est plus le critère de choix.
     """
     if budget_gb is None:
-        return max(models, key=lambda m: (m.is_loaded, m.vram_gb or 0))
+        return max(models, key=_rang_qualite)
     fit = [m for m in models if (m.vram_gb or 0) <= budget_gb]
     if fit:
-        return max(fit, key=lambda m: (m.is_loaded, m.vram_gb or 0))
+        return max(fit, key=_rang_qualite)
     return min(models, key=lambda m: (m.vram_gb or 0))
 
 

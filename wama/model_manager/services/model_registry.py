@@ -11,6 +11,12 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 from dataclasses import dataclass, field
+
+from .model_quality import (
+    indice_qualite as _indice_qualite,
+    params_actifs_b as _params_actifs,
+    params_en_milliards as _params_b,
+)
 from enum import Enum
 
 logger = logging.getLogger(__name__)
@@ -94,6 +100,9 @@ class ModelInfo:
     hf_id: Optional[str] = None
     vram_gb: float = 0
     ram_gb: float = 0
+    #: Indice de qualité a priori (cf. `model_quality.py`). None = inconnu, PAS zéro : le tri
+    #: doit pouvoir distinguer « pas mesuré » de « mauvais ».
+    quality_index: Optional[float] = None
     is_loaded: bool = False
     is_downloaded: bool = False
     backend_ref: Optional[str] = None
@@ -1122,6 +1131,44 @@ class ModelRegistry:
             return {}
 
     @staticmethod
+    def _ollama_fiche(nom: str) -> dict:
+        """
+        Métadonnées RICHES d'un modèle Ollama (`/api/show`) — bien au-delà de `/api/tags`.
+
+        Rend `{params_b, quantization, context_length, experts_total, experts_actifs, arch}`,
+        ou `{}` si indisponible. Ce que ça débloque, et qu'aucune autre source ne donnait :
+          • le nombre de paramètres EXACT (`details.parameter_size`), là où la découverte
+            parsait un libellé de tag — parsing qui échouait justement sur `35b-a3b`, laissant
+            `vram_gb=0.0` et faisant paraître le modèle gratuit au sélecteur ;
+          • le ratio d'experts d'un MoE (`<arch>.expert_used_count` / `expert_count`), donc la
+            séparation entre qualité (params totaux) et coût (params actifs) ;
+          • la fenêtre de contexte, capacité canonique jamais renseignée jusqu'ici.
+
+        ⚠ UN APPEL PAR MODÈLE. Acceptable à la synchro (périodique, ~12 modèles) ; à ne pas
+        mettre dans un chemin de requête.
+        """
+        try:
+            import requests
+            from wama.common.utils.ollama_host import ollama_base, ollama_kwargs
+            r = requests.post(f"{ollama_base()}/api/show", json={'model': nom},
+                              **ollama_kwargs(timeout=15))
+            r.raise_for_status()
+            d = r.json()
+            details, infos = d.get('details') or {}, d.get('model_info') or {}
+            arch = infos.get('general.architecture') or ''
+            return {
+                'params_b': details.get('parameter_size') or '',
+                'quantization': details.get('quantization_level') or '',
+                'context_length': infos.get(f'{arch}.context_length'),
+                'experts_total': infos.get(f'{arch}.expert_count'),
+                'experts_actifs': infos.get(f'{arch}.expert_used_count'),
+                'arch': arch,
+            }
+        except Exception as exc:
+            logger.debug("[ModelRegistry] /api/show %s indisponible : %s", nom, exc)
+            return {}
+
+    @staticmethod
     def _capacites_canoniques(brutes: set) -> dict:
         """Capacités Ollama → vocabulaire CANONIQUE (`model_capabilities.CANONICAL_CAPABILITIES`).
 
@@ -1190,6 +1237,19 @@ class ModelRegistry:
                             # Ollama models use GGUF format
                             preferred = self._get_preferred_format(ModelType.LLM)
 
+                            # Métadonnées structurelles → indice de qualité + axe de coût.
+                            # `params_b` vient de `/api/show`, PAS du libellé de tag : ce
+                            # dernier laissait `vram_gb=0.0` sur les noms composés (`35b-a3b`).
+                            fiche = self._ollama_fiche(model_name)
+                            pb = _params_b(fiche.get('params_b'))
+                            qualite = _indice_qualite(
+                                params_b=pb,
+                                context_length=fiche.get('context_length'),
+                                quantization=fiche.get('quantization', ''),
+                            )
+                            actifs = _params_actifs(pb, fiche.get('experts_total'),
+                                                    fiche.get('experts_actifs'))
+
                             self._models[f"ollama:{model_name}"] = ModelInfo(
                                 id=f"ollama:{model_name}",
                                 name=model_name,
@@ -1217,8 +1277,17 @@ class ModelRegistry:
                                 # plus confondus avec des modèles de chat, et `vision` est
                                 # renseigné là où le commentaire précédent le disait — à tort —
                                 # hors de portée.
-                                capabilities=self._capacites_canoniques(
-                                    capacites.get(model_name, set())),
+                                quality_index=qualite,
+                                capabilities=dict(
+                                    self._capacites_canoniques(capacites.get(model_name, set())),
+                                    # `context_length` est au vocabulaire canonique et n'était
+                                    # jamais rempli ; `params_*_b` séparent explicitement la
+                                    # QUALITÉ (totaux) du COÛT (actifs) — voir model_quality.py.
+                                    **({'context_length': fiche['context_length']}
+                                       if fiche.get('context_length') else {}),
+                                    **({'params_total_b': pb} if pb else {}),
+                                    **({'params_active_b': actifs} if actifs else {}),
+                                ),
                             )
                             models_found = True
             except (FileNotFoundError, subprocess.TimeoutExpired):

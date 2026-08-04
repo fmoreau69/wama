@@ -159,6 +159,9 @@ class ModelSyncService:
             'hf_id': model_info.hf_id or '',
             'vram_gb': model_info.vram_gb or 0,
             'ram_gb': model_info.ram_gb or 0,
+            # `or None` et NON `or 0` : un indice inconnu doit rester NULL pour que le tri le
+            # distingue d'un modèle réellement mauvais (cf. model_quality.py).
+            'quality_index': getattr(model_info, 'quality_index', None) or None,
             'is_downloaded': model_info.is_downloaded,
             'is_loaded': model_info.is_loaded,
             'is_available': True,

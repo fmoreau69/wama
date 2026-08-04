@@ -196,6 +196,18 @@ class AIModel(models.Model):
         help_text="Complexité estimée de la mise à jour / installation"
     )
 
+    # ── Qualité (indice a priori) ─────────────────────────────────────────────
+    # Sert à ORDONNER les candidats de `select_model()` autrement que par la taille : trier par
+    # VRAM assimile « le plus gros » à « le meilleur », ce qu'un MoE dément (qwen3.6:35b active
+    # 8 experts sur 256 — qualité d'un 36B, coût d'un 3B, mais 22 Go de VRAM).
+    # Calculé par `services/model_quality.py` depuis des propriétés STRUCTURELLES déclarées par
+    # le fournisseur (paramètres, contexte, quantification) — jamais un benchmark inventé.
+    # Une valeur posée à la main PRIME : c'est le point d'entrée d'une mesure interne future.
+    # NULL = inconnu, ce qui doit rester distinct de « mauvais » (cf. le tri, qui replie sur vram).
+    quality_index = models.FloatField(
+        null=True, blank=True, db_index=True,
+        help_text="Indice de qualité a priori (structurel). NULL = inconnu, pas zéro.")
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
