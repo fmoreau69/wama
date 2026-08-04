@@ -125,8 +125,8 @@ cd web-app-for-media-automation
 ```bash
 python3.12 -m venv venv_linux
 source venv_linux/bin/activate
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
-pip install -r requirements_linux.txt
+pip install -r requirements_torch.txt    # PyTorch GPU (CUDA 12.8) — EN PREMIER, pins +cu128
+pip install -r requirements_linux.txt    # doit passer APRÈS (rétablit le pin setuptools<81)
 ```
 
 ### 3. Python environment (Windows — Apache mod_wsgi only)

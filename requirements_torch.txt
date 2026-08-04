@@ -1,0 +1,44 @@
+# ── PyTorch GPU (CUDA 12.8) — fichier SÉPARÉ, à installer EN PREMIER ────────────
+#
+#     pip install -r requirements_torch.txt
+#     pip install -r requirements.txt          # puis le reste
+#     pip install -r requirements_linux.txt    # (Linux/WSL2 uniquement)
+#
+# POURQUOI UN FICHIER À PART, ET POURQUOI CES PINS EXACTS
+#
+# 1. `torch>=2.8.0+cu128` (l'ancienne ligne, commentée dans requirements.txt) NE PEUT PAS
+#    fonctionner : PyPI n'héberge que les roues SANS suffixe local. Un `>=` y trouve donc
+#    toujours la version CPU, et le `+cu128` est ignoré. C'est la cause du « ça installait
+#    la version CPU » — la syntaxe était le problème, pas l'index.
+#
+# 2. Les pins sont EXACTS et portent le suffixe local `+cu128`. Ce suffixe n'existe que sur
+#    l'index PyTorch : aucune roue PyPI ne peut le satisfaire. C'est ce qui rend
+#    `--extra-index-url` sûr ICI — impossible de se faire substituer torch par un homonyme
+#    (confusion de dépendances), puisque la contrainte est insatisfiable ailleurs.
+#
+# 3. `--extra-index-url` et NON `--index-url` : l'index PyTorch n'héberge pas les dépendances
+#    propres de torch (sympy, filelock, networkx, jinja2, fsspec). Avec `--index-url` seul,
+#    une installation neuve échoue sur ces paquets. pip doit voir les DEUX index.
+#
+# 4. Ces trois paquets sont ISOLÉS dans ce fichier pour que l'index supplémentaire ne
+#    s'applique PAS à la résolution des ~60 autres dépendances du projet.
+#
+# 5. Versions figées et non `>=` : `patches/apply_patches.py` corrige `xformers/ops/seqpar.py`
+#    pour torch 2.9.x (suppression de `GroupName`). Une montée de version silencieuse casserait
+#    ce patch — et la reproductibilité des résultats, qui est un objectif de labo.
+#
+# Cible vérifiée le 2026-08-04 : Python 3.12.3, CUDA 12.8, `torch.cuda.is_available()` True
+# dans venv_linux ET venv_win. Pour une autre version de CUDA, changer `cu128` PARTOUT
+# (URL + les trois suffixes) — les quatre doivent rester cohérents.
+#
+# ⚠ ORDRE D'INSTALLATION NON INTERCHANGEABLE. Ce fichier tire `setuptools` 83.x (vérifié en
+# dry-run sur les deux plateformes), alors que `requirements_linux.txt` épingle `setuptools<81`
+# — `pkg_resources`, retiré en 81+, est requis par mmengine/mmpose (MuseTalk). Installer torch
+# EN PREMIER puis les autres fichiers laisse le pin `<81` reprendre la main. L'ordre inverse
+# casse MuseTalk silencieusement.
+
+--extra-index-url https://download.pytorch.org/whl/cu128
+
+torch==2.9.1+cu128
+torchvision==0.24.1+cu128
+torchaudio==2.9.1+cu128

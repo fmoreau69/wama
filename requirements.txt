@@ -27,7 +27,9 @@ PySide6>=6.9
 pytube>=15.0.0
 requests>=2.32.3
 safetensors>=0.4.0
-#torch>=2.8.0+cu128
+# torch/torchvision/torchaudio : voir requirements_torch.txt, à installer EN PREMIER.
+# (L'ancienne ligne `torch>=2.8.0+cu128` ne pouvait pas marcher — PyPI n'a aucune roue avec
+#  suffixe local, donc `>=` retombait toujours sur la version CPU. D'où sa mise en commentaire.)
 tqdm>=4.67.1
 ultralytics>=8.3.203
 watchdog>=3.0.0

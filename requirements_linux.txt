@@ -20,8 +20,13 @@ python_ldap
 PySide6
 pytube
 requests
-#torch
+# torch/torchvision/torchaudio : voir requirements_torch.txt, à installer EN PREMIER
+# (ce fichier doit passer APRÈS pour que le pin `setuptools<81` ci-dessus reprenne la main).
 tqdm
+transformers>=4.57,<5  # oubli comblé 2026-08-04 — importé par musetalk/describer/olmocr/synthesizer/qwen-ASR.
+                       # Borne HAUTE volontaire : les 9 patches boson_multimodal de
+                       # patches/apply_patches.py sont écrits pour l'API 4.57+ (cf. CLAUDE.md).
+                       # ⚠ venv_win porte 5.12.1 — divergence CONNUE, non corrigée ici.
 ultralytics
 yt-dlp
 
