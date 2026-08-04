@@ -21,6 +21,9 @@ class Command(BaseCommand):
         parser.add_argument('--limit', type=int, default=15)
         parser.add_argument('--min-downloads', type=int, default=0)
         parser.add_argument('--library', help="Filtre de librairie HF (ex: diffusers, transformers).")
+        parser.add_argument('--search', help="Mots-cles dans le nom du modele (ex: face, license plate). "
+                                             "Sans ca, une tache large ne rend que les plus telecharges, "
+                                             "donc les generalistes -- jamais les specialises.")
         parser.add_argument('--new-only', action='store_true', help="Masquer ce que WAMA possede deja.")
         parser.add_argument('--apply', action='store_true',
                             help="Creer des entrees 'recommended' (non telechargees) dans le catalogue pour les NOUVEAUX candidats.")
@@ -40,7 +43,8 @@ class Command(BaseCommand):
 
         res = prospect_hf(task, limit=options['limit'],
                           library=options.get('library'),
-                          min_downloads=options['min_downloads'])
+                          min_downloads=options['min_downloads'],
+                          search=options.get('search'))
         if not res.get('ok'):
             self.stderr.write(self.style.ERROR(f"✗ {res.get('error')}"))
             return

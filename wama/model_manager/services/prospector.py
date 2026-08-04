@@ -37,10 +37,16 @@ _TASK_MODEL_TYPE = {
 }
 
 
-def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_downloads: int = 0):
+def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_downloads: int = 0,
+                search: str | None = None):
     """
     Top modèles HF d'une `task` (par téléchargements), avec flag « déjà dans WAMA ».
     Retourne {'ok': True, 'task': str, 'candidates': [...]} ou {'ok': False, 'error': str}.
+
+    `search` restreint aux modèles dont le nom contient les termes donnés. Sans lui, une tâche
+    large ne rend que les modèles les plus téléchargés — pour `object-detection`, des détecteurs
+    COCO génériques, jamais les spécialisés qu'on cherche (visage, plaque). Constaté le
+    2026-08-04 en cherchant à remplacer les modèles visage/plaque de l'anonymizer.
     """
     try:
         from huggingface_hub import HfApi
@@ -56,6 +62,8 @@ def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_down
               'expand': ['downloads', 'likes', 'lastModified', 'pipeline_tag']}
     if library:
         kwargs['filter'] = library
+    if search:
+        kwargs['search'] = search
     try:
         models = list(api.list_models(**kwargs))
     except Exception as e:
