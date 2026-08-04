@@ -72,6 +72,14 @@ pas de tests destructifs (user id=1 = Fabien réel, `transaction.atomic()`) · p
 
 ---
 
+## 2026-08-05
+
+| Commit | Quoi | Pourquoi | Validation/annulation |
+|---|---|---|---|
+| *(ce commit)* | **Section EXPLORATOIRE ajoutée à `CAM_ANALYZER_CHAINE_TRAITEMENT.md` : profondeur monoculaire ([E]).** Documentation seule — **aucun code, aucun modèle installé, aucune bascule**. Cinq usages instruits : (1) discriminer les **reflets** par la discontinuité de profondeur au contour — un objet réel crée une marche, un reflet est dans le plan de la surface réfléchissante donc le champ reste continu ; (2) **statique vs mobile** en confrontant l'évolution de profondeur à celle prédite par l'ego-motion ; (3) **confrontation au pinhole**, réciproque : la profondeur couvre les cas où `H_classe` est fausse ou la bbox tronquée, le pinhole fournit l'ancrage d'échelle qui manque au monoculaire ; (4) **re-calage du plan de sol** ; (5) **ordre d'occlusion** pour la continuité du tracking. | Piste ouverte par Fabien (2026-08-05). Elle vise **deux symptômes déjà documentés ici** : la limite connue **n°7** (« reflets fantômes géants » du vitrage latéral, non couverts par `artifact_filter`, où l'analyse de transparence était la seule piste) et la cause racine du 2026-07-15 qui listait « fantômes, stationnés » comme héritant du bruit ±20 % de la position pinhole. Deux vérifications ont levé les objections que j'anticipais : le rig est fait de caméras **perspectives** (61°/31°), pas d'un capteur équirectangulaire — les modèles monoculaires s'appliquent sans reprojection ; et `depth-anything/DA3METRIC-LARGE` est **métrique et Apache-2.0**, donc sans question de licence. | **Rien à valider : aucun comportement modifié.** Les limites sont consignées dans la section elle-même — portée utile ~15-20 m (au-delà de 30-40 m le signal ne vaut plus grand-chose), coût d'un modèle de plus par image, dépendance aux intrinsèques (la même erreur de FOV qui a coûté ×3,6). Le jour où ce sera implémenté : A/B à **métrique chiffrée**, jamais visuel seul, via `manage.py bench --task depth-estimation` contre la distance pinhole sur séquences à occlusion connue. Annulation : suppression de la section. |
+
+---
+
 ## 2026-07-29
 
 | Commit | Quoi | Pourquoi | Validation/annulation |

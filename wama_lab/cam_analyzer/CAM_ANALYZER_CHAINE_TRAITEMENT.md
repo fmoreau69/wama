@@ -362,6 +362,74 @@ par côté). Règle : **jamais de if ad hoc dispersé** pour une amélioration c
 
 ---
 
+## [E] Piste EXPLORATOIRE — profondeur monoculaire (2026-08-05)
+
+> ⚠ **Rien n'est implémenté.** Section de conception, ouverte pour être discutée et chiffrée
+> avant tout code. Aucune bascule, aucun paramètre, aucun modèle installé à ce jour.
+
+### Pourquoi cette piste ouvre maintenant
+
+Le format s'y prête, contrairement à ce qu'on pourrait craindre d'un « 360° » : le rig est fait de
+caméras **perspectives** (F4005-E 61° V, F1015 31°), pas d'un capteur équirectangulaire. Les
+modèles de profondeur monoculaire sont entraînés sur des images perspectives — ils s'appliquent
+caméra par caméra, sans reprojection ni couture.
+
+Candidat identifié : `depth-anything/DA3METRIC-LARGE`, **métrique** et **Apache-2.0**
+(716 k téléchargements, relevé le 2026-08-05 via `manage.py prospect_models`). La licence ne pose
+donc pas de question.
+
+### Ce que la profondeur apporterait, par usage
+
+**1. Reflets — attaque la limite connue n°7.** Un objet réel crée une **discontinuité de
+profondeur le long de sa silhouette** : le fond saute derrière lui. Un reflet est *dans le plan de
+la surface réfléchissante* (vitrage latéral, carrosserie, chaussée mouillée), donc le champ de
+profondeur reste **continu** à travers le contour de la détection. Le critère n'est pas « quelle
+profondeur » mais « y a-t-il une marche au bord » — plus discriminant que le critère « statique en
+image » d'`artifact_filter`, et que l'analyse de transparence envisagée jusqu'ici.
+⚠ Réserve : les modèles monoculaires hallucinent parfois une silhouette plausible pour un reflet.
+C'est le test de discontinuité au contour, pas la valeur brute, qu'il faut évaluer.
+
+**2. Statique vs mobile — plus fort qu'une stabilisation.** La caméra bouge, donc la profondeur
+d'un véhicule stationné change : c'est normal. Ce qui est invariant, c'est qu'elle doit évoluer
+**exactement comme l'ego-motion le prédit**. Confronter l'évolution observée à l'évolution prédite
+(GPS + map-matching déjà en place) donne un discriminant statique/mobile. Enjeu réel : un véhicule
+garé n'est pas une interaction, un véhicule qui roule en est une.
+
+**3. Confrontation au pinhole — réciproque, pas redondante.** La distance de référence
+(`H_classe · f_y / h_bbox_px`, cf. §Conception) échoue dans deux cas précis : `H_classe` est une
+taille moyenne (enfant, camionnette → erreur proportionnelle et silencieuse), et la hauteur de
+bbox suppose l'objet **entier et non tronqué** — un piéton dont les jambes sont masquées est
+déclaré *plus loin qu'il n'est*, précisément au moment d'un croisement. La profondeur lit les
+pixels : elle ne dépend ni de la taille supposée, ni de l'intégrité de la boîte. Inversement, le
+pinhole fournit l'**ancrage d'échelle** qui manque au monoculaire. Un désaccord franc entre les
+deux est lui-même un signal : occlusion, ou objet de taille atypique.
+
+**4. Re-calage du plan de sol.** Le nuage de points permettrait de ré-estimer le plan de sol, donc
+d'attaquer le biais d'homographie mesuré (23,5 m pinhole contre 6,8 m homographie) qui avait fait
+débrancher cette voie.
+
+**5. Ordre d'occlusion.** La profondeur *ordinale* (qui est devant qui) est la partie robuste des
+modèles monoculaires — aucune précision absolue requise — et servirait la continuité du tracking à
+travers les croisements.
+
+### Limites à garder en tête avant de chiffrer
+
+- **Portée.** L'erreur relative croît avec la distance ; au-delà de ~30-40 m le signal ne vaut
+  plus grand-chose. En deçà de ~15-20 m il est exploitable — soit la zone où les interactions se
+  jouent. La piste est donc **de proximité**, assumée comme telle.
+- **Le TTC est insensible au biais d'échelle** (rapport distance/vitesse) : même une profondeur
+  biaisée d'un facteur constant donne un TTC exploitable. C'est ce qui rend la piste intéressante
+  malgré l'imprécision métrique.
+- **Coût GPU.** Un modèle de plus par image, en surcroît de la détection. Atténuation possible :
+  n'exécuter que sur les ROI candidates, ou à cadence réduite.
+- **Dépendance aux intrinsèques.** La profondeur métrique en dépend : la même erreur de FOV qui a
+  coûté un facteur 3,6 (cf. [3]) mordrait ici. Même discipline de calibration.
+- **Validation.** Comme toute bascule ici : A/B à **métrique chiffrée**, jamais visuel seul. Le
+  banc générique (`manage.py bench --task <tâche>`) accueillerait un protocole `depth-estimation`,
+  et l'A/B se ferait contre la distance pinhole sur des séquences à occlusion connue.
+
+---
+
 ## Conception & justification (design — absorbé de l'ex-`DISTANCE_DESIGN`)
 
 > Raisonnement fondateur du chantier distances/vue-de-dessus. **Générique** (méthode, pas valeurs) ;
