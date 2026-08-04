@@ -178,6 +178,14 @@ def successeurs(nom_installe: str, catalogue: tuple[str, ...]) -> list[str]:
 #: initial de l'utilisateur, qui avait retenu un petit modèle pour une raison.
 FACTEUR_TAILLE_MAX = 2.0
 
+#: Plancher symétrique — un successeur nettement PLUS PETIT est une régression de qualité, pas
+#: une mise à jour. Le garde-fou n'existait que vers le haut : `tag_equivalent` prenant « la
+#: taille la plus proche », un `qwen3.5:35b-a3b` dont la famille suivante ne publierait qu'un
+#: `7b` se voyait proposer ce 7b — l'utilisateur aurait perdu 5× la capacité en croyant mettre
+#: à jour. Le nombre de paramètres est le proxy de qualité ici (cf. `services/model_quality.py`
+#: pour l'indice complet, qui exige des métadonnées dont on ne dispose pas AVANT installation).
+FACTEUR_TAILLE_MIN = 0.5
+
 
 def _milliards(tag: str):
     """'35b-a3b' → 35.0 · 'latest' → None. Le nombre de paramètres est le proxy de VRAM ici."""
@@ -211,7 +219,11 @@ def tag_equivalent(nom_cible: str, tag_source: str) -> str | None:
             ((abs(_milliards(t) - src), t) for t in dispo if _milliards(t) is not None),
             key=lambda x: x[0])
         for _, t in proches:
-            if _milliards(t) <= src * FACTEUR_TAILLE_MAX and existe(nom_cible, t):
+            taille = _milliards(t)
+            # Fenêtre SYMÉTRIQUE : ni montée en gamme non désirée (plafond), ni régression
+            # déguisée en mise à jour (plancher).
+            if (src * FACTEUR_TAILLE_MIN <= taille <= src * FACTEUR_TAILLE_MAX
+                    and existe(nom_cible, t)):
                 return t
-        return None      # une famille supérieure existe, mais aucune taille compatible
+        return None      # une famille supérieure existe, mais aucune taille comparable
     return 'latest' if existe(nom_cible, 'latest') else None
