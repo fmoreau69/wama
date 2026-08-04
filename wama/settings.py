@@ -572,11 +572,20 @@ if ENABLE_CELERY:
 #   fast    → quick summary, bullet_points
 #
 # Override any tier here; all fallback to 'default' if the key is absent.
+# ⚠ Les défauts sont VIDES, et c'est le cœur du mécanisme : une valeur non vide IMPOSE un
+# modèle et court-circuite la sélection intelligente. Tant que rien n'est posé ici, le tier est
+# résolu par `select_model()` sur le catalogue — VRAM réellement libre, et préférence aux
+# modèles DÉJÀ chargés pour éviter un déchargement/rechargement.
+# Avant le 2026-08-04 ces clés portaient des noms en dur (moondream / qwen3.5:9b / qwen3.5:4b) :
+# le dict était donc toujours plein, aucun catalogue n'était jamais consulté, et installer un
+# modèle plus récent ne changeait rien à ce que les apps appelaient réellement.
+# Ne remettre un nom ici que pour ÉPINGLER délibérément un modèle (repro d'une expérience,
+# contournement d'une régression) — via la variable d'environnement, pas en dur.
 DESCRIBER_LLM_MODELS = {
-    'image':   os.environ.get('DESCRIBER_MODEL_IMAGE',   'moondream'),
-    'heavy':   os.environ.get('DESCRIBER_MODEL_HEAVY',   'qwen3.5:9b'),
-    'default': os.environ.get('DESCRIBER_MODEL_DEFAULT', 'qwen3.5:9b'),
-    'fast':    os.environ.get('DESCRIBER_MODEL_FAST',    'qwen3.5:4b'),
+    'image':   os.environ.get('DESCRIBER_MODEL_IMAGE',   ''),
+    'heavy':   os.environ.get('DESCRIBER_MODEL_HEAVY',   ''),
+    'default': os.environ.get('DESCRIBER_MODEL_DEFAULT', ''),
+    'fast':    os.environ.get('DESCRIBER_MODEL_FAST',    ''),
 }
 
 # TTS Microservice URL (FastAPI service for preloaded TTS models)

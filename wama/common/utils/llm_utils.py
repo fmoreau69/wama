@@ -25,15 +25,88 @@ def get_describer_model(content_type: str, output_style: str) -> str:
     """
     from django.conf import settings
     models: dict = getattr(settings, 'DESCRIBER_LLM_MODELS', {})
-    default = models.get('default', 'qwen3.5:9b')
+    # `or`, PAS le défaut de `.get()` : depuis que les clés existent avec une valeur VIDE,
+    # `models.get('default', '<nom>')` renvoie '' et le repli ne s'applique jamais — un nom de
+    # modèle vide partirait jusqu'à l'appel Ollama.
+    default = models.get('default') or _DERNIER_RECOURS
 
+    # Le TIER reste déclaratif — classer la tâche est une décision métier légitime.
+    # Ce qui change : le tier ne désigne plus un NOM figé, il exprime une INTENTION que le
+    # catalogue résout selon les ressources réellement disponibles.
+    # `completion` est exigé PARTOUT : sans lui, la sélection retenait bge-m3 — un modèle
+    # d'EMBEDDING, incapable de générer du texte — parce que la découverte Ollama étiquette
+    # embeddings et modèles de chat sous le même `ModelType.LLM`. Le drapeau vient désormais
+    # des capacités déclarées par Ollama.
     if content_type == 'image':
-        return models.get('image', 'moondream')
-    if output_style in ('meeting', 'scientific'):
-        return models.get('heavy', default)
-    if output_style in ('summary', 'bullet_points'):
-        return models.get('fast', default)
-    return default
+        tier, exige = 'image', ['completion', 'vision']
+    elif output_style in ('meeting', 'scientific'):
+        tier, exige = 'heavy', ['completion']
+    elif output_style in ('summary', 'bullet_points'):
+        tier, exige = 'fast', ['completion']
+    else:
+        tier, exige = 'default', ['completion']
+
+    # Un réglage explicite (env/settings) reste PRIORITAIRE : une spécificité se déclare,
+    # elle ne se devine pas. On ne consulte le catalogue que si l'exploitant n'a rien imposé.
+    impose = models.get(tier)
+    if impose:
+        return str(impose)
+
+    choisi = _llm_par_catalogue(tier, exige)
+    if choisi is None and exige:
+        # Dégradation HONNÊTE : aucun modèle du catalogue ne déclare la capacité demandée.
+        # C'est le cas de `vision` — la découverte Ollama refuse volontairement de l'affirmer
+        # (`/api/tags` ne dit pas si un modèle est multimodal). Plutôt que de rendre une chaîne
+        # vide, on retombe sur une sélection sans exigence, en le TRAÇANT.
+        # Correctif de fond : peupler la capacité `vision` via `model_manager/services/
+        # vision_probe.py`, qui sait tester un modèle — non fait ici, hors périmètre.
+        logger.info("[llm_utils] aucun modèle ne déclare %s ; repli sans exigence (tier %s)",
+                    exige, tier)
+        choisi = _llm_par_catalogue(tier, None)
+    return str(choisi or default)
+
+
+#: Filet de dernier recours, utilisé UNIQUEMENT si le catalogue est entièrement indisponible
+#: (base injoignable, model_manager en erreur). Ce n'est pas un défaut de configuration : le
+#: chemin normal est la résolution par `select_model()`.
+_DERNIER_RECOURS = 'qwen3.5:9b'
+
+
+#: Plafond VRAM indicatif par tier, en Go. `fast` doit rester petit pour la latence ;
+#: `heavy` a droit à tout ce qui tient. Ce sont des bornes, pas des noms de modèles —
+#: elles survivent au remplacement de qwen3.5 par qwen3.6 sans être modifiées.
+_PLAFOND_TIER = {'fast': 8.0, 'default': 16.0, 'heavy': None, 'image': None}
+
+
+def _llm_par_catalogue(tier: str, exige):
+    """
+    Résout un tier via `select_model()` — brique VRAM-aware du model_manager.
+
+    `prefer_loaded=True` porte la demande centrale : à qualité comparable, privilégier un
+    modèle DÉJÀ en mémoire plutôt que d'imposer un déchargement/rechargement. Le signal vient
+    de `/api/ps`, remonté dans le catalogue par `model_registry._ollama_charges()`.
+
+    Best-effort : toute panne (catalogue vide, model_manager indisponible) retourne None et
+    l'appelant retombe sur le réglage déclaré. Un describer ne doit jamais échouer parce que
+    la sélection intelligente est indisponible.
+    """
+    try:
+        from wama.model_manager.services.model_selector import select_model
+        m = select_model(
+            'ollama',
+            model_type='llm',
+            requires=exige,
+            prefer_loaded=True,
+            vram_budget_gb=_PLAFOND_TIER.get(tier),
+        )
+        if m is None:
+            return None
+        # `model_key` = 'ollama:<nom:tag>' ; les appelants attendent le nom nu.
+        return m.model_key.split(':', 1)[1] if ':' in m.model_key else m.name
+    except Exception:
+        logger.debug("[llm_utils] sélection catalogue indisponible pour le tier %s",
+                     tier, exc_info=True)
+        return None
 
 
 def ollama_chat(

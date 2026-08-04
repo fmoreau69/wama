@@ -1068,10 +1068,89 @@ class ModelRegistry:
         except Exception as e:
             logger.debug(f"Could not discover Reader models: {e}")
 
+    @staticmethod
+    def _ollama_charges() -> set:
+        """
+        Noms des modèles Ollama actuellement EN MÉMOIRE (`/api/ps`).
+
+        Sans ce signal, `select_model(prefer_loaded=True)` ne peut rien privilégier côté LLM :
+        `is_loaded` restait à False pour les 11 modèles Ollama du catalogue, donc l'arbitrage
+        « éviter un déchargement/rechargement » ne s'appliquait qu'aux modèles non-Ollama.
+        `/api/ps` était déjà interrogé par `reader/backends/olmocr_backend.py` — jamais par la
+        synchro du catalogue.
+
+        Best-effort : Ollama injoignable → ensemble vide (aucun modèle privilégié), jamais
+        d'exception, la découverte ne doit pas échouer pour ça.
+        """
+        try:
+            import requests
+            from wama.common.utils.ollama_host import ollama_base, ollama_kwargs
+            r = requests.get(f"{ollama_base()}/api/ps", **ollama_kwargs(timeout=3))
+            r.raise_for_status()
+            return {m.get('name', '') for m in r.json().get('models', [])}
+        except Exception as exc:
+            logger.debug("[ModelRegistry] /api/ps indisponible : %s", exc)
+            return set()
+
+    @staticmethod
+    def _ollama_capacites() -> dict:
+        """
+        Capacités DÉCLARÉES PAR OLLAMA, par modèle : `/api/tags` → `{nom: {'vision', 'tools', …}}`.
+
+        Ollama publie `capabilities` pour chaque modèle — `completion`, `embedding`, `vision`,
+        `tools`, `thinking`. Ce champ n'était lu nulle part, alors qu'il résout deux problèmes
+        que le catalogue avait :
+          • les modèles d'EMBEDDING (bge-m3, nomic, mxbai) étaient étiquetés `ModelType.LLM`
+            comme les modèles de chat, donc sélectionnables comme describer — ils ne peuvent
+            pourtant pas générer de texte ;
+          • la MULTIMODALITÉ était réputée inconnaissable ici (« la liste Ollama ne dit pas si
+            un modèle est multimodal »), ce qui est faux : `vision` y figure.
+
+        La découverte passe par `ollama list` (subprocess), qui ne porte pas cette information —
+        d'où cet appel HTTP séparé. Best-effort : indisponible → dict vide, aucune capacité
+        affirmée (on retombe sur `text`/`text-generation`, comme avant).
+        """
+        try:
+            import requests
+            from wama.common.utils.ollama_host import ollama_base, ollama_kwargs
+            r = requests.get(f"{ollama_base()}/api/tags", **ollama_kwargs(timeout=5))
+            r.raise_for_status()
+            return {m.get('name', ''): set(m.get('capabilities') or [])
+                    for m in r.json().get('models', [])}
+        except Exception as exc:
+            logger.debug("[ModelRegistry] capacités Ollama indisponibles : %s", exc)
+            return {}
+
+    @staticmethod
+    def _capacites_canoniques(brutes: set) -> dict:
+        """Capacités Ollama → vocabulaire CANONIQUE (`model_capabilities.CANONICAL_CAPABILITIES`).
+
+        `requires=` de `select_model()` teste des clés TRUTHY : on expose donc des drapeaux
+        positifs (`completion`, `vision`, `tools`, `embedding`) plutôt qu'une négation, qu'il
+        ne saurait pas exprimer.
+        """
+        embarque = 'embedding' in brutes
+        modalites = ['text'] + (['image'] if 'vision' in brutes else [])
+        caps = {
+            'modalities': modalites,
+            'task': 'feature-extraction' if embarque else 'text-generation',
+            'inputs_required': ['prompt'],
+        }
+        for drapeau in ('completion', 'vision', 'tools', 'thinking', 'embedding'):
+            if drapeau in brutes:
+                caps[drapeau] = True
+        # Un modèle sans capacité déclarée (Ollama ancien, ou API injoignable) est traité comme
+        # un modèle de complétion : c'est le comportement d'avant, on ne régresse pas.
+        if not brutes:
+            caps['completion'] = True
+        return caps
+
     def _discover_ollama_models(self):
         """Discover Ollama models (with short timeout to avoid blocking)."""
         # Try multiple methods to discover Ollama models
         models_found = False
+        charges = self._ollama_charges()
+        capacites = self._ollama_capacites()
 
         # Method 1: Try ollama command (works on native Windows/Linux)
         for cmd in ['ollama', 'ollama.exe']:
@@ -1118,24 +1197,28 @@ class ModelRegistry:
                                 source=ModelSource.OLLAMA,
                                 description=f"Ollama LLM ({size_display})",
                                 ram_gb=ram_gb,
+                                # APPROXIMATION ASSUMÉE : pour un GGUF servi par Ollama, l'empreinte
+                                # VRAM est de l'ordre de la taille du fichier (le KV cache s'y
+                                # ajoute, variable selon le contexte). Sans cette valeur, `vram_gb`
+                                # restait à 0.0 pour TOUS les LLM et le budget VRAM de
+                                # `select_model()` ne pouvait pas les départager — un 4b et un 35b
+                                # se valaient. Approcher vaut mieux qu'un zéro qui ment.
+                                vram_gb=ram_gb,
+                                is_loaded=(model_name in charges),
                                 is_downloaded=True,
                                 backend_ref='ollama',
                                 format='gguf',
                                 preferred_format=preferred,
                                 can_convert_to=[],  # Managed by Ollama
                                 extra_info={'disk_gb': ram_gb, 'ollama_id': model_id_hash},
-                                # Capacités CANONIQUES. Les LLM Ollama étaient les SEULS
-                                # modèles du catalogue sans capacités : les apps qui les
-                                # consomment (describer, translator, enrichissement de
-                                # prompt) ne pouvaient donc pas les apparier comme les
-                                # autres. `vision` reste hors de portée ici — la liste
-                                # Ollama ne dit pas si un modèle est multimodal ; ne pas
-                                # sur-affirmer une modalité qu'on n'a pas vérifiée.
-                                capabilities={
-                                    'modalities': ['text'],
-                                    'task': 'text-generation',
-                                    'inputs_required': ['prompt'],
-                                },
+                                # Capacités CANONIQUES, dérivées de ce qu'OLLAMA DÉCLARE
+                                # (`/api/tags` → `capabilities`), plus de ce qu'on suppose.
+                                # Corrige deux angles morts : les modèles d'embedding ne sont
+                                # plus confondus avec des modèles de chat, et `vision` est
+                                # renseigné là où le commentaire précédent le disait — à tort —
+                                # hors de portée.
+                                capabilities=self._capacites_canoniques(
+                                    capacites.get(model_name, set())),
                             )
                             models_found = True
             except (FileNotFoundError, subprocess.TimeoutExpired):
