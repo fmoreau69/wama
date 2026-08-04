@@ -52,6 +52,10 @@ class ModelTask(models.TextChoices):
     OBB = 'obb', 'Boîtes orientées'
     POSE = 'pose', 'Pose'
     OCR = 'ocr', 'OCR'
+    # Declaree en amont du besoin (2026-08-05) : le chantier cam_analyzer/profondeur va faire
+    # entrer un modele de ce type au catalogue, et `check_model_taxonomy` refuserait a juste
+    # titre une valeur non declaree. Mieux vaut la declarer que voir le garde-fou contourne.
+    DEPTH_ESTIMATION = 'depth-estimation', 'Estimation de profondeur'
     # audio / parole
     TRANSCRIPTION = 'transcription', 'Transcription'
     TEXT_TO_SPEECH = 'text-to-speech', 'Synthèse vocale'
@@ -118,6 +122,7 @@ TACHE_VERS_TAGS_PLATEFORMES = {
     ModelTask.POSE:               ('keypoint-detection',           'pose',      None,        'Keypoint Detection'),
     ModelTask.OBB:                (None,                           'obb',       None,        None),
     ModelTask.OCR:                ('image-to-text',                None,        None,        'OCR'),
+    ModelTask.DEPTH_ESTIMATION:   ('depth-estimation',             None,        None,        'Depth Estimation'),
     ModelTask.TRANSCRIPTION:      ('automatic-speech-recognition', None,        None,        None),
     ModelTask.TEXT_TO_SPEECH:     ('text-to-speech',               None,        None,        None),
     ModelTask.AUDIO_ENHANCE:      ('audio-to-audio',               None,        None,        None),
@@ -141,7 +146,8 @@ PLATEFORMES_DE_REFERENCE = ('huggingface', 'ultralytics', 'ollama', 'roboflow')
 # une reponse ecrite. `Gaze Detection` (Roboflow) est a surveiller — un labo qui analyse la
 # conduite finira par en vouloir.
 TACHES_CONNUES_NON_PORTEES = {
-    'Depth Estimation': 'roboflow + huggingface (depth-estimation)',
+    # (`Depth Estimation` en est SORTIE le 2026-08-05 : declaree dans ModelTask en amont du
+    #  chantier cam_analyzer/profondeur.)
     # DEJA UTILISE dans WAMA — wama_lab/face_analyzer (eye_tracking.py), mais l'app a ses propres
     # venv_win/venv_linux et ses modeles ne sont PAS au catalogue. A porter (Fabien, 2026-08-05) :
     # c'est un cas ou la tache existe deja en production sans que le registre le sache.
