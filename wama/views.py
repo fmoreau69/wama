@@ -101,12 +101,33 @@ _OLLAMA_MODEL_MAP = {
 
 # Safe context limits per model (chars, not tokens — ~4 chars/token estimate)
 # Below these limits quality stays high; above them we upgrade to a larger model.
-_MODEL_SAFE_CHARS = {
-    'qwen3.5:4b':      80_000,   # ~20K tokens
-    'qwen3.5:9b':     120_000,   # ~30K tokens
-    'qwen3.5:35b-a3b': 300_000,  # ~75K tokens — MoE handles long context well
-    'qwen3-coder:30b': 512_000,  # ~128K tokens — MoE 256K ctx, safe limit
-}
+#: Repli quand le catalogue ne connaît pas la fenêtre de contexte d'un modèle (~4 caractères
+#: par jeton, marge de sécurité prise sur 30K jetons).
+_SAFE_CHARS_DEFAUT = 120_000
+
+#: Fraction de la fenêtre annoncée qu'on s'autorise à remplir : l'estimation en caractères est
+#: grossière et le prompt système s'ajoute au fil de la conversation.
+_MARGE_CONTEXTE = 0.6
+
+
+def _limite_sure_chars(nom_modele: str) -> int:
+    """
+    Limite de contexte, en caractères, DÉRIVÉE du catalogue.
+
+    Remplace une table codée en dur (2026-08-04) qui listait quatre modèles nommés : elle
+    devenait fausse au premier remplacement — `qwen3.5:35b-a3b` y figurait encore alors que la
+    prospection venait de le remplacer par `qwen3.6:35b`. La fenêtre réelle est désormais lue
+    dans `capabilities['context_length']`, renseignée depuis `/api/show`.
+    """
+    try:
+        from wama.model_manager.models import AIModel
+        m = AIModel.objects.filter(model_key=f"ollama:{nom_modele}", is_downloaded=True).first()
+        ctx = (m.capabilities or {}).get('context_length') if m else None
+        if ctx:
+            return int(ctx * 4 * _MARGE_CONTEXTE)
+    except Exception:
+        logger.debug("[ai_chat] fenêtre de contexte indisponible pour %s", nom_modele, exc_info=True)
+    return _SAFE_CHARS_DEFAUT
 
 
 def _build_wama_context(user) -> str:
@@ -154,17 +175,27 @@ def _route_model_by_context(ollama_model: str, messages: list) -> str:
     Uses a conservative char-based estimate (~4 chars per token).
     """
     total_chars = sum(len(m.get('content', '')) for m in messages)
-    safe_limit = _MODEL_SAFE_CHARS.get(ollama_model, 120_000)
-    if total_chars > safe_limit:
-        # Upgrade to the largest available model
-        upgraded = 'qwen3.5:35b-a3b'
-        if ollama_model != upgraded:
-            logger.info(
-                f"[ai_chat] context too long ({total_chars} chars) for {ollama_model} "
-                f"— upgrading to {upgraded}"
-            )
-        return upgraded
-    return ollama_model
+    if total_chars <= _limite_sure_chars(ollama_model):
+        return ollama_model
+
+    # Bascule vers le modèle le plus CAPABLE du catalogue — plus vers un nom figé.
+    # L'ancienne cible codée en dur était `qwen3.5:35b-a3b` : la prospection l'ayant remplacé
+    # par `qwen3.6:35b` le 2026-08-04, l'assistant basculait vers un modèle ABSENT dès que la
+    # conversation s'allongeait. Un nom en dur dans un chemin de repli est un piège : il ne
+    # casse que le jour où le repli sert.
+    try:
+        from wama.model_manager.services.model_selector import select_model
+        meilleur = select_model('ollama', model_type='llm', requires=['completion'],
+                                prefer_loaded=False)
+        cible = meilleur.model_key.split(':', 1)[1] if meilleur else ollama_model
+    except Exception:
+        logger.debug("[ai_chat] sélection du modèle de repli indisponible", exc_info=True)
+        cible = ollama_model
+
+    if cible != ollama_model:
+        logger.info("[ai_chat] contexte trop long (%d caractères) pour %s — bascule vers %s",
+                    total_chars, ollama_model, cible)
+    return cible
 
 
 def _ollama_call(messages: list, ollama_model: str) -> tuple:
