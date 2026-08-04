@@ -23,8 +23,6 @@ class Command(BaseCommand):
                             help="Applique les changements (sans ca, on n'affiche que le bilan).")
         parser.add_argument('--licences', action='store_true',
                             help="Interroge HuggingFace pour renseigner la licence (une requete par modele).")
-        parser.add_argument('--capacites', action='store_true',
-                            help="Interroge Ollama (/api/show) pour renseigner les capacites multiples des LLM.")
 
     def handle(self, *args, **options):
         ecrire = options['ecrire']
@@ -54,9 +52,6 @@ class Command(BaseCommand):
         if options['licences']:
             self._licences(ecrire)
 
-        if options['capacites']:
-            self._capacites(ecrire)
-
         if indetermines:
             self.stdout.write(self.style.WARNING(
                 f"\n{len(indetermines)} modeles sans origine etablie -- ils n'ont ni hf_id ni cle "
@@ -65,52 +60,6 @@ class Command(BaseCommand):
                 + ', '.join(indetermines[:5])))
         if not ecrire:
             self.stdout.write(self.style.NOTICE("\nRien ecrit (ajouter --ecrire)."))
-
-    def _capacites(self, ecrire):
-        """
-        Renseigne `capabilities['abilities']` depuis Ollama.
-
-        Un LLM ne se resume pas a UNE tache : `qwen3.6:35b` sait completer, lire une image,
-        appeler un outil et raisonner explicitement. `tools` et `thinking` n'existent dans
-        aucune autre taxonomie, et ce sont elles qui decident si un modele peut servir
-        l'assistant. Les ecraser en `text-generation` perd l'information utile.
-        """
-        import requests
-
-        from wama.model_manager.models import ModelAbility
-
-        # Brique d'adressage commune : elle resout l'hote (127.0.0.1 est inatteignable depuis
-        # WSL2, il faut la passerelle) ET neutralise le proxy, qui sinon avale l'appel local.
-        from wama.common.utils.ollama_host import ollama_base, ollama_kwargs
-        hote = ollama_base()
-        connues = {c[0] for c in ModelAbility.choices}
-        vus, hors, echecs = 0, set(), 0
-
-        for m in AIModel.objects.filter(model_key__contains='ollama:', is_downloaded=True):
-            nom = m.name
-            try:
-                rep = requests.post(f"{hote}/api/show", json={'model': nom},
-                                    **ollama_kwargs(timeout=25))
-                caps = rep.json().get('capabilities') or []
-            except Exception:
-                echecs += 1
-                continue
-            if not caps:
-                continue
-            hors |= {c for c in caps if c not in connues}
-            vus += 1
-            self.stdout.write(f"  {m.model_key:44s} -> {', '.join(caps)}")
-            if ecrire:
-                donnees = dict(m.capabilities or {})
-                donnees['abilities'] = sorted(caps)
-                m.capabilities = donnees
-                m.save(update_fields=['capabilities'])
-
-        self.stdout.write(f"capacites     : {vus} renseignees, {echecs} injoignables")
-        if hors:
-            self.stdout.write(self.style.WARNING(
-                f"⚠ capacites vues chez Ollama et NON declarees dans ModelAbility : "
-                f"{', '.join(sorted(hors))} — a ajouter a l'enum."))
 
     def _licences(self, ecrire):
         try:

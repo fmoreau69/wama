@@ -1267,6 +1267,15 @@ class ModelRegistry:
                                 quality_index=qualite,
                                 capabilities=dict(
                                     self._capacites_canoniques(capacites.get(model_name, set())),
+                                    # L'ensemble BRUT d'Ollama, conservé tel quel : `tools` et
+                                    # `thinking` n'ont d'équivalent dans aucune autre taxonomie, et
+                                    # ce sont eux qui disent si un modèle peut servir l'assistant.
+                                    # Écrit ICI et pas par une commande de rattrapage : la
+                                    # découverte réécrit `capabilities` en entier à chaque sync et
+                                    # effacerait toute valeur posée en dehors d'elle (constaté le
+                                    # 2026-08-05 — 11 modèles renseignés, puis 0 après un sync).
+                                    **({'abilities': sorted(capacites.get(model_name, set()))}
+                                       if capacites.get(model_name) else {}),
                                     # `context_length` est au vocabulaire canonique et n'était
                                     # jamais rempli ; `params_*_b` séparent explicitement la
                                     # QUALITÉ (totaux) du COÛT (actifs) — voir model_quality.py.
