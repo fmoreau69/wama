@@ -105,31 +105,47 @@ class ModelTask(models.TextChoices):
 # distinction qui sert a CHOISIR un modele.
 #
 # None = aucun equivalent sur cette plateforme. Ce n'est pas un trou a combler.
+# ⚠ Ici c'est NOUS qui sommes trop grossiers : Roboflow separe `Instance Segmentation` (un masque
+# par objet) de `Semantic Segmentation` (un masque par classe), quand `segment` melange les deux.
+# Pour anonymiser c'est l'INSTANCE qui compte — un masque par visage, pas un masque << visage >>.
+# Distinction a introduire le jour ou un modele semantique entrera au catalogue ; aucun aujourd'hui,
+# donc on ne scinde pas a vide (releve le 2026-08-05, docs.roboflow.com/models/supported-models).
 TACHE_VERS_TAGS_PLATEFORMES = {
-    #                              huggingface                    ultralytics   ollama
-    ModelTask.DETECT:             ('object-detection',            'detect',     None),
-    ModelTask.SEGMENT:            ('image-segmentation',          'segment',    None),
-    ModelTask.CLASSIFY:           ('image-classification',        'classify',   None),
-    ModelTask.POSE:               ('keypoint-detection',          'pose',       None),
-    ModelTask.OBB:                (None,                          'obb',        None),
-    ModelTask.OCR:                ('image-to-text',               None,         None),
-    ModelTask.TRANSCRIPTION:      ('automatic-speech-recognition', None,        None),
-    ModelTask.TEXT_TO_SPEECH:     ('text-to-speech',              None,         None),
-    ModelTask.AUDIO_ENHANCE:      ('audio-to-audio',              None,         None),
-    ModelTask.DENOISE:            ('image-to-image',              None,         None),
-    ModelTask.TEXT_GENERATION:    ('text-generation',             None,         'completion'),
-    ModelTask.FEATURE_EXTRACTION: ('feature-extraction',          None,         'embedding'),
-    ModelTask.CAPTIONING:         ('image-to-text',               None,         'vision'),
-    ModelTask.TEXT_TO_IMAGE:      ('text-to-image',               None,         None),
-    ModelTask.IMAGE_TO_IMAGE:     ('image-to-image',              None,         None),
-    ModelTask.TEXT_TO_VIDEO:      ('text-to-video',               None,         None),
-    ModelTask.IMAGE_TO_VIDEO:     ('image-to-video',              None,         None),
-    ModelTask.UPSCALE:            ('image-to-image',              None,         None),
-    ModelTask.TEXT_TO_MUSIC:      (None,                          None,         None),
-    ModelTask.TEXT_TO_AUDIO:      (None,                          None,         None),
-    ModelTask.LIP_SYNC:           (None,                          None,         None),
+    #                              huggingface                     ultralytics  ollama        roboflow
+    ModelTask.DETECT:             ('object-detection',             'detect',    None,        'Object Detection'),
+    ModelTask.SEGMENT:            ('image-segmentation',           'segment',   None,        'Instance Segmentation'),
+    ModelTask.CLASSIFY:           ('image-classification',         'classify',  None,        'Classification'),
+    ModelTask.POSE:               ('keypoint-detection',           'pose',      None,        'Keypoint Detection'),
+    ModelTask.OBB:                (None,                           'obb',       None,        None),
+    ModelTask.OCR:                ('image-to-text',                None,        None,        'OCR'),
+    ModelTask.TRANSCRIPTION:      ('automatic-speech-recognition', None,        None,        None),
+    ModelTask.TEXT_TO_SPEECH:     ('text-to-speech',               None,        None,        None),
+    ModelTask.AUDIO_ENHANCE:      ('audio-to-audio',               None,        None,        None),
+    ModelTask.DENOISE:            ('image-to-image',               None,        None,        None),
+    ModelTask.TEXT_GENERATION:    ('text-generation',              None,        'completion', None),
+    ModelTask.FEATURE_EXTRACTION: ('feature-extraction',           None,        'embedding',  None),
+    ModelTask.CAPTIONING:         ('image-to-text',                None,        'vision',    'Multimodal'),
+    ModelTask.TEXT_TO_IMAGE:      ('text-to-image',                None,        None,        None),
+    ModelTask.IMAGE_TO_IMAGE:     ('image-to-image',               None,        None,        None),
+    ModelTask.TEXT_TO_VIDEO:      ('text-to-video',                None,        None,        None),
+    ModelTask.IMAGE_TO_VIDEO:     ('image-to-video',               None,        None,        None),
+    ModelTask.UPSCALE:            ('image-to-image',               None,        None,        None),
+    ModelTask.TEXT_TO_MUSIC:      (None,                           None,        None,        None),
+    ModelTask.TEXT_TO_AUDIO:      (None,                           None,        None,        None),
+    ModelTask.LIP_SYNC:           (None,                           None,        None,        None),
 }
-PLATEFORMES_DE_REFERENCE = ('huggingface', 'ultralytics', 'ollama')
+PLATEFORMES_DE_REFERENCE = ('huggingface', 'ultralytics', 'ollama', 'roboflow')
+
+# Taches portees par des plateformes et ABSENTES de chez nous. Pas un oubli : rien ne les
+# consomme aujourd'hui. Notees pour que la prochaine question << ou est la profondeur ? >> trouve
+# une reponse ecrite. `Gaze Detection` (Roboflow) est a surveiller — un labo qui analyse la
+# conduite finira par en vouloir.
+TACHES_CONNUES_NON_PORTEES = {
+    'Depth Estimation': 'roboflow + huggingface (depth-estimation)',
+    'Gaze Detection': 'roboflow',
+    'Semantic Segmentation': 'roboflow — cf. remarque ci-dessus sur `segment`',
+    'zero-shot-object-detection': 'huggingface — detection en vocabulaire ouvert',
+}
 
 
 class ModelAbility(models.TextChoices):
