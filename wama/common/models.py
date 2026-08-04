@@ -377,3 +377,89 @@ class Manifest(models.Model):
             'source': self.source or {},
             'body': self.body or {},
         }
+
+
+class Library(models.Model):
+    """
+    Registre des librairies externes — **NÉ de la projection** du manifeste `library`.
+
+    Pourquoi ici et pas ailleurs : ROADMAP §16.7 désigne `library` comme le kind PILOTE du
+    manifeste-first, précisément parce qu'il n'a **aucun registre historique à réconcilier**
+    (contrairement aux modèles, qui avaient `AIModel` bien avant les manifestes). Ce registre
+    naît donc propre : sa seule source d'écriture déclarative est `project_library()`.
+
+    Frontière (SPEC §7.1) : on stocke ce que la librairie EST — dépôt, licence, version, install,
+    points d'entrée, contraintes. **JAMAIS l'usage qu'une app en fait** : ça, c'est le `requires`
+    du manifeste d'app, et le dupliquer ici recréerait la divergence qu'on cherche à éliminer.
+    """
+
+    # ── Identité ────────────────────────────────────────────────────────────────
+    #: Nom de distribution PyPI (= `key` du manifeste, p.ex. 'faster-whisper').
+    key = models.CharField(max_length=128, unique=True, db_index=True)
+    name = models.CharField(max_length=200)
+    summary = models.TextField(blank=True, default='')
+
+    # ── Facettes DÉCLARATIVES (miroir du body du manifeste, écrites par la projection) ──
+    version = models.CharField(max_length=64, blank=True, default='')
+    license = models.CharField(max_length=128, blank=True, default='')
+    repository = models.CharField(max_length=300, blank=True, default='')
+    pip_spec = models.CharField(
+        max_length=200, blank=True, default='',
+        help_text="Spécificateur d'installation épinglé, p.ex. 'faster-whisper==1.2.1'")
+    requires_python = models.CharField(max_length=64, blank=True, default='')
+    entry_points = models.JSONField(default=dict, blank=True)
+    dependencies = models.JSONField(default=list, blank=True)
+    constraints = models.JSONField(
+        default=dict, blank=True,
+        help_text="Contraintes GPU/OS non extractibles mécaniquement (remplies par le rôle "
+                  "wama-dev-ai « librarian », jamais inventées)")
+
+    # ── VERROU D'INSTALLATION (ROADMAP §16.7, transposé d'Hermes) ───────────────
+    # Verrou n°2 d'Hermes : l'allowlist vit DANS l'arbre, et la config utilisateur ne peut pas
+    # élargir le périmètre. Transposé ici : `is_allowed` est une décision HUMAINE explicite et
+    # n'est **JAMAIS** écrit par `project_library()`. Sans cette exclusion, ingérer un manifeste
+    # suffirait à s'auto-autoriser à installer — le verrou ne vaudrait plus rien.
+    is_allowed = models.BooleanField(
+        default=False, db_index=True,
+        help_text="Autorisée à l'installation (allowlist). Décision humaine — jamais projetée "
+                  "depuis un manifeste.")
+
+    # ── État RUNTIME (mesuré, jamais projeté — un manifeste est portable, l'install ne l'est pas) ──
+    is_installed = models.BooleanField(default=False, db_index=True)
+    installed_version = models.CharField(max_length=64, blank=True, default='')
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Librairie"
+        verbose_name_plural = "Librairies"
+        ordering = ['key']
+
+    def __str__(self):
+        return f"{self.key} ({self.version or 'version inconnue'})"
+
+    #: Champs que la projection a le droit d'écrire. Tout le reste (`is_allowed`, état runtime,
+    #: timestamps) est HORS projection — cf. les deux blocs ci-dessus.
+    PROJECTABLE_FIELDS = (
+        'name', 'summary', 'version', 'license', 'repository',
+        'pip_spec', 'requires_python', 'entry_points', 'dependencies', 'constraints',
+    )
+
+    def to_dict(self):
+        return {
+            'key': self.key,
+            'name': self.name,
+            'summary': self.summary,
+            'version': self.version,
+            'license': self.license,
+            'repository': self.repository,
+            'pip_spec': self.pip_spec,
+            'requires_python': self.requires_python,
+            'entry_points': self.entry_points or {},
+            'dependencies': self.dependencies or [],
+            'constraints': self.constraints or {},
+            'is_allowed': self.is_allowed,
+            'is_installed': self.is_installed,
+            'installed_version': self.installed_version,
+        }

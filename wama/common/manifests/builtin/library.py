@@ -103,11 +103,85 @@ def extract_library(key: str) -> Optional[dict]:
     }
 
 
+# ── PROJECTION (write-back) ──────────────────────────────────────────────────────
+# `library` est le kind PILOTE du manifeste-first (ROADMAP §16.7) : contrairement aux modèles
+# (`AIModel` préexistait aux manifestes), il n'a AUCUN registre historique à réconcilier — son
+# registre `common.models.Library` NAÎT de cette projection. Même contrat que `project_app` :
+# `apply=False` = DRY-RUN qui retourne le plan ; `apply=True` écrit, idempotent et transactionnel.
+#
+# Ce que la projection n'écrit PAS, volontairement :
+#   • `is_allowed` — l'allowlist est le verrou n°2 transposé d'Hermes. Si un manifeste ingéré
+#     pouvait la positionner, il s'auto-autoriserait à installer et le verrou ne vaudrait rien.
+#   • `is_installed` / `installed_version` — état runtime de CET hôte ; un manifeste est portable.
+
+_CHAMPS_PROJETES = (
+    ('name',            lambda m, b: m.get('name') or m.get('key') or ''),
+    ('summary',         lambda m, b: (b.get('identity') or {}).get('summary') or m.get('description') or ''),
+    ('version',         lambda m, b: (b.get('identity') or {}).get('version') or ''),
+    ('license',         lambda m, b: (b.get('identity') or {}).get('license') or ''),
+    ('repository',      lambda m, b: (b.get('identity') or {}).get('repository') or ''),
+    ('pip_spec',        lambda m, b: (b.get('install') or {}).get('pip') or ''),
+    ('requires_python', lambda m, b: (b.get('install') or {}).get('requires_python') or ''),
+    ('entry_points',    lambda m, b: b.get('entry_points') or {}),
+    ('dependencies',    lambda m, b: b.get('dependencies') or []),
+    ('constraints',     lambda m, b: b.get('constraints') or {}),
+)
+
+
+def project_library(manifest: dict, *, apply: bool = False) -> dict:
+    """Projette un manifeste `library` vers le registre `Library`. Retourne le plan (dry-run)
+    ou le résultat appliqué. Idempotent : re-projeter un manifeste inchangé ne change rien."""
+    from django.db import transaction
+    from wama.common.models import Library
+
+    key = manifest.get('key') or ''
+    if not key:
+        return {'library': None, 'error': "manifeste sans `key`"}
+    body = manifest.get('body') or {}
+
+    voulu = {champ: calc(manifest, body) for champ, calc in _CHAMPS_PROJETES}
+    existant = Library.objects.filter(key=key).first()
+    actuel = {champ: getattr(existant, champ) for champ, _ in _CHAMPS_PROJETES} if existant else None
+    deltas = {c: {'de': (actuel or {}).get(c), 'vers': v}
+              for c, v in voulu.items() if actuel is None or actuel.get(c) != v}
+
+    if not apply:
+        return {'library': key, 'created': existant is None,
+                'would_change': sorted(deltas), 'target': voulu,
+                'preserved': ['is_allowed', 'is_installed', 'installed_version']}
+
+    with transaction.atomic():
+        obj, cree = Library.objects.update_or_create(key=key, defaults=voulu)
+    return {'library': key, 'created': cree, 'changed': sorted(deltas),
+            'preserved': {'is_allowed': obj.is_allowed, 'is_installed': obj.is_installed}}
+
+
+def un_project_library(manifest: dict, *, apply: bool = False) -> dict:
+    """Retire l'entrée de registre créée par la projection (réversibilité, SPEC §2.1).
+    Ne touche à rien si la librairie est INSTALLÉE : on ne rend pas orphelin un paquet présent."""
+    from wama.common.models import Library
+
+    key = manifest.get('key') or ''
+    obj = Library.objects.filter(key=key).first()
+    if obj is None:
+        return {'library': key, 'removed': False, 'reason': 'absent du registre'}
+    if obj.is_installed:
+        return {'library': key, 'removed': False,
+                'reason': 'librairie installée — retrait du registre refusé'}
+    if not apply:
+        return {'library': key, 'would_remove': True}
+    obj.delete()
+    return {'library': key, 'removed': True}
+
+
 register_kind(ManifestKind(
     kind='library',
     validate=validate_library_body,
     extract=extract_library,
+    project=project_library,
+    un_project=un_project_library,
     description="Brique logicielle externe (dépôt/licence/version/install/entry points). "
                 "Extraite des métadonnées du paquet installé ; les contraintes fines "
-                "relèvent du rôle wama-dev-ai (SPEC §7.4-4).",
+                "relèvent du rôle wama-dev-ai (SPEC §7.4-4). PROJECTION → registre `Library` "
+                "(hors allowlist `is_allowed` et hors état runtime, volontairement).",
 ))

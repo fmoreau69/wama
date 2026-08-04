@@ -27,8 +27,13 @@ class ManifestKind:
     validate: Callable[[dict], list]                 # body -> [erreurs]
     extract: Optional[Callable[[str], Optional[dict]]] = None   # key -> manifeste complet
     verify: Optional[Callable[[dict], list]] = None             # manifeste -> [diffs]
-    project: Optional[Callable[[dict], None]] = None            # write-back (facultatif)
-    un_project: Optional[Callable[[dict], None]] = None
+    # Write-back (facultatif). Contrat RÉEL, tenu par `project_app` comme par `project_library` :
+    #   (manifeste: dict, *, apply: bool = False) -> dict
+    # `apply=False` = DRY-RUN qui retourne le PLAN ; `apply=True` écrit (idempotent, transactionnel)
+    # et retourne ce qui a changé. L'ancienne annotation `Callable[[dict], None]` décrivait ni les
+    # arguments ni le retour et faisait diagnostiquer à tort les deux implémentations existantes.
+    project: Optional[Callable[..., dict]] = None
+    un_project: Optional[Callable[..., dict]] = None
     description: str = ''
 
 
