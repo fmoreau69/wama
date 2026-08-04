@@ -195,9 +195,11 @@
     // Drop de fichier texte (.txt/.pdf/.docx) : RETIRÉ avec le workflow pipeline
     // (standalone-only 2026-07-11 — le pipeline texte→TTS→avatar = composition studio).
 
-    function handleAudioFile(file) {
-        // Fichier batch déposé sur la zone audio → flux d'import de lot commun
-        if (file && batchImport && batchImport.detectAndHandle(file)) return;
+    async function handleAudioFile(file) {
+        // Fichier batch déposé sur la zone audio → flux d'import de lot commun.
+        // detectAndHandle est async : sans await, la Promise (toujours truthy)
+        // court-circuitait TOUT fichier audio (bug import filemanager 2026-08-04).
+        if (file && batchImport && await batchImport.detectAndHandle(file)) return;
         if (!file) return;
         audioFile = file;
         audioFilename.textContent = file.name;
