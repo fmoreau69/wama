@@ -2288,6 +2288,12 @@ def _run_global_tracking(session):
         # Ancres monde des stationnés (lat/lon, médiane du track) : l'affichage dessine
         # les garés à position FIXE au lieu de la reconstruction par frame (jitter).
         rs['stationary_anchors'] = _gt.get('stationary_anchors', {})
+        # Métrique A/B objective de cohérence de placement (étalement monde des
+        # stationnés autour de leur barycentre — 0 = idéal). Persistée pour trancher
+        # la bascule ⚑ auto_ground_calib ON/OFF sur un CHIFFRE, pas « à l'œil ».
+        _ps = _gt.get('placement_spread')
+        if _ps:
+            rs['placement_spread'] = _ps
         # Branches d'intersection APPRISES DU TRAFIC (world_en fraîchement écrits) —
         # remplace la bande perpendiculaire symétrique quand des croisants sont observés.
         try:
@@ -2312,6 +2318,19 @@ def _run_global_tracking(session):
         _console(session.user_id,
                  f"Tracking multi-caméra : {_gt['tracks']} tracks globaux (hand-off), "
                  f"{len(stat)} véhicules stationnés détectés.")
+        # Métrique A/B chiffrée en console : étalement monde des stationnés (cohérence
+        # de placement). À relever ⚑ auto_ground_calib OFF puis ON pour décider sur un
+        # chiffre — plus bas = meilleur. Le détail par track est dans results_summary.
+        _agg = ((_gt.get('placement_spread') or {}).get('aggregate')) or {}
+        if _agg.get('n_tracks'):
+            try:
+                _gcon = _feff(session).get('auto_ground_calib', False)
+            except Exception:
+                _gcon = False
+            _console(session.user_id,
+                     f"Cohérence placement (⚑ auto_ground_calib={'ON' if _gcon else 'OFF'}) : "
+                     f"étalement stationnés RMS médian {_agg['rms_median_m']:.2f} m sur "
+                     f"{_agg['n_tracks']} garés (p90 {_agg['rms_p90_m']:.2f} m) — plus bas = meilleur.")
         return _gt
     except Exception as e:
         try:

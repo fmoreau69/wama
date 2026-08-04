@@ -586,5 +586,24 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
 
     for f in dirty:
         f.save(update_fields=['detections'])
+
+    # ── Métrique A/B objective : cohérence de placement des stationnés ────────────
+    # Un objet réellement immobile doit se réduire à UN point monde ; la dispersion
+    # RMS de ses positions autour de leur barycentre est un proxy sans-vérité-terrain
+    # de la qualité du placement (0 = idéal, plus bas = meilleur). Brique commune WAMA
+    # Data réutilisable. Comparer ce chiffre entre deux configs (⚑ auto_ground_calib
+    # ON vs OFF) = A/B objectif au lieu d'une inspection « à l'œil » (cf. feedback).
+    # Les stationnés sont exclus du lissage (plus haut) : leurs positions par
+    # observation ne vivent que dans `track_hist`, filtré ici par `_stat_set`.
+    placement_spread = None
+    try:
+        from wama.common.data.functions.geometry.placement_metrics import track_position_spread
+        _pos_by_stat = {gid: [(h[2], h[3]) for h in track_hist.get(gid, [])]
+                        for gid in _stat_set}
+        placement_spread = track_position_spread(_pos_by_stat, min_obs=3)
+    except Exception:
+        logger.warning('placement_spread (métrique de cohérence) échouée', exc_info=True)
+
     return {'tracks': next_id - 1, 'stationary_gids': stationary_gids,
-            'stationary_anchors': stationary_anchors}
+            'stationary_anchors': stationary_anchors,
+            'placement_spread': placement_spread}

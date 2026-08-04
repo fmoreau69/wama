@@ -78,6 +78,17 @@ _spec('ground_calib', 'Calibration sol auto (pitch)', "Estime le pitch/hauteur c
               PortSpec('track', DT.GEO_TRACK, required_fields=['lat', 'lon'])],
       outputs=[PortSpec('ground_calib', DT.SCALAR, produced_fields=['pitch_deg', 'height_m'])])
 
+_spec('placement_spread', 'Cohérence de placement (étalement stationnés)',
+      "Métrique A/B OBJECTIVE : dispersion RMS monde des véhicules stationnés autour de leur "
+      "barycentre (0 = idéal, plus bas = meilleur). Calculée en fin de tracking 360° via la brique "
+      "commune WAMA Data `geometry.placement_spread` (pure), sans vérité terrain. Sert à trancher "
+      "la bascule ⚑ auto_ground_calib ON/OFF sur un chiffre plutôt qu'« à l'œil ».",
+      FC.INDICATOR, 'cam_analyzer.utils.multicam_tracker:annotate_global_tracks',
+      ['geo', 'placement-quality', 'ab-metric', 'no-ground-truth'],
+      inputs=[PortSpec('detections', DT.DETECTIONS, required_fields=['world_en', 'global_track_id'])],
+      outputs=[PortSpec('placement_spread', DT.SCALAR,
+                        produced_fields=['rms_median_m', 'rms_mean_m', 'rms_p90_m', 'n_tracks'])])
+
 # ── Structure routière (apprise / marquée) ────────────────────────────────────
 _spec('learned_branches', 'Branches apprises du trafic', "Voies croisantes aux intersections apprises "
       "des trajectoires monde des véhicules.",
