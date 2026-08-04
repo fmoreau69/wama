@@ -129,10 +129,64 @@ def extract_model(key: str) -> Optional[dict]:
     }
 
 
+# Champs DECLARATIFS d'un modele — les seuls qu'un manifeste ait autorite a poser.
+# Tout le reste (is_downloaded, is_loaded, local_path, vram_gb, capabilities, quality_index…) est
+# soit de l'etat runtime, soit le produit de la DECOUVERTE : un manifeste n'a pas a en decider.
+_CHAMPS_PROJETES = [
+    ('license', lambda m, b: (b.get('identity') or {}).get('license') or ''),
+    ('platform_ref', lambda m, b: (b.get('identity') or {}).get('platform_ref') or ''),
+]
+
+
+def project_model(manifest: dict, *, apply: bool = False) -> dict:
+    """
+    Projette le manifeste vers `AIModel` — la jambe manifeste → registre pour le kind `model`.
+
+    ⚠ DIFFERENCE ASSUMEE avec `library` : on ne CREE jamais une ligne. Une librairie se declare,
+    un modele se DECOUVRE — il existe parce que des poids sont sur le disque. Faire naitre un
+    AIModel depuis un manifeste fabriquerait un modele fantome, sans fichier, que la selection
+    pourrait retenir. Si la cible est absente, on le DIT et on ne fait rien.
+
+    Ne projette que `license` et `platform_ref` : ce sont les deux champs que le catalogue ne
+    sait pas deduire seul (releve le 2026-08-05 — 0/129 modeles portaient une licence, et le lien
+    plateforme etait conditionne a `hf_id`, absent sur les 70 modeles decouverts par scan disque).
+    """
+    from django.db import transaction
+
+    from wama.model_manager.models import AIModel
+
+    body = manifest.get('body') or {}
+    key = manifest.get('key') or ''   # meme emplacement que pour `library` — verifie, pas suppose
+    if not key:
+        return {'model': None, 'erreur': "manifeste sans `key`"}
+
+    voulu = {champ: calc(manifest, body) for champ, calc in _CHAMPS_PROJETES}
+    cible = AIModel.objects.filter(model_key=key).first()
+    if cible is None:
+        return {'model': key, 'absent': True, 'target': voulu,
+                'erreur': "aucun AIModel de cette cle — un modele se decouvre, il ne se cree pas "
+                          "depuis un manifeste. Lancer `sync_models` d'abord."}
+
+    actuel = {champ: getattr(cible, champ) for champ, _ in _CHAMPS_PROJETES}
+    deltas = {c: {'de': actuel.get(c), 'vers': v} for c, v in voulu.items() if actuel.get(c) != v}
+    preserves = ['is_downloaded', 'is_loaded', 'local_path', 'capabilities', 'vram_gb']
+
+    if not apply:
+        return {'model': key, 'would_change': sorted(deltas), 'target': voulu,
+                'preserved': preserves}
+
+    with transaction.atomic():
+        for champ, valeur in voulu.items():
+            setattr(cible, champ, valeur)
+        cible.save(update_fields=list(voulu))
+    return {'model': key, 'changed': sorted(deltas), 'preserved': preserves}
+
+
 register_kind(ManifestKind(
     kind='model',
     validate=validate_model_body,
     extract=extract_model,
+    project=project_model,
     description="Modèle IA (extrait d'AIModel) : identité/besoins/formats/capacités déclaratifs. "
                 "Exclut l'état runtime (loaded/available/downloaded/local_path/timestamps).",
 ))

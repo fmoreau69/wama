@@ -30,7 +30,7 @@
 | Étape | État | Brique |
 |---|---|---|
 | 1 | 🟡 | AI-Assistant + `tool_api.py` — **un SEUL fichier central `wama/tool_api.py`** (`TOOL_REGISTRY`, `/api/v1/tools/`), pas un par app. Il couvre les 10 apps média et **zéro outil model_manager** : `search_models` / `model_catalog` / `prepare_install_spec` / `install_model` restent à écrire |
-| 2 | 🟡 | `services/prospector.py` (HF API déjà interrogée : `pipeline_tag`, librairie, downloads) + `prospect_agents.py` (évaluation LLM des candidats) — chaîne Ollama-first opérationnelle, à étendre : beat vision (releases Ultralytics + HF vision) |
+| 2 | 🟡 | `services/prospector.py` (HF API : `pipeline_tag`, librairie, downloads, **`--search`, métrique `model-index`, licence, URL** depuis 2026-08-05) + `prospect_agents.py` (évaluation LLM des candidats) — chaîne Ollama-first opérationnelle ; **moitié « HF vision » de l'extension livrée** (cf. §2 bis), reste le beat releases Ultralytics |
 | 3 | ✅ | **SUBSUMÉ par la couche manifestes** (2026-08-02) : le kind `library` (SPEC §7.4-3) porte dépôt/licence/version/`install.pip`, extrait mécaniquement par `extract_library()` ; la « passe LLM » est le rôle wama-dev-ai « librarian » (§7.4-4, `run_librarian.py`). Reste à **brancher** sur la prospection, plus à écrire |
 | 4 | 🟡 | Capacités d'apps déclarées (`APP_CATALOG`, `app_registry`) ; le matching besoin↔capacité est à écrire |
 | 5 | ✅ | `install_from_spec()` (descripteur déclaratif, ce commit) + drivers `pull_ollama_model` / `pull_hf_model` / `pull_yolo_weights` / `pip_install_packages` + `register_after_install` |
@@ -132,6 +132,68 @@ et les tiers `meeting`/`image` routent désormais vers `qwen3.6:35b`.
 **Reste faible** : la découverte par requête libre manque de pertinence (`megadolphin` classé
 « traduction »). Les filtres par capacité sont fiables, pas les requêtes textuelles — c'est le
 tri qu'une passe de notation ferait mieux qu'une regex.
+
+## §2 bis — État livré, session du 2026-08-05 : qualité déclarée et recoupement multi-plateformes
+
+**Le tri par téléchargements est de la POPULARITÉ, pas de la qualité.** La prospection ne rendait
+que ça. Trois manques comblés, tous mesurés :
+
+1. **Recherche par mots-clés** (`--search`). Sans elle, `object-detection` trié par téléchargements
+   ne remonte que des détecteurs COCO génériques : les spécialisés cherchés (visage, plaque) sont
+   trop loin dans le classement. Mesure : `--search "license plate"` → 10 détecteurs dédiés, dont
+   `morsetechlab/yolov11-license-plate-detection` (65 k) ; sans le mot-clé, zéro.
+   ⚠ `search` matche aussi le **nom d'organisation** — `--search face` remonte `facebook/*`.
+   Resserrer sur `face-detection` ou `yolo-face`.
+2. **Métrique déclarée** (`model-index` de la carte HF), ramenée par `expand=['cardData']` dans la
+   **même** requête — pas de N+1. Mesure : `keremberke/yolov5m-license-plate` mAP@0.5 = 0,988 et sa
+   variante `n` = 0,978, évaluées sur le **même** jeu donc comparables *entre elles*. Les autres
+   candidats ne déclarent rien — l'absence de métrique n'est pas une mauvaise note.
+   ⚠ Valeur **auto-déclarée**, non vérifiée, sur le split de l'auteur : le jeu et le drapeau
+   `verified` sont affichés avec elle. **Ça trie des candidats à essayer, ça ne conclut pas.**
+3. **Licence et URL** remontées. La licence n'est pas un détail : le candidat le plus téléchargé est
+   en AGPL-3.0. Cadrage Fabien (2026-08-05) : *ouvert pour la recherche suffit, même si ce n'est pas
+   explicitement open source* — donc non bloquant, mais à consigner pour l'audit de licences WAMA.
+
+### Recouper plusieurs référentiels, ne pas s'aligner sur un seul
+
+Sondés le 2026-08-05. **Aucun ne couvre le champ, et ils ne décrivent même pas la même chose** :
+
+| Plateforme | Ce qu'elle expose | Sans clé |
+|---|---|---|
+| HuggingFace | **une** tâche par modèle (47 tags, `/api/tasks`) | ✅ |
+| Ultralytics | une tâche par fichier de poids (`detect/segment/classify/pose/obb`) | ✅ |
+| Ollama | un **ensemble** de capacités (`/api/show`) : `completion, vision, audio, tools, thinking, embedding` | ✅ |
+| Roboflow | tâches vision, **plus fines** (`Instance` vs `Semantic Segmentation`) | ✅ (doc) |
+| Civitai | axe **artefact** : `Checkpoint, LORA, TextualInversion, Upscaler` | ✅ |
+| OpenRouter | **modalités** E/S : entrée `audio, file, image, text, video` — sortie `audio, image, text` | ✅ |
+| ModelScope · Replicate | JSON invalide · 401 | ❌ |
+
+`tools` et `thinking` (Ollama) n'ont **aucun équivalent** ailleurs, et ce sont eux qui disent si un
+modèle peut servir l'assistant. Le recoupement fait apparaître **quatre axes distincts** — artefact,
+tâche, capacités, modalités E/S — que `ModelType` écrasait en un seul champ. D'où `ModelTask`,
+`ModelAbility`, `TACHE_VERS_TAGS_PLATEFORMES` (projection **à sens unique, plusieurs-vers-un**) et le
+contrôle `check_model_taxonomy`. Voir `WAMA_MANIFEST_SPEC.md §7.1 bis`.
+
+### Accès Roboflow (question tranchée)
+
+**L'export des poids est disponible** pour la famille YOLO (YOLO26, YOLO11, YOLOv12, YOLOv9, YOLOv5,
+YOLOv7, RF-DETR), avec exécution locale via **Roboflow Inference, auto-hébergeable**. Une clé API
+suffit, l'application n'est pas requise — le plan gratuit restrictif n'est donc pas bloquant.
+**Refusé** pour SAM3/SAM2, Florence 2, Qwen3-VL et la plupart des modèles de fondation. Les licences
+**suivent les projets amont**.
+
+### Ce qui reste en travers
+
+- **Licences non renseignées** : HF limite les requêtes non authentifiées — 2 réponses sur 21 avant
+  `HfHubHTTPError`, alors que les `hf_id` sont valides. Il faut un jeton ou un backoff.
+- **70 modèles sans origine établie** (`platform_ref` vide) : ceux que leur app **découvre par scan
+  disque** au lieu de les déclarer. `backfill_platform_refs` les laisse VIDES à dessein — les
+  rattacher demande de vérifier le dépôt d'origine, pas de l'inférer d'un nom de fichier.
+- **Le drapeau « déjà dans WAMA » ment tant que `hf_id` est vide** :
+  `morsetechlab/yolov11-license-plate-detection` est annoncé « ★ NOUVEAU » alors qu'il est installé
+  sous le nom `license-plate-finetune-v1{n,s,m,l,x}.onnx`.
+
+---
 
 ## Ordre de réalisation recommandé
 

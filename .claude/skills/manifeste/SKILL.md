@@ -76,6 +76,32 @@ Un round-trip qui diverge sur un champ **déclaratif** est un bug ; sur un champ
   Le LLM propose, la chaîne mécanique juge, l'humain valide. Patron de référence : `run_librarian.py`.
 - **Le manifeste DÉCRIT, l'endpoint EXÉCUTE.** Un kind sans `project` ne peut rien écrire en base ;
   l'installation passe par `install_from_spec()` (`model_installer.py`), pas par la couche manifeste.
+- **Un modèle se DÉCOUVRE, il ne se déclare pas** (ajouté 2026-08-05, avec `project_model`). C'est la
+  frontière propre au kind `model`, à ne surtout pas calquer sur `library` :
+  - `project_model` ne **crée jamais** de ligne — un `AIModel` né d'un manifeste serait un modèle
+    fantôme, sans poids sur le disque, que la sélection pourrait pourtant retenir. Cible absente →
+    on le dit, on ne fait rien (« lancer `sync_models` d'abord »).
+  - Le manifeste n'a autorité que sur les champs **déclaratifs** : `license`, `platform_ref`. Rien
+    d'autre. `is_downloaded`, `is_loaded`, `local_path`, `vram_gb`, `capabilities` appartiennent à
+    la découverte.
+  - ⚠ **La découverte réécrit `capabilities` EN ENTIER à chaque `sync_models`.** Toute valeur posée
+    en dehors d'elle est effacée au passage suivant. Vécu deux fois le 2026-08-05 : `audio_enhance`
+    corrigé en base puis réécrit par le beat une heure plus tard, et 11 `abilities` renseignées par
+    une commande de rattrapage puis ramenées à 0 par un sync. **Corriger dans `model_registry`,
+    jamais seulement en base.**
+- **Un contrôle vert juste après un correctif de catalogue ne prouve rien** : le beat
+  `model-manager-reconcile` tourne toutes les 2 h avec le code chargé en mémoire. Redémarrer les
+  workers, puis re-mesurer. Vérifier l'âge des process : `ps -eo pid,etimes,cmd | grep celery`.
+- **`platform_ref` porte le FAIT, pas l'URL** (`huggingface:org/repo`, `ollama:gemma4`,
+  `roboflow:projet/3`). L'URL se dérive dans `AIModel.platform_url`, table plateforme → gabarit à un
+  seul endroit — ajouter une plateforme s'y fait en une ligne. Ne pas stocker d'URL.
+- **La taxonomie a son propre contrôle** : `python manage.py check_model_taxonomy` (types, sources,
+  tâches, et projection vers huggingface/ultralytics/roboflow/ollama). Sort en 1 sur une valeur non
+  déclarée. Si un nouveau modèle apporte une tâche inconnue, **la déclarer dans `ModelTask`** — ne
+  jamais contourner le garde-fou. Les quatre référentiels ne décrivent pas la même chose (HF : une
+  tâche ; Ollama : un ensemble de capacités ; Roboflow : plus fin sur la segmentation), donc on
+  **projette** vers eux, on ne s'y **réduit** pas — plusieurs de nos tâches sont volontairement plus
+  fines (`text-to-music` ≠ `text-to-audio` : composition vs ambiance/bruitage).
 - **Verrous d'installation (ROADMAP §16.7, transposés d'Hermes)** : allowlist en dur dans l'arbre
   (la config utilisateur ne l'élargit pas), PyPI par nom seul (pas de `git+https`/`--index-url`/`file:`),
   pin PEP 440, kill switch. WAMA transpose les **verrous**, pas le **cycle de vie** : on installe à

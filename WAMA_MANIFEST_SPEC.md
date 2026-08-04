@@ -272,8 +272,44 @@ les **besoins de modèles** de l'app. Le manifeste `app` les rend explicites.
 | Kind | Possède | Ne possède PAS |
 |---|---|---|
 | `library` *(à créer)* | dépôt, licence, version, install, points d'entrée, capacités techniques, contraintes (GPU, OS) | l'usage qu'une app en fait |
-| `model` | poids, `hf_id`, VRAM/disque, format, capacités, provenance | le réglage utilisateur qui le pilote |
+| `model` | poids, `hf_id`, **`license`**, **`platform_ref`**, VRAM/disque, format, capacités, provenance | le réglage utilisateur qui le pilote — **et tout ce que la DÉCOUVERTE établit** |
 | `app` | identité, ports, params, permissions, cycle de vie, **et les RÉFÉRENCES** vers `model`/`library` | tout ce qui précède — jamais recopié |
+
+#### 7.1 bis — `model` : deux champs ajoutés, et une frontière qui lui est propre (2026-08-05)
+
+`identity.license` et `identity.platform_ref` sont **déclarés au manifeste et projetés dans
+`AIModel`** (`project_model`, cf. §7.1 ter). Motif mesuré : 0/129 modèles portaient une licence,
+alors que l'audit de licences WAMA doit s'aligner sur le composant le moins permissif ; et le lien
+vers la plateforme était conditionné à `hf_id`, absent sur les 70 modèles que leur app découvre par
+scan disque.
+
+`platform_ref` porte le **fait** (`huggingface:org/repo`, `ollama:gemma4`, `roboflow:projet/3`),
+pas l'URL. L'URL en est un rendu, dérivé par `AIModel.platform_url` via une table
+plateforme → gabarit à un seul endroit. Stocker 129 chaînes d'URL, ce serait 129 chaînes à
+corriger le jour où une plateforme change son schéma d'adresse.
+
+> ⚠ **Frontière propre au kind `model`, à ne pas calquer sur `library`.**
+> Une librairie se **déclare** ; un modèle se **découvre** — il existe parce que des poids sont sur
+> le disque. Un manifeste n'a donc autorité que sur les champs **déclaratifs** (`license`,
+> `platform_ref`). Tout le reste — `is_downloaded`, `is_loaded`, `local_path`, `vram_gb`,
+> `capabilities` — appartient à la découverte, qui **réécrit `capabilities` en entier à chaque
+> passage** : une valeur posée en dehors d'elle est effacée au sync suivant (constaté le
+> 2026-08-05 — 11 capacités renseignées par une commande de rattrapage, puis 0 après un sync).
+
+#### 7.1 ter — hooks par kind, MESURÉ le 2026-08-05
+
+| Kind | `validate` | `extract` | `project` |
+|---|---|---|---|
+| `app` | ✅ | ✅ | ✅ |
+| `library` | ✅ | ✅ | ✅ |
+| `model` | ✅ | ✅ | ✅ *(depuis le 2026-08-05)* |
+| `function` · `pipeline` · `project` | ✅ | ✅ | ❌ |
+| `dataset` | ✅ | ❌ | ❌ |
+
+`project_model` **ne crée jamais de ligne**, contrairement à `project_library` : faire naître un
+`AIModel` depuis un manifeste fabriquerait un modèle fantôme, sans fichier de poids, que la
+sélection pourrait pourtant retenir. Cible absente → la projection le **dit** et ne fait rien
+(« lancer `sync_models` d'abord »). Dry-run par défaut, idempotente, `preserved` explicite.
 
 ### 7.2 État MESURÉ de la composition (2026-08-02)
 
