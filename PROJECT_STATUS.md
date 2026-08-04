@@ -266,9 +266,21 @@ Doc : [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md).
   idempotent). Endpoints `api/prospect/{ollama,install,reject}`. UI : filtre « ✨ Proposés par IA »,
   cards badges confiance/complexité + Installer/Rejeter, inspecteur enrichi (section Prospection),
   bouton « Prospecter (Ollama) » dans la vue volet « aucune card sélectionnée ».
-- ⏳ **Prospection — suites** : (a) confrontation multi-agents pour une confiance réelle (Ollama local
-  + cloud **gemini free** ou grok via passerelle LiteLLM `llm_chat`) ; (b) découverte « nouveaux »
-  large (registre Ollama) au-delà du seed curated ; (c) Celery beat hebdo (détecte/propose) ; (d) HF.
+- 🔄 **Prospection — suites** : ✅ **(b) découverte large FAITE (2026-08-04)** — le seed curated de
+  2 modèles codés en dur est supprimé, remplacé par `services/ollama_registry.py` (recherche par
+  capacité, tags, **existence vérifiée au manifeste** avant proposition) + rôles déclaratifs.
+  **27 candidats** contre 2. Successeur de famille opérationnel (`qwen3.5:35b-a3b → qwen3.6:35b`,
+  installé et vérifié de bout en bout, cf. `model_manager/PROSPECTION_PIPELINE.md` §État livré).
+  Reste : (a) confrontation multi-agents (Ollama local + cloud via `llm_chat`) — l'arbitrage
+  Fabien est **Celery différé, un seul modèle chargé** (règle GPU hôte) ; (c) Celery beat hebdo,
+  qui remplacera le stub jamais exécutable `AI-models/weekly_model_discovery.py` ; (d) HF.
+- ✅ **Sélection de modèle par QUALITÉ, plus par taille (2026-08-04)** : `AIModel.quality_index`
+  (migration 0009) + `services/model_quality.py`, alimentés par `/api/show` (paramètres exacts,
+  contexte, quantification, ratio d'experts MoE — tout cela déclaré par Ollama et jamais lu).
+  `_best_by_vram` trie désormais par (déjà chargé, qualité) ; la VRAM redevient une CONTRAINTE.
+  Preuve : `gemma4:12b` (qualité 42,7 / **7,6 Go**) passe devant `gemma4:e4b` (35,0 / 9,6 Go) —
+  le plus petit est le meilleur, et l'ancien tri choisissait l'inverse. Les LLM entrent enfin
+  dans `select_model()` : `llm_utils` n'a plus aucun nom de modèle en dur.
 - ⏳ **Prospection — routing capacité→app (Axe 3, décidé 2026-06-29)** : à la proposition d'un modèle,
   inférer tâche + types E/S (pipeline_tag/tags/README HF) puis **réutiliser le matcher de capacités**
   (`app_registry.normalize_types`, déjà utilisé par le studio) contre `APP_CATALOG.input_types/

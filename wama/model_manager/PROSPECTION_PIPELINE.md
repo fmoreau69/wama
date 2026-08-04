@@ -102,6 +102,37 @@ L'emplacement réel est déclaré une fois par machine dans `.env` (`OLLAMA_MODE
 vérité pour vérifier/recréer le lien. Le contrôle d'espace disque, lui, n'en dépend pas :
 `AI-models` et `D:\.ollama` sont sur le **même volume**, un `SystemMonitor.get_disk_info()` suffit.
 
+## État livré — session du 2026-08-04
+
+Le symptôme d'entrée était « la prospection ne propose plus que 2 modèles, tous deux anciens ».
+Il avait **trois causes distinctes**, toutes corrigées, plus deux chantiers ouverts par la suite.
+
+| Brique | Rôle |
+|---|---|
+| `common/utils/ollama_host.py` | Adressage Ollama : passerelle WSL2 + contournement du proxy. Deux pièges qui produisaient un `ReadTimeout` — « Ollama ne répond pas » alors qu'il tournait — et **déclenchaient la purge** des candidats |
+| `model_manager/services/ollama_registry.py` | Découverte déterministe : recherche par capacité, tags, **vérification d'existence au manifeste** avant toute proposition ; successeur de famille (`qwen3.5 → qwen3.6`) avec fenêtre de taille **symétrique** |
+| `prospect_ollama.py` (réécrit) | Seed de 2 modèles codés en dur **supprimé** → rôles déclaratifs ; purge **conditionnée au succès** de chaque source |
+| `views._garde_espace_disque` + `_modele_remplace` | Refus en 507 si le volume saturerait ; séquence désinstallation → installation avec **rattrapage** ; recalage de la ligne remplacée |
+| `services/model_quality.py` + `AIModel.quality_index` | Sélection par **qualité** sous contrainte VRAM, au lieu de « le plus gros qui tient » |
+
+**Mesures de bout en bout (2026-08-04, cette machine)** — `qwen3.5:35b-a3b` → `qwen3.6:35b`
+installé via la vue réelle : 27 candidats prospectés contre 2, garde disque validé
+(23,7 + 23,0 libérés − 22,3 = OK), disque 23,7 → 36,6 Go libres, carte candidate consommée,
+et les tiers `meeting`/`image` routent désormais vers `qwen3.6:35b`.
+
+**Ce que les tests ont trouvé et qui n'aurait pas été vu autrement :**
+- une **ligne fantôme** — le modèle remplacé restait `is_downloaded=True` alors qu'Ollama ne
+  l'avait plus, donc `select_model()` pouvait désigner un modèle inexistant ;
+- une **régression possible en prospection** — le garde-fou de taille n'existait que vers le
+  haut, donc un successeur bien plus petit pouvait s'afficher comme « mise à jour » ;
+- `/api/tags` et `/api/show` **déclaraient déjà** capacités, paramètres exacts, contexte et
+  ratio d'experts d'un MoE — rien de tout cela n'était lu, et un commentaire du code affirmait
+  même à tort que la multimodalité y était inconnaissable.
+
+**Reste faible** : la découverte par requête libre manque de pertinence (`megadolphin` classé
+« traduction »). Les filtres par capacité sont fiables, pas les requêtes textuelles — c'est le
+tri qu'une passe de notation ferait mieux qu'une regex.
+
 ## Ordre de réalisation recommandé
 
 1. ✅ `install_from_spec` (fait — point d'entrée unique, endpoint `{'spec': …}`).
