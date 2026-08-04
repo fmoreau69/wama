@@ -15,20 +15,24 @@ def get_describer_model(content_type: str, output_style: str) -> str:
     """
     Return the Ollama model name to use for a given (content_type, output_style) pair.
 
-    Tier routing (configured via settings.DESCRIBER_LLM_MODELS):
-      image   → multimodal vision model (moondream)
-      heavy   → meeting, scientific, coherence  (qwen3.5:35b-a3b)
-      default → detailed, audio, video          (qwen3.5:9b)
-      fast    → summary, bullet_points          (qwen3.5:4b)
+    Le TIER exprime une INTENTION ; le modèle est résolu par le catalogue, jamais nommé ici :
+      image   → exige `completion` + `vision`      (aucun plafond VRAM)
+      heavy   → meeting, scientific, coherence     (aucun plafond)
+      default → detailed, audio, video             (≤ 16 Go)
+      fast    → summary, bullet_points             (≤ 8 Go)
 
-    All tiers fall back to 'default' if the key is absent from settings.
+    Ordre de résolution : réglage explicite (`settings.DESCRIBER_LLM_MODELS`, qui ÉPINGLE et
+    court-circuite) → `select_model()` sur le catalogue (VRAM libre, préférence aux modèles
+    déjà chargés) → repli Ollama direct. Aucun nom de modèle n'est codé en dur : les tables
+    figées d'avant le 2026-08-04 auraient toutes désigné un modèle absent après le passage de
+    qwen3.5 à qwen3.6.
     """
     from django.conf import settings
     models: dict = getattr(settings, 'DESCRIBER_LLM_MODELS', {})
     # `or`, PAS le défaut de `.get()` : depuis que les clés existent avec une valeur VIDE,
     # `models.get('default', '<nom>')` renvoie '' et le repli ne s'applique jamais — un nom de
     # modèle vide partirait jusqu'à l'appel Ollama.
-    default = models.get('default') or _DERNIER_RECOURS
+    default = models.get('default') or ''
 
     # Le TIER reste déclaratif — classer la tâche est une décision métier légitime.
     # Ce qui change : le tier ne désigne plus un NOM figé, il exprime une INTENTION que le
@@ -63,13 +67,46 @@ def get_describer_model(content_type: str, output_style: str) -> str:
         logger.info("[llm_utils] aucun modèle ne déclare %s ; repli sans exigence (tier %s)",
                     exige, tier)
         choisi = _llm_par_catalogue(tier, None)
-    return str(choisi or default)
+    return str(choisi or default or _dernier_recours())
 
 
-#: Filet de dernier recours, utilisé UNIQUEMENT si le catalogue est entièrement indisponible
-#: (base injoignable, model_manager en erreur). Ce n'est pas un défaut de configuration : le
-#: chemin normal est la résolution par `select_model()`.
-_DERNIER_RECOURS = 'qwen3.5:9b'
+def modele_par_defaut() -> str:
+    """
+    Modèle LLM à utiliser quand l'appelant n'en impose aucun — résolu, jamais figé.
+
+    C'est LE point unique de résolution : les fonctions de ce module prennent `model=''` par
+    défaut et passent ici. Avant, chacune portait `model: str = 'qwen3.5:9b'` — six noms en dur
+    qui auraient tous désigné un modèle absent dès l'installation de qwen3.6.
+    """
+    return _llm_par_catalogue('default', ['completion']) or _dernier_recours()
+
+
+def _dernier_recours() -> str:
+    """
+    Repli quand le catalogue ne rend rien — **sans nom de modèle en dur**.
+
+    Un nom figé ici pourrit : il désigne un modèle que la prospection remplacera (qwen3.5 →
+    qwen3.6) et l'appel partira vers un modèle absent. On interroge donc Ollama directement,
+    qui sait ce qui est réellement installé, et on prend le premier modèle capable de
+    complétion.
+
+    Si Ollama ne répond pas non plus, on retourne '' : l'appel échouera avec un message clair
+    (« modèle vide ») au lieu de réclamer un modèle fantôme et de faire croire à une panne
+    Ollama. Échouer lisiblement vaut mieux qu'échouer ailleurs.
+    """
+    try:
+        import requests
+        from .ollama_host import ollama_base, ollama_kwargs
+        r = requests.get(f"{ollama_base()}/api/tags", **ollama_kwargs(timeout=5))
+        r.raise_for_status()
+        modeles = r.json().get('models', [])
+        for m in modeles:
+            if 'embedding' not in (m.get('capabilities') or []):
+                return m.get('name', '')
+        return modeles[0].get('name', '') if modeles else ''
+    except Exception:
+        logger.warning("[llm_utils] ni catalogue ni Ollama : aucun modèle résoluble")
+        return ''
 
 
 #: Plafond VRAM indicatif par tier, en Go. `fast` doit rester petit pour la latence ;
@@ -111,7 +148,7 @@ def _llm_par_catalogue(tier: str, exige):
 
 def ollama_chat(
     messages: list,
-    model: str = 'qwen3.5:9b',
+    model: str = '',
     num_predict: int = 2048,
     num_ctx: Optional[int] = None,
     think: bool = True,
@@ -152,6 +189,12 @@ def ollama_chat(
     # tourne Ollama. Le contournement du proxy, lui, est déjà assuré plus bas par le
     # `trust_env=False` du client httpx (équivalent httpx de `ollama_proxies()`).
     url = f"{ollama_base()}/api/chat"
+
+    # Funnel de résolution — `ollama_chat` est le point de passage de toutes les fonctions de ce
+    # module (résumé, cohérence, noms de locuteurs…). Depuis que leurs défauts sont vides plutôt
+    # que figés sur un nom, c'est ICI que le catalogue tranche ; sans cette ligne, un appelant
+    # qui n'impose rien enverrait `"model": ""` à Ollama.
+    model = model or modele_par_defaut()
 
     options: dict = {"temperature": 0.3, "num_predict": num_predict}
     if num_ctx is not None:
@@ -229,7 +272,9 @@ def llm_chat(
     if provider == 'ollama':
         return ollama_chat(
             messages=messages,
-            model=model or 'qwen3.5:9b',
+            # Funnel de résolution : un appelant qui n'impose rien obtient le modèle choisi par
+            # le catalogue (VRAM libre + préférence aux modèles déjà chargés), jamais un nom figé.
+            model=model or modele_par_defaut(),
             num_predict=num_predict,
             num_ctx=num_ctx,
             think=think,
@@ -326,7 +371,7 @@ def generate_meeting_summary(
     text: str,
     language: str = 'fr',
     speakers: Optional[list] = None,
-    model: str = 'qwen3.5:9b',
+    model: str = '',
 ) -> str:
     """
     Generate a structured meeting summary (compte-rendu de réunion) using Ollama.
@@ -421,7 +466,7 @@ def verify_text_coherence(
     text: str,
     content_hint: str = 'transcription',
     language: str = 'fr',
-    model: str = 'qwen3.5:9b',
+    model: str = '',
 ) -> dict:
     """
     Verify text coherence and suggest corrections using Ollama.
@@ -504,7 +549,7 @@ def verify_text_coherence(
 def analyze_segments_coherence(
     segments: list,
     language: str = 'fr',
-    model: str = 'qwen3.5:9b',
+    model: str = '',
 ) -> dict:
     """Analyse la cohérence PAR SEGMENT (1 seul appel LLM).
 
@@ -565,7 +610,7 @@ def analyze_segments_coherence(
 def suggest_speaker_names(
     segments: list,
     language: str = 'fr',
-    model: str = 'qwen3.5:9b',
+    model: str = '',
 ) -> dict:
     """Propose des noms d'intervenants à partir des présentations dans la transcription.
 
@@ -636,7 +681,7 @@ def generate_structured_summary(
     text: str,
     content_hint: str = 'transcription',
     language: str = 'fr',
-    model: str = 'qwen3.5:9b',
+    model: str = '',
 ) -> dict:
     """
     Generate a structured summary (summary, key_points, action_items) using Ollama.
