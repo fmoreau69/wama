@@ -236,6 +236,27 @@
     setTimeout(function () { if (!detail.handled) global.location.reload(); }, 0);
   });
 
+  // ── Lecture exclusive globale (source UNIQUE ; fix transcriber edit.js porté 2026-08-04) ──
+  // Démarrer un média met en pause tous les autres <audio>/<video> de la page (cards
+  // avatarizer, aperçus du volet droit…). 'play' ne bulle pas → phase de capture.
+  // Les players WamaAudioPlayer (Audio() HORS DOM : leurs événements n'atteignent jamais
+  // ce listener) gèrent leur exclusivité interne et appellent pauseDomMedia() en retour —
+  // les deux mondes se coupent mutuellement.
+  // Échappatoire : data-wama-multiplay sur le média ou un ancêtre (lecture simultanée voulue).
+  function pauseDomMedia(except) {
+    document.querySelectorAll('audio, video').forEach(function (m) {
+      if (m === except || m.paused) return;
+      if (m.closest && m.closest('[data-wama-multiplay]')) return;
+      try { m.pause(); } catch (_) {}
+    });
+  }
+  document.addEventListener('play', function (e) {
+    const playing = e.target;
+    if (playing.closest && playing.closest('[data-wama-multiplay]')) return;
+    pauseDomMedia(playing);
+    if (global.WamaAudioPlayer) WamaAudioPlayer.pauseAll();
+  }, true);
+
   global.WamaApp = {
     escapeHtml: escapeHtml,
     getUrl: getUrl,
@@ -246,6 +267,7 @@
     emptyState: emptyState,
     toast: toast,
     initUrlImport: initUrlImport,
+    pauseDomMedia: pauseDomMedia,
     STATUS_BADGE: STATUS_BADGE,
     STATUS_LABEL: STATUS_LABEL,
   };

@@ -249,15 +249,8 @@
     } catch (_) {}
   }
 
-  // Une seule lecture audio à la fois : démarrer une lecture met en pause toutes les autres
-  // (évite la superposition player principal ↔ aperçu audio du volet droit, etc.).
-  // 'play' ne bulle pas → écoute en phase de capture.
-  document.addEventListener('play', function (e) {
-    const playing = e.target;
-    document.querySelectorAll('audio, video').forEach(function (m) {
-      if (m !== playing && !m.paused) { try { m.pause(); } catch (_) {} }
-    });
-  }, true);
+  // Lecture exclusive : PORTÉE AU COMMUN 2026-08-04 (wama-app-base.js, listener 'play'
+  // en capture + WamaApp.pauseDomMedia) — ne pas la ré-introduire ici.
 
   /* ── Transport : saut avant/arrière + vitesse ──────────────────────── */
   let playbackRate = 1.0;

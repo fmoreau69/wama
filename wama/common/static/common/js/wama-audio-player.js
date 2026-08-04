@@ -39,6 +39,10 @@
                 state.audio.pause();
             }
         });
+        // Lecture exclusive globale : nos Audio() sont HORS DOM, le listener 'play'
+        // de wama-app-base ne les voit pas — on coupe donc nous-mêmes les <audio>/<video>
+        // de la page (cards, aperçus). Réciproque assurée par WamaApp (pauseAll).
+        if (window.WamaApp && WamaApp.pauseDomMedia) WamaApp.pauseDomMedia(null);
     }
 
     /* ── Dessin waveform ─────────────────────────────────────────────── */
