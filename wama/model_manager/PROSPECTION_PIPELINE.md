@@ -81,13 +81,26 @@
 - Risque accepté et nommé : un retrait ou un ré-étiquetage amont rendrait un digest
   irrécupérable. Jugé faible devant le coût certain.
 
-**Conséquence — le lien symbolique `AI-models/models/llm/ollama` → `D:\.ollama\models` est
-ABANDONNÉ** (le dossier `llm/` reste vide, préparé le 2026-01-27 mais jamais lié). Sa principale
-justification était de faire entrer Ollama dans le périmètre de `remote_backup` ; or (a) ce backup
-n'est plus voulu, et (b) **`Path.rglob()` ne suit pas les liens de dossier** (mesuré sur Python
-3.12.3 : `rglob('*')` retourne le lien, jamais son contenu) — il ne l'aurait donc pas fait entrer.
-Le contrôle d'espace disque n'en a pas besoin : `AI-models` et `D:\.ollama` sont sur le **même
-volume**, un `SystemMonitor.get_disk_info()` suffit.
+**Le lien symbolique `AI-models/models/llm/ollama` → `D:\.ollama\models` est CRÉÉ** (2026-08-04).
+J'avais d'abord conclu à son abandon en ne le jugeant que sur l'axe backup — **c'était trop
+étroit** (recadrage Fabien) : sa raison d'être est la **centralisation**, que tous les poids se
+lisent au même endroit (inventaire, comptabilité disque, navigation), indépendamment de la
+sauvegarde.
+
+Et les deux décisions s'accordent au lieu de se contredire : **`Path.rglob()` ne suit pas les
+liens de dossier** (mesuré sur Python 3.12.3 — `rglob('*')` retourne le lien, jamais son contenu),
+donc le lien centralise **sans** entraîner les 91 Go dans `remote_backup`. C'est exactement le
+comportement voulu ici.
+
+Vérifié après création : lien lisible depuis Windows ET WSL2 (`blobs`, `manifests`), `AI-models/`
+est gitignoré donc aucun impact git, et `full_sync()` reste à **129 modèles, 0 ajout, 0 entrée
+parasite** — le magasin d'objets d'Ollama ne pollue pas le catalogue. À noter : les modèles Ollama
+remontaient DÉJÀ dans le model_manager via l'**API HTTP** (`/api/tags`), pas par le disque ; le
+lien apporte l'unification du stockage, pas une nouvelle voie de découverte.
+
+L'emplacement réel est déclaré une fois par machine dans `.env` (`OLLAMA_MODELS_DIR`) — source de
+vérité pour vérifier/recréer le lien. Le contrôle d'espace disque, lui, n'en dépend pas :
+`AI-models` et `D:\.ollama` sont sur le **même volume**, un `SystemMonitor.get_disk_info()` suffit.
 
 ## Ordre de réalisation recommandé
 
