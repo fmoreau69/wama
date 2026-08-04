@@ -1338,10 +1338,41 @@ def api_check_disk_space(request):
 MARGE_DISQUE_GO = 10.0
 
 
-def _garde_espace_disque(ref: str, *, force: bool = False):
+def _modele_remplace(cand):
+    """
+    (nom Ollama de l'ancien modèle, espace qu'il rendra en Go) pour un candidat successeur,
+    sinon (None, 0.0).
+
+    La prospection écrit l'origine dans `extra_info['prospect']['origin_key']` quand elle a
+    identifié une famille supérieure — c'est ce lien qui rend le remplacement possible sans
+    demander à l'utilisateur de désigner lui-même ce qu'il faut retirer.
+    """
+    from .models import AIModel
+    prospect = (cand.extra_info or {}).get('prospect', {})
+    origine, cible = prospect.get('origin_key'), prospect.get('cible')
+    if not origine or not cible or cand.proposal_kind != 'update':
+        return None, 0.0
+    ancien = AIModel.objects.filter(model_key=origine, is_proposed=False).first()
+    if ancien is None:
+        return None, 0.0
+    nom = origine.split(':', 1)[1] if ':' in origine else ancien.name
+    # Garde-fou : sans `cible`, un candidat « âge seul » porte le nom du modèle EXISTANT, et la
+    # séquence retirerait puis re-tirerait le même modèle — churn pur, avec la fenêtre de risque
+    # d'une restauration. On ne remplace que si la cible est réellement un AUTRE modèle.
+    if nom == cand.name:
+        return None, 0.0
+    return nom, float(ancien.disk_gb or 0)
+
+
+def _garde_espace_disque(ref: str, *, reclaim_gb: float = 0.0, force: bool = False):
     """
     Refuse une installation qui saturerait le volume. Retourne None si l'installation peut
     passer, sinon le dict d'erreur à renvoyer tel quel.
+
+    `reclaim_gb` : espace que la DÉSINSTALLATION préalable de l'ancien modèle rendra. Sans ce
+    paramètre, le garde refusait un REMPLACEMENT pourtant légitime — cas réel mesuré :
+    qwen3.5:35b-a3b (22,2 Go) → qwen3.6:35b (22,3 Go) sur 23,7 Go libres. Le calcul naïf
+    (23,7 − 22,3 = 1,4 Go) refuse ; le calcul juste (23,7 + 22,2 − 22,3 = 23,6 Go) accepte.
 
     Réutilise `SystemMonitor.get_disk_info()` (brique existante, WSL-aware : elle interroge
     l'hôte Windows) — aucune mesure de stockage n'est réécrite ici. `AI-models` et
@@ -1369,16 +1400,19 @@ def _garde_espace_disque(ref: str, *, force: bool = False):
                       f"{libre:.1f} Go libres. Installation refusée par précaution."),
             'raison': 'taille_inconnue', 'free_gb': libre, 'force_possible': True}
 
-    reste = libre - besoin
+    reste = libre + float(reclaim_gb or 0) - besoin
     if reste < MARGE_DISQUE_GO and not force:
+        detail = (f" (après libération de {reclaim_gb:.1f} Go par l'ancien modèle)"
+                  if reclaim_gb else "")
         return {
             'success': False,
             'error': (f"Espace insuffisant : « {ref} » pèse {besoin:.1f} Go, il reste "
-                      f"{libre:.1f} Go sur {disque.get('drive', 'le volume')} — après "
+                      f"{libre:.1f} Go sur {disque.get('drive', 'le volume')}{detail} — après "
                       f"installation il ne resterait que {reste:.1f} Go "
                       f"(marge requise : {MARGE_DISQUE_GO:.0f} Go)."),
             'raison': 'espace_insuffisant',
-            'needed_gb': besoin, 'free_gb': libre, 'after_gb': round(reste, 1),
+            'needed_gb': besoin, 'free_gb': libre, 'reclaim_gb': round(float(reclaim_gb or 0), 1),
+            'after_gb': round(reste, 1),
             'margin_gb': MARGE_DISQUE_GO, 'force_possible': True}
     return None
 
@@ -1442,11 +1476,43 @@ def api_prospect_install(request):
         # une installation aurait laissé ~1,4 Go. Rien n'est libéré par ailleurs : l'ancien
         # modèle n'est pas supprimé (cf. `reclaim` plus bas) et les modèles Ollama ne sont pas
         # sauvegardés (décision 2026-08-04, PROSPECTION_PIPELINE.md).
-        garde = _garde_espace_disque(cand.name, force=bool(data.get('force')))
+        # REMPLACEMENT : un candidat « successeur » connaît le modèle qu'il remplace. L'espace
+        # du nouveau n'est disponible qu'APRÈS retrait de l'ancien — on le compte donc dans le
+        # garde, puis on applique la séquence désinstallation → installation.
+        remplace, reclaim_gb = _modele_remplace(cand)
+
+        garde = _garde_espace_disque(cand.name, reclaim_gb=reclaim_gb,
+                                     force=bool(data.get('force')))
         if garde is not None:
+            garde['replaces'] = remplace
             return JsonResponse(garde, status=507)   # 507 Insufficient Storage
 
+        rollback = None
+        if remplace:
+            from .services.model_installer import delete_ollama_model
+            sup = delete_ollama_model(remplace)
+            if not sup.get('ok'):
+                return JsonResponse({
+                    'success': False,
+                    'error': f"Retrait de « {remplace} » impossible : {sup.get('error')}. "
+                             f"Installation annulée (l'espace n'aurait pas suffi).",
+                }, status=409)
+            rollback = remplace      # à re-tirer si l'installation échoue
+
         res = pull_ollama_model(cand.name)
+        if not res.get('ok') and rollback:
+            # L'ancien a été retiré et le nouveau n'est pas venu : on restaure. C'est possible
+            # sans sauvegarde précisément parce que `ollama pull` EST le chemin de restauration
+            # (décision 2026-08-04, PROSPECTION_PIPELINE.md).
+            reprise = pull_ollama_model(rollback)
+            return JsonResponse({
+                'success': False,
+                'error': (f"Installation de « {cand.name} » échouée : {res.get('error')}. "
+                          + (f"« {rollback} » a été restauré." if reprise.get('ok')
+                             else f"⚠ ÉCHEC DE LA RESTAURATION de « {rollback} » : "
+                                  f"{reprise.get('error')} — à réinstaller à la main.")),
+                'restored': bool(reprise.get('ok')), 'replaced': rollback,
+            }, status=502)
         if not res.get('ok'):
             return JsonResponse({'success': False, 'error': res.get('error', 'pull échoué')}, status=500)
         # Re-synchronise pour que le modèle réel apparaisse, puis retire le candidat.

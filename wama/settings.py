@@ -587,6 +587,15 @@ TTS_SERVICE_URL = os.environ.get('TTS_SERVICE_URL', 'http://localhost:8001')
 #   export OLLAMA_HOST=http://<windows-host-ip>:11434  (set in .env, do not hardcode)
 OLLAMA_HOST = os.environ.get('OLLAMA_HOST', 'http://127.0.0.1:11434')
 
+# Emplacement RÉEL du magasin de modèles Ollama (dépend de la machine, à poser UNE fois).
+# Les modèles Ollama vivent hors de AI_MODELS_DIR ; on les y rend visibles par un lien
+# symbolique `AI-models/models/llm/ollama` -> ce chemin, pour que TOUS les poids se lisent
+# au même endroit (inventaire, comptabilité disque, navigation).
+# Cette variable est la SOURCE DE VÉRITÉ du lien : elle sert à le vérifier/recréer, pas à
+# être lue à chaque appel — le code passe par le lien, pas par le chemin brut.
+# Vide = pas de lien attendu (Ollama dans son emplacement par défaut).
+OLLAMA_MODELS_DIR = os.environ.get('OLLAMA_MODELS_DIR', '')
+
 # LiteLLM — Unified LLM provider (Phase 1: local Ollama only)
 # Phase 2 (hybrid mode): set per-user via UserProviderConfig; 'ollama' = local-only default.
 # Supported values: 'ollama' | 'openai' | 'anthropic' | 'grok' | 'mistral'

@@ -51,6 +51,31 @@ def pull_ollama_model(name: str, timeout: int = 1800, progress=None):
         return {'ok': False, 'error': f"{type(e).__name__}: {e}"}
 
 
+def delete_ollama_model(name: str, timeout: int = 60) -> dict:
+    """
+    Désinstalle un modèle Ollama (`DELETE /api/delete`) — libère sa place sur le volume.
+
+    Sert le REMPLACEMENT : quand un candidat succède à un modèle installé, l'espace du nouveau
+    n'est disponible qu'après retrait de l'ancien (D: est à 96 %). Ollama ne supprime que les
+    blobs devenus orphelins : les couches partagées avec un autre tag restent en place, donc
+    l'espace réellement rendu peut être inférieur à la taille annoncée.
+
+    Envoie `model` ET `name` : la clé du corps a changé selon les versions du démon, et accepter
+    les deux évite un échec silencieux sur une machine au démon plus ancien.
+    """
+    import requests
+    from wama.common.utils.ollama_host import ollama_base, ollama_kwargs
+    try:
+        r = requests.delete(f"{ollama_base()}/api/delete",
+                            json={"model": name, "name": name},
+                            **ollama_kwargs(timeout=timeout))
+        if r.status_code in (200, 204):
+            return {'ok': True}
+        return {'ok': False, 'error': f"HTTP {r.status_code}: {r.text[:200]}"}
+    except Exception as e:
+        return {'ok': False, 'error': f"{type(e).__name__}: {e}"}
+
+
 # ModelType (catalogue) → catégorie de dossier (model_locations.model_dir).
 _TYPE_CATEGORY = {
     'diffusion': 'diffusion',
