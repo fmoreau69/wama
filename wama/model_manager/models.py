@@ -245,6 +245,33 @@ class AIModel(models.Model):
         return self.model_key
 
     @property
+    def platform_url(self):
+        """
+        Page publique du modele sur SA plateforme, ou None si on ne sait pas la construire.
+
+        Le template conditionnait le bouton a `hf_id` seul : les 38 modeles Ollama n'avaient
+        donc jamais de lien, alors que leur page existe. On derive ici au lieu de coder une
+        plateforme en dur dans la vue -- ajouter une plateforme se fera a cet endroit unique.
+        """
+        if self.hf_id:
+            return f"https://huggingface.co/{self.hf_id}"
+        if 'ollama:' in (self.model_key or ''):
+            from wama.model_manager.services.ollama_registry import BASE_SITE
+            # `gemma4:12b` -> page de la famille, le tag n'a pas de page propre.
+            famille = (self.name or '').split(':', 1)[0]
+            return f"{BASE_SITE}/library/{famille}" if famille else None
+        return None
+
+    @property
+    def platform_label(self):
+        """Nom de la plateforme, pour libeller le lien sans le deviner cote template."""
+        if self.hf_id:
+            return 'HuggingFace'
+        if 'ollama:' in (self.model_key or ''):
+            return 'Ollama'
+        return ''
+
+    @property
     def size_display(self):
         """Human-readable size display."""
         if self.vram_gb:
@@ -264,6 +291,8 @@ class AIModel(models.Model):
             'description': self.description,
             'description_short': self.description_short,
             'hf_id': self.hf_id,
+            'platform_url': self.platform_url,
+            'platform_label': self.platform_label,
             'vram_gb': self.vram_gb,
             'ram_gb': self.ram_gb,
             'disk_gb': self.disk_gb,

@@ -1029,9 +1029,15 @@ document.addEventListener('DOMContentLoaded', function() {
         { label: 'Rejeter', icon: 'fas fa-times', cls: 'btn btn-sm btn-outline-danger',
           when: function (m) { return !!m.is_proposed; },
           onClick: function (m) { mmProspectReject(m.id); } },
-        { label: 'HuggingFace', icon: 'fas fa-external-link-alt', cls: 'btn btn-sm btn-outline-info',
-          when: function (m) { return !m.is_proposed && !!m.hf_id; },
-          href: function (m) { return 'https://huggingface.co/' + m.hf_id; } },
+        {% comment %}
+          Le libelle reste une CHAINE : le rendu commun fait esc(a.label) et n'evalue pas les
+          fonctions (wama-inspector-autofill.js:183). La plateforme visee se lit dans l'URL,
+          et `platform_url` la choisit deja cote modele.
+        {% endcomment %}
+        { label: 'Voir sur la plateforme', icon: 'fas fa-external-link-alt',
+          cls: 'btn btn-sm btn-outline-info',
+          when: function (m) { return !m.is_proposed && !!m.platform_url; },
+          href: function (m) { return m.platform_url; } },
         { label: 'Décharger', icon: 'fas fa-eject', cls: 'btn btn-sm btn-outline-danger',
           when: function (m) { return !m.is_proposed && !!m.is_loaded; },
           onClick: function (m) { mmUnloadModel(m); } },
