@@ -1,6 +1,10 @@
 # MEDIA_STORAGE_TIERING.md — Délocalisation des médias (étude + décision)
 
-> **Statut : ÉTUDE / à implémenter plus tard** (pas urgent — disque local pas saturé).
+> **Statut : ÉTUDE / à implémenter plus tard.**
+> ⚠️ **Prémisse périmée (re-mesuré 2026-08-04)** : la mention « pas urgent — disque local pas
+> saturé » ne tient plus. `D:` est à **96 % (23,7 Go libres sur 543)**, dont **91 Go de modèles
+> Ollama** (`D:\.ollama\models`, hors `AI-models/`). L'urgence relative de ce chantier est donc à
+> réévaluer — mesurer avec `SystemMonitor.get_disk_info(drive='D')` avant de conclure.
 > Contexte : `media/` local ≈ **16,5 Go**. Un espace distant existe : `\\vrlescot\SAVES\DEEP_LEARNING\MEDIAS`.
 > Question (Fabien) : délocaliser les médias sur cet espace pour gagner de la place locale ?
 

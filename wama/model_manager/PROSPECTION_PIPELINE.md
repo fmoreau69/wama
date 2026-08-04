@@ -69,6 +69,26 @@
   le pendant exact pour les modèles ; (c) `api_prospect_install` refuse tout ce qui n'est pas Ollama
   (`views.py`, « phase 1 ») alors que les drivers `hf`/`yolo` existent depuis l'étape 5.
 
+## Décision — pas de sauvegarde des modèles Ollama (2026-08-04, Fabien)
+
+**Les modèles Ollama ne sont PAS sauvegardés vers `\\vrlescot\SAVES`, et c'est délibéré.**
+
+- La sauvegarde sert la **restauration** ; `ollama pull <nom>:<tag>` la fournit déjà, sans coût.
+- La **reproductibilité scientifique** n'exige pas d'archiver les poids mais de savoir quel build
+  a tourné : c'est déjà le cas — `AIModel.extra_info['ollama_id']` stocke le **préfixe du digest**
+  (vérifié : catalogue `4eb23ef187e2` ↔ API `4eb23ef187e2c5462566…`).
+- Coût évité : **91 Go** sur un NAS de labo, pour du contenu librement re-téléchargeable.
+- Risque accepté et nommé : un retrait ou un ré-étiquetage amont rendrait un digest
+  irrécupérable. Jugé faible devant le coût certain.
+
+**Conséquence — le lien symbolique `AI-models/models/llm/ollama` → `D:\.ollama\models` est
+ABANDONNÉ** (le dossier `llm/` reste vide, préparé le 2026-01-27 mais jamais lié). Sa principale
+justification était de faire entrer Ollama dans le périmètre de `remote_backup` ; or (a) ce backup
+n'est plus voulu, et (b) **`Path.rglob()` ne suit pas les liens de dossier** (mesuré sur Python
+3.12.3 : `rglob('*')` retourne le lien, jamais son contenu) — il ne l'aurait donc pas fait entrer.
+Le contrôle d'espace disque n'en a pas besoin : `AI-models` et `D:\.ollama` sont sur le **même
+volume**, un `SystemMonitor.get_disk_info()` suffit.
+
 ## Ordre de réalisation recommandé
 
 1. ✅ `install_from_spec` (fait — point d'entrée unique, endpoint `{'spec': …}`).

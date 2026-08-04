@@ -904,8 +904,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: JSON.stringify({ model_id: id })
             });
             const data = await r.json();
-            if (data.success) { loadModels(); }
-            else { alert('Échec : ' + (data.error || 'inconnu')); }
+            if (data.success) { loadModels(); return; }
+            // 507 = garde d'espace disque. On propose le forçage plutôt que de laisser
+            // l'utilisateur devant un échec sec, mais JAMAIS par défaut : sur un volume
+            // presque plein, remplir le disque casse aussi les journaux et Postgres.
+            if (r.status === 507 && data.force_possible) {
+                if (confirm((data.error || 'Espace insuffisant.')
+                    + '\n\nInstaller quand même ? Le disque risque la saturation.')) {
+                    showLoading('Installation forcée (ollama pull)…');
+                    const r2 = await fetch('{% url "model_manager:api_prospect_install" %}', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                        body: JSON.stringify({ model_id: id, force: true })
+                    });
+                    const d2 = await r2.json();
+                    if (d2.success) { loadModels(); }
+                    else { alert('Échec : ' + (d2.error || 'inconnu')); }
+                }
+                return;
+            }
+            alert('Échec : ' + (data.error || 'inconnu'));
         } catch (err) { alert('Erreur : ' + err.message); }
         finally { hideLoading(); }
     }

@@ -1333,6 +1333,55 @@ def api_check_disk_space(request):
 
 # ── Prospection (proposés par IA) — Ollama-first ─────────────────────────────
 
+#: Marge à conserver APRÈS installation. Un disque système rempli à ras ne casse pas que le
+#: téléchargement : il casse les journaux, les fichiers temporaires de conversion et Postgres.
+MARGE_DISQUE_GO = 10.0
+
+
+def _garde_espace_disque(ref: str, *, force: bool = False):
+    """
+    Refuse une installation qui saturerait le volume. Retourne None si l'installation peut
+    passer, sinon le dict d'erreur à renvoyer tel quel.
+
+    Réutilise `SystemMonitor.get_disk_info()` (brique existante, WSL-aware : elle interroge
+    l'hôte Windows) — aucune mesure de stockage n'est réécrite ici. `AI-models` et
+    `D:\\.ollama\\models` sont sur le MÊME volume, un seul contrôle suffit donc.
+
+    Taille INDÉTERMINABLE = refus, pas passage en force : sur un volume déjà à 96 %, supposer
+    une taille optimiste revient à remplir le disque.
+    """
+    from wama.common.services.system_monitor import SystemMonitor
+    from .services.ollama_registry import taille_go
+
+    nom, _, tag = ref.partition(':')
+    besoin = taille_go(nom, tag or 'latest')
+    disque = SystemMonitor.get_disk_info()
+    if disque is None:
+        return None if force else {
+            'success': False, 'error': "Espace disque non mesurable — installation refusée.",
+            'raison': 'disque_inconnu', 'force_possible': True}
+
+    libre = float(disque.get('free_gb') or 0)
+    if besoin is None:
+        return None if force else {
+            'success': False,
+            'error': (f"Taille de « {ref} » indéterminable (manifeste illisible) ; "
+                      f"{libre:.1f} Go libres. Installation refusée par précaution."),
+            'raison': 'taille_inconnue', 'free_gb': libre, 'force_possible': True}
+
+    reste = libre - besoin
+    if reste < MARGE_DISQUE_GO and not force:
+        return {
+            'success': False,
+            'error': (f"Espace insuffisant : « {ref} » pèse {besoin:.1f} Go, il reste "
+                      f"{libre:.1f} Go sur {disque.get('drive', 'le volume')} — après "
+                      f"installation il ne resterait que {reste:.1f} Go "
+                      f"(marge requise : {MARGE_DISQUE_GO:.0f} Go)."),
+            'raison': 'espace_insuffisant',
+            'needed_gb': besoin, 'free_gb': libre, 'after_gb': round(reste, 1),
+            'margin_gb': MARGE_DISQUE_GO, 'force_possible': True}
+    return None
+
 @login_required
 @user_passes_test(is_admin_or_dev)
 @require_POST
@@ -1386,6 +1435,17 @@ def api_prospect_install(request):
             return JsonResponse({'success': False, 'error': 'Candidat introuvable'}, status=404)
         if cand.source != 'ollama':
             return JsonResponse({'success': False, 'error': 'Installation Ollama uniquement (phase 1)'}, status=400)
+
+        # ── GARDE D'ESPACE DISQUE ────────────────────────────────────────────
+        # `ollama pull` n'a AUCUN garde-fou : il télécharge jusqu'à saturer le volume. Mesuré le
+        # 2026-08-04, D: était à 96 % (23,7 Go libres) alors que `qwen3.6:35b` pèse 22,3 Go —
+        # une installation aurait laissé ~1,4 Go. Rien n'est libéré par ailleurs : l'ancien
+        # modèle n'est pas supprimé (cf. `reclaim` plus bas) et les modèles Ollama ne sont pas
+        # sauvegardés (décision 2026-08-04, PROSPECTION_PIPELINE.md).
+        garde = _garde_espace_disque(cand.name, force=bool(data.get('force')))
+        if garde is not None:
+            return JsonResponse(garde, status=507)   # 507 Insufficient Storage
+
         res = pull_ollama_model(cand.name)
         if not res.get('ok'):
             return JsonResponse({'success': False, 'error': res.get('error', 'pull échoué')}, status=500)

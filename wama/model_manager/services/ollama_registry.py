@@ -106,6 +106,35 @@ def existe(nom: str, tag: str = 'latest') -> bool:
         return False
 
 
+@lru_cache(maxsize=256)
+def taille_go(nom: str, tag: str = 'latest') -> float | None:
+    """
+    Poids sur disque d'un `nom:tag` AVANT téléchargement — somme des couches du manifeste.
+
+    Comble le seul trou de la mesure de stockage : `MemoryManager.estimate_model_size(path)`
+    exige un chemin LOCAL et `AIModel.disk_gb` n'est rempli qu'après synchronisation. Aucun des
+    deux ne peut répondre pour un candidat pas encore installé — d'où ce complément, qui
+    réutilise le manifeste déjà interrogé par `existe()`.
+
+    Retourne None si indéterminable : l'appelant doit alors REFUSER d'installer plutôt que de
+    supposer une taille (sur un volume à 96 %, une supposition optimiste remplit le disque).
+    """
+    import requests
+    from wama.common.utils.http_proxy import outbound_proxies
+    try:
+        r = requests.get(f"{BASE_REGISTRY}/v2/library/{nom}/manifests/{tag}",
+                         timeout=15, proxies=outbound_proxies(),
+                         headers={'Accept': 'application/vnd.docker.distribution.manifest.v2+json'})
+        if r.status_code != 200:
+            return None
+        couches = r.json().get('layers') or []
+        total = sum(int(c.get('size') or 0) for c in couches)
+        return round(total / (1024 ** 3), 2) if total else None
+    except Exception as exc:
+        logger.info("[ollama_registry] taille de %s:%s indéterminable : %s", nom, tag, exc)
+        return None
+
+
 # ── Successeur de famille — le cœur du « qwen3.5 → qwen3.6 » ────────────────────
 
 _RE_FAMILLE = re.compile(r'^([a-z][a-z\-]*?)(\d+(?:\.\d+)*)$')
