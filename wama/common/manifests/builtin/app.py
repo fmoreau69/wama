@@ -13,11 +13,14 @@ Posture prudente : `project`/`un_project` (write-back dans les registres) NE son
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Optional
 
 from django.db import transaction
 
 from ..kinds import ManifestKind, register_kind
+
+logger = logging.getLogger(__name__)
 
 # APP_GROUP (permissions) → world (spec §1.1 : le monde classe la FINALITÉ).
 GROUP_TO_WORLD = {
@@ -151,10 +154,27 @@ def extract_app(app_id: str) -> Optional[dict]:
         # Composition (SPEC §7.3) : les références de la facette models, RECOPIÉES dans
         # l'enveloppe sous forme kind-agnostique. Même source (le catalogue), deux projections —
         # `resolve_requires()` ne lit que l'enveloppe, sans connaître les facettes.
+        # Jambe `library` : deux conditions CUMULATIVES — l'app importe réellement la
+        # distribution (mesuré par AST, cf. `library_index`) ET celle-ci est SEMÉE au corpus
+        # (décision humaine, SPEC §7.4-3). La 2e n'est pas cosmétique : `valider()` traite une
+        # référence `requires` pendante comme une ERREUR, donc citer une lib non semée
+        # invaliderait les 10 manifestes d'apps d'un coup.
         'requires': [{'kind': 'model', 'key': k}
-                     for k in ((body.get('models') or {}).get('catalog_keys') or [])],
+                     for k in ((body.get('models') or {}).get('catalog_keys') or [])]
+                    + [{'kind': 'library', 'key': k} for k in _librairies(app_id)],
         'body': body,
     }
+
+
+def _librairies(app_id: str) -> list:
+    """Librairies semées ET réellement importées par l'app (best-effort : jamais bloquant —
+    un inventaire indisponible ne doit pas empêcher d'extraire un manifeste)."""
+    try:
+        from wama.common.services.library_index import librairies_de
+        return librairies_de(app_id)
+    except Exception:
+        logger.debug("[manifest:app] inventaire des librairies indisponible", exc_info=True)
+        return []
 
 
 # ── Helpers d'extraction (best-effort, jamais bloquants) ────────────────────────

@@ -486,6 +486,10 @@
     {
       "key": "transcriber:whisper",
       "kind": "model"
+    },
+    {
+      "key": "faster-whisper",
+      "kind": "library"
     }
   ],
   "schema_version": "1.0",
