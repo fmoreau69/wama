@@ -18,13 +18,60 @@ class ModelType(models.TextChoices):
     SPEECH = 'speech', 'Speech'
     VLM = 'vlm', 'Vision-Language'
     LLM = 'llm', 'Large Language Model'
-    SUMMARIZATION = 'summarization', 'Summarization'
+    EMBEDDING = 'embedding', 'Embedding'
     UPSCALING = 'upscaling', 'Upscaling'
     LIPSYNC = 'lipsync', 'Lip Sync'
-    # Alignées sur l'enum de découverte (services/model_registry.py) : la découverte
-    # écrivait déjà 'music'/'ocr' dans le CharField, mais ils manquaient ici (choices/admin).
     MUSIC = 'music', 'Music / Audio'
     OCR = 'ocr', 'OCR / Document'
+
+    # `summarization` RETIRE le 2026-08-05 : zero modele l'a jamais porte, et resumer est un
+    # USAGE d'un LLM, pas un type de modele. `embedding` ajoute : 5 modeles le portaient en base
+    # sans qu'il soit declare nulle part.
+    #
+    # ⚠ Cet enum melange encore trois axes — famille (vision/diffusion/llm/vlm/embedding),
+    # modalite (speech/music) et tache (upscaling/lipsync/ocr). C'est pourquoi il derive : une
+    # tache n'a pas sa place ici, elle se declare dans `capabilities['task']` (cf. ModelTask).
+    # Retirer upscaling/lipsync/ocr demande de re-typer 12 modeles — a faire, pas encore fait.
+
+
+class ModelTask(models.TextChoices):
+    """
+    Ce qu'un modele SAIT FAIRE, par opposition a ce qu'il EST (`ModelType`).
+
+    Vocabulaire jusqu'ici implicite : la decouverte ecrivait librement `capabilities['task']`,
+    donc personne ne pouvait dire quelles valeurs existaient. Releve le 2026-08-05 sur les 129
+    modeles du catalogue, puis normalise en kebab-case.
+
+    C'est l'axe qui compte pour EVALUER un modele : on ne mesure pas un detecteur et un
+    classifieur de la meme facon, alors que les deux sont `ModelType.VISION`.
+    """
+    # vision
+    DETECT = 'detect', 'Détection'
+    SEGMENT = 'segment', 'Segmentation'
+    CLASSIFY = 'classify', 'Classification'
+    OBB = 'obb', 'Boîtes orientées'
+    POSE = 'pose', 'Pose'
+    OCR = 'ocr', 'OCR'
+    # audio / parole
+    TRANSCRIPTION = 'transcription', 'Transcription'
+    TEXT_TO_SPEECH = 'text-to-speech', 'Synthèse vocale'
+    AUDIO_ENHANCE = 'audio-enhance', 'Débruitage audio'
+    DENOISE = 'denoise', 'Débruitage'
+    # texte / multimodal
+    TEXT_GENERATION = 'text-generation', 'Génération de texte'
+    FEATURE_EXTRACTION = 'feature-extraction', 'Extraction de traits'
+    CAPTIONING = 'captioning', 'Légendage'
+    # generation visuelle
+    TEXT_TO_IMAGE = 'text-to-image', 'Texte → image'
+    IMAGE_TO_IMAGE = 'image-to-image', 'Image → image'
+    TEXT_TO_VIDEO = 'text-to-video', 'Texte → vidéo'
+    IMAGE_TO_VIDEO = 'image-to-video', 'Image → vidéo'
+    UPSCALE = 'upscale', 'Agrandissement'
+    # audio genere
+    TEXT_TO_MUSIC = 'text-to-music', 'Texte → musique'
+    TEXT_TO_AUDIO = 'text-to-audio', 'Texte → audio'
+    # video
+    LIP_SYNC = 'lip-sync', 'Synchronisation labiale'
 
 
 class ModelSource(models.TextChoices):

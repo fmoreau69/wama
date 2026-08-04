@@ -62,30 +62,15 @@ def _check_hf_model_downloaded(cache_dir: Path, hf_id: str) -> bool:
     return False
 
 
-class ModelType(Enum):
-    VISION = "vision"
-    DIFFUSION = "diffusion"
-    SPEECH = "speech"
-    VLM = "vlm"
-    LLM = "llm"
-    SUMMARIZATION = "summarization"
-    UPSCALING = "upscaling"
-    LIPSYNC = "lipsync"
-    MUSIC = "music"
-    OCR = "ocr"
+# Taxonomie UNIQUE : celle du modele Django. Elle etait REDECLAREE ici a l'identique, et les deux
+# copies ont derive trois fois — 'music'/'ocr', puis 'composer'/'reader', puis 'embedding' (ecrit
+# en base sans figurer dans aucune des deux). Les commentaires << alignees sur l'enum de decouverte >>
+# cote models.py traitaient le symptome ; la cause etait le doublon. Reexporte pour que les imports
+# existants (`from .model_registry import ModelType, ModelSource`) restent valides.
+from ..models import ModelType, ModelSource  # noqa: F401,E402
 
 
-class ModelSource(Enum):
-    WAMA_IMAGER = "imager"
-    WAMA_DESCRIBER = "describer"
-    WAMA_ANONYMIZER = "anonymizer"
-    WAMA_TRANSCRIBER = "transcriber"
-    WAMA_SYNTHESIZER = "synthesizer"
-    WAMA_ENHANCER = "enhancer"
-    WAMA_AVATARIZER = "avatarizer"
-    WAMA_COMPOSER = "composer"
-    WAMA_READER = "reader"
-    OLLAMA = "ollama"
+# (idem ModelType : la source vient de models.py, plus de copie ici.)
 
 
 @dataclass
@@ -962,7 +947,9 @@ class ModelRegistry:
                 vram_gb=_eng['vram'],
                 is_downloaded=True,
                 backend_ref='enhancer',
-                capabilities={'task': 'audio_enhance', 'modalities': ['audio'], 'params': _eng['params'],
+                # kebab-case comme tout le vocabulaire (ModelTask) : 'audio_enhance' etait la
+                # seule valeur en snake_case, donc hors taxonomie declaree.
+                capabilities={'task': 'audio-enhance', 'modalities': ['audio'], 'params': _eng['params'],
                               # Moteurs AUDIO : c'est ce qui les distingue des upscalers
                               # image/vidéo de la même app (eux exigent 'work_file').
                               'inputs_required': ['work_audio']},
