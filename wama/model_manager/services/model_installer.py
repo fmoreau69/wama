@@ -23,14 +23,14 @@ def pull_ollama_model(name: str, timeout: int = 1800, progress=None):
     `progress` : callback optionnel(status:str) pour remonter l'avancement.
     Retourne {'ok': bool, 'status': str} ou {'ok': False, 'error': str}.
     """
-    from django.conf import settings
     import requests
+    from wama.common.utils.ollama_host import ollama_base, ollama_kwargs
 
-    base = getattr(settings, 'OLLAMA_HOST', 'http://127.0.0.1:11434').rstrip('/')
+    base = ollama_base()
     last = None
     try:
         with requests.post(f"{base}/api/pull", json={"name": name, "stream": True},
-                           stream=True, timeout=timeout) as r:
+                           stream=True, **ollama_kwargs(timeout=timeout)) as r:
             r.raise_for_status()
             for line in r.iter_lines():
                 if not line:

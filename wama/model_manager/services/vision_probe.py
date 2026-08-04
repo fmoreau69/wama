@@ -30,7 +30,10 @@ def describe_image_ollama(image_path: str, model: str = 'gemma4:12b',
     except OSError as e:
         return {'ok': False, 'error': f"lecture image : {e}"}
 
-    base = getattr(settings, 'OLLAMA_HOST', 'http://127.0.0.1:11434').rstrip('/')
+    # Résolution via la brique (réécriture passerelle sous WSL2) ; le contournement du proxy
+    # reste assuré par le `trust_env = False` posé plus bas sur la session.
+    from wama.common.utils.ollama_host import ollama_base
+    base = ollama_base()
     prompt = prompt or "Décris cette image en français, de façon précise et concise."
     try:
         payload = {

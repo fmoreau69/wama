@@ -72,10 +72,13 @@ def ollama_chat(
         (None, error) on failure
     """
     import httpx
-    from django.conf import settings
 
-    host = getattr(settings, 'OLLAMA_HOST', 'http://127.0.0.1:11434').rstrip('/')
-    url = f"{host}/api/chat"
+    from .ollama_host import ollama_base
+
+    # Résolution via la brique : sous WSL2, `127.0.0.1` désigne la VM et non l'hôte Windows où
+    # tourne Ollama. Le contournement du proxy, lui, est déjà assuré plus bas par le
+    # `trust_env=False` du client httpx (équivalent httpx de `ollama_proxies()`).
+    url = f"{ollama_base()}/api/chat"
 
     options: dict = {"temperature": 0.3, "num_predict": num_predict}
     if num_ctx is not None:

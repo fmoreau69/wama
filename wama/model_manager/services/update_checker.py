@@ -37,11 +37,15 @@ def _parse_dt(s):
 
 
 def _ollama_tags(timeout=5):
-    """API LOCALE Ollama `/api/tags` → {name: modified_at}. Best-effort, local uniquement."""
-    from django.conf import settings
+    """API LOCALE Ollama `/api/tags` → {name: modified_at}. Best-effort, local uniquement.
+
+    Passe par la brique `ollama_host` : sans elle, ce point d'appel échouait en `ReadTimeout`
+    dès qu'un proxy était positionné (le proxy tentait de router l'IP de passerelle) — et un
+    échec ici fait purger ses candidats à `prospect_ollama()`.
+    """
     import requests
-    base = getattr(settings, 'OLLAMA_HOST', 'http://127.0.0.1:11434').rstrip('/')
-    r = requests.get(f"{base}/api/tags", timeout=timeout)
+    from wama.common.utils.ollama_host import ollama_base, ollama_kwargs
+    r = requests.get(f"{ollama_base()}/api/tags", **ollama_kwargs(timeout=timeout))
     r.raise_for_status()
     return {m['name']: m.get('modified_at', '') for m in r.json().get('models', [])}
 
