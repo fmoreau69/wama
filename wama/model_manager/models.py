@@ -142,7 +142,10 @@ PLATEFORMES_DE_REFERENCE = ('huggingface', 'ultralytics', 'ollama', 'roboflow')
 # conduite finira par en vouloir.
 TACHES_CONNUES_NON_PORTEES = {
     'Depth Estimation': 'roboflow + huggingface (depth-estimation)',
-    'Gaze Detection': 'roboflow',
+    # DEJA UTILISE dans WAMA — wama_lab/face_analyzer (eye_tracking.py), mais l'app a ses propres
+    # venv_win/venv_linux et ses modeles ne sont PAS au catalogue. A porter (Fabien, 2026-08-05) :
+    # c'est un cas ou la tache existe deja en production sans que le registre le sache.
+    'Gaze Detection': 'roboflow — et wama_lab/face_analyzer, hors registre',
     'Semantic Segmentation': 'roboflow — cf. remarque ci-dessus sur `segment`',
     'zero-shot-object-detection': 'huggingface — detection en vocabulaire ouvert',
 }
