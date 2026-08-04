@@ -2445,6 +2445,26 @@ Première action au redémarrage : **bande de couverture sous la timeline du cam
 ⚠ Partition : une autre instance tient l'infra GPU/ressources (`resource_governor.py`,
 `remote_backup.py` modifié non commité, `wama/celery.py`, `memory_manager.py`) — ne pas y toucher.
 
+## §REPRISE — session 2026-08-04 (prospection, sélection par qualité, couverture)
+
+> **Handoff complet : [`REPRISE_2026-08-04.md`](REPRISE_2026-08-04.md)** — à lire en premier.
+>
+> **Le piège de la session, à connaître avant tout** : après une modification Python touchant le
+> catalogue, **redémarrer les workers Celery**. Le Beat `model-manager-reconcile` (2 h) tournait
+> avec l'ancien code et réécrasait les capacités enrichies — une heure de diagnostic pour un
+> problème qui n'était **pas** dans le code. Symptôme : « correct quand je l'écris, faux dix
+> minutes plus tard ».
+>
+> **Chantier suivant : anonymizer.** ⚠ NE PAS « porter sur `select_model()` puis supprimer » —
+> `select_best_models_by_precision()` résout un **recouvrement** (plusieurs modèles pour couvrir
+> N classes) que `select_model()` ne peut pas faire. La brique de remplacement est écrite et
+> vérifiée (`common/services/model_coverage.py`), **pas encore adoptée**. Prérequis :
+> tests de non-régression sur floutage visages/plaques AVANT tout retrait.
+>
+> Deux défauts connus non corrigés : plafonds VRAM en constantes calibrées pour ce PC (faux sur
+> le R760xa) ; `vram_gb` dérivé du fichier et non de `/api/show`. Détail et séquence dans le
+> handoff.
+
 ## §REPRISE — session 2026-08-03 (validation smoke + outils §16.9 + composition)
 
 > Session mono-instance, champ libre. Le handoff `REPRISE_2026-08-02.md` §4 (« rien n'est
