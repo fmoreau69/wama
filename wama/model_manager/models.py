@@ -244,6 +244,18 @@ class AIModel(models.Model):
             return self.model_key.split(':', 1)[1]
         return self.model_key
 
+    # Licence du modele. Portee par le manifeste (kind `model`, identity.license) et projetee ici :
+    # manifeste = source, registre = projection. Necessaire a l'audit de licences WAMA (2026-08),
+    # qui doit s'aligner sur le composant le MOINS permissif -- impossible sans inventaire.
+    license = models.CharField(max_length=64, blank=True, default='', db_index=True,
+                               help_text="Identifiant SPDX quand il existe (apache-2.0, agpl-3.0, cc-by-nc-4.0…).")
+
+    # Identite du modele sur SA plateforme : 'huggingface:org/repo', 'ollama:gemma4',
+    # 'roboflow:projet/3'. C'est le FAIT ; l'URL n'en est qu'un rendu, derive par platform_url --
+    # sinon un changement de schema d'adresse chez la plateforme invaliderait autant de chaines
+    # stockees qu'il y a de modeles.
+    platform_ref = models.CharField(max_length=255, blank=True, default='', db_index=True)
+
     @property
     def platform_url(self):
         """
@@ -253,6 +265,13 @@ class AIModel(models.Model):
         donc jamais de lien, alors que leur page existe. On derive ici au lieu de coder une
         plateforme en dur dans la vue -- ajouter une plateforme se fera a cet endroit unique.
         """
+        plateforme, _, identifiant = (self.platform_ref or '').partition(':')
+        if plateforme and identifiant:
+            gabarit = self._URL_PAR_PLATEFORME.get(plateforme)
+            if gabarit:
+                return gabarit.format(id=identifiant)
+
+        # Repli tant que `platform_ref` n'est pas renseigne partout (il vient du manifeste).
         if self.hf_id:
             return f"https://huggingface.co/{self.hf_id}"
         if 'ollama:' in (self.model_key or ''):
@@ -262,9 +281,21 @@ class AIModel(models.Model):
             return f"{BASE_SITE}/library/{famille}" if famille else None
         return None
 
+    # Un seul endroit a etendre pour brancher une plateforme de plus (Roboflow…).
+    _URL_PAR_PLATEFORME = {
+        'huggingface': 'https://huggingface.co/{id}',
+        'ollama': 'https://ollama.com/library/{id}',
+        'roboflow': 'https://universe.roboflow.com/{id}',
+        'github': 'https://github.com/{id}',
+    }
+
     @property
     def platform_label(self):
         """Nom de la plateforme, pour libeller le lien sans le deviner cote template."""
+        plateforme = (self.platform_ref or '').partition(':')[0]
+        if plateforme:
+            return {'huggingface': 'HuggingFace', 'ollama': 'Ollama',
+                    'roboflow': 'Roboflow', 'github': 'GitHub'}.get(plateforme, plateforme)
         if self.hf_id:
             return 'HuggingFace'
         if 'ollama:' in (self.model_key or ''):
@@ -291,6 +322,8 @@ class AIModel(models.Model):
             'description': self.description,
             'description_short': self.description_short,
             'hf_id': self.hf_id,
+            'license': self.license,
+            'platform_ref': self.platform_ref,
             'platform_url': self.platform_url,
             'platform_label': self.platform_label,
             'vram_gb': self.vram_gb,

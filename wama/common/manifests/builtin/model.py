@@ -44,6 +44,15 @@ def validate_model_body(body: dict) -> list[str]:
         src = ident.get('source')
         if src and src not in _model_sources():
             errs.append(f"identity.source '{src}' hors ModelSource ({', '.join(sorted(_model_sources()))})")
+        ref = ident.get('platform_ref')
+        if ref:
+            from wama.model_manager.models import AIModel
+            plateforme = str(ref).partition(':')[0]
+            connues = sorted(AIModel._URL_PAR_PLATEFORME)
+            if ':' not in str(ref):
+                errs.append(f"identity.platform_ref '{ref}' doit s'ecrire '<plateforme>:<identifiant>'")
+            elif plateforme not in connues:
+                errs.append(f"identity.platform_ref plateforme '{plateforme}' inconnue ({', '.join(connues)})")
 
     res = body.get('resources') or {}
     if res and not isinstance(res, dict):
@@ -73,6 +82,12 @@ def extract_model(key: str) -> Optional[dict]:
             'model_type': m.model_type,
             'source': m.source,
             'hf_id': m.hf_id or None,
+            # Licence et identite plateforme : declarees ici, projetees dans AIModel.
+            # L'URL de la page n'est PAS portee — elle se derive de `platform_ref`
+            # (AIModel.platform_url), sinon un changement de schema d'adresse chez une
+            # plateforme perimerait autant de chaines stockees qu'il y a de modeles.
+            'license': m.license or None,
+            'platform_ref': m.platform_ref or None,
             'description_short': m.description_short or None,
         },
         # besoins (pilotent select_model VRAM-aware)
