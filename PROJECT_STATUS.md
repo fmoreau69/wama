@@ -342,7 +342,7 @@ Doc : [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md).
   2. **diff de capture** vs référence (`logs/ui_smoke/reference/`, hors git) : dit OÙ ça a bougé,
      **ne fait pas échouer** (file d'attente et barre de ressources changent chaque nuit) ;
   3. **triage VLM local** (`gemma4:12b`) **uniquement sur les captures modifiées** : dit QUOI, en
-     français. **Pas juge** — même précaution que `bench_describer`, le juge final reste humain.
+     français. **Pas juge** — même précaution que `bench` (ex-`bench_describer`), le juge final reste humain.
   Calibré : 2 passages consécutifs à références fraîches → **0 triage sur 13** (pas de coût VLM
   les nuits sans changement). **Sessions nettoyées** (les anonymes créées par le passage ; une
   session portant `_auth_user_id` est épargnée — ne jamais déconnecter un utilisateur réel).

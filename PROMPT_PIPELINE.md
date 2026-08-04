@@ -76,7 +76,7 @@ locales `_prompt`/`_negative`, la base garde l'original) ; composer `enrich=True
 - **RAG** (`apply_rag`, commenté dans `prompt_pipeline`) : récupération depuis store **ChromaDB** +
   embeddings **bge-m3**. No-op tant que la fondation `wama/rag/` + l'indexation (§8c) n'existent pas.
 - **QC** : câbler `qc.py` en post-génération dans les apps (seul consommateur actuel = la
-  commande de bench `bench_describer`).
+  commande de bench `bench --task`).
 
 ## Réglages (`wama/settings.py`)
 - `WAMA_PROMPT_ENRICH` (env, **défaut ON depuis 2026-07-30**) — **kill switch plateforme**, plus

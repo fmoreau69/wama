@@ -17,7 +17,7 @@ TROIS COUCHES, ET UNE SEULE DÉCIDE.
 3. **Triage par modèle vision local** : dit QUOI, en français, et UNIQUEMENT sur les captures qui
    ont bougé. Il n'est pas juge — un VLM affirme volontiers qu'une page cassée « semble
    correcte », et sa réponse varie d'une nuit à l'autre. Il te fait lire trois phrases au lieu
-   d'ouvrir dix captures. Même précaution que `bench_describer` : le juge final reste humain.
+   d'ouvrir dix captures. Même précaution que le banc de modèles (`bench`) : le juge final reste humain.
 
 Sous WSL2, où vivent le serveur ET les navigateurs Playwright (`~/.cache/ms-playwright`).
 
@@ -44,7 +44,7 @@ CUR_DIR = SHOTS_DIR / 'current'
 
 # Au-delà de ce ratio de pixels changés, la capture part au triage VLM (elle ne casse rien).
 DIFF_TRIAGE_RATIO = 0.02
-# Modèle vision : défaut de `bench_describer`, installé. Résidence courte → les scénarios UI
+# Modèle vision : défaut du banc de modèles, installé. Résidence courte → les scénarios UI
 # s'enchaînent sans repayer le chargement, et le modèle expire tout seul après la série.
 VLM_MODEL = os.environ.get('WAMA_UI_SMOKE_VLM', 'gemma4:12b')
 VLM_KEEP_ALIVE = '120s'
