@@ -1173,8 +1173,9 @@ def is_path_allowed(path, user):
     """
     path = path.replace('\\', '/')
 
-    # Prevent path traversal
-    if '..' in path:
+    # Prevent path traversal — interdire le SEGMENT '..', pas la sous-chaîne :
+    # les noms TTS tronqués ('Titre..._xtts_v2.wav') contiennent '...' et sont légitimes.
+    if '..' in Path(path).parts:
         return False
 
     # Allow user's temp folder
