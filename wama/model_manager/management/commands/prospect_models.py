@@ -62,10 +62,19 @@ class Command(BaseCommand):
             mark = '✓ déjà' if c['have'] else '★ NOUVEAU'
             dl = c['downloads']
             dls = f"{dl/1e6:.1f}M" if dl >= 1e6 else (f"{dl/1e3:.0f}k" if dl >= 1e3 else str(dl))
-            self.stdout.write(f"  [{mark:9s}] {c['hf_id']:55s} ⬇{dls:>6s}  ♥{c['likes']}")
+            self.stdout.write(f"  [{mark:9s}] {c['hf_id']:55s} ⬇{dls:>6s}  ♥{c['likes']}"
+                              f"  {c.get('license') or '—'}")
+            self.stdout.write(f"              {c['url']}")
+            m = c.get('metrique')
+            if m:
+                fiab = 'vérifiée' if m['verifie'] else 'auto-déclarée, NON vérifiée'
+                self.stdout.write(self.style.SUCCESS(
+                    f"              {m['nom']}={m['valeur']:.3f} ({fiab}"
+                    + (f", jeu : {m['jeu']}" if m['jeu'] else "") + ")"))
         self.stdout.write(self.style.NOTICE(
-            "\nSignal déterministe (popularité). La confrontation benchmarks/avis (agents) viendra "
-            "par-dessus ; toute integration reste soumise a acceptation admin."))
+            "\nTelechargements et likes = POPULARITE. La metrique affichee, quand elle existe, est "
+            "declaree par l'auteur sur SON jeu de validation : elle trie des candidats, elle ne les "
+            "departage pas entre eux. Toute integration reste soumise a acceptation admin."))
 
         if options['apply']:
             from wama.model_manager.services.prospector import apply_recommendations

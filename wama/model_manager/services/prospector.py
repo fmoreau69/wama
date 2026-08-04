@@ -37,6 +37,38 @@ _TASK_MODEL_TYPE = {
 }
 
 
+def _metrique_declaree(card_data):
+    """
+    Metrique d'evaluation auto-declaree dans le `model-index` de la carte HF, ou None.
+
+    C'est le seul signal de QUALITE que la plateforme expose ; tout le reste (telechargements,
+    likes) mesure la popularite. Mais elle est auto-declaree, non verifiee, et calculee sur le
+    jeu de validation de l'AUTEUR : deux modeles a 0.98 et 0.95 ne sont pas comparables s'ils
+    n'ont pas ete evalues sur le meme jeu. On rend donc le jeu et le drapeau `verifie` avec la
+    valeur -- de quoi trier des candidats, pas de quoi conclure.
+    """
+    if not card_data:
+        return None
+    try:
+        donnees = card_data.to_dict() if hasattr(card_data, 'to_dict') else dict(card_data)
+    except Exception:
+        return None
+    index = donnees.get('model-index') or donnees.get('model_index') or []
+    for entree in index:
+        for resultat in (entree.get('results') or []):
+            jeu = ((resultat.get('dataset') or {}).get('name')) or ''
+            for metrique in (resultat.get('metrics') or []):
+                valeur = metrique.get('value')
+                if isinstance(valeur, (int, float)):
+                    return {
+                        'nom': metrique.get('name') or metrique.get('type') or 'metrique',
+                        'valeur': float(valeur),
+                        'jeu': jeu,
+                        'verifie': bool(metrique.get('verified')),
+                    }
+    return None
+
+
 def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_downloads: int = 0,
                 search: str | None = None):
     """
@@ -59,7 +91,7 @@ def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_down
     api = HfApi()
     # huggingface_hub 1.x : filtrage par tâche = `pipeline_tag` (pas `task`), librairie via `filter`.
     kwargs = {'pipeline_tag': task, 'sort': 'downloads', 'limit': limit,
-              'expand': ['downloads', 'likes', 'lastModified', 'pipeline_tag']}
+              'expand': ['downloads', 'likes', 'lastModified', 'pipeline_tag', 'cardData']}
     if library:
         kwargs['filter'] = library
     if search:
@@ -82,6 +114,13 @@ def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_down
         if dl < min_downloads:
             continue
         lm = getattr(m, 'last_modified', None)
+        carte = getattr(m, 'card_data', None)
+        licence = None
+        if carte is not None:
+            try:
+                licence = (carte.to_dict() if hasattr(carte, 'to_dict') else dict(carte)).get('license')
+            except Exception:
+                licence = None
         candidates.append({
             'hf_id': m.id,
             'downloads': dl,
@@ -89,6 +128,9 @@ def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_down
             'pipeline_tag': getattr(m, 'pipeline_tag', None) or task,
             'last_modified': lm.isoformat() if hasattr(lm, 'isoformat') else (lm or None),
             'have': m.id.lower() in have,
+            'metrique': _metrique_declaree(carte),
+            'license': licence,
+            'url': f"https://huggingface.co/{m.id}",
         })
     return {'ok': True, 'task': task, 'candidates': candidates}
 
