@@ -60,14 +60,51 @@ class Command(BaseCommand):
                 f"\n⚠ {len(sans_tache)} modeles sans capabilities['task'] — ils sortent de toute "
                 f"selection ou evaluation par tache. Ex. : {', '.join(sans_tache[:5])}"))
 
-        # Quasi-doublons : deux libelles pour la meme chose se reperent a la main, mais autant
-        # les signaler que d'attendre qu'ils divergent.
-        for a, b in (('text-to-audio', 'text-to-music'), ('denoise', 'audio-enhance')):
-            if taches.get(a) and taches.get(b):
-                self.stdout.write(self.style.WARNING(
-                    f"⚠ '{a}' ({taches[a]}) et '{b}' ({taches[b]}) coexistent — a fusionner ou a "
-                    f"distinguer explicitement."))
+        # Ce controle signalait naguere 'text-to-music'/'text-to-audio' et 'denoise'/'audio-enhance'
+        # comme des quasi-doublons a fusionner. C'ETAIT FAUX, deux fois : il comparait des chaines
+        # au lieu de regarder les modeles. MusicGen compose, AudioGen fait de l'ambiance — le
+        # composer s'appuie sur cette distinction et un generateur de films scenarises en aura
+        # besoin ; IRCNN debruite des IMAGES quand deepfilternet debruite du SON. Une proximite de
+        # libelle ne dit rien : la ressemblance se juge sur les modeles, jamais sur les mots.
+        # Remplace par la seule verification qui soit factuelle : la projection est-elle declaree ?
+        self._projection(declares_task)
 
         if souci:
             self.stderr.write("\nUne valeur non declaree = la decouverte a ecrit hors taxonomie.")
             raise SystemExit(1)
+
+    def _projection(self, declares_task):
+        """
+        Chaque tache doit declarer sa correspondance sur les plateformes de reference -- meme
+        quand c'est None. Un oubli passerait pour << pas d'equivalent >> alors que c'est
+        << pas encore regarde >>, et la nuance decide si on cherche ailleurs ou pas.
+        """
+        from wama.model_manager.models import TACHE_VERS_TAGS_PLATEFORMES, PLATEFORMES_DE_REFERENCE
+
+        manquantes = sorted(t for t in declares_task
+                            if t not in {k.value for k in TACHE_VERS_TAGS_PLATEFORMES})
+        if manquantes:
+            self.stdout.write(self.style.ERROR(
+                f"✗ taches sans projection declaree : {', '.join(manquantes)}"))
+            raise SystemExit(1)
+
+        self.stdout.write(self.style.SUCCESS(
+            f"✓ projection : les {len(TACHE_VERS_TAGS_PLATEFORMES)} taches declarent leur "
+            f"correspondance sur {', '.join(PLATEFORMES_DE_REFERENCE)}"))
+
+        propres = [t.value for t, tags in TACHE_VERS_TAGS_PLATEFORMES.items() if not any(tags)]
+        if propres:
+            self.stdout.write(
+                f"    propres a WAMA (aucun equivalent nulle part) : {', '.join(sorted(propres))}")
+
+        # Plusieurs de nos taches se projettent sur le MEME tag : c'est voulu, notre vocabulaire
+        # est plus fin. On l'affiche pour que ce soit un choix visible, pas un accident.
+        from collections import defaultdict
+        regroupe = defaultdict(list)
+        for t, tags in TACHE_VERS_TAGS_PLATEFORMES.items():
+            if tags[0]:
+                regroupe[tags[0]].append(t.value)
+        for tag, nos in sorted(regroupe.items()):
+            if len(nos) > 1:
+                self.stdout.write(
+                    f"    plus fin que HuggingFace : {' + '.join(sorted(nos))} → '{tag}'")

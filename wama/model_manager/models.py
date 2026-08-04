@@ -67,11 +67,85 @@ class ModelTask(models.TextChoices):
     TEXT_TO_VIDEO = 'text-to-video', 'Texte → vidéo'
     IMAGE_TO_VIDEO = 'image-to-video', 'Image → vidéo'
     UPSCALE = 'upscale', 'Agrandissement'
-    # audio genere
+    # audio genere — MUSIQUE et AMBIANCE/BRUITAGE sont deux metiers, pas deux mots pour un.
+    # Le composer s'en sert deja pour separer composition musicale et ambiance/FX, et un
+    # generateur de films scenarises devra distinguer la musique d'accompagnement des bruitages.
+    # Les modeles portent eux-memes la distinction : MusicGen compose, AudioGen fait du son
+    # d'ambiance. HuggingFace ne la fait PAS (un seul tag grossier) — raison de plus pour
+    # l'ecrire ici plutot que de s'aligner et de la perdre. (Fabien, 2026-08-05.)
     TEXT_TO_MUSIC = 'text-to-music', 'Texte → musique'
-    TEXT_TO_AUDIO = 'text-to-audio', 'Texte → audio'
+    TEXT_TO_AUDIO = 'text-to-audio', 'Texte → ambiance / bruitage'
     # video
     LIP_SYNC = 'lip-sync', 'Synchronisation labiale'
+
+
+# Projection de NOTRE vocabulaire vers celui des plateformes : a SENS UNIQUE, PLUSIEURS-VERS-UN.
+#
+# On recoupe PLUSIEURS referentiels au lieu de s'aligner sur un seul — aucun ne couvre le champ,
+# et chacun decrit une chose differente (releve le 2026-08-05) :
+#
+#   HuggingFace  UNE tache par modele, « ce a quoi il sert »  (47 tags, /api/tasks)
+#   Ultralytics  UNE tache par fichier de poids               (detect/segment/classify/pose/obb)
+#   Ollama       UN ENSEMBLE de capacites, « ce qu'il sait faire » (/api/show -> capabilities)
+#
+# La difference Ollama n'est pas cosmetique : `qwen3.6:35b` rend
+# ['completion','vision','tools','thinking']. `tools` et `thinking` n'ont AUCUN equivalent chez
+# HF, et ce sont justement les capacites qui decident si un modele peut servir l'assistant. Un
+# champ `task` singulier les perd — c'est pourquoi 16 LLM du catalogue n'ont aucune tache : la
+# question « quelle est SA tache » n'a pas de reponse pour eux.
+#
+# Consequence assumee : `task` reste le bon axe pour vision/diffusion/audio (un modele = un
+# metier), et les LLM doivent porter en plus un ENSEMBLE de capacites. Les deux cohabitent dans
+# `capabilities` ; ce n'est pas une incoherence, c'est que les objets different.
+#
+# Converger, donc, mais en PROJETANT : plusieurs de nos taches sont deliberement plus fines que
+# le tag officiel, chaque fois pour une raison de metier. `denoise` et `upscale` retombent tous
+# deux sur `image-to-image` chez HF ; `text-to-music` et `text-to-audio` sur rien du tout alors
+# que le composer s'en sert pour separer composition et ambiance. S'aligner effacerait la
+# distinction qui sert a CHOISIR un modele.
+#
+# None = aucun equivalent sur cette plateforme. Ce n'est pas un trou a combler.
+TACHE_VERS_TAGS_PLATEFORMES = {
+    #                              huggingface                    ultralytics   ollama
+    ModelTask.DETECT:             ('object-detection',            'detect',     None),
+    ModelTask.SEGMENT:            ('image-segmentation',          'segment',    None),
+    ModelTask.CLASSIFY:           ('image-classification',        'classify',   None),
+    ModelTask.POSE:               ('keypoint-detection',          'pose',       None),
+    ModelTask.OBB:                (None,                          'obb',        None),
+    ModelTask.OCR:                ('image-to-text',               None,         None),
+    ModelTask.TRANSCRIPTION:      ('automatic-speech-recognition', None,        None),
+    ModelTask.TEXT_TO_SPEECH:     ('text-to-speech',              None,         None),
+    ModelTask.AUDIO_ENHANCE:      ('audio-to-audio',              None,         None),
+    ModelTask.DENOISE:            ('image-to-image',              None,         None),
+    ModelTask.TEXT_GENERATION:    ('text-generation',             None,         'completion'),
+    ModelTask.FEATURE_EXTRACTION: ('feature-extraction',          None,         'embedding'),
+    ModelTask.CAPTIONING:         ('image-to-text',               None,         'vision'),
+    ModelTask.TEXT_TO_IMAGE:      ('text-to-image',               None,         None),
+    ModelTask.IMAGE_TO_IMAGE:     ('image-to-image',              None,         None),
+    ModelTask.TEXT_TO_VIDEO:      ('text-to-video',               None,         None),
+    ModelTask.IMAGE_TO_VIDEO:     ('image-to-video',              None,         None),
+    ModelTask.UPSCALE:            ('image-to-image',              None,         None),
+    ModelTask.TEXT_TO_MUSIC:      (None,                          None,         None),
+    ModelTask.TEXT_TO_AUDIO:      (None,                          None,         None),
+    ModelTask.LIP_SYNC:           (None,                          None,         None),
+}
+PLATEFORMES_DE_REFERENCE = ('huggingface', 'ultralytics', 'ollama')
+
+
+class ModelAbility(models.TextChoices):
+    """
+    Ce qu'un modele sait faire EN PLUS de sa tache — plusieurs a la fois, contrairement a `task`.
+
+    Vocabulaire repris d'Ollama (`/api/show` -> capabilities), le seul referentiel qui le porte.
+    HuggingFace n'a rien d'equivalent, alors que ce sont ces capacites qui decident si un modele
+    peut servir l'assistant (appeler un outil) ou lire une image.
+    """
+    COMPLETION = 'completion', 'Génération'
+    VISION = 'vision', 'Lecture d’images'
+    AUDIO = 'audio', 'Écoute audio'
+    TOOLS = 'tools', 'Appel d’outils'
+    THINKING = 'thinking', 'Raisonnement explicite'
+    EMBEDDING = 'embedding', 'Vectorisation'
 
 
 class ModelSource(models.TextChoices):
