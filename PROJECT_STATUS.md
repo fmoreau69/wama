@@ -2667,3 +2667,38 @@ reader 85 · synthesizer 84 · describer 83 · imager 55.
 briques sur toute card ; config d'app AVANT les scripts qui la capturent ; un littéral mesuré
 par le checker ne va JAMAIS dans un commentaire ; {% templatetag opencomment %} multi-ligne
 interdit (7 récidives) ; support ≠ adoption (script porté par la brique désormais).
+
+---
+
+## §REPRISE — session 2026-08-04 (nuit) : retest MuseTalk ✅ + 3 fixes issus de l'usage réel
+
+> Session mono-instance côté apps ; une AUTRE instance travaillait en parallèle sur
+> `common/manifests/**` (kind library, commits a752798/60d51e3…) — partition respectée.
+> Point 1 de l'ordre de reprise du 03/08 SOLDÉ : **MuseTalk re-testé par Fabien, génération OK.**
+> Les 3 fixes viennent de son usage réel dans la foulée ; chacun validé Playwright (pw_smoke)
+> avant commit. Windows a crashé en cours de session (signatures ouvertes, cf. mémoire hwlog) —
+> reprise sans perte, les éditions disque avaient survécu.
+
+| Commit | Fix | Cause racine |
+|---|---|---|
+| `f430a7f` | avatarizer : import audio (filemanager ET local) ne retenait RIEN | `detectAndHandle` est **async** ; appelée sans `await` dans la garde de `handleAudioFile`, sa Promise (toujours truthy) déclenchait le `return`. Seule app touchée : tous les autres call-sites font `await`. |
+| `fa85002` | lectures empilées (avatarizer, et partout) | le fix « une seule lecture à la fois » vivait dans le SEUL transcriber (`edit.js`). **Porté en brique commune** : `wama-app-base.js` (listener `play` en capture + `WamaApp.pauseDomMedia`), pont bidirectionnel avec `WamaAudioPlayer` (ses `Audio()` sont HORS DOM), doublon transcriber RETIRÉ, échappatoire `data-wama-multiplay`. Global via `base.html` → rien à porter par app. |
+| `f35199a` | filemanager : « Access denied » au déplacement des sorties TTS | garde traversal de `is_path_allowed` en SOUS-CHAÎNE (`'..' in path`) : tout nom contenant `...` (noms TTS tronqués) était refusé. → test par SEGMENT (`Path(path).parts`), aligné sur les 2 autres gardes du fichier. |
+
+**Leçons** : ① une brique commune **async** appelée dans une garde synchrone = Promise truthy =
+court-circuit silencieux — vérifier les call-sites à chaque brique passée async ; ② une garde
+sécurité écrite en sous-chaîne se déclenche sur des données légitimes — tester par segment ;
+③ le refus de déplacement HORS temp reste silencieux côté client (console.log sans toast,
+`check_callback`) — petit trou « jamais d'échec silencieux » à combler à l'occasion.
+
+**Restrictions vérifiées (pas des régressions)** : déplacement dans l'arbre = temp-only depuis
+2026-01-05 (client `check_callback` + serveur `api_move`), par design (les fichiers des dossiers
+d'app sont référencés en base). Extension envisageable : autoriser les dossiers montés.
+
+**Ordre de reprise 03/08 mis à jour** : 1.✅ MuseTalk → suivants inchangés :
+**2. imager (55 %)** port schéma-driven (gabarit anonymizer) · 3. anatomie card v3 (enhancer/
+anonymizer) · 4. chips+modale batch composer/synthesizer/describer · 5. §18.2 `check_structure`.
+Contrôles mécaniques : passés au vert en début de session (04/08) — 3 CASSÉ connus, corpus à
+jour, fidélité OK ; non re-lancés après les fixes (JS/garde serveur, aucun critère mesuré touché).
+Données de test : `pw_smoke` a désormais `synthesizer/21/output/tts_smoke_test.wav` (semé pour
+les smokes audio, à garder).
