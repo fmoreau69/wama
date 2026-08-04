@@ -1488,6 +1488,7 @@ def api_prospect_install(request):
             return JsonResponse(garde, status=507)   # 507 Insufficient Storage
 
         rollback = None
+        origine_key = (cand.extra_info or {}).get('prospect', {}).get('origin_key')
         if remplace:
             from .services.model_installer import delete_ollama_model
             sup = delete_ollama_model(remplace)
@@ -1520,6 +1521,22 @@ def api_prospect_install(request):
             register_after_install()
         except Exception:
             logger.warning("register_after_install a échoué (le sync périodique rattrapera)", exc_info=True)
+
+        # RÉCONCILIER LE REMPLACÉ. `register_after_install()` → `full_sync()` n'enlève rien :
+        # c'est voulu (une indisponibilité passagère ne doit pas purger le catalogue), mais ici
+        # la suppression était DÉLIBÉRÉE — sans ce recalage, l'ancien modèle restait
+        # `is_downloaded=True, is_available=True` alors qu'Ollama ne l'avait plus, et
+        # `select_model()` pouvait désigner un modèle inexistant (constaté au test réel du
+        # 2026-08-04 : `ollama:qwen3.5:35b-a3b` fantôme après son remplacement par qwen3.6:35b).
+        # On MARQUE au lieu de supprimer : la ligne porte l'historique (statistiques de runtime,
+        # ETA appris) qu'un `delete()` détruirait. `downloaded_only=True` suffit à l'écarter
+        # de la sélection.
+        if remplace and origine_key:
+            maj = AIModel.objects.filter(model_key=origine_key).update(
+                is_downloaded=False, is_available=False, is_loaded=False)
+            logger.info("[prospect_install] %s remplacé par %s — %d ligne(s) recalée(s)",
+                        origine_key, cand.name, maj)
+
         installed_name = cand.name
         cand.delete()
         return JsonResponse({'success': True, 'installed': installed_name})
