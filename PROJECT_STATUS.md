@@ -281,6 +281,26 @@ Doc : [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md).
   Preuve : `gemma4:12b` (qualité 42,7 / **7,6 Go**) passe devant `gemma4:e4b` (35,0 / 9,6 Go) —
   le plus petit est le meilleur, et l'ancien tri choisissait l'inverse. Les LLM entrent enfin
   dans `select_model()` : `llm_utils` n'a plus aucun nom de modèle en dur.
+- 🔄 **Anonymizer — extraire la COUVERTURE vers `common/`, pas « porter puis supprimer »
+  (analyse 2026-08-04)** : `anonymizer/utils/model_selector.py` (1 139 lignes, 4 consommateurs)
+  ressemble à une route parallèle de `select_model()`, mais **ne s'y réduit pas**.
+  `select_best_models_by_precision()` résout un problème de **couverture** — quelle COMBINAISON
+  de modèles couvre toutes les classes demandées, en mêlant spécialisés (visage, plaque) et COCO
+  génériques. `select_model()` retourne **un seul** modèle : il ne peut structurellement pas le
+  faire. Le porter puis supprimer, comme envisagé d'abord, **détruirait une capacité réelle**.
+  Tri mesuré : ❌ `_scan_installed_models_filesystem()` = doublon (le catalogue porte déjà les
+  classes de **46 modèles vision sur 48**, extraites indépendamment — pas d'inversion d'étage,
+  vérifié) ; ❌ sélection mono-modèle = doublon de `select_model(classes=…)` ; ✅ **couverture
+  multi-modèles à porter au commun** (utile aussi au cam_analyzer, au face_analyzer, à
+  LocateAnything) ; ✅ politique de précision = spécificité légitime, à DÉCLARER ;
+  🔄 `get_download_recommendations()` recoupe la prospection refaite le 2026-08-04.
+  **Geste** : `common/services/` → `couvrir_classes(classes, budget_vram, precision)` bâtie AU-DESSUS
+  de `select_model()`, puis adoption par l'anonymizer, puis suppression de la seule découverte
+  dupliquée. Prérequis : tests de non-régression (floutage visages/plaques) AVANT de toucher.
+  **Décision Fabien 2026-08-04** : le floutage lui-même devient une **fonction Data**
+  (`FunctionSpec` `binding=app`, `impl=anonymizer…`, `cost.vram_gb`) — le catalogue le permet
+  déjà. La couverture, elle, reste de l'INFRASTRUCTURE : `common/services/`, consommée par la
+  fonction, jamais exposée en card.
 - ⏳ **Prospection — routing capacité→app (Axe 3, décidé 2026-06-29)** : à la proposition d'un modèle,
   inférer tâche + types E/S (pipeline_tag/tags/README HF) puis **réutiliser le matcher de capacités**
   (`app_registry.normalize_types`, déjà utilisé par le studio) contre `APP_CATALOG.input_types/
