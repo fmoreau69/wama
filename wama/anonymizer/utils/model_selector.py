@@ -23,8 +23,14 @@ from .model_manager import (
     MODELS_ROOT,
 )
 from .yolo_utils import get_model_path
+from wama.common.services.model_coverage import couvrir_classes
 
 logger = logging.getLogger(__name__)
+
+# Politique de l'anonymizer, DÉCLARÉE et passée à la brique commune plutôt que recodée en elle :
+# flouter suppose de localiser. Un classifieur annonce des classes sans savoir où elles sont
+# (`yolo11l-cls` déclare `plate` — l'assiette d'ImageNet) ; retenu, il ne produirait aucune boîte.
+_TACHES_LOCALISANTES = ('detect', 'segment')
 
 # Flag to enable/disable Model Manager integration
 USE_MODEL_MANAGER_DB = True
@@ -594,70 +600,34 @@ def should_use_segmentation(precision_level: int) -> bool:
 
 
 def select_model_by_precision(classes_to_blur: List[str],
-                               precision_level: int = 50,
-                               prefer_yolo11: bool = True) -> Optional[str]:
+                              precision_level: int = 50) -> Optional[str]:
     """
-    Automatically select the best model based on precision level and classes to blur.
+    Modele UNIQUE couvrant le mieux `classes_to_blur` au niveau de precision demande.
 
-    Args:
-        classes_to_blur: List of class names to detect
-        precision_level: 0=Quick, 50=Balanced, 100=Precise
-        prefer_yolo11: Prefer YOLO11 models over YOLOv8
+    Meme brique que `select_best_models_by_precision`, bornee a un seul modele : c'est le cas
+    degenere du recouvrement, pas un second algorithme.
 
     Returns:
-        Model identifier (e.g., 'detect/yolo11m.pt') or None if not found
+        NOM DE FICHIER du modele. `get_model_path()` le resout en cherchant par nom dans tout
+        l'arbre, donc inutile de reconstruire un adressage 'type/specialty/' -- et ca reste
+        valable quel que soit l'OS, alors que `local_path` est stocke en POSIX.
+        None si aucun modele ne couvre quoi que ce soit.
     """
     if not classes_to_blur:
         return None
 
-    # Determine model size from precision level
-    size = get_model_size_from_precision(precision_level)
+    resultat = couvrir_classes(
+        classes_to_blur,
+        taches_admises=_TACHES_LOCALISANTES,
+        preferer_segmentation=should_use_segmentation(precision_level),
+        taille_preferee=get_model_size_from_precision(precision_level),
+        max_modeles=1,
+    )
+    if not resultat['modeles']:
+        return None
 
-    # Determine if segmentation should be used
-    use_seg = should_use_segmentation(precision_level)
-
-    # Determine model type based on classes
-    model_type = 'segment' if use_seg else 'detect'
-
-    # Get installed models
-    installed = scan_installed_models()
-
-    # Build candidate model names
-    version_prefix = 'yolo11' if prefer_yolo11 else 'yolov8'
-    suffix = '-seg' if use_seg else ''
-
-    # Try to find the exact model
-    candidate_name = f"{version_prefix}{size}{suffix}.pt"
-    candidate_id = f"{model_type}/{candidate_name}"
-
-    # Check if candidate exists
-    if candidate_id in installed:
-        # Verify it supports the requested classes
-        model_classes = set(installed[candidate_id]['class_list'])
-        requested_classes = set(cls.lower() for cls in classes_to_blur)
-
-        if requested_classes.issubset(model_classes):
-            return candidate_id
-
-    # Fallback: try YOLOv8 if YOLO11 not found
-    if prefer_yolo11:
-        fallback_name = f"yolov8{size}{suffix}.pt"
-        fallback_id = f"{model_type}/{fallback_name}"
-
-        if fallback_id in installed:
-            model_classes = set(installed[fallback_id]['class_list'])
-            requested_classes = set(cls.lower() for cls in classes_to_blur)
-
-            if requested_classes.issubset(model_classes):
-                return fallback_id
-
-    # If still not found, fall back to standard selection
-    selection = select_best_models(classes_to_blur, prefer_official=True, prefer_small=(size in ['n', 's']))
-
-    if selection['models_to_use']:
-        return selection['models_to_use'][0]['id']
-
-    return None
+    retenu = resultat['modeles'][0]
+    return os.path.basename(retenu['path']) or retenu['name']
 
 
 def get_model_selection_info(classes_to_blur: List[str],
@@ -765,375 +735,50 @@ SPECIALTY_CLASSES = {'face', 'plate', 'license plate', 'license_plate'}
 
 
 def select_best_models_by_precision(classes_to_blur: List[str],
-                                     precision_level: int = 50) -> Dict:
+                                    precision_level: int = 50) -> Dict:
     """
-    Select the best models considering precision level for parallel detection.
+    Ensemble MINIMAL de modeles couvrant `classes_to_blur`, au niveau de precision demande.
 
-    This function determines which models are needed to cover all requested classes,
-    potentially returning multiple models when specialty classes (face, plate) are
-    mixed with COCO classes.
+    Delegue a la brique commune `couvrir_classes()` : le recouvrement glouton, l'appariement
+    par alias et le departage vivent la-bas, pour toutes les apps. Ne reste ici que la
+    POLITIQUE de l'anonymizer -- taille et segmentation derivees de la precision, et
+    l'exigence de modeles qui LOCALISENT (un classifieur ne produit aucune boite).
 
-    For high precision (>=65), prefers segmentation models when available.
-    Groups classes by model capability and returns multiple models if needed.
-
-    Args:
-        classes_to_blur: List of class names to detect (e.g., ['face', 'person', 'car'])
-        precision_level: 0=Quick, 50=Balanced, 100=Precise
+    Remplace une selection maison qui redecouvrait les modeles sur le disque et separait a la
+    main "specialites" et "COCO" ; couverture verifiee identique sur 18 cas x 3 precisions
+    avant bascule (2026-08-04).
 
     Returns:
-        {
-            'models_to_use': [
-                {'id': 'segment/yolo11m-seg.pt', 'path': '...', 'classes': ['person', 'car']},
-                {'id': 'detect/faces/yolov9s-face.pt', 'path': '...', 'classes': ['face']},
-            ],
-            'unsupported_classes': [...],
-            'coverage': 1.0,
-        }
+        {'models_to_use': [{'id', 'path', 'classes', 'name'}],
+         'unsupported_classes': [...], 'coverage': 0..1}
     """
     if not classes_to_blur:
-        return {
-            'models_to_use': [],
-            'coverage': 0,
-            'unsupported_classes': [],
-        }
+        return {'models_to_use': [], 'coverage': 0, 'unsupported_classes': []}
 
-    # Determine preferences based on precision level
-    model_size = get_model_size_from_precision(precision_level)
-    prefer_segmentation = should_use_segmentation(precision_level)
-    prefer_small = model_size in ['n', 's']
+    resultat = couvrir_classes(
+        classes_to_blur,
+        taches_admises=_TACHES_LOCALISANTES,
+        preferer_segmentation=should_use_segmentation(precision_level),
+        taille_preferee=get_model_size_from_precision(precision_level),
+    )
 
-    # Scan available models
-    installed_models = scan_installed_models()
+    models_to_use = [{
+        'id': m['model_key'],
+        'path': m['path'],
+        'classes': m['classes'],
+        'name': m['name'],
+    } for m in resultat['modeles']]
 
-    # Normalize classes to lowercase
-    classes_lower = [c.lower() for c in classes_to_blur]
-
-    # Separate specialty classes (face, plate) from COCO classes
-    specialty_classes = [c for c in classes_lower if c in SPECIALTY_CLASSES]
-    coco_classes = [c for c in classes_lower if c not in SPECIALTY_CLASSES]
-
-    models_to_use = []
-    covered_classes = set()
-
-    # 1. Handle specialty classes with dedicated models
-    # When multiple specialty classes are requested, first try to find a single model
-    # that covers all of them (e.g., faces&plates model for ['face', 'plate'])
-    if len(specialty_classes) > 1:
-        combined_model = _find_combined_specialty_model(
-            specialty_classes, installed_models, model_size
-        )
-        if combined_model:
-            model_id = combined_model
-            model_info = installed_models[model_id]
-            models_to_use.append({
-                'id': model_id,
-                'path': model_info['path'],
-                'name': model_info['name'],
-                'type': model_info['type'],
-                'classes': list(specialty_classes),
-            })
-            covered_classes.update(specialty_classes)
-            logger.info(f"[ModelSelector] Combined model {model_id} covers all specialty classes: "
-                        f"{specialty_classes}")
-
-    # Fall back to per-class search for any uncovered specialty classes
-    for specialty in specialty_classes:
-        if specialty in covered_classes:
-            continue
-
-        model_id = _find_specialty_model(specialty, installed_models, model_size)
-        if model_id:
-            model_info = installed_models[model_id]
-            # Check if this model also covers other uncovered specialty classes
-            model_classes = [specialty]
-            for other_specialty in specialty_classes:
-                if other_specialty == specialty or other_specialty in covered_classes:
-                    continue
-                other_supported = any(
-                    classes_match(other_specialty, model_cls)
-                    for model_cls in model_info['class_list']
-                )
-                if other_supported:
-                    model_classes.append(other_specialty)
-                    logger.info(f"[ModelSelector] Model {model_id} also covers '{other_specialty}' "
-                                f"- consolidating with '{specialty}'")
-
-            models_to_use.append({
-                'id': model_id,
-                'path': model_info['path'],
-                'name': model_info['name'],
-                'type': model_info['type'],
-                'classes': model_classes,
-            })
-            covered_classes.update(model_classes)
-        else:
-            logger.warning(f"[ModelSelector] No specialty model found for: {specialty}")
-
-    # 2. Handle COCO classes with general model
-    remaining_coco = [c for c in coco_classes if c not in covered_classes]
-    if remaining_coco:
-        model_id = _find_coco_model(remaining_coco, installed_models,
-                                     prefer_segmentation, model_size)
-        if model_id:
-            model_info = installed_models[model_id]
-            supported = [c for c in remaining_coco if c in model_info['class_list']]
-            if supported:
-                models_to_use.append({
-                    'id': model_id,
-                    'path': model_info['path'],
-                    'name': model_info['name'],
-                    'type': model_info['type'],
-                    'classes': supported,
-                })
-                covered_classes.update(supported)
-        else:
-            logger.warning(f"[ModelSelector] No COCO model found for: {remaining_coco}")
-
-    # Calculate coverage
-    unsupported = [c for c in classes_lower if c not in covered_classes]
-    coverage = len(covered_classes) / len(classes_lower) if classes_lower else 0
-
-    logger.info(f"[ModelSelector] Selected {len(models_to_use)} model(s) for {len(classes_lower)} classes "
-                f"(coverage: {coverage:.0%}, precision: {precision_level})")
+    if models_to_use:
+        logger.info("[ModelSelector] %d modele(s) pour %s (precision %d) : %s",
+                    len(models_to_use), classes_to_blur, precision_level,
+                    ', '.join(m['id'] for m in models_to_use))
+    if resultat['classes_non_couvertes']:
+        logger.warning("[ModelSelector] aucune couverture pour : %s",
+                       resultat['classes_non_couvertes'])
 
     return {
         'models_to_use': models_to_use,
-        'unsupported_classes': unsupported,
-        'coverage': coverage,
+        'unsupported_classes': resultat['classes_non_couvertes'],
+        'coverage': resultat['couverture'],
     }
-
-
-def _find_specialty_model(specialty_class: str, installed: Dict,
-                           model_size: str) -> Optional[str]:
-    """
-    Find the best specialty model for a given class (face, plate).
-
-    Specialty models are stored in subdirectories like detect/faces/, detect/plates/.
-    Detection models are preferred over segmentation models for specialty classes,
-    as specialty segmentation models tend to produce more false positives.
-
-    Args:
-        specialty_class: The specialty class name ('face', 'plate')
-        installed: Dict of installed models from scan_installed_models()
-        model_size: Preferred model size ('n', 's', 'm', 'l', 'x')
-
-    Returns:
-        Model identifier or None if not found
-    """
-    # Map class names to specialty directories
-    specialty_dirs = {
-        'face': ['faces', 'faces&plates'],
-        'plate': ['plates', 'faces&plates'],
-        'license plate': ['plates', 'faces&plates'],
-        'license_plate': ['plates', 'faces&plates'],
-    }
-
-    target_dirs = specialty_dirs.get(specialty_class, [])
-
-    candidates = []
-
-    for model_id, model_info in installed.items():
-        # Check if this is a specialty model
-        if not model_info.get('specialty'):
-            continue
-
-        specialty = model_info['specialty']
-
-        # Check if this specialty matches what we need
-        if specialty not in target_dirs:
-            continue
-
-        # Check if model supports the class (with alias support)
-        model_supports_class = any(
-            classes_match(specialty_class, model_cls)
-            for model_cls in model_info['class_list']
-        )
-        if not model_supports_class:
-            continue
-
-        # Score this candidate
-        score = 0
-
-        # Prefer detection models over segmentation for specialty classes
-        # Specialty segmentation models tend to produce more false positives
-        model_type = model_info.get('type', 'detect')
-        if model_type == 'detect':
-            score += 10
-        # Segmentation models get no bonus (effectively penalized)
-
-        # Prefer models matching the requested size
-        model_name = model_info['name'].lower()
-        if model_size in model_name:
-            score += 5
-
-        # Prefer larger models for higher precision
-        if 'x' in model_name:
-            score += 1
-        elif 'l' in model_name:
-            score += 2
-        elif 'm' in model_name:
-            score += 3
-        elif 's' in model_name:
-            score += 4
-        elif 'n' in model_name:
-            score += 5
-
-        # Prefer models that specialize in just this class (faces/ over faces&plates/)
-        if len(target_dirs) > 0 and specialty == target_dirs[0]:
-            score += 2
-
-        candidates.append((model_id, score))
-
-    if candidates:
-        # Sort by score (higher is better)
-        candidates.sort(key=lambda x: x[1], reverse=True)
-        selected = candidates[0][0]
-        logger.info(f"[ModelSelector] Specialty model for '{specialty_class}': {selected} "
-                     f"(score={candidates[0][1]}, candidates={len(candidates)})")
-        return selected
-
-    return None
-
-
-def _find_combined_specialty_model(specialty_classes: List[str], installed: Dict,
-                                    model_size: str) -> Optional[str]:
-    """
-    Find a single model that covers ALL requested specialty classes.
-
-    When multiple specialty classes are requested (e.g., ['face', 'plate']),
-    this tries to find a combined model (e.g., faces&plates/) that handles
-    all of them, avoiding the parallel detection pipeline.
-
-    Args:
-        specialty_classes: List of specialty class names (e.g., ['face', 'plate'])
-        installed: Dict of installed models from scan_installed_models()
-        model_size: Preferred model size ('n', 's', 'm', 'l', 'x')
-
-    Returns:
-        Model identifier or None if no single model covers all classes
-    """
-    candidates = []
-
-    for model_id, model_info in installed.items():
-        if not model_info.get('specialty'):
-            continue
-
-        # Check if this model supports ALL requested specialty classes
-        covers_all = True
-        for specialty in specialty_classes:
-            supported = any(
-                classes_match(specialty, model_cls)
-                for model_cls in model_info['class_list']
-            )
-            if not supported:
-                covers_all = False
-                break
-
-        if not covers_all:
-            continue
-
-        # Score this candidate (same logic as _find_specialty_model)
-        score = 0
-
-        model_type = model_info.get('type', 'detect')
-        if model_type == 'detect':
-            score += 10
-
-        model_name = model_info['name'].lower()
-        if model_size in model_name:
-            score += 5
-
-        if 'x' in model_name:
-            score += 1
-        elif 'l' in model_name:
-            score += 2
-        elif 'm' in model_name:
-            score += 3
-        elif 's' in model_name:
-            score += 4
-        elif 'n' in model_name:
-            score += 5
-
-        candidates.append((model_id, score))
-
-    if candidates:
-        candidates.sort(key=lambda x: x[1], reverse=True)
-        selected = candidates[0][0]
-        logger.info(f"[ModelSelector] Combined specialty model: {selected} "
-                     f"(score={candidates[0][1]}, covers={specialty_classes})")
-        return selected
-
-    return None
-
-
-def _find_coco_model(classes: List[str], installed: Dict,
-                      prefer_seg: bool, model_size: str) -> Optional[str]:
-    """
-    Find the best model for COCO classes.
-
-    Prefers segmentation models if prefer_seg is True and they're available.
-    Prefers YOLO11 over YOLOv8.
-
-    Args:
-        classes: List of COCO class names to detect
-        installed: Dict of installed models
-        prefer_seg: Whether to prefer segmentation models
-        model_size: Preferred model size ('n', 's', 'm', 'l', 'x')
-
-    Returns:
-        Model identifier or None if not found
-    """
-    candidates = []
-
-    for model_id, model_info in installed.items():
-        # Skip specialty models for COCO classes
-        if model_info.get('specialty'):
-            continue
-
-        model_classes = model_info['class_list']
-
-        # Check if model covers all requested classes (with alias support)
-        all_covered = True
-        for requested_cls in classes:
-            if not any(classes_match(requested_cls, model_cls) for model_cls in model_classes):
-                all_covered = False
-                break
-        if not all_covered:
-            continue
-
-        score = 0
-        model_name = model_info['name'].lower()
-        model_type = model_info['type']
-
-        # Prefer segmentation if requested
-        if prefer_seg:
-            if model_type == 'segment':
-                score += 20
-            else:
-                score += 0  # Detection model when segmentation preferred
-        else:
-            if model_type == 'detect':
-                score += 10
-
-        # Prefer models matching the requested size
-        if model_size in model_name:
-            score += 10
-
-        # Prefer YOLO11 over YOLOv8
-        if 'yolo11' in model_name:
-            score += 5
-        elif 'yolov8' in model_name:
-            score += 3
-
-        # Prefer official models
-        if model_info.get('official'):
-            score += 2
-
-        candidates.append((model_id, score))
-
-    if candidates:
-        # Sort by score (higher is better)
-        candidates.sort(key=lambda x: x[1], reverse=True)
-        return candidates[0][0]
-
-    return None
