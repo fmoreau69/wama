@@ -2691,9 +2691,15 @@ sécurité écrite en sous-chaîne se déclenche sur des données légitimes —
 ③ le refus de déplacement HORS temp reste silencieux côté client (console.log sans toast,
 `check_callback`) — petit trou « jamais d'échec silencieux » à combler à l'occasion.
 
-**Restrictions vérifiées (pas des régressions)** : déplacement dans l'arbre = temp-only depuis
-2026-01-05 (client `check_callback` + serveur `api_move`), par design (les fichiers des dossiers
-d'app sont référencés en base). Extension envisageable : autoriser les dossiers montés.
+**DÉCISION Fabien 04/08 — déplacement dans l'arbre : temp-only CONFIRMÉ, périmètre clos** :
+le déplacement reste limité à `Mes fichiers/Temporaires` (client `check_callback` + serveur
+`api_move`, design de 2026-01-05). PAS de déplacement dans les dossiers d'app (risque de casser
+les entrées/sorties référencées en base), NI sur les montages distants (déplacer par erreur dans
+un dossier de datasets = trop risqué). Si le besoin apparaît un jour : passer par une **validation
+explicite d'un droit de déplacement par dossier distant** (à concevoir à ce moment-là, pas avant).
+Remplace la piste « autoriser les dossiers montés » évoquée plus haut dans cette session.
+Reste ouvert (inchangé) : le refus client est silencieux → toast « Déplacement limité aux
+fichiers temporaires » à ajouter à l'occasion.
 
 **Ordre de reprise 03/08 mis à jour** : 1.✅ MuseTalk → suivants inchangés :
 **2. imager (55 %)** port schéma-driven (gabarit anonymizer) · 3. anatomie card v3 (enhancer/
