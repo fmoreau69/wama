@@ -89,6 +89,38 @@ _spec('placement_spread', 'Cohérence de placement (étalement stationnés)',
       outputs=[PortSpec('placement_spread', DT.SCALAR,
                         produced_fields=['rms_median_m', 'rms_mean_m', 'rms_p90_m', 'n_tracks'])])
 
+# ── Profondeur monoculaire (⚑ depth_estimation, §[E]) ─────────────────────────
+# Passes couplées session qui DÉLÈGUENT tout le calcul aux briques PURES WAMA Data
+# `geometry.depth_ground_plane` / `geometry.depth_contact_distance` (patron placement_spread :
+# la brique pure est cataloguée à part, ces entrées décrivent la passe qui l'emploie).
+_spec('depth_ground_plane', 'Plan de sol par profondeur (usage 4)',
+      "Sous ⚑ depth_estimation, la source du plan de sol devient la profondeur monoculaire "
+      "(Depth Pro → nuage déprojeté → RANSAC sur la zone roulable) au lieu de la recherche "
+      "homographique. Passe couplée session (décode les frames, lit les détections roulables, "
+      "PERSISTE ground_calib avec source='depth') déléguant à la brique pure "
+      "geometry.depth_ground_plane ; l'A/B se lit sur placement_spread (même échelle chiffrée que "
+      "homographie/pinhole). Tranché OFF par défaut, validé au 1er run GPU (signe du pitch).",
+      FC.INDICATOR, 'cam_analyzer.utils.homography_estimator:store_ground_calib',
+      ['vision', 'geo', 'depth', 'monocular', 'needs-calibration'],
+      inputs=[PortSpec('detections', DT.DETECTIONS, required_fields=['bbox', 'polygon'],
+                       description='Détections + masque roulable (road_mask) par caméra.'),
+              PortSpec('track', DT.GEO_TRACK, required_fields=['lat', 'lon'])],
+      outputs=[PortSpec('ground_calib', DT.SCALAR,
+                        produced_fields=['pitch_deg', 'height_m', 'source'])],
+      cost={'vram_gb': 8})
+
+_spec('depth_distance_report', 'Cross-check distance & reflets par profondeur (usages 3+1)',
+      "Sous ⚑ depth_estimation, MESURE-ET-RAPPORT (ne bascule AUCUNE source) : une passe Depth Pro "
+      "échantillonnée mesure la profondeur au contact-sol des bbox (brique pure "
+      "geometry.depth_contact_distance) → champ additif depth_distance_m, 3ᵉ source de distance "
+      "indépendante (désaccord ↔pinhole / ↔homographie = usage 3 ; confirmation des reflets = "
+      "usage 1). Chaque usage écrit sa ligne A/B console ; résumé dans results_summary['depth_report'].",
+      FC.ENRICHER, 'cam_analyzer.utils.depth_estimator:depth_distance_report',
+      ['vision', 'geo', 'depth', 'monocular', 'ab-metric'],
+      inputs=[PortSpec('detections', DT.DETECTIONS, required_fields=['bbox', 'distance_m'])],
+      outputs=[PortSpec('detections', DT.DETECTIONS, produced_fields=['depth_distance_m'])],
+      cost={'vram_gb': 8})
+
 # ── Structure routière (apprise / marquée) ────────────────────────────────────
 _spec('learned_branches', 'Branches apprises du trafic', "Voies croisantes aux intersections apprises "
       "des trajectoires monde des véhicules.",

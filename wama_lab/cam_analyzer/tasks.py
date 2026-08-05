@@ -2270,11 +2270,19 @@ def _run_global_tracking(session):
             from .utils.features import effective as _feff0
             _ff0 = _feff0(session)
             # ⚑ auto_ground_calib OU ⚑ depth_estimation déclenchent la calib sol : la première par
-            # recherche homographique, la seconde par profondeur monoculaire (Depth Pro). Le choix
-            # de la source se fait dans store_ground_calib ; ici on ouvre la porte (calib absente).
-            _src = 'profondeur' if _ff0.get('depth_estimation', False) else 'homographie'
-            if (_ff0.get('auto_ground_calib', False) or _ff0.get('depth_estimation', False)) \
-                    and not ((session.config or {}).get('ground_calib')):
+            # recherche homographique, la seconde par profondeur monoculaire (Depth Pro). SOURCE
+            # voulue : profondeur > homographie > aucune (pinhole).
+            _desired = 'depth' if _ff0.get('depth_estimation', False) \
+                else ('homographie' if _ff0.get('auto_ground_calib', False) else None)
+            _src = 'profondeur' if _desired == 'depth' else 'homographie'
+            _gc = (session.config or {}).get('ground_calib') or {}
+            # Recalculer si AUCUNE calib OU si la source stockée diffère de la voulue : basculer
+            # ⚑ depth_estimation sur une session déjà calibrée en homographie (ou l'inverse) doit
+            # remplacer la calib, sinon la bascule reste INERTE (verrou identifié 2026-08-05).
+            _need_calib = bool(_desired) and (
+                not _gc or any((v or {}).get('source', 'homographie') != _desired
+                               for v in _gc.values() if isinstance(v, dict)))
+            if _need_calib:
                 from .utils.homography_estimator import store_ground_calib
                 _rep = store_ground_calib(session)
                 _ok = [p for p, v in _rep.items() if not v.get('skipped')]

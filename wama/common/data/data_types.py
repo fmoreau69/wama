@@ -20,6 +20,7 @@ class DataType:
     SECTIONS = 'sections'        # intervalles typés (start, end[, type, id])
     ROAD_MAP = 'road_map'        # polylignes routières de référence (geometry, id[, type])
     DETECTIONS = 'detections'    # objets détectés par frame (frame, bbox, class, track_id…)
+    DEPTH_MAP = 'depth_map'      # raster HxW de profondeur métrique (mètres) — non tabulaire
 
 
 # Relation « est-un » : type → ses super-types directs. Un geo_track EST une timeseries
@@ -34,6 +35,7 @@ _SUPERTYPES = {
     DataType.COLUMN: [],
     DataType.SCALAR: [],
     DataType.ROAD_MAP: [],
+    DataType.DEPTH_MAP: [],   # raster : pas un sous-type de table
     DataType.TABLE: [],
 }
 

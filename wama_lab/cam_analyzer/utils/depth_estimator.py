@@ -37,6 +37,12 @@ import math
 import numpy as np
 from django.conf import settings
 
+# Cœur de calcul PUR (déprojection, RANSAC de plan, pitch/hauteur, contact-sol) — tronc commun
+# WAMA Data. Ce module N'IMPLÉMENTE PLUS la géométrie : il charge le modèle, décode les frames,
+# écrit en base, et DÉLÈGUE tout le calcul à ces briques (cf. skill cam-analyzer §3).
+from wama.common.data.functions.geometry.depth_geometry import (
+    deproject_depth, fit_plane_ransac, plane_pitch_height, contact_depth)
+
 logger = logging.getLogger(__name__)
 
 # « Path d'abord, env vars ensuite, import après » (CLAUDE.md §Ajout d'un nouveau modèle AI).
@@ -175,43 +181,6 @@ def _rasterize_drivable(detections, h, w):
     return mask.astype(bool)
 
 
-def _fit_ground_plane_ransac(pts, iters=250, thresh=0.10, min_inliers=300):
-    """RANSAC de plan sur un nuage (N,3) en repère caméra (X droite, Y bas, Z avant).
-    Retourne (normal_unitaire_vers_le_haut, d, n_inliers) avec plan n·P + d = 0, ou None."""
-    n_pts = len(pts)
-    if n_pts < min_inliers:
-        return None
-    rng = np.random.default_rng(20260805)   # déterministe (pas de Math.random) — reproductible
-    best_c, best_n, best_d = -1, None, None
-    for _ in range(iters):
-        idx = rng.choice(n_pts, 3, replace=False)
-        p0, p1, p2 = pts[idx]
-        n = np.cross(p1 - p0, p2 - p0)
-        nn = np.linalg.norm(n)
-        if nn < 1e-6:
-            continue
-        n = n / nn
-        d = -float(n.dot(p0))
-        dist = np.abs(pts.dot(n) + d)
-        c = int((dist < thresh).sum())
-        if c > best_c:
-            best_c, best_n, best_d = c, n, d
-    if best_n is None or best_c < min_inliers:
-        return None
-    # Raffinement moindres carrés sur les inliers (SVD sur nuage centré).
-    dist = np.abs(pts.dot(best_n) + best_d)
-    inl = pts[dist < thresh]
-    if len(inl) >= 3:
-        c0 = inl.mean(axis=0)
-        _, _, vt = np.linalg.svd(inl - c0)
-        best_n = vt[-1] / np.linalg.norm(vt[-1])
-        best_d = -float(best_n.dot(c0))
-    # Orienter la normale vers le HAUT (en repère caméra, le haut est -Y).
-    if best_n[1] > 0:
-        best_n, best_d = -best_n, -best_d
-    return best_n, best_d, best_c
-
-
 def estimate_ground_plane_ph(session, position):
     """(pitch_deg, height_m) du plan de sol par profondeur monoculaire, ou None (repli homographie).
 
@@ -270,25 +239,14 @@ def estimate_ground_plane_ph(session, position):
             # Rééchelle si la profondeur ne fait pas exactement HxW (sécurité).
             if depth_m.shape != (h, w):
                 depth_m = cv2.resize(depth_m, (w, h), interpolation=cv2.INTER_NEAREST)
-            f = focal_px or (0.8 * w)   # repli : focale ~0.8·largeur si non estimée
-            cx, cy = w / 2.0, h / 2.0
-
+            # Déprojection (brique pure) : nuage 3D restreint à la zone roulable, plage route
+            # utile. La focale de repli (~0,8·W) et le centre optique sont gérés dans la brique.
             drivable = _rasterize_drivable(det, h, w)
-            vs, us = np.nonzero(drivable)
-            if len(us) == 0:
+            pts = deproject_depth(depth_m, focal_px, mask=drivable,
+                                  z_min=1.5, z_max=60.0, max_points=4000)
+            if len(pts) < 50:
                 continue
-            # Sous-échantillonnage (≤ 4000 px/frame) pour tenir le budget mémoire/CPU.
-            if len(us) > 4000:
-                sel = np.linspace(0, len(us) - 1, 4000).astype(int)
-                us, vs = us[sel], vs[sel]
-            z = depth_m[vs, us].astype(np.float32)
-            valid = (z > 1.5) & (z < 60.0) & np.isfinite(z)   # plage utile route
-            if valid.sum() < 50:
-                continue
-            us, vs, z = us[valid], vs[valid], z[valid]
-            x = (us - cx) * z / f
-            y = (vs - cy) * z / f
-            all_pts.append(np.stack([x, y, z], axis=1))
+            all_pts.append(pts)
             frames_used += 1
     finally:
         cap.release()
@@ -296,12 +254,11 @@ def estimate_ground_plane_ph(session, position):
     if frames_used < 2 or not all_pts:
         return None
     pts = np.concatenate(all_pts, axis=0)
-    fit = _fit_ground_plane_ransac(pts)
+    fit = fit_plane_ransac(pts, min_inliers=300)   # brique pure (RANSAC + raffinement SVD)
     if fit is None:
         return None
-    n, d, n_inl = fit
-    height_m = abs(d)
-    pitch_deg = math.degrees(math.atan2(float(n[2]), -float(n[1])))
+    normal, offset, n_inl, _rms = fit
+    pitch_deg, height_m = plane_pitch_height(normal, offset)   # brique pure
 
     # Garde-fous physiques (rig ENA) : hors plage → repli homographie plutôt qu'une calib absurde.
     if not (1.0 <= height_m <= 4.0) or not (-10.0 <= pitch_deg <= 35.0):
@@ -311,23 +268,6 @@ def estimate_ground_plane_ph(session, position):
     logger.info('[DepthPro] plan de sol %s : pitch=%.2f° h=%.2f m (%d inliers, %d frames)',
                 position, pitch_deg, height_m, n_inl, frames_used)
     return (round(pitch_deg, 2), round(height_m, 3))
-
-
-def _sample_depth_bbox(depth_m, bbox, h, w, half=3):
-    """Profondeur métrique au point de CONTACT SOL de la bbox (centre du bord bas), médiane
-    d'un petit patch pour la robustesse. None si pas d'échantillon plausible."""
-    x1, y1, x2, y2 = float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3])
-    u = int(round((x1 + x2) / 2.0))
-    v = int(round(y2))
-    u = min(max(u, 0), w - 1)
-    v = min(max(v, 0), h - 1)
-    u0, u1 = max(0, u - half), min(w, u + half + 1)
-    v0, v1 = max(0, v - half), min(h, v + half + 1)
-    patch = depth_m[v0:v1, u0:u1]
-    vals = patch[np.isfinite(patch) & (patch > 0.3) & (patch < 120.0)]
-    if vals.size < 2:
-        return None
-    return float(np.median(vals))
 
 
 def _usable_det(d):
@@ -422,7 +362,7 @@ def depth_distance_report(session, max_frames=12):
                 for d in (obj.detections or []):
                     if not _usable_det(d):
                         continue
-                    dd = _sample_depth_bbox(depth_m, d['bbox'], h, w)
+                    dd = contact_depth(depth_m, d['bbox'])   # brique pure (contact-sol)
                     if dd is None:
                         continue
                     d['depth_distance_m'] = round(dd, 2)   # champ ADDITIF (n'écrase rien)

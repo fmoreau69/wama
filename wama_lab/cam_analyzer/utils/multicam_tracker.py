@@ -141,16 +141,19 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             logger.warning('detect_static_artifacts failed (non-blocking)', exc_info=True)
     _head_obs = defaultdict(list)   # gid -> [(pos, t, bbox)] pour le cap serveur des ancrés
     _cam_dims = {c.position: (c.width or 384, c.height or 248) for c in cams}
-    # ⚑ auto_ground_calib (étape 2a) : projecteurs sol par caméra depuis la calib
-    # persistée (angle estimé). Vide si la bascule est OFF → placement pinhole inchangé.
+    # ⚑ auto_ground_calib OU ⚑ depth_estimation (étape 2a / usage 4 §[E]) : projecteurs sol par
+    # caméra depuis la calib persistée (angle estimé par homographie OU par profondeur). La calib
+    # est produite en amont par store_ground_calib ; la SOURCE (homographie/profondeur) est
+    # transparente ici — le tracker consomme le même champ. Vide si les deux bascules sont OFF
+    # → placement pinhole inchangé.
     _gproj = {}
-    if _feat.get('auto_ground_calib', False):
+    if _feat.get('auto_ground_calib', False) or _feat.get('depth_estimation', False):
         for pos in _geo:
             gp = ground_projector_for(session, pos, _geo[pos])
             if gp is not None:
                 _gproj[pos] = gp
         if _gproj:
-            logger.info('auto_ground_calib actif : projection sol pour %s',
+            logger.info('projection sol active (⚑ auto_ground_calib/depth_estimation) pour %s',
                         sorted(_gproj.keys()))
 
     per_cam = {}

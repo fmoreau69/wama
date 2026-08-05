@@ -461,16 +461,25 @@ scoring reste dans `estimate_camera` → `placement_spread` calculée à l'ident
 homographie vs pinhole.
 
 **Câblage effectif (2026-08-05, 1ère passe)** :
-- `utils/depth_estimator.py` **réécrit** (plus inerte) : `load`/`estimate_depth`/`estimate_ground_plane_ph`
-  (keep_loaded, `HF_HUB_CACHE` avant import HF, fp16, `post_process_depth_estimation`). Plan de sol =
-  déprojection des pixels **roulables** (road_mask, repli 40 % bas) → nuage 3D → **RANSAC** (seed fixe)
-  → `(pitch_deg, height_m)`, gardes physiques.
+- **Couche de calcul = briques PURES du tronc commun** (`wama/common/data/functions/geometry/depth_geometry.py`,
+  numpy seul) : `deproject_depth`, `fit_plane_ransac` (RANSAC + raffinement SVD), `plane_pitch_height`,
+  `ground_plane_from_depth`, `contact_depth`. Auto-déclarées au **catalogue** (`geometry.depth_ground_plane`,
+  `geometry.depth_contact_distance`) + type `DataType.DEPTH_MAP`. **Aucune géométrie dans `utils/`** : la règle
+  §3 (logique pure ↦ `common/`, jamais dans une app) est respectée ; pas d'inversion de dépendance.
+- `utils/depth_estimator.py` = **orchestration couplée-session** seule : `load`/`estimate_depth`
+  (keep_loaded, `HF_HUB_CACHE` avant import HF, fp16, `post_process_depth_estimation`),
+  `estimate_ground_plane_ph` (décode les frames roulables → **DÉLÈGUE** déprojection/RANSAC/pitch aux briques
+  pures, applique les gardes physiques rig), `depth_distance_report`. Déclaré au catalogue en `Binding.APP`
+  (`cam_analyzer.depth_ground_plane`, `cam_analyzer.depth_distance_report`).
 - `homography_estimator.estimate_camera(session, pos, seed=)` : `seed` fourni → score ce couple et
   court-circuite la grille ; `store_ground_calib` lit ⚑ `depth_estimation` (ON → graine profondeur,
-  repli grille si échec). `tasks.py` déclenche la calib sur `auto_ground_calib` **OU** `depth_estimation`,
-  console `plan de sol : profondeur | homographie | pinhole`.
-- ⚠ **Convention de signe du pitch NON validée** (`atan2(nz, -ny)`) : un signe faux se lit
-  **immédiatement** sur `placement_spread` — 1er point à vérifier au run.
+  repli grille si échec) et **estampe `source`** (`'depth'`/`'homographie'`) dans `ground_calib[pos]`.
+  `tasks.py` déclenche/**recalcule** la calib dès que la **source stockée diffère de la voulue** (plus
+  seulement « calib absente ») ; le tracker (`multicam_tracker.py`) consomme la calib sous ⚑ `auto_ground_calib`
+  **OU** `depth_estimation`. Console `plan de sol : profondeur | homographie | pinhole`.
+- ✅ **Convention de signe du pitch VALIDÉE** (`atan2(nz, -ny)`) par test pur CPU (plan synthétique
+  pitch +8,00°/hauteur 1,501 m récupérés, fit direct + round-trip carte de profondeur). Reste à confirmer
+  au run la **qualité réelle** de la profondeur Depth Pro (API `transformers` + gain `placement_spread`).
 - **Usages 3 + 1 (mesure-et-rapport)** : `depth_estimator.depth_distance_report(session)` — UNE seule
   passe Depth Pro échantillonnée (≤12 frames, partagée par les deux usages), appelée en fin de
   `_run_global_tracking` sous le même flag. Écrit le champ **additif** `depth_distance_m` (profondeur

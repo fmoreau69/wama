@@ -226,6 +226,10 @@ def store_ground_calib(session, positions=('front', 'rear', 'left', 'right'),
             'pitch_deg': r['pitch_deg'], 'height_m': r['height_m'],
             'spread_m': r['spread_m'], 'scale_err_m': r['scale_err_m'],
             'n_objects': r['n_objects'],
+            # SOURCE du plan de sol : 'depth' (graine profondeur scorée) ou 'homographie'
+            # (recherche par grille). Permet au pipeline de RECALCULER quand la bascule
+            # ⚑ depth_estimation change sans avoir à effacer la calib à la main.
+            'source': r.get('source', 'homographie'),
         }
         report[pos] = calib[pos]
     cfg['ground_calib'] = calib
