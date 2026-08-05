@@ -164,7 +164,9 @@
     if (!modal || !window.WamaParams) return;
     if (!batchParamsRendered) {
       WamaParams.render(document.getElementById('anonBatchParams'),
-                        window.WAMA_ANONYMIZER_SCHEMA || [], { context: 'batch', values: {} });
+                        window.WAMA_ANONYMIZER_SCHEMA || [],
+                        // mêmes sections que la modale item (groupes déclarés dans params.py)
+                        { context: 'batch', values: {}, groups: window.WAMA_ANONYMIZER_GROUPS || [] });
       batchParamsRendered = true;
     }
     modal.dataset.batchId = batchId;

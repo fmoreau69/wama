@@ -30,3 +30,29 @@
 }
 .wama-param .form-select:focus,
 .wama-param .form-control:focus { border-color: #0dcaf0; box-shadow: none; }
+
+/* ── Groupes déclarés (ParamGroup) : sections de la modale ⚙, calquées sur les
+      .right-panel-section-title du volet droit (même hiérarchie visuelle). ── */
+.wama-param-group { margin-bottom: 1rem; }
+.wama-param-group-title {
+    font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+    color: #8b93a7; border-bottom: 1px solid rgba(255, 255, 255, .08);
+    padding-bottom: .3rem; margin-bottom: .6rem;
+}
+.wama-param-group-title .fas { margin-right: .35rem; color: #0dcaf0; }
+/* Groupe replié (ex. « Avancé ») : details natif, chevron du summary. */
+details.wama-param-group > summary.wama-param-group-title { cursor: pointer; list-style: none; }
+details.wama-param-group > summary.wama-param-group-title::-webkit-details-marker { display: none; }
+details.wama-param-group > summary.wama-param-group-title::after {
+    content: "\f078"; font-family: "Font Awesome 6 Free"; font-weight: 900;
+    float: right; transition: transform .15s; color: #8b93a7;
+}
+details.wama-param-group[open] > summary.wama-param-group-title::after { transform: rotate(180deg); }
+
+/* Sélecteur segmenté (toggle pills) : pleine largeur, pills équilibrées. */
+.wama-param-pills .btn { flex: 1 1 0; }
+
+/* Corps de groupe en 2 colonnes (ParamGroup.columns=2) — sliders/toggles côte à côte
+   comme la référence Uniformisation (Paramètres de floutage). 1 colonne sous 500 px. */
+.wama-param-group-cols-2 { display: grid; grid-template-columns: 1fr 1fr; column-gap: 1.25rem; }
+@media (max-width: 500px) { .wama-param-group-cols-2 { grid-template-columns: 1fr; } }

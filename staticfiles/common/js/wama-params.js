@@ -95,8 +95,27 @@
     }
 
     if (p.type === 'toggle') {
-      const checked = (v === true || v === 'true' || v === 1 || v === '1') ? 'checked' : '';
+      const on = (v === true || v === 'true' || v === 1 || v === '1');
       const tic = p.icon ? '<i class="fas ' + esc(p.icon) + ' me-1"></i>' : '';
+      // pills=[off,on] : sélecteur segmenté (2 radios btn-check) — read()/show_if voient la même
+      // valeur 'true'/'false' qu'un switch (radios de même name → la cochée gagne dans read()).
+      if (Array.isArray(p.pills) && p.pills.length === 2) {
+        // item : idA porte déjà name="…" (groupe les radios) ; panel : idA = data-param → name explicite.
+        const rname = idA.indexOf('name=') === 0 ? '' : ' name="' + id + '-seg"';
+        const seg = ['false', 'true'].map(function (val, i) {
+          const rid = id + '-' + val;
+          const it = p.pills[i];                          // "libellé" ou {label, icon}
+          const plab = (it && typeof it === 'object') ? it.label : it;
+          const pic = (it && typeof it === 'object' && it.icon)
+            ? '<i class="fas ' + esc(it.icon) + ' me-1"></i>' : '';
+          return '<input type="radio" class="btn-check" id="' + rid + '" ' + idA + rname +
+            ' value="' + val + '"' + ((on ? 'true' : 'false') === val ? ' checked' : '') + '>' +
+            '<label class="btn btn-outline-primary" for="' + rid + '">' + pic + esc(plab) + '</label>';
+        }).join('');
+        return (p.label ? '<div class="form-label small mb-1">' + tic + esc(p.label) + '</div>' : '') +
+          '<div class="btn-group wama-param-pills w-100" role="group">' + seg + '</div>' + helpEl;
+      }
+      const checked = on ? 'checked' : '';
       return '<div class="form-check form-switch">' +
         '<input class="form-check-input" type="checkbox" id="' + id + '" ' + idA + ' ' + checked + '>' +
         '<label class="form-check-label" for="' + id + '">' + tic + esc(p.label) + '</label></div>' +
@@ -167,6 +186,29 @@
     return label + inner + helpEl + modelHelp;
   }
 
+  function _showIfAttr(cond) {
+    if (!cond) return '';
+    return ' data-show-if="' + esc(typeof cond === 'string' ? cond : JSON.stringify(cond)) + '"';
+  }
+
+  // Enveloppe d'un groupe déclaré (ParamGroup) : titre + corps ; show_if de GROUPE géré par
+  // _bindConditional comme celui d'un champ ; collapsed → <details> natif (zéro JS).
+  function _groupWrap(meta, inner) {
+    if (!inner) return '';
+    const ic = meta.icon ? '<i class="fas ' + esc(meta.icon) + ' me-1"></i>' : '';
+    const title = ic + esc(meta.title || '');
+    const attrs = ' data-group="' + esc(meta.key) + '"' + _showIfAttr(meta.show_if);
+    const body = 'wama-param-group-body' + (meta.columns === 2 ? ' wama-param-group-cols-2' : '');
+    if (meta.collapsed) {
+      return '<details class="wama-param-group"' + attrs + '>' +
+        '<summary class="wama-param-group-title">' + title + '</summary>' +
+        '<div class="' + body + '">' + inner + '</div></details>';
+    }
+    return '<div class="wama-param-group"' + attrs + '>' +
+      '<div class="wama-param-group-title">' + title + '</div>' +
+      '<div class="' + body + '">' + inner + '</div></div>';
+  }
+
   function render(container, schema, opts) {
     if (!container) return;
     opts = opts || {};
@@ -174,19 +216,42 @@
     const values = opts.values || {};
     const resolver = opts.optionsResolver;
 
-    const rows = (schema || []).filter(function (p) {
+    const params = (schema || []).filter(function (p) {
       return !p.contexts || p.contexts.indexOf(ctx) !== -1;
-    }).map(function (p) {
+    });
+    function rowHtml(p) {
       const value = (p.name in values) ? values[p.name] : undefined;
       // hidden : input nu, sans wrapper visible (pas de marge/label).
       if (p.type === 'hidden') return controlHtml(p, ctx, value, resolver);
       return '<div class="wama-param mb-2" data-param-row="' + esc(p.name) + '"' +
-        (p.show_if ? ' data-show-if="' + esc(typeof p.show_if === 'string' ? p.show_if : JSON.stringify(p.show_if)) + '"' : '') +
+        _showIfAttr(p.show_if) +
         (p.advanced ? ' data-advanced="1"' : '') + '>' +
         controlHtml(p, ctx, value, resolver) + '</div>';
-    }).join('');
+    }
 
-    container.innerHTML = rows;
+    let html;
+    if (Array.isArray(opts.groups) && opts.groups.length) {
+      // Rendu par GROUPES déclarés (ParamGroup) : 1) champs hors groupe non avancés (ordre schéma),
+      // 2) groupes dans l'ordre déclaré, 3) avancés sans groupe → groupe implicite « Avancé » replié.
+      const byGroup = {};
+      const flat = [], adv = [];
+      params.forEach(function (p) {
+        if (p.group) (byGroup[p.group] = byGroup[p.group] || []).push(p);
+        else if (p.advanced && p.type !== 'hidden') adv.push(p);
+        else flat.push(p);
+      });
+      html = flat.map(rowHtml).join('') +
+        opts.groups.map(function (meta) {
+          return _groupWrap(meta, (byGroup[meta.key] || []).map(rowHtml).join(''));
+        }).join('') +
+        _groupWrap({ key: '_advanced', title: opts.advancedTitle || 'Avancé',
+                     icon: 'fa-sliders', collapsed: true },
+                   adv.map(rowHtml).join(''));
+    } else {
+      html = params.map(rowHtml).join('');
+    }
+
+    container.innerHTML = html;
     _bindConditional(container);
     _bindModelHelp(container, schema, ctx);
     _bindOptionSources(container, schema, ctx);
@@ -394,7 +459,8 @@
       form.setAttribute('data-' + k, cfg.formData[k]);
     });
     const host = modal.querySelector('.wama-modal-fields');
-    if (cfg.schema) render(host, cfg.schema, { context: 'item', values: cfg.values || {} });
+    if (cfg.schema) render(host, cfg.schema, { context: 'item', values: cfg.values || {},
+                                               groups: cfg.groups, optionsResolver: cfg.optionsResolver });
     return { modal: modal, host: host, form: form };
   }
 

@@ -843,7 +843,7 @@ def _queue_context(request, user):
     import json as _json
     from wama.common.utils.batch_common import build_batches_list
     from wama.common.utils.queue_view import apply_queue_sort_filter
-    from wama.anonymizer.params import PARAMS_JSON
+    from wama.anonymizer.params import GROUPS_JSON, PARAMS_JSON
 
     _auto_wrap_orphans(user)
 
@@ -874,6 +874,8 @@ def _queue_context(request, user):
         'q_filter': q_filter,
         # Schéma params (source unique modale item/batch + inspecteur). Voir params.py.
         'params_json': _json.dumps(PARAMS_JSON),
+        # Groupes de la modale (sections calquées sur le volet droit). Voir params.py GROUPS.
+        'groups_json': _json.dumps(GROUPS_JSON),
     }
 
 

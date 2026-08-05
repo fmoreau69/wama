@@ -69,6 +69,13 @@ class Param:
                                                 # ("settings" par défaut, "output" pour un champ qui décrit ce
                                                 # qui va SORTIR — ex. format de sortie). Déclaré à la source :
                                                 # ni la vue ni le template ne trient les chips.
+    group: str = ""                             # Groupement UI des SURFACES de saisie (modale/volet) : clé
+                                                # d'un ParamGroup déclaré par l'app. DISTINCT de `section`
+                                                # (chips de card). Vide + advanced=True → groupe implicite
+                                                # « Avancé » replié (WamaParams.render, opts.groups).
+    pills: list = field(default_factory=list)   # Toggle rendu en sélecteur segmenté (2 pills radio) :
+                                                # [libellé_off, libellé_on] — ex. ["YOLO", "SAM3"]. La valeur
+                                                # lue/envoyée reste 'true'/'false' (contrat serveur inchangé).
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -140,6 +147,28 @@ def derive_from_model(model_class, include: List[str], overrides: dict = None) -
             setattr(p, k, v)
         params.append(p)
     return params
+
+
+@dataclass
+class ParamGroup:
+    """Groupe d'affichage d'une surface de saisie (modale ⚙ / volet) — l'app le déclare,
+    WamaParams.render l'affiche (titre + éventuel show_if de groupe, même grammaire que
+    Param.show_if). Le groupe « avancé » implicite (Param.advanced sans group) n'a PAS à
+    être déclaré ici."""
+    key: str                                    # référencé par Param.group
+    title: str
+    icon: str = ""                              # classe Font Awesome (ex. "fa-eye-slash")
+    show_if: object = None                      # visibilité du groupe ENTIER
+    collapsed: bool = False                     # rendu replié (details fermé)
+    columns: int = 1                            # 2 = corps en 2 colonnes (sliders côte à côte)
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+def groups_to_dicts(groups: List[ParamGroup]) -> List[dict]:
+    """Sérialise les groupes pour le front (JSON) / un template."""
+    return [g.to_dict() for g in groups]
 
 
 def schema_to_dicts(params: List[Param]) -> List[dict]:

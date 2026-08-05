@@ -34,9 +34,11 @@
     if (oldFoot) oldFoot.replaceWith(foot);
   }
 
-  // ── Section bespoke classes2blur (exception hors schéma) ──
+  // ── Section bespoke classes2blur (exception hors schéma) — insérée DANS le groupe
+  // « Quoi flouter (YOLO) » : concept YOLO-only, masquée avec lui en mode SAM3. ──
   function appendClassesSection(host, classes) {
     if (!classes || !classes.length) return;
+    const yolo = host.querySelector('[data-group="yolo"] .wama-param-group-body');
     const sec = document.createElement('div');
     sec.className = 'mt-3 anon-classes2blur';
     sec.innerHTML =
@@ -51,7 +53,36 @@
         esc(c.label) + '</label></div></div>'
       ).join('') +
       '</div>';
-    host.appendChild(sec);
+    (yolo || host).appendChild(sec);
+  }
+
+  // ── Badge d'état SAM3 dans le titre du groupe « Mode de détection » (référence
+  // Uniformisation) — même endpoint et mêmes états que right_panel.js. ──
+  function appendSam3Badge(host) {
+    const title = host.querySelector('[data-group="mode"] .wama-param-group-title');
+    if (!title) return;
+    const badge = document.createElement('span');
+    badge.className = 'badge bg-secondary float-end';
+    badge.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i>';
+    title.appendChild(badge);
+    fetch('/anonymizer/sam3/status/')
+      .then(r => r.json())
+      .then(d => {
+        if (d.ready) {
+          badge.className = 'badge bg-success float-end';
+          badge.innerHTML = '<i class="fas fa-check-circle"></i> SAM3 disponible';
+        } else if (d.installed && !d.hf_authenticated) {
+          badge.className = 'badge bg-warning text-dark float-end';
+          badge.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Config HF requise';
+        } else if (!d.installed) {
+          badge.className = 'badge bg-danger float-end';
+          badge.innerHTML = '<i class="fas fa-times-circle"></i> SAM3 non installé';
+        } else {
+          badge.className = 'badge bg-secondary float-end';
+          badge.innerHTML = '<i class="fas fa-info-circle"></i> ' + (d.error || 'État inconnu');
+        }
+      })
+      .catch(() => badge.remove());
   }
 
   // ── Options du select modèle (catalogue serveur, groupées) ──
@@ -96,6 +127,7 @@
       title: 'Paramètres du média #' + id,
       titleIcon: 'fa-user-secret',
       schema: window.WAMA_ANONYMIZER_SCHEMA || [],
+      groups: window.WAMA_ANONYMIZER_GROUPS || [],   // sections calquées sur le volet droit
       values: data.values || {},
       formClass: 'anon-settings-form',
     });
@@ -103,6 +135,7 @@
     graftCommonFooter(modal);
     fillModelChoices(host, data.model_choices, (data.values || {}).model_to_use);
     appendClassesSection(host, data.classes2blur);
+    appendSam3Badge(host);
 
     // Enrichissement ✨ du prompt SAM3 dans la modale (pipeline commune)
     const promptEl = host.querySelector('textarea[name="sam3_prompt"]');

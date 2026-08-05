@@ -325,6 +325,7 @@ Schéma params = source unique modale item/batch + inspecteur ; gabarits '/0/' r
 par remplacement d'id côté JS (pattern enhancer). {% endcomment %}
 <script>
 window.WAMA_ANONYMIZER_SCHEMA = {{ params_json|safe }};
+window.WAMA_ANONYMIZER_GROUPS = {{ groups_json|safe }};
 window.WAMA_GLOBAL_PROGRESS_URL = '{% url "anonymizer:global_progress" %}';
 window.WAMA_ANON = {
     uploadUrl:           '{% url "anonymizer:upload" %}',
