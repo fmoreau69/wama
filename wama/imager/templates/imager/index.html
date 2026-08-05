@@ -385,352 +385,14 @@ des entrées + du modèle (appariement wama-input-match, capacités catalogue). 
 
 {% block extra_modals %}
 <!-- Settings Modal -->
-<div class="modal fade" id="generationSettingsModal" tabindex="-1" aria-labelledby="generationSettingsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content bg-dark text-white border-secondary">
-            <div class="modal-header border-secondary">
-                <h5 class="modal-title" id="generationSettingsModalLabel">
-                    <i class="fas fa-cog"></i> Paramètres de génération #<span id="modal_gen_id"></span>
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form id="settingsForm">
-                    <input type="hidden" id="settings_gen_id" name="generation_id">
-
-                    <!-- Mode + Reference Image -->
-                    <div class="row mb-3" id="settings_mode_row">
-                        <div class="col-md-4">
-                            <label class="form-label">Mode</label>
-                            <div>
-                                <span class="badge bg-info fs-6" id="settings_mode_badge"></span>
-                            </div>
-                        </div>
-                        <div class="col-md-8" id="settings_reference_col" style="display: none;">
-                            <label class="form-label">Image de référence</label>
-                            <div class="d-flex align-items-start gap-3">
-                                <img id="settings_reference_img" src="" alt="Référence"
-                                     class="img-thumbnail bg-dark border-secondary"
-                                     style="max-height: 120px; max-width: 180px; object-fit: contain; cursor: pointer;"
-                                     onclick="if(this.src) openImagePreview(this.src, 'Image de référence')">
-                                <div class="flex-grow-1" id="settings_strength_col" style="display: none;">
-                                    <label for="settings_image_strength" class="form-label">
-                                        Influence : <span id="settings_strength_value">0.75</span>
-                                    </label>
-                                    <input type="range" class="form-range" id="settings_image_strength" name="image_strength"
-                                           min="0" max="1" step="0.05" value="0.75"
-                                           oninput="document.getElementById('settings_strength_value').textContent = this.value">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Auto-generated prompt (describe2img) -->
-                    <div class="mb-3" id="settings_auto_prompt_row" style="display: none;">
-                        <label class="form-label">Prompt auto-généré</label>
-                        <div class="form-control bg-dark text-white-50 border-secondary" id="settings_auto_prompt"
-                             style="min-height: 40px; font-style: italic; font-size: 0.9rem;"></div>
-                    </div>
-
-                    <!-- Prompt -->
-                    <div class="mb-3">
-                        {% comment %}
-                        Même bouton que la card d'entrée : le handler est délégué sur `document`
-                        (imager/js/index.js) et l'endpoint common:enrich_prompt est générique →
-                        l'enrichissement reste accessible APRÈS la mise en file.
-                        {% endcomment %}
-                        <div class="d-flex justify-content-between align-items-center">
-                            <label for="settings_prompt" class="form-label mb-0">Prompt</label>
-                            <button type="button" class="btn btn-outline-warning btn-sm enhance-prompt-btn"
-                                    data-target="settings_prompt" data-mode="image"
-                                    title="Enrichir le prompt (LLM local)">
-                                <i class="fas fa-magic"></i> Améliorer
-                            </button>
-                        </div>
-                        <textarea class="form-control bg-dark text-white border-secondary" id="settings_prompt" name="prompt" rows="3"></textarea>
-                    </div>
-
-                    <!-- Negative Prompt -->
-                    <div class="mb-3">
-                        <label for="settings_negative_prompt" class="form-label">Prompt négatif</label>
-                        <textarea class="form-control bg-dark text-white border-secondary" id="settings_negative_prompt" name="negative_prompt" rows="2"></textarea>
-                    </div>
-
-                    <div class="row">
-                        <!-- Model -->
-                        <div class="col-md-6 mb-3">
-                            <label for="settings_model" class="form-label">Modèle</label>
-                            <select class="form-select bg-dark text-white border-secondary model-select-with-tooltip" id="settings_model" name="model">
-                                {% for model in models_info %}
-                                <option value="{{ model.id }}"
-                                        data-description="{{ model.description }}"
-                                        data-vram="{{ model.vram }}">
-                                    {{ model.name }}{% if model.vram %} ({{ model.vram }}){% endif %}
-                                </option>
-                                {% endfor %}
-                            </select>
-                            <small class="model-description" id="settings_model_description"></small>
-                        </div>
-
-                        <!-- Number of images -->
-                        <div class="col-md-6 mb-3">
-                            <label for="settings_num_images" class="form-label">Nombre d'images</label>
-                            <select class="form-select bg-dark text-white border-secondary" id="settings_num_images" name="num_images">
-                                <option value="1">1</option>
-                                <option value="2">2</option>
-                                <option value="3">3</option>
-                                <option value="4">4</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <!-- Resolution -->
-                        <div class="col-12 mb-3">
-                            <label for="settings_resolution" class="form-label">Résolution</label>
-                            <select class="form-select bg-dark text-white border-secondary" id="settings_resolution" name="resolution">
-                                <optgroup label="Carré (1:1)">
-                                    <option value="512x512">512x512 (1:1)</option>
-                                    <option value="768x768">768x768 (1:1)</option>
-                                    <option value="1024x1024">1024x1024 (1:1)</option>
-                                    <option value="2048x2048">2048x2048 (1:1) 2K</option>
-                                </optgroup>
-                                <optgroup label="Paysage (16:9)">
-                                    <option value="896x512">896x512 (16:9)</option>
-                                    <option value="1344x768">1344x768 (16:9)</option>
-                                    <option value="1920x1088">1920x1088 (16:9) HD</option>
-                                    <option value="2048x1152">2048x1152 (16:9) 2K</option>
-                                </optgroup>
-                                <optgroup label="Portrait (9:16)">
-                                    <option value="512x896">512x896 (9:16)</option>
-                                    <option value="768x1344">768x1344 (9:16)</option>
-                                    <option value="1088x1920">1088x1920 (9:16) HD</option>
-                                    <option value="1152x2048">1152x2048 (9:16) 2K</option>
-                                </optgroup>
-                                <optgroup label="Paysage (4:3)">
-                                    <option value="680x512">680x512 (4:3)</option>
-                                    <option value="1024x768">1024x768 (4:3)</option>
-                                </optgroup>
-                                <optgroup label="Portrait (3:4)">
-                                    <option value="512x680">512x680 (3:4)</option>
-                                    <option value="768x1024">768x1024 (3:4)</option>
-                                </optgroup>
-                                <optgroup label="Cinématique (21:9)">
-                                    <option value="1192x512">1192x512 (21:9)</option>
-                                    <option value="2048x880">2048x880 (21:9) 2K</option>
-                                </optgroup>
-                            </select>
-                            <small class="text-warning" id="settings_resolution_warning" style="display: none;"></small>
-                            <!-- Hidden fields for width/height in modal -->
-                            <input type="hidden" id="settings_width" name="width" value="512">
-                            <input type="hidden" id="settings_height" name="height" value="512">
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <!-- Steps -->
-                        <div class="col-md-6 mb-3">
-                            <label for="settings_steps" class="form-label">
-                                Steps : <span id="settings_steps_value">30</span>
-                            </label>
-                            <input type="range" class="form-range" id="settings_steps" name="steps"
-                                   min="10" max="100" step="5" value="30"
-                                   oninput="document.getElementById('settings_steps_value').textContent = this.value">
-                        </div>
-
-                        <!-- Guidance Scale -->
-                        <div class="col-md-6 mb-3">
-                            <label for="settings_guidance_scale" class="form-label">
-                                Guidance Scale : <span id="settings_guidance_value">7.5</span>
-                            </label>
-                            <input type="range" class="form-range" id="settings_guidance_scale" name="guidance_scale"
-                                   min="1" max="20" step="0.5" value="7.5"
-                                   oninput="document.getElementById('settings_guidance_value').textContent = this.value">
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <!-- Seed -->
-                        <div class="col-md-6 mb-3">
-                            <label for="settings_seed" class="form-label">Seed</label>
-                            <input type="number" class="form-control bg-dark text-white border-secondary" id="settings_seed" name="seed"
-                                   placeholder="Aléatoire si vide">
-                        </div>
-
-                        <!-- Upscale -->
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">&nbsp;</label>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="settings_upscale" name="upscale">
-                                <label class="form-check-label" for="settings_upscale">
-                                    Upscale l'image (x2)
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer border-secondary">
-                <button type="button" class="btn btn-danger me-auto" id="forceResetImageBtn" style="display: none;"
-                        title="Réinitialiser une génération bloquée">
-                    <i class="fas fa-exclamation-triangle"></i> Force Reset
-                </button>
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                <button type="button" class="btn btn-success" id="saveSettingsBtn">
-                    <i class="fas fa-play"></i> Enregistrer et démarrer
-                </button>
-                <button type="button" class="btn btn-primary" id="saveSettingsOnlyBtn">
-                    <i class="fas fa-save"></i> Enregistrer
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Video Settings Modal -->
-<div class="modal fade" id="videoSettingsModal" tabindex="-1" aria-labelledby="videoSettingsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content bg-dark text-white border-success">
-            <div class="modal-header border-success">
-                <h5 class="modal-title" id="videoSettingsModalLabel">
-                    <i class="fas fa-film text-success"></i> Paramètres vidéo #<span id="video_modal_gen_id"></span>
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form id="videoSettingsForm">
-                    <input type="hidden" id="video_settings_gen_id" name="generation_id">
-
-                    <!-- Mode + Reference Image -->
-                    <div class="row mb-3" id="video_settings_mode_row">
-                        <div class="col-md-4">
-                            <label class="form-label">Mode</label>
-                            <div>
-                                <span class="badge bg-success fs-6" id="video_settings_mode_badge"></span>
-                            </div>
-                        </div>
-                        <div class="col-md-8" id="video_settings_reference_col" style="display: none;">
-                            <label class="form-label">Image de référence</label>
-                            <img id="video_settings_reference_img" src="" alt="Référence"
-                                 class="img-thumbnail bg-dark border-secondary"
-                                 style="max-height: 120px; max-width: 180px; object-fit: contain; cursor: pointer;"
-                                 onclick="if(this.src) openImagePreview(this.src, 'Image de référence')">
-                        </div>
-                    </div>
-
-                    <!-- Prompt -->
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <label for="video_settings_prompt" class="form-label mb-0">Prompt</label>
-                            <button type="button" class="btn btn-outline-warning btn-sm enhance-prompt-btn"
-                                    data-target="video_settings_prompt" data-mode="video"
-                                    title="Enrichir le prompt (LLM local)">
-                                <i class="fas fa-magic"></i> Améliorer
-                            </button>
-                        </div>
-                        <textarea class="form-control bg-dark text-white border-secondary" id="video_settings_prompt" name="prompt" rows="3"></textarea>
-                    </div>
-
-                    <!-- Negative Prompt -->
-                    <div class="mb-3">
-                        <label for="video_settings_negative_prompt" class="form-label">Prompt négatif</label>
-                        <textarea class="form-control bg-dark text-white border-secondary" id="video_settings_negative_prompt" name="negative_prompt" rows="2"></textarea>
-                    </div>
-
-                    <div class="row">
-                        <!-- Model -->
-                        <div class="col-md-6 mb-3">
-                            <label for="video_settings_model" class="form-label">Modèle</label>
-                            <select class="form-select bg-dark text-white border-secondary model-select-with-tooltip" id="video_settings_model" name="model">
-                                {% for model in video_models_info %}
-                                <option value="{{ model.id }}"
-                                        data-description="{{ model.description }}"
-                                        data-vram="{{ model.vram }}"
-                                        data-type="{% if 'work_image' in model.capabilities.inputs_required %}i2v{% elif 'work_image' in model.capabilities.inputs_optional %}t2v+i2v{% else %}t2v{% endif %}">
-                                    {{ model.name }} [{% if 'work_image' in model.capabilities.inputs_required %}I2V{% elif 'work_image' in model.capabilities.inputs_optional %}T2V+I2V{% else %}T2V{% endif %}]{% if model.vram %} ({{ model.vram }}){% endif %}
-                                </option>
-                                {% endfor %}
-                            </select>
-                            <small class="model-description" id="video_settings_model_description"></small>
-                        </div>
-
-                        <!-- Resolution -->
-                        <div class="col-md-6 mb-3">
-                            <label for="video_settings_resolution" class="form-label">Résolution</label>
-                            <select class="form-select bg-dark text-white border-secondary" id="video_settings_resolution" name="video_resolution">
-                                <option value="480p">480p (832×480)</option>
-                                <option value="720p">720p (1280×720)</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <!-- Duration -->
-                        <div class="col-md-4 mb-3">
-                            <label for="video_settings_duration" class="form-label">
-                                Durée : <span id="video_settings_duration_value">5</span>s
-                            </label>
-                            <input type="range" class="form-range" id="video_settings_duration" name="video_duration"
-                                   min="1" max="15" step="1" value="5"
-                                   oninput="document.getElementById('video_settings_duration_value').textContent = this.value">
-                        </div>
-
-                        <!-- FPS -->
-                        <div class="col-md-4 mb-3">
-                            <label for="video_settings_fps" class="form-label">FPS</label>
-                            <select class="form-select bg-dark text-white border-secondary" id="video_settings_fps" name="video_fps">
-                                <option value="16">16 fps</option>
-                                <option value="24">24 fps</option>
-                            </select>
-                        </div>
-
-                        <!-- Seed -->
-                        <div class="col-md-4 mb-3">
-                            <label for="video_settings_seed" class="form-label">Seed</label>
-                            <input type="number" class="form-control bg-dark text-white border-secondary" id="video_settings_seed" name="seed"
-                                   placeholder="Aléatoire si vide">
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <!-- Steps -->
-                        <div class="col-md-6 mb-3">
-                            <label for="video_settings_steps" class="form-label">
-                                Steps : <span id="video_settings_steps_value">30</span>
-                            </label>
-                            <input type="range" class="form-range" id="video_settings_steps" name="steps"
-                                   min="10" max="50" step="5" value="30"
-                                   oninput="document.getElementById('video_settings_steps_value').textContent = this.value">
-                        </div>
-
-                        <!-- Guidance Scale -->
-                        <div class="col-md-6 mb-3">
-                            <label for="video_settings_guidance" class="form-label">
-                                Guidance : <span id="video_settings_guidance_value">5.0</span>
-                            </label>
-                            <input type="range" class="form-range" id="video_settings_guidance" name="guidance_scale"
-                                   min="1" max="10" step="0.5" value="5"
-                                   oninput="document.getElementById('video_settings_guidance_value').textContent = this.value">
-                        </div>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer border-success">
-                <button type="button" class="btn btn-danger me-auto" id="forceResetVideoBtn" style="display: none;"
-                        title="Réinitialiser une génération bloquée">
-                    <i class="fas fa-exclamation-triangle"></i> Force Reset
-                </button>
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                <button type="button" class="btn btn-success" id="saveVideoSettingsBtn">
-                    <i class="fas fa-play"></i> Enregistrer et démarrer
-                </button>
-                <button type="button" class="btn btn-primary" id="saveVideoSettingsOnlyBtn">
-                    <i class="fas fa-save"></i> Enregistrer
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
+{% comment %} Modales ⚙ : GÉNÉRÉES par WamaParams depuis le schéma (params.py) —
+settings_modal.js. Les deux modales hand-built (~345 lignes qui recopiaient le schéma) sont
+supprimées ; seul le PIED commun reste déclaré ici, cloné par le JS. {% endcomment %}
+<template id="imagerSettingsFooterTpl">
+    {% comment %} Modale GÉNÉRÉE en JS : le déclencheur est la CLASSE (save_class /
+    save_start_class), pas un id — un id serait dupliqué à chaque card. {% endcomment %}
+    {% include 'common/_settings_modal_footer.html' with save_class='save-settings-btn' save_start_class='save-and-restart-btn' save_start_label='Enregistrer et relancer' save_start_icon='fa-rotate-right' %}
+</template>
 {% endblock extra_modals %}
 
 {% block app_scripts %}
@@ -867,7 +529,7 @@ function _mpInjectImage(file, inputId, previewId) {
             forceReset: "{% url 'imager:force_reset' 0 %}",
             enhancePrompt: "{% url 'common:enrich_prompt' %}"
         },
-        csrfToken: "{{ csrf_token }}"
+    csrfToken: "{{ csrf_token }}"
     };
 </script>
 <script src="{% static_v 'common/js/wama-eta.js' %}"></script>
@@ -883,6 +545,7 @@ WAMA_GLOBAL_PROGRESS_URL → pas d'auto-init.{% endcomment %}
 window.IMAGER_CARD = {
     urls: { create: "{% url 'imager:create' %}",
             cardHtml: "{% url 'imager:card_html' 0 %}" },
+    modelGroups: {{ model_groups_json|safe }},
     csrf: "{{ csrf_token }}",
     enhanceUrl: "{% url 'common:enrich_prompt' %}",
     matchMeta: {{ input_match_meta|safe }},
@@ -891,7 +554,19 @@ window.IMAGER_CARD = {
 </script>
 <script src="{% static_v 'common/js/wama-input-match.js' %}"></script>
 <script src="{% static_v 'imager/js/input_card.js' %}"></script>
+<script>
+/* Schémas + groupes des modales ⚙ (params.py = source unique). */
+window.IMAGER_IMAGE_SCHEMA = {{ image_params_json|safe }};
+window.IMAGER_VIDEO_SCHEMA = {{ video_params_json|safe }};
+window.IMAGER_IMAGE_GROUPS = {{ image_groups_json|safe }};
+window.IMAGER_VIDEO_GROUPS = {{ video_groups_json|safe }};
+</script>
 <script src="{% static_v 'imager/js/queue.js' %}"></script>
+{% comment %} wama-params.js n'est PAS une brique globale de base.html (contrairement à
+wama-app-base) : chaque app qui génère ses modales du schéma l'inclut, comme anonymizer.
+Le CSS, lui, est déjà global (base.html). {% endcomment %}
+<script src="{% static_v 'common/js/wama-params.js' %}"></script>
+<script src="{% static_v 'imager/js/settings_modal.js' %}"></script>
 <script src="{% static_v 'imager/js/index.js' %}"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {

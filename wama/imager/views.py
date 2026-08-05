@@ -148,6 +148,10 @@ def index(request):
     # Groupes du <select> modèle : la catégorie ('logo') vient des CAPACITÉS catalogue
     # (optgroup, jamais un onglet) ; méta d'appariement entrée↔modèle pour
     # wama-input-match (inputs_required/optional déclarés au manifeste → catalogue).
+    from wama.imager.params import (
+        IMAGE_GROUPS_JSON, IMAGE_PARAMS_JSON, VIDEO_GROUPS_JSON, VIDEO_PARAMS_JSON,
+    )
+
     def _mz(d):
         return {'id': d.get('id'), 'name': d.get('name') or d.get('id'),
                 'vram': d.get('vram') or '', 'description': d.get('description') or ''}
@@ -200,6 +204,13 @@ def index(request):
         'video_model_groups': video_model_groups,
         'input_match_meta': json.dumps(input_match_meta),
         'input_labels': json.dumps(input_labels),
+        'model_groups_json': json.dumps({'image': image_model_groups,
+                                         'video': video_model_groups}),
+        # Modales ⚙ schéma-driven (params.py = source unique) — WamaParams les génère.
+        'image_params_json': json.dumps(IMAGE_PARAMS_JSON),
+        'video_params_json': json.dumps(VIDEO_PARAMS_JSON),
+        'image_groups_json': json.dumps(IMAGE_GROUPS_JSON),
+        'video_groups_json': json.dumps(VIDEO_GROUPS_JSON),
     }
 
     return render(request, 'imager/index.html', context)
@@ -1029,6 +1040,13 @@ def delete_generation(request, generation_id):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+def _schema_for(gen):
+    """Schéma du DOMAINE de la génération (image | vidéo) — params.py est la source
+    unique : vues de réglages, chips de card et modale ⚙ lisent le même objet."""
+    from wama.imager.params import IMAGE_PARAMS_JSON, VIDEO_PARAMS_JSON
+    return VIDEO_PARAMS_JSON if gen.is_video_generation else IMAGE_PARAMS_JSON
+
+
 def _decorate_card(gen):
     """Chips schéma-driven du partial _generation_card (miroir anonymizer _decorate_card) :
     le schéma (params.py, chip=True) est la SOURCE, la card n'invente rien."""
@@ -1221,34 +1239,27 @@ def get_generation_settings(request, generation_id):
     try:
         generation = get_object_or_404(ImageGeneration, id=generation_id, user=user)
 
-        data = {
+        # Valeurs DÉRIVÉES DU SCHÉMA (params.py = source unique) : le dict écrit à la main
+        # était une 2ᵉ copie du schéma, qui dérivait à chaque champ ajouté.
+        schema = _schema_for(generation)
+        data = {p['name']: getattr(generation, p['name'], None) for p in schema}
+        data.update({
             'id': generation.id,
             'generation_mode': generation.generation_mode,
-            'prompt': generation.prompt,
+            'status': generation.status,
             # Champ prompt à DEUX ÉTATS ([[wama-prompt-enrich]]) : `prompt` reste ce que
             # l'utilisateur a tapé, `prompt_processed` ce qui part au modèle. L'UI affiche le
             # second et permet de revenir au premier — d'où l'envoi des deux.
+            'prompt': generation.prompt,
             'prompt_processed': generation.prompt_processed or '',
             'prompt_keywords': generation.prompt_keywords or [],
             'prompt_trace': generation.prompt_trace or {},
-            'negative_prompt': generation.negative_prompt or '',
             'auto_prompt': generation.auto_prompt or '',
-            'model': generation.model,
+            # HORS schéma (widgets d'app) : résolution image à présets + aperçu de référence.
             'width': generation.width,
             'height': generation.height,
-            'steps': generation.steps,
-            'guidance_scale': generation.guidance_scale,
-            'image_strength': generation.image_strength,
             'reference_image_url': generation.reference_image.url if generation.reference_image else None,
-            'seed': generation.seed,
-            'num_images': generation.num_images,
-            'upscale': generation.upscale,
-            'status': generation.status,
-            # Video-specific fields
-            'video_duration': generation.video_duration,
-            'video_fps': generation.video_fps,
-            'video_resolution': generation.video_resolution,
-        }
+        })
 
         return JsonResponse(data)
 
@@ -1281,46 +1292,22 @@ def save_generation_settings(request, generation_id):
             apply_prompt_state(generation, 'prompt', prompt,
                                request.POST.get('prompt_state'))
 
-        if 'negative_prompt' in request.POST:
-            generation.negative_prompt = request.POST.get('negative_prompt', '').strip()
+        # Reste des champs : coercition PAR LE SCHÉMA (types + bornes déclarés dans
+        # params.py). Les 13 blocs `if ... int()/float()` qui vivaient ici étaient une
+        # 3ᵉ copie du schéma — chaque champ ajouté demandait de les éditer aussi.
+        from wama.common.utils.param_schema import coerce_schema_values
+        for field, value in coerce_schema_values(_schema_for(generation), request.POST).items():
+            setattr(generation, field, value)
 
-        if 'model' in request.POST:
-            generation.model = request.POST.get('model')
+        # Seed VIDE = aléatoire : la coercition ignore les champs vides, il faut donc
+        # remettre None explicitement (sinon l'ancienne graine survivrait).
+        if request.POST.get('seed', None) == '':
+            generation.seed = None
 
-        if 'width' in request.POST:
-            generation.width = int(request.POST.get('width', 512))
-
-        if 'height' in request.POST:
-            generation.height = int(request.POST.get('height', 512))
-
-        if 'steps' in request.POST:
-            generation.steps = int(request.POST.get('steps', 30))
-
-        if 'guidance_scale' in request.POST:
-            generation.guidance_scale = float(request.POST.get('guidance_scale', 7.5))
-
-        if 'seed' in request.POST:
-            seed = request.POST.get('seed')
-            generation.seed = int(seed) if seed else None
-
-        if 'num_images' in request.POST:
-            generation.num_images = int(request.POST.get('num_images', 1))
-
-        if 'upscale' in request.POST:
-            generation.upscale = request.POST.get('upscale', 'false').lower() == 'true'
-
-        if 'image_strength' in request.POST:
-            generation.image_strength = float(request.POST.get('image_strength', 0.75))
-
-        # Video-specific fields
-        if 'video_duration' in request.POST:
-            generation.video_duration = int(request.POST.get('video_duration', 5))
-
-        if 'video_fps' in request.POST:
-            generation.video_fps = int(request.POST.get('video_fps', 16))
-
-        if 'video_resolution' in request.POST:
-            generation.video_resolution = request.POST.get('video_resolution', '480p')
+        # HORS schéma : résolution image (widget à présets par modèle).
+        for _f in ('width', 'height'):
+            if request.POST.get(_f):
+                setattr(generation, _f, int(request.POST[_f]))
 
         generation.save()
 
