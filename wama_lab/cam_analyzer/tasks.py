@@ -2268,14 +2268,20 @@ def _run_global_tracking(session):
         # pour que le tracker place les objets par projection sol dès ce run.
         try:
             from .utils.features import effective as _feff0
-            if _feff0(session).get('auto_ground_calib', False) \
+            _ff0 = _feff0(session)
+            # ⚑ auto_ground_calib OU ⚑ depth_estimation déclenchent la calib sol : la première par
+            # recherche homographique, la seconde par profondeur monoculaire (Depth Pro). Le choix
+            # de la source se fait dans store_ground_calib ; ici on ouvre la porte (calib absente).
+            _src = 'profondeur' if _ff0.get('depth_estimation', False) else 'homographie'
+            if (_ff0.get('auto_ground_calib', False) or _ff0.get('depth_estimation', False)) \
                     and not ((session.config or {}).get('ground_calib')):
                 from .utils.homography_estimator import store_ground_calib
                 _rep = store_ground_calib(session)
                 _ok = [p for p, v in _rep.items() if not v.get('skipped')]
                 _console(session.user_id,
-                         f"Calibration sol auto : {', '.join(_ok) or 'aucune caméra fiable'} "
-                         f"(angle estimé — voir ⚑ Calibration sol auto)")
+                         f"Calibration sol auto ({_src}) : "
+                         f"{', '.join(_ok) or 'aucune caméra fiable'} "
+                         f"(angle estimé — voir ⚑ Calibration sol auto / ⚑ Profondeur)")
         except Exception:
             logger.warning('store_ground_calib failed (non-blocking)', exc_info=True)
         _gt = annotate_global_tracks(session)
@@ -2318,17 +2324,22 @@ def _run_global_tracking(session):
         _console(session.user_id,
                  f"Tracking multi-caméra : {_gt['tracks']} tracks globaux (hand-off), "
                  f"{len(stat)} véhicules stationnés détectés.")
-        # Métrique A/B chiffrée en console : étalement monde des stationnés (cohérence
-        # de placement). À relever ⚑ auto_ground_calib OFF puis ON pour décider sur un
-        # chiffre — plus bas = meilleur. Le détail par track est dans results_summary.
+        # Métrique A/B chiffrée en console : étalement monde des stationnés (cohérence de
+        # placement). À relever en faisant varier la SOURCE du plan de sol (pinhole →
+        # ⚑ auto_ground_calib → ⚑ depth_estimation) pour décider sur un chiffre — plus bas =
+        # meilleur. Le détail par track est dans results_summary.
         _agg = ((_gt.get('placement_spread') or {}).get('aggregate')) or {}
         if _agg.get('n_tracks'):
             try:
-                _gcon = _feff(session).get('auto_ground_calib', False)
+                _ff = _feff(session)
+                _gcon = _ff.get('auto_ground_calib', False)
+                _dcon = _ff.get('depth_estimation', False)
             except Exception:
-                _gcon = False
+                _gcon = _dcon = False
+            # Source effective du plan de sol pour cet A/B : profondeur > homographie > pinhole.
+            _gsrc = 'profondeur' if _dcon else ('homographie' if _gcon else 'pinhole')
             _console(session.user_id,
-                     f"Cohérence placement (⚑ auto_ground_calib={'ON' if _gcon else 'OFF'}) : "
+                     f"Cohérence placement (plan de sol : {_gsrc}) : "
                      f"étalement stationnés RMS médian {_agg['rms_median_m']:.2f} m sur "
                      f"{_agg['n_tracks']} garés (p90 {_agg['rms_p90_m']:.2f} m) — plus bas = meilleur.")
         return _gt

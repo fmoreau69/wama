@@ -78,14 +78,15 @@ FEATURES = [
             "les vues, au lieu de valeurs indépendantes par caméra. (Pas encore implémenté "
             "— déclaré pour le chantier d'unification.)",
             default=False, scope='compute'),
-    Feature('depth_estimation', 'Profondeur monoculaire (exploratoire)',
-            "Carte de profondeur métrique par image (candidat DA3METRIC-LARGE, Apache-2.0) "
-            "pour attaquer plusieurs limites du placement — 1er PoC : re-calage du plan de "
-            "sol (usage 4 §[E]), tranché sur la métrique `placement_spread`. Portillon MAÎTRE "
-            "du coût profondeur ; les sous-usages (réciproque pinhole, ordre d'occlusion, "
-            "reflets, statique/mobile) viendront sous des flags dédiés. Piste EXPLORATOIRE "
-            "NON implémentée : squelette inerte (`utils/depth_estimator.py`), aucun poids "
-            "téléchargé, GPU interdit sous WSL2. Voir CAM_ANALYZER_CHAINE_TRAITEMENT.md §[E].",
+    Feature('depth_estimation', 'Profondeur monoculaire (1ère passe)',
+            "Profondeur métrique par image (Apple Depth Pro, Apache-2.0) pour attaquer les limites "
+            "du placement. UN SEUL flag global pour TOUTE l'amélioration profondeur (pas de "
+            "sous-flags par usage qui polluent cette liste) : quand ON, la source du plan de sol "
+            "devient la profondeur (nuage → RANSAC sur zone roulable) au lieu de la recherche "
+            "homographique — tranché sur la métrique `placement_spread` (A/B en console, plus bas = "
+            "meilleur). Câblé (`utils/depth_estimator.py`) mais NON fumé au GPU (interdit sous "
+            "WSL2 ; test côté runtime). 1ère passe : si le gain est insuffisant, on itère. "
+            "Voir CAM_ANALYZER_CHAINE_TRAITEMENT.md §[E].",
             default=False, scope='compute'),
 ]
 

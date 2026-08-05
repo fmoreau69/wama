@@ -364,8 +364,11 @@ par côté). Règle : **jamais de if ad hoc dispersé** pour une amélioration c
 
 ## [E] Piste EXPLORATOIRE — profondeur monoculaire (2026-08-05)
 
-> ⚠ **Rien n'est implémenté.** Section de conception, ouverte pour être discutée et chiffrée
-> avant tout code. Aucune bascule, aucun paramètre, aucun modèle installé à ce jour.
+> ⚠ **1ère passe BRANCHÉE, non fumée au GPU (2026-08-05).** L'usage **4 (re-calage du plan de sol)**
+> est câblé et sélectionnable via le flag global `depth_estimation` ; le reste de la section reste
+> de la conception. **Aucun smoke GPU/navigateur** n'a été fait (GPU interdit sous WSL2 ici) →
+> l'inférence Depth Pro et le gain `placement_spread` sont **à valider côté runtime/R760xa**.
+> Détail dans `CAM_ANALYZER_CHANGELOG.md` (2026-08-05).
 
 ### Pourquoi cette piste ouvre maintenant
 
@@ -374,9 +377,13 @@ caméras **perspectives** (F4005-E 61° V, F1015 31°), pas d'un capteur équire
 modèles de profondeur monoculaire sont entraînés sur des images perspectives — ils s'appliquent
 caméra par caméra, sans reprojection ni couture.
 
-Candidat identifié : `depth-anything/DA3METRIC-LARGE`, **métrique** et **Apache-2.0**
-(716 k téléchargements, relevé le 2026-08-05 via `manage.py prospect_models`). La licence ne pose
-donc pas de question.
+Modèle retenu : **`apple/DepthPro-hf`** — natif `transformers` (`DepthProForDepthEstimation`),
+**métrique** ET **focale/FOV estimés**, **Apache-2.0**. Ce dernier point est décisif : le
+monoculaire manque d'échelle absolue, et la focale estimée par Depth Pro fournit exactement
+l'intrinsèque que le re-calage du plan de sol consomme (§Conception). Écarté : DA3
+(`depth_anything_3`, package custom), UniDepth v2 (ops CUDA custom), DA V2 Metric (exige les
+intrinsèques connus). ⚠ Piège : `apple/DepthPro` (sans `-hf`) est le checkpoint d'origine
+(`depth_pro.pt`, non chargeable par `transformers`) — c'est bien `apple/DepthPro-hf` qu'il faut.
 
 ### Ce que la profondeur apporterait, par usage
 
@@ -434,37 +441,52 @@ Les 5 usages ne forment PAS un silo neuf : **ils alimentent l'instrument A/B** d
 (brique commune pure `geometry.placement_spread`). Le chiffre qui tranchera la profondeur est le
 même qui tranche `auto_ground_calib`.
 
-| Usage [E] | Point d'accroche pipeline | Métrique A/B | Flag ⚑ |
+**UN SEUL flag global `depth_estimation`** porte TOUTE l'amélioration profondeur (décision Fabien
+2026-08-05 : les scopes des 5 usages ne se recouvrent pas, des sous-flags par usage pollueraient la
+liste ⚑ Modes déjà longue). Pas de `depth_ground_plane`/`depth_reflection`/… : quand le flag est
+ON, chaque usage porté s'active.
+
+| Usage [E] | Point d'accroche pipeline | Métrique A/B | État |
 |---|---|---|---|
-| **4. Re-calage plan de sol** *(PoC #1)* | `homography_estimator`/`store_ground_calib` (voie `auto_ground_calib`) | **#1 `placement_spread`** *(câblée)* | `depth_ground_plane` |
-| **3. Réciproque du pinhole** | ego `multicam_tracker.py:200-206` / distance `tasks.py:1379-1392` (`distance_source`) | #2 désaccord inter-sources (depth = 3ᵉ source) | `depth_distance_crosscheck` |
-| **5. Ordre d'occlusion** | logique hand-off du tracker | #3 discontinuité au hand-off | `depth_occlusion_order` |
-| **2. Statique vs mobile** | détection stationnés `multicam_tracker.py:414-425` | stabilité classif. statique/mobile | `depth_static_mobile` |
-| **1. Reflets** (limite n°7) | complète/concurrence `artifact_filter` | taux de faux reflets vs `artifact_filter` | `depth_reflection` |
+| **4. Re-calage plan de sol** *(PoC #1)* | `store_ground_calib` → `estimate_camera(..., seed=)` (graine profondeur, scoring inchangé) | **#1 `placement_spread`** | ✅ **câblé** (non fumé GPU) |
+| **3. Réciproque du pinhole** | ego `multicam_tracker.py:200-206` / distance `tasks.py:1379-1392` (`distance_source`) | #2 désaccord inter-sources (depth = 3ᵉ source) | ⏳ conception |
+| **5. Ordre d'occlusion** | logique hand-off du tracker | #3 discontinuité au hand-off | ⏳ conception |
+| **2. Statique vs mobile** | détection stationnés `multicam_tracker.py:414-425` | stabilité classif. statique/mobile | ⏳ conception |
+| **1. Reflets** (limite n°7) | complète/concurrence `artifact_filter` | taux de faux reflets vs `artifact_filter` | ⏳ conception |
 
-**Ordre de déroulé** : usage **4 d'abord** — il se valide sur `placement_spread` déjà en place et
-attaque le biais 23,5 vs 6,8 m qui avait fait débrancher l'homographie ([3]). Un flag MAÎTRE
-`depth_estimation` (défaut OFF) porte le coût partagé du calcul de la carte ; chaque sous-usage
-arrive ensuite sous son propre flag.
+**Ordre de déroulé** : usage **4 d'abord** (fait, 1ère passe) — il se valide sur `placement_spread`
+déjà en place et attaque le biais 23,5 vs 6,8 m qui avait fait débrancher l'homographie ([3]). A/B
+**loyal** : `estimate_ground_plane_ph` ne rend QUE le couple candidat `(pitch, hauteur)` ; le
+scoring reste dans `estimate_camera` → `placement_spread` calculée à l'identique pour profondeur vs
+homographie vs pinhole.
 
-**Déjà posé (préparation, 2026-08-05)** : flag maître `depth_estimation` (OFF, `utils/features.py`)
-+ squelette INERTE `utils/depth_estimator.py` (contrat `load`/`estimate_depth`/`unload`,
-`NotImplementedError`, aucun poids téléchargé, rien branché au pipeline).
+**Câblage effectif (2026-08-05, 1ère passe)** :
+- `utils/depth_estimator.py` **réécrit** (plus inerte) : `load`/`estimate_depth`/`estimate_ground_plane_ph`
+  (keep_loaded, `HF_HUB_CACHE` avant import HF, fp16, `post_process_depth_estimation`). Plan de sol =
+  déprojection des pixels **roulables** (road_mask, repli 40 % bas) → nuage 3D → **RANSAC** (seed fixe)
+  → `(pitch_deg, height_m)`, gardes physiques.
+- `homography_estimator.estimate_camera(session, pos, seed=)` : `seed` fourni → score ce couple et
+  court-circuite la grille ; `store_ground_calib` lit ⚑ `depth_estimation` (ON → graine profondeur,
+  repli grille si échec). `tasks.py` déclenche la calib sur `auto_ground_calib` **OU** `depth_estimation`,
+  console `plan de sol : profondeur | homographie | pinhole`.
+- ⚠ **Convention de signe du pitch NON validée** (`atan2(nz, -ny)`) : un signe faux se lit
+  **immédiatement** sur `placement_spread` — 1er point à vérifier au run.
 
 **Frontières / coordination (partition multi-instances)** :
 - ✅ Tâche `depth-estimation` déclarée (`ModelTask`) — le garde-fou `check_model_taxonomy` passe.
-- ✅ **Modèle onboardé via le mécanisme en place (2026-08-05)** : `pull_model
-  depth-anything/DA3METRIC-LARGE --category vision --family depth-anything` → 1 `model.safetensors`
-  ~1,34 Go dans `AI-models/models/vision/depth-anything/`. `settings.MODEL_PATHS['vision']['depth']`
-  ajouté ; `model_registry._discover_depth_models()` (scan **filesystem**, source générique
-  `huggingface`, **aucun import lab→core**) émet `huggingface:da3metric-large` (task=depth-estimation,
-  vram 6 Go, `is_downloaded` dérivé des poids réels) ; sélectionnable VRAM-aware (6 Go ≤ budget 4090).
-  ⚠ Sync écrite dans la base **Windows** (venv_win) ; la base WSL2 *live* se recale au prochain
-  `sync_models` (poids sur disque partagé, hook committé).
-- ⏳ Protocole `PROTOCOLES` du banc `depth-estimation` — **différé** à la phase validation (n'a de
-  sens qu'une fois le loader écrit).
-- ⚠ **GPU interdit sous WSL2** sur ce poste : inférence + A/B côté runtime/R760xa. Loader
-  `depth_estimator.load/estimate_depth` à écrire contre l'**API réelle de DA3** (poids désormais lisibles).
+- ✅ **Modèle onboardé via le mécanisme en place (2026-08-05)** : `pull_model apple/DepthPro-hf
+  --category vision --family depth-pro` → `model.safetensors` + `config.json` dans
+  `AI-models/models/vision/depth-pro/`. `settings.MODEL_PATHS['vision']['depth']` = `depth-pro` ;
+  `model_registry._discover_depth_models()` (scan **filesystem**, source `huggingface`, **aucun import
+  lab→core**) émet `huggingface:depthpro` (task=depth-estimation, vram 8 Go) ; sélectionnable
+  VRAM-aware (8 Go ≤ budget 4090). Ancienne ligne DA3 (pk 226) purgée.
+- ✅ **Base live = WSL2** : le `manage.py` Windows résout dynamiquement l'IP WSL2 (`_resolve_db_host`)
+  et y écrit **directement** — pas de re-sync WSL2 séparé (croyance « deux bases » corrigée).
+- ✅ Protocole banc `depth-estimation` (`bench.py::_bench_depth`) : latence/couverture/médiane/focale
+  (grandeurs comparables, pas une note de qualité).
+- ⚠ **GPU interdit sous WSL2** sur ce poste : inférence Depth Pro + déprojection + A/B `placement_spread`
+  **à fumer côté runtime/R760xa**. Tout import torch/transformers/cv2 du loader est **paresseux** (dans
+  les fonctions) pour que `manage.py check`/`py_compile` ne touchent jamais CUDA.
 
 ---
 

@@ -66,6 +66,62 @@ def _bench_detection(modele: AIModel, echantillon: str, *, conf: float = 0.25) -
     }
 
 
+def _bench_depth(modele: AIModel, echantillon: str, **_) -> dict:
+    """
+    Profondeur monoculaire metrique (Depth Pro et candidats natifs `transformers`).
+
+    Comme le reste du banc, ce ne sont PAS des notes de qualite : sans verite terrain (KITTI,
+    lidar) on ne calcule pas d'AbsRel/delta1. On rend des grandeurs COMPARABLES entre candidats
+    sur une meme image — latence, couverture de profondeur valide, mediane metrique, focale
+    estimee. Le juge final (le re-calage du plan de sol dans cam_analyzer, metrique
+    `placement_spread`) reste en aval.
+    """
+    import numpy as np
+    from PIL import Image
+    import torch
+    from transformers import AutoImageProcessor, AutoModelForDepthEstimation
+
+    src = modele.local_path or modele.hf_id
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    debut = time.perf_counter()
+    processor = AutoImageProcessor.from_pretrained(src)
+    model = AutoModelForDepthEstimation.from_pretrained(
+        src, torch_dtype=torch.float16 if device == 'cuda' else torch.float32).to(device).eval()
+    charge = time.perf_counter() - debut
+
+    image = Image.open(echantillon).convert('RGB')
+    w0, h0 = image.size
+    inputs = processor(images=image, return_tensors='pt').to(device)
+
+    debut = time.perf_counter()
+    with torch.no_grad():
+        outputs = model(**inputs)
+    post = processor.post_process_depth_estimation(outputs, target_sizes=[(h0, w0)])[0]
+    inference = time.perf_counter() - debut
+
+    depth = post['predicted_depth'].float().cpu().numpy()
+    focal = post.get('focal_length')
+    if focal is not None:
+        try:
+            focal = round(float(np.asarray(focal).reshape(-1)[0]), 1)
+        except Exception:
+            focal = None
+    valide = np.isfinite(depth) & (depth > 0)
+    couverture = round(float(valide.mean()), 3) if depth.size else None
+    mediane = round(float(np.median(depth[valide])), 2) if valide.any() else None
+
+    return {
+        'sorties': int(valide.sum()),                 # pixels de profondeur valide
+        'confiance_moyenne': couverture,              # couverture [0..1] (reutilise la colonne)
+        'chargement_s': round(charge, 2),
+        'inference_s': round(inference, 3),
+        'sature': False,
+        'mediane_m': mediane,
+        'focale_px': focal,
+    }
+
+
 def _bench_description(modele: AIModel, echantillon: str, **_) -> dict:
     """Modeles vision-langage servis par Ollama — protocole repris de `bench_describer`."""
     from wama.model_manager.services.vision_probe import describe_image_ollama
@@ -93,6 +149,7 @@ PROTOCOLES: dict[str, Callable] = {
     ModelTask.POSE.value: _bench_detection,
     ModelTask.CLASSIFY.value: _bench_detection,
     ModelTask.CAPTIONING.value: _bench_description,
+    ModelTask.DEPTH_ESTIMATION.value: _bench_depth,
 }
 
 

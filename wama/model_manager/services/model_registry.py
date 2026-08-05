@@ -565,7 +565,7 @@ class ModelRegistry:
 
     def _discover_depth_models(self):
         """Modèles de profondeur monoculaire (task=depth-estimation) déposés par `pull_model`
-        dans `models/vision/depth-anything/`.
+        dans `models/vision/depth-pro/`.
 
         Scan FILESYSTEM volontaire : la découverte reste dans la couche model_manager et n'importe
         AUCUNE app. Le consommateur est le lab cam_analyzer (re-calage plan de sol, §[E]) — importer
@@ -580,17 +580,19 @@ class ModelRegistry:
                 return
             depth_root = Path(depth_cfg)
             cached = depth_root.exists() and any(depth_root.rglob('*.safetensors'))
-            # Candidat retenu §[E] : DA3 métrique (Apache-2.0). Une seule entrée connue pour
-            # l'instant ; en ajouter d'autres = une ligne ModelInfo de plus ici.
-            self._models['huggingface:da3metric-large'] = ModelInfo(
-                id='huggingface:da3metric-large',
-                name='Depth Anything 3 Metric Large',
+            # Candidat retenu §[E] : Apple Depth Pro (métrique + focale estimée, natif transformers).
+            # Retenu vs DA3 (2026-08-05) car intégration `AutoModelForDepthEstimation` sans package
+            # custom, et l'intrinsèque estimé sert directement le re-calage du plan de sol. Une seule
+            # entrée connue ; en ajouter d'autres = une ligne ModelInfo de plus ici.
+            self._models['huggingface:depthpro'] = ModelInfo(
+                id='huggingface:depthpro',
+                name='Apple Depth Pro',
                 model_type=ModelType.VISION,
                 source=ModelSource.HUGGINGFACE,
-                description='Profondeur monoculaire métrique, licence Apache-2.0. Candidat '
-                            'cam_analyzer (re-calage du plan de sol, §[E]).',
-                hf_id='depth-anything/DA3METRIC-LARGE',
-                vram_gb=6.0,
+                description='Profondeur monoculaire métrique + focale estimée, natif transformers '
+                            '(Apache-2.0). Candidat cam_analyzer (re-calage du plan de sol, §[E]).',
+                hf_id='apple/DepthPro-hf',
+                vram_gb=8.0,
                 is_downloaded=cached,
                 # Vocabulaire canonique (model_capabilities) : tâche + entrées + modalités, comme
                 # SAM3/YOLO — pas de flag ad hoc, pour que select_model/matches_inputs filtrent.

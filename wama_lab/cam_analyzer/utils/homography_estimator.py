@@ -108,7 +108,7 @@ def _eval_params(pitch_deg, height_m, obs, size, geo, sh_traj, fov_v_deg, k1=0.0
     return spread + 0.5 * scale, spread, scale, len(spreads)
 
 
-def estimate_camera(session, position='front', with_k1=False):
+def estimate_camera(session, position='front', with_k1=False, seed=None):
     """Grille (pitch, height[, k1]) → meilleurs paramètres + rapport avant/après.
     `with_k1=False` (défaut) : recherche pitch seul à hauteur physique (~8 s/caméra) —
     k1 a été ÉCARTÉ comme levier (sature la borne sans gain, cf. CHANGELOG 8a19577).
@@ -129,6 +129,27 @@ def estimate_camera(session, position='front', with_k1=False):
     fov_v = CAMERA_FOV_V.get(position, 61.0)
 
     base = _eval_params(0.0, 2.4, obs, size, geo, sh_traj, fov_v)
+    # ── Mode « graine externe » (⚑ depth_estimation) : au lieu de la recherche par grille, on SCORE
+    # un couple (pitch, hauteur) fourni par une autre source (profondeur monoculaire Depth Pro →
+    # plan de sol, cf. depth_estimator.estimate_ground_plane_ph). Le scoring reste ICI, source
+    # UNIQUE de la métrique `placement_spread` → A/B loyal profondeur vs homographie.
+    if seed is not None:
+        sp_deg, sh_m = float(seed[0]), float(seed[1])
+        r = _eval_params(sp_deg, sh_m, obs, size, geo, sh_traj, fov_v)
+        if r is None:
+            return None
+        return {
+            'position': position,
+            'pitch_deg': sp_deg,
+            'k1': 0.0,
+            'height_m': sh_m,
+            'n_objects': r[3],
+            'spread_m': round(r[1], 2),
+            'scale_err_m': round(r[2], 2),
+            'baseline_spread_m': round(base[1], 2) if base else None,
+            'baseline_scale_err_m': round(base[2], 2) if base else None,
+            'source': 'depth',
+        }
     # Hauteur FIXÉE au physique (rig ENA ~2.4 m) : la surface de coût est dégénérée
     # pitch⟷hauteur (l'optimum libre fuit vers des hauteurs absurdes). On résout donc
     # pitch × k1 à hauteur connue — les deux vrais inconnus optiques.
@@ -171,9 +192,23 @@ def store_ground_calib(session, positions=('front', 'rear', 'left', 'right'),
     cfg = session.config or {}
     calib = dict(cfg.get('ground_calib') or {})
     report = {}
+    # ⚑ depth_estimation (défaut OFF) : quand ON, la source du plan de sol est la profondeur
+    # monoculaire (Depth Pro) au lieu de la recherche homographique. UN seul flag global pour toute
+    # l'amélioration profondeur (décision 2026-08-05 — pas de sous-flags qui polluent ⚑ Modes).
+    _use_depth = False
+    try:
+        from .features import enabled as _feat_enabled
+        _use_depth = bool(_feat_enabled(session, 'depth_estimation'))
+    except Exception:
+        _use_depth = False
     for pos in positions:
         try:
-            r = estimate_camera(session, pos, with_k1=False)
+            seed = None
+            if _use_depth:
+                from .depth_estimator import estimate_ground_plane_ph
+                seed = estimate_ground_plane_ph(session, pos)  # (pitch_deg, height_m) | None
+            # seed None (depth OFF ou échec) → repli sur la recherche homographique par grille.
+            r = estimate_camera(session, pos, with_k1=False, seed=seed)
         except Exception:
             logger.warning('estimate_camera %s failed', pos, exc_info=True)
             r = None

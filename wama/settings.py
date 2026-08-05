@@ -43,8 +43,10 @@ MODEL_PATHS = {
         'yolo': AI_MODELS_DIR / "models" / "vision" / "yolo",
         # SAM models (Segment Anything Model)
         'sam': AI_MODELS_DIR / "models" / "vision" / "sam",
-        # Depth-estimation monoculaire (Depth Anything 3, etc.) — cf. cam_analyzer §[E].
-        'depth': AI_MODELS_DIR / "models" / "vision" / "depth-anything",
+        # Depth-estimation monoculaire (Apple Depth Pro : métrique + focale estimée) — cf.
+        # cam_analyzer §[E]. Choix Depth Pro (vs DA3) : natif transformers + intrinsèque estimé,
+        # ce que le re-calage du plan de sol consomme directement (2026-08-05).
+        'depth': AI_MODELS_DIR / "models" / "vision" / "depth-pro",
     },
     # Upscaling/Enhancement models (ONNX)
     'upscaling': {
