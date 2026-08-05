@@ -452,11 +452,19 @@ arrive ensuite sous son propre flag.
 `NotImplementedError`, aucun poids téléchargé, rien branché au pipeline).
 
 **Frontières / coordination (partition multi-instances)** :
-- ✅ Tâche `depth-estimation` DÉJÀ déclarée (`ModelTask`) — le garde-fou `check_model_taxonomy` passe.
-- ⏳ Au VRAI onboarding : entrée `settings.py::MODEL_PATHS['vision']['depth']` (le squelette a un
-  fallback) ; déclaration DA3 dans `model_registry`/catalogue `AIModel` (**session « catalogue » —
-  DEMANDER, ne pas y toucher**) ; protocole `PROTOCOLES` du banc `depth-estimation`.
-- ⚠ **GPU interdit sous WSL2** sur ce poste : inférence + A/B côté runtime/R760xa.
+- ✅ Tâche `depth-estimation` déclarée (`ModelTask`) — le garde-fou `check_model_taxonomy` passe.
+- ✅ **Modèle onboardé via le mécanisme en place (2026-08-05)** : `pull_model
+  depth-anything/DA3METRIC-LARGE --category vision --family depth-anything` → 1 `model.safetensors`
+  ~1,34 Go dans `AI-models/models/vision/depth-anything/`. `settings.MODEL_PATHS['vision']['depth']`
+  ajouté ; `model_registry._discover_depth_models()` (scan **filesystem**, source générique
+  `huggingface`, **aucun import lab→core**) émet `huggingface:da3metric-large` (task=depth-estimation,
+  vram 6 Go, `is_downloaded` dérivé des poids réels) ; sélectionnable VRAM-aware (6 Go ≤ budget 4090).
+  ⚠ Sync écrite dans la base **Windows** (venv_win) ; la base WSL2 *live* se recale au prochain
+  `sync_models` (poids sur disque partagé, hook committé).
+- ⏳ Protocole `PROTOCOLES` du banc `depth-estimation` — **différé** à la phase validation (n'a de
+  sens qu'une fois le loader écrit).
+- ⚠ **GPU interdit sous WSL2** sur ce poste : inférence + A/B côté runtime/R760xa. Loader
+  `depth_estimator.load/estimate_depth` à écrire contre l'**API réelle de DA3** (poids désormais lisibles).
 
 ---
 
