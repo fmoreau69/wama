@@ -370,6 +370,19 @@ par côté). Règle : **jamais de if ad hoc dispersé** pour une amélioration c
 > l'inférence Depth Pro et le gain `placement_spread` sont **à valider côté runtime/R760xa**.
 > Détail dans `CAM_ANALYZER_CHANGELOG.md` (2026-08-05).
 
+> 🧱 **DÉCOUPLAGE EN 3 ÉTAGES (2026-08-05, recadrage Fabien « analyse d'abord, calculs ensuite »).**
+> La profondeur n'est plus un bloc monolithique greffé dans `global_tracking` (invisible) mais une
+> chaîne de 3 étages indépendants, contrôlables séparément :
+> - **ÉTAGE 1 — ANALYSE** = la **passe `depth`** du volet droit (`PassType.DEPTH`, **session-wide**,
+>   les 4 caméras en UNE ligne). GPU. Infère et **STOCKE la donnée brute** : cartes de profondeur
+>   downsamplées (float16 `.npz` sur disque, modèle `DepthFrame`) + profondeur de contact par
+>   détection (`depth_distance_m`, champ additif du JSON `detections`). **Indépendante du flag** —
+>   on lance l'analyse une fois, on la garde.
+> - **ÉTAGE 2 — CALCULS** (CPU, **re-jouable sans re-payer le GPU**) : relit `DepthFrame` → plan de
+>   sol (RANSAC) et cross-check distance. Aucun `import torch/cv2` → **exécutable sous WSL2**.
+> - **ÉTAGE 3 — AFFICHAGE** = le flag `depth_estimation` (consomme le plan profondeur vs homographie ;
+>   overlay de profondeur différé, la carte est déjà stockée pour l'alimenter).
+
 ### Pourquoi cette piste ouvre maintenant
 
 Le format s'y prête, contrairement à ce qu'on pourrait craindre d'un « 360° » : le rig est fait de
@@ -460,17 +473,26 @@ déjà en place et attaque le biais 23,5 vs 6,8 m qui avait fait débrancher l'h
 scoring reste dans `estimate_camera` → `placement_spread` calculée à l'identique pour profondeur vs
 homographie vs pinhole.
 
-**Câblage effectif (2026-08-05, 1ère passe)** :
+**Câblage effectif (2026-08-05, 1ère passe — 3 ÉTAGES)** :
 - **Couche de calcul = briques PURES du tronc commun** (`wama/common/data/functions/geometry/depth_geometry.py`,
   numpy seul) : `deproject_depth`, `fit_plane_ransac` (RANSAC + raffinement SVD), `plane_pitch_height`,
   `ground_plane_from_depth`, `contact_depth`. Auto-déclarées au **catalogue** (`geometry.depth_ground_plane`,
   `geometry.depth_contact_distance`) + type `DataType.DEPTH_MAP`. **Aucune géométrie dans `utils/`** : la règle
   §3 (logique pure ↦ `common/`, jamais dans une app) est respectée ; pas d'inversion de dépendance.
-- `utils/depth_estimator.py` = **orchestration couplée-session** seule : `load`/`estimate_depth`
-  (keep_loaded, `HF_HUB_CACHE` avant import HF, fp16, `post_process_depth_estimation`),
-  `estimate_ground_plane_ph` (décode les frames roulables → **DÉLÈGUE** déprojection/RANSAC/pitch aux briques
-  pures, applique les gardes physiques rig), `depth_distance_report`. Déclaré au catalogue en `Binding.APP`
-  (`cam_analyzer.depth_ground_plane`, `cam_analyzer.depth_distance_report`).
+- **ÉTAGE 1 (ANALYSE, GPU)** — `utils/depth_estimator.run_depth_analysis(session)`, déclenché par la
+  **passe `depth`** (`tasks.depth_analysis_task` ← `views.dispatch_map['depth']`). UNE inférence Depth Pro
+  échantillonnée (≤24 frames/cam, `load`/`estimate_depth` : keep_loaded, `HF_HUB_CACHE` avant import HF, fp16,
+  `post_process_depth_estimation`). **STOCKE la donnée brute** : (a) carte downsamplée (long-side ≤384) en
+  **float16 `.npz` disque** (`DepthFrame` + `depth_output_dir`, focale **déjà mise à l'échelle de la carte**
+  pour une déprojection auto-cohérente) ; (b) profondeur de contact `depth_distance_m` en **champ additif** du
+  JSON `DetectionFrame.detections` (calculée à pleine résolution, zéro migration). Catalogue : spec DETECTOR
+  `cam_analyzer.depth_analysis` (sortie `DEPTH_MAP` + `detections.depth_distance_m`).
+- **ÉTAGE 2 (CALCULS, CPU, re-jouable)** — `estimate_ground_plane_ph(session, pos)` **relit** `DepthFrame`
+  (`_load_depth_map`), rasterise la zone roulable à l'échelle carte, **DÉLÈGUE** déprojection/RANSAC/pitch aux
+  briques pures, applique les gardes physiques rig (hauteur 1–4 m, pitch −10…35°). `depth_distance_report(session)`
+  = **pure lecture** du champ `depth_distance_m` stocké (usages 3 + 1). **Aucun `import torch/cv2`** → sûrs sous
+  WSL2. Déclarés au catalogue `Binding.APP` `cpu_bound` (`cam_analyzer.depth_ground_plane`,
+  `cam_analyzer.depth_distance_report`), tous deux lisant `DEPTH_MAP`.
 - `homography_estimator.estimate_camera(session, pos, seed=)` : `seed` fourni → score ce couple et
   court-circuite la grille ; `store_ground_calib` lit ⚑ `depth_estimation` (ON → graine profondeur,
   repli grille si échec) et **estampe `source`** (`'depth'`/`'homographie'`) dans `ground_calib[pos]`.
@@ -480,13 +502,13 @@ homographie vs pinhole.
 - ✅ **Convention de signe du pitch VALIDÉE** (`atan2(nz, -ny)`) par test pur CPU (plan synthétique
   pitch +8,00°/hauteur 1,501 m récupérés, fit direct + round-trip carte de profondeur). Reste à confirmer
   au run la **qualité réelle** de la profondeur Depth Pro (API `transformers` + gain `placement_spread`).
-- **Usages 3 + 1 (mesure-et-rapport)** : `depth_estimator.depth_distance_report(session)` — UNE seule
-  passe Depth Pro échantillonnée (≤12 frames, partagée par les deux usages), appelée en fin de
-  `_run_global_tracking` sous le même flag. Écrit le champ **additif** `depth_distance_m` (profondeur
-  au contact-sol de la bbox) et **ne bascule aucune source** : le placement continue de venir du
-  pinhole/homographie. Deux lignes A/B console indépendantes — usage 3 : désaccord médian
-  profondeur↔pinhole et ↔homographie (m) ; usage 1 : désaccord des détections `artifact` vs propres
-  (un reflet projette une profondeur incohérente). Persisté `results_summary['depth_report']`.
+- **Usages 3 + 1 (mesure-et-rapport)** : `depth_estimator.depth_distance_report(session)` est désormais
+  **pure lecture** du champ `depth_distance_m` déjà écrit par l'ÉTAGE 1 (plus d'inférence propre : l'ancienne
+  passe Depth Pro ad hoc de `_run_global_tracking` est supprimée au profit de la passe `depth` amont).
+  **Ne bascule aucune source** : le placement continue de venir du pinhole/homographie. Deux lignes A/B console
+  indépendantes — usage 3 : désaccord médian profondeur↔pinhole et ↔homographie (m) ; usage 1 : désaccord des
+  détections `artifact` vs propres (un reflet projette une profondeur incohérente). Persisté
+  `results_summary['depth_report']`.
 - **Usages 2 et 5 différés en 2ᵉ passe** (raison, pas oubli) : la profondeur brute d'un track décroît
   quand la navette approche → statique/mobile (2) exige une profondeur **compensée de l'ego** ;
   l'ordre d'occlusion (5) exige une profondeur **ordonnée au hand-off**. Les deux méritent le run GPU

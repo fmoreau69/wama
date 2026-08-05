@@ -326,6 +326,64 @@ class DetectionFrame(models.Model):
         return f"Frame {self.frame_number} - {self.camera}"
 
 
+class DepthFrame(models.Model):
+    """
+    Étage 1 (ANALYSE) de la chaîne profondeur monoculaire : une carte de
+    profondeur métrique (Depth Pro) par frame échantillonnée, STOCKÉE sur
+    disque (npz float16, long-côté sous-échantillonné) et référencée ici.
+
+    Découplage « analyse d'abord, calculs ensuite » : cette table est la donnée
+    BRUTE ré-utilisable. Les calculs (plan de sol par RANSAC, cross-check
+    distance) la relisent SANS ré-inférence GPU ; l'overlay de profondeur et
+    les usages « véhicules stationnés / occlusion » s'en servent aussi.
+
+    Granularité : une ligne par (camera, frame_number). La profondeur de
+    contact par détection est écrite en plus dans DetectionFrame.detections
+    (champ `depth_distance_m`), au plus près de chaque bbox.
+    """
+
+    camera = models.ForeignKey(
+        CameraView,
+        on_delete=models.CASCADE,
+        related_name='depth_frames',
+    )
+    frame_number = models.IntegerField()
+    timestamp = models.FloatField(default=0.0)
+    # Focale estimée par Depth Pro (px), nécessaire à la déprojection.
+    focal_px = models.FloatField(null=True, blank=True)
+    # Chemin RELATIF à MEDIA_ROOT du .npz (clé 'depth' = carte float16 HxW en
+    # mètres). Sur disque, jamais en blob Postgres (cf. MEDIA_STORAGE_TIERING).
+    depth_path = models.CharField(max_length=512)
+    width = models.IntegerField(null=True, blank=True)
+    height = models.IntegerField(null=True, blank=True)
+    # Plage métrique (m) pour normaliser l'overlay sans relire le raster.
+    d_min = models.FloatField(null=True, blank=True)
+    d_max = models.FloatField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['camera', 'frame_number']
+        unique_together = ['camera', 'frame_number']
+        indexes = [models.Index(fields=['camera', 'frame_number'])]
+
+    def __str__(self):
+        return f"Depth {self.frame_number} - {self.camera}"
+
+    @property
+    def abs_path(self) -> str:
+        return os.path.join(settings.MEDIA_ROOT, self.depth_path)
+
+
+def depth_output_dir(camera) -> str:
+    """Dossier disque des cartes de profondeur : cam_analyzer/<user_id>/depth/<session_id>/<position>/."""
+    session = camera.session
+    user_id = session.user.id if session and session.user else 0
+    relative_dir = os.path.join('cam_analyzer', str(user_id), 'depth',
+                                str(session.id), camera.position)
+    Path(os.path.join(settings.MEDIA_ROOT, relative_dir)).mkdir(parents=True, exist_ok=True)
+    return relative_dir
+
+
 class AnalysisPass(models.Model):
     """
     Per-session record of every distinct processing step (extraction, YOLO,
@@ -347,6 +405,7 @@ class AnalysisPass(models.Model):
         LANE_EVENTS = 'lane_events', 'Évènements de voie'
         TEMPORAL_SEGMENTS = 'temporal_segments', 'Segments temporels'
         DISTANCE = 'distance', 'Distance / vitesse / TTC'
+        DEPTH = 'depth', 'Profondeur (Depth Pro)'
         GLOBAL_TRACKING = 'global_tracking', 'Tracking 360° (gids + trajectoires)'
         CONFLICTS = 'conflicts', 'Conflits'
 

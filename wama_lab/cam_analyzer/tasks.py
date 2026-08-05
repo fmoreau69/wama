@@ -1825,6 +1825,54 @@ def compute_distance_task(self, session_id: str):
 
 
 @shared_task(bind=True)
+def depth_analysis_task(self, session_id: str):
+    """Passe ANALYSE profondeur (ÉTAGE 1, Depth Pro) : inférence sur les 4 caméras → STOCKE cartes
+    (DepthFrame) + profondeur de contact (`depth_distance_m` sur les détections). Session-wide
+    (une seule ligne dans le volet, pas de sous-division par caméra).
+
+    Découplage « analyse d'abord, calculs ensuite » : cette passe ne fait AUCUN calcul dérivé. Les
+    CALCULS (plan de sol via `global_tracking`, cross-check distance via `distance`) relisent ces
+    données SANS ré-inférer. SEUL point d'inférence GPU de la chaîne profondeur (→ runtime/R760xa)."""
+    close_old_connections()
+    from .models import AnalysisSession
+    from .utils.pass_tracking import mark_started, mark_completed, mark_failed
+    from .utils import depth_estimator
+
+    try:
+        session = AnalysisSession.objects.select_related('profile').get(pk=session_id)
+        if not depth_estimator.is_available():
+            msg = 'Poids Depth Pro absents (pull_model apple/DepthPro-hf)'
+            mark_failed(session, 'depth', msg)
+            _console(session.user_id, f"Profondeur : {msg}")
+            return {'error': 'depth weights missing', 'session_id': session_id}
+        ok, err = _check_data_available(session, [])   # toute caméra analysée convient
+        if not ok:
+            mark_failed(session, 'depth', err)
+            return {'error': err, 'session_id': session_id}
+
+        mark_started(session, 'depth', session.profile)
+        _console(session.user_id, "Analyse profondeur (Depth Pro) : inférence sur les caméras…")
+        rep = depth_estimator.run_depth_analysis(session)
+        if not rep or not rep.get('maps'):
+            msg = 'Analyse profondeur sans résultat (aucune frame exploitable)'
+            mark_failed(session, 'depth', msg)
+            _console(session.user_id, f"Profondeur : {msg}")
+            return {'error': 'no depth output', 'session_id': session_id}
+        mark_completed(session, 'depth', output_summary=rep)
+        _console(session.user_id,
+                 f"Profondeur : {rep.get('maps', 0)} cartes, {rep.get('contacts', 0)} contacts "
+                 f"stockés ({rep.get('cameras', 0)} caméras) — calculs (plan/distance) relanceront dessus")
+        return {'session_id': session_id, **rep}
+    except Exception as e:
+        logger.error(f"depth_analysis_task failed: {e}", exc_info=True)
+        try:
+            mark_failed(AnalysisSession.objects.get(pk=session_id), 'depth', str(e))
+        except Exception:
+            pass
+        return {'error': str(e), 'session_id': session_id}
+
+
+@shared_task(bind=True)
 def live_analysis_task(self, session_id: str):
     """Analyse AU FIL DE LA LECTURE (étape 3 analyse incrémentale) : boucle qui suit le
     CURSEUR de lecture (posé en cache par l'endpoint `live_cursor`) et analyse les
@@ -2351,10 +2399,11 @@ def _run_global_tracking(session):
                      f"étalement stationnés RMS médian {_agg['rms_median_m']:.2f} m sur "
                      f"{_agg['n_tracks']} garés (p90 {_agg['rms_p90_m']:.2f} m) — plus bas = meilleur.")
         # ── Profondeur (⚑ depth_estimation), usages parallèles §[E] : cross-check distance
-        # (usage 3) + confirmation reflets (usage 1). MESURE-ET-RAPPORT : une seule passe Depth
-        # Pro échantillonnée, chaque usage écrit SA ligne A/B console ; champ additif
-        # `depth_distance_m`, aucune source existante basculée (chemin OFF intact). Tourne sur le
-        # worker runtime (GPU) ; interdit sous WSL2 (dev) mais le flag est OFF par défaut.
+        # (usage 3) + confirmation reflets (usage 1). ÉTAGE 2 (CALCULS) : PURE LECTURE du champ
+        # `depth_distance_m` déjà écrit par l'ÉTAGE 1 (passe `depth`, GPU, amont) — aucune inférence
+        # ici, donc CPU-safe (exécutable sous WSL2). Chaque usage écrit SA ligne A/B console ;
+        # aucune source existante basculée (chemin OFF intact). Sans passe `depth`, le rapport est
+        # simplement vide.
         try:
             if _feff(session).get('depth_estimation', False):
                 from .utils.depth_estimator import depth_distance_report

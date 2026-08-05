@@ -207,6 +207,7 @@ def get_passes_status(session) -> list[dict]:
         AnalysisPass.PassType.LANE_EVENTS,
         AnalysisPass.PassType.TEMPORAL_SEGMENTS,
         AnalysisPass.PassType.DISTANCE,
+        AnalysisPass.PassType.DEPTH,
         AnalysisPass.PassType.GLOBAL_TRACKING,
         AnalysisPass.PassType.CONFLICTS,
     ]

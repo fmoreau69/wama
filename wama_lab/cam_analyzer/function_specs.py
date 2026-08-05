@@ -93,33 +93,51 @@ _spec('placement_spread', 'Cohérence de placement (étalement stationnés)',
 # Passes couplées session qui DÉLÈGUENT tout le calcul aux briques PURES WAMA Data
 # `geometry.depth_ground_plane` / `geometry.depth_contact_distance` (patron placement_spread :
 # la brique pure est cataloguée à part, ces entrées décrivent la passe qui l'emploie).
+# Chaîne en 3 étages : ANALYSE (inférence+stockage) → CALCULS (lecture db, CPU) → AFFICHAGE (flag).
+_spec('depth_analysis', 'Analyse de profondeur (Depth Pro)',
+      "ÉTAGE 1 de la chaîne profondeur : passe `depth` du volet (session-wide, 4 caméras). Infère la "
+      "profondeur métrique (Apple Depth Pro) sur des frames échantillonnées et STOCKE la donnée brute "
+      "ré-utilisable — carte par frame (disque float16 → DepthFrame) + profondeur de contact par "
+      "détection (champ additif depth_distance_m). SEUL point d'inférence GPU ; les CALCULS "
+      "(depth_ground_plane, depth_distance_report) la relisent SANS ré-inférer.",
+      FC.DETECTOR, 'cam_analyzer.tasks:depth_analysis_task',
+      ['vision', 'gpu', 'depth', 'monocular'],
+      inputs=[PortSpec('video', DT.TABLE, description='Frames caméra (RTMaps).'),
+              PortSpec('detections', DT.DETECTIONS, required_fields=['bbox'],
+                       description='Détections (bbox → profondeur de contact).')],
+      outputs=[PortSpec('depth', DT.DEPTH_MAP, produced_fields=['focal_px'],
+                        description='Carte métrique par frame (DepthFrame, sur disque).'),
+               PortSpec('detections', DT.DETECTIONS, produced_fields=['depth_distance_m'])],
+      cost={'vram_gb': 8})
+
 _spec('depth_ground_plane', 'Plan de sol par profondeur (usage 4)',
-      "Sous ⚑ depth_estimation, la source du plan de sol devient la profondeur monoculaire "
-      "(Depth Pro → nuage déprojeté → RANSAC sur la zone roulable) au lieu de la recherche "
-      "homographique. Passe couplée session (décode les frames, lit les détections roulables, "
-      "PERSISTE ground_calib avec source='depth') déléguant à la brique pure "
-      "geometry.depth_ground_plane ; l'A/B se lit sur placement_spread (même échelle chiffrée que "
-      "homographie/pinhole). Tranché OFF par défaut, validé au 1er run GPU (signe du pitch).",
+      "ÉTAGE 2 (CALCUL, CPU) : relit les cartes stockées (DepthFrame, par depth_analysis), déprojette "
+      "la zone roulable → RANSAC (brique pure geometry.depth_ground_plane) → plan de sol. Sous ⚑ "
+      "depth_estimation, PERSISTE ground_calib avec source='depth' au lieu de la recherche "
+      "homographique ; l'A/B se lit sur placement_spread. AUCUNE ré-inférence GPU. Signe du pitch "
+      "validé (test CPU) ; gain à confirmer au 1er run GPU.",
       FC.INDICATOR, 'cam_analyzer.utils.homography_estimator:store_ground_calib',
       ['vision', 'geo', 'depth', 'monocular', 'needs-calibration'],
-      inputs=[PortSpec('detections', DT.DETECTIONS, required_fields=['bbox', 'polygon'],
-                       description='Détections + masque roulable (road_mask) par caméra.'),
+      inputs=[PortSpec('depth', DT.DEPTH_MAP, description='Cartes de profondeur stockées (DepthFrame).'),
+              PortSpec('detections', DT.DETECTIONS, required_fields=['polygon'],
+                       description='Masque roulable (road_mask) par caméra.'),
               PortSpec('track', DT.GEO_TRACK, required_fields=['lat', 'lon'])],
       outputs=[PortSpec('ground_calib', DT.SCALAR,
                         produced_fields=['pitch_deg', 'height_m', 'source'])],
-      cost={'vram_gb': 8})
+      cost={'cpu_bound': True})
 
 _spec('depth_distance_report', 'Cross-check distance & reflets par profondeur (usages 3+1)',
-      "Sous ⚑ depth_estimation, MESURE-ET-RAPPORT (ne bascule AUCUNE source) : une passe Depth Pro "
-      "échantillonnée mesure la profondeur au contact-sol des bbox (brique pure "
-      "geometry.depth_contact_distance) → champ additif depth_distance_m, 3ᵉ source de distance "
-      "indépendante (désaccord ↔pinhole / ↔homographie = usage 3 ; confirmation des reflets = "
-      "usage 1). Chaque usage écrit sa ligne A/B console ; résumé dans results_summary['depth_report'].",
+      "ÉTAGE 2 (CALCUL, CPU) : LECTURE PURE des depth_distance_m déjà stockés par depth_analysis. "
+      "MESURE-ET-RAPPORT (ne bascule AUCUNE source) : 3ᵉ source de distance indépendante (désaccord "
+      "↔pinhole / ↔homographie = usage 3 ; confirmation des reflets = usage 1). Chaque usage écrit sa "
+      "ligne A/B console ; résumé dans results_summary['depth_report']. AUCUNE ré-inférence GPU.",
       FC.ENRICHER, 'cam_analyzer.utils.depth_estimator:depth_distance_report',
       ['vision', 'geo', 'depth', 'monocular', 'ab-metric'],
-      inputs=[PortSpec('detections', DT.DETECTIONS, required_fields=['bbox', 'distance_m'])],
-      outputs=[PortSpec('detections', DT.DETECTIONS, produced_fields=['depth_distance_m'])],
-      cost={'vram_gb': 8})
+      inputs=[PortSpec('detections', DT.DETECTIONS,
+                       required_fields=['bbox', 'distance_m', 'depth_distance_m'])],
+      outputs=[PortSpec('depth_report', DT.SCALAR,
+                        produced_fields=['disagree_pinhole_m', 'disagree_homography_m'])],
+      cost={'cpu_bound': True})
 
 # ── Structure routière (apprise / marquée) ────────────────────────────────────
 _spec('learned_branches', 'Branches apprises du trafic', "Voies croisantes aux intersections apprises "

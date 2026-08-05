@@ -981,6 +981,7 @@ def run_passes(request, session_id):
             compute_temporal_segments_task,
             compute_conflict_events_task,
             analyze_sam3_only_task,
+            depth_analysis_task,
         )
         _pause_live(session_id)
         cache.delete(f"stop_cam_analyzer_{request.user.id}")
@@ -988,6 +989,7 @@ def run_passes(request, session_id):
         dispatch_map = {
             'lane_events':       compute_lane_events_task,
             'distance':          compute_distance_task,
+            'depth':             depth_analysis_task,   # ÉTAGE 1 : inférence Depth Pro → DepthFrame
             'global_tracking':   compute_global_tracking_task,
             'temporal_segments': compute_temporal_segments_task,
             'conflicts':         compute_conflict_events_task,

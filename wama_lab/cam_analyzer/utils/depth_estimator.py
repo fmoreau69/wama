@@ -1,33 +1,36 @@
 """
 Estimation de profondeur monoculaire pour cam_analyzer — modèle Apple Depth Pro.
 
-Piste documentée dans `CAM_ANALYZER_CHAINE_TRAITEMENT.md` §[E]. Ce module :
-  1. charge Depth Pro (métrique + focale estimée, natif `transformers`) en keep_loaded ;
-  2. expose `estimate_depth(frame_bgr) -> (depth_m HxW mètres, focal_px)` — brique réutilisable ;
-  3. dérive un plan de sol (pitch, hauteur) depuis le nuage de profondeur restreint à la zone
-     roulable (`estimate_ground_plane_ph`), pour le re-calage §[E]/usage 4.
+Piste documentée dans `CAM_ANALYZER_CHAINE_TRAITEMENT.md` §[E]. Chaîne en 3 ÉTAGES DÉCOUPLÉS
+(décision Fabien 2026-08-05 : « l'analyse d'abord, les calculs ensuite, l'affichage en ON/OFF ») :
 
-⚑ Portillon : le flag `depth_estimation` (défaut OFF) est le SEUL interrupteur de toute
-l'amélioration profondeur (décision 2026-08-05 : un flag global, pas de sous-flags par usage qui
-polluent la liste ⚑ Modes). Quand ON, `homography_estimator.store_ground_calib` prend la source
-profondeur au lieu de la recherche homographique ; le SCORING (`placement_spread`) reste dans
-`homography_estimator` → l'A/B profondeur↔homographie se lit sur la même échelle chiffrée.
+  ── Étage 1 · ANALYSE (GPU, coûteux) ─ `run_depth_analysis(session)` ─ passe `depth` du volet.
+     Inférence Depth Pro sur des frames échantillonnées des 4 caméras, puis STOCKAGE de la donnée
+     BRUTE ré-utilisable : carte de profondeur métrique par frame (disque, float16 sous-échantillonné
+     → `DepthFrame`), focale estimée, et profondeur de contact par détection (`depth_distance_m`).
+     SEUL point d'inférence de toute la chaîne. Brique partagée : `estimate_depth(frame) -> (depth_m, focal_px)`.
 
-⚠ GPU interdit sous WSL2 sur ce poste (crashs hôte) : l'inférence tourne côté runtime/R760xa.
-   Ce module N'A PAS été fumé au GPU ici ; le premier run réel valide (a) l'API `transformers`
-   de Depth Pro et (b) la CONVENTION de signe du pitch ci-dessous (la métrique `placement_spread`
-   en console le révèle immédiatement : un signe faux fait exploser l'étalement).
+  ── Étage 2 · CALCULS (CPU, re-jouable sans GPU) ─ relisent la db de l'étage 1, N'inférent JAMAIS :
+       · plan de sol (`estimate_ground_plane_ph`) : déprojette la zone roulable des cartes stockées,
+         ajuste le plan (briques pures) → (pitch, hauteur) pour le re-calage §[E]/usage 4 ;
+       · cross-check distance & reflets (`depth_distance_report`) : agrège les `depth_distance_m`
+         déjà stockés → métriques A/B console (usages 3 + 1). Aucune écriture.
+     Ces calculs sont consommés par les passes existantes `global_tracking` (projection) et `distance`.
+
+  ── Étage 3 · AFFICHAGE (ON/OFF) ─ le flag ⚑ `depth_estimation` bascule la consommation du plan
+     profondeur (vs homographie) dans la projection ; l'overlay de profondeur (rendu de la carte
+     stockée) est un incrément ultérieur — la carte est stockée dès maintenant pour l'alimenter.
+     Le SCORING (`placement_spread`, dans `homography_estimator`) donne l'A/B profondeur↔homographie
+     sur la même échelle chiffrée.
+
+⚠ GPU interdit sous WSL2 sur ce poste (crashs hôte) : SEUL l'étage 1 infère, côté runtime/R760xa.
+   Les étages 2 (lecture db, numpy) sont sûrs en CPU/WSL2. Le 1er run réel valide (a) l'API
+   `transformers` de Depth Pro et (b) le gain `placement_spread` ; la convention de signe du pitch
+   `atan2(nz, -ny)` est déjà VALIDÉE (test CPU pur, plan synthétique).
 
 Modèle : `apple/DepthPro-hf` déposé par `pull_model` dans `models/vision/depth-pro/`. Retenu vs DA3
 car intégration `AutoModelForDepthEstimation` sans package custom, et focale estimée qui sert
 directement le re-calage du plan de sol (cf. §[E]).
-
-Usages profondeur (tous sous le MÊME flag, parallèles / pas superposés — décision Fabien 2026-08-05) :
-  · usage 4 — re-calage du plan de sol (`estimate_ground_plane_ph`) : BASCULE la source de la calib ;
-  · usages 3 + 1 — cross-check distance & confirmation reflets (`depth_distance_report`) :
-    MESURE-ET-RAPPORT (champ additif `depth_distance_m` + métriques A/B console), ne bascule
-    aucune source existante en 1ère passe. Chaque usage écrit SA propre ligne console → observables
-    séparément même sous un flag unique.
 """
 from __future__ import annotations
 
@@ -159,11 +162,14 @@ def unload():
     return None
 
 
-# ── Géométrie pure (candidate à extraction vers common/data/functions/geometry) ───────────────
+# ── Plomberie app (rasterisation masque, I/O disque) — la géométrie est dans les briques pures ──
 
-def _rasterize_drivable(detections, h, w):
+def _rasterize_drivable(detections, h, w, sx: float = 1.0, sy: float = 1.0):
     """Masque booléen HxW des zones roulables depuis les polygones `road_mask` d'une frame.
-    Repli (aucun polygone) : tiers inférieur de l'image (proxy sol grossier)."""
+
+    (sx, sy) mettent à l'échelle les coordonnées polygone (exprimées en pixels d'ORIGINE) vers la
+    résolution cible HxW — nécessaire quand on rasterise sur une carte de profondeur STOCKÉE
+    sous-échantillonnée (étage 2). Repli (aucun polygone) : tiers inférieur de l'image (proxy sol)."""
     import cv2
     mask = np.zeros((h, w), dtype=np.uint8)
     got = False
@@ -173,7 +179,8 @@ def _rasterize_drivable(detections, h, w):
         poly = d.get('polygon')
         if not poly or len(poly) < 3:
             continue
-        pts = np.asarray(poly, dtype=np.int32).reshape(-1, 1, 2)
+        pts = np.asarray(poly, dtype=np.float32) * np.asarray([sx, sy], dtype=np.float32)
+        pts = pts.round().astype(np.int32).reshape(-1, 1, 2)
         cv2.fillPoly(mask, [pts], 1)
         got = True
     if not got:
@@ -181,75 +188,198 @@ def _rasterize_drivable(detections, h, w):
     return mask.astype(bool)
 
 
-def estimate_ground_plane_ph(session, position):
-    """(pitch_deg, height_m) du plan de sol par profondeur monoculaire, ou None (repli homographie).
+def _has_bbox_obj(d) -> bool:
+    """Détection « objet du monde » avec bbox exploitable (masques/marquages/fantômes exclus).
+    Plus permissif que `_usable_det` : n'exige PAS de distance pinhole → l'étage 1 STOCKE le maximum
+    de profondeurs de contact ; le cross-check (étage 2) filtrera ce qui a un pinhole à comparer."""
+    bb = d.get('bbox')
+    if not (isinstance(bb, (list, tuple)) and len(bb) >= 4):
+        return False
+    if d.get('type') in ('road_mask', 'sam3_marking') or d.get('predicted'):
+        return False
+    if d.get('class_name') in ('road_mask', 'sam3_marking'):
+        return False
+    return True
 
-    Convention : repère caméra X-droite, Y-bas, Z-avant. Normale-sol unitaire orientée vers le haut
-    n=(nx,ny,nz), ny<0. Pitch (piqué caméra, >0 = vers le bas) = atan2(nz, -ny) ; hauteur = distance
-    origine→plan = |d|. ⚠ signe du pitch NON validé au GPU — à confirmer au 1er run (cf. en-tête).
+
+def _save_depth_map(camera, frame_number, depth_small, focal_scaled) -> str:
+    """Persiste une carte de profondeur (déjà sous-échantillonnée) en .npz float16. Chemin RELATIF."""
+    import os
+    from ..models import depth_output_dir
+    rel_dir = depth_output_dir(camera)
+    rel_path = os.path.join(rel_dir, f"{int(frame_number):08d}.npz")
+    abs_path = os.path.join(settings.MEDIA_ROOT, rel_path)
+    np.savez_compressed(abs_path, depth=depth_small.astype(np.float16),
+                        focal=np.float32(focal_scaled or 0.0))
+    return rel_path
+
+
+def _load_depth_map(depth_frame):
+    """Relit une carte stockée (float16 → float32 HxW mètres), ou None si illisible."""
+    import os
+    abs_path = os.path.join(settings.MEDIA_ROOT, depth_frame.depth_path)
+    try:
+        with np.load(abs_path) as z:
+            return z['depth'].astype(np.float32)
+    except Exception:
+        logger.warning('[DepthPro] carte de profondeur illisible : %s', abs_path, exc_info=True)
+        return None
+
+
+def run_depth_analysis(session, *, max_frames_per_cam: int = 24,
+                       downsample_long: int = 384, device: str = 'cuda'):
+    """ÉTAGE 1 (ANALYSE) — inférence Depth Pro sur des frames échantillonnées des 4 caméras.
+
+    STOCKE la donnée BRUTE ré-utilisable, sans AUCUN calcul dérivé (plan, A/B = étage 2) :
+      · une carte de profondeur métrique par frame (disque, float16 sous-échantillonné) → DepthFrame ;
+      · la focale estimée, mise à l'échelle de la carte stockée → DepthFrame.focal_px ;
+      · la profondeur de contact par détection (PLEINE résolution) → `depth_distance_m` (JSON additif).
+    Retourne {'maps', 'contacts', 'cameras'}, ou None si indisponible.
+
+    ⚠ SEUL point d'inférence GPU de la chaîne profondeur (interdit sous WSL2 ici → runtime/R760xa).
     """
     if not is_available():
+        logger.info('[DepthPro] analyse ignorée : poids Depth Pro absents')
         return None
     try:
         import cv2
     except Exception:
         return None
+    from ..models import DepthFrame
 
+    cams = [c for c in session.cameras.all()
+            if getattr(c, 'video_file', None) and c.detections.exists()]
+    if not cams:
+        return None
+
+    n_maps = n_contacts = cams_done = 0
+    for cam in cams:
+        try:
+            video_path = cam.video_file.path
+        except Exception:
+            continue
+        rows = list(cam.detections.order_by('frame_number').values_list('frame_number', flat=True))
+        if not rows:
+            continue
+        step = max(1, len(rows) // max(1, max_frames_per_cam))
+        chosen = rows[::step][:max_frames_per_cam]
+        objs = {o.frame_number: o for o in
+                cam.detections.filter(frame_number__in=chosen)
+                   .only('frame_number', 'detections', 'timestamp')}
+
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            continue
+        try:
+            for fn in chosen:
+                cap.set(cv2.CAP_PROP_POS_FRAMES, int(fn))
+                ok, frame = cap.read()
+                if not ok or frame is None:
+                    continue
+                h, w = frame.shape[:2]
+                try:
+                    depth_m, focal_px = estimate_depth(frame, device)
+                except Exception:
+                    logger.warning('[DepthPro] estimate_depth a échoué (frame %s)', fn, exc_info=True)
+                    continue
+                if depth_m is None:
+                    continue
+                if depth_m.shape != (h, w):
+                    depth_m = cv2.resize(depth_m, (w, h), interpolation=cv2.INTER_NEAREST)
+
+                # (a) Profondeur de contact par détection — PLEINE résolution (bbox en px d'origine).
+                obj = objs.get(fn)
+                if obj is not None:
+                    changed = False
+                    for d in (obj.detections or []):
+                        if not _has_bbox_obj(d):
+                            continue
+                        dd = contact_depth(depth_m, d['bbox'])   # brique pure (contact-sol)
+                        if dd is None:
+                            continue
+                        d['depth_distance_m'] = round(dd, 2)     # champ ADDITIF (n'écrase rien)
+                        changed = True
+                        n_contacts += 1
+                    if changed:
+                        try:
+                            obj.save(update_fields=['detections'])
+                        except Exception:
+                            logger.warning('[DepthPro] save detections %s échoué', fn, exc_info=True)
+
+                # (b) Carte sous-échantillonnée (long-côté ≤ downsample_long) → disque + DepthFrame.
+                s = min(1.0, float(downsample_long) / max(h, w)) if max(h, w) > 0 else 1.0
+                if s < 1.0:
+                    small = cv2.resize(depth_m, (max(1, round(w * s)), max(1, round(h * s))),
+                                       interpolation=cv2.INTER_NEAREST)
+                else:
+                    small = depth_m
+                sh, sw = small.shape[:2]
+                # Focale mise à l'échelle de la carte stockée : déprojection cohérente sans w d'origine.
+                focal_scaled = (focal_px or 0.8 * w) * (sw / float(w))
+                rel_path = _save_depth_map(cam, fn, small, focal_scaled)
+                _dmin = float(np.nanmin(small)) if small.size else None
+                _dmax = float(np.nanmax(small)) if small.size else None
+                DepthFrame.objects.update_or_create(
+                    camera=cam, frame_number=int(fn),
+                    defaults={
+                        'timestamp': float(getattr(obj, 'timestamp', 0.0) or 0.0),
+                        'focal_px': round(float(focal_scaled), 3),
+                        'depth_path': rel_path,
+                        'width': sw, 'height': sh,
+                        'd_min': None if _dmin is None else round(_dmin, 3),
+                        'd_max': None if _dmax is None else round(_dmax, 3),
+                    })
+                n_maps += 1
+        finally:
+            cap.release()
+        cams_done += 1
+        logger.info('[DepthPro] analyse %s : cumul %d cartes, %d contacts', cam.position,
+                    n_maps, n_contacts)
+
+    return {'maps': n_maps, 'contacts': n_contacts, 'cameras': cams_done}
+
+
+def estimate_ground_plane_ph(session, position):
+    """ÉTAGE 2 (CALCUL) — (pitch_deg, height_m) du plan de sol, ou None (repli homographie).
+
+    Relit les cartes de profondeur DÉJÀ stockées par l'étage 1 (`run_depth_analysis` → DepthFrame) :
+    AUCUNE inférence GPU ici (sûr en CPU/WSL2). Déprojette la zone roulable de chaque carte (brique
+    pure), cumule le nuage, ajuste le plan (RANSAC + SVD, brique pure), en tire pitch/hauteur.
+
+    Convention : repère caméra X-droite, Y-bas, Z-avant. Normale-sol orientée haut (ny<0). Pitch
+    (piqué caméra, >0 = vers le bas) = atan2(nz, -ny) ; hauteur = |offset|. Signe VALIDÉ (test CPU pur).
+    """
     cam = session.cameras.filter(position=position).first()
-    if cam is None or not getattr(cam, 'video_file', None):
+    if cam is None:
         return None
-    try:
-        video_path = cam.video_file.path
-    except Exception:
-        return None
+    dframes = list(cam.depth_frames.order_by('frame_number'))
+    if not dframes:
+        return None   # étage 1 pas encore lancé → repli homographie
 
-    # Frames de calibration : celles qui portent un masque roulable (road_mask), échantillonnées
-    # (budget = frames de calibration seulement, pas toute la vidéo). Repli : frames avec détections.
-    rows = list(cam.detections.order_by('frame_number')
-                .values_list('frame_number', 'detections'))
-    if not rows:
-        return None
-    with_road = [(fn, det) for fn, det in rows
-                 if any(d.get('type') == 'road_mask' for d in (det or []))]
-    pool = with_road or rows
-    n_cal = min(8, len(pool))
-    step = max(1, len(pool) // n_cal)
-    chosen = pool[::step][:n_cal]
-
-    cap = cv2.VideoCapture(video_path)
-    if not cap.isOpened():
-        return None
+    det_by_fn = dict(cam.detections
+                     .filter(frame_number__in=[d.frame_number for d in dframes])
+                     .values_list('frame_number', 'detections'))
+    ow, oh = (cam.width or 0), (cam.height or 0)
     all_pts = []
     frames_used = 0
-    try:
-        for frame_number, det in chosen:
-            cap.set(cv2.CAP_PROP_POS_FRAMES, int(frame_number))
-            ok, frame = cap.read()
-            if not ok or frame is None:
-                continue
-            h, w = frame.shape[:2]
-            try:
-                depth_m, focal_px = estimate_depth(frame)
-            except Exception:
-                logger.warning('[DepthPro] estimate_depth a échoué (frame %s)', frame_number,
-                               exc_info=True)
-                continue
-            if depth_m is None:
-                continue
-            # Rééchelle si la profondeur ne fait pas exactement HxW (sécurité).
-            if depth_m.shape != (h, w):
-                depth_m = cv2.resize(depth_m, (w, h), interpolation=cv2.INTER_NEAREST)
-            # Déprojection (brique pure) : nuage 3D restreint à la zone roulable, plage route
-            # utile. La focale de repli (~0,8·W) et le centre optique sont gérés dans la brique.
-            drivable = _rasterize_drivable(det, h, w)
-            pts = deproject_depth(depth_m, focal_px, mask=drivable,
-                                  z_min=1.5, z_max=60.0, max_points=4000)
-            if len(pts) < 50:
-                continue
-            all_pts.append(pts)
-            frames_used += 1
-    finally:
-        cap.release()
+    for df in dframes:
+        depth = _load_depth_map(df)
+        if depth is None:
+            continue
+        h, w = depth.shape[:2]
+        focal_px = df.focal_px or (0.8 * w)   # focale DÉJÀ à l'échelle de la carte stockée
+        # Masque roulable à l'échelle de la carte : polygones en px d'origine → (sx, sy).
+        if ow and oh:
+            drivable = _rasterize_drivable(det_by_fn.get(df.frame_number), h, w,
+                                           sx=w / float(ow), sy=h / float(oh))
+        else:
+            drivable = _rasterize_drivable([], h, w)   # dims caméra inconnues → proxy bas d'image
+        pts = deproject_depth(depth, focal_px, mask=drivable,
+                              z_min=1.5, z_max=60.0, max_points=4000)
+        if len(pts) < 50:
+            continue
+        all_pts.append(pts)
+        frames_used += 1
 
     if frames_used < 2 or not all_pts:
         return None
@@ -265,7 +395,7 @@ def estimate_ground_plane_ph(session, position):
         logger.info('[DepthPro] plan de sol hors plage (pitch=%.1f°, h=%.2f m) — repli homographie',
                     pitch_deg, height_m)
         return None
-    logger.info('[DepthPro] plan de sol %s : pitch=%.2f° h=%.2f m (%d inliers, %d frames)',
+    logger.info('[DepthPro] plan de sol %s : pitch=%.2f° h=%.2f m (%d inliers, %d cartes stockées)',
                 position, pitch_deg, height_m, n_inl, frames_used)
     return (round(pitch_deg, 2), round(height_m, 3))
 
@@ -284,12 +414,12 @@ def _usable_det(d):
 
 
 def depth_distance_report(session, max_frames=12):
-    """Post-passe profondeur MULTI-USAGE (⚑ depth_estimation) — MESURE-ET-RAPPORT, 1ère passe.
+    """ÉTAGE 2 (CALCUL) — cross-check distance MULTI-USAGE, MESURE-ET-RAPPORT. Lecture PURE.
 
-    Une SEULE inférence Depth Pro par frame échantillonnée, partagée par plusieurs usages §[E]
-    (parallèles, pas superposés). N'écrit que le champ ADDITIF `depth_distance_m` sur les
-    détections échantillonnées et des métriques A/B console ; ne bascule AUCUNE source existante
-    (le chemin OFF et les distances pinhole/homographie restent intacts).
+    N'infère RIEN : agrège les `depth_distance_m` DÉJÀ stockés par l'étage 1 (`run_depth_analysis`)
+    sur les détections, et en tire des métriques A/B console. Ne bascule AUCUNE source existante
+    (chemin OFF et distances pinhole/homographie intacts). Sûr en CPU/WSL2, re-jouable à volonté.
+    `max_frames` est conservé pour compat d'appel mais IGNORÉ (on lit tout le stock, pas d'échantillonnage).
 
     Usages couverts (chacun sa ligne console → observables séparément sous le flag unique) :
       · usage 3 (réciproque du pinhole) : profondeur métrique au contact-sol de la bbox = 3ᵉ
@@ -301,91 +431,35 @@ def depth_distance_report(session, max_frames=12):
     Retourne un dict de métriques (aussi persisté par l'appelant dans
     results_summary['depth_report']), ou None si indisponible/insuffisant.
     """
-    if not is_available():
-        logger.info('[DepthPro] cross-check distance ignoré : poids absents')
-        return None
-    try:
-        import cv2
-    except Exception:
-        return None
-
-    cams = [c for c in session.cameras.all()
-            if getattr(c, 'video_file', None) and c.detections.exists()]
-    if not cams:
-        return None
-    budget = max(1, max_frames // len(cams))
-
     diffs_pin, diffs_hom = [], []          # usage 3 : |profondeur − pinhole| / − homographie
     art_pin, clean_pin = [], []            # usage 1 : |profondeur − pinhole| reflets vs propres
     frames_used = 0
     n_obj = 0
 
-    for cam in cams:
-        try:
-            video_path = cam.video_file.path
-        except Exception:
-            continue
-        rows = list(cam.detections.order_by('frame_number')
-                    .values_list('frame_number', 'detections'))
-        cand = [fn for fn, det in rows if any(_usable_det(d) for d in (det or []))]
-        if not cand:
-            continue
-        step = max(1, len(cand) // budget)
-        chosen_fns = cand[::step][:budget]
-        objs = {o.frame_number: o for o in
-                cam.detections.filter(frame_number__in=chosen_fns).only('frame_number', 'detections')}
-
-        cap = cv2.VideoCapture(video_path)
-        if not cap.isOpened():
-            continue
-        touched = []
-        try:
-            for fn in chosen_fns:
-                obj = objs.get(fn)
-                if obj is None:
+    # Lecture PURE : n'agrège que ce que l'étage 1 (`run_depth_analysis`) a déjà écrit
+    # (`depth_distance_m` sur les détections). Aucune inférence GPU, aucune écriture — sûr en
+    # CPU/WSL2, re-jouable à volonté. Sans analyse préalable → aucune donnée → None (repli).
+    for cam in session.cameras.all():
+        for fn, det in (cam.detections.order_by('frame_number')
+                        .values_list('frame_number', 'detections')):
+            hit = False
+            for d in (det or []):
+                dd = d.get('depth_distance_m')
+                if dd is None or not _usable_det(d):
                     continue
-                cap.set(cv2.CAP_PROP_POS_FRAMES, int(fn))
-                ok, frame = cap.read()
-                if not ok or frame is None:
-                    continue
-                h, w = frame.shape[:2]
-                try:
-                    depth_m, _focal = estimate_depth(frame)
-                except Exception:
-                    logger.warning('[DepthPro] estimate_depth a échoué (frame %s)', fn, exc_info=True)
-                    continue
-                if depth_m is None:
-                    continue
-                if depth_m.shape != (h, w):
-                    depth_m = cv2.resize(depth_m, (w, h), interpolation=cv2.INTER_NEAREST)
-                changed = False
-                for d in (obj.detections or []):
-                    if not _usable_det(d):
-                        continue
-                    dd = contact_depth(depth_m, d['bbox'])   # brique pure (contact-sol)
-                    if dd is None:
-                        continue
-                    d['depth_distance_m'] = round(dd, 2)   # champ ADDITIF (n'écrase rien)
-                    changed = True
-                    n_obj += 1
-                    pin = d.get('distance_m')
-                    if pin:
-                        e = abs(dd - float(pin))
-                        diffs_pin.append(e)
-                        (art_pin if d.get('artifact') else clean_pin).append(e)
-                    hom = d.get('dist_euclid_m') or d.get('dist_longitudinal_m')
-                    if hom:
-                        diffs_hom.append(abs(dd - float(hom)))
-                if changed:
-                    touched.append(obj)
+                hit = True
+                n_obj += 1
+                dd = float(dd)
+                pin = d.get('distance_m')
+                if pin:
+                    e = abs(dd - float(pin))
+                    diffs_pin.append(e)
+                    (art_pin if d.get('artifact') else clean_pin).append(e)
+                hom = d.get('dist_euclid_m') or d.get('dist_longitudinal_m')
+                if hom:
+                    diffs_hom.append(abs(dd - float(hom)))
+            if hit:
                 frames_used += 1
-        finally:
-            cap.release()
-        for obj in touched:
-            try:
-                obj.save(update_fields=['detections'])
-            except Exception:
-                logger.warning('[DepthPro] save detections %s échoué', obj.frame_number, exc_info=True)
 
     if frames_used < 1 or not diffs_pin:
         logger.info('[DepthPro] cross-check distance : pas assez d\'observations')
