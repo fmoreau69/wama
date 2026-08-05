@@ -378,8 +378,10 @@ par côté). Règle : **jamais de if ad hoc dispersé** pour une amélioration c
 >   downsamplées (float16 `.npz` sur disque, modèle `DepthFrame`) + profondeur de contact par
 >   détection (`depth_distance_m`, champ additif du JSON `detections`). **Indépendante du flag** —
 >   on lance l'analyse une fois, on la garde.
-> - **ÉTAGE 2 — CALCULS** (CPU, **re-jouable sans re-payer le GPU**) : relit `DepthFrame` → plan de
->   sol (RANSAC) et cross-check distance. Aucun `import torch/cv2` → **exécutable sous WSL2**.
+> - **ÉTAGE 2 — CALCULS** = la **passe `depth_calc`** du volet (`compute_depth_calc_task`, session-wide,
+>   juste après `depth`, avant `global_tracking`). CPU, **re-jouable sans re-payer le GPU** : relit
+>   `DepthFrame` → plan de sol (RANSAC, `store_ground_calib`) et cross-check distance
+>   (`depth_distance_report`). Aucun `import torch/cv2` → **exécutable sous WSL2**.
 > - **ÉTAGE 3 — AFFICHAGE** = le flag `depth_estimation` (consomme le plan profondeur vs homographie ;
 >   overlay de profondeur différé, la carte est déjà stockée pour l'alimenter).
 
@@ -480,19 +482,22 @@ homographie vs pinhole.
   `geometry.depth_contact_distance`) + type `DataType.DEPTH_MAP`. **Aucune géométrie dans `utils/`** : la règle
   §3 (logique pure ↦ `common/`, jamais dans une app) est respectée ; pas d'inversion de dépendance.
 - **ÉTAGE 1 (ANALYSE, GPU)** — `utils/depth_estimator.run_depth_analysis(session)`, déclenché par la
-  **passe `depth`** (`tasks.depth_analysis_task` ← `views.dispatch_map['depth']`). UNE inférence Depth Pro
+  **passe `depth`** (`tasks.compute_depth_task` ← `views.dispatch_map['depth']`). UNE inférence Depth Pro
   échantillonnée (≤24 frames/cam, `load`/`estimate_depth` : keep_loaded, `HF_HUB_CACHE` avant import HF, fp16,
   `post_process_depth_estimation`). **STOCKE la donnée brute** : (a) carte downsamplée (long-side ≤384) en
   **float16 `.npz` disque** (`DepthFrame` + `depth_output_dir`, focale **déjà mise à l'échelle de la carte**
   pour une déprojection auto-cohérente) ; (b) profondeur de contact `depth_distance_m` en **champ additif** du
   JSON `DetectionFrame.detections` (calculée à pleine résolution, zéro migration). Catalogue : spec DETECTOR
   `cam_analyzer.depth_analysis` (sortie `DEPTH_MAP` + `detections.depth_distance_m`).
-- **ÉTAGE 2 (CALCULS, CPU, re-jouable)** — `estimate_ground_plane_ph(session, pos)` **relit** `DepthFrame`
-  (`_load_depth_map`), rasterise la zone roulable à l'échelle carte, **DÉLÈGUE** déprojection/RANSAC/pitch aux
-  briques pures, applique les gardes physiques rig (hauteur 1–4 m, pitch −10…35°). `depth_distance_report(session)`
+- **ÉTAGE 2 (CALCULS, CPU, re-jouable)** — passe `depth_calc` (`compute_depth_calc_task`) : orchestre les deux
+  calculs dérivés. (a) `store_ground_calib(session)` → pour chaque caméra `estimate_ground_plane_ph(session, pos)`
+  **relit** `DepthFrame` (`_load_depth_map`), rasterise la zone roulable à l'échelle carte, **DÉLÈGUE**
+  déprojection/RANSAC/pitch aux briques pures, applique les gardes physiques rig (hauteur 1–4 m, pitch −10…35°),
+  et estampe `source='depth'` dans `ground_calib` (repli homographie si ⚑ OFF/échec). (b) `depth_distance_report(session)`
   = **pure lecture** du champ `depth_distance_m` stocké (usages 3 + 1). **Aucun `import torch/cv2`** → sûrs sous
-  WSL2. Déclarés au catalogue `Binding.APP` `cpu_bound` (`cam_analyzer.depth_ground_plane`,
-  `cam_analyzer.depth_distance_report`), tous deux lisant `DEPTH_MAP`.
+  WSL2, d'où une passe re-jouable à volonté. Briques déclarées au catalogue `Binding.APP` `cpu_bound`
+  (`cam_analyzer.depth_ground_plane`, `cam_analyzer.depth_distance_report`), toutes deux lisant `DEPTH_MAP`.
+  Le tracking (`global_tracking`) consomme ensuite la calib pré-stockée (recalcule seulement si la source diffère).
 - `homography_estimator.estimate_camera(session, pos, seed=)` : `seed` fourni → score ce couple et
   court-circuite la grille ; `store_ground_calib` lit ⚑ `depth_estimation` (ON → graine profondeur,
   repli grille si échec) et **estampe `source`** (`'depth'`/`'homographie'`) dans `ground_calib[pos]`.

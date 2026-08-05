@@ -100,7 +100,7 @@ _spec('depth_analysis', 'Analyse de profondeur (Depth Pro)',
       "ré-utilisable — carte par frame (disque float16 → DepthFrame) + profondeur de contact par "
       "détection (champ additif depth_distance_m). SEUL point d'inférence GPU ; les CALCULS "
       "(depth_ground_plane, depth_distance_report) la relisent SANS ré-inférer.",
-      FC.DETECTOR, 'cam_analyzer.tasks:depth_analysis_task',
+      FC.DETECTOR, 'cam_analyzer.tasks:compute_depth_task',
       ['vision', 'gpu', 'depth', 'monocular'],
       inputs=[PortSpec('video', DT.TABLE, description='Frames caméra (RTMaps).'),
               PortSpec('detections', DT.DETECTIONS, required_fields=['bbox'],

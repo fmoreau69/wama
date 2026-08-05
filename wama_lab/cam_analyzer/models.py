@@ -406,6 +406,7 @@ class AnalysisPass(models.Model):
         TEMPORAL_SEGMENTS = 'temporal_segments', 'Segments temporels'
         DISTANCE = 'distance', 'Distance / vitesse / TTC'
         DEPTH = 'depth', 'Profondeur (Depth Pro)'
+        DEPTH_CALC = 'depth_calc', 'Calculs profondeur (plan de sol / distances)'
         GLOBAL_TRACKING = 'global_tracking', 'Tracking 360° (gids + trajectoires)'
         CONFLICTS = 'conflicts', 'Conflits'
 

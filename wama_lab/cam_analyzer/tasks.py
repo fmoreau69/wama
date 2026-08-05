@@ -1825,14 +1825,15 @@ def compute_distance_task(self, session_id: str):
 
 
 @shared_task(bind=True)
-def depth_analysis_task(self, session_id: str):
+def compute_depth_task(self, session_id: str):
     """Passe ANALYSE profondeur (ÉTAGE 1, Depth Pro) : inférence sur les 4 caméras → STOCKE cartes
     (DepthFrame) + profondeur de contact (`depth_distance_m` sur les détections). Session-wide
     (une seule ligne dans le volet, pas de sous-division par caméra).
 
     Découplage « analyse d'abord, calculs ensuite » : cette passe ne fait AUCUN calcul dérivé. Les
-    CALCULS (plan de sol via `global_tracking`, cross-check distance via `distance`) relisent ces
-    données SANS ré-inférer. SEUL point d'inférence GPU de la chaîne profondeur (→ runtime/R760xa)."""
+    CALCULS (plan de sol + cross-check distance) relisent ces données SANS ré-inférer — passe
+    `depth_calc`/`compute_depth_calc_task` (ÉTAGE 2, CPU, re-jouable). SEUL point d'inférence GPU de
+    la chaîne profondeur (→ runtime/R760xa). Nommée `compute_*_task` comme la famille des passes."""
     close_old_connections()
     from .models import AnalysisSession
     from .utils.pass_tracking import mark_started, mark_completed, mark_failed
@@ -1864,9 +1865,63 @@ def depth_analysis_task(self, session_id: str):
                  f"stockés ({rep.get('cameras', 0)} caméras) — calculs (plan/distance) relanceront dessus")
         return {'session_id': session_id, **rep}
     except Exception as e:
-        logger.error(f"depth_analysis_task failed: {e}", exc_info=True)
+        logger.error(f"compute_depth_task failed: {e}", exc_info=True)
         try:
             mark_failed(AnalysisSession.objects.get(pk=session_id), 'depth', str(e))
+        except Exception:
+            pass
+        return {'error': str(e), 'session_id': session_id}
+
+
+@shared_task(bind=True)
+def compute_depth_calc_task(self, session_id: str):
+    """Passe CALCULS profondeur (ÉTAGE 2, CPU, re-jouable). RELIT les DepthFrame stockées par la passe
+    `depth` (ÉTAGE 1) et DÉRIVE, SANS ré-inférer : (a) le plan de sol par caméra (RANSAC sur la zone
+    roulable → `ground_calib` source='depth' quand ⚑ depth_estimation est ON) via `store_ground_calib`,
+    (b) le cross-check distance profondeur↔pinhole/homographie (`depth_report`) via `depth_distance_report`.
+
+    Découplage « analyse d'abord, calculs ensuite » : on lance l'analyse (GPU) UNE fois, puis on relance
+    ces calculs autant qu'on veut (CPU, aucun import torch/cv2 → sûr sous WSL2). Session-wide."""
+    close_old_connections()
+    from .models import AnalysisSession, DepthFrame
+    from .utils.pass_tracking import mark_started, mark_completed, mark_failed
+    from .utils import depth_estimator
+    from .utils.homography_estimator import store_ground_calib
+
+    try:
+        session = AnalysisSession.objects.select_related('profile').get(pk=session_id)
+        if not DepthFrame.objects.filter(camera__session=session).exists():
+            msg = "Aucune carte de profondeur : lancer d'abord la passe « Profondeur (analyse) »"
+            mark_failed(session, 'depth_calc', msg)
+            _console(session.user_id, f"Calculs profondeur : {msg}")
+            return {'error': 'no depth frames', 'session_id': session_id}
+
+        mark_started(session, 'depth_calc', session.profile)
+        _console(session.user_id, "Calculs profondeur (ÉTAGE 2, CPU) : plan de sol + cross-check distance…")
+
+        # (a) Plan de sol par caméra depuis la profondeur (repli homographie si depth OFF/échec).
+        calib = store_ground_calib(session)
+        n_depth = sum(1 for v in (calib or {}).values()
+                      if isinstance(v, dict) and v.get('source') == 'depth')
+
+        # (b) Cross-check distance (pure lecture du champ `depth_distance_m` stocké à l'ÉTAGE 1).
+        rep = depth_estimator.depth_distance_report(session)
+        rs = session.results_summary or {}
+        if rep:
+            rs['depth_report'] = rep
+            session.results_summary = rs
+            session.save(update_fields=['results_summary'])
+
+        summary = {'ground_calib': calib, 'planes_from_depth': n_depth, 'depth_report': rep}
+        mark_completed(session, 'depth_calc', output_summary=summary)
+        _console(session.user_id,
+                 f"Calculs profondeur : {n_depth} plan(s) de sol issus de la profondeur ; "
+                 f"cross-check distance {'écrit' if rep else 'sans donnée'} — le tracking consommera la calib")
+        return {'session_id': session_id, **summary}
+    except Exception as e:
+        logger.error(f"compute_depth_calc_task failed: {e}", exc_info=True)
+        try:
+            mark_failed(AnalysisSession.objects.get(pk=session_id), 'depth_calc', str(e))
         except Exception:
             pass
         return {'error': str(e), 'session_id': session_id}
