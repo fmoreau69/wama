@@ -17,10 +17,7 @@
 
     const CFG = window.IMAGER_CARD || {};
 
-    function toast(msg, type) {
-        if (window.WamaApp && WamaApp.toast) WamaApp.toast(msg, type || 'info');
-        else console.log('[imager card]', msg);
-    }
+    function toast(msg, type) { WamaApp.toast(msg, type || 'info'); }   // brique globale
 
     function isBatchFile(f) { return /\.(txt|csv)$/i.test(f.name || ''); }
     function isImageFile(f) { return (f.type || '').indexOf('image/') === 0; }
@@ -169,7 +166,7 @@
             if (hasRef) fd.append('reference_image', refInput.files[0]);
 
             btn.disabled = true;
-            fetch(CFG.urls.create, { method: 'POST', headers: { 'X-CSRFToken': CFG.csrf }, body: fd })
+            WamaApp.csrfFetch(CFG.urls.create, CFG.csrf, { method: 'POST', body: fd })
                 .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; }); })
                 .then(function (res) {
                     if (!res.ok || res.j.error) throw new Error(res.j.error || 'Création impossible');
@@ -177,7 +174,7 @@
                     // remplacé par card_html/refreshCard au palier « fondation file »).
                     window.location.reload();
                 })
-                .catch(function (e) { toast(e.message || 'Erreur de création', 'danger'); btn.disabled = false; });
+                .catch(function (e) { toast(e.message || 'Erreur de création', 'error'); btn.disabled = false; });
         });
     }
 
