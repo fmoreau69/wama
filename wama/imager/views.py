@@ -143,6 +143,36 @@ def index(request):
     # image→vidéo (cogvideox-5b-i2v) autant que les texte→vidéo. Le tirage, lui, demande la
     # tâche précise ('t2v' ou 'i2v') plus bas.
     video_models, video_models_info = get_registry_models('imager', modality='video')
+
+    # ── Card d'entrée commune (une instance PAR DOMAINE) ─────────────────────────
+    # Groupes du <select> modèle : la catégorie ('logo') vient des CAPACITÉS catalogue
+    # (optgroup, jamais un onglet) ; méta d'appariement entrée↔modèle pour
+    # wama-input-match (inputs_required/optional déclarés au manifeste → catalogue).
+    def _mz(d):
+        return {'id': d.get('id'), 'name': d.get('name') or d.get('id'),
+                'vram': d.get('vram') or '', 'description': d.get('description') or ''}
+
+    def _cat(d):
+        return d.get('category') or (d.get('capabilities') or {}).get('category')
+
+    _logo_models = [d for d in models_info if _cat(d) == 'logo']
+    _plain_image = [d for d in models_info if _cat(d) != 'logo']
+    image_model_groups = [{'label': 'Images', 'models': [_mz(d) for d in _plain_image]}]
+    if _logo_models:
+        image_model_groups.append({'label': 'Logos', 'models': [_mz(d) for d in _logo_models]})
+    video_model_groups = [{'label': 'Vidéos', 'models': [_mz(d) for d in video_models_info]}]
+
+    input_match_meta = {}
+    for d in list(models_info) + list(video_models_info):
+        _caps = d.get('capabilities') or {}
+        input_match_meta[d['id']] = {
+            'label': d.get('name') or d['id'],
+            'inputs_required': _caps.get('inputs_required') or [],
+            'inputs_optional': _caps.get('inputs_optional') or [],
+        }
+    from wama.common.utils.app_modes import INPUT_TYPES as _INPUT_TYPES
+    input_labels = {k: (v.get('label') or k) for k, v in _INPUT_TYPES.items()}
+
     # Separate image and video generations
     image_generations = generations.exclude(generation_mode__in=['txt2vid', 'img2vid'])
     video_generations = generations.filter(generation_mode__in=['txt2vid', 'img2vid'])
@@ -162,6 +192,11 @@ def index(request):
         'image_modes': image_modes,
         'video_modes': video_modes,
         'generation_modes': image_modes,  # Keep for backward compatibility
+        # Card d'entrée commune (une par domaine) — groupes du select + appariement.
+        'image_model_groups': image_model_groups,
+        'video_model_groups': video_model_groups,
+        'input_match_meta': json.dumps(input_match_meta),
+        'input_labels': json.dumps(input_labels),
     }
 
     return render(request, 'imager/index.html', context)

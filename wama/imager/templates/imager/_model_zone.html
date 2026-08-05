@@ -1,0 +1,31 @@
+{% comment %}
+Zone modèle de la card d'entrée Imager — hook `extra_zone_template` de common/_new_item_card.html.
+Une instance PAR DOMAINE (préfixe mz_prefix) : option Auto (tirage VRAM-aware résolu AU LANCEMENT,
+cf. utils/auto_model.py) + groupes servis par la vue (domaine image → « Images »/« Logos » ;
+domaine vidéo → « Vidéos »). La catégorie logo vient des capacités catalogue — optgroup, pas onglet.
+L'appariement entrée↔modèle (wama-input-match) et l'aide (wama-model-help) se branchent sur ces
+ids dans input_card.js.
+Contexte attendu : mz_prefix ('img'|'vid'),
+                   mz_groups = [{'label', 'models': [{id, name, vram, description}]}].
+{% endcomment %}
+{% comment %} Chip du fichier de prompts (batch .txt/.csv) — rempli par input_card.js ; hors
+appariement : c'est une affordance de card, aucun modèle ne « requiert » un prompt_file. {% endcomment %}
+<span id="{{ mz_prefix }}BatchChip" class="d-block mt-2" style="display:none"></span>
+<div class="mt-2">
+  <label class="form-label small mb-1" for="{{ mz_prefix }}ModelSelect">
+    <i class="fas fa-microchip me-1"></i>Modèle
+  </label>
+  <select class="form-select form-select-sm" id="{{ mz_prefix }}ModelSelect" name="model">
+    <option value="auto" selected>Auto (selon la VRAM et les entrées)</option>
+    {% for g in mz_groups %}
+    <optgroup label="{{ g.label }}">
+      {% for m in g.models %}
+      <option value="{{ m.id }}" {% if m.description %}title="{{ m.description }}"{% endif %}>
+        {{ m.name }}{% if m.vram %} — {{ m.vram }}{% endif %}
+      </option>
+      {% endfor %}
+    </optgroup>
+    {% endfor %}
+  </select>
+  <div id="{{ mz_prefix }}ModelHelp" class="form-text small mt-1"></div>
+</div>

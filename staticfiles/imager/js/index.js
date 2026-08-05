@@ -376,6 +376,9 @@
      * Update visibility of mode-specific sections
      */
     function updateModeVisibility() {
+        // Formulaire legacy absent (card d'entrée commune) → no-op, sinon TypeError
+        // sur getElementById qui tuerait toute la chaîne d'init (dont le polling file).
+        if (!document.querySelector('.mode-section')) return;
         // Hide all mode sections
         document.querySelectorAll('.mode-section').forEach(section => {
             section.style.display = 'none';
