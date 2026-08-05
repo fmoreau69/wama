@@ -448,11 +448,11 @@ ON, chaque usage porté s'active.
 
 | Usage [E] | Point d'accroche pipeline | Métrique A/B | État |
 |---|---|---|---|
-| **4. Re-calage plan de sol** *(PoC #1)* | `store_ground_calib` → `estimate_camera(..., seed=)` (graine profondeur, scoring inchangé) | **#1 `placement_spread`** | ✅ **câblé** (non fumé GPU) |
-| **3. Réciproque du pinhole** | ego `multicam_tracker.py:200-206` / distance `tasks.py:1379-1392` (`distance_source`) | #2 désaccord inter-sources (depth = 3ᵉ source) | ⏳ conception |
-| **5. Ordre d'occlusion** | logique hand-off du tracker | #3 discontinuité au hand-off | ⏳ conception |
-| **2. Statique vs mobile** | détection stationnés `multicam_tracker.py:414-425` | stabilité classif. statique/mobile | ⏳ conception |
-| **1. Reflets** (limite n°7) | complète/concurrence `artifact_filter` | taux de faux reflets vs `artifact_filter` | ⏳ conception |
+| **4. Re-calage plan de sol** *(PoC #1)* | `store_ground_calib` → `estimate_camera(..., seed=)` (graine profondeur, scoring inchangé) | **#1 `placement_spread`** | ✅ **câblé, BASCULE** (non fumé GPU) |
+| **3. Réciproque du pinhole** | `depth_distance_report` (post-tracking) → champ `depth_distance_m` | désaccord médian profondeur↔pinhole / ↔homographie | ✅ **mesure-et-rapport** (non fumé GPU) |
+| **1. Reflets** (limite n°7) | `depth_distance_report` : désaccord des `artifact` vs propres | reflet_pinhole_m vs clean_pinhole_m | ✅ **mesure-et-rapport** (non fumé GPU) |
+| **5. Ordre d'occlusion** | logique hand-off du tracker | #3 discontinuité au hand-off | ⏳ conception (profondeur ordonnée au hand-off — 2ᵉ passe) |
+| **2. Statique vs mobile** | détection stationnés `multicam_tracker.py:405-425` | stabilité classif. statique/mobile | ⏳ conception (exige profondeur COMPENSÉE de l'ego — 2ᵉ passe) |
 
 **Ordre de déroulé** : usage **4 d'abord** (fait, 1ère passe) — il se valide sur `placement_spread`
 déjà en place et attaque le biais 23,5 vs 6,8 m qui avait fait débrancher l'homographie ([3]). A/B
@@ -471,6 +471,17 @@ homographie vs pinhole.
   console `plan de sol : profondeur | homographie | pinhole`.
 - ⚠ **Convention de signe du pitch NON validée** (`atan2(nz, -ny)`) : un signe faux se lit
   **immédiatement** sur `placement_spread` — 1er point à vérifier au run.
+- **Usages 3 + 1 (mesure-et-rapport)** : `depth_estimator.depth_distance_report(session)` — UNE seule
+  passe Depth Pro échantillonnée (≤12 frames, partagée par les deux usages), appelée en fin de
+  `_run_global_tracking` sous le même flag. Écrit le champ **additif** `depth_distance_m` (profondeur
+  au contact-sol de la bbox) et **ne bascule aucune source** : le placement continue de venir du
+  pinhole/homographie. Deux lignes A/B console indépendantes — usage 3 : désaccord médian
+  profondeur↔pinhole et ↔homographie (m) ; usage 1 : désaccord des détections `artifact` vs propres
+  (un reflet projette une profondeur incohérente). Persisté `results_summary['depth_report']`.
+- **Usages 2 et 5 différés en 2ᵉ passe** (raison, pas oubli) : la profondeur brute d'un track décroît
+  quand la navette approche → statique/mobile (2) exige une profondeur **compensée de l'ego** ;
+  l'ordre d'occlusion (5) exige une profondeur **ordonnée au hand-off**. Les deux méritent le run GPU
+  de la 1ère passe (qualité Depth Pro confirmée) avant d'être câblés.
 
 **Frontières / coordination (partition multi-instances)** :
 - ✅ Tâche `depth-estimation` déclarée (`ModelTask`) — le garde-fou `check_model_taxonomy` passe.

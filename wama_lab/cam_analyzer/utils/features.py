@@ -79,14 +79,16 @@ FEATURES = [
             "— déclaré pour le chantier d'unification.)",
             default=False, scope='compute'),
     Feature('depth_estimation', 'Profondeur monoculaire (1ère passe)',
-            "Profondeur métrique par image (Apple Depth Pro, Apache-2.0) pour attaquer les limites "
-            "du placement. UN SEUL flag global pour TOUTE l'amélioration profondeur (pas de "
-            "sous-flags par usage qui polluent cette liste) : quand ON, la source du plan de sol "
-            "devient la profondeur (nuage → RANSAC sur zone roulable) au lieu de la recherche "
-            "homographique — tranché sur la métrique `placement_spread` (A/B en console, plus bas = "
-            "meilleur). Câblé (`utils/depth_estimator.py`) mais NON fumé au GPU (interdit sous "
-            "WSL2 ; test côté runtime). 1ère passe : si le gain est insuffisant, on itère. "
-            "Voir CAM_ANALYZER_CHAINE_TRAITEMENT.md §[E].",
+            "Profondeur métrique par image (Apple Depth Pro, Apache-2.0). UN SEUL flag global pour "
+            "TOUTE l'amélioration profondeur (pas de sous-flags qui polluent cette liste) ; les "
+            "usages sont PARALLÈLES, chacun écrit sa propre ligne A/B console. Quand ON : (usage 4) "
+            "la source du plan de sol devient la profondeur (nuage → RANSAC sur zone roulable) au "
+            "lieu de la recherche homographique, tranché sur `placement_spread` ; (usages 3+1, "
+            "mesure-et-rapport) cross-check de distance (profondeur = 3ᵉ source, désaccord "
+            "↔pinhole/↔homographie) et confirmation des reflets, champ additif `depth_distance_m`, "
+            "sans basculer aucune source existante. Câblé (`utils/depth_estimator.py`) mais NON fumé "
+            "au GPU (interdit sous WSL2 ; test côté runtime). 1ère passe : si le gain est "
+            "insuffisant, on itère. Voir CAM_ANALYZER_CHAINE_TRAITEMENT.md §[E].",
             default=False, scope='compute'),
 ]
 

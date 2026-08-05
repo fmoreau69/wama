@@ -2342,6 +2342,22 @@ def _run_global_tracking(session):
                      f"Cohérence placement (plan de sol : {_gsrc}) : "
                      f"étalement stationnés RMS médian {_agg['rms_median_m']:.2f} m sur "
                      f"{_agg['n_tracks']} garés (p90 {_agg['rms_p90_m']:.2f} m) — plus bas = meilleur.")
+        # ── Profondeur (⚑ depth_estimation), usages parallèles §[E] : cross-check distance
+        # (usage 3) + confirmation reflets (usage 1). MESURE-ET-RAPPORT : une seule passe Depth
+        # Pro échantillonnée, chaque usage écrit SA ligne A/B console ; champ additif
+        # `depth_distance_m`, aucune source existante basculée (chemin OFF intact). Tourne sur le
+        # worker runtime (GPU) ; interdit sous WSL2 (dev) mais le flag est OFF par défaut.
+        try:
+            if _feff(session).get('depth_estimation', False):
+                from .utils.depth_estimator import depth_distance_report
+                _dr = depth_distance_report(session)
+                if _dr:
+                    rs = session.results_summary or {}
+                    rs['depth_report'] = _dr
+                    session.results_summary = rs
+                    session.save(update_fields=['results_summary'])
+        except Exception:
+            logger.warning('depth_distance_report failed (non-blocking)', exc_info=True)
         return _gt
     except Exception as e:
         try:

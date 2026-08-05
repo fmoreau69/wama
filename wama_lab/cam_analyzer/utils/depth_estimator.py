@@ -18,9 +18,16 @@ profondeur au lieu de la recherche homographique ; le SCORING (`placement_spread
    de Depth Pro et (b) la CONVENTION de signe du pitch ci-dessous (la métrique `placement_spread`
    en console le révèle immédiatement : un signe faux fait exploser l'étalement).
 
-Modèle : `apple/DepthPro` déposé par `pull_model` dans `models/vision/depth-pro/`. Retenu vs DA3
+Modèle : `apple/DepthPro-hf` déposé par `pull_model` dans `models/vision/depth-pro/`. Retenu vs DA3
 car intégration `AutoModelForDepthEstimation` sans package custom, et focale estimée qui sert
 directement le re-calage du plan de sol (cf. §[E]).
+
+Usages profondeur (tous sous le MÊME flag, parallèles / pas superposés — décision Fabien 2026-08-05) :
+  · usage 4 — re-calage du plan de sol (`estimate_ground_plane_ph`) : BASCULE la source de la calib ;
+  · usages 3 + 1 — cross-check distance & confirmation reflets (`depth_distance_report`) :
+    MESURE-ET-RAPPORT (champ additif `depth_distance_m` + métriques A/B console), ne bascule
+    aucune source existante en 1ère passe. Chaque usage écrit SA propre ligne console → observables
+    séparément même sous un flag unique.
 """
 from __future__ import annotations
 
@@ -304,3 +311,169 @@ def estimate_ground_plane_ph(session, position):
     logger.info('[DepthPro] plan de sol %s : pitch=%.2f° h=%.2f m (%d inliers, %d frames)',
                 position, pitch_deg, height_m, n_inl, frames_used)
     return (round(pitch_deg, 2), round(height_m, 3))
+
+
+def _sample_depth_bbox(depth_m, bbox, h, w, half=3):
+    """Profondeur métrique au point de CONTACT SOL de la bbox (centre du bord bas), médiane
+    d'un petit patch pour la robustesse. None si pas d'échantillon plausible."""
+    x1, y1, x2, y2 = float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3])
+    u = int(round((x1 + x2) / 2.0))
+    v = int(round(y2))
+    u = min(max(u, 0), w - 1)
+    v = min(max(v, 0), h - 1)
+    u0, u1 = max(0, u - half), min(w, u + half + 1)
+    v0, v1 = max(0, v - half), min(h, v + half + 1)
+    patch = depth_m[v0:v1, u0:u1]
+    vals = patch[np.isfinite(patch) & (patch > 0.3) & (patch < 120.0)]
+    if vals.size < 2:
+        return None
+    return float(np.median(vals))
+
+
+def _usable_det(d):
+    """Détection exploitable pour le cross-check distance : objet du monde avec bbox + distance
+    pinhole. Exclut masques/marquages et fantômes."""
+    bb = d.get('bbox')
+    if not (isinstance(bb, (list, tuple)) and len(bb) >= 4):
+        return False
+    if d.get('type') in ('road_mask', 'sam3_marking') or d.get('predicted'):
+        return False
+    if d.get('class_name') in ('road_mask', 'sam3_marking'):
+        return False
+    return bool(d.get('distance_m'))
+
+
+def depth_distance_report(session, max_frames=12):
+    """Post-passe profondeur MULTI-USAGE (⚑ depth_estimation) — MESURE-ET-RAPPORT, 1ère passe.
+
+    Une SEULE inférence Depth Pro par frame échantillonnée, partagée par plusieurs usages §[E]
+    (parallèles, pas superposés). N'écrit que le champ ADDITIF `depth_distance_m` sur les
+    détections échantillonnées et des métriques A/B console ; ne bascule AUCUNE source existante
+    (le chemin OFF et les distances pinhole/homographie restent intacts).
+
+    Usages couverts (chacun sa ligne console → observables séparément sous le flag unique) :
+      · usage 3 (réciproque du pinhole) : profondeur métrique au contact-sol de la bbox = 3ᵉ
+        source indépendante ; A/B = désaccord médian profondeur↔pinhole et profondeur↔homographie.
+      · usage 1 (reflets) : la profondeur confirme-t-elle `artifact_filter` ? désaccord médian
+        des détections marquées `artifact` vs propres (un reflet de vitrage projette une
+        profondeur incohérente avec un objet réel à cette position image).
+
+    Retourne un dict de métriques (aussi persisté par l'appelant dans
+    results_summary['depth_report']), ou None si indisponible/insuffisant.
+    """
+    if not is_available():
+        logger.info('[DepthPro] cross-check distance ignoré : poids absents')
+        return None
+    try:
+        import cv2
+    except Exception:
+        return None
+
+    cams = [c for c in session.cameras.all()
+            if getattr(c, 'video_file', None) and c.detections.exists()]
+    if not cams:
+        return None
+    budget = max(1, max_frames // len(cams))
+
+    diffs_pin, diffs_hom = [], []          # usage 3 : |profondeur − pinhole| / − homographie
+    art_pin, clean_pin = [], []            # usage 1 : |profondeur − pinhole| reflets vs propres
+    frames_used = 0
+    n_obj = 0
+
+    for cam in cams:
+        try:
+            video_path = cam.video_file.path
+        except Exception:
+            continue
+        rows = list(cam.detections.order_by('frame_number')
+                    .values_list('frame_number', 'detections'))
+        cand = [fn for fn, det in rows if any(_usable_det(d) for d in (det or []))]
+        if not cand:
+            continue
+        step = max(1, len(cand) // budget)
+        chosen_fns = cand[::step][:budget]
+        objs = {o.frame_number: o for o in
+                cam.detections.filter(frame_number__in=chosen_fns).only('frame_number', 'detections')}
+
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            continue
+        touched = []
+        try:
+            for fn in chosen_fns:
+                obj = objs.get(fn)
+                if obj is None:
+                    continue
+                cap.set(cv2.CAP_PROP_POS_FRAMES, int(fn))
+                ok, frame = cap.read()
+                if not ok or frame is None:
+                    continue
+                h, w = frame.shape[:2]
+                try:
+                    depth_m, _focal = estimate_depth(frame)
+                except Exception:
+                    logger.warning('[DepthPro] estimate_depth a échoué (frame %s)', fn, exc_info=True)
+                    continue
+                if depth_m is None:
+                    continue
+                if depth_m.shape != (h, w):
+                    depth_m = cv2.resize(depth_m, (w, h), interpolation=cv2.INTER_NEAREST)
+                changed = False
+                for d in (obj.detections or []):
+                    if not _usable_det(d):
+                        continue
+                    dd = _sample_depth_bbox(depth_m, d['bbox'], h, w)
+                    if dd is None:
+                        continue
+                    d['depth_distance_m'] = round(dd, 2)   # champ ADDITIF (n'écrase rien)
+                    changed = True
+                    n_obj += 1
+                    pin = d.get('distance_m')
+                    if pin:
+                        e = abs(dd - float(pin))
+                        diffs_pin.append(e)
+                        (art_pin if d.get('artifact') else clean_pin).append(e)
+                    hom = d.get('dist_euclid_m') or d.get('dist_longitudinal_m')
+                    if hom:
+                        diffs_hom.append(abs(dd - float(hom)))
+                if changed:
+                    touched.append(obj)
+                frames_used += 1
+        finally:
+            cap.release()
+        for obj in touched:
+            try:
+                obj.save(update_fields=['detections'])
+            except Exception:
+                logger.warning('[DepthPro] save detections %s échoué', obj.frame_number, exc_info=True)
+
+    if frames_used < 1 or not diffs_pin:
+        logger.info('[DepthPro] cross-check distance : pas assez d\'observations')
+        return None
+
+    def _med(xs):
+        return round(float(np.median(xs)), 2) if xs else None
+
+    report = {
+        'frames': frames_used,
+        'n_obj': n_obj,
+        'disagree_pinhole_m': _med(diffs_pin),
+        'disagree_homography_m': _med(diffs_hom),
+        'n_homography': len(diffs_hom),
+        'reflet_pinhole_m': _med(art_pin),
+        'reflet_n': len(art_pin),
+        'clean_pinhole_m': _med(clean_pin),
+        'clean_n': len(clean_pin),
+    }
+    # ── Lignes A/B console (une par usage) ────────────────────────────────────────────────
+    logger.info('[DepthPro] Distance (usage 3) : désaccord médian profondeur↔pinhole = %s m '
+                '(%d obj, %d frames) ; ↔homographie = %s m (%d obj)',
+                report['disagree_pinhole_m'], n_obj, frames_used,
+                report['disagree_homography_m'], report['n_homography'])
+    if art_pin:
+        verdict = ('reflets PLUS incohérents' if (report['reflet_pinhole_m'] or 0)
+                   > (report['clean_pinhole_m'] or 0) else 'signal non concluant')
+        logger.info('[DepthPro] Reflets (usage 1) : désaccord profondeur↔pinhole reflets=%s m (%d) '
+                    'vs propres=%s m (%d) — %s', report['reflet_pinhole_m'], report['reflet_n'],
+                    report['clean_pinhole_m'], report['clean_n'], verdict)
+    return report
