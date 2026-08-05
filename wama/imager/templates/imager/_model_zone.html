@@ -12,6 +12,14 @@ Contexte attendu : mz_prefix ('img'|'vid'),
 appariement : c'est une affordance de card, aucun modèle ne « requiert » un prompt_file. {% endcomment %}
 <span id="{{ mz_prefix }}BatchChip" class="d-block mt-2" style="display:none"></span>
 <div class="mt-2">
+  <label class="form-label small mb-1" for="{{ mz_prefix }}NegativePrompt">
+    <i class="fas fa-ban me-1"></i>Prompt négatif <span class="text-muted">(optionnel)</span>
+  </label>
+  <textarea class="form-control form-control-sm bg-dark text-light border-secondary"
+            id="{{ mz_prefix }}NegativePrompt" rows="1"
+            placeholder="Ce qu'il faut éviter : flou, texte, watermark…"></textarea>
+</div>
+<div class="mt-2">
   <label class="form-label small mb-1" for="{{ mz_prefix }}ModelSelect">
     <i class="fas fa-microchip me-1"></i>Modèle
   </label>

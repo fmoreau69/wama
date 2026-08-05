@@ -63,6 +63,26 @@
             });
         }
 
+        // ── Affordances sous le prompt : bouton ✨ + tags proposés (chips) ──
+        // Le déclencheur ✨ est le handler DÉLÉGUÉ existant d'index.js (.enhance-prompt-btn,
+        // data-target/data-mode) ; les chips sont la brique WamaPromptChips par domaine.
+        (function () {
+            const bar = document.createElement('div');
+            bar.className = 'd-flex align-items-start gap-2 mt-1';
+            bar.innerHTML =
+                '<button type="button" class="btn btn-sm btn-outline-info enhance-prompt-btn py-0" ' +
+                'data-target="' + d.promptId + '" data-mode="' + d.domain + '" ' +
+                'title="Traduire et enrichir le prompt (le texte original est conservé)">' +
+                '<i class="fas fa-wand-magic-sparkles"></i></button>' +
+                '<div id="' + d.prefix + 'PromptChips" class="flex-grow-1"></div>';
+            promptEl.insertAdjacentElement('afterend', bar);
+            if (window.WamaPromptChips) {
+                WamaPromptChips.init({ container: '#' + d.prefix + 'PromptChips',
+                                       target: '#' + d.promptId,
+                                       domain: d.domain, collapsed: true });
+            }
+        })();
+
         // ── Chip du fichier batch (hors appariement : affordance de card, pas une capacité) ──
         function setBatchFile(f) {
             batchFile = f || null;
@@ -132,9 +152,18 @@
                 toast('Décrivez ce que vous voulez générer, ou fournissez une image / un fichier de prompts.', 'warning');
                 return;
             }
+            // INVARIANT prompt (PROMPT_PIPELINE) : on poste toujours l'ORIGINAL — l'enrichi
+            // vit en prompt_processed et est recalculé à l'ingestion, jamais figé à la création.
+            let promptValue = (promptEl.value || '').trim();
+            if (window.WamaPromptEnrich) {
+                const ctrl = WamaPromptEnrich.get(promptEl);
+                if (ctrl && ctrl.snapshot().state === 'processed') promptValue = (ctrl.original || '').trim();
+            }
+            const negEl = document.getElementById(d.prefix + 'NegativePrompt');
             const fd = new FormData();
             fd.append('generation_mode', mode);
-            fd.append('prompt', (promptEl.value || '').trim());
+            fd.append('prompt', promptValue);
+            fd.append('negative_prompt', negEl ? (negEl.value || '').trim() : '');
             fd.append('model', select.value || 'auto');
             if (batchFile) fd.append('prompt_file', batchFile);
             if (hasRef) fd.append('reference_image', refInput.files[0]);

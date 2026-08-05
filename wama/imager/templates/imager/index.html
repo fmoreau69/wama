@@ -1130,10 +1130,8 @@ window.IMAGER_CARD = {
 <script src="{% static_v 'imager/js/index.js' %}"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        if (window.WamaPromptChips) {
-            WamaPromptChips.init({ container: '#promptChips', target: '#prompt', domain: 'image', collapsed: true });
-            WamaPromptChips.init({ container: '#videoPromptChips', target: '#video_prompt', domain: 'video', collapsed: true });
-        }
+        {% comment %} Chips de prompt : init PAR CARD dans input_card.js (les anciens ids
+        #prompt/#video_prompt sont morts avec les formulaires manuels). {% endcomment %}
 
         // WamaModes pilote les barres de mode (image + vidéo) depuis le schéma déclaratif.
         // Les radios natifs restent la SOURCE DE VÉRITÉ : on les coche + dispatch 'change'
