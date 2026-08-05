@@ -136,6 +136,7 @@ class ModelRegistry:
         self._discover_avatarizer_models()
         self._discover_composer_models()
         self._discover_reader_models()
+        self._discover_depth_models()
 
         # Log summary
         formats_found = {}
@@ -561,6 +562,43 @@ class ModelRegistry:
 
         except ImportError as e:
             logger.debug(f"Could not import Anonymizer models: {e}")
+
+    def _discover_depth_models(self):
+        """Modèles de profondeur monoculaire (task=depth-estimation) déposés par `pull_model`
+        dans `models/vision/depth-anything/`.
+
+        Scan FILESYSTEM volontaire : la découverte reste dans la couche model_manager et n'importe
+        AUCUNE app. Le consommateur est le lab cam_analyzer (re-calage plan de sol, §[E]) — importer
+        une app lab depuis le core serait une inversion de couche. `is_downloaded` se dérive donc de
+        la présence réelle des poids, pas d'un statut d'app.
+        """
+        try:
+            from django.conf import settings
+            from pathlib import Path
+            depth_cfg = (settings.MODEL_PATHS.get('vision', {}) or {}).get('depth')
+            if not depth_cfg:
+                return
+            depth_root = Path(depth_cfg)
+            cached = depth_root.exists() and any(depth_root.rglob('*.safetensors'))
+            # Candidat retenu §[E] : DA3 métrique (Apache-2.0). Une seule entrée connue pour
+            # l'instant ; en ajouter d'autres = une ligne ModelInfo de plus ici.
+            self._models['huggingface:da3metric-large'] = ModelInfo(
+                id='huggingface:da3metric-large',
+                name='Depth Anything 3 Metric Large',
+                model_type=ModelType.VISION,
+                source=ModelSource.HUGGINGFACE,
+                description='Profondeur monoculaire métrique, licence Apache-2.0. Candidat '
+                            'cam_analyzer (re-calage du plan de sol, §[E]).',
+                hf_id='depth-anything/DA3METRIC-LARGE',
+                vram_gb=6.0,
+                is_downloaded=cached,
+                # Vocabulaire canonique (model_capabilities) : tâche + entrées + modalités, comme
+                # SAM3/YOLO — pas de flag ad hoc, pour que select_model/matches_inputs filtrent.
+                capabilities={'task': 'depth-estimation', 'modalities': ['image', 'video'],
+                              'inputs_required': ['work_file']},
+            )
+        except Exception as e:
+            logger.debug(f"Could not discover depth models: {e}")
 
     def _discover_transcriber_models(self):
         """Discover Transcriber app models (Whisper, VibeVoice, Qwen3-ASR)."""

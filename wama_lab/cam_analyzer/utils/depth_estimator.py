@@ -32,7 +32,7 @@ from django.conf import settings
 # Fallback tant que l'entrée settings.py MODEL_PATHS['vision']['depth'] n'est pas ajoutée.
 DEPTH_MODEL_ID = 'depth-anything/DA3METRIC-LARGE'  # métrique, Apache-2.0 (cf. §[E])
 DEPTH_MODEL_DIR = (settings.MODEL_PATHS.get('vision', {}).get('depth')
-                   or settings.AI_MODELS_DIR / "models" / "vision" / "depth-anything-3")
+                   or settings.AI_MODELS_DIR / "models" / "vision" / "depth-anything")
 
 _MODEL = None  # keep_loaded — patron cam_analyzer (yolopv2_segmenter, sam3_road_analyzer)
 

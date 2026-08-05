@@ -43,6 +43,8 @@ MODEL_PATHS = {
         'yolo': AI_MODELS_DIR / "models" / "vision" / "yolo",
         # SAM models (Segment Anything Model)
         'sam': AI_MODELS_DIR / "models" / "vision" / "sam",
+        # Depth-estimation monoculaire (Depth Anything 3, etc.) — cf. cam_analyzer §[E].
+        'depth': AI_MODELS_DIR / "models" / "vision" / "depth-anything",
     },
     # Upscaling/Enhancement models (ONNX)
     'upscaling': {
