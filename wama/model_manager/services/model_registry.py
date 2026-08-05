@@ -258,13 +258,15 @@ class ModelRegistry:
                 # bien qu'aucun filtrage par capacité n'était possible en aval.
                 _img_type = (config.get('type') or '').lower()
                 _is_video = _img_type == 'video'
-                # Vocabulaire du manifeste : 't2i' | 't2v' | 'i2v' | 't2v+i2v' | 'edit'
-                # (quelques entrées historiques écrivent encore les libellés longs).
+                # Vocabulaire du manifeste : 't2i' | 't2v' | 'i2v' | 't2v+i2v' | 'edit' | 'i2i'
+                # ('i2i' = image de référence acceptée pour une sortie image — SD img2img ;
+                # 'edit' = modèle DÉDIÉ à l'édition, la tâche canonique devient image-to-image).
+                # Quelques entrées historiques écrivent encore les libellés longs.
                 _mode = (config.get('mode') or '').lower()
                 for _long, _short in (('text-to-image', 't2i'), ('text-to-video', 't2v'),
                                       ('image-to-video', 'i2v'), ('image-to-image', 'edit')):
                     _mode = _mode.replace(_long, _short)
-                _tasks = {t for t in ('t2i', 't2v', 'i2v', 'edit') if t in _mode}
+                _tasks = {t for t in ('t2i', 't2v', 'i2v', 'edit', 'i2i') if t in _mode}
                 if not _tasks:                      # mode absent → déduit de la modalité
                     _tasks = {'t2v'} if _is_video else {'t2i'}
                 # Traduction en vocabulaire CANONIQUE (`CANONICAL_CAPABILITIES`) : `task` au
@@ -278,10 +280,10 @@ class ModelRegistry:
                     _task = 'text-to-image'
                 _inputs_required = ['prompt']
                 _inputs_optional = []
-                if 'i2v' in _tasks or 'edit' in _tasks:
+                if _tasks & {'i2v', 'edit', 'i2i'}:
                     # L'image est OBLIGATOIRE si le modèle ne sait faire que ça, OPTIONNELLE
-                    # s'il sait aussi partir d'un simple prompt (LTX = t2v+i2v).
-                    (_inputs_required if _tasks <= {'i2v', 'edit'} else _inputs_optional
+                    # s'il sait aussi partir d'un simple prompt (LTX = t2v+i2v, SD = t2i+i2i).
+                    (_inputs_required if _tasks <= {'i2v', 'edit', 'i2i'} else _inputs_optional
                      ).append('work_image')
                 self._models[f"imager:{model_id}"] = ModelInfo(
                     id=f"imager:{model_id}",
@@ -311,6 +313,9 @@ class ModelRegistry:
                         # canonique, sans inventer de clé.
                         'inputs_required': _inputs_required,
                         'inputs_optional': _inputs_optional,
+                        # Catégorie de spécialisation déclarée au manifeste (ex. 'logo') —
+                        # sert au groupement du <select> (optgroup), jamais à un onglet.
+                        **({'category': config['category']} if config.get('category') else {}),
                     },
                 )
         except ImportError as e:

@@ -186,6 +186,9 @@ STABLE_DIFFUSION_MODELS = {
         'hf_id': 'stable-diffusion-v1-5/stable-diffusion-v1-5',
         'type': 'image',
         'pipeline': 'sd',
+        # t2i + image de référence OPTIONNELLE (StableDiffusionImg2ImgPipeline,
+        # diffusers_backend._generate_img2img) — nourrit l'appariement entrée↔modèle.
+        'mode': 't2i+i2i',
         'vram_gb': 4,
         'description': 'Stable Diffusion 1.5 — classique (compatibilité LoRA)',
         'description_long': "Stable Diffusion 1.5 (Runway/CompVis) : le classique historique de la "
@@ -197,6 +200,8 @@ STABLE_DIFFUSION_MODELS = {
         'hf_id': 'stabilityai/stable-diffusion-xl-base-1.0',
         'type': 'image',
         'pipeline': 'sdxl',
+        # t2i + image de référence OPTIONNELLE (StableDiffusionXLImg2ImgPipeline).
+        'mode': 't2i+i2i',
         'vram_gb': 10,
         'description': 'Stable Diffusion XL — haute résolution (compatibilité LoRA)',
         'description_long': "Stable Diffusion XL (Stability AI) : génération native en 1024 px, "
