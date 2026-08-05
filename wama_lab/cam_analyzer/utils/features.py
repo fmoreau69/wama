@@ -78,6 +78,15 @@ FEATURES = [
             "les vues, au lieu de valeurs indépendantes par caméra. (Pas encore implémenté "
             "— déclaré pour le chantier d'unification.)",
             default=False, scope='compute'),
+    Feature('depth_estimation', 'Profondeur monoculaire (exploratoire)',
+            "Carte de profondeur métrique par image (candidat DA3METRIC-LARGE, Apache-2.0) "
+            "pour attaquer plusieurs limites du placement — 1er PoC : re-calage du plan de "
+            "sol (usage 4 §[E]), tranché sur la métrique `placement_spread`. Portillon MAÎTRE "
+            "du coût profondeur ; les sous-usages (réciproque pinhole, ordre d'occlusion, "
+            "reflets, statique/mobile) viendront sous des flags dédiés. Piste EXPLORATOIRE "
+            "NON implémentée : squelette inerte (`utils/depth_estimator.py`), aucun poids "
+            "téléchargé, GPU interdit sous WSL2. Voir CAM_ANALYZER_CHAINE_TRAITEMENT.md §[E].",
+            default=False, scope='compute'),
 ]
 
 

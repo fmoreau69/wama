@@ -428,6 +428,36 @@ travers les croisements.
   banc générique (`manage.py bench --task <tâche>`) accueillerait un protocole `depth-estimation`,
   et l'A/B se ferait contre la distance pinhole sur des séquences à occlusion connue.
 
+### Intégration — plan (décidé 2026-08-05)
+
+Les 5 usages ne forment PAS un silo neuf : **ils alimentent l'instrument A/B** déjà en place
+(brique commune pure `geometry.placement_spread`). Le chiffre qui tranchera la profondeur est le
+même qui tranche `auto_ground_calib`.
+
+| Usage [E] | Point d'accroche pipeline | Métrique A/B | Flag ⚑ |
+|---|---|---|---|
+| **4. Re-calage plan de sol** *(PoC #1)* | `homography_estimator`/`store_ground_calib` (voie `auto_ground_calib`) | **#1 `placement_spread`** *(câblée)* | `depth_ground_plane` |
+| **3. Réciproque du pinhole** | ego `multicam_tracker.py:200-206` / distance `tasks.py:1379-1392` (`distance_source`) | #2 désaccord inter-sources (depth = 3ᵉ source) | `depth_distance_crosscheck` |
+| **5. Ordre d'occlusion** | logique hand-off du tracker | #3 discontinuité au hand-off | `depth_occlusion_order` |
+| **2. Statique vs mobile** | détection stationnés `multicam_tracker.py:414-425` | stabilité classif. statique/mobile | `depth_static_mobile` |
+| **1. Reflets** (limite n°7) | complète/concurrence `artifact_filter` | taux de faux reflets vs `artifact_filter` | `depth_reflection` |
+
+**Ordre de déroulé** : usage **4 d'abord** — il se valide sur `placement_spread` déjà en place et
+attaque le biais 23,5 vs 6,8 m qui avait fait débrancher l'homographie ([3]). Un flag MAÎTRE
+`depth_estimation` (défaut OFF) porte le coût partagé du calcul de la carte ; chaque sous-usage
+arrive ensuite sous son propre flag.
+
+**Déjà posé (préparation, 2026-08-05)** : flag maître `depth_estimation` (OFF, `utils/features.py`)
++ squelette INERTE `utils/depth_estimator.py` (contrat `load`/`estimate_depth`/`unload`,
+`NotImplementedError`, aucun poids téléchargé, rien branché au pipeline).
+
+**Frontières / coordination (partition multi-instances)** :
+- ✅ Tâche `depth-estimation` DÉJÀ déclarée (`ModelTask`) — le garde-fou `check_model_taxonomy` passe.
+- ⏳ Au VRAI onboarding : entrée `settings.py::MODEL_PATHS['vision']['depth']` (le squelette a un
+  fallback) ; déclaration DA3 dans `model_registry`/catalogue `AIModel` (**session « catalogue » —
+  DEMANDER, ne pas y toucher**) ; protocole `PROTOCOLES` du banc `depth-estimation`.
+- ⚠ **GPU interdit sous WSL2** sur ce poste : inférence + A/B côté runtime/R760xa.
+
 ---
 
 ## Conception & justification (design — absorbé de l'ex-`DISTANCE_DESIGN`)
