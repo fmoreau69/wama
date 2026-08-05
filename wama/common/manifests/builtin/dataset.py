@@ -3,8 +3,21 @@ Kind `dataset` — généralisation du manifeste toolbox tierce (`ENA_NAVYA/mani
 
 À la différence de `app`/`model` (EXTRAITS du code existant), un `dataset` est AUTORÉ : le manifeste EST
 l'origine (wama-dev-ai explore un dossier projet → infère un brouillon → l'humain valide). Donc PAS de
-`extract` : ce kind est validate + store. La projection (instancier le dataset dans les apps via un reader
-source-agnostique) est un chantier ultérieur.
+`extract` : ce kind est validate + store.
+
+⚠ Et PAS de `write_back` non plus — mais pas pour la même raison que les autres kinds, d'où cette
+mise au point (Fabien, 2026-08-05 ; la formulation précédente parlait de « projection » et de
+« instancier le dataset », ce qui induisait en erreur).
+
+Un dataset ne s'INSTANCIE pas : c'est un **accès**. Les données sont un corpus d'expérimentation
+qui vit dans une arborescence sur un serveur, et `source.ref` en donne le chemin. Il n'y a aucune
+table de registre où écrire — `dataset` est d'ailleurs le SEUL kind sans contrepartie
+(app→apps, model→AIModel, library→Library, project→Project, dataset→∅). Le manifeste EST la
+représentation du dataset ; l'exploitation se fait depuis **wama-data**.
+
+Le chantier ultérieur n'est donc pas une projection mais un **reader source-agnostique** : le code
+qui va lire `source.ref` et rendre les `signals`/`records` déclarés ici. Ne pas le confondre avec
+`write_back`, qui pour les autres kinds signifie « écrire dans le registre ».
 
 Généralisation toolbox tierce → WAMA (cf. mémoire project_manifests_projects) :
   - `das`/`channel`/`signal` typés + unités        → `signals[]` typés sur `data_types` (source-agnostique)
@@ -94,5 +107,7 @@ register_kind(ManifestKind(
     validate=validate_dataset_body,
     extract=None,      # AUTORÉ (pas de registre code) — le manifeste est l'origine
     description="Jeu de données brut typé (généralisation toolbox tierce) : source-agnostique + signals typés sur "
-                "data_types + reference_tables (enums) + records. Validate+store (projection = chantier).",
+                "data_types + reference_tables (enums) + records. Validate+store : un dataset est un "
+                "ACCÈS (source.ref = arborescence serveur), pas un objet à instancier — aucun "
+                "registre où écrire. Chantier ultérieur = un reader source-agnostique.",
 ))
