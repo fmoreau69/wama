@@ -2722,6 +2722,20 @@ interdit (7 récidives) ; support ≠ adoption (script porté par la brique dés
 
 ---
 
+## §REPRISE — 2026-08-05 : handoff catalogue/taxonomie
+
+> **Handoff complet : [`REPRISE_2026-08-05.md`](REPRISE_2026-08-05.md)** — 21 commits côté
+> catalogue. À lire avant de reprendre le portage d'apps.
+>
+> **Le point qui commande la suite** : le portage de l'anonymizer est **REVERTÉ** (`2b1a961`) et
+> ne doit pas être rouvert avant que le catalogue porte une **qualité mesurée** pour les modèles
+> vision (`quality_index` = 0/48 vision contre 11/11 LLM). L'A/B GPU sur médias réels a montré
+> 7 pertes de détection sur 15 cas — 5 boîtes → 0 sur des visages. Le classement codé en dur
+> qu'on remplaçait PORTAIT une connaissance de qualité écrite nulle part ; la centralisation
+> l'a détruite. Refaire le portage à l'identique coûterait un second A/B.
+
+---
+
 ## §REPRISE — 2026-08-05 : PARTITION MULTI-INSTANCES (à lire avant de toucher au dépôt)
 
 > **Deux instances travaillent en parallèle. Partition déclarée par Fabien le 2026-08-05.**
