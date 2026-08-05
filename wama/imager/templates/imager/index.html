@@ -285,14 +285,14 @@
         <button class="nav-link active" id="image-tab" data-bs-toggle="tab" data-bs-target="#imageTab"
                 type="button" role="tab" aria-controls="imageTab" aria-selected="true">
             <i class="fas fa-image"></i> Images
-            <span class="badge bg-secondary ms-1" id="imageQueueCount">{{ image_generations.count }}</span>
+            <span class="badge bg-secondary ms-1" id="imageQueueCount">{{ image_generations|length }}</span>
         </button>
     </li>
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="video-tab" data-bs-toggle="tab" data-bs-target="#videoTab"
                 type="button" role="tab" aria-controls="videoTab" aria-selected="false">
             <i class="fas fa-film"></i> Videos
-            <span class="badge bg-secondary ms-1" id="videoQueueCount">{{ video_generations.count }}</span>
+            <span class="badge bg-secondary ms-1" id="videoQueueCount">{{ video_generations|length }}</span>
         </button>
     </li>
 </ul>
@@ -317,128 +317,12 @@ des entrées + du modèle (appariement wama-input-match, capacités catalogue). 
     <div class="col-12">
         <h4 class="mb-3 text-light">
             <i class="fas fa-list"></i> File d'attente images
-            <span class="badge bg-secondary" id="queueCount">{{ image_generations.count }}</span>
+            <span class="badge bg-secondary" id="queueCount">{{ image_generations|length }}</span>
         </h4>
 
         <div id="generationsQueue">
             {% for gen in image_generations %}
-            <div class="card mb-3 bg-dark border-secondary" data-id="{{ gen.id }}">
-                <div class="card-body">
-                    <div class="row align-items-center">
-                        <!-- Info Column -->
-                        <div class="col-md-4">
-                            <h6 class="text-light mb-1">Génération #{{ gen.id }}</h6>
-                            <p class="text-white-50 mb-1" style="font-size: 0.9rem;">
-                                {{ gen.prompt|truncatechars:100 }}
-                            </p>
-                            <small class="text-white-50">
-                                <i class="fas fa-robot"></i> {{ gen.get_model_display|default:gen.model }}
-                                • {{ gen.width }}x{{ gen.height }}
-                                • {{ gen.num_images }} image(s)
-                            </small>
-                        </div>
-
-                        <!-- Progress Column -->
-                        <div class="col-md-4">
-                            <div class="mb-2">
-                                <span class="badge
-                                    {% if gen.status == 'PENDING' %}bg-secondary
-                                    {% elif gen.status == 'RUNNING' %}bg-warning
-                                    {% elif gen.status == 'SUCCESS' %}bg-success
-                                    {% elif gen.status == 'FAILURE' %}bg-danger
-                                    {% endif %}">
-                                    {{ gen.status }}
-                                </span>
-                            </div>
-                            <div class="wama-progress-track mt-1">
-                                <div class="wama-progress-fill {% if gen.status == 'RUNNING' %}active{% endif %}" style="width: {{ gen.progress }}%"></div>
-                            </div>
-                            <small class="progress-text text-light">{{ gen.progress }}%</small>
-                            <span class="wama-eta d-block"></span>
-                        </div>
-
-                        <!-- Actions Column -->
-                        <div class="col-md-4 text-end">
-                            <div class="btn-group" role="group">
-                                <!-- Settings button - always visible -->
-                                <button class="btn btn-outline-light btn-sm settings-btn" data-id="{{ gen.id }}"
-                                        title="Paramètres">
-                                    <i class="fas fa-cog"></i>
-                                </button>
-
-                                <!-- Start/Restart button -->
-                                {% if gen.status == 'RUNNING' %}
-                                <button class="btn btn-secondary btn-sm" disabled>
-                                    <i class="fas fa-spinner fa-spin"></i>
-                                </button>
-                                {% elif gen.status == 'SUCCESS' or gen.status == 'FAILURE' %}
-                                <button class="btn btn-warning btn-sm restart-btn" data-id="{{ gen.id }}"
-                                        title="Relancer">
-                                    <i class="fas fa-redo"></i>
-                                </button>
-                                {% else %}
-                                <button class="btn btn-primary btn-sm start-btn" data-id="{{ gen.id }}"
-                                        title="Démarrer">
-                                    <i class="fas fa-play"></i>
-                                </button>
-                                {% endif %}
-
-                                <!-- Download button -->
-                                {% if gen.status == 'SUCCESS' %}
-                                <button class="btn btn-success btn-sm download-btn" data-id="{{ gen.id }}"
-                                        title="Télécharger">
-                                    <i class="fas fa-download"></i>
-                                </button>
-                                {% endif %}
-
-                                <button class="btn btn-outline-info btn-sm duplicate-btn"
-                                        data-duplicate-url="{% url 'imager:duplicate' gen.id %}"
-                                        title="Dupliquer">
-                                    <i class="fas fa-copy"></i>
-                                </button>
-
-                                <button class="btn btn-danger btn-sm delete-btn" data-id="{{ gen.id }}"
-                                        title="Supprimer">
-                                    <i class="fas fa-trash-alt"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Generated Images (if SUCCESS) -->
-                    {% if gen.status == 'SUCCESS' and gen.output_images %}
-                    <div class="row mt-3">
-                        <div class="col-12">
-                            <div class="d-flex flex-wrap gap-2 image-preview-row">
-                                {% for img_url in gen.output_images %}
-                                <div class="generated-image-preview"
-                                     style="flex: 0 0 calc(25% - 6px); max-width: calc(25% - 6px); min-width: 100px;">
-                                    <img src="{{ img_url }}" alt="Generated Image {{ forloop.counter }}"
-                                         class="img-thumbnail bg-dark border-secondary"
-                                         style="width: 100%; height: auto; max-height: 150px; object-fit: cover; cursor: pointer; transition: transform 0.2s;"
-                                         onclick="openImagePreview('{{ img_url }}', 'Image #{{ gen.id }}-{{ forloop.counter }}')"
-                                         onmouseover="this.style.transform='scale(1.05)'"
-                                         onmouseout="this.style.transform='scale(1)'">
-                                </div>
-                                {% endfor %}
-                            </div>
-                        </div>
-                    </div>
-                    {% endif %}
-
-                    <!-- Error Message (if FAILURE) -->
-                    {% if gen.status == 'FAILURE' and gen.error_message %}
-                    <div class="row mt-2">
-                        <div class="col-12">
-                            <div class="alert alert-danger mb-0">
-                                <i class="fas fa-exclamation-triangle"></i>
-                                {{ gen.error_message }}
-                            </div>
-                        </div>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
+            {% include 'imager/_generation_card.html' with gen=gen domain='image' %}
             {% empty %}
             <div class="card bg-dark border-secondary">
                 <div class="card-body text-center text-white-50 py-4">
@@ -476,133 +360,12 @@ des entrées + du modèle (appariement wama-input-match, capacités catalogue). 
     <div class="col-12">
         <h4 class="mb-3 text-light">
             <i class="fas fa-list"></i> File d'attente vidéos
-            <span class="badge bg-success" id="videoQueueCountInner">{{ video_generations.count }}</span>
+            <span class="badge bg-success" id="videoQueueCountInner">{{ video_generations|length }}</span>
         </h4>
 
         <div id="videoGenerationsQueue">
             {% for gen in video_generations %}
-            <div class="card mb-3 bg-dark border-success" data-id="{{ gen.id }}">
-                <div class="card-body">
-                    <div class="row align-items-center">
-                        <!-- Info Column -->
-                        <div class="col-md-4">
-                            <h6 class="text-light mb-1">
-                                <i class="fas fa-film text-success"></i> Vidéo #{{ gen.id }}
-                            </h6>
-                            <p class="text-white-50 mb-1" style="font-size: 0.9rem;">
-                                {{ gen.prompt|truncatechars:100 }}
-                            </p>
-                            <small class="text-white-50">
-                                <i class="fas fa-robot"></i> {{ gen.model }}
-                                • {{ gen.video_resolution }}
-                                • {{ gen.video_duration }}s @ {{ gen.video_fps }}fps
-                            </small>
-                        </div>
-
-                        <!-- Progress Column -->
-                        <div class="col-md-4">
-                            <div class="mb-2">
-                                <span class="badge
-                                    {% if gen.status == 'PENDING' %}bg-secondary
-                                    {% elif gen.status == 'RUNNING' %}bg-warning
-                                    {% elif gen.status == 'SUCCESS' %}bg-success
-                                    {% elif gen.status == 'FAILURE' %}bg-danger
-                                    {% endif %}">
-                                    {{ gen.status }}
-                                </span>
-                            </div>
-                            <div class="wama-progress-track mt-1">
-                                <div class="wama-progress-fill {% if gen.status == 'RUNNING' %}active{% endif %}" style="width: {{ gen.progress }}%"></div>
-                            </div>
-                            <small class="progress-text text-light">{{ gen.progress }}%</small>
-                            <span class="wama-eta d-block"></span>
-                        </div>
-
-                        <!-- Actions Column -->
-                        <div class="col-md-4 text-end">
-                            <div class="btn-group" role="group">
-                                <!-- Settings button - always visible -->
-                                <button class="btn btn-outline-light btn-sm video-settings-btn" data-id="{{ gen.id }}"
-                                        title="Paramètres">
-                                    <i class="fas fa-cog"></i>
-                                </button>
-
-                                <!-- Start/Restart button -->
-                                {% if gen.status == 'RUNNING' %}
-                                <button class="btn btn-secondary btn-sm" disabled>
-                                    <i class="fas fa-spinner fa-spin"></i>
-                                </button>
-                                {% elif gen.status == 'SUCCESS' or gen.status == 'FAILURE' %}
-                                <button class="btn btn-warning btn-sm video-restart-btn" data-id="{{ gen.id }}"
-                                        title="Relancer">
-                                    <i class="fas fa-redo"></i>
-                                </button>
-                                {% else %}
-                                <button class="btn btn-success btn-sm video-start-btn" data-id="{{ gen.id }}"
-                                        title="Démarrer">
-                                    <i class="fas fa-play"></i>
-                                </button>
-                                {% endif %}
-
-                                <!-- Download button -->
-                                {% if gen.status == 'SUCCESS' and gen.output_video %}
-                                <button class="btn btn-success btn-sm video-download-btn" data-id="{{ gen.id }}"
-                                        title="Télécharger">
-                                    <i class="fas fa-download"></i>
-                                </button>
-                                {% endif %}
-
-                                <button class="btn btn-outline-info btn-sm duplicate-btn"
-                                        data-duplicate-url="{% url 'imager:duplicate' gen.id %}"
-                                        title="Dupliquer">
-                                    <i class="fas fa-copy"></i>
-                                </button>
-
-                                <button class="btn btn-danger btn-sm video-delete-btn" data-id="{{ gen.id }}"
-                                        title="Supprimer">
-                                    <i class="fas fa-trash-alt"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Generated Video (if SUCCESS) -->
-                    {% if gen.status == 'SUCCESS' and gen.output_video %}
-                    <div class="row mt-3">
-                        <div class="col-12">
-                            <div class="video-preview-container position-relative rounded overflow-hidden"
-                                 style="cursor: pointer; max-width: 400px;"
-                                 onclick="openVideoPreview('{{ gen.output_video.url }}', 'Vidéo #{{ gen.id }}')">
-                                <video class="w-100 rounded" style="max-height: 200px; pointer-events: none;"
-                                       preload="metadata">
-                                    <source src="{{ gen.output_video.url }}" type="video/mp4">
-                                </video>
-                                <div class="position-absolute top-50 start-50 translate-middle">
-                                    <div class="btn btn-light btn-lg rounded-circle shadow" style="width: 60px; height: 60px;">
-                                        <i class="fas fa-play text-dark" style="margin-left: 3px;"></i>
-                                    </div>
-                                </div>
-                                <div class="position-absolute bottom-0 start-0 end-0 bg-dark bg-opacity-75 text-white text-center py-1">
-                                    <small><i class="fas fa-expand-alt me-1"></i>Cliquer pour agrandir</small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    {% endif %}
-
-                    <!-- Error Message (if FAILURE) -->
-                    {% if gen.status == 'FAILURE' and gen.error_message %}
-                    <div class="row mt-2">
-                        <div class="col-12">
-                            <div class="alert alert-danger mb-0">
-                                <i class="fas fa-exclamation-triangle"></i>
-                                {{ gen.error_message }}
-                            </div>
-                        </div>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
+            {% include 'imager/_generation_card.html' with gen=gen domain='video' %}
             {% empty %}
             <div class="card bg-dark border-success">
                 <div class="card-body text-center text-white-50 py-4">
@@ -1118,7 +881,8 @@ WAMA_GLOBAL_PROGRESS_URL → pas d'auto-init.{% endcomment %}
 <script>
 /* Config de la card d'entrée (input_card.js) — méta d'appariement servie par la vue. */
 window.IMAGER_CARD = {
-    urls: { create: "{% url 'imager:create' %}" },
+    urls: { create: "{% url 'imager:create' %}",
+            cardHtml: "{% url 'imager:card_html' 0 %}" },
     csrf: "{{ csrf_token }}",
     enhanceUrl: "{% url 'common:enrich_prompt' %}",
     matchMeta: {{ input_match_meta|safe }},
@@ -1127,6 +891,7 @@ window.IMAGER_CARD = {
 </script>
 <script src="{% static_v 'common/js/wama-input-match.js' %}"></script>
 <script src="{% static_v 'imager/js/input_card.js' %}"></script>
+<script src="{% static_v 'imager/js/queue.js' %}"></script>
 <script src="{% static_v 'imager/js/index.js' %}"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function () {

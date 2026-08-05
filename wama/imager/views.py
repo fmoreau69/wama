@@ -173,9 +173,12 @@ def index(request):
     from wama.common.utils.app_modes import INPUT_TYPES as _INPUT_TYPES
     input_labels = {k: (v.get('label') or k) for k, v in _INPUT_TYPES.items()}
 
-    # Separate image and video generations
-    image_generations = generations.exclude(generation_mode__in=['txt2vid', 'img2vid'])
-    video_generations = generations.filter(generation_mode__in=['txt2vid', 'img2vid'])
+    # Separate image and video generations — décorées pour le partial de card
+    # (chips schéma-driven ; listes → le template compte avec |length, pas .count)
+    image_generations = [_decorate_card(g) for g in
+                         generations.exclude(generation_mode__in=['txt2vid', 'img2vid'])]
+    video_generations = [_decorate_card(g) for g in
+                         generations.filter(generation_mode__in=['txt2vid', 'img2vid'])]
 
     context = {
         'generations': generations,
@@ -1024,6 +1027,29 @@ def delete_generation(request, generation_id):
     except Exception as e:
         logger.error(f"Error deleting generation: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
+
+
+def _decorate_card(gen):
+    """Chips schéma-driven du partial _generation_card (miroir anonymizer _decorate_card) :
+    le schéma (params.py, chip=True) est la SOURCE, la card n'invente rien."""
+    from wama.common.utils.card_chips import chips_by_section
+    from wama.imager.params import IMAGE_PARAMS_JSON, VIDEO_PARAMS_JSON
+    gen.chips = chips_by_section(
+        gen, VIDEO_PARAMS_JSON if gen.is_video_generation else IMAGE_PARAMS_JSON)
+    return gen
+
+
+def card_html(request, generation_id):
+    """Partial d'UNE card (contrat card_html/refreshCard) — même rendu que la boucle de file,
+    consommé par queue.js sur transition de statut (remplace le repaint DOM manuel)."""
+    from django.template.loader import render_to_string
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    generation = get_object_or_404(ImageGeneration, id=generation_id, user=user)
+    _decorate_card(generation)
+    domain = 'video' if generation.is_video_generation else 'image'
+    html = render_to_string('imager/_generation_card.html',
+                            {'gen': generation, 'domain': domain}, request=request)
+    return JsonResponse({'html': html, 'status': generation.status})
 
 
 @require_http_methods(["POST"])

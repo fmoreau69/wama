@@ -1250,7 +1250,9 @@
         }
 
         // Progression PAR-CARTE (cartes en cours) — propre à imager, inchangé.
-        progressInterval = setInterval(updateRunningGenerationsProgress, 3000);
+        // Polling legacy DÉSACTIVÉ : la file est servie par le partial _generation_card
+        // + l'endpoint card_html — c'est queue.js (refreshCard) qui rafraîchit désormais.
+        // updateRunningGenerationsProgress/updateGenerationCard ciblent l'ancien DOM.
     }
 
     /**

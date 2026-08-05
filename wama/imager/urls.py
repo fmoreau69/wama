@@ -20,6 +20,8 @@ urlpatterns = [
     path('restart/<int:generation_id>/', views.restart_generation, name='restart'),
     path('start-all/', views.start_all_generations, name='start_all'),
     path('progress/<int:generation_id>/', views.progress, name='progress'),
+    # Partial de card (contrat card_html/refreshCard — F5)
+    path('card/<int:generation_id>/html/', views.card_html, name='card_html'),
     path('global-progress/', views.global_progress, name='global_progress'),
 
     # Download and delete

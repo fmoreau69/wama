@@ -49,11 +49,13 @@ IMAGE_PARAMS = derive_from_model(
             type="select", label="Nombre d'images", icon="fa-images",
             dom_id={"item": "settings_num_images"},
             choices=[("1", "1"), ("2", "2"), ("3", "3"), ("4", "4")],
+            chip=True, chip_label="img",
         ),
         "steps": dict(
             type="range", label="Steps", icon="fa-shoe-prints",
             dom_id={"item": "settings_steps"}, min=1, max=100, step=1,
             help="Nombre d'étapes de diffusion.",
+            chip=True, chip_label="steps",
         ),
         "guidance_scale": dict(
             type="range", label="Guidance scale", icon="fa-sliders-h",
@@ -102,10 +104,12 @@ VIDEO_PARAMS = derive_from_model(
         "video_duration": dict(
             type="range", label="Durée (s)", icon="fa-clock",
             dom_id={"item": "video_settings_duration"}, min=1, max=15, step=1,
+            chip=True, chip_label="s",
         ),
         "video_fps": dict(
             type="number", label="FPS", icon="fa-tachometer-alt",
             dom_id={"item": "video_settings_fps"}, min=8, max=30, step=1,
+            chip=True, chip_label="fps",
         ),
         "seed": dict(
             type="number", label="Seed", icon="fa-dice",

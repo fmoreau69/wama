@@ -1,0 +1,111 @@
+{% comment %}
+Card d'une génération Imager — partial serveur UNIQUE (image ET vidéo) :
+rendu par la boucle de file de index.html ET par l'endpoint card_html (refreshCard de queue.js).
+Contexte : gen (décoré par _decorate_card → gen.chips), domain ('image'|'video').
+
+Contrats JS :
+  .imager-card[data-id][data-status][data-domain] — racine (polling queue.js, cycle autoSync)
+  .settings-btn / .video-settings-btn [data-id]   — modales legacy ⚙ d'index.js (par domaine)
+  .wama-cycle-btn                                 — ▶/⏹/↻ (brique _cycle_button, wire queue.js :
+                                                    start/restart → endpoints existants, stop → force_reset)
+  .download-btn / .video-download-btn [data-id]   — handlers délégués existants d'index.js
+  .duplicate-btn[data-duplicate-url]              — brique GLOBALE queue-actions.js (ne pas re-binder)
+  .delete-btn / .video-delete-btn [data-id]       — handlers délégués existants d'index.js
+  .wama-eta                                       — rempli par WamaEta (index.js)
+{% endcomment %}
+<div class="imager-card synthesis-card wama-card {% if gen.status == 'RUNNING' %}processing{% elif gen.status == 'SUCCESS' %}success{% elif gen.status == 'FAILURE' %}error{% endif %}"
+     data-id="{{ gen.id }}"
+     data-status="{{ gen.status }}"
+     data-domain="{{ domain }}">
+    <div>
+
+        {% comment %} Ligne 1 : identité + actions (ordre canonique ⚙ ▶ ⬇ ⧉ 🗑) {% endcomment %}
+        <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="d-flex align-items-center gap-2 overflow-hidden">
+                {% if domain == 'video' %}
+                    <i class="fas fa-film text-warning flex-shrink-0"></i>
+                {% else %}
+                    <i class="fas fa-image text-info flex-shrink-0"></i>
+                {% endif %}
+                <span class="fw-semibold text-light text-truncate" style="max-width:320px;"
+                      title="{{ gen.prompt }}">#{{ gen.id }} — {{ gen.prompt|truncatechars:80|default:'(sans prompt)' }}</span>
+            </span>
+
+            <div class="btn-group-actions d-flex gap-1 flex-shrink-0 ms-2">
+                <button type="button"
+                        class="btn btn-outline-secondary btn-sm {% if domain == 'video' %}video-settings-btn{% else %}settings-btn{% endif %}"
+                        data-id="{{ gen.id }}" title="Configurer les paramètres">
+                    <i class="fas fa-cog"></i>
+                </button>
+                {% include 'common/_cycle_button.html' with id=gen.id status=gen.status %}
+                <button type="button"
+                        class="btn btn-outline-info btn-sm {% if domain == 'video' %}video-download-btn{% else %}download-btn{% endif %} {% if gen.status != 'SUCCESS' %}disabled{% endif %}"
+                        {% if gen.status != 'SUCCESS' %}disabled aria-disabled="true" tabindex="-1"{% endif %}
+                        data-id="{{ gen.id }}" title="Télécharger le résultat">
+                    <i class="fas fa-download"></i>
+                </button>
+                <button type="button" class="btn btn-outline-warning btn-sm duplicate-btn"
+                        data-duplicate-url="{% url 'imager:duplicate' gen.id %}"
+                        title="Dupliquer (tester d'autres paramètres)">
+                    <i class="fas fa-copy"></i>
+                </button>
+                <button type="button"
+                        class="btn btn-outline-danger btn-sm {% if domain == 'video' %}video-delete-btn{% else %}delete-btn{% endif %}"
+                        data-id="{{ gen.id }}" title="Supprimer la génération">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            </div>
+        </div>
+
+        {% comment %} Ligne 2 : méta + chips générées du SCHÉMA (params.py, chip=True) {% endcomment %}
+        <div class="d-flex flex-wrap align-items-center gap-1" style="font-size:0.78rem;">
+            <span class="text-muted"><i class="fas fa-robot"></i> {{ gen.model|default:'auto' }}</span>
+            {% if domain == 'video' %}
+                <span class="text-muted">{{ gen.video_resolution }} · {{ gen.video_duration }}s @ {{ gen.video_fps }} fps</span>
+            {% else %}
+                <span class="text-muted">{{ gen.width }}×{{ gen.height }}</span>
+            {% endif %}
+            {% include 'common/_card_chips.html' with chips=gen.chips.settings %}
+            {% include 'common/_card_chips.html' with chips=gen.chips.output %}
+        </div>
+
+        {% comment %} Ligne 3 : état (badge + % + temps) — la barre vit seule en bas (design v3) {% endcomment %}
+        {% include 'common/_card_progress.html' with status=gen.status progress=gen.progress elapsed=gen.duration_display no_bar=True %}
+        <span class="wama-eta d-block small text-muted"></span>
+
+        {% if gen.status == 'FAILURE' and gen.error_message %}
+        <small class="text-danger d-block mt-1 text-truncate" title="{{ gen.error_message }}">{{ gen.error_message|truncatechars:160 }}</small>
+        {% endif %}
+
+        {% comment %} Résultat : grille d'images | player vidéo (aperçu commun media-preview) {% endcomment %}
+        {% if gen.status == 'SUCCESS' %}
+            {% if domain == 'video' and gen.output_video %}
+            <div class="video-preview-container position-relative rounded overflow-hidden mt-2"
+                 style="cursor:pointer; max-width:400px;"
+                 onclick="openVideoPreview('{{ gen.output_video.url }}', 'Vidéo #{{ gen.id }}')">
+                <video class="w-100 rounded" style="max-height:200px; pointer-events:none;" preload="metadata">
+                    <source src="{{ gen.output_video.url }}" type="video/mp4">
+                </video>
+                <div class="position-absolute top-50 start-50 translate-middle">
+                    <div class="btn btn-light rounded-circle shadow d-flex align-items-center justify-content-center"
+                         style="width:48px; height:48px;">
+                        <i class="fas fa-play text-dark" style="margin-left:3px;"></i>
+                    </div>
+                </div>
+            </div>
+            {% elif domain != 'video' and gen.output_images %}
+            <div class="d-flex flex-wrap gap-2 image-preview-row mt-2">
+                {% for img_url in gen.output_images %}
+                <img src="{{ img_url }}" alt="Image #{{ gen.id }}-{{ forloop.counter }}"
+                     class="img-thumbnail bg-dark border-secondary generated-image-preview"
+                     style="flex:0 0 calc(25% - 6px); max-width:calc(25% - 6px); min-width:100px; max-height:150px; object-fit:cover; cursor:pointer;"
+                     onclick="openImagePreview('{{ img_url }}', 'Image #{{ gen.id }}-{{ forloop.counter }}')">
+                {% endfor %}
+            </div>
+            {% endif %}
+        {% endif %}
+
+        {% include 'common/_card_progress.html' with status=gen.status progress=gen.progress bar_only=True %}
+
+    </div>
+</div>
