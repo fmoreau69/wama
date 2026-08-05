@@ -221,10 +221,10 @@
     });
 
     // Ouverture depuis les cards (les deux domaines partagent la même modale générée).
+    // Délégation simple : les anciens handlers d'index.js ont été SUPPRIMÉS avec les
+    // modales hand-built — plus de concurrence, donc plus de capture ni de stopImmediate.
     document.addEventListener('click', function (e) {
         const btn = e.target.closest('.settings-btn, .video-settings-btn');
-        if (!btn) return;
-        e.stopImmediatePropagation();   // neutralise les anciens handlers d'index.js
-        openSettingsModal(btn.getAttribute('data-id'));
-    }, true);   // phase de CAPTURE : passe avant les listeners bouillonnants legacy
+        if (btn) openSettingsModal(btn.getAttribute('data-id'));
+    });
 })();

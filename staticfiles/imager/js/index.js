@@ -88,41 +88,9 @@
             }
         });
 
-        // Settings buttons
-        document.addEventListener('click', function(e) {
-            if (e.target.closest('.settings-btn')) {
-                const btn = e.target.closest('.settings-btn');
-                const genId = btn.getAttribute('data-id');
-                openSettingsModal(genId);
-            }
-        });
 
-        // Save settings button (save and start)
-        const saveSettingsBtn = document.getElementById('saveSettingsBtn');
-        if (saveSettingsBtn) {
-            saveSettingsBtn.addEventListener('click', function() {
-                saveSettings(true);
-            });
-        }
 
-        // Save settings only button
-        const saveSettingsOnlyBtn = document.getElementById('saveSettingsOnlyBtn');
-        if (saveSettingsOnlyBtn) {
-            saveSettingsOnlyBtn.addEventListener('click', function() {
-                saveSettings(false);
-            });
-        }
 
-        // Force reset button for stuck image generations
-        const forceResetImageBtn = document.getElementById('forceResetImageBtn');
-        if (forceResetImageBtn) {
-            forceResetImageBtn.addEventListener('click', function() {
-                const genId = document.getElementById('settings_gen_id').value;
-                if (confirm('Êtes-vous sûr de vouloir forcer la réinitialisation de cette génération ?\n\nCette action marquera la génération comme échouée et vous permettra de la relancer.')) {
-                    forceResetImageGeneration(genId);
-                }
-            });
-        }
 
         // Download all button
         const downloadAllBtn = document.getElementById('downloadAllBtn');
@@ -258,30 +226,8 @@
             }
         });
 
-        // Video settings buttons
-        document.addEventListener('click', function(e) {
-            if (e.target.closest('.video-settings-btn')) {
-                const btn = e.target.closest('.video-settings-btn');
-                const genId = btn.getAttribute('data-id');
-                openVideoSettingsModal(genId);
-            }
-        });
 
-        // Save video settings button (save and start)
-        const saveVideoSettingsBtn = document.getElementById('saveVideoSettingsBtn');
-        if (saveVideoSettingsBtn) {
-            saveVideoSettingsBtn.addEventListener('click', function() {
-                saveVideoSettings(true);
-            });
-        }
 
-        // Save video settings only button
-        const saveVideoSettingsOnlyBtn = document.getElementById('saveVideoSettingsOnlyBtn');
-        if (saveVideoSettingsOnlyBtn) {
-            saveVideoSettingsOnlyBtn.addEventListener('click', function() {
-                saveVideoSettings(false);
-            });
-        }
 
         // Force reset button for stuck generations
         const forceResetVideoBtn = document.getElementById('forceResetVideoBtn');
@@ -1250,9 +1196,9 @@
         }
 
         // Progression PAR-CARTE (cartes en cours) — propre à imager, inchangé.
-        // Polling legacy DÉSACTIVÉ : la file est servie par le partial _generation_card
-        // + l'endpoint card_html — c'est queue.js (refreshCard) qui rafraîchit désormais.
-        // updateRunningGenerationsProgress/updateGenerationCard ciblent l'ancien DOM.
+        // Polling par card : assuré par queue.js (WamaApp.Poller + refreshCard sur
+        // l'endpoint card_html). Les fonctions de repaint DOM manuel ont été SUPPRIMÉES
+        // avec les cards inline — seules les barres globales restent pilotées ici.
     }
 
     /**
@@ -1260,119 +1206,10 @@
      * Only polls cards that are currently running to reduce network requests
      * Handles both image and video generations
      */
-    function updateRunningGenerationsProgress() {
-        // Get unique generation IDs that need updating from both queues
-        const idsToUpdate = new Set();
-
-        // Check image queue
-        document.querySelectorAll('#generationsQueue [data-id]').forEach(card => {
-            const badge = card.querySelector('.badge');
-            const wasRunning = card.getAttribute('data-was-running') === 'true';
-            if ((badge && badge.textContent.trim() === 'RUNNING') || wasRunning) {
-                idsToUpdate.add(card.getAttribute('data-id'));
-            }
-        });
-
-        // Check video queue
-        document.querySelectorAll('#videoGenerationsQueue [data-id]').forEach(card => {
-            const badge = card.querySelector('.badge');
-            const wasRunning = card.getAttribute('data-was-running') === 'true';
-            if ((badge && badge.textContent.trim() === 'RUNNING') || wasRunning) {
-                idsToUpdate.add(card.getAttribute('data-id'));
-            }
-        });
-
-        // Only make requests for running generations
-        idsToUpdate.forEach(genId => {
-            const url = config.urls.progress.replace('0', genId);
-
-            // Find card in either queue
-            let card = document.querySelector(`#generationsQueue [data-id="${genId}"]`);
-            if (!card) {
-                card = document.querySelector(`#videoGenerationsQueue [data-id="${genId}"]`);
-            }
-
-            fetch(url)
-                .then(response => response.json())
-                .then(data => {
-                    if (card) {
-                        updateGenerationCard(card, data);
-                    }
-                })
-                .catch(error => console.error(`Error updating generation ${genId}:`, error));
-        });
-    }
 
     /**
      * Update a generation card with new data
      */
-    function updateGenerationCard(card, data) {
-        // Update status badge
-        const badge = card.querySelector('.badge');
-        if (badge) {
-            badge.className = 'badge';
-            badge.textContent = data.status;
-
-            if (data.status === 'PENDING') badge.classList.add('bg-secondary');
-            else if (data.status === 'RUNNING') badge.classList.add('bg-warning');
-            else if (data.status === 'SUCCESS') badge.classList.add('bg-success');
-            else if (data.status === 'FAILURE') badge.classList.add('bg-danger');
-        }
-
-        // Update progress bar
-        const progressBar = card.querySelector('.wama-progress-fill');
-        const progressText = card.querySelector('.progress-text');
-        if (progressBar) {
-            progressBar.style.width = data.progress + '%';
-            if (data.status === 'RUNNING') progressBar.classList.add('active');
-            else progressBar.classList.remove('active');
-        }
-        if (progressText) progressText.textContent = data.progress + '%';
-        if (window.WamaEta) WamaEta.render(card.querySelector('.wama-eta'), WamaEta.update(card.dataset.id, { progress: data.progress, status: data.status, seedSeconds: data.estimated_seconds, modelLoaded: false }));
-
-        // Show/hide error message
-        if (data.error_message && data.status === 'FAILURE') {
-            // Show error: update existing or create new
-            let errorSmall = card.querySelector('small.text-danger');
-            if (errorSmall) {
-                errorSmall.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${data.error_message.substring(0, 50)}`;
-            }
-            // Also update Django-rendered alert if present
-            const alertEl = card.querySelector('.alert-danger');
-            if (alertEl) {
-                alertEl.innerHTML = `<i class="fas fa-exclamation-triangle"></i> ${data.error_message}`;
-            }
-        } else {
-            // Clear errors when status is not FAILURE or no error message
-            const errorSmall = card.querySelector('small.text-danger');
-            if (errorSmall) errorSmall.remove();
-            // Remove Django-rendered error alert row
-            const alertEl = card.querySelector('.alert-danger');
-            if (alertEl) {
-                const alertRow = alertEl.closest('.row');
-                if (alertRow) alertRow.remove();
-            }
-        }
-
-        // If just completed (status changed to SUCCESS), reload to show images
-        // Only reload once per generation to avoid infinite loop
-        const genId = card.getAttribute('data-id');
-        const wasRunning = card.getAttribute('data-was-running') === 'true';
-
-        if (data.status === 'RUNNING') {
-            card.setAttribute('data-was-running', 'true');
-        }
-
-        if (data.status === 'SUCCESS' && wasRunning && !reloadedGenerations.has(genId)) {
-            reloadedGenerations.add(genId);
-            document.body.removeAttribute('data-wama-processing');
-            setTimeout(() => location.reload(), 1000);
-        }
-
-        if (data.status === 'FAILURE' && wasRunning) {
-            document.body.removeAttribute('data-wama-processing');
-        }
-    }
 
     /**
      * Update generation status (helper function)
@@ -1454,320 +1291,18 @@
     /**
      * Open settings modal for a generation
      */
-    function openSettingsModal(genId) {
-        const url = config.urls.getSettings.replace('0', genId);
-
-        fetch(url)
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    showNotification('Error: ' + data.error, 'danger');
-                    return;
-                }
-
-                // Populate modal with data
-                document.getElementById('modal_gen_id').textContent = data.id;
-                document.getElementById('settings_gen_id').value = data.id;
-
-                // Mode display
-                const modeLabels = {
-                    'txt2img': 'Text to Image',
-                    'file2img': 'File to Image',
-                    'describe2img': 'Describe to Image',
-                    'style2img': 'Style Transfer',
-                    'img2img': 'Image to Image',
-                };
-                const modeBadge = document.getElementById('settings_mode_badge');
-                modeBadge.textContent = modeLabels[data.generation_mode] || data.generation_mode;
-
-                // Reference image
-                const refCol = document.getElementById('settings_reference_col');
-                const refImg = document.getElementById('settings_reference_img');
-                const strengthCol = document.getElementById('settings_strength_col');
-                const hasRef = data.reference_image_url && ['img2img', 'style2img', 'describe2img'].includes(data.generation_mode);
-                refCol.style.display = hasRef ? '' : 'none';
-                if (hasRef) {
-                    refImg.src = data.reference_image_url;
-                }
-
-                // Image strength (for img2img/style2img)
-                const hasStrength = ['img2img', 'style2img'].includes(data.generation_mode);
-                strengthCol.style.display = hasStrength ? '' : 'none';
-                if (hasStrength) {
-                    const strengthEl = document.getElementById('settings_image_strength');
-                    strengthEl.value = data.image_strength || 0.75;
-                    document.getElementById('settings_strength_value').textContent = strengthEl.value;
-                }
-
-                // Auto-generated prompt (describe2img)
-                const autoPromptRow = document.getElementById('settings_auto_prompt_row');
-                if (data.generation_mode === 'describe2img' && data.auto_prompt) {
-                    autoPromptRow.style.display = '';
-                    document.getElementById('settings_auto_prompt').textContent = data.auto_prompt;
-                } else {
-                    autoPromptRow.style.display = 'none';
-                }
-
-                // Deux états : le champ affiche l'enrichi s'il existe, l'original reste
-                // consultable et récupérable ([[wama-prompt-enrich]]).
-                attachPromptStates('settings_prompt', 'image', data);
-                document.getElementById('settings_negative_prompt').value = data.negative_prompt || '';
-                document.getElementById('settings_model').value = data.model || '';
-                document.getElementById('settings_num_images').value = data.num_images || 1;
-
-                // Set resolution from width/height
-                const width = data.width || 512;
-                const height = data.height || 512;
-                const resolution = getResolutionFromWidthHeight(width, height);
-                const resolutionSelect = document.getElementById('settings_resolution');
-                if (resolutionSelect) {
-                    // Check if resolution exists in options
-                    let found = false;
-                    for (let option of resolutionSelect.options) {
-                        if (option.value === resolution) {
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (found) {
-                        resolutionSelect.value = resolution;
-                    } else {
-                        // Default to 512x512 if resolution not found
-                        resolutionSelect.value = '512x512';
-                    }
-                    updateWidthHeightFromResolution(resolutionSelect.value, 'settings_width', 'settings_height');
-                }
-
-                // Update recommended resolutions for the model
-                updateResolutionsForModel(data.model || '', 'settings_resolution', 'settings_resolution_warning');
-
-                // Steps
-                const stepsEl = document.getElementById('settings_steps');
-                stepsEl.value = data.steps || 30;
-                document.getElementById('settings_steps_value').textContent = stepsEl.value;
-
-                // Guidance scale
-                const guidanceEl = document.getElementById('settings_guidance_scale');
-                guidanceEl.value = data.guidance_scale || 7.5;
-                document.getElementById('settings_guidance_value').textContent = guidanceEl.value;
-
-                // Seed
-                document.getElementById('settings_seed').value = data.seed || '';
-
-                // Upscale
-                document.getElementById('settings_upscale').checked = data.upscale || false;
-
-                // Show/hide force reset button based on status
-                const forceResetBtn = document.getElementById('forceResetImageBtn');
-                if (forceResetBtn) {
-                    // Show force reset button if status is RUNNING (likely stuck)
-                    forceResetBtn.style.display = (data.status === 'RUNNING') ? 'inline-block' : 'none';
-                }
-
-                // Show modal
-                const modal = new bootstrap.Modal(document.getElementById('generationSettingsModal'));
-                modal.show();
-            })
-            .catch(error => {
-                console.error('Error loading settings:', error);
-                showNotification('Error loading settings', 'danger');
-            });
-    }
 
     /**
      * Save settings from modal
      */
-    function saveSettings(andStart = false) {
-        const genId = document.getElementById('settings_gen_id').value;
-        const url = config.urls.saveSettings.replace('0', genId);
-
-        const formData = new FormData();
-        // `prompt_state` dit au serveur s'il édite l'enrichi ou son propre prompt (auquel cas
-        // l'enrichi devient périmé et est vidé) — cf. save_generation_settings.
-        const _sp = document.getElementById('settings_prompt');
-        formData.append('prompt', _sp.value);
-        formData.append('prompt_state', _sp.dataset.promptState || 'user');
-        formData.append('negative_prompt', document.getElementById('settings_negative_prompt').value);
-        formData.append('model', document.getElementById('settings_model').value);
-        formData.append('width', document.getElementById('settings_width').value);
-        formData.append('height', document.getElementById('settings_height').value);
-        formData.append('steps', document.getElementById('settings_steps').value);
-        formData.append('guidance_scale', document.getElementById('settings_guidance_scale').value);
-        formData.append('seed', document.getElementById('settings_seed').value);
-        formData.append('num_images', document.getElementById('settings_num_images').value);
-        formData.append('upscale', document.getElementById('settings_upscale').checked ? 'true' : 'false');
-
-        // Image strength (only sent if the control is visible)
-        const strengthCol = document.getElementById('settings_strength_col');
-        if (strengthCol && strengthCol.style.display !== 'none') {
-            formData.append('image_strength', document.getElementById('settings_image_strength').value);
-        }
-
-        fetch(url, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': config.csrfToken
-            },
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showNotification('Settings saved!', 'success');
-
-                // Close modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('generationSettingsModal'));
-                if (modal) modal.hide();
-
-                if (andStart) {
-                    // Start the generation
-                    startGeneration(genId);
-                } else {
-                    // Refresh page to show updated settings
-                    setTimeout(() => location.reload(), 500);
-                }
-            } else {
-                showNotification('Error: ' + (data.error || 'Unknown error'), 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Error saving settings:', error);
-            showNotification('Error saving settings', 'danger');
-        });
-    }
 
     /**
      * Open video settings modal for a generation
      */
-    function openVideoSettingsModal(genId) {
-        const url = config.urls.getSettings.replace('0', genId);
-
-        fetch(url)
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    showNotification('Error: ' + data.error, 'danger');
-                    return;
-                }
-
-                // Populate modal with data
-                document.getElementById('video_modal_gen_id').textContent = data.id;
-                document.getElementById('video_settings_gen_id').value = data.id;
-
-                // Mode display
-                const videoModeLabels = {
-                    'txt2vid': 'Text to Video',
-                    'img2vid': 'Image to Video',
-                };
-                const videoModeBadge = document.getElementById('video_settings_mode_badge');
-                videoModeBadge.textContent = videoModeLabels[data.generation_mode] || data.generation_mode;
-
-                // Reference image (for img2vid)
-                const videoRefCol = document.getElementById('video_settings_reference_col');
-                const videoRefImg = document.getElementById('video_settings_reference_img');
-                const hasVideoRef = data.reference_image_url && data.generation_mode === 'img2vid';
-                videoRefCol.style.display = hasVideoRef ? '' : 'none';
-                if (hasVideoRef) {
-                    videoRefImg.src = data.reference_image_url;
-                }
-
-                attachPromptStates('video_settings_prompt', 'video', data);
-                document.getElementById('video_settings_negative_prompt').value = data.negative_prompt || '';
-                document.getElementById('video_settings_model').value = data.model || 'wan-t2v-1.3b';
-                document.getElementById('video_settings_resolution').value = data.video_resolution || '480p';
-
-                // Duration
-                const durationEl = document.getElementById('video_settings_duration');
-                durationEl.value = data.video_duration || 5;
-                document.getElementById('video_settings_duration_value').textContent = durationEl.value;
-
-                // FPS
-                document.getElementById('video_settings_fps').value = data.video_fps || 16;
-
-                // Seed
-                document.getElementById('video_settings_seed').value = data.seed || '';
-
-                // Steps
-                const stepsEl = document.getElementById('video_settings_steps');
-                stepsEl.value = data.steps || 30;
-                document.getElementById('video_settings_steps_value').textContent = stepsEl.value;
-
-                // Guidance scale
-                const guidanceEl = document.getElementById('video_settings_guidance');
-                guidanceEl.value = data.guidance_scale || 5;
-                document.getElementById('video_settings_guidance_value').textContent = guidanceEl.value;
-
-                // Show/hide force reset button based on status
-                const forceResetBtn = document.getElementById('forceResetVideoBtn');
-                if (forceResetBtn) {
-                    // Show force reset button if status is RUNNING (likely stuck)
-                    forceResetBtn.style.display = (data.status === 'RUNNING') ? 'inline-block' : 'none';
-                }
-
-                // Show modal
-                const modal = new bootstrap.Modal(document.getElementById('videoSettingsModal'));
-                modal.show();
-            })
-            .catch(error => {
-                console.error('Error loading video settings:', error);
-                showNotification('Erreur lors du chargement des paramètres vidéo', 'danger');
-            });
-    }
 
     /**
      * Save video settings from modal
      */
-    function saveVideoSettings(andStart = false) {
-        const genId = document.getElementById('video_settings_gen_id').value;
-        const url = config.urls.saveSettings.replace('0', genId);
-
-        const formData = new FormData();
-        const _vsp = document.getElementById('video_settings_prompt');
-        formData.append('prompt', _vsp.value);
-        formData.append('prompt_state', _vsp.dataset.promptState || 'user');
-        formData.append('negative_prompt', document.getElementById('video_settings_negative_prompt').value);
-        formData.append('model', document.getElementById('video_settings_model').value);
-        formData.append('video_resolution', document.getElementById('video_settings_resolution').value);
-        formData.append('video_duration', document.getElementById('video_settings_duration').value);
-        formData.append('video_fps', document.getElementById('video_settings_fps').value);
-        formData.append('steps', document.getElementById('video_settings_steps').value);
-        formData.append('guidance_scale', document.getElementById('video_settings_guidance').value);
-        formData.append('seed', document.getElementById('video_settings_seed').value);
-
-        fetch(url, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': config.csrfToken
-            },
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showNotification('Paramètres vidéo sauvegardés !', 'success');
-
-                // Close modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('videoSettingsModal'));
-                if (modal) modal.hide();
-
-                if (andStart) {
-                    // Start the generation
-                    startGeneration(genId, true);
-                } else {
-                    // Ensure video tab stays active
-                    localStorage.setItem('imager_active_tab', 'video');
-                    // Refresh page to show updated settings
-                    setTimeout(() => location.reload(), 500);
-                }
-            } else {
-                showNotification('Erreur : ' + (data.error || 'Erreur inconnue'), 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Error saving video settings:', error);
-            showNotification('Erreur lors de la sauvegarde des paramètres vidéo', 'danger');
-        });
-    }
 
     /**
      * Force reset a stuck generation to FAILURE status
@@ -1808,38 +1343,6 @@
     /**
      * Force reset a stuck image generation to FAILURE status
      */
-    function forceResetImageGeneration(genId) {
-        const url = config.urls.forceReset.replace('0', genId);
-
-        fetch(url, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': config.csrfToken
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showNotification('Génération réinitialisée. Vous pouvez maintenant la relancer.', 'success');
-
-                // Close modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('generationSettingsModal'));
-                if (modal) modal.hide();
-
-                // Ensure image tab stays active
-                localStorage.setItem('imager_active_tab', 'image');
-
-                // Refresh page to show updated status
-                setTimeout(() => location.reload(), 500);
-            } else {
-                showNotification('Erreur : ' + (data.error || 'Erreur inconnue'), 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Error force resetting image generation:', error);
-            showNotification('Erreur lors de la réinitialisation', 'danger');
-        });
-    }
 
     /**
      * Initialize model description tooltips
