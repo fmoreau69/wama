@@ -106,7 +106,7 @@ def extract_library(key: str) -> Optional[dict]:
 # ── PROJECTION (write-back) ──────────────────────────────────────────────────────
 # `library` est le kind PILOTE du manifeste-first (ROADMAP §16.7) : contrairement aux modèles
 # (`AIModel` préexistait aux manifestes), il n'a AUCUN registre historique à réconcilier — son
-# registre `common.models.Library` NAÎT de cette projection. Même contrat que `project_app` :
+# registre `common.models.Library` NAÎT de cette projection. Même contrat que `write_back_app` :
 # `apply=False` = DRY-RUN qui retourne le plan ; `apply=True` écrit, idempotent et transactionnel.
 #
 # Ce que la projection n'écrit PAS, volontairement :
@@ -128,7 +128,7 @@ _CHAMPS_PROJETES = (
 )
 
 
-def project_library(manifest: dict, *, apply: bool = False) -> dict:
+def write_back_library(manifest: dict, *, apply: bool = False) -> dict:
     """Projette un manifeste `library` vers le registre `Library`. Retourne le plan (dry-run)
     ou le résultat appliqué. Idempotent : re-projeter un manifeste inchangé ne change rien."""
     from django.db import transaction
@@ -156,7 +156,7 @@ def project_library(manifest: dict, *, apply: bool = False) -> dict:
             'preserved': {'is_allowed': obj.is_allowed, 'is_installed': obj.is_installed}}
 
 
-def un_project_library(manifest: dict, *, apply: bool = False) -> dict:
+def un_write_back_library(manifest: dict, *, apply: bool = False) -> dict:
     """Retire l'entrée de registre créée par la projection (réversibilité, SPEC §2.1).
     Ne touche à rien si la librairie est INSTALLÉE : on ne rend pas orphelin un paquet présent."""
     from wama.common.models import Library
@@ -178,8 +178,8 @@ register_kind(ManifestKind(
     kind='library',
     validate=validate_library_body,
     extract=extract_library,
-    project=project_library,
-    un_project=un_project_library,
+    write_back=write_back_library,
+    un_write_back=un_write_back_library,
     description="Brique logicielle externe (dépôt/licence/version/install/entry points). "
                 "Extraite des métadonnées du paquet installé ; les contraintes fines "
                 "relèvent du rôle wama-dev-ai (SPEC §7.4-4). PROJECTION → registre `Library` "

@@ -6,7 +6,7 @@ Répond par la MESURE à « peut-on régénérer cette app depuis son manifeste 
 ⚠ Le round-trip lui-même n'est PAS nouveau : `projection.studio_redundancy()` (2026-07-21)
 en est un, ciblé sur la redondance APP_CATALOG⟷GENERIC_APPS, et cette commande l'exécute
 parmi les autres contrôles. Ce qui manquait était le RUNNER : les briques
-(`extract`/`validate`/`verify`/`project`/`facet_report`/`studio_redundancy`) existaient
+(`extract`/`validate`/`verify`/`write_back`/`facet_report`/`studio_redundancy`) existaient
 séparément et aucune commande ne les enchaînait, si bien que l'état de la régénération se
 jugeait sur des `.md` — qui surestiment.
 
@@ -14,7 +14,7 @@ jugeait sur des `.md` — qui surestiment.
   python manage.py manifest_roundtrip transcriber --json     # sortie machine
   python manage.py manifest_roundtrip --all                  # les 10 apps, tableau de synthèse
 
-Ne modifie RIEN : `project()` est appelé en dry-run. L'écriture reste un geste explicite
+Ne modifie RIEN : `write_back()` est appelé en dry-run. L'écriture reste un geste explicite
 (propriété de sûreté §2.1 de WAMA_MANIFEST_SPEC).
 """
 import json
@@ -23,7 +23,7 @@ from django.core.management.base import BaseCommand
 
 
 class Command(BaseCommand):
-    help = "Round-trip de manifeste d'app (extract → validate → verify → project dry-run)."
+    help = "Round-trip de manifeste d'app (extract → validate → verify → write_back dry-run)."
 
     def add_arguments(self, parser):
         parser.add_argument('app_id', nargs='?', help="App à tester (ex. transcriber).")
@@ -32,7 +32,7 @@ class Command(BaseCommand):
 
     # ── Un round-trip ────────────────────────────────────────────────────────
     def _roundtrip(self, app_id):
-        from wama.common.manifests.ingest import extract, validate, verify, project
+        from wama.common.manifests.ingest import extract, validate, verify, write_back
         from wama.common.manifests.projection import facet_report, studio_redundancy
 
         out = {'app': app_id}
@@ -65,7 +65,7 @@ class Command(BaseCommand):
         }
 
         try:
-            plan = project(manifest, apply=False)
+            plan = write_back(manifest, apply=False)
             out['plan_projection'] = plan if isinstance(plan, (dict, list)) else str(plan)
         except NotImplementedError as e:
             out['plan_projection'] = f"non implémenté : {e}"

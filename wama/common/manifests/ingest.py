@@ -4,7 +4,7 @@ Moteur d'INGEST — validate → (sandbox) store → verify → promote → un-i
 Propriétés NON négociables (spec §2) :
   - IDEMPOTENT      : ré-ingérer (même kind+key) = UPDATE, jamais de doublon.
   - TRANSACTIONNEL  : tout-ou-rien (@transaction.atomic).
-  - RÉVERSIBLE      : `un_ingest` retire la ligne (+ un_project si le kind écrit des dérivés).
+  - RÉVERSIBLE      : `un_ingest` retire la ligne (+ un_write_back si le kind écrit des dérivés).
   - TRAÇABLE        : `source` conservé ; les dérivés (quand projection) portent `_manifest_key`.
   - VERIFY          : `verify` diffe la projection-depuis-manifeste contre l'état courant des registres.
 
@@ -131,14 +131,14 @@ def extract(kind: str, key: str) -> Optional[dict]:
     return mk.extract(key)
 
 
-def project(manifest: dict, *, apply: bool = False):
+def write_back(manifest: dict, *, apply: bool = False):
     """Projette (write-back) le manifeste vers l'état committé — geste EXPLICITE, jamais automatique
     (propriété de sûreté §2.1). `apply=False` = DRY-RUN (plan) ; `apply=True` = écrit. Délègue au kind."""
     env = Envelope.from_dict(manifest)
     mk = get_kind(env.manifest_kind)
-    if not mk.project:
-        raise NotImplementedError(f"kind '{env.manifest_kind}' n'implémente pas project()")
-    return mk.project(manifest, apply=apply)
+    if not mk.write_back:
+        raise NotImplementedError(f"kind '{env.manifest_kind}' n'implémente pas write_back()")
+    return mk.write_back(manifest, apply=apply)
 
 
 # ── Verify (diff manifeste ↔ état courant) ──────────────────────────────────────
@@ -167,8 +167,12 @@ def un_ingest(kind: str, key: str) -> bool:
     obj = qs.first()
     if not obj:
         return False
-    if mk.un_project:
-        mk.un_project(obj.as_manifest())
+    if mk.un_write_back:
+        # `apply=True` EXPLICITE : révoquer, c'est appliquer. L'appel se faisait sans, donc la
+        # révocation d'une `library` partait en dry-run — la ligne Manifest était supprimée mais
+        # la projection n'était jamais défaite. Silencieux, parce que les deux hooks n'avaient pas
+        # le même contrat (corrigé le 2026-08-05, cf. un_write_back_app).
+        mk.un_write_back(obj.as_manifest(), apply=True)
     obj.delete()
     return True
 

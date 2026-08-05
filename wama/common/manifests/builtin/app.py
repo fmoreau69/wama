@@ -6,7 +6,7 @@ Kind `app` — le plus riche (8 facettes, cf. WAMA_MANIFEST_SPEC §3).
 sandbox, puis diffe contre l'app réelle → les écarts révèlent trous du schéma ET mécanismes non
 généralisés (spec §4).
 
-Posture prudente : `project`/`un_project` (write-back dans les registres) NE sont PAS implémentés ici
+Posture prudente : `write_back`/`un_write_back` (write-back dans les registres) NE sont PAS implémentés ici
 (chantier ultérieur — écrire dans APP_CATALOG = code-gen, pas une écriture DB). Le kind est donc
 « extract + verify only » pour l'instant : on stocke, on diffe, on ne réécrit pas les briques.
 """
@@ -454,7 +454,7 @@ def _to_dict(obj) -> dict:
 # Propriété de sûreté (SPEC §2.1) : rien ne lit le manifeste en direct ; la projection est un geste
 # EXPLICITE, jamais automatique. AUJOURD'HUI, une SEULE facette est projetable au RUNTIME : `access`
 # → `AppAccessPolicy` (DB). Les autres facettes = CODE-GEN (non écrites, rapportées dans `codegen_required`).
-def project_app(manifest: dict, *, apply: bool = False) -> dict:
+def write_back_app(manifest: dict, *, apply: bool = False) -> dict:
     """Projette le manifeste `app` vers l'état committé. `apply=False` = DRY-RUN (retourne le plan) ;
     `apply=True` = écrit (idempotent, transactionnel, réversible). Seule `access` écrit au runtime."""
     key = manifest.get('key')
@@ -499,19 +499,30 @@ def _project_access(app_id: str, access: dict, *, apply: bool) -> dict:
 
 
 @transaction.atomic
-def un_project_app(manifest: dict) -> bool:
-    """Réversibilité : retire la politique DB projetée → retombe sur le seed `DEFAULT_APP_ACCESS`."""
+def un_write_back_app(manifest: dict, *, apply: bool = False) -> dict:
+    """
+    Réversibilité : retire la politique DB projetée → retombe sur le seed `DEFAULT_APP_ACCESS`.
+
+    Signature ALIGNÉE sur les autres kinds le 2026-08-05 (`(manifest, *, apply=False) -> dict`).
+    Elle appliquait auparavant sans dry-run et rendait un `bool` : un appelant générique itérant
+    sur les kinds obtenait donc un essai à blanc pour `library` et une suppression immédiate ici.
+    """
     from wama.accounts.models import AppAccessPolicy
-    n, _ = AppAccessPolicy.objects.filter(app_id=manifest.get('key')).delete()
-    return n > 0
+
+    qs = AppAccessPolicy.objects.filter(app_id=manifest.get('key'))
+    n = qs.count()
+    if not apply:
+        return {'app': manifest.get('key'), 'would_remove': n}
+    qs.delete()
+    return {'app': manifest.get('key'), 'removed': n}
 
 
 register_kind(ManifestKind(
     kind='app',
     validate=validate_app_body,
     extract=extract_app,
-    project=project_app,
-    un_project=un_project_app,
+    write_back=write_back_app,
+    un_write_back=un_write_back_app,
     description="Application généraliste WAMA (8 facettes). Extract complet ; PROJECTION partielle : "
                 "seule `access`→AppAccessPolicy écrit au runtime (idempotent/réversible), le reste = code-gen.",
 ))

@@ -138,7 +138,7 @@ _CHAMPS_PROJETES = [
 ]
 
 
-def project_model(manifest: dict, *, apply: bool = False) -> dict:
+def write_back_model(manifest: dict, *, apply: bool = False) -> dict:
     """
     Projette le manifeste vers `AIModel` — la jambe manifeste → registre pour le kind `model`.
 
@@ -182,11 +182,38 @@ def project_model(manifest: dict, *, apply: bool = False) -> dict:
     return {'model': key, 'changed': sorted(deltas), 'preserved': preserves}
 
 
+def un_write_back_model(manifest: dict, *, apply: bool = False) -> dict:
+    """
+    Réversibilité : vide les champs déclaratifs projetés, sans toucher au reste.
+
+    On ne supprime PAS la ligne `AIModel` — elle n'a pas été créée par le manifeste (cf.
+    `write_back_model`), elle existe parce que des poids sont sur le disque. La révoquer
+    reviendrait à faire disparaître du catalogue un modèle bel et bien installé.
+    """
+    from wama.model_manager.models import AIModel
+
+    key = manifest.get('key') or ''
+    cible = AIModel.objects.filter(model_key=key).first()
+    if cible is None:
+        return {'model': key, 'absent': True}
+
+    vides = {champ: '' for champ, _ in _CHAMPS_PROJETES}
+    portes = sorted(c for c in vides if getattr(cible, c))
+    if not apply:
+        return {'model': key, 'would_clear': portes, 'preserved': ['la ligne AIModel elle-même']}
+
+    for champ, valeur in vides.items():
+        setattr(cible, champ, valeur)
+    cible.save(update_fields=list(vides))
+    return {'model': key, 'cleared': portes, 'preserved': ['la ligne AIModel elle-même']}
+
+
 register_kind(ManifestKind(
     kind='model',
     validate=validate_model_body,
     extract=extract_model,
-    project=project_model,
+    write_back=write_back_model,
+    un_write_back=un_write_back_model,
     description="Modèle IA (extrait d'AIModel) : identité/besoins/formats/capacités déclaratifs. "
                 "Exclut l'état runtime (loaded/available/downloaded/local_path/timestamps).",
 ))
