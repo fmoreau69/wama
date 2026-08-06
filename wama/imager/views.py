@@ -1116,6 +1116,35 @@ def card_html(request, generation_id):
 
 
 @require_http_methods(["POST"])
+def batch_update(request, batch_id):
+    """Applique des réglages à tous les items NON-RUNNING d'un batch (modale contexte 'batch').
+
+    Comme la modale item : la coercition vient du SCHÉMA (params.py) — pas de liste de
+    champs réécrite ici, qui serait une Nᵉ copie (le reader la maintient encore à la main).
+    """
+    from wama.common.utils.param_schema import coerce_schema_values
+    from wama.imager.models import GenerationBatch
+
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = get_object_or_404(GenerationBatch, pk=batch_id, user=user)
+
+    updated = 0
+    for item in batch.items.select_related('generation').all():
+        gen = item.generation
+        if not gen or gen.status == 'RUNNING':
+            continue
+        values = coerce_schema_values(_schema_for(gen), request.POST)
+        if not values:
+            continue
+        for field, value in values.items():
+            setattr(gen, field, value)
+        gen.save()
+        updated += 1
+
+    return JsonResponse({'success': True, 'updated': updated})
+
+
+@require_http_methods(["POST"])
 def duplicate_generation(request, generation_id):
     """Duplicate a generation (share reference_image, reset outputs)"""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()

@@ -89,9 +89,64 @@
         });
     }
 
+    // ── Modale de réglages du BATCH (patron anonymizer/avatarizer) ──
+    // Coquille dans le template, CHAMPS générés par WamaParams en contexte 'batch',
+    // appliqués aux items non-RUNNING (vue batch_update, coercition par le schéma).
+    function openBatchSettings(batchId, domain) {
+        const host = document.getElementById('imagerBatchParams');
+        const modalEl = document.getElementById('imagerBatchSettingsModal');
+        if (!host || !modalEl || !window.WamaParams) return;
+        const video = domain === 'video';
+        WamaParams.render(host,
+            (video ? window.IMAGER_VIDEO_SCHEMA : window.IMAGER_IMAGE_SCHEMA) || [],
+            { context: 'batch', values: {},
+              groups: (video ? window.IMAGER_VIDEO_GROUPS : window.IMAGER_IMAGE_GROUPS) || [] });
+        modalEl.dataset.batchId = batchId;
+        const badge = document.getElementById('imagerBatchSettingsId');
+        if (badge) badge.textContent = '#' + batchId;
+        new bootstrap.Modal(modalEl).show();
+    }
+
+    function saveBatchSettings(start) {
+        const modalEl = document.getElementById('imagerBatchSettingsModal');
+        const id = modalEl && modalEl.dataset.batchId;
+        if (!id) return;
+        const fd = new FormData();
+        const vals = WamaParams.read(document.getElementById('imagerBatchParams'));
+        Object.keys(vals).forEach(function (k) { fd.append(k, vals[k]); });
+        fd.append('csrfmiddlewaretoken', cfg().csrfToken);
+        WamaApp.csrfFetch(WamaApp.getUrl((window.IMAGER_CARD || {}).urls.batchUpdate, id),
+                          cfg().csrfToken, { method: 'POST', body: fd })
+            .then(r => r.json().catch(() => ({})))
+            .then(function (resp) {
+                if (!resp.success) { WamaApp.toast(resp.error || 'Application impossible', 'error'); return; }
+                bootstrap.Modal.getInstance(modalEl).hide();
+                WamaApp.toast((resp.updated || 0) + ' élément(s) mis à jour', 'success');
+                if (start) {
+                    return post(WamaApp.getUrl((window.IMAGER_CARD || {}).urls.batchStart, id))
+                        .then(function () { window.location.reload(); });
+                }
+                window.location.reload();   // la file entière a changé
+            })
+            .catch(function () { WamaApp.toast('Erreur réseau', 'error'); });
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         wireCycle('generationsQueue');
         wireCycle('videoGenerationsQueue');
         sync();
+
+        document.addEventListener('click', function (e) {
+            const b = e.target.closest('.batch-settings-btn');
+            if (b) {
+                const group = b.closest('.batch-group');
+                const child = group && group.querySelector('.imager-card[data-domain]');
+                openBatchSettings(b.getAttribute('data-batch-id'),
+                                  child ? child.dataset.domain : 'image');
+                return;
+            }
+            if (e.target.closest('#imagerSaveBatchSettingsBtn')) saveBatchSettings(false);
+            else if (e.target.closest('#imagerSaveBatchSettingsAndStartBtn')) saveBatchSettings(true);
+        });
     });
 })();

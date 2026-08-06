@@ -22,6 +22,8 @@ urlpatterns = [
     path('progress/<int:generation_id>/', views.progress, name='progress'),
     # Partial de card (contrat card_html/refreshCard — F5)
     path('card/<int:generation_id>/html/', views.card_html, name='card_html'),
+    # Réglages appliqués à tout un batch (modale contexte 'batch')
+    path('batch/<int:batch_id>/update/', views.batch_update, name='batch_update'),
     path('global-progress/', views.global_progress, name='global_progress'),
 
     # Download and delete

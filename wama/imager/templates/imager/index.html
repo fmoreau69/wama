@@ -428,6 +428,29 @@ Tout telecharger. {% endcomment %}
 {% comment %} Modales ⚙ : GÉNÉRÉES par WamaParams depuis le schéma (params.py) —
 settings_modal.js. Les deux modales hand-built (~345 lignes qui recopiaient le schéma) sont
 supprimées ; seul le PIED commun reste déclaré ici, cloné par le JS. {% endcomment %}
+{% comment %} Modale paramètres de BATCH (patron anonymizer/avatarizer) : la coquille est
+écrite ici, les CHAMPS sont générés par WamaParams.render(context:'batch') dans
+#imagerBatchParams et appliqués à tous les items non-RUNNING (vue batch_update).
+Un seul domaine à la fois : le schéma injecté suit le domaine du batch cliqué. {% endcomment %}
+<div class="modal fade" id="imagerBatchSettingsModal" tabindex="-1" aria-labelledby="imagerBatchSettingsLabel">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-dark text-light">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="imagerBatchSettingsLabel">
+                    <i class="fas fa-layer-group me-2"></i>Paramètres du batch
+                    <span class="badge bg-secondary ms-1" id="imagerBatchSettingsId"></span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body" style="max-height: 65vh; overflow-y: auto;">
+                <p class="small text-white-50 mb-2">Appliqués à tous les éléments du batch (sauf ceux en cours).</p>
+                <div id="imagerBatchParams"></div>
+            </div>
+            {% include 'common/_settings_modal_footer.html' with save_id='imagerSaveBatchSettingsBtn' save_start_id='imagerSaveBatchSettingsAndStartBtn' save_label='Appliquer' save_start_label='Appliquer & lancer' %}
+        </div>
+    </div>
+</div>
+
 <template id="imagerSettingsFooterTpl">
     {% comment %} Modale GÉNÉRÉE en JS : le déclencheur est la CLASSE (save_class /
     save_start_class), pas un id — un id serait dupliqué à chaque card. {% endcomment %}
@@ -584,7 +607,9 @@ WAMA_GLOBAL_PROGRESS_URL → pas d'auto-init.{% endcomment %}
 /* Config de la card d'entrée (input_card.js) — méta d'appariement servie par la vue. */
 window.IMAGER_CARD = {
     urls: { create: "{% url 'imager:create' %}",
-            cardHtml: "{% url 'imager:card_html' 0 %}" },
+            cardHtml: "{% url 'imager:card_html' 0 %}",
+            batchUpdate: "{% url 'imager:batch_update' 0 %}",
+            batchStart: "{% url 'imager:start_batch' 0 %}" },
     modelGroups: {{ model_groups_json|safe }},
     csrf: "{{ csrf_token }}",
     enhanceUrl: "{% url 'common:enrich_prompt' %}",
