@@ -6,7 +6,7 @@ Image generation using Diffusers with multi-modal input support
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator, FileExtensionValidator
-from wama.common.models import PromptScoped, ScopedManager, ScopedVisibility
+from wama.common.models import BatchMixin, PromptScoped, ScopedManager, ScopedVisibility
 from wama.common.utils.media_paths import UploadToUserPath
 
 
@@ -426,3 +426,50 @@ class UserSettings(models.Model):
 
     def __str__(self):
         return f"Settings for {self.user.username}"
+
+
+class GenerationBatch(BatchMixin, ScopedVisibility):
+    """Groupe de générations — unité de FILE et de PARTAGE (contrat commun `build_batches_list`).
+
+    Remplace le self-FK `ImageGeneration.parent_generation`, qui portait la même intention sans
+    UI ni partage possible (0 batch en base au portage : le mécanisme n'a jamais servi).
+
+    `ScopedVisibility` AUSSI sur le batch : la file est bâtie à partir des batchs — une card
+    partagée sans son batch n'apparaîtrait pas.
+    """
+    objects = ScopedManager()
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='generation_batches')
+    created_at = models.DateTimeField(auto_now_add=True)
+    # Fichier de prompts (mode file2img) — partagé par les items, nettoyé par BatchMixin.
+    batch_file = models.FileField(
+        upload_to=UploadToUserPath('imager', 'input/prompts'),
+        blank=True, null=True,
+    )
+    # Domaine du batch (image | video) : la file de l'imager est scopée par onglet de domaine.
+    domain = models.CharField(max_length=10, default='image')
+    total = models.IntegerField(default=0)
+
+    class Meta:
+        verbose_name = "Batch de génération"
+        verbose_name_plural = "Batchs de génération"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Batch #{self.id} — {self.user.username} ({self.total} items)"
+
+
+class GenerationBatchItem(models.Model):
+    """Item d'un batch de génération (contrat commun : batch → items → work)."""
+    batch = models.ForeignKey(GenerationBatch, on_delete=models.CASCADE, related_name='items')
+    generation = models.OneToOneField(
+        ImageGeneration, on_delete=models.CASCADE,
+        related_name='batch_item', null=True, blank=True,
+    )
+    row_index = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['row_index']
+
+    def __str__(self):
+        return f"GenerationBatchItem #{self.id} — batch {self.batch_id}"

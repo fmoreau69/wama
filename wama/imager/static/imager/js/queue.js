@@ -55,8 +55,10 @@
     });
 
     // Aligne l'ensemble des pollers sur le DOM (Poller.has garde de tout doublon).
+    // [data-id] EXIGÉ : la card MÈRE de batch porte aussi .imager-card mais n'a pas d'id
+    // d'item (data-status="batch") — sans ce filtre on pollait /progress/undefined/.
     function sync() {
-        document.querySelectorAll('.imager-card[data-status]').forEach(function (el) {
+        document.querySelectorAll('.imager-card[data-id][data-status]').forEach(function (el) {
             const id = el.dataset.id;
             if (TERMINAL.indexOf((el.dataset.status || '').toUpperCase()) === -1) poller.start(id);
             else poller.stop(id);

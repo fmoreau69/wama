@@ -9,6 +9,14 @@ class ImagerConfig(AppConfig):
     def ready(self):
         from . import signals  # noqa: F401  (enregistre les receivers de notification)
 
+        # Batch unifié : `total` auto-réparé + suppression des batchs vidés (brique commune).
+        try:
+            from wama.common.utils.batch_sync import register_batch_sync
+            from .models import GenerationBatchItem
+            register_batch_sync(GenerationBatchItem)
+        except Exception:
+            pass
+
         # Détail inspecteur (schéma canonique INSPECTOR_DETAIL_FIELDS.md) — audit 2026-07-11.
         # Réglages spécifiques → labels de params.py (source unique), jamais relabellisés.
         # NB : PAS de register_app_preview pour l'instant — `generated_images` est un JSON

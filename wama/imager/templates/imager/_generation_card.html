@@ -70,8 +70,9 @@ Contrats JS :
         </div>
 
         {% comment %} Ligne 3 : état (badge + % + temps) — la barre vit seule en bas (design v3) {% endcomment %}
+        {% comment %} La brique rend déjà le badge, le %, l'ETA (span.wama-eta) et la durée :
+        ne PAS ajouter de span ETA ici (doublon → deux horloges, constat visuel 06/08). {% endcomment %}
         {% include 'common/_card_progress.html' with status=gen.status progress=gen.progress elapsed=gen.duration_display no_bar=True %}
-        <span class="wama-eta d-block small text-muted"></span>
 
         {% if gen.status == 'FAILURE' and gen.error_message %}
         <small class="text-danger d-block mt-1 text-truncate" title="{{ gen.error_message }}">{{ gen.error_message|truncatechars:160 }}</small>

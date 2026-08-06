@@ -177,12 +177,52 @@ def index(request):
     from wama.common.utils.app_modes import INPUT_TYPES as _INPUT_TYPES
     input_labels = {k: (v.get('label') or k) for k, v in _INPUT_TYPES.items()}
 
-    # Separate image and video generations — décorées pour le partial de card
-    # (chips schéma-driven ; listes → le template compte avec |length, pas .count)
-    image_generations = [_decorate_card(g) for g in
-                         generations.exclude(generation_mode__in=['txt2vid', 'img2vid'])]
-    video_generations = [_decorate_card(g) for g in
-                         generations.filter(generation_mode__in=['txt2vid', 'img2vid'])]
+    # ── File bâtie sur les BATCHS (contrat commun) ───────────────────────────────
+    # Tout est batch ; une génération isolée est auto-enveloppée dans son batch-of-1
+    # (c'est aussi ce qui la rend PARTAGEABLE — le batch est l'unité de partage).
+    from wama.common.utils.batch_common import auto_wrap_orphans, build_batches_list
+    from wama.common.utils.queue_view import apply_queue_sort_filter
+    from wama.imager.models import GenerationBatch, GenerationBatchItem
+
+    def _wrap_by_domain(orphans):
+        """Batch-of-1 par orphelin, en portant le DOMAINE (la file de l'imager est
+        scopée par onglet) — le défaut commun ne connaît pas ce champ d'app."""
+        made = []
+        for g in orphans:
+            try:
+                b = GenerationBatch.objects.create(
+                    user=g.user, total=1,
+                    domain='video' if g.is_video_generation else 'image')
+                GenerationBatchItem.objects.create(batch=b, generation=g, row_index=0)
+                made.append(b)
+            except Exception:
+                pass
+        return made
+
+    auto_wrap_orphans(user, work_model=ImageGeneration, batch_model=GenerationBatch,
+                      item_model=GenerationBatchItem, fk_name='generation',
+                      wrap_group=_wrap_by_domain)
+
+    batches_all = build_batches_list(user, batch_model=GenerationBatch,
+                                     work_attr='generation')
+    for _b in batches_all:                       # chips schéma-driven sur chaque card
+        for _it in _b['items']:
+            if _it.generation:
+                _decorate_card(_it.generation)
+
+    image_batches = [b for b in batches_all if b['obj'].domain != 'video']
+    video_batches = [b for b in batches_all if b['obj'].domain == 'video']
+
+    def _name(b):
+        first = next((i.generation for i in b['items'] if i.generation), None)
+        return (first.prompt or '') if first else ''
+
+    image_batches, q_sort, q_filter = apply_queue_sort_filter(request, image_batches, name_of=_name)
+    video_batches, _vs, _vf = apply_queue_sort_filter(request, video_batches, name_of=_name)
+
+    # Listes à plat conservées pour les compteurs d'onglet et la barre globale.
+    image_generations = [i.generation for b in image_batches for i in b['items'] if i.generation]
+    video_generations = [i.generation for b in video_batches for i in b['items'] if i.generation]
 
     context = {
         'generations': generations,
@@ -207,6 +247,11 @@ def index(request):
         'model_groups_json': json.dumps({'image': image_model_groups,
                                          'video': video_model_groups}),
         # Modales ⚙ schéma-driven (params.py = source unique) — WamaParams les génère.
+        # File par BATCHS (brique commune) + état de la toolbar (tri/filtre en session).
+        'image_batches': image_batches,
+        'video_batches': video_batches,
+        'q_sort': q_sort,
+        'q_filter': q_filter,
         'image_params_json': json.dumps(IMAGE_PARAMS_JSON),
         'video_params_json': json.dumps(VIDEO_PARAMS_JSON),
         'image_groups_json': json.dumps(IMAGE_GROUPS_JSON),
