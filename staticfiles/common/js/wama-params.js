@@ -478,7 +478,9 @@
   //   footerTplId,         // <template> du pied commun (_settings_modal_footer.html)
   //   idField,             // nom du champ id à poster (défaut : aucun)
   //   decorate(host, data, ctx),   // zones d'app HORS schéma (prompt, présets, aperçus…)
-  //   collect(fd, host, data),     // champs d'app à ajouter au POST
+  //   collect(fd, host, data, restart),  // champs d'app à ajouter au POST — `restart` est
+  //                                      // fourni car certaines apps le postent (anonymizer)
+  //                                      // au lieu d'enchaîner un second appel (imager)
   //   onSaved(id, restart, resp),  // suite (rafraîchir la card, relancer…)
   //   errorOf(resp),               // extraction du message d'erreur (défaut : resp.error)
   // }
@@ -526,7 +528,7 @@
       Object.keys(vals).forEach(function (k) { fd.append(k, vals[k]); });
       if (cfg.idField) fd.append(cfg.idField, cfg.id);
       if (cfg.csrf) fd.append('csrfmiddlewaretoken', cfg.csrf);
-      if (typeof cfg.collect === 'function') cfg.collect(fd, host, data);
+      if (typeof cfg.collect === 'function') cfg.collect(fd, host, data, restart);
 
       const send = (global.WamaApp && WamaApp.csrfFetch)
         ? WamaApp.csrfFetch(cfg.saveUrl, cfg.csrf, { method: 'POST', body: fd })

@@ -25,14 +25,6 @@
     return d.innerHTML;
   }
 
-  // ── Pied commun : clone du gabarit serveur (remplace le footer par défaut) ──
-  function graftCommonFooter(modal) {
-    const tpl = document.getElementById('mediaSettingsFooterTpl');
-    if (!tpl || !tpl.content.firstElementChild) return;
-    const foot = tpl.content.firstElementChild.cloneNode(true);
-    const oldFoot = modal.querySelector('.modal-footer');
-    if (oldFoot) oldFoot.replaceWith(foot);
-  }
 
   // ── Section bespoke classes2blur (exception hors schéma) — insérée DANS le groupe
   // « Quoi flouter (YOLO) » : concept YOLO-only, masquée avec lui en mode SAM3. ──
@@ -108,6 +100,8 @@
     sel.value = current || '';
   }
 
+  // Ouverture : ORCHESTRATION COMMUNE (WamaParams.settingsModal). Ce fichier ne declare
+  // plus que les specificites anonymizer via les hooks decorate/collect/onSaved/errorOf.
   async function openSettingsModal(id) {
     let data;
     try {
@@ -122,7 +116,7 @@
       return;
     }
 
-    const { modal, host } = WamaParams.renderSettingsModal({
+    return WamaParams.settingsModal({
       id: id,
       title: 'Paramètres du média #' + id,
       titleIcon: 'fa-user-secret',
@@ -130,75 +124,52 @@
       groups: window.WAMA_ANONYMIZER_GROUPS || [],   // sections calquées sur le volet droit
       values: data.values || {},
       formClass: 'anon-settings-form',
+      footerTplId: 'mediaSettingsFooterTpl',
+      saveUrl: cfg.settingsSaveUrl,
+      csrf: cfg.csrfToken,
+      idField: 'media_id',
+      decorate: function (host) {
+        fillModelChoices(host, data.model_choices, (data.values || {}).model_to_use);
+        appendClassesSection(host, data.classes2blur);
+        appendSam3Badge(host);
+        // Enrichissement ✨ du prompt SAM3 dans la modale (pipeline commune)
+        const promptEl = host.querySelector('textarea[name="sam3_prompt"]');
+        if (promptEl && window.WamaPromptEnrich) {
+          promptEl.id = promptEl.id || 'msSam3Prompt' + id;
+          WamaPromptEnrich.attach('#' + promptEl.id, {
+            app: 'anonymizer', domain: 'detection', csrf: cfg.csrfToken,
+            original: (data.values || {}).sam3_prompt || '',
+          });
+        }
+      },
+      collect: function (fd, host, d, restart) {
+        // classes2blur : multi-sélection bespoke (hors schéma) + drapeau de relance
+        host.querySelectorAll('input[name="classes2blur"]:checked')
+            .forEach(function (cb) { fd.append('classes2blur', cb.value); });
+        fd.append('restart', restart ? '1' : '0');
+      },
+      errorOf: function (resp) {
+        return resp && resp.success ? null : ((resp && resp.error) || 'Enregistrement impossible');
+      },
+      onSaved: function (mid, restart, resp) {
+        if (window.WamaEta && resp.restarted) WamaEta.reset(mid);
+        if (window.AnonQueue) {
+          Promise.resolve(AnonQueue.refreshCard(mid)).then(function () {
+            if (resp.restarted) AnonQueue.startPolling(parseInt(mid, 10));
+          });
+        }
+      },
     });
-    modal.dataset.mediaId = id;
-    graftCommonFooter(modal);
-    fillModelChoices(host, data.model_choices, (data.values || {}).model_to_use);
-    appendClassesSection(host, data.classes2blur);
-    appendSam3Badge(host);
-
-    // Enrichissement ✨ du prompt SAM3 dans la modale (pipeline commune)
-    const promptEl = host.querySelector('textarea[name="sam3_prompt"]');
-    if (promptEl && window.WamaPromptEnrich) {
-      promptEl.id = promptEl.id || 'msSam3Prompt' + id;
-      WamaPromptEnrich.attach('#' + promptEl.id, {
-        app: 'anonymizer',
-        domain: 'detection',
-        csrf: cfg.csrfToken,
-        original: (data.values || {}).sam3_prompt || '',
-      });
-    }
-
-    new bootstrap.Modal(modal).show();
   }
 
-  async function saveSettings(modal, restart) {
-    const id = modal.dataset.mediaId;
-    const host = modal.querySelector('.wama-modal-fields');
-    const vals = WamaParams.read(host);
 
-    const fd = new FormData();
-    fd.append('media_id', id);
-    Object.keys(vals).forEach(k => fd.append(k, vals[k]));
-    modal.querySelectorAll('input[name="classes2blur"]:checked')
-         .forEach(cb => fd.append('classes2blur', cb.value));
-    fd.append('restart', restart ? '1' : '0');
-    fd.append('csrfmiddlewaretoken', cfg.csrfToken);
-
-    let data;
-    try {
-      const resp = await fetch(cfg.settingsSaveUrl, { method: 'POST', body: fd });
-      data = await resp.json();
-    } catch (e) {
-      if (window.WamaApp) WamaApp.toast("Erreur réseau à l'enregistrement", 'error');
-      return;
-    }
-    if (!data.success) {
-      if (window.WamaApp) WamaApp.toast(data.error || 'Enregistrement impossible', 'error');
-      return;
-    }
-
-    const inst = bootstrap.Modal.getInstance(modal);
-    if (inst) inst.hide();
-    if (window.WamaApp) WamaApp.toast(restart && data.restarted ? 'Enregistré — relance…' : 'Paramètres enregistrés', 'success');
-    if (window.WamaEta && data.restarted) WamaEta.reset(id);
-    if (window.AnonQueue) {
-      await AnonQueue.refreshCard(id);
-      if (data.restarted) AnonQueue.startPolling(parseInt(id, 10));
-    }
-  }
-
-  // Délégation : ouverture (⚙ des cards) + boutons du pied commun (modale générée)
+  // Délégation : ouverture (⚙ des cards). Le pied est câblé PAR LA BRIQUE, sur la
+  // modale elle-même (pas de listener document qui s'accumulerait).
   document.addEventListener('click', function (e) {
     const openBtn = e.target.closest('.settings-btn[data-id]');
     if (openBtn && openBtn.closest('.anon-card')) {
       openSettingsModal(openBtn.dataset.id);
       return;
-    }
-    const saveBtn = e.target.closest('.save-settings-btn, .save-and-restart-btn');
-    if (saveBtn) {
-      const modal = saveBtn.closest('.modal[data-media-id]');
-      if (modal) saveSettings(modal, saveBtn.classList.contains('save-and-restart-btn'));
     }
   });
 
