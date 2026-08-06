@@ -2483,7 +2483,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const panel = document.getElementById('featModesPanel');
         if (!panel) return;
         panel.innerHTML = '';
-        catalog.forEach(f => {
+        // Auto-généré PAR SCOPE (métadonnée-driven, cf. utils/features.py) : on sépare les
+        // bascules à effet immédiat (comparent deux calculs DÉJÀ stockés, zéro recalcul) de
+        // celles qui changent le résultat et exigent de relancer « Calculer les indicateurs ».
+        const _buildFeatRow = (f) => {
             const row = document.createElement('label');
             row.className = 'd-flex align-items-start gap-2 small mb-1';
             row.style.cursor = 'pointer';
@@ -2514,7 +2517,25 @@ document.addEventListener('DOMContentLoaded', function () {
             const span = document.createElement('span');
             span.textContent = f.label + (f.scope === 'compute' ? ' ⟳' : '');
             row.appendChild(span);
-            panel.appendChild(row);
+            return row;
+        };
+        const _featGroups = [
+            { label: '⚡ Affichage — immédiat',
+              hint: 'Bascule instantanée : compare deux façons DÉJÀ calculées, aucun recalcul.',
+              test: (f) => f.scope !== 'compute' },
+            { label: '⟳ Calcul — à relancer',
+              hint: 'Change le résultat : relance « Calculer les indicateurs » pour voir l’effet.',
+              test: (f) => f.scope === 'compute' },
+        ];
+        _featGroups.forEach((g) => {
+            const items = (catalog || []).filter(g.test);
+            if (!items.length) return;
+            const h = document.createElement('div');
+            h.className = 'small fw-semibold text-info mt-1 mb-1';
+            h.textContent = g.label;
+            h.title = g.hint;
+            panel.appendChild(h);
+            items.forEach((f) => panel.appendChild(_buildFeatRow(f)));
         });
     }
 

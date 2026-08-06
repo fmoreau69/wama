@@ -92,6 +92,9 @@ encombrer le quotidien) → 2. VUE (bascules d'affichage quotidiennes, live) →
         </button>
     </div>
 </div>
+{# ── Panneau ⚑ COMPARER (dé-floté 2026-08-06) — auto-généré par scope, cf. renderFeatPanel ── #}
+<div id="featModesPanel" class="d-none mb-1 p-2 rounded"
+     style="background:rgba(255,255,255,.03); border:1px solid #495057; max-width:340px;"></div>
 {# ── Panneau CALIBRATION (replié par défaut) — tout ce qui définit la géométrie ── #}
 <div id="calibPanel" class="d-none mb-1 p-2 rounded"
      style="background:rgba(255,255,255,.03); border:1px solid #495057;">
@@ -168,8 +171,7 @@ encombrer le quotidien) → 2. VUE (bascules d'affichage quotidiennes, live) →
          style="height: 320px; width: 100%; border-radius: 6px; border: 1px solid #495057; background: #1a1d20;"></div>
     <div id="topDownStatus" class="position-absolute small"
          style="top:6px; left:6px; z-index:1000; background:rgba(26,29,32,.8); color:#adb5bd; padding:2px 8px; border-radius:4px; font-size:0.7rem; pointer-events:none;"></div>
-    <div id="featModesPanel" class="position-absolute d-none"
-         style="top:6px; right:6px; z-index:1100; background:rgba(26,29,32,.95); color:#e0e0e0; border:1px solid #495057; border-radius:6px; padding:8px 10px; max-width:280px;"></div>
+    {# featModesPanel dé-floté sous la barre d'outils (2026-08-06) — voir après #camAnalyzerMapToolbar #}
 </div>
 <div class="small text-secondary mt-1" style="font-size: 0.7rem;">
     <i class="fas fa-mouse-pointer me-1"></i>Cliquer sur le parcours pour aller au passage le plus proche

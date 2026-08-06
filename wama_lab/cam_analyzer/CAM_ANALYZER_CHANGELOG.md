@@ -76,6 +76,12 @@ pas de tests destructifs (user id=1 = Fabien réel, `transaction.atomic()`) · p
 
 ---
 
+## 2026-08-06
+
+| Commit | Quoi | Pourquoi | Validation/annulation |
+|---|---|---|---|
+| *(ce commit)* | **Volet droit — ⚑ Comparer DÉ-FLOTÉ + SCINDÉ par scope (Palier A du chantier volet droit, ex-Q3).** (1) `#featModesPanel` n'est plus `position-absolute` en surimpression de la mini-carte pivotée (fragilité de superposition, cf. skill « aucun pane custom sur la carte tournée ») → **docké** sous `#camAnalyzerMapToolbar` (`base.html`), style aligné sur `calibPanel`, toggle `featModesBtn` **inchangé** (simple `d-none`, aucun positionnement à retirer). (2) `renderFeatPanel` (`index.js`) **auto-génère deux sous-groupes PAR SCOPE** (métadonnée-driven, lecture de `f.scope` déjà servi par `utils/features.py`, zéro nouvelle logique) : **⚡ Affichage — immédiat** (`scope !== 'compute'`) et **⟳ Calcul — à relancer** (`scope === 'compute'`). La logique de ligne (checkbox / `onchange` / POST override) est **inchangée**, seulement extraite en helper `_buildFeatRow`. | Q3 du handoff volet droit (`REPRISE_2026-08-06`) validé Fabien : le menu mélangeait bascules immédiates et bascules exigeant un recalcul sans matérialiser la coupure, et flottait sur la carte. La scission suit « UI DEPUIS les métadonnées » (le champ `scope` existe déjà) et le modèle posé par Fabien 2026-08-06 : **affichage = lit des résultats DÉJÀ stockés (zéro recalcul) vs calcul = recalcul**. Prépare le Palier B (replier les toggles « Vue » 360°/Prédiction/Garés/Voie dans le registre, mêmes `id` → comportements préservés). | `check_js.sh` **51/0** · statics copiés vers `staticfiles/cam_analyzer/` · **template modifié → HUP gunicorn requis avant smoke**. ⚠ **Smoke navigateur NON relancé** cette édition — à vérifier : ouvrir ⚑ Comparer → panneau docké sous la barre, 2 sous-en-têtes (6 flags immédiats / 8 recalcul), plus de flottement sur la carte. Aucun comportement de bascule changé (mêmes `key`/`onchange`). Annulation : `git revert <commit>` (présentation seule, aucune donnée ni calcul touché). |
+
 ## 2026-08-05
 
 | Commit | Quoi | Pourquoi | Validation/annulation |
