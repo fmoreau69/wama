@@ -141,18 +141,21 @@ manifeste** (ce que le kind `app` capte + cible de projection).
 - **Source** : `params.py` `PARAMS_JSON` (dataclass `Param`, `param_schema.py:24`), **une seule source
   déclarative, 10/10 apps l'ont**. `coerce_params()` (`:147`) = validation serveur (bornes = le schéma).
 - **Renderer commun** : `WamaParams` (`wama-params.js`) rend item/panel ; **MAIS** :
-  - **modale batch JAMAIS rendue** par WamaParams (0 `context:'batch'`) → hand-built partout.
+  - ~~modale batch JAMAIS rendue par WamaParams~~ — **PÉRIMÉ, mesuré 2026-08-06** : anonymizer,
+    avatarizer et imager rendent `context:'batch'`. Ce qui reste écrit à la main est la **coquille**
+    (`<div class="modal">` + titre + pied), jamais le CONTENU (généré du schéma).
   - le **studio a son PROPRE renderer** `renderNodeParams` (`wama-studio.js:348`) **appauvri** (pas de
     toggle/range/radio/show_if/advanced) — réinvention à supprimer (doit appeler WamaParams).
 - **Adoption réelle** (le vrai déficit) :
 
   | Surface | Câblée sur | Reste |
   |---|---|---|
-  | modale item (WamaParams) | converter, reader, enhancer (plein) ; transcriber, composer (partiel) | imager, synthesizer, describer, avatarizer, anonymizer = **hand-built** |
-  | modale batch | — | **aucune** (toutes hand-built) |
-  | chips métadonnée (`card_chips.py`) | **reader seul** | 9 apps |
+  | modale item (WamaParams) | converter, reader, enhancer (plein) ; transcriber, composer (partiel) ; **anonymizer + imager (générée intégralement, 2026-08-03/06)** | synthesizer, describer, avatarizer |
+  | modale batch (`context:'batch'`) | anonymizer, avatarizer, **imager (2026-08-06)** | 7 apps |
+  | chips métadonnée (`card_chips.py`) | reader, **anonymizer, imager (2026-08-06)** | 7 apps |
   | `WamaModelCaps` (show_if depuis caps) | **synthesizer seul** | — |
-  | corps de modale commun `_settings_modal.html` | **n'existe pas** (seul le pied est factorisé) | — |
+  | corps de modale commun `_settings_modal.html` | **sans objet depuis 2026-08-06** : la modale est GÉNÉRÉE (`WamaParams.settingsModal`, cycle complet + hooks) — le gabarit HTML prévu par la roadmap d'avril datait d'avant `WamaParams`. Reste à porter aux 8 autres apps | — |
+  | **réglages utilisateur persistés** (`common/utils/user_settings.py`) | avatarizer, converter, describer, synthesizer, transcriber | **imager (modèle maison `UserSettings`, jamais écrit), anonymizer** |
 - **Manifeste** : `params` capté (`app.py:212`) mais ⚠ **un seul `params_attr`** (rate les multi-schémas
   `IMAGE_+VIDEO_`, `MEDIA_+AUDIO_`) ; ne distingue pas **déclaré vs câblé** (c'est le round-trip qui le révèle).
 

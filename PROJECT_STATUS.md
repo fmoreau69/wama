@@ -2316,6 +2316,25 @@ travail**. La base LIVE est celle de **WSL2 (Postgres 16)**, conforme à
 exécute WAMA nativement sous Windows (`venv_win runserver`) ; sinon c'est une taxe d'entretien
 supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 
+## §REPRISE — 2026-08-06 : DEUX handoffs distincts (sessions parallèles)
+
+> ⚠️ **Ne pas confondre.** Deux instances ont travaillé le 2026-08-06 sur des périmètres disjoints :
+>
+> | Instance | Handoff | Périmètre |
+> |---|---|---|
+> | **cam_analyzer / volet droit** | [`REPRISE_2026-08-06.md`](REPRISE_2026-08-06.md) | `wama_lab/cam_analyzer/**` — chantier NON terminé (Q3/Q4 à valider avant de coder) |
+> | **imager / commun** | [`REPRISE_2026-08-06_IMAGER.md`](REPRISE_2026-08-06_IMAGER.md) | `wama/imager/**` + briques `common/` — **imager 55 % → 77 %** |
+>
+> Côté imager, le point qui commande la suite : le **volet droit (256 lignes écrites à la main)**
+> doit adopter `common/utils/user_settings.py` — brique déjà utilisée par 5 apps portées, qui rend
+> inutile toute migration. ⚠️ **Régression connue à réparer en même temps** : depuis le portage de
+> la card d'entrée, les réglages du volet ne partent plus à la création (les handlers utilisent
+> `get_model_defaults(model)`) — régler « 4 images » n'a aucun effet.
+> Deux bugs du COMMUN ont été corrigés : le gate d'appariement (`wama-input-match`) bloquait le
+> lancement à vie dès qu'on câblait `onState`, et le poller ciblait la card mère de batch.
+
+---
+
 ## §REPRISE-bis — handoff 2026-07-31 soir (session « avatarizer porté à 93 % »)
 
 > **Fait (3 commits, grille re-mesurée à chaque palier)** : F5+F7+F1 (42→56) — card serveur

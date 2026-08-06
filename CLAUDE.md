@@ -199,7 +199,12 @@ Si deux apps ont besoin de la même logique, elle va dans `common/` et les deux 
 1. ~~`common/utils/backend_selector.py`~~ — REMPLACÉ : `select_model()` (model_manager) existe et
    couvre VRAM + singleton (vérifié 2026-07-20) ; reste = adoption par les apps (étape 3, PROJECT_STATUS §2)
 2. `common/static/common/js/wama-app-base.js` — JS de base inter-apps ✅ (fait)
-3. `common/templates/common/_settings_modal.html` — modal paramètres générique
+3. ~~`common/templates/common/_settings_modal.html` — modal paramètres générique~~ **LIVRÉ AUTREMENT
+   (2026-08-06)** : la modale est **générée**, pas déclarée en HTML → `WamaParams.settingsModal()`
+   orchestre le cycle complet (charger → rendre du schéma → pied commun → lire → enregistrer),
+   les spécificités d'app restant des hooks. Le gabarit HTML prévu ici datait du 1ᵉʳ avril 2026,
+   AVANT l'existence de `WamaParams` : à l'époque les modales étaient 100 % manuelles, donc les
+   factoriser voulait dire un partial. Adoptée par anonymizer + imager ; **reste à porter aux 8 autres**.
 
 ### Pipeline de prompts commune
 
