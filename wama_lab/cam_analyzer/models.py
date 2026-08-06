@@ -408,6 +408,7 @@ class AnalysisPass(models.Model):
         DEPTH = 'depth', 'Profondeur (Depth Pro)'
         DEPTH_CALC = 'depth_calc', 'Calculs profondeur (plan de sol / distances)'
         GLOBAL_TRACKING = 'global_tracking', 'Tracking 360° (gids + trajectoires)'
+        INDICATORS = 'indicators', 'Indicateurs (TTC/PET + insertions)'
         CONFLICTS = 'conflicts', 'Conflits'
 
     class Status(models.TextChoices):

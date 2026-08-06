@@ -29,7 +29,28 @@ _WATCHED: dict[str, list[str]] = {
     'temporal_segments': ['target_classes', 'confidence'],
     'distance': [],
     'global_tracking': [],   # tracking 360° : gids + ancres + trajectoires lissées
+    'indicators': [],        # TTC/PET par trajectoire + insertions (pur calcul, re-jouable)
     'conflicts': [],
+}
+
+# Étage d'affichage de chaque passe dans le volet droit : « analyse » (perception qui REGARDE
+# les images : extraction, fenêtres, YOLO, lanes, SAM3, profondeur) vs « calcul » (DÉRIVE des
+# données déjà stockées, sans re-regarder les pixels : événements, segments, distance, calculs
+# profondeur, tracking 360°, indicateurs, conflits). Sert à scinder visuellement le pipeline.
+_STAGE: dict[str, str] = {
+    'extraction': 'analyse',
+    'intersection_windows': 'analyse',
+    'yolo_detect': 'analyse',
+    'yolopv2_lanes': 'analyse',
+    'sam3_markings': 'analyse',
+    'depth': 'analyse',
+    'lane_events': 'calcul',
+    'temporal_segments': 'calcul',
+    'distance': 'calcul',
+    'depth_calc': 'calcul',
+    'global_tracking': 'calcul',
+    'indicators': 'calcul',
+    'conflicts': 'calcul',
 }
 
 # Dependency graph: if upstream is stale → downstream becomes stale.
@@ -43,6 +64,7 @@ _DEPENDS_ON: dict[str, list[str]] = {
     'temporal_segments': ['yolo_detect', 'intersection_windows'],
     'distance': ['lane_events'],
     'global_tracking': ['yolo_detect', 'distance'],
+    'indicators': ['global_tracking', 'distance'],
     'conflicts': ['lane_events', 'distance'],
 }
 
@@ -210,6 +232,7 @@ def get_passes_status(session) -> list[dict]:
         AnalysisPass.PassType.DEPTH,
         AnalysisPass.PassType.DEPTH_CALC,
         AnalysisPass.PassType.GLOBAL_TRACKING,
+        AnalysisPass.PassType.INDICATORS,
         AnalysisPass.PassType.CONFLICTS,
     ]
     label_map = dict(AnalysisPass.PassType.choices)
@@ -281,4 +304,7 @@ def get_passes_status(session) -> list[dict]:
                     'duration_s': p.duration_s,
                     'error_message': p.error_message or '',
                 })
+    # Étage d'affichage (analyse / calcul) — scinde visuellement le pipeline dans le volet droit.
+    for d in out:
+        d['stage'] = _STAGE.get(d.get('pass_type'), 'analyse')
     return out

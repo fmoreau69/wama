@@ -427,8 +427,10 @@ def prediction_annotate(request, session_id):
     """Lance (en tâche de fond) le calcul des indicateurs Prédiction (TTC/PET par
     trajectoire) pour la session → stockés sur les détections (prediction_ttc/pet)."""
     session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
-    from .tasks import annotate_prediction_task
-    annotate_prediction_task.delay(str(session.id))
+    # Entrée API héritée : la passe `indicators` du pipeline est désormais le chemin principal
+    # (bouton retiré du volet). Même tâche, même suivi de passe quel que soit le point d'entrée.
+    from .tasks import compute_indicators_task
+    compute_indicators_task.delay(str(session.id))
     return JsonResponse({'success': True})
 
 
@@ -983,6 +985,7 @@ def run_passes(request, session_id):
             analyze_sam3_only_task,
             compute_depth_task,
             compute_depth_calc_task,
+            compute_indicators_task,
         )
         _pause_live(session_id)
         cache.delete(f"stop_cam_analyzer_{request.user.id}")
@@ -993,6 +996,7 @@ def run_passes(request, session_id):
             'depth':             compute_depth_task,        # ÉTAGE 1 : inférence Depth Pro → DepthFrame
             'depth_calc':        compute_depth_calc_task,   # ÉTAGE 2 : calculs (plan de sol / distances), CPU
             'global_tracking':   compute_global_tracking_task,
+            'indicators':        compute_indicators_task,   # CALCUL : TTC/PET + tracks 360°, CPU
             'temporal_segments': compute_temporal_segments_task,
             'conflicts':         compute_conflict_events_task,
             'sam3_markings':     analyze_sam3_only_task,

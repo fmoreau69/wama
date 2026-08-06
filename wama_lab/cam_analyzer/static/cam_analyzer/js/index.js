@@ -860,7 +860,7 @@ document.addEventListener('DOMContentLoaded', function () {
         try {
             const resp = await fetch(`${config.urls.listPasses}${currentSessionId}/passes/`);
             const data = await resp.json();
-            const rows = (data.passes || []).map(p => {
+            const _rowHtml = (p) => {
                 const icon = STATUS_ICONS[p.status] || STATUS_ICONS.never;
                 const tip = _formatPassTooltip(p).replace(/"/g, '&quot;');
                 // Per-camera passes get a "[front]" / "[rear]" suffix (Prop A)
@@ -877,6 +877,21 @@ document.addEventListener('DOMContentLoaded', function () {
                                 ${dataPayload} title="Lancer ce passage seul"
                                 style="font-size:0.7rem;">▶</button>
                     </div>`;
+            };
+            // Scinde le pipeline en deux étages lisibles : perception (« Analyse ») puis
+            // dérivations (« Calculs »). L'étage vient du backend (champ `stage` de chaque passe).
+            const _passes = data.passes || [];
+            const _stageDefs = [
+                ['analyse', '📷 Analyse', 'Perception : regarde les images (extraction, YOLO, lanes, SAM3, profondeur)'],
+                ['calcul',  '🧮 Calculs', 'Dérive des données déjà extraites (événements, distances, tracking 360°, indicateurs, conflits)'],
+            ];
+            const rows = _stageDefs.map(([key, title, sub]) => {
+                const group = _passes.filter(p => (p.stage || 'analyse') === key);
+                if (!group.length) return '';
+                return `
+                    <div class="text-uppercase text-secondary mt-2 mb-1"
+                         style="font-size:0.62rem;letter-spacing:0.08em;" title="${sub}">${title}</div>
+                    ${group.map(_rowHtml).join('')}`;
             }).join('');
             panel.innerHTML = `
                 ${rows || '<div class="text-secondary">Aucun passage enregistré.</div>'}
@@ -5005,20 +5020,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 updateDetectionOverlay(_t);
             }
         };
-        // Lancer le calcul Prédiction (tâche de fond) pour la session.
-        const _pcb = document.getElementById('predictionCalcBtn');
-        if (_pcb) _pcb.onclick = async () => {
-            if (!currentSessionId) return;
-            const _t0 = _pcb.innerHTML; _pcb.disabled = true; _pcb.innerHTML = '⏳';
-            try {
-                const r = await fetch(`${config.urls.deleteSession}${currentSessionId}/prediction/`,
-                    { method: 'POST', headers: { 'X-CSRFToken': config.csrfToken } });
-                const d = await r.json();
-                alert(d.success ? 'Calcul de prédiction lancé en tâche de fond. Recharge la session dans quelques minutes puis active le mode Prédiction.'
-                                : 'Prédiction : ' + (d.error || '?'));
-            } catch (e) { alert('Échec : ' + e.message); }
-            finally { _pcb.disabled = false; _pcb.innerHTML = _t0; }
-        };
+        // Les « Indicateurs » (TTC/PET + tracking 360°) sont désormais la passe `indicators`
+        // du pipeline (étage Calculs) — plus de bouton dédié dans la carte. Cf. volet droit § Analyser.
         // Bascule masquage des véhicules stationnés/garés.
         const _hpb = document.getElementById('hideParkedBtn');
         if (_hpb) _hpb.onclick = () => {

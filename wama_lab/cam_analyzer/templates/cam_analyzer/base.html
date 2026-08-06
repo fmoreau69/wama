@@ -74,13 +74,10 @@ encombrer le quotidien) → 2. VUE (bascules d'affichage quotidiennes, live) →
             </span>
         </div>
     </div>
-    {# ── Section 3 : ANALYSE (calculs + comparaison + live) ── #}
+    {% comment %} Section 3 : COMPARER / LIVE — les « Indicateurs » sont désormais la passe
+       `indicators` du pipeline (étage Calculs), plus de bouton de calcul ici. {% endcomment %}
     <div class="td-group">
-        <span class="td-group-label">Analyse</span>
-        <button type="button" id="predictionCalcBtn" class="btn btn-sm btn-outline-secondary"
-                title="Calculer les indicateurs par prédiction de trajectoire (TTC/PET) + tracking 360° pour cette session — peut prendre du temps.">
-            <i class="fas fa-calculator me-1"></i>Indicateurs
-        </button>
+        <span class="td-group-label">Comparer / Live</span>
         <button type="button" id="featModesBtn" class="btn btn-sm btn-outline-info"
                 title="Bascules de comparaison : activer/désactiver chaque amélioration du positionnement pour comparer AVEC/SANS instantanément. ⟳ = nécessite de relancer le calcul des indicateurs.">
             <i class="fas fa-flag me-1"></i>Comparer

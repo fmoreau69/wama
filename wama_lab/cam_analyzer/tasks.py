@@ -2607,20 +2607,36 @@ def compute_ortho_correction_task(self, session_id: str):
 
 
 @shared_task(bind=True)
-def annotate_prediction_task(self, session_id: str):
-    """Calcule les indicateurs Prédiction (TTC/PET par trajectoire) pour la session et les
-    stocke sur les détections (prediction_ttc/pet). Ré-annotation, pas de re-détection."""
+def compute_indicators_task(self, session_id: str):
+    """Passe INDICATEURS (CALCUL, CPU, re-jouable) : DÉRIVE les indicateurs de trafic des données
+    déjà stockées, sans re-détecter — (a) tracks globaux 360° (continuité + hand-off), (b) TTC/PET
+    par trajectoire annotés sur les détections (prediction_ttc/pet). Nommée `compute_*_task` comme
+    la famille des passes ; déclarée `indicators` dans PassType/pass_tracking. Aucun import
+    torch/cv2 → sûr sous WSL2. Session-wide."""
+    close_old_connections()
     from .models import AnalysisSession
+    from .utils.pass_tracking import mark_started, mark_completed, mark_failed
     from .utils.prediction_adapter import annotate_prediction_indicators
-    from .utils.multicam_tracker import annotate_global_tracks
-    session = AnalysisSession.objects.get(pk=session_id)
-    # 1) Tracks globaux multi-caméra (rapide) → continuité 360° + hand-off.
-    _gt = _run_global_tracking(session)
-    ng = _gt.get('tracks', 0)
-    # 2) Prédiction TTC/PET par trajectoire.
-    n = annotate_prediction_indicators(session)
-    _console(session.user_id, f"Prédiction : {n} détections annotées (TTC/PET par trajectoire).")
-    return {'session': session_id, 'global_tracks': ng, 'annotated': n}
+    try:
+        session = AnalysisSession.objects.select_related('profile').get(pk=session_id)
+        mark_started(session, 'indicators', session.profile)
+        _console(session.user_id, "Indicateurs (CALCUL, CPU) : tracks 360° + TTC/PET par trajectoire…")
+        # 1) Tracks globaux multi-caméra (rapide) → continuité 360° + hand-off.
+        _gt = _run_global_tracking(session)
+        ng = _gt.get('tracks', 0)
+        # 2) Prédiction TTC/PET par trajectoire.
+        n = annotate_prediction_indicators(session)
+        summary = {'global_tracks': ng, 'annotated': n}
+        mark_completed(session, 'indicators', output_summary=summary)
+        _console(session.user_id, f"Indicateurs : {ng} tracks 360°, {n} détections annotées (TTC/PET).")
+        return {'session': session_id, **summary}
+    except Exception as e:
+        logger.error(f"compute_indicators_task failed: {e}", exc_info=True)
+        try:
+            mark_failed(AnalysisSession.objects.get(pk=session_id), 'indicators', str(e))
+        except Exception:
+            pass
+        return {'error': str(e), 'session_id': session_id}
 
 
 @shared_task(bind=True)

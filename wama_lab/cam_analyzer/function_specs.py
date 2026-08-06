@@ -192,6 +192,6 @@ _spec('conflicts', 'Conflits', "Détecte les conflits (approche frontale, suivi 
 
 _spec('prediction', 'Indicateurs prédiction (TTC/PET)', "TTC/PET par prédiction de trajectoire (ré-annotation "
       "des détections, sans re-détection).",
-      FC.ENRICHER, 'cam_analyzer.tasks:annotate_prediction_task', ['geo', 'per-vehicle'],
+      FC.ENRICHER, 'cam_analyzer.tasks:compute_indicators_task', ['geo', 'per-vehicle'],
       inputs=[PortSpec('detections', DT.DETECTIONS, required_fields=['world_en', 'global_track_id'])],
       outputs=[PortSpec('detections', DT.DETECTIONS, produced_fields=['prediction_ttc', 'prediction_pet'])])
