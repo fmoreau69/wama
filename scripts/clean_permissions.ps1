@@ -56,7 +56,7 @@ $gitSafe = @(
 $ask = @()
 foreach ($tool in @('Bash', 'PowerShell')) {
     foreach ($pref in @('git', 'rtk git')) {
-        foreach ($c in @('push', 'reset --hard', 'rebase', 'add .', 'add -A')) {
+        foreach ($c in @('push', 'reset --hard', 'rebase', 'add .', 'add -A', 'commit')) {
             $ask += "$tool($pref $c`:*)"
         }
     }
@@ -120,8 +120,25 @@ foreach ($e in @($policy.allow + $local.allow)) {
             ($e -match ':\*\)$') -or ($e -match ' \*\)$')
     if ($e -match '__NEW_LINE_|__TRACKED_VAR__|\$[A-Za-z_]') { $keep = $false }
 
+    # Un motif ":*)" ou " *)" n'est DURABLE que si son prefixe reste generique.
+    # Le dialogue d'approbation suffixe " *" a des commandes entieres : sans ce
+    # controle, une commande litterale (chemins en arguments, longue liste de
+    # fichiers) se fait passer pour un motif et ne re-matchera jamais.
+    # Le 1er jeton peut etre un chemin (l'executable) ; les ARGUMENTS non.
+    $why = 'entree exacte a usage unique'
+    if ($keep -and $e -match '^[A-Za-z_]+\((.+?) ?:?\*\)$') {
+        $tok = @($Matches[1] -split '\s+' | Where-Object { $_ })
+        # Une URL en argument reste generique (ex. un endpoint local) : on l'exempte.
+        $argsPathy = @($tok | Select-Object -Skip 1 |
+                       Where-Object { $_ -notmatch '^[''"]?https?://' -and $_ -match '[/\\''"]' })
+        if ($tok.Count -gt 3 -or $argsPathy.Count) {
+            $keep = $false
+            $why  = 'commande litterale deguisee en motif'
+        }
+    }
+
     if ($keep) { $promoted.Add($e) }
-    else       { $rejected.Add([pscustomobject]@{ Entry = $e; Reason = 'entree exacte a usage unique' }) }
+    else       { $rejected.Add([pscustomobject]@{ Entry = $e; Reason = $why }) }
 }
 
 # ── Normalisation : `Tool(cmd *)` et `Tool(cmd:*)` font doublon -> garder `:*` ──
@@ -142,7 +159,9 @@ foreach ($e in $normalized) {
     foreach ($a in $ask) {
         if ($a -notlike "$tool(*") { continue }
         $ai = ($a -replace '^[A-Za-z]+\(', '' -replace '[:) *]+$', '')
-        if ($ei -and $ai -like "$ei *") { $bad = $true; break }
+        # -eq : un allow AUSSI large que le garde-fou l'annule tout autant
+        #       qu'un allow plus large (ex. allow "git commit *" vs ask "git commit:*").
+        if ($ei -and ($ai -eq $ei -or $ai -like "$ei *")) { $bad = $true; break }
     }
     if ($bad) { $rejected.Add([pscustomobject]@{ Entry = $e; Reason = 'subsumait un garde-fou ask' }) }
     else      { $filtered.Add($e) }
@@ -180,8 +199,18 @@ foreach ($p in @($policyPath, $localPath)) {
     if (Test-Path $p) { Copy-Item $p "$p.bak-$stamp" -Force }
 }
 
-[pscustomobject]@{ permissions = [pscustomobject]@{ allow = $normalized; deny = @(); ask = @($ask | Sort-Object -Unique) } } |
-    ConvertTo-Json -Depth 20 | Set-Content $policyPath -Encoding UTF8
+# PRESERVER les clefs hors "permissions" (hooks, env, model...) : ce script ne
+# gouverne QUE les permissions. Les ecraser detruirait silencieusement le reste
+# de la configuration au prochain passage.
+$out = [ordered]@{}
+$prev = if (Test-Path $policyPath) { Get-Content $policyPath -Raw | ConvertFrom-Json } else { $null }
+if ($prev) {
+    foreach ($k in $prev.PSObject.Properties.Name) {
+        if ($k -ne 'permissions') { $out[$k] = $prev.$k }
+    }
+}
+$out['permissions'] = [pscustomobject]@{ allow = $normalized; deny = @(); ask = @($ask | Sort-Object -Unique) }
+[pscustomobject]$out | ConvertTo-Json -Depth 20 | Set-Content $policyPath -Encoding UTF8
 
 # Le brouillon repart vide : tout ce qui comptait est monté en politique.
 [pscustomobject]@{ permissions = [pscustomobject]@{ allow = @(); deny = @(); ask = @() } } |

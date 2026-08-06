@@ -1,6 +1,11 @@
 # Folders
 .claude/*
 !.claude/skills/
+# Politique de permissions + hooks = configuration VERSIONNEE (partage entre machines
+# et instances). Le brouillon .claude/settings.local.json reste ignore : il est jetable
+# et regenere par scripts/clean_permissions.ps1.
+!.claude/settings.json
+!.claude/hooks/
 media/
 logs/
 wama-analysis/results
