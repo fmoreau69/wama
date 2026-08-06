@@ -110,14 +110,22 @@
           zone.classList.toggle('wama-slot-suggested', opt.indexOf(sid) !== -1);
         }
       });
-      if (req.length) { launchable = false; reason = 'Ce modèle requiert : ' + req.map(label).join(', '); }
+      // Le GATE ne porte que sur les entrées que la card matérialise en SLOT : `provided()`
+      // ne sait détecter qu'un input FICHIER, donc une entrée requise sans slot (ex. le
+      // `prompt` déclaré au catalogue, saisi dans un textarea) ne pourrait JAMAIS être
+      // satisfaite → bouton bloqué à vie (constat imager 06/08 : hunyuan requiert 'prompt',
+      // le lancement restait impossible même prompt rempli). La ligne d'état, elle, continue
+      // d'annoncer TOUTES les attentes du modèle — informer sans bloquer.
+      const gating = req.filter((i) => slots[i]);
+      if (gating.length) { launchable = false; reason = 'Ce modèle requiert : ' + gating.map(label).join(', '); }
       // Ligne d'état : causalité + réversibilité, ou attentes du modèle.
       if (status) {
         const parts = [];
         Object.keys(causes).forEach((i) => {
           parts.push(causes[i] + ' modèle(s) désactivé(s) par « ' + label(i) + ' » — ✕ pour les retrouver');
         });
-        if (req.length) parts.push('⚠ ' + reason);
+        // Informatif : TOUTES les attentes du modèle (indépendant du gate ci-dessus).
+        if (req.length) parts.push('⚠ Ce modèle requiert : ' + req.map(label).join(', '));
         else if (opt.length) parts.push('Ce modèle accepte : ' + opt.map(label).join(', '));
         status.textContent = parts.join(' · ');
         status.style.display = parts.length ? '' : 'none';

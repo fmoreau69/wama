@@ -34,13 +34,20 @@
         let batchFile = null;   // .txt/.csv de prompts (image seulement)
 
         // ── Appariement entrée↔modèle (brique commune, capacités catalogue) ──
+        // INVARIANT INPUT_MODEL_MATCHING : « requis → lancement GATÉ avec la raison,
+        // jamais d'échec silencieux » → onState pilote l'état du bouton Générer.
+        let matcher = null;
         if (window.WamaInputMatch) {
-            WamaInputMatch.init({
+            matcher = WamaInputMatch.init({
                 selectId: d.selectId,
                 statusId: d.statusId,
                 meta: CFG.matchMeta || {},
                 inputLabels: CFG.inputLabels || {},
                 slots: { work_image: { inputId: d.refInputId, chipId: d.refChipId, zoneId: d.refSlotId } },
+                onState: function (st) {
+                    btn.disabled = !st.launchable;
+                    btn.title = st.launchable ? '' : (st.reason || 'Entrée requise manquante');
+                },
             });
         }
 
@@ -107,6 +114,7 @@
                     dt.items.add(f);
                     refInput.files = dt.files;
                     refInput.dispatchEvent(new Event('change', { bubbles: true }));  // → chip WamaInputMatch
+                    if (matcher) matcher.refresh();   // injection PROGRAMMATIQUE : refresh explicite
                 } catch (e) { /* vieux navigateurs : passer par le bouton Ajouter du slot */ }
                 return;
             }
@@ -145,6 +153,11 @@
         btn.addEventListener('click', function () {
             const mode = deriveMode();
             const hasRef = !!(refInput && refInput.files && refInput.files.length);
+            // Garde de dernier recours (le bouton est déjà gaté par onState).
+            if (matcher && !matcher.isLaunchable()) {
+                toast('Ce modèle attend une entrée qui manque encore.', 'warning');
+                return;
+            }
             if (!batchFile && !hasRef && !(promptEl.value || '').trim()) {
                 toast('Décrivez ce que vous voulez générer, ou fournissez une image / un fichier de prompts.', 'warning');
                 return;
