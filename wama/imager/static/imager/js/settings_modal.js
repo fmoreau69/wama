@@ -1,10 +1,10 @@
 /**
  * Imager — modale « Paramètres de la génération », SCHÉMA-DRIVEN (P3 du portage).
  *
- * La modale est GÉNÉRÉE par la brique commune WamaParams.renderSettingsModal depuis le
- * schéma du DOMAINE (params.py = source unique typage/bornes/groupes) ; le pied vient du
- * gabarit serveur #imagerSettingsFooterTpl (_settings_modal_footer.html, délégation par
- * classes .save-settings-btn / .save-and-restart-btn).
+ * ORCHESTRATION COMMUNE : WamaParams.settingsModal fait tout le cycle (charger → rendre →
+ * greffer le pied → afficher → lire → enregistrer → enchaîner). Ce fichier ne déclare plus
+ * que les SPÉCIFICITÉS de l'imager, via les hooks decorate/collect/onSaved.
+ * Schéma du DOMAINE : params.py (source unique typage/bornes/groupes).
  *
  * Remplace les DEUX modales hand-built (~400 lignes de HTML qui recopiaient le schéma)
  * et leurs remplisseurs champ par champ dans index.js.
@@ -18,24 +18,17 @@
 (function () {
     'use strict';
 
-    function CFG() { return window.IMAGER_CONFIG || { urls: {} }; }
-    function CARD() { return window.IMAGER_CARD || { urls: {} }; }
-    function isVideo(mode) { return ['txt2vid', 'img2vid'].indexOf(mode) !== -1; }
-
     function esc(s) {
         const d = document.createElement('div');
         d.textContent = s == null ? '' : String(s);
         return d.innerHTML;
     }
 
-    // ── Pied commun : clone du gabarit serveur (remplace le footer par défaut) ──
-    function graftCommonFooter(modal) {
-        const tpl = document.getElementById('imagerSettingsFooterTpl');
-        if (!tpl || !tpl.content.firstElementChild) return;
-        const foot = tpl.content.firstElementChild.cloneNode(true);
-        const old = modal.querySelector('.modal-footer');
-        if (old) old.replaceWith(foot);
-    }
+    function CFG() { return window.IMAGER_CONFIG || { urls: {} }; }
+    function CARD() { return window.IMAGER_CARD || { urls: {} }; }
+    function isVideo(mode) { return ['txt2vid', 'img2vid'].indexOf(mode) !== -1; }
+
+
 
     function groupBody(host, key) {
         return host.querySelector('[data-group="' + key + '"] .wama-param-group-body');
@@ -139,86 +132,60 @@
         load();
     }
 
-    // ── Ouverture ──
+    // ── Ouverture : l'app ne déclare que ses spécificités ──
     function openSettingsModal(id) {
         return fetch(WamaApp.getUrl(CFG().urls.getSettings, id))
             .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
             .then(function (data) {
                 const video = isVideo(data.generation_mode);
                 const domain = video ? 'video' : 'image';
-                const res = WamaParams.renderSettingsModal({
+                return WamaParams.settingsModal({
                     id: id,
                     title: (video ? 'Paramètres de la vidéo #' : 'Paramètres de la génération #') + id,
                     titleIcon: video ? 'fa-film' : 'fa-image',
                     schema: (video ? window.IMAGER_VIDEO_SCHEMA : window.IMAGER_IMAGE_SCHEMA) || [],
                     groups: (video ? window.IMAGER_VIDEO_GROUPS : window.IMAGER_IMAGE_GROUPS) || [],
-                    values: data,
+                    values: data,                       // déjà chargées (domaine à déterminer)
                     formClass: 'imager-settings-form',
+                    footerTplId: 'imagerSettingsFooterTpl',
+                    saveUrl: WamaApp.getUrl(CFG().urls.saveSettings, id),
+                    csrf: CFG().csrfToken,
+                    decorate: function (host, d) {
+                        fillModelChoices(host, domain, d.model);
+                        appendPromptZone(host, d, domain, id);
+                        appendReferencePreview(host, d);
+                        if (!video) appendResolutionZone(host, d);
+                    },
+                    collect: function (fd, host) {
+                        // Prompt à deux états : poster l'ORIGINAL + l'état (apply_prompt_state arbitre).
+                        const p = host.querySelector('textarea[name="prompt"]');
+                        if (p && window.WamaPromptEnrich) {
+                            const ctrl = WamaPromptEnrich.get(p);
+                            if (ctrl) {
+                                const snap = ctrl.snapshot();
+                                fd.set('prompt', snap.state === 'processed' ? snap.original : p.value);
+                                fd.set('prompt_state', snap.state);
+                            }
+                        }
+                        // Résolution (hors schéma) : champs cachés de la zone d'app.
+                        host.querySelectorAll('input[type="hidden"][name]').forEach(function (i) {
+                            fd.set(i.name, i.value);
+                        });
+                    },
+                    onSaved: function (gid, restart) {
+                        if (restart) {
+                            WamaApp.csrfFetch(WamaApp.getUrl(CFG().urls.restart, gid), CFG().csrfToken,
+                                              { method: 'POST' })
+                                .then(function () { if (window.imagerRefreshCard) imagerRefreshCard(gid); });
+                        } else if (window.imagerRefreshCard) {
+                            imagerRefreshCard(gid);
+                        }
+                    },
                 });
-                const modal = res.modal, host = res.host;
-                modal.dataset.generationId = id;
-                modal.dataset.domain = domain;
-                graftCommonFooter(modal);
-                fillModelChoices(host, domain, data.model);
-                appendPromptZone(host, data, domain, id);
-                appendReferencePreview(host, data);
-                if (!video) appendResolutionZone(host, data);
-                new bootstrap.Modal(modal).show();
             })
             .catch(function () { WamaApp.toast('Impossible de charger les paramètres', 'error'); });
     }
     window.imagerOpenSettings = openSettingsModal;
-
-    // ── Enregistrement (délégation par classes du pied commun) ──
-    function saveSettings(modal, restart) {
-        const id = modal.dataset.generationId;
-        const host = modal.querySelector('.wama-modal-fields');
-        const vals = WamaParams.read(host);
-
-        const fd = new FormData();
-        Object.keys(vals).forEach(function (k) { fd.append(k, vals[k]); });
-        // Prompt à deux états : on poste l'ORIGINAL + l'état, la brique commune
-        // `apply_prompt_state` arbitre côté serveur dans quel champ écrire.
-        const promptEl = host.querySelector('textarea[name="prompt"]');
-        if (promptEl && window.WamaPromptEnrich) {
-            const ctrl = WamaPromptEnrich.get(promptEl);
-            if (ctrl) {
-                const snap = ctrl.snapshot();
-                fd.set('prompt', snap.state === 'processed' ? snap.original : promptEl.value);
-                fd.set('prompt_state', snap.state);
-            }
-        }
-        // Résolution (hors schéma) : champs cachés de la zone d'app
-        host.querySelectorAll('input[type="hidden"][name]').forEach(function (i) {
-            fd.set(i.name, i.value);
-        });
-        fd.append('csrfmiddlewaretoken', CFG().csrfToken);
-
-        return WamaApp.csrfFetch(WamaApp.getUrl(CFG().urls.saveSettings, id), CFG().csrfToken,
-                                 { method: 'POST', body: fd })
-            .then(r => r.json().catch(() => ({})))
-            .then(function (data) {
-                if (data.error) { WamaApp.toast(data.error, 'error'); return; }
-                bootstrap.Modal.getInstance(modal).hide();
-                WamaApp.toast('Paramètres enregistrés', 'success');
-                if (restart) {
-                    return WamaApp.csrfFetch(WamaApp.getUrl(CFG().urls.restart, id), CFG().csrfToken,
-                                             { method: 'POST' })
-                        .then(function () { if (window.imagerRefreshCard) imagerRefreshCard(id); });
-                }
-                if (window.imagerRefreshCard) imagerRefreshCard(id);
-            })
-            .catch(function () { WamaApp.toast("Erreur réseau à l'enregistrement", 'error'); });
-    }
-
-    document.addEventListener('click', function (e) {
-        const save = e.target.closest('.save-settings-btn');
-        const saveRestart = e.target.closest('.save-and-restart-btn');
-        if (!save && !saveRestart) return;
-        const modal = (save || saveRestart).closest('.modal');
-        if (!modal || !modal.dataset.generationId) return;
-        saveSettings(modal, !!saveRestart);
-    });
 
     // Ouverture depuis les cards (les deux domaines partagent la même modale générée).
     // Délégation simple : les anciens handlers d'index.js ont été SUPPRIMÉS avec les

@@ -464,6 +464,98 @@
     return { modal: modal, host: host, form: form };
   }
 
+  // ── Modale de réglages d'item : ORCHESTRATION commune ──────────────────────
+  // `renderSettingsModal` ne fait que le MARKUP. Le cycle complet (charger les valeurs →
+  // rendre → greffer le pied → afficher → lire → enregistrer → enchaîner) était recopié
+  // par app (anonymizer, puis imager) : mêmes fonctions, mêmes noms, même ordre. Il vit
+  // ici, les spécificités restent des HOOKS déclarés par l'app.
+  //
+  // cfg = {
+  //   id, title, titleIcon, schema, groups, formClass,   // → renderSettingsModal
+  //   fetchUrl,            // GET → JSON des valeurs (sinon passer `values`)
+  //   values,              // valeurs déjà connues (alternative à fetchUrl)
+  //   saveUrl, csrf,       // POST FormData
+  //   footerTplId,         // <template> du pied commun (_settings_modal_footer.html)
+  //   idField,             // nom du champ id à poster (défaut : aucun)
+  //   decorate(host, data, ctx),   // zones d'app HORS schéma (prompt, présets, aperçus…)
+  //   collect(fd, host, data),     // champs d'app à ajouter au POST
+  //   onSaved(id, restart, resp),  // suite (rafraîchir la card, relancer…)
+  //   errorOf(resp),               // extraction du message d'erreur (défaut : resp.error)
+  // }
+  function settingsModal(cfg) {
+    cfg = cfg || {};
+    const toast = function (m, t) {
+      if (global.WamaApp && WamaApp.toast) WamaApp.toast(m, t || 'info');
+    };
+
+    function graftFooter(modal) {
+      const tpl = cfg.footerTplId && document.getElementById(cfg.footerTplId);
+      if (!tpl || !tpl.content || !tpl.content.firstElementChild) return;
+      const foot = tpl.content.firstElementChild.cloneNode(true);
+      const old = modal.querySelector('.modal-footer');
+      if (old) old.replaceWith(foot);
+    }
+
+    function build(data) {
+      const res = renderSettingsModal({
+        id: cfg.id, title: cfg.title, titleIcon: cfg.titleIcon,
+        schema: cfg.schema || [], groups: cfg.groups || [],
+        values: data || {}, formClass: cfg.formClass,
+        optionsResolver: cfg.optionsResolver,
+      });
+      const modal = res.modal, host = res.host;
+      modal.dataset.wamaItemId = cfg.id;
+      graftFooter(modal);
+      if (typeof cfg.decorate === 'function') cfg.decorate(host, data || {}, res);
+
+      // Délégation locale À LA MODALE (pas au document) : pas d'accumulation de
+      // listeners quand la modale est rouverte sur un autre item.
+      modal.addEventListener('click', function (e) {
+        const save = e.target.closest('.save-settings-btn');
+        const restart = e.target.closest('.save-and-restart-btn');
+        if (save || restart) doSave(modal, host, data || {}, !!restart);
+      });
+
+      new bootstrap.Modal(modal).show();
+      return res;
+    }
+
+    function doSave(modal, host, data, restart) {
+      const fd = new FormData();
+      const vals = read(host);
+      Object.keys(vals).forEach(function (k) { fd.append(k, vals[k]); });
+      if (cfg.idField) fd.append(cfg.idField, cfg.id);
+      if (cfg.csrf) fd.append('csrfmiddlewaretoken', cfg.csrf);
+      if (typeof cfg.collect === 'function') cfg.collect(fd, host, data);
+
+      const send = (global.WamaApp && WamaApp.csrfFetch)
+        ? WamaApp.csrfFetch(cfg.saveUrl, cfg.csrf, { method: 'POST', body: fd })
+        : fetch(cfg.saveUrl, { method: 'POST', body: fd });
+
+      return send
+        .then(function (r) { return r.json().catch(function () { return {}; }); })
+        .then(function (resp) {
+          const err = (typeof cfg.errorOf === 'function') ? cfg.errorOf(resp) : resp.error;
+          if (err) { toast(err, 'error'); return; }
+          const inst = bootstrap.Modal.getInstance(modal);
+          if (inst) inst.hide();
+          toast('Paramètres enregistrés', 'success');
+          if (typeof cfg.onSaved === 'function') cfg.onSaved(cfg.id, restart, resp);
+        })
+        .catch(function () { toast("Erreur réseau à l'enregistrement", 'error'); });
+    }
+
+    if (cfg.values) return Promise.resolve(build(cfg.values));
+    return fetch(cfg.fetchUrl)
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(build)
+      .catch(function () { toast('Impossible de charger les paramètres', 'error'); });
+  }
+
   global.WamaParams = { render: render, read: read, apply: apply,
-                        renderSettingsModal: renderSettingsModal };
+                        renderSettingsModal: renderSettingsModal,
+                        settingsModal: settingsModal };
 })(window);
