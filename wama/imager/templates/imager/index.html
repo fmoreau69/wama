@@ -7,6 +7,7 @@
 {% block console_app_name %}imager{% endblock %}
 
 {% block app_right_panel_settings %}
+{% include 'common/_inspector_banner.html' %}{# bandeau « Réglages de l'élément #N » (inspecteur contextuel) #}
 {% comment %}
 Volet droit GÉNÉRÉ depuis le schéma — wama/imager/params.py (surface `panel`), rendu par
 WamaParams.render(host, schema, {context:'panel', values}). Remplace 257 lignes de champs
@@ -92,17 +93,12 @@ la modale d'item (settings_modal.js, hook `decorate` + groupBody).
 {% endblock %}
 
 {% block app_right_panel_actions %}
-<div class="d-grid gap-2">
-    <button class="btn btn-success btn-sm" id="startAllBtn">
-        <i class="fas fa-play"></i> Démarrer
-    </button>
-    <button class="btn btn-info btn-sm" id="downloadAllBtn">
-        <i class="fas fa-download"></i> Télécharger tout
-    </button>
-    <button class="btn btn-outline-danger btn-sm" id="clearAllBtn">
-        <i class="fas fa-trash"></i> Tout effacer
-    </button>
-</div>
+{% comment %}Actions GLOBALES (Démarrer / Télécharger tout / Tout effacer) déplacées dans la
+barre d'outils commune de chaque file (_queue_toolbar) — cohérence T/D/C, comme reader. Elles
+y étaient DÉCORATIVES : `start_id`/`clear_id`/`download_id` n'étaient câblés nulle part
+(support ≠ adoption) ; index.js les branche désormais. Reste ici ce qui dépend de la
+SÉLECTION, cloné par WamaInspector.{% endcomment %}
+{% include 'common/_inspector_actions.html' %}
 {% endblock %}
 
 {% block imager_content %}
@@ -462,6 +458,11 @@ window.IMAGER_VIDEO_PANEL_VALUES = {{ video_panel_values_json|safe }};
 wama-app-base) : chaque app qui génère ses modales du schéma l'inclut, comme anonymizer.
 Le CSS, lui, est déjà global (base.html). {% endcomment %}
 <script src="{% static_v 'common/js/wama-params.js' %}"></script>
+{% comment %}Inspecteur contextuel : la brique n'est PAS globale (base.html), chaque app qui
+rend un volet schéma-driven la charge — comme reader. Sans elle, `initFromSchema` n'existe pas
+et le clic sur une card ne fait RIEN (constaté au navigateur le 2026-08-07). Le CSS, lui, est
+déjà global.{% endcomment %}
+<script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
 {% comment %} Import batch COMMUN : aperçu serveur dans la detect bar, « Créer » ≠ « Créer et
 lancer ». PAS de dropZoneId/fileInputId ici — la card de l'imager route déjà ses fichiers
 (input_card.js:routeFile) et lui accrocher un 2e gestionnaire ferait double détection. On passe

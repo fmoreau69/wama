@@ -61,6 +61,63 @@
         if (body) body.appendChild(zone);
     }
 
+    // ── Inspecteur CONTEXTUEL (brique commune) ───────────────────────────────────────────
+    // DEUX instances, une par domaine : la file de l'imager est scopée par onglet, et chaque
+    // domaine a son propre volet + son propre schéma. Contrat : reader.js:624.
+    // Le mapping dom_id(panel) ⇄ name est fait par la brique (`panelKey`), donc rien à traduire
+    // ici — c'est ce qui rend params.py suffisant.
+    function initInspector() {
+        if (!window.WamaInspector || !WamaInspector.initFromSchema) {
+            console.warn('[imager] WamaInspector absent — volet non contextuel.');
+            return;
+        }
+        [{ queue: 'generationsQueue', panel: 'imagePanelParams',
+           schema: window.IMAGER_IMAGE_SCHEMA, label: 'image' },
+         { queue: 'videoGenerationsQueue', panel: 'videoPanelParams',
+           schema: window.IMAGER_VIDEO_SCHEMA, label: 'vidéo' }
+        ].forEach(function (d) {
+            const q = document.getElementById(d.queue);
+            const ph = document.getElementById(d.panel);
+            if (!q || !ph) return;
+            WamaInspector.initFromSchema({
+                queueContainer: q,
+                // [data-id] EXIGÉ : la card mère de batch porte .imager-card SANS data-id
+                // (même correctif que pour le Poller — sinon requêtes sur `undefined`).
+                cardSelector: '.imager-card[data-id]',
+                batchSelector: '.batch-group',
+                panelContainer: ph,
+                schema: d.schema || [],
+                itemLabel: function (id) { return "la génération #" + id; },
+                batchLabel: function (id) { return "le batch #" + id + " (tous les éléments)"; },
+                // Les deux endpoints lisent `request.POST` (coerce_schema_values) — donc
+                // FormData, PAS du JSON comme reader.
+                saveItem: function (id) {
+                    return WamaApp.csrfFetch(
+                        WamaApp.getUrl(config.urls.saveSettings, id), config.csrfToken,
+                        { method: 'POST', body: _panelFormData(ph) }
+                    ).then(function (r) { if (r && r.ok && window.imagerRefreshCard) imagerRefreshCard(id); });
+                },
+                saveBatch: function (bid) {
+                    const url = (window.IMAGER_CARD || {}).urls.batchUpdate;
+                    if (!url) return Promise.resolve();
+                    return WamaApp.csrfFetch(
+                        WamaApp.getUrl(url, bid), config.csrfToken,
+                        { method: 'POST', body: _panelFormData(ph) }
+                    ).then(function () { window.location.reload(); });
+                },
+            });
+        });
+    }
+
+    function _panelFormData(host) {
+        const fd = new FormData();
+        const vals = (window.WamaParams ? WamaParams.read(host) : {}) || {};
+        Object.keys(vals).forEach(function (k) {
+            if (vals[k] !== null && vals[k] !== undefined) fd.append(k, vals[k]);
+        });
+        return fd;
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         initializeEventListeners();
         initializeModeSelector();
@@ -74,6 +131,7 @@
         // d'overlay) et double-écrirait les mêmes éléments. Fonction conservée le temps de la
         // transition (REMOVAL_LEDGER R15).
         renderRightPanel();
+        initInspector();          // après renderRightPanel : le volet doit exister
         initializeResolutionSelectors();
         startProgressPolling();
 
@@ -93,17 +151,26 @@
             form.addEventListener('submit', handleFormSubmit);
         }
 
-        // Start all button
-        const startAllBtn = document.getElementById('startAllBtn');
-        if (startAllBtn) {
-            startAllBtn.addEventListener('click', startAllGenerations);
-        }
-
-        // Clear all button
-        const clearAllBtn = document.getElementById('clearAllBtn');
-        if (clearAllBtn) {
-            clearAllBtn.addEventListener('click', clearAllGenerations);
-        }
+        // ── Actions globales : barre d'outils COMMUNE de la file (_queue_toolbar) ────────
+        // `start_id`/`clear_id`/`download_id` sont REQUIS par la brique mais leurs handlers
+        // sont à la charge de l'app (doc du partial). Ils n'étaient câblés NULLE PART :
+        // les deux toolbars (image + vidéo) étaient donc décoratives — support ≠ adoption.
+        // Les boutons globaux du volet droit, eux, marchaient : le volet est désormais réservé
+        // aux actions de SÉLECTION (_inspector_actions), comme dans reader.
+        [['imager-image-start-all', startAllGenerations],
+         ['imager-video-start-all', startAllGenerations],
+         ['imager-image-clear-all', clearAllGenerations],
+         ['imager-video-clear-all', clearAllGenerations],
+        ].forEach(function (pair) {
+            const el = document.getElementById(pair[0]);
+            if (el) el.addEventListener('click', pair[1]);
+        });
+        ['imager-image-download-all', 'imager-video-download-all'].forEach(function (id) {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('click', function () {
+                window.location.href = config.urls.downloadAll;
+            });
+        });
 
         // Individual start buttons
         document.addEventListener('click', function(e) {
@@ -140,13 +207,8 @@
 
 
 
-        // Download all button
-        const downloadAllBtn = document.getElementById('downloadAllBtn');
-        if (downloadAllBtn) {
-            downloadAllBtn.addEventListener('click', function() {
-                window.location.href = config.urls.downloadAll;
-            });
-        }
+        // downloadAllBtn RETIRÉ avec les boutons globaux du volet : « Tout télécharger » vit
+        // désormais dans la barre d'outils commune de chaque file (câblée plus haut).
 
         // Download individual buttons
         document.addEventListener('click', function(e) {
@@ -1458,11 +1520,15 @@
         // Model change triggers resolution update
         const modelSelect = document.getElementById('model');
         if (modelSelect) {
-            modelSelect.addEventListener('change', function() {
-                updateResolutionsForModel(this.value);
+            modelSelect.addEventListener('change', function (e) {
+                // `isTrusted` distingue un vrai geste utilisateur d'un dispatchEvent
+                // programmatique (inspecteur, restauration de réglages…).
+                updateResolutionsForModel(this.value, 'resolution', 'resolution_warning',
+                                          e && e.isTrusted === true);
             });
-            // Initialize with current model
-            updateResolutionsForModel(modelSelect.value);
+            // Initialisation : on rafraîchit les résolutions recommandées, mais SANS toucher
+            // aux steps/guidance — ce sont les réglages persistés de l'utilisateur.
+            updateResolutionsForModel(modelSelect.value, 'resolution', 'resolution_warning', false);
         }
 
         // Settings modal model change
@@ -1491,7 +1557,16 @@
      * Update resolution options based on model selection
      * Fetches recommended resolutions from API and highlights them
      */
-    function updateResolutionsForModel(modelName, resolutionSelectId = 'resolution', warningId = 'resolution_warning') {
+    // `applyModelDefaults` : n'imposer les steps/guidance du MODÈLE que si le changement vient
+    // de l'UTILISATEUR. Cette fonction répond en ASYNCHRONE et écrasait sans distinction —
+    // deux dégâts mesurés le 2026-08-07 :
+    //   • inspecteur : sélectionner une card posait son `model` puis dispatchait `change` ;
+    //     la réponse arrivait APRÈS la boucle d'application et effaçait les steps de la card ;
+    //   • chargement de page : l'appel d'initialisation écrasait les réglages utilisateur
+    //     persistés (brique user_settings) par les défauts du modèle.
+    function updateResolutionsForModel(modelName, resolutionSelectId = 'resolution',
+                                       warningId = 'resolution_warning',
+                                       applyModelDefaults = true) {
         const resolutionSelect = document.getElementById(resolutionSelectId);
         const warningEl = document.getElementById(warningId);
 
@@ -1550,7 +1625,7 @@
                 }
 
                 // Update guidance scale and steps when model changes (main panel only)
-                if (resolutionSelectId === 'resolution') {
+                if (resolutionSelectId === 'resolution' && applyModelDefaults) {
                     if (data.default_guidance_scale !== undefined) {
                         const guidanceSlider = document.getElementById('guidance_scale');
                         const guidanceValue = document.getElementById('guidance_value');
