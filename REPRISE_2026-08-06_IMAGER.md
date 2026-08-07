@@ -44,6 +44,43 @@ en **insérer** une → le `location.reload()` de `input_card.js` n'est PAS un r
 Le commentaire qui l'annonçait était faux, il est corrigé. Insérer suppose de savoir dans quel
 batch ranger la card. Autre trou : **`wama/imager/tool_api.py` n'existe pas** (F8).
 
+## 0bis. Suite du 2026-08-07 — imager **81 % (60/74)**, plus aucun critère partiel
+
+Commits `708b02a`, `0df1c78`, `3780b77`.
+
+- **`anti_race` VERT** : `start_batch`, `start_all_generations`, `restart_generation` verrouillés
+  (`begin_processing` par item, patron transcriber). `restart_generation` n'avait **aucune
+  révocation** de l'ancienne tâche. **Heuristique maison retiré** (« relance si RUNNING > 30 min,
+  > 2 h en vidéo ») : il doublait `reconcile_orphaned_running` (preuve positive de mort, déjà
+  appelé à l'index) et il était plus FAIBLE — une vidéo légitimement longue redevenait relançable
+  et repartait sur le GPU. Échappatoire inchangée : ⏹ `force_reset`.
+- **Doublon de batch ÉLIMINÉ** : `handle_file2img` crée un `GenerationBatch` de N items via
+  `consolidate_into_batch` ; `start_batch`/`get_batch_children` portent sur le batch ; self-FK
+  `parent_generation` retiré (migration 0014, 0 ligne l'utilisait).
+  **Bug latent réparé au passage** : la modale batch poste `dataset.batchId` sur `batchUpdate`
+  ET `batchStart`, mais `start_batch` cherchait cet id dans `ImageGeneration` → « Enregistrer &
+  démarrer » ne pouvait pas marcher depuis `35fd056`. Et `start_batch` forçait
+  `generate_image_task`, cassant tout batch vidéo.
+- **`batch_import` + `batch_template` VERTS** : detect bar commune + `batch_preview` (contrat
+  WamaBatchImport, patron composer) + `import_batch` qui **délègue** à `handle_file2img` (une
+  seule implémentation) + gabarit **généré** par `build_batch_template`.
+  Intégration « app existante » VOLONTAIRE : pas de `dropZoneId`/`fileInputId` passés à la brique
+  — la card route déjà ses fichiers, un 2e gestionnaire donnerait une double détection ;
+  `routeFile` délègue à `detectAndHandle()`.
+
+**Angle mort de la grille, confirmé par Fabien** : les critères batch (`auto_wrap_orphans`,
+`build_batches_list`, `batch_card_common`) étaient **déjà verts** pendant que les DEUX mécanismes
+coexistaient. Ils testent la PRÉSENCE des briques, pas l'EXCLUSIVITÉ. Même angle mort que le faux
+vert de `user_settings`. **Ne pas conclure d'un vert qu'il n'y a pas de doublon.**
+
+**Crash WSL2 le 07/08 vers 10h20** (redémarrage constaté, gunicorn tombé) : travail non commité
+INTACT. 1 message `unacked` en Redis = `model_manager.sync_models`, pas une tâche GPU. Relance
+faite en **web seul (gunicorn), sans workers Celery**, pour écarter toute redélivrance.
+
+**Suite** : étape 2 (`initFromSchema` + `inspector_actions`), puis `url_ingest` /
+`recursive_import`. Toujours ouverts : `refreshCard` ne sait pas INSÉRER (donc le
+`location.reload()` reste), et `wama/imager/tool_api.py` n'existe pas (F8).
+
 ## 1. État mesuré en fin de session (session PRÉCÉDENTE — voir §0)
 
 `python manage.py check_app_conformity` → **imager 77 % (56/74)**, parti de **55 %**.
