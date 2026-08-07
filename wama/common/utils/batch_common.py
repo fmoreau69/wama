@@ -119,7 +119,8 @@ def group_into_batches_by_nature(items,
 # (audit empirique PROJECT_STATUS §20bis, 2026-07-06).
 # ---------------------------------------------------------------------------
 
-def wrap_in_batch(item, *, batch_model, item_model, fk_name, item_extra=None):
+def wrap_in_batch(item, *, batch_model, item_model, fk_name, item_extra=None,
+                  batch_extra=None):
     """Enveloppe UN item métier dans un batch-of-1 (règle « tout est batch »).
 
     Args:
@@ -127,10 +128,19 @@ def wrap_in_batch(item, *, batch_model, item_model, fk_name, item_extra=None):
         batch_model : modèle batch de l'app (ex. BatchTranscript).
         item_model  : modèle de liaison (ex. BatchTranscriptItem).
         fk_name     : nom de la FK métier sur le modèle de liaison (ex. 'transcript').
-        item_extra  : dict OU callable(item)->dict de champs supplémentaires du lien
+        item_extra  : dict OU callable(item)->dict de champs supplémentaires du LIEN
                       (ex. composer : output_filename).
+        batch_extra : dict OU callable(item)->dict de champs supplémentaires du BATCH
+                      (ex. imager : ``{'domain': 'video'}`` — sa file est scopée par onglet).
+                      Sans ça, un batch-of-1 créé ici retombait sur le défaut du modèle et
+                      une vidéo isolée de son batch atterrissait dans l'onglet Images.
+                      Même nom que dans ``make_queue_manipulation_views_direct`` — vocabulaire
+                      déjà en place, l'asymétrie entre les deux variantes était le défaut.
     """
-    batch = batch_model.objects.create(user=item.user, total=1)
+    bkw = {'user': item.user, 'total': 1}
+    if batch_extra:
+        bkw.update(batch_extra(item) if callable(batch_extra) else dict(batch_extra))
+    batch = batch_model.objects.create(**bkw)
     kwargs = {'batch': batch, 'row_index': 0, fk_name: item}
     if item_extra:
         kwargs.update(item_extra(item) if callable(item_extra) else dict(item_extra))
@@ -139,7 +149,7 @@ def wrap_in_batch(item, *, batch_model, item_model, fk_name, item_extra=None):
 
 
 def auto_wrap_orphans(user, *, work_model, batch_model, item_model, fk_name,
-                      item_extra=None, wrap_group=None, order_by='id'):
+                      item_extra=None, batch_extra=None, wrap_group=None, order_by='id'):
     """Rattache paresseusement (au chargement de page) les items hors batch.
 
     Les orphelins proviennent des imports serveur (« Envoyer vers » du filemanager…) —
@@ -149,6 +159,9 @@ def auto_wrap_orphans(user, *, work_model, batch_model, item_model, fk_name,
       - défaut : chaque orphelin → SON batch-of-1 (composer) ;
       - ``wrap_group(orphans)`` : stratégie d'app qui crée les batchs elle-même —
         transcriber (1 → of-1, N → UN of-N), describer (un batch par nature).
+      - ``batch_extra`` : champs du BATCH créé (ex. imager ``domain``). À préférer à un
+        ``wrap_group`` écrit uniquement pour poser un champ : la stratégie par défaut suffit
+        alors, et l'app ne réimplémente pas la boucle.
 
     Silencieux par item (un orphelin cassé ne bloque pas la page — comportement historique).
     Returns: liste des batchs créés (vide si aucun orphelin).
@@ -168,7 +181,7 @@ def auto_wrap_orphans(user, *, work_model, batch_model, item_model, fk_name,
         try:
             wrapped.append(wrap_in_batch(orphan, batch_model=batch_model,
                                          item_model=item_model, fk_name=fk_name,
-                                         item_extra=item_extra))
+                                         item_extra=item_extra, batch_extra=batch_extra))
         except Exception:
             pass
     return wrapped

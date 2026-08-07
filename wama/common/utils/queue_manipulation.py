@@ -33,18 +33,21 @@ from wama.common.utils.batch_common import wrap_in_batch, consolidate_into_batch
 
 
 def make_queue_manipulation_views(*, work_model, batch_model, item_model, fk_name,
-                                  get_user, item_extra=None):
+                                  get_user, item_extra=None, batch_extra=None):
     """Retourne {'remove_from_batch', 'reorder', 'move_to_batch', 'consolidate'} (vues Django).
 
     Args:
-        fk_name    : nom de la FK métier sur le modèle de liaison ('transcript', 'generation'…).
-        get_user   : callable(request) -> user (pattern anonyme inclus, propre à l'app).
-        item_extra : dict|callable(work)->dict — champs supplémentaires du lien (cf. wrap_in_batch).
+        fk_name     : nom de la FK métier sur le modèle de liaison ('transcript', 'generation'…).
+        get_user    : callable(request) -> user (pattern anonyme inclus, propre à l'app).
+        item_extra  : dict|callable(work)->dict — champs supplémentaires du LIEN (cf. wrap_in_batch).
+        batch_extra : dict|callable(work)->dict — champs supplémentaires du BATCH créé lors
+                      d'un `remove_from_batch` (ex. imager : `domain`, sa file étant scopée
+                      par onglet — sans ça une vidéo isolée retombait dans l'onglet Images).
     """
 
     def _wrap(work):
         return wrap_in_batch(work, batch_model=batch_model, item_model=item_model,
-                             fk_name=fk_name, item_extra=item_extra)
+                             fk_name=fk_name, item_extra=item_extra, batch_extra=batch_extra)
 
     @require_POST
     def remove_from_batch(request, pk: int):
@@ -109,7 +112,12 @@ def make_queue_manipulation_views(*, work_model, batch_model, item_model, fk_nam
             return JsonResponse({'consolidated': False})
 
         def _create(total):
-            return batch_model.objects.create(user=user, total=total)
+            kw = {'user': user, 'total': total}
+            if batch_extra:
+                # Les works consolidés appartiennent à la MÊME surface de file (on consolide
+                # une sélection d'un onglet) : le premier porte donc le champ pour le lot.
+                kw.update(batch_extra(works[0]) if callable(batch_extra) else dict(batch_extra))
+            return batch_model.objects.create(**kw)
 
         def _link(batch, work, idx):
             kwargs = {'batch': batch, 'row_index': idx, fk_name: work}

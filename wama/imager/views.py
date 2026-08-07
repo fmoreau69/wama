@@ -24,8 +24,9 @@ import logging
 from pathlib import Path
 
 from wama.accounts.permissions import app_access
+from wama.common.utils.queue_manipulation import make_queue_manipulation_views
 from wama.common.utils.scoping import owned_or_404, visible_or_404
-from .models import ImageGeneration, UserSettings
+from .models import GenerationBatch, GenerationBatchItem, ImageGeneration, UserSettings
 from wama.model_manager.services import get_registry_models
 from .utils.model_config import (
     DEFAULT_IMAGE_MODEL, DEFAULT_VIDEO_MODEL, DEFAULT_I2V_MODEL, get_model_defaults,
@@ -33,6 +34,17 @@ from .utils.model_config import (
 from wama.accounts.views import get_or_create_anonymous_user
 
 logger = logging.getLogger(__name__)
+
+
+def _qm_user(request):
+    return request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+
+def _batch_domain(gen):
+    """Champs du BATCH dérivés de la génération — l'imager scope sa file par onglet.
+    Passé en `batch_extra` aux briques communes (auto_wrap_orphans, fabrique de
+    manipulation) : c'est ce qui évite qu'une vidéo isolée atterrisse dans l'onglet Images."""
+    return {'domain': 'video' if gen.is_video_generation else 'image'}
 
 
 @app_access('imager')
@@ -196,24 +208,13 @@ def index(request):
     from wama.common.utils.queue_view import apply_queue_sort_filter
     from wama.imager.models import GenerationBatch, GenerationBatchItem
 
-    def _wrap_by_domain(orphans):
-        """Batch-of-1 par orphelin, en portant le DOMAINE (la file de l'imager est
-        scopée par onglet) — le défaut commun ne connaît pas ce champ d'app."""
-        made = []
-        for g in orphans:
-            try:
-                b = GenerationBatch.objects.create(
-                    user=g.user, total=1,
-                    domain='video' if g.is_video_generation else 'image')
-                GenerationBatchItem.objects.create(batch=b, generation=g, row_index=0)
-                made.append(b)
-            except Exception:
-                pass
-        return made
-
+    # `batch_extra` porte le DOMAINE sur le batch créé (la file de l'imager est scopée par
+    # onglet). Remplace un `wrap_group` maison qui ne faisait que réimplémenter la boucle par
+    # défaut du commun pour poser ce seul champ — même mécanisme que converter, qui pose
+    # `media_type` de la même façon.
     auto_wrap_orphans(user, work_model=ImageGeneration, batch_model=GenerationBatch,
                       item_model=GenerationBatchItem, fk_name='generation',
-                      wrap_group=_wrap_by_domain)
+                      batch_extra=_batch_domain)
 
     batches_all = build_batches_list(user, batch_model=GenerationBatch,
                                      work_attr='generation')
@@ -1303,6 +1304,23 @@ def duplicate_generation(request, generation_id):
         clear_fields=['output_video'],
     )
     return JsonResponse({'duplicated': new_gen.id})
+
+
+# ── Manipulation directe de la file (fabrique COMMUNE, patron des 8 autres apps) ──────────
+# Sortir un élément de son batch, réordonner, déplacer vers un autre batch, consolider.
+# `batch_extra` porte le DOMAINE sur le batch créé par `remove_from_batch` — sans lui, une
+# vidéo isolée de son batch repartirait avec le défaut du modèle ('image') et changerait
+# d'onglet. Converter fait exactement pareil avec `media_type` (variante FK-directe).
+_qm = make_queue_manipulation_views(
+    work_model=ImageGeneration, batch_model=GenerationBatch,
+    item_model=GenerationBatchItem, fk_name='generation',
+    get_user=_qm_user,
+    batch_extra=_batch_domain,
+)
+remove_from_batch = _qm['remove_from_batch']
+reorder = _qm['reorder']
+move_to_batch = _qm['move_to_batch']
+consolidate = _qm['consolidate']
 
 
 @require_http_methods(["POST"])

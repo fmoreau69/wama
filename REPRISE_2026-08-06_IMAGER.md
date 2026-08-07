@@ -148,6 +148,7 @@ Commits `2a83610`, `20cf74e`.
 | **Un champ ajouté au schéma = 2 endroits** | `params.py` + `_generation_card.html` | Les `data-*` de la card alimentent `WamaInspector.cardSettings`. Oublier le `data-` rend l'inspecteur inerte pour ce champ, sans erreur. |
 | **`WamaParams` génère `id` + `data-param`, PAS `name`** | `wama-params.js` | A cassé `fillModelChoices` (select vide) sur les DEUX surfaces schéma-driven. Tout code cherchant `[name=…]` dans une surface générée est suspect — vérifier ailleurs. |
 | **`[WamaPromptChips] échec /media-library/api/keywords/`** | console navigateur | L'endpoint renvoie du HTML au lieu de JSON (2 warnings à chaque chargement de l'imager). Préexistant, hors périmètre, non diagnostiqué. |
+| 🔴 **« image/vidéo » = NATURE chez l'un, DOMAINE chez l'autre** | enhancer vs imager (précision Fabien, 07/08) | **Enhancer** : domaines = {média (image+vidéo), audio} → 2 triplets de modèles, et le couple image/vidéo n'est qu'une **nature de batch** à l'intérieur du média (`_group_enhancements_into_batches`, « un batch PAR NATURE »). **Imager** : domaines = {image, vidéo} → 1 modèle + champ `domain` sur le batch. La MÊME distinction est donc un onglet ici et un regroupement là. Chaque app est cohérente avec elle-même, mais le vocabulaire diverge entre apps — à trancher au niveau de la ROUTE (F2/F5), pas app par app. Touche le principe « généraliser le comportement ET l'UI/UX ». |
 
 ## 1. État mesuré en fin de session (session PRÉCÉDENTE — voir §0)
 

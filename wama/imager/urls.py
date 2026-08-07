@@ -44,6 +44,12 @@ urlpatterns = [
     # Multi-modal generation endpoints
     path('auto-prompt/', views.generate_auto_prompt, name='auto_prompt'),
     # Import batch COMMUN (WamaBatchImport) : aperçu serveur → créer / créer et lancer.
+    # Manipulation directe de la file (fabrique commune) — mêmes noms que les 8 autres apps.
+    path('queue/<int:pk>/remove-from-batch/', views.remove_from_batch, name='remove_from_batch'),
+    path('queue/reorder/', views.reorder, name='reorder'),
+    path('queue/<int:pk>/move-to-batch/', views.move_to_batch, name='move_to_batch'),
+    path('queue/consolidate/', views.consolidate, name='consolidate'),
+
     path('batch/preview/', views.batch_preview, name='batch_preview'),
     path('batch/import/', views.import_batch, name='import_batch'),
     path('batch/template/', views.batch_template, name='batch_template'),
