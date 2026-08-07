@@ -627,27 +627,34 @@ APP_CATALOG = {
         'description': 'Génération d\'images et vidéos par IA (Stable Diffusion, Hunyuan, Mochi…).',
         'input_extensions': TEXT_EXTENSIONS + IMAGE_EXTENSIONS,  # text prompt + image reference
         'input_types': ('text', 'image'),
-        'batch_type':  None,   # to be redesigned
-        'has_batch':   False,
+        # Batch LIVRÉ le 2026-08-06 (`9922f65`) : GenerationBatch(BatchMixin, ScopedVisibility)
+        # + GenerationBatchItem, migration 0013, contrat commun `build_batches_list` — c'est un
+        # vrai batch unifié, au même titre que ConversionBatch. Le « to be redesigned » et le
+        # `has_batch=False` qui l'accompagnaient sont donc PÉRIMÉS.
+        # `media_list` = vocabulaire EXISTANT pour « un item par ligne » (Type A,
+        # parse_media_list_batch). Ici les lignes sont des PROMPTS, pas des médias : le nom de
+        # la brique commune porte un type de média à tort (cf. règle de vocabulaire), mais on
+        # réutilise la valeur en place plutôt que d'en inventer une.
+        'batch_type':  'media_list',
+        'has_batch':   True,
         'has_url_import': False,
         'has_youtube': False,
         'output_types': ('image', 'video'),
         'conventions': _conv(
-            # Corrigé 2026-07-10 (grille périmée, snapshot manifestement très ancien) : settings/
-            # duplicate/start_all/drag_drop vérifiés présents (index.html:532 settings-btn,
-            # :562 duplicate-btn, startAllBtn, plusieurs .drop-zone). `batch` LAISSÉ tel quel
-            # (False) malgré `parent_generation` (self-FK) : `has_batch=False`/`batch_type=None
-            # « to be redesigned » ci-dessus suggèrent une nuance volontaire (pas un vrai batch
-            # unifié à la ConversionBatch) — à trancher par Fabien, pas réinterprété ici.
+            # Corrigé 2026-07-10 : settings/duplicate/start_all/drag_drop vérifiés présents.
+            # `batch` était laissé à False dans l'attente d'un arbitrage sur `parent_generation`
+            # (self-FK) : TRANCHÉ PAR LE CODE le 2026-08-06 — `9922f65` a livré un vrai batch
+            # unifié (GenerationBatch/GenerationBatchItem) et le self-FK, qui n'avait JAMAIS
+            # servi (0 batch en base), est remplacé.
             settings=True,
             duplicate=True,
             start_all=True,
             drag_drop=True,
-            batch=False,
+            batch=True,
             tool_api=True,
-            settings_modal_item=True,  # modales par-item #generationSettingsModal / #videoSettingsModal
-                                       # ⚠ hand-built (index.html:996) ; params.py existe mais ORPHELIN
-            eta_batch=None,    # N/A — pas de batch
+            settings_modal_item=True,  # modales par-item, GÉNÉRÉES par WamaParams depuis params.py
+                                       # (`f37b705`) — le « hand-built / params.py ORPHELIN »
+                                       # noté ici était périmé.
             modes=True,        # barres de mode image/vidéo générées (WamaModes)
             model_help=True,   # WamaModelHelp (descriptif sous les selects modèle image/vidéo)
             # Audit empirique 2026-07-10 :

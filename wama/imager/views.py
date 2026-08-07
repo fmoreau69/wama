@@ -61,8 +61,17 @@ def index(request):
         parent_generation__isnull=True  # Only show top-level generations
     ).order_by('-created_at')
 
-    # Get or create user settings
-    user_settings, _ = UserSettings.objects.get_or_create(user=user)
+    # Réglages user — brique commune (A5-22) : clés + défauts uniques (USER_SETTINGS_DEFAULTS,
+    # DÉRIVÉS du schéma params.py). Remplace le modèle Django `UserSettings` (5 colonnes), qui
+    # n'était écrit par personne : son seul écrivain, la vue `update_settings`, n'était appelée
+    # depuis AUCUN JS/template — et son défaut codé en dur 'stable-diffusion-v1-5' empêchait le
+    # volet d'afficher « Auto » (donc de proposer le tirage VRAM-aware commun).
+    # Le modèle lui-même est retiré au palier suivant, une fois la bascule vérifiée.
+    from wama.common.utils.user_settings import get_user_app_settings
+    from wama.imager.params import (
+        IMAGE_PARAMS, USER_SETTINGS_DEFAULTS, VIDEO_PARAMS, panel_values_by_name,
+    )
+    panel_settings = get_user_app_settings(user, 'imager', USER_SETTINGS_DEFAULTS)
 
     # Get available models from backend system (fast method - no heavy imports)
     try:
@@ -228,7 +237,11 @@ def index(request):
         'generations': generations,
         'image_generations': image_generations,
         'video_generations': video_generations,
-        'user_settings': user_settings,
+        # Valeurs du VOLET pour WamaParams.render(..., {context:'panel', values}) : ré-indexées
+        # par NOM de param (ce que render attend), une surface par domaine. Le stockage, lui,
+        # reste clé par dom_id — cf. params.panel_values_by_name.
+        'image_panel_values_json': json.dumps(panel_values_by_name(panel_settings, IMAGE_PARAMS)),
+        'video_panel_values_json': json.dumps(panel_values_by_name(panel_settings, VIDEO_PARAMS)),
         'models_choices': models_choices,
         'models_info': models_info,  # Model info with descriptions for tooltips
         'video_models': video_models,
@@ -1277,33 +1290,11 @@ def help_page(request):
     return render(request, 'imager/help.html')
 
 
-@require_http_methods(["POST"])
-def update_settings(request):
-    """Update user settings"""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-    try:
-        user_settings, _ = UserSettings.objects.get_or_create(user=user)
-
-        # Update settings from POST data
-        if 'default_model' in request.POST:
-            user_settings.default_model = request.POST['default_model']
-        if 'default_width' in request.POST:
-            user_settings.default_width = int(request.POST['default_width'])
-        if 'default_height' in request.POST:
-            user_settings.default_height = int(request.POST['default_height'])
-        if 'default_steps' in request.POST:
-            user_settings.default_steps = int(request.POST['default_steps'])
-        if 'default_guidance_scale' in request.POST:
-            user_settings.default_guidance_scale = float(request.POST['default_guidance_scale'])
-
-        user_settings.save()
-
-        return JsonResponse({'success': True, 'message': 'Settings updated'})
-
-    except Exception as e:
-        logger.error(f"Error updating settings: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
+# RETIRÉ 2026-08-06 — `update_settings` était le SEUL écrivain du modèle `UserSettings`, et
+# n'était appelé depuis aucun JS ni template (0 occurrence de `update-settings` dans l'app).
+# Les réglages utilisateur passent désormais par la brique commune
+# `common/utils/user_settings.py`, écrits À LA CRÉATION (patron transcriber) : garder cet
+# endpoint aurait maintenu un second chemin d'écriture contradictoire.
 
 
 def get_generation_settings(request, generation_id):

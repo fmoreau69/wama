@@ -21,6 +21,7 @@ Exceptions app-spécifiques VOLONTAIREMENT hors schéma (widgets bespoke, pas de
 Descriptions de modèle : déjà rendues app-side (`.model-description` + `model-select-with-tooltip`) ;
 `help_source`/`help_fallback` seront branchés au câblage P1 si on unifie sur WamaModelHelp.
 """
+from wama.common.utils.output_formats import output_format_params_for_app
 from wama.common.utils.param_schema import (
     ParamGroup, derive_from_model, groups_to_dicts, schema_to_dicts,
 )
@@ -55,7 +56,7 @@ IMAGE_PARAMS = derive_from_model(
     overrides={
         "model": dict(
             type="select", label="Modèle", icon="fa-microchip",
-            dom_id={"item": "settings_model", "panel": "imgDefaultModel"},
+            dom_id={"item": "settings_model", "panel": "model"},
             group="modele",
             help="Modèle de génération (Auto = tirage VRAM-aware au lancement).",
             # Options peuplées par settings_modal.js depuis les MÊMES groupes de catalogue
@@ -69,7 +70,7 @@ IMAGE_PARAMS = derive_from_model(
         ),
         "num_images": dict(
             type="select", label="Nombre d'images", icon="fa-images",
-            dom_id={"item": "settings_num_images"},
+            dom_id={"item": "settings_num_images", "panel": "num_images"},
             group="sortie",
             choices=[("1", "1"), ("2", "2"), ("3", "3"), ("4", "4")],
             chip=True, chip_label="img",
@@ -77,20 +78,21 @@ IMAGE_PARAMS = derive_from_model(
         ),
         "steps": dict(
             type="range", label="Steps", icon="fa-shoe-prints",
-            dom_id={"item": "settings_steps"}, min=1, max=100, step=1,
+            dom_id={"item": "settings_steps", "panel": "steps"}, min=1, max=100, step=1,
             group="qualite",
             help="Nombre d'étapes de diffusion.",
             chip=True, chip_label="steps",
         ),
         "guidance_scale": dict(
             type="range", label="Guidance scale", icon="fa-sliders-h",
-            dom_id={"item": "settings_guidance_scale"}, min=1, max=20, step=0.5,
+            dom_id={"item": "settings_guidance_scale", "panel": "guidance_scale"},
+            min=1, max=20, step=0.5,
             group="qualite",
             help="À quel point suivre le prompt.",
         ),
         "seed": dict(
             type="number", label="Seed", icon="fa-dice",
-            dom_id={"item": "settings_seed"},
+            dom_id={"item": "settings_seed", "panel": "seed"},
             group="qualite",
             help="Graine aléatoire (vide = aléatoire).",
         ),
@@ -103,7 +105,7 @@ IMAGE_PARAMS = derive_from_model(
         ),
         "upscale": dict(
             type="toggle", label="Upscaler la sortie", icon="fa-expand",
-            dom_id={"item": "settings_upscale"}, advanced=True,
+            dom_id={"item": "settings_upscale", "panel": "upscale"}, advanced=True,
             group="sortie",
             help="Agrandit l'image générée (×2).",
         ),
@@ -117,11 +119,12 @@ VIDEO_PARAMS = derive_from_model(
     include=[
         "model", "negative_prompt",
         "video_resolution", "video_duration", "video_fps", "seed",
+        "steps", "guidance_scale",
     ],
     overrides={
         "model": dict(
             type="select", label="Modèle vidéo", icon="fa-film",
-            dom_id={"item": "video_settings_model", "panel": "vidDefaultModel"},
+            dom_id={"item": "video_settings_model", "panel": "panel_video_model"},
             group="modele",
         ),
         "negative_prompt": dict(
@@ -131,29 +134,111 @@ VIDEO_PARAMS = derive_from_model(
         ),
         "video_resolution": dict(
             type="select", label="Résolution", icon="fa-expand",
-            dom_id={"item": "video_settings_resolution"},
+            dom_id={"item": "video_settings_resolution", "panel": "panel_video_resolution"},
             group="sortie",
         ),
         "video_duration": dict(
             type="range", label="Durée (s)", icon="fa-clock",
-            dom_id={"item": "video_settings_duration"}, min=1, max=15, step=1,
+            dom_id={"item": "video_settings_duration", "panel": "panel_video_duration"},
+            min=1, max=15, step=1,
             group="sortie",
             chip=True, chip_label="s",
         ),
         "video_fps": dict(
             type="number", label="FPS", icon="fa-tachometer-alt",
-            dom_id={"item": "video_settings_fps"}, min=8, max=30, step=1,
+            dom_id={"item": "video_settings_fps", "panel": "panel_video_fps"},
+            min=8, max=30, step=1,
             group="sortie",
             chip=True, chip_label="fps",
         ),
+        # steps / guidance_scale : colonnes PARTAGÉES avec le domaine image, consommées par les
+        # 4 backends vidéo (wan, ltx, hunyuan, cogvideox — 35 occurrences). Elles manquaient au
+        # schéma alors que le volet les exposait : c'était la SOURCE qui divergeait, pas la
+        # surface (règle cardinale 3, common/README.md).
+        "steps": dict(
+            type="range", label="Steps", icon="fa-shoe-prints",
+            dom_id={"item": "video_settings_steps", "panel": "panel_video_steps"},
+            min=1, max=100, step=1,
+            group="qualite",
+            chip=True, chip_label="steps",
+            help="Nombre d'étapes de diffusion.",
+        ),
+        "guidance_scale": dict(
+            type="range", label="Guidance scale", icon="fa-sliders-h",
+            dom_id={"item": "video_settings_guidance", "panel": "panel_video_guidance"},
+            min=1, max=20, step=0.5,
+            group="qualite",
+            help="À quel point suivre le prompt.",
+        ),
         "seed": dict(
             type="number", label="Seed", icon="fa-dice",
-            dom_id={"item": "video_settings_seed"},
+            dom_id={"item": "video_settings_seed", "panel": "panel_video_seed"},
             help="Graine aléatoire (vide = aléatoire).",
             group="qualite",
         ),
     },
 )
+
+
+# ── Format de sortie (brique commune) ──────────────────────────────────────────
+# Imager est EARLY BINDING (app_registry : format choisi À LA GÉNÉRATION, pas au
+# téléchargement) → la brique rend bien les deux champs, avec les dom_id `output_format` /
+# `output_quality` qui sont déjà ceux du volet. Le volet les écrivait à la main : on
+# consomme la brique à la place.
+# Borné à ("panel",) volontairement : la chaîne POST→models→tasks est vivante côté
+# CRÉATION (views.py:333-334, tasks.py:315-319), mais `save_generation_settings` ne les
+# traite pas encore — les exposer dans la modale d'item en ferait un mécanisme INERTE.
+# Les y étendre = un geste délibéré, une fois l'endpoint de sauvegarde câblé.
+_OUTPUT_PARAMS = output_format_params_for_app("imager", contexts=("panel",))
+
+IMAGE_PARAMS = IMAGE_PARAMS + _OUTPUT_PARAMS
+VIDEO_PARAMS = VIDEO_PARAMS + _OUTPUT_PARAMS
+
+
+# ── Réglages UTILISATEUR persistés (brique commune user_settings.py) ───────────
+# DÉRIVÉS DU SCHÉMA — aucune seconde liste de défauts à tenir à jour (c'est la
+# divergence que la brique A5-22 supprime). Seuls les params ayant une surface
+# `panel` sont persistés : le volet EST la surface des défauts utilisateur.
+# La CLÉ de stockage est le `dom_id` du volet — unique par construction (ce sont des
+# ids DOM), donc aucune table de correspondance clé↔champ à maintenir.
+def _panel_id(p):
+    """dom_id du param sur la surface VOLET, ou None s'il n'y figure pas.
+
+    Deux formes coexistent dans le commun : un dict par surface (params d'app, IDs legacy
+    différents selon la surface) ou une chaîne unique (params de brique, même id partout —
+    la surface se lit alors dans `contexts`). Ignorer la 2e écartait silencieusement
+    output_format/output_quality du volet.
+    """
+    dom = getattr(p, "dom_id", None)
+    if isinstance(dom, dict):
+        return dom.get("panel")
+    if dom and "panel" in (getattr(p, "contexts", None) or ()):
+        return dom
+    return None
+
+
+def _panel_defaults(params):
+    return {pid: p.default for p in params if (pid := _panel_id(p))}
+
+
+def panel_values_by_name(stored, params):
+    """Ré-indexe les réglages STOCKÉS (clé = dom_id) vers ce que WamaParams.render attend.
+
+    Deux clés différentes, chacune pour une bonne raison :
+      • stockage → `dom_id` du volet, UNIQUE entre domaines (image et vidéo partagent les
+        noms `model`, `steps`, `seed`, `guidance_scale` : un dict à plat par nom les écraserait) ;
+      • rendu    → `name` du param, car `render()` teste `p.name in values` (wama-params.js:223).
+    """
+    return {p.name: stored[pid] for p in params
+            if (pid := _panel_id(p)) and pid in stored}
+
+
+USER_SETTINGS_DEFAULTS = {**_panel_defaults(IMAGE_PARAMS), **_panel_defaults(VIDEO_PARAMS)}
+# Le modèle par défaut est « auto » (tirage VRAM-aware AU LANCEMENT), pas un modèle figé :
+# l'ancien modèle Django `UserSettings` codait « stable-diffusion-v1-5 », ce qui faisait que
+# le volet n'affichait JAMAIS « Auto » alors que la card, elle, poste bien 'auto'.
+USER_SETTINGS_DEFAULTS["model"] = "auto"
+USER_SETTINGS_DEFAULTS["panel_video_model"] = "auto"
 
 
 IMAGE_PARAMS_JSON = schema_to_dicts(IMAGE_PARAMS)

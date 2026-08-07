@@ -36,7 +36,11 @@
 
     // ── Options du select modèle : mêmes groupes que la card d'entrée (catalogue) ──
     function fillModelChoices(host, domain, current) {
-        const sel = host.querySelector('[name="model"]');
+        // WamaParams.render génère les champs avec `data-param` + `id`, PAS avec `name`
+        // (mesuré au navigateur le 2026-08-06 : nameAttr=null, dataParam='model'). Chercher
+        // `[name="model"]` seul renvoyait null → sortie silencieuse ligne suivante → select
+        // modèle VIDE sur les deux surfaces schéma-driven. On accepte les deux écritures.
+        const sel = host.querySelector('[name="model"], [data-param="model"]');
         const groups = (CARD().modelGroups || {})[domain] || [];
         if (!sel || !groups.length) return;
         sel.innerHTML = '<option value="auto">Auto (selon la VRAM et les entrées)</option>' +
@@ -186,6 +190,10 @@
             .catch(function () { WamaApp.toast('Impossible de charger les paramètres', 'error'); });
     }
     window.imagerOpenSettings = openSettingsModal;
+    // Exposé pour le VOLET DROIT (index.js:renderRightPanel) : les deux surfaces peuplent leur
+    // select modèle depuis les MÊMES groupes de catalogue. Exporter plutôt que recopier — sans
+    // ça le volet rendait un <select> VIDE (mesuré au navigateur le 2026-08-06).
+    window.imagerFillModelChoices = fillModelChoices;
 
     // Ouverture depuis les cards (les deux domaines partagent la même modale générée).
     // Délégation simple : les anciens handlers d'index.js ont été SUPPRIMÉS avec les

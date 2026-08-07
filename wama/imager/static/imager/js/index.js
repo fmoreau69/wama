@@ -14,6 +14,53 @@
     let currentVideoMode = 'txt2vid'; // Track current video generation mode
 
     // Initialize on page load
+    // ── Volet droit — GÉNÉRÉ depuis le schéma (params.py, surface "panel") ────────────────
+    // Remplace 257 lignes de champs écrits à la main. Les `dom_id` du schéma reprennent les
+    // IDs LEGACY du volet (#model, #steps, #num_images, #panel_video_*), donc tout le JS qui
+    // les lit continue de fonctionner inchangé — recette common/README.md §3.1.
+    function renderRightPanel() {
+        if (!window.WamaParams) {
+            console.warn('[imager] WamaParams absent — volet droit NON rendu.');
+            return;
+        }
+        [['imagePanelParams', window.IMAGER_IMAGE_SCHEMA, window.IMAGER_IMAGE_GROUPS,
+          window.IMAGER_IMAGE_PANEL_VALUES],
+         ['videoPanelParams', window.IMAGER_VIDEO_SCHEMA, window.IMAGER_VIDEO_GROUPS,
+          window.IMAGER_VIDEO_PANEL_VALUES]
+        ].forEach(function (spec) {
+            var host = document.getElementById(spec[0]);
+            if (!host || !spec[1]) return;
+            WamaParams.render(host, spec[1], {
+                context: 'panel',
+                groups: spec[2] || [],
+                values: spec[3] || {}
+            });
+        });
+
+        // Select modèle : options peuplées depuis les MÊMES groupes de catalogue que la modale
+        // d'item et la card (fillModelChoices, settings_modal.js) — pas de 2e liste. Sans cet
+        // appel le <select> du volet reste VIDE : le schéma déclare le champ, pas ses options.
+        if (window.imagerFillModelChoices) {
+            var vals = window.IMAGER_IMAGE_PANEL_VALUES || {};
+            var vvals = window.IMAGER_VIDEO_PANEL_VALUES || {};
+            imagerFillModelChoices(document.getElementById('imagePanelParams'), 'image', vals.model);
+            imagerFillModelChoices(document.getElementById('videoPanelParams'), 'video', vvals.model);
+        } else {
+            console.warn('[imager] imagerFillModelChoices absent — select modèle du volet vide.');
+        }
+
+        // Zone HORS SCHÉMA (résolution image à présets, cf. docstring params.py) greffée dans
+        // le groupe « Sortie » — même échappatoire que la modale d'item (settings_modal.js).
+        // Repli explicite : si le groupe n'existe pas, la zone reste en place et VISIBLE —
+        // jamais masquée, sinon la résolution disparaîtrait silencieusement du volet.
+        var zone = document.getElementById('panelResolutionZone');
+        if (!zone) return;
+        var imgHost = document.getElementById('imagePanelParams');
+        var body = imgHost && imgHost.querySelector('[data-group="sortie"] .wama-param-group-body');
+        zone.hidden = false;
+        if (body) body.appendChild(zone);
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         initializeEventListeners();
         initializeModeSelector();
@@ -26,6 +73,7 @@
         // dans index.html). L'ancien chemin data-description ne portait que la courte (pas
         // d'overlay) et double-écrirait les mêmes éléments. Fonction conservée le temps de la
         // transition (REMOVAL_LEDGER R15).
+        renderRightPanel();
         initializeResolutionSelectors();
         startProgressPolling();
 

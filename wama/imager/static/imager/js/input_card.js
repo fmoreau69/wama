@@ -175,6 +175,33 @@
             fd.append('prompt', promptValue);
             fd.append('negative_prompt', negEl ? (negEl.value || '').trim() : '');
             fd.append('model', select.value || 'auto');
+
+            // ── Réglages du VOLET DROIT ────────────────────────────────────────────────
+            // Sans ça, le serveur retombe sur get_model_defaults() et régler « 4 images » ou
+            // « steps 50 » dans le volet n'a AUCUN effet. La régression datait du remplacement
+            // du formulaire bespoke par la card commune : l'ancien `handleFormSubmit` lisait
+            // bien le volet, mais son <form> hôte a disparu avec lui (code mort depuis).
+            // `WamaParams.read` rend un objet clé = NOM de param, c.-à-d. exactement les noms
+            // de champs attendus par la vue de création — aucune table de correspondance.
+            const panelHost = document.getElementById(
+                d.domain === 'video' ? 'videoPanelParams' : 'imagePanelParams');
+            if (panelHost && window.WamaParams) {
+                const panel = WamaParams.read(panelHost) || {};
+                Object.keys(panel).forEach(function (k) {
+                    // Le modèle vient du select de la CARD (surface primaire), pas du volet :
+                    // le volet ne porte que le DÉFAUT de l'utilisateur.
+                    if (k === 'model' || k === 'negative_prompt') return;
+                    const v = panel[k];
+                    if (v !== null && v !== undefined && v !== '') fd.append(k, v);
+                });
+            }
+            // Résolution image : hors schéma (widget à présets) → width/height calculés.
+            const wEl = document.getElementById('width');
+            const hEl = document.getElementById('height');
+            if (d.domain !== 'video' && wEl && hEl) {
+                fd.append('width', wEl.value);
+                fd.append('height', hEl.value);
+            }
             if (batchFile) fd.append('prompt_file', batchFile);
             if (hasRef) fd.append('reference_image', refInput.files[0]);
 
@@ -183,8 +210,14 @@
                 .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; }); })
                 .then(function (res) {
                     if (!res.ok || res.j.error) throw new Error(res.j.error || 'Création impossible');
-                    // La card PENDING est rendue côté serveur → rechargement (provisoire :
-                    // remplacé par card_html/refreshCard au palier « fondation file »).
+                    // La card PENDING est rendue côté serveur → rechargement.
+                    // ⚠ Le commentaire précédent annonçait un remplacement par
+                    // card_html/refreshCard « au palier fondation file » : ce palier est livré
+                    // (`2e330cf`) et le rechargement est TOUJOURS là, parce que `refreshCard`
+                    // (queue.js:26) fait `el.outerHTML = …` — il REMPLACE une card existante et
+                    // ne sait pas en INSÉRER une nouvelle. Insérer proprement suppose de savoir
+                    // dans quel batch la ranger (build_batches_list / auto_wrap_orphans) :
+                    // c'est un geste à part entière, pas un nettoyage.
                     window.location.reload();
                 })
                 .catch(function (e) { toast(e.message || 'Erreur de création', 'error'); btn.disabled = false; });

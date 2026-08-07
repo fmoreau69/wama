@@ -10,9 +10,9 @@
     "capabilities": {
       "accepts_url": false,
       "anti_race": true,
-      "batch_type": null,
+      "batch_type": "media_list",
       "during_preview": false,
-      "has_batch": false,
+      "has_batch": true,
       "has_url_import": false,
       "has_youtube": false,
       "inspector": false,
@@ -202,9 +202,10 @@
         "default": "stable-diffusion-v1-5",
         "dom_id": {
           "item": "settings_model",
-          "panel": "imgDefaultModel"
+          "panel": "model"
         },
-        "help": "AI model to use",
+        "group": "modele",
+        "help": "Modèle de génération (Auto = tirage VRAM-aware au lancement).",
         "help_fallback": null,
         "help_html": "",
         "help_source": null,
@@ -218,6 +219,7 @@
         "name": "model",
         "option_groups": null,
         "options_source": null,
+        "pills": [],
         "radio_name": "",
         "section": "settings",
         "show_if": null,
@@ -239,6 +241,7 @@
         "dom_id": {
           "item": "settings_negative_prompt"
         },
+        "group": "modele",
         "help": "Ce qu'il faut éviter dans l'image.",
         "help_fallback": null,
         "help_html": "",
@@ -253,6 +256,7 @@
         "name": "negative_prompt",
         "option_groups": null,
         "options_source": null,
+        "pills": [],
         "radio_name": "",
         "section": "settings",
         "show_if": null,
@@ -262,8 +266,8 @@
       },
       {
         "advanced": false,
-        "chip": false,
-        "chip_label": "",
+        "chip": true,
+        "chip_label": "img",
         "choices": [
           [
             "1",
@@ -289,9 +293,11 @@
         ],
         "default": 1,
         "dom_id": {
-          "item": "settings_num_images"
+          "item": "settings_num_images",
+          "panel": "num_images"
         },
-        "help": "Number of images to generate",
+        "group": "sortie",
+        "help": "Nombre d'images à générer en une passe.",
         "help_fallback": null,
         "help_html": "",
         "help_source": null,
@@ -305,6 +311,7 @@
         "name": "num_images",
         "option_groups": null,
         "options_source": null,
+        "pills": [],
         "radio_name": "",
         "section": "settings",
         "show_if": null,
@@ -314,8 +321,8 @@
       },
       {
         "advanced": false,
-        "chip": false,
-        "chip_label": "",
+        "chip": true,
+        "chip_label": "steps",
         "choices": null,
         "contexts": [
           "item",
@@ -324,8 +331,10 @@
         ],
         "default": 30,
         "dom_id": {
-          "item": "settings_steps"
+          "item": "settings_steps",
+          "panel": "steps"
         },
+        "group": "qualite",
         "help": "Nombre d'étapes de diffusion.",
         "help_fallback": null,
         "help_html": "",
@@ -340,6 +349,7 @@
         "name": "steps",
         "option_groups": null,
         "options_source": null,
+        "pills": [],
         "radio_name": "",
         "section": "settings",
         "show_if": null,
@@ -359,8 +369,10 @@
         ],
         "default": 7.5,
         "dom_id": {
-          "item": "settings_guidance_scale"
+          "item": "settings_guidance_scale",
+          "panel": "guidance_scale"
         },
+        "group": "qualite",
         "help": "À quel point suivre le prompt.",
         "help_fallback": null,
         "help_html": "",
@@ -375,6 +387,7 @@
         "name": "guidance_scale",
         "option_groups": null,
         "options_source": null,
+        "pills": [],
         "radio_name": "",
         "section": "settings",
         "show_if": null,
@@ -394,8 +407,10 @@
         ],
         "default": null,
         "dom_id": {
-          "item": "settings_seed"
+          "item": "settings_seed",
+          "panel": "seed"
         },
+        "group": "qualite",
         "help": "Graine aléatoire (vide = aléatoire).",
         "help_fallback": null,
         "help_html": "",
@@ -410,6 +425,7 @@
         "name": "seed",
         "option_groups": null,
         "options_source": null,
+        "pills": [],
         "radio_name": "",
         "section": "settings",
         "show_if": null,
@@ -431,6 +447,7 @@
         "dom_id": {
           "item": "settings_image_strength"
         },
+        "group": "qualite",
         "help": "Influence de l'image de référence (img2img / style). 0=ignorer, 1=copier.",
         "help_fallback": null,
         "help_html": "",
@@ -445,6 +462,7 @@
         "name": "image_strength",
         "option_groups": null,
         "options_source": null,
+        "pills": [],
         "radio_name": "",
         "section": "settings",
         "show_if": null,
@@ -464,9 +482,11 @@
         ],
         "default": false,
         "dom_id": {
-          "item": "settings_upscale"
+          "item": "settings_upscale",
+          "panel": "upscale"
         },
-        "help": "Upscale the generated image",
+        "group": "sortie",
+        "help": "Agrandit l'image générée (×2).",
         "help_fallback": null,
         "help_html": "",
         "help_source": null,
@@ -480,11 +500,132 @@
         "name": "upscale",
         "option_groups": null,
         "options_source": null,
+        "pills": [],
         "radio_name": "",
         "section": "settings",
         "show_if": null,
         "step": null,
         "type": "toggle",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": [
+          [
+            "original",
+            "Original (inchangé)"
+          ],
+          [
+            "mp4",
+            ".MP4"
+          ],
+          [
+            "webm",
+            ".WEBM"
+          ],
+          [
+            "avi",
+            ".AVI"
+          ],
+          [
+            "mov",
+            ".MOV"
+          ],
+          [
+            "mkv",
+            ".MKV"
+          ],
+          [
+            "gif",
+            ".GIF"
+          ],
+          [
+            "mp3",
+            ".MP3"
+          ],
+          [
+            "wav",
+            ".WAV"
+          ],
+          [
+            "ogg",
+            ".OGG"
+          ]
+        ],
+        "contexts": [
+          "panel"
+        ],
+        "default": null,
+        "dom_id": "output_format",
+        "group": "",
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-file-export",
+        "inline": false,
+        "label": "Format de sortie",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "output_format",
+        "option_groups": null,
+        "options_source": null,
+        "pills": [],
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "select",
+        "unit": ""
+      },
+      {
+        "advanced": false,
+        "chip": false,
+        "chip_label": "",
+        "choices": [
+          [
+            "web",
+            "Web (léger)"
+          ],
+          [
+            "balanced",
+            "Équilibré"
+          ],
+          [
+            "max",
+            "Maximum"
+          ]
+        ],
+        "contexts": [
+          "panel"
+        ],
+        "default": null,
+        "dom_id": "output_quality",
+        "group": "",
+        "help": "",
+        "help_fallback": null,
+        "help_html": "",
+        "help_source": null,
+        "icon": "fa-sliders",
+        "inline": false,
+        "label": "Qualité",
+        "max": null,
+        "max_label": "",
+        "min": null,
+        "min_label": "",
+        "name": "output_quality",
+        "option_groups": null,
+        "options_source": null,
+        "pills": [],
+        "radio_name": "",
+        "section": "settings",
+        "show_if": null,
+        "step": null,
+        "type": "select",
         "unit": ""
       }
     ],
@@ -596,13 +737,15 @@
             "guidance_scale": "range — À quel point suivre le prompt. [1–20] (défaut : 7.5)",
             "height": "int (défaut : 512)",
             "image_strength": "range — Influence de l'image de référence (img2img / style). 0=ignorer, 1=copier. [0–1] (défaut : 0.75)",
-            "model": "select — AI model to use (défaut : 'stable-diffusion-v1-5')",
+            "model": "select — Modèle de génération (Auto = tirage VRAM-aware au lancement). (défaut : 'stable-diffusion-v1-5')",
             "negative_prompt": "textarea — Ce qu'il faut éviter dans l'image.",
-            "num_images": "select — Number of images to generate (choix : 1 | 2 | 3 | 4) (défaut : 1)",
+            "num_images": "select — Nombre d'images à générer en une passe. (choix : 1 | 2 | 3 | 4) (défaut : 1)",
+            "output_format": "select — Format de sortie (choix : original | mp4 | webm | avi | mov | mkv | gif | mp3 …)",
+            "output_quality": "select — Qualité (choix : web | balanced | max)",
             "prompt": "str (requis)",
             "seed": "number — Graine aléatoire (vide = aléatoire).",
             "steps": "range — Nombre d'étapes de diffusion. [1–100] (défaut : 30)",
-            "upscale": "toggle — Upscale the generated image (défaut : False)",
+            "upscale": "toggle — Agrandit l'image générée (×2). (défaut : False)",
             "width": "int (défaut : 512)"
           },
           "description": "Ajoute un élément à la file d'attente de Imager (Génération d'images et vidéos par IA (Stable Diffusion, Hunyuan, Mochi…)) et renvoie son item_id."
