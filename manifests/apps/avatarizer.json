@@ -101,6 +101,7 @@
           "item": "settingsUseEnhancer",
           "panel": "use_enhancer"
         },
+        "group": "",
         "help": "Restauration faciale haute qualité — légèrement plus lent.",
         "help_fallback": null,
         "help_html": "",
@@ -115,6 +116,7 @@
         "name": "use_enhancer",
         "option_groups": null,
         "options_source": null,
+        "pills": [],
         "radio_name": "",
         "section": "settings",
         "show_if": null,
@@ -137,6 +139,7 @@
           "item": "settingsBboxShift",
           "panel": "bbox_shift"
         },
+        "group": "",
         "help": "Décalage vertical de la zone bouche (px). 0 = auto.",
         "help_fallback": null,
         "help_html": "",
@@ -151,6 +154,7 @@
         "name": "bbox_shift",
         "option_groups": null,
         "options_source": null,
+        "pills": [],
         "radio_name": "",
         "section": "settings",
         "show_if": null,

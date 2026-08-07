@@ -62,6 +62,7 @@
           "item": "settingsModel",
           "panel": "modelSelect"
         },
+        "group": "",
         "help": "",
         "help_fallback": null,
         "help_html": "",
@@ -111,6 +112,7 @@
           ]
         ],
         "options_source": null,
+        "pills": [],
         "radio_name": "",
         "section": "settings",
         "show_if": null,
@@ -132,6 +134,7 @@
           "item": "settingsDuration",
           "panel": "durationSlider"
         },
+        "group": "",
         "help": "",
         "help_fallback": null,
         "help_html": "",
@@ -146,6 +149,7 @@
         "name": "duration",
         "option_groups": null,
         "options_source": null,
+        "pills": [],
         "radio_name": "",
         "section": "settings",
         "show_if": null,
@@ -165,6 +169,7 @@
         "dom_id": {
           "item": "settingsPrompt"
         },
+        "group": "",
         "help": "",
         "help_fallback": null,
         "help_html": "",
@@ -179,6 +184,7 @@
         "name": "prompt",
         "option_groups": null,
         "options_source": null,
+        "pills": [],
         "radio_name": "",
         "section": "settings",
         "show_if": null,
@@ -233,6 +239,7 @@
           "item": "settingsOutputFormat",
           "panel": "output_format"
         },
+        "group": "",
         "help": "",
         "help_fallback": null,
         "help_html": "",
@@ -247,6 +254,7 @@
         "name": "output_format",
         "option_groups": null,
         "options_source": null,
+        "pills": [],
         "radio_name": "",
         "section": "settings",
         "show_if": null,
@@ -281,6 +289,7 @@
           "item": "settingsOutputQuality",
           "panel": "output_quality"
         },
+        "group": "",
         "help": "",
         "help_fallback": null,
         "help_html": "",
@@ -295,6 +304,7 @@
         "name": "output_quality",
         "option_groups": null,
         "options_source": null,
+        "pills": [],
         "radio_name": "",
         "section": "settings",
         "show_if": null,

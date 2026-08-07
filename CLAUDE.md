@@ -173,9 +173,11 @@ Si deux apps ont besoin de la même logique, elle va dans `common/` et les deux 
 4. **Le pattern singleton + keep_loaded + sélection VRAM-aware** doit venir de
    `wama/model_manager/services/model_selector.py::select_model()` — brique EXISTANTE et complète
    (vérifié 2026-07-20 ; l'ancien plan `common/utils/backend_selector.py` est REMPLACÉ par elle).
-   Ne pas le ré-implémenter par app ; le chantier restant est l'ADOPTION — en cours : **composer**
-   (1er adopteur 2026-07-21, `utils/auto_model.py`) + **transcriber** (2e, 2026-07-24,
-   `backends/manager.py` via `priority` whisper-first) ; reste imager/describer + anonymizer.
+   Ne pas le ré-implémenter par app ; le chantier restant est l'ADOPTION — **composer**
+   (1er adopteur 2026-07-21, `utils/auto_model.py`), **transcriber** (2e, 2026-07-24,
+   `backends/manager.py` via `priority` whisper-first) et **imager** (vérifié 2026-08-06 :
+   `imager/utils/auto_model.py::resolve_auto_model` délègue à `select_model_id()`, appelé AU
+   LANCEMENT dans `tasks.py:88/439`) ; reste describer + anonymizer.
 
 5. **Le JS de base** (polling, csrfFetch, urlFor, actions batch, toast) vient de
    `wama/common/static/common/js/wama-app-base.js` (**existant**, monté global dans `base.html`) :

@@ -176,6 +176,7 @@
           "item": "settingsAiModel",
           "panel": "defaultAiModel"
         },
+        "group": "",
         "help": "",
         "help_fallback": {
           "BSRGANx2": {
@@ -226,6 +227,7 @@
         "name": "ai_model",
         "option_groups": null,
         "options_source": null,
+        "pills": [],
         "radio_name": "",
         "section": "settings",
         "show_if": null,
@@ -247,6 +249,7 @@
           "item": "settingsDenoise",
           "panel": "defaultDenoise"
         },
+        "group": "",
         "help": "",
         "help_fallback": null,
         "help_html": "",
@@ -261,6 +264,7 @@
         "name": "denoise",
         "option_groups": null,
         "options_source": null,
+        "pills": [],
         "radio_name": "",
         "section": "settings",
         "show_if": null,
@@ -282,6 +286,7 @@
           "item": "settingsBlendFactor",
           "panel": "defaultBlendFactor"
         },
+        "group": "",
         "help": "",
         "help_fallback": null,
         "help_html": "",
@@ -296,6 +301,7 @@
         "name": "blend_factor",
         "option_groups": null,
         "options_source": null,
+        "pills": [],
         "radio_name": "",
         "section": "settings",
         "show_if": null,

@@ -83,6 +83,7 @@
           "item": "rSettings_backend",
           "panel": "backendSelect"
         },
+        "group": "",
         "help": "",
         "help_fallback": {
           "auto": "Choisit automatiquement le meilleur moteur disponible selon le document et le GPU.",
@@ -102,6 +103,7 @@
         "name": "backend",
         "option_groups": null,
         "options_source": null,
+        "pills": [],
         "radio_name": "",
         "section": "settings",
         "show_if": null,
@@ -138,6 +140,7 @@
           "item": "rSettings_mode",
           "panel": "modeSelect"
         },
+        "group": "",
         "help": "",
         "help_fallback": null,
         "help_html": "",
@@ -152,6 +155,7 @@
         "name": "mode",
         "option_groups": null,
         "options_source": null,
+        "pills": [],
         "radio_name": "",
         "section": "settings",
         "show_if": null,
@@ -175,6 +179,7 @@
           "item": "rSettings_language",
           "panel": "languageInput"
         },
+        "group": "",
         "help": "Optionnel (ex. fr, en). Auto-détection si vide.",
         "help_fallback": null,
         "help_html": "",
@@ -189,6 +194,7 @@
         "name": "language",
         "option_groups": null,
         "options_source": null,
+        "pills": [],
         "radio_name": "",
         "section": "settings",
         "show_if": null,
@@ -221,6 +227,7 @@
           "item": "rSettings_output_format",
           "panel": "outputFormatSelect"
         },
+        "group": "",
         "help": "Format du texte produit. Les autres formats restent téléchargeables ensuite.",
         "help_fallback": null,
         "help_html": "",
@@ -235,6 +242,7 @@
         "name": "output_format",
         "option_groups": null,
         "options_source": null,
+        "pills": [],
         "radio_name": "",
         "section": "output",
         "show_if": null,
