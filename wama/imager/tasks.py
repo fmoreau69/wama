@@ -331,6 +331,10 @@ def generate_image_task(self, generation_id):
             generation.status = 'SUCCESS'
             generation.progress = 100
             generation.completed_at = timezone.now()
+            # Durée RÉELLE de calcul (ProcessingTimeMixin) : la même mesure que celle passée
+            # au learner ETA plus bas — persistée pour rester affichée après rechargement.
+            # `completed_at - created_at` inclurait l'attente en file, ce n'est pas la durée.
+            generation.processing_seconds = gen_duration
 
             # Store seed if available
             if result.seed_used is not None and generation.seed is None:
@@ -903,6 +907,10 @@ def generate_video_task(self, generation_id):
             generation.status = 'SUCCESS'
             generation.progress = 100
             generation.completed_at = timezone.now()
+            # Durée RÉELLE de calcul (ProcessingTimeMixin), hors attente en file. On prend le
+            # temps de TÂCHE (chargement du modèle + génération + export), c'est ce que
+            # l'utilisateur attend réellement une fois le travail lancé.
+            generation.processing_seconds = time.time() - task_start_time
             generation.save()
 
             cache.set(f"imager_progress_{generation_id}", 100, timeout=7200)

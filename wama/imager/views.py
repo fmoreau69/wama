@@ -1178,7 +1178,8 @@ def delete_generation(request, generation_id):
     try:
         generation = owned_or_404(ImageGeneration, user, id=generation_id)   # MUTATION
 
-        # Delete generated images from filesystem
+        # Sorties : `generated_images` est une LISTE de chemins (pas un FileField), donc
+        # suppression directe — elle n'est jamais partagée (vidée à la duplication).
         for image_path in generation.generated_images:
             if os.path.exists(image_path):
                 try:
@@ -1186,14 +1187,20 @@ def delete_generation(request, generation_id):
                 except Exception as e:
                     logger.warning(f"Failed to delete image {image_path}: {str(e)}")
 
-        # Delete video file if exists
-        if generation.output_video:
+        # FileFields → `safe_delete_file` : `duplicate_instance` PARTAGE les fichiers (il ne
+        # les copie pas), donc supprimer le fichier d'une ligne casserait ses doublons. La
+        # brique ne l'efface que si plus aucune autre ligne ne le référence.
+        #   • reference_image / prompt_file : PARTAGÉS (non listés dans `clear_fields`) — ils
+        #     n'étaient tout simplement JAMAIS supprimés, donc laissés à fuir sur le disque ;
+        #   • output_video : vidé à la duplication aujourd'hui, mais on passe quand même par
+        #     la brique — un `os.remove` brut redeviendrait faux au premier changement de
+        #     `clear_fields`, sans que rien ne le signale.
+        from wama.common.utils.queue_duplication import safe_delete_file
+        for _champ in ('output_video', 'reference_image', 'prompt_file'):
             try:
-                video_path = generation.output_video.path
-                if os.path.exists(video_path):
-                    os.remove(video_path)
+                safe_delete_file(generation, _champ)
             except Exception as e:
-                logger.warning(f"Failed to delete video: {str(e)}")
+                logger.warning(f"safe_delete_file({_champ}) a échoué : {e}")
 
         # Revoke Celery task if still queued/running
         if generation.task_id:
@@ -1306,8 +1313,11 @@ def clear_all(request):
     try:
         generations = ImageGeneration.objects.filter(user=user)
 
-        # Revoke Celery tasks + delete files
+        # Révocation Celery + fichiers. Même règle que `delete_generation` : les FileFields
+        # passent par `safe_delete_file` (partage possible entre doublons), la liste de
+        # chemins `generated_images` se supprime directement.
         from celery.result import AsyncResult
+        from wama.common.utils.queue_duplication import safe_delete_file
         for generation in generations:
             if generation.task_id:
                 try:
@@ -1320,6 +1330,11 @@ def clear_all(request):
                         os.remove(image_path)
                     except Exception as e:
                         logger.warning(f"Failed to delete image {image_path}: {str(e)}")
+            for _champ in ('output_video', 'reference_image', 'prompt_file'):
+                try:
+                    safe_delete_file(generation, _champ)
+                except Exception as e:
+                    logger.warning(f"safe_delete_file({_champ}) a échoué : {e}")
 
         count = generations.count()
         generations.delete()

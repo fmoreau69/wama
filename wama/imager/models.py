@@ -6,7 +6,9 @@ Image generation using Diffusers with multi-modal input support
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator, FileExtensionValidator
-from wama.common.models import BatchMixin, PromptScoped, ScopedManager, ScopedVisibility
+from wama.common.models import (
+    BatchMixin, ProcessingTimeMixin, PromptScoped, ScopedManager, ScopedVisibility,
+)
 from wama.common.utils.media_paths import UploadToUserPath
 
 
@@ -160,7 +162,7 @@ def get_recommended_resolutions(model_name: str) -> list:
     ]
 
 
-class ImageGeneration(PromptScoped, ScopedVisibility):
+class ImageGeneration(ProcessingTimeMixin, PromptScoped, ScopedVisibility):
     """Model for an image generation task.
 
     `ScopedVisibility` (brique COMMUNE) : la card est privée par défaut et peut être partagée à
@@ -333,16 +335,17 @@ class ImageGeneration(PromptScoped, ScopedVisibility):
 
     @property
     def duration_display(self):
-        """Return formatted duration"""
-        if self.completed_at and self.created_at:
-            delta = self.completed_at - self.created_at
-            seconds = int(delta.total_seconds())
-            if seconds < 60:
-                return f"{seconds}s"
-            else:
-                minutes = seconds // 60
-                seconds = seconds % 60
-                return f"{minutes}m {seconds}s"
+        """Durée de traitement — ALIAS de `processing_display` (ProcessingTimeMixin).
+
+        L'implémentation maison calculait `completed_at - created_at`, c.-à-d. le temps écoulé
+        depuis la CRÉATION, file d'attente comprise : une génération en attente 20 min puis
+        calculée en 2 min affichait 22 min. Le mixin persiste la durée RÉELLE, celle que le
+        worker mesure déjà et passe au learner ETA (`record_run`) — le réel en regard de la
+        prédiction, cf. CARD_DESIGN §10.6.
+
+        Alias conservé : consommé par l'admin, le template de card et la vue `progress`.
+        """
+        return self.processing_display
         return None
 
     @property
