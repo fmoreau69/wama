@@ -8,6 +8,7 @@ Image generation using Diffusers with multi-modal support:
 - img2img: Image to image transformation
 """
 
+from django.http import Http404
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse, HttpResponse, FileResponse
 from django.views.decorators.http import require_http_methods
@@ -22,6 +23,8 @@ import json
 import logging
 from pathlib import Path
 
+from wama.accounts.permissions import app_access
+from wama.common.utils.scoping import owned_or_404, visible_or_404
 from .models import ImageGeneration, UserSettings
 from wama.model_manager.services import get_registry_models
 from .utils.model_config import (
@@ -32,6 +35,7 @@ from wama.accounts.views import get_or_create_anonymous_user
 logger = logging.getLogger(__name__)
 
 
+@app_access('imager')
 def index(request):
     """Main page showing generation queue"""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -274,6 +278,7 @@ def index(request):
 
 
 @require_http_methods(["POST"])
+@app_access('imager')
 def create_generation(request):
     """Create a new image generation task (routes to appropriate handler based on mode)"""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -779,7 +784,7 @@ def get_batch_children(request, batch_id):
     try:
         from wama.imager.models import GenerationBatch
 
-        batch = get_object_or_404(GenerationBatch, id=batch_id, user=user)
+        batch = visible_or_404(GenerationBatch, user, id=batch_id)   # LECTURE
         children = [it.generation for it in
                     batch.items.select_related('generation').order_by('row_index')
                     if it.generation]
@@ -798,6 +803,8 @@ def get_batch_children(request, batch_id):
             'children': children_data
         })
 
+    except Http404:
+        raise
     except Exception as e:
         logger.error(f"Error getting batch children: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
@@ -813,7 +820,9 @@ def start_batch(request, batch_id):
 
         # Porte désormais sur le BATCH COMMUN, plus sur le self-FK `parent_generation`
         # (retiré : il doublait GenerationBatch et n'offrait ni UI ni partage).
-        batch = get_object_or_404(GenerationBatch, id=batch_id, user=user)
+        # MUTATION (démarrage) → `owned_or_404` : un batch partagé n'est jamais lançable par
+        # son destinataire. Le partage est en LECTURE SEULE par construction (scoping.py).
+        batch = owned_or_404(GenerationBatch, user, id=batch_id)
         pending = [it.generation for it in batch.items.select_related('generation')
                    if it.generation and it.generation.status == 'PENDING']
 
@@ -850,6 +859,8 @@ def start_batch(request, batch_id):
             'message': f'Started {started_count} generation(s)'
         })
 
+    except Http404:
+        raise
     except Exception as e:
         logger.error(f"Error starting batch: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
@@ -1007,7 +1018,9 @@ def progress(request, generation_id):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
     try:
-        generation = get_object_or_404(ImageGeneration, id=generation_id, user=user)
+        # LECTURE → accès nommé `visible_or_404` : le propriétaire OU un destinataire du
+        # partage (unité/projet/public). Cf. common/utils/scoping.py — lecture/mutation.
+        generation = visible_or_404(ImageGeneration, user, id=generation_id)
 
         # Get progress from cache (more real-time) or fallback to DB
         cached_progress = cache.get(f"imager_progress_{generation_id}")
@@ -1048,6 +1061,10 @@ def progress(request, generation_id):
 
         return JsonResponse(data)
 
+    # Un refus d'accès doit rester un 404 : sans ça l'`except Exception` ci-dessous le
+    # transformait en 500 AVEC le message de la base dans le corps de la réponse.
+    except Http404:
+        raise
     except Exception as e:
         logger.error(f"Error getting progress: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
@@ -1102,7 +1119,7 @@ def download(request, generation_id):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
     try:
-        generation = get_object_or_404(ImageGeneration, id=generation_id, user=user)
+        generation = visible_or_404(ImageGeneration, user, id=generation_id)   # LECTURE
 
         # Handle video download
         if generation.is_video_generation:
@@ -1146,6 +1163,8 @@ def download(request, generation_id):
         response['Content-Disposition'] = f'attachment; filename="generation_{generation.id}.zip"'
         return response
 
+    except Http404:
+        raise
     except Exception as e:
         logger.error(f"Error downloading: {str(e)}")
         return HttpResponse(f"Error: {str(e)}", status=500)
@@ -1157,7 +1176,7 @@ def delete_generation(request, generation_id):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
     try:
-        generation = get_object_or_404(ImageGeneration, id=generation_id, user=user)
+        generation = owned_or_404(ImageGeneration, user, id=generation_id)   # MUTATION
 
         # Delete generated images from filesystem
         for image_path in generation.generated_images:
@@ -1189,6 +1208,8 @@ def delete_generation(request, generation_id):
 
         return JsonResponse({'success': True, 'message': 'Generation deleted'})
 
+    except Http404:
+        raise
     except Exception as e:
         logger.error(f"Error deleting generation: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
@@ -1216,7 +1237,7 @@ def card_html(request, generation_id):
     consommé par queue.js sur transition de statut (remplace le repaint DOM manuel)."""
     from django.template.loader import render_to_string
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    generation = get_object_or_404(ImageGeneration, id=generation_id, user=user)
+    generation = visible_or_404(ImageGeneration, user, id=generation_id)   # LECTURE
     _decorate_card(generation)
     domain = 'video' if generation.is_video_generation else 'image'
     html = render_to_string('imager/_generation_card.html',
@@ -1235,7 +1256,7 @@ def batch_update(request, batch_id):
     from wama.imager.models import GenerationBatch
 
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch = get_object_or_404(GenerationBatch, pk=batch_id, user=user)
+    batch = owned_or_404(GenerationBatch, user, pk=batch_id)   # MUTATION
 
     updated = 0
     for item in batch.items.select_related('generation').all():
@@ -1257,7 +1278,10 @@ def batch_update(request, batch_id):
 def duplicate_generation(request, generation_id):
     """Duplicate a generation (share reference_image, reset outputs)"""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    generation = get_object_or_404(ImageGeneration, id=generation_id, user=user)
+    # `owned_or_404` : la duplication ne modifie pas la source, mais elle CRÉE un objet à
+    # partir d'elle et partage son fichier de référence. Tant qu'`ObjectGrant` n'existe pas,
+    # on s'en tient à la règle simple — le partage donne à VOIR, rien d'autre.
+    generation = owned_or_404(ImageGeneration, user, id=generation_id)
     from wama.common.utils.queue_duplication import duplicate_instance
     new_gen = duplicate_instance(
         generation,
@@ -1398,7 +1422,7 @@ def get_generation_settings(request, generation_id):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
     try:
-        generation = get_object_or_404(ImageGeneration, id=generation_id, user=user)
+        generation = visible_or_404(ImageGeneration, user, id=generation_id)   # LECTURE
 
         # Valeurs DÉRIVÉES DU SCHÉMA (params.py = source unique) : le dict écrit à la main
         # était une 2ᵉ copie du schéma, qui dérivait à chaque champ ajouté.
@@ -1424,6 +1448,8 @@ def get_generation_settings(request, generation_id):
 
         return JsonResponse(data)
 
+    except Http404:
+        raise
     except Exception as e:
         logger.error(f"Error getting generation settings: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
@@ -1435,7 +1461,7 @@ def save_generation_settings(request, generation_id):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
     try:
-        generation = get_object_or_404(ImageGeneration, id=generation_id, user=user)
+        generation = owned_or_404(ImageGeneration, user, id=generation_id)   # MUTATION
 
         # Don't allow editing while running
         if generation.status == 'RUNNING':
@@ -1479,6 +1505,8 @@ def save_generation_settings(request, generation_id):
             'message': 'Settings saved successfully'
         })
 
+    except Http404:
+        raise
     except Exception as e:
         logger.error(f"Error saving generation settings: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
@@ -1577,7 +1605,7 @@ def force_reset_generation(request, generation_id):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
     try:
-        generation = get_object_or_404(ImageGeneration, id=generation_id, user=user)
+        generation = owned_or_404(ImageGeneration, user, id=generation_id)   # MUTATION
 
         old_status = generation.status
         old_task_id = generation.task_id
@@ -1610,6 +1638,8 @@ def force_reset_generation(request, generation_id):
             'message': 'Generation reset to FAILURE. You can now restart it.'
         })
 
+    except Http404:
+        raise
     except Exception as e:
         logger.error(f"Error force resetting generation: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
