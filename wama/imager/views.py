@@ -739,14 +739,22 @@ def start_batch(request, parent_id):
             return JsonResponse({'error': 'No pending children to start'}, status=400)
 
         from .tasks import generate_image_task
+        from wama.common.utils.process_control import begin_processing
 
         started_count = 0
         for child in children:
+            # Anti-race PAR ITEM (brique commune, patron transcriber start_all) : sans ça, deux
+            # clics sur « Démarrer le batch » dispatchaient DEUX tâches GPU pour chaque enfant.
+            child, err = begin_processing(
+                ImageGeneration, child.pk, user=user,
+                reset={'progress': 0, 'error_message': ''},
+            )
+            if err:
+                continue
+            cache.delete(f"imager_progress_{child.id}")
             task = generate_image_task.delay(child.id)
-            child.status = 'RUNNING'
-            child.progress = 0
             child.task_id = task.id
-            child.save()
+            child.save(update_fields=['task_id'])
             started_count += 1
 
         logger.info(f"Started {started_count} batch children for parent #{parent_id}")
@@ -811,28 +819,27 @@ def restart_generation(request, generation_id):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
     try:
-        generation = get_object_or_404(ImageGeneration, id=generation_id, user=user)
-
-        # Check if generation is stuck in RUNNING state
-        if generation.status == 'RUNNING':
-            # Allow restart if stuck for more than 30 minutes (or 2 hours for video)
-            from datetime import timedelta
-            max_running_time = timedelta(hours=2) if generation.is_video_generation else timedelta(minutes=30)
-            time_running = timezone.now() - generation.updated_at
-
-            if time_running < max_running_time:
-                return JsonResponse({
-                    'error': 'Generation is currently running. If it seems stuck, wait a few more minutes or use force reset.',
-                    'time_running': str(time_running).split('.')[0]
-                }, status=400)
-            else:
-                logger.warning(f"Generation #{generation.id} was stuck in RUNNING for {time_running}, allowing restart")
-
-        # Reset status and progress
-        generation.status = 'PENDING'
-        generation.progress = 0
-        generation.error_message = ""
-        generation.save()
+        # Anti-race COMMUN, comme start_generation. Le heuristique maison qui précédait
+        # (« relance autorisée si RUNNING depuis > 30 min, ou > 2 h en vidéo ») a été RETIRÉ :
+        #  • il DOUBLAIT `reconcile_orphaned_running`, déjà appelé à l'index (views.py:44), qui
+        #    traite les RUNNING zombies par PREUVE POSITIVE DE MORT au lieu d'un délai ;
+        #  • il était plus FAIBLE : une génération légitimement longue (vidéo > 2 h) devenait
+        #    relançable et partait une 2e fois sur le GPU — le scénario exact des kernel panics
+        #    WSL2 du 2026-07-29, causés par l'imager non câblé ;
+        #  • l'échappatoire reste entière et explicite : `force_reset_generation` (⏹ du bouton
+        #    de cycle, queue.js:12), que le message d'erreur d'origine désignait déjà.
+        from wama.common.utils.process_control import begin_processing
+        generation, err = begin_processing(
+            ImageGeneration, generation_id, user=user,
+            reset={'progress': 0, 'error_message': ''},
+        )
+        if err == 'not_found':
+            return JsonResponse({'error': 'Generation not found'}, status=404)
+        if err == 'already_running':
+            return JsonResponse({
+                'error': "Cette génération tourne déjà. Si elle semble bloquée, utilisez ⏹ "
+                         "(réinitialisation forcée).",
+            }, status=400)
 
         # Clear progress cache to avoid showing old values
         cache.delete(f"imager_progress_{generation_id}")
@@ -846,10 +853,8 @@ def restart_generation(request, generation_id):
         else:
             task = generate_image_task.delay(generation.id)
 
-        # Update status
-        generation.status = 'RUNNING'
         generation.task_id = task.id
-        generation.save()
+        generation.save(update_fields=['task_id'])
 
         logger.info(f"Restarted generation #{generation.id}, task_id: {task.id}")
 
@@ -876,22 +881,28 @@ def start_all_generations(request):
             return JsonResponse({'error': 'No pending generations'}, status=400)
 
         from .tasks import generate_image_task, generate_video_task
+        from wama.common.utils.process_control import begin_processing
 
         started_count = 0
         for generation in pending:
-            # Clear progress cache before starting
+            # Anti-race PAR ITEM (brique commune, patron transcriber start_all) : le QuerySet est
+            # une photo, et deux « Démarrer tout » concurrents dispatchaient deux tâches GPU pour
+            # le même item. `begin_processing` re-lit sous verrou et saute ce qui tourne déjà.
+            generation, err = begin_processing(
+                ImageGeneration, generation.pk, user=user,
+                reset={'progress': 0, 'error_message': ''},
+            )
+            if err:
+                continue
             cache.delete(f"imager_progress_{generation.id}")
 
-            # Use appropriate task based on mode
             if generation.is_video_generation:
                 task = generate_video_task.delay(generation.id)
             else:
                 task = generate_image_task.delay(generation.id)
 
-            generation.status = 'RUNNING'
-            generation.progress = 0
             generation.task_id = task.id
-            generation.save()
+            generation.save(update_fields=['task_id'])
             started_count += 1
             logger.info(f"Started generation #{generation.id}, task_id: {task.id}")
 
