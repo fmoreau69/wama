@@ -81,6 +81,41 @@ faite en **web seul (gunicorn), sans workers Celery**, pour écarter toute redé
 `recursive_import`. Toujours ouverts : `refreshCard` ne sait pas INSÉRER (donc le
 `location.reload()` reste), et `wama/imager/tool_api.py` n'existe pas (F8).
 
+## 0ter. Étape 2 FAITE (2026-08-07) — imager **83 % (62/74)**, 0 partiel
+
+Commit `eb368c6`. `init_from_schema` + `inspector_actions` VERTS. **Deux instances** d'inspecteur
+(une par domaine, la file étant scopée par onglet), contrat `reader.js:624`.
+
+**Trois défauts trouvés EN MESURANT au navigateur, aucun visible à la relecture** :
+1. `wama-inspector.js` **n'était pas chargé** (la brique n'est pas globale : chaque app l'inclut).
+   `WamaInspector` undefined → cliquer une card ne faisait RIEN. Fabien l'a constaté en parallèle.
+2. La card n'exposait que `data-id/status/domain` : `cardSettings` lit les `data-<param>` et
+   renvoyait `{}` → inspecteur **présent mais INERTE**. Valeurs du schéma désormais sur la card.
+   ⚠ **Un champ ajouté à `params.py` doit être ajouté aux `data-*` de `_generation_card.html`.**
+3. 🔴 `updateResolutionsForModel` répond en **ASYNCHRONE** et écrasait steps/guidance par les
+   défauts du MODÈLE sans distinguer l'origine du changement. **Deux dégâts** :
+   - inspecteur : la réponse arrivait après la boucle d'application et effaçait les steps ;
+   - **CHARGEMENT DE PAGE : les réglages utilisateur persistés (`user_settings`) étaient écrasés
+     par les défauts du modèle à CHAQUE rechargement** — la persistance livrée le matin même
+     était donc annulée sans que rien ne le signale.
+   Corrigé par `applyModelDefaults`, piloté par **`e.isTrusted`** : les défauts du modèle ne
+   s'imposent que sur un vrai geste utilisateur, jamais sur une application programmatique.
+
+**Toolbar de file** : `start_id`/`clear_id`/`download_id` sont REQUIS par `_queue_toolbar` mais
+leurs handlers sont **à la charge de l'app** (doc du partial) — ils n'étaient câblés NULLE PART,
+les deux toolbars étaient décoratives. Câblées ; le volet passe aux actions de SÉLECTION.
+⚠ Les boutons globaux du volet, eux, MARCHAIENT : copier reader sans câbler la toolbar d'abord
+aurait laissé l'app sans aucune action globale.
+
+**12 rouges restants** : `help_about`, `url_ingest`, `recursive_import`, `model_caps_ui`,
+`layout`, `during_preview`, `backend_packages`, `processing_time`, `queue_manipulation`,
+`safe_delete`, `app_access_view`, `scoped_reads`.
+
+**⚠ DEUX crashes Windows/WSL2 pendant la session du 07/08** (~10h20 et ~11h00). Aucune perte :
+le travail non commité était intact les deux fois. Rien de lourd n'était en cours (pas de GPU) —
+je n'ai **aucun élément** pour attribuer une cause, à ne pas confondre avec les signatures déjà
+tracées. Réflexe adopté : **commiter dès qu'un geste est validé**, sans attendre la re-mesure.
+
 ## 1. État mesuré en fin de session (session PRÉCÉDENTE — voir §0)
 
 `python manage.py check_app_conformity` → **imager 77 % (56/74)**, parti de **55 %**.
