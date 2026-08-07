@@ -33,8 +33,13 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Nombre de runs conservés en plus du run courant.
-DEFAULT_KEEP = 3
+# Nombre de runs conservés en plus du run courant → `.log` + `.log.1` … `.log.9`.
+#
+# Porté de 3 à 9 le 2026-08-07 : la machine hôte enchaînait 3 coupures d'alimentation
+# dans la journée, et la fenêtre de 3 runs a été CHASSÉE avant qu'on ait pu identifier
+# la tâche GPU qui tournait lors du crash du 04/08 à 02:38 (VRAM 0,78 → 8,3 Go, aucune
+# trace survivante). Un post-mortem a besoin de remonter plusieurs redémarrages, pas un.
+DEFAULT_KEEP = 9
 
 # Journaux RÉÉCRITS À CHAQUE RUN par un service — les seuls à tourner par défaut.
 #

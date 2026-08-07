@@ -127,7 +127,7 @@ python manage.py seed_prompt_keywords --settings=$DJANGO_SETTINGS_MODULE || true
 # c'est celery-gpu.log conservé qui a identifié la boucle de crash WSL2).
 # IMPÉRATIF : ici, services ARRÊTÉS (kill plus haut) et AVANT de les relancer —
 # renommer un fichier encore ouvert ne détacherait pas le descripteur.
-echo "=== Rotating logs (3 runs conservés) ==="
+echo "=== Rotating logs (9 runs conservés) ==="
 python manage.py rotate_logs --settings=$DJANGO_SETTINGS_MODULE || true
 
 # ------------------------------------------------------
