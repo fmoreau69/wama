@@ -56,10 +56,9 @@ def index(request):
     # dans la file puis 404 au moindre clic (10 autres sites filtrent encore `user=user`) —
     # une porte à moitié ouverte, pire qu'une porte fermée. On reste donc propriétaire-seul
     # jusqu'au portage complet des chemins de LECTURE.
-    generations = ImageGeneration.objects.filter(
-        user=user,
-        parent_generation__isnull=True  # Only show top-level generations
-    ).order_by('-created_at')
+    # Le filtre `parent_generation__isnull=True` (« top-level ») est RETIRÉ avec le self-FK :
+    # il n'y a plus de hiérarchie parent/enfant, tout item appartient à un GenerationBatch.
+    generations = ImageGeneration.objects.filter(user=user).order_by('-created_at')
 
     # Réglages user — brique commune (A5-22) : clés + défauts uniques (USER_SETTINGS_DEFAULTS,
     # DÉRIVÉS du schéma params.py). Remplace le modèle Django `UserSettings` (5 colonnes), qui
@@ -392,50 +391,58 @@ def handle_file2img(request, user):
         if not prompts:
             return JsonResponse({'error': 'No valid prompts found in file'}, status=400)
 
-        # Create parent generation (container)
-        parent = ImageGeneration.objects.create(
-            user=user,
-            generation_mode='file2img',
-            prompt=f"Batch: {len(prompts)} prompts from {prompt_file.name}",
-            model=model,
-            width=width,
-            height=height,
-            steps=steps,
-            guidance_scale=guidance_scale,
-            status='SUCCESS',  # Parent is just a container
-        )
-        parent.prompt_file.save(prompt_file.name, prompt_file)
+        # ── Batch COMMUN (GenerationBatch), plus de parent/enfants par self-FK ────────
+        # Avant : un ImageGeneration « conteneur » en status SUCCESS + N enfants relies par
+        # `parent_generation`. Ce mecanisme etait DOUBLE par GenerationBatch depuis `9922f65`
+        # sans avoir ete retire — juxtaposition, pas remplacement. Effet concret : le conteneur
+        # n'etant pas un vrai travail, `auto_wrap_orphans` l'enveloppait dans un batch-of-1 et
+        # il occupait une card fantome dans la file (2 en base au moment du portage).
+        # Le batch est aussi l'unite de PARTAGE : passer par lui rend le lot partageable, ce que
+        # le self-FK ne permettait pas.
+        from wama.common.utils.batch_common import consolidate_into_batch
+        from wama.imager.models import GenerationBatch, GenerationBatchItem
 
-        # Create child generations for each prompt
-        children_ids = []
-        for prompt_data in prompts:
-            validated = validate_prompt_config(prompt_data)
-
-            child = ImageGeneration.objects.create(
+        generations = [
+            ImageGeneration.objects.create(
                 user=user,
                 generation_mode='txt2img',
-                parent_generation=parent,
-                prompt=validated.get('prompt', ''),
-                negative_prompt=validated.get('negative_prompt', ''),
-                model=validated.get('model', model),
-                width=validated.get('width', width),
-                height=validated.get('height', height),
-                steps=validated.get('steps', steps),
-                guidance_scale=validated.get('guidance_scale', guidance_scale),
-                seed=validated.get('seed'),
-                num_images=validated.get('num_images', 1),
-                status='PENDING'
+                prompt=v.get('prompt', ''),
+                negative_prompt=v.get('negative_prompt', ''),
+                model=v.get('model', model),
+                width=v.get('width', width),
+                height=v.get('height', height),
+                steps=v.get('steps', steps),
+                guidance_scale=v.get('guidance_scale', guidance_scale),
+                seed=v.get('seed'),
+                num_images=v.get('num_images', 1),
+                status='PENDING',
             )
-            children_ids.append(child.id)
+            for v in (validate_prompt_config(p) for p in prompts)
+        ]
 
-        logger.info(f"Created batch generation #{parent.id} with {len(children_ids)} children for user {user.username}")
+        def _create_batch(total):
+            b = GenerationBatch.objects.create(user=user, domain='image', total=total)
+            # Le fichier de prompts vit sur le BATCH (champ prevu pour, models.py:445) et non
+            # sur un faux item : il est partage par les lignes et nettoye par BatchMixin.
+            b.batch_file.save(prompt_file.name, prompt_file)
+            return b
+
+        batch = consolidate_into_batch(
+            generations,
+            create_batch=_create_batch,
+            link_item=lambda b, g, idx: GenerationBatchItem.objects.create(
+                batch=b, generation=g, row_index=idx),
+        )
+
+        logger.info(f"Created generation batch #{batch.id} with {len(generations)} items "
+                    f"for user {user.username}")
 
         return JsonResponse({
             'success': True,
-            'parent_id': parent.id,
-            'children_ids': children_ids,
-            'count': len(children_ids),
-            'message': f'Created {len(children_ids)} generation(s) from file'
+            'batch_id': batch.id,
+            'children_ids': [g.id for g in generations],
+            'count': len(generations),
+            'message': f'Created {len(generations)} generation(s) from file'
         })
 
     finally:
@@ -694,27 +701,29 @@ def generate_auto_prompt(request):
         os.unlink(tmp_path)
 
 
-def get_batch_children(request, parent_id):
-    """Get children of a batch generation"""
+def get_batch_children(request, batch_id):
+    """Items d'un GenerationBatch (contrat commun, plus le self-FK `parent_generation`)."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
     try:
-        parent = get_object_or_404(ImageGeneration, id=parent_id, user=user)
-        children = ImageGeneration.objects.filter(parent_generation=parent).order_by('id')
+        from wama.imager.models import GenerationBatch
 
-        children_data = []
-        for child in children:
-            children_data.append({
-                'id': child.id,
-                'prompt': child.prompt[:100] + ('...' if len(child.prompt) > 100 else ''),
-                'status': child.status,
-                'progress': child.progress,
-                'generated_images': child.generated_images,
-            })
+        batch = get_object_or_404(GenerationBatch, id=batch_id, user=user)
+        children = [it.generation for it in
+                    batch.items.select_related('generation').order_by('row_index')
+                    if it.generation]
+
+        children_data = [{
+            'id': c.id,
+            'prompt': c.prompt[:100] + ('...' if len(c.prompt) > 100 else ''),
+            'status': c.status,
+            'progress': c.progress,
+            'generated_images': c.generated_images,
+        } for c in children]
 
         return JsonResponse({
-            'parent_id': parent.id,
-            'count': children.count(),
+            'batch_id': batch.id,
+            'count': len(children),
             'children': children_data
         })
 
@@ -724,40 +733,45 @@ def get_batch_children(request, parent_id):
 
 
 @require_http_methods(["POST"])
-def start_batch(request, parent_id):
-    """Start all pending children of a batch generation"""
+def start_batch(request, batch_id):
+    """Démarre tous les items PENDING d'un GenerationBatch (contrat commun)."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
     try:
-        parent = get_object_or_404(ImageGeneration, id=parent_id, user=user)
-        children = ImageGeneration.objects.filter(
-            parent_generation=parent,
-            status='PENDING'
-        )
+        from wama.imager.models import GenerationBatch
 
-        if not children.exists():
+        # Porte désormais sur le BATCH COMMUN, plus sur le self-FK `parent_generation`
+        # (retiré : il doublait GenerationBatch et n'offrait ni UI ni partage).
+        batch = get_object_or_404(GenerationBatch, id=batch_id, user=user)
+        pending = [it.generation for it in batch.items.select_related('generation')
+                   if it.generation and it.generation.status == 'PENDING']
+
+        if not pending:
             return JsonResponse({'error': 'No pending children to start'}, status=400)
 
-        from .tasks import generate_image_task
+        from .tasks import generate_image_task, generate_video_task
         from wama.common.utils.process_control import begin_processing
 
         started_count = 0
-        for child in children:
+        for gen in pending:
             # Anti-race PAR ITEM (brique commune, patron transcriber start_all) : sans ça, deux
-            # clics sur « Démarrer le batch » dispatchaient DEUX tâches GPU pour chaque enfant.
-            child, err = begin_processing(
-                ImageGeneration, child.pk, user=user,
+            # clics sur « Démarrer le batch » dispatchaient DEUX tâches GPU pour chaque item.
+            gen, err = begin_processing(
+                ImageGeneration, gen.pk, user=user,
                 reset={'progress': 0, 'error_message': ''},
             )
             if err:
                 continue
-            cache.delete(f"imager_progress_{child.id}")
-            task = generate_image_task.delay(child.id)
-            child.task_id = task.id
-            child.save(update_fields=['task_id'])
+            cache.delete(f"imager_progress_{gen.id}")
+            # Un batch vidéo existe (domain='video') → dispatcher la bonne tâche, comme
+            # start_all_generations. L'ancien code forçait generate_image_task.
+            task = (generate_video_task if gen.is_video_generation
+                    else generate_image_task).delay(gen.id)
+            gen.task_id = task.id
+            gen.save(update_fields=['task_id'])
             started_count += 1
 
-        logger.info(f"Started {started_count} batch children for parent #{parent_id}")
+        logger.info(f"Started {started_count} item(s) of generation batch #{batch_id}")
 
         return JsonResponse({
             'success': True,
@@ -995,7 +1009,7 @@ def global_progress(request):
         }
 
     try:
-        base_qs = ImageGeneration.objects.filter(user=user, parent_generation__isnull=True)
+        base_qs = ImageGeneration.objects.filter(user=user)
         image_stats = _aggregate(base_qs.exclude(generation_mode__in=VIDEO_MODES))
         video_stats = _aggregate(base_qs.filter(generation_mode__in=VIDEO_MODES))
 

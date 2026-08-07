@@ -247,15 +247,10 @@ class ImageGeneration(PromptScoped, ScopedVisibility):
         help_text="Prompt automatically generated from reference image"
     )
 
-    # Parent generation for batch processing
-    parent_generation = models.ForeignKey(
-        'self',
-        null=True,
-        blank=True,
-        on_delete=models.SET_NULL,
-        related_name='batch_children',
-        help_text="Parent generation for batch items"
-    )
+    # `parent_generation` (self-FK) RETIRÉ le 2026-08-07 : il portait le regroupement en batch
+    # avant `GenerationBatch` (`9922f65`), qui l'a doublé sans le remplacer. Le batch commun est
+    # l'unité de FILE **et de PARTAGE** — ce que le self-FK ne permettait pas. 0 ligne l'utilisait
+    # en base au moment du retrait (mesuré), la migration est donc sans perte.
 
     # Model and size settings
     model = models.CharField(max_length=100, default="stable-diffusion-v1-5", help_text="AI model to use")
