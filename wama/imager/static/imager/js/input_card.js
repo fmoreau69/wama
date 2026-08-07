@@ -107,7 +107,15 @@
         // ── Routage d'un fichier importé (dropzone / picker / médiathèque → file input) ──
         function routeFile(f) {
             if (!f) return;
-            if (d.allowBatch && isBatchFile(f)) { setBatchFile(f); return; }
+            if (d.allowBatch && isBatchFile(f)) {
+                // Import batch COMMUN (WamaBatchImport) : aperçu serveur + « Créer » /
+                // « Créer et lancer » dans la detect bar. Intégration « app existante » —
+                // on DÉLÈGUE depuis notre propre routeur au lieu de laisser la brique
+                // accrocher un 2e gestionnaire sur la même dropzone (double détection).
+                if (window._batchImport) { window._batchImport.detectAndHandle(f); return; }
+                setBatchFile(f);   // repli : chemin historique si la brique manque
+                return;
+            }
             if (isImageFile(f)) {
                 try {
                     const dt = new DataTransfer();

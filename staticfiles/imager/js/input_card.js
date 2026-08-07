@@ -107,7 +107,15 @@
         // ── Routage d'un fichier importé (dropzone / picker / médiathèque → file input) ──
         function routeFile(f) {
             if (!f) return;
-            if (d.allowBatch && isBatchFile(f)) { setBatchFile(f); return; }
+            if (d.allowBatch && isBatchFile(f)) {
+                // Import batch COMMUN (WamaBatchImport) : aperçu serveur + « Créer » /
+                // « Créer et lancer » dans la detect bar. Intégration « app existante » —
+                // on DÉLÈGUE depuis notre propre routeur au lieu de laisser la brique
+                // accrocher un 2e gestionnaire sur la même dropzone (double détection).
+                if (window._batchImport) { window._batchImport.detectAndHandle(f); return; }
+                setBatchFile(f);   // repli : chemin historique si la brique manque
+                return;
+            }
             if (isImageFile(f)) {
                 try {
                     const dt = new DataTransfer();
@@ -210,8 +218,14 @@
                 .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; }); })
                 .then(function (res) {
                     if (!res.ok || res.j.error) throw new Error(res.j.error || 'Création impossible');
-                    // La card PENDING est rendue côté serveur → rechargement (provisoire :
-                    // remplacé par card_html/refreshCard au palier « fondation file »).
+                    // La card PENDING est rendue côté serveur → rechargement.
+                    // ⚠ Le commentaire précédent annonçait un remplacement par
+                    // card_html/refreshCard « au palier fondation file » : ce palier est livré
+                    // (`2e330cf`) et le rechargement est TOUJOURS là, parce que `refreshCard`
+                    // (queue.js:26) fait `el.outerHTML = …` — il REMPLACE une card existante et
+                    // ne sait pas en INSÉRER une nouvelle. Insérer proprement suppose de savoir
+                    // dans quel batch la ranger (build_batches_list / auto_wrap_orphans) :
+                    // c'est un geste à part entière, pas un nettoyage.
                     window.location.reload();
                 })
                 .catch(function (e) { toast(e.message || 'Erreur de création', 'error'); btn.disabled = false; });

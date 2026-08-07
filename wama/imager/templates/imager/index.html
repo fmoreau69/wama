@@ -133,7 +133,8 @@ la modale d'item (settings_modal.js, hook `decorate` + groupBody).
 le formulaire manuel (~190 lignes). Aucun radio de mode : input_card.js dérive generation_mode
 des entrées + du modèle (appariement wama-input-match, capacités catalogue). Réglages fins
 (résolution, steps, seed…) : défauts serveur, éditables via la modale ⚙ de la card PENDING. {% endcomment %}
-{% include 'common/_new_item_card.html' with card_id='imgNewCard' collapsible=True deployed=True show_prompt=True prompt_input_id='imgPrompt' prompt_rows=2 prompt_placeholder='Décrivez ce que vous voulez générer… (le ✨ traduit et enrichit)' drop_zone_id='imgDropZone' file_input_id='imgFileInput' file_accept='image/*,.txt,.csv' formats_label='Image de référence, ou fichier de prompts .txt/.csv (batch)' show_media_library=True media_library_type='image' show_reference=True reference_zone_id='imgRefSlot' reference_input_id='imgRefInput' reference_chip_id='imgRefChip' reference_accept='image/*' reference_label='Image de référence' reference_hint='Requise ou suggérée selon le modèle (édition qwen, img2img SD, describe → image).' match_status_id='imgMatchStatus' extra_zone_template='imager/_model_zone.html' mz_prefix='img' mz_groups=image_model_groups primary_btn_id='imgGenerateBtn' primary_btn_label='Générer' primary_btn_icon='fa-magic' %}
+{% url 'imager:batch_template' as batch_tpl_url %}
+{% include 'common/_new_item_card.html' with card_id='imgNewCard' collapsible=True deployed=True show_prompt=True prompt_input_id='imgPrompt' prompt_rows=2 prompt_placeholder='Décrivez ce que vous voulez générer… (le ✨ traduit et enrichit)' drop_zone_id='imgDropZone' file_input_id='imgFileInput' file_accept='image/*,.txt,.csv' formats_label='Image de référence, ou fichier de prompts .txt/.csv (batch)' show_batch_bar=True batch_format='prompt|modele|steps|seed' batch_hint='Un prompt par ligne ; en-têtes ou balises -p aussi acceptés (détection automatique).' batch_template_url=batch_tpl_url batch_template_id='imgBatchTemplateLink' show_media_library=True media_library_type='image' show_reference=True reference_zone_id='imgRefSlot' reference_input_id='imgRefInput' reference_chip_id='imgRefChip' reference_accept='image/*' reference_label='Image de référence' reference_hint='Requise ou suggérée selon le modèle (édition qwen, img2img SD, describe → image).' match_status_id='imgMatchStatus' extra_zone_template='imager/_model_zone.html' mz_prefix='img' mz_groups=image_model_groups primary_btn_id='imgGenerateBtn' primary_btn_label='Générer' primary_btn_icon='fa-magic' %}
 <hr class="border-secondary">
 
 {# Barre globale + ETA agrégée — brique commune (balayage bleu/vert permanent, toujours visible). #}
@@ -461,6 +462,49 @@ window.IMAGER_VIDEO_PANEL_VALUES = {{ video_panel_values_json|safe }};
 wama-app-base) : chaque app qui génère ses modales du schéma l'inclut, comme anonymizer.
 Le CSS, lui, est déjà global (base.html). {% endcomment %}
 <script src="{% static_v 'common/js/wama-params.js' %}"></script>
+{% comment %} Import batch COMMUN : aperçu serveur dans la detect bar, « Créer » ≠ « Créer et
+lancer ». PAS de dropZoneId/fileInputId ici — la card de l'imager route déjà ses fichiers
+(input_card.js:routeFile) et lui accrocher un 2e gestionnaire ferait double détection. On passe
+donc par l'intégration « app existante » : routeFile appelle detectAndHandle(). {% endcomment %}
+<script src="{% static_v 'common/js/batch-import.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    if (typeof WamaBatchImport === 'undefined') {
+        console.warn('[imager] batch-import.js manquant — import batch commun inactif');
+        return;
+    }
+    window._batchImport = WamaBatchImport({
+        batchExtensions: ['txt', 'csv'],
+        batchPreviewUrl: '{% url "imager:batch_preview" %}',
+        batchCreateUrl: '{% url "imager:import_batch" %}',
+        csrfToken: '{{ csrf_token }}',
+        formDataBuilder: function (fd) {
+            // Les réglages du VOLET voyagent avec le batch, comme pour une création unitaire.
+            var host = document.getElementById('imagePanelParams');
+            if (host && window.WamaParams) {
+                var vals = WamaParams.read(host) || {};
+                Object.keys(vals).forEach(function (k) {
+                    if (k === 'model') return;   // le modèle vient du select de la CARD
+                    if (vals[k] !== null && vals[k] !== undefined && vals[k] !== '') {
+                        fd.append(k, vals[k]);
+                    }
+                });
+            }
+            var sel = document.getElementById('imgModelSelect');
+            fd.append('model', (sel && sel.value) || 'auto');
+        },
+        afterCreate: function (data, autoStart) {
+            if (autoStart && data.batch_id) {
+                fetch('{% url "imager:start_batch" 0 %}'.replace('/0/', '/' + data.batch_id + '/'),
+                      { method: 'POST', headers: { 'X-CSRFToken': '{{ csrf_token }}' } })
+                    .finally(function () { location.reload(); });
+            } else {
+                location.reload();
+            }
+        },
+    });
+});
+</script>
 <script src="{% static_v 'imager/js/settings_modal.js' %}"></script>
 <script src="{% static_v 'imager/js/index.js' %}"></script>
 <script>

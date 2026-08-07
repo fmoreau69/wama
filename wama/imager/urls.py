@@ -43,6 +43,10 @@ urlpatterns = [
 
     # Multi-modal generation endpoints
     path('auto-prompt/', views.generate_auto_prompt, name='auto_prompt'),
+    # Import batch COMMUN (WamaBatchImport) : aperçu serveur → créer / créer et lancer.
+    path('batch/preview/', views.batch_preview, name='batch_preview'),
+    path('batch/import/', views.import_batch, name='import_batch'),
+    path('batch/template/', views.batch_template, name='batch_template'),
     path('batch/<int:batch_id>/children/', views.get_batch_children, name='batch_children'),
     path('batch/<int:batch_id>/start/', views.start_batch, name='start_batch'),
 

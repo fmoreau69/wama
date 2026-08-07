@@ -360,7 +360,9 @@ def handle_file2img(request, user):
     """Handle batch generation from prompt file (txt/json/yaml)"""
     from .utils.prompt_parser import parse_prompt_file, validate_prompt_config
 
-    prompt_file = request.FILES.get('prompt_file')
+    # `batch_file` = nom de champ du contrat WamaBatchImport ; `prompt_file` = nom historique
+    # posté par la card. UNE seule implémentation de création sert les deux entrées.
+    prompt_file = request.FILES.get('prompt_file') or request.FILES.get('batch_file')
     if not prompt_file:
         return JsonResponse({'error': 'No prompt file provided'}, status=400)
 
@@ -699,6 +701,75 @@ def generate_auto_prompt(request):
 
     finally:
         os.unlink(tmp_path)
+
+
+@require_http_methods(["POST"])
+def batch_preview(request):
+    """Aperçu d'un fichier de prompts (contrat WamaBatchImport) : parse SANS créer.
+
+    Réponse : {'count', 'items': [{'filename', 'path'}], 'warnings'} — patron composer
+    (batch de PROMPTS, pas de médias) ; la detect bar affiche `filename`, `path` en title.
+    """
+    batch_file = request.FILES.get('batch_file')
+    if not batch_file:
+        return JsonResponse({'error': 'Aucun fichier batch fourni'}, status=400)
+
+    from .utils.prompt_parser import parse_prompt_file, validate_prompt_config
+
+    import tempfile
+    suffix = Path(batch_file.name).suffix or '.txt'
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        for chunk in batch_file.chunks():
+            tmp.write(chunk)
+        tmp_path = tmp.name
+    try:
+        prompts = parse_prompt_file(tmp_path)
+    except Exception as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
+    finally:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+
+    stem = Path(batch_file.name).stem
+    items, warnings = [], []
+    for i, p in enumerate(prompts, 1):
+        v = validate_prompt_config(p)
+        texte = (v.get('prompt') or '').strip()
+        if not texte:
+            warnings.append(f"Ligne {i} : prompt vide, ignorée.")
+            continue
+        # Noms de sortie indexés sur le nom du FICHIER batch (décision projet, cf.
+        # batch_parsers.apply_indexed_output_names) — cohérent avec les autres apps.
+        items.append({'filename': f"{stem}_{i:02d}", 'path': texte})
+
+    return JsonResponse({'count': len(items), 'items': items, 'warnings': warnings})
+
+
+@require_http_methods(["POST"])
+def import_batch(request):
+    """Création depuis la detect bar commune (contrat WamaBatchImport).
+
+    Délègue à `handle_file2img` — UNE seule implémentation de création de batch, quelle que
+    soit l'entrée (card historique ou barre de détection commune).
+    """
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    return handle_file2img(request, user)
+
+
+def batch_template(request):
+    """Gabarit batch téléchargeable, GÉNÉRÉ depuis la déclaration des champs
+    (brique commune build_batch_template — jamais de contenu en dur, A5-23)."""
+    from wama.common.utils.batch_parsers import build_batch_template
+    text = build_batch_template(
+        ['prompt', 'modele', 'steps', 'seed'],
+        {'prompt': 'un phare dans la brume, photographie argentique',
+         'modele': 'auto', 'steps': 30, 'seed': ''},
+        app_label='Imager (un prompt par ligne)')
+    resp = HttpResponse(text, content_type='text/plain; charset=utf-8')
+    resp['Content-Disposition'] = 'attachment; filename="imager_batch_template.txt"'
+    return resp
 
 
 def get_batch_children(request, batch_id):
