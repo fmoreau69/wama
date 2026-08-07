@@ -8,7 +8,43 @@
 
 ---
 
-## 1. État mesuré en fin de session
+## 0. MISE À JOUR — session du 2026-08-06 (soir) : ÉTAPE 1 FAITE
+
+Commits `5115a5f` (palier imager) + `e3b503c` (corpus + doc). **Étape 1 du §3 livrée et vérifiée
+au navigateur** ; §3 étapes 2 et 3 restent ouvertes telles quelles.
+
+- Volet : **257 → 84 lignes**, généré par `WamaParams.render(context:'panel')`, valeurs par
+  `common/utils/user_settings.py`. `USER_SETTINGS_DEFAULTS` **dérivé du schéma** (15 clés).
+- **Régression réparée et PROUVÉE** (requête interceptée puis avortée, rien créé) : le POST porte
+  `num_images=4`, `steps=50`, `width/height=1024`, `model=auto`.
+- Diagnostic corrigé : ce n'était pas « la card n'envoie pas le volet » mais `handleFormSubmit`
+  **orphelin** — il lisait bien le volet, son `<form>` hôte avait disparu en `8e0cedb`.
+
+**Trois défauts trouvés en MESURANT, pas en relisant** (à retenir : la relecture ne les voyait pas) :
+1. `fillModelChoices` cherchait `[name="model"]` ; `WamaParams` génère `id` + `data-param` **sans
+   `name`** → sortie silencieuse → select modèle VIDE. **La modale d'item était touchée aussi**
+   (même brique depuis `f37b705`). Corrigé dans le helper partagé.
+2. `_panel_defaults` ignorait les `dom_id` en **chaîne** (forme des params de brique) →
+   `output_format`/`output_quality` disparaissaient du volet.
+3. `dom_id` panel `imgDefaultModel`/`vidDefaultModel` **fictifs** (aucun DOM), propagés jusque dans
+   le corpus de manifestes.
+
+**Effet de bord VOULU de `has_batch=True`** (app_registry, `9922f65` avait livré un vrai batch) :
+deux défauts réels sortent du « N/A » et deviennent mesurés —
+- 🔶 `anti_race` : `start_batch()` (`views.py:727`), `restart_generation()` (`:809`),
+  `start_all_generations()` (`:868`) **sans verrou** → risque de double lancement, patron
+  `CLAUDE.md` non appliqué. **C'est le plus urgent de la liste.**
+- 🔶 `batch_import` : `imager/utils/prompt_parser.py:73` refait `batch_parsers`.
+
+**Score inchangé à 78 %** : le palier visait `user_settings`, déjà compté vert **à tort** (le
+checker matchait le littéral). La grille n'a pas monté, elle est devenue honnête.
+
+**Trou constaté, non traité** : `refreshCard` (`queue.js:26`) **remplace** une card, il ne sait pas
+en **insérer** une → le `location.reload()` de `input_card.js` n'est PAS un reliquat à nettoyer.
+Le commentaire qui l'annonçait était faux, il est corrigé. Insérer suppose de savoir dans quel
+batch ranger la card. Autre trou : **`wama/imager/tool_api.py` n'existe pas** (F8).
+
+## 1. État mesuré en fin de session (session PRÉCÉDENTE — voir §0)
 
 `python manage.py check_app_conformity` → **imager 77 % (56/74)**, parti de **55 %**.
 Les 9 autres apps sont inchangées.
