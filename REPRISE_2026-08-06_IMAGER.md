@@ -116,6 +116,39 @@ le travail non commité était intact les deux fois. Rien de lourd n'était en c
 je n'ai **aucun élément** pour attribuer une cause, à ne pas confondre avec les signatures déjà
 tracées. Réflexe adopté : **commiter dès qu'un geste est validé**, sans attendre la re-mesure.
 
+## 0quater. F7 + safe_delete + processing_time (2026-08-07) — imager **89 % (66/74)**
+
+Commits `2a83610`, `20cf74e`.
+
+- **F7** : lectures → `visible_or_404`, mutations → `owned_or_404`, `@app_access('imager')`.
+  ⚠ Constat : `build_batches_list` utilise **déjà** `visible_to()` dès que le modèle de batch
+  porte `ScopedVisibility` (`batch_common.py:203`) — la file remontait donc déjà les batchs
+  partagés pendant que les détails filtraient `user=user`. Porte à moitié ouverte **en place**,
+  latente seulement parce que tout est `private` en base. Vérifié propriétaire 200 / étranger
+  404 sur lectures ET mutations.
+  **Bug collatéral** : les vues avalaient `Http404` dans leur `except Exception` → un refus
+  renvoyait **500 avec le message de la base**. Re-levé dans les 8 vues concernées.
+- **`safe_delete`** : `reference_image` et `prompt_file` sont PARTAGÉS par `duplicate_instance`
+  et n'étaient **jamais supprimés** (fuite disque à chaque suppression). Les 3 FileFields
+  passent par `safe_delete_file`, dans `delete_generation` ET `clear_all`.
+- **`processing_time`** : le `duration_display` maison mesurait `completed_at - created_at`
+  (attente en file COMPRISE — 20 min d'attente + 2 min de calcul = « 22 min »).
+  `ProcessingTimeMixin` adopté **et alimenté** : les workers mesuraient déjà la durée et la
+  passaient à `record_run` sans la persister. `duration_display` devient un ALIAS. Migration 0015.
+
+### 🔎 TROUVAILLES À TRAITER (rien n'est perdu, rien n'est fait)
+
+| Trouvaille | Où | Nature |
+|---|---|---|
+| **`help_about` est un faux rouge de FORME** | critère `conformity_checker.py:589` | Il exige `class HelpView/AboutView` ; l'imager a des vues-FONCTIONS `about` + `help_page` qui marchent. **À arbitrer par Fabien** : convertir en CBV par cohérence, ou élargir le critère. Ne pas convertir juste pour verdir. |
+| **`recursive_import` = trou de la ROUTE** | 0/10 apps | Ce n'est pas un défaut de l'imager. À traiter comme brique commune, pas app par app. |
+| **`refreshCard` ne sait pas INSÉRER** | `queue.js:26` | Il fait `el.outerHTML = …` (remplace). D'où le `location.reload()` de `input_card.js`, qui n'est PAS un reliquat. Insérer suppose de savoir dans quel batch ranger la card. |
+| **`wama/imager/tool_api.py` n'existe pas** | F8 | Alors que `CLAUDE.md` en fait une convention (« chaque app expose son API à l'assistant »). |
+| **Angle mort de la grille** | `auto_wrap_orphans`, `build_batches_list`, `batch_card_common` | Étaient VERTS pendant que deux mécanismes de batch coexistaient. Ils testent la PRÉSENCE, pas l'EXCLUSIVITÉ. Même angle mort que le faux vert de `user_settings`. **Un vert ne prouve pas l'absence de doublon.** |
+| **Un champ ajouté au schéma = 2 endroits** | `params.py` + `_generation_card.html` | Les `data-*` de la card alimentent `WamaInspector.cardSettings`. Oublier le `data-` rend l'inspecteur inerte pour ce champ, sans erreur. |
+| **`WamaParams` génère `id` + `data-param`, PAS `name`** | `wama-params.js` | A cassé `fillModelChoices` (select vide) sur les DEUX surfaces schéma-driven. Tout code cherchant `[name=…]` dans une surface générée est suspect — vérifier ailleurs. |
+| **`[WamaPromptChips] échec /media-library/api/keywords/`** | console navigateur | L'endpoint renvoie du HTML au lieu de JSON (2 warnings à chaque chargement de l'imager). Préexistant, hors périmètre, non diagnostiqué. |
+
 ## 1. État mesuré en fin de session (session PRÉCÉDENTE — voir §0)
 
 `python manage.py check_app_conformity` → **imager 77 % (56/74)**, parti de **55 %**.
