@@ -150,6 +150,56 @@ Commits `2a83610`, `20cf74e`.
 | **`[WamaPromptChips] échec /media-library/api/keywords/`** | console navigateur | L'endpoint renvoie du HTML au lieu de JSON (2 warnings à chaque chargement de l'imager). Préexistant, hors périmètre, non diagnostiqué. |
 | 🔴 **« image/vidéo » = NATURE chez l'un, DOMAINE chez l'autre** | enhancer vs imager (précision Fabien, 07/08) | **Enhancer** : domaines = {média (image+vidéo), audio} → 2 triplets de modèles, et le couple image/vidéo n'est qu'une **nature de batch** à l'intérieur du média (`_group_enhancements_into_batches`, « un batch PAR NATURE »). **Imager** : domaines = {image, vidéo} → 1 modèle + champ `domain` sur le batch. La MÊME distinction est donc un onglet ici et un regroupement là. Chaque app est cohérente avec elle-même, mais le vocabulaire diverge entre apps — à trancher au niveau de la ROUTE (F2/F5), pas app par app. Touche le principe « généraliser le comportement ET l'UI/UX ». |
 
+## 0quinquies. Session 2026-08-11 — VÉRIFICATION du travail passé + finitions (imager stable 91 %)
+
+Commits `3ebf0d9` (layout multi-files), `08f1665` (user_settings), `ba9accb` (purge),
+`d11e023`+`0c12a04` (start script) — session de REPRISE demandée par Fabien :
+« vérifier le travail des sessions précédentes, surtout l'imager ».
+
+**Verdict de l'audit** : architecture saine (briques consommées, `3c94171` vérifié — `_wrap_by_domain`
+bien REMPLACÉ, pas juxtaposé), mais **le point que Fabien craignait était fondé** :
+
+- 🔴 **`user_settings` était un FAUX VERT** : brique câblée en LECTURE seule — aucun
+  `save_user_app_settings` dans l'app, le volet oubliait tout au rechargement. Le critère greppe le
+  littéral `user_settings` (`conformity_checker.py:241`) : un import suffit. **Réparé** : écriture au
+  point de routage unique `create_generation` (une écriture pour les 6 handlers, patron transcriber),
+  helper `panel_prefs_from_post` (chemin inverse de `panel_values_by_name`). Chaîne validée en shell.
+  Modèle legacy `UserSettings` retiré (migration 0016 ; 3 lignes en base sans valeur — openjourney-v4).
+- ⚠ **MÊME FAUX VERT sur anonymizer ET enhancer** : verts au critère alors qu'ils sont sur leur
+  modèle Django legacy (leurs variables locales `user_settings` matchent le grep). **À faire : durcir
+  le critère** (exiger `save_user_app_settings`) puis re-mesurer — les deux apps redeviendront rouges,
+  honnêtement. Réponse à la question de Fabien (2026-08-11) : la brique N'EST PAS un héritage
+  anonymizer — née le 06/07 (`0b228a3`, vague T/D/C) ; l'héritage, c'est le modèle par app.
+  Reader + composer = vrais rouges (aucun user_settings).
+- **Chantier layout terminé** (laissé non commité par la session précédente) : `initDesignSelect` et
+  `initStackToggle` convertis au multi-files comme `initLayoutToggle` — état (profil) global à toutes
+  les files, focus de pile par file (`_pileFor`), flèches sur la file VISIBLE seule. Validé Playwright
+  sur imager ET enhancer (les deux étaient touchés).
+- **Purge index.js : 1655 → ~660 lignes (−60 %)** sur cartographie exhaustive (agent : chaque fonction
+  croisée template + `dom_id`). Deux découvertes : `initializeRightPanelSync` était inerte À CAUSE DE
+  L'ORDRE (exécutée avant `renderRightPanel` — un id de volet lu avant la l.133 est null) ; et
+  🔴 **« Démarrer tout » était INOPÉRANT** (`#startAllBtn` inexistant → TypeError avant le fetch) —
+  réparé via `e.currentTarget`. `showNotification` (toast réinventé) : 9 sites vivants → `WamaApp.toast`.
+  Bouton vidéo « Réinitialiser » retiré (handler déjà inerte) — parité avec `#resetOptions` image à
+  rétablir via une brique WamaParams.
+- **Playwright MCP réparé POUR DE VRAI** : le « réparé » du 06/08 n'avait validé que la connexion,
+  jamais un lancement navigateur — deux défauts dormants (canal `chrome` par défaut → `--browser
+  chromium` ; build 1237 requise vs 1228 installée). Version épinglée `@0.0.79` (plus de `@latest`).
+  Mémoire `reference_playwright_mcp` à jour ; règle : **vérifier par un VRAI appel navigateur**.
+- **`start_wama_prod.sh` : 4 points sudo bloquants durcis (`-n`)** — deux VÉCUS le 11/08 (hwclock
+  16 min, prlimit 8 min : prompt masqué par `2>/dev/null`, celery jamais lancé). ⚠ Leçon : ne JAMAIS
+  éditer un script shell PENDANT qu'il s'exécute (lecture incrémentale bash → parse corrompu, vécu).
+
+**Grille re-mesurée : imager 91 % (68/74), 0 partiel** — `layout` et `user_settings` désormais verts
+POUR DE VRAI. 6 rouges : `help_about` (arbitrage), `url_ingest`, `recursive_import` (route, 0/10),
+`model_caps_ui`, `during_preview`, `backend_packages`.
+
+**Suite actée avec Fabien (2026-08-11)** : pilote de RÉGÉNÉRATION en bac à sable — converter d'abord
+(sans modèles), puis transcriber (avec `requires` → modèles + librairie faster-whisper ; ⚠ le manifeste
+librairie ≠ modèle : le transcriber propose PLUSIEURS modèles, **tous doivent passer**). Le maillon à
+faire grandir = `write_back_app` (facette par facette, route §10) — chaîne manifeste→ingest→write-back
+→registres→mécanismes→UI déjà EN PLACE pour les 3 kinds (cf. mémoire `project_manifest_composition`).
+
 ## 1. État mesuré en fin de session (session PRÉCÉDENTE — voir §0)
 
 `python manage.py check_app_conformity` → **imager 77 % (56/74)**, parti de **55 %**.
