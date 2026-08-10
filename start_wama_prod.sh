@@ -52,7 +52,10 @@ export TZ=Europe/Paris
 export WAMA_MODEL_BACKUP_PATH=${WAMA_MODEL_BACKUP_PATH:-/mnt/shares/SAVES/DEEP_LEARNING/MODELS}
 
 # Resync WSL2 clock (dérive après sleep/hibernate — source du "substantial drift" Celery)
-sudo hwclock -s 2>/dev/null || true
+# `-n` : sans credentials sudo en cache, échouer AU LIEU de demander un mot de passe — lancé
+# en non-interactif (session Claude, cron), le prompt est invisible (2>/dev/null) et bloque
+# la séquence de démarrage indéfiniment (vécu 2026-08-11 : 16 min avant kill manuel).
+sudo -n hwclock -s 2>/dev/null || true
 
 mkdir -p $LOG_DIR
 
