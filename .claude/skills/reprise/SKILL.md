@@ -30,8 +30,20 @@ python manage.py check_app_conformity       # grille 74 critères par app
 ```
 - ⚠ `check_docs` : lancer depuis **Windows** (`./venv_win/Scripts/python.exe`) — il parcourt
   l'arborescence, et `/mnt/d` depuis WSL2 met plusieurs minutes.
-- **État attendu au 2026-08-02** : `check_docs` = **3 CASSÉ** (cibles à créer : `_result_tabs.html`,
-  `wama/common/middleware.py`, `_settings_modal.html`). **Une 4ᵉ = vraie dérive, à traiter.**
+- **État attendu au 2026-08-10** : `check_docs` = **2 CASSÉ**, et ce sont des **références EN AVANT**
+  assumées, pas des liens morts — des fichiers que la doc annonce et qui restent à créer :
+  - `common/_result_tabs.html` (cible de `REMOVAL_LEDGER` R18 — duplication vérifiée toujours
+    présente le 10/08 : `transcriber/index.html:307` et `describer/index.html:109` portent le même
+    `#resultTabs` + `tab-resume-btn`/`tab-coherence-btn`, plus le JS des deux côtés) ;
+  - `wama/common/middleware.py` (`UserLanguageMiddleware`, tableau i18n du `ROADMAP`).
+
+  **Une 3ᵉ = vraie dérive, à traiter.**
+
+  > ⚠ Ce seuil était à « 3 attendus / une 4ᵉ = dérive » jusqu'au 10/08 et **il était devenu faux** :
+  > `_settings_modal.html` a été **livré autrement** le 06/08 (la modale est GÉNÉRÉE par
+  > `WamaParams.settingsModal()`, le partial n'a donc jamais été créé) et sa référence a été retirée
+  > des docs. Un seuil périmé est pire qu'absent : il fait passer une vraie dérive pour du normal.
+  > **Réajuster ce compte à chaque fois qu'une cible est créée ou abandonnée.**
 - `manifest_export --check` doit dire « corpus à jour ». Sinon un registre a bougé sans que le
   corpus soit régénéré (`python manage.py manifest_export`).
 

@@ -53,7 +53,7 @@ aucun modèle IA) et **0 lien `app → library`** — c'est LE trou ouvert de la
 python manage.py manifest_export --check          # le corpus est-il à jour vs le code ?
 python manage.py manifest_roundtrip --all         # extract -> ingest -> extract est-il fidèle ?
 python manage.py doc_facts --check                # les blocs WAMA:FAITS des .md sont-ils à jour ?
-python manage.py check_docs                       # liens/chemins des docs (3 CASSÉ connus)
+python manage.py check_docs                       # liens/chemins des docs (2 CASSÉ connus au 10/08)
 ```
 
 Un round-trip qui diverge sur un champ **déclaratif** est un bug ; sur un champ **runtime**

@@ -7,7 +7,7 @@ Ce module n'implémente AUCUN contrôle : il joue les commandes existantes (chec
 check_app_conformity, manifest_export --check, manifest_roundtrip, doc_facts --check,
 check_redundancy) et traduit leur verdict en (ok, detail). Les seuils de tolérance sont
 les CONTRATS DOCUMENTÉS du projet, pas des choix locaux :
-  - check_docs : 3 CASSÉ assumés (cibles à créer, REPRISE §3a) — une 4ᵉ = dérive ;
+  - check_docs : 2 CASSÉ assumés (cibles à créer, REPRISE §3a) — une 3ᵉ = dérive ;
   - check_redundancy : 5 trouvailles = dette du port anonymizer (ROADMAP §16.9 ②) —
     une 6ᵉ = nouvelle recopie. Ces seuils DÉCROISSENT avec les chantiers ; les baisser
     ici quand les docs de référence actent le nouveau contrat.
@@ -17,7 +17,15 @@ from io import StringIO
 
 from wama.common.services.nightly_tests import register
 
-CASSE_ASSUMES = 3        # contrat REPRISE §3a (cibles à créer)
+# Références EN AVANT assumées : des fichiers que la doc annonce et qui restent à créer.
+# 3 → 2 le 2026-08-10 : `_settings_modal.html` est sorti de la liste, la modale ayant été
+# LIVRÉE AUTREMENT le 06/08 (générée par `WamaParams.settingsModal()`, le partial n'a donc
+# jamais existé) et sa référence retirée des docs. Restent `common/_result_tabs.html`
+# (REMOVAL_LEDGER R18 — duplication vérifiée présente le 10/08) et `wama/common/middleware.py`
+# (i18n, ROADMAP). Le test compare en `<=` : laisser 3 ne cassait rien mais rendait le contrat
+# AVEUGLE à une vraie 3ᵉ dérive. Conformément à l'en-tête de ce module, le seuil DÉCROÎT dès
+# qu'une cible est créée ou abandonnée — sinon il cesse silencieusement de protéger.
+CASSE_ASSUMES = 2        # contrat REPRISE §3a (cibles à créer)
 REDONDANCES_ASSUMEES = 0  # dette anonymizer résorbée au palier 1 du port (03/08) — toute trouvaille = nouvelle recopie
 
 
@@ -90,7 +98,7 @@ def register_scenarios():
     # check_docs parcourt l'arborescence : minutes depuis WSL2 (/mnt/d), secondes depuis
     # Windows — d'où le timeout large. Les autres tiennent en secondes.
     register(id='common.consistency.docs', app='common', stage='consistency',
-             description='Références doc→code (contrat : 3 CASSÉ assumés, 0 périmée)',
+             description='Références doc→code (contrat : 2 CASSÉ assumés, 0 périmée)',
              run=_run_check_docs, timeout_s=900)
     register(id='common.consistency.conformity', app='common', stage='consistency',
              description='Grille de conformité mesurée (rafraîchit logs/conformity_report.json)',
