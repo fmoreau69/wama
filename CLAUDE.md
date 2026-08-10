@@ -52,6 +52,24 @@
 
 ---
 
+## 🔴 RÈGLE OBLIGATOIRE : UNE COMMANDE COMMENCE PAR UN EXÉCUTABLE (sinon : encapsuler)
+
+> Une règle de permission est un **préfixe**. Une commande qui commence par `$var = …`, `(`, `&`,
+> `foreach`, `try` n'en offre aucun : elle **ne pourra JAMAIS être autorisée durablement**, coûtera
+> une validation à chaque appel, et n'ajoutera qu'un littéral mort dans `settings.local.json`.
+> Mesuré le 10/08 : **52 des 74 entrées** réaccumulées en 4 jours étaient de tels littéraux.
+
+- ❌ `$pw = (Get-Content .env | Where-Object …); & "C:\…\psql.exe" -c "…"`
+- ✅ `Write <scratchpad>/step.ps1` puis `pwsh -NoProfile -File <scratchpad>/step.ps1`
+- ✅ Une commande à préfixe reste libre, **pipes compris** : `Get-ChildItem … | Where-Object …`,
+  `wsl.exe -e bash -lc "… && …"`. Le pipe n'a jamais été le problème (vérifié : la surface Bash,
+  truffée de pipes, était couverte à 100 %).
+- Appliqué par `.claude/hooks/block_composite_oneliner.py` (n'agit que sur l'outil PowerShell).
+- **Écrire toute règle sur LES DEUX outils** (`Bash(...)` ET `PowerShell(...)`) et dans la graphie
+  réellement émise : c'est l'asymétrie entre les deux qui causait 100 % des sollicitations résiduelles.
+
+---
+
 ## 🔴 RÈGLE OBLIGATOIRE : DISCIPLINE GIT MULTI-INSTANCES (migré de REPRISE_2026-07-22, leçon vécue)
 
 > Plusieurs instances Claude peuvent travailler en parallèle sur ce repo. Un

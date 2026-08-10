@@ -117,7 +117,23 @@ foreach ($e in @($policy.allow + $local.allow)) {
     # Formes durables : octroi d'outil, mcp, domaine WebFetch, portee **, motif : * ou  *
     $keep = ($e -match '^[A-Za-z_]+$') -or ($e -match '^mcp__') -or
             ($e -match '^WebFetch\(domain:[^)]+\)$') -or ($e -match '\*\*\)$') -or
-            ($e -match ':\*\)$') -or ($e -match ' \*\)$')
+            ($e -match ':\*\)$') -or ($e -match ' \*\)$') -or
+            ($e -match '^Skill\([a-z0-9-]+\)$')
+
+    # 10/08 : une commande EXACTE et FIXE est durable, elle aussi. Le filtre ne
+    # gardait que les motifs a wildcard, donc il SUPPRIMAIT a chaque passage des
+    # regles legitimes : `Bash(bash scripts/check_js.sh)` (ajoutee le 31/07, prescrite
+    # par le skill cam-analyzer) avait ainsi disparu, et `Bash(env)` allait suivre.
+    # Le script n'accumulait pas seulement du bruit : il ERODAIT la politique.
+    # Discriminant : une invocation fixe est COURTE et sans texte libre ; un one-off
+    # est long et/ou porte des guillemets (`git commit <20 chemins> -m '...'`).
+    if (-not $keep -and $e -match '^[A-Za-z_]+\(([^*]+)\)$') {
+        $tok = @($Matches[1] -split '\s+' | Where-Object { $_ })
+        if ($tok.Count -le 4 -and $Matches[1] -notmatch '[''"]') {
+            $keep = $true
+        }
+    }
+
     if ($e -match '__NEW_LINE_|__TRACKED_VAR__|\$[A-Za-z_]') { $keep = $false }
 
     # Un motif ":*)" ou " *)" n'est DURABLE que si son prefixe reste generique.
