@@ -2362,6 +2362,31 @@ des sauvegardes. Aucune restauration n'existe aujourd'hui — les trois domaines
 - Commande envisagée : `manage.py restore_backup --domain models|media --dry-run` (jamais de
   suppression locale), + `restore_db` séparée à cause de sa nature destructive.
 
+**🔴 Deux trous mesurés le 2026-08-10 — une réinstallation ÉCHOUERAIT aujourd'hui même avec les
+trois sauvegardes en main :**
+
+1. **Les secrets ne sont sauvegardés NULLE PART.** `.env` (2 440 o) est ignoré par git
+   (`.gitignore:94`) et **absent du NAS** (`DEEP_LEARNING/` = `DB`, `MEDIAS`, `MODELS`, … pas de
+   dossier de configuration). Sans lui, une installation neuve ne peut se connecter ni à Postgres
+   ni à Redis. `.env.example` sert de gabarit mais ne contient aucune valeur.
+   → décider d'un emplacement (NAS chiffré ? gestionnaire de secrets ?) — cf.
+   `project_secrets_externalization`, l'historique a déjà été réécrit pour les en sortir, donc
+   les remettre en clair quelque part demande une décision explicite de Fabien.
+2. **Le dump ne recrée ni le rôle ni la base.** `backup_db` appelle `pg_dump --format=custom
+   --no-owner --no-acl`, **sans `--create`** : l'archive contient le schéma et les données, mais
+   pas le `CREATE DATABASE` ni le rôle propriétaire. Une restauration sur machine vierge exige donc
+   de créer d'abord le rôle et `wama_db` (avec le mot de passe qui vient… du `.env` du point 1).
+   → à documenter dans la procédure de tirage, ou à traiter en ajoutant `--create` au dump.
+
+**Doublons restants dans la chaîne de sauvegarde** (état au 2026-08-10, à traiter quand le tirage
+ajoutera un 3ᵉ appelant) :
+- `RemoteBackupService._copy_one` + la branche récursive de `backup_directory` sont une **2ᵉ
+  implémentation de miroir**, PRÉEXISTANTE, encore utilisée par le chemin **par modèle**
+  (`api_backup_model`, barre de sélection, `convert_and_backup`). Le miroir GLOBAL, lui, est unifié.
+- `api_backup_media_start/_progress` sont des quasi-copies de leurs équivalents modèles (~35 lignes),
+  et le `publish()` de `backup_media_task` reprend celui de `backup_all_models_task`. Introduit le
+  10/08, assumé à 2 instances — mais le tirage en ferait une 3ᵉ : factoriser à ce moment-là.
+
 ### Constat : la base Postgres Windows n'est PAS la base de travail
 Mesuré 2026-07-27 — Postgres 17 (Windows, `postgresql-x64-17`, port 5432) contient `wama_db` :
 92 tables, migrations à jour (26/07 17:44), mais **`auth_user`=3, `model_manager_aimodel`=147,
