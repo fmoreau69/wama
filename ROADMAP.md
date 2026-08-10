@@ -412,10 +412,20 @@ applicatif (le call-site diariseur a été annulé par le revert `6cc37ec`).
 Set temps réel : LLM→Ollama, vocalisation/preview→microservice TTS, speak→futur service Whisper
 chaud, traduction→Ollama.
 
-### Backup réseau (vrlescot)
-- `REMOTE_BACKUP_PATH` configurable par env `WAMA_MODEL_BACKUP_PATH` ; garde-fou : chemin UNC
-  hors Windows non monté → backup **désactivé** sans créer de dossier-poubelle (constater, pas
-  créer). ✅ **À finir** : monter le partage en WSL (`/mnt/...`) + tester (conversion .pt→.onnx).
+### Backup réseau (vrlescot) — ✅ FAIT, 4 domaines + tirage (2026-08-10)
+- **Montage WSL en place et éprouvé** : `\\vrlescot\SAVES` → `/mnt/shares/SAVES`. Le point
+  « à finir » de cette ligne est clos depuis le 27/07.
+- **Moteur unique** `common/services/mirror_sync.py` (`mirror_tree`, `copy_file`,
+  `remote_is_available`, `resolve_remote_root`, `purge_keep_latest`, `run_mirror_job`). Aucune
+  autre implémentation de copie/miroir dans le projet — ne pas en réintroduire.
+- **4 domaines** sous `DEEP_LEARNING/` : `MODELS`, `DB`, `MEDIAS`, `INSTALL` (secrets).
+  Planification beat : config 02:20, médias 02:30, base 03:30, **avant** la purge de rétention
+  de 04:00. Boutons « Backup DB / Models / Médias » dans les outils système du model_manager.
+- **Tirage** : `manage.py restore_backup --domain models|media|config` (= `mirror_tree` dans
+  l'autre sens) et `manage.py restore_db` (destructif, CLI uniquement).
+- Garde-fous conservés : chemin UNC hors Windows non monté → sauvegarde **désactivée** sans créer
+  de dossier-poubelle (constater, pas créer) ; jamais de suppression distante (archive cumulative).
+- Détail et procédure de réinstallation : **`PROJECT_STATUS.md` §42**.
 
 ### Sélection centralisée — `services/model_selector.py` (FAIT, étape 3 ⏳)
 - `select_model(source, *, model_type, requires, classes, prefer_loaded, downloaded_only,

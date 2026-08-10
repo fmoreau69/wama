@@ -5,8 +5,15 @@
 > saturé » ne tient plus. `D:` est à **96 % (23,7 Go libres sur 543)**, dont **91 Go de modèles
 > Ollama** (`D:\.ollama\models`, hors `AI-models/`). L'urgence relative de ce chantier est donc à
 > réévaluer — mesurer avec `SystemMonitor.get_disk_info(drive='D')` avant de conclure.
-> Contexte : `media/` local ≈ **16,5 Go**. Un espace distant existe : `\\vrlescot\SAVES\DEEP_LEARNING\MEDIAS`.
+> Contexte : `media/` local = **21 Go / 2 640 fichiers** (re-mesuré 2026-08-10).
 > Question (Fabien) : délocaliser les médias sur cet espace pour gagner de la place locale ?
+>
+> 🔴 **PRÉMISSE CHANGÉE LE 2026-08-10 — lire avant d'implémenter ce chantier.**
+> `\\vrlescot\SAVES\DEEP_LEARNING\MEDIAS` n'est plus un espace inoccupé : c'est désormais un
+> **miroir de sauvegarde VIVANT**, alimenté chaque nuit à 02:30 (`common.backup_media`) et par le
+> bouton « Backup Médias ». Il contient aussi `~Archives/` (ancien contenu mis de côté par Fabien).
+> Le tiering ne peut donc plus s'y installer comme sur un terrain vierge — voir la section
+> « Articulation avec la sauvegarde » ajoutée en bas. Référence : `PROJECT_STATUS.md` §42.
 
 ## Verdict performance
 
@@ -38,12 +45,19 @@ DISTANT …/MEDIAS/  (mount WSL)     = ARCHIVE : sorties terminées / entrées a
 4. **Éviction du buffer** : LRU par date/âge + seuil de place (ne garder localement que les N derniers
    Go ou les médias < X jours).
 
-## Réutilisation de l'existant (peu de neuf)
-- **Montage WSL déjà en place** : `\\vrlescot\SAVES` → `/mnt/shares/SAVES` (drvfs/fstab, posé pour les
-  modèles) → `MEDIAS = /mnt/shares/SAVES/DEEP_LEARNING/MEDIAS`. Env var dédiée (cf. `WAMA_MODEL_BACKUP_PATH`)
-  → ajouter `WAMA_MEDIA_ARCHIVE_PATH` dans `start_wama_prod.sh`.
-- **`offload_file()` / `mirror_dest()`** : à généraliser (aujourd'hui spécifiques aux modèles) en un
-  helper média (mirroir relatif à `MEDIA_ROOT`).
+## Réutilisation de l'existant (encore moins de neuf qu'annoncé — mis à jour 2026-08-10)
+- **Montage WSL en place** : `\\vrlescot\SAVES` → `/mnt/shares/SAVES` (drvfs/fstab) →
+  `MEDIAS = /mnt/shares/SAVES/DEEP_LEARNING/MEDIAS`.
+  ~~ajouter `WAMA_MEDIA_ARCHIVE_PATH` dans `start_wama_prod.sh`~~ → **inutile** : la résolution du
+  chemin est auto-détectée (WSL vs Windows) par `mirror_sync.resolve_remote_root`, et une variable
+  d'écrasement existe déjà (`WAMA_MEDIA_BACKUP_PATH`) si besoin d'un montage non standard.
+- ~~**`offload_file()` / `mirror_dest()` : à généraliser (aujourd'hui spécifiques aux modèles)**~~
+  → **LA GÉNÉRALISATION EXISTE** depuis le 2026-08-10 : `common/services/mirror_sync.py` est le
+  moteur unique du projet (`mirror_tree`, `copy_file`, `remote_is_available`, `resolve_remote_root`,
+  `purge_keep_latest`). `offload_file()` reste, lui, spécifique — c'est la brique
+  *backup + vérification de taille + suppression locale*, et **c'est exactement ce dont le tiering a
+  besoin** ; seul son habillage « par modèle » (`model_type`, `format_type`) serait à desserrer.
+  ⚠ Ne pas réécrire de boucle de copie : il n'y en a plus qu'une dans le projet.
 - **Médiathèque (`media_library`)** : foyer naturel de l'UI « archivé / restaurer » (UserAsset a déjà un
   modèle d'assets).
 
@@ -67,6 +81,27 @@ DISTANT …/MEDIAS/  (mount WSL)     = ARCHIVE : sorties terminées / entrées a
 > **Nuance à trancher conservée (unique à ce doc)** : à l'expiration de la rétention, **archiver
 > vers le distant plutôt que supprimer** (défaut « indéfiniment ») — c'est l'articulation avec le
 > tiering ci-dessous.
+
+## Articulation avec la SAUVEGARDE des médias (ajouté 2026-08-10 — à trancher avant d'implémenter)
+
+Depuis que `MEDIAS/` est un miroir de sauvegarde vivant, deux usages visent le même dossier et il
+faut décider lequel gouverne. Ce qui se combine bien, et ce qui entre en conflit :
+
+- ✅ **Offload → miroir : compatible.** Le miroir n'itère que sur les fichiers LOCAUX et ne supprime
+  jamais rien à distance. Un fichier délocalisé (donc absent en local) reste donc à distance sans
+  que la sauvegarde ne le touche. Aucun risque de « re-suppression ».
+- 🔴 **Tirage → tiering : CONFLIT DIRECT.** `manage.py restore_backup --domain media` rapatrie
+  **tout** ce qui est distant vers `media/`. Sur une installation où le tiering a délocalisé des
+  médias froids, un tirage annulerait le gain de place d'un coup.
+  → À trancher : soit le tirage reçoit un mode « squelette » (ne restaurer que ce qui est référencé
+  comme local en base), soit le tiering utilise un sous-dossier distant DISTINCT
+  (ex. `MEDIAS_ARCHIVE/`) que le tirage ignore. **La 2ᵉ option est la plus simple et la plus
+  lisible** — deux dossiers, deux rôles, aucune règle conditionnelle.
+- ⚠ **`~Archives/`** est déjà exclu du tirage (`exclude={'~Archives'}` dans `restore_backup`) : le
+  précédent existe donc, et un `MEDIAS_ARCHIVE/` s'excluerait de la même façon.
+- ⚠ **Rétention et sauvegarde se croisent** : la purge de 04:00 supprime les médias expirés, la
+  sauvegarde tourne à 02:30 — donc **avant**, volontairement, pour archiver ce qui va disparaître.
+  Le tiering doit s'insérer dans cette fenêtre sans la casser.
 
 ## Décision
 - **Architecture validée** : buffer local + archive distante + tiering (PAS de MEDIA_ROOT sur le share).
