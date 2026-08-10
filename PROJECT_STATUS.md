@@ -2409,6 +2409,55 @@ travail**. La base LIVE est celle de **WSL2 (Postgres 16)**, conforme à
 exécute WAMA nativement sous Windows (`venv_win runserver`) ; sinon c'est une taxe d'entretien
 supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 
+## §REPRISE — 2026-08-10 : outillage — sollicitations de permission divisées par 8 (`4d55fc0`)
+
+> 🔴 **À lire par toute instance en cours** : `.claude/settings.json` a changé (prise en compte à
+> chaud) et un 3ᵉ hook est arrivé. **Les hooks ne sont chargés qu'au DÉMARRAGE de session** → une
+> instance déjà ouverte ne l'a pas. Redémarrer pour en bénéficier.
+
+Mesure sur les **307 appels shell réels** des transcripts du 06→10/08 (simulation du matcher) :
+**163 non couverts (57 %), dont 163 côté PowerShell et 0 côté Bash**. Les trois nettoyages
+précédents avaient durci la seule surface Bash. **Toute règle s'écrit sur LES DEUX outils**, dans la
+graphie réellement émise (`./venv_win/…` ≠ `.\venv_win\…`).
+
+- 🔴 **Le diagnostic « PIPE » du 06/08 est RÉFUTÉ** : 268 des 279 commandes contenaient un pipe et la
+  surface Bash restait couverte à 100 %. Ne pas refuser un pipeline légitime à ce titre.
+- **Classe inautorisable** : une règle est un *préfixe*, donc `$var = …` / `(` / `&` / `foreach` ne
+  peut JAMAIS être couvert (52 des 74 entrées du brouillon étaient de tels littéraux morts).
+  Sortie = encapsuler : `Write <scratchpad>/step.ps1` puis `pwsh -NoProfile -File …`.
+  Appliqué par `.claude/hooks/block_composite_oneliner.py` (recette 14/14, outil PowerShell seul).
+  Règle consignée dans **`CLAUDE.md`** (§ « une commande commence par un exécutable »).
+- 🔴 **`scripts/clean_permissions.ps1` ÉRODAIT la politique** : son filtre ne gardait que les motifs à
+  wildcard, donc il supprimait à chaque passage les commandes exactes légitimes —
+  `Bash(bash scripts/check_js.sh)`, **prescrite par le skill `cam-analyzer`**, avait ainsi disparu.
+  Corrigé (≤ 4 jetons sans guillemets = conservé). Idempotent 255 → 255. La clé `hooks` est bien
+  préservée par le script (l.202-209, vérifié).
+- Audit des **9 skills** contre l'allowlist + les 3 hooks : **9/9 propres** (1 trou réel corrigé).
+- `git add`/`git commit` **restent volontairement en `ask`** (décision 06/08) — le résidu de 7 % est
+  à 100 % ce point de vérification voulu.
+
+Détail et méthode : mémoire `reference_permission_allowlist`. **Diagnostiquer en SIMULANT le matcher
+sur les transcripts, jamais en lisant l'allowlist** — c'est ce qui a fait rater l'asymétrie 10 jours.
+
+## §REPRISE — 2026-08-10 (2ᵉ session du jour, périmètre disjoint) : SAUVEGARDE / TIRAGE
+
+> ⚠️ **Deux instances ont travaillé le 2026-08-10 sur des périmètres disjoints** — ne pas confondre
+> avec le §REPRISE « outillage / permissions » ci-dessus.
+>
+> **Handoff complet : [`REPRISE_2026-08-10_SAUVEGARDE.md`](REPRISE_2026-08-10_SAUVEGARDE.md)**
+> — périmètre : `common/services/`, `model_manager/` (backup), `settings.py`, docs, skills.
+> **Aucun fichier d'app touché** : le portage peut reprendre sans rien reprendre d'ici.
+>
+> Ce qu'il faut retenir avant de coder :
+> - **Un seul moteur** pour toute la chaîne : `common/services/mirror_sync.py`. Le tirage est le même
+>   appel, source et destination inversées. **3 doubles routes supprimées** — ne pas en réintroduire.
+> - **3 points ouverts** : `restore_db` jamais exécuté pour de vrai (fermable sans risque sur le
+>   Postgres Windows:5433), tirage des modèles non joué sur les ~325 Go, création du rôle non testable.
+> - **Seuil `check_docs` resserré 3 → 2** (`nightly_scenarios.CASSE_ASSUMES`) : le contrat était
+>   devenu **aveugle** à une vraie 3ᵉ dérive. Les 2 restantes sont des références EN AVANT légitimes.
+> - ⚠ **Ne pas rajouter `pg_dump --create`** (mesuré sans effet) ; ⚠ `mirror_tree` refuse une
+>   destination inexistante, par garde volontaire.
+
 ## §REPRISE — 2026-08-06 : DEUX handoffs distincts (sessions parallèles)
 
 > ⚠️ **Ne pas confondre.** Deux instances ont travaillé le 2026-08-06 sur des périmètres disjoints :
