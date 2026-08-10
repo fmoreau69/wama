@@ -2307,6 +2307,61 @@ duplication describer (fix double-fire 2026-07-25) ; entrée URL ×3 apps.
   `transcriber_*`…). L'écart 88,6 Mo vs 0,4 Mo confirme le constat ci-dessous : la base Windows
   n'était bien qu'un schéma + seed. Ce point de §42 est clos.
 
+### 2026-08-10 — Automatisation + 3ᵉ domaine (MÉDIAS) + moteur extrait en brique commune
+
+- **Rien n'était PLANIFIÉ.** La brique `backup_db` existait depuis le 27/07 mais n'était câblée à
+  aucun ordonnanceur — vérifié : crontab utilisateur, `/etc/crontab`, `cron.d|daily|hourly|weekly|
+  monthly`, timers systemd, `at`, **toutes** les tâches planifiées Windows, `CELERY_BEAT_SCHEDULE`,
+  scripts de démarrage. Preuve empirique : **un seul dump** (29/07) alors que la rotation en garde 10
+  et que l'hôte a subi 7 coupures d'alimentation entre-temps. `django_celery_beat` est bien dans
+  `INSTALLED_APPS`, mais beat tourne **sans `--scheduler`** et `CELERY_BEAT_SCHEDULER` n'est pas
+  défini → `PersistentScheduler`, qui lit les réglages et **ignore la base** : une ligne
+  `PeriodicTask` y serait inerte.
+- **Ajouté** : `backup-db-daily` (03:30) et **`backup-media-daily` (02:30)** dans
+  `CELERY_BEAT_SCHEDULE`, queue `default`. Ordre voulu : médias → base → **purge de rétention
+  (04:00)**, pour archiver les médias sur le point d'expirer avant qu'ils ne disparaissent.
+  pg_dump et le miroir sont CPU/IO purs : la règle « pas de job GPU nocturne » reste respectée.
+- **MÉDIAS (nouveau)** : `common/services/media_backup.py` + tâche `common.backup_media` (avancement
+  en cache Redis, clé DISTINCTE de celle des modèles → les deux peuvent tourner ensemble) + bouton
+  **« Backup Médias »** et endpoints `api_backup_media_start` / `_progress`.
+  Espace distant `DEEP_LEARNING/MEDIAS`. **Amorçage manuel par Fabien le 10/08** (contenu antérieur
+  déplacé sous `~Archives/`, puis copie de `media/`) → les deux arbres étaient déjà cohérents, d'où
+  un premier run à coût nul. **Validé en réel : 2640 fichiers / 21 Go, 0 copié, 2640 déjà présents,
+  0 échec en 129 s**, `~Archives` intact.
+- **Moteur EXTRAIT** : `common/services/mirror_sync.py` (`mirror_tree`, `remote_is_available`,
+  `resolve_remote_root`). `RemoteBackupService.backup_all_models()` **délègue** désormais au lieu de
+  porter sa propre boucle ; idem côté JS où `createMirrorBackupUI` porte une seule fois
+  rendu + polling + démarrage, paramétré par un préfixe DOM. Les 3 domaines partagent
+  l'auto-détection WSL/Windows de `resolve_remote_root`.
+- ⚠️ **Ne pas relire le changement de `REMOTE_BACKUP_PATH` comme une réparation.** Le bouton
+  « Backup Models » **a toujours fonctionné** (gunicorn/celery héritent de l'export de
+  `start_wama_prod.sh:52`). Seul l'appel hors de ce contexte échouait. **Le piège du §Convention
+  ci-dessus a repris une 2ᵉ fois le 10/08** : constater `is_available() == False` dans un
+  `manage.py shell` ne dit RIEN de l'état des process de production.
+- 🔴 **Redémarrage de la pile REQUIS** pour que `common.backup_media` soit enregistrée auprès des
+  workers et que beat charge `backup-media-daily`. Tant qu'il n'a pas eu lieu, le bouton met une
+  tâche en file que personne ne consomme.
+
+### ⏳ À FAIRE — le TIRAGE (restauration) depuis les sauvegardes
+
+Demandé par Fabien le 2026-08-10. Scénario cible : **réinstallation complète de WAMA**, on repart
+des sauvegardes. Aucune restauration n'existe aujourd'hui — les trois domaines ne savent qu'écrire.
+
+- **Le moteur est déjà là** : une restauration modèles/médias est un `mirror_tree(distant, local)`,
+  soit le même appel dans l'autre sens. Ne PAS écrire un second moteur.
+- **Asymétrie à ne pas rater** : le paramètre `exclude` (inexistant aujourd'hui) est nécessaire
+  **uniquement dans le sens restauration**, pour ne pas ramener `~Archives` dans `media/` — il
+  n'appartient pas à l'arbre vivant. Dans le sens sauvegarde il est inutile (le miroir n'itère que
+  sur le local, cf. `mirror_sync`).
+- **La base est d'une autre nature** : `pg_restore` d'un `.dump --format=custom`, opération
+  **DESTRUCTIVE**. Donc **CLI uniquement, jamais un bouton** : `manage.py restore_db --dump <fichier>`
+  avec confirmation explicite, refus si la base cible est non vide sauf `--force`, et `--dry-run`
+  (`pg_restore --list`) par défaut.
+- **Ordre imposé pour une réinstallation** : ① base (elle apporte le schéma ET le catalogue
+  `AIModel`) → ② modèles → ③ médias → ④ `manage.py sync_models` pour réconcilier catalogue ↔ disque.
+- Commande envisagée : `manage.py restore_backup --domain models|media --dry-run` (jamais de
+  suppression locale), + `restore_db` séparée à cause de sa nature destructive.
+
 ### Constat : la base Postgres Windows n'est PAS la base de travail
 Mesuré 2026-07-27 — Postgres 17 (Windows, `postgresql-x64-17`, port 5432) contient `wama_db` :
 92 tables, migrations à jour (26/07 17:44), mais **`auth_user`=3, `model_manager_aimodel`=147,

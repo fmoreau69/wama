@@ -3,7 +3,6 @@ Remote Backup Service - Backup models to network storage after conversion.
 """
 
 import logging
-import os
 import shutil
 from pathlib import Path
 from typing import Optional, List, Dict
@@ -14,14 +13,20 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-# Remote backup configuration — l'env reste prioritaire (export de start_wama_prod.sh),
-# mais le défaut est désormais AUTO-DÉTECTÉ par la brique commune au lieu d'être un UNC figé.
+# Remote backup configuration — l'env reste PRIORITAIRE (export de `start_wama_prod.sh:52`),
+# seul le DÉFAUT change : auto-détecté par la brique commune au lieu d'un UNC figé.
 #
-# Corrigé le 2026-08-10 : sans la variable d'environnement, ce module retombait sur le chemin
-# UNC et `is_available()` renvoyait False sous WSL2 — donc « Backup Models » ne fonctionnait
-# QUE depuis les process lancés par start_wama_prod.sh, jamais depuis un shell, une commande
-# de gestion ou une tâche planifiée. Les sauvegardes DB et médias, elles, auto-détectaient
-# déjà : c'était la seule des trois à dépendre d'un export.
+# ⚠ CE N'ÉTAIT PAS UN BUG — ne pas relire ce changement comme une réparation.
+# Le bouton « Backup Models » a toujours fonctionné : gunicorn et celery sont lancés PAR
+# `start_wama_prod.sh`, donc ils héritent de `WAMA_MODEL_BACKUP_PATH` et le défaut UNC
+# n'était jamais atteint. Ce qui ne marchait pas, c'est l'appel depuis un contexte SANS
+# cet export (shell, commande de gestion, tâche planifiée) — d'où la valeur de
+# l'auto-détection, et rien de plus.
+#
+# Ce piège a déjà fait consigner une fausse « dette » dans PROJECT_STATUS le 2026-07-27,
+# et il m'a repris le 2026-08-10 : constater `is_available() == False` dans un shell ne dit
+# RIEN de l'état des process de production. Suivre la variable jusqu'à son export avant de
+# conclure (règle « tracer le chaînage d'exécution »).
 from wama.common.services.mirror_sync import resolve_remote_root
 
 REMOTE_BACKUP_PATH = resolve_remote_root('MODELS', env_var='WAMA_MODEL_BACKUP_PATH')
