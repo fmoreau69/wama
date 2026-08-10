@@ -1,8 +1,12 @@
 """
-Projection (kind `app`) — étape 1 : DRY-RUN + rapport d'écarts, PAS de code-gen encore.
+Projection (kind `app`) — INSTRUMENTS DE MESURE du round-trip (aucune écriture ici).
 
-Le write-back complet (générer models.py/urls/views depuis le manifeste) est du CODE-GEN = le gros
-chantier. Avant de l'engager, on a besoin de la liste des « trous et manquements » qui le CADRE.
+Ne pas lire « pas de code-gen » comme « pas de write-back » : le write-back RUNTIME existe,
+par kind, dans `builtin/` (`app` → facette `access` seule ; `library` → crée la ligne
+`common.models.Library` ; `model` → projette license/platform_ref). Ce qui reste du CODE-GEN,
+c'est la COUCHE MINCE déclarative des facettes `backend=code` (registres en code, params.py,
+gabarit) — l'UI, elle, est générée au runtime par les briques communes. Avant d'engager ce
+code-gen, on a besoin de la liste des « trous et manquements » qui le CADRE.
 Ce module produit ça, sans écrire une ligne dans les registres fonctionnels :
 
   1. `facet_report(app_id)`   : par facette, peut-on reconstruire l'app depuis le manifeste ? Quel
@@ -137,8 +141,18 @@ def studio_redundancy(app_id: str) -> Optional[dict]:
                  'output_type': actual.get('output_type')})
     e = norm_io(expected)
     diffs = diff_dicts(e, a)
+
+    # Depuis §10.1 (2026-08-11), GENERIC_APPS DÉRIVE ses E/S des ports (`_io_derived`) : la
+    # concordance y est par construction. Un écart n'est légitime que RÉTRÉCI DÉCLARÉ
+    # (`io_scope`, ex. nœud imager V1 = txt2img). Écart sans io_scope = vraie dérive.
+    io_scope = actual.get('io_scope') or ''
+    verdict = ('derived' if not diffs and actual.get('_io_derived')
+               else 'ok' if not diffs
+               else 'narrowed_by_declaration' if io_scope
+               else 'drift')
     return {
         'app': app_id, 'runnable': True,
         'from_ports': e, 'from_generic_apps': a,
-        'agree': not diffs, 'diffs': diffs,
+        'agree': not diffs or bool(io_scope), 'diffs': diffs,
+        'verdict': verdict, 'io_scope': io_scope or None,
     }

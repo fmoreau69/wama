@@ -1011,7 +1011,8 @@
         "image",
         "video",
         "audio",
-        "document"
+        "document",
+        "archive"
       ],
       "input_kwarg": null,
       "output_type": "auto",

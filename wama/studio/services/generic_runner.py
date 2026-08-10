@@ -22,65 +22,63 @@ from __future__ import annotations
 
 
 
-# Manifeste des apps NORMALISÉES (contrat rempli). L'ordre d'input_kinds = priorité de
-# résolution quand plusieurs entrées typées arrivent sur le nœud.
+# Manifeste des apps NORMALISÉES (contrat rempli). Depuis 2026-08-11 (route §10.1), les E/S
+# (`input_kinds`/`primary_input`/`output_type`) sont DÉRIVÉES des ports (`studio_node_ports`,
+# accesseur unique) par `_fill_io_from_ports()` ci-dessous — fin de la double saisie qui avait
+# dérivé (converter avait perdu `archive`). L'ordre du port travail = priorité de résolution
+# quand plusieurs entrées typées arrivent sur le nœud (ordre d'APP_CATALOG.input_types, préservé).
+#
+# Déclarer une E/S ici reste possible mais devient un OVERRIDE : un nœud volontairement plus
+# étroit que l'app le DIT via `io_scope` (spécificité déclarée). Sans `io_scope`, une E/S
+# déclarée à la main est traitée comme une DÉRIVE par studio_redundancy.
 GENERIC_APPS = {
     'synthesizer': {
-        'primary_input': 'prompt',
         'params_module': 'wama.synthesizer.params',
         'params_attr': 'PARAMS_JSON',
-        'output_type': 'audio',
     },
     'composer': {
-        'primary_input': 'prompt',
         'params_module': 'wama.composer.params',
         'params_attr': 'PARAMS_JSON',
-        'output_type': 'audio',
     },
     'imager': {
         'primary_input': 'prompt',
+        'io_scope': "nœud V1 = txt2img : prompt seul, le port image (i2i/référence) de la card "
+                    "n'est pas exposé au nœud",
         'params_module': 'wama.imager.params',
-        'params_attr': 'IMAGE_PARAMS_JSON',   # nœud imager V1 = génération d'IMAGE (txt2img)
-        'output_type': 'auto',
+        'params_attr': 'IMAGE_PARAMS_JSON',
     },
     'transcriber': {
-        'input_kinds': ('audio', 'video'),
         'params_module': 'wama.transcriber.params',
         'params_attr': 'PARAMS_JSON',
-        'output_type': 'text',
     },
     'describer': {
-        'input_kinds': ('image', 'video', 'audio', 'document'),
         'params_module': 'wama.describer.params',
         'params_attr': 'PARAMS_JSON',
-        'output_type': 'text',
     },
     'reader': {
-        'input_kinds': ('document', 'image'),
         'params_module': 'wama.reader.params',
         'params_attr': 'PARAMS_JSON',
-        'output_type': 'text',
     },
     'enhancer': {
         'input_kinds': ('image', 'video'),
+        'io_scope': "nœud = domaine média (image+vidéo) ; le domaine audio de l'app n'est pas "
+                    "exposé au studio",
         'params_module': 'wama.enhancer.params',
         'params_attr': 'MEDIA_PARAMS_JSON',
-        'output_type': 'auto',
     },
     'converter': {
-        'input_kinds': ('image', 'video', 'audio', 'document'),
         'params_module': 'wama.converter.params',
         'params_attr': 'PARAMS_JSON',
-        'output_type': 'auto',
         'auto_start': True,   # convert_file dispatche à la création (déclaré)
     },
     'avatarizer': {
         'input_kinds': ('audio',),
+        'io_scope': "nœud V1 = audio seul ; l'avatar vient de la galerie (fixed_kwargs), "
+                    "pas du port image de la card",
         'input_kwarg': 'audio_path',                    # signature historique (déclaré)
         'fixed_kwargs': {'mode': 'standalone', 'avatar_source': 'gallery'},
         'params_module': 'wama.avatarizer.params',
         'params_attr': 'PARAMS_JSON',
-        'output_type': 'video',
         # L'avatar n'est PAS (encore) dans le params.py de l'app → spec additionnelle
         # déclarée ici ; à résorber en l'ajoutant au schéma d'app (options_source).
         'extra_params_spec': [
@@ -89,12 +87,61 @@ GENERIC_APPS = {
         ],
     },
     'anonymizer': {
-        'input_kinds': ('image', 'video'),
         'params_module': 'wama.anonymizer.params',
         'params_attr': 'PARAMS_JSON',
-        'output_type': 'auto',
     },
 }
+
+
+def _derive_io_from_ports(app_id):
+    """E/S du nœud depuis l'accesseur UNIQUE de ports (route §10.1 — fin de la double saisie).
+
+    L'ordre des types du port `travail` est PRÉSERVÉ : c'est la priorité de résolution de
+    l'entrée primaire (cf. `create()`), héritée de l'ordre d'APP_CATALOG.input_types. Ne pas
+    trier — la variante manifeste (`projection.derive_io_from_ports`) trie, elle, parce
+    qu'elle ne sert qu'à une comparaison insensible à l'ordre.
+    """
+    from wama.common.app_registry import studio_node_ports
+    ports = studio_node_ports(app_id) or {}
+    io = {}
+    for p in ports.get('inputs', []):
+        grp = p.get('group')
+        if grp == 'travail' and 'input_kinds' not in io:
+            kinds = tuple(t for t in (p.get('types') or []) if t and t != 'prompt')
+            if kinds:
+                io['input_kinds'] = kinds
+        elif grp == 'prompt':
+            io['primary_input'] = 'prompt'
+    out_types = [t for t in ((ports.get('output') or {}).get('types') or []) if t]
+    io['output_type'] = out_types[0] if len(out_types) == 1 else ('auto' if out_types else None)
+    return io
+
+
+def _fill_io_from_ports():
+    """Complète à l'import les E/S manquantes de chaque entrée depuis les ports.
+
+    Une entrée SANS côté entrée déclaré reçoit `input_kinds` (prioritaire) ou
+    `primary_input` ; une entrée sans `output_type` le reçoit des ports. Les clés remplies
+    sont tracées dans `_io_derived` — `studio_redundancy` s'en sert pour distinguer
+    « dérivé » (concordance par construction) / « rétréci déclaré » (`io_scope`) / « dérive ».
+    """
+    for app_id, conf in GENERIC_APPS.items():
+        derived = _derive_io_from_ports(app_id)
+        filled = []
+        if 'input_kinds' not in conf and 'primary_input' not in conf:
+            if derived.get('input_kinds'):
+                conf['input_kinds'] = derived['input_kinds']
+                filled.append('input_kinds')
+            elif derived.get('primary_input'):
+                conf['primary_input'] = derived['primary_input']
+                filled.append('primary_input')
+        if 'output_type' not in conf and derived.get('output_type') is not None:
+            conf['output_type'] = derived['output_type']
+            filled.append('output_type')
+        conf['_io_derived'] = tuple(filled)
+
+
+_fill_io_from_ports()
 
 
 def _error_text(res):

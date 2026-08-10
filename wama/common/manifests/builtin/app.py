@@ -6,9 +6,16 @@ Kind `app` — le plus riche (8 facettes, cf. WAMA_MANIFEST_SPEC §3).
 sandbox, puis diffe contre l'app réelle → les écarts révèlent trous du schéma ET mécanismes non
 généralisés (spec §4).
 
-Posture prudente : `write_back`/`un_write_back` (write-back dans les registres) NE sont PAS implémentés ici
-(chantier ultérieur — écrire dans APP_CATALOG = code-gen, pas une écriture DB). Le kind est donc
-« extract + verify only » pour l'instant : on stocke, on diffe, on ne réécrit pas les briques.
+`write_back_app`/`un_write_back_app` SONT implémentés (voir bas de fichier), en posture prudente :
+seule la facette `access` (backend DB → `AppAccessPolicy`) écrit au runtime — idempotent,
+transactionnel, réversible, dry-run par défaut. Les 9 facettes `backend=code` sont rapportées
+dans `codegen_required` : leur write-back = générer la couche MINCE déclarative de l'app
+(registres en code, params.py, gabarit), chantier route §10 — PAS un mécanisme d'UI à bâtir,
+l'UI est générée au runtime par les briques communes une fois les registres alimentés.
+
+⚠ 2026-08-11 : l'ancienne version de ce docstring (« write_back NE sont PAS implémentés ici »)
+a survécu ~6 semaines à l'implémentation et a fait conclure À TORT que la chaîne n'existait pas.
+Ce docstring est un CONTRAT : le tenir à jour au même commit que le code qu'il décrit.
 """
 
 from __future__ import annotations

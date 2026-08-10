@@ -544,7 +544,11 @@ APP_CATALOG = {
         'url_name':    'describer:index',
         'description': 'Description automatique d\'images, vidéos, fichiers audio et documents par LLM.',
         'input_extensions': IMAGE_EXTENSIONS + VIDEO_EXTENSIONS + AUDIO_EXTENSIONS + TEXT_EXTENSIONS,
-        'input_types': ('image', 'video', 'audio', 'text'),
+        # `document`, pas `text` (correctif route §10.1, 2026-08-11) : les fichiers texte/PDF
+        # que le describer DÉCRIT sont des documents de TRAVAIL — `text` fabriquait un port
+        # prompt fantôme et le port travail perdait `document` (les extensions, elles, étaient
+        # déjà là). L'ordre = priorité de résolution du nœud studio, préservé de l'historique.
+        'input_types': ('image', 'video', 'audio', 'document'),
         'batch_type':  'media_list',  # Type A: one URL/path per line
         'has_batch':   True,
         'has_url_import': True,

@@ -315,16 +315,8 @@
           "types": [
             "image",
             "video",
-            "audio"
-          ]
-        },
-        {
-          "group": "prompt",
-          "id": "prompt",
-          "label": "Prompt",
-          "multi": false,
-          "types": [
-            "prompt"
+            "audio",
+            "document"
           ]
         }
       ],
