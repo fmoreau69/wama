@@ -238,9 +238,17 @@ def _duplicate_wiring(f: _AppFiles):
 
 
 def _user_settings(f: _AppFiles):
-    brick = f.find(VIEWS + URLS, r'user_settings')
-    if brick:
-        return True, brick
+    # Durci 2026-08-11 : l'ancien motif `user_settings` matchait un simple import en lecture
+    # (imager : volet rendu mais réglages jamais persistés) ET les variables locales
+    # `user_settings, _ = UserSettings.objects…` d'anonymizer/enhancer (modèle legacy) —
+    # trois faux verts. La preuve d'adoption est l'ÉCRITURE de la brique : sans
+    # `save_user_app_settings`, rien ne persiste et le mécanisme est à moitié vivant.
+    write = f.find(VIEWS, r'save_user_app_settings')
+    if write:
+        return True, write
+    read_only = f.find(VIEWS, r'get_user_app_settings')
+    if read_only:
+        return 'partial', f"{read_only} (brique en LECTURE seule — aucun save, rien ne persiste)"
     local = f.find(MODELS, r'class UserSettings')
     if local:
         return 'partial', f"{local} (modèle local, pas la brique commune)"
