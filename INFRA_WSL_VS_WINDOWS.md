@@ -10,10 +10,11 @@
   physique, **Apache en frontal** (reverse proxy), et **Ollama**.
 - **Le code, AI-models et media vivent sur `D:\` (Windows) = `/mnt/d/...` (WSL2)** via drvfs →
   **partagés**. Une édition de fichier est vue immédiatement par le serveur WSL2.
-- **⚠️ DEUX bases PostgreSQL distinctes** (corrigé 2026-06-25) : Windows a son propre `wama_db`,
-  WSL2 le sien. Un `manage.py` lancé côté **Windows** agit sur la base **Windows** ; le serveur live
-  (WSL2) lit la base **WSL2**. Pour agir sur la vraie base : `wsl.exe -e bash -lc "… venv_linux …
-  manage.py <cmd>"`. Les **seeds** sont désormais **automatisés au démarrage** (`start_wama_*.sh`).
+- **⚠️ DEUX serveurs PostgreSQL, mais UNE SEULE base fait foi** : `wama_db` **dans WSL2**. Le
+  serveur Windows existe encore mais est **orphelin** — plus rien ne le lit (voir « Une seule base
+  fait foi », 2026-07-30). Depuis **2026-08-10** leurs ports sont **disjoints** :
+  `localhost:5432` = WSL2, `localhost:5433` = Windows ; un `manage.py` lancé de n'importe quel
+  côté vise donc la même base. Les **seeds** sont automatisés au démarrage (`start_wama_*.sh`).
 - **Piège n°1** : changer du **code Python** ne suffit pas — il faut **redémarrer le process WSL2**
   (gunicorn / runserver) pour qu'il soit pris en compte. (Les **templates** sont relus à chaud en
   DEBUG ; les **migrations/seeds** touchent la base partagée quel que soit le côté.)
@@ -26,7 +27,8 @@
 |-----------|-------------|--------|----------|
 | **Django** (dev) | WSL2 | `runserver 0.0.0.0:8000` (`start_wama_dev.sh`) | :8000 |
 | **Django** (prod) | WSL2 | `gunicorn wama.wsgi` 4× `gthread`×2 (`gunicorn_conf.py`, `start_wama_prod.sh`) | :8000 |
-| **PostgreSQL 16** | WSL2 | `sudo service postgresql start` ; `wama_db` / `wama_user` | 127.0.0.1:5432 |
+| **PostgreSQL 16** | WSL2 | `sudo service postgresql start` ; `wama_db` / `wama_user` — **LA base** | 127.0.0.1:5432 (dans WSL2) ; **`localhost:5432` depuis Windows** via le relais `wslrelay` |
+| **PostgreSQL 17** | **Windows** | service `postgresql-x64-17`, **orphelin** (aucun lecteur) ; déplacé sur 5433 le 2026-08-10 pour libérer le port de l'hôte | 127.0.0.1:**5433** (boucle locale seule) |
 | **Redis** | WSL2 | `redis-server --daemonize` ; DB0=broker Celery, DB1=cache+résultats | 127.0.0.1:6379 |
 | **Celery (GPU)** | WSL2 | worker `--pool=solo --queues=gpu` `gpu@%h` (sérialise la VRAM) | — |
 | **Celery (default)** | WSL2 | worker prefork `--autoscale=4,1 --queues=default,celery` `default@%h` | — |
@@ -80,6 +82,10 @@ wsl.exe -e bash -lc "PGPASSWORD=*** psql -h 127.0.0.1 -U wama_user -d wama_db -t
     ⚠ Depuis 2026-07-30, la « base courante » vue depuis Windows EST celle de WSL2 : l'étape
     `--also-wsl` se saute alors d'elle-même (rejouer l'`ALTER USER` échouerait, il
     s'authentifierait avec l'ancien mot de passe déjà remplacé).
+  - Vérifie une nouvelle connexion + rollback auto si KO ; l'ancienne `SECRET_KEY` bascule dans
+    `DJANGO_SECRET_KEY_FALLBACKS` (aucune session invalidée) ; journal `logs/secret_rotation.log`.
+  - Reste optionnel : hostname interne `vrlescot` + IP gateway WSL `172.29.240.1` encore en clair
+    dans quelques docs/scripts (divulgation d'infra mineure, non critique).
 
 ## ⚠ Une seule base fait foi (2026-07-30)
 
@@ -100,10 +106,52 @@ deux avant bascule : ses seules lignes exclusives sont 48 entrées périmées du
 exactement les modèles listés « Supprimés (obsolètes) » dans `CLAUDE.md`) et le seed
 `anonymizer_globalsettings.precision_level`. WSL2, lui, a 3 entrées que Windows n'a pas : c'est
 le plus récent. **Aucune donnée utilisateur exclusive côté Windows.**
-  - Vérifie une nouvelle connexion + rollback auto si KO ; l'ancienne `SECRET_KEY` bascule dans
-    `DJANGO_SECRET_KEY_FALLBACKS` (aucune session invalidée) ; journal `logs/secret_rotation.log`.
-  - Reste optionnel : hostname interne `vrlescot` + IP gateway WSL `172.29.240.1` encore en clair
-    dans quelques docs/scripts (divulgation d'infra mineure, non critique).
+
+## ⚠ Ports disjoints : `localhost:5432` = WSL2, `5433` = Windows (2026-08-10)
+
+La section ci-dessus établissait *quelle* base fait foi ; celle-ci règle *comment on l'atteint
+depuis Windows* — c'est ce qui manquait, et ce qui rendait **pgAdmin inutilisable depuis des mois**.
+
+**Cause.** Le Postgres de Windows écoutait sur `0.0.0.0:5432` : il **squattait le port de l'hôte**.
+Or la redirection localhost de WSL2 ne peut s'installer que si le port est **libre côté Windows**.
+Résultat : depuis Windows, `localhost:5432` atterrissait **toujours** sur la base Windows orpheline,
+jamais sur `wama_db` — un échec silencieux, puisque la connexion *réussissait*, mais sur la
+mauvaise base.
+
+**Correctif.** Serveur Windows déplacé sur **5433** (`postgresql.conf`, sauvegarde
+`postgresql.conf.bak-avant-5433`). Le relais **`wslrelay`** prend alors `127.0.0.1:5432` et
+`::1:5432` **automatiquement, au `bind()`** de postgres WSL2 — donc à chaque démarrage, sans
+intervention. Contrôle d'un coup d'œil depuis Windows :
+
+```powershell
+Get-NetTCPConnection -LocalPort 5432,5433 -State Listen |
+  Select-Object LocalAddress,LocalPort,@{n='Proc';e={(Get-Process -Id $_.OwningProcess).ProcessName}}
+# attendu : 5432 -> wslrelay  (et NON postgres) ; 5433 -> postgres
+```
+
+**Ce que ça change.**
+- `localhost:5432` est une adresse **stable** vers la vraie base : la préférer désormais à l'IP de
+  la VM, qui change à chaque redémarrage de WSL. C'est la seule adresse à mettre dans pgAdmin,
+  DBeaver ou tout client Windows.
+- Le repli `127.0.0.1` de `_resolve_db_host()` (`wama/settings.py`), qualifié de « trompeur » quand
+  la garde a été écrite, désigne **maintenant la bonne base**. La garde reste utile — elle évite de
+  dépendre du relais — mais son échec n'est plus silencieusement faux.
+- **Prérequis** : postgres WSL2 doit tourner (`start_wama_prod.sh:87-89`), sinon *rien* n'écoute sur
+  5432. Un « connection refused » signifie donc « WSL2 dort », jamais « mauvaise base » — l'échec
+  est enfin franc au lieu d'être trompeur.
+
+**Résidus nettoyés côté Windows** (tentatives antérieures, sauvegardes `.bak-2026-08-10`) :
+`listen_addresses` `'*'` → `'localhost'`, et retrait d'une ligne `host all all 172.16.0.0/12` de
+`pg_hba.conf` — elle ouvrait l'accès dans le **mauvais sens** (WSL2 → Windows) alors que le besoin
+était l'inverse. Le serveur Windows n'écoute plus que sur la boucle locale.
+
+**Clients Windows — aucune contrainte de version.** pgAdmin 4 v9.15 et les binaires 17.10 attaquent
+sans réserve le serveur 16.10 : la règle PostgreSQL est *client ≥ serveur*, et c'est le bon sens
+(`pg_dump` 17 vers un serveur 16 est la configuration recommandée). **Ne pas migrer WSL2 en 17** :
+`pg_upgradecluster` sur la base de production, pour zéro bénéfice. Les deux serveurs sont
+enregistrés dans pgAdmin et **colorisés** pour rendre la confusion impossible — vert « WAMA - base
+applicative (WSL2) » sur 5432, orange « PostgreSQL 17 (Windows local) » sur 5433 ; configuration
+dans `%APPDATA%\pgAdmin\pgadmin4.db` (SQLite, table `server`).
 
 ## RAM hôte & plafond WSL2 (`.wslconfig`) — MAJ 2026-07-29
 
