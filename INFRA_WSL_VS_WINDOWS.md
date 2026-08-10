@@ -148,10 +148,16 @@ Get-NetTCPConnection -LocalPort 5432,5433 -State Listen |
 **Clients Windows — aucune contrainte de version.** pgAdmin 4 v9.15 et les binaires 17.10 attaquent
 sans réserve le serveur 16.10 : la règle PostgreSQL est *client ≥ serveur*, et c'est le bon sens
 (`pg_dump` 17 vers un serveur 16 est la configuration recommandée). **Ne pas migrer WSL2 en 17** :
-`pg_upgradecluster` sur la base de production, pour zéro bénéfice. Les deux serveurs sont
-enregistrés dans pgAdmin et **colorisés** pour rendre la confusion impossible — vert « WAMA - base
-applicative (WSL2) » sur 5432, orange « PostgreSQL 17 (Windows local) » sur 5433 ; configuration
-dans `%APPDATA%\pgAdmin\pgadmin4.db` (SQLite, table `server`).
+`pg_upgradecluster` sur la base de production, pour zéro bénéfice.
+
+pgAdmin ne contient volontairement qu'**une seule entrée**, « WAMA - base applicative (WSL2) » sur
+`localhost:5432`. Les deux serveurs y avaient d'abord été enregistrés et *colorisés* pour éviter
+toute confusion ; retirer le serveur Windows — orphelin — supprime la confusion **à la racine**
+plutôt que de la signaler, et rend du même coup la couleur inutile (choix de Fabien, 2026-08-10).
+Le serveur Windows reste joignable sur `localhost:5433` et se réenregistre en trente secondes si
+besoin : « Remove server » ne supprime que l'enregistrement pgAdmin, jamais la base ni le service.
+Configuration dans `%APPDATA%\pgAdmin\pgadmin4.db` (SQLite, table `server`), lisible avec le Python
+embarqué de pgAdmin — le seul interpréteur Python côté Windows sur cette machine.
 
 ## RAM hôte & plafond WSL2 (`.wslconfig`) — MAJ 2026-07-29
 
