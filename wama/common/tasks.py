@@ -42,6 +42,26 @@ def backup_media_task(self, overwrite: bool = False):
     )
 
 
+@shared_task(name='common.backup_config')
+def backup_config_task(keep: int = 10):
+    """
+    Sauvegarde des secrets d'installation (`.env`) vers le NAS. Quotidienne.
+
+    Pas d'enveloppe `run_mirror_job` ici, et c'est volontaire : il s'agit d'un fichier de
+    quelques kilo-octets, sans avancement à afficher — lui coller une barre de progression
+    et une clé de cache serait de la cérémonie sans usage.
+
+    Ne fait rien tant que le contenu n'a pas changé (comparaison SHA-256), donc la tâche est
+    quasi gratuite les jours où `.env` est stable.
+    """
+    from wama.common.services.config_backup import backup_config
+
+    result = backup_config(keep=keep)
+    if result['errors']:
+        logger.warning("[backup_config] %s", result['errors'])
+    return result
+
+
 @shared_task(name='common.enrich_prompt_at_ingest')
 def enrich_prompt_at_ingest_task(app_label, model_name, pk):
     """

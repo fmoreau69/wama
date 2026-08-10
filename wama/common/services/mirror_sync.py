@@ -160,7 +160,8 @@ def new_summary(remote_path) -> dict:
 
 
 def mirror_tree(source_root, dest_root, *, overwrite: bool = False, exclude=None,
-                progress_cb=None, on_file=None, progress_every: int = PROGRESS_EVERY) -> dict:
+                dry_run: bool = False, progress_cb=None, on_file=None,
+                progress_every: int = PROGRESS_EVERY) -> dict:
     """
     Réplique `source_root` vers `dest_root` en conservant l'arborescence relative.
 
@@ -179,6 +180,8 @@ def mirror_tree(source_root, dest_root, *, overwrite: bool = False, exclude=None
                      chemin relatif. Sert au TIRAGE (`~Archives` ne doit pas revenir dans
                      `media/`) ; inutile au sens sauvegarde, où le dossier n'existe pas en
                      local et n'est donc jamais visité.
+        dry_run:     compte ce qui SERAIT copié sans rien écrire. Indispensable au tirage,
+                     où l'on veut mesurer l'écart avant de toucher à une installation.
         progress_cb: callable(dict) — avancement agrégé, tous les `progress_every` fichiers.
         on_file:     callable(source, dest, action, size_mb, error) par fichier, avec
                      action ∈ {'copied', 'skipped', 'failed'}. Permet à un appelant de
@@ -221,6 +224,13 @@ def mirror_tree(source_root, dest_root, *, overwrite: bool = False, exclude=None
                 summary['skipped'] += 1
                 if on_file:
                     on_file(source, dest, 'skipped', dest.stat().st_size / (1024 * 1024), None)
+            elif dry_run:
+                # Compté comme « à copier » sans rien écrire : c'est ce chiffre que la
+                # commande de tirage affiche avant de demander confirmation.
+                summary['copied'] += 1
+                summary['copied_mb'] += source.stat().st_size / (1024 * 1024)
+                if on_file:
+                    on_file(source, dest, 'copied', source.stat().st_size / (1024 * 1024), None)
             else:
                 ok, size_mb, error = copy_file(source, dest)
                 if ok:
@@ -253,6 +263,30 @@ def mirror_tree(source_root, dest_root, *, overwrite: bool = False, exclude=None
 
     summary['success'] = summary['failed'] == 0
     return summary
+
+
+def purge_keep_latest(directory, pattern: str, keep: int) -> list[str]:
+    """
+    Ne conserve que les `keep` fichiers les plus récents de `directory` correspondant à
+    `pattern` (glob). Le tri se fait sur le NOM, les noms étant horodatés — c'est plus fiable
+    que le mtime, que `copy2` recopie depuis la source et que le NAS peut arrondir.
+
+    Rotation par PURGE, à ne pas confondre avec le DÉCALAGE `.log.1 → .log.2` de
+    `common/utils/log_rotation.py` : mécanismes distincts, motifs distincts.
+    Partagée par `backup_db` (dumps) et `config_backup` (historique des secrets).
+    """
+    directory = Path(directory)
+    if not directory.is_dir():
+        return []
+    files = sorted(directory.glob(pattern), key=lambda p: p.name, reverse=True)
+    removed = []
+    for old in files[keep:]:
+        try:
+            old.unlink()
+            removed.append(old.name)
+        except OSError:
+            pass
+    return removed
 
 
 def run_mirror_job(runner, *, cache_key, task_id, label, ttl=24 * 3600):

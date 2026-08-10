@@ -2342,25 +2342,39 @@ duplication describer (fix double-fire 2026-07-25) ; entrée URL ×3 apps.
   workers et que beat charge `backup-media-daily`. Tant qu'il n'a pas eu lieu, le bouton met une
   tâche en file que personne ne consomme.
 
-### ⏳ À FAIRE — le TIRAGE (restauration) depuis les sauvegardes
+### ✅ 2026-08-10 (soir) — TIRAGE LIVRÉ + 4ᵉ domaine (SECRETS) + doubles routes supprimées
 
-Demandé par Fabien le 2026-08-10. Scénario cible : **réinstallation complète de WAMA**, on repart
-des sauvegardes. Aucune restauration n'existe aujourd'hui — les trois domaines ne savent qu'écrire.
-
-- **Le moteur est déjà là** : une restauration modèles/médias est un `mirror_tree(distant, local)`,
-  soit le même appel dans l'autre sens. Ne PAS écrire un second moteur.
-- **Asymétrie à ne pas rater** : le paramètre `exclude` (inexistant aujourd'hui) est nécessaire
-  **uniquement dans le sens restauration**, pour ne pas ramener `~Archives` dans `media/` — il
-  n'appartient pas à l'arbre vivant. Dans le sens sauvegarde il est inutile (le miroir n'itère que
-  sur le local, cf. `mirror_sync`).
-- **La base est d'une autre nature** : `pg_restore` d'un `.dump --format=custom`, opération
-  **DESTRUCTIVE**. Donc **CLI uniquement, jamais un bouton** : `manage.py restore_db --dump <fichier>`
-  avec confirmation explicite, refus si la base cible est non vide sauf `--force`, et `--dry-run`
-  (`pg_restore --list`) par défaut.
-- **Ordre imposé pour une réinstallation** : ① base (elle apporte le schéma ET le catalogue
-  `AIModel`) → ② modèles → ③ médias → ④ `manage.py sync_models` pour réconcilier catalogue ↔ disque.
-- Commande envisagée : `manage.py restore_backup --domain models|media --dry-run` (jamais de
-  suppression locale), + `restore_db` séparée à cause de sa nature destructive.
+- **`manage.py restore_backup --domain models|media|config`** (`common/management/commands/`) —
+  c'est `mirror_tree(distant, local)`, **le même moteur dans l'autre sens**, pas un second
+  mécanisme. `--dry-run` mesure l'écart sans écrire ; **refus d'écrire dans une destination non
+  vide sans `--yes`** (une installation vivante n'est pas une installation neuve) ; `config`
+  refuse d'écraser un `.env` existant sans `--force`.
+  **`exclude={'~Archives'}` n'est posé QUE pour `media`, et QUE dans ce sens** — l'asymétrie
+  annoncée s'est vérifiée.
+- **`manage.py restore_db --dump <f> | --latest`** (`model_manager/management/commands/`) —
+  destructif, donc **CLI uniquement, jamais un bouton**. `--dry-run` liste l'archive (934 objets
+  vérifiés), refus sans `--yes`, restauration via `-d postgres` (impossible de supprimer la base
+  à laquelle on est connecté). Détecte l'erreur « rôle inexistant » et affiche le `CREATE ROLE`.
+- **SECRETS — 4ᵉ domaine** : `common/services/config_backup.py` + tâche `common.backup_config`
+  + entrée beat **02:20**. **Versionné, pas écrasé** : `INSTALL/.env` (courant, chemin stable) +
+  `INSTALL/history/.env.<horodatage>` purgé au-delà de `keep`, alimenté **uniquement si le SHA-256
+  change** — sinon une tâche quotidienne fabriquerait 365 copies identiques par an et chasserait
+  les versions utiles. Confidentialité : automatise le choix de Fabien du 10/08 (dépôt manuel), ne
+  l'élargit pas.
+- **✅ Les 3 doubles routes sont SUPPRIMÉES** (exigence de Fabien : « je ne veux pas de double
+  route ») : ① la primitive de copie (`_copy_one` → `mirror_sync.copy_file`) ; ② le parcours
+  récursif de `backup_directory` (→ `mirror_tree` + callback `on_file`, contrat `BackupResult`
+  préservé) ; ③ l'enveloppe des tâches et le corps des 4 vues (`run_mirror_job`,
+  `_mirror_job_start/_progress`). La purge keep-N de `backup_db` est passée en `purge_keep_latest`
+  avant que `config_backup` n'en ait besoin — 3ᵉ copie évitée.
+- **Régression attrapée PAR LE TEST** : `mirror_tree` refuse une destination inexistante
+  (invariant anti-dossier-poubelle sur UNC non monté) ; or le sous-dossier distant d'un modèle
+  n'existe pas au premier passage → `backup_directory` rendait 0 résultat. Corrigé par un `mkdir`
+  explicite **gardé** par une vérification de disponibilité de la racine.
+- **Nuance de comportement documentée** : le saut se fait désormais sur « présent ET même taille »
+  au lieu de « présent » — une copie distante tronquée est refaite au lieu d'être conservée.
+- **Ordre imposé pour une réinstallation** : ① `restore_backup --domain config` (récupère `.env`,
+  mot de passe DB inclus) → ② `restore_db` → ③ modèles → ④ médias → ⑤ `sync_models`.
 
 **🔴 Deux trous mesurés le 2026-08-10 — une réinstallation ÉCHOUERAIT aujourd'hui même avec les
 trois sauvegardes en main :**
@@ -2372,20 +2386,19 @@ trois sauvegardes en main :**
    → décider d'un emplacement (NAS chiffré ? gestionnaire de secrets ?) — cf.
    `project_secrets_externalization`, l'historique a déjà été réécrit pour les en sortir, donc
    les remettre en clair quelque part demande une décision explicite de Fabien.
-2. **Le dump ne recrée ni le rôle ni la base.** `backup_db` appelle `pg_dump --format=custom
-   --no-owner --no-acl`, **sans `--create`** : l'archive contient le schéma et les données, mais
-   pas le `CREATE DATABASE` ni le rôle propriétaire. Une restauration sur machine vierge exige donc
-   de créer d'abord le rôle et `wama_db` (avec le mot de passe qui vient… du `.env` du point 1).
-   → à documenter dans la procédure de tirage, ou à traiter en ajoutant `--create` au dump.
+2. ~~**Le dump ne recrée ni le rôle ni la base.**~~ **CORRIGÉ LE 10/08 : à moitié faux.** La BASE
+   était bien recréable — c'est `pg_restore --create` (ce qu'emploie `restore_db`) qui fabrique le
+   `CREATE DATABASE` depuis l'en-tête de l'archive. Mesuré en générant le SQL des deux dumps, avec
+   et sans `pg_dump --create` : **instruction identique**, encodage et locale compris. Le flag a
+   donc été retiré après essai — le garder aurait laissé croire qu'il servait à quelque chose.
+   **Reste vrai** : le **RÔLE** manque, et manquera toujours (objet de niveau CLUSTER, absent de
+   tout dump de base). `restore_db` détecte l'erreur et affiche le `CREATE ROLE` à exécuter, avec
+   le mot de passe qui vient du `.env` du point ①.
 
-**Doublons restants dans la chaîne de sauvegarde** (état au 2026-08-10, à traiter quand le tirage
-ajoutera un 3ᵉ appelant) :
-- `RemoteBackupService._copy_one` + la branche récursive de `backup_directory` sont une **2ᵉ
-  implémentation de miroir**, PRÉEXISTANTE, encore utilisée par le chemin **par modèle**
-  (`api_backup_model`, barre de sélection, `convert_and_backup`). Le miroir GLOBAL, lui, est unifié.
-- `api_backup_media_start/_progress` sont des quasi-copies de leurs équivalents modèles (~35 lignes),
-  et le `publish()` de `backup_media_task` reprend celui de `backup_all_models_task`. Introduit le
-  10/08, assumé à 2 instances — mais le tirage en ferait une 3ᵉ : factoriser à ce moment-là.
+~~**Doublons restants dans la chaîne de sauvegarde**~~ — **TOUS SUPPRIMÉS le 10/08 au soir**, voir
+la section ci-dessus. La chaîne (sauvegarde ET tirage, 4 domaines) n'a plus qu'un moteur :
+`common/services/mirror_sync.py`. J'avais proposé de les « assumer à 2 instances » : Fabien a
+tranché l'inverse, et il avait raison — le tirage en aurait fait une 3ᵉ le jour même.
 
 ### Constat : la base Postgres Windows n'est PAS la base de travail
 Mesuré 2026-07-27 — Postgres 17 (Windows, `postgresql-x64-17`, port 5432) contient `wama_db` :

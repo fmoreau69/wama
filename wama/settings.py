@@ -559,6 +559,14 @@ if ENABLE_CELERY:
             'schedule': crontab(hour=2, minute=30),
             'options': {'queue': 'default'},  # I/O réseau, jamais de GPU la nuit
         },
+        # Secrets d'installation (`.env`) — sans eux une réinstallation ne peut se
+        # connecter ni à Postgres ni à Redis, et le mot de passe dont `pg_restore` a
+        # besoin s'y trouve. Quasi gratuit : ne copie que si le contenu a changé.
+        'backup-config-daily': {
+            'task': 'common.backup_config',
+            'schedule': crontab(hour=2, minute=20),
+            'options': {'queue': 'default'},
+        },
     }
 
     # Rétention médias : plafond global (0 = pas de plafond) + pré-avis email (jours avant purge).

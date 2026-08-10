@@ -34,17 +34,15 @@ def _default_remote_dir() -> str:
     return resolve_remote_root("DB", env_var="WAMA_DB_BACKUP_PATH")
 
 
-def _rotate(directory: Path, keep: int) -> list[str]:  # wama:redondance-ok — purge keep-N de dumps, mécanique distincte du décalage de logs (rotate_file)
-    """Supprime les dumps les plus anciens, garde les `keep` plus récents."""
-    dumps = sorted(directory.glob(f"{PREFIX}*{SUFFIX}"), key=lambda p: p.name, reverse=True)
-    removed = []
-    for old in dumps[keep:]:
-        try:
-            old.unlink()
-            removed.append(old.name)
-        except OSError:
-            pass
-    return removed
+def _rotate(directory: Path, keep: int) -> list[str]:  # wama:redondance-ok — purge keep-N, mécanique distincte du décalage de logs (rotate_file)
+    """
+    Supprime les dumps les plus anciens, garde les `keep` plus récents.
+
+    La mécanique est passée dans la brique commune le 2026-08-10, quand la sauvegarde des
+    secrets a eu besoin de la même purge : une seule définition pour les deux.
+    """
+    from wama.common.services.mirror_sync import purge_keep_latest
+    return purge_keep_latest(directory, f"{PREFIX}*{SUFFIX}", keep)
 
 
 class Command(BaseCommand):
@@ -68,6 +66,14 @@ class Command(BaseCommand):
         local_file = LOCAL_DIR / f"{PREFIX}{stamp}{SUFFIX}"
 
         # --format=custom : compressé et restaurable sélectivement via pg_restore.
+        #
+        # ⚠ NE PAS ajouter `--create` : mesuré le 2026-08-10, il n'apporte RIEN ici. C'est
+        # `pg_restore --create` (utilisé par `restore_db`) qui fabrique le CREATE DATABASE à
+        # partir de l'en-tête de l'archive, et il produit exactement la même instruction avec
+        # ou sans le flag au dump — encodage et locale compris, vérifié en générant le SQL des
+        # deux archives. J'avais consigné à tort que la base n'était pas recréable sur machine
+        # vierge ; elle l'était. Seul le RÔLE manque réellement (objet de niveau CLUSTER,
+        # qu'aucun dump de base ne contient) — `restore_db` le détecte et affiche le SQL.
         cmd = [
             "pg_dump", "--format=custom", "--no-owner", "--no-acl",
             "-h", db["HOST"], "-p", str(db["PORT"]), "-U", db["USER"],
