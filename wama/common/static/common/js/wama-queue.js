@@ -63,20 +63,35 @@
         });
     }
 
+    // Files de la page. Plusieurs apps en affichent DEUX (enhancer média+audio, imager
+    // image+vidéo) : tout ce qui pilote « la file » doit les traiter TOUTES, sinon le geste
+    // ne s'applique qu'à l'onglet visible au moment du clic.
+    function allQueues() {
+        return Array.prototype.slice.call(
+            document.querySelectorAll('.wama-queue-list, .wama-queue-grid'));
+    }
+
     // ── Toggle d'affichage Ligne / Mosaïque (générique) ──────────────────────────
     // Boutons `.wama-layout-btn[data-layout=list|grid]` ; conteneur de file = élément portant
     // `.wama-queue-list`/`.wama-queue-grid`. Persiste sur le profil (endpoint commun). No-op si absent.
     function initLayoutToggle() {
         const btns = Array.prototype.slice.call(document.querySelectorAll('.wama-layout-btn'));
         if (!btns.length) return;
-        const queue = document.querySelector('.wama-queue-list, .wama-queue-grid');
-        if (!queue) return;
+        // TOUTES les files de la page, pas seulement la première : plusieurs apps en ont
+        // deux (enhancer média + audio, imager image + vidéo, files scopées par onglet).
+        // Avec un `querySelector` singulier, la bascule n'agissait que sur la première et
+        // la seconde ne s'alignait qu'au rechargement suivant — mécanisme à moitié vivant,
+        // invisible tant qu'on ne regarde pas l'onglet d'à côté.
+        const queues = allQueues();
+        if (!queues.length) return;
         function csrf() { const m = document.cookie.match(/csrftoken=([^;]+)/); return m ? m[1] : ''; }
-        function current() { return queue.classList.contains('wama-queue-grid') ? 'grid' : 'list'; }
+        function current() { return queues[0].classList.contains('wama-queue-grid') ? 'grid' : 'list'; }
         function mark() { btns.forEach(function (b) { b.classList.toggle('active', b.dataset.layout === current()); }); }
         function apply(layout) {
-            queue.classList.toggle('wama-queue-grid', layout === 'grid');
-            queue.classList.toggle('wama-queue-list', layout === 'list');
+            queues.forEach(function (queue) {
+                queue.classList.toggle('wama-queue-grid', layout === 'grid');
+                queue.classList.toggle('wama-queue-list', layout === 'list');
+            });
             mark();
             fetch('/accounts/profile/layout/', {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
@@ -93,14 +108,17 @@
     // interprètent — et surtout aucun rendu conditionnel côté serveur, qui rouvrirait la porte
     // à ce que les designs divergent fonctionnellement.
     function initDesignSelect() {
-        const sel = document.querySelector('.wama-design-select');
-        const queue = document.querySelector('.wama-queue-list, .wama-queue-grid');
-        if (!sel || !queue) return;
+        // Le design est un réglage de PROFIL (card_design) : comme le toggle Ligne/Mosaïque,
+        // il s'applique à TOUTES les files de la page et tous les sélecteurs (un par toolbar,
+        // les apps à deux files en incluent deux) se marquent ensemble.
+        const sels = Array.prototype.slice.call(document.querySelectorAll('.wama-design-select'));
+        const queues = allQueues();
+        if (!sels.length || !queues.length) return;
 
         function csrf() { const m = document.cookie.match(/csrftoken=([^;]+)/); return m ? m[1] : ''; }
 
         function apply(design, persist) {
-            queue.dataset.cardDesign = design;
+            queues.forEach(function (queue) { queue.dataset.cardDesign = design; });
             if (persist === false) return;
             fetch('/accounts/profile/layout/', {
                 method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
@@ -111,17 +129,21 @@
         }
 
         function mark(design) {
-            sel.querySelectorAll('.wama-design-opt').forEach(function (o) {
-                o.classList.toggle('active', o.dataset.value === design);
+            sels.forEach(function (sel) {
+                sel.querySelectorAll('.wama-design-opt').forEach(function (o) {
+                    o.classList.toggle('active', o.dataset.value === design);
+                });
             });
         }
-        sel.querySelectorAll('.wama-design-opt').forEach(function (opt) {
-            opt.addEventListener('click', function () {
-                apply(opt.dataset.value, true);
-                mark(opt.dataset.value);
+        sels.forEach(function (sel) {
+            sel.querySelectorAll('.wama-design-opt').forEach(function (opt) {
+                opt.addEventListener('click', function () {
+                    apply(opt.dataset.value, true);
+                    mark(opt.dataset.value);
+                });
             });
         });
-        const initial = sel.dataset.design || 'v3';
+        const initial = sels[0].dataset.design || 'v3';
         mark(initial);
         apply(initial, false);   // état venu du profil : ne pas re-persister
     }
@@ -138,11 +160,42 @@
     // Réservé à l'affichage en ligne : pile × mosaïque reste un point ouvert du §11, on ne le
     // tranche pas ici. Le focus lui-même réutilise focusCard() ci-dessous — rien de réinventé.
     function initStackToggle() {
-        const btn = document.querySelector('.wama-stack-btn');
-        const queue = document.querySelector('.wama-queue-list, .wama-queue-grid');
-        if (!btn || !queue) return;
+        // Comme layout et design : l'ÉTAT (pile on/off = réglage de profil `card_stacked`) est
+        // global à la page — toutes les files basculent ensemble et tous les boutons (un par
+        // toolbar, les apps à deux files en incluent deux) se marquent ensemble. Le FOCUS de
+        // pile, lui, reste propre à chaque file : `_pileFor()` ferme la machinerie (focusKey,
+        // distances, navigation) sur UNE file.
+        const btns = Array.prototype.slice.call(document.querySelectorAll('.wama-stack-btn'));
+        const queues = allQueues();
+        if (!btns.length || !queues.length) return;
 
         function csrf() { const m = document.cookie.match(/csrftoken=([^;]+)/); return m ? m[1] : ''; }
+        function on() { return queues[0].classList.contains('wama-queue-stacked'); }
+
+        const piles = queues.map(_pileFor);
+
+        function apply(state, persist) {
+            piles.forEach(function (p) { p.apply(state); });
+            btns.forEach(function (b) {
+                b.classList.toggle('active', state);
+                b.setAttribute('aria-pressed', state ? 'true' : 'false');
+            });
+            if (persist === false) return;
+            fetch('/accounts/profile/layout/', {
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+                body: JSON.stringify({ card_stacked: state }),
+            }).catch(function () {});
+        }
+
+        btns.forEach(function (b) { b.addEventListener('click', function () { apply(!on(), true); }); });
+
+        // false = ne pas re-persister ce qui vient justement du profil.
+        if (btns[0].dataset.stacked === '1') apply(true, false);
+    }
+
+    // Machinerie de pile d'UNE file — retourne { apply(state) }. Tout l'état est fermé sur
+    // `queue` : deux files gardent chacune leur card focalisée.
+    function _pileFor(queue) {
         function on() { return queue.classList.contains('wama-queue-stacked'); }
 
         // Identifiant de la card focalisée — survit au remplacement du nœud par le rendu serveur.
@@ -228,19 +281,10 @@
             });
         }
 
-        function apply(state, persist) {
+        function apply(state) {
             queue.classList.toggle('wama-queue-stacked', state);
-            btn.classList.toggle('active', state);
-            btn.setAttribute('aria-pressed', state ? 'true' : 'false');
             if (state) spread(); else clear();
-            if (persist === false) return;
-            fetch('/accounts/profile/layout/', {
-                method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
-                body: JSON.stringify({ card_stacked: state }),
-            }).catch(function () {});
         }
-
-        btn.addEventListener('click', function () { apply(!on(), true); });
 
         // Clic sur une card comprimée = la déplier (elle prend le focus de la pile).
         queue.addEventListener('click', function (ev) {
@@ -257,6 +301,9 @@
         // Flèches ↑/↓ : navigation dans la pile, sans voler le clavier à un champ de saisie.
         document.addEventListener('keydown', function (ev) {
             if (!on() || (ev.key !== 'ArrowUp' && ev.key !== 'ArrowDown')) return;
+            // Deux files empilées à la fois (page à onglets) : seule la file VISIBLE répond
+            // aux flèches, sinon chaque frappe déplacerait aussi le focus de l'onglet caché.
+            if (queue.offsetParent === null) return;
             const t = ev.target;
             if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
             const list = cards();
@@ -280,8 +327,7 @@
         new MutationObserver(function () { if (on()) spread(); })
             .observe(queue, { childList: true, subtree: true });
 
-        // false = ne pas re-persister ce qui vient justement du profil.
-        if (btn.dataset.stacked === '1') apply(true, false);
+        return { apply: apply };
     }
 
     // ── Focus d'une card : scroll centré + halo pulse + (option) sélection ───────
