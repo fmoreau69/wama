@@ -146,6 +146,44 @@ def backup_all_models_task(self, overwrite: bool = False):
         raise
 
 
+@shared_task(name='model_manager.backup_db')
+def backup_db_task(keep: int = 10):
+    """
+    Sauvegarde quotidienne de la base (pg_dump) + copie NAS. Planifiée par Celery beat.
+
+    Pendant PLANIFIÉ du bouton « Backup DB » (`api_backup_db`) et de
+    `manage.py backup_db`, qui restent les entrées À LA DEMANDE. Toute la logique
+    (dump, copie distante, rotation `keep` des deux côtés, vérification de taille)
+    vit dans la commande : on l'APPELLE, on ne la réimplémente pas.
+
+    Motif (2026-08-10) : la brique existait depuis le 27/07 mais n'était câblée à
+    AUCUN ordonnanceur — ni cron, ni systemd, ni beat, ni tâche Windows. Résultat
+    mesuré : un seul dump, celui du 29/07, alors que l'hôte a subi 7 coupures
+    d'alimentation entre-temps.
+
+    Queue `default` : pg_dump est CPU/IO pur, jamais de GPU — la règle « pas de job
+    GPU nocturne » (crashs hôte) reste respectée.
+    """
+    from io import StringIO
+
+    from django.core.management import call_command
+    from django.core.management.base import CommandError
+
+    out = StringIO()
+    try:
+        call_command('backup_db', keep=keep, stdout=out, stderr=out)
+    except CommandError as exc:
+        # NAS injoignable n'arrive PAS ici : la commande dégrade proprement (dump
+        # local conservé, avertissement). Un CommandError = pg_dump absent ou en
+        # échec, donc aucune sauvegarde du tout → doit remonter en échec Celery.
+        logger.error("[backup_db] échec : %s", exc)
+        raise
+
+    report = out.getvalue().strip()
+    logger.info("[backup_db] %s", report.replace("\n", " | "))
+    return report
+
+
 @shared_task(name='model_manager.update_loaded_status')
 def update_loaded_status_task(model_key: str, is_loaded: bool):
     """

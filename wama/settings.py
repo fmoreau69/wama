@@ -541,6 +541,15 @@ if ENABLE_CELERY:
             'schedule': crontab(hour=4, minute=0),
             'options': {'queue': 'default'},  # I/O disque, pas de GPU
         },
+        # Sauvegarde quotidienne de la base (pg_dump + copie NAS + rotation keep-10).
+        # La brique `backup_db` existait depuis le 27/07 mais n'était câblée à AUCUN
+        # ordonnanceur : un seul dump (29/07) pour 7 coupures d'alimentation de l'hôte.
+        # 03:30 = avant la purge de 04:00, pour sauvegarder un état ANTÉRIEUR à elle.
+        'backup-db-daily': {
+            'task': 'model_manager.backup_db',
+            'schedule': crontab(hour=3, minute=30),
+            'options': {'queue': 'default'},  # pg_dump = CPU/IO, jamais de GPU la nuit
+        },
     }
 
     # Rétention médias : plafond global (0 = pas de plafond) + pré-avis email (jours avant purge).
