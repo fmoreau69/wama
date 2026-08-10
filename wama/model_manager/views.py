@@ -777,6 +777,48 @@ def api_backup_models_progress(request):
 @login_required
 @user_passes_test(is_admin_or_dev)
 @require_POST
+def api_backup_media_start(request):
+    """API: lance le miroir des médias `media/` → espace distant (tâche Celery).
+
+    Même contrat que la sauvegarde des modèles : sens unique (rien n'est supprimé à
+    distance) et idempotent — si une sauvegarde tourne déjà, on renvoie son état plutôt
+    que d'en lancer une seconde, deux passes concurrentes se marchant dessus sur le même
+    arbre distant.
+    """
+    from django.core.cache import cache
+    from celery.result import AsyncResult
+    from wama.common.tasks import backup_media_task, BACKUP_MEDIA_CACHE_KEY
+
+    current = cache.get(BACKUP_MEDIA_CACHE_KEY)
+    if current and current.get('state') == 'RUNNING':
+        task_id = current.get('task_id')
+        # Le cache peut survivre à un worker tué : ne considérer « en cours » que si
+        # Celery confirme que la tâche est encore vivante.
+        if task_id and AsyncResult(task_id).state in ('PENDING', 'STARTED', 'RETRY'):
+            return JsonResponse({
+                'success': True, 'already_running': True, 'progress': current,
+            })
+
+    overwrite = bool(json.loads(request.body or '{}').get('overwrite', False))
+    task = backup_media_task.delay(overwrite=overwrite)
+    return JsonResponse({'success': True, 'already_running': False, 'task_id': task.id})
+
+
+@login_required
+@user_passes_test(is_admin_or_dev)
+@require_GET
+def api_backup_media_progress(request):
+    """API: avancement du miroir des médias (lu depuis le cache Redis)."""
+    from django.core.cache import cache
+    from wama.common.tasks import BACKUP_MEDIA_CACHE_KEY
+
+    progress = cache.get(BACKUP_MEDIA_CACHE_KEY)
+    return JsonResponse({'success': True, 'running': bool(progress), 'progress': progress})
+
+
+@login_required
+@user_passes_test(is_admin_or_dev)
+@require_POST
 def api_backup_model(request):
     """API: Backup a model to remote storage."""
     from .services.remote_backup import get_backup_service

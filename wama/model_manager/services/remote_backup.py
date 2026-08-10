@@ -14,10 +14,17 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-# Remote backup configuration — surchargeable par env (point de montage WSL à terme).
-# Défaut = partage réseau Windows (UNC). En WSL/Linux, ce chemin UNC n'est PAS utilisable
-# tant que le partage n'est pas monté → définir WAMA_MODEL_BACKUP_PATH vers le montage.
-REMOTE_BACKUP_PATH = os.environ.get('WAMA_MODEL_BACKUP_PATH', r"\\vrlescot\SAVES\DEEP_LEARNING\MODELS")
+# Remote backup configuration — l'env reste prioritaire (export de start_wama_prod.sh),
+# mais le défaut est désormais AUTO-DÉTECTÉ par la brique commune au lieu d'être un UNC figé.
+#
+# Corrigé le 2026-08-10 : sans la variable d'environnement, ce module retombait sur le chemin
+# UNC et `is_available()` renvoyait False sous WSL2 — donc « Backup Models » ne fonctionnait
+# QUE depuis les process lancés par start_wama_prod.sh, jamais depuis un shell, une commande
+# de gestion ou une tâche planifiée. Les sauvegardes DB et médias, elles, auto-détectaient
+# déjà : c'était la seule des trois à dépendre d'un export.
+from wama.common.services.mirror_sync import resolve_remote_root
+
+REMOTE_BACKUP_PATH = resolve_remote_root('MODELS', env_var='WAMA_MODEL_BACKUP_PATH')
 
 
 @dataclass
@@ -39,38 +46,16 @@ class RemoteBackupService:
         self._is_available = None
 
     def is_available(self) -> bool:
-        """Check if the remote path is accessible."""
-        if self._is_available is not None:
-            return self._is_available
+        """
+        Check if the remote path is accessible (résultat mémorisé).
 
-        p = str(self.remote_path)
-
-        # Chemin UNC Windows (\\serveur\partage) inutilisable hors Windows tant que le
-        # partage n'est pas monté : NE PAS tenter de le créer (sinon on fabrique un
-        # dossier-poubelle local au cwd). Backup désactivé proprement.
-        if (p.startswith('\\\\') or p.startswith('//')) and os.name != 'nt':
-            logger.info(
-                f"[remote_backup] Chemin UNC '{p}' non monté en WSL/Linux → backup désactivé. "
-                f"Définir WAMA_MODEL_BACKUP_PATH vers le point de montage."
-            )
-            self._is_available = False
-            return self._is_available
-
-        try:
-            # Disponible UNIQUEMENT si le dossier existe DÉJÀ et est inscriptible.
-            # On NE crée JAMAIS la racine ici (la création est un effet de bord interdit
-            # pour un simple test de disponibilité — c'était la cause du dossier-poubelle).
-            if self.remote_path.exists() and self.remote_path.is_dir():
-                test_file = self.remote_path / ".wama_test"
-                test_file.touch()
-                test_file.unlink()
-                self._is_available = True
-            else:
-                self._is_available = False
-        except Exception as e:
-            logger.warning(f"[remote_backup] cible non inscriptible : {e}")
-            self._is_available = False
-
+        Les deux garde-fous (chemin UNC non monté hors Windows, jamais de création de
+        la racine) vivent désormais dans la brique commune `mirror_sync` — ils sont
+        identiques pour les modèles et pour les médias.
+        """
+        if self._is_available is None:
+            from wama.common.services.mirror_sync import remote_is_available
+            self._is_available = remote_is_available(self.remote_path)
         return self._is_available
 
     def get_backup_path(self, model_type: str, model_name: str, format_type: str) -> Path:
@@ -412,62 +397,20 @@ class RemoteBackupService:
 
         Returns: dict de synthèse (voir clés ci-dessous).
         """
-        # 'processed' fait partie du summary LUI-MÊME (et pas seulement des dicts passés au
-        # progress_cb) : le résultat final est republié tel quel à la fin de la tâche, et
-        # sans cette clé l'UI retombait sur 0 → « Terminé — 0/1149 (0%) » alors que tout
-        # avait été traité.
-        summary = {
-            'success': False, 'total_files': 0, 'processed': 0, 'copied': 0, 'skipped': 0,
-            'failed': 0, 'copied_mb': 0.0, 'errors': [], 'remote_path': str(self.remote_path),
-        }
-
-        if not self.is_available():
-            summary['errors'].append(f"Espace distant indisponible : {self.remote_path}")
-            return summary
+        # La MÉCANIQUE (inventaire, saut par taille identique, copie, avancement, plafond
+        # d'erreurs) vit dans `common/services/mirror_sync.py` depuis le 2026-08-10 : elle est
+        # rigoureusement la même pour les modèles et pour les médias, et la dupliquer aurait
+        # été le doublon silencieux que la règle « zéro duplication » vise. Ne restent ici que
+        # les SPÉCIFICITÉS modèles : la racine `AI-models/models/`.
+        from wama.common.services.mirror_sync import mirror_tree, new_summary
 
         root = self._models_root()
         if not root or not Path(root).exists():
+            summary = new_summary(self.remote_path)
             summary['errors'].append(f"Racine locale des modèles introuvable : {root}")
             return summary
 
-        # Phase 1 — inventaire LOCAL (disque rapide) : on connaît le total avant de copier,
-        # ce qui permet un vrai pourcentage côté UI plutôt qu'un spinner aveugle.
-        local_files = [f for f in Path(root).rglob('*') if f.is_file()]
-        summary['total_files'] = len(local_files)
-        if progress_cb:
-            progress_cb(dict(summary, phase='copy', current=''))
-
-        # Phase 2 — copie incrémentale.
-        for idx, src in enumerate(local_files, 1):
-            summary['processed'] = idx   # compté AVANT le continue ci-dessous
-            dest = self.mirror_dest(src)
-            if dest is None:
-                summary['skipped'] += 1
-                continue
-            try:
-                if not overwrite and dest.exists() and dest.stat().st_size == src.stat().st_size:
-                    summary['skipped'] += 1
-                else:
-                    res = self._copy_one(src, dest, overwrite=True)
-                    if res.success:
-                        summary['copied'] += 1
-                        summary['copied_mb'] += res.size_mb
-                    else:
-                        summary['failed'] += 1
-                        if len(summary['errors']) < 20:
-                            summary['errors'].append(f"{src.name}: {res.error}")
-            except Exception as e:
-                summary['failed'] += 1
-                if len(summary['errors']) < 20:
-                    summary['errors'].append(f"{src.name}: {e}")
-
-            # Remonter l'avancement sans saturer Redis : tous les 200 fichiers + à la fin.
-            if progress_cb and (idx % 200 == 0 or idx == summary['total_files']):
-                progress_cb(dict(summary, phase='copy',
-                                 current=str(src.relative_to(root))))
-
-        summary['success'] = summary['failed'] == 0
-        return summary
+        return mirror_tree(root, self.remote_path, overwrite=overwrite, progress_cb=progress_cb)
 
 
 # Singleton instance

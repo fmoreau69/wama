@@ -550,6 +550,15 @@ if ENABLE_CELERY:
             'schedule': crontab(hour=3, minute=30),
             'options': {'queue': 'default'},  # pg_dump = CPU/IO, jamais de GPU la nuit
         },
+        # Miroir quotidien des médias vers le NAS. 02:30, donc AVANT la purge de
+        # rétention de 04:00 : les médias sur le point d'expirer sont archivés avant
+        # de disparaître — c'est tout l'intérêt d'un distant cumulatif. Incrémental
+        # (les fichiers déjà présents sont sautés), sens unique, aucune suppression.
+        'backup-media-daily': {
+            'task': 'common.backup_media',
+            'schedule': crontab(hour=2, minute=30),
+            'options': {'queue': 'default'},  # I/O réseau, jamais de GPU la nuit
+        },
     }
 
     # Rétention médias : plafond global (0 = pas de plafond) + pré-avis email (jours avant purge).

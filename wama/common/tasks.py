@@ -8,6 +8,60 @@ from celery import shared_task
 logger = logging.getLogger(__name__)
 
 
+#: Clé de cache partagée entre la tâche (écrit l'avancement) et la vue de progression
+#: (le lit). Passer par le cache plutôt que par l'AsyncResult permet de retrouver une
+#: sauvegarde en cours après un simple F5 — le navigateur n'a plus le task_id.
+#: Même motif que `model_manager.tasks.BACKUP_ALL_CACHE_KEY`, clé DISTINCTE : les deux
+#: sauvegardes peuvent tourner en même temps sans écraser mutuellement leur avancement.
+BACKUP_MEDIA_CACHE_KEY = 'common:backup_media'
+BACKUP_MEDIA_TTL = 24 * 3600
+
+
+@shared_task(bind=True, name='common.backup_media')
+def backup_media_task(self, overwrite: bool = False):
+    """
+    Miroir incrémental des médias utilisateurs vers l'espace distant. Quotidien (beat)
+    et à la demande (bouton « Backup Médias »).
+
+    SENS UNIQUE : rien n'est jamais supprimé à distance — le dossier `~Archives` du NAS,
+    qui n'existe pas en local, est préservé par construction (voir `media_backup`).
+
+    Planifiée AVANT la purge de rétention de 04:00 : les médias sur le point d'expirer
+    sont ainsi archivés avant disparition, ce qui est précisément l'intérêt d'un distant
+    cumulatif.
+    """
+    from django.core.cache import cache
+
+    from wama.common.services.media_backup import backup_all_media
+
+    def publish(state: str, payload: dict):
+        cache.set(
+            BACKUP_MEDIA_CACHE_KEY,
+            {'state': state, 'task_id': self.request.id, **payload},
+            BACKUP_MEDIA_TTL,
+        )
+
+    publish('RUNNING', {'phase': 'scan', 'total_files': 0, 'processed': 0,
+                        'copied': 0, 'skipped': 0, 'failed': 0, 'copied_mb': 0.0})
+    logger.info("[backup_media] démarrage du miroir des médias")
+
+    try:
+        result = backup_all_media(
+            overwrite=overwrite,
+            progress_cb=lambda p: publish('RUNNING', p),
+        )
+        publish('SUCCESS' if result['success'] else 'PARTIAL', result)
+        logger.info(
+            "[backup_media] terminé : +%s copiés, %s déjà présents, %s échecs (%.1f Mo)",
+            result['copied'], result['skipped'], result['failed'], result['copied_mb'],
+        )
+        return result
+    except Exception as exc:
+        logger.error("[backup_media] échec : %s", exc)
+        publish('FAILURE', {'errors': [str(exc)]})
+        raise
+
+
 @shared_task(name='common.enrich_prompt_at_ingest')
 def enrich_prompt_at_ingest_task(app_label, model_name, pk):
     """

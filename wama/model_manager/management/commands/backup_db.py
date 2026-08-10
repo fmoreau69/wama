@@ -1,4 +1,4 @@
-"""Sauvegarde de la base WAMA (pg_dump) + copie vers l'espace de sauvegarde distant.
+r"""Sauvegarde de la base WAMA (pg_dump) + copie vers l'espace de sauvegarde distant.
 
 Pendant : `remote_backup.py` (modèles → \\vrlescot\SAVES\DEEP_LEARNING\MODELS).
 Ici, même racine, sous-dossier DB :
@@ -24,17 +24,14 @@ PREFIX = "wama_db_"
 SUFFIX = ".dump"
 
 
-def _is_wsl() -> bool:
-    return "microsoft" in Path("/proc/version").read_text().lower() if Path("/proc/version").exists() else False
-
-
 def _default_remote_dir() -> str:
-    env = os.environ.get("WAMA_DB_BACKUP_PATH")
-    if env:
-        return env
-    if _is_wsl():
-        return "/mnt/shares/SAVES/DEEP_LEARNING/DB"
-    return r"\\vrlescot\SAVES\DEEP_LEARNING\DB"
+    """
+    Espace distant des dumps. L'auto-détection WSL/Windows est passée dans la brique
+    commune `mirror_sync` le 2026-08-10, quand la sauvegarde des médias en a eu besoin
+    à son tour : la convention `DEEP_LEARNING/<domaine>` n'a plus qu'une définition.
+    """
+    from wama.common.services.mirror_sync import resolve_remote_root
+    return resolve_remote_root("DB", env_var="WAMA_DB_BACKUP_PATH")
 
 
 def _rotate(directory: Path, keep: int) -> list[str]:  # wama:redondance-ok — purge keep-N de dumps, mécanique distincte du décalage de logs (rotate_file)

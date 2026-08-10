@@ -411,6 +411,9 @@
                             <button class="btn btn-outline-success btn-sm memory-action-btn" id="btn-backup-models" title="Sauvegarde incrémentale de AI-models/models/ vers l'espace distant (sens unique : rien n'est supprimé à distance)">
                                 <i class="fas fa-cloud-upload-alt me-1"></i> Backup Models
                             </button>
+                            <button class="btn btn-outline-success btn-sm memory-action-btn" id="btn-backup-media" title="Sauvegarde incrémentale de media/ vers l'espace distant (sens unique : rien n'est supprimé à distance, ~Archives préservé). Automatique chaque nuit à 02:30.">
+                                <i class="fas fa-photo-film me-1"></i> Backup Médias
+                            </button>
                         </div>
                     </div>
                     <div class="col-md-6">
@@ -570,6 +573,22 @@
             <div class="progress-bar bg-success" id="backup-models-bar" role="progressbar" style="width: 0%"></div>
         </div>
         <small class="text-muted text-truncate d-block mt-1" id="backup-models-current"></small>
+    </div>
+
+    {% comment %}
+      Avancement du miroir des médias. Mêmes identifiants suffixés que ci-dessus
+      (-progress / -bar / -summary / -current) : c'est ce que createMirrorBackupUI
+      attend à partir du seul préfixe, d'où l'absence de code JS dédié.
+    {% endcomment %}
+    <div class="mb-3 d-none" id="backup-media-progress">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+            <small class="text-muted"><i class="fas fa-photo-film me-1"></i>Backup médias</small>
+            <small class="text-muted" id="backup-media-summary"></small>
+        </div>
+        <div class="progress" style="height: 6px;">
+            <div class="progress-bar bg-success" id="backup-media-bar" role="progressbar" style="width: 0%"></div>
+        </div>
+        <small class="text-muted text-truncate d-block mt-1" id="backup-media-current"></small>
     </div>
 
     <!-- Models Grid -->
@@ -1708,7 +1727,8 @@ document.addEventListener('DOMContentLoaded', function() {
     loadModels();
     loadBackupStatus();
     loadDiskSpace();
-    pollBackupModels();   // reprend l'affichage si un backup tourne déjà
+    // La reprise d'affichage des miroirs (modèles / médias) se fait plus bas, juste
+    // après la création des deux UI — voir createMirrorBackupUI.
 
     // =========================================================================
     // Disk Space Functions
@@ -1989,78 +2009,119 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // =========================================================================
-    // Backup Models — sauvegarde globale incrémentale (tâche Celery + polling)
+    // Miroirs incrémentaux vers l'espace distant (tâche Celery + polling)
+    //
+    // Modèles et médias partagent EXACTEMENT le même contrat côté serveur (tâche
+    // Celery + avancement publié dans le cache, mêmes clés de summary). Cette
+    // fabrique porte le comportement une seule fois ; chaque domaine ne déclare
+    // que ses identifiants DOM, ses URLs et son texte de confirmation.
+    // Ajouté le 2026-08-10 avec la sauvegarde des médias — le bloc d'origine,
+    // spécifique aux modèles, aurait sinon été recopié à l'identique.
     // =========================================================================
 
-    let backupModelsTimer = null;
+    function createMirrorBackupUI(cfg) {
+        let timer = null;
 
-    function renderBackupModels(p) {
-        const box = document.getElementById('backup-models-progress');
-        if (!p) { box.classList.add('d-none'); return; }
-        box.classList.remove('d-none');
+        function render(p) {
+            const box = document.getElementById(cfg.prefix + '-progress');
+            if (!p) { box.classList.add('d-none'); return; }
+            box.classList.remove('d-none');
 
-        const total = p.total_files || 0;
-        const done = p.processed || 0;
-        const pct = total ? Math.round((done / total) * 100) : 0;
-        const bar = document.getElementById('backup-models-bar');
-        bar.style.width = (p.phase === 'scan' ? 100 : pct) + '%';
-        bar.classList.toggle('progress-bar-striped', p.state === 'RUNNING');
-        bar.classList.toggle('progress-bar-animated', p.state === 'RUNNING');
-        bar.classList.toggle('bg-danger', p.state === 'FAILURE');
+            const total = p.total_files || 0;
+            const done = p.processed || 0;
+            const pct = total ? Math.round((done / total) * 100) : 0;
+            const bar = document.getElementById(cfg.prefix + '-bar');
+            bar.style.width = (p.phase === 'scan' ? 100 : pct) + '%';
+            bar.classList.toggle('progress-bar-striped', p.state === 'RUNNING');
+            bar.classList.toggle('progress-bar-animated', p.state === 'RUNNING');
+            bar.classList.toggle('bg-danger', p.state === 'FAILURE');
 
-        let txt;
-        if (p.phase === 'scan') {
-            txt = 'Inventaire des fichiers locaux…';
-        } else {
-            txt = `${done}/${total} (${pct}%) — ${p.copied || 0} copiés, `
-                + `${p.skipped || 0} déjà présents, ${p.failed || 0} échecs`
-                + (p.copied_mb ? ` — ${(p.copied_mb / 1024).toFixed(1)} Go transférés` : '');
-        }
-        if (p.state === 'SUCCESS') txt = 'Terminé — ' + txt;
-        if (p.state === 'PARTIAL') txt = 'Terminé avec erreurs — ' + txt;
-        if (p.state === 'FAILURE') txt = 'Échec : ' + (p.errors || []).join(' / ');
-        document.getElementById('backup-models-summary').textContent = txt;
-        document.getElementById('backup-models-current').textContent = p.current || '';
-    }
-
-    async function pollBackupModels() {
-        try {
-            const response = await fetch('{% url "model_manager:api_backup_models_progress" %}');
-            const data = await response.json();
-            renderBackupModels(data.progress);
-
-            if (data.progress && data.progress.state === 'RUNNING') {
-                if (!backupModelsTimer) backupModelsTimer = setInterval(pollBackupModels, 3000);
-            } else if (backupModelsTimer) {
-                clearInterval(backupModelsTimer);
-                backupModelsTimer = null;
-                loadBackupStatus();   // le nombre de modèles distants a bougé
+            let txt;
+            if (p.phase === 'scan') {
+                txt = 'Inventaire des fichiers locaux…';
+            } else {
+                txt = `${done}/${total} (${pct}%) — ${p.copied || 0} copiés, `
+                    + `${p.skipped || 0} déjà présents, ${p.failed || 0} échecs`
+                    + (p.copied_mb ? ` — ${(p.copied_mb / 1024).toFixed(1)} Go transférés` : '');
             }
-        } catch (err) {
-            // Silencieux : le polling reprendra au prochain tick / rechargement.
+            if (p.state === 'SUCCESS') txt = 'Terminé — ' + txt;
+            if (p.state === 'PARTIAL') txt = 'Terminé avec erreurs — ' + txt;
+            if (p.state === 'FAILURE') txt = 'Échec : ' + (p.errors || []).join(' / ');
+            document.getElementById(cfg.prefix + '-summary').textContent = txt;
+            document.getElementById(cfg.prefix + '-current').textContent = p.current || '';
         }
+
+        async function poll() {
+            try {
+                const response = await fetch(cfg.progressUrl);
+                const data = await response.json();
+                render(data.progress);
+
+                if (data.progress && data.progress.state === 'RUNNING') {
+                    if (!timer) timer = setInterval(poll, 3000);
+                } else if (timer) {
+                    clearInterval(timer);
+                    timer = null;
+                    if (cfg.onFinish) cfg.onFinish();
+                }
+            } catch (err) {
+                // Silencieux : le polling reprendra au prochain tick / rechargement.
+            }
+        }
+
+        async function start() {
+            if (!confirm(cfg.confirmText)) return;
+            try {
+                const response = await fetch(cfg.startUrl, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ overwrite: false })
+                });
+                const data = await response.json();
+                if (!data.success) { alert('Échec : ' + (data.error || 'inconnu')); return; }
+                if (data.already_running) alert(cfg.alreadyRunningText);
+                poll();
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        document.getElementById(cfg.buttonId).addEventListener('click', start);
+        return { poll };
     }
 
-    document.getElementById('btn-backup-models').addEventListener('click', async function() {
-        if (!confirm("Lancer la sauvegarde des modèles vers l'espace distant ?\n\n"
+    const backupModelsUI = createMirrorBackupUI({
+        prefix: 'backup-models',
+        buttonId: 'btn-backup-models',
+        startUrl: '{% url "model_manager:api_backup_models_start" %}',
+        progressUrl: '{% url "model_manager:api_backup_models_progress" %}',
+        confirmText: "Lancer la sauvegarde des modèles vers l'espace distant ?\n\n"
                    + "Incrémentale (les fichiers déjà présents sont sautés) et en sens unique : "
                    + "rien n'est supprimé à distance. Le parcours complet peut durer longtemps ; "
-                   + "le suivi s'affiche sous le statut de backup.")) return;
-
-        try {
-            const response = await fetch('{% url "model_manager:api_backup_models_start" %}', {
-                method: 'POST',
-                headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ overwrite: false })
-            });
-            const data = await response.json();
-            if (!data.success) { alert('Échec : ' + (data.error || 'inconnu')); return; }
-            if (data.already_running) alert('Un backup des modèles est déjà en cours.');
-            pollBackupModels();
-        } catch (err) {
-            alert('Error: ' + err.message);
-        }
+                   + "le suivi s'affiche sous le statut de backup.",
+        alreadyRunningText: 'Un backup des modèles est déjà en cours.',
+        onFinish: loadBackupStatus,   // le nombre de modèles distants a bougé
     });
+
+    const backupMediaUI = createMirrorBackupUI({
+        prefix: 'backup-media',
+        buttonId: 'btn-backup-media',
+        startUrl: '{% url "model_manager:api_backup_media_start" %}',
+        progressUrl: '{% url "model_manager:api_backup_media_progress" %}',
+        confirmText: "Lancer la sauvegarde des médias vers l'espace distant ?\n\n"
+                   + "Incrémentale (les fichiers déjà présents sont sautés) et en sens unique : "
+                   + "rien n'est supprimé à distance, le dossier ~Archives du NAS n'est pas touché. "
+                   + "Elle tourne aussi automatiquement chaque nuit à 02:30.",
+        alreadyRunningText: 'Un backup des médias est déjà en cours.',
+    });
+
+    // Reprend l'affichage si une sauvegarde tourne déjà (F5 pendant un transfert).
+    // ICI et pas dans le bloc d'initialisation plus haut : `backupModelsUI` est un
+    // `const`, donc en zone morte temporelle tant que cette ligne n'est pas exécutée —
+    // l'appeler avant lèverait une ReferenceError (l'ancien `pollBackupModels` était
+    // une déclaration de fonction, hissée, ce qui masquait la contrainte).
+    backupModelsUI.poll();
+    backupMediaUI.poll();
 
     // Clear GPU Cache
     document.getElementById('btn-clear-gpu-cache').addEventListener('click', async function() {
