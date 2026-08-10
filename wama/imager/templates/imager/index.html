@@ -86,9 +86,9 @@ la modale d'item (settings_modal.js, hook `decorate` + groupBody).
 
     <div class="wama-params" id="videoPanelParams"></div>
 
-    <button class="btn btn-outline-secondary btn-sm w-100" id="resetVideoOptions">
-        <i class="fas fa-undo"></i> Réinitialiser
-    </button>
+    {% comment %}Pas de bouton « Réinitialiser » côté vidéo : son handler (initializeRightPanelSync)
+    était inerte depuis le portage du volet généré — retiré avec la purge 2026-08-11. La parité
+    avec le reset image (#resetOptions) est à rétablir via une brique WamaParams, pas à la main.{% endcomment %}
 </div>
 {% endblock %}
 

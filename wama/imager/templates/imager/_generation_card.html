@@ -5,13 +5,13 @@ Contexte : gen (décoré par _decorate_card → gen.chips), domain ('image'|'vid
 
 Contrats JS :
   .imager-card[data-id][data-status][data-domain] — racine (polling queue.js, cycle autoSync)
-  .settings-btn / .video-settings-btn [data-id]   — modales legacy ⚙ d'index.js (par domaine)
+  .settings-btn / .video-settings-btn [data-id]   — modale ⚙ générée (settings_modal.js, par domaine)
   .wama-cycle-btn                                 — ▶/⏹/↻ (brique _cycle_button, wire queue.js :
                                                     start/restart → endpoints existants, stop → force_reset)
-  .download-btn / .video-download-btn [data-id]   — handlers délégués existants d'index.js
+  .download-btn / .video-download-btn [data-id]   — handlers délégués d'index.js
   .duplicate-btn[data-duplicate-url]              — brique GLOBALE queue-actions.js (ne pas re-binder)
-  .delete-btn / .video-delete-btn [data-id]       — handlers délégués existants d'index.js
-  .wama-eta                                       — rempli par WamaEta (index.js)
+  .delete-btn / .video-delete-btn [data-id]       — handlers délégués d'index.js
+  .wama-eta                                       — rempli par wama-eta.js (brique auto-initialisée)
 {% endcomment %}
 <div class="imager-card synthesis-card wama-card {% if gen.status == 'RUNNING' %}processing{% elif gen.status == 'SUCCESS' %}success{% elif gen.status == 'FAILURE' %}error{% endif %}"
      data-id="{{ gen.id }}"
