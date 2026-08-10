@@ -114,36 +114,21 @@ def backup_all_models_task(self, overwrite: bool = False):
     Celery. L'avancement est publié dans le cache Django (Redis) sous
     BACKUP_ALL_CACHE_KEY, lu par api_backup_models_progress.
     """
-    from django.core.cache import cache
+    from wama.common.services.mirror_sync import run_mirror_job
+
     from .services.remote_backup import get_backup_service
 
-    def publish(state: str, payload: dict):
-        cache.set(
-            BACKUP_ALL_CACHE_KEY,
-            dict(payload, state=state, task_id=self.request.id),
-            BACKUP_ALL_TTL,
-        )
-
-    publish('RUNNING', {'phase': 'scan', 'total_files': 0, 'processed': 0,
-                        'copied': 0, 'skipped': 0, 'failed': 0, 'copied_mb': 0.0})
-    logger.info("Starting full model backup to remote storage")
-
-    try:
-        service = get_backup_service()
-        result = service.backup_all_models(
-            overwrite=overwrite,
-            progress_cb=lambda p: publish('RUNNING', p),
-        )
-        publish('SUCCESS' if result['success'] else 'PARTIAL', result)
-        logger.info(
-            f"Model backup complete: +{result['copied']} copiés, "
-            f"{result['skipped']} déjà présents, {result['failed']} échecs"
-        )
-        return result
-    except Exception as e:
-        logger.error(f"Full model backup failed: {e}")
-        publish('FAILURE', {'errors': [str(e)]})
-        raise
+    # Publication de l'avancement, journalisation et gestion d'échec : `run_mirror_job`
+    # (brique commune). Cette tâche ne décrit plus que CE qu'elle sauvegarde.
+    return run_mirror_job(
+        lambda progress_cb: get_backup_service().backup_all_models(
+            overwrite=overwrite, progress_cb=progress_cb,
+        ),
+        cache_key=BACKUP_ALL_CACHE_KEY,
+        task_id=self.request.id,
+        label='backup_models',
+        ttl=BACKUP_ALL_TTL,
+    )
 
 
 @shared_task(name='model_manager.backup_db')

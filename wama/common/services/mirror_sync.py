@@ -127,8 +127,14 @@ def remote_is_available(remote_path) -> bool:
         return False
 
 
-def _copy_one(source: Path, dest: Path) -> tuple[bool, float, str | None]:
-    """Copie un fichier en créant ses dossiers parents. → (succès, Mo, erreur)."""
+def copy_file(source: Path, dest: Path) -> tuple[bool, float, str | None]:
+    """
+    PRIMITIVE DE COPIE UNIQUE du projet : crée les dossiers parents et copie.
+    → (succès, Mo, erreur).
+
+    Publique et non préfixée : `RemoteBackupService._copy_one` l'appelle aussi, pour que la
+    sauvegarde PAR MODÈLE et le miroir GLOBAL n'aient pas deux façons de copier un fichier.
+    """
     try:
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, dest)
@@ -153,36 +159,54 @@ def new_summary(remote_path) -> dict:
     }
 
 
-def mirror_tree(source_root, dest_root, *, overwrite: bool = False,
-                progress_cb=None, progress_every: int = PROGRESS_EVERY) -> dict:
+def mirror_tree(source_root, dest_root, *, overwrite: bool = False, exclude=None,
+                progress_cb=None, on_file=None, progress_every: int = PROGRESS_EVERY) -> dict:
     """
     Réplique `source_root` vers `dest_root` en conservant l'arborescence relative.
 
+    MOTEUR UNIQUE du projet : miroir global (modèles, médias, config), sauvegarde par
+    modèle (via `on_file`) et TIRAGE (mêmes appels, source et destination inversées).
+
     Opération longue (des dizaines de milliers de fichiers sur un montage réseau) :
-    à n'appeler QUE depuis une tâche Celery, jamais dans le cycle requête/réponse.
+    à n'appeler QUE depuis une tâche Celery ou une commande, jamais dans le cycle
+    requête/réponse.
 
     Args:
-        source_root: racine locale à sauvegarder.
-        dest_root:   racine distante (doit exister — voir `remote_is_available`).
+        source_root: racine à lire.
+        dest_root:   racine à écrire (doit exister — voir `remote_is_available`).
         overwrite:   si True, recopie même les fichiers déjà présents (resync complet).
-        progress_cb: callable(dict) appelé périodiquement avec l'avancement.
+        exclude:     noms de dossiers/fichiers à ignorer, comparés à CHAQUE segment du
+                     chemin relatif. Sert au TIRAGE (`~Archives` ne doit pas revenir dans
+                     `media/`) ; inutile au sens sauvegarde, où le dossier n'existe pas en
+                     local et n'est donc jamais visité.
+        progress_cb: callable(dict) — avancement agrégé, tous les `progress_every` fichiers.
+        on_file:     callable(source, dest, action, size_mb, error) par fichier, avec
+                     action ∈ {'copied', 'skipped', 'failed'}. Permet à un appelant de
+                     produire un compte rendu détaillé sans réécrire le parcours.
 
     Returns: dict de synthèse (clés de `new_summary`).
     """
     summary = new_summary(dest_root)
     source_root = Path(source_root)
     dest_root = Path(dest_root)
+    excluded = set(exclude or ())
 
     if not remote_is_available(dest_root):
-        summary['errors'].append(f"Espace distant indisponible : {dest_root}")
+        summary['errors'].append(f"Destination indisponible : {dest_root}")
         return summary
     if not source_root.is_dir():
-        summary['errors'].append(f"Racine locale introuvable : {source_root}")
+        summary['errors'].append(f"Racine source introuvable : {source_root}")
         return summary
 
-    # Phase 1 — inventaire LOCAL (disque rapide) : connaître le total AVANT de copier
-    # permet un vrai pourcentage côté UI plutôt qu'un spinner aveugle.
-    local_files = [f for f in source_root.rglob('*') if f.is_file()]
+    # Phase 1 — inventaire de la SOURCE (disque rapide) : connaître le total AVANT de
+    # copier permet un vrai pourcentage côté UI plutôt qu'un spinner aveugle.
+    local_files = []
+    for path in source_root.rglob('*'):
+        if not path.is_file():
+            continue
+        if excluded and excluded.intersection(path.relative_to(source_root).parts):
+            continue
+        local_files.append(path)
     summary['total_files'] = len(local_files)
     if progress_cb:
         progress_cb(dict(summary, phase='copy', current=''))
@@ -190,19 +214,26 @@ def mirror_tree(source_root, dest_root, *, overwrite: bool = False,
     # Phase 2 — copie incrémentale.
     for index, source in enumerate(local_files, start=1):
         summary['processed'] = index   # compté AVANT tout `continue`
+        dest = None
         try:
             dest = dest_root / source.relative_to(source_root)
             if not overwrite and dest.exists() and dest.stat().st_size == source.stat().st_size:
                 summary['skipped'] += 1
+                if on_file:
+                    on_file(source, dest, 'skipped', dest.stat().st_size / (1024 * 1024), None)
             else:
-                ok, size_mb, error = _copy_one(source, dest)
+                ok, size_mb, error = copy_file(source, dest)
                 if ok:
                     summary['copied'] += 1
                     summary['copied_mb'] += size_mb
+                    if on_file:
+                        on_file(source, dest, 'copied', size_mb, None)
                 else:
                     summary['failed'] += 1
                     if len(summary['errors']) < MAX_ERRORS:
                         summary['errors'].append(f"{source.name}: {error}")
+                    if on_file:
+                        on_file(source, dest, 'failed', 0.0, error)
         except (OSError, ValueError) as exc:
             # Un fichier disparu en cours de route (purge de rétention, tâche qui
             # nettoie) ne doit pas interrompre la sauvegarde des dizaines de milliers
@@ -210,6 +241,8 @@ def mirror_tree(source_root, dest_root, *, overwrite: bool = False,
             summary['failed'] += 1
             if len(summary['errors']) < MAX_ERRORS:
                 summary['errors'].append(f"{source.name}: {exc}")
+            if on_file:
+                on_file(source, dest, 'failed', 0.0, str(exc))
 
         if progress_cb and (index % progress_every == 0 or index == summary['total_files']):
             try:
@@ -220,3 +253,44 @@ def mirror_tree(source_root, dest_root, *, overwrite: bool = False,
 
     summary['success'] = summary['failed'] == 0
     return summary
+
+
+def run_mirror_job(runner, *, cache_key, task_id, label, ttl=24 * 3600):
+    """
+    Exécute un miroir en publiant son avancement dans le cache — enveloppe COMMUNE aux
+    tâches Celery de sauvegarde (modèles, médias, config… et demain le tirage).
+
+    Passer par le cache plutôt que par l'`AsyncResult` permet de retrouver une sauvegarde
+    en cours après un simple F5 : le navigateur n'a plus le task_id.
+
+    Args:
+        runner: callable(progress_cb) -> summary. Le miroir proprement dit.
+        cache_key: clé DISTINCTE par domaine — deux sauvegardes peuvent tourner ensemble
+                   sans écraser mutuellement leur avancement.
+        task_id: identifiant Celery, republié à chaque publication pour que la vue de
+                 démarrage puisse vérifier auprès de Celery qu'une tâche est bien vivante.
+        label: préfixe de journalisation.
+    """
+    from django.core.cache import cache
+
+    def publish(state: str, payload: dict):
+        # `state`/`task_id` en DERNIER : ils doivent gagner sur le contenu du summary,
+        # jamais l'inverse (une clé homonyme dans le payload écraserait l'état publié).
+        cache.set(cache_key, dict(payload, state=state, task_id=task_id), ttl)
+
+    publish('RUNNING', {'phase': 'scan', 'total_files': 0, 'processed': 0,
+                        'copied': 0, 'skipped': 0, 'failed': 0, 'copied_mb': 0.0})
+    logger.info("[%s] démarrage", label)
+
+    try:
+        result = runner(lambda p: publish('RUNNING', p))
+        publish('SUCCESS' if result['success'] else 'PARTIAL', result)
+        logger.info(
+            "[%s] terminé : +%s copiés, %s déjà présents, %s échecs (%.1f Mo)",
+            label, result['copied'], result['skipped'], result['failed'], result['copied_mb'],
+        )
+        return result
+    except Exception as exc:
+        logger.error("[%s] échec : %s", label, exc)
+        publish('FAILURE', {'errors': [str(exc)]})
+        raise

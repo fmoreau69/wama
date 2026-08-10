@@ -30,36 +30,16 @@ def backup_media_task(self, overwrite: bool = False):
     sont ainsi archivés avant disparition, ce qui est précisément l'intérêt d'un distant
     cumulatif.
     """
-    from django.core.cache import cache
-
     from wama.common.services.media_backup import backup_all_media
+    from wama.common.services.mirror_sync import run_mirror_job
 
-    def publish(state: str, payload: dict):
-        cache.set(
-            BACKUP_MEDIA_CACHE_KEY,
-            {'state': state, 'task_id': self.request.id, **payload},
-            BACKUP_MEDIA_TTL,
-        )
-
-    publish('RUNNING', {'phase': 'scan', 'total_files': 0, 'processed': 0,
-                        'copied': 0, 'skipped': 0, 'failed': 0, 'copied_mb': 0.0})
-    logger.info("[backup_media] démarrage du miroir des médias")
-
-    try:
-        result = backup_all_media(
-            overwrite=overwrite,
-            progress_cb=lambda p: publish('RUNNING', p),
-        )
-        publish('SUCCESS' if result['success'] else 'PARTIAL', result)
-        logger.info(
-            "[backup_media] terminé : +%s copiés, %s déjà présents, %s échecs (%.1f Mo)",
-            result['copied'], result['skipped'], result['failed'], result['copied_mb'],
-        )
-        return result
-    except Exception as exc:
-        logger.error("[backup_media] échec : %s", exc)
-        publish('FAILURE', {'errors': [str(exc)]})
-        raise
+    return run_mirror_job(
+        lambda progress_cb: backup_all_media(overwrite=overwrite, progress_cb=progress_cb),
+        cache_key=BACKUP_MEDIA_CACHE_KEY,
+        task_id=self.request.id,
+        label='backup_media',
+        ttl=BACKUP_MEDIA_TTL,
+    )
 
 
 @shared_task(name='common.enrich_prompt_at_ingest')

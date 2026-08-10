@@ -3,7 +3,6 @@ Remote Backup Service - Backup models to network storage after conversion.
 """
 
 import logging
-import shutil
 from pathlib import Path
 from typing import Optional, List, Dict
 from dataclasses import dataclass
@@ -94,26 +93,36 @@ class RemoteBackupService:
         return self.remote_path / rel
 
     def _copy_one(self, source: Path, dest_file: Path, overwrite: bool):
-        """Copie un fichier vers dest_file (crée les dossiers parents). Retourne un BackupResult."""
+        """
+        Copie UN fichier et renvoie un `BackupResult` (contrat de l'API par modèle).
+
+        La copie elle-même vient de `mirror_sync.copy_file` — primitive unique du projet.
+        Ne reste ici que l'habillage `BackupResult` et la règle « déjà présent = succès
+        marqué skipped », dont dépend le comptage de `api_backup_model`.
+        """
         import time
+
+        from wama.common.services.mirror_sync import copy_file
+
         start = time.time()
         try:
-            dest_file.parent.mkdir(parents=True, exist_ok=True)
             if dest_file.exists() and not overwrite:
                 return BackupResult(
                     success=True, source_path=str(source), dest_path=str(dest_file),
                     size_mb=dest_file.stat().st_size / (1024 * 1024),
                     error="File already exists (skipped)",
                 )
-            shutil.copy2(source, dest_file)
-            size_mb = dest_file.stat().st_size / (1024 * 1024)
-            return BackupResult(
-                success=True, source_path=str(source), dest_path=str(dest_file),
-                size_mb=size_mb, duration_seconds=time.time() - start,
-            )
-        except Exception as e:
-            logger.error(f"Backup copy failed: {e}")
-            return BackupResult(success=False, source_path=str(source), dest_path="", error=str(e))
+        except OSError as exc:
+            return BackupResult(success=False, source_path=str(source), dest_path="", error=str(exc))
+
+        ok, size_mb, error = copy_file(source, dest_file)
+        if not ok:
+            logger.error(f"Backup copy failed: {error}")
+            return BackupResult(success=False, source_path=str(source), dest_path="", error=error)
+        return BackupResult(
+            success=True, source_path=str(source), dest_path=str(dest_file),
+            size_mb=size_mb, duration_seconds=time.time() - start,
+        )
 
     def backup_file(
         self,
@@ -208,10 +217,39 @@ class RemoteBackupService:
         if mirror_root is not None:
             # Cas normal : MIROIR RÉCURSIF — réplique TOUTE l'arbo (blobs/refs/snapshots/…)
             # exactement comme en local, à l'emplacement domaine/famille/models--org--name.
-            for file_path in source.rglob('*'):
-                if file_path.is_file():
-                    rel = file_path.relative_to(source)
-                    results.append(self._copy_one(file_path, mirror_root / rel, overwrite))
+            #
+            # Délègue au MOTEUR COMMUN (`mirror_tree`) depuis le 2026-08-10 : le parcours
+            # récursif dupliquait celui du miroir global. Le compte rendu par fichier attendu
+            # par `api_backup_model` est reconstruit via le callback `on_file`.
+            #
+            # ⚠ Nuance de comportement, volontaire : le saut se fait désormais sur « présent ET
+            # de même taille » au lieu de « présent » seul — une copie distante tronquée est
+            # donc refaite au lieu d'être conservée indéfiniment.
+            from wama.common.services.mirror_sync import mirror_tree
+
+            # `mirror_tree` REFUSE une destination inexistante — invariant volontaire qui
+            # empêche de fabriquer un dossier-poubelle local quand l'UNC n'est pas monté.
+            # Ici le sous-dossier du modèle n'existe pas encore au premier passage, d'où
+            # sa création explicite — mais SEULEMENT après avoir vérifié que la RACINE
+            # distante, elle, est bien disponible. Sans ce garde, un `mkdir` sur un chemin
+            # UNC non monté recréerait exactement le bug que l'invariant évite.
+            if not self.is_available():
+                return [BackupResult(
+                    success=False, source_path=str(source), dest_path="",
+                    error=f"Remote path not accessible: {self.remote_path}",
+                )]
+            mirror_root.mkdir(parents=True, exist_ok=True)
+
+            def collect(src, dst, action, size_mb, error):
+                results.append(BackupResult(
+                    success=action != 'failed',
+                    source_path=str(src),
+                    dest_path=str(dst) if action != 'failed' else "",
+                    size_mb=size_mb,
+                    error="File already exists (skipped)" if action == 'skipped' else error,
+                ))
+
+            mirror_tree(source, mirror_root, overwrite=overwrite, on_file=collect)
         else:
             # Fallback legacy (source hors AI-models/models/) : copie plate filtrée par patterns.
             if file_patterns is None:

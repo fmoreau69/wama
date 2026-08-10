@@ -733,21 +733,18 @@ def api_backup_list(request):
     })
 
 
-@login_required
-@user_passes_test(is_admin_or_dev)
-@require_POST
-def api_backup_models_start(request):
-    """API: lance la sauvegarde globale AI-models/models/ → espace distant (tâche Celery).
+def _mirror_job_start(request, task, cache_key):
+    """
+    Démarrage d'un miroir long (modèles, médias…) — corps COMMUN des vues `*_start`.
 
     Sens unique : rien n'est jamais supprimé côté distant (archive cumulative).
-    Idempotent : si un backup tourne déjà, on renvoie son état au lieu d'en lancer un
-    second (deux passes concurrentes se marcheraient dessus sur le même arbre distant).
+    Idempotent : si une passe tourne déjà, on renvoie son état au lieu d'en lancer une
+    seconde (deux passes concurrentes se marcheraient dessus sur le même arbre distant).
     """
     from django.core.cache import cache
     from celery.result import AsyncResult
-    from .tasks import backup_all_models_task, BACKUP_ALL_CACHE_KEY
 
-    current = cache.get(BACKUP_ALL_CACHE_KEY)
+    current = cache.get(cache_key)
     if current and current.get('state') == 'RUNNING':
         task_id = current.get('task_id')
         # Le cache peut survivre à un worker tué : ne considérer « en cours » que si
@@ -758,8 +755,26 @@ def api_backup_models_start(request):
             })
 
     overwrite = bool(json.loads(request.body or '{}').get('overwrite', False))
-    task = backup_all_models_task.delay(overwrite=overwrite)
-    return JsonResponse({'success': True, 'already_running': False, 'task_id': task.id})
+    started = task.delay(overwrite=overwrite)
+    return JsonResponse({'success': True, 'already_running': False, 'task_id': started.id})
+
+
+def _mirror_job_progress(cache_key):
+    """Avancement d'un miroir long — corps COMMUN des vues `*_progress`."""
+    from django.core.cache import cache
+
+    progress = cache.get(cache_key)
+    return JsonResponse({'success': True, 'running': bool(progress), 'progress': progress})
+
+
+@login_required
+@user_passes_test(is_admin_or_dev)
+@require_POST
+def api_backup_models_start(request):
+    """API: lance la sauvegarde globale AI-models/models/ → espace distant (tâche Celery)."""
+    from .tasks import backup_all_models_task, BACKUP_ALL_CACHE_KEY
+
+    return _mirror_job_start(request, backup_all_models_task, BACKUP_ALL_CACHE_KEY)
 
 
 @login_required
@@ -767,41 +782,19 @@ def api_backup_models_start(request):
 @require_GET
 def api_backup_models_progress(request):
     """API: avancement du miroir global des modèles (lu depuis le cache Redis)."""
-    from django.core.cache import cache
     from .tasks import BACKUP_ALL_CACHE_KEY
 
-    progress = cache.get(BACKUP_ALL_CACHE_KEY)
-    return JsonResponse({'success': True, 'running': bool(progress), 'progress': progress})
+    return _mirror_job_progress(BACKUP_ALL_CACHE_KEY)
 
 
 @login_required
 @user_passes_test(is_admin_or_dev)
 @require_POST
 def api_backup_media_start(request):
-    """API: lance le miroir des médias `media/` → espace distant (tâche Celery).
-
-    Même contrat que la sauvegarde des modèles : sens unique (rien n'est supprimé à
-    distance) et idempotent — si une sauvegarde tourne déjà, on renvoie son état plutôt
-    que d'en lancer une seconde, deux passes concurrentes se marchant dessus sur le même
-    arbre distant.
-    """
-    from django.core.cache import cache
-    from celery.result import AsyncResult
+    """API: lance le miroir des médias `media/` → espace distant (tâche Celery)."""
     from wama.common.tasks import backup_media_task, BACKUP_MEDIA_CACHE_KEY
 
-    current = cache.get(BACKUP_MEDIA_CACHE_KEY)
-    if current and current.get('state') == 'RUNNING':
-        task_id = current.get('task_id')
-        # Le cache peut survivre à un worker tué : ne considérer « en cours » que si
-        # Celery confirme que la tâche est encore vivante.
-        if task_id and AsyncResult(task_id).state in ('PENDING', 'STARTED', 'RETRY'):
-            return JsonResponse({
-                'success': True, 'already_running': True, 'progress': current,
-            })
-
-    overwrite = bool(json.loads(request.body or '{}').get('overwrite', False))
-    task = backup_media_task.delay(overwrite=overwrite)
-    return JsonResponse({'success': True, 'already_running': False, 'task_id': task.id})
+    return _mirror_job_start(request, backup_media_task, BACKUP_MEDIA_CACHE_KEY)
 
 
 @login_required
@@ -809,11 +802,9 @@ def api_backup_media_start(request):
 @require_GET
 def api_backup_media_progress(request):
     """API: avancement du miroir des médias (lu depuis le cache Redis)."""
-    from django.core.cache import cache
     from wama.common.tasks import BACKUP_MEDIA_CACHE_KEY
 
-    progress = cache.get(BACKUP_MEDIA_CACHE_KEY)
-    return JsonResponse({'success': True, 'running': bool(progress), 'progress': progress})
+    return _mirror_job_progress(BACKUP_MEDIA_CACHE_KEY)
 
 
 @login_required
