@@ -233,6 +233,17 @@ def panel_values_by_name(stored, params):
             if (pid := _panel_id(p)) and pid in stored}
 
 
+def panel_prefs_from_post(post, params):
+    """Chemin INVERSE de `panel_values_by_name` : capture l'état du volet reçu AU DÉPÔT.
+
+    La card poste les valeurs par NOM de param ; le stockage user_settings est clé par
+    `dom_id` du volet (unique entre domaines). Ne retient que ce que le POST porte
+    réellement : une clé absente ne doit pas écraser un réglage déjà stocké.
+    """
+    return {pid: post.get(p.name) for p in params
+            if (pid := _panel_id(p)) and p.name in post}
+
+
 USER_SETTINGS_DEFAULTS = {**_panel_defaults(IMAGE_PARAMS), **_panel_defaults(VIDEO_PARAMS)}
 # Le modèle par défaut est « auto » (tirage VRAM-aware AU LANCEMENT), pas un modèle figé :
 # l'ancien modèle Django `UserSettings` codait « stable-diffusion-v1-5 », ce qui faisait que

@@ -403,27 +403,11 @@ class ImageGeneration(ProcessingTimeMixin, PromptScoped, ScopedVisibility):
         super().save(*args, **kwargs)
 
 
-class UserSettings(models.Model):
-    """User preferences for image generation"""
-
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='imager_settings')
-
-    # Default generation settings
-    default_model = models.CharField(max_length=100, default="stable-diffusion-v1-5")
-    default_width = models.IntegerField(default=512)
-    default_height = models.IntegerField(default=512)
-    default_steps = models.IntegerField(default=30)
-    default_guidance_scale = models.FloatField(default=7.5)
-
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name = "User Settings"
-        verbose_name_plural = "User Settings"
-
-    def __str__(self):
-        return f"Settings for {self.user.username}"
+# RETIRÉ 2026-08-11 — `UserSettings` (5 colonnes de défauts, OneToOne user) : remplacé par la
+# brique commune `common/utils/user_settings.py` (défauts DÉRIVÉS du schéma params.py, écriture à
+# la création dans `create_generation`). Le modèle n'avait plus aucun écrivain depuis le retrait
+# de `update_settings` (2026-08-06) ; ses 3 lignes en base pointaient des modèles supprimés du
+# catalogue (openjourney-v4) et les vieux défauts 512×512 — rien à migrer. Migration 0016.
 
 
 class GenerationBatch(BatchMixin, ScopedVisibility):

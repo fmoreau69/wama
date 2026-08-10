@@ -26,7 +26,7 @@ from pathlib import Path
 from wama.accounts.permissions import app_access
 from wama.common.utils.queue_manipulation import make_queue_manipulation_views
 from wama.common.utils.scoping import owned_or_404, visible_or_404
-from .models import GenerationBatch, GenerationBatchItem, ImageGeneration, UserSettings
+from .models import GenerationBatch, GenerationBatchItem, ImageGeneration
 from wama.model_manager.services import get_registry_models
 from .utils.model_config import (
     DEFAULT_IMAGE_MODEL, DEFAULT_VIDEO_MODEL, DEFAULT_I2V_MODEL, get_model_defaults,
@@ -287,6 +287,18 @@ def create_generation(request):
     try:
         # Get generation mode
         generation_mode = request.POST.get('generation_mode', 'txt2img')
+
+        # Réglages user — écriture À LA CRÉATION (patron transcriber, brique A5-22) : les
+        # valeurs du volet voyagent avec le POST de la card, on les persiste ICI, au point de
+        # routage unique. Il n'existe aucun endpoint « enregistrer le volet » dans les apps
+        # portées. Sans cette écriture, get_user_app_settings ne rend que les défauts et le
+        # volet oublie tout réglage au rechargement.
+        from wama.common.utils.user_settings import save_user_app_settings
+        from .params import IMAGE_PARAMS, VIDEO_PARAMS, panel_prefs_from_post
+        _params = VIDEO_PARAMS if generation_mode in ('txt2vid', 'img2vid') else IMAGE_PARAMS
+        _prefs = panel_prefs_from_post(request.POST, _params)
+        if _prefs:
+            save_user_app_settings(user, 'imager', _prefs)
 
         # Route to appropriate handler
         if generation_mode == 'file2img':

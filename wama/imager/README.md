@@ -179,7 +179,7 @@ pip install imaginairy
 
 ```
 wama/imager/
-├── models.py           # Modèles Django (ImageGeneration, UserSettings)
+├── models.py           # Modèles Django (ImageGeneration, GenerationBatch)
 ├── views.py            # Vues et API endpoints
 ├── urls.py             # Routes URL
 ├── tasks.py            # Tâches Celery pour génération

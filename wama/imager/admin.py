@@ -3,7 +3,7 @@ WAMA Imager - Admin
 """
 
 from django.contrib import admin
-from .models import ImageGeneration, UserSettings
+from .models import ImageGeneration
 
 
 @admin.register(ImageGeneration)
@@ -40,10 +40,3 @@ class ImageGenerationAdmin(admin.ModelAdmin):
     def prompt_preview(self, obj):
         return obj.prompt[:50] + '...' if len(obj.prompt) > 50 else obj.prompt
     prompt_preview.short_description = 'Prompt'
-
-
-@admin.register(UserSettings)
-class UserSettingsAdmin(admin.ModelAdmin):
-    list_display = ('user', 'default_model', 'default_width', 'default_height', 'default_steps')
-    search_fields = ('user__username',)
-    readonly_fields = ('created_at', 'updated_at')

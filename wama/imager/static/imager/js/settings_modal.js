@@ -107,7 +107,10 @@
         const sel = wrap.querySelector('select');
         const w = wrap.querySelector('[name="width"]');
         const h = wrap.querySelector('[name="height"]');
-        const modelSel = host.querySelector('[name="model"]');
+        // Meme piege que fillModelChoices ci-dessus : la surface generee par WamaParams n'a pas
+        // de `name` — `[name="model"]` seul renvoyait null, donc le listener `change` ne se
+        // posait jamais et changer de modele ne rafraichissait pas la liste des resolutions.
+        const modelSel = host.querySelector('[name="model"], [data-param="model"]');
 
         function load() {
             const model = (modelSel && modelSel.value) || data.model || '';
