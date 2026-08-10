@@ -89,7 +89,9 @@ fi
 # ------------------------------------------------------
 if ! pgrep -x "postgres" > /dev/null; then
     echo "=== Starting PostgreSQL ==="
-    sudo service postgresql start
+    # -n : en non-interactif un prompt sudo serait invisible et bloquerait ici — mieux vaut
+    # échouer avec un message clair (les migrations le signaleront aussitôt).
+    sudo -n service postgresql start || echo "ERREUR: sudo indisponible pour lancer PostgreSQL — lancer 'sudo service postgresql start' a la main"
     sleep 3
 else
     echo "PostgreSQL is already running."
@@ -146,7 +148,9 @@ if python -c "import playwright" 2>/dev/null; then
     PW_DEPS_MARKER="$HOME/.cache/ms-playwright/.wama-os-deps-ok"
     if [ ! -f "$PW_DEPS_MARKER" ]; then
         echo "=== Provisioning Playwright Chromium (one-time : navigateur + libs apt) ==="
-        if python -m playwright install --with-deps chromium; then
+        # `--with-deps` invoque sudo apt en interne → même piège de prompt invisible en
+        # non-interactif : ne le tenter que si sudo a des credentials en cache (sudo -n true).
+        if sudo -n true 2>/dev/null && python -m playwright install --with-deps chromium; then
             mkdir -p "$(dirname "$PW_DEPS_MARKER")" && touch "$PW_DEPS_MARKER"
         else
             echo "WARN: 'playwright install --with-deps' a échoué (sudo/réseau/proxy) — tentative sans apt"
@@ -258,11 +262,14 @@ curl -s --max-time 15 "http://127.0.0.1:$DJANGO_PORT/filemanager/api/mounts/remo
 LIMITS_FILE=/etc/security/limits.d/wama.conf
 if [ ! -f "$LIMITS_FILE" ] || ! grep -q "nofile 65536" "$LIMITS_FILE" 2>/dev/null; then
     echo "=== Setting system file descriptor limits (requires sudo) ==="
-    printf "* soft nofile 65536\n* hard nofile 65536\n" | sudo tee "$LIMITS_FILE" > /dev/null
+    printf "* soft nofile 65536\n* hard nofile 65536\n" | sudo -n tee "$LIMITS_FILE" > /dev/null \
+        || echo "WARN: sudo indisponible — limits.d non écrit (le prlimit ci-dessous suffit pour cette session)"
 fi
 # Apply immediately to this shell (and all child processes, including Celery workers).
 # prlimit can raise both soft+hard limits as root; fallback to hard limit if sudo fails.
-sudo prlimit --nofile=65536:65536 --pid $$ 2>/dev/null \
+# -n obligatoire : sans lui, le prompt sudo (masqué par 2>/dev/null) a bloqué la séquence
+# 8 min en non-interactif le 2026-08-11 — celery n'était jamais lancé.
+sudo -n prlimit --nofile=65536:65536 --pid $$ 2>/dev/null \
     || ulimit -Sn "$(ulimit -Hn)" 2>/dev/null \
     || true
 echo "File descriptor limit: $(ulimit -n)"
