@@ -427,7 +427,15 @@ WamaParams sur les apps hand-built restantes + modale batch + studio→WamaParam
 `renderNodeParams`) ; chips ; `select_model()` ; **enum de statut commune** (tuer les 3 tables
 d'alias) ; `during_preview` émission (9 apps).
 
-### §10.3 — Write-back (code-gen) depuis le manifeste — `access` ✅ (DB) + `identity`/`ports`/`capabilities`/`studio` ✅ (code, 2026-08-11), reste 5 facettes
+### §10.3 — Write-back (code-gen) depuis le manifeste — `access` ✅ (DB) + `identity`/`ports`/`capabilities`/`studio`/`modes` ✅ (code, 2026-08-11), reste 4 facettes
+
+**Palier `modes` → APP_MODES** : la facette EST l'entrée (littéral profond domains→modes→
+inputs/settings) ; comparaison en égalité PROFONDE (ordre des clés indifférent, ordre des LISTES
+significatif), rendu pprint sur entrée générée, chirurgie REFUSÉE sur entrée main (multi-ligne
+par nature — seule une entrée marquée se régénère). Vérifié : noop intact, create → égalité
+profonde ré-extraite, idempotence, roundtrip **6/N** (5/N pour composer/describer/reader, sans
+modes — N/A). Reste en code-gen (converter) : `params`, `inspector`, `processing`, `tool_api`
+— cibles par-app (params.py, apps.py, urls/tasks/models), la marche suivante.
 
 **Palier `studio` → GENERIC_APPS** : le moteur dict est GÉNÉRALISÉ (`_write_dict_fields`
 paramétré par (chemin, assignation, rendu, ordre) — un seul moteur pour APP_CATALOG et

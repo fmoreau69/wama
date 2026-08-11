@@ -479,10 +479,11 @@ def _to_dict(obj) -> dict:
 #   - `ports`        → input_types/output_types de la même entrée (inversion studio_node_ports)
 #   - `capabilities` → has_batch/batch_type/has_url_import/has_youtube (le déclaratif seul)
 #   - `studio`       → entrée GENERIC_APPS (generic_runner.py — déclaratif seul, E/S dérivées exclues)
+#   - `modes`        → entrée APP_MODES (app_modes.py — littéral profond, égalité profonde)
 # Le reste des facettes `backend=code` part dans `codegen_required`. Le tri code/db vient de
 # `projection.FACET_TARGETS` (source unique) — l'ancienne liste locale codée en dur avait divergé
 # (elle omettait capabilities/modes et citait models/prompts), corrigé 2026-08-11.
-PROJECTED_FACETS = ('access', 'identity', 'ports', 'capabilities', 'studio')
+PROJECTED_FACETS = ('access', 'identity', 'ports', 'capabilities', 'studio', 'modes')
 
 
 def write_back_app(manifest: dict, *, apply: bool = False) -> dict:
@@ -505,6 +506,8 @@ def write_back_app(manifest: dict, *, apply: bool = False) -> dict:
         out['capabilities'] = _project_capabilities(manifest, apply=apply)
     if body.get('studio'):
         out['studio'] = _project_studio(manifest, apply=apply)
+    if body.get('modes'):
+        out['modes'] = _project_modes(manifest, apply=apply)
     out['codegen_required'] = [f for f, (_cible, backend) in FACET_TARGETS.items()
                                if backend == 'code' and body.get(f) and f not in PROJECTED_FACETS]
     return out
@@ -692,6 +695,29 @@ def _project_studio(manifest: dict, *, apply: bool) -> dict:
                                champs=STUDIO_FIELDS)
 
 
+def _project_modes(manifest: dict, *, apply: bool) -> dict:
+    """Facette modes → entrée APP_MODES (app_modes.py). La facette EST l'entrée (littéral
+    profond : domains → modes → inputs/settings) : comparaison en égalité PROFONDE (l'ordre
+    des clés de dict est indifférent, l'ordre des LISTES — domaines, modes, settings — est
+    significatif et préservé). Sur entrée main, `domains` est multi-ligne → la chirurgie est
+    refusée par construction : seule une entrée marquée se régénère."""
+    facet = (manifest.get('body') or {}).get('modes') or {}
+    target = {k: v for k, v in facet.items() if not k.startswith('_')}
+    def deltas(cur):
+        return [k for k in target if target[k] != cur.get(k)]
+    def current_fn(app_id, champs):
+        fichier = _entry_fields_from_file(_modes_path(), 'APP_MODES', app_id)
+        if fichier is None:
+            return None
+        return {c: fichier.get(c) for c in champs}
+    def write_fn(app_id, tgt, dlt, *, create):
+        return _write_dict_fields(_modes_path(), 'APP_MODES', app_id, tgt, dlt,
+                                  create=create, render_fn=_render_modes_entry_lines,
+                                  field_order=None, alphabetical=False, blank_sep=True)
+    return _project_dict_facet(manifest.get('key'), target, deltas, apply=apply,
+                               current_fn=current_fn, write_fn=write_fn)
+
+
 def _project_dict_facet(app_id: str, target: dict, deltas_fn, *, apply: bool,
                         current_fn, write_fn, champs: Optional[tuple] = None) -> dict:
     """Moteur commun des facettes → registre dict en code : create (entrée générée marquée) /
@@ -729,6 +755,11 @@ def _registry_path() -> Path:
 def _runner_path() -> Path:
     from wama.studio.services import generic_runner
     return Path(generic_runner.__file__)
+
+
+def _modes_path() -> Path:
+    from wama.common.utils import app_modes
+    return Path(app_modes.__file__)
 
 
 def _dict_bounds(lines: list, var: str) -> tuple:
@@ -836,6 +867,24 @@ def _render_entry_lines(app_id: str, fields: dict) -> list:
     return out
 
 
+def _render_modes_entry_lines(app_id: str, fields: dict) -> list:
+    """Entrée APP_MODES générée : littéral profond rendu par pprint (ordre d'insertion
+    préservé), continuation alignée sous la clé."""
+    import pprint
+    mark = _GEN_MARK.format(app_id=app_id)
+    out = [f"    '{app_id}': {{  # {mark} entrée GÉNÉRÉE par write_back_app (facette modes) ;",
+           "        # régénérée depuis le manifeste — ne pas éditer à la main."]
+    for k, v in fields.items():
+        prefix = f"        '{k}': "
+        rendu = pprint.pformat(v, width=96, sort_dicts=False).split('\n')
+        out.append(prefix + rendu[0])
+        pad = ' ' * len(prefix)
+        out += [pad + l for l in rendu[1:]]
+        out[-1] += ','
+    out.append("    },")
+    return out
+
+
 def _render_runner_entry_lines(app_id: str, fields: dict) -> list:
     """Entrée GENERIC_APPS générée (déclaratif seul, idiome du fichier — pas de ligne vide
     entre entrées). Les E/S dérivées n'y sont jamais rendues."""
@@ -884,7 +933,7 @@ def _write_dict_fields(path: Path, var: str, app_id: str, target: dict, deltas: 
         # entrée à nous : régénération entière — UNION des champs littéraux déjà écrits
         # (toutes facettes confondues, relus du FICHIER) et des champs de la facette en cours.
         merged = {c: v for c, v in (_entry_fields_from_file(path, var, app_id) or {}).items()
-                  if c in field_order and v is not _NONLITERAL}
+                  if (field_order is None or c in field_order) and v is not _NONLITERAL}
         merged.update(target)
         fin = span[1]
         vide = 1 if blank_sep and fin + 1 < len(lines) and lines[fin + 1].strip() == '' else 0
@@ -970,7 +1019,8 @@ def un_write_back_app(manifest: dict, *, apply: bool = False) -> dict:
     n = qs.count()
 
     cibles = (('catalog_entry', _registry_path(), 'APP_CATALOG', True),
-              ('runner_entry', _runner_path(), 'GENERIC_APPS', False))
+              ('runner_entry', _runner_path(), 'GENERIC_APPS', False),
+              ('modes_entry', _modes_path(), 'APP_MODES', True))
     generes = {}
     for nom, path, var, _sep in cibles:
         lines = path.read_text(encoding='utf-8').split('\n')
