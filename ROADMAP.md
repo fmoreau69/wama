@@ -1405,9 +1405,16 @@ pas le registre, il en décrit l'unité. ~~Il manque donc **les deux** côté li
 (2026-08)** : le registre `common.models.Library` (né de la projection `write_back_library`,
 migration 0004) ET le kind `library` existent (1er lien transcriber→faster-whisper).
 
-**Registres — état réel (mis à jour 2026-08-11)** : modèles (`AIModel`/`model_registry.py`) ✅ ·
-apps (`app_registry.py`/`APP_CATALOG`) ✅ · fonctions (`TOOL_REGISTRY`/`tool_api.py`) ✅ ·
-bibliothèques (`common.models.Library` + kind `library`) ✅. **CE QUI MANQUE désormais côté
+**Registres — état réel (mis à jour 2026-08-11, deux « fonctions » à NE PAS confondre)** :
+modèles (`AIModel`/`model_registry.py`) ✅ · apps (`app_registry.py`/`APP_CATALOG`) ✅ ·
+**outils assistant** (`TOOL_REGISTRY`/`tool_api.py` — surface de PILOTAGE des apps, facette F6) ✅ ·
+**fonctions DATA** (fonctions-cartes appliquées aux données, ex. cam_analyzer :
+`common/data/function_catalog.py::FUNCTION_CATALOG` + `UserFunction` DB scopée — kind `function`
+les EXTRAIT, page `/model-manager/functions/`) ✅ ·
+bibliothèques (`common.models.Library` + kind `library`) ✅.
+⚠ Trou write-back côté fonctions data : le kind `function` est extract/store/verify SEULEMENT —
+un manifeste `function` produit par LLM ne se projette pas encore (cible naturelle :
+`UserFunction` pour `binding=user` ; les fonctions `pure`/`app` du catalogue code = code-gen). **CE QUI MANQUE désormais côté
 librairies : la PAGE DE GESTION** (aucune vue/URL/template — signalé par Fabien le 2026-08-11) :
 lister le registre (version, licence, pip_spec, dépendances, `is_allowed`/`is_installed`),
 accessible depuis le menu utilisateur comme `/model-manager/` — même patron : la page LIT le
