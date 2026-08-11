@@ -427,7 +427,23 @@ WamaParams sur les apps hand-built restantes + modale batch + studio→WamaParam
 `renderNodeParams`) ; chips ; `select_model()` ; **enum de statut commune** (tuer les 3 tables
 d'alias) ; `during_preview` émission (9 apps).
 
-### §10.3 — Write-back (code-gen) depuis le manifeste — `access` ✅ (DB) + `identity`/`ports`/`capabilities`/`studio`/`modes`/`prompts` ✅ (code, 2026-08-11), reste 4 facettes
+### §10.3 — Write-back (code-gen) depuis le manifeste — `access` ✅ (DB) + `identity`/`ports`/`capabilities`/`studio`/`modes`/`prompts`/`params` ✅ (2026-08-11), reste 4 facettes (`inspector`, `models`, `processing`, `tool_api`)
+
+**Palier `params` (soir, sur dev)** : extract MULTI-SCHÉMAS — tous les attributs `*PARAMS_JSON`
+(trou #10 résorbé : imager IMAGE+VIDEO, enhancer MEDIA+AUDIO étaient invisibles), facette
+`{primary, schemas}` (forme liste historique acceptée à l'ingest). Projecteur : un `params.py`
+écrit MAIN est du code DÉRIVANT (`derive_from_model` + sources dynamiques) → comparaison
+SÉMANTIQUE seulement (canonique JSON, tuples profonds) et JAMAIS de réécriture ; module absent →
+fichier GÉNÉRÉ marqué (couche de démarrage, à raffiner en `derive_from_model` quand `processing`
+génèrera le modèle) ; réversibilité = suppression du fichier marqué. Vérifié : 10/10 noop,
+create bac à sable → égalité + `schema_for_app` vivant + idempotence. Roundtrip : **6/10 à 8/12**.
+
+**Orientation actée pour `processing` (avis critique 2026-08-11, comparaison k8s/Backstage/
+ComfyUI/Twenty/Terraform)** : PAS « le LLM génère le fichier » — un **GABARIT** couvre le
+squelette conventionnel (models.py/urls/tasks : la grille 72 critères prouve la convention),
+le LLM ne génère QUE le corps des backends (la glu d'usage des librairies). Harnais de jugement
+= le protocole du pilote (worktree + diff normalisé + grille + smoke), à ériger en process
+outillé avant d'ouvrir cette marche.
 
 **Palier `prompts` → PROMPT_TARGETS** : variante ENTRÉE-VALEUR du moteur (l'entrée du registre
 EST la liste `targets`, pas un dict de champs) — bornes par AST (lineno/end_lineno, robustes aux
@@ -497,7 +513,8 @@ idempotence (triple noop), chirurgie main = 1 ligne (commentaires intacts), roun
 | 7 | ✅ **clos (2026-08-01)** — gating ré-appliqué **par nœud** au RUN (`studio/tasks.py:181`) ET sur toute la surface outils (`tool_accessible`, cf. F7). Le trou était plus large que décrit : `/api/v1/tools/run/` n'était gardé par RIEN (middleware aveugle à `/api/v1/`, auth DRF postérieure au middleware) et `tools/list` annonçait 43 outils à tous. Mesuré après correctif : 22/43 annoncés à un compte `recherche` seul, `create_image` → 403 | F7 | ✅ |
 | 8 | **pas de test de contrat** sur la triade tool_api | F6 | robustesse |
 | 9 | imager : ✅ résolu — alias `add_to_imager` (`tool_api.py:2042`, `functools.wraps(create_image)` + remap `generation_id`→`item_id`) | F6 | clos |
-| 10 | `params_attr` multiple (image/video, media/audio) non capté par le manifeste | F3 | manifeste |
+| 10 | ✅ **résolu (2026-08-11, palier params)** — la facette capte TOUS les `*PARAMS_JSON` (`{primary, schemas}`) ; imager 2 schémas, enhancer 2 schémas | F3 | ✅ |
+| 19 | **Divergence store⟷réalité non détectée** (avis critique 2026-08-11) : l'apply est un geste explicite (voulu, sûreté §2.1) mais RIEN ne signale une dérive entre manifestes ingérés et registres — discipline Terraform : jamais d'apply auto, mais un plan/verify qui TOURNE et signale. Brancher `manifest_roundtrip --all` + `verify` dans les contrôles nocturnes (charpente §18 existante) | transverse | détection (pas d'apply auto) |
 | 11 | `APP_MODES` (hand-maintained) à dissoudre : domaine=hint UI, mode=dérivé capacités | F2 | dette de conception |
 | 12 | anonymizer : refactor yolo/SAM3 en sélecteur modèle groupé + switch capacités (pas un « mode ») | F2/F3 | refactor UX |
 | 13 | avatarizer (rapide/qualité=param) + composer (music/bruitage=sélection modèle) : sortir du mécanisme modes | F2 | simplification |

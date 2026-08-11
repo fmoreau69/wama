@@ -1412,14 +1412,17 @@ modèles (`AIModel`/`model_registry.py`) ✅ · apps (`app_registry.py`/`APP_CAT
 `common/data/function_catalog.py::FUNCTION_CATALOG` + `UserFunction` DB scopée — kind `function`
 les EXTRAIT, page `/model-manager/functions/`) ✅ ·
 bibliothèques (`common.models.Library` + kind `library`) ✅.
-⚠ Trou write-back côté fonctions data : le kind `function` est extract/store/verify SEULEMENT —
-un manifeste `function` produit par LLM ne se projette pas encore (cible naturelle :
-`UserFunction` pour `binding=user` ; les fonctions `pure`/`app` du catalogue code = code-gen). **CE QUI MANQUE désormais côté
-librairies : la PAGE DE GESTION** (aucune vue/URL/template — signalé par Fabien le 2026-08-11) :
-lister le registre (version, licence, pip_spec, dépendances, `is_allowed`/`is_installed`),
-accessible depuis le menu utilisateur comme `/model-manager/` — même patron : la page LIT le
-registre, le registre est alimenté par la projection des manifestes, jamais l'inverse. À bâtir
-avec le gating admin sur `is_allowed` (l'allowlist reste hors write-back, verrou n°2 Hermes).
+~~⚠ Trou write-back côté fonctions data~~ **FERMÉ (2026-08-11 soir)** : `write_back_function`
+projette un manifeste `function` `binding=user` vers `UserFunction` (idempotent, owner résolu,
+tag `_manifest-gen` bornant la révocation — une fonction autorée en UI n'est jamais retirée) ;
+les fonctions `pure`/`app` du catalogue code restent du code-gen.
+~~Ce qui manquait côté librairies : la PAGE~~ **PAGE LIVRÉE (2026-08-11 soir, signalée le
+matin)** : `/model-manager/libraries/` (patron `function_catalog` — cards du registre +
+installation MESURÉE live `importlib.metadata`, dérive vs `pip_spec` signalée, `is_allowed`
+lisible) + entrée « Librairies » au menu utilisateur. La page LIT le registre ; `is_allowed`
+se décide dans l'admin (allowlist hors write-back, verrou n°2 Hermes) ; le bouton
+d'installation viendra avec le provisionneur (plan → validation humaine →
+`apply_patches.py` en post-étape).
 
 Besoin réel : savoir **quelle app dépend de quelle librairie** (`opencv`, `ffmpeg-python`…), ce qui
 casse si on met à jour, et **quel environnement a quelle version** (dev/prod, machines différentes —

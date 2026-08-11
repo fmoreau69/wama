@@ -2417,6 +2417,22 @@ travail**. La base LIVE est celle de **WSL2 (Postgres 16)**, conforme à
 exécute WAMA nativement sous Windows (`venv_win runserver`) ; sinon c'est une taxe d'entretien
 supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 
+## §REPRISE — 2026-08-11 (2ᵉ session, SUITE du soir) : 8 facettes + function + page librairies + avis critique
+
+> Suite de la même session, après le merge : **`params`** porté (8ᵉ facette — multi-schémas,
+> trou #10 résolu ; compare sémantique sur fichier main, create-only marqué) ; **page
+> librairies** `/model-manager/libraries/` + menu (le registre n'avait aucune surface) ;
+> **`write_back_function`** → `UserFunction` (binding `user`, tag `_manifest-gen` — la boucle
+> « manifeste LLM → registre → page fonctions » est fermée pour les fonctions Data autorées) ;
+> distinction consignée **outils assistant ≠ fonctions Data** (ROADMAP) ; **triade studio**
+> livrée plus tôt. Roundtrip : **6/10 à 8/12 projetables**, reste `inspector`/`models`/
+> `processing`/`tool_api`. `WAMA_MANIFEST_ARCHITECTURE.md` remis au réel (4 kinds/8 facettes,
+> §6quater moteur commun). **Avis critique consigné** (route §10.3 + trou #19) : la chaîne est
+> conforme à l'état de l'art (frontière déclaré/dérivé/mesuré ≈ spec/status k8s ; corpus
+> multi-kinds ≈ Backstage ; contre-exemple ComfyUI validant l'allowlist-d'abord) ; 2 actions
+> retenues — détection de dérive NOCTURNE (trou #19, jamais d'apply auto) et `processing` par
+> GABARIT + LLM limité au corps des backends. README mis à jour (studio/assistant/manifestes).
+
 ## §REPRISE — 2026-08-11 (2ᵉ session) : write-back §10.3 (7 facettes) + triade studio tool_api
 
 > Bac à sable `git worktree` (`D:\WAMA\wt-regen-converter`, branche `regen/converter`) **mergé
