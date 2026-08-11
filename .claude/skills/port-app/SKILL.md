@@ -71,11 +71,18 @@ travail est de CONSOMMER, pas de créer. Route d'ensemble : `WAMA_APP_GENERATION
 4. Card mère batch = brique `_batch_card.html` + `build_batches_list()` (`batch_common.py`).
 5. Anti-race : `begin_processing()` (`process_control.py`) sur start/start_all/batch_start ;
    réconciliation orphelins : `reconcile_orphaned_running` dans l'IndexView.
+   **Tâche Celery d'item : brique `task_skeleton.run_item_task`** (A2a, 2026-08-12 — gardes,
+   progress, chrono, statuts, ETA, console, notifications ; l'app ne fournit que sa glu
+   `process(item, ctx)`). ⚠ les tâches d'ENRICHISSEMENT (analyze/enrich — ni statut ni
+   progress) sont HORS contrat : ne pas les forcer dedans.
 6. Manipulation directe : fabrique `queue_manipulation.py` (4 vues).
 7. Modales : `WamaParams.render(context:'item')` — JAMAIS de modal hand-built ; NE PAS retirer
    les modales ⚙ (chemin d'édition du mode simplifié).
-8. Inspecteur : `register_app_preview` + `register_app_detail` (adapters `apps.py`) +
-   `initFromSchema` ; contrat `.wama-card`.
+8. Inspecteur : `register_app_preview` + **`register_app_detail_spec` D'ABORD** (A3a — la
+   registration en SPEC-donnée rend la facette `inspector` régénérable ; l'adapter code
+   `register_app_detail` reste pour les logiques irréductibles) + `initFromSchema` ;
+   contrat `.wama-card`. Un port qui adopte les briques 5+8 rend l'app jugeable par
+   `app_regen_check` (strip-régénération, apps.py/urls.py compris).
 9. ETA : `eta_estimator` + `WamaEta` ; temps réel persisté `ProcessingTimeMixin`.
 10. Réglages user : `user_settings.py` ; toasts : `WamaApp.toast` (jamais alert()).
 11. **Partage (F7, depuis 2026-07-31)** — mesuré par `shareable_models` + `scoped_reads` :

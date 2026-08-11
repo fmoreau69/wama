@@ -40,12 +40,19 @@ Get-ChildItem .\manifests\apps\*.json | ForEach-Object { $j = Get-Content $_ -Ra
   "{0,-14} {1}" -f $_.BaseName, (($j.requires | Group-Object kind | ForEach-Object { "$($_.Name)=$($_.Count)" }) -join ' ') }
 ```
 
-Photo au 2026-08-04 (à re-mesurer, pas à croire) : **`app` est le SEUL kind qui projette**, et
-seulement sa facette `access` → `AppAccessPolicy`. `library`/`model`/`function`/`pipeline`/`project`
-sont **store+verify only** — un manifeste de modèle ne crée aucun `AIModel`. `dataset` n'a même pas
-d'`extract` : pour lui le manifeste EST l'origine.
-Composition mesurée : **91 liens `app → model`** sur 9 apps (converter = 0, normal : ffmpeg/pandoc,
-aucun modèle IA) et **0 lien `app → library`** — c'est LE trou ouvert de la composition.
+Photo au 2026-08-12 (à re-mesurer, pas à croire) : **4 kinds écrivent** (`app`, `library`,
+`model`, `function`) ; le kind `app` projette **9 facettes** (`PROJECTED_FACETS` — access DB +
+identity/ports/capabilities/studio/modes/prompts/params/inspector) **+ `processing` PARTIEL**
+(urls.py régénérable, tasks.py mince create-only) via les **gabarits
+`wama/common/manifests/codegen/`** (urls_gen/tasks_gen/apps_gen — fichiers marqués
+`[manifest-gen]`, jamais de rendu partiel, un fichier main n'est jamais réécrit). Reste
+code-gen : `models` (model_config), `tool_api` (entrée TOOL_REGISTRY, marche A4),
+`processing.models.py` (A5) ; corps de backends = marche B. `dataset` n'a pas d'`extract` :
+pour lui le manifeste EST l'origine.
+Composition mesurée : **91 liens `app → model`** + jambes `app → library` SEMÉES (corpus
+**19 manifestes** — transcriber = 4 modèles + 9 libraries, 13/13 résolus) ; strates actées
+(SPEC §7.4-5) : socle plateforme (`library_index.SOCLE_PLATEFORME`, jamais cité) / libraries
+métier / outils système (trou #15).
 
 ## 3. Contrôles à relancer après toute modification
 
@@ -54,6 +61,9 @@ python manage.py manifest_export --check          # le corpus est-il à jour vs 
 python manage.py manifest_roundtrip --all         # extract -> ingest -> extract est-il fidèle ?
 python manage.py doc_facts --check                # les blocs WAMA:FAITS des .md sont-ils à jour ?
 python manage.py check_docs                       # liens/chemins des docs (2 CASSÉ connus au 10/08)
+python manage.py app_regen_check <app>            # le JUGE profond (strip→apply→3 axes) —
+                                                  # WORKTREE UNIQUEMENT (refuse dev/main),
+                                                  # après tout palier de write-back/gabarit
 ```
 
 Un round-trip qui diverge sur un champ **déclaratif** est un bug ; sur un champ **runtime**
