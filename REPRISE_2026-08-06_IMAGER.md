@@ -194,6 +194,17 @@ bien REMPLACÉ, pas juxtaposé), mais **le point que Fabien craignait était fon
 POUR DE VRAI. 6 rouges : `help_about` (arbitrage), `url_ingest`, `recursive_import` (route, 0/10),
 `model_caps_ui`, `during_preview`, `backend_packages`.
 
+**MAJ 2026-08-11 (suite de session)** — trois paliers de plus :
+- **§10.1 de la route FAIT** (`b91f875`) : `GENERIC_APPS` dérive ses E/S des ports (converter
+  récupère `archive` perdu) ; 3 rétrécissements déclarés `io_scope` ; describer `text`→`document`.
+- **`help_about` RÉSOLU sans arbitrage** : la mesure a dissous la question — pages 500 sur 9
+  apps/10 (templates fantômes), 3 apps sans routes. Brique commune : onglets du gabarit
+  auto-remplis d'`APP_CATALOG` + routes = redirections vers l'onglet (`AppAboutView`/`AppHelpView`),
+  12 classes locales retirées, critère durci (vert = brique). 20/20 routes en 200.
+  **Grille : imager 93 % (69/74)**, `help_about` vert 10/10.
+- **Docs resynchronisées** (19 retards, 5 fichiers) + scories (stackdump supprimé,
+  `models/vision/` gitignoré en bloc).
+
 **Suite actée avec Fabien (2026-08-11)** : pilote de RÉGÉNÉRATION en bac à sable — converter d'abord
 (sans modèles), puis transcriber (avec `requires` → modèles + librairie faster-whisper ; ⚠ le manifeste
 librairie ≠ modèle : le transcriber propose PLUSIEURS modèles, **tous doivent passer**). Le maillon à
