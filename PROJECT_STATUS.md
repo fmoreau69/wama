@@ -2468,8 +2468,19 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > converter + reader portés, **parité prouvée sur 10 items réels** ; facette `inspector` porte
 > `detail_spec` + `preview` (données) au lieu de 2 booléens ; harnais ×2 CONFORMES. ⚠ restart
 > gunicorn/workers pour charger les nouveaux `ready()` (comportement identique, sans urgence).
-> **Suite : A3b gabarit apps_gen (inspector → projetable), A4 tool_api, A5 models.py ; dette
-> gardes restante = tâches anonymizer (avec son chantier).**
+> **Puis A3b livré — A3 CLOS (12/08)** : gabarit `apps_gen` (ready() rendu des déclarations ;
+> registre de mesure `batch_sync.SYNCED` → `processing.batch_link_model` ;
+> `identity.verbose_name`) ; rendu REFUSÉ pour un detail à adapter code (transcriber) ;
+> `inspector` dans PROJECTED_FACETS. Harnais : **converter CONFORME 6 cibles strippées
+> (apps.py compris), reader 5 cibles** ; roundtrip converter 8/10. Docs tunnel croisées
+> (ARCHITECTURE §1 = domicile de la jointure, invariant §2.1 explicite).
+>
+> 🔚 **POINT D'ENTRÉE SESSION SUIVANTE : marche A4 — entrée triade tool_api** (registre
+> central `wama/tool_api.py::TOOL_REGISTRY`, cadrage A0 : entrée de registre, pas fichier
+> par app), puis A5 models.py, micro-marche export corpus `model`, puis B (pilote
+> transcriber — exige d'abord son detail en spec déclarative OU un adapter assumé). Dette
+> gardes = tâches anonymizer (avec son chantier). ⚠ restart gunicorn/workers à l'occasion
+> (nouveaux ready()/tasks.py — comportement identique, sans urgence).
 
 ## §REPRISE — 2026-08-11 (2ᵉ session, SUITE du soir) : 8 facettes + function + page librairies + avis critique
 

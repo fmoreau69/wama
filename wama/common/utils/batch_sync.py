@@ -54,10 +54,18 @@ def resync_batches(batch_model):
     return resynced, deleted
 
 
+#: Modèles de liaison branchés (A3b) — REGISTRE de mesure : permet à l'extract manifeste de
+#: savoir quel modèle une app a déclaré (facette processing.batch_link_model), donc au gabarit
+#: apps_gen de régénérer l'appel. Ne pilote rien au runtime.
+SYNCED: list = []
+
+
 def register_batch_sync(item_model, batch_attr='batch'):
     """Branche post_save + post_delete d'un modèle `BatchItem` pour maintenir l'invariant
     (total = items.count(), batch vidé supprimé). À appeler UNE fois (AppConfig.ready).
     dispatch_uid garantit l'idempotence du branchement."""
+    if item_model not in SYNCED:
+        SYNCED.append(item_model)
     name = item_model.__name__
 
     def _on_change(sender, instance, **kwargs):

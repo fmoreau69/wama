@@ -623,6 +623,18 @@ outillé avant d'ouvrir cette marche.
   pour une même valeur. Normalisé À LA SOURCE (`tool_api._describe_arg` : un défaut
   str-compatible se rend par sa valeur). Harnais reader ensuite **CONFORME** (strip 4 cibles,
   grille 87 % identique, smoke identique) — **2ᵉ app à passer le strip-régénération complet**.
+**Palier A3b ✅ LIVRÉ (2026-08-12) — gabarit `apps_gen`, facette `inspector` PROJETABLE ;
+A3 CLOS** : `codegen/apps_gen.render_apps` rend le `ready()` complet depuis les déclarations
+(batch_sync via le nouveau registre de mesure `batch_sync.SYNCED` → `processing.
+batch_link_model` ; preview ; `detail_spec`) + `identity.verbose_name` (AppConfig, extrait,
+non projeté vers APP_CATALOG). Rendu REFUSÉ pour une app à adapter code (transcriber —
+jamais de fichier qui perdrait une logique) ; fichier main → noop (le runtime qu'il produit
+EST la facette) ; `inspector` ajoutée à PROJECTED_FACETS. **Harnais : converter CONFORME
+avec 6 cibles strippées (apps.py compris), reader CONFORME 5 cibles (batch_sync régénéré)** ;
+roundtrip monte partout (converter 8/10 — reste `processing` partiel + `tool_api`). Limite
+consignée : kwargs étendus de preview (describer/enhancer) non retenus par PreviewRegistry —
+bac « porter » avant leur régénération.
+
 **Palier A3a ✅ LIVRÉ (2026-08-12) — Detail/Preview DÉCLARATIFS (déblocage de la facette
 `inspector`)** : `register_app_detail_spec(app, Model, spec)` dans `detail_registry` — la
 registration devient une SPEC-donnée (mapping build_detail : champs/constantes,

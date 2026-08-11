@@ -35,7 +35,8 @@
         ".webp",
         ".bmp"
       ],
-      "url_name": "reader:index"
+      "url_name": "reader:index",
+      "verbose_name": "Reader — OCR Document"
     },
     "inspector": {
       "detail_registered": true,
@@ -309,6 +310,7 @@
     },
     "processing": {
       "anti_race": true,
+      "batch_link_model": "BatchReadingItemLink",
       "endpoints": [
         "about",
         "analyze",

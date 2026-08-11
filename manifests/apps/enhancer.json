@@ -61,7 +61,8 @@
         ".aiff",
         ".aif"
       ],
-      "url_name": "enhancer:index"
+      "url_name": "enhancer:index",
+      "verbose_name": "Enhancer - AI Image/Video Upscaling"
     },
     "inspector": {
       "detail_registered": true,
@@ -552,6 +553,7 @@
     },
     "processing": {
       "anti_race": true,
+      "batch_link_model": "BatchEnhancementItem",
       "endpoints": [
         "about",
         "audio_batch_create",

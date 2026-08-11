@@ -85,7 +85,8 @@
         ".7z",
         ".rar"
       ],
-      "url_name": "converter:index"
+      "url_name": "converter:index",
+      "verbose_name": "Converter"
     },
     "inspector": {
       "detail_registered": true,

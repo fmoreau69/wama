@@ -32,7 +32,8 @@
         ".pdf",
         ".docx"
       ],
-      "url_name": "composer:index"
+      "url_name": "composer:index",
+      "verbose_name": "Composer"
     },
     "inspector": {
       "detail_registered": true,
@@ -346,6 +347,7 @@
     },
     "processing": {
       "anti_race": true,
+      "batch_link_model": "ComposerBatchItem",
       "endpoints": [
         "about",
         "batch_delete",

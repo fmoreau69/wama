@@ -214,12 +214,13 @@ class Command(BaseCommand):
         from wama.common.manifests.builtin.app import (
             strip_app_declarations, _metadata_path, _modes_path, _params_file_path,
             _params_module_name, _registry_path, _runner_path)
+        from wama.common.manifests.codegen.apps_gen import apps_file_path
         from wama.common.manifests.codegen.urls_gen import urls_file_path
 
         corpus = self._corpus(app_id)
         candidats = [str(_registry_path()), str(_runner_path()), str(_modes_path()),
                      str(_metadata_path()), str(_params_file_path(_params_module_name(corpus))),
-                     str(urls_file_path(app_id))]
+                     str(urls_file_path(app_id)), str(apps_file_path(app_id))]
         branche = self._gardes(o['force'], candidats)
 
         rapport = {'app': app_id, 'branche': branche}

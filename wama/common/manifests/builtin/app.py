@@ -128,6 +128,13 @@ def extract_app(app_id: str) -> Optional[dict]:
         'url_name': cat.get('url_name'),
         'input_extensions': list(cat.get('input_extensions', ())),
     }
+    # verbose_name Django (A3b) : consommé par le gabarit apps_gen, PAS projeté vers
+    # APP_CATALOG (IDENTITY_FIELDS ne le liste pas — il vit dans AppConfig).
+    try:
+        from django.apps import apps as django_apps
+        body['identity']['verbose_name'] = str(django_apps.get_app_config(app_id).verbose_name)
+    except Exception:
+        pass
 
     # F2 CAPACITÉS & PORTS
     try:
@@ -416,6 +423,16 @@ def _processing(cat: dict, app_id: str) -> dict:
             out['item_model'] = entree['model'].__name__
     except Exception:
         pass
+    # Modèle de liaison batch branché (A3b) — lu du registre de mesure batch_sync.SYNCED ;
+    # consommé par le gabarit apps_gen (converter, FK directe, n'en a pas : clé absente).
+    try:
+        from wama.common.utils.batch_sync import SYNCED
+        lien = next((m.__name__ for m in SYNCED
+                     if m.__module__ == f'wama.{app_id}.models'), None)
+        if lien:
+            out['batch_link_model'] = lien
+    except Exception:
+        pass
     return out
 
 
@@ -568,7 +585,7 @@ def _to_dict(obj) -> dict:
 # `projection.FACET_TARGETS` (source unique) — l'ancienne liste locale codée en dur avait divergé
 # (elle omettait capabilities/modes et citait models/prompts), corrigé 2026-08-11.
 PROJECTED_FACETS = ('access', 'identity', 'ports', 'capabilities', 'studio', 'modes', 'prompts',
-                    'params')
+                    'params', 'inspector')
 
 
 def write_back_app(manifest: dict, *, apply: bool = False, skip: tuple = ()) -> dict:
@@ -589,6 +606,9 @@ def write_back_app(manifest: dict, *, apply: bool = False, skip: tuple = ()) -> 
                    ('capabilities', _project_capabilities), ('studio', _project_studio),
                    ('modes', _project_modes), ('prompts', _project_prompts),
                    ('params', _project_params),
+                   # inspector (A3b) : projetable quand la registration est déclarative
+                   # (detail_spec) — un adapter code fait rapporter un skip motivé.
+                   ('inspector', _project_inspector),
                    # processing = projection PARTIELLE (urls.py seul, gabarit A1) : la facette
                    # reste dans codegen_required tant que models.py/tasks.py ne se génèrent pas.
                    ('processing', _project_processing))
@@ -1013,6 +1033,39 @@ def _project_processing(manifest: dict, *, apply: bool) -> dict:
             '_manifest_key': f'app:{app_id}', 'reload_required': True, **restants}
 
 
+def _project_inspector(manifest: dict, *, apply: bool) -> dict:
+    """Facette inspector → `apps.py` (gabarit A3b). Régénérable UNIQUEMENT quand la
+    registration detail est DÉCLARATIVE (`detail_spec`, A3a) — un adapter code refuse le
+    rendu (logique irréductible : jamais de fichier qui perdrait une logique). Contrats du
+    moteur : absent → GÉNÉRÉ marqué ; marqué → régénéré si le rendu change ; écrit main →
+    JAMAIS réécrit (noop — l'extract lisant le RUNTIME que ce fichier produit, facette et
+    fichier coïncident par construction)."""
+    from ..codegen.apps_gen import apps_file_path, render_apps
+    app_id = manifest.get('key')
+    src, raison = render_apps(manifest)
+    if src is None:
+        return {'op': 'skip', 'reason': raison}
+    path = apps_file_path(app_id)
+    if not path.is_file():
+        op, marked = 'create', False
+    else:
+        contenu = path.read_text(encoding='utf-8')
+        marked = _GEN_MARK.format(app_id=app_id) in contenu[:600]
+        if not marked:
+            return {'op': 'noop', 'file': str(path), 'generated_file': False,
+                    'reason': 'apps.py écrit main — le runtime qu\'il produit EST la facette'}
+        op = 'noop' if contenu == src else 'update'
+    if not apply:
+        return {'op': op, 'file': str(path), 'generated_file': marked,
+                'would_change': [] if op == 'noop' else ['ready() régénéré']}
+    if op == 'noop':
+        return {'op': op, 'changed': [], '_manifest_key': f'app:{app_id}'}
+    compile(src, str(path), 'exec')
+    path.write_text(src, encoding='utf-8')
+    return {'op': op, 'changed': ['ready() régénéré'], 'file': str(path),
+            '_manifest_key': f'app:{app_id}', 'reload_required': True}
+
+
 def _project_tasks(manifest: dict, *, apply: bool):
     """Cible tasks.py du gabarit A2b — CREATE-ONLY. Un fichier existant est de la glu réelle :
     on ne le compare ni ne le régénère JAMAIS (même un fichier marqué : ses trous ont pu être
@@ -1383,12 +1436,14 @@ def un_write_back_app(manifest: dict, *, apply: bool = False) -> dict:
         span = span_fn(lines, app_id, *_dict_bounds(lines, var))
         generes[nom] = span is not None and _GEN_MARK.format(app_id=app_id) in lines[span[0]]
 
-    # params.py / urls.py générés = des FICHIERS (pas des entrées de dict) : retirables s'ils
-    # portent le marqueur.
+    # params.py / urls.py / apps.py générés = des FICHIERS (pas des entrées de dict) :
+    # retirables s'ils portent le marqueur.
+    from ..codegen.apps_gen import apps_file_path
     from ..codegen.urls_gen import urls_file_path
     fichiers = {}
     for nom_f, p in (('params_file', _params_file_path(_params_module_name(manifest))),
-                     ('urls_file', urls_file_path(app_id))):
+                     ('urls_file', urls_file_path(app_id)),
+                     ('apps_file', apps_file_path(app_id))):
         fichiers[nom_f] = (p, p.is_file()
                            and _GEN_MARK.format(app_id=app_id)
                            in p.read_text(encoding='utf-8')[:600])
@@ -1498,6 +1553,23 @@ def strip_app_declarations(manifest: dict, *, apply: bool = False) -> dict:
             out['urls_file'] = 'retiré'
         else:
             out['urls_file'] = 'à retirer'
+
+    # apps.py (gabarit A3b) : strippé seulement si le rendu est possible SANS PERTE
+    # (detail déclaratif + item_model — un adapter code refuse).
+    from ..codegen.apps_gen import apps_file_path, render_apps
+    src, raison = render_apps(manifest)
+    p = apps_file_path(app_id)
+    if src is None:
+        out['apps_file'] = f'hors périmètre ({raison})'
+    elif not p.is_file():
+        out['apps_file'] = 'déjà absent'
+    else:
+        out['files'].append(str(p))
+        if apply:
+            p.unlink()
+            out['apps_file'] = 'retiré'
+        else:
+            out['apps_file'] = 'à retirer'
     return out
 
 

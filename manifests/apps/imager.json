@@ -43,7 +43,8 @@
         ".heif",
         ".avif"
       ],
-      "url_name": "imager:index"
+      "url_name": "imager:index",
+      "verbose_name": "Imager - AI Image Generation"
     },
     "inspector": {
       "detail_registered": true,
@@ -1111,6 +1112,7 @@
     },
     "processing": {
       "anti_race": true,
+      "batch_link_model": "GenerationBatchItem",
       "endpoints": [
         "about",
         "api_all_resolutions",

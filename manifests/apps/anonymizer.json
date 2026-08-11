@@ -53,7 +53,8 @@
         ".ts",
         ".m4v"
       ],
-      "url_name": "anonymizer:index"
+      "url_name": "anonymizer:index",
+      "verbose_name": "Anonymizer"
     },
     "inspector": {
       "detail_registered": true,
@@ -849,6 +850,7 @@
     },
     "processing": {
       "anti_race": false,
+      "batch_link_model": "BatchAnonymizerItem",
       "endpoints": [
         "about",
         "batch_create",

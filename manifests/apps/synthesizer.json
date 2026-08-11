@@ -32,7 +32,8 @@
         ".pdf",
         ".docx"
       ],
-      "url_name": "synthesizer:index"
+      "url_name": "synthesizer:index",
+      "verbose_name": "Synthesizer"
     },
     "inspector": {
       "detail_registered": true,
@@ -606,6 +607,7 @@
     },
     "processing": {
       "anti_race": true,
+      "batch_link_model": "BatchSynthesisItem",
       "endpoints": [
         "about",
         "batch_create",

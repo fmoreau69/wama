@@ -50,7 +50,8 @@
         ".ts",
         ".m4v"
       ],
-      "url_name": "transcriber:index"
+      "url_name": "transcriber:index",
+      "verbose_name": "Transcriber"
     },
     "inspector": {
       "detail_registered": true,
@@ -417,6 +418,7 @@
     },
     "processing": {
       "anti_race": true,
+      "batch_link_model": "BatchTranscriptItem",
       "endpoints": [
         "about",
         "backends",

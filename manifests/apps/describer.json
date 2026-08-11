@@ -66,7 +66,8 @@
         ".pdf",
         ".docx"
       ],
-      "url_name": "describer:index"
+      "url_name": "describer:index",
+      "verbose_name": "Describer - AI Content Description"
     },
     "inspector": {
       "detail_registered": true,
@@ -341,6 +342,7 @@
     },
     "processing": {
       "anti_race": true,
+      "batch_link_model": "BatchDescriptionItem",
       "endpoints": [
         "about",
         "batch_create",

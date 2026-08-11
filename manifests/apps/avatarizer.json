@@ -48,7 +48,8 @@
         ".heif",
         ".avif"
       ],
-      "url_name": "avatarizer:index"
+      "url_name": "avatarizer:index",
+      "verbose_name": "Avatarizer"
     },
     "inspector": {
       "detail_registered": true,
@@ -206,6 +207,7 @@
     },
     "processing": {
       "anti_race": true,
+      "batch_link_model": "BatchAvatarJobItem",
       "endpoints": [
         "about",
         "batch_create",
