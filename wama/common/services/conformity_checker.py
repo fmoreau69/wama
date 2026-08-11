@@ -169,7 +169,8 @@ def _inspector_adapters(f: _AppFiles):
 
 
 def _eta_seeded(f: _AppFiles):
-    rec = f.find(TASKS, r'record_run')
+    # `run_item_task` (brique task_skeleton, A2) fait le record_run pour la glu qui déclare `eta`.
+    rec = f.find(TASKS, r'record_run|run_item_task')
     est = f.find(VIEWS, r'\bestimate\(')
     if rec and est:
         return True, f"{rec} + {est}"
@@ -718,7 +719,8 @@ CRITERIA: list[Criterion] = [
               lambda f: _present(f, URLS, r'batch_template|batch-template')),
     Criterion('btn_order', 'F5', 'Ordre canonique des boutons ⚙▶⬇⧉🗑', _btn_order),
     Criterion('crash_redelivery_guard', 'F5', 'Garde anti-BOUCLE-de-crash (refuse_crash_redelivery)',
-              lambda f: _present(f, TASKS, r'refuse_crash_redelivery')),
+              # la brique task_skeleton (A2) porte la garde pour toute tâche qui l'adopte
+              lambda f: _present(f, TASKS, r'refuse_crash_redelivery|run_item_task')),
     Criterion('error_message_field', 'F5', 'Champ error_message sur le modèle d’item',
               lambda f: _present(f, MODELS, r'error_message\s*=\s*models\.')),
     # ── F6 prompts & tool_api ──

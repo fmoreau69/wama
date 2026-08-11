@@ -2,100 +2,52 @@
 WAMA Converter — Celery Tasks
 
 Tâche principale : convert_media_task
-Routing : CPU-bound → queue 'default' (pas de GPU requis)
-"""
+Routing : CPU-bound → queue 'default' (pas de GPU requis — mais les options cross-app
+(upscale, audio_enhance) peuvent charger des modèles GPU depuis cette tâche, d'où la garde
+anti-boucle-de-crash du squelette commun).
 
+Squelette (gardes, progress, chrono, statuts, ETA, console, notifications) = brique COMMUNE
+`common/utils/task_skeleton.run_item_task` (marche A2, route §10.3). Ce fichier ne porte plus
+que la GLU du converter : routage de format, presets qualité, nommage de sortie, quick-convert
+in-place atomique.
+"""
 import logging
+import os
 from pathlib import Path
+
 from celery import shared_task
-from django.core.cache import cache
-from django.db import close_old_connections
 
 from .models import ConversionJob
-from wama.common.utils.console_utils import push_console_line
 
 logger = logging.getLogger(__name__)
 
 
-def _set_progress(job_id: int, pct: int) -> None:
-    pct = max(0, min(100, int(pct)))
-    cache.set(f"converter_progress_{job_id}", pct, timeout=3600)
-    ConversionJob.objects.filter(pk=job_id).update(progress=pct)
-
-
-def _console(user_id: int, message: str, level: str = None) -> None:
-    try:
-        if level is None:
-            msg_lower = message.lower()
-            if any(w in msg_lower for w in ['error', 'failed', 'erreur', '✗']):
-                level = 'error'
-            elif any(w in msg_lower for w in ['warning', 'attention']):
-                level = 'warning'
-            else:
-                level = 'info'
-        push_console_line(user_id, message, level=level, app='converter')
-    except Exception:
-        pass
-
-
 @shared_task(bind=True)
 def convert_media_task(self, job_id: int):
-    """
-    Celery task : performs file format conversion.
+    from wama.common.utils.task_skeleton import run_item_task
+    run_item_task(self, app_id='converter', model=ConversionJob, item_id=job_id,
+                  process=_convert, ingest_derive=_derive_media_type,
+                  notify_label='Converter')
 
-    Steps:
-    1. Load ConversionJob
-    2. Route to image / video / audio backend
-    3. Update progress + status
-    4. Handle cross-app options (upscale, audio_enhance) — P2
-    """
-    close_old_connections()
-    logger.info(f"=== convert_media_task START | job_id={job_id} task={self.request.id} ===")
 
-    try:
-        job = ConversionJob.objects.select_related('user').get(pk=job_id)
-    except ConversionJob.DoesNotExist:
-        logger.error(f"ConversionJob #{job_id} introuvable")
-        return
+def _derive_media_type(inst, path, fname):
+    """Hook `derive` de l'ingest URL (WAMA_INGEST) : renseigne media_type au téléchargement."""
+    if inst.media_type:
+        return []
+    from .utils.format_router import detect_media_type
+    inst.media_type = detect_media_type(fname) or ''
+    return ['media_type']
 
-    # Garde anti-boucle-de-crash (brique COMMUNE) : message `redelivered` = worker mort sans
-    # acquitter (freeze/panic machine) → ne PAS rejouer l'exécution qui l'a tué. Pertinent ici
-    # bien que le converter soit ffmpeg/pandoc : les options cross-app (upscale, audio_enhance)
-    # chargent des modèles GPU depuis CETTE tâche.
-    from wama.common.utils.process_control import refuse_crash_redelivery
-    if refuse_crash_redelivery(self, job, error_field='error_message'):
-        logger.warning(f"[converter] Job #{job_id} : reprise après crash refusée — relancer manuellement.")
-        return
 
-    user_id = job.user_id
-    _set_progress(job_id, 0)
-    _console(user_id, f"Conversion démarrée : {job.input_filename} → .{job.output_format}")
-
-    # ── Ingest URL déclaratif (brique commune, piloté par ConversionJob.WAMA_INGEST) :
-    # si le job a une source_url sans fichier local, on le matérialise ici.
-    try:
-        from wama.common.utils.source_ingest import ensure_local_input
-
-        def _derive(inst, path, fname):
-            if inst.media_type:
-                return []
-            from .utils.format_router import detect_media_type
-            inst.media_type = detect_media_type(fname) or ''
-            return ['media_type']
-
-        ensure_local_input(job, console=lambda m: _console(user_id, m), derive=_derive)
-    except Exception as exc:
-        logger.warning(f"[converter] ensure_local_input({job_id}) : {exc}")
-
-    import time as _time
-    _t0 = _time.time()  # chrono pour le seeding ETA
-
-    # ── Resolve input path ────────────────────────────────────────────────────
-    input_path  = job.input_file.path
-
+def _convert(job, ctx):
+    """GLU converter (contrat task_skeleton) : résout chemins et options, dispatche au backend
+    du type de média, déplace atomiquement le résultat in-place. Une exception = FAILURE (le
+    squelette gère statut/console/notification) ; le fichier temporaire in-place est nettoyé
+    ICI (le squelette ne connaît pas les artefacts de la glu)."""
     from django.conf import settings
-    from pathlib import Path as _Path
-    import os
+
+    ctx.console(f"Conversion démarrée : {job.input_filename} → .{job.output_format}")
+    input_path = job.input_file.path
 
     # Output location:
     #   - dest_dir set (quick convert in-place) → write next to the source,
@@ -104,16 +56,16 @@ def convert_media_task(self, job_id: int):
     in_place = bool(job.dest_dir)
     if in_place:
         output_rel_dir = job.dest_dir if job.dest_dir.endswith('/') else job.dest_dir + '/'
-        output_dir     = settings.MEDIA_ROOT / output_rel_dir
+        output_dir = settings.MEDIA_ROOT / output_rel_dir
         output_dir.mkdir(parents=True, exist_ok=True)
-        output_name    = _build_inplace_name(output_dir, job.input_filename, job.output_format)
+        output_name = _build_inplace_name(output_dir, job.input_filename, job.output_format)
     else:
         # Convention standard {app}/{user_id}/output (cohérent avec UploadToUserPath
         # et avec l'arbre du Filemanager).
-        output_rel_dir = f"converter/{user_id}/output/"
-        output_dir     = settings.MEDIA_ROOT / output_rel_dir
+        output_rel_dir = f"converter/{job.user_id}/output/"
+        output_dir = settings.MEDIA_ROOT / output_rel_dir
         output_dir.mkdir(parents=True, exist_ok=True)
-        output_name    = _build_output_name(job.input_filename, job.output_format)
+        output_name = _build_output_name(job.input_filename, job.output_format)
 
     final_output_path = str(output_dir / output_name)
 
@@ -123,7 +75,8 @@ def convert_media_task(self, job_id: int):
     # partial/corrupt file next to the user's source.
     if in_place:
         import tempfile as _tf
-        _fd, output_path = _tf.mkstemp(prefix='wama_conv_', suffix=f'.{job.output_format.lower()}')
+        _fd, output_path = _tf.mkstemp(prefix='wama_conv_',
+                                       suffix=f'.{job.output_format.lower()}')
         os.close(_fd)
         os.unlink(output_path)  # backends create it themselves; we only reserved the name
     else:
@@ -132,9 +85,6 @@ def convert_media_task(self, job_id: int):
     # Apply quality preset (explicit options always win over preset defaults).
     from .utils.quality_presets import resolve_options
     eff_opts = resolve_options(job.media_type, job.quality_preset, job.options)
-
-    def _progress(pct: int):
-        _set_progress(job_id, pct)
 
     try:
         media_type = job.media_type
@@ -148,7 +98,7 @@ def convert_media_task(self, job_id: int):
                 quality=int(eff_opts.get('quality', 90)),
                 options=eff_opts,
             )
-            _set_progress(job_id, 90)
+            ctx.progress(90)
 
         elif media_type == 'video':
             from .backends.video_backend import convert_video
@@ -157,7 +107,7 @@ def convert_media_task(self, job_id: int):
                 output_path=output_path,
                 output_format=job.output_format,
                 options=eff_opts,
-                progress_callback=_progress,
+                progress_callback=ctx.progress,
             )
 
         elif media_type == 'audio':
@@ -167,19 +117,19 @@ def convert_media_task(self, job_id: int):
                 output_path=output_path,
                 output_format=job.output_format,
                 options=eff_opts,
-                progress_callback=_progress,
+                progress_callback=ctx.progress,
             )
 
         elif media_type == 'document':
             from .backends.document_backend import convert_document
-            _set_progress(job_id, 10)
+            ctx.progress(10)
             convert_document(
                 input_path=input_path,
                 output_path=output_path,
                 output_format=job.output_format,
                 options=eff_opts,
             )
-            _set_progress(job_id, 90)
+            ctx.progress(90)
 
         elif media_type == 'archive':
             from .backends.archive_backend import convert_archive
@@ -188,48 +138,12 @@ def convert_media_task(self, job_id: int):
                 output_path=output_path,
                 output_format=job.output_format,
                 options=eff_opts,
-                progress_callback=_progress,
+                progress_callback=ctx.progress,
             )
 
         else:
             raise ValueError(f"Type de média non supporté : {media_type}")
-
-        # In-place: move the temp result to its final location next to the source.
-        if in_place:
-            import shutil as _sh
-            _sh.move(output_path, final_output_path)
-
-        # ── Save output file reference ────────────────────────────────────
-        rel_path = f"{output_rel_dir}{output_name}"
-        ConversionJob.objects.filter(pk=job_id).update(
-            output_file=rel_path,
-            status='SUCCESS',
-            progress=100,
-            # Temps réel persisté (ProcessingTimeMixin) — même mesure que le seeding ETA ci-dessous.
-            processing_seconds=_time.time() - _t0,
-        )
-        job.refresh_from_db()
-        _set_progress(job_id, 100)
-        _console(user_id, f"✓ Conversion terminée : {output_name}", level='info')
-        logger.info(f"convert_media_task DONE | job_id={job_id} output={output_path}")
-
-        # Seeding ETA : temps ∝ taille d'entrée (Mo) ; clé par type de conversion (ffmpeg, pas de modèle)
-        try:
-            from wama.model_manager.services.eta_estimator import record_run
-            _mb = max(os.path.getsize(input_path) / 1e6, 0.01)
-            record_run(f'converter:{job.media_type}:{job.output_format}', size=_mb,
-                       unit='mb', process_seconds=_time.time() - _t0, load_seconds=None)
-        except Exception:
-            pass
-        try:
-            from wama.common.utils.notifications import notify_job
-            notify_job(getattr(job, 'user', None), 'Converter', output_name, True)
-        except Exception:
-            pass
-
-    except Exception as exc:
-        error_msg = str(exc)[:500]
-        logger.exception(f"convert_media_task ERROR | job_id={job_id}: {exc}")
+    except Exception:
         # Remove the in-place temp file so no partial output lingers.
         if in_place:
             try:
@@ -237,25 +151,27 @@ def convert_media_task(self, job_id: int):
                     os.unlink(output_path)
             except Exception:
                 pass
-        ConversionJob.objects.filter(pk=job_id).update(
-            status='FAILURE',
-            error_message=error_msg,
-        )
-        _console(user_id, f"✗ Erreur conversion : {error_msg}", level='error')
-        try:
-            from wama.common.utils.notifications import notify_job
-            from django.contrib.auth.models import User
-            _u = User.objects.filter(pk=user_id).first()
-            notify_job(_u, 'Converter', f"conversion #{job_id}", False, detail=error_msg)
-        except Exception:
-            pass
+        raise
+
+    # In-place: move the temp result to its final location next to the source.
+    if in_place:
+        import shutil as _sh
+        _sh.move(output_path, final_output_path)
+
+    # Seeding ETA : temps ∝ taille d'entrée (Mo) ; clé par type de conversion (ffmpeg, pas de modèle)
+    _mb = max(os.path.getsize(input_path) / 1e6, 0.01)
+    return {
+        'fields': {'output_file': f"{output_rel_dir}{output_name}"},
+        'eta': (f'converter:{job.media_type}:{job.output_format}', _mb, 'mb'),
+        'label': output_name,
+    }
 
 
 def _build_output_name(input_filename: str, output_format: str) -> str:
     """Replace extension with output format, ensuring uniqueness via timestamp."""
     import time
     stem = Path(input_filename).stem
-    ts   = int(time.time())
+    ts = int(time.time())
     return f"{stem}_{ts}.{output_format.lower()}"
 
 
@@ -266,7 +182,7 @@ def _build_inplace_name(output_dir, input_filename: str, output_format: str) -> 
     so the source is never overwritten and successive conversions don't clash.
     """
     stem = Path(input_filename).stem
-    ext  = output_format.lower()
+    ext = output_format.lower()
     candidate = f"{stem}.{ext}"
     if not (Path(output_dir) / candidate).exists():
         return candidate

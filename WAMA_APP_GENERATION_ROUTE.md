@@ -564,7 +564,32 @@ outillé avant d'ouvrir cette marche.
   rejet à l'ingest). Aucun n'était actif sur les 10 apps (vérifié) ; harnais re-CONFORME.
 - **Mesuré** : couverture COMPLÈTE 9/10 apps (converter 27/34 compressées + 7 déclarées ;
   synthesizer = 2 vues inexprimables `voice_preview_diagnostic`/`stream_test`, correctement
-  refusées) ; fidélité roundtrip 10/10 OK ; corpus régénéré. **Harnais C : VERDICT CONFORME
+  refusées) ; fidélité roundtrip 10/10 OK ; corpus régénéré.
+
+**Palier A2a ✅ LIVRÉ (2026-08-11, 3ᵉ session) — brique `task_skeleton` + 1er adopteur converter** :
+- Constat A0 : le `tasks.py` d'une app existante contient de la GLU réelle → il ne peut pas
+  passer le juge strip-régénération avant la marche B. Mais le squelette conventionnel était
+  DUPLIQUÉ 10× avec dérive (tâches secondaires sans gardes : anonymizer 1/4, reader `analyze`,
+  transcriber `enrich`). Règle maison appliquée : **brique commune d'abord**, le gabarit
+  viendra rendre un fichier mince (brique + trou de glu pour B).
+- **`common/utils/task_skeleton.run_item_task`** : close_old_connections → chargement item →
+  `refuse_crash_redelivery` → progress 0 → `ensure_local_input` (no-op sans WAMA_INGEST) →
+  chrono → glu `process(item, ctx)` → SUCCESS + progress 100 + `processing_seconds` →
+  `record_run` + `notify_job` best-effort ; FAILURE + `error_field` + console ✗ sur exception.
+  Contrat de glu : `ctx.progress`/`ctx.console`, retour `{fields, eta:(clé,taille,unité),
+  label}` ; le nettoyage d'échec (fichiers temp) reste DANS la glu ; `progress_fn` déclarable
+  (throttle transcriber) — jamais de `if app ==` dans la brique.
+- **Converter porté** (TRADUIRE et REMPLACER) : `convert_media_task` = 5 lignes + glu
+  `_convert` (routage format, presets, quick-convert in-place atomique). Critères de grille
+  `crash_redelivery_guard` et `eta_seeded` reconnaissent la brique (`|run_item_task`).
+- **Validé empiriquement** : exécution RÉELLE synchrone (job PNG→WebP de test : SUCCESS,
+  progress 100, processing_seconds posé, sortie créée, artefacts nettoyés) ; grille converter
+  93 % identique ; harnais CONFORME. ⚠ Prod : restart des workers Celery WSL2 requis pour
+  charger le nouveau `tasks.py`.
+- **Reste A2** : 2e adopteur en résorbant la dérive mesurée (les tâches secondaires SANS gardes
+  de reader/anonymizer/transcriber sont les candidates naturelles), puis A2b = gabarit
+  `tasks_gen.py` (fichier mince : squelette + trou de glu marqué) dont le juge complet est le
+  pilote B. **Harnais C : VERDICT CONFORME
   avec strip de 5 cibles dont urls.py** — le urls.py généré rend les 34 routes, grille 93 %
   identique, smoke identique, ré-extraction identique. Piège levé : les system checks Django
   chargent l'URLconf racine au démarrage de toute commande → `requires_system_checks = []`

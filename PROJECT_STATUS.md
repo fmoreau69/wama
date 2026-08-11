@@ -2436,8 +2436,18 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > `_project_processing` (urls seule, facette reste codegen), strip/un_write_back/harnais
 > étendus. Couverture 9/10 complète ; **harnais : CONFORME avec urls.py strippé et régénéré**.
 > Piège : system checks Django chargent l'URLconf → `requires_system_checks = []`.
-> **Suite : A2 squelette `tasks.py`** (puis A3 apps.py après detail déclaratif, A4 tool_api,
-> A5 models.py).
+>
+> **Puis A1 rattrapé sur auto-critique** (4 écarts latents : perte silencieuse include/anonymes
+> → poison de couverture ; import vues pointées ; ordre URLconf préservé ; validation
+> extra_routes) et **palier A2a livré** : brique **`common/utils/task_skeleton.run_item_task`**
+> (le squelette Celery dupliqué 10× avec dérive — gardes, progress, chrono, statuts, ETA,
+> console, notifications — extrait UNE fois ; contrat de glu `process(item, ctx)`), converter
+> porté (5 lignes + glu `_convert`), critères `crash_redelivery_guard`/`eta_seeded` reconnaissent
+> la brique. Validé : exécution RÉELLE (PNG→WebP SUCCESS, artefacts nettoyés), grille 93 %
+> identique, harnais CONFORME. ⚠ **Restart workers Celery WSL2 requis** (nouveau tasks.py).
+> **Suite : 2e adopteur task_skeleton (tâches secondaires sans gardes = dérive mesurée), A2b
+> gabarit tasks_gen (juge = pilote B), puis A3 apps.py (detail déclaratif), A4 tool_api, A5
+> models.py.**
 
 ## §REPRISE — 2026-08-11 (2ᵉ session, SUITE du soir) : 8 facettes + function + page librairies + avis critique
 
