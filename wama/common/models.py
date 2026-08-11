@@ -386,7 +386,7 @@ class Library(models.Model):
     Pourquoi ici et pas ailleurs : ROADMAP §16.7 désigne `library` comme le kind PILOTE du
     manifeste-first, précisément parce qu'il n'a **aucun registre historique à réconcilier**
     (contrairement aux modèles, qui avaient `AIModel` bien avant les manifestes). Ce registre
-    naît donc propre : sa seule source d'écriture déclarative est `project_library()`.
+    naît donc propre : sa seule source d'écriture déclarative est `write_back_library()`.
 
     Frontière (SPEC §7.1) : on stocke ce que la librairie EST — dépôt, licence, version, install,
     points d'entrée, contraintes. **JAMAIS l'usage qu'une app en fait** : ça, c'est le `requires`
@@ -417,7 +417,7 @@ class Library(models.Model):
     # ── VERROU D'INSTALLATION (ROADMAP §16.7, transposé d'Hermes) ───────────────
     # Verrou n°2 d'Hermes : l'allowlist vit DANS l'arbre, et la config utilisateur ne peut pas
     # élargir le périmètre. Transposé ici : `is_allowed` est une décision HUMAINE explicite et
-    # n'est **JAMAIS** écrit par `project_library()`. Sans cette exclusion, ingérer un manifeste
+    # n'est **JAMAIS** écrit par `write_back_library()`. Sans cette exclusion, ingérer un manifeste
     # suffirait à s'auto-autoriser à installer — le verrou ne vaudrait plus rien.
     is_allowed = models.BooleanField(
         default=False, db_index=True,

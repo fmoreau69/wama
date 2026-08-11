@@ -1140,7 +1140,7 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 | WAMA_APP_CONVENTIONS.md | 2398 | **référence normative** | 🔨 §15.1 (table conformité) périmée sur plusieurs lignes + double numérotation §15 + §5 dupliqué avec CARD_DESIGN |
 | PROJECT_STATUS.md (ce fichier) | — | tableau de bord vivant | 🔧 **corrigé ce jour** : §9 Media Library disait Phases 2-4 ⏳, en fait faites |
 | WAMA_APP_GENERATION_ROUTE.md | — | cartographie UNIQUE (consolide 4 docs archivés) | ✅ autorité route commune (créé 2026-07-22, 12fdabc) |
-| WAMA_MANIFEST_SPEC.md | — | formalisme des manifestes (6 kinds) | ✅ vivant (créé 2026-07-21) |
+| WAMA_MANIFEST_SPEC.md | — | formalisme des manifestes (7 kinds) | ✅ vivant (créé 2026-07-21) |
 | WAMA_MANIFEST_ARCHITECTURE.md | — | schéma fonctionnel manifestes/ingest/projection | ✅ vivant (créé 2026-07-21) |
 | WAMA_DATA_FUNCTION_CARDS.md | — | catalogue capability WAMA Data | ✅ vivant (créé 2026-07-20 ; à resynchroniser post-refactoring `data/functions/` par domaine) |
 | ~~REPRISE_2026-07-22.md~~ | — | handoff daté | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-25, B8 ; vivant migré §40 + R18/R19 + CLAUDE.md) |
@@ -2176,15 +2176,18 @@ marqueur `~/.cache/ms-playwright/.wama-os-deps-ok`) : `python -m playwright inst
 (dl séparé, KO derrière proxy) → le code cible le **Chromium complet** via `executable_path`
 (`_find_chromium_executable`).
 
-**23.6 Trou à consigner (côté manifeste) — dépendances lib/outil non déclarées.**
-F4 déclare les **modèles IA** mais **pas** les librairies (playwright…) ni outils système (binaire Chromium,
-ffmpeg, rsvg…). Le provisioning est **hard-codé** (bloc Chromium dans `start_wama_prod.sh`) au lieu d'être
-**dérivé d'une déclaration manifeste**. Pattern actuel : `requirements*.txt` global + `setup_<app>.sh`
-(1 app : avatarizer). **Cible (pendant F4/manifeste)** : facette `requires:{models, libraries, system_tools}`
-+ **provisionneur commun** lisant l'union des déclarations ; ex. converter/describer déclarent
-« browser-render (chromium) », la capacité est fournie par `common/utils/html_render`. → à ajouter comme
-**trou #15** dans `WAMA_APP_GENERATION_ROUTE.md §11` (par l'instance manifeste — non touché ici pour éviter
-un conflit d'édition concurrente).
+**23.6 Trou (côté manifeste) — dépendances : volet LIBRAIRIES CLOS, reste `system_tools`.**
+*(MAJ 2026-08-11 — l'énoncé d'origine disait « ni librairies ni outils système » ; le volet
+librairies a été livré depuis.)* **Clos** : `requires:{kind:library}` déclaré dans l'ENVELOPPE
+(`envelope.py:45`), résolu et bloquant (`ingest.resolve_requires`), kind `library` + registre
+`common.models.Library` nés de la projection (`write_back_library`), 1er lien réel
+transcriber→faster-whisper, inventaire `library_index`/`library_candidates`. **Reste** : les
+**outils système** (binaire Chromium, ffmpeg, rsvg…) — provisioning encore hard-codé (bloc
+Chromium dans `start_wama_prod.sh`) au lieu d'être dérivé d'une déclaration `system_tools`, et le
+**provisionneur commun** lisant l'union des déclarations (ex. converter/describer déclarent
+« browser-render (chromium) », la capacité est fournie par `common/utils/html_render`).
+→ consigné comme **trou #15** dans `WAMA_APP_GENERATION_ROUTE.md §11` (fait le 2026-08-11 —
+l'ancienne note « à ajouter » n'avait jamais été exécutée).
 
 **⏳ Validation navigateur (Fabien)** : à faire après restart worker Celery + serveur web WSL2 — converter
 (PDF #43, card URL), describer (URL média/page web), transcriber (URL YouTube/lien direct → audio).
@@ -2197,14 +2200,19 @@ un conflit d'édition concurrente).
 > (flux/schéma) + `WAMA_APP_GENERATION_ROUTE.md` (route F1–F8). Le détail vit LÀ-BAS, pas ici.
 
 - ✅ Enveloppe + registre de kinds + ingest idempotent (`common/manifests/` : envelope/kinds/ingest)
-- ✅ **6 kinds** : app, model, dataset, pipeline, project, function (84aa35e → 87d6a80)
+- ✅ **7 kinds** : app, model, dataset, pipeline, project, function (84aa35e → 87d6a80) +
+  **library (2026-08-03, `80fec09`)** — kind pilote : son registre `common.models.Library` NAÎT
+  de la projection
 - ✅ Extracteur `app` (8 facettes fonctionnelles = 12 clés `APP_FACETS`), via les accesseurs
   PARTAGÉS `studio_node_ports`/`app_capabilities` (contrat de jonction respecté, 4038301)
 - ✅ Projection **dry-run + rapport d'écarts** (`manifests/projection.py`, 391eacc)
 - ✅ **1ʳᵉ projection write-back réelle : `access` → `AppAccessPolicy`** (idempotente/réversible,
   a75c01d, 2026-07-23)
 - ✅ Trou #14 côté manifeste : capacité F2 `accepts_url` + facette F5 `ingest` en extract (b5edbc4)
-- ⏳ Write-back des autres facettes (11 en code-gen) ; trou #15 (dépendances lib/outil, §23.6)
+- ✅ Write-back réel sur **3 kinds** (app/`access`, library=registre entier, model=`license`/
+  `platform_ref`) — hooks renommés `write_back`/`un_write_back` le 2026-08-05
+- ⏳ Code-gen des **9** facettes d'app restantes (`codegen_required`) ; trou #15 réduit à
+  `system_tools` (§23.6, MAJ 2026-08-11)
 
 ## 39. Couche WAMA Data (2026-07-20→22) — synthèse
 

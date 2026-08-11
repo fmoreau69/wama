@@ -7,12 +7,15 @@ Chaque kind fournit :
                                       (enveloppe + body). Base du round-trip (spec §2).
   - `verify(manifest) -> list[dict]` : diff manifeste ↔ état courant (facultatif ; défaut = compare au
                                       résultat de `extract`).
-  - `write_back(manifest) -> None`     : ÉCRIT les entrées dérivées dans les registres (facultatif au début ;
-                                      projection write-back = chantier ultérieur, cf. spec §6).
-  - `un_write_back(manifest) -> None`  : retire les entrées dérivées (réversibilité).
+  - `write_back(manifest, *, apply=False) -> dict` : ÉCRIT les entrées dérivées dans les registres
+                                      (dry-run par défaut). IMPLÉMENTÉ sur 3 kinds : `app`
+                                      (facette `access`), `library` (crée la ligne `Library`),
+                                      `model` (champs déclaratifs) — cf. spec §7.1 ter.
+  - `un_write_back(manifest, *, apply=False) -> dict` : retire les entrées dérivées (réversibilité).
 
-Un kind SANS `project` est « store+verify only » : le manifeste est stocké et diffable, mais n'écrit
-pas encore dans les registres fonctionnels (posture prudente, briques inchangées).
+Un kind SANS `write_back` (`function`, `pipeline`, `project`, `dataset`) est « store+verify only » :
+le manifeste est stocké et diffable, mais n'écrit pas dans les registres fonctionnels (posture
+prudente, briques inchangées).
 """
 
 from __future__ import annotations

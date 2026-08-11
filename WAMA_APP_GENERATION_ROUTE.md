@@ -71,13 +71,19 @@ chacun de leur côté :
 - **`studio_node_ports()`** (`app_registry.py:127`) = **l'accesseur UNIQUE de ports** : construit les ports
   `travail`/`prompt` depuis `APP_CATALOG.input/output_types`, PUIS relit `APP_MODES` **uniquement** pour
   ajouter les ports `reference` (`:152-168`). C'est le point de jonction card⟷nœud⟷preview.
-- **`GENERIC_APPS` re-déclare les E/S à la main** au lieu de les dériver d'`APP_CATALOG` → **redondance
-  réelle** (déjà instrumentée : `manifests/projection.py` diffe les deux). Mais elle porte AUSSI des champs
-  qu'`APP_CATALOG` n'a pas (`params_module/attr`, `input_kwarg`, `fixed_kwargs`, `auto_start`) = **câblage
-  runner, PAS de la redondance** → à préserver.
+- ~~**`GENERIC_APPS` re-déclare les E/S à la main** → redondance réelle~~ **RÉSORBÉE (2026-08-11,
+  `b91f875`, §10.1)** : `GENERIC_APPS` **dérive** ses E/S de `studio_node_ports()` à l'import
+  (`_fill_io_from_ports`, ordre = priorité préservé — la redéclaration manuelle avait fait perdre
+  `archive` au converter). Une E/S déclarée à la main est un OVERRIDE : légitime si `io_scope`
+  déclaré (imager V1 txt2img, enhancer média seul, avatarizer audio seul), sinon `studio_redundancy`
+  la nomme `drift`. Les champs de **câblage runner** (`params_module/attr`, `input_kwarg`,
+  `fixed_kwargs`, `auto_start`) restent déclarés — ce n'est pas de la redondance.
 - **`INSTALLED_APPS`** (`settings.py:268`) = liste plate hand-maintenue, disjointe des registres.
 - **Le manifeste `app`** (`manifests/builtin/app.py:76`) **agrège DÉJÀ les 4 registres + Django** en un body
-  12 facettes (extract-only). C'est la brique de convergence — reste le write-back (code-gen).
+  12 facettes ; **write-back PARTIEL** : la facette `access` s'écrit au runtime dans `AppAccessPolicy`
+  (`write_back_app`, idempotent/réversible, depuis `a75c01d`), les 9 autres facettes = code-gen de la
+  couche mince déclarative (l'UI, elle, est générée au runtime par les briques une fois les registres
+  alimentés). C'est la brique de convergence.
 
 ---
 
@@ -403,15 +409,25 @@ manifeste** (ce que le kind `app` capte + cible de projection).
 registres actuels deviennent des **projections re-synchronisables** (discipline ingest : idempotent /
 réversible / `verify`). On préserve tout le riche, on régénère le simplifié.
 
-**Séquence prudente (préalable au code-gen) :**
-1. **E/S** : faire de `GENERIC_APPS.input_kinds/output_type` une **projection des ports** (`derive_io_from_
-   ports`). Garder les champs de câblage runner. **Seul correctif de données : `document` aux ports describer.**
-   Les autres « écarts » sont **légitimes** (avatarizer=image de référence, enhancer=2 domaines) ou de
-   l'**incomplétude** (converter pas encore dans le studio).
-2. **Adopter les briques sous-adoptées** (chantier d'homogénéisation, indépendant du manifeste) :
-   WamaParams sur les 5 apps hand-built + modale batch + studio→WamaParams (supprimer `renderNodeParams`) ;
-   chips ; `select_model()` ; **enum de statut commune** (tuer les 3 tables d'alias) ; `during_preview` frontend.
-3. **Write-back** (code-gen) depuis le manifeste, en commençant par le sûr (`access` DB).
+**Séquence prudente (préalable au code-gen) — c'est la « §10.x » que cite le code :**
+
+### §10.1 — E/S : `GENERIC_APPS` = projection des ports — ✅ FAIT (2026-08-11, `b91f875`)
+`_fill_io_from_ports()` dérive `input_kinds`/`primary_input`/`output_type` de `studio_node_ports()`
+à l'import, **ordre préservé** (= priorité de résolution de l'entrée primaire). Champs de câblage
+runner conservés déclarés. Rétrécissements de nœud déclarés par `io_scope` (imager V1 txt2img,
+enhancer média, avatarizer audio) ; E/S manuelle sans `io_scope` → verdict `drift`
+(`studio_redundancy`). Correctif de données appliqué : describer `input_types` `text`→`document`
+(le `text` fabriquait un port prompt fantôme). Le converter, qui avait perdu `archive` dans la
+redéclaration manuelle, le récupère par construction. Mesuré : 10/10 agree (7 derived / 3 narrowed).
+
+### §10.2 — Adopter les briques sous-adoptées — 🔄 (chantier d'homogénéisation, indépendant du manifeste)
+WamaParams sur les apps hand-built restantes + modale batch + studio→WamaParams (supprimer
+`renderNodeParams`) ; chips ; `select_model()` ; **enum de statut commune** (tuer les 3 tables
+d'alias) ; `during_preview` émission (9 apps).
+
+### §10.3 — Write-back (code-gen) depuis le manifeste — amorce ✅ (`access` DB, 2026-07-23), reste les 9 facettes code
+Faire grandir `write_back_app` facette par facette, chaque incrément jugé par le diff
+régénéré/existant (pilote de régénération : converter puis transcriber, acté 2026-08-11).
 
 ---
 
@@ -419,8 +435,8 @@ réversible / `verify`). On préserve tout le riche, on régénère le simplifi�
 
 | # | Trou | Facette | Nature |
 |---|---|---|---|
-| 1 | `describer` : `document` absent des ports | F2 | correctif de données |
-| 2 | modale **batch** jamais rendue par WamaParams (hand-built partout) | F3 | adoption |
+| 1 | ✅ **fait (2026-08-11, §10.1)** — describer `input_types` `text`→`document` : le port travail porte `document`, le port prompt fantôme a disparu | F2 | ✅ |
+| 2 | modale **batch** rendue par WamaParams (`context:'batch'`) sur **3/10** (anonymizer, avatarizer, imager — cf. F3) ; reste 7 apps hand-built | F3 | adoption |
 | 3 | studio `renderNodeParams` appauvri (réinvente WamaParams en dégradant) | F3/F8 | réinvention à supprimer |
 | 4 | ✅ **périmé (2026-07-30)** — le front consomme bien `?side=during` (`wama-inspector.js::_startDuring`). Trou RÉEL reformulé : l'**émission** de partiels n'existe que dans le composer (1/10) | F3b | adoption, pas frontend |
 | 5 | `select_model()` : composer, transcriber, imager, **reader** (2026-07-31, `61a666f`). Reclaim VRAM ✅ **unifié** (cf. F4). Ce qui restait n'était PAS un trou : enhancer/avatarizer/synthesizer n'ont **aucune sélection automatique à faire** (l'utilisateur désigne, ou le modèle vit hors process) ; describer = unification différée par CLAUDE.md (Phase 4) ; anonymizer = `select_best_models()` couvre un **jeu de classes avec plusieurs modèles** là où la brique n'en choisit qu'un, et lit déjà le catalogue → sur-ensemble légitime | F4 | ✅ pour l'essentiel |
@@ -434,6 +450,7 @@ réversible / `verify`). On préserve tout le riche, on régénère le simplifi�
 | 12 | anonymizer : refactor yolo/SAM3 en sélecteur modèle groupé + switch capacités (pas un « mode ») | F2/F3 | refactor UX |
 | 13 | avatarizer (rapide/qualité=param) + composer (music/bruitage=sélection modèle) : sortir du mécanisme modes | F2 | simplification |
 | 14 | **ingest média** (`source_url`→fichier local). ✅ **Mécanisme commun bâti** (2026-07-22, `d8960e5`) : `common/utils/source_ingest.ensure_local_input(instance)`, piloté par une déclaration modèle `WAMA_INGEST = {source, target, mode: media\|audio\|smart, name_field?, size_field?, title_field?}` (stopgap). Les 2 wrappers describer/transcriber sont **fusionnés** dessus (le transcriber **crashait** sans ce maillon). Réutilise `url_ingest.fetch_url_content` / `video_utils.upload_media_from_url`/`download_youtube_audio`. **Reste (côté instance manifeste) :** capacité **F2** `accepts_url`/`accepts_local_path` (→ génère la card au lieu du `show_url` manuel) + **facette F5** `ingest:{…}` qui *projette* vers `WAMA_INGEST` (remplacer le stopgap). Adopter l'URL sur une app = déclarer `WAMA_INGEST` + appeler `ensure_local_input` en tête de tâche. **✅ EXTRACT fait 2026-07-23** : `extract_app` capte `capabilities.accepts_url` + `processing.ingest` (lit `WAMA_INGEST` du modèle d'item via DetailRegistry ; transcriber/describer remontent leur spec, apps sans ingest → None). Reste = la **projection write-back** (manifeste → `WAMA_INGEST`), avec le reste de l'app_gen. | F2/F5 | extract ✅, projection ⏳ |
+| 15 | **`system_tools` non déclarés** (chromium, ffmpeg, rsvg…) — le volet **librairies** du manifeste est CLOS (2026-08-03/11 : `requires:{kind:library}` dans l'enveloppe, résolu et bloquant, kind + registre `Library` + `write_back_library` livrés, 1er lien transcriber→faster-whisper) ; ce qui manque encore est la déclaration des **outils système** et leur provisionneur commun (cf. `PROJECT_STATUS` §23.6, qui annonçait ce trou sans qu'il ait été reporté ici) | F4/F5 | manifeste |
 
 ---
 

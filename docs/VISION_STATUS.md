@@ -80,13 +80,14 @@
 **propriété / projet / visibilité** (absente de toolbox tierce). → Le manifeste WAMA = richesse descriptive toolbox tierce
 + reader pluggable + types WAMA + métadonnées projet.
 
-**Formalisme des manifestes (doctrine 2026-07-21, ⏳)** — WAMA a DÉJÀ plusieurs manifestes épars
-(`APP_CATALOG`, `studio/GENERIC_APPS`, `FUNCTION_CATALOG`, `StudioPipeline.graph`, catalogue modèles,
-+ le futur manifeste-données toolbox tierce) avec une **redondance** (app décrite 2× : APP_CATALOG *et* GENERIC_APPS).
-→ **Union discriminée** : enveloppe commune (`manifest_kind`, `schema_version`, key, name, owner, visibility,
-projects, source) + `body` par kind validé contre le **schéma du kind** (= le « template » du skill LLM) +
-un **registre `MANIFEST_KINDS`** (validation/dispatch keyés sur le kind). Kinds : `app` (à CONVERGER
-APP_CATALOG⟷GENERIC_APPS), `function` (fait), `dataset` (toolbox tierce), `model`, `pipeline`, `project` (fait).
+**Formalisme des manifestes (doctrine 2026-07-21 — ✅ LIVRÉ 2026-07-21→08-05)** — la doctrine
+décrite ici est implémentée : enveloppe commune (`common/manifests/envelope.py`), registre
+`MANIFEST_KINDS` (`kinds.py`), ingest validate→sandbox→promote idempotent/transactionnel/réversible
+(`ingest.py`, avec `verify`/`un_ingest` et `resolve_requires` pour la composition), **7 kinds**
+(`builtin/` : app, dataset, function, **library** — kind pilote dont le registre `Library` naît de
+la projection —, model, pipeline, project), corpus de 11 manifestes (`manifests/`). La redondance
+historique APP_CATALOG⟷GENERIC_APPS est **résorbée** (2026-08-11 : E/S dérivées des ports).
+Reste le code-gen des facettes d'app (write-back partiel : `access` seule au runtime).
 **Le dispatch n'est PAS « une simple fonction »** : risque de N-copies qui divergent → le manifeste = source
 UNIQUE (registres = projections OU ingest atomique avec back-link). Ingest = validate→sandbox→**promote**,
 IDEMPOTENT + TRANSACTIONNEL + RÉVERSIBLE + traçable. **Sandbox = manifeste en `visibility=private/staging` →
@@ -118,7 +119,7 @@ la visibilité 'project' (gate = membre du projet). Admin Project + inline membr
 | Partie | Thème | État global |
 |---|---|---|
 | I (1-2) | Vision, philosophie | 📜 actée (CLAUDE.md 6 points, conventions) |
-| II (3-5) | Manifestes, auto-instanciation, gestion modèles | 🔄 manifeste ~70-80 % déclaratif ; auto-instanciation ⏳ (gatée) ; modèles = le plus avancé |
+| II (3-5) | Manifestes, auto-instanciation, gestion modèles | 🔄 manifeste **formalisé et extrait** (12 facettes × 10 apps, round-trip sans écart) ; auto-instanciation ⏳ (gatée par le code-gen) ; modèles = le plus avancé |
 | III (6-8) | Studio, graphe de capacités, typage | 🔄 bien avancé — exécution réelle V1 livrée |
 | IV (9-16) | Rôle/skills, RAG, traduction, chaîne prompt, assistant | 🔄 skills+pipeline+traduction entrée FAITS ; **RAG = 0** (verrou de toute la partie aval) |
 | V (17-23) | Création multimédia | 🔄 briques riches (imager/composer/synthesizer/avatarizer, médiathèque) ; chaîne narrative (Story Director, storyboard, montage/mixage) ⏳ |
@@ -141,7 +142,7 @@ la visibilité 'project' (gate = membre du projet). Admin Project + inline membr
 ### Partie II — Manifestes
 | § | Sujet | État | Réalité code / renvoi |
 |---|---|---|---|
-| 3 | Manifeste comme contrat | 🔄 | Route déjà ~70-80 % déclarative : `APP_CATALOG` (+capacités, rôles, types E/S), `params.py`/`params_spec`, `app_modes.py`, `PROMPT_TARGETS`. Manifeste formel unique ⏳ — **gaté par l'uniformisation des 10 apps** (`AUDIT_ROUTE_COMMUNE_2026-07-06.md` §3, `project_manifest_generation_priority`) |
+| 3 | Manifeste comme contrat | 🔄 | Manifeste formel **livré** (`WAMA_MANIFEST_SPEC.md` + `common/manifests/`, corpus 10 apps validées, 91 `requires` model + 1 library). Ce qui reste gaté par l'uniformisation des 10 apps, c'est le **write-back code-gen** (9 facettes), pas le formalisme |
 | 4 | Auto-instanciation d'apps | ⏳ | Scaffold volontairement EN DERNIER de la route manifeste ; prospection Phase B (app émergente) gatée idem |
 | 5 | Gestion intelligente des modèles | 🔄 avancé | Le pan le plus mûr : model_manager cerveau, `AIModel` source unique, VRAM-aware, keep_loaded, `install_from_spec`, conversion, backup miroir, ETA auto-apprenant. Reste : `backend_selector.py` commun, chargeur générique, étape 3 centralisation (PROJECT_STATUS §2) |
 

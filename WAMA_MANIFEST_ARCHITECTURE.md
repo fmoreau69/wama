@@ -1,9 +1,11 @@
 # WAMA — Schéma fonctionnel : Manifestes → Ingest → Génération d'app → Mécanismes UI
 
 > **But** : voir clair sur la chaîne complète AVANT d'attaquer l'auto-génération d'application.
-> Complète `WAMA_MANIFEST_SPEC.md` (formalisme) avec les FLUX. État au **2026-07-23** : socle des 6
-> kinds **fait et testé** ; **projection = 1 facette (`access` → AppAccessPolicy) réellement écrite**
-> (a75c01d, idempotente/réversible, dry-run par défaut), 11 facettes restantes en code-gen.
+> Complète `WAMA_MANIFEST_SPEC.md` (formalisme) avec les FLUX. État au **2026-08-11** : socle des
+> **7 kinds** fait et testé ; **write-back réel sur 3 kinds** — `app` (facette `access` →
+> AppAccessPolicy, a75c01d, idempotente/réversible, dry-run par défaut), `library` (le registre
+> `Library` NAÎT de la projection) et `model` (champs déclaratifs `license`/`platform_ref`) ;
+> côté `app`, 9 facettes restent en code-gen.
 > Légende des flux : **trait plein = existe & testé** · **pointillés = à construire (app_gen)**.
 
 ---
@@ -65,7 +67,7 @@ restent la source.
 
 ---
 
-## 2. Les 6 kinds — deux familles, deux tests de fidélité
+## 2. Les 7 kinds — deux familles, deux tests de fidélité
 
 ```mermaid
 flowchart LR
@@ -228,7 +230,10 @@ la surface des registres.**
 
 - **`studio_node_ports` = accesseur unique de ports** partagé preview↔manifeste : un seul point de
   bascule quand la projection inverse le sens (cf. spec F2, contrat de jonction).
-- **Redondance APP_CATALOG ⟷ GENERIC_APPS** : le typage E/S est saisi 2× à la main → la fusionner.
+- ~~**Redondance APP_CATALOG ⟷ GENERIC_APPS** : le typage E/S est saisi 2× à la main → la fusionner.~~
+  **RÉSORBÉE (2026-08-11, `b91f875`)** : `GENERIC_APPS` **dérive** ses E/S de `studio_node_ports()`
+  à l'import (ordre = priorité préservé) ; une E/S écrite à la main sans `io_scope` déclaré est
+  désormais signalée `drift` par `studio_redundancy`.
 - **Apps lab** (`cam_analyzer`, `face_analyzer`) absentes d'APP_CATALOG → à réconcilier.
 - **Déclaratif, pas runtime** : exclure du manifeste l'état volatile (modèle chargé, x/y canvas...).
 - **Langue** : manifeste en EN canonique → registre i18n central (pas de traduction embarquée).
@@ -335,32 +340,36 @@ en code sauf pour `access`.
 Relevé **dans le code** (`grep` des hooks passés à `register_kind()` dans `common/manifests/builtin/`),
 pas dans les intentions :
 
-| kind | `extract` | `project` / `un_project` |
+| kind | `extract` | `write_back` / `un_write_back` (hooks renommés 2026-08-05, ex-`project_*`) |
 |---|---|---|
-| `app` | `extract_app` | ✅ `project_app` / `un_project_app` — **le seul** |
-| `function` | `extract_function` | `project=None` |
-| `library` | `extract_library` | ❌ |
-| `model` | `extract_model` | ❌ |
+| `app` | `extract_app` | ✅ `write_back_app` — facette `access` seule (le reste = code-gen) |
+| `function` | `extract_function` | ❌ |
+| `library` | `extract_library` | ✅ `write_back_library` — **crée** la ligne `common.models.Library` |
+| `model` | `extract_model` | ✅ `write_back_model` — `license`/`platform_ref` (ne crée JAMAIS la ligne) |
 | `pipeline` | `extract_pipeline` | ❌ |
 | `project` | `extract_project` | ❌ |
 | `dataset` | `None` — *le manifeste est l'origine* | ❌ |
 
-> **Re-mesuré le 2026-08-04** (7 kinds depuis l'ajout de `library`) — la photo ci-dessus est
-> INCHANGÉE sur le fond : `app` reste le seul kind qui projette, et `manifest_roundtrip --all`
-> le confirme facette par facette (**1/10 à 1/12 projetées, le reste en `codegen`**).
+> **Re-mesuré le 2026-08-11** : **3 kinds sur 7 projettent** (app/access, library, model) — le
+> tableau du 2026-07-30 (« `app` seul ») a été dépassé par les livraisons du 03-05/08.
+> `manifest_roundtrip --all` mesure les facettes d'`app` (**1/10 à 1/12 projetées au runtime,
+> le reste en `codegen`**) — il ne compte PAS les write-backs des kinds `library`/`model`.
 > Commande de re-mesure (ne pas recopier ce tableau sans la relancer) : voir skill `/manifeste` §2.
 >
-> **Composition mesurée le 2026-08-04** — `requires` dans `manifests/apps/*.json` :
+> **Composition mesurée le 2026-08-11** — `requires` dans `manifests/` :
 > **91 liens `app → model`** répartis sur 9 apps (converter = 0, normal : ffmpeg/pandoc, aucun
-> modèle IA) et **0 lien `app → library`**. La jambe `library` de la composition est donc VIDE,
-> faute de registre `Library` où projeter — c'est le trou ouvert, et la raison pour laquelle
-> ROADMAP §16.7 désigne `library` comme **kind pilote** du manifeste-first (aucun registre legacy
-> à réconcilier : son registre naît de la projection).
+> modèle IA) et **1 lien `app → library`** (transcriber → faster-whisper). La jambe `library`
+> est donc OUVERTE ET AMORCÉE : le registre `Library` existe (`common/models.py:382`), écrit par
+> `write_back_library` ; reste à élargir le semis du corpus (`library_candidates`,
+> `library_index`).
 
-**Lecture** : le formalisme, l'enveloppe et l'ingest sont en place, mais le sens **génératif**
-(manifeste → réalité) n'existe que pour `app`, sur une seule facette (`access` → `AppAccessPolicy`),
-en dry-run par défaut. **Un manifeste de modèle ne crée aujourd'hui aucun `AIModel`.** Le manifeste
-est donc la source **par architecture**, le registre l'est encore **en pratique** pour 5 kinds sur 6.
+**Lecture** (MAJ 2026-08-11) : le formalisme, l'enveloppe et l'ingest sont en place, et le sens
+**génératif** (manifeste → réalité) existe pour **3 kinds sur 7** : `app` (facette `access` →
+`AppAccessPolicy`, dry-run par défaut), `library` (registre entier) et `model` (champs
+déclaratifs). **Un manifeste de modèle ne crée aujourd'hui aucun `AIModel`** — c'est voulu
+(un modèle se DÉCOUVRE, `builtin/model.py:145-148`). Le manifeste est la source **par
+architecture** ; le registre l'est encore **en pratique** pour `function`/`pipeline`/`project`/
+`dataset` et pour les 9 facettes code-gen d'`app`.
 
 **`apply` n'est PAS une sur-couche de l'ingest** — ce sont les **deux moitiés de la même traversée** :
 `ingest` = le pont gaté qui fait *entrer* le manifeste et le commit dans le store ; `project` = la
@@ -370,8 +379,9 @@ transaction**. La chaîne se lit donc :
 > demande → LLM → manifeste → **apply ( = ingest ∘ project )** → mécanismes → UI
 
 ⚠ Défaut actuel : nos deux moitiés sont **découplées**. On peut ingérer sans projeter (c'est le cas
-pour 5 kinds/6) ⇒ le store et la réalité peuvent **diverger silencieusement**, sans rien qui le
-signale. L'apply n'ajoute pas une couche : il **referme un circuit ouvert**.
+pour 4 kinds sur 7 — `function`, `pipeline`, `project`, `dataset`) ⇒ le store et la réalité peuvent
+**diverger silencieusement**, sans rien qui le signale. L'apply n'ajoute pas une couche : il
+**referme un circuit ouvert**.
 
 **Pourquoi c'est coûteux ici** — comparaison Hermes (cf. `ROADMAP.md` §16.7) : leur registre est
 **éphémère**, rebâti par scan à chaque démarrage ⇒ pas de write-back, donc ni idempotence ni
@@ -379,8 +389,8 @@ réversibilité à garantir. Nos registres sont **persistés et vivants** (ils s
 gestion) ⇒ toute projection doit être idempotente **et** réversible. La lenteur de ce chantier est la
 contrepartie de la persistance, pas un retard.
 
-**Kind `library` — proposé comme PILOTE du manifeste-first.** Deux régimes déjà supportés par le
-formalisme s'y combinent **champ par champ** :
+**Kind `library` — kind PILOTE du manifeste-first, LIVRÉ (2026-08-03/05, `80fec09`/`a752798`).**
+Deux régimes supportés par le formalisme s'y combinent **champ par champ** :
 - **constaté** (`extract` via `importlib.metadata.distributions()`, écarts inter-environnements
   remontés par `verify`) : version installée, dérive dev/prod ;
 - **déclaré** (le manifeste est l'origine, précédent `dataset`) : `apps_dépendantes`,
@@ -391,15 +401,16 @@ formalisme s'y combinent **champ par champ** :
 **`runtime: python | js`** dès la conception — côté JS la lib hérite de la règle « assets vendorés en
 local, jamais de CDN ». Même cycle de vie cumulatif : ingérée une fois, elle reste.
 
-Intérêt : **aucun registre hérité à réconcilier** — son registre *naîtrait de* la projection au lieu
-de la précéder. Terrain vierge pour prouver la chaîne `library.fonctions_exposées` → manifestes
-`function` → ports typés → nœuds studio de bout en bout.
+Intérêt : **aucun registre hérité à réconcilier** — son registre `common.models.Library` **naît de**
+la projection (`write_back_library`, migration `common/0004_library`). Terrain déjà utilisé pour
+prouver la chaîne ; reste à dérouler `library.fonctions_exposées` → manifestes `function` → ports
+typés → nœuds studio de bout en bout.
 
 ⚠ **Ne PAS importer le régime éphémère d'Hermes** (registre recalculé à la lecture) : il viole la
 propriété de sûreté **§2.1 du SPEC** (*rien ne lit le manifeste en direct ; ingest = seul pont gaté ;
 état committé = les registres*). Hermes peut se le permettre — un plugin absent n'y coûte qu'une
-capacité optionnelle ; ici un registre volatil casserait les pages de gestion. `library` obtient donc
-un **vrai registre persisté écrit par l'ingest**, comme les autres kinds.
+capacité optionnelle ; ici un registre volatil casserait les pages de gestion. `library` a donc
+un **vrai registre persisté écrit par l'ingest** (`common.models.Library`), comme les autres kinds.
 
 ⚠ L'auto-installation associée n'est **pas** une projection anodine : `pip install` n'est ni
 idempotent ni réversible, il **écrase les patches venv** (`patches/apply_patches.py`) et peut casser

@@ -2,12 +2,13 @@
 
 > **Schéma fonctionnel des flux (manifestes → ingest → app_gen → UI) : [`WAMA_MANIFEST_ARCHITECTURE.md`](WAMA_MANIFEST_ARCHITECTURE.md).**
 >
-> **Statut : socle IMPLÉMENTÉ (MAJ 2026-07-25).** Enveloppe + registre + ingest + les **6 kinds**
+> **Statut : socle IMPLÉMENTÉ (MAJ 2026-08-11).** Enveloppe + registre + ingest + les **7 kinds**
 > vivent dans `wama/common/manifests/` (envelope/kinds/ingest/projection + `builtin/{app,dataset,
-> function,model,pipeline,project}.py`, modèle DB `common.Manifest`) ; extract `app` = 12 clés
-> `APP_FACETS` ; **projection : 1 facette (`access` → AppAccessPolicy) réellement écrite
-> (a75c01d, 2026-07-23), 11 en code-gen**. Cette spec fixe le formalisme COMMUN + le schéma du
-> kind `app` (8 facettes fonctionnelles F1–F8 = 12 clés). Les blocs annotés « cible » ci-dessous
+> function,library,model,pipeline,project}.py`, modèle DB `common.Manifest`) ; extract `app` = 12
+> clés `APP_FACETS` ; **write-back réel sur 3 kinds** — `app` : 1 facette écrite au runtime
+> (`access` → AppAccessPolicy, a75c01d) et **9** rapportées en `codegen_required` ; `library` :
+> registre entier ; `model` : champs déclaratifs. Cette spec fixe le formalisme COMMUN + le schéma
+> du kind `app` (8 facettes fonctionnelles F1–F8 = 12 clés). Les blocs annotés « cible » ci-dessous
 > décrivent le schéma VISÉ, pas encore l'extract réel.
 
 ---
@@ -249,9 +250,10 @@ les **besoins de modèles** de l'app. Le manifeste `app` les rend explicites.
 3. **Kind `app`** de bout en bout : projection vers les registres du §5 (ingest) + **extraction** inverse
    (générer le manifeste d'une app existante depuis les registres) pour le round-trip.
    - ✅ **Extraction** : `extract_app` (12 facettes) — fait.
-   - ✅ **Projection `access`** (write-back) : `project_app`/`un_project_app` → `AppAccessPolicy`, dry-run/
-     idempotent/réversible, round-trip non destructif validé (2026-07-23). **1re facette réellement écrite.**
-   - ⏳ **Projection des 11 autres facettes = CODE-GEN** (models.py/urls/params/nœud studio…) — chantier.
+   - ✅ **Projection `access`** (write-back) : `write_back_app`/`un_write_back_app` (hooks renommés
+     2026-08-05, ex-`project_*`) → `AppAccessPolicy`, dry-run/idempotent/réversible, round-trip non
+     destructif validé (2026-07-23). **1re facette réellement écrite.**
+   - ⏳ **Projection des 9 autres facettes = CODE-GEN** (models.py/urls/params/nœud studio…) — chantier.
 4. **Round-trip** : extraire le manifeste d'une app existante → régénérer en sandbox → diff → itérer.
 5. Puis kind `dataset` (toolbox tierce généralisé), et convergence `app` (APP_CATALOG ⟷ GENERIC_APPS).
 
@@ -271,14 +273,14 @@ les **besoins de modèles** de l'app. Le manifeste `app` les rend explicites.
 
 | Kind | Possède | Ne possède PAS |
 |---|---|---|
-| `library` *(à créer)* | dépôt, licence, version, install, points d'entrée, capacités techniques, contraintes (GPU, OS) | l'usage qu'une app en fait |
+| `library` *(livré 2026-08-03, `builtin/library.py`)* | dépôt, licence, version, install, points d'entrée, capacités techniques, contraintes (GPU, OS) | l'usage qu'une app en fait |
 | `model` | poids, `hf_id`, **`license`**, **`platform_ref`**, VRAM/disque, format, capacités, provenance | le réglage utilisateur qui le pilote — **et tout ce que la DÉCOUVERTE établit** |
 | `app` | identité, ports, params, permissions, cycle de vie, **et les RÉFÉRENCES** vers `model`/`library` | tout ce qui précède — jamais recopié |
 
 #### 7.1 bis — `model` : deux champs ajoutés, et une frontière qui lui est propre (2026-08-05)
 
 `identity.license` et `identity.platform_ref` sont **déclarés au manifeste et projetés dans
-`AIModel`** (`project_model`, cf. §7.1 ter). Motif mesuré : 0/129 modèles portaient une licence,
+`AIModel`** (`write_back_model`, cf. §7.1 ter). Motif mesuré : 0/129 modèles portaient une licence,
 alors que l'audit de licences WAMA doit s'aligner sur le composant le moins permissif ; et le lien
 vers la plateforme était conditionné à `hf_id`, absent sur les 70 modèles que leur app découvre par
 scan disque.
@@ -298,7 +300,11 @@ corriger le jour où une plateforme change son schéma d'adresse.
 
 #### 7.1 ter — hooks par kind, MESURÉ le 2026-08-05
 
-| Kind | `validate` | `extract` | `project` |
+> Les hooks s'appellent `write_back`/`un_write_back` depuis le 2026-08-05 (`kinds.py:35-38` —
+> `project` était homonyme du kind `project`). Fonctions réelles : `write_back_app`,
+> `write_back_library`, `write_back_model`.
+
+| Kind | `validate` | `extract` | `write_back` |
 |---|---|---|---|
 | `app` | ✅ | ✅ | ✅ |
 | `library` | ✅ | ✅ | ✅ |
@@ -306,18 +312,18 @@ corriger le jour où une plateforme change son schéma d'adresse.
 | `function` · `pipeline` · `project` | ✅ | ✅ | ❌ |
 | `dataset` | ✅ | ❌ | ❌ |
 
-`project_model` **ne crée jamais de ligne**, contrairement à `project_library` : faire naître un
+`write_back_model` **ne crée jamais de ligne**, contrairement à `write_back_library` : faire naître un
 `AIModel` depuis un manifeste fabriquerait un modèle fantôme, sans fichier de poids, que la
 sélection pourrait pourtant retenir. Cible absente → la projection le **dit** et ne fait rien
 (« lancer `sync_models` d'abord »). Dry-run par défaut, idempotente, `preserved` explicite.
 
-### 7.2 État MESURÉ de la composition (2026-08-02)
+### 7.2 État MESURÉ de la composition (2026-08-02 — photo HISTORIQUE, dépassée par §7.4)
 
 | Constat | Mesure |
 |---|---|
-| Kinds enregistrés | `app`, `dataset`, `function`, `model`, `pipeline`, `project` — **`library` absent** |
+| Kinds enregistrés | `app`, `dataset`, `function`, `model`, `pipeline`, `project` — **`library` absent** *(périmé : livré 2026-08-03)* |
 | Références déjà présentes | `body.models.catalog_keys` — le principe est **amorcé**, pas inventé |
-| Champ de référence dans l'ENVELOPPE | **aucun** (`requires`/`references`/`depends_on` inexistants) |
+| Champ de référence dans l'ENVELOPPE | **aucun** (`requires`/`references`/`depends_on` inexistants) *(périmé : `requires` livré, `envelope.py:45` + `resolve_requires`)* |
 | Références de modèle résolvables | ✅ **91 / 91 (100 %)** depuis `ad68e75` — était **0 / 42** |
 
 **Le lien app↔modèles EXISTAIT** et n'était pas à réinventer : `AIModel.source` porte l'app, et
