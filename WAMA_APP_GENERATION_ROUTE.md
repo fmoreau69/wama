@@ -79,13 +79,15 @@ chacun de leur côté :
   la nomme `drift`. Les champs de **câblage runner** (`params_module/attr`, `input_kwarg`,
   `fixed_kwargs`, `auto_start`) restent déclarés — ce n'est pas de la redondance.
 - **`INSTALLED_APPS`** (`settings.py:268`) = liste plate hand-maintenue, disjointe des registres.
-- **Le manifeste `app`** (`manifests/builtin/app.py:76`) **agrège DÉJÀ les 4 registres + Django** en un body
-  12 facettes ; **write-back PARTIEL** (`PROJECTED_FACETS`) : `access` s'écrit au runtime dans
-  `AppAccessPolicy` (depuis `a75c01d`) et `identity` s'écrit en CODE dans `APP_CATALOG`
-  (2026-08-11, pilote converter — entrée générée marquée `[manifest-gen app:<id>]`, réversible,
-  `color` exclue car dérivée), les 8 facettes code restantes = code-gen de la couche mince
-  déclarative (l'UI, elle, est générée au runtime par les briques une fois les registres
-  alimentés). C'est la brique de convergence.
+- **Le manifeste `app`** (`manifests/builtin/app.py`) **agrège DÉJÀ les 4 registres + Django** en un
+  body 12 facettes ; **write-back : 8 facettes** (`PROJECTED_FACETS` — `access` DB +
+  identity/ports/capabilities/studio/modes/prompts/params en CODE marqué `[manifest-gen]`)
+  **+ `processing` partiel** (urls.py régénérable, tasks.py mince — gabarits
+  `common/manifests/codegen/`, §10.3 marches A) ; reste inspector (A3b)/models/tool_api/
+  models.py. L'UI, elle, est générée AU RUNTIME par les briques une fois les registres
+  alimentés — **la vue d'ensemble du tunnel et l'INVARIANT de jointure (« rien ne lit le
+  manifeste au runtime, un seul point de contact : les registres ») vivent dans
+  `WAMA_MANIFEST_ARCHITECTURE.md §1`** (l'autre côté du tunnel — ne pas les redocumenter ici).
 
 ---
 

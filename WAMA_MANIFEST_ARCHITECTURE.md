@@ -45,27 +45,38 @@ flowchart TD
     ING --> STORE["Manifest store<br/>(common.Manifest, DB)"]
 
     STORE -->|PROJECTION 8 facettes ✅ (access DB + 7 code, moteur marqué, apply=False par défaut)| REG
-    STORE -.->|PROJECTION 4 facettes restantes (inspector/models/processing/tool_api)| REG
-    subgraph REG["REGISTRES FONCTIONNELS (inchangés)"]
-        R1["APP_CATALOG / GENERIC_APPS"]
-        R2["params.py · Detail/PreviewRegistry"]
-        R3["PROMPT_TARGETS · tool_api"]
-        R4["AppAccessPolicy · model_selector"]
+    STORE -->|GABARITS codegen/ ✅ A1/A2b : urls.py régénérable, tasks.py mince create-only| REG
+    STORE -.->|reste : apps.py (A3b), model_config (A5-adj), triade tool_api (A4), models.py (A5)| REG
+    subgraph REG["REGISTRES & DÉCLARATIONS (la JOINTURE — inchangés côté consommation)"]
+        R1["APP_CATALOG / GENERIC_APPS / APP_MODES"]
+        R2["params.py · urls.py · spec Detail/PreviewRegistry"]
+        R3["PROMPT_TARGETS · TOOL_REGISTRY"]
+        R4["AppAccessPolicy · AIModel/model_selector"]
     end
 
-    REG --> UI["MÉCANISMES UI + EXÉCUTION"]
+    REG --> UI["MÉCANISMES UI + EXÉCUTION<br/>(briques common : WamaDetails, WamaParams,<br/>WamaModes, studio, wama-app-base…)"]
     UI --> APP["Application qui tourne"]
+
+    JUGE["HARNAIS app_regen_check (marche C)<br/>strip → apply → 3 axes"] -.->|juge chaque incrément| REG
 
     STORE -.->|un_ingest (réversible)| STORE
     MAN -.->|ré-ingest = UPDATE idempotent| ING
 ```
 
-**Lecture** : aujourd'hui le flux VA `code → extract → manifeste → store` (on éprouve la lecture).
-La **projection** (`store → registres`) est le sens inverse : c'est elle qui *génère* l'app.
-**MAJ 2026-07-23** : `project` n'est plus `None` pour le kind `app` (`builtin/app.py::project_app`
-+ `un_project_app`), mais elle est **dry-run par défaut** (`apply=False`) et ne couvre que
-`access` → l'overlap runtime reste borné à `AppAccessPolicy` ; pour tout le reste, les registres
-restent la source.
+**Lecture — l'INVARIANT de la jointure (c'est lui qui fait que les deux constructions
+s'imbriquent)** : **rien ne lit jamais le manifeste au runtime** (propriété de sûreté SPEC
+§2.1). Le tunnel de génération ÉCRIT les registres/déclarations ; les briques d'UI communes
+LISENT les registres — deux mondes, **un seul point de contact**. Conséquence vérifiable :
+une app régénérée est indistinguable pour le front (prouvé au harnais : converter et reader,
+strip complet → smoke/grille identiques ; parité du volet droit sur 10 items réels, A3a).
+La table « qui déclare, qui tire » côté UI vit dans **`WAMA_APP_GENERATION_ROUTE.md §1`**
+(l'autre côté du tunnel) — ce §-ci est le domicile UNIQUE du flux manifeste→registres.
+
+État courant (2026-08-12) : extract 12 facettes ; projection = 8 facettes registres/fichiers
+(`PROJECTED_FACETS`) + `processing` PARTIEL (urls.py régénérable, tasks.py mince create-only —
+gabarits `common/manifests/codegen/`) ; reste `inspector` (spec déclarative EXTRAITE depuis
+A3a, gabarit apps_gen = A3b), `models`, `tool_api`, `processing.models.py`. Tout apply reste
+un geste explicite (`apply=False` par défaut), jugé par le harnais C.
 
 ---
 
@@ -158,7 +169,17 @@ Propriétés garanties (testées) : **idempotent** (kind+key), **transactionnel*
 
 ---
 
-## 5. Où se branche l'auto-génération d'application (prochain chantier)
+## 5. Où se branche l'auto-génération d'application — plan d'origine, EN COURS DE LIVRAISON
+
+> **MAJ 2026-08-12** : ce diagramme était le PLAN (« prochain chantier ») — il est devenu la
+> réalité des marches A (route §10.3), bloc par bloc : **G2 urls ✅** (A1, régénérable) —
+> views reste composé de fabriques communes ; **G3 params ✅** (params.py + WamaParams) ;
+> **G4 Detail/Preview** : spec déclarative extraite ✅ (A3a), rendu apps.py = A3b, triade
+> tool_api = A4 ; **G5 studio ✅** (E/S dérivées des ports, §10.1) ; **G6 access ✅** (1re
+> projection) ; **G1 models.py = A5** (dernier). La boucle `SBX → DIFF` du bas est LIVRÉE et
+> outillée : c'est **`manage.py app_regen_check`** (harnais C — « ré-injecter une app
+> existante » = strip → apply → 3 axes, CONFORME sur converter et reader). Les corps de
+> backends restent la marche B (LLM contraint par le manifeste composé).
 
 ```mermaid
 flowchart TD
