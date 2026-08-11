@@ -471,16 +471,23 @@ outillé avant d'ouvrir cette marche.
   PreviewRegistry = facette inspector), triade `tool_api` (conventionnelle). Fichiers marqués
   `[manifest-gen]`, mêmes contrats que le moteur commun.
 - **B. LLM aux trous restants** (corps des backends) — deux facteurs actés DÈS MAINTENANT :
-  1. **Modèle : MESURÉ, pas présumé.** Candidat pressenti par Fabien : `qwen3.6:35b` (déjà tiré
-     sur l'hôte Ollama, 23,9 Go — sature la 4090 : bancs à lancer HORS charge WAMA) ; challengers
-     `qwen3-coder:30b` (le verdict « trop lourd » de CLAUDE.md valait pour l'AGENTIQUE multi-tours
-     — la génération one-shot est un autre profil), `gemma4:26b`/`e4b`. Banc indexé sur la TÂCHE
-     canonique (« corps de backend depuis manifeste composé + skill »), jugé par le harnais C
-     (compile + contrat BaseModelBackend + smoke) — jamais au jugé.
-  2. **Skill de génération** : rôle wama-dev-ai `app-codegen` avec skill dédié (patron
-     `prompt_skills`/rôles existants) : contrat `BaseModelBackend` + manifeste composé
-     (`requires` app→model→library résolus) + 2-3 backends exemplaires en few-shot (le corpus
-     est le matériel d'apprentissage, `ingest.py:43`) + interdits (pas d'import avant
+  1. **Modèle : MESURÉ, pas présumé.** Candidat pressenti par Fabien : `qwen3.6:35b` — vérifié
+     2026-08-11 : **MoE** (`qwen35moe`, 36B totaux, 256 experts / 8 actifs, Q4_K_M, 23,9 Go
+     tirés sur l'hôte) ⇒ les poids doivent résider (VRAM+RAM) mais l'offload CPU est TOLÉRABLE
+     (seuls les experts actifs calculent) — cohabitation partielle avec WAMA envisageable, le
+     banc mesurera le débit réel sous offload. Challengers `qwen3-coder:30b` (le verdict « trop
+     lourd » de CLAUDE.md valait pour l'AGENTIQUE multi-tours — la génération one-shot est un
+     autre profil), `gemma4:26b`/`e4b`. Banc indexé sur la TÂCHE canonique (« corps de backend
+     depuis manifeste composé + skill »), jugé par le harnais C (compile + contrat
+     BaseModelBackend + smoke) — jamais au jugé. Verdict inscrit dans
+     `wama-dev-ai/config.py::select_model_for_role()` (chaînes de repli existantes).
+  2. **Skill de génération : MISE À JOUR du registre de rôles wama-dev-ai EXISTANT** (cadré
+     Fabien — pas de recréation) : `wama-dev-ai/prompts/` porte déjà system/architect/audit/
+     debug/dev/librarian + runners (`run_librarian.py` = le patron). Évolution : `dev.txt`
+     (générique, sans contrat WAMA) → rôle `codegen` contraint SUR LE MODÈLE DE `librarian.txt`
+     (règles strictes, un artefact, jamais inventer) avec contrat `BaseModelBackend` + manifeste
+     composé (`requires` app→model→library résolus) + 2-3 backends exemplaires en few-shot (le
+     corpus est le matériel d'apprentissage, `ingest.py:43`) + interdits (pas d'import avant
      `HF_HUB_CACHE`, `cache_dir` obligatoire, vocabulaire de statuts canonique).
   Pilote : **transcriber** (composition complète librairie faster-whisper + tous ses modèles).
 
