@@ -94,12 +94,15 @@ def _present(f: _AppFiles, patterns, regex, label_ok=None):
 
 
 def _tool_api_triad(f: _AppFiles):
-    text = (WAMA_ROOT / 'tool_api.py').read_text(encoding='utf-8', errors='replace')
-    # On ne regarde que le bloc TOOL_REGISTRY (les clés effectivement exposées).
-    m = re.search(r'TOOL_REGISTRY\s*=\s*\{(.*?)\n\}', text, re.S)
-    block = m.group(1) if m else text
-    keys = [f"'add_to_{f.app}'", f"'start_{f.app}'", f"'get_{f.app}_status'"]
-    found = [k for k in keys if k in block]
+    # Registre RUNTIME (les clés effectivement exposées) : depuis la marche A4, une partie
+    # des triades est CONSTRUITE à l'import (`TRIAD_SPECS` + `_register_triads()`) — le
+    # littéral du fichier ne dit plus la vérité, seule l'exposition réelle compte.
+    try:
+        from wama.tool_api import TOOL_REGISTRY
+    except Exception as e:
+        return False, f'import tool_api impossible : {e!r}'
+    keys = [f'add_to_{f.app}', f'start_{f.app}', f'get_{f.app}_status']
+    found = [k for k in keys if k in TOOL_REGISTRY]
     if len(found) == 3:
         return True, f"tool_api.py TOOL_REGISTRY ({', '.join(keys)})"
     if found:

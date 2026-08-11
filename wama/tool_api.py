@@ -1571,89 +1571,7 @@ def add_to_reader(
     }
 
 
-def start_reader(user, item_id: int = None) -> dict:
-    """
-    Launch Celery OCR task(s).
-
-    Args:
-        user:    Django User instance
-        item_id: Specific job to start (None = all PENDING jobs)
-
-    Returns:
-        {"task_id": str, "status": "started", ...}
-    """
-    from wama.reader.models import ReadingItem
-    from wama.reader.tasks import read_document_task
-
-    if item_id is not None:
-        try:
-            item = ReadingItem.objects.get(pk=item_id, user=user)
-        except ReadingItem.DoesNotExist:
-            return {'error': f'ReadingItem #{item_id} introuvable ou non autorisé.'}
-
-        if item.status == 'RUNNING':
-            return {'error': f'ReadingItem #{item_id} est déjà en cours.'}
-
-        item.status = 'RUNNING'
-        item.result_text = ''
-        item.error_message = ''
-        item.progress = 0
-        item.save()
-
-        task = read_document_task.delay(item.id)
-        item.task_id = task.id
-        item.save(update_fields=['task_id'])
-
-        return {'task_id': task.id, 'status': 'started', 'item_id': item_id}
-
-    else:
-        pending = ReadingItem.objects.filter(user=user, status='PENDING')
-        if not pending.exists():
-            return {'error': 'Aucun document en attente.'}
-
-        started = []
-        for item in pending:
-            task = read_document_task.delay(item.id)
-            item.task_id = task.id
-            item.status = 'RUNNING'
-            item.save(update_fields=['task_id', 'status'])
-            started.append(item.id)
-
-        return {'status': 'started', 'item_id': None, 'count': len(started), 'ids': started}
-
-
-def get_reader_status(user) -> dict:
-    """
-    Return status of the user's recent reading jobs (last 10).
-
-    Returns:
-        {"jobs": [{"id", "filename", "page_count", "backend", "used_backend",
-                   "status", "progress", "result_preview", "error_message"}]}
-    """
-    from wama.reader.models import ReadingItem
-    from django.core.cache import cache
-
-    jobs_qs = ReadingItem.objects.filter(user=user).order_by('-id')[:10]
-    jobs = []
-    for item in jobs_qs:
-        cached = cache.get(f'reader_progress_{item.id}')
-        progress = cached.get('pct', item.progress) if cached else item.progress
-        result_preview = None
-        if item.result_text:
-            result_preview = (item.result_text[:300] + '…') if len(item.result_text) > 300 else item.result_text
-
-        jobs.append({
-            'id': item.id,
-            'filename': item.filename,
-            'page_count': item.page_count,
-            'backend': item.backend,
-            'used_backend': item.used_backend or None,
-            'status': item.status,
-            'progress': progress,
-            'result_preview': result_preview,
-            'error_message': item.error_message or None,
-        })
-    return {'jobs': jobs}
+# `start_reader` / `get_reader_status` : construits depuis TRIAD_SPECS['reader'] (marche A4).
 
 
 # ===========================================================================
@@ -1742,34 +1660,7 @@ def convert_file(
     }
 
 
-def get_converter_status(user) -> dict:
-    """
-    Return status of the user's recent conversion jobs (last 10, queue jobs only).
-
-    Returns:
-        {"jobs": [{"id", "filename", "media_type", "output_format",
-                   "status", "progress", "output_filename", "error_message"}]}
-    """
-    from wama.converter.models import ConversionJob
-    from django.core.cache import cache
-
-    jobs_qs = (ConversionJob.objects
-               .filter(user=user, ephemeral=False)
-               .order_by('-created_at')[:10])
-    jobs = []
-    for job in jobs_qs:
-        progress = cache.get(f'converter_progress_{job.id}', job.progress)
-        jobs.append({
-            'id':              job.id,
-            'filename':        job.input_filename,
-            'media_type':      job.media_type,
-            'output_format':   job.output_format,
-            'status':          job.status,
-            'progress':        progress,
-            'output_filename': job.output_filename or None,
-            'error_message':   job.error_message or None,
-        })
-    return {'jobs': jobs}
+# `get_converter_status` : construit depuis TRIAD_SPECS['converter'] (marche A4).
 
 
 # ===========================================================================
@@ -2075,50 +1966,7 @@ def add_to_converter(user, *args, **kwargs):
     return res
 
 
-def start_converter(user, job_id: int = None) -> dict:
-    """
-    Lance la (re)conversion : un job précis, ou tous les jobs PENDING.
-
-    Returns:
-        {"task_id": str, "status": "started", ...}
-    """
-    from wama.converter.models import ConversionJob
-    from wama.converter.tasks import convert_media_task
-
-    if job_id is not None:
-        try:
-            job = ConversionJob.objects.get(pk=job_id, user=user)
-        except ConversionJob.DoesNotExist:
-            return {'error': f'ConversionJob #{job_id} introuvable ou non autorisé.'}
-
-        if job.status == 'RUNNING':
-            return {'error': f'ConversionJob #{job_id} est déjà en cours.'}
-
-        job.status = 'RUNNING'
-        job.error_message = ''
-        job.progress = 0
-        job.save()
-
-        task = convert_media_task.delay(job.id)
-        job.task_id = task.id
-        job.save(update_fields=['task_id'])
-
-        return {'task_id': task.id, 'status': 'started', 'item_id': job_id}
-
-    else:
-        pending = ConversionJob.objects.filter(user=user, status='PENDING', ephemeral=False)
-        if not pending.exists():
-            return {'error': 'Aucune conversion en attente.'}
-
-        started = []
-        for job in pending:
-            task = convert_media_task.delay(job.id)
-            job.task_id = task.id
-            job.status = 'RUNNING'
-            job.save(update_fields=['task_id', 'status'])
-            started.append(job.id)
-
-        return {'status': 'started', 'item_id': None, 'count': len(started), 'ids': started}
+# `start_converter` : construit depuis TRIAD_SPECS['converter'] (marche A4).
 
 
 @functools.wraps(create_image)
@@ -2249,12 +2097,10 @@ TOOL_REGISTRY = {
     'start_transcriber':      start_transcriber,
     'get_transcriber_status': get_transcriber_status,
     'add_to_reader':          add_to_reader,
-    'start_reader':           start_reader,
-    'get_reader_status':      get_reader_status,
     'convert_file':           convert_file,
     'add_to_converter':       add_to_converter,   # alias canonique §17.2 (runner générique)
-    'start_converter':        start_converter,
-    'get_converter_status':   get_converter_status,
+    # start_reader / get_reader_status / start_converter / get_converter_status :
+    # enregistrés par _register_triads() depuis TRIAD_SPECS (marche A4).
     'list_media_assets':      list_media_assets,
     'get_media_asset_url':    get_media_asset_url,
     'switch_ui_mode':         switch_ui_mode,
@@ -2291,6 +2137,157 @@ TOOL_APP_OVERRIDE = {
 
 # Sous-domaines portés par une app gardée (l'enhancer couvre image/vidéo ET audio).
 TOOL_APP_ALIAS = {'audio_enhancer': 'enhancer'}
+
+
+# ── Triades DÉCLARATIVES (route §10.3, marche A4) ────────────────────────────────
+# Mesure A0 : `start_<app>` et `get_<app>_status` étaient un squelette conventionnel dupliqué
+# par app (mêmes corps modulo modèle/tâche/champs de statut). Une entrée TRIAD_SPECS déclare
+# les seules variations ; `_register_triads()` CONSTRUIT les fonctions à l'import — nom
+# module-level (vues HTTP plus bas) + entrée TOOL_REGISTRY. La signature est SYNTHÉTISÉE
+# (`__signature__`) : descriptions dérivées, `primary_arg_name` et `sanitize_tool_args`
+# voient exactement ce que voyait le corps main (parité prouvée converter + reader,
+# baseline 2026-08-12). `add_to_<app>` reste de la GLU propre à l'app (marche B).
+# Entrée régénérable par write_back_app (facette tool_api) ; le champ `progress` du statut
+# est conventionnel : cache `<app>_progress_<pk>` (int, ou dict portant 'pct'), repli DB.
+TRIAD_SPECS = {
+    'converter': {
+        'model': 'wama.converter.models.ConversionJob',
+        'task': 'wama.converter.tasks.convert_media_task',
+        'id_kwarg': 'job_id',
+        'reset': {'error_message': ''},
+        'queue_filter': {'ephemeral': False},
+        'empty_msg': 'Aucune conversion en attente.',
+        'status_order': '-created_at',
+        'status_fields': {
+            'id': 'id',
+            'filename': 'input_filename',
+            'media_type': 'media_type',
+            'output_format': 'output_format',
+            'status': 'status',
+            'progress': 'progress',
+            'output_filename': {'attr': 'output_filename', 'or_none': True},
+            'error_message': {'attr': 'error_message', 'or_none': True},
+        },
+    },
+    'reader': {
+        'model': 'wama.reader.models.ReadingItem',
+        'task': 'wama.reader.tasks.read_document_task',
+        'id_kwarg': 'item_id',
+        'reset': {'result_text': '', 'error_message': ''},
+        'empty_msg': 'Aucun document en attente.',
+        'status_order': '-id',
+        'status_fields': {
+            'id': 'id',
+            'filename': 'filename',
+            'page_count': 'page_count',
+            'backend': 'backend',
+            'used_backend': {'attr': 'used_backend', 'or_none': True},
+            'status': 'status',
+            'progress': 'progress',
+            'result_preview': {'attr': 'result_text', 'preview': 300},
+            'error_message': {'attr': 'error_message', 'or_none': True},
+        },
+    },
+}
+
+
+def _triad_fns(app_id: str, spec: dict) -> tuple:
+    """(start, status) construits depuis une entrée TRIAD_SPECS.
+
+    Modèle et tâche sont résolus À L'APPEL (`import_string`) : même paresse que les imports
+    locaux des corps main remplacés — charger tool_api ne tire aucune app.
+    """
+    import inspect
+    from django.utils.module_loading import import_string
+
+    id_kwarg = spec.get('id_kwarg', 'item_id')
+
+    def _start(user, *args, **kwargs):
+        item_id = args[0] if args else kwargs.get(id_kwarg)
+        model = import_string(spec['model'])
+        task = import_string(spec['task'])
+        label = model.__name__
+
+        if item_id is not None:
+            try:
+                item = model.objects.get(pk=item_id, user=user)
+            except model.DoesNotExist:
+                return {'error': f'{label} #{item_id} introuvable ou non autorisé.'}
+            if item.status == 'RUNNING':
+                return {'error': f'{label} #{item_id} est déjà en cours.'}
+            item.status = 'RUNNING'
+            item.progress = 0
+            for champ, valeur in (spec.get('reset') or {}).items():
+                setattr(item, champ, valeur)
+            item.save()
+            t = task.delay(item.id)
+            item.task_id = t.id
+            item.save(update_fields=['task_id'])
+            return {'task_id': t.id, 'status': 'started', 'item_id': item_id}
+
+        pending = model.objects.filter(user=user, status='PENDING',
+                                       **(spec.get('queue_filter') or {}))
+        if not pending.exists():
+            return {'error': spec.get('empty_msg', 'Aucun élément en attente.')}
+        started = []
+        for item in pending:
+            t = task.delay(item.id)
+            item.task_id = t.id
+            item.status = 'RUNNING'
+            item.save(update_fields=['task_id', 'status'])
+            started.append(item.id)
+        return {'status': 'started', 'item_id': None, 'count': len(started), 'ids': started}
+
+    _start.__name__ = _start.__qualname__ = f'start_{app_id}'
+    _start.__doc__ = (f"Lance le traitement {app_id} : l'item indiqué, ou tous les PENDING "
+                      f"si aucun id. (Construit depuis TRIAD_SPECS['{app_id}'].)")
+    _start.__signature__ = inspect.Signature(
+        [inspect.Parameter('user', inspect.Parameter.POSITIONAL_OR_KEYWORD),
+         inspect.Parameter(id_kwarg, inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                           default=None, annotation=int)],
+        return_annotation=dict)
+
+    def _status(user) -> dict:
+        from django.core.cache import cache
+        model = import_string(spec['model'])
+        qs = (model.objects.filter(user=user, **(spec.get('queue_filter') or {}))
+              .order_by(spec.get('status_order', '-id'))[:10])
+        jobs = []
+        for item in qs:
+            row = {}
+            for cle, champ in (spec.get('status_fields') or {}).items():
+                if cle == 'progress':
+                    db = getattr(item, champ if isinstance(champ, str) else 'progress', 0)
+                    v = cache.get(f'{app_id}_progress_{item.pk}')
+                    row[cle] = v.get('pct', db) if isinstance(v, dict) else (db if v is None else v)
+                elif isinstance(champ, dict):
+                    v = getattr(item, champ['attr'], None)
+                    if champ.get('preview'):
+                        n = champ['preview']
+                        row[cle] = ((v[:n] + '…') if len(v) > n else v) if v else None
+                    elif champ.get('or_none'):
+                        row[cle] = v or None
+                    else:
+                        row[cle] = v
+                else:
+                    row[cle] = getattr(item, champ, None)
+            jobs.append(row)
+        return {'jobs': jobs}
+
+    _status.__name__ = _status.__qualname__ = f'get_{app_id}_status'
+    _status.__doc__ = (f"État des 10 derniers travaux {app_id} de l'utilisateur. "
+                       f"(Construit depuis TRIAD_SPECS['{app_id}'].)")
+    return _start, _status
+
+
+def _register_triads():
+    for app_id, spec in TRIAD_SPECS.items():
+        for fn in _triad_fns(app_id, spec):
+            globals()[fn.__name__] = fn
+            TOOL_REGISTRY[fn.__name__] = fn
+
+
+_register_triads()
 
 
 def _split_triad(tool_name):
