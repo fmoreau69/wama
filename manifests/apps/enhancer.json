@@ -805,6 +805,32 @@
         "target": "input_file"
       },
       "item_model": "Enhancement",
+      "model_spec": {
+        "batch": {
+          "link_batch_field": "batch",
+          "link_batch_related": "items",
+          "link_item_field": "enhancement",
+          "link_item_related": "batch_item",
+          "link_name": "BatchEnhancementItem",
+          "name": "BatchEnhancement",
+          "user_related_name": "batch_enhancements",
+          "verbose_name": "Batch d'améliorations",
+          "verbose_name_plural": "Batchs d'améliorations"
+        },
+        "item": {
+          "input_field": "input_file",
+          "name": "Enhancement",
+          "ordering": [
+            "-created_at"
+          ],
+          "params_fields": [
+            "ai_model",
+            "denoise",
+            "blend_factor"
+          ],
+          "user_related_name": "enhancements"
+        }
+      },
       "processing_time": true,
       "statuses": [
         "PENDING",

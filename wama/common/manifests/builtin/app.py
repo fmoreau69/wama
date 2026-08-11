@@ -125,6 +125,14 @@ def validate_app_body(body: dict) -> list[str]:
                     for v in sf.values())):
                 errs.append("tool_api.triad_spec.status_fields : chaque valeur = attr (str) "
                             "ou dict {'attr': str, …}")
+    # model_spec (A5) : matériel du gabarit models_gen — rejet à l'ingest, comme le reste.
+    ms = proc.get('model_spec') if isinstance(proc, dict) else None
+    if ms is not None:
+        it = ms.get('item') if isinstance(ms, dict) else None
+        if not isinstance(it, dict) or not it.get('name') or not isinstance(it['name'], str):
+            errs.append('processing.model_spec.item.name (str) requis')
+        elif any(not isinstance(n, str) for n in (it.get('params_fields') or [])):
+            errs.append('processing.model_spec.item.params_fields : liste de noms (str)')
     return errs
 
 
@@ -453,7 +461,80 @@ def _processing(cat: dict, app_id: str) -> dict:
             out['batch_link_model'] = lien
     except Exception:
         pass
+    # Spine du models.py MESURÉ par introspection (A5) — ce que le gabarit models_gen doit
+    # connaître pour rendre le squelette d'une app neuve.
+    spec = _model_spec(app_id)
+    if spec:
+        out['model_spec'] = spec
     return out
+
+
+def _model_spec(app_id: str):
+    """Spine du models.py de l'app, MESURÉ par introspection Django (marche A5).
+
+    Ne décrit que le SQUELETTE conventionnel (cadrage A0 : 9/10 apps) : identité des classes,
+    liaison user/fichier d'entrée, ordering, couverture params (les champs du schéma PRÉSENTS
+    sur le modèle — ceux que le gabarit rend par l'inverse de `derive_from_model` ; les autres
+    sont des transitoires UI). Les champs de résultat et la logique (properties, méthodes)
+    sont de la GLU — marche B, jamais déclarés ici."""
+    try:
+        from wama.common.utils.detail_registry import DetailRegistry
+        entree = DetailRegistry.get(app_id) if DetailRegistry.is_registered(app_id) else None
+        model = (entree or {}).get('model')
+    except Exception:
+        return None
+    if model is None:
+        return None
+    meta = model._meta
+    item = {'name': model.__name__}
+    try:
+        item['user_related_name'] = meta.get_field('user').remote_field.related_name
+    except Exception:
+        pass
+    fichiers = [f.name for f in meta.fields if f.get_internal_type() == 'FileField']
+    if fichiers:
+        item['input_field'] = fichiers[0]
+    if meta.ordering:
+        item['ordering'] = list(meta.ordering)
+    try:
+        from wama.common.utils.param_schema import schema_for_app
+        noms_modele = {f.name for f in meta.fields}
+        couverts = [p['name'] for p in (schema_for_app(app_id) or [])
+                    if p.get('name') in noms_modele]
+        if couverts:
+            item['params_fields'] = couverts
+    except Exception:
+        pass
+    spec = {'item': item}
+    try:
+        from wama.common.utils.batch_sync import SYNCED
+        lien = next((m for m in SYNCED if m.__module__ == f'wama.{app_id}.models'), None)
+    except Exception:
+        lien = None
+    if lien is not None:
+        b = {'link_name': lien.__name__}
+        batch_model = None
+        for f in lien._meta.fields:
+            if not f.is_relation:
+                continue
+            if f.one_to_one:
+                b['link_item_field'] = f.name
+                b['link_item_related'] = f.remote_field.related_name
+            elif f.many_to_one and f.related_model is not model:
+                batch_model = f.related_model
+                b['name'] = batch_model.__name__
+                b['link_batch_field'] = f.name
+                b['link_batch_related'] = f.remote_field.related_name
+        if batch_model is not None:
+            bm = batch_model._meta
+            try:
+                b['user_related_name'] = bm.get_field('user').remote_field.related_name
+            except Exception:
+                pass
+            b['verbose_name'] = str(bm.verbose_name)
+            b['verbose_name_plural'] = str(bm.verbose_name_plural)
+            spec['batch'] = b
+    return spec
 
 
 def _ingest(app_id: str):
@@ -1059,15 +1140,17 @@ def _project_modes(manifest: dict, *, apply: bool) -> dict:
 def _project_processing(manifest: dict, *, apply: bool) -> dict:
     """Facette processing → cibles `urls.py` (gabarit A1) + `tasks.py` (gabarit A2b,
     CREATE-ONLY : un tasks.py existant est de la GLU réelle — jamais comparé ni régénéré, le
-    fichier mince à trous ne se rend que pour une app SANS tasks.py, marche B) ; `models.py`
-    reste en code-gen (palier A5) — la facette reste donc HORS PROJECTED_FACETS (projection
-    partielle assumée, rapportée dans le retour). Contrats du moteur pour urls.py : absent →
-    GÉNÉRÉ marqué ; marqué → régénéré ; écrit main → comparaison SÉMANTIQUE (table
-    name→(motif, vue) relue du fichier par ast) et JAMAIS réécrit."""
+    fichier mince à trous ne se rend que pour une app SANS tasks.py, marche B) + `models.py`
+    (gabarit A5, CREATE-ONLY durci : un fichier existant porte des MIGRATIONS — jamais
+    touché). La facette reste HORS PROJECTED_FACETS (projection partielle assumée : seul
+    urls.py se compare/régénère, tasks/models ne font que CRÉER). Contrats du moteur pour
+    urls.py : absent → GÉNÉRÉ marqué ; marqué → régénéré ; écrit main → comparaison
+    SÉMANTIQUE (table name→(motif, vue) relue du fichier par ast) et JAMAIS réécrit."""
     from ..codegen.urls_gen import (current_routes_from_file, namespace_of, render_urls,
                                     routes_target, urls_file_path)
     app_id = manifest.get('key')
-    restants = {'models.py': 'codegen (palier A5)', 'tasks.py': _project_tasks(manifest, apply=apply)}
+    restants = {'models.py': _project_models(manifest, apply=apply),
+                'tasks.py': _project_tasks(manifest, apply=apply)}
     cible, manquantes = routes_target(manifest)
     if not cible:
         return {'op': 'skip', 'reason': 'facette processing sans endpoints', **restants}
@@ -1133,6 +1216,28 @@ def _project_inspector(manifest: dict, *, apply: bool) -> dict:
     path.write_text(src, encoding='utf-8')
     return {'op': op, 'changed': ['ready() régénéré'], 'file': str(path),
             '_manifest_key': f'app:{app_id}', 'reload_required': True}
+
+
+def _project_models(manifest: dict, *, apply: bool):
+    """Cible models.py du gabarit A5 — CREATE-ONLY, contrat de `_project_tasks` durci d'un
+    cran : un models.py existant porte des MIGRATIONS appliquées, le régénérer casserait la
+    base — jamais comparé, jamais réécrit. Le rendu d'une app neuve appelle ensuite un
+    makemigrations À LA MAIN (jamais par le moteur)."""
+    from ..codegen.models_gen import models_file_path, render_models
+    app_id = manifest.get('key')
+    path = models_file_path(app_id)
+    if path.is_file():
+        return 'présent (glu réelle + migrations) — hors périmètre, champs résultat = marche B'
+    src, raison = render_models(manifest)
+    if src is None:
+        return f'non générable : {raison}'
+    if not apply:
+        return {'op': 'create', 'file': str(path), 'would_change': ['squelette spine + options']}
+    compile(src, str(path), 'exec')
+    path.write_text(src, encoding='utf-8')
+    return {'op': 'create', 'file': str(path), 'changed': ['squelette spine + options'],
+            '_manifest_key': f'app:{app_id}', 'reload_required': True,
+            'migrations_required': True}
 
 
 def _project_tasks(manifest: dict, *, apply: bool):

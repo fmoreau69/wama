@@ -444,6 +444,34 @@
       ],
       "ingest": null,
       "item_model": "ComposerGeneration",
+      "model_spec": {
+        "batch": {
+          "link_batch_field": "batch",
+          "link_batch_related": "items",
+          "link_item_field": "generation",
+          "link_item_related": "batch_item",
+          "link_name": "ComposerBatchItem",
+          "name": "ComposerBatch",
+          "user_related_name": "composer_batches",
+          "verbose_name": "composer batch",
+          "verbose_name_plural": "composer batchs"
+        },
+        "item": {
+          "input_field": "melody_reference",
+          "name": "ComposerGeneration",
+          "ordering": [
+            "-created_at"
+          ],
+          "params_fields": [
+            "model",
+            "duration",
+            "prompt",
+            "output_format",
+            "output_quality"
+          ],
+          "user_related_name": "composer_generations"
+        }
+      },
       "processing_time": true,
       "statuses": [
         "PENDING",

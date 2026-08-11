@@ -610,6 +610,33 @@
         "title_field": "title"
       },
       "item_model": "Transcript",
+      "model_spec": {
+        "batch": {
+          "link_batch_field": "batch",
+          "link_batch_related": "items",
+          "link_item_field": "transcript",
+          "link_item_related": "batch_item",
+          "link_name": "BatchTranscriptItem",
+          "name": "BatchTranscript",
+          "user_related_name": "batch_transcripts",
+          "verbose_name": "Batch de transcriptions",
+          "verbose_name_plural": "Batchs de transcriptions"
+        },
+        "item": {
+          "input_field": "audio",
+          "name": "Transcript",
+          "params_fields": [
+            "backend",
+            "hotwords",
+            "preprocess_audio",
+            "enable_diarization",
+            "generate_summary",
+            "summary_type",
+            "verify_coherence"
+          ],
+          "user_related_name": "transcripts"
+        }
+      },
       "processing_time": true,
       "statuses": [
         "PENDING",

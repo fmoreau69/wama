@@ -1043,6 +1043,44 @@
         "target": "file"
       },
       "item_model": "Media",
+      "model_spec": {
+        "batch": {
+          "link_batch_field": "batch",
+          "link_batch_related": "items",
+          "link_item_field": "media",
+          "link_item_related": "batch_item",
+          "link_name": "BatchAnonymizerItem",
+          "name": "BatchAnonymizer",
+          "user_related_name": "batch_anonymizers",
+          "verbose_name": "Batch d'anonymisation",
+          "verbose_name_plural": "Batchs d'anonymisation"
+        },
+        "item": {
+          "input_field": "file",
+          "name": "Media",
+          "params_fields": [
+            "use_sam3",
+            "sam3_prompt",
+            "model_to_use",
+            "precision_level",
+            "detection_threshold",
+            "blur_ratio",
+            "rounded_edges",
+            "roi_enlargement",
+            "progressive_blur",
+            "interpolate_detections",
+            "max_interpolation_frames",
+            "use_segmentation",
+            "show_preview",
+            "show_boxes",
+            "show_labels",
+            "show_conf",
+            "output_format",
+            "output_quality"
+          ],
+          "user_related_name": "media"
+        }
+      },
       "processing_time": true,
       "statuses": [
         "PENDING",

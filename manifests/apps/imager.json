@@ -1287,6 +1287,39 @@
       ],
       "ingest": null,
       "item_model": "ImageGeneration",
+      "model_spec": {
+        "batch": {
+          "link_batch_field": "batch",
+          "link_batch_related": "items",
+          "link_item_field": "generation",
+          "link_item_related": "batch_item",
+          "link_name": "GenerationBatchItem",
+          "name": "GenerationBatch",
+          "user_related_name": "generation_batches",
+          "verbose_name": "Batch de génération",
+          "verbose_name_plural": "Batchs de génération"
+        },
+        "item": {
+          "input_field": "prompt_file",
+          "name": "ImageGeneration",
+          "ordering": [
+            "-created_at"
+          ],
+          "params_fields": [
+            "model",
+            "negative_prompt",
+            "num_images",
+            "steps",
+            "guidance_scale",
+            "seed",
+            "image_strength",
+            "upscale",
+            "output_format",
+            "output_quality"
+          ],
+          "user_related_name": null
+        }
+      },
       "processing_time": false,
       "statuses": [
         "PENDING",

@@ -1075,6 +1075,21 @@
         "target": "input_file"
       },
       "item_model": "ConversionJob",
+      "model_spec": {
+        "item": {
+          "input_field": "input_file",
+          "name": "ConversionJob",
+          "ordering": [
+            "-created_at"
+          ],
+          "params_fields": [
+            "media_type",
+            "output_format",
+            "quality_preset"
+          ],
+          "user_related_name": "conversion_jobs"
+        }
+      },
       "processing_time": true,
       "statuses": [
         "PENDING",

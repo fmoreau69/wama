@@ -448,6 +448,34 @@
         "target": "input_file"
       },
       "item_model": "Description",
+      "model_spec": {
+        "batch": {
+          "link_batch_field": "batch",
+          "link_batch_related": "items",
+          "link_item_field": "description",
+          "link_item_related": "batch_item",
+          "link_name": "BatchDescriptionItem",
+          "name": "BatchDescription",
+          "user_related_name": "batch_descriptions",
+          "verbose_name": "Batch de descriptions",
+          "verbose_name_plural": "Batchs de descriptions"
+        },
+        "item": {
+          "input_field": "input_file",
+          "name": "Description",
+          "ordering": [
+            "-created_at"
+          ],
+          "params_fields": [
+            "output_style",
+            "output_language",
+            "max_length",
+            "generate_summary",
+            "verify_coherence"
+          ],
+          "user_related_name": "descriptions"
+        }
+      },
       "processing_time": true,
       "statuses": [
         "PENDING",

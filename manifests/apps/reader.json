@@ -425,6 +425,33 @@
         "target": "input_file"
       },
       "item_model": "ReadingItem",
+      "model_spec": {
+        "batch": {
+          "link_batch_field": "batch",
+          "link_batch_related": "items",
+          "link_item_field": "reading",
+          "link_item_related": "batch_item",
+          "link_name": "BatchReadingItemLink",
+          "name": "BatchReadingItem",
+          "user_related_name": "batch_readings",
+          "verbose_name": "Batch de lectures",
+          "verbose_name_plural": "Batchs de lectures"
+        },
+        "item": {
+          "input_field": "input_file",
+          "name": "ReadingItem",
+          "ordering": [
+            "-created_at"
+          ],
+          "params_fields": [
+            "backend",
+            "mode",
+            "language",
+            "output_format"
+          ],
+          "user_related_name": "reading_items"
+        }
+      },
       "processing_time": true,
       "statuses": [
         "PENDING",

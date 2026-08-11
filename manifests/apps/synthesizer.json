@@ -793,6 +793,36 @@
         "target": "voice_reference"
       },
       "item_model": "VoiceSynthesis",
+      "model_spec": {
+        "batch": {
+          "link_batch_field": "batch",
+          "link_batch_related": "items",
+          "link_item_field": "synthesis",
+          "link_item_related": "batch_item",
+          "link_name": "BatchSynthesisItem",
+          "name": "BatchSynthesis",
+          "user_related_name": "batch_syntheses",
+          "verbose_name": "Batch de synthèses",
+          "verbose_name_plural": "Batchs de synthèses"
+        },
+        "item": {
+          "input_field": "text_file",
+          "name": "VoiceSynthesis",
+          "ordering": [
+            "-created_at"
+          ],
+          "params_fields": [
+            "tts_model",
+            "language",
+            "voice_preset",
+            "speed",
+            "pitch",
+            "output_format",
+            "output_quality"
+          ],
+          "user_related_name": "voice_syntheses"
+        }
+      },
       "processing_time": true,
       "statuses": [
         "PENDING",

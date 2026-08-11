@@ -304,6 +304,31 @@
         "target": "audio_input"
       },
       "item_model": "AvatarJob",
+      "model_spec": {
+        "batch": {
+          "link_batch_field": "batch",
+          "link_batch_related": "items",
+          "link_item_field": "job",
+          "link_item_related": "batch_item",
+          "link_name": "BatchAvatarJobItem",
+          "name": "BatchAvatarJob",
+          "user_related_name": "batch_avatar_jobs",
+          "verbose_name": "Lot de jobs d'avatars",
+          "verbose_name_plural": "Lots de jobs d'avatars"
+        },
+        "item": {
+          "input_field": "audio_input",
+          "name": "AvatarJob",
+          "ordering": [
+            "-created_at"
+          ],
+          "params_fields": [
+            "use_enhancer",
+            "bbox_shift"
+          ],
+          "user_related_name": "avatar_jobs"
+        }
+      },
       "processing_time": false,
       "statuses": [
         "PENDING",
