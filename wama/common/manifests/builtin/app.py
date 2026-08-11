@@ -105,6 +105,26 @@ def validate_app_body(body: dict) -> list[str]:
                     or not isinstance(r.get('view'), (str, type(None)))):
                 errs.append(f"processing.extra_routes : entrée invalide "
                             f"(name + pattern str + view str|None requis) : {r!r}")
+    # triad_spec (A4) : entrée TRIAD_SPECS régénérable — même exigence que extra_routes,
+    # rejet à l'ingest. `model`/`task` = chemins pointés résolus à l'APPEL (import_string).
+    spec = (body.get('tool_api') or {}).get('triad_spec') \
+        if isinstance(body.get('tool_api'), dict) else None
+    if spec is not None:
+        if not isinstance(spec, dict):
+            errs.append('tool_api.triad_spec doit être un dict')
+        else:
+            for req in ('model', 'task'):
+                v = spec.get(req)
+                if not isinstance(v, str) or '.' not in v:
+                    errs.append(f"tool_api.triad_spec.{req} : chemin pointé requis "
+                                f"(module.Attr) : {v!r}")
+            sf = spec.get('status_fields')
+            if sf is not None and (not isinstance(sf, dict) or any(
+                    not (isinstance(v, str)
+                         or (isinstance(v, dict) and isinstance(v.get('attr'), str)))
+                    for v in sf.values())):
+                errs.append("tool_api.triad_spec.status_fields : chaque valeur = attr (str) "
+                            "ou dict {'attr': str, …}")
     return errs
 
 
@@ -506,6 +526,16 @@ def _tool_api(app_id):
         return None
     described = tool_descriptions()
     present['descriptions'] = {n: described.get(n) for n in present.values() if isinstance(n, str)}
+    # Marche A4 : le DÉCLARATIF de la triade (entrée TRIAD_SPECS — start/status construits).
+    # Absent = triade encore écrite main (app non portée) ; `add` reste de la glu dans les
+    # deux cas. Noms et descriptions ci-dessus restent la famille MESURÉE (dérivés du runtime).
+    try:
+        from wama.tool_api import TRIAD_SPECS
+        spec = TRIAD_SPECS.get(app_id)
+        if spec:
+            present['triad_spec'] = spec
+    except Exception:
+        pass
     return present
 
 
@@ -585,7 +615,7 @@ def _to_dict(obj) -> dict:
 # `projection.FACET_TARGETS` (source unique) — l'ancienne liste locale codée en dur avait divergé
 # (elle omettait capabilities/modes et citait models/prompts), corrigé 2026-08-11.
 PROJECTED_FACETS = ('access', 'identity', 'ports', 'capabilities', 'studio', 'modes', 'prompts',
-                    'params', 'inspector')
+                    'params', 'inspector', 'tool_api')
 
 
 def write_back_app(manifest: dict, *, apply: bool = False, skip: tuple = ()) -> dict:
@@ -609,6 +639,9 @@ def write_back_app(manifest: dict, *, apply: bool = False, skip: tuple = ()) -> 
                    # inspector (A3b) : projetable quand la registration est déclarative
                    # (detail_spec) — un adapter code fait rapporter un skip motivé.
                    ('inspector', _project_inspector),
+                   # tool_api (A4) : projetable quand la triade est déclarative (triad_spec
+                   # → entrée TRIAD_SPECS) — une triade écrite main fait un skip motivé.
+                   ('tool_api', _project_tool_api),
                    # processing = projection PARTIELLE (urls.py seul, gabarit A1) : la facette
                    # reste dans codegen_required tant que models.py/tasks.py ne se génèrent pas.
                    ('processing', _project_processing))
@@ -823,16 +856,53 @@ def _project_prompts(manifest: dict, *, apply: bool) -> dict:
     if op == 'noop':
         return {'op': op, 'changed': [], '_manifest_key': f'app:{app_id}'}
     res = _write_value_entry(path, 'PROMPT_TARGETS', app_id, target,
-                             facette='prompts', create=(op == 'create'))
+                             facette='prompts', create=(op == 'create'), champ='targets',
+                             main_reason="entrée écrite main (commentaires d'intention) — "
+                                         "régénération refusée")
+    res.update({'op': op, 'previous': None if not found else cur,
+                '_manifest_key': f'app:{app_id}', 'reload_required': True})
+    return res
+
+
+def _project_tool_api(manifest: dict, *, apply: bool) -> dict:
+    """Facette tool_api → entrée TRIAD_SPECS (tool_api.py, marche A4). Seul `triad_spec` se
+    projette : c'est LE déclaratif (start/status construits à l'import par
+    `_register_triads()`) — `add_to_<app>` est de la GLU d'app (marche B), les noms et
+    descriptions de la facette sont DÉRIVÉS du runtime (famille mesurée). Sans triad_spec =
+    triade encore écrite main (app non portée) : skip motivé, jamais touchée. Mêmes contrats
+    que prompts (entrée-valeur : create marquée / régénération si marquée / main refusée)."""
+    app_id = manifest.get('key')
+    facet = (manifest.get('body') or {}).get('tool_api') or {}
+    target = facet.get('triad_spec')
+    if target is None:
+        return {'op': 'skip',
+                'reason': "facette sans triad_spec (triade écrite main, app non portée A4) "
+                          "— rien à projeter"}
+    path = _tool_api_path()
+    found, cur = _value_entry_from_file(path, 'TRIAD_SPECS', app_id)
+    delta = (not found) or (cur is _NONLITERAL) or (cur != target)
+    op = 'create' if not found else ('update' if delta else 'noop')
+    if not apply:
+        return {'op': op, 'target': target, 'current': None if not found else cur,
+                'would_change': ['triad_spec'] if delta else []}
+    if op == 'noop':
+        return {'op': op, 'changed': [], '_manifest_key': f'app:{app_id}'}
+    res = _write_value_entry(path, 'TRIAD_SPECS', app_id, target,
+                             facette='tool_api', create=(op == 'create'), champ='triad_spec',
+                             main_reason="entrée TRIAD_SPECS écrite main — régénération "
+                                         "refusée ; écart à trancher côté manifeste ou code")
     res.update({'op': op, 'previous': None if not found else cur,
                 '_manifest_key': f'app:{app_id}', 'reload_required': True})
     return res
 
 
 def _write_value_entry(path: Path, var: str, app_id: str, value, *, facette: str,
-                       create: bool) -> dict:
+                       create: bool, champ: str = 'targets',
+                       main_reason: str = "entrée écrite main — régénération refusée") -> dict:
     """Écrit une entrée-VALEUR (littéral rendu pprint) : create, ou régénération si l'entrée
-    porte le marqueur ; une entrée main est REFUSÉE. Garde `compile()` comme partout."""
+    porte le marqueur ; une entrée main est REFUSÉE. Garde `compile()` comme partout.
+    `champ` = nom rapporté dans applied/changed/skipped (targets pour PROMPT_TARGETS,
+    triad_spec pour TRIAD_SPECS — marche A4)."""
     import pprint
     lines = path.read_text(encoding='utf-8').split('\n')
     lo, hi = _dict_bounds(lines, var)
@@ -857,14 +927,13 @@ def _write_value_entry(path: Path, var: str, app_id: str, value, *, facette: str
         if span is None:
             return {'error': "entrée absente — l'état a changé depuis le plan, relancer"}
         if mark not in lines[span[0]]:
-            return {'changed': [], 'skipped': [{'field': 'targets',
-                    'reason': "entrée écrite main (commentaires d'intention) — régénération refusée"}]}
+            return {'changed': [], 'skipped': [{'field': champ, 'reason': main_reason}]}
         lines[span[0]:span[1] + 1] = bloc
 
     nouveau = '\n'.join(lines)
     compile(nouveau, str(path), 'exec')
     path.write_text(nouveau, encoding='utf-8')
-    return {'applied': {'targets': value}, 'changed': ['targets'], 'file': str(path)}
+    return {'applied': {champ: value}, 'changed': [champ], 'file': str(path)}
 
 
 def _params_facet(manifest: dict) -> Optional[dict]:
@@ -1134,6 +1203,11 @@ def _modes_path() -> Path:
 def _metadata_path() -> Path:
     from wama.common.utils import app_metadata
     return Path(app_metadata.__file__)
+
+
+def _tool_api_path() -> Path:
+    from wama import tool_api
+    return Path(tool_api.__file__)
 
 
 def _dict_bounds(lines: list, var: str) -> tuple:
@@ -1429,7 +1503,8 @@ def un_write_back_app(manifest: dict, *, apply: bool = False) -> dict:
     cibles = (('catalog_entry', _registry_path(), 'APP_CATALOG', True, _entry_span),
               ('runner_entry', _runner_path(), 'GENERIC_APPS', False, _entry_span),
               ('modes_entry', _modes_path(), 'APP_MODES', True, _entry_span),
-              ('prompts_entry', _metadata_path(), 'PROMPT_TARGETS', False, _value_entry_span))
+              ('prompts_entry', _metadata_path(), 'PROMPT_TARGETS', False, _value_entry_span),
+              ('triad_entry', _tool_api_path(), 'TRIAD_SPECS', False, _value_entry_span))
     generes = {}
     for nom, path, var, _sep, span_fn in cibles:
         lines = path.read_text(encoding='utf-8').split('\n')
@@ -1499,6 +1574,8 @@ def strip_app_declarations(manifest: dict, *, apply: bool = False) -> dict:
          bool(body.get('modes'))),
         ('prompts_entry', _metadata_path(), 'PROMPT_TARGETS', False, _value_entry_span,
          bool((body.get('prompts') or {}).get('targets'))),
+        ('triad_entry', _tool_api_path(), 'TRIAD_SPECS', False, _value_entry_span,
+         bool((body.get('tool_api') or {}).get('triad_spec'))),
     )
     out = {'app': app_id, 'files': []}
     for nom, path, var, blank_sep, span_fn, regenerable in cibles:

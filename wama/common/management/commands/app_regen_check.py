@@ -10,7 +10,7 @@ Protocole (celui du pilote converter, 2026-08-11) :
                  à l'extraction courante — sinon on jugerait la régénération d'un manifeste périmé.
   1. BASELINE  : mesure en SOUS-PROCESS frais = manifeste extrait + grille (run_checks) + smoke.
   2. STRIP     : retrait des déclarations régénérables (`strip_app_declarations` — APP_CATALOG,
-                 GENERIC_APPS, APP_MODES, PROMPT_TARGETS, params.py).
+                 GENERIC_APPS, APP_MODES, PROMPT_TARGETS, TRIAD_SPECS, params.py).
   3. APPLY     : `write_back_app(corpus, apply=True, skip=('access',))` en SOUS-PROCESS FRAIS —
                  dans le process courant, les modules importés (params, registres) sont périmés
                  dès le strip. `access` (DB) est exclu : le harnais ne touche JAMAIS la base.
@@ -213,13 +213,14 @@ class Command(BaseCommand):
 
         from wama.common.manifests.builtin.app import (
             strip_app_declarations, _metadata_path, _modes_path, _params_file_path,
-            _params_module_name, _registry_path, _runner_path)
+            _params_module_name, _registry_path, _runner_path, _tool_api_path)
         from wama.common.manifests.codegen.apps_gen import apps_file_path
         from wama.common.manifests.codegen.urls_gen import urls_file_path
 
         corpus = self._corpus(app_id)
         candidats = [str(_registry_path()), str(_runner_path()), str(_modes_path()),
                      str(_metadata_path()), str(_params_file_path(_params_module_name(corpus))),
+                     str(_tool_api_path()),
                      str(urls_file_path(app_id)), str(apps_file_path(app_id))]
         branche = self._gardes(o['force'], candidats)
 

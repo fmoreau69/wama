@@ -477,7 +477,38 @@
         }
       },
       "start": "start_reader",
-      "status": "get_reader_status"
+      "status": "get_reader_status",
+      "triad_spec": {
+        "empty_msg": "Aucun document en attente.",
+        "id_kwarg": "item_id",
+        "model": "wama.reader.models.ReadingItem",
+        "reset": {
+          "error_message": "",
+          "result_text": ""
+        },
+        "status_fields": {
+          "backend": "backend",
+          "error_message": {
+            "attr": "error_message",
+            "or_none": true
+          },
+          "filename": "filename",
+          "id": "id",
+          "page_count": "page_count",
+          "progress": "progress",
+          "result_preview": {
+            "attr": "result_text",
+            "preview": 300
+          },
+          "status": "status",
+          "used_backend": {
+            "attr": "used_backend",
+            "or_none": true
+          }
+        },
+        "status_order": "-id",
+        "task": "wama.reader.tasks.read_document_task"
+      }
     }
   },
   "description": "Extraction de texte par OCR (Tesseract, PaddleOCR, EasyOCR).",

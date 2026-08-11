@@ -1135,7 +1135,36 @@
         }
       },
       "start": "start_converter",
-      "status": "get_converter_status"
+      "status": "get_converter_status",
+      "triad_spec": {
+        "empty_msg": "Aucune conversion en attente.",
+        "id_kwarg": "job_id",
+        "model": "wama.converter.models.ConversionJob",
+        "queue_filter": {
+          "ephemeral": false
+        },
+        "reset": {
+          "error_message": ""
+        },
+        "status_fields": {
+          "error_message": {
+            "attr": "error_message",
+            "or_none": true
+          },
+          "filename": "input_filename",
+          "id": "id",
+          "media_type": "media_type",
+          "output_filename": {
+            "attr": "output_filename",
+            "or_none": true
+          },
+          "output_format": "output_format",
+          "progress": "progress",
+          "status": "status"
+        },
+        "status_order": "-created_at",
+        "task": "wama.converter.tasks.convert_media_task"
+      }
     }
   },
   "description": "Conversion de formats : image, vidéo, audio, documents, archives (Pillow + FFmpeg + Pandoc).",
