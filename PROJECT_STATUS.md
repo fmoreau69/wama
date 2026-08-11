@@ -2417,7 +2417,7 @@ travail**. La base LIVE est celle de **WSL2 (Postgres 16)**, conforme à
 exécute WAMA nativement sous Windows (`venv_win runserver`) ; sinon c'est une taxe d'entretien
 supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 
-## §REPRISE — 2026-08-11 (3ᵉ session) : marche C livrée — harnais `app_regen_check`
+## §REPRISE — 2026-08-11→12 (3ᵉ session, marches C + A COMPLÈTES) : harnais + gabarits + composition
 
 > Le JUGE du plan C→A→B (route §10.3) est outillé : **`manage.py app_regen_check <app>`**
 > rejoue la passe intégrée en commande — gardes git/corpus, strip (`strip_app_declarations`,
@@ -2481,6 +2481,15 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > transcriber — exige d'abord son detail en spec déclarative OU un adapter assumé). Dette
 > gardes = tâches anonymizer (avec son chantier). ⚠ restart gunicorn/workers à l'occasion
 > (nouveaux ready()/tasks.py — comportement identique, sans urgence).
+>
+> **État git en fin de session** : `dev` = 9 commits de la session (`2a33b7d`→`d934b38`),
+> poussés au fil de l'eau par Fabien jusqu'à `f58f53f` — **vérifier `git status` : `d934b38`
+> (A3b) était encore local à l'écriture de ce bloc**. Worktree `D:\WAMA\wt-regen-converter`
+> (`regen/converter`) : PROPRE, à parité avec dev — le ff-merger depuis dev avant tout
+> nouveau run du harnais (et copier les manifests/apps/*.json frais si le corpus a bougé).
+> Aucune migration cette session (aucun modèle touché). Contrôles attendus au prochain
+> `/reprise` : check_docs = 2 CASSÉ (inchangé), corpus = **19 manifestes**, roundtrip =
+> converter 8/10 / autres 7-9, grille inchangée (converter 93, reader 87…).
 
 ## §REPRISE — 2026-08-11 (2ᵉ session, SUITE du soir) : 8 facettes + function + page librairies + avis critique
 
