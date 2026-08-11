@@ -458,6 +458,32 @@ le LLM ne génère QUE le corps des backends (la glu d'usage des librairies). Ha
 = le protocole du pilote (worktree + diff normalisé + grille + smoke), à ériger en process
 outillé avant d'ouvrir cette marche.
 
+**Plan d'exécution de la marche (cadré avec Fabien 2026-08-11 soir) — ordre C → A → B :**
+- **C. Harnais outillé D'ABORD** (il devient le JUGE de tout le reste) : ériger le protocole de
+  la passe intégrée en commande (`manage.py app_regen_check <app>` : strip worktree → apply →
+  3 axes manifeste/grille/smoke → rapport). Sans lui, impossible de juger objectivement un
+  gabarit ni un LLM.
+- **A. Gabarit (sans LLM)** : `common/manifests/codegen/` — templates du squelette conventionnel,
+  trous alimentés PAR LE MANIFESTE : `models.py` (spine user/status/task_id/progress +
+  ProcessingTimeMixin + champs DÉRIVÉS de la facette params — l'inverse de `derive_from_model`),
+  `urls.py` (STANDARD_ENDPOINTS), `views.py` (fabriques communes : queue_manipulation, anti-race,
+  batch unifié), `tasks.py` (gardes crash_redelivery + reconcile + eta), `apps.py` (Detail/
+  PreviewRegistry = facette inspector), triade `tool_api` (conventionnelle). Fichiers marqués
+  `[manifest-gen]`, mêmes contrats que le moteur commun.
+- **B. LLM aux trous restants** (corps des backends) — deux facteurs actés DÈS MAINTENANT :
+  1. **Modèle : MESURÉ, pas présumé.** Candidat pressenti par Fabien : `qwen3.6:35b` (déjà tiré
+     sur l'hôte Ollama, 23,9 Go — sature la 4090 : bancs à lancer HORS charge WAMA) ; challengers
+     `qwen3-coder:30b` (le verdict « trop lourd » de CLAUDE.md valait pour l'AGENTIQUE multi-tours
+     — la génération one-shot est un autre profil), `gemma4:26b`/`e4b`. Banc indexé sur la TÂCHE
+     canonique (« corps de backend depuis manifeste composé + skill »), jugé par le harnais C
+     (compile + contrat BaseModelBackend + smoke) — jamais au jugé.
+  2. **Skill de génération** : rôle wama-dev-ai `app-codegen` avec skill dédié (patron
+     `prompt_skills`/rôles existants) : contrat `BaseModelBackend` + manifeste composé
+     (`requires` app→model→library résolus) + 2-3 backends exemplaires en few-shot (le corpus
+     est le matériel d'apprentissage, `ingest.py:43`) + interdits (pas d'import avant
+     `HF_HUB_CACHE`, `cache_dir` obligatoire, vocabulaire de statuts canonique).
+  Pilote : **transcriber** (composition complète librairie faster-whisper + tous ses modèles).
+
 **Palier `prompts` → PROMPT_TARGETS** : variante ENTRÉE-VALEUR du moteur (l'entrée du registre
 EST la liste `targets`, pas un dict de champs) — bornes par AST (lineno/end_lineno, robustes aux
 3 idiomes : mono-ligne, fermeture main `    ],`, continuation pprint générée). Seul `targets` se
