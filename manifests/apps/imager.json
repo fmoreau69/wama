@@ -188,447 +188,886 @@
         }
       ]
     },
-    "params": [
-      {
-        "advanced": false,
-        "chip": false,
-        "chip_label": "",
-        "choices": null,
-        "contexts": [
-          "item",
-          "batch",
-          "panel"
+    "params": {
+      "primary": "IMAGE_PARAMS_JSON",
+      "schemas": {
+        "IMAGE_PARAMS_JSON": [
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": "stable-diffusion-v1-5",
+            "dom_id": {
+              "item": "settings_model",
+              "panel": "model"
+            },
+            "group": "modele",
+            "help": "Modèle de génération (Auto = tirage VRAM-aware au lancement).",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-microchip",
+            "inline": false,
+            "label": "Modèle",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "model",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "select",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": "",
+            "dom_id": {
+              "item": "settings_negative_prompt"
+            },
+            "group": "modele",
+            "help": "Ce qu'il faut éviter dans l'image.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-ban",
+            "inline": false,
+            "label": "Prompt négatif",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "negative_prompt",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "textarea",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": true,
+            "chip_label": "img",
+            "choices": [
+              [
+                "1",
+                "1"
+              ],
+              [
+                "2",
+                "2"
+              ],
+              [
+                "3",
+                "3"
+              ],
+              [
+                "4",
+                "4"
+              ]
+            ],
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": 1,
+            "dom_id": {
+              "item": "settings_num_images",
+              "panel": "num_images"
+            },
+            "group": "sortie",
+            "help": "Nombre d'images à générer en une passe.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-images",
+            "inline": false,
+            "label": "Nombre d'images",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "num_images",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "select",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": true,
+            "chip_label": "steps",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": 30,
+            "dom_id": {
+              "item": "settings_steps",
+              "panel": "steps"
+            },
+            "group": "qualite",
+            "help": "Nombre d'étapes de diffusion.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-shoe-prints",
+            "inline": false,
+            "label": "Steps",
+            "max": 100,
+            "max_label": "",
+            "min": 1,
+            "min_label": "",
+            "name": "steps",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": 1,
+            "type": "range",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": 7.5,
+            "dom_id": {
+              "item": "settings_guidance_scale",
+              "panel": "guidance_scale"
+            },
+            "group": "qualite",
+            "help": "À quel point suivre le prompt.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-sliders-h",
+            "inline": false,
+            "label": "Guidance scale",
+            "max": 20,
+            "max_label": "",
+            "min": 1,
+            "min_label": "",
+            "name": "guidance_scale",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": 0.5,
+            "type": "range",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": null,
+            "dom_id": {
+              "item": "settings_seed",
+              "panel": "seed"
+            },
+            "group": "qualite",
+            "help": "Graine aléatoire (vide = aléatoire).",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-dice",
+            "inline": false,
+            "label": "Seed",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "seed",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "number",
+            "unit": ""
+          },
+          {
+            "advanced": true,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": 0.75,
+            "dom_id": {
+              "item": "settings_image_strength"
+            },
+            "group": "qualite",
+            "help": "Influence de l'image de référence (img2img / style). 0=ignorer, 1=copier.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-image",
+            "inline": false,
+            "label": "Force de l'image de référence",
+            "max": 1,
+            "max_label": "",
+            "min": 0,
+            "min_label": "",
+            "name": "image_strength",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": 0.05,
+            "type": "range",
+            "unit": ""
+          },
+          {
+            "advanced": true,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": false,
+            "dom_id": {
+              "item": "settings_upscale",
+              "panel": "upscale"
+            },
+            "group": "sortie",
+            "help": "Agrandit l'image générée (×2).",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-expand",
+            "inline": false,
+            "label": "Upscaler la sortie",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "upscale",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "toggle",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": [
+              [
+                "original",
+                "Original (inchangé)"
+              ],
+              [
+                "mp4",
+                ".MP4"
+              ],
+              [
+                "webm",
+                ".WEBM"
+              ],
+              [
+                "avi",
+                ".AVI"
+              ],
+              [
+                "mov",
+                ".MOV"
+              ],
+              [
+                "mkv",
+                ".MKV"
+              ],
+              [
+                "gif",
+                ".GIF"
+              ],
+              [
+                "mp3",
+                ".MP3"
+              ],
+              [
+                "wav",
+                ".WAV"
+              ],
+              [
+                "ogg",
+                ".OGG"
+              ]
+            ],
+            "contexts": [
+              "panel"
+            ],
+            "default": null,
+            "dom_id": "output_format",
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-file-export",
+            "inline": false,
+            "label": "Format de sortie",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "output_format",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "select",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": [
+              [
+                "web",
+                "Web (léger)"
+              ],
+              [
+                "balanced",
+                "Équilibré"
+              ],
+              [
+                "max",
+                "Maximum"
+              ]
+            ],
+            "contexts": [
+              "panel"
+            ],
+            "default": null,
+            "dom_id": "output_quality",
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-sliders",
+            "inline": false,
+            "label": "Qualité",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "output_quality",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "select",
+            "unit": ""
+          }
         ],
-        "default": "stable-diffusion-v1-5",
-        "dom_id": {
-          "item": "settings_model",
-          "panel": "model"
-        },
-        "group": "modele",
-        "help": "Modèle de génération (Auto = tirage VRAM-aware au lancement).",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-microchip",
-        "inline": false,
-        "label": "Modèle",
-        "max": null,
-        "max_label": "",
-        "min": null,
-        "min_label": "",
-        "name": "model",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": null,
-        "type": "select",
-        "unit": ""
-      },
-      {
-        "advanced": false,
-        "chip": false,
-        "chip_label": "",
-        "choices": null,
-        "contexts": [
-          "item",
-          "batch",
-          "panel"
-        ],
-        "default": "",
-        "dom_id": {
-          "item": "settings_negative_prompt"
-        },
-        "group": "modele",
-        "help": "Ce qu'il faut éviter dans l'image.",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-ban",
-        "inline": false,
-        "label": "Prompt négatif",
-        "max": null,
-        "max_label": "",
-        "min": null,
-        "min_label": "",
-        "name": "negative_prompt",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": null,
-        "type": "textarea",
-        "unit": ""
-      },
-      {
-        "advanced": false,
-        "chip": true,
-        "chip_label": "img",
-        "choices": [
-          [
-            "1",
-            "1"
-          ],
-          [
-            "2",
-            "2"
-          ],
-          [
-            "3",
-            "3"
-          ],
-          [
-            "4",
-            "4"
-          ]
-        ],
-        "contexts": [
-          "item",
-          "batch",
-          "panel"
-        ],
-        "default": 1,
-        "dom_id": {
-          "item": "settings_num_images",
-          "panel": "num_images"
-        },
-        "group": "sortie",
-        "help": "Nombre d'images à générer en une passe.",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-images",
-        "inline": false,
-        "label": "Nombre d'images",
-        "max": null,
-        "max_label": "",
-        "min": null,
-        "min_label": "",
-        "name": "num_images",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": null,
-        "type": "select",
-        "unit": ""
-      },
-      {
-        "advanced": false,
-        "chip": true,
-        "chip_label": "steps",
-        "choices": null,
-        "contexts": [
-          "item",
-          "batch",
-          "panel"
-        ],
-        "default": 30,
-        "dom_id": {
-          "item": "settings_steps",
-          "panel": "steps"
-        },
-        "group": "qualite",
-        "help": "Nombre d'étapes de diffusion.",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-shoe-prints",
-        "inline": false,
-        "label": "Steps",
-        "max": 100,
-        "max_label": "",
-        "min": 1,
-        "min_label": "",
-        "name": "steps",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": 1,
-        "type": "range",
-        "unit": ""
-      },
-      {
-        "advanced": false,
-        "chip": false,
-        "chip_label": "",
-        "choices": null,
-        "contexts": [
-          "item",
-          "batch",
-          "panel"
-        ],
-        "default": 7.5,
-        "dom_id": {
-          "item": "settings_guidance_scale",
-          "panel": "guidance_scale"
-        },
-        "group": "qualite",
-        "help": "À quel point suivre le prompt.",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-sliders-h",
-        "inline": false,
-        "label": "Guidance scale",
-        "max": 20,
-        "max_label": "",
-        "min": 1,
-        "min_label": "",
-        "name": "guidance_scale",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": 0.5,
-        "type": "range",
-        "unit": ""
-      },
-      {
-        "advanced": false,
-        "chip": false,
-        "chip_label": "",
-        "choices": null,
-        "contexts": [
-          "item",
-          "batch",
-          "panel"
-        ],
-        "default": null,
-        "dom_id": {
-          "item": "settings_seed",
-          "panel": "seed"
-        },
-        "group": "qualite",
-        "help": "Graine aléatoire (vide = aléatoire).",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-dice",
-        "inline": false,
-        "label": "Seed",
-        "max": null,
-        "max_label": "",
-        "min": null,
-        "min_label": "",
-        "name": "seed",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": null,
-        "type": "number",
-        "unit": ""
-      },
-      {
-        "advanced": true,
-        "chip": false,
-        "chip_label": "",
-        "choices": null,
-        "contexts": [
-          "item",
-          "batch",
-          "panel"
-        ],
-        "default": 0.75,
-        "dom_id": {
-          "item": "settings_image_strength"
-        },
-        "group": "qualite",
-        "help": "Influence de l'image de référence (img2img / style). 0=ignorer, 1=copier.",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-image",
-        "inline": false,
-        "label": "Force de l'image de référence",
-        "max": 1,
-        "max_label": "",
-        "min": 0,
-        "min_label": "",
-        "name": "image_strength",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": 0.05,
-        "type": "range",
-        "unit": ""
-      },
-      {
-        "advanced": true,
-        "chip": false,
-        "chip_label": "",
-        "choices": null,
-        "contexts": [
-          "item",
-          "batch",
-          "panel"
-        ],
-        "default": false,
-        "dom_id": {
-          "item": "settings_upscale",
-          "panel": "upscale"
-        },
-        "group": "sortie",
-        "help": "Agrandit l'image générée (×2).",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-expand",
-        "inline": false,
-        "label": "Upscaler la sortie",
-        "max": null,
-        "max_label": "",
-        "min": null,
-        "min_label": "",
-        "name": "upscale",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": null,
-        "type": "toggle",
-        "unit": ""
-      },
-      {
-        "advanced": false,
-        "chip": false,
-        "chip_label": "",
-        "choices": [
-          [
-            "original",
-            "Original (inchangé)"
-          ],
-          [
-            "mp4",
-            ".MP4"
-          ],
-          [
-            "webm",
-            ".WEBM"
-          ],
-          [
-            "avi",
-            ".AVI"
-          ],
-          [
-            "mov",
-            ".MOV"
-          ],
-          [
-            "mkv",
-            ".MKV"
-          ],
-          [
-            "gif",
-            ".GIF"
-          ],
-          [
-            "mp3",
-            ".MP3"
-          ],
-          [
-            "wav",
-            ".WAV"
-          ],
-          [
-            "ogg",
-            ".OGG"
-          ]
-        ],
-        "contexts": [
-          "panel"
-        ],
-        "default": null,
-        "dom_id": "output_format",
-        "group": "",
-        "help": "",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-file-export",
-        "inline": false,
-        "label": "Format de sortie",
-        "max": null,
-        "max_label": "",
-        "min": null,
-        "min_label": "",
-        "name": "output_format",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": null,
-        "type": "select",
-        "unit": ""
-      },
-      {
-        "advanced": false,
-        "chip": false,
-        "chip_label": "",
-        "choices": [
-          [
-            "web",
-            "Web (léger)"
-          ],
-          [
-            "balanced",
-            "Équilibré"
-          ],
-          [
-            "max",
-            "Maximum"
-          ]
-        ],
-        "contexts": [
-          "panel"
-        ],
-        "default": null,
-        "dom_id": "output_quality",
-        "group": "",
-        "help": "",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-sliders",
-        "inline": false,
-        "label": "Qualité",
-        "max": null,
-        "max_label": "",
-        "min": null,
-        "min_label": "",
-        "name": "output_quality",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": null,
-        "type": "select",
-        "unit": ""
+        "VIDEO_PARAMS_JSON": [
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": "stable-diffusion-v1-5",
+            "dom_id": {
+              "item": "video_settings_model",
+              "panel": "panel_video_model"
+            },
+            "group": "modele",
+            "help": "AI model to use",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-film",
+            "inline": false,
+            "label": "Modèle vidéo",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "model",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "select",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": "",
+            "dom_id": {
+              "item": "video_settings_negative_prompt"
+            },
+            "group": "modele",
+            "help": "What to avoid in the image",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-ban",
+            "inline": false,
+            "label": "Prompt négatif",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "negative_prompt",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "textarea",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": [
+              [
+                "480p",
+                "480p (832x480) 16:9"
+              ],
+              [
+                "720p",
+                "720p (1280x720) 16:9"
+              ]
+            ],
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": "480p",
+            "dom_id": {
+              "item": "video_settings_resolution",
+              "panel": "panel_video_resolution"
+            },
+            "group": "sortie",
+            "help": "Video resolution preset",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-expand",
+            "inline": false,
+            "label": "Résolution",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "video_resolution",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "select",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": true,
+            "chip_label": "s",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": 5.0,
+            "dom_id": {
+              "item": "video_settings_duration",
+              "panel": "panel_video_duration"
+            },
+            "group": "sortie",
+            "help": "Video duration in seconds (1-15)",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-clock",
+            "inline": false,
+            "label": "Durée (s)",
+            "max": 15,
+            "max_label": "",
+            "min": 1,
+            "min_label": "",
+            "name": "video_duration",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": 1,
+            "type": "range",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": true,
+            "chip_label": "fps",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": 16,
+            "dom_id": {
+              "item": "video_settings_fps",
+              "panel": "panel_video_fps"
+            },
+            "group": "sortie",
+            "help": "Video frames per second",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-tachometer-alt",
+            "inline": false,
+            "label": "FPS",
+            "max": 30,
+            "max_label": "",
+            "min": 8,
+            "min_label": "",
+            "name": "video_fps",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": 1,
+            "type": "number",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": null,
+            "dom_id": {
+              "item": "video_settings_seed",
+              "panel": "panel_video_seed"
+            },
+            "group": "qualite",
+            "help": "Graine aléatoire (vide = aléatoire).",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-dice",
+            "inline": false,
+            "label": "Seed",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "seed",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "number",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": true,
+            "chip_label": "steps",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": 30,
+            "dom_id": {
+              "item": "video_settings_steps",
+              "panel": "panel_video_steps"
+            },
+            "group": "qualite",
+            "help": "Nombre d'étapes de diffusion.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-shoe-prints",
+            "inline": false,
+            "label": "Steps",
+            "max": 100,
+            "max_label": "",
+            "min": 1,
+            "min_label": "",
+            "name": "steps",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": 1,
+            "type": "range",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": 7.5,
+            "dom_id": {
+              "item": "video_settings_guidance",
+              "panel": "panel_video_guidance"
+            },
+            "group": "qualite",
+            "help": "À quel point suivre le prompt.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-sliders-h",
+            "inline": false,
+            "label": "Guidance scale",
+            "max": 20,
+            "max_label": "",
+            "min": 1,
+            "min_label": "",
+            "name": "guidance_scale",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": 0.5,
+            "type": "range",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": [
+              [
+                "original",
+                "Original (inchangé)"
+              ],
+              [
+                "mp4",
+                ".MP4"
+              ],
+              [
+                "webm",
+                ".WEBM"
+              ],
+              [
+                "avi",
+                ".AVI"
+              ],
+              [
+                "mov",
+                ".MOV"
+              ],
+              [
+                "mkv",
+                ".MKV"
+              ],
+              [
+                "gif",
+                ".GIF"
+              ],
+              [
+                "mp3",
+                ".MP3"
+              ],
+              [
+                "wav",
+                ".WAV"
+              ],
+              [
+                "ogg",
+                ".OGG"
+              ]
+            ],
+            "contexts": [
+              "panel"
+            ],
+            "default": null,
+            "dom_id": "output_format",
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-file-export",
+            "inline": false,
+            "label": "Format de sortie",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "output_format",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "select",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": [
+              [
+                "web",
+                "Web (léger)"
+              ],
+              [
+                "balanced",
+                "Équilibré"
+              ],
+              [
+                "max",
+                "Maximum"
+              ]
+            ],
+            "contexts": [
+              "panel"
+            ],
+            "default": null,
+            "dom_id": "output_quality",
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-sliders",
+            "inline": false,
+            "label": "Qualité",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "output_quality",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "select",
+            "unit": ""
+          }
+        ]
       }
-    ],
+    },
     "ports": {
       "inputs": [
         {

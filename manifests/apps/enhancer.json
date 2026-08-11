@@ -132,184 +132,394 @@
         }
       ]
     },
-    "params": [
-      {
-        "advanced": false,
-        "chip": true,
-        "chip_label": "",
-        "choices": [
-          [
-            "RealESR_Gx4",
-            "RealESR-General x4 (Rapide)"
-          ],
-          [
-            "RealESR_Animex4",
-            "RealESR-Anime x4 (Anime)"
-          ],
-          [
-            "BSRGANx2",
-            "BSRGAN x2 (Qualité)"
-          ],
-          [
-            "BSRGANx4",
-            "BSRGAN x4 (Qualité)"
-          ],
-          [
-            "RealESRGANx4",
-            "RealESRGAN x4 (Haute qualité)"
-          ],
-          [
-            "IRCNN_Mx1",
-            "IRCNN-M x1 (Débruitage)"
-          ],
-          [
-            "IRCNN_Lx1",
-            "IRCNN-L x1 (Débruitage fort)"
-          ]
-        ],
-        "contexts": [
-          "panel",
-          "item"
-        ],
-        "default": null,
-        "dom_id": {
-          "item": "settingsAiModel",
-          "panel": "defaultAiModel"
-        },
-        "group": "",
-        "help": "",
-        "help_fallback": {
-          "BSRGANx2": {
-            "description": "High-quality 2x upscaler",
-            "description_long": "High-quality 2x upscaler. Facteur d'agrandissement ×2, ~0.75 GB VRAM — ONNX (BSRGANx2_fp16.onnx).",
-            "recommended_vram_gb": 0.75
+    "params": {
+      "primary": "MEDIA_PARAMS_JSON",
+      "schemas": {
+        "AUDIO_PARAMS_JSON": [
+          {
+            "advanced": false,
+            "chip": true,
+            "chip_label": "",
+            "choices": [
+              [
+                "resemble",
+                "Resemble Enhance (Recommandé)"
+              ],
+              [
+                "deepfilternet",
+                "DeepFilterNet 3 (Rapide — temps réel)"
+              ]
+            ],
+            "contexts": [
+              "panel",
+              "item"
+            ],
+            "default": null,
+            "dom_id": {
+              "item": "settingsAudioEngine",
+              "panel": "audioEngine"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": {
+              "deepfilternet": {
+                "description": "Débruitage temps réel — rapide, faible empreinte",
+                "description_long": "DeepFilterNet 3 : débruitage discriminatif temps réel (48 kHz), très rapide et léger, sans extension de bande. Recommandé pour prétraiter avant transcription. Les réglages Mode / Force / Qualité ne s'appliquent pas.",
+                "recommended_vram_gb": 1
+              },
+              "resemble": {
+                "description": "Restauration par diffusion — débruitage + extension de bande, meilleure qualité",
+                "description_long": "Resemble Enhance : modèle génératif (diffusion) qui débruite ET restaure les hautes fréquences (super-résolution audio). Qualité supérieure mais plus lent ; les réglages Mode / Force / Qualité (NFE) s'appliquent. Idéal pour des voix dégradées.",
+                "recommended_vram_gb": 4
+              }
+            },
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-cogs",
+            "inline": false,
+            "label": "Moteur",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "engine",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "select",
+            "unit": ""
           },
-          "BSRGANx4": {
-            "description": "High-quality 4x upscaler",
-            "description_long": "High-quality 4x upscaler. Facteur d'agrandissement ×4, ~0.75 GB VRAM — ONNX (BSRGANx4_fp16.onnx).",
-            "recommended_vram_gb": 0.75
+          {
+            "advanced": false,
+            "chip": true,
+            "chip_label": "",
+            "choices": [
+              [
+                "both",
+                "Débruitage + Amélioration (Recommandé)"
+              ],
+              [
+                "denoise",
+                "Débruitage seul (Rapide)"
+              ],
+              [
+                "enhance",
+                "Amélioration seule"
+              ]
+            ],
+            "contexts": [
+              "panel",
+              "item"
+            ],
+            "default": null,
+            "dom_id": {
+              "item": "settingsAudioMode",
+              "panel": "audioMode"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-sliders-h",
+            "inline": false,
+            "label": "Mode",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "mode",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": {
+              "equals": "resemble",
+              "field": "engine"
+            },
+            "step": null,
+            "type": "select",
+            "unit": ""
           },
-          "IRCNN_Lx1": {
-            "description": "Strong denoising (no upscaling)",
-            "description_long": "Strong denoising (no upscaling). Débruitage sans agrandissement (×1), ~4.0 GB VRAM — ONNX (IRCNN_Lx1_fp16.onnx).",
-            "recommended_vram_gb": 4.0
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item"
+            ],
+            "default": null,
+            "dom_id": {
+              "item": "settingsAudioStrength",
+              "panel": "audioDenoisingStrength"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-wind",
+            "inline": false,
+            "label": "Force débruitage",
+            "max": 1,
+            "max_label": "",
+            "min": 0,
+            "min_label": "",
+            "name": "strength",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": {
+              "equals": "resemble",
+              "field": "engine"
+            },
+            "step": 0.1,
+            "type": "range",
+            "unit": ""
           },
-          "IRCNN_Mx1": {
-            "description": "Medium denoising (no upscaling)",
-            "description_long": "Medium denoising (no upscaling). Débruitage sans agrandissement (×1), ~4.0 GB VRAM — ONNX (IRCNN_Mx1_fp16.onnx).",
-            "recommended_vram_gb": 4.0
-          },
-          "RealESRGANx4": {
-            "description": "Highest quality 4x upscaler (slow)",
-            "description_long": "Highest quality 4x upscaler (slow). Facteur d'agrandissement ×4, ~2.5 GB VRAM — ONNX (RealESRGANx4_fp16.onnx).",
-            "recommended_vram_gb": 2.5
-          },
-          "RealESR_Animex4": {
-            "description": "Fast anime-oriented 4x upscaler",
-            "description_long": "Fast anime-oriented 4x upscaler. Facteur d'agrandissement ×4, ~2.5 GB VRAM — ONNX (RealESR_Animex4_fp16.onnx).",
-            "recommended_vram_gb": 2.5
-          },
-          "RealESR_Gx4": {
-            "description": "Fast general-purpose 4x upscaler",
-            "description_long": "Fast general-purpose 4x upscaler. Facteur d'agrandissement ×4, ~2.5 GB VRAM — ONNX (RealESR_Gx4_fp16.onnx).",
-            "recommended_vram_gb": 2.5
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": [
+              [
+                "32",
+                "Rapide (32 étapes)"
+              ],
+              [
+                "64",
+                "Équilibré (64 étapes)"
+              ],
+              [
+                "128",
+                "Meilleur (128 étapes)"
+              ]
+            ],
+            "contexts": [
+              "panel",
+              "item"
+            ],
+            "default": null,
+            "dom_id": {
+              "item": "settingsAudioQuality",
+              "panel": "audioQuality"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-star",
+            "inline": false,
+            "label": "Qualité (NFE)",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "quality",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": {
+              "equals": "resemble",
+              "field": "engine"
+            },
+            "step": null,
+            "type": "select",
+            "unit": ""
           }
-        },
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-brain",
-        "inline": false,
-        "label": "Modèle AI",
-        "max": null,
-        "max_label": "",
-        "min": null,
-        "min_label": "",
-        "name": "ai_model",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": null,
-        "type": "select",
-        "unit": ""
-      },
-      {
-        "advanced": false,
-        "chip": true,
-        "chip_label": "Débruitage",
-        "choices": null,
-        "contexts": [
-          "panel",
-          "item"
         ],
-        "default": null,
-        "dom_id": {
-          "item": "settingsDenoise",
-          "panel": "defaultDenoise"
-        },
-        "group": "",
-        "help": "",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-broom",
-        "inline": false,
-        "label": "Débruitage",
-        "max": null,
-        "max_label": "",
-        "min": null,
-        "min_label": "",
-        "name": "denoise",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": null,
-        "type": "toggle",
-        "unit": ""
-      },
-      {
-        "advanced": false,
-        "chip": true,
-        "chip_label": "",
-        "choices": null,
-        "contexts": [
-          "panel",
-          "item"
-        ],
-        "default": null,
-        "dom_id": {
-          "item": "settingsBlendFactor",
-          "panel": "defaultBlendFactor"
-        },
-        "group": "",
-        "help": "",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-sliders-h",
-        "inline": false,
-        "label": "Blend",
-        "max": 1,
-        "max_label": "",
-        "min": 0,
-        "min_label": "",
-        "name": "blend_factor",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": 0.1,
-        "type": "range",
-        "unit": ""
+        "MEDIA_PARAMS_JSON": [
+          {
+            "advanced": false,
+            "chip": true,
+            "chip_label": "",
+            "choices": [
+              [
+                "RealESR_Gx4",
+                "RealESR-General x4 (Rapide)"
+              ],
+              [
+                "RealESR_Animex4",
+                "RealESR-Anime x4 (Anime)"
+              ],
+              [
+                "BSRGANx2",
+                "BSRGAN x2 (Qualité)"
+              ],
+              [
+                "BSRGANx4",
+                "BSRGAN x4 (Qualité)"
+              ],
+              [
+                "RealESRGANx4",
+                "RealESRGAN x4 (Haute qualité)"
+              ],
+              [
+                "IRCNN_Mx1",
+                "IRCNN-M x1 (Débruitage)"
+              ],
+              [
+                "IRCNN_Lx1",
+                "IRCNN-L x1 (Débruitage fort)"
+              ]
+            ],
+            "contexts": [
+              "panel",
+              "item"
+            ],
+            "default": null,
+            "dom_id": {
+              "item": "settingsAiModel",
+              "panel": "defaultAiModel"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": {
+              "BSRGANx2": {
+                "description": "High-quality 2x upscaler",
+                "description_long": "High-quality 2x upscaler. Facteur d'agrandissement ×2, ~0.75 GB VRAM — ONNX (BSRGANx2_fp16.onnx).",
+                "recommended_vram_gb": 0.75
+              },
+              "BSRGANx4": {
+                "description": "High-quality 4x upscaler",
+                "description_long": "High-quality 4x upscaler. Facteur d'agrandissement ×4, ~0.75 GB VRAM — ONNX (BSRGANx4_fp16.onnx).",
+                "recommended_vram_gb": 0.75
+              },
+              "IRCNN_Lx1": {
+                "description": "Strong denoising (no upscaling)",
+                "description_long": "Strong denoising (no upscaling). Débruitage sans agrandissement (×1), ~4.0 GB VRAM — ONNX (IRCNN_Lx1_fp16.onnx).",
+                "recommended_vram_gb": 4.0
+              },
+              "IRCNN_Mx1": {
+                "description": "Medium denoising (no upscaling)",
+                "description_long": "Medium denoising (no upscaling). Débruitage sans agrandissement (×1), ~4.0 GB VRAM — ONNX (IRCNN_Mx1_fp16.onnx).",
+                "recommended_vram_gb": 4.0
+              },
+              "RealESRGANx4": {
+                "description": "Highest quality 4x upscaler (slow)",
+                "description_long": "Highest quality 4x upscaler (slow). Facteur d'agrandissement ×4, ~2.5 GB VRAM — ONNX (RealESRGANx4_fp16.onnx).",
+                "recommended_vram_gb": 2.5
+              },
+              "RealESR_Animex4": {
+                "description": "Fast anime-oriented 4x upscaler",
+                "description_long": "Fast anime-oriented 4x upscaler. Facteur d'agrandissement ×4, ~2.5 GB VRAM — ONNX (RealESR_Animex4_fp16.onnx).",
+                "recommended_vram_gb": 2.5
+              },
+              "RealESR_Gx4": {
+                "description": "Fast general-purpose 4x upscaler",
+                "description_long": "Fast general-purpose 4x upscaler. Facteur d'agrandissement ×4, ~2.5 GB VRAM — ONNX (RealESR_Gx4_fp16.onnx).",
+                "recommended_vram_gb": 2.5
+              }
+            },
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-brain",
+            "inline": false,
+            "label": "Modèle AI",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "ai_model",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "select",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": true,
+            "chip_label": "Débruitage",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item"
+            ],
+            "default": null,
+            "dom_id": {
+              "item": "settingsDenoise",
+              "panel": "defaultDenoise"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-broom",
+            "inline": false,
+            "label": "Débruitage",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "denoise",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "toggle",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": true,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item"
+            ],
+            "default": null,
+            "dom_id": {
+              "item": "settingsBlendFactor",
+              "panel": "defaultBlendFactor"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-sliders-h",
+            "inline": false,
+            "label": "Blend",
+            "max": 1,
+            "max_label": "",
+            "min": 0,
+            "min_label": "",
+            "name": "blend_factor",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": 0.1,
+            "type": "range",
+            "unit": ""
+          }
+        ]
       }
-    ],
+    },
     "ports": {
       "inputs": [
         {

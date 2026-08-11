@@ -101,288 +101,293 @@
         }
       ]
     },
-    "params": [
-      {
-        "advanced": false,
-        "chip": true,
-        "chip_label": "",
-        "choices": [
-          [
-            "auto",
-            "Auto (meilleur disponible)"
-          ]
-        ],
-        "contexts": [
-          "item",
-          "batch",
-          "panel"
-        ],
-        "default": "auto",
-        "dom_id": {
-          "item": "settingsBackend",
-          "panel": "backendSelect"
-        },
-        "group": "",
-        "help": "",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-microchip",
-        "inline": false,
-        "label": "Moteur de transcription",
-        "max": null,
-        "max_label": "",
-        "min": null,
-        "min_label": "",
-        "name": "backend",
-        "option_groups": null,
-        "options_source": "backends",
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": null,
-        "type": "select",
-        "unit": ""
-      },
-      {
-        "advanced": false,
-        "chip": true,
-        "chip_label": "",
-        "choices": null,
-        "contexts": [
-          "item",
-          "batch",
-          "panel"
-        ],
-        "default": "",
-        "dom_id": {
-          "item": "settingsHotwords",
-          "panel": "hotwordsInput"
-        },
-        "group": "",
-        "help": "Séparés par des virgules",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-tags",
-        "inline": false,
-        "label": "Mots-clés contextuels",
-        "max": null,
-        "max_label": "",
-        "min": null,
-        "min_label": "",
-        "name": "hotwords",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": null,
-        "type": "textarea",
-        "unit": ""
-      },
-      {
-        "advanced": false,
-        "chip": false,
-        "chip_label": "",
-        "choices": null,
-        "contexts": [
-          "item",
-          "batch",
-          "panel"
-        ],
-        "default": false,
-        "dom_id": {
-          "item": "settingsPreprocess",
-          "panel": "preprocessingToggle"
-        },
-        "group": "",
-        "help": "",
-        "help_fallback": null,
-        "help_html": "Débruitage IA (DeepFilterNet) + 16 kHz mono<br><a href=\"#\" class=\"text-info text-decoration-none\" data-bs-toggle=\"modal\" data-bs-target=\"#preprocessingModal\"><i class=\"fas fa-circle-question\"></i> En savoir plus</a>",
-        "help_source": null,
-        "icon": "fa-wand-magic-sparkles",
-        "inline": false,
-        "label": "Prétraitement audio",
-        "max": null,
-        "max_label": "",
-        "min": null,
-        "min_label": "",
-        "name": "preprocess_audio",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": null,
-        "type": "toggle",
-        "unit": ""
-      },
-      {
-        "advanced": false,
-        "chip": true,
-        "chip_label": "Diarisation",
-        "choices": null,
-        "contexts": [
-          "item",
-          "batch",
-          "panel"
-        ],
-        "default": true,
-        "dom_id": {
-          "item": "settingsDiarization",
-          "panel": "diarizationToggle"
-        },
-        "group": "",
-        "help": "Séparation des locuteurs (pyannote)",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-users",
-        "inline": false,
-        "label": "Identifier les locuteurs",
-        "max": null,
-        "max_label": "",
-        "min": null,
-        "min_label": "",
-        "name": "enable_diarization",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": null,
-        "type": "toggle",
-        "unit": ""
-      },
-      {
-        "advanced": false,
-        "chip": true,
-        "chip_label": "Résumé",
-        "choices": null,
-        "contexts": [
-          "item",
-          "batch",
-          "panel"
-        ],
-        "default": false,
-        "dom_id": {
-          "item": "settingsGenerateSummary",
-          "panel": "globalGenerateSummary"
-        },
-        "group": "",
-        "help": "",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-file-lines",
-        "inline": false,
-        "label": "Générer un résumé",
-        "max": null,
-        "max_label": "",
-        "min": null,
-        "min_label": "",
-        "name": "generate_summary",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": null,
-        "type": "toggle",
-        "unit": ""
-      },
-      {
-        "advanced": false,
-        "chip": false,
-        "chip_label": "",
-        "choices": [
-          [
-            "structured",
-            "Structuré"
-          ],
-          [
-            "meeting",
-            "Réunion"
-          ]
-        ],
-        "contexts": [
-          "item",
-          "batch",
-          "panel"
-        ],
-        "default": "structured",
-        "dom_id": "",
-        "group": "",
-        "help": "",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-list",
-        "inline": true,
-        "label": "",
-        "max": null,
-        "max_label": "",
-        "min": null,
-        "min_label": "",
-        "name": "summary_type",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": {
-          "item": "summary_type",
-          "panel": "globalSummaryType"
-        },
-        "section": "settings",
-        "show_if": "generate_summary",
-        "step": null,
-        "type": "radio",
-        "unit": ""
-      },
-      {
-        "advanced": false,
-        "chip": true,
-        "chip_label": "Cohérence",
-        "choices": null,
-        "contexts": [
-          "item",
-          "batch",
-          "panel"
-        ],
-        "default": false,
-        "dom_id": {
-          "item": "settingsVerifyCoherence",
-          "panel": "globalVerifyCoherence"
-        },
-        "group": "",
-        "help": "Score + correction proposée côte à côte",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-check-double",
-        "inline": false,
-        "label": "Vérifier la cohérence",
-        "max": null,
-        "max_label": "",
-        "min": null,
-        "min_label": "",
-        "name": "verify_coherence",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": null,
-        "type": "toggle",
-        "unit": ""
+    "params": {
+      "primary": "PARAMS_JSON",
+      "schemas": {
+        "PARAMS_JSON": [
+          {
+            "advanced": false,
+            "chip": true,
+            "chip_label": "",
+            "choices": [
+              [
+                "auto",
+                "Auto (meilleur disponible)"
+              ]
+            ],
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": "auto",
+            "dom_id": {
+              "item": "settingsBackend",
+              "panel": "backendSelect"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-microchip",
+            "inline": false,
+            "label": "Moteur de transcription",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "backend",
+            "option_groups": null,
+            "options_source": "backends",
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "select",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": true,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": "",
+            "dom_id": {
+              "item": "settingsHotwords",
+              "panel": "hotwordsInput"
+            },
+            "group": "",
+            "help": "Séparés par des virgules",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-tags",
+            "inline": false,
+            "label": "Mots-clés contextuels",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "hotwords",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "textarea",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": false,
+            "dom_id": {
+              "item": "settingsPreprocess",
+              "panel": "preprocessingToggle"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "Débruitage IA (DeepFilterNet) + 16 kHz mono<br><a href=\"#\" class=\"text-info text-decoration-none\" data-bs-toggle=\"modal\" data-bs-target=\"#preprocessingModal\"><i class=\"fas fa-circle-question\"></i> En savoir plus</a>",
+            "help_source": null,
+            "icon": "fa-wand-magic-sparkles",
+            "inline": false,
+            "label": "Prétraitement audio",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "preprocess_audio",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "toggle",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": true,
+            "chip_label": "Diarisation",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": true,
+            "dom_id": {
+              "item": "settingsDiarization",
+              "panel": "diarizationToggle"
+            },
+            "group": "",
+            "help": "Séparation des locuteurs (pyannote)",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-users",
+            "inline": false,
+            "label": "Identifier les locuteurs",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "enable_diarization",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "toggle",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": true,
+            "chip_label": "Résumé",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": false,
+            "dom_id": {
+              "item": "settingsGenerateSummary",
+              "panel": "globalGenerateSummary"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-file-lines",
+            "inline": false,
+            "label": "Générer un résumé",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "generate_summary",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "toggle",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": [
+              [
+                "structured",
+                "Structuré"
+              ],
+              [
+                "meeting",
+                "Réunion"
+              ]
+            ],
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": "structured",
+            "dom_id": "",
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-list",
+            "inline": true,
+            "label": "",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "summary_type",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": {
+              "item": "summary_type",
+              "panel": "globalSummaryType"
+            },
+            "section": "settings",
+            "show_if": "generate_summary",
+            "step": null,
+            "type": "radio",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": true,
+            "chip_label": "Cohérence",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": false,
+            "dom_id": {
+              "item": "settingsVerifyCoherence",
+              "panel": "globalVerifyCoherence"
+            },
+            "group": "",
+            "help": "Score + correction proposée côte à côte",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-check-double",
+            "inline": false,
+            "label": "Vérifier la cohérence",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "verify_coherence",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "toggle",
+            "unit": ""
+          }
+        ]
       }
-    ],
+    },
     "ports": {
       "inputs": [
         {

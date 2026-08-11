@@ -47,272 +47,277 @@
       ],
       "source_attr": "COMPOSER_MODELS"
     },
-    "params": [
-      {
-        "advanced": false,
-        "chip": false,
-        "chip_label": "",
-        "choices": null,
-        "contexts": [
-          "panel",
-          "item"
-        ],
-        "default": null,
-        "dom_id": {
-          "item": "settingsModel",
-          "panel": "modelSelect"
-        },
-        "group": "",
-        "help": "",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-music",
-        "inline": false,
-        "label": "Modèle",
-        "max": null,
-        "max_label": "",
-        "min": null,
-        "min_label": "",
-        "name": "model",
-        "option_groups": [
-          [
-            "🎵 Musique (MusicGen)",
-            [
+    "params": {
+      "primary": "PARAMS_JSON",
+      "schemas": {
+        "PARAMS_JSON": [
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item"
+            ],
+            "default": null,
+            "dom_id": {
+              "item": "settingsModel",
+              "panel": "modelSelect"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-music",
+            "inline": false,
+            "label": "Modèle",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "model",
+            "option_groups": [
               [
-                "auto-music",
-                "🧠 Choix automatique — le plus gros modèle musique tenant dans la VRAM libre au lancement"
+                "🎵 Musique (MusicGen)",
+                [
+                  [
+                    "auto-music",
+                    "🧠 Choix automatique — le plus gros modèle musique tenant dans la VRAM libre au lancement"
+                  ],
+                  [
+                    "musicgen-small",
+                    "MusicGen Small — génération rapide, 300M params"
+                  ],
+                  [
+                    "musicgen-medium",
+                    "MusicGen Medium — meilleure qualité, 1.5B params"
+                  ],
+                  [
+                    "musicgen-melody",
+                    "MusicGen Melody — conditionné par mélodie de référence"
+                  ]
+                ]
               ],
               [
-                "musicgen-small",
-                "MusicGen Small — génération rapide, 300M params"
-              ],
-              [
-                "musicgen-medium",
-                "MusicGen Medium — meilleure qualité, 1.5B params"
-              ],
-              [
-                "musicgen-melody",
-                "MusicGen Melody — conditionné par mélodie de référence"
+                "⚡ Bruitages (AudioGen)",
+                [
+                  [
+                    "auto-sfx",
+                    "🧠 Choix automatique — le plus gros modèle bruitages tenant dans la VRAM libre au lancement"
+                  ],
+                  [
+                    "audiogen-medium",
+                    "AudioGen Medium — bruitages et sons d'ambiance, 1.5B params"
+                  ]
+                ]
               ]
-            ]
-          ],
-          [
-            "⚡ Bruitages (AudioGen)",
-            [
+            ],
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "select",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item"
+            ],
+            "default": null,
+            "dom_id": {
+              "item": "settingsDuration",
+              "panel": "durationSlider"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-clock",
+            "inline": false,
+            "label": "Durée",
+            "max": 600,
+            "max_label": "10min",
+            "min": 10,
+            "min_label": "10s",
+            "name": "duration",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": 5,
+            "type": "range",
+            "unit": "s"
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item"
+            ],
+            "default": null,
+            "dom_id": {
+              "item": "settingsPrompt"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-pen",
+            "inline": false,
+            "label": "Prompt",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "prompt",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "textarea",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": [
               [
-                "auto-sfx",
-                "🧠 Choix automatique — le plus gros modèle bruitages tenant dans la VRAM libre au lancement"
+                "original",
+                "Original (inchangé)"
               ],
               [
-                "audiogen-medium",
-                "AudioGen Medium — bruitages et sons d'ambiance, 1.5B params"
+                "mp3",
+                ".MP3"
+              ],
+              [
+                "wav",
+                ".WAV"
+              ],
+              [
+                "flac",
+                ".FLAC"
+              ],
+              [
+                "ogg",
+                ".OGG"
+              ],
+              [
+                "m4a",
+                ".M4A"
+              ],
+              [
+                "aac",
+                ".AAC"
+              ],
+              [
+                "opus",
+                ".OPUS"
               ]
-            ]
-          ]
-        ],
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": null,
-        "type": "select",
-        "unit": ""
-      },
-      {
-        "advanced": false,
-        "chip": false,
-        "chip_label": "",
-        "choices": null,
-        "contexts": [
-          "panel",
-          "item"
-        ],
-        "default": null,
-        "dom_id": {
-          "item": "settingsDuration",
-          "panel": "durationSlider"
-        },
-        "group": "",
-        "help": "",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-clock",
-        "inline": false,
-        "label": "Durée",
-        "max": 600,
-        "max_label": "10min",
-        "min": 10,
-        "min_label": "10s",
-        "name": "duration",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": 5,
-        "type": "range",
-        "unit": "s"
-      },
-      {
-        "advanced": false,
-        "chip": false,
-        "chip_label": "",
-        "choices": null,
-        "contexts": [
-          "item"
-        ],
-        "default": null,
-        "dom_id": {
-          "item": "settingsPrompt"
-        },
-        "group": "",
-        "help": "",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-pen",
-        "inline": false,
-        "label": "Prompt",
-        "max": null,
-        "max_label": "",
-        "min": null,
-        "min_label": "",
-        "name": "prompt",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": null,
-        "type": "textarea",
-        "unit": ""
-      },
-      {
-        "advanced": false,
-        "chip": false,
-        "chip_label": "",
-        "choices": [
-          [
-            "original",
-            "Original (inchangé)"
-          ],
-          [
-            "mp3",
-            ".MP3"
-          ],
-          [
-            "wav",
-            ".WAV"
-          ],
-          [
-            "flac",
-            ".FLAC"
-          ],
-          [
-            "ogg",
-            ".OGG"
-          ],
-          [
-            "m4a",
-            ".M4A"
-          ],
-          [
-            "aac",
-            ".AAC"
-          ],
-          [
-            "opus",
-            ".OPUS"
-          ]
-        ],
-        "contexts": [
-          "panel",
-          "item"
-        ],
-        "default": null,
-        "dom_id": {
-          "item": "settingsOutputFormat",
-          "panel": "output_format"
-        },
-        "group": "",
-        "help": "",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-file-export",
-        "inline": false,
-        "label": "Format de sortie",
-        "max": null,
-        "max_label": "",
-        "min": null,
-        "min_label": "",
-        "name": "output_format",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": null,
-        "type": "select",
-        "unit": ""
-      },
-      {
-        "advanced": false,
-        "chip": false,
-        "chip_label": "",
-        "choices": [
-          [
-            "web",
-            "Web (léger)"
-          ],
-          [
-            "balanced",
-            "Équilibré"
-          ],
-          [
-            "max",
-            "Maximum"
-          ]
-        ],
-        "contexts": [
-          "panel",
-          "item"
-        ],
-        "default": null,
-        "dom_id": {
-          "item": "settingsOutputQuality",
-          "panel": "output_quality"
-        },
-        "group": "",
-        "help": "",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-sliders",
-        "inline": false,
-        "label": "Qualité",
-        "max": null,
-        "max_label": "",
-        "min": null,
-        "min_label": "",
-        "name": "output_quality",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": null,
-        "type": "select",
-        "unit": ""
+            ],
+            "contexts": [
+              "panel",
+              "item"
+            ],
+            "default": null,
+            "dom_id": {
+              "item": "settingsOutputFormat",
+              "panel": "output_format"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-file-export",
+            "inline": false,
+            "label": "Format de sortie",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "output_format",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "select",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": [
+              [
+                "web",
+                "Web (léger)"
+              ],
+              [
+                "balanced",
+                "Équilibré"
+              ],
+              [
+                "max",
+                "Maximum"
+              ]
+            ],
+            "contexts": [
+              "panel",
+              "item"
+            ],
+            "default": null,
+            "dom_id": {
+              "item": "settingsOutputQuality",
+              "panel": "output_quality"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-sliders",
+            "inline": false,
+            "label": "Qualité",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "output_quality",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "select",
+            "unit": ""
+          }
+        ]
       }
-    ],
+    },
     "ports": {
       "inputs": [
         {

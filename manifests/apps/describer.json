@@ -79,232 +79,237 @@
       ],
       "source_attr": "DESCRIBER_MODELS"
     },
-    "params": [
-      {
-        "advanced": false,
-        "chip": false,
-        "chip_label": "",
-        "choices": [
-          [
-            "summary",
-            "Resume court"
-          ],
-          [
-            "detailed",
-            "Description detaillee"
-          ],
-          [
-            "scientific",
-            "Synthese scientifique"
-          ],
-          [
-            "bullet_points",
-            "Points cles"
-          ],
-          [
-            "meeting",
-            "Compte-rendu de reunion"
-          ]
-        ],
-        "contexts": [
-          "item",
-          "batch",
-          "panel"
-        ],
-        "default": "detailed",
-        "dom_id": {
-          "item": "settingsOutputFormat",
-          "panel": "output_style"
-        },
-        "group": "",
-        "help": "Niveau de détail de la description générée.",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-align-left",
-        "inline": false,
-        "label": "Format de sortie",
-        "max": null,
-        "max_label": "",
-        "min": null,
-        "min_label": "",
-        "name": "output_style",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": null,
-        "type": "select",
-        "unit": ""
-      },
-      {
-        "advanced": false,
-        "chip": false,
-        "chip_label": "",
-        "choices": [
-          [
-            "fr",
-            "Francais"
-          ],
-          [
-            "en",
-            "English"
-          ],
-          [
-            "auto",
-            "Langue source"
-          ]
-        ],
-        "contexts": [
-          "item",
-          "batch",
-          "panel"
-        ],
-        "default": "fr",
-        "dom_id": {
-          "item": "settingsOutputLanguage",
-          "panel": "output_language"
-        },
-        "group": "",
-        "help": "",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-language",
-        "inline": false,
-        "label": "Langue de sortie",
-        "max": null,
-        "max_label": "",
-        "min": null,
-        "min_label": "",
-        "name": "output_language",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": null,
-        "type": "select",
-        "unit": ""
-      },
-      {
-        "advanced": false,
-        "chip": false,
-        "chip_label": "",
-        "choices": null,
-        "contexts": [
-          "item",
-          "batch",
-          "panel"
-        ],
-        "default": 500,
-        "dom_id": {
-          "item": "settingsMaxLength",
-          "panel": "max_length"
-        },
-        "group": "",
-        "help": "Longueur maximale (caractères) de la description.",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-text-width",
-        "inline": false,
-        "label": "Longueur max",
-        "max": 2000,
-        "max_label": "",
-        "min": 100,
-        "min_label": "",
-        "name": "max_length",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": 50,
-        "type": "range",
-        "unit": ""
-      },
-      {
-        "advanced": false,
-        "chip": false,
-        "chip_label": "",
-        "choices": null,
-        "contexts": [
-          "item",
-          "batch",
-          "panel"
-        ],
-        "default": false,
-        "dom_id": {
-          "item": "settingsGenerateSummary",
-          "panel": "globalGenerateSummary"
-        },
-        "group": "",
-        "help": "",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-file-lines",
-        "inline": false,
-        "label": "Générer un résumé LLM",
-        "max": null,
-        "max_label": "",
-        "min": null,
-        "min_label": "",
-        "name": "generate_summary",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": null,
-        "type": "toggle",
-        "unit": ""
-      },
-      {
-        "advanced": false,
-        "chip": false,
-        "chip_label": "",
-        "choices": null,
-        "contexts": [
-          "item",
-          "batch",
-          "panel"
-        ],
-        "default": false,
-        "dom_id": {
-          "item": "settingsVerifyCoherence",
-          "panel": "globalVerifyCoherence"
-        },
-        "group": "",
-        "help": "",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-spell-check",
-        "inline": false,
-        "label": "Vérifier la cohérence",
-        "max": null,
-        "max_label": "",
-        "min": null,
-        "min_label": "",
-        "name": "verify_coherence",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": null,
-        "type": "toggle",
-        "unit": ""
+    "params": {
+      "primary": "PARAMS_JSON",
+      "schemas": {
+        "PARAMS_JSON": [
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": [
+              [
+                "summary",
+                "Resume court"
+              ],
+              [
+                "detailed",
+                "Description detaillee"
+              ],
+              [
+                "scientific",
+                "Synthese scientifique"
+              ],
+              [
+                "bullet_points",
+                "Points cles"
+              ],
+              [
+                "meeting",
+                "Compte-rendu de reunion"
+              ]
+            ],
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": "detailed",
+            "dom_id": {
+              "item": "settingsOutputFormat",
+              "panel": "output_style"
+            },
+            "group": "",
+            "help": "Niveau de détail de la description générée.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-align-left",
+            "inline": false,
+            "label": "Format de sortie",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "output_style",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "select",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": [
+              [
+                "fr",
+                "Francais"
+              ],
+              [
+                "en",
+                "English"
+              ],
+              [
+                "auto",
+                "Langue source"
+              ]
+            ],
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": "fr",
+            "dom_id": {
+              "item": "settingsOutputLanguage",
+              "panel": "output_language"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-language",
+            "inline": false,
+            "label": "Langue de sortie",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "output_language",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "select",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": 500,
+            "dom_id": {
+              "item": "settingsMaxLength",
+              "panel": "max_length"
+            },
+            "group": "",
+            "help": "Longueur maximale (caractères) de la description.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-text-width",
+            "inline": false,
+            "label": "Longueur max",
+            "max": 2000,
+            "max_label": "",
+            "min": 100,
+            "min_label": "",
+            "name": "max_length",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": 50,
+            "type": "range",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": false,
+            "dom_id": {
+              "item": "settingsGenerateSummary",
+              "panel": "globalGenerateSummary"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-file-lines",
+            "inline": false,
+            "label": "Générer un résumé LLM",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "generate_summary",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "toggle",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": false,
+            "dom_id": {
+              "item": "settingsVerifyCoherence",
+              "panel": "globalVerifyCoherence"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-spell-check",
+            "inline": false,
+            "label": "Vérifier la cohérence",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "verify_coherence",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "toggle",
+            "unit": ""
+          }
+        ]
       }
-    ],
+    },
     "ports": {
       "inputs": [
         {

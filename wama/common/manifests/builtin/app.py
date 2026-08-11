@@ -75,8 +75,20 @@ def validate_app_body(body: dict) -> list[str]:
                     g = isinstance(p, dict) and p.get('group')
                     if g and g not in ('travail', 'prompt', 'reference'):
                         errs.append(f"ports.inputs group '{g}' invalide (travail|prompt|reference)")
-    if 'params' in body and not isinstance(body['params'], list):
-        errs.append("params doit être une liste")
+    if 'params' in body:
+        p = body['params']
+        if isinstance(p, list):
+            pass                        # forme historique (schéma unique) — acceptée à l'ingest
+        elif isinstance(p, dict):
+            sch = p.get('schemas')
+            if not isinstance(sch, dict) or not sch:
+                errs.append("params.schemas doit être un dict {attr: liste} non vide")
+            elif any(not isinstance(v, list) for v in sch.values()):
+                errs.append("params.schemas : chaque schéma doit être une liste")
+            elif p.get('primary') not in sch:
+                errs.append("params.primary doit désigner une clé de params.schemas")
+        else:
+            errs.append("params doit être une liste (héritage) ou un dict {primary, schemas}")
     proc = body.get('processing') or {}
     if proc and isinstance(proc, dict):
         st = proc.get('statuses')
@@ -252,16 +264,35 @@ def _modes(app_id):
 
 
 def _params(app_id):
-    """Schéma de params de l'app — via l'accesseur COMMUN, pas une résolution recopiée.
-
-    `schema_for_app()` (`common/utils/param_schema.py`) applique la même règle qu'avant
-    (pointeur déclaratif `GENERIC_APPS.params_module/params_attr`, repli sur la convention
-    `wama.<app>.params.PARAMS_JSON`) mais en un seul endroit, partagé avec le runner studio
-    et la surface outils. Retour `None` (et pas `[]`) quand l'app n'en déclare pas, pour que
-    la facette reste ABSENTE du manifeste plutôt que présente et vide.
-    """
-    from wama.common.utils.param_schema import schema_for_app
-    return schema_for_app(app_id) or None
+    """Schémas de params de l'app — TOUS les attributs `*PARAMS_JSON` du module, pas seulement
+    celui pointé par le studio (trou #10 résorbé 2026-08-11 : imager IMAGE+VIDEO, enhancer
+    MEDIA+AUDIO étaient invisibles au manifeste). Forme : {'primary': <attr du nœud studio>,
+    'schemas': {attr: [param, …]}} ; None quand l'app n'en déclare pas (facette ABSENTE).
+    La résolution du module reste celle de l'accesseur commun (`schema_for_app`) : pointeur
+    déclaratif GENERIC_APPS.params_module, repli convention `wama.<app>.params`."""
+    import importlib
+    module_name, primary = f'wama.{app_id}.params', 'PARAMS_JSON'
+    try:
+        from wama.studio.services.generic_runner import GENERIC_APPS
+        conf = GENERIC_APPS.get(app_id) or {}
+        module_name = conf.get('params_module') or module_name
+        primary = conf.get('params_attr') or primary
+    except Exception:
+        pass
+    try:
+        mod = importlib.import_module(module_name)
+    except Exception:
+        return None
+    schemas = {}
+    for attr in sorted(dir(mod)):
+        if attr.endswith('PARAMS_JSON') and not attr.startswith('_'):
+            val = getattr(mod, attr)
+            if isinstance(val, list) and val:
+                schemas[attr] = list(val)
+    if not schemas:
+        return None
+    return {'primary': primary if primary in schemas else sorted(schemas)[0],
+            'schemas': schemas}
 
 
 def _inspector(app_id):
@@ -484,7 +515,8 @@ def _to_dict(obj) -> dict:
 # Le reste des facettes `backend=code` part dans `codegen_required`. Le tri code/db vient de
 # `projection.FACET_TARGETS` (source unique) — l'ancienne liste locale codée en dur avait divergé
 # (elle omettait capabilities/modes et citait models/prompts), corrigé 2026-08-11.
-PROJECTED_FACETS = ('access', 'identity', 'ports', 'capabilities', 'studio', 'modes', 'prompts')
+PROJECTED_FACETS = ('access', 'identity', 'ports', 'capabilities', 'studio', 'modes', 'prompts',
+                    'params')
 
 
 def write_back_app(manifest: dict, *, apply: bool = False) -> dict:
@@ -511,6 +543,8 @@ def write_back_app(manifest: dict, *, apply: bool = False) -> dict:
         out['modes'] = _project_modes(manifest, apply=apply)
     if body.get('prompts'):
         out['prompts'] = _project_prompts(manifest, apply=apply)
+    if body.get('params'):
+        out['params'] = _project_params(manifest, apply=apply)
     out['codegen_required'] = [f for f, (_cible, backend) in FACET_TARGETS.items()
                                if backend == 'code' and body.get(f) and f not in PROJECTED_FACETS]
     return out
@@ -761,6 +795,103 @@ def _write_value_entry(path: Path, var: str, app_id: str, value, *, facette: str
     compile(nouveau, str(path), 'exec')
     path.write_text(nouveau, encoding='utf-8')
     return {'applied': {'targets': value}, 'changed': ['targets'], 'file': str(path)}
+
+
+def _params_facet(manifest: dict) -> Optional[dict]:
+    """Facette params NORMALISÉE : {'primary': attr, 'schemas': {attr: [...]}} — accepte la
+    forme historique (liste = schéma unique PARAMS_JSON)."""
+    facet = (manifest.get('body') or {}).get('params')
+    if not facet:
+        return None
+    if isinstance(facet, list):
+        return {'primary': 'PARAMS_JSON', 'schemas': {'PARAMS_JSON': facet}}
+    return facet
+
+
+def _params_module_name(manifest: dict) -> str:
+    st = (manifest.get('body') or {}).get('studio') or {}
+    return st.get('params_module') or f"wama.{manifest.get('key')}.params"
+
+
+def _params_file_path(module_name: str) -> Path:
+    import wama
+    return Path(wama.__file__).parent.joinpath(*module_name.split('.')[1:]).with_suffix('.py')
+
+
+def _project_params(manifest: dict, *, apply: bool) -> dict:
+    """Facette params → fichier `<params_module>.py`. Un params.py écrit MAIN est du code
+    DÉRIVANT (derive_from_model + sources dynamiques — modèle Django, catalogues, formats
+    converter) : le moteur COMPARE (égalité sémantique des schémas évalués) et ne le touche
+    JAMAIS — figer le résultat évalué projetterait du dérivé, comme pour la couleur. Un module
+    ABSENT est GÉNÉRÉ (littéral marqué = couche de démarrage, à raffiner vers derive_from_model
+    quand la facette processing génèrera le modèle) ; un fichier marqué se régénère."""
+    import importlib
+    app_id = manifest.get('key')
+    facet = _params_facet(manifest)
+    if not facet:
+        return {'op': 'skip', 'reason': 'facette params absente'}
+    module_name = _params_module_name(manifest)
+    target = facet['schemas']
+    try:
+        mod = importlib.import_module(module_name)
+    except ImportError:
+        mod = None
+    if mod is None:
+        op, deltas, marked = 'create', sorted(target), False
+        path = _params_file_path(module_name)
+    else:
+        # Comparaison en CANONIQUE JSON : le manifeste a déjà traversé json (tuples → listes,
+        # à TOUTE profondeur — option_groups niche des tuples au 2e niveau) ; on fait subir le
+        # même aller-retour au schéma évalué plutôt que d'inventer un comparateur.
+        import json as _json
+        canon = lambda x: _json.loads(_json.dumps(x, ensure_ascii=False))
+        path = Path(mod.__file__)
+        marked = _GEN_MARK.format(app_id=app_id) in path.read_text(encoding='utf-8')[:600]
+        current = {a: list(getattr(mod, a, []) or []) for a in target}
+        deltas = sorted(a for a in target if canon(target[a]) != canon(current.get(a) or []))
+        op = 'update' if deltas else 'noop'
+    if not apply:
+        return {'op': op, 'module': module_name, 'generated_file': marked,
+                'would_change': deltas}
+    if op == 'noop':
+        return {'op': op, 'changed': [], '_manifest_key': f'app:{app_id}'}
+    if op == 'update' and not marked:
+        return {'op': op, 'changed': [], 'skipped': [
+            {'field': a, 'reason': "params.py écrit main (code dérivant : derive_from_model, "
+                                   "sources dynamiques) — régénération refusée ; écart à "
+                                   "traiter côté manifeste ou côté code"} for a in deltas]}
+    res = _write_params_file(path, app_id, facet)
+    res.update({'op': op, '_manifest_key': f'app:{app_id}', 'reload_required': True})
+    return res
+
+
+def _write_params_file(path: Path, app_id: str, facet: dict) -> dict:
+    import pprint
+    if not path.parent.is_dir():
+        return {'error': f"paquet {path.parent} absent — la facette processing (squelette "
+                         f"d'app) doit passer d'abord", 'changed': []}
+    mark = _GEN_MARK.format(app_id=app_id)
+    lignes = [
+        '"""',
+        f"{mark} — params.py GÉNÉRÉ par write_back_app (facette params).",
+        '',
+        'Couche de DÉMARRAGE : schémas au LITTÉRAL (résultat évalué du manifeste). À raffiner',
+        'vers derive_from_model(...) + sources dynamiques quand la facette processing génèrera',
+        'le modèle Django — les valeurs dérivées redeviendront alors dérivées. Ne pas éditer à',
+        'la main : rejouer write_back après modification du manifeste.',
+        '"""',
+        '',
+    ]
+    for attr in sorted(facet['schemas']):
+        rendu = pprint.pformat(facet['schemas'][attr], width=96, sort_dicts=False).split('\n')
+        lignes.append(f"{attr} = {rendu[0]}")
+        pad = ' ' * (len(attr) + 3)
+        lignes += [pad + l for l in rendu[1:]]
+        lignes.append('')
+    src = '\n'.join(lignes)
+    compile(src, str(path), 'exec')
+    path.write_text(src, encoding='utf-8')
+    return {'changed': sorted(facet['schemas']), 'file': str(path)}
 
 
 def _project_modes(manifest: dict, *, apply: bool) -> dict:
@@ -1135,11 +1266,21 @@ def un_write_back_app(manifest: dict, *, apply: bool = False) -> dict:
         span = span_fn(lines, app_id, *_dict_bounds(lines, var))
         generes[nom] = span is not None and _GEN_MARK.format(app_id=app_id) in lines[span[0]]
 
+    # params.py généré = un FICHIER (pas une entrée de dict) : retirable s'il porte le marqueur.
+    params_path = _params_file_path(_params_module_name(manifest))
+    params_genere = (params_path.is_file()
+                     and _GEN_MARK.format(app_id=app_id)
+                     in params_path.read_text(encoding='utf-8')[:600])
+
     if not apply:
         return {'app': app_id, 'would_remove': n,
-                **{f'would_remove_{nom}': g for nom, g in generes.items()}}
+                **{f'would_remove_{nom}': g for nom, g in generes.items()},
+                'would_remove_params_file': params_genere}
     qs.delete()
-    out = {'app': app_id, 'removed': n}
+    out = {'app': app_id, 'removed': n, 'params_file_removed': False}
+    if params_genere:
+        params_path.unlink()
+        out['params_file_removed'] = True
     for nom, path, var, blank_sep, span_fn in cibles:
         out[f'{nom}_removed'] = False
         if not generes[nom]:

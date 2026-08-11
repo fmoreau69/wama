@@ -85,84 +85,89 @@
         }
       ]
     },
-    "params": [
-      {
-        "advanced": false,
-        "chip": true,
-        "chip_label": "",
-        "choices": null,
-        "contexts": [
-          "panel",
-          "item",
-          "batch"
-        ],
-        "default": false,
-        "dom_id": {
-          "item": "settingsUseEnhancer",
-          "panel": "use_enhancer"
-        },
-        "group": "",
-        "help": "Restauration faciale haute qualité — légèrement plus lent.",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-wand-magic-sparkles",
-        "inline": false,
-        "label": "Amélioration CodeFormer",
-        "max": null,
-        "max_label": "",
-        "min": null,
-        "min_label": "",
-        "name": "use_enhancer",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": null,
-        "type": "toggle",
-        "unit": ""
-      },
-      {
-        "advanced": false,
-        "chip": true,
-        "chip_label": "",
-        "choices": null,
-        "contexts": [
-          "panel",
-          "item",
-          "batch"
-        ],
-        "default": 0,
-        "dom_id": {
-          "item": "settingsBboxShift",
-          "panel": "bbox_shift"
-        },
-        "group": "",
-        "help": "Décalage vertical de la zone bouche (px). 0 = auto.",
-        "help_fallback": null,
-        "help_html": "",
-        "help_source": null,
-        "icon": "fa-arrows-up-down",
-        "inline": false,
-        "label": "Bbox shift",
-        "max": 9,
-        "max_label": "",
-        "min": -9,
-        "min_label": "",
-        "name": "bbox_shift",
-        "option_groups": null,
-        "options_source": null,
-        "pills": [],
-        "radio_name": "",
-        "section": "settings",
-        "show_if": null,
-        "step": 1,
-        "type": "range",
-        "unit": ""
+    "params": {
+      "primary": "PARAMS_JSON",
+      "schemas": {
+        "PARAMS_JSON": [
+          {
+            "advanced": false,
+            "chip": true,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item",
+              "batch"
+            ],
+            "default": false,
+            "dom_id": {
+              "item": "settingsUseEnhancer",
+              "panel": "use_enhancer"
+            },
+            "group": "",
+            "help": "Restauration faciale haute qualité — légèrement plus lent.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-wand-magic-sparkles",
+            "inline": false,
+            "label": "Amélioration CodeFormer",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "use_enhancer",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "toggle",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": true,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item",
+              "batch"
+            ],
+            "default": 0,
+            "dom_id": {
+              "item": "settingsBboxShift",
+              "panel": "bbox_shift"
+            },
+            "group": "",
+            "help": "Décalage vertical de la zone bouche (px). 0 = auto.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-arrows-up-down",
+            "inline": false,
+            "label": "Bbox shift",
+            "max": 9,
+            "max_label": "",
+            "min": -9,
+            "min_label": "",
+            "name": "bbox_shift",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": 1,
+            "type": "range",
+            "unit": ""
+          }
+        ]
       }
-    ],
+    },
     "ports": {
       "inputs": [
         {
