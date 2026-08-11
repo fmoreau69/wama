@@ -2417,6 +2417,26 @@ travail**. La base LIVE est celle de **WSL2 (Postgres 16)**, conforme à
 exécute WAMA nativement sous Windows (`venv_win runserver`) ; sinon c'est une taxe d'entretien
 supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 
+## §REPRISE — 2026-08-11 (2ᵉ session) : write-back §10.3 (7 facettes) + triade studio tool_api
+
+> Bac à sable `git worktree` (`D:\WAMA\wt-regen-converter`, branche `regen/converter`) **mergé
+> fast-forward sur `dev`** (5 commits `b791f8a`→`c58bddd`) après validation complète. Contenu :
+> `write_back_app` écrit désormais **7 facettes** (`access` DB + `identity`/`ports`/`capabilities`
+> → APP_CATALOG, `studio` → GENERIC_APPS, `modes` → APP_MODES, `prompts` → PROMPT_TARGETS) via un
+> **moteur commun** (vérité d'état lue au FICHIER par `ast`, entrées générées marquées
+> `[manifest-gen app:<id>]`, dry-run/idempotent/réversible, garde `compile()`, chirurgie champ
+> par champ sur entrée main — expressions et multi-lignes refusées). Mesure : roundtrip 10 apps
+> **5/N à 7/N projetables**, fidélité OK partout ; le converter n'a plus que 4 facettes code-gen
+> (`params`, `inspector`, `processing`, `tool_api`). Frontières actées : dérivé (couleur, E/S
+> des ports) et mesuré (drapeaux `_conv`/grille) ne se PROJETTENT jamais — trous #16/#17
+> consignés `WAMA_APP_GENERATION_ROUTE §11` ; trou d'extract `studio` corrigé (corpus régénéré).
+> **Puis (commit suivant)** : audit tool_api → 10 triades complètes mais studio ABSENT →
+> **triade studio livrée** (`list_studio_pipelines`/`run_studio_pipeline`/`get_studio_run_status`,
+> run=add+start fusionnés, brique partagée `studio/services/launch.py::launch_graph` consommée
+> par la vue ET l'outil) ; restes à trancher consignés trou #18 (model_manager, wama_lab,
+> media_library écriture). **Suite : facette `params` (1er générateur de fichier par app), puis
+> tier difficile (`tool_api`/`processing`) — pilote transcriber avec composition modèles+librairie.**
+
 ## §REPRISE — 2026-08-11 : vérification imager + route §10.1 + brique help_about
 
 > **Handoff complet : [`REPRISE_2026-08-11.md`](REPRISE_2026-08-11.md)** — à lire EN PREMIER par
