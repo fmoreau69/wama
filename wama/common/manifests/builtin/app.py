@@ -1250,6 +1250,15 @@ def _project_tasks(manifest: dict, *, apply: bool):
     path = tasks_file_path(app_id)
     if path.is_file():
         return 'présent (glu réelle) — hors périmètre, corps = marche B'
+    # La glu peut vivre AILLEURS que dans tasks.py (transcriber : workers.py) — créer un
+    # tasks.py à trous doublerait les tâches existantes. « Absent » = aucune des tâches
+    # déclarées n'existe déjà dans un autre fichier (piège attrapé au dry-run du 12/08).
+    ailleurs = sorted({t.get('file') for t in ((manifest.get('body') or {})
+                       .get('processing') or {}).get('tasks') or []
+                       if t.get('file') and t.get('file') != 'tasks.py'})
+    if ailleurs:
+        return (f"présent (glu réelle dans {', '.join(ailleurs)}) — hors périmètre, "
+                f"corps = marche B")
     src, raison = render_tasks(manifest)
     if src is None:
         return f'non générable : {raison}'

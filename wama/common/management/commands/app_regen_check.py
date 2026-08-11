@@ -215,13 +215,19 @@ class Command(BaseCommand):
             strip_app_declarations, _metadata_path, _modes_path, _params_file_path,
             _params_module_name, _registry_path, _runner_path, _tool_api_path)
         from wama.common.manifests.codegen.apps_gen import apps_file_path
+        from wama.common.manifests.codegen.models_gen import models_file_path
+        from wama.common.manifests.codegen.tasks_gen import tasks_file_path
         from wama.common.manifests.codegen.urls_gen import urls_file_path
 
         corpus = self._corpus(app_id)
+        # tasks.py / models.py : jamais strippés (glu + migrations), mais l'apply peut les
+        # CRÉER (create-only) — ils doivent être dans le périmètre de restore (un créé non
+        # suivi est supprimé par _restore, un suivi intact est un checkout no-op).
         candidats = [str(_registry_path()), str(_runner_path()), str(_modes_path()),
                      str(_metadata_path()), str(_params_file_path(_params_module_name(corpus))),
                      str(_tool_api_path()),
-                     str(urls_file_path(app_id)), str(apps_file_path(app_id))]
+                     str(urls_file_path(app_id)), str(apps_file_path(app_id)),
+                     str(tasks_file_path(app_id)), str(models_file_path(app_id))]
         branche = self._gardes(o['force'], candidats)
 
         rapport = {'app': app_id, 'branche': branche}
