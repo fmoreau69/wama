@@ -71,6 +71,11 @@
                                 <i class="fas fa-project-diagram me-2 text-info"></i> Fonctions
                             </a>
                         </li>
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center" href="{% url 'model_manager:library_catalog' %}">
+                                <i class="fas fa-book me-2 text-warning"></i> Librairies
+                            </a>
+                        </li>
                         {% if is_admin %}
                         <li>
                             <a class="dropdown-item d-flex align-items-center" href="{% url 'accounts:user-management' %}">

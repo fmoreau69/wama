@@ -1625,3 +1625,36 @@ def function_catalog(request):
     }
     return render(request, 'model_manager/function_catalog.html',
                   {'functions_json': _json.dumps(funcs), 'stats': stats})
+
+
+@login_required
+def library_catalog(request):
+    """Catalogue des LIBRAIRIES externes — page de gestion du registre `common.models.Library`
+    (né de la projection `write_back_library`, jamais édité main). La page LIT le registre et
+    MESURE l'installation live (`importlib.metadata`) — elle n'écrit rien : `is_allowed` se
+    décide dans l'admin (verrou n°2, hors write-back), l'installation via le provisionneur.
+    Demandée par Fabien le 2026-08-11 (le registre existait sans surface)."""
+    import importlib.metadata as im
+    from wama.common.models import Library
+
+    rows = []
+    for lib in Library.objects.all():
+        try:
+            live = im.version(lib.key)
+        except im.PackageNotFoundError:
+            live = None
+        declared = (lib.pip_spec.split('==', 1)[1] if '==' in (lib.pip_spec or '')
+                    else lib.version or '')
+        rows.append({
+            'lib': lib,
+            'live_version': live,
+            'drift': bool(live and declared and live != declared),
+        })
+    stats = {
+        'total': len(rows),
+        'installed': sum(1 for r in rows if r['live_version']),
+        'allowed': sum(1 for r in rows if r['lib'].is_allowed),
+        'drift': sum(1 for r in rows if r['drift']),
+    }
+    return render(request, 'model_manager/library_catalog.html',
+                  {'rows': rows, 'stats': stats})

@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Catalogue des librairies - WAMA{% endblock %}
+{% block console_app_name %}model_manager{% endblock %}
+
+{% block extra_css %}
+<style>
+  .lc-wrap { padding: 16px 20px; }
+  .lc-stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .lc-stat { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+             border-radius: 8px; padding: 6px 12px; font-size: .85rem; }
+  .lc-stat b { color: #ffb300; }
+  .lc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+  .lc-card { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.10);
+             border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+  .lc-card h3 { font-size: 1rem; margin: 0; display: flex; align-items: center; gap: 8px; }
+  .lc-badge { font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+              padding: 2px 7px; border-radius: 5px; }
+  .lc-ok    { background: #1b5e20; color: #c8facc; }
+  .lc-warn  { background: #7f5200; color: #ffe0a3; }
+  .lc-off   { background: #37474f; color: #cfd8dc; }
+  .lc-drift { background: rgba(244,67,54,.18); color: #ff8a80; }
+  .lc-desc { font-size: .8rem; color: #b0bac4; line-height: 1.35; }
+  .lc-meta { font-size: .74rem; color: #8fa3b3; font-family: monospace; }
+  .lc-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+  .lc-chip { font-size: .68rem; padding: 1px 7px; border-radius: 10px;
+             background: rgba(255,255,255,.06); color: #9fb0bd; }
+  .lc-empty { color: #8fa3b3; padding: 30px; text-align: center; }
+  .lc-card a { color: #79c9f2; text-decoration: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="lc-wrap">
+  <h2 class="mb-2">📚 Catalogue des librairies</h2>
+  <p class="text-secondary small mb-3">
+    Registre <code>Library</code> — alimenté par la <b>projection des manifestes</b>
+    (<code>write_back_library</code>), jamais édité à la main. L'installation mesurée ici est
+    celle de l'environnement courant ; <b>allowlist</b> (autorisation d'installer) = décision
+    humaine dans l'admin, jamais projetée depuis un manifeste.
+  </p>
+
+  <div class="lc-stats">
+    <div class="lc-stat"><b>{{ stats.total }}</b> librairies déclarées</div>
+    <div class="lc-stat"><b>{{ stats.installed }}</b> installées ici</div>
+    <div class="lc-stat"><b>{{ stats.allowed }}</b> en allowlist</div>
+    <div class="lc-stat"><b>{{ stats.drift }}</b> en dérive de version</div>
+  </div>
+
+  {% if rows %}
+  <div class="lc-grid">
+    {% for r in rows %}
+    <div class="lc-card">
+      <h3>
+        {{ r.lib.key }}
+        {% if r.live_version %}<span class="lc-badge lc-ok">installée {{ r.live_version }}</span>
+        {% else %}<span class="lc-badge lc-off">absente ici</span>{% endif %}
+        {% if r.drift %}<span class="lc-badge lc-drift">dérive vs {{ r.lib.pip_spec }}</span>{% endif %}
+        {% if r.lib.is_allowed %}<span class="lc-badge lc-ok">allowlist</span>
+        {% else %}<span class="lc-badge lc-warn">install non autorisée</span>{% endif %}
+      </h3>
+      {% if r.lib.summary %}<div class="lc-desc">{{ r.lib.summary }}</div>{% endif %}
+      <div class="lc-meta">
+        {{ r.lib.pip_spec|default:r.lib.version }}
+        {% if r.lib.requires_python %} · python {{ r.lib.requires_python }}{% endif %}
+        {% if r.lib.license %} · {{ r.lib.license }}{% endif %}
+      </div>
+      {% if r.lib.repository %}
+      <div class="lc-meta"><a href="{{ r.lib.repository }}" target="_blank" rel="noopener">{{ r.lib.repository }}</a></div>
+      {% endif %}
+      {% if r.lib.dependencies %}
+      <div class="lc-chips">
+        {% for d in r.lib.dependencies %}<span class="lc-chip">{{ d }}</span>{% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="lc-empty">
+    Aucune librairie au registre — semer le corpus :
+    <code>python manage.py library_candidates</code> puis ingest des manifestes
+    <code>manifests/libraries/*.json</code>.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
