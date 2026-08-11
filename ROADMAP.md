@@ -1401,11 +1401,18 @@ saisis en double. Deux consommateurs (UI WAMA + Hermes), un seul inventaire.
 **manifeste est le point d'entrée** de toute nouvelle capacité (1 manifeste = 1 unité : une lib, un
 modèle, une app) ; les **registres** (`model_manager`, `app_registry`, `TOOL_REGISTRY`) maintiennent
 la connaissance en base et servent les pages de gestion. Les deux coexistent — le kind ne remplace
-pas le registre, il en décrit l'unité. Il manque donc **les deux** côté librairies : un registre
-(inventaire) **et** un kind `library` (unité déclarée).
+pas le registre, il en décrit l'unité. ~~Il manque donc **les deux** côté librairies~~ **FAIT
+(2026-08)** : le registre `common.models.Library` (né de la projection `write_back_library`,
+migration 0004) ET le kind `library` existent (1er lien transcriber→faster-whisper).
 
-**Registres — état réel** : modèles (`AIModel`/`model_registry.py`) ✅ · apps (`app_registry.py`/
-`APP_CATALOG`) ✅ · fonctions (`TOOL_REGISTRY`/`tool_api.py`) ✅ · **bibliothèques ❌**.
+**Registres — état réel (mis à jour 2026-08-11)** : modèles (`AIModel`/`model_registry.py`) ✅ ·
+apps (`app_registry.py`/`APP_CATALOG`) ✅ · fonctions (`TOOL_REGISTRY`/`tool_api.py`) ✅ ·
+bibliothèques (`common.models.Library` + kind `library`) ✅. **CE QUI MANQUE désormais côté
+librairies : la PAGE DE GESTION** (aucune vue/URL/template — signalé par Fabien le 2026-08-11) :
+lister le registre (version, licence, pip_spec, dépendances, `is_allowed`/`is_installed`),
+accessible depuis le menu utilisateur comme `/model-manager/` — même patron : la page LIT le
+registre, le registre est alimenté par la projection des manifestes, jamais l'inverse. À bâtir
+avec le gating admin sur `is_allowed` (l'allowlist reste hors write-back, verrou n°2 Hermes).
 
 Besoin réel : savoir **quelle app dépend de quelle librairie** (`opencv`, `ffmpeg-python`…), ce qui
 casse si on met à jour, et **quel environnement a quelle version** (dev/prod, machines différentes —
