@@ -1,11 +1,13 @@
 # WAMA — Schéma fonctionnel : Manifestes → Ingest → Génération d'app → Mécanismes UI
 
 > **But** : voir clair sur la chaîne complète AVANT d'attaquer l'auto-génération d'application.
-> Complète `WAMA_MANIFEST_SPEC.md` (formalisme) avec les FLUX. État au **2026-08-11** : socle des
-> **7 kinds** fait et testé ; **write-back réel sur 3 kinds** — `app` (facette `access` →
-> AppAccessPolicy, a75c01d, idempotente/réversible, dry-run par défaut), `library` (le registre
-> `Library` NAÎT de la projection) et `model` (champs déclaratifs `license`/`platform_ref`) ;
-> côté `app`, 9 facettes restent en code-gen.
+> Complète `WAMA_MANIFEST_SPEC.md` (formalisme) avec les FLUX. État au **2026-08-11 (soir)** :
+> socle des **7 kinds** fait et testé ; **write-back réel sur 4 kinds** — `app` (**8 facettes
+> écrites** : `access` DB + `identity`/`ports`/`capabilities`/`studio`/`modes`/`prompts`/`params`
+> en CODE via le moteur commun d'écriture marquée, §6quater), `library` (le registre `Library`
+> NAÎT de la projection), `model` (champs déclaratifs `license`/`platform_ref`) et `function`
+> (binding `user` → `UserFunction`, tag `_manifest-gen`) ; côté `app`, **4 facettes** restent en
+> code-gen (`inspector`, `models`, `processing`, `tool_api`).
 > Légende des flux : **trait plein = existe & testé** · **pointillés = à construire (app_gen)**.
 
 ---
@@ -42,8 +44,8 @@ flowchart TD
 
     ING --> STORE["Manifest store<br/>(common.Manifest, DB)"]
 
-    STORE -->|PROJECTION access → AppAccessPolicy ✅ écrite, apply=False par défaut| REG
-    STORE -.->|PROJECTION 11 autres facettes (app_gen, à venir)| REG
+    STORE -->|PROJECTION 8 facettes ✅ (access DB + 7 code, moteur marqué, apply=False par défaut)| REG
+    STORE -.->|PROJECTION 4 facettes restantes (inspector/models/processing/tool_api)| REG
     subgraph REG["REGISTRES FONCTIONNELS (inchangés)"]
         R1["APP_CATALOG / GENERIC_APPS"]
         R2["params.py · Detail/PreviewRegistry"]
@@ -316,22 +318,53 @@ python manage.py manifest_roundtrip transcriber --json   # sortie machine
 manque est uniquement l'écriture. Le manifeste décrit assez ; personne ne sait encore le rendre
 en code sauf pour `access`.
 
+> ⚠ **MAJ 2026-08-11** : la mesure ci-dessus (« 1/11, personne ne sait rendre en code sauf
+> `access` ») est l'état HISTORIQUE du 2026-08-02, conservé comme jalon. L'état courant est
+> §6quater (8 facettes écrites) et la table auto-générée ci-dessous.
+
 **État courant des 10 apps** (couche factuelle auto-générée, §16.9 ①) :
 
 <!-- WAMA:FAITS(roundtrip) — généré par « python manage.py doc_facts », ne pas éditer -->
 | App | Facettes | Projetables | Fidélité | Validation |
 |---|---|---|---|---|
-| anonymizer | 13 | 1/12 | ✅ aucun écart | ✅ OK |
-| avatarizer | 12 | 1/11 | ✅ aucun écart | ✅ OK |
-| composer | 12 | 1/11 | ✅ aucun écart | ✅ OK |
-| converter | 11 | 1/10 | ✅ aucun écart | ✅ OK |
-| describer | 11 | 1/10 | ✅ aucun écart | ✅ OK |
-| enhancer | 12 | 1/11 | ✅ aucun écart | ✅ OK |
-| imager | 13 | 1/12 | ✅ aucun écart | ✅ OK |
-| reader | 11 | 1/10 | ✅ aucun écart | ✅ OK |
-| synthesizer | 12 | 1/11 | ✅ aucun écart | ✅ OK |
-| transcriber | 12 | 1/11 | ✅ aucun écart | ✅ OK |
+| anonymizer | 13 | 8/12 | ✅ aucun écart | ✅ OK |
+| avatarizer | 12 | 7/11 | ✅ aucun écart | ✅ OK |
+| composer | 12 | 7/11 | ✅ aucun écart | ✅ OK |
+| converter | 11 | 7/10 | ✅ aucun écart | ✅ OK |
+| describer | 11 | 6/10 | ✅ aucun écart | ✅ OK |
+| enhancer | 12 | 7/11 | ✅ aucun écart | ✅ OK |
+| imager | 13 | 8/12 | ✅ aucun écart | ✅ OK |
+| reader | 11 | 6/10 | ✅ aucun écart | ✅ OK |
+| synthesizer | 12 | 7/11 | ✅ aucun écart | ✅ OK |
+| transcriber | 12 | 7/11 | ✅ aucun écart | ✅ OK |
 <!-- /WAMA:FAITS(roundtrip) -->
+
+---
+
+## 6quater. Le MOTEUR COMMUN d'écriture code — 8 facettes projetées (2026-08-11, branche `regen/converter` mergée)
+
+> Détail complet : `WAMA_APP_GENERATION_ROUTE.md §10.3` (paliers, vérifications, trous #16-18).
+> Résumé des mécanismes, car c'est LE changement d'échelle du write-back :
+
+- **Un moteur, trois formes de cibles** : entrées de dicts-registres (`_write_dict_fields`,
+  paramétré par chemin/assignation/rendu — APP_CATALOG, GENERIC_APPS, APP_MODES), entrées-VALEUR
+  (`PROMPT_TARGETS`, bornes par AST) et FICHIER par app (`params.py`). Partout les mêmes
+  contrats : dry-run par défaut, `create` = bloc **généré marqué** `[manifest-gen app:<id>]`,
+  `update` = régénération entière si marqué / **chirurgie champ par champ** si écrit main
+  (expressions et multi-lignes REFUSÉES), `noop` sinon ; garde `compile()` avant toute écriture ;
+  réversibilité **marqueur-gated** (un artefact écrit main n'est JAMAIS supprimé).
+- **Vérité d'état lue au FICHIER** (`ast.literal_eval`), pas au module importé — en apply
+  multi-facettes, le module est périmé dès la première écriture (et GENERIC_APPS est muté à
+  l'import par la dérivation d'E/S).
+- **Frontière déclaré / dérivé / mesuré** (la règle qui décide de CE QUI se projette) :
+  jamais la couleur (dérivée du rang), jamais les E/S de GENERIC_APPS (dérivées des ports §10.1),
+  jamais les drapeaux de conformité (mesurés par la grille), jamais le littéral d'un `params.py`
+  main (code DÉRIVANT : `derive_from_model` + sources dynamiques — comparaison sémantique
+  canonique JSON seulement). `PROJECTED_FACETS` (`builtin/app.py`) = le registre de ce qui
+  s'écrit ; `facet_report`/`codegen_required` le LISENT.
+- **Reste en code-gen** : `inspector` (extract = présences mesurées, trou #17), `models`
+  (`model_config` runtime non capté), `tool_api` (fonctions = code), `processing` (le vrai
+  squelette — models.py/urls/tasks). C'est la marche où le LLM guidé devient nécessaire.
 
 ---
 
@@ -342,18 +375,19 @@ pas dans les intentions :
 
 | kind | `extract` | `write_back` / `un_write_back` (hooks renommés 2026-08-05, ex-`project_*`) |
 |---|---|---|
-| `app` | `extract_app` | ✅ `write_back_app` — facette `access` seule (le reste = code-gen) |
-| `function` | `extract_function` | ❌ |
+| `app` | `extract_app` | ✅ `write_back_app` — **8 facettes** (`access` DB + `identity`/`ports`/`capabilities` → APP_CATALOG, `studio` → GENERIC_APPS, `modes` → APP_MODES, `prompts` → PROMPT_TARGETS, `params` → params.py) ; reste 4 en code-gen (§6quater) |
+| `function` | `extract_function` | ✅ `write_back_function` — binding `user` → `UserFunction` (tag `_manifest-gen`, 2026-08-11) ; `pure`/`app` = catalogue code (code-gen) |
 | `library` | `extract_library` | ✅ `write_back_library` — **crée** la ligne `common.models.Library` |
 | `model` | `extract_model` | ✅ `write_back_model` — `license`/`platform_ref` (ne crée JAMAIS la ligne) |
 | `pipeline` | `extract_pipeline` | ❌ |
 | `project` | `extract_project` | ❌ |
 | `dataset` | `None` — *le manifeste est l'origine* | ❌ |
 
-> **Re-mesuré le 2026-08-11** : **3 kinds sur 7 projettent** (app/access, library, model) — le
-> tableau du 2026-07-30 (« `app` seul ») a été dépassé par les livraisons du 03-05/08.
-> `manifest_roundtrip --all` mesure les facettes d'`app` (**1/10 à 1/12 projetées au runtime,
-> le reste en `codegen`**) — il ne compte PAS les write-backs des kinds `library`/`model`.
+> **Re-mesuré le 2026-08-11 (soir)** : **4 kinds sur 7 projettent** (app — 8 facettes, library,
+> model, function/user) — les mesures antérieures du même jour (« 3 kinds, app/access seule »)
+> ont été dépassées en séance par le moteur commun d'écriture code (§6quater).
+> `manifest_roundtrip --all` mesure les facettes d'`app` (**6/10 à 8/12 projetées**, le reste en
+> `codegen`) — il ne compte PAS les write-backs des kinds `library`/`model`/`function`.
 > Commande de re-mesure (ne pas recopier ce tableau sans la relancer) : voir skill `/manifeste` §2.
 >
 > **Composition mesurée le 2026-08-11** — `requires` dans `manifests/` :
@@ -363,13 +397,14 @@ pas dans les intentions :
 > `write_back_library` ; reste à élargir le semis du corpus (`library_candidates`,
 > `library_index`).
 
-**Lecture** (MAJ 2026-08-11) : le formalisme, l'enveloppe et l'ingest sont en place, et le sens
-**génératif** (manifeste → réalité) existe pour **3 kinds sur 7** : `app` (facette `access` →
-`AppAccessPolicy`, dry-run par défaut), `library` (registre entier) et `model` (champs
-déclaratifs). **Un manifeste de modèle ne crée aujourd'hui aucun `AIModel`** — c'est voulu
-(un modèle se DÉCOUVRE, `builtin/model.py:145-148`). Le manifeste est la source **par
-architecture** ; le registre l'est encore **en pratique** pour `function`/`pipeline`/`project`/
-`dataset` et pour les 9 facettes code-gen d'`app`.
+**Lecture** (MAJ 2026-08-11 soir) : le formalisme, l'enveloppe et l'ingest sont en place, et le
+sens **génératif** (manifeste → réalité) existe pour **4 kinds sur 7** : `app` (8 facettes via le
+moteur commun marqué), `library` (registre entier), `model` (champs déclaratifs) et `function`
+(binding `user` → `UserFunction`). **Un manifeste de modèle ne crée aujourd'hui aucun `AIModel`**
+— c'est voulu (un modèle se DÉCOUVRE, `builtin/model.py:145-148`). Le manifeste est la source
+**par architecture** ; le registre l'est encore **en pratique** pour `pipeline`/`project`/
+`dataset` et pour les 4 facettes code-gen d'`app` (`inspector`, `models`, `processing`,
+`tool_api`).
 
 **`apply` n'est PAS une sur-couche de l'ingest** — ce sont les **deux moitiés de la même traversée** :
 `ingest` = le pont gaté qui fait *entrer* le manifeste et le commit dans le store ; `project` = la
@@ -379,9 +414,9 @@ transaction**. La chaîne se lit donc :
 > demande → LLM → manifeste → **apply ( = ingest ∘ project )** → mécanismes → UI
 
 ⚠ Défaut actuel : nos deux moitiés sont **découplées**. On peut ingérer sans projeter (c'est le cas
-pour 4 kinds sur 7 — `function`, `pipeline`, `project`, `dataset`) ⇒ le store et la réalité peuvent
-**diverger silencieusement**, sans rien qui le signale. L'apply n'ajoute pas une couche : il
-**referme un circuit ouvert**.
+pour 3 kinds sur 7 — `pipeline`, `project`, `dataset` ; `function` a rejoint les projetables le
+2026-08-11 pour le binding `user`) ⇒ le store et la réalité peuvent **diverger silencieusement**,
+sans rien qui le signale. L'apply n'ajoute pas une couche : il **referme un circuit ouvert**.
 
 **Pourquoi c'est coûteux ici** — comparaison Hermes (cf. `ROADMAP.md` §16.7) : leur registre est
 **éphémère**, rebâti par scan à chaque démarrage ⇒ pas de write-back, donc ni idempotence ni

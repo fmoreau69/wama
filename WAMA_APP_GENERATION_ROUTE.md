@@ -335,9 +335,9 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   **Surface outils courante** (couche factuelle auto-générée, ROADMAP §16.9 ①) :
 
   <!-- WAMA:FAITS(outils) — généré par « python manage.py doc_facts », ne pas éditer -->
-- Outils au registre (`TOOL_REGISTRY`) : **43**
-- Outils décrits (`tool_descriptions()`, dérivé) : **43/43**
-- Arguments documentés (types/choix/bornes/défauts) : **170**
+- Outils au registre (`TOOL_REGISTRY`) : **46**
+- Outils décrits (`tool_descriptions()`, dérivé) : **46/46**
+- Arguments documentés (types/choix/bornes/défauts) : **173**
 <!-- /WAMA:FAITS(outils) -->
 - 🔴 **PANNE TROUVÉE ET CORRIGÉE au passage — `describer.output_format`** (signalée par Fabien) :
   `output_style` est un **STYLE de description** (résumé / détaillée / synthèse scientifique / points
