@@ -586,10 +586,30 @@ outillé avant d'ouvrir cette marche.
   progress 100, processing_seconds posé, sortie créée, artefacts nettoyés) ; grille converter
   93 % identique ; harnais CONFORME. ⚠ Prod : restart des workers Celery WSL2 requis pour
   charger le nouveau `tasks.py`.
-- **Reste A2** : 2e adopteur en résorbant la dérive mesurée (les tâches secondaires SANS gardes
-  de reader/anonymizer/transcriber sont les candidates naturelles), puis A2b = gabarit
-  `tasks_gen.py` (fichier mince : squelette + trou de glu marqué) dont le juge complet est le
-  pilote B. **Harnais C : VERDICT CONFORME
+- **2ᵉ adopteur : reader ✅ (même session)** — `read_document_task` porté (glu `_read` :
+  extraction native PDF en chemin court, sélection backend OCR, mise en forme LLM). La
+  pression d'universalité a élargi le contrat DÉCLARATIVEMENT (jamais de cas d'app dans la
+  brique) : `ctx.progress(pct, msg=None)` + `progress_fn(item, pct, msg)` (le front reader
+  polle un dict `{'pct','msg'}`), `console_success` (ligne ✓ personnalisée), retour anticipé
+  = flux de succès standard, `_item_label` (conventions de nommage du spine). **ETA intact
+  par construction** : la glu retourne (clé, taille, unité) — mêmes clés
+  (`reader:fitz_direct`/`reader:<backend>`, `converter:<type>:<fmt>`), même `process_seconds`
+  (chrono post-ingest), `load_seconds=None` — la continuité d'apprentissage
+  (`ModelRuntimeStat`/EMA) est préservée, `estimate()` côté vues non touché.
+- **Requalification de la « dérive » A0** : `analyze` (reader) et `enrich` (transcriber) ne
+  sont PAS des tâches d'item sans gardes — c'est une autre ESPÈCE (enrichissement à la
+  demande : ni statut ni progress, contrat `{'ok':…}`). Les forcer dans `run_item_task`
+  corromprait l'état (FAILURE sur un item déjà SUCCESS). Hors contrat volontaire, documenté
+  dans la brique. La vraie dette gardes restante = tâches de traitement de l'anonymizer
+  (`detect_with_model`/`merge_and_blur`), à porter avec son chantier.
+- **Le harnais a attrapé un écart RÉEL au passage** (reader NON CONFORME au 1er run) : les
+  descriptions tool_api rendaient le défaut de schéma par `%r` — `ReadingItem.Backend.AUTO`
+  (params main `derive_from_model`) vs `'auto'` (params régénéré littéral), deux surfaces
+  pour une même valeur. Normalisé À LA SOURCE (`tool_api._describe_arg` : un défaut
+  str-compatible se rend par sa valeur). Harnais reader ensuite **CONFORME** (strip 4 cibles,
+  grille 87 % identique, smoke identique) — **2ᵉ app à passer le strip-régénération complet**.
+- **Reste A2** : A2b = gabarit `tasks_gen.py` (fichier mince : squelette + trou de glu marqué)
+  dont le juge complet est le pilote B ; adopteurs suivants au fil des chantiers d'app. **Harnais C : VERDICT CONFORME
   avec strip de 5 cibles dont urls.py** — le urls.py généré rend les 34 routes, grille 93 %
   identique, smoke identique, ré-extraction identique. Piège levé : les system checks Django
   chargent l'URLconf racine au démarrage de toute commande → `requires_system_checks = []`

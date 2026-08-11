@@ -2387,7 +2387,13 @@ def _arg_text(entry, sig_param):
     if requis:
         bits.append('(requis)')
     elif default not in (None, ''):
-        bits.append('(défaut : %r)' % (default,))
+        # Un défaut str-compatible se rend par sa VALEUR : %r d'un membre TextChoices donnait
+        # `ReadingItem.Backend.AUTO` là où le MÊME schéma écrit en littéral donne 'auto' —
+        # deux surfaces pour une seule valeur (écart attrapé par le harnais A2, pilote reader).
+        if isinstance(default, str):
+            bits.append("(défaut : '%s')" % (str(default),))
+        else:
+            bits.append('(défaut : %r)' % (default,))
     return ' '.join(b for b in bits if b)
 
 

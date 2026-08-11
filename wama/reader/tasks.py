@@ -28,19 +28,10 @@ def _get_olmocr():
     return _olmocr_singleton
 
 
-def _set_progress(item_id: int, pct: int, msg: str = ''):
-    cache.set(f'reader_progress_{item_id}', {'pct': pct, 'msg': msg}, PROGRESS_CACHE_TTL)
-
-
-def _record_reader_eta(backend: str, page_count: int, process_seconds: float) -> None:
-    """Seeding ETA : enregistre la durée réelle (clé par backend, taille = nb de pages).
-    Service-based (chargement non séparé → amorti dans per_unit). Défensif."""
-    try:
-        from wama.model_manager.services.eta_estimator import record_run
-        record_run(f'reader:{backend}', size=max(int(page_count or 0), 1), unit='page',
-                   process_seconds=process_seconds, load_seconds=None)
-    except Exception:
-        pass
+def _set_progress(item, pct: int, msg: str = ''):
+    """`progress_fn` déclaré à la brique task_skeleton : le front du reader polle un DICT
+    {'pct','msg'} (messages d'étape), pas l'entier nu du défaut."""
+    cache.set(f'reader_progress_{item.pk}', {'pct': pct, 'msg': msg}, PROGRESS_CACHE_TTL)
 
 
 def _console(user_id: int, message: str, level: str = None) -> None:
@@ -230,37 +221,22 @@ def _format_as_markdown(text: str, language: str = '') -> str:
 
 @shared_task(bind=True, name='wama.reader.tasks.read_document_task')
 def read_document_task(self, item_id: int):
-    close_old_connections()
+    """Squelette = brique commune task_skeleton (gardes, ingest, chrono, statuts, ETA,
+    notifications) — olmOCR (~16 Go) et doctr chargent en VRAM depuis cette tâche : profil à
+    risque exact de la garde anti-boucle-de-crash. Le front du reader pollant {'pct','msg'},
+    l'écriture de progression est DÉCLARÉE (`progress_fn=_set_progress`)."""
+    from wama.common.utils.task_skeleton import run_item_task
     from .models import ReadingItem
+    run_item_task(self, app_id='reader', model=ReadingItem, item_id=item_id,
+                  process=_read, notify_label='Reader', progress_fn=_set_progress)
 
-    try:
-        item = ReadingItem.objects.select_related('user').get(pk=item_id)
-    except ReadingItem.DoesNotExist:
-        logger.error(f"[Reader] ReadingItem {item_id} introuvable")
-        return
 
-    # Garde anti-boucle-de-crash (brique COMMUNE) : message `redelivered` = worker mort sans
-    # acquitter (freeze/panic machine) → ne PAS rejouer l'exécution qui l'a tué. olmOCR (~16 Go)
-    # et doctr chargent en VRAM depuis cette tâche : c'est exactement le profil à risque.
-    from wama.common.utils.process_control import refuse_crash_redelivery
-    if refuse_crash_redelivery(self, item, error_field='error_message'):
-        logger.warning(f"[Reader] ReadingItem #{item_id} : reprise après crash refusée — relancer manuellement.")
-        return
-
-    user_id = item.user_id
-    _console(user_id, f"[Reader] Démarrage : {item.filename}")
-    _set_progress(item_id, 2, "Démarrage…")
-
-    # Ingest déclaratif (WAMA_INGEST) : source_url → input_file local si besoin.
-    try:
-        from wama.common.utils.source_ingest import ensure_local_input
-        ensure_local_input(item, console=lambda m: _console(user_id, m))
-    except Exception as exc:
-        logger.warning(f"[Reader] ensure_local_input({item_id}) : {exc}")
-
-    import time as _time
-    _t0 = _time.time()  # chrono pour le seeding ETA
-
+def _read(item, ctx):
+    """GLU reader (contrat task_skeleton) : extraction native PDF (chemin court), sinon
+    sélection de backend OCR + mise en forme Markdown LLM. Le retour anticipé du PDF natif
+    déclenche le flux de succès standard de la brique."""
+    ctx.console(f"[Reader] Démarrage : {item.filename}")
+    ctx.progress(2, "Démarrage…")
     try:
         item.status = 'RUNNING'
         item.result_text = ''
@@ -275,50 +251,46 @@ def read_document_task(self, item_id: int):
                 item.page_count = n
                 item.save(update_fields=['page_count'])
 
+        pages = max(int(item.page_count or 0), 1)
+
         # For PDFs: try native text extraction first (digital/vector PDFs)
         if item.input_file.name.lower().endswith('.pdf'):
-            _set_progress(item_id, 8, "Extraction native (texte vectoriel)…")
+            ctx.progress(8, "Extraction native (texte vectoriel)…")
             direct_text = _try_direct_extraction(item.input_file.path)
             if direct_text:
-                item.result_text = direct_text
-                item.raw_result = direct_text
-                item.used_backend = 'fitz_direct'
-                item.status = 'SUCCESS'
-                item.progress = 100
-                item.processing_seconds = _time.time() - _t0  # persiste le temps réel (déjà mesuré pour l'ETA)
-                item.save(update_fields=['result_text', 'raw_result', 'used_backend', 'status', 'progress', 'processing_seconds'])
-                _set_progress(item_id, 100, "Terminé")
-                _console(user_id, f"[Reader] ✓ {item.filename} — {len(direct_text)} caractères (PDF natif)")
-                _record_reader_eta('fitz_direct', item.page_count, item.processing_seconds)
-                return
+                ctx.progress(100, "Terminé")
+                return {
+                    'fields': {'result_text': direct_text, 'raw_result': direct_text,
+                               'used_backend': 'fitz_direct'},
+                    'eta': ('reader:fitz_direct', pages, 'page'),
+                    'label': item.filename,
+                    'console_success': f"[Reader] ✓ {item.filename} — "
+                                       f"{len(direct_text)} caractères (PDF natif)",
+                }
 
         # Select backend
         backend = item.backend
         if backend == 'auto':
             backend = _select_best_backend()
-            _console(user_id, f"[Reader] Backend auto-sélectionné : {backend}")
+            ctx.console(f"[Reader] Backend auto-sélectionné : {backend}")
 
-        _set_progress(item_id, 5, f"Backend : {backend}")
-
-        # Run OCR
-        def progress_cb(pct: int, msg: str):
-            _set_progress(item_id, pct, msg)
+        ctx.progress(5, f"Backend : {backend}")
 
         if backend == 'olmocr':
             # Singleton : le modèle reste chargé entre les fichiers d'un même batch
             raw_text = _get_olmocr().run(
-                item.input_file.path, item.mode, item.language, progress_cb,
+                item.input_file.path, item.mode, item.language, ctx.progress,
                 keep_loaded=True,
             )
         elif backend == 'glm-ocr':
             from .backends.glm_ocr_backend import GlmOcrBackend
             raw_text = GlmOcrBackend().run(
-                item.input_file.path, item.mode, item.language, progress_cb
+                item.input_file.path, item.mode, item.language, ctx.progress
             )
         elif backend == 'doctr':
             from .backends.doctr_backend import DocTRBackend
             raw_text = DocTRBackend().run(
-                item.input_file.path, item.mode, item.language, progress_cb
+                item.input_file.path, item.mode, item.language, ctx.progress
             )
         else:
             raise ValueError(f"Backend inconnu : {backend}")
@@ -326,41 +298,24 @@ def read_document_task(self, item_id: int):
         result_text = _extract_natural_text(raw_text)
 
         # Post-processing: LLM Markdown formatting (always applied)
-        _set_progress(item_id, 98, "Mise en forme…")
-        _console(user_id, f"[Reader] Mise en forme via LLM…")
+        ctx.progress(98, "Mise en forme…")
+        ctx.console("[Reader] Mise en forme via LLM…")
         result_text = _format_as_markdown(result_text, item.language)
 
-        item.result_text = result_text
-        item.raw_result = raw_text
-        item.used_backend = backend
-        item.status = 'SUCCESS'
-        item.progress = 100
-        item.processing_seconds = _time.time() - _t0  # persiste le temps réel (déjà mesuré pour l'ETA)
-        item.save(update_fields=['result_text', 'raw_result', 'used_backend', 'status', 'progress', 'processing_seconds'])
-
-        _set_progress(item_id, 100, "Terminé")
-        _console(user_id, f"[Reader] ✓ {item.filename} — {len(result_text)} caractères extraits")
-        _record_reader_eta(backend, item.page_count, item.processing_seconds)
-        try:
-            from wama.common.utils.notifications import notify_job
-            notify_job(getattr(item, 'user', None), 'Reader',
-                       getattr(item, 'filename', '') or f"document #{item_id}", True)
-        except Exception:
-            pass
-
+        ctx.progress(100, "Terminé")
+        return {
+            'fields': {'result_text': result_text, 'raw_result': raw_text,
+                       'used_backend': backend},
+            'eta': (f'reader:{backend}', pages, 'page'),
+            'label': item.filename,
+            'console_success': f"[Reader] ✓ {item.filename} — "
+                               f"{len(result_text)} caractères extraits",
+        }
     except Exception as exc:
-        logger.error(f"[Reader] Erreur item {item_id}: {exc}", exc_info=True)
-        item.status = 'FAILURE'
-        item.error_message = str(exc)
-        item.save(update_fields=['status', 'error_message'])
-        _set_progress(item_id, 0, f"Erreur : {exc}")
-        _console(user_id, f"[Reader] ✗ {item.filename} — {exc}")
-        try:
-            from wama.common.utils.notifications import notify_job
-            notify_job(getattr(item, 'user', None), 'Reader',
-                       getattr(item, 'filename', '') or f"document #{item_id}", False, detail=str(exc))
-        except Exception:
-            pass
+        # Le front affiche le message d'étape : y refléter l'erreur avant le flux FAILURE
+        # standard de la brique (statut, console ✗, notification).
+        _set_progress(item, 0, f"Erreur : {exc}")
+        raise
 
 
 @shared_task(bind=True, name='wama.reader.tasks.analyze_document_task')

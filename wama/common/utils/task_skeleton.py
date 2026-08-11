@@ -12,15 +12,24 @@ statuts canoniques, seeding ETA, console, notifications — est ici, UNE fois.
                       process=_convert, notify_label='Converter')
 
 Contrat de la glu `process(item, ctx) -> dict | None` :
-  - `ctx.progress(pct)`          : progression 0-100 (cache `<app>_progress_<pk>` + champ
-                                   `progress` du modèle s'il existe)
+  - `ctx.progress(pct, msg=None)` : progression 0-100 (défaut : cache `<app>_progress_<pk>`
+                                    entier + champ `progress` du modèle s'il existe ; `msg`
+                                    ignoré). Une app dont le front attend un AUTRE format
+                                    (ex. reader : dict {'pct','msg'}) DÉCLARE
+                                    `progress_fn(item, pct, msg)` — la brique ne code aucun cas.
   - `ctx.console(msg, level=None)` : ligne console utilisateur (niveau auto si None), best-effort
   - retour : {'fields': {champs modèle à persister au succès},
               'eta':    (clé, taille, unité) pour `record_run` — optionnel,
-              'label':  nom lisible du résultat (console ✓ + notification) — optionnel}
+              'label':  nom lisible du résultat (console ✓ + notification) — optionnel,
+              'console_success': ligne ✓ personnalisée (remplace « ✓ Terminé : <label> ») — optionnel}
+    La glu peut retourner À TOUT MOMENT (ex. chemin court PDF natif du reader) : le retour
+    déclenche le flux de succès standard.
   - une exception = FAILURE (message tronqué dans `error_field`, console ✗, notification
     d'échec). Le nettoyage spécifique d'échec (fichiers temporaires…) reste DANS la glu
     (try/finally ou except-reraise) — le squelette ne connaît pas ses artefacts.
+  Hors contrat (volontaire) : les tâches d'ENRICHISSEMENT à la demande (reader `analyze`,
+  transcriber `enrich`) — elles ne pilotent PAS le cycle de vie de l'item (ni statut ni
+  progress) ; les faire passer ici corromprait l'état (FAILURE sur un item déjà SUCCESS).
 
 Le squelette pose, dans l'ordre de la convention : `close_old_connections`, chargement de
 l'item (`select_related('user')`), `refuse_crash_redelivery` (garde anti-boucle-de-crash),
@@ -53,9 +62,9 @@ class TaskContext:
         self.user_id = getattr(item, 'user_id', None)
         self._progress_fn = progress_fn
 
-    def progress(self, pct: int) -> None:
+    def progress(self, pct: int, msg: str = None) -> None:
         if self._progress_fn is not None:
-            self._progress_fn(self.item, pct)
+            self._progress_fn(self.item, pct, msg or '')
             return
         pct = max(0, min(100, int(pct)))
         cache.set(f"{self.app_id}_progress_{self.item.pk}", pct, timeout=3600)
@@ -84,6 +93,16 @@ def _notify(item, label: str, nom: str, ok: bool, detail: str = None) -> None:
         notify_job(getattr(item, 'user', None), label, nom, ok, detail=detail)
     except Exception:
         pass
+
+
+def _item_label(item, item_id: int) -> str:
+    """Nom lisible de l'item pour console/notification — conventions de nommage du spine
+    (converter: input_filename, reader: filename, composer/synthesizer: title), repli #id."""
+    for attr in ('input_filename', 'filename', 'title', 'name'):
+        v = getattr(item, attr, None)
+        if v:
+            return str(v)
+    return f"#{item_id}"
 
 
 def run_item_task(task, *, app_id: str, model, item_id: int, process,
@@ -126,8 +145,8 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process,
             fields['processing_seconds'] = round(time.time() - t0, 1)
         model.objects.filter(pk=item_id).update(**fields)
         ctx.progress(100)
-        nom = res.get('label') or getattr(item, 'input_filename', None) or f"#{item_id}"
-        ctx.console(f"✓ Terminé : {nom}", level='info')
+        nom = res.get('label') or _item_label(item, item_id)
+        ctx.console(res.get('console_success') or f"✓ Terminé : {nom}", level='info')
         logger.info(f"=== {app_id} task DONE | item={item_id} ===")
         eta = res.get('eta')
         if eta:
@@ -146,5 +165,6 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process,
         if _has_field(model, error_field):
             fields[error_field] = msg
         model.objects.filter(pk=item_id).update(**fields)
-        ctx.console(f"✗ Erreur : {msg}", level='error')
-        _notify(item, label_app, f"#{item_id}", False, detail=msg)
+        nom = _item_label(item, item_id)
+        ctx.console(f"✗ Erreur ({nom}) : {msg}", level='error')
+        _notify(item, label_app, nom, False, detail=msg)

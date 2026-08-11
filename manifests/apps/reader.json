@@ -412,11 +412,11 @@
       "descriptions": {
         "add_to_reader": {
           "args": {
-            "backend": "select — Moteur OCR (choix : auto | olmocr | doctr | glm-ocr) (défaut : ReadingItem.Backend.AUTO)",
+            "backend": "select — Moteur OCR (choix : auto | olmocr | doctr | glm-ocr) (défaut : 'auto')",
             "file_path": "str (requis)",
             "language": "text — Optionnel (ex. fr, en). Auto-détection si vide.",
-            "mode": "select — Mode de lecture (choix : auto | printed | handwritten) (défaut : ReadingItem.Mode.AUTO)",
-            "output_format": "select — Format du texte produit. Les autres formats restent téléchargeables ensuite. (choix : txt | markdown) (défaut : ReadingItem.OutputFormat.TXT)"
+            "mode": "select — Mode de lecture (choix : auto | printed | handwritten) (défaut : 'auto')",
+            "output_format": "select — Format du texte produit. Les autres formats restent téléchargeables ensuite. (choix : txt | markdown) (défaut : 'txt')"
           },
           "description": "Ajoute un élément à la file d'attente de Reader (OCR) (Extraction de texte par OCR (Tesseract, PaddleOCR, EasyOCR)) et renvoie son item_id."
         },

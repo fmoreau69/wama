@@ -2445,9 +2445,14 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > porté (5 lignes + glu `_convert`), critères `crash_redelivery_guard`/`eta_seeded` reconnaissent
 > la brique. Validé : exécution RÉELLE (PNG→WebP SUCCESS, artefacts nettoyés), grille 93 %
 > identique, harnais CONFORME. ⚠ **Restart workers Celery WSL2 requis** (nouveau tasks.py).
-> **Suite : 2e adopteur task_skeleton (tâches secondaires sans gardes = dérive mesurée), A2b
-> gabarit tasks_gen (juge = pilote B), puis A3 apps.py (detail déclaratif), A4 tool_api, A5
-> models.py.**
+> **Puis 2ᵉ adopteur : reader porté** (contrat élargi déclarativement : `progress_fn` à
+> message, `console_success`, retour anticipé ; ETA intact par construction — mêmes clés,
+> même chrono, `estimate()` non touché ; « dérive » `analyze`/`enrich` REQUALIFIÉE : espèce
+> enrichissement, hors contrat volontaire). Le harnais a attrapé un écart réel (défauts de
+> schéma rendus en `%r` → enum vs littéral) normalisé à la source dans `tool_api`. **Reader =
+> 2ᵉ app CONFORME au strip-régénération complet** (grille 87 % identique, smoke identique).
+> **Suite : A2b gabarit tasks_gen (juge = pilote B), A3 apps.py (detail déclaratif), A4
+> tool_api, A5 models.py ; dette gardes restante = tâches anonymizer (avec son chantier).**
 
 ## §REPRISE — 2026-08-11 (2ᵉ session, SUITE du soir) : 8 facettes + function + page librairies + avis critique
 
