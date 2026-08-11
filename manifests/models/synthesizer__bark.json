@@ -1,0 +1,72 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "prompt"
+      ],
+      "languages": [
+        "en",
+        "de",
+        "es",
+        "fr",
+        "hi",
+        "it",
+        "ja",
+        "ko",
+        "pl",
+        "pt",
+        "ru",
+        "tr",
+        "zh-cn"
+      ],
+      "modalities": [
+        "audio"
+      ],
+      "supports_cloning": false,
+      "task": "text-to-speech"
+    },
+    "extra_info": {
+      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/bark/suno/bark_v0"
+    },
+    "formats": {
+      "can_convert_to": [
+        "onnx",
+        "safetensors"
+      ],
+      "format": "pt",
+      "preferred_format": "onnx"
+    },
+    "identity": {
+      "description_short": "Bark — TTS expressif avec effets sonores.",
+      "hf_id": null,
+      "license": null,
+      "model_type": "speech",
+      "platform_ref": null,
+      "source": "synthesizer"
+    },
+    "provenance": {
+      "backend_ref": "synthesizer",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 8.0,
+      "vram_gb": 4.0
+    }
+  },
+  "description": "Bark (Suno) : synthèse vocale expressive capable de générer rires, soupirs, hésitations et bruitages. Presets de locuteurs sur 13 langues ; ne fait pas de clonage de voix libre. Idéal pour un rendu vivant et naturel.",
+  "key": "synthesizer:bark",
+  "manifest_kind": "model",
+  "name": "Bark TTS",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:synthesizer:bark",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

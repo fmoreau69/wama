@@ -1,0 +1,95 @@
+{
+  "body": {
+    "capabilities": {
+      "classes": [
+        "plane",
+        "ship",
+        "storage tank",
+        "baseball diamond",
+        "tennis court",
+        "basketball court",
+        "ground track field",
+        "harbor",
+        "bridge",
+        "large vehicle",
+        "small vehicle",
+        "helicopter",
+        "roundabout",
+        "soccer ball field",
+        "swimming pool"
+      ],
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image",
+        "video"
+      ],
+      "task": "obb"
+    },
+    "extra_info": {
+      "class_list": [
+        "plane",
+        "ship",
+        "storage tank",
+        "baseball diamond",
+        "tennis court",
+        "basketball court",
+        "ground track field",
+        "harbor",
+        "bridge",
+        "large vehicle",
+        "small vehicle",
+        "helicopter",
+        "roundabout",
+        "soccer ball field",
+        "swimming pool"
+      ],
+      "model_id": "obb/yolo11x-obb.pt",
+      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/yolo/obb/yolo11x-obb.pt",
+      "size_bytes": 118438668,
+      "specialty": null,
+      "yolo_type": "obb"
+    },
+    "formats": {
+      "can_convert_to": [
+        "safetensors",
+        "onnx"
+      ],
+      "format": "pt",
+      "preferred_format": "onnx"
+    },
+    "identity": {
+      "description_short": "YOLO obb",
+      "hf_id": null,
+      "license": null,
+      "model_type": "vision",
+      "platform_ref": null,
+      "source": "anonymizer"
+    },
+    "provenance": {
+      "backend_ref": "anonymizer",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.2
+    }
+  },
+  "description": "YOLO obb",
+  "key": "anonymizer:yolo:yolo11x-obb.pt",
+  "manifest_kind": "model",
+  "name": "yolo11x-obb.pt",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:anonymizer:yolo:yolo11x-obb.pt",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

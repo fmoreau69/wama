@@ -1,0 +1,67 @@
+{
+  "body": {
+    "capabilities": {
+      "classes": [
+        "person"
+      ],
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image",
+        "video"
+      ],
+      "task": "pose"
+    },
+    "extra_info": {
+      "class_list": [
+        "person"
+      ],
+      "model_id": "pose/yolo11x-pose.pt",
+      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/yolo/pose/yolo11x-pose.pt",
+      "size_bytes": 118481010,
+      "specialty": null,
+      "yolo_type": "pose"
+    },
+    "formats": {
+      "can_convert_to": [
+        "safetensors",
+        "onnx"
+      ],
+      "format": "pt",
+      "preferred_format": "onnx"
+    },
+    "identity": {
+      "description_short": "YOLO pose",
+      "hf_id": null,
+      "license": null,
+      "model_type": "vision",
+      "platform_ref": null,
+      "source": "anonymizer"
+    },
+    "provenance": {
+      "backend_ref": "anonymizer",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.2
+    }
+  },
+  "description": "YOLO pose",
+  "key": "anonymizer:yolo:yolo11x-pose.pt",
+  "manifest_kind": "model",
+  "name": "yolo11x-pose.pt",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:anonymizer:yolo:yolo11x-pose.pt",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

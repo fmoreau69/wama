@@ -1,0 +1,56 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image",
+        "video"
+      ],
+      "scale": 4,
+      "task": "upscale"
+    },
+    "extra_info": {
+      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/upscaling/onnx/RealESR_Gx4_fp16.onnx",
+      "size_mb": 2.3317737579345703
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "onnx",
+      "preferred_format": "onnx"
+    },
+    "identity": {
+      "description_short": "Real-ESR general ×4 — généraliste ultra-léger.",
+      "hf_id": null,
+      "license": null,
+      "model_type": "upscaling",
+      "platform_ref": null,
+      "source": "enhancer"
+    },
+    "provenance": {
+      "backend_ref": "enhancer",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.002277122810482979,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Real-ESR general ×4 (fp16, ONNX) : version généraliste très compacte de Real-ESRGAN. Rapide et sobre, qualité légèrement en retrait — pour les traitements en volume ou les machines modestes.",
+  "key": "enhancer:RealESR_Gx4_fp16",
+  "manifest_kind": "model",
+  "name": "RealESR_Gx4_fp16",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:enhancer:RealESR_Gx4_fp16",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

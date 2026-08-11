@@ -1,0 +1,53 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_optional": [],
+      "inputs_required": [
+        "prompt",
+        "work_image"
+      ],
+      "modalities": [
+        "video"
+      ],
+      "task": "image-to-video"
+    },
+    "extra_info": {},
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": "safetensors"
+    },
+    "identity": {
+      "description_short": "CogVideoX 5B — Image-to-Video, 24 fps",
+      "hf_id": "THUDM/CogVideoX-5b-I2V",
+      "license": null,
+      "model_type": "diffusion",
+      "platform_ref": "huggingface:THUDM/CogVideoX-5b-I2V",
+      "source": "imager"
+    },
+    "provenance": {
+      "backend_ref": "imager",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 21.0
+    }
+  },
+  "description": "CogVideoX 5B I2V (Zhipu/THUDM) : anime une image de référence en clip vidéo 24 images/s, guidé par le prompt. Idéal pour donner vie à une illustration ou une photo.",
+  "key": "imager:cogvideox-5b-i2v",
+  "manifest_kind": "model",
+  "name": "CogVideoX 5B — Image-to-Video, 24 fps",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:imager:cogvideox-5b-i2v",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

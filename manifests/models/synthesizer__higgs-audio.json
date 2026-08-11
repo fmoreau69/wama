@@ -1,0 +1,69 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_optional": [
+        "reference_voice"
+      ],
+      "inputs_required": [
+        "prompt"
+      ],
+      "languages": [
+        "en",
+        "fr",
+        "de",
+        "es",
+        "it",
+        "pt",
+        "zh-cn",
+        "ja",
+        "ko"
+      ],
+      "modalities": [
+        "audio"
+      ],
+      "supports_cloning": true,
+      "task": "text-to-speech"
+    },
+    "extra_info": {
+      "hf_id": "bosonai/higgs-audio-v2-generation-3B-base",
+      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/higgs"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": "onnx"
+    },
+    "identity": {
+      "description_short": "Higgs Audio v2 — multi-locuteurs avec clonage de voix.",
+      "hf_id": null,
+      "license": null,
+      "model_type": "speech",
+      "platform_ref": null,
+      "source": "synthesizer"
+    },
+    "provenance": {
+      "backend_ref": "synthesizer",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 8.0,
+      "vram_gb": 24.0
+    }
+  },
+  "description": "Higgs Audio v2 (Boson AI, 3B) : synthèse multi-locuteurs avec clonage de voix et conditionnement de scène pour des dialogues à plusieurs voix. 9 langues. Le plus détaillé mais le plus gourmand en ressources.",
+  "key": "synthesizer:higgs-audio",
+  "manifest_kind": "model",
+  "name": "Higgs Audio v2",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:synthesizer:higgs-audio",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

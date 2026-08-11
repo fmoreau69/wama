@@ -1,0 +1,54 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_optional": [
+        "work_image"
+      ],
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "video"
+      ],
+      "task": "text-to-video"
+    },
+    "extra_info": {},
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": "safetensors"
+    },
+    "identity": {
+      "description_short": "LTX-Video 13B Distilled — rapide, T2V + I2V",
+      "hf_id": "Lightricks/LTX-Video-0.9.8-13B-distilled",
+      "license": null,
+      "model_type": "diffusion",
+      "platform_ref": "huggingface:Lightricks/LTX-Video-0.9.8-13B-distilled",
+      "source": "imager"
+    },
+    "provenance": {
+      "backend_ref": "imager",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 14.0
+    }
+  },
+  "description": "LTX-Video 13B Distilled (Lightricks) : génération vidéo rapide, en texte-vers-vidéo comme en image-vers-vidéo. La distillation réduit fortement le nombre d'étapes — bon choix par défaut pour itérer vite.",
+  "key": "imager:ltx-video-13b-0.9.8-distilled",
+  "manifest_kind": "model",
+  "name": "LTX-Video 13B Distilled — rapide, T2V + I2V",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:imager:ltx-video-13b-0.9.8-distilled",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

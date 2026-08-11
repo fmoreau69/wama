@@ -1,0 +1,58 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "prompt"
+      ],
+      "languages": [
+        "en"
+      ],
+      "modalities": [
+        "audio"
+      ],
+      "task": "text-to-music"
+    },
+    "extra_info": {
+      "max_duration": 30,
+      "sample_rate": 32000,
+      "type": "music"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null,
+      "preferred_format": null
+    },
+    "identity": {
+      "description_short": "MusicGen Small — génération rapide, 300M params",
+      "hf_id": "facebook/musicgen-small",
+      "license": null,
+      "model_type": "music",
+      "platform_ref": "huggingface:facebook/musicgen-small",
+      "source": "composer"
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 4.0
+    }
+  },
+  "description": "MusicGen Small (Meta AudioCraft, 300M) : génération musicale depuis un prompt texte, version la plus légère et rapide de la famille. Qualité en retrait — idéal pour esquisser des idées avant un rendu sur Medium.",
+  "key": "composer:musicgen-small",
+  "manifest_kind": "model",
+  "name": "MusicGen Small — génération rapide, 300M params",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:composer:musicgen-small",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

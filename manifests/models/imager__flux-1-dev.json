@@ -1,0 +1,52 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_optional": [],
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "image"
+      ],
+      "task": "text-to-image"
+    },
+    "extra_info": {},
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": "safetensors"
+    },
+    "identity": {
+      "description_short": "FLUX.1-dev — adhérence au prompt de référence",
+      "hf_id": "black-forest-labs/FLUX.1-dev",
+      "license": null,
+      "model_type": "diffusion",
+      "platform_ref": "huggingface:black-forest-labs/FLUX.1-dev",
+      "source": "imager"
+    },
+    "provenance": {
+      "backend_ref": "imager",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 24.0
+    }
+  },
+  "description": "FLUX.1-dev (Black Forest Labs, 12B) : référence open-weights pour l'adhérence au prompt et l'esthétique générale. Déjà présent localement — il servait uniquement de modèle de base au LoRA logo. Rectified flow : guidance 3.5 et ~28 étapes. Licence non commerciale (recherche/usage interne).",
+  "key": "imager:flux-1-dev",
+  "manifest_kind": "model",
+  "name": "FLUX.1-dev — adhérence au prompt de référence",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:imager:flux-1-dev",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

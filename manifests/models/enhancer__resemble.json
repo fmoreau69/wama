@@ -1,0 +1,56 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_audio"
+      ],
+      "modalities": [
+        "audio"
+      ],
+      "params": [
+        "mode",
+        "strength",
+        "quality"
+      ],
+      "task": "audio-enhance"
+    },
+    "extra_info": {},
+    "formats": {
+      "can_convert_to": [],
+      "format": null,
+      "preferred_format": null
+    },
+    "identity": {
+      "description_short": "Restauration par diffusion — débruitage + extension de bande, meilleure qualité",
+      "hf_id": null,
+      "license": null,
+      "model_type": "speech",
+      "platform_ref": null,
+      "source": "enhancer"
+    },
+    "provenance": {
+      "backend_ref": "enhancer",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 4.0
+    }
+  },
+  "description": "Resemble Enhance : modèle génératif (diffusion) qui débruite ET restaure les hautes fréquences (super-résolution audio). Qualité supérieure mais plus lent ; les réglages Mode / Force / Qualité (NFE) s'appliquent.",
+  "key": "enhancer:resemble",
+  "manifest_kind": "model",
+  "name": "Resemble Enhance",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:enhancer:resemble",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

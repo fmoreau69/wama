@@ -1,0 +1,52 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_optional": [],
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "image"
+      ],
+      "task": "text-to-image"
+    },
+    "extra_info": {},
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": "safetensors"
+    },
+    "identity": {
+      "description_short": "HunyuanImage 2.1 — qualité max, text rendering, 1K-4K",
+      "hf_id": "hunyuanvideo-community/HunyuanImage-2.1-Diffusers",
+      "license": null,
+      "model_type": "diffusion",
+      "platform_ref": "huggingface:hunyuanvideo-community/HunyuanImage-2.1-Diffusers",
+      "source": "imager"
+    },
+    "provenance": {
+      "backend_ref": "imager",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 16.0
+    }
+  },
+  "description": "HunyuanImage 2.1 (Tencent) : génération d'images haut de gamme, excellent rendu du texte dans l'image et résolutions 1K à 4K. Le choix qualité maximale quand le temps de génération importe peu.",
+  "key": "imager:hunyuan-image-2.1",
+  "manifest_kind": "model",
+  "name": "HunyuanImage 2.1 — qualité max, text rendering, 1K-4K",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:imager:hunyuan-image-2.1",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

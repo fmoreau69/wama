@@ -1,0 +1,52 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_optional": [],
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "image"
+      ],
+      "task": "text-to-image"
+    },
+    "extra_info": {},
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": "safetensors"
+    },
+    "identity": {
+      "description_short": "Qwen Image 2 (20B) — #1 open source, text rendering, 2K natif",
+      "hf_id": "Qwen/Qwen-Image-2512",
+      "license": null,
+      "model_type": "diffusion",
+      "platform_ref": "huggingface:Qwen/Qwen-Image-2512",
+      "source": "imager"
+    },
+    "provenance": {
+      "backend_ref": "imager",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 38.0
+    }
+  },
+  "description": "Qwen-Image 2 (Alibaba, 20B) : parmi les meilleurs modèles image open-source, rendu du texte dans l'image remarquable et 2K natif. Qualité proche des services propriétaires, au prix d'une VRAM élevée.",
+  "key": "imager:qwen-image-2",
+  "manifest_kind": "model",
+  "name": "Qwen Image 2 (20B) — #1 open source, text rendering, 2K natif",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:imager:qwen-image-2",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

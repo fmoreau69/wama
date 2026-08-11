@@ -1,0 +1,65 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_file",
+        "prompt"
+      ],
+      "modalities": [
+        "image",
+        "video"
+      ],
+      "task": "segment",
+      "text_promptable": true
+    },
+    "extra_info": {
+      "error": null,
+      "hf_authenticated": true,
+      "installed": true,
+      "models_cached": true,
+      "models_dir": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/sam/models--facebook--sam3",
+      "models_dir_exists": true,
+      "ready": true,
+      "version": "0.1.2"
+    },
+    "formats": {
+      "can_convert_to": [
+        "onnx"
+      ],
+      "format": "safetensors",
+      "preferred_format": "onnx"
+    },
+    "identity": {
+      "description_short": "SAM3 (Meta) — segmentation par prompt texte.",
+      "hf_id": null,
+      "license": null,
+      "model_type": "vision",
+      "platform_ref": null,
+      "source": "anonymizer"
+    },
+    "provenance": {
+      "backend_ref": "anonymizer",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 3.0
+    }
+  },
+  "description": "SAM3 (Meta, Segment Anything 3) : segmentation open-vocabulary pilotée par un prompt texte libre (ex. « blur all faces and license plates ») au lieu de classes YOLO fixes. ~3 Go VRAM. Nécessite un token HuggingFace configuré.",
+  "key": "anonymizer:sam3",
+  "manifest_kind": "model",
+  "name": "SAM3 (Segment Anything)",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:anonymizer:sam3",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

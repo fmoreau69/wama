@@ -1,0 +1,69 @@
+{
+  "body": {
+    "capabilities": {
+      "classes": [
+        "face",
+        "plate"
+      ],
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image",
+        "video"
+      ],
+      "task": "detect"
+    },
+    "extra_info": {
+      "class_list": [
+        "face",
+        "plate"
+      ],
+      "model_id": "detect/faces&plates/yolov8n_face_plate_1080p.pt",
+      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/yolo/detect/faces&plates/yolov8n_face_plate_1080p.pt",
+      "size_bytes": 6471416,
+      "specialty": "faces&plates",
+      "yolo_type": "detect"
+    },
+    "formats": {
+      "can_convert_to": [
+        "safetensors",
+        "onnx"
+      ],
+      "format": "pt",
+      "preferred_format": "onnx"
+    },
+    "identity": {
+      "description_short": "YOLO detect (faces&plates)",
+      "hf_id": null,
+      "license": null,
+      "model_type": "vision",
+      "platform_ref": null,
+      "source": "anonymizer"
+    },
+    "provenance": {
+      "backend_ref": "anonymizer",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "YOLO detect (faces&plates)",
+  "key": "anonymizer:yolo:yolov8n_face_plate_1080p.pt",
+  "manifest_kind": "model",
+  "name": "yolov8n_face_plate_1080p.pt",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:anonymizer:yolo:yolov8n_face_plate_1080p.pt",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

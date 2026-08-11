@@ -1,0 +1,64 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "prompt"
+      ],
+      "languages": [
+        "fr",
+        "en",
+        "es",
+        "it",
+        "pt",
+        "ja",
+        "zh-cn"
+      ],
+      "modalities": [
+        "audio"
+      ],
+      "supports_cloning": false,
+      "task": "text-to-speech"
+    },
+    "extra_info": {
+      "hf_id": "hexgrad/Kokoro-82M",
+      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/kokoro"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "pt",
+      "preferred_format": "onnx"
+    },
+    "identity": {
+      "description_short": "Kokoro 82M — TTS multilingue ultra-léger.",
+      "hf_id": null,
+      "license": null,
+      "model_type": "speech",
+      "platform_ref": null,
+      "source": "synthesizer"
+    },
+    "provenance": {
+      "backend_ref": "synthesizer",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 1.0,
+      "vram_gb": 0.5
+    }
+  },
+  "description": "Kokoro 82M : modèle de synthèse vocale très léger (82M paramètres) couvrant FR/EN/ES/IT/PT/JA/ZH avec des voix fixes par langue. Extrêmement rapide et peu gourmand, adapté au temps réel et aux petites configurations.",
+  "key": "synthesizer:kokoro",
+  "manifest_kind": "model",
+  "name": "Kokoro 82M",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:synthesizer:kokoro",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

@@ -1,0 +1,54 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_optional": [
+        "work_image"
+      ],
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "image"
+      ],
+      "task": "text-to-image"
+    },
+    "extra_info": {},
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": "safetensors"
+    },
+    "identity": {
+      "description_short": "Stable Diffusion XL — haute résolution (compatibilité LoRA)",
+      "hf_id": "stabilityai/stable-diffusion-xl-base-1.0",
+      "license": null,
+      "model_type": "diffusion",
+      "platform_ref": "huggingface:stabilityai/stable-diffusion-xl-base-1.0",
+      "source": "imager"
+    },
+    "provenance": {
+      "backend_ref": "imager",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 10.0
+    }
+  },
+  "description": "Stable Diffusion XL (Stability AI) : génération native en 1024 px, compositions et anatomies bien plus fiables que SD 1.5, large choix de LoRA. La valeur sûre polyvalente de la famille Stable Diffusion.",
+  "key": "imager:stable-diffusion-xl",
+  "manifest_kind": "model",
+  "name": "Stable Diffusion XL — haute résolution (compatibilité LoRA)",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:imager:stable-diffusion-xl",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

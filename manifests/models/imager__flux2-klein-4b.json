@@ -1,0 +1,52 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_optional": [],
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "image"
+      ],
+      "task": "text-to-image"
+    },
+    "extra_info": {},
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": "safetensors"
+    },
+    "identity": {
+      "description_short": "FLUX.2 Klein 4B — ultra-rapide (<1 s), Apache 2.0",
+      "hf_id": "black-forest-labs/FLUX.2-klein-4B",
+      "license": null,
+      "model_type": "diffusion",
+      "platform_ref": "huggingface:black-forest-labs/FLUX.2-klein-4B",
+      "source": "imager"
+    },
+    "provenance": {
+      "backend_ref": "imager",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 13.0
+    }
+  },
+  "description": "FLUX.2 Klein 4B (Black Forest Labs) : version distillée ultra-rapide de FLUX.2 — image en moins d'une seconde, licence Apache 2.0. Parfait pour itérer sur des idées avant un rendu final sur un modèle lourd.",
+  "key": "imager:flux2-klein-4b",
+  "manifest_kind": "model",
+  "name": "FLUX.2 Klein 4B — ultra-rapide (<1 s), Apache 2.0",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:imager:flux2-klein-4b",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

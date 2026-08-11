@@ -8,12 +8,20 @@ commande REFUSE de l'écrire.
 
   python manage.py manifest_export                  # les 10 apps → manifests/apps/
                                                     #  + libraries déjà semées → manifests/libraries/
+                                                    #  + modèles cités par les requires → manifests/models/
   python manage.py manifest_export transcriber      # une seule app
   python manage.py manifest_export --kind library faster-whisper   # SEMER une library au corpus
   python manage.py manifest_export --check          # n'écrit rien ; sort en erreur si périmé
 
 Libraries (SPEC §7.4-3) : le semis est EXPLICITE (`--kind library <clé>`) — aucun critère de
 sélection inventé ; sans clé, la commande rafraîchit/contrôle ce qui a déjà été semé.
+
+Modèles (micro-marche pré-B, actée 2026-08-12) : exportés par DÉRIVATION — les modèles cités
+par les `requires` des apps (composition `app → model`), plus le refresh des déjà exportés.
+L'export fichier sert la REVUE HUMAINE et le few-shot du rôle codegen ; la mécanique de
+composition, elle, résout les requires par EXTRACTION LIVE (elle ne lit pas ces fichiers).
+Les clés modèle portent un `:` (`transcriber:whisper`) interdit dans un nom de fichier
+Windows → nom assaini `transcriber__whisper.json` (réversible au glob).
 
 Le corpus est un artefact DÉRIVÉ mais VERSIONNÉ : le `git diff` du corpus est la revue de ce
 qui change dans la surface déclarée d'une app. `--check` permet de refuser un commit qui
@@ -24,7 +32,20 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand
 
-DOSSIERS = {'app': 'manifests/apps', 'library': 'manifests/libraries'}
+DOSSIERS = {'app': 'manifests/apps', 'library': 'manifests/libraries',
+            'model': 'manifests/models'}
+
+
+def _nom_fichier(cle: str) -> str:
+    """Nom de fichier assaini (les clés modèle portent `:` — interdit sous Windows)."""
+    if '__' in cle:      # collision avec l'assainissement → le glob inverse rendrait une
+        raise ValueError(  # autre clé ; refuser vaut mieux que corrompre en silence.
+            f"clé {cle!r} : '__' entre en collision avec l'assainissement de ':'")
+    return cle.replace(':', '__')
+
+
+def _cle_du_stem(stem: str) -> str:
+    return stem.replace('__', ':')
 
 
 class Command(BaseCommand):
@@ -49,12 +70,27 @@ class Command(BaseCommand):
         from wama.common.manifests.ingest import extract, validate
 
         base = Path(settings.BASE_DIR)
+        extraits = {}          # (kind, clé) → manifeste : la pré-passe requires ne ré-extrait pas
+
+        def _extract(kind, cle):
+            if (kind, cle) not in extraits:
+                extraits[(kind, cle)] = extract(kind, cle)
+            return extraits[(kind, cle)]
+
         if o['cle']:
             cibles = [(o['kind'], o['cle'])]
         else:
             cibles = [('app', a) for a in sorted(APP_CATALOG)]
-            cibles += [('library', f.stem)
+            cibles += [('library', _cle_du_stem(f.stem))
                        for f in sorted((base / DOSSIERS['library']).glob('*.json'))]
+            # Modèles : DÉRIVÉS des requires des apps (composition app → model) ∪ refresh
+            # des déjà exportés — même logique que les libraries, sans semis manuel.
+            cites = {r['key'] for genre, a in cibles if genre == 'app'
+                     for r in ((_extract('app', a) or {}).get('requires') or [])
+                     if isinstance(r, dict) and r.get('kind') == 'model' and r.get('key')}
+            semes = {_cle_du_stem(f.stem)
+                     for f in (base / DOSSIERS['model']).glob('*.json')}
+            cibles += [('model', k) for k in sorted(cites | semes)]
 
         w, s, e, warn = self.stdout.write, self.style.SUCCESS, self.style.ERROR, self.style.WARNING
         ecrits, perimes, refuses, inchanges = [], [], [], []
@@ -63,7 +99,7 @@ class Command(BaseCommand):
             dossier = base / (o['out'] or DOSSIERS[kind])
             if not o['check']:
                 dossier.mkdir(parents=True, exist_ok=True)
-            manifest = extract(kind, app_id)
+            manifest = _extract(kind, app_id)
             if not manifest:
                 w(e(f"  {app_id:14s} extraction impossible"))
                 continue
@@ -89,7 +125,7 @@ class Command(BaseCommand):
             # contenu, jamais un réordonnancement de dict.
             texte = json.dumps(manifest, ensure_ascii=False, indent=2,
                                sort_keys=True, default=str) + '\n'
-            cible = dossier / f"{app_id}.json"
+            cible = dossier / f"{_nom_fichier(app_id)}.json"
             actuel = cible.read_text(encoding='utf-8') if cible.exists() else None
 
             if actuel == texte:

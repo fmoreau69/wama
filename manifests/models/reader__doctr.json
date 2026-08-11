@@ -1,0 +1,54 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image",
+        "document"
+      ],
+      "task": "ocr"
+    },
+    "extra_info": {
+      "type": "ocr-pipeline"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null,
+      "preferred_format": null
+    },
+    "identity": {
+      "description_short": "docTR (Mindee) — pipeline CPU, imprimé, bonne gestion des formulaires",
+      "hf_id": null,
+      "license": null,
+      "model_type": "ocr",
+      "platform_ref": null,
+      "source": "reader"
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "docTR (Mindee) : pipeline OCR classique en deux étapes (détection + reconnaissance), fonctionne sur CPU. Rapide et sobre pour documents imprimés simples et formulaires ; moins adapté au manuscrit et aux mises en page complexes.",
+  "key": "reader:doctr",
+  "manifest_kind": "model",
+  "name": "docTR (Mindee) — pipeline CPU, imprimé, bonne gestion des formulaires",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:reader:doctr",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

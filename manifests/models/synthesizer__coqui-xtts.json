@@ -1,0 +1,79 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_optional": [
+        "reference_voice"
+      ],
+      "inputs_required": [
+        "prompt"
+      ],
+      "languages": [
+        "fr",
+        "en",
+        "es",
+        "it",
+        "pt",
+        "de",
+        "nl",
+        "pl",
+        "ru",
+        "cs",
+        "ar",
+        "zh-cn",
+        "ja",
+        "ko",
+        "tr",
+        "hu",
+        "hi"
+      ],
+      "modalities": [
+        "audio"
+      ],
+      "supports_cloning": true,
+      "task": "text-to-speech"
+    },
+    "extra_info": {
+      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/coqui/tts/tts_models--multilingual--multi-dataset--xtts_v2/model.pth"
+    },
+    "formats": {
+      "can_convert_to": [
+        "onnx",
+        "safetensors"
+      ],
+      "format": "pth",
+      "preferred_format": "onnx"
+    },
+    "identity": {
+      "description_short": "Coqui XTTS v2 — TTS multilingue avec clonage de voix.",
+      "hf_id": null,
+      "license": null,
+      "model_type": "speech",
+      "platform_ref": null,
+      "source": "synthesizer"
+    },
+    "provenance": {
+      "backend_ref": "synthesizer",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 4.0,
+      "vram_gb": 2.0
+    }
+  },
+  "description": "Coqui XTTS v2 : synthèse vocale multilingue (17 langues) avec clonage de voix à partir d'un simple échantillon de référence de quelques secondes. Bon compromis qualité/rapidité, référence polyvalente pour la plupart des usages.",
+  "key": "synthesizer:coqui-xtts",
+  "manifest_kind": "model",
+  "name": "Coqui XTTS v2",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:synthesizer:coqui-xtts",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

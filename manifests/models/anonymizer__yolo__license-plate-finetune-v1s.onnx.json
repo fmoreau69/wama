@@ -1,0 +1,66 @@
+{
+  "body": {
+    "capabilities": {
+      "classes": [
+        "plate",
+        "license_plate"
+      ],
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image",
+        "video"
+      ],
+      "task": "detect"
+    },
+    "extra_info": {
+      "class_list": [
+        "plate",
+        "license_plate"
+      ],
+      "model_id": "detect/plates/license-plate-finetune-v1s.onnx",
+      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/yolo/detect/plates/license-plate-finetune-v1s.onnx",
+      "size_bytes": 37805310,
+      "specialty": "plates",
+      "yolo_type": "detect"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "onnx",
+      "preferred_format": "onnx"
+    },
+    "identity": {
+      "description_short": "YOLO detect (plates)",
+      "hf_id": null,
+      "license": null,
+      "model_type": "vision",
+      "platform_ref": null,
+      "source": "anonymizer"
+    },
+    "provenance": {
+      "backend_ref": "anonymizer",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.1
+    }
+  },
+  "description": "YOLO detect (plates)",
+  "key": "anonymizer:yolo:license-plate-finetune-v1s.onnx",
+  "manifest_kind": "model",
+  "name": "license-plate-finetune-v1s.onnx",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:anonymizer:yolo:license-plate-finetune-v1s.onnx",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

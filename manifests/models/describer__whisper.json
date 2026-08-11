@@ -1,0 +1,54 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "audio"
+      ],
+      "task": "transcription"
+    },
+    "extra_info": {},
+    "formats": {
+      "can_convert_to": [
+        "safetensors",
+        "onnx"
+      ],
+      "format": "pt",
+      "preferred_format": "onnx"
+    },
+    "identity": {
+      "description_short": "Whisper — transcription audio (description de contenus sonores)",
+      "hf_id": "openai/whisper-base",
+      "license": null,
+      "model_type": "speech",
+      "platform_ref": "huggingface:openai/whisper-base",
+      "source": "describer"
+    },
+    "provenance": {
+      "backend_ref": "describer",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.3
+    }
+  },
+  "description": "Whisper (OpenAI) : reconnaissance vocale multilingue utilisée par le Describer pour transcrire la piste audio d'un média avant d'en générer la description. Robuste au bruit et aux accents.",
+  "key": "describer:whisper",
+  "manifest_kind": "model",
+  "name": "openai/whisper-base",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:describer:whisper",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

@@ -1,0 +1,53 @@
+{
+  "body": {
+    "capabilities": {
+      "category": "logo",
+      "inputs_optional": [],
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "image"
+      ],
+      "task": "text-to-image"
+    },
+    "extra_info": {},
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": "safetensors"
+    },
+    "identity": {
+      "description_short": "FLUX Logo Design LoRA — logos pro, open-source, max 768 px",
+      "hf_id": "Shakker-Labs/FLUX.1-dev-LoRA-Logo-Design",
+      "license": null,
+      "model_type": "diffusion",
+      "platform_ref": "huggingface:Shakker-Labs/FLUX.1-dev-LoRA-Logo-Design",
+      "source": "imager"
+    },
+    "provenance": {
+      "backend_ref": "imager",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 24.0
+    }
+  },
+  "description": "FLUX Logo Design (Shakker-Labs) : LoRA spécialisé création de logos professionnels sur base FLUX, réglages dédiés appliqués automatiquement. Référence open-source du domaine.",
+  "key": "imager:flux-lora-logo-design",
+  "manifest_kind": "model",
+  "name": "FLUX Logo Design LoRA — logos pro, open-source, max 768 px",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:imager:flux-lora-logo-design",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

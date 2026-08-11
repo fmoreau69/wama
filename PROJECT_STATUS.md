@@ -2486,12 +2486,16 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > (triad_entry compris), reader 6** ; roundtrip 10/10, converter **9/10 projetable** (reste
 > `processing` partiel) ; grille 10/10 identique.
 >
+> **Puis micro-marche export corpus `model` ✅ (12/08, 4ᵉ session)** : `manifest_export`
+> exporte les modèles DÉRIVÉS des `requires` des apps (∪ refresh, comme les libraries) →
+> **91 manifestes modèle, 0 refusé** (= le lien `AIModel.source` 91/91), corpus total
+> **110** ; noms assainis (`:`→`__`, garde anti-collision) ; sert revue humaine + few-shot,
+> la composition reste en extraction live.
+>
 > 🔚 **POINT D'ENTRÉE SESSION SUIVANTE : marche A5 — `models.py`** (dernier gabarit :
 > migrations + idiomes de stockage ; cadrage A0 : spine 9/10, converter = déviant double →
-> juger sur transcriber), micro-marche export corpus `model`, puis B (pilote transcriber —
-> exige d'abord son detail en spec déclarative OU un adapter assumé). Dette gardes = tâches
-> anonymizer (avec son chantier). ⚠ restart gunicorn/workers à l'occasion (nouveaux
-> ready()/tasks.py/tool_api — comportement identique, sans urgence).
+> juger sur transcriber), puis B (pilote transcriber — exige d'abord son detail en spec
+> déclarative OU un adapter assumé). Dette gardes = tâches anonymizer (avec son chantier).
 >
 > **État git en fin de session** : le doute sur `d934b38` est levé (poussé, vérifié 12/08
 > 4ᵉ session) ; la 4ᵉ session ajoute `a8ab8a1` (A4a) + `0debbde` (A4b) + le commit docs —
@@ -2499,7 +2503,8 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > PROPRE, ff-mergé jusqu'à A4b inclus — le ff-merger depuis dev avant tout nouveau run du
 > harnais (et copier les manifests/apps/*.json frais si le corpus a bougé). Aucune migration
 > (aucun modèle touché). Contrôles attendus au prochain `/reprise` : check_docs = 2 CASSÉ
-> (inchangé), corpus = **19 manifestes**, roundtrip = converter **9/10** / autres 8-10,
+> (inchangé), corpus = **110 manifestes** (10 apps + 9 libraries + 91 models), roundtrip =
+> converter **9/10** / autres 8-10,
 > grille inchangée (converter 93, reader 87…). ⚠ restart gunicorn/workers WSL2 à l'occasion
 > (tool_api/ready()/tasks.py rechargés — comportement identique).
 

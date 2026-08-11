@@ -1,0 +1,54 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_optional": [
+        "work_image"
+      ],
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "image"
+      ],
+      "task": "text-to-image"
+    },
+    "extra_info": {},
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": "safetensors"
+    },
+    "identity": {
+      "description_short": "Stable Diffusion 1.5 — classique (compatibilité LoRA)",
+      "hf_id": "stable-diffusion-v1-5/stable-diffusion-v1-5",
+      "license": null,
+      "model_type": "diffusion",
+      "platform_ref": "huggingface:stable-diffusion-v1-5/stable-diffusion-v1-5",
+      "source": "imager"
+    },
+    "provenance": {
+      "backend_ref": "imager",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 4.0
+    }
+  },
+  "description": "Stable Diffusion 1.5 (Runway/CompVis) : le classique historique de la génération d'images, porté par le plus vaste écosystème de LoRA et de fine-tunes. Qualité datée en natif, mais base de compatibilité inégalée.",
+  "key": "imager:stable-diffusion-v1-5",
+  "manifest_kind": "model",
+  "name": "Stable Diffusion 1.5 — classique (compatibilité LoRA)",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:imager:stable-diffusion-v1-5",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

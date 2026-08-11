@@ -1,0 +1,57 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_image",
+        "work_audio"
+      ],
+      "modalities": [
+        "image",
+        "audio",
+        "video"
+      ],
+      "task": "lip-sync"
+    },
+    "extra_info": {
+      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/lipsync/musetalk/musetalkV15",
+      "pipeline": "musetalk"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "pth",
+      "preferred_format": "pth"
+    },
+    "identity": {
+      "description_short": "Lip-sync pipeline v1.5 (UNet + DWPose + Whisper + SD-VAE + SyncNet)",
+      "hf_id": "TMElyralab/MuseTalk",
+      "license": null,
+      "model_type": "lipsync",
+      "platform_ref": "huggingface:TMElyralab/MuseTalk",
+      "source": "avatarizer"
+    },
+    "provenance": {
+      "backend_ref": "avatarizer",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 4.0
+    }
+  },
+  "description": "Lip-sync pipeline v1.5 (UNet + DWPose + Whisper + SD-VAE + SyncNet)",
+  "key": "avatarizer:musetalk-v1.5",
+  "manifest_kind": "model",
+  "name": "MuseTalk v1.5",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:avatarizer:musetalk-v1.5",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

@@ -1,0 +1,51 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image"
+      ],
+      "task": "captioning"
+    },
+    "extra_info": {},
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": "safetensors"
+    },
+    "identity": {
+      "description_short": "BLIP — légendage d'images (captioning)",
+      "hf_id": "Salesforce/blip-image-captioning-large",
+      "license": null,
+      "model_type": "vlm",
+      "platform_ref": "huggingface:Salesforce/blip-image-captioning-large",
+      "source": "describer"
+    },
+    "provenance": {
+      "backend_ref": "describer",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 1.8
+    }
+  },
+  "description": "BLIP (Salesforce) : modèle de légendage d'images — produit une description textuelle du contenu visuel. Léger et rapide, utilisé comme repli local quand aucun modèle vision plus riche (Ollama) n'est disponible.",
+  "key": "describer:blip",
+  "manifest_kind": "model",
+  "name": "Salesforce/blip-image-captioning-large",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:describer:blip",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

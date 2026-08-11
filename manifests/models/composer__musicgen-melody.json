@@ -1,0 +1,61 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_optional": [
+        "reference_melody"
+      ],
+      "inputs_required": [
+        "prompt"
+      ],
+      "languages": [
+        "en"
+      ],
+      "modalities": [
+        "audio"
+      ],
+      "task": "text-to-music"
+    },
+    "extra_info": {
+      "max_duration": 30,
+      "sample_rate": 32000,
+      "type": "music"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null,
+      "preferred_format": null
+    },
+    "identity": {
+      "description_short": "MusicGen Melody — conditionné par mélodie de référence",
+      "hf_id": "facebook/musicgen-melody",
+      "license": null,
+      "model_type": "music",
+      "platform_ref": "huggingface:facebook/musicgen-melody",
+      "source": "composer"
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 8.0
+    }
+  },
+  "description": "MusicGen Melody (Meta AudioCraft) : génération guidée par une MÉLODIE de référence (fichier audio) en plus du prompt — le modèle suit la ligne mélodique fournie en changeant style et instrumentation. Pour décliner un thème existant.",
+  "key": "composer:musicgen-melody",
+  "manifest_kind": "model",
+  "name": "MusicGen Melody — conditionné par mélodie de référence",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:composer:musicgen-melody",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

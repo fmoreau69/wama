@@ -1,0 +1,55 @@
+{
+  "body": {
+    "capabilities": {
+      "modalities": [
+        "audio"
+      ],
+      "task": "text-to-speech"
+    },
+    "extra_info": {
+      "recommended": {
+        "installer": "coqui-tts (auto au 1er usage)",
+        "origin": "ui-choices (TTS_MODEL_CHOICES) non catalogué — R14",
+        "prospected_at": "2026-07-02T09:50:48.089170+00:00",
+        "task": "text-to-speech"
+      }
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null,
+      "preferred_format": null
+    },
+    "identity": {
+      "description_short": "Tacotron2 — TTS classique de référence.",
+      "hf_id": null,
+      "license": null,
+      "model_type": "speech",
+      "platform_ref": null,
+      "source": "synthesizer"
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": 0.9,
+      "is_proposed": true,
+      "proposal_kind": "new",
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Tacotron2 (Coqui TTS) : architecture TTS classique (spectrogramme + vocodeur). Qualité correcte, plus lent que VITS. Téléchargé automatiquement par la lib Coqui TTS au premier usage.",
+  "key": "synthesizer:tacotron2",
+  "manifest_kind": "model",
+  "name": "Tacotron2 (Coqui)",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:synthesizer:tacotron2",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

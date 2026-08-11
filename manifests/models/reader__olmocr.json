@@ -1,0 +1,54 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image",
+        "document"
+      ],
+      "task": "ocr"
+    },
+    "extra_info": {
+      "type": "ocr-vlm"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null,
+      "preferred_format": null
+    },
+    "identity": {
+      "description_short": "olmOCR-2 7B — Allen AI — imprimé + manuscrit + tableaux + formules",
+      "hf_id": "allenai/olmOCR-7B-0225-preview",
+      "license": null,
+      "model_type": "ocr",
+      "platform_ref": "huggingface:allenai/olmOCR-7B-0225-preview",
+      "source": "reader"
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 14.0
+    }
+  },
+  "description": "olmOCR-2 7B (Allen AI) : OCR par modèle vision-langage — comprend la mise en page, restitue tableaux, formules et manuscrit avec une qualité de référence. Gourmand en VRAM ; à réserver aux documents complexes.",
+  "key": "reader:olmocr",
+  "manifest_kind": "model",
+  "name": "olmOCR-2 7B — Allen AI — imprimé + manuscrit + tableaux + formules",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:reader:olmocr",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

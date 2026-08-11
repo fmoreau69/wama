@@ -1,0 +1,56 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image",
+        "video"
+      ],
+      "scale": 4,
+      "task": "upscale"
+    },
+    "extra_info": {
+      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/upscaling/onnx/RealESR_Animex4_fp16.onnx",
+      "size_mb": 1.195145606994629
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "onnx",
+      "preferred_format": "onnx"
+    },
+    "identity": {
+      "description_short": "Real-ESRGAN Anime ×4 — dessins et illustrations.",
+      "hf_id": null,
+      "license": null,
+      "model_type": "upscaling",
+      "platform_ref": null,
+      "source": "enhancer"
+    },
+    "provenance": {
+      "backend_ref": "enhancer",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0011671343818306923,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Real-ESRGAN Anime ×4 (fp16, ONNX) : variante spécialisée dessins, anime et illustrations — préserve les aplats et les contours nets sans inventer de texture photographique.",
+  "key": "enhancer:RealESR_Animex4_fp16",
+  "manifest_kind": "model",
+  "name": "RealESR_Animex4_fp16",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:enhancer:RealESR_Animex4_fp16",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

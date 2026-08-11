@@ -1,0 +1,60 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_audio"
+      ],
+      "languages": [
+        "*"
+      ],
+      "modalities": [
+        "audio"
+      ],
+      "supports_diarization": false,
+      "supports_hotwords": true,
+      "supports_timestamps": true,
+      "task": "transcription"
+    },
+    "extra_info": {
+      "hf_id": "Qwen/Qwen3-ASR-1.7B",
+      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/qwen_asr"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "safetensors",
+      "preferred_format": "onnx"
+    },
+    "identity": {
+      "description_short": "Qwen3-ASR 1.7B — précis, context biasing, 52 langues",
+      "hf_id": null,
+      "license": null,
+      "model_type": "speech",
+      "platform_ref": null,
+      "source": "transcriber"
+    },
+    "provenance": {
+      "backend_ref": "transcriber",
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 4.0
+    }
+  },
+  "description": "Qwen3-ASR (Alibaba) : transcription multilingue (52 langues) avec context biasing natif — les mots-clés/hotwords fournis sont injectés dans le décodage pour mieux reconnaître le vocabulaire métier. Pas de diarisation native (pyannote en post-traitement). Statut expérimental dans WAMA. ~2–4 Go VRAM.",
+  "key": "transcriber:qwen3-asr-1.7b",
+  "manifest_kind": "model",
+  "name": "Qwen3-ASR-1.7B",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:transcriber:qwen3-asr-1.7b",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

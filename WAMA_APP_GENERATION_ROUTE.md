@@ -518,10 +518,13 @@ outillé avant d'ouvrir cette marche.
   verbe tool_api générique, LibreTranslate = backend dédié ; modes realtime + batch dans le
   schéma existant ; le PDF-mise-en-forme = pipeline STUDIO d'abord, app one-click ensuite si
   besoin) — après fin de la route + finalisation du portage.
-  Micro-marche AVANT B (question Fabien 12/08) : ajouter `model` aux DOSSIERS de
-  `manifest_export` (export corpus `manifests/models/` des modèles cités par les `requires`) —
-  l'EXTRACTION model existe et résout déjà (vérifié : 6 facettes, validation OK) ; l'export
-  fichier ne sert que la revue humaine et le few-shot, pas la mécanique de composition.
+  Micro-marche AVANT B ✅ LIVRÉE (2026-08-12, question Fabien) : `model` ajouté aux DOSSIERS
+  de `manifest_export` — les modèles sont DÉRIVÉS des `requires` des apps (∪ refresh des déjà
+  exportés, même logique que les libraries sans semis manuel) → **91 manifestes modèle écrits,
+  0 refusé** (le lien `AIModel.source` 91/91 se retrouve exactement), corpus total **110**.
+  Noms de fichiers assainis (`:` interdit sous Windows → `transcriber__whisper.json`,
+  réversible ; garde anti-collision `__`). L'export fichier ne sert que la revue humaine et
+  le few-shot du rôle codegen — la composition résout les requires par extraction LIVE.
 
 **Cadrage A0 — la convention RÉELLE, mesurée (2026-08-11, balayage 6 cibles × 10 apps) :**
 - **urls.py** : AUCUNE app ne colle à `STANDARD_ENDPOINTS` — cette liste était une CIBLE que le

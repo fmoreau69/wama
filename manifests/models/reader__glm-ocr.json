@@ -1,0 +1,54 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image",
+        "document"
+      ],
+      "task": "ocr"
+    },
+    "extra_info": {
+      "type": "ocr-vlm"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null,
+      "preferred_format": null
+    },
+    "identity": {
+      "description_short": "GLM-OCR 0.9B — via Ollama — léger, excellent sur documents courants",
+      "hf_id": null,
+      "license": null,
+      "model_type": "ocr",
+      "platform_ref": null,
+      "source": "reader"
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 2.2
+    }
+  },
+  "description": "GLM-OCR 0.9B servi par Ollama : très bon rapport qualité/coût sur les documents courants, avec une empreinte mémoire dix fois moindre qu'olmOCR. Nécessite qu'Ollama tourne ; sinon le moteur est écarté automatiquement de la sélection.",
+  "key": "reader:glm-ocr",
+  "manifest_kind": "model",
+  "name": "GLM-OCR 0.9B — via Ollama — léger, excellent sur documents courants",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:reader:glm-ocr",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
