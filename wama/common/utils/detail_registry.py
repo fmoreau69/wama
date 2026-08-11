@@ -37,8 +37,12 @@ class DetailRegistry:
     _registry = {}
 
     @classmethod
-    def register(cls, app_name, model_class, adapter):
-        cls._registry[app_name] = {'model': model_class, 'adapter': adapter}
+    def register(cls, app_name, model_class, adapter, spec=None):
+        """`spec` (A3a, route §10.3) : la DONNÉE déclarative dont l'adapter est dérivé, quand
+        l'app est passée par `register_app_detail_spec` — c'est elle que la facette `inspector`
+        du manifeste extrait et que le gabarit apps_gen saura projeter. None = adapter code
+        (chemin des logiques irréductibles)."""
+        cls._registry[app_name] = {'model': model_class, 'adapter': adapter, 'spec': spec}
 
     @classmethod
     def is_registered(cls, app_name):
@@ -52,6 +56,82 @@ class DetailRegistry:
 def register_app_detail(app_name, model_class, adapter):
     """Enregistre l'adapter de détail d'une app. `adapter(instance) -> dict canonique`."""
     DetailRegistry.register(app_name, model_class, adapter)
+
+
+def register_app_detail_spec(app_name, model_class, spec):
+    """Variante DÉCLARATIVE (A3a) : la registration est une SPEC-donnée, pas un callable.
+
+    La spec mappe les arguments de `build_detail` vers des NOMS DE CHAMPS du modèle (ou des
+    constantes), déclare les réglages à afficher, et les alias vers les clés canoniques :
+
+      {'source_file': 'input_file',
+       'source_type': 'media_type' | {'const': 'document'},
+       'engine': 'backend', 'engine_effective': 'used_backend',
+       'result_file': 'output_file', 'result_text': 'result_text', 'source_text': …,
+       'extra': [{'label': 'Langue', 'field': 'language'},
+                 {'label': 'Mode', 'field': 'mode', 'display': True}],   # get_<f>_display()
+       'extra_from_params': 'options' | True,   # labels du SCHÉMA (schema_for_app) ; str =
+                                                # champ JSON porteur, True = champs individuels
+       'aliases': {'quality_preset': 'output_quality'}}
+
+    Étant une donnée, elle est EXTRACTIBLE (facette `inspector` du manifeste) et PROJETABLE
+    (gabarit apps_gen) — c'est le déblocage de la marche A3. Une app à logique irréductible
+    garde `register_app_detail` (adapter code)."""
+    DetailRegistry.register(app_name, model_class,
+                            lambda instance: detail_from_spec(instance, spec, app_name),
+                            spec=spec)
+
+
+def detail_from_spec(instance, spec, app_name):
+    """Adapter GÉNÉRIQUE : résout la spec déclarative contre l'instance puis délègue à
+    `build_detail` (l'épine dorsale reste la source unique du schéma canonique)."""
+    def _val(cle):
+        f = spec.get(cle)
+        if not f:
+            return None
+        if isinstance(f, dict):
+            return f.get('const')
+        return getattr(instance, f, None)
+
+    extra = {}
+    for e in (spec.get('extra') or []):
+        champ, label = e.get('field'), e.get('label') or e.get('field')
+        if e.get('display'):
+            fn = getattr(instance, f'get_{champ}_display', None)
+            v = fn() if callable(fn) and getattr(instance, champ, None) else None
+        else:
+            v = getattr(instance, champ, None)
+        extra[label] = v or None
+    src_params = spec.get('extra_from_params')
+    if src_params:
+        from .param_schema import schema_for_app
+        valeurs = (getattr(instance, src_params, None) or {}) if isinstance(src_params, str) \
+            else None
+        for p in (schema_for_app(app_name) or []):
+            label, nom = p.get('label'), p.get('name')
+            if not label or not nom:
+                continue
+            v = valeurs.get(nom) if valeurs is not None else getattr(instance, nom, None)
+            # 0 compris : dans ces schémas une valeur nulle est un réglage non posé.
+            if v not in (None, '', False, 0):
+                extra[label] = v
+
+    d = build_detail(
+        instance,
+        source_file=_val('source_file'),
+        source_type=_val('source_type'),
+        engine=_val('engine'),
+        engine_effective=_val('engine_effective'),
+        result_file=_val('result_file'),
+        result_text=_val('result_text') or None,
+        source_text=_val('source_text'),
+        extra=extra or None,
+    )
+    for champ, cle in (spec.get('aliases') or {}).items():
+        v = getattr(instance, champ, None)
+        if v:
+            d[cle] = v
+    return d
 
 
 def _short_error(err: str, limit: int = 280) -> str:

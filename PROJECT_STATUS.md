@@ -2463,8 +2463,13 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > outils système (trou #15). Corpus = 19 manifestes, fidélité 10/10.
 > **Cible finale actée : 11ᵉ app Translator/LibreTranslate générée DE ZÉRO** (librarian
 > `--repo` pilote 2 ; PDF-mise-en-forme = pipeline Studio d'abord) — après route + portage.
-> **Suite : A3 apps.py (detail déclaratif — débloquer la facette inspector), A4 tool_api, A5
-> models.py ; dette gardes restante = tâches anonymizer (avec son chantier).**
+> **Puis A3a livré (12/08)** : `register_app_detail_spec` (la registration detail = SPEC-donnée,
+> adapter générique `detail_from_spec` ; adapter code conservé pour les logiques irréductibles) ;
+> converter + reader portés, **parité prouvée sur 10 items réels** ; facette `inspector` porte
+> `detail_spec` + `preview` (données) au lieu de 2 booléens ; harnais ×2 CONFORMES. ⚠ restart
+> gunicorn/workers pour charger les nouveaux `ready()` (comportement identique, sans urgence).
+> **Suite : A3b gabarit apps_gen (inspector → projetable), A4 tool_api, A5 models.py ; dette
+> gardes restante = tâches anonymizer (avec son chantier).**
 
 ## §REPRISE — 2026-08-11 (2ᵉ session, SUITE du soir) : 8 facettes + function + page librairies + avis critique
 

@@ -39,6 +39,34 @@
     },
     "inspector": {
       "detail_registered": true,
+      "detail_spec": {
+        "engine": "backend",
+        "engine_effective": "used_backend",
+        "extra": [
+          {
+            "display": true,
+            "field": "mode",
+            "label": "Mode de lecture"
+          },
+          {
+            "field": "language",
+            "label": "Langue"
+          },
+          {
+            "field": "page_count",
+            "label": "Pages"
+          }
+        ],
+        "result_text": "result_text",
+        "source_file": "input_file",
+        "source_type": {
+          "const": "document"
+        }
+      },
+      "preview": {
+        "file_field": "input_file",
+        "user_field": "user"
+      },
       "preview_registered": true
     },
     "models": {

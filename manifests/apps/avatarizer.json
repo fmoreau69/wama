@@ -52,6 +52,10 @@
     },
     "inspector": {
       "detail_registered": true,
+      "preview": {
+        "file_field": "avatar_upload",
+        "user_field": "user"
+      },
       "preview_registered": true
     },
     "models": {

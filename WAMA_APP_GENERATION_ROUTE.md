@@ -513,6 +513,10 @@ outillé avant d'ouvrir cette marche.
   verbe tool_api générique, LibreTranslate = backend dédié ; modes realtime + batch dans le
   schéma existant ; le PDF-mise-en-forme = pipeline STUDIO d'abord, app one-click ensuite si
   besoin) — après fin de la route + finalisation du portage.
+  Micro-marche AVANT B (question Fabien 12/08) : ajouter `model` aux DOSSIERS de
+  `manifest_export` (export corpus `manifests/models/` des modèles cités par les `requires`) —
+  l'EXTRACTION model existe et résout déjà (vérifié : 6 facettes, validation OK) ; l'export
+  fichier ne sert que la revue humaine et le few-shot, pas la mécanique de composition.
 
 **Cadrage A0 — la convention RÉELLE, mesurée (2026-08-11, balayage 6 cibles × 10 apps) :**
 - **urls.py** : AUCUNE app ne colle à `STANDARD_ENDPOINTS` — cette liste était une CIBLE que le
@@ -617,6 +621,19 @@ outillé avant d'ouvrir cette marche.
   pour une même valeur. Normalisé À LA SOURCE (`tool_api._describe_arg` : un défaut
   str-compatible se rend par sa valeur). Harnais reader ensuite **CONFORME** (strip 4 cibles,
   grille 87 % identique, smoke identique) — **2ᵉ app à passer le strip-régénération complet**.
+**Palier A3a ✅ LIVRÉ (2026-08-12) — Detail/Preview DÉCLARATIFS (déblocage de la facette
+`inspector`)** : `register_app_detail_spec(app, Model, spec)` dans `detail_registry` — la
+registration devient une SPEC-donnée (mapping build_detail : champs/constantes,
+`extra` étiquetés avec `display`, `extra_from_params` (JSON porteur ou champs individuels),
+`aliases` canoniques) résolue par l'adapter GÉNÉRIQUE `detail_from_spec` ; l'adapter code
+reste le chemin des logiques irréductibles (transcriber…). **2 adopteurs portés** (converter
+spec 5 clés, reader spec avec const/`display`/engine_effective) — **parité prouvée sur 10
+items RÉELS** (dicts identiques clé pour clé vs anciens closures). La facette `inspector`
+porte désormais `detail_spec` + `preview` (champs PreviewRegistry, déjà des données) au lieu
+de 2 booléens. Harnais converter + reader CONFORMES ; fidélité 10/10. **Reste A3b** : gabarit
+`apps_gen.py` (ready() rendu depuis inspector.detail_spec/preview + batch_sync) — la facette
+passera alors en projetable.
+
 - **A2b ✅ (même session) — gabarit `tasks_gen.py`** : la facette `processing` porte désormais
   `tasks` (AST de tasks.py/workers.py — {function, task_name, lifecycle} ; heuristique
   lifecycle = `run_item_task` ou SUCCESS+FAILURE dans le segment ; limite connue :

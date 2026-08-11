@@ -19,25 +19,19 @@ class ReaderConfig(AppConfig):
         from .models import ReadingItem
         register_app_preview('reader', ReadingItem, file_field='input_file')
 
-        # Détail inspecteur (schéma canonique INSPECTOR_DETAIL_FIELDS.md) — pilote.
-        from wama.common.utils.detail_registry import register_app_detail, build_detail
-
-        def _reader_detail(item):
-            # Réglages spécifiques → labels de params.py (source unique) ; le reste = épine dorsale.
-            extra = {
-                'Mode de lecture': item.get_mode_display() if item.mode else None,
-                'Langue': item.language or None,
-                'Pages': item.page_count or None,
-            }
-            return build_detail(
-                item,
-                source_file=item.input_file,
-                source_type='document',            # reader = OCR documents/images
-                engine=item.backend,
-                engine_effective=item.used_backend,
-                result_file=None,                  # sortie = texte, pas un fichier
-                result_text=item.result_text or None,   # clé canonique (2026-07-13)
-                extra=extra,
-            )
-
-        register_app_detail('reader', ReadingItem, _reader_detail)
+        # Détail inspecteur (schéma canonique INSPECTOR_DETAIL_FIELDS.md) — SPEC déclarative
+        # (A3a) : reader = OCR documents (source_type constant), sortie = texte (clé
+        # canonique result_text), moteur demandé vs effectif.
+        from wama.common.utils.detail_registry import register_app_detail_spec
+        register_app_detail_spec('reader', ReadingItem, {
+            'source_file': 'input_file',
+            'source_type': {'const': 'document'},
+            'engine': 'backend',
+            'engine_effective': 'used_backend',
+            'result_text': 'result_text',
+            'extra': [
+                {'label': 'Mode de lecture', 'field': 'mode', 'display': True},
+                {'label': 'Langue', 'field': 'language'},
+                {'label': 'Pages', 'field': 'page_count'},
+            ],
+        })

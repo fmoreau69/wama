@@ -89,6 +89,19 @@
     },
     "inspector": {
       "detail_registered": true,
+      "detail_spec": {
+        "aliases": {
+          "quality_preset": "output_quality"
+        },
+        "extra_from_params": "options",
+        "result_file": "output_file",
+        "source_file": "input_file",
+        "source_type": "media_type"
+      },
+      "preview": {
+        "file_field": "input_file",
+        "user_field": "user"
+      },
       "preview_registered": true
     },
     "modes": {

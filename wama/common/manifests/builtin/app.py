@@ -307,19 +307,32 @@ def _params(app_id):
 
 
 def _inspector(app_id):
-    """Introspecte l'enregistrement Detail/Preview COMMUN (présence, pas contenu). Ces deux briques
-    sont largement adoptées : une app 'registered' tire son volet droit / sa preview du commun (source
-    unique), pas d'un HTML hand-built. `preview_registered` = la preview d'ENTRÉE/résultat vient du
-    commun (PreviewRegistry bind sur le fichier de TRAVAIL, jamais la référence — cf. spec F2)."""
+    """Introspecte l'enregistrement Detail/Preview COMMUN. Ces deux briques sont largement
+    adoptées : une app 'registered' tire son volet droit / sa preview du commun (source
+    unique), pas d'un HTML hand-built. `preview_registered` = la preview d'ENTRÉE/résultat
+    vient du commun (PreviewRegistry bind sur le fichier de TRAVAIL, jamais la référence —
+    cf. spec F2).
+
+    Depuis A3a : quand la registration est DÉCLARATIVE (`register_app_detail_spec`), la
+    facette porte la SPEC elle-même (`detail_spec`) — c'est elle que le gabarit apps_gen
+    saura projeter ; un adapter code reste un booléen (logique irréductible, hors gabarit).
+    `preview` = les champs déclarés à PreviewRegistry (déjà des données)."""
     info = {}
     try:
         from wama.common.utils.detail_registry import DetailRegistry
-        info['detail_registered'] = DetailRegistry.is_registered(app_id)
+        entree = DetailRegistry.get(app_id)
+        info['detail_registered'] = entree is not None
+        if entree and entree.get('spec'):
+            info['detail_spec'] = entree['spec']
     except Exception:
         info['detail_registered'] = None
     try:
         from wama.common.utils.preview_registry import PreviewRegistry
-        info['preview_registered'] = PreviewRegistry.is_registered(app_id)
+        entree = PreviewRegistry.get(app_id)
+        info['preview_registered'] = entree is not None
+        if entree:
+            info['preview'] = {'file_field': entree.get('file_field'),
+                               'user_field': entree.get('user_field')}
     except Exception:
         info['preview_registered'] = None
     return info

@@ -54,6 +54,10 @@
     },
     "inspector": {
       "detail_registered": true,
+      "preview": {
+        "file_field": "audio",
+        "user_field": "user"
+      },
       "preview_registered": true
     },
     "models": {
