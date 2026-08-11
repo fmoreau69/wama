@@ -2,6 +2,8 @@
 
 WAMA is a Django-based web application developed at **Lescot** (Université Gustave Eiffel) that provides AI-powered tools for media processing. It runs as a self-hosted platform with GPU acceleration, exposing each tool as a queue-based interface accessible from a browser.
 
+The platform is **metadata-driven**: each app declares its identity, ports (typed I/O), capabilities, parameters and models, and the common UI bricks (queues, cards, inspector, settings modals) are generated from those declarations. The same declarations feed the **Studio** (apps chained as pipeline nodes), the **AI assistant tool API** (46 tools), and a **manifest layer** that can extract every app as a portable JSON manifest — and regenerate a growing share of it back into the registries.
+
 ---
 
 ## Applications
@@ -16,10 +18,10 @@ WAMA is a Django-based web application developed at **Lescot** (Université Gust
 | **Converter** | `/converter/` | Format conversion across **images, video, audio, documents and archives** (Pillow + FFmpeg + Pandoc + py7zr/rarfile), with quality presets. Also the shared conversion layer: other apps import its output formats and reuse `apply_inline_conversion` to convert their results inline. |
 | **Describer** | `/describer/` | AI-powered description and summarisation of images, videos and audio. Uses multimodal LLMs (Ollama local or cloud). |
 | **Enhancer** | `/enhancer/` | Resolution upscaling for images/videos (Real-ESRGAN, HAT) and audio quality improvement (Resemble Enhance, DeepFilterNet). |
-| **Imager** | `/imager/` | Text-to-image, image-to-image, text-to-video and logo generation. Models: HunyuanImage 2.1, Qwen2.5-VL, SDXL, Mochi-1, LTX-Video, CogVideoX-5B, Flux LoRA logo. |
+| **Imager** | `/imager/` | Text-to-image, image-to-image, text-to-video and logo generation. Models: HunyuanImage 2.1, Qwen-Image 2 (+ Edit), SDXL, Mochi-1, LTX-Video, CogVideoX-5B I2V, Flux LoRA logo (live list: Model Manager catalogue). |
 | **Reader** | `/reader/` | OCR for printed and handwritten documents. Models: olmOCR (PDF-native, GPU), EasyOCR. Markdown output with optional LLM formatting. |
 | **Synthesizer** | `/synthesizer/` | Text-to-speech voice synthesis with voice cloning. Models: Higgs Audio V2, Coqui XTTS v2. Batch import from text/CSV files. |
-| **Transcriber** | `/transcriber/` | Automatic audio/video transcription (faster-Whisper). Outputs: plain text, SRT, VTT, JSON. Speaker diarisation via pyannote. |
+| **Transcriber** | `/transcriber/` | Automatic audio/video transcription — three engines (faster-Whisper, VibeVoice ASR, Qwen3-ASR) with VRAM-aware selection, audio preprocessing (DeepFilterNet), speaker diarisation (pyannote) and an AI-assisted manual correction editor. Outputs: plain text, SRT, VTT, JSON. |
 
 ### Lab tools (`wama_lab/`)
 
@@ -28,14 +30,24 @@ WAMA is a Django-based web application developed at **Lescot** (Université Gust
 | **Face Analyzer** | `/lab/face-analyzer/` | Facial analysis in videos: age, gender, emotions, physiology, eye tracking. |
 | **Cam Analyzer** | `/lab/cam-analyzer/` | Analysis of RTMaps camera recordings (Navya shuttle). Vehicle insertion detection at intersections using YOLO tracking + GPS. |
 
-### Infrastructure apps
+### Platform apps
 
-| App | Description |
-|-----|-------------|
-| **FileManager** | Persistent sidebar file browser. Supports drag & drop upload, folder creation, preview, rename/move/delete. Mounts network folders (CIFS/SMB) and local paths without copying files. |
-| **Model Manager** | Discovery, download and status monitoring of all AI models. Registry of all models organised by domain (`detect`, `speech`, `vision`, `diffusion`, `segment`). |
-| **Media Library** | Centralised asset library: custom voices, images, documents. Custom voices are shared across all synthesizer sessions. |
-| **Accounts** | User management with LDAP authentication support. Per-user API tokens, language preference, password change (local accounts). |
+| App | Route | Description |
+|-----|-------|-------------|
+| **Studio** | `/studio/` | Meta-app: chain the apps above as **nodes on a canvas** (typed ports derived from each app's declared I/O), save pipelines, run them through Celery with per-node status. Also drivable by the AI assistant (`list_studio_pipelines` / `run_studio_pipeline` / `get_studio_run_status`). |
+| **FileManager** | `/filemanager/` | Persistent sidebar file browser. Supports drag & drop upload, folder creation, preview, rename/move/delete. Mounts network folders (CIFS/SMB) and local paths without copying files. |
+| **Model Manager** | `/model-manager/` | Discovery, download and status monitoring of all AI models. Registry of all models organised by domain (`detect`, `speech`, `vision`, `diffusion`, `segment`), with canonical capabilities (task, modalities, required inputs). |
+| **Media Library** | `/media-library/` | Centralised asset library: custom voices, images, documents. Custom voices are shared across all synthesizer sessions. |
+| **Accounts** | `/accounts/` | User management with LDAP authentication support. Role/tier-based app access policies (also enforced on the assistant tool surface), per-user API tokens, language preference. |
+
+### AI assistant & tool API
+
+Every app exposes its actions to the built-in AI assistant through **`wama/tool_api.py`** (46 tools):
+a canonical triad per app — `add_to_<app>` / `start_<app>` / `get_<app>_status` — plus primary verbs
+(`create_image`, `compose_music`, `convert_file`, `synthesize_text`, `translate_text`), media-library
+and studio tools. Tools are listed and executed via `GET/POST /api/v1/tools/`, with descriptions
+**derived** from the app catalogue, docstrings and parameter schemas, and access gated by the same
+role/tier policies as the navigation.
 
 ---
 
@@ -82,7 +94,7 @@ Ollama (Windows, port 11434)             ← local LLMs for Describer / Reader
 ## Hardware target
 
 - **GPU**: NVIDIA RTX 4090 24 GB VRAM
-- **OS**: Windows 11 + WSL2 (Ubuntu) for all ML workloads
+- **OS**: Windows 10 + WSL2 (Ubuntu) for all ML workloads
 - Python 3.12 (WSL2), Python 3.11 (Windows/Apache)
 
 ---
@@ -179,6 +191,7 @@ python patches/apply_patches.py
 | 3 | `tts_service.py` | In-repo patches (usage dict, temperature, CUDA graphs, audio trim) | Verified, not re-applied |
 | 4 | `start_wama_prod.sh` | `HIGGS_DISABLE_CUDA_GRAPHS=1` must be exported | Verified, not re-applied |
 | 5 | `xformers/ops/seqpar.py` | `GroupName` removed from `torch.distributed` in torch 2.9.x | `try/except` fallback import |
+| 6 | `vibevoice/.../modeling_vibevoice_asr.py` | `lm_head` int32 GEMM overflow on long audio (CUDA `cudaErrorUnknown`) | logits computed on last token only |
 
 > **Adding a new patch:** use `apply_patch(path, search, replace, description)` in `patches/apply_patches.py`.
 > Every manual fix applied to a file in `venv_linux/` must be recorded here so it survives future `pip upgrade`.
@@ -234,6 +247,33 @@ Download and status are managed via **Model Manager** (`/model-manager/`).
 
 ---
 
+## Manifest layer & app generation
+
+Every app can be **extracted as a consolidated JSON manifest** (12 facets: identity, ports,
+capabilities, modes, params, inspector, models, processing, prompts, tool_api, access, studio) —
+the corpus lives in `manifests/` (10 apps + libraries). Seven manifest kinds exist (`app`,
+`library`, `model`, `function`, `pipeline`, `project`, `dataset`), composable through `requires`
+references (an app cites its models and libraries).
+
+The reverse direction — **write-back** — regenerates registries from the manifest, as an explicit,
+idempotent and reversible gesture (dry-run by default, generated entries are marked and can be
+removed; hand-written entries are never overwritten). As of 2026-08-11, 7 facets project back
+(`access` → DB policy; `identity`/`ports`/`capabilities` → app catalogue; `studio` → pipeline
+runner; `modes`; `prompts`); the remaining facets (`params`, `inspector`, `processing`,
+`tool_api`) are the code-generation frontier. Derived values (app colours, node I/O) and measured
+values (conformity flags) are never written back — they are recomputed or re-measured.
+
+Instrumentation (all read-only):
+
+```bash
+python manage.py manifest_export --check   # is the manifest corpus up to date?
+python manage.py manifest_roundtrip --all  # extract → validate → verify → write-back dry-run
+python manage.py check_app_conformity      # measured conformity grid (74 criteria, 8 facets)
+python manage.py check_docs                # doc → code reference integrity
+```
+
+---
+
 ## Key dependencies
 
 | Package | Purpose |
@@ -265,7 +305,9 @@ Full dependency list: `requirements.txt` (Windows) / `requirements_linux.txt` (W
 | [`WAMA_APP_CONVENTIONS.md`](WAMA_APP_CONVENTIONS.md) | Conventions UI/architecture, checklist de création d'app, ordre des boutons, composants de file, table de conformité. |
 | [`PROJECT_STATUS.md`](PROJECT_STATUS.md) | Point d'étape des chantiers en cours (✅/🔄/⏳) + ordre de reprise. |
 | [`ROADMAP.md`](ROADMAP.md) | Feuille de route détaillée (numérotée par section). |
-| [`WAMA_APP_GENERATION_ROUTE.md`](WAMA_APP_GENERATION_ROUTE.md) | Route F1–F8 : briques communes, adoption, trous (consolide l'ex-`COMMON_REFACTORING.md`, archivé). |
+| [`WAMA_APP_GENERATION_ROUTE.md`](WAMA_APP_GENERATION_ROUTE.md) | Route F1–F8 vers l'auto-génération d'apps : briques communes, adoption, write-back, trous priorisés. |
+| [`WAMA_MANIFEST_SPEC.md`](WAMA_MANIFEST_SPEC.md) | Formalisme des manifestes (7 kinds, enveloppe, composition `requires`, propriétés de sûreté). |
+| [`WAMA_MANIFEST_ARCHITECTURE.md`](WAMA_MANIFEST_ARCHITECTURE.md) | Flux manifeste : extract / ingest / verify / write-back, corpus et registres. |
 | [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md) | Pipeline de prompts centralisée (traduction/enrichissement/fichiers de référence). |
 | [`CARD_DESIGN.md`](CARD_DESIGN.md) | Formalisme de card + UI card-centric (volet droit = inspecteur ; absorbe l'ex-`CARD_CENTRIC_UI.md`). |
 | [`BATCH_FORMAT.md`](BATCH_FORMAT.md) | Format des fichiers d'import batch. |
