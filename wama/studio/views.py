@@ -129,46 +129,16 @@ def api_run_options(request):
 
 @login_required
 def api_run(request):
-    """POST : lance l'exécution du graphe (Celery). Valide runners + acyclicité AVANT dispatch."""
+    """POST : lance l'exécution du graphe (Celery). Validation + dispatch = brique PARTAGÉE
+    `services.launch.launch_graph` (même contrat que l'outil assistant `run_studio_pipeline`)."""
     if request.method != 'POST':
         return JsonResponse({'error': 'POST requis'}, status=405)
-    from .models import StudioRun
-    from .services.runners import runner_for
-    from .tasks import run_pipeline_task, topo_order
+    from .services.launch import launch_graph
     data = _json_body(request)
-    graph = data.get('graph') or {}
-    nodes = graph.get('nodes', [])
-    if not nodes:
-        return JsonResponse({'error': 'Graphe vide'}, status=400)
-    try:
-        topo_order(graph)
-    except ValueError as exc:
-        return JsonResponse({'error': str(exc)}, status=400)
-    from .tasks import SOURCE_HANDLERS
-    links = graph.get('links', [])
-
-    def _executable(app):
-        return runner_for(app) is not None or app in SOURCE_HANDLERS or app == 'studio_output'
-
-    from .services.generic_runner import GENERIC_APPS
-    runnable = ', '.join(sorted(GENERIC_APPS.keys()))
-    for n in nodes:
-        # Un nœud non exécutable ne peut être CONNECTÉ ni en amont ni en aval : il ne
-        # produira aucune sortie et ne peut rien consommer (validation AVANT dispatch).
-        if not _executable(n['app']) and any(
-                l['to'] == n['id'] or l['from'] == n['id'] for l in links):
-            return JsonResponse(
-                {'error': f"Nœud « {n['app']} » : non exécutable dans un pipeline "
-                          f"(apps : {runnable} + nœuds Texte/Médiathèque/Sortie)."},
-                status=400)
-    if not any(runner_for(n['app']) for n in nodes):
-        return JsonResponse({'error': f'Aucun nœud-app exécutable dans le graphe (apps : {runnable}).'},
-                            status=400)
-    run = StudioRun.objects.create(user=request.user, graph=graph,
-                                   pipeline_id=data.get('pipeline_id') or None)
-    task = run_pipeline_task.delay(run.pk)
-    run.task_id = task.id
-    run.save(update_fields=['task_id'])
+    run, err = launch_graph(request.user, data.get('graph') or {},
+                            pipeline_id=data.get('pipeline_id') or None)
+    if err:
+        return JsonResponse({'error': err}, status=400)
     return JsonResponse({'run_id': run.pk})
 
 

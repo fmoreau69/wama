@@ -2129,6 +2129,90 @@ def add_to_imager(user, *args, **kwargs):
     return res
 
 
+# ── STUDIO (méta-app) — pipelines sauvegardés : lister, lancer, suivre ────────────
+# Le run studio fusionne add+start (un run = création + dispatch, comme `auto_start` du
+# converter) : la « triade » est donc list/run/status, mappée sur l'app gardée `studio`
+# via TOOL_APP_OVERRIDE. Validation + dispatch = brique PARTAGÉE avec la vue `api_run`
+# (`studio/services/launch.py::launch_graph`) — jamais deux contrats divergents.
+
+def list_studio_pipelines(user) -> dict:
+    """
+    List the user's saved studio pipelines (méta-app graphs), most recent first.
+
+    Returns:
+        {"pipelines": [{"id", "name", "nodes", "apps", "updated_at"}]}
+        `apps` = the app of each executable node, in graph order (what the pipeline does).
+    """
+    from wama.studio.models import StudioPipeline
+
+    out = []
+    for p in StudioPipeline.objects.filter(user=user).order_by('-updated_at'):
+        nodes = p.graph.get('nodes', [])
+        out.append({
+            'id': p.pk,
+            'name': p.name,
+            'nodes': len(nodes),
+            'apps': [n.get('app') for n in nodes],
+            'updated_at': p.updated_at.strftime('%Y-%m-%d %H:%M'),
+        })
+    return {'pipelines': out}
+
+
+def run_studio_pipeline(user, pipeline_id: int = None, pipeline_name: str = None) -> dict:
+    """
+    Run a SAVED studio pipeline, by id or exact name. Validates the graph
+    (acyclic, executable nodes) then dispatches the Celery run.
+
+    Args:
+        pipeline_id:   Pipeline id (see list_studio_pipelines).
+        pipeline_name: Exact pipeline name (used if pipeline_id is not given).
+
+    Returns:
+        {"run_id", "item_id", "status": "started", "pipeline": <name>} or {"error": ...}
+    """
+    from wama.studio.models import StudioPipeline
+    from wama.studio.services.launch import launch_graph
+
+    pipe = None
+    if pipeline_id is not None:
+        pipe = StudioPipeline.objects.filter(pk=pipeline_id, user=user).first()
+    elif pipeline_name:
+        pipe = StudioPipeline.objects.filter(user=user, name=pipeline_name.strip()).first()
+    if pipe is None:
+        return {'error': "Pipeline introuvable — donner pipeline_id ou pipeline_name exact "
+                         "(voir list_studio_pipelines)."}
+
+    run, err = launch_graph(user, pipe.graph, pipeline_id=pipe.pk)
+    if err:
+        return {'error': err}
+    return {'run_id': run.pk, 'item_id': run.pk, 'status': 'started', 'pipeline': pipe.name}
+
+
+def get_studio_run_status(user, run_id: int = None) -> dict:
+    """
+    Return the status of a studio run (or the last 5 runs if run_id is omitted).
+
+    Returns:
+        {"runs": [{"id", "status", "pipeline", "node_states", "error",
+                   "processing_display"}]}
+    """
+    from wama.studio.models import StudioRun
+
+    qs = StudioRun.objects.filter(user=user)
+    qs = qs.filter(pk=run_id) if run_id is not None else qs.order_by('-id')[:5]
+    runs = [{
+        'id': r.pk,
+        'status': r.status,
+        'pipeline': getattr(r.pipeline, 'name', None),
+        'node_states': r.node_states,
+        'error': r.error_message,
+        'processing_display': r.processing_display,
+    } for r in qs]
+    if run_id is not None and not runs:
+        return {'error': f'Run #{run_id} introuvable ou non autorisé.'}
+    return {'runs': runs}
+
+
 
 TOOL_REGISTRY = {
     'translate_text': translate_text,
@@ -2174,6 +2258,9 @@ TOOL_REGISTRY = {
     'list_media_assets':      list_media_assets,
     'get_media_asset_url':    get_media_asset_url,
     'switch_ui_mode':         switch_ui_mode,
+    'list_studio_pipelines':  list_studio_pipelines,
+    'run_studio_pipeline':    run_studio_pipeline,
+    'get_studio_run_status':  get_studio_run_status,
 }
 
 # ── Convention de nommage de la triade — DOMICILE UNIQUE ────────────────────────
@@ -2195,6 +2282,11 @@ TOOL_APP_OVERRIDE = {
     'list_user_files':     None,
     'translate_text':      None,
     'switch_ui_mode':      None,
+    # Studio : list/run/status (le run FUSIONNE add+start — un run = création + dispatch),
+    # gardés par l'app `studio` comme la navigation.
+    'list_studio_pipelines': 'studio',
+    'run_studio_pipeline':   'studio',
+    'get_studio_run_status': 'studio',
 }
 
 # Sous-domaines portés par une app gardée (l'enhancer couvre image/vidéo ET audio).
