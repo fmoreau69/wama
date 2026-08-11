@@ -8,6 +8,7 @@ from django.core.cache import cache
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_GET, require_POST
+from django.views.generic import RedirectView
 
 from .services.system_monitor import SystemMonitor
 from .utils.console_utils import get_console_lines
@@ -266,3 +267,38 @@ def apps_catalog_view(request):
     return render(request, 'common/apps.html',
                   {'apps_list': apps_list, 'apps_grouped': apps_grouped,
                    'conformity_measured_at': measured_at})
+
+
+# ── Brique À-propos / Aide (2026-08-11) ──────────────────────────────────────────
+# L'À-propos et l'Aide sont des ONGLETS du gabarit commun (`app_modern_base.html`,
+# blocs `about_content`/`help_content` auto-remplis d'APP_CATALOG via le context
+# processor). Les routes `/about/` et `/help/` de chaque app REDIRIGENT vers l'onglet
+# (ancre ouverte par `wama-app-base.js`) : une page à part dupliquerait la page d'app.
+# Avant cette brique, 12 CBV locales pointaient des templates INEXISTANTS (500 mesuré
+# sur 9 apps / 10 le 2026-08-11 — seul converter, qui re-rendait sa base, répondait).
+class AppTabRedirectView(RedirectView):
+    """Redirige `/<app>/about|help/` vers l'index de l'app, ancré sur l'onglet.
+
+    `app_id` : explicite via `as_view(app_id='imager')`, sinon dérivé du 1er segment
+    du path (même convention que `app_id_for_path` / le context processor).
+    """
+    permanent = False
+    tab_anchor = ''          # posé par les sous-classes
+    app_id = None
+
+    def get_redirect_url(self, *args, **kwargs):
+        from django.urls import reverse
+        from .app_registry import APP_CATALOG
+        app_id = self.app_id or (self.request.path.split('/') + [''])[1]
+        spec = APP_CATALOG.get(app_id)
+        if not spec or not spec.get('url_name'):
+            return '/'
+        return reverse(spec['url_name']) + f'#{self.tab_anchor}'
+
+
+class AppAboutView(AppTabRedirectView):
+    tab_anchor = 'about-pane'
+
+
+class AppHelpView(AppTabRedirectView):
+    tab_anchor = 'help-pane'

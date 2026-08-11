@@ -432,14 +432,6 @@ def console_content(request):
     return JsonResponse({'output': all_lines})
 
 
-class AboutView(IndexView):
-    """Page À propos (bloc about_content d'index.html, contexte complet)."""
-
-
-class HelpView(IndexView):
-    """Page Aide (bloc help_content d'index.html, contexte complet)."""
-
-
 def download(request, pk):
     """GET : Télécharge la vidéo avatar générée (lecture → objets partagés inclus)."""
     user = _get_user(request)

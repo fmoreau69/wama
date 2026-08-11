@@ -3,6 +3,7 @@ WAMA Imager - URLs
 """
 
 from django.urls import path
+from wama.common.views import AppAboutView, AppHelpView
 from . import views
 
 app_name = 'imager'
@@ -10,8 +11,8 @@ app_name = 'imager'
 urlpatterns = [
     # Main pages
     path('', views.index, name='index'),
-    path('about/', views.about, name='about'),
-    path('help/', views.help_page, name='help'),
+    path('about/', AppAboutView.as_view(), name='about'),
+    path('help/', AppHelpView.as_view(), name='help'),
     path('console/', views.console, name='console'),
 
     # Generation management

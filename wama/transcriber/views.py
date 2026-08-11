@@ -239,14 +239,6 @@ class IndexView(View):
         })
 
 
-class AboutView(TemplateView):
-    template_name = 'transcriber/about.html'
-
-
-class HelpView(TemplateView):
-    template_name = 'transcriber/help.html'
-
-
 @require_POST
 @app_access('transcriber')
 def upload(request):

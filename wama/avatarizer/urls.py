@@ -1,4 +1,5 @@
 from django.urls import path
+from wama.common.views import AppAboutView, AppHelpView
 from . import views
 
 app_name = 'avatarizer'
@@ -34,8 +35,8 @@ urlpatterns = [
     # Card serveur unique + console + pages
     path('card/<int:pk>/html/', views.card_html, name='card_html'),
     path('console/', views.console_content, name='console'),
-    path('about/', views.AboutView.as_view(), name='about'),
-    path('help/', views.HelpView.as_view(), name='help'),
+    path('about/', AppAboutView.as_view(), name='about'),
+    path('help/', AppHelpView.as_view(), name='help'),
     path('batch/<int:pk>/start/', views.batch_start, name='batch_start'),
     path('batch/<int:pk>/update/', views.batch_update, name='batch_update'),
     path('batch/<int:pk>/duplicate/', views.batch_duplicate, name='batch_duplicate'),

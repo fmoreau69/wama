@@ -1,4 +1,5 @@
 from django.urls import path
+from wama.common.views import AppAboutView, AppHelpView
 from . import views
 
 app_name = 'wama.transcriber'
@@ -6,8 +7,8 @@ app_name = 'wama.transcriber'
 urlpatterns = [
     # Pages principales
     path('', views.IndexView.as_view(), name='index'),
-    path('about/', views.AboutView.as_view(), name='about'),
-    path('help/', views.HelpView.as_view(), name='help'),
+    path('about/', AppAboutView.as_view(), name='about'),
+    path('help/', AppHelpView.as_view(), name='help'),
 
     # Opérations
     path('upload/', views.upload, name='upload'),

@@ -242,16 +242,6 @@ class IndexView(View):
             return {}
 
 
-class AboutView(TemplateView):
-    """Page À propos."""
-    template_name = 'synthesizer/about.html'
-
-
-class HelpView(TemplateView):
-    """Page Aide."""
-    template_name = 'synthesizer/help.html'
-
-
 @require_POST
 def upload(request):
     """

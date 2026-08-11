@@ -197,9 +197,28 @@
         <!-- Onglet À propos -->
         <div class="tab-pane fade" id="about-pane" role="tabpanel">
             {% block about_content %}
+            {% comment %}Contenu par DÉFAUT auto-généré des métadonnées (current_app_spec =
+            entrée APP_CATALOG, via le context processor accounts). Une app n'écrit ce bloc
+            que pour une spécificité au-delà du catalogue — soigner les métadonnées À LA
+            SOURCE est ce qui remplit cette page (CLAUDE.md, principe 3).{% endcomment %}
             <div class="info-card">
+                {% if current_app_spec %}
+                <h3><i class="{{ current_app_spec.icon }} me-2"></i>À propos de {{ current_app_spec.label }}</h3>
+                <p class="text-light">{{ current_app_spec.description_long|default:current_app_spec.description }}</p>
+                <hr>
+                <dl class="row text-light mb-0">
+                    <dt class="col-sm-3">Entrées acceptées</dt>
+                    <dd class="col-sm-9">{{ current_app_spec.input_types|join:", "|default:"—" }}
+                        {% if current_app_spec.input_extensions %}
+                        <br><small class="text-muted">{{ current_app_spec.input_extensions|join:" " }}</small>
+                        {% endif %}</dd>
+                    <dt class="col-sm-3">Sorties produites</dt>
+                    <dd class="col-sm-9">{{ current_app_spec.output_types|join:", "|default:"—" }}</dd>
+                </dl>
+                {% else %}
                 <h3>À propos de cette application</h3>
                 <p class="text-light">Informations sur l'application...</p>
+                {% endif %}
             </div>
             {% endblock %}
         </div>
@@ -207,9 +226,31 @@
         <!-- Onglet Aide -->
         <div class="tab-pane fade" id="help-pane" role="tabpanel">
             {% block help_content %}
+            {% comment %}Aide par DÉFAUT : les gestes sont COMMUNS par construction (mêmes
+            boutons, même file, même volet partout — CLAUDE.md principe 2), donc un texte
+            commun est exact pour toute app du gabarit ; les puces conditionnelles viennent
+            des capacités déclarées au catalogue.{% endcomment %}
             <div class="info-card">
-                <h3>Aide</h3>
-                <p class="text-light">Documentation d'utilisation...</p>
+                <h3><i class="fas fa-question-circle me-2"></i>Aide</h3>
+                <ul class="text-light mb-0">
+                    <li><strong>Déposer</strong> : glissez vos fichiers sur la card d'entrée (ou cliquez pour parcourir).</li>
+                    <li><strong>Régler</strong> : le volet droit porte vos réglages par défaut ; la modale ⚙ de chaque
+                        élément permet l'édition fine avant lancement.</li>
+                    <li><strong>Lancer</strong> : ▶ sur l'élément, ou « Tout lancer » dans la barre de file.
+                        La progression et l'ETA s'affichent sur chaque card.</li>
+                    <li><strong>Récupérer</strong> : ⬇ télécharge le résultat ; ⧉ duplique un élément avec ses
+                        réglages ; 🗑 supprime.</li>
+                    <li><strong>Inspecter</strong> : cliquez une card pour ouvrir l'aperçu et les détails dans le
+                        volet droit.</li>
+                    {% if current_app_spec.has_batch %}
+                    <li><strong>Batch</strong> : un fichier de liste (txt/csv) crée un lot ; les lots se replient
+                        dans la file et se pilotent d'un geste.</li>
+                    {% endif %}
+                    {% if current_app_spec.has_url_import %}
+                    <li><strong>Import URL</strong> : collez une adresse{% if current_app_spec.has_youtube %}
+                        (YouTube compris){% endif %} — le fichier est rapatrié automatiquement.</li>
+                    {% endif %}
+                </ul>
             </div>
             {% endblock %}
         </div>

@@ -1445,16 +1445,6 @@ def console_content(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-def about(request):
-    """About page"""
-    return render(request, 'imager/about.html')
-
-
-def help_page(request):
-    """Help page"""
-    return render(request, 'imager/help.html')
-
-
 # RETIRÉ 2026-08-06 — `update_settings` était le SEUL écrivain du modèle `UserSettings`, et
 # n'était appelé depuis aucun JS ni template (0 occurrence de `update-settings` dans l'app).
 # Les réglages utilisateur passent désormais par la brique commune

@@ -1783,17 +1783,6 @@ def audio_card_html(request, pk):
     return render(request, 'enhancer/_audio_card.html', {'ae': ae, 'in_batch': in_batch})
 
 
-from django.views.generic import TemplateView
-
-
-class AboutView(TemplateView):
-    """Onglet À-propos (contenu : bloc about_content de enhancer/base.html)."""
-    template_name = 'enhancer/base.html'
-
-
-class HelpView(TemplateView):
-    """Onglet Aide (contenu : bloc help_content de enhancer/base.html)."""
-    template_name = 'enhancer/base.html'
 
 
 # ── Manipulation directe de la file (fabrique COMMUNE, variante liaison) ──────

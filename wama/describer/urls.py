@@ -3,6 +3,7 @@ WAMA Describer - URL Configuration
 """
 
 from django.urls import path
+from wama.common.views import AppAboutView, AppHelpView
 from . import views
 
 app_name = 'describer'
@@ -10,6 +11,8 @@ app_name = 'describer'
 urlpatterns = [
     # Main page
     path('', views.IndexView.as_view(), name='index'),
+    path('about/', AppAboutView.as_view(), name='about'),
+    path('help/', AppHelpView.as_view(), name='help'),
 
     # File operations
     path('upload/', views.upload, name='upload'),

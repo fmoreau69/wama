@@ -1,10 +1,13 @@
 from django.urls import path
+from wama.common.views import AppAboutView, AppHelpView
 from . import views
 
 app_name = 'wama.composer'
 
 urlpatterns = [
     path('', views.IndexView.as_view(), name='index'),
+    path('about/', AppAboutView.as_view(), name='about'),
+    path('help/', AppHelpView.as_view(), name='help'),
     path('generate/', views.generate, name='generate'),
     path('import/', views.import_batch, name='import_batch'),
     path('batch/preview/', views.batch_preview, name='batch_preview'),

@@ -111,13 +111,16 @@ def user_role(request):
     # 1er segment du path si c'est une app du catalogue. Identité ≠ état (jamais sur les barres).
     # `current_app` : l'ID d'app était DÉJÀ dérivé ici pour la couleur, mais jeté après usage —
     # chaque app le re-codait en dur dans son JS (listener wama:fileimported ×7). On l'expose.
-    current_app_color, current_app = '', ''
+    current_app_color, current_app, current_app_spec = '', '', None
     try:
         from wama.common.app_registry import APP_CATALOG as _AC
         _seg = (request.path.split('/') + [''])[1]
         if _seg in _AC:
             current_app = _seg
             current_app_color = _AC[_seg].get('color', '')
+            # Spec CATALOGUE de l'app courante — nourrit les blocs par défaut du gabarit
+            # commun (onglets À-propos/Aide auto-générés des métadonnées, brique 2026-08-11).
+            current_app_spec = _AC[_seg]
     except Exception:
         pass
 
@@ -135,6 +138,7 @@ def user_role(request):
         'nav_apps_grouped': nav_apps_grouped,
         'current_app': current_app,
         'current_app_color': current_app_color,
+        'current_app_spec': current_app_spec,
         'converter_output_formats_json': converter_output_formats_json,
         'account_tier': account_tier,
         'user_roles_set': roles_set,

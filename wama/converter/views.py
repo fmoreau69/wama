@@ -1028,16 +1028,6 @@ def batch_template(request):
 from django.views.generic import TemplateView
 
 
-class AboutView(TemplateView):
-    """Onglet À-propos (contenu : bloc about_content de converter/base.html)."""
-    template_name = 'converter/base.html'
-
-
-class HelpView(TemplateView):
-    """Onglet Aide (contenu : bloc help_content de converter/base.html)."""
-    template_name = 'converter/base.html'
-
-
 # ── Manipulation directe de la file (fabrique COMMUNE, variante FK-directe) ──
 # ConversionJob porte lui-même batch + batch_row_index (pas de modèle de liaison).
 # On garde le consolidate LOCAL (groupement par nature) ; les 3 autres viennent

@@ -257,6 +257,20 @@
     if (global.WamaAudioPlayer) WamaAudioPlayer.pauseAll();
   }, true);
 
+  // ── Onglet ciblé par l'ancre (#about-pane, #help-pane…) ─────────────────────
+  // Les routes /about/ et /help/ des apps REDIRIGENT vers l'index ancré sur l'onglet
+  // (brique AppAboutView/AppHelpView, common/views.py) : au chargement, on active
+  // l'onglet Bootstrap dont le pane porte l'id de l'ancre. Générique — vaut pour tout
+  // pane du gabarit, extra_tab_panes compris.
+  document.addEventListener('DOMContentLoaded', function () {
+    const id = (location.hash || '').slice(1);
+    if (!id) return;
+    const pane = document.getElementById(id);
+    if (!pane || !pane.classList.contains('tab-pane')) return;
+    const btn = document.querySelector('button[data-bs-target="#' + id + '"]');
+    if (btn && global.bootstrap && bootstrap.Tab) bootstrap.Tab.getOrCreateInstance(btn).show();
+  });
+
   global.WamaApp = {
     escapeHtml: escapeHtml,
     getUrl: getUrl,

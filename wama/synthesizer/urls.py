@@ -4,6 +4,7 @@ WAMA Synthesizer - URLs Configuration
 
 from django.urls import path
 from django.http import JsonResponse
+from wama.common.views import AppAboutView, AppHelpView
 from . import views
 
 app_name = 'synthesizer'
@@ -11,8 +12,8 @@ app_name = 'synthesizer'
 urlpatterns = [
     # Pages principales
     path('', views.IndexView.as_view(), name='index'),
-    path('about/', views.AboutView.as_view(), name='about'),
-    path('help/', views.HelpView.as_view(), name='help'),
+    path('about/', AppAboutView.as_view(), name='about'),
+    path('help/', AppHelpView.as_view(), name='help'),
 
     # Opérations sur les synthèses
     path('upload/', views.upload, name='upload'),

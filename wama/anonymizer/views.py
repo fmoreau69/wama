@@ -1681,13 +1681,6 @@ def batch_download(request, pk):
     return FileResponse(buf, as_attachment=True, filename=f'anonymizer_batch_{batch.id}.zip')
 
 
-class AboutView(TemplateView):
-    template_name = 'anonymizer/about.html'
-
-class HelpView(TemplateView):
-    template_name = 'anonymizer/help.html'
-
-
 # =============================================================================
 # Batch import (Type A: media_list — one URL/path per line)
 # =============================================================================

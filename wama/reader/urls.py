@@ -1,10 +1,13 @@
 from django.urls import path
+from wama.common.views import AppAboutView, AppHelpView
 from . import views
 
 app_name = 'wama.reader'
 
 urlpatterns = [
     path('',                        views.IndexView.as_view(), name='index'),
+    path('about/',                  AppAboutView.as_view(),    name='about'),
+    path('help/',                   AppHelpView.as_view(),     name='help'),
     path('upload/',                 views.upload,              name='upload'),
     path('start/<int:pk>/',         views.start,               name='start'),
     path('stop/<int:pk>/',          views.stop,                name='stop'),

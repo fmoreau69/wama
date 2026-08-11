@@ -237,6 +237,20 @@ def _duplicate_wiring(f: _AppFiles):
     return False, None
 
 
+def _help_about(f: _AppFiles):
+    # Durci 2026-08-11 : l'ancien motif `class (Help|About)View` mesurait la PRÉSENCE d'une
+    # classe — or 9 apps sur 10 rendaient 500 (templates fantômes), et le seul 200 (converter)
+    # re-rendait sa base. La brique commune = onglets du gabarit auto-remplis d'APP_CATALOG +
+    # routes /about/ /help/ redirigeant vers l'onglet (common/views.py::AppAboutView).
+    brick = f.find(URLS, r'AppAboutView') and f.find(URLS, r'AppHelpView')
+    if brick:
+        return True, f.find(URLS, r'AppAboutView')
+    local = f.find(VIEWS, r'class (Help|About)View')
+    if local:
+        return 'partial', f"{local} (classe locale — vérifier que son template existe)"
+    return False, None
+
+
 def _user_settings(f: _AppFiles):
     # Durci 2026-08-11 : l'ancien motif `user_settings` matchait un simple import en lecture
     # (imager : volet rendu mais réglages jamais persistés) ET les variables locales
@@ -594,8 +608,8 @@ CRITERIA: list[Criterion] = [
     # ── F1 identité / intégration transverse ──
     Criterion('tool_api', 'F1', 'Triade tool_api (add_to/start/get_status) au TOOL_REGISTRY', _tool_api_triad),
     Criterion('console', 'F1', 'Console app (bloc + endpoint)', _console),
-    Criterion('help_about', 'F1', 'Vues Aide / À-propos',
-              lambda f: _present(f, VIEWS, r'class (Help|About)View')),
+    Criterion('help_about', 'F1', 'Aide / À-propos (brique commune AppAboutView/AppHelpView)',
+              _help_about),
     Criterion('catalog_entry', 'F1', "Identité APP_CATALOG (E/S typées + input_extensions)",
               _catalog_entry),
     # ── F2 entrée ──

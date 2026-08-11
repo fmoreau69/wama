@@ -1,4 +1,5 @@
 from django.urls import path
+from wama.common.views import AppAboutView, AppHelpView
 from . import views
 
 app_name = 'enhancer'
@@ -22,9 +23,9 @@ urlpatterns = [
     path('global_progress/', views.global_progress, name='global_progress'),
     # Card = partial serveur unique
     path('card/<int:pk>/html/', views.card_html, name='card_html'),
-    # Aide / À-propos
-    path('about/', views.AboutView.as_view(), name='about'),
-    path('help/', views.HelpView.as_view(), name='help'),
+    # Aide / À-propos (brique commune : redirection vers l'onglet du gabarit)
+    path('about/', AppAboutView.as_view(), name='about'),
+    path('help/', AppHelpView.as_view(), name='help'),
     # Manipulation directe de la file (fabrique commune, variante liaison)
     path('reorder/', views.reorder, name='reorder'),
     path('move-to-batch/<int:pk>/', views.move_to_batch, name='move_to_batch'),
