@@ -441,12 +441,21 @@
         "source": "source_url",
         "target": "input_file"
       },
+      "item_model": "Description",
       "processing_time": true,
       "statuses": [
         "PENDING",
         "RUNNING",
         "SUCCESS",
         "FAILURE"
+      ],
+      "tasks": [
+        {
+          "file": "workers.py",
+          "function": "describe_content",
+          "lifecycle": true,
+          "task_name": null
+        }
       ]
     },
     "studio": {

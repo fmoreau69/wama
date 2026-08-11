@@ -608,8 +608,19 @@ outillé avant d'ouvrir cette marche.
   pour une même valeur. Normalisé À LA SOURCE (`tool_api._describe_arg` : un défaut
   str-compatible se rend par sa valeur). Harnais reader ensuite **CONFORME** (strip 4 cibles,
   grille 87 % identique, smoke identique) — **2ᵉ app à passer le strip-régénération complet**.
-- **Reste A2** : A2b = gabarit `tasks_gen.py` (fichier mince : squelette + trou de glu marqué)
-  dont le juge complet est le pilote B ; adopteurs suivants au fil des chantiers d'app. **Harnais C : VERDICT CONFORME
+- **A2b ✅ (même session) — gabarit `tasks_gen.py`** : la facette `processing` porte désormais
+  `tasks` (AST de tasks.py/workers.py — {function, task_name, lifecycle} ; heuristique
+  lifecycle = `run_item_task` ou SUCCESS+FAILURE dans le segment ; limite connue :
+  `transcribe_without_preprocessing` classée non-lifecycle par délégation interne — à
+  raffiner par déclaration) et `item_model` (accesseur `DetailRegistry.get`). `render_tasks`
+  rend le fichier MINCE (une tâche = 5 lignes `run_item_task` + trou de glu
+  `NotImplementedError` marqué) ; projecteur `_project_tasks` **CREATE-ONLY** : un tasks.py
+  existant — même marqué — n'est JAMAIS comparé ni régénéré (ses trous ont pu être remplis
+  par B ; le régénérer effacerait les corps). Vérifié : rendu converter compile, critères
+  grille (crash guard, ETA) satisfaits sur le rendu, fidélité 10/10, harnais converter et
+  reader CONFORMES. **Le juge COMPLET de ce gabarit est le pilote B** (générer transcriber :
+  gabarit → trous → LLM → harnais). A2 est CLOS ; adopteurs task_skeleton suivants au fil
+  des chantiers d'app. **Harnais C : VERDICT CONFORME
   avec strip de 5 cibles dont urls.py** — le urls.py généré rend les 34 routes, grille 93 %
   identique, smoke identique, ré-extraction identique. Piège levé : les system checks Django
   chargent l'URLconf racine au démarrage de toute commande → `requires_system_checks = []`

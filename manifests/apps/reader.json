@@ -394,12 +394,27 @@
         "source": "source_url",
         "target": "input_file"
       },
+      "item_model": "ReadingItem",
       "processing_time": true,
       "statuses": [
         "PENDING",
         "RUNNING",
         "SUCCESS",
         "FAILURE"
+      ],
+      "tasks": [
+        {
+          "file": "tasks.py",
+          "function": "read_document_task",
+          "lifecycle": true,
+          "task_name": "wama.reader.tasks.read_document_task"
+        },
+        {
+          "file": "tasks.py",
+          "function": "analyze_document_task",
+          "lifecycle": false,
+          "task_name": "wama.reader.tasks.analyze_document_task"
+        }
       ]
     },
     "studio": {

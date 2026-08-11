@@ -1284,12 +1284,27 @@
         }
       ],
       "ingest": null,
+      "item_model": "ImageGeneration",
       "processing_time": false,
       "statuses": [
         "PENDING",
         "RUNNING",
         "SUCCESS",
         "FAILURE"
+      ],
+      "tasks": [
+        {
+          "file": "tasks.py",
+          "function": "generate_image_task",
+          "lifecycle": true,
+          "task_name": null
+        },
+        {
+          "file": "tasks.py",
+          "function": "generate_video_task",
+          "lifecycle": true,
+          "task_name": null
+        }
       ]
     },
     "prompts": {

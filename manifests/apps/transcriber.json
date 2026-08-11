@@ -603,12 +603,39 @@
         "target": "audio",
         "title_field": "title"
       },
+      "item_model": "Transcript",
       "processing_time": true,
       "statuses": [
         "PENDING",
         "RUNNING",
         "SUCCESS",
         "FAILURE"
+      ],
+      "tasks": [
+        {
+          "file": "workers.py",
+          "function": "transcribe",
+          "lifecycle": true,
+          "task_name": null
+        },
+        {
+          "file": "workers.py",
+          "function": "transcribe_without_preprocessing",
+          "lifecycle": false,
+          "task_name": null
+        },
+        {
+          "file": "workers.py",
+          "function": "enrich_transcript",
+          "lifecycle": false,
+          "task_name": "wama.transcriber.enrich_transcript"
+        },
+        {
+          "file": "workers.py",
+          "function": "compute_waveform_peaks",
+          "lifecycle": false,
+          "task_name": "wama.transcriber.compute_waveform_peaks"
+        }
       ]
     },
     "studio": {

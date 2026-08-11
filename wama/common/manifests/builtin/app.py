@@ -387,6 +387,22 @@ def _processing(cat: dict, app_id: str) -> dict:
     except Exception as e:
         out['endpoints'] = []
         out['_routes_error'] = repr(e)
+    # Tâches Celery réelles (A2b, AST du fichier) + modèle d'item (accesseur DetailRegistry) —
+    # ce que le gabarit tasks_gen doit connaître pour rendre le fichier mince.
+    try:
+        from ..codegen.tasks_gen import app_tasks
+        taches = app_tasks(app_id)
+        if taches:
+            out['tasks'] = taches
+    except Exception as e:
+        out['_tasks_error'] = repr(e)
+    try:
+        from wama.common.utils.detail_registry import DetailRegistry
+        entree = DetailRegistry.get(app_id)
+        if entree and entree.get('model') is not None:
+            out['item_model'] = entree['model'].__name__
+    except Exception:
+        pass
     return out
 
 
@@ -939,15 +955,17 @@ def _project_modes(manifest: dict, *, apply: bool) -> dict:
 
 
 def _project_processing(manifest: dict, *, apply: bool) -> dict:
-    """Facette processing → cible `urls.py` SEULE pour l'instant (gabarit A1) ; `models.py` et
-    `tasks.py` restent en code-gen (paliers A2/A5) — la facette reste donc HORS
-    PROJECTED_FACETS (projection partielle assumée, rapportée dans le retour). Contrats du
-    moteur : fichier absent → GÉNÉRÉ marqué ; marqué → régénéré ; écrit main → comparaison
-    SÉMANTIQUE (table name→(motif, vue) relue du fichier par ast) et JAMAIS réécrit."""
+    """Facette processing → cibles `urls.py` (gabarit A1) + `tasks.py` (gabarit A2b,
+    CREATE-ONLY : un tasks.py existant est de la GLU réelle — jamais comparé ni régénéré, le
+    fichier mince à trous ne se rend que pour une app SANS tasks.py, marche B) ; `models.py`
+    reste en code-gen (palier A5) — la facette reste donc HORS PROJECTED_FACETS (projection
+    partielle assumée, rapportée dans le retour). Contrats du moteur pour urls.py : absent →
+    GÉNÉRÉ marqué ; marqué → régénéré ; écrit main → comparaison SÉMANTIQUE (table
+    name→(motif, vue) relue du fichier par ast) et JAMAIS réécrit."""
     from ..codegen.urls_gen import (current_routes_from_file, namespace_of, render_urls,
                                     routes_target, urls_file_path)
     app_id = manifest.get('key')
-    restants = {'models.py': 'codegen (palier A5)', 'tasks.py': 'codegen (palier A2)'}
+    restants = {'models.py': 'codegen (palier A5)', 'tasks.py': _project_tasks(manifest, apply=apply)}
     cible, manquantes = routes_target(manifest)
     if not cible:
         return {'op': 'skip', 'reason': 'facette processing sans endpoints', **restants}
@@ -980,6 +998,27 @@ def _project_processing(manifest: dict, *, apply: bool) -> dict:
     path.write_text(src, encoding='utf-8')
     return {'op': op, 'changed': deltas, 'file': str(path),
             '_manifest_key': f'app:{app_id}', 'reload_required': True, **restants}
+
+
+def _project_tasks(manifest: dict, *, apply: bool):
+    """Cible tasks.py du gabarit A2b — CREATE-ONLY. Un fichier existant est de la glu réelle :
+    on ne le compare ni ne le régénère JAMAIS (même un fichier marqué : ses trous ont pu être
+    remplis par la marche B — le régénérer effacerait les corps). Retourne un statut lisible
+    (str) ou le résultat d'écriture (dict)."""
+    from ..codegen.tasks_gen import render_tasks, tasks_file_path
+    app_id = manifest.get('key')
+    path = tasks_file_path(app_id)
+    if path.is_file():
+        return 'présent (glu réelle) — hors périmètre, corps = marche B'
+    src, raison = render_tasks(manifest)
+    if src is None:
+        return f'non générable : {raison}'
+    if not apply:
+        return {'op': 'create', 'file': str(path), 'would_change': ['fichier mince à trous']}
+    compile(src, str(path), 'exec')
+    path.write_text(src, encoding='utf-8')
+    return {'op': 'create', 'file': str(path), 'changed': ['fichier mince à trous'],
+            '_manifest_key': f'app:{app_id}', 'reload_required': True}
 
 
 def _project_dict_facet(app_id: str, target: dict, deltas_fn, *, apply: bool,

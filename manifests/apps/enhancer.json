@@ -798,12 +798,27 @@
         "source": "source_url",
         "target": "input_file"
       },
+      "item_model": "Enhancement",
       "processing_time": true,
       "statuses": [
         "PENDING",
         "RUNNING",
         "SUCCESS",
         "FAILURE"
+      ],
+      "tasks": [
+        {
+          "file": "tasks.py",
+          "function": "enhance_media",
+          "lifecycle": true,
+          "task_name": null
+        },
+        {
+          "file": "tasks.py",
+          "function": "enhance_audio",
+          "lifecycle": true,
+          "task_name": null
+        }
       ]
     },
     "studio": {

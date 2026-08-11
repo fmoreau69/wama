@@ -786,12 +786,33 @@
         "source": "source_url",
         "target": "voice_reference"
       },
+      "item_model": "VoiceSynthesis",
       "processing_time": true,
       "statuses": [
         "PENDING",
         "RUNNING",
         "SUCCESS",
         "FAILURE"
+      ],
+      "tasks": [
+        {
+          "file": "workers.py",
+          "function": "download_voice_refs_task",
+          "lifecycle": false,
+          "task_name": "wama.synthesizer.download_voice_refs"
+        },
+        {
+          "file": "workers.py",
+          "function": "synthesize_voice",
+          "lifecycle": true,
+          "task_name": null
+        },
+        {
+          "file": "workers.py",
+          "function": "cleanup_old_syntheses",
+          "lifecycle": false,
+          "task_name": null
+        }
       ]
     },
     "studio": {

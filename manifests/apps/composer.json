@@ -437,12 +437,21 @@
         }
       ],
       "ingest": null,
+      "item_model": "ComposerGeneration",
       "processing_time": true,
       "statuses": [
         "PENDING",
         "RUNNING",
         "SUCCESS",
         "FAILURE"
+      ],
+      "tasks": [
+        {
+          "file": "tasks.py",
+          "function": "compose_task",
+          "lifecycle": true,
+          "task_name": null
+        }
       ]
     },
     "prompts": {

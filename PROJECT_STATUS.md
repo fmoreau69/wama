@@ -2451,8 +2451,13 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > enrichissement, hors contrat volontaire). Le harnais a attrapé un écart réel (défauts de
 > schéma rendus en `%r` → enum vs littéral) normalisé à la source dans `tool_api`. **Reader =
 > 2ᵉ app CONFORME au strip-régénération complet** (grille 87 % identique, smoke identique).
-> **Suite : A2b gabarit tasks_gen (juge = pilote B), A3 apps.py (detail déclaratif), A4
-> tool_api, A5 models.py ; dette gardes restante = tâches anonymizer (avec son chantier).**
+> **Puis A2b livré — A2 CLOS** : facette `processing` enrichie (`tasks` par AST + `item_model`
+> via DetailRegistry), gabarit `tasks_gen` (fichier mince : 5 lignes `run_item_task` + trou de
+> glu marqué), projecteur CREATE-ONLY (un tasks.py existant n'est jamais touché — les trous
+> remplis par B seraient effacés). Rendu compile, critères grille satisfaits sur le rendu,
+> harnais converter+reader CONFORMES. Juge complet = pilote B.
+> **Suite : A3 apps.py (detail déclaratif — débloquer la facette inspector), A4 tool_api, A5
+> models.py ; dette gardes restante = tâches anonymizer (avec son chantier).**
 
 ## §REPRISE — 2026-08-11 (2ᵉ session, SUITE du soir) : 8 facettes + function + page librairies + avis critique
 

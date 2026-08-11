@@ -1060,12 +1060,21 @@
         "source": "source_url",
         "target": "input_file"
       },
+      "item_model": "ConversionJob",
       "processing_time": true,
       "statuses": [
         "PENDING",
         "RUNNING",
         "SUCCESS",
         "FAILURE"
+      ],
+      "tasks": [
+        {
+          "file": "tasks.py",
+          "function": "convert_media_task",
+          "lifecycle": true,
+          "task_name": null
+        }
       ]
     },
     "studio": {

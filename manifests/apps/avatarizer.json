@@ -297,12 +297,21 @@
         "source": "source_url",
         "target": "audio_input"
       },
+      "item_model": "AvatarJob",
       "processing_time": false,
       "statuses": [
         "PENDING",
         "RUNNING",
         "SUCCESS",
         "FAILURE"
+      ],
+      "tasks": [
+        {
+          "file": "workers.py",
+          "function": "generate_avatar",
+          "lifecycle": true,
+          "task_name": null
+        }
       ]
     },
     "studio": {
