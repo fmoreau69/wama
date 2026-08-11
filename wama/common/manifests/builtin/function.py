@@ -85,10 +85,104 @@ def extract_function(key: str) -> Optional[dict]:
     return None
 
 
+# ── PROJECTION (write-back) — binding `user` SEUL ────────────────────────────────
+# Le manifeste `function` d'un LLM/chercheur se projette vers `UserFunction` (DB, scopée) —
+# fermeture de la boucle « manifeste → registre → page /model-manager/functions/ » signalée
+# ouverte le 2026-08-11. Les fonctions `pure`/`app` vivent dans le catalogue CODE
+# (FUNCTION_CATALOG) : leur write-back = code-gen, refusé ici. Traçabilité : tag
+# `_manifest-gen` posé à la création — il BORNE ce que `un_write_back_function` a le droit
+# de supprimer (une fonction créée par un utilisateur dans l'UI n'est JAMAIS retirée).
+_TAG_GEN = '_manifest-gen'
+_CHAMPS_FONCTION = ('category', 'tags', 'projects', 'inputs', 'outputs', 'params', 'impl')
+
+
+def write_back_function(manifest: dict, *, apply: bool = False) -> dict:
+    """Projette un manifeste `function` (binding=user) vers `UserFunction`. Dry-run par défaut,
+    idempotent (update_or_create par key), réversible (tag `_manifest-gen`). Refuse la collision
+    avec une fonction SYSTÈME du catalogue code."""
+    from django.contrib.auth import get_user_model
+    from django.db import transaction
+    from wama.common.models import UserFunction, OrgUnit
+
+    key = manifest.get('key') or ''
+    body = manifest.get('body') or {}
+    binding = body.get('binding') or 'user'
+    if not key:
+        return {'function': None, 'error': "manifeste sans `key`"}
+    if binding != 'user':
+        return {'function': key, 'binding': binding, 'changed': [],
+                'skipped': f"binding '{binding}' = catalogue CODE (FUNCTION_CATALOG) — code-gen, "
+                           f"pas de projection runtime"}
+    from wama.common.data import function_catalog as fc
+    try:
+        fc.load_all()
+    except Exception:
+        pass
+    if key in fc.FUNCTION_CATALOG:
+        return {'function': key, 'error': "collision : une fonction SYSTÈME porte déjà cette clé"}
+
+    owner_name = manifest.get('owner') or body.get('owner') or ''
+    owner = get_user_model().objects.filter(username=owner_name).first() if owner_name else None
+    if owner is None:
+        return {'function': key, 'error': "owner requis (username existant) pour une fonction "
+                                          "`user` — l'enveloppe n'en porte pas de résoluble"}
+
+    voulu = {c: body.get(c) if body.get(c) is not None else ([] if c != 'impl' else '')
+             for c in _CHAMPS_FONCTION}
+    voulu['name'] = manifest.get('name') or key
+    voulu['description'] = manifest.get('description') or ''
+    voulu['visibility'] = manifest.get('visibility') or 'private'
+    unit_code = manifest.get('scope_org_unit') or ''
+    unit = OrgUnit.objects.filter(code=unit_code).first() if unit_code else None
+
+    existant = UserFunction.objects.filter(key=key).first()
+    actuel = None
+    if existant is not None:
+        actuel = {c: getattr(existant, c) for c in _CHAMPS_FONCTION}
+        actuel.update({'name': existant.name, 'description': existant.description,
+                       'visibility': existant.visibility})
+    deltas = sorted(c for c, v in voulu.items() if actuel is None or actuel.get(c) != v)
+
+    if not apply:
+        return {'function': key, 'created': existant is None, 'owner': owner_name,
+                'would_change': deltas, 'target': voulu,
+                'unresolved_org_unit': unit_code if unit_code and unit is None else None}
+    tags = list(voulu['tags'] or [])
+    if _TAG_GEN not in tags:
+        tags.append(_TAG_GEN)
+    voulu['tags'] = tags
+    with transaction.atomic():
+        obj, cree = UserFunction.objects.update_or_create(
+            key=key, defaults={**voulu, 'owner': owner, 'scope_org_unit': unit})
+    return {'function': key, 'created': cree, 'changed': deltas,
+            '_manifest_key': f'function:{key}'}
+
+
+def un_write_back_function(manifest: dict, *, apply: bool = False) -> dict:
+    """Retire la `UserFunction` projetée — UNIQUEMENT si elle porte le tag `_manifest-gen`
+    (réversibilité bornée à ce que la projection a créé, jamais une fonction autorée en UI)."""
+    from wama.common.models import UserFunction
+
+    key = manifest.get('key') or ''
+    obj = UserFunction.objects.filter(key=key).first()
+    if obj is None:
+        return {'function': key, 'removed': False, 'reason': 'absente du registre'}
+    if _TAG_GEN not in (obj.tags or []):
+        return {'function': key, 'removed': False,
+                'reason': "fonction autorée en UI (pas de tag _manifest-gen) — retrait refusé"}
+    if not apply:
+        return {'function': key, 'would_remove': True}
+    obj.delete()
+    return {'function': key, 'removed': True}
+
+
 register_kind(ManifestKind(
     kind='function',
     validate=validate_function_body,
     extract=extract_function,
+    write_back=write_back_function,
+    un_write_back=un_write_back_function,
     description="Fonction-carte WAMA Data (extrait de FUNCTION_CATALOG ou UserFunction) : E/S typées sur "
-                "data_types + params + binding (pure|app|user).",
+                "data_types + params + binding (pure|app|user). PROJECTION binding=user → UserFunction "
+                "(tag _manifest-gen, réversible) ; pure/app = catalogue code (code-gen).",
 ))
