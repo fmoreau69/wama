@@ -1,13 +1,15 @@
 # WAMA — Schéma fonctionnel : Manifestes → Ingest → Génération d'app → Mécanismes UI
 
 > **But** : voir clair sur la chaîne complète AVANT d'attaquer l'auto-génération d'application.
-> Complète `WAMA_MANIFEST_SPEC.md` (formalisme) avec les FLUX. État au **2026-08-11 (soir)** :
-> socle des **7 kinds** fait et testé ; **write-back réel sur 4 kinds** — `app` (**8 facettes
-> écrites** : `access` DB + `identity`/`ports`/`capabilities`/`studio`/`modes`/`prompts`/`params`
-> en CODE via le moteur commun d'écriture marquée, §6quater), `library` (le registre `Library`
-> NAÎT de la projection), `model` (champs déclaratifs `license`/`platform_ref`) et `function`
-> (binding `user` → `UserFunction`, tag `_manifest-gen`) ; côté `app`, **4 facettes** restent en
-> code-gen (`inspector`, `models`, `processing`, `tool_api`).
+> Complète `WAMA_MANIFEST_SPEC.md` (formalisme) avec les FLUX. État au **2026-08-12 (soir,
+> MARCHE A CLOSE)** : socle des **7 kinds** fait et testé ; **write-back réel sur 4 kinds** —
+> `app` (**10 facettes écrites** : `access` DB + `identity`/`ports`/`capabilities`/`studio`/
+> `modes`/`prompts`/`params`/`inspector`/`tool_api` en CODE via le moteur commun d'écriture
+> marquée, §6quater), `library` (le registre `Library` NAÎT de la projection), `model` (champs
+> déclaratifs `license`/`platform_ref`) et `function` (binding `user` → `UserFunction`, tag
+> `_manifest-gen`) ; côté `app`, restent `models` (model_config) et `processing` en projection
+> PARTIELLE ASSUMÉE (urls comparable ; tasks A2b et models.py A5 en CREATE-ONLY) — les corps
+> et champs de résultat = marche B.
 > Légende des flux : **trait plein = existe & testé** · **pointillés = à construire (app_gen)**.
 
 ---
@@ -44,9 +46,9 @@ flowchart TD
 
     ING --> STORE["Manifest store<br/>(common.Manifest, DB)"]
 
-    STORE -->|PROJECTION 8 facettes ✅ (access DB + 7 code, moteur marqué, apply=False par défaut)| REG
-    STORE -->|GABARITS codegen/ ✅ A1/A2b : urls.py régénérable, tasks.py mince create-only| REG
-    STORE -.->|reste : apps.py (A3b), model_config (A5-adj), triade tool_api (A4), models.py (A5)| REG
+    STORE -->|PROJECTION 10 facettes ✅ (access DB + 9 code, moteur marqué, apply=False par défaut)| REG
+    STORE -->|GABARITS codegen/ ✅ A1→A5 : urls.py régénérable, tasks.py mince + models.py CREATE-ONLY, apps.py, triade TRIAD_SPECS| REG
+    STORE -.->|reste : model_config (facette models) + corps/champs de résultat (marche B)| REG
     subgraph REG["REGISTRES & DÉCLARATIONS (la JOINTURE — inchangés côté consommation)"]
         R1["APP_CATALOG / GENERIC_APPS / APP_MODES"]
         R2["params.py · urls.py · spec Detail/PreviewRegistry"]
@@ -72,10 +74,11 @@ strip complet → smoke/grille identiques ; parité du volet droit sur 10 items 
 La table « qui déclare, qui tire » côté UI vit dans **`WAMA_APP_GENERATION_ROUTE.md §1`**
 (l'autre côté du tunnel) — ce §-ci est le domicile UNIQUE du flux manifeste→registres.
 
-État courant (2026-08-12) : extract 12 facettes ; projection = 8 facettes registres/fichiers
-(`PROJECTED_FACETS`) + `processing` PARTIEL (urls.py régénérable, tasks.py mince create-only —
-gabarits `common/manifests/codegen/`) ; reste `inspector` (spec déclarative EXTRAITE depuis
-A3a, gabarit apps_gen = A3b), `models`, `tool_api`, `processing.models.py`. Tout apply reste
+État courant (2026-08-12 soir, marche A close) : extract 12 facettes ; projection = 10
+facettes registres/fichiers (`PROJECTED_FACETS`, `tool_api` = entrée-valeur `TRIAD_SPECS`
+depuis A4) + `processing` PARTIEL ASSUMÉ (urls.py régénérable ; tasks.py mince A2b et
+models.py A5 en CREATE-ONLY — gabarits `common/manifests/codegen/`) ; reste `models`
+(model_config) ; corps de backends et champs de résultat = marche B. Tout apply reste
 un geste explicite (`apply=False` par défaut), jugé par le harnais C.
 
 ---
@@ -171,15 +174,17 @@ Propriétés garanties (testées) : **idempotent** (kind+key), **transactionnel*
 
 ## 5. Où se branche l'auto-génération d'application — plan d'origine, EN COURS DE LIVRAISON
 
-> **MAJ 2026-08-12** : ce diagramme était le PLAN (« prochain chantier ») — il est devenu la
-> réalité des marches A (route §10.3), bloc par bloc : **G2 urls ✅** (A1, régénérable) —
-> views reste composé de fabriques communes ; **G3 params ✅** (params.py + WamaParams) ;
-> **G4 Detail/Preview** : spec déclarative extraite ✅ (A3a), rendu apps.py = A3b, triade
-> tool_api = A4 ; **G5 studio ✅** (E/S dérivées des ports, §10.1) ; **G6 access ✅** (1re
-> projection) ; **G1 models.py = A5** (dernier). La boucle `SBX → DIFF` du bas est LIVRÉE et
-> outillée : c'est **`manage.py app_regen_check`** (harnais C — « ré-injecter une app
-> existante » = strip → apply → 3 axes, CONFORME sur converter et reader). Les corps de
-> backends restent la marche B (LLM contraint par le manifeste composé).
+> **MAJ 2026-08-12 soir — TOUS LES BLOCS LIVRÉS (marche A close)** : ce diagramme était le
+> PLAN (« prochain chantier ») — il est devenu la réalité des marches A (route §10.3) :
+> **G2 urls ✅** (A1, régénérable) — views reste composé de fabriques communes ; **G3 params
+> ✅** (params.py + WamaParams) ; **G4 Detail/Preview + tool_api ✅** (A3a spec déclarative,
+> A3b rendu apps.py, A4 triade `TRIAD_SPECS`) ; **G5 studio ✅** (E/S dérivées des ports,
+> §10.1) ; **G6 access ✅** (1re projection) ; **G1 models.py ✅** (A5 — squelette spine +
+> options inverses de derive_from_model, CREATE-ONLY durci : migrations = geste main). La
+> boucle `SBX → DIFF` du bas est LIVRÉE et outillée : **`manage.py app_regen_check`**
+> (harnais C — strip → apply → 3 axes, CONFORME sur converter et reader, triade et apps.py
+> compris). Les corps de backends et champs de résultat restent la **marche B** (LLM
+> contraint par le manifeste composé).
 
 ```mermaid
 flowchart TD
@@ -362,14 +367,15 @@ en code sauf pour `access`.
 
 ---
 
-## 6quater. Le MOTEUR COMMUN d'écriture code — 8 facettes projetées (2026-08-11, branche `regen/converter` mergée)
+## 6quater. Le MOTEUR COMMUN d'écriture code — 10 facettes projetées (2026-08-11→12, marche A close)
 
 > Détail complet : `WAMA_APP_GENERATION_ROUTE.md §10.3` (paliers, vérifications, trous #16-18).
 > Résumé des mécanismes, car c'est LE changement d'échelle du write-back :
 
 - **Un moteur, trois formes de cibles** : entrées de dicts-registres (`_write_dict_fields`,
   paramétré par chemin/assignation/rendu — APP_CATALOG, GENERIC_APPS, APP_MODES), entrées-VALEUR
-  (`PROMPT_TARGETS`, bornes par AST) et FICHIER par app (`params.py`). Partout les mêmes
+  (`PROMPT_TARGETS` et, depuis A4, `TRIAD_SPECS` de tool_api — bornes par AST) et FICHIER par
+  app (`params.py`, et les gabarits urls/tasks/apps/models). Partout les mêmes
   contrats : dry-run par défaut, `create` = bloc **généré marqué** `[manifest-gen app:<id>]`,
   `update` = régénération entière si marqué / **chirurgie champ par champ** si écrit main
   (expressions et multi-lignes REFUSÉES), `noop` sinon ; garde `compile()` avant toute écriture ;
@@ -383,9 +389,10 @@ en code sauf pour `access`.
   main (code DÉRIVANT : `derive_from_model` + sources dynamiques — comparaison sémantique
   canonique JSON seulement). `PROJECTED_FACETS` (`builtin/app.py`) = le registre de ce qui
   s'écrit ; `facet_report`/`codegen_required` le LISENT.
-- **Reste en code-gen** : `inspector` (extract = présences mesurées, trou #17), `models`
-  (`model_config` runtime non capté), `tool_api` (fonctions = code), `processing` (le vrai
-  squelette — models.py/urls/tasks). C'est la marche où le LLM guidé devient nécessaire.
+- **Reste en code-gen** : `models` (`model_config` runtime non capté) et, dans `processing`,
+  les corps de tasks.py et les champs de résultat de models.py (fichiers rendus MINCES par
+  les gabarits A2b/A5, CREATE-ONLY). C'est la **marche B** — le LLM guidé par le manifeste
+  composé. (`inspector` et `tool_api` ont rejoint les projetables : A3 et A4.)
 
 ---
 
@@ -396,7 +403,7 @@ pas dans les intentions :
 
 | kind | `extract` | `write_back` / `un_write_back` (hooks renommés 2026-08-05, ex-`project_*`) |
 |---|---|---|
-| `app` | `extract_app` | ✅ `write_back_app` — **8 facettes** (`access` DB + `identity`/`ports`/`capabilities` → APP_CATALOG, `studio` → GENERIC_APPS, `modes` → APP_MODES, `prompts` → PROMPT_TARGETS, `params` → params.py) ; reste 4 en code-gen (§6quater) |
+| `app` | `extract_app` | ✅ `write_back_app` — **10 facettes** (`access` DB + `identity`/`ports`/`capabilities` → APP_CATALOG, `studio` → GENERIC_APPS, `modes` → APP_MODES, `prompts` → PROMPT_TARGETS, `params` → params.py, `inspector` → apps.py, `tool_api` → TRIAD_SPECS) + `processing` partiel (gabarits urls/tasks/models) ; reste `models` + marche B (§6quater) |
 | `function` | `extract_function` | ✅ `write_back_function` — binding `user` → `UserFunction` (tag `_manifest-gen`, 2026-08-11) ; `pure`/`app` = catalogue code (code-gen) |
 | `library` | `extract_library` | ✅ `write_back_library` — **crée** la ligne `common.models.Library` |
 | `model` | `extract_model` | ✅ `write_back_model` — `license`/`platform_ref` (ne crée JAMAIS la ligne) |
@@ -404,23 +411,21 @@ pas dans les intentions :
 | `project` | `extract_project` | ❌ |
 | `dataset` | `None` — *le manifeste est l'origine* | ❌ |
 
-> **Re-mesuré le 2026-08-11 (soir)** : **4 kinds sur 7 projettent** (app — 8 facettes, library,
-> model, function/user) — les mesures antérieures du même jour (« 3 kinds, app/access seule »)
-> ont été dépassées en séance par le moteur commun d'écriture code (§6quater).
-> `manifest_roundtrip --all` mesure les facettes d'`app` (**6/10 à 8/12 projetées**, le reste en
-> `codegen`) — il ne compte PAS les write-backs des kinds `library`/`model`/`function`.
+> **Re-mesuré le 2026-08-12 (soir, marche A close)** : **4 kinds sur 7 projettent** (app —
+> 10 facettes, library, model, function/user).
+> `manifest_roundtrip --all` mesure les facettes d'`app` (**8/10 à 10/12 projetées**, le reste
+> en `codegen`) — il ne compte PAS les write-backs des kinds `library`/`model`/`function`.
 > Commande de re-mesure (ne pas recopier ce tableau sans la relancer) : voir skill `/manifeste` §2.
 >
-> **Composition mesurée le 2026-08-11** — `requires` dans `manifests/` :
+> **Composition mesurée le 2026-08-12** — `requires` dans `manifests/` :
 > **91 liens `app → model`** répartis sur 9 apps (converter = 0, normal : ffmpeg/pandoc, aucun
-> modèle IA) et **1 lien `app → library`** (transcriber → faster-whisper). La jambe `library`
-> est donc OUVERTE ET AMORCÉE : le registre `Library` existe (`common/models.py:382`), écrit par
-> `write_back_library` ; reste à élargir le semis du corpus (`library_candidates`,
-> `library_index`).
+> modèle IA) et les jambes `app → library` SEMÉES (transcriber = 9 libraries, 13/13 résolus).
+> Le corpus exporté couvre les trois kinds : **110 manifestes** (10 apps + 9 libraries +
+> 91 models dérivés des requires, micro-marche du 12/08).
 
-**Lecture** (MAJ 2026-08-11 soir) : le formalisme, l'enveloppe et l'ingest sont en place, et le
-sens **génératif** (manifeste → réalité) existe pour **4 kinds sur 7** : `app` (8 facettes via le
-moteur commun marqué), `library` (registre entier), `model` (champs déclaratifs) et `function`
+**Lecture** (MAJ 2026-08-12 soir) : le formalisme, l'enveloppe et l'ingest sont en place, et le
+sens **génératif** (manifeste → réalité) existe pour **4 kinds sur 7** : `app` (10 facettes via le
+moteur commun marqué + gabarits de squelette complets), `library` (registre entier), `model` (champs déclaratifs) et `function`
 (binding `user` → `UserFunction`). **Un manifeste de modèle ne crée aujourd'hui aucun `AIModel`**
 — c'est voulu (un modèle se DÉCOUVRE, `builtin/model.py:145-148`). Le manifeste est la source
 **par architecture** ; le registre l'est encore **en pratique** pour `pipeline`/`project`/

@@ -40,19 +40,21 @@ Get-ChildItem .\manifests\apps\*.json | ForEach-Object { $j = Get-Content $_ -Ra
   "{0,-14} {1}" -f $_.BaseName, (($j.requires | Group-Object kind | ForEach-Object { "$($_.Name)=$($_.Count)" }) -join ' ') }
 ```
 
-Photo au 2026-08-12 (à re-mesurer, pas à croire) : **4 kinds écrivent** (`app`, `library`,
-`model`, `function`) ; le kind `app` projette **9 facettes** (`PROJECTED_FACETS` — access DB +
-identity/ports/capabilities/studio/modes/prompts/params/inspector) **+ `processing` PARTIEL**
-(urls.py régénérable, tasks.py mince create-only) via les **gabarits
-`wama/common/manifests/codegen/`** (urls_gen/tasks_gen/apps_gen — fichiers marqués
+Photo au 2026-08-12 soir, MARCHE A CLOSE (à re-mesurer, pas à croire) : **4 kinds écrivent**
+(`app`, `library`, `model`, `function`) ; le kind `app` projette **10 facettes**
+(`PROJECTED_FACETS` — access DB + identity/ports/capabilities/studio/modes/prompts/params/
+inspector/**tool_api** (A4 : entrée-valeur `TRIAD_SPECS`, triades construites à l'import))
+**+ `processing` PARTIEL ASSUMÉ** (urls.py régénérable ; tasks.py mince et models.py A5 en
+CREATE-ONLY — un models.py existant porte des MIGRATIONS, jamais touché) via les **gabarits
+`wama/common/manifests/codegen/`** (urls_gen/tasks_gen/apps_gen/models_gen — fichiers marqués
 `[manifest-gen]`, jamais de rendu partiel, un fichier main n'est jamais réécrit). Reste
-code-gen : `models` (model_config), `tool_api` (entrée TOOL_REGISTRY, marche A4),
-`processing.models.py` (A5) ; corps de backends = marche B. `dataset` n'a pas d'`extract` :
-pour lui le manifeste EST l'origine.
+code-gen : `models` (model_config) ; corps de backends et champs de résultat = **marche B**
+(rôle codegen wama-dev-ai + banc de modèles — GPU : avec Fabien seulement). `dataset` n'a
+pas d'`extract` : pour lui le manifeste EST l'origine.
 Composition mesurée : **91 liens `app → model`** + jambes `app → library` SEMÉES (corpus
-**19 manifestes** — transcriber = 4 modèles + 9 libraries, 13/13 résolus) ; strates actées
-(SPEC §7.4-5) : socle plateforme (`library_index.SOCLE_PLATEFORME`, jamais cité) / libraries
-métier / outils système (trou #15).
+**110 manifestes** — 10 apps + 9 libraries + 91 models dérivés des requires ; transcriber =
+4 modèles + 9 libraries, 13/13 résolus) ; strates actées (SPEC §7.4-5) : socle plateforme
+(`library_index.SOCLE_PLATEFORME`, jamais cité) / libraries métier / outils système (trou #15).
 
 ## 3. Contrôles à relancer après toute modification
 
