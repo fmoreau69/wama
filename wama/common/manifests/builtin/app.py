@@ -480,10 +480,11 @@ def _to_dict(obj) -> dict:
 #   - `capabilities` → has_batch/batch_type/has_url_import/has_youtube (le déclaratif seul)
 #   - `studio`       → entrée GENERIC_APPS (generic_runner.py — déclaratif seul, E/S dérivées exclues)
 #   - `modes`        → entrée APP_MODES (app_modes.py — littéral profond, égalité profonde)
+#   - `prompts`      → entrée PROMPT_TARGETS (app_metadata.py — `targets` seul, entrée-valeur)
 # Le reste des facettes `backend=code` part dans `codegen_required`. Le tri code/db vient de
 # `projection.FACET_TARGETS` (source unique) — l'ancienne liste locale codée en dur avait divergé
 # (elle omettait capabilities/modes et citait models/prompts), corrigé 2026-08-11.
-PROJECTED_FACETS = ('access', 'identity', 'ports', 'capabilities', 'studio', 'modes')
+PROJECTED_FACETS = ('access', 'identity', 'ports', 'capabilities', 'studio', 'modes', 'prompts')
 
 
 def write_back_app(manifest: dict, *, apply: bool = False) -> dict:
@@ -508,6 +509,8 @@ def write_back_app(manifest: dict, *, apply: bool = False) -> dict:
         out['studio'] = _project_studio(manifest, apply=apply)
     if body.get('modes'):
         out['modes'] = _project_modes(manifest, apply=apply)
+    if body.get('prompts'):
+        out['prompts'] = _project_prompts(manifest, apply=apply)
     out['codegen_required'] = [f for f, (_cible, backend) in FACET_TARGETS.items()
                                if backend == 'code' and body.get(f) and f not in PROJECTED_FACETS]
     return out
@@ -695,6 +698,71 @@ def _project_studio(manifest: dict, *, apply: bool) -> dict:
                                champs=STUDIO_FIELDS)
 
 
+def _project_prompts(manifest: dict, *, apply: bool) -> dict:
+    """Facette prompts → entrée PROMPT_TARGETS (app_metadata.py). Seule la clé `targets` se
+    projette : l'entrée du registre EST cette liste (déclarative). `skills` ne liste que des
+    NOMS de fichiers `.md` — rapport de présence, pas régénérable (trou #17). Une entrée
+    écrite main n'est jamais régénérée (les listes du registre portent des commentaires
+    d'intention — seule une entrée marquée se réécrit)."""
+    app_id = manifest.get('key')
+    facet = (manifest.get('body') or {}).get('prompts') or {}
+    target = facet.get('targets')
+    if target is None:
+        return {'op': 'skip', 'reason': "facette sans `targets` (skills seuls) — rien à projeter"}
+    path = _metadata_path()
+    found, cur = _value_entry_from_file(path, 'PROMPT_TARGETS', app_id)
+    delta = (not found) or (cur is _NONLITERAL) or (cur != target)
+    op = 'create' if not found else ('update' if delta else 'noop')
+    if not apply:
+        return {'op': op, 'target': target, 'current': None if not found else cur,
+                'would_change': ['targets'] if delta else []}
+    if op == 'noop':
+        return {'op': op, 'changed': [], '_manifest_key': f'app:{app_id}'}
+    res = _write_value_entry(path, 'PROMPT_TARGETS', app_id, target,
+                             facette='prompts', create=(op == 'create'))
+    res.update({'op': op, 'previous': None if not found else cur,
+                '_manifest_key': f'app:{app_id}', 'reload_required': True})
+    return res
+
+
+def _write_value_entry(path: Path, var: str, app_id: str, value, *, facette: str,
+                       create: bool) -> dict:
+    """Écrit une entrée-VALEUR (littéral rendu pprint) : create, ou régénération si l'entrée
+    porte le marqueur ; une entrée main est REFUSÉE. Garde `compile()` comme partout."""
+    import pprint
+    lines = path.read_text(encoding='utf-8').split('\n')
+    lo, hi = _dict_bounds(lines, var)
+    span = _value_entry_span(lines, app_id, lo, hi)
+    mark = _GEN_MARK.format(app_id=app_id)
+
+    rendu = pprint.pformat(value, width=96, sort_dicts=False).split('\n')
+    commentaire = f"  # {mark} entrée GÉNÉRÉE par write_back_app (facette {facette})"
+    if len(rendu) == 1:
+        bloc = [f"    '{app_id}': {rendu[0]},{commentaire}"]
+    else:
+        bloc = [f"    '{app_id}': {rendu[0]}{commentaire}"]
+        pad = ' ' * len(f"    '{app_id}': ")
+        bloc += [pad + l for l in rendu[1:]]
+        bloc[-1] += ','
+
+    if create:
+        if span is not None:
+            return {'error': "entrée déjà présente — l'état a changé depuis le plan, relancer"}
+        lines[hi:hi] = bloc
+    else:
+        if span is None:
+            return {'error': "entrée absente — l'état a changé depuis le plan, relancer"}
+        if mark not in lines[span[0]]:
+            return {'changed': [], 'skipped': [{'field': 'targets',
+                    'reason': "entrée écrite main (commentaires d'intention) — régénération refusée"}]}
+        lines[span[0]:span[1] + 1] = bloc
+
+    nouveau = '\n'.join(lines)
+    compile(nouveau, str(path), 'exec')
+    path.write_text(nouveau, encoding='utf-8')
+    return {'applied': {'targets': value}, 'changed': ['targets'], 'file': str(path)}
+
+
 def _project_modes(manifest: dict, *, apply: bool) -> dict:
     """Facette modes → entrée APP_MODES (app_modes.py). La facette EST l'entrée (littéral
     profond : domains → modes → inputs/settings) : comparaison en égalité PROFONDE (l'ordre
@@ -762,6 +830,11 @@ def _modes_path() -> Path:
     return Path(app_modes.__file__)
 
 
+def _metadata_path() -> Path:
+    from wama.common.utils import app_metadata
+    return Path(app_metadata.__file__)
+
+
 def _dict_bounds(lines: list, var: str) -> tuple:
     """(1re ligne APRÈS `<var> = {`, ligne du `}` fermant à indentation 0)."""
     debut = next(i for i, l in enumerate(lines) if l.startswith(f'{var} = {{'))
@@ -806,6 +879,40 @@ def _entry_fields_from_file(path: Path, var: str, app_id: str) -> Optional[dict]
                                 except (ValueError, SyntaxError):
                                     fields[kk.value] = _NONLITERAL
                     return fields
+            return None
+    return None
+
+
+def _value_entry_from_file(path: Path, var: str, app_id: str) -> tuple:
+    """(présente?, valeur) d'une entrée du dict `<var>` dont la valeur est UN littéral
+    (liste, scalaire) et non un dict de champs — ex. PROMPT_TARGETS. `_NONLITERAL` si
+    l'entrée est une expression."""
+    import ast
+    for node in ast.walk(ast.parse(path.read_text(encoding='utf-8'))):
+        if (isinstance(node, ast.Assign)
+                and any(getattr(t, 'id', None) == var for t in node.targets)
+                and isinstance(node.value, ast.Dict)):
+            for k, v in zip(node.value.keys, node.value.values):
+                if isinstance(k, ast.Constant) and k.value == app_id:
+                    try:
+                        return True, ast.literal_eval(v)
+                    except (ValueError, SyntaxError):
+                        return True, _NONLITERAL
+            return False, None
+    return False, None
+
+
+def _value_entry_span(lines: list, app_id: str, lo: int, hi: int) -> Optional[tuple]:
+    """Bornes (debut, fin) d'une entrée-VALEUR `    'app_id': [...]` — via AST
+    (lineno/end_lineno), robuste aux trois idiomes : mono-ligne, fermeture `    ],` écrite
+    main, continuation pprint alignée d'une entrée générée. `lo` = 1re ligne APRÈS
+    `<var> = {` (contrat de `_dict_bounds`) ⇒ l'Assign du registre a lineno == lo."""
+    import ast
+    for node in ast.walk(ast.parse('\n'.join(lines))):
+        if isinstance(node, ast.Assign) and node.lineno == lo and isinstance(node.value, ast.Dict):
+            for k, v in zip(node.value.keys, node.value.values):
+                if isinstance(k, ast.Constant) and k.value == app_id:
+                    return k.lineno - 1, v.end_lineno - 1
             return None
     return None
 
@@ -1018,13 +1125,14 @@ def un_write_back_app(manifest: dict, *, apply: bool = False) -> dict:
     qs = AppAccessPolicy.objects.filter(app_id=app_id)
     n = qs.count()
 
-    cibles = (('catalog_entry', _registry_path(), 'APP_CATALOG', True),
-              ('runner_entry', _runner_path(), 'GENERIC_APPS', False),
-              ('modes_entry', _modes_path(), 'APP_MODES', True))
+    cibles = (('catalog_entry', _registry_path(), 'APP_CATALOG', True, _entry_span),
+              ('runner_entry', _runner_path(), 'GENERIC_APPS', False, _entry_span),
+              ('modes_entry', _modes_path(), 'APP_MODES', True, _entry_span),
+              ('prompts_entry', _metadata_path(), 'PROMPT_TARGETS', False, _value_entry_span))
     generes = {}
-    for nom, path, var, _sep in cibles:
+    for nom, path, var, _sep, span_fn in cibles:
         lines = path.read_text(encoding='utf-8').split('\n')
-        span = _entry_span(lines, app_id, *_dict_bounds(lines, var))
+        span = span_fn(lines, app_id, *_dict_bounds(lines, var))
         generes[nom] = span is not None and _GEN_MARK.format(app_id=app_id) in lines[span[0]]
 
     if not apply:
@@ -1032,12 +1140,12 @@ def un_write_back_app(manifest: dict, *, apply: bool = False) -> dict:
                 **{f'would_remove_{nom}': g for nom, g in generes.items()}}
     qs.delete()
     out = {'app': app_id, 'removed': n}
-    for nom, path, var, blank_sep in cibles:
+    for nom, path, var, blank_sep, span_fn in cibles:
         out[f'{nom}_removed'] = False
         if not generes[nom]:
             continue
         lines = path.read_text(encoding='utf-8').split('\n')
-        span = _entry_span(lines, app_id, *_dict_bounds(lines, var))
+        span = span_fn(lines, app_id, *_dict_bounds(lines, var))
         if span is None:
             continue
         fin = span[1]
