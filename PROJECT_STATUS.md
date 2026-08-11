@@ -2499,6 +2499,20 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > reader compilent, **zéro champ inventé**, couverture 15/38 et 13/18 (le reste = glu B
 > énumérée) ; harnais ×2 re-CONFORMES ; roundtrip 10/10 ; grille inchangée.
 >
+> **Puis (12/08, 5ᵉ session, Fabien présent) : vérification complète + régénération
+> transcriber HORS ARBRE** (rendus des gabarits → scratch, dry-run write_back, diff vs
+> réel — jamais d'écrasement). Bilan : registres 6/6 **noop** (parité déjà acquise) ;
+> `app_name='wama.transcriber'` du urls.py réel = ligne INERTE (l'include racine force le
+> namespace par tuple — la normalisation du gabarit est sans effet fonctionnel) ; **piège
+> réel attrapé** : glu Celery dans workers.py (pas de tasks.py) → `_project_tasks` aurait
+> CRÉÉ un tasks.py à trous en doublon — garde corrigée (« absent » = aucune tâche déclarée
+> ne vit ailleurs) + tasks.py/models.py ajoutés au périmètre de restore du harnais.
+> **Harnais transcriber : CONFORME (3ᵉ app)** — 5 cibles strippées/régénérées, skips
+> motivés inspector (adapter code assumé, A3a) + tool_api (triade = VRAIE glu : routage
+> preprocess_audio, purge segments, cache seed, aperçu partiel temps réel, clé
+> transcript_id — ASSUMÉE main, le vocabulaire de hooks éventuel se décidera pendant B).
+> Portage déclaratif du transcriber : TERMINÉ (tout le régénérable passe le juge).
+>
 > 🔚 **POINT D'ENTRÉE SESSION SUIVANTE : marche B — rôle LLM `codegen` wama-dev-ai**
 > (route §10.3.B) : MISE À JOUR de `prompts/dev.txt` sur le modèle `librarian.txt` (contrat
 > BaseModelBackend + manifeste composé + few-shot corpus + interdits) + **banc de modèles

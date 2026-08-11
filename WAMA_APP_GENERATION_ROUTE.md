@@ -630,6 +630,16 @@ outillé avant d'ouvrir cette marche.
   pour une même valeur. Normalisé À LA SOURCE (`tool_api._describe_arg` : un défaut
   str-compatible se rend par sa valeur). Harnais reader ensuite **CONFORME** (strip 4 cibles,
   grille 87 % identique, smoke identique) — **2ᵉ app à passer le strip-régénération complet**.
+**Vérification post-A5 (2026-08-12, 5ᵉ session) — régénération transcriber HORS ARBRE,
+3ᵉ app CONFORME au harnais** : rendus des gabarits vers scratch + dry-run write_back + diff
+vs réel (jamais d'écrasement). Registres 6/6 noop ; `app_name='wama.transcriber'` = ligne
+INERTE (include racine à tuple) ; **piège CREATE-ONLY attrapé et corrigé** — la glu Celery
+du transcriber vit dans workers.py (pas de tasks.py) : « absent » = aucune tâche déclarée
+ne vit ailleurs, sinon création refusée ; tasks.py/models.py ajoutés au restore du harnais.
+Skips ASSUMÉS : detail = adapter code (A3a), triade = vraie glu (routage `preprocess_audio`,
+purge segments, aperçu partiel temps réel) — un vocabulaire de hooks déclaratifs
+(`start_hook`/`task_router`/sources d'aperçu) reste possible, à trancher pendant B.
+
 **Palier A5 ✅ LIVRÉ (2026-08-12) — gabarit `models_gen`, MARCHE A CLOSE (A1→A5)** :
 la facette `processing` porte **`model_spec`** (spine MESURÉ par introspection Django —
 identité des classes, user/fichier d'entrée/ingest, ordering, couverture params, batch +
