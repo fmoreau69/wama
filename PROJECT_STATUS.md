@@ -2417,7 +2417,7 @@ travail**. La base LIVE est celle de **WSL2 (Postgres 16)**, conforme à
 exécute WAMA nativement sous Windows (`venv_win runserver`) ; sinon c'est une taxe d'entretien
 supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 
-## §REPRISE — 2026-08-11→12 (3ᵉ-4ᵉ sessions, marches C + A1→A4 CLOSES, reste A5) : harnais + gabarits + triades + composition
+## §REPRISE — 2026-08-11→12 (3ᵉ-4ᵉ sessions, marches C + A COMPLÈTES A1→A5) : harnais + gabarits + triades + composition
 
 > Le JUGE du plan C→A→B (route §10.3) est outillé : **`manage.py app_regen_check <app>`**
 > rejoue la passe intégrée en commande — gardes git/corpus, strip (`strip_app_declarations`,
@@ -2491,14 +2491,26 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > **91 manifestes modèle, 0 refusé** (= le lien `AIModel.source` 91/91), corpus total
 > **110** ; noms assainis (`:`→`__`, garde anti-collision) ; sert revue humaine + few-shot,
 > la composition reste en extraction live.
+> **Puis A5 livré — MARCHE A CLOSE (12/08, 4ᵉ session)** : facette processing porte
+> **`model_spec`** (spine mesuré par introspection) ; gabarit `models_gen` = squelette
+> complet (spine F5 + options INVERSES de derive_from_model + batch/liaison + trou de
+> résultat marqué B) ; projecteur **CREATE-ONLY DURCI** (un models.py existant porte des
+> migrations — jamais touché ; makemigrations reste MAIN). Juge : rendus transcriber +
+> reader compilent, **zéro champ inventé**, couverture 15/38 et 13/18 (le reste = glu B
+> énumérée) ; harnais ×2 re-CONFORMES ; roundtrip 10/10 ; grille inchangée.
 >
-> 🔚 **POINT D'ENTRÉE SESSION SUIVANTE : marche A5 — `models.py`** (dernier gabarit :
-> migrations + idiomes de stockage ; cadrage A0 : spine 9/10, converter = déviant double →
-> juger sur transcriber), puis B (pilote transcriber — exige d'abord son detail en spec
-> déclarative OU un adapter assumé). Dette gardes = tâches anonymizer (avec son chantier).
+> 🔚 **POINT D'ENTRÉE SESSION SUIVANTE : marche B — rôle LLM `codegen` wama-dev-ai**
+> (route §10.3.B) : MISE À JOUR de `prompts/dev.txt` sur le modèle `librarian.txt` (contrat
+> BaseModelBackend + manifeste composé + few-shot corpus + interdits) + **banc de modèles
+> jugé par le harnais C** (candidat `qwen3.6:35b` MoE, challengers qwen3-coder:30b/gemma4) —
+> ⚠ le banc charge le GPU : à lancer AVEC Fabien, jamais en autonome (règle crashs hôte).
+> Pilote transcriber (exige d'abord son detail en spec déclarative OU un adapter assumé) ;
+> pilote 2 = librarian `--repo` ; cible finale = Translator DE ZÉRO (le squelette neuf
+> — urls/tasks/apps/models/triade — se rend déjà, B remplit les corps). Dette gardes =
+> tâches anonymizer (avec son chantier).
 >
 > **État git en fin de session** : le doute sur `d934b38` est levé (poussé, vérifié 12/08
-> 4ᵉ session) ; la 4ᵉ session ajoute `a8ab8a1` (A4a) + `0debbde` (A4b) + le commit docs —
+> 4ᵉ session) ; la 4ᵉ session ajoute A4a/A4b + docs + micro-marche corpus model + A5 —
 > push = demander à Fabien. Worktree `D:\WAMA\wt-regen-converter` (`regen/converter`) :
 > PROPRE, ff-mergé jusqu'à A4b inclus — le ff-merger depuis dev avant tout nouveau run du
 > harnais (et copier les manifests/apps/*.json frais si le corpus a bougé). Aucune migration

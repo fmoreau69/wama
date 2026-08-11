@@ -83,7 +83,8 @@ chacun de leur côté :
   body 12 facettes ; **write-back : 10 facettes** (`PROJECTED_FACETS` — `access` DB +
   identity/ports/capabilities/studio/modes/prompts/params/inspector/tool_api en CODE marqué
   `[manifest-gen]`) **+ `processing` partiel** (urls.py régénérable, tasks.py mince — gabarits
-  `common/manifests/codegen/`, §10.3 marches A) ; reste models (A5) + processing complet.
+  `common/manifests/codegen/`, §10.3 marches A — models.py A5 en CREATE-ONLY) ; les corps
+  de backends et champs de résultat = marche B.
   L'UI, elle, est générée AU RUNTIME par les briques une fois les registres
   alimentés — **la vue d'ensemble du tunnel et l'INVARIANT de jointure (« rien ne lit le
   manifeste au runtime, un seul point de contact : les registres ») vivent dans
@@ -432,7 +433,7 @@ WamaParams sur les apps hand-built restantes + modale batch + studio→WamaParam
 `renderNodeParams`) ; chips ; `select_model()` ; **enum de statut commune** (tuer les 3 tables
 d'alias) ; `during_preview` émission (9 apps).
 
-### §10.3 — Write-back (code-gen) depuis le manifeste — `access` ✅ (DB) + `identity`/`ports`/`capabilities`/`studio`/`modes`/`prompts`/`params` ✅ (2026-08-11) + `inspector` ✅ (A3) + `tool_api` ✅ (A4), reste 2 facettes (`models`, `processing` partiel)
+### §10.3 — Write-back (code-gen) depuis le manifeste — `access` ✅ (DB) + `identity`/`ports`/`capabilities`/`studio`/`modes`/`prompts`/`params` ✅ (2026-08-11) + `inspector` ✅ (A3) + `tool_api` ✅ (A4) ; `processing` = projection PARTIELLE assumée (urls comparable ; tasks A2b et models A5 en CREATE-ONLY — les corps/champs restants = marche B)
 
 **Palier `params` (soir, sur dev)** : extract MULTI-SCHÉMAS — tous les attributs `*PARAMS_JSON`
 (trou #10 résorbé : imager IMAGE+VIDEO, enhancer MEDIA+AUDIO étaient invisibles), facette
@@ -629,6 +630,23 @@ outillé avant d'ouvrir cette marche.
   pour une même valeur. Normalisé À LA SOURCE (`tool_api._describe_arg` : un défaut
   str-compatible se rend par sa valeur). Harnais reader ensuite **CONFORME** (strip 4 cibles,
   grille 87 % identique, smoke identique) — **2ᵉ app à passer le strip-régénération complet**.
+**Palier A5 ✅ LIVRÉ (2026-08-12) — gabarit `models_gen`, MARCHE A CLOSE (A1→A5)** :
+la facette `processing` porte **`model_spec`** (spine MESURÉ par introspection Django —
+identité des classes, user/fichier d'entrée/ingest, ordering, couverture params, batch +
+liaison via `batch_sync.SYNCED`). `render_models` rend le squelette COMPLET : spine F5
+(user, FileField, WAMA_INGEST, task_id/STATUS_CHOICES/progress/error_message, Meta,
+`__str__`, `filename`) + champs d'option = l'INVERSE de `derive_from_model`
+(select→CharField+choices, toggle→BooleanField, number/range→Integer/FloatField,
+textarea→TextField) + Batch/liaison + TROU marqué pour les champs de RÉSULTAT (marche B).
+Projecteur `_project_models` **CREATE-ONLY DURCI** : un models.py existant porte des
+MIGRATIONS appliquées — jamais comparé, jamais réécrit ; `makemigrations` reste un geste
+MAIN (le moteur ne touche jamais la base, invariant du harnais). **Juge du rendu** (pilotes
+transcriber = spine conforme, + reader) : compile, **ZÉRO champ inventé** ; reader 13/18
+couverts (5 restants = champs de résultat, le trou B exact), transcriber 15/38 (23 = glu
+métier réelle : correction/résumé/segments — bac B). Harnais converter + reader re-CONFORMES
+avec l'extraction enrichie ; roundtrip 10/10 ; grille inchangée ; validation `model_spec` à
+l'ingest. Le juge complet du squelette neuf = pilote B (Translator).
+
 **Palier A4 ✅ LIVRÉ (2026-08-12) — triades DÉCLARATIVES `TRIAD_SPECS`, facette `tool_api`
 PROJETABLE ; A4 CLOS** : mesure A0 confirmée — `start_<app>`/`get_<app>_status` étaient un
 squelette conventionnel dupliqué par app. **A4a** : entrée déclarative `TRIAD_SPECS`
