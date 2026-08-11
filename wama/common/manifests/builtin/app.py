@@ -464,18 +464,21 @@ def _to_dict(obj) -> dict:
 # Propriété de sûreté (SPEC §2.1) : rien ne lit le manifeste en direct ; la projection est un geste
 # EXPLICITE, jamais automatique. Facettes que `write_back_app` SAIT écrire (une entrée ici = un
 # projecteur en bas de fichier) :
-#   - `access`   → AppAccessPolicy (DB, runtime)
-#   - `identity` → entrée APP_CATALOG (app_registry.py, CODE — §10.3, pilote converter 2026-08-11)
+#   - `access`       → AppAccessPolicy (DB, runtime)
+#   - `identity`     → entrée APP_CATALOG (app_registry.py, CODE — §10.3, pilote converter)
+#   - `ports`        → input_types/output_types de la même entrée (inversion studio_node_ports)
+#   - `capabilities` → has_batch/batch_type/has_url_import/has_youtube (le déclaratif seul)
 # Le reste des facettes `backend=code` part dans `codegen_required`. Le tri code/db vient de
 # `projection.FACET_TARGETS` (source unique) — l'ancienne liste locale codée en dur avait divergé
 # (elle omettait capabilities/modes et citait models/prompts), corrigé 2026-08-11.
-PROJECTED_FACETS = ('access', 'identity')
+PROJECTED_FACETS = ('access', 'identity', 'ports', 'capabilities')
 
 
 def write_back_app(manifest: dict, *, apply: bool = False) -> dict:
     """Projette le manifeste `app` vers l'état committé. `apply=False` = DRY-RUN (retourne le plan) ;
     `apply=True` = écrit (idempotent, réversible ; transactionnel pour la DB, garde `compile()`
-    pour le code). Facettes écrites : `access` (DB) + `identity` (code, APP_CATALOG)."""
+    pour le code). Facettes écrites : `access` (DB) + `identity`/`ports`/`capabilities`
+    (code, entrée APP_CATALOG — moteur commun, champs disjoints par facette)."""
     from ..projection import FACET_TARGETS   # import tardif : source unique du tri code/db
     key = manifest.get('key')
     body = manifest.get('body', {}) or {}
@@ -485,6 +488,10 @@ def write_back_app(manifest: dict, *, apply: bool = False) -> dict:
     }
     if body.get('identity'):
         out['identity'] = _project_identity(manifest, apply=apply)
+    if body.get('ports'):
+        out['ports'] = _project_ports(manifest, apply=apply)
+    if body.get('capabilities'):
+        out['capabilities'] = _project_capabilities(manifest, apply=apply)
     out['codegen_required'] = [f for f, (_cible, backend) in FACET_TARGETS.items()
                                if backend == 'code' and body.get(f) and f not in PROJECTED_FACETS]
     return out
@@ -521,13 +528,38 @@ def _project_access(app_id: str, access: dict, *, apply: bool) -> dict:
             '_manifest_key': f'app:{app_id}'}
 
 
-# ── Facette `identity` → APP_CATALOG (app_registry.py) — 1re facette CODE (§10.3) ─
-# Champs possédés : la facette (icon/category/url_name/input_extensions) + l'enveloppe
-# (name→label, description). `color` est EXCLUE volontairement : elle est DÉRIVÉE à l'import
-# par `_assign_derived_colors()` (teinte de catégorie + rang alphabétique) — l'écrire la
-# figerait en override et fausserait la nuance des apps voisines de la catégorie.
+# ── Facettes → APP_CATALOG (app_registry.py) — moteur COMMUN d'écriture code (§10.3) ─
+# TROIS facettes écrivent dans la MÊME entrée APP_CATALOG, chacune possédant des champs
+# DISJOINTS (moteur commun, un champ n'appartient qu'à une facette) :
+#   identity     → label/category/icon/url_name/description/input_extensions
+#   ports        → input_types/output_types (inversion de `studio_node_ports` : le port
+#                  travail rend les médias DANS L'ORDRE (= priorité, §10.1), le port prompt
+#                  redevient un 'text' en QUEUE ; les ports `reference` sont IGNORÉS ici —
+#                  ils dérivent d'APP_MODES, donc appartiennent à la facette modes)
+#   capabilities → has_batch/batch_type/has_url_import/has_youtube — le DÉCLARATIF seul :
+#                  `accepts_url` est DÉRIVÉ (has_url_import OU ingest), et les drapeaux
+#                  (inspector, layout, during_preview…) sont MESURÉS par la grille
+#                  (`app_capabilities` fusionne conformity_report par-dessus l'entrée) —
+#                  les écrire depuis le manifeste projetterait une mesure comme déclaration.
+# `color` est EXCLUE : dérivée à l'import par `_assign_derived_colors()` (teinte de catégorie
+# + rang alphabétique) — l'écrire la figerait en override.
+CATALOG_FIELD_ORDER = ('label', 'category', 'icon', 'url_name', 'description',
+                       'input_extensions', 'input_types', 'batch_type', 'has_batch',
+                       'has_url_import', 'has_youtube', 'output_types')
 IDENTITY_FIELDS = ('label', 'category', 'icon', 'url_name', 'description', 'input_extensions')
+PORTS_FIELDS = ('input_types', 'output_types')
+CAPABILITY_FIELDS = ('has_batch', 'batch_type', 'has_url_import', 'has_youtube')
 _GEN_MARK = '[manifest-gen app:{app_id}]'
+
+
+class _NonLiteral:
+    """Sentinelle : champ présent dans le fichier mais porté par une EXPRESSION (constantes,
+    appel `_conv(...)`) — comparable via le runtime, jamais éditable par le moteur."""
+    def __repr__(self):
+        return '⟨expression⟩'
+
+
+_NONLITERAL = _NonLiteral()
 
 
 def _identity_target(manifest: dict) -> dict:
@@ -542,32 +574,102 @@ def _identity_target(manifest: dict) -> dict:
     }
 
 
-def _identity_current(app_id: str) -> Optional[dict]:
-    from wama.common.app_registry import APP_CATALOG
-    cat = APP_CATALOG.get(app_id)
-    if cat is None:
-        return None
-    cur = {c: cat.get(c) for c in IDENTITY_FIELDS}
-    cur['description'] = cur.get('description') or ''
-    cur['input_extensions'] = list(cur.get('input_extensions') or [])
-    return cur
+def _ports_target(manifest: dict) -> dict:
+    ports = (manifest.get('body') or {}).get('ports') or {}
+    ins = ports.get('inputs') or []
+    work = next((p for p in ins if isinstance(p, dict) and p.get('group') == 'travail'), None)
+    types = [t for t in ((work or {}).get('types') or []) if t]
+    if any(isinstance(p, dict) and p.get('group') == 'prompt' for p in ins):
+        types = types + ['text']
+    outs = ports.get('outputs') or []
+    out_types = [t for t in (((outs[0] or {}).get('types') if outs else None) or []) if t]
+    return {'input_types': types, 'output_types': out_types}
+
+
+def _capabilities_target(manifest: dict) -> dict:
+    caps = (manifest.get('body') or {}).get('capabilities') or {}
+    return {
+        'has_batch': bool(caps.get('has_batch')),
+        'batch_type': caps.get('batch_type'),
+        'has_url_import': bool(caps.get('has_url_import')),
+        'has_youtube': bool(caps.get('has_youtube')),
+    }
+
+
+def _io_sig(fields: dict) -> dict:
+    """Signature E/S pour comparer en ESPACE DE FACETTE : la position du 'text' dans le tuple
+    écrit main est une variation d'écriture sans effet (la dérivation des ports sépare médias
+    et prompt) — comparer les tuples bruts fabriquerait de fausses dérives."""
+    from wama.common.app_registry import normalize_types
+    ins = normalize_types(list(fields.get('input_types') or []))
+    return {'media': [t for t in ins if t != 'text'], 'text': 'text' in ins,
+            'out': normalize_types(list(fields.get('output_types') or []))}
+
+
+def _norm_v(v):
+    if isinstance(v, tuple):
+        return list(v)
+    return v
 
 
 def _project_identity(manifest: dict, *, apply: bool) -> dict:
-    app_id = manifest.get('key')
     target = _identity_target(manifest)
-    current = _identity_current(app_id)
-    deltas = ([c for c in IDENTITY_FIELDS if target[c] != current[c]]
-              if current is not None else list(IDENTITY_FIELDS))
+    def deltas(cur):
+        out = []
+        for c in IDENTITY_FIELDS:
+            cv = cur.get(c)
+            if c == 'description' and cv is None:
+                cv = ''
+            if c == 'input_extensions':
+                cv = list(cv or [])
+            if _norm_v(target[c]) != _norm_v(cv):
+                out.append(c)
+        return out
+    return _project_catalog_facet(manifest.get('key'), target, deltas, apply=apply)
+
+
+def _project_ports(manifest: dict, *, apply: bool) -> dict:
+    target = _ports_target(manifest)
+    def deltas(cur):
+        sig_t, sig_c = _io_sig(target), _io_sig(cur)
+        out = []
+        if (sig_t['media'], sig_t['text']) != (sig_c['media'], sig_c['text']):
+            out.append('input_types')
+        if sig_t['out'] != sig_c['out']:
+            out.append('output_types')
+        return out
+    return _project_catalog_facet(manifest.get('key'), target, deltas, apply=apply)
+
+
+def _project_capabilities(manifest: dict, *, apply: bool) -> dict:
+    target = _capabilities_target(manifest)
+    def deltas(cur):
+        out = []
+        for c in CAPABILITY_FIELDS:
+            tv, cv = target[c], cur.get(c)
+            if isinstance(tv, bool):
+                cv = bool(cv)
+            if _norm_v(tv) != _norm_v(cv):
+                out.append(c)
+        return out
+    return _project_catalog_facet(manifest.get('key'), target, deltas, apply=apply)
+
+
+def _project_catalog_facet(app_id: str, target: dict, deltas_fn, *, apply: bool) -> dict:
+    """Moteur commun des facettes → APP_CATALOG : create (entrée générée marquée) / update
+    (régénération si marquée, chirurgie champ par champ si écrite main) / noop. La vérité
+    d'EXISTENCE et de valeur se lit dans le FICHIER (`ast`), pas dans l'APP_CATALOG importé —
+    dans un apply multi-facettes du même process, le module importé est périmé dès la
+    première écriture."""
+    current = _catalog_current(app_id, tuple(target))
+    deltas = deltas_fn(current) if current is not None else list(target)
     op = 'create' if current is None else ('update' if deltas else 'noop')
     if not apply:
         return {'op': op, 'target': target, 'current': current, 'would_change': deltas}
     if op == 'noop':
         return {'op': op, 'changed': [], '_manifest_key': f'app:{app_id}'}
-    res = _write_identity_entry(app_id, target, deltas, create=(op == 'create'))
+    res = _write_catalog_fields(app_id, target, deltas, create=(op == 'create'))
     res.update({'op': op, 'previous': current, '_manifest_key': f'app:{app_id}',
-                # l'APP_CATALOG déjà importé dans CE process reste l'ancien : toute
-                # vérification (extract, grille) se fait dans un process neuf.
                 'reload_required': True})
     return res
 
@@ -595,33 +697,80 @@ def _entry_span(lines: list, app_id: str, lo: int, hi: int) -> Optional[tuple]:
     return None
 
 
-def _identity_entry_lines(app_id: str, target: dict) -> list:
-    """Bloc d'entrée APP_CATALOG portant les seuls champs de la facette identity, dans l'idiome
-    du fichier. Marqué : c'est la trace `_manifest_key` version code — elle borne ce que
-    `un_write_back_app` a le droit de supprimer."""
+def _entry_fields_from_file(app_id: str) -> Optional[dict]:
+    """Champs de l'entrée APP_CATALOG lus dans le FICHIER (la vérité d'écriture) : littéraux
+    évalués par `ast.literal_eval`, expressions (constantes, `_conv(...)`) → `_NONLITERAL`.
+    None si l'entrée est absente. C'est CE lecteur qui rend le moteur sûr en apply
+    multi-facettes : le module importé, lui, fige l'état d'avant la première écriture."""
+    import ast
+    src = _registry_path().read_text(encoding='utf-8')
+    for node in ast.walk(ast.parse(src)):
+        if (isinstance(node, ast.Assign)
+                and any(getattr(t, 'id', None) == 'APP_CATALOG' for t in node.targets)
+                and isinstance(node.value, ast.Dict)):
+            for k, v in zip(node.value.keys, node.value.values):
+                if isinstance(k, ast.Constant) and k.value == app_id:
+                    fields = {}
+                    if isinstance(v, ast.Dict):
+                        for kk, vv in zip(v.keys, v.values):
+                            if isinstance(kk, ast.Constant):
+                                try:
+                                    fields[kk.value] = ast.literal_eval(vv)
+                                except (ValueError, SyntaxError):
+                                    fields[kk.value] = _NONLITERAL
+                    return fields
+            return None
+    return None
+
+
+def _catalog_current(app_id: str, champs: tuple) -> Optional[dict]:
+    """Valeurs courantes des champs demandés : littéral du fichier d'abord, repli RUNTIME pour
+    les expressions (leur valeur évaluée à l'import — sémantiquement juste, jamais éditable)."""
+    fichier = _entry_fields_from_file(app_id)
+    if fichier is None:
+        return None
+    from wama.common.app_registry import APP_CATALOG
+    runtime = APP_CATALOG.get(app_id) or {}
+    cur = {}
+    for c in champs:
+        v = fichier.get(c)
+        if v is _NONLITERAL:
+            v = runtime.get(c)
+        cur[c] = list(v) if isinstance(v, (list, tuple)) else v
+    return cur
+
+
+def _render_entry_lines(app_id: str, fields: dict) -> list:
+    """Entrée APP_CATALOG générée (champs connus seuls, ordre canonique), dans l'idiome du
+    fichier. Le marqueur = la trace `_manifest_key` version code — il borne ce que
+    `un_write_back_app` a le droit de supprimer et ce que le moteur a le droit de régénérer."""
     mark = _GEN_MARK.format(app_id=app_id)
-    out = [f"    '{app_id}': {{  # {mark} entrée GÉNÉRÉE par write_back_app (facette identity) ;",
+    out = [f"    '{app_id}': {{  # {mark} entrée GÉNÉRÉE par write_back_app ;",
            "        # la compléter par les write-backs des autres facettes, pas à la main."]
-    for champ in ('label', 'category', 'icon', 'url_name', 'description'):
-        if target.get(champ) is not None:
-            out.append(f"        '{champ}': {target[champ]!r},")
-    exts = target.get('input_extensions') or []
-    if exts:
-        out.append("        'input_extensions': (")
-        ligne = "            "
-        for e in exts:
-            tok = f"{e!r}, "
-            if len(ligne) + len(tok) > 98:
-                out.append(ligne.rstrip())
-                ligne = "            "
-            ligne += tok
-        out.append(ligne.rstrip())
-        out.append("        ),")
+    for champ in CATALOG_FIELD_ORDER:
+        if champ not in fields or fields[champ] is None:
+            continue
+        val = fields[champ]
+        if champ == 'input_extensions' and isinstance(val, (list, tuple)) and val:
+            out.append("        'input_extensions': (")
+            ligne = "            "
+            for e in val:
+                tok = f"{e!r}, "
+                if len(ligne) + len(tok) > 98:
+                    out.append(ligne.rstrip())
+                    ligne = "            "
+                ligne += tok
+            out.append(ligne.rstrip())
+            out.append("        ),")
+            continue
+        if isinstance(val, list):
+            val = tuple(val)
+        out.append(f"        '{champ}': {val!r},")
     out += ["    },", ""]
     return out
 
 
-def _write_identity_entry(app_id: str, target: dict, deltas: list, *, create: bool) -> dict:
+def _write_catalog_fields(app_id: str, target: dict, deltas: list, *, create: bool) -> dict:
     import re
     path = _registry_path()
     lines = path.read_text(encoding='utf-8').split('\n')
@@ -640,37 +789,50 @@ def _write_identity_entry(app_id: str, target: dict, deltas: list, *, create: bo
             if m and m.group(1) > app_id:
                 pos = i
                 break
-        lines[pos:pos] = _identity_entry_lines(app_id, target)
-        changed = [c for c in IDENTITY_FIELDS if target.get(c) not in (None, '', [])]
+        lines[pos:pos] = _render_entry_lines(app_id, target)
+        changed = [c for c in target if target.get(c) not in (None, '', [])]
     elif _GEN_MARK.format(app_id=app_id) in lines[span[0]]:
-        # entrée à nous : régénération entière du bloc (idempotente par construction)
+        # entrée à nous : régénération entière — UNION des champs littéraux déjà écrits
+        # (toutes facettes confondues, relus du FICHIER) et des champs de la facette en cours.
+        merged = {c: v for c, v in (_entry_fields_from_file(app_id) or {}).items()
+                  if c in CATALOG_FIELD_ORDER and v is not _NONLITERAL}
+        merged.update(target)
         fin = span[1]
         vide = 1 if fin + 1 < len(lines) and lines[fin + 1].strip() == '' else 0
-        lines[span[0]:fin + 1 + vide] = _identity_entry_lines(app_id, target)
+        lines[span[0]:fin + 1 + vide] = _render_entry_lines(app_id, merged)
         changed = list(deltas)
     else:
         # entrée écrite MAIN : chirurgie champ par champ, jamais de réécriture du bloc
         # (il porte les champs des autres facettes et leurs commentaires d'audit)
+        fichier = _entry_fields_from_file(app_id) or {}
         for champ in deltas:
             span = _entry_span(lines, app_id, *_catalog_bounds(lines))  # re-borne après chaque édition
-            if champ == 'input_extensions':
-                # valeur écrite main = expression de constantes (IMAGE_EXTENSIONS + …) :
-                # la remplacer par un littéral détruirait l'intention — écart à trancher
-                # (déclarer au manifeste / porter / trou de route), pas à écraser.
+            existant = fichier.get(champ, None)
+            if existant is _NONLITERAL:
+                # valeur écrite main = expression (IMAGE_EXTENSIONS + …) : la remplacer par un
+                # littéral détruirait l'intention — écart à trancher (déclarer / porter / trou
+                # de route), pas à écraser.
                 skipped.append({'field': champ,
-                                'reason': "expression non littérale (constantes) — édition refusée"})
+                                'reason': "expression non littérale — édition refusée"})
                 continue
+            val = tuple(target[champ]) if isinstance(target[champ], list) else target[champ]
             pat = re.compile(rf"^(\s{{8}}'{champ}':\s+)(.*)$")
             for i in range(span[0] + 1, span[1]):
                 m = pat.match(lines[i])
                 if m:
                     mm = re.match(r"(.*?,)(\s*#.*)?$", m.group(2))
                     comment = (mm.group(2) or '') if mm else ''
-                    lines[i] = f"{m.group(1)}{target[champ]!r},{comment}"
+                    lines[i] = f"{m.group(1)}{val!r},{comment}"
                     changed.append(champ)
                     break
             else:
-                lines.insert(span[0] + 1, f"        '{champ}': {target[champ]!r},")
+                if champ in fichier:
+                    # présent mais pas sur UNE ligne éditable (littéral multi-ligne) : on
+                    # n'insère pas un doublon de clé, on refuse.
+                    skipped.append({'field': champ,
+                                    'reason': "valeur multi-ligne — édition refusée"})
+                    continue
+                lines.insert(span[0] + 1, f"        '{champ}': {val!r},")
                 changed.append(champ)
 
     nouveau = '\n'.join(lines)

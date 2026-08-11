@@ -427,19 +427,32 @@ WamaParams sur les apps hand-built restantes + modale batch + studio→WamaParam
 `renderNodeParams`) ; chips ; `select_model()` ; **enum de statut commune** (tuer les 3 tables
 d'alias) ; `during_preview` émission (9 apps).
 
-### §10.3 — Write-back (code-gen) depuis le manifeste — `access` ✅ (DB, 2026-07-23) + `identity` ✅ (code, 2026-08-11), reste 8 facettes
+### §10.3 — Write-back (code-gen) depuis le manifeste — `access` ✅ (DB) + `identity`/`ports`/`capabilities` ✅ (code, 2026-08-11), reste 6 facettes
 Faire grandir `write_back_app` facette par facette, chaque incrément jugé par le diff
 régénéré/existant (pilote de régénération : converter puis transcriber, acté 2026-08-11).
-Palier `identity` (branche `regen/converter`, bac à sable worktree) : 1re facette CODE —
-projection vers l'entrée `APP_CATALOG` (`app_registry.py`), chemins create (entrée générée
-marquée `[manifest-gen app:<id>]`, position alphabétique car la couleur dérive du rang) /
-update (chirurgie champ par champ sur entrée main, `input_extensions` refusé si expression
-de constantes) / noop ; garde `compile()` avant toute écriture ; réversible marqueur-gated
-(une entrée main n'est JAMAIS supprimée). Vérifié : diff identity manifeste↔ré-extraction
-AUCUN, couleur re-dérivée identique (`#46d8a7`), idempotence (re-apply=noop), roundtrip
-10 apps 2/N projetables fidélité OK. Le registre des facettes écrites vit dans
-`PROJECTED_FACETS` (`builtin/app.py`) ; `facet_report`/`codegen_required` le LISENT
-(l'ancienne liste locale divergente de `write_back_app` est supprimée).
+
+**Moteur commun APP_CATALOG** (branche `regen/converter`, bac à sable worktree) : les 3 facettes
+code écrivent la MÊME entrée `APP_CATALOG` avec des champs DISJOINTS —
+- `identity` → label/category/icon/url_name/description/input_extensions (`color` EXCLUE : dérivée
+  par `_assign_derived_colors()`, l'écrire la figerait en override) ;
+- `ports` → input_types/output_types par INVERSION de `studio_node_ports` (ordre = priorité §10.1,
+  le port prompt redevient un `text` en queue ; ports `reference` ignorés — ils dérivent
+  d'APP_MODES donc de la facette modes) ; comparaison en ESPACE DE FACETTE (`_io_sig`) pour ne pas
+  fabriquer de fausses dérives sur la position du `text` ;
+- `capabilities` → has_batch/batch_type/has_url_import/has_youtube, le DÉCLARATIF seul
+  (`accepts_url` dérivé ; drapeaux mesurés exclus, cf. trou #16).
+
+Contrats tenus (tous VÉRIFIÉS sur le pilote converter) : create = entrée générée marquée
+`[manifest-gen app:<id>]` en position alphabétique / update = régénération entière si entrée
+marquée (union des champs littéraux relus du FICHIER), chirurgie champ par champ si entrée main
+(expression de constantes et multi-ligne REFUSÉES — jamais de mutilation) / noop ; garde
+`compile()` avant toute écriture ; réversibilité marqueur-gated (une entrée main n'est JAMAIS
+supprimée). ⚠ Vérité d'état lue dans le FICHIER (`ast.literal_eval`), pas dans le module importé
+— en apply multi-facettes le module est périmé dès la 1re écriture. Mesuré : diff
+identity/ports AUCUN, couleur re-dérivée identique, `studio_redundancy` verdict `derived`,
+idempotence (triple noop), chirurgie main = 1 ligne (commentaires intacts), roundtrip 10 apps
+**4/N projetables** fidélité OK. `PROJECTED_FACETS` (`builtin/app.py`) = registre des facettes
+écrites ; `facet_report`/`codegen_required` le LISENT.
 
 ---
 
@@ -462,6 +475,7 @@ AUCUN, couleur re-dérivée identique (`#46d8a7`), idempotence (re-apply=noop), 
 | 12 | anonymizer : refactor yolo/SAM3 en sélecteur modèle groupé + switch capacités (pas un « mode ») | F2/F3 | refactor UX |
 | 13 | avatarizer (rapide/qualité=param) + composer (music/bruitage=sélection modèle) : sortir du mécanisme modes | F2 | simplification |
 | 14 | **ingest média** (`source_url`→fichier local). ✅ **Mécanisme commun bâti** (2026-07-22, `d8960e5`) : `common/utils/source_ingest.ensure_local_input(instance)`, piloté par une déclaration modèle `WAMA_INGEST = {source, target, mode: media\|audio\|smart, name_field?, size_field?, title_field?}` (stopgap). Les 2 wrappers describer/transcriber sont **fusionnés** dessus (le transcriber **crashait** sans ce maillon). Réutilise `url_ingest.fetch_url_content` / `video_utils.upload_media_from_url`/`download_youtube_audio`. **Reste (côté instance manifeste) :** capacité **F2** `accepts_url`/`accepts_local_path` (→ génère la card au lieu du `show_url` manuel) + **facette F5** `ingest:{…}` qui *projette* vers `WAMA_INGEST` (remplacer le stopgap). Adopter l'URL sur une app = déclarer `WAMA_INGEST` + appeler `ensure_local_input` en tête de tâche. **✅ EXTRACT fait 2026-07-23** : `extract_app` capte `capabilities.accepts_url` + `processing.ingest` (lit `WAMA_INGEST` du modèle d'item via DetailRegistry ; transcriber/describer remontent leur spec, apps sans ingest → None). Reste = la **projection write-back** (manifeste → `WAMA_INGEST`), avec le reste de l'app_gen. | F2/F5 | extract ✅, projection ⏳ |
+| 16 | **drapeaux de `capabilities` non régénérables** (mesuré 2026-08-11, pilote converter) : la facette mélange 3 natures — (a) 4 scalaires déclaratifs (✅ projetés), (b) drapeaux d'ÉTAT de conformité (inspector, layout, during_preview… : `_conv()` écrasé par la grille — ils convergeront par la MESURE une fois le code de l'app régénéré, ne JAMAIS les projeter), (c) N/A déclarés (`None` dans `_conv`, ex. `model_help=None` du converter) qui SONT du déclaratif mais vivent dans l'appel `_conv(...)` — leur projection exigerait d'écrire un appel `_conv(model_help=None, …)`, à trancher | F2 | manifeste/frontière déclaré-mesuré |
 | 15 | **`system_tools` non déclarés** (chromium, ffmpeg, rsvg…) — le volet **librairies** du manifeste est CLOS (2026-08-03/11 : `requires:{kind:library}` dans l'enveloppe, résolu et bloquant, kind + registre `Library` + `write_back_library` livrés, 1er lien transcriber→faster-whisper) ; ce qui manque encore est la déclaration des **outils système** et leur provisionneur commun (cf. `PROJECT_STATUS` §23.6, qui annonçait ce trou sans qu'il ait été reporté ici) | F4/F5 | manifeste |
 
 ---
