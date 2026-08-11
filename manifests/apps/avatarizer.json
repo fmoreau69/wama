@@ -225,7 +225,14 @@
       ]
     },
     "studio": {
-      "auto_start": null,
+      "extra_params_spec": [
+        {
+          "label": "Avatar",
+          "name": "avatar_gallery_name",
+          "options_source": "avatar_gallery",
+          "type": "select"
+        }
+      ],
       "fixed_kwargs": {
         "avatar_source": "gallery",
         "mode": "standalone"
@@ -234,8 +241,9 @@
         "audio"
       ],
       "input_kwarg": "audio_path",
-      "output_type": "video",
-      "primary_input": null,
+      "io_scope": "nœud V1 = audio seul ; l'avatar vient de la galerie (fixed_kwargs), pas du port image de la card",
+      "params_attr": "PARAMS_JSON",
+      "params_module": "wama.avatarizer.params",
       "runnable": true
     },
     "tool_api": {

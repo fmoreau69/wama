@@ -366,15 +366,13 @@
       ]
     },
     "studio": {
-      "auto_start": null,
-      "fixed_kwargs": null,
       "input_kinds": [
         "image",
         "video"
       ],
-      "input_kwarg": null,
-      "output_type": "auto",
-      "primary_input": null,
+      "io_scope": "nœud = domaine média (image+vidéo) ; le domaine audio de l'app n'est pas exposé au studio",
+      "params_attr": "MEDIA_PARAMS_JSON",
+      "params_module": "wama.enhancer.params",
       "runnable": true
     },
     "tool_api": {

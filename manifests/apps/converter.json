@@ -1006,17 +1006,8 @@
     },
     "studio": {
       "auto_start": true,
-      "fixed_kwargs": null,
-      "input_kinds": [
-        "image",
-        "video",
-        "audio",
-        "document",
-        "archive"
-      ],
-      "input_kwarg": null,
-      "output_type": "auto",
-      "primary_input": null,
+      "params_attr": "PARAMS_JSON",
+      "params_module": "wama.converter.params",
       "runnable": true
     },
     "tool_api": {

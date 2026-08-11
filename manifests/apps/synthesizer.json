@@ -625,12 +625,8 @@
       ]
     },
     "studio": {
-      "auto_start": null,
-      "fixed_kwargs": null,
-      "input_kinds": null,
-      "input_kwarg": null,
-      "output_type": "audio",
-      "primary_input": "prompt",
+      "params_attr": "PARAMS_JSON",
+      "params_module": "wama.synthesizer.params",
       "runnable": true
     },
     "tool_api": {

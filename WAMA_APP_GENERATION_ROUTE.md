@@ -427,7 +427,18 @@ WamaParams sur les apps hand-built restantes + modale batch + studio→WamaParam
 `renderNodeParams`) ; chips ; `select_model()` ; **enum de statut commune** (tuer les 3 tables
 d'alias) ; `during_preview` émission (9 apps).
 
-### §10.3 — Write-back (code-gen) depuis le manifeste — `access` ✅ (DB) + `identity`/`ports`/`capabilities` ✅ (code, 2026-08-11), reste 6 facettes
+### §10.3 — Write-back (code-gen) depuis le manifeste — `access` ✅ (DB) + `identity`/`ports`/`capabilities`/`studio` ✅ (code, 2026-08-11), reste 5 facettes
+
+**Palier `studio` → GENERIC_APPS** : le moteur dict est GÉNÉRALISÉ (`_write_dict_fields`
+paramétré par (chemin, assignation, rendu, ordre) — un seul moteur pour APP_CATALOG et
+GENERIC_APPS). La facette studio est réduite au DÉCLARATIF (pointeur `params_module/params_attr`,
+`auto_start`, `input_kwarg`/`fixed_kwargs`/`extra_params_spec`, rétrécissement `io_scope` + E/S
+déclarées) ; les E/S dérivées des ports (`_io_derived`, §10.1) sont EXCLUES de l'extract comme de
+la projection — même règle que la couleur. ⚠ Cette correction d'extract a RE-FORMÉ la facette des
+10 manifestes (corpus régénéré au même commit) : l'ancienne facette recopiait les E/S effectives
+sans distinguer dérivé/déclaré et perdait pointeur params + io_scope. Vérifié : diff studio
+manifeste↔ré-extraction AUCUN après régénération, E/S re-dérivées à l'import, `studio_redundancy`
+verdict `derived`, idempotence, roundtrip 10 apps **5/N projetables** fidélité OK.
 Faire grandir `write_back_app` facette par facette, chaque incrément jugé par le diff
 régénéré/existant (pilote de régénération : converter puis transcriber, acté 2026-08-11).
 

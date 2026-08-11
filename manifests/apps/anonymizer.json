@@ -881,15 +881,8 @@
       ]
     },
     "studio": {
-      "auto_start": null,
-      "fixed_kwargs": null,
-      "input_kinds": [
-        "image",
-        "video"
-      ],
-      "input_kwarg": null,
-      "output_type": "auto",
-      "primary_input": null,
+      "params_attr": "PARAMS_JSON",
+      "params_module": "wama.anonymizer.params",
       "runnable": true
     },
     "tool_api": {

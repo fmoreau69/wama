@@ -721,11 +721,9 @@
       ]
     },
     "studio": {
-      "auto_start": null,
-      "fixed_kwargs": null,
-      "input_kinds": null,
-      "input_kwarg": null,
-      "output_type": "auto",
+      "io_scope": "nœud V1 = txt2img : prompt seul, le port image (i2i/référence) de la card n'est pas exposé au nœud",
+      "params_attr": "IMAGE_PARAMS_JSON",
+      "params_module": "wama.imager.params",
       "primary_input": "prompt",
       "runnable": true
     },

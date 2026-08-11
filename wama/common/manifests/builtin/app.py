@@ -420,20 +420,30 @@ def _access(app_id):
 
 
 def _studio(app_id):
+    """Facette studio = le DÉCLARATIF de l'entrée GENERIC_APPS : pointeur params
+    (params_module/params_attr), auto_start, signatures historiques (input_kwarg,
+    fixed_kwargs, extra_params_spec) et RÉTRÉCISSEMENT d'E/S (io_scope + les champs E/S
+    déclarés). Les E/S DÉRIVÉES des ports (§10.1, tracées `_io_derived`) sont EXCLUES :
+    elles se reconstruisent à l'import — même règle que la couleur d'APP_CATALOG, le
+    manifeste ne porte que ce qui se déclare. (Jusqu'au 2026-08-11 la facette recopiait
+    les E/S effectives sans distinguer dérivé/déclaré, et perdait le pointeur params et
+    io_scope — trou d'extract corrigé avec le write-back.)"""
     try:
         from wama.studio.services.generic_runner import GENERIC_APPS
         g = GENERIC_APPS.get(app_id)
         if not g:
             return None
-        return {
-            'runnable': True,
-            'primary_input': g.get('primary_input'),
-            'input_kinds': list(g.get('input_kinds', ())) or None,
-            'input_kwarg': g.get('input_kwarg'),
-            'fixed_kwargs': g.get('fixed_kwargs'),
-            'auto_start': g.get('auto_start'),
-            'output_type': g.get('output_type'),
-        }
+        derived = set(g.get('_io_derived') or ())
+        out = {'runnable': True}
+        for c in ('params_module', 'params_attr', 'auto_start', 'input_kwarg',
+                  'fixed_kwargs', 'io_scope', 'extra_params_spec'):
+            if g.get(c) is not None:
+                out[c] = g.get(c)
+        for c in ('input_kinds', 'primary_input', 'output_type'):
+            if c in g and c not in derived and g.get(c) is not None:
+                v = g.get(c)
+                out[c] = list(v) if isinstance(v, (list, tuple)) else v
+        return out
     except Exception:
         return None
 
@@ -468,10 +478,11 @@ def _to_dict(obj) -> dict:
 #   - `identity`     → entrée APP_CATALOG (app_registry.py, CODE — §10.3, pilote converter)
 #   - `ports`        → input_types/output_types de la même entrée (inversion studio_node_ports)
 #   - `capabilities` → has_batch/batch_type/has_url_import/has_youtube (le déclaratif seul)
+#   - `studio`       → entrée GENERIC_APPS (generic_runner.py — déclaratif seul, E/S dérivées exclues)
 # Le reste des facettes `backend=code` part dans `codegen_required`. Le tri code/db vient de
 # `projection.FACET_TARGETS` (source unique) — l'ancienne liste locale codée en dur avait divergé
 # (elle omettait capabilities/modes et citait models/prompts), corrigé 2026-08-11.
-PROJECTED_FACETS = ('access', 'identity', 'ports', 'capabilities')
+PROJECTED_FACETS = ('access', 'identity', 'ports', 'capabilities', 'studio')
 
 
 def write_back_app(manifest: dict, *, apply: bool = False) -> dict:
@@ -492,6 +503,8 @@ def write_back_app(manifest: dict, *, apply: bool = False) -> dict:
         out['ports'] = _project_ports(manifest, apply=apply)
     if body.get('capabilities'):
         out['capabilities'] = _project_capabilities(manifest, apply=apply)
+    if body.get('studio'):
+        out['studio'] = _project_studio(manifest, apply=apply)
     out['codegen_required'] = [f for f, (_cible, backend) in FACET_TARGETS.items()
                                if backend == 'code' and body.get(f) and f not in PROJECTED_FACETS]
     return out
@@ -596,6 +609,18 @@ def _capabilities_target(manifest: dict) -> dict:
     }
 
 
+# Champs DÉCLARATIFS d'une entrée GENERIC_APPS (facette studio) — les E/S dérivées des ports
+# (§10.1) n'y figurent JAMAIS : elles se reconstruisent à l'import (`_fill_io_from_ports`).
+STUDIO_FIELDS = ('params_module', 'params_attr', 'auto_start', 'input_kwarg', 'fixed_kwargs',
+                 'input_kinds', 'primary_input', 'output_type', 'io_scope', 'extra_params_spec')
+
+
+def _studio_target(manifest: dict) -> dict:
+    st = (manifest.get('body') or {}).get('studio') or {}
+    return {c: (list(st[c]) if isinstance(st.get(c), (list, tuple)) else st.get(c))
+            for c in STUDIO_FIELDS if st.get(c) is not None}
+
+
 def _io_sig(fields: dict) -> dict:
     """Signature E/S pour comparer en ESPACE DE FACETTE : la position du 'text' dans le tuple
     écrit main est une variation d'écriture sans effet (la dérivation des ports sépare médias
@@ -655,36 +680,66 @@ def _project_capabilities(manifest: dict, *, apply: bool) -> dict:
     return _project_catalog_facet(manifest.get('key'), target, deltas, apply=apply)
 
 
-def _project_catalog_facet(app_id: str, target: dict, deltas_fn, *, apply: bool) -> dict:
-    """Moteur commun des facettes → APP_CATALOG : create (entrée générée marquée) / update
-    (régénération si marquée, chirurgie champ par champ si écrite main) / noop. La vérité
-    d'EXISTENCE et de valeur se lit dans le FICHIER (`ast`), pas dans l'APP_CATALOG importé —
-    dans un apply multi-facettes du même process, le module importé est périmé dès la
-    première écriture."""
-    current = _catalog_current(app_id, tuple(target))
+def _project_studio(manifest: dict, *, apply: bool) -> dict:
+    """Facette studio → entrée GENERIC_APPS. Compare et écrit le DÉCLARATIF seul (STUDIO_FIELDS) ;
+    un champ déclaré dans le fichier mais absent du manifeste est un delta (retrait) — appliqué
+    par régénération si l'entrée est marquée, REFUSÉ en chirurgie sur une entrée main."""
+    target = _studio_target(manifest)
+    def deltas(cur):
+        return [c for c in STUDIO_FIELDS if _norm_v(target.get(c)) != _norm_v(cur.get(c))]
+    return _project_dict_facet(manifest.get('key'), target, deltas, apply=apply,
+                               current_fn=_runner_current, write_fn=_write_runner_fields,
+                               champs=STUDIO_FIELDS)
+
+
+def _project_dict_facet(app_id: str, target: dict, deltas_fn, *, apply: bool,
+                        current_fn, write_fn, champs: Optional[tuple] = None) -> dict:
+    """Moteur commun des facettes → registre dict en code : create (entrée générée marquée) /
+    update (régénération si marquée, chirurgie champ par champ si écrite main) / noop. La
+    vérité d'EXISTENCE et de valeur se lit dans le FICHIER (`ast`), pas dans le module
+    importé — dans un apply multi-facettes du même process, le module importé est périmé dès
+    la première écriture."""
+    current = current_fn(app_id, champs or tuple(target))
     deltas = deltas_fn(current) if current is not None else list(target)
     op = 'create' if current is None else ('update' if deltas else 'noop')
     if not apply:
         return {'op': op, 'target': target, 'current': current, 'would_change': deltas}
     if op == 'noop':
         return {'op': op, 'changed': [], '_manifest_key': f'app:{app_id}'}
-    res = _write_catalog_fields(app_id, target, deltas, create=(op == 'create'))
+    res = write_fn(app_id, target, deltas, create=(op == 'create'))
     res.update({'op': op, 'previous': current, '_manifest_key': f'app:{app_id}',
                 'reload_required': True})
     return res
 
 
+def _project_catalog_facet(app_id: str, target: dict, deltas_fn, *, apply: bool) -> dict:
+    return _project_dict_facet(app_id, target, deltas_fn, apply=apply,
+                               current_fn=_catalog_current, write_fn=_write_catalog_fields)
+
+
 # ── Helpers d'écriture CODE (mécanique de fichier, jamais d'écriture insyntaxique) ─
+# Paramétrés par (chemin, nom d'assignation) : le MÊME moteur écrit APP_CATALOG
+# (app_registry.py) et GENERIC_APPS (generic_runner.py) — registres dict au même idiome
+# (entrées à indentation 4, fermeture `    },`).
 def _registry_path() -> Path:
     from wama.common import app_registry
     return Path(app_registry.__file__)
 
 
-def _catalog_bounds(lines: list) -> tuple:
-    """(1re ligne APRÈS `APP_CATALOG = {`, ligne du `}` fermant à indentation 0)."""
-    debut = next(i for i, l in enumerate(lines) if l.startswith('APP_CATALOG = {'))
+def _runner_path() -> Path:
+    from wama.studio.services import generic_runner
+    return Path(generic_runner.__file__)
+
+
+def _dict_bounds(lines: list, var: str) -> tuple:
+    """(1re ligne APRÈS `<var> = {`, ligne du `}` fermant à indentation 0)."""
+    debut = next(i for i, l in enumerate(lines) if l.startswith(f'{var} = {{'))
     fin = next(i for i in range(debut + 1, len(lines)) if lines[i].rstrip() == '}')
     return debut + 1, fin
+
+
+def _catalog_bounds(lines: list) -> tuple:
+    return _dict_bounds(lines, 'APP_CATALOG')
 
 
 def _entry_span(lines: list, app_id: str, lo: int, hi: int) -> Optional[tuple]:
@@ -697,16 +752,17 @@ def _entry_span(lines: list, app_id: str, lo: int, hi: int) -> Optional[tuple]:
     return None
 
 
-def _entry_fields_from_file(app_id: str) -> Optional[dict]:
-    """Champs de l'entrée APP_CATALOG lus dans le FICHIER (la vérité d'écriture) : littéraux
-    évalués par `ast.literal_eval`, expressions (constantes, `_conv(...)`) → `_NONLITERAL`.
-    None si l'entrée est absente. C'est CE lecteur qui rend le moteur sûr en apply
-    multi-facettes : le module importé, lui, fige l'état d'avant la première écriture."""
+def _entry_fields_from_file(path: Path, var: str, app_id: str) -> Optional[dict]:
+    """Champs d'une entrée du dict `<var>` lus dans le FICHIER (la vérité d'écriture) :
+    littéraux évalués par `ast.literal_eval`, expressions (constantes, `_conv(...)`) →
+    `_NONLITERAL`. None si l'entrée est absente. C'est CE lecteur qui rend le moteur sûr en
+    apply multi-facettes : le module importé, lui, fige l'état d'avant la première écriture
+    (et GENERIC_APPS est en plus MUTÉ à l'import par `_fill_io_from_ports`)."""
     import ast
-    src = _registry_path().read_text(encoding='utf-8')
+    src = path.read_text(encoding='utf-8')
     for node in ast.walk(ast.parse(src)):
         if (isinstance(node, ast.Assign)
-                and any(getattr(t, 'id', None) == 'APP_CATALOG' for t in node.targets)
+                and any(getattr(t, 'id', None) == var for t in node.targets)
                 and isinstance(node.value, ast.Dict)):
             for k, v in zip(node.value.keys, node.value.values):
                 if isinstance(k, ast.Constant) and k.value == app_id:
@@ -726,7 +782,7 @@ def _entry_fields_from_file(app_id: str) -> Optional[dict]:
 def _catalog_current(app_id: str, champs: tuple) -> Optional[dict]:
     """Valeurs courantes des champs demandés : littéral du fichier d'abord, repli RUNTIME pour
     les expressions (leur valeur évaluée à l'import — sémantiquement juste, jamais éditable)."""
-    fichier = _entry_fields_from_file(app_id)
+    fichier = _entry_fields_from_file(_registry_path(), 'APP_CATALOG', app_id)
     if fichier is None:
         return None
     from wama.common.app_registry import APP_CATALOG
@@ -738,6 +794,16 @@ def _catalog_current(app_id: str, champs: tuple) -> Optional[dict]:
             v = runtime.get(c)
         cur[c] = list(v) if isinstance(v, (list, tuple)) else v
     return cur
+
+
+def _runner_current(app_id: str, champs: tuple) -> Optional[dict]:
+    """Valeurs courantes d'une entrée GENERIC_APPS — FICHIER SEUL : le runtime est mué à
+    l'import (E/S dérivées injectées), il ne reflète pas la déclaration."""
+    fichier = _entry_fields_from_file(_runner_path(), 'GENERIC_APPS', app_id)
+    if fichier is None:
+        return None
+    return {c: (list(v) if isinstance(v, (list, tuple)) else v)
+            for c, v in ((c, fichier.get(c)) for c in champs)}
 
 
 def _render_entry_lines(app_id: str, fields: dict) -> list:
@@ -770,43 +836,66 @@ def _render_entry_lines(app_id: str, fields: dict) -> list:
     return out
 
 
-def _write_catalog_fields(app_id: str, target: dict, deltas: list, *, create: bool) -> dict:
+def _render_runner_entry_lines(app_id: str, fields: dict) -> list:
+    """Entrée GENERIC_APPS générée (déclaratif seul, idiome du fichier — pas de ligne vide
+    entre entrées). Les E/S dérivées n'y sont jamais rendues."""
+    mark = _GEN_MARK.format(app_id=app_id)
+    out = [f"    '{app_id}': {{  # {mark} entrée GÉNÉRÉE par write_back_app (facette studio) ;",
+           "        # E/S dérivées des ports à l'import (§10.1) — ne déclarer ici que le rétrécissement."]
+    for champ in STUDIO_FIELDS:
+        if champ not in fields or fields[champ] is None:
+            continue
+        val = fields[champ]
+        if isinstance(val, list) and champ == 'input_kinds':
+            val = tuple(val)
+        out.append(f"        '{champ}': {val!r},")
+    out.append("    },")
+    return out
+
+
+def _write_dict_fields(path: Path, var: str, app_id: str, target: dict, deltas: list, *,
+                       create: bool, render_fn, field_order: tuple,
+                       alphabetical: bool, blank_sep: bool) -> dict:
+    """Moteur d'écriture COMMUN des registres dict (APP_CATALOG, GENERIC_APPS) :
+    create (entrée générée marquée) / régénération entière si entrée marquée (union des
+    littéraux relus du fichier + facette en cours) / chirurgie champ par champ si entrée
+    écrite main (expression et multi-ligne REFUSÉES). Garde `compile()` avant écriture."""
     import re
-    path = _registry_path()
     lines = path.read_text(encoding='utf-8').split('\n')
-    lo, hi = _catalog_bounds(lines)
+    lo, hi = _dict_bounds(lines, var)
     span = _entry_span(lines, app_id, lo, hi)
     changed, skipped = [], []
 
     if create:
         if span is not None:
             return {'error': "entrée déjà présente — l'état a changé depuis le plan, relancer"}
-        # position alphabétique (l'ordre du catalogue est alphabétique — et la couleur dérivée
-        # dépend du rang, donc l'ordre n'est pas cosmétique)
         pos = hi
-        for i in range(lo, hi):
-            m = re.match(r"    '([a-z0-9_]+)': \{", lines[i])
-            if m and m.group(1) > app_id:
-                pos = i
-                break
-        lines[pos:pos] = _render_entry_lines(app_id, target)
+        if alphabetical:
+            # APP_CATALOG est alphabétique — et la couleur dérivée dépend du rang, donc
+            # l'ordre n'est pas cosmétique.
+            for i in range(lo, hi):
+                m = re.match(r"    '([a-z0-9_]+)': \{", lines[i])
+                if m and m.group(1) > app_id:
+                    pos = i
+                    break
+        lines[pos:pos] = render_fn(app_id, target)
         changed = [c for c in target if target.get(c) not in (None, '', [])]
     elif _GEN_MARK.format(app_id=app_id) in lines[span[0]]:
         # entrée à nous : régénération entière — UNION des champs littéraux déjà écrits
         # (toutes facettes confondues, relus du FICHIER) et des champs de la facette en cours.
-        merged = {c: v for c, v in (_entry_fields_from_file(app_id) or {}).items()
-                  if c in CATALOG_FIELD_ORDER and v is not _NONLITERAL}
+        merged = {c: v for c, v in (_entry_fields_from_file(path, var, app_id) or {}).items()
+                  if c in field_order and v is not _NONLITERAL}
         merged.update(target)
         fin = span[1]
-        vide = 1 if fin + 1 < len(lines) and lines[fin + 1].strip() == '' else 0
-        lines[span[0]:fin + 1 + vide] = _render_entry_lines(app_id, merged)
+        vide = 1 if blank_sep and fin + 1 < len(lines) and lines[fin + 1].strip() == '' else 0
+        lines[span[0]:fin + 1 + vide] = render_fn(app_id, merged)
         changed = list(deltas)
     else:
         # entrée écrite MAIN : chirurgie champ par champ, jamais de réécriture du bloc
         # (il porte les champs des autres facettes et leurs commentaires d'audit)
-        fichier = _entry_fields_from_file(app_id) or {}
+        fichier = _entry_fields_from_file(path, var, app_id) or {}
         for champ in deltas:
-            span = _entry_span(lines, app_id, *_catalog_bounds(lines))  # re-borne après chaque édition
+            span = _entry_span(lines, app_id, *_dict_bounds(lines, var))  # re-borne à chaque édition
             existant = fichier.get(champ, None)
             if existant is _NONLITERAL:
                 # valeur écrite main = expression (IMAGE_EXTENSIONS + …) : la remplacer par un
@@ -814,6 +903,11 @@ def _write_catalog_fields(app_id: str, target: dict, deltas: list, *, create: bo
                 # de route), pas à écraser.
                 skipped.append({'field': champ,
                                 'reason': "expression non littérale — édition refusée"})
+                continue
+            if target.get(champ) is None:
+                # suppression d'une déclaration sur entrée main : geste humain, pas moteur
+                skipped.append({'field': champ,
+                                'reason': "retrait d'un champ déclaré main — refusé"})
                 continue
             val = tuple(target[champ]) if isinstance(target[champ], list) else target[champ]
             pat = re.compile(rf"^(\s{{8}}'{champ}':\s+)(.*)$")
@@ -845,6 +939,18 @@ def _write_catalog_fields(app_id: str, target: dict, deltas: list, *, create: bo
     return out
 
 
+def _write_catalog_fields(app_id: str, target: dict, deltas: list, *, create: bool) -> dict:
+    return _write_dict_fields(_registry_path(), 'APP_CATALOG', app_id, target, deltas,
+                              create=create, render_fn=_render_entry_lines,
+                              field_order=CATALOG_FIELD_ORDER, alphabetical=True, blank_sep=True)
+
+
+def _write_runner_fields(app_id: str, target: dict, deltas: list, *, create: bool) -> dict:
+    return _write_dict_fields(_runner_path(), 'GENERIC_APPS', app_id, target, deltas,
+                              create=create, render_fn=_render_runner_entry_lines,
+                              field_order=STUDIO_FIELDS, alphabetical=False, blank_sep=False)
+
+
 @transaction.atomic
 def un_write_back_app(manifest: dict, *, apply: bool = False) -> dict:
     """
@@ -863,23 +969,34 @@ def un_write_back_app(manifest: dict, *, apply: bool = False) -> dict:
     qs = AppAccessPolicy.objects.filter(app_id=app_id)
     n = qs.count()
 
-    path = _registry_path()
-    lines = path.read_text(encoding='utf-8').split('\n')
-    span = _entry_span(lines, app_id, *_catalog_bounds(lines))
-    bloc_genere = span is not None and _GEN_MARK.format(app_id=app_id) in lines[span[0]]
+    cibles = (('catalog_entry', _registry_path(), 'APP_CATALOG', True),
+              ('runner_entry', _runner_path(), 'GENERIC_APPS', False))
+    generes = {}
+    for nom, path, var, _sep in cibles:
+        lines = path.read_text(encoding='utf-8').split('\n')
+        span = _entry_span(lines, app_id, *_dict_bounds(lines, var))
+        generes[nom] = span is not None and _GEN_MARK.format(app_id=app_id) in lines[span[0]]
 
     if not apply:
-        return {'app': app_id, 'would_remove': n, 'would_remove_catalog_entry': bloc_genere}
+        return {'app': app_id, 'would_remove': n,
+                **{f'would_remove_{nom}': g for nom, g in generes.items()}}
     qs.delete()
-    out = {'app': app_id, 'removed': n, 'catalog_entry_removed': False}
-    if bloc_genere:
+    out = {'app': app_id, 'removed': n}
+    for nom, path, var, blank_sep in cibles:
+        out[f'{nom}_removed'] = False
+        if not generes[nom]:
+            continue
+        lines = path.read_text(encoding='utf-8').split('\n')
+        span = _entry_span(lines, app_id, *_dict_bounds(lines, var))
+        if span is None:
+            continue
         fin = span[1]
-        vide = 1 if fin + 1 < len(lines) and lines[fin + 1].strip() == '' else 0
+        vide = 1 if blank_sep and fin + 1 < len(lines) and lines[fin + 1].strip() == '' else 0
         del lines[span[0]:fin + 1 + vide]
         nouveau = '\n'.join(lines)
         compile(nouveau, str(path), 'exec')
         path.write_text(nouveau, encoding='utf-8')
-        out['catalog_entry_removed'] = True
+        out[f'{nom}_removed'] = True
     return out
 
 

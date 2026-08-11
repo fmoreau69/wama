@@ -305,15 +305,8 @@
       ]
     },
     "studio": {
-      "auto_start": null,
-      "fixed_kwargs": null,
-      "input_kinds": [
-        "document",
-        "image"
-      ],
-      "input_kwarg": null,
-      "output_type": "text",
-      "primary_input": null,
+      "params_attr": "PARAMS_JSON",
+      "params_module": "wama.reader.params",
       "runnable": true
     },
     "tool_api": {
