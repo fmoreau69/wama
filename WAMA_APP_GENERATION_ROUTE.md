@@ -438,6 +438,19 @@ fichier GÉNÉRÉ marqué (couche de démarrage, à raffiner en `derive_from_mod
 génèrera le modèle) ; réversibilité = suppression du fichier marqué. Vérifié : 10/10 noop,
 create bac à sable → égalité + `schema_for_app` vivant + idempotence. Roundtrip : **6/10 à 8/12**.
 
+**PASSE INTÉGRÉE du pilote converter (2026-08-11 soir — la « régénération complète » de
+l'étape 1)** : suppression EN UNE FOIS de toutes les déclarations régénérables (entrée
+APP_CATALOG, entrée GENERIC_APPS, entrée APP_MODES, `params.py`) puis UN SEUL
+`write_back(apply=True)` (bac à sable worktree, DB non touchée — `access` inchangé). Jugement
+sur les 3 axes actés : **① manifeste** ré-extrait = **8 facettes + enveloppe IDENTIQUES** ;
+seuls écarts = drapeaux de la matrice `conventions` dans `capabilities` (7) et `processing`
+(anti_race/processing_time/statuses) — tous de la famille MESURÉE du trou #16, sans effet
+mesurable ; **② grille** : **93 % (58/62), IDENTIQUE au baseline**, mêmes 4 rouges ;
+**③ smoke** : `GET /converter/` 200, `schema_for_app` 17 params, nœud studio E/S dérivées +
+`auto_start`, 5 domaines APP_MODES. **Sur le périmètre des 7 facettes, l'app régénérée est
+indistinguable de l'app en place.** Ce qui vit encore hors manifeste : le code de `processing`/
+`tool_api`/`inspector` (jamais supprimé dans ce test — c'est la marche gabarit ci-dessous).
+
 **Orientation actée pour `processing` (avis critique 2026-08-11, comparaison k8s/Backstage/
 ComfyUI/Twenty/Terraform)** : PAS « le LLM génère le fichier » — un **GABARIT** couvre le
 squelette conventionnel (models.py/urls/tasks : la grille 72 critères prouve la convention),
