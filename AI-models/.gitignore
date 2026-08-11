@@ -91,9 +91,11 @@ models/diffusion/logo/
 
 # -----------------------------------------------------------------------------
 # models/vision/ - Detection, Segmentation, Pose
+# Dossier ENTIER (comme llm/, reader/, music/) : l'énumération par famille dérivait —
+# depth-pro/ et locate-anything/ (chantier LocateAnything, ROADMAP §17) étaient apparus
+# non ignorés (2026-08-11, ~14 Go dans git status).
 # -----------------------------------------------------------------------------
-models/vision/yolo/
-models/vision/sam/
+models/vision/
 
 # -----------------------------------------------------------------------------
 # models/upscaling/ - Super-resolution ONNX models
