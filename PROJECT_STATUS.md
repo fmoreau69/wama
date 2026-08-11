@@ -2456,6 +2456,13 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > glu marqué), projecteur CREATE-ONLY (un tasks.py existant n'est jamais touché — les trous
 > remplis par B seraient effacés). Rendu compile, critères grille satisfaits sur le rendu,
 > harnais converter+reader CONFORMES. Juge complet = pilote B.
+> **Puis (2026-08-12) : composition du pilote B SEMÉE** — 8 libraries au corpus (mécanique,
+> importlib.metadata ; le librarian LLM reste pour `--repo`/lib non installée) → transcriber
+> `requires` = 4 modèles + 9 libraries, 13/13 résolus ; **strates actées** (SPEC §7.4-5) :
+> socle plateforme (`library_index.SOCLE_PLATEFORME`, jamais cité) / libraries métier /
+> outils système (trou #15). Corpus = 19 manifestes, fidélité 10/10.
+> **Cible finale actée : 11ᵉ app Translator/LibreTranslate générée DE ZÉRO** (librarian
+> `--repo` pilote 2 ; PDF-mise-en-forme = pipeline Studio d'abord) — après route + portage.
 > **Suite : A3 apps.py (detail déclaratif — débloquer la facette inspector), A4 tool_api, A5
 > models.py ; dette gardes restante = tâches anonymizer (avec son chantier).**
 

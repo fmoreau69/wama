@@ -1329,6 +1329,10 @@
     {
       "key": "anonymizer:yolo:yolov9t-face-lindevs.pt",
       "kind": "model"
+    },
+    {
+      "key": "torch",
+      "kind": "library"
     }
   ],
   "schema_version": "1.0",

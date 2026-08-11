@@ -1,0 +1,45 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "audioread",
+      "decorator",
+      "joblib",
+      "lazy_loader",
+      "msgpack",
+      "numba",
+      "numpy",
+      "pooch",
+      "scikit-learn",
+      "scipy",
+      "soundfile",
+      "soxr",
+      "standard-aifc",
+      "standard-sunau",
+      "typing_extensions"
+    ],
+    "entry_points": {},
+    "identity": {
+      "license": "ISC",
+      "repository": "https://github.com/librosa/librosa",
+      "summary": "Python module for audio and music processing",
+      "version": "0.11.0"
+    },
+    "install": {
+      "pip": "librosa==0.11.0",
+      "requires_python": ">=3.8"
+    }
+  },
+  "description": "Python module for audio and music processing",
+  "key": "librosa",
+  "manifest_kind": "library",
+  "name": "librosa",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:librosa==0.11.0",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

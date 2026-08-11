@@ -1,0 +1,32 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "cffi",
+      "numpy"
+    ],
+    "entry_points": {},
+    "identity": {
+      "license": "BSD 3-Clause License",
+      "repository": "https://github.com/bastibe/python-soundfile",
+      "summary": "An audio library based on libsndfile, CFFI and NumPy",
+      "version": "0.13.1"
+    },
+    "install": {
+      "pip": "soundfile==0.13.1",
+      "requires_python": null
+    }
+  },
+  "description": "An audio library based on libsndfile, CFFI and NumPy",
+  "key": "soundfile",
+  "manifest_kind": "library",
+  "name": "soundfile",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:soundfile==0.13.1",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

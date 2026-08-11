@@ -1,0 +1,41 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "more-itertools",
+      "numba",
+      "numpy",
+      "tiktoken",
+      "torch",
+      "tqdm",
+      "triton"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "whisper"
+      ]
+    },
+    "identity": {
+      "license": "MIT",
+      "repository": "https://github.com/openai/whisper",
+      "summary": "Robust Speech Recognition via Large-Scale Weak Supervision",
+      "version": "20250625"
+    },
+    "install": {
+      "pip": "openai-whisper==20250625",
+      "requires_python": ">=3.8"
+    }
+  },
+  "description": "Robust Speech Recognition via Large-Scale Weak Supervision",
+  "key": "openai-whisper",
+  "manifest_kind": "library",
+  "name": "openai-whisper",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:openai-whisper==20250625",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

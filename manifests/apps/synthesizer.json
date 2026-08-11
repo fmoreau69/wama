@@ -885,6 +885,14 @@
     {
       "key": "synthesizer:vits",
       "kind": "model"
+    },
+    {
+      "key": "soundfile",
+      "kind": "library"
+    },
+    {
+      "key": "transformers",
+      "kind": "library"
     }
   ],
   "schema_version": "1.0",

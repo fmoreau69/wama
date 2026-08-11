@@ -504,6 +504,15 @@ outillé avant d'ouvrir cette marche.
      corpus est le matériel d'apprentissage, `ingest.py:43`) + interdits (pas d'import avant
      `HF_HUB_CACHE`, `cache_dir` obligatoire, vocabulaire de statuts canonique).
   Pilote : **transcriber** (composition complète librairie faster-whisper + tous ses modèles).
+  **Composition SEMÉE (2026-08-12)** : 8 libraries ajoutées au corpus (extraction mécanique
+  importlib.metadata — le librarian LLM reste pour le mode `--repo`, lib non installée) →
+  `requires` transcriber = **4 modèles + 9 libraries, 13/13 résolus**. Strates actées
+  (SPEC §7.4-5) : socle plateforme (jamais cité) / libraries métier (requires) / outils
+  système (trou #15). **Cible finale actée avec Fabien : générer une 11ᵉ app DE ZÉRO —
+  Translator sur LibreTranslate** (librarian `--repo` = pilote 2 ; `translate_text` reste le
+  verbe tool_api générique, LibreTranslate = backend dédié ; modes realtime + batch dans le
+  schéma existant ; le PDF-mise-en-forme = pipeline STUDIO d'abord, app one-click ensuite si
+  besoin) — après fin de la route + finalisation du portage.
 
 **Cadrage A0 — la convention RÉELLE, mesurée (2026-08-11, balayage 6 cibles × 10 apps) :**
 - **urls.py** : AUCUNE app ne colle à `STANDARD_ENDPOINTS` — cette liste était une CIBLE que le

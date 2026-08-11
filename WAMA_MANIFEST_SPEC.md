@@ -390,7 +390,23 @@ que le catalogue n'a pas. Autre facette, pas redondance.
    « null plutôt que plausible » tient. Récolte élargie (requirements/LICENSE d'abord, README
    tronqué en dernier) codée mais non re-testée (session interrompue par le crash hôte du
    2026-08-02 18:09). Reste : passe de revue humaine des sorties, puis semis au corpus des
-   libraries validées.
+   libraries validées. Prochain cas `--repo` acté : **LibreTranslate** (lib NON installée —
+   manifeste depuis le dépôt), préalable de la 11ᵉ app Translator générée de zéro.
+5. ✅ **FAIT (2026-08-12) — semis de la composition du pilote B + STRATES de dépendances.**
+   8 libraries semées mécaniquement (`manifest_export --kind library` : transformers, torch,
+   torchaudio, pyannote-audio, librosa, soundfile, openai-whisper, vibevoice — extraction
+   `importlib.metadata`, licences absentes = null honnête) → **transcriber `requires` = 4
+   modèles + 9 libraries, 13/13 résolus**. Règle des TROIS STRATES actée :
+   - **strate 1 — SOCLE PLATEFORME** (`library_index.SOCLE_PLATEFORME` : Django, celery,
+     redis, numpy, requests) : contrat d'exécution commun aux 10 apps, JAMAIS cité dans un
+     `requires` d'app (exclu même si semé — la plateforme n'est pas une dépendance du
+     workload, cf. k8s/Backstage). Étendre la liste = décision d'architecture.
+   - **strate 2 — libraries métier** : la jambe `requires` (importée ∩ semée ∩ hors socle).
+   - **strate 3 — outils système** (ffmpeg, pandoc, chromium…) : NON déclarés (trou #15,
+     ROUTE §11), hors périmètre du kind `library` (binaires, pas des distributions Python).
+   ⚠ Limite assumée : l'extraction library lit le venv COURANT (venv_win pour le corpus) ;
+   si les deux venvs divergent sur une version, `manifest_export --check` le signalera —
+   c'est le détecteur de dérive voulu, pas un bug.
 
 **État courant du corpus** (couche factuelle auto-générée, ROADMAP §16.9 ①) :
 

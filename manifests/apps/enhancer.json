@@ -899,6 +899,18 @@
     {
       "key": "enhancer:resemble",
       "kind": "model"
+    },
+    {
+      "key": "soundfile",
+      "kind": "library"
+    },
+    {
+      "key": "torch",
+      "kind": "library"
+    },
+    {
+      "key": "torchaudio",
+      "kind": "library"
     }
   ],
   "schema_version": "1.0",

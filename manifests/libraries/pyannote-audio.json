@@ -1,0 +1,55 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "asteroid-filterbanks",
+      "einops",
+      "huggingface-hub",
+      "lightning",
+      "matplotlib",
+      "opentelemetry-api",
+      "opentelemetry-exporter-otlp",
+      "opentelemetry-sdk",
+      "pyannote-core",
+      "pyannote-database",
+      "pyannote-metrics",
+      "pyannote-pipeline",
+      "pyannoteai-sdk",
+      "pytorch-metric-learning",
+      "rich",
+      "safetensors",
+      "torch",
+      "torch-audiomentations",
+      "torchaudio",
+      "torchcodec",
+      "torchmetrics"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "pyannote-audio"
+      ]
+    },
+    "identity": {
+      "license": null,
+      "repository": null,
+      "summary": "State-of-the-art speaker diarization toolkit",
+      "version": "4.0.4"
+    },
+    "install": {
+      "pip": "pyannote-audio==4.0.4",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "State-of-the-art speaker diarization toolkit",
+  "key": "pyannote-audio",
+  "manifest_kind": "library",
+  "name": "pyannote-audio",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:pyannote-audio==4.0.4",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

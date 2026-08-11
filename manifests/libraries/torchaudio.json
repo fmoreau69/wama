@@ -1,0 +1,31 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "torch"
+    ],
+    "entry_points": {},
+    "identity": {
+      "license": null,
+      "repository": "https://github.com/pytorch/audio",
+      "summary": "An audio package for PyTorch",
+      "version": "2.9.1+cu128"
+    },
+    "install": {
+      "pip": "torchaudio==2.9.1+cu128",
+      "requires_python": null
+    }
+  },
+  "description": "An audio package for PyTorch",
+  "key": "torchaudio",
+  "manifest_kind": "library",
+  "name": "torchaudio",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:torchaudio==2.9.1+cu128",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

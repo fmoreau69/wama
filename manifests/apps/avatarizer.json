@@ -384,6 +384,22 @@
     {
       "key": "avatarizer:musetalk-v1.5",
       "kind": "model"
+    },
+    {
+      "key": "librosa",
+      "kind": "library"
+    },
+    {
+      "key": "soundfile",
+      "kind": "library"
+    },
+    {
+      "key": "torch",
+      "kind": "library"
+    },
+    {
+      "key": "transformers",
+      "kind": "library"
     }
   ],
   "schema_version": "1.0",

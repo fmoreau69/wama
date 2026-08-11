@@ -1,0 +1,42 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "filelock",
+      "fsspec",
+      "jinja2",
+      "networkx",
+      "setuptools",
+      "sympy",
+      "typing-extensions"
+    ],
+    "entry_points": {
+      "console_scripts": [
+        "torchfrtrace",
+        "torchrun"
+      ]
+    },
+    "identity": {
+      "license": "BSD-3-Clause",
+      "repository": "https://github.com/pytorch/pytorch",
+      "summary": "Tensors and Dynamic neural networks in Python with strong GPU acceleration",
+      "version": "2.9.1+cu128"
+    },
+    "install": {
+      "pip": "torch==2.9.1+cu128",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "Tensors and Dynamic neural networks in Python with strong GPU acceleration",
+  "key": "torch",
+  "manifest_kind": "library",
+  "name": "torch",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:torch==2.9.1+cu128",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

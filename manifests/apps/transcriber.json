@@ -699,6 +699,38 @@
     {
       "key": "faster-whisper",
       "kind": "library"
+    },
+    {
+      "key": "librosa",
+      "kind": "library"
+    },
+    {
+      "key": "openai-whisper",
+      "kind": "library"
+    },
+    {
+      "key": "pyannote-audio",
+      "kind": "library"
+    },
+    {
+      "key": "soundfile",
+      "kind": "library"
+    },
+    {
+      "key": "torch",
+      "kind": "library"
+    },
+    {
+      "key": "torchaudio",
+      "kind": "library"
+    },
+    {
+      "key": "transformers",
+      "kind": "library"
+    },
+    {
+      "key": "vibevoice",
+      "kind": "library"
     }
   ],
   "schema_version": "1.0",

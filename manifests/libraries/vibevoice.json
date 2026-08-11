@@ -1,0 +1,45 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "absl-py",
+      "accelerate",
+      "aiortc",
+      "av",
+      "diffusers",
+      "gradio",
+      "librosa",
+      "llvmlite",
+      "ml-collections",
+      "numba",
+      "numpy",
+      "scipy",
+      "torch",
+      "tqdm",
+      "transformers"
+    ],
+    "entry_points": {},
+    "identity": {
+      "license": null,
+      "repository": "https://github.com/microsoft/VibeVoice",
+      "summary": "A model for speech generation with an AR + diffusion architecture.",
+      "version": "0.0.1"
+    },
+    "install": {
+      "pip": "vibevoice==0.0.1",
+      "requires_python": ">=3.9"
+    }
+  },
+  "description": "A model for speech generation with an AR + diffusion architecture.",
+  "key": "vibevoice",
+  "manifest_kind": "library",
+  "name": "vibevoice",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "importlib.metadata:vibevoice==0.0.1",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

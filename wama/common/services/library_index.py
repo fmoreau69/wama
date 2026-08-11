@@ -36,6 +36,14 @@ INTERNES = {'wama', 'wama_lab'}
 EXCLUS = {'migrations', '__pycache__', 'venv', 'venv_win', 'venv_linux',
           'site-packages', 'node_modules', '.git', 'staticfiles'}
 
+#: SOCLE PLATEFORME (strate 1, SPEC §7.4) — contrat d'exécution commun aux 10 apps, PAS une
+#: dépendance de workload : ne se déclare JAMAIS dans le `requires` d'une app (même semé, il
+#: en est exclu). Même logique que k8s/Backstage : la plateforme n'est pas une dépendance de
+#: l'application. Étendre cette liste est une décision d'ARCHITECTURE, pas un réglage.
+#: (torch/transformers n'y sont PAS : capacités ML citées là où elles sont importées — elles
+#: portent l'information dont la génération de backends a besoin, marche B.)
+SOCLE_PLATEFORME = frozenset({'django', 'celery', 'redis', 'numpy', 'requests'})
+
 
 def _base_dir() -> Path:
     from django.conf import settings
@@ -168,6 +176,7 @@ def candidats() -> list[dict]:
             'version': version,
             'declaree': norm in decl,
             'semee': norm in sem,
+            'socle': norm in SOCLE_PLATEFORME,
             'apps': info['apps'],
             'modules': info['modules'],
             'nb_apps': len(info['apps']),
@@ -187,9 +196,11 @@ def librairies_de(app_id: str) -> list[str]:
     """
     Librairies à citer dans le `requires` du manifeste de l'app `app_id`.
 
-    RÈGLE (deux conditions, toutes deux nécessaires) :
+    RÈGLE (trois conditions, toutes nécessaires) :
       1. l'app IMPORTE réellement la distribution (fait mesuré, pas déclaré) ;
-      2. la distribution est SEMÉE au corpus (décision humaine explicite).
+      2. la distribution est SEMÉE au corpus (décision humaine explicite) ;
+      3. elle n'est PAS du SOCLE PLATEFORME (strate 1 : Django/celery/… — contrat d'exécution
+         commun, jamais une dépendance de workload, même si quelqu'un la semait un jour).
 
     La condition 2 n'est pas une précaution de style : `ingest.valider()` traite une référence
     `requires` pendante comme une ERREUR de manifeste. Citer une librairie non semée rendrait
@@ -199,4 +210,5 @@ def librairies_de(app_id: str) -> list[str]:
     return sorted(
         c['dist'] for c in candidats()
         if app_id in c['apps'] and _normalise(c['dist']) in sem
+        and _normalise(c['dist']) not in SOCLE_PLATEFORME
     )
