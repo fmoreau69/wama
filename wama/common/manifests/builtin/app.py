@@ -6,12 +6,14 @@ Kind `app` — le plus riche (8 facettes, cf. WAMA_MANIFEST_SPEC §3).
 sandbox, puis diffe contre l'app réelle → les écarts révèlent trous du schéma ET mécanismes non
 généralisés (spec §4).
 
-`write_back_app`/`un_write_back_app` SONT implémentés (voir bas de fichier), en posture prudente :
-seule la facette `access` (backend DB → `AppAccessPolicy`) écrit au runtime — idempotent,
-transactionnel, réversible, dry-run par défaut. Les 9 facettes `backend=code` sont rapportées
-dans `codegen_required` : leur write-back = générer la couche MINCE déclarative de l'app
-(registres en code, params.py, gabarit), chantier route §10 — PAS un mécanisme d'UI à bâtir,
-l'UI est générée au runtime par les briques communes une fois les registres alimentés.
+`write_back_app`/`un_write_back_app` SONT implémentés (voir bas de fichier). Facettes ÉCRITES
+aujourd'hui (`PROJECTED_FACETS`) : `access` (DB → `AppAccessPolicy`, runtime) et `identity`
+(CODE → entrée `APP_CATALOG` d'app_registry.py, §10.3 pilote converter 2026-08-11) — idempotent,
+réversible (marqueur sur les blocs générés), dry-run par défaut. Les facettes `backend=code`
+restantes sont rapportées dans `codegen_required` (tri = `projection.FACET_TARGETS`, source
+unique) : leur write-back = générer la couche MINCE déclarative de l'app (registres en code,
+params.py, gabarit), chantier route §10 — PAS un mécanisme d'UI à bâtir, l'UI est générée au
+runtime par les briques communes une fois les registres alimentés.
 
 ⚠ 2026-08-11 : l'ancienne version de ce docstring (« write_back NE sont PAS implémentés ici »)
 a survécu ~6 semaines à l'implémentation et a fait conclure À TORT que la chaîne n'existait pas.
@@ -21,6 +23,7 @@ Ce docstring est un CONTRAT : le tenir à jour au même commit que le code qu'il
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any, Optional
 
 from django.db import transaction
@@ -459,19 +462,32 @@ def _to_dict(obj) -> dict:
 
 # ── PROJECTION (write-back) ──────────────────────────────────────────────────────
 # Propriété de sûreté (SPEC §2.1) : rien ne lit le manifeste en direct ; la projection est un geste
-# EXPLICITE, jamais automatique. AUJOURD'HUI, une SEULE facette est projetable au RUNTIME : `access`
-# → `AppAccessPolicy` (DB). Les autres facettes = CODE-GEN (non écrites, rapportées dans `codegen_required`).
+# EXPLICITE, jamais automatique. Facettes que `write_back_app` SAIT écrire (une entrée ici = un
+# projecteur en bas de fichier) :
+#   - `access`   → AppAccessPolicy (DB, runtime)
+#   - `identity` → entrée APP_CATALOG (app_registry.py, CODE — §10.3, pilote converter 2026-08-11)
+# Le reste des facettes `backend=code` part dans `codegen_required`. Le tri code/db vient de
+# `projection.FACET_TARGETS` (source unique) — l'ancienne liste locale codée en dur avait divergé
+# (elle omettait capabilities/modes et citait models/prompts), corrigé 2026-08-11.
+PROJECTED_FACETS = ('access', 'identity')
+
+
 def write_back_app(manifest: dict, *, apply: bool = False) -> dict:
     """Projette le manifeste `app` vers l'état committé. `apply=False` = DRY-RUN (retourne le plan) ;
-    `apply=True` = écrit (idempotent, transactionnel, réversible). Seule `access` écrit au runtime."""
+    `apply=True` = écrit (idempotent, réversible ; transactionnel pour la DB, garde `compile()`
+    pour le code). Facettes écrites : `access` (DB) + `identity` (code, APP_CATALOG)."""
+    from ..projection import FACET_TARGETS   # import tardif : source unique du tri code/db
     key = manifest.get('key')
     body = manifest.get('body', {}) or {}
-    return {
+    out = {
         'app': key,
         'access': _project_access(key, body.get('access') or {}, apply=apply),
-        'codegen_required': [f for f in ('identity', 'ports', 'params', 'inspector', 'models',
-                                         'processing', 'prompts', 'tool_api', 'studio') if body.get(f)],
     }
+    if body.get('identity'):
+        out['identity'] = _project_identity(manifest, apply=apply)
+    out['codegen_required'] = [f for f, (_cible, backend) in FACET_TARGETS.items()
+                               if backend == 'code' and body.get(f) and f not in PROJECTED_FACETS]
+    return out
 
 
 @transaction.atomic
@@ -505,10 +521,175 @@ def _project_access(app_id: str, access: dict, *, apply: bool) -> dict:
             '_manifest_key': f'app:{app_id}'}
 
 
+# ── Facette `identity` → APP_CATALOG (app_registry.py) — 1re facette CODE (§10.3) ─
+# Champs possédés : la facette (icon/category/url_name/input_extensions) + l'enveloppe
+# (name→label, description). `color` est EXCLUE volontairement : elle est DÉRIVÉE à l'import
+# par `_assign_derived_colors()` (teinte de catégorie + rang alphabétique) — l'écrire la
+# figerait en override et fausserait la nuance des apps voisines de la catégorie.
+IDENTITY_FIELDS = ('label', 'category', 'icon', 'url_name', 'description', 'input_extensions')
+_GEN_MARK = '[manifest-gen app:{app_id}]'
+
+
+def _identity_target(manifest: dict) -> dict:
+    ident = (manifest.get('body') or {}).get('identity') or {}
+    return {
+        'label': manifest.get('name') or manifest.get('key'),
+        'category': ident.get('category'),
+        'icon': ident.get('icon'),
+        'url_name': ident.get('url_name'),
+        'description': manifest.get('description') or '',
+        'input_extensions': list(ident.get('input_extensions') or []),
+    }
+
+
+def _identity_current(app_id: str) -> Optional[dict]:
+    from wama.common.app_registry import APP_CATALOG
+    cat = APP_CATALOG.get(app_id)
+    if cat is None:
+        return None
+    cur = {c: cat.get(c) for c in IDENTITY_FIELDS}
+    cur['description'] = cur.get('description') or ''
+    cur['input_extensions'] = list(cur.get('input_extensions') or [])
+    return cur
+
+
+def _project_identity(manifest: dict, *, apply: bool) -> dict:
+    app_id = manifest.get('key')
+    target = _identity_target(manifest)
+    current = _identity_current(app_id)
+    deltas = ([c for c in IDENTITY_FIELDS if target[c] != current[c]]
+              if current is not None else list(IDENTITY_FIELDS))
+    op = 'create' if current is None else ('update' if deltas else 'noop')
+    if not apply:
+        return {'op': op, 'target': target, 'current': current, 'would_change': deltas}
+    if op == 'noop':
+        return {'op': op, 'changed': [], '_manifest_key': f'app:{app_id}'}
+    res = _write_identity_entry(app_id, target, deltas, create=(op == 'create'))
+    res.update({'op': op, 'previous': current, '_manifest_key': f'app:{app_id}',
+                # l'APP_CATALOG déjà importé dans CE process reste l'ancien : toute
+                # vérification (extract, grille) se fait dans un process neuf.
+                'reload_required': True})
+    return res
+
+
+# ── Helpers d'écriture CODE (mécanique de fichier, jamais d'écriture insyntaxique) ─
+def _registry_path() -> Path:
+    from wama.common import app_registry
+    return Path(app_registry.__file__)
+
+
+def _catalog_bounds(lines: list) -> tuple:
+    """(1re ligne APRÈS `APP_CATALOG = {`, ligne du `}` fermant à indentation 0)."""
+    debut = next(i for i, l in enumerate(lines) if l.startswith('APP_CATALOG = {'))
+    fin = next(i for i in range(debut + 1, len(lines)) if lines[i].rstrip() == '}')
+    return debut + 1, fin
+
+
+def _entry_span(lines: list, app_id: str, lo: int, hi: int) -> Optional[tuple]:
+    """Bornes (debut, fin) du bloc `    'app_id': {` … `    },` — indentation 4 STRICTE :
+    les fermetures imbriquées (conventions, tuples) sont plus profondes, donc sans ambiguïté."""
+    for i in range(lo, hi):
+        if lines[i].startswith(f"    '{app_id}': {{"):
+            fin = next(j for j in range(i + 1, hi + 1) if lines[j].rstrip() == '    },')
+            return i, fin
+    return None
+
+
+def _identity_entry_lines(app_id: str, target: dict) -> list:
+    """Bloc d'entrée APP_CATALOG portant les seuls champs de la facette identity, dans l'idiome
+    du fichier. Marqué : c'est la trace `_manifest_key` version code — elle borne ce que
+    `un_write_back_app` a le droit de supprimer."""
+    mark = _GEN_MARK.format(app_id=app_id)
+    out = [f"    '{app_id}': {{  # {mark} entrée GÉNÉRÉE par write_back_app (facette identity) ;",
+           "        # la compléter par les write-backs des autres facettes, pas à la main."]
+    for champ in ('label', 'category', 'icon', 'url_name', 'description'):
+        if target.get(champ) is not None:
+            out.append(f"        '{champ}': {target[champ]!r},")
+    exts = target.get('input_extensions') or []
+    if exts:
+        out.append("        'input_extensions': (")
+        ligne = "            "
+        for e in exts:
+            tok = f"{e!r}, "
+            if len(ligne) + len(tok) > 98:
+                out.append(ligne.rstrip())
+                ligne = "            "
+            ligne += tok
+        out.append(ligne.rstrip())
+        out.append("        ),")
+    out += ["    },", ""]
+    return out
+
+
+def _write_identity_entry(app_id: str, target: dict, deltas: list, *, create: bool) -> dict:
+    import re
+    path = _registry_path()
+    lines = path.read_text(encoding='utf-8').split('\n')
+    lo, hi = _catalog_bounds(lines)
+    span = _entry_span(lines, app_id, lo, hi)
+    changed, skipped = [], []
+
+    if create:
+        if span is not None:
+            return {'error': "entrée déjà présente — l'état a changé depuis le plan, relancer"}
+        # position alphabétique (l'ordre du catalogue est alphabétique — et la couleur dérivée
+        # dépend du rang, donc l'ordre n'est pas cosmétique)
+        pos = hi
+        for i in range(lo, hi):
+            m = re.match(r"    '([a-z0-9_]+)': \{", lines[i])
+            if m and m.group(1) > app_id:
+                pos = i
+                break
+        lines[pos:pos] = _identity_entry_lines(app_id, target)
+        changed = [c for c in IDENTITY_FIELDS if target.get(c) not in (None, '', [])]
+    elif _GEN_MARK.format(app_id=app_id) in lines[span[0]]:
+        # entrée à nous : régénération entière du bloc (idempotente par construction)
+        fin = span[1]
+        vide = 1 if fin + 1 < len(lines) and lines[fin + 1].strip() == '' else 0
+        lines[span[0]:fin + 1 + vide] = _identity_entry_lines(app_id, target)
+        changed = list(deltas)
+    else:
+        # entrée écrite MAIN : chirurgie champ par champ, jamais de réécriture du bloc
+        # (il porte les champs des autres facettes et leurs commentaires d'audit)
+        for champ in deltas:
+            span = _entry_span(lines, app_id, *_catalog_bounds(lines))  # re-borne après chaque édition
+            if champ == 'input_extensions':
+                # valeur écrite main = expression de constantes (IMAGE_EXTENSIONS + …) :
+                # la remplacer par un littéral détruirait l'intention — écart à trancher
+                # (déclarer au manifeste / porter / trou de route), pas à écraser.
+                skipped.append({'field': champ,
+                                'reason': "expression non littérale (constantes) — édition refusée"})
+                continue
+            pat = re.compile(rf"^(\s{{8}}'{champ}':\s+)(.*)$")
+            for i in range(span[0] + 1, span[1]):
+                m = pat.match(lines[i])
+                if m:
+                    mm = re.match(r"(.*?,)(\s*#.*)?$", m.group(2))
+                    comment = (mm.group(2) or '') if mm else ''
+                    lines[i] = f"{m.group(1)}{target[champ]!r},{comment}"
+                    changed.append(champ)
+                    break
+            else:
+                lines.insert(span[0] + 1, f"        '{champ}': {target[champ]!r},")
+                changed.append(champ)
+
+    nouveau = '\n'.join(lines)
+    compile(nouveau, str(path), 'exec')     # garde-fou : ne JAMAIS écrire un registre insyntaxique
+    path.write_text(nouveau, encoding='utf-8')
+    out = {'applied': {c: target.get(c) for c in changed}, 'changed': sorted(set(changed)),
+           'file': str(path)}
+    if skipped:
+        out['skipped'] = skipped
+    return out
+
+
 @transaction.atomic
 def un_write_back_app(manifest: dict, *, apply: bool = False) -> dict:
     """
-    Réversibilité : retire la politique DB projetée → retombe sur le seed `DEFAULT_APP_ACCESS`.
+    Réversibilité : retire la politique DB projetée (→ retombe sur le seed `DEFAULT_APP_ACCESS`)
+    et, si l'entrée APP_CATALOG a été GÉNÉRÉE par write_back (marqueur `_GEN_MARK` en tête de
+    bloc), la retire aussi. Une entrée écrite main n'est JAMAIS supprimée — même contrat que
+    `un_write_back_library` qui refuse de retirer une librairie installée.
 
     Signature ALIGNÉE sur les autres kinds le 2026-08-05 (`(manifest, *, apply=False) -> dict`).
     Elle appliquait auparavant sans dry-run et rendait un `bool` : un appelant générique itérant
@@ -516,12 +697,28 @@ def un_write_back_app(manifest: dict, *, apply: bool = False) -> dict:
     """
     from wama.accounts.models import AppAccessPolicy
 
-    qs = AppAccessPolicy.objects.filter(app_id=manifest.get('key'))
+    app_id = manifest.get('key')
+    qs = AppAccessPolicy.objects.filter(app_id=app_id)
     n = qs.count()
+
+    path = _registry_path()
+    lines = path.read_text(encoding='utf-8').split('\n')
+    span = _entry_span(lines, app_id, *_catalog_bounds(lines))
+    bloc_genere = span is not None and _GEN_MARK.format(app_id=app_id) in lines[span[0]]
+
     if not apply:
-        return {'app': manifest.get('key'), 'would_remove': n}
+        return {'app': app_id, 'would_remove': n, 'would_remove_catalog_entry': bloc_genere}
     qs.delete()
-    return {'app': manifest.get('key'), 'removed': n}
+    out = {'app': app_id, 'removed': n, 'catalog_entry_removed': False}
+    if bloc_genere:
+        fin = span[1]
+        vide = 1 if fin + 1 < len(lines) and lines[fin + 1].strip() == '' else 0
+        del lines[span[0]:fin + 1 + vide]
+        nouveau = '\n'.join(lines)
+        compile(nouveau, str(path), 'exec')
+        path.write_text(nouveau, encoding='utf-8')
+        out['catalog_entry_removed'] = True
+    return out
 
 
 register_kind(ManifestKind(
@@ -530,6 +727,7 @@ register_kind(ManifestKind(
     extract=extract_app,
     write_back=write_back_app,
     un_write_back=un_write_back_app,
-    description="Application généraliste WAMA (8 facettes). Extract complet ; PROJECTION partielle : "
-                "seule `access`→AppAccessPolicy écrit au runtime (idempotent/réversible), le reste = code-gen.",
+    description="Application généraliste WAMA (8 facettes). Extract complet ; PROJECTION partielle "
+                "(PROJECTED_FACETS) : `access`→AppAccessPolicy (DB) + `identity`→APP_CATALOG (code, "
+                "blocs marqués réversibles), le reste = code-gen.",
 ))

@@ -80,9 +80,11 @@ chacun de leur côté :
   `fixed_kwargs`, `auto_start`) restent déclarés — ce n'est pas de la redondance.
 - **`INSTALLED_APPS`** (`settings.py:268`) = liste plate hand-maintenue, disjointe des registres.
 - **Le manifeste `app`** (`manifests/builtin/app.py:76`) **agrège DÉJÀ les 4 registres + Django** en un body
-  12 facettes ; **write-back PARTIEL** : la facette `access` s'écrit au runtime dans `AppAccessPolicy`
-  (`write_back_app`, idempotent/réversible, depuis `a75c01d`), les 9 autres facettes = code-gen de la
-  couche mince déclarative (l'UI, elle, est générée au runtime par les briques une fois les registres
+  12 facettes ; **write-back PARTIEL** (`PROJECTED_FACETS`) : `access` s'écrit au runtime dans
+  `AppAccessPolicy` (depuis `a75c01d`) et `identity` s'écrit en CODE dans `APP_CATALOG`
+  (2026-08-11, pilote converter — entrée générée marquée `[manifest-gen app:<id>]`, réversible,
+  `color` exclue car dérivée), les 8 facettes code restantes = code-gen de la couche mince
+  déclarative (l'UI, elle, est générée au runtime par les briques une fois les registres
   alimentés). C'est la brique de convergence.
 
 ---
@@ -425,9 +427,19 @@ WamaParams sur les apps hand-built restantes + modale batch + studio→WamaParam
 `renderNodeParams`) ; chips ; `select_model()` ; **enum de statut commune** (tuer les 3 tables
 d'alias) ; `during_preview` émission (9 apps).
 
-### §10.3 — Write-back (code-gen) depuis le manifeste — amorce ✅ (`access` DB, 2026-07-23), reste les 9 facettes code
+### §10.3 — Write-back (code-gen) depuis le manifeste — `access` ✅ (DB, 2026-07-23) + `identity` ✅ (code, 2026-08-11), reste 8 facettes
 Faire grandir `write_back_app` facette par facette, chaque incrément jugé par le diff
 régénéré/existant (pilote de régénération : converter puis transcriber, acté 2026-08-11).
+Palier `identity` (branche `regen/converter`, bac à sable worktree) : 1re facette CODE —
+projection vers l'entrée `APP_CATALOG` (`app_registry.py`), chemins create (entrée générée
+marquée `[manifest-gen app:<id>]`, position alphabétique car la couleur dérive du rang) /
+update (chirurgie champ par champ sur entrée main, `input_extensions` refusé si expression
+de constantes) / noop ; garde `compile()` avant toute écriture ; réversible marqueur-gated
+(une entrée main n'est JAMAIS supprimée). Vérifié : diff identity manifeste↔ré-extraction
+AUCUN, couleur re-dérivée identique (`#46d8a7`), idempotence (re-apply=noop), roundtrip
+10 apps 2/N projetables fidélité OK. Le registre des facettes écrites vit dans
+`PROJECTED_FACETS` (`builtin/app.py`) ; `facet_report`/`codegen_required` le LISENT
+(l'ancienne liste locale divergente de `write_back_app` est supprimée).
 
 ---
 

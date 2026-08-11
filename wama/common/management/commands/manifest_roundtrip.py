@@ -52,8 +52,11 @@ class Command(BaseCommand):
         out['ecarts_fidelite'] = list(verify(manifest) or [])
 
         # `facet_report` expose déjà le tri : on le CONSOMME, on ne le recalcule pas.
+        # `writeback_ready` (§10.3) = facettes présentes que write_back sait écrire (DB ou code) ;
+        # repli sur `runtime_projectable` pour compat avec un facet_report antérieur.
         rapport = facet_report(app_id) or {}
-        out['projetables'] = sorted(rapport.get('runtime_projectable') or [])
+        out['projetables'] = sorted(rapport.get('writeback_ready')
+                                    or rapport.get('runtime_projectable') or [])
         out['codegen_requis'] = sorted(rapport.get('codegen_required') or [])
         out['facettes_absentes'] = sorted(rapport.get('missing_facets') or [])
         # Cible d'écriture de chaque facette restant en code-gen — c'est la liste des fichiers

@@ -1,24 +1,23 @@
 """
 Projection (kind `app`) — INSTRUMENTS DE MESURE du round-trip (aucune écriture ici).
 
-Ne pas lire « pas de code-gen » comme « pas de write-back » : le write-back RUNTIME existe,
-par kind, dans `builtin/` (`app` → facette `access` seule ; `library` → crée la ligne
-`common.models.Library` ; `model` → projette license/platform_ref). Ce qui reste du CODE-GEN,
-c'est la COUCHE MINCE déclarative des facettes `backend=code` (registres en code, params.py,
-gabarit) — l'UI, elle, est générée au runtime par les briques communes. Avant d'engager ce
-code-gen, on a besoin de la liste des « trous et manquements » qui le CADRE.
-Ce module produit ça, sans écrire une ligne dans les registres fonctionnels :
+Ne pas lire « pas de code-gen » comme « pas de write-back » : le write-back existe, par kind,
+dans `builtin/` (`app` → facettes `access` (DB) + `identity` (code, §10.3) ; `library` → crée la
+ligne `common.models.Library` ; `model` → projette license/platform_ref). Ce qui reste du
+CODE-GEN, c'est la COUCHE MINCE déclarative des facettes `backend=code` non encore couvertes par
+un projecteur (registres en code, params.py, gabarit) — l'UI, elle, est générée au runtime par
+les briques communes. Ce module MESURE, sans écrire une ligne dans les registres fonctionnels :
 
   1. `facet_report(app_id)`   : par facette, peut-on reconstruire l'app depuis le manifeste ? Quel
-                               registre est la cible ? Est-ce projetable au RUNTIME (DB) ou en CODE-GEN ?
+                               registre est la cible ? write_back sait-il l'écrire (`writeback_ready`,
+                               lu depuis `builtin.app.PROJECTED_FACETS`) ou reste-t-elle en CODE-GEN ?
   2. `studio_redundancy(app_id)` : ROUND-TRIP réel ciblé sur la redondance connue APP_CATALOG⟷GENERIC_APPS.
                                On dérive les E/S depuis la facette `ports` (issue d'app_registry) et on
                                les diffe contre `GENERIC_APPS` (l'AUTRE source, saisie à la main). Concordance
                                ⇒ fusion des deux registres SÛRE. Divergence ⇒ incohérence réelle trouvée.
 
-Aucune écriture : c'est le rapport qui informera le code-gen. La seule facette projetable au runtime
-(`access` → AppAccessPolicy, DB) est identifiée mais pas encore écrite (discipline : on projette après
-accord sur le rapport).
+(Historique : jusqu'au 2026-08-11 ce docstring disait « access identifiée mais pas encore
+écrite » — c'était périmé depuis le 2026-07-23. Le contrat docstring=code vaut aussi ici.)
 """
 
 from __future__ import annotations
@@ -45,7 +44,12 @@ FACET_TARGETS = {
 
 
 def facet_report(app_id: str) -> Optional[dict]:
-    """Classe chaque facette : présente dans le manifeste ? cible ? projetable runtime ou code-gen ?"""
+    """Classe chaque facette : présente dans le manifeste ? cible ? projetable (write_back sait
+    l'écrire — DB ou code) ou code-gen restant ? La liste des facettes que write_back sait écrire
+    vit dans `builtin.app.PROJECTED_FACETS` (une entrée = un projecteur) : ce rapport la LIT,
+    il ne la redéclare pas — c'était la dérive corrigée le 2026-08-11 (deux listes divergentes)."""
+    from .builtin.app import PROJECTED_FACETS
+    projected = set(PROJECTED_FACETS)
     man = extract('app', app_id)
     if man is None:
         return None
@@ -59,25 +63,29 @@ def facet_report(app_id: str) -> Optional[dict]:
             'present': present,
             'target': target,
             'backend': backend,
-            'projectable_now': backend == 'db',
-            'gap': _classify_gap(facet, val, present, backend),
+            'projectable_now': facet in projected,
+            'gap': _classify_gap(facet, val, present, backend, projected),
         })
     return {
         'app': app_id,
         'world': man.get('world'),
         'facets': facets,
         'missing_facets': body.get('_missing_facets', []),
-        'runtime_projectable': [f['facet'] for f in facets if f['projectable_now']],
-        'codegen_required': [f['facet'] for f in facets if f['backend'] == 'code' and f['present']],
+        # `runtime_projectable` garde sa sémantique historique (backend DB) ; `writeback_ready`
+        # est la mesure du chantier §10.3 : facettes présentes que write_back sait écrire.
+        'runtime_projectable': [f['facet'] for f in facets if f['backend'] == 'db'],
+        'writeback_ready': [f['facet'] for f in facets if f['present'] and f['projectable_now']],
+        'codegen_required': [f['facet'] for f in facets
+                             if f['backend'] == 'code' and f['present'] and f['facet'] not in projected],
     }
 
 
-def _classify_gap(facet, val, present, backend):
+def _classify_gap(facet, val, present, backend, projected):
     if not present:
         return 'MISSING'            # facette absente du manifeste → trou de schéma OU app non conforme
-    if backend == 'db':
-        return 'PROJECTABLE'        # écriture runtime possible dès maintenant
-    return 'CODEGEN'                # reconstruit par génération de code (chantier)
+    if facet in projected:
+        return 'PROJECTABLE'        # write_back sait l'écrire (DB au runtime, ou code marqué)
+    return 'CODEGEN'                # reconstruit par génération de code (chantier §10.3)
 
 
 # ── Round-trip réel : redondance APP_CATALOG ⟷ GENERIC_APPS ─────────────────────
