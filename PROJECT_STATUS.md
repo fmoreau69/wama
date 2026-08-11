@@ -2417,6 +2417,17 @@ travail**. La base LIVE est celle de **WSL2 (Postgres 16)**, conforme à
 exécute WAMA nativement sous Windows (`venv_win runserver`) ; sinon c'est une taxe d'entretien
 supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 
+## §REPRISE — 2026-08-11 : vérification imager + route §10.1 + brique help_about
+
+> **Handoff complet : [`REPRISE_2026-08-11.md`](REPRISE_2026-08-11.md)** — à lire EN PREMIER par
+> la prochaine session. Résumé : faux vert `user_settings` imager réparé (écriture à la création,
+> modèle legacy retiré) ; purge index.js −60 % (« Démarrer tout » était inopérant) ; **§10.1 de la
+> route FAIT** (`GENERIC_APPS` dérive ses E/S des ports, `b91f875`) ; **brique help_about**
+> (onglets auto-générés d'APP_CATALOG, routes 20/20 en 200 — 9 apps rendaient 500) ; 19 retards
+> doc corrigés ; Playwright MCP réellement fonctionnel ; `start_wama_prod.sh` durci (sudo -n).
+> Grille : imager **93 %**, `help_about` vert 10/10, critères `user_settings`+`help_about` durcis.
+> **Suite actée : §10.3 — bac à sable de régénération converter, puis transcriber (tous modèles).**
+
 ## §REPRISE — 2026-08-10 : outillage — sollicitations de permission divisées par 8 (`4d55fc0`)
 
 > 🔴 **À lire par toute instance en cours** : `.claude/settings.json` a changé (prise en compte à
