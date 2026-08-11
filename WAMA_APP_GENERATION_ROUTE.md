@@ -505,6 +505,63 @@ outillé avant d'ouvrir cette marche.
      `HF_HUB_CACHE`, `cache_dir` obligatoire, vocabulaire de statuts canonique).
   Pilote : **transcriber** (composition complète librairie faster-whisper + tous ses modèles).
 
+**Cadrage A0 — la convention RÉELLE, mesurée (2026-08-11, balayage 6 cibles × 10 apps) :**
+- **urls.py** : AUCUNE app ne colle à `STANDARD_ENDPOINTS` — cette liste était une CIBLE que le
+  manifeste affirmait comme réalité pour les 10 apps (mensonge d'extraction, corrigé en A1).
+  `status` n'existe QUE chez converter ; la convention réelle est `progress` + `global_progress`.
+  Noyau conventionnel réel (~26 routes) : cycle (index/upload/start/stop/download/delete/
+  duplicate/start_all/clear_all/download_all) + `card_html`/`console`/`about`/`help` +
+  manipulation (reorder/move_to_batch/remove_from_batch/consolidate) + famille `batch_*`.
+  Déviants : anonymizer (suffixe `_media`, pas de manipulation), imager (batch inversé
+  `import_batch`/`start_batch`), enhancer (surface DOUBLÉE `audio_*`), synthesizer
+  (`synthesis_card_html`). Extras légitimes par app (quick_convert, profile_*, edit…) → À DÉCLARER.
+- **tasks** : squelette convergent 10/10 — garde `refuse_crash_redelivery` sur la tâche
+  principale, `reconcile_orphaned_running` TOUJOURS dans la vue index, `estimate()` en vue +
+  `record_run` en tâche (jamais `ModelRuntimeStat` en direct). Trous d'ADOPTION sur les tâches
+  secondaires (anonymizer 1/4, reader `analyze`, transcriber `enrich`) → bac « porter ».
+- **apps.py** : 10/10 `register_app_detail(app, Model, callable)` — mais le callable est un
+  mapping app-spécifique (kwargs de `build_detail`) : rendre `inspector` projetable exige de
+  rendre la registration DÉCLARATIVE (detail_registry acceptant une spec-donnée) — bac
+  « porter » AVANT gabarit. 3 idiomes preview (wrapper 6/10, `PreviewRegistry.register` bas
+  niveau 3/10, absent imager) ; `register_batch_sync` 9/10 (converter = FK directe).
+- **tool_api** : registre CENTRAL (`wama/tool_api.py::TOOL_REGISTRY`) — la cible du gabarit est
+  une ENTRÉE de registre, pas un fichier par app. Triade conventionnelle stable ; 4 noms
+  historiques rattrapés par alias `add_to_*` ; enhancer = triade doublée.
+- **models.py** : 9/10 = spine `Item(ProcessingTimeMixin, ScopedVisibility)` +
+  `Batch(BatchMixin, ScopedVisibility)` + table de liaison ; réglages en champs individuels
+  9/10. **Le converter est LE déviant double (réglages `options` JSON + batch FK-direct sans
+  BatchMixin)** ⇒ le pilote « squelette complet » se juge sur TRANSCRIBER (conforme au spine) ;
+  converter reste le pilote des paliers registres/urls. Idiomes déviants → à déclarer
+  (`params_storage`, liaison batch).
+- **Frontière actée** : gabarit = noyau conventionnel MESURÉ ci-dessus ; le manifeste déclare
+  les écarts légitimes ; les corps de backends = marche B. **Ordre des paliers A** : A1 routes
+  réelles dans la facette `processing` (extraction URLconf + `extra_routes` déclarés) + gabarit
+  `urls.py` ; A2 squelette `tasks.py` ; A3 `apps.py` (après detail déclaratif) ; A4 entrée
+  triade tool_api ; A5 `models.py` (dernier : migrations + idiomes de stockage).
+
+**Palier A1 ✅ LIVRÉ (2026-08-11, 3ᵉ session) — routes réelles + gabarit `urls.py`** :
+- Paquet **`common/manifests/codegen/`** créé (`urls_gen.py`) : `ROUTE_TABLE` = noyau
+  conventionnel MESURÉ (idiome du pilote, ~29 noms) ; `app_routes()` lit les routes RÉELLES de
+  l'URLconf et sépare compressées/déclarées ; `render_urls()` régénère un fichier complet
+  (JAMAIS partiel : une route non couverte, ou à vue inexprimable, refuse la génération).
+- **Extraction corrigée** : `processing.endpoints` = routes réelles (le mensonge
+  `STANDARD_ENDPOINTS` × 10 apps est corrigé ; la constante reste comme cible documentaire) +
+  `extra_routes` in extenso pour toute déviation. **Canon de vue par IDENTITÉ d'attribut** du
+  module `views` — pas par `__module__` : une vue de fabrique commune
+  (make_queue_manipulation_views) porte le module de la fabrique, chemin runtime non
+  importable ; leçon payée deux fois dans la session (E/S studio, domains liste).
+- Projecteur `_project_processing` (cible urls SEULE — la facette reste `codegen_required`
+  tant que models/tasks ne se génèrent pas) : mêmes contrats (main comparé sémantiquement
+  name→(motif, vue) via ast, jamais réécrit ; absent → généré marqué ; marqué → régénéré).
+  Strip et un_write_back étendus au fichier urls.py.
+- **Mesuré** : couverture COMPLÈTE 9/10 apps (converter 27/34 compressées + 7 déclarées ;
+  synthesizer = 2 vues inexprimables `voice_preview_diagnostic`/`stream_test`, correctement
+  refusées) ; fidélité roundtrip 10/10 OK ; corpus régénéré. **Harnais C : VERDICT CONFORME
+  avec strip de 5 cibles dont urls.py** — le urls.py généré rend les 34 routes, grille 93 %
+  identique, smoke identique, ré-extraction identique. Piège levé : les system checks Django
+  chargent l'URLconf racine au démarrage de toute commande → `requires_system_checks = []`
+  sur le harnais (la phase apply démarre urls.py strippé).
+
 **Palier `prompts` → PROMPT_TARGETS** : variante ENTRÉE-VALEUR du moteur (l'entrée du registre
 EST la liste `targets`, pas un dict de champs) — bornes par AST (lineno/end_lineno, robustes aux
 3 idiomes : mono-ligne, fermeture main `    ],`, continuation pprint générée). Seul `targets` se

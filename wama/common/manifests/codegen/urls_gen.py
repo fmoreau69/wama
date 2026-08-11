@@ -1,0 +1,222 @@
+"""
+Gabarit `urls.py` (palier A1, route §10.3) — routes conventionnelles + routes déclarées.
+
+Trois rôles, UNE source de vérité (l'URLconf réelle) :
+  - `app_routes(app_id)`  : lit les routes RÉELLES de `wama.<app>.urls` (runtime, déterministe)
+    et les sépare : conformes à `ROUTE_TABLE` (compressées : le nom suffit) / déviantes ou
+    hors table (déclarées in extenso dans `extra_routes`). Consommé par l'EXTRACT de la
+    facette `processing` — remplace l'ancienne affirmation `STANDARD_ENDPOINTS` (une CIBLE
+    que le manifeste présentait comme réalité pour les 10 apps, cadrage A0).
+  - `render_urls(manifest)` : régénère un `urls.py` complet depuis la facette (table pour les
+    noms conventionnels, `extra_routes` tels quels). Rend (None, manquantes) si une route
+    n'est couverte ni par la table ni par les déclarations — on ne génère jamais partiel.
+  - `current_routes_from_file(path)` : relit un `urls.py` au FICHIER (ast) pour la comparaison
+    sémantique du projecteur — jamais le module importé (périmé dès la première écriture).
+
+`ROUTE_TABLE` est l'idiome du PILOTE (converter, l'app la plus proche du jeu standard —
+cadrage A0) : les motifs y sont MESURÉS, pas normatifs. Les autres apps déclarent leurs
+variantes (`start/<int:pk>/` du transcriber, `_media` de l'anonymizer…) en `extra_routes` ;
+harmoniser ces variantes est un chantier de PORTAGE, pas l'affaire du gabarit.
+"""
+from __future__ import annotations
+
+import ast
+import importlib
+from pathlib import Path
+
+# Noyau conventionnel MESURÉ (converter, 2026-08-11) : nom → (motif, expression de vue).
+# L'ordre de déclaration est l'ordre de rendu (lisibilité du fichier généré).
+ROUTE_TABLE = {
+    'index':             ('',                              'views.IndexView.as_view()'),
+    'upload':            ('upload/',                       'views.upload'),
+    'start':             ('<int:pk>/start/',               'views.start'),
+    'stop':              ('<int:pk>/stop/',                'views.stop'),
+    'status':            ('<int:pk>/status/',              'views.status'),
+    'progress':          ('<int:pk>/progress/',            'views.progress'),
+    'download':          ('<int:pk>/download/',            'views.download'),
+    'delete':            ('<int:pk>/delete/',              'views.delete'),
+    'duplicate':         ('<int:pk>/duplicate/',           'views.duplicate'),
+    'start_all':         ('start-all/',                    'views.start_all'),
+    'download_all':      ('download-all/',                 'views.download_all'),
+    'clear_all':         ('clear-all/',                    'views.clear_all'),
+    'global_progress':   ('global_progress/',              'views.global_progress'),
+    'card_html':         ('card/<int:pk>/html/',           'views.card_html'),
+    'console':           ('console/',                      'views.console_content'),
+    'about':             ('about/',                        'AppAboutView.as_view()'),
+    'help':              ('help/',                         'AppHelpView.as_view()'),
+    'reorder':           ('reorder/',                      'views.reorder'),
+    'move_to_batch':     ('move-to-batch/<int:pk>/',       'views.move_to_batch'),
+    'remove_from_batch': ('remove-from-batch/<int:pk>/',   'views.remove_from_batch'),
+    'consolidate':       ('consolidate/',                  'views.consolidate'),
+    'batch_template':    ('batch/template/',               'views.batch_template'),
+    'batch_preview':     ('batch/preview/',                'views.batch_preview'),
+    'batch_create':      ('batch/create/',                 'views.batch_create'),
+    'batch_start':       ('batch/<int:pk>/start/',         'views.batch_start'),
+    'batch_update':      ('batch/<int:pk>/update/',        'views.batch_update'),
+    'batch_delete':      ('batch/<int:pk>/delete/',        'views.batch_delete'),
+    'batch_duplicate':   ('batch/<int:pk>/duplicate/',     'views.batch_duplicate'),
+    'batch_download':    ('batch/<int:pk>/download/',      'views.batch_download'),
+}
+
+# Classes de vues COMMUNES admises dans les expressions (import connu du gabarit).
+_COMMON_VIEWS = ('AppAboutView', 'AppHelpView')
+
+
+def urls_file_path(app_id: str) -> Path:
+    import wama
+    return Path(wama.__file__).parent / app_id / 'urls.py'
+
+
+def _view_expr(cb, app_id: str):
+    """Expression de vue CANONIQUE d'un callback d'URLconf — celle qu'on écrirait dans le
+    fichier. La résolution se fait par IDENTITÉ d'attribut du module `views` de l'app, pas
+    par `__module__` : une vue produite par une fabrique commune (make_queue_manipulation_views)
+    porte le module de la fabrique alors que la vérité d'écriture est `views.<attr>` — et le
+    chemin runtime (closure) n'est même pas importable. None = inexprimable (la route ne
+    pourra pas être régénérée : elle POISONNE la couverture, jamais de fichier partiel)."""
+    views_mod = importlib.import_module(f'wama.{app_id}.views')
+    vc = getattr(cb, 'view_class', None)
+    if vc is not None:
+        for attr, val in vars(views_mod).items():
+            if val is vc:
+                return f'views.{attr}.as_view()'
+        if vc.__module__ == 'wama.common.views':
+            return f'{vc.__name__}.as_view()'
+        try:
+            mod = importlib.import_module(vc.__module__)
+            if getattr(mod, vc.__name__, None) is vc:
+                return f'{vc.__module__}.{vc.__name__}.as_view()'
+        except Exception:
+            pass
+        return None
+    for attr, val in vars(views_mod).items():
+        if val is cb:
+            return f'views.{attr}'
+    try:
+        mod = importlib.import_module(cb.__module__)
+        if getattr(mod, cb.__name__, None) is cb:
+            return f'{cb.__module__}.{cb.__name__}'
+    except Exception:
+        pass
+    return None
+
+
+def app_routes(app_id: str) -> tuple:
+    """(endpoints triés, extra_routes) réels de `wama.<app>.urls`. Une route est `extra`
+    dès que (motif, vue) dévie de ROUTE_TABLE — la fidélité ne dépend donc PAS de la
+    justesse de la table, seulement le taux de compression."""
+    mod = importlib.import_module(f'wama.{app_id}.urls')
+    routes = []
+    for p in getattr(mod, 'urlpatterns', []):
+        cb = getattr(p, 'callback', None)
+        name = getattr(p, 'name', None)
+        if cb is None or not name:      # include() imbriqué ou route anonyme : hors périmètre
+            continue
+        routes.append((name, str(p.pattern), _view_expr(cb, app_id)))
+    noms = sorted(r[0] for r in routes)
+    extras = sorted(({'name': n, 'pattern': pat, 'view': v}
+                     for n, pat, v in routes
+                     if v is None or ROUTE_TABLE.get(n) != (pat, v)),
+                    key=lambda r: r['name'])
+    return noms, extras
+
+
+def routes_target(manifest: dict) -> tuple:
+    """Table {name: (pattern, view)} PROJETÉE du manifeste + noms non couverts."""
+    proc = (manifest.get('body') or {}).get('processing') or {}
+    extras = {r['name']: (r['pattern'], r['view'])
+              for r in (proc.get('extra_routes') or []) if r.get('name')}
+    cible, manquantes = {}, []
+    for name in (proc.get('endpoints') or []):
+        if name in extras and extras[name][1]:
+            cible[name] = extras[name]
+        elif name in extras:            # vue inexprimable à l'extraction (view=None)
+            manquantes.append(name)
+        elif name in ROUTE_TABLE:
+            cible[name] = ROUTE_TABLE[name]
+        else:
+            manquantes.append(name)
+    return cible, manquantes
+
+
+def namespace_of(manifest: dict) -> str:
+    """Le namespace vient d'`identity.url_name` ('converter:index' → 'converter') — l'accesseur
+    existant, pas une convention parallèle."""
+    url_name = ((manifest.get('body') or {}).get('identity') or {}).get('url_name') or ''
+    return url_name.split(':')[0] if ':' in url_name else (manifest.get('key') or '')
+
+
+def render_urls(manifest: dict) -> tuple:
+    """(source, manquantes) — source complète du `urls.py` généré, ou (None, [noms]) si des
+    routes ne sont couvertes ni par ROUTE_TABLE ni par extra_routes (jamais de fichier partiel)."""
+    from ..builtin.app import _GEN_MARK   # import tardif (pas de cycle au chargement)
+    app_id = manifest.get('key')
+    cible, manquantes = routes_target(manifest)
+    if manquantes:
+        return None, manquantes
+    if not cible:
+        return None, ['(facette processing sans endpoints)']
+
+    # Ordre de rendu : table d'abord (ordre de déclaration), puis les extras (alphabétique).
+    ordre = [n for n in ROUTE_TABLE if n in cible and cible[n] == ROUTE_TABLE[n]]
+    ordre += sorted(n for n in cible if n not in ordre)
+
+    exprs = [cible[n][1] for n in ordre]
+    imports = ['from django.urls import path']
+    communes = sorted({c for c in _COMMON_VIEWS if any(e.startswith(f'{c}.') for e in exprs)})
+    if communes:
+        imports.append(f"from wama.common.views import {', '.join(communes)}")
+    # Expressions pleinement qualifiées (module.attr…) : importer leur module racine suffit.
+    dottes = sorted({e.rsplit('.', 2)[0] for e in exprs
+                     if '.' in e and not e.startswith('views.')
+                     and not any(e.startswith(f'{c}.') for c in _COMMON_VIEWS)})
+    imports += [f'import {d}' for d in dottes]
+    imports.append('from . import views')
+
+    mark = _GEN_MARK.format(app_id=app_id)
+    lignes = [
+        '"""',
+        f"{mark} — urls.py GÉNÉRÉ par write_back_app (facette processing, gabarit A1).",
+        '',
+        'Routes conventionnelles rendues depuis ROUTE_TABLE (common/manifests/codegen/urls_gen.py),',
+        'routes déclarées (extra_routes du manifeste) rendues telles quelles. Ne pas éditer à la',
+        'main : rejouer write_back après modification du manifeste.',
+        '"""',
+        *imports,
+        '',
+        f"app_name = '{namespace_of(manifest)}'",
+        '',
+        'urlpatterns = [',
+    ]
+    larg_pat = max(len(cible[n][0]) for n in ordre) + 3
+    larg_vue = max(len(cible[n][1]) for n in ordre) + 1
+    for n in ordre:
+        pat, vue = cible[n]
+        gauche = f"'{pat}',"
+        lignes.append(f"    path({gauche:<{larg_pat}} {vue + ',':<{larg_vue}} name='{n}'),")
+    lignes.append(']')
+    lignes.append('')
+    return '\n'.join(lignes), []
+
+
+def current_routes_from_file(path: Path) -> tuple:
+    """({name: (pattern, view_expr)}, app_name) relus du FICHIER via ast — la vérité d'écriture,
+    jamais le module importé. Les vues sont ré-exprimées par `ast.unparse` (même canon que
+    `_view_expr` pour les idiomes du repo : `views.f`, `Cls.as_view()`)."""
+    src = path.read_text(encoding='utf-8')
+    arbre = ast.parse(src)
+    routes, app_name = {}, None
+    for node in ast.walk(arbre):
+        if (isinstance(node, ast.Assign)
+                and any(getattr(t, 'id', None) == 'app_name' for t in node.targets)
+                and isinstance(node.value, ast.Constant)):
+            app_name = node.value.value
+        if (isinstance(node, ast.Call) and getattr(node.func, 'id', None) == 'path'
+                and node.args and isinstance(node.args[0], ast.Constant)):
+            pattern = node.args[0].value
+            vue = ast.unparse(node.args[1]) if len(node.args) > 1 else ''
+            name = next((kw.value.value for kw in node.keywords
+                         if kw.arg == 'name' and isinstance(kw.value, ast.Constant)), None)
+            if name:
+                routes[name] = (pattern, vue)
+    return routes, app_name

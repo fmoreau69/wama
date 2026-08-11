@@ -1112,18 +1112,176 @@
     "processing": {
       "anti_race": true,
       "endpoints": [
-        "index",
-        "upload",
-        "start",
-        "status",
-        "download",
-        "delete",
-        "duplicate",
-        "update",
-        "start_all",
+        "about",
+        "api_all_resolutions",
+        "api_model_resolutions",
+        "auto_prompt",
+        "batch_children",
+        "batch_preview",
+        "batch_template",
+        "batch_update",
+        "card_html",
         "clear_all",
+        "console",
+        "console_content",
+        "consolidate",
+        "create",
+        "delete",
+        "download",
         "download_all",
-        "global_progress"
+        "duplicate",
+        "force_reset",
+        "get_settings",
+        "global_progress",
+        "help",
+        "import_batch",
+        "index",
+        "move_to_batch",
+        "progress",
+        "remove_from_batch",
+        "reorder",
+        "restart",
+        "save_settings",
+        "start",
+        "start_all",
+        "start_batch"
+      ],
+      "extra_routes": [
+        {
+          "name": "api_all_resolutions",
+          "pattern": "api/resolutions/",
+          "view": "views.api_all_resolutions"
+        },
+        {
+          "name": "api_model_resolutions",
+          "pattern": "api/model-resolutions/",
+          "view": "views.api_model_resolutions"
+        },
+        {
+          "name": "auto_prompt",
+          "pattern": "auto-prompt/",
+          "view": "views.generate_auto_prompt"
+        },
+        {
+          "name": "batch_children",
+          "pattern": "batch/<int:batch_id>/children/",
+          "view": "views.get_batch_children"
+        },
+        {
+          "name": "batch_update",
+          "pattern": "batch/<int:batch_id>/update/",
+          "view": "views.batch_update"
+        },
+        {
+          "name": "card_html",
+          "pattern": "card/<int:generation_id>/html/",
+          "view": "views.card_html"
+        },
+        {
+          "name": "console",
+          "pattern": "console/",
+          "view": "views.console"
+        },
+        {
+          "name": "console_content",
+          "pattern": "console-content/",
+          "view": "views.console_content"
+        },
+        {
+          "name": "consolidate",
+          "pattern": "queue/consolidate/",
+          "view": "views.consolidate"
+        },
+        {
+          "name": "create",
+          "pattern": "create/",
+          "view": "views.create_generation"
+        },
+        {
+          "name": "delete",
+          "pattern": "delete/<int:generation_id>/",
+          "view": "views.delete_generation"
+        },
+        {
+          "name": "download",
+          "pattern": "download/<int:generation_id>/",
+          "view": "views.download"
+        },
+        {
+          "name": "duplicate",
+          "pattern": "duplicate/<int:generation_id>/",
+          "view": "views.duplicate_generation"
+        },
+        {
+          "name": "force_reset",
+          "pattern": "force-reset/<int:generation_id>/",
+          "view": "views.force_reset_generation"
+        },
+        {
+          "name": "get_settings",
+          "pattern": "settings/<int:generation_id>/",
+          "view": "views.get_generation_settings"
+        },
+        {
+          "name": "global_progress",
+          "pattern": "global-progress/",
+          "view": "views.global_progress"
+        },
+        {
+          "name": "import_batch",
+          "pattern": "batch/import/",
+          "view": "views.import_batch"
+        },
+        {
+          "name": "index",
+          "pattern": "",
+          "view": "views.index"
+        },
+        {
+          "name": "move_to_batch",
+          "pattern": "queue/<int:pk>/move-to-batch/",
+          "view": "views.move_to_batch"
+        },
+        {
+          "name": "progress",
+          "pattern": "progress/<int:generation_id>/",
+          "view": "views.progress"
+        },
+        {
+          "name": "remove_from_batch",
+          "pattern": "queue/<int:pk>/remove-from-batch/",
+          "view": "views.remove_from_batch"
+        },
+        {
+          "name": "reorder",
+          "pattern": "queue/reorder/",
+          "view": "views.reorder"
+        },
+        {
+          "name": "restart",
+          "pattern": "restart/<int:generation_id>/",
+          "view": "views.restart_generation"
+        },
+        {
+          "name": "save_settings",
+          "pattern": "settings/<int:generation_id>/save/",
+          "view": "views.save_generation_settings"
+        },
+        {
+          "name": "start",
+          "pattern": "start/<int:generation_id>/",
+          "view": "views.start_generation"
+        },
+        {
+          "name": "start_all",
+          "pattern": "start-all/",
+          "view": "views.start_all_generations"
+        },
+        {
+          "name": "start_batch",
+          "pattern": "batch/<int:batch_id>/start/",
+          "view": "views.start_batch"
+        }
       ],
       "ingest": null,
       "processing_time": false,

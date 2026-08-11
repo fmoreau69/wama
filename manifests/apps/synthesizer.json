@@ -603,18 +603,183 @@
     "processing": {
       "anti_race": true,
       "endpoints": [
-        "index",
-        "upload",
-        "start",
-        "status",
-        "download",
-        "delete",
-        "duplicate",
-        "update",
-        "start_all",
+        "about",
+        "batch_create",
+        "batch_delete",
+        "batch_download",
+        "batch_duplicate",
+        "batch_list",
+        "batch_preview",
+        "batch_start",
+        "batch_status",
+        "batch_template",
+        "batch_update_settings",
         "clear_all",
+        "console",
+        "consolidate",
+        "create_preset",
+        "delete",
+        "delete_custom_voice",
+        "delete_preset",
+        "download",
         "download_all",
-        "global_progress"
+        "duplicate",
+        "global_progress",
+        "help",
+        "import_individual_from_path",
+        "index",
+        "list_custom_voices",
+        "list_presets",
+        "move_to_batch",
+        "preview",
+        "progress",
+        "remove_from_batch",
+        "reorder",
+        "start",
+        "start_all",
+        "stop",
+        "synthesis_card_html",
+        "text_preview",
+        "update_options",
+        "upload",
+        "upload_custom_voice",
+        "upload_text",
+        "voice_preview",
+        "voice_preview_diagnostic",
+        "voice_preview_stream",
+        "voice_preview_stream_test"
+      ],
+      "extra_routes": [
+        {
+          "name": "batch_list",
+          "pattern": "batch/",
+          "view": "views.batch_list"
+        },
+        {
+          "name": "batch_status",
+          "pattern": "batch/<int:pk>/status/",
+          "view": "views.batch_status"
+        },
+        {
+          "name": "batch_update_settings",
+          "pattern": "batch/<int:pk>/settings/",
+          "view": "views.batch_update_settings"
+        },
+        {
+          "name": "create_preset",
+          "pattern": "presets/create/",
+          "view": "views.create_voice_preset"
+        },
+        {
+          "name": "delete",
+          "pattern": "delete/<int:pk>/",
+          "view": "views.delete"
+        },
+        {
+          "name": "delete_custom_voice",
+          "pattern": "custom-voices/delete/<int:pk>/",
+          "view": "views.delete_custom_voice"
+        },
+        {
+          "name": "delete_preset",
+          "pattern": "presets/delete/<int:pk>/",
+          "view": "views.delete_voice_preset"
+        },
+        {
+          "name": "download",
+          "pattern": "download/<int:pk>/",
+          "view": "views.download"
+        },
+        {
+          "name": "duplicate",
+          "pattern": "duplicate/<int:pk>/",
+          "view": "views.duplicate"
+        },
+        {
+          "name": "global_progress",
+          "pattern": "global-progress/",
+          "view": "views.global_progress"
+        },
+        {
+          "name": "import_individual_from_path",
+          "pattern": "import-individual-from-path/",
+          "view": "views.import_individual_from_path"
+        },
+        {
+          "name": "list_custom_voices",
+          "pattern": "custom-voices/",
+          "view": "views.list_custom_voices"
+        },
+        {
+          "name": "list_presets",
+          "pattern": "presets/",
+          "view": "views.list_voice_presets"
+        },
+        {
+          "name": "preview",
+          "pattern": "preview/<int:pk>/",
+          "view": "views.preview"
+        },
+        {
+          "name": "progress",
+          "pattern": "progress/<int:pk>/",
+          "view": "views.progress"
+        },
+        {
+          "name": "start",
+          "pattern": "start/<int:pk>/",
+          "view": "views.start"
+        },
+        {
+          "name": "stop",
+          "pattern": "stop/<int:pk>/",
+          "view": "views.stop"
+        },
+        {
+          "name": "synthesis_card_html",
+          "pattern": "synthesis/<int:pk>/card/",
+          "view": "views.synthesis_card_html"
+        },
+        {
+          "name": "text_preview",
+          "pattern": "text-preview/<int:pk>/",
+          "view": "views.text_preview"
+        },
+        {
+          "name": "update_options",
+          "pattern": "update-options/<int:pk>/",
+          "view": "views.update_options"
+        },
+        {
+          "name": "upload_custom_voice",
+          "pattern": "custom-voices/upload/",
+          "view": "views.upload_custom_voice"
+        },
+        {
+          "name": "upload_text",
+          "pattern": "upload-text/",
+          "view": "views.upload_text"
+        },
+        {
+          "name": "voice_preview",
+          "pattern": "voice-preview/",
+          "view": "views.voice_preview"
+        },
+        {
+          "name": "voice_preview_diagnostic",
+          "pattern": "voice-preview-diagnostic/<str:preview_id>/",
+          "view": null
+        },
+        {
+          "name": "voice_preview_stream",
+          "pattern": "voice-preview-stream/<str:preview_id>/",
+          "view": "views.voice_preview_stream"
+        },
+        {
+          "name": "voice_preview_stream_test",
+          "pattern": "voice-preview-stream-test/",
+          "view": null
+        }
       ],
       "ingest": {
         "mode": "audio",

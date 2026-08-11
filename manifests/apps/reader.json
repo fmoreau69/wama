@@ -282,18 +282,111 @@
     "processing": {
       "anti_race": true,
       "endpoints": [
-        "index",
-        "upload",
-        "start",
-        "status",
-        "download",
-        "delete",
-        "duplicate",
-        "update",
-        "start_all",
+        "about",
+        "analyze",
+        "batch_create",
+        "batch_delete",
+        "batch_download",
+        "batch_duplicate",
+        "batch_list",
+        "batch_preview",
+        "batch_start",
+        "batch_status",
+        "batch_template",
+        "batch_update",
+        "card_html",
         "clear_all",
+        "console",
+        "consolidate",
+        "delete",
+        "download",
         "download_all",
-        "global_progress"
+        "duplicate",
+        "global_progress",
+        "help",
+        "index",
+        "move_to_batch",
+        "progress",
+        "remove_from_batch",
+        "reorder",
+        "save_settings",
+        "start",
+        "start_all",
+        "stop",
+        "text",
+        "upload"
+      ],
+      "extra_routes": [
+        {
+          "name": "analyze",
+          "pattern": "analyze/<int:pk>/",
+          "view": "views.analyze"
+        },
+        {
+          "name": "batch_list",
+          "pattern": "batch/list/",
+          "view": "views.batch_list"
+        },
+        {
+          "name": "batch_status",
+          "pattern": "batch/<int:pk>/status/",
+          "view": "views.batch_status"
+        },
+        {
+          "name": "clear_all",
+          "pattern": "clear_all/",
+          "view": "views.clear_all"
+        },
+        {
+          "name": "delete",
+          "pattern": "delete/<int:pk>/",
+          "view": "views.delete"
+        },
+        {
+          "name": "download",
+          "pattern": "download/<int:pk>/",
+          "view": "views.download"
+        },
+        {
+          "name": "duplicate",
+          "pattern": "duplicate/<int:pk>/",
+          "view": "views.duplicate"
+        },
+        {
+          "name": "global_progress",
+          "pattern": "global-progress/",
+          "view": "views.global_progress"
+        },
+        {
+          "name": "progress",
+          "pattern": "progress/<int:pk>/",
+          "view": "views.progress"
+        },
+        {
+          "name": "save_settings",
+          "pattern": "settings/<int:pk>/",
+          "view": "views.save_settings"
+        },
+        {
+          "name": "start",
+          "pattern": "start/<int:pk>/",
+          "view": "views.start"
+        },
+        {
+          "name": "start_all",
+          "pattern": "start_all/",
+          "view": "views.start_all"
+        },
+        {
+          "name": "stop",
+          "pattern": "stop/<int:pk>/",
+          "view": "views.stop"
+        },
+        {
+          "name": "text",
+          "pattern": "text/<int:pk>/",
+          "view": "views.text_view"
+        }
       ],
       "ingest": {
         "mode": "smart",

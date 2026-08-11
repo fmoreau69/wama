@@ -47,7 +47,9 @@ GROUP_TO_WORLD = {
 APP_FACETS = ('identity', 'ports', 'capabilities', 'modes', 'params', 'inspector',
               'models', 'processing', 'prompts', 'tool_api', 'access', 'studio')
 
-# Endpoints standard (convention §3) — cible, générés par projection à terme.
+# Endpoints standard (convention §3) — CIBLE documentaire. N'est PLUS extraite comme réalité :
+# depuis A1 (2026-08-11), `processing.endpoints` porte les routes RÉELLES lues de l'URLconf
+# (codegen/urls_gen.app_routes) — la vraie convention mesurée vit dans ROUTE_TABLE.
 STANDARD_ENDPOINTS = ['index', 'upload', 'start', 'status', 'download', 'delete', 'duplicate',
                       'update', 'start_all', 'clear_all', 'download_all', 'global_progress']
 STATUS_VOCAB = ['PENDING', 'RUNNING', 'SUCCESS', 'FAILURE']
@@ -358,13 +360,25 @@ def _models(app_id):
 
 def _processing(cat: dict, app_id: str) -> dict:
     conv = _to_dict(cat.get('conventions')) if cat.get('conventions') is not None else {}
-    return {
+    out = {
         'statuses': STATUS_VOCAB if conv.get('status_vocab') else None,
         'processing_time': bool(conv.get('processing_time')),
         'anti_race': conv.get('anti_race'),
-        'endpoints': STANDARD_ENDPOINTS,   # cible conventionnelle
         'ingest': _ingest(app_id),         # F5/trou #14 : projette vers WAMA_INGEST (source_ingest.py)
     }
+    # Routes RÉELLES lues de l'URLconf (A1) — remplace l'ancienne affirmation STANDARD_ENDPOINTS
+    # (une CIBLE présentée comme réalité pour les 10 apps, cadrage A0). Compression : un nom
+    # conforme à ROUTE_TABLE suffit ; toute déviation (motif, vue) est déclarée in extenso.
+    try:
+        from ..codegen.urls_gen import app_routes
+        noms, extras = app_routes(app_id)
+        out['endpoints'] = noms
+        if extras:
+            out['extra_routes'] = extras
+    except Exception as e:
+        out['endpoints'] = []
+        out['_routes_error'] = repr(e)
+    return out
 
 
 def _ingest(app_id: str):
@@ -535,7 +549,10 @@ def write_back_app(manifest: dict, *, apply: bool = False, skip: tuple = ()) -> 
     projecteurs = (('identity', _project_identity), ('ports', _project_ports),
                    ('capabilities', _project_capabilities), ('studio', _project_studio),
                    ('modes', _project_modes), ('prompts', _project_prompts),
-                   ('params', _project_params))
+                   ('params', _project_params),
+                   # processing = projection PARTIELLE (urls.py seul, gabarit A1) : la facette
+                   # reste dans codegen_required tant que models.py/tasks.py ne se génèrent pas.
+                   ('processing', _project_processing))
     for facette, projecteur in projecteurs:
         if body.get(facette) and facette not in skip:
             out[facette] = projecteur(manifest, apply=apply)
@@ -911,6 +928,50 @@ def _project_modes(manifest: dict, *, apply: bool) -> dict:
                                current_fn=current_fn, write_fn=write_fn)
 
 
+def _project_processing(manifest: dict, *, apply: bool) -> dict:
+    """Facette processing → cible `urls.py` SEULE pour l'instant (gabarit A1) ; `models.py` et
+    `tasks.py` restent en code-gen (paliers A2/A5) — la facette reste donc HORS
+    PROJECTED_FACETS (projection partielle assumée, rapportée dans le retour). Contrats du
+    moteur : fichier absent → GÉNÉRÉ marqué ; marqué → régénéré ; écrit main → comparaison
+    SÉMANTIQUE (table name→(motif, vue) relue du fichier par ast) et JAMAIS réécrit."""
+    from ..codegen.urls_gen import (current_routes_from_file, namespace_of, render_urls,
+                                    routes_target, urls_file_path)
+    app_id = manifest.get('key')
+    restants = {'models.py': 'codegen (palier A5)', 'tasks.py': 'codegen (palier A2)'}
+    cible, manquantes = routes_target(manifest)
+    if not cible:
+        return {'op': 'skip', 'reason': 'facette processing sans endpoints', **restants}
+    if manquantes:
+        return {'op': 'skip', 'reason': f"routes non couvertes (ni table ni extra_routes) : "
+                                        f"{', '.join(manquantes[:8])}", **restants}
+    path = urls_file_path(app_id)
+    if not path.is_file():
+        op, deltas, marked = 'create', sorted(cible), False
+    else:
+        marked = _GEN_MARK.format(app_id=app_id) in path.read_text(encoding='utf-8')[:600]
+        courant, app_name = current_routes_from_file(path)
+        deltas = sorted(set(n for n in set(cible) | set(courant)
+                            if cible.get(n) != courant.get(n)))
+        if app_name != namespace_of(manifest):
+            deltas.append(f'app_name ({app_name!r} → {namespace_of(manifest)!r})')
+        op = 'update' if deltas else 'noop'
+    if not apply:
+        return {'op': op, 'file': str(path), 'generated_file': marked,
+                'would_change': deltas, **restants}
+    if op == 'noop':
+        return {'op': op, 'changed': [], '_manifest_key': f'app:{app_id}', **restants}
+    if op == 'update' and not marked:
+        return {'op': op, 'changed': [], **restants, 'skipped': [
+            {'field': d, 'reason': "urls.py écrit main — régénération refusée ; écart à "
+                                   "trancher (déclarer / porter / trou de route)"}
+            for d in deltas]}
+    src, _ = render_urls(manifest)
+    compile(src, str(path), 'exec')
+    path.write_text(src, encoding='utf-8')
+    return {'op': op, 'changed': deltas, 'file': str(path),
+            '_manifest_key': f'app:{app_id}', 'reload_required': True, **restants}
+
+
 def _project_dict_facet(app_id: str, target: dict, deltas_fn, *, apply: bool,
                         current_fn, write_fn, champs: Optional[tuple] = None) -> dict:
     """Moteur commun des facettes → registre dict en code : create (entrée générée marquée) /
@@ -1260,21 +1321,27 @@ def un_write_back_app(manifest: dict, *, apply: bool = False) -> dict:
         span = span_fn(lines, app_id, *_dict_bounds(lines, var))
         generes[nom] = span is not None and _GEN_MARK.format(app_id=app_id) in lines[span[0]]
 
-    # params.py généré = un FICHIER (pas une entrée de dict) : retirable s'il porte le marqueur.
-    params_path = _params_file_path(_params_module_name(manifest))
-    params_genere = (params_path.is_file()
-                     and _GEN_MARK.format(app_id=app_id)
-                     in params_path.read_text(encoding='utf-8')[:600])
+    # params.py / urls.py générés = des FICHIERS (pas des entrées de dict) : retirables s'ils
+    # portent le marqueur.
+    from ..codegen.urls_gen import urls_file_path
+    fichiers = {}
+    for nom_f, p in (('params_file', _params_file_path(_params_module_name(manifest))),
+                     ('urls_file', urls_file_path(app_id))):
+        fichiers[nom_f] = (p, p.is_file()
+                           and _GEN_MARK.format(app_id=app_id)
+                           in p.read_text(encoding='utf-8')[:600])
 
     if not apply:
         return {'app': app_id, 'would_remove': n,
                 **{f'would_remove_{nom}': g for nom, g in generes.items()},
-                'would_remove_params_file': params_genere}
+                **{f'would_remove_{nom_f}': g for nom_f, (_p, g) in fichiers.items()}}
     qs.delete()
-    out = {'app': app_id, 'removed': n, 'params_file_removed': False}
-    if params_genere:
-        params_path.unlink()
-        out['params_file_removed'] = True
+    out = {'app': app_id, 'removed': n}
+    for nom_f, (p, genere) in fichiers.items():
+        out[f'{nom_f}_removed'] = False
+        if genere:
+            p.unlink()
+            out[f'{nom_f}_removed'] = True
     for nom, path, var, blank_sep, span_fn in cibles:
         out[f'{nom}_removed'] = False
         if not generes[nom]:
@@ -1350,6 +1417,25 @@ def strip_app_declarations(manifest: dict, *, apply: bool = False) -> dict:
                 out['params_file'] = 'à retirer'
     else:
         out['params_file'] = 'hors périmètre (facette absente du manifeste)'
+
+    # urls.py (gabarit A1) : strippé SEULEMENT si la facette sait le régénérer en entier
+    # (toutes les routes couvertes par ROUTE_TABLE ∪ extra_routes) — jamais de strip partiel.
+    from ..codegen.urls_gen import routes_target, urls_file_path
+    cible, manquantes = routes_target(manifest)
+    p = urls_file_path(app_id)
+    if not cible or manquantes:
+        out['urls_file'] = ('hors périmètre (routes non couvertes : '
+                            + ', '.join(manquantes[:8]) + ')') if manquantes else \
+                           'hors périmètre (facette processing sans endpoints)'
+    elif not p.is_file():
+        out['urls_file'] = 'déjà absent'
+    else:
+        out['files'].append(str(p))
+        if apply:
+            p.unlink()
+            out['urls_file'] = 'retiré'
+        else:
+            out['urls_file'] = 'à retirer'
     return out
 
 

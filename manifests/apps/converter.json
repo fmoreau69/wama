@@ -982,18 +982,77 @@
     "processing": {
       "anti_race": true,
       "endpoints": [
-        "index",
-        "upload",
-        "start",
-        "status",
-        "download",
-        "delete",
-        "duplicate",
-        "update",
-        "start_all",
+        "about",
+        "batch_create",
+        "batch_delete",
+        "batch_download",
+        "batch_duplicate",
+        "batch_preview",
+        "batch_start",
+        "batch_template",
+        "batch_update",
+        "cancel",
+        "card_html",
         "clear_all",
+        "console",
+        "consolidate",
+        "delete",
+        "dismiss",
+        "download",
         "download_all",
-        "global_progress"
+        "duplicate",
+        "global_progress",
+        "help",
+        "index",
+        "move_to_batch",
+        "profile_delete",
+        "profile_list",
+        "profile_save",
+        "quick_convert",
+        "remove_from_batch",
+        "reorder",
+        "start",
+        "start_all",
+        "status",
+        "update",
+        "upload"
+      ],
+      "extra_routes": [
+        {
+          "name": "cancel",
+          "pattern": "<int:pk>/cancel/",
+          "view": "views.cancel"
+        },
+        {
+          "name": "dismiss",
+          "pattern": "<int:pk>/dismiss/",
+          "view": "views.dismiss"
+        },
+        {
+          "name": "profile_delete",
+          "pattern": "profiles/<int:pk>/delete/",
+          "view": "views.profile_delete"
+        },
+        {
+          "name": "profile_list",
+          "pattern": "profiles/",
+          "view": "views.profile_list"
+        },
+        {
+          "name": "profile_save",
+          "pattern": "profiles/save/",
+          "view": "views.profile_save"
+        },
+        {
+          "name": "quick_convert",
+          "pattern": "quick/",
+          "view": "views.quick_convert"
+        },
+        {
+          "name": "update",
+          "pattern": "<int:pk>/update/",
+          "view": "views.update_job"
+        }
       ],
       "ingest": {
         "mode": "media",

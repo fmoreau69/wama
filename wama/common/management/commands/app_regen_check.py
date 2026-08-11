@@ -49,6 +49,10 @@ def _famille_mesuree(path: str) -> bool:
 
 class Command(BaseCommand):
     help = "Harnais de régénération d'app : strip → write_back → jugement 3 axes (route §10.3)."
+    # Les system checks Django chargent l'URLconf RACINE au démarrage de chaque commande — or la
+    # phase `apply` démarre précisément pendant que le urls.py de l'app est strippé (A1). Le
+    # harnais fait ses propres contrôles (gardes + verdict) ; les checks n'ont rien à y juger.
+    requires_system_checks = []
 
     def add_arguments(self, parser):
         parser.add_argument('app_id', help="App à régénérer (ex. converter).")
@@ -210,10 +214,12 @@ class Command(BaseCommand):
         from wama.common.manifests.builtin.app import (
             strip_app_declarations, _metadata_path, _modes_path, _params_file_path,
             _params_module_name, _registry_path, _runner_path)
+        from wama.common.manifests.codegen.urls_gen import urls_file_path
 
         corpus = self._corpus(app_id)
         candidats = [str(_registry_path()), str(_runner_path()), str(_modes_path()),
-                     str(_metadata_path()), str(_params_file_path(_params_module_name(corpus)))]
+                     str(_metadata_path()), str(_params_file_path(_params_module_name(corpus))),
+                     str(urls_file_path(app_id))]
         branche = self._gardes(o['force'], candidats)
 
         rapport = {'app': app_id, 'branche': branche}

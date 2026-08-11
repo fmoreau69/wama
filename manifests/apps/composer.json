@@ -343,18 +343,98 @@
     "processing": {
       "anti_race": true,
       "endpoints": [
-        "index",
-        "upload",
-        "start",
-        "status",
-        "download",
-        "delete",
-        "duplicate",
-        "update",
-        "start_all",
+        "about",
+        "batch_delete",
+        "batch_download",
+        "batch_duplicate",
+        "batch_preview",
+        "batch_start",
+        "batch_template",
+        "batch_update",
+        "card_html",
         "clear_all",
+        "console",
+        "consolidate",
+        "delete",
+        "download",
         "download_all",
-        "global_progress"
+        "duplicate",
+        "export_to_library",
+        "generate",
+        "global_progress",
+        "help",
+        "import_batch",
+        "index",
+        "move_to_batch",
+        "progress",
+        "remove_from_batch",
+        "reorder",
+        "start",
+        "start_all",
+        "stop",
+        "update_settings"
+      ],
+      "extra_routes": [
+        {
+          "name": "clear_all",
+          "pattern": "clear_all/",
+          "view": "views.clear_all"
+        },
+        {
+          "name": "delete",
+          "pattern": "delete/<int:pk>/",
+          "view": "views.delete"
+        },
+        {
+          "name": "download",
+          "pattern": "download/<int:pk>/",
+          "view": "views.download"
+        },
+        {
+          "name": "duplicate",
+          "pattern": "duplicate/<int:pk>/",
+          "view": "views.duplicate"
+        },
+        {
+          "name": "export_to_library",
+          "pattern": "export/<int:pk>/",
+          "view": "views.export_to_library"
+        },
+        {
+          "name": "generate",
+          "pattern": "generate/",
+          "view": "views.generate"
+        },
+        {
+          "name": "import_batch",
+          "pattern": "import/",
+          "view": "views.import_batch"
+        },
+        {
+          "name": "progress",
+          "pattern": "progress/<int:pk>/",
+          "view": "views.progress"
+        },
+        {
+          "name": "start",
+          "pattern": "start/<int:pk>/",
+          "view": "views.start"
+        },
+        {
+          "name": "start_all",
+          "pattern": "start_all/",
+          "view": "views.start_all"
+        },
+        {
+          "name": "stop",
+          "pattern": "stop/<int:pk>/",
+          "view": "views.stop"
+        },
+        {
+          "name": "update_settings",
+          "pattern": "settings/<int:pk>/",
+          "view": "views.update_settings"
+        }
       ],
       "ingest": null,
       "processing_time": true,

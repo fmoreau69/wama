@@ -203,18 +203,94 @@
     "processing": {
       "anti_race": true,
       "endpoints": [
-        "index",
-        "upload",
-        "start",
-        "status",
-        "download",
-        "delete",
-        "duplicate",
-        "update",
-        "start_all",
+        "about",
+        "batch_create",
+        "batch_delete",
+        "batch_download",
+        "batch_duplicate",
+        "batch_preview",
+        "batch_start",
+        "batch_template",
+        "batch_update",
+        "card_html",
         "clear_all",
+        "console",
+        "consolidate",
+        "create",
+        "delete",
+        "download",
         "download_all",
-        "global_progress"
+        "duplicate",
+        "extract_text",
+        "gallery_list",
+        "global_progress",
+        "help",
+        "index",
+        "move_to_batch",
+        "progress",
+        "remove_from_batch",
+        "reorder",
+        "start",
+        "start_all",
+        "stop",
+        "update_options"
+      ],
+      "extra_routes": [
+        {
+          "name": "consolidate",
+          "pattern": "batch/consolidate/",
+          "view": "views.consolidate"
+        },
+        {
+          "name": "create",
+          "pattern": "create/",
+          "view": "views.create"
+        },
+        {
+          "name": "delete",
+          "pattern": "delete/<int:pk>/",
+          "view": "views.delete"
+        },
+        {
+          "name": "download",
+          "pattern": "download/<int:pk>/",
+          "view": "views.download"
+        },
+        {
+          "name": "duplicate",
+          "pattern": "duplicate/<int:pk>/",
+          "view": "views.duplicate"
+        },
+        {
+          "name": "extract_text",
+          "pattern": "extract-text/",
+          "view": "views.extract_text"
+        },
+        {
+          "name": "gallery_list",
+          "pattern": "gallery/",
+          "view": "views.gallery_list"
+        },
+        {
+          "name": "progress",
+          "pattern": "progress/<int:pk>/",
+          "view": "views.progress"
+        },
+        {
+          "name": "start",
+          "pattern": "start/<int:pk>/",
+          "view": "views.start"
+        },
+        {
+          "name": "stop",
+          "pattern": "stop/<int:pk>/",
+          "view": "views.stop"
+        },
+        {
+          "name": "update_options",
+          "pattern": "update-options/<int:pk>/",
+          "view": "views.update_options"
+        }
       ],
       "ingest": {
         "mode": "audio",

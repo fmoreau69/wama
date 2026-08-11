@@ -2427,7 +2427,17 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > restore `git checkout` (sauf `--keep`), exit ≠ 0 si non conforme (chaînable nightly, trou
 > #19). **Validé pilote converter en worktree : CONFORME, identique à la passe manuelle**
 > (10 écarts mesurés tolérés, grille 93 % identique, smoke 200) ; roundtrip 10 apps inchangé.
-> **Suite : marche A (gabarit `common/manifests/codegen/`), jugée par ce harnais.**
+>
+> **Puis marche A entamée** : **cadrage A0** (convention réelle MESURÉE, 6 cibles × 10 apps —
+> route §10.3 : aucune app ne colle à STANDARD_ENDPOINTS, converter = déviant modèles, tool_api
+> centrale) et **palier A1 LIVRÉ** — paquet `common/manifests/codegen/` (gabarit `urls.py`,
+> `ROUTE_TABLE` mesurée), `processing.endpoints` = routes RÉELLES de l'URLconf (+
+> `extra_routes` déclarées, canon de vue par identité d'attribut), projecteur
+> `_project_processing` (urls seule, facette reste codegen), strip/un_write_back/harnais
+> étendus. Couverture 9/10 complète ; **harnais : CONFORME avec urls.py strippé et régénéré**.
+> Piège : system checks Django chargent l'URLconf → `requires_system_checks = []`.
+> **Suite : A2 squelette `tasks.py`** (puis A3 apps.py après detail déclaratif, A4 tool_api,
+> A5 models.py).
 
 ## §REPRISE — 2026-08-11 (2ᵉ session, SUITE du soir) : 8 facettes + function + page librairies + avis critique
 

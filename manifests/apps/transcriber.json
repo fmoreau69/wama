@@ -414,18 +414,188 @@
     "processing": {
       "anti_race": true,
       "endpoints": [
-        "index",
-        "upload",
-        "start",
-        "status",
-        "download",
-        "delete",
-        "duplicate",
-        "update",
-        "start_all",
+        "about",
+        "backends",
+        "batch_create",
+        "batch_delete",
+        "batch_download",
+        "batch_duplicate",
+        "batch_list",
+        "batch_preview",
+        "batch_start",
+        "batch_status",
+        "batch_template",
+        "batch_update",
+        "card_html",
         "clear_all",
+        "console",
+        "consolidate",
+        "delete",
+        "download",
         "download_all",
-        "global_progress"
+        "download_srt",
+        "duplicate",
+        "edit",
+        "enrich",
+        "get_user_settings",
+        "global_progress",
+        "help",
+        "index",
+        "move_to_batch",
+        "progress",
+        "remove_from_batch",
+        "reorder",
+        "save_correction",
+        "save_meta",
+        "save_realtime",
+        "save_settings",
+        "save_user_settings",
+        "segments",
+        "set_preprocessing",
+        "start",
+        "start_all",
+        "stop",
+        "suggest_speakers",
+        "upload",
+        "upload_youtube",
+        "waveform_peaks"
+      ],
+      "extra_routes": [
+        {
+          "name": "backends",
+          "pattern": "backends/",
+          "view": "views.get_backends"
+        },
+        {
+          "name": "batch_list",
+          "pattern": "batch/list/",
+          "view": "views.batch_list"
+        },
+        {
+          "name": "batch_status",
+          "pattern": "batch/<int:pk>/status/",
+          "view": "views.batch_status"
+        },
+        {
+          "name": "batch_update",
+          "pattern": "batch/<int:pk>/update/",
+          "view": "views.batch_update_settings"
+        },
+        {
+          "name": "clear_all",
+          "pattern": "clear_all/",
+          "view": "views.clear_all"
+        },
+        {
+          "name": "delete",
+          "pattern": "delete/<int:pk>/",
+          "view": "views.delete"
+        },
+        {
+          "name": "download",
+          "pattern": "download/<int:pk>/",
+          "view": "views.download"
+        },
+        {
+          "name": "download_all",
+          "pattern": "download_all/",
+          "view": "views.download_all"
+        },
+        {
+          "name": "download_srt",
+          "pattern": "download_srt/<int:pk>/",
+          "view": "views.download_srt"
+        },
+        {
+          "name": "duplicate",
+          "pattern": "duplicate/<int:pk>/",
+          "view": "views.duplicate"
+        },
+        {
+          "name": "edit",
+          "pattern": "edit/<int:pk>/",
+          "view": "views.edit"
+        },
+        {
+          "name": "enrich",
+          "pattern": "enrich/<int:pk>/",
+          "view": "views.enrich"
+        },
+        {
+          "name": "get_user_settings",
+          "pattern": "user_settings/",
+          "view": "views.get_user_transcriber_settings"
+        },
+        {
+          "name": "progress",
+          "pattern": "progress/<int:pk>/",
+          "view": "views.progress"
+        },
+        {
+          "name": "save_correction",
+          "pattern": "edit/<int:pk>/save/",
+          "view": "views.save_correction"
+        },
+        {
+          "name": "save_meta",
+          "pattern": "edit/<int:pk>/save-meta/",
+          "view": "views.save_meta"
+        },
+        {
+          "name": "save_realtime",
+          "pattern": "realtime/save/",
+          "view": "views.save_realtime"
+        },
+        {
+          "name": "save_settings",
+          "pattern": "settings/<int:pk>/",
+          "view": "views.save_settings"
+        },
+        {
+          "name": "save_user_settings",
+          "pattern": "user_settings/save/",
+          "view": "views.save_user_transcriber_settings"
+        },
+        {
+          "name": "segments",
+          "pattern": "segments/<int:pk>/",
+          "view": "views.get_segments"
+        },
+        {
+          "name": "set_preprocessing",
+          "pattern": "preprocessing/set/",
+          "view": "views.set_preprocessing_preference"
+        },
+        {
+          "name": "start",
+          "pattern": "start/<int:pk>/",
+          "view": "views.start"
+        },
+        {
+          "name": "start_all",
+          "pattern": "start_all/",
+          "view": "views.start_all"
+        },
+        {
+          "name": "stop",
+          "pattern": "stop/<int:pk>/",
+          "view": "views.stop"
+        },
+        {
+          "name": "suggest_speakers",
+          "pattern": "edit/<int:pk>/suggest-speakers/",
+          "view": "views.suggest_speakers"
+        },
+        {
+          "name": "upload_youtube",
+          "pattern": "upload_youtube/",
+          "view": "views.upload_youtube"
+        },
+        {
+          "name": "waveform_peaks",
+          "pattern": "edit/<int:pk>/peaks/",
+          "view": "views.waveform_peaks"
+        }
       ],
       "ingest": {
         "mode": "audio",
