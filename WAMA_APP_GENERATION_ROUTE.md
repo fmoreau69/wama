@@ -80,11 +80,11 @@ chacun de leur côté :
   `fixed_kwargs`, `auto_start`) restent déclarés — ce n'est pas de la redondance.
 - **`INSTALLED_APPS`** (`settings.py:268`) = liste plate hand-maintenue, disjointe des registres.
 - **Le manifeste `app`** (`manifests/builtin/app.py`) **agrège DÉJÀ les 4 registres + Django** en un
-  body 12 facettes ; **write-back : 8 facettes** (`PROJECTED_FACETS` — `access` DB +
-  identity/ports/capabilities/studio/modes/prompts/params en CODE marqué `[manifest-gen]`)
-  **+ `processing` partiel** (urls.py régénérable, tasks.py mince — gabarits
-  `common/manifests/codegen/`, §10.3 marches A) ; reste inspector (A3b)/models/tool_api/
-  models.py. L'UI, elle, est générée AU RUNTIME par les briques une fois les registres
+  body 12 facettes ; **write-back : 10 facettes** (`PROJECTED_FACETS` — `access` DB +
+  identity/ports/capabilities/studio/modes/prompts/params/inspector/tool_api en CODE marqué
+  `[manifest-gen]`) **+ `processing` partiel** (urls.py régénérable, tasks.py mince — gabarits
+  `common/manifests/codegen/`, §10.3 marches A) ; reste models (A5) + processing complet.
+  L'UI, elle, est générée AU RUNTIME par les briques une fois les registres
   alimentés — **la vue d'ensemble du tunnel et l'INVARIANT de jointure (« rien ne lit le
   manifeste au runtime, un seul point de contact : les registres ») vivent dans
   `WAMA_MANIFEST_ARCHITECTURE.md §1`** (l'autre côté du tunnel — ne pas les redocumenter ici).
@@ -288,9 +288,12 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   (`resolve_skill` : `<app>-<domain>` → `<app>` → `default-<kind>`). Adopté sur les apps génératives
   (imager/composer/anonymizer/cam_analyzer/assistant) ; synthesizer=`[]` (choix), describer interne.
 - **tool_api = LE pivot** : triade normalisée `add_to_<app>`/`start_<app>`/`get_<app>_status` (`TOOL_REGISTRY`
-  `tool_api.py:2050`). **Deux consommateurs du MÊME contrat** : l'assistant IA (`api/v1/views.py:18`) ET le
+  `tool_api.py:2065`). **Deux consommateurs du MÊME contrat** : l'assistant IA (`api/v1/views.py:18`) ET le
   studio (`build_generic_runner:149` fait `getattr(tool_api,f'add_to_{app}')` + filtre par
   `inspect.signature` + exige `item_id` en retour). **Le studio ne connaît aucune app en dur.**
+  Depuis A4 (2026-08-12) : `start`/`status` d'une app portée sont CONSTRUITS à l'import depuis
+  l'entrée déclarative `TRIAD_SPECS` (`tool_api.py:2152`, signature synthétisée — descriptions
+  dérivées inchangées) ; `add_to_<app>` reste de la glu d'app (marche B). Converter + reader portés.
 - ✅ **Point d'exécution UNIQUE (2026-08-01, `86889ca`)** — le studio ne court-circuite plus
   `execute_tool` : `create`/`start` passent par lui. La logique que le runner avait ré-implémentée chez
   lui est promue au commun : `sanitize_tool_args()` (coercition par schéma + filtre de signature) et
@@ -429,7 +432,7 @@ WamaParams sur les apps hand-built restantes + modale batch + studio→WamaParam
 `renderNodeParams`) ; chips ; `select_model()` ; **enum de statut commune** (tuer les 3 tables
 d'alias) ; `during_preview` émission (9 apps).
 
-### §10.3 — Write-back (code-gen) depuis le manifeste — `access` ✅ (DB) + `identity`/`ports`/`capabilities`/`studio`/`modes`/`prompts`/`params` ✅ (2026-08-11), reste 4 facettes (`inspector`, `models`, `processing`, `tool_api`)
+### §10.3 — Write-back (code-gen) depuis le manifeste — `access` ✅ (DB) + `identity`/`ports`/`capabilities`/`studio`/`modes`/`prompts`/`params` ✅ (2026-08-11) + `inspector` ✅ (A3) + `tool_api` ✅ (A4), reste 2 facettes (`models`, `processing` partiel)
 
 **Palier `params` (soir, sur dev)** : extract MULTI-SCHÉMAS — tous les attributs `*PARAMS_JSON`
 (trou #10 résorbé : imager IMAGE+VIDEO, enhancer MEDIA+AUDIO étaient invisibles), facette
@@ -623,6 +626,24 @@ outillé avant d'ouvrir cette marche.
   pour une même valeur. Normalisé À LA SOURCE (`tool_api._describe_arg` : un défaut
   str-compatible se rend par sa valeur). Harnais reader ensuite **CONFORME** (strip 4 cibles,
   grille 87 % identique, smoke identique) — **2ᵉ app à passer le strip-régénération complet**.
+**Palier A4 ✅ LIVRÉ (2026-08-12) — triades DÉCLARATIVES `TRIAD_SPECS`, facette `tool_api`
+PROJETABLE ; A4 CLOS** : mesure A0 confirmée — `start_<app>`/`get_<app>_status` étaient un
+squelette conventionnel dupliqué par app. **A4a** : entrée déclarative `TRIAD_SPECS`
+(tool_api.py) + `_register_triads()` construit les fonctions à l'import (signature
+SYNTHÉTISÉE `__signature__` : descriptions dérivées, `primary_arg_name`, `sanitize_tool_args`
+strictement inchangés) ; `add_to_<app>` reste de la GLU (marche B) ; converter + reader
+portés (TRADUIRE et REMPLACER) — **parité prouvée byte à byte** (baseline avant/après :
+descriptions des 6 outils, signatures, statuts réels, chemins d'erreur) ; critère de grille
+`tool_api` passé au registre RUNTIME (le littéral ne dit plus la vérité — présence ≠ vie).
+**A4b** : la facette `tool_api` porte `triad_spec` (le déclaratif ; noms + descriptions =
+famille mesurée) ; projecteur `_project_tool_api` = entrée-valeur `TRIAD_SPECS` (même moteur
+que PROMPT_TARGETS, `_write_value_entry` généralisé `champ`/`main_reason`) ; strip +
+`un_write_back` + harnais étendus (tool_api.py aux fichiers cibles) ; validation
+`triad_spec` à l'ingest (leçon A1 ④) ; `tool_api` dans PROJECTED_FACETS (sans triad_spec =
+skip motivé, précédent inspector). **Harnais : converter CONFORME 7 cibles strippées
+(triad_entry compris), reader CONFORME 6 cibles** ; roundtrip 10/10 OK, converter **9/10
+projetable** (ne reste que `processing` partiel) ; grille 10/10 identique ; corpus régénéré.
+
 **Palier A3b ✅ LIVRÉ (2026-08-12) — gabarit `apps_gen`, facette `inspector` PROJETABLE ;
 A3 CLOS** : `codegen/apps_gen.render_apps` rend le `ready()` complet depuis les déclarations
 (batch_sync via le nouveau registre de mesure `batch_sync.SYNCED` → `processing.
