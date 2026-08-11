@@ -318,9 +318,64 @@
       ],
       "extra_routes": [
         {
+          "name": "start",
+          "pattern": "start/<int:pk>/",
+          "view": "views.start"
+        },
+        {
+          "name": "stop",
+          "pattern": "stop/<int:pk>/",
+          "view": "views.stop"
+        },
+        {
           "name": "analyze",
           "pattern": "analyze/<int:pk>/",
           "view": "views.analyze"
+        },
+        {
+          "name": "save_settings",
+          "pattern": "settings/<int:pk>/",
+          "view": "views.save_settings"
+        },
+        {
+          "name": "progress",
+          "pattern": "progress/<int:pk>/",
+          "view": "views.progress"
+        },
+        {
+          "name": "text",
+          "pattern": "text/<int:pk>/",
+          "view": "views.text_view"
+        },
+        {
+          "name": "download",
+          "pattern": "download/<int:pk>/",
+          "view": "views.download"
+        },
+        {
+          "name": "delete",
+          "pattern": "delete/<int:pk>/",
+          "view": "views.delete"
+        },
+        {
+          "name": "duplicate",
+          "pattern": "duplicate/<int:pk>/",
+          "view": "views.duplicate"
+        },
+        {
+          "name": "start_all",
+          "pattern": "start_all/",
+          "view": "views.start_all"
+        },
+        {
+          "name": "clear_all",
+          "pattern": "clear_all/",
+          "view": "views.clear_all"
+        },
+        {
+          "name": "global_progress",
+          "pattern": "global-progress/",
+          "view": "views.global_progress"
         },
         {
           "name": "batch_list",
@@ -331,61 +386,6 @@
           "name": "batch_status",
           "pattern": "batch/<int:pk>/status/",
           "view": "views.batch_status"
-        },
-        {
-          "name": "clear_all",
-          "pattern": "clear_all/",
-          "view": "views.clear_all"
-        },
-        {
-          "name": "delete",
-          "pattern": "delete/<int:pk>/",
-          "view": "views.delete"
-        },
-        {
-          "name": "download",
-          "pattern": "download/<int:pk>/",
-          "view": "views.download"
-        },
-        {
-          "name": "duplicate",
-          "pattern": "duplicate/<int:pk>/",
-          "view": "views.duplicate"
-        },
-        {
-          "name": "global_progress",
-          "pattern": "global-progress/",
-          "view": "views.global_progress"
-        },
-        {
-          "name": "progress",
-          "pattern": "progress/<int:pk>/",
-          "view": "views.progress"
-        },
-        {
-          "name": "save_settings",
-          "pattern": "settings/<int:pk>/",
-          "view": "views.save_settings"
-        },
-        {
-          "name": "start",
-          "pattern": "start/<int:pk>/",
-          "view": "views.start"
-        },
-        {
-          "name": "start_all",
-          "pattern": "start_all/",
-          "view": "views.start_all"
-        },
-        {
-          "name": "stop",
-          "pattern": "stop/<int:pk>/",
-          "view": "views.stop"
-        },
-        {
-          "name": "text",
-          "pattern": "text/<int:pk>/",
-          "view": "views.text_view"
         }
       ],
       "ingest": {

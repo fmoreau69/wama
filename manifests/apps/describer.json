@@ -374,6 +374,41 @@
       ],
       "extra_routes": [
         {
+          "name": "start",
+          "pattern": "start/<int:pk>/",
+          "view": "views.start"
+        },
+        {
+          "name": "stop",
+          "pattern": "stop/<int:pk>/",
+          "view": "views.stop"
+        },
+        {
+          "name": "progress",
+          "pattern": "progress/<int:pk>/",
+          "view": "views.progress"
+        },
+        {
+          "name": "download",
+          "pattern": "download/<int:pk>/",
+          "view": "views.download"
+        },
+        {
+          "name": "delete",
+          "pattern": "delete/<int:pk>/",
+          "view": "views.delete"
+        },
+        {
+          "name": "duplicate",
+          "pattern": "duplicate/<int:pk>/",
+          "view": "views.duplicate"
+        },
+        {
+          "name": "preview",
+          "pattern": "preview/<int:pk>/",
+          "view": "views.preview"
+        },
+        {
           "name": "batch_import",
           "pattern": "batch/import/",
           "view": "views.batch_import"
@@ -389,44 +424,9 @@
           "view": "views.batch_status"
         },
         {
-          "name": "delete",
-          "pattern": "delete/<int:pk>/",
-          "view": "views.delete"
-        },
-        {
-          "name": "download",
-          "pattern": "download/<int:pk>/",
-          "view": "views.download"
-        },
-        {
-          "name": "duplicate",
-          "pattern": "duplicate/<int:pk>/",
-          "view": "views.duplicate"
-        },
-        {
           "name": "global_progress",
           "pattern": "global-progress/",
           "view": "views.global_progress"
-        },
-        {
-          "name": "preview",
-          "pattern": "preview/<int:pk>/",
-          "view": "views.preview"
-        },
-        {
-          "name": "progress",
-          "pattern": "progress/<int:pk>/",
-          "view": "views.progress"
-        },
-        {
-          "name": "start",
-          "pattern": "start/<int:pk>/",
-          "view": "views.start"
-        },
-        {
-          "name": "stop",
-          "pattern": "stop/<int:pk>/",
-          "view": "views.stop"
         },
         {
           "name": "update_options",

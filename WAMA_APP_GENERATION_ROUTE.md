@@ -554,6 +554,14 @@ outillé avant d'ouvrir cette marche.
   tant que models/tasks ne se génèrent pas) : mêmes contrats (main comparé sémantiquement
   name→(motif, vue) via ast, jamais réécrit ; absent → généré marqué ; marqué → régénéré).
   Strip et un_write_back étendus au fichier urls.py.
+- **Rattrapage auto-critique (même session)** : 4 écarts LATENTS corrigés — ① include()/routes
+  anonymes/doublons de nom ne sont plus SAUTÉS mais déclarés `view: None` (ils empoisonnent la
+  couverture — les sauter aurait fait mentir l'axe ① du harnais : le fichier régénéré sans eux
+  se ré-extrait identique au manifeste qui les ignorait) ; ② import des vues pointées corrigé
+  (module porteur, pas un préfixe intermédiaire) ; ③ les extras gardent l'ORDRE de l'URLconf
+  (l'ordre est la sémantique de résolution Django, l'alphabétique risquait un shadowing) ;
+  ④ `validate_app_body` valide `extra_routes` (corpus = matériel d'apprentissage LLM,
+  rejet à l'ingest). Aucun n'était actif sur les 10 apps (vérifié) ; harnais re-CONFORME.
 - **Mesuré** : couverture COMPLÈTE 9/10 apps (converter 27/34 compressées + 7 déclarées ;
   synthesizer = 2 vues inexprimables `voice_preview_diagnostic`/`stream_test`, correctement
   refusées) ; fidélité roundtrip 10/10 OK ; corpus régénéré. **Harnais C : VERDICT CONFORME

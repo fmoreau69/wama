@@ -1019,9 +1019,9 @@
       ],
       "extra_routes": [
         {
-          "name": "cancel",
-          "pattern": "<int:pk>/cancel/",
-          "view": "views.cancel"
+          "name": "quick_convert",
+          "pattern": "quick/",
+          "view": "views.quick_convert"
         },
         {
           "name": "dismiss",
@@ -1029,9 +1029,14 @@
           "view": "views.dismiss"
         },
         {
-          "name": "profile_delete",
-          "pattern": "profiles/<int:pk>/delete/",
-          "view": "views.profile_delete"
+          "name": "cancel",
+          "pattern": "<int:pk>/cancel/",
+          "view": "views.cancel"
+        },
+        {
+          "name": "update",
+          "pattern": "<int:pk>/update/",
+          "view": "views.update_job"
         },
         {
           "name": "profile_list",
@@ -1044,14 +1049,9 @@
           "view": "views.profile_save"
         },
         {
-          "name": "quick_convert",
-          "pattern": "quick/",
-          "view": "views.quick_convert"
-        },
-        {
-          "name": "update",
-          "pattern": "<int:pk>/update/",
-          "view": "views.update_job"
+          "name": "profile_delete",
+          "pattern": "profiles/<int:pk>/delete/",
+          "view": "views.profile_delete"
         }
       ],
       "ingest": {

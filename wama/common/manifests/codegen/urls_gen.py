@@ -104,21 +104,33 @@ def _view_expr(cb, app_id: str):
 def app_routes(app_id: str) -> tuple:
     """(endpoints triés, extra_routes) réels de `wama.<app>.urls`. Une route est `extra`
     dès que (motif, vue) dévie de ROUTE_TABLE — la fidélité ne dépend donc PAS de la
-    justesse de la table, seulement le taux de compression."""
+    justesse de la table, seulement le taux de compression. Les extras gardent l'ORDRE de
+    l'URLconf (l'ordre EST la sémantique de résolution Django — pas de tri cosmétique).
+
+    Une entrée qu'on ne sait pas ré-exprimer — include() imbriqué, route anonyme, nom en
+    doublon, vue inexprimable — est déclarée `view: None` : elle EMPOISONNE la couverture
+    (`routes_target` la range en manquantes) au lieu de disparaître en silence. La sauter
+    ferait mentir l'axe ① du harnais : le fichier régénéré sans elle se ré-extrairait
+    identique au manifeste qui l'ignorait déjà."""
     mod = importlib.import_module(f'wama.{app_id}.urls')
-    routes = []
-    for p in getattr(mod, 'urlpatterns', []):
+    routes, poisons, vus = [], [], set()
+    for i, p in enumerate(getattr(mod, 'urlpatterns', [])):
         cb = getattr(p, 'callback', None)
         name = getattr(p, 'name', None)
-        if cb is None or not name:      # include() imbriqué ou route anonyme : hors périmètre
+        if cb is None or not name:
+            poisons.append({'name': f'<entrée {i} : include() ou route anonyme>',
+                            'pattern': str(getattr(p, 'pattern', '')), 'view': None})
             continue
+        if name in vus:
+            poisons.append({'name': name, 'pattern': str(p.pattern), 'view': None})
+            continue
+        vus.add(name)
         routes.append((name, str(p.pattern), _view_expr(cb, app_id)))
     noms = sorted(r[0] for r in routes)
-    extras = sorted(({'name': n, 'pattern': pat, 'view': v}
-                     for n, pat, v in routes
-                     if v is None or ROUTE_TABLE.get(n) != (pat, v)),
-                    key=lambda r: r['name'])
-    return noms, extras
+    extras = [{'name': n, 'pattern': pat, 'view': v}
+              for n, pat, v in routes
+              if v is None or ROUTE_TABLE.get(n) != (pat, v)]
+    return noms, extras + poisons
 
 
 def routes_target(manifest: dict) -> tuple:
@@ -127,11 +139,15 @@ def routes_target(manifest: dict) -> tuple:
     extras = {r['name']: (r['pattern'], r['view'])
               for r in (proc.get('extra_routes') or []) if r.get('name')}
     cible, manquantes = {}, []
+    # Toute entrée déclarée SANS vue (inexprimable, include, doublon) empoisonne la
+    # couverture, qu'elle figure ou non dans `endpoints` — jamais de fichier partiel.
+    manquantes += [r['name'] for r in (proc.get('extra_routes') or [])
+                   if r.get('name') and not r.get('view')]
     for name in (proc.get('endpoints') or []):
+        if name in manquantes:
+            continue
         if name in extras and extras[name][1]:
             cible[name] = extras[name]
-        elif name in extras:            # vue inexprimable à l'extraction (view=None)
-            manquantes.append(name)
         elif name in ROUTE_TABLE:
             cible[name] = ROUTE_TABLE[name]
         else:
@@ -151,26 +167,36 @@ def render_urls(manifest: dict) -> tuple:
     routes ne sont couvertes ni par ROUTE_TABLE ni par extra_routes (jamais de fichier partiel)."""
     from ..builtin.app import _GEN_MARK   # import tardif (pas de cycle au chargement)
     app_id = manifest.get('key')
+    proc = (manifest.get('body') or {}).get('processing') or {}
     cible, manquantes = routes_target(manifest)
     if manquantes:
         return None, manquantes
     if not cible:
         return None, ['(facette processing sans endpoints)']
 
-    # Ordre de rendu : table d'abord (ordre de déclaration), puis les extras (alphabétique).
+    # Ordre de rendu : table d'abord (ordre de déclaration de ROUTE_TABLE), puis les extras
+    # dans l'ORDRE du manifeste (= l'ordre de l'URLconf d'origine : c'est la sémantique de
+    # résolution Django, pas un choix cosmétique).
     ordre = [n for n in ROUTE_TABLE if n in cible and cible[n] == ROUTE_TABLE[n]]
-    ordre += sorted(n for n in cible if n not in ordre)
+    ordre += [r['name'] for r in (proc.get('extra_routes') or [])
+              if r.get('name') in cible and r['name'] not in ordre]
+    ordre += [n for n in cible if n not in ordre]
 
     exprs = [cible[n][1] for n in ordre]
     imports = ['from django.urls import path']
     communes = sorted({c for c in _COMMON_VIEWS if any(e.startswith(f'{c}.') for e in exprs)})
     if communes:
         imports.append(f"from wama.common.views import {', '.join(communes)}")
-    # Expressions pleinement qualifiées (module.attr…) : importer leur module racine suffit.
-    dottes = sorted({e.rsplit('.', 2)[0] for e in exprs
-                     if '.' in e and not e.startswith('views.')
-                     and not any(e.startswith(f'{c}.') for c in _COMMON_VIEWS)})
-    imports += [f'import {d}' for d in dottes]
+    # Expressions pleinement qualifiées : importer le MODULE porteur (l'attribut est le
+    # dernier segment — deux pour `Cls.as_view()`), jamais un préfixe intermédiaire.
+    dottes = set()
+    for e in exprs:
+        if e.startswith('views.') or any(e.startswith(f'{c}.') for c in _COMMON_VIEWS):
+            continue
+        if '.' in e:
+            base = e[:-len('.as_view()')] if e.endswith('.as_view()') else e
+            dottes.add(base.rsplit('.', 1)[0])
+    imports += [f'import {d}' for d in sorted(dottes)]
     imports.append('from . import views')
 
     mark = _GEN_MARK.format(app_id=app_id)

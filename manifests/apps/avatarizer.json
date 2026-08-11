@@ -237,44 +237,9 @@
       ],
       "extra_routes": [
         {
-          "name": "consolidate",
-          "pattern": "batch/consolidate/",
-          "view": "views.consolidate"
-        },
-        {
           "name": "create",
           "pattern": "create/",
           "view": "views.create"
-        },
-        {
-          "name": "delete",
-          "pattern": "delete/<int:pk>/",
-          "view": "views.delete"
-        },
-        {
-          "name": "download",
-          "pattern": "download/<int:pk>/",
-          "view": "views.download"
-        },
-        {
-          "name": "duplicate",
-          "pattern": "duplicate/<int:pk>/",
-          "view": "views.duplicate"
-        },
-        {
-          "name": "extract_text",
-          "pattern": "extract-text/",
-          "view": "views.extract_text"
-        },
-        {
-          "name": "gallery_list",
-          "pattern": "gallery/",
-          "view": "views.gallery_list"
-        },
-        {
-          "name": "progress",
-          "pattern": "progress/<int:pk>/",
-          "view": "views.progress"
         },
         {
           "name": "start",
@@ -287,9 +252,44 @@
           "view": "views.stop"
         },
         {
+          "name": "progress",
+          "pattern": "progress/<int:pk>/",
+          "view": "views.progress"
+        },
+        {
+          "name": "delete",
+          "pattern": "delete/<int:pk>/",
+          "view": "views.delete"
+        },
+        {
+          "name": "download",
+          "pattern": "download/<int:pk>/",
+          "view": "views.download"
+        },
+        {
+          "name": "gallery_list",
+          "pattern": "gallery/",
+          "view": "views.gallery_list"
+        },
+        {
           "name": "update_options",
           "pattern": "update-options/<int:pk>/",
           "view": "views.update_options"
+        },
+        {
+          "name": "duplicate",
+          "pattern": "duplicate/<int:pk>/",
+          "view": "views.duplicate"
+        },
+        {
+          "name": "extract_text",
+          "pattern": "extract-text/",
+          "view": "views.extract_text"
+        },
+        {
+          "name": "consolidate",
+          "pattern": "batch/consolidate/",
+          "view": "views.consolidate"
         }
       ],
       "ingest": {

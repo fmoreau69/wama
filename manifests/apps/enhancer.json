@@ -608,129 +608,54 @@
       ],
       "extra_routes": [
         {
-          "name": "audio_batch_create",
-          "pattern": "audio/batch/create/",
-          "view": "views.audio_batch_create"
+          "name": "start",
+          "pattern": "start/<int:pk>/",
+          "view": "views.start"
         },
         {
-          "name": "audio_batch_delete",
-          "pattern": "audio/batch/<int:pk>/delete/",
-          "view": "views.audio_batch_delete"
+          "name": "stop",
+          "pattern": "stop/<int:pk>/",
+          "view": "views.stop"
         },
         {
-          "name": "audio_batch_download",
-          "pattern": "audio/batch/<int:pk>/download/",
-          "view": "views.audio_batch_download"
+          "name": "progress",
+          "pattern": "progress/<int:pk>/",
+          "view": "views.progress"
         },
         {
-          "name": "audio_batch_duplicate",
-          "pattern": "audio/batch/<int:pk>/duplicate/",
-          "view": "views.audio_batch_duplicate"
+          "name": "download",
+          "pattern": "download/<int:pk>/",
+          "view": "views.download"
         },
         {
-          "name": "audio_batch_preview",
-          "pattern": "audio/batch/preview/",
-          "view": "views.audio_batch_preview"
+          "name": "delete",
+          "pattern": "delete/<int:pk>/",
+          "view": "views.delete"
         },
         {
-          "name": "audio_batch_start",
-          "pattern": "audio/batch/<int:pk>/start/",
-          "view": "views.audio_batch_start"
+          "name": "duplicate",
+          "pattern": "duplicate/<int:pk>/",
+          "view": "views.duplicate"
         },
         {
-          "name": "audio_batch_status",
-          "pattern": "audio/batch/<int:pk>/status/",
-          "view": "views.audio_batch_status"
+          "name": "start_all",
+          "pattern": "start_all/",
+          "view": "views.start_all"
         },
         {
-          "name": "audio_batch_template",
-          "pattern": "audio/batch/template/",
-          "view": "views.audio_batch_template"
+          "name": "clear_all",
+          "pattern": "clear_all/",
+          "view": "views.clear_all"
         },
         {
-          "name": "audio_card_html",
-          "pattern": "audio/card/<int:pk>/html/",
-          "view": "views.audio_card_html"
+          "name": "download_all",
+          "pattern": "download_all/",
+          "view": "views.download_all"
         },
         {
-          "name": "audio_clear_all",
-          "pattern": "audio/clear_all/",
-          "view": "views.audio_clear_all"
-        },
-        {
-          "name": "audio_consolidate",
-          "pattern": "audio/consolidate/",
-          "view": "views.audio_consolidate"
-        },
-        {
-          "name": "audio_delete",
-          "pattern": "audio/delete/<int:pk>/",
-          "view": "views.audio_delete"
-        },
-        {
-          "name": "audio_download",
-          "pattern": "audio/download/<int:pk>/",
-          "view": "views.audio_download"
-        },
-        {
-          "name": "audio_download_all",
-          "pattern": "audio/download_all/",
-          "view": "views.audio_download_all"
-        },
-        {
-          "name": "audio_duplicate",
-          "pattern": "audio/duplicate/<int:pk>/",
-          "view": "views.audio_duplicate"
-        },
-        {
-          "name": "audio_global_progress",
-          "pattern": "audio/global_progress/",
-          "view": "views.audio_global_progress"
-        },
-        {
-          "name": "audio_move_to_batch",
-          "pattern": "audio/move-to-batch/<int:pk>/",
-          "view": "views.audio_move_to_batch"
-        },
-        {
-          "name": "audio_progress",
-          "pattern": "audio/progress/<int:pk>/",
-          "view": "views.audio_progress"
-        },
-        {
-          "name": "audio_remove_from_batch",
-          "pattern": "audio/remove-from-batch/<int:pk>/",
-          "view": "views.audio_remove_from_batch"
-        },
-        {
-          "name": "audio_reorder",
-          "pattern": "audio/reorder/",
-          "view": "views.audio_reorder"
-        },
-        {
-          "name": "audio_start",
-          "pattern": "audio/start/<int:pk>/",
-          "view": "views.audio_start"
-        },
-        {
-          "name": "audio_start_all",
-          "pattern": "audio/start_all/",
-          "view": "views.audio_start_all"
-        },
-        {
-          "name": "audio_stop",
-          "pattern": "audio/stop/<int:pk>/",
-          "view": "views.audio_stop"
-        },
-        {
-          "name": "audio_update",
-          "pattern": "audio/update/<int:pk>/",
-          "view": "views.audio_update"
-        },
-        {
-          "name": "audio_upload",
-          "pattern": "audio/upload/",
-          "view": "views.audio_upload"
+          "name": "update_settings",
+          "pattern": "update_settings/<int:pk>/",
+          "view": "views.update_settings"
         },
         {
           "name": "batch_list",
@@ -743,54 +668,129 @@
           "view": "views.batch_status"
         },
         {
-          "name": "clear_all",
-          "pattern": "clear_all/",
-          "view": "views.clear_all"
+          "name": "audio_upload",
+          "pattern": "audio/upload/",
+          "view": "views.audio_upload"
         },
         {
-          "name": "delete",
-          "pattern": "delete/<int:pk>/",
-          "view": "views.delete"
+          "name": "audio_consolidate",
+          "pattern": "audio/consolidate/",
+          "view": "views.audio_consolidate"
         },
         {
-          "name": "download",
-          "pattern": "download/<int:pk>/",
-          "view": "views.download"
+          "name": "audio_start",
+          "pattern": "audio/start/<int:pk>/",
+          "view": "views.audio_start"
         },
         {
-          "name": "download_all",
-          "pattern": "download_all/",
-          "view": "views.download_all"
+          "name": "audio_stop",
+          "pattern": "audio/stop/<int:pk>/",
+          "view": "views.audio_stop"
         },
         {
-          "name": "duplicate",
-          "pattern": "duplicate/<int:pk>/",
-          "view": "views.duplicate"
+          "name": "audio_progress",
+          "pattern": "audio/progress/<int:pk>/",
+          "view": "views.audio_progress"
         },
         {
-          "name": "progress",
-          "pattern": "progress/<int:pk>/",
-          "view": "views.progress"
+          "name": "audio_download",
+          "pattern": "audio/download/<int:pk>/",
+          "view": "views.audio_download"
         },
         {
-          "name": "start",
-          "pattern": "start/<int:pk>/",
-          "view": "views.start"
+          "name": "audio_delete",
+          "pattern": "audio/delete/<int:pk>/",
+          "view": "views.audio_delete"
         },
         {
-          "name": "start_all",
-          "pattern": "start_all/",
-          "view": "views.start_all"
+          "name": "audio_duplicate",
+          "pattern": "audio/duplicate/<int:pk>/",
+          "view": "views.audio_duplicate"
         },
         {
-          "name": "stop",
-          "pattern": "stop/<int:pk>/",
-          "view": "views.stop"
+          "name": "audio_update",
+          "pattern": "audio/update/<int:pk>/",
+          "view": "views.audio_update"
         },
         {
-          "name": "update_settings",
-          "pattern": "update_settings/<int:pk>/",
-          "view": "views.update_settings"
+          "name": "audio_start_all",
+          "pattern": "audio/start_all/",
+          "view": "views.audio_start_all"
+        },
+        {
+          "name": "audio_clear_all",
+          "pattern": "audio/clear_all/",
+          "view": "views.audio_clear_all"
+        },
+        {
+          "name": "audio_download_all",
+          "pattern": "audio/download_all/",
+          "view": "views.audio_download_all"
+        },
+        {
+          "name": "audio_global_progress",
+          "pattern": "audio/global_progress/",
+          "view": "views.audio_global_progress"
+        },
+        {
+          "name": "audio_card_html",
+          "pattern": "audio/card/<int:pk>/html/",
+          "view": "views.audio_card_html"
+        },
+        {
+          "name": "audio_reorder",
+          "pattern": "audio/reorder/",
+          "view": "views.audio_reorder"
+        },
+        {
+          "name": "audio_move_to_batch",
+          "pattern": "audio/move-to-batch/<int:pk>/",
+          "view": "views.audio_move_to_batch"
+        },
+        {
+          "name": "audio_remove_from_batch",
+          "pattern": "audio/remove-from-batch/<int:pk>/",
+          "view": "views.audio_remove_from_batch"
+        },
+        {
+          "name": "audio_batch_template",
+          "pattern": "audio/batch/template/",
+          "view": "views.audio_batch_template"
+        },
+        {
+          "name": "audio_batch_preview",
+          "pattern": "audio/batch/preview/",
+          "view": "views.audio_batch_preview"
+        },
+        {
+          "name": "audio_batch_create",
+          "pattern": "audio/batch/create/",
+          "view": "views.audio_batch_create"
+        },
+        {
+          "name": "audio_batch_start",
+          "pattern": "audio/batch/<int:pk>/start/",
+          "view": "views.audio_batch_start"
+        },
+        {
+          "name": "audio_batch_status",
+          "pattern": "audio/batch/<int:pk>/status/",
+          "view": "views.audio_batch_status"
+        },
+        {
+          "name": "audio_batch_download",
+          "pattern": "audio/batch/<int:pk>/download/",
+          "view": "views.audio_batch_download"
+        },
+        {
+          "name": "audio_batch_delete",
+          "pattern": "audio/batch/<int:pk>/delete/",
+          "view": "views.audio_batch_delete"
+        },
+        {
+          "name": "audio_batch_duplicate",
+          "pattern": "audio/batch/<int:pk>/duplicate/",
+          "view": "views.audio_batch_duplicate"
         }
       ],
       "ingest": {

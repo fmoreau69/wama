@@ -1148,34 +1148,9 @@
       ],
       "extra_routes": [
         {
-          "name": "api_all_resolutions",
-          "pattern": "api/resolutions/",
-          "view": "views.api_all_resolutions"
-        },
-        {
-          "name": "api_model_resolutions",
-          "pattern": "api/model-resolutions/",
-          "view": "views.api_model_resolutions"
-        },
-        {
-          "name": "auto_prompt",
-          "pattern": "auto-prompt/",
-          "view": "views.generate_auto_prompt"
-        },
-        {
-          "name": "batch_children",
-          "pattern": "batch/<int:batch_id>/children/",
-          "view": "views.get_batch_children"
-        },
-        {
-          "name": "batch_update",
-          "pattern": "batch/<int:batch_id>/update/",
-          "view": "views.batch_update"
-        },
-        {
-          "name": "card_html",
-          "pattern": "card/<int:generation_id>/html/",
-          "view": "views.card_html"
+          "name": "index",
+          "pattern": "",
+          "view": "views.index"
         },
         {
           "name": "console",
@@ -1183,44 +1158,39 @@
           "view": "views.console"
         },
         {
-          "name": "console_content",
-          "pattern": "console-content/",
-          "view": "views.console_content"
-        },
-        {
-          "name": "consolidate",
-          "pattern": "queue/consolidate/",
-          "view": "views.consolidate"
-        },
-        {
           "name": "create",
           "pattern": "create/",
           "view": "views.create_generation"
         },
         {
-          "name": "delete",
-          "pattern": "delete/<int:generation_id>/",
-          "view": "views.delete_generation"
+          "name": "start",
+          "pattern": "start/<int:generation_id>/",
+          "view": "views.start_generation"
         },
         {
-          "name": "download",
-          "pattern": "download/<int:generation_id>/",
-          "view": "views.download"
+          "name": "restart",
+          "pattern": "restart/<int:generation_id>/",
+          "view": "views.restart_generation"
         },
         {
-          "name": "duplicate",
-          "pattern": "duplicate/<int:generation_id>/",
-          "view": "views.duplicate_generation"
+          "name": "start_all",
+          "pattern": "start-all/",
+          "view": "views.start_all_generations"
         },
         {
-          "name": "force_reset",
-          "pattern": "force-reset/<int:generation_id>/",
-          "view": "views.force_reset_generation"
+          "name": "progress",
+          "pattern": "progress/<int:generation_id>/",
+          "view": "views.progress"
         },
         {
-          "name": "get_settings",
-          "pattern": "settings/<int:generation_id>/",
-          "view": "views.get_generation_settings"
+          "name": "card_html",
+          "pattern": "card/<int:generation_id>/html/",
+          "view": "views.card_html"
+        },
+        {
+          "name": "batch_update",
+          "pattern": "batch/<int:batch_id>/update/",
+          "view": "views.batch_update"
         },
         {
           "name": "global_progress",
@@ -1228,24 +1198,44 @@
           "view": "views.global_progress"
         },
         {
-          "name": "import_batch",
-          "pattern": "batch/import/",
-          "view": "views.import_batch"
+          "name": "download",
+          "pattern": "download/<int:generation_id>/",
+          "view": "views.download"
         },
         {
-          "name": "index",
-          "pattern": "",
-          "view": "views.index"
+          "name": "delete",
+          "pattern": "delete/<int:generation_id>/",
+          "view": "views.delete_generation"
         },
         {
-          "name": "move_to_batch",
-          "pattern": "queue/<int:pk>/move-to-batch/",
-          "view": "views.move_to_batch"
+          "name": "duplicate",
+          "pattern": "duplicate/<int:generation_id>/",
+          "view": "views.duplicate_generation"
         },
         {
-          "name": "progress",
-          "pattern": "progress/<int:generation_id>/",
-          "view": "views.progress"
+          "name": "console_content",
+          "pattern": "console-content/",
+          "view": "views.console_content"
+        },
+        {
+          "name": "get_settings",
+          "pattern": "settings/<int:generation_id>/",
+          "view": "views.get_generation_settings"
+        },
+        {
+          "name": "save_settings",
+          "pattern": "settings/<int:generation_id>/save/",
+          "view": "views.save_generation_settings"
+        },
+        {
+          "name": "force_reset",
+          "pattern": "force-reset/<int:generation_id>/",
+          "view": "views.force_reset_generation"
+        },
+        {
+          "name": "auto_prompt",
+          "pattern": "auto-prompt/",
+          "view": "views.generate_auto_prompt"
         },
         {
           "name": "remove_from_batch",
@@ -1258,29 +1248,39 @@
           "view": "views.reorder"
         },
         {
-          "name": "restart",
-          "pattern": "restart/<int:generation_id>/",
-          "view": "views.restart_generation"
+          "name": "move_to_batch",
+          "pattern": "queue/<int:pk>/move-to-batch/",
+          "view": "views.move_to_batch"
         },
         {
-          "name": "save_settings",
-          "pattern": "settings/<int:generation_id>/save/",
-          "view": "views.save_generation_settings"
+          "name": "consolidate",
+          "pattern": "queue/consolidate/",
+          "view": "views.consolidate"
         },
         {
-          "name": "start",
-          "pattern": "start/<int:generation_id>/",
-          "view": "views.start_generation"
+          "name": "import_batch",
+          "pattern": "batch/import/",
+          "view": "views.import_batch"
         },
         {
-          "name": "start_all",
-          "pattern": "start-all/",
-          "view": "views.start_all_generations"
+          "name": "batch_children",
+          "pattern": "batch/<int:batch_id>/children/",
+          "view": "views.get_batch_children"
         },
         {
           "name": "start_batch",
           "pattern": "batch/<int:batch_id>/start/",
           "view": "views.start_batch"
+        },
+        {
+          "name": "api_model_resolutions",
+          "pattern": "api/model-resolutions/",
+          "view": "views.api_model_resolutions"
+        },
+        {
+          "name": "api_all_resolutions",
+          "pattern": "api/resolutions/",
+          "view": "views.api_all_resolutions"
         }
       ],
       "ingest": null,

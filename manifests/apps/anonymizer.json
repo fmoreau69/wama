@@ -891,69 +891,9 @@
       ],
       "extra_routes": [
         {
-          "name": "check_all_processed",
-          "pattern": "check_all_processed/",
-          "view": "views.check_all_processed"
-        },
-        {
-          "name": "clear_all_media",
-          "pattern": "clear_all_media/",
-          "view": "views.clear_all_media"
-        },
-        {
-          "name": "clear_media",
-          "pattern": "clear_media/",
-          "view": "views.clear_media"
-        },
-        {
-          "name": "configure_hf_token",
-          "pattern": "sam3/configure-hf/",
-          "view": "views.configure_hf_token"
-        },
-        {
-          "name": "consolidate",
-          "pattern": "batch/consolidate/",
-          "view": "views.consolidate"
-        },
-        {
-          "name": "debug_media_status",
-          "pattern": "debug/media-status/",
-          "view": "views.debug_media_status"
-        },
-        {
-          "name": "download_all_media",
-          "pattern": "download_all_media/",
-          "view": "views.download_all_media"
-        },
-        {
-          "name": "download_media",
-          "pattern": "download_media/",
-          "view": "views.download_media"
-        },
-        {
-          "name": "duplicate_media",
-          "pattern": "duplicate/<int:media_id>/",
-          "view": "views.duplicate_media"
-        },
-        {
-          "name": "expand_area",
-          "pattern": "expand_area/",
-          "view": "views.expand_area"
-        },
-        {
-          "name": "get_media_settings",
-          "pattern": "get_media_settings/<int:media_id>/",
-          "view": "views.get_media_settings"
-        },
-        {
-          "name": "model_recommendations",
-          "pattern": "model-recommendations/",
-          "view": "views.get_model_recommendations"
-        },
-        {
-          "name": "preview_media",
-          "pattern": "preview/<int:media_id>/",
-          "view": "views.preview_media"
+          "name": "upload",
+          "pattern": "upload/",
+          "view": "views.IndexView.as_view()"
         },
         {
           "name": "process",
@@ -961,14 +901,34 @@
           "view": "views.ProcessView.as_view()"
         },
         {
-          "name": "process_progress",
-          "pattern": "process_progress/",
-          "view": "views.get_process_progress"
-        },
-        {
           "name": "queue_count",
           "pattern": "queue_count/",
           "view": "views.queue_count"
+        },
+        {
+          "name": "start",
+          "pattern": "start/<int:pk>/",
+          "view": "views.start"
+        },
+        {
+          "name": "stop",
+          "pattern": "stop/<int:pk>/",
+          "view": "views.stop"
+        },
+        {
+          "name": "start_all",
+          "pattern": "start_all/",
+          "view": "views.start_all"
+        },
+        {
+          "name": "update_settings",
+          "pattern": "update_settings/",
+          "view": "views.update_settings"
+        },
+        {
+          "name": "clear_media",
+          "pattern": "clear_media/",
+          "view": "views.clear_media"
         },
         {
           "name": "reset_media_settings",
@@ -981,34 +941,19 @@
           "view": "views.reset_user_settings"
         },
         {
-          "name": "sam3_examples",
-          "pattern": "sam3/examples/",
-          "view": "views.get_sam3_examples"
+          "name": "process_progress",
+          "pattern": "process_progress/",
+          "view": "views.get_process_progress"
         },
         {
-          "name": "sam3_status",
-          "pattern": "sam3/status/",
-          "view": "views.get_sam3_status_view"
+          "name": "download_media",
+          "pattern": "download_media/",
+          "view": "views.download_media"
         },
         {
-          "name": "save_media_settings",
-          "pattern": "save_media_settings/",
-          "view": "views.save_media_settings"
-        },
-        {
-          "name": "start",
-          "pattern": "start/<int:pk>/",
-          "view": "views.start"
-        },
-        {
-          "name": "start_all",
-          "pattern": "start_all/",
-          "view": "views.start_all"
-        },
-        {
-          "name": "stop",
-          "pattern": "stop/<int:pk>/",
-          "view": "views.stop"
+          "name": "expand_area",
+          "pattern": "expand_area/",
+          "view": "views.expand_area"
         },
         {
           "name": "stop_process",
@@ -1016,19 +961,74 @@
           "view": "views.stop_process_view"
         },
         {
-          "name": "update_settings",
-          "pattern": "update_settings/",
-          "view": "views.update_settings"
+          "name": "preview_media",
+          "pattern": "preview/<int:media_id>/",
+          "view": "views.preview_media"
         },
         {
-          "name": "upload",
-          "pattern": "upload/",
-          "view": "views.IndexView.as_view()"
+          "name": "check_all_processed",
+          "pattern": "check_all_processed/",
+          "view": "views.check_all_processed"
+        },
+        {
+          "name": "clear_all_media",
+          "pattern": "clear_all_media/",
+          "view": "views.clear_all_media"
+        },
+        {
+          "name": "download_all_media",
+          "pattern": "download_all_media/",
+          "view": "views.download_all_media"
+        },
+        {
+          "name": "debug_media_status",
+          "pattern": "debug/media-status/",
+          "view": "views.debug_media_status"
+        },
+        {
+          "name": "model_recommendations",
+          "pattern": "model-recommendations/",
+          "view": "views.get_model_recommendations"
+        },
+        {
+          "name": "duplicate_media",
+          "pattern": "duplicate/<int:media_id>/",
+          "view": "views.duplicate_media"
+        },
+        {
+          "name": "get_media_settings",
+          "pattern": "get_media_settings/<int:media_id>/",
+          "view": "views.get_media_settings"
+        },
+        {
+          "name": "save_media_settings",
+          "pattern": "save_media_settings/",
+          "view": "views.save_media_settings"
+        },
+        {
+          "name": "sam3_status",
+          "pattern": "sam3/status/",
+          "view": "views.get_sam3_status_view"
+        },
+        {
+          "name": "configure_hf_token",
+          "pattern": "sam3/configure-hf/",
+          "view": "views.configure_hf_token"
         },
         {
           "name": "validate_prompt",
           "pattern": "sam3/validate-prompt/",
           "view": "views.validate_prompt_view"
+        },
+        {
+          "name": "sam3_examples",
+          "pattern": "sam3/examples/",
+          "view": "views.get_sam3_examples"
+        },
+        {
+          "name": "consolidate",
+          "pattern": "batch/consolidate/",
+          "view": "views.consolidate"
         }
       ],
       "ingest": {

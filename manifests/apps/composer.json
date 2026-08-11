@@ -376,31 +376,6 @@
       ],
       "extra_routes": [
         {
-          "name": "clear_all",
-          "pattern": "clear_all/",
-          "view": "views.clear_all"
-        },
-        {
-          "name": "delete",
-          "pattern": "delete/<int:pk>/",
-          "view": "views.delete"
-        },
-        {
-          "name": "download",
-          "pattern": "download/<int:pk>/",
-          "view": "views.download"
-        },
-        {
-          "name": "duplicate",
-          "pattern": "duplicate/<int:pk>/",
-          "view": "views.duplicate"
-        },
-        {
-          "name": "export_to_library",
-          "pattern": "export/<int:pk>/",
-          "view": "views.export_to_library"
-        },
-        {
           "name": "generate",
           "pattern": "generate/",
           "view": "views.generate"
@@ -416,14 +391,24 @@
           "view": "views.progress"
         },
         {
+          "name": "download",
+          "pattern": "download/<int:pk>/",
+          "view": "views.download"
+        },
+        {
+          "name": "delete",
+          "pattern": "delete/<int:pk>/",
+          "view": "views.delete"
+        },
+        {
+          "name": "update_settings",
+          "pattern": "settings/<int:pk>/",
+          "view": "views.update_settings"
+        },
+        {
           "name": "start",
           "pattern": "start/<int:pk>/",
           "view": "views.start"
-        },
-        {
-          "name": "start_all",
-          "pattern": "start_all/",
-          "view": "views.start_all"
         },
         {
           "name": "stop",
@@ -431,9 +416,24 @@
           "view": "views.stop"
         },
         {
-          "name": "update_settings",
-          "pattern": "settings/<int:pk>/",
-          "view": "views.update_settings"
+          "name": "export_to_library",
+          "pattern": "export/<int:pk>/",
+          "view": "views.export_to_library"
+        },
+        {
+          "name": "duplicate",
+          "pattern": "duplicate/<int:pk>/",
+          "view": "views.duplicate"
+        },
+        {
+          "name": "start_all",
+          "pattern": "start_all/",
+          "view": "views.start_all"
+        },
+        {
+          "name": "clear_all",
+          "pattern": "clear_all/",
+          "view": "views.clear_all"
         }
       ],
       "ingest": null,

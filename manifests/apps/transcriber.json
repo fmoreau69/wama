@@ -462,34 +462,29 @@
       ],
       "extra_routes": [
         {
-          "name": "backends",
-          "pattern": "backends/",
-          "view": "views.get_backends"
+          "name": "upload_youtube",
+          "pattern": "upload_youtube/",
+          "view": "views.upload_youtube"
         },
         {
-          "name": "batch_list",
-          "pattern": "batch/list/",
-          "view": "views.batch_list"
+          "name": "start",
+          "pattern": "start/<int:pk>/",
+          "view": "views.start"
         },
         {
-          "name": "batch_status",
-          "pattern": "batch/<int:pk>/status/",
-          "view": "views.batch_status"
+          "name": "stop",
+          "pattern": "stop/<int:pk>/",
+          "view": "views.stop"
         },
         {
-          "name": "batch_update",
-          "pattern": "batch/<int:pk>/update/",
-          "view": "views.batch_update_settings"
+          "name": "enrich",
+          "pattern": "enrich/<int:pk>/",
+          "view": "views.enrich"
         },
         {
-          "name": "clear_all",
-          "pattern": "clear_all/",
-          "view": "views.clear_all"
-        },
-        {
-          "name": "delete",
-          "pattern": "delete/<int:pk>/",
-          "view": "views.delete"
+          "name": "progress",
+          "pattern": "progress/<int:pk>/",
+          "view": "views.progress"
         },
         {
           "name": "download",
@@ -497,14 +492,9 @@
           "view": "views.download"
         },
         {
-          "name": "download_all",
-          "pattern": "download_all/",
-          "view": "views.download_all"
-        },
-        {
-          "name": "download_srt",
-          "pattern": "download_srt/<int:pk>/",
-          "view": "views.download_srt"
+          "name": "delete",
+          "pattern": "delete/<int:pk>/",
+          "view": "views.delete"
         },
         {
           "name": "duplicate",
@@ -517,21 +507,6 @@
           "view": "views.edit"
         },
         {
-          "name": "enrich",
-          "pattern": "enrich/<int:pk>/",
-          "view": "views.enrich"
-        },
-        {
-          "name": "get_user_settings",
-          "pattern": "user_settings/",
-          "view": "views.get_user_transcriber_settings"
-        },
-        {
-          "name": "progress",
-          "pattern": "progress/<int:pk>/",
-          "view": "views.progress"
-        },
-        {
           "name": "save_correction",
           "pattern": "edit/<int:pk>/save/",
           "view": "views.save_correction"
@@ -542,34 +517,19 @@
           "view": "views.save_meta"
         },
         {
+          "name": "suggest_speakers",
+          "pattern": "edit/<int:pk>/suggest-speakers/",
+          "view": "views.suggest_speakers"
+        },
+        {
+          "name": "waveform_peaks",
+          "pattern": "edit/<int:pk>/peaks/",
+          "view": "views.waveform_peaks"
+        },
+        {
           "name": "save_realtime",
           "pattern": "realtime/save/",
           "view": "views.save_realtime"
-        },
-        {
-          "name": "save_settings",
-          "pattern": "settings/<int:pk>/",
-          "view": "views.save_settings"
-        },
-        {
-          "name": "save_user_settings",
-          "pattern": "user_settings/save/",
-          "view": "views.save_user_transcriber_settings"
-        },
-        {
-          "name": "segments",
-          "pattern": "segments/<int:pk>/",
-          "view": "views.get_segments"
-        },
-        {
-          "name": "set_preprocessing",
-          "pattern": "preprocessing/set/",
-          "view": "views.set_preprocessing_preference"
-        },
-        {
-          "name": "start",
-          "pattern": "start/<int:pk>/",
-          "view": "views.start"
         },
         {
           "name": "start_all",
@@ -577,24 +537,64 @@
           "view": "views.start_all"
         },
         {
-          "name": "stop",
-          "pattern": "stop/<int:pk>/",
-          "view": "views.stop"
+          "name": "clear_all",
+          "pattern": "clear_all/",
+          "view": "views.clear_all"
         },
         {
-          "name": "suggest_speakers",
-          "pattern": "edit/<int:pk>/suggest-speakers/",
-          "view": "views.suggest_speakers"
+          "name": "download_all",
+          "pattern": "download_all/",
+          "view": "views.download_all"
         },
         {
-          "name": "upload_youtube",
-          "pattern": "upload_youtube/",
-          "view": "views.upload_youtube"
+          "name": "set_preprocessing",
+          "pattern": "preprocessing/set/",
+          "view": "views.set_preprocessing_preference"
         },
         {
-          "name": "waveform_peaks",
-          "pattern": "edit/<int:pk>/peaks/",
-          "view": "views.waveform_peaks"
+          "name": "backends",
+          "pattern": "backends/",
+          "view": "views.get_backends"
+        },
+        {
+          "name": "segments",
+          "pattern": "segments/<int:pk>/",
+          "view": "views.get_segments"
+        },
+        {
+          "name": "download_srt",
+          "pattern": "download_srt/<int:pk>/",
+          "view": "views.download_srt"
+        },
+        {
+          "name": "save_settings",
+          "pattern": "settings/<int:pk>/",
+          "view": "views.save_settings"
+        },
+        {
+          "name": "get_user_settings",
+          "pattern": "user_settings/",
+          "view": "views.get_user_transcriber_settings"
+        },
+        {
+          "name": "save_user_settings",
+          "pattern": "user_settings/save/",
+          "view": "views.save_user_transcriber_settings"
+        },
+        {
+          "name": "batch_list",
+          "pattern": "batch/list/",
+          "view": "views.batch_list"
+        },
+        {
+          "name": "batch_update",
+          "pattern": "batch/<int:pk>/update/",
+          "view": "views.batch_update_settings"
+        },
+        {
+          "name": "batch_status",
+          "pattern": "batch/<int:pk>/status/",
+          "view": "views.batch_status"
         }
       ],
       "ingest": {

@@ -96,6 +96,15 @@ def validate_app_body(body: dict) -> list[str]:
         st = proc.get('statuses')
         if st and any(s not in STATUS_VOCAB for s in st):
             errs.append(f"processing.statuses hors vocabulaire canonique {STATUS_VOCAB} : {st}")
+        # extra_routes (A1) : le corpus est du matériel d'apprentissage LLM — une entrée
+        # malformée doit être rejetée à l'ingest, pas découverte au write-back. `view: None`
+        # est LÉGAL (route déclarée non-régénérable : elle empoisonne la couverture).
+        for r in (proc.get('extra_routes') or []):
+            if (not isinstance(r, dict) or not r.get('name')
+                    or not isinstance(r.get('pattern'), str)
+                    or not isinstance(r.get('view'), (str, type(None)))):
+                errs.append(f"processing.extra_routes : entrée invalide "
+                            f"(name + pattern str + view str|None requis) : {r!r}")
     return errs
 
 
@@ -536,8 +545,9 @@ PROJECTED_FACETS = ('access', 'identity', 'ports', 'capabilities', 'studio', 'mo
 def write_back_app(manifest: dict, *, apply: bool = False, skip: tuple = ()) -> dict:
     """Projette le manifeste `app` vers l'état committé. `apply=False` = DRY-RUN (retourne le plan) ;
     `apply=True` = écrit (idempotent, réversible ; transactionnel pour la DB, garde `compile()`
-    pour le code). Facettes écrites : `access` (DB) + `identity`/`ports`/`capabilities`
-    (code, entrée APP_CATALOG — moteur commun, champs disjoints par facette).
+    pour le code). Facettes écrites = PROJECTED_FACETS (la liste vit là-bas, un projecteur par
+    entrée) + `processing` en projection PARTIELLE (urls.py seul, gabarit A1 — la facette reste
+    rapportée codegen_required tant que models/tasks ne se génèrent pas).
     `skip` : facettes à NE PAS projeter — le harnais `app_regen_check` passe `('access',)`
     (il juge le CODE régénéré et ne touche jamais la DB)."""
     from ..projection import FACET_TARGETS   # import tardif : source unique du tri code/db
