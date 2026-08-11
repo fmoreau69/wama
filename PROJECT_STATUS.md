@@ -2417,6 +2417,18 @@ travail**. La base LIVE est celle de **WSL2 (Postgres 16)**, conforme à
 exécute WAMA nativement sous Windows (`venv_win runserver`) ; sinon c'est une taxe d'entretien
 supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 
+## §REPRISE — 2026-08-11 (3ᵉ session) : marche C livrée — harnais `app_regen_check`
+
+> Le JUGE du plan C→A→B (route §10.3) est outillé : **`manage.py app_regen_check <app>`**
+> rejoue la passe intégrée en commande — gardes git/corpus, strip (`strip_app_declarations`,
+> nouveau geste bac-à-sable de `builtin/app.py`), `write_back_app(…, skip=('access',))` (kwarg
+> `skip` ajouté — DB jamais touchée), mesures en sous-process FRAIS ancrés BASE_DIR, verdict
+> 3 axes (① manifeste, famille mesurée seule tolérée ; ② grille critère par critère ; ③ smoke),
+> restore `git checkout` (sauf `--keep`), exit ≠ 0 si non conforme (chaînable nightly, trou
+> #19). **Validé pilote converter en worktree : CONFORME, identique à la passe manuelle**
+> (10 écarts mesurés tolérés, grille 93 % identique, smoke 200) ; roundtrip 10 apps inchangé.
+> **Suite : marche A (gabarit `common/manifests/codegen/`), jugée par ce harnais.**
+
 ## §REPRISE — 2026-08-11 (2ᵉ session, SUITE du soir) : 8 facettes + function + page librairies + avis critique
 
 > Suite de la même session, après le merge : **`params`** porté (8ᵉ facette — multi-schémas,

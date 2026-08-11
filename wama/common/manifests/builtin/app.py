@@ -519,32 +519,26 @@ PROJECTED_FACETS = ('access', 'identity', 'ports', 'capabilities', 'studio', 'mo
                     'params')
 
 
-def write_back_app(manifest: dict, *, apply: bool = False) -> dict:
+def write_back_app(manifest: dict, *, apply: bool = False, skip: tuple = ()) -> dict:
     """Projette le manifeste `app` vers l'état committé. `apply=False` = DRY-RUN (retourne le plan) ;
     `apply=True` = écrit (idempotent, réversible ; transactionnel pour la DB, garde `compile()`
     pour le code). Facettes écrites : `access` (DB) + `identity`/`ports`/`capabilities`
-    (code, entrée APP_CATALOG — moteur commun, champs disjoints par facette)."""
+    (code, entrée APP_CATALOG — moteur commun, champs disjoints par facette).
+    `skip` : facettes à NE PAS projeter — le harnais `app_regen_check` passe `('access',)`
+    (il juge le CODE régénéré et ne touche jamais la DB)."""
     from ..projection import FACET_TARGETS   # import tardif : source unique du tri code/db
     key = manifest.get('key')
     body = manifest.get('body', {}) or {}
-    out = {
-        'app': key,
-        'access': _project_access(key, body.get('access') or {}, apply=apply),
-    }
-    if body.get('identity'):
-        out['identity'] = _project_identity(manifest, apply=apply)
-    if body.get('ports'):
-        out['ports'] = _project_ports(manifest, apply=apply)
-    if body.get('capabilities'):
-        out['capabilities'] = _project_capabilities(manifest, apply=apply)
-    if body.get('studio'):
-        out['studio'] = _project_studio(manifest, apply=apply)
-    if body.get('modes'):
-        out['modes'] = _project_modes(manifest, apply=apply)
-    if body.get('prompts'):
-        out['prompts'] = _project_prompts(manifest, apply=apply)
-    if body.get('params'):
-        out['params'] = _project_params(manifest, apply=apply)
+    out = {'app': key}
+    if 'access' not in skip:
+        out['access'] = _project_access(key, body.get('access') or {}, apply=apply)
+    projecteurs = (('identity', _project_identity), ('ports', _project_ports),
+                   ('capabilities', _project_capabilities), ('studio', _project_studio),
+                   ('modes', _project_modes), ('prompts', _project_prompts),
+                   ('params', _project_params))
+    for facette, projecteur in projecteurs:
+        if body.get(facette) and facette not in skip:
+            out[facette] = projecteur(manifest, apply=apply)
     out['codegen_required'] = [f for f, (_cible, backend) in FACET_TARGETS.items()
                                if backend == 'code' and body.get(f) and f not in PROJECTED_FACETS]
     return out
@@ -1296,6 +1290,66 @@ def un_write_back_app(manifest: dict, *, apply: bool = False) -> dict:
         compile(nouveau, str(path), 'exec')
         path.write_text(nouveau, encoding='utf-8')
         out[f'{nom}_removed'] = True
+    return out
+
+
+def strip_app_declarations(manifest: dict, *, apply: bool = False) -> dict:
+    """Geste de HARNAIS (`app_regen_check`, route §10.3) — bac à sable git SEULEMENT.
+
+    Retire du CODE les déclarations que `write_back_app` sait régénérer (entrée APP_CATALOG,
+    GENERIC_APPS, APP_MODES, PROMPT_TARGETS, fichier params.py), qu'elles soient écrites main
+    ou générées : c'est l'inverse ASSUMÉ du contrat du moteur (qui ne touche jamais une entrée
+    main) — on supprime l'existant POUR le régénérer et juger l'app régénérée sur pièces
+    (protocole de la « passe intégrée » du pilote converter, 2026-08-11). Ne touche JAMAIS la
+    DB (`access` reste). Ne retire que ce que le manifeste fourni sait reconstruire (facettes
+    présentes dans le body). Garde `compile()` comme partout ; la restauration est l'affaire
+    de l'appelant (git restore)."""
+    app_id = manifest.get('key')
+    body = manifest.get('body') or {}
+    cibles = (
+        ('catalog_entry', _registry_path(), 'APP_CATALOG', True, _entry_span,
+         bool(body.get('identity') or body.get('ports') or body.get('capabilities'))),
+        ('runner_entry', _runner_path(), 'GENERIC_APPS', False, _entry_span,
+         bool(body.get('studio'))),
+        ('modes_entry', _modes_path(), 'APP_MODES', True, _entry_span,
+         bool(body.get('modes'))),
+        ('prompts_entry', _metadata_path(), 'PROMPT_TARGETS', False, _value_entry_span,
+         bool((body.get('prompts') or {}).get('targets'))),
+    )
+    out = {'app': app_id, 'files': []}
+    for nom, path, var, blank_sep, span_fn, regenerable in cibles:
+        if not regenerable:
+            out[nom] = 'hors périmètre (facette absente du manifeste)'
+            continue
+        lines = path.read_text(encoding='utf-8').split('\n')
+        span = span_fn(lines, app_id, *_dict_bounds(lines, var))
+        if span is None:
+            out[nom] = 'déjà absent'
+            continue
+        out['files'].append(str(path))
+        if not apply:
+            out[nom] = f'à retirer (lignes {span[0] + 1}-{span[1] + 1})'
+            continue
+        fin = span[1]
+        vide = 1 if blank_sep and fin + 1 < len(lines) and lines[fin + 1].strip() == '' else 0
+        del lines[span[0]:fin + 1 + vide]
+        nouveau = '\n'.join(lines)
+        compile(nouveau, str(path), 'exec')
+        path.write_text(nouveau, encoding='utf-8')
+        out[nom] = 'retiré'
+    if _params_facet(manifest):
+        p = _params_file_path(_params_module_name(manifest))
+        if not p.is_file():
+            out['params_file'] = 'déjà absent'
+        else:
+            out['files'].append(str(p))
+            if apply:
+                p.unlink()
+                out['params_file'] = 'retiré'
+            else:
+                out['params_file'] = 'à retirer'
+    else:
+        out['params_file'] = 'hors périmètre (facette absente du manifeste)'
     return out
 
 

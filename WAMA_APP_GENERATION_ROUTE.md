@@ -459,10 +459,24 @@ le LLM ne génère QUE le corps des backends (la glu d'usage des librairies). Ha
 outillé avant d'ouvrir cette marche.
 
 **Plan d'exécution de la marche (cadré avec Fabien 2026-08-11 soir) — ordre C → A → B :**
-- **C. Harnais outillé D'ABORD** (il devient le JUGE de tout le reste) : ériger le protocole de
-  la passe intégrée en commande (`manage.py app_regen_check <app>` : strip worktree → apply →
-  3 axes manifeste/grille/smoke → rapport). Sans lui, impossible de juger objectivement un
-  gabarit ni un LLM.
+- **C. Harnais outillé ✅ LIVRÉ (2026-08-11, 3ᵉ session)** : `manage.py app_regen_check <app>`
+  (common/management/commands) érige le protocole de la passe intégrée en commande — gardes
+  (fichiers cibles propres, branche ≠ dev/main sauf `--force`, corpus fidèle à l'extraction
+  courante hors clés `_` diagnostiques) → baseline → strip (`strip_app_declarations`, nouveau
+  geste de harnais dans `builtin/app.py` : retire AUSSI les entrées main, l'inverse assumé du
+  contrat du moteur) → `write_back_app(corpus, apply=True, skip=('access',))` (kwarg `skip`
+  ajouté : le harnais ne touche JAMAIS la DB) → re-mesure → verdict 3 axes → `git checkout`
+  des cibles (sauf `--keep`). Mesure et apply tournent en SOUS-PROCESS FRAIS ancrés sur
+  BASE_DIR (dans le process courant, modules params/registres périmés dès le strip ; l'ancrage
+  permet `python <worktree>/manage.py …` depuis n'importe quel cwd). Axe ① tolère la famille
+  MESURÉE seule (liste explicite `_MESURE_PATHS` : 11 drapeaux capabilities +
+  processing.anti_race/processing_time/statuses — trou #16) ; axes ② (conv critère par
+  critère, `evidence` exclue car porteuse de numéros de ligne) et ③ (HTTP, schema_for_app,
+  nœud studio E/S dérivées, domaines APP_MODES) exigent l'égalité stricte. **Validé sur le
+  pilote converter en worktree : VERDICT CONFORME, identique à la passe intégrée manuelle**
+  (strip 4 cibles, 10 écarts mesurés tolérés = les 7 capabilities + 3 processing consignés,
+  grille 93 % identique, smoke 200/17 params/studio/5 domaines) ; roundtrip 10 apps inchangé ;
+  garde branche vérifiée (refus sur dev). Échec ⇒ exit ≠ 0 (chaînable en nightly, trou #19).
 - **A. Gabarit (sans LLM)** : `common/manifests/codegen/` — templates du squelette conventionnel,
   trous alimentés PAR LE MANIFESTE : `models.py` (spine user/status/task_id/progress +
   ProcessingTimeMixin + champs DÉRIVÉS de la facette params — l'inverse de `derive_from_model`),
