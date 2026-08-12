@@ -234,7 +234,12 @@ manifeste** (ce que le kind `app` capte + cible de projection).
 - **Contrat de backend commun** (`common/backends/base.py::BaseModelBackend`) : cycle de vie
   `load/is_loaded/unload/process`, dépendances déclaratives (`REQUIRED_PACKAGES` → `missing_packages()` /
   `is_available()` / `pip_install_spec()`), et **déclaration automatique de l'empreinte VRAM** au gouverneur
-  via `__init_subclass__` (cf. `ROADMAP.md` §Gouvernance des ressources). **ADOPTION 7/10 apps** — imager,
+  via `__init_subclass__` (cf. `ROADMAP.md` §Gouvernance des ressources). Depuis le **2026-08-12**, cette
+  déclaration porte aussi **l'identité du modèle** (clé d'owner `<backend>:<pid>#<model_key>`) et
+  `process` est enveloppé à son tour pour horodater l'USAGE — c'est ce qui rend la RÉSIDENCE et
+  l'INACTIVITÉ visibles d'un process à l'autre (`resident_models()` / `idle_models()`), là où
+  `AIModel.is_loaded` ne pouvait rien dire : rien ne l'écrit, et un singleton Python ne traverse pas
+  les process. **ADOPTION 7/10 apps** — imager,
   **transcriber** (2026-07-29 : `SpeechToTextBackend` était un contrat CONCURRENT hérité d'`ABC`, ses
   3 moteurs échappaient donc à tout le mécanisme, + `PyannoteDiarizerBackend`), **anonymizer** (29/07 :
   aucun `backends/`, 3 porteurs de modèle rattachés par `DetectionBackend`), enhancer, reader, composer.

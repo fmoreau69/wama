@@ -339,6 +339,25 @@ fichier, pas dans les 11 apps.
   d'expiration + purge des lignes d'un process mort sans libérer (kernel panic, kill -9).
 - `ensure_free_vram()` consulte désormais ce registre (`MemoryManager._free_vram_gb`) : le pilote
   seul ne voit que le présent et ignore qu'un autre process s'apprête à prendre 18 Go.
+
+**✅ Complété 2026-08-12 — le registre dit désormais QUOI, pas seulement COMBIEN**
+- La clé d'owner porte le **modèle** (`<backend>:<pid>#<model_key>`) : le registre ne savait dire
+  que « tel backend détient 8 Go dans tel process ». La clé catalogue se reconstitue sans table de
+  correspondance (`AIModel.model_key` = `<source>:<model_id>`, `_app_of()` + `_current_model`).
+  Séparateur `#` car les clés catalogue contiennent des `:` (`anonymizer:yolo:yolo11n.pt`).
+- `resident_models()` → `model_key` → Go, et `idle_models(seuil)` via `mark_used()` émis par
+  `_wrap_process` (hash Redis **séparé** `wama:vram:last_used` : un 3ᵉ champ dans la ligne de
+  réservation aurait été lu comme illisible → périmé → **purgé**, effaçant une réservation vivante).
+- **Lecteurs branchés** : `select_model(prefer_loaded=True)` — inerte jusque-là, car
+  `AIModel.is_loaded` n'est écrit par personne et un singleton Python ne traverse pas les process —
+  et `api_models_db` / `api_idle_models`. Rabattu à la **LECTURE**, jamais écrit en base : un
+  booléen en base resterait bloqué à `True` si un worker mourait en tenant un modèle.
+- **Le service TTS déclare enfin** (il ne posait que `configure_cuda_process`, qui borne son process
+  sans informer les autres) : empreinte mesurée + battement 10 min, faute de quoi un modèle résident
+  sans limite de durée — Kokoro depuis le 12/08 — verrait sa ligne expirer au bout d'une heure.
+- ⚠ **Reste** : le DÉCLENCHEMENT du déchargement demeure intra-process (`release_vram()` itère les
+  unloaders du process courant), donc « Clean Idle » depuis le web ne peut pas décharger un modèle
+  tenu par un worker Celery. Canal de requête inter-process : conçu, non implémenté.
 - **Priorités CÂBLÉES** (2026-07-29) — `APP_TIERS` (paliers nommés `lab` / `haute` / `normale` /
   `basse`) + `celery_priority_for()`, injectées dans `CELERY_TASK_ROUTES` et activées par
   `CELERY_BROKER_TRANSPORT_OPTIONS = {queue_order_strategy: 'priority', priority_steps: …}`.

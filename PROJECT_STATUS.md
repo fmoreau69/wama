@@ -196,10 +196,14 @@ Doc : [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md).
 > **État réel gestion VRAM — inventaire vérifié 2026-07-20** (demande Fabien : « tracer le réel »).
 > **EXISTE** : ① `select_model()` (`model_manager/services/model_selector.py`) = sélecteur central
 > complet — budget VRAM **live** (`get_free_vram_gb`), « le plus gros qui tient », `prefer_loaded`
-> (lit `AIModel.is_loaded`), filtre capacités `requires`/`classes`, paliers `priority`,
+> (⚠ **CORRIGÉ 12/08** : lisait `AIModel.is_loaded` SEUL, que rien n'écrit jamais → `prefer_loaded`
+> était INERTE ; lit désormais aussi `resource_governor.resident_models()`, cf. §REPRISE 2026-08-12),
+> filtre capacités `requires`/`classes`, paliers `priority`,
 > `availability_probe` runtime ; il se déclare remplaçant du `backend_selector` planifié
-> (CLAUDE.md corrigé en conséquence) ; ② `WAMAMemoryCleaner` **automatique** (thread périodique,
-> décharge idle 300 s, seuils RAM/GPU 80-95 % → cleanup agressif) + API/UI volet droit ;
+> (CLAUDE.md corrigé en conséquence) ; ② `WAMAMemoryCleaner` (thread périodique, seuils RAM/GPU
+> 80-95 %) + API/UI volet droit — ⚠ **son SIGNALEMENT d'inactivité est corrigé 12/08** (registre
+> partagé au lieu de `WAMAMemoryTracker`, jamais alimenté) mais son **déclenchement reste
+> intra-process** : depuis le web il ne peut pas décharger un modèle tenu par un worker Celery ;
 > ③ `memory_monitor` (jauges + budget du sélecteur) ; ④ contrat `unload()` de `BaseModelBackend`
 > sur toutes les apps ; ⑤ `vram_gb` déclaré partout (model_config par app + catalogue `AIModel`) ;
 > ⑥ nightly runner **sérialisé VRAM-aware** (teardown avant/après) ; ⑦ ETA hardware-aware
@@ -2801,13 +2805,35 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > Zéro erreur console partout. `manage.py check` OK. `check_docs` = 2 CASSÉ (inchangé),
 > corpus = 110 manifestes à jour.
 >
-> **Restes ouverts** : ⚠ le préchargement Kokoro et la déclaration TTS ne prennent effet
-> qu'au prochain démarrage du service ; l'exclusivité inter-onglets ne couvre pas le cas
-> « AI-Assistant persistant » (il ne vit que dans `home.html` — chantier à part, piste
-> retenue : le loger dans le volet droit existant plutôt qu'une 3ᵉ surface flottante) ;
-> `WAMAMemoryTracker` reste vide (personne n'appelle `register_model`) donc « Clean Idle »
-> et « Aggressive » agissent sur un registre vide — `last_used` par modèle serait le cran
-> suivant, et le registre partagé est désormais le bon endroit où le mettre.
+> **⑤ Détection d'inactivité RÉELLE** (dernier maillon). « Inactif » ne pouvait pas se
+> distinguer de « chargé » : la liste du volet lisait `WAMAMemoryTracker`, singleton de
+> process que **personne n'alimente** (aucun `register_model` dans le dépôt) et qui, même
+> alimenté, ne verrait que le process courant → vide en toutes circonstances.
+> `mark_used(owner)` + hash Redis **séparé** `wama:vram:last_used` — et non un 3ᵉ champ de la
+> ligne de réservation, qui aurait été lu comme illisible donc périmé donc **purgé** par un
+> process resté sur l'ancien format (une réservation VIVANTE effacée). Émis par `_wrap_process`
+> (3ᵉ enveloppe de `BaseModelBackend`), **avant** l'appel pour qu'un traitement long ne paraisse
+> pas inactif. `idle_models(seuil)` : un modèle chargé mais **jamais utilisé** compte depuis son
+> chargement — sans ce repli il paraîtrait éternellement actif, alors que c'est le cas le plus
+> typique d'occupation inutile. `api_idle_models` rebranché.
+> ⚠ **Limite assumée** : ceci corrige le SIGNALEMENT, pas le DÉCLENCHEMENT. « Clean Idle » et
+> « Aggressive » passent par `MemoryManager.release_vram()`, qui itère les unloaders du process
+> COURANT — depuis le web ils ne peuvent pas décharger un modèle tenu par un worker Celery. Un
+> déclenchement inter-process demande un canal de requête que les détenteurs consultent entre
+> deux tâches : **conçu, non implémenté**.
+>
+> **Confirmation en service** : après ton redémarrage, `/health` rend
+> `kokoro_resident:["f"]`, `gpu_memory_gb:0.31`, et le registre partagé contient bien
+> `{'tts-service': 0.31}` — la chaîne complète fonctionne en production.
+>
+> **Restes ouverts** : ① déclenchement inter-process du déchargement (ci-dessus) ;
+> ② l'exclusivité inter-onglets ne couvre pas « AI-Assistant persistant » (il ne vit que dans
+> `home.html` — chantier à part, piste retenue : le loger dans le volet droit existant plutôt
+> qu'une 3ᵉ surface flottante ; le coût n'est pas le widget mais l'état du chat entre deux
+> pages, qu'aucune librairie de chatbot ne résout pour un backend à outils) ; ③ `api_tracked_models`
+> et `api_large_objects` lisent toujours `WAMAMemoryTracker` (tracemalloc — autre finalité,
+> non touchés) ; ④ `_rang_qualite` trie encore sur `is_loaded` seul (simple départage après
+> filtrage, sans effet mesuré).
 
 ## §REPRISE — 2026-08-11 (2ᵉ session, SUITE du soir) : 8 facettes + function + page librairies + avis critique
 
