@@ -408,6 +408,26 @@ que le catalogue n'a pas. Autre facette, pas redondance.
    si les deux venvs divergent sur une version, `manifest_export --check` le signalera —
    c'est le détecteur de dérive voulu, pas un bug.
 
+### 7.5 CIBLE (non implémentée) — arête `uses` : capacités héritées entre apps
+
+> **ACTÉ 2026-08-12 (Fabien), chantier = marche D de la route (`WAMA_APP_GENERATION_ROUTE.md
+> §10.4`, APRÈS la marche B) — la doctrine complète (3 espèces de chaînage, pilote, garde-fous)
+> vit LÀ-BAS ; ici le seul FORMALISME.**
+
+À côté de `requires` (dépendance de COMPOSITION : app → model/library, résolue à l'ingest),
+une app pourra déclarer des arêtes de CAPACITÉ :
+- `capabilities.provides: ["denoise_audio", …]` — capacités canoniques que l'app FOURNIT
+  (même vocabulaire indexé sur la TÂCHE que les capacités-modèle) ;
+- `capabilities.uses: [{"capability": "denoise_audio", "when": "pre_input",
+  "optional": true}, …]` — capacités HÉRITÉES d'une autre app, réalisées au runtime par le
+  pivot d'exécution existant (`launch_graph`/`execute_tool`), l'UI (case à cocher) étant
+  auto-générée de la déclaration.
+
+Différence de nature : `requires` se résout à l'INGEST (le manifeste cible doit exister) ;
+`uses` se résout au RUNTIME par le routage capacité→app (l'app fournisseuse est
+interchangeable). Validation prévue : vocabulaire canonique fermé, `when` ∈
+{pre_input, post_output}, refus d'un `uses` sans fournisseur déclaré au corpus.
+
 **État courant du corpus** (couche factuelle auto-générée, ROADMAP §16.9 ①) :
 
 <!-- WAMA:FAITS(modeles) — généré par « python manage.py doc_facts », ne pas éditer -->

@@ -772,6 +772,54 @@ idempotence (triple noop), chirurgie main = 1 ligne (commentaires intacts), roun
 
 ---
 
+### §10.4 — Marche D (APRÈS B) — CAPACITÉS HÉRITÉES : l'app agrège, le studio est aussi une bibliothèque
+
+> **ACTÉ avec Fabien le 2026-08-12 (5ᵉ session) — chantier NON démarré, séquencé APRÈS la
+> marche B** (il en bénéficie : harnais et gabarits jugeront les shims comme le reste ; le
+> construire avant serait de la généralisation par anticipation). Cadre : WAMA = **agrégateur
+> de capacités** (vision Fabien) — l'homogénéité vient de capacités déclarées et composées,
+> pas d'apps qui recopient les capacités des autres.
+
+**La doctrine des trois espèces de chaînage** (classement par PROPRIÉTAIRE, pas par
+complexité d'app — c'est elle qui lève l'incohérence « tout chaînage = studio ») :
+
+| Espèce | Définition | Exemple | Domicile |
+|---|---|---|---|
+| **Agrément** | étape optionnelle qui ne change pas l'identité de l'app | denoise avant transcription | case à cocher DANS l'app, capacité HÉRITÉE d'ailleurs |
+| **Métier** | la chaîne EST l'identité de l'app (UI dédiée) | transcription → diarisation → vérification → correction | dans l'app (l'éditeur de correction ne sera jamais un nœud studio) |
+| **Production** | assemblage inter-apps, topologie variable, choix utilisateur | TTS → avatar | studio (précédent avatarizer : mode TTS RETIRÉ de l'app, le studio chaîne) |
+
+**Le mécanisme — déclarer, pas coder** (presque toute la tuyauterie existe) :
+1. **Capacités canoniques côté APPS** : le vocabulaire indexé sur la TÂCHE existe côté modèles
+   (98 modèles en capacités canoniques) — le porter au niveau app : l'enhancer FOURNIT
+   `denoise_audio`, le synthesizer `tts`… (`provides`).
+2. **Arête `uses` au manifeste** : nouvelle espèce d'arête à côté de `requires` —
+   `uses: {capability: denoise_audio, when: pre_input, optional: true}`. L'UI (case à cocher)
+   s'auto-génère de la déclaration, métadonnée-driven comme le reste. Formalisme : SPEC §7.5.
+3. **Réalisation par le PIVOT EXISTANT** : une capacité héritée = micro-pipeline (2 nœuds)
+   exécuté par `launch_graph`/`execute_tool` — **le studio comme BIBLIOTHÈQUE, pas comme UI**.
+   Aucun nouveau moteur (rappel : pas de Ray/Slurm — gouverneur + Celery).
+4. **Articulation avec les hooks de triade (débat A4)** : le hook `pre_start` n'est PAS de la
+   glu libre — c'est un **shim DÉRIVÉ de l'arête `uses`** (« appelle la capacité héritée »).
+   Le 2ᵉ consommateur du vocabulaire de hooks est le système de capacités lui-même — ce qui
+   lève l'objection n=1 qui avait fait assumer la triade transcriber en main.
+5. **Interop wama-lab ↔ studio** : une `StudioPipeline` SAUVEGARDÉE référencée par une app
+   comme capacité composite (construire dans le studio → enregistrer → intégrer dans l'app).
+   Le maillon = **write-back du kind `pipeline`** (extract existe, projection à faire).
+
+**Pilote désigné** : `preprocess_audio` du transcriber → capacité `denoise_audio` héritée de
+l'enhancer. ⚠ PAS gratuit : le preprocessing fenêtré disque→disque a été construit contre un
+OOM vécu ; le passage par la capacité change l'ordonnancement VRAM (gouverneur), l'ETA et
+ajoute un intermédiaire — **A/B OBJECTIF obligatoire** (qualité + VRAM + durée), jamais au jugé.
+
+**Portage wama-lab (séquence actée, du plus outillé au moins formalisé)** :
+① modèles → catalogue `AIModel` + manifestes `model` (write-back + export corpus : FAITS) ;
+② fonctions mathématiques → kind `function` (write-back `UserFunction` : FAIT ; vision
+« fonction = card » du monde DATA) ; ③ pipelines → kind `pipeline` (write-back À FAIRE — LE
+maillon de l'interop) ; ④ plugins de visualisation → monde DATA (dernier, le moins formalisé).
+
+---
+
 ## 11. Trous prioritaires (liste actionnable, confrontée au code)
 
 | # | Trou | Facette | Nature |

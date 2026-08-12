@@ -16,6 +16,18 @@ tâches : c'est l'endroit où l'on **assemble une production**. On y **constitue
 (rushs vidéo, pistes audio) puis on les **monte / mixe / masterise** via des apps dédiées,
 réutilisées comme nœuds. Le **typage par connexion** (sortie ∩ entrée) garde le tout cohérent.
 
+## Le studio est AUSSI une bibliothèque (acté 2026-08-12 — marche D de la route)
+Deux extensions actées, **domicile de la doctrine = `WAMA_APP_GENERATION_ROUTE.md §10.4`**
+(3 espèces de chaînage : agrément / métier / production — ne pas la redocumenter ici) :
+- **Capacités héritées** : une app peut hériter une capacité d'une autre (ex. transcriber ←
+  `denoise_audio` de l'enhancer) via l'arête `uses` du manifeste (SPEC §7.5) ; l'utilisateur
+  voit une case à cocher, le runtime exécute un micro-pipeline par le MÊME pivot
+  (`launch_graph`/`execute_tool`) — le studio comme bibliothèque, pas comme UI.
+- **Pipeline sauvegardé = capacité composite** : une `StudioPipeline` enregistrée peut être
+  référencée par une app (interop wama-lab ↔ studio ; maillon = write-back du kind
+  `pipeline`). Le précédent avatarizer (mode TTS retiré, le studio chaîne TTS → avatar) reste
+  la règle pour le chaînage de PRODUCTION.
+
 ## Décision d'architecture (Fabien, 2026-06-25) — apps dédiées, pas sous-modules du studio
 Le **montage automatisé** et le **mixage/mastering** sont des **apps WAMA dédiées**, **pas** des
 sous-modules du studio. Raison : dans WAMA, **une app traite** (entrées → `process()` → sortie, avec

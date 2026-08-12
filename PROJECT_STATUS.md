@@ -2512,6 +2512,13 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > preprocess_audio, purge segments, cache seed, aperçu partiel temps réel, clé
 > transcript_id — ASSUMÉE main, le vocabulaire de hooks éventuel se décidera pendant B).
 > Portage déclaratif du transcriber : TERMINÉ (tout le régénérable passe le juge).
+> **Puis DÉCISION D'ARCHITECTURE (discussion Fabien, même session) : marche D — capacités
+> héritées, ACTÉE et consignée** (`ROUTE §10.4` = domicile ; formalisme arête `uses` =
+> `SPEC §7.5` ; studio-comme-bibliothèque = `STUDIO_VISION.md`). Doctrine des 3 espèces de
+> chaînage (agrément/métier/production), arête `uses` à côté de `requires`, réalisation par
+> le pivot existant, hooks de triade = shims dérivés (lève l'objection n=1 du débat A4),
+> interop wama-lab via write-back du kind `pipeline`, pilote = `preprocess_audio` transcriber
+> → capacité enhancer (A/B objectif obligatoire). **Séquencée APRÈS la marche B.**
 >
 > 🔚 **POINT D'ENTRÉE SESSION SUIVANTE : marche B — rôle LLM `codegen` wama-dev-ai**
 > (route §10.3.B) : MISE À JOUR de `prompts/dev.txt` sur le modèle `librarian.txt` (contrat
