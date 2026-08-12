@@ -17,6 +17,12 @@
       "class_list": [
         "face"
       ],
+      "exclusion": {
+        "date": "2026-08-12",
+        "mesure": "0 visage sur une scene de rue (6-7 attendus), 1 sur une foule ou yolov9s-face-lindevs en trouve 307",
+        "raison": "modele adetailer (retouche de visages generes en gros plan), inadapte a la detection de visages en scene reelle",
+        "reversible": "remettre is_available=True"
+      },
       "model_id": "segment/faces/face_yolov8m-seg_60.pt",
       "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/yolo/segment/faces/face_yolov8m-seg_60.pt",
       "size_bytes": 54813600,
