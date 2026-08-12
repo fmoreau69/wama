@@ -81,36 +81,6 @@ def _best_by_vram(models, budget_gb: Optional[float]):
     return min(models, key=lambda m: (m.vram_gb or 0))
 
 
-def select_chat_llm(tier: str = 'max'):
-    """LLM Ollama de complétion par GABARIT, DÉRIVÉ du catalogue (source unique) :
-      - 'max'  : le plus qualitatif (`quality_index`, repli VRAM — jamais « le plus gros »,
-                 leçon MoE de `_best_by_vram`) ;
-      - 'code' : préférence pour un modèle code (« coder » dans la clé), repli 'max' ;
-      - 'mid'  : médian par taille (rapide mais capable) ;
-      - 'min'  : le plus léger (vitesse avant tout).
-
-    Indépendant de la VRAM instantanée : Ollama gère l'offload — la surface chat choisit
-    une CLASSE de modèle, pas un arbitrage de chargement (ça, c'est `select_model`).
-    Remplace les tables de tags à la main (`_OLLAMA_MODEL_MAP`), mortes au premier
-    remplacement de modèle (leçon `check_model_declarations`, 2026-08-12). Retourne un
-    `AIModel` ou None (catalogue vide)."""
-    from ..models import AIModel
-    candidats = [m for m in AIModel.objects.filter(model_key__startswith='ollama:',
-                                                   is_downloaded=True, model_type='llm')
-                 if (m.capabilities or {}).get('completion')]
-    if not candidats:
-        return None
-    if tier == 'code':
-        codeurs = [m for m in candidats if 'coder' in m.model_key.lower()]
-        if codeurs:
-            return max(codeurs, key=_rang_qualite)
-        tier = 'max'
-    if tier == 'max':
-        return max(candidats, key=_rang_qualite)
-    par_taille = sorted(candidats, key=lambda m: float(m.vram_gb or 0))
-    return par_taille[0] if tier == 'min' else par_taille[len(par_taille) // 2]
-
-
 def select_model(
     source: str,
     *,

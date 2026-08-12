@@ -115,13 +115,31 @@ def _dernier_recours() -> str:
 _PLAFOND_TIER = {'fast': 8.0, 'default': 16.0, 'heavy': None, 'image': None}
 
 
-def _llm_par_catalogue(tier: str, exige):
+def modele_par_tier(tier: str = 'default', exige=None, priority=None,
+                    prefer_loaded: bool = True) -> str:
+    """
+    Résolution PUBLIQUE d'un tier (`heavy`/`default`/`fast`) — même mécanique que
+    `modele_par_defaut`, avec exigences et préférences en plus. Adoptée par la surface
+    CHAT de l'assistant (2026-08-12, rôles → tiers) en remplacement de sa table de tags
+    `_OLLAMA_MODEL_MAP`, morte au remplacement qwen3.5→qwen3.6 :
+      - `priority=['coder']` exprime « un modèle code de préférence » (rôle debug) sans
+        épingler un tag ;
+      - `prefer_loaded=False` exprime une intention de GABARIT explicite (le rôle 'dev'
+        du chat veut le tier heavy, pas le petit modèle déjà chargé).
+    """
+    return (_llm_par_catalogue(tier, list(exige or ['completion']), priority=priority,
+                               prefer_loaded=prefer_loaded)
+            or _dernier_recours())
+
+
+def _llm_par_catalogue(tier: str, exige, priority=None, prefer_loaded: bool = True):
     """
     Résout un tier via `select_model()` — brique VRAM-aware du model_manager.
 
     `prefer_loaded=True` porte la demande centrale : à qualité comparable, privilégier un
     modèle DÉJÀ en mémoire plutôt que d'imposer un déchargement/rechargement. Le signal vient
     de `/api/ps`, remonté dans le catalogue par `model_registry._ollama_charges()`.
+    `priority`/`prefer_loaded` : passe-plats déclaratifs de `modele_par_tier` (chat).
 
     Best-effort : toute panne (catalogue vide, model_manager indisponible) retourne None et
     l'appelant retombe sur le réglage déclaré. Un describer ne doit jamais échouer parce que
@@ -133,8 +151,9 @@ def _llm_par_catalogue(tier: str, exige):
             'ollama',
             model_type='llm',
             requires=exige,
-            prefer_loaded=True,
+            prefer_loaded=prefer_loaded,
             vram_budget_gb=_PLAFOND_TIER.get(tier),
+            priority=priority,
         )
         if m is None:
             return None

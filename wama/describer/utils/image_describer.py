@@ -115,11 +115,14 @@ def _describe_with_ollama_vision(model: str, image_path: str, prompt: str) -> Op
 def _best_ollama_vision_model() -> Optional[str]:
     """
     Return the best available Ollama vision model name, or None.
-    Priority: qwen3-vl:8b > qwen3-vl > gemma4:12b > gemma4:e4b > moondream2 > moondream
-    (gemma4:12b validé bon describer FR, 256K ; e4b = repli plus léger + audio.)
+    Priority: gemma4:12b > gemma4:e4b (12b validé bon describer FR, 256K ; e4b = repli
+    plus léger + audio). Liste confrontée au RÉEL à l'appel (fallthrough sur les modèles
+    présents) — nettoyée le 2026-08-12 des entrées jamais installées (qwen3-vl:8b,
+    moondream…) : un candidat futur passe par la prospection, pas par du vocabulaire
+    mort ici. Correctif de fond = capacité `vision` au catalogue (cf. llm_utils).
     """
     available = _get_available_ollama_models()
-    priority = ['qwen3-vl:8b', 'qwen3-vl', 'gemma4:12b', 'gemma4:e4b', 'moondream2', 'moondream']
+    priority = ['gemma4:12b', 'gemma4:e4b']
     for model in priority:
         # Match prefix (Ollama can append :latest)
         for avail in available:

@@ -66,51 +66,17 @@ def setup_sam3_hf_environment():
         except Exception as e:
             logger.warning(f"[SAM3] Could not read token from {token_file}: {e}")
 
-    # La bascule du cache HF vers sam_root est désormais CONFINÉE au chargement
-    # (`_hf_cache_on_sam_root`) — plus de mutation permanente ici.
+    # La bascule du cache HF vers sam_root est CONFINÉE au chargement — brique commune
+    # `hf_cache_scope` (extraite le 2026-08-12 après la fuite inter-apps : la mutation
+    # permanente env + constantes routait les artefacts HF des backends suivants du même
+    # worker vers vision/sam/ — squelette olmOCR vide constaté). La lib sam3 n'accepte
+    # pas de `cache_dir=`, d'où la bascule scopée ; ne JAMAIS revenir à la mutation
+    # permanente (anti-pattern ROADMAP §5b).
 
 
-from contextlib import contextmanager
-
-
-@contextmanager
-def _hf_cache_on_sam_root():
-    """Pose l'env + les constantes huggingface_hub sur sam/ LE TEMPS DU CHARGEMENT, puis
-    RESTAURE tout (try/finally).
-
-    La lib sam3 n'accepte pas de `cache_dir` : elle lit l'env/les constantes au moment du
-    build — d'où la bascule. Mais la version PERMANENTE (env process-wide + constantes de
-    module mutées sans restauration) faisait fuir le cache vers TOUS les backends HF du
-    même worker : les artefacts annexes (refs/locks/xet) d'un chargement olmOCR suivant
-    atterrissaient dans vision/sam/ (squelette vide constaté le 2026-08-12 — les blobs,
-    eux, étaient sauvés par le `cache_dir=` explicite d'olmocr_backend). C'est
-    l'anti-pattern que ROADMAP §5b veut éradiquer : ne JAMAIS étendre cette mutation."""
-    sam_root = MODEL_PATHS.get('vision', {}).get('sam') \
+def _sam_root():
+    return MODEL_PATHS.get('vision', {}).get('sam') \
         or (AI_MODELS_DIR / 'models' / 'vision' / 'sam')
-    sam_root_str = str(sam_root)
-    cles = ('HF_HOME', 'HF_HUB_CACHE', 'HUGGINGFACE_HUB_CACHE')
-    prev_env = {k: os.environ.get(k) for k in cles}
-    try:
-        import huggingface_hub.constants as hf_constants
-    except ImportError:
-        hf_constants = None
-    prev_const = {k: getattr(hf_constants, k, None) for k in cles} if hf_constants else {}
-    for k in cles:
-        os.environ[k] = sam_root_str
-        if hf_constants is not None:
-            setattr(hf_constants, k, sam_root_str)
-    logger.info(f"[SAM3] cache HF basculé sur {sam_root_str} (portée : chargement seul)")
-    try:
-        yield
-    finally:
-        for k in cles:
-            if prev_env[k] is None:
-                os.environ.pop(k, None)
-            else:
-                os.environ[k] = prev_env[k]
-            if hf_constants is not None:
-                setattr(hf_constants, k, prev_const[k])
-        logger.info("[SAM3] cache HF restauré")
 
 
 class SAM3Processor(DetectionBackend):
@@ -221,7 +187,8 @@ class SAM3Processor(DetectionBackend):
             if model_type in ['image', 'auto']:
                 logger.info("[SAM3] Loading image model...")
                 print("[SAM3] Loading image model...")
-                with _hf_cache_on_sam_root():
+                from wama.common.utils.hf_cache import hf_cache_scope
+                with hf_cache_scope(_sam_root()):
                     self.image_model = build_sam3_image_model()
                 self.image_processor = Sam3ImageProcessor(self.image_model)
                 logger.info("[SAM3] Image model loaded successfully")

@@ -33,13 +33,20 @@ class Command(BaseCommand):
 
         false_positive = []  # catalogue=téléchargé, disque=non
         false_negative = []  # disque=téléchargé, catalogue=non
-        orphan = []          # en base, plus découvert
+        orphan = []          # en base, DIT téléchargé, plus découvert → vrai écart
+        candidates = []      # en base, NON téléchargé, plus découvert → mémoire VOULUE
         missing = []         # découvert, absent du catalogue
 
         for key, m in stored.items():
             mi = discovered.get(key)
             if mi is None:
-                orphan.append(key)
+                # Mémoire de catalogue VOULUE (décision Fabien 2026-08-12) : les
+                # propositions de prospection (`proposed:*`, jamais sur disque par
+                # nature) et les candidats conservés pour une future installation
+                # (ex. TTS retirés) ne sont PAS une dérive tant qu'ils ne prétendent
+                # pas être téléchargés. Seul « dit téléchargé ET plus découvert »
+                # reste un écart réel.
+                (candidates if not m.is_downloaded else orphan).append(key)
                 continue
             if m.is_downloaded and not mi.is_downloaded:
                 false_positive.append(key)
@@ -56,6 +63,7 @@ class Command(BaseCommand):
             'false_positive': sorted(false_positive),
             'false_negative': sorted(false_negative),
             'orphan': sorted(orphan),
+            'candidates_kept': sorted(candidates),
             'missing_from_catalog': sorted(missing),
         }
 
@@ -79,9 +87,15 @@ class Command(BaseCommand):
         _section("FAUX NÉGATIFS", false_negative,
                  "présent sur disque, catalogue dit non-téléchargé (sous-estime)")
         _section("ORPHELINS", orphan,
-                 "en base mais plus découverts (supprimés du disque ?)")
+                 "dit téléchargé mais plus découvert (supprimé du disque ?)")
         _section("ABSENTS DU CATALOGUE", missing,
                  "découverts mais pas en base (lancer sync_models)")
+        if candidates:
+            self.stdout.write(
+                f"\n(info) CATALOGUE SEUL — mémoire voulue, pas une dérive "
+                f"({len(candidates)}) : propositions de prospection et candidats à "
+                f"installer.\n  ⚠ un sync_models --clean les PURGERAIT — ne pas le "
+                f"lancer pour « corriger » cette section.")
 
         if nb == 0:
             self.stdout.write(self.style.SUCCESS("\n✓ Catalogue cohérent avec le disque."))

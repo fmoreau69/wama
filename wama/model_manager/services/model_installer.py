@@ -197,7 +197,7 @@ def install_from_spec(spec: dict) -> dict:
 
     spec = {
       'kind': 'ollama' | 'hf' | 'yolo',        # driver d'installation
-      'ref':  'qwen3:8b' | 'org/model' | 'yolo26s-seg',
+      'ref':  'bge-m3' | 'org/model' | 'yolo26s-seg',
       'category': 'diffusion' | 'speech' | …,  # hf : catégorie de dossier (model_locations)
       'family': 'qwen-image',                  # hf : sous-dossier famille (optionnel)
       'allow_patterns': ['*.safetensors'],     # hf : restreindre les fichiers (optionnel)

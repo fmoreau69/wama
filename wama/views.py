@@ -90,27 +90,34 @@ def fiches(request):
     return render(request, 'includes/wama_fiches.html')
 
 
-# Rôles de la surface chat → GABARIT de modèle. Le tag est DÉRIVÉ du catalogue à l'appel
-# (`select_chat_llm`) — plus de table de tags : elle mourait au premier remplacement de
-# modèle (qwen3.5:35b-a3b → qwen3.6:35b, leçon du 2026-08-12, cf. check_model_declarations).
-_ROLE_TIER = {'dev': 'max', 'coder': 'max', 'architect': 'max',
-              'debug': 'code', 'fast': 'mid', 'ultra_fast': 'min'}
+# Rôles de la surface chat → TIER de résolution (llm_utils.modele_par_tier — LE point
+# unique existant, mécanique du describer depuis le 2026-08-04). Plus de table de tags :
+# elle mourait au premier remplacement de modèle (qwen3.5:35b-a3b → qwen3.6:35b, leçon du
+# 2026-08-12, cf. check_model_declarations). `priority` exprime une préférence nominale
+# (jamais un tag épinglé) ; prefer_loaded=False = intention de GABARIT explicite (le rôle
+# 'dev' veut le tier heavy, pas le petit modèle déjà en mémoire).
+_ROLE_TIER = {
+    'dev':        {'tier': 'heavy', 'prefer_loaded': False},
+    'coder':      {'tier': 'heavy', 'prefer_loaded': False},
+    'architect':  {'tier': 'heavy', 'prefer_loaded': False},
+    'debug':      {'tier': 'heavy', 'priority': ['coder'], 'prefer_loaded': False},
+    'fast':       {'tier': 'default'},
+    'ultra_fast': {'tier': 'fast'},
+}
 
 
 def _ollama_model_for(cle: str) -> str:
-    """Rôle de chat ('dev', 'fast'…) → tag Ollama dérivé du catalogue (source unique) ;
+    """Rôle de chat ('dev', 'fast'…) → tag Ollama résolu par le catalogue (source unique) ;
     un tag complet ('gemma4:12b') passe tel quel."""
-    tier = _ROLE_TIER.get(cle)
-    if tier is None:
+    regle = _ROLE_TIER.get(cle)
+    if regle is None:
         return cle
     try:
-        from wama.model_manager.services.model_selector import select_chat_llm
-        m = select_chat_llm(tier)
-        if m:
-            return m.model_key.split(':', 1)[1]
+        from wama.common.utils.llm_utils import modele_par_tier
+        return modele_par_tier(**regle) or cle
     except Exception:
-        logger.debug('[ai_chat] dérivation du modèle par rôle indisponible', exc_info=True)
-    return cle
+        logger.debug('[ai_chat] résolution du modèle par tier indisponible', exc_info=True)
+        return cle
 
 # Safe context limits per model (chars, not tokens — ~4 chars/token estimate)
 # Below these limits quality stays high; above them we upgrade to a larger model.
@@ -536,22 +543,15 @@ def _get_kokoro(lang_code: str):
                 kokoro_dir = str(settings.MODEL_PATHS.get('speech', {}).get(
                     'kokoro', settings.AI_MODELS_DIR / 'models' / 'speech' / 'kokoro'))
                 os.makedirs(kokoro_dir, exist_ok=True)
-                # Must be set BEFORE importing kokoro/huggingface_hub
-                _prev_hf = os.environ.get('HF_HUB_CACHE')
-                os.environ['HF_HUB_CACHE'] = kokoro_dir
-                os.environ['HUGGINGFACE_HUB_CACHE'] = kokoro_dir
-                try:
+                # Bascule SCOPÉE du cache HF (kokoro n'accepte pas de cache_dir=) —
+                # brique commune, restaure env ET constantes huggingface_hub (le
+                # save/restore local ne couvrait pas les constantes : dans un process
+                # où le hub est déjà importé, l'env seul ne suffit pas).
+                from wama.common.utils.hf_cache import hf_cache_scope
+                with hf_cache_scope(kokoro_dir):
                     from kokoro import KPipeline
                     _kokoro_pipelines[lang_code] = KPipeline(
                         lang_code=lang_code, repo_id='hexgrad/Kokoro-82M')
-                finally:
-                    # Restore so subsequent model downloads don't land in kokoro_dir
-                    if _prev_hf is not None:
-                        os.environ['HF_HUB_CACHE'] = _prev_hf
-                        os.environ['HUGGINGFACE_HUB_CACHE'] = _prev_hf
-                    else:
-                        os.environ.pop('HF_HUB_CACHE', None)
-                        os.environ.pop('HUGGINGFACE_HUB_CACHE', None)
     return _kokoro_pipelines[lang_code]
 
 
