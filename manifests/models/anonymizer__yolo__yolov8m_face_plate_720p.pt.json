@@ -2,8 +2,8 @@
   "body": {
     "capabilities": {
       "classes": [
-        "face",
-        "plate"
+        "plate",
+        "face"
       ],
       "inputs_required": [
         "work_file"
@@ -16,8 +16,8 @@
     },
     "extra_info": {
       "class_list": [
-        "face",
-        "plate"
+        "plate",
+        "face"
       ],
       "model_id": "detect/faces&plates/yolov8m_face_plate_720p.pt",
       "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/yolo/detect/faces&plates/yolov8m_face_plate_720p.pt",

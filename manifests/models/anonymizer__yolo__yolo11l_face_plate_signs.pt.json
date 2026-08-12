@@ -2,8 +2,9 @@
   "body": {
     "capabilities": {
       "classes": [
-        "face",
-        "plate"
+        "sign",
+        "plate",
+        "face"
       ],
       "inputs_required": [
         "work_file"
@@ -16,8 +17,9 @@
     },
     "extra_info": {
       "class_list": [
-        "face",
-        "plate"
+        "sign",
+        "plate",
+        "face"
       ],
       "model_id": "detect/faces&plates/yolo11l_face_plate_signs.pt",
       "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/yolo/detect/faces&plates/yolo11l_face_plate_signs.pt",

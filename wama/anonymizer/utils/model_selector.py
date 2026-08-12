@@ -142,45 +142,34 @@ def _get_onnx_model_classes(model_path: str) -> Dict[str, str]:
     Returns:
         Dictionary mapping class IDs to class names, or empty dict if not found
     """
-    # Try to determine specialty from path
-    path_parts = model_path.replace('\\', '/').split('/')
+    # ── LE FICHIER D'ABORD ────────────────────────────────────────────────────────────────
+    # L'ancien ordre testait le dossier de spécialité AVANT d'ouvrir le fichier, et sortait :
+    # le bloc de lecture des métadonnées qui suivait était donc MORT pour tous les modèles
+    # rangés dans `faces/`, `plates/` ou `faces&plates/` — c'est-à-dire exactement ceux qu'il
+    # servait à décrire. Les 5 ONNX de plaques déclarent pourtant `names = {0:'License_Plate'}`
+    # dans leurs métadonnées (constaté le 2026-08-12).
+    # La lecture est mutualisée avec le catalogue (`model_manager.services.weights_metadata`) :
+    # elle existait ici en double, en version onnxruntime (plus coûteuse — elle construisait
+    # une session d'inférence pour lire une chaîne).
+    try:
+        from wama.model_manager.services.weights_metadata import classes_depuis_poids
 
-    # Look for specialty directory in path (e.g., detect/faces/, detect/plates/)
-    for i, part in enumerate(path_parts):
+        noms = classes_depuis_poids(model_path)
+        if noms:
+            logger.info(f"[ModelSelector] Classes lues dans {os.path.basename(model_path)} : {noms}")
+            return {str(i): str(n).lower() for i, n in enumerate(noms)}
+    except Exception as e:
+        logger.debug(f"[ModelSelector] Lecture des métadonnées impossible : {e}")
+
+    # Repli : le dossier de spécialité, pour les exports dépourvus de métadonnées `names`.
+    path_parts = model_path.replace('\\', '/').split('/')
+    for part in path_parts:
         if part in SPECIALTY_MODEL_CLASSES:
             classes = SPECIALTY_MODEL_CLASSES[part]
             logger.info(f"[ModelSelector] ONNX model in '{part}' directory: using predefined classes {list(classes.values())}")
             return classes
 
-    # Try to extract from ONNX metadata
-    try:
-        import onnxruntime as ort
-
-        session = ort.InferenceSession(model_path, providers=['CPUExecutionProvider'])
-        metadata = session.get_modelmeta()
-
-        # Some ONNX models store class names in custom metadata
-        if metadata.custom_metadata_map:
-            # Look for names/classes in metadata
-            for key in ['names', 'classes', 'class_names']:
-                if key in metadata.custom_metadata_map:
-                    import json
-                    try:
-                        names_data = json.loads(metadata.custom_metadata_map[key])
-                        if isinstance(names_data, dict):
-                            return {str(k): v.lower() for k, v in names_data.items()}
-                        elif isinstance(names_data, list):
-                            return {str(i): v.lower() for i, v in enumerate(names_data)}
-                    except json.JSONDecodeError:
-                        pass
-
-        logger.debug(f"[ModelSelector] No class metadata found in ONNX model: {os.path.basename(model_path)}")
-
-    except ImportError:
-        logger.debug("[ModelSelector] onnxruntime not available for ONNX metadata extraction")
-    except Exception as e:
-        logger.debug(f"[ModelSelector] Could not extract ONNX metadata: {e}")
-
+    logger.debug(f"[ModelSelector] No class metadata found in ONNX model: {os.path.basename(model_path)}")
     return {}
 
 
@@ -888,6 +877,44 @@ def select_best_models_by_precision(classes_to_blur: List[str],
                 covered_classes.update(supported)
         else:
             logger.warning(f"[ModelSelector] No COCO model found for: {remaining_coco}")
+
+    # 3. RATTRAPAGE — toute classe encore non couverte est cherchée chez N'IMPORTE QUEL modèle
+    # installé qui la DÉCLARE, spécialisés compris.
+    #
+    # Sans cette passe, une classe tombait entre deux chaises dès qu'elle n'était pas dans la
+    # liste écrite à la main `SPECIALTY_CLASSES` : l'étape 1 ne la regardait pas (« pas une
+    # spécialité »), et l'étape 2 l'envoyait à `_find_coco_model`, qui ÉCARTE justement tout
+    # modèle porteur d'une spécialité. Cas réel : `sign`, déclarée par
+    # `faces&plates/yolo11l_face_plate_signs.pt` (classes ['sign','plate','face']) — la sélection
+    # rendait 0 % de couverture alors que le seul modèle capable était installé (2026-08-12).
+    #
+    # C'est le même vice que la table de classes codée en dur, un cran plus haut : une liste
+    # tenue à la main décidait ce qui « existe », au lieu de partir de ce que les modèles
+    # DÉCLARENT. Ici on part des capacités, donc une classe apportée par un futur modèle
+    # spécialisé sera trouvée sans qu'on ait à toucher au code.
+    for classe in [c for c in classes_lower if c not in covered_classes]:
+        deja = {m['id'] for m in models_to_use}
+        candidat = next(
+            (mid for mid, info in installed_models.items()
+             if any(classes_match(classe, mc) for mc in info['class_list'])),
+            None,
+        )
+        if not candidat:
+            continue
+        entree = next((m for m in models_to_use if m['id'] == candidat), None)
+        if entree is not None:
+            # Modèle déjà retenu pour d'autres classes : on lui en confie une de plus plutôt
+            # que d'ajouter une seconde passe de détection sur le même fichier.
+            entree['classes'] = sorted(set(entree['classes']) | {classe})
+        else:
+            info = installed_models[candidat]
+            models_to_use.append({
+                'id': candidat, 'path': info['path'], 'name': info['name'],
+                'type': info['type'], 'classes': [classe],
+            })
+        covered_classes.add(classe)
+        logger.info(f"[ModelSelector] Rattrapage : '{classe}' couverte par {candidat}"
+                    + (" (déjà retenu)" if candidat in deja else ""))
 
     # Calculate coverage
     unsupported = [c for c in classes_lower if c not in covered_classes]

@@ -2,7 +2,6 @@
   "body": {
     "capabilities": {
       "classes": [
-        "plate",
         "license_plate"
       ],
       "inputs_required": [
@@ -16,7 +15,6 @@
     },
     "extra_info": {
       "class_list": [
-        "plate",
         "license_plate"
       ],
       "model_id": "detect/plates/license-plate-finetune-v1m.onnx",

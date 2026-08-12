@@ -1515,7 +1515,29 @@ class ModelRegistry:
         if model_path in self._yolo_classes_cache:
             return self._yolo_classes_cache[model_path]
 
-        # For specialty models, use known classes (fast path)
+        # ── LE FICHIER D'ABORD, la table de repli ENSUITE ────────────────────────────────────
+        # L'ancien ordre partait de `SPECIALTY_KNOWN_CLASSES` et RENDAIT SANS OUVRIR le fichier
+        # dès que le modèle vivait dans un dossier de spécialité. Trois conséquences mesurées le
+        # 2026-08-12 :
+        #   • ordre FAUX  — `faces&plates` y vaut ['face','plate'] quand les poids déclarent
+        #     ['plate','face'] ; or l'ordre EST l'index de classe passé à `predict(classes=…)` ;
+        #   • classe PERDUE — `yolo11l_face_plate_signs.pt` porte ['sign','plate','face'] : la
+        #     classe `sign` n'existait nulle part au catalogue, donc la demander rendait
+        #     « aucun modèle ne couvre cette classe » alors que le seul qui sait le faire est
+        #     installé (sélection auto mesurée à 0 % de couverture pour ['sign']) ;
+        #   • table à tenir à la main pour une information que chaque fichier porte déjà.
+        # Lecture via `weights_metadata` (métadonnées ONNX / checkpoint ultralytics) : moins
+        # coûteux que l'instanciation `YOLO()` du repli ci-dessous, et sans effet de bord.
+        from wama.model_manager.services.weights_metadata import classes_depuis_poids
+
+        noms = classes_depuis_poids(model_path)
+        if noms:
+            classes = [str(c).lower() for c in noms]
+            self._yolo_classes_cache[model_path] = classes
+            return classes
+
+        # Le fichier n'a rien déclaré → repli sur la table, qui reste utile pour les exports
+        # ONNX dépourvus de métadonnées `names`.
         if specialty and specialty in self.SPECIALTY_KNOWN_CLASSES:
             classes = self.SPECIALTY_KNOWN_CLASSES[specialty]
             self._yolo_classes_cache[model_path] = classes
