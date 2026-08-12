@@ -134,6 +134,16 @@
 
         <!-- Content -->
         <div class="right-panel-content">
+            {% comment %}
+              Emplacement libre en TÊTE du volet, au-dessus de Médias. VIDE par défaut,
+              et sans cadre : c'est l'app qui fournit sa propre section si elle en a
+              besoin — aucun conteneur vide ne s'affiche ailleurs.
+              Motif : certaines pages ont un contenu de volet qui n'est ni un média, ni
+              un paramètre, ni une action (model_manager y met le résumé du catalogue,
+              qui n'est pas une « ressource système »).
+            {% endcomment %}
+            {% block right_panel_top %}{% endblock %}
+
             <!-- Médias Section (drop zone app ou aperçu filemanager) -->
             <div class="right-panel-section" id="media-section">
                 <div class="right-panel-section-title" id="rightPanelMediaTitle">

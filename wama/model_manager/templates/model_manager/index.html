@@ -299,14 +299,13 @@
     </div>
 
     {% comment %}
-      Déplacé par JS dans le volet droit, section « Ressources système ».
-      ORDRE VOULU : Modèles (registre) tout en haut, puis CPU → RAM → GPU → Disque,
-      soit le MÊME ordre que le monitoring du pied de page (base.html) — l'utilisateur
-      doit retrouver la même séquence de lecture partout. Le disque suit dans #mmDiskRow,
-      appendChild après celui-ci, ce qui clôt la séquence.
+      Déplacé par JS dans le volet droit, section « Catalogue » — une section À PART,
+      au-dessus de « Ressources système ». Le décompte des modèles n'est PAS une
+      ressource système (ni CPU, ni RAM, ni VRAM, ni disque) : le loger sous ce titre
+      était une erreur de catégorie.
     {% endcomment %}
-    <div class="row mb-4" id="mmResourceRow">
-        <div class="col-md-3">
+    <div class="row mb-4" id="mmCatalogRow">
+        <div class="col-12">
             <div class="memory-card h-100">
                 <h5 class="mb-3"><i class="fas fa-cube me-2 text-warning"></i>Models</h5>
                 {% comment %}
@@ -343,7 +342,16 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+    </div>
+
+    {% comment %}
+      Déplacé par JS dans le volet droit, section « Ressources système ».
+      ORDRE : CPU → RAM → GPU → Disque, soit le MÊME que le monitoring du pied de
+      page (base.html) — même séquence de lecture partout. Le disque suit dans
+      #mmDiskRow, appendChild après celui-ci, ce qui clôt la séquence.
+    {% endcomment %}
+    <div class="row mb-4" id="mmResourceRow">
+        <div class="col-md-4">
             <div class="memory-card h-100">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="mb-0"><i class="fas fa-microchip me-2 text-info"></i>CPU</h5>
@@ -370,7 +378,7 @@
                 {% endif %}
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-4">
             <div class="memory-card h-100">
                 <h5 class="mb-3"><i class="fas fa-memory me-2 text-success"></i>System RAM</h5>
                 <div class="memory-bar mb-2">
@@ -387,7 +395,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-4">
             <div class="memory-card h-100">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h5 class="mb-0"><i class="fas fa-tv me-2 text-warning"></i>GPU</h5>
@@ -679,11 +687,15 @@
     /* !important OBLIGATOIRE : le .mb-4 de Bootstrap est lui-même !important et
        gagnait malgré la spécificité — d'où 1,5 rem entre GPU et Disque (deux
        rangées) contre 0,75 rem entre cartes d'une même rangée. */
+    #mmCatalogSlot > .row,
     #mmResourceSlot > .row, #mmSystemSlot > .row { margin: 0 !important; }
+    #mmCatalogSlot > .row > [class*="col-"],
     #mmResourceSlot > .row > [class*="col-"],
     #mmSystemSlot > .row > [class*="col-"] {
         flex: 0 0 100%; max-width: 100%; padding: 0 0 .75rem 0;
     }
+    /* Le catalogue est seul dans sa section : pas d'espace bas résiduel. */
+    #mmCatalogSlot > .row > [class*="col-"]:last-child { padding-bottom: 0; }
     /* Seule la TOUTE dernière carte du volet perd son espace bas : sur la dernière
        carte de CHAQUE rangée, l'espace inter-cartes disparaissait au profit du
        margin de rangée, ce qui rompait la régularité. */
@@ -704,7 +716,16 @@
 {% endblock %}
 
 {# ── Volet droit global (#wama-right-panel) ───────────────────────────────── #}
-{# Section Médias → ressources système (toujours visible). mmResourceRow y est déplacé par JS. #}
+{# Section EN TÊTE : le catalogue. Séparée des ressources système parce qu'un
+   décompte de modèles n'en est pas une. mmCatalogRow y est déplacé par JS. #}
+{% block right_panel_top %}
+<div class="right-panel-section" id="mmCatalogSection">
+    <div class="right-panel-section-title"><i class="fas fa-cube me-1"></i> Catalogue</div>
+    <div id="mmCatalogSlot"></div>
+</div>
+{% endblock %}
+
+{# Section Médias → ressources système. mmResourceRow + mmDiskRow y sont déplacés par JS. #}
 {% block right_panel_media_title %}Ressources système{% endblock %}
 {% block right_panel_media %}
 <div id="mmResourceSlot"></div>
@@ -1187,8 +1208,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Outils système (prospection + cleaner + idle) : visibles seulement quand AUCUNE card sélectionnée.
+    // mmCatalogSection vit HORS de #media-section : la brique (keepMediaSection:
+    // 'no-selection') ne l'atteint pas, on le masque donc ici. Même règle que les
+    // ressources : en inspectant UN modèle, le décompte global n'est pas le sujet,
+    // et le laisser visible repousserait l'inspecteur vers le bas — exactement le
+    // scroll qu'on cherchait à supprimer.
     function mmShowSystem(show) {
-        ['mmSystemRow', 'mmProspectBar'].forEach(function (id) {
+        ['mmSystemRow', 'mmProspectBar', 'mmCatalogSection'].forEach(function (id) {
             const el = document.getElementById(id);
             if (el) el.style.display = show ? '' : 'none';
         });
@@ -1242,6 +1268,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (window.WamaInspector && window.WamaDetails) {
         // Déplacer le monitoring du corps de page → volet droit. appendChild MOVE les nœuds
         // existants (préserve les écouteurs liés + le polling par id) sans recréer le DOM.
+        const catSlot = document.getElementById('mmCatalogSlot');
+        const catRow = document.getElementById('mmCatalogRow');
+        if (catSlot && catRow) catSlot.appendChild(catRow);
         const resSlot = document.getElementById('mmResourceSlot');
         const resRow = document.getElementById('mmResourceRow');
         if (resSlot && resRow) resSlot.appendChild(resRow);
