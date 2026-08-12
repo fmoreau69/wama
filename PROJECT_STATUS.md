@@ -2688,22 +2688,30 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > `SPECIALTY_CLASSES` tombait entre deux chaises (étape 1 l'ignorait, `_find_coco_model` écarte
 > les modèles à spécialité). Sélection `['sign']` : **0 % → 100 %**.
 >
-> ### 🔴 À FAIRE EN PRIORITÉ — `common/services/model_coverage.py` est INUTILISÉ
+> ### ✅ `couvrir_classes` ENFIN ADOPTÉ — portage fait dans la foulée (`58e7051`)
 >
-> `couvrir_classes()` (écrit le 2026-08-04, extrait de l'anonymizer précisément pour ça) a
-> **ZÉRO consommateur**. La passe de « rattrapage » que j'ai ajoutée dans
-> `anonymizer/utils/model_selector.py` en duplique une partie **et fait moins bien** (elle prend
-> le premier modèle déclarant la classe, sans ordonner par qualité). Comparé sur le vrai
-> catalogue :
+> `common/services/model_coverage.py::couvrir_classes()` (écrit le 2026-08-04, **extrait de
+> l'anonymizer** précisément pour ça) avait **ZÉRO consommateur**. L'anonymizer est désormais
+> porté dessus. **REMPLACÉ, pas doublé** : supprimés faute d'appelant `SPECIALTY_CLASSES`,
+> `_find_specialty_model`, `_find_combined_specialty_model`, `_find_coco_model` — **et la passe
+> de « rattrapage » que j'avais ajoutée moi-même le matin** (`d90be9a`), qui dupliquait une
+> partie de la brique et ordonnait moins bien (premier modèle déclarant la classe, sans tenir
+> compte de la qualité → un modèle de POSE retenu pour `person`). **−400 lignes, +90.**
 >
-> | demande | `couvrir_classes` (commun) | anonymizer (maison) |
+> | demande | avant | après |
 > |---|---|---|
-> | `face+plate+sign` | **1 modèle** | 2 modèles |
-> | `face+plate+sign+person` | **2 modèles** | 3 (dont `yolo11l-pose` pour `person`) |
+> | `face+plate+sign` | 2 modèles | **1** |
+> | `face+plate+sign+person` | 3 modèles | **2** |
 >
-> → **Porter l'anonymizer sur `couvrir_classes`** supprime la duplication, rend le recouvrement
-> minimal, et adopte enfin la brique. Les préférences (`preferer_segmentation`, `taille_preferee`)
-> y sont déjà prévues en départage, pas en filtre.
+> **La règle que ce portage illustre : la POLITIQUE reste dans l'app, le MÉCANISME va dans la
+> brique.** « Précision élevée → préférer la segmentation et les gros modèles » se DÉCLARE en
+> paramètres (`preferer_segmentation`, `taille_preferee`), appliqués **en départage, jamais en
+> filtre**. Le seul filtre est `TACHES_DETECTION = ('detect','segment')` — un classifieur annonce
+> des classes sans savoir les localiser (`yolo11l-cls` déclare `plate`, l'assiette d'ImageNet).
+> Corrigé au passage : `needs_parallel_detection` rendait `unsupported` quand son seul lecteur
+> interrogeait `unsupported_classes` → l'avertissement « classes non couvertes » n'avait **jamais**
+> pu s'afficher. Vérifié sur 7 cas : contrat complet, tous les chemins existent sur disque.
+> **Restent à porter sur la brique** (annoncés dans son en-tête) : `cam_analyzer`, `face_analyzer`.
 >
 > ### Sélection multi-critère & qualité MESURÉE — état réel
 >
