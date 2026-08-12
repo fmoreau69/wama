@@ -1207,17 +1207,22 @@ document.addEventListener('DOMContentLoaded', function() {
         finally { hideLoading(); }
     }
 
-    // Outils système (prospection + cleaner + idle) : visibles seulement quand AUCUNE card sélectionnée.
-    // mmCatalogSection vit HORS de #media-section : la brique (keepMediaSection:
-    // 'no-selection') ne l'atteint pas, on le masque donc ici. Même règle que les
-    // ressources : en inspectant UN modèle, le décompte global n'est pas le sujet,
-    // et le laisser visible repousserait l'inspecteur vers le bas — exactement le
-    // scroll qu'on cherchait à supprimer.
-    function mmShowSystem(show) {
-        ['mmSystemRow', 'mmProspectBar', 'mmCatalogSection'].forEach(function (id) {
-            const el = document.getElementById(id);
-            if (el) el.style.display = show ? '' : 'none';
-        });
+    // Blocs qui cèdent la place à l'inspecteur quand un modèle est sélectionné
+    // (prospection + cleaner + modèles inactifs + catalogue).
+    // DÉCLARATIF : passé à WamaInspector via hideOnInspect, qui les masque et les
+    // restaure LUI-MÊME, quel que soit le chemin de désélection. Un masquage à la
+    // main branché sur le seul clic de la croix laissait le volet incomplet après
+    // Échap. mmCatalogSection y figure car il vit hors de #media-section et n'est
+    // donc pas couvert par keepMediaSection.
+    const MM_HIDE_ON_INSPECT = ['mmSystemRow', 'mmProspectBar', 'mmCatalogSection'];
+
+    // Pendant de renderModelInspector : remise du volet à « aucune sélection ».
+    function mmResetPanel() {
+        mmCurrentId = null;
+        const host = document.getElementById('inspectorActions');
+        if (host) host.innerHTML = MM_HINT;
+        const btnHost = document.getElementById('inspectorActionButtons');
+        if (btnHost) btnHost.innerHTML = '<span class="text-muted small">—</span>';
     }
 
     async function mmRunProspect() {
@@ -1262,7 +1267,7 @@ document.addEventListener('DOMContentLoaded', function() {
             btnHost.innerHTML = a.html;
             a.wire(btnHost);
         }
-        mmShowSystem(false);  // card sélectionnée → l'inspecteur prend la place des outils système
+        // Le masquage des blocs est géré par la brique (hideOnInspect) : rien ici.
     }
 
     if (window.WamaInspector && window.WamaDetails) {
@@ -1289,21 +1294,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 return m ? m.name : ('#' + id);
             },
             renderItemActions: renderModelInspector,
-            // #media-section accueille ici les cartes Ressources (Modèles/CPU/RAM/GPU/Disque),
-            // déplacées ci-dessus. 'no-selection' = visibles tant qu'aucun modèle n'est
-            // sélectionné, masquées dès qu'on en inspecte un : sinon il faut scroller tout
-            // le monitoring pour atteindre les infos du modèle.
+            // Masquage/restauration confiés à la brique : elle les applique sur TOUS
+            // les chemins de désélection (croix, Échap, clic hors card).
+            hideOnInspect: MM_HIDE_ON_INSPECT,
+            onDeselect: mmResetPanel,
+            // #media-section accueille ici les cartes Ressources (CPU/RAM/GPU/Disque).
+            // 'no-selection' = visibles tant qu'aucun modèle n'est sélectionné, masquées
+            // dès qu'on en inspecte un : sinon il faut scroller tout le monitoring pour
+            // atteindre les infos du modèle.
             keepMediaSection: 'no-selection',
         });
-        const mmDeselectBtn = document.getElementById('inspectorDeselect');
-        if (mmDeselectBtn) mmDeselectBtn.addEventListener('click', () => {
-            mmCurrentId = null;
-            const host = document.getElementById('inspectorActions');
-            if (host) host.innerHTML = MM_HINT;
-            const btnHost = document.getElementById('inspectorActionButtons');
-            if (btnHost) btnHost.innerHTML = '<span class="text-muted small">—</span>';
-            mmShowSystem(true);  // plus de sélection → réafficher les outils système
-        });
+        // Pas de gestionnaire de clic sur la croix ici : la brique la lie déjà à
+        // deselect(), qui appelle onDeselect. En brancher un second ne couvrait que
+        // ce chemin-là et laissait Échap à moitié traité.
         const prospectBtn = document.getElementById('mmProspectBtn');
         if (prospectBtn) prospectBtn.addEventListener('click', mmRunProspect);
     }

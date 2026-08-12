@@ -21,6 +21,8 @@
  *     cardSettings(card) -> values,         // extrait les réglages d'une card (data-*)
  *     renderItemActions(host, card),        // remplit le conteneur d'actions pour une card
  *     renderBatchActions(host, batchId),    // ... pour un batch
+ *     onDeselect(),                         // pendant : remise à l'état « aucune sélection »
+ *                                           // (appelé quel que soit le chemin : croix, Échap…)
  *     saveItem(id), saveBatch(batchId), saveGlobal(),    // routage de la sauvegarde
  *     itemLabel(id), batchLabel(id),        // libellés de la bannière
  *     cardSelector, batchSelector, batchIdAttr, highlightClass,  // sélecteurs (défauts)
@@ -540,6 +542,12 @@
       hideBanner();
       restorePreview();
       showQueueInfo();
+      // Pendant contraire de renderItemActions : l'app remet SON volet à l'état
+      // « aucune sélection » (invite, boutons d'action…). Indispensable parce que
+      // la désélection a PLUSIEURS chemins — clic sur la croix, touche Échap,
+      // clic hors card. Une app qui ne branchait que le clic laissait le volet
+      // dans un état bâtard après Échap (constaté sur model_manager).
+      if (cfg.onDeselect) { try { cfg.onDeselect(); } catch (e) { console.warn('onDeselect:', e); } }
     }
 
     function save() {
