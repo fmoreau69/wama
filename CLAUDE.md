@@ -145,6 +145,7 @@ apply_patch(
 
 | Domaine | Fichier de référence unique |
 |---|---|
+| **Carte des mécanismes transversaux** (où vit quoi, qui l'utilise, qu'ai-je oublié) | **`WAMA_MECANISMES.md`** — INDEX, jamais de prose dupliquée. Sa table est **générée** depuis le registre déclaratif `wama/common/mecanismes.py` (`doc_facts`, fait `mecanismes`) : **ajouter un mécanisme = ajouter une entrée au registre**, pas une ligne au `.md`. Signale les briques sans consommateur et les modules `common/` non rattachés. |
 | Route complète vers l'auto-génération d'apps (mécanismes) | **`WAMA_APP_GENERATION_ROUTE.md`** (consolide UI_MECHANISMS_CONSOLIDATION / COMMON_REFACTORING / GENERALIZATION_PLAN / BACKEND_CARTOGRAPHY, tous archivés dans `docs/archive/`) |
 | Manifestes — formalisme | `WAMA_MANIFEST_SPEC.md` |
 | Manifestes — flux/schéma | `WAMA_MANIFEST_ARCHITECTURE.md` |

@@ -91,11 +91,120 @@ def _fait_roundtrip():
     return '\n'.join(lignes)
 
 
+#: Dossiers jamais parcourus pour compter les consommateurs (mêmes exclusions d'esprit que
+#: `check_redundancy`) : code vendored, artefacts, et l'arbre de dépendances. Sans cet élagage
+#: le comptage part sur des dizaines de milliers de fichiers — la leçon `/mnt/d` de `check_docs`.
+_DOSSIERS_EXCLUS = {
+    'venv_win', 'venv_linux', 'node_modules', '.git', 'migrations', 'staticfiles',
+    'static', 'media', 'logs', 'AI-models', '__pycache__', 'wama-dev-ai', 'patches',
+    'musetalk', 'codeformer',   # vendored upstream
+}
+
+
+def _modules_python(base):
+    """Chemins .py de NOTRE code (relatifs à base), vendored et artefacts élagués."""
+    import os
+
+    for racine in ('wama', 'wama_lab'):
+        depart = base / racine
+        if not depart.is_dir():
+            continue
+        for dossier, sous, fichiers in os.walk(depart):
+            sous[:] = [d for d in sous if d not in _DOSSIERS_EXCLUS]
+            for f in fichiers:
+                if f.endswith('.py'):
+                    yield Path(dossier, f).relative_to(base).as_posix()
+
+
+def _fait_mecanismes():
+    """
+    Carte des mécanismes transversaux + les trois formes d'oubli.
+
+    Le registre (`common/mecanismes.py`) est la SOURCE ; ce bloc n'en est que le rendu. On
+    compte les consommateurs par l'IMPORT du module — un mécanisme que personne n'importe est
+    une brique morte, et c'est le cas qu'on veut voir sans avoir à le chercher à la main.
+    """
+    import re
+    from django.conf import settings
+
+    from wama.common.mecanismes import MECANISMES
+
+    base = Path(settings.BASE_DIR)
+    modules = list(_modules_python(base))
+    sources = {}
+    for rel in modules:
+        try:
+            sources[rel] = (base / rel).read_text(encoding='utf-8', errors='ignore')
+        except OSError:
+            continue
+
+    def _consommateurs(mecanisme):
+        """Fichiers qui IMPORTENT le domicile (ou une annexe), hors le mécanisme lui-même."""
+        siens = {mecanisme.domicile, *mecanisme.annexes}
+        motifs = []
+        for chemin in siens:
+            pointe = chemin[:-3].replace('/', '.')          # wama/common/x.py → wama.common.x
+            feuille = chemin.rsplit('/', 1)[-1][:-3]         # → x
+            motifs.append(re.compile(
+                rf'(?:from\s+{re.escape(pointe)}\s+import|import\s+{re.escape(pointe)}\b'
+                rf'|from\s+[.\w]*\.?{re.escape(feuille)}\s+import)'))
+        return sorted({rel for rel, src in sources.items()
+                       if rel not in siens and any(m.search(src) for m in motifs)})
+
+    lignes = ["| Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |",
+              "|---|---|---|---|---|"]
+    orphelins = []
+    absents = []
+    for m in sorted(MECANISMES, key=lambda x: x.nom):
+        existe = (base / m.domicile).exists()
+        if not existe:
+            absents.append(f"{m.cle} → {m.domicile}")
+        conso = _consommateurs(m) if existe else []
+        if existe and not conso:
+            orphelins.append(f"`{m.cle}` ({m.domicile})")
+        doc = f"`{m.doc}`" if m.doc else "—"
+        etat = str(len(conso)) if conso else ("⚠ **0**" if existe else "❌ absent")
+        lignes.append(f"| **{m.nom}** | {m.role} | `{m.domicile}` | {doc} | {etat} |")
+
+    # Modules de `common/` non rattachés : la réponse mécanique à « qu'ai-je oublié de tracer ».
+    declares = {m.domicile for m in MECANISMES} | {a for m in MECANISMES for a in m.annexes}
+    candidats = sorted(
+        rel for rel in modules
+        if (rel.startswith('wama/common/services/') or rel.startswith('wama/common/utils/'))
+        and not rel.endswith('__init__.py') and rel not in declares
+    )
+
+    lignes.append("")
+    lignes.append(f"**Mécanismes déclarés : {len(MECANISMES)}** · "
+                  f"domiciles absents : {len(absents)} · sans consommateur : {len(orphelins)} · "
+                  f"modules `common/` non rattachés : {len(candidats)}")
+    if absents:
+        lignes.append(f"- ❌ **Domicile introuvable** : {', '.join(absents)}")
+    if orphelins:
+        lignes.append(f"- ⚠ **Sans consommateur** (brique morte ou pas encore adoptée) : "
+                      f"{', '.join(orphelins)}")
+    if candidats:
+        # Rendu en liste par dossier plutôt qu'en paragraphe : c'est un BACKLOG à traiter, pas
+        # une note de bas de page. Un mur de 54 noms ne se lit pas et ne se traite donc jamais.
+        lignes.append(f"\n<details><summary>⚠ <b>{len(candidats)} module(s) de "
+                      f"<code>common/</code> non rattachés au registre</b> — à déclarer dans "
+                      f"<code>wama/common/mecanismes.py</code>, ou à assumer comme utilitaires "
+                      f"locaux (tout n'est pas un mécanisme transversal)</summary>\n")
+        for dossier in ('wama/common/services/', 'wama/common/utils/'):
+            noms = [c.split('/')[-1] for c in candidats if c.startswith(dossier)]
+            if noms:
+                lignes.append(f"\n`{dossier}` ({len(noms)}) — "
+                              + ' · '.join(f"`{n}`" for n in noms))
+        lignes.append("\n</details>")
+    return '\n'.join(lignes)
+
+
 # fait → (fichier de référence, fonction). Un fait vit dans UN doc (un domaine = un fichier).
 FAITS = {
     'outils': ('WAMA_APP_GENERATION_ROUTE.md', _fait_outils),
     'modeles': ('WAMA_MANIFEST_SPEC.md', _fait_modeles),
     'roundtrip': ('WAMA_MANIFEST_ARCHITECTURE.md', _fait_roundtrip),
+    'mecanismes': ('WAMA_MECANISMES.md', _fait_mecanismes),
 }
 
 OUVRANT = "<!-- WAMA:FAITS({fid}) — généré par « python manage.py doc_facts », ne pas éditer -->"
