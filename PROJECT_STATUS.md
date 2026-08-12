@@ -2567,10 +2567,13 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > llm_utils:60, `vision_probe` désigné) — gardés par le balayage en attendant.
 >
 > **Clôture 5ᵉ session (12/08 soir) — réponses aux dernières questions Fabien** :
-> ① indice de confiance des `proposed:*` : **0/26 en portent un** — `assess_models` ne
-> PERSISTE jamais ses verdicts (dry-run console/JSON seul) ET n'a pas été passé sur la
-> plupart → chantier désigné « cran de plus » : écrire les verdicts dans `extra_info` des
-> lignes proposed + contrôle de couverture (proposed sans évaluation). ② moondream :
+> ① indice de confiance des `proposed:*` — DEUX indices de natures différentes (clarifié
+> avec Fabien) : le « % confiance » de l'UI = **`AIModel.confidence`, heuristique de
+> RÉCENCE** (`prospect_ollama._confidence_from_age`, déterministe) — portée par **5/26**
+> seulement (absente sur les `kind=new` proposés par rôle, sans âge amont connaissable) ;
+> et le verdict LLM (`assess_models`) = **0/26** car jamais PERSISTÉ (dry-run console/JSON
+> seul) → chantier désigné « cran de plus » : écrire les verdicts assess dans les lignes
+> proposed + contrôle de couverture + distinguer les deux indices dans l'UI. ② moondream :
 > **zéro trace au catalogue** (ni installé ni proposé) — utilisé à l'ère des noms en dur
 > (describer pré-04/08), supplanté par gemma4:12b (validé meilleur describer FR), retiré ;
 > ses derniers restes = les littéraux élagués aujourd'hui ; `pull_model` le réenregistrerait
