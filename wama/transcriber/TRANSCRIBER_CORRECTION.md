@@ -150,6 +150,28 @@ Deux ASR indépendants ne se trompent pas de la même façon mais entendent la m
 Signal **objectif, ancré sur l'audio sans réécoute**, sans avis de LLM. Généralisable sans outil
 externe : 2 passes ASR (modèles différents, ou même modèle à paramètres différents).
 
+> **✅ Primitive livrée le 2026-08-13** — `wama/common/services/divergence.py` (brique commune :
+> le besoin dépasse le transcriber, cf. la vision plus bas) + `manage.py divergence_asr` pour
+> **regarder le signal avant qu'il ne pilote quoi que ce soit** (« métrique d'abord, boucle
+> ensuite » — ROADMAP §16.7-4). **Rien n'est encore branché sur la heatmap.**
+>
+> Trois pièges trouvés en la mesurant sur les vrais transcripts, à connaître avant de s'en servir :
+> 1. **L'apostrophe doit être un séparateur.** « aujourd'hui » vs « aujourd hui » sortait à 33 %
+>    de divergence — un écart de tokenisation, pas d'écoute. Corrigé (0 %).
+> 2. **Un passage sans vis-à-vis compte comme divergence TOTALE.** L'exclure faisait qu'un
+>    système ratant la moitié de l'audio affichait une divergence *basse*.
+> 3. **La GRANULARITÉ fausse tout si on n'y prend pas garde.** Sur `#172`, l'ASR a 748 segments
+>    et la version humaine 106 (regroupés) : comparer chaque segment fin au gros segment qui le
+>    contient rendait **72 %** pour un texte identique. La brique échange donc les rôles quand un
+>    côté est plus de 2× plus fin, et le signale (`reference_echangee`). Après correction : **0 %**.
+>
+> ⚠ **Conséquence sur le protocole §8.5** : comparer l'ASR à la correction humaine ne mesure PAS
+> la même chose que comparer deux ASR. La correction réécrit le découpage et l'horodatage
+> (`_rebuild_segments_from`), si bien que la divergence y mesure surtout un re-segmentage. Pour
+> calibrer les seuils sur des erreurs d'ÉCOUTE, il faut des cas où l'ASR s'est trompé de MOT —
+> or sur les 6 transcripts corrigés du dépôt, **trois** (#46, #134, #142) ont un texte
+> strictement identique à l'ASR (l'éditeur enregistre une « correction » même sans modification).
+
 **Ordre de priorité de la heatmap à adopter** — ⚠ **inverse la règle actuelle** (§ « l'éditeur bascule
 la heatmap sur la cohérence, priorité sur la confiance ») :
 1. **Divergence inter-systèmes** — signal dur ;

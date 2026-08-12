@@ -824,13 +824,21 @@ def save_correction(request, pk: int):
         # On enregistre l'AMPLEUR, pas un verdict : une transcription très corrigée peut l'avoir
         # été pour du style. C'est l'agrégation qui interprétera, avec le nombre pour elle.
         try:
-            from wama.common.services.run_outcome import ampleur_correction, enregistrer
-            moteur = next((getattr(t, champ, None) for champ in
-                           ('model_used', 'asr_model', 'model_name', 'backend')
-                           if getattr(t, champ, None)), None)
-            enregistrer('transcriber', t, 'corrige',
-                        model_keys=[f'transcriber:{moteur}'] if moteur else None,
-                        detail=ampleur_correction(t.segments_json, segs))
+            from wama.common.services.run_outcome import (
+                ampleur_correction, correction_reelle, enregistrer,
+            )
+            mesure = ampleur_correction(t.segments_json, segs)
+            # ⚠ Seulement si quelque chose a VRAIMENT changé : l'éditeur enregistre une
+            # « correction » même quand l'utilisateur n'a rien touché (3 des 6 transcripts
+            # corrigés du dépôt portent un texte identique à l'ASR). Sans ce garde-fou, le
+            # signal le plus précieux se remplirait de non-événements.
+            if correction_reelle(mesure):
+                moteur = next((getattr(t, champ, None) for champ in
+                               ('model_used', 'asr_model', 'model_name', 'backend')
+                               if getattr(t, champ, None)), None)
+                enregistrer('transcriber', t, 'corrige',
+                            model_keys=[f'transcriber:{moteur}'] if moteur else None,
+                            detail=mesure)
         except Exception:
             pass
 

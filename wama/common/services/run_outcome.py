@@ -88,13 +88,32 @@ def ampleur_correction(avant, apres) -> dict:
         'segments_avant': len(t_avant),
         'segments_apres': len(t_apres),
         'segments_modifies': modifies,
-        'part_modifiee': round(modifies / max(len(t_avant), 1), 3),
+        # Rapportée au plus GRAND des deux découpages, et bornée à 1. La première version
+        # divisait par le nombre de segments AVANT : sur le Transcript #48 (5 segments ASR
+        # cassés, réécrits en 2 395 à la main) elle rendait `479.0`, ce qui n'est pas une part.
+        'part_modifiee': round(min(1.0, modifies / max(len(t_avant), len(t_apres), 1)), 3),
         'caracteres_avant': car_avant,
         'caracteres_apres': car_apres,
         # 1.0 = texte identique. C'est une DISTANCE, pas une note de qualité : une transcription
         # très corrigée peut l'avoir été pour du style, pas pour des erreurs.
         'similarite': round(similarite, 4),
     }
+
+
+def correction_reelle(mesure: dict) -> bool:
+    """
+    La correction a-t-elle CHANGÉ quelque chose ? Garde-fou du signal `corrige`.
+
+    ⚠ Pourquoi c'est indispensable : `corrected_segments_json` est écrit par l'auto-save de
+    l'éditeur **même quand l'utilisateur n'a rien modifié**. Sur les 6 transcripts corrigés du
+    dépôt, **trois** (#46, #134, #142) portent un texte strictement identique à la sortie ASR
+    (mesuré le 2026-08-13). Enregistrer `corrige` pour ceux-là polluerait le gisement le plus
+    précieux de WAMA avec des non-événements, et ferait croire à une correction humaine là où
+    l'utilisateur n'a fait qu'ouvrir l'éditeur.
+    """
+    if not mesure:
+        return False
+    return bool(mesure.get('segments_modifies')) or (mesure.get('similarite') or 1.0) < 1.0
 
 
 # ── Lecture (agrégation) ──────────────────────────────────────────────────────────────────

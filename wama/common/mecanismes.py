@@ -89,6 +89,10 @@ MECANISMES = (
     Mecanisme('qc', 'Contrôle qualité de sortie',
               "Note une sortie par un validateur LLM INDÉPENDANT ; signal relatif, escalade humaine",
               'wama/common/utils/qc.py', 'ROADMAP.md §16.5'),
+    Mecanisme('divergence', 'Divergence inter-systèmes',
+              "Désaccord entre deux sorties du même travail — signal objectif, sans avis de modèle",
+              'wama/common/services/divergence.py',
+              'wama/transcriber/TRANSCRIBER_CORRECTION.md §8.3'),
 
     # ── Contenu & prompts ─────────────────────────────────────────────────────────────────
     Mecanisme('prompt_pipeline', 'Pipeline de prompts',
