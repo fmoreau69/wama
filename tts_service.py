@@ -665,6 +665,11 @@ def health():
         "device": DEVICE,
         "loaded_model": _current_model_name,
         "engine": _current_engine,
+        # Kokoro vit HORS de _current_engine : il est résident en permanence une fois
+        # chargé (cf. _unload_current) et n'est donc pas « le modèle courant ». Sans
+        # ce champ, /health affichait loaded_model=null alors que Kokoro était chaud —
+        # impossible de vérifier le préchargement depuis l'extérieur.
+        "kokoro_resident": sorted(_kokoro_pipelines.keys()),
         "gpu_memory_gb": round(gpu_mem, 2),
     }
 
@@ -763,37 +768,56 @@ async def startup():
     logger.info(f"Bark DIR: {BARK_DIR}")
     logger.info(f"Higgs DIR: {HIGGS_DIR}")
 
-    # TTS_SKIP_PRELOAD=1 → mark service ready immediately without loading any model.
-    # Useful in development to avoid the long XTTS v2 warm-up time; the model
-    # will be loaded on the first actual /tts request instead.
+    # ── Préchargement SÉLECTIF ────────────────────────────────────────────────
+    # TTS_PRELOAD = liste d'engines séparés par des virgules (défaut : "kokoro").
+    #   kokoro  → 82M, quasi instantané. C'est lui qui sert le TEMPS RÉEL
+    #             (vocalisation AI-Assistant, preview Synthesizer) : le précharger
+    #             rend la 1re vocalisation chaude pour un coût de démarrage nul.
+    #   xtts_v2 → plusieurs Go et des dizaines de secondes : VOLONTAIREMENT hors du
+    #             chemin de démarrage, il se charge à la 1re demande explicite.
+    #   vide / "none" → aucun préchargement.
+    # TTS_SKIP_PRELOAD=1 reste honoré (== TTS_PRELOAD=none) pour le développement.
+    #
+    # ⚠ Ce préchargement n'a sa place ICI que parce que ce service est un process
+    # UNIQUE (uvicorn --workers 1). Le même warm tenté côté Django avait provoqué une
+    # course d'imports accelerate et un dump de modèles (HF_HUB_CACHE global muté en
+    # concurrence entre workers gunicorn) — cf. wama/views.py, note sous _get_kokoro.
+    # Ne pas réintroduire de préchargement dans un process multi-worker.
     if os.environ.get("TTS_SKIP_PRELOAD", "0") == "1":
+        preload = []
+    else:
+        raw = os.environ.get("TTS_PRELOAD", "kokoro").strip().lower()
+        preload = [] if raw in ("", "none", "0") else [p.strip() for p in raw.split(",") if p.strip()]
+
+    if not preload:
         with _service_ready_lock:
             _service_ready = True
-        logger.info("TTS_SKIP_PRELOAD=1 — service marked ready immediately (model loads on first request)")
+        logger.info("Aucun préchargement demandé — les modèles se chargeront à la 1re requête")
         return
 
-    # Run model preloading in a background thread so uvicorn can immediately
-    # serve requests (including /health).  The /health endpoint returns
-    # {"status": "loading"} until this thread marks _service_ready = True.
+    # Préchargement en tâche de fond pour qu'uvicorn serve /health immédiatement :
+    # il répond {"status": "loading"} jusqu'à _service_ready = True.
     def _background_preload():
         global _service_ready
-        try:
-            _switch_model("xtts_v2")
-            logger.info("XTTS v2 preloaded successfully — service ready")
-            # Warm Kokoro (FR, ~82M) pour la vocalisation temps réel de l'AI-Assistant :
-            # il reste résident (cf. _unload_current) → 1re vocalisation chaude, sans thrash.
+        for name in preload:
             try:
-                _get_kokoro_pipeline('f')
-                logger.info("Kokoro (FR) préchargé et résident")
-            except Exception as ke:
-                logger.warning(f"Préchargement Kokoro échoué (chargé à la 1re demande): {ke}")
-        except Exception as e:
-            logger.error(f"Failed to preload XTTS v2: {e}", exc_info=True)
-            logger.warning("TTS Service starting without preloaded model — will load on first request")
-        finally:
-            with _service_ready_lock:
-                _service_ready = True
+                if name == "kokoro":
+                    # Pipeline FR. Kokoro reste résident (cf. _unload_current) et ne
+                    # devient PAS _current_engine : il coexiste avec le moteur courant.
+                    _get_kokoro_pipeline('f')
+                    logger.info("Kokoro (FR) préchargé et résident")
+                else:
+                    _switch_model(name)
+                    logger.info(f"{name} préchargé")
+            except Exception as e:
+                logger.warning(
+                    f"Préchargement de {name} échoué — il sera chargé à la 1re demande : {e}",
+                    exc_info=True,
+                )
+        with _service_ready_lock:
+            _service_ready = True
+        logger.info("Préchargement terminé — service prêt")
 
     t = threading.Thread(target=_background_preload, daemon=True, name="tts-preload")
     t.start()
-    logger.info("Startup: model preloading started in background thread")
+    logger.info(f"Startup: préchargement en tâche de fond → {', '.join(preload)}")

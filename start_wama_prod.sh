@@ -5,13 +5,14 @@ set -e
 # MODE : full (défaut) ou fast (--fast)
 # Usage :
 #   ./start_wama_prod.sh          → démarrage complet (migrations + collectstatic + attente TTS)
-#   ./start_wama_prod.sh --fast   → redémarrage rapide (skip collectstatic, TTS fire&forget)
+#   ./start_wama_prod.sh --fast   → redémarrage rapide (skip collectstatic, AUCUN
+#                                    préchargement TTS, TTS fire&forget)
 # ------------------------------------------------------
 FAST=0
 for arg in "$@"; do
     [ "$arg" = "--fast" ] && FAST=1
 done
-[ $FAST -eq 1 ] && echo "=== Mode FAST activé (skip collectstatic, TTS fire&forget) ===" || true
+[ $FAST -eq 1 ] && echo "=== Mode FAST activé (skip collectstatic, aucun préchargement TTS) ===" || true
 
 # ------------------------------------------------------
 # STOP DES PROCESS EXISTANTS
@@ -203,11 +204,31 @@ else:
 fi
 
 # ------------------------------------------------------
-# TTS SERVICE (FastAPI, preloads XTTS v2)
+# TTS SERVICE (FastAPI) — précharge Kokoro seul
 # ------------------------------------------------------
+# TTS_PRELOAD=kokoro : 82M, quasi instantané, il sert le TEMPS RÉEL (vocalisation
+# AI-Assistant, preview Synthesizer) → 1re vocalisation chaude sans allonger le
+# démarrage. XTTS v2 (plusieurs Go) reste chargé à la 1re demande explicite.
+# Auparavant TTS_SKIP_PRELOAD=1 : le drapeau, documenté « useful in development »,
+# faisait un return AVANT tout préchargement → Kokoro n'était JAMAIS chaud en prod,
+# et le warm écrit dans tts_service.py était du code mort.
+#
+# ⚠ --workers 1 est STRUCTURANT, pas un réglage de performance : le préchargement
+# n'est sûr que dans un process unique. Le même warm côté Django (multi-worker
+# gunicorn) avait causé une course d'imports accelerate + un dump de modèles par
+# mutation concurrente de HF_HUB_CACHE (cf. wama/views.py, note sous _get_kokoro).
 if ! pgrep -f "uvicorn tts_service" > /dev/null; then
     echo "=== Starting TTS Service (port 8001) ==="
-    export TTS_SKIP_PRELOAD=1
+    # --fast = redémarrage de développement : on ne veut RIEN charger sur le GPU.
+    # ATTENTION : --fast ne rendait le TTS que « fire & forget » (il sautait l'ATTENTE
+    # de disponibilité, pas le chargement). C'est ce que TTS_SKIP_PRELOAD=1 compensait
+    # en désactivant le préchargement pour tout le monde, prod comprise.
+    if [ $FAST -eq 1 ]; then
+        export TTS_PRELOAD=none
+        echo "  (--fast : aucun préchargement TTS, les modèles se chargeront à la demande)"
+    else
+        export TTS_PRELOAD=kokoro
+    fi
     export HIGGS_DISABLE_CUDA_GRAPHS=1
     nohup python -m uvicorn tts_service:app \
         --host 0.0.0.0 \
