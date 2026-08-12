@@ -2520,7 +2520,26 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > interop wama-lab via write-back du kind `pipeline`, pilote = `preprocess_audio` transcriber
 > → capacité enhancer (A/B objectif obligatoire). **Séquencée APRÈS la marche B.**
 >
-> 🔚 **POINT D'ENTRÉE SESSION SUIVANTE : marche B — rôle LLM `codegen` wama-dev-ai**
+> **Puis (12/08, 5ᵉ session, suite) : marche B front 1 LIVRÉ + couche déclarations modèles.**
+> Rôle `codegen` créé (prompts/codegen.txt sur le patron librarian + run_codegen.py :
+> matière = contrat task_skeleton + fichier mince A2b + manifeste composé + 2 glus réelles
+> few-shot ; sortie PENDING_HUMAN_VALIDATION, contrôles mécaniques 4 familles, n'écrit
+> jamais dans wama/). Découverte au passage : `qwen3.5:35b-a3b` remplacé par `qwen3.6:35b`
+> sur l'hôte — **chaîne EXISTANTE tracée avant de construire** (leçon rappelée par Fabien) :
+> pull_model→register_after_install, découverte ollama-first, `verify_models` = catalogue↔
+> réalité (attrape 2 faux positifs sam3/doctr + 30 orphelins proposed:* — à trier), la
+> prospection avait bien mis le catalogue à jour. **Trou réel = couche DÉCLARATIONS** :
+> tables à la main jamais confrontées à la source unique → **`manage.py
+> check_model_declarations`** (exit≠0 sur tag mort ; mesuré : 1/4 assistant + 3/12
+> wama-dev-ai morts) ; tables corrigées (qwen3.6:35b + vision→gemma4), re-mesure 0 mort.
+> **1er run codegen bout-en-bout validé** (gemma4:e4b léger, autorisé) : compile+signature
+> OK, qualité e4b = barre basse du banc (invente /tmp, item.params) — vérité terrain jointe.
+>
+> 🔚 **POINT D'ENTRÉE SESSION SUIVANTE : marche B front 2 — le BANC** (qwen3.6:35b vs
+> qwen3-coder:30b vs gemma4:26b/e4b, `run_codegen --truth` sur converter puis reader,
+> AVEC Fabien — charge GPU) ; verdict → `select_model_for_role('codegen')`. Reste aussi :
+> trier les 32 écarts `verify_models` (sync_models ou justifier), et statuer sur
+> l'intégration de `check_model_declarations` aux contrôles nocturnes.
 > (route §10.3.B) : MISE À JOUR de `prompts/dev.txt` sur le modèle `librarian.txt` (contrat
 > BaseModelBackend + manifeste composé + few-shot corpus + interdits) + **banc de modèles
 > jugé par le harnais C** (candidat `qwen3.6:35b` MoE, challengers qwen3-coder:30b/gemma4) —
