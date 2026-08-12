@@ -87,6 +87,16 @@ class TaskContext:
             pass
 
 
+def _signal(item, app_id: str, signal: str, model_keys=None, detail=None) -> None:
+    """Signal d'exécution, best-effort — comme `_notify`, il ne doit jamais faire échouer une
+    tâche qui a par ailleurs abouti."""
+    try:
+        from wama.common.services.run_outcome import enregistrer
+        enregistrer(app_id, item, signal, model_keys=model_keys, detail=detail)
+    except Exception:
+        pass
+
+
 def _notify(item, label: str, nom: str, ok: bool, detail: str = None) -> None:
     try:
         from wama.common.utils.notifications import notify_job
@@ -124,6 +134,14 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process,
                        f"relancer manuellement.")
         return
 
+    # RELANCE (RunOutcome, §16.7) — un item DÉJÀ en SUCCESS qu'on relance est le signal négatif
+    # le plus net que WAMA produise : l'utilisateur avait un résultat et il en redemande un.
+    # Détecté ici, avant que le statut ne repasse à RUNNING : c'est le seul instant où
+    # l'information existe encore, et le détecter dans le squelette la capte pour TOUTES les
+    # apps sans une ligne par app. Capture implicite au sens strict — aucun geste ajouté.
+    if getattr(item, 'status', None) == 'SUCCESS':
+        _signal(item, app_id, 'relance', None, {})
+
     ctx = TaskContext(app_id, model, item, progress_fn=progress_fn)
     ctx.progress(0)
 
@@ -157,6 +175,14 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process,
                            process_seconds=time.time() - t0, load_seconds=None)
             except Exception:
                 pass
+        # Signal d'exécution (RunOutcome, §16.7) : la LIGNE DE BASE de toute boucle
+        # d'auto-amélioration — sans elle, un « corrigé » ou un « supprimé » plus tard ne se
+        # rattache à aucune production. Posée ici, dans le squelette commun, elle couvre d'un
+        # coup toutes les apps qui l'ont adopté. La glu DÉCLARE les modèles qu'elle a employés
+        # via `models` (même motif que `eta`) ; sans déclaration on enregistre quand même le
+        # fait, avec une liste vide — un signal sans attribution vaut mieux qu'aucun signal.
+        _signal(item, app_id, 'produit', res.get('models'),
+                {'secondes': round(time.time() - t0, 1)})
         _notify(item, label_app, nom, True)
     except Exception as exc:
         msg = str(exc)[:500]
@@ -167,4 +193,7 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process,
         model.objects.filter(pk=item_id).update(**fields)
         nom = _item_label(item, item_id)
         ctx.console(f"✗ Erreur ({nom}) : {msg}", level='error')
+        # Un échec est un fait aussi informatif qu'un succès : un modèle qui échoue souvent sur
+        # un type d'entrée doit finir par se voir. On garde le message tel quel, sans le classer.
+        _signal(item, app_id, 'echec', None, {'erreur': msg[:200]})
         _notify(item, label_app, nom, False, detail=msg)

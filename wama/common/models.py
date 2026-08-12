@@ -470,3 +470,78 @@ class Library(models.Model):
             'is_installed': self.is_installed,
             'installed_version': self.installed_version,
         }
+
+
+class RunOutcome(models.Model):
+    """
+    Journal des FAITS observés sur un résultat produit — préalable de toute auto-amélioration
+    (ROADMAP §16.7). Append-only : chaque ligne est un événement, jamais un état mis à jour.
+
+    POURQUOI CETTE BRIQUE. Les boucles visées (qualité des modèles, enrichissement de prompt,
+    prospection) sont TOUTES bloquées sur l'absence de ce signal, et **aucun framework ne le
+    récupérera rétroactivement** : ce qui n'est pas capté aujourd'hui est perdu. WAMA jette
+    déjà des labels humains de grande valeur — corrections manuelles du Transcriber (paires
+    ASR→vérité), entités démasquées/ajoutées de l'Anonymizer (FP/FN), générations de l'Imager
+    gardées vs supprimées, prompts enrichis acceptés vs réécrits.
+
+    ⚠ CAPTURE IMPLICITE, JAMAIS UN FORMULAIRE DE NOTATION. Règle posée en §16.7 et transposée
+    d'un SI de labo réel : les chaînes qui vivent sont celles où le contributeur obtient quelque
+    chose AU MOMENT où il agit ; celles qui reposent sur la bonne volonté (« notez ce résultat
+    pour améliorer le système ») meurent, même bien conçues. On ne se nourrit donc QUE de gestes
+    que l'utilisateur fait déjà : télécharger, corriger, relancer, supprimer.
+
+    ⚠ ON ENREGISTRE UN FAIT, PAS UN JUGEMENT. Il n'y a volontairement **aucun champ score** ici.
+    « Supprimé » ne veut pas dire « mauvais » — ce peut être un simple ménage ; « téléchargé » ne
+    veut pas dire « parfait ». L'interprétation appartient à l'AGRÉGATION, qui a le nombre pour
+    elle, et elle reste un signal RELATIF à escalader vers l'humain — jamais un gate absolu
+    (garde-fous §16.5). Mélanger le fait et son interprétation ici rendrait le journal
+    ininterprétable le jour où l'on changera d'avis sur la lecture.
+    """
+
+    #: Les signaux sont des GESTES, nommés par ce qui a été fait — pas par ce qu'on en conclut.
+    SIGNAL_CHOICES = [
+        ('produit',    'Résultat produit'),          # posé par le squelette de tâche
+        ('echec',      'Échec de production'),
+        ('telecharge', 'Résultat téléchargé'),       # l'utilisateur l'emporte
+        ('corrige',    'Résultat corrigé à la main'),  # il ne convenait pas tel quel
+        ('relance',    'Relancé sur le même item'),  # le précédent n'a pas suffi
+        ('supprime',   'Résultat supprimé'),
+    ]
+
+    app = models.CharField(max_length=32, db_index=True)
+    #: Cible : nom du modèle Django + clé primaire. Pas de FK générique — les items vivent dans
+    #: 10 apps et une ContentType ne servirait qu'à joindre ce qu'on ne joint jamais.
+    object_type = models.CharField(max_length=64)
+    object_id = models.IntegerField(db_index=True)
+    # Référence par chaîne (`settings.AUTH_USER_MODEL`) : ce module n'importe aucun modèle
+    # d'auth, et l'importer ici créerait un cycle avec les apps qui en dépendent.
+    user = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+                             related_name='run_outcomes')
+
+    signal = models.CharField(max_length=16, choices=SIGNAL_CHOICES, db_index=True)
+
+    #: Clés catalogue des modèles ayant produit le résultat. LISTE, parce qu'une exécution peut
+    #: en mobiliser plusieurs (anonymizer : un détecteur de visages + un de plaques).
+    #: ⚠ L'attribution devient alors ambiguë — un signal sur un résultat à 2 modèles ne dit pas
+    #: LEQUEL a démérité. L'agrégation doit donc pondérer, ou ne retenir que les exécutions à
+    #: modèle unique. Écrit ici pour que le choix reste possible plus tard, pas pour le trancher.
+    model_keys = models.JSONField(default=list, blank=True)
+
+    #: Ce que le fait porte de mesurable : ampleur d'une correction, format téléchargé, réglages
+    #: modifiés à la relance… Jamais une note.
+    detail = models.JSONField(default=dict, blank=True)
+
+    occurred_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        verbose_name = "Signal d'exécution"
+        verbose_name_plural = "Signaux d'exécution"
+        ordering = ['-occurred_at']
+        indexes = [
+            models.Index(fields=['app', 'signal']),
+            models.Index(fields=['object_type', 'object_id']),
+            models.Index(fields=['occurred_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.app}:{self.object_type}#{self.object_id} → {self.signal}"

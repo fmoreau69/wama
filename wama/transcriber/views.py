@@ -815,6 +815,24 @@ def save_correction(request, pk: int):
     # À la finalisation, on reconstruit les lignes de segments (SRT/aperçus cohérents).
     if status == 'done':
         _rebuild_segments_from(t, segs)
+        # ── Signal d'exécution (RunOutcome, §16.7) ────────────────────────────────────────
+        # LE gisement le plus riche de WAMA : `segments_json` (sortie ASR) et `segs` (version
+        # humaine) forment une paire sortie→vérité, c'est-à-dire la SEULE vérité terrain du
+        # dépôt. Elle était produite puis jetée à chaque correction.
+        # Uniquement à la FINALISATION : `save_correction` est aussi un auto-save de brouillon,
+        # et journaliser chaque frappe noierait le signal sous des états intermédiaires.
+        # On enregistre l'AMPLEUR, pas un verdict : une transcription très corrigée peut l'avoir
+        # été pour du style. C'est l'agrégation qui interprétera, avec le nombre pour elle.
+        try:
+            from wama.common.services.run_outcome import ampleur_correction, enregistrer
+            moteur = next((getattr(t, champ, None) for champ in
+                           ('model_used', 'asr_model', 'model_name', 'backend')
+                           if getattr(t, champ, None)), None)
+            enregistrer('transcriber', t, 'corrige',
+                        model_keys=[f'transcriber:{moteur}'] if moteur else None,
+                        detail=ampleur_correction(t.segments_json, segs))
+        except Exception:
+            pass
 
     return JsonResponse({'status': 'saved', 'correction_status': t.correction_status})
 
