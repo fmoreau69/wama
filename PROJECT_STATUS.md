@@ -2832,8 +2832,12 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > qu'une 3ᵉ surface flottante ; le coût n'est pas le widget mais l'état du chat entre deux
 > pages, qu'aucune librairie de chatbot ne résout pour un backend à outils) ; ③ `api_tracked_models`
 > et `api_large_objects` lisent toujours `WAMAMemoryTracker` (tracemalloc — autre finalité,
-> non touchés) ; ④ `_rang_qualite` trie encore sur `is_loaded` seul (simple départage après
-> filtrage, sans effet mesuré).
+> non touchés) ; ④ `_cle_de_rang` (ex-`_rang_qualite`, renommé le 12/08 par le chantier
+> catalogue) départage encore sur `is_loaded` seul, donc un modèle résident-mais-non-`is_loaded`
+> n'y gagne rien. **Sans effet** : `_pick` a déjà filtré sur résidence avant d'appeler
+> `_best_by_vram`, et hors `prefer_loaded` le champ vaut False partout — donc égalité, puis
+> qualité/VRAM. Laissé tel quel volontairement : cette fonction vient d'être reconçue avec un
+> raisonnement documenté sur les échelles incommensurables, à ne pas perturber en fin de session.
 
 ## §REPRISE — 2026-08-11 (2ᵉ session, SUITE du soir) : 8 facettes + function + page librairies + avis critique
 

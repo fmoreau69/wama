@@ -48,16 +48,30 @@ def _supports(model, requires, classes) -> bool:
     return True
 
 
-def _rang_qualite(m):
+def _cle_de_rang(pool):
     """
-    Clé de tri : (déjà chargé, qualité).
+    Fabrique la clé de tri « (déjà chargé, qualité) » pour CE lot de candidats.
 
-    La qualité vient de `quality_index` (indice structurel, cf. `services/model_quality.py`).
-    Repli sur `vram_gb` quand il est inconnu — c'était l'ancien critère unique, il reste un
-    proxy grossier acceptable pour les modèles pas encore qualifiés (HF, YOLO…). Un indice
-    NULL ne doit surtout pas valoir 0, sinon un modèle non qualifié passerait pour mauvais.
+    ⚠ POURQUOI LA CLÉ DÉPEND DU LOT. L'ancienne version faisait
+    `quality_index if not None else vram_gb`, c'est-à-dire qu'elle comparait **deux échelles
+    incommensurables** : l'indice va de −26,7 (embeddings) à 58,7 (qwen3.6:35b), la VRAM de 0,1
+    à 24 Go. Un modèle porteur d'un indice battait donc mécaniquement tout modèle qui n'en avait
+    pas, quel que soit son mérite — et poser un premier indice mesuré sur un YOLO aurait suffi à
+    fausser toute la sélection vision (constaté le 2026-08-12 en préparant la boucle qualité).
+
+    Règle : on ne compare des indices QUE si tout le lot en a un ; sinon on retombe sur `vram_gb`
+    pour TOUT LE MONDE. On ne mélange jamais les deux. `NULL` reste « inconnu », pas « mauvais ».
+
+    Effet sur l'existant : nul. Les 11 modèles Ollama réellement sélectionnables ont tous un
+    indice (le seul sans, `qwen3.5:35b-a3b`, n'est pas téléchargé donc déjà hors lot) → la
+    sélection LLM est inchangée ; aucun modèle vision n'a d'indice → tri par VRAM, inchangé.
     """
-    return (m.is_loaded, m.quality_index if m.quality_index is not None else (m.vram_gb or 0))
+    tous_qualifies = bool(pool) and all(m.quality_index is not None for m in pool)
+
+    def cle(m):
+        return (m.is_loaded,
+                m.quality_index if tous_qualifies else (m.vram_gb or 0))
+    return cle
 
 
 def _best_by_vram(models, budget_gb: Optional[float]):
@@ -73,11 +87,13 @@ def _best_by_vram(models, budget_gb: Optional[float]):
     experts sur 256, donc la qualité d'un 36B pour le coût de calcul d'un 3B. La VRAM reste une
     CONTRAINTE (le budget ci-dessous), elle n'est plus le critère de choix.
     """
+    # La clé se calcule sur le lot RÉELLEMENT en compétition (cf. `_cle_de_rang`) : le lot
+    # complet si aucun budget, sinon les seuls candidats qui tiennent.
     if budget_gb is None:
-        return max(models, key=_rang_qualite)
+        return max(models, key=_cle_de_rang(models))
     fit = [m for m in models if (m.vram_gb or 0) <= budget_gb]
     if fit:
-        return max(fit, key=_rang_qualite)
+        return max(fit, key=_cle_de_rang(fit))
     return min(models, key=lambda m: (m.vram_gb or 0))
 
 
@@ -103,8 +119,10 @@ def select_model(
         model_type:      filtre ModelType ('speech', 'vision', …).
         requires:        capacités requises (clés truthy de `capabilities` ; repli `extra_info`).
         classes:         classes à couvrir (⊆ `capabilities['classes']` — ex. anonymizer).
-        prefer_loaded:   si un candidat est déjà chargé (is_loaded), le renvoyer d'office
-                         (règle keep_loaded — évite un rechargement coûteux en batch).
+        prefer_loaded:   si un candidat est déjà RÉSIDENT, le renvoyer d'office (règle
+                         keep_loaded — évite un rechargement coûteux en batch). Résidence =
+                         `is_loaded` (que seul Ollama tient, via /api/ps) OU le registre VRAM
+                         partagé, qui traverse les process — voir le corps de la fonction.
         downloaded_only: ne considérer que les modèles téléchargés.
         vram_budget_gb:  budget VRAM explicite ; si None, lecture de la VRAM libre live.
         candidates:      restreindre à une liste de model_key.
