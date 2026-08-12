@@ -255,6 +255,36 @@ MODELS = {
     ),
 
     # -------------------------------------------------------------------------
+    # Codegen (marche B, route §10.3) — génération one-shot de glu depuis le
+    # manifeste composé. Candidats du BANC (jugé par le harnais app_regen_check,
+    # jamais au jugé) ; tags VÉRIFIÉS présents sur l'hôte le 2026-08-12.
+    # NB : le verdict « qwen3-coder:30b trop lourd » de CLAUDE.md valait pour
+    # l'AGENTIQUE multi-tours — la génération one-shot est un autre profil.
+    # -------------------------------------------------------------------------
+    "codegen": ModelConfig(
+        name="Qwen3.6 35B (MoE)",
+        ollama_id="qwen3.6:35b",
+        description="Candidat principal codegen — MoE 36B / 256 experts / 8 actifs, "
+                    "offload CPU tolérable (banc à mesurer)",
+        context_length=262144,
+        temperature=0.2,
+        role="codegen",
+        ram_required_gb=24.0,
+        priority=100,
+    ),
+
+    "gemma4_26b": ModelConfig(
+        name="Gemma 4 26B",
+        ollama_id="gemma4:26b",
+        description="Challenger codegen non-thinking (banc marche B)",
+        context_length=128000,
+        temperature=0.2,
+        role="codegen",
+        ram_required_gb=19.0,
+        priority=60,
+    ),
+
+    # -------------------------------------------------------------------------
     # Embeddings
     # -------------------------------------------------------------------------
     "embed": ModelConfig(
@@ -439,6 +469,9 @@ MEMORY_SAFETY_MARGIN_GB = 2.0
 # When a model doesn't fit in memory, try the next one in the chain
 MODEL_FALLBACK_CHAINS = {
     "dev": ["dev", "coder", "fast", "ultra_fast"],
+    # codegen (marche B) : candidat principal + challengers du banc — one-shot, pas
+    # d'agentique. ⚠ Ne lancer le banc qu'ACCOMPAGNÉ (charge GPU, règle crashs hôte).
+    "codegen": ["codegen", "debug", "gemma4_26b", "gemma4_e4b", "fast"],
     "debug": ["debug", "fast", "ultra_fast"],
     "architect": ["architect", "orchestrator", "fast", "ultra_fast"],
     # audit role: prefers non-thinking models (qwen3.5 crashes on complex prompts)
