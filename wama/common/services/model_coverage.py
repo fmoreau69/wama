@@ -70,16 +70,44 @@ def _couvertes(m, voulues: set) -> set:
     return {v for v in voulues if _formes(v) & dispo}
 
 
-def _taille_du_nom(nom: str) -> str:
-    """
-    'yolo11l-seg.pt' → 'l' · 'yolov9s-face.pt' → 's'. '' si indéterminable.
+#: La taille se lit sur un TOKEN, jamais sur une lettre perdue dans le nom (`'n' in nom` est
+#: vrai pour presque tout nom — mesuré le 2026-08-04, le critère devenait inerte et « Rapide »
+#: retenait un modèle `l`). Deux conventions coexistent au catalogue, toutes deux issues des
+#: tailles ultralytics :
+_MOTIFS_TAILLE = (
+    r'yolo\D*\d+([nsmlx])(?![a-z0-9])',   # yolo11l-seg.pt, yolov9s-face.pt, face_yolov8m-seg
+    # `…-v1m.onnx` — convention des finetunes publiés hors nommage YOLO (morsetechlab).
+    # Sans ce motif, les 5 modèles de plaques rendaient '' : la taille demandée était donc
+    # SANS EFFET sur eux, et le départage retombait sur la VRAM — c'est-à-dire le plus gros
+    # (v1x, 227 Mo) quelle que soit la précision demandée (constaté le 2026-08-12).
+    r'v\d+([nsmlx])(?![a-z0-9])',
+)
 
-    Le suffixe de taille YOLO est UNE lettre : la chercher par sous-chaîne (`'n' in nom`) est
-    vrai pour presque tout nom — mesuré le 2026-08-04, le critère devenait inerte et « Rapide »
-    retenait un modèle `l`. On apparie donc le token, pas une lettre perdue dans le nom.
-    """
-    trouve = re.search(r'yolo\D*\d+([nsmlx])(?![a-z0-9])', (nom or '').lower())
-    return trouve.group(1) if trouve else ''
+
+def _taille_du_nom(nom: str) -> str:
+    """'yolo11l-seg.pt' → 'l' · 'license-plate-finetune-v1m.onnx' → 'm'. '' si indéterminable."""
+    minuscule = (nom or '').lower()
+    for motif in _MOTIFS_TAILLE:
+        trouve = re.search(motif, minuscule)
+        if trouve:
+            return trouve.group(1)
+    return ''
+
+
+#: Stratégies de recouvrement. Ce n'est PAS un réglage cosmétique : les deux optimisent des
+#: choses opposées, et le bon choix dépend du métier de l'appelant.
+#:
+#:   'couverture'    — le moins de modèles possible (recouvrement glouton). Chaque modèle en
+#:                     moins est une passe de détection en moins : c'est le bon objectif quand
+#:                     le coût domine.
+#:   'specialisation'— le modèle le plus SPÉCIALISÉ par classe, quitte à en charger plusieurs.
+#:                     Tant qu'aucune qualité n'est MESURÉE, le nombre de classes déclarées est
+#:                     le seul proxy honnête de spécialisation : un détecteur de visages entraîné
+#:                     sur des visages bat en pratique un modèle 2-en-1 (constaté par Fabien, et
+#:                     mesuré le 2026-08-12 — sur une foule, le détecteur dédié trouve 307
+#:                     visages là où le modèle « visages+plaques » en trouve 4).
+#:                     ⚠ Proxy, pas vérité : à remplacer par la qualité mesurée dès qu'elle existe.
+STRATEGIES = ('couverture', 'specialisation')
 
 
 def couvrir_classes(classes, *, source: str = '', model_type: str = 'vision',
@@ -87,6 +115,7 @@ def couvrir_classes(classes, *, source: str = '', model_type: str = 'vision',
                     taches_admises=(),
                     preferer_segmentation: bool = False,
                     taille_preferee: str = '',
+                    strategie: str = 'couverture',
                     max_modeles: int = 4) -> dict:
     """
     Ensemble MINIMAL de modèles couvrant `classes`, par recouvrement glouton.
@@ -131,17 +160,36 @@ def couvrir_classes(classes, *, source: str = '', model_type: str = 'vision',
         # l'anonymizer. Un appelant qui les paralléliserait devrait borner le TOTAL lui-même.
         candidats = [m for m in candidats if (m.vram_gb or 0) <= budget_vram_gb]
 
+    if strategie not in STRATEGIES:
+        raise ValueError(f"strategie inconnue : {strategie!r} (attendu : {', '.join(STRATEGIES)})")
+
+    # Les indices de qualité ne se comparent QUE si tout le lot en a un : l'échelle d'un
+    # `quality_index` (−26,7 à 58,7) n'a rien à voir avec celle d'une VRAM (0,1 à 24 Go), et
+    # les mélanger ferait gagner mécaniquement le premier modèle qualifié. Même règle que
+    # `model_selector._cle_de_rang`, pour que les deux couches classent pareil.
+    tous_qualifies = bool(candidats) and all(m.quality_index is not None for m in candidats)
+
+    def _departage(m):
+        """Préférences de l'appelant, puis qualité. Jamais des filtres — seulement un ordre."""
+        caps = m.capabilities or {}
+        return (
+            preferer_segmentation and caps.get('task') == 'segment',
+            bool(taille_preferee) and _taille_du_nom(m.name) == taille_preferee,
+            m.quality_index if tous_qualifies else (m.vram_gb or 0),
+        )
+
     retenus, restantes = [], set(voulues)
     while restantes and candidats and len(retenus) < max_modeles:
         def gain(m):
             couvre = _couvertes(m, restantes)
-            caps = m.capabilities or {}
-            return (
-                len(couvre),
-                preferer_segmentation and caps.get('task') == 'segment',
-                bool(taille_preferee) and _taille_du_nom(m.name) == taille_preferee,
-                m.quality_index if m.quality_index is not None else (m.vram_gb or 0),
-            )
+            if strategie == 'specialisation':
+                # On maximise la SPÉCIALISATION, pas le recouvrement : le modèle qui déclare le
+                # MOINS de classes au total (d'où le signe négatif) l'emporte, même s'il couvre
+                # moins de classes demandées — c'est le prix assumé d'une meilleure détection.
+                # `min(couvre, 1)` garde la garantie de progression : un modèle qui ne couvre
+                # rien reste dernier et la boucle s'arrête proprement.
+                return (min(len(couvre), 1), -len(_classes_du_modele(m))) + _departage(m)
+            return (len(couvre),) + _departage(m)
 
         meilleur = max(candidats, key=gain)
         couvertes = _couvertes(meilleur, restantes)

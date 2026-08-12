@@ -804,7 +804,15 @@ def select_best_models_by_precision(classes_to_blur: List[str],
         source='anonymizer',
         model_type='vision',
         taches_admises=TACHES_DETECTION,
-        # Politique de l'app — préférences, pas filtres.
+        # DEUX MODÈLES SPÉCIALISÉS PLUTÔT QU'UN 2-EN-1 (décision Fabien, 2026-08-12).
+        # Anonymiser, c'est ne rien rater : un visage manqué est une fuite, une passe de
+        # détection en plus n'est qu'un coût. Aucun modèle « visages+plaques » du catalogue
+        # n'égale deux détecteurs dédiés — mesuré : sur une foule, `yolov9s-face-lindevs`
+        # trouve 307 visages là où `yolov8m_face_plate_1080p` en trouve 4.
+        # C'est donc l'inverse de l'objectif « le moins de modèles possible », et ça se
+        # DÉCLARE ici parce que c'est un arbitrage métier de l'anonymizer, pas de la brique.
+        strategie='specialisation',
+        # Préférences, pas filtres.
         preferer_segmentation=should_use_segmentation(precision_level),
         taille_preferee=get_model_size_from_precision(precision_level),
     )
