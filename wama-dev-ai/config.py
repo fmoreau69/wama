@@ -136,8 +136,8 @@ MODELS = {
     # Development Models
     # -------------------------------------------------------------------------
     "dev": ModelConfig(
-        name="Qwen3.5 35B-A3B",
-        ollama_id="qwen3.5:35b-a3b",
+        name="Qwen3.6 35B (MoE)",
+        ollama_id="qwen3.6:35b",
         description="Primary developer model for Python/Django/FastAPI code generation",
         context_length=262144,
         temperature=0.6,
@@ -147,8 +147,8 @@ MODELS = {
     ),
 
     "coder": ModelConfig(
-        name="Qwen3.5 35B-A3B (Coder)",
-        ollama_id="qwen3.5:35b-a3b",
+        name="Qwen3.6 35B (Coder)",
+        ollama_id="qwen3.6:35b",
         description="Coding model for complex implementations (MoE, 3B active params)",
         context_length=262144,
         temperature=0.4,
@@ -169,8 +169,8 @@ MODELS = {
     ),
 
     "architect": ModelConfig(
-        name="Qwen3.5 35B-A3B (Architect)",
-        ollama_id="qwen3.5:35b-a3b",
+        name="Qwen3.6 35B (Architect)",
+        ollama_id="qwen3.6:35b",
         description="System architect and reasoning model (unified think/nothink)",
         context_length=262144,
         temperature=0.5,
@@ -208,8 +208,8 @@ MODELS = {
     # Vision Models
     # -------------------------------------------------------------------------
     "vision": ModelConfig(
-        name="LLaVA 34B",
-        ollama_id="llava:34b",
+        name="Gemma 4 12B (Vision)",
+        ollama_id="gemma4:12b",
         description="High-quality vision model for detailed image analysis",
         context_length=8192,
         temperature=0.7,
@@ -219,8 +219,8 @@ MODELS = {
     ),
 
     "vision_fast": ModelConfig(
-        name="Llama 3.2 Vision 11B",
-        ollama_id="llama3.2-vision:11b",
+        name="Gemma 4 E4B (Vision rapide)",
+        ollama_id="gemma4:e4b",
         description="Fast vision model for UI screenshots and quick analysis",
         context_length=8192,
         temperature=0.7,

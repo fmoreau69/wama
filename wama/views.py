@@ -90,11 +90,13 @@ def fiches(request):
     return render(request, 'includes/wama_fiches.html')
 
 
+# ⚠ Table à la main confrontée au catalogue par `manage.py check_model_declarations` —
+# la lancer après tout remplacement de modèle (leçon qwen3.5:35b-a3b → qwen3.6:35b, 12/08).
 _OLLAMA_MODEL_MAP = {
-    'dev':        'qwen3.5:35b-a3b',
-    'coder':      'qwen3.5:35b-a3b',
+    'dev':        'qwen3.6:35b',
+    'coder':      'qwen3.6:35b',
     'debug':      'qwen3-coder:30b',
-    'architect':  'qwen3.5:35b-a3b',
+    'architect':  'qwen3.6:35b',
     'fast':       'qwen3.5:9b',
     'ultra_fast': 'qwen3.5:4b',
 }
