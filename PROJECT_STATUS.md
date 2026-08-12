@@ -2550,6 +2550,21 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > max→qwen3.6:35b, code→qwen3-coder:30b, mid→gemma4:e4b, min→qwen3.5:4b.
 > `check_model_declarations` ne garde que wama-dev-ai (découplé à dessein). ⚠ restart
 > workers/gunicorn pour charger le confinement sam3 + la dérivation chat.
+> **Puis (même session, questions Fabien ×3)** : ① `proposed:*` + 3 TTS = mémoire de
+> catalogue VOULUE (candidats à installer) — `verify_models` les classe en info (verdict :
+> **catalogue COHÉRENT**, 0 écart) et avertit que `--clean` les purgerait ; l'évaluation
+> des candidats existe déjà (`assess_models`, multi-agents dry-run). ② Existant confronté :
+> DEUX save/restore locaux du cache HF → **brique `common/utils/hf_cache.py::
+> hf_cache_scope`** (env + constantes), kokoro et sam3 portés ; et MA route parallèle
+> attrapée — `select_chat_llm` (1 h de vie) doublait `llm_utils._llm_par_catalogue` (LE
+> point unique, 04/08) → supprimé, le chat se résout par **`modele_par_tier`** (accesseur
+> public, priority/prefer_loaded déclaratifs) : dev→qwen3.6:35b, debug→qwen3-coder:30b,
+> fast/ultra_fast→gemma4:12b. ③ **Balayage regex des littéraux de tags** ajouté à
+> `check_model_declarations` (hors déclarations/backends/tests) — 4 morts attrapés au 1er
+> run (chaîne describer nettoyée au réel, exemples de docstring) ; verdict final 0 mort.
+> Littéraux VISION restants (ui_smoke, vision_probe, reference_comprehension) = bloqués
+> par la capacité `vision` non peuplée au catalogue (correctif de fond documenté
+> llm_utils:60, `vision_probe` désigné) — gardés par le balayage en attendant.
 >
 > 🔚 **POINT D'ENTRÉE SESSION SUIVANTE : marche B front 2 — le BANC** (qwen3.6:35b vs
 > qwen3-coder:30b vs gemma4:26b/e4b, `run_codegen --truth` sur converter puis reader,
