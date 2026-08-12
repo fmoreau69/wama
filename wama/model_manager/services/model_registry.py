@@ -1076,12 +1076,18 @@ class ModelRegistry:
                         k.startswith(f"ollama:{config['ollama_id'].split(':', 1)[0]}")
                         for k in self._models)
                 else:
-                    # docTR: bundled weights — consider "downloaded" if package is installed
-                    try:
-                        import doctr  # noqa
-                        is_downloaded = True
-                    except ImportError:
-                        is_downloaded = False
+                    # docTR : les poids vivent dans DOCTR_DIR (DOCTR_CACHE_DIR, posé par le
+                    # backend) — critère DISQUE d'abord ; l'import du paquet n'est qu'un
+                    # repli (propriété du venv, pas du modèle : mesuré faux positif depuis
+                    # venv_win le 2026-08-12, doctr n'étant installé que côté venv_linux).
+                    is_downloaded = any(Path(cache_dir).rglob('*.pt')) \
+                        if cache_dir and Path(cache_dir).is_dir() else False
+                    if not is_downloaded:
+                        try:
+                            import doctr  # noqa
+                            is_downloaded = True
+                        except ImportError:
+                            pass
 
                 model_info = ModelInfo(
                     id=model_id,

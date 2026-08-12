@@ -138,7 +138,11 @@ def get_sam3_status() -> Dict:
     status = {
         'installed': False,
         'hf_authenticated': False,
-        'models_cached': False,
+        # DISQUE d'abord, AVANT le retour anticipé « paquet absent » : les poids sont une
+        # propriété du disque, pas du venv. Le retour anticipé rendait models_cached=False
+        # depuis venv_win (sam3 installé côté venv_linux seulement) → faux positif
+        # verify_models « catalogue dit téléchargé, disque non » (constaté 2026-08-12).
+        'models_cached': check_sam3_models_cached(),
         'models_dir': SAM3_MODELS_DIR,
         'models_dir_exists': os.path.exists(SAM3_MODELS_DIR),
         'ready': False,
@@ -154,9 +158,6 @@ def get_sam3_status() -> Dict:
     except ImportError as e:
         status['error'] = f"SAM3 not installed: {e}"
         return status
-
-    # Check if models are already cached locally
-    status['models_cached'] = check_sam3_models_cached()
 
     # Check HuggingFace authentication
     status['hf_authenticated'] = check_hf_auth()

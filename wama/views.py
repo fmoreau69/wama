@@ -90,16 +90,27 @@ def fiches(request):
     return render(request, 'includes/wama_fiches.html')
 
 
-# ⚠ Table à la main confrontée au catalogue par `manage.py check_model_declarations` —
-# la lancer après tout remplacement de modèle (leçon qwen3.5:35b-a3b → qwen3.6:35b, 12/08).
-_OLLAMA_MODEL_MAP = {
-    'dev':        'qwen3.6:35b',
-    'coder':      'qwen3.6:35b',
-    'debug':      'qwen3-coder:30b',
-    'architect':  'qwen3.6:35b',
-    'fast':       'qwen3.5:9b',
-    'ultra_fast': 'qwen3.5:4b',
-}
+# Rôles de la surface chat → GABARIT de modèle. Le tag est DÉRIVÉ du catalogue à l'appel
+# (`select_chat_llm`) — plus de table de tags : elle mourait au premier remplacement de
+# modèle (qwen3.5:35b-a3b → qwen3.6:35b, leçon du 2026-08-12, cf. check_model_declarations).
+_ROLE_TIER = {'dev': 'max', 'coder': 'max', 'architect': 'max',
+              'debug': 'code', 'fast': 'mid', 'ultra_fast': 'min'}
+
+
+def _ollama_model_for(cle: str) -> str:
+    """Rôle de chat ('dev', 'fast'…) → tag Ollama dérivé du catalogue (source unique) ;
+    un tag complet ('gemma4:12b') passe tel quel."""
+    tier = _ROLE_TIER.get(cle)
+    if tier is None:
+        return cle
+    try:
+        from wama.model_manager.services.model_selector import select_chat_llm
+        m = select_chat_llm(tier)
+        if m:
+            return m.model_key.split(':', 1)[1]
+    except Exception:
+        logger.debug('[ai_chat] dérivation du modèle par rôle indisponible', exc_info=True)
+    return cle
 
 # Safe context limits per model (chars, not tokens — ~4 chars/token estimate)
 # Below these limits quality stays high; above them we upgrade to a larger model.
@@ -289,7 +300,7 @@ def _chat_with_ollama(message: str, model: str = "fast", user=None, history: lis
 
     Args:
         message: User message
-        model:   Model key from _OLLAMA_MODEL_MAP
+        model:   Rôle de chat (_ROLE_TIER) ou tag Ollama complet
         user:    Django User instance (required for tool execution)
         history: Prior conversation turns as list of {role, content} dicts
 
@@ -298,7 +309,7 @@ def _chat_with_ollama(message: str, model: str = "fast", user=None, history: lis
     """
     from .tool_api import execute_tool, build_tools_list
 
-    ollama_model = _OLLAMA_MODEL_MAP.get(model, model)
+    ollama_model = _ollama_model_for(model)
 
     # Inject current WAMA queue state into system prompt (when user is known)
     wama_context = _build_wama_context(user) if user else ""

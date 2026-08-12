@@ -17,8 +17,12 @@ La couche MANQUANTE de la chaîne existante (tracée le 2026-08-12) :
     (2026-08-04).
 
 Sources déclarées contrôlées (en ajouter une ICI quand une nouvelle table apparaît) :
-  1. `wama.views._OLLAMA_MODEL_MAP` — rôles du chat assistant ;
-  2. `wama-dev-ai/config.py::MODELS` — registre de rôles wama-dev-ai (`ollama_id`).
+  1. `wama-dev-ai/config.py::MODELS` — registre de rôles wama-dev-ai (`ollama_id`) ; à
+     dessein DÉCOUPLÉ du catalogue (chaînes RAM-aware propres, unification = Phase 4) —
+     ce contrôle est précisément ce qui rend le découplage tenable.
+(L'ancienne source `wama.views._OLLAMA_MODEL_MAP` a été SUPPRIMÉE le 2026-08-12 : les rôles
+du chat dérivent désormais du catalogue via `select_chat_llm` — la meilleure table est
+celle qui n'existe plus.)
 Verdict par tag déclaré : OK (catalogue, téléchargé) / NON TÉLÉCHARGÉ (catalogue le connaît
 mais `is_downloaded=False` — ex. remplacé par la prospection) / INCONNU (aucune ligne
 catalogue). NON TÉLÉCHARGÉ et INCONNU ⇒ exit 1.
@@ -41,8 +45,6 @@ def _norm(tag: str) -> str:
 def _sources() -> dict:
     """{source: {tags déclarés normalisés}} — chaque table à la main est une source nommée."""
     out = {}
-    from wama.views import _OLLAMA_MODEL_MAP
-    out['wama/views.py _OLLAMA_MODEL_MAP'] = {_norm(v) for v in _OLLAMA_MODEL_MAP.values()}
     import importlib.util
     chemin = Path(settings.BASE_DIR) / 'wama-dev-ai' / 'config.py'
     spec = importlib.util.spec_from_file_location('wama_dev_ai_config', chemin)

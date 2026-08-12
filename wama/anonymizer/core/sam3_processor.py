@@ -66,26 +66,51 @@ def setup_sam3_hf_environment():
         except Exception as e:
             logger.warning(f"[SAM3] Could not read token from {token_file}: {e}")
 
-    # Point HF cache to sam_root so it finds models--facebook--sam3/ inside
-    if sam3_cache_dir.exists():
-        sam_root_str = str(sam_root)
-        os.environ['HF_HOME'] = sam_root_str
-        os.environ['HF_HUB_CACHE'] = sam_root_str
-        os.environ['HUGGINGFACE_HUB_CACHE'] = sam_root_str
+    # La bascule du cache HF vers sam_root est désormais CONFINÉE au chargement
+    # (`_hf_cache_on_sam_root`) — plus de mutation permanente ici.
 
-        # CRITICAL: huggingface_hub caches these values at import time in module
-        # constants. If the library was already imported (e.g. by Django startup),
-        # changing os.environ has no effect. We must patch the constants directly.
-        try:
-            import huggingface_hub.constants as hf_constants
-            hf_constants.HF_HOME = sam_root_str
-            hf_constants.HF_HUB_CACHE = sam_root_str
-            hf_constants.HUGGINGFACE_HUB_CACHE = sam_root_str
-            logger.info(f"[SAM3] HuggingFace cache patched to: {sam_root_str}")
-        except (ImportError, AttributeError) as e:
-            logger.warning(f"[SAM3] Could not patch huggingface_hub constants: {e}")
 
-        logger.info(f"[SAM3] HuggingFace env set to: {sam_root_str}")
+from contextlib import contextmanager
+
+
+@contextmanager
+def _hf_cache_on_sam_root():
+    """Pose l'env + les constantes huggingface_hub sur sam/ LE TEMPS DU CHARGEMENT, puis
+    RESTAURE tout (try/finally).
+
+    La lib sam3 n'accepte pas de `cache_dir` : elle lit l'env/les constantes au moment du
+    build — d'où la bascule. Mais la version PERMANENTE (env process-wide + constantes de
+    module mutées sans restauration) faisait fuir le cache vers TOUS les backends HF du
+    même worker : les artefacts annexes (refs/locks/xet) d'un chargement olmOCR suivant
+    atterrissaient dans vision/sam/ (squelette vide constaté le 2026-08-12 — les blobs,
+    eux, étaient sauvés par le `cache_dir=` explicite d'olmocr_backend). C'est
+    l'anti-pattern que ROADMAP §5b veut éradiquer : ne JAMAIS étendre cette mutation."""
+    sam_root = MODEL_PATHS.get('vision', {}).get('sam') \
+        or (AI_MODELS_DIR / 'models' / 'vision' / 'sam')
+    sam_root_str = str(sam_root)
+    cles = ('HF_HOME', 'HF_HUB_CACHE', 'HUGGINGFACE_HUB_CACHE')
+    prev_env = {k: os.environ.get(k) for k in cles}
+    try:
+        import huggingface_hub.constants as hf_constants
+    except ImportError:
+        hf_constants = None
+    prev_const = {k: getattr(hf_constants, k, None) for k in cles} if hf_constants else {}
+    for k in cles:
+        os.environ[k] = sam_root_str
+        if hf_constants is not None:
+            setattr(hf_constants, k, sam_root_str)
+    logger.info(f"[SAM3] cache HF basculé sur {sam_root_str} (portée : chargement seul)")
+    try:
+        yield
+    finally:
+        for k in cles:
+            if prev_env[k] is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = prev_env[k]
+            if hf_constants is not None:
+                setattr(hf_constants, k, prev_const[k])
+        logger.info("[SAM3] cache HF restauré")
 
 
 class SAM3Processor(DetectionBackend):
@@ -184,7 +209,7 @@ class SAM3Processor(DetectionBackend):
             logger.info("[SAM3] Model already loaded")
             return True
 
-        # Setup HuggingFace environment BEFORE importing SAM3 modules
+        # Token HF (global, inoffensif) — la bascule du CACHE, elle, est confinée ci-dessous.
         setup_sam3_hf_environment()
 
         try:
@@ -196,7 +221,8 @@ class SAM3Processor(DetectionBackend):
             if model_type in ['image', 'auto']:
                 logger.info("[SAM3] Loading image model...")
                 print("[SAM3] Loading image model...")
-                self.image_model = build_sam3_image_model()
+                with _hf_cache_on_sam_root():
+                    self.image_model = build_sam3_image_model()
                 self.image_processor = Sam3ImageProcessor(self.image_model)
                 logger.info("[SAM3] Image model loaded successfully")
                 print("[SAM3] Image model loaded successfully")
