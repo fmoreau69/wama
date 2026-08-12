@@ -59,12 +59,18 @@ def needs_parallel_detection(classes_to_blur: list, precision_level: int) -> dic
         - 'coverage': float - percentage of classes covered
         - 'unsupported': list of classes with no available model
     """
+    # `unsupported_classes` et NON `unsupported` : le seul lecteur (tasks.py, avertissement
+    # « classes non couvertes » en console) interrogeait `unsupported_classes` alors qu'on
+    # rendait `unsupported` — l'avertissement n'a donc JAMAIS pu s'afficher, et une classe que
+    # rien ne sait détecter passait en silence. Les deux clés sont rendues : `unsupported`
+    # reste pour tout appelant historique, mais elle n'est plus la seule.
     if not classes_to_blur:
         return {
             'parallel': False,
             'models': [],
             'coverage': 0,
             'unsupported': [],
+            'unsupported_classes': [],
         }
 
     from .utils.model_selector import select_best_models_by_precision
@@ -74,11 +80,13 @@ def needs_parallel_detection(classes_to_blur: list, precision_level: int) -> dic
         precision_level=precision_level
     )
 
+    non_couvertes = selection.get('unsupported_classes', [])
     return {
         'parallel': len(selection['models_to_use']) > 1,
         'models': selection['models_to_use'],
         'coverage': selection['coverage'],
-        'unsupported': selection.get('unsupported_classes', []),
+        'unsupported': non_couvertes,
+        'unsupported_classes': non_couvertes,
     }
 
 

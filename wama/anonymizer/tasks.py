@@ -335,7 +335,10 @@ def process_single_media(self, media_id, force_individual=False):
                     logger.info(f"[ModelSelection] Keeping user-specified model {user_specified_model} "
                                 f"(already covers {kwargs['classes2blur']}) — no override")
                 else:
-                    kwargs['model_path'] = _gmp(selected['id'])
+                    # La couverture rend déjà le chemin disque du catalogue : le re-résoudre
+                    # depuis l'identifiant rouvrirait une seconde route (et échouerait pour un
+                    # modèle rangé hors de l'arborescence historique). `_gmp` reste le repli.
+                    kwargs['model_path'] = selected.get('path') or _gmp(selected['id'])
                     _console(user.id, f"Auto-selected model: {selected['id']} for classes {selected['classes']}")
                     logger.info(f"[ModelSelection] Using ModelSelector result: {selected['id']} (overriding user default)")
 
