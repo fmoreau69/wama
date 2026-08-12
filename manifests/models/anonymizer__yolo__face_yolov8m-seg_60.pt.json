@@ -21,6 +21,7 @@
       "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/vision/yolo/segment/faces/face_yolov8m-seg_60.pt",
       "size_bytes": 54813600,
       "specialty": "faces",
+      "update_check": {},
       "yolo_type": "segment"
     },
     "formats": {

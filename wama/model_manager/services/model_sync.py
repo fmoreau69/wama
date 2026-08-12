@@ -166,7 +166,13 @@ class ModelSyncService:
             'ram_gb': model_info.ram_gb or 0,
             'is_downloaded': model_info.is_downloaded,
             'is_loaded': model_info.is_loaded,
-            'is_available': True,
+            # `is_available` VOLONTAIREMENT absent : le champ vaut True par défaut, donc une
+            # ligne NEUVE naît disponible — mais le sync ne le REMET pas à True sur une ligne
+            # existante. Un `False` y est une DÉCISION HUMAINE (« ce modèle n'est pas adapté »,
+            # cf. face_yolov8m-seg_60, modèle adetailer qui trouve 0 visage sur une scène de
+            # rue), et la découverte n'a pas autorité pour l'écraser — même principe que
+            # `hf_id`/`quality_index` (2026-08-12). L'ABSENCE de fichier reste traitée par
+            # `remove_missing`, qui pose False ; réactiver un modèle écarté est donc explicite.
             'format': model_info.format or '',
             'preferred_format': model_info.preferred_format or '',
             'can_convert_to': model_info.can_convert_to or [],
@@ -225,7 +231,11 @@ class ModelSyncService:
 
         # Préserver les clés "collantes" de extra_info écrites hors découverte (détecteur de MAJ
         # check_model_updates, décisions admin) : le sync réécrit extra_info → sans ça il les efface.
-        _sticky = ('update_check', 'recommended')
+        # `exclusion` rejoint les clés collantes (2026-08-12) : elle porte la RAISON d'un
+        # `is_available=False` décidé par un humain. Sans elle, la décision survivait mais sa
+        # justification était effacée au sync suivant — un modèle écarté sans qu'on sache
+        # pourquoi finit par être réactivé « au cas où ».
+        _sticky = ('update_check', 'recommended', 'exclusion')
         _existing = AIModel.objects.filter(model_key=model_key).values_list('extra_info', flat=True).first()
         if _existing:
             _merged = dict(defaults.get('extra_info') or {})
