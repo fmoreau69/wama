@@ -121,6 +121,12 @@ def total_vram_gb() -> float:
 
 _LEDGER_KEY = "wama:vram:reservations"
 
+#: Dernier USAGE par owner. Hash SÉPARÉ et non un 3ᵉ champ de la ligne de réservation :
+#: `_reservations_raw` parse `"<go>:<horodatage>"` et traiterait un champ supplémentaire
+#: comme une ligne illisible — donc périmée, donc PURGÉE. Une réservation vivante aurait
+#: été effacée par un process resté sur l'ancien format.
+_USED_KEY = "wama:vram:last_used"
+
 # Une réservation expire seule : si un process meurt sans libérer (kernel panic,
 # kill -9), sa ligne ne doit pas bloquer le GPU pour toujours. À rafraîchir par
 # les traitements longs via `reserve_vram()` (le même owner écrase sa ligne).
@@ -225,6 +231,16 @@ def reservations(exclude: str | None = None) -> dict[str, float]:
     `RESERVATION_TTL_S` sont ignorées ET purgées : elles viennent d'un process
     mort sans libérer.
     """
+    return {owner: gb for owner, (gb, _) in _reservations_raw(exclude=exclude).items()}
+
+
+def _reservations_raw(exclude: str | None = None) -> dict[str, tuple[float, float]]:
+    """Réservations vivantes AVEC leur horodatage : owner → (Go, posé_le).
+
+    Le timestamp sert de repli d'inactivité pour un modèle chargé mais jamais
+    utilisé (`idle_models`) — `reservations()` n'expose que les Go pour ne pas
+    changer son contrat.
+    """
     client = _redis()
     if client is None:
         return {}
@@ -247,11 +263,12 @@ def reservations(exclude: str | None = None) -> dict[str, float]:
             stale.append(owner)
             continue
         if owner != exclude:
-            alive[owner] = gb
+            alive[owner] = (gb, stamp)
 
     if stale:
         try:
             client.hdel(_LEDGER_KEY, *stale)
+            client.hdel(_USED_KEY, *stale)   # l'horodatage d'usage suit sa réservation
             logger.info(f"[ResourceGovernor] réservations périmées purgées : {stale}")
         except Exception:
             pass
@@ -285,14 +302,78 @@ def resident_models() -> dict[str, float]:
     """
     par_modele: dict[str, float] = {}
     for owner, gb in reservations().items():
-        if OWNER_MODEL_SEP not in owner:
-            continue
-        cle = owner.split(OWNER_MODEL_SEP, 1)[1].strip()
+        cle = model_key_of(owner)
         if cle:
             # Somme : le même modèle peut être résident dans PLUSIEURS process
             # (deux workers GPU), et chacun en occupe sa propre empreinte.
             par_modele[cle] = par_modele.get(cle, 0.0) + gb
     return par_modele
+
+
+def model_key_of(owner: str) -> str | None:
+    """Clé catalogue portée par une clé d'owner, ou None si elle n'en porte pas."""
+    if OWNER_MODEL_SEP not in owner:
+        return None
+    return owner.split(OWNER_MODEL_SEP, 1)[1].strip() or None
+
+
+def mark_used(owner: str) -> bool:
+    """Horodate le dernier USAGE de `owner` (appelé à chaque `process()` d'un backend).
+
+    Sans ce signal, « inactif » ne peut pas se distinguer de « chargé » : c'est ce qui
+    manquait à `WAMAMemoryTracker`, dont le champ `last_used` existait mais que personne
+    n'alimentait (aucun appel à `register_model` dans le dépôt).
+    """
+    client = _redis()
+    if client is None:
+        return False
+    try:
+        client.hset(_USED_KEY, owner, f"{_now():.0f}")
+        client.expire(_USED_KEY, RESERVATION_TTL_S * 2)
+        return True
+    except Exception as exc:
+        logger.debug(f"[ResourceGovernor] mark_used({owner}) : {exc}")
+        return False
+
+
+def idle_models(idle_threshold_s: int = 300) -> list[dict]:
+    """
+    Modèles RÉSIDENTS inactifs depuis plus de `idle_threshold_s`, tous process confondus.
+
+    Un modèle chargé mais jamais utilisé compte son inactivité depuis son CHARGEMENT :
+    sans ce repli il paraîtrait éternellement actif, alors que c'est le cas le plus
+    typique d'occupation inutile (préchargement suivi d'aucune demande).
+    """
+    client = _redis()
+    usages: dict[str, float] = {}
+    if client is not None:
+        try:
+            for k, v in (client.hgetall(_USED_KEY) or {}).items():
+                owner = k.decode() if isinstance(k, bytes) else str(k)
+                try:
+                    usages[owner] = float(v.decode() if isinstance(v, bytes) else v)
+                except (TypeError, ValueError):
+                    continue
+        except Exception:
+            pass
+
+    now, out = _now(), []
+    for owner, (gb, pose_le) in _reservations_raw().items():
+        cle = model_key_of(owner)
+        if not cle:
+            continue                      # détenteur sans modèle (sous-processus)
+        dernier = usages.get(owner, pose_le)
+        inactif = now - dernier
+        if inactif >= idle_threshold_s:
+            out.append({
+                'model_key': cle,
+                'owner': owner,
+                'vram_gb': round(gb, 2),
+                'idle_seconds': int(inactif),
+                'idle_minutes': round(inactif / 60, 1),
+                'jamais_utilise': owner not in usages,
+            })
+    return sorted(out, key=lambda d: -d['idle_seconds'])
 
 
 def effective_free_gb(exclude: str | None = None) -> float:

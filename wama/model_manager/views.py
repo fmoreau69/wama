@@ -412,29 +412,37 @@ def api_tracked_models(request):
 @user_passes_test(is_admin_or_dev)
 @require_GET
 def api_idle_models(request):
-    """API: Get idle models that could be unloaded."""
-    idle_threshold = int(request.GET.get('threshold', 300))  # Default 5 min
+    """API: modèles résidents inactifs, LUS DANS LE REGISTRE PARTAGÉ.
 
-    tracker = WAMAMemoryTracker()
-    idle_models = tracker.get_idle_models(idle_threshold)
+    Lisait `WAMAMemoryTracker`, un singleton de process qui n'est alimenté par
+    personne (aucun appel à `register_model` dans le dépôt) ET qui, même alimenté,
+    ne verrait que le process courant — or cette vue tourne dans gunicorn tandis que
+    les modèles vivent dans les workers Celery et le service TTS. La liste était donc
+    vide en toutes circonstances.
+    """
+    from wama.common.services.resource_governor import idle_models as idle_partages
+
+    idle_threshold = int(request.GET.get('threshold', 300))  # Default 5 min
+    inactifs = idle_partages(idle_threshold)
 
     return JsonResponse({
         'success': True,
         'threshold_seconds': idle_threshold,
         'idle_models': [
             {
-                'model_id': m.model_id,
-                'idle_time_seconds': m.idle_time_seconds,
-                'idle_time_minutes': round(m.idle_time_minutes, 1),
-                'size_mb': m.size_mb,
-                'use_count': m.use_count,
-                'category': m.category,
-                'source': m.source,
+                'model_id': m['model_key'],
+                'idle_time_seconds': m['idle_seconds'],
+                'idle_time_minutes': m['idle_minutes'],
+                'size_mb': round(m['vram_gb'] * 1024, 1),
+                'vram_gb': m['vram_gb'],
+                'never_used': m['jamais_utilise'],
+                'owner': m['owner'],
+                'source': m['model_key'].split(':', 1)[0],
             }
-            for m in idle_models
+            for m in inactifs
         ],
-        'count': len(idle_models),
-        'total_size_mb': sum(m.size_mb for m in idle_models),
+        'count': len(inactifs),
+        'total_size_mb': round(sum(m['vram_gb'] for m in inactifs) * 1024, 1),
     })
 
 

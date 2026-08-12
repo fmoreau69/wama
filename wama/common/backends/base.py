@@ -172,6 +172,29 @@ def _wrap_unload(func):
     return wrapper
 
 
+def _wrap_process(func):
+    """Horodate l'USAGE du modèle au gouverneur, à chaque traitement."""
+    if getattr(func, _WRAPPED, False):
+        return func
+
+    @functools.wraps(func)
+    def wrapper(self, *args, **kwargs):
+        # AVANT l'appel : un traitement long (génération vidéo) ne doit pas paraître
+        # inactif pendant toute son exécution. Et si `func` lève, le modèle a quand
+        # même servi — l'horodatage reste juste.
+        try:
+            owner = getattr(self, _GOV_KEY, None)
+            if owner:
+                from wama.common.services.resource_governor import mark_used
+                mark_used(owner)
+        except Exception:
+            logger.debug("Horodatage d'usage ignoré", exc_info=True)
+        return func(self, *args, **kwargs)
+
+    setattr(wrapper, _WRAPPED, True)
+    return wrapper
+
+
 #: Sépare l'identité du DÉTENTEUR (backend + process) de celle du MODÈLE dans la clé
 #: d'owner. `#` et non `:` : les clés de catalogue en contiennent déjà
 #: (`anonymizer:yolo:yolo11n.pt`), un découpage sur `:` serait ambigu.
@@ -267,6 +290,8 @@ class BaseModelBackend(ABC):
             cls.load = _wrap_load(cls.__dict__["load"])
         if "unload" in cls.__dict__:
             cls.unload = _wrap_unload(cls.__dict__["unload"])
+        if "process" in cls.__dict__:
+            cls.process = _wrap_process(cls.__dict__["process"])
 
     # ── Déclaratif (métadonnée-driven) ───────────────────────────────────────
     # Modules d'import requis pour faire tourner ce backend (ex. ['df', 'torch']).
