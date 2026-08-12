@@ -112,6 +112,52 @@ from wama.common.tts.constants import (
 )
 
 
+# ---------------------------------------------------------------------------
+# Déclaration de VRAM au gouverneur de ressources
+# ---------------------------------------------------------------------------
+# Ce service est un PROCESS SÉPARÉ : son empreinte VRAM est invisible des workers
+# Celery. Sans déclaration, le gouverneur croit la VRAM libre et laisse démarrer
+# une tâche GPU par-dessus — le scénario exact des kernel panics du 29/07, que la
+# docstring de `vram_reservation` désigne nommément (« un service séparé (TTS) »).
+# Le service ne déclarait pourtant rien : il ne posait que le plafond d'allocateur
+# (`configure_cuda_process`), qui borne ce process sans rien dire aux autres.
+# Devenu critique depuis que Kokoro est préchargé et RÉSIDENT (12/08).
+_GOVERNOR_OWNER = "tts-service"      # stable : un redémarrage écrase sa propre ligne
+_GOVERNOR_HEARTBEAT_S = 600          # < RESERVATION_TTL_S (3600) — voir plus bas
+
+
+def _declare_vram():
+    """Publie l'empreinte VRAM COURANTE de ce service dans le registre partagé.
+
+    Mesurée et non déclarée : le service héberge des moteurs de tailles très
+    différentes (Kokoro ~0,3 Go, XTTS plusieurs Go) et peut en cumuler.
+    Une empreinte nulle libère la ligne au lieu d'immobiliser du budget.
+    """
+    try:
+        gb = torch.cuda.memory_allocated() / 1024 ** 3 if torch.cuda.is_available() else 0.0
+        from wama.common.services.resource_governor import reserve_vram, release_reservation
+        if gb >= 0.05:
+            reserve_vram(_GOVERNOR_OWNER, float(gb))
+        else:
+            release_reservation(_GOVERNOR_OWNER)
+    except Exception:
+        logger.debug("[TTS] déclaration VRAM au gouverneur ignorée", exc_info=True)
+
+
+def _governor_heartbeat():
+    """Rafraîchit la réservation tant que le service détient de la VRAM.
+
+    INDISPENSABLE ici : une ligne de registre expire au bout de RESERVATION_TTL_S
+    (1 h) pour qu'un process mort ne gèle pas le GPU. Or Kokoro est résident SANS
+    LIMITE de durée — sans rafraîchissement, sa ligne disparaîtrait au bout d'une
+    heure et le gouverneur recommencerait à croire cette VRAM libre.
+    """
+    import time
+    while True:
+        time.sleep(_GOVERNOR_HEARTBEAT_S)
+        _declare_vram()
+
+
 def _unload_current():
     """Unload whatever model is currently loaded and free GPU memory."""
     global _current_engine, _current_model_name, _tts_instance, _bark_funcs, _higgs_engine
@@ -139,6 +185,8 @@ def _unload_current():
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
         logger.info("GPU cache cleared")
+
+    _declare_vram()   # l'empreinte a baissé (Kokoro peut rester) → réaligner le registre
 
 
 def _load_coqui(model_name: str):
@@ -354,6 +402,10 @@ def _switch_model(model_name: str):
     else:
         # Try as a Coqui model anyway
         _load_coqui(model_name)
+
+    # Point de passage UNIQUE de tout changement de moteur : c'est ici que
+    # l'empreinte du service devient juste, donc ici qu'on la publie.
+    _declare_vram()
 
 
 # ---------------------------------------------------------------------------
@@ -762,6 +814,12 @@ async def startup():
     try:
         from wama.common.services.resource_governor import configure_cuda_process
         configure_cuda_process()
+        # `configure_cuda_process` BORNE ce process ; elle ne dit rien aux autres.
+        # Le battement publie l'empreinte dans le registre partagé et la maintient
+        # vivante malgré le TTL — sans quoi un modèle résident redeviendrait
+        # invisible au bout d'une heure.
+        threading.Thread(target=_governor_heartbeat, daemon=True,
+                         name="tts-governor-heartbeat").start()
     except Exception as exc:
         logger.warning(f"[TTS] gouverneur de ressources non initialisé : {exc}")
     logger.info(f"Coqui DIR: {COQUI_DIR}")
@@ -809,6 +867,7 @@ async def startup():
                 else:
                     _switch_model(name)
                     logger.info(f"{name} préchargé")
+                _declare_vram()   # rendre l'empreinte visible des autres process
             except Exception as e:
                 logger.warning(
                     f"Préchargement de {name} échoué — il sera chargé à la 1re demande : {e}",
