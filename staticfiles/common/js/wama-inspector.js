@@ -463,11 +463,19 @@
       return '<div class="small text-white-50 mb-1">' + label + '</div><div class="d-flex flex-wrap gap-1">' + chips + '</div>';
     }
     // #media-section = aperçu du média, qui n'a de sens que pour un ITEM sélectionné.
-    // Exception déclarée par l'app (keepMediaSection) : certaines pages y logent un contenu
-    // permanent — model_manager y place les cartes VRAM/RAM/Disque, qui doivent rester
-    // visibles hors sélection.
+    // Exceptions déclarées par l'app via keepMediaSection : certaines pages y logent un
+    // contenu permanent au lieu d'un aperçu.
+    //   true           → jamais masqué (contenu permanent en toutes circonstances)
+    //   'no-selection' → visible HORS sélection, masqué dès qu'un item/batch est inspecté.
+    //                    model_manager y place les ressources système (CPU/RAM/GPU/Disque) :
+    //                    elles cèdent la place à l'inspecteur du modèle, sinon il faut
+    //                    scroller tout le monitoring pour atteindre les infos du modèle.
     function setMediaSection(visible) {
       if (!mediaSection) return;
+      if (cfg.keepMediaSection === 'no-selection') {
+        mediaSection.style.display = visible ? 'none' : '';
+        return;
+      }
       if (!visible && cfg.keepMediaSection) return;
       mediaSection.style.display = visible ? '' : 'none';
     }

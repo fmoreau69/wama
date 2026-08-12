@@ -524,7 +524,7 @@ class SystemMonitor:
         Get stats formatted for Model Manager display.
 
         Returns:
-            Dict with 'gpu_info' and 'system_info' for template context
+            Dict with 'cpu_info', 'gpu_info' and 'system_info' for template context
         """
         # For GPU, prefer nvidia-smi (shows actual VRAM usage including other apps)
         gpu_nvidia = cls.get_gpu_info()
@@ -553,7 +553,17 @@ class SystemMonitor:
             'percent': ram['percent'] if ram else 0,
         } if ram else {}
 
+        # CPU : le model_manager affiche les mêmes ressources que le pied de page
+        # (CPU → RAM → GPU → Disque), qui les lit déjà via get_cpu_info().
+        cpu = cls.get_cpu_info()
+        cpu_info = {
+            'percent': cpu['percent'],
+            'count': cpu['count'],
+            'freq_mhz': cpu.get('freq_mhz'),
+        } if cpu else {}
+
         return {
+            'cpu_info': cpu_info,
             'gpu_info': gpu_info,
             'system_info': system_info,
         }

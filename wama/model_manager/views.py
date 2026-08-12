@@ -41,10 +41,12 @@ def index(request):
 
     context = {
         'model_types': [t.value for t in ModelType],
+        'cpu_info': stats['cpu_info'],
         'gpu_info': stats['gpu_info'],
         'system_info': stats['system_info'],
         # Models will be loaded via AJAX
         'total_models': 0,
+        'available_models': 0,
         'loaded_models': 0,
         'downloaded_models': 0,
     }
@@ -93,6 +95,7 @@ def api_memory_stats(request):
     stats = SystemMonitor.get_model_manager_stats()
     return JsonResponse({
         'success': True,
+        'cpu': stats['cpu_info'],
         'gpu': stats['gpu_info'],
         'system': stats['system_info'],
     })

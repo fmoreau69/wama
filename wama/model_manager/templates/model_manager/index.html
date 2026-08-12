@@ -45,6 +45,12 @@
     }
     .memory-bar-fill {
         height: 100%;
+        /* Le pourcentage est écrit DANS la barre : sous ~16 % il était rogné et
+           il ne restait que « % » à l'écran (visible dès l'ajout de la carte CPU,
+           souvent basse). Largeur plancher = le libellé reste lisible ; en dessous
+           la barre est donc dessinée au minimum, la valeur exacte restant écrite
+           en clair (« Charge : 8 % », « Used / Free / Total »). */
+        min-width: 3rem;
         transition: width 0.5s ease;
         display: flex;
         align-items: center;
@@ -53,10 +59,18 @@
         font-size: 0.75rem;
         font-weight: bold;
     }
+    .memory-bar-fill.cpu {
+        background: linear-gradient(90deg, #0dcaf0, #0d6efd);
+    }
     .memory-bar-fill.gpu {
         background: linear-gradient(90deg, #28a745, #ffc107);
     }
     .memory-bar-fill.ram {
+        background: linear-gradient(90deg, #198754, #0dcaf0);
+    }
+    /* Le disque avait été peint avec .ram : classe propre pour qu'un changement
+       de teinte de la RAM ne le déplace plus au passage. */
+    .memory-bar-fill.disk {
         background: linear-gradient(90deg, #0dcaf0, #6f42c1);
     }
     .memory-bar-fill.high {
@@ -284,12 +298,99 @@
         </div>
     </div>
 
-    <!-- Memory Stats Cards (déplacé par JS dans le volet droit, section Ressources — toujours visible) -->
+    {% comment %}
+      Déplacé par JS dans le volet droit, section « Ressources système ».
+      ORDRE VOULU : Modèles (registre) tout en haut, puis CPU → RAM → GPU → Disque,
+      soit le MÊME ordre que le monitoring du pied de page (base.html) — l'utilisateur
+      doit retrouver la même séquence de lecture partout. Le disque suit dans #mmDiskRow,
+      appendChild après celui-ci, ce qui clôt la séquence.
+    {% endcomment %}
     <div class="row mb-4" id="mmResourceRow">
-        <div class="col-md-4">
+        <div class="col-md-3">
+            <div class="memory-card h-100">
+                <h5 class="mb-3"><i class="fas fa-cube me-2 text-warning"></i>Models</h5>
+                {% comment %}
+                  ORDRE = emboîtement STRICT Loaded ⊆ Downloaded ⊆ Available ⊆ Total
+                  (catalogue ⊇ retrouvés par la découverte ⊇ présents sur disque ⊇
+                  résidents en VRAM). Vérifié sur les données : 0 « downloaded mais
+                  pas available », 0 « loaded mais pas downloaded ».
+                  Lecture en Z = l'entonnoir qui se resserre, du plus stable au plus
+                  volatil. Grille 2×2 et non 4 colonnes : dans un volet de ~300 px,
+                  quatre cellules feraient passer « Downloaded » à la ligne.
+                  Total inclut les modèles PROPOSÉS (prospection Ollama) non installés ;
+                  Available est le nombre réellement exploitable — c'est lui qu'on lit
+                  pour savoir ce dont on dispose.
+                  Les compteurs sont ciblés par ID (et non par classe de couleur, qui
+                  était fragile) : la couleur reste purement décorative.
+                {% endcomment %}
+                <div class="row text-center g-2">
+                    <div class="col-6">
+                        <div class="stats-badge text-info" id="stat-total">{{ total_models }}</div>
+                        <small class="text-muted d-block">Total</small>
+                    </div>
+                    <div class="col-6">
+                        <div class="stats-badge text-primary" id="stat-available">{{ available_models }}</div>
+                        <small class="text-muted d-block">Available</small>
+                    </div>
+                    <div class="col-6">
+                        <div class="stats-badge text-warning" id="stat-downloaded">{{ downloaded_models }}</div>
+                        <small class="text-muted d-block">Downloaded</small>
+                    </div>
+                    <div class="col-6">
+                        <div class="stats-badge text-success" id="stat-loaded">{{ loaded_models }}</div>
+                        <small class="text-muted d-block">Loaded</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
             <div class="memory-card h-100">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="mb-0"><i class="fas fa-microchip me-2 text-success"></i>GPU</h5>
+                    <h5 class="mb-0"><i class="fas fa-microchip me-2 text-info"></i>CPU</h5>
+                    {% if cpu_info.count %}
+                    <span class="badge bg-dark">{{ cpu_info.count }} cœurs</span>
+                    {% endif %}
+                </div>
+                {% if cpu_info %}
+                <div class="memory-bar mb-2">
+                    <div class="memory-bar-fill cpu {% if cpu_info.percent > 80 %}high{% endif %}"
+                         style="width: {{ cpu_info.percent }}%"
+                         id="cpu-bar">
+                        {{ cpu_info.percent }}%
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <small class="text-muted">Charge: <span id="cpu-percent">{{ cpu_info.percent }}</span> %</small>
+                    {% if cpu_info.freq_mhz %}
+                    <small class="text-muted">Fréq.: {{ cpu_info.freq_mhz }} MHz</small>
+                    {% endif %}
+                </div>
+                {% else %}
+                <p class="text-muted mb-0"><i class="fas fa-exclamation-circle me-2"></i>CPU indisponible</p>
+                {% endif %}
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="memory-card h-100">
+                <h5 class="mb-3"><i class="fas fa-memory me-2 text-success"></i>System RAM</h5>
+                <div class="memory-bar mb-2">
+                    <div class="memory-bar-fill ram {% if system_info.percent > 80 %}high{% endif %}"
+                         style="width: {{ system_info.percent }}%"
+                         id="ram-bar">
+                        {{ system_info.percent }}%
+                    </div>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <small class="text-muted">Used: <span id="ram-used">{{ system_info.used_gb }}</span> GB</small>
+                    <small class="text-muted">Free: <span id="ram-free">{{ system_info.available_gb }}</span> GB</small>
+                    <small class="text-muted">Total: {{ system_info.total_gb }} GB</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="memory-card h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0"><i class="fas fa-tv me-2 text-warning"></i>GPU</h5>
                     {% if gpu_info %}
                     <span class="badge bg-dark">{{ gpu_info.device_name }}</span>
                     {% endif %}
@@ -312,42 +413,6 @@
                 {% endif %}
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="memory-card h-100">
-                <h5 class="mb-3"><i class="fas fa-memory me-2 text-info"></i>System RAM</h5>
-                <div class="memory-bar mb-2">
-                    <div class="memory-bar-fill ram {% if system_info.percent > 80 %}high{% endif %}"
-                         style="width: {{ system_info.percent }}%"
-                         id="ram-bar">
-                        {{ system_info.percent }}%
-                    </div>
-                </div>
-                <div class="d-flex justify-content-between">
-                    <small class="text-muted">Used: {{ system_info.used_gb }} GB</small>
-                    <small class="text-muted">Free: {{ system_info.available_gb }} GB</small>
-                    <small class="text-muted">Total: {{ system_info.total_gb }} GB</small>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="memory-card h-100">
-                <h5 class="mb-3"><i class="fas fa-cube me-2 text-warning"></i>Models</h5>
-                <div class="row text-center">
-                    <div class="col-4">
-                        <div class="stats-badge text-info">{{ total_models }}</div>
-                        <small class="text-muted d-block">Total</small>
-                    </div>
-                    <div class="col-4">
-                        <div class="stats-badge text-success">{{ loaded_models }}</div>
-                        <small class="text-muted d-block">Loaded</small>
-                    </div>
-                    <div class="col-4">
-                        <div class="stats-badge text-warning">{{ downloaded_models }}</div>
-                        <small class="text-muted d-block">Downloaded</small>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- Disk Space Card (déplacé par JS dans le volet droit, section Ressources) -->
@@ -355,11 +420,11 @@
         <div class="col-12">
             <div class="memory-card">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="mb-0"><i class="fas fa-hdd me-2 text-primary"></i>Disk Space</h5>
+                    <h5 class="mb-0"><i class="fas fa-hdd me-2 text-secondary"></i>Disk Space</h5>
                     <span class="badge bg-dark" id="disk-drive">-</span>
                 </div>
                 <div class="memory-bar mb-2">
-                    <div class="memory-bar-fill ram" id="disk-bar" style="width: 0%">0%</div>
+                    <div class="memory-bar-fill disk" id="disk-bar" style="width: 0%">0%</div>
                 </div>
                 <div class="d-flex justify-content-between">
                     <small class="text-muted">Used: <span id="disk-used">-</span> GB</small>
@@ -611,13 +676,19 @@
     /* Monitoring déplacé dans le volet droit étroit → empiler verticalement
        UNIQUEMENT les cartes de 1er niveau (enfants directs de la rangée), pas
        les stats internes (Total/Loaded/Downloaded restent en ligne). */
-    #mmResourceSlot > .row, #mmSystemSlot > .row { margin: 0; }
+    /* !important OBLIGATOIRE : le .mb-4 de Bootstrap est lui-même !important et
+       gagnait malgré la spécificité — d'où 1,5 rem entre GPU et Disque (deux
+       rangées) contre 0,75 rem entre cartes d'une même rangée. */
+    #mmResourceSlot > .row, #mmSystemSlot > .row { margin: 0 !important; }
     #mmResourceSlot > .row > [class*="col-"],
     #mmSystemSlot > .row > [class*="col-"] {
         flex: 0 0 100%; max-width: 100%; padding: 0 0 .75rem 0;
     }
-    #mmResourceSlot > .row > [class*="col-"]:last-child,
-    #mmSystemSlot > .row > [class*="col-"]:last-child { padding-bottom: 0; }
+    /* Seule la TOUTE dernière carte du volet perd son espace bas : sur la dernière
+       carte de CHAQUE rangée, l'espace inter-cartes disparaissait au profit du
+       margin de rangée, ce qui rompait la régularité. */
+    #mmResourceSlot > .row:last-child > [class*="col-"]:last-child,
+    #mmSystemSlot > .row:last-child > [class*="col-"]:last-child { padding-bottom: 0; }
     #mmResourceSlot .card, #mmSystemSlot .card { margin-bottom: 0; }
 </style>
 
@@ -709,14 +780,43 @@ document.addEventListener('DOMContentLoaded', function() {
         if (gpuFree) gpuFree.textContent = memory.free_gb;
     }
 
-    function updateStats(models) {
-        const total = models.length;
-        const loaded = models.filter(m => m.is_loaded).length;
-        const downloaded = models.filter(m => m.is_downloaded).length;
+    // CPU et RAM : mêmes encarts que le pied de page, donc même rafraîchissement.
+    // (avant, seul le GPU était re-lu : CPU/RAM restaient figés sur le rendu serveur)
+    function updateBar(barId, percent) {
+        const bar = document.getElementById(barId);
+        if (!bar || percent === undefined || percent === null) return;
+        bar.style.width = percent + '%';
+        bar.textContent = percent + '%';
+        bar.classList.toggle('high', percent > 80);
+    }
 
-        document.querySelector('.stats-badge.text-info').textContent = total;
-        document.querySelector('.stats-badge.text-success').textContent = loaded;
-        document.querySelector('.stats-badge.text-warning').textContent = downloaded;
+    function updateCpuDisplay(cpu) {
+        if (!cpu) return;
+        updateBar('cpu-bar', cpu.percent);
+        const el = document.getElementById('cpu-percent');
+        if (el) el.textContent = cpu.percent;
+    }
+
+    function updateRamDisplay(system) {
+        if (!system) return;
+        updateBar('ram-bar', system.percent);
+        const used = document.getElementById('ram-used');
+        const free = document.getElementById('ram-free');
+        if (used) used.textContent = system.used_gb;
+        if (free) free.textContent = system.available_gb;
+    }
+
+    function updateStats(models) {
+        // Ciblage par ID : le ciblage par classe de couleur cassait au moindre
+        // ajout d'un élément portant la même classe utilitaire Bootstrap.
+        const set = (id, v) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = v;
+        };
+        set('stat-total', models.length);
+        set('stat-available', models.filter(m => m.is_available).length);
+        set('stat-downloaded', models.filter(m => m.is_downloaded).length);
+        set('stat-loaded', models.filter(m => m.is_loaded).length);
     }
 
 
@@ -1160,9 +1260,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 return m ? m.name : ('#' + id);
             },
             renderItemActions: renderModelInspector,
-            // #media-section accueille ici les cartes Ressources (VRAM/RAM/Disque), déplacées
-            // par mmMoveResourceBlocks() : elles restent visibles sans modèle sélectionné.
-            keepMediaSection: true,
+            // #media-section accueille ici les cartes Ressources (Modèles/CPU/RAM/GPU/Disque),
+            // déplacées ci-dessus. 'no-selection' = visibles tant qu'aucun modèle n'est
+            // sélectionné, masquées dès qu'on en inspecte un : sinon il faut scroller tout
+            // le monitoring pour atteindre les infos du modèle.
+            keepMediaSection: 'no-selection',
         });
         const mmDeselectBtn = document.getElementById('inspectorDeselect');
         if (mmDeselectBtn) mmDeselectBtn.addEventListener('click', () => {
@@ -1715,8 +1817,10 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const response = await fetch('{% url "model_manager:api_memory_stats" %}');
             const data = await response.json();
-            if (data.success && data.gpu) {
+            if (data.success) {
                 updateMemoryDisplay(data.gpu);
+                updateCpuDisplay(data.cpu);
+                updateRamDisplay(data.system);
             }
         } catch (err) {
             // Silent fail for background refresh
