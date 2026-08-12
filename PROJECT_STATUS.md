@@ -2616,6 +2616,119 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > grille inchangée (converter 93, reader 87…). ⚠ restart gunicorn/workers WSL2 à l'occasion
 > (tool_api/ready()/tasks.py rechargés — comportement identique).
 
+## §REPRISE — 2026-08-12 (session catalogue/provenance/licences) : la chaîne prospection → catalogue → manifeste refermée
+
+> Périmètre : `model_manager/services/*`, `common/services/license_audit.py`, `common/manifests/builtin/{model,library}.py`,
+> `anonymizer/utils/model_selector.py`, `media_library`. Cinq commits :
+> `8db2157` `e8a2b9a` `4b54f27` `d90be9a` `9318d47`. **Rien poussé.**
+>
+> **Le diagnostic de départ.** Les trois couches (prospection, catalogue, manifestes) étaient
+> bonnes SÉPARÉMENT ; ce sont les **soudures** qui manquaient. `prospect_hf` lisait déjà la
+> licence sur la carte HF et `apply_recommendations` la jetait ; `extract_model` ↔
+> `write_back_model` formaient une boucle symétrique **qui se refermait sur du vide** faute de
+> producteur en amont ; `install_from_spec` n'appelait qu'un `full_sync`, qui ne sait rien
+> d'une licence. Même motif que pour les apps (« les briques existaient, il manquait le runner »).
+>
+> **Mesure avant → après** (101 modèles) : `license` **0 → 59**, `disk_gb` **19 → 66**
+> (anonymizer 0 → 47/48), `platform_ref` 33 → 41, `hf_id` 22 → 29, `author` **0 → 29**.
+>
+> **① Le verrou qu'il fallait lever d'abord.** `hf_id` et `quality_index` étaient dans les
+> `defaults` de `model_sync` avec un repli `or ''` / `or None` : **chaque sync les remettait à
+> vide** pour les 70 modèles issus du scan disque. Une provenance vérifiée ne survivait donc pas
+> au tick suivant de `model-manager-reconcile` (2 h, `settings.py:529`), et `quality_index`
+> contredisait sa propre docstring (« une valeur posée à la main PRIME »). La découverte n'a pas
+> autorité pour EFFACER ce qu'elle ignore : elle n'écrit plus que ce qu'elle sait.
+> ⚠ **Récidive (4ᵉ) de [[feedback_trace_runtime_chaining]]** : mes écritures « disparaissaient »
+> parce que les workers Celery vivants tournaient avec l'ANCIEN module en mémoire. Un
+> `manage.py` ne dit rien des process lancés par `start_wama_prod.sh`.
+>
+> **② Trois provenances ÉTABLIES** (appariement nom + taille d'octets contre le dépôt amont,
+> jamais déduites d'un nom de fichier) : les 5 ONNX plaques → `morsetechlab/yolov11-license-plate-detection`
+> (agpl-3.0) ; `yolo11l_face_plate_signs.pt` → **`Panoramax/detect_face_plate_sign`** (etalab-2.0,
+> confirmé indépendamment par `train_args.model = /bigpool/data/panoramax/…`) ;
+> `face_yolov8m-seg_60.pt` → `jags/yolov8_model_segmentation-set` (apache-2.0). **10 poids restent
+> sans origine** (2 lindevs — publiés sur GitHub, pas HF — et les 8 `yolov8*_face_plate_*p.pt`) :
+> laissés VIDES, pas devinés.
+>
+> **③ Arbitrage licence, à connaître.** Un checkpoint ultralytics déclare `AGPL-3.0` parce que
+> c'est la licence du **cadre d'entraînement**, pas celle de publication (Panoramax publie en
+> etalab-2.0). Donc : **la carte de l'éditeur fait autorité et CORRIGE le repli « poids »** ;
+> les poids ne sont le recours que pour les modèles sans identité de plateforme.
+>
+> **④ Briques neuves** (toutes factorisent, aucune ne double) :
+> `model_manager/services/weights_metadata.py` (faits inscrits dans les poids : licence, classes,
+> tâche, base et jeu d'entraînement — hors ligne) ; `model_manager/services/provenance.py`
+> (`identite_huggingface` mutualisée — c'était le 3ᵉ endroit à lire la même carte ; `poser_identite`
+> passe par l'API PUBLIQUE `ingest` extract→validate→write_back puis `manifest_export`) ;
+> `common/services/license_audit.py` + page **`/common/licences/`** (vue DÉRIVÉE, zéro écriture).
+> `SyncResult.added_keys` ajouté : le sync dit désormais ce qu'il vient de créer (il ne rendait
+> qu'un compteur, obligeant à photographier le catalogue avant/après).
+>
+> **⑤ licence + auteur transversal (étage A).** `AIModel.author`, `Library.author`,
+> `UserAsset.{license,author,source_url}`, `SystemAsset.author`. Vocabulaire REPRIS de
+> `media_library/providers/base.Asset`, seul endroit où le couple existait. Trou le plus grave
+> trouvé : `UserAsset` n'avait **ni licence ni auteur** — l'import des 6 fournisseurs les
+> entassait dans `tags` et le texte libre de `description`, donc une œuvre CC-BY entrait sans
+> qu'on sache qui créditer. ⚠ **Migrations NON versionnées** (`.gitignore:13`) → relancer
+> `makemigrations && migrate` sur les autres environnements.
+> **Étage B (auteur des apps/fonctions) NON FAIT** : `APP_CATALOG` n'a pas de champ, et c'est une
+> déclaration interne, pas un fait externe qu'on lit — à trancher, ne bloque rien.
+>
+> **⑥ État des licences, MESURÉ** : 111 éléments, 60 établies, 51 inconnues, 5 non commerciales
+> (4 MusicGen/AudioGen `cc-by-nc-4.0` + `depthpro` apple-amlr), 6 `other` à qualifier (FLUX, LTX,
+> Hunyuan, CogVideoX), et **31 éléments exigeant une attribution SANS auteur renseigné** — dette
+> juridique comptée à part. **6 apps sur 10 ont « inconnue » comme clause la plus contraignante.**
+> `synthesizer` a 3 `requires` hors registre. Au passage, le registre `Library` n'avait **1 ligne
+> pour 9 manifestes** (projection jamais jouée) → 9 lignes, `is_allowed=False` partout.
+>
+> **⑦ `yolo11l_face_plate_signs.pt` n'avait jamais servi** (`d90be9a`). Le modèle est sain (6
+> visages détectés sur image réelle) ; il n'était JAMAIS choisi. Deux causes : le chemin rapide
+> `SPECIALTY_KNOWN_CLASSES` **rendait sans ouvrir le fichier** (ordre de classes FAUX — l'ordre
+> EST l'index passé à `predict(classes=…)` — et classe `sign` invisible), et une classe hors de
+> `SPECIALTY_CLASSES` tombait entre deux chaises (étape 1 l'ignorait, `_find_coco_model` écarte
+> les modèles à spécialité). Sélection `['sign']` : **0 % → 100 %**.
+>
+> ### 🔴 À FAIRE EN PRIORITÉ — `common/services/model_coverage.py` est INUTILISÉ
+>
+> `couvrir_classes()` (écrit le 2026-08-04, extrait de l'anonymizer précisément pour ça) a
+> **ZÉRO consommateur**. La passe de « rattrapage » que j'ai ajoutée dans
+> `anonymizer/utils/model_selector.py` en duplique une partie **et fait moins bien** (elle prend
+> le premier modèle déclarant la classe, sans ordonner par qualité). Comparé sur le vrai
+> catalogue :
+>
+> | demande | `couvrir_classes` (commun) | anonymizer (maison) |
+> |---|---|---|
+> | `face+plate+sign` | **1 modèle** | 2 modèles |
+> | `face+plate+sign+person` | **2 modèles** | 3 (dont `yolo11l-pose` pour `person`) |
+>
+> → **Porter l'anonymizer sur `couvrir_classes`** supprime la duplication, rend le recouvrement
+> minimal, et adopte enfin la brique. Les préférences (`preferer_segmentation`, `taille_preferee`)
+> y sont déjà prévues en départage, pas en filtre.
+>
+> ### Sélection multi-critère & qualité MESURÉE — état réel
+>
+> **La sélection multi-critère existe et est riche** (`model_manager/services/model_selector.py`) :
+> filtres (source/type/candidates/name), capacités (`_supports` sur `capabilities`), appariement
+> entrée↔modèle (`matches_inputs` : `task`, `inputs_required/optional`, `consumes`), sonde de
+> disponibilité runtime, **paliers de `priority` qui dominent la VRAM**, `prefer_loaded` (résidence
+> partagée), puis budget VRAM (avec marge anti-offload) et tri par `_rang_qualite`.
+>
+> **La boucle « qualité par mesure de résultat » est OUVERTE AUX DEUX BOUTS** :
+> - `services/bench.py` mesure des grandeurs comparables par TÂCHE (latence, sorties, confiance,
+>   saturation) — mais **ne persiste rien** ; son seul appelant est la commande `bench`, qui affiche.
+> - `common/utils/qc.py` (juge LLM indépendant, 0..1, garde-fous §16.5) a **ZÉRO appelant**.
+> - `AIModel.quality_index` ne reçoit QUE l'indice **a priori structurel** (`model_quality.py`),
+>   et seulement par la branche Ollama de la découverte → **11/101 modèles**.
+> - `ModelRuntimeStat` ne stocke que des DURÉES (ETA), pas de qualité. `RunOutcome` (préalable
+>   Hermes, ROADMAP §16.7) **n'existe pas** dans le code.
+>
+> **Ce qu'il manque pour la refermer** (par ordre) : ① un lieu de stockage d'une qualité MESURÉE
+> par (modèle, tâche, protocole) — le précédent existe, c'est `ModelRuntimeStat` bucketisé par
+> empreinte matérielle ; ② `bench --ecrire` qui persiste (même geste que `backfill_platform_refs`) ;
+> ③ `_rang_qualite` qui préfère la mesure à l'a priori ; ④ une VÉRITÉ TERRAIN (échantillons
+> annotés) — `bench.py` dit lui-même que sans elle il classe des candidats, il ne les juge pas ;
+> ⑤ un appelant pour `qc.py` (le runner nocturne est le candidat naturel).
+
 ## §REPRISE — 2026-08-12 (session UI/média/résidence, instance parallèle) : exclusivité audio + préchargement TTS + RÉSIDENCE des modèles
 
 > Périmètre disjoint du chantier manifestes mené en parallèle (aucun fichier commun).
