@@ -44,6 +44,7 @@
       "preferred_format": "onnx"
     },
     "identity": {
+      "author": null,
       "description_short": "Coqui XTTS v2 — TTS multilingue avec clonage de voix.",
       "hf_id": null,
       "license": null,

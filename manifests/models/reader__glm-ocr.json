@@ -19,6 +19,7 @@
       "preferred_format": null
     },
     "identity": {
+      "author": null,
       "description_short": "GLM-OCR 0.9B — via Ollama — léger, excellent sur documents courants",
       "hf_id": null,
       "license": null,

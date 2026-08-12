@@ -19,6 +19,7 @@
       "preferred_format": "safetensors"
     },
     "identity": {
+      "author": "stabilityai",
       "description_short": "Stable Diffusion XL — haute résolution (compatibilité LoRA)",
       "hf_id": "stabilityai/stable-diffusion-xl-base-1.0",
       "license": "openrail++",

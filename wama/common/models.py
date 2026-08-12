@@ -402,6 +402,12 @@ class Library(models.Model):
     # ── Facettes DÉCLARATIVES (miroir du body du manifeste, écrites par la projection) ──
     version = models.CharField(max_length=64, blank=True, default='')
     license = models.CharField(max_length=128, blank=True, default='')
+    # Auteur/éditeur — pendant de `license`, et pour les mêmes raisons : une licence à
+    # attribution (CC-BY, BSD, MIT…) est INAPPLICABLE sans le nom à citer. Le couple
+    # licence+auteur existait déjà dans `media_library/providers/base.Asset` ; on en reprend
+    # le vocabulaire au lieu d'en inventer un second (2026-08-12).
+    author = models.CharField(max_length=200, blank=True, default='',
+                              help_text="Auteur/éditeur déclaré en amont (métadonnée PyPI `Author`).")
     repository = models.CharField(max_length=300, blank=True, default='')
     pip_spec = models.CharField(
         max_length=200, blank=True, default='',
@@ -442,7 +448,7 @@ class Library(models.Model):
     #: Champs que la projection a le droit d'écrire. Tout le reste (`is_allowed`, état runtime,
     #: timestamps) est HORS projection — cf. les deux blocs ci-dessus.
     PROJECTABLE_FIELDS = (
-        'name', 'summary', 'version', 'license', 'repository',
+        'name', 'summary', 'version', 'license', 'author', 'repository',
         'pip_spec', 'requires_python', 'entry_points', 'dependencies', 'constraints',
     )
 
@@ -453,6 +459,7 @@ class Library(models.Model):
             'summary': self.summary,
             'version': self.version,
             'license': self.license,
+            'author': self.author,
             'repository': self.repository,
             'pip_spec': self.pip_spec,
             'requires_python': self.requires_python,

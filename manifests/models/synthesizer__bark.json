@@ -37,6 +37,7 @@
       "preferred_format": "onnx"
     },
     "identity": {
+      "author": null,
       "description_short": "Bark — TTS expressif avec effets sonores.",
       "hf_id": null,
       "license": null,

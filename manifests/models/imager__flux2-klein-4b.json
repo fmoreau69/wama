@@ -17,6 +17,7 @@
       "preferred_format": "safetensors"
     },
     "identity": {
+      "author": "black-forest-labs",
       "description_short": "FLUX.2 Klein 4B — ultra-rapide (<1 s), Apache 2.0",
       "hf_id": "black-forest-labs/FLUX.2-klein-4B",
       "license": "apache-2.0",

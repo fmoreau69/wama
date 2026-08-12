@@ -207,10 +207,18 @@ class Command(BaseCommand):
                 info = api.model_info(m.hf_id)
                 carte = info.card_data
                 lic = (carte.to_dict().get('license') if carte else None) or ''
+                # L'auteur vient de la MEME requete : le separer en couterait une seconde par
+                # modele pour un fait deja sur la table. `author` d'HuggingFace, a defaut le
+                # namespace du depot (`org/repo`) -- qui EST l'editeur sur cette plateforme.
+                auteur = (getattr(info, 'author', '') or m.hf_id.partition('/')[0] or '')
             except Exception as e:
                 echecs += 1
                 self.stderr.write(f"  {m.hf_id} : {type(e).__name__}")
                 continue
+            if auteur and auteur[:200] != m.author:
+                m.author = auteur[:200]
+                if ecrire:
+                    m.save(update_fields=['author'])
             lic = str(lic)[:64]
             if not lic or lic == m.license:
                 continue

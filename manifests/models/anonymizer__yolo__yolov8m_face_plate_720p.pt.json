@@ -34,6 +34,7 @@
       "preferred_format": "onnx"
     },
     "identity": {
+      "author": null,
       "description_short": "YOLO detect (faces&plates)",
       "hf_id": null,
       "license": null,

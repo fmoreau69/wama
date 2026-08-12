@@ -32,6 +32,7 @@
       "preferred_format": "onnx"
     },
     "identity": {
+      "author": "jags",
       "description_short": "YOLO segment (faces)",
       "hf_id": "jags/yolov8_model_segmentation-set",
       "license": "apache-2.0",

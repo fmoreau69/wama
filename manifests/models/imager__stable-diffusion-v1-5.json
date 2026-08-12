@@ -19,6 +19,7 @@
       "preferred_format": "safetensors"
     },
     "identity": {
+      "author": "stable-diffusion-v1-5",
       "description_short": "Stable Diffusion 1.5 — classique (compatibilité LoRA)",
       "hf_id": "stable-diffusion-v1-5/stable-diffusion-v1-5",
       "license": "creativeml-openrail-m",

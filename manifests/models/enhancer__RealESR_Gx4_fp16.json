@@ -21,6 +21,7 @@
       "preferred_format": "onnx"
     },
     "identity": {
+      "author": null,
       "description_short": "Real-ESR general ×4 — généraliste ultra-léger.",
       "hf_id": null,
       "license": null,

@@ -21,6 +21,7 @@
       "preferred_format": "onnx"
     },
     "identity": {
+      "author": null,
       "description_short": "Real-ESRGAN Anime ×4 — dessins et illustrations.",
       "hf_id": null,
       "license": null,

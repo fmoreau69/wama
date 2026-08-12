@@ -11,6 +11,7 @@
     ],
     "entry_points": {},
     "identity": {
+      "author": "Guillaume Klein",
       "license": "MIT",
       "repository": "https://github.com/SYSTRAN/faster-whisper",
       "summary": "Faster Whisper transcription with CTranslate2",

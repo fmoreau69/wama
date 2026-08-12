@@ -31,6 +31,7 @@
       "preferred_format": "onnx"
     },
     "identity": {
+      "author": "morsetechlab",
       "description_short": "YOLO detect (plates)",
       "hf_id": "morsetechlab/yolov11-license-plate-detection",
       "license": "agpl-3.0",

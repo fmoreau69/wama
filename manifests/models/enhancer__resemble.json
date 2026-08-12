@@ -21,6 +21,7 @@
       "preferred_format": null
     },
     "identity": {
+      "author": null,
       "description_short": "Restauration par diffusion — débruitage + extension de bande, meilleure qualité",
       "hf_id": null,
       "license": null,

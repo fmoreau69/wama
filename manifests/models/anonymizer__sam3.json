@@ -30,6 +30,7 @@
       "preferred_format": "onnx"
     },
     "identity": {
+      "author": null,
       "description_short": "SAM3 (Meta) — segmentation par prompt texte.",
       "hf_id": null,
       "license": null,

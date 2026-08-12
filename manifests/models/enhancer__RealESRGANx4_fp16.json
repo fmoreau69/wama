@@ -21,6 +21,7 @@
       "preferred_format": "onnx"
     },
     "identity": {
+      "author": null,
       "description_short": "Real-ESRGAN ×4 — super-résolution photo de référence.",
       "hf_id": null,
       "license": null,

@@ -17,6 +17,7 @@
       "preferred_format": "safetensors"
     },
     "identity": {
+      "author": "Qwen",
       "description_short": "Qwen Image 2 (20B) — #1 open source, text rendering, 2K natif",
       "hf_id": "Qwen/Qwen-Image-2512",
       "license": "apache-2.0",

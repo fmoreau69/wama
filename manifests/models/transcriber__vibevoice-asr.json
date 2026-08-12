@@ -25,6 +25,7 @@
       "preferred_format": "onnx"
     },
     "identity": {
+      "author": null,
       "description_short": "VibeVoice-ASR — multi-locuteurs, précis, un seul passage. Diarisation + timestamps natifs.",
       "hf_id": null,
       "license": null,

@@ -18,6 +18,7 @@
       "preferred_format": "safetensors"
     },
     "identity": {
+      "author": "Qwen",
       "description_short": "Qwen Image Edit — édition multi-image, 14 images, 2K",
       "hf_id": "Qwen/Qwen-Image-Edit-2511",
       "license": "apache-2.0",

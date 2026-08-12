@@ -22,6 +22,7 @@
       "preferred_format": "pth"
     },
     "identity": {
+      "author": "TMElyralab",
       "description_short": "Lip-sync pipeline v1.5 (UNet + DWPose + Whisper + SD-VAE + SyncNet)",
       "hf_id": "TMElyralab/MuseTalk",
       "license": "creativeml-openrail-m",

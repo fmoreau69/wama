@@ -7,6 +7,7 @@
     ],
     "entry_points": {},
     "identity": {
+      "author": "Bastian Bechtold",
       "license": "BSD 3-Clause License",
       "repository": "https://github.com/bastibe/python-soundfile",
       "summary": "An audio library based on libsndfile, CFFI and NumPy",

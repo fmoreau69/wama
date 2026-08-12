@@ -18,6 +18,7 @@
       "preferred_format": "safetensors"
     },
     "identity": {
+      "author": "zai-org",
       "description_short": "CogVideoX 5B — Image-to-Video, 24 fps",
       "hf_id": "THUDM/CogVideoX-5b-I2V",
       "license": "other",

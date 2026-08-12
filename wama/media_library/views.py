@@ -495,7 +495,9 @@ def api_provider_download(request):
     content   = ContentFile(file_bytes, name=file_name)
     mime_type = mimetypes.guess_type(file_name)[0] or ''
 
-    # Enrichir les tags avec licence et auteur
+    # Les tags gardent licence/auteur pour la recherche plein texte, mais ils ne sont plus le
+    # SEUL endroit où l'attribution existe : elle est désormais portée par des champs propres
+    # (interrogeables, et lisibles par l'audit de licences).
     extra_tags = [t for t in [license_, author, slug] if t]
     full_tags  = ', '.join(filter(None, [tags] + extra_tags))[:500]
 
@@ -503,6 +505,9 @@ def api_provider_download(request):
         user=user, name=asset_name, asset_type=asset_type,
         file=content, description=f'Source : {slug} (CC : {license_})',
         tags=full_tags,
+        license=(license_ or '')[:100],
+        author=(author or '')[:200],
+        source_url=(body.get('source_url') or body.get('url') or '')[:1000],
     )
     asset.mime_type = mime_type
     asset.file_size = len(file_bytes)

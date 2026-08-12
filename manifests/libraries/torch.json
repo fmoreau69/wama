@@ -33,6 +33,7 @@
       ]
     },
     "identity": {
+      "author": "PyTorch Team <packages@pytorch.org>",
       "license": "BSD-3-Clause",
       "repository": "https://github.com/pytorch/pytorch",
       "summary": "Tensors and Dynamic neural networks in Python with strong GPU acceleration",

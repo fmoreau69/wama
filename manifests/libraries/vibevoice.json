@@ -24,6 +24,7 @@
     ],
     "entry_points": {},
     "identity": {
+      "author": "vibevoice team <VibeVoice@microsoft.com>",
       "license": null,
       "repository": "https://github.com/microsoft/VibeVoice",
       "summary": "Open-Source Frontier Voice AI.",

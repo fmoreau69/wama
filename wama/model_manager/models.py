@@ -396,6 +396,15 @@ class AIModel(models.Model):
     license = models.CharField(max_length=64, blank=True, default='', db_index=True,
                                help_text="Identifiant SPDX quand il existe (apache-2.0, agpl-3.0, cc-by-nc-4.0…).")
 
+    # Auteur/editeur du modele. INDISSOCIABLE de `license` : une licence a attribution
+    # (cc-by-*, bsd, mit, et l'Etalab 2.0 de Panoramax) est inapplicable sans le nom a citer --
+    # on ne pouvait donc pas satisfaire les licences qu'on venait tout juste d'inventorier.
+    # Vocabulaire repris de `media_library/providers/base.Asset` (seul endroit de WAMA ou le
+    # couple existait deja), et non reinvente. Porte par le manifeste comme `license`.
+    author = models.CharField(max_length=200, blank=True, default='', db_index=True,
+                              help_text="Auteur/editeur declare en amont (organisation HuggingFace, "
+                                        "editeur Ollama, laboratoire…).")
+
     # Identite du modele sur SA plateforme : 'huggingface:org/repo', 'ollama:gemma4',
     # 'roboflow:projet/3'. C'est le FAIT ; l'URL n'en est qu'un rendu, derive par platform_url --
     # sinon un changement de schema d'adresse chez la plateforme invaliderait autant de chaines
@@ -469,6 +478,7 @@ class AIModel(models.Model):
             'description_short': self.description_short,
             'hf_id': self.hf_id,
             'license': self.license,
+            'author': self.author,
             'platform_ref': self.platform_ref,
             'platform_url': self.platform_url,
             'platform_label': self.platform_label,

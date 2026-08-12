@@ -20,6 +20,7 @@
       "preferred_format": null
     },
     "identity": {
+      "author": null,
       "description_short": "SpeedySpeech — TTS très rapide, qualité moindre.",
       "hf_id": null,
       "license": null,

@@ -16,6 +16,7 @@
       "preferred_format": "safetensors"
     },
     "identity": {
+      "author": "Salesforce",
       "description_short": "BLIP — légendage d'images (captioning)",
       "hf_id": "Salesforce/blip-image-captioning-large",
       "license": "bsd-3-clause",

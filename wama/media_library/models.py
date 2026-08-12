@@ -82,6 +82,17 @@ class UserAsset(ScopedVisibility, models.Model):
     duration   = models.FloatField(null=True, blank=True)          # secondes (voix, vidéo)
     description = models.TextField(blank=True)
     tags       = models.CharField(max_length=500, blank=True)      # CSV "tag1,tag2"
+    # ── Attribution ────────────────────────────────────────────────────────────
+    # Les 6 fournisseurs (Wikimedia, Openverse, Jamendo, Freesound, Pixabay, Pexels) rendent
+    # DÉJÀ `license` et `author` (providers/base.Asset:18-19) ; l'import les entassait dans
+    # `tags` et dans le texte libre de `description`. Une licence à attribution y devenait
+    # donc ni interrogeable ni fiable, alors que citer l'auteur est justement ce que CC-BY
+    # EXIGE. Champs ajoutés le 2026-08-12 ; `tags` garde les siens (recherche plein texte).
+    license    = models.CharField(max_length=100, blank=True, help_text="CC0, CC-BY, etc.")
+    author     = models.CharField(max_length=200, blank=True,
+                                  help_text="Auteur à créditer (obligatoire pour les licences à attribution).")
+    source_url = models.URLField(blank=True, max_length=1000,
+                                 help_text="Page d'origine — la citation complète l'exige aussi.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -132,6 +143,11 @@ class SystemAsset(models.Model):
     tags       = models.CharField(max_length=500, blank=True)
     source_url = models.URLField(blank=True, help_text="URL d'origine pour re-téléchargement")
     license    = models.CharField(max_length=100, blank=True, help_text="CC0, CC-BY, etc.")
+    # Les 6 fournisseurs renseignent DÉJÀ `author` (providers/base.Asset:19) et l'enregistrement
+    # le jetait : on stockait « CC-BY » sans le nom à créditer, alors que l'attribution est
+    # précisément ce que cette licence EXIGE. Champ ajouté le 2026-08-12.
+    author     = models.CharField(max_length=200, blank=True,
+                                  help_text="Auteur à créditer (obligatoire pour les licences à attribution).")
     is_active  = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

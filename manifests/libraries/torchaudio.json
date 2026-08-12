@@ -6,6 +6,7 @@
     ],
     "entry_points": {},
     "identity": {
+      "author": "Soumith Chintala, David Pollack, Sean Naren, Peter Goldsborough, Moto Hira, Caroline Chen, Jeff Hwang, Zhaoheng Ni, Xiaohui Zhang",
       "license": null,
       "repository": "https://github.com/pytorch/audio",
       "summary": "An audio package for PyTorch",

@@ -23,6 +23,7 @@
       "preferred_format": null
     },
     "identity": {
+      "author": "facebook",
       "description_short": "MusicGen Small — génération rapide, 300M params",
       "hf_id": "facebook/musicgen-small",
       "license": "cc-by-nc-4.0",

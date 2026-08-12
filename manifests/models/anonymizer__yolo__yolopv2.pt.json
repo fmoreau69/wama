@@ -27,6 +27,7 @@
       "preferred_format": "onnx"
     },
     "identity": {
+      "author": null,
       "description_short": "YOLO segment",
       "hf_id": null,
       "license": null,

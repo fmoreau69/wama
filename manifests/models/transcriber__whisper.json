@@ -25,6 +25,7 @@
       "preferred_format": "onnx"
     },
     "identity": {
+      "author": null,
       "description_short": "large-v3 — rapide, polyvalent, multilingue. Diarisation via pyannote.",
       "hf_id": null,
       "license": null,

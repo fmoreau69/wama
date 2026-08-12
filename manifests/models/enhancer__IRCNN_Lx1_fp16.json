@@ -20,6 +20,7 @@
       "preferred_format": "onnx"
     },
     "identity": {
+      "author": null,
       "description_short": "IRCNN L ×1 — débruitage sans agrandissement.",
       "hf_id": null,
       "license": null,

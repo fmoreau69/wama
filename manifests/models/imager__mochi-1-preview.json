@@ -17,6 +17,7 @@
       "preferred_format": "safetensors"
     },
     "identity": {
+      "author": "genmo",
       "description_short": "Mochi-1 Preview — haute qualité, 30 fps",
       "hf_id": "genmo/mochi-1-preview",
       "license": "apache-2.0",

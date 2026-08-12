@@ -87,6 +87,10 @@ def extract_model(key: str) -> Optional[dict]:
             # (AIModel.platform_url), sinon un changement de schema d'adresse chez une
             # plateforme perimerait autant de chaines stockees qu'il y a de modeles.
             'license': m.license or None,
+            # `author` voyage AVEC `license` : une licence à attribution est inapplicable sans
+            # le nom à citer, donc les séparer reviendrait à porter une obligation sans le moyen
+            # de la tenir.
+            'author': m.author or None,
             'platform_ref': m.platform_ref or None,
             'description_short': m.description_short or None,
         },
@@ -134,6 +138,7 @@ def extract_model(key: str) -> Optional[dict]:
 # soit de l'etat runtime, soit le produit de la DECOUVERTE : un manifeste n'a pas a en decider.
 _CHAMPS_PROJETES = [
     ('license', lambda m, b: (b.get('identity') or {}).get('license') or ''),
+    ('author', lambda m, b: (b.get('identity') or {}).get('author') or ''),
     ('platform_ref', lambda m, b: (b.get('identity') or {}).get('platform_ref') or ''),
 ]
 

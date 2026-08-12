@@ -20,6 +20,7 @@
     ],
     "entry_points": {},
     "identity": {
+      "author": "Brian McFee, librosa development team",
       "license": "ISC",
       "repository": "https://github.com/librosa/librosa",
       "summary": "Python module for audio and music processing",

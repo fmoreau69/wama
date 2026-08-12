@@ -29,6 +29,7 @@
       "preferred_format": "onnx"
     },
     "identity": {
+      "author": null,
       "description_short": "Kokoro 82M — TTS multilingue ultra-léger.",
       "hf_id": null,
       "license": null,

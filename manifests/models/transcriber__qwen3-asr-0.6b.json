@@ -25,6 +25,7 @@
       "preferred_format": "onnx"
     },
     "identity": {
+      "author": null,
       "description_short": "Qwen3-ASR 0.6B — rapide, context biasing, 52 langues",
       "hf_id": null,
       "license": null,

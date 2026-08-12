@@ -19,6 +19,7 @@
       "preferred_format": "onnx"
     },
     "identity": {
+      "author": "openai",
       "description_short": "Whisper — transcription audio (description de contenus sonores)",
       "hf_id": "openai/whisper-base",
       "license": "apache-2.0",

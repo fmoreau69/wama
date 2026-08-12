@@ -19,6 +19,7 @@
       "preferred_format": null
     },
     "identity": {
+      "author": null,
       "description_short": "docTR (Mindee) — pipeline CPU, imprimé, bonne gestion des formulaires",
       "hf_id": null,
       "license": null,

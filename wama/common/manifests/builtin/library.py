@@ -75,6 +75,10 @@ def extract_library(key: str) -> Optional[dict]:
         'identity': {
             'version': dist.version,
             'license': meta.get('License-Expression') or meta.get('License') or None,
+            # `Author` est souvent vide au profit de `Author-email` (« Nom <a@b.c> ») dans les
+            # métadonnées PyPI modernes : on prend le premier des deux qui est renseigné plutôt
+            # que de conclure « pas d'auteur » sur le seul champ historique.
+            'author': meta.get('Author') or meta.get('Author-email') or None,
             'summary': meta.get('Summary') or None,
             'repository': depot,
         },
@@ -119,6 +123,7 @@ _CHAMPS_PROJETES = (
     ('summary',         lambda m, b: (b.get('identity') or {}).get('summary') or m.get('description') or ''),
     ('version',         lambda m, b: (b.get('identity') or {}).get('version') or ''),
     ('license',         lambda m, b: (b.get('identity') or {}).get('license') or ''),
+    ('author',          lambda m, b: (b.get('identity') or {}).get('author') or ''),
     ('repository',      lambda m, b: (b.get('identity') or {}).get('repository') or ''),
     ('pip_spec',        lambda m, b: (b.get('install') or {}).get('pip') or ''),
     ('requires_python', lambda m, b: (b.get('install') or {}).get('requires_python') or ''),

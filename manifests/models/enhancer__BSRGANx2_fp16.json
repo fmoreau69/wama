@@ -21,6 +21,7 @@
       "preferred_format": "onnx"
     },
     "identity": {
+      "author": null,
       "description_short": "BSRGAN ×2 — agrandissement modéré, robuste.",
       "hf_id": null,
       "license": null,

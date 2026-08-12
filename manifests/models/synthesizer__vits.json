@@ -20,6 +20,7 @@
       "preferred_format": null
     },
     "identity": {
+      "author": null,
       "description_short": "VITS — TTS léger mono-locuteur par langue.",
       "hf_id": null,
       "license": null,

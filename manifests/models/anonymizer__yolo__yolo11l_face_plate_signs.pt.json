@@ -34,6 +34,7 @@
       "preferred_format": "onnx"
     },
     "identity": {
+      "author": "Panoramax",
       "description_short": "YOLO detect (faces&plates)",
       "hf_id": "Panoramax/detect_face_plate_sign",
       "license": "etalab-2.0",
