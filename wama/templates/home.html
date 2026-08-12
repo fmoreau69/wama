@@ -76,7 +76,7 @@
       // ── Voice / TTS state ─────────────────────────────────────────────────
       const VOICE_KEY = 'wama_ai_voice_{{ request.user.username }}';
       let voiceEnabled = localStorage.getItem(VOICE_KEY) === '1';
-      let currentSpeechAudio = null;
+      // (l'état de lecture vit désormais dans WamaApp.Speech — canal unique commun)
       const voiceToggleBtn = document.getElementById('ai-voice-toggle');
       const voiceSelect = document.getElementById('ai-voice-select');
       const micBtn = document.getElementById('ai-mic-btn');
@@ -144,31 +144,30 @@
       }
 
       // ── TTS via Kokoro backend ────────────────────────────────────────────
+      // Canal de parole = brique commune WamaApp.Speech : un seul flux à la fois,
+      // et surtout les réponses des requêtes périmées sont jetées. Le code d'ici
+      // se contentait de couper la lecture en cours AVANT le fetch — or au 1er
+      // appel le modèle se charge (plusieurs secondes) : plusieurs clics sur 🔊
+      // partaient en parallèle et TOUTES les réponses se jouaient ensemble.
       async function speakText(text) {
-        if (currentSpeechAudio) {
-          currentSpeechAudio.pause();
-          currentSpeechAudio = null;
-        }
         const clean = stripMarkdownForTTS(text);
         if (!clean) return;
+        const turn = WamaApp.Speech.claim();
         try {
           const resp = await fetch('/api/tts-kokoro/', {
             method: 'POST',
+            signal: turn.signal,
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
             body: JSON.stringify({ text: clean, voice: voiceSelect.value })
           });
           const data = await resp.json();
-          if (!data.audio_b64) return;
+          if (!turn.valid() || !data.audio_b64) return;   // un clic plus récent a pris la main
           const binStr = atob(data.audio_b64);
           const bytes = new Uint8Array(binStr.length);
           for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
-          const blob = new Blob([bytes], { type: 'audio/wav' });
-          const url = URL.createObjectURL(blob);
-          currentSpeechAudio = new Audio(url);
-          currentSpeechAudio.play();
-          currentSpeechAudio.onended = () => { URL.revokeObjectURL(url); currentSpeechAudio = null; };
+          turn.play(new Blob([bytes], { type: 'audio/wav' }));
         } catch(e) {
-          console.error('Kokoro TTS error:', e);
+          if (e.name !== 'AbortError') console.error('Kokoro TTS error:', e);
         }
       }
 

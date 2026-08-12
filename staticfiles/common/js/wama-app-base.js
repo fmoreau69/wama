@@ -250,12 +250,114 @@
       try { m.pause(); } catch (_) {}
     });
   }
+  // ── Exclusivité INTER-ONGLETS (BroadcastChannel) ───────────────────────────
+  // L'exclusivité ci-dessus est locale à UNE page. Deux onglets WAMA s'ignorent :
+  // vocaliser depuis l'AI-Assistant (accueil) puis lancer un aperçu dans un autre
+  // onglet superposait les deux sons. On diffuse donc « je prends la parole » ;
+  // les autres onglets se taisent. Aucun état partagé, aucun verrou : un message,
+  // et seul l'émetteur continue. Pas de boucle possible — on n'émet que sur `play`,
+  // et faire taire n'émet rien.
+  // data-wama-multiplay garde sa sémantique : ces médias ne RÉCLAMENT pas le canal
+  // (le cam_analyzer joue 4 caméras de front, il n'a pas à faire taire les autres).
+  var mediaChannel = null;
+  try {
+    if (typeof BroadcastChannel !== 'undefined') mediaChannel = new BroadcastChannel('wama-media');
+  } catch (_) { mediaChannel = null; }   // navigateur ancien / contexte restreint → dégradation locale
+  var TAB_ID = Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+  function claimAudioChannel() {
+    if (!mediaChannel) return;
+    try { mediaChannel.postMessage({ t: 'play', tab: TAB_ID }); } catch (_) {}
+  }
+  function silenceLocal() {
+    pauseDomMedia(null);
+    if (global.WamaAudioPlayer) WamaAudioPlayer.pauseAll();
+    stopSpeech();
+  }
+  if (mediaChannel) {
+    mediaChannel.onmessage = function (e) {
+      var d = e && e.data;
+      if (!d || d.t !== 'play' || d.tab === TAB_ID) return;
+      silenceLocal();
+    };
+  }
+
   document.addEventListener('play', function (e) {
     const playing = e.target;
     if (playing.closest && playing.closest('[data-wama-multiplay]')) return;
     pauseDomMedia(playing);
     if (global.WamaAudioPlayer) WamaAudioPlayer.pauseAll();
+    stopSpeech();   // la voix de synthèse est un média comme un autre : elle se fait couper
+    claimAudioChannel();
   }, true);
+
+  // ── Vocalisation (TTS) : canal de parole UNIQUE pour toute la plateforme ────
+  // L'exclusivité ci-dessus ne suffit pas pour la parole, et ce n'est PAS un
+  // problème de lecture mais de REQUÊTE. Entre le clic sur 🔊 et l'arrivée de
+  // l'audio il s'écoule un temps NON BORNÉ (au 1er appel, le modèle se charge).
+  // N clics = N requêtes en vol dont les réponses reviennent ensemble : couper la
+  // lecture au début de la fonction ne sert à rien, il n'y a encore rien à couper.
+  // D'où un jeton de génération : une réponse issue d'une génération périmée est
+  // JETÉE sans être jouée, et la requête en vol est abandonnée.
+  // Constaté sur l'AI-Assistant (clics répétés pendant le chargement de Kokoro).
+  let speechGen = 0;         // génération courante
+  let speechAudio = null;    // lecture en cours (Audio() hors DOM)
+  let speechAbort = null;    // requête en vol
+  let speechUrl = null;      // ObjectURL à révoquer
+
+  function stopSpeechPlayback() {
+    if (speechAudio) { try { speechAudio.pause(); } catch (_) {} speechAudio = null; }
+    if (speechUrl) { try { URL.revokeObjectURL(speechUrl); } catch (_) {} speechUrl = null; }
+  }
+  function stopSpeech() {
+    stopSpeechPlayback();
+    if (speechAbort) { try { speechAbort.abort(); } catch (_) {} speechAbort = null; }
+  }
+
+  const Speech = {
+    /** Réserve le canal de parole et renvoie un jeton de tour.
+     *  Coupe la vocalisation en cours ET invalide toute requête antérieure.
+     *    const turn = WamaApp.Speech.claim();
+     *    const r = await fetch(url, { signal: turn.signal, ... });
+     *    turn.play(blob);            // ne joue QUE si ce tour est encore le dernier
+     *  `turn.valid()` se teste après CHAQUE await si du travail s'intercale. */
+    claim: function () {
+      stopSpeech();
+      const gen = ++speechGen;
+      speechAbort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      return {
+        signal: speechAbort ? speechAbort.signal : undefined,
+        valid: function () { return gen === speechGen; },
+        play: function (src) { return gen === speechGen ? Speech.play(src) : null; },
+      };
+    },
+
+    /** Joue un Blob (ou une URL) sur le canal de parole, en coupant le reste de
+     *  la page. Renvoie l'Audio, ou null si la source est vide. */
+    play: function (src) {
+      if (!src) return null;
+      stopSpeechPlayback();
+      let url = src;
+      if (typeof Blob !== 'undefined' && src instanceof Blob) {
+        url = URL.createObjectURL(src);
+        speechUrl = url;
+      }
+      pauseDomMedia(null);
+      if (global.WamaAudioPlayer) WamaAudioPlayer.pauseAll();
+      claimAudioChannel();          // la voix fait taire les AUTRES onglets aussi
+      const a = new Audio(url);
+      speechAudio = a;
+      const done = function () { if (speechAudio === a) stopSpeechPlayback(); };
+      a.addEventListener('ended', done);
+      a.addEventListener('error', done);
+      const p = a.play();
+      if (p && p.catch) p.catch(function () {});   // autoplay refusé → pas d'exception non capturée
+      return a;
+    },
+
+    stop: stopSpeech,
+    isSpeaking: function () { return !!(speechAudio && !speechAudio.paused); },
+  };
 
   // ── Onglet ciblé par l'ancre (#about-pane, #help-pane…) ─────────────────────
   // Les routes /about/ et /help/ des apps REDIRIGENT vers l'index ancré sur l'onglet
@@ -282,6 +384,8 @@
     toast: toast,
     initUrlImport: initUrlImport,
     pauseDomMedia: pauseDomMedia,
+    claimAudioChannel: claimAudioChannel,
+    Speech: Speech,
     STATUS_BADGE: STATUS_BADGE,
     STATUS_LABEL: STATUS_LABEL,
   };

@@ -310,7 +310,11 @@
   function applyShuttle() {
     shuttle = SHUTTLE[shuttleIdx];
     const a = audio(); if (!a) { shuttleLabel(); return; }
-    if (shuttle > 0) { stopReverse(); a.playbackRate = shuttle; a.play().catch(function () {}); }
+    if (shuttle > 0) {
+      stopReverse(); a.playbackRate = shuttle;
+      if (window.WamaAudioPlayer) WamaAudioPlayer.play(playerId);   // exclusivité commune
+      else a.play().catch(function () {});
+    }
     else if (shuttle < 0) { a.pause(); startReverse(-shuttle); }
     else { stopReverse(); a.pause(); a.playbackRate = playbackRate; }
     shuttleLabel();
@@ -358,8 +362,11 @@
     stopReverse(); shuttleIdx = STOP_IDX; shuttle = 0;
     if (a.paused) {
       a.playbackRate = playbackRate;
-      if (window.WamaAudioPlayer) WamaAudioPlayer.pauseAll();
-      a.play().catch(function () {});
+      // Exclusivité déléguée au commun (WamaAudioPlayer.play). L'ancien pauseAll()
+      // local ne coupait QUE les autres players : ni les <audio>/<video> du DOM,
+      // ni la vocalisation. Ne pas ré-implémenter l'exclusivité ici.
+      if (window.WamaAudioPlayer) WamaAudioPlayer.play(playerId);
+      else a.play().catch(function () {});
     } else { a.pause(); }
     shuttleLabel();
   }

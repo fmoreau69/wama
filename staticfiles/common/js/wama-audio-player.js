@@ -14,6 +14,7 @@
  *   .inject(url, id, parent, opts) → insère dans parent
  *   .init(container, autoplay)     → initialise un container existant
  *   .destroy(id)                   → stoppe + supprime du DOM
+ *   .play(id)                      → démarre EN EXCLUSIVITÉ (players + DOM + voix)
  *   .pauseAll()                    → met en pause tous les players
  */
 (function(global) {
@@ -43,6 +44,11 @@
         // de wama-app-base ne les voit pas — on coupe donc nous-mêmes les <audio>/<video>
         // de la page (cards, aperçus). Réciproque assurée par WamaApp (pauseAll).
         if (window.WamaApp && WamaApp.pauseDomMedia) WamaApp.pauseDomMedia(null);
+        // La voix de synthèse est elle aussi un Audio() hors DOM (WamaApp.Speech) :
+        // invisible au listener 'play', il faut la couper explicitement.
+        if (window.WamaApp && WamaApp.Speech) WamaApp.Speech.stop();
+        // Hors DOM ⇒ pas d'événement 'play' ⇒ l'annonce inter-onglets ne partirait pas.
+        if (window.WamaApp && WamaApp.claimAudioChannel) WamaApp.claimAudioChannel();
     }
 
     /* ── Dessin waveform ─────────────────────────────────────────────── */
@@ -358,12 +364,29 @@
             return s ? s.audio : null;
         },
 
+        /** Démarre un player EN EXCLUSIVITÉ : coupe les autres players, les
+         *  <audio>/<video> du DOM et la voix de synthèse.
+         *
+         *  À utiliser au lieu de `getAudio(id).play()` : nos Audio() vivent HORS du
+         *  DOM, donc l'événement 'play' n'atteint jamais le listener commun et la
+         *  lecture directe contourne l'exclusivité. Les apps compensaient à la main
+         *  par un `pauseAll()` — incomplet, car il ne coupait QUE les autres players
+         *  (ni les médias du DOM, ni la vocalisation). */
+        play: function(playerId) {
+            var a = this.getAudio(playerId);
+            if (!a) return null;
+            pauseOthers(String(playerId));
+            a.play().catch(function() {});
+            return a;
+        },
+
         /** Positionne la lecture à `seconds` (init si nécessaire) + joue optionnellement. */
         seek: function(playerId, seconds, play) {
             var a = this.getAudio(playerId);
             if (!a || !isFinite(seconds)) return;
             try { a.currentTime = Math.max(0, seconds); } catch (e) {}
-            if (play) { this.pauseAll(); a.play().catch(function() {}); }
+            // pauseOthers (et non pauseAll) : exclusivité COMPLÈTE — players + DOM + voix.
+            if (play) { pauseOthers(String(playerId)); a.play().catch(function() {}); }
         },
     };
 

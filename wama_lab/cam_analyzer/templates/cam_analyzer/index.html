@@ -43,8 +43,14 @@
         </div>
     </div>
 
+    {% comment %}
+      data-wama-multiplay : la lecture SIMULTANÉE est ici le cœur du métier — syncPlay()
+      démarre toutes les caméras ensemble avec leur time_offset pour une vue synchronisée.
+      Sans cette échappatoire, l'exclusivité commune (wama-app-base.js, listener 'play' en
+      capture) coupe chaque vidéo dès que la suivante démarre : seule la dernière survit.
+    {% endcomment %}
     <!-- Camera Grid with Shuttle -->
-    <div class="camera-grid-wrapper">
+    <div class="camera-grid-wrapper" data-wama-multiplay>
         <!-- Front camera (top) -->
         <div class="camera-slot" data-position="front" id="slot-front">
             <div class="camera-drop-zone" id="dropzone-front" data-wama-app="cam_analyzer" data-position="front">
