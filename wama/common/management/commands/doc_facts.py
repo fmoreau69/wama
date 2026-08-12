@@ -139,8 +139,18 @@ def _fait_mecanismes():
             continue
 
     def _consommateurs(mecanisme):
-        """Fichiers qui IMPORTENT le domicile (ou une annexe), hors le mécanisme lui-même."""
+        """
+        Fichiers qui IMPORTENT le domicile (ou une annexe), hors le mécanisme lui-même.
+
+        Quand `symbole` est renseigné, on compte les importateurs de CE symbole et non du
+        module : un mécanisme logé dans un module partagé (`common/models.py`) héritait sinon
+        du compte de tous ses importateurs, quelle que soit la raison de leur import.
+        """
         siens = {mecanisme.domicile, *mecanisme.annexes}
+        if mecanisme.symbole:
+            motif = re.compile(rf'\b{re.escape(mecanisme.symbole)}\b')
+            return sorted({rel for rel, src in sources.items()
+                           if rel not in siens and motif.search(src)})
         motifs = []
         for chemin in siens:
             pointe = chemin[:-3].replace('/', '.')          # wama/common/x.py → wama.common.x

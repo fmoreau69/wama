@@ -2778,6 +2778,26 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > juger là où elle n'existe pas. Ordre de construction retenu, des FAITS vers les INFÉRENCES :
 > `RunOutcome` → divergence inter-modèles → juge LLM calibré.
 >
+> ### ⚠ CORRECTION DU 13/08 — le corpus de calibration était SURESTIMÉ dans ce qui précède
+>
+> Mesuré après coup sur les **6** transcripts corrigés : **#46, #134, #142** ont un texte
+> **strictement identique** à l'ASR (l'éditeur enregistre une « correction » même sans
+> modification) ; **#48** a des segments ASR **cassés** (du JSON brut de LLM a fui dans `text` —
+> bug de backend, à traiter à part) ; **#172** est un re-segmentage complet (748 → 106) à texte
+> inchangé. **Seul `#135` est exploitable** (divergence 0,5 %, similarité 0,978).
+> → **Corpus de calibration réel : 1 cas.** L'étape ③ (juge LLM calibré) **n'est pas mûre** ; il
+> faut d'abord accumuler des corrections où l'ASR s'est trompé de MOT — ce que `run_outcome`
+> capte désormais au fil de l'eau, à condition que le garde-fou `correction_reelle()` soit là
+> (sans lui, les non-corrections auraient noyé le signal).
+>
+> **Étape ② LIVRÉE (`a333473`)** — `common/services/divergence.py` + `manage.py divergence_asr`.
+> **Rien n'est branché sur la heatmap** : la commande sert à REGARDER le signal avant qu'il ne
+> pilote quoi que ce soit. Trois pièges trouvés en la mesurant, tous corrigés : l'apostrophe doit
+> être un séparateur (33 % → 0 % sur « aujourd'hui » vs « aujourd hui ») ; un passage sans
+> vis-à-vis compte comme divergence TOTALE (sinon rater la moitié de l'audio donnait un bon
+> score) ; la GRANULARITÉ faussait tout (72 % → 0 % sur `#172`, texte identique mais découpage
+> 7× plus fin d'un côté). Détail dans `TRANSCRIBER_CORRECTION.md` §8.3.
+>
 > ⚠ **5ᵉ récidive de [[feedback_trace_runtime_chaining]]** dans la même session : données écrites
 > avant que les workers n'aient chargé le code dont elles dépendent → effacées au tick suivant.
 > Règle désormais : **code → redémarrage → données**, jamais l'inverse, pour tout ce qui touche

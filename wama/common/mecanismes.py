@@ -42,6 +42,11 @@ class Mecanisme:
     doc: str = ''
     #: Modules supplémentaires qui font partie du mécanisme (le domicile reste le point d'entrée).
     annexes: tuple = field(default_factory=tuple)
+    #: Symbole à compter quand le domicile est un module PARTAGÉ. Sans lui, un mécanisme logé
+    #: dans `common/models.py` hérite du compte de tous les importateurs du module — 138 pour
+    #: `ScopedVisibility` alors qu'ils importent surtout `Library` ou `BatchMixin` (mesuré le
+    #: 2026-08-13). Le chiffre devenait décoratif ; renseigner le symbole le rend vrai.
+    symbole: str = ''
 
 
 #: ⚠ ORDRE : par domaine, puis alphabétique. La carte est triée à la génération de toute façon.
@@ -158,7 +163,8 @@ MECANISMES = (
               'wama/common/utils/media_paths.py', ''),
     Mecanisme('scoped_visibility', 'Visibilité et portée',
               "Privé / unité / public : filtrage des lectures, mutations inchangées",
-              'wama/common/models.py', 'PROFILES_PERMISSIONS.md'),
+              'wama/common/models.py', 'PROFILES_PERMISSIONS.md',
+              symbole='ScopedVisibility'),
 )
 
 
