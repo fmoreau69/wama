@@ -140,6 +140,11 @@ _CHAMPS_PROJETES = [
     ('license', lambda m, b: (b.get('identity') or {}).get('license') or ''),
     ('author', lambda m, b: (b.get('identity') or {}).get('author') or ''),
     ('platform_ref', lambda m, b: (b.get('identity') or {}).get('platform_ref') or ''),
+    # `hf_id` rejoint les champs projetés (2026-08-12) : c'est un fait d'identité de PLATEFORME,
+    # de la même nature que `platform_ref`, et la découverte ne sait pas le produire pour les
+    # modèles trouvés par scan disque. Il n'était pas projetable tant que `model_sync` le
+    # remettait à vide à chaque passe — ce n'est plus le cas.
+    ('hf_id', lambda m, b: (b.get('identity') or {}).get('hf_id') or ''),
 ]
 
 

@@ -26,6 +26,11 @@ class SyncResult:
     updated: int = 0
     removed: int = 0
     errors: List[str] = field(default_factory=list)
+    #: Clés des modèles CRÉÉS par cette passe. Le compteur `added` ne disait pas LESQUELS, si
+    #: bien qu'un appelant voulant agir sur les nouveaux (poser leur provenance après une
+    #: installation) devait photographier le catalogue avant/après pour re-dériver ce que le
+    #: sync savait déjà — avec la course que ça suppose. (2026-08-12)
+    added_keys: List[str] = field(default_factory=list)
 
 
 class ModelSyncService:
@@ -83,6 +88,7 @@ class ModelSyncService:
                         created, updated = self._sync_model(model_key, model_info)
                         if created:
                             result.added += 1
+                            result.added_keys.append(model_key)
                         elif updated:
                             result.updated += 1
                     except Exception as e:

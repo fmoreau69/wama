@@ -195,7 +195,8 @@ class Command(BaseCommand):
         except ImportError:
             self.stderr.write("huggingface_hub absent : licences ignorees.")
             return
-        api = HfApi()
+        from wama.model_manager.services.provenance import identite_huggingface
+
         vus, corriges, echecs = 0, 0, 0
         # Plus de `filter(license='')` : la carte de l'editeur fait AUTORITE, y compris pour
         # corriger une licence deja posee par le repli « poids » (qui rend l'AGPL du cadre
@@ -203,18 +204,14 @@ class Command(BaseCommand):
         # des passes — il converge desormais quel que soit l'ordre, et reste idempotent puisqu'on
         # n'ecrit que sur difference.
         for m in AIModel.objects.exclude(hf_id='').exclude(hf_id__isnull=True):
-            try:
-                info = api.model_info(m.hf_id)
-                carte = info.card_data
-                lic = (carte.to_dict().get('license') if carte else None) or ''
-                # L'auteur vient de la MEME requete : le separer en couterait une seconde par
-                # modele pour un fait deja sur la table. `author` d'HuggingFace, a defaut le
-                # namespace du depot (`org/repo`) -- qui EST l'editeur sur cette plateforme.
-                auteur = (getattr(info, 'author', '') or m.hf_id.partition('/')[0] or '')
-            except Exception as e:
+            # Lecture de la carte MUTUALISEE avec l'installation par URL (services/provenance) :
+            # c'etait le troisieme endroit du depot a interroger HuggingFace pour les memes faits.
+            ident = identite_huggingface(m.hf_id)
+            if ident is None:
                 echecs += 1
-                self.stderr.write(f"  {m.hf_id} : {type(e).__name__}")
+                self.stderr.write(f"  {m.hf_id} : depot injoignable")
                 continue
+            lic, auteur = ident.get('license') or '', ident.get('author') or ''
             if auteur and auteur[:200] != m.author:
                 m.author = auteur[:200]
                 if ecrire:

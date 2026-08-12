@@ -240,11 +240,28 @@ def install_from_spec(spec: dict) -> dict:
             res['ok'] = False
             res['error'] = "modèle téléchargé mais dépendances pip en échec (voir 'pip')"
     if res.get('ok'):
+        sync = None
         try:
-            register_after_install()
+            sync = register_after_install()
         except Exception:
             logger.warning("register_after_install a échoué (le sync périodique rattrapera)",
                            exc_info=True)
+        if sync is not None:
+            # Le sync ne pose QUE les faits de découverte (chemin, format, classes, taille) : il
+            # ne sait rien de la licence ni de l'auteur. Sans cette étape, un modèle ajouté par
+            # URL depuis l'assistant arrivait au catalogue aussi anonyme que ceux trouvés par
+            # scan disque — et le corpus déclaratif n'en portait aucune trace.
+            # `added_keys` vient du sync lui-même : c'est LUI qui sait ce qu'il vient de créer.
+            # Best-effort : une provenance manquée (réseau, dépôt privé) ne doit jamais faire
+            # échouer une installation qui, elle, a réussi.
+            try:
+                from .provenance import enregistrer_apres_installation
+                res['provenance'] = enregistrer_apres_installation(
+                    spec, getattr(sync, 'added_keys', None) or [])
+            except Exception as e:
+                logger.warning("provenance non enregistrée après installation : %s", e,
+                               exc_info=True)
+                res['provenance'] = {'erreur': f"{type(e).__name__}: {e}"}
     return res
 
 
