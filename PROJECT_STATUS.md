@@ -2616,6 +2616,78 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > grille inchangée (converter 93, reader 87…). ⚠ restart gunicorn/workers WSL2 à l'occasion
 > (tool_api/ready()/tasks.py rechargés — comportement identique).
 
+## §REPRISE — 2026-08-12 (session UI/média/résidence, instance parallèle) : exclusivité audio + préchargement TTS + RÉSIDENCE des modèles
+
+> Périmètre disjoint du chantier manifestes mené en parallèle (aucun fichier commun).
+> Sept commits : `c2ca346` `bd079b2` `bbbffc5` `b59db1d` `30e0057` + TTS gouverneur + résidence.
+>
+> **① Volet droit du model_manager.** Ordre aligné sur le pied de page (CPU→RAM→GPU→Disque) ;
+> **encart CPU créé** (il n'existait pas ; `get_model_manager_stats` expose `cpu_info`).
+> Encart Models sorti des « Ressources système » vers une section **Catalogue** propre (un
+> décompte de modèles n'est pas une ressource système) via un nouveau `{% block right_panel_top %}`
+> **vide et sans cadre par défaut** dans `base.html`. 4ᵉ compteur **Available** : emboîtement
+> STRICT vérifié sur les données (0 downloaded-non-available, 0 loaded-non-downloaded) →
+> `Loaded ⊆ Downloaded ⊆ Available ⊆ Total`, en grille 2×2 (4 colonnes coupaient les libellés
+> dans ~300 px). **Total (129) inclut les modèles PROPOSÉS non installés** ; Available (100)
+> est le nombre exploitable — il n'était affiché nulle part. Masquage à la sélection confié à
+> `hideOnInspect` + nouveau crochet `onDeselect` de `WamaInspector` (mon masquage maison ne
+> couvrait que le clic sur la croix : **Échap laissait le volet à moitié restauré**).
+>
+> **② Exclusivité média — audit complet, pas seulement le TTS.** La boucle commune existait
+> (`wama-app-base.js`, listener `play` en capture, portée le 04/08) et les 11 templates
+> porteurs de média remontent tous à `base.html`. Quatre trous : (a) la **vocalisation**
+> coupait la lecture AVANT le fetch — au 1er appel le modèle se charge, donc N clics = N
+> audios superposés → canal de parole commun **`WamaApp.Speech`** (jeton de génération,
+> requête périmée abandonnée et jamais jouée) ; (b) **inter-onglets** → `BroadcastChannel`
+> (`wama-media`) ; (c) **RÉGRESSION cam_analyzer** introduite par le portage du 04/08 —
+> `syncPlay()` démarre volontairement 4 caméras, le listener les coupait mutuellement ;
+> l'échappatoire `data-wama-multiplay` était déclarée et **utilisée nulle part** → posée
+> (4/4 mesuré) ; (d) 2 résidus transcriber appelant `pauseAll()` à la main (exclusivité
+> INCOMPLÈTE : ni DOM ni voix) → `WamaAudioPlayer.play(id)`. Une seule boucle
+> `querySelectorAll(audio, video)` dans tout le dépôt.
+>
+> **③ Préchargement TTS.** `TTS_SKIP_PRELOAD=1`, documenté « useful in development », était
+> posé dans le script de **prod** et faisait un `return` AVANT tout préchargement : Kokoro
+> n'était **jamais** chaud et le warm écrit dans `tts_service.py` était du code mort.
+> → `TTS_PRELOAD` (liste, défaut `kokoro`) ; `--fast` = `none` (le mode fast ne sautait PAS
+> le chargement, seulement l'ATTENTE). `/health` expose `kokoro_resident` (Kokoro vit hors de
+> `_current_engine`, donc `loaded_model` restait `null` même à chaud). Coût mesuré : démarrage
+> normal +~1 min 38 (chaîne d'imports torchao/TensorFlow, pas Kokoro).
+>
+> **④ RÉSIDENCE des modèles — le compteur « Loaded » était structurellement aveugle.**
+> Mesuré : **aucun code n'écrit jamais `is_loaded=True`** ; 9 des 12 `_discover_*` ne le
+> calculent pas ; les 2 qui le font lisent un singleton du process COURANT alors que la
+> découverte tourne dans gunicorn et les modèles vivent dans Celery/TTS. `select_model(
+> prefer_loaded=True)` était donc **inerte** — c'est le vrai coût, pas l'affichage.
+> ⚠ **Aucune brique nouvelle** : le registre Redis inter-process existait déjà
+> (`resource_governor`, TTL + purge des lignes de process morts) et `common/backends/base`
+> enveloppait déjà `load()`/`unload()`. Manquaient l'identité du modèle et des lecteurs :
+> clé d'owner `<backend>:<pid>#<model_key>` (séparateur `#` car les clés catalogue
+> contiennent des `:`), clé publiée mémorisée sur l'instance (au unload `_current_model`
+> est déjà None ; et une bascule sans unload laisserait une ligne fantôme jusqu'au TTL),
+> `resident_models()`, branchement de `select_model` et `api_models_db`. **Rabattu à la
+> LECTURE, jamais écrit en base** : un booléen en base ne se répare pas si un worker meurt
+> en tenant un modèle. `is_loaded` conservé en complément (Ollama le tient de `/api/ps`).
+> **Le service TTS ne déclarait rien au gouverneur** (seulement `configure_cuda_process`,
+> qui borne son process sans informer les autres) alors que la docstring de
+> `vram_reservation` le désigne nommément — critique depuis que Kokoro est résident →
+> déclaration + battement 10 min (une ligne expire à 1 h, Kokoro est résident sans limite).
+>
+> **Vérifications** (toutes sans charger un modèle sur GPU) : exclusivité média sur 7 pages +
+> page de correction, inter-onglets dans les deux sens, 3 chemins de désélection identiques
+> sur 6 indicateurs, chaîne de résidence de bout en bout, cycle load/bascule/unload d'un
+> `BaseModelBackend` réel (0 ligne fantôme), page rendue avec détenteur déclaré → **Loaded=1**.
+> Zéro erreur console partout. `manage.py check` OK. `check_docs` = 2 CASSÉ (inchangé),
+> corpus = 110 manifestes à jour.
+>
+> **Restes ouverts** : ⚠ le préchargement Kokoro et la déclaration TTS ne prennent effet
+> qu'au prochain démarrage du service ; l'exclusivité inter-onglets ne couvre pas le cas
+> « AI-Assistant persistant » (il ne vit que dans `home.html` — chantier à part, piste
+> retenue : le loger dans le volet droit existant plutôt qu'une 3ᵉ surface flottante) ;
+> `WAMAMemoryTracker` reste vide (personne n'appelle `register_model`) donc « Clean Idle »
+> et « Aggressive » agissent sur un registre vide — `last_used` par modèle serait le cran
+> suivant, et le registre partagé est désormais le bon endroit où le mettre.
+
 ## §REPRISE — 2026-08-11 (2ᵉ session, SUITE du soir) : 8 facettes + function + page librairies + avis critique
 
 > Suite de la même session, après le merge : **`params`** porté (8ᵉ facette — multi-schémas,
