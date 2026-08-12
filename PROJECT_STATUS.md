@@ -2740,6 +2740,48 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > ③ `_rang_qualite` qui préfère la mesure à l'a priori ; ④ une VÉRITÉ TERRAIN (échantillons
 > annotés) — `bench.py` dit lui-même que sans elle il classe des candidats, il ne les juge pas ;
 > ⑤ un appelant pour `qc.py` (le runner nocturne est le candidat naturel).
+>
+> ### ✅ SUITE DU 2026-08-12→13 : sélection corrigée + `RunOutcome` LIVRÉ
+>
+> **Sélection (`30cf86d`)** — trois correctifs, sans toucher à la chaîne Ollama/LLM (vérifié :
+> tiers `fast`/`default` → `gemma4:12b`, `heavy`/`image` → `qwen3.6:35b`, `get_describer_model`
+> et composer/imager/transcriber/enhancer identiques) :
+> ① **stratégie `specialisation`** dans `couvrir_classes` — l'anonymizer préfère désormais DEUX
+> modèles dédiés à un 2-en-1 (décision Fabien) : `['face','plate']` → `yolov9s-face-lindevs` +
+> `license-plate-finetune-v1m`. Anonymiser c'est ne rien rater ; une passe en plus n'est qu'un
+> coût, un visage manqué est une fuite. Proxy de spécialisation = nombre de classes déclarées,
+> **assumé comme proxy**, à remplacer par la mesure.
+> ② **fin du mélange d'échelles** — `quality_index` (−26,7 à 58,7) était comparé à `vram_gb`
+> (0,1 à 24 Go) : tout modèle indicé battait mécaniquement tout modèle sans. **Poser le premier
+> indice mesuré sur un YOLO aurait faussé toute la sélection vision** — le piège attendait
+> exactement ce chantier. Règle : on ne compare des indices que si TOUT le lot en a un.
+> ③ `_taille_du_nom` lisait la seule convention YOLO → la taille demandée était **inerte** sur
+> les 5 modèles de plaques (départage par VRAM, donc le `v1x` de 227 Mo à toute précision).
+>
+> **Modèle écarté (`d90be9a`+)** — `face_yolov8m-seg_60` (pack adetailer) retiré du périmètre
+> anonymizer : 0 visage sur une scène de rue qui en compte 6-7. ⚠ Son nom EST le nom amont
+> (apparié nom+taille) : le renommer éloignerait de l'original. Ce qui trompe est son EMPLACEMENT
+> (`segment/faces/` de l'arbre YOLO) → le déplacer quand l'Imager aura l'inpainting.
+> Au passage : `is_available` sort des `defaults` du sync et `exclusion` rejoint les clés
+> collantes — **la découverte n'a pas autorité pour écraser une décision humaine**.
+>
+> **`RunOutcome` (`ce4373f`)** — la brique de §16.7 existe. Journal APPEND-ONLY de FAITS, sans
+> aucun champ score : « supprimé » ne veut pas dire « mauvais ». Capture strictement IMPLICITE.
+> Branché : `task_skeleton` (`produit`/`echec`/`relance` — ce dernier détecté AVANT le passage à
+> RUNNING, seul instant où l'info existe) et `transcriber.save_correction` (`corrige`, à la
+> FINALISATION seulement). ⚠ **Couverture réelle : converter + reader**, les 8 autres apps
+> n'ayant pas adopté le squelette — leur couverture suivra cette adoption, pas une duplication.
+>
+> **Le transcriber est le BANC DE CALIBRATION**, pas un cas particulier : audio + sortie ASR +
+> correction humaine = la seule vérité terrain du dépôt, donc le seul endroit où mesurer si un
+> juge LLM **retrouve le verdict humain**. Un juge qui échoue là où la vérité existe n'a pas à
+> juger là où elle n'existe pas. Ordre de construction retenu, des FAITS vers les INFÉRENCES :
+> `RunOutcome` → divergence inter-modèles → juge LLM calibré.
+>
+> ⚠ **5ᵉ récidive de [[feedback_trace_runtime_chaining]]** dans la même session : données écrites
+> avant que les workers n'aient chargé le code dont elles dépendent → effacées au tick suivant.
+> Règle désormais : **code → redémarrage → données**, jamais l'inverse, pour tout ce qui touche
+> `model_manager/services/` ou `common/services/`.
 
 ## §REPRISE — 2026-08-12 (session UI/média/résidence, instance parallèle) : exclusivité audio + préchargement TTS + RÉSIDENCE des modèles
 
