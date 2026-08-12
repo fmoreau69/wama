@@ -269,6 +269,23 @@ def apps_catalog_view(request):
                    'conformity_measured_at': measured_at})
 
 
+def licenses_catalog_view(request):
+    """
+    Catalogue des LICENCES — vue transversale, sans registre propre.
+
+    Agrège `AIModel`, `Library`, `UserAsset`/`SystemAsset` et recoupe la composition déclarée
+    par les `requires` des manifestes d'app. Rien n'est stocké ici : une page qui DÉRIVE ne peut
+    pas diverger de ses sources, un cinquième registre l'aurait fait tôt ou tard.
+
+    Les médias utilisateur sont filtrés sur le périmètre visible du demandeur — une page d'audit
+    n'a pas à révéler la médiathèque des autres.
+    """
+    from .services.license_audit import synthese
+
+    return render(request, 'common/licenses.html',
+                  {'audit': synthese(request.user if request.user.is_authenticated else None)})
+
+
 # ── Brique À-propos / Aide (2026-08-11) ──────────────────────────────────────────
 # L'À-propos et l'Aide sont des ONGLETS du gabarit commun (`app_modern_base.html`,
 # blocs `about_content`/`help_content` auto-remplis d'APP_CATALOG via le context

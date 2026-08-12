@@ -1,0 +1,245 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Catalogue des licences - WAMA{% endblock %}
+{% block console_app_name %}common{% endblock %}
+
+{% comment %}
+  Vue DÉRIVÉE — aucune donnée propre. Tout vient de `common/services/license_audit.py`, qui
+  recoupe AIModel / Library / UserAsset / SystemAsset et suit les `requires` des manifestes
+  d'app. Même charte que les catalogues existants (library_catalog / function_catalog) :
+  bandeau de stats, cartes, puis tableau — l'homogénéité des catalogues est un objectif de
+  design, pas un effet de bord.
+{% endcomment %}
+
+{% block extra_css %}
+<style>
+  .li-wrap { padding: 16px 20px; }
+  .li-stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .li-stat { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+             border-radius: 8px; padding: 6px 12px; font-size: .85rem; }
+  .li-stat b { color: #ffb300; }
+  .li-stat.alert { border-color: rgba(244,67,54,.45); }
+  .li-stat.alert b { color: #ff8a80; }
+
+  .li-hero { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.10);
+             border-left: 3px solid #ffb300; border-radius: 10px; padding: 12px 16px;
+             margin-bottom: 16px; }
+  .li-hero h3 { font-size: 1rem; margin: 0 0 4px; }
+  .li-hero p { margin: 0; font-size: .82rem; color: #b0bac4; }
+
+  .li-section { margin-top: 22px; }
+  .li-section h3 { font-size: 1rem; margin-bottom: 4px; }
+  .li-section > p { font-size: .8rem; color: #8fa3b3; margin-bottom: 10px; }
+
+  .li-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .li-card { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.10);
+             border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+  .li-card h4 { font-size: .95rem; margin: 0; display: flex; align-items: center;
+                gap: 8px; flex-wrap: wrap; }
+  .li-desc { font-size: .78rem; color: #b0bac4; line-height: 1.35; }
+  .li-meta { font-size: .72rem; color: #8fa3b3; font-family: monospace; }
+
+  .li-badge { font-size: .62rem; font-weight: 700; text-transform: uppercase;
+              letter-spacing: .03em; padding: 2px 7px; border-radius: 5px; white-space: nowrap; }
+  .li-r0 { background: #1b5e20; color: #c8facc; }   /* permissive     */
+  .li-r1 { background: #33691e; color: #dcedc8; }   /* copyleft faible*/
+  .li-r2 { background: #6d4c00; color: #ffe0a3; }   /* copyleft fort  */
+  .li-r3 { background: #8c2f00; color: #ffccbc; }   /* non commerciale*/
+  .li-r4 { background: #4a148c; color: #e1bee7; }   /* à qualifier    */
+  .li-r5 { background: #37474f; color: #cfd8dc; }   /* inconnue       */
+
+  .li-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+  .li-table th { text-align: left; padding: 6px 8px; color: #8fa3b3; font-weight: 600;
+                 border-bottom: 1px solid rgba(255,255,255,.10); position: sticky; top: 0;
+                 background: #1a1f24; }
+  .li-table td { padding: 5px 8px; border-bottom: 1px solid rgba(255,255,255,.05);
+                 vertical-align: top; }
+  .li-scroll { max-height: 560px; overflow: auto; border: 1px solid rgba(255,255,255,.08);
+               border-radius: 8px; }
+  .li-table a { color: #79c9f2; text-decoration: none; }
+  .li-muted { color: #6b7c89; font-style: italic; }
+  .li-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .li-filters input, .li-filters select {
+      background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12);
+      color: #e6edf3; border-radius: 6px; padding: 4px 8px; font-size: .8rem; }
+  .li-empty { color: #8fa3b3; padding: 24px; text-align: center; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="li-wrap">
+  <h2 class="mb-2">⚖️ Catalogue des licences</h2>
+  <p class="text-secondary small mb-3">
+    Vue <b>transversale et dérivée</b> : elle agrège les modèles, les librairies et les médias,
+    et suit la composition déclarée par les <code>requires</code> des manifestes d'app.
+    Elle ne stocke rien — corriger une licence se fait à la source (catalogue de modèles,
+    manifeste de librairie, fiche du média), et la page suit.
+  </p>
+
+  {% if audit.pire %}
+  <div class="li-hero">
+    <h3>
+      Clause la plus contraignante embarquée :
+      <span class="li-badge li-r{{ audit.pire.rang }}">{{ audit.pire.famille }}</span>
+      <code>{{ audit.pire.id }}</code>
+    </h3>
+    <p>
+      {{ audit.pire.explication }}
+      C'est elle qui gouverne ce que WAMA peut redistribuer dans son ensemble — la règle
+      « s'aligner sur le composant le moins permissif ».
+    </p>
+  </div>
+  {% endif %}
+
+  <div class="li-stats">
+    <div class="li-stat"><b>{{ audit.stats.total }}</b> éléments sous licence</div>
+    <div class="li-stat"><b>{{ audit.stats.connues }}</b> licences établies</div>
+    <div class="li-stat {% if audit.stats.inconnues %}alert{% endif %}">
+      <b>{{ audit.stats.inconnues }}</b> inconnues</div>
+    <div class="li-stat {% if audit.stats.non_commercial %}alert{% endif %}">
+      <b>{{ audit.stats.non_commercial }}</b> non commerciales</div>
+    <div class="li-stat"><b>{{ audit.stats.a_qualifier }}</b> à qualifier</div>
+    <div class="li-stat {% if audit.stats.attribution_sans_auteur %}alert{% endif %}">
+      <b>{{ audit.stats.attribution_sans_auteur }}</b> à citer sans auteur connu</div>
+  </div>
+
+  {% if audit.stats.attribution_sans_auteur %}
+  <div class="li-hero" style="border-left-color:#ff8a80;">
+    <h3>⚠ {{ audit.stats.attribution_sans_auteur }} élément(s) exigent une attribution sans auteur renseigné</h3>
+    <p>
+      Une licence à attribution impose de citer l'auteur : sans le nom, l'obligation ne peut pas
+      être tenue. Renseigner l'auteur à la source
+      (<code>manage.py backfill_platform_refs --licences</code> pour les modèles).
+    </p>
+  </div>
+  {% endif %}
+
+  {# ── Répartition ─────────────────────────────────────────────────────────── #}
+  <div class="li-section">
+    <h3>Répartition par licence</h3>
+    <p>De la plus contraignante à la plus permissive.</p>
+    {% if audit.repartition %}
+    <div class="li-grid">
+      {% for e in audit.repartition %}
+      <div class="li-card">
+        <h4>
+          <code>{{ e.id }}</code>
+          <span class="li-badge li-r{{ e.q.rang }}">{{ e.q.famille }}</span>
+        </h4>
+        <div class="li-desc">{{ e.q.explication }}</div>
+        <div class="li-meta">
+          {{ e.n }} élément(s)
+          {% for registre, n in e.registres.items %} · {{ registre }}&nbsp;{{ n }}{% endfor %}
+          {% if e.q.attribution %} · attribution requise{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}<div class="li-empty">Aucun élément sous licence.</div>{% endif %}
+  </div>
+
+  {# ── Traversée par app ───────────────────────────────────────────────────── #}
+  <div class="li-section">
+    <h3>Licences traversées, par application</h3>
+    <p>
+      Calculé depuis les <code>requires</code> des manifestes d'app — donc automatiquement à jour
+      dès qu'une app gagne ou perd un modèle. Répond à : « en publiant un résultat de cette app,
+      qu'ai-je traversé ? »
+    </p>
+    {% if audit.apps %}
+    <div class="li-scroll">
+      <table class="li-table">
+        <thead>
+          <tr><th>Application</th><th>La plus contraignante</th><th>Licences traversées</th>
+              <th>Requis</th></tr>
+        </thead>
+        <tbody>
+          {% for a in audit.apps %}
+          <tr>
+            <td><b>{{ a.app }}</b></td>
+            <td>
+              {% if a.pire %}<span class="li-badge li-r{{ a.pire.rang }}">{{ a.pire.famille }}</span>
+                <code>{{ a.pire.id|default:'—' }}</code>
+              {% else %}<span class="li-muted">aucun composant</span>{% endif %}
+            </td>
+            <td>
+              {% for e in a.licences %}
+                <span class="li-badge li-r{{ e.q.rang }}">{{ e.id }}</span>&nbsp;×{{ e.n }}
+              {% empty %}<span class="li-muted">—</span>{% endfor %}
+            </td>
+            <td class="li-meta">
+              {{ a.requires }}
+              {% if a.hors_registre %}<span class="li-muted"> · {{ a.hors_registre }} hors registre</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}<div class="li-empty">Aucun manifeste d'app dans le corpus.</div>{% endif %}
+  </div>
+
+  {# ── Détail ──────────────────────────────────────────────────────────────── #}
+  <div class="li-section">
+    <h3>Détail — tous les éléments</h3>
+    <p>Modèles, librairies et médias. Les médias affichés se limitent à votre périmètre visible.</p>
+    <div class="li-filters">
+      <input id="li-q" type="search" placeholder="Filtrer (nom, licence, auteur…)" size="34">
+      <select id="li-registre">
+        <option value="">Tous les registres</option>
+        <option value="model">Modèles</option>
+        <option value="library">Librairies</option>
+        <option value="media">Médias</option>
+      </select>
+    </div>
+    <div class="li-scroll">
+      <table class="li-table" id="li-table">
+        <thead>
+          <tr><th>Élément</th><th>Registre</th><th>Licence</th><th>Auteur</th><th>Source</th></tr>
+        </thead>
+        <tbody>
+          {% for l in audit.lignes %}
+          <tr data-registre="{{ l.registre }}"
+              data-q="{{ l.nom|lower }} {{ l.q.id }} {{ l.auteur|lower }} {{ l.registre }}">
+            <td><b>{{ l.nom }}</b>{% if l.detail %} <span class="li-muted">{{ l.detail }}</span>{% endif %}</td>
+            <td class="li-meta">{{ l.registre }}</td>
+            <td>
+              {% if l.q.id %}<span class="li-badge li-r{{ l.q.rang }}">{{ l.q.id }}</span>
+              {% else %}<span class="li-badge li-r5">inconnue</span>{% endif %}
+            </td>
+            <td>{% if l.auteur %}{{ l.auteur }}
+                {% elif l.q.attribution and l.q.id %}<span class="li-muted">à renseigner</span>
+                {% else %}<span class="li-muted">—</span>{% endif %}</td>
+            <td>{% if l.url %}<a href="{{ l.url }}" target="_blank" rel="noopener">page</a>
+                {% else %}<span class="li-muted">—</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Filtrage CLIENT : la page est entièrement rendue côté serveur (pas d'API dédiée à maintenir),
+// et le volume reste de l'ordre de la centaine de lignes. Même parti que function_catalog.
+(function () {
+  const q = document.getElementById('li-q');
+  const reg = document.getElementById('li-registre');
+  const lignes = Array.from(document.querySelectorAll('#li-table tbody tr'));
+  function filtrer() {
+    const terme = (q.value || '').trim().toLowerCase();
+    const registre = reg.value;
+    lignes.forEach(tr => {
+      const okReg = !registre || tr.dataset.registre === registre;
+      const okTerme = !terme || (tr.dataset.q || '').includes(terme);
+      tr.style.display = (okReg && okTerme) ? '' : 'none';
+    });
+  }
+  q.addEventListener('input', filtrer);
+  reg.addEventListener('change', filtrer);
+})();
+</script>
+{% endblock %}

@@ -44,24 +44,15 @@ def _normaliser_licence(brut) -> Optional[str]:
     """
     'AGPL-3.0 License (https://ultralytics.com/license)' → 'agpl-3.0'.
 
-    On ramène vers l'identifiant SPDX quand il est reconnaissable en TÊTE de chaîne, pour que le
-    champ `AIModel.license` reste comparable entre un modèle HF (qui rend déjà 'agpl-3.0') et un
-    poids local (qui rend la phrase complète). Si rien n'est reconnu, on rend la chaîne tronquée
-    telle quelle — mieux vaut une valeur brute qu'une valeur perdue.
+    Délègue à `common.services.license_audit.normaliser_licence` : la normalisation appartient au
+    DOMAINE licence, pas au lecteur de poids, qui n'en est qu'un producteur parmi d'autres (la
+    carte HuggingFace et les métadonnées PyPI en sont deux autres). Elle vivait ici en premier
+    parce que c'est ici qu'elle est apparue ; elle a été remontée quand la vue licences a eu
+    besoin de recouper les mêmes graphies (2026-08-12).
     """
-    if not brut:
-        return None
-    texte = str(brut).strip()
-    if not texte:
-        return None
-    import re
-    m = re.match(r'^\s*([A-Za-z0-9.+-]+?)(?:\s+License)?\s*(?:\(|$|,)', texte)
-    if m:
-        jeton = m.group(1).lower()
-        # Un jeton plausible : contient un chiffre ou fait partie des identifiants courts connus.
-        if any(c.isdigit() for c in jeton) or jeton in {'mit', 'apache', 'bsd', 'other', 'unlicense'}:
-            return jeton
-    return texte[:64]
+    from wama.common.services.license_audit import normaliser_licence
+
+    return normaliser_licence(brut) or None
 
 
 def _lire_onnx(chemin: str) -> dict:

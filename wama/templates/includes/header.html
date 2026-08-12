@@ -76,6 +76,15 @@
                                 <i class="fas fa-book me-2 text-warning"></i> Librairies
                             </a>
                         </li>
+                        <li>
+                            {% comment %}
+                              Licences : vue TRANSVERSALE, pas un catalogue de plus — elle recoupe
+                              modèles + librairies + médias + la traversée déclarée par app.
+                            {% endcomment %}
+                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:licenses_catalog' %}">
+                                <i class="fas fa-scale-balanced me-2 text-success"></i> Licences
+                            </a>
+                        </li>
                         {% if is_admin %}
                         <li>
                             <a class="dropdown-item d-flex align-items-center" href="{% url 'accounts:user-management' %}">
