@@ -2535,11 +2535,27 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > **1er run codegen bout-en-bout validé** (gemma4:e4b léger, autorisé) : compile+signature
 > OK, qualité e4b = barre basse du banc (invente /tmp, item.params) — vérité terrain jointe.
 >
+> **Puis (12/08, 5ᵉ session, fin) : enquête SAM3/olmOCR — 3 causes DÉMÊLÉES et corrigées.**
+> ① **Fuite de cache HF inter-apps** : `sam3_processor` posait l'env process-wide ET mutait
+> les CONSTANTES huggingface_hub sans restaurer → les artefacts HF (refs/locks/xet) des
+> backends suivants du même worker tombaient dans `vision/sam/` (squelette olmOCR VIDE —
+> les blobs étaient sauvés par le `cache_dir=` d'olmocr_backend). Corrigé : bascule
+> CONFINÉE au chargement (try/finally restaure tout) ; squelette supprimé ; c'est
+> l'anti-pattern ROADMAP §5b — ne jamais l'étendre. ② **Découverte dépendante du venv**
+> (sam3 : retour anticipé sur import ; doctr : import = téléchargé) → les 2 « faux
+> positifs » verify_models n'étaient PAS du catalogue mais de la mesure (WSL2 disait déjà
+> juste) ; corrigé disque-d'abord, Windows = WSL2 = 30 écarts (orphelins proposed:* + 3
+> TTS, à trier). ③ **Table de tags assistant SUPPRIMÉE** : les rôles du chat dérivent du
+> catalogue (`select_chat_llm(tier)` — max par quality_index, code, mid, min) ; mesuré :
+> max→qwen3.6:35b, code→qwen3-coder:30b, mid→gemma4:e4b, min→qwen3.5:4b.
+> `check_model_declarations` ne garde que wama-dev-ai (découplé à dessein). ⚠ restart
+> workers/gunicorn pour charger le confinement sam3 + la dérivation chat.
+>
 > 🔚 **POINT D'ENTRÉE SESSION SUIVANTE : marche B front 2 — le BANC** (qwen3.6:35b vs
 > qwen3-coder:30b vs gemma4:26b/e4b, `run_codegen --truth` sur converter puis reader,
 > AVEC Fabien — charge GPU) ; verdict → `select_model_for_role('codegen')`. Reste aussi :
-> trier les 32 écarts `verify_models` (sync_models ou justifier), et statuer sur
-> l'intégration de `check_model_declarations` aux contrôles nocturnes.
+> trier les 30 orphelins `verify_models` (sync_models ou justifier), et statuer sur
+> l'intégration de `check_model_declarations` + `verify_models` aux contrôles nocturnes.
 > (route §10.3.B) : MISE À JOUR de `prompts/dev.txt` sur le modèle `librarian.txt` (contrat
 > BaseModelBackend + manifeste composé + few-shot corpus + interdits) + **banc de modèles
 > jugé par le harnais C** (candidat `qwen3.6:35b` MoE, challengers qwen3-coder:30b/gemma4) —
