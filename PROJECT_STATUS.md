@@ -2566,11 +2566,33 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > par la capacité `vision` non peuplée au catalogue (correctif de fond documenté
 > llm_utils:60, `vision_probe` désigné) — gardés par le balayage en attendant.
 >
+> **Clôture 5ᵉ session (12/08 soir) — réponses aux dernières questions Fabien** :
+> ① indice de confiance des `proposed:*` : **0/26 en portent un** — `assess_models` ne
+> PERSISTE jamais ses verdicts (dry-run console/JSON seul) ET n'a pas été passé sur la
+> plupart → chantier désigné « cran de plus » : écrire les verdicts dans `extra_info` des
+> lignes proposed + contrôle de couverture (proposed sans évaluation). ② moondream :
+> **zéro trace au catalogue** (ni installé ni proposé) — utilisé à l'ère des noms en dur
+> (describer pré-04/08), supplanté par gemma4:12b (validé meilleur describer FR), retiré ;
+> ses derniers restes = les littéraux élagués aujourd'hui ; `pull_model` le réenregistrerait
+> au besoin. ③ vision : DEUX AXES distincts — `ModelType.VISION` (dossier vision/, YOLO/SAM
+> anonymizer/cam, peuplé, = le filtre UI) vs `abilities:['vision']` des LLM OLLAMA
+> (multimodal chat). MESURÉ : ce 2ᵉ axe **EST peuplé** (gemma4:12b, qwen3.5:4b/9b,
+> qwen3.6:35b via /api/show) — le commentaire llm_utils:60 est PÉRIMÉ ; faux négatif connu :
+> gemma4:e4b (multimodal mais non déclaré par Ollama) → chantier : dériver les littéraux
+> vision (ui_smoke, vision_probe, reference_comprehension, chaîne describer) via
+> `requires=['vision']` + traiter e4b (vision_probe mesure/déclare) + corriger le
+> commentaire. Corpus régénéré (3 libraries — métadonnées venv bougées, détecteur OK).
+>
 > 🔚 **POINT D'ENTRÉE SESSION SUIVANTE : marche B front 2 — le BANC** (qwen3.6:35b vs
 > qwen3-coder:30b vs gemma4:26b/e4b, `run_codegen --truth` sur converter puis reader,
-> AVEC Fabien — charge GPU) ; verdict → `select_model_for_role('codegen')`. Reste aussi :
-> trier les 30 orphelins `verify_models` (sync_models ou justifier), et statuer sur
-> l'intégration de `check_model_declarations` + `verify_models` aux contrôles nocturnes.
+> AVEC Fabien — charge GPU) ; verdict → `select_model_for_role('codegen')`.
+> **File des chantiers ouverts par la 5ᵉ session** (ordre libre, aucun bloquant) :
+> ① cran de plus prospection (persistance verdicts + couverture) ; ② dérivation des
+> littéraux vision (`requires=['vision']`, e4b, commentaire llm_utils) ; ③ ROADMAP §5b —
+> `hf_cache_scope` est le PONT, la migration `cache_dir=` partout reste ouverte ;
+> ④ statuer : `check_model_declarations` + `verify_models` aux contrôles nocturnes ;
+> ⑤ ⚠ restart workers/gunicorn PENDING (confinement sam3, résolution chat par tier,
+> triades A4, ready() A3) ; ⑥ push (~15 commits locaux) = demander.
 > (route §10.3.B) : MISE À JOUR de `prompts/dev.txt` sur le modèle `librarian.txt` (contrat
 > BaseModelBackend + manifeste composé + few-shot corpus + interdits) + **banc de modèles
 > jugé par le harnais C** (candidat `qwen3.6:35b` MoE, challengers qwen3-coder:30b/gemma4) —

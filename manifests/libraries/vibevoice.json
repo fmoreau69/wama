@@ -7,42 +7,38 @@
       "aiortc",
       "av",
       "diffusers",
-      "fastapi",
       "gradio",
       "librosa",
       "llvmlite",
       "ml-collections",
       "numba",
       "numpy",
-      "pydub",
-      "requests",
       "scipy",
       "torch",
       "tqdm",
-      "transformers",
-      "uvicorn"
+      "transformers"
     ],
     "entry_points": {},
     "identity": {
-      "author": "vibevoice team <VibeVoice@microsoft.com>",
+      "author": "vibevoice team <vibepod@microsoft.com>",
       "license": null,
       "repository": "https://github.com/microsoft/VibeVoice",
-      "summary": "Open-Source Frontier Voice AI.",
-      "version": "1.0.0"
+      "summary": "A model for speech generation with an AR + diffusion architecture.",
+      "version": "0.0.1"
     },
     "install": {
-      "pip": "vibevoice==1.0.0",
+      "pip": "vibevoice==0.0.1",
       "requires_python": ">=3.9"
     }
   },
-  "description": "Open-Source Frontier Voice AI.",
+  "description": "A model for speech generation with an AR + diffusion architecture.",
   "key": "vibevoice",
   "manifest_kind": "library",
   "name": "vibevoice",
   "projects": [],
   "schema_version": "1.0",
   "source": {
-    "ref": "importlib.metadata:vibevoice==1.0.0",
+    "ref": "importlib.metadata:vibevoice==0.0.1",
     "type": "extract"
   },
   "visibility": "public",
