@@ -24,7 +24,7 @@
     "identity": {
       "description_short": "Lip-sync pipeline v1.5 (UNet + DWPose + Whisper + SD-VAE + SyncNet)",
       "hf_id": "TMElyralab/MuseTalk",
-      "license": null,
+      "license": "creativeml-openrail-m",
       "model_type": "lipsync",
       "platform_ref": "huggingface:TMElyralab/MuseTalk",
       "source": "avatarizer"

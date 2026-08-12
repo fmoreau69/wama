@@ -19,7 +19,7 @@
     "identity": {
       "description_short": "HunyuanImage 2.1 — qualité max, text rendering, 1K-4K",
       "hf_id": "hunyuanvideo-community/HunyuanImage-2.1-Diffusers",
-      "license": null,
+      "license": "other",
       "model_type": "diffusion",
       "platform_ref": "huggingface:hunyuanvideo-community/HunyuanImage-2.1-Diffusers",
       "source": "imager"

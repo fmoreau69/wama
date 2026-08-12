@@ -2032,7 +2032,7 @@
     "identity": {
       "description_short": "YOLO classify",
       "hf_id": null,
-      "license": null,
+      "license": "agpl-3.0",
       "model_type": "vision",
       "platform_ref": null,
       "source": "anonymizer"
@@ -2045,7 +2045,7 @@
       "update_complexity": null
     },
     "resources": {
-      "disk_gb": 0.0,
+      "disk_gb": 0.05552998557686806,
       "ram_gb": 0.0,
       "vram_gb": 0.1
     }

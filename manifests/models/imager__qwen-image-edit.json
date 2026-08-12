@@ -20,7 +20,7 @@
     "identity": {
       "description_short": "Qwen Image Edit — édition multi-image, 14 images, 2K",
       "hf_id": "Qwen/Qwen-Image-Edit-2511",
-      "license": null,
+      "license": "apache-2.0",
       "model_type": "diffusion",
       "platform_ref": "huggingface:Qwen/Qwen-Image-Edit-2511",
       "source": "imager"

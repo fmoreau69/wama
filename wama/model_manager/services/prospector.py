@@ -86,7 +86,16 @@ def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_down
         return {'ok': False, 'error': "huggingface_hub non installé (pip install huggingface_hub)"}
 
     from wama.model_manager.models import AIModel
+    # « Déjà chez nous » s'indexe sur les DEUX identités de plateforme, pas sur `hf_id` seul :
+    # les modèles découverts par scan disque n'ont pas de `hf_id`, mais peuvent porter un
+    # `platform_ref` posé par la provenance vérifiée (backfill_platform_refs / manifeste).
+    # Sans ça, morsetechlab/yolov11-license-plate-detection ressortait « ★ NOUVEAU » alors que
+    # ses 5 fichiers sont installés — la veille proposait de télécharger l'existant (2026-08-12).
     have = {(m.hf_id or '').lower() for m in AIModel.objects.exclude(hf_id='')}
+    have |= {ref.partition(':')[2].lower()
+             for ref in AIModel.objects.filter(platform_ref__startswith='huggingface:')
+                                       .values_list('platform_ref', flat=True)}
+    have.discard('')
 
     api = HfApi()
     # huggingface_hub 1.x : filtrage par tâche = `pipeline_tag` (pas `task`), librairie via `filter`.
@@ -161,6 +170,11 @@ def apply_recommendations(candidates, source: str, task: str):
                 'source': source,
                 'model_type': mt,
                 'hf_id': hf_id,
+                # La prospection LIT déjà la licence sur la carte HF (prospect_hf) : la jeter ici
+                # obligeait à repasser par backfill_platform_refs --licences pour la retrouver.
+                # `platform_ref` se dérive du même fait, sans requête supplémentaire.
+                'license': str(c.get('license') or '')[:64],
+                'platform_ref': f"huggingface:{hf_id}",
                 'description': f"(Recommandé · prospection) {task} — {c['downloads']} téléchargements, {c['likes']} ♥",
                 'is_downloaded': False,
                 'is_available': False,

@@ -20,7 +20,7 @@
     "identity": {
       "description_short": "CogVideoX 5B — Image-to-Video, 24 fps",
       "hf_id": "THUDM/CogVideoX-5b-I2V",
-      "license": null,
+      "license": "other",
       "model_type": "diffusion",
       "platform_ref": "huggingface:THUDM/CogVideoX-5b-I2V",
       "source": "imager"

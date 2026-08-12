@@ -42,7 +42,7 @@
       "update_complexity": null
     },
     "resources": {
-      "disk_gb": 0.0,
+      "disk_gb": 0.14564041048288345,
       "ram_gb": 0.0,
       "vram_gb": 0.3
     }

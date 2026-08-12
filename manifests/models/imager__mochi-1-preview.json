@@ -19,7 +19,7 @@
     "identity": {
       "description_short": "Mochi-1 Preview — haute qualité, 30 fps",
       "hf_id": "genmo/mochi-1-preview",
-      "license": null,
+      "license": "apache-2.0",
       "model_type": "diffusion",
       "platform_ref": "huggingface:genmo/mochi-1-preview",
       "source": "imager"

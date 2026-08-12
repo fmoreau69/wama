@@ -33,10 +33,10 @@
     },
     "identity": {
       "description_short": "YOLO segment (faces)",
-      "hf_id": null,
-      "license": null,
+      "hf_id": "jags/yolov8_model_segmentation-set",
+      "license": "apache-2.0",
       "model_type": "vision",
-      "platform_ref": null,
+      "platform_ref": "huggingface:jags/yolov8_model_segmentation-set",
       "source": "anonymizer"
     },
     "provenance": {
@@ -47,7 +47,7 @@
       "update_complexity": null
     },
     "resources": {
-      "disk_gb": 0.0,
+      "disk_gb": 0.05104914307594299,
       "ram_gb": 0.0,
       "vram_gb": 0.1
     }

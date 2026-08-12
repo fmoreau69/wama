@@ -2,40 +2,42 @@
   "body": {
     "constraints": {},
     "dependencies": [
+      "filelock",
       "huggingface-hub",
       "numpy",
       "packaging",
       "pyyaml",
       "regex",
+      "requests",
       "safetensors",
       "tokenizers",
-      "tqdm",
-      "typer"
+      "tqdm"
     ],
     "entry_points": {
       "console_scripts": [
-        "transformers"
+        "transformers",
+        "transformers-cli"
       ]
     },
     "identity": {
       "license": "Apache 2.0 License",
       "repository": "https://github.com/huggingface/transformers",
-      "summary": "Transformers: the model-definition framework for state-of-the-art machine learning models in text, vision, audio, and multimodal models, for both inference and training.",
-      "version": "5.12.1"
+      "summary": "State-of-the-art Machine Learning for JAX, PyTorch and TensorFlow",
+      "version": "4.57.6"
     },
     "install": {
-      "pip": "transformers==5.12.1",
-      "requires_python": ">=3.10.0"
+      "pip": "transformers==4.57.6",
+      "requires_python": ">=3.9.0"
     }
   },
-  "description": "Transformers: the model-definition framework for state-of-the-art machine learning models in text, vision, audio, and multimodal models, for both inference and training.",
+  "description": "State-of-the-art Machine Learning for JAX, PyTorch and TensorFlow",
   "key": "transformers",
   "manifest_kind": "library",
   "name": "transformers",
   "projects": [],
   "schema_version": "1.0",
   "source": {
-    "ref": "importlib.metadata:transformers==5.12.1",
+    "ref": "importlib.metadata:transformers==4.57.6",
     "type": "extract"
   },
   "visibility": "public",

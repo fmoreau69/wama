@@ -21,7 +21,7 @@
     "identity": {
       "description_short": "olmOCR-2 7B — Allen AI — imprimé + manuscrit + tableaux + formules",
       "hf_id": "allenai/olmOCR-7B-0225-preview",
-      "license": null,
+      "license": "apache-2.0",
       "model_type": "ocr",
       "platform_ref": "huggingface:allenai/olmOCR-7B-0225-preview",
       "source": "reader"

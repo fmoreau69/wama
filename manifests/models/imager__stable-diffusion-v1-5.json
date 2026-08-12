@@ -21,7 +21,7 @@
     "identity": {
       "description_short": "Stable Diffusion 1.5 — classique (compatibilité LoRA)",
       "hf_id": "stable-diffusion-v1-5/stable-diffusion-v1-5",
-      "license": null,
+      "license": "creativeml-openrail-m",
       "model_type": "diffusion",
       "platform_ref": "huggingface:stable-diffusion-v1-5/stable-diffusion-v1-5",
       "source": "imager"

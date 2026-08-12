@@ -20,7 +20,7 @@
     "identity": {
       "description_short": "FLUX Logo Design LoRA — logos pro, open-source, max 768 px",
       "hf_id": "Shakker-Labs/FLUX.1-dev-LoRA-Logo-Design",
-      "license": null,
+      "license": "other",
       "model_type": "diffusion",
       "platform_ref": "huggingface:Shakker-Labs/FLUX.1-dev-LoRA-Logo-Design",
       "source": "imager"

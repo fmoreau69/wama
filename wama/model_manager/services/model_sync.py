@@ -156,12 +156,8 @@ class ModelSyncService:
             'source': model_info.source.value,
             'description': long_desc,
             'description_short': short_desc,
-            'hf_id': model_info.hf_id or '',
             'vram_gb': model_info.vram_gb or 0,
             'ram_gb': model_info.ram_gb or 0,
-            # `or None` et NON `or 0` : un indice inconnu doit rester NULL pour que le tri le
-            # distingue d'un modèle réellement mauvais (cf. model_quality.py).
-            'quality_index': getattr(model_info, 'quality_index', None) or None,
             'is_downloaded': model_info.is_downloaded,
             'is_loaded': model_info.is_loaded,
             'is_available': True,
@@ -179,16 +175,39 @@ class ModelSyncService:
             'last_synced_at': timezone.now(),
         }
 
+        # ── Champs que la découverte n'a PAS autorité pour EFFACER ────────────────────────────
+        # `hf_id` et `quality_index` étaient dans `defaults` avec un repli `or ''` / `or None` :
+        # à chaque sync, tout modèle dont la découverte n'en porte pas (les 70 issus du scan
+        # disque) voyait sa valeur REMISE À VIDE. Conséquences mesurées le 2026-08-12 :
+        #   • une provenance vérifiée posée par `backfill_platform_refs --poser` ne survivait pas
+        #     au sync suivant — la porte d'entrée était donc inopérante ;
+        #   • `quality_index` contredisait sa propre docstring (« une valeur posée à la main
+        #     PRIME »), qui était vraie jusqu'au prochain `sync_models`.
+        # On n'écrit donc QUE lorsque la découverte a réellement quelque chose à dire. Un modèle
+        # dont l'amont perd son identité se corrige explicitement, pas par effet de bord.
+        # (`license` et `platform_ref` n'ont jamais été dans `defaults` — ils survivaient déjà.)
+        if model_info.hf_id:
+            defaults['hf_id'] = model_info.hf_id
+        _qualite = getattr(model_info, 'quality_index', None)
+        if _qualite:
+            defaults['quality_index'] = _qualite
+
         # Add local_path if available in extra_info
         if model_info.extra_info and 'path' in model_info.extra_info:
             defaults['local_path'] = str(model_info.extra_info['path'])
 
-        # Get disk_gb from extra_info if available
+        # Get disk_gb from extra_info if available.
+        # Les trois clés sont TOUTES émises par la découverte, selon la branche : `disk_gb`
+        # (ollama), `size_mb` (enhancer/ONNX), `size_bytes` (anonymizer/YOLO, model_registry:502).
+        # `size_bytes` manquait ici → les 48 modèles de l'anonymizer sortaient à disk_gb=0 alors
+        # que la taille était portée. Mesuré le 2026-08-12 : 19/101 renseignés, dont 0 anonymizer.
         if model_info.extra_info:
             if 'disk_gb' in model_info.extra_info:
                 defaults['disk_gb'] = model_info.extra_info['disk_gb']
             elif 'size_mb' in model_info.extra_info:
                 defaults['disk_gb'] = model_info.extra_info['size_mb'] / 1024
+            elif 'size_bytes' in model_info.extra_info:
+                defaults['disk_gb'] = (model_info.extra_info['size_bytes'] or 0) / (1024 ** 3)
 
         # Log what we're syncing
         logger.info(

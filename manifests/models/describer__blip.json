@@ -18,7 +18,7 @@
     "identity": {
       "description_short": "BLIP — légendage d'images (captioning)",
       "hf_id": "Salesforce/blip-image-captioning-large",
-      "license": null,
+      "license": "bsd-3-clause",
       "model_type": "vlm",
       "platform_ref": "huggingface:Salesforce/blip-image-captioning-large",
       "source": "describer"
