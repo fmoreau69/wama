@@ -2421,6 +2421,39 @@ travail**. La base LIVE est celle de **WSL2 (Postgres 16)**, conforme à
 exécute WAMA nativement sous Windows (`venv_win runserver`) ; sinon c'est une taxe d'entretien
 supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 
+## §REPRISE — 2026-08-13 (nuit) : BANC CODEGEN JOUÉ (marche B front 2) + skills à jour
+
+> **Reprise** : les 5 contrôles conformes au bloc attendu (check_docs 2 CASSÉ, corpus 110,
+> roundtrip converter 9/10, grille converter 93/reader 87/transcriber 94, migrate OK).
+> **Leçon nouvelle** : `manifest_export --check` est VENV-DÉPENDANT pour les libraries
+> (importlib.metadata) — depuis venv_win il déclare 3 faux « périmés » (torch/transformers/
+> vibevoice : les wheels Windows ne portent pas les dépendances nvidia-*/triton du wheel
+> Linux). **Le contrôle fait foi depuis WSL2** (= le runtime) ; skills /reprise /palier
+> /manifeste mis à jour en conséquence + répercussion du registre des mécanismes et de la
+> marche A dans /brique /doc-sync /port-app (commit skills dédié).
+>
+> **BANC CODEGEN (avec Fabien, 01h27→01h46)** : `run_codegen --truth`, 4 modèles × 2 apps
+> (converter `_convert`, reader `_read`), sorties `outputs/codegen_*_2026-08-13_*.json` +
+> `outputs/banc_codegen_2026-08-13.log`. Mesures mécaniques : **qwen3.6:35b seul 8/8**
+> (2× compile+signature, 0 warning, ~6 min/glu) ; qwen3-coder:30b ~1 min/glu mais 1
+> violation règle 3 ; gemma4:26b 1 SyntaxError sur 2 ; e4b 2 warnings + contrat violé.
+> Lecture qualitative (vs vérité terrain) : le différenciateur décisif est le **régime
+> d'ignorance** — qwen3.6:35b n'invente JAMAIS d'import (il commente ce qu'il ne sait pas),
+> qwen3-coder invente des briques communes PLAUSIBLES (`run_ffmpeg_cmd`,
+> `select_model_by_vram` — le pire mode de défaillance pour WAMA) + shadowing d'`item` ;
+> gemma4:26b applique « null plutôt que plausible » (NotImplementedError explicites) mais
+> syntaxe non fiable. **VERDICT : qwen3.6:35b CONFIRMÉ principal** (config.py annoté,
+> chaîne de repli inchangée).
+> **Enseignement transverse — les plus gros écarts sont des trous de MATIÈRE, pas de
+> modèle** : ① aucun modèle ne peut appeler les backends réels de l'app (l'inventaire des
+> modules importables n'est pas dans la matière → ré-implémentation inline ou import
+> inventé) ; ② tous inventent les clés de `fields` (`text`, `output_size`…) car les champs
+> du modèle d'item ne sont pas cités dans le prompt (le `model_spec` A5 les porte —
+> à injecter + règle « les clés de fields DOIVENT être des champs du modèle ») ; ③ les
+> conventions de chemin de sortie passent bien par le few-shot. → Améliorer la matière de
+> `run_codegen` AVANT le pilote transcriber : meilleur levier qualité, zéro GPU.
+> ⚠ restart workers/gunicorn toujours PENDING ; push (~17 commits) = demander.
+
 ## §REPRISE — 2026-08-11→12 (3ᵉ-4ᵉ sessions, marches C + A COMPLÈTES A1→A5) : harnais + gabarits + triades + composition
 
 > Le JUGE du plan C→A→B (route §10.3) est outillé : **`manage.py app_regen_check <app>`**

@@ -260,12 +260,23 @@ MODELS = {
     # jamais au jugé) ; tags VÉRIFIÉS présents sur l'hôte le 2026-08-12.
     # NB : le verdict « qwen3-coder:30b trop lourd » de CLAUDE.md valait pour
     # l'AGENTIQUE multi-tours — la génération one-shot est un autre profil.
+    # BANC MESURÉ 2026-08-13 (run_codegen --truth, converter+reader, 4 modèles) :
+    #   qwen3.6:35b  = seul 8/8 mécanique (2× compile+signature, 0 warning) ET seul
+    #                  à ne JAMAIS inventer d'import — il signale en commentaire ce
+    #                  qu'il ne sait pas. ~6 min/glu (thinking). CONFIRMÉ principal.
+    #   qwen3-coder  = ~1 min/glu mais INVENTE des briques communes plausibles
+    #                  (run_ffmpeg_cmd, select_model_by_vram) + shadowing d'`item`
+    #                  dans une boucle + 1 violation règle 3. Repli rapide, à relire.
+    #   gemma4:26b   = honnête (NotImplementedError plutôt qu'halluciner — doctrine
+    #                  « null plutôt que plausible ») mais 1 SyntaxError/2 runs.
+    #   gemma4:e4b   = barre basse confirmée (item.get() sur un modèle Django,
+    #                  imports top-level, « simulations »).
     # -------------------------------------------------------------------------
     "codegen": ModelConfig(
         name="Qwen3.6 35B (MoE)",
         ollama_id="qwen3.6:35b",
-        description="Candidat principal codegen — MoE 36B / 256 experts / 8 actifs, "
-                    "offload CPU tolérable (banc à mesurer)",
+        description="Principal codegen CONFIRMÉ au banc du 2026-08-13 — MoE 36B, "
+                    "8/8 mécanique, zéro import inventé ; ~6 min/glu",
         context_length=262144,
         temperature=0.2,
         role="codegen",
