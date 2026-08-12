@@ -155,10 +155,24 @@ def select_model(
 
     budget = vram_budget_gb if vram_budget_gb is not None else get_free_vram_gb()
 
+    # Résidence RÉELLE, lue une fois (un appel Redis, pas un par palier de priorité).
+    # `AIModel.is_loaded` seul rendait `prefer_loaded` inerte : rien dans le dépôt
+    # n'écrit jamais `is_loaded=True`, et de toute façon un modèle vit dans le process
+    # qui l'a chargé (worker Celery, service TTS) — invisible du process qui arbitre.
+    # Le registre VRAM partagé, lui, traverse les process. On garde `is_loaded` en plus :
+    # il reste la vérité pour les sources qui la tiennent vraiment (Ollama via /api/ps).
+    residents = set()
+    if prefer_loaded:
+        try:
+            from wama.common.services.resource_governor import resident_models
+            residents = set(resident_models())
+        except Exception as e:
+            logger.debug(f"[model_selector] résidence indisponible : {e}")
+
     def _pick(pool):
         # keep_loaded prioritaire, puis meilleur compromis VRAM.
         if prefer_loaded:
-            loaded = [m for m in pool if m.is_loaded]
+            loaded = [m for m in pool if m.is_loaded or m.model_key in residents]
             if loaded:
                 return _best_by_vram(loaded, budget)
         return _best_by_vram(pool, budget)

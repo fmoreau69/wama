@@ -1013,7 +1013,22 @@ def api_models_db(request):
     if format_filter:
         queryset = queryset.filter(format=format_filter)
 
-    models = [model.to_dict() for model in queryset]
+    # Résidence rabattue à la LECTURE, jamais écrite en base. `AIModel.is_loaded` n'est
+    # écrit nulle part dans le dépôt (mesuré) et ne POURRAIT pas l'être sainement : un
+    # booléen en base ne se répare pas seul si un worker meurt en tenant un modèle, il
+    # resterait bloqué à True. Le registre VRAM partagé, lui, expire ses lignes.
+    try:
+        from wama.common.services.resource_governor import resident_models
+        residents = resident_models()
+    except Exception:
+        residents = {}
+
+    models = []
+    for model in queryset:
+        data = model.to_dict()
+        if not data.get('is_loaded') and model.model_key in residents:
+            data['is_loaded'] = True
+        models.append(data)
 
     # Log a sample for debugging
     if models:

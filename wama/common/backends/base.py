@@ -30,6 +30,11 @@ logger = logging.getLogger(__name__)
 
 _WRAPPED = "_wama_governor_wrapped"
 
+#: Attribut d'instance mémorisant la clé d'owner RÉELLEMENT publiée au registre VRAM.
+#: Indispensable depuis que la clé porte le modèle : au déchargement le backend a déjà
+#: oublié son modèle courant, la clé ne serait donc plus reconstituable.
+_GOV_KEY = "_wama_governor_owner"
+
 # En dessous, la mesure est jugée non concluante (chargement paresseux) et l'on
 # retombe sur `recommended_vram_gb`.
 _MEASURE_FLOOR_GB = 0.1
@@ -109,8 +114,24 @@ def _wrap_load(func):
                 if gb is None or gb < _MEASURE_FLOOR_GB:
                     gb = self.recommended_vram_gb
                 if gb:
-                    from wama.common.services.resource_governor import reserve_vram
-                    reserve_vram(_governor_owner(self), float(gb))
+                    from wama.common.services.resource_governor import (
+                        release_reservation, reserve_vram,
+                    )
+                    owner = _governor_owner(self)
+                    # La clé porte désormais le modèle : un backend qui BASCULE de modèle
+                    # sans décharger (diffusers, cogvideox…) publierait deux lignes pour un
+                    # seul détenteur, dont une fantôme jusqu'à expiration du TTL. On rend
+                    # donc la précédente. D'où la mémorisation de la clé PUBLIÉE : au
+                    # déchargement, `_current_model` est déjà remis à None et la clé ne
+                    # serait plus reconstituable.
+                    prev = getattr(self, _GOV_KEY, None)
+                    if prev and prev != owner:
+                        release_reservation(prev)
+                    reserve_vram(owner, float(gb))
+                    try:
+                        setattr(self, _GOV_KEY, owner)
+                    except Exception:
+                        pass
         except Exception:
             logger.debug("Déclaration VRAM au gouverneur ignorée", exc_info=True)
         _track_live(self)
@@ -134,7 +155,14 @@ def _wrap_unload(func):
             # juste au-dessus, dans `func`). L'ancien nom était l'homonyme de
             # `MemoryManager.release_vram()`, qui lui vide réellement la VRAM.
             from wama.common.services.resource_governor import release_reservation
-            release_reservation(_governor_owner(self))
+            # La clé PUBLIÉE, pas une clé recalculée : `func` vient de décharger et a
+            # remis `_current_model` à None, donc `_governor_owner(self)` ne rendrait
+            # plus la même chaîne et la ligne resterait au registre jusqu'au TTL.
+            release_reservation(getattr(self, _GOV_KEY, None) or _governor_owner(self))
+            try:
+                setattr(self, _GOV_KEY, None)
+            except Exception:
+                pass
         except Exception:
             logger.debug("Libération de la réservation au gouverneur ignorée", exc_info=True)
         _untrack_live(self)
@@ -144,9 +172,43 @@ def _wrap_unload(func):
     return wrapper
 
 
-def _governor_owner(instance) -> str:
-    """Identité de ce backend, dans CE process, pour le registre VRAM partagé."""
-    return f"{type(instance).__module__}.{type(instance).__name__}:{os.getpid()}"
+#: Sépare l'identité du DÉTENTEUR (backend + process) de celle du MODÈLE dans la clé
+#: d'owner. `#` et non `:` : les clés de catalogue en contiennent déjà
+#: (`anonymizer:yolo:yolo11n.pt`), un découpage sur `:` serait ambigu.
+GOVERNOR_MODEL_SEP = '#'
+
+
+def _backend_model_key(instance, model=None) -> Optional[str]:
+    """Clé CATALOGUE du modèle porté par ce backend, ou None s'il ne l'expose pas.
+
+    `AIModel.model_key` vaut `<source>:<model_id>` et les backends nomment leur
+    modèle courant `_current_model` (= le `model_id`) — convention déjà lue par
+    `model_registry._discover_imager_models`. La clé se reconstitue donc exactement,
+    sans table de correspondance à tenir.
+    """
+    name = model
+    if name is None:
+        for attr in ('_current_model', 'current_model', 'model_name'):
+            name = getattr(instance, attr, None)
+            if name:
+                break
+    if not name:
+        return None
+    return f"{_app_of(instance)}:{name}"
+
+
+def _governor_owner(instance, model=None) -> str:
+    """Identité de ce backend, dans CE process, pour le registre VRAM partagé.
+
+    Porte le MODÈLE quand le backend l'expose. Sans lui le registre ne sait dire que
+    « tel backend détient 8 Go dans tel process » : impossible d'en déduire QUEL modèle
+    est résident, donc impossible pour `select_model(prefer_loaded=True)` d'éviter un
+    déchargement/rechargement. La docstring de `reserve_vram` donnait déjà
+    « imager:qwen-image-2 » en exemple d'owner — l'intention précédait l'implémentation.
+    """
+    base = f"{type(instance).__module__}.{type(instance).__name__}:{os.getpid()}"
+    key = _backend_model_key(instance, model)
+    return f"{base}{GOVERNOR_MODEL_SEP}{key}" if key else base
 
 
 def _measured_vram_gb(before_bytes) -> Optional[float]:

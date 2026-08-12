@@ -263,6 +263,38 @@ def reserved_gb(exclude: str | None = None) -> float:
     return sum(reservations(exclude=exclude).values())
 
 
+#: Sépare détenteur et modèle dans la clé d'owner (cf. `common.backends.base`).
+#: `#` et non `:` : les clés de catalogue en contiennent (`anonymizer:yolo:yolo11n.pt`).
+OWNER_MODEL_SEP = '#'
+
+
+def resident_models() -> dict[str, float]:
+    """
+    Modèles actuellement RÉSIDENTS en VRAM — `AIModel.model_key` → Go — tous process
+    confondus (workers Celery, service TTS, web).
+
+    C'est la réponse à une question à laquelle `AIModel.is_loaded` ne pouvait pas
+    répondre : un booléen en base n'est écrit par personne (aucun `is_loaded=True` dans
+    le dépôt) et surtout un modèle vit dans le process qui l'a chargé — un singleton
+    Python n'est jamais visible d'un autre process. Le registre partagé, lui, l'est,
+    et ses lignes expirent seules si un worker meurt sans libérer.
+
+    Les détenteurs qui ne déclarent pas de modèle (sous-processus MuseTalk/CodeFormer
+    via `vram_reservation`) sont ignorés : ils occupent de la VRAM sans qu'un modèle du
+    catalogue soit résident — c'est `reserved_gb()` qui les compte, pas cette fonction.
+    """
+    par_modele: dict[str, float] = {}
+    for owner, gb in reservations().items():
+        if OWNER_MODEL_SEP not in owner:
+            continue
+        cle = owner.split(OWNER_MODEL_SEP, 1)[1].strip()
+        if cle:
+            # Somme : le même modèle peut être résident dans PLUSIEURS process
+            # (deux workers GPU), et chacun en occupe sa propre empreinte.
+            par_modele[cle] = par_modele.get(cle, 0.0) + gb
+    return par_modele
+
+
 def effective_free_gb(exclude: str | None = None) -> float:
     """
     VRAM réellement disponible = ce que le pilote annonce libre, MOINS ce que

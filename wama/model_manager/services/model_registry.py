@@ -138,6 +138,8 @@ class ModelRegistry:
         self._discover_reader_models()
         self._discover_depth_models()
 
+        self._overlay_residency()
+
         # Log summary
         formats_found = {}
         preferred_formats_found = {}
@@ -153,6 +155,36 @@ class ModelRegistry:
         )
 
         return self._models
+
+    def _overlay_residency(self):
+        """Rabat la résidence RÉELLE (registre VRAM partagé) sur `is_loaded`.
+
+        EN UN SEUL ENDROIT, après toutes les découvertes, et non dans chacune des
+        douze `_discover_*` : sur ces douze, neuf ne calculaient pas `is_loaded` du
+        tout (valeur par défaut False) et deux le déduisaient d'un singleton du
+        process COURANT — or la découverte tourne dans le worker gunicorn tandis que
+        les modèles sont chargés par les workers Celery et le service TTS. Le
+        compteur « Loaded » du model_manager ne pouvait donc qu'afficher 0.
+
+        On n'écrase jamais un `is_loaded` déjà vrai : Ollama le tient d'une source
+        inter-process légitime (`/api/ps`) et n'apparaît pas au registre VRAM.
+        """
+        try:
+            from wama.common.services.resource_governor import resident_models
+            residents = resident_models()
+        except Exception as e:
+            logger.debug(f"[ModelRegistry] résidence indisponible : {e}")
+            return
+        if not residents:
+            return
+        touches = 0
+        for model in self._models.values():
+            cle = f"{model.source.value}:{model.id}"
+            if cle in residents and not model.is_loaded:
+                model.is_loaded = True
+                touches += 1
+        if touches:
+            logger.info(f"[ModelRegistry] résidence réelle : {touches} modèle(s) chargé(s)")
 
     def get_models_by_type(self, model_type: ModelType) -> List[ModelInfo]:
         """Get all models of a specific type."""
