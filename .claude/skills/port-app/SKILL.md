@@ -95,6 +95,10 @@ travail est de CONSOMMER, pas de créer. Route d'ensemble : `WAMA_APP_GENERATION
 12. **Prompt (si l'app en a un)** : hériter de `PromptScoped` + déclarer
     `'model': '<app>.<Modèle>'` dans `PROMPT_TARGETS` + `apply_prompt_state()` dans la vue de
     sauvegarde = 3 lignes, le reste est générique (`PROMPT_PIPELINE.md`).
+13. **Triade tool_api (`start_<app>`/`get_<app>_status`)** : entrée déclarative **`TRIAD_SPECS`**
+    dans `tool_api.py` (A4, 2026-08-12 — fonctions CONSTRUITES à l'import par
+    `_register_triads()`), pas de squelette recopié ; `add_to_<app>` reste de la glu. Une triade
+    à VRAIE logique (routage, purge, clés spéciales — ex. transcriber) reste code main, assumée.
 
 ## 2. Pièges récurrents (chacun a déjà coûté une session)
 - `{# #}` multi-ligne Django PAS strippé → toujours `{% comment %}`.

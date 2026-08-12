@@ -22,8 +22,11 @@ déclarative. Il ne décrit JAMAIS l'état runtime de cette installation.
 | Enveloppe + `requires` + résolution | `wama/common/manifests/envelope.py` |
 | Ingest (machine à états, idempotent/réversible) | `wama/common/manifests/ingest.py` |
 | Projection vers les registres | `wama/common/manifests/projection.py` |
-| Corpus d'exemples (à la RACINE, pas dans wama/) | `manifests/apps/*.json`, `manifests/libraries/*.json` |
+| Corpus d'exemples (à la RACINE, pas dans wama/) | `manifests/apps/*.json`, `manifests/libraries/*.json`, `manifests/models/*.json` |
+| Gabarits code-gen (urls/tasks/apps/models, marche A) | `wama/common/manifests/codegen/` (`*_gen.py`, rendus marqués `[manifest-gen]`) |
+| Le JUGE profond (strip → régénère → 3 axes) | `manage.py app_regen_check <app>` — worktree UNIQUEMENT |
 | Rôle LLM « projet → manifeste library » | `wama-dev-ai/run_librarian.py` + `prompts/librarian.txt` |
+| Rôle LLM « glu de tâche » (marche B) | `wama-dev-ai/run_codegen.py` + `prompts/codegen.txt` — sortie `PENDING_HUMAN_VALIDATION`, n'écrit jamais dans `wama/` |
 
 ## 2. Mesurer avant d'affirmer
 
@@ -59,7 +62,8 @@ Composition mesurée : **91 liens `app → model`** + jambes `app → library` S
 ## 3. Contrôles à relancer après toute modification
 
 ```bash
-python manage.py manifest_export --check          # le corpus est-il à jour vs le code ?
+python manage.py manifest_export --check          # corpus à jour ? ⚠ depuis WSL2 (libraries
+                                                  # venv-dépendantes : venv_win = faux périmés)
 python manage.py manifest_roundtrip --all         # extract -> ingest -> extract est-il fidèle ?
 python manage.py doc_facts --check                # les blocs WAMA:FAITS des .md sont-ils à jour ?
 python manage.py check_docs                       # liens/chemins des docs (2 CASSÉ connus au 10/08)

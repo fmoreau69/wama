@@ -24,6 +24,10 @@ Groupes habituels : ① PROJECT_STATUS.md ② WAMA_APP_GENERATION_ROUTE.md + WAM
 - Les agents hallucinent parfois, surtout les affirmations d'ABSENCE : re-vérifier soi-même (Grep/test -f) chaque finding [CASSÉ] et [PÉRIMÉ] AVANT de l'appliquer. Ignorer les INCERTAIN non confirmés.
 
 ## 4. Application
+- **Blocs GÉNÉRÉS = hors périmètre manuel** : la table de `WAMA_MECANISMES.md` et les blocs
+  `WAMA:FAITS` se régénèrent par `python manage.py doc_facts` (source = registres, ex.
+  `wama/common/mecanismes.py`) — ne JAMAIS les éditer à la main ; un écart s'y corrige à la
+  source puis se régénère (`doc_facts --check` pour vérifier).
 - Éditions MINIMALES (référence, date, statut ✅/🔄/⏳) ; jamais de réécriture de section saine.
 - Mettre à jour la date d'en-tête « Mise à jour : » des docs touchés.
 - Respecter « un domaine = un fichier » : ne pas créer de doc « bis » ; si un contenu est au mauvais endroit, le fusionner vers le fichier de référence du domaine.

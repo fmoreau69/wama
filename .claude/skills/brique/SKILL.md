@@ -19,6 +19,10 @@ ls wama/common/utils/ wama/common/services/ wama/common/static/common/js/
 grep -nE "^#{2,3} " WAMA_APP_GENERATION_ROUTE.md        # repérer la facette F concernée
 ```
 
+- **Lire d'abord la carte des mécanismes `WAMA_MECANISMES.md`** (table GÉNÉRÉE depuis le
+  registre `wama/common/mecanismes.py`) : elle dit quels mécanismes existent, où ils habitent,
+  et lesquels sont des **briques mortes (`⚠ 0` consommateur)** — une brique à 0 consommateur
+  s'ADOPTE, elle ne se réinvente pas (vécu : `couvrir_classes` 8 jours morte, `qc.py`).
 - Grep `wama/common/utils/`, `templates/common/`, `static/common/js/` + l'index
   `WAMA_APP_CONVENTIONS §12.2` + `WAMA_APP_GENERATION_ROUTE.md` (facette concernée).
 - Grep `app_registry.py` avant toute nouvelle taxonomie (piège récidivé 3× : MEDIA_CATEGORIES,
@@ -53,6 +57,9 @@ grep -nE "^#{2,3} " WAMA_APP_GENERATION_ROUTE.md        # repérer la facette F 
 - JS/CSS modifiés → copier vers `staticfiles/<app>/` ; Python → restart WSL2 à signaler.
 
 ## 4. Tracer
+- **Mécanisme transversal créé/déplacé → entrée dans le registre `wama/common/mecanismes.py`**
+  (jamais une ligne à la main dans `WAMA_MECANISMES.md` — la table est générée), puis
+  `python manage.py doc_facts` pour régénérer et `doc_facts --check` pour vérifier.
 - La brique + son taux d'adoption → `WAMA_APP_GENERATION_ROUTE.md` (facette F1-F8 concernée).
 - Si mesurable → ajouter/ajuster le critère dans `conformity_checker.py` (cf. /conformite §3).
 - Palier → `/palier` (PROJECT_STATUS + commit par chemins explicites).

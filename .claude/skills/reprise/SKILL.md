@@ -18,18 +18,27 @@ Objectif : repartir de l'état RÉEL du projet, pas d'un souvenir. À dérouler 
 
 ## 3. Confrontation au réel (obligatoire)
 
-### 3a. Contrôles MÉCANIQUES — lancer les 4, ne pas les paraphraser
+### 3a. Contrôles MÉCANIQUES — lancer les 5, ne pas les paraphraser
 > Un statut lu dans un `.md` est une intention ; seules ces commandes disent le réel. Elles sont
 > rapides et ne modifient rien. **Reporter leurs chiffres tels quels, ne jamais les déduire.**
 
 ```bash
 python manage.py check_docs                 # références doc→code
-python manage.py manifest_export --check    # corpus de manifestes périmé ?
+python manage.py manifest_export --check    # corpus de manifestes périmé ? (⚠ depuis WSL2)
 python manage.py manifest_roundtrip --all   # régénération : facettes projetables, fidélité
 python manage.py check_app_conformity       # grille 74 critères par app
+python manage.py doc_facts --check          # blocs GÉNÉRÉS des .md (dont la carte WAMA_MECANISMES)
 ```
 - ⚠ `check_docs` : lancer depuis **Windows** (`./venv_win/Scripts/python.exe`) — il parcourt
   l'arborescence, et `/mnt/d` depuis WSL2 met plusieurs minutes.
+- ⚠ `manifest_export --check` : lancer depuis **WSL2** (`venv_linux`) — les manifestes `library`
+  sont extraits par `importlib.metadata`, donc VENV-DÉPENDANTS ; depuis venv_win le contrôle
+  déclare de faux « périmés » (mesuré 13/08 : torch/transformers/vibevoice, les wheels Windows
+  ne déclarent pas les dépendances nvidia-*/triton du wheel Linux). Le corpus reflète
+  venv_linux = le runtime réel.
+- Comparer les chiffres au bloc « Contrôles attendus au prochain /reprise » du **dernier
+  §REPRISE** de `PROJECT_STATUS.md` (corpus N manifestes, roundtrip, scores de grille) — c'est
+  lui qui porte les valeurs à jour, pas ce skill.
 - **État attendu au 2026-08-10** : `check_docs` = **2 CASSÉ**, et ce sont des **références EN AVANT**
   assumées, pas des liens morts — des fichiers que la doc annonce et qui restent à créer :
   - `common/_result_tabs.html` (cible de `REMOVAL_LEDGER` R18 — duplication vérifiée toujours
