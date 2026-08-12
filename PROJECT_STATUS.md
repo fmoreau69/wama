@@ -2838,6 +2838,23 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > `_best_by_vram`, et hors `prefer_loaded` le champ vaut False partout — donc égalité, puis
 > qualité/VRAM. Laissé tel quel volontairement : cette fonction vient d'être reconçue avec un
 > raisonnement documenté sur les échelles incommensurables, à ne pas perturber en fin de session.
+>
+> **Vérification croisée du renommage `_cle_de_rang`** (demandée par Fabien, MESURÉE en rejouant
+> l'ancienne clé sur les mêmes lots — pas une relecture). ① Le renommage est **justifié au-delà du
+> cosmétique** : la signature a changé de nature, de fonction de clé `(m)->tuple` à **fabrique de
+> clé** `(pool)->(m)->tuple` ; garder l'ancien nom aurait fait échouer tout appelant qui l'aurait
+> passé tel quel à `max(key=…)`. Et « qualité » ne décrit plus le critère, qui dépend du lot.
+> ② Le correctif est **réel et invisible à la lecture** — deux pathologies symétriques mesurées :
+> un indice 58,7 posé sur un YOLO de 0,5 Go lui faisait battre un 8 Go non indexé ; à l'inverse un
+> indice **négatif** (−26,7, embeddings) faisait perdre un 12 Go face à un 0,2 Go non indexé.
+> ③ La claim « effet sur l'existant : nul » **tient, confrontée au catalogue** : les 3 sources
+> sélectionnables sont HOMOGÈNES (ollama 11/11 indexés, anonymizer 0/47, imager 0/9) → modèle
+> choisi identique avant/après. C'est donc une protection **en amont**, pas la correction d'un bug
+> déjà actif — il se serait déclenché au premier indice mesuré sur un modèle vision.
+> ④ **Bémol** : le repli sans indice reste « le plus gros qui tient », soit exactement le critère
+> que la docstring de `_best_by_vram` déclare faux au-dessus (argument MoE). Cohérent faute de
+> mieux, mais la sélection vision reste aujourd'hui gouvernée par ce critère — la vraie sortie est
+> de peupler `quality_index` côté vision (chantier « boucle qualité » déjà ouvert).
 
 ## §REPRISE — 2026-08-11 (2ᵉ session, SUITE du soir) : 8 facettes + function + page librairies + avis critique
 
