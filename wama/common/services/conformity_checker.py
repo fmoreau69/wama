@@ -392,9 +392,21 @@ def _recursive_import(f: _AppFiles):
 
 
 def _has_prompt(f: _AppFiles) -> bool:
-    """L'app a-t-elle un champ prompt ? (sinon les critères F6 prompt sont non applicables)"""
-    return bool(f.find(MODELS, r'^\s*prompt\s*=\s*models\.')
-                or f.app in _registry_keys('PROMPT_TARGETS', 'common/utils/app_metadata.py'))
+    """L'app a-t-elle un champ prompt ? (sinon les critères F6 prompt sont non applicables)
+
+    ⚠ La PRÉSENCE de la clé dans `PROMPT_TARGETS` ne suffit pas : une entrée VIDE est une
+    DÉCLARATION D'ABSENCE, pas un champ à traiter. Cas nommé (13/08, décision §16.6 tracée
+    dans app_metadata.py) : `PROMPT_TARGETS['synthesizer'] = []` — le `text_content` TTS ne
+    doit JAMAIS être traduit (on prononce ce que l'utilisateur a écrit). Exiger la pipeline,
+    la skill et l'UI d'enrichissement sur un prompt qui n'existe pas revenait à sanctionner
+    la décision elle-même : le gate se lit désormais sur le CONTENU déclaré."""
+    if f.find(MODELS, r'^\s*prompt\s*=\s*models\.'):
+        return True
+    try:
+        from wama.common.utils.app_metadata import prompt_targets
+        return bool(prompt_targets(f.app))
+    except Exception:
+        return f.app in _registry_keys('PROMPT_TARGETS', 'common/utils/app_metadata.py')
 
 
 def _f6_prompt(fn):
