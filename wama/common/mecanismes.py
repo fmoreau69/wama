@@ -48,11 +48,19 @@ class Mecanisme:
     #: `ScopedVisibility` alors qu'ils importent surtout `Library` ou `BatchMixin` (mesuré le
     #: 2026-08-13). Le chiffre devenait décoratif ; renseigner le symbole le rend vrai.
     symbole: str = ''
+    #: Domaine de rendu de la carte (sous-table). Posé par `_domaine()` — jamais entrée par entrée.
+    domaine: str = ''
 
 
-#: ⚠ ORDRE : par domaine, puis alphabétique. La carte est triée à la génération de toute façon.
+def _domaine(nom: str, mecanismes: tuple) -> tuple:
+    """Pose le domaine sur un groupe d'entrées : le nom du domaine ne s'écrit qu'UNE fois."""
+    from dataclasses import replace
+    return tuple(replace(m, domaine=nom) for m in mecanismes)
+
+
+#: ⚠ ORDRE : par domaine (= ordre des sous-tables de la carte) ; alphabétique à la génération.
 MECANISMES = (
-    # ── Ressources & exécution ────────────────────────────────────────────────────────────
+    *_domaine('Ressources & exécution', (
     Mecanisme('resource_governor', 'Gouverneur de ressources',
               "Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités",
               'wama/common/services/resource_governor.py', 'PROJECT_STATUS.md §0'),
@@ -71,9 +79,12 @@ MECANISMES = (
               annexes=('wama/common/services/ui_smoke.py',)),
     Mecanisme('system_monitor', 'Moniteur système',
               "Mesure unifiée CPU/RAM/GPU/disque (WSL + hôte Windows) — barre de ressources, model manager",
-              'wama/common/services/system_monitor.py', ''),
+              'wama/common/services/system_monitor.py', '',
+              annexes=('wama/common/static/common/js/system-stats.js',)),
 
-    # ── Modèles ───────────────────────────────────────────────────────────────────────────
+    )),
+
+    *_domaine('Modèles', (
     Mecanisme('model_selector', 'Sélection de modèle',
               "Choisit UN modèle : capacités, entrées, priorités, budget VRAM, qualité",
               'wama/model_manager/services/model_selector.py', 'INPUT_MODEL_MATCHING.md'),
@@ -119,7 +130,9 @@ MECANISMES = (
               "Bascule TEMPORAIRE du cache HuggingFace par backend — anti-fuite d'artefacts inter-apps",
               'wama/common/utils/hf_cache.py', ''),
 
-    # ── Qualité & auto-amélioration ───────────────────────────────────────────────────────
+    )),
+
+    *_domaine('Qualité & auto-amélioration', (
     Mecanisme('run_outcome', "Signaux d'exécution",
               "Journal append-only des FAITS observés sur un résultat (produit/corrigé/relancé…)",
               'wama/common/services/run_outcome.py', 'ROADMAP.md §16.7'),
@@ -131,14 +144,18 @@ MECANISMES = (
               'wama/common/services/divergence.py',
               'wama/transcriber/TRANSCRIBER_CORRECTION.md §8.3'),
 
-    # ── Contenu & prompts ─────────────────────────────────────────────────────────────────
+    )),
+
+    *_domaine('Contenu & prompts', (
     Mecanisme('prompt_pipeline', 'Pipeline de prompts',
               "Traduction/enrichissement centralisés, déclarés par PROMPT_TARGETS",
               'wama/common/utils/prompt_enrichment.py', 'PROMPT_PIPELINE.md',
               annexes=('wama/common/utils/app_metadata.py',
                        'wama/common/utils/prompt_pipeline.py',
                        'wama/common/utils/prompt_skills.py',
-                       'wama/common/utils/reference_comprehension.py')),
+                       'wama/common/utils/reference_comprehension.py',
+                       'wama/common/static/common/js/wama-prompt-chips.js',
+                       'wama/common/static/common/js/wama-prompt-enrich.js')),
     Mecanisme('llm', 'Accès LLM',
               "Route unique vers les LLM (tiers déclaratifs, sélection catalogue, Ollama local)",
               'wama/common/utils/llm_utils.py', ''),
@@ -150,7 +167,9 @@ MECANISMES = (
               "Génère PDF (fpdf2) / DOCX (python-docx) depuis les résultats d'app",
               'wama/common/utils/document_export.py', ''),
 
-    # ── Manifestes & registres ────────────────────────────────────────────────────────────
+    )),
+
+    *_domaine('Manifestes & registres', (
     Mecanisme('manifests', 'Manifestes',
               "Extraction/validation/projection des 7 kinds vers les registres",
               'wama/common/manifests/ingest.py', 'WAMA_MANIFEST_ARCHITECTURE.md',
@@ -165,7 +184,9 @@ MECANISMES = (
               "Mesure les 8 facettes F1–F8 des apps par analyse du code réel",
               'wama/common/services/conformity_checker.py', 'WAMA_APP_CONVENTIONS.md'),
 
-    # ── File d'attente & lots ─────────────────────────────────────────────────────────────
+    )),
+
+    *_domaine("File d'attente & lots", (
     # Déclarés parce que CLAUDE.md les nomme explicitement « ce qui existe déjà dans common/ —
     # à utiliser, ne pas recréer » : ne pas les tracer ici laisserait la carte en dessous des
     # instructions du dépôt.
@@ -177,42 +198,94 @@ MECANISMES = (
               'wama/common/utils/batch_parsers.py', 'BATCH_FORMAT.md',
               annexes=('wama/common/utils/batch_common.py',
                        'wama/common/utils/batch_sync.py',
-                       'wama/common/utils/batch_utils.py')),
+                       'wama/common/utils/batch_utils.py',
+                       'wama/common/static/common/js/batch-import.js')),
     Mecanisme('queue_view', 'Tri/filtrage de la file',
               "Tri + filtrage communs de la file unifiée, préférence persistée et PARTAGÉE entre apps",
               'wama/common/utils/queue_view.py', 'CARD_DESIGN.md'),
     Mecanisme('queue_manipulation', 'Manipulation directe de la file',
               "Endpoints génériques : sortir une card d'un batch, réordonner, déplacer, consolider",
               'wama/common/utils/queue_manipulation.py', 'CARD_DESIGN.md §3bis'),
+    Mecanisme('queue_front', "File d'attente (front)",
+              "Comportements communs des files : collapse de batch persisté, focus card, data-wama-*",
+              'wama/common/static/common/js/wama-queue.js', 'CARD_DESIGN.md',
+              annexes=('wama/common/static/common/js/queue-actions.js',
+                       'wama/common/templates/common/_queue_toolbar.html',
+                       'wama/common/templates/common/_queue_actions.html',
+                       'wama/common/templates/common/_batch_card.html')),
     Mecanisme('console', 'Console utilisateur',
               "Lignes de journal structurées par utilisateur et par app, via Redis",
-              'wama/common/utils/console_utils.py', ''),
+              'wama/common/utils/console_utils.py', '',
+              annexes=('wama/common/static/common/js/console.js',)),
     Mecanisme('notifications', 'Notifications de tâche',
               "notify_job() — fin de traitement, succès comme échec",
               'wama/common/utils/notifications.py', 'PROFILES_PERMISSIONS.md'),
 
-    # ── UI déclarative ────────────────────────────────────────────────────────────────────
+    )),
+
+    *_domaine('UI générée', (
+    # Les briques FRONT d'un mécanisme (js/partials) sont ses ANNEXES : même identité, le
+    # comptage voit alors aussi les gabarits qui les référencent (balise <script>, include).
     Mecanisme('param_schema', 'Schéma de paramètres',
               "Source unique des réglages d'app : volet droit et modale sont RENDUS depuis lui",
-              'wama/common/utils/param_schema.py', 'WAMA_APP_GENERATION_ROUTE.md'),
+              'wama/common/utils/param_schema.py', 'WAMA_APP_GENERATION_ROUTE.md',
+              annexes=('wama/common/static/common/js/wama-params.js',
+                       'wama/common/templates/common/_settings_modal_footer.html')),
     Mecanisme('model_capabilities', 'Vocabulaire des capacités',
               "Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage UI",
-              'wama/common/utils/model_capabilities.py', 'INPUT_MODEL_MATCHING.md'),
+              'wama/common/utils/model_capabilities.py', 'INPUT_MODEL_MATCHING.md',
+              annexes=('wama/common/static/common/js/wama-model-caps.js',
+                       'wama/common/static/common/js/wama-input-match.js',
+                       'wama/common/static/common/js/wama-model-help.js')),
     Mecanisme('detail_registry', 'Inspecteur — champs de détail',
               "Schéma canonique des infos d'item affichées au volet droit",
-              'wama/common/utils/detail_registry.py', 'INSPECTOR_DETAIL_FIELDS.md'),
+              'wama/common/utils/detail_registry.py', 'INSPECTOR_DETAIL_FIELDS.md',
+              annexes=('wama/common/static/common/js/wama-inspector.js',
+                       'wama/common/static/common/js/wama-inspector-autofill.js',
+                       'wama/common/templates/common/_inspector_actions.html',
+                       'wama/common/templates/common/_inspector_banner.html')),
     Mecanisme('preview', 'Preview unifiée',
               "Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps",
               'wama/common/utils/preview_registry.py', '',
-              annexes=('wama/common/utils/preview_utils.py',)),
+              annexes=('wama/common/utils/preview_utils.py',
+                       'wama/common/static/common/js/media-preview.js')),
     Mecanisme('card_chips', 'Chips méta des cards',
               "Chips de l'état concis GÉNÉRÉS du schéma params (chip=True) — jamais écrits par app",
-              'wama/common/utils/card_chips.py', 'CARD_DESIGN.md §10.3'),
+              'wama/common/utils/card_chips.py', 'CARD_DESIGN.md §10.3',
+              annexes=('wama/common/templates/common/_card_chips.html',)),
     Mecanisme('app_modes', 'Domaines → modes',
               "Schéma déclaratif des onglets-domaine et modes par app — scope la file",
-              'wama/common/utils/app_modes.py', 'MODES_QUEUE_UX.md'),
+              'wama/common/utils/app_modes.py', 'MODES_QUEUE_UX.md',
+              annexes=('wama/common/static/common/js/wama-modes.js',)),
+    Mecanisme('app_base_js', 'Socle JS des apps',
+              "Plomberie commune file/cards : csrfFetch, urls, Poller de progression, états vides",
+              'wama/common/static/common/js/wama-app-base.js', 'WAMA_APP_GENERATION_ROUTE.md'),
+    Mecanisme('card_system', 'Card v3',
+              "Dimensionnement déclaratif des pistes de card — dépend de l'app, des actions, des libellés",
+              'wama/common/static/common/js/wama-card-v3.js', 'CARD_DESIGN.md §11',
+              annexes=('wama/common/templates/common/_card_state.html',)),
+    Mecanisme('new_item_card', 'Card « Nouvel élément »',
+              "Card d'entrée dépliable commune (dropzones, URL, médiathèque, batch) — auto-init",
+              'wama/common/static/common/js/wama-new-item-card.js', 'MODES_QUEUE_UX.md',
+              annexes=('wama/common/templates/common/_new_item_card.html',)),
+    Mecanisme('cycle_button', 'Bouton de cycle',
+              "Bouton commun ▶/⏹/↻ toujours vert — l'icône porte l'action, l'état vit sur la card",
+              'wama/common/static/common/js/wama-cycle-button.js', '',
+              annexes=('wama/common/templates/common/_cycle_button.html',)),
+    Mecanisme('progress_ui', 'Progression & ETA (front)',
+              "Moteur ETA par débit observé + barres aux 3 niveaux : card, batch, globale",
+              'wama/common/static/common/js/wama-eta.js', 'PROJECT_STATUS.md §10',
+              annexes=('wama/common/static/common/js/wama-global-progress.js',
+                       'wama/common/templates/common/_global_progress.html',
+                       'wama/common/templates/common/_card_progress.html',
+                       'wama/common/templates/common/_processing_time.html')),
+    Mecanisme('folder_import', 'Import de dossier récursif',
+              "Traversée récursive d'un drop/webkitdirectory — brique F2 montée globale (base.html)",
+              'wama/common/static/common/js/wama-folder-import.js', 'WAMA_APP_GENERATION_ROUTE.md'),
 
-    # ── Données & infrastructure ──────────────────────────────────────────────────────────
+    )),
+
+    *_domaine('Données & infrastructure', (
     Mecanisme('ffmpeg', 'Accès ffmpeg',
               "Résolution centralisée du binaire et des conversions (échappatoire FFMPEG_BINARY)",
               'wama/common/utils/ffmpeg_utils.py', ''),
@@ -248,7 +321,9 @@ MECANISMES = (
               "Persistance cache user_{id}_{app}_{clé} avec défauts déclarés par l'app",
               'wama/common/utils/user_settings.py', ''),
 
-    # ── Studio & surface d'outils (API) ───────────────────────────────────────────────────
+    )),
+
+    *_domaine("Studio & surface d'outils (API)", (
     Mecanisme('generic_runner', 'Runner générique du studio',
               "Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app",
               'wama/studio/services/generic_runner.py', 'STUDIO_VISION.md',
@@ -262,6 +337,7 @@ MECANISMES = (
               'wama/api/v1/views.py', '',
               annexes=('wama/api/v1/urls.py',),
               symbole='api_v1'),
+    )),
 )
 
 

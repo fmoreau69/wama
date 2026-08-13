@@ -116,6 +116,28 @@ def _modules_python(base):
                     yield Path(dossier, f).relative_to(base).as_posix()
 
 
+def _sources_front(base):
+    """Chemins .html/.js de NOTRE front (templates + static d'app), relatifs à base.
+
+    Corpus des CONSOMMATEURS des briques front (js/partials déclarés au registre) : une brique
+    est consommée par la balise <script>/l'include qui la référence, pas par un import Python.
+    `staticfiles/` (copies collectées) reste élagué — compter une copie mentirait — et
+    `vendors/` (libs tierces vendorées) aussi ; `static` est réadmis, c'est là que vit le front.
+    """
+    import os
+
+    exclus = (_DOSSIERS_EXCLUS - {'static'}) | {'vendors'}
+    for racine in ('wama', 'wama_lab'):
+        depart = base / racine
+        if not depart.is_dir():
+            continue
+        for dossier, sous, fichiers in os.walk(depart):
+            sous[:] = [d for d in sous if d not in exclus]
+            for f in fichiers:
+                if f.endswith(('.html', '.js')):
+                    yield Path(dossier, f).relative_to(base).as_posix()
+
+
 def _fait_mecanismes():
     """
     Carte des mécanismes transversaux + les trois formes d'oubli.
@@ -132,7 +154,7 @@ def _fait_mecanismes():
     base = Path(settings.BASE_DIR)
     modules = list(_modules_python(base))
     sources = {}
-    for rel in modules:
+    for rel in modules + list(_sources_front(base)):
         try:
             sources[rel] = (base / rel).read_text(encoding='utf-8', errors='ignore')
         except OSError:
@@ -153,28 +175,43 @@ def _fait_mecanismes():
                            if rel not in siens and motif.search(src)})
         motifs = []
         for chemin in siens:
-            pointe = chemin[:-3].replace('/', '.')          # wama/common/x.py → wama.common.x
-            feuille = chemin.rsplit('/', 1)[-1][:-3]         # → x
-            motifs.append(re.compile(
-                rf'(?:from\s+{re.escape(pointe)}\s+import|import\s+{re.escape(pointe)}\b'
-                rf'|from\s+[.\w]*\.?{re.escape(feuille)}\s+import)'))
+            if chemin.endswith('.py'):
+                pointe = chemin[:-3].replace('/', '.')      # wama/common/x.py → wama.common.x
+                feuille = chemin.rsplit('/', 1)[-1][:-3]     # → x
+                motifs.append(re.compile(
+                    rf'(?:from\s+{re.escape(pointe)}\s+import|import\s+{re.escape(pointe)}\b'
+                    rf'|from\s+[.\w]*\.?{re.escape(feuille)}\s+import)'))
+            else:
+                # Brique front (.js/.html) : consommée par la référence de son NOM de fichier
+                # (balise <script src=…>, {% include %}, {% static %}).
+                motifs.append(re.compile(re.escape(chemin.rsplit('/', 1)[-1])))
         return sorted({rel for rel, src in sources.items()
                        if rel not in siens and any(m.search(src) for m in motifs)})
 
-    lignes = ["| Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |",
-              "|---|---|---|---|---|"]
+    # Une sous-table par DOMAINE (ordre du registre) : un tableau unique de 60+ lignes ne se
+    # lit pas — demande Fabien du 2026-08-13 en intégrant la couche UI générée.
+    lignes = []
     orphelins = []
     absents = []
-    for m in sorted(MECANISMES, key=lambda x: x.nom):
-        existe = (base / m.domicile).exists()
-        if not existe:
-            absents.append(f"{m.cle} → {m.domicile}")
-        conso = _consommateurs(m) if existe else []
-        if existe and not conso:
-            orphelins.append(f"`{m.cle}` ({m.domicile})")
-        doc = f"`{m.doc}`" if m.doc else "—"
-        etat = str(len(conso)) if conso else ("⚠ **0**" if existe else "❌ absent")
-        lignes.append(f"| **{m.nom}** | {m.role} | `{m.domicile}` | {doc} | {etat} |")
+    domaines = []
+    for m in MECANISMES:
+        if m.domaine not in domaines:
+            domaines.append(m.domaine)
+    for dom in domaines:
+        du_domaine = sorted((m for m in MECANISMES if m.domaine == dom), key=lambda x: x.nom)
+        lignes.append(f"\n#### {dom or 'Sans domaine'} ({len(du_domaine)})\n")
+        lignes.append("| Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |")
+        lignes.append("|---|---|---|---|---|")
+        for m in du_domaine:
+            existe = (base / m.domicile).exists()
+            if not existe:
+                absents.append(f"{m.cle} → {m.domicile}")
+            conso = _consommateurs(m) if existe else []
+            if existe and not conso:
+                orphelins.append(f"`{m.cle}` ({m.domicile})")
+            doc = f"`{m.doc}`" if m.doc else "—"
+            etat = str(len(conso)) if conso else ("⚠ **0**" if existe else "❌ absent")
+            lignes.append(f"| **{m.nom}** | {m.role} | `{m.domicile}` | {doc} | {etat} |")
 
     # Modules de `common/` non rattachés : la réponse mécanique à « qu'ai-je oublié de tracer ».
     # ASSUMES_LOCAUX en est soustrait (assumer est un acte DÉCLARÉ avec raison, pas un oubli) —
