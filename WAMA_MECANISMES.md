@@ -48,8 +48,12 @@ du nom de fichier** (balise `<script>`, include) dans les gabarits et le front (
 | `n` | nombre de modules qui s'en servent |
 
 Et sous la table, la liste des modules **non rattachés au registre** parmi les dossiers balayés
-(`common/services/`, `common/utils/`, `model_manager/services/`, `studio/services/` — étendu aux
-deux derniers le 2026-08-13) — la réponse mécanique à « qu'ai-je oublié de tracer ». Un utilitaire strictement
+(`common/services/`, `common/utils/`, `common/backends/`, `model_manager/services/`,
+`studio/services/` — étendu aux trois derniers le 2026-08-13) — la réponse mécanique à « qu'ai-je
+oublié de tracer ». ⚠ Un dossier **hors balayage** ne produit **aucun** signal : c'est ainsi que
+`common/backends/base.py`, qui alimente tout le suivi des modèles, est resté invisible de la carte
+jusqu'au 13/08 sans que rien ne l'indique. Élargir la liste est donc un acte à faire dès qu'un
+dossier prend une fonction transversale. Un utilitaire strictement
 local ne se déclare pas : il s'**assume**, et assumer est un acte déclaré lui aussi —
 `ASSUMES_LOCAUX` (wama/common/mecanismes.py), une raison datée par entrée, soustrait du backlog
 (ajouté au triage du 2026-08-13 : sans lui la liste plafonnait à 45 noms et ne convergeait
@@ -59,10 +63,11 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 ---
 
 <!-- WAMA:FAITS(mecanismes) — généré par « python manage.py doc_facts », ne pas éditer -->
-#### Ressources & exécution (7)
+#### Ressources & exécution (8)
 
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
+| **Contrat de backend** | Cycle de vie commun des porteurs de modèle — et ALIMENTATION du gouverneur : enveloppe load/unload/process à toute profondeur d'héritage | `wama/common/backends/base.py` | `WAMA_APP_GENERATION_ROUTE.md` | 27 |
 | **ETA auto-apprenante** | Estimation de durée par a-priori puis moyenne mobile, bucketisée par matériel | `wama/model_manager/services/eta_estimator.py` | `PROJECT_STATUS.md §10` | 20 |
 | **Gardes de process** | Anti-boucle-de-crash (redélivrance) et réconciliation des tâches orphelines | `wama/common/utils/process_control.py` | `PROJECT_STATUS.md §0` | 20 |
 | **Gouverneur de ressources** | Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités | `wama/common/services/resource_governor.py` | `PROJECT_STATUS.md §0` | 12 |
@@ -165,7 +170,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Runner générique du studio** | Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app | `wama/studio/services/generic_runner.py` | `STUDIO_VISION.md` | 7 |
 | **Surface d'outils** | Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas | `wama/tool_api.py` | `WAMA_APP_GENERATION_ROUTE.md` | 8 |
 
-**Mécanismes déclarés : 61** · domiciles absents : 0 · sans consommateur : 1 · assumés locaux : 18 · modules balayés non rattachés : 0
+**Mécanismes déclarés : 62** · domiciles absents : 0 · sans consommateur : 1 · assumés locaux : 18 · modules balayés non rattachés : 0
 - ⚠ **Sans consommateur** (brique morte ou pas encore adoptée) : `qc` (wama/common/utils/qc.py)
 
 <details><summary>Assumés utilitaires locaux : 18 (chacun avec sa raison — <code>ASSUMES_LOCAUX</code>, wama/common/mecanismes.py)</summary>

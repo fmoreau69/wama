@@ -4,9 +4,17 @@ Contrat de backend de modèle COMMUN à WAMA — extrait de l'app de référence
 But : un fonctionnement générique et **non bloquant pour de nouveaux modèles**. Un nouveau backend =
 une sous-classe qui déclare ses dépendances et implémente le cycle de vie ; **aucune modif du cœur**.
 
-⚠️ CONTRAT SEUL (1ʳᵉ étape d'extraction) : aucune app n'est encore migrée dessus. Migration
-incrémentale : imager (forme déjà alignée) → enhancer → reader/anonymizer/composer/synthesizer →
-describer en dernier. Voir BACKEND_CARTOGRAPHY.md.
+⚠️ Cet en-tête a longtemps dit « CONTRAT SEUL, aucune app n'est encore migrée dessus » et renvoyait
+à `BACKEND_CARTOGRAPHY.md` — **les deux sont faux depuis 2026-07** (corrigé le 13/08). Sept apps en
+dérivent (anonymizer, avatarizer, composer, enhancer, imager, reader, transcriber), la cartographie
+est consolidée dans `WAMA_APP_GENERATION_ROUTE.md` (l'ancien fichier est archivé sous `docs/archive/`).
+
+Ce module est aussi **l'alimentation de la route de suivi des modèles** : `__init_subclass__`
+enveloppe `load`/`unload`/`process` à N'IMPORTE QUELLE profondeur d'héritage, et c'est par là que
+le gouverneur (`common/services/resource_governor.py`) apprend qui occupe la VRAM
+(`reserve_vram` / `release_reservation` / `mark_used`). Le registre `_LIVE_BACKENDS` ci-dessous
+en est le pendant côté ACTION : il enregistre l'unloader de l'app à la première résidence réelle.
+Sans ce module, le gouverneur ne verrait rien — voir `WAMA_MECANISMES.md` (Contrat de backend).
 
 Le COMMUN est le **cycle de vie** (is_available / load / is_loaded / unload), pas le verbe métier :
 les apps exposent `transcribe()/generate()/enhance()/...` en déléguant à `process(**kwargs)`.

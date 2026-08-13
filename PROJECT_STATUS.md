@@ -3218,6 +3218,36 @@ Aucun autre usage du gouverneur ni des unloaders dans `wama_lab`.
 `cleanup_idle_models` / `unload_specific_model` / `find_large_objects` exécutés (système au repos :
 0 résident, 0 inactif, `unload_specific_model('imager:inexistant')` → `False`, sans exception).
 
+#### F-bis. La revérification demandée par Fabien a trouvé un TROU DE CARTE, pas une erreur de code
+
+Sa question — « du coup le tracker est dans `memory_manager` ? je ne le vois pas dans les annexes » —
+partait d'une intuition juste : **le SUIVI n'est ni dans `memory_manager`, ni dans ses annexes**.
+Il est dans `resource_governor`, entrée distincte de la carte. Ce découpage est correct
+(`memory_manager` = garantir/reprendre la VRAM ; ses annexes `memory_monitor` = mesurer,
+`memory_cleaner` = nettoyer, `memory_diagnostics` = sonder). Mais chercher la réponse a révélé
+**trois défauts réels** :
+
+1. **`wama/common/backends/` n'était dans AUCUN dossier balayé** par le détecteur de modules non
+   rattachés. Donc `BaseModelBackend` — la brique qui **alimente tout le suivi**, sans laquelle le
+   gouverneur ne verrait rien — était **invisible de la carte**, et *aucun signal ne le disait* :
+   un dossier hors balayage ne produit ni « non rattaché » ni rien. Le seul trou qu'un contrôle
+   par liste blanche ne peut pas voir est celui qui tombe hors de sa liste. → mécanisme
+   **`backend_contract`** déclaré, et `common/backends/` **ajouté aux dossiers balayés** pour que
+   ça ne puisse pas se reproduire.
+2. **L'en-tête de `common/backends/base.py` mentait depuis ~6 semaines** : « CONTRAT SEUL, aucune
+   app n'est encore migrée dessus » + renvoi à `BACKEND_CARTOGRAPHY.md` (archivé). Sept apps en
+   dérivent. Corrigé, et l'en-tête dit désormais son rôle dans la route de suivi.
+3. **Le premier rendu annonçait 100 consommateurs** pour ce mécanisme — faux. Le compteur a un
+   repli « import relatif » (`from …base import`) qui, pour un domicile au **nom de feuille banal**
+   (`base.py`, et l'annexe `manager.py`), capture tout le dépôt. Corrigé par `symbole=` (le champ
+   existait pour le cas voisin des modules partagés). **Règle** : domicile au nom générique
+   (base/manager/models/utils/views…) ⇒ renseigner `symbole`, sinon le chiffre est décoratif.
+   Audit des 61 entrées : les 4 concernées ont toutes un symbole, **0 autre à risque**.
+   Compte réel après correction : **27** — le mécanisme le plus consommé du domaine.
+
+Leçon transposable : un chiffre invraisemblable dans une table générée se vérifie **avant** d'être
+publié — c'est le premier rendu qui a livré le faux 100, pas une dérive ultérieure.
+
 ## §REPRISE — 2026-08-12 (session UI/média/résidence, instance parallèle) : exclusivité audio + préchargement TTS + RÉSIDENCE des modèles
 
 > Périmètre disjoint du chantier manifestes mené en parallèle (aucun fichier commun).

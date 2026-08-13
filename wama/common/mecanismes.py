@@ -15,9 +15,12 @@ CE QU'ON DÉCLARE, ET CE QU'ON NE DÉCLARE PAS
 
 CE QUE LE CONTRÔLE SAIT DIRE (cf. `doc_facts --check`, fait `mecanismes`) :
   1. un mécanisme dont le DOMICILE a disparu — la carte pointe dans le vide ;
-  2. un module de `common/services/`, `common/utils/`, `model_manager/services/` ou
-     `studio/services/` **non déclaré** — « tu as oublié de le tracer », la question posée
-     par Fabien le 2026-08-13 (balayage étendu aux 2 derniers dossiers le même jour) ;
+  2. un module de `common/services/`, `common/utils/`, `common/backends/`,
+     `model_manager/services/` ou `studio/services/` **non déclaré** — « tu as oublié de le
+     tracer », la question posée par Fabien le 2026-08-13 (balayage étendu aux 3 derniers
+     dossiers le même jour ; `common/backends/` en dernier, après que Fabien ait demandé où
+     vivait le suivi des modèles : le dossier hors balayage ne produisait AUCUN signal, donc
+     `BaseModelBackend` — qui alimente tout le suivi — était invisible sans que rien ne l'indique) ;
   3. un mécanisme **sans consommateur** — brique morte. C'est exactement l'état où sont restés
      `model_coverage.couvrir_classes` (0 consommateur pendant 8 jours, alors qu'il avait été
      extrait pour ça) et `qc.py` (0 aujourd'hui). Ces deux-là ont été trouvés à la main ;
@@ -64,6 +67,19 @@ MECANISMES = (
     Mecanisme('resource_governor', 'Gouverneur de ressources',
               "Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités",
               'wama/common/services/resource_governor.py', 'PROJECT_STATUS.md §0'),
+    Mecanisme('backend_contract', 'Contrat de backend',
+              "Cycle de vie commun des porteurs de modèle — et ALIMENTATION du gouverneur : "
+              "enveloppe load/unload/process à toute profondeur d'héritage",
+              'wama/common/backends/base.py', 'WAMA_APP_GENERATION_ROUTE.md',
+              annexes=('wama/common/backends/manager.py',),
+              # ⚠ `symbole` OBLIGATOIRE ici, et pour une raison différente de `scoped_visibility` :
+              # le domicile n'est pas un module partagé, c'est son NOM DE FEUILLE qui est banal.
+              # Le repli « import relatif » du compteur (`from …base import`) capturait alors
+              # TOUS les `from .base import` du dépôt — 100 consommateurs annoncés au premier
+              # rendu, mesuré le 2026-08-13, pour ~25 réels. Même piège pour l'annexe
+              # `manager.py`. Règle : domicile au nom générique (base/manager/models/utils) ⇒
+              # renseigner le symbole, sinon le chiffre est décoratif.
+              symbole='BaseModelBackend'),
     Mecanisme('task_skeleton', 'Squelette de tâche',
               "Enchaînement commun des tâches Celery d'item : gardes, progress, statuts, ETA",
               'wama/common/utils/task_skeleton.py', 'WAMA_APP_GENERATION_ROUTE.md'),

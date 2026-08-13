@@ -219,7 +219,12 @@ def _fait_mecanismes():
     # noms au 2026-08-13). Deux gardes d'honnêteté : un module à la fois assumé ET déclaré est
     # une contradiction ; un assumé dont le fichier a disparu est une entrée périmée.
     declares = {m.domicile for m in MECANISMES} | {a for m in MECANISMES for a in m.annexes}
+    # `wama/common/backends/` ajouté le 2026-08-13 : il manquait, et c'est ce qui a rendu
+    # INVISIBLE de la carte la brique qui ALIMENTE tout le suivi des modèles
+    # (`BaseModelBackend` et ses trois enveloppes). Un dossier hors balayage ne produit
+    # aucun signal — ni « non rattaché », ni rien : le trou était silencieux.
     dossiers_balayes = ('wama/common/services/', 'wama/common/utils/',
+                        'wama/common/backends/',
                         'wama/model_manager/services/', 'wama/studio/services/')
     candidats = sorted(
         rel for rel in modules
