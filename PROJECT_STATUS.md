@@ -2480,14 +2480,33 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > `input_match_ui`, `params_modal_batch`, `during_preview` (chantiers transverses ①/③ de la file,
 > PAS le paquet F4/F6).
 >
-> **🔚 POINT D'ENTRÉE SESSION SUIVANTE : inchangé depuis le 13/08 (nuit)** — ① during ×6 (GPU,
-> avec Fabien) ; ② ~~paquet synthesizer~~ **FAIT** ; ③ finitions composer 91/describer 90/reader 90 ;
+> **SUITE (14/08, avec Fabien en ligne) : 2 corrections issues de l'USAGE RÉEL + ③ entamé.**
+> ① **Composer 91 → 93** : duplication d'item portée sur la brique `queue-actions.js`
+> (`data-duplicate-url` sur la card, handler local + config morte supprimés, `duplicated:<id>`
+> pour le focus) — le « DOUBLE-FIRE » du checker était en réalité le LITTÉRAL du commentaire de
+> contrat de la card (récidive ×4 du piège) ; l'état réel était « impl locale, brique non
+> consommée ». ② **Modale anonymizer : format/qualité INACCESSIBLES** (constat Fabien sur
+> SEQ08-01.mp4) — `output_format`/`output_quality` sont des CharField SANS choices →
+> `derive_from_model` rendait deux selects VIDES. Options désormais depuis la brique
+> `output_formats` en optgroups Général/Vidéo/Image (app bi-domaine). ③ **Regroupement par
+> ARRIVÉE, plus par ACCUMULATION (validé Fabien)** : l'auto-wrap par nature
+> (anonymizer/enhancer/describer, of-N transcriber) fusionnait des envois individuels espacés —
+> règle unifiée 10 apps : orphelin → batch-de-1, le regroupement ne se fait qu'à l'IMPORT GROUPÉ
+> (`api_import_to_app` généralisé, helper public `consolidate_*_into_batches` par app, enhancer
+> splitté média/audio). Briques `load_in_import_order` + `delete_singleton_batches` extraites et
+> adoptées (fabrique + vues consolidate). Smoke shell : 3 orphelins → 3 of-1 ; import groupé
+> 2v+1i → batchs 2+1.
+>
+> **🔚 POINT D'ENTRÉE SESSION SUIVANTE** — ① during ×6 (GPU, avec Fabien) ;
+> ② ~~paquet synthesizer~~ **FAIT** ; ③ finitions **en cours** (composer 93 — restent
+> url_ingest/user_settings/modes/model_caps/params_modal_batch ; describer 90 ; reader 90) ;
 > ④ phase R régénérabilité ×7. PENDINGS : ⚠ **restart du service TTS par Fabien** (uvicorn:8001
 > tourne encore avec l'ancien code ; le préchargement Kokoro touche le GPU → jamais par
-> l'assistant) — workers/gunicorn PAS concernés (workers.py/views.py inchangés, HTTP seulement) ;
-> push = demander. **Contrôles attendus au prochain /reprise** : check_docs 2 CASSÉ ·
-> doc_facts 4 à jour · corpus 110 (depuis WSL2) · grille : converter 100, transcriber 97,
-> **synthesizer 95**, avat/enh/imager 94, anonymizer 93, composer 91, describer/reader 90.
+> l'assistant) ; ⚠ **restart/HUP gunicorn** pour les fixes du 14/08 (modale anonymizer,
+> regroupement, duplication composer — views/params/filemanager) ; push = demander.
+> **Contrôles attendus au prochain `/reprise`** : check_docs 2 CASSÉ · doc_facts 4 à jour ·
+> corpus 110 (depuis WSL2) · grille : converter 100, transcriber 97, **synthesizer 95**,
+> avat/enh/imager 94, anonymizer/**composer 93**, describer/reader 90.
 
 ## §REPRISE — 2026-08-13 (nuit) : BANC CODEGEN JOUÉ (marche B front 2) + skills à jour
 
