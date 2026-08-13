@@ -2520,9 +2520,13 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 >
 > **SUITE : passe d'adoption ×9 JOUÉE — `recursive_import` 9/10** (question Fabien « toutes
 > les manières d'importer ? » vérifiée d'abord : explorateur drop/sélecteur = brique ✅ ;
-> filemanager→app « Envoyer vers » = fichiers seuls PAR CONSTRUCTION (`node.type==='file'`,
-> filemanager.js:622 — « envoyer un DOSSIER vers app » = trou distinct côté serveur, désigné
-> pas traité) ; drag interne FM = no-op inchangé (pas de File natif) ; describer/synthesizer
+> filemanager→app : « Envoyer dossier vers… » **EXISTE** (filemanager.js:767-815 —
+> ⚠ j'avais d'abord affirmé le contraire sur la seule lecture de la branche `file`,
+> CORRIGÉ après question Fabien) mais il collecte `children_d` de jstree alors que l'arbre
+> est **paresseux** (views.py:229-231, `children: True` à l'expansion) → **envoi PARTIEL
+> SILENCIEUX sur un dossier jamais déplié** ; vrai trou = récursion CÔTÉ SERVEUR
+> (api_import_to_app acceptant un dossier + rglob filtré), désigné pas traité ;
+> drag interne FM = no-op inchangé (pas de File natif) ; describer/synthesizer
 > gardent leur chemin `FileManager.getFileManagerData` AVANT collect). Adoption COMPLÈTE
 > (lien dossier + drop récursif) : anonymizer, describer, enhancer ×2 zones, reader,
 > synthesizer, transcriber ; ROBUSTESSE seule (slots mono-fichier, dossier → vrais fichiers,
