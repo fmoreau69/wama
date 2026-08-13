@@ -227,6 +227,24 @@ def _toast(f: _AppFiles):
     return False, alert_ev
 
 
+def _modes_declared(f: _AppFiles):
+    """Modes déclarés — ou ABSENCE DÉCLARÉE (`{'domains': []}` = « j'ai considéré, le
+    comportement ne diverge pas ») → non applicable. Un mode n'existe que si le comportement
+    diverge (doctrine common/README §Modes) ; exiger un mode factice d'une app mono-geste
+    (composer/reader/describer, 14/08) sanctionnait la doctrine — même logique que
+    PROMPT_TARGETS vide (gate F6, 14/08). Clé ABSENTE = toujours rouge (non traité)."""
+    try:
+        from wama.common.utils.app_modes import APP_MODES
+        entry = APP_MODES.get(f.app)
+    except Exception:
+        entry = None
+    if entry is None:
+        return False, "absente d'APP_MODES (ni modes, ni absence déclarée)"
+    if not entry.get('domains'):
+        return None, None
+    return True, f"common/utils/app_modes.py APP_MODES['{f.app}']"
+
+
 def _duplicate_wiring(f: _AppFiles):
     data_url = f.find(TEMPLATES, r'data-duplicate-url')
     # (?<![\w-]) : ne pas compter `.batch-duplicate-btn` (bouton de la card MÈRE,
@@ -691,10 +709,7 @@ CRITERIA: list[Criterion] = [
     Criterion('model_caps_ui', 'F3', 'show_if dérivé des capacités-modèle (WamaModelCaps)',
               lambda f: _present(f, TEMPLATES + JS, r'wama-model-caps|WamaModelCaps')
               if _uses_models(f) else (None, None)),
-    Criterion('modes', 'F3', 'Modes déclarés (APP_MODES) rendus par WamaModes',
-              lambda f: (f.app in _registry_keys('APP_MODES', 'common/utils/app_modes.py'),
-                         f"common/utils/app_modes.py APP_MODES['{f.app}']"
-                         if f.app in _registry_keys('APP_MODES', 'common/utils/app_modes.py') else None)),
+    Criterion('modes', 'F3', 'Modes déclarés (APP_MODES) rendus par WamaModes', _modes_declared),
     Criterion('layout', 'F3', 'Bascule Ligne / Mosaïque (card_layout)',
               lambda f: _present(f, TEMPLATES + JS + VIEWS, r'card_layout|data-layout')),
     Criterion('during_preview', 'F3', 'Aperçu « PENDANT » (émission backend + consommation front)',

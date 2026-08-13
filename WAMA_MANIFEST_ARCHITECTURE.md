@@ -355,12 +355,12 @@ en code sauf pour `access`.
 |---|---|---|---|---|
 | anonymizer | 13 | 10/12 | ✅ aucun écart | ✅ OK |
 | avatarizer | 12 | 9/11 | ✅ aucun écart | ✅ OK |
-| composer | 12 | 9/11 | ✅ aucun écart | ✅ OK |
+| composer | 13 | 10/12 | ✅ aucun écart | ✅ OK |
 | converter | 11 | 9/10 | ✅ aucun écart | ✅ OK |
-| describer | 11 | 8/10 | ✅ aucun écart | ✅ OK |
+| describer | 12 | 9/11 | ✅ aucun écart | ✅ OK |
 | enhancer | 12 | 9/11 | ✅ aucun écart | ✅ OK |
 | imager | 13 | 10/12 | ✅ aucun écart | ✅ OK |
-| reader | 11 | 8/10 | ✅ aucun écart | ✅ OK |
+| reader | 12 | 9/11 | ✅ aucun écart | ✅ OK |
 | synthesizer | 12 | 9/11 | ✅ aucun écart | ✅ OK |
 | transcriber | 12 | 9/11 | ✅ aucun écart | ✅ OK |
 <!-- /WAMA:FAITS(roundtrip) -->

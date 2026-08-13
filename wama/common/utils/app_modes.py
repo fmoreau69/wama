@@ -187,6 +187,19 @@ APP_MODES = {
             # futurs : {'id':'audio',…}, {'id':'document',…}
         ],
     },
+
+    # ── ABSENCES DÉCLARÉES (≠ non traité) — même pattern que PROMPT_TARGETS['synthesizer']=[].
+    # Un MODE n'existe que si le COMPORTEMENT diverge (entrées/réglages différents — doctrine
+    # common/README §Modes) ; déclarer un mode unique factice serait de la taxonomie. Si le
+    # comportement diverge un jour, remplir `domains` ici — l'UI (onglets/switch) se génère.
+    # composer : prompt-primaire, un seul geste « composer » (cf. composer/index.html:31 — la
+    #   mélodie Melody est un SLOT optionnel, pas un mode).
+    'composer': {'domains': []},
+    # reader : un seul geste « lire » ; backend/mode/langue sont des PARAMS, pas des modes.
+    'reader': {'domains': []},
+    # describer : mêmes réglages pour image et vidéo (aucune divergence par nature — le
+    #   groupement de file par nature est de l'ORGANISATION, pas un mode).
+    'describer': {'domains': []},
 }
 
 

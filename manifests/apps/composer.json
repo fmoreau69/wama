@@ -52,6 +52,9 @@
       ],
       "source_attr": "COMPOSER_MODELS"
     },
+    "modes": {
+      "domains": []
+    },
     "params": {
       "primary": "PARAMS_JSON",
       "schemas": {

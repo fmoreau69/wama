@@ -78,6 +78,9 @@
       ],
       "source_attr": "READER_MODELS"
     },
+    "modes": {
+      "domains": []
+    },
     "params": {
       "primary": "PARAMS_JSON",
       "schemas": {

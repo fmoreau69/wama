@@ -84,6 +84,9 @@
       ],
       "source_attr": "DESCRIBER_MODELS"
     },
+    "modes": {
+      "domains": []
+    },
     "params": {
       "primary": "PARAMS_JSON",
       "schemas": {

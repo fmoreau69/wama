@@ -764,7 +764,7 @@
             "default": "original",
             "dom_id": "",
             "group": "sortie",
-            "help": "",
+            "help": "Conversion inline après floutage (brique converter). « Original » = format produit par le pipeline.",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
@@ -776,7 +776,99 @@
             "min": null,
             "min_label": "",
             "name": "output_format",
-            "option_groups": null,
+            "option_groups": [
+              [
+                "Général",
+                [
+                  [
+                    "original",
+                    "Original (inchangé)"
+                  ],
+                  [
+                    "input",
+                    "Format du fichier source"
+                  ]
+                ]
+              ],
+              [
+                "Vidéo",
+                [
+                  [
+                    "mp4",
+                    ".MP4"
+                  ],
+                  [
+                    "webm",
+                    ".WEBM"
+                  ],
+                  [
+                    "avi",
+                    ".AVI"
+                  ],
+                  [
+                    "mov",
+                    ".MOV"
+                  ],
+                  [
+                    "mkv",
+                    ".MKV"
+                  ],
+                  [
+                    "gif",
+                    ".GIF"
+                  ],
+                  [
+                    "mp3",
+                    ".MP3"
+                  ],
+                  [
+                    "wav",
+                    ".WAV"
+                  ],
+                  [
+                    "ogg",
+                    ".OGG"
+                  ]
+                ]
+              ],
+              [
+                "Image",
+                [
+                  [
+                    "jpg",
+                    ".JPG"
+                  ],
+                  [
+                    "png",
+                    ".PNG"
+                  ],
+                  [
+                    "webp",
+                    ".WEBP"
+                  ],
+                  [
+                    "tiff",
+                    ".TIFF"
+                  ],
+                  [
+                    "bmp",
+                    ".BMP"
+                  ],
+                  [
+                    "gif",
+                    ".GIF"
+                  ],
+                  [
+                    "avif",
+                    ".AVIF"
+                  ],
+                  [
+                    "pdf",
+                    ".PDF"
+                  ]
+                ]
+              ]
+            ],
             "options_source": null,
             "pills": [],
             "radio_name": "",
@@ -790,7 +882,20 @@
             "advanced": true,
             "chip": false,
             "chip_label": "",
-            "choices": null,
+            "choices": [
+              [
+                "web",
+                "Web (léger)"
+              ],
+              [
+                "balanced",
+                "Équilibré"
+              ],
+              [
+                "max",
+                "Maximum"
+              ]
+            ],
             "contexts": [
               "item",
               "batch",
@@ -1133,8 +1238,8 @@
             "interpolate_detections": "toggle — Interpoler les détections manquantes (défaut : True)",
             "max_interpolation_frames": "number — Frames max à interpoler [1–60] (défaut : 15)",
             "model_to_use": "select — Modèle de détection YOLO (vide = auto selon la précision).",
-            "output_format": "select — Format de sortie (défaut : 'original')",
-            "output_quality": "select — Qualité de sortie (défaut : 'balanced')",
+            "output_format": "select — Conversion inline après floutage (brique converter). « Original » = format produit par le pipeline. (défaut : 'original')",
+            "output_quality": "select — Qualité de sortie (choix : web | balanced | max) (défaut : 'balanced')",
             "precision_level": "range — 0=Rapide · 50=Équilibré · 100=Précis (lent). [0–100] (défaut : 50)",
             "progressive_blur": "range — Flou progressif [0–100] (défaut : 25)",
             "roi_enlargement": "range — Agrandissement de la zone [1.0–2.0] (défaut : 1.05)",
