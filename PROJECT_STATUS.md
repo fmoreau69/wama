@@ -2596,6 +2596,20 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > `.job-card` (cibler `.collapse[data-wama-batch-key] .job-card`), design = dropdown
 > Bootstrap (cliquer le toggle d'abord), `card_stacked`/`card_design` PERSISTENT entre
 > runs sur le profil smoke. Captures : `logs/ui_smoke/manual/*.png`.
+>
+> **SUITE (13/08 après-midi) : SÉRIE wcv3 7/7 TERMINÉE — les 3 designs couvrent les 10
+> apps.** Ports (1 commit/app, rendu validé en shell sur items réels à chaque fois) :
+> describer (chips ×3 créés + `_decorate_desc` + re-rendu serveur AUSSI en FAILURE — l'update
+> en place ciblait le .status-badge disparu), enhancer (2 cards : média + audio), synthesizer
+> (chips ×3 + `_decorate_synthesis`), anonymizer, composer (chips ×2 + `_decorate_generation`
+> + maj point d'état v3 en place — son re-rendu serveur n'arrive qu'en FIN de tâche), imager
+> (data-* inspecteur intégralement préservés sur la racine), avatarizer (+ **fix no-op
+> silencieux** : le JS ciblait `.progress-fill` alors que la brique rend `.wama-progress-fill`
+> — la barre ne bougeait qu'aux transitions depuis le passage à la brique). Contrats JS
+> relevés AVANT chaque réécriture et consignés en tête de chaque partial. Grille re-mesurée :
+> composer 90 (+2), describer 89 (+3), synthesizer 87 (+1), reader 90, converter/transcriber
+> 95, anonymizer 93, avatarizer/enhancer/imager 94. ⚠ **RESTART/HUP gunicorn requis** (les
+> 7 nouveaux templates sont cachés) puis re-passe smoke (ui stage + captures par app).
 
 ## §REPRISE — 2026-08-11→12 (3ᵉ-4ᵉ sessions, marches C + A COMPLÈTES A1→A5) : harnais + gabarits + triades + composition
 
@@ -3022,6 +3036,38 @@ une contention, pas un modèle trop gros. Asymétrie voulue : **repli CPU pour l
 **refusé pour la vidéo** (il durerait des heures et ressemblerait à un blocage ; un échec net est
 plus utile). ⚠ `MODEL_OFFLOAD` n'est PAS une réponse ici : mécanisme *diffusers*, ultralytics ne
 l'utilise pas. Le repli codec MJPG→mp4v, lui, existait déjà dans `Anonymize` — rien perdu.
+
+### A-bis. Audit de la chaîne RESSOURCES (demandé par Fabien, 13/08) — 1 défaut corrigé, 1 doublon révélé
+
+**Aucun doublon ni contournement introduits.** Vérifié : `load`/`unload`/`process` passent tous
+par les enveloppes du gouverneur (`common/backends/base.py`) ; `load_model` n'est pas enveloppé
+mais DÉLÈGUE à `self.load()` — c'est voulu et documenté ; la chaîne du réessai est bouclée
+(`reessayer_apres_liberation` → `release_vram` → unloaders → `instance.unload()` →
+`release_reservation`) ; l'exclusion porte le bon nom d'app (`anonymizer`). Les quatre mécanismes
+VRAM agissent à quatre moments distincts (placement diffusers au chargement / garantie avant load
+/ déchargement à la demande / réessai pendant l'inférence) — pas de recouvrement.
+
+⚠ **Défaut RÉELLEMENT introduit, trouvé par cet audit et corrigé** : `_wrap_load` **mesure** la
+VRAM prise autour du `load()` et ne retombe sur `recommended_vram_gb` que si la mesure est nulle.
+Or `YOLO(chemin)` ne place RIEN sur le GPU (le device n'arrive qu'au `track()`) → on déclarait
+**2 Go quel que soit le nombre de modèles**, et le gouverneur aurait laissé un autre process
+prendre la place manquante. Corrigé par un attribut d'INSTANCE mis à l'échelle (2 → 4 pour deux
+modèles) ; surtout **pas une `property`**, que `backends/manager.py:68` casserait en lisant
+l'attribut sur la CLASSE.
+
+🔴 **Doublon PRÉEXISTANT révélé** (pas introduit par cette session) :
+`WAMAMemoryTracker` (`model_manager/services/memory_tracker.py`) suit modèles chargés,
+`last_used` et inactifs — mais **`register_model` a ZÉRO appelant**, le tracker suit **0 modèle**,
+il est **dormant**. Conséquence : le nettoyage des modèles inactifs de `memory_cleaner`, qui s'y
+appuie, **ne fait rien**. Le suivi vivant est celui de `resource_governor` (`resident_models`,
+`mark_used`, `idle_models`), bâti en cross-process **parce que** l'in-process n'était pas
+alimenté — sans que l'ancien soit retiré. À trancher : alimenter le tracker, ou le retirer et
+faire consommer le gouverneur par `memory_cleaner`.
+
+⚠ **Limite connue du multi-modèles** : la clé du gouverneur porte UN modèle (`owner#modèle`), donc
+`resident_models()` ne montre que le premier — la paire est réservée en une ligne, avec la VRAM
+totale. `select_model(prefer_loaded=True)` ne verra donc pas le 2ᵉ modèle comme résident.
+Acceptable (ils sont chargés et déchargés ensemble), mais écrit pour ne pas se redécouvrir.
 
 ### B. Qualité / auto-amélioration — bloqué sur les DONNÉES, pas sur le code
 
