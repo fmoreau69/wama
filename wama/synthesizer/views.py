@@ -163,6 +163,12 @@ class IndexView(View):
         batches_list = build_batches_list(
             user, batch_model=BatchSynthesis, work_attr='synthesis', extra=_extra)
 
+        # Chips de card GÉNÉRÉS du schéma (brique card_chips) — même décoration que card_html.
+        for b in batches_list:
+            for link in b['items']:
+                if link.synthesis:
+                    _decorate_synthesis(link.synthesis)
+
         # Multi-item batches first, then single-item batches
         batches_list.sort(key=lambda b: 0 if b['obj'].total > 1 else 1)
 
@@ -615,6 +621,14 @@ def start(request, pk: int):
     })
 
 
+def _decorate_synthesis(s):
+    """Chips de card générés du SCHÉMA (params.py chip=True) — brique commune card_chips."""
+    from wama.common.utils.card_chips import chips_by_section
+    from wama.synthesizer.params import PARAMS_JSON
+    s.chips = chips_by_section(s, PARAMS_JSON)
+    return s
+
+
 def synthesis_card_html(request, pk: int):
     """
     Renders a single synthesis card as HTML fragment.
@@ -624,7 +638,8 @@ def synthesis_card_html(request, pk: int):
     from django.http import HttpResponse
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
-    html = render_to_string('synthesizer/_synthesis_card.html', {'synthesis': synthesis}, request=request)
+    html = render_to_string('synthesizer/_synthesis_card.html',
+                            {'synthesis': _decorate_synthesis(synthesis)}, request=request)
     return HttpResponse(html)
 
 

@@ -1,94 +1,137 @@
-{% load static %}
-{# Partial: renders one synthesis card. Expects 'synthesis' in context. #}
-{# card_label = nom de SORTIE (.wav) ; le libelle principal affiche le fichier d'ENTREE (ex. .docx) si present #}
-<div class="synthesis-card wama-card {% if synthesis.status == 'RUNNING' %}processing{% elif synthesis.status == 'SUCCESS' %}success{% elif synthesis.status == 'FAILURE' %}error{% endif %}"
+{% comment %}
+Card VoiceSynthesis — CARD v3 « sections × chips » (CARD_DESIGN §11, portée le 2026-08-13 ;
+remplace la card en colonnes). SOURCE UNIQUE du markup : rendue au chargement (single +
+fille de batch) ET par synthesis_card_html (remplacement in-place à la complétion).
+Contexte : synthesis (décorée .chips), card_label = nom de SORTIE (.wav) — le libellé
+principal affiche le fichier d'ENTRÉE (ex. .docx) si présent.
+
+⚠ Contrats JS (index.js) : .synthesis-card.processing = sélection du polling (:483),
+  .wama-card[data-id][data-status], .settings-btn + data-* , .delete-btn[data-id],
+  .preview-text-btn[data-id], .duplicate-btn[data-duplicate-url],
+  .wama-progress-fill (:492), .progress-text (:493), .wama-eta (:499).
+{% endcomment %}
+<div class="synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if synthesis.status == 'RUNNING' %}processing{% elif synthesis.status == 'SUCCESS' %}success{% elif synthesis.status == 'FAILURE' %}error{% endif %}"
      data-id="{{ synthesis.id }}" data-status="{{ synthesis.status }}"
      data-preview-url="{% url 'common:unified_preview' 'synthesizer' synthesis.id %}">
-    <div class="row align-items-center">
-        <!-- Text File Info -->
-        <div class="col-md-3">
-            <strong>
-                <button type="button" class="btn btn-link p-0 text-start preview-text-btn"
-                        data-id="{{ synthesis.id }}"
-                        style="color: #fff; text-decoration: none;">
-                    <i class="fas fa-file-alt"></i>
-                    {% if synthesis.text_file %}{{ synthesis.filename }}{% else %}{{ card_label|default:synthesis.filename }}{% endif %}
-                </button>
-            </strong>
-            {% if synthesis.text_file and card_label %}
-            <br><small class="text-white-50"><i class="fas fa-arrow-right" style="font-size:.65rem;"></i> {{ card_label }}</small>
-            {% endif %}
-            <br>
-            <small class="text-white-50">
-                {{ synthesis.word_count }} mots •
-                {{ synthesis.duration_display|default:"--:--" }}
-            </small>
+<div class="card-body py-2">
+
+  <div class="wcv3-head">#{{ synthesis.id }}<span class="sep">·</span>{{ synthesis.created_at|date:"d/m H:i" }}</div>
+
+  <div class="wcv3">
+
+    {# ── ENTRÉE : texte source (clic = aperçu du texte) + mots/durée réels ─────────── #}
+    <div class="wcv3-sec wcv3-sec--input">
+      <span class="wcv3-lbl">Entrée</span>
+      <div class="wcv3-in">
+        <span class="wcv3-thumb"><i class="fas fa-file-alt text-info"></i></span>
+        <div class="wcv3-in-lines">
+          <span role="button" class="wcv3-in-name preview-text-btn" data-id="{{ synthesis.id }}"
+                title="Aperçu du texte source">
+            {% if synthesis.text_file %}{{ synthesis.filename }}{% else %}{{ card_label|default:synthesis.filename }}{% endif %}
+          </span>
+          <span class="wcv3-in-props">{{ synthesis.word_count }} mots<span class="sep">·</span>{{ synthesis.duration_display|default:"--:--" }}</span>
         </div>
-
-        <!-- Options -->
-        <div class="col-md-2">
-            <small>
-                <i class="fas fa-robot"></i> {{ synthesis.get_tts_model_display|truncatechars:20 }}<br>
-                <i class="fas fa-language"></i> {{ synthesis.get_language_display }}<br>
-                <i class="fas fa-microphone"></i> {{ synthesis.get_voice_preset_display|truncatechars:15 }}
-            </small>
-        </div>
-
-        <!-- Properties -->
-        <div class="col-md-2">
-            <small class="text-white-50">
-                {{ synthesis.properties|default:"En attente" }}
-            </small>
-        </div>
-
-        <!-- Status & Progress -->
-        <div class="col-md-2">
-            {# Statut + progression + ETA + temps écoulé — brique COMMUNE #}
-            {% include 'common/_card_progress.html' with status=synthesis.status progress=synthesis.progress elapsed=synthesis.processing_display %}
-        </div>
-
-        <!-- Actions -->
-        <div class="col-md-3">
-            <div class="btn-group-actions">
-                {# ⚙ Paramètres puis bouton de cycle ▶/⏹/↻ (toujours visibles, même RUNNING). #}
-                <button class="btn btn-sm btn-outline-secondary settings-btn"
-                        data-id="{{ synthesis.id }}"
-                        data-tts-model="{{ synthesis.tts_model }}"
-                        data-language="{{ synthesis.language }}"
-                        data-voice-preset="{{ synthesis.voice_preset }}"
-                        data-speed="{{ synthesis.speed }}"
-                        data-pitch="{{ synthesis.pitch }}"
-                        data-output-format="{{ synthesis.output_format }}"
-                        data-output-quality="{{ synthesis.output_quality }}"
-                        title="Paramètres">
-                    <i class="fas fa-cog"></i>
-                </button>
-                {% include 'common/_cycle_button.html' with id=synthesis.id status=synthesis.status %}
-
-                {% if synthesis.audio_output %}
-                <a href="{% url 'synthesizer:download' synthesis.id %}"
-                   class="btn btn-sm btn-outline-info"
-                   title="Télécharger">
-                    <i class="fas fa-download"></i>
-                </a>
-                {% endif %}
-
-                {# Duplication via la brique commune queue-actions.js (handler délégué unique) #}
-                <button class="btn btn-sm btn-outline-warning duplicate-btn"
-                        data-duplicate-url="{% url 'synthesizer:duplicate' synthesis.id %}"
-                        title="Dupliquer (tester un autre modèle)">
-                    <i class="fas fa-copy"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-danger delete-btn"
-                        data-id="{{ synthesis.id }}"
-                        title="Supprimer">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-
-        </div>
+      </div>
     </div>
-    {% if synthesis.audio_output %}
-    {% include 'common/_audio_waveform.html' with audio_url=synthesis.audio_output.url player_id=synthesis.id %}
+
+    {# ── RÉGLAGES : chips GÉNÉRÉS (params.py chip=True — modèle TTS, langue, voix) ──── #}
+    <div class="wcv3-sec wcv3-sec--settings">
+      <span class="wcv3-lbl">Réglages</span>
+      <div class="wcv3-out">
+        {% include 'common/_card_chips.html' with chips=synthesis.chips.settings %}
+      </div>
+    </div>
+
+    {# ── SORTIE : étape live → fichier audio produit ; l'erreur la remplace ────────── #}
+    <div class="wcv3-sec wcv3-sec--output">
+      <span class="wcv3-lbl">Sortie</span>
+      {% if synthesis.status == 'FAILURE' and synthesis.error_message %}
+        <span class="wcv3-out-error" title="{{ synthesis.error_message|escape }}">
+          <i class="fas fa-triangle-exclamation"></i> {{ synthesis.error_message|truncatechars:120|escape }}
+        </span>
+      {% else %}
+        <div class="wcv3-out">
+          {% if synthesis.status == 'RUNNING' %}
+            <span class="wcv3-out-step"><span class="pct progress-text">{{ synthesis.progress }}%</span> — synthèse…</span>
+          {% elif synthesis.audio_output %}
+            <span class="wcv3-out-step" title="{{ card_label|default:'' }}">
+              <i class="fas fa-check-circle text-success"></i> {{ card_label|default:"audio produit" }}
+            </span>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+
+    {# ── ÉTAT : point + libellé + ETA/durée ────────────────────────────────────────── #}
+    <div class="wcv3-sec wcv3-sec--state">
+      <span class="wcv3-lbl">État</span>
+      <div class="wcv3-state">
+        <span class="wcv3-state-line">
+          <span class="wama-status-dot" data-s="{{ synthesis.status }}"></span>
+          <span>{% if synthesis.status == 'PENDING' %}En attente{% elif synthesis.status == 'RUNNING' %}En cours{% elif synthesis.status == 'SUCCESS' %}Terminé{% elif synthesis.status == 'FAILURE' %}Échec{% else %}{{ synthesis.status }}{% endif %}</span>
+        </span>
+        {% if synthesis.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ synthesis.id }}"></span>{% endif %}
+        {% if synthesis.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=synthesis.processing_display %}{% endif %}
+      </div>
+    </div>
+
+    {# ── ACTIONS : ordre conventionnel ⚙ ▶ ⬇ ⧉ 🗑 (classes/données index.js) ────────── #}
+    <div class="wcv3-sec wcv3-sec--actions">
+      <span class="wcv3-lbl">Actions</span>
+      <div class="btn-group-actions wcv3-actions">
+        <button class="btn btn-sm btn-outline-secondary settings-btn"
+                data-id="{{ synthesis.id }}"
+                data-tts-model="{{ synthesis.tts_model }}"
+                data-language="{{ synthesis.language }}"
+                data-voice-preset="{{ synthesis.voice_preset }}"
+                data-speed="{{ synthesis.speed }}"
+                data-pitch="{{ synthesis.pitch }}"
+                data-output-format="{{ synthesis.output_format }}"
+                data-output-quality="{{ synthesis.output_quality }}"
+                title="Paramètres">
+          <i class="fas fa-cog"></i>
+        </button>
+        {% include 'common/_cycle_button.html' with id=synthesis.id status=synthesis.status %}
+        {% if synthesis.audio_output %}
+        <a href="{% url 'synthesizer:download' synthesis.id %}"
+           class="btn btn-sm btn-outline-info" title="Télécharger">
+          <i class="fas fa-download"></i>
+        </a>
+        {% else %}
+        <button class="btn btn-sm btn-outline-info" disabled title="Télécharger">
+          <i class="fas fa-download"></i>
+        </button>
+        {% endif %}
+        <button class="btn btn-sm btn-outline-warning duplicate-btn"
+                data-duplicate-url="{% url 'synthesizer:duplicate' synthesis.id %}"
+                title="Dupliquer (tester un autre modèle)">
+          <i class="fas fa-copy"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-danger delete-btn"
+                data-id="{{ synthesis.id }}" title="Supprimer">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>
+
+    {% comment %}Barre pleine largeur — ligne 2 de la grille (§11) ; FIGÉE au % en échec.{% endcomment %}
+    {% if synthesis.status != 'PENDING' %}
+    <div class="wcv3-bar" style="grid-column:1/-1;">
+      <div class="wama-progress-track">
+        <div class="wama-progress-fill{% if synthesis.status == 'RUNNING' %} active{% elif synthesis.status == 'FAILURE' %} is-frozen{% endif %}"
+             style="width:{% if synthesis.status == 'SUCCESS' %}100{% else %}{{ synthesis.progress }}{% endif %}%"></div>
+      </div>
+    </div>
     {% endif %}
+
+  </div>{# /.wcv3 #}
+
+  {% comment %}Lecteur waveform (résultat) — zone de preview PERMANENTE de la v3.{% endcomment %}
+  {% if synthesis.audio_output %}
+  <div class="wcv3-preview">
+    {% include 'common/_audio_waveform.html' with audio_url=synthesis.audio_output.url player_id=synthesis.id %}
+  </div>
+  {% endif %}
+
+</div>
 </div>

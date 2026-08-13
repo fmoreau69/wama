@@ -20,15 +20,15 @@ PARAMS = derive_from_model(
     include=["tts_model", "language", "voice_preset", "speed", "pitch"],
     overrides={
         "tts_model": dict(
-            type="select", label="Modèle TTS", icon="fa-microchip",
+            type="select", label="Modèle TTS", icon="fa-microchip", chip=True,
             dom_id={"panel": "tts_model", "item": "settingsTtsModel", "batch": "batchSettingsTtsModel"},
         ),
         "language": dict(
-            type="select", label="Langue", icon="fa-language",
+            type="select", label="Langue", icon="fa-language", chip=True,
             dom_id={"panel": "language", "item": "settingsLanguage", "batch": "batchSettingsLanguage"},
         ),
         "voice_preset": dict(
-            type="select", label="Voix", icon="fa-user",
+            type="select", label="Voix", icon="fa-user", chip=True,
             dom_id={"panel": "voice_preset", "item": "settingsVoicePreset", "batch": "batchSettingsVoicePreset"},
             options_source="voices",   # optgroups server-rendered + clonés par le JS existant — NON remplacés
         ),
