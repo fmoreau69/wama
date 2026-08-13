@@ -447,7 +447,10 @@
         }
 
         // Meme etat : progression/ETA/etape mises a jour en place (pas de re-fetch a chaque poll)
-        const fill     = $('.progress-fill', card);
+        // ⚠ .wama-progress-fill (brique commune) — l'ancien selecteur .progress-fill ne matchait
+        // RIEN depuis le passage a la brique : la barre ne bougeait qu'aux transitions (no-op
+        // silencieux attrape au port v3, 13/08).
+        const fill     = $('.wama-progress-fill', card);
         const progText = $('.progress-text', card);
         if (fill)     fill.style.width = data.progress + '%';
         if (progText) progText.textContent = data.progress + '%';

@@ -1,118 +1,148 @@
-{% comment %}Card serveur UNIQUE d'un AvatarJob — rendue au chargement (boucle b.items d'index.html) ET par l'endpoint card_html (rafraichissement par polling). Contexte requis : job (chips = propriete du modele), media_url.{% endcomment %}
-                {% comment %} data-id = CONTRAT des briques communes (WamaInspector.selectItem
-                cherche [data-id] : sans lui la card n'était PAS sélectionnable — constat 03/08).
-                data-job-id conservé pour les handlers historiques de l'app. {% endcomment %}
-                <div class="wama-card synthesis-card {% if job.status == 'RUNNING' %}processing{% elif job.status == 'SUCCESS' %}success{% elif job.status == 'FAILURE' %}error{% endif %}"
-                     id="job-{{ job.id }}" data-id="{{ job.id }}" data-job-id="{{ job.id }}"
-                     data-status="{{ job.status }}" data-mode="standalone"
-                     data-preview-url="{% url 'common:unified_preview' 'avatarizer' job.id %}">
-                    <div class="row align-items-center g-2">
+{% comment %}
+Card AvatarJob — CARD v3 « sections × chips » (CARD_DESIGN §11, portée le 2026-08-13 ;
+remplace la card en 5 colonnes). Partial serveur UNIQUE : rendue au chargement (boucle
+b.items d'index.html) ET par card_html (refreshCard sur transition — index.js:445).
+Contexte : job (chips = propriété du modèle), media_url, in_batch.
 
-                        <!-- Col 1 : Avatar + miniature -->
-                        <div class="col-3 d-flex align-items-start gap-2">
-                            {% if job.avatar_source == 'gallery' and job.avatar_gallery_name %}
-                            <img src="{{ media_url }}avatarizer/gallery/{{ job.avatar_gallery_name }}"
-                                 style="width:48px;height:48px;object-fit:cover;border-radius:4px;flex-shrink:0;"
-                                 alt="{{ job.avatar_gallery_name }}">
-                            {% elif job.avatar_upload %}
-                            <img src="{{ job.avatar_upload.url }}"
-                                 style="width:48px;height:48px;object-fit:cover;border-radius:4px;flex-shrink:0;"
-                                 alt="Avatar">
-                            {% else %}
-                            <div style="width:48px;height:48px;border-radius:4px;background:#343a40;flex-shrink:0;display:flex;align-items:center;justify-content:center;">
-                                <i class="fas fa-user text-muted"></i>
-                            </div>
-                            {% endif %}
-                            <div>
-                                <strong class="text-light d-block">
-                                    {% if job.avatar_source == 'gallery' %}{{ job.avatar_gallery_name|default:"—"|truncatechars:14 }}{% else %}Photo importée{% endif %}
-                                </strong>
-                                <small class="text-white-50">{{ job.created_at|date:"H:i" }}</small>
-                            </div>
-                        </div>
+⚠ Contrats JS (index.js) : #job-{{ id }} + [data-id][data-job-id][data-status][data-mode] ;
+  .btn-settings-job + data-* (masqué en RUNNING) ; .btn-delete-job[data-job-id] ;
+  .duplicate-btn[data-duplicate-url] (brique globale) ; .step-desc (étape live :462) ;
+  .wama-progress-fill ; .progress-text ; .wama-eta ; #preview-row-{{ id }}.
+{% endcomment %}
+<div class="wama-card synthesis-card card bg-dark border-secondary {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if job.status == 'RUNNING' %}processing{% elif job.status == 'SUCCESS' %}success{% elif job.status == 'FAILURE' %}error{% endif %}"
+     id="job-{{ job.id }}" data-id="{{ job.id }}" data-job-id="{{ job.id }}"
+     data-status="{{ job.status }}" data-mode="standalone"
+     data-preview-url="{% url 'common:unified_preview' 'avatarizer' job.id %}">
+<div class="card-body py-2">
 
-                        <!-- Col 2 : Paramètres -->
-                        <div class="col-3">
-                            {% include 'common/_card_chips.html' with chips=job.chips %}
-                        </div>
+  <div class="wcv3-head">#{{ job.id }}<span class="sep">·</span>{{ job.created_at|date:"d/m H:i" }}</div>
 
-                        <!-- Col 3 : Étape / aperçu texte -->
-                        <div class="col-2">
-                            <small class="text-white-50 step-desc">
-                                {% if job.status == 'FAILURE' %}{{ job.error_message|truncatechars:50 }}
-                                {% elif job.status == 'SUCCESS' %}Vidéo générée ✓
-                                {% elif job.status == 'RUNNING' %}En cours…
-                                {% else %}En attente{% endif %}
-                            </small>
-                        </div>
+  <div class="wcv3">
 
-                        <!-- Col 4 : Statut + progression -->
-                        <div class="col-2">
-                            <span class="badge job-status-badge
-                                {% if job.status == 'PENDING' %}bg-secondary
-                                {% elif job.status == 'RUNNING' %}bg-warning text-dark
-                                {% elif job.status == 'SUCCESS' %}bg-success
-                                {% elif job.status == 'FAILURE' %}bg-danger
-                                {% endif %}">{{ job.get_status_display }}</span>
-                            {% comment %}
-                              Progression + ETA : brique COMMUNE. L'avatarizer avait ses
-                              propres classes (`progress-bar-custom`/`progress-fill`), donc
-                              une barre qui ne réagissait pas aux mêmes règles que les autres
-                              files et que le JS commun ne savait pas cibler.
-                            {% endcomment %}
-                            {% include 'common/_card_progress.html' with status=job.status progress=job.progress elapsed=job.processing_display %}
-                        </div>
+    {# ── ENTRÉE : miniature avatar + source ────────────────────────────────────────── #}
+    <div class="wcv3-sec wcv3-sec--input">
+      <span class="wcv3-lbl">Entrée</span>
+      <div class="wcv3-in">
+        <span class="wcv3-thumb">
+          {% if job.avatar_source == 'gallery' and job.avatar_gallery_name %}
+          <img src="{{ media_url }}avatarizer/gallery/{{ job.avatar_gallery_name }}"
+               style="width:100%;height:100%;object-fit:cover;border-radius:4px;"
+               alt="{{ job.avatar_gallery_name }}">
+          {% elif job.avatar_upload %}
+          <img src="{{ job.avatar_upload.url }}"
+               style="width:100%;height:100%;object-fit:cover;border-radius:4px;" alt="Avatar">
+          {% else %}
+          <i class="fas fa-user text-muted"></i>
+          {% endif %}
+        </span>
+        <div class="wcv3-in-lines">
+          <span class="wcv3-in-name">
+            {% if job.avatar_source == 'gallery' %}{{ job.avatar_gallery_name|default:"—"|truncatechars:24 }}{% else %}Photo importée{% endif %}
+          </span>
+          <span class="wcv3-in-props">avatar animé</span>
+        </div>
+      </div>
+    </div>
 
-                        <!-- Col 5 : Actions -->
-                        <div class="col-2">
-                            {# Ordre + couleurs canoniques CARD_DESIGN §2 : ⚙ ▶ ⬇ ⧉ 🗑 (audit 2026-07-11) #}
-                            <div class="btn-group-actions flex-wrap">
-                                {% if job.status != 'RUNNING' %}
-                                <button class="btn btn-sm btn-outline-secondary btn-settings-job"
-                                        data-job-id="{{ job.id }}"
-                                        data-use-enhancer="{{ job.use_enhancer|yesno:'true,false' }}"
-                                        data-bbox-shift="{{ job.bbox_shift }}"
-                                        title="Paramètres">
-                                    <i class="fas fa-cog"></i>
-                                </button>
-                                {% endif %}
-                                {% include 'common/_cycle_button.html' with id=job.id status=job.status %}
-                                {% if job.status == 'SUCCESS' and job.output_video %}
-                                <a href="{% url 'avatarizer:download' job.id %}"
-                                   class="btn btn-sm btn-outline-info" title="Télécharger">
-                                    <i class="fas fa-download"></i>
-                                </a>
-                                {% endif %}
-                                {% comment %}
-                                  Dupliquer : classe `.duplicate-btn` + `data-duplicate-url`,
-                                  le couple exigé par la brique commune queue-actions.js
-                                  (montée globalement). Le handler local a été retiré.
-                                {% endcomment %}
-                                <button class="btn btn-sm btn-outline-warning duplicate-btn"
-                                        data-job-id="{{ job.id }}"
-                                        data-duplicate-url="{% url 'avatarizer:duplicate' job.id %}"
-                                        title="Dupliquer">
-                                    <i class="fas fa-copy"></i>
-                                </button>
-                                <button class="btn btn-sm btn-outline-danger btn-delete-job"
-                                        data-job-id="{{ job.id }}" title="Supprimer">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
-                        </div>
+    {# ── RÉGLAGES : chips (propriété du modèle — job.chips) ────────────────────────── #}
+    <div class="wcv3-sec wcv3-sec--settings">
+      <span class="wcv3-lbl">Réglages</span>
+      <div class="wcv3-out">
+        {% include 'common/_card_chips.html' with chips=job.chips %}
+      </div>
+    </div>
 
-                    </div>
+    {# ── SORTIE : étape live (.step-desc, contrat JS) ; l'erreur la remplace ────────── #}
+    <div class="wcv3-sec wcv3-sec--output">
+      <span class="wcv3-lbl">Sortie</span>
+      {% if job.status == 'FAILURE' and job.error_message %}
+        <span class="wcv3-out-error" title="{{ job.error_message|escape }}">
+          <i class="fas fa-triangle-exclamation"></i> {{ job.error_message|truncatechars:120|escape }}
+        </span>
+      {% else %}
+        <div class="wcv3-out">
+          <span class="wcv3-out-step step-desc">
+            {% if job.status == 'SUCCESS' %}Vidéo générée ✓
+            {% elif job.status == 'RUNNING' %}<span class="pct progress-text">{{ job.progress }}%</span> — en cours…
+            {% else %}En attente{% endif %}
+          </span>
+        </div>
+      {% endif %}
+    </div>
 
-                    <!-- Prévisualisation vidéo (visible directement en SUCCESS) -->
-                    {% if job.status == 'SUCCESS' and job.output_video %}
-                    <div class="row mt-2" id="preview-row-{{ job.id }}">
-                        <div class="col-12">
-                            <video class="w-100" controls style="border-radius:6px;max-height:220px;">
-                                <source src="{{ media_url }}{{ job.output_video.name }}" type="video/mp4">
-                            </video>
-                        </div>
-                    </div>
-                    {% else %}
-                    <div id="preview-row-{{ job.id }}"></div>
-                    {% endif %}
-                </div>
+    {# ── ÉTAT : point + libellé + ETA/durée ────────────────────────────────────────── #}
+    <div class="wcv3-sec wcv3-sec--state">
+      <span class="wcv3-lbl">État</span>
+      <div class="wcv3-state">
+        <span class="wcv3-state-line">
+          <span class="wama-status-dot" data-s="{{ job.status }}"></span>
+          <span>{% if job.status == 'PENDING' %}En attente{% elif job.status == 'RUNNING' %}En cours{% elif job.status == 'SUCCESS' %}Terminé{% elif job.status == 'FAILURE' %}Échec{% else %}{{ job.status }}{% endif %}</span>
+        </span>
+        {% if job.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ job.id }}"></span>{% endif %}
+        {% if job.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=job.processing_display %}{% endif %}
+      </div>
+    </div>
+
+    {# ── ACTIONS : ordre canonique ⚙ ▶ ⬇ ⧉ 🗑 (classes/données index.js) ────────────── #}
+    <div class="wcv3-sec wcv3-sec--actions">
+      <span class="wcv3-lbl">Actions</span>
+      <div class="btn-group-actions wcv3-actions">
+        {% if job.status != 'RUNNING' %}
+        <button class="btn btn-sm btn-outline-secondary btn-settings-job"
+                data-job-id="{{ job.id }}"
+                data-use-enhancer="{{ job.use_enhancer|yesno:'true,false' }}"
+                data-bbox-shift="{{ job.bbox_shift }}"
+                title="Paramètres">
+          <i class="fas fa-cog"></i>
+        </button>
+        {% endif %}
+        {% include 'common/_cycle_button.html' with id=job.id status=job.status %}
+        {% if job.status == 'SUCCESS' and job.output_video %}
+        <a href="{% url 'avatarizer:download' job.id %}"
+           class="btn btn-sm btn-outline-info" title="Télécharger">
+          <i class="fas fa-download"></i>
+        </a>
+        {% else %}
+        <button class="btn btn-sm btn-outline-info" disabled title="Télécharger">
+          <i class="fas fa-download"></i>
+        </button>
+        {% endif %}
+        <button class="btn btn-sm btn-outline-warning duplicate-btn"
+                data-job-id="{{ job.id }}"
+                data-duplicate-url="{% url 'avatarizer:duplicate' job.id %}"
+                title="Dupliquer">
+          <i class="fas fa-copy"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-danger btn-delete-job"
+                data-job-id="{{ job.id }}" title="Supprimer">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>
+
+    {% comment %}Barre pleine largeur — ligne 2 de la grille (§11), FIGÉE au % en échec.{% endcomment %}
+    {% if job.status != 'PENDING' %}
+    <div class="wcv3-bar" style="grid-column:1/-1;">
+      <div class="wama-progress-track">
+        <div class="wama-progress-fill{% if job.status == 'RUNNING' %} active{% elif job.status == 'FAILURE' %} is-frozen{% endif %}"
+             style="width:{% if job.status == 'SUCCESS' %}100{% else %}{{ job.progress }}{% endif %}%"></div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>{# /.wcv3 #}
+
+  {% comment %}Preview PERMANENTE (§11) — vidéo en SUCCESS ; le placeholder #preview-row
+  reste dans tous les cas (contrat JS historique).{% endcomment %}
+  {% if job.status == 'SUCCESS' and job.output_video %}
+  <div class="wcv3-preview" id="preview-row-{{ job.id }}">
+    <video class="w-100" controls style="border-radius:6px;max-height:220px;">
+      <source src="{{ media_url }}{{ job.output_video.name }}" type="video/mp4">
+    </video>
+  </div>
+  {% else %}
+  <div id="preview-row-{{ job.id }}"></div>
+  {% endif %}
+
+</div>
+</div>
