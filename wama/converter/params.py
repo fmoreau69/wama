@@ -46,12 +46,13 @@ PARAMS = [
 
     Param(name="output_format", type="select", label="Format de sortie", icon="fa-file-export",
           options_source="formats", contexts=ITEM_BATCH,
-          chip=True, help_fallback=_FORMAT_HELP),
+          chip=True, section="output", help_fallback=_FORMAT_HELP),
 
     # Préréglage de qualité GLOBAL (ffmpeg/pillow) — consommé par batch_update
     # (quality_preset) ; déclaré au schéma depuis le port batch (03/08) : un champ
     # consommé mais non déclaré y était invisible (leçon converter).
     Param(name="quality_preset", type="select", label="Qualité (préréglage)", icon="fa-gem",
+          chip=True,
           contexts=("batch",),
           choices=[("", "— inchangé —"), ("web", "Web (léger)"),
                    ("balanced", "Équilibré"), ("max", "Maximum")]),

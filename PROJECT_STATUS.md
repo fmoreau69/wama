@@ -2541,6 +2541,25 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > anonymizer 93, avatarizer 94, converter 95, describer 86, enhancer 94, imager 94,
 > reader 88, synthesizer 86, transcriber 95 (composer 88 inchangé). ⚠ même lot de
 > validation navigateur post-restart que le reste.
+>
+> **SUITE (13/08 midi, screenshot Fabien converter) : 3 corrections inspecteur/card.**
+> ① Note « smoke 03/08 » affichée sur l'item #49 TERMINÉ = `error_message` résiduel en
+> base (1 seul cas mesuré) → règle d'affichage dans `build_detail` : erreur MASQUÉE sur
+> statut SUCCESS (un résidu de run précédent faisait passer un succès pour un problème).
+> ② « Paramètres de conversion invisibles au volet » : la section PARAMÈTRES du volet =
+> zone de composition POUR LES PROCHAINS UPLOADS (choix daté, commentaire
+> converter/index.html:345) ; les params de la CARD cliquée arrivent en INFOS via le fix
+> `detail_from_spec` de la nuit — TOUT est en attente du RESTART gunicorn (le screenshot
+> montre le code d'avant). ③ **Card v3 portée au converter** : `_job_card.html` réécrit
+> sur le formalisme wcv3 (5 pistes + barre pleine largeur en ligne 2 — plus jamais dans
+> la piste État ; contrats converter.js préservés : .job-card, .wama-progress-fill,
+> .progress-text, .btn-group-actions, boutons) ; `output_format` → `section="output"`
+> (chip en piste Sortie), `quality_preset` → `chip=True` (piste Réglages) ; rendu validé
+> en shell sur 3 items réels (SUCCESS ×2 + FAILURE). Au passage le critère
+> `card_progress_brick` RETARDAIT sur la v3 (il exigeait les includes v2 et sanctionnait
+> reader/describer/composer, les cards les plus récentes) → reconnaît désormais
+> wcv3-bar/wama-progress-track ; re-mesure : converter 95, reader 90, composer 89,
+> describer 87. ⚠ le TOUT (①+②+③) n'est visible qu'après restart/HUP gunicorn.
 
 ## §REPRISE — 2026-08-11→12 (3ᵉ-4ᵉ sessions, marches C + A COMPLÈTES A1→A5) : harnais + gabarits + triades + composition
 

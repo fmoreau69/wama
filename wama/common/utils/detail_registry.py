@@ -250,7 +250,10 @@ def build_detail(instance, *, source_file=None, source_type=None, engine=None,
 
     d['status'] = normalize_status(getattr(instance, 'status', ''))
     err = getattr(instance, 'error_message', None)
-    if err:
+    if err and d['status'] != 'SUCCESS':
+        # Sur un item TERMINÉ, une erreur est un RÉSIDU d'un run précédent (le champ n'est
+        # pas toujours purgé au restart) : l'afficher fait passer un succès pour un problème
+        # (vécu 13/08 : note de smoke du 03/08 encore affichée sur l'item #49 SUCCESS).
         d['error_message'] = _short_error(err)
 
     pt = getattr(instance, 'processing_display', None)

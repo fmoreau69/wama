@@ -701,8 +701,14 @@ CRITERIA: list[Criterion] = [
     Criterion('queue_toolbar', 'F5', 'Tri/filtre communs (queue_view + _queue_toolbar)', _queue_toolbar),
     Criterion('wama_card', 'F5', 'Contrat CSS .wama-card sur la card',
               lambda f: _present(f, CARD_TPL, r'wama-card')),
-    Criterion('card_progress_brick', 'F5', 'Brique _card_progress/_card_state',
-              lambda f: _present(f, TEMPLATES, r"common/_card_progress\.html|common/_card_state\.html")),
+    # La card v3 (CARD_DESIGN §11, pilote reader) INTÈGRE état + barre (wama-status-dot +
+    # wcv3-bar/wama-progress-track) : elle satisfait le critère SANS les includes v2 —
+    # le check retardait sur le formalisme et sanctionnait les cards les plus récentes
+    # (constaté 13/08 : reader/describer/composer rouges, puis converter au moment du port).
+    Criterion('card_progress_brick', 'F5', 'État + progression par briques communes (v2 includes ou card v3)',
+              lambda f: _present(f, TEMPLATES,
+                                 r"common/_card_progress\.html|common/_card_state\.html"
+                                 r"|wcv3-bar|wama-progress-track")),
     Criterion('eta_individual', 'F5', 'ETA affichée par card (.wama-eta)',
               lambda f: _present(f, TEMPLATES, r'wama-eta')),
     Criterion('eta_queue', 'F5', 'Barre globale (_global_progress)',

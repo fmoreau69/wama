@@ -393,7 +393,7 @@ document.addEventListener('DOMContentLoaded', function () {
             2026-07-10 : convention commune = collapsed + état persisté en localStorage, comme
             reader/composer/transcriber/describer.{% endcomment %}
             <div class="collapse ps-2 pt-1" id="batchItems{{ b.obj.id }}" data-wama-batch-key="converter_{{ b.obj.id }}">
-                {% for job in b.items %}{% include 'converter/_job_card.html' %}{% endfor %}
+                {% for job in b.items %}{% include 'converter/_job_card.html' with in_batch=True %}{% endfor %}
             </div>
         </div>
         {% else %}
