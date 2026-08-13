@@ -19,16 +19,19 @@ PARAMS = derive_from_model(
             type="select", label="Format de sortie", icon="fa-align-left",
             dom_id={"panel": "output_style", "item": "settingsOutputFormat"},
             help="Niveau de détail de la description générée.",
+            chip=True,
         ),
         "output_language": dict(
             type="select", label="Langue de sortie", icon="fa-language",
             dom_id={"panel": "output_language", "item": "settingsOutputLanguage"},
+            chip=True,
         ),
         "max_length": dict(
             type="range", label="Longueur max", icon="fa-text-width",
             min=100, max=2000, step=50,
             dom_id={"panel": "max_length", "item": "settingsMaxLength"},
             help="Longueur maximale (caractères) de la description.",
+            chip=True,
         ),
         "generate_summary": dict(
             type="toggle", label="Générer un résumé LLM", icon="fa-file-lines",

@@ -198,6 +198,12 @@ class IndexView(TemplateView):
                                           work_attr='description', order_by='-id',
                                           extra=_extra)
 
+        # Chips de card GÉNÉRÉS du schéma (brique card_chips) — même décoration que card_html.
+        for b in batches_list:
+            for link in b['items']:
+                if link.description:
+                    _decorate_desc(link.description)
+
         # Tri + filtrage de la file — brique COMMUNE (remplace le « batchs d'abord » codé en dur).
         from wama.common.utils.queue_view import apply_queue_sort_filter
 
@@ -464,6 +470,14 @@ def start(request, pk):
     })
 
 
+def _decorate_desc(desc):
+    """Chips de card générés du SCHÉMA (params.py chip=True) — brique commune card_chips."""
+    from wama.common.utils.card_chips import chips_by_section
+    from wama.describer.params import PARAMS_JSON
+    desc.chips = chips_by_section(desc, PARAMS_JSON)
+    return desc
+
+
 @require_GET
 def card_html(request, pk):
     """Card RENDUE serveur — source UNIQUE du markup (partial _description_card.html ;
@@ -476,7 +490,7 @@ def card_html(request, pk):
     desc = visible_or_404(Description, user, pk=pk)
     in_batch = BatchDescriptionItem.objects.filter(description=desc, batch__total__gt=1).exists()
     html = render_to_string('describer/_description_card.html',
-                            {'desc': desc, 'in_batch': in_batch}, request=request)
+                            {'desc': _decorate_desc(desc), 'in_batch': in_batch}, request=request)
     return HttpResponse(html)
 
 
