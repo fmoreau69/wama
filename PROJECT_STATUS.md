@@ -2560,6 +2560,26 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > reader/describer/composer, les cards les plus récentes) → reconnaît désormais
 > wcv3-bar/wama-progress-track ; re-mesure : converter 95, reader 90, composer 89,
 > describer 87. ⚠ le TOUT (①+②+③) n'est visible qu'après restart/HUP gunicorn.
+>
+> **SUITE (13/08 après-midi) : chantier « 3 designs partout » CADRÉ + pile RÉPARÉE.**
+> État MESURÉ (⚠ j'avais d'abord nié l'existence du mécanisme — 2 greps aux mauvais
+> tokens ; Fabien avait raison, 2e correction du jour) : le sélecteur **3 densités
+> (§11.4 : V1 Détaillé · V2 Compact ~48px · V3 Affiné défaut)** + le **modificateur
+> PILE (§11.5, `card_stacked`)** vivent dans `_queue_toolbar.html` (INCLUSE PAR LES 10
+> APPS) + `wama-queue.js` (`card_design` profil) + `wama-card-v3.css` — un seul markup,
+> AUCUN `{% if design %}` serveur (doctrine écrite dans le CSS). **Seul manque : 7 apps
+> n'émettent pas le markup wcv3** (le sélecteur y est inerte) — wcv3 présent : reader,
+> transcriber, converter (13/08). **Bug pile TROUVÉ+CORRIGÉ** (la plainte Fabien « seule
+> la card du centre est lisible ») : paliers 46/28/14px de `.wama-queue-stacked` réglés
+> pour la v2 (ligne 1 = nom) — la v3 ouvre sur le bandeau #id·date → coupe aveugle au
+> bandeau. Fix : une card comprimée devient une LAMELLE CONSTRUITE (nom + point d'état,
+> bandeau/pistes/barre masqués), cards v2 non touchées. ⚠ la maquette de référence
+> (artifact « WAMA — Card v3.5 » 01/08) est infetchable (4 échecs réseau) — le fix est
+> de principe, à confronter à la maquette si Fabien exporte le HTML dans `claude/`.
+> **RESTE (série approuvée par Fabien)** : porter le markup wcv3 aux 7 cards manquantes —
+> anonymizer, avatarizer, composer, describer, enhancer, imager, synthesizer (recette =
+> reader pilote + converter 13/08 : 5 pistes nommées, contrats JS d'app préservés,
+> chips `section=`, rendu validé en shell).
 
 ## §REPRISE — 2026-08-11→12 (3ᵉ-4ᵉ sessions, marches C + A COMPLÈTES A1→A5) : harnais + gabarits + triades + composition
 
