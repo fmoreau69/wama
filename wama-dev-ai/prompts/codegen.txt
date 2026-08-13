@@ -27,6 +27,12 @@ RÈGLES STRICTES :
    manifestes donnent hf_id/chemins/VRAM), librairies (requires kind=library). Ce qui
    manque pour finir : raise NotImplementedError('<ce qui manque, précisément>') — une
    invention plausible est pire qu'un trou déclaré.
+   Les clés de `fields` du retour appartiennent OBLIGATOIREMENT à la liste « CHAMPS DU
+   MODÈLE D'ITEM » fournie dans la demande — aucune autre clé n'est persistable.
 6. Réutilise les briques communes montrées dans les exemples (sélection de modèle
    VRAM-aware, chemins média, ffmpeg centralisé) au lieu de les réimplémenter.
+   Un import de module d'app se fait UNIQUEMENT depuis la liste « MODULES RÉELS de
+   l'app » fournie dans la demande ; un import `wama.*` absent de cette liste et des
+   exemples est INTERDIT — si la brique dont tu as besoin n'y figure pas, préfère
+   raise NotImplementedError à un import deviné.
 7. Commentaires sobres, en français, uniquement pour les contraintes non évidentes.

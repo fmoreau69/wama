@@ -78,6 +78,48 @@ def _source_de(path: Path, noms: tuple) -> str:
     return '\n\n'.join(morceaux)
 
 
+def inventaire_app(app_id: str) -> str:
+    """Modules RÉELS importables de l'app (backends/utils/services…) — symboles top-level
+    par AST. Banc 13/08 : sans cet inventaire, tous les modèles ré-implémentent inline ou
+    INVENTENT des imports plausibles ; c'était le 1er trou de matière mesuré."""
+    base = REPO_ROOT / 'wama' / app_id
+    exclus_fichiers = {'__init__.py', 'admin.py', 'apps.py', 'urls.py', 'views.py',
+                       'tasks.py', 'workers.py', 'models.py', 'tool_api.py', 'forms.py'}
+    exclus_dossiers = {'migrations', 'tests', 'static', 'templates', 'management'}
+    lignes = []
+    for p in sorted(base.rglob('*.py')):
+        rel = p.relative_to(REPO_ROOT)
+        if p.name in exclus_fichiers or exclus_dossiers.intersection(rel.parts):
+            continue
+        try:
+            arbre = ast.parse(p.read_text(encoding='utf-8'))
+        except (SyntaxError, OSError):
+            continue
+        syms = []
+        for n in arbre.body:
+            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and not n.name.startswith('_'):
+                syms.append(f"{n.name}({', '.join(a.arg for a in n.args.args)})")
+            elif isinstance(n, ast.ClassDef) and not n.name.startswith('_'):
+                syms.append(n.name)
+        if syms:
+            lignes.append(f"{'.'.join(rel.with_suffix('').parts)} : {', '.join(syms)}")
+    return '\n'.join(lignes)[:8000]
+
+
+def champs_item(item_model: str) -> list:
+    """Champs CONCRETS du modèle d'item — les seules clés licites de `fields` au retour.
+    Banc 13/08 : sans cette liste, tous les modèles inventent les clés (2e trou de matière)."""
+    if not item_model:
+        return []
+    try:
+        from django.apps import apps as dj_apps
+        model = dj_apps.get_model(item_model)
+    except Exception:
+        return []
+    return sorted(f.name for f in model._meta.get_fields()
+                  if getattr(f, 'concrete', False) and not getattr(f, 'auto_created', False))
+
+
 def matiere_manifeste(app_id: str) -> tuple:
     """(manifeste app compacté, manifestes des requires résolus) — extraction LIVE."""
     from wama.common.manifests.ingest import extract
@@ -121,7 +163,7 @@ def extract_code(text: str) -> str:
     return (m.group(1) if m else text).strip()
 
 
-def controles(code: str, nom_impose: str) -> dict:
+def controles(code: str, nom_impose: str, app_id: str = None) -> dict:
     """Contrôles mécaniques du bloc généré — le LLM propose, la chaîne juge."""
     out = {'compile_ok': False, 'signature_ok': False, 'warnings': []}
     try:
@@ -130,6 +172,22 @@ def controles(code: str, nom_impose: str) -> dict:
     except SyntaxError as e:
         out['warnings'].append(f'SyntaxError: {e}')
         return out
+
+    # Imports WAMA INVENTÉS (banc 13/08 : `run_ffmpeg_cmd`, `select_model_by_vram`…) —
+    # tout module wama.* ou relatif doit exister sur le disque, sinon c'est une hallucination.
+    if app_id:
+        for n in ast.walk(arbre):
+            if isinstance(n, ast.ImportFrom):
+                if n.level:
+                    mod = f"wama/{app_id}/{(n.module or '').replace('.', '/')}".rstrip('/')
+                elif (n.module or '').startswith('wama.'):
+                    mod = n.module.replace('.', '/')
+                else:
+                    continue
+                base = REPO_ROOT / mod
+                if not (base.with_suffix('.py').exists() or (base / '__init__.py').exists()):
+                    out['warnings'].append(
+                        f"import WAMA INEXISTANT : {'.' * n.level}{n.module or ''} (règle 6)")
 
     fonctions = [n for n in arbre.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
     cible = next((f for f in fonctions if f.name == nom_impose), None)
@@ -206,11 +264,17 @@ def main():
 
     corps = json.dumps(man, ensure_ascii=False, indent=1)
     jambes = '\n'.join(json.dumps(m, ensure_ascii=False) for m in resolus)
+    inventaire = inventaire_app(args.app)
+    champs = champs_item(proc.get('item_model') or '')
     user_msg = (
         f'CONTRAT de la brique run_item_task (docstring de task_skeleton.py) :\n{contrat}\n\n'
         f'EXEMPLES — glus réelles d\'apps WAMA existantes :\n{fewshot}\n\n'
         f'MANIFESTE de l\'app `{args.app}` :\n{corps}\n\n'
         f'MANIFESTES RÉSOLUS de ses requires (modèles + librairies) :\n{jambes}\n\n'
+        f'MODULES RÉELS de l\'app (les SEULS imports d\'app autorisés — signature = aide, '
+        f'pas contrat) :\n{inventaire or "(aucun module métier — pas d\'import d\'app)"}\n\n'
+        f'CHAMPS DU MODÈLE D\'ITEM `{proc.get("item_model") or "?"}` (les clés de `fields` '
+        f'du retour DOIVENT en faire partie) :\n{", ".join(champs) or "(inconnus)"}\n\n'
         f'FICHIER MINCE généré (le wrapper appelle ta glu) :\n{mince}\n\n'
         f'Écris la fonction `{nom_impose}(item, ctx)` qui remplit ce trou '
         f'(bloc ```python seul).')[:MAX_MATTER_CHARS]
@@ -219,7 +283,7 @@ def main():
     print(f'[codegen] modèle : {model} | app : {args.app} | glu : {nom_impose}')
     reponse = call_ollama(model, PROMPT, user_msg)
     code = extract_code(reponse)
-    verif = controles(code, nom_impose)
+    verif = controles(code, nom_impose, args.app)
 
     verite = None
     if args.truth:
