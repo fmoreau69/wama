@@ -1,94 +1,129 @@
 {% comment %}
-Card d'un Media anonymizer — partial serveur UNIQUE (source du markup) :
-rendu par IndexView (boucle de file) ET par l'endpoint card_html (refreshCard JS).
+Card d'un Media anonymizer — CARD v3 « sections × chips » (CARD_DESIGN §11, portée le
+2026-08-13 ; remplace la card en 3 lignes du 03/08). Partial serveur UNIQUE : rendu par
+IndexView (boucle de file) ET par card_html (refreshCard sur transition d'état).
 Contexte : media (décoré par _decorate_card → media.chips), in_batch, user.
 
-Contrats JS (queue.js) :
-  .anon-card[data-id][data-status]     — racine (inspecteur, cycle button autoSync)
-  [data-preview-url] sur la racine     — volet inspecteur (aperçu unified_preview)
-  .preview-media-link[data-preview-url]— aperçu au clic sur le nom (brique commune)
-  .settings-btn[data-id]               — modale paramètres (WamaParams)
-  .wama-cycle-btn                      — ▶/⏹/↻ (brique _cycle_button + WamaCycleButton)
-  .duplicate-btn[data-duplicate-url]   — brique GLOBALE queue-actions.js (ne pas re-binder)
-  .delete-btn[data-id]                 — suppression (queue.js)
+⚠ Contrats JS (queue.js) : .anon-card[data-id][data-status][data-media-name] — racine ;
+  [data-preview-url] racine + .preview-media-link ; .settings-btn[data-id] ;
+  .wama-cycle-btn (brique) ; .duplicate-btn[data-duplicate-url] (brique GLOBALE) ;
+  .delete-btn[data-id] ; .wama-progress-fill (:85) ; .progress-text (:87).
 {% endcomment %}
-{% comment %} .synthesis-card = squelette standard (contour, arrondi, padding, accents d'état
-— app_modern.css) : sans lui la card n'avait AUCUN contour (constat 03/08). {% endcomment %}
-<div class="anon-card synthesis-card wama-card {% if media.status == 'RUNNING' %}processing{% elif media.status == 'SUCCESS' %}success{% elif media.status == 'FAILURE' %}error{% endif %}"
+<div class="anon-card synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if media.status == 'RUNNING' %}processing{% elif media.status == 'SUCCESS' %}success{% elif media.status == 'FAILURE' %}error{% endif %}"
      data-id="{{ media.id }}"
      data-status="{{ media.status }}"
      data-media-name="{{ media.get_filename }}"
      data-preview-url="{% url 'common:unified_preview' 'anonymizer' media.id %}">
-    <div>
+<div class="card-body py-2">
 
-        {% comment %} Ligne 1 : identité + actions (ordre canonique ⚙ ▶ ⬇ ⧉ 🗑) {% endcomment %}
-        <div class="d-flex justify-content-between align-items-center mb-1">
-            <button type="button"
-                    class="btn btn-link p-0 preview-media-link text-decoration-none d-flex align-items-center gap-2 overflow-hidden"
-                    data-preview-url="{% url 'common:unified_preview' 'anonymizer' media.id %}">
-                {% if media.media_type == 'image' %}
-                    <i class="fas fa-image text-info flex-shrink-0"></i>
-                {% elif media.media_type == 'video' %}
-                    <i class="fas fa-video text-warning flex-shrink-0"></i>
-                {% else %}
-                    <i class="fas fa-file text-secondary flex-shrink-0"></i>
-                {% endif %}
-                <span class="fw-semibold text-light text-truncate" style="max-width:260px;">{{ media.get_filename }}</span>
-            </button>
+  <div class="wcv3-head">#{{ media.id }}{% if media.MSValues_customised %}<span class="sep">·</span><span class="badge bg-info text-dark" title="Paramètres personnalisés pour ce média">Personnalisé</span>{% endif %}</div>
 
-            <div class="btn-group-actions d-flex gap-1 flex-shrink-0 ms-2">
-                <button type="button" class="btn btn-outline-secondary btn-sm settings-btn"
-                        data-id="{{ media.id }}" title="Configurer les paramètres">
-                    <i class="fas fa-cog"></i>
-                </button>
-                {% include 'common/_cycle_button.html' with id=media.id status=media.status %}
-                <form method="post" action="{% url 'anonymizer:download_media' %}" class="d-inline m-0">
-                    {% csrf_token %}
-                    <input type="hidden" name="media_id" value="{{ media.id }}">
-                    <button type="submit"
-                            class="btn btn-outline-info btn-sm download-btn {% if not media.processed %}disabled{% endif %}"
-                            {% if not media.processed %}disabled aria-disabled="true" tabindex="-1"{% endif %}
-                            title="Télécharger le média traité">
-                        <i class="fas fa-download"></i>
-                    </button>
-                </form>
-                <button type="button" class="btn btn-outline-warning btn-sm duplicate-btn"
-                        data-duplicate-url="{% url 'anonymizer:duplicate_media' media.id %}"
-                        title="Dupliquer (tester d'autres paramètres)">
-                    <i class="fas fa-copy"></i>
-                </button>
-                <button type="button" class="btn btn-outline-danger btn-sm delete-btn"
-                        data-id="{{ media.id }}" title="Supprimer le média">
-                    <i class="fas fa-trash-alt"></i>
-                </button>
-            </div>
+  <div class="wcv3">
+
+    {# ── ENTRÉE : icône média + nom (clic = aperçu) + propriétés réelles ───────────── #}
+    <div class="wcv3-sec wcv3-sec--input">
+      <span class="wcv3-lbl">Entrée</span>
+      <div class="wcv3-in">
+        <span class="wcv3-thumb">
+          {% if media.media_type == 'image' %}<i class="fas fa-image text-info"></i>
+          {% elif media.media_type == 'video' %}<i class="fas fa-video text-warning"></i>
+          {% else %}<i class="fas fa-file text-secondary"></i>{% endif %}
+        </span>
+        <div class="wcv3-in-lines">
+          <span role="button" class="wcv3-in-name preview-media-link" title="Aperçu"
+                data-preview-url="{% url 'common:unified_preview' 'anonymizer' media.id %}">
+            {{ media.get_filename }}
+          </span>
+          <span class="wcv3-in-props">{% if media.width and media.height %}{{ media.width }}×{{ media.height }}{% if media.fps %}<span class="sep">·</span>{{ media.fps }} fps{% endif %}{% endif %}{% if media.duration_inMinSec %}<span class="sep">·</span>{{ media.duration_inMinSec }}{% endif %}</span>
         </div>
-
-        {% comment %} Ligne 2 : propriétés du média + chips de réglages (générés du SCHÉMA) {% endcomment %}
-        <div class="d-flex flex-wrap align-items-center gap-1" style="font-size:0.78rem;">
-            {% if media.width and media.height %}
-            <span class="text-muted">{{ media.width }}×{{ media.height }}{% if media.fps %} · {{ media.fps }} fps{% endif %}</span>
-            {% endif %}
-            {% if media.duration_inMinSec %}
-            <span class="text-muted">{{ media.duration_inMinSec }}</span>
-            {% endif %}
-            {% if media.MSValues_customised %}
-            <span class="badge bg-info text-dark" title="Paramètres personnalisés pour ce média">Personnalisé</span>
-            {% endif %}
-            {% include 'common/_card_chips.html' with chips=media.chips.settings %}
-            {% include 'common/_card_chips.html' with chips=media.chips.output %}
-        </div>
-
-        {% comment %} Ligne 3 : ÉTAT (badge + % + ETA + temps, sans barre) — la barre vit
-        seule en bas de card, pleine largeur, hors de la section État (design v3 : une barre
-        coincée dans la section écrasait la mise en page — constat 03/08). {% endcomment %}
-        {% include 'common/_card_progress.html' with status=media.status progress=media.blur_progress elapsed=media.processing_display no_bar=True %}
-
-        {% if media.status == 'FAILURE' and media.error_message %}
-        <small class="text-danger d-block mt-1 text-truncate" title="{{ media.error_message }}">{{ media.error_message|truncatechars:160 }}</small>
-        {% endif %}
-
-        {% include 'common/_card_progress.html' with status=media.status progress=media.blur_progress bar_only=True %}
-
+      </div>
     </div>
+
+    {# ── RÉGLAGES : chips GÉNÉRÉS (params.py chip=True) ────────────────────────────── #}
+    <div class="wcv3-sec wcv3-sec--settings">
+      <span class="wcv3-lbl">Réglages</span>
+      <div class="wcv3-out">
+        {% include 'common/_card_chips.html' with chips=media.chips.settings %}
+      </div>
+    </div>
+
+    {# ── SORTIE : chips 'output' → étape live → média traité ; l'erreur la remplace ── #}
+    <div class="wcv3-sec wcv3-sec--output">
+      <span class="wcv3-lbl">Sortie</span>
+      {% if media.status == 'FAILURE' and media.error_message %}
+        <span class="wcv3-out-error" title="{{ media.error_message|escape }}">
+          <i class="fas fa-triangle-exclamation"></i> {{ media.error_message|truncatechars:120|escape }}
+        </span>
+      {% else %}
+        <div class="wcv3-out">
+          {% include 'common/_card_chips.html' with chips=media.chips.output %}
+          {% if media.status == 'RUNNING' %}
+            <span class="wcv3-out-step"><span class="pct progress-text">{{ media.blur_progress }}%</span> — anonymisation…</span>
+          {% elif media.processed %}
+            <span class="wcv3-out-step" title="Média anonymisé">
+              <i class="fas fa-check-circle text-success"></i> média anonymisé
+            </span>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+
+    {# ── ÉTAT : point + libellé + ETA/durée ────────────────────────────────────────── #}
+    <div class="wcv3-sec wcv3-sec--state">
+      <span class="wcv3-lbl">État</span>
+      <div class="wcv3-state">
+        <span class="wcv3-state-line">
+          <span class="wama-status-dot" data-s="{{ media.status }}"></span>
+          <span>{% if media.status == 'PENDING' %}En attente{% elif media.status == 'RUNNING' %}En cours{% elif media.status == 'SUCCESS' %}Terminé{% elif media.status == 'FAILURE' %}Échec{% else %}{{ media.status }}{% endif %}</span>
+        </span>
+        {% if media.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ media.id }}"></span>{% endif %}
+        {% if media.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=media.processing_display %}{% endif %}
+      </div>
+    </div>
+
+    {# ── ACTIONS : ordre conventionnel ⚙ ▶ ⬇ ⧉ 🗑 (classes/données queue.js) ────────── #}
+    <div class="wcv3-sec wcv3-sec--actions">
+      <span class="wcv3-lbl">Actions</span>
+      <div class="btn-group-actions wcv3-actions">
+        <button type="button" class="btn btn-sm btn-outline-secondary settings-btn"
+                data-id="{{ media.id }}" title="Configurer les paramètres">
+          <i class="fas fa-cog"></i>
+        </button>
+        {% include 'common/_cycle_button.html' with id=media.id status=media.status %}
+        <form method="post" action="{% url 'anonymizer:download_media' %}" class="d-inline m-0">
+          {% csrf_token %}
+          <input type="hidden" name="media_id" value="{{ media.id }}">
+          <button type="submit"
+                  class="btn btn-sm btn-outline-info download-btn {% if not media.processed %}disabled{% endif %}"
+                  {% if not media.processed %}disabled aria-disabled="true" tabindex="-1"{% endif %}
+                  title="Télécharger le média traité">
+            <i class="fas fa-download"></i>
+          </button>
+        </form>
+        <button type="button" class="btn btn-sm btn-outline-warning duplicate-btn"
+                data-duplicate-url="{% url 'anonymizer:duplicate_media' media.id %}"
+                title="Dupliquer (tester d'autres paramètres)">
+          <i class="fas fa-copy"></i>
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-danger delete-btn"
+                data-id="{{ media.id }}" title="Supprimer le média">
+          <i class="fas fa-trash-alt"></i>
+        </button>
+      </div>
+    </div>
+
+    {% comment %}Barre pleine largeur — ligne 2 de la grille (§11), FIGÉE au % en échec.
+    Progression = blur_progress (champ propre à l'anonymizer).{% endcomment %}
+    {% if media.status != 'PENDING' %}
+    <div class="wcv3-bar" style="grid-column:1/-1;">
+      <div class="wama-progress-track">
+        <div class="wama-progress-fill{% if media.status == 'RUNNING' %} active{% elif media.status == 'FAILURE' %} is-frozen{% endif %}"
+             style="width:{% if media.status == 'SUCCESS' %}100{% else %}{{ media.blur_progress }}{% endif %}%"></div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>{# /.wcv3 #}
+
+</div>
 </div>
