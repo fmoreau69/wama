@@ -127,7 +127,7 @@ def _fait_mecanismes():
     import re
     from django.conf import settings
 
-    from wama.common.mecanismes import MECANISMES
+    from wama.common.mecanismes import ASSUMES_LOCAUX, MECANISMES
 
     base = Path(settings.BASE_DIR)
     modules = list(_modules_python(base))
@@ -177,17 +177,31 @@ def _fait_mecanismes():
         lignes.append(f"| **{m.nom}** | {m.role} | `{m.domicile}` | {doc} | {etat} |")
 
     # Modules de `common/` non rattachés : la réponse mécanique à « qu'ai-je oublié de tracer ».
+    # ASSUMES_LOCAUX en est soustrait (assumer est un acte DÉCLARÉ avec raison, pas un oubli) —
+    # sans cette soustraction la liste ne pouvait jamais converger et cessait d'être lue (45
+    # noms au 2026-08-13). Deux gardes d'honnêteté : un module à la fois assumé ET déclaré est
+    # une contradiction ; un assumé dont le fichier a disparu est une entrée périmée.
     declares = {m.domicile for m in MECANISMES} | {a for m in MECANISMES for a in m.annexes}
     candidats = sorted(
         rel for rel in modules
         if (rel.startswith('wama/common/services/') or rel.startswith('wama/common/utils/'))
         and not rel.endswith('__init__.py') and rel not in declares
+        and rel not in ASSUMES_LOCAUX
     )
+    contradictions = sorted(set(ASSUMES_LOCAUX) & declares)
+    assumes_perimes = sorted(p for p in ASSUMES_LOCAUX if not (base / p).exists())
 
     lignes.append("")
     lignes.append(f"**Mécanismes déclarés : {len(MECANISMES)}** · "
                   f"domiciles absents : {len(absents)} · sans consommateur : {len(orphelins)} · "
+                  f"assumés locaux : {len(ASSUMES_LOCAUX)} · "
                   f"modules `common/` non rattachés : {len(candidats)}")
+    if contradictions:
+        lignes.append(f"- ❌ **Assumé ET déclaré** (contradiction, retirer d'un des deux) : "
+                      + ', '.join(f"`{c}`" for c in contradictions))
+    if assumes_perimes:
+        lignes.append(f"- ❌ **Assumé dont le fichier a disparu** (entrée périmée d'ASSUMES_LOCAUX) : "
+                      + ', '.join(f"`{c}`" for c in assumes_perimes))
     if absents:
         lignes.append(f"- ❌ **Domicile introuvable** : {', '.join(absents)}")
     if orphelins:
@@ -205,6 +219,13 @@ def _fait_mecanismes():
             if noms:
                 lignes.append(f"\n`{dossier}` ({len(noms)}) — "
                               + ' · '.join(f"`{n}`" for n in noms))
+        lignes.append("\n</details>")
+    if ASSUMES_LOCAUX:
+        lignes.append(f"\n<details><summary>Assumés utilitaires locaux : "
+                      f"{len(ASSUMES_LOCAUX)} (chacun avec sa raison — "
+                      f"<code>ASSUMES_LOCAUX</code>, wama/common/mecanismes.py)</summary>\n")
+        for chemin, raison in sorted(ASSUMES_LOCAUX.items()):
+            lignes.append(f"- `{chemin.split('/')[-1]}` — {raison}")
         lignes.append("\n</details>")
     return '\n'.join(lignes)
 
