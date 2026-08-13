@@ -3013,6 +3013,16 @@ production** identique, suffixe de sortie `_blurred_multi-model` conservé, `unl
 les modèles. ⚠ **Reste à valider par Fabien : une VRAIE vidéo sur GPU** — je ne lance pas de
 charge GPU sous WSL2.
 
+**Audit des suppressions** — une seule capacité manquait : le repli CPU sur erreur CUDA que
+portait `DetectionOnlyProcessor`. Comblée (`ff4ce83`) **sous une autre forme** :
+`MemoryManager.reessayer_apres_liberation()` **libère la VRAM des autres modèles puis réessaie**
+avant toute dégradation. L'ancien repli basculait sur CPU sans jamais tenter de libérer, alors
+que sur ce poste la cause fréquente d'une erreur CUDA est un autre process qui a pris la place —
+une contention, pas un modèle trop gros. Asymétrie voulue : **repli CPU pour l'image** (borné),
+**refusé pour la vidéo** (il durerait des heures et ressemblerait à un blocage ; un échec net est
+plus utile). ⚠ `MODEL_OFFLOAD` n'est PAS une réponse ici : mécanisme *diffusers*, ultralytics ne
+l'utilise pas. Le repli codec MJPG→mp4v, lui, existait déjà dans `Anonymize` — rien perdu.
+
 ### B. Qualité / auto-amélioration — bloqué sur les DONNÉES, pas sur le code
 
 Voir [[project_model_quality_loop]]. `RunOutcome` et la divergence sont livrés et **actifs** ;
