@@ -1,73 +1,130 @@
 {% comment %}
-Card Enhancement (média image/vidéo) — SOURCE UNIQUE du markup (port 2026-07-26).
-Rendue au chargement (index.html, single + fille de batch) ET par l'endpoint
-`card_html` (refreshCard JS). Contexte : e (Enhancement), in_batch (bool).
-Les classes js-* et data-* sont le contrat des handlers délégués de index.js —
-ne pas renommer sans mettre à jour le JS.
+Card Enhancement (média image/vidéo) — CARD v3 « sections × chips » (CARD_DESIGN §11,
+portée le 2026-08-13 depuis le pilote reader ; remplace la card en colonnes du port 07/26).
+SOURCE UNIQUE du markup : rendue au chargement (single + fille de batch) ET par `card_html`
+(refreshCard JS — transition d'état = re-rendu serveur, index.js:303).
+Contexte : e (Enhancement, décorée .chips), in_batch (bool).
+
+⚠ Contrats JS (index.js) : .wama-card[data-id][data-status], .js-open-settings + data-*,
+  .js-delete-enhancement[data-delete-url], .duplicate-btn[data-duplicate-url],
+  .preview-media-link, .wama-progress-fill (:297), .progress-text (:299), .wama-eta (:293).
 {% endcomment %}
-<div class="synthesis-card wama-card {% if e.status == 'RUNNING' %}processing{% elif e.status == 'SUCCESS' %}success{% elif e.status == 'FAILURE' %}error{% endif %}"
-     data-id="{{ e.id }}" data-status="{{ e.status }}">
-    <div class="row align-items-center">
-        <div class="col-md-3">
-            <strong>
-                <button type="button" class="btn btn-link p-0 text-start preview-media-link"
-                        data-preview-url="{% url 'common:unified_preview' 'enhancer' e.id %}"
-                        style="color: #fff; text-decoration: none; font-size: 0.9rem;">
-                    {% if e.media_type == 'image' %}<i class="fas fa-image text-info"></i>{% else %}<i class="fas fa-video text-warning"></i>{% endif %}
-                    {% if e.get_input_filename %}{{ e.get_input_filename }}{% else %}{{ e.source_url|truncatechars:40 }}{% endif %}
-                </button>
-            </strong>
-            <br>
-            <small class="text-white-50">
-                {% if e.width %}{{ e.width }}x{{ e.height }}{% endif %}{% if e.output_width %} <i class="fas fa-arrow-right text-success"></i> {{ e.output_width }}x{{ e.output_height }}{% endif %}
-            </small>
+<div class="synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if e.status == 'RUNNING' %}processing{% elif e.status == 'SUCCESS' %}success{% elif e.status == 'FAILURE' %}error{% endif %}"
+     data-id="{{ e.id }}" data-status="{{ e.status }}"
+     data-preview-url="{% url 'common:unified_preview' 'enhancer' e.id %}">
+<div class="card-body py-2">
+
+  <div class="wcv3-head">#{{ e.id }}<span class="sep">·</span>{{ e.created_at|date:"d/m H:i" }}</div>
+
+  <div class="wcv3">
+
+    {# ── ENTRÉE : icône média + nom (clic = aperçu) + dimensions réelles ──────────── #}
+    <div class="wcv3-sec wcv3-sec--input">
+      <span class="wcv3-lbl">Entrée</span>
+      <div class="wcv3-in">
+        <span class="wcv3-thumb">
+          {% if e.media_type == 'image' %}<i class="fas fa-image text-info"></i>{% else %}<i class="fas fa-video text-warning"></i>{% endif %}
+        </span>
+        <div class="wcv3-in-lines">
+          <span role="button" class="wcv3-in-name preview-media-link" title="Aperçu"
+                data-preview-url="{% url 'common:unified_preview' 'enhancer' e.id %}">
+            {% if e.get_input_filename %}{{ e.get_input_filename }}{% else %}{{ e.source_url|truncatechars:40 }}{% endif %}
+          </span>
+          {% if e.width %}<span class="wcv3-in-props">{{ e.width }}×{{ e.height }}</span>{% endif %}
         </div>
-        <div class="col-md-2">
-            {% comment %} Chips générés du SCHÉMA (params.py chip=True) — brique commune,
-            remplacent les badges hand-built (modèle/Débruitage/Blend). {% endcomment %}
-            {% include 'common/_card_chips.html' with chips=e.chips.settings %}
-        </div>
-        <div class="col-md-3">
-            {# Statut + progression + ETA + temps écoulé — brique COMMUNE #}
-            {% include 'common/_card_progress.html' with status=e.status progress=e.progress elapsed=e.processing_display %}
-            {% if e.status == 'FAILURE' and e.error_message %}
-            <div class="text-danger small mt-1"><i class="fas fa-exclamation-triangle"></i> {{ e.error_message|truncatechars:120 }}</div>
-            {% endif %}
-        </div>
-        <div class="col-md-4">
-            {# Ordre canonique : ⚙ ▶(cycle) ⬇ ⧉ 🗑 #}
-            <div class="btn-group-actions">
-                <button class="btn btn-sm btn-outline-secondary js-open-settings"
-                        data-id="{{ e.id }}"
-                        data-ai-model="{{ e.ai_model }}"
-                        data-denoise="{{ e.denoise|lower }}"
-                        data-blend-factor="{{ e.blend_factor }}"
-                        title="Paramètres">
-                    <i class="fas fa-cog"></i>
-                </button>
-                {# Bouton de cycle commun ▶/⏹/↻ — câblé par WamaCycleButton (index.js) #}
-                {% include 'common/_cycle_button.html' with id=e.id status=e.status %}
-                {% if e.output_file %}
-                <a class="btn btn-sm btn-outline-info download-btn"
-                   href="{% url 'enhancer:download' e.id %}" title="Télécharger">
-                    <i class="fas fa-download"></i>
-                </a>
-                {% else %}
-                <button class="btn btn-sm btn-outline-info" disabled title="Télécharger">
-                    <i class="fas fa-download"></i>
-                </button>
-                {% endif %}
-                <button class="btn btn-sm btn-outline-warning duplicate-btn"
-                        data-duplicate-url="{% url 'enhancer:duplicate' e.id %}"
-                        title="{% if in_batch %}Dupliquer dans le batch{% else %}Dupliquer{% endif %}">
-                    <i class="fas fa-copy"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-danger js-delete-enhancement"
-                        data-delete-url="{% url 'enhancer:delete' e.id %}"
-                        title="Supprimer">
-                    <i class="fas fa-trash-alt"></i>
-                </button>
-            </div>
-        </div>
+      </div>
     </div>
+
+    {# ── RÉGLAGES : chips GÉNÉRÉS (params.py chip=True — modèle, débruitage, blend…) ─ #}
+    <div class="wcv3-sec wcv3-sec--settings">
+      <span class="wcv3-lbl">Réglages</span>
+      <div class="wcv3-out">
+        {% include 'common/_card_chips.html' with chips=e.chips.settings %}
+      </div>
+    </div>
+
+    {# ── SORTIE : étape live → dimensions produites ; l'erreur la remplace ─────────── #}
+    <div class="wcv3-sec wcv3-sec--output">
+      <span class="wcv3-lbl">Sortie</span>
+      {% if e.status == 'FAILURE' and e.error_message %}
+        <span class="wcv3-out-error" title="{{ e.error_message|escape }}">
+          <i class="fas fa-triangle-exclamation"></i> {{ e.error_message|truncatechars:120|escape }}
+        </span>
+      {% else %}
+        <div class="wcv3-out">
+          {% if e.status == 'RUNNING' %}
+            <span class="wcv3-out-step"><span class="pct progress-text">{{ e.progress }}%</span> — amélioration…</span>
+          {% elif e.output_file %}
+            <span class="wcv3-out-step" title="Fichier produit">
+              <i class="fas fa-check-circle text-success"></i>
+              {% if e.output_width %}{{ e.output_width }}×{{ e.output_height }}{% else %}fichier produit{% endif %}
+            </span>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+
+    {# ── ÉTAT : point + libellé + ETA/durée ────────────────────────────────────────── #}
+    <div class="wcv3-sec wcv3-sec--state">
+      <span class="wcv3-lbl">État</span>
+      <div class="wcv3-state">
+        <span class="wcv3-state-line">
+          <span class="wama-status-dot" data-s="{{ e.status }}"></span>
+          <span>{% if e.status == 'PENDING' %}En attente{% elif e.status == 'RUNNING' %}En cours{% elif e.status == 'SUCCESS' %}Terminé{% elif e.status == 'FAILURE' %}Échec{% else %}{{ e.status }}{% endif %}</span>
+        </span>
+        {% if e.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ e.id }}"></span>{% endif %}
+        {% if e.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=e.processing_display %}{% endif %}
+      </div>
+    </div>
+
+    {# ── ACTIONS : ordre conventionnel ⚙ ▶ ⬇ ⧉ 🗑 (classes/données index.js) ───────── #}
+    <div class="wcv3-sec wcv3-sec--actions">
+      <span class="wcv3-lbl">Actions</span>
+      <div class="btn-group-actions wcv3-actions">
+        <button class="btn btn-sm btn-outline-secondary js-open-settings"
+                data-id="{{ e.id }}"
+                data-ai-model="{{ e.ai_model }}"
+                data-denoise="{{ e.denoise|lower }}"
+                data-blend-factor="{{ e.blend_factor }}"
+                title="Paramètres">
+          <i class="fas fa-cog"></i>
+        </button>
+        {% include 'common/_cycle_button.html' with id=e.id status=e.status %}
+        {% if e.output_file %}
+        <a class="btn btn-sm btn-outline-info download-btn"
+           href="{% url 'enhancer:download' e.id %}" title="Télécharger">
+          <i class="fas fa-download"></i>
+        </a>
+        {% else %}
+        <button class="btn btn-sm btn-outline-info" disabled title="Télécharger">
+          <i class="fas fa-download"></i>
+        </button>
+        {% endif %}
+        <button class="btn btn-sm btn-outline-warning duplicate-btn"
+                data-duplicate-url="{% url 'enhancer:duplicate' e.id %}"
+                title="{% if in_batch %}Dupliquer dans le batch{% else %}Dupliquer{% endif %}">
+          <i class="fas fa-copy"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-danger js-delete-enhancement"
+                data-delete-url="{% url 'enhancer:delete' e.id %}"
+                title="Supprimer">
+          <i class="fas fa-trash-alt"></i>
+        </button>
+      </div>
+    </div>
+
+    {% comment %}Barre pleine largeur — ligne 2 de la grille (§11) ; FIGÉE au % en échec.
+    Jamais de commentaire dièse ici (boîte fantôme dans la grille).{% endcomment %}
+    {% if e.status != 'PENDING' %}
+    <div class="wcv3-bar" style="grid-column:1/-1;">
+      <div class="wama-progress-track">
+        <div class="wama-progress-fill{% if e.status == 'RUNNING' %} active{% elif e.status == 'FAILURE' %} is-frozen{% endif %}"
+             style="width:{% if e.status == 'SUCCESS' %}100{% else %}{{ e.progress }}{% endif %}%"></div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>{# /.wcv3 #}
+
+</div>
 </div>

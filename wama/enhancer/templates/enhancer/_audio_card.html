@@ -1,68 +1,128 @@
 {% comment %}
-Card AudioEnhancement — SOURCE UNIQUE du markup (port 2026-07-26).
-Rendue au chargement (index.html, single + fille de batch) ET par l'endpoint
-`audio_card_html` (refreshCard JS). Contexte : ae (AudioEnhancement), in_batch (bool).
-Les classes js-audio-* et data-* sont le contrat des handlers délégués de
-audio-enhancer.js — ne pas renommer sans mettre à jour le JS.
+Card AudioEnhancement — CARD v3 « sections × chips » (CARD_DESIGN §11, portée le 2026-08-13 ;
+remplace la card en colonnes du port 07/26). SOURCE UNIQUE du markup : rendue au chargement
+(single + fille de batch) ET par `audio_card_html` (refreshCard JS).
+Contexte : ae (AudioEnhancement, décorée .chips), in_batch (bool).
+
+⚠ Contrats JS (audio-enhancer.js) : .wama-card[data-id][data-status], .js-audio-settings
+  + data-*, .js-audio-delete[data-id], .duplicate-btn[data-duplicate-url],
+  .preview-media-link, .wama-progress-fill, .progress-text, .wama-eta.
 {% endcomment %}
-<div class="synthesis-card wama-card {% if ae.status == 'RUNNING' %}processing{% elif ae.status == 'SUCCESS' %}success{% elif ae.status == 'FAILURE' %}error{% endif %}"
-     data-id="{{ ae.id }}" data-status="{{ ae.status }}">
-    <div class="row align-items-center">
-        <div class="col-md-3">
-            <button type="button" class="btn btn-link p-0 text-start preview-media-link"
-                    data-preview-url="{% url 'common:unified_preview' 'audio_enhancer' ae.id %}"
-                    style="color: #fff; text-decoration: none; font-size: 0.9rem;">
-                <i class="fas fa-microphone-alt text-success"></i>
-                {% if ae.get_input_filename %}{{ ae.get_input_filename }}{% else %}{{ ae.source_url|truncatechars:40 }}{% endif %}
-            </button>
-            {% if ae.duration %}<br><small class="text-white-50">{{ ae.duration|floatformat:1 }}s</small>{% endif %}
+<div class="synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if ae.status == 'RUNNING' %}processing{% elif ae.status == 'SUCCESS' %}success{% elif ae.status == 'FAILURE' %}error{% endif %}"
+     data-id="{{ ae.id }}" data-status="{{ ae.status }}"
+     data-preview-url="{% url 'common:unified_preview' 'audio_enhancer' ae.id %}">
+<div class="card-body py-2">
+
+  <div class="wcv3-head">#{{ ae.id }}<span class="sep">·</span>{{ ae.created_at|date:"d/m H:i" }}</div>
+
+  <div class="wcv3">
+
+    {# ── ENTRÉE : icône audio + nom (clic = aperçu) + durée réelle ─────────────────── #}
+    <div class="wcv3-sec wcv3-sec--input">
+      <span class="wcv3-lbl">Entrée</span>
+      <div class="wcv3-in">
+        <span class="wcv3-thumb"><i class="fas fa-microphone-alt text-success"></i></span>
+        <div class="wcv3-in-lines">
+          <span role="button" class="wcv3-in-name preview-media-link" title="Aperçu"
+                data-preview-url="{% url 'common:unified_preview' 'audio_enhancer' ae.id %}">
+            {% if ae.get_input_filename %}{{ ae.get_input_filename }}{% else %}{{ ae.source_url|truncatechars:40 }}{% endif %}
+          </span>
+          {% if ae.duration %}<span class="wcv3-in-props">{{ ae.duration|floatformat:1 }}s</span>{% endif %}
         </div>
-        <div class="col-md-3">
-            {% comment %} Chips générés du SCHÉMA (params.py chip=True) — brique commune,
-            remplacent les badges hand-built. Le détail Force/NFE (spécifique resemble)
-            reste en clair : propriété d'exécution, pas un chip de réglage. {% endcomment %}
-            {% include 'common/_card_chips.html' with chips=ae.chips.settings %}
-            <small class="text-white-50 d-block mt-1">{% if ae.engine == 'resemble' %}Force {{ ae.denoising_strength }} / NFE {{ ae.quality }}{% else %}Rapide{% endif %}</small>
-        </div>
-        <div class="col-md-2">
-            {# Statut + progression + ETA + temps écoulé — brique COMMUNE #}
-            {% include 'common/_card_progress.html' with status=ae.status progress=ae.progress elapsed=ae.processing_display %}
-            {% if ae.status == 'FAILURE' and ae.error_message %}
-            <div class="text-danger small mt-1"><i class="fas fa-exclamation-triangle"></i> {{ ae.error_message|truncatechars:120 }}</div>
-            {% endif %}
-        </div>
-        <div class="col-md-4">
-            {# Ordre canonique : ⚙ ▶(cycle) ⬇ ⧉ 🗑 #}
-            <div class="btn-group-actions">
-                <button class="btn btn-sm btn-outline-secondary js-audio-settings"
-                        data-id="{{ ae.id }}" data-engine="{{ ae.engine }}"
-                        data-mode="{{ ae.mode }}" data-strength="{{ ae.denoising_strength }}"
-                        data-quality="{{ ae.quality }}" title="Paramètres">
-                    <i class="fas fa-cog"></i>
-                </button>
-                {# Bouton de cycle commun ▶/⏹/↻ — câblé par WamaCycleButton (audio-enhancer.js) #}
-                {% include 'common/_cycle_button.html' with id=ae.id status=ae.status %}
-                {% if ae.output_file %}
-                <a class="btn btn-sm btn-outline-info download-btn"
-                   href="{% url 'enhancer:audio_download' ae.id %}" title="Télécharger">
-                    <i class="fas fa-download"></i>
-                </a>
-                {% else %}
-                <button class="btn btn-sm btn-outline-info" disabled title="Télécharger">
-                    <i class="fas fa-download"></i>
-                </button>
-                {% endif %}
-                <button class="btn btn-sm btn-outline-warning duplicate-btn"
-                        data-duplicate-url="{% url 'enhancer:audio_duplicate' ae.id %}" title="Dupliquer">
-                    <i class="fas fa-copy"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-danger js-audio-delete" data-id="{{ ae.id }}" title="Supprimer">
-                    <i class="fas fa-trash-alt"></i>
-                </button>
-            </div>
-        </div>
+      </div>
     </div>
-    {% if ae.output_file and not in_batch %}
-    {% include 'common/_audio_waveform.html' with audio_url=ae.output_file.url player_id=ae.id %}
+
+    {# ── RÉGLAGES : chips GÉNÉRÉS + détail Force/NFE (propriété d'exécution resemble) ─ #}
+    <div class="wcv3-sec wcv3-sec--settings">
+      <span class="wcv3-lbl">Réglages</span>
+      <div class="wcv3-out">
+        {% include 'common/_card_chips.html' with chips=ae.chips.settings %}
+        <span class="wcv3-out-step">{% if ae.engine == 'resemble' %}Force {{ ae.denoising_strength }} / NFE {{ ae.quality }}{% else %}Rapide{% endif %}</span>
+      </div>
+    </div>
+
+    {# ── SORTIE : étape live → fichier produit ; l'erreur la remplace ──────────────── #}
+    <div class="wcv3-sec wcv3-sec--output">
+      <span class="wcv3-lbl">Sortie</span>
+      {% if ae.status == 'FAILURE' and ae.error_message %}
+        <span class="wcv3-out-error" title="{{ ae.error_message|escape }}">
+          <i class="fas fa-triangle-exclamation"></i> {{ ae.error_message|truncatechars:120|escape }}
+        </span>
+      {% else %}
+        <div class="wcv3-out">
+          {% if ae.status == 'RUNNING' %}
+            <span class="wcv3-out-step"><span class="pct progress-text">{{ ae.progress }}%</span> — amélioration audio…</span>
+          {% elif ae.output_file %}
+            <span class="wcv3-out-step" title="Fichier produit">
+              <i class="fas fa-check-circle text-success"></i> audio amélioré
+            </span>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+
+    {# ── ÉTAT : point + libellé + ETA/durée ────────────────────────────────────────── #}
+    <div class="wcv3-sec wcv3-sec--state">
+      <span class="wcv3-lbl">État</span>
+      <div class="wcv3-state">
+        <span class="wcv3-state-line">
+          <span class="wama-status-dot" data-s="{{ ae.status }}"></span>
+          <span>{% if ae.status == 'PENDING' %}En attente{% elif ae.status == 'RUNNING' %}En cours{% elif ae.status == 'SUCCESS' %}Terminé{% elif ae.status == 'FAILURE' %}Échec{% else %}{{ ae.status }}{% endif %}</span>
+        </span>
+        {% if ae.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ ae.id }}"></span>{% endif %}
+        {% if ae.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=ae.processing_display %}{% endif %}
+      </div>
+    </div>
+
+    {# ── ACTIONS : ordre conventionnel ⚙ ▶ ⬇ ⧉ 🗑 (classes/données audio-enhancer.js) ─ #}
+    <div class="wcv3-sec wcv3-sec--actions">
+      <span class="wcv3-lbl">Actions</span>
+      <div class="btn-group-actions wcv3-actions">
+        <button class="btn btn-sm btn-outline-secondary js-audio-settings"
+                data-id="{{ ae.id }}" data-engine="{{ ae.engine }}"
+                data-mode="{{ ae.mode }}" data-strength="{{ ae.denoising_strength }}"
+                data-quality="{{ ae.quality }}" title="Paramètres">
+          <i class="fas fa-cog"></i>
+        </button>
+        {% include 'common/_cycle_button.html' with id=ae.id status=ae.status %}
+        {% if ae.output_file %}
+        <a class="btn btn-sm btn-outline-info download-btn"
+           href="{% url 'enhancer:audio_download' ae.id %}" title="Télécharger">
+          <i class="fas fa-download"></i>
+        </a>
+        {% else %}
+        <button class="btn btn-sm btn-outline-info" disabled title="Télécharger">
+          <i class="fas fa-download"></i>
+        </button>
+        {% endif %}
+        <button class="btn btn-sm btn-outline-warning duplicate-btn"
+                data-duplicate-url="{% url 'enhancer:audio_duplicate' ae.id %}" title="Dupliquer">
+          <i class="fas fa-copy"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-danger js-audio-delete" data-id="{{ ae.id }}" title="Supprimer">
+          <i class="fas fa-trash-alt"></i>
+        </button>
+      </div>
+    </div>
+
+    {% comment %}Barre pleine largeur — ligne 2 de la grille (§11) ; FIGÉE au % en échec.{% endcomment %}
+    {% if ae.status != 'PENDING' %}
+    <div class="wcv3-bar" style="grid-column:1/-1;">
+      <div class="wama-progress-track">
+        <div class="wama-progress-fill{% if ae.status == 'RUNNING' %} active{% elif ae.status == 'FAILURE' %} is-frozen{% endif %}"
+             style="width:{% if ae.status == 'SUCCESS' %}100{% else %}{{ ae.progress }}{% endif %}%"></div>
+      </div>
+    </div>
     {% endif %}
+
+  </div>{# /.wcv3 #}
+
+  {% comment %}Lecteur waveform (résultat audio) — zone de preview PERMANENTE de la v3.{% endcomment %}
+  {% if ae.output_file and not in_batch %}
+  <div class="wcv3-preview">
+    {% include 'common/_audio_waveform.html' with audio_url=ae.output_file.url player_id=ae.id %}
+  </div>
+  {% endif %}
+
+</div>
 </div>
