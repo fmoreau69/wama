@@ -3,14 +3,20 @@ WAMA TTS Microservice - FastAPI
 Standalone TTS service that keeps models preloaded in GPU memory.
 Django and Celery workers call this service via HTTP.
 
+Les moteurs (Coqui/XTTS, Bark, Higgs, Kokoro) sont des backends sous CONTRAT
+COMMUN (`wama/synthesizer/backends/`, dérivés de `BaseModelBackend`) : c'est le
+contrat qui mesure et publie leur empreinte VRAM au gouverneur (clé par modèle,
+ex. `…CoquiBackend:<pid>#synthesizer:coqui-xtts`) et qui enregistre les
+unloaders. Ce fichier ne garde que la POLITIQUE : bascule de moteur courant,
+résidence de Kokoro, résolution des presets de voix, file HTTP.
+
 Usage:
     python -m uvicorn tts_service:app --host 0.0.0.0 --port 8001 --workers 1
 """
 
 import os
-import sys
 import logging
-import tempfile
+import threading
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -20,24 +26,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [TTS] %(levelname)s 
 logger = logging.getLogger("tts_service")
 
 # ---------------------------------------------------------------------------
-# Project paths (reuse Django/model_config paths without importing Django)
+# Project paths (sans importer Django — les chemins de POIDS vivent dans les backends)
 # ---------------------------------------------------------------------------
 PROJECT_DIR = Path(__file__).parent
-AI_MODELS_DIR = PROJECT_DIR / "AI-models"
-
-COQUI_DIR = AI_MODELS_DIR / "models" / "speech" / "coqui"
-BARK_DIR = AI_MODELS_DIR / "models" / "speech" / "bark"
-HIGGS_DIR = AI_MODELS_DIR / "models" / "speech" / "higgs"
-KOKORO_DIR = AI_MODELS_DIR / "models" / "speech" / "kokoro"
-
-for d in (COQUI_DIR, BARK_DIR, HIGGS_DIR, KOKORO_DIR):
-    d.mkdir(parents=True, exist_ok=True)
-
-# Environment variables
-os.environ.setdefault("COQUI_TOS_AGREED", "1")
-os.environ.setdefault("TTS_HOME", str(COQUI_DIR))
-os.environ.setdefault("SUNO_USE_SMALL_MODELS", "False")
-os.environ.setdefault("TORCH_FORCE_WEIGHTS_ONLY_LOAD", "0")
 
 # Default voices directory
 DEFAULT_VOICES_DIR = PROJECT_DIR / "media" / "synthesizer" / "voice_references"
@@ -45,24 +36,24 @@ _LEGACY_VOICES_DIR = PROJECT_DIR / "media" / "synthesizer" / "default_voices"
 DEFAULT_VOICES_DIR.mkdir(parents=True, exist_ok=True)
 
 # ---------------------------------------------------------------------------
-# Imports légers – seul torch est chargé ici au niveau module
-# Les patches torchaudio et transformers sont appliqués en lazy dans _load_coqui/_load_higgs
+# Bootstrap PROCESS (pas backend) : torch.load + plafond CUDA
 # ---------------------------------------------------------------------------
+import sys as _sys
+_sys.path.insert(0, str(PROJECT_DIR))
+
 import torch
-import numpy as np
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-# Patch torch.load for PyTorch 2.6+ (weights_only=True default breaks Bark)
+# Patch torch.load for PyTorch 2.6+ (weights_only=True default breaks Bark AND the
+# pickled Coqui checkpoints) — process-wide, must precede ANY backend load().
+os.environ.setdefault("TORCH_FORCE_WEIGHTS_ONLY_LOAD", "0")
 _original_torch_load = torch.load
 def _patched_torch_load(*args, **kwargs):
     if "weights_only" not in kwargs:
         kwargs["weights_only"] = False
     return _original_torch_load(*args, **kwargs)
 torch.load = _patched_torch_load
-
-# Note: torchaudio and transformers patches are applied lazily inside
-# _load_coqui() and _load_higgs() to avoid slowing down service startup.
 
 
 # ---------------------------------------------------------------------------
@@ -76,108 +67,66 @@ from typing import Optional
 app = FastAPI(title="WAMA TTS Service", version="1.0")
 
 # ---------------------------------------------------------------------------
-# Global model state
+# Backends sous contrat (singletons par moteur) + moteur COURANT
 # ---------------------------------------------------------------------------
-import threading
+from wama.synthesizer.backends import ENGINE_BACKENDS, engine_for_model
 
-_current_engine = None       # "coqui", "bark", "higgs", or "kokoro"
-_current_model_name = None   # e.g. "xtts_v2", "bark", "higgs_audio", "kokoro"
-_tts_instance = None         # Coqui TTS instance
-_bark_funcs = None           # {"generate_audio": ..., "SAMPLE_RATE": ...}
-_higgs_engine = None         # HiggsAudioServeEngine instance
-_kokoro_pipelines = {}       # lang_code → KPipeline
-_kokoro_lock = threading.Lock()
-
-# Serialise concurrent Higgs generation requests.
-# _higgs_engine.generate() mutates self.current_past_key_values_bucket on the shared
-# model instance. Two simultaneous calls (e.g. one still running after HTTP timeout
-# + the next request arriving) corrupt this shared state → "target cache size 1024
-# is smaller than source cache size 4096". The lock ensures sequential execution.
-_higgs_generation_lock = threading.Lock()
+_backends: dict = {}          # engine name → instance (créée au 1er besoin)
+_current_engine = None        # "coqui", "bark", "higgs", or "kokoro"
+_current_model_name = None    # e.g. "xtts_v2", "bark", "higgs_audio", "kokoro"
 
 # Service readiness flag: False while models are loading at startup
 _service_ready = False
 _service_ready_lock = threading.Lock()
 
-# Constantes TTS partagées (modèles, langues, presets, mappings)
-import sys as _sys
-_sys.path.insert(0, str(PROJECT_DIR))
-from wama.common.tts.constants import (
-    COQUI_MODEL_MAPPING,
-    BARK_LANG_DEFAULTS,
-    HIGGS_LANGUAGE_NAMES as _HIGGS_LANGUAGE_NAMES,
-    PRESET_DOWNLOAD_MAPPING,
-    KOKORO_LANG_MAP as _KOKORO_LANG_MAP,
-    KOKORO_VOICE_MAP as _KOKORO_VOICE_MAP,
-)
+
+def _backend(engine: str):
+    """Instance singleton du backend d'un moteur."""
+    if engine not in _backends:
+        _backends[engine] = ENGINE_BACKENDS[engine]()
+    return _backends[engine]
 
 
 # ---------------------------------------------------------------------------
 # Déclaration de VRAM au gouverneur de ressources
 # ---------------------------------------------------------------------------
 # Ce service est un PROCESS SÉPARÉ : son empreinte VRAM est invisible des workers
-# Celery. Sans déclaration, le gouverneur croit la VRAM libre et laisse démarrer
-# une tâche GPU par-dessus — le scénario exact des kernel panics du 29/07, que la
-# docstring de `vram_reservation` désigne nommément (« un service séparé (TTS) »).
-# Le service ne déclarait pourtant rien : il ne posait que le plafond d'allocateur
-# (`configure_cuda_process`), qui borne ce process sans rien dire aux autres.
-# Devenu critique depuis que Kokoro est préchargé et RÉSIDENT (12/08).
-_GOVERNOR_OWNER = "tts-service"      # stable : un redémarrage écrase sa propre ligne
-_GOVERNOR_HEARTBEAT_S = 600          # < RESERVATION_TTL_S (3600) — voir plus bas
-
-
-def _declare_vram():
-    """Publie l'empreinte VRAM COURANTE de ce service dans le registre partagé.
-
-    Mesurée et non déclarée : le service héberge des moteurs de tailles très
-    différentes (Kokoro ~0,3 Go, XTTS plusieurs Go) et peut en cumuler.
-    Une empreinte nulle libère la ligne au lieu d'immobiliser du budget.
-    """
-    try:
-        gb = torch.cuda.memory_allocated() / 1024 ** 3 if torch.cuda.is_available() else 0.0
-        from wama.common.services.resource_governor import reserve_vram, release_reservation
-        if gb >= 0.05:
-            reserve_vram(_GOVERNOR_OWNER, float(gb))
-        else:
-            release_reservation(_GOVERNOR_OWNER)
-    except Exception:
-        logger.debug("[TTS] déclaration VRAM au gouverneur ignorée", exc_info=True)
+# Celery. La DÉCLARATION est désormais celle du contrat commun (enveloppes
+# load/unload de BaseModelBackend : empreinte MESURÉE, une ligne par modèle) —
+# l'ancienne ligne agrégée "tts-service" est REMPLACÉE, pas doublée. Ce qui reste
+# ici est le BATTEMENT : une réservation expire (TTL 1 h, garde-fou anti process
+# mort) alors que Kokoro est résident SANS LIMITE de durée — sans rafraîchissement,
+# sa ligne disparaîtrait et le gouverneur recroirait cette VRAM libre.
+_GOVERNOR_HEARTBEAT_S = 600          # < RESERVATION_TTL_S (3600)
 
 
 def _governor_heartbeat():
-    """Rafraîchit la réservation tant que le service détient de la VRAM.
-
-    INDISPENSABLE ici : une ligne de registre expire au bout de RESERVATION_TTL_S
-    (1 h) pour qu'un process mort ne gèle pas le GPU. Or Kokoro est résident SANS
-    LIMITE de durée — sans rafraîchissement, sa ligne disparaîtrait au bout d'une
-    heure et le gouverneur recommencerait à croire cette VRAM libre.
-    """
+    """Rafraîchit les réservations des backends résidents de ce process (TTL)."""
     import time
+    from wama.common.backends.base import refresh_live_reservations
     while True:
         time.sleep(_GOVERNOR_HEARTBEAT_S)
-        _declare_vram()
+        try:
+            refresh_live_reservations()
+        except Exception:
+            logger.debug("[TTS] rafraîchissement gouverneur ignoré", exc_info=True)
 
 
 def _unload_current():
     """Unload whatever model is currently loaded and free GPU memory."""
-    global _current_engine, _current_model_name, _tts_instance, _bark_funcs, _higgs_engine
+    global _current_engine, _current_model_name
 
-    if _current_engine == "coqui" and _tts_instance is not None:
-        logger.info(f"Unloading Coqui model: {_current_model_name}")
-        del _tts_instance
-        _tts_instance = None
-    elif _current_engine == "bark":
-        logger.info("Unloading Bark")
-        _bark_funcs = None
-    elif _current_engine == "higgs" and _higgs_engine is not None:
-        logger.info("Unloading Higgs Audio engine")
-        del _higgs_engine
-        _higgs_engine = None
-    elif _current_engine == "kokoro":
+    if _current_engine == "kokoro":
         # Kokoro est minuscule (~82M) et sert le TEMPS RÉEL (vocalisation AI-Assistant) :
         # on le GARDE résident pour éviter le rechargement (thrash) à chaque bascule
-        # synthesizer↔assistant → vocalisation instantanée. On ne vide PAS _kokoro_pipelines.
+        # synthesizer↔assistant → vocalisation instantanée. POLITIQUE du service :
+        # KokoroBackend.unload() décharge réellement, on ne l'appelle simplement pas.
         logger.info("Kokoro reste résident (warm) — pas de déchargement")
+    elif _current_engine is not None:
+        be = _backends.get(_current_engine)
+        if be is not None and be.is_loaded:
+            logger.info(f"Unloading {_current_engine} model: {_current_model_name}")
+            be.unload()   # l'enveloppe du contrat rend la ligne de registre VRAM
 
     _current_engine = None
     _current_model_name = None
@@ -186,204 +135,10 @@ def _unload_current():
         torch.cuda.empty_cache()
         logger.info("GPU cache cleared")
 
-    _declare_vram()   # l'empreinte a baissé (Kokoro peut rester) → réaligner le registre
-
-
-def _load_coqui(model_name: str):
-    """Load a Coqui TTS model."""
-    global _current_engine, _current_model_name, _tts_instance
-
-    # Patch torchaudio.load → soundfile (torchcodec may not be available)
-    try:
-        import torchaudio
-        import soundfile as sf
-
-        def _soundfile_load(uri, frame_offset=0, num_frames=-1, normalize=True,
-                            channels_first=True, format=None, buffer_size=4096,
-                            backend=None):
-            data, sample_rate = sf.read(
-                str(uri), dtype="float32",
-                start=frame_offset,
-                stop=frame_offset + num_frames if num_frames > 0 else None,
-                always_2d=True,
-            )
-            audio_tensor = torch.from_numpy(data)
-            if channels_first:
-                audio_tensor = audio_tensor.t()
-            return audio_tensor, sample_rate
-
-        torchaudio.load = _soundfile_load
-        logger.info("Patched torchaudio.load → soundfile backend")
-    except Exception as e:
-        logger.warning(f"Could not patch torchaudio: {e}")
-
-    from TTS.api import TTS
-
-    full_id = COQUI_MODEL_MAPPING.get(model_name, model_name)
-    logger.info(f"Loading Coqui model: {full_id} on {DEVICE}")
-    _tts_instance = TTS(full_id).to(DEVICE)
-    _current_engine = "coqui"
-    _current_model_name = model_name
-    logger.info(f"Coqui model {model_name} loaded")
-
-
-def _load_bark():
-    """Load Bark models."""
-    global _current_engine, _current_model_name, _bark_funcs
-
-    original_xdg = os.environ.get("XDG_CACHE_HOME")
-    os.environ["XDG_CACHE_HOME"] = str(BARK_DIR)
-    logger.info(f"Setting XDG_CACHE_HOME={BARK_DIR} for Bark")
-
-    from bark import SAMPLE_RATE, generate_audio, preload_models
-
-    logger.info("Preloading Bark models...")
-    preload_models()
-
-    _bark_funcs = {
-        "generate_audio": generate_audio,
-        "SAMPLE_RATE": SAMPLE_RATE,
-    }
-    _current_engine = "bark"
-    _current_model_name = "bark"
-    logger.info("Bark loaded and preloaded")
-
-
-def _load_higgs():
-    """Load Higgs Audio v2 engine."""
-    global _current_engine, _current_model_name, _higgs_engine
-
-    # Redirect HF hub cache to our managed directory (must be before any HF import)
-    HIGGS_DIR.mkdir(parents=True, exist_ok=True)
-    os.environ['HF_HUB_CACHE'] = str(HIGGS_DIR)
-    os.environ['HUGGINGFACE_HUB_CACHE'] = str(HIGGS_DIR)
-
-    # Patches required by boson_multimodal against transformers 4.57+
-    # Applied here (lazily) to avoid ~60-90s import overhead at service startup.
-    try:
-        from transformers.models.llama import modeling_llama as _llama_module
-        if not hasattr(_llama_module, "LLAMA_ATTENTION_CLASSES"):
-            _llama_module.LLAMA_ATTENTION_CLASSES = {
-                "eager": _llama_module.LlamaAttention,
-                "sdpa": _llama_module.LlamaAttention,
-                "flash_attention_2": _llama_module.LlamaAttention,
-            }
-            logger.info("Patched LLAMA_ATTENTION_CLASSES for boson_multimodal")
-    except Exception as e:
-        logger.warning(f"Could not patch LLAMA_ATTENTION_CLASSES: {e}")
-
-    try:
-        from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
-        _patched_keys = []
-        for _key in (None, "eager"):
-            if _key not in ALL_ATTENTION_FUNCTIONS:
-                ALL_ATTENTION_FUNCTIONS[_key] = ALL_ATTENTION_FUNCTIONS["sdpa"]
-                _patched_keys.append(repr(_key))
-        if _patched_keys:
-            logger.info(f"Patched ALL_ATTENTION_FUNCTIONS: added {', '.join(_patched_keys)} → sdpa")
-    except Exception as e:
-        logger.warning(f"Could not patch ALL_ATTENTION_FUNCTIONS: {e}")
-
-    try:
-        from transformers import GenerationConfig as _GC
-        if not hasattr(_GC, "generation_kwargs"):
-            _orig_gc_init = _GC.__init__
-            def _patched_gc_init(self, *args, **kwargs):
-                _orig_gc_init(self, *args, **kwargs)
-                if not isinstance(getattr(self, "generation_kwargs", None), dict):
-                    self.generation_kwargs = {}
-            _GC.__init__ = _patched_gc_init
-            _GC.generation_kwargs = {}
-            logger.info("Patched GenerationConfig.generation_kwargs for boson_multimodal")
-    except Exception as e:
-        logger.warning(f"Could not patch GenerationConfig.generation_kwargs: {e}")
-
-    from boson_multimodal.serve.serve_engine import HiggsAudioServeEngine
-
-    model_path = "bosonai/higgs-audio-v2-generation-3B-base"
-    tokenizer_path = "bosonai/higgs-audio-v2-tokenizer"
-
-    logger.info(f"Loading Higgs Audio engine: {model_path}")
-    _higgs_engine = HiggsAudioServeEngine(
-        model_name_or_path=model_path,
-        audio_tokenizer_name_or_path=tokenizer_path,
-        device="cuda",
-    )
-    _current_engine = "higgs"
-    _current_model_name = "higgs_audio"
-    logger.info("Higgs Audio engine loaded")
-
-    # Optional: disable CUDA graphs entirely for debugging.
-    # Set env var HIGGS_DISABLE_CUDA_GRAPHS=1 before starting the service.
-    if os.environ.get("HIGGS_DISABLE_CUDA_GRAPHS"):
-        _higgs_engine.model.decode_graph_runners.clear()
-        logger.warning("[Higgs debug] CUDA graphs DISABLED via HIGGS_DISABLE_CUDA_GRAPHS")
-
-
-def _get_kokoro_pipeline(lang_code: str):
-    """Lazy-load a Kokoro pipeline for the given lang_code (thread-safe)."""
-    if lang_code not in _kokoro_pipelines:
-        with _kokoro_lock:
-            if lang_code not in _kokoro_pipelines:
-                # Must be set BEFORE importing kokoro/huggingface_hub
-                os.environ['HF_HUB_CACHE'] = str(KOKORO_DIR)
-                os.environ['HUGGINGFACE_HUB_CACHE'] = str(KOKORO_DIR)
-                from kokoro import KPipeline
-                _kokoro_pipelines[lang_code] = KPipeline(
-                    lang_code=lang_code, repo_id='hexgrad/Kokoro-82M')
-    return _kokoro_pipelines[lang_code]
-
-
-def _load_kokoro():
-    """Load Kokoro (preload French pipeline)."""
-    global _current_engine, _current_model_name
-    _get_kokoro_pipeline('f')
-    _current_engine = "kokoro"
-    _current_model_name = "kokoro"
-    logger.info("Kokoro loaded (French pipeline ready)")
-
-
-def _generate_kokoro(text: str, language: str = "fr",
-                     voice_preset: str = "default") -> str:
-    """Generate audio with Kokoro. Returns path to temp WAV file."""
-    import wave
-
-    lang_code = _KOKORO_LANG_MAP.get(language, 'a')
-    is_male = voice_preset in ('male_1', 'male_2')
-    voice = (_KOKORO_VOICE_MAP.get((lang_code, is_male))
-             or _KOKORO_VOICE_MAP.get((lang_code, False), 'af_heart'))
-
-    pipeline = _get_kokoro_pipeline(lang_code)
-
-    samples = []
-    for _, _, audio in pipeline(text, voice=voice, speed=1.0):
-        if audio is not None:
-            arr = audio.numpy() if hasattr(audio, 'numpy') else np.array(audio)
-            samples.append(arr)
-
-    if not samples:
-        raise RuntimeError("Kokoro: aucun audio généré")
-
-    audio_np = np.concatenate(samples).astype(np.float32)
-    peak = np.abs(audio_np).max()
-    if peak > 1e-6:
-        audio_np /= peak
-    audio_int16 = (audio_np * 32767).clip(-32768, 32767).astype(np.int16)
-
-    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False, dir=str(PROJECT_DIR / "logs"))
-    tmp.close()
-    with wave.open(tmp.name, 'wb') as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)
-        wf.setframerate(24000)
-        wf.writeframes(audio_int16.tobytes())
-
-    return tmp.name
-
 
 def _switch_model(model_name: str):
     """Switch to the requested model, unloading the current one first."""
-    global _current_model_name
+    global _current_engine, _current_model_name
 
     if _current_model_name == model_name:
         logger.info(f"Model {model_name} already loaded, skipping")
@@ -391,25 +146,14 @@ def _switch_model(model_name: str):
 
     _unload_current()
 
-    if model_name in COQUI_MODEL_MAPPING:
-        _load_coqui(model_name)
-    elif model_name == "bark":
-        _load_bark()
-    elif model_name == "higgs_audio":
-        _load_higgs()
-    elif model_name == "kokoro":
-        _load_kokoro()
-    else:
-        # Try as a Coqui model anyway
-        _load_coqui(model_name)
-
-    # Point de passage UNIQUE de tout changement de moteur : c'est ici que
-    # l'empreinte du service devient juste, donc ici qu'on la publie.
-    _declare_vram()
+    engine = engine_for_model(model_name)
+    _backend(engine).load(model_name)
+    _current_engine = engine
+    _current_model_name = model_name
 
 
 # ---------------------------------------------------------------------------
-# Voice preset helper
+# Voice preset helper (politique MÉDIA — reste au service)
 # ---------------------------------------------------------------------------
 def _get_speaker_wav(voice_preset: str) -> Optional[str]:
     """Resolve a voice preset name to a WAV file path."""
@@ -464,224 +208,6 @@ def _get_speaker_wav(voice_preset: str) -> Optional[str]:
     return None
 
 
-def _get_bark_speaker(voice_preset: str, language: str) -> str:
-    """Map a voice preset to a Bark speaker prompt."""
-    if voice_preset.startswith("bark_v2_"):
-        parts = voice_preset.replace("bark_v2_", "").split("_")
-        if len(parts) == 2:
-            return f"v2/{parts[0]}_speaker_{parts[1]}"
-
-    # lang_defaults depuis wama.common.tts.constants
-    return BARK_LANG_DEFAULTS.get(language, "v2/en_speaker_0")
-
-
-# ---------------------------------------------------------------------------
-# Generation functions
-# ---------------------------------------------------------------------------
-def _generate_coqui(text: str, model_name: str, language: str = "fr",
-                    speaker_wav: str = None, voice_preset: str = "default") -> str:
-    """Generate audio with Coqui TTS. Returns path to temp WAV file."""
-    kwargs = {"text": text}
-
-    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False, dir=str(PROJECT_DIR / "logs"))
-    kwargs["file_path"] = tmp.name
-    tmp.close()
-
-    if model_name == "xtts_v2":
-        kwargs["language"] = language
-        wav_path = speaker_wav or _get_speaker_wav(voice_preset)
-        if wav_path and os.path.exists(wav_path):
-            kwargs["speaker_wav"] = wav_path
-        else:
-            raise ValueError("XTTS v2 requires a speaker_wav reference audio file")
-
-    _tts_instance.tts_to_file(**kwargs)
-    return tmp.name
-
-
-def _generate_bark(text: str, language: str = "fr",
-                   voice_preset: str = "default") -> str:
-    """Generate audio with Bark. Returns path to temp WAV file."""
-    from scipy.io.wavfile import write as write_wav
-
-    speaker = _get_bark_speaker(voice_preset, language)
-    audio_array = _bark_funcs["generate_audio"](text, history_prompt=speaker)
-    sample_rate = _bark_funcs["SAMPLE_RATE"]
-
-    audio_array = np.array(audio_array, dtype=np.float32)
-    # Normalize to [-1, 1] before int16 conversion — Bark output can exceed ±1.0
-    # which causes clipping/saturation without normalization.
-    peak = np.abs(audio_array).max()
-    if peak > 1e-6:
-        audio_array = audio_array / peak
-    audio_array = (audio_array * 32767).astype(np.int16)
-
-    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False, dir=str(PROJECT_DIR / "logs"))
-    write_wav(tmp.name, sample_rate, audio_array)
-    tmp.close()
-    return tmp.name
-
-
-# _HIGGS_LANGUAGE_NAMES est importé depuis wama.common.tts.constants
-
-
-def _generate_higgs(text: str, language: str = "fr",
-                    voice_preset: str = "default",
-                    speaker_wav: str = None,
-                    multi_speaker: bool = False,
-                    scene_description: str = "",
-                    options: dict = None) -> str:
-    """Generate audio with Higgs Audio v2. Returns path to temp WAV file."""
-    from boson_multimodal.data_types import ChatMLSample, Message, TextContent, AudioContent
-    from scipy.io.wavfile import write as write_wav
-
-    content_parts = []
-    _tmp_ref_path = None  # track trimmed temp file for cleanup
-
-    # System message with explicit language instruction
-    lang_name = _HIGGS_LANGUAGE_NAMES.get(language, language.capitalize())
-    system_message = Message(
-        role="system",
-        content=TextContent(text=f"Generate high-quality {lang_name} speech audio of the provided text.")
-    )
-
-    # Voice cloning: resolve reference audio path (direct path or preset fallback)
-    ref_wav = speaker_wav or _get_speaker_wav(voice_preset)
-    if ref_wav and os.path.exists(ref_wav):
-        logger.info(f"[Higgs] Voice reference: {ref_wav}")
-    else:
-        logger.warning(f"[Higgs] No voice reference found (speaker_wav={speaker_wav!r}, preset={voice_preset!r}) — using default voice")
-        ref_wav = None
-
-    if ref_wav:
-        # Trim reference audio to 6 seconds max.
-        # Higgs Audio v2 was trained on 3-8s references; shorter is safer.
-        # Longer references expand the KV cache context and can degrade generation quality.
-        MAX_REF_DURATION_S = 6.0
-        try:
-            import librosa, soundfile as _sf
-            _raw, _sr = librosa.load(ref_wav, sr=None)
-            _dur = len(_raw) / _sr
-            logger.info(f"[Higgs] Voice reference: {_dur:.1f}s @ {_sr}Hz")
-            max_samples = int(MAX_REF_DURATION_S * _sr)
-            if len(_raw) > max_samples:
-                _raw = _raw[:max_samples]
-                _tmp_ref = tempfile.NamedTemporaryFile(suffix=".wav", delete=False, dir=str(PROJECT_DIR / "logs"))
-                _sf.write(_tmp_ref.name, _raw, _sr)
-                _tmp_ref.close()
-                _tmp_ref_path = _tmp_ref.name
-                logger.info(f"[Higgs] Voice reference trimmed to {MAX_REF_DURATION_S}s → {_tmp_ref_path}")
-                ref_wav = _tmp_ref_path
-        except Exception as _e:
-            logger.warning(f"[Higgs] Could not trim reference audio: {_e} — using original")
-
-        # Pass file path directly — serve_engine.py loads via librosa.load(audio_url)
-        content_parts.append(AudioContent(audio_url=ref_wav))
-
-    # Multi-speaker scene description
-    final_text = text
-    if multi_speaker and scene_description:
-        final_text = f"<|scene_desc_start|>{scene_description.strip()}<|scene_desc_end|>{text}"
-
-    content_parts.append(TextContent(text=final_text))
-
-    chat_ml = ChatMLSample(messages=[
-        system_message,
-        Message(role="user", content=content_parts)
-    ])
-
-    # Estimate max tokens: Higgs codec produces ~300 audio tokens/sec.
-    # Natural speech rate ~2.5 words/sec → duration ≈ words/2.5 s.
-    # Add 1.5× safety margin + 1500 overhead (system prompt, audio ref tokens).
-    # Previous formula used max(8192, ...) which generated up to 8192 tokens
-    # for a 23-word text → 8192 / 27 tok/s (RAM-swapped) = 303s → timeout.
-    _words = len(text.split())
-    _estimated_audio_tokens = int(_words / 2.5 * 300)
-    max_tokens = min(max(int(_estimated_audio_tokens * 1.5) + 1500, 2000), 75000)
-    logger.info(f"[Higgs] max_tokens={max_tokens} for {_words} words (~{_estimated_audio_tokens} audio tokens)")
-
-    # Serialise: only one Higgs generation at a time.
-    # Two concurrent HTTP threads sharing the model instance corrupt
-    # self.current_past_key_values_bucket → "target cache size 1024 < source 4096".
-    with _higgs_generation_lock:
-        # Diagnostic: log cache state before generation
-        try:
-            for bucket_len, kv_cache in _higgs_engine.kv_caches.items():
-                seq_len = kv_cache.get_seq_length()
-                logger.info(f"[Higgs diag] KV cache[{bucket_len}] seq_length BEFORE = {seq_len}")
-        except Exception as _e:
-            logger.warning(f"[Higgs diag] Could not read cache lengths: {_e}")
-
-        logger.info(f"[Higgs diag] max_tokens={max_tokens}, text_chars={len(text)}")
-
-        output = _higgs_engine.generate(
-            chat_ml_sample=chat_ml,
-            max_new_tokens=max_tokens,
-            temperature=0.7,   # serve_engine default; 0.3 was too aggressive (caused early EOS)
-            top_p=0.95,
-            force_audio_gen=True,
-        )
-
-    if output.audio is None or len(output.audio) == 0:
-        raise ValueError("Higgs Audio returned empty audio")
-
-    # Use actual sampling rate from engine (never hardcode 24000)
-    actual_sr = int(output.sampling_rate) if hasattr(output, 'sampling_rate') and output.sampling_rate else 24000
-    logger.info(f"Higgs audio: {len(output.audio)} samples @ {actual_sr} Hz = {len(output.audio)/actual_sr:.1f}s")
-
-    if output.usage:
-        logger.info(f"[Higgs diag] Usage: {output.usage}")
-
-    # Diagnostic: log KV cache seq_length AFTER generation (expected: prefill + audio steps)
-    try:
-        for bucket_len, kv_cache in _higgs_engine.kv_caches.items():
-            seq_len = kv_cache.get_seq_length()
-            logger.info(f"[Higgs diag] KV cache[{bucket_len}] seq_length AFTER = {seq_len}")
-    except Exception as _e:
-        logger.debug(f"[Higgs diag] Could not read post-gen cache lengths: {_e}")
-
-    # Diagnostic: inspect generated audio tokens to understand generation quality
-    try:
-        _tok = output.generated_audio_tokens  # shape (num_codebooks, num_steps)
-        if _tok is not None and hasattr(_tok, 'shape'):
-            _n_steps = _tok.shape[1] if len(_tok.shape) > 1 else len(_tok)
-            _unique = len(set(_tok.flatten().tolist())) if hasattr(_tok, 'flatten') else '?'
-            _min_t = int(_tok.min()) if hasattr(_tok, 'min') else '?'
-            _max_t = int(_tok.max()) if hasattr(_tok, 'max') else '?'
-            logger.info(f"[Higgs diag] Audio tokens: {_n_steps} steps, range [{_min_t},{_max_t}], {_unique} unique values")
-    except Exception as _de:
-        logger.debug(f"[Higgs diag] Could not inspect audio tokens: {_de}")
-
-    combined = np.array(output.audio, dtype=np.float32)
-    max_val = np.max(np.abs(combined))
-    if max_val > 0:
-        combined = combined / max_val
-
-    # Resample to 48kHz if needed (Higgs native output is 24kHz)
-    target_sr = 48000
-    if actual_sr != target_sr:
-        from scipy.signal import resample as scipy_resample
-        num_samples = int(len(combined) * target_sr / actual_sr)
-        combined = scipy_resample(combined, num_samples).astype(np.float32)
-        logger.info(f"Resampled {actual_sr}Hz → {target_sr}Hz ({len(combined)} samples)")
-        actual_sr = target_sr
-
-    combined_int16 = (combined * 32767).astype(np.int16)
-
-    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False, dir=str(PROJECT_DIR / "logs"))
-    write_wav(tmp.name, actual_sr, combined_int16)
-    tmp.close()
-
-    # Cleanup trimmed reference temp file
-    if _tmp_ref_path:
-        try:
-            os.remove(_tmp_ref_path)
-        except OSError:
-            pass
-
-    return tmp.name
-
-
 # ---------------------------------------------------------------------------
 # Request/Response models
 # ---------------------------------------------------------------------------
@@ -712,6 +238,7 @@ def health():
     with _service_ready_lock:
         ready = _service_ready
 
+    kokoro = _backends.get("kokoro")
     return {
         "status": "ok" if ready else "loading",
         "device": DEVICE,
@@ -721,7 +248,7 @@ def health():
         # chargé (cf. _unload_current) et n'est donc pas « le modèle courant ». Sans
         # ce champ, /health affichait loaded_model=null alors que Kokoro était chaud —
         # impossible de vérifier le préchargement depuis l'extérieur.
-        "kokoro_resident": sorted(_kokoro_pipelines.keys()),
+        "kokoro_resident": kokoro.resident_langs() if kokoro else [],
         "gpu_memory_gb": round(gpu_mem, 2),
     }
 
@@ -744,26 +271,21 @@ def tts_endpoint(req: TTSRequest):
         # Switch model if needed
         _switch_model(req.model)
 
-        # Generate audio
-        if _current_engine == "coqui":
-            wav_path = _generate_coqui(
-                req.text, req.model, req.language,
-                req.speaker_wav, req.voice_preset,
-            )
-        elif _current_engine == "bark":
-            wav_path = _generate_bark(
-                req.text, req.language, req.voice_preset,
-            )
-        elif _current_engine == "higgs":
-            wav_path = _generate_higgs(
-                req.text, req.language, req.voice_preset, req.speaker_wav,
-                req.multi_speaker, req.scene_description,
-                req.options,
-            )
-        elif _current_engine == "kokoro":
-            wav_path = _generate_kokoro(req.text, req.language, req.voice_preset)
-        else:
-            raise ValueError(f"Unknown engine: {_current_engine}")
+        # Résolution preset → fichier de référence (Bark n'en consomme pas ;
+        # son mapping preset → locuteur est dans son backend).
+        speaker_wav = req.speaker_wav or _get_speaker_wav(req.voice_preset)
+
+        # Contrat d'appel uniforme : chaque backend consomme ce qui le concerne.
+        wav_path = _backend(_current_engine).synthesize(
+            text=req.text,
+            model=req.model,
+            language=req.language,
+            voice_preset=req.voice_preset,
+            speaker_wav=speaker_wav,
+            multi_speaker=req.multi_speaker,
+            scene_description=req.scene_description,
+            options=req.options,
+        )
 
         # Read and return WAV bytes
         with open(wav_path, "rb") as f:
@@ -798,7 +320,7 @@ def load_model_endpoint(req: LoadModelRequest):
 
 
 # ---------------------------------------------------------------------------
-# Startup – preload XTTS v2
+# Startup – préchargement sélectif
 # ---------------------------------------------------------------------------
 @app.on_event("startup")
 async def startup():
@@ -814,17 +336,14 @@ async def startup():
     try:
         from wama.common.services.resource_governor import configure_cuda_process
         configure_cuda_process()
-        # `configure_cuda_process` BORNE ce process ; elle ne dit rien aux autres.
-        # Le battement publie l'empreinte dans le registre partagé et la maintient
-        # vivante malgré le TTL — sans quoi un modèle résident redeviendrait
-        # invisible au bout d'une heure.
+        # `configure_cuda_process` BORNE ce process ; la déclaration d'empreinte est
+        # celle du contrat de backend (une ligne par modèle, mesurée au chargement).
+        # Le battement maintient ces lignes vivantes malgré le TTL — sans quoi un
+        # modèle résident redeviendrait invisible au bout d'une heure.
         threading.Thread(target=_governor_heartbeat, daemon=True,
                          name="tts-governor-heartbeat").start()
     except Exception as exc:
         logger.warning(f"[TTS] gouverneur de ressources non initialisé : {exc}")
-    logger.info(f"Coqui DIR: {COQUI_DIR}")
-    logger.info(f"Bark DIR: {BARK_DIR}")
-    logger.info(f"Higgs DIR: {HIGGS_DIR}")
 
     # ── Préchargement SÉLECTIF ────────────────────────────────────────────────
     # TTS_PRELOAD = liste d'engines séparés par des virgules (défaut : "kokoro").
@@ -862,12 +381,11 @@ async def startup():
                 if name == "kokoro":
                     # Pipeline FR. Kokoro reste résident (cf. _unload_current) et ne
                     # devient PAS _current_engine : il coexiste avec le moteur courant.
-                    _get_kokoro_pipeline('f')
+                    _backend("kokoro").load()
                     logger.info("Kokoro (FR) préchargé et résident")
                 else:
                     _switch_model(name)
                     logger.info(f"{name} préchargé")
-                _declare_vram()   # rendre l'empreinte visible des autres process
             except Exception as e:
                 logger.warning(
                     f"Préchargement de {name} échoué — il sera chargé à la 1re demande : {e}",

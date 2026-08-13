@@ -81,12 +81,9 @@ REGISTRY_MODEL_DESCRIPTIONS = {
 # Pont valeur d'option UI (select #tts_model, cf. TTS_MODEL_CHOICES) → clé catalogue
 # (`AIModel.model_key` sans le préfixe `synthesizer:`). Les moteurs Coqui légers
 # (vits/tacotron2/speedy_speech) n'ont pas d'entrée catalogue dédiée → pas d'aide affichée.
-ENGINE_CATALOG_KEYS = {
-    'xtts_v2': 'coqui-xtts',
-    'bark': 'bark',
-    'higgs_audio': 'higgs-audio',
-    'kokoro': 'kokoro',
-}
+# Source UNIQUE = backends/base.py (Django-free : la même table sert de clé d'owner
+# publiée au gouverneur par les backends du service TTS).
+from wama.synthesizer.backends.base import CATALOG_KEYS as ENGINE_CATALOG_KEYS  # noqa: E402
 
 # =============================================================================
 # MODEL DEFINITIONS

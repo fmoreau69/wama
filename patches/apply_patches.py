@@ -238,23 +238,27 @@ else:
 print()
 
 # =============================================================================
-# PATCH 3 — tts_service.py (project root, not venv)
-#           Already committed in the repo. Listed here for documentation only.
+# PATCH 3 — backend Higgs du synthesizer (in-repo, vérification seulement)
+#           Historique : ces garde-fous vivaient dans tts_service.py ; depuis le
+#           passage des moteurs TTS sous contrat commun (2026-08-14), la partie
+#           Higgs vit dans wama/synthesizer/backends/higgs_backend.py.
+#           (Les aiguilles 'completion_tokens' / 'trim_audio' d'une version
+#           antérieure étaient déjà mortes AVANT le déménagement — réalignées.)
 # =============================================================================
 
-print("=== tts_service.py (project root — already in repo) ===")
-tts = project_dir / "tts_service.py"
+print("=== higgs_backend.py (in repo — vérification seulement) ===")
+higgs = project_dir / "wama" / "synthesizer" / "backends" / "higgs_backend.py"
 checks = [
-    ('output.usage.get("completion_tokens"', "usage dict access via .get()"),
     ('HIGGS_DISABLE_CUDA_GRAPHS', "CUDA graphs disabled"),
     ('temperature=0.7', "temperature=0.7 (was 0.3)"),
-    ('trim_audio', "reference audio auto-trim to 6s"),
+    ('MAX_REF_DURATION_S', "reference audio auto-trim to 6s"),
+    ('_generation_lock', "sérialisation des générations (KV cache partagé)"),
 ]
 for needle, desc in checks:
-    if tts.exists() and needle in tts.read_text(encoding="utf-8"):
+    if higgs.exists() and needle in higgs.read_text(encoding="utf-8"):
         print(f"  [OK — in repo] {desc}")
     else:
-        print(f"  [MISSING] {desc} — check tts_service.py manually")
+        print(f"  [MISSING] {desc} — check higgs_backend.py manually")
 print()
 
 # =============================================================================

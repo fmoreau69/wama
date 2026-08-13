@@ -923,7 +923,19 @@
       "kind": "model"
     },
     {
+      "key": "librosa",
+      "kind": "library"
+    },
+    {
       "key": "soundfile",
+      "kind": "library"
+    },
+    {
+      "key": "torch",
+      "kind": "library"
+    },
+    {
+      "key": "torchaudio",
       "kind": "library"
     },
     {

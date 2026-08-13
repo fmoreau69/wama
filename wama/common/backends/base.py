@@ -5,8 +5,10 @@ But : un fonctionnement générique et **non bloquant pour de nouveaux modèles*
 une sous-classe qui déclare ses dépendances et implémente le cycle de vie ; **aucune modif du cœur**.
 
 ⚠️ Cet en-tête a longtemps dit « CONTRAT SEUL, aucune app n'est encore migrée dessus » et renvoyait
-à `BACKEND_CARTOGRAPHY.md` — **les deux sont faux depuis 2026-07** (corrigé le 13/08). Sept apps en
-dérivent (anonymizer, avatarizer, composer, enhancer, imager, reader, transcriber), la cartographie
+à `BACKEND_CARTOGRAPHY.md` — **les deux sont faux depuis 2026-07** (corrigé le 13/08). Huit apps en
+dérivent (anonymizer, avatarizer, composer, enhancer, imager, reader, transcriber, et depuis le
+14/08 le synthesizer — dont les backends sont chargés par le service TTS, un process séparé : le
+registre Redis du gouverneur étant cross-process, la comptabilité reste juste). La cartographie
 est consolidée dans `WAMA_APP_GENERATION_ROUTE.md` (l'ancien fichier est archivé sous `docs/archive/`).
 
 Ce module est aussi **l'alimentation de la route de suivi des modèles** : `__init_subclass__`
@@ -42,6 +44,11 @@ _WRAPPED = "_wama_governor_wrapped"
 #: Indispensable depuis que la clé porte le modèle : au déchargement le backend a déjà
 #: oublié son modèle courant, la clé ne serait donc plus reconstituable.
 _GOV_KEY = "_wama_governor_owner"
+
+#: Attribut d'instance mémorisant les Go RÉELLEMENT publiés — sans lui, un rafraîchissement
+#: de TTL (`refresh_live_reservations`) devrait re-mesurer, ce qui n'a pas de sens hors du
+#: chargement (la mesure est un delta autour de `load()`).
+_GOV_GB = "_wama_governor_gb"
 
 # En dessous, la mesure est jugée non concluante (chargement paresseux) et l'on
 # retombe sur `recommended_vram_gb`.
@@ -79,6 +86,32 @@ def unload_app_backends(app: str) -> bool:
         except Exception:
             logger.warning("Déchargement de %s échoué", type(instance).__name__, exc_info=True)
     return freed
+
+
+def refresh_live_reservations() -> int:
+    """Rafraîchit le TTL de la ligne de registre de chaque backend résident de CE process.
+
+    Une réservation expire après `RESERVATION_TTL_S` (1 h) pour qu'un process mort ne gèle
+    pas le GPU — garde-fou légitime, mais qui rendrait INVISIBLE un modèle résident à demeure
+    dans un process vivant (cas nommé : Kokoro dans le service TTS, chaud en permanence pour
+    la vocalisation temps réel). Un process qui héberge des résidents longue durée appelle
+    ceci périodiquement (période < TTL) ; les Go re-publiés sont ceux MESURÉS au chargement
+    (`_GOV_GB`), pas une re-mesure. Retourne le nombre de lignes rafraîchies.
+    """
+    refreshed = 0
+    for bucket in _LIVE_BACKENDS.values():
+        for instance in list(bucket):
+            owner = getattr(instance, _GOV_KEY, None)
+            gb = getattr(instance, _GOV_GB, None)
+            if not owner or not gb:
+                continue
+            try:
+                from wama.common.services.resource_governor import reserve_vram
+                reserve_vram(owner, float(gb))
+                refreshed += 1
+            except Exception:
+                logger.debug("Rafraîchissement de %s ignoré", owner, exc_info=True)
+    return refreshed
 
 
 def _track_live(instance) -> None:
@@ -138,6 +171,7 @@ def _wrap_load(func):
                     reserve_vram(owner, float(gb))
                     try:
                         setattr(self, _GOV_KEY, owner)
+                        setattr(self, _GOV_GB, float(gb))
                     except Exception:
                         pass
         except Exception:
@@ -169,6 +203,7 @@ def _wrap_unload(func):
             release_reservation(getattr(self, _GOV_KEY, None) or _governor_owner(self))
             try:
                 setattr(self, _GOV_KEY, None)
+                setattr(self, _GOV_GB, None)
             except Exception:
                 pass
         except Exception:
