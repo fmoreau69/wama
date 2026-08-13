@@ -20,10 +20,22 @@ Exceptions app-spécifiques VOLONTAIREMENT hors schéma (widgets bespoke) :
 La modale ⚙ est SECTIONNÉE par `GROUPS` (ParamGroup) pour matcher les sections du volet droit —
 voir le commentaire au-dessus de GROUPS.
 """
+from wama.common.utils.output_formats import get_output_formats, get_output_qualities
 from wama.common.utils.param_schema import (
     ParamGroup, derive_from_model, groups_to_dicts, schema_to_dicts,
 )
 from wama.anonymizer.models import Media
+
+
+# Formats de sortie — BRIQUE COMMUNE (output_formats), en OPTGROUPS car l'app est BI-DOMAINE
+# (un Media est image OU vidéo ; la brique `output_format_params_for_app` ne sait déduire qu'UN
+# domaine du catalogue). 'original'/'input' = valeurs du pipeline (`_apply_anonymizer_output_format`).
+_FORMAT_GROUPS = [
+    ("Général", [("original", "Original (inchangé)"),
+                 ("input", "Format du fichier source")]),
+    ("Vidéo", [c for c in get_output_formats("video") if c[0] != "original"]),
+    ("Image", [c for c in get_output_formats("image") if c[0] != "original"]),
+]
 
 
 # Groupes de la modale ⚙ — CALQUÉS sur les sections du volet droit (la « bonne représentation ») :
@@ -139,10 +151,16 @@ PARAMS = derive_from_model(
                             advanced=True, group="afficher"),
         "show_conf": dict(type="toggle", label="Afficher la confiance", icon="fa-percent",
                           advanced=True, group="afficher"),
+        # ⚠ Sans options déclarées, ces deux selects rendaient VIDES dans la modale
+        # (CharField sans choices → derive_from_model n'a rien à offrir) — constat
+        # Fabien 14/08 (« pas accès aux format/qualité »). Options = brique commune.
         "output_format": dict(type="select", label="Format de sortie", icon="fa-file-export",
-                              advanced=True, group="sortie"),
+                              advanced=True, group="sortie", option_groups=_FORMAT_GROUPS,
+                              help="Conversion inline après floutage (brique converter). "
+                                   "« Original » = format produit par le pipeline."),
         "output_quality": dict(type="select", label="Qualité de sortie", icon="fa-gem",
-                               advanced=True, group="sortie"),
+                               advanced=True, group="sortie",
+                               choices=get_output_qualities()),
     },
 )
 
