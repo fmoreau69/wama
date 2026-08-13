@@ -3828,3 +3828,32 @@ Contrôles mécaniques : passés au vert en début de session (04/08) — 3 CASS
 jour, fidélité OK ; non re-lancés après les fixes (JS/garde serveur, aucun critère mesuré touché).
 Données de test : `pw_smoke` a désormais `synthesizer/21/output/tts_smoke_test.wav` (semé pour
 les smokes audio, à garder).
+
+---
+
+## §REPRISE — 2026-08-13 (journée, instance transverse) : SÉCURITÉ + CARTE DES MÉCANISMES + API
+
+> Session CLOSE — aucun chantier laissé ouvert de ce périmètre. Tout est tracé dans les docs de
+> domaine ; ce bloc n'est que le pointeur de reprise.
+
+- **Contrôles sécurité nocturnes** (évaluation Aikido → équivalents locaux, ROADMAP §16.10) :
+  `check_dep_vulns` (OSV, baseline-cliquet `tools/security/osv_baseline.json` par venv) +
+  `check_secret_leaks` (gitleaks historique complet + hook pre-commit, provisioning
+  `scripts/fetch_security_tools.py`). Dette actionnable relevée : palier upgrade Django/pillow/
+  aiohttp à coupler au restart. Options non ouvertes (SAST, Aikido, Zen) : §16.10.
+- **Carte des mécanismes 30 → 61** (`WAMA_MECANISMES.md`, sous-tables par domaine) : balayage
+  étendu à `model_manager/services` + `studio/services`, couche **UI générée** au grain
+  mécanisme (front js/partials = annexes, comptage étendu .html/.js), `ASSUMES_LOCAUX` (18,
+  raisons datées) → **backlog non-rattachés = 0** ; seul ⚠0 restant = `qc` (décision boucle
+  qualité à prendre). Détail : mémoire `project_auto_maintenance_docs`.
+- **API tracée** : `tool_api` + `api_v1` déclarés ; **trou #20 CLOS le jour même** (ROUTE §11 —
+  les 10 routes `/api/tools/*` passaient hors gating F7 → routées par `execute_tool`, mesuré
+  403/200).
+- **Beat nocturne `nightly-consistency` NON gaté** (02:30, queue `default`, CPU pur — la suite
+  GPU reste gatée `NIGHTLY_TESTS_ENABLED`) — ⚠ effectif au **restart beat/workers PENDING**,
+  qui embarque aussi : chaîne modèles 12/08, anonymizer (normalize_types + pipeline unique),
+  **whisper_utils → délégué au backend Whisper du transcriber** (fin du double chemin de
+  chargement ; describer inchangé, smoke CPU/tiny vert).
+- Redondances 8 → 0 (résorption `_params`→`declared_param_schemas` + `normalize_types`
+  anonymizer + pragmas) ; corpus manifestes : les 3 « périmés » venv_win = faux positifs CODÉS
+  en skip (le contrôle fait foi depuis WSL2).
