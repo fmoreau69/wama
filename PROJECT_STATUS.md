@@ -2836,6 +2836,74 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > Règle désormais : **code → redémarrage → données**, jamais l'inverse, pour tout ce qui touche
 > `model_manager/services/` ou `common/services/`.
 
+## §REPRISE — 2026-08-13 : CE QUI A ÉTÉ LAISSÉ DE CÔTÉ (inventaire de clôture)
+
+> Relevé exhaustif demandé par Fabien en fin de session. Rien ici n'est bloquant pour ce qui
+> tourne ; tout est en revanche **perdu de vue si ce n'est pas écrit**.
+
+### 🔴 A. Anonymizer multi-modèles — le chantier D'ORIGINE, à peine entamé
+
+La question initiale de la session portait sur le **floutage visages + plaques**. Seule la
+**SÉLECTION** a été corrigée (2 modèles dédiés, cf. §REPRISE du 12/08). **Le pipeline
+d'exécution n'a pas été touché** et reste un second chemin dégradé :
+
+- `merged_blur.py` **n'interpole pas** → `interpolate_detections` est ignoré en silence sur le
+  chemin multi-modèles ⇒ **clignotement sur vidéo** (l'interpolation vit dans `core/anonymize.py`) ;
+- `_apply_anonymizer_output_format` **jamais appelé** → `output_format`/`output_quality` ignorés ;
+- `media.status` **jamais mis à RUNNING** (la branche sort avant) → carte figée sur PENDING,
+  réconciliation des orphelins et garde « déjà en cours » aveugles ;
+- `media.task_id` **non renseigné** pour la chaîne → **impossible d'annuler** ;
+- ni `processing_seconds`, ni `record_run` (ETA n'apprend rien), ni `notify_job` ;
+- `merged_blur.py:285-297` écrit des **images de debug** dans `<sortie>/_debug/` à chaque run ;
+- **masques pleine résolution sérialisés en base64 dans Redis** (`parallel_detection.py:313`) :
+  ~2,7 Mo par masque 1080p ⇒ plusieurs Go pour une vidéo ⇒ c'est très probablement la cause de
+  « la concaténation ne fonctionne pas bien » signalée par Fabien sur la segmentation ;
+- **N+1 décodages** de la vidéo (un par modèle, puis un pour le floutage). Le gain n'est PAS le
+  parallélisme GPU (les kernels sérialisent) mais **une passe unique de décodage**.
+
+→ Proposition faite et non engagée : **une seule tâche, un seul décodage, N modèles résidents,
+union des zones par frame**. Supprime `detection_only`/`merged_blur`/le transport Redis et
+récupère d'un coup interpolation, ETA, statut et format de sortie.
+
+### B. Qualité / auto-amélioration — bloqué sur les DONNÉES, pas sur le code
+
+Voir [[project_model_quality_loop]]. `RunOutcome` et la divergence sont livrés et **actifs** ;
+ce qui manque est le corpus : le jeu audio + transcriptions auto + transcription manuelle de
+Fabien **n'est pas dans WAMA**, et le Transcriber ne sait pas comparer une transcription qu'il
+n'a pas produite. Voie envisagée : la médiathèque. **Non tranché, repoussé volontairement.**
+
+- `qc.py` : toujours **0 consommateur** (visible dans `WAMA_MECANISMES.md`).
+- `RunOutcome` : couverture réelle **2 apps sur 10** — suit l'adoption de `run_item_task`.
+- Divergence : **non branchée** sur la heatmap (demanderait 2 passes ASR).
+
+### C. Catalogue de modèles
+
+- **10 poids sans origine établie** : `yolov9{s,t}-face-lindevs` (publiés sur **GitHub**, pas HF —
+  `platform_ref` supporte déjà le préfixe `github:`) et les 8 `yolov8*_face_plate_*p.pt`.
+- **`synthesizer` : 3 `requires` hors registre** (repéré par la page licences, non creusé).
+- `verify_models` : **2 faux positifs** (`anonymizer:sam3`, `reader:doctr` — catalogués
+  téléchargés, absents du disque) et 30 orphelins `proposed:*`.
+- **Étage B** des licences : auteur des **apps** et **fonctions** — `APP_CATALOG` n'a pas de
+  champ, et c'est une déclaration INTERNE, pas un fait externe qu'on lit. À trancher.
+
+### D. Documentation & mécanismes
+
+- **45 modules de `common/` non rattachés** au registre (`wama/common/mecanismes.py`) — backlog
+  visible en bas de `WAMA_MECANISMES.md`. Tout n'est pas un mécanisme transversal : il faut
+  trancher au cas par cas.
+- `docs/SEGMENTATION_BLUR.md` : **conservé volontairement** (la fonction décrite existe toujours),
+  mais son chemin d'import est faux (`anonymizer.blur_utils` → `wama/anonymizer/core/blur_utils.py`).
+- `check_docs` : toujours **2 cassés assumés** (seuil dans `nightly_scenarios.CASSE_ASSUMES`).
+
+### E. Dettes ponctuelles
+
+- **`segment/yolopv2.pt` fait échouer `scan_installed_models` à CHAQUE appel** (TorchScript sans
+  `.names`) → bruit permanent dans les logs de l'anonymizer.
+- **Transcript #48 : du JSON brut de LLM a fui dans `text`** (`'assistant\n[{"Start":0,…'`) — un
+  backend ASR a renvoyé sa réponse non parsée. Bug de production non traité.
+- **Migrations NON versionnées** (`.gitignore:13`) : `common.0005`, `common.0006`,
+  `model_manager.0012`, `media_library.0012` → relancer `makemigrations && migrate` ailleurs.
+
 ## §REPRISE — 2026-08-12 (session UI/média/résidence, instance parallèle) : exclusivité audio + préchargement TTS + RÉSIDENCE des modèles
 
 > Périmètre disjoint du chantier manifestes mené en parallèle (aucun fichier commun).
