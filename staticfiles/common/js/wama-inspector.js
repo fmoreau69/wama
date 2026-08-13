@@ -340,6 +340,11 @@
 
     function _startDuring(baseUrl, card, title) {
       _stopDuring();
+      var lastSig = '';   // dédup : ne re-rendre que si le payload a CHANGÉ (2026-08-13) —
+                          // sans ça, une URL média partielle (converter audio/webm) recréait
+                          // le lecteur toutes les 1,3 s et REDÉMARRAIT la lecture. L'onde
+                          // (peaks) et le texte (content) grandissent → leur signature change
+                          // à chaque tick, le comportement « qui se construit » est préservé.
       var tick = function () {
         var st = card && card.dataset && card.dataset.status;
         if (st !== 'RUNNING' && st !== 'PROCESSING') {   // terminé → bascule sur la SORTIE
@@ -350,7 +355,13 @@
         var u = baseUrl + (baseUrl.indexOf('?') === -1 ? '?' : '&') + 'side=during';
         fetch(u).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
           if (!d || !d.sides || !d.sides.during_capable) { _stopDuring(); return; }  // ne streame pas → stop
-          if (d.sides.has_during) renderInlinePreview(previewHost, d, false);
+          if (!d.sides.has_during) return;
+          var sig = JSON.stringify([d.url || '', d.mime_type || '',
+                                    (d.peaks || []).length,
+                                    (typeof d.content === 'string') ? d.content.length : -1]);
+          if (sig === lastSig) return;
+          lastSig = sig;
+          renderInlinePreview(previewHost, d, false);
         }).catch(function () {});
       };
       _duringTimer = setInterval(tick, 1300);

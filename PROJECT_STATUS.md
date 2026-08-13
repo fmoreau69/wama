@@ -2630,6 +2630,17 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > (60/60), transcriber 97, describer 90.** Reste during : reader/synthesizer/imager/enhancer/
 > anonymizer/avatarizer (émissions à poser dans les boucles backend — GPU, à cadrer).
 > ⚠ restart workers requis pour l'émission during (workers/tasks rechargés).
+>
+> **SUITE (question Fabien « audio + documents ? et la vidéo ? ») : périmètre during
+> converter PRÉCISÉ + bug de re-rendu CORRIGÉ.** Vidéo AJOUTÉE pour les conteneurs
+> streamables (webm/mkv/ts) ; mp4/mov EXCLUS structurellement (`moov` en fin de fichier —
+> le rendre streamable exigerait de FRAGMENTER le mp4 produit : refusé, pas d'altération
+> de la sortie pour un aperçu) ; documents/images/archives EXCLUS (partiel illisible +
+> conversions courtes). Défaut UX attrapé grâce à la question : `_startDuring` re-rendait
+> toutes les 1,3 s → une URL média partielle RECRÉAIT le lecteur et redémarrait la lecture
+> à chaque tick. Corrigé par dédup de signature (url/mime/len(peaks)/len(content)) — onde
+> et texte « qui se construisent » re-rendent toujours, le lecteur média persiste.
+> Node+py OK, static dupliqué. ⚠ même restart que ci-dessus pour l'ensemble.
 
 ## §REPRISE — 2026-08-11→12 (3ᵉ-4ᵉ sessions, marches C + A COMPLÈTES A1→A5) : harnais + gabarits + triades + composition
 

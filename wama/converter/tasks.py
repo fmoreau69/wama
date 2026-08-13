@@ -87,9 +87,15 @@ def _convert(job, ctx):
     eff_opts = resolve_options(job.media_type, job.quality_preset, job.options)
 
     # Aperçu « PENDANT » (brique commune, 2026-08-13) : hors in-place, ffmpeg écrit la sortie
-    # AUDIO progressivement sous MEDIA — l'URL partielle est écoutable pendant la conversion
-    # (mp3/wav/ogg se décodent en flux). Best-effort ; retirée en fin de glu (les deux issues).
-    if not in_place and job.media_type == 'audio':
+    # progressivement sous MEDIA — l'URL partielle est lisible PENDANT la conversion pour les
+    # formats à décodage en flux : tout l'AUDIO (mp3/wav/ogg…), et la VIDÉO en conteneur
+    # streamable (webm/mkv/ts — un mp4/mov partiel est illisible, `moov` écrit à la FIN).
+    # Documents/images/archives : partiel structurellement illisible, et conversions courtes.
+    # Best-effort ; retirée en fin de glu (les deux issues).
+    _streamable = (job.media_type == 'audio'
+                   or (job.media_type == 'video'
+                       and (job.output_format or '').lower() in ('webm', 'mkv', 'ts')))
+    if not in_place and _streamable:
         from wama.common.utils.preview_utils import publish_partial
         publish_partial('converter', job.pk, settings.MEDIA_URL + output_rel_dir + output_name)
 
