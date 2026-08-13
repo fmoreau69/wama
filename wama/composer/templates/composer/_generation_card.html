@@ -1,139 +1,148 @@
-{% load static %}
-{# Partial: renders one generation card. Expects 'gen' in context. #}
-{# Optional 'card_label' overrides the displayed filename. #}
+{% comment %}
+Card ComposerGeneration — CARD v3 « sections × chips » (CARD_DESIGN §11, portée le
+2026-08-13 ; remplace la card en colonnes). SOURCE UNIQUE du markup : rendue au chargement
+ET par card_html (insertion à la création, remplacement complet en fin de tâche).
+Contexte : gen (décorée .chips), card_label = nom de sortie (optionnel).
+App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
 
-{# .wama-card = contrat commun (mosaïque : sections empilées, fan-in batch — wama-inspector.css). #}
-<div class="generation-card wama-card mb-2 p-2 rounded border
-    {% if gen.status == 'RUNNING' %}border-warning processing
-    {% elif gen.status == 'SUCCESS' %}border-success success
-    {% elif gen.status == 'FAILURE' %}border-danger error
-    {% else %}border-secondary{% endif %}"
+⚠ Contrats JS (index.js) : .generation-card[data-id][data-status][data-estimated-seconds],
+  .settings-btn + data-*, .export-btn[data-id], .duplicate-btn[data-id] (⚠ data-id, PAS
+  data-duplicate-url), .delete-btn[data-id], .wama-progress-fill (:476), .progress-text
+  (:483), .wama-eta (:504), .estimated-time. Le point d'état + libellé sont mis à jour en
+  place par updateCard (dot v3 — le badge v2 n'existe plus).
+{% endcomment %}
+<div class="generation-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if gen.status == 'RUNNING' %}processing{% elif gen.status == 'SUCCESS' %}success{% elif gen.status == 'FAILURE' %}error{% endif %}"
      data-id="{{ gen.id }}"
      data-status="{{ gen.status }}"
      data-estimated-seconds="{{ gen.estimated_seconds }}"
      data-preview-url="{% url 'common:unified_preview' 'composer' gen.id %}">
+<div class="card-body py-2">
 
-    <div class="row align-items-center g-2">
+  <div class="wcv3-head">#{{ gen.id }}<span class="sep">·</span>{{ gen.created_at|date:"d/m H:i" }}</div>
 
-        <!-- Info -->
-        <div class="col-md-4">
-            <div class="d-flex align-items-center gap-2">
-                {% if gen.generation_type == 'music' %}
-                <i class="fas fa-music text-success flex-shrink-0"></i>
-                {% else %}
-                <i class="fas fa-bolt text-danger flex-shrink-0"></i>
-                {% endif %}
-                <div class="overflow-hidden">
-                    <div class="small text-light fw-bold text-truncate"
-                         title="{{ card_label|default:gen.prompt }}">
-                        {{ card_label|default:gen.prompt|truncatechars:35 }}
-                    </div>
-                    <div class="d-flex align-items-center gap-2">
-                        <small class="text-muted text-truncate">{{ gen.model }}</small>
-                        <small class="text-white-50 flex-shrink-0">{{ gen.duration_display }}</small>
-                        <small class="text-muted flex-shrink-0" title="Durée de génération estimée (GPU chaud)">
-                            <i class="fas fa-hourglass-half fa-xs opacity-50"></i>
-                            <span class="estimated-time">{{ gen.estimated_display }}</span>
-                        </small>
-                    </div>
-                </div>
-            </div>
+  <div class="wcv3">
+
+    {# ── ENTRÉE : type de génération + PROMPT (source textuelle de l'app) ──────────── #}
+    <div class="wcv3-sec wcv3-sec--input">
+      <span class="wcv3-lbl">Entrée</span>
+      <div class="wcv3-in">
+        <span class="wcv3-thumb">
+          {% if gen.generation_type == 'music' %}<i class="fas fa-music text-success"></i>{% else %}<i class="fas fa-bolt text-danger"></i>{% endif %}
+        </span>
+        <div class="wcv3-in-lines">
+          <span class="wcv3-in-name" title="{{ gen.prompt }}">{{ card_label|default:gen.prompt|truncatechars:60 }}</span>
+          <span class="wcv3-in-props" title="Durée de génération estimée (GPU chaud)">
+            <i class="fas fa-hourglass-half fa-xs opacity-50"></i> <span class="estimated-time">{{ gen.estimated_display }}</span>
+          </span>
         </div>
-
-        <!-- Prompt -->
-        <div class="col-md-3 d-none d-md-block">
-            <small class="text-white-50" title="{{ gen.prompt }}">
-                {{ gen.prompt|truncatechars:60 }}
-            </small>
-        </div>
-
-        <!-- Status & progress -->
-        <div class="col-md-2">
-            <div class="d-flex align-items-center gap-2">
-                <span class="badge flex-shrink-0
-                    {% if gen.status == 'PENDING' %}bg-secondary
-                    {% elif gen.status == 'RUNNING' %}bg-warning
-                    {% elif gen.status == 'SUCCESS' %}bg-success
-                    {% elif gen.status == 'FAILURE' %}bg-danger
-                    {% endif %}">
-                    {{ gen.get_status_display }}
-                </span>
-            </div>
-            <div class="wama-progress-track mt-1">
-                <div class="wama-progress-fill {% if gen.status == 'RUNNING' %}active{% endif %}"
-                     style="width:{{ gen.progress }}%"></div>
-            </div>
-            {# ETA commune WamaEta (seed eta_estimator serveur) — remaining-time client supprimé (B4-13). #}
-            <span class="wama-eta d-block mt-1"></span>
-            {% if gen.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=gen.processing_display %}{% endif %}
-            {% if gen.status == 'RUNNING' %}
-            <small class="text-muted progress-text" style="font-variant-numeric:tabular-nums;">
-                {{ gen.progress }}%
-            </small>
-            {% elif gen.status != 'SUCCESS' %}
-            <small class="text-muted progress-text">{{ gen.progress }}%</small>
-            {% endif %}
-        </div>
-
-        <!-- Actions -->
-        <div class="col-md-3">
-            {# .btn-group-actions : conteneur clonable par l'inspecteur (WamaInspector.cloneActions) #}
-            <div class="d-flex flex-wrap gap-1 btn-group-actions">
-
-                <button class="btn btn-sm btn-outline-secondary settings-btn"
-                        data-id="{{ gen.id }}"
-                        data-model="{{ gen.model }}"
-                        data-duration="{{ gen.duration }}"
-                        data-prompt="{{ gen.prompt }}"
-                        data-gen-type="{{ gen.generation_type }}"
-                        data-output-format="{{ gen.output_format }}"
-                        data-output-quality="{{ gen.output_quality }}"
-                        title="Modifier les paramètres">
-                    <i class="fas fa-cog"></i>
-                </button>
-                {# Bouton de cycle ▶/⏹/↻ COMMUN (position 2, conventions) — icône auto-sync sur data-status. #}
-                {% include 'common/_cycle_button.html' with id=gen.id status=gen.status %}
-
-                {% if gen.audio_output %}
-                <a href="{% url 'composer:download' gen.id %}"
-                   class="btn btn-sm btn-outline-info" title="Télécharger">
-                    <i class="fas fa-download"></i>
-                </a>
-                {% if not gen.exported_to_library %}
-                <button class="btn btn-sm export-btn"
-                        data-id="{{ gen.id }}"
-                        title="Exporter vers médiathèque">
-                    <i class="fas fa-photo-film"></i>
-                </button>
-                {% else %}
-                <span class="btn btn-sm btn-outline-secondary disabled" title="Déjà exporté">
-                    <i class="fas fa-check"></i>
-                </span>
-                {% endif %}
-                {% endif %}
-
-                <button class="btn btn-sm btn-outline-warning duplicate-btn"
-                        data-id="{{ gen.id }}" title="Dupliquer">
-                    <i class="fas fa-copy"></i>
-                </button>
-
-                <button class="btn btn-sm btn-outline-danger delete-btn"
-                        data-id="{{ gen.id }}" title="Supprimer">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-
-            {% if gen.status == 'FAILURE' %}
-            <small class="error-message text-danger d-block mt-1">
-                <i class="fas fa-exclamation-triangle"></i>
-                {{ gen.error_message|truncatechars:80 }}
-            </small>
-            {% endif %}
-
-        </div>
-
+      </div>
     </div>
-    {% if gen.audio_output %}
-    {% include 'common/_audio_waveform.html' with audio_url=gen.audio_output.url player_id=gen.id %}
+
+    {# ── RÉGLAGES : chips GÉNÉRÉS (params.py chip=True — modèle, durée) ────────────── #}
+    <div class="wcv3-sec wcv3-sec--settings">
+      <span class="wcv3-lbl">Réglages</span>
+      <div class="wcv3-out">
+        {% include 'common/_card_chips.html' with chips=gen.chips.settings %}
+      </div>
+    </div>
+
+    {# ── SORTIE : étape live → audio produit ; l'erreur la remplace ────────────────── #}
+    <div class="wcv3-sec wcv3-sec--output">
+      <span class="wcv3-lbl">Sortie</span>
+      {% if gen.status == 'FAILURE' and gen.error_message %}
+        <span class="wcv3-out-error error-message" title="{{ gen.error_message|escape }}">
+          <i class="fas fa-triangle-exclamation"></i> {{ gen.error_message|truncatechars:120|escape }}
+        </span>
+      {% else %}
+        <div class="wcv3-out">
+          {% if gen.status == 'RUNNING' %}
+            <span class="wcv3-out-step"><span class="pct progress-text">{{ gen.progress }}%</span> — composition…</span>
+          {% elif gen.audio_output %}
+            <span class="wcv3-out-step" title="{{ card_label|default:'' }}">
+              <i class="fas fa-check-circle text-success"></i> {{ gen.duration_display }}
+            </span>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+
+    {# ── ÉTAT : point + libellé + ETA/durée ────────────────────────────────────────── #}
+    <div class="wcv3-sec wcv3-sec--state">
+      <span class="wcv3-lbl">État</span>
+      <div class="wcv3-state">
+        <span class="wcv3-state-line">
+          <span class="wama-status-dot" data-s="{{ gen.status }}"></span>
+          <span>{% if gen.status == 'PENDING' %}En attente{% elif gen.status == 'RUNNING' %}En cours{% elif gen.status == 'SUCCESS' %}Terminé{% elif gen.status == 'FAILURE' %}Échec{% else %}{{ gen.status }}{% endif %}</span>
+        </span>
+        {% if gen.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ gen.id }}"></span>{% endif %}
+        {% if gen.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=gen.processing_display %}{% endif %}
+      </div>
+    </div>
+
+    {# ── ACTIONS : ordre conventionnel ⚙ ▶ ⬇ 🖼 ⧉ 🗑 (classes/données index.js) ──────── #}
+    <div class="wcv3-sec wcv3-sec--actions">
+      <span class="wcv3-lbl">Actions</span>
+      <div class="btn-group-actions wcv3-actions">
+        <button class="btn btn-sm btn-outline-secondary settings-btn"
+                data-id="{{ gen.id }}"
+                data-model="{{ gen.model }}"
+                data-duration="{{ gen.duration }}"
+                data-prompt="{{ gen.prompt }}"
+                data-gen-type="{{ gen.generation_type }}"
+                data-output-format="{{ gen.output_format }}"
+                data-output-quality="{{ gen.output_quality }}"
+                title="Modifier les paramètres">
+          <i class="fas fa-cog"></i>
+        </button>
+        {% include 'common/_cycle_button.html' with id=gen.id status=gen.status %}
+        {% if gen.audio_output %}
+        <a href="{% url 'composer:download' gen.id %}"
+           class="btn btn-sm btn-outline-info" title="Télécharger">
+          <i class="fas fa-download"></i>
+        </a>
+        {% if not gen.exported_to_library %}
+        <button class="btn btn-sm export-btn" data-id="{{ gen.id }}" title="Exporter vers médiathèque">
+          <i class="fas fa-photo-film"></i>
+        </button>
+        {% else %}
+        <span class="btn btn-sm btn-outline-secondary disabled" title="Déjà exporté">
+          <i class="fas fa-check"></i>
+        </span>
+        {% endif %}
+        {% else %}
+        <button class="btn btn-sm btn-outline-info" disabled title="Télécharger">
+          <i class="fas fa-download"></i>
+        </button>
+        {% endif %}
+        <button class="btn btn-sm btn-outline-warning duplicate-btn"
+                data-id="{{ gen.id }}" title="Dupliquer">
+          <i class="fas fa-copy"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-danger delete-btn"
+                data-id="{{ gen.id }}" title="Supprimer">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>
+
+    {% comment %}Barre pleine largeur — ligne 2 de la grille (§11), FIGÉE au % en échec.{% endcomment %}
+    {% if gen.status != 'PENDING' %}
+    <div class="wcv3-bar" style="grid-column:1/-1;">
+      <div class="wama-progress-track">
+        <div class="wama-progress-fill{% if gen.status == 'RUNNING' %} active{% elif gen.status == 'FAILURE' %} is-frozen{% endif %}"
+             style="width:{% if gen.status == 'SUCCESS' %}100{% else %}{{ gen.progress }}{% endif %}%"></div>
+      </div>
+    </div>
     {% endif %}
+
+  </div>{# /.wcv3 #}
+
+  {% comment %}Lecteur waveform (résultat) — zone de preview PERMANENTE de la v3.{% endcomment %}
+  {% if gen.audio_output %}
+  <div class="wcv3-preview">
+    {% include 'common/_audio_waveform.html' with audio_url=gen.audio_output.url player_id=gen.id %}
+  </div>
+  {% endif %}
+
+</div>
 </div>

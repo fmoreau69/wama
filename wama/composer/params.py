@@ -19,7 +19,7 @@ PARAMS = [
     # MODE Musique/Bruitages — miroir des optgroups du volet ; le JS masque le groupe non
     # pertinent selon le generation_type de l'item. Volet : select serveur (#modelSelect,
     # initFromSchema lit/applique par dom_id sans re-rendre) ; modale : rendue par WamaParams (P1).
-    Param(name="model", type="select", label="Modèle", icon="fa-music",
+    Param(name="model", type="select", label="Modèle", icon="fa-music", chip=True,
           dom_id={"panel": "modelSelect", "item": "settingsModel"}, contexts=PANEL_ITEM,
           option_groups=[
               # « auto-* » en tête de CHAQUE groupe (décision 2026-07-02 : pas de switch de type,
@@ -36,7 +36,7 @@ PARAMS = [
                                           if cfg.get('type') != 'music']),
           ]),
     Param(name="duration", type="range", label="Durée", icon="fa-clock", min=10, max=600, step=5,
-          unit="s", min_label="10s", max_label="10min",
+          unit="s", min_label="10s", max_label="10min", chip=True,
           dom_id={"panel": "durationSlider", "item": "settingsDuration"}, contexts=PANEL_ITEM),
     # Prompt éditable par item (modale seulement : le volet a sa zone de composition dédiée).
     Param(name="prompt", type="textarea", label="Prompt", icon="fa-pen",

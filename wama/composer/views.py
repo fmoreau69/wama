@@ -70,16 +70,30 @@ def _reset_for_relaunch(gen):
     gen.exported_to_library = False
 
 
+def _decorate_generation(g):
+    """Chips de card générés du SCHÉMA (params.py chip=True) — brique commune card_chips."""
+    from wama.common.utils.card_chips import chips_by_section
+    from wama.composer.params import PARAMS_JSON
+    g.chips = chips_by_section(g, PARAMS_JSON)
+    return g
+
+
 def _get_batches_list(user):
     """Agrégats de file pour le template — brique commune (contrat toolbar queue_view.py)."""
     from wama.common.utils.batch_common import build_batches_list
     _auto_wrap_orphans(user)
-    return build_batches_list(user, batch_model=ComposerBatch, work_attr='generation',
-                              order_by='-created_at',
-                              has_output=lambda g: bool(g.audio_output),
-                              # ETA agrégée de la card mère (brique _batch_card.html)
-                              extra=lambda b, items, gens: {
-                                  'eta_ids': ','.join(str(g.id) for g in gens)})
+    batches = build_batches_list(user, batch_model=ComposerBatch, work_attr='generation',
+                                 order_by='-created_at',
+                                 has_output=lambda g: bool(g.audio_output),
+                                 # ETA agrégée de la card mère (brique _batch_card.html)
+                                 extra=lambda b, items, gens: {
+                                     'eta_ids': ','.join(str(g.id) for g in gens)})
+    # Chips de card GÉNÉRÉS du schéma — même décoration que card_html.
+    for b in batches:
+        for link in b['items']:
+            if link.generation:
+                _decorate_generation(link.generation)
+    return batches
 
 
 # Manipulation directe de la file (CARD_DESIGN §3bis) — vues GÉNÉRÉES par la brique
@@ -915,7 +929,7 @@ def card_html(request, pk):
     except ComposerBatchItem.DoesNotExist:
         label = ''
     html = render_to_string('composer/_generation_card.html',
-                            {'gen': gen, 'card_label': label}, request=request)
+                            {'gen': _decorate_generation(gen), 'card_label': label}, request=request)
     return HttpResponse(html)
 
 

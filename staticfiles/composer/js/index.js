@@ -499,6 +499,16 @@
             badge.textContent = labels[status] || status;
         }
 
+        // Card v3 (13/08) : le badge n'existe plus — point d'état + libellé mis à jour en
+        // place (le re-rendu serveur complet n'arrive qu'en FIN de tâche sur composer).
+        const dot = card.querySelector('.wama-status-dot');
+        if (dot) {
+            dot.dataset.s = status;
+            const lbl = dot.nextElementSibling;
+            const labelsV3 = { PENDING: 'En attente', RUNNING: 'En cours', SUCCESS: 'Terminé', FAILURE: 'Échec' };
+            if (lbl) lbl.textContent = labelsV3[status] || status;
+        }
+
         // ETA COMMUNE (WamaEta) : seedSeconds = estimation a priori/apprise renvoyée par
         // progress (eta_estimator serveur) — remplace le remaining-time client maison (B4-13).
         const etaEl = card.querySelector('.wama-eta');
