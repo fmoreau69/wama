@@ -118,7 +118,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 |---|---|---|---|---|
 | **Console utilisateur** | Lignes de journal structurées par utilisateur et par app, via Redis | `wama/common/utils/console_utils.py` | — | 28 |
 | **Duplication et suppression sûres** | duplicate_instance() et safe_delete_file() — fichiers partagés entre items | `wama/common/utils/queue_duplication.py` | `WAMA_APP_CONVENTIONS.md` | 13 |
-| **File d'attente (front)** | Comportements communs des files : collapse de batch persisté, focus card, data-wama-* | `wama/common/static/common/js/wama-queue.js` | `CARD_DESIGN.md` | 40 |
+| **File d'attente (front)** | Comportements communs des files : collapse de batch persisté, focus card, data-wama-* | `wama/common/static/common/js/wama-queue.js` | `CARD_DESIGN.md` | 39 |
 | **Import par lot** | Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot | `wama/common/utils/batch_parsers.py` | `BATCH_FORMAT.md` | 44 |
 | **Manipulation directe de la file** | Endpoints génériques : sortir une card d'un batch, réordonner, déplacer, consolider | `wama/common/utils/queue_manipulation.py` | `CARD_DESIGN.md §3bis` | 9 |
 | **Notifications de tâche** | notify_job() — fin de traitement, succès comme échec | `wama/common/utils/notifications.py` | `PROFILES_PERMISSIONS.md` | 12 |
@@ -141,12 +141,13 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Socle JS des apps** | Plomberie commune file/cards : csrfFetch, urls, Poller de progression, états vides | `wama/common/static/common/js/wama-app-base.js` | `WAMA_APP_GENERATION_ROUTE.md` | 15 |
 | **Vocabulaire des capacités** | Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage UI | `wama/common/utils/model_capabilities.py` | `INPUT_MODEL_MATCHING.md` | 9 |
 
-#### Données & infrastructure (10)
+#### Données & infrastructure (11)
 
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
 | **Accès ffmpeg** | Résolution centralisée du binaire et des conversions (échappatoire FFMPEG_BINARY) | `wama/common/utils/ffmpeg_utils.py` | — | 13 |
 | **Accès scopé aux objets** | Deux chemins NOMMÉS pour lire un objet partageable depuis une vue (possédé / visible) | `wama/common/utils/scoping.py` | `PROFILES_PERMISSIONS.md` | 10 |
+| **Bascules de fonctionnalités** | Registre de Feature par app + surcharges JSON de l'objet porteur — comparer AVEC/SANS | `wama/common/utils/feature_flags.py` | — | 1 |
 | **Chemins média** | Emplacements canoniques des entrées/sorties par app et par utilisateur | `wama/common/utils/media_paths.py` | — | 20 |
 | **Décodage audio robuste** | Décode l'audio là où torchcodec/torchaudio sont cassés (WSL) : soundfile + repli ffmpeg | `wama/common/utils/audio_decode.py` | — | 3 |
 | **Réglages utilisateur par app** | Persistance cache user_{id}_{app}_{clé} avec défauts déclarés par l'app | `wama/common/utils/user_settings.py` | — | 6 |
@@ -164,22 +165,16 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Runner générique du studio** | Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app | `wama/studio/services/generic_runner.py` | `STUDIO_VISION.md` | 7 |
 | **Surface d'outils** | Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas | `wama/tool_api.py` | `WAMA_APP_GENERATION_ROUTE.md` | 8 |
 
-**Mécanismes déclarés : 60** · domiciles absents : 0 · sans consommateur : 1 · assumés locaux : 15 · modules balayés non rattachés : 4
+**Mécanismes déclarés : 61** · domiciles absents : 0 · sans consommateur : 1 · assumés locaux : 18 · modules balayés non rattachés : 0
 - ⚠ **Sans consommateur** (brique morte ou pas encore adoptée) : `qc` (wama/common/utils/qc.py)
 
-<details><summary>⚠ <b>4 module(s) balayé(s) non rattachés au registre</b> — à déclarer dans <code>wama/common/mecanismes.py</code>, ou à assumer comme utilitaires locaux (tout n'est pas un mécanisme transversal)</summary>
-
-
-`wama/common/utils/` (4) — `feature_flags.py` · `intervals.py` · `video_compat.py` · `whisper_utils.py`
-
-</details>
-
-<details><summary>Assumés utilitaires locaux : 15 (chacun avec sa raison — <code>ASSUMES_LOCAUX</code>, wama/common/mecanismes.py)</summary>
+<details><summary>Assumés utilitaires locaux : 18 (chacun avec sa raison — <code>ASSUMES_LOCAUX</code>, wama/common/mecanismes.py)</summary>
 
 - `disk_utils.py` — plomberie disque (1 consommateur common)
 - `format_policy.py` — politique de formats de POIDS de modèle — chaîne modèles
 - `html_render.py` — rendu HTML→PDF, consommé par le converter seul
 - `http_proxy.py` — plomberie proxy UGE (common + model_manager)
+- `intervals.py` — algèbre d'intervalles — cam_analyzer (coverage) seul consommateur
 - `lang_routing.py` — routage de langue — sera absorbé par le Translator (ROADMAP §10)
 - `log_rotation.py` — décalage des journaux au démarrage (politique : on décale, on ne vide pas)
 - `mime_utils.py` — détection MIME — helper fin (filemanager/studio)
@@ -188,8 +183,10 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 - `onnx_utils.py` — inspection de poids ONNX — plomberie chaîne modèles
 - `safetensors_utils.py` — inspection de poids safetensors — plomberie chaîne modèles
 - `translator.py` — brique deep-translator — sera absorbée par le Translator (ROADMAP §10)
+- `video_compat.py` — compat lecteur navigateur (ensure_h264) — cam_analyzer seul ; promouvoir si adoption
 - `voice_options.py` — pendant VOIX d'output_formats (avatarizer) — promouvoir si adoption s'élargit
 - `waveform.py` — rendu de forme d'onde — fusion des 2 renderers encore pendante (REPRISE)
+- `whisper_utils.py` — transcription faster-whisper du describer — unification avec les backends transcriber DIFFÉRÉE (Phase 4, ROUTE §11 #5)
 - `format_converter.py` — conversion de formats de poids — plomberie chaîne modèles (avec format_policy)
 
 </details>

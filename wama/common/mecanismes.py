@@ -320,6 +320,9 @@ MECANISMES = (
     Mecanisme('user_settings', 'Réglages utilisateur par app',
               "Persistance cache user_{id}_{app}_{clé} avec défauts déclarés par l'app",
               'wama/common/utils/user_settings.py', ''),
+    Mecanisme('feature_flags', 'Bascules de fonctionnalités',
+              "Registre de Feature par app + surcharges JSON de l'objet porteur — comparer AVEC/SANS",
+              'wama/common/utils/feature_flags.py', ''),
 
     )),
 
@@ -361,6 +364,11 @@ ASSUMES_LOCAUX = {
     'wama/common/utils/voice_options.py': "pendant VOIX d'output_formats (avatarizer) — promouvoir si adoption s'élargit",
     'wama/common/utils/waveform.py': "rendu de forme d'onde — fusion des 2 renderers encore pendante (REPRISE)",
     'wama/model_manager/services/format_converter.py': "conversion de formats de poids — plomberie chaîne modèles (avec format_policy)",
+    # Triage du 2026-08-13 (les 3 dernières entrées du backlog) — aucun n'était mort, mes
+    # « 0 apps » ne comptaient pas wama_lab :
+    'wama/common/utils/intervals.py': "algèbre d'intervalles — cam_analyzer (coverage) seul consommateur",
+    'wama/common/utils/video_compat.py': "compat lecteur navigateur (ensure_h264) — cam_analyzer seul ; promouvoir si adoption",
+    'wama/common/utils/whisper_utils.py': "transcription faster-whisper du describer — unification avec les backends transcriber DIFFÉRÉE (Phase 4, ROUTE §11 #5)",
 }
 
 

@@ -573,11 +573,21 @@ if ENABLE_CELERY:
     WAMA_MAX_RETENTION_DAYS = int(os.environ.get('WAMA_MAX_RETENTION_DAYS', '0') or 0)
     WAMA_RETENTION_NOTICE_DAYS = int(os.environ.get('WAMA_RETENTION_NOTICE_DAYS', '3') or 0)
 
-    # Tests fonctionnels nocturnes : planifiés UNIQUEMENT si activés explicitement
-    # (env NIGHTLY_TESTS_ENABLED=1). La charpente est en place ; on n'auto-planifie pas
-    # tant qu'elle n'est pas validée. Lancement manuel : `manage.py run_nightly_tests`.
+    # Contrôles de CONSISTANCE nocturnes (docs↔code, conformité, corpus manifestes,
+    # redondances, CVE OSV, secrets gitleaks) : CPU pur, aucun modèle — planifiés SANS gate
+    # depuis le 2026-08-13 (stage validé 8/8 depuis WSL2 le jour même). Les dépendances
+    # d'outillage/réseau absentes côté worker (proxy, binaire) sortent en SKIP, pas en rouge.
+    CELERY_BEAT_SCHEDULE['nightly-consistency'] = {
+        'task': 'common.run_nightly_tests',
+        'schedule': crontab(hour=2, minute=30),
+        'kwargs': {'stage': 'consistency'},
+        'options': {'queue': 'default'},        # CPU pur — JAMAIS la queue gpu
+    }
+
+    # Suite fonctionnelle complète (model_loaded/output, GPU) : planifiée UNIQUEMENT si
+    # activée explicitement (env NIGHTLY_TESTS_ENABLED=1) — pas de job GPU nocturne tant
+    # que l'instabilité hôte n'est pas résolue (crashs à faible charge, cf. mémoire).
     if os.environ.get('NIGHTLY_TESTS_ENABLED') == '1':
-        from celery.schedules import crontab
         CELERY_BEAT_SCHEDULE['nightly-functional-tests'] = {
             'task': 'common.run_nightly_tests',
             'schedule': crontab(hour=3, minute=0),  # 03:00 (heure locale TZ)

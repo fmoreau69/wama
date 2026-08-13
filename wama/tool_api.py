@@ -2554,134 +2554,88 @@ def execute_tool(tool_name: str, args: dict, user) -> dict:
 # ===========================================================================
 # HTTP views (for manual testing with curl or browser)
 # ===========================================================================
+# Trou #20 (clos 2026-08-13) : ces vues appelaient les fonctions d'outil DIRECTEMENT — hors
+# `execute_tool`, donc hors gating F7 (`tool_accessible`), et hors middleware (le segment
+# `api/` ne résout vers aucune app). Seul `login_required` s'appliquait : tier + rôles
+# contournés — la mécanique exacte du trou #7, sur l'autre surface. Elles passent désormais
+# par `execute_tool` : LA porte unique (gating, sanitisation, coercition, bornes de choix),
+# comme l'assistant, l'API v1 et le studio.
+
+
+def _vue_outil(request, tool_name: str) -> JsonResponse:
+    """Adapte une requête HTTP vers `execute_tool`. Args : corps JSON (POST) ou query (GET) —
+    les clés hors signature sont filtrées et les types coercés par la porte unique."""
+    if request.method == 'POST':
+        try:
+            args = json.loads(request.body) if request.body else {}
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON invalide'}, status=400)
+    else:
+        args = request.GET.dict()
+    result = execute_tool(tool_name, args, request.user)
+    if result.get('error') == 'forbidden':
+        return JsonResponse(result, status=403)
+    return JsonResponse(result, status=400 if 'error' in result else 200)
+
 
 @login_required
 @require_GET
 def list_user_files_view(request):
-    folder = request.GET.get('folder', 'temp')
-    return JsonResponse(list_user_files(request.user, folder=folder))
+    return _vue_outil(request, 'list_user_files')
 
 
 @login_required
 @require_POST
 def add_to_anonymizer_view(request):
-    try:
-        data = json.loads(request.body)
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'JSON invalide'}, status=400)
-
-    result = add_to_anonymizer(
-        user=request.user,
-        file_path=data.get('file_path', ''),
-        use_sam3=bool(data.get('use_sam3', False)),
-        sam3_prompt=data.get('sam3_prompt', ''),
-        classes=data.get('classes', ['face']),
-        precision_level=int(data.get('precision_level', 50)),
-    )
-    status_code = 400 if 'error' in result else 200
-    return JsonResponse(result, status=status_code)
+    return _vue_outil(request, 'add_to_anonymizer')
 
 
 @login_required
 @require_POST
 def start_anonymizer_view(request):
-    try:
-        data = json.loads(request.body)
-    except json.JSONDecodeError:
-        data = {}
-
-    media_id = data.get('media_id')
-    if media_id is not None:
-        try:
-            media_id = int(media_id)
-        except (ValueError, TypeError):
-            return JsonResponse({'error': 'media_id doit être un entier'}, status=400)
-
-    result = start_anonymizer(user=request.user, media_id=media_id)
-    status_code = 400 if 'error' in result else 200
-    return JsonResponse(result, status=status_code)
+    return _vue_outil(request, 'start_anonymizer')
 
 
 @login_required
 @require_GET
 def get_anonymizer_status_view(request):
-    return JsonResponse(get_anonymizer_status(request.user))
+    return _vue_outil(request, 'get_anonymizer_status')
 
 
 @login_required
 @require_GET
 def sam3_examples_view(request):
-    return JsonResponse(sam3_examples())
+    return _vue_outil(request, 'sam3_examples')
 
 
 @login_required
 @require_POST
 def add_to_reader_view(request):
-    try:
-        data = json.loads(request.body)
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'JSON invalide'}, status=400)
-
-    result = add_to_reader(
-        user=request.user,
-        file_path=data.get('file_path', ''),
-        backend=data.get('backend', 'auto'),
-        mode=data.get('mode', 'auto'),
-        output_format=data.get('output_format', 'txt'),
-        language=data.get('language', ''),
-    )
-    status_code = 400 if 'error' in result else 200
-    return JsonResponse(result, status=status_code)
+    return _vue_outil(request, 'add_to_reader')
 
 
 @login_required
 @require_POST
 def start_reader_view(request):
-    try:
-        data = json.loads(request.body)
-    except json.JSONDecodeError:
-        data = {}
-
-    item_id = data.get('item_id')
-    if item_id is not None:
-        try:
-            item_id = int(item_id)
-        except (ValueError, TypeError):
-            return JsonResponse({'error': 'item_id doit être un entier'}, status=400)
-
-    result = start_reader(user=request.user, item_id=item_id)
-    status_code = 400 if 'error' in result else 200
-    return JsonResponse(result, status=status_code)
+    return _vue_outil(request, 'start_reader')
 
 
 @login_required
 @require_GET
 def get_reader_status_view(request):
-    return JsonResponse(get_reader_status(request.user))
+    return _vue_outil(request, 'get_reader_status')
 
 
 @login_required
 @require_POST
 def convert_file_view(request):
-    try:
-        data = json.loads(request.body)
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'JSON invalide'}, status=400)
-
-    result = convert_file(
-        user=request.user,
-        file_path=data.get('file_path', ''),
-        output_format=data.get('output_format', ''),
-        quality_preset=data.get('quality_preset', 'balanced'),
-    )
-    status_code = 400 if 'error' in result else 200
-    return JsonResponse(result, status=status_code)
+    return _vue_outil(request, 'convert_file')
 
 
 @login_required
 @require_GET
 def get_converter_status_view(request):
-    return JsonResponse(get_converter_status(request.user))
+    return _vue_outil(request, 'get_converter_status')
 
 
 def build_tools_list() -> str:
