@@ -3248,6 +3248,49 @@ Il est dans `resource_governor`, entrée distincte de la carte. Ce découpage es
 Leçon transposable : un chiffre invraisemblable dans une table générée se vérifie **avant** d'être
 publié — c'est le premier rendu qui a livré le faux 100, pas une dérive ultérieure.
 
+---
+
+> **🔚 POINT D'ENTRÉE SESSION SUIVANTE (bloc « inventaire de clôture » — instance ressources/modèles)**
+> **→ Valider sur GPU une VRAIE vidéo par le pipeline anonymizer multi-modèles** (visages + plaques,
+> tâche unique, N modèles résidents, union des zones par frame). C'est la SEULE validation qui
+> manque à un chantier livré et vérifié partout ailleurs sur CPU. ⚠ **À lancer par Fabien, jamais
+> par l'assistant** (règle GPU/WSL2). Tout le reste ci-dessous est du backlog, pas un blocage.
+>
+> **File des chantiers ouverts** (ordre conseillé, bloquants marqués) :
+> 1. 🔴 **BLOQUANT pour l'auto-amélioration** — les données d'auto-confrontation (audio +
+>    transcriptions auto + transcription manuelle) **ne sont pas dans WAMA**. Le code (`RunOutcome`,
+>    divergence) est livré ; c'est la MATIÈRE qui manque. Voie envisagée : la médiathèque. Non tranché.
+> 2. **Étage B des licences** — auteur des *apps* et *fonctions* (`APP_CATALOG` n'a pas de champ ;
+>    c'est une déclaration INTERNE, pas un fait externe qu'on lit). À trancher avant de coder.
+> 3. **Adoption de `RunOutcome`** : 2 apps sur 10 — suit l'adoption de `run_item_task`.
+> 4. **Catalogue** : 10 poids sans origine établie, `synthesizer` 3 `requires` hors registre,
+>    `verify_models` 2 faux positifs + 30 orphelins `proposed:*` (cf. ✅C ci-dessus).
+> 5. **Dettes ponctuelles** (✅E) : `segment/yolopv2.pt` fait échouer `scan_installed_models` à
+>    chaque appel ; Transcript #48 contient du JSON brut de LLM ; migrations non versionnées.
+>
+> **Pendings système** :
+> - ✅ **Poussé par Fabien** — `dev` synchronisé avec `origin/dev`, working tree propre.
+> - ⚠ **Redémarrage des workers Celery + gunicorn REQUIS** avant tout usage réel : `memory_cleaner`,
+>   `memory_diagnostics`, `views.py` et `common/backends/base.py` ont changé, et les process vivants
+>   tournent encore avec l'ancien code (règle vécue : **code → redémarrage → données**).
+> - ⚠ **Worktree `D:/WAMA/wt-regen-converter` marqué `prunable`** (branche `regen/converter`,
+>   `8f80068`) — appartient à l'**autre instance**. Vérifié : **aucun commit absent de `dev`**
+>   (`git log dev..regen/converter` vide), donc rien à perdre ; je ne l'ai pas supprimé, ce n'est
+>   pas mon périmètre. À nettoyer par qui l'a créé (`git worktree prune`).
+> - `wama/avatarizer/codeformer` (submodule) : « contains modified content » **pré-existant**,
+>   non touché cette session, non commité.
+> - Scripts d'audit jetables laissés au scratchpad (hors git) : `audit_chaine_vram.py`,
+>   `audit_noms_generiques.py`. Rien à conserver.
+>
+> **Contrôles attendus au prochain `/reprise`** (chiffres à confronter — un écart = dérive) :
+> `manage.py check` 0 issue · `check_docs` **2 CASSÉ** sur **344** références (`_result_tabs.html`,
+> `common/middleware.py` — cibles jamais créées) · `doc_facts --check` 4 faits à jour ·
+> `manifest_export --check` **110 manifestes** · carte : **62 mécanismes déclarés**, 0 domicile
+> absent, **1 sans consommateur** (`qc`), 18 assumés locaux, **0 module balayé non rattaché**.
+> ⚠ `check_app_conformity` **non relancé** — cette session n'a touché aucune facette de la grille
+> (aucun critère mesuré n'a pu bouger) ; le relancer réécrirait `logs/conformity_report.json` sans
+> raison.
+
 ## §REPRISE — 2026-08-12 (session UI/média/résidence, instance parallèle) : exclusivité audio + préchargement TTS + RÉSIDENCE des modèles
 
 > Périmètre disjoint du chantier manifestes mené en parallèle (aucun fichier commun).
