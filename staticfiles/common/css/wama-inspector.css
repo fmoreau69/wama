@@ -178,13 +178,45 @@
 }
 /* La card focalisée est ENTIÈRE : c'est elle qu'on lit. */
 .wama-queue-stacked .wama-card[data-stack="0"] { max-height: none; }
-/* Voisines immédiates : en-tête + première ligne de sections restent lisibles. */
-.wama-queue-stacked .wama-card[data-stack="1"] { max-height: 46px; opacity: .92; }
-/* Puis le nom seul. */
-.wama-queue-stacked .wama-card[data-stack="2"] { max-height: 28px; opacity: .82; }
+/* Voisines immédiates : LAMELLE LISIBLE (voir bloc v3 ci-dessous — nom + état). */
+.wama-queue-stacked .wama-card[data-stack="1"] { max-height: 38px; opacity: .92; }
+/* Puis lamelle plus fine, toujours le nom. */
+.wama-queue-stacked .wama-card[data-stack="2"] { max-height: 30px; opacity: .82; }
 /* Au-delà : lamelles — on ne lit plus, on compte et on vise. */
 .wama-queue-stacked .wama-card[data-stack="3"] { max-height: 14px; opacity: .6; }
 .wama-queue-stacked .wama-card[data-stack]:not([data-stack="0"]) { cursor: pointer; }
 .wama-queue-stacked .wama-card[data-stack]:not([data-stack="0"]):hover { opacity: 1; }
 /* Resserrer l'empilement : sans ça les marges des cards annulent le gain de compression. */
 .wama-queue-stacked .wama-card[data-stack]:not([data-stack="0"]) { margin-bottom: .15rem !important; }
+
+/* ── Pile × card v3 : une card comprimée devient une LAMELLE CONSTRUITE, pas une coupe.
+   Constaté 2026-08-13 (Fabien) : les paliers 46/28 px avaient été réglés sur la card v2
+   (1re ligne = nom) ; la v3 ouvre sur le bandeau #id·date → seule la card focus restait
+   lisible. Ici : bandeau/pistes/barre masqués, il reste UNE ligne nom + point d'état.
+   Ne touche que les enfants .wcv3 — les cards v2 restantes gardent la coupe d'origine. */
+.wama-queue-stacked .wama-card[data-stack]:not([data-stack="0"]) .card-body {
+    padding-top: .3rem; padding-bottom: .3rem;
+}
+.wama-queue-stacked .wama-card[data-stack]:not([data-stack="0"]) .wcv3-head,
+.wama-queue-stacked .wama-card[data-stack]:not([data-stack="0"]) .wcv3-lbl,
+.wama-queue-stacked .wama-card[data-stack]:not([data-stack="0"]) .wcv3-thumb,
+.wama-queue-stacked .wama-card[data-stack]:not([data-stack="0"]) .wcv3-in-props,
+.wama-queue-stacked .wama-card[data-stack]:not([data-stack="0"]) .wcv3-bar,
+.wama-queue-stacked .wama-card[data-stack]:not([data-stack="0"]) .wcv3-preview,
+.wama-queue-stacked .wama-card[data-stack]:not([data-stack="0"]) .wama-eta,
+.wama-queue-stacked .wama-card[data-stack]:not([data-stack="0"]) .wcv3-state .processing-time {
+    display: none;
+}
+.wama-queue-stacked .wama-card[data-stack]:not([data-stack="0"]) .wcv3 {
+    display: flex; align-items: center; gap: .6rem; min-height: 0;
+}
+.wama-queue-stacked .wama-card[data-stack]:not([data-stack="0"]) .wcv3 > .wcv3-sec { display: none; }
+.wama-queue-stacked .wama-card[data-stack]:not([data-stack="0"]) .wcv3 > .wcv3-sec--input {
+    display: block; flex: 1 1 auto; min-width: 0;
+}
+.wama-queue-stacked .wama-card[data-stack]:not([data-stack="0"]) .wcv3 > .wcv3-sec--state {
+    display: block; flex: 0 0 auto;
+}
+.wama-queue-stacked .wama-card[data-stack]:not([data-stack="0"]) .wcv3-in-name {
+    white-space: nowrap;
+}
