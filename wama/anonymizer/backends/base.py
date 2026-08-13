@@ -8,10 +8,11 @@ gouverneur de ressources, alors que l'anonymizer est l'app dont les tâches GPU 
 lourdes.
 
 ⚠ MISE À JOUR 2026-08-13 — `Anonymize` peut désormais tenir **plusieurs** modèles à la fois
-(multi-modèles : un détecteur de visages ET un de plaques). L'empreinte déclarée
-(`recommended_vram_gb`) reste celle d'UN modèle : au gouverneur de ressources, une passe
-multi-modèles pèse donc plus que ce qu'elle annonce. À revoir le jour où l'on chargera des
-modèles lourds simultanément — avec les YOLO actuels (≤ 0,4 Go) l'écart reste sans effet.
+(multi-modèles : un détecteur de visages ET un de plaques). L'empreinte déclarée est **mise à
+l'échelle du nombre de modèles** dans `Anonymize.load()` (attribut d'instance), parce que
+`_wrap_load` mesure la VRAM autour du chargement et que `YOLO(chemin)` n'en prend AUCUNE — le
+device n'arrive qu'au `track()`. Sans cette mise à l'échelle, une passe à N modèles annoncerait
+l'empreinte d'un seul et le gouverneur laisserait un autre process prendre la place manquante.
 
 Cette classe fait UNE chose : mapper le verbe historique `load_model()` sur le `load()` du
 contrat commun, pour que l'empreinte soit déclarée **sans toucher un seul appelant**. C'est le

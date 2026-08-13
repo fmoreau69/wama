@@ -70,6 +70,13 @@ MECANISMES = (
     Mecanisme('process_control', 'Gardes de process',
               "Anti-boucle-de-crash (redélivrance) et réconciliation des tâches orphelines",
               'wama/common/utils/process_control.py', 'PROJECT_STATUS.md §0'),
+    Mecanisme('memory_manager', 'Mémoire GPU',
+              "Garantit la VRAM avant un chargement, la reprend sur les autres modèles, "
+              "et réessaie après libération sur erreur CUDA",
+              'wama/model_manager/services/memory_manager.py', 'PROJECT_STATUS.md §0',
+              annexes=('wama/model_manager/services/memory_monitor.py',
+                       'wama/model_manager/services/memory_cleaner.py',
+                       'wama/model_manager/services/memory_tracker.py')),
     Mecanisme('eta', 'ETA auto-apprenante',
               "Estimation de durée par a-priori puis moyenne mobile, bucketisée par matériel",
               'wama/model_manager/services/eta_estimator.py', 'PROJECT_STATUS.md §10'),
@@ -109,12 +116,6 @@ MECANISMES = (
                        'wama/model_manager/services/prospect_ollama.py',
                        'wama/model_manager/services/ollama_registry.py',
                        'wama/model_manager/services/update_checker.py')),
-    Mecanisme('memory_manager', 'Gestion mémoire GPU/RAM',
-              "VRAM centralisée + stratégies d'offload CPU pour toutes les apps ; nettoyage, monitoring, tracking",
-              'wama/model_manager/services/memory_manager.py', '',
-              annexes=('wama/model_manager/services/memory_cleaner.py',
-                       'wama/model_manager/services/memory_monitor.py',
-                       'wama/model_manager/services/memory_tracker.py')),
     Mecanisme('model_registry_discovery', 'Découverte de modèles',
               "Découverte unifiée des modèles (apps + sources externes), synchronisée vers le catalogue AIModel",
               'wama/model_manager/services/model_registry.py', '',
@@ -368,7 +369,7 @@ ASSUMES_LOCAUX = {
     # « 0 apps » ne comptaient pas wama_lab :
     'wama/common/utils/intervals.py': "algèbre d'intervalles — cam_analyzer (coverage) seul consommateur",
     'wama/common/utils/video_compat.py': "compat lecteur navigateur (ensure_h264) — cam_analyzer seul ; promouvoir si adoption",
-    'wama/common/utils/whisper_utils.py': "transcription faster-whisper du describer — unification avec les backends transcriber DIFFÉRÉE (Phase 4, ROUTE §11 #5)",
+    'wama/common/utils/whisper_utils.py': "adaptateur describer → backend Whisper du transcriber (UNIFIÉ 13/08 : plus de double chemin de chargement) ; consommé par le describer seul",
 }
 
 

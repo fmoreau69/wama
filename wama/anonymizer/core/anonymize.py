@@ -161,6 +161,19 @@ class Anonymize(DetectionBackend):
         self.model_name = premier['name']
         self.class_list = premier['class_list']
 
+        # ── EMPREINTE VRAM DÉCLARÉE AU GOUVERNEUR (multi-modèles) ────────────────────────
+        # `_wrap_load` (common/backends/base.py) MESURE la VRAM prise autour de ce `load()` et
+        # ne retombe sur `recommended_vram_gb` que si la mesure est nulle. Or `YOLO(chemin)` ne
+        # place RIEN sur le GPU — le device n'arrive qu'au `track()`/`predict()`. La mesure vaut
+        # donc ~0 et c'est bien la valeur déclarée qui est réservée. Sans mise à l'échelle, on
+        # annoncerait 1 modèle alors qu'on en charge N, et le gouverneur laisserait un autre
+        # process prendre la place manquante.
+        # Attribut d'INSTANCE, pas une `property` : `backends/manager.py:68` lit
+        # `recommended_vram_gb` sur la CLASSE, où une property rendrait l'objet property.
+        base_gb = type(self).recommended_vram_gb or 0
+        if base_gb:
+            self.recommended_vram_gb = base_gb * len(self.models)
+
         # `task`/`ret_mask` sont GLOBAUX à l'appel ultralytics : dès qu'UN modèle segmente, on
         # demande les masques. Chaque modèle reste interrogé selon SON propre drapeau `seg`
         # au moment de lire les résultats — un détecteur ne rendra simplement pas de masques.

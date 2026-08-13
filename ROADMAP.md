@@ -1822,9 +1822,51 @@ rares vers des YOLO spécialisés (le goulot actuel des modèles faces/plates).
 4. **App detector** = UI prompt-first + file PAR-DESSUS la fonction — APRÈS anonymizer/imager, et
    seulement si l'usage via assistant/Studio le justifie (§16.6).
 
-**Bénéficiaires** : anonymizer (dissout à terme le sélecteur maison 1140 l. +
-`parallel_detection.py` — un open-vocab supprime le problème de couverture de classes),
-cam_analyzer (auto-labeling, requêtes fenêtrées), detector (futur).
+### 17bis. Detector — périmètre précisé par Fabien (2026-08-13)
+
+**Ce que l'app doit permettre** : détecter/segmenter/localiser, puis **retirer, remplacer ou
+déplacer un objet** — changer la couleur d'un feu tricolore, substituer un panneau — et
+**fabriquer des séquences vidéo modifiées à partir de séquences réelles**, pilotées par une
+**description en langage naturel**. Finalité : produire de façon automatisée des **supports
+présentés à des participants** (recherche SHS). Inclut in-painting / out-painting / retouche.
+
+⚠ **App SÉPARÉE de l'anonymizer, et pas pour des raisons d'organisation.** L'anonymizer
+**détruit** de l'information de façon irréversible ; sa garantie est « rien d'identifiable ne
+subsiste ». Le Detector **fabrique** du contenu ; sa garantie est inverse — « la modification est
+délibérée et **traçable comme synthétique** ». Pour un support montré à des participants, cette
+traçabilité est une exigence méthodologique, pas un confort. Deux promesses contradictoires ne
+tiennent pas dans une même app.
+
+**Ce qui est DÉJÀ commun** (acquis du 2026-08-12/13, rien à faire) : la couverture multi-modèles
+(`common/services/model_coverage.py`) et le vocabulaire de classes avec ses alias
+(`formes_equivalentes`).
+
+**LA COUTURE À EXTRAIRE, le jour où le Detector existe** — et pas avant :
+`anonymizer/core/anonymize.py` porte désormais un moteur *un décodage, N modèles, union des zones
+frame par frame*, plus le **suivi de piste et l'interpolation**. C'est exactement ce qu'exige un
+objet **déplacé** ou un feu **changé** de façon cohérente d'une frame à l'autre. La couture est
+nette : **une fonction qui rend, par frame, l'image et les zones — l'appelant décide quoi en
+faire.** L'anonymizer floute ; le Detector remplace.
+
+⚠ **NE PAS extraire par anticipation.** C'est précisément ce qui a produit `couvrir_classes` :
+brique excellente, écrite pour un besoin réel, restée **sans consommateur pendant 8 jours** parce
+qu'on ne savait pas encore ce que l'appelant demanderait à une frame (masque ? boîte ? piste ?
+profondeur ?). Extraire au **second consommateur** : la couture étant identifiée, ce sera une
+heure, pas une redécouverte.
+
+**Le floutage dans les fonctions du monde Data** (cf. `WAMA_DATA_FUNCTION_CARDS.md`) : oui, mais
+**la primitive seulement** — `blur_detection` / `blur_segmentation`, déjà isolées dans
+`anonymizer/core/blur_utils.py`, à E/S typées. L'*anonymisation* n'est pas une fonction : c'est
+une chaîne détecter → suivre → interpoler → flouter → ré-encoder.
+
+**Points d'appui existants** : **SAM3** est déjà dans l'anonymizer et **pilotable par prompt
+texte** (c'est l'entrée « langage naturel ») ; **LocateAnything** est cadré ci-dessus pour le
+vocabulaire ouvert (poids non téléchargés, GPU suspendu sur ce poste).
+
+**Bénéficiaires** : anonymizer (le sélecteur maison de 1 140 l. a déjà fondu — voir
+`PROJECT_STATUS §REPRISE 2026-08-13` : `parallel_detection.py` ne garde plus que la DÉCISION, un
+open-vocab supprimerait le reste du problème de couverture de classes), cam_analyzer
+(auto-labeling, requêtes fenêtrées), **detector** (ci-dessus).
 
 **Alternatives libres** si la licence bloque : YOLO-World, MM-Grounding-DINO (Apache-2.0), OWLv2 —
 la brique (2) est agnostique au backend, l'investissement reste bon dans tous les cas.
