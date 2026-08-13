@@ -45,14 +45,26 @@ def _group_enhancements_into_batches(user, enhancements, unwrap_singletons=None)
     )
 
 
+def consolidate_enhancements_into_batches(ids, user):
+    """Regroupe des Enhancement importés ENSEMBLE par nature — helper PUBLIC (filemanager)."""
+    from wama.common.utils.batch_common import delete_singleton_batches, load_in_import_order
+    items = load_in_import_order(Enhancement, ids, user)
+    if not items:
+        return
+    _group_enhancements_into_batches(
+        user, items,
+        unwrap_singletons=lambda i: delete_singleton_batches(
+            BatchEnhancement, 'enhancement', user, i))
+
+
 def _auto_wrap_orphans(user):
-    """Range les Enhancement (médias) pas encore en batch — brique COMMUNE, avec la
-    stratégie d'app « un batch PAR NATURE » (image/vidéo) comme wrap_group."""
+    """Range les Enhancement (médias) pas encore en batch — brique COMMUNE, stratégie
+    par défaut (orphelin → batch-of-1). Le regroupement par nature ne se fait plus
+    qu'à l'import GROUPÉ (cf. auto_wrap_orphans, constat Fabien 14/08)."""
     from wama.common.utils.batch_common import auto_wrap_orphans
     auto_wrap_orphans(
         user, work_model=Enhancement, batch_model=BatchEnhancement,
         item_model=BatchEnhancementItem, fk_name='enhancement',
-        wrap_group=lambda orphans: _group_enhancements_into_batches(user, orphans),
     )
 
 
@@ -67,19 +79,13 @@ def consolidate(request):
         ids = request.POST.getlist('ids[]') or request.POST.getlist('ids')
     ids = [int(i) for i in ids if str(i).isdigit()]
 
-    items = list(Enhancement.objects.filter(id__in=ids, user=user))
-    order = {eid: pos for pos, eid in enumerate(ids)}
-    items.sort(key=lambda e: order.get(e.id, 0))
+    from wama.common.utils.batch_common import load_in_import_order
+    items = load_in_import_order(Enhancement, ids, user)
     if len(items) < 2:
         return JsonResponse({'consolidated': False})
 
-    def _unwrap(item_ids):
-        BatchEnhancement.objects.filter(
-            user=user, total=1, items__enhancement_id__in=item_ids
-        ).distinct().delete()
-
-    # Regroupement PAR NATURE (image / vidéo) — règle commune.
-    _group_enhancements_into_batches(user, items, unwrap_singletons=_unwrap)
+    # Regroupement PAR NATURE (image / vidéo) — même helper que l'import filemanager.
+    consolidate_enhancements_into_batches(ids, user)
     return JsonResponse({'consolidated': True, 'count': len(items)})
 
 
@@ -90,7 +96,6 @@ def audio_consolidate(request):
     l'upload). Mirroir de la consolidation média / synthesizer.
     """
     import json as _json
-    from wama.common.utils.batch_common import consolidate_into_batch
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     try:
         ids = _json.loads(request.body or '{}').get('ids', [])
@@ -98,25 +103,12 @@ def audio_consolidate(request):
         ids = request.POST.getlist('ids[]') or request.POST.getlist('ids')
     ids = [int(i) for i in ids if str(i).isdigit()]
 
-    items = list(AudioEnhancement.objects.filter(id__in=ids, user=user))
-    order = {aid: pos for pos, aid in enumerate(ids)}
-    items.sort(key=lambda a: order.get(a.id, 0))
-    if len(items) < 2:
+    # Même helper que l'import filemanager (of-N, défait les of-1).
+    batch = consolidate_audio_into_batches(ids, user)
+    if batch is None:
         return JsonResponse({'consolidated': False})
-
-    def _create(total):
-        return BatchAudioEnhancement.objects.create(user=user, total=total)
-
-    def _link(batch, ae, idx):
-        BatchAudioEnhancementItem.objects.create(batch=batch, audio_enhancement=ae, row_index=idx)
-
-    def _unwrap(item_ids):
-        BatchAudioEnhancement.objects.filter(
-            user=user, total=1, items__audio_enhancement_id__in=item_ids
-        ).distinct().delete()
-
-    batch = consolidate_into_batch(items, create_batch=_create, link_item=_link, unwrap_singletons=_unwrap)
-    return JsonResponse({'consolidated': True, 'batch_id': batch.id, 'count': len(items)})
+    return JsonResponse({'consolidated': True, 'batch_id': batch.id,
+                         'count': batch.items.count()})
 
 
 def _wrap_audio_in_batch(audio_enhancement):
@@ -126,25 +118,32 @@ def _wrap_audio_in_batch(audio_enhancement):
     return batch
 
 
+def consolidate_audio_into_batches(ids, user):
+    """Regroupe des AudioEnhancement importés ENSEMBLE en UN of-N — helper PUBLIC (filemanager)."""
+    from wama.common.utils.batch_common import (
+        consolidate_into_batch, delete_singleton_batches, load_in_import_order,
+    )
+    items = load_in_import_order(AudioEnhancement, ids, user)
+    if len(items) < 2:
+        return None
+    return consolidate_into_batch(
+        items,
+        create_batch=lambda total: BatchAudioEnhancement.objects.create(user=user, total=total),
+        link_item=lambda batch, ae, idx: BatchAudioEnhancementItem.objects.create(
+            batch=batch, audio_enhancement=ae, row_index=idx),
+        unwrap_singletons=lambda i: delete_singleton_batches(
+            BatchAudioEnhancement, 'audio_enhancement', user, i))
+
+
 def _auto_wrap_audio_orphans(user):
-    """Range les AudioEnhancement pas encore en batch — brique COMMUNE.
-    Stratégie d'app : 1 orphelin → batch-of-1 ; plusieurs (import multi-fichiers) → UN of-N.
-    Le scope user=user est porté par la brique : on n'enrôle jamais la card partagée d'autrui."""
+    """Range les AudioEnhancement pas encore en batch — brique COMMUNE, stratégie par
+    défaut (orphelin → batch-of-1) ; l'of-N ne se fait plus qu'à l'import GROUPÉ
+    (cf. auto_wrap_orphans, constat Fabien 14/08). Le scope user=user est porté par
+    la brique : on n'enrôle jamais la card partagée d'autrui."""
     from wama.common.utils.batch_common import auto_wrap_orphans
-
-    def _wrap_group(orphans):
-        if len(orphans) == 1:
-            _wrap_audio_in_batch(orphans[0])
-            return
-        batch = BatchAudioEnhancement.objects.create(user=user, total=len(orphans))
-        for idx, orphan in enumerate(orphans):
-            BatchAudioEnhancementItem.objects.create(
-                batch=batch, audio_enhancement=orphan, row_index=idx)
-
     auto_wrap_orphans(
         user, work_model=AudioEnhancement, batch_model=BatchAudioEnhancement,
         item_model=BatchAudioEnhancementItem, fk_name='audio_enhancement',
-        wrap_group=_wrap_group,
     )
 
 

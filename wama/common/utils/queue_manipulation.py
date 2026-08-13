@@ -126,11 +126,9 @@ def make_queue_manipulation_views(*, work_model, batch_model, item_model, fk_nam
             item_model.objects.create(**kwargs)
 
         def _unwrap(item_ids):
-            # Supprime les batch-of-1 créés à l'upload (cascade sur leurs items ;
-            # les objets métier ne sont pas supprimés).
-            batch_model.objects.filter(
-                user=user, total=1, **{f'items__{fk_name}_id__in': item_ids}
-            ).distinct().delete()
+            # Supprime les batch-of-1 créés à l'upload (les objets métier survivent).
+            from wama.common.utils.batch_common import delete_singleton_batches
+            delete_singleton_batches(batch_model, fk_name, user, item_ids)
 
         batch = consolidate_into_batch(works, create_batch=_create, link_item=_link,
                                        unwrap_singletons=_unwrap)

@@ -80,43 +80,35 @@ move_to_batch = _qm['move_to_batch']
 consolidate = _qm['consolidate']
 
 
-def _auto_wrap_orphans(user):
-    """Range les Transcript pas encore en batch (appelé au chargement de page).
+def consolidate_transcripts_into_batches(ids, user):
+    """Regroupe des Transcript importés ENSEMBLE en UN of-N — helper PUBLIC (filemanager)."""
+    from wama.common.utils.batch_common import (
+        consolidate_into_batch, delete_singleton_batches, load_in_import_order,
+    )
+    items = load_in_import_order(Transcript, ids, user)
+    if len(items) < 2:
+        return None
+    return consolidate_into_batch(
+        items,
+        create_batch=lambda total: BatchTranscript.objects.create(user=user, total=total),
+        link_item=lambda batch, t, idx: BatchTranscriptItem.objects.create(
+            batch=batch, transcript=t, row_index=idx),
+        unwrap_singletons=lambda i: delete_singleton_batches(
+            BatchTranscript, 'transcript', user, i))
 
-    Les orphelins proviennent des imports serveur (« Envoyer vers » du
-    filemanager) — l'upload JS, lui, enveloppe déjà en batch-of-1. Un seul
-    orphelin → batch-of-1 ; plusieurs orphelins (import multi-fichiers) → UN
-    seul batch-of-N, comme attendu pour le fonctionnement batch généralisé.
+
+def _auto_wrap_orphans(user):
+    """Range les Transcript pas encore en batch (appelé au chargement de page) —
+    brique COMMUNE, stratégie par défaut (orphelin → batch-of-1). L'of-N ne se fait
+    plus qu'à l'import GROUPÉ (cf. auto_wrap_orphans : l'ancien wrap_group indexé sur
+    l'ACCUMULATION fusionnait des envois individuels espacés — constat Fabien 14/08).
+
+    Staging supprimé (2026-06-29) : les DRAFT sont rendus dans la file comme cards
+    BROUILLON (config via inspecteur, lancement via Lancer).
     """
     from wama.common.utils.batch_common import auto_wrap_orphans
-
-    def _wrap_group(orphans):
-        # Stratégie transcriber : 1 orphelin → batch-of-1 ; N → UN batch-of-N.
-        if len(orphans) == 1:
-            try:
-                return [_wrap_transcript_in_batch(orphans[0])]
-            except Exception:
-                return []
-        try:
-            batch = BatchTranscript.objects.create(user=user, total=len(orphans))
-            for idx, orphan in enumerate(orphans):
-                BatchTranscriptItem.objects.create(batch=batch, transcript=orphan, row_index=idx)
-            return [batch]
-        except Exception:
-            # Repli : au pire, batch-of-1 individuels
-            batches = []
-            for orphan in orphans:
-                try:
-                    batches.append(_wrap_transcript_in_batch(orphan))
-                except Exception:
-                    pass
-            return batches
-
-    # Staging supprimé (2026-06-29) : les DRAFT sont rendus dans la file comme cards BROUILLON
-    # (config via inspecteur, lancement via Lancer) — plus de zone « à valider » séparée.
     auto_wrap_orphans(user, work_model=Transcript, batch_model=BatchTranscript,
-                      item_model=BatchTranscriptItem, fk_name='transcript',
-                      wrap_group=_wrap_group)
+                      item_model=BatchTranscriptItem, fk_name='transcript')
 
 
 class IndexView(View):

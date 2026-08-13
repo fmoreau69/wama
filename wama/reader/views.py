@@ -104,6 +104,25 @@ def _auto_wrap_orphans(user):
                       item_model=BatchReadingItemLink, fk_name='reading')
 
 
+def consolidate_readings_into_batches(ids, user):
+    """Regroupe des ReadingItem importés ENSEMBLE en UN of-N — helper PUBLIC (filemanager).
+    Remplace le bloc inline historique d'api_import_to_app (généralisation 14/08) ; défait
+    les batch-of-1 posés par import_to_reader avant de créer le lot."""
+    from wama.common.utils.batch_common import (
+        consolidate_into_batch, delete_singleton_batches, load_in_import_order,
+    )
+    items = load_in_import_order(ReadingItem, ids, user)
+    if len(items) < 2:
+        return None
+    return consolidate_into_batch(
+        items,
+        create_batch=lambda total: BatchReadingItem.objects.create(user=user, total=total),
+        link_item=lambda batch, r, idx: BatchReadingItemLink.objects.create(
+            batch=batch, reading=r, row_index=idx),
+        unwrap_singletons=lambda i: delete_singleton_batches(
+            BatchReadingItem, 'reading', user, i))
+
+
 def _chips(reading):
     """Chips de la section RÉGLAGES (card v3, CARD_DESIGN §11) : moteur EFFECTIF
     (used_backend) prioritaire sur le réglage — brique commune card_chips.

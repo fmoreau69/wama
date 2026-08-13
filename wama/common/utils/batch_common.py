@@ -148,6 +148,22 @@ def wrap_in_batch(item, *, batch_model, item_model, fk_name, item_extra=None,
     return batch
 
 
+def load_in_import_order(model, ids, user):
+    """Charge les objets d'un lot d'ids DANS L'ORDRE des ids (= ordre d'arrivée d'un import)."""
+    items = list(model.objects.filter(id__in=ids, user=user))
+    pos = {oid: p for p, oid in enumerate(ids)}
+    items.sort(key=lambda o: pos.get(o.id, 0))
+    return items
+
+
+def delete_singleton_batches(batch_model, fk_name, user, item_ids):
+    """Supprime les batch-of-1 qui enveloppent ces items (cascade sur les LIENS seulement —
+    les objets métier survivent). C'est le `unwrap_singletons` standard des consolidations."""
+    batch_model.objects.filter(
+        user=user, total=1, **{f'items__{fk_name}_id__in': item_ids}
+    ).distinct().delete()
+
+
 def auto_wrap_orphans(user, *, work_model, batch_model, item_model, fk_name,
                       item_extra=None, batch_extra=None, wrap_group=None, order_by='id'):
     """Rattache paresseusement (au chargement de page) les items hors batch.
@@ -156,9 +172,15 @@ def auto_wrap_orphans(user, *, work_model, batch_model, item_model, fk_name,
     l'upload JS, lui, enveloppe déjà à la création.
 
     Stratégie de regroupement :
-      - défaut : chaque orphelin → SON batch-of-1 (composer) ;
-      - ``wrap_group(orphans)`` : stratégie d'app qui crée les batchs elle-même —
-        transcriber (1 → of-1, N → UN of-N), describer (un batch par nature).
+      - défaut : chaque orphelin → SON batch-of-1 — **la règle depuis 2026-08-14** (10 apps).
+        Le regroupement (par nature / of-N) se fait AU MOMENT d'un import groupé
+        (`api_import_to_app` → helper `consolidate_*_into_batches` de l'app), jamais ici :
+        indexé sur l'ACCUMULATION, ce wrap fusionnait des envois individuels espacés dans
+        le temps dès que la page n'avait pas été chargée entre deux (constat Fabien 14/08,
+        anonymizer — la même dérive existait sur enhancer/describer/transcriber).
+      - ``wrap_group(orphans)`` : stratégie d'app qui crée les batchs elle-même. ⚠ Ne s'en
+        servir QUE si le groupe a un sens indépendant du moment d'arrivée — pas pour
+        regrouper « ce qui traîne ».
       - ``batch_extra`` : champs du BATCH créé (ex. imager ``domain``). À préférer à un
         ``wrap_group`` écrit uniquement pour poser un champ : la stratégie par défaut suffit
         alors, et l'app ne réimplémente pas la boucle.

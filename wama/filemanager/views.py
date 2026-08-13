@@ -1317,26 +1317,42 @@ def api_import_to_app(request):
             result.setdefault('path', fp)
             results.append(result)
 
-    # Reader multi-file: consolidate into ONE batch (remove individual batch-of-1 wrappers)
-    if target_app == 'reader' and len(results) > 1:
+    # ── Regroupement PAR ARRIVÉE (généralisé 2026-08-14) ────────────────────────────
+    # Les items importés ENSEMBLE (même requête : multi-sélection, « Envoyer dossier
+    # vers… ») forment un batch — par nature pour les apps multi-natures, of-N sinon.
+    # Chaque app expose son helper `consolidate_*_into_batches` (découplage, pattern
+    # converter). Un fichier seul reste une card isolée (batch-of-1 à l'auto-wrap).
+    # L'ancien regroupement par ACCUMULATION au chargement de page est supprimé — il
+    # fusionnait des envois individuels espacés dans le temps (constat Fabien 14/08).
+    if len(results) > 1:
+        item_ids = [r['id'] for r in results if r.get('id')]
         try:
-            from wama.reader.models import ReadingItem, BatchReadingItem, BatchReadingItemLink
-            item_ids = [r['id'] for r in results if r.get('id')]
-            if len(item_ids) > 1:
-                # Delete the individual batch-of-1 wrappers created by import_to_reader
-                links = BatchReadingItemLink.objects.filter(
-                    reading_id__in=item_ids, batch__total=1
-                ).select_related('batch')
-                batch_ids_to_delete = list(links.values_list('batch_id', flat=True))
-                links.delete()
-                BatchReadingItem.objects.filter(id__in=batch_ids_to_delete, total=1).delete()
-                # Create ONE batch for all items
-                items = list(ReadingItem.objects.filter(id__in=item_ids))
-                batch = BatchReadingItem.objects.create(user=user, total=len(items))
-                for i, item in enumerate(items):
-                    BatchReadingItemLink.objects.create(batch=batch, reading=item, row_index=i)
+            if target_app == 'reader' and len(item_ids) > 1:
+                from wama.reader.views import consolidate_readings_into_batches
+                consolidate_readings_into_batches(item_ids, user)
+            elif target_app == 'anonymizer' and len(item_ids) > 1:
+                from wama.anonymizer.views import consolidate_medias_into_batches
+                consolidate_medias_into_batches(item_ids, user)
+            elif target_app == 'describer' and len(item_ids) > 1:
+                from wama.describer.views import consolidate_descriptions_into_batches
+                consolidate_descriptions_into_batches(item_ids, user)
+            elif target_app == 'transcriber' and len(item_ids) > 1:
+                from wama.transcriber.views import consolidate_transcripts_into_batches
+                consolidate_transcripts_into_batches(item_ids, user)
+            elif target_app == 'enhancer':
+                # Bi-modèle : l'audio part dans AudioEnhancement, le reste dans Enhancement —
+                # deux consolidations distinctes, chacune sur SES ids.
+                from wama.enhancer.views import (
+                    consolidate_audio_into_batches, consolidate_enhancements_into_batches,
+                )
+                media_ids = [r['id'] for r in results if r.get('id') and r.get('media_type') != 'audio']
+                audio_ids = [r['id'] for r in results if r.get('id') and r.get('media_type') == 'audio']
+                if len(media_ids) > 1:
+                    consolidate_enhancements_into_batches(media_ids, user)
+                if len(audio_ids) > 1:
+                    consolidate_audio_into_batches(audio_ids, user)
         except Exception as e:
-            logger.warning(f"[filemanager] reader batch consolidation failed: {e}")
+            logger.warning(f"[filemanager] {target_app} batch consolidation failed: {e}")
 
     # Converter : regroupe les jobs importés par NATURE → 1 batch par nature
     # (batch-of-1 pour un fichier seul). Helper exposé par l'app (découplage).

@@ -790,13 +790,6 @@ def start_all(request):
     return ProcessView().post(request)
 
 
-def _wrap_media_in_batch(media):
-    """Range un Media seul dans un BatchAnonymizer-of-1."""
-    batch = BatchAnonymizer.objects.create(user=media.user, total=1)
-    BatchAnonymizerItem.objects.create(batch=batch, media=media, row_index=0)
-    return batch
-
-
 def _group_medias_into_batches(user, medias, unwrap_singletons=None):
     """Crée UN batch PAR NATURE (image/vidéo/audio) — règle commune."""
     from wama.common.utils.batch_common import group_into_batches_by_nature
@@ -810,14 +803,28 @@ def _group_medias_into_batches(user, medias, unwrap_singletons=None):
     )
 
 
+def consolidate_medias_into_batches(media_ids, user):
+    """Regroupe des Media importés ENSEMBLE (même requête) par nature — helper PUBLIC
+    exposé au filemanager (`api_import_to_app`), même découplage que le converter."""
+    from wama.common.utils.batch_common import delete_singleton_batches, load_in_import_order
+    items = load_in_import_order(Media, media_ids, user)
+    if not items:
+        return
+    _group_medias_into_batches(
+        user, items,
+        unwrap_singletons=lambda ids: delete_singleton_batches(
+            BatchAnonymizer, 'media', user, ids))
+
+
 def _auto_wrap_orphans(user):
-    """Range les Media pas encore en batch — brique COMMUNE, avec la stratégie
-    d'app « un batch PAR NATURE » (image/vidéo/audio) comme wrap_group."""
+    """Range les Media pas encore en batch — brique COMMUNE, stratégie par défaut
+    (chaque orphelin → batch-of-1). Le regroupement par nature ne se fait plus qu'à
+    l'IMPORT GROUPÉ (consolidate_medias_into_batches) : indexé sur l'accumulation,
+    il fusionnait des envois individuels espacés (constat Fabien 14/08)."""
     from wama.common.utils.batch_common import auto_wrap_orphans
     auto_wrap_orphans(
         user, work_model=Media, batch_model=BatchAnonymizer,
         item_model=BatchAnonymizerItem, fk_name='media',
-        wrap_group=lambda orphans: _group_medias_into_batches(user, orphans),
     )
 
 
@@ -891,19 +898,13 @@ def consolidate(request):
         ids = request.POST.getlist('ids[]') or request.POST.getlist('ids')
     ids = [int(i) for i in ids if str(i).isdigit()]
 
-    items = list(Media.objects.filter(id__in=ids, user=user))
-    order = {mid: pos for pos, mid in enumerate(ids)}
-    items.sort(key=lambda m: order.get(m.id, 0))
+    from wama.common.utils.batch_common import load_in_import_order
+    items = load_in_import_order(Media, ids, user)
     if len(items) < 2:
         return JsonResponse({'consolidated': False})
 
-    def _unwrap(item_ids):
-        BatchAnonymizer.objects.filter(
-            user=user, total=1, items__media_id__in=item_ids
-        ).distinct().delete()
-
-    # Regroupement PAR NATURE (image / vidéo / audio) — règle commune.
-    _group_medias_into_batches(user, items, unwrap_singletons=_unwrap)
+    # Regroupement PAR NATURE (image / vidéo / audio) — même helper que l'import filemanager.
+    consolidate_medias_into_batches(ids, user)
     return JsonResponse({'consolidated': True, 'count': len(items)})
 
 

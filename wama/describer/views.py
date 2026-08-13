@@ -105,20 +105,25 @@ def _group_descriptions_into_batches(user, descriptions, unwrap_singletons=None)
     )
 
 
-def _auto_wrap_orphans(user):
-    """Range les Description pas encore en batch (chargement de page), groupées PAR NATURE.
+def consolidate_descriptions_into_batches(ids, user):
+    """Regroupe des Description importées ENSEMBLE par nature — helper PUBLIC (filemanager)."""
+    from wama.common.utils.batch_common import delete_singleton_batches, load_in_import_order
+    items = load_in_import_order(Description, ids, user)
+    if not items:
+        return
+    _group_descriptions_into_batches(
+        user, items,
+        unwrap_singletons=lambda i: delete_singleton_batches(
+            BatchDescription, 'description', user, i))
 
-    Orphelins = imports serveur (« Envoyer vers ») / upload multi-fichiers.
-    """
-    existing_ids = set(
-        BatchDescriptionItem.objects.filter(batch__user=user)
-        .values_list('description_id', flat=True)
-    )
-    orphans = list(
-        Description.objects.filter(user=user).exclude(id__in=existing_ids).order_by('id')
-    )
-    if orphans:
-        _group_descriptions_into_batches(user, orphans)
+
+def _auto_wrap_orphans(user):
+    """Range les Description pas encore en batch — brique COMMUNE, stratégie par défaut
+    (orphelin → batch-of-1). Le regroupement par nature ne se fait plus qu'à l'import
+    GROUPÉ (cf. auto_wrap_orphans, constat Fabien 14/08)."""
+    from wama.common.utils.batch_common import auto_wrap_orphans
+    auto_wrap_orphans(user, work_model=Description, batch_model=BatchDescription,
+                      item_model=BatchDescriptionItem, fk_name='description')
 
 
 @require_POST
@@ -132,17 +137,13 @@ def consolidate(request):
         ids = request.POST.getlist('ids[]') or request.POST.getlist('ids')
     ids = [int(i) for i in ids if str(i).isdigit()]
 
-    items = list(Description.objects.filter(id__in=ids, user=user))
-    order = {did: pos for pos, did in enumerate(ids)}
-    items.sort(key=lambda d: order.get(d.id, 0))
+    from wama.common.utils.batch_common import load_in_import_order
+    items = load_in_import_order(Description, ids, user)
     if len(items) < 2:
         return JsonResponse({'consolidated': False})
 
-    # Défaire d'abord les éventuels batch-of-1 de ces items, puis regrouper PAR NATURE.
-    BatchDescription.objects.filter(
-        user=user, total=1, items__description_id__in=[d.id for d in items]
-    ).distinct().delete()
-    _group_descriptions_into_batches(user, items)
+    # Regroupement PAR NATURE — même helper que l'import filemanager (défait les of-1).
+    consolidate_descriptions_into_batches(ids, user)
     return JsonResponse({'consolidated': True, 'count': len(items)})
 
 
