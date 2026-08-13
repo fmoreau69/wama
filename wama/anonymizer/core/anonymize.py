@@ -172,6 +172,17 @@ class Anonymize(DetectionBackend):
                   f'segmentation → task={self.task}')
         return True
 
+    def _reessayer(self, operation, replier_sur_cpu=None):
+        """Exécute `operation` avec récupération VRAM (brique `MemoryManager`), ou tel quel si
+        le model_manager est indisponible — une dépendance de confort ne doit pas empêcher de
+        flouter."""
+        try:
+            from wama.model_manager.services.memory_manager import MemoryManager
+        except Exception:
+            return operation()
+        return MemoryManager.reessayer_apres_liberation(
+            operation, proprietaire='anonymizer', replier_sur_cpu=replier_sur_cpu)
+
     @staticmethod
     def _indices_classes(class_list, voulues) -> list:
         """
@@ -316,10 +327,19 @@ class Anonymize(DetectionBackend):
                 self._resultats_par_modele.append([])
                 continue
             entree['indices'] = indices
-            self._resultats_par_modele.append(entree['yolo'].predict(
-                source=img, task=self.task, device=self.device, retina_masks=self.ret_mask,
-                imgsz=max(img.shape[:2]), conf=kwargs.get('detection_threshold', self.conf),
-                classes=indices, verbose=False,
+
+            def _predire(dev, _e=entree, _idx=indices):
+                return _e['yolo'].predict(
+                    source=img, task=self.task, device=dev, retina_masks=self.ret_mask,
+                    imgsz=max(img.shape[:2]), conf=kwargs.get('detection_threshold', self.conf),
+                    classes=_idx, verbose=False,
+                )
+
+            # Ici le repli CPU EST légitime : une image, c'est quelques secondes. Sur la vidéo
+            # (apply_process) il est volontairement absent — il durerait des heures.
+            self._resultats_par_modele.append(self._reessayer(
+                lambda: _predire(self.device),
+                replier_sur_cpu=lambda: _predire('cpu'),
             ))
 
         if any(self._resultats_par_modele):
@@ -410,17 +430,25 @@ class Anonymize(DetectionBackend):
             # Seul le PREMIER modèle hérite des options d'affichage/sauvegarde : les rejouer
             # pour chaque modèle ouvrirait N fenêtres et écrirait N fois les mêmes artefacts.
             premier = entree is self.models[0]
-            self._resultats_par_modele.append(entree['yolo'].track(
-                source=source, task=self.task, mode=self.mode, device=self.device,
-                retina_masks=self.ret_mask, imgsz=imgsz,
-                classes=indices, conf=kwargs.get('detection_threshold', self.conf),
-                save=self.save if premier else False,
-                save_txt=self.save_txt if premier else False,
-                show=kwargs.get('show_preview', self.show) if premier else False,
-                boxes=kwargs.get('show_boxes', self.boxes) if premier else False,
-                show_labels=kwargs.get('show_labels', self.show_labels) if premier else False,
-                show_conf=kwargs.get('show_conf', self.show_conf) if premier else False,
-            ))
+
+            def _suivre(_e=entree, _p=premier, _idx=indices):
+                return _e['yolo'].track(
+                    source=source, task=self.task, mode=self.mode, device=self.device,
+                    retina_masks=self.ret_mask, imgsz=imgsz,
+                    classes=_idx, conf=kwargs.get('detection_threshold', self.conf),
+                    save=self.save if _p else False,
+                    save_txt=self.save_txt if _p else False,
+                    show=kwargs.get('show_preview', self.show) if _p else False,
+                    boxes=kwargs.get('show_boxes', self.boxes) if _p else False,
+                    show_labels=kwargs.get('show_labels', self.show_labels) if _p else False,
+                    show_conf=kwargs.get('show_conf', self.show_conf) if _p else False,
+                )
+
+            # Erreur CUDA → libérer la VRAM des AUTRES modèles du process, puis réessayer.
+            # PAS de repli CPU ici : sur une vidéo il durerait des heures et donnerait
+            # l'illusion d'un blocage. Un échec net remonte en FAILURE avec son message.
+            self._resultats_par_modele.append(
+                self._reessayer(_suivre, replier_sur_cpu=None))
 
         # Compat : tout le code historique lit `self.results` (frames du 1er modèle).
         self.results = next((r for r in self._resultats_par_modele if r), [])

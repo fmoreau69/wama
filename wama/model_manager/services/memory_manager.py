@@ -287,6 +287,54 @@ class MemoryManager:
         return ok
 
     @staticmethod
+    def reessayer_apres_liberation(operation, *, proprietaire: str = '',
+                                   replier_sur_cpu=None):
+        """
+        Exécute `operation()` ; sur erreur CUDA, LIBÈRE la VRAM et réessaie UNE fois.
+
+        POURQUOI CETTE BRIQUE. Tout ce qui précède dans cette classe est PRÉVENTIF — on garantit
+        la VRAM *avant* un `load()`. Rien ne couvrait une erreur CUDA survenant **en cours
+        d'inférence**, alors que c'est le cas le plus fréquent sur un poste où plusieurs apps et
+        Ollama se partagent le GPU : la place était là au chargement, un autre process l'a prise
+        depuis. Constaté en supprimant le second pipeline de l'anonymizer (2026-08-13), qui
+        portait le seul repli existant — et le portait mal : il basculait sur CPU sans jamais
+        tenter de libérer.
+
+        ORDRE, du moins coûteux au plus coûteux :
+          1. rejouer après `release_vram()` — on récupère la VRAM des AUTRES modèles de ce
+             process, ce qui traite la contention à sa cause ;
+          2. `replier_sur_cpu()` si l'appelant en fournit un — à ne proposer que là où c'est
+             BORNÉ. Sur une vidéo, une inférence CPU peut durer des heures : mieux vaut un
+             échec net qu'un traitement qui paraît bloqué ;
+          3. relever l'exception d'origine.
+
+        `proprietaire` : nom d'app à NE PAS décharger (le nôtre — se décharger soi-même en
+        pleine inférence n'aurait aucun sens).
+        """
+        def _est_cuda(exc) -> bool:
+            texte = f"{type(exc).__name__} {exc}".lower()
+            return 'cuda' in texte or 'out of memory' in texte
+
+        try:
+            return operation()
+        except Exception as exc:
+            if not _est_cuda(exc):
+                raise
+            logger.warning(f"[MemoryManager] erreur CUDA pendant l'exécution ({exc}) → "
+                           f"libération puis nouvel essai")
+            liberes = MemoryManager.release_vram(
+                exclude={proprietaire} if proprietaire else None)
+            logger.info(f"[MemoryManager] {liberes} modèle(s) déchargé(s) avant le nouvel essai")
+            try:
+                return operation()
+            except Exception as exc2:
+                if not _est_cuda(exc2) or replier_sur_cpu is None:
+                    raise
+                logger.warning(f"[MemoryManager] toujours en échec après libération ({exc2}) → "
+                               f"repli CPU")
+                return replier_sur_cpu()
+
+    @staticmethod
     def _free_vram_gb(info) -> float:
         """VRAM libre vue par le pilote, MOINS les réservations des autres process."""
         driver_free = info['free_gb'] if info else 0.0
