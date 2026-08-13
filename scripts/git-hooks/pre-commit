@@ -1,0 +1,19 @@
+#!/bin/sh
+# Garde anti-fuite de secrets : gitleaks sur le contenu STAGÉ, avant chaque commit.
+# Source versionnée : scripts/git-hooks/pre-commit — installé dans .git/hooks/ par
+# scripts/fetch_security_tools.py (l'historique a déjà été réécrit une fois le
+# 2026-07-23 pour purger des secrets ; ce hook empêche la récidive AVANT le commit,
+# le scénario nocturne common.consistency.secrets couvre l'historique complet).
+# Si le binaire manque (machine non provisionnée), on laisse passer : ne JAMAIS
+# bloquer un commit sur de l'outillage absent.
+
+root=$(git rev-parse --show-toplevel) || exit 0
+
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*|Windows*) bin="$root/tools/security/bin/gitleaks.exe" ;;
+    *)                             bin="$root/tools/security/bin/gitleaks" ;;
+esac
+
+[ -x "$bin" ] || exit 0
+
+exec "$bin" git --pre-commit --staged --redact --no-banner "$root"

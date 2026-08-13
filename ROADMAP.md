@@ -1730,6 +1730,47 @@ détectée », seuil nocturne `REDONDANCES_ASSUMEES = 0`** (toute trouvaille = n
 doc→code, 217 références), `manifest_roundtrip` (fidélité + round-trip ports), `manifest_export
 --check` (corpus), `projection.studio_redundancy` (redondance APP_CATALOG⟷GENERIC_APPS).
 
+### 16.10 Contrôles de SÉCURITÉ dans la nocturne — évaluation Aikido (2026-08-13)
+
+**Contexte.** Fabien a soumis Aikido Security (plateforme SaaS belge : SCA/CVE, licences, secrets,
+SAST, firewall runtime « Zen », gratuite pour l'open source — le repo est public donc éligible).
+**Décision : équivalents LOCAUX d'abord**, dans le mécanisme de contrôle existant (scénarios
+`consistency` de la nocturne), parce que (a) l'audit licences est déjà couvert EN MIEUX par
+`license_audit` (Aikido ne voit pas les licences de poids de modèles), (b) les secrets sont déjà
+purgés (historique réécrit 2026-07-23) — le besoin est la garde anti-récidive, pas le scan,
+(c) un dashboard SaaS non relié à la nocturne serait un tableau de plus qui cesse d'être lu,
+(d) « suggérer l'upgrade » est inapplicable sur la pile ML épinglée+patchée (`patches/`).
+
+**✅ LIVRÉ (2026-08-13)** — deux commandes + leurs scénarios nocturnes, style cliquet :
+- `manage.py check_dep_vulns` (`common.consistency.dep_vulns`) : CVE des paquets INSTALLÉS du
+  venv courant via l'API OSV.dev (même base que pip-audit/Dependabot/Aikido), zéro dépendance
+  nouvelle. Contrat = baseline versionnée `tools/security/osv_baseline.json` (une section par
+  venv ; triage initial : 344 ids/venv_win, 354/venv_linux — surtout la pile ML) ; toute
+  vulnérabilité nouvelle = rouge ; régénération = acte conscient (relire le diff git).
+- `manage.py check_secret_leaks` (`common.consistency.secrets`) : gitleaks 8.30.1 (binaire
+  provisionné par `scripts/fetch_security_tools.py`, git-ignoré) sur l'historique COMPLET
+  (1034 commits ≈ 3 s, 0 fuite — réécriture du 23/07 confirmée empiriquement) + vérifie que le
+  hook `scripts/git-hooks/pre-commit` (gitleaks sur le stagé) est installé et non dérivé :
+  hook mort = ROUGE. Codes 3 = outillage/réseau absent → SKIP nocturne, pas un faux rouge.
+
+**Dette actionnable relevée au triage initial (hors pile ML, upgrades patch-level possibles)** :
+Django 5.2.6/5.2.8 (52-60 avis — patch release à passer au prochain palier de maintenance),
+pillow 11.3.0 (36), aiohttp (48), cryptography, pyjwt, python-multipart, urllib3 1.26.20
+(venv_win). À traiter par un palier d'upgrade AVEC smoke, jamais au fil de l'eau.
+
+**⏳ Consigné, non ouvert (dans l'ordre de valeur)** :
+1. **SAST local** (Opengrep, le fork open source de Semgrep qu'Aikido co-maintient — règles
+   `p/django`) en 3ᵉ scénario `consistency`. À n'ouvrir QU'AVEC son triage initial (des dizaines
+   de findings attendus sur 10 apps) — un scénario rouge en permanence devient aveugle.
+2. **Aikido en second regard** : compte gratuit en lecture sur le repo public, si l'on veut le
+   dashboard/auto-triage en plus de la nocturne. Compatible avec 1, pas un remplacement.
+3. **Zen (firewall runtime Django)** : UNIQUEMENT au palier de déploiement exposé (§11), avec
+   smoke gunicorn+Celery et question gouvernance RGPD (télémétrie vers le cloud Aikido) posée
+   au labo. Prématuré tant que WAMA n'est pas servi hors du poste.
+4. **Réputation de paquet à l'ingest `library`** (esprit Safe Chain) : interroger OSV.dev au
+   moment d'ingérer un manifeste `library` (LibreTranslate…) — s'ajoutera au pipeline
+   d'ingest des manifestes, pas comme wrapper de pip.
+
 ---
 
 ## 17. Capacité détection open-vocabulary — brique commune + LocateAnything (ouvert 2026-07-27)

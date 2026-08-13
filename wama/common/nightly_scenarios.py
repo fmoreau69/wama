@@ -5,7 +5,8 @@ pas de cron concurrent). CPU pur, aucun média, aucun GPU.
 
 Ce module n'implémente AUCUN contrôle : il joue les commandes existantes (check_docs,
 check_app_conformity, manifest_export --check, manifest_roundtrip, doc_facts --check,
-check_redundancy) et traduit leur verdict en (ok, detail). Les seuils de tolérance sont
+check_redundancy, check_dep_vulns, check_secret_leaks) et traduit leur verdict en
+(ok, detail). Les seuils de tolérance sont
 les CONTRATS DOCUMENTÉS du projet, pas des choix locaux :
   - check_docs : 2 CASSÉ assumés (cibles à créer, REPRISE §3a) — une 3ᵉ = dérive ;
   - check_redundancy : 5 trouvailles = dette du port anonymizer (ROADMAP §16.9 ②) —
@@ -15,7 +16,7 @@ les CONTRATS DOCUMENTÉS du projet, pas des choix locaux :
 import re
 from io import StringIO
 
-from wama.common.services.nightly_tests import register
+from wama.common.services.nightly_tests import SkipScenario, register
 
 # Références EN AVANT assumées : des fichiers que la doc annonce et qui restent à créer.
 # 3 → 2 le 2026-08-10 : `_settings_modal.html` est sorti de la liste, la modale ayant été
@@ -94,6 +95,24 @@ def _run_redundancy(ctx):
     return n <= REDONDANCES_ASSUMEES, f"{n} trouvaille(s) (contrat : ≤{REDONDANCES_ASSUMEES})"
 
 
+def _run_dep_vulns(ctx):
+    # Les deux commandes sécurité utilisent le code 3 = « dépendance d'outillage/réseau
+    # absente » → SKIP (ni succès ni échec), jamais un rouge trompeur.
+    code, out = _capture('check_dep_vulns')
+    derniere = (out.strip().splitlines() or ["?"])[-1]
+    if code == 3:
+        raise SkipScenario(derniere)
+    return code == 0, derniere
+
+
+def _run_secret_leaks(ctx):
+    code, out = _capture('check_secret_leaks')
+    derniere = (out.strip().splitlines() or ["?"])[-1]
+    if code == 3:
+        raise SkipScenario(derniere)
+    return code == 0, derniere
+
+
 def register_scenarios():
     # check_docs parcourt l'arborescence : minutes depuis WSL2 (/mnt/d), secondes depuis
     # Windows — d'où le timeout large. Les autres tiennent en secondes.
@@ -115,3 +134,9 @@ def register_scenarios():
     register(id='common.consistency.redundancy', app='common', stage='consistency',
              description='Recopies locales d\'un domicile unique (contrat : ≤5, dette anonymizer)',
              run=_run_redundancy, timeout_s=300)
+    register(id='common.consistency.dep_vulns', app='common', stage='consistency',
+             description='CVE des paquets installés vs baseline versionnée (OSV.dev — contrat : 0 nouvelle)',
+             run=_run_dep_vulns, timeout_s=300)
+    register(id='common.consistency.secrets', app='common', stage='consistency',
+             description='Fuites de secrets : historique git complet + hook pre-commit (gitleaks)',
+             run=_run_secret_leaks, timeout_s=300)

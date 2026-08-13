@@ -121,3 +121,6 @@ recommendations.toml
 # Sauvegardes de base (management command backup_db)
 backups/
 *.dump
+
+# Binaires des outils de sécurité (provisionnés par scripts/fetch_security_tools.py)
+tools/security/bin/

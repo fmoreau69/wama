@@ -366,6 +366,15 @@ Doc : [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md).
   `register_scenarios()` dans `apps.py::ready()`.
 - ✅ **Infra** : tâche Celery `common.run_nightly_tests` (queue gpu) + beat **gated** (03:00 si
   `NIGHTLY_TESTS_ENABLED=1`, sinon pas d'auto-run).
+- ✅ **Contrôles SÉCURITÉ (2026-08-13, suite à l'évaluation Aikido → équivalents locaux d'abord,
+  ROADMAP §16.10)** : 2 scénarios `consistency` de plus — `common.consistency.dep_vulns`
+  (`check_dep_vulns` : CVE des paquets INSTALLÉS via l'API OSV.dev, contrat-cliquet = baseline
+  versionnée `tools/security/osv_baseline.json`, une section par venv) + `common.consistency.secrets`
+  (`check_secret_leaks` : gitleaks sur l'historique complet — 1034 commits, 0 fuite, réécriture du
+  23/07 confirmée — + hook pre-commit anti-récidive vérifié, hook mort = ROUGE). Provisioning
+  binaire+hook : `python scripts/fetch_security_tools.py`. Code sortie 3 = outillage/réseau absent
+  → SKIP, pas de faux rouge. Validé : stage `consistency` complet joué, les 2 nouveaux verts
+  (les 2 rouges du run — redundancy ×8, manifest_corpus ×3 — sont PRÉEXISTANTS, autre périmètre).
 - ⏳ **À compléter** : scénarios autres apps (imager/synthesizer/anonymizer) ; vrais `output` sur
   fixtures (assertions + nettoyage IDs) ; timeout dur (Celery soft_time_limit) ; page de résultats ;
   activer le beat après validation WSL.
