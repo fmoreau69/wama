@@ -627,8 +627,11 @@ outillé avant d'ouvrir cette marche.
   sont PAS des tâches d'item sans gardes — c'est une autre ESPÈCE (enrichissement à la
   demande : ni statut ni progress, contrat `{'ok':…}`). Les forcer dans `run_item_task`
   corromprait l'état (FAILURE sur un item déjà SUCCESS). Hors contrat volontaire, documenté
-  dans la brique. La vraie dette gardes restante = tâches de traitement de l'anonymizer
-  (`detect_with_model`/`merge_and_blur`), à porter avec son chantier.
+  dans la brique. ~~La vraie dette gardes restante = tâches de traitement de l'anonymizer~~
+  → **SOLDÉE le 2026-08-13** : ces deux tâches n'existent plus. Le second pipeline
+  multi-modèles (chaîne Celery + transport Redis des masques) a été supprimé, `Anonymize`
+  porte N modèles dans la tâche unique — qui, elle, a déjà les gardes. L'anonymizer n'a plus
+  qu'un seul chemin d'exécution.
 - **Le harnais a attrapé un écart RÉEL au passage** (reader NON CONFORME au 1er run) : les
   descriptions tool_api rendaient le défaut de schéma par `%r` — `ReadingItem.Backend.AUTO`
   (params main `derive_from_model`) vs `'auto'` (params régénéré littéral), deux surfaces
