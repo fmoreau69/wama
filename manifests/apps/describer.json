@@ -11,7 +11,7 @@
       "accepts_url": true,
       "anti_race": true,
       "batch_type": "media_list",
-      "during_preview": false,
+      "during_preview": true,
       "has_batch": true,
       "has_url_import": true,
       "has_youtube": true,
@@ -90,7 +90,7 @@
         "PARAMS_JSON": [
           {
             "advanced": false,
-            "chip": false,
+            "chip": true,
             "chip_label": "",
             "choices": [
               [
@@ -149,7 +149,7 @@
           },
           {
             "advanced": false,
-            "chip": false,
+            "chip": true,
             "chip_label": "",
             "choices": [
               [
@@ -200,7 +200,7 @@
           },
           {
             "advanced": false,
-            "chip": false,
+            "chip": true,
             "chip_label": "",
             "choices": null,
             "contexts": [

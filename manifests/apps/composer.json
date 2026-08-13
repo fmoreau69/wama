@@ -58,7 +58,7 @@
         "PARAMS_JSON": [
           {
             "advanced": false,
-            "chip": false,
+            "chip": true,
             "chip_label": "",
             "choices": null,
             "contexts": [
@@ -130,7 +130,7 @@
           },
           {
             "advanced": false,
-            "chip": false,
+            "chip": true,
             "chip_label": "",
             "choices": null,
             "contexts": [

@@ -101,7 +101,7 @@
         "PARAMS_JSON": [
           {
             "advanced": false,
-            "chip": false,
+            "chip": true,
             "chip_label": "",
             "choices": [
               [
@@ -169,7 +169,7 @@
           },
           {
             "advanced": false,
-            "chip": false,
+            "chip": true,
             "chip_label": "",
             "choices": [
               [
@@ -269,7 +269,7 @@
           },
           {
             "advanced": false,
-            "chip": false,
+            "chip": true,
             "chip_label": "",
             "choices": [
               [

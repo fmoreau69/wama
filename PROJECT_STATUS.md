@@ -2642,6 +2642,26 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > à chaque tick. Corrigé par dédup de signature (url/mime/len(peaks)/len(content)) — onde
 > et texte « qui se construisent » re-rendent toujours, le lecteur média persiste.
 > Node+py OK, static dupliqué. ⚠ même restart que ci-dessus pour l'ensemble.
+>
+> **CLÔTURE DE SESSION (13/08 soir, /cloture — skill CRÉÉ ce jour, miroir de /reprise).**
+> Corpus régénéré après les capacités during + chips (5 manifestes d'apps réécrits, total
+> 110). Artefacts de session TRACÉS : compte smoke `ui_smoke_v3` + jobs converter 58/59
+> (batch #27) = fixture réutilisable pour les passes navigateur, JETABLE ; script
+> `logs/ui_smoke/smoke_converter_v3.py` (hors git, logs/) = gabarit des passes par app ;
+> sorties banc codegen dans `wama-dev-ai/outputs/` (gitignorées, verdict consigné
+> config.py) ; maquette « WAMA — Card v3.5 » infetchable par WebFetch (4 échecs) — exporter
+> le HTML dans `claude/` si besoin de fidélité pixel.
+> **🔚 POINT D'ENTRÉE SESSION SUIVANTE : terminer le portage** — ① during ×6 (reader/
+> synthesizer/imager/enhancer/anonymizer/avatarizer : émissions à poser dans les boucles
+> backend — GPU, avec Fabien, un test réel par app) ; ② paquet synthesizer (F4 :
+> BaseModelBackend/packages/hf_cache + F6 prompts) ; ③ finitions composer 91/describer 90/
+> reader 90 ; ④ phase R = régénérabilité ×7 (A2/A3a/A4 + app_regen_check en worktree,
+> recette converter/reader/transcriber). PENDINGS SYSTÈME : ⚠ restart workers/gunicorn
+> (émissions during + app_registry + wama-inspector.js) ; push = demander (commits locaux
+> post-push de 15h). **Contrôles attendus au prochain /reprise** : check_docs 2 CASSÉ,
+> corpus 110 à jour (⚠ vérifier DEPUIS WSL2), roundtrip 10/10 (converter 9/10 proj.),
+> grille : converter 100, transcriber 97, avat/enh/imager 94, anonymizer 93, composer 91,
+> describer/reader 90, synthesizer 87.
 
 ## §REPRISE — 2026-08-11→12 (3ᵉ-4ᵉ sessions, marches C + A COMPLÈTES A1→A5) : harnais + gabarits + triades + composition
 
