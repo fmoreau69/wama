@@ -1,26 +1,21 @@
 {% comment %}
-Card d'une génération Imager — partial serveur UNIQUE (image ET vidéo) :
-rendu par la boucle de file de index.html ET par l'endpoint card_html (refreshCard de queue.js).
+Card d'une génération Imager (image ET vidéo) — CARD v3 « sections × chips » (CARD_DESIGN
+§11, portée le 2026-08-13 ; remplace la card en 3 lignes). Partial serveur UNIQUE : rendu
+par la boucle de file ET par card_html (refreshCard de queue.js).
 Contexte : gen (décoré par _decorate_card → gen.chips), domain ('image'|'video').
+App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
 
-Contrats JS :
-  .imager-card[data-id][data-status][data-domain] — racine (polling queue.js, cycle autoSync)
-  .settings-btn / .video-settings-btn [data-id]   — modale ⚙ générée (settings_modal.js, par domaine)
-  .wama-cycle-btn                                 — ▶/⏹/↻ (brique _cycle_button, wire queue.js :
-                                                    start/restart → endpoints existants, stop → force_reset)
-  .download-btn / .video-download-btn [data-id]   — handlers délégués d'index.js
-  .duplicate-btn[data-duplicate-url]              — brique GLOBALE queue-actions.js (ne pas re-binder)
-  .delete-btn / .video-delete-btn [data-id]       — handlers délégués d'index.js
-  .wama-eta                                       — rempli par wama-eta.js (brique auto-initialisée)
+⚠ Contrats JS : .imager-card[data-id][data-status][data-domain] + TOUTES les data-* du
+  schéma sur la racine (WamaInspector.cardSettings — sans elles le volet est INERTE) ;
+  .settings-btn / .video-settings-btn [data-id] ; .wama-cycle-btn ;
+  .download-btn / .video-download-btn [data-id] ; .duplicate-btn[data-duplicate-url] ;
+  .delete-btn / .video-delete-btn [data-id] ; .wama-eta ; .wama-progress-fill ;
+  openImagePreview/openVideoPreview (aperçus).
 {% endcomment %}
-<div class="imager-card synthesis-card wama-card {% if gen.status == 'RUNNING' %}processing{% elif gen.status == 'SUCCESS' %}success{% elif gen.status == 'FAILURE' %}error{% endif %}"
+<div class="imager-card synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if gen.status == 'RUNNING' %}processing{% elif gen.status == 'SUCCESS' %}success{% elif gen.status == 'FAILURE' %}error{% endif %}"
      data-id="{{ gen.id }}"
      data-status="{{ gen.status }}"
      data-domain="{{ domain }}"
-     {% comment %}Valeurs des paramètres du SCHÉMA, lues par WamaInspector.cardSettings à la
-     sélection (il cherche `data-<name>` ou sa forme camelCase sur la racine ou le bouton ⚙).
-     Sans elles l'inspecteur serait présent mais INERTE : sélectionner une card ne remplirait
-     pas le volet. Les noms suivent params.py — un champ ajouté au schéma s'ajoute ici.{% endcomment %}
      data-model="{{ gen.model }}"
      data-steps="{{ gen.steps }}"
      data-guidance-scale="{{ gen.guidance_scale }}"
@@ -32,96 +27,136 @@ Contrats JS :
      data-video-resolution="{{ gen.video_resolution }}"
      data-video-duration="{{ gen.video_duration }}"
      data-video-fps="{{ gen.video_fps }}">
-    <div>
+<div class="card-body py-2">
 
-        {% comment %} Ligne 1 : identité + actions (ordre canonique ⚙ ▶ ⬇ ⧉ 🗑) {% endcomment %}
-        <div class="d-flex justify-content-between align-items-center mb-1">
-            <span class="d-flex align-items-center gap-2 overflow-hidden">
-                {% if domain == 'video' %}
-                    <i class="fas fa-film text-warning flex-shrink-0"></i>
-                {% else %}
-                    <i class="fas fa-image text-info flex-shrink-0"></i>
-                {% endif %}
-                <span class="fw-semibold text-light text-truncate" style="max-width:320px;"
-                      title="{{ gen.prompt }}">#{{ gen.id }} — {{ gen.prompt|truncatechars:80|default:'(sans prompt)' }}</span>
-            </span>
+  <div class="wcv3-head">#{{ gen.id }}<span class="sep">·</span>{{ gen.created_at|date:"d/m H:i" }}</div>
 
-            <div class="btn-group-actions d-flex gap-1 flex-shrink-0 ms-2">
-                <button type="button"
-                        class="btn btn-outline-secondary btn-sm {% if domain == 'video' %}video-settings-btn{% else %}settings-btn{% endif %}"
-                        data-id="{{ gen.id }}" title="Configurer les paramètres">
-                    <i class="fas fa-cog"></i>
-                </button>
-                {% include 'common/_cycle_button.html' with id=gen.id status=gen.status %}
-                <button type="button"
-                        class="btn btn-outline-info btn-sm {% if domain == 'video' %}video-download-btn{% else %}download-btn{% endif %} {% if gen.status != 'SUCCESS' %}disabled{% endif %}"
-                        {% if gen.status != 'SUCCESS' %}disabled aria-disabled="true" tabindex="-1"{% endif %}
-                        data-id="{{ gen.id }}" title="Télécharger le résultat">
-                    <i class="fas fa-download"></i>
-                </button>
-                <button type="button" class="btn btn-outline-warning btn-sm duplicate-btn"
-                        data-duplicate-url="{% url 'imager:duplicate' gen.id %}"
-                        title="Dupliquer (tester d'autres paramètres)">
-                    <i class="fas fa-copy"></i>
-                </button>
-                <button type="button"
-                        class="btn btn-outline-danger btn-sm {% if domain == 'video' %}video-delete-btn{% else %}delete-btn{% endif %}"
-                        data-id="{{ gen.id }}" title="Supprimer la génération">
-                    <i class="fas fa-trash-alt"></i>
-                </button>
-            </div>
+  <div class="wcv3">
+
+    {# ── ENTRÉE : type + PROMPT (source de l'app) ──────────────────────────────────── #}
+    <div class="wcv3-sec wcv3-sec--input">
+      <span class="wcv3-lbl">Entrée</span>
+      <div class="wcv3-in">
+        <span class="wcv3-thumb">
+          {% if domain == 'video' %}<i class="fas fa-film text-warning"></i>{% else %}<i class="fas fa-image text-info"></i>{% endif %}
+        </span>
+        <div class="wcv3-in-lines">
+          <span class="wcv3-in-name" title="{{ gen.prompt }}">{{ gen.prompt|truncatechars:80|default:'(sans prompt)' }}</span>
+          <span class="wcv3-in-props"><i class="fas fa-robot"></i> {{ gen.model|default:'auto' }}</span>
         </div>
-
-        {% comment %} Ligne 2 : méta + chips générées du SCHÉMA (params.py, chip=True) {% endcomment %}
-        <div class="d-flex flex-wrap align-items-center gap-1" style="font-size:0.78rem;">
-            <span class="text-muted"><i class="fas fa-robot"></i> {{ gen.model|default:'auto' }}</span>
-            {% if domain == 'video' %}
-                <span class="text-muted">{{ gen.video_resolution }} · {{ gen.video_duration }}s @ {{ gen.video_fps }} fps</span>
-            {% else %}
-                <span class="text-muted">{{ gen.width }}×{{ gen.height }}</span>
-            {% endif %}
-            {% include 'common/_card_chips.html' with chips=gen.chips.settings %}
-            {% include 'common/_card_chips.html' with chips=gen.chips.output %}
-        </div>
-
-        {% comment %} Ligne 3 : état (badge + % + temps) — la barre vit seule en bas (design v3) {% endcomment %}
-        {% comment %} La brique rend déjà le badge, le %, l'ETA (span.wama-eta) et la durée :
-        ne PAS ajouter de span ETA ici (doublon → deux horloges, constat visuel 06/08). {% endcomment %}
-        {% include 'common/_card_progress.html' with status=gen.status progress=gen.progress elapsed=gen.duration_display no_bar=True %}
-
-        {% if gen.status == 'FAILURE' and gen.error_message %}
-        <small class="text-danger d-block mt-1 text-truncate" title="{{ gen.error_message }}">{{ gen.error_message|truncatechars:160 }}</small>
-        {% endif %}
-
-        {% comment %} Résultat : grille d'images | player vidéo (aperçu commun media-preview) {% endcomment %}
-        {% if gen.status == 'SUCCESS' %}
-            {% if domain == 'video' and gen.output_video %}
-            <div class="video-preview-container position-relative rounded overflow-hidden mt-2"
-                 style="cursor:pointer; max-width:400px;"
-                 onclick="openVideoPreview('{{ gen.output_video.url }}', 'Vidéo #{{ gen.id }}')">
-                <video class="w-100 rounded" style="max-height:200px; pointer-events:none;" preload="metadata">
-                    <source src="{{ gen.output_video.url }}" type="video/mp4">
-                </video>
-                <div class="position-absolute top-50 start-50 translate-middle">
-                    <div class="btn btn-light rounded-circle shadow d-flex align-items-center justify-content-center"
-                         style="width:48px; height:48px;">
-                        <i class="fas fa-play text-dark" style="margin-left:3px;"></i>
-                    </div>
-                </div>
-            </div>
-            {% elif domain != 'video' and gen.output_images %}
-            <div class="d-flex flex-wrap gap-2 image-preview-row mt-2">
-                {% for img_url in gen.output_images %}
-                <img src="{{ img_url }}" alt="Image #{{ gen.id }}-{{ forloop.counter }}"
-                     class="img-thumbnail bg-dark border-secondary generated-image-preview"
-                     style="flex:0 0 calc(25% - 6px); max-width:calc(25% - 6px); min-width:100px; max-height:150px; object-fit:cover; cursor:pointer;"
-                     onclick="openImagePreview('{{ img_url }}', 'Image #{{ gen.id }}-{{ forloop.counter }}')">
-                {% endfor %}
-            </div>
-            {% endif %}
-        {% endif %}
-
-        {% include 'common/_card_progress.html' with status=gen.status progress=gen.progress bar_only=True %}
-
+      </div>
     </div>
+
+    {# ── RÉGLAGES : chips GÉNÉRÉS (params.py chip=True) ────────────────────────────── #}
+    <div class="wcv3-sec wcv3-sec--settings">
+      <span class="wcv3-lbl">Réglages</span>
+      <div class="wcv3-out">
+        {% include 'common/_card_chips.html' with chips=gen.chips.settings %}
+      </div>
+    </div>
+
+    {# ── SORTIE : chips 'output' + dimensions → étape live ; l'erreur la remplace ──── #}
+    <div class="wcv3-sec wcv3-sec--output">
+      <span class="wcv3-lbl">Sortie</span>
+      {% if gen.status == 'FAILURE' and gen.error_message %}
+        <span class="wcv3-out-error" title="{{ gen.error_message|escape }}">
+          <i class="fas fa-triangle-exclamation"></i> {{ gen.error_message|truncatechars:120|escape }}
+        </span>
+      {% else %}
+        <div class="wcv3-out">
+          {% include 'common/_card_chips.html' with chips=gen.chips.output %}
+          {% if gen.status == 'RUNNING' %}
+            <span class="wcv3-out-step"><span class="pct progress-text">{{ gen.progress }}%</span> — génération…</span>
+          {% else %}
+            <span class="wcv3-out-step">
+              {% if domain == 'video' %}{{ gen.video_resolution }} · {{ gen.video_duration }}s @ {{ gen.video_fps }} fps{% else %}{{ gen.width }}×{{ gen.height }}{% endif %}
+            </span>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+
+    {# ── ÉTAT : point + libellé + ETA/durée ────────────────────────────────────────── #}
+    <div class="wcv3-sec wcv3-sec--state">
+      <span class="wcv3-lbl">État</span>
+      <div class="wcv3-state">
+        <span class="wcv3-state-line">
+          <span class="wama-status-dot" data-s="{{ gen.status }}"></span>
+          <span>{% if gen.status == 'PENDING' %}En attente{% elif gen.status == 'RUNNING' %}En cours{% elif gen.status == 'SUCCESS' %}Terminé{% elif gen.status == 'FAILURE' %}Échec{% else %}{{ gen.status }}{% endif %}</span>
+        </span>
+        {% if gen.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ gen.id }}"></span>{% endif %}
+        {% if gen.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=gen.duration_display %}{% endif %}
+      </div>
+    </div>
+
+    {# ── ACTIONS : ordre canonique ⚙ ▶ ⬇ ⧉ 🗑 (classes par domaine — contrats index.js) #}
+    <div class="wcv3-sec wcv3-sec--actions">
+      <span class="wcv3-lbl">Actions</span>
+      <div class="btn-group-actions wcv3-actions">
+        <button type="button"
+                class="btn btn-sm btn-outline-secondary {% if domain == 'video' %}video-settings-btn{% else %}settings-btn{% endif %}"
+                data-id="{{ gen.id }}" title="Configurer les paramètres">
+          <i class="fas fa-cog"></i>
+        </button>
+        {% include 'common/_cycle_button.html' with id=gen.id status=gen.status %}
+        <button type="button"
+                class="btn btn-sm btn-outline-info {% if domain == 'video' %}video-download-btn{% else %}download-btn{% endif %} {% if gen.status != 'SUCCESS' %}disabled{% endif %}"
+                {% if gen.status != 'SUCCESS' %}disabled aria-disabled="true" tabindex="-1"{% endif %}
+                data-id="{{ gen.id }}" title="Télécharger le résultat">
+          <i class="fas fa-download"></i>
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-warning duplicate-btn"
+                data-duplicate-url="{% url 'imager:duplicate' gen.id %}"
+                title="Dupliquer (tester d'autres paramètres)">
+          <i class="fas fa-copy"></i>
+        </button>
+        <button type="button"
+                class="btn btn-sm btn-outline-danger {% if domain == 'video' %}video-delete-btn{% else %}delete-btn{% endif %}"
+                data-id="{{ gen.id }}" title="Supprimer la génération">
+          <i class="fas fa-trash-alt"></i>
+        </button>
+      </div>
+    </div>
+
+    {% comment %}Barre pleine largeur — ligne 2 de la grille (§11), FIGÉE au % en échec.{% endcomment %}
+    {% if gen.status != 'PENDING' %}
+    <div class="wcv3-bar" style="grid-column:1/-1;">
+      <div class="wama-progress-track">
+        <div class="wama-progress-fill{% if gen.status == 'RUNNING' %} active{% elif gen.status == 'FAILURE' %} is-frozen{% endif %}"
+             style="width:{% if gen.status == 'SUCCESS' %}100{% else %}{{ gen.progress }}{% endif %}%"></div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>{# /.wcv3 #}
+
+  {% comment %}Preview PERMANENTE (§11) — grille d'images | player vidéo (aperçus communs).{% endcomment %}
+  {% if gen.status == 'SUCCESS' %}
+    {% if domain == 'video' and gen.output_video %}
+    <div class="wcv3-preview video-preview-container position-relative rounded overflow-hidden"
+         style="cursor:pointer; max-width:400px;"
+         onclick="openVideoPreview('{{ gen.output_video.url }}', 'Vidéo #{{ gen.id }}')">
+      <video class="w-100 rounded" style="max-height:200px; pointer-events:none;" preload="metadata">
+        <source src="{{ gen.output_video.url }}" type="video/mp4">
+      </video>
+      <div class="position-absolute top-50 start-50 translate-middle">
+        <div class="btn btn-light rounded-circle shadow d-flex align-items-center justify-content-center"
+             style="width:48px; height:48px;">
+          <i class="fas fa-play text-dark" style="margin-left:3px;"></i>
+        </div>
+      </div>
+    </div>
+    {% elif domain != 'video' and gen.output_images %}
+    <div class="wcv3-preview d-flex flex-wrap gap-2 image-preview-row">
+      {% for img_url in gen.output_images %}
+      <img src="{{ img_url }}" alt="Image #{{ gen.id }}-{{ forloop.counter }}"
+           class="img-thumbnail bg-dark border-secondary generated-image-preview"
+           style="flex:0 0 calc(25% - 6px); max-width:calc(25% - 6px); min-width:100px; max-height:150px; object-fit:cover; cursor:pointer;"
+           onclick="openImagePreview('{{ img_url }}', 'Image #{{ gen.id }}-{{ forloop.counter }}')">
+      {% endfor %}
+    </div>
+    {% endif %}
+  {% endif %}
+
+</div>
 </div>
