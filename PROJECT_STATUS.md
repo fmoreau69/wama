@@ -2497,16 +2497,27 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > adoptées (fabrique + vues consolidate). Smoke shell : 3 orphelins → 3 of-1 ; import groupé
 > 2v+1i → batchs 2+1.
 >
+> **SUITE (14/08) : GPU anonymizer VALIDÉ par Fabien (cf. ✅ du bloc « inventaire de clôture »,
+> modèle plaques jugé INSUFFISANT → prospection à ouvrir) + critère `modes` en ABSENCE DÉCLARÉE.**
+> Les 3 rouges `modes` (composer/reader/describer) étaient les apps SANS divergence de
+> comportement — un mode factice serait de la taxonomie (doctrine README §Modes, décision déjà
+> écrite dans composer/index.html:31). Même pattern que PROMPT_TARGETS vide : entrée
+> `{'domains': []}` = absence DÉCLARÉE → N/A (clé absente = toujours rouge). Corpus régénéré
+> (4 manifestes : les 3 apps + anonymizer qui embarque les optgroups de la modale), doc_facts OK.
+>
 > **🔚 POINT D'ENTRÉE SESSION SUIVANTE** — ① during ×6 (GPU, avec Fabien) ;
-> ② ~~paquet synthesizer~~ **FAIT** ; ③ finitions **en cours** (composer 93 — restent
-> url_ingest/user_settings/modes/model_caps/params_modal_batch ; describer 90 ; reader 90) ;
-> ④ phase R régénérabilité ×7. PENDINGS : ⚠ **restart du service TTS par Fabien** (uvicorn:8001
-> tourne encore avec l'ancien code ; le préchargement Kokoro touche le GPU → jamais par
+> ② ~~paquet synthesizer~~ **FAIT** ; ③ finitions **en cours** — restes APP-LOCAUX :
+> composer `url_ingest` (mélodie par URL = ajout de champ+migration, à cadrer) +
+> `user_settings` ; reader `user_settings` + `media_library_slot` + `model_help` ;
+> describer `model_help` + `backend_packages` + `toast` (alert résiduel index.js:896) ;
+> les autres rouges sont les chantiers transverses (during ×6, input_match/model_caps,
+> params_modal_batch) ; ④ phase R régénérabilité ×7. PENDINGS : ⚠ **restart du service TTS par
+> Fabien** (uvicorn:8001 tourne encore avec l'ancien code ; préchargement = GPU → jamais par
 > l'assistant) ; ⚠ **restart/HUP gunicorn** pour les fixes du 14/08 (modale anonymizer,
-> regroupement, duplication composer — views/params/filemanager) ; push = demander.
+> regroupement par arrivée, duplication composer) ; push = demander.
 > **Contrôles attendus au prochain `/reprise`** : check_docs 2 CASSÉ · doc_facts 4 à jour ·
 > corpus 110 (depuis WSL2) · grille : converter 100, transcriber 97, **synthesizer 95**,
-> avat/enh/imager 94, anonymizer/**composer 93**, describer/reader 90.
+> avat/enh/imager/**composer 94**, anonymizer 93, **describer/reader 91**.
 
 ## §REPRISE — 2026-08-13 (nuit) : BANC CODEGEN JOUÉ (marche B front 2) + skills à jour
 
@@ -3323,10 +3334,14 @@ publié — c'est le premier rendu qui a livré le faux 100, pas une dérive ult
 ---
 
 > **🔚 POINT D'ENTRÉE SESSION SUIVANTE (bloc « inventaire de clôture » — instance ressources/modèles)**
-> **→ Valider sur GPU une VRAIE vidéo par le pipeline anonymizer multi-modèles** (visages + plaques,
-> tâche unique, N modèles résidents, union des zones par frame). C'est la SEULE validation qui
-> manque à un chantier livré et vérifié partout ailleurs sur CPU. ⚠ **À lancer par Fabien, jamais
-> par l'assistant** (règle GPU/WSL2). Tout le reste ci-dessous est du backlog, pas un blocage.
+> **→ ✅ FAIT 14/08 (Fabien, SEQ08-01.mp4)** : pipeline anonymizer multi-modèles **VALIDÉ sur GPU,
+> vraie vidéo** — visages + plaques floutés, tâche unique, union des zones. Le chantier est CLOS.
+> **Constat qualité ouvert par cette validation** : le modèle VISAGES est le meilleur éprouvé ;
+> le modèle PLAQUES est **INSUFFISANT** — une plaque très lisible n'est pas détectée sur les
+> premières images (lisible sur de nombreuses frames ; l'interpolation ne comble que les trous
+> ENTRE détections, pas l'amont). → prospection d'un meilleur détecteur de plaques (chantier
+> catalogue/qualité, cf. file #4 ci-dessous — rejoint « 10 poids sans origine établie » : les
+> 8 `yolov8*_face_plate_*p.pt` en font partie). Tout le reste ci-dessous est du backlog.
 >
 > **File des chantiers ouverts** (ordre conseillé, bloquants marqués) :
 > 1. 🔴 **BLOQUANT pour l'auto-amélioration** — les données d'auto-confrontation (audio +
