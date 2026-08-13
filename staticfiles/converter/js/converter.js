@@ -255,13 +255,24 @@
     dropZone.addEventListener('drop', e => {
         e.preventDefault();
         dropZone.classList.remove('dragover');
-        handleFiles(e.dataTransfer.files);
+        // Dossiers déposés → traversée récursive par la brique commune (F2 recursive_import).
+        WamaFolderImport.collect(e.dataTransfer)
+            .then(list => handleFiles(WamaFolderImport.files(list)));
     });
 
     fileInput.addEventListener('change', () => {
         handleFiles(fileInput.files);
         fileInput.value = '';
     });
+
+    // Import de DOSSIER via le lien de la card commune (folder_input_id, webkitdirectory).
+    const folderInput = document.getElementById('converterFolderInput');
+    if (folderInput) {
+        folderInput.addEventListener('change', () => {
+            handleFiles(WamaFolderImport.files(WamaFolderImport.fromInput(folderInput.files)));
+            folderInput.value = '';
+        });
+    }
 
     // ── Batch import (fichier d'URLs/chemins) — composant commun ────────────────
     if (typeof WamaBatchImport === 'function') {

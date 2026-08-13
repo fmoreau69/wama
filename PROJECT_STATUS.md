@@ -373,8 +373,13 @@ Doc : [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md).
   (`check_secret_leaks` : gitleaks sur l'historique complet — 1034 commits, 0 fuite, réécriture du
   23/07 confirmée — + hook pre-commit anti-récidive vérifié, hook mort = ROUGE). Provisioning
   binaire+hook : `python scripts/fetch_security_tools.py`. Code sortie 3 = outillage/réseau absent
-  → SKIP, pas de faux rouge. Validé : stage `consistency` complet joué, les 2 nouveaux verts
-  (les 2 rouges du run — redundancy ×8, manifest_corpus ×3 — sont PRÉEXISTANTS, autre périmètre).
+  → SKIP, pas de faux rouge. Validé : stage `consistency` complet joué, les 2 nouveaux verts.
+  Les 2 rouges relevés au passage ont été SOLDÉS dans la foulée (même journée) : redundancy
+  8 → 0 (triage : 1 résorption réelle `_params`→`declared_param_schemas` dans param_schema,
+  anonymizer branché sur `normalize_types`, codeformer exclu comme vendored, 3 pragmas
+  raisonnés — ROADMAP §16.9 ②) ; manifest_corpus = les 3 faux « périmés » venv_win CONNUS
+  (§REPRISE 2026-08-13), leçon désormais CODÉE : le scénario skippe depuis Windows.
+  **Stage `consistency` : 8/8 OK depuis WSL2 (fait foi), 7/8 + 1 skip voulu depuis Windows.**
 - ⏳ **À compléter** : scénarios autres apps (imager/synthesizer/anonymizer) ; vrais `output` sur
   fixtures (assertions + nettoyage IDs) ; timeout dur (Celery soft_time_limit) ; page de résultats ;
   activer le beat après validation WSL.
@@ -2499,6 +2504,19 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > during_preview (vraies briques transverses) ; model_caps_ui + input_match_ui = vérifier
 > s'ils doivent être NON APPLICABLES sur une app sans moteur IA (corriger le CHECK avec
 > preuve, pas l'app — règle /conformite).
+>
+> **SUITE : brique `recursive_import` LIVRÉE (converter 93 → 95 %).** Existant vérifié
+> AVANT d'écrire (règle /brique) : la traversée récursive vivait déjà dans
+> `filemanager.js` (drop `webkitGetAsEntry` + batching `readEntries` + input
+> `webkitdirectory`) → **EXTRACTION, pas invention** : brique commune
+> `static/common/js/wama-folder-import.js` (`WamaFolderImport.collect/fromInput/files`,
+> montée GLOBALE base.html avant filemanager.js), filemanager 1er consommateur (traversée
+> locale SUPPRIMÉE — pas de double chemin), converter 2e (drop récursif + lien « importer
+> un dossier » via `folder_input_id=` de `_new_item_card.html` — paramètre optionnel,
+> adoption = 2 lignes de handler + 1 paramètre d'include). Critère mis à jour pour
+> reconnaître la brique (précédent crash_redelivery_guard). Syntaxe node OK ×3, statics
+> dupliqués. Adoption restante : 9 apps (2 lignes + 1 paramètre chacune). ⚠ validation
+> navigateur (drop d'un dossier réel) après restart/HUP gunicorn — templates cachés.
 
 ## §REPRISE — 2026-08-11→12 (3ᵉ-4ᵉ sessions, marches C + A COMPLÈTES A1→A5) : harnais + gabarits + triades + composition
 

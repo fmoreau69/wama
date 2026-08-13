@@ -275,6 +275,7 @@
     {% endif %}
     <!-- WAMA FileManager notify (API commune media:uploaded/processed/deleted) -->
     <script src="{% static_v 'common/js/wama-fm-notify.js' %}"></script>
+    <script src="{% static_v 'common/js/wama-folder-import.js' %}"></script>  {# WamaFolderImport global : import de dossier récursif (F2) — AVANT filemanager.js, son 1er consommateur #}
     <!-- FileManager JS -->
     <script src="{% static_v 'filemanager/js/filemanager.js' %}"></script>
     <!-- Unified media preview (modal + fullscreen — common à toutes les apps) -->

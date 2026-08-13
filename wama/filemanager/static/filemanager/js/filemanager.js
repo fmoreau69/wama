@@ -1542,32 +1542,19 @@
             dropzone.classList.remove('drag-over');
         });
 
-        // Handle drop - detect folders using webkitGetAsEntry
+        // Drop fichiers/dossiers : traversée récursive par la brique COMMUNE (extraite
+        // d'ici le 2026-08-13 — WamaFolderImport, chargée avant ce script dans base.html).
         dropzone.addEventListener('drop', async (e) => {
             e.preventDefault();
             dropzone.classList.remove('drag-over');
 
-            const items = e.dataTransfer.items;
-            if (items && items.length > 0) {
-                // Check if any item is a directory using webkitGetAsEntry
-                const entries = [];
-                for (let i = 0; i < items.length; i++) {
-                    const entry = items[i].webkitGetAsEntry?.();
-                    if (entry) {
-                        entries.push(entry);
-                    }
-                }
-
-                if (entries.length > 0) {
-                    // Process entries (files and folders)
-                    await handleEntriesUpload(entries);
-                } else {
-                    // Fallback to regular file upload
-                    handleFileUpload(e.dataTransfer.files);
-                }
-            } else {
-                handleFileUpload(e.dataTransfer.files);
+            showToast('Lecture des fichiers...', 'info');
+            const list = await WamaFolderImport.collect(e.dataTransfer);
+            if (!list.length) {
+                showToast('Aucun fichier trouvé', 'warning');
+                return;
             }
+            await uploadFilesWithPaths(list);
         });
 
         fileInput.addEventListener('change', (e) => {
@@ -1583,100 +1570,12 @@
     }
 
     /**
-     * Read all files from FileSystemEntry objects (supports folders)
-     */
-    async function handleEntriesUpload(entries) {
-        showToast('Lecture des fichiers...', 'info');
-        console.log('[FileManager] Processing', entries.length, 'entries');
-
-        const filesWithPaths = [];
-
-        // Process all entries in parallel
-        await Promise.all(entries.map(entry => readEntry(entry, '', filesWithPaths)));
-
-        console.log('[FileManager] Found', filesWithPaths.length, 'files');
-
-        if (filesWithPaths.length === 0) {
-            showToast('Aucun fichier trouvé', 'warning');
-            return;
-        }
-
-        await uploadFilesWithPaths(filesWithPaths);
-    }
-
-    /**
-     * Recursively read a FileSystemEntry (file or directory)
-     */
-    async function readEntry(entry, parentPath, filesWithPaths) {
-        try {
-            if (entry.isFile) {
-                // Get the File object
-                const file = await new Promise((resolve, reject) => {
-                    entry.file(resolve, reject);
-                });
-
-                const relativePath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
-                filesWithPaths.push({ file, relativePath });
-            } else if (entry.isDirectory) {
-                // Read directory contents
-                const dirPath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
-                const reader = entry.createReader();
-
-                // Read all entries in the directory (may need multiple reads)
-                const allEntries = await readAllDirectoryEntries(reader);
-
-                console.log('[FileManager] Directory', dirPath, 'contains', allEntries.length, 'items');
-
-                // Recursively process each entry in parallel
-                await Promise.all(allEntries.map(childEntry => readEntry(childEntry, dirPath, filesWithPaths)));
-            }
-        } catch (error) {
-            console.error('[FileManager] Error reading entry:', entry.name, error);
-        }
-    }
-
-    /**
-     * Read all entries from a directory reader (handles batched results)
-     */
-    async function readAllDirectoryEntries(reader) {
-        const allEntries = [];
-
-        // readEntries returns results in batches, keep reading until empty
-        const readBatch = () => {
-            return new Promise((resolve, reject) => {
-                reader.readEntries(resolve, reject);
-            });
-        };
-
-        let batch;
-        do {
-            try {
-                batch = await readBatch();
-                allEntries.push(...batch);
-            } catch (error) {
-                console.error('[FileManager] Error reading directory batch:', error);
-                break;
-            }
-        } while (batch && batch.length > 0);
-
-        return allEntries;
-    }
-
-    /**
-     * Handle files from folder input (uses webkitRelativePath)
+     * Handle files from folder input — la traversée vit dans la brique commune
+     * WamaFolderImport (extraite d'ici le 2026-08-13).
      */
     async function handleFolderFilesUpload(files) {
         if (!files.length) return;
-
-        const filesWithPaths = [];
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
-            // webkitRelativePath includes the folder name
-            const relativePath = file.webkitRelativePath || file.name;
-            filesWithPaths.push({ file, relativePath });
-        }
-
-        await uploadFilesWithPaths(filesWithPaths);
+        await uploadFilesWithPaths(WamaFolderImport.fromInput(files));
     }
 
     /**

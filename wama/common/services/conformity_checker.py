@@ -631,8 +631,10 @@ CRITERIA: list[Criterion] = [
               lambda f: _present(f, TEMPLATES + JS, r'wama-input-match|WamaInputMatch')),
     Criterion('filemanager_import', 'F2', 'Réception « Envoyer vers app » (wama:fileimported)',
               _filemanager_import),
-    Criterion('recursive_import', 'F2', 'Import de DOSSIER récursif (webkitdirectory)',
-              lambda f: _present(f, TEMPLATES + JS, r'webkitdirectory')),
+    # Depuis 2026-08-13 la traversée vit dans la brique commune WamaFolderImport (extraite du
+    # filemanager) : l'adoption se lit par `folder_input_id=` (card commune) ou l'appel direct.
+    Criterion('recursive_import', 'F2', 'Import de DOSSIER récursif (brique WamaFolderImport)',
+              lambda f: _present(f, TEMPLATES + JS, r'webkitdirectory|folder_input_id|WamaFolderImport')),
     # ── F3 UI / params / inspecteur ──
     Criterion('settings_modal_item', 'F3', 'Modale paramètres générée (WamaParams.render)', _params_modal),
     Criterion('init_from_schema', 'F3', 'Volet droit initFromSchema',

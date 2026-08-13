@@ -15,6 +15,10 @@ Variables :
   card_id          — id de la card (défaut: newItemCard)
   drop_zone_id     — id de la drop zone (REQUIS — handlers drag&drop de l'app)
   file_input_id    — id de l'<input type=file> (REQUIS)
+  folder_input_id  — (option) id d'un <input webkitdirectory> + lien « importer un dossier »
+                     dans la drop zone (F2 recursive_import). L'app câble son change sur
+                     WamaFolderImport.fromInput(...) et son drop sur .collect(...) — brique
+                     GLOBALE (base.html). Le drop récursif marche même sans ce paramètre.
   file_accept      — attribut accept (défaut: 'audio/*,video/*')
   formats_label    — texte des formats acceptés (ex: 'MP3, WAV, FLAC, MP4, MKV…')
   batch_template_url — (optionnel) URL du template batch → affiche le lien « Template »
@@ -79,6 +83,17 @@ inclure le script → card repliée MORTE (support ≠ adoption). Auto-init + ga
                     <small class="text-muted">{{ formats_label }}{% if batch_format %} — <code style="font-size:0.75rem;">{{ batch_format }}</code>{% endif %}</small>
                     {% if batch_hint %}<small class="text-muted d-block" style="font-size:0.68rem; opacity:.75;">{{ batch_hint }}</small>{% endif %}
                     <input type="file" id="{{ file_input_id }}" multiple accept="{{ file_accept|default:'audio/*,video/*' }}" style="display:none">
+                    {% if folder_input_id %}
+                    {# Import de DOSSIER récursif (F2) — le change est câblé par le JS de l'app #}
+                    {# via WamaFolderImport.fromInput ; stopPropagation : le clic drop-zone ouvre déjà le file input. #}
+                    <input type="file" id="{{ folder_input_id }}" webkitdirectory multiple style="display:none">
+                    <small class="text-muted d-block mt-1">
+                        <a href="#" class="text-muted" id="{{ folder_input_id }}Btn"
+                           onclick="event.preventDefault();event.stopPropagation();document.getElementById('{{ folder_input_id }}').click();">
+                            <i class="fas fa-folder-open"></i> ou importer un dossier
+                        </a>
+                    </small>
+                    {% endif %}
                     {% if batch_template_url %}
                     <small class="text-muted d-block mt-1">
                         Batch ?
