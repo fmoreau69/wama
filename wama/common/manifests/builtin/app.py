@@ -310,35 +310,12 @@ def _modes(app_id):
 
 
 def _params(app_id):
-    """Schémas de params de l'app — TOUS les attributs `*PARAMS_JSON` du module, pas seulement
-    celui pointé par le studio (trou #10 résorbé 2026-08-11 : imager IMAGE+VIDEO, enhancer
-    MEDIA+AUDIO étaient invisibles au manifeste). Forme : {'primary': <attr du nœud studio>,
-    'schemas': {attr: [param, …]}} ; None quand l'app n'en déclare pas (facette ABSENTE).
-    La résolution du module reste celle de l'accesseur commun (`schema_for_app`) : pointeur
-    déclaratif GENERIC_APPS.params_module, repli convention `wama.<app>.params`."""
-    import importlib
-    module_name, primary = f'wama.{app_id}.params', 'PARAMS_JSON'
-    try:
-        from wama.studio.services.generic_runner import GENERIC_APPS
-        conf = GENERIC_APPS.get(app_id) or {}
-        module_name = conf.get('params_module') or module_name
-        primary = conf.get('params_attr') or primary
-    except Exception:
-        pass
-    try:
-        mod = importlib.import_module(module_name)
-    except Exception:
-        return None
-    schemas = {}
-    for attr in sorted(dir(mod)):
-        if attr.endswith('PARAMS_JSON') and not attr.startswith('_'):
-            val = getattr(mod, attr)
-            if isinstance(val, list) and val:
-                schemas[attr] = list(val)
-    if not schemas:
-        return None
-    return {'primary': primary if primary in schemas else sorted(schemas)[0],
-            'schemas': schemas}
+    """Schémas de params de l'app — la déclaration COMPLÈTE (tous les `*PARAMS_JSON`), rendue
+    par son domicile `param_schema.declared_param_schemas()` (capacité déplacée là-bas le
+    2026-08-13, résorption check_redundancy C — sémantique inchangée, trou #10 documenté sur
+    place). None quand l'app n'en déclare pas (facette ABSENTE)."""
+    from wama.common.utils.param_schema import declared_param_schemas
+    return declared_param_schemas(app_id)
 
 
 def _inspector(app_id):
@@ -1038,7 +1015,7 @@ def _params_file_path(module_name: str) -> Path:
     return Path(wama.__file__).parent.joinpath(*module_name.split('.')[1:]).with_suffix('.py')
 
 
-def _project_params(manifest: dict, *, apply: bool) -> dict:
+def _project_params(manifest: dict, *, apply: bool) -> dict:  # wama:redondance-ok — write-back : la résolution vient du MANIFESTE (params_module du body), pas du registre ; comparer exige d'évaluer le module CIBLE brut
     """Facette params → fichier `<params_module>.py`. Un params.py écrit MAIN est du code
     DÉRIVANT (derive_from_model + sources dynamiques — modèle Django, catalogues, formats
     converter) : le moteur COMPARE (égalité sémantique des schémas évalués) et ne le touche

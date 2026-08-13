@@ -25,7 +25,7 @@ def _get_ffmpeg() -> str:
 
 
 # Output format → FFmpeg container + codec presets
-_FORMAT_PRESETS = {
+_FORMAT_PRESETS = {  # wama:redondance-ok — mapping keyé par le vocabulaire qui porte une info NOUVELLE (container/codecs/flags ffmpeg par format)
     'mp4':  {'container': 'mp4',  'vcodec': 'libx264',  'acodec': 'aac',       'extra': ['-movflags', '+faststart']},
     'webm': {'container': 'webm', 'vcodec': 'libvpx-vp9','acodec': 'libopus',  'extra': []},
     'avi':  {'container': 'avi',  'vcodec': 'libxvid',  'acodec': 'mp3',        'extra': []},

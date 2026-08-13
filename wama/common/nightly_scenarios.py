@@ -60,6 +60,13 @@ def _run_conformity(ctx):
 
 
 def _run_manifest_corpus(ctx):
+    # VENV-DÉPENDANT pour les libraries (importlib.metadata) : les wheels Windows ne portent
+    # pas les dépendances nvidia-*/triton des wheels Linux → depuis venv_win, 3 faux
+    # « périmés » permanents (torch/transformers/vibevoice, §REPRISE 2026-08-13). Le contrôle
+    # fait foi depuis WSL2 (= le runtime) ; ailleurs on SKIPPE plutôt qu'un rouge trompeur.
+    import platform
+    if platform.system() == 'Windows':
+        raise SkipScenario("venv-dépendant : fait foi depuis WSL2 (venv_linux), pas venv_win")
     code, out = _capture('manifest_export', '--check')
     derniere = (out.strip().splitlines() or ["?"])[-1]
     return code == 0, derniere

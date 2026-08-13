@@ -10,6 +10,7 @@ from .models import Media, UserSettings
 from .core import anonymize
 from .utils.media_utils import get_input_media_path
 from .utils.yolo_utils import get_model_path
+from wama.common.app_registry import normalize_types
 from wama.common.utils.media_paths import get_app_media_path
 from .utils.sam3_manager import check_sam3_installed, validate_sam3_prompt
 from wama.common.utils.console_utils import push_console_line
@@ -32,7 +33,7 @@ def anonymizer_eta_key_size(media):
     (endpoint progress) : même clé des deux côtés ou l'EMA n'apprend jamais."""
     engine = 'sam3' if media.use_sam3 else (media.model_to_use or 'auto')
     is_video = (media.media_type == 'video' or
-                (media.file_ext or '').lower() in ('mp4', 'avi', 'mov', 'mkv', 'webm'))
+                normalize_types([media.file_ext]) == ['video'])
     if is_video:
         return (f'anonymizer:vid:{engine}', float(media.duration_inSec or 1.0), 'video_sec')
     mpx = (media.width or 0) * (media.height or 0) / 1_000_000.0 or 1.0
@@ -410,7 +411,7 @@ def process_single_media(self, media_id, force_individual=False):
 
         # Durée estimée pour la simulation de progression : ETA apprise (EMA par
         # clé modèle/taille) avec repli sur l'a-priori historique 60 s vidéo / 10 s image.
-        is_video = media.file_ext.lower() in ['mp4', 'avi', 'mov', 'mkv', 'webm']
+        is_video = normalize_types([media.file_ext]) == ['video']
         estimated_duration = 60 if is_video else 10
         try:
             from wama.model_manager.services.eta_estimator import estimate

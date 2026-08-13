@@ -46,6 +46,7 @@ DOSSIERS_EXCLUS = {
     'static', 'media', 'logs', 'AI-models', 'docs', 'archive', '__pycache__',
     'wama-dev-ai', 'patches', 'tests',
     'musetalk',   # code vendored (upstream) — ses redondances ne nous appartiennent pas
+    'codeformer',  # idem : repo CodeFormer embarqué dans avatarizer (upstream)
 }
 # Domiciles du vocabulaire : les recopies y sont LÉGITIMES (c'est la source).
 # model_config.py / model_registry.py / quality_presets.py : le schéma DÉRIVE ses

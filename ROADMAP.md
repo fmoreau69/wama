@@ -1725,6 +1725,16 @@ pré-schéma), laissées VISIBLES exprès. Le triage a produit :
 Lancer depuis Windows (`./venv_win/Scripts/python.exe`), comme `check_docs`.
 **03/08, palier 1 du port anonymizer : les 5 dernières sont résorbées → « Aucune recopie
 détectée », seuil nocturne `REDONDANCES_ASSUMEES = 0`** (toute trouvaille = nouvelle recopie).
+**13/08 : 8 trouvailles apparues depuis (le vocabulaire de référence `imager.output_format`
+s'est élargi, le détecteur n'a pas changé) → triage complet le jour même, retour à 0** :
+1 résorption réelle (`_params` de la couche manifeste → domicile
+`param_schema.declared_param_schemas()`, la déclaration COMPLÈTE tous-`*PARAMS_JSON` ;
+validée par roundtrip 10 apps + corpus WSL2 à jour) ; anonymizer branché sur
+`normalize_types` (app_registry) pour sa classification vidéo (2 sites — au passage la
+recopie ratait flv/mpg/wmv…) ; `codeformer` exclu du scan (vendored, comme musetalk) ;
+3 pragmas raisonnés (presets ffmpeg = info NOUVELLE par format ; capacités de sortie
+converter et politique d'acceptation médiathèque = mêmes raisons que les lignes voisines
+déjà triées).
 
 **Déjà en place à réutiliser** : `check_app_conformity` (adoption), `check_docs` (intégrité
 doc→code, 217 références), `manifest_roundtrip` (fidélité + round-trip ports), `manifest_export

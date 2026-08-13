@@ -257,6 +257,42 @@ def schema_for_app(app_id: str) -> List[dict]:
         return []
 
 
+def declared_param_schemas(app_id: str):
+    """
+    TOUS les schémas de params déclarés par le module de l'app — pas seulement l'attribut
+    principal que rend `schema_for_app()`. Forme : {'primary': <attr du nœud studio>,
+    'schemas': {attr: [param, …]}} ; None quand l'app n'en déclare pas.
+
+    Domicile de la capacité « déclaration COMPLÈTE » (imager IMAGE+VIDEO, enhancer
+    MEDIA+AUDIO — trou #10 du manifeste, résorbé 2026-08-11). Consommateur : extraction de
+    manifeste (facette params). Même résolution déclarative que `schema_for_app`
+    (GENERIC_APPS.params_module/params_attr, repli convention `wama.<app>.params`).
+    """
+    import importlib
+    module_name, primary = f'wama.{app_id}.params', 'PARAMS_JSON'
+    try:
+        from wama.studio.services.generic_runner import GENERIC_APPS
+        conf = GENERIC_APPS.get(app_id) or {}
+        module_name = conf.get('params_module') or module_name
+        primary = conf.get('params_attr') or primary
+    except Exception:
+        pass
+    try:
+        mod = importlib.import_module(module_name)
+    except Exception:
+        return None
+    schemas = {}
+    for attr in sorted(dir(mod)):
+        if attr.endswith('PARAMS_JSON') and not attr.startswith('_'):
+            val = getattr(mod, attr)
+            if isinstance(val, list) and val:
+                schemas[attr] = list(val)
+    if not schemas:
+        return None
+    return {'primary': primary if primary in schemas else sorted(schemas)[0],
+            'schemas': schemas}
+
+
 def schema_model_kwargs(app_id: str, params: dict) -> dict:
     """
     Sous-ensemble de `params` qui est À LA FOIS déclaré au schéma de l'app ET un champ

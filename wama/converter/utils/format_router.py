@@ -24,7 +24,7 @@ SUPPORTED_CONVERSIONS = {
     'video': {
         'input':  ['.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv', '.mpg',
                    '.mpeg', '.3gp', '.wmv', '.ts', '.m4v'],
-        'output': ['mp4', 'webm', 'avi', 'mov', 'mkv', 'gif', 'mp3', 'wav', 'ogg'],
+        'output': ['mp4', 'webm', 'avi', 'mov', 'mkv', 'gif', 'mp3', 'wav', 'ogg'],  # wama:redondance-ok — capacités de SORTIE du converter (déclaration propre, pas une classification)
         'label':  'Vidéo',
     },
     'audio': {

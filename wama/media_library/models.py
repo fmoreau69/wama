@@ -25,7 +25,7 @@ ALLOWED_EXTENSIONS = {
     'audio_music': ['mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac'],  # wama:redondance-ok — politique d'acceptation médiathèque par type d'asset
     'audio_sfx':   ['mp3', 'wav', 'ogg', 'flac', 'aiff'],  # wama:redondance-ok — politique d'acceptation médiathèque par type d'asset
     'image':       ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'],
-    'video':       ['mp4', 'webm', 'mov', 'avi', 'mkv'],
+    'video':       ['mp4', 'webm', 'mov', 'avi', 'mkv'],  # wama:redondance-ok — politique d'acceptation médiathèque par type d'asset
     'document':    ['pdf', 'txt', 'docx', 'md', 'csv'],
     'avatar':      ['jpg', 'jpeg', 'png', 'webp'],
 }
