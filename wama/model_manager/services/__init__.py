@@ -13,7 +13,7 @@ from .model_selector import (
 from .memory_manager import MemoryManager, MemoryStrategy, MODEL_SIZE_PRESETS
 from .format_converter import FormatConverter, ConversionResult, ConversionSuggestion
 from .memory_monitor import WAMAMemoryMonitor, RAMUsage, GPUUsage, MemorySnapshot
-from .memory_tracker import WAMAMemoryTracker, TrackedModel, IdleModel, LargeObject
+from .memory_diagnostics import MemoryDiagnostics, LargeObject
 from .memory_cleaner import (
     WAMAMemoryCleaner,
     CleanupResult,
@@ -75,10 +75,9 @@ __all__ = [
     'RAMUsage',
     'GPUUsage',
     'MemorySnapshot',
-    # Memory Tracker
-    'WAMAMemoryTracker',
-    'TrackedModel',
-    'IdleModel',
+    # Memory Diagnostics (sondes in-process ; le SUIVI des modèles résidents
+    # est au gouverneur : common/services/resource_governor.py)
+    'MemoryDiagnostics',
     'LargeObject',
     # Memory Cleaner
     'WAMAMemoryCleaner',

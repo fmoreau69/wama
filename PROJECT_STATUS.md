@@ -201,9 +201,10 @@ Doc : [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md).
 > filtre capacités `requires`/`classes`, paliers `priority`,
 > `availability_probe` runtime ; il se déclare remplaçant du `backend_selector` planifié
 > (CLAUDE.md corrigé en conséquence) ; ② `WAMAMemoryCleaner` (thread périodique, seuils RAM/GPU
-> 80-95 %) + API/UI volet droit — ⚠ **son SIGNALEMENT d'inactivité est corrigé 12/08** (registre
-> partagé au lieu de `WAMAMemoryTracker`, jamais alimenté) mais son **déclenchement reste
-> intra-process** : depuis le web il ne peut pas décharger un modèle tenu par un worker Celery ;
+> 80-95 %) + API/UI volet droit — **signalement** corrigé 12/08 et **déclenchement** corrigé 13/08
+> (registre partagé au lieu de `WAMAMemoryTracker`, jamais alimenté ; déchargement délégué à
+> `MemoryManager.unload_model`, qui ne ment plus sur son succès) ; ⚠ reste **intra-process** :
+> depuis le web il ne peut pas décharger un modèle tenu par un worker Celery ;
 > ③ `memory_monitor` (jauges + budget du sélecteur) ; ④ contrat `unload()` de `BaseModelBackend`
 > sur toutes les apps ; ⑤ `vram_gb` déclaré partout (model_config par app + catalogue `AIModel`) ;
 > ⑥ nightly runner **sérialisé VRAM-aware** (teardown avant/après) ; ⑦ ETA hardware-aware
@@ -3086,14 +3087,16 @@ prendre la place manquante. Corrigé par un attribut d'INSTANCE mis à l'échell
 modèles) ; surtout **pas une `property`**, que `backends/manager.py:68` casserait en lisant
 l'attribut sur la CLASSE.
 
-🔴 **Doublon PRÉEXISTANT révélé** (pas introduit par cette session) :
-`WAMAMemoryTracker` (`model_manager/services/memory_tracker.py`) suit modèles chargés,
-`last_used` et inactifs — mais **`register_model` a ZÉRO appelant**, le tracker suit **0 modèle**,
-il est **dormant**. Conséquence : le nettoyage des modèles inactifs de `memory_cleaner`, qui s'y
-appuie, **ne fait rien**. Le suivi vivant est celui de `resource_governor` (`resident_models`,
-`mark_used`, `idle_models`), bâti en cross-process **parce que** l'in-process n'était pas
-alimenté — sans que l'ancien soit retiré. À trancher : alimenter le tracker, ou le retirer et
-faire consommer le gouverneur par `memory_cleaner`.
+🔴 **Doublon PRÉEXISTANT révélé** (pas introduit par cette session) — ✅ **TRANCHÉ ET FERMÉ
+le 13/08, cf. §REPRISE 2026-08-13 ✅F** : `WAMAMemoryTracker` suivait modèles chargés,
+`last_used` et inactifs — mais **`register_model` avait ZÉRO appelant**, le tracker suivait
+**0 modèle**, il était **dormant**. Conséquence : le nettoyage des modèles inactifs de
+`memory_cleaner`, qui s'y appuyait, **ne faisait rien**. Le suivi vivant est celui de
+`resource_governor` (`resident_models`, `mark_used`, `idle_models`), bâti en cross-process
+**parce que** l'in-process n'était pas alimenté — sans que l'ancien soit retiré. Arbitrage
+retenu : **le retirer** (registre supprimé, module devenu
+`model_manager/services/memory_diagnostics.py`) et faire consommer le gouverneur par
+`memory_cleaner`.
 
 ⚠ **Limite connue du multi-modèles** : la clé du gouverneur porte UN modèle (`owner#modèle`), donc
 `resident_models()` ne montre que le premier — la paire est réservée en une ligne, avec la VRAM
@@ -3138,6 +3141,62 @@ n'a pas produite. Voie envisagée : la médiathèque. **Non tranché, repoussé 
   backend ASR a renvoyé sa réponse non parsée. Bug de production non traité.
 - **Migrations NON versionnées** (`.gitignore:13`) : `common.0005`, `common.0006`,
   `model_manager.0012`, `media_library.0012` → relancer `makemigrations && migrate` ailleurs.
+
+### ✅ F. ROUTE UNIQUE du suivi des modèles — la 3ᵉ route, morte depuis février, est supprimée
+
+Demandé par Fabien en clôture : « quelle est la bonne chaîne de tracking des modèles, voir les
+consommateurs, confronter avec ce qui n'est plus utilisé […] une route unique, propre, claire ».
+
+**Datation (git, pas mémoire)** — la chronologie était inversée dans nos têtes :
+
+| Mécanisme | Créé | État |
+|---|---|---|
+| `WAMAMemoryTracker` (`memory_tracker.py`) | **2026-02-02** `470b5a3` | ☠️ registre jamais alimenté |
+| Résidence partagée (`resource_governor`) | **2026-08-12** `8c6a8f5` | ✅ la route |
+| `mark_used` / inactivité réelle | **2026-08-12** `6e20661` | ✅ la route |
+
+**Trois registres, deux légitimes, un doublon.** Ils ne font pas la même chose :
+
+| Registre | Répond à | Portée | Alimenté par |
+|---|---|---|---|
+| `resource_governor` (Redis) | **SAVOIR** qui occupe quoi | **tous process** | enveloppes `BaseModelBackend` + `vram_reservation` |
+| `_VRAM_UNLOADERS` / `_LIVE_BACKENDS` | **AGIR** (décharger) | in-process | auto au 1ᵉʳ `load` + `register_vram_unloader` ×2 |
+| ~~`WAMAMemoryTracker._models`~~ | savoir (doublon) | in-process | **personne** |
+
+SAVOIR ≠ AGIR : les deux premiers sont complémentaires, pas redondants. Le troisième doublait le
+SAVOIR, en pire — in-process alors que les modèles vivent dans les workers Celery et le service TTS.
+
+**Ce que l'inertie coûtait, mesuré** — `register_model()` n'a **jamais eu d'appelant**, donc
+`get_idle_models()` rendait toujours `[]`, donc **cinq** chemins déchargeaient zéro modèle en
+croyant travailler : `nightly_tests.free_vram()`, `wama_lab/cam_analyzer/tasks.py:2341`, le bouton
+« Clean Idle », le bouton « Aggressive », et `unload_specific_model()`. Pire qu'une panne :
+`_unload_model()` renvoyait **True** — un succès mensonger, donc indétectable. Le panneau
+« modèles suivis » de `/model_manager/` affichait 0 en permanence.
+
+**Fait** : `memory_tracker.py` → **`memory_diagnostics.py`** (`git mv`, historique préservé).
+Le registre de modèles est supprimé (`TrackedModel`, `IdleModel`, `register_model`,
+`unregister_model`, `mark_model_used`, `get_idle_models`, `get_summary`, `get_unload_callback`…).
+Ce qui reste est **d'une autre nature et ne doublonne rien** : les sondes in-process (tracemalloc,
+gros objets du GC), sous la classe `MemoryDiagnostics`. Renommée parce qu'un `WAMAMemoryTracker`
+qui ne track plus rien est exactement ce qui nous avait fait croire que c'était la brique récente.
+
+Consommateurs rebranchés sur la route unique — SAVOIR au gouverneur, AGIR par les unloaders :
+`cleanup_idle_models()`, `aggressive_cleanup()`, `_unload_model()` (→ `MemoryManager.unload_model`,
+qui dit `False` quand il n'a rien fait), `unload_specific_model()`, `api_tracked_models`.
+Cela ferme le reste ouvert ③ de la session résidence (§REPRISE 2026-08-12).
+
+⚠ **Limite inchangée, toujours ouverte** : le déchargement reste **in-process**. Depuis gunicorn,
+« Clean Idle » ne peut pas décharger un modèle tenu par un worker Celery — il n'existe aucun
+broadcast de reclaim cross-process (conçu, non implémenté). Depuis un worker
+(`nightly_tests`, `cam_analyzer`), il décharge réellement — ce qui n'était **pas** le cas avant.
+
+**`wama_lab` vérifié** : hors venv, une seule dépendance à cette chaîne
+(`cam_analyzer/tasks.py:2341` → `aggressive_cleanup()`), rendue effective par le rebranchement.
+Aucun autre usage du gouverneur ni des unloaders dans `wama_lab`.
+
+**Contrôles** : `manage.py check` OK ; aucune référence résiduelle hors docstrings historiques ;
+`cleanup_idle_models` / `unload_specific_model` / `find_large_objects` exécutés (système au repos :
+0 résident, 0 inactif, `unload_specific_model('imager:inexistant')` → `False`, sans exception).
 
 ## §REPRISE — 2026-08-12 (session UI/média/résidence, instance parallèle) : exclusivité audio + préchargement TTS + RÉSIDENCE des modèles
 
@@ -3228,9 +3287,11 @@ n'a pas produite. Voie envisagée : la médiathèque. **Non tranché, repoussé 
 > ② l'exclusivité inter-onglets ne couvre pas « AI-Assistant persistant » (il ne vit que dans
 > `home.html` — chantier à part, piste retenue : le loger dans le volet droit existant plutôt
 > qu'une 3ᵉ surface flottante ; le coût n'est pas le widget mais l'état du chat entre deux
-> pages, qu'aucune librairie de chatbot ne résout pour un backend à outils) ; ③ `api_tracked_models`
-> et `api_large_objects` lisent toujours `WAMAMemoryTracker` (tracemalloc — autre finalité,
-> non touchés) ; ④ `_cle_de_rang` (ex-`_rang_qualite`, renommé le 12/08 par le chantier
+> pages, qu'aucune librairie de chatbot ne résout pour un backend à outils) ; ③ ~~`api_tracked_models`
+> et `api_large_objects` lisent toujours `WAMAMemoryTracker`~~ **FERMÉ le 13/08** — le registre de
+> modèles de ce singleton était mort depuis février et a été supprimé, `api_tracked_models` lit le
+> gouverneur, le module ne garde que les sondes tracemalloc/GC sous `MemoryDiagnostics`
+> (§REPRISE 2026-08-13 ✅F) ; ④ `_cle_de_rang` (ex-`_rang_qualite`, renommé le 12/08 par le chantier
 > catalogue) départage encore sur `is_loaded` seul, donc un modèle résident-mais-non-`is_loaded`
 > n'y gagne rien. **Sans effet** : `_pick` a déjà filtré sur résidence avant d'appeler
 > `_best_by_vram`, et hors `prefer_loaded` le champ vaut False partout — donc égalité, puis

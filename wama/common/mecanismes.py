@@ -76,7 +76,7 @@ MECANISMES = (
               'wama/model_manager/services/memory_manager.py', 'PROJECT_STATUS.md §0',
               annexes=('wama/model_manager/services/memory_monitor.py',
                        'wama/model_manager/services/memory_cleaner.py',
-                       'wama/model_manager/services/memory_tracker.py')),
+                       'wama/model_manager/services/memory_diagnostics.py')),
     Mecanisme('eta', 'ETA auto-apprenante',
               "Estimation de durée par a-priori puis moyenne mobile, bucketisée par matériel",
               'wama/model_manager/services/eta_estimator.py', 'PROJECT_STATUS.md §10'),

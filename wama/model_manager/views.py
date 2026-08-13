@@ -13,7 +13,7 @@ from .services.model_registry import ModelRegistry, ModelType
 from .services.memory_manager import MemoryManager
 from .services.format_converter import FormatConverter
 from .services.memory_monitor import WAMAMemoryMonitor
-from .services.memory_tracker import WAMAMemoryTracker
+from .services.memory_diagnostics import MemoryDiagnostics
 from .services.memory_cleaner import WAMAMemoryCleaner, get_memory_cleaner
 from wama.common.services.system_monitor import SystemMonitor
 from wama.common.utils.format_policy import get_policy_summary
@@ -398,13 +398,36 @@ def api_memory_detailed(request):
 @user_passes_test(is_admin_or_dev)
 @require_GET
 def api_tracked_models(request):
-    """API: Get all tracked models in memory."""
-    tracker = WAMAMemoryTracker()
-    summary = tracker.get_summary()
+    """API: modèles RÉSIDENTS en VRAM, LUS DANS LE REGISTRE PARTAGÉ.
+
+    Lisait `WAMAMemoryTracker.get_summary()`, un registre de process que personne
+    n'alimentait : le panneau « modèles suivis » de `/model_manager/` affichait 0 en
+    permanence. Même remède que `api_idle_models` — le gouverneur voit tous les
+    process (workers Celery, service TTS, web).
+    """
+    from wama.common.services.resource_governor import (
+        idle_models as idle_partages, resident_models,
+    )
+
+    residents = resident_models()
+    inactifs = {m['model_key'] for m in idle_partages(300)}
 
     return JsonResponse({
         'success': True,
-        **summary,
+        'total_tracked_mb': round(sum(residents.values()) * 1024, 1),
+        'total_registered': len(residents),
+        'active_count': len(residents) - len(inactifs & set(residents)),
+        'idle_count': len(inactifs & set(residents)),
+        'models': {
+            cle: {
+                'model_id': cle,
+                'size_mb': round(gb * 1024, 1),
+                'vram_gb': gb,
+                'source': cle.split(':', 1)[0],
+                'status': 'idle' if cle in inactifs else 'active',
+            }
+            for cle, gb in residents.items()
+        },
     })
 
 
@@ -453,8 +476,7 @@ def api_large_objects(request):
     """API: Get large objects in memory."""
     min_size_mb = float(request.GET.get('min_size_mb', 10))
 
-    tracker = WAMAMemoryTracker()
-    large_objects = tracker.find_large_objects(min_size_mb)
+    large_objects = MemoryDiagnostics().find_large_objects(min_size_mb)
 
     return JsonResponse({
         'success': True,
@@ -463,7 +485,6 @@ def api_large_objects(request):
             {
                 'type': obj.obj_type,
                 'size_mb': round(obj.size_mb, 2),
-                'model_id': obj.model_id,
                 'ref_count': obj.ref_count,
             }
             for obj in large_objects[:20]  # Limit to 20

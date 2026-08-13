@@ -201,26 +201,25 @@ class WAMAMemoryCleaner:
         Returns:
             CleanupResult with details
         """
+        from wama.common.services.resource_governor import idle_models as idle_partages
+
         from .memory_monitor import WAMAMemoryMonitor
-        from .memory_tracker import WAMAMemoryTracker
 
         monitor = WAMAMemoryMonitor()
-        tracker = WAMAMemoryTracker()
 
         ram_before = monitor.get_ram_usage()
         models_unloaded = []
         memory_freed = 0
 
-        idle_models = tracker.get_idle_models(self.idle_threshold)
+        inactifs = idle_partages(self.idle_threshold)
 
-        if not idle_models and not quiet:
+        if not inactifs and not quiet:
             logger.info("No idle models to clean")
 
-        for model_info in idle_models:
-            success = self._unload_model(model_info.model_id, tracker)
-            if success:
-                models_unloaded.append(model_info.model_id)
-                memory_freed += model_info.size_mb
+        for model_info in inactifs:
+            if self._unload_model(model_info['model_key']):
+                models_unloaded.append(model_info['model_key'])
+                memory_freed += model_info['vram_gb'] * 1024
 
         # Run garbage collection
         gc_collected = gc.collect()
@@ -256,25 +255,30 @@ class WAMAMemoryCleaner:
         Returns:
             CleanupResult with details
         """
+        from wama.common.services.resource_governor import (
+            idle_models as idle_partages, resident_models,
+        )
+
         from .memory_monitor import WAMAMemoryMonitor
-        from .memory_tracker import WAMAMemoryTracker
 
         logger.info("🔥 AGGRESSIVE CLEANUP STARTED")
 
         monitor = WAMAMemoryMonitor()
-        tracker = WAMAMemoryTracker()
 
         ram_before = monitor.get_ram_usage()
         models_unloaded = []
         memory_freed = 0
 
-        # 1. Unload ALL idle models (even recently used)
-        idle_models = tracker.get_idle_models(idle_threshold_seconds=0)
-        for model_info in idle_models:
-            success = self._unload_model(model_info.model_id, tracker)
-            if success:
-                models_unloaded.append(model_info.model_id)
-                memory_freed += model_info.size_mb
+        # 1. Décharger TOUS les modèles résidents, même utilisés à l'instant (seuil 0).
+        #    `resident_models()` en secours : un modèle dont le détenteur n'expose pas de
+        #    clé catalogue (sous-processus) n'apparaît pas dans `idle_models()`, alors que
+        #    le mode agressif doit justement tout rendre.
+        poids = resident_models()
+        for model_info in idle_partages(idle_threshold_s=0):
+            cle = model_info['model_key']
+            if self._unload_model(cle):
+                models_unloaded.append(cle)
+                memory_freed += poids.get(cle, model_info['vram_gb']) * 1024
 
         # 2. Force garbage collection multiple times
         gc_collected = 0
@@ -322,28 +326,31 @@ class WAMAMemoryCleaner:
 
         return result
 
-    def _unload_model(self, model_id: str, tracker) -> bool:
+    def _unload_model(self, model_id: str) -> bool:
         """
-        Unload a specific model.
+        Décharge les modèles résidents de l'app portée par `model_id` (`<app>:<modèle>`).
 
-        Args:
-            model_id: Model identifier
-            tracker: WAMAMemoryTracker instance
+        Passait par `WAMAMemoryTracker` : callback d'unload puis `unregister_model()`. Le
+        registre étant toujours vide, le callback valait toujours None et la méthode
+        renvoyait **True sans rien décharger** — un succès mensonger, donc indétectable.
+        On délègue au seul registre d'unloaders qui existe (`_VRAM_UNLOADERS`, alimenté
+        automatiquement par `BaseModelBackend`), qui dit `False` quand il n'a rien à faire.
+
+        ⚠ PORTÉE : le déchargement est **in-process**. Appelée depuis gunicorn (bouton
+        « nettoyer » de `/model_manager/`), elle ne peut pas décharger les modèles des
+        workers Celery — il n'existe aucun broadcast de reclaim cross-process. Appelée
+        DEPUIS un worker (`nightly_tests`, `cam_analyzer`), elle décharge réellement.
 
         Returns:
             True if successfully unloaded
         """
         try:
-            # Try custom unload callback first
-            callback = tracker.get_unload_callback(model_id)
-            if callback:
-                callback()
+            from .memory_manager import MemoryManager
 
-            # Mark as unloaded in tracker
-            tracker.unregister_model(model_id)
-
-            logger.info(f"  🗑️ Unloaded: {model_id}")
-            return True
+            if MemoryManager.unload_model(model_id):
+                logger.info(f"  🗑️ Unloaded: {model_id}")
+                return True
+            return False
 
         except Exception as e:
             logger.error(f"Failed to unload {model_id}: {e}")
@@ -390,21 +397,18 @@ class WAMAMemoryCleaner:
         Manually unload a specific model.
 
         Args:
-            model_id: Model to unload
+            model_id: clé catalogue `<app>:<modèle>` (cf. `resident_models()`)
 
         Returns:
             True if successfully unloaded
         """
-        from .memory_tracker import WAMAMemoryTracker
+        from wama.common.services.resource_governor import resident_models
 
-        tracker = WAMAMemoryTracker()
-        model = tracker.get_model(model_id)
-
-        if not model:
-            logger.warning(f"Model not found: {model_id}")
+        if model_id not in resident_models():
+            logger.warning(f"Model not resident: {model_id}")
             return False
 
-        success = self._unload_model(model_id, tracker)
+        success = self._unload_model(model_id)
 
         if success:
             gc.collect()
