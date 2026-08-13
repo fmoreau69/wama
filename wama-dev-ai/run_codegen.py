@@ -100,24 +100,42 @@ def inventaire_app(app_id: str) -> str:
             if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and not n.name.startswith('_'):
                 syms.append(f"{n.name}({', '.join(a.arg for a in n.args.args)})")
             elif isinstance(n, ast.ClassDef) and not n.name.startswith('_'):
-                syms.append(n.name)
+                # Méthodes publiques AVEC signature — delta 13/08 : sans elles, le modèle
+                # invente le nom de méthode (`extract` au lieu de `run`).
+                # `self` CONSERVÉ : delta v2 13/08 — sans lui, le modèle appelle les
+                # méthodes d'instance comme des méthodes de classe (Backend.run(...)).
+                meths = [f"{m.name}({', '.join(a.arg for a in m.args.args)})"
+                         for m in n.body
+                         if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef))
+                         and not m.name.startswith('_')]
+                syms.append(f"{n.name}{{{'; '.join(meths)}}}" if meths else n.name)
         if syms:
             lignes.append(f"{'.'.join(rel.with_suffix('').parts)} : {', '.join(syms)}")
     return '\n'.join(lignes)[:8000]
 
 
-def champs_item(item_model: str) -> list:
-    """Champs CONCRETS du modèle d'item — les seules clés licites de `fields` au retour.
-    Banc 13/08 : sans cette liste, tous les modèles inventent les clés (2e trou de matière)."""
+def champs_item(item_model: str, app_id: str = '') -> tuple:
+    """(champs concrets, propriétés) du modèle d'item — champs = seules clés licites de
+    `fields` ; propriétés = attributs LISIBLES légitimes (ex. `filename` du reader — sa
+    lecture sur un modèle qui ne l'a pas était un résidu du delta 13/08).
+    ⚠ Le manifeste porte un nom de classe NU (`ReadingItem`) : préfixer par l'app."""
     if not item_model:
-        return []
-    try:
-        from django.apps import apps as dj_apps
-        model = dj_apps.get_model(item_model)
-    except Exception:
-        return []
-    return sorted(f.name for f in model._meta.get_fields()
-                  if getattr(f, 'concrete', False) and not getattr(f, 'auto_created', False))
+        return [], []
+    from django.apps import apps as dj_apps
+    model = None
+    for ref in (item_model, f'{app_id}.{item_model}'):
+        try:
+            model = dj_apps.get_model(ref)
+            break
+        except Exception:
+            continue
+    if model is None:
+        return [], []
+    champs = sorted(f.name for f in model._meta.get_fields()
+                    if getattr(f, 'concrete', False) and not getattr(f, 'auto_created', False))
+    props = sorted(n for n in vars(model) if isinstance(vars(model)[n], property)
+                   and not n.startswith('_'))
+    return champs, props
 
 
 def matiere_manifeste(app_id: str) -> tuple:
@@ -265,16 +283,19 @@ def main():
     corps = json.dumps(man, ensure_ascii=False, indent=1)
     jambes = '\n'.join(json.dumps(m, ensure_ascii=False) for m in resolus)
     inventaire = inventaire_app(args.app)
-    champs = champs_item(proc.get('item_model') or '')
+    champs, props = champs_item(proc.get('item_model') or '', args.app)
     user_msg = (
         f'CONTRAT de la brique run_item_task (docstring de task_skeleton.py) :\n{contrat}\n\n'
         f'EXEMPLES — glus réelles d\'apps WAMA existantes :\n{fewshot}\n\n'
         f'MANIFESTE de l\'app `{args.app}` :\n{corps}\n\n'
         f'MANIFESTES RÉSOLUS de ses requires (modèles + librairies) :\n{jambes}\n\n'
-        f'MODULES RÉELS de l\'app (les SEULS imports d\'app autorisés — signature = aide, '
-        f'pas contrat) :\n{inventaire or "(aucun module métier — pas d\'import d\'app)"}\n\n'
+        f'MODULES RÉELS de l\'app (les SEULS imports d\'app autorisés ; les méthodes entre '
+        f'{{}} sont les SEULES méthodes des classes) :\n'
+        f'{inventaire or "(aucun module métier — pas d\'import d\'app)"}\n\n'
         f'CHAMPS DU MODÈLE D\'ITEM `{proc.get("item_model") or "?"}` (les clés de `fields` '
-        f'du retour DOIVENT en faire partie) :\n{", ".join(champs) or "(inconnus)"}\n\n'
+        f'du retour DOIVENT en faire partie) :\n{", ".join(champs) or "(inconnus)"}\n'
+        f'Propriétés lisibles en plus : {", ".join(props) or "(aucune)"} — tout autre '
+        f'attribut d\'item est INTERDIT.\n\n'
         f'FICHIER MINCE généré (le wrapper appelle ta glu) :\n{mince}\n\n'
         f'Écris la fonction `{nom_impose}(item, ctx)` qui remplit ce trou '
         f'(bloc ```python seul).')[:MAX_MATTER_CHARS]

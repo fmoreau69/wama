@@ -2452,7 +2452,28 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > à injecter + règle « les clés de fields DOIVENT être des champs du modèle ») ; ③ les
 > conventions de chemin de sortie passent bien par le few-shot. → Améliorer la matière de
 > `run_codegen` AVANT le pilote transcriber : meilleur levier qualité, zéro GPU.
-> ⚠ restart workers/gunicorn toujours PENDING ; push (~17 commits) = demander.
+>
+> **SUITE (même nuit) : matière enrichie LIVRÉE + boucle FERMÉE en 2 deltas** (qwen3.6:35b,
+> mêmes cibles + `--truth`). Ajouts à `run_codegen` : `inventaire_app` (modules réels par
+> AST, méthodes de classes AVEC signatures, `self` conservé), `champs_item` (champs concrets
+> + propriétés du modèle d'item — ⚠ `item_model` du manifeste est un nom de classe NU, à
+> préfixer par l'app : sans ça la résolution échouait EN SILENCE et la liste manquait),
+> garde mécanique `import WAMA INEXISTANT` (attrape `run_ffmpeg_cmd`&co), prompt durci
+> (clés de `fields` ⊆ champs ; imports d'app ⊆ inventaire ; sinon NotImplementedError).
+> **Delta v1** : ré-implémentation inline DISPARUE (vrais backends/utils, vraies classes,
+> 119→83 LOC) ; 3 résidus → 3 causes de matière corrigées. **Delta v2 : les 3 inventions
+> ÉTEINTES** — converter 62 LOC clés `fields` toutes réelles + `input_filename` correct ;
+> reader 66 LOC `result_text`/`used_backend`/`page_count` réels + `run(mode, language,
+> progress_cb)` exact. Résidu ultime (appel classe vs instance) corrigé dans la matière
+> (`self` visible), non re-mesuré (3 h du matin — le juge profond reste le harnais C à
+> l'application). **Rôle codegen PRÊT pour le pilote transcriber.**
+> **Plan de clôture proposé à Fabien (mesuré)** : ligne régénérabilité = 3/10 harnais-
+> conformes (converter/reader/transcriber ; A2+A3a+A4 = converter+reader seulement) →
+> phase R : porter les 7 restantes (2-3 sessions, sans GPU) ; ligne grille = 61 ❌ dont
+> **36 sur 4 critères transverses** (recursive_import 10/10, model_caps_ui 9, during_preview
+> 9, input_match_ui 8) + paquet synthesizer (11, seul F4 structurel), describer 10,
+> composer 8 → phase G ; puis phase B (pilote transcriber + Translator DE ZÉRO, GPU).
+> ~7-8 sessions au total. ⚠ restart workers/gunicorn PENDING ; push (~19 commits) = demander.
 
 ## §REPRISE — 2026-08-11→12 (3ᵉ-4ᵉ sessions, marches C + A COMPLÈTES A1→A5) : harnais + gabarits + triades + composition
 
