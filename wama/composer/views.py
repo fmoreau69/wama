@@ -728,7 +728,9 @@ def duplicate(request, pk):
         batch.save(update_fields=['total'])
     else:
         _wrap_generation_in_batch(new_gen)
-    return JsonResponse({'success': True, 'id': new_gen.id})
+    # `duplicated` = contrat de la brique queue-actions.js : elle focalise la copie
+    # après rechargement (sessionStorage wama_focus_card).
+    return JsonResponse({'success': True, 'id': new_gen.id, 'duplicated': new_gen.id})
 
 
 @require_POST

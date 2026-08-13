@@ -6,10 +6,11 @@ Contexte : gen (décorée .chips), card_label = nom de sortie (optionnel).
 App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
 
 ⚠ Contrats JS (index.js) : .generation-card[data-id][data-status][data-estimated-seconds],
-  .settings-btn + data-*, .export-btn[data-id], .duplicate-btn[data-id] (⚠ data-id, PAS
-  data-duplicate-url), .delete-btn[data-id], .wama-progress-fill (:476), .progress-text
-  (:483), .wama-eta (:504), .estimated-time. Le point d'état + libellé sont mis à jour en
-  place par updateCard (dot v3 — le badge v2 n'existe plus).
+  .settings-btn + data-*, .export-btn[data-id], .delete-btn[data-id], .wama-progress-fill
+  (:476), .progress-text (:483), .wama-eta (:504), .estimated-time. Le point d'état +
+  libellé sont mis à jour en place par updateCard (dot v3 — le badge v2 n'existe plus).
+  Duplication : brique commune queue-actions.js (14/08 — le handler local d'index.js est
+  SUPPRIMÉ, porter = remplacer).
 {% endcomment %}
 <div class="generation-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if gen.status == 'RUNNING' %}processing{% elif gen.status == 'SUCCESS' %}success{% elif gen.status == 'FAILURE' %}error{% endif %}"
      data-id="{{ gen.id }}"
@@ -115,7 +116,8 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
         </button>
         {% endif %}
         <button class="btn btn-sm btn-outline-warning duplicate-btn"
-                data-id="{{ gen.id }}" title="Dupliquer">
+                data-id="{{ gen.id }}"
+                data-duplicate-url="{% url 'composer:duplicate' gen.id %}" title="Dupliquer">
           <i class="fas fa-copy"></i>
         </button>
         <button class="btn btn-sm btn-outline-danger delete-btn"

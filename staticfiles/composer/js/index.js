@@ -281,14 +281,8 @@
             return;
         }
 
-        const duplicateBtn = e.target.closest('.duplicate-btn');
-        if (duplicateBtn) {
-            const id = duplicateBtn.dataset.id;
-            fetch(WamaApp.getUrl(APP.duplicateUrlTemplate, id), { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
-                .then(r => r.json())
-                .then(d => { if (d.success) location.reload(); });
-            return;
-        }
+        // Duplication d'item : brique commune queue-actions.js (couple classe+data-url sur
+        // la card, cf. _generation_card.html) — handler local retiré le 14/08.
 
         // ▶ batch (card mère commune _batch_card.html, 2026-07-06) : lance les PENDING du batch.
         const batchStartBtn = e.target.closest('.batch-start-btn');
