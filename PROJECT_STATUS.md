@@ -2436,6 +2436,59 @@ travail**. La base LIVE est celle de **WSL2 (Postgres 16)**, conforme à
 exécute WAMA nativement sous Windows (`venv_win runserver`) ; sinon c'est une taxe d'entretien
 supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 
+## §REPRISE — 2026-08-14 : PAQUET SYNTHESIZER — moteurs TTS sous contrat commun (87 → 95 %)
+
+> **Reprise** : 5 contrôles conformes au bloc attendu du 13/08 (check_docs a dit 3 CASSÉ mais la
+> 3ᵉ était le bloc de handoff lui-même citant le chemin du middleware i18n manquant — la citation
+> d'un chemin cassé dans un §REPRISE est COMPTÉE comme référence ; ligne reformulée, retour à 2).
+> Restart pile 13/08 16:54 vérifié POSTÉRIEUR au dernier commit (16:40) → pending levé.
+>
+> **F4 — les 4 moteurs TTS deviennent des backends sous `BaseModelBackend`**
+> (`wama/synthesizer/backends/` : coqui, bark, higgs, kokoro — Django-FREE, car chargés par le
+> service TTS uvicorn:8001 qui n'initialise pas Django). **TRADUIT ET REMPLACÉ, pas juxtaposé** :
+> `tts_service.py` perd ses `_load_*`/`_generate_*`/`_unload_current` internes ET sa ligne
+> gouverneur agrégée `tts-service` — la comptabilité VRAM est désormais celle du CONTRAT (une
+> ligne MESURÉE par modèle, clé = suffixe CATALOGUE via `CATALOG_KEYS`, ex.
+> `…CoquiBackend:<pid>#synthesizer:coqui-xtts`). Le service ne garde que la POLITIQUE : bascule
+> de moteur courant, résidence Kokoro (son `unload()` décharge VRAIMENT, le service choisit de ne
+> pas l'appeler), résolution des presets de voix, file HTTP — même partage mécanisme/politique
+> que l'anonymizer. Le heartbeat anti-TTL demeure mais passe par une **nouvelle petite brique
+> commune `refresh_live_reservations()`** (`common/backends/base.py`, avec mémorisation `_GOV_GB`
+> des Go publiés) : tout process à résidents longue durée peut l'appeler. Bonus contrat :
+> `REQUIRED_PACKAGES` déclarés (bark et boson_multimodal avec `PIP_PACKAGES=[]` — homonymes PyPI
+> piégeux, précédent vibevoice), `HF_HUB_CACHE` isolé AVANT import (higgs, kokoro), verrou de
+> génération Higgs et patches transformers 4.57+ déménagés dans `higgs_backend.py`
+> (`patches/apply_patches.py` #3 re-pointé ; ses aiguilles `completion_tokens`/`trim_audio`
+> étaient DÉJÀ mortes avant le déménagement). `ENGINE_CATALOG_KEYS` (model_config) importe
+> désormais la table des backends — source unique. En-tête de `common/backends/base.py` : « sept
+> apps » → **huit**.
+>
+> **F6 — prompts : c'était un artefact du CHECK, pas un trou de l'app** (règle /conformite :
+> corriger le check avec preuve). `PROMPT_TARGETS['synthesizer'] = []` est une DÉCISION documentée
+> (§16.6 : ne JAMAIS traduire un texte à FAIRE DIRE) ; or `_has_prompt` gatait sur la PRÉSENCE de
+> la clé, pas son contenu → il exigeait pipeline/skill/UI d'enrichissement sur un prompt
+> inexistant. Le gate lit désormais le CONTENU déclaré → les 4 critères prompt passent N/A pour
+> le synthesizer (seule app à liste vide, vérifié).
+>
+> **Validation (CPU seulement, règle GPU/WSL2)** : import du service + 4 backends depuis WSL2 avec
+> `CUDA_VISIBLE_DEVICES=""` ; **génération Kokoro RÉELLE sur CPU** par la nouvelle chaîne
+> (switch → load sous contrat → synthesize → WAV 194 Ko → résidence honorée à la bascule) ;
+> `manage.py check` 0 issue ; `doc_facts` régénéré (consommateurs backend_contract 27 → 29) ;
+> corpus régénéré (synthesizer +librosa/torch/torchaudio en requires, total 110, à jour) ;
+> roundtrip synthesizer : fidélité « accord », facette prompts « non applicable », verdict
+> 2 code-gen inchangé (matière phase R). **Grille : SYNTHESIZER 95 % (67/70)** — restent
+> `input_match_ui`, `params_modal_batch`, `during_preview` (chantiers transverses ①/③ de la file,
+> PAS le paquet F4/F6).
+>
+> **🔚 POINT D'ENTRÉE SESSION SUIVANTE : inchangé depuis le 13/08 (nuit)** — ① during ×6 (GPU,
+> avec Fabien) ; ② ~~paquet synthesizer~~ **FAIT** ; ③ finitions composer 91/describer 90/reader 90 ;
+> ④ phase R régénérabilité ×7. PENDINGS : ⚠ **restart du service TTS par Fabien** (uvicorn:8001
+> tourne encore avec l'ancien code ; le préchargement Kokoro touche le GPU → jamais par
+> l'assistant) — workers/gunicorn PAS concernés (workers.py/views.py inchangés, HTTP seulement) ;
+> push = demander. **Contrôles attendus au prochain /reprise** : check_docs 2 CASSÉ ·
+> doc_facts 4 à jour · corpus 110 (depuis WSL2) · grille : converter 100, transcriber 97,
+> **synthesizer 95**, avat/enh/imager 94, anonymizer 93, composer 91, describer/reader 90.
+
 ## §REPRISE — 2026-08-13 (nuit) : BANC CODEGEN JOUÉ (marche B front 2) + skills à jour
 
 > **Reprise** : les 5 contrôles conformes au bloc attendu (check_docs 2 CASSÉ, corpus 110,
@@ -3283,8 +3336,10 @@ publié — c'est le premier rendu qui a livré le faux 100, pas une dérive ult
 >   `audit_noms_generiques.py`. Rien à conserver.
 >
 > **Contrôles attendus au prochain `/reprise`** (chiffres à confronter — un écart = dérive) :
-> `manage.py check` 0 issue · `check_docs` **2 CASSÉ** sur **344** références (`_result_tabs.html`,
-> `common/middleware.py` — cibles jamais créées) · `doc_facts --check` 4 faits à jour ·
+> `manage.py check` 0 issue · `check_docs` **2 CASSÉ** sur **344** références (`_result_tabs.html`
+> et le middleware i18n — cibles jamais créées ; chemins non cités ici : la citation d'un chemin
+> cassé dans CE bloc était COMPTÉE par check_docs comme une 3ᵉ référence cassée, constaté 14/08) ·
+> `doc_facts --check` 4 faits à jour ·
 > `manifest_export --check` **110 manifestes** · carte : **62 mécanismes déclarés**, 0 domicile
 > absent, **1 sans consommateur** (`qc`), 18 assumés locaux, **0 module balayé non rattaché**.
 > ⚠ `check_app_conformity` **non relancé** — cette session n'a touché aucune facette de la grille
