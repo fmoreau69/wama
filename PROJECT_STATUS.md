@@ -2482,7 +2482,23 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > **36 sur 4 critères transverses** (recursive_import 10/10, model_caps_ui 9, during_preview
 > 9, input_match_ui 8) + paquet synthesizer (11, seul F4 structurel), describer 10,
 > composer 8 → phase G ; puis phase B (pilote transcriber + Translator DE ZÉRO, GPU).
-> ~7-8 sessions au total. ⚠ restart workers/gunicorn PENDING ; push (~19 commits) = demander.
+> ~7-8 sessions au total. ⚠ restart workers/gunicorn PENDING ; push = demander.
+>
+> **SUITE (même nuit) : converter → 100 % ENTAMÉ + bug inspecteur RÉSOLU.** Cadrage acté
+> avec Fabien : terminer le portage PAR COMPARAISON avec l'app générée (diff code = harnais,
+> diff comportement = Playwright) ; converter = pilote. Bug connu (les paramètres de
+> conversion absents du volet inspecteur alors que la modale les montre) : cause TROUVÉE
+> dans la brique — `detail_from_spec` en mode `extra_from_params: '<champ JSON>'` ne lisait
+> QUE le JSON porteur, jamais les champs DÉDIÉS du modèle (`output_format` n'apparaissait
+> jamais ; `options: {}` = volet muet). Corrigé dans `detail_registry.py` : repli déclaratif
+> JSON → champ dédié, alias exclus (pas de doublon) ; **validé sur données réelles**
+> (items 54/55 : `Format de sortie` visible, extras JSON intacts). Rayon d'action mesuré :
+> converter seul (le reader n'utilise pas `extra_from_params`). ⚠ le volet est servi par
+> gunicorn WSL2 → le correctif ne sera VISIBLE qu'après le restart PENDING ; validation
+> navigateur (/smoke) à faire après. Reste pour converter 100 % : recursive_import +
+> during_preview (vraies briques transverses) ; model_caps_ui + input_match_ui = vérifier
+> s'ils doivent être NON APPLICABLES sur une app sans moteur IA (corriger le CHECK avec
+> preuve, pas l'app — règle /conformite).
 
 ## §REPRISE — 2026-08-11→12 (3ᵉ-4ᵉ sessions, marches C + A COMPLÈTES A1→A5) : harnais + gabarits + triades + composition
 

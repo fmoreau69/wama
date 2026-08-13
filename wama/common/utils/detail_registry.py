@@ -107,11 +107,17 @@ def detail_from_spec(instance, spec, app_name):
         from .param_schema import schema_for_app
         valeurs = (getattr(instance, src_params, None) or {}) if isinstance(src_params, str) \
             else None
+        alias_sources = set(spec.get('aliases') or {})   # déjà rendus sous leur clé canonique
         for p in (schema_for_app(app_name) or []):
             label, nom = p.get('label'), p.get('name')
-            if not label or not nom:
+            if not label or not nom or nom in alias_sources:
                 continue
-            v = valeurs.get(nom) if valeurs is not None else getattr(instance, nom, None)
+            v = valeurs.get(nom) if valeurs is not None else None
+            if v in (None, '', False, 0):
+                # Repli sur le champ DÉDIÉ du modèle : les paramètres de tête
+                # (`output_format`…) vivent hors du JSON porteur — sans ce repli le volet
+                # les taisait alors que la modale les montrait (bug converter, 2026-08-13).
+                v = getattr(instance, nom, None)
             # 0 compris : dans ces schémas une valeur nulle est un réglage non posé.
             if v not in (None, '', False, 0):
                 extra[label] = v
