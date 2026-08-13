@@ -1250,7 +1250,8 @@ def start_describer(user, description_id: int = None) -> dict:
         description.result_text = ''
         description.save(update_fields=['status', 'progress', 'error_message', 'result_text'])
         cache.delete(f'describer_progress_{description_id}')
-        cache.delete(f'describer_partial_{description_id}')
+        from wama.common.utils.preview_utils import clear_partial
+        clear_partial('describer', description_id)
 
         task = describe_content.delay(description.id)
         description.task_id = task.id
@@ -1294,7 +1295,8 @@ def get_describer_status(user) -> dict:
     for desc in jobs_qs:
         cached = cache.get(f'describer_progress_{desc.id}')
         progress = cached if cached is not None else desc.progress
-        partial = cache.get(f'describer_partial_{desc.id}', '')
+        from wama.common.utils.preview_utils import get_partial_text
+        partial = get_partial_text('describer', desc.id)
         result_preview = None
         if desc.result_text:
             result_preview = (desc.result_text[:300] + '…') if len(desc.result_text) > 300 else desc.result_text
@@ -1469,7 +1471,8 @@ def get_transcriber_status(user) -> dict:
     for t in jobs_qs:
         cached = cache.get(f'transcriber_progress_{t.id}')
         progress = cached if cached is not None else t.progress
-        partial = cache.get(f'transcriber_partial_text_{t.id}', '')
+        from wama.common.utils.preview_utils import get_partial_text
+        partial = get_partial_text('transcriber', t.id)
         text_preview = None
         if t.text:
             text_preview = (t.text[:300] + '…') if len(t.text) > 300 else t.text

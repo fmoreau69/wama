@@ -510,6 +510,8 @@ APP_CATALOG = {
             save_profile=True,       # Phase 1 (2026-05-16)
             filemanager_import=True, # quick-action + dispatch wama:fileimported (2026-05-16)
             tool_api=True,           # convert_file + get_converter_status (2026-06-02)
+            during_preview=True,     # audio hors in-place : la sortie ffmpeg s'écrit sous MEDIA
+                                     #   → URL partielle écoutable pendant la conversion (13/08)
             cross_app_options=False, # Phase 2 à implémenter (upscale + audio enhance)
             # Porté 2026-07-10 (grille périmée, corrigée) : inspecteur via initFromSchema
             # (détail/chips build_detail, cloneActions item+batch), card « Nouvel élément » en
@@ -559,6 +561,8 @@ APP_CATALOG = {
             multi_format_download=True,
             export_binding='late',
             tool_api=True,
+            during_preview=True,  # texte partiel qui se construit (workers._set_partial →
+                                  #   brique publish_partial_text → face ?side=during, 2026-08-13)
             inspector=True,      # volet contextuel via WamaInspector.initFromSchema
             model_help=None,     # N/A — sélection de modèle INTERNE (auto par type de média), aucun select
             layout=True,         # Ligne/Mosaïque commun (toolbar + wama-card, 2026-07-05)
@@ -783,6 +787,8 @@ APP_CATALOG = {
             multi_format_download=True,
             export_binding='late',
             tool_api=True,
+            during_preview=True,  # texte partiel qui se construit (workers._set_partial_text →
+                                  #   brique publish_partial_text → face ?side=during, 2026-08-13)
             inspector=True,   # référence : volet contextuel card/batch/file ET modale item/batch
                               # GÉNÉRÉS depuis le schéma unique (transcriber/params.py + WamaParams)
             modes=None,       # N/A — Speak (temps réel) = AFFORDANCE de la card (show_live,

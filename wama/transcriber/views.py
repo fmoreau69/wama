@@ -906,7 +906,8 @@ def progress(request, pk: int):
     p = int(cache.get(f"transcriber_progress_{t.id}", t.progress or 0))
 
     # Get partial text for live display
-    partial_text = cache.get(f"transcriber_partial_text_{t.id}", '')
+    from wama.common.utils.preview_utils import get_partial_text
+    partial_text = get_partial_text('transcriber', t.id)
 
     response_data = {
         'progress': p,

@@ -505,9 +505,9 @@ def progress(request, pk):
     cache_key = f"describer_progress_{description.id}"
     progress = cache.get(cache_key, description.progress)
 
-    # Get partial result if available
-    partial_key = f"describer_partial_{description.id}"
-    partial_text = cache.get(partial_key, '')
+    # Get partial result if available — brique commune (clé unique, sert aussi ?side=during)
+    from wama.common.utils.preview_utils import get_partial_text
+    partial_text = get_partial_text('describer', description.id)
 
     response = {
         'id': description.id,

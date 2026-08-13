@@ -68,9 +68,10 @@ def _console(user_id: int, message: str, level: str = None) -> None:
 
 
 def _set_partial_text(transcript_id: int, text: str) -> None:
-    """Store partial transcription text in cache for live display."""
-    key = f"transcriber_partial_text_{transcript_id}"
-    cache.set(key, text, timeout=3600)
+    """Texte partiel de transcription — BRIQUE COMMUNE (2026-08-13) : une seule clé,
+    lue par l'endpoint de progression ET par le volet `?side=during` (during_preview)."""
+    from wama.common.utils.preview_utils import publish_partial_text
+    publish_partial_text('transcriber', transcript_id, text)
 
 
 def _preprocess_audio(transcript: Transcript, audio_path: str) -> str:

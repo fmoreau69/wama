@@ -156,11 +156,31 @@ def emit_streaming_peaks(app_name, pk, pcm, sr, buckets=800):
         pass
 
 
+def _partial_text_key(app_name, pk):
+    return f'wama_partial_text_{app_name}_{pk}'
+
+
+def publish_partial_text(app_name, pk, text):
+    """Worker : publie le TEXTE partiel courant (transcription/description qui se construit),
+    servi par `?side=during` (mime text/plain + content inline — le front le rend déjà).
+    Étend la brique aux apps à sortie TEXTE (2026-08-13) : transcriber/describer publiaient
+    chacun dans une clé de cache MAISON que seul leur endpoint de progression lisait."""
+    from django.core.cache import cache
+    cache.set(_partial_text_key(app_name, pk), str(text or ''), 900)
+
+
+def get_partial_text(app_name, pk):
+    """Lecture du texte partiel (endpoints de progression des apps + `?side=during`)."""
+    from django.core.cache import cache
+    return cache.get(_partial_text_key(app_name, pk), '')
+
+
 def clear_partial(app_name, pk):
     """Worker : retire l'aperçu partiel (fin de traitement — la face SORTIE prend le relais)."""
     from django.core.cache import cache
     cache.delete(_partial_key(app_name, pk))
     cache.delete(_partial_peaks_key(app_name, pk))
+    cache.delete(_partial_text_key(app_name, pk))
 
 
 def _during_preview_data(app_name, instance, request):
@@ -174,8 +194,14 @@ def _during_preview_data(app_name, instance, request):
     pk = getattr(instance, 'pk', None)
     url = cache.get(_partial_key(app_name, pk))
     peaks_entry = cache.get(_partial_peaks_key(app_name, pk))
-    if not url and not peaks_entry:
+    partial_text = cache.get(_partial_text_key(app_name, pk))
+    if not url and not peaks_entry and not partial_text:
         return None
+    if partial_text and not url and not peaks_entry:
+        # Sortie TEXTE qui se construit (transcriber/describer) : contenu inline,
+        # rendu par la branche text/* de renderInlinePreview (data.content).
+        return {'partial': True, 'name': 'texte partiel', 'mime_type': 'text/plain',
+                'content': partial_text[-3000:]}
     data = {'partial': True}
     if url:
         from .mime_utils import guess_mime_type

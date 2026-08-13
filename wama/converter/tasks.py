@@ -86,6 +86,13 @@ def _convert(job, ctx):
     from .utils.quality_presets import resolve_options
     eff_opts = resolve_options(job.media_type, job.quality_preset, job.options)
 
+    # Aperçu « PENDANT » (brique commune, 2026-08-13) : hors in-place, ffmpeg écrit la sortie
+    # AUDIO progressivement sous MEDIA — l'URL partielle est écoutable pendant la conversion
+    # (mp3/wav/ogg se décodent en flux). Best-effort ; retirée en fin de glu (les deux issues).
+    if not in_place and job.media_type == 'audio':
+        from wama.common.utils.preview_utils import publish_partial
+        publish_partial('converter', job.pk, settings.MEDIA_URL + output_rel_dir + output_name)
+
     try:
         media_type = job.media_type
 
@@ -151,12 +158,15 @@ def _convert(job, ctx):
                     os.unlink(output_path)
             except Exception:
                 pass
+        _clear_during(job)
         raise
 
     # In-place: move the temp result to its final location next to the source.
     if in_place:
         import shutil as _sh
         _sh.move(output_path, final_output_path)
+
+    _clear_during(job)
 
     # Seeding ETA : temps ∝ taille d'entrée (Mo) ; clé par type de conversion (ffmpeg, pas de modèle)
     _mb = max(os.path.getsize(input_path) / 1e6, 0.01)
@@ -165,6 +175,15 @@ def _convert(job, ctx):
         'eta': (f'converter:{job.media_type}:{job.output_format}', _mb, 'mb'),
         'label': output_name,
     }
+
+
+def _clear_during(job):
+    """Fin du « pendant » (succès OU échec) : la face SORTIE prend le relais. Best-effort."""
+    try:
+        from wama.common.utils.preview_utils import clear_partial
+        clear_partial('converter', job.pk)
+    except Exception:
+        pass
 
 
 def _build_output_name(input_filename: str, output_format: str) -> str:

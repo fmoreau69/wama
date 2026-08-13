@@ -424,7 +424,9 @@ def _during_preview(f: _AppFiles):
     Le consommateur vit dans `wama-inspector.js` (`_startDuring`), PAS dans `media-preview.js`
     qui ne fait que rendre la donnée — vérifié 2026-07-30 (le trou #4 de la route était périmé).
     """
-    ev = f.find(PY + TEMPLATES + JS, r'during_preview|emit_streaming_peaks|side=during')
+    # L'émission se lit par l'API de la brique (publish_partial_text/peaks/…, 13/08) —
+    # pas seulement par le flag : un worker qui publie EST la preuve.
+    ev = f.find(PY + TEMPLATES + JS, r'during_preview|emit_streaming_peaks|publish_partial|side=during')
     if not ev:
         return False, None
     front = [p.relative_to(WAMA_ROOT).as_posix()

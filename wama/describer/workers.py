@@ -27,9 +27,10 @@ def _set_progress(description, value: int, force: bool = False) -> None:
 
 
 def _set_partial(description, text: str) -> None:
-    """Set partial result text in cache."""
-    cache_key = f"describer_partial_{description.id}"
-    cache.set(cache_key, text, timeout=3600)
+    """Texte partiel de description — BRIQUE COMMUNE (2026-08-13) : une seule clé,
+    lue par l'endpoint de progression ET par le volet `?side=during` (during_preview)."""
+    from wama.common.utils.preview_utils import publish_partial_text
+    publish_partial_text('describer', description.id, text)
 
 
 def _console(user_id: int, message: str, level: str = None) -> None:

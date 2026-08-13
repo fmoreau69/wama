@@ -2610,6 +2610,26 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > composer 90 (+2), describer 89 (+3), synthesizer 87 (+1), reader 90, converter/transcriber
 > 95, anonymizer 93, avatarizer/enhancer/imager 94. ⚠ **RESTART/HUP gunicorn requis** (les
 > 7 nouveaux templates sont cachés) puis re-passe smoke (ui stage + captures par app).
+>
+> **SUITE (13/08 fin d'après-midi, restart+push Fabien faits) : CONVERTER 100 % — verdicts
+> N/A + brique during_preview étendue au TEXTE.** ① Re-smoke post-restart : 13/13, 0 erreur
+> console (les 7 cards wcv3 servies). ② Verdicts N/A (validés Fabien) : `recursive_import`
+> → fonction PRÉSENCE-D'ABORD (une adoption vaut toujours — synthesizer importe des dossiers
+> de .txt) + repli N/A si aucune entrée média-fichier dans `input_types` (composer = descripteurs
+> de batch) ; `input_match_ui`/`model_caps_ui` → garde `_uses_models` (la même que F4 : sans
+> moteur IA, rien à griser/dériver). ③ **Brique `during_preview` étendue au texte partiel** :
+> `publish_partial_text`/`get_partial_text` dans preview_utils (clé UNIQUE), payload during
+> `text/plain + content` (branche déjà rendue par renderInlinePreview) ; transcriber
+> (`_set_partial_text`, entonnoir unique) et describer (`_set_partial`) REBRANCHÉS sur la
+> brique — leurs clés maison supprimées, lecteurs migrés (progress endpoints + tool_api ×3) ;
+> capacité `during_preview=True` déclarée (transcriber, describer). ④ **Converter : émission
+> during RÉELLE** — conversion AUDIO hors in-place : ffmpeg écrit la sortie progressivement
+> sous MEDIA → `publish_partial(URL)` = écoutable pendant la conversion ; `_clear_during` aux
+> deux issues ; capacité déclarée. Critère élargi à l'API de la brique (`publish_partial*`).
+> Chaîne validée en shell (capacités, publish→payload→clear). **Grille : CONVERTER 100 %
+> (60/60), transcriber 97, describer 90.** Reste during : reader/synthesizer/imager/enhancer/
+> anonymizer/avatarizer (émissions à poser dans les boucles backend — GPU, à cadrer).
+> ⚠ restart workers requis pour l'émission during (workers/tasks rechargés).
 
 ## §REPRISE — 2026-08-11→12 (3ᵉ-4ᵉ sessions, marches C + A COMPLÈTES A1→A5) : harnais + gabarits + triades + composition
 
