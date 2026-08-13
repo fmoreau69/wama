@@ -2517,6 +2517,21 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > reconnaître la brique (précédent crash_redelivery_guard). Syntaxe node OK ×3, statics
 > dupliqués. Adoption restante : 9 apps (2 lignes + 1 paramètre chacune). ⚠ validation
 > navigateur (drop d'un dossier réel) après restart/HUP gunicorn — templates cachés.
+>
+> **SUITE : passe d'adoption ×9 JOUÉE — `recursive_import` 9/10** (question Fabien « toutes
+> les manières d'importer ? » vérifiée d'abord : explorateur drop/sélecteur = brique ✅ ;
+> filemanager→app « Envoyer vers » = fichiers seuls PAR CONSTRUCTION (`node.type==='file'`,
+> filemanager.js:622 — « envoyer un DOSSIER vers app » = trou distinct côté serveur, désigné
+> pas traité) ; drag interne FM = no-op inchangé (pas de File natif) ; describer/synthesizer
+> gardent leur chemin `FileManager.getFileManagerData` AVANT collect). Adoption COMPLÈTE
+> (lien dossier + drop récursif) : anonymizer, describer, enhancer ×2 zones, reader,
+> synthesizer, transcriber ; ROBUSTESSE seule (slots mono-fichier, dossier → vrais fichiers,
+> pas de lien) : avatarizer (avatar+audio), imager (routeFile ×N) ; composer NON adopté
+> (prompt-primaire — l'import dossier n'y a pas de sens, candidat N/A avec
+> model_caps_ui/input_match_ui converter). Node OK ×9, statics ×9, grille re-mesurée :
+> anonymizer 93, avatarizer 94, converter 95, describer 86, enhancer 94, imager 94,
+> reader 88, synthesizer 86, transcriber 95 (composer 88 inchangé). ⚠ même lot de
+> validation navigateur post-restart que le reste.
 
 ## §REPRISE — 2026-08-11→12 (3ᵉ-4ᵉ sessions, marches C + A COMPLÈTES A1→A5) : harnais + gabarits + triades + composition
 

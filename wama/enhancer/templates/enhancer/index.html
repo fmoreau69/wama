@@ -184,7 +184,7 @@
 
 {# Card d'entrée COMMUNE (dépôt fichier/URL/médiathèque + import batch) — port 2026-07-26 #}
 {% url 'enhancer:batch_template' as enhancer_batch_template_url %}
-{% include 'common/_new_item_card.html' with drop_zone_id='dropZoneEnhancer' file_input_id='enhancer-file' file_accept='image/*,video/*' formats_label='Images · Vidéos' show_batch_bar=True batch_template_url=enhancer_batch_template_url show_media_library=True show_url=True url_input_id='enhancerUrlInput' url_submit_id='enhancerUrlSubmit' url_placeholder='https://… (média distant, page, YouTube)' collapsible=True %}
+{% include 'common/_new_item_card.html' with drop_zone_id='dropZoneEnhancer' file_input_id='enhancer-file' folder_input_id='enhancerFolderInput' file_accept='image/*,video/*' formats_label='Images · Vidéos' show_batch_bar=True batch_template_url=enhancer_batch_template_url show_media_library=True show_url=True url_input_id='enhancerUrlInput' url_submit_id='enhancerUrlSubmit' url_placeholder='https://… (média distant, page, YouTube)' collapsible=True %}
 
 {# Barre globale + ETA agrégée — brique commune (balayage bleu/vert permanent, toujours visible). #}
 {% include 'common/_global_progress.html' %}
@@ -232,7 +232,7 @@
 <div class="tab-pane fade" id="audioTab" role="tabpanel" aria-labelledby="audio-tab">
 
 {# Card d'entrée COMMUNE audio (dépôt fichier/médiathèque + barre batch audio spécifique) #}
-{% include 'common/_new_item_card.html' with drop_zone_id='dropZoneAudio' file_input_id='audio-enhancer-file' file_accept='audio/*' formats_label='Audio — WAV, MP3, FLAC, M4A…' show_media_library=True media_library_type='audio' extra_zone_template='enhancer/_audio_batch_bar.html' collapsible=True %}
+{% include 'common/_new_item_card.html' with drop_zone_id='dropZoneAudio' file_input_id='audio-enhancer-file' folder_input_id='audioEnhFolderInput' file_accept='audio/*' formats_label='Audio — WAV, MP3, FLAC, M4A…' show_media_library=True media_library_type='audio' extra_zone_template='enhancer/_audio_batch_bar.html' collapsible=True %}
 
 <div id="audioGlobalStatus" style="opacity:0; pointer-events:none;">
     <div class="d-flex justify-content-between align-items-baseline mb-1">

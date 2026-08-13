@@ -76,11 +76,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
 
-            // Regular file drop
-            if (e.dataTransfer.files.length > 0) {
-                handleFiles(e.dataTransfer.files);
-            }
+            // Regular file drop — dossiers inclus (brique commune WamaFolderImport, F2).
+            WamaFolderImport.collect(e.dataTransfer).then(list => {
+                if (list.length > 0) handleFiles(WamaFolderImport.files(list));
+            });
         });
+
+        // Import de DOSSIER via le lien de la card commune (folder_input_id, webkitdirectory).
+        const folderInput = document.getElementById('describerFolderInput');
+        if (folderInput) {
+            folderInput.addEventListener('change', () => {
+                const files = WamaFolderImport.files(WamaFolderImport.fromInput(folderInput.files));
+                if (files.length > 0) handleFiles(files);
+                folderInput.value = '';
+            });
+        }
     }
 
     function handleFileSelect(e) {

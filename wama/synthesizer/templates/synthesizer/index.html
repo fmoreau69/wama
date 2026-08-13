@@ -176,7 +176,7 @@
 {% comment %}Card d'entrée COMMUNE PROMPT-FIRST (repliée, dépliage clic/focus/drag) —
 le prompt reste visible replié ; titre/voix/vitesse/aperçu dans la zone étendue.{% endcomment %}
 {% url 'synthesizer:batch_template' as synth_batch_template_url %}
-{% include 'common/_new_item_card.html' with drop_zone_id='dropZoneSynthesizer' file_input_id='fileInput' file_accept='.txt,.pdf,.docx,.csv,.md' formats_label='Texte à synthétiser — TXT · PDF · DOCX · CSV · MD (batch : une ligne par synthèse)' show_batch_bar=True batch_template_url=synth_batch_template_url show_media_library=True media_library_type='document' show_prompt=True prompt_input_id='textContent' prompt_rows=2 prompt_placeholder='✍️ Écrivez le texte à synthétiser — clic pour les options' primary_btn_id='submitTextBtn' primary_btn_label='Ajouter à la file' primary_btn_icon='fa-plus' extra_zone_template='synthesizer/_new_item_extra.html' collapsible=True %}
+{% include 'common/_new_item_card.html' with drop_zone_id='dropZoneSynthesizer' file_input_id='fileInput' folder_input_id='synthFolderInput' file_accept='.txt,.pdf,.docx,.csv,.md' formats_label='Texte à synthétiser — TXT · PDF · DOCX · CSV · MD (batch : une ligne par synthèse)' show_batch_bar=True batch_template_url=synth_batch_template_url show_media_library=True media_library_type='document' show_prompt=True prompt_input_id='textContent' prompt_rows=2 prompt_placeholder='✍️ Écrivez le texte à synthétiser — clic pour les options' primary_btn_id='submitTextBtn' primary_btn_label='Ajouter à la file' primary_btn_icon='fa-plus' extra_zone_template='synthesizer/_new_item_extra.html' collapsible=True %}
 
 
 {# Barre globale + ETA agrégée — brique commune (balayage bleu/vert permanent, toujours visible). #}

@@ -385,7 +385,7 @@ if (window.WamaModelHelp) {
 {% comment %} Card d'entrée commune (drag&drop + URL + batch + médiathèque), repliable.
 Modalité principale = fichier → repliée avec en-tête quand la file n'est pas vide. {% endcomment %}
 {% url 'anonymizer:batch_template' as anon_batch_template_url %}
-{% include 'common/_new_item_card.html' with card_id='anonNewItem' drop_zone_id='dropZoneAnonymizer' file_input_id='fileupload' file_accept='image/*,video/*' formats_label='Images · Vidéos — JPG, PNG, MP4, AVI, MKV…' show_batch_bar=True batch_template_url=anon_batch_template_url show_media_library=True show_url=True url_input_id='anonUrlInput' url_submit_id='anonUrlSubmit' url_placeholder='https://… ou YouTube' collapsible=True %}
+{% include 'common/_new_item_card.html' with card_id='anonNewItem' drop_zone_id='dropZoneAnonymizer' file_input_id='fileupload' folder_input_id='anonFolderInput' file_accept='image/*,video/*' formats_label='Images · Vidéos — JPG, PNG, MP4, AVI, MKV…' show_batch_bar=True batch_template_url=anon_batch_template_url show_media_library=True show_url=True url_input_id='anonUrlInput' url_submit_id='anonUrlSubmit' url_placeholder='https://… ou YouTube' collapsible=True %}
 
 {% comment %} Barre de progression globale — composant commun (wama-global-progress.js). {% endcomment %}
 <div class="mb-3 mt-3">

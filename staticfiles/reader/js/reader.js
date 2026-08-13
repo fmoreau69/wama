@@ -750,8 +750,21 @@
         zone.addEventListener('drop', e => {
             e.preventDefault();
             zone.classList.remove('dragover');
-            uploadFilesWithBatch(e.dataTransfer.files);
+            // Dossiers inclus (brique commune WamaFolderImport, F2).
+            WamaFolderImport.collect(e.dataTransfer).then(list => {
+                if (list.length > 0) uploadFilesWithBatch(WamaFolderImport.files(list));
+            });
         });
+
+        // Import de DOSSIER via le lien de la card commune (folder_input_id, webkitdirectory).
+        const folderInput = document.getElementById('readerFolderInput');
+        if (folderInput) {
+            folderInput.addEventListener('change', () => {
+                const files = WamaFolderImport.files(WamaFolderImport.fromInput(folderInput.files));
+                if (files.length > 0) uploadFilesWithBatch(files);
+                folderInput.value = '';
+            });
+        }
     }
 
     // Handle files imported via filemanager "Envoyer vers Reader" context menu

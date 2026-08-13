@@ -134,21 +134,37 @@ document.addEventListener('DOMContentLoaded', function () {
     dropZone.addEventListener('dragleave', () => {
       dropZone.classList.remove('drag-over');
     });
-    dropZone.addEventListener('drop', e => {
-      e.preventDefault();
-      dropZone.classList.remove('drag-over');
-      const allFiles = Array.from(e.dataTransfer.files);
-      // Allow batch files through
-      const files = allFiles.filter(f => {
+    // Filtre commun aux entrées fichier ET dossier (formats audio + fichiers batch).
+    function filterAudioFiles(allFiles) {
+      return allFiles.filter(f => {
         const ext = f.name.split('.').pop().toLowerCase();
         return AUDIO_BATCH_EXTS.includes(ext) || /\.(mp3|wav|flac|ogg|m4a|aac|opus|wma)$/i.test(f.name);
       });
-      if (files.length === 0) {
-        WamaApp.toast('Formats acceptés : MP3, WAV, FLAC, OGG, M4A, AAC, OPUS, WMA (ou fichier batch .txt/.csv/.md)');
-        return;
-      }
-      handleAudioFiles(files);
+    }
+
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      // Dossiers inclus (brique commune WamaFolderImport, F2).
+      WamaFolderImport.collect(e.dataTransfer).then(list => {
+        const files = filterAudioFiles(WamaFolderImport.files(list));
+        if (files.length === 0) {
+          WamaApp.toast('Formats acceptés : MP3, WAV, FLAC, OGG, M4A, AAC, OPUS, WMA (ou fichier batch .txt/.csv/.md)');
+          return;
+        }
+        handleAudioFiles(files);
+      });
     });
+
+    // Import de DOSSIER via le lien de la card commune (folder_input_id, webkitdirectory).
+    const folderInput = document.getElementById('audioEnhFolderInput');
+    if (folderInput) {
+      folderInput.addEventListener('change', () => {
+        const files = filterAudioFiles(WamaFolderImport.files(WamaFolderImport.fromInput(folderInput.files)));
+        if (files.length > 0) handleAudioFiles(files);
+        folderInput.value = '';
+      });
+    }
   }
 
   // ── Audio Batch bar ──────────────────────────────────────────────────────

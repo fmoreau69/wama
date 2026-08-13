@@ -112,15 +112,24 @@ document.addEventListener('DOMContentLoaded', function () {
       dropZone.classList.remove('drag-over');
     });
 
-    // Drop
+    // Drop — dossiers inclus (brique commune WamaFolderImport, F2).
     dropZone.addEventListener('drop', (e) => {
       e.preventDefault();
       dropZone.classList.remove('drag-over');
-      const files = e.dataTransfer.files;
-      if (files.length > 0) {
-        handleFiles(files);
-      }
+      WamaFolderImport.collect(e.dataTransfer).then(list => {
+        if (list.length > 0) handleFiles(WamaFolderImport.files(list));
+      });
     });
+
+    // Import de DOSSIER via le lien de la card commune (folder_input_id, webkitdirectory).
+    const folderInput = document.getElementById('enhancerFolderInput');
+    if (folderInput) {
+      folderInput.addEventListener('change', () => {
+        const files = WamaFolderImport.files(WamaFolderImport.fromInput(folderInput.files));
+        if (files.length > 0) handleFiles(files);
+        folderInput.value = '';
+      });
+    }
   }
 
   async function refreshCard(id) {

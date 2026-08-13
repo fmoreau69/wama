@@ -165,13 +165,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
 
-            // Regular file drop
-            handleFilesWithDetect(e.dataTransfer.files);
+            // Regular file drop — dossiers inclus (brique commune WamaFolderImport, F2).
+            const list = await WamaFolderImport.collect(e.dataTransfer);
+            if (list.length > 0) handleFilesWithDetect(WamaFolderImport.files(list));
         });
 
         fileInput.addEventListener('change', (e) => {
             handleFilesWithDetect(e.target.files);
         });
+
+        // Import de DOSSIER via le lien de la card commune (folder_input_id, webkitdirectory).
+        const folderInput = document.getElementById('synthFolderInput');
+        if (folderInput) {
+            folderInput.addEventListener('change', () => {
+                const files = WamaFolderImport.files(WamaFolderImport.fromInput(folderInput.files));
+                if (files.length > 0) handleFilesWithDetect(files);
+                folderInput.value = '';
+            });
+        }
 
         // FileManager import result (vakata.dnd path — native drop event never fires for filemanager drags)
         dropZone.addEventListener('filemanager:imported', (e) => {

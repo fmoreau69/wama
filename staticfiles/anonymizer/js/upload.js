@@ -82,11 +82,23 @@ $(function () {
     });
 
     dropZone.addEventListener('drop', function (e) {
-      const dt = e.dataTransfer;
-      if (dt.files.length > 0) {
-        $(fileInput).fileupload('add', { files: dt.files });
-      }
+      // Dossiers déposés → traversée récursive (brique commune WamaFolderImport, F2).
+      WamaFolderImport.collect(e.dataTransfer).then(function (list) {
+        if (list.length > 0) {
+          $(fileInput).fileupload('add', { files: WamaFolderImport.files(list) });
+        }
+      });
     });
+
+    // Import de DOSSIER via le lien de la card commune (folder_input_id, webkitdirectory).
+    const folderInput = document.getElementById('anonFolderInput');
+    if (folderInput) {
+      folderInput.addEventListener('change', function () {
+        const files = WamaFolderImport.files(WamaFolderImport.fromInput(folderInput.files));
+        if (files.length > 0) $(fileInput).fileupload('add', { files: files });
+        folderInput.value = '';
+      });
+    }
   }
 
   // Upload des fichiers (endpoint et CSRF via config — l'input commun n'a pas de data-url)

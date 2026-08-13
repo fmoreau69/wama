@@ -91,7 +91,10 @@
         avatarUploadZone.addEventListener('drop', e => {
             e.preventDefault();
             avatarUploadZone.classList.remove('dragover');
-            handleAvatarFile(e.dataTransfer.files[0]);
+            // Slot MONO-fichier : un dossier déposé résout de vrais fichiers (brique
+            // WamaFolderImport) et on prend le premier — avant, l'entrée dossier échouait.
+            WamaFolderImport.collect(e.dataTransfer)
+                .then(list => { const f = WamaFolderImport.files(list)[0]; if (f) handleAvatarFile(f); });
         });
     }
     if (avatarUploadInput) {
@@ -151,7 +154,9 @@
         audioDropzone.addEventListener('drop', e => {
             e.preventDefault();
             audioDropzone.classList.remove('dragover');
-            handleAudioFile(e.dataTransfer.files[0]);
+            // Slot MONO-fichier : même traitement que le slot avatar (dossier → 1er fichier).
+            WamaFolderImport.collect(e.dataTransfer)
+                .then(list => { const f = WamaFolderImport.files(list)[0]; if (f) handleAudioFile(f); });
         });
     }
     if (audioInput) {

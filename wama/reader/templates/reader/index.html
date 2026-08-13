@@ -162,7 +162,7 @@ window._batchImport = WamaBatchImport({
     {% comment %}Card d'entrée COMMUNE en tête de file (upload + batch) — alignement T/D/C, 2026-07-07.
     Mêmes IDs dropZone/fileInput → handlers reader.js inchangés ; show_batch_bar inclut la barre.{% endcomment %}
     {% url 'reader:batch_template' as reader_batch_template_url %}
-    {% include 'common/_new_item_card.html' with drop_zone_id='dropZone' file_input_id='fileInput' file_accept='.pdf,.jpg,.jpeg,.png,.tiff,.tif,.webp,.bmp' formats_label='PDF · JPG · PNG · TIFF · WebP · BMP' batch_template_url=reader_batch_template_url show_batch_bar=True collapsible=True %}
+    {% include 'common/_new_item_card.html' with drop_zone_id='dropZone' file_input_id='fileInput' folder_input_id='readerFolderInput' file_accept='.pdf,.jpg,.jpeg,.png,.tiff,.tif,.webp,.bmp' formats_label='PDF · JPG · PNG · TIFF · WebP · BMP' batch_template_url=reader_batch_template_url show_batch_bar=True collapsible=True %}
 
     <!-- Global progress bar -->
     {# Barre globale + ETA agrégée — brique commune (balayage bleu/vert permanent, toujours visible). #}

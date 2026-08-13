@@ -143,7 +143,10 @@
             dropZone.addEventListener('drop', function (e) {
                 e.preventDefault();
                 dropZone.classList.remove('dragover');
-                Array.prototype.forEach.call((e.dataTransfer || {}).files || [], routeFile);
+                // Dossiers inclus (brique commune WamaFolderImport, F2) — chaque fichier routé
+                // (image → référence, txt/csv → batch), comme pour un drop multiple.
+                WamaFolderImport.collect(e.dataTransfer)
+                    .then(function (list) { WamaFolderImport.files(list).forEach(routeFile); });
             });
         }
 
