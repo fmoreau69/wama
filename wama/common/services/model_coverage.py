@@ -55,13 +55,25 @@ _ALIAS_CLASSES = (
 )
 
 
-def _formes(nom: str) -> set:
-    """Toutes les écritures normalisées équivalentes à `nom` (lui-même si aucun alias connu)."""
+def formes_equivalentes(nom: str) -> set:
+    """
+    Toutes les écritures normalisées équivalentes à `nom` (lui-même si aucun alias connu).
+
+    PUBLIQUE parce que l'appariement ne s'arrête pas à la sélection : `couvrir_classes` rend les
+    classes dans le vocabulaire de L'APPELANT (`plate`), alors que le modèle retenu peut les
+    nommer autrement (`license_plate` chez morsetechlab). Le moteur qui exécute ensuite doit
+    donc refaire la correspondance — sans elle il ne trouve aucun index de classe et **ignore
+    le modèle en silence** (constaté le 2026-08-13 en testant le pipeline multi-modèles).
+    """
     n = normaliser_classe(nom)
     for groupe in _ALIAS_CLASSES:
         if n in groupe:
             return set(groupe)
     return {n}
+
+
+#: Nom historique conservé pour les appels internes de ce module.
+_formes = formes_equivalentes
 
 
 def _couvertes(m, voulues: set) -> set:

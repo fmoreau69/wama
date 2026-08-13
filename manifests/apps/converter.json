@@ -323,7 +323,7 @@
             "options_source": "formats",
             "pills": [],
             "radio_name": "",
-            "section": "settings",
+            "section": "output",
             "show_if": null,
             "step": null,
             "type": "select",
@@ -331,7 +331,7 @@
           },
           {
             "advanced": false,
-            "chip": false,
+            "chip": true,
             "chip_label": "",
             "choices": [
               [

@@ -15,15 +15,9 @@ from wama.common.utils.media_paths import get_app_media_path
 from .utils.sam3_manager import check_sam3_installed, validate_sam3_prompt
 from wama.common.utils.console_utils import push_console_line
 
-# Parallel detection imports
-from .parallel_detection import (
-    needs_parallel_detection,
-    launch_parallel_detection,
-    store_detection_results,
-    load_detection_results,
-    merge_all_detections,
-    cleanup_detection_cache,
-)
+# Couverture multi-modèles : seule `needs_parallel_detection` survit au retrait du second
+# pipeline (2026-08-13) — elle ne fait que consulter la couverture, elle n'orchestre plus rien.
+from .parallel_detection import needs_parallel_detection
 
 logger = logging.getLogger(__name__)
 
@@ -288,25 +282,21 @@ def process_single_media(self, media_id, force_individual=False):
                 _console(user.id, f"[Parallel Check] Unsupported classes: {parallel_info['unsupported_classes']}")
 
             if parallel_info['parallel'] and len(parallel_info['models']) > 1:
-                # Multiple models needed - use parallel detection workflow
-                _console(user.id, f"[Parallel] Detected {len(parallel_info['models'])} models needed")
+                # ── MULTI-MODÈLES : UNE SEULE TÂCHE (2026-08-13) ──────────────────────────
+                # Auparavant : une chaîne Celery `detect_with_model` × N + `merge_and_blur`,
+                # avec les masques sérialisés en base64 dans Redis. Ce second pipeline avait
+                # PERDU l'interpolation, le format de sortie, le statut RUNNING, l'ETA, la
+                # notification et l'annulation — et décodait la vidéo N+1 fois.
+                # Désormais on reste dans CETTE tâche : `Anonymize` sait charger N modèles et
+                # unir leurs zones frame par frame. Tout ce qui suit (statut, ETA, format,
+                # notification, verrous) s'applique donc au multi-modèles comme au reste.
+                _console(user.id, f"[Multi] {len(parallel_info['models'])} modèles retenus")
                 for m in parallel_info['models']:
-                    _console(user.id, f"  - {m['id']}: {m['classes']}")
-
-                # Add paths to kwargs for parallel tasks
-                kwargs['source_dir'] = str(get_app_media_path('anonymizer', user.id, 'input'))
-                kwargs['dest_dir'] = str(get_app_media_path('anonymizer', user.id, 'output'))
-                kwargs['is_image'] = is_image
-
-                # Reset progress
-                set_media_progress(media.id, 0)
-                _console(user.id, f"[Parallel] Launching parallel detection for media {media.id}...")
-
-                # Launch parallel detection workflow (chord: group of detections + merge callback)
-                launch_parallel_detection(media.id, parallel_info['models'], kwargs)
-
-                # Return immediately - the chord callback will handle completion
-                return {"processing": "parallel", "media_id": media.id, "models": len(parallel_info['models'])}
+                    _console(user.id, f"  - {m['id']} : {m['classes']}")
+                kwargs['models'] = [
+                    {'path': m['path'], 'name': m.get('name'), 'classes': m.get('classes')}
+                    for m in parallel_info['models']
+                ]
 
             elif not parallel_info['parallel'] and len(parallel_info['models']) == 1:
                 # Single model selected by ModelSelector.
@@ -346,8 +336,10 @@ def process_single_media(self, media_id, force_individual=False):
         # ======================================================================
         # SINGLE MODEL PATH: Standard processing (existing flow)
         # ======================================================================
-        # Model selection (only if not already set by parallel check above)
-        if 'model_path' not in kwargs:
+        # Model selection (only if not already set by parallel check above).
+        # `models` (multi-modèles) court-circuite : la couverture a déjà tranché, refaire une
+        # sélection mono-modèle ici ne servirait à rien et brouillerait la trace console.
+        if 'model_path' not in kwargs and 'models' not in kwargs:
             try:
                 from .utils.yolo_utils import get_model_path as _gmp
                 from .utils.model_selector import select_model_by_precision
@@ -684,223 +676,3 @@ def simulate_progress(media_id: int, start_pct: int, end_pct: int, duration_seco
         time.sleep(interval)
         current += increment
         set_media_progress(media_id, int(current))
-
-
-# ======================================================================
-# PARALLEL DETECTION TASKS
-# ======================================================================
-
-@shared_task(bind=True)
-def detect_with_model(self, media_id, model_id, model_path, classes_to_detect, **kwargs):
-    """
-    Detection-only task for sequential multi-model processing.
-
-    Runs detection with a single model and stores results in cache.
-    Tasks run sequentially (chained) to avoid GPU conflicts.
-
-    Args:
-        media_id: Media ID being processed
-        model_id: Identifier of the model (e.g., 'detect/yolo11n.pt')
-        model_path: Full path to the model file
-        classes_to_detect: List of class names this model should detect
-        **kwargs: Additional parameters including:
-            - media_path: Path to the media file
-            - detection_threshold: Confidence threshold
-            - model_index: Index of this model in the sequence (0-based)
-            - total_models: Total number of models being used
-
-    Returns:
-        dict with success status and detection count
-    """
-    from .core.detection_only import DetectionOnlyProcessor
-
-    close_old_connections()
-
-    # Extract progress calculation parameters
-    model_index = kwargs.pop('model_index', 0)
-    total_models = kwargs.pop('total_models', 1)
-
-    try:
-        media = Media.objects.get(pk=media_id)
-        user_id = media.user_id
-
-        logger.info(f"[Sequential] detect_with_model started: media={media_id}, model={model_id} ({model_index + 1}/{total_models})")
-        _console(user_id, f"[Detection {model_index + 1}/{total_models}] {model_id}...")
-
-        # Calculate progress: detection phase is 0-45%, blur phase is 45-100%
-        # Each model gets an equal share of the detection phase
-        detection_phase_pct = 45
-        start_pct = int((model_index / total_models) * detection_phase_pct)
-        end_pct = int(((model_index + 1) / total_models) * detection_phase_pct)
-
-        # Update progress at start of this detection
-        set_media_progress(media_id, start_pct)
-
-        # Create detection processor
-        processor = DetectionOnlyProcessor(model_path=model_path)
-
-        # Run detection
-        results = processor.detect_media(
-            media_path=kwargs['media_path'],
-            classes_to_detect=classes_to_detect,
-            detection_threshold=kwargs.get('detection_threshold', 0.25),
-            use_tracking=not kwargs.get('is_image', False),
-        )
-
-        # Store results in cache for later merging
-        store_detection_results(media_id, model_id, results)
-
-        # Count detections
-        det_count = sum(len(dets) for dets in results.get('frame_detections', {}).values())
-        logger.info(f"[Sequential] detect_with_model complete: model={model_id}, detections={det_count}")
-        _console(user_id, f"[Detection {model_index + 1}/{total_models}] {det_count} detections")
-
-        # Update progress at end of this detection
-        set_media_progress(media_id, end_pct)
-
-        # Cleanup
-        processor.unload()
-
-        return {
-            'success': True,
-            'media_id': media_id,
-            'model_id': model_id,
-            'detection_count': det_count,
-        }
-
-    except Exception as e:
-        logger.error(f"[Parallel] detect_with_model failed: model={model_id}, error={e}")
-        try:
-            _console(media.user_id, f"[Parallel] Error in {model_id}: {e}")
-        except:
-            pass
-        return {
-            'success': False,
-            'media_id': media_id,
-            'model_id': model_id,
-            'error': str(e),
-        }
-
-
-@shared_task(bind=True)
-def merge_and_blur_detections(self, detection_results=None, media_id=None, **kwargs):
-    """
-    Merge detection results from sequential tasks and apply blurring.
-
-    This task runs after all detection tasks complete. It retrieves cached
-    detection results and merges them before applying blur.
-
-    Supports two modes:
-    1. Sequential chain mode: model_ids passed in kwargs, detection_results
-       is the result from the last detection task
-    2. Legacy chord mode: detection_results is a list of all task results
-
-    Args:
-        detection_results: Result from last detection task (chain) or list (chord)
-        media_id: Media ID being processed
-        **kwargs: Blur settings, paths, and model_ids (for chain mode)
-
-    Returns:
-        dict with success status and processing info
-    """
-    from .core.merged_blur import MergedBlurProcessor
-
-    close_old_connections()
-
-    # Handle case where media_id is passed in kwargs (si() mode)
-    if media_id is None:
-        media_id = kwargs.get('media_id')
-    if media_id is None:
-        raise ValueError("media_id is required but was not provided")
-
-    try:
-        media = Media.objects.get(pk=media_id)
-        user_id = media.user_id
-
-        logger.info(f"[Merge] merge_and_blur_detections started: media={media_id}")
-
-        # Get model IDs - check kwargs first (chain mode), then detection_results (chord mode)
-        if 'model_ids' in kwargs and kwargs['model_ids']:
-            # Chain mode: model_ids explicitly passed
-            model_ids = kwargs['model_ids']
-            logger.info(f"[Parallel] Using model_ids from kwargs: {model_ids}")
-        elif isinstance(detection_results, list):
-            # Chord mode: extract from detection results list
-            model_ids = [r['model_id'] for r in detection_results if r.get('success')]
-            failed_models = [r['model_id'] for r in detection_results if not r.get('success')]
-            if failed_models:
-                _console(user_id, f"[Parallel] Warning: {len(failed_models)} model(s) failed")
-                logger.warning(f"[Parallel] Failed models: {failed_models}")
-        else:
-            # Single result (shouldn't happen, but handle gracefully)
-            model_ids = kwargs.get('model_ids', [])
-            if not model_ids and isinstance(detection_results, dict) and detection_results.get('model_id'):
-                model_ids = [detection_results['model_id']]
-
-        if not model_ids:
-            raise Exception("No model IDs available - cannot merge detections")
-
-        _console(user_id, f"[Parallel] Merging results from {len(model_ids)} model(s)...")
-
-        # Merge all detections from cache
-        merged = merge_all_detections(media_id, model_ids)
-
-        total_detections = sum(len(dets) for dets in merged.get('frame_detections', {}).values())
-        _console(user_id, f"[Parallel] Total merged detections: {total_detections}")
-
-        # Apply blurring with merged detections (45% -> 100%)
-        _console(user_id, f"[Blur] Applying blur to {total_detections} detections...")
-        set_media_progress(media_id, 45)
-
-        processor = MergedBlurProcessor(
-            source_dir=kwargs.get('source_dir'),
-            destination_dir=kwargs.get('dest_dir'),
-        )
-
-        processor.process_with_detections(
-            media_path=kwargs['media_path'],
-            merged_detections=merged,
-            blur_ratio=kwargs.get('blur_ratio', 25),
-            progressive_blur=kwargs.get('progressive_blur', 15),
-            roi_enlargement=kwargs.get('roi_enlargement', 1.05),
-            rounded_edges=kwargs.get('rounded_edges', 5),
-        )
-
-        # Clean up detection cache
-        cleanup_detection_cache(media_id, model_ids)
-
-        # Mark media as processed (statut canonique — audit 2026-07-11)
-        media.refresh_from_db()
-        media.status = 'SUCCESS'
-        media.output_file = _resolve_output_rel(media)
-        media.save(update_fields=['status', 'output_file'])
-        set_media_progress(media_id, 100)
-
-        # Release dedup locks (parallel path completion)
-        cache.delete(f"anon_lock:media:{media_id}")
-        cache.delete(f"anon_task_owner:media:{media_id}")
-
-        _console(user_id, f"[Parallel] Complete! ✓ ({len(model_ids)} models, {total_detections} detections)")
-        logger.info(f"[Parallel] merge_and_blur_detections complete: media={media_id}")
-
-        return {
-            'success': True,
-            'media_id': media_id,
-            'models_used': model_ids,
-            'total_detections': total_detections,
-        }
-
-    except Exception as e:
-        logger.error(f"[Parallel] merge_and_blur_detections failed: media={media_id}, error={e}")
-        try:
-            _console(user_id, f"[Parallel] Merge error: {e}")
-        except:
-            pass
-        # Release dedup locks on error
-        cache.delete(f"anon_lock:media:{media_id}")
-        cache.delete(f"anon_task_owner:media:{media_id}")
-        return {
-            'success': False,
-            'media_id': media_id,
-            'error': str(e),
-        }

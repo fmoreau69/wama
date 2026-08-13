@@ -1,11 +1,17 @@
 """
 Contrat des détecteurs de l'Anonymizer — spécialisation métier de `BaseModelBackend`.
 
-CONTEXTE (2026-07-29) — l'anonymizer n'avait AUCUN `backends/` : ses trois porteurs de modèle
-GPU (`Anonymize` et `DetectionOnlyProcessor` → YOLO, `SAM3Processor` → SAM3) avaient déjà la
-FORME du contrat (`load_model()`, parfois `unload()`/`cleanup()`) sans en hériter. Résultat :
-aucune déclaration d'empreinte au gouverneur de ressources, alors que l'anonymizer est l'app
-qui enchaîne les sous-tâches GPU les plus lourdes (chord `detect_with_model`/`merge_and_blur`).
+CONTEXTE (2026-07-29) — l'anonymizer n'avait AUCUN `backends/` : ses porteurs de modèle GPU
+(`Anonymize` → YOLO, `SAM3Processor` → SAM3) avaient déjà la FORME du contrat (`load_model()`,
+parfois `unload()`/`cleanup()`) sans en hériter. Résultat : aucune déclaration d'empreinte au
+gouverneur de ressources, alors que l'anonymizer est l'app dont les tâches GPU sont les plus
+lourdes.
+
+⚠ MISE À JOUR 2026-08-13 — `Anonymize` peut désormais tenir **plusieurs** modèles à la fois
+(multi-modèles : un détecteur de visages ET un de plaques). L'empreinte déclarée
+(`recommended_vram_gb`) reste celle d'UN modèle : au gouverneur de ressources, une passe
+multi-modèles pèse donc plus que ce qu'elle annonce. À revoir le jour où l'on chargera des
+modèles lourds simultanément — avec les YOLO actuels (≤ 0,4 Go) l'écart reste sans effet.
 
 Cette classe fait UNE chose : mapper le verbe historique `load_model()` sur le `load()` du
 contrat commun, pour que l'empreinte soit déclarée **sans toucher un seul appelant**. C'est le

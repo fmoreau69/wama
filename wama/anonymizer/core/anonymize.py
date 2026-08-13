@@ -47,6 +47,21 @@ class Anonymize(DetectionBackend):
         self.results = None
         self.plotted_img = None
 
+        # ── MULTI-MODÈLES (2026-08-13) ────────────────────────────────────────────────────
+        # `self.models` : un descripteur par modèle chargé — {'yolo', 'path', 'name',
+        # 'classes' (celles qu'il doit couvrir), 'seg' (segmentation ?), 'indices'}.
+        # `self.model` reste le PREMIER : tout le code historique (is_loaded, suffixe de
+        # sortie, gardes) continue de fonctionner sans le savoir.
+        #
+        # POURQUOI ICI ET PAS DANS UN SECOND PIPELINE. Le chemin multi-modèles vivait dans
+        # `detection_only.py` + `merged_blur.py` + un transport Redis : une réimplémentation
+        # qui avait PERDU l'interpolation, le format de sortie, le statut RUNNING, l'ETA et
+        # l'annulation, et qui décodait la vidéo N+1 fois. Tout cela existe déjà, correct,
+        # dans cette classe. Lui apprendre N modèles coûte moins que maintenir deux chaînes,
+        # et récupère ces cinq fonctions d'un coup.
+        self.models = []
+        self._resultats_par_modele = []
+
         # Option settings
         self.blur_ratio = 25
         self.rounded_edges = 5
@@ -78,10 +93,14 @@ class Anonymize(DetectionBackend):
         return self.model is not None
 
     def unload(self) -> None:
-        """Libère le modèle YOLO (et la réservation VRAM, via l'enveloppe du contrat commun)."""
-        if self.model is None:
+        """Libère LES modèles YOLO (et la réservation VRAM, via l'enveloppe du contrat commun)."""
+        if self.model is None and not self.models:
             return
         self.model = None
+        # En multi-modèles, oublier `self.model` seul laisserait les autres poids en VRAM :
+        # c'est la fuite que le gouverneur de ressources ne saurait pas reprendre.
+        self.models = []
+        self._resultats_par_modele = []
         try:
             import gc
             gc.collect()
@@ -93,24 +112,93 @@ class Anonymize(DetectionBackend):
     # `load_model(**kwargs)` (nom historique, hérité de DetectionBackend) délègue ICI : c'est
     # ce qui fait passer tous les appelants par la déclaration d'empreinte.
     def load(self, **kwargs) -> bool:
-        self.model_name = 'yolov8n-seg.pt' if self.task == 'segment' else "yolov8n.pt"
-        if any([classe in self.classes2blur for classe in ['face', 'plate']]):
-            self.model_name = "yolov8m_faces&plates_720p.pt"  # "yolov8m_faces&plates_1080p.pt"
-        self.model_path = kwargs.get('model_path', os.path.join(self.models_dir, self.model_name))
-        # Update model_name from actual model_path so output filename reflects the real model
-        if 'model_path' in kwargs:
-            self.model_name = os.path.basename(self.model_path)
-        print(f'Model used: {self.model_path}')
-        self.model = YOLO(self.model_path)
-        self.class_list = list(self.model.model.names.values())
+        """
+        Charge UN modèle (`model_path=`) ou PLUSIEURS (`models=[{'path','classes'}, …]`).
 
-        # Detect if model supports segmentation and update task accordingly
-        self._is_segmentation_model = self._detect_segmentation_model()
-        if self._is_segmentation_model:
+        `models` prime quand il est fourni. Chaque descripteur porte les classes que CE modèle
+        doit couvrir : c'est la couverture (`couvrir_classes`) qui les a réparties, la classe ne
+        redécide rien. Le premier modèle devient `self.model` — le reste du code historique le
+        voit comme avant.
+        """
+        descripteurs = kwargs.get('models') or []
+        if not descripteurs:
+            self.model_name = 'yolov8n-seg.pt' if self.task == 'segment' else "yolov8n.pt"
+            if any([classe in self.classes2blur for classe in ['face', 'plate']]):
+                self.model_name = "yolov8m_faces&plates_720p.pt"
+            chemin = kwargs.get('model_path', os.path.join(self.models_dir, self.model_name))
+            descripteurs = [{'path': chemin, 'classes': None}]
+            if 'model_path' not in kwargs:
+                # Chemin par défaut : on conserve le `model_name` calculé ci-dessus.
+                descripteurs[0]['name'] = self.model_name
+
+        self.models = []
+        for d in descripteurs:
+            chemin = d.get('path') or d.get('model_path')
+            if not chemin:
+                continue
+            print(f'Model used: {chemin}')
+            y = YOLO(chemin)
+            classes_modele = list(y.model.names.values()) if hasattr(y.model, 'names') \
+                else list((getattr(y, 'names', {}) or {}).values())
+            self.models.append({
+                'yolo': y,
+                'path': chemin,
+                'name': d.get('name') or os.path.basename(chemin),
+                # Classes que ce modèle doit couvrir. None = « toutes celles qu'il connaît »,
+                # comportement historique du mono-modèle.
+                'classes': [c.lower() for c in (d.get('classes') or [])] or None,
+                'seg': self._est_segmentation(chemin, y),
+                'class_list': classes_modele,
+            })
+
+        if not self.models:
+            print('❌ Aucun modèle chargeable')
+            return False
+
+        premier = self.models[0]
+        self.model = premier['yolo']
+        self.model_path = premier['path']
+        self.model_name = premier['name']
+        self.class_list = premier['class_list']
+
+        # `task`/`ret_mask` sont GLOBAUX à l'appel ultralytics : dès qu'UN modèle segmente, on
+        # demande les masques. Chaque modèle reste interrogé selon SON propre drapeau `seg`
+        # au moment de lire les résultats — un détecteur ne rendra simplement pas de masques.
+        self._is_segmentation_model = premier['seg']
+        if any(m['seg'] for m in self.models):
             self.task = 'segment'
-            self.ret_mask = True  # Enable retina masks for better quality
-            print(f'[Segmentation] Model detected as segmentation model, task set to: {self.task}')
+            self.ret_mask = True
+            print(f'[Segmentation] {sum(1 for m in self.models if m["seg"])} modèle(s) de '
+                  f'segmentation → task={self.task}')
         return True
+
+    @staticmethod
+    def _indices_classes(class_list, voulues) -> list:
+        """
+        Index des classes du modèle correspondant à `voulues`, **alias compris**.
+
+        Indispensable : `couvrir_classes` rend les classes dans le vocabulaire de l'APPELANT
+        (`plate`), et le modèle peut les nommer autrement (`license_plate`). Comparer les
+        libellés bruts ferait rendre une liste vide, et le modèle serait écarté sans un mot.
+        """
+        from wama.common.services.model_coverage import (
+            formes_equivalentes, normaliser_classe,
+        )
+        acceptees = set()
+        for v in (voulues or []):
+            acceptees |= formes_equivalentes(v)
+        return [i for i, nom in enumerate(class_list)
+                if normaliser_classe(nom) in acceptees]
+
+    def _est_segmentation(self, chemin: str, y) -> bool:
+        """Ce modèle-ci segmente-t-il ? (variante par modèle de `_detect_segmentation_model`)."""
+        bas = (chemin or '').lower()
+        if 'seg' in bas or '/segment/' in bas or '\\segment\\' in bas:
+            return True
+        try:
+            return getattr(y, 'task', None) == 'segment'
+        except Exception:
+            return False
 
     def _detect_segmentation_model(self):
         """
@@ -142,6 +230,11 @@ class Anonymize(DetectionBackend):
         Returns:
             str: Model suffix (e.g., 'yolov8m', 'yolov8n-seg')
         """
+        # Multi-modèles : le nom d'UN modèle mentirait sur le contenu du fichier produit.
+        # Même suffixe que l'ancien chemin (`_blurred_multi-model`) pour que les sorties déjà
+        # sur disque restent reconnues par `_resolve_output_rel` et la vue de téléchargement.
+        if len(self.models) > 1:
+            return 'multi-model'
         if not self.model_name:
             return 'yolo'
 
@@ -208,40 +301,30 @@ class Anonymize(DetectionBackend):
             return
 
         self.classes2blur = kwargs.get('classes2blur', self.classes2blur)
-
-        # Normalize classes to lowercase for case-insensitive matching
         classes2blur_lower = [c.lower() for c in self.classes2blur]
-        classes2blur_by_index = [
-            i for i, name in enumerate(self.class_list) if name.lower() in classes2blur_lower
-        ]
 
-        # Debug: Show which classes will be detected
-        matched_classes = [name for name in self.class_list if name.lower() in classes2blur_lower]
-        unmatched_classes = [c for c in self.classes2blur if c.lower() not in [n.lower() for n in self.class_list]]
+        # UNE prédiction par modèle sur LA MÊME image — même principe que la vidéo. Sans cette
+        # boucle, une image traitée en multi-modèles n'aurait été vue que par le premier modèle
+        # (les plaques floutées, les visages non, ou l'inverse).
+        self._resultats_par_modele = []
+        for entree in self.models:
+            voulues = entree['classes'] or classes2blur_lower
+            indices = self._indices_classes(entree['class_list'], voulues)
+            if not indices:
+                print(f"[Detection] {entree['name']} : aucune classe demandée en commun "
+                      f"({voulues}) — modèle ignoré pour cette image")
+                self._resultats_par_modele.append([])
+                continue
+            entree['indices'] = indices
+            self._resultats_par_modele.append(entree['yolo'].predict(
+                source=img, task=self.task, device=self.device, retina_masks=self.ret_mask,
+                imgsz=max(img.shape[:2]), conf=kwargs.get('detection_threshold', self.conf),
+                classes=indices, verbose=False,
+            ))
 
-        print(f'[Detection] Classes requested: {self.classes2blur}')
-        print(f'[Detection] Classes found in model: {matched_classes}')
-        if unmatched_classes:
-            print(f'[Detection] WARNING: Classes not in model (will be ignored): {unmatched_classes}')
-            print(f'[Detection] Available model classes: {self.class_list[:20]}...')
-
-        if not classes2blur_by_index:
-            print(f'[Detection] ERROR: No matching classes found! Blurring will not work.')
-
-        results = self.model.predict(
-            source=img,
-            task=self.task,
-            device=self.device,
-            retina_masks=self.ret_mask,
-            imgsz=max(img.shape[:2]),
-            conf=kwargs.get('detection_threshold', self.conf),
-            classes=classes2blur_by_index,
-            verbose=False
-        )
-
-        if results:
-            self.plotted_img = results[0].plot(boxes=False, conf=False, labels=False)
-            self.results = results
+        if any(self._resultats_par_modele):
+            self.results = next(r for r in self._resultats_par_modele if r)
+            self.plotted_img = self.results[0].plot(boxes=False, conf=False, labels=False)
             self.blur_results(**kwargs)
         else:
             print("No detections found.")
@@ -305,23 +388,42 @@ class Anonymize(DetectionBackend):
         if not classes2blur_by_index:
             print(f'[Detection] ERROR: No matching classes found! Blurring will not work.')
 
-        self.results = self.model.track(
-            source=kwargs.get('media_path', self.input_path),
-            # stream=True,
-            task=self.task,
-            mode=self.mode,
-            device=self.device,
-            retina_masks=self.ret_mask,
-            imgsz=self.meta_data['size'][0] if 'size' in self.meta_data else self.meta_data['shape'][0],
-            save=self.save,
-            save_txt=self.save_txt,
-            classes=classes2blur_by_index,
-            conf=kwargs.get('detection_threshold', self.conf),
-            show=kwargs.get('show_preview', self.show),
-            boxes=kwargs.get('show_boxes', self.boxes),
-            show_labels=kwargs.get('show_labels', self.show_labels),
-            show_conf=kwargs.get('show_conf', self.show_conf)
-        )
+        source = kwargs.get('media_path', self.input_path)
+        imgsz = self.meta_data['size'][0] if 'size' in self.meta_data else self.meta_data['shape'][0]
+
+        # UNE PASSE PAR MODÈLE sur la MÊME source. Chaque passe garde ses frames en mémoire
+        # (ultralytics `track` sans `stream`), donc le floutage qui suit ne redécode rien : on
+        # reste à N décodages pour N modèles, contre N+1 dans la chaîne Celery qu'on remplace
+        # — et surtout sans aucun transport des masques par Redis.
+        self._resultats_par_modele = []
+        for entree in self.models:
+            # Chaque modèle ne détecte QUE les classes qui lui ont été confiées, et selon SON
+            # propre vocabulaire : les index de classe diffèrent d'un jeu de poids à l'autre.
+            voulues = entree['classes'] or classes2blur_lower
+            indices = self._indices_classes(entree['class_list'], voulues)
+            if not indices:
+                print(f"[Detection] {entree['name']} : aucune classe demandée en commun "
+                      f"({voulues}) — modèle ignoré pour ce média")
+                self._resultats_par_modele.append([])
+                continue
+            entree['indices'] = indices
+            # Seul le PREMIER modèle hérite des options d'affichage/sauvegarde : les rejouer
+            # pour chaque modèle ouvrirait N fenêtres et écrirait N fois les mêmes artefacts.
+            premier = entree is self.models[0]
+            self._resultats_par_modele.append(entree['yolo'].track(
+                source=source, task=self.task, mode=self.mode, device=self.device,
+                retina_masks=self.ret_mask, imgsz=imgsz,
+                classes=indices, conf=kwargs.get('detection_threshold', self.conf),
+                save=self.save if premier else False,
+                save_txt=self.save_txt if premier else False,
+                show=kwargs.get('show_preview', self.show) if premier else False,
+                boxes=kwargs.get('show_boxes', self.boxes) if premier else False,
+                show_labels=kwargs.get('show_labels', self.show_labels) if premier else False,
+                show_conf=kwargs.get('show_conf', self.show_conf) if premier else False,
+            ))
+
+        # Compat : tout le code historique lit `self.results` (frames du 1er modèle).
+        self.results = next((r for r in self._resultats_par_modele if r), [])
         # Blur detections
         if self.classes2blur:
             self.blur_results(**kwargs)
@@ -470,58 +572,77 @@ class Anonymize(DetectionBackend):
 
         return None
 
+    def _par_frame(self):
+        """
+        Itère les frames en donnant, pour chacune, le résultat de CHAQUE modèle.
+
+        Rend `(frame_idx, resultat_principal, [(rang, entree_modele, resultat), …])`.
+        `resultat_principal` porte l'image (tous les modèles ont vu la même frame).
+
+        `zip` s'arrête au plus court : si deux passes rendaient un nombre de frames différent
+        (source illisible en cours de route), on floute ce qu'on peut plutôt que d'exploser.
+        """
+        listes = [r for r in (self._resultats_par_modele or []) if r]
+        if not listes:
+            listes = [self.results or []]
+        entrees = [e for e, r in zip(self.models, self._resultats_par_modele or []) if r] \
+            or self.models or [{'name': 'modele', 'seg': self._is_segmentation_model,
+                                'classes': None}]
+        for idx, groupe in enumerate(zip(*listes)):
+            yield idx, groupe[0], [(rang, entrees[rang], res) for rang, res in enumerate(groupe)]
+
+    def _detections_retenues(self, entree, result, classes2blur, detection_threshold):
+        """Détections de CE modèle sur CETTE frame qui doivent être floutées.
+
+        Rend `(indice, boite, label, masque_ou_None)`. Le masque n'est lu que si le modèle
+        segmente : un détecteur n'en produit pas, et `result.masks` y vaut None."""
+        if not result.boxes:
+            return
+        from wama.common.services.model_coverage import (
+            formes_equivalentes, normaliser_classe,
+        )
+        voulues = entree.get('classes') or classes2blur
+        # Mêmes alias qu'à la sélection des index : le modèle rend `License_Plate` là où la
+        # demande dit `plate`. Comparer les libellés bruts rejetterait toutes ses détections
+        # APRÈS les avoir calculées — le pire des deux mondes.
+        acceptees = set()
+        for v in (voulues or []):
+            acceptees |= formes_equivalentes(v)
+        avec_masques = (entree.get('seg') and getattr(result, 'masks', None) is not None)
+        for i, d in enumerate(result.boxes):
+            label = result.names[int(d.cls)]
+            if normaliser_classe(label) not in acceptees or float(d.conf) < detection_threshold:
+                continue
+            masque = None
+            if avec_masques and i < len(result.masks.data):
+                masque = (result.masks.data[i].cpu().numpy() * 255).astype(np.uint8)
+            yield i, d, label, masque
+
     def collect_all_detections(self, classes2blur, detection_threshold, use_segmentation):
         """
-        PASS 1: Collect all detections from all frames.
+        PASS 1: Collect all detections from all frames, TOUS MODÈLES CONFONDUS.
 
         Returns:
             dict: {track_id: [(frame_idx, bbox, label, mask), ...]}
+
+        ⚠ Le `track_id` est PRÉFIXÉ DU RANG DU MODÈLE. Deux modèles numérotent leurs pistes
+        indépendamment : sans préfixe, la piste 1 du détecteur de visages et la piste 1 du
+        détecteur de plaques fusionneraient, et l'interpolation ferait glisser un floutage
+        d'un visage vers une plaque à l'autre bout de l'image.
         """
         detection_buffer = {}
-        frame_idx = 0
-
         print("[Interpolation] Pass 1/2: Collecting all detections...")
 
-        for result in self.results:
-            if not classes2blur or not result.boxes:
-                frame_idx += 1
+        for frame_idx, _principal, par_modele in self._par_frame():
+            if not classes2blur:
                 continue
-
-            # Process detections in this frame (classes2blur is already lowercase)
-            if use_segmentation and hasattr(result, 'masks') and result.masks is not None:
-                for i, d in enumerate(result.boxes):
-                    label = result.names[int(d.cls)]
-                    # Case-insensitive comparison
-                    if label.lower() not in classes2blur or float(d.conf) < detection_threshold:
-                        continue
-
-                    track_id = int(d.id) if hasattr(d, 'id') and d.id is not None else f"det_{i}"
-                    bbox = d.xyxy[0].cpu().numpy().tolist()
-
-                    # Get mask if available
-                    mask = None
-                    if i < len(result.masks.data):
-                        mask = result.masks.data[i].cpu().numpy()
-                        mask = (mask * 255).astype(np.uint8)
-
-                    if track_id not in detection_buffer:
-                        detection_buffer[track_id] = []
-                    detection_buffer[track_id].append((frame_idx, bbox, label, mask))
-            else:
-                for i, d in enumerate(result.boxes):
-                    label = result.names[int(d.cls)]
-                    # Case-insensitive comparison
-                    if label.lower() not in classes2blur or float(d.conf) < detection_threshold:
-                        continue
-
-                    track_id = int(d.id) if hasattr(d, 'id') and d.id is not None else f"det_{i}"
-                    bbox = d.xyxy[0].cpu().numpy().tolist()
-
-                    if track_id not in detection_buffer:
-                        detection_buffer[track_id] = []
-                    detection_buffer[track_id].append((frame_idx, bbox, label, None))
-
-            frame_idx += 1
+            for rang, entree, result in par_modele:
+                for i, d, label, masque in self._detections_retenues(
+                        entree, result, classes2blur, detection_threshold):
+                    brut = int(d.id) if getattr(d, 'id', None) is not None else f"det_{i}"
+                    track_id = f"m{rang}:{brut}"
+                    detection_buffer.setdefault(track_id, []).append(
+                        (frame_idx, d.xyxy[0].cpu().numpy().tolist(), label, masque))
 
         return detection_buffer
 
@@ -611,51 +732,28 @@ class Anonymize(DetectionBackend):
 
             print(f"[Interpolation] Generated {sum(len(v) for v in interpolated_detections.values())} interpolated detections across {len(interpolated_detections)} frames")
 
-        # MAIN BLURRING LOOP
-        frame_idx = 0
-        for result in tqdm(self.results, desc='Blurring media', unit='frames', dynamic_ncols=True):  # Loop on images
-            # Use original image for segmentation (avoid YOLO's colored mask overlay)
-            # Use plot() only for detection models where we might want boxes/labels
-            if use_segmentation:
-                im0 = result.orig_img.copy()
-            else:
-                im0 = result.plot(**plot_args)
+        # MAIN BLURRING LOOP — UNE passe, TOUS les modèles réunis par frame.
+        # L'union des zones se fait ici, en mémoire, sur la frame courante : c'est ce qui
+        # remplace la fusion via Redis de l'ancien chemin multi-modèles.
+        for frame_idx, principal, par_modele in tqdm(
+                self._par_frame(), desc='Blurring media', unit='frames', dynamic_ncols=True):
+            # On part TOUJOURS de l'image d'origine. `plot()` était utilisé pour les modèles de
+            # détection, mais `plot_args` désactive boîtes, libellés et confiance : il rendait
+            # donc déjà l'image nue. En multi-modèles il aurait en plus dessiné les masques
+            # colorés du premier modèle segmentant par-dessus la vidéo finale.
+            im0 = principal.orig_img.copy()
 
-            if classes2blur and result.boxes:
-                # Use segmentation masks if available
-                if use_segmentation and hasattr(result, 'masks') and result.masks is not None:
-                    for i, d in enumerate(result.boxes):
-                        label = result.names[int(d.cls)]
-                        # Case-insensitive comparison
-                        if label.lower() not in classes2blur_lower or float(d.conf) < detection_threshold:
-                            continue
-
-                        # Get segmentation mask for this detection
-                        if i < len(result.masks.data):
-                            mask = result.masks.data[i].cpu().numpy()
-                            # Convert mask to uint8 (0-255)
-                            mask = (mask * 255).astype(np.uint8)
-
-                            # Apply segmentation-based blur
-                            im0 = blur_segmentation(im0, mask, blur_ratio, progressive_blur)
-                else:
-                    # Use bounding box-based blur (original method)
-                    for d in result.boxes:
-                        label = result.names[int(d.cls)]
-                        # Case-insensitive comparison
-                        if label.lower() not in classes2blur_lower or float(d.conf) < detection_threshold:
-                            continue
-
-                        # Blur this detection using the utility function
-                        im0 = blur_detection(
-                            im0,
-                            d.xyxy[0],
-                            label,
-                            blur_ratio,
-                            rounded_edges,
-                            progressive_blur,
-                            roi_enlargement
-                        )
+            if classes2blur:
+                for _rang, entree, result in par_modele:
+                    for _i, d, label, masque in self._detections_retenues(
+                            entree, result, classes2blur_lower, detection_threshold):
+                        if masque is not None:
+                            im0 = blur_segmentation(im0, masque, blur_ratio, progressive_blur)
+                        else:
+                            im0 = blur_detection(
+                                im0, d.xyxy[0], label, blur_ratio,
+                                rounded_edges, progressive_blur, roi_enlargement,
+                            )
 
             # Apply ONLY pre-calculated interpolated detections for this frame
             if interpolate_detections and frame_idx in interpolated_detections:
@@ -682,7 +780,6 @@ class Anonymize(DetectionBackend):
 
             self.plotted_img = im0
             self.write_media()
-            frame_idx += 1
 
     def write_media(self):
         if not isinstance(self.meta_data, dict):

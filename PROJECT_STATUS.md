@@ -2580,6 +2580,22 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > anonymizer, avatarizer, composer, describer, enhancer, imager, synthesizer (recette =
 > reader pilote + converter 13/08 : 5 pistes nommées, contrats JS d'app préservés,
 > chips `section=`, rendu validé en shell).
+>
+> **SUITE (13/08 ~14h) : SMOKE NAVIGATEUR PASSÉ — le lot de la nuit est VALIDÉ À L'ÉCRAN**
+> (serveur relancé par Fabien). ① `run_nightly_tests --stage ui` : **13/13 OK, 0 erreur
+> console** (tout le JS de la nuit charge partout). ② Passe ciblée converter (compte smoke
+> DÉDIÉ `ui_smoke_v3` + 2 jobs semés via `consolidate_jobs_into_batches`, session forgée
+> avec le `SESSION_ENGINE` CONFIGURÉ — le backend db en dur donnait un cookie inerte ;
+> script réutilisable `logs/ui_smoke/smoke_converter_v3.py`, à décliner pour la série) :
+> **card v3 ✅** (5 pistes alignées, chips Équilibré/jpg/webp, fichier produit en Sortie,
+> barre ligne 2, pas de barre en PENDING) ; **INFOS de la card cliquée ✅** (chips Format /
+> Qualité / Propriétés / Format de sortie / Qualité 80 — le bug « params invisibles au
+> volet » signalé le matin est RÉGLÉ à l'écran) ; **pile ✅** (voisine en lamelle lisible
+> « nom · état ») ; **densités V2 Compact ✅ (1 ligne) et V1 Détaillé ✅ (réglages en
+> liste)** ; pile × V2 composent. Pièges du script consignés : card MÈRE porte aussi
+> `.job-card` (cibler `.collapse[data-wama-batch-key] .job-card`), design = dropdown
+> Bootstrap (cliquer le toggle d'abord), `card_stacked`/`card_design` PERSISTENT entre
+> runs sur le profil smoke. Captures : `logs/ui_smoke/manual/*.png`.
 
 ## §REPRISE — 2026-08-11→12 (3ᵉ-4ᵉ sessions, marches C + A COMPLÈTES A1→A5) : harnais + gabarits + triades + composition
 
@@ -2968,29 +2984,34 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > Relevé exhaustif demandé par Fabien en fin de session. Rien ici n'est bloquant pour ce qui
 > tourne ; tout est en revanche **perdu de vue si ce n'est pas écrit**.
 
-### 🔴 A. Anonymizer multi-modèles — le chantier D'ORIGINE, à peine entamé
+### ✅ A. Anonymizer multi-modèles — SECOND PIPELINE SUPPRIMÉ (fait en clôture)
 
-La question initiale de la session portait sur le **floutage visages + plaques**. Seule la
-**SÉLECTION** a été corrigée (2 modèles dédiés, cf. §REPRISE du 12/08). **Le pipeline
-d'exécution n'a pas été touché** et reste un second chemin dégradé :
+La question initiale de la session portait sur le **floutage visages + plaques**. La SÉLECTION
+avait été corrigée le 12/08 (2 modèles dédiés) ; **le pipeline d'exécution l'a été le 13/08**.
 
-- `merged_blur.py` **n'interpole pas** → `interpolate_detections` est ignoré en silence sur le
-  chemin multi-modèles ⇒ **clignotement sur vidéo** (l'interpolation vit dans `core/anonymize.py`) ;
-- `_apply_anonymizer_output_format` **jamais appelé** → `output_format`/`output_quality` ignorés ;
-- `media.status` **jamais mis à RUNNING** (la branche sort avant) → carte figée sur PENDING,
-  réconciliation des orphelins et garde « déjà en cours » aveugles ;
-- `media.task_id` **non renseigné** pour la chaîne → **impossible d'annuler** ;
-- ni `processing_seconds`, ni `record_run` (ETA n'apprend rien), ni `notify_job` ;
-- `merged_blur.py:285-297` écrit des **images de debug** dans `<sortie>/_debug/` à chaque run ;
-- **masques pleine résolution sérialisés en base64 dans Redis** (`parallel_detection.py:313`) :
-  ~2,7 Mo par masque 1080p ⇒ plusieurs Go pour une vidéo ⇒ c'est très probablement la cause de
-  « la concaténation ne fonctionne pas bien » signalée par Fabien sur la segmentation ;
-- **N+1 décodages** de la vidéo (un par modèle, puis un pour le floutage). Le gain n'est PAS le
-  parallélisme GPU (les kernels sérialisent) mais **une passe unique de décodage**.
+Ce qui existait : une chaîne Celery `detect_with_model` × N puis `merge_and_blur_detections`,
+avec les masques sérialisés en base64 dans Redis. Ce second chemin avait **perdu** l'interpolation
+(⇒ clignotement vidéo), le format de sortie, le statut `RUNNING` (carte figée sur PENDING,
+réconciliation aveugle), le `task_id` (**annulation impossible**), l'ETA et la notification ; il
+écrivait des images de debug à chaque run ; il transportait des masques pleine résolution
+(~2,7 Mo par masque 1080p ⇒ **plusieurs Go par vidéo** — cause probable du « la concaténation ne
+fonctionne pas bien » signalé par Fabien) ; et il décodait la vidéo **N+1 fois**.
 
-→ Proposition faite et non engagée : **une seule tâche, un seul décodage, N modèles résidents,
-union des zones par frame**. Supprime `detection_only`/`merged_blur`/le transport Redis et
-récupère d'un coup interpolation, ETA, statut et format de sortie.
+**Remplacé, pas doublé** : `Anonymize` sait désormais charger **N modèles** et **unir leurs zones
+frame par frame**, dans la tâche unique qui portait déjà tout le reste. Supprimés faute
+d'appelant : `core/detection_only.py`, `core/merged_blur.py`, les deux tâches Celery, et le
+transport Redis de `parallel_detection.py` — qui ne garde que la DÉCISION.
+
+⚠ **Bug préexistant corrigé au passage** : les index de classe étaient calculés par comparaison
+BRUTE des libellés. Un modèle déclarant `license_plate` face à une demande `plate` ne rendait
+**aucun index** — les 5 modèles morsetechlab ne détectaient donc **rien** par le chemin standard,
+en silence. L'appariement passe par `model_coverage.formes_equivalentes()` (rendue publique pour
+ça : la couverture rend le vocabulaire de l'APPELANT, le moteur doit refaire la correspondance).
+
+**Validé** (CPU, image réelle) : mono inchangé (19 416 px floutés), multi via le **tirage de
+production** identique, suffixe de sortie `_blurred_multi-model` conservé, `unload()` libère tous
+les modèles. ⚠ **Reste à valider par Fabien : une VRAIE vidéo sur GPU** — je ne lance pas de
+charge GPU sous WSL2.
 
 ### B. Qualité / auto-amélioration — bloqué sur les DONNÉES, pas sur le code
 

@@ -1100,18 +1100,6 @@
           "function": "process_user_media_batch",
           "lifecycle": false,
           "task_name": null
-        },
-        {
-          "file": "tasks.py",
-          "function": "detect_with_model",
-          "lifecycle": false,
-          "task_name": null
-        },
-        {
-          "file": "tasks.py",
-          "function": "merge_and_blur_detections",
-          "lifecycle": false,
-          "task_name": null
         }
       ]
     },
