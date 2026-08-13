@@ -774,32 +774,27 @@
                         label: meta.label,
                         icon: meta.icon,
                         action: function() {
-                            const treeInstance = $('#filemanager-tree').jstree(true);
-                            const nodeData = treeInstance.get_node(node.id);
-                            const allChildren = nodeData ? (nodeData.children_d || []) : [];
-                            const filePaths = allChildren
-                                .map(childId => treeInstance.get_node(childId))
-                                .filter(n => n && n.type === 'file')
-                                .map(n => n.data && n.data.path)
-                                .filter(p => {
-                                    if (!p) return false;
-                                    const fExt = p.split('.').pop().toLowerCase();
-                                    return APP_EXTENSIONS[app] && APP_EXTENSIONS[app].has(fExt);
-                                });
-
-                            if (filePaths.length === 0) {
-                                showToast(`Aucun fichier compatible dans ce dossier pour ${meta.label}`, 'warning');
-                                return;
-                            }
-
-                            importMultipleToApp(filePaths, app)
+                            // Expansion RÉCURSIVE CÔTÉ SERVEUR (2026-08-13) : l'ancienne
+                            // collecte `children_d` lisait un arbre jstree PARESSEUX — un
+                            // dossier jamais déplié n'envoyait que ses nœuds déjà chargés.
+                            importFolderToApp(folderPath, app)
                                 .then(result => {
-                                    const count = result.count || (result.imported ? 1 : 0);
+                                    const count = result.count !== undefined
+                                        ? result.count : (result.imported ? 1 : 0);
+                                    if (!count) {
+                                        showToast(`Aucun fichier compatible dans ce dossier pour ${meta.label}`, 'warning');
+                                        return;
+                                    }
                                     showToast(`${count} fichier(s) du dossier envoyé(s) vers ${meta.label}`, 'success');
-                                    filePaths.forEach(p => {
-                                        document.dispatchEvent(new CustomEvent('wama:fileimported', {
-                                            detail: { imported: true, app: app, path: p }
-                                        }));
+                                    // Les chemins importés viennent de la RÉPONSE (le client
+                                    // ne connaît pas la liste) → un événement par fichier.
+                                    const imported = result.results || (result.path ? [result] : []);
+                                    imported.forEach(r => {
+                                        if (r.path) {
+                                            document.dispatchEvent(new CustomEvent('wama:fileimported', {
+                                                detail: { imported: true, app: app, path: r.path, id: r.id }
+                                            }));
+                                        }
                                     });
                                 })
                                 .catch(err => showToast(`Erreur : ${err.message}`, 'danger'));
@@ -2188,6 +2183,26 @@
                 'X-CSRFToken': config.csrfToken || csrfToken,
             },
             body: JSON.stringify({ paths: paths, app: targetApp }),
+        });
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.error || `HTTP ${response.status}`);
+        }
+        return response.json();
+    }
+
+    /**
+     * Envoi d'un DOSSIER entier vers une app — l'expansion récursive et le filtre
+     * d'extensions se font CÔTÉ SERVEUR (api_import_to_app, paramètre `folder`).
+     */
+    async function importFolderToApp(folderPath, targetApp) {
+        const response = await fetch(config.apiImportUrl || '/filemanager/api/import/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': config.csrfToken || csrfToken,
+            },
+            body: JSON.stringify({ folder: folderPath, app: targetApp }),
         });
         if (!response.ok) {
             const data = await response.json().catch(() => ({}));

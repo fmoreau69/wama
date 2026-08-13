@@ -2524,8 +2524,13 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > ⚠ j'avais d'abord affirmé le contraire sur la seule lecture de la branche `file`,
 > CORRIGÉ après question Fabien) mais il collecte `children_d` de jstree alors que l'arbre
 > est **paresseux** (views.py:229-231, `children: True` à l'expansion) → **envoi PARTIEL
-> SILENCIEUX sur un dossier jamais déplié** ; vrai trou = récursion CÔTÉ SERVEUR
-> (api_import_to_app acceptant un dossier + rglob filtré), désigné pas traité ;
+> SILENCIEUX sur un dossier jamais déplié** ; **CORRIGÉ dans la foulée (validé Fabien)** :
+> `api_import_to_app` accepte `folder` — expansion `rglob` CÔTÉ SERVEUR filtrée par
+> `APP_CATALOG.input_extensions` (même source que le menu client), gardes `is_path_allowed`
+> au dossier PUIS par fichier, `path` ajouté aux résultats (événements `wama:fileimported`
+> émis depuis la RÉPONSE) ; JS = `importFolderToApp(folder, app)`, l'action dossier
+> n'expanse plus l'arbre. Smoke lecture-seule : 8 fichiers récursifs trouvés sur
+> `transcriber/1` avec le filtre. ⚠ restart gunicorn requis pour la vue (même lot) ;
 > drag interne FM = no-op inchangé (pas de File natif) ; describer/synthesizer
 > gardent leur chemin `FileManager.getFileManagerData` AVANT collect). Adoption COMPLÈTE
 > (lien dossier + drop récursif) : anonymizer, describer, enhancer ×2 zones, reader,

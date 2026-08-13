@@ -1207,15 +1207,18 @@ def api_import_to_app(request):
         data = json.loads(request.body)
         file_path = data.get('path', '')
         paths = data.get('paths', [])  # Multiple paths
+        folder = data.get('folder', '')  # Dossier ENTIER — expansion récursive côté serveur
         target_app = data.get('app', '')
     except (json.JSONDecodeError, ValueError):
         return HttpResponseBadRequest('Invalid JSON')
 
-    # Support both single path and multiple paths
+    # Support single path, multiple paths, or a whole folder
     if paths:
         file_paths = [p for p in paths if p]
     elif file_path:
         file_paths = [file_path]
+    elif folder:
+        file_paths = None  # expansion après validation de l'app (le filtre d'extensions en dépend)
     else:
         return HttpResponseBadRequest('Missing path or app parameter')
 
@@ -1228,6 +1231,35 @@ def api_import_to_app(request):
     valid_apps = ['anonymizer', 'converter', 'describer', 'enhancer', 'imager', 'reader', 'synthesizer', 'transcriber', 'face_analyzer', 'cam_analyzer']
     if target_app not in valid_apps:
         return JsonResponse({'error': f'Invalid app: {target_app}'}, status=400)
+
+    if file_paths is None:
+        # « Envoyer dossier vers… » (2026-08-13) : l'expansion se fait ICI, côté serveur.
+        # L'ancienne expansion cliente lisait `children_d` d'un arbre jstree PARESSEUX
+        # (api_tree pose `children: True` à l'expansion) → un dossier jamais déplié
+        # n'envoyait que ses descendants déjà chargés, silencieusement.
+        # Filtre = APP_CATALOG.input_extensions : la MÊME source que le menu client.
+        if not is_path_allowed(folder, user):
+            return JsonResponse({'error': 'Access denied'}, status=403)
+        if folder.startswith('mounts/'):
+            folder_root, _mount = resolve_mount_path(folder, user)
+            if folder_root is None:
+                return JsonResponse({'error': 'Access denied'}, status=403)
+        else:
+            folder_root = Path(settings.MEDIA_ROOT) / folder
+        folder_root = Path(folder_root)
+        if not folder_root.is_dir():
+            return JsonResponse({'error': 'Folder not found'}, status=404)
+        from wama.common.app_registry import APP_CATALOG
+        exts = {e.lower() for e in (APP_CATALOG.get(target_app) or {}).get('input_extensions', ())}
+        prefix = folder.rstrip('/')
+        file_paths = sorted(
+            f"{prefix}/{p.relative_to(folder_root).as_posix()}"
+            for p in folder_root.rglob('*')
+            if p.is_file() and p.suffix.lower() in exts
+        )
+        if not file_paths:
+            return JsonResponse({'imported': False, 'count': 0, 'results': [], 'errors': [],
+                                 'message': 'Aucun fichier compatible dans ce dossier'})
 
     def _import_single_file(fp):
         """Import a single file path into target_app. Returns result dict."""
@@ -1280,6 +1312,9 @@ def api_import_to_app(request):
         if 'error' in result:
             errors.append({'path': fp, 'error': result['error']})
         else:
+            # Le chemin source permet au client d'émettre `wama:fileimported` par fichier
+            # (indispensable au flux dossier, où le client ne connaît pas la liste).
+            result.setdefault('path', fp)
             results.append(result)
 
     # Reader multi-file: consolidate into ONE batch (remove individual batch-of-1 wrappers)
