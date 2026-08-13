@@ -15,8 +15,9 @@ CE QU'ON DÉCLARE, ET CE QU'ON NE DÉCLARE PAS
 
 CE QUE LE CONTRÔLE SAIT DIRE (cf. `doc_facts --check`, fait `mecanismes`) :
   1. un mécanisme dont le DOMICILE a disparu — la carte pointe dans le vide ;
-  2. un module de `common/services/` ou `common/utils/` **non déclaré** — « tu as oublié
-     de le tracer », qui est la question posée par Fabien le 2026-08-13 ;
+  2. un module de `common/services/`, `common/utils/`, `model_manager/services/` ou
+     `studio/services/` **non déclaré** — « tu as oublié de le tracer », la question posée
+     par Fabien le 2026-08-13 (balayage étendu aux 2 derniers dossiers le même jour) ;
   3. un mécanisme **sans consommateur** — brique morte. C'est exactement l'état où sont restés
      `model_coverage.couvrir_classes` (0 consommateur pendant 8 jours, alors qu'il avait été
      extrait pour ça) et `qc.py` (0 aujourd'hui). Ces deux-là ont été trouvés à la main ;
@@ -92,7 +93,28 @@ MECANISMES = (
     Mecanisme('prospection', 'Prospection de modèles',
               "Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run)",
               'wama/model_manager/services/prospector.py',
-              'wama/model_manager/PROSPECTION_PIPELINE.md'),
+              'wama/model_manager/PROSPECTION_PIPELINE.md',
+              annexes=('wama/model_manager/services/prospect_agents.py',
+                       'wama/model_manager/services/prospect_ollama.py',
+                       'wama/model_manager/services/ollama_registry.py',
+                       'wama/model_manager/services/update_checker.py')),
+    Mecanisme('memory_manager', 'Gestion mémoire GPU/RAM',
+              "VRAM centralisée + stratégies d'offload CPU pour toutes les apps ; nettoyage, monitoring, tracking",
+              'wama/model_manager/services/memory_manager.py', '',
+              annexes=('wama/model_manager/services/memory_cleaner.py',
+                       'wama/model_manager/services/memory_monitor.py',
+                       'wama/model_manager/services/memory_tracker.py')),
+    Mecanisme('model_registry_discovery', 'Découverte de modèles',
+              "Découverte unifiée des modèles (apps + sources externes), synchronisée vers le catalogue AIModel",
+              'wama/model_manager/services/model_registry.py', '',
+              annexes=('wama/model_manager/services/model_sync.py',
+                       'wama/model_manager/services/file_watcher.py')),
+    Mecanisme('model_installer', 'Installation de modèles',
+              "Pipeline accept→download→register : télécharge au bon endroit puis enregistre au catalogue",
+              'wama/model_manager/services/model_installer.py', ''),
+    Mecanisme('vision_probe', 'Sonde vision',
+              "Décrit une image via un modèle multimodal Ollama local (bench, smoke UI, fichiers de référence)",
+              'wama/model_manager/services/vision_probe.py', ''),
     Mecanisme('hf_cache', 'Cache HF scopé',
               "Bascule TEMPORAIRE du cache HuggingFace par backend — anti-fuite d'artefacts inter-apps",
               'wama/common/utils/hf_cache.py', ''),
@@ -198,7 +220,8 @@ MECANISMES = (
               "Moteur unique de miroir (modèles, base, médias, secrets) et restauration",
               'wama/common/services/mirror_sync.py', '',
               annexes=('wama/common/services/config_backup.py',
-                       'wama/common/services/media_backup.py')),
+                       'wama/common/services/media_backup.py',
+                       'wama/model_manager/services/remote_backup.py')),
     Mecanisme('retention', 'Rétention des médias',
               "Purge automatique des sorties au-delà de la durée choisie par l'utilisateur (FileField découverts)",
               'wama/common/services/retention.py', 'PROFILES_PERMISSIONS.md'),
@@ -224,6 +247,21 @@ MECANISMES = (
     Mecanisme('user_settings', 'Réglages utilisateur par app',
               "Persistance cache user_{id}_{app}_{clé} avec défauts déclarés par l'app",
               'wama/common/utils/user_settings.py', ''),
+
+    # ── Studio & surface d'outils (API) ───────────────────────────────────────────────────
+    Mecanisme('generic_runner', 'Runner générique du studio',
+              "Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app",
+              'wama/studio/services/generic_runner.py', 'STUDIO_VISION.md',
+              annexes=('wama/studio/services/launch.py',
+                       'wama/studio/services/runners.py')),
+    Mecanisme('tool_api', "Surface d'outils",
+              "Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas",
+              'wama/tool_api.py', 'WAMA_APP_GENERATION_ROUTE.md'),
+    Mecanisme('api_v1', 'API REST v1',
+              "Passerelle générique (token+session) sur TOOL_REGISTRY : lister/exécuter, gating F7 à l'annonce ET à l'exécution",
+              'wama/api/v1/views.py', '',
+              annexes=('wama/api/v1/urls.py',),
+              symbole='api_v1'),
 )
 
 
@@ -246,6 +284,7 @@ ASSUMES_LOCAUX = {
     'wama/common/utils/translator.py': "brique deep-translator — sera absorbée par le Translator (ROADMAP §10)",
     'wama/common/utils/voice_options.py': "pendant VOIX d'output_formats (avatarizer) — promouvoir si adoption s'élargit",
     'wama/common/utils/waveform.py': "rendu de forme d'onde — fusion des 2 renderers encore pendante (REPRISE)",
+    'wama/model_manager/services/format_converter.py': "conversion de formats de poids — plomberie chaîne modèles (avec format_policy)",
 }
 
 

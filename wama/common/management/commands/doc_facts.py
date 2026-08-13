@@ -182,9 +182,11 @@ def _fait_mecanismes():
     # noms au 2026-08-13). Deux gardes d'honnêteté : un module à la fois assumé ET déclaré est
     # une contradiction ; un assumé dont le fichier a disparu est une entrée périmée.
     declares = {m.domicile for m in MECANISMES} | {a for m in MECANISMES for a in m.annexes}
+    dossiers_balayes = ('wama/common/services/', 'wama/common/utils/',
+                        'wama/model_manager/services/', 'wama/studio/services/')
     candidats = sorted(
         rel for rel in modules
-        if (rel.startswith('wama/common/services/') or rel.startswith('wama/common/utils/'))
+        if rel.startswith(dossiers_balayes)
         and not rel.endswith('__init__.py') and rel not in declares
         and rel not in ASSUMES_LOCAUX
     )
@@ -195,7 +197,7 @@ def _fait_mecanismes():
     lignes.append(f"**Mécanismes déclarés : {len(MECANISMES)}** · "
                   f"domiciles absents : {len(absents)} · sans consommateur : {len(orphelins)} · "
                   f"assumés locaux : {len(ASSUMES_LOCAUX)} · "
-                  f"modules `common/` non rattachés : {len(candidats)}")
+                  f"modules balayés non rattachés : {len(candidats)}")
     if contradictions:
         lignes.append(f"- ❌ **Assumé ET déclaré** (contradiction, retirer d'un des deux) : "
                       + ', '.join(f"`{c}`" for c in contradictions))
@@ -210,11 +212,11 @@ def _fait_mecanismes():
     if candidats:
         # Rendu en liste par dossier plutôt qu'en paragraphe : c'est un BACKLOG à traiter, pas
         # une note de bas de page. Un mur de 54 noms ne se lit pas et ne se traite donc jamais.
-        lignes.append(f"\n<details><summary>⚠ <b>{len(candidats)} module(s) de "
-                      f"<code>common/</code> non rattachés au registre</b> — à déclarer dans "
+        lignes.append(f"\n<details><summary>⚠ <b>{len(candidats)} module(s) balayé(s) "
+                      f"non rattachés au registre</b> — à déclarer dans "
                       f"<code>wama/common/mecanismes.py</code>, ou à assumer comme utilitaires "
                       f"locaux (tout n'est pas un mécanisme transversal)</summary>\n")
-        for dossier in ('wama/common/services/', 'wama/common/utils/'):
+        for dossier in dossiers_balayes:
             noms = [c.split('/')[-1] for c in candidats if c.startswith(dossier)]
             if noms:
                 lignes.append(f"\n`{dossier}` ({len(noms)}) — "

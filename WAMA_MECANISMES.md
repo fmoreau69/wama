@@ -39,8 +39,9 @@ Le nombre de fichiers qui **importent** le mécanisme. Il répond à trois quest
 | `⚠ 0` | **brique morte**, ou brique livrée et pas encore adoptée. À trancher, jamais à ignorer |
 | `n` | nombre de modules qui s'en servent |
 
-Et sous la table, la liste des modules de `common/services/` et `common/utils/` **non rattachés
-au registre** — la réponse mécanique à « qu'ai-je oublié de tracer ». Un utilitaire strictement
+Et sous la table, la liste des modules **non rattachés au registre** parmi les dossiers balayés
+(`common/services/`, `common/utils/`, `model_manager/services/`, `studio/services/` — étendu aux
+deux derniers le 2026-08-13) — la réponse mécanique à « qu'ai-je oublié de tracer ». Un utilitaire strictement
 local ne se déclare pas : il s'**assume**, et assumer est un acte déclaré lui aussi —
 `ASSUMES_LOCAUX` (wama/common/mecanismes.py), une raison datée par entrée, soustrait du backlog
 (ajouté au triage du 2026-08-13 : sans lui la liste plafonnait à 45 noms et ne convergeait
@@ -52,8 +53,9 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 <!-- WAMA:FAITS(mecanismes) — généré par « python manage.py doc_facts », ne pas éditer -->
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
+| **API REST v1** | Passerelle générique (token+session) sur TOOL_REGISTRY : lister/exécuter, gating F7 à l'annonce ET à l'exécution | `wama/api/v1/views.py` | — | 2 |
 | **Accès LLM** | Route unique vers les LLM (tiers déclaratifs, sélection catalogue, Ollama local) | `wama/common/utils/llm_utils.py` | — | 12 |
-| **Accès ffmpeg** | Résolution centralisée du binaire et des conversions (échappatoire FFMPEG_BINARY) | `wama/common/utils/ffmpeg_utils.py` | — | 14 |
+| **Accès ffmpeg** | Résolution centralisée du binaire et des conversions (échappatoire FFMPEG_BINARY) | `wama/common/utils/ffmpeg_utils.py` | — | 13 |
 | **Accès scopé aux objets** | Deux chemins NOMMÉS pour lire un objet partageable depuis une vue (possédé / visible) | `wama/common/utils/scoping.py` | `PROFILES_PERMISSIONS.md` | 10 |
 | **Audit des licences** | Vue dérivée : licences+auteurs des 4 registres, traversée par app | `wama/common/services/license_audit.py` | — | 2 |
 | **Banc de comparaison** | Mesures comparables par TÂCHE sur un échantillon (latence, sorties, saturation) | `wama/model_manager/services/bench.py` | — | 1 |
@@ -62,54 +64,60 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Chips méta des cards** | Chips de l'état concis GÉNÉRÉS du schéma params (chip=True) — jamais écrits par app | `wama/common/utils/card_chips.py` | `CARD_DESIGN.md §10.3` | 7 |
 | **Console utilisateur** | Lignes de journal structurées par utilisateur et par app, via Redis | `wama/common/utils/console_utils.py` | — | 24 |
 | **Contrôle qualité de sortie** | Note une sortie par un validateur LLM INDÉPENDANT ; signal relatif, escalade humaine | `wama/common/utils/qc.py` | `ROADMAP.md §16.5` | ⚠ **0** |
-| **Couverture multi-modèles** | Choisit un ENSEMBLE de modèles couvrant des classes (couverture ou spécialisation) | `wama/common/services/model_coverage.py` | — | 1 |
+| **Couverture multi-modèles** | Choisit un ENSEMBLE de modèles couvrant des classes (couverture ou spécialisation) | `wama/common/services/model_coverage.py` | — | 2 |
 | **Divergence inter-systèmes** | Désaccord entre deux sorties du même travail — signal objectif, sans avis de modèle | `wama/common/services/divergence.py` | `wama/transcriber/TRANSCRIBER_CORRECTION.md §8.3` | 1 |
 | **Domaines → modes** | Schéma déclaratif des onglets-domaine et modes par app — scope la file | `wama/common/utils/app_modes.py` | `MODES_QUEUE_UX.md` | 5 |
 | **Duplication et suppression sûres** | duplicate_instance() et safe_delete_file() — fichiers partagés entre items | `wama/common/utils/queue_duplication.py` | `WAMA_APP_CONVENTIONS.md` | 13 |
 | **Décodage audio robuste** | Décode l'audio là où torchcodec/torchaudio sont cassés (WSL) : soundfile + repli ffmpeg | `wama/common/utils/audio_decode.py` | — | 3 |
+| **Découverte de modèles** | Découverte unifiée des modèles (apps + sources externes), synchronisée vers le catalogue AIModel | `wama/model_manager/services/model_registry.py` | — | 9 |
 | **ETA auto-apprenante** | Estimation de durée par a-priori puis moyenne mobile, bucketisée par matériel | `wama/model_manager/services/eta_estimator.py` | `PROJECT_STATUS.md §10` | 20 |
 | **Export document** | Génère PDF (fpdf2) / DOCX (python-docx) depuis les résultats d'app | `wama/common/utils/document_export.py` | — | 3 |
 | **Formats de sortie** | Source commune des formats+qualités de fichier par domaine (réutilise le vocabulaire converter) | `wama/common/utils/output_formats.py` | — | 3 |
 | **Gardes de process** | Anti-boucle-de-crash (redélivrance) et réconciliation des tâches orphelines | `wama/common/utils/process_control.py` | `PROJECT_STATUS.md §0` | 20 |
+| **Gestion mémoire GPU/RAM** | VRAM centralisée + stratégies d'offload CPU pour toutes les apps ; nettoyage, monitoring, tracking | `wama/model_manager/services/memory_manager.py` | — | 15 |
 | **Gouverneur de ressources** | Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités | `wama/common/services/resource_governor.py` | `PROJECT_STATUS.md §0` | 11 |
 | **Grille de conformité** | Mesure les 8 facettes F1–F8 des apps par analyse du code réel | `wama/common/services/conformity_checker.py` | `WAMA_APP_CONVENTIONS.md` | 3 |
 | **Import par lot** | Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot | `wama/common/utils/batch_parsers.py` | `BATCH_FORMAT.md` | 27 |
 | **Indice de qualité a priori** | Ordonne les modèles autrement que par la taille (paramètres, contexte, quantif.) | `wama/model_manager/services/model_quality.py` | — | 1 |
 | **Ingest de source** | Télécharge une source distante vers le FileField, déclaré par WAMA_INGEST | `wama/common/utils/source_ingest.py` | `WAMA_APP_GENERATION_ROUTE.md` | 9 |
 | **Inspecteur — champs de détail** | Schéma canonique des infos d'item affichées au volet droit | `wama/common/utils/detail_registry.py` | `INSPECTOR_DETAIL_FIELDS.md` | 16 |
+| **Installation de modèles** | Pipeline accept→download→register : télécharge au bon endroit puis enregistre au catalogue | `wama/model_manager/services/model_installer.py` | — | 3 |
 | **Manifestes** | Extraction/validation/projection des 7 kinds vers les registres | `wama/common/manifests/ingest.py` | `WAMA_MANIFEST_ARCHITECTURE.md` | 19 |
 | **Manipulation directe de la file** | Endpoints génériques : sortir une card d'un batch, réordonner, déplacer, consolider | `wama/common/utils/queue_manipulation.py` | `CARD_DESIGN.md §3bis` | 9 |
 | **Moniteur système** | Mesure unifiée CPU/RAM/GPU/disque (WSL + hôte Windows) — barre de ressources, model manager | `wama/common/services/system_monitor.py` | — | 4 |
 | **Notifications de tâche** | notify_job() — fin de traitement, succès comme échec | `wama/common/utils/notifications.py` | `PROFILES_PERMISSIONS.md` | 12 |
 | **Pipeline de prompts** | Traduction/enrichissement centralisés, déclarés par PROMPT_TARGETS | `wama/common/utils/prompt_enrichment.py` | `PROMPT_PIPELINE.md` | 10 |
 | **Preview unifiée** | Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps | `wama/common/utils/preview_registry.py` | — | 12 |
-| **Prospection de modèles** | Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run) | `wama/model_manager/services/prospector.py` | `wama/model_manager/PROSPECTION_PIPELINE.md` | 3 |
+| **Prospection de modèles** | Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run) | `wama/model_manager/services/prospector.py` | `wama/model_manager/PROSPECTION_PIPELINE.md` | 6 |
 | **Provenance de modèle** | Identité chez l'éditeur (licence, auteur, plateforme), posée VIA le manifeste | `wama/model_manager/services/provenance.py` | — | 4 |
+| **Runner générique du studio** | Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app | `wama/studio/services/generic_runner.py` | `STUDIO_VISION.md` | 7 |
 | **Réglages utilisateur par app** | Persistance cache user_{id}_{app}_{clé} avec défauts déclarés par l'app | `wama/common/utils/user_settings.py` | — | 6 |
 | **Rétention des médias** | Purge automatique des sorties au-delà de la durée choisie par l'utilisateur (FileField découverts) | `wama/common/services/retention.py` | `PROFILES_PERMISSIONS.md` | 2 |
-| **Sauvegarde & tirage** | Moteur unique de miroir (modèles, base, médias, secrets) et restauration | `wama/common/services/mirror_sync.py` | — | 6 |
+| **Sauvegarde & tirage** | Moteur unique de miroir (modèles, base, médias, secrets) et restauration | `wama/common/services/mirror_sync.py` | — | 8 |
 | **Schéma de paramètres** | Source unique des réglages d'app : volet droit et modale sont RENDUS depuis lui | `wama/common/utils/param_schema.py` | `WAMA_APP_GENERATION_ROUTE.md` | 22 |
 | **Signaux d'exécution** | Journal append-only des FAITS observés sur un résultat (produit/corrigé/relancé…) | `wama/common/services/run_outcome.py` | `ROADMAP.md §16.7` | 2 |
 | **Sonde média** | Durée/codec/dimensions/pages d'un média pour les propriétés de card (via ffmpeg_utils) | `wama/common/utils/media_probe.py` | — | 3 |
+| **Sonde vision** | Décrit une image via un modèle multimodal Ollama local (bench, smoke UI, fichiers de référence) | `wama/model_manager/services/vision_probe.py` | — | 4 |
 | **Squelette de tâche** | Enchaînement commun des tâches Celery d'item : gardes, progress, statuts, ETA | `wama/common/utils/task_skeleton.py` | `WAMA_APP_GENERATION_ROUTE.md` | 3 |
+| **Surface d'outils** | Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas | `wama/tool_api.py` | `WAMA_APP_GENERATION_ROUTE.md` | 8 |
 | **Sélection de modèle** | Choisit UN modèle : capacités, entrées, priorités, budget VRAM, qualité | `wama/model_manager/services/model_selector.py` | `INPUT_MODEL_MATCHING.md` | 7 |
 | **Tests nocturnes** | Registre déclaratif de scénarios + runner sérialisé VRAM-aware (wired/ui/consistency/…) | `wama/common/services/nightly_tests.py` | `PROJECT_STATUS.md §Tests fonctionnels nocturnes` | 6 |
 | **Tri/filtrage de la file** | Tri + filtrage communs de la file unifiée, préférence persistée et PARTAGÉE entre apps | `wama/common/utils/queue_view.py` | `CARD_DESIGN.md` | 10 |
-| **Utilitaires vidéo** | Extraction audio des vidéos + téléchargement YouTube/yt-dlp | `wama/common/utils/video_utils.py` | — | 16 |
+| **Utilitaires vidéo** | Extraction audio des vidéos + téléchargement YouTube/yt-dlp | `wama/common/utils/video_utils.py` | — | 14 |
 | **Visibilité et portée** | Privé / unité / public : filtrage des lectures, mutations inchangées | `wama/common/models.py` | `PROFILES_PERMISSIONS.md` | 21 |
 | **Vocabulaire des capacités** | Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage UI | `wama/common/utils/model_capabilities.py` | `INPUT_MODEL_MATCHING.md` | 1 |
 
-**Mécanismes déclarés : 46** · domiciles absents : 0 · sans consommateur : 1 · assumés locaux : 14 · modules `common/` non rattachés : 4
+**Mécanismes déclarés : 53** · domiciles absents : 0 · sans consommateur : 1 · assumés locaux : 15 · modules balayés non rattachés : 4
 - ⚠ **Sans consommateur** (brique morte ou pas encore adoptée) : `qc` (wama/common/utils/qc.py)
 
-<details><summary>⚠ <b>4 module(s) de <code>common/</code> non rattachés au registre</b> — à déclarer dans <code>wama/common/mecanismes.py</code>, ou à assumer comme utilitaires locaux (tout n'est pas un mécanisme transversal)</summary>
+<details><summary>⚠ <b>4 module(s) balayé(s) non rattachés au registre</b> — à déclarer dans <code>wama/common/mecanismes.py</code>, ou à assumer comme utilitaires locaux (tout n'est pas un mécanisme transversal)</summary>
 
 
 `wama/common/utils/` (4) — `feature_flags.py` · `intervals.py` · `video_compat.py` · `whisper_utils.py`
 
 </details>
 
-<details><summary>Assumés utilitaires locaux : 14 (chacun avec sa raison — <code>ASSUMES_LOCAUX</code>, wama/common/mecanismes.py)</summary>
+<details><summary>Assumés utilitaires locaux : 15 (chacun avec sa raison — <code>ASSUMES_LOCAUX</code>, wama/common/mecanismes.py)</summary>
 
 - `disk_utils.py` — plomberie disque (1 consommateur common)
 - `format_policy.py` — politique de formats de POIDS de modèle — chaîne modèles
@@ -125,6 +133,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 - `translator.py` — brique deep-translator — sera absorbée par le Translator (ROADMAP §10)
 - `voice_options.py` — pendant VOIX d'output_formats (avatarizer) — promouvoir si adoption s'élargit
 - `waveform.py` — rendu de forme d'onde — fusion des 2 renderers encore pendante (REPRISE)
+- `format_converter.py` — conversion de formats de poids — plomberie chaîne modèles (avec format_policy)
 
 </details>
 <!-- /WAMA:FAITS(mecanismes) -->
