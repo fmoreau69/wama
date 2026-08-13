@@ -373,6 +373,24 @@ def _f4(fn):
     return wrapped
 
 
+def _recursive_import(f: _AppFiles):
+    """Import de DOSSIER récursif — PRÉSENCE D'ABORD, non-applicabilité en repli.
+
+    Une adoption vaut toujours (le synthesizer importe un dossier de .txt alors que ses
+    `input_types` ne déclarent que 'text' : chaque fichier EST un item). L'exemption ne
+    joue que sur une ABSENCE : app sans aucune entrée média-fichier déclarée (composer —
+    ses fichiers sont des DESCRIPTEURS de batch, un dossier n'a pas d'objet). Verdict
+    Fabien 2026-08-13."""
+    present = _present(f, TEMPLATES + JS, r'webkitdirectory|folder_input_id|WamaFolderImport')
+    if present[0]:
+        return present
+    from wama.common.app_registry import APP_CATALOG
+    kinds = set((APP_CATALOG.get(f.app) or {}).get('input_types') or ())
+    if not kinds & {'image', 'video', 'audio', 'document', 'archive', 'pdf'}:
+        return None, "aucune entrée média-fichier déclarée (input_types) — import de dossier sans objet"
+    return present
+
+
 def _has_prompt(f: _AppFiles) -> bool:
     """L'app a-t-elle un champ prompt ? (sinon les critères F6 prompt sont non applicables)"""
     return bool(f.find(MODELS, r'^\s*prompt\s*=\s*models\.')
@@ -627,14 +645,17 @@ CRITERIA: list[Criterion] = [
               lambda f: _present(f, TEMPLATES, r'show_media_library')),
     Criterion('input_card_collapsed', 'F2', "Card d'entrée REPLIABLE (collapsible)",
               lambda f: _present(f, TEMPLATES, r'collapsible=True|collapsible=1')),
+    # Grisage des MODÈLES par entrée : sans moteur IA il n'y a rien à griser (verdict
+    # Fabien 13/08 — converter ffmpeg/pandoc → non applicable, même garde que F4).
     Criterion('input_match_ui', 'F2', 'Grisage des modèles incompatibles (WamaInputMatch)',
-              lambda f: _present(f, TEMPLATES + JS, r'wama-input-match|WamaInputMatch')),
+              lambda f: _present(f, TEMPLATES + JS, r'wama-input-match|WamaInputMatch')
+              if _uses_models(f) else (None, None)),
     Criterion('filemanager_import', 'F2', 'Réception « Envoyer vers app » (wama:fileimported)',
               _filemanager_import),
     # Depuis 2026-08-13 la traversée vit dans la brique commune WamaFolderImport (extraite du
     # filemanager) : l'adoption se lit par `folder_input_id=` (card commune) ou l'appel direct.
     Criterion('recursive_import', 'F2', 'Import de DOSSIER récursif (brique WamaFolderImport)',
-              lambda f: _present(f, TEMPLATES + JS, r'webkitdirectory|folder_input_id|WamaFolderImport')),
+              _recursive_import),
     # ── F3 UI / params / inspecteur ──
     Criterion('settings_modal_item', 'F3', 'Modale paramètres générée (WamaParams.render)', _params_modal),
     Criterion('init_from_schema', 'F3', 'Volet droit initFromSchema',
@@ -651,8 +672,11 @@ CRITERIA: list[Criterion] = [
     Criterion('params_modal_batch', 'F3', 'Modale BATCH générée par WamaParams', _params_modal_batch),
     Criterion('card_chips', 'F3', 'Chips métadonnée sur la card (card_chips)',
               lambda f: _present(f, VIEWS + TEMPLATES, r'card_chips|_card_chips\.html')),
+    # show_if des capacités-MODÈLE : sans moteur IA il n'y a pas de capacités à dériver
+    # (verdict Fabien 13/08 — même garde _uses_models que F4).
     Criterion('model_caps_ui', 'F3', 'show_if dérivé des capacités-modèle (WamaModelCaps)',
-              lambda f: _present(f, TEMPLATES + JS, r'wama-model-caps|WamaModelCaps')),
+              lambda f: _present(f, TEMPLATES + JS, r'wama-model-caps|WamaModelCaps')
+              if _uses_models(f) else (None, None)),
     Criterion('modes', 'F3', 'Modes déclarés (APP_MODES) rendus par WamaModes',
               lambda f: (f.app in _registry_keys('APP_MODES', 'common/utils/app_modes.py'),
                          f"common/utils/app_modes.py APP_MODES['{f.app}']"
