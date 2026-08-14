@@ -2505,19 +2505,29 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > `{'domains': []}` = absence DÉCLARÉE → N/A (clé absente = toujours rouge). Corpus régénéré
 > (4 manifestes : les 3 apps + anonymizer qui embarque les optgroups de la modale), doc_facts OK.
 >
+> **SUITE (14/08 fin) : ③ poursuivi — TOUTES les apps ≥ 93 %.** reader `model_help` VIVANT
+> (le schéma déclarait `help_fallback` mais `wama-model-help.js` n'était pas CHARGÉ — mécanisme
+> inerte ; script ajouté + `help_source="reader"` pour desc+VRAM catalogue) +
+> `media_library_slot` (flag sur la card commune, MediaPicker auto-suffisant) ; describer
+> `toast` (l'alert() « résiduel » était le LITTÉRAL d'un commentaire — récidive ×5) et
+> `model_help` → **N/A gaté** (aucun sélecteur de moteur : le modèle vision est choisi
+> automatiquement ; gate = PARAMS_JSON importé + garde-fou textuel).
+>
 > **🔚 POINT D'ENTRÉE SESSION SUIVANTE** — ① during ×6 (GPU, avec Fabien) ;
-> ② ~~paquet synthesizer~~ **FAIT** ; ③ finitions **en cours** — restes APP-LOCAUX :
-> composer `url_ingest` (mélodie par URL = ajout de champ+migration, à cadrer) +
-> `user_settings` ; reader `user_settings` + `media_library_slot` + `model_help` ;
-> describer `model_help` + `backend_packages` + `toast` (alert résiduel index.js:896) ;
-> les autres rouges sont les chantiers transverses (during ×6, input_match/model_caps,
-> params_modal_batch) ; ④ phase R régénérabilité ×7. PENDINGS : ⚠ **restart du service TTS par
-> Fabien** (uvicorn:8001 tourne encore avec l'ancien code ; préchargement = GPU → jamais par
-> l'assistant) ; ⚠ **restart/HUP gunicorn** pour les fixes du 14/08 (modale anonymizer,
-> regroupement par arrivée, duplication composer) ; push = demander.
+> ② ~~paquet synthesizer~~ **FAIT** ; ③ restes APP-LOCAUX : `user_settings` composer+reader
+> (adoption réelle = défauts de panel persistés serveur, pattern converter « POST prime, sinon
+> dernier utilisé ») ; `backend_packages` describer (le VRAI fix = mini-backend BLIP sous
+> contrat, pas une constante décorative) ; composer `url_ingest` (mélodie par URL = champ
+> modèle + migration, DÉCISION Fabien avant de coder) ; les autres rouges = chantiers
+> transverses (during ×6, input_match/model_caps, params_modal_batch) ;
+> ④ phase R régénérabilité ×7. **Backlog qualité ouvert 14/08 : prospection détecteur de
+> PLAQUES** (validation GPU SEQ08-01 : plaque lisible ratée en début de séquence).
+> PENDINGS : ⚠ restart service TTS par Fabien (préchargement = GPU) ; ⚠ restart/HUP gunicorn
+> (fixes du 14/08 : modale anonymizer, regroupement par arrivée, duplication composer,
+> model_help reader) ; push = demander.
 > **Contrôles attendus au prochain `/reprise`** : check_docs 2 CASSÉ · doc_facts 4 à jour ·
 > corpus 110 (depuis WSL2) · grille : converter 100, transcriber 97, **synthesizer 95**,
-> avat/enh/imager/**composer 94**, anonymizer 93, **describer/reader 91**.
+> avat/enh/imager/composer/**describer/reader 94**, anonymizer 93.
 
 ## §REPRISE — 2026-08-13 (nuit) : BANC CODEGEN JOUÉ (marche B front 2) + skills à jour
 
