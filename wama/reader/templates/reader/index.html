@@ -118,6 +118,9 @@ window.READER_APP = Object.assign({}, window.READER_APP || {}, {
 {# wama-inspector.css + wama-params.css chargés globalement (base.html) — plus de link local ici #}
 <script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
 <script src="{% static_v 'common/js/wama-params.js' %}"></script>
+{# Aide moteur sous le select OCR : WamaParams la câble depuis le schéma (help_source +
+   help_fallback du param backend) — SANS ce script la déclaration restait INERTE (14/08). #}
+<script src="{% static_v 'common/js/wama-model-help.js' %}"></script>
 <script>
 window.WAMA_READER_SCHEMA = {{ params_json|safe }};  // exposé pour la modale ITEM construite en JS (reader.js)
 (function () {
@@ -162,7 +165,7 @@ window._batchImport = WamaBatchImport({
     {% comment %}Card d'entrée COMMUNE en tête de file (upload + batch) — alignement T/D/C, 2026-07-07.
     Mêmes IDs dropZone/fileInput → handlers reader.js inchangés ; show_batch_bar inclut la barre.{% endcomment %}
     {% url 'reader:batch_template' as reader_batch_template_url %}
-    {% include 'common/_new_item_card.html' with drop_zone_id='dropZone' file_input_id='fileInput' folder_input_id='readerFolderInput' file_accept='.pdf,.jpg,.jpeg,.png,.tiff,.tif,.webp,.bmp' formats_label='PDF · JPG · PNG · TIFF · WebP · BMP' batch_template_url=reader_batch_template_url show_batch_bar=True collapsible=True %}
+    {% include 'common/_new_item_card.html' with drop_zone_id='dropZone' file_input_id='fileInput' folder_input_id='readerFolderInput' file_accept='.pdf,.jpg,.jpeg,.png,.tiff,.tif,.webp,.bmp' formats_label='PDF · JPG · PNG · TIFF · WebP · BMP' batch_template_url=reader_batch_template_url show_batch_bar=True show_media_library=True collapsible=True %}
 
     <!-- Global progress bar -->
     {# Barre globale + ETA agrégée — brique commune (balayage bleu/vert permanent, toujours visible). #}

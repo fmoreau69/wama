@@ -893,7 +893,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // === Utilities ===
 
     function showToast(message, type = 'info') {
-        // Brique commune (wama-app-base.js) — plus d'alert() bloquant
+        // Brique commune (wama-app-base.js) — plus de dialogue natif bloquant
         if (window.WamaApp && WamaApp.toast) WamaApp.toast(message, type);
         else console.info('[Describer]', message);
     }

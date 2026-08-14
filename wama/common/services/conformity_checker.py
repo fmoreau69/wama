@@ -227,6 +227,32 @@ def _toast(f: _AppFiles):
     return False, alert_ev
 
 
+def _model_help(f: _AppFiles):
+    """Descriptif moteur — N/A quand l'UI n'offre AUCUN sélecteur de moteur.
+
+    Cas nommé (14/08) : le describer choisit son modèle vision AUTOMATIQUEMENT — pas de
+    select à documenter, exiger la brique revenait à exiger un composant sans hôte. Le gate
+    lit le SCHÉMA réel (PARAMS_JSON importé, même approche runtime que _tool_api_triad) +
+    un garde-fou textuel contre un select moteur legacy hors schéma."""
+    ev = f.find(TEMPLATES + JS, r'wama-model-help|WamaModelHelp')
+    if ev:
+        return True, ev
+    try:
+        import importlib
+        schema = getattr(importlib.import_module(f'wama.{f.app}.params'), 'PARAMS_JSON', [])
+        engine_selects = [p['name'] for p in schema
+                          if p.get('type') == 'select'
+                          and (p.get('help_source')
+                               or p['name'] in ('model', 'backend', 'engine',
+                                                'model_to_use', 'tts_model'))]
+    except Exception:
+        engine_selects = None
+    if engine_selects == [] and not f.find(
+            TEMPLATES, r'model_to_use|modelSelect|backendSelect|tts_model'):
+        return None, None
+    return False, None
+
+
 def _modes_declared(f: _AppFiles):
     """Modes déclarés — ou ABSENCE DÉCLARÉE (`{'domains': []}` = « j'ai considéré, le
     comportement ne diverge pas ») → non applicable. Un mode n'existe que si le comportement
@@ -697,8 +723,7 @@ CRITERIA: list[Criterion] = [
               lambda f: _present(f, TEMPLATES, r"common/_inspector_actions\.html")),
     Criterion('settings_modal_footer', 'F3', 'Pied de modale commun (_settings_modal_footer)',
               lambda f: _present(f, TEMPLATES, r"common/_settings_modal_footer\.html")),
-    Criterion('model_help', 'F3', 'Descriptif moteur (wama-model-help)',
-              lambda f: _present(f, TEMPLATES + JS, r'wama-model-help|WamaModelHelp')),
+    Criterion('model_help', 'F3', 'Descriptif moteur (wama-model-help)', _model_help),
     Criterion('params_schema', 'F3', 'Schéma de paramètres déclaratif (params.py → PARAMS_JSON)',
               lambda f: _present(f, PARAMS, r'schema_to_dicts\(|derive_from_model\(|Param\(')),
     Criterion('params_modal_batch', 'F3', 'Modale BATCH générée par WamaParams', _params_modal_batch),

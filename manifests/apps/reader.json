@@ -127,7 +127,7 @@
               "olmocr": "olmOCR-2 7B — OCR vision haute qualité (mise en page, tableaux, manuscrit). ~16 Go VRAM."
             },
             "help_html": "",
-            "help_source": null,
+            "help_source": "reader",
             "icon": "fa-microchip",
             "inline": false,
             "label": "Moteur OCR",

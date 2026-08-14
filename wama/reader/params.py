@@ -19,8 +19,11 @@ PARAMS = derive_from_model(
         "backend": dict(
             type="select", label="Moteur OCR", icon="fa-microchip", chip=True,
             dom_id={"panel": "backendSelect", "batch": "batchSettingsBackend", "item": "rSettings_backend"},
-            # Descriptif du moteur sous le select (systématique via WamaParams/WamaModelHelp).
-            # Moteurs OCR maison → pas dans le catalogue model_manager : repli statique par valeur.
+            # Descriptif du moteur sous le select (WamaParams → WamaModelHelp ; le script
+            # wama-model-help.js doit être CHARGÉ par la page, sinon déclaration inerte).
+            # help_source = catalogue (doctr/olmocr y sont : desc + VRAM) ; repli statique
+            # pour les valeurs hors catalogue (auto, glm-ocr).
+            help_source="reader",
             help_fallback={
                 "auto": "Choisit automatiquement le meilleur moteur disponible selon le document et le GPU.",
                 "olmocr": "olmOCR-2 7B — OCR vision haute qualité (mise en page, tableaux, manuscrit). ~16 Go VRAM.",
