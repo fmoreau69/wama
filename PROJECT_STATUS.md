@@ -2604,23 +2604,72 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > dérivée). Seule exception utile TÔT : **P2 audit de couverture API mesuré** (read-only,
 > révèle les trous de déclaration — sert les deux chantiers).
 >
+> **SUITE (17/08 apm) : P2 AUDIT API MESURÉ (agent read-only, chaque fait avec fichier:ligne)
+> + delta /apps/ COMPLÉTÉ.** ① **Couverture tool_api** : le cycle « déposer→lancer→suivre »
+> est couvert (add/start/status 10/10, start_all 9/10 — composer sans mode « tous ») mais le
+> cycle « GÉRER » est à ZÉRO : stop/cancel (9 apps ont la vue), delete, duplicate, download,
+> clear_all, download_all, update_settings, batch_* (create/start/…, 10/10 apps), reorder —
+> **~10 familles × 10 apps sans aucun outil**. ② **Retours `get_*_status` pauvres**
+> (échantillon transcriber/imager/synthesizer) : ETA absente 3/3, `error_message` absent 3/3
+> (l'assistant ne peut pas dire POURQUOI un job échoue), résultat complet tronqué
+> (transcriber `text_preview` 300 c.) — les TRIAD_SPECS (converter/reader) déclarent, elles,
+> `error_message` : la projection des registres ferait mieux que le code à la main. ③
+> **wama_lab** : 16 tâches Celery (15 cam_analyzer + 1 face_analyzer), 0 outil. ④
+> **media_library** : 8 vues d'ÉCRITURE (upload/edit/delete/promote/keywords/provider), 0
+> outil ; la lecture ne voit que `UserAsset` (pas les assets système). ⑤ **Registre
+> `Library`** (common/models.py:382) : servi par /common/licences/ et
+> /model-manager/libraries/, RIEN dans tool_api. ⑥ **Gating `/model-manager/api/models/db/`
+> TRANCHÉ** : le middleware ne gate PAS `/model-manager/` (`PATH_APP_MAP` sans cette clé +
+> segment à TIRET ≠ clé underscore → `app_id_for_path`=None) ; la décision vient du
+> décorateur `is_admin_or_dev` (Groups admin/dev — mécanisme DISTINCT du tier/rôles) →
+> non-dev = **302 login** → le constat du matin est CONFIRMÉ : WamaModelHelp est INERTE pour
+> un compte non-dev (fetch avale le redirect). ⑦ **Test de contrat triades : aucun**
+> (aucun test ne référence tool_api/TOOL_REGISTRY ; seul le critère de PRÉSENCE
+> `_tool_api_triad` du conformity_checker existe). → Ces trous nourrissent la couche API
+> GÉNÉRÉE (P3/P4) : ne PAS les combler à la main un par un (arbitrage du matin inchangé).
+>
+> **SUITE (17/08 apm) : delta /apps/ ↔ grille COMPLÉTÉ (mesuré au code).** La liste du 14/08
+> (streaming ×10, inspector anonymizer+imager, eta_batch imager, cross_app_options converter)
+> était INCOMPLÈTE — le delta réel des clés déclarées-seulement à False compte AUSSI :
+> `modes` (describer, reader) et `recursive_import` (composer — seul non mesuré de cette clé).
+> Chantier réconciliation inchangé (pas de flip à la devinette), mais la liste de référence
+> est désormais celle-ci (8 clés, 6 causes).
+>
+> **SUITE (17/08 soir) : INPUT_MATCH SOLDÉ (8/8 applicables) + gate « sans sélecteur → N/A ».**
+> Brique SERVEUR extraite `common/utils/input_match.py` (`input_match_meta(source, key=)` +
+> `auto_entry()` + `input_labels()` — la logique n'existait que DUPLIQUÉE composer/imager,
+> extraction au moment du copier-coller imminent, règle /brique) ; annexe du mécanisme
+> `model_capabilities` (registre + carte régénérée). Adoptions RÉELLES ×5 : **synthesizer**
+> (voix clonée ua_/cv_ → bark/kokoro grisés avec raison + chip ✕ retour voix par défaut ;
+> crochets déclaratifs de slot NON-fichier ajoutés à la brique JS `isProvided/describe/clear` ;
+> ⚠ piège : la brique JS se charge PAR app, la balise `<script>` manquait), **enhancer**
+> (2 selects, un par domaine, clés = stems ONNX sans `_fp16`), **transcriber** (re-clé
+> `_backend_for_model_key`, 'auto' = `auto_entry`), **reader** ('auto' idem), **anonymizer**
+> (double clé `type/fichier`, même contrat que `_model_help_meta` ; l'« Auto précision » =
+> auto_entry hors sam3). **Verdict Fabien 17/08** : describer/avatarizer SANS sélecteur de
+> modèle (routage auto / MuseTalk fixe) → gate commun `_has_engine_select` étendu à
+> `input_match_ui` + `model_caps_ui` (même logique que model_help 14/08), et garde textuel
+> corrigé en position d'ATTRIBUT (un COMMENTAIRE citant `tts_model` — la doc du retrait TTS
+> avatarizer — ne compte plus comme un select). Doctrine `INPUT_MODEL_MATCHING.md §5` mise à
+> jour (état mesuré 17/08). Smokes test-client : 7 pages HTTP 200, câblage complet présent.
+> Restes du lot : `model_caps_ui` ×6 (anonymizer, composer, enhancer, imager, reader,
+> transcriber), during ×6 (GPU avec Fabien), params_modal_batch ×3 MESURÉ (composer,
+> describer, synthesizer — le « ×7 » de ROUTE §11 #2 est périmé).
+>
 > **🔚 POINT D'ENTRÉE SESSION SUIVANTE — ordre acté :** ① transverses portage (during ×6 —
-> GPU avec Fabien ; input_match/model_caps ; params_modal_batch ×7) + P2 audit API en
-> parallèle léger (+ gating `/model-manager/api/` non-dev, test contrat triades #8) ;
-> ② phase R ×7 ; ③ couche API auto-instruite (projection manifestes — P3 orchestration UI
-> avec Speak pilote, P4 modèles écriture + librairies lecture ; arbitrages wama_lab/
-> media_library écriture ; précondition HTTPS = déploiement) ; réconciliation /apps/ ↔
-> grille ; prospection PLAQUES. PENDINGS : push = demander ; ⚠ restart gunicorn+workers
-> (2 nouveaux outils tool_api).
+> GPU avec Fabien ; model_caps_ui ×6 ; params_modal_batch ×3) ; P2 audit API ✅ FAIT
+> (17/08 apm, ci-dessus — gating `/model-manager/api/` tranché, test contrat triades #8
+> toujours À CRÉER) ; ② phase R ×7 ; ③ couche API auto-instruite (projection manifestes —
+> P3 orchestration UI avec Speak pilote, P4 modèles écriture + librairies lecture ;
+> arbitrages wama_lab/media_library écriture ; précondition HTTPS = déploiement) ;
+> réconciliation /apps/ ↔ grille ; prospection PLAQUES. PENDINGS : push = demander ;
+> ⚠ restart gunicorn+workers (2 outils tool_api + brique input_match + adoptions ×7).
 > **Contrôles attendus au prochain `/reprise`** : check_docs **2 CASSÉ** · doc_facts 4 à
 > jour · corpus **110** (depuis WSL2) · migrate --check OK · `TOOL_REGISTRY` = **48** ·
-> grille CLI : converter 100, transcriber/composer 97, synthesizer/reader/describer 95,
-> avat/enh/imager 94, anonymizer 93 (page /apps/ 91–97 = + conventions déclarées, cf. SUITE
-> alignement).
-> **Contrôles attendus au prochain `/reprise`** : check_docs 2 CASSÉ · doc_facts 4 à jour ·
-> corpus 110 (depuis WSL2) · migrate --check OK · grille CLI : converter 100,
-> transcriber/**composer 97**, **synthesizer/reader/describer 95**, avat/enh/imager 94,
-> anonymizer 93 (page /apps/ : 91–97, delta = déclaré-seulement, cf. ci-dessus).
+> grille CLI : **converter 100 · avatarizer/describer/transcriber 98 · composer/reader/
+> synthesizer 97 · enhancer 96 · anonymizer 95 · imager 94** (page /apps/ = − les clés
+> déclarées-seulement, liste complétée : streaming ×10, inspector ×2, eta_batch,
+> cross_app_options, modes ×2, recursive_import composer).
 
 ## §REPRISE — 2026-08-13 (nuit) : BANC CODEGEN JOUÉ (marche B front 2) + skills à jour
 
