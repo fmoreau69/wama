@@ -2576,11 +2576,32 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > `/model-manager/api/models/db/` (source WamaModelHelp) sous gating par chemin dev-only —
 > aide-modèle possiblement INERTE pour un non-dev (fetch avale l'échec) ; cf. ROUTE §11 #18.
 >
-> **🔚 POINT D'ENTRÉE SESSION SUIVANTE** — **couche API (suite)** : vérifier le gating de
-> `/model-manager/api/` avec un compte NON-dev ; trancher wama_lab (13 tâches sans surface)
-> et media_library ÉCRITURE ; test de contrat des triades (trou #8) ; puis chantiers
-> transverses du portage (during ×6, input_match/model_caps, params_modal_batch) ;
-> réconciliation /apps/ ↔ grille ; ④ phase R ×7 ; prospection PLAQUES.
+> **SUITE (17/08) : CHANTIER API CADRÉ EN PALIERS (échange Fabien — cible = usage exhaustif
+> depuis l'AI-Assistant).** Analyse par NATURE des manques, vérifiée au code :
+> **(a) tâches serveur** — triades 10/10 OK mais l'API ne couvre que le workflow FILE ;
+> manquent les actions de card (stop/delete/download), la richesse des retours de
+> `get_*_status`, wama_lab, media_library écriture, actions MODÈLES (écriture, dev-gated)
+> et LIBRAIRIES (rien — le registre Library existe). **(b) domaines/modes** — pour la
+> plupart réductibles aux params du schéma (déjà passables via add_to_*) ; à confronter app
+> par app. **(c) gestes NAVIGATEUR** (temps réel Speak, preview…) — par NATURE côté client
+> (getUserMedia) : IMPOSSIBLE en pur serveur, mais **le pont existe déjà** :
+> `switch_ui_mode` rend un ACTION PAYLOAD que le JS client exécute → à généraliser en
+> famille « orchestration UI » (`open_app(app, mode, prefill, autostart)`). **Scénario
+> Speak-réunion AUJOURD'HUI : rien ne se passe** (le mode temps réel est invisible de
+> l'API — seule surface serveur : `realtime/save/`). Après le pont : l'assistant ouvre
+> transcriber en mode realtime et arme la session ; la capture démarre au consentement
+> micro du navigateur. **Précondition ABSOLUE : HTTPS** (getUserMedia refuse en HTTP hors
+> localhost — rattacher au chantier déploiement).
+>
+> **🔚 POINT D'ENTRÉE SESSION SUIVANTE — couche API, paliers dans l'ordre :**
+> **P2** = audit PROFOND par app (surface UI réelle — domaines/modes/params/actions de
+> card — confrontée à l'exposition tool_api ; sortie = grille de couverture API MESURÉE) +
+> gating `/model-manager/api/` compte non-dev + test de contrat triades (trou #8) ;
+> **P3** = famille orchestration UI (généraliser l'action payload de `switch_ui_mode` ;
+> pilote = Speak) ; **P4** = modèles ÉCRITURE (dev-gated) + librairies LECTURE
+> (list/missing_packages) ; arbitrages : wama_lab, media_library écriture ; précondition
+> HTTPS (déploiement). Puis : transverses portage (during ×6, input_match/model_caps,
+> params_modal_batch) ; réconciliation /apps/ ↔ grille ; phase R ×7 ; prospection PLAQUES.
 > PENDINGS : push = demander ; ⚠ restart gunicorn+workers pour exposer les 2 nouveaux
 > outils (tool_api.py rechargé).
 > **Contrôles attendus au prochain `/reprise`** : check_docs 2 CASSÉ · doc_facts 4 à jour ·
