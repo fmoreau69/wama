@@ -29,6 +29,7 @@ import json
 from .models import VoiceSynthesis, VoicePreset, CustomVoice, BatchSynthesis, BatchSynthesisItem
 from .params import PARAMS_JSON as _SYNTH_PARAMS_JSON
 from wama.common.utils.console_utils import get_console_lines
+from wama.common.utils.input_match import input_labels as _input_labels
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance
 
@@ -211,6 +212,10 @@ class IndexView(View):
             'voice_refs_groups': voice_refs_groups,
             'params_json': json.dumps(_SYNTH_PARAMS_JSON),
             'tts_model_help_meta': json.dumps(self._tts_model_help_meta()),
+            # Appariement entrée↔modèles (brique commune input_match) : une voix CLONÉE
+            # choisie grise les moteurs sans clonage — cf. INPUT_MODEL_MATCHING.md.
+            'input_match_meta': json.dumps(self._input_match_meta()),
+            'input_labels': json.dumps(_input_labels()),
             'q_sort': q_sort,
             'q_filter': q_filter,
         }
@@ -225,6 +230,18 @@ class IndexView(View):
             'preferred_voice_preset': '',
         }))
         return render(request, 'synthesizer/index.html', context)
+
+    @staticmethod
+    def _input_match_meta():
+        """Meta de la brique COMMUNE, re-clée sur les valeurs d'option LEGACY du select
+        (xtts_v2, higgs_audio…) via l'accesseur ENGINE_CATALOG_KEYS — même table que le
+        `resolveKey` de WamaModelCaps, direction inverse."""
+        from wama.common.utils.input_match import input_match_meta
+        from .utils.model_config import ENGINE_CATALOG_KEYS
+        inv = {v: k for k, v in ENGINE_CATALOG_KEYS.items()}
+        return input_match_meta(
+            'synthesizer',
+            key=lambda mk: inv.get(mk.split(':', 1)[-1], mk.split(':', 1)[-1]))
 
     @staticmethod
     def _tts_model_help_meta():

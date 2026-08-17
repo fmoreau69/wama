@@ -71,22 +71,21 @@ card commune + select modèle (surfaces). Zéro hardcode par app ; composer = pi
    la « disparition » actuelle devient sans objet.
 6. Étendre : imager (image de référence img2img — même mécanique), puis studio (mêmes ports).
 
-## 5. État mesuré (2026-07-30)
+## 5. État mesuré (2026-08-17 — adoption SOLDÉE)
 
 | Surface | État |
 |---|---|
-| `wama-input-match.js` | ✅ commune (`common/static/common/js/`) |
-| Card commune `_new_item_card.html` | incluse par **8 apps** (avatarizer, composer, converter, describer, enhancer, reader, synthesizer, transcriber) |
-| Brique **chargée** | ⚠️ **composer seul** — les 7 autres ont la card sans le double sens |
-| **Imager** | ❌ ni la card commune, ni la brique |
+| `wama-input-match.js` | ✅ commune ; **crochets déclaratifs de slot non-fichier** (`isProvided`/`describe`/`clear`, 17/08 — 1er cas : voix clonée du synthesizer choisie dans un `<select>`) |
+| **Côté serveur** | ✅ brique `common/utils/input_match.py` (17/08) : `input_match_meta(source, key=)` (meta du CATALOGUE par `AIModel.source`, re-clé par app), `auto_entry()` (pseudo-choix « auto »), `input_labels()` — extraite de composer/imager au moment de l'adoption ×7 |
+| Brique **câblée** (grille `input_match_ui`) | ✅ **8/8 applicables** : composer, imager, synthesizer (grisage RÉEL : voix clonée → bark/kokoro grisés + chip ✕), enhancer (2 selects, un par domaine), transcriber, reader, anonymizer (+ converter N/A sans moteur IA) |
+| **describer, avatarizer** | **N/A mesuré** (verdict Fabien 17/08, gate commun `_has_engine_select`) : aucun sélecteur de modèle — describer route AUTO par type de média, avatarizer = MuseTalk fixe (TTS parti au studio Synthesizer→Avatarizer). Pas d'hôte → pas de grisage exigible. |
 
-**Le préalable de l'étape 6 est LEVÉ** : les modèles imager déclarent enfin
-`inputs_required`/`inputs_optional` au catalogue (ingest depuis le `mode` du manifeste, 30/07 —
-cf. `PROJECT_STATUS §0 4ter`). Le double sens se nourrissant exactement de ces champs, il ne
-pouvait pas fonctionner avant ; il est maintenant alimentable. Le tirage côté serveur consomme
-déjà ces champs via `matches_inputs()` — **le serveur et l'UI partagent donc la même déclaration**,
-ce qui est le but : le grisage d'une entrée et l'exclusion d'un modèle disent la même chose.
+Re-clés par app (l'accesseur PRIME, jamais de déduction) : synthesizer `ENGINE_CATALOG_KEYS`
+(xtts_v2↔coqui-xtts), enhancer suffixe `_fp16` (stems ONNX), transcriber
+`_backend_for_model_key` (qwen3-asr-* → qwen_asr), anonymizer valeurs d'option `type/fichier`
+(double clé, même contrat que `_model_help_meta`).
 
-⚠️ **Écart à surveiller** : 7 apps affichent la card commune **sans** charger la brique. Elles
-n'ont donc pas le double sens alors qu'elles en ont le support — c'est un trou d'adoption, pas
-un trou de conception.
+Pour les apps à FILE (fichiers consommés au dépôt), la direction VIVANTE est MODÈLE→ENTRÉES
+(ligne d'état sous le select) ; le grisage entrée-d'abord s'activera avec les slots RETENUS
+(références). Le serveur (`matches_inputs()`) et l'UI partagent la même déclaration catalogue :
+le grisage d'une entrée et l'exclusion d'un modèle disent la même chose.

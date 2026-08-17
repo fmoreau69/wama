@@ -190,16 +190,12 @@ def index(request):
         image_model_groups.append({'label': 'Logos', 'models': [_mz(d) for d in _logo_models]})
     video_model_groups = [{'label': 'Vidéos', 'models': [_mz(d) for d in video_models_info]}]
 
-    input_match_meta = {}
-    for d in list(models_info) + list(video_models_info):
-        _caps = d.get('capabilities') or {}
-        input_match_meta[d['id']] = {
-            'label': d.get('name') or d['id'],
-            'inputs_required': _caps.get('inputs_required') or [],
-            'inputs_optional': _caps.get('inputs_optional') or [],
-        }
-    from wama.common.utils.app_modes import INPUT_TYPES as _INPUT_TYPES
-    input_labels = {k: (v.get('label') or k) for k, v in _INPUT_TYPES.items()}
+    # Meta d'appariement : brique COMMUNE (common/utils/input_match.py, extraction 2026-08-17
+    # de l'inline qui vivait ici) — lit le catalogue par source ; surensemble du select
+    # (entrées en trop = inertes côté JS ; vérifié : 0 modèle disponible ET proposé).
+    from wama.common.utils.input_match import input_match_meta as _im_meta, input_labels as _im_labels
+    input_match_meta = _im_meta('imager')
+    input_labels = _im_labels()
 
     # ── File bâtie sur les BATCHS (contrat commun) ───────────────────────────────
     # Tout est batch ; une génération isolée est auto-enveloppée dans son batch-of-1

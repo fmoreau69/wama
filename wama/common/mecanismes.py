@@ -253,6 +253,9 @@ MECANISMES = (
               'wama/common/utils/model_capabilities.py', 'INPUT_MODEL_MATCHING.md',
               annexes=('wama/common/static/common/js/wama-model-caps.js',
                        'wama/common/static/common/js/wama-input-match.js',
+                       # Côté SERVEUR de wama-input-match (meta catalogue + labels INPUT_TYPES),
+                       # extrait de composer/imager le 2026-08-17 (adoption ×7).
+                       'wama/common/utils/input_match.py',
                        'wama/common/static/common/js/wama-model-help.js')),
     Mecanisme('detail_registry', 'Inspecteur — champs de détail',
               "Schéma canonique des infos d'item affichées au volet droit",

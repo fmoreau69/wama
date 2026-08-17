@@ -121,6 +121,7 @@ window.READER_APP = Object.assign({}, window.READER_APP || {}, {
 {# Aide moteur sous le select OCR : WamaParams la câble depuis le schéma (help_source +
    help_fallback du param backend) — SANS ce script la déclaration restait INERTE (14/08). #}
 <script src="{% static_v 'common/js/wama-model-help.js' %}"></script>
+<script src="{% static_v 'common/js/wama-input-match.js' %}"></script>  {# appariement card d'entrée ↔ modèles (INPUT_MODEL_MATCHING.md) #}
 <script>
 window.WAMA_READER_SCHEMA = {{ params_json|safe }};  // exposé pour la modale ITEM construite en JS (reader.js)
 (function () {
@@ -130,6 +131,25 @@ window.WAMA_READER_SCHEMA = {{ params_json|safe }};  // exposé pour la modale I
   if (ph) WamaParams.render(ph, schema, { context: 'panel', values: {} });
   var bh = document.getElementById('readerBatchParams');
   if (bh) WamaParams.render(bh, schema, { context: 'batch', values: {} });
+
+  // Appariement entrée↔modèles (brique commune wama-input-match) : meta du CATALOGUE (vue).
+  // Fichiers consommés au dépôt (file) → direction vivante = MODÈLE→ENTRÉES (ligne d'état).
+  var bs = document.getElementById('backendSelect');
+  if (bs && window.WamaInputMatch) {
+    var ims = document.createElement('small');
+    ims.id = 'inputMatchStatus';
+    ims.className = 'text-info d-block mt-1';
+    ims.style.display = 'none';
+    var row = bs.closest('.wama-param');
+    if (row) row.appendChild(ims);
+    WamaInputMatch.init({
+      selectId: 'backendSelect',
+      meta: {{ input_match_meta|default:"{}"|safe }},
+      inputLabels: {{ input_labels|default:"{}"|safe }},
+      slots: { work_file: { inputId: 'fileInput' } },
+      statusId: 'inputMatchStatus',
+    });
+  }
 })();
 </script>
 <script src="{% static_v 'common/js/wama-new-item-card.js' %}"></script>  {# card d'entrée repliable (auto-init) #}

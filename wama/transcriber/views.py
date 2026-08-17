@@ -111,6 +111,26 @@ def _auto_wrap_orphans(user):
                       item_model=BatchTranscriptItem, fk_name='transcript')
 
 
+def _input_match_meta():
+    """Meta brique COMMUNE re-clée par backend (plusieurs modèles catalogue → un moteur,
+    ex. qwen3-asr-0.6b/1.7b → qwen_asr) + pseudo-choix 'auto' (politique transcriber)."""
+    from wama.common.utils.input_match import auto_entry, input_match_meta
+    from wama.transcriber.backends.manager import TranscriberBackendManager
+    meta = input_match_meta(
+        'transcriber',
+        key=lambda mk: (TranscriberBackendManager._backend_for_model_key(mk)
+                        or mk.split(':', 1)[-1]))
+    if meta:
+        meta['auto'] = auto_entry(meta)
+    return meta
+
+
+def _input_labels():
+    """Libellés d'INPUT_TYPES — brique commune (extraction 2026-08-17)."""
+    from wama.common.utils.input_match import input_labels
+    return input_labels()
+
+
 class IndexView(View):
     def get(self, request):
         user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -228,6 +248,12 @@ class IndexView(View):
             'global_verify_coherence': global_verify_coherence,
             'params_json': json.dumps(PARAMS_JSON),
             'panel_values_json': json.dumps(panel_values),
+            # Appariement entrée↔modèles (brique commune input_match) : meta re-clée sur les
+            # noms de BACKEND du select (accesseur _backend_for_model_key — le catalogue nomme
+            # finement, le select nomme par moteur) ; 'auto' = politique d'app (intersection
+            # des requis, union du reste).
+            'input_match_meta': json.dumps(_input_match_meta()),
+            'input_labels': json.dumps(_input_labels()),
         })
 
 

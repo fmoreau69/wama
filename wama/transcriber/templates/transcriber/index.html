@@ -101,6 +101,7 @@
 <script src="{% static_v 'common/js/wama-eta.js' %}"></script>
 <script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
 <script src="{% static_v 'common/js/wama-model-help.js' %}"></script>
+<script src="{% static_v 'common/js/wama-input-match.js' %}"></script>  {# appariement card d'entrée ↔ modèles (INPUT_MODEL_MATCHING.md) #}
 <script src="{% static_v 'common/js/wama-modes.js' %}"></script>
 <link rel="stylesheet" href="{% static_v 'common/css/wama-params.css' %}">
 <script src="{% static_v 'common/js/wama-params.js' %}"></script>
@@ -131,6 +132,25 @@
     if (bs && bh) { var row = bs.closest('.wama-param'); if (row) row.appendChild(bh); }
     // Pont backend : loadBackendsAsync relit data-selected pour re-sélectionner après l'async.
     if (bs && values.backend) bs.dataset.selected = values.backend;
+
+    // Appariement entrée↔modèles (brique commune wama-input-match) : meta du CATALOGUE re-clée
+    // par backend (vue). Fichiers consommés au dépôt (file) → direction vivante = MODÈLE→ENTRÉES
+    // (ligne d'état) ; les options async ajoutées par loadBackendsAsync sont re-lues au 1er change.
+    if (bs && window.WamaInputMatch) {
+        var ims = document.createElement('small');
+        ims.id = 'inputMatchStatus';
+        ims.className = 'text-info d-block mt-1';
+        ims.style.display = 'none';
+        var row2 = bs.closest('.wama-param');
+        if (row2) row2.appendChild(ims);
+        WamaInputMatch.init({
+            selectId: 'backendSelect',
+            meta: {{ input_match_meta|default:"{}"|safe }},
+            inputLabels: {{ input_labels|default:"{}"|safe }},
+            slots: { work_audio: { inputId: 'transcriber-file' } },
+            statusId: 'inputMatchStatus',
+        });
+    }
 })();
 </script>
 <script src="{% static_v 'transcriber/js/index.js' %}"></script>

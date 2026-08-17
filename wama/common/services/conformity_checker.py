@@ -227,16 +227,16 @@ def _toast(f: _AppFiles):
     return False, alert_ev
 
 
-def _model_help(f: _AppFiles):
-    """Descriptif moteur — N/A quand l'UI n'offre AUCUN sélecteur de moteur.
+def _has_engine_select(f: _AppFiles) -> bool:
+    """Y a-t-il un SÉLECTEUR de moteur dans l'UI ? — précondition commune des critères
+    model_help / input_match_ui / model_caps_ui (gate « composant sans hôte → N/A »,
+    verdict Fabien 14/08 étendu le 17/08 aux deux autres critères, même verdict).
 
-    Cas nommé (14/08) : le describer choisit son modèle vision AUTOMATIQUEMENT — pas de
-    select à documenter, exiger la brique revenait à exiger un composant sans hôte. Le gate
-    lit le SCHÉMA réel (PARAMS_JSON importé, même approche runtime que _tool_api_triad) +
-    un garde-fou textuel contre un select moteur legacy hors schéma."""
-    ev = f.find(TEMPLATES + JS, r'wama-model-help|WamaModelHelp')
-    if ev:
-        return True, ev
+    Signal 1 = SCHÉMA réel (PARAMS_JSON importé). Signal 2 (schéma muet — imager/enhancer
+    ont des schémas ÉCLATÉS sans PARAMS_JSON) = un VRAI hôte dans le HTML : token de select
+    moteur en position d'ATTRIBUT (id/name/for). Un commentaire qui ne fait que CITER un nom
+    ne compte pas (faux positif avatarizer 17/08 : « params.py ne déclare plus …tts_model… »).
+    Indéterminé (import raté) → True : ne jamais passer N/A à l'aveugle."""
     try:
         import importlib
         schema = getattr(importlib.import_module(f'wama.{f.app}.params'), 'PARAMS_JSON', [])
@@ -246,9 +246,24 @@ def _model_help(f: _AppFiles):
                                or p['name'] in ('model', 'backend', 'engine',
                                                 'model_to_use', 'tts_model'))]
     except Exception:
-        engine_selects = None
-    if engine_selects == [] and not f.find(
-            TEMPLATES, r'model_to_use|modelSelect|backendSelect|tts_model'):
+        return True
+    if engine_selects:
+        return True
+    return bool(f.find(
+        TEMPLATES,
+        r'(?:id|name|for)\s*=\s*["\'][^"\']*'
+        r'(?:model_to_use|modelSelect|ModelSelect|backendSelect|tts_model|'
+        r'AiModel|audioEngine)'))
+
+
+def _model_help(f: _AppFiles):
+    """Descriptif moteur — N/A quand l'UI n'offre AUCUN sélecteur de moteur (gate commun
+    `_has_engine_select`, cas nommé 14/08 : le describer choisit son modèle vision
+    AUTOMATIQUEMENT — exiger la brique revenait à exiger un composant sans hôte)."""
+    ev = f.find(TEMPLATES + JS, r'wama-model-help|WamaModelHelp')
+    if ev:
+        return True, ev
+    if not _has_engine_select(f):
         return None, None
     return False, None
 
@@ -704,10 +719,12 @@ CRITERIA: list[Criterion] = [
     Criterion('input_card_collapsed', 'F2', "Card d'entrée REPLIABLE (collapsible)",
               lambda f: _present(f, TEMPLATES, r'collapsible=True|collapsible=1')),
     # Grisage des MODÈLES par entrée : sans moteur IA il n'y a rien à griser (verdict
-    # Fabien 13/08 — converter ffmpeg/pandoc → non applicable, même garde que F4).
+    # Fabien 13/08 — converter ffmpeg/pandoc → non applicable, même garde que F4) ; et sans
+    # SÉLECTEUR il n'y a pas d'hôte (verdict Fabien 17/08 — describer routage auto,
+    # avatarizer MuseTalk fixe → gate commun _has_engine_select, comme model_help).
     Criterion('input_match_ui', 'F2', 'Grisage des modèles incompatibles (WamaInputMatch)',
               lambda f: _present(f, TEMPLATES + JS, r'wama-input-match|WamaInputMatch')
-              if _uses_models(f) else (None, None)),
+              if _uses_models(f) and _has_engine_select(f) else (None, None)),
     Criterion('filemanager_import', 'F2', 'Réception « Envoyer vers app » (wama:fileimported)',
               _filemanager_import),
     # Depuis 2026-08-13 la traversée vit dans la brique commune WamaFolderImport (extraite du
@@ -730,10 +747,11 @@ CRITERIA: list[Criterion] = [
     Criterion('card_chips', 'F3', 'Chips métadonnée sur la card (card_chips)',
               lambda f: _present(f, VIEWS + TEMPLATES, r'card_chips|_card_chips\.html')),
     # show_if des capacités-MODÈLE : sans moteur IA il n'y a pas de capacités à dériver
-    # (verdict Fabien 13/08 — même garde _uses_models que F4).
+    # (verdict Fabien 13/08 — même garde _uses_models que F4) ; sans SÉLECTEUR, pas d'hôte
+    # (verdict Fabien 17/08 — gate commun _has_engine_select, comme model_help).
     Criterion('model_caps_ui', 'F3', 'show_if dérivé des capacités-modèle (WamaModelCaps)',
               lambda f: _present(f, TEMPLATES + JS, r'wama-model-caps|WamaModelCaps')
-              if _uses_models(f) else (None, None)),
+              if _uses_models(f) and _has_engine_select(f) else (None, None)),
     Criterion('modes', 'F3', 'Modes déclarés (APP_MODES) rendus par WamaModes', _modes_declared),
     Criterion('layout', 'F3', 'Bascule Ligne / Mosaïque (card_layout)',
               lambda f: _present(f, TEMPLATES + JS + VIEWS, r'card_layout|data-layout')),

@@ -221,6 +221,21 @@ def _decorate_card(reading):
     return reading
 
 
+def _input_match_meta():
+    """Meta brique COMMUNE (clés catalogue = valeurs du select) + pseudo-choix 'auto'."""
+    from wama.common.utils.input_match import auto_entry, input_match_meta
+    meta = input_match_meta('reader')
+    if meta:
+        meta['auto'] = auto_entry(meta)
+    return meta
+
+
+def _input_labels():
+    """Libellés d'INPUT_TYPES — brique commune (extraction 2026-08-17)."""
+    from wama.common.utils.input_match import input_labels
+    return input_labels()
+
+
 class IndexView(View):
     def get(self, request):
         user = _get_user(request)
@@ -279,6 +294,10 @@ class IndexView(View):
             'format_choices': ReadingItem.OutputFormat.choices,
             # Schéma params (source unique inspecteur + modale batch). Voir reader/params.py.
             'params_json': json.dumps(PARAMS_JSON),
+            # Appariement entrée↔modèles (brique commune input_match) : clés catalogue =
+            # valeurs du select (doctr/glm-ocr/olmocr) ; 'auto' = auto_entry (brique).
+            'input_match_meta': json.dumps(_input_match_meta()),
+            'input_labels': json.dumps(_input_labels()),
         })
 
 

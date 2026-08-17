@@ -21,6 +21,11 @@
  *     onState: (st) => generateBtn.disabled = !st.launchable,
  *   });
  *   m.refresh() après tout changement programmatique ; m.isLaunchable() avant lancement.
+ *
+ * Slots NON-fichier (2026-08-17, adoption synthesizer — voix de clonage choisie dans un
+ * <select>) : un slot peut déclarer ses crochets — `isProvided(el)` (l'entrée est-elle
+ * fournie ?), `describe(el)` (texte de la chip), `clear(el)` (geste ✕). Défauts = input
+ * fichier (files.length / files[0].name / value=''). Déclaratif : zéro cas d'app ici.
  */
 (function (global) {
   'use strict';
@@ -42,11 +47,14 @@
     const requiredOf = (mid) => (meta[mid] || {}).inputs_required || [];
 
     // ── Entrées fournies (état) ─────────────────────────────────────────────
+    const hasValue = (s, inp) =>
+      s.isProvided ? !!s.isProvided(inp) : !!(inp.files && inp.files.length);
+
     function provided() {
       const out = [];
       Object.keys(slots).forEach((sid) => {
         const inp = document.getElementById(slots[sid].inputId);
-        if (inp && inp.files && inp.files.length) out.push(sid);
+        if (inp && hasValue(slots[sid], inp)) out.push(sid);
       });
       return out;
     }
@@ -58,8 +66,9 @@
         const chip = s.chipId ? document.getElementById(s.chipId) : null;
         const inp = document.getElementById(s.inputId);
         if (!chip || !inp) return;
-        if (inp.files && inp.files.length) {
-          const name = inp.files[0].name;
+        if (hasValue(s, inp)) {
+          const name = s.describe ? String(s.describe(inp) || '')
+                                  : (inp.files && inp.files.length ? inp.files[0].name : '');
           chip.innerHTML =
             '<span class="badge bg-info text-dark d-inline-flex align-items-center gap-1">' +
             '<i class="fas fa-paperclip"></i> ' + name.replace(/[<>&]/g, '') +
@@ -146,7 +155,7 @@
       if (!btn) return;
       const s = slots[btn.getAttribute('data-wim-clear')];
       const inp = s && document.getElementById(s.inputId);
-      if (inp) { inp.value = ''; refresh(); }
+      if (inp) { if (s.clear) s.clear(inp); else inp.value = ''; refresh(); }
     });
 
     refresh();

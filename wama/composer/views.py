@@ -447,38 +447,30 @@ def stop(request, pk):
 
 
 def _input_match_meta():
-    """{model_id: {inputs_required, inputs_optional}} depuis le CATALOGUE — fail-safe {}."""
-    try:
-        from wama.model_manager.models import AIModel
-        meta = {}
-        unions = {'auto-music': set(), 'auto-sfx': set()}
-        for m in AIModel.objects.filter(source='composer', is_proposed=False):
-            caps = m.capabilities or {}
-            meta[m.model_key.split(':', 1)[-1]] = {
-                'inputs_required': caps.get('inputs_required', []),
-                'inputs_optional': caps.get('inputs_optional', []),
-            }
-            # Union des entrées acceptées par type → méta des pseudo-modèles auto-*
-            # (l'auto accepte ce qu'au moins UN candidat de son groupe accepte ;
-            # la résolution runtime — utils/auto_model.py — restreint ensuite).
-            auto_id = ('auto-sfx' if caps.get('task') == 'text-to-audio' else 'auto-music')
-            unions[auto_id] |= set(caps.get('inputs_required') or []) | \
-                               set(caps.get('inputs_optional') or [])
-        if meta:
-            for auto_id, accepted in unions.items():
-                meta[auto_id] = {'inputs_required': [], 'inputs_optional': sorted(accepted)}
-        return meta
-    except Exception:
+    """Meta commune (brique `input_match`) + pseudo-modèles auto-* (POLITIQUE composer).
+
+    La lecture catalogue vit dans `common/utils/input_match.py` (extraite d'ici le 2026-08-17,
+    adoption ×7) ; ne reste ici que l'union par groupe des auto-* — l'auto accepte ce qu'au
+    moins UN candidat de son groupe accepte ; la résolution runtime (utils/auto_model.py)
+    restreint ensuite.
+    """
+    from wama.common.utils.input_match import input_match_meta
+    meta = input_match_meta('composer', extra_caps=('task',))
+    if not meta:
         return {}
+    unions = {'auto-music': set(), 'auto-sfx': set()}
+    for entry in meta.values():
+        auto_id = ('auto-sfx' if entry.pop('task', None) == 'text-to-audio' else 'auto-music')
+        unions[auto_id] |= set(entry['inputs_required']) | set(entry['inputs_optional'])
+    for auto_id, accepted in unions.items():
+        meta[auto_id] = {'inputs_required': [], 'inputs_optional': sorted(accepted)}
+    return meta
 
 
 def _input_labels():
-    """{input_id: libellé} depuis INPUT_TYPES (source déclarée commune) — fail-safe {}."""
-    try:
-        from wama.common.utils.app_modes import INPUT_TYPES
-        return {k: v.get('label', k) for k, v in INPUT_TYPES.items()}
-    except Exception:
-        return {}
+    """DÉLÉGUÉ à la brique commune (extraction 2026-08-17) — conservé pour les appels locaux."""
+    from wama.common.utils.input_match import input_labels
+    return input_labels()
 
 
 @require_POST

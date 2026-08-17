@@ -102,6 +102,8 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card` en tête de l
         </select>
         {# Descriptif modèle (courte + ⓘ longue) lu du CATALOGUE (vue) via WamaModelHelp — cf. transcriber #}
         <small id="modelToUseHelp" class="text-muted d-block mt-1"></small>
+        {# Ligne d'état de l'appariement entrée↔modèles (WamaInputMatch) #}
+        <small id="inputMatchStatus" class="text-info d-block mt-1" style="display:none"></small>
     </div>
 </div>
 
@@ -349,6 +351,7 @@ window.WAMA_ANON = {
 <script src="{% static_v 'common/js/console.js' %}"></script>
 <script src="{% static_v 'common/js/wama-eta.js' %}"></script>
 <script src="{% static_v 'common/js/wama-params.js' %}"></script>
+<script src="{% static_v 'common/js/wama-input-match.js' %}"></script>  {# appariement card d'entrée ↔ modèles (INPUT_MODEL_MATCHING.md) #}
 <script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
 <script src="{% static_v 'anonymizer/js/update.js' %}"></script>
 <script src="{% static_v 'anonymizer/js/upload.js' %}"></script>
@@ -374,6 +377,19 @@ if (window.WamaModelHelp) {
         helpId: 'modelToUseHelp',
         meta: {{ model_help_meta|safe }},
         fallback: { '': 'Choix automatique du modèle selon le niveau de précision.' },
+    });
+}
+
+// Appariement entrée↔modèles (brique commune wama-input-match) : meta du CATALOGUE (vue,
+// clés = valeurs d'option type/fichier). Fichiers consommés au dépôt (file) → direction
+// vivante = MODÈLE→ENTRÉES (ligne d'état) ; sam3 vit derrière le radio de mode, hors select.
+if (window.WamaInputMatch) {
+    WamaInputMatch.init({
+        selectId: 'user_setting_model_to_use',
+        meta: {{ input_match_meta|safe }},
+        inputLabels: {{ input_labels|safe }},
+        slots: { work_file: { inputId: 'fileupload' } },
+        statusId: 'inputMatchStatus',
     });
 }
 </script>

@@ -27,6 +27,8 @@
     </select>
     {# Descriptif modèle (courte + ⓘ longue) lu du CATALOGUE (vue) via WamaModelHelp — cf. transcriber #}
     <small id="ttsModelHelp" class="text-muted d-block mt-1"></small>
+    {# Ligne d'état de l'appariement entrée↔modèles (WamaInputMatch) : causalité + réversibilité #}
+    <small id="inputMatchStatus" class="text-info d-block mt-1" style="display:none"></small>
 </div>
 
 <!-- Higgs Audio options (hidden by default, shown when higgs_audio selected) -->
@@ -106,6 +108,9 @@
             <option value="bark_v2_de_0">Bark DE Speaker 0</option>
         </optgroup>
     </select>
+    {% comment %}Chip de l'appariement (WamaInputMatch) : visible quand une voix CLONÉE est
+    choisie — le ✕ revient à la voix par défaut et réactive les moteurs grisés.{% endcomment %}
+    <span id="voiceChip" class="d-block mt-1" style="display:none"></span>
     <div class="d-flex gap-1 mt-1">
         <button type="button" class="btn btn-outline-light btn-sm flex-fill add-custom-voice-btn">
             <i class="fas fa-plus"></i> Ajouter
@@ -505,6 +510,7 @@ depuis le volet compose (source serveur unique, optgroups aplatis).{% endcomment
 <link rel="stylesheet" href="{% static_v 'common/css/wama-inspector.css' %}">
 <script src="{% static_v 'common/js/wama-eta.js' %}"></script>
 <script src="{% static_v 'common/js/wama-model-caps.js' %}"></script>
+<script src="{% static_v 'common/js/wama-input-match.js' %}"></script>  {# appariement card d'entrée ↔ modèles (INPUT_MODEL_MATCHING.md) #}
 <script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
 <script src="{% static_v 'common/js/wama-params.js' %}"></script>  {# modale item générée du schéma #}
 <script src="{% static_v 'common/js/batch-import.js' %}"></script>  {# import batch COMMUN #}
@@ -600,6 +606,34 @@ document.addEventListener('DOMContentLoaded', function () {
                              && caps.languages.indexOf(opt.value) === -1;
                   } },
             ],
+        });
+    }
+
+    // Appariement ENTRÉE-D'ABORD (brique commune wama-input-match, INPUT_MODEL_MATCHING.md) :
+    // une voix CLONÉE choisie (ua_/cv_) DÉSACTIVE les moteurs sans clonage (bark, kokoro) —
+    // grisés avec raison, jamais cachés. Direction inverse (modèle → voix masquées) =
+    // WamaModelCaps ci-dessus ; même prédicat ua_/cv_ des deux côtés. Slot NON-fichier :
+    // crochets déclaratifs isProvided/describe/clear (le ✕ revient à la voix par défaut).
+    if (window.WamaInputMatch) {
+        WamaInputMatch.init({
+            selectId: 'tts_model',
+            meta: {{ input_match_meta|default:"{}"|safe }},
+            inputLabels: {{ input_labels|default:"{}"|safe }},
+            slots: { reference_voice: {
+                inputId: 'voice_preset',
+                chipId: 'voiceChip',
+                zoneId: 'voicePresetGroup',
+                isProvided: function (el) { return /^(ua_|cv_)/.test(el.value || ''); },
+                describe: function (el) {
+                    var o = el.selectedOptions && el.selectedOptions[0];
+                    return o ? o.textContent.trim() : 'voix clonée';
+                },
+                clear: function (el) {
+                    el.value = 'default';
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                },
+            } },
+            statusId: 'inputMatchStatus',
         });
     }
 

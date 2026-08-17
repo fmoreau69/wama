@@ -949,7 +949,38 @@ def get_context(request):
         'classes': get_all_class_choices(),
         'models_by_type': models_by_type,
         'model_help_meta': _model_help_meta(models_by_type),
+        # Appariement entrée↔modèles (brique commune input_match) — JSON déjà sérialisé,
+        # même contrat que model_help_meta (valeurs d'option `type/fichier` OU `fichier`).
+        'input_match_meta': _input_match_meta(models_by_type),
+        'input_labels': _input_labels(),
     }
+
+
+def _input_match_meta(models_by_type):
+    """Meta JSON brique COMMUNE re-clée sur les VALEURS D'OPTION du select (`type/fichier`,
+    ou `fichier` seul pour le type root — même double clé que _model_help_meta) + pseudo-choix
+    '' (« Auto (basé sur précision) », yolo seulement — sam3 vit derrière le radio de mode)."""
+    import json as _json
+    from wama.common.utils.input_match import auto_entry, input_match_meta
+    base = input_match_meta('anonymizer', key=lambda mk: mk.rsplit(':', 1)[-1])
+    if not base:
+        return '{}'
+    meta = {}
+    for mtype, names in (models_by_type or {}).items():
+        for name in names:
+            entry = base.get(name)
+            if entry:
+                meta[f"{mtype}/{name}"] = entry
+                meta.setdefault(name, entry)
+    meta[''] = auto_entry({k: v for k, v in base.items() if k != 'sam3'} or base)
+    return _json.dumps(meta)
+
+
+def _input_labels():
+    """Libellés d'INPUT_TYPES (JSON) — brique commune (extraction 2026-08-17)."""
+    import json as _json
+    from wama.common.utils.input_match import input_labels
+    return _json.dumps(input_labels())
 
 
 def _model_help_meta(models_by_type):

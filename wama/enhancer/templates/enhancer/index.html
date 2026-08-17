@@ -28,6 +28,8 @@
         </select>
         {# Descriptif moteur — brique commune wama-model-help (fallback = MEDIA_MODEL_HELP) #}
         <div id="mediaModelHelp" class="wama-model-help small text-muted mt-1"></div>
+        {# Ligne d'état de l'appariement entrée↔modèles (WamaInputMatch) #}
+        <small id="mediaMatchStatus" class="text-info d-block mt-1" style="display:none"></small>
     </div>
     <div class="mb-3">
         <div class="form-check form-switch">
@@ -74,6 +76,8 @@
         </select>
         {# Descriptif moteur — brique commune wama-model-help (fallback = AUDIO_ENGINE_HELP) #}
         <div id="audioEngineHelp" class="wama-model-help small text-muted mt-1"></div>
+        {# Ligne d'état de l'appariement entrée↔modèles (WamaInputMatch) #}
+        <small id="audioMatchStatus" class="text-info d-block mt-1" style="display:none"></small>
     </div>
 
     <div class="resemble-only">
@@ -409,6 +413,7 @@
 <script src="{% static_v 'common/js/wama-global-progress.js' %}"></script>
 <script src="{% static_v 'enhancer/js/audio-enhancer.js' %}"></script>
 <script src="{% static_v 'common/js/wama-modes.js' %}"></script>
+<script src="{% static_v 'common/js/wama-input-match.js' %}"></script>  {# appariement card d'entrée ↔ modèles (INPUT_MODEL_MATCHING.md) #}
 <script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
 <link rel="stylesheet" href="{% static_v 'common/css/wama-params.css' %}">
 <script src="{% static_v 'common/js/wama-params.js' %}"></script>
@@ -463,6 +468,28 @@ document.addEventListener('DOMContentLoaded', function () {
   if (mediaHelp) WamaModelHelp.init({ selectId: 'defaultAiModel', helpId: 'mediaModelHelp', meta: mediaHelp });
   const audioHelp = helpOf(window.ENHANCER_AUDIO_SCHEMA, 'engine');
   if (audioHelp) WamaModelHelp.init({ selectId: 'audioEngine', helpId: 'audioEngineHelp', meta: audioHelp });
+});
+</script>
+<script>
+// Appariement entrée↔modèles (brique commune wama-input-match, INPUT_MODEL_MATCHING.md) :
+// meta lue du CATALOGUE (vue → input_match_meta, clés sans _fp16). Un init PAR domaine
+// (les deux selects vivent dans des panes commutés par WamaModes). Les fichiers étant
+// consommés au dépôt (file d'attente), la direction vivante ici est MODÈLE→ENTRÉES
+// (ligne d'état) ; le grisage s'activera avec les futurs slots retenus (référence).
+document.addEventListener('DOMContentLoaded', function () {
+    if (!window.WamaInputMatch) return;
+    const meta = {{ input_match_meta|default:"{}"|safe }};
+    const labels = {{ input_labels|default:"{}"|safe }};
+    WamaInputMatch.init({
+        selectId: 'defaultAiModel', meta: meta, inputLabels: labels,
+        slots: { work_file: { inputId: 'enhancer-file' } },
+        statusId: 'mediaMatchStatus',
+    });
+    WamaInputMatch.init({
+        selectId: 'audioEngine', meta: meta, inputLabels: labels,
+        slots: { work_audio: { inputId: 'audio-enhancer-file' } },
+        statusId: 'audioMatchStatus',
+    });
 });
 </script>
 <script>
