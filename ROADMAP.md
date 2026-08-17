@@ -80,6 +80,29 @@
     = 3.12, jamais dans le venv principal), pin de commit, générer N maillages + rendu offscreen
     trimesh, mesurer VRAM/latence/qualité ; contre-vérifier licence et poids inclus. Si concluant :
     entrée « Proposés par IA » dans la prospection model_manager (confidence/complexity).
+- **Avatars parlants interactifs type Praktika** (prospection agent 2026-08-17, licences vérifiées
+  AU FICHIER LICENSE des repos — demande Fabien : consignes avec avatar « scientist » + mode avatar
+  parlant de l'AI-Assistant ; PAS l'apprentissage de langues). Deux cas, deux podiums :
+  - **(a) consignes OFFLINE** : ① **EchoMimicV3(-Flash)** (Ant, Apache-2.0, 01/2026, conçu 24 Go,
+    12 Go quantifié, tête+corps, prompt-guidé — successeur naturel de MuseTalk) ; ② **StableAvatar**
+    (MIT, Wan 1.3B, ~18 Go, vidéos LONGUES sans post-processing) ; ③ **MultiTalk** (Apache-2.0,
+    multi-personnages/cartoon, 480p sur 4090, base 14B ≈ 30-60 Go disque). Repêchage : Sonic
+    (CC BY-NC-SA — NC acceptable labo).
+  - **(b) assistant TEMPS RÉEL** : ① **TalkingHead met4citizen** (MIT, three.js CÔTÉ NAVIGATEUR =
+    zéro VRAM serveur, lip-sync à visèmes AVEC module FRANÇAIS, API streaming branchable sur le TTS
+    WAMA — la voie « Praktika » sans conflit GPU/Celery ; avatars GLB Ready Player Me = service
+    tiers, sinon GLB via Blender/VRoid) ; ② **LiveTalking** (Apache-2.0, réutilise MuseTalk,
+    72 FPS annoncés/4090, WebRTC + interruption ; coût = GPU mobilisé par session → arbitrage
+    resource_governor) ; ③ **OpenAvatarChat** (Alibaba, Apache-2.0, LLM OpenAI-compatible → Ollama
+    local ; à piller en composants — LAM 3D rendu client — plutôt qu'adopter en bloc).
+  - ⚠️ **Éliminatoire vérifié** : HunyuanVideo-Avatar — la licence Tencent Hunyuan **exclut
+    explicitement l'UE** (« does not apply in the European Union ») → inutilisable au labo ;
+    réflexe à garder sur TOUT modèle Hunyuan. ⚠️ Licences à DOUBLE ÉTAGE fréquentes (LivePortrait
+    « MIT » + InsightFace NC ; Hallo2 « MIT » + S-Lab NC — même contrainte que CodeFormer déjà
+    intégré) : toujours décoder LICENSE + README, consigner licence+auteur en base. ⚠️ Candidats
+    anciens = venv CUDA séparés (Hallo2 figé CUDA 11.8 ; Ditto exige TensorRT).
+  - **Lien N/A grille** : le gate `_has_engine_select` étant MESURÉ, l'ajout d'un sélecteur de
+    modèles à l'avatarizer re-rendra automatiquement applicables model_help/input_match/model_caps.
 
 ---
 
