@@ -244,9 +244,8 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Mode batch de la modale : réutilise la modale individuelle (conventions §9.8).
-    let _settingsBatchId = null;
-
+    // Modale BATCH DÉDIÉE générée du schéma (context 'batch', contrat reader — remplace le
+    // détournement de la modale item par _settingsBatchId + titre échangé, 17/08).
     document.addEventListener('click', function (e) {
         const bbtn = e.target.closest('.batch-settings-btn');
         if (!bbtn) return;
@@ -258,22 +257,62 @@ document.addEventListener('DOMContentLoaded', function() {
     // provoquait DEUX copies par clic).
 
     function openBatchSettings(btn) {
+        const bid = btn.dataset.batchId;
+        const modalEl = document.getElementById('batchSettingsModal');
+        if (!modalEl) return;
+        document.getElementById('batchSettingsBatchId').value = bid;
+        const lbl = document.getElementById('batchSettingsBatchLabel');
+        if (lbl) lbl.textContent = '#' + bid;
+        // Défauts lus sur la 1re card FILLE — champs générés (dispatch input/change → affichage).
         const group = btn.closest('.batch-group');
-        const firstItemBtn = group ? group.querySelector('.settings-btn') : null;
-        if (firstItemBtn) {
-            openSettings(firstItemBtn);
-        } else if (settingsModalInstance) {
-            settingsModalInstance.show();
-        }
-        _settingsBatchId = btn.dataset.batchId;
-        const title = document.querySelector('#settingsModal .modal-title');
-        if (title) title.textContent = 'Paramètres du batch — appliqués à tous les éléments';
+        const first = group ? group.querySelector('.settings-btn') : null;
+        const fd = first ? first.dataset : {};
+        const _set = function (elId, val) {
+            const el = document.getElementById(elId);
+            if (!el || val == null || val === '') return;
+            el.value = val;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+        };
+        _set('batchSettingsOutputStyle', fd.outputStyle);
+        _set('batchSettingsOutputLanguage', fd.outputLanguage);
+        _set('batchSettingsMaxLength', fd.maxLength);
+        const gs = document.getElementById('batchSettingsGenerateSummary');
+        if (gs) gs.checked = fd.generateSummary === 'true';
+        const vc = document.getElementById('batchSettingsVerifyCoherence');
+        if (vc) vc.checked = fd.verifyCoherence === 'true';
+        new bootstrap.Modal(modalEl).show();
     }
 
+    async function saveBatchSettings(startAfterSave) {
+        const bid = document.getElementById('batchSettingsBatchId').value;
+        const payload = {
+            output_style: document.getElementById('batchSettingsOutputStyle')?.value,
+            output_language: document.getElementById('batchSettingsOutputLanguage')?.value,
+            max_length: parseInt(document.getElementById('batchSettingsMaxLength')?.value),
+            generate_summary: document.getElementById('batchSettingsGenerateSummary')?.checked || false,
+            verify_coherence: document.getElementById('batchSettingsVerifyCoherence')?.checked || false,
+        };
+        try {
+            await fetch(config.urls.batchUpdate.replace('/0/', `/${bid}/`), {
+                method: 'POST',
+                headers: { 'X-CSRFToken': config.csrfToken, 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (startAfterSave) {
+                await fetch(config.urls.batchStart.replace('/0/', `/${bid}/`), {
+                    method: 'POST', headers: { 'X-CSRFToken': config.csrfToken },
+                });
+            }
+        } catch (e) { /* ignore */ }
+        window.location.reload();
+    }
+    document.getElementById('batchSaveSettingsBtn')
+        ?.addEventListener('click', () => saveBatchSettings(false));
+    document.getElementById('batchSaveStartBtn')
+        ?.addEventListener('click', () => saveBatchSettings(true));
+
     function openSettings(btn) {
-        _settingsBatchId = null;
-        const _t = document.querySelector('#settingsModal .modal-title');
-        if (_t) _t.textContent = 'Paramètres';
         const id = btn.dataset.id;
         const outputStyle = btn.dataset.outputStyle;
         const outputLanguage = btn.dataset.outputLanguage;
@@ -324,27 +363,7 @@ document.addEventListener('DOMContentLoaded', function() {
             verify_coherence: verifyCoherence,
         };
 
-        // Mode batch : applique à tous les items + relance éventuelle.
-        if (_settingsBatchId) {
-            const bid = _settingsBatchId;
-            _settingsBatchId = null;
-            try {
-                await fetch(config.urls.batchUpdate.replace('/0/', `/${bid}/`), {
-                    method: 'POST',
-                    headers: { 'X-CSRFToken': config.csrfToken, 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                });
-                if (settingsModalInstance) settingsModalInstance.hide();
-                if (startAfterSave) {
-                    await fetch(config.urls.batchStart.replace('/0/', `/${bid}/`), {
-                        method: 'POST', headers: { 'X-CSRFToken': config.csrfToken },
-                    });
-                }
-            } catch (e) { /* ignore */ }
-            window.location.reload();
-            return;
-        }
-
+        // (Mode batch : modale DÉDIÉE ci-dessus — saveBatchSettings ; plus de branche ici.)
         try {
             const response = await fetch(config.urls.updateOptions.replace('/0/', `/${descriptionId}/`), {
                 method: 'POST',

@@ -167,6 +167,32 @@ id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.
         </div>
     </div>
 </div>
+
+{# ── Modal paramètres BATCH — DÉDIÉE (contrat reader, 17/08), remplace le détournement de la
+     modale item (_composerBatchSettingsId). Champs GÉNÉRÉS du MÊME schéma (context 'batch' =
+     ce que views.batch_update accepte : modèle/durée/format/qualité — le prompt reste per-item). #}
+<div class="modal fade" id="batchSettingsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary py-2">
+                <h6 class="modal-title">
+                    <i class="fas fa-layer-group me-2" style="color:#a78bfa;"></i>
+                    Paramètres — Batch <span id="batchSettingsBatchLabel"></span>
+                </h6>
+                <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-secondary py-2 small mb-3">
+                    <i class="fas fa-info-circle"></i>
+                    S'applique à tous les éléments non-en-cours du batch.
+                </div>
+                <input type="hidden" id="batchSettingsBatchId">
+                <div class="wama-params" id="composerBatchParams"></div>
+            </div>
+            {% include 'common/_settings_modal_footer.html' with save_id='batchSettingsSaveBtn' save_label='Appliquer' %}
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block app_scripts %}
@@ -296,6 +322,9 @@ document.addEventListener('DOMContentLoaded', function () {
     var schema = {{ params_json|safe }};
     var host = document.getElementById('composerSettingsFields');
     if (host) WamaParams.render(host, schema, { context: 'item' });
+    // Modale BATCH dédiée : mêmes params, contexte 'batch' (ids legacy batchSettings* via dom_id).
+    var hostBatch = document.getElementById('composerBatchParams');
+    if (hostBatch) WamaParams.render(hostBatch, schema, { context: 'batch' });
     // P2 — VOLET : mêmes champs, même source (modèle + format/qualité ; durée/prompt/mélodie
     // restent bespoke ce tour : widgets formatés/conditionnels, cf. REMOVAL_LEDGER P2-bis).
     var hostModel = document.getElementById('composerPanelModelHost');

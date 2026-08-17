@@ -12,6 +12,9 @@ from wama.composer.utils.model_config import COMPOSER_MODELS
 
 PANEL = ("panel",)
 PANEL_ITEM = ("panel", "item")
+# Batch = les champs que `views.batch_update` ACCEPTE (model/duration/format/qualité) —
+# le prompt reste per-item. Modale batch DÉDIÉE (contrat reader, 17/08) rendue de ce schéma.
+PANEL_ITEM_BATCH = ("panel", "item", "batch")
 
 PARAMS = [
     # Ordre = celui du VOLET (Type[switch statique] → Modèle → Durée → Prompt → Format → Qualité).
@@ -20,7 +23,8 @@ PARAMS = [
     # pertinent selon le generation_type de l'item. Volet : select serveur (#modelSelect,
     # initFromSchema lit/applique par dom_id sans re-rendre) ; modale : rendue par WamaParams (P1).
     Param(name="model", type="select", label="Modèle", icon="fa-music", chip=True,
-          dom_id={"panel": "modelSelect", "item": "settingsModel"}, contexts=PANEL_ITEM,
+          dom_id={"panel": "modelSelect", "item": "settingsModel", "batch": "batchSettingsModel"},
+          contexts=PANEL_ITEM_BATCH,
           option_groups=[
               # « auto-* » en tête de CHAQUE groupe (décision 2026-07-02 : pas de switch de type,
               # le type est dérivé du « modèle » choisi — l'auto respecte ce contrat par groupe).
@@ -37,7 +41,9 @@ PARAMS = [
           ]),
     Param(name="duration", type="range", label="Durée", icon="fa-clock", min=10, max=600, step=5,
           unit="s", min_label="10s", max_label="10min", chip=True,
-          dom_id={"panel": "durationSlider", "item": "settingsDuration"}, contexts=PANEL_ITEM),
+          dom_id={"panel": "durationSlider", "item": "settingsDuration",
+                  "batch": "batchSettingsDuration"},
+          contexts=PANEL_ITEM_BATCH),
     # Prompt éditable par item (modale seulement : le volet a sa zone de composition dédiée).
     Param(name="prompt", type="textarea", label="Prompt", icon="fa-pen",
           dom_id={"item": "settingsPrompt"}, contexts=("item",)),
@@ -46,9 +52,11 @@ PARAMS = [
 # Format + qualité de sortie depuis la brique commune (audio, early-binding auto via le catalogue).
 PARAMS += output_format_params_for_app(
     "composer",
-    contexts=PANEL_ITEM,
-    dom_id_format={"panel": "output_format", "item": "settingsOutputFormat"},
-    dom_id_quality={"panel": "output_quality", "item": "settingsOutputQuality"},
+    contexts=PANEL_ITEM_BATCH,
+    dom_id_format={"panel": "output_format", "item": "settingsOutputFormat",
+                   "batch": "batchSettingsOutputFormat"},
+    dom_id_quality={"panel": "output_quality", "item": "settingsOutputQuality",
+                    "batch": "batchSettingsOutputQuality"},
 )
 
 PARAMS_JSON = schema_to_dicts(PARAMS)

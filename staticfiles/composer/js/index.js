@@ -312,27 +312,34 @@
             return;
         }
 
-        // ⚙ batch : réutilise la modale individuelle en mode batch.
+        // ⚙ batch : modale DÉDIÉE générée du schéma (context 'batch', contrat reader — remplace
+        // le détournement de la modale item par _composerBatchSettingsId, 17/08).
         const batchSettingsBtn = e.target.closest('.batch-settings-btn');
         if (batchSettingsBtn) {
+            const bid = batchSettingsBtn.dataset.batchId;
             const group = batchSettingsBtn.closest('.batch-group');
             const firstItemBtn = group ? group.querySelector('.settings-btn') : null;
-            window._composerBatchSettingsId = batchSettingsBtn.dataset.batchId;
-            document.getElementById('settingsGenId').value = firstItemBtn ? firstItemBtn.dataset.id : '';
-            if (settingsModel) settingsModel.value = (firstItemBtn && firstItemBtn.dataset.model) || 'musicgen-small';
-            if (settingsDuration) {
-                settingsDuration.value = (firstItemBtn && firstItemBtn.dataset.duration) || 10;
-                settingsDurationVal.textContent = _fmtDur(settingsDuration.value);
-                settingsDuration.dispatchEvent(new Event("input"));   // sync .wama-range-val (champ généré)
-            }
-            updateSettingsEstimate();
-            new bootstrap.Modal(document.getElementById('settingsModal')).show();
+            const fd = firstItemBtn ? firstItemBtn.dataset : {};
+            document.getElementById('batchSettingsBatchId').value = bid;
+            const lbl = document.getElementById('batchSettingsBatchLabel');
+            if (lbl) lbl.textContent = '#' + bid;
+            const set = (elId, val) => {
+                const el = document.getElementById(elId);
+                if (el && val != null && val !== '') {
+                    el.value = val;
+                    el.dispatchEvent(new Event('input'));   // sync .wama-range-val (champ généré)
+                }
+            };
+            set('batchSettingsModel', fd.model || 'auto-music');
+            set('batchSettingsDuration', fd.duration || 10);
+            set('batchSettingsOutputFormat', fd.outputFormat);
+            set('batchSettingsOutputQuality', fd.outputQuality);
+            new bootstrap.Modal(document.getElementById('batchSettingsModal')).show();
             return;
         }
 
         const settingsBtn = e.target.closest('.settings-btn');
         if (settingsBtn) {
-            window._composerBatchSettingsId = null;
             const id = settingsBtn.dataset.id;
             document.getElementById('settingsGenId').value = id;
             if (settingsModel) settingsModel.value = settingsBtn.dataset.model || 'musicgen-small';
@@ -372,24 +379,26 @@
     });
 
     // Settings save — pied CONFORME : « Enregistrer » (sans relance) / « Enregistrer et relancer ».
+    // Sauvegarde BATCH (modale dédiée) : champs lus GÉNÉRIQUEMENT (WamaParams.read) — un param
+    // ajouté au schéma en contexte batch est posté automatiquement (batch_update les accepte).
+    const batchSaveBtn = document.getElementById('batchSettingsSaveBtn');
+    if (batchSaveBtn) batchSaveBtn.addEventListener('click', () => {
+        const bid = document.getElementById('batchSettingsBatchId').value;
+        const host = document.getElementById('composerBatchParams');
+        const vals = (window.WamaParams && host) ? WamaParams.read(host) : {};
+        const fd = new FormData();
+        fd.append('csrfmiddlewaretoken', CSRF);
+        Object.keys(vals).forEach((k) => fd.append(k, vals[k]));
+        fetch(WamaApp.getUrl(APP.batchUpdateUrlTemplate, bid), { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(() => {
+                bootstrap.Modal.getInstance(document.getElementById('batchSettingsModal'))?.hide();
+                location.reload();
+            })
+            .catch(() => WamaApp.toast('Erreur réseau', 'error'));
+    });
+
     function _postSettings(restart) {
-        // Mode batch : applique modèle + durée à tous les items du batch (endpoint batch inchangé).
-        if (window._composerBatchSettingsId) {
-            const bid = window._composerBatchSettingsId;
-            window._composerBatchSettingsId = null;
-            const fd = new FormData();
-            fd.append('csrfmiddlewaretoken', CSRF);
-            fd.append('model', settingsModel.value);
-            fd.append('duration', settingsDuration.value);
-            fetch(WamaApp.getUrl(APP.batchUpdateUrlTemplate, bid), { method: 'POST', body: fd })
-                .then(r => r.json())
-                .then(() => {
-                    bootstrap.Modal.getInstance(document.getElementById('settingsModal'))?.hide();
-                    location.reload();
-                })
-                .catch(() => {});
-            return;
-        }
         const id = document.getElementById('settingsGenId').value;
         const formData = new FormData();
         formData.append('csrfmiddlewaretoken', CSRF);

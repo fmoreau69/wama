@@ -2680,8 +2680,23 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > redeviendront applicables d'eux-mêmes au premier sélecteur ; prospection avatars
 > open-source lancée (agent, rapport à consigner).
 >
+> **SUITE (17/08 soir-3) : PARAMS_MODAL_BATCH SOLDÉ (10/10) — describer 3ᵉ app à 100 %.**
+> Les 3 dernières modales batch passent au rendu GÉNÉRÉ (contrat reader — modale DÉDIÉE,
+> ids legacy via `dom_id.batch`, valeurs posées à l'ouverture depuis la 1re card fille) :
+> **synthesizer** (98) — corps généré à l'OUVERTURE avec `optionsResolver` clonant les selects
+> du volet (optgroups voix dynamiques JAMAIS perdus — la réserve historique du params.py est
+> LEVÉE par le contrat de la modale item) ; ⚠ le schéma déclarait `batch` sur output_format
+> alors que `batch_update_settings` ne l'accepte pas → contexte batch RETIRÉ à la source
+> (déclaration = réalité, champs morts évités) ; **composer** (98) — le détournement de la
+> modale item (`_composerBatchSettingsId`) est REMPLACÉ par une modale dédiée ; contexte
+> batch déclaré sur les 4 champs que `batch_update` accepte (model/durée/format/qualité,
+> prompt reste per-item) ; sauvegarde GÉNÉRIQUE `WamaParams.read` (un param ajouté au schéma
+> est posté sans toucher le JS) ; **describer** (**100 % — 65/65**) — hijack `_settingsBatchId`
+> + titre échangé REMPLACÉS (modale dédiée, 5 champs, Appliquer / Appliquer et lancer).
+> Smokes test-client verts ×3. ⚠ restart requis (params.py ×3 modifiés).
+>
 > **🔚 POINT D'ENTRÉE SESSION SUIVANTE — ordre acté :** ① transverses portage (during ×6 —
-> GPU avec Fabien ; model_caps_ui ×3 = enrichir la MATIÈRE d'abord ; params_modal_batch ×3) ;
+> GPU avec Fabien ; model_caps_ui ×3 = enrichir la MATIÈRE d'abord — composer/reader/imager) ;
 > P2 audit API ✅ FAIT
 > (17/08 apm, ci-dessus — gating `/model-manager/api/` tranché, test contrat triades #8
 > toujours À CRÉER) ; ② phase R ×7 ; ③ couche API auto-instruite (projection manifestes —
@@ -2691,8 +2706,8 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > ⚠ restart gunicorn+workers (2 outils tool_api + brique input_match + adoptions ×7).
 > **Contrôles attendus au prochain `/reprise`** : check_docs **2 CASSÉ** · doc_facts 4 à
 > jour · corpus **110** (depuis WSL2) · migrate --check OK · `TOOL_REGISTRY` = **48** ·
-> grille CLI : **converter/transcriber 100 · avatarizer/describer 98 · composer/enhancer/
-> reader/synthesizer 97 · anonymizer 96 · imager 94** (page /apps/ = − les clés
+> grille CLI : **converter/transcriber/describer 100 · composer/synthesizer/avatarizer 98 ·
+> enhancer/reader 97 · anonymizer 96 · imager 94** (page /apps/ = − les clés
 > déclarées-seulement, liste complétée : streaming ×10, inspector ×2, eta_batch,
 > cross_app_options, modes ×2, recursive_import composer).
 

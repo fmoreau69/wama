@@ -15,31 +15,39 @@ PARAMS = derive_from_model(
     Description,
     include=["output_style", "output_language", "max_length", "generate_summary", "verify_coherence"],
     overrides={
+        # dom_id "batch" (17/08) : modale batch DÉDIÉE générée (contrat reader) — remplace le
+        # détournement de la modale item (_settingsBatchId + titre échangé) ; batch_update
+        # accepte les 5 champs (_apply_description_options).
         "output_style": dict(
             type="select", label="Format de sortie", icon="fa-align-left",
-            dom_id={"panel": "output_style", "item": "settingsOutputFormat"},
+            dom_id={"panel": "output_style", "item": "settingsOutputFormat",
+                    "batch": "batchSettingsOutputStyle"},
             help="Niveau de détail de la description générée.",
             chip=True,
         ),
         "output_language": dict(
             type="select", label="Langue de sortie", icon="fa-language",
-            dom_id={"panel": "output_language", "item": "settingsOutputLanguage"},
+            dom_id={"panel": "output_language", "item": "settingsOutputLanguage",
+                    "batch": "batchSettingsOutputLanguage"},
             chip=True,
         ),
         "max_length": dict(
             type="range", label="Longueur max", icon="fa-text-width",
             min=100, max=2000, step=50,
-            dom_id={"panel": "max_length", "item": "settingsMaxLength"},
+            dom_id={"panel": "max_length", "item": "settingsMaxLength",
+                    "batch": "batchSettingsMaxLength"},
             help="Longueur maximale (caractères) de la description.",
             chip=True,
         ),
         "generate_summary": dict(
             type="toggle", label="Générer un résumé LLM", icon="fa-file-lines",
-            dom_id={"panel": "globalGenerateSummary", "item": "settingsGenerateSummary"},
+            dom_id={"panel": "globalGenerateSummary", "item": "settingsGenerateSummary",
+                    "batch": "batchSettingsGenerateSummary"},
         ),
         "verify_coherence": dict(
             type="toggle", label="Vérifier la cohérence", icon="fa-spell-check",
-            dom_id={"panel": "globalVerifyCoherence", "item": "settingsVerifyCoherence"},
+            dom_id={"panel": "globalVerifyCoherence", "item": "settingsVerifyCoherence",
+                    "batch": "batchSettingsVerifyCoherence"},
         ),
     },
 )

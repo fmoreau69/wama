@@ -45,9 +45,12 @@ PARAMS = derive_from_model(
 
 # Format + qualité de FICHIER de sortie : BRIQUE COMMUNE auto depuis APP_CATALOG (domaine audio +
 # early-binding déduits du catalogue). L'app ne fournit que les dom_id de ses surfaces.
+# ⚠ Pas de contexte "batch" ici : `batch_update_settings` n'accepte que tts_model/language/
+# voice_preset/speed/pitch — déclarer batch rendrait des champs MORTS dans la modale générée
+# (mesuré 17/08). Réactiver quand l'endpoint portera le format/qualité de sortie.
 PARAMS += output_format_params_for_app(
     "synthesizer",
-    contexts=("item", "batch", "panel"),
+    contexts=("item", "panel"),
     dom_id_format={"panel": "output_format", "item": "settingsOutputFormat"},
     dom_id_quality={"panel": "output_quality", "item": "settingsOutputQuality"},
 )

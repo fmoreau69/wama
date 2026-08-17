@@ -346,96 +346,15 @@ depuis le volet compose (source serveur unique, optgroups aplatis).{% endcomment
                 </div>
                 <input type="hidden" id="batchSettingsBatchId">
 
-                <!-- TTS Model -->
-                <div class="mb-3">
-                    <label for="batchSettingsTtsModel" class="form-label">
-                        <i class="fas fa-robot"></i> Modèle TTS
-                    </label>
-                    <select class="form-select" id="batchSettingsTtsModel">
-                        {% for value, label in tts_models %}
-                        <option value="{{ value }}">{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-
-                <!-- Language -->
-                <div class="mb-3">
-                    <label for="batchSettingsLanguage" class="form-label">
-                        <i class="fas fa-language"></i> Langue
-                    </label>
-                    <select class="form-select" id="batchSettingsLanguage">
-                        {% for value, label in languages %}
-                        <option value="{{ value }}">{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                    <div id="batch-lang-compat-warning" class="alert alert-warning py-1 px-2 mt-1 mb-0 small" style="display:none;">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        Ce modèle ne supporte que l'anglais. Le texte sera prononcé avec une phonologie anglaise.
-                    </div>
-                </div>
-
-                <!-- Voice Preset -->
-                <div class="mb-3">
-                    <label for="batchSettingsVoicePreset" class="form-label">
-                        <i class="fas fa-microphone"></i> Voix
-                    </label>
-                    <select class="form-select" id="batchSettingsVoicePreset">
-                        <optgroup label="Voix par défaut">
-                            <option value="default">Voix par défaut</option>
-                        </optgroup>
-                        {% for grp in voice_refs_groups %}
-                        <optgroup label="{{ grp.group }}">
-                            {% for v in grp.voices %}
-                            <option value="{{ v.id }}">{{ v.label }}</option>
-                            {% endfor %}
-                        </optgroup>
-                        {% endfor %}
-                        {% if not voice_refs_groups %}
-                        <optgroup label="Voix intégrées (héritage)">
-                            <option value="male_1">Voix masculine 1</option>
-                            <option value="male_2">Voix masculine 2</option>
-                            <option value="female_1">Voix féminine 1</option>
-                            <option value="female_2">Voix féminine 2</option>
-                        </optgroup>
-                        {% endif %}
-                        <optgroup label="Mes voix (clonage)">
-                            {% for cv in custom_voices %}
-                            <option value="ua_{{ cv.id }}">{{ cv.name }}</option>
-                            {% endfor %}
-                        </optgroup>
-                        <optgroup label="Bark (presets)">
-                            <option value="bark_v2_en_0">Bark EN Speaker 0</option>
-                            <option value="bark_v2_en_1">Bark EN Speaker 1</option>
-                            <option value="bark_v2_en_2">Bark EN Speaker 2</option>
-                            <option value="bark_v2_en_3">Bark EN Speaker 3</option>
-                            <option value="bark_v2_en_4">Bark EN Speaker 4</option>
-                            <option value="bark_v2_en_5">Bark EN Speaker 5</option>
-                            <option value="bark_v2_fr_0">Bark FR Speaker 0</option>
-                            <option value="bark_v2_fr_1">Bark FR Speaker 1</option>
-                            <option value="bark_v2_es_0">Bark ES Speaker 0</option>
-                            <option value="bark_v2_de_0">Bark DE Speaker 0</option>
-                        </optgroup>
-                    </select>
-                </div>
-
-                <!-- Speed -->
-                <div class="mb-3">
-                    <label for="batchSettingsSpeed" class="form-label">
-                        <i class="fas fa-tachometer-alt"></i> Vitesse: <span id="batchSettingsSpeedValue">1.0</span>x
-                    </label>
-                    <input type="range" class="form-range" id="batchSettingsSpeed"
-                           min="0.5" max="2.0" step="0.1" value="1.0"
-                           oninput="document.getElementById('batchSettingsSpeedValue').textContent = parseFloat(this.value).toFixed(1)">
-                </div>
-
-                <!-- Pitch -->
-                <div class="mb-3">
-                    <label for="batchSettingsPitch" class="form-label">
-                        <i class="fas fa-wave-square"></i> Hauteur: <span id="batchSettingsPitchValue">1.0</span>x
-                    </label>
-                    <input type="range" class="form-range" id="batchSettingsPitch"
-                           min="0.5" max="2.0" step="0.1" value="1.0"
-                           oninput="document.getElementById('batchSettingsPitchValue').textContent = parseFloat(this.value).toFixed(1)">
+                {% comment %}Corps GÉNÉRÉ du schéma (WamaParams context 'batch', contrat reader) —
+                remplace les 5 champs hand-built (17/08). Les ids legacy batchSettings* viennent des
+                dom_id.batch de params.py → le JS d'ouverture/sauvegarde est inchangé. Les optgroups
+                de voix (dynamiques, server-rendered) sont CLONÉS depuis le select canonique du volet
+                après rendu — même mécanique que cloneVoiceOptions (cf. script plus bas).{% endcomment %}
+                <div id="synthBatchParams"></div>
+                <div id="batch-lang-compat-warning" class="alert alert-warning py-1 px-2 mt-1 mb-0 small" style="display:none;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Ce modèle ne supporte que l'anglais. Le texte sera prononcé avec une phonologie anglaise.
                 </div>
             </div>
             {# Pied de modale COMMUN — ids conservés pour le script batch #}
@@ -637,7 +556,8 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Language compatibility warning for batch settings modal
+    // Language compatibility warning for batch settings modal — les champs étant GÉNÉRÉS à
+    // l'ouverture (WamaParams), le re-bind se fait après chaque rendu (cf. ouverture ci-dessous).
     const ENGLISH_ONLY_MODELS = new Set(['tacotron2', 'speedy_speech', 'vits']);
     function _updateBatchLangWarning() {
         const model = document.getElementById('batchSettingsTtsModel');
@@ -646,10 +566,6 @@ document.addEventListener('DOMContentLoaded', function () {
         if (model && lang && warn)
             warn.style.display = (ENGLISH_ONLY_MODELS.has(model.value) && lang.value !== 'en') ? 'block' : 'none';
     }
-    const _batchModel = document.getElementById('batchSettingsTtsModel');
-    const _batchLang  = document.getElementById('batchSettingsLanguage');
-    if (_batchModel) _batchModel.addEventListener('change', _updateBatchLangWarning);
-    if (_batchLang)  _batchLang.addEventListener('change', _updateBatchLangWarning);
 
     // Chevron rotation on collapse
     document.addEventListener('show.bs.collapse', function (e) {
@@ -693,19 +609,38 @@ document.addEventListener('DOMContentLoaded', function () {
         const id = btn.dataset.batchId;
         document.getElementById('batchSettingsBatchLabel').textContent = '#' + id;
         document.getElementById('batchSettingsBatchId').value = id;
-        const sel = (elId, val) => { const el = document.getElementById(elId); if (el) el.value = val; };
-        const setSlider = (elId, labelId, val) => {
-            const el = document.getElementById(elId);
-            if (el) { el.value = val; document.getElementById(labelId).textContent = parseFloat(val).toFixed(1); }
-        };
         // Défauts lus sur la 1re card FILLE (la card mère commune ne porte que data-batch-id).
         const firstChild = document.querySelector('#batchItems' + id + ' .settings-btn');
         const fd = firstChild ? firstChild.dataset : {};
-        sel('batchSettingsTtsModel', fd.ttsModel || 'xtts_v2');
-        sel('batchSettingsLanguage', fd.language || 'fr');
-        sel('batchSettingsVoicePreset', fd.voicePreset || 'default');
-        setSlider('batchSettingsSpeed', 'batchSettingsSpeedValue', fd.speed || '1.0');
-        setSlider('batchSettingsPitch', 'batchSettingsPitchValue', fd.pitch || '1.0');
+        // Corps GÉNÉRÉ depuis le schéma déclaratif (params.py, contexte batch — contrat de la
+        // modale item) : ids legacy batchSettings* via dom_id.batch → saveBatchSettings inchangé.
+        // Options des selects : clonées du volet compose (source serveur unique, optgroups
+        // aplatis avec préfixe de groupe — les voix dynamiques ne sont jamais perdues).
+        const host = document.getElementById('synthBatchParams');
+        if (window.WamaParams && window.SYNTH_PARAMS_SCHEMA && host) {
+            WamaParams.render(host, window.SYNTH_PARAMS_SCHEMA, {
+                context: 'batch',
+                values: {
+                    tts_model: fd.ttsModel || 'xtts_v2', language: fd.language || 'fr',
+                    voice_preset: fd.voicePreset || 'default',
+                    speed: fd.speed || '1.0', pitch: fd.pitch || '1.0',
+                },
+                optionsResolver: function (param) {
+                    const src = document.getElementById((param.dom_id && param.dom_id.panel) || param.name);
+                    if (!src || src.tagName !== 'SELECT') return null;
+                    return Array.from(src.options).map(function (o) {
+                        const grp = o.parentElement && o.parentElement.tagName === 'OPTGROUP'
+                            ? o.parentElement.label + ' — ' : '';
+                        return { value: o.value, label: grp + o.textContent.trim() };
+                    });
+                },
+            });
+            // Warning de compatibilité langue : re-bindé sur les champs fraîchement rendus.
+            const m = document.getElementById('batchSettingsTtsModel');
+            const l = document.getElementById('batchSettingsLanguage');
+            if (m) m.addEventListener('change', _updateBatchLangWarning);
+            if (l) l.addEventListener('change', _updateBatchLangWarning);
+        }
         _updateBatchLangWarning();
         batchSettingsModal.show();
     });
