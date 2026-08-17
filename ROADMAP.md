@@ -82,7 +82,9 @@
     entrée « Proposés par IA » dans la prospection model_manager (confidence/complexity).
 - **Avatars parlants interactifs type Praktika** (prospection agent 2026-08-17, licences vérifiées
   AU FICHIER LICENSE des repos — demande Fabien : consignes avec avatar « scientist » + mode avatar
-  parlant de l'AI-Assistant ; PAS l'apprentissage de langues). Deux cas, deux podiums :
+  parlant de l'AI-Assistant ; PAS l'apprentissage de langues). **Rapport COMPLET (12+ candidats,
+  URLs, VRAM, pièges) : [`docs/PROSPECTION_AVATARS_2026-08-17.md`](docs/PROSPECTION_AVATARS_2026-08-17.md).**
+  Deux cas, deux podiums :
   - **(a) consignes OFFLINE** : ① **EchoMimicV3(-Flash)** (Ant, Apache-2.0, 01/2026, conçu 24 Go,
     12 Go quantifié, tête+corps, prompt-guidé — successeur naturel de MuseTalk) ; ② **StableAvatar**
     (MIT, Wan 1.3B, ~18 Go, vidéos LONGUES sans post-processing) ; ③ **MultiTalk** (Apache-2.0,
