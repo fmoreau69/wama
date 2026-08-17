@@ -2538,6 +2538,18 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > commune SANS bouton d'import (amélioration rétro-compatible de `_new_item_card` : bouton
 > rendu seulement si `url_submit_id` fourni — ici l'URL fait partie du payload Générer).
 >
+> **SUITE (17/08) : AUDIT ANTI-RÉINVENTION (question Fabien) — 2 corrections réelles.**
+> ① `BackendManager` (`common/backends/manager.py`) EXISTAIT — le dict de singletons maison
+> de tts_service et `BlipBackend.get()` réinventaient son travail → les deux consomment la
+> brique. **Cause racine : je n'avais lu que `base.py`, pas son ANNEXE `manager.py`** — lire
+> TOUTES les annexes du domicile d'un mécanisme avant d'écrire à côté. ② Patch
+> torchaudio→soundfile en DOUBLE (enhancer + coqui/tts) → brique `torchaudio_compat.py`
+> (surensemble enhancer, idempotente), adoptée ×2, rattachée en ANNEXE du mécanisme
+> `audio_decode` (complémentaires : API de décodage pour NOTRE code vs shims in-place pour
+> les libs TIERCES). Vérifiés NON-doublons au passage : user_settings, source_ingest,
+> output_formats, batch_common, write_wav_int16 (extraction mono-app), speech_dir (repli
+> Django-free documenté). Validé CPU : singletons ×2, Kokoro via manager, marqueurs shims.
+>
 > **🔚 POINT D'ENTRÉE SESSION SUIVANTE** — ① during ×6 (GPU, avec Fabien) ;
 > ② ~~paquet synthesizer~~ ③ ~~finitions app-locales~~ ~~url_ingest composer~~ **FAITS** ;
 > restent : chantiers transverses (during ×6, input_match/model_caps ×8-9,
