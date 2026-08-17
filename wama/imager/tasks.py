@@ -83,6 +83,15 @@ def generate_image_task(self, generation_id):
             _console(generation.user_id, f"[Imager] Génération #{generation_id} : reprise après crash refusée.")
             return {'skipped': True, 'reason': 'crash_redelivery', 'generation_id': generation_id}
 
+        # Entrée URL déclarative (WAMA_INGEST du modèle) : télécharge source_url →
+        # reference_image si la cible est vide. AVANT la résolution auto (la présence
+        # d'une référence peut orienter le choix du modèle) — contrat composer 307b9fb.
+        try:
+            from wama.common.utils.source_ingest import ensure_local_input
+            ensure_local_input(generation, console=lambda m: _console(generation.user_id, m))
+        except Exception as exc:
+            logger.warning(f"[Imager] ensure_local_input({generation_id}) : {exc}")
+
         # Tirage « auto » AU LANCEMENT (pas au dépôt) : le choix dépend de la VRAM libre, qui
         # a pu changer pendant l'attente en file. Même moment que composer/tasks.py:50.
         from wama.imager.utils.auto_model import AUTO, resolve_auto_model
@@ -437,6 +446,15 @@ def generate_video_task(self, generation_id):
             logger.warning(f"[Imager Video] Generation #{generation_id}: reprise après crash refusée — relancer manuellement.")
             _console(generation.user_id, f"[Imager Video] Génération #{generation_id} : reprise après crash refusée.")
             return {'skipped': True, 'reason': 'crash_redelivery', 'generation_id': generation_id}
+
+        # Entrée URL déclarative (WAMA_INGEST du modèle) : télécharge source_url →
+        # reference_image si la cible est vide. AVANT la résolution auto (la présence
+        # d'une référence peut orienter le choix du modèle) — contrat composer 307b9fb.
+        try:
+            from wama.common.utils.source_ingest import ensure_local_input
+            ensure_local_input(generation, console=lambda m: _console(generation.user_id, m))
+        except Exception as exc:
+            logger.warning(f"[Imager] ensure_local_input({generation_id}) : {exc}")
 
         # Tirage « auto » AU LANCEMENT (pas au dépôt) : le choix dépend de la VRAM libre, qui
         # a pu changer pendant l'attente en file. Même moment que composer/tasks.py:50.

@@ -25,6 +25,8 @@ class ImaginAiryBackend(ImageGenerationBackend):
     It's kept for backwards compatibility with older setups.
     """
 
+    # Dépendances DÉCLARATIVES (contrat commun : missing_packages/is_available dérivés).
+    REQUIRED_PACKAGES = ['torch', 'imaginairy']
     name = "imaginairy"
     display_name = "imaginAIry (Legacy)"
 

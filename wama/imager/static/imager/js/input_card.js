@@ -29,7 +29,12 @@
         const fileInput = document.getElementById(d.fileInputId);
         const dropZone = document.getElementById(d.dropZoneId);
         const refInput = document.getElementById(d.refInputId);
+        // Référence par URL (WAMA_INGEST, contrat composer 307b9fb) : champ SANS bouton —
+        // l'URL fait partie du payload Générer, téléchargée AU LANCEMENT par la tâche.
+        const urlInput = document.getElementById(d.urlInputId);
         if (!btn || !promptEl || !select) return;
+
+        function refUrl() { return urlInput ? (urlInput.value || '').trim() : ''; }
 
         let batchFile = null;   // .txt/.csv de prompts (image seulement)
 
@@ -43,12 +48,23 @@
                 statusId: d.statusId,
                 meta: CFG.matchMeta || {},
                 inputLabels: CFG.inputLabels || {},
-                slots: { work_image: { inputId: d.refInputId, chipId: d.refChipId, zoneId: d.refSlotId } },
+                slots: { work_image: {
+                    inputId: d.refInputId, chipId: d.refChipId, zoneId: d.refSlotId,
+                    // Le slot est FOURNI par un fichier OU par une URL (crochets déclaratifs
+                    // de la brique) ; le ✕ de la chip efface les deux.
+                    isProvided: function (el) { return !!(el.files && el.files.length) || !!refUrl(); },
+                    describe: function (el) {
+                        return (el.files && el.files.length) ? el.files[0].name : refUrl();
+                    },
+                    clear: function (el) { el.value = ''; if (urlInput) urlInput.value = ''; },
+                } },
                 onState: function (st) {
                     btn.disabled = !st.launchable;
                     btn.title = st.launchable ? '' : (st.reason || 'Entrée requise manquante');
                 },
             });
+            // La frappe dans le champ URL fournit/retire le slot → re-apparier.
+            if (urlInput) urlInput.addEventListener('input', function () { matcher.refresh(); });
         }
 
         // ── Aide modèle (description + VRAM, catalogue) ──
@@ -153,17 +169,22 @@
         // ── Dérivation du generation_mode (contrat backend INCHANGÉ) ──
         function deriveMode() {
             const hasPrompt = (promptEl.value || '').trim().length > 0;
-            const hasRef = !!(refInput && refInput.files && refInput.files.length);
+            const hasRefFile = !!(refInput && refInput.files && refInput.files.length);
+            const hasRef = hasRefFile || !!refUrl();
             if (d.domain === 'video') return hasRef ? 'img2vid' : 'txt2vid';
             if (batchFile) return 'file2img';
-            if (hasRef) return hasPrompt ? 'img2img' : 'describe2img';
+            // describe2img exige le fichier LOCAL (BLIP tourne à la création) : une référence
+            // par URL seule dérive en img2img (avec ou sans prompt — img2img pur accepté).
+            if (hasRefFile) return hasPrompt ? 'img2img' : 'describe2img';
+            if (hasRef) return 'img2img';
             return 'txt2img';
         }
 
         // ── Soumission ──
         btn.addEventListener('click', function () {
             const mode = deriveMode();
-            const hasRef = !!(refInput && refInput.files && refInput.files.length);
+            const hasRefFile = !!(refInput && refInput.files && refInput.files.length);
+            const hasRef = hasRefFile || !!refUrl();
             // Garde de dernier recours (le bouton est déjà gaté par onState).
             if (matcher && !matcher.isLaunchable()) {
                 toast('Ce modèle attend une entrée qui manque encore.', 'warning');
@@ -214,7 +235,9 @@
                 fd.append('height', hEl.value);
             }
             if (batchFile) fd.append('prompt_file', batchFile);
-            if (hasRef) fd.append('reference_image', refInput.files[0]);
+            if (hasRefFile) fd.append('reference_image', refInput.files[0]);
+            // Un fichier joint PRIME sur l'URL (ensure_local_input ne télécharge que si vide).
+            if (!hasRefFile && refUrl()) fd.append('source_url', refUrl());
 
             btn.disabled = true;
             WamaApp.csrfFetch(CFG.urls.create, CFG.csrf, { method: 'POST', body: fd })
@@ -241,6 +264,7 @@
             selectId: 'imgModelSelect', promptId: 'imgPrompt',
             fileInputId: 'imgFileInput', dropZoneId: 'imgDropZone',
             refInputId: 'imgRefInput', refChipId: 'imgRefChip', refSlotId: 'imgRefSlot',
+            urlInputId: 'imgUrlInput',
             statusId: 'imgMatchStatus', btnId: 'imgGenerateBtn',
         });
         initDomain({
@@ -248,6 +272,7 @@
             selectId: 'vidModelSelect', promptId: 'vidPrompt',
             fileInputId: 'vidFileInput', dropZoneId: 'vidDropZone',
             refInputId: 'vidRefInput', refChipId: 'vidRefChip', refSlotId: 'vidRefSlot',
+            urlInputId: 'vidUrlInput',
             statusId: 'vidMatchStatus', btnId: 'vidGenerateBtn',
         });
     });

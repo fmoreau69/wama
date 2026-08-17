@@ -2721,6 +2721,25 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > `ENGLISH_ONLY_MODELS` (template synthesizer) vs `checkLangCompat` (index.js). À porter
 > avec la phase R.
 >
+> **SUITE (18/08) : IMAGER QUICK WINS (94 → 97) + format de sortie remis à sa place.**
+> ① `backend_packages` : `REQUIRED_PACKAGES` déclaré sur les **9 backends** (torch/diffusers ;
+> imaginairy pour le legacy ; ⚠ bitsandbytes/torchao EXCLUS — imports conditionnels des seuls
+> chemins quantifiés, les déclarer invaliderait le backend entier). ② `url_ingest` : contrat
+> composer 307b9fb porté — `WAMA_INGEST{source_url→reference_image, media}` + `source_url`
+> (migration imager.0017 appliquée WSL2) + `ensure_local_input` en tête des DEUX tâches
+> (avant le tirage auto) ; vues img2img/img2vid acceptent URL OU fichier (fichier PRIME) ;
+> slot URL des DEUX cards (sans bouton) ; le slot input-match voit l'URL via `isProvided`
+> (crochets 17/08) ; describe2img reste fichier-local (BLIP tourne à la création). ③ **Constat
+> Fabien — format de sortie** : les params output étaient SANS groupe → rendus HORS sections,
+> EN TÊTE du volet ; brique `output_format_params` étendue (`group=`) → `group="sortie"`,
+> dernier groupe (ordre chronologique du process). Contexte "item" AJOUTÉ (ids distincts par
+> domaine) : l'ancienne réserve « save ne les traite pas » était PÉRIMÉE — toute la chaîne
+> modale (render/values/save) est schéma-driven (`settingsModal` + `coerce_schema_values`),
+> aucune ligne de vue à toucher. ④ **Décision TalkingHead ACTÉE** (ROADMAP §Études/veille) :
+> mode avatar de l'AI-Assistant = rendu navigateur met4citizen ; chantier à ouvrir (vendoriser,
+> GLB scientist, pont TTS→timestamps). Restes imager = les 2 transverses gated (model_caps
+> matière, during GPU).
+>
 > **🔚 POINT D'ENTRÉE SESSION SUIVANTE — ordre acté :** ① transverses portage (during ×6 —
 > GPU avec Fabien ; model_caps_ui ×3 = enrichir la MATIÈRE d'abord — composer/reader/imager) ;
 > P2 audit API ✅ FAIT
@@ -2733,7 +2752,7 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > **Contrôles attendus au prochain `/reprise`** : check_docs **2 CASSÉ** · doc_facts 4 à
 > jour · corpus **110** (depuis WSL2) · migrate --check OK · `TOOL_REGISTRY` = **48** ·
 > grille CLI : **converter/transcriber/describer 100 · composer/synthesizer/avatarizer 98 ·
-> enhancer/reader 97 · anonymizer 96 · imager 94** (page /apps/ = − les clés
+> enhancer/reader/imager 97 · anonymizer 96** (page /apps/ = − les clés
 > déclarées-seulement, liste complétée : streaming ×10, inspector ×2, eta_batch,
 > cross_app_options, modes ×2, recursive_import composer).
 

@@ -37,23 +37,26 @@ def get_output_qualities(domain: str | None = None) -> List[Tuple[str, str]]:
 
 
 def output_format_params(domain: str, contexts=None, dom_id_format=None, dom_id_quality=None,
-                         include_quality: bool = True) -> list:
+                         include_quality: bool = True, group: str | None = None) -> list:
     """
     Fabrique les Param COMMUNS output_format (+ output_quality) pour un domaine, prêts à concaténer au
     schéma d'une app early-binding. dom_id_* = ponts vers les IDs existants par surface (str ou dict).
+    `group` (17/08, 4ᵉ consommateur — imager) : section ParamGroup d'accueil pour les rendus groupés —
+    sans lui, les params SANS groupe sortent HORS sections, en TÊTE du volet (constat Fabien : le
+    format de sortie doit arriver EN DERNIER, ordre chronologique du process).
     """
     from wama.common.utils.param_schema import Param, ALL_CONTEXTS
     ctx = contexts or ALL_CONTEXTS
     params = [
         Param(name="output_format", type="select", label="Format de sortie", icon="fa-file-export",
               choices=get_output_formats(domain), contexts=ctx,
-              dom_id=dom_id_format or "output_format"),
+              dom_id=dom_id_format or "output_format", group=group),
     ]
     if include_quality:
         params.append(
             Param(name="output_quality", type="select", label="Qualité", icon="fa-sliders",
                   choices=get_output_qualities(domain), contexts=ctx,
-                  dom_id=dom_id_quality or "output_quality")
+                  dom_id=dom_id_quality or "output_quality", group=group)
         )
     return params
 
@@ -72,7 +75,8 @@ def _domain_from_output_types(output_types) -> str | None:
 
 
 def output_format_params_for_app(app_name: str, contexts=None, dom_id_format=None,
-                                 dom_id_quality=None, include_quality: bool = True) -> list:
+                                 dom_id_quality=None, include_quality: bool = True,
+                                 group: str | None = None) -> list:
     """
     AUTO depuis APP_CATALOG : lit `multi_format_download` (early/late) + déduit le domaine des
     `output_types`. Renvoie les Param output_format/output_quality si l'app est **early-binding**
@@ -92,4 +96,5 @@ def output_format_params_for_app(app_name: str, contexts=None, dom_id_format=Non
     domain = _domain_from_output_types(cat.get("output_types", []))
     if not domain:
         return []
-    return output_format_params(domain, contexts, dom_id_format, dom_id_quality, include_quality)
+    return output_format_params(domain, contexts, dom_id_format, dom_id_quality, include_quality,
+                                group=group)

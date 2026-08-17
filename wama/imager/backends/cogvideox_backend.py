@@ -82,6 +82,8 @@ SUPPORTED_MODELS = {
 class CogVideoXBackend(ImageGenerationBackend):
     """CogVideoX backend for video generation."""
 
+    # Dépendances DÉCLARATIVES (contrat commun : missing_packages/is_available dérivés).
+    REQUIRED_PACKAGES = ['torch', 'diffusers']
     name = "cogvideox"
     display_name = "CogVideoX"
 

@@ -80,6 +80,10 @@ SUPPORTED_MODELS = {
 class LTXVideoBackend(ImageGenerationBackend):
     """LTX-Video backend — uses LTXConditionPipeline for T2V and I2V."""
 
+    # Dépendances DÉCLARATIVES (contrat commun). torchao/accelerate n'y sont PAS :
+    # imports conditionnels du seul chemin fp8 quantifié (même règle que bitsandbytes
+    # côté DiffusersBackend).
+    REQUIRED_PACKAGES = ['torch', 'diffusers']
     name = "ltx_video"
     display_name = "LTX-Video"
 

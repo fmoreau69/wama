@@ -102,6 +102,8 @@ class WanVideoBackend(ImageGenerationBackend):
     - wan-i2v-14b: ~24GB VRAM (img2vid only)
     """
 
+    # Dépendances DÉCLARATIVES (contrat commun : missing_packages/is_available dérivés).
+    REQUIRED_PACKAGES = ['torch', 'diffusers', 'numpy']
     name = "wan_video"
     display_name = "Wan Video (Hugging Face)"
 

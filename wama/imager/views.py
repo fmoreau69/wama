@@ -536,9 +536,14 @@ def handle_describe2img(request, user):
 
 
 def handle_img2img(request, user, mode):
-    """Handle img2img and style2img: image-to-image transformation"""
+    """Handle img2img and style2img: image-to-image transformation.
+
+    Référence par FICHIER ou par URL (WAMA_INGEST, contrat composer 307b9fb) : un fichier
+    joint PRIME ; sinon `source_url` est téléchargée EN TÊTE DE TÂCHE par ensure_local_input.
+    """
     reference_image = request.FILES.get('reference_image')
-    if not reference_image:
+    source_url = request.POST.get('source_url', '').strip()
+    if not reference_image and not source_url:
         return JsonResponse({'error': 'No reference image provided'}, status=400)
 
     prompt = request.POST.get('prompt', '').strip()
@@ -580,9 +585,11 @@ def handle_img2img(request, user, mode):
         seed=seed,
         num_images=num_images,
         image_strength=image_strength,
+        source_url=source_url,
         status='PENDING'
     )
-    generation.reference_image.save(reference_image.name, reference_image)
+    if reference_image:
+        generation.reference_image.save(reference_image.name, reference_image)
 
     logger.info(f"Created {mode} generation #{generation.id} for user {user.username}")
 
@@ -639,9 +646,13 @@ def handle_txt2vid(request, user):
 
 
 def handle_img2vid(request, user):
-    """Handle image-to-video generation"""
+    """Handle image-to-video generation.
+
+    Référence par FICHIER ou par URL (WAMA_INGEST) — même contrat que handle_img2img.
+    """
     reference_image = request.FILES.get('reference_image')
-    if not reference_image:
+    source_url = request.POST.get('source_url', '').strip()
+    if not reference_image and not source_url:
         return JsonResponse({'error': 'Reference image is required'}, status=400)
 
     prompt = request.POST.get('prompt', '').strip()
@@ -671,9 +682,11 @@ def handle_img2vid(request, user):
         steps=steps,
         guidance_scale=guidance_scale,
         seed=seed,
+        source_url=source_url,
         status='PENDING'
     )
-    generation.reference_image.save(reference_image.name, reference_image)
+    if reference_image:
+        generation.reference_image.save(reference_image.name, reference_image)
 
     logger.info(f"Created img2vid generation #{generation.id} for user {user.username}")
 

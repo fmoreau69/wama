@@ -71,6 +71,8 @@ SUPPORTED_MODELS = {
 class MochiBackend(ImageGenerationBackend):
     """Mochi-1 backend for video generation."""
 
+    # Dépendances DÉCLARATIVES (contrat commun : missing_packages/is_available dérivés).
+    REQUIRED_PACKAGES = ['torch', 'diffusers']
     name = "mochi"
     display_name = "Mochi-1"
 

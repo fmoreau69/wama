@@ -122,6 +122,8 @@ RESOLUTION_PRESETS = {
 class HunyuanVideoBackend(ImageGenerationBackend):
     """HunyuanVideo 1.5 backend for video generation."""
 
+    # Dépendances DÉCLARATIVES (contrat commun : missing_packages/is_available dérivés).
+    REQUIRED_PACKAGES = ['torch', 'diffusers']
     name = "hunyuan_video"
     display_name = "HunyuanVideo 1.5"
 

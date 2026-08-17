@@ -185,14 +185,22 @@ VIDEO_PARAMS = derive_from_model(
 # téléchargement) → la brique rend bien les deux champs, avec les dom_id `output_format` /
 # `output_quality` qui sont déjà ceux du volet. Le volet les écrivait à la main : on
 # consomme la brique à la place.
-# Borné à ("panel",) volontairement : la chaîne POST→models→tasks est vivante côté
-# CRÉATION (views.py:333-334, tasks.py:315-319), mais `save_generation_settings` ne les
-# traite pas encore — les exposer dans la modale d'item en ferait un mécanisme INERTE.
-# Les y étendre = un geste délibéré, une fois l'endpoint de sauvegarde câblé.
-_OUTPUT_PARAMS = output_format_params_for_app("imager", contexts=("panel",))
-
-IMAGE_PARAMS = IMAGE_PARAMS + _OUTPUT_PARAMS
-VIDEO_PARAMS = VIDEO_PARAMS + _OUTPUT_PARAMS
+# 17/08 (demande Fabien) : ① `group="sortie"` — sans groupe, les params sortaient HORS
+# sections, EN TÊTE du volet ; le format arrive maintenant EN DERNIER (ordre chronologique
+# du process). ② contexte "item" AJOUTÉ : l'ancienne réserve (« save_generation_settings ne
+# les traite pas ») est PÉRIMÉE — la sauvegarde est générique par schéma depuis
+# `coerce_schema_values` (views.py:1530), un champ du schéma présent au POST est appliqué.
+# Ids d'item DISTINCTS par domaine (les deux modales coexistent dans la page).
+IMAGE_PARAMS = IMAGE_PARAMS + output_format_params_for_app(
+    "imager", contexts=("panel", "item"), group="sortie",
+    dom_id_format={"panel": "output_format", "item": "settings_output_format"},
+    dom_id_quality={"panel": "output_quality", "item": "settings_output_quality"},
+)
+VIDEO_PARAMS = VIDEO_PARAMS + output_format_params_for_app(
+    "imager", contexts=("panel", "item"), group="sortie",
+    dom_id_format={"panel": "output_format", "item": "video_settings_output_format"},
+    dom_id_quality={"panel": "output_quality", "item": "video_settings_output_quality"},
+)
 
 
 # ── Réglages UTILISATEUR persistés (brique commune user_settings.py) ───────────

@@ -59,6 +59,10 @@ class DiffusersBackend(ImageGenerationBackend):
     have the compatibility issues that ImaginAiry has.
     """
 
+    # Dépendances DÉCLARATIVES (contrat commun). bitsandbytes n'y est PAS : import
+    # conditionnel du seul chemin FLUX quantifié — le déclarer invaliderait tout le
+    # backend (SD/SDXL/Hunyuan) sur une machine sans lui.
+    REQUIRED_PACKAGES = ['torch', 'diffusers']
     name = "diffusers"
     display_name = "Diffusers (Hugging Face)"
 

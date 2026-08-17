@@ -117,6 +117,9 @@ class QwenImageBackend(ImageGenerationBackend):
       - qwen-image-edit → QwenImageEditPlusPipeline
     """
 
+    # Dépendances DÉCLARATIVES (contrat commun : missing_packages/is_available dérivés).
+    REQUIRED_PACKAGES = ['torch', 'diffusers']
+
     name = "qwen_image"
     display_name = "Qwen Image 2 (Alibaba)"
 

@@ -61,6 +61,9 @@ class Flux2KleinBackend(ImageGenerationBackend):
     Supports T2I and image-conditioned generation via Flux2KleinPipeline.
     """
 
+    # Dépendances DÉCLARATIVES (contrat commun : missing_packages/is_available dérivés).
+    REQUIRED_PACKAGES = ['torch', 'diffusers']
+
     name = "flux2_klein"
     display_name = "FLUX.2 Klein 4B"
 

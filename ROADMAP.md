@@ -103,6 +103,13 @@
     anciens = venv CUDA séparés (Hallo2 figé CUDA 11.8 ; Ditto exige TensorRT).
   - **Lien N/A grille** : le gate `_has_engine_select` étant MESURÉ, l'ajout d'un sélecteur de
     modèles à l'avatarizer re-rendra automatiquement applicables model_help/input_match/model_caps.
+  - **✅ DÉCISION Fabien 17/08 (soir)** : pour le cas (b), **TalkingHead (met4citizen) ACTÉ** comme
+    voie du mode « avatar parlant » de l'AI-Assistant (rendu navigateur, zéro VRAM serveur, visèmes
+    FR, streaming branchable sur le TTS WAMA) ; LiveTalking reste l'option photoréaliste ultérieure.
+    Chantier à ouvrir : vendoriser three.js + TalkingHead (règle assets LOCAUX, pas de CDN), avatar
+    GLB « scientist » (Ready Player Me = service tiers, sinon Blender/VRoid), pont TTS→timestamps de
+    mots, toggle de mode dans l'UI assistant. Cas (a) : gate de test EchoMimicV3 (rituel GNM : venv
+    isolé, pin, mesures VRAM/latence/qualité) avant intégration avatarizer.
 
 ---
 

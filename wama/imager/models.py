@@ -235,6 +235,17 @@ class ImageGeneration(ProcessingTimeMixin, PromptScoped, ScopedVisibility):
         help_text="Reference image for img2img, style transfer, or auto-describe"
     )
 
+    # Ingest média déclaratif commun (source_ingest.ensure_local_input, appelé en tête de
+    # tâche — contrat composer 307b9fb) : URL d'IMAGE de référence → téléchargée vers
+    # reference_image AU LANCEMENT. Un fichier local déjà joint prime (ensure_local_input
+    # ne télécharge que si la cible est vide).
+    WAMA_INGEST = {
+        'source': 'source_url',
+        'target': 'reference_image',
+        'mode': 'media',
+    }
+    source_url = models.CharField(max_length=1000, blank=True, default='')
+
     # Image influence strength (for img2img/style modes)
     image_strength = models.FloatField(
         default=0.75,
