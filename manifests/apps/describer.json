@@ -124,6 +124,7 @@
             ],
             "default": "detailed",
             "dom_id": {
+              "batch": "batchSettingsOutputStyle",
               "item": "settingsOutputFormat",
               "panel": "output_style"
             },
@@ -175,6 +176,7 @@
             ],
             "default": "fr",
             "dom_id": {
+              "batch": "batchSettingsOutputLanguage",
               "item": "settingsOutputLanguage",
               "panel": "output_language"
             },
@@ -213,6 +215,7 @@
             ],
             "default": 500,
             "dom_id": {
+              "batch": "batchSettingsMaxLength",
               "item": "settingsMaxLength",
               "panel": "max_length"
             },
@@ -251,6 +254,7 @@
             ],
             "default": false,
             "dom_id": {
+              "batch": "batchSettingsGenerateSummary",
               "item": "settingsGenerateSummary",
               "panel": "globalGenerateSummary"
             },
@@ -289,6 +293,7 @@
             ],
             "default": false,
             "dom_id": {
+              "batch": "batchSettingsVerifyCoherence",
               "item": "settingsVerifyCoherence",
               "panel": "globalVerifyCoherence"
             },

@@ -489,7 +489,6 @@
             ],
             "contexts": [
               "item",
-              "batch",
               "panel"
             ],
             "default": null,
@@ -540,7 +539,6 @@
             ],
             "contexts": [
               "item",
-              "batch",
               "panel"
             ],
             "default": null,

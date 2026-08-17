@@ -66,10 +66,12 @@
             "choices": null,
             "contexts": [
               "panel",
-              "item"
+              "item",
+              "batch"
             ],
             "default": null,
             "dom_id": {
+              "batch": "batchSettingsModel",
               "item": "settingsModel",
               "panel": "modelSelect"
             },
@@ -138,10 +140,12 @@
             "choices": null,
             "contexts": [
               "panel",
-              "item"
+              "item",
+              "batch"
             ],
             "default": null,
             "dom_id": {
+              "batch": "batchSettingsDuration",
               "item": "settingsDuration",
               "panel": "durationSlider"
             },
@@ -243,10 +247,12 @@
             ],
             "contexts": [
               "panel",
-              "item"
+              "item",
+              "batch"
             ],
             "default": null,
             "dom_id": {
+              "batch": "batchSettingsOutputFormat",
               "item": "settingsOutputFormat",
               "panel": "output_format"
             },
@@ -293,10 +299,12 @@
             ],
             "contexts": [
               "panel",
-              "item"
+              "item",
+              "batch"
             ],
             "default": null,
             "dom_id": {
+              "batch": "batchSettingsOutputQuality",
               "item": "settingsOutputQuality",
               "panel": "output_quality"
             },
