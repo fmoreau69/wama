@@ -2593,17 +2593,25 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > micro du navigateur. **Précondition ABSOLUE : HTTPS** (getUserMedia refuse en HTTP hors
 > localhost — rattacher au chantier déploiement).
 >
-> **🔚 POINT D'ENTRÉE SESSION SUIVANTE — couche API, paliers dans l'ordre :**
-> **P2** = audit PROFOND par app (surface UI réelle — domaines/modes/params/actions de
-> card — confrontée à l'exposition tool_api ; sortie = grille de couverture API MESURÉE) +
-> gating `/model-manager/api/` compte non-dev + test de contrat triades (trou #8) ;
-> **P3** = famille orchestration UI (généraliser l'action payload de `switch_ui_mode` ;
-> pilote = Speak) ; **P4** = modèles ÉCRITURE (dev-gated) + librairies LECTURE
-> (list/missing_packages) ; arbitrages : wama_lab, media_library écriture ; précondition
-> HTTPS (déploiement). Puis : transverses portage (during ×6, input_match/model_caps,
-> params_modal_batch) ; réconciliation /apps/ ↔ grille ; phase R ×7 ; prospection PLAQUES.
-> PENDINGS : push = demander ; ⚠ restart gunicorn+workers pour exposer les 2 nouveaux
-> outils (tool_api.py rechargé).
+> **ARBITRAGE (échange Fabien 17/08) : le PORTAGE d'abord, l'API GÉNÉRÉE ensuite.**
+> Vision actée : l'API doit devenir une **projection de plus des registres** (comme l'UI et
+> le studio — une source, trois surfaces, adéquation par construction). Les germes existent
+> déjà : `TRIAD_SPECS`+`_register_triads()` (⅔ de triade CONSTRUITS), `tool_descriptions()`
+> (dérivées), `sanitize_tool_args` (schéma params), `GENERIC_APPS` (studio dérive des
+> ports). MAIS une API générée a la qualité de ses registres → **finir les transverses du
+> portage + phase R AVANT la couche d'auto-instruction** (during ×6, input_match/
+> model_caps, params_modal_batch enrichissent précisément les déclarations dont l'API sera
+> dérivée). Seule exception utile TÔT : **P2 audit de couverture API mesuré** (read-only,
+> révèle les trous de déclaration — sert les deux chantiers).
+>
+> **🔚 POINT D'ENTRÉE SESSION SUIVANTE — ordre acté :** ① transverses portage (during ×6 —
+> GPU avec Fabien ; input_match/model_caps ; params_modal_batch ×7) + P2 audit API en
+> parallèle léger (+ gating `/model-manager/api/` non-dev, test contrat triades #8) ;
+> ② phase R ×7 ; ③ couche API auto-instruite (projection manifestes — P3 orchestration UI
+> avec Speak pilote, P4 modèles écriture + librairies lecture ; arbitrages wama_lab/
+> media_library écriture ; précondition HTTPS = déploiement) ; réconciliation /apps/ ↔
+> grille ; prospection PLAQUES. PENDINGS : push = demander ; ⚠ restart gunicorn+workers
+> (2 nouveaux outils tool_api).
 > **Contrôles attendus au prochain `/reprise`** : check_docs 2 CASSÉ · doc_facts 4 à jour ·
 > corpus 110 (depuis WSL2) · migrate --check OK · grille CLI : converter 100,
 > transcriber/**composer 97**, **synthesizer/reader/describer 95**, avat/enh/imager 94,
