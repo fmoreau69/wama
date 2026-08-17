@@ -181,12 +181,11 @@ def describe_frames(frames: list, set_progress, console, user_id: int) -> list:
         return []
 
     try:
-        from .image_describer import get_blip_model
+        from wama.describer.backends import BlipBackend
         from PIL import Image
-        import torch
 
-        processor, model = get_blip_model()
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        blip = BlipBackend.get()
+        blip.load()
 
         descriptions = []
         for i, frame_path in enumerate(frames):
@@ -197,15 +196,7 @@ def describe_frames(frames: list, set_progress, console, user_id: int) -> list:
 
                 # Load and process frame
                 image = Image.open(frame_path).convert('RGB')
-                inputs = processor(image, return_tensors="pt").to(device)
-
-                out = model.generate(
-                    **inputs,
-                    max_new_tokens=50,
-                    num_beams=3,
-                )
-
-                caption = processor.decode(out[0], skip_special_tokens=True)
+                caption = blip.process(image=image, max_new_tokens=50, num_beams=3)
                 descriptions.append({
                     'frame': i + 1,
                     'time': i * 10,  # Approximate time in seconds

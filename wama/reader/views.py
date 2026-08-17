@@ -290,10 +290,17 @@ def upload(request):
     if not files:
         return JsonResponse({'error': 'Aucun fichier reçu'}, status=400)
 
-    backend       = request.POST.get('backend', 'auto')
-    mode          = request.POST.get('mode', 'auto')
-    output_format = request.POST.get('output_format', 'txt')
-    language      = request.POST.get('language', '')
+    # Réglages persistés (brique user_settings, clés = noms de params.py) : le POST prime,
+    # sinon DERNIER réglage utilisé (pattern converter). Sert surtout aux créations sans
+    # formulaire (tool_api, imports serveur). ⚠ `language` : '' POSTé = auto-détection
+    # VOULUE → test de présence, pas `or` (qui écraserait un champ vidé exprès).
+    from wama.common.utils.user_settings import get_user_app_settings, save_user_app_settings
+    last = get_user_app_settings(user, 'reader', {
+        'backend': 'auto', 'mode': 'auto', 'output_format': 'txt', 'language': ''})
+    backend       = request.POST.get('backend') or last['backend']
+    mode          = request.POST.get('mode') or last['mode']
+    output_format = request.POST.get('output_format') or last['output_format']
+    language      = request.POST['language'] if 'language' in request.POST else last['language']
 
     items_created = []
     created = []
@@ -328,6 +335,11 @@ def upload(request):
 
     if not items_created:
         return JsonResponse({'created': []})
+
+    # Re-persiste les choix comme défauts du prochain dépôt.
+    save_user_app_settings(user, 'reader', {
+        'backend': backend, 'mode': mode,
+        'output_format': output_format, 'language': language})
 
     if len(items_created) > 1:
         # Multiple files → one multi-item batch

@@ -26,17 +26,14 @@ def generate_prompt_from_image(image_path: str, style: str = 'detailed') -> str:
     logger.info(f"Generating prompt from image: {image_path}")
 
     try:
-        from wama.describer.utils.image_describer import get_blip_model
+        # BLIP = backend sous contrat du describer (2026-08-17) — plus d'accès direct
+        # au couple processor/model (l'ancien get_blip_model est remplacé).
+        from wama.describer.backends import BlipBackend
         from PIL import Image
-        import torch
 
         # Load the image
         image = Image.open(image_path).convert('RGB')
         logger.info(f"Image loaded: {image.width}x{image.height}")
-
-        # Load BLIP model (cached)
-        processor, model = get_blip_model()
-        device = "cuda" if torch.cuda.is_available() else "cpu"
 
         # Choose conditioning text based on style
         if style == 'artistic':
@@ -46,22 +43,10 @@ def generate_prompt_from_image(image_path: str, style: str = 'detailed') -> str:
         else:  # detailed
             conditioning_text = "a detailed photograph of"
 
-        # Prepare inputs
-        if conditioning_text:
-            inputs = processor(image, conditioning_text, return_tensors="pt").to(device)
-        else:
-            inputs = processor(image, return_tensors="pt").to(device)
-
-        # Generate caption
-        out = model.generate(
-            **inputs,
-            max_new_tokens=150,
-            num_beams=5,
-            repetition_penalty=1.2,
-            length_penalty=1.0,
+        caption = BlipBackend.get().process(
+            image=image, prefix=conditioning_text,
+            max_new_tokens=150, num_beams=5, repetition_penalty=1.2,
         )
-
-        caption = processor.decode(out[0], skip_special_tokens=True)
         logger.info(f"Raw caption: {caption}")
 
         # Format as prompt

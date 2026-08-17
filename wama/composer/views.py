@@ -184,12 +184,20 @@ def generate(request):
     # L'UI l'annonce dans le placeholder de la card d'entrée (INPUT_MODEL_MATCHING.md).
     prompt = request.POST.get('prompt', '').strip()
 
-    model_id = request.POST.get('model', 'musicgen-small')
+    # Réglages persistés (brique user_settings, clés = noms de params.py) : le POST prime,
+    # sinon DERNIER réglage utilisé (pattern converter) — une création sans formulaire
+    # (tool_api/studio) hérite ainsi du modèle préféré au lieu d'un défaut codé en dur.
+    from wama.common.utils.user_settings import get_user_app_settings, save_user_app_settings
+    last = get_user_app_settings(user, 'composer', {
+        'model': 'musicgen-small', 'duration': 10.0,
+        'output_format': 'original', 'output_quality': 'balanced'})
+
+    model_id = request.POST.get('model') or last['model']
     if model_id not in COMPOSER_MODELS and model_id not in AUTO_MODELS:
         return JsonResponse({'error': 'Modèle invalide'}, status=400)
 
     try:
-        duration = float(request.POST.get('duration', 10))
+        duration = float(request.POST.get('duration') or last['duration'])
         duration = clamp_duration(duration)
     except (ValueError, TypeError):
         duration = 10.0
@@ -202,9 +210,14 @@ def generate(request):
         prompt=prompt,
         model=model_id,
         duration=duration,
-        output_format=request.POST.get('output_format', 'original'),
-        output_quality=request.POST.get('output_quality', 'balanced'),
+        output_format=request.POST.get('output_format') or last['output_format'],
+        output_quality=request.POST.get('output_quality') or last['output_quality'],
     )
+
+    # Re-persiste les choix comme défauts de la prochaine génération.
+    save_user_app_settings(user, 'composer', {
+        'model': model_id, 'duration': duration,
+        'output_format': gen.output_format, 'output_quality': gen.output_quality})
 
     # Melody reference (musicgen-melody only)
     if model_id == 'musicgen-melody' and 'melody_reference' in request.FILES:

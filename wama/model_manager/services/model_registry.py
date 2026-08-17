@@ -359,11 +359,12 @@ class ModelRegistry:
             from wama.describer.utils.model_config import DESCRIBER_MODELS
             from django.conf import settings
 
-            # Check if BLIP is loaded
+            # Check if BLIP is loaded (backend sous contrat depuis 2026-08-17 —
+            # l'ancien état de module _blip_model n'existe plus)
             blip_loaded = False
             try:
-                from wama.describer.utils.image_describer import _blip_model
-                blip_loaded = _blip_model is not None
+                from wama.describer.backends import BlipBackend
+                blip_loaded = BlipBackend.get().is_loaded
             except Exception:
                 pass
 

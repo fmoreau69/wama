@@ -16,11 +16,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 # Import model configuration
-from .model_config import get_model_info
-
-# Global model cache
-_blip_processor = None
-_blip_model = None
+from .model_config import get_model_info  # noqa: F401 — consommé par le backend BLIP et l'app
 
 # Cached list of available Ollama models (refreshed per worker process start)
 _ollama_available_models: Optional[set] = None
@@ -131,50 +127,9 @@ def _best_ollama_vision_model() -> Optional[str]:
     return None
 
 
-def get_blip_model():
-    """Load and cache BLIP model."""
-    global _blip_processor, _blip_model
-
-    if _blip_processor is None or _blip_model is None:
-        logger.info("Loading BLIP model...")
-
-        try:
-            import os
-            import torch
-            from wama.model_manager.services.memory_manager import MemoryManager, MemoryStrategy
-
-            # Get model info from centralized config
-            model_info = get_model_info('blip')
-            model_name = model_info['model_id']
-            cache_dir = str(model_info['local_dir'])
-
-            # ── CRITIQUE : set HF cache BEFORE importing transformers ──────────
-            os.environ['HF_HUB_CACHE'] = cache_dir
-            os.environ['HUGGINGFACE_HUB_CACHE'] = cache_dir
-            # ──────────────────────────────────────────────────────────────────
-
-            from transformers import BlipProcessor, BlipForConditionalGeneration
-
-            # Determine VRAM strategy using MemoryManager (~1.8 GB for BLIP)
-            strategy = MemoryManager.get_memory_strategy(1.8)
-            device = "cpu" if strategy == MemoryStrategy.CPU_ONLY else (
-                "cuda" if torch.cuda.is_available() else "cpu"
-            )
-            logger.info(f"Loading {model_name} — strategy: {strategy.value}, device: {device}")
-
-            _blip_processor = BlipProcessor.from_pretrained(model_name, cache_dir=cache_dir, use_fast=True)
-            _blip_model = BlipForConditionalGeneration.from_pretrained(model_name, cache_dir=cache_dir)
-            _blip_model = _blip_model.to(device)
-            logger.info(f"BLIP model loaded on {device.upper()}")
-
-        except ImportError as e:
-            logger.error(f"Failed to import transformers: {e}")
-            raise ImportError(
-                "transformers library not installed. "
-                "Run: pip install transformers torch pillow"
-            )
-
-    return _blip_processor, _blip_model
+# Le chargement/déchargement BLIP vit dans `describer/backends/blip_backend.py`
+# (contrat commun BaseModelBackend, 2026-08-17) — l'ancien cache de module
+# `_blip_processor/_blip_model` + `get_blip_model()` est REMPLACÉ, pas doublé.
 
 
 # Prompts vision localisés — graine de l'orchestration de traduction (ROADMAP §10.B) :
@@ -262,15 +217,15 @@ def describe_image(description, set_progress, set_partial, console):
             console(user_id, f"{msg}, utilisation de BLIP…")
             set_partial(description, "Chargement du modèle BLIP…")
 
-            processor, model = get_blip_model()
+            from wama.describer.backends import BlipBackend
+            blip = BlipBackend.get()
+            blip.load()
 
             set_progress(description, 50)
             console(user_id, "Génération de la description (BLIP)…")
             set_partial(description, "Analyse BLIP…")
 
-            device = str(next(model.parameters()).device)
-
-            # Conditional captioning prefix
+            # Amorce de conditionnement — POLITIQUE de style (le backend est neutre)
             if output_style == 'detailed':
                 blip_text = "a photograph of"
             elif output_style == 'scientific':
@@ -278,19 +233,10 @@ def describe_image(description, set_progress, set_partial, console):
             else:
                 blip_text = None
 
-            if blip_text:
-                inputs = processor(image, blip_text, return_tensors="pt").to(device)
-            else:
-                inputs = processor(image, return_tensors="pt").to(device)
-
             max_new_tokens = min(200 if output_style in ('detailed', 'scientific') else 100, max_length)
-            out = model.generate(
-                **inputs,
-                max_new_tokens=max_new_tokens,
-                num_beams=5,
-                repetition_penalty=1.2,
-            )
-            caption = processor.decode(out[0], skip_special_tokens=True)
+            caption = blip.process(image=image, prefix=blip_text,
+                                   max_new_tokens=max_new_tokens,
+                                   num_beams=5, repetition_penalty=1.2)
             console(user_id, "Description générée avec BLIP ✓")
             set_progress(description, 70)
             set_partial(description, caption)
