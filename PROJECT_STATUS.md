@@ -2550,20 +2550,32 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > output_formats, batch_common, write_wav_int16 (extraction mono-app), speech_dir (repli
 > Django-free documenté). Validé CPU : singletons ×2, Kokoro via manager, marqueurs shims.
 >
+> **SUITE (17/08, serveur relancé par Fabien) : SMOKES VERTS + alignement des chiffres ÉLUCIDÉ.**
+> ① `run_nightly_tests --stage ui` : **13/13, 0 erreur JS** (⚠ leçon parse : le rapport porte
+> `summary{passed}` + `ok` par résultat — lire la FORME, pas la deviner). ② Marqueurs du lot
+> vérifiés dans les pages SERVIES : optgroups modale anonymizer, `wama-model-help.js` +
+> bouton Médiathèque reader, `melodyUrlInput` composer. ③ **Deux vues de conformité, toutes
+> deux justes** : la grille CLI (74 critères mesurés : 93→100) et la page `/apps/`
+> (`get_conformity_summary` = mesuré ∪ conventions DÉCLARÉES non mesurées : 91→97). Le delta
+> = 4 clés déclarées-seulement : `streaming` (**AUCUN lecteur dans le code** — flag décoratif
+> à trancher), `inspector` imager/anonymizer (raisons datées, partiellement périmées),
+> `eta_batch` imager, `cross_app_options` converter (devrait être N/A — l'app EST le service
+> cross-app). → **chantier nommé : réconciliation /apps/ ↔ grille** (confronter/migrer ces
+> déclarations, pas de flip à la devinette).
+>
 > **🔚 POINT D'ENTRÉE SESSION SUIVANTE** — ① during ×6 (GPU, avec Fabien) ;
-> ② ~~paquet synthesizer~~ ③ ~~finitions app-locales~~ ~~url_ingest composer~~ **FAITS** ;
-> restent : chantiers transverses (during ×6, input_match/model_caps ×8-9,
-> params_modal_batch ×7) ; ④ phase R régénérabilité ×7. **Backlog qualité : prospection
-> détecteur de PLAQUES** (validation GPU SEQ08-01 : plaque lisible ratée en début de séquence).
-> PENDINGS : ⚠ restart service TTS par Fabien (préchargement = GPU) ; ⚠ restart
-> workers+gunicorn (fixes 14/08 + 17/08 : BLIP backend, user_settings, url_ingest — les
-> WORKERS portent image/video_describer, auto_prompt et compose_task) ; ⚠ **validation
-> navigateur du lot 17/08 après restart** (aide moteur reader, slot URL composer, médiathèque
-> reader) ; push = demander.
+> ② ~~synthesizer~~ ③ ~~finitions app-locales~~ ~~url_ingest~~ **FAITS** ; **NOUVEAU :
+> couche API à vérifier/compléter (demande Fabien 17/08)** — périmètre = `tool_api` (46
+> outils, triades TRIAD_SPECS) + `api_v1` + trou #18 ROUTE §11, vérifier l'EXPOSITION réelle
+> et les manques par app ; chantiers transverses (during ×6, input_match/model_caps,
+> params_modal_batch) ; réconciliation /apps/ ↔ grille (ci-dessus) ; ④ phase R ×7 ;
+> prospection PLAQUES. PENDINGS : push = demander (6+ commits locaux) ; restart TTS :
+> vérifier s'il était inclus dans « le serveur WAMA est redémarré » (le service uvicorn:8001
+> est un process séparé du start script).
 > **Contrôles attendus au prochain `/reprise`** : check_docs 2 CASSÉ · doc_facts 4 à jour ·
-> corpus 110 (depuis WSL2) · migrate --check OK · grille : converter 100,
+> corpus 110 (depuis WSL2) · migrate --check OK · grille CLI : converter 100,
 > transcriber/**composer 97**, **synthesizer/reader/describer 95**, avat/enh/imager 94,
-> anonymizer 93.
+> anonymizer 93 (page /apps/ : 91–97, delta = déclaré-seulement, cf. ci-dessus).
 
 ## §REPRISE — 2026-08-13 (nuit) : BANC CODEGEN JOUÉ (marche B front 2) + skills à jour
 
