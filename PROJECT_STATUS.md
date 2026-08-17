@@ -2563,15 +2563,26 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > cross-app). → **chantier nommé : réconciliation /apps/ ↔ grille** (confronter/migrer ces
 > déclarations, pas de flip à la devinette).
 >
-> **🔚 POINT D'ENTRÉE SESSION SUIVANTE** — ① during ×6 (GPU, avec Fabien) ;
-> ② ~~synthesizer~~ ③ ~~finitions app-locales~~ ~~url_ingest~~ **FAITS** ; **NOUVEAU :
-> couche API à vérifier/compléter (demande Fabien 17/08)** — périmètre = `tool_api` (46
-> outils, triades TRIAD_SPECS) + `api_v1` + trou #18 ROUTE §11, vérifier l'EXPOSITION réelle
-> et les manques par app ; chantiers transverses (during ×6, input_match/model_caps,
-> params_modal_batch) ; réconciliation /apps/ ↔ grille (ci-dessus) ; ④ phase R ×7 ;
-> prospection PLAQUES. PENDINGS : push = demander (6+ commits locaux) ; restart TTS :
-> vérifier s'il était inclus dans « le serveur WAMA est redémarré » (le service uvicorn:8001
-> est un process séparé du start script).
+> **SUITE (17/08) : COUCHE API — vérification RUNTIME faite + model_manager lecture LIVRÉ.**
+> ① Restart TTS **CONFIRMÉ à jour** (process 13:37 > dernier commit 13:19 ; `/health` kokoro
+> résident par la nouvelle chaîne ; ligne gouverneur MESURÉE au registre
+> `…KokoroBackend:<pid>#synthesizer:kokoro` 0,31 Go — chaîne F4 validée en prod GPU ; la
+> 2e ligne du process tué expire par TTL, garde-fou prévu). ② Audit runtime TOOL_REGISTRY :
+> l'état documenté est EXACT (46 outils, 10 triades complètes, double triade enhancer,
+> studio, 13 hors-apps). ③ **Trou #18 entamé : `list_ai_models` + `get_ai_model`**
+> (46→48, transverses — alignés sur l'ouverture WamaModelHelp ; testés par LA porte
+> `execute_tool` : filtres, fiche, erreur guidée, et le gating avait d'abord bien refusé
+> model_manager → décision d'ouverture documentée). ⚠ Constat à creuser :
+> `/model-manager/api/models/db/` (source WamaModelHelp) sous gating par chemin dev-only —
+> aide-modèle possiblement INERTE pour un non-dev (fetch avale l'échec) ; cf. ROUTE §11 #18.
+>
+> **🔚 POINT D'ENTRÉE SESSION SUIVANTE** — **couche API (suite)** : vérifier le gating de
+> `/model-manager/api/` avec un compte NON-dev ; trancher wama_lab (13 tâches sans surface)
+> et media_library ÉCRITURE ; test de contrat des triades (trou #8) ; puis chantiers
+> transverses du portage (during ×6, input_match/model_caps, params_modal_batch) ;
+> réconciliation /apps/ ↔ grille ; ④ phase R ×7 ; prospection PLAQUES.
+> PENDINGS : push = demander ; ⚠ restart gunicorn+workers pour exposer les 2 nouveaux
+> outils (tool_api.py rechargé).
 > **Contrôles attendus au prochain `/reprise`** : check_docs 2 CASSÉ · doc_facts 4 à jour ·
 > corpus 110 (depuis WSL2) · migrate --check OK · grille CLI : converter 100,
 > transcriber/**composer 97**, **synthesizer/reader/describer 95**, avat/enh/imager 94,

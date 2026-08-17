@@ -2065,8 +2065,89 @@ def get_studio_run_status(user, run_id: int = None) -> dict:
 
 
 
+def list_ai_models(user, app: str = None, task: str = None, modality: str = None,
+                   downloaded_only: bool = False, include_proposed: bool = False,
+                   limit: int = 50) -> dict:
+    """
+    List the AI model CATALOGUE (read-only — trou #18 ROUTE §11, lecture utile à l'assistant).
+
+    Args:
+        app: filter by owning app/source (e.g. 'imager', 'transcriber').
+        task: filter by canonical capability task (e.g. 'detect', 'tts', 'asr').
+        modality: filter by capability modality (e.g. 'image', 'audio', 'video').
+        downloaded_only: only models whose weights are present on disk.
+        include_proposed: also list prospection PROPOSALS (not installed models).
+        limit: max results (default 50).
+
+    Returns:
+        {"models": [{"key","name","app","type","vram_gb","task","modalities",
+                     "downloaded","loaded","quality_index","description"}],
+         "count", "truncated"}
+    """
+    from wama.model_manager.models import AIModel
+
+    qs = AIModel.objects.all().order_by('source', 'model_key')
+    if not include_proposed:
+        qs = qs.filter(is_proposed=False)
+    if app:
+        qs = qs.filter(source=app)
+    if task:
+        qs = qs.filter(capabilities__task=task)
+    if modality:
+        qs = qs.filter(capabilities__modalities__contains=[modality])
+    if downloaded_only:
+        qs = qs.filter(is_downloaded=True)
+
+    total = qs.count()
+    models = [{
+        'key': m.model_key,
+        'name': m.name,
+        'app': m.source,
+        'type': m.model_type,
+        'vram_gb': m.vram_gb,
+        'task': (m.capabilities or {}).get('task'),
+        'modalities': (m.capabilities or {}).get('modalities'),
+        'downloaded': m.is_downloaded,
+        'loaded': m.is_loaded,
+        'quality_index': m.quality_index,
+        'description': m.description_short or '',
+    } for m in qs[:max(1, min(int(limit or 50), 200))]]
+    return {'models': models, 'count': total, 'truncated': total > len(models)}
+
+
+def get_ai_model(user, model_key: str) -> dict:
+    """
+    Full catalogue record of ONE model (read-only). `model_key` = '<app>:<id>'
+    (e.g. 'synthesizer:kokoro') — use list_ai_models to discover keys.
+
+    Returns the complete metadata: descriptions, capabilities, footprints
+    (vram/ram/disk), license + author, platform_ref, quality_index, states.
+    """
+    from wama.model_manager.models import AIModel
+
+    m = AIModel.objects.filter(model_key=model_key).first()
+    if m is None:
+        return {'error': f"Modèle '{model_key}' introuvable au catalogue "
+                         f"(les clés se découvrent via list_ai_models)."}
+    return {
+        'key': m.model_key, 'name': m.name, 'app': m.source, 'type': m.model_type,
+        'description': m.description or m.description_short or '',
+        'capabilities': m.capabilities or {},
+        'vram_gb': m.vram_gb, 'ram_gb': m.ram_gb, 'disk_gb': m.disk_gb,
+        'hf_id': m.hf_id, 'platform_ref': m.platform_ref,
+        'license': m.license, 'author': m.author,
+        'quality_index': m.quality_index,
+        'downloaded': m.is_downloaded, 'loaded': m.is_loaded,
+        'available': m.is_available, 'proposed': m.is_proposed,
+        'last_used_at': m.last_used_at.isoformat() if m.last_used_at else None,
+    }
+
+
 TOOL_REGISTRY = {
     'translate_text': translate_text,
+    # model_manager — LECTURE SEULE (trou #18 : « lister modèles/capacités, utile à l'assistant »)
+    'list_ai_models': list_ai_models,
+    'get_ai_model':   get_ai_model,
     'list_user_files':       list_user_files,
     'add_to_avatarizer':     add_to_avatarizer,
     'start_avatarizer':      start_avatarizer,
@@ -2131,6 +2212,12 @@ TOOL_APP_OVERRIDE = {
     'list_user_files':     None,
     'translate_text':      None,
     'switch_ui_mode':      None,
+    # Catalogue de modèles : LECTURE SEULE, transverse (tout connecté) — alignée sur
+    # l'ouverture du méta-catalogue côté UI (WamaModelHelp le sert à tous les selects
+    # d'app). L'app model_manager reste dev-gated pour la GESTION ; une future action
+    # d'écriture (install/unload) serait gardée 'model_manager', pas ces lectures.
+    'list_ai_models':      None,
+    'get_ai_model':        None,
     # Studio : list/run/status (le run FUSIONNE add+start — un run = création + dispatch),
     # gardés par l'app `studio` comme la navigation.
     'list_studio_pipelines': 'studio',
