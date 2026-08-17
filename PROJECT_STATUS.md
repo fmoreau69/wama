@@ -2766,8 +2766,25 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > — *08-11* : worktree **`D:\WAMA\wt-regen-converter`** conservé et EN RETARD — à ff-merger ou
 > supprimer avant tout test destructif de régénération.
 >
-> **🔚 POINT D'ENTRÉE SESSION SUIVANTE — ordre acté :** ① transverses portage (during ×6 —
-> GPU avec Fabien ; model_caps_ui ×3 = enrichir la MATIÈRE d'abord — composer/reader/imager) ;
+> **SUITE (18/08) : DURING ×3 CÂBLÉS (reader, anonymizer, enhancer-vidéo) — toutes les apps
+> ≥ 97 %.** Émission via la brique COMMUNE preview_utils, patron du composer : **reader** (98) —
+> `on_partial` ajouté aux 3 backends OCR (olmocr/glm page à page ; docTR = une émission
+> post-assemblage, l'inférence est monolithique) → `publish_partial_text`, + le texte BRUT
+> reste lisible pendant la mise en forme LLM (98 %) ; **anonymizer** (97, 0 ❌) — hook
+> `on_frame` threadé par kwargs jusqu'à la boucle de floutage (la classe ne connaît ni pk ni
+> URLs), la tâche écrit un JPEG partiel sous `output/partials/` et publie l'URL cache-bustée
+> `?v=` (~2 s, vidéos seulement) ; **enhancer** (99) — frame UPSCALÉE courante publiée dans la
+> boucle vidéo (frames temp hors MEDIA → copie JPEG partielle). `clear_partial` sur succès ET
+> échec partout. ⚠ **Validation GPU navigateur PAR FABIEN avant d'aller plus loin** (lancer
+> une vidéo anonymizer/enhancer, un PDF olmocr → l'aperçu doit se construire dans
+> l'inspecteur). Restes during ×3 (les plus lourds) : imager (callback diffusion + décodage
+> latentes — approximation par famille de pipeline), avatarizer (MuseTalk en SOUS-PROCESSUS —
+> frames peu accessibles), synthesizer (moteurs non chunkés — à trancher). Reste enhancer
+> AUDIO (callback à câbler dans audio_enhancer).
+>
+> **🔚 POINT D'ENTRÉE SESSION SUIVANTE — ordre acté :** ① transverses portage (during ×3
+> restants : imager/avatarizer/synthesizer, + enhancer audio — GPU avec Fabien, valider les
+> 3 câblés d'abord ; model_caps_ui ×3 = enrichir la MATIÈRE d'abord — composer/reader/imager) ;
 > P2 audit API ✅ FAIT
 > (17/08 apm, ci-dessus — gating `/model-manager/api/` tranché, test contrat triades #8
 > toujours À CRÉER) ; ② phase R ×7 ; ③ couche API auto-instruite (projection manifestes —
@@ -2777,8 +2794,8 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > ⚠ restart gunicorn+workers (2 outils tool_api + brique input_match + adoptions ×7).
 > **Contrôles attendus au prochain `/reprise`** : check_docs **2 CASSÉ** · doc_facts 4 à
 > jour · corpus **110** (depuis WSL2) · migrate --check OK · `TOOL_REGISTRY` = **48** ·
-> grille CLI : **converter/transcriber/describer 100 · composer/synthesizer/avatarizer 98 ·
-> enhancer/reader/imager 97 · anonymizer 96** (page /apps/ = − les clés
+> grille CLI : **converter/transcriber/describer 100 · enhancer 99 · avatarizer/composer/
+> reader/synthesizer 98 · anonymizer/imager 97** (page /apps/ = − les clés
 > déclarées-seulement, liste complétée : streaming ×10, inspector ×2, eta_batch,
 > cross_app_options, modes ×2, recursive_import composer).
 

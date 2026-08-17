@@ -574,6 +574,20 @@ def _enhance_video(enhancement: Enhancement, user_id: int) -> dict:
         output_width = 0
         output_height = 0
 
+        # Aperçu « PENDANT » (brique COMMUNE preview_utils, `?side=during`) : la frame
+        # AMÉLIORÉE courante publiée ~toutes les 2 s — les frames temporaires vivent hors
+        # MEDIA, on copie donc un JPEG partiel sous l'output utilisateur (même patron que
+        # l'anonymizer, corrigé en famille 18/08).
+        from django.conf import settings
+        from wama.common.utils.media_paths import get_app_media_path
+        from wama.common.utils.preview_utils import clear_partial, publish_partial
+        _pdir = os.path.join(str(get_app_media_path('enhancer', user_id, 'output')), 'partials')
+        os.makedirs(_pdir, exist_ok=True)
+        _partial_abs = os.path.join(_pdir, f'during_{enhancement.id}.jpg')
+        _partial_url = (settings.MEDIA_URL
+                        + os.path.relpath(_partial_abs, settings.MEDIA_ROOT).replace('\\', '/'))
+        _last_emit = [0.0]
+
         for i, frame_file in enumerate(frame_files):
             # Update progress
             progress = 10 + int((i / total_frames) * 70)
@@ -597,7 +611,21 @@ def _enhance_video(enhancement: Enhancement, user_id: int) -> dict:
             if i == 0:
                 output_height, output_width = enhanced_frame.shape[:2]
 
+            _now = time.time()
+            if _now - _last_emit[0] >= 2.0:
+                _last_emit[0] = _now
+                try:
+                    cv2.imwrite(_partial_abs, enhanced_frame)
+                    publish_partial('enhancer', enhancement.id, f'{_partial_url}?v={i}')
+                except Exception:
+                    pass  # best-effort
+
         upscaler.close()
+        clear_partial('enhancer', enhancement.id)   # la face SORTIE prend le relais
+        try:
+            os.remove(_partial_abs)
+        except OSError:
+            pass
         _console(user_id, f"Upscaled all frames")
 
         # Step 3: Encode video (80-95%)
@@ -710,6 +738,11 @@ def _enhance_video(enhancement: Enhancement, user_id: int) -> dict:
         return {'ok': True, 'output_width': output_width, 'output_height': output_height, 'frames': total_frames}
 
     except Exception as e:
-        # Clean up on error
+        # Clean up on error (aperçu partiel compris — pas de « pendant » obsolète)
+        try:
+            from wama.common.utils.preview_utils import clear_partial
+            clear_partial('enhancer', enhancement.id)
+        except Exception:
+            pass
         shutil.rmtree(temp_dir, ignore_errors=True)
         raise

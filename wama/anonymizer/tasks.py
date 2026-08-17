@@ -425,6 +425,35 @@ def process_single_media(self, media_id, force_individual=False):
         )
         progress_thread.start()
 
+        # Aperçu « PENDANT » (brique COMMUNE preview_utils, `?side=during`) : la frame floutée
+        # COURANTE publiée ~toutes les 2 s (vidéo seulement — une image n'a qu'une frame).
+        # Le hook `on_frame` traverse kwargs jusqu'à la boucle de floutage (anonymize.py),
+        # qui ne connaît ni pk ni URLs ; le throttle et l'écriture JPEG vivent ICI.
+        from wama.common.utils.preview_utils import clear_partial, publish_partial
+        _partial_abs = None
+        if is_video:
+            import cv2 as _cv2
+            from django.conf import settings as _settings
+            _pdir = os.path.join(get_app_media_path('anonymizer', user.id, 'output'), 'partials')
+            os.makedirs(_pdir, exist_ok=True)
+            _partial_abs = os.path.join(_pdir, f'during_{media.id}.jpg')
+            _partial_url = (_settings.MEDIA_URL
+                            + os.path.relpath(_partial_abs, _settings.MEDIA_ROOT).replace('\\', '/'))
+            _last_emit = [0.0]
+
+            def _on_frame(idx, img):
+                now = time.time()
+                if now - _last_emit[0] < 2.0:
+                    return
+                _last_emit[0] = now
+                try:
+                    _cv2.imwrite(_partial_abs, img)
+                    publish_partial('anonymizer', media.id, f'{_partial_url}?v={idx}')
+                except Exception:
+                    pass
+
+            kwargs['on_frame'] = _on_frame
+
         try:
             # Run the actual processing
             start_process(**kwargs)
@@ -432,6 +461,13 @@ def process_single_media(self, media_id, force_individual=False):
             # Stop the progress simulation
             cache.set(stop_flag, True, timeout=10)
             progress_thread.join(timeout=2)  # Wait max 2 seconds for thread to finish
+            # Fin du « pendant » : la face SORTIE prend le relais ; fichier partiel retiré.
+            clear_partial('anonymizer', media.id)
+            if _partial_abs:
+                try:
+                    os.remove(_partial_abs)
+                except OSError:
+                    pass
 
         # Conversion de format de sortie (Phase 3 élargie)
         _apply_anonymizer_output_format(media)

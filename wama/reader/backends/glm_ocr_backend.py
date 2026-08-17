@@ -153,6 +153,7 @@ class GlmOcrBackend:
         mode: str = 'auto',
         language: str = '',
         progress_cb: Optional[Callable[[int, str], None]] = None,
+        on_partial: Optional[Callable[[str], None]] = None,
     ) -> str:
         """
         Extract text from a document or image.
@@ -162,6 +163,8 @@ class GlmOcrBackend:
             mode:        'auto' | 'printed' | 'handwritten' (hint only — GLM-OCR handles both)
             language:    ISO language code hint (e.g. 'fr', 'en')
             progress_cb: Optional callable(pct: int, msg: str)
+            on_partial:  callback(texte_cumulé) après chaque page — aperçu « PENDANT »
+                         (contrat commun preview_utils).
 
         Returns:
             Extracted text as a string.
@@ -204,6 +207,11 @@ class GlmOcrBackend:
 
                 text = _ocr_image(model, img_path, language)
                 texts.append(text)
+                if on_partial:
+                    try:
+                        on_partial('\n\n---\n\n'.join(t for t in texts if t).strip())
+                    except Exception:
+                        pass  # best-effort : un tick d'aperçu raté n'arrête pas l'OCR
 
                 if progress_cb:
                     progress_cb(pct_start + int(75 / n_pages), f"Page {i + 1}/{n_pages} terminée")

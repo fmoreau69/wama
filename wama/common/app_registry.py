@@ -370,6 +370,9 @@ APP_CATALOG = {
                                        # params.py existe mais ORPHELIN (aucun consommateur WamaParams)
             tool_api=True,
             model_help=True,     # WamaModelHelp (select YOLO #user_setting_model_to_use, meta catalogue)
+            during_preview=True,  # frame floutée COURANTE (~2 s) publiée pendant les vidéos
+                                  # (hook on_frame de la boucle de floutage → publish_partial,
+                                  # tasks.py 18/08 ; images = une seule frame, pas de pendant)
             # Audit empirique 2026-07-10 :
             eta_individual=True,       # .wama-eta card (_media_card.html:107) + WamaEta.update (process.js:49)
             eta_batch=True,            # data-eta-ids (media_table.html:21)
@@ -601,6 +604,9 @@ APP_CATALOG = {
         'conventions': _conv(
             settings_modal_item=True,
             tool_api=True,
+            during_preview=True,  # frame UPSCALÉE courante (~2 s) pendant les vidéos
+                                  # (tasks.py 18/08) ; reste = domaine AUDIO (callback à
+                                  # câbler dans audio_enhancer) et image unitaire (une frame)
             inspector=True,      # volet contextuel via WamaInspector.initFromSchema (image/vidéo/audio)
                                  # register_app_detail FAIT 2026-07-11 (enhancer + audio_enhancer,
                                  # labels params.py) ; reste _inspector_actions (avec cloneActions,
@@ -705,6 +711,9 @@ APP_CATALOG = {
             tool_api=True,
             inspector=True,      # volet contextuel via WamaInspector.initFromSchema
             model_help=True,     # WamaModelHelp (help_fallback moteurs OCR, cf. reader/params.py)
+            during_preview=True,  # texte OCR qui se CONSTRUIT page à page (on_partial des 3
+                                  # backends → publish_partial_text, tasks._read 18/08) + brut
+                                  # affiché pendant la mise en forme LLM (98 %)
             # ETA vérifié 2026-07-10 (grille de conformité périmée, corrigée) : individuel
             # (_item_card.html wama-eta), batch (_batch_card.html eta_ids) et queue
             # (_global_progress.html) tous câblés.

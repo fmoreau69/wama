@@ -276,32 +276,45 @@ def _read(item, ctx):
 
         ctx.progress(5, f"Backend : {backend}")
 
+        # Aperçu « PENDANT » (brique COMMUNE preview_utils, servi par `?side=during`) :
+        # le texte OCR se CONSTRUIT page à page dans l'inspecteur (olmocr/glm), et le brut
+        # complet s'affiche pendant la mise en forme LLM (étape longue à 98 %). Best-effort.
+        from wama.common.utils.preview_utils import clear_partial, publish_partial_text
+
+        def _partial(txt):
+            publish_partial_text('reader', item.pk, txt)
+
         if backend == 'olmocr':
             # Singleton : le modèle reste chargé entre les fichiers d'un même batch
             raw_text = _get_olmocr().run(
                 item.input_file.path, item.mode, item.language, ctx.progress,
-                keep_loaded=True,
+                keep_loaded=True, on_partial=_partial,
             )
         elif backend == 'glm-ocr':
             from .backends.glm_ocr_backend import GlmOcrBackend
             raw_text = GlmOcrBackend().run(
-                item.input_file.path, item.mode, item.language, ctx.progress
+                item.input_file.path, item.mode, item.language, ctx.progress,
+                on_partial=_partial,
             )
         elif backend == 'doctr':
             from .backends.doctr_backend import DocTRBackend
             raw_text = DocTRBackend().run(
-                item.input_file.path, item.mode, item.language, ctx.progress
+                item.input_file.path, item.mode, item.language, ctx.progress,
+                on_partial=_partial,
             )
         else:
             raise ValueError(f"Backend inconnu : {backend}")
 
         result_text = _extract_natural_text(raw_text)
 
-        # Post-processing: LLM Markdown formatting (always applied)
+        # Post-processing: LLM Markdown formatting (always applied) — le brut reste lisible
+        # en aperçu partiel pendant que le LLM formate.
+        _partial(result_text)
         ctx.progress(98, "Mise en forme…")
         ctx.console("[Reader] Mise en forme via LLM…")
         result_text = _format_as_markdown(result_text, item.language)
 
+        clear_partial('reader', item.pk)   # la face SORTIE prend le relais
         ctx.progress(100, "Terminé")
         return {
             'fields': {'result_text': result_text, 'raw_result': raw_text,
@@ -314,6 +327,11 @@ def _read(item, ctx):
     except Exception as exc:
         # Le front affiche le message d'étape : y refléter l'erreur avant le flux FAILURE
         # standard de la brique (statut, console ✗, notification).
+        try:
+            from wama.common.utils.preview_utils import clear_partial
+            clear_partial('reader', item.pk)
+        except Exception:
+            pass
         _set_progress(item, 0, f"Erreur : {exc}")
         raise
 

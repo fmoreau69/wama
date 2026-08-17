@@ -53,10 +53,15 @@ class DocTRBackend(BaseModelBackend):
         mode: str = 'auto',
         language: str = '',
         progress_cb: Optional[Callable[[int, str], None]] = None,
+        on_partial: Optional[Callable[[str], None]] = None,
     ) -> str:
         """
         Extract text from a document file using docTR.
         Returns the full extracted text as a string.
+
+        on_partial : docTR infère le document EN UN appel (pas de boucle par page) — le
+        callback n'est émis qu'UNE fois, après assemblage : l'aperçu « pendant » montre le
+        texte brut pendant la mise en forme LLM (l'étape longue vit dans la TÂCHE, à 98 %).
         """
         from wama.reader.utils.model_config import DOCTR_DIR
 
@@ -113,6 +118,11 @@ class DocTRBackend(BaseModelBackend):
             progress_cb(85, "Assemblage du texte…")
 
         text = self._extract_text(result)
+        if on_partial:
+            try:
+                on_partial(text)
+            except Exception:
+                pass
 
         return text
 

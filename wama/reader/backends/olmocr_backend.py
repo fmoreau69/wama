@@ -162,6 +162,7 @@ class OlmOCRBackend(BaseModelBackend):
         language: str = '',
         progress_cb: Optional[Callable[[int, str], None]] = None,
         keep_loaded: bool = False,
+        on_partial: Optional[Callable[[str], None]] = None,
     ) -> str:
         """
         Extract text from a document file.
@@ -170,6 +171,8 @@ class OlmOCRBackend(BaseModelBackend):
         keep_loaded: if True, do NOT unload the model after processing — useful
                      when the same worker will process another file immediately after
                      (singleton pattern in tasks.py avoids the 10-min reload).
+        on_partial:  callback(texte_cumulé) appelé après CHAQUE page — aperçu « PENDANT »
+                     (contrat commun preview_utils, même patron que l'on_audio du composer).
         """
         path = Path(file_path)
         ext = path.suffix.lower()
@@ -190,6 +193,11 @@ class OlmOCRBackend(BaseModelBackend):
 
             text = self._process_image(page_image, mode, language)
             texts.append(text)
+            if on_partial:
+                try:
+                    on_partial('\n\n'.join(texts))
+                except Exception:
+                    pass  # best-effort : un tick d'aperçu raté n'arrête pas l'OCR
 
         if not keep_loaded:
             self.unload()

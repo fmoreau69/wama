@@ -747,6 +747,9 @@ class Anonymize(DetectionBackend):
         roi_enlargement = kwargs.get('ROI_enlargement', self.ROI_enlargement)  # Enlarging the blurred area
         detection_threshold = kwargs.get('detection_threshold', self.conf)  # Object detection threshold
         interpolate_detections = kwargs.get('interpolate_detections', self.interpolate_detections)
+        # Aperçu « PENDANT » (hook déclaratif posé par la TÂCHE — la classe ne connaît ni pk ni
+        # URLs) : callback(frame_idx, im0_floutée) appelé après chaque frame, throttlé côté tâche.
+        on_frame = kwargs.get('on_frame')
 
         # Calculate max interpolation frames based on FPS (0.5 seconds max)
         fps = self.meta_data.get('fps', 30) if isinstance(self.meta_data, dict) else 30
@@ -820,6 +823,11 @@ class Anonymize(DetectionBackend):
                         continue
 
             self.plotted_img = im0
+            if on_frame:
+                try:
+                    on_frame(frame_idx, im0)
+                except Exception:
+                    pass  # best-effort : un tick d'aperçu raté n'arrête pas le floutage
             self.write_media()
 
     def write_media(self):
