@@ -69,9 +69,13 @@ app = FastAPI(title="WAMA TTS Service", version="1.0")
 # ---------------------------------------------------------------------------
 # Backends sous contrat (singletons par moteur) + moteur COURANT
 # ---------------------------------------------------------------------------
+from wama.common.backends.manager import BackendManager
 from wama.synthesizer.backends import ENGINE_BACKENDS, engine_for_model
 
-_backends: dict = {}          # engine name → instance (créée au 1er besoin)
+# Registre + singletons keep_loaded : BRIQUE COMMUNE (pas de dict maison).
+_manager = BackendManager('tts')
+_manager.register_many(ENGINE_BACKENDS)
+
 _current_engine = None        # "coqui", "bark", "higgs", or "kokoro"
 _current_model_name = None    # e.g. "xtts_v2", "bark", "higgs_audio", "kokoro"
 
@@ -81,10 +85,8 @@ _service_ready_lock = threading.Lock()
 
 
 def _backend(engine: str):
-    """Instance singleton du backend d'un moteur."""
-    if engine not in _backends:
-        _backends[engine] = ENGINE_BACKENDS[engine]()
-    return _backends[engine]
+    """Instance singleton du backend d'un moteur (BackendManager commun)."""
+    return _manager.get_backend(engine)
 
 
 # ---------------------------------------------------------------------------
@@ -123,7 +125,7 @@ def _unload_current():
         # KokoroBackend.unload() décharge réellement, on ne l'appelle simplement pas.
         logger.info("Kokoro reste résident (warm) — pas de déchargement")
     elif _current_engine is not None:
-        be = _backends.get(_current_engine)
+        be = _manager.get_backend(_current_engine)
         if be is not None and be.is_loaded:
             logger.info(f"Unloading {_current_engine} model: {_current_model_name}")
             be.unload()   # l'enveloppe du contrat rend la ligne de registre VRAM
@@ -238,7 +240,7 @@ def health():
     with _service_ready_lock:
         ready = _service_ready
 
-    kokoro = _backends.get("kokoro")
+    kokoro = _manager.get_backend("kokoro")
     return {
         "status": "ok" if ready else "loading",
         "device": DEVICE,

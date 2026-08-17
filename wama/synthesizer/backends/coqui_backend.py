@@ -49,7 +49,10 @@ class CoquiBackend(TTSBackend):
         os.environ.setdefault('COQUI_TOS_AGREED', '1')
         os.environ['TTS_HOME'] = str(cache_dir)
 
-        self._patch_torchaudio_load()
+        # torchaudio.load → soundfile : torchcodec est cassé sur ce poste et Coqui lit
+        # ses références via torchaudio — BRIQUE COMMUNE (partagée avec l'enhancer).
+        from wama.common.utils.torchaudio_compat import patch_torchaudio_soundfile
+        patch_torchaudio_soundfile()
 
         from TTS.api import TTS
 
@@ -102,30 +105,3 @@ class CoquiBackend(TTSBackend):
         except Exception:
             pass
 
-    @staticmethod
-    def _patch_torchaudio_load():
-        """torchaudio.load → soundfile : torchcodec est cassé sur ce poste (mémoire
-        reference_torchcodec_broken) et Coqui lit ses références via torchaudio."""
-        try:
-            import torch
-            import torchaudio
-            import soundfile as sf
-
-            def _soundfile_load(uri, frame_offset=0, num_frames=-1, normalize=True,
-                                channels_first=True, format=None, buffer_size=4096,
-                                backend=None):
-                data, sample_rate = sf.read(
-                    str(uri), dtype="float32",
-                    start=frame_offset,
-                    stop=frame_offset + num_frames if num_frames > 0 else None,
-                    always_2d=True,
-                )
-                audio_tensor = torch.from_numpy(data)
-                if channels_first:
-                    audio_tensor = audio_tensor.t()
-                return audio_tensor, sample_rate
-
-            torchaudio.load = _soundfile_load
-            logger.info("[Coqui] torchaudio.load patché → backend soundfile")
-        except Exception as e:
-            logger.warning(f"[Coqui] patch torchaudio impossible : {e}")

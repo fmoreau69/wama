@@ -935,10 +935,6 @@
       "kind": "library"
     },
     {
-      "key": "torchaudio",
-      "kind": "library"
-    },
-    {
       "key": "transformers",
       "kind": "library"
     }

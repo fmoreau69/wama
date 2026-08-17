@@ -25,14 +25,8 @@ class BlipBackend(BaseModelBackend):
     recommended_vram_gb = 1.8
     description = "BLIP — légende d'image locale (repli quand Ollama vision est indisponible)."
 
-    _singleton = None
-
-    @classmethod
-    def get(cls) -> "BlipBackend":
-        """Instance partagée du process (même sémantique que l'ancien cache de module)."""
-        if cls._singleton is None:
-            cls._singleton = cls()
-        return cls._singleton
+    # Singleton : via le `BackendManager` commun du paquet (`backends.get_blip()`) —
+    # pas de mécanisme maison ici.
 
     def __init__(self):
         self._processor = None

@@ -29,75 +29,12 @@ def _patch_torchaudio_compat() -> None:
     torchaudio 2.9 replaced load/save/info with TorchCodec (requires FFmpeg).
     deepfilternet also needs torchaudio.backend.common (removed in 2.0).
 
-    Apply soundfile-based shims for all three — called once at module import
-    so both ResembleEnhance and DeepFilterNet backends benefit.
+    BRIQUE COMMUNE depuis 2026-08-17 (`common/utils/torchaudio_compat.py`) — le corps
+    inline historique en était la source ; le service TTS (Coqui) portait une 2e copie.
+    Called once at module import so both ResembleEnhance and DeepFilterNet benefit.
     """
-    import sys
-    import types
-
-    try:
-        import torchaudio
-        from collections import namedtuple
-
-        # ── AudioMetaData ─────────────────────────────────────────────────
-        AudioMetaData = getattr(torchaudio, 'AudioMetaData', None)
-        if AudioMetaData is None:
-            AudioMetaData = namedtuple(
-                'AudioMetaData',
-                ['sample_rate', 'num_frames', 'num_channels', 'bits_per_sample', 'encoding']
-            )
-
-        # ── torchaudio.backend.common stub ────────────────────────────────
-        if 'torchaudio.backend.common' not in sys.modules:
-            backend_mod = types.ModuleType('torchaudio.backend')
-            common_mod = types.ModuleType('torchaudio.backend.common')
-            common_mod.AudioMetaData = AudioMetaData
-            sys.modules['torchaudio.backend'] = backend_mod
-            sys.modules['torchaudio.backend.common'] = common_mod
-            torchaudio.backend = backend_mod
-
-        import soundfile as sf
-        import torch as _torch
-
-        _AudioMetaData = AudioMetaData  # capture for closure
-
-        if not hasattr(torchaudio, 'info'):
-            def _info_shim(path, **kwargs):
-                with sf.SoundFile(path) as f:
-                    return _AudioMetaData(
-                        sample_rate=f.samplerate,
-                        num_frames=f.frames,
-                        num_channels=f.channels,
-                        bits_per_sample=16,
-                        encoding='PCM_S',
-                    )
-            torchaudio.info = _info_shim
-
-        # Always override load/save to bypass TorchCodec (needs FFmpeg)
-        def _load_shim(path, frame_offset=0, num_frames=-1, normalize=True,
-                       channels_first=True, format=None, buffer_size=4096,
-                       backend=None, **kwargs):
-            read_kwargs = dict(start=frame_offset, dtype='float32', always_2d=True)
-            if num_frames != -1:
-                read_kwargs['frames'] = num_frames
-            data, sr = sf.read(path, **read_kwargs)
-            t = _torch.from_numpy(data.T if channels_first else data)
-            return t, sr
-
-        def _save_shim(path, src, sample_rate, channels_first=True, **kwargs):
-            import numpy as np
-            arr = src.numpy() if not isinstance(src, np.ndarray) else src
-            if channels_first:
-                arr = arr.T  # [C, T] → [T, C]
-            sf.write(str(path), arr, sample_rate)
-
-        torchaudio.load = _load_shim
-        torchaudio.save = _save_shim
-
-        logger.debug("[audio_enhancer] torchaudio compat patch applied (soundfile shims)")
-
-    except Exception as e:
-        logger.warning("[audio_enhancer] torchaudio compat patch failed: %s", e)
+    from wama.common.utils.torchaudio_compat import patch_torchaudio_soundfile
+    patch_torchaudio_soundfile(stub_backend_common=True, patch_info=True, patch_save=True)
 
 
 # Apply at import time so both backends benefit

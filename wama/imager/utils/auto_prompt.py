@@ -28,7 +28,7 @@ def generate_prompt_from_image(image_path: str, style: str = 'detailed') -> str:
     try:
         # BLIP = backend sous contrat du describer (2026-08-17) — plus d'accès direct
         # au couple processor/model (l'ancien get_blip_model est remplacé).
-        from wama.describer.backends import BlipBackend
+        from wama.describer.backends import get_blip
         from PIL import Image
 
         # Load the image
@@ -43,7 +43,7 @@ def generate_prompt_from_image(image_path: str, style: str = 'detailed') -> str:
         else:  # detailed
             conditioning_text = "a detailed photograph of"
 
-        caption = BlipBackend.get().process(
+        caption = get_blip().process(
             image=image, prefix=conditioning_text,
             max_new_tokens=150, num_beams=5, repetition_penalty=1.2,
         )

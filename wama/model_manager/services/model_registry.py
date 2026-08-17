@@ -363,8 +363,8 @@ class ModelRegistry:
             # l'ancien état de module _blip_model n'existe plus)
             blip_loaded = False
             try:
-                from wama.describer.backends import BlipBackend
-                blip_loaded = BlipBackend.get().is_loaded
+                from wama.describer.backends import get_blip
+                blip_loaded = get_blip().is_loaded
             except Exception:
                 pass
 

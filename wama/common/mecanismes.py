@@ -316,8 +316,11 @@ MECANISMES = (
               "Purge automatique des sorties au-delà de la durée choisie par l'utilisateur (FileField découverts)",
               'wama/common/services/retention.py', 'PROFILES_PERMISSIONS.md'),
     Mecanisme('audio_decode', 'Décodage audio robuste',
-              "Décode l'audio là où torchcodec/torchaudio sont cassés (WSL) : soundfile + repli ffmpeg",
-              'wama/common/utils/audio_decode.py', ''),
+              "Décode l'audio là où torchcodec/torchaudio sont cassés (WSL) : soundfile + repli ffmpeg. "
+              "Annexe torchaudio_compat = l'autre forme du même problème : shims soundfile posés DANS "
+              "torchaudio pour les libs tierces qui l'appellent en interne (Coqui, DeepFilterNet)",
+              'wama/common/utils/audio_decode.py', '',
+              annexes=('wama/common/utils/torchaudio_compat.py',)),
     Mecanisme('media_probe', 'Sonde média',
               "Durée/codec/dimensions/pages d'un média pour les propriétés de card (via ffmpeg_utils)",
               'wama/common/utils/media_probe.py', ''),

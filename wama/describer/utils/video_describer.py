@@ -181,10 +181,10 @@ def describe_frames(frames: list, set_progress, console, user_id: int) -> list:
         return []
 
     try:
-        from wama.describer.backends import BlipBackend
+        from wama.describer.backends import get_blip
         from PIL import Image
 
-        blip = BlipBackend.get()
+        blip = get_blip()
         blip.load()
 
         descriptions = []

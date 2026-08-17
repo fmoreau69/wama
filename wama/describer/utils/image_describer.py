@@ -217,8 +217,8 @@ def describe_image(description, set_progress, set_partial, console):
             console(user_id, f"{msg}, utilisation de BLIP…")
             set_partial(description, "Chargement du modèle BLIP…")
 
-            from wama.describer.backends import BlipBackend
-            blip = BlipBackend.get()
+            from wama.describer.backends import get_blip
+            blip = get_blip()
             blip.load()
 
             set_progress(description, 50)
