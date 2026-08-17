@@ -406,20 +406,18 @@ class Anonymize(DetectionBackend):
 
         # Normalize classes to lowercase for case-insensitive matching
         classes2blur_lower = [c.lower() for c in self.classes2blur]
-        classes2blur_by_index = [i for i, name in enumerate(self.class_list) if name.lower() in classes2blur_lower]
-
-        # Debug: Show which classes will be detected
-        matched_classes = [name for name in self.class_list if name.lower() in classes2blur_lower]
-        unmatched_classes = [c for c in self.classes2blur if c.lower() not in [n.lower() for n in self.class_list]]
+        # Debug ALIAS-AWARE : l'ancien check comparait les libellés BRUTS ('plate' vs
+        # 'License_Plate') et hurlait « Blurring will not work » alors que l'appariement
+        # par MODÈLE (plus bas, _indices_classes) réussissait — fausse alerte qui a fait
+        # croire à un floutage à vide (constat Fabien, media 225, 2026-08-17).
+        classes2blur_by_index = self._indices_classes(self.class_list, self.classes2blur)
+        matched_classes = [self.class_list[i] for i in classes2blur_by_index]
 
         print(f'[Detection] Classes requested: {self.classes2blur}')
-        print(f'[Detection] Classes found in model: {matched_classes}')
-        if unmatched_classes:
-            print(f'[Detection] WARNING: Classes not in model (will be ignored): {unmatched_classes}')
-            print(f'[Detection] Available model classes: {self.class_list[:20]}...')  # Show first 20
-
+        print(f'[Detection] Classes found in model (alias compris): {matched_classes}')
         if not classes2blur_by_index:
-            print(f'[Detection] ERROR: No matching classes found! Blurring will not work.')
+            print(f"[Detection] NOTE: aucune classe commune avec le modèle PRINCIPAL "
+                  f"({self.class_list[:10]}…) — l'appariement PAR MODÈLE ci-dessous fait foi.")
 
         source = kwargs.get('media_path', self.input_path)
         imgsz = self.meta_data['size'][0] if 'size' in self.meta_data else self.meta_data['shape'][0]

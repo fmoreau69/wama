@@ -223,7 +223,11 @@ def process_single_media(self, media_id, force_individual=False):
         kwargs = {
             'media_path': get_input_media_path(media.file.name, user.id),
             'file_ext': media.file_ext,
-            'classes2blur': media.classes2blur if ms_custom else user_settings.classes2blur,
+            # Assaini : un vieux chemin de sauvegarde a injecté le BOOLÉEN sérialisé 'false'
+            # dans des listes de classes (médias 220/221/225 constatés le 2026-08-17) — une
+            # classe est un nom, jamais true/false/none/vide.
+            'classes2blur': _classes_saines(
+                media.classes2blur if ms_custom else user_settings.classes2blur),
             'blur_ratio': media.blur_ratio if ms_custom else user_settings.blur_ratio,
             'roi_enlargement': media.roi_enlargement if ms_custom else user_settings.roi_enlargement,
             'progressive_blur': media.progressive_blur if ms_custom else user_settings.progressive_blur,
@@ -682,6 +686,13 @@ def process_user_media_batch(self, user_id):
 # ----------------------------------------------------------------------
 # Helpers
 # ----------------------------------------------------------------------
+def _classes_saines(classes) -> list:
+    """Filtre les intrus non-classe d'une liste classes2blur ('false' booléen sérialisé par
+    un ancien chemin de sauvegarde — constat 2026-08-17). Une classe est un NOM."""
+    return [c for c in (classes or [])
+            if isinstance(c, str) and c.strip().lower() not in ('true', 'false', 'none', '')]
+
+
 def set_media_progress(media_id: int, percent: int) -> None:
     """Persist media progress in cache and DB (clamped 0..100)."""
     try:
