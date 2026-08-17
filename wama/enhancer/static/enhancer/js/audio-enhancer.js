@@ -18,24 +18,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // ── Right-panel settings visibility ──────────────────────────────────────
 
-  function getEngine() {
-    const el = document.getElementById('audioEngine');
-    return el ? el.value : 'resemble';
-  }
-
-  function updateResembleVisibility() {
-    const engine = getEngine();
-    const resembleOnly = document.querySelectorAll('.resemble-only');
-    resembleOnly.forEach(el => {
-      el.style.display = engine === 'resemble' ? '' : 'none';
-    });
-  }
-
-  const audioEngineSelect = document.getElementById('audioEngine');
-  if (audioEngineSelect) {
-    audioEngineSelect.addEventListener('change', updateResembleVisibility);
-    updateResembleVisibility();
-  }
+  // getEngine + updateResembleVisibility PURGÉES (2026-08-17) : la visibilité des réglages Resemble
+  // (.resemble-only) est pilotée par les CAPACITÉS du catalogue (caps.params) via la brique
+  // commune WamaModelCaps (init dans index.html) — plus de test d'id de moteur en dur.
 
   // Denoising strength display
   const strengthSlider = document.getElementById('audioDenoisingStrength');

@@ -1013,12 +1013,18 @@ def api_convert_and_backup(request):
 # =============================================================================
 
 @login_required
-@user_passes_test(is_admin_or_dev)
 @require_GET
 def api_models_db(request):
     """
     API: Get all models from database (fast).
     This replaces api_models_list for production use.
+
+    LECTURE ouverte à tout utilisateur AUTHENTIFIÉ (2026-08-17) : WamaModelHelp et
+    WamaModelCaps se nourrissent d'ici depuis les selects de TOUTES les apps — le gate
+    admin/dev rendait ces briques silencieusement INERTES pour un non-dev (302 avalé par
+    le fetch ; constat P2, ROUTE §11 #18 ; même décision d'ouverture que list_ai_models
+    côté tool_api). Les champs d'EXPLOITATION (local_path, extra_info, backend_ref)
+    restent réservés admin/dev ; toute action d'ÉCRITURE reste gardée (api_sync_models…).
     """
     from .models import AIModel
 
@@ -1053,10 +1059,15 @@ def api_models_db(request):
         residents = {}
 
     models = []
+    full = is_admin_or_dev(request.user)
     for model in queryset:
         data = model.to_dict()
         if not data.get('is_loaded') and model.model_key in residents:
             data['is_loaded'] = True
+        if not full:
+            # Expurgé hors admin/dev : chemins locaux et détails d'exploitation.
+            for k in ('local_path', 'extra_info', 'backend_ref'):
+                data.pop(k, None)
         models.append(data)
 
     # Log a sample for debugging

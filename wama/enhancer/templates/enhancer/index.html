@@ -413,6 +413,7 @@
 <script src="{% static_v 'common/js/wama-global-progress.js' %}"></script>
 <script src="{% static_v 'enhancer/js/audio-enhancer.js' %}"></script>
 <script src="{% static_v 'common/js/wama-modes.js' %}"></script>
+<script src="{% static_v 'common/js/wama-model-caps.js' %}"></script>  {# UI depuis les capacités-modèle (sections par moteur audio) #}
 <script src="{% static_v 'common/js/wama-input-match.js' %}"></script>  {# appariement card d'entrée ↔ modèles (INPUT_MODEL_MATCHING.md) #}
 <script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
 <link rel="stylesheet" href="{% static_v 'common/css/wama-params.css' %}">
@@ -490,6 +491,24 @@ document.addEventListener('DOMContentLoaded', function () {
         slots: { work_audio: { inputId: 'audio-enhancer-file' } },
         statusId: 'audioMatchStatus',
     });
+
+    // UI DEPUIS les capacités-modèle (brique commune wama-model-caps) : les réglages
+    // spécifiques Resemble (.resemble-only) s'affichent si le moteur déclare des `params`
+    // au CATALOGUE (caps.params = ['mode','strength','quality'] pour resemble, rien pour
+    // deepfilternet). REMPLACE le test hardcodé engine==='resemble' d'audio-enhancer.js.
+    if (window.WamaModelCaps) {
+        WamaModelCaps.init({
+            source: 'enhancer',
+            modelSelectId: 'audioEngine',
+            resolveKey: function (v) { return 'enhancer:' + v; },
+            sections: [
+                { selector: '.resemble-only',
+                  showWhen: function (caps) {
+                      return Array.isArray(caps.params) && caps.params.length > 0;
+                  } },
+            ],
+        });
+    }
 });
 </script>
 <script>

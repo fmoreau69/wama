@@ -82,6 +82,14 @@ def _couvertes(m, voulues: set) -> set:
     return {v for v in voulues if _formes(v) & dispo}
 
 
+def classes_couvertes(m, voulues) -> set:
+    """Accès PUBLIC à l'appariement d'alias : sous-ensemble de `voulues` (vocabulaire de
+    l'APPELANT) que le modèle `m` (AIModel) sait détecter. Exposé le 2026-08-17 pour la meta
+    UI de l'anonymizer (WamaModelCaps : griser les classes hors modèle) — l'appariement ne se
+    réimplémente JAMAIS côté consommateur (leçon couvrir_classes)."""
+    return _couvertes(m, set(voulues))
+
+
 #: La taille se lit sur un TOKEN, jamais sur une lettre perdue dans le nom (`'n' in nom` est
 #: vrai pour presque tout nom — mesuré le 2026-08-04, le critère devenait inerte et « Rapide »
 #: retenait un modèle `l`). Deux conventions coexistent au catalogue, toutes deux issues des

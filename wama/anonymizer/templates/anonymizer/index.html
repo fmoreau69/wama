@@ -351,6 +351,7 @@ window.WAMA_ANON = {
 <script src="{% static_v 'common/js/console.js' %}"></script>
 <script src="{% static_v 'common/js/wama-eta.js' %}"></script>
 <script src="{% static_v 'common/js/wama-params.js' %}"></script>
+<script src="{% static_v 'common/js/wama-model-caps.js' %}"></script>  {# UI depuis les capacités-modèle (classes par modèle) #}
 <script src="{% static_v 'common/js/wama-input-match.js' %}"></script>  {# appariement card d'entrée ↔ modèles (INPUT_MODEL_MATCHING.md) #}
 <script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
 <script src="{% static_v 'anonymizer/js/update.js' %}"></script>
@@ -390,6 +391,31 @@ if (window.WamaInputMatch) {
         inputLabels: {{ input_labels|safe }},
         slots: { work_file: { inputId: 'fileupload' } },
         statusId: 'inputMatchStatus',
+    });
+}
+
+// UI DEPUIS les capacités-modèle (brique commune wama-model-caps) : un modèle choisi grise
+// les checkboxes des classes qu'il ne DÉTECTE PAS (raison en title, jamais cachées).
+// L'appariement d'alias (vocabulaire checkboxes ≠ vocabulaire catalogue) est fait CÔTÉ
+// SERVEUR (meta class_coverage_meta, brique model_coverage) — pas de re-appariement JS.
+// Auto ('') → caps inconnues → tout réactivé.
+if (window.WamaModelCaps) {
+    WamaModelCaps.init({
+        source: 'anonymizer',
+        modelSelectId: 'user_setting_model_to_use',
+        resolveKey: function (v) {
+            if (!v) return '';  // Auto → pas de filtrage
+            return 'anonymizer:yolo:' + v.split('/').pop();
+        },
+        meta: {{ class_coverage_meta|safe }},
+        controls: [
+            { selector: '.classes2blur-checkbox',
+              disableWhen: function (caps, el) {
+                  return Array.isArray(caps.covered_classes)
+                         && caps.covered_classes.indexOf(el.value) === -1;
+              },
+              reason: 'Classe non détectée par le modèle choisi' },
+        ],
     });
 }
 </script>

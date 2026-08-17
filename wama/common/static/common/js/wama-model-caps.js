@@ -23,6 +23,17 @@
  *   });
  *
  * capabilities proviennent de api/models/db/?source=<source> (champ `capabilities`).
+ *
+ * Extensions déclaratives (2026-08-17, adoption ×3 — zéro cas d'app ici) :
+ *   meta:     {cléRésolue: capsDict} — capacités injectées CÔTÉ SERVEUR (vue), fusionnées
+ *             PAR-DESSUS celles du fetch (ex. anonymizer : couverture de classes calculée
+ *             par la brique d'alias Python — l'appariement ne se réinvente pas en JS).
+ *   controls: [{id|selector, disableWhen(caps, el), reason}] — DÉSACTIVE un contrôle
+ *             non-<select> (checkbox…) avec la raison en title ; jamais caché (doctrine
+ *             INPUT_MODEL_MATCHING : désactiver + expliquer). caps null → réactivé.
+ *   sections: [{selector, showWhen(caps)}] — affiche/masque un BLOC de réglages selon les
+ *             capacités (remplace les toggles hardcodés par moteur, ex. .resemble-only).
+ *             caps null → état laissé tel quel (dégradation douce).
  */
 (function (global) {
   'use strict';
@@ -33,8 +44,16 @@
     if (!sel) return null;
     const resolveKey = cfg.resolveKey || function (v) { return v; };
     const filters = cfg.filters || [];
+    const controls = cfg.controls || [];
+    const sections = cfg.sections || [];
     const base = cfg.url || '/model-manager/api/models/db/';
     let capsByKey = {};
+    // Meta serveur : disponible AVANT le fetch (filtrage initial sans réseau) puis
+    // fusionnée par-dessus les capacités du catalogue.
+    const metaByKey = cfg.meta || {};
+    Object.keys(metaByKey).forEach(function (k) {
+      capsByKey[k] = Object.assign({}, capsByKey[k], metaByKey[k]);
+    });
 
     function applyFilter(f, caps) {
       const target = document.getElementById(f.selectId);
@@ -55,12 +74,35 @@
       }
     }
 
+    function applyControl(c, caps) {
+      const els = c.selector ? document.querySelectorAll(c.selector)
+                             : [document.getElementById(c.id)].filter(Boolean);
+      els.forEach(function (el) {
+        const dis = !!caps && typeof c.disableWhen === 'function' && !!c.disableWhen(caps, el);
+        el.disabled = dis;
+        const host = el.closest('label, .form-check') || el;
+        host.classList.toggle('opacity-50', dis);
+        host.title = dis ? (c.reason || 'Non géré par ce modèle') : '';
+      });
+    }
+
+    function applySection(s, caps) {
+      if (!caps || typeof s.showWhen !== 'function') return;  // dégradation douce
+      const show = !!s.showWhen(caps);
+      document.querySelectorAll(s.selector).forEach(function (el) {
+        el.style.display = show ? '' : 'none';
+      });
+    }
+
     function render() {
       const caps = capsByKey[resolveKey(sel.value)] || null;
       filters.forEach(function (f) { applyFilter(f, caps); });
+      controls.forEach(function (c) { applyControl(c, caps); });
+      sections.forEach(function (s) { applySection(s, caps); });
     }
 
     sel.addEventListener('change', render);
+    render();  // 1er passage sur la meta serveur (sans attendre le réseau)
 
     // Charge les capacités du catalogue puis applique le filtrage initial.
     const url = base + '?source=' + encodeURIComponent(cfg.source);
@@ -68,7 +110,10 @@
       .then(function (r) { return r.json(); })
       .then(function (data) {
         (data.models || []).forEach(function (m) {
-          if (m.model_key) capsByKey[m.model_key] = m.capabilities || {};
+          if (m.model_key) {
+            capsByKey[m.model_key] = Object.assign(
+              {}, m.capabilities || {}, metaByKey[m.model_key] || {});
+          }
         });
         render();
       })

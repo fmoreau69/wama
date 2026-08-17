@@ -953,7 +953,29 @@ def get_context(request):
         # même contrat que model_help_meta (valeurs d'option `type/fichier` OU `fichier`).
         'input_match_meta': _input_match_meta(models_by_type),
         'input_labels': _input_labels(),
+        # Couverture de classes PAR MODÈLE (brique d'alias model_coverage, JSON) → meta
+        # WamaModelCaps : griser les checkboxes de classes hors modèle (jamais cachées).
+        'class_coverage_meta': _class_coverage_meta(),
     }
+
+
+def _class_coverage_meta():
+    """{model_key: {covered_classes: [ids d'app]}} — l'appariement d'alias est fait CÔTÉ
+    SERVEUR par la brique commune `classes_couvertes` (le vocabulaire du catalogue n'est pas
+    celui des checkboxes ; leçon couvrir_classes : ne jamais re-apparier en JS)."""
+    import json as _json
+    try:
+        from wama.common.services.model_coverage import classes_couvertes
+        from wama.model_manager.models import AIModel
+        from .utils.yolo_utils import get_all_class_choices
+        voulues = [c[0] for c in get_all_class_choices()]
+        meta = {}
+        for m in AIModel.objects.filter(source='anonymizer', is_proposed=False):
+            if (m.capabilities or {}).get('classes'):
+                meta[m.model_key] = {'covered_classes': sorted(classes_couvertes(m, voulues))}
+        return _json.dumps(meta)
+    except Exception:
+        return '{}'
 
 
 def _input_match_meta(models_by_type):

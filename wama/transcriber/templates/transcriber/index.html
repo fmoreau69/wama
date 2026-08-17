@@ -101,6 +101,7 @@
 <script src="{% static_v 'common/js/wama-eta.js' %}"></script>
 <script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
 <script src="{% static_v 'common/js/wama-model-help.js' %}"></script>
+<script src="{% static_v 'common/js/wama-model-caps.js' %}"></script>  {# UI depuis les capacités-modèle (diarisation par moteur) #}
 <script src="{% static_v 'common/js/wama-input-match.js' %}"></script>  {# appariement card d'entrée ↔ modèles (INPUT_MODEL_MATCHING.md) #}
 <script src="{% static_v 'common/js/wama-modes.js' %}"></script>
 <link rel="stylesheet" href="{% static_v 'common/css/wama-params.css' %}">
@@ -149,6 +150,28 @@
             inputLabels: {{ input_labels|default:"{}"|safe }},
             slots: { work_audio: { inputId: 'transcriber-file' } },
             statusId: 'inputMatchStatus',
+        });
+    }
+
+    // UI DEPUIS les capacités-modèle (brique commune wama-model-caps) : le toggle
+    // diarisation se DÉSACTIVE (avec raison, jamais caché) quand le moteur choisi ne
+    // diarise pas — supports_diarization du CATALOGUE (whisper seul). 'auto' → caps
+    // inconnues → contrôle réactivé (dégradation douce).
+    if (bs && window.WamaModelCaps) {
+        WamaModelCaps.init({
+            source: 'transcriber',
+            modelSelectId: 'backendSelect',
+            resolveKey: function (v) {
+                var m = { whisper: 'transcriber:whisper',
+                          vibevoice: 'transcriber:vibevoice-asr',
+                          qwen_asr: 'transcriber:qwen3-asr-0.6b' };
+                return m[v] || ('transcriber:' + v);
+            },
+            controls: [
+                { id: 'diarizationToggle',
+                  disableWhen: function (caps) { return caps.supports_diarization !== true; },
+                  reason: 'Diarisation non gérée par ce moteur (pyannote via Whisper seulement)' },
+            ],
         });
     }
 })();

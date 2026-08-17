@@ -2656,8 +2656,33 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > transcriber), during ×6 (GPU avec Fabien), params_modal_batch ×3 MESURÉ (composer,
 > describer, synthesizer — le « ×7 » de ROUTE §11 #2 est périmé).
 >
+> **SUITE (17/08 soir-2) : MODEL_CAPS ADOPTÉ où la MATIÈRE existe + source débloquée.**
+> ① **Précondition réglée** : `/model-manager/api/models/db/` (source fetch de WamaModelCaps)
+> était dev-only → la brique était INERTE pour tout non-dev, synthesizer compris (302 avalé).
+> Ouvert en LECTURE à tout AUTHENTIFIÉ, champs d'exploitation expurgés hors admin/dev
+> (local_path, extra_info, backend_ref) — même décision d'ouverture que list_ai_models ;
+> l'écriture reste gardée. Vérifié : user anonyme → 200 + caps, chemins absents.
+> ② **Brique étendue** (déclaratif, zéro cas d'app) : `meta` (caps injectées CÔTÉ SERVEUR,
+> fusionnées sur le fetch), `controls` (désactiver un contrôle non-select avec raison),
+> `sections` (blocs affichés selon caps). ③ Adoptions RÉELLES : **transcriber** (toggle
+> diarisation désactivé si `supports_diarization` ≠ true — whisper seul) → **100 % (70/70),
+> 2ᵉ app à 100** ; **anonymizer** (checkboxes de classes grisées hors couverture du modèle —
+> appariement d'alias fait CÔTÉ SERVEUR par `model_coverage.classes_couvertes()` public
+> ajouté, leçon couvrir_classes respectée : jamais re-apparié en JS) → 96 ; **enhancer**
+> (sections `.resemble-only` pilotées par `caps.params` du catalogue — REMPLACE le test
+> hardcodé `engine==='resemble'` d'audio-enhancer.js, purgé avec getEngine) → 97.
+> ④ **Restes model_caps_ui ×3 GATED PAR LA MATIÈRE** (composer, reader, imager) : leurs
+> modèles ne déclarent AUCUNE capacité différenciante (composer/reader : task/modalities/
+> inputs seulement ; imager : category ×1) — rien à filtrer sans inventer des faits.
+> Chantier = enrichir les capabilities à la SOURCE (découverte/model_config), pas câbler.
+> ⑤ Avatarizer : Fabien annonce de FUTURS modèles (animation image/corps) + avatars
+> interactifs type Praktika — le gate `_has_engine_select` étant MESURÉ, les critères
+> redeviendront applicables d'eux-mêmes au premier sélecteur ; prospection avatars
+> open-source lancée (agent, rapport à consigner).
+>
 > **🔚 POINT D'ENTRÉE SESSION SUIVANTE — ordre acté :** ① transverses portage (during ×6 —
-> GPU avec Fabien ; model_caps_ui ×6 ; params_modal_batch ×3) ; P2 audit API ✅ FAIT
+> GPU avec Fabien ; model_caps_ui ×3 = enrichir la MATIÈRE d'abord ; params_modal_batch ×3) ;
+> P2 audit API ✅ FAIT
 > (17/08 apm, ci-dessus — gating `/model-manager/api/` tranché, test contrat triades #8
 > toujours À CRÉER) ; ② phase R ×7 ; ③ couche API auto-instruite (projection manifestes —
 > P3 orchestration UI avec Speak pilote, P4 modèles écriture + librairies lecture ;
@@ -2666,8 +2691,8 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > ⚠ restart gunicorn+workers (2 outils tool_api + brique input_match + adoptions ×7).
 > **Contrôles attendus au prochain `/reprise`** : check_docs **2 CASSÉ** · doc_facts 4 à
 > jour · corpus **110** (depuis WSL2) · migrate --check OK · `TOOL_REGISTRY` = **48** ·
-> grille CLI : **converter 100 · avatarizer/describer/transcriber 98 · composer/reader/
-> synthesizer 97 · enhancer 96 · anonymizer 95 · imager 94** (page /apps/ = − les clés
+> grille CLI : **converter/transcriber 100 · avatarizer/describer 98 · composer/enhancer/
+> reader/synthesizer 97 · anonymizer 96 · imager 94** (page /apps/ = − les clés
 > déclarées-seulement, liste complétée : streaming ×10, inspector ×2, eta_batch,
 > cross_app_options, modes ×2, recursive_import composer).
 
