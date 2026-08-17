@@ -26,14 +26,21 @@
   var MIN_ELASTIC = 132;   // en deçà, une piste de texte n'affiche plus rien d'utile
   var SAFETY = 10;         // jeu absorbant l'élargissement des boutons au chargement des icônes
 
-  /** Largeur réellement occupée par les boutons d'une rangée d'actions, wrap ignoré. */
+  /** Largeur réellement occupée par les boutons d'une rangée d'actions, wrap ignoré.
+   *  TOUS les enfants directs comptent, pas seulement `.btn/.btn-group` : un bouton enveloppé
+   *  (ex. le ⬇ de l'anonymizer dans un <form> POST) échappait au sélecteur → piste trop
+   *  étroite d'un bouton → rangée sur 2 lignes (constat Fabien 18/08). Un enfant masqué
+   *  mesure 0 et ne fausse rien. */
   function actionsWidth(box) {
-    var kids = box.querySelectorAll(':scope > .btn, :scope > .btn-group');
+    var kids = box.children;
     if (!kids.length) return 0;
     var gap = parseFloat(getComputedStyle(box).columnGap) || 0;
-    var w = 0;
-    for (var i = 0; i < kids.length; i++) w += kids[i].getBoundingClientRect().width;
-    return w + gap * (kids.length - 1);
+    var w = 0, n = 0;
+    for (var i = 0; i < kids.length; i++) {
+      var kw = kids[i].getBoundingClientRect().width;
+      if (kw > 0) { w += kw; n++; }
+    }
+    return n ? w + gap * (n - 1) : 0;
   }
 
   /**

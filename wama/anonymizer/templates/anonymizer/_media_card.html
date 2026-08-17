@@ -125,5 +125,28 @@ Contexte : media (décoré par _decorate_card → media.chips), in_batch, user.
 
   </div>{# /.wcv3 #}
 
+  {% comment %}Preview PERMANENTE (§11, contrat famille — la card était la SEULE sans zone
+  preview, constat Fabien 18/08) : média anonymisé affiché en SUCCESS ; le placeholder reste
+  dans tous les cas (contrat JS des autres apps).{% endcomment %}
+  {% comment %}output_file = CharField (chemin RELATIF sous MEDIA), pas un FileField —
+  l'URL se construit avec get_media_prefix (le contexte de la card n'a pas media_url).{% endcomment %}
+  {% load static %}
+  {% if media.status == 'SUCCESS' and media.output_file %}
+  <div class="wcv3-preview" id="preview-row-{{ media.id }}">
+    {% if media.media_type == 'video' %}
+    <video class="w-100" controls preload="metadata" style="border-radius:6px;max-height:220px;">
+      <source src="{% get_media_prefix %}{{ media.output_file }}">
+    </video>
+    {% else %}
+    <img src="{% get_media_prefix %}{{ media.output_file }}" alt="Média anonymisé #{{ media.id }}"
+         class="preview-media-link" role="button" title="Aperçu"
+         data-preview-url="{% url 'common:unified_preview' 'anonymizer' media.id %}"
+         style="display:block;max-width:100%;max-height:220px;border-radius:6px;cursor:pointer;">
+    {% endif %}
+  </div>
+  {% else %}
+  <div id="preview-row-{{ media.id }}"></div>
+  {% endif %}
+
 </div>
 </div>
