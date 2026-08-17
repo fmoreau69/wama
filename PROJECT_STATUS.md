@@ -2612,6 +2612,11 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > media_library écriture ; précondition HTTPS = déploiement) ; réconciliation /apps/ ↔
 > grille ; prospection PLAQUES. PENDINGS : push = demander ; ⚠ restart gunicorn+workers
 > (2 nouveaux outils tool_api).
+> **Contrôles attendus au prochain `/reprise`** : check_docs **2 CASSÉ** · doc_facts 4 à
+> jour · corpus **110** (depuis WSL2) · migrate --check OK · `TOOL_REGISTRY` = **48** ·
+> grille CLI : converter 100, transcriber/composer 97, synthesizer/reader/describer 95,
+> avat/enh/imager 94, anonymizer 93 (page /apps/ 91–97 = + conventions déclarées, cf. SUITE
+> alignement).
 > **Contrôles attendus au prochain `/reprise`** : check_docs 2 CASSÉ · doc_facts 4 à jour ·
 > corpus 110 (depuis WSL2) · migrate --check OK · grille CLI : converter 100,
 > transcriber/**composer 97**, **synthesizer/reader/describer 95**, avat/enh/imager 94,
