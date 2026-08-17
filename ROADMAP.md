@@ -103,13 +103,15 @@
     anciens = venv CUDA séparés (Hallo2 figé CUDA 11.8 ; Ditto exige TensorRT).
   - **Lien N/A grille** : le gate `_has_engine_select` étant MESURÉ, l'ajout d'un sélecteur de
     modèles à l'avatarizer re-rendra automatiquement applicables model_help/input_match/model_caps.
-  - **✅ DÉCISION Fabien 17/08 (soir)** : pour le cas (b), **TalkingHead (met4citizen) ACTÉ** comme
-    voie du mode « avatar parlant » de l'AI-Assistant (rendu navigateur, zéro VRAM serveur, visèmes
-    FR, streaming branchable sur le TTS WAMA) ; LiveTalking reste l'option photoréaliste ultérieure.
-    Chantier à ouvrir : vendoriser three.js + TalkingHead (règle assets LOCAUX, pas de CDN), avatar
-    GLB « scientist » (Ready Player Me = service tiers, sinon Blender/VRoid), pont TTS→timestamps de
-    mots, toggle de mode dans l'UI assistant. Cas (a) : gate de test EchoMimicV3 (rituel GNM : venv
-    isolé, pin, mesures VRAM/latence/qualité) avant intégration avatarizer.
+  - **Arbitrage Fabien 17/08 (soir), précisé le 18/08** : pour le cas (b), **TalkingHead
+    (met4citizen) = PREMIÈRE voie à attaquer** (le moins conséquent : rendu navigateur, zéro VRAM
+    serveur, visèmes FR, streaming branchable sur le TTS WAMA) — **sans exclure les autres
+    candidats** (LiveTalking photoréaliste, composants OpenAvatarChat/LAM) qui restent au banc.
+    Pilote à ouvrir : vendoriser three.js + TalkingHead (règle assets LOCAUX, pas de CDN), avatar
+    GLB « scientist » (Ready Player Me = service tiers, sinon Blender/VRoid), pont TTS→audio+texte
+    (speakAudio, alignement approché acceptable au pilote), toggle de mode dans l'UI assistant —
+    ≈ une session dédiée. Cas (a) : gate de test EchoMimicV3 (rituel GNM : venv isolé, pin,
+    mesures VRAM/latence/qualité) avant intégration avatarizer.
 
 ---
 
@@ -266,6 +268,14 @@ Celery beat : 0 2 * * *
 
 > Décidé 2026-06-16. **Le catalogue est la source de vérité ; s'il ment, il trompe
 > l'utilisateur (page de gestion).** model_manager = cerveau/données ; common = glu.
+
+> **Restes repêchés du handoff `REPRISE_2026-08-04`** (archivé 2026-08-18, `docs/archive/`) —
+> jamais repris ailleurs : ① `_PLAFOND_TIER` (plafonds VRAM des tiers LLM) reste EN DUR dans
+> `common/utils/llm_utils.py`, calibré pour CE PC — à sortir en constantes/configuration ;
+> ② `vram_gb` des modèles Ollama devrait se lire depuis `ollama list` plutôt que `/api/show`
+> (budget faux) ; ③ motif **`select_progressif`** (répondre tout de suite avec un modèle léger
+> pendant que le meilleur se charge en parallèle — exige un microservice) : idée consignée dans
+> le seul handoff, jamais tracée comme chantier.
 
 ### Fiabilité de la découverte — « constater, ne jamais deviner » (FAIT)
 - **Bug whisper corrigé** : la détection devinait `faster-whisper-{model_id}` (=`...-large`)
@@ -952,7 +962,21 @@ Stack : `mcp` Python SDK (officiel Anthropic) + `uvicorn` SSE server (port dédi
 
 ## 9. cam_analyzer (wama_lab)
 
-### 9.1 Détection insertions aux intersections ✅
+### 9.0 Restes repêchés du handoff `REPRISE_2026-07-29` (archivé 2026-08-18, `docs/archive/`)
+
+> Pendings du handoff ortho/recalage qui n'étaient repris NULLE PART ailleurs (audit d'archivage
+> 18/08) — consignés ici avant archivage du fichier. Détail complet dans l'archive.
+
+- **2 contrôles UI de rayon** (rayon d'analyse / rayon d'intérêt) jamais créés.
+- **Indicateurs de passage d'intersection À CONFIRMER** : fenêtres 26-245 s vs 12,5-71,9 s
+  observées — croiser vitesse GPS, décider si `_det` se recalcule.
+- **Branche perpendiculaire IGN** : tâche par fenêtre + rendu + filtre `nature` + mappage
+  `nom=None` (`road_branches_at`).
+- **Calibrer `FULL_TRUST_MASK_DEG`** (12° provisoire jamais confronté au réel).
+- **Porter `ortho_correction` en `Binding.PURE`** ; **catégorie `SOURCE`** absente de
+  `FunctionCategory`.
+- **Rapport de sortie à revoir** ; **renommer** le profil `Intersections_yolo26s-segment` →
+  `Complet_…` ; **validation navigateur** du rendu correction + z-order `bringToBack`.
 
 ✅ Livré — état vivant : `PROJECT_STATUS.md §5` (Cam Analyzer). Détail archivé :
 `docs/archive/ROADMAP_ARCHIVE_2026-07-20.md`.

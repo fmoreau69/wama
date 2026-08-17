@@ -2740,6 +2740,32 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > GLB scientist, pont TTS→timestamps). Restes imager = les 2 transverses gated (model_caps
 > matière, during GPU).
 >
+> **SUITE (18/08) : ARCHIVAGE DES `REPRISE_*` RACINE (demande Fabien) — pendings repêchés
+> AVANT le mv.** Audit agent ×8 fichiers (pendings « non retrouvés ailleurs » confrontés à
+> STATUS/ROADMAP/mémoire). **Archivés → `docs/archive/`** : 07-29 (restes → ROADMAP §9.0),
+> 08-02 et 08-10_SAUVEGARDE (rien d'orphelin), 08-04 (restes → ROADMAP §5b), 08-05, 08-06_IMAGER,
+> 08-11. **GARDÉ à la racine : `REPRISE_2026-08-06.md`** (cam_analyzer volet droit — chantier
+> explicitement NON terminé : Palier B des bascules Vue, Q4 encart chiffré,
+> `compute_indicators_task` jamais lancée en réel, panneau calibration jamais exploré ; 6
+> référenceurs actifs). **Pendings repêchés ici** (détail dans les archives) :
+> — *08-05* : ① `Manifest` **non scopé à la LECTURE** (pas de ScopedManager, 2 sites non
+> filtrés ; code vs FK à trancher) ; ② wama-data : ⚠ ne PAS nommer un futur modèle « segment »
+> (3ᵉ collision) ; ③ `ModelType` mélange 3 axes — retirer upscaling/lipsync/ocr = re-typer
+> 12 modèles (non tracé) ; ④ modèles face_analyzer HORS registre (Gaze Detection en prod,
+> catalogue aveugle).
+> — *08-06_IMAGER* : ① `refreshCard` ne sait pas INSÉRER une card (d'où les
+> `location.reload()` post-création — geste à part entière) ; ② règle de maintenance « un champ
+> de schéma = 2 endroits » (`params.py` + `data-*` de `_generation_card.html`) jamais consignée ;
+> ③ WamaParams génère `id`+`data-param` sans `name` en panel → tout `[name=…]` d'app est
+> suspect, audit jamais fait ; ④ `[WamaPromptChips]` : `/media-library/api/keywords/` répond du
+> HTML (2 warnings/chargement) ; ⑤ arbitrage de ROUTE non tranché : « image/vidéo » = NATURE
+> (enhancer) vs DOMAINE (imager) — F2/F5 ; ⑥ parité `#resetOptions` image/vidéo à rétablir via
+> WamaParams ; ⑦ faux vert `user_settings` anonymizer/enhancer (modèle legacy) pas explicitement
+> re-mesuré. (Ses autres pendings sont SOLDÉS — dont url_ingest/backend_packages/settingsModal,
+> soldés 17-18/08.)
+> — *08-11* : worktree **`D:\WAMA\wt-regen-converter`** conservé et EN RETARD — à ff-merger ou
+> supprimer avant tout test destructif de régénération.
+>
 > **🔚 POINT D'ENTRÉE SESSION SUIVANTE — ordre acté :** ① transverses portage (during ×6 —
 > GPU avec Fabien ; model_caps_ui ×3 = enrichir la MATIÈRE d'abord — composer/reader/imager) ;
 > P2 audit API ✅ FAIT
@@ -3772,7 +3798,7 @@ publié — c'est le premier rendu qui a livré le faux 100, pas une dérive ult
 
 ## §REPRISE — 2026-08-11 : vérification imager + route §10.1 + brique help_about
 
-> **Handoff complet : [`REPRISE_2026-08-11.md`](REPRISE_2026-08-11.md)** — à lire EN PREMIER par
+> **Handoff complet : [`REPRISE_2026-08-11.md`](docs/archive/REPRISE_2026-08-11.md)** — à lire EN PREMIER par
 > la prochaine session. Résumé : faux vert `user_settings` imager réparé (écriture à la création,
 > modèle legacy retiré) ; purge index.js −60 % (« Démarrer tout » était inopérant) ; **§10.1 de la
 > route FAIT** (`GENERIC_APPS` dérive ses E/S des ports, `b91f875`) ; **brique help_about**
@@ -3816,7 +3842,7 @@ sur les transcripts, jamais en lisant l'allowlist** — c'est ce qui a fait rate
 > ⚠️ **Deux instances ont travaillé le 2026-08-10 sur des périmètres disjoints** — ne pas confondre
 > avec le §REPRISE « outillage / permissions » ci-dessus.
 >
-> **Handoff complet : [`REPRISE_2026-08-10_SAUVEGARDE.md`](REPRISE_2026-08-10_SAUVEGARDE.md)**
+> **Handoff complet : [`REPRISE_2026-08-10_SAUVEGARDE.md`](docs/archive/REPRISE_2026-08-10_SAUVEGARDE.md)**
 > — périmètre : `common/services/`, `model_manager/` (backup), `settings.py`, docs, skills.
 > **Aucun fichier d'app touché** : le portage peut reprendre sans rien reprendre d'ici.
 >
@@ -3837,7 +3863,7 @@ sur les transcripts, jamais en lisant l'allowlist** — c'est ce qui a fait rate
 > | Instance | Handoff | Périmètre |
 > |---|---|---|
 > | **cam_analyzer / volet droit** | [`REPRISE_2026-08-06.md`](REPRISE_2026-08-06.md) | `wama_lab/cam_analyzer/**` — chantier NON terminé (Q3/Q4 à valider avant de coder) |
-> | **imager / commun** | [`REPRISE_2026-08-06_IMAGER.md`](REPRISE_2026-08-06_IMAGER.md) | `wama/imager/**` + briques `common/` — **imager 55 % → 77 %** |
+> | **imager / commun** | [`REPRISE_2026-08-06_IMAGER.md`](docs/archive/REPRISE_2026-08-06_IMAGER.md) | `wama/imager/**` + briques `common/` — **imager 55 % → 77 %** |
 >
 > Côté imager, le point qui commande la suite : le **volet droit (256 lignes écrites à la main)**
 > doit adopter `common/utils/user_settings.py` — brique déjà utilisée par 5 apps portées, qui rend
@@ -3969,7 +3995,7 @@ sur les transcripts, jamais en lisant l'allowlist** — c'est ce qui a fait rate
 
 ## §REPRISE — handoff 2026-07-29
 
-> **Point de départ session neuve : [`REPRISE_2026-07-29.md`](REPRISE_2026-07-29.md)** — à lire EN
+> **Point de départ session neuve : [`REPRISE_2026-07-29.md`](docs/archive/REPRISE_2026-07-29.md)** — à lire EN
 > ENTIER avant de toucher au code (périmètre multi-instances, pièges, reste à faire priorisé).
 
 Première action au redémarrage : **bande de couverture sous la timeline du cam_analyzer**
@@ -3980,7 +4006,7 @@ Première action au redémarrage : **bande de couverture sous la timeline du cam
 
 ## §REPRISE — session 2026-08-04 (prospection, sélection par qualité, couverture)
 
-> **Handoff complet : [`REPRISE_2026-08-04.md`](REPRISE_2026-08-04.md)** — à lire en premier.
+> **Handoff complet : [`REPRISE_2026-08-04.md`](docs/archive/REPRISE_2026-08-04.md)** — à lire en premier.
 >
 > **Le piège de la session, à connaître avant tout** : après une modification Python touchant le
 > catalogue, **redémarrer les workers Celery**. Le Beat `model-manager-reconcile` (2 h) tournait
@@ -4257,7 +4283,7 @@ interdit (7 récidives) ; support ≠ adoption (script porté par la brique dés
 
 ## §REPRISE — 2026-08-05 : handoff catalogue/taxonomie
 
-> **Handoff complet : [`REPRISE_2026-08-05.md`](REPRISE_2026-08-05.md)** — 21 commits côté
+> **Handoff complet : [`REPRISE_2026-08-05.md`](docs/archive/REPRISE_2026-08-05.md)** — 21 commits côté
 > catalogue. À lire avant de reprendre le portage d'apps.
 >
 > **Le point qui commande la suite** : le portage de l'anonymizer est **REVERTÉ** (`2b1a961`) et

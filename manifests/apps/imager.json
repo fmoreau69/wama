@@ -8,7 +8,7 @@
       ]
     },
     "capabilities": {
-      "accepts_url": false,
+      "accepts_url": true,
       "anti_race": true,
       "batch_type": "media_list",
       "during_preview": false,
@@ -559,11 +559,15 @@
               ]
             ],
             "contexts": [
-              "panel"
+              "panel",
+              "item"
             ],
             "default": null,
-            "dom_id": "output_format",
-            "group": "",
+            "dom_id": {
+              "item": "settings_output_format",
+              "panel": "output_format"
+            },
+            "group": "sortie",
             "help": "",
             "help_fallback": null,
             "help_html": "",
@@ -605,11 +609,15 @@
               ]
             ],
             "contexts": [
-              "panel"
+              "panel",
+              "item"
             ],
             "default": null,
-            "dom_id": "output_quality",
-            "group": "",
+            "dom_id": {
+              "item": "settings_output_quality",
+              "panel": "output_quality"
+            },
+            "group": "sortie",
             "help": "",
             "help_fallback": null,
             "help_html": "",
@@ -993,11 +1001,15 @@
               ]
             ],
             "contexts": [
-              "panel"
+              "panel",
+              "item"
             ],
             "default": null,
-            "dom_id": "output_format",
-            "group": "",
+            "dom_id": {
+              "item": "video_settings_output_format",
+              "panel": "output_format"
+            },
+            "group": "sortie",
             "help": "",
             "help_fallback": null,
             "help_html": "",
@@ -1039,11 +1051,15 @@
               ]
             ],
             "contexts": [
-              "panel"
+              "panel",
+              "item"
             ],
             "default": null,
-            "dom_id": "output_quality",
-            "group": "",
+            "dom_id": {
+              "item": "video_settings_output_quality",
+              "panel": "output_quality"
+            },
+            "group": "sortie",
             "help": "",
             "help_fallback": null,
             "help_html": "",
@@ -1285,7 +1301,11 @@
           "view": "views.api_all_resolutions"
         }
       ],
-      "ingest": null,
+      "ingest": {
+        "mode": "media",
+        "source": "source_url",
+        "target": "reference_image"
+      },
       "item_model": "ImageGeneration",
       "model_spec": {
         "batch": {

@@ -256,7 +256,7 @@
               "item": "settingsOutputFormat",
               "panel": "output_format"
             },
-            "group": "",
+            "group": null,
             "help": "",
             "help_fallback": null,
             "help_html": "",
@@ -308,7 +308,7 @@
               "item": "settingsOutputQuality",
               "panel": "output_quality"
             },
-            "group": "",
+            "group": null,
             "help": "",
             "help_fallback": null,
             "help_html": "",
