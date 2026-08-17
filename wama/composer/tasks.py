@@ -47,6 +47,16 @@ def compose_task(self, generation_id: int):
         return
 
     user_id = gen.user_id
+
+    # Entrée URL déclarative (WAMA_INGEST du modèle) : télécharge source_url →
+    # melody_reference si la cible est vide. AVANT la résolution auto (la présence
+    # d'une mélodie peut orienter le choix du modèle).
+    try:
+        from wama.common.utils.source_ingest import ensure_local_input
+        ensure_local_input(gen, console=lambda m: _console(user_id, m))
+    except Exception as exc:
+        logger.warning(f"[Composer] ensure_local_input({generation_id}) : {exc}")
+
     if gen.model in ('auto-music', 'auto-sfx'):
         from wama.composer.utils.auto_model import resolve_auto_model
         gen.model = resolve_auto_model(gen)

@@ -169,6 +169,14 @@
                 formData.append('melody_reference', melodyInput.files[0]);
             }
 
+            // Mélodie par URL (slot url de la card, champ SANS bouton d'import) : partie du
+            // payload — téléchargée AU LANCEMENT par ensure_local_input (WAMA_INGEST).
+            // Un fichier local joint prime sur l'URL.
+            const melodyUrl = document.getElementById('melodyUrlInput');
+            if (melodyUrl?.value.trim() && !melodyInput?.files[0]) {
+                formData.append('source_url', melodyUrl.value.trim());
+            }
+
             generateBtn.disabled = true;
             generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Envoi…';
 

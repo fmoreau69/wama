@@ -37,6 +37,17 @@ class ComposerGeneration(ProcessingTimeMixin, ScopedVisibility):
         blank=True, null=True,
     )
 
+    # Ingest média déclaratif commun (source_ingest.ensure_local_input, appelé en tête de
+    # tâche) : URL de MÉLODIE de référence (YouTube/lien audio) → téléchargée vers
+    # melody_reference AU LANCEMENT. Un fichier local déjà joint prime (ensure_local_input
+    # ne télécharge que si la cible est vide).
+    WAMA_INGEST = {
+        'source': 'source_url',
+        'target': 'melody_reference',
+        'mode': 'audio',
+    }
+    source_url = models.CharField(max_length=1000, blank=True, default='')
+
     # Output
     audio_output = models.FileField(
         upload_to=upload_to_user_output('composer'),

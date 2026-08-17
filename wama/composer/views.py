@@ -212,6 +212,8 @@ def generate(request):
         duration=duration,
         output_format=request.POST.get('output_format') or last['output_format'],
         output_quality=request.POST.get('output_quality') or last['output_quality'],
+        # Mélodie par URL (WAMA_INGEST) : téléchargée en tête de tâche par ensure_local_input.
+        source_url=request.POST.get('source_url', '').strip(),
     )
 
     # Re-persiste les choix comme défauts de la prochaine génération.

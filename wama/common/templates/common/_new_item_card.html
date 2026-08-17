@@ -122,9 +122,14 @@ inclure le script → card repliée MORTE (support ≠ adoption). Auto-init + ga
                     <span class="input-group-text bg-dark border-secondary {{ url_icon_class|default:'text-info' }} px-2"><i class="{{ url_icon|default:'fas fa-link' }}"></i></span>
                     <input type="text" class="form-control bg-dark text-white border-secondary"
                            id="{{ url_input_id }}" placeholder="{{ url_placeholder }}">
+                    {% if url_submit_id %}
+                    {# Bouton d'import IMMÉDIAT — optionnel : une app dont l'URL fait partie du
+                       payload de création (composer : mélodie téléchargée AU LANCEMENT par
+                       ensure_local_input) fournit le champ SANS bouton. #}
                     <button class="btn btn-danger" type="button" id="{{ url_submit_id }}" title="Importer depuis l'URL">
                         <i class="fas fa-download"></i>
                     </button>
+                    {% endif %}
                 </div>
                 {% if url_hint %}<small class="text-muted d-block mt-1">{{ url_hint }}</small>{% endif %}
             </div>
