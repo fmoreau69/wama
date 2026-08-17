@@ -323,17 +323,15 @@
             document.getElementById('batchSettingsBatchId').value = bid;
             const lbl = document.getElementById('batchSettingsBatchLabel');
             if (lbl) lbl.textContent = '#' + bid;
-            const set = (elId, val) => {
-                const el = document.getElementById(elId);
-                if (el && val != null && val !== '') {
-                    el.value = val;
-                    el.dispatchEvent(new Event('input'));   // sync .wama-range-val (champ généré)
-                }
-            };
-            set('batchSettingsModel', fd.model || 'auto-music');
-            set('batchSettingsDuration', fd.duration || 10);
-            set('batchSettingsOutputFormat', fd.outputFormat);
-            set('batchSettingsOutputQuality', fd.outputQuality);
+            // Valeurs posées par la brique (WamaParams.apply : re-sync des sliders inclus —
+            // pas de setter maison, route unique).
+            const bhost = document.getElementById('composerBatchParams');
+            if (window.WamaParams && bhost) {
+                const vals = { model: fd.model || 'auto-music', duration: fd.duration || 10 };
+                if (fd.outputFormat) vals.output_format = fd.outputFormat;
+                if (fd.outputQuality) vals.output_quality = fd.outputQuality;
+                WamaParams.apply(bhost, vals);   // une clé absente n'écrase pas le champ
+            }
             new bootstrap.Modal(document.getElementById('batchSettingsModal')).show();
             return;
         }
@@ -581,6 +579,9 @@
                     const data = await r.json().catch(() => ({}));
                     if (card && data.status) card.dataset.status = data.status;
                 } catch (e) {}
+                // Re-rendu SERVEUR : sans lui la card restait « en cours » si aucun poller
+                // n'était actif (même défaut que l'avatarizer, corrigé en famille — 17/08).
+                insertRenderedCard(id);
             },
         });
         WamaCycleButton.autoSync({ container: q, cardSelector: '.generation-card' });

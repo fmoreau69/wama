@@ -23,6 +23,7 @@ from .models import ReadingItem, BatchReadingItem, BatchReadingItemLink
 from .tasks import read_document_task, _count_pdf_pages, _extract_natural_text
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.console_utils import get_console_lines
+from wama.common.utils.input_match import input_labels as _input_labels
 from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance
 
 logger = logging.getLogger(__name__)
@@ -228,12 +229,6 @@ def _input_match_meta():
     if meta:
         meta['auto'] = auto_entry(meta)
     return meta
-
-
-def _input_labels():
-    """Libellés d'INPUT_TYPES — brique commune (extraction 2026-08-17)."""
-    from wama.common.utils.input_match import input_labels
-    return input_labels()
 
 
 class IndexView(View):

@@ -178,6 +178,13 @@
 }
 .wcv3-preview[data-action="expand"] { cursor: pointer; }
 
+/* Préviz MÉDIA (img/vidéo/audio) : le plafond 80px ci-dessus est le contrat des préviz TEXTE
+   (repli expandPreview) — appliqué aux médias il TRONQUAIT l'aperçu (vidéo carrée avatarizer
+   clippée au 1/3 haut, constat Fabien 17/08 ; imager/enhancer pareils). Le conteneur ne
+   clippe plus ; chaque média garde sa PROPRE borne de hauteur (max-height inline/app) et se
+   letterboxe entier (object-fit contain par défaut des <video>) — valable ligne ET mosaïque. */
+.wcv3-preview:has(img, video, audio) { max-height: none; }
+
 /* État « rien encore produit » : récapitulatif de ce qui sortira, en retrait typographique. */
 .wcv3-preview--blueprint { color: #868e96; font-style: italic; }
 

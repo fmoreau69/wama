@@ -142,8 +142,11 @@ def _filename_from_response(url, response):
             if name:
                 return name
 
-    # 2) basename de l'URL
-    name = os.path.basename(urlparse(url).path)
+    # 2) basename de l'URL — DÉCODÉ (unquote AVANT basename : un %2F redevient '/' et
+    # tombe au basename). Sans ça, un lien type Wikipédia enregistrait le fichier avec
+    # ses %C3%A9 dans le NOM, que l'inspecteur affichait tel quel (constat Fabien 17/08 —
+    # « Au_th%C3%A9%C3%A2tre_… ») ; les items déjà ingérés gardent leur ancien nom.
+    name = os.path.basename(unquote(urlparse(url).path))
 
     # 3) extension déduite du Content-Type si le nom n'en a pas
     if not os.path.splitext(name)[1]:

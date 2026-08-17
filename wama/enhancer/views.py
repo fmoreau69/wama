@@ -4,6 +4,7 @@ import zipfile
 import logging
 from django.shortcuts import render, get_object_or_404
 from wama.accounts.permissions import app_access
+from wama.common.utils.input_match import input_labels as _input_labels
 from django.views import View
 from django.http import JsonResponse, FileResponse, HttpResponseBadRequest
 from django.contrib.auth.decorators import login_required
@@ -172,12 +173,6 @@ def _input_match_meta_enhancer():
         return mid[:-5] if mid.endswith('_fp16') else mid
 
     return input_match_meta('enhancer', key=_key)
-
-
-def _input_labels():
-    """Libellés d'INPUT_TYPES — brique commune (extraction 2026-08-17)."""
-    from wama.common.utils.input_match import input_labels
-    return input_labels()
 
 
 class IndexView(View):

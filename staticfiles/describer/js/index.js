@@ -263,36 +263,30 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('batchSettingsBatchId').value = bid;
         const lbl = document.getElementById('batchSettingsBatchLabel');
         if (lbl) lbl.textContent = '#' + bid;
-        // Défauts lus sur la 1re card FILLE — champs générés (dispatch input/change → affichage).
+        // Défauts lus sur la 1re card FILLE, posés par la brique (WamaParams.apply : coercition
+        // checkbox + re-sync des sliders — pas de _set maison, route unique).
         const group = btn.closest('.batch-group');
         const first = group ? group.querySelector('.settings-btn') : null;
         const fd = first ? first.dataset : {};
-        const _set = function (elId, val) {
-            const el = document.getElementById(elId);
-            if (!el || val == null || val === '') return;
-            el.value = val;
-            el.dispatchEvent(new Event('input', { bubbles: true }));
-            el.dispatchEvent(new Event('change', { bubbles: true }));
-        };
-        _set('batchSettingsOutputStyle', fd.outputStyle);
-        _set('batchSettingsOutputLanguage', fd.outputLanguage);
-        _set('batchSettingsMaxLength', fd.maxLength);
-        const gs = document.getElementById('batchSettingsGenerateSummary');
-        if (gs) gs.checked = fd.generateSummary === 'true';
-        const vc = document.getElementById('batchSettingsVerifyCoherence');
-        if (vc) vc.checked = fd.verifyCoherence === 'true';
+        const host = document.getElementById('describerBatchParams');
+        if (window.WamaParams && host) {
+            const vals = {};
+            if (fd.outputStyle) vals.output_style = fd.outputStyle;
+            if (fd.outputLanguage) vals.output_language = fd.outputLanguage;
+            if (fd.maxLength) vals.max_length = fd.maxLength;
+            if (fd.generateSummary != null) vals.generate_summary = fd.generateSummary;
+            if (fd.verifyCoherence != null) vals.verify_coherence = fd.verifyCoherence;
+            WamaParams.apply(host, vals);   // une clé absente n'écrase pas le champ
+        }
         new bootstrap.Modal(modalEl).show();
     }
 
     async function saveBatchSettings(startAfterSave) {
         const bid = document.getElementById('batchSettingsBatchId').value;
-        const payload = {
-            output_style: document.getElementById('batchSettingsOutputStyle')?.value,
-            output_language: document.getElementById('batchSettingsOutputLanguage')?.value,
-            max_length: parseInt(document.getElementById('batchSettingsMaxLength')?.value),
-            generate_summary: document.getElementById('batchSettingsGenerateSummary')?.checked || false,
-            verify_coherence: document.getElementById('batchSettingsVerifyCoherence')?.checked || false,
-        };
+        // Lecture GÉNÉRIQUE (WamaParams.read) : un param ajouté au schéma en contexte batch est
+        // posté sans toucher ce code (_apply_description_options coerce int/bool côté serveur).
+        const host = document.getElementById('describerBatchParams');
+        const payload = (window.WamaParams && host) ? WamaParams.read(host) : {};
         try {
             await fetch(config.urls.batchUpdate.replace('/0/', `/${bid}/`), {
                 method: 'POST',

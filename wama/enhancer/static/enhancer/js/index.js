@@ -322,6 +322,9 @@ document.addEventListener('DOMContentLoaded', function () {
         const card = queueTable ? queueTable.querySelector(`[data-id="${id}"]`) : null;
         if (card && data.status) card.dataset.status = data.status;
         stopPolling(id);
+        // Re-rendu SERVEUR : sans lui la card restait visuellement « en cours » jusqu'au F5
+        // (même défaut que l'avatarizer, corrigé en famille — constat Fabien 17/08).
+        refreshCard(id);
       })
       .catch(() => {});
   }

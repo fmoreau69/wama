@@ -478,6 +478,9 @@ document.addEventListener('DOMContentLoaded', function () {
       const card = document.querySelector(`#audio-enhancer-queue [data-id="${id}"]`);
       if (card && data.status) card.dataset.status = data.status;
     } catch (e) { /* non-fatal */ }
+    // Re-rendu SERVEUR : sans lui la card restait visuellement « en cours » jusqu'au F5
+    // (même défaut que l'avatarizer, corrigé en famille — constat Fabien 17/08).
+    refreshAudioCard(id);
   }
 
   // Bouton de cycle commun ▶/⏹/↻ (audio) : wire délégué + auto-sync sur data-status.

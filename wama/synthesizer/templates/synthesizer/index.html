@@ -647,13 +647,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     async function saveBatchSettings(andStart) {
         const batchId = document.getElementById('batchSettingsBatchId').value;
-        const payload = {
-            tts_model: document.getElementById('batchSettingsTtsModel').value,
-            language: document.getElementById('batchSettingsLanguage').value,
-            voice_preset: document.getElementById('batchSettingsVoicePreset').value,
-            speed: parseFloat(document.getElementById('batchSettingsSpeed').value),
-            pitch: parseFloat(document.getElementById('batchSettingsPitch').value),
-        };
+        // Lecture GÉNÉRIQUE des champs générés (WamaParams.read — route unique, cf. composer) :
+        // un param ajouté au schéma en contexte batch est posté sans toucher ce code
+        // (batch_update_settings coerce float(speed/pitch) côté serveur).
+        const host = document.getElementById('synthBatchParams');
+        const payload = (window.WamaParams && host) ? WamaParams.read(host) : {};
         try {
             const r = await fetch(URLS.batchSettings + batchId + '/settings/', {
                 method: 'POST',

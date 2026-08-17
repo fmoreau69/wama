@@ -126,14 +126,19 @@
 /* ── Card v2 « synthétique » (CARD_DESIGN §10, pilote Reader 2026-07-06) ─────────────── */
 /* Chips méta — générés depuis PARAMS_JSON (chip=True), jamais écrits à la main par app. */
 .wama-chip {
-  display: inline-flex; align-items: center; gap: .3rem;
+  /* inline-block (et non inline-flex) : text-overflow ne s'applique pas au contenu
+     anonyme d'un conteneur flex — une chip à valeur longue (nom de fichier, texte TTS)
+     débordait du volet avec un scroll horizontal (constat Fabien 17/08). Bornée +
+     ellipsée ; le texte complet reste dans le title (déjà posé par les gabarits). */
+  display: inline-block; vertical-align: middle;
   padding: .05rem .5rem; border-radius: 999px;
   font-size: .68rem; line-height: 1.5;
   color: #9ec5d4; background: rgba(13, 202, 240, .08);
   border: 1px solid rgba(13, 202, 240, .25);
   white-space: nowrap;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis;
 }
-.wama-chip i { font-size: .6rem; opacity: .8; }
+.wama-chip i { font-size: .6rem; opacity: .8; margin-right: .3rem; }
 /* Variante « format cible → » (converter/composer : la SORTIE attendue) */
 .wama-chip--target {
   color: #ffd479; background: rgba(255, 193, 7, .08); border-color: rgba(255, 193, 7, .3);

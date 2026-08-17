@@ -2695,6 +2695,32 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > + titre échangé REMPLACÉS (modale dédiée, 5 champs, Appliquer / Appliquer et lancer).
 > Smokes test-client verts ×3. ⚠ restart requis (params.py ×3 modifiés).
 >
+> **SUITE (17/08 nuit) : 4 ANOMALIES UX (constats Fabien, avatarizer) + AUDIT ANTI-RÉINVENTION
+> DE LA SESSION.** ① **Stop sans re-rendu = bug de FAMILLE** : la card restait « en cours »
+> jusqu'au F5 (le stop posait `dataset.status` et coupait le poller — plus aucune transition
+> pour re-rendre). Corrigé partout où il existait : avatarizer (`refreshCard`), **enhancer ×2**
+> (média + audio, même motif), composer (`insertRenderedCard`, poller pas toujours actif) ;
+> transcriber/describer/anonymizer rafraîchissaient déjà, synthesizer recharge. La
+> réconciliation des RUNNING zombies, elle, est saine (preuve positive de mort — le ⏹ manuel
+> est l'échappatoire prévue). ② **Préviz média tronquée au 1/3** : le plafond
+> `.wcv3-preview{max-height:80px}` (contrat TEXTE du pilote reader v3, 01/08) clippait tout
+> média (avatarizer, imager, enhancer) → règle commune `:has(img,video,audio) → max-height:
+> none`, chaque média garde sa borne et se letterboxe (ligne ET mosaïque). ③ **Noms
+> `%C3%A9…`** : double étage — l'ingest URL n'`unquote` pas le basename d'URL
+> (`_filename_from_response` étape 2, corrigé À LA SOURCE ; les items déjà ingérés gardent
+> leur nom) ET l'inspecteur affichait le basename de l'URL média (percent-encodée même pour
+> un fichier bien nommé) → `_basename()` décodé au rendu (le href garde l'URL). ④ **Chip
+> longue** : `.wama-chip` passait sans borne (`nowrap`) → `inline-block + max-width +
+> ellipsis` (le title complet existait déjà). ⑤ **AUDIT** : briques de la session conformes
+> (extraction sur duplication avérée, accesseurs jamais déduits, alias côté serveur) ; MES
+> écarts attrapés et corrigés — sauvegardes/population batch par ids → **`WamaParams.read`/
+> `apply` partout** (describer, composer, synthesizer ; `apply` re-sync les sliders), 3
+> wrappers `_input_labels` identiques → alias d'import. ⚠ Variances PRÉ-EXISTANTES signalées,
+> non touchées : reader.js + transcriber peuplent/lisent leur modale batch PAR IDS
+> (antérieur aux helpers `apply`/`read` — le « contrat reader » historique) ; doublon
+> `ENGLISH_ONLY_MODELS` (template synthesizer) vs `checkLangCompat` (index.js). À porter
+> avec la phase R.
+>
 > **🔚 POINT D'ENTRÉE SESSION SUIVANTE — ordre acté :** ① transverses portage (during ×6 —
 > GPU avec Fabien ; model_caps_ui ×3 = enrichir la MATIÈRE d'abord — composer/reader/imager) ;
 > P2 audit API ✅ FAIT

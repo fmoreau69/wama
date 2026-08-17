@@ -392,6 +392,10 @@
             if (card && data.status) card.dataset.status = data.status;
         } catch (e) { /* non-fatal */ }
         if (activePollers[jobId]) { clearInterval(activePollers[jobId]); delete activePollers[jobId]; }
+        // Re-rendu SERVEUR de la card (badge/boutons/barre) — sans lui, l'état visuel restait
+        // « en cours » jusqu'à un F5 (constat Fabien 17/08) : le poller étant coupé juste
+        // au-dessus, aucune transition ne pouvait plus re-rendre la card.
+        refreshCard(jobId);
     }
 
     // Bouton de cycle commun ▶/⏹/↻ : wire (start/restart→startJob+poll, stop→stopJob) + auto-sync.

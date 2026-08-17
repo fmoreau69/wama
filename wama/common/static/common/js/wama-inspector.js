@@ -165,6 +165,13 @@
     processing_time_display: { label: 'Temps de traitement', icon: 'fa-stopwatch' },
   };
   var DETAIL_ORDER = ['source_duration_display', 'engine', 'engine_effective', 'output_format', 'output_quality', 'processing_time_display'];
+  // Basename LISIBLE d'un chemin/URL : l'URL média percent-encode les accents (%C3%A9…) —
+  // on décode pour l'AFFICHAGE (constat Fabien 17/08, « Au_th%C3%A9%C3%A2tre_… ») ; le lien
+  // href, lui, garde l'URL encodée. Fallback brut si séquence invalide.
+  function _basename(p) {
+    var n = String(p).split('/').pop();
+    try { return decodeURIComponent(n); } catch (e) { return n; }
+  }
   function _detailChip(icon, value, label) {
     // Inspecteur = vue détaillée : le LABEL est VISIBLE (contrairement aux chips de card, denses).
     var lbl = label ? '<span class="opacity-75">' + escapeHtml(label) + '</span> ' : '';
@@ -182,14 +189,14 @@
     head += '</div>';
     var srcLine = '';
     if (d.source_file) {
-      var fn = String(d.source_file).split('/').pop();
+      var fn = _basename(d.source_file);
       srcLine = '<div class="small text-truncate mb-1" title="' + escapeHtml(d.source_file) + '"><i class="fas fa-file text-info"></i> ' + escapeHtml(fn) + '</div>';
     }
     var chips = [];
     DETAIL_ORDER.forEach(function (k) { if (d[k]) { var m = DETAIL_META[k]; chips.push(_detailChip(m.icon, d[k], m.label)); } });
     if (d.source_properties) chips.push(_detailChip(d.source_properties_icon || 'fa-circle-info', d.source_properties, 'Propriétés'));
     if (d.extra) Object.keys(d.extra).forEach(function (lbl) { chips.push(_detailChip('fa-sliders', d.extra[lbl], lbl)); });
-    if (d.result_file) { var rf = String(d.result_file).split('/').pop(); chips.push('<a class="wama-chip" href="' + d.result_file + '" title="Résultat"><i class="fas fa-download"></i> ' + escapeHtml(rf) + '</a>'); }
+    if (d.result_file) { var rf = _basename(d.result_file); chips.push('<a class="wama-chip" href="' + d.result_file + '" title="Résultat"><i class="fas fa-download"></i> ' + escapeHtml(rf) + '</a>'); }
     var chipsHtml = chips.length ? '<div class="d-flex flex-wrap gap-1">' + chips.join('') + '</div>' : '';
     var errHtml = d.error_message ? '<div class="small text-danger mt-1"><i class="fas fa-triangle-exclamation"></i> ' + escapeHtml(d.error_message) + '</div>' : '';
     return head + srcLine + chipsHtml + errHtml;
