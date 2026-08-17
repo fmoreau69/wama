@@ -2529,18 +2529,29 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > Restants des 3 apps = UNIQUEMENT du transverse (input_match/model_caps/params_modal_batch/
 > during) + `url_ingest` composer (décision Fabien).
 >
+> **SUITE (17/08) : `url_ingest` composer IMPLÉMENTÉ (validé Fabien) — composer 97 %.**
+> Mélodie de référence par URL/YouTube : `source_url` + `WAMA_INGEST` (target
+> `melody_reference`, mode audio) sur le modèle (migration composer.0007, appliquée base
+> unique WSL2 — ⚠ gitignorée, à rejouer ailleurs), téléchargement AU LANCEMENT par
+> `ensure_local_input` en tête de `compose_task` (AVANT la résolution auto — la mélodie peut
+> orienter le choix du modèle ; fichier local joint PRIME sur l'URL), slot URL de la card
+> commune SANS bouton d'import (amélioration rétro-compatible de `_new_item_card` : bouton
+> rendu seulement si `url_submit_id` fourni — ici l'URL fait partie du payload Générer).
+>
 > **🔚 POINT D'ENTRÉE SESSION SUIVANTE** — ① during ×6 (GPU, avec Fabien) ;
-> ② ~~paquet synthesizer~~ ③ ~~finitions app-locales~~ **FAITS** ; restent : composer
-> `url_ingest` (mélodie par URL = champ modèle + migration, DÉCISION Fabien avant de coder) ;
-> chantiers transverses (during ×6, input_match/model_caps ×8-9, params_modal_batch) ;
-> ④ phase R régénérabilité ×7. **Backlog qualité : prospection détecteur de PLAQUES**
-> (validation GPU SEQ08-01 : plaque lisible ratée en début de séquence).
+> ② ~~paquet synthesizer~~ ③ ~~finitions app-locales~~ ~~url_ingest composer~~ **FAITS** ;
+> restent : chantiers transverses (during ×6, input_match/model_caps ×8-9,
+> params_modal_batch ×7) ; ④ phase R régénérabilité ×7. **Backlog qualité : prospection
+> détecteur de PLAQUES** (validation GPU SEQ08-01 : plaque lisible ratée en début de séquence).
 > PENDINGS : ⚠ restart service TTS par Fabien (préchargement = GPU) ; ⚠ restart
-> workers+gunicorn (fixes 14/08 + BLIP backend/user_settings du 17/08 — les WORKERS portent
-> image/video_describer et auto_prompt) ; push = demander.
+> workers+gunicorn (fixes 14/08 + 17/08 : BLIP backend, user_settings, url_ingest — les
+> WORKERS portent image/video_describer, auto_prompt et compose_task) ; ⚠ **validation
+> navigateur du lot 17/08 après restart** (aide moteur reader, slot URL composer, médiathèque
+> reader) ; push = demander.
 > **Contrôles attendus au prochain `/reprise`** : check_docs 2 CASSÉ · doc_facts 4 à jour ·
-> corpus 110 (depuis WSL2) · grille : converter 100, transcriber 97,
-> **synthesizer/composer/reader/describer 95**, avat/enh/imager 94, anonymizer 93.
+> corpus 110 (depuis WSL2) · migrate --check OK · grille : converter 100,
+> transcriber/**composer 97**, **synthesizer/reader/describer 95**, avat/enh/imager 94,
+> anonymizer 93.
 
 ## §REPRISE — 2026-08-13 (nuit) : BANC CODEGEN JOUÉ (marche B front 2) + skills à jour
 
