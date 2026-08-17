@@ -2513,21 +2513,34 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > `model_help` → **N/A gaté** (aucun sélecteur de moteur : le modèle vision est choisi
 > automatiquement ; gate = PARAMS_JSON importé + garde-fou textuel).
 >
+> **SUITE (17/08) : ③ APP-LOCAL SOLDÉ — composer/reader/describer à 95 %.**
+> ① `user_settings` composer+reader ADOPTÉ (pattern converter « POST prime, sinon dernier
+> utilisé, re-persisté après création » ; clés = noms de params.py ; ⚠ `language` reader :
+> `''` posté = auto-détection VOULUE → test de présence, pas `or`). ② **BLIP = backend sous
+> contrat** (`describer/backends/blip_backend.py`) — REMPLACE le cache de module
+> `_blip_processor/_blip_model` + l'unloader explicite d'apps.py ; `REQUIRED_PACKAGES`
+> déclarés (PIL↔pillow), gouverneur alimenté, `process()` neutre (la politique de style
+> reste chez l'appelant). ⚠ le grep de chaînage a attrapé DEUX consommateurs externes qui
+> auraient cassé en silence : `imager/utils/auto_prompt.py` (get_blip_model) et
+> `model_registry._discover_describer_models` (lisait `_blip_model` — l'import aurait
+> échoué → faux « non chargé ») — rebranchés. Au passage l'ancien vert `backend_contract`
+> describer venait d'un COMMENTAIRE d'apps.py citant BaseModelBackend — il est désormais
+> VRAI. **Validé CPU réel** : chargement poids locaux, légende générée, unload propre.
+> Restants des 3 apps = UNIQUEMENT du transverse (input_match/model_caps/params_modal_batch/
+> during) + `url_ingest` composer (décision Fabien).
+>
 > **🔚 POINT D'ENTRÉE SESSION SUIVANTE** — ① during ×6 (GPU, avec Fabien) ;
-> ② ~~paquet synthesizer~~ **FAIT** ; ③ restes APP-LOCAUX : `user_settings` composer+reader
-> (adoption réelle = défauts de panel persistés serveur, pattern converter « POST prime, sinon
-> dernier utilisé ») ; `backend_packages` describer (le VRAI fix = mini-backend BLIP sous
-> contrat, pas une constante décorative) ; composer `url_ingest` (mélodie par URL = champ
-> modèle + migration, DÉCISION Fabien avant de coder) ; les autres rouges = chantiers
-> transverses (during ×6, input_match/model_caps, params_modal_batch) ;
-> ④ phase R régénérabilité ×7. **Backlog qualité ouvert 14/08 : prospection détecteur de
-> PLAQUES** (validation GPU SEQ08-01 : plaque lisible ratée en début de séquence).
-> PENDINGS : ⚠ restart service TTS par Fabien (préchargement = GPU) ; ⚠ restart/HUP gunicorn
-> (fixes du 14/08 : modale anonymizer, regroupement par arrivée, duplication composer,
-> model_help reader) ; push = demander.
+> ② ~~paquet synthesizer~~ ③ ~~finitions app-locales~~ **FAITS** ; restent : composer
+> `url_ingest` (mélodie par URL = champ modèle + migration, DÉCISION Fabien avant de coder) ;
+> chantiers transverses (during ×6, input_match/model_caps ×8-9, params_modal_batch) ;
+> ④ phase R régénérabilité ×7. **Backlog qualité : prospection détecteur de PLAQUES**
+> (validation GPU SEQ08-01 : plaque lisible ratée en début de séquence).
+> PENDINGS : ⚠ restart service TTS par Fabien (préchargement = GPU) ; ⚠ restart
+> workers+gunicorn (fixes 14/08 + BLIP backend/user_settings du 17/08 — les WORKERS portent
+> image/video_describer et auto_prompt) ; push = demander.
 > **Contrôles attendus au prochain `/reprise`** : check_docs 2 CASSÉ · doc_facts 4 à jour ·
-> corpus 110 (depuis WSL2) · grille : converter 100, transcriber 97, **synthesizer 95**,
-> avat/enh/imager/composer/**describer/reader 94**, anonymizer 93.
+> corpus 110 (depuis WSL2) · grille : converter 100, transcriber 97,
+> **synthesizer/composer/reader/describer 95**, avat/enh/imager 94, anonymizer 93.
 
 ## §REPRISE — 2026-08-13 (nuit) : BANC CODEGEN JOUÉ (marche B front 2) + skills à jour
 
