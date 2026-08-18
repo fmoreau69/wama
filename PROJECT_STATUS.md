@@ -2536,6 +2536,21 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 >   appariement nom AA ↔ tag ollama par famille+taille, non-apparié = null plutôt que
 >   plausible ; ⚠ AA mesure fp8/16, nous Q4 → borne haute à tracer), classement
 >   `select_model` : benchmark prime sur a priori quand présent. À arbitrer par Fabien.
+> - **AUDIT « modèles en dur vs route commune » (demande Fabien 19/08)** — balayage
+>   qwen/gemma/:latest sur wama/ + wama-dev-ai + nocturne :
+>   ① wama/ : 3 littéraux VIVANTS trouvés et ÉRADIQUÉS (`vision_probe` défaut,
+>   `reference_comprehension` repli, `ui_smoke` VLM_MODEL) → résolution UNIQUE dans
+>   `describe_image_ollama` via `modele_par_tier('default', completion+vision)` ; env
+>   `WAMA_UI_SMOKE_VLM` = épingle déclarée conservée ; validé (→ gemma4:12b, inchangé).
+>   Tout le reste = commentaires-leçons ou clés de catalogue légitimes (qwen3-asr) ;
+>   l'assistant chat était déjà dynamique (fixes tracés dans views.py).
+>   ② Nocturne : AUCUN LLM en dur ; `model_loaded` passe par les backends d'app (route
+>   `select_model` — conforme) ; ui_smoke corrigé ci-dessus.
+>   ③ wama-dev-ai : table MODELS hardcodée PAR DESIGN (découplage acté jusqu'à Phase 4,
+>   CLAUDE.md « ne pas précipiter ») ; tous ses tags existent encore sur l'hôte, MAIS la
+>   dérive a commencé : **aucune entrée qwen3.8** — dev/coder/architect/codegen restent sur
+>   qwen3.6:35b. Décision Fabien : maj ponctuelle de la table, ou accélérer l'unification
+>   par la route commune (MCP Phase 4).
 > - 🔚 **Pending B** : ✅ restart FAIT par Fabien 18/08 (~17h) → catégorie `'3d'` et fix
 >   `get_imager_status` VIVANTS ; suite du chantier 3D = ROADMAP §17ter trous 2-6 (preview
 >   médiathèque, port déclaré par une app, prospection modèles 2D→3D — quand Fabien la demande).
@@ -2980,6 +2995,79 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > reader/synthesizer 98 · anonymizer/imager 97** (page /apps/ = − clés déclarées-seulement :
 > streaming ×10, inspector ×2, eta_batch, cross_app_options, modes ×2, recursive_import
 > composer) · `app_sandbox list` = **converter_01 ← converter, S2-partiel, 6/6 ok**.
+
+## §REPRISE — 2026-08-18→19 : instance PORTAGE — converter 100, briques communes, alignement model_key
+
+> Session continue 18/08 soir → 19/08 (~13 commits, dev ahead 15 avec ceux de l'instance
+> parallèle — model_quality/vérifs Ollama, partition respectée). Fil conducteur : chaque
+> demande Fabien a révélé une dérive de route, corrigée À LA RACINE puis portée à toutes
+> les apps concernées.
+>
+> **LIVRÉ (ordre chronologique)** : ① jumelle sandbox ESTAMPILLÉE au catalogue (KeyError
+> `/apps/`+CLI+api_apps corrigé, tampon « sandbox » à la place de la note) ; ② `start_btn`
+> composer/synthesizer N/A→True (déclaration périmée d'avant le bouton de cycle) ;
+> ③ **converter 100 %** : cross_app_options CÂBLÉ (schéma dérivé de CROSS_APP_OPTIONS,
+> split options↔cross_app_options, `utils/cross_app.py` inline enhancer — image upscale/
+> denoise, audio DeepFilterNet, vidéo enhance de piste ; upscale vidéo DIFFÉRÉ) +
+> `streaming=True` avec preuve ; ④ preview card + texte moteur par TYPE + fuite `{# #}`
+> (7ᵉ récidive, `_new_item_card` commun) ; card fantôme #49 = job supprimé (diagnostic
+> smoke) ; ⑤ inspecteur converter REFLÈTE la modale (pattern describer : contexts panel,
+> host, hideOnInspect, saveItem) ; ⑥ **player audio muet = DOUBLE INCLUSION de
+> wama-app-base.js** (2 BroadcastChannel → l'exclusivité inter-onglets fait taire son
+> propre onglet ~2 ms après play ; converter + describer corrigés, diagnostiqué au
+> stack-trap Playwright) ; ⑦ recadrages Fabien « route commune » : la brique preview
+> extraite la veille RÉINVENTAIT `renderInlinePreview` → SUPPRIMÉE, remplacée par le
+> mécanisme n°30 (placeholder `data-card-preview` + `WamaInspector.hydrateCardPreviews`,
+> mime-driven, adopté converter/anonymizer/avatarizer) ; ⑧ face Infos de l'inspecteur
+> SECTIONNÉE Entrée/Réglages/Sortie (brique commune, miroir card v3 §11, 10 apps) ;
+> ⑨ **brique `card_gear`** (data-* du gear DÉRIVÉS du schéma, contrat cardSettings)
+> portée aux 9 apps à inspecteur — clés À TIRETS (double lectorat cardSettings + JS de
+> prefill ; l'émission underscore avait cassé describer/synthesizer, détecté par revue
+> des consommateurs), 4 cardSettings custom supprimés ; ⑩ composer : prompt EN TÊTE de
+> modale + descriptif modèle (`help_source`) ; imager ×2 domaines pareil ;
+> ⑪ **ALIGNEMENT `model_key`** (route SPEC §356 : clés canoniques = catalogue) :
+> enhancer = artefact `_fp16` retiré de la DÉCOUVERTE (7 lignes AIModel migrées, shim
+> input_match devenu identité) ; synthesizer = app alignée SUR le catalogue
+> (xtts_v2→coqui-xtts, higgs_audio→higgs-audio, speedy_speech→speedy-speech — constants/
+> models/views/workers/backends/JS/template + avatarizer/filemanager/tool_api ; 53
+> VoiceSynthesis + 4 AvatarJob migrées ; migrations 0016/0009 ; 2 shims devenus identité) ;
+> `help_source` branché enhancer+synthesizer ; transcriber et anonymizer DÉJÀ servis par
+> leurs canaux (#backendHelp, WamaModelHelp.init meta serveur) ; corpus manifestes
+> **110→117** (7 modèles enhancer alignés, orphelins _fp16 purgés).
+>
+> **PIÈGES appris (consignés en mémoire)** : le pattern d'une app sœur — même committé la
+> veille — n'est PAS la route (2 reprises Fabien : player brut, brique preview) → TOUJOURS
+> `WAMA_MECANISMES.md` d'abord ; une variable de template ne peut pas commencer par `_` ;
+> la tâche beat `sync_models` d'un worker sur l'ANCIEN code re-crée les clés renommées.
+>
+> **RÉPONSES DONNÉES (19/08)** : grille ≠ registre des mécanismes (CRITERIA codée en dur,
+> AUCUN lien — le souvenir de Fabien était partiel) ; toute nouvelle app d'APP_CATALOG
+> entre AUTOMATIQUEMENT dans la grille (pas de seuil de promotion en revanche) ;
+> `model_help` mesure `help_source` → plus aucun échec après le câblage du jour.
+>
+> **🔚 POINT D'ENTRÉE SESSION SUIVANTE — instance portage :**
+> ① **GESTES FABIEN d'abord** : (a) **RESTART Celery/TTS** — active l'alignement côté
+> workers ET stoppe le beat qui re-crée les lignes `_fp16` (post-restart : si
+> `AIModel.objects.filter(model_key__contains='_fp16')` > 0 → purger + `manifest_export`) ;
+> (b) validations navigateur : previews hydratées (converter/anonymizer/avatarizer),
+> volet reflété au clic card (9 apps — surtout modales prefill describer/composer/
+> avatarizer), modale composer (prompt en tête + descriptif), player converter, sections
+> inspecteur ; (c) les validations ① de la clôture 18/08 restent dues (Playwright
+> converter_01, during ×3, modales enhancer).
+> ② **DÉCISION en attente** : jonction déclarative mécanismes↔grille (champ de liaison +
+> contrôle « mécanisme multi-consommateurs sans critère ») + 3 critères manquants
+> (card_gear, preview hydratée, sections inspecteur) — design proposé, borné.
+> ③ Marche S suite (cible params du substitute, marche B stubs TROU DE GLU) — inchangé.
+> ④ Trous notés : manifest_export sans purge/signalement d'orphelins ; pas de seuil de
+> promotion des apps générées ; enhancer audio card sur include direct (migrable
+> hydrateur) ; anonymizer hors card_gear (chantier inspector tracé) ; catalogue describer
+> stale (blip/whisper) ; fichiers de test jetables dans `media/converter/22/`.
+> PENDINGS : **push 15+ commits = demander** ; jumelle converter_01 en place (jetable).
+> **Contrôles attendus au prochain `/reprise`** : check_docs **2 CASSÉ** · doc_facts 4 à
+> jour · corpus **117** (depuis WSL2) · migrate --check OK · grille CLI :
+> **converter/describer/transcriber 100 · enhancer 99 · avatarizer/composer/reader/
+> synthesizer 98 · anonymizer/imager 97** · `app_sandbox list` = converter_01 6/6 ·
+> ⚠ `AIModel` `_fp16` = **0 après restart+purge** (7 = beat ancien code, pas une dérive).
 
 ## §REPRISE — 2026-08-13 (nuit) : BANC CODEGEN JOUÉ (marche B front 2) + skills à jour
 
