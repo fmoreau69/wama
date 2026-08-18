@@ -156,6 +156,12 @@ def _convert(job, ctx):
 
         else:
             raise ValueError(f"Type de média non supporté : {media_type}")
+
+        # Options cross-app (Phase 2, wiring 18/08) : post-traitement IA inline (enhancer)
+        # sur le fichier de sortie, AVANT le move in-place final — un échec suit le chemin
+        # FAILURE normal (cleanup + clear_during dans le except ci-dessous).
+        from .utils.cross_app import apply_cross_app_options
+        apply_cross_app_options(job, output_path, ctx.console, ctx.progress)
     except Exception:
         # Remove the in-place temp file so no partial output lingers.
         if in_place:

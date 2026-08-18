@@ -80,13 +80,10 @@ CROSS_APP_OPTIONS = {
         },
     ],
     'video': [
-        {
-            'id':      'upscale',
-            'label':   'Upscaling IA frame par frame (Real-ESRGAN)',
-            'app':     'enhancer',
-            'type':    'select',
-            'choices': [('x2', '×2'), ('x4', '×4')],
-        },
+        # DIFFÉRÉ (18/08, wiring v1) : upscale vidéo frame par frame — le mécanisme vit dans
+        # enhancer/tasks.py::_enhance_video, couplé au modèle Enhancement ; l'extraire en
+        # brique (converter = 2ᵉ consommateur) toucherait le during fraîchement câblé qui
+        # attend la validation GPU. À réintroduire après extraction (ROADMAP §Converter P2).
         {
             'id':    'audio_enhance',
             'label': 'Enhancement audio (DeepFilterNet)',
@@ -103,6 +100,13 @@ CROSS_APP_OPTIONS = {
         },
     ],
 }
+
+
+def cross_app_option_ids() -> set:
+    """Ids de toutes les options cross-app déclarées — SOURCE UNIQUE du split
+    options ↔ cross_app_options (views.update_job), du préremplissage (views.status)
+    et du filtre d'application (utils/cross_app.py)."""
+    return {opt['id'] for opts in CROSS_APP_OPTIONS.values() for opt in opts}
 
 # ---------------------------------------------------------------------------
 # Helpers

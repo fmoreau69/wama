@@ -311,7 +311,9 @@ def status(request, pk):
         'input_filename':  job.input_filename,
         'media_type':      job.media_type,
         'output_format':   job.output_format,
-        'options':         job.options or {},
+        # Options moteur + cross-app FUSIONNÉES pour le préremplissage de la modale (le JS
+        # est générique, ids disjoints par construction) ; update_job re-scinde au save.
+        'options':         {**(job.cross_app_options or {}), **(job.options or {})},
         # Temps réel persisté (ProcessingTimeMixin) — affiché sur la card terminée sans reload.
         'processing_display': job.processing_display,
     }
@@ -389,11 +391,17 @@ def update_job(request, pk):
             new_opts = _json.loads(options_json)
             if not isinstance(new_opts, dict):
                 raise ValueError("options_json must be an object")
+            # Split : les ids du catalogue cross-app (format_router = source unique) vont
+            # dans le champ DÉDIÉ cross_app_options — pas de surcharge du JSON moteur.
+            from .utils.format_router import cross_app_option_ids
+            _xa_ids = cross_app_option_ids()
+            job.cross_app_options = {k: new_opts.pop(k) for k in list(new_opts)
+                                     if k in _xa_ids}
             job.options = new_opts
         except (ValueError, _json.JSONDecodeError) as exc:
             return JsonResponse({'error': f"options_json invalide : {exc}"}, status=400)
 
-    job.save(update_fields=['output_format', 'options'])
+    job.save(update_fields=['output_format', 'options', 'cross_app_options'])
     return JsonResponse({'success': True, 'output_format': job.output_format, 'options': job.options})
 
 

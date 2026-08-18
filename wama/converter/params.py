@@ -105,4 +105,37 @@ PARAMS = [
           show_if=AUD, contexts=ITEM),
 ]
 
+
+# ── Post-traitement cross-app (enhancer inline, wiring 18/08) ────────────────────────────
+# DÉRIVÉ du catalogue CROSS_APP_OPTIONS (format_router = source unique — ajouter une option
+# là-bas suffit, le schéma suit). Un id présent pour plusieurs media_types donne UN Param
+# avec show_if in=[...]. contexts=ITEM v1 (post-traitement GPU : pas d'application batch en
+# masse). Valeurs stockées dans ConversionJob.cross_app_options (split dans views.update_job),
+# appliquées par utils/cross_app.py après la conversion.
+from .utils.format_router import CROSS_APP_OPTIONS
+
+def _cross_app_params():
+    by_id = {}
+    for _mt, _opts in CROSS_APP_OPTIONS.items():
+        for _o in _opts:
+            entry = by_id.setdefault(_o['id'], {'opt': _o, 'types': []})
+            entry['types'].append(_mt)
+    out = []
+    for _oid, entry in by_id.items():
+        o, types = entry['opt'], entry['types']
+        show = ({"field": "media_type", "equals": types[0]} if len(types) == 1
+                else {"field": "media_type", "in": types})
+        _help = f"Post-traitement IA via l'app {o['app']} — appliqué après la conversion (charge un modèle GPU)."
+        if o['type'] == 'select':
+            out.append(Param(name=_oid, type="select", label=o['label'],
+                             icon="fa-wand-magic-sparkles", show_if=show, contexts=ITEM,
+                             choices=[("", "Aucun")] + list(o['choices']), help=_help))
+        else:  # checkbox → toggle
+            out.append(Param(name=_oid, type="toggle", label=o['label'],
+                             icon="fa-wand-magic-sparkles", show_if=show, contexts=ITEM,
+                             help=_help))
+    return out
+
+PARAMS += _cross_app_params()
+
 PARAMS_JSON = schema_to_dicts(PARAMS)

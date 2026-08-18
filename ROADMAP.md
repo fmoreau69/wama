@@ -643,11 +643,11 @@ wama/converter/
 | Conversion rapide — annulation + robustesse | ✅ (2026-06-02) | Endpoint `cancel` (revoke Celery + suppression job éphémère) ; annulation à toute fermeture de modale (Annuler/X/Esc/backdrop via `hide.bs.modal`) ; **sortie atomique** (temp → move) → annuler/échouer ne laisse jamais de fichier corrompu près de la source ; **garde-fou** : worker muet >20 s → message "le worker ne répond pas" + revoke du job zombie. Tâches Celery désormais auto-découvertes (`autodiscover_tasks()`). |
 | Modal Paramètres item (édition output_format + options sur job existant) | ✅ (2026-05-16) | Endpoint `POST /<pk>/update/` + form dynamique selon media_type ; bouton "Appliquer" et "Appliquer & (Re)lancer" |
 | Profils de conversion sauvegardables | ✅ (2026-05-16) | Endpoints `profile_list/save/delete` ; dropdown filtré par media_type dans panneau settings ; bouton "Sauver comme profil…" dans modal item |
-| Option upscaling ×2/×4 (Real-ESRGAN via Enhancer) | ⏳ | `cross_app_options` model prêt, wiring tasks.py P2 |
+| Option upscaling ×2/×4 (Real-ESRGAN via Enhancer) | ✅ IMAGE (2026-08-18) / ⏳ vidéo | Wiring complet : schéma dérivé de `CROSS_APP_OPTIONS` (params.py), split `options`↔`cross_app_options` (views.update_job), application inline `utils/cross_app.py` (`upscale_image_file` enhancer ; x2=BSRGANx2, x4=RealESRGANx4, denoise IRCNN). **Upscale VIDÉO différé** : mécanisme à extraire de `enhancer/tasks.py::_enhance_video` (2ᵉ consommateur) APRÈS validation GPU du during enhancer |
 | Format de sortie inline dans chaque app (Imager, Enhancer…) | ⏳ | `CONVERTER_OUTPUT_FORMATS` disponible depuis app_registry, UI P2 |
 | Batch avec aperçu avant/après sur échantillon | ⏳ Phase 5 | Essentiel sur gros volumes |
 | Conversion document (PDF ↔ DOCX ↔ MD ↔ HTML ↔ TXT) | ✅ Phase 4 (2026-06-01, chaîne PDF refondue 2026-07) | Pandoc + pypandoc 1.13 ; PDF input via PyMuPDF ; **HTML→PDF = brique commune `common/utils/html_render.py`** (Chromium headless → WeasyPrint → fallback pandoc/xelatex — commits 34e84af/8013f22/1329638) |
-| Option enhancement audio lors conversion vidéo (Enhancer) | ⏳ Phase 2 | DeepFilterNet/ResembleEnhance via cross_app_options |
+| Option enhancement audio lors conversion vidéo (Enhancer) | ✅ (2026-08-18) | DeepFilterNet via `cross_app_options` : audio direct (ré-encodage au format cible) + vidéo (demux → enhance → remux, flux vidéo copié) — `utils/cross_app.py` ; ⚠ validation GPU navigateur = Fabien |
 | **Rotation** (90°/180°/270° + flip H/V) | ✅ Phase 6 (2026-05-16) | PIL `Image.Transpose` / ffmpeg `transpose,hflip,vflip` |
 | **Crop de zone** (image + vidéo, UI canvas) | ⏳ Phase 7 | Vision initiale — canvas JS overlay + ffmpeg crop |
 | Extraction de frames vidéo | ⏳ Phase 8 | Intervalle fixe ou détection de scène (PySceneDetect) |
@@ -665,7 +665,7 @@ wama/converter/
 |---|---|---|---|---|
 | **0** | Modal Paramètres item (édition output_format + options par job) | ✅ 2026-05-16 | ~110 l | Faible |
 | **1** | Profils sauvegardables (ConversionProfile + UI) | ✅ 2026-05-16 | ~170 l | Faible |
-| **2** | Options cross-app (upscale + audio enhance) | ⏳ | ~180 l | Moyen (perf vidéo) |
+| **2** | Options cross-app (upscale + audio enhance) | ✅ 2026-08-18 (sauf upscale vidéo, différé) | ~230 l | Moyen (perf vidéo) |
 | **3** | `output_format` inline dans Imager / Enhancer / Synthesizer | ✅ 2026-06-02 | ~150 l + 3 mig | Moyen |
 | **4** | Document backend (Pandoc) | ✅ 2026-06-01 | ~150 l + pypandoc + pandoc binaire | Moyen (binaire système) |
 | **5** | Batch avec aperçu avant/après sur échantillon | ⏳ | ~200 l | Moyen |

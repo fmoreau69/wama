@@ -524,7 +524,15 @@ APP_CATALOG = {
             tool_api=True,           # convert_file + get_converter_status (2026-06-02)
             during_preview=True,     # audio hors in-place : la sortie ffmpeg s'écrit sous MEDIA
                                      #   → URL partielle écoutable pendant la conversion (13/08)
-            cross_app_options=False, # Phase 2 à implémenter (upscale + audio enhance)
+            streaming=True,          # émission PROGRESSIVE du média réel (pas un aperçu) : la sortie
+                                     #   ffmpeg est lisible PENDANT la conversion — audio intégral,
+                                     #   vidéo en conteneur streamable webm/mkv/ts (tasks.py:89-100 ;
+                                     #   mp4/mov partiel structurellement illisible, moov en fin)
+            cross_app_options=True,  # Phase 2 CÂBLÉE (18/08) : schéma dérivé de CROSS_APP_OPTIONS
+                                     #   (params.py), split options↔cross_app_options (views.update_job),
+                                     #   application inline enhancer (utils/cross_app.py — image
+                                     #   upscale/denoise, audio enhance, vidéo enhance de piste audio ;
+                                     #   upscale vidéo DIFFÉRÉ, cf. format_router)
             # Porté 2026-07-10 (grille périmée, corrigée) : inspecteur via initFromSchema
             # (détail/chips build_detail, cloneActions item+batch), card « Nouvel élément » en
             # tête de file (import sans passer par le filemanager), ETA individuel/batch/queue
