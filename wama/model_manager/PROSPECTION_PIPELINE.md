@@ -309,3 +309,38 @@ RESTE (mis à jour) : beat hebdo (Ollama + génération) ; vision (YOLO) auto-pr
 `createMirrorBackupUI` à rebaser sur WamaApp.Poller (dette antérieure) ; chargeur/backends
 pour EXPLOITER un modèle diffusion fraîchement installé (installé+catalogué ≠ utilisable,
 cf. note pull_hf_model).
+
+## ÉTAT DES LIEUX DE LA COUVERTURE (mesuré le 2026-08-18 soir — LA table de référence)
+
+Catalogue réel : 95 modèles installés (49 vision, 12 llm, 10 speech, 9 diffusion,
+7 upscaling, 3 music, 2 ocr, 2 lipsync, 1 vlm).
+
+| Type / domaine | Bibliothèque | Mécanisme (candidats UI) | Confiance LLM | Remplacement |
+|---|---|---|---|---|
+| llm / vlm / embedding / coder / translation | Ollama | rôles `ROLES` (`new`) + âge & successeurs de famille (`update`) | ✅ `assess_proposed` | ✅ auto pour `update` (origin+cible) |
+| diffusion (t2i / t2v / i2v) | HF | `HF_TASKS` (2 tris + bruit + poids réel + spec) | ✅ | concurrence affichée (référentiel) |
+| speech ASR + TTS | HF | `HF_TASKS` ✅ 18/08 soir | ✅ | concurrence |
+| upscaling (enhancer) | HF | `HF_TASKS` ✅ 18/08 soir | ✅ | concurrence |
+| vision détection | HF | `HF_TASKS` ✅ (⚠ top = génériques COCO/tables ; les SPÉCIALISÉS visage/plaque exigent `search` — pas d'auto) | ✅ | concurrence |
+| music (composer) | HF | `HF_TASKS` ✅ 18/08 soir (⚠ licences NC fréquentes — relevées sur la card) | ✅ | concurrence |
+| ocr (reader) | HF | `HF_TASKS` ✅ 18/08 soir | ✅ | concurrence |
+
+**Trous restants (par ordre d'intérêt) :**
+1. **MAJ des installés HF** : `check_updates(do_hf=True)` produit des signaux (CLI
+   `check_model_updates`) mais AUCUN candidat UI `update` — le remplacement auto n'existe
+   que côté Ollama.
+2. **Vision spécialisée** (visage/plaque/YOLO) : install à la demande OK (`pull_yolo_weights`,
+   spec `yolo`) mais pas de VEILLE auto (releases ultralytics + `search` HF ciblé).
+3. **Beat hebdo** : aucune prospection périodique — tout est au clic.
+4. **lipsync/avatars** : hors périmètre HF (pas de pipeline_tag) — chantier séparé
+   (docs/PROSPECTION_AVATARS_2026-08-17.md, pilote TalkingHead).
+5. Candidats legacy `synthesizer:*` (SpeedySpeech/Tacotron2/VITS, seed 2026-06, conf 0.9
+   figée) : obsolètes depuis le balayage TTS réel — à rejeter/purger.
+6. `image-text-to-text` (VLM HF) : volontairement absent (doublon rôle Ollama `vlm`) —
+   à rouvrir seulement si un backend VLM transformers existe côté describer.
+
+Session du 18/08 soir : `seed_generation_candidates` GÉNÉRALISÉ en `seed_hf_candidates`
+(table `HF_TASKS` : 9 tâches, plancher de poids PAR TÂCHE — un YOLO légitime pèse 13 Mo —,
+plafond par tâche, rôle `hf:<tâche>`, purge à double graphie pour la transition) ; motifs de
+bruit enrichis (quantifs, CoreML/MLX). Test réel : 32 candidats / 9 tâches, licences relevées
+(musicgen = cc-by-nc-4.0 visible), whisper-large-v3 installé correctement exclu (flag have).

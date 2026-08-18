@@ -29,10 +29,13 @@ APP_TASKS = {
 _TASK_MODEL_TYPE = {
     'text-to-image':                 'diffusion',
     'text-to-video':                 'diffusion',
+    'image-to-video':                'diffusion',
     'image-to-image':                'upscaling',
     'automatic-speech-recognition':  'speech',
     'text-to-speech':                'speech',
+    'text-to-audio':                 'music',
     'image-text-to-text':            'vlm',
+    'image-to-text':                 'ocr',
     'object-detection':              'vision',
 }
 
@@ -147,13 +150,33 @@ def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_down
     return {'ok': True, 'task': task, 'candidates': candidates}
 
 
-# ── Prospection GÉNÉRATION (image/vidéo) → candidats `is_proposed` (cards UI) ──────
-# Tâches HF balayées et leur catégorie d'installation (dossier `model_locations`).
-# Déclaratif : élargir la prospection génération = ajouter une entrée.
-GENERATION_TASKS = {
-    'text-to-image': 'diffusion',
-    'text-to-video': 'diffusion',
-    'image-to-video': 'diffusion',
+# ── Balayage HF → candidats `is_proposed` (cards UI) ───────────────────────────────
+# Tâches HF balayées : catégorie d'installation (= valeur ModelType, cf. model_locations),
+# plancher de poids (un modèle SOUS ce poids est un LoRA/config pour la génération, mais un
+# YOLO légitime pèse 13 Mo — d'où le plancher PAR TÂCHE), plafond de candidats (une liste
+# que personne ne lit ne vaut pas mieux qu'une liste vide — même règle que MAX_PAR_ROLE).
+# Déclaratif : élargir la prospection = ajouter une entrée, pas du code.
+#
+# Volontairement ABSENTS : `image-text-to-text` (VLM — doublon du rôle Ollama `vlm`, qui
+# couvre déjà describer/reader avec des modèles réellement branchés) ; `lipsync` (aucun
+# pipeline_tag HF ; la prospection avatars est un chantier séparé — PROSPECTION_AVATARS).
+HF_TASKS = {
+    # Génération (imager / vidéo) — étendu le 2026-08-18
+    'text-to-image':  {'category': 'diffusion', 'poids_min_go': 1.0,   'max': 5},
+    'text-to-video':  {'category': 'diffusion', 'poids_min_go': 1.0,   'max': 5},
+    'image-to-video': {'category': 'diffusion', 'poids_min_go': 1.0,   'max': 5},
+    # Parole (transcriber / synthesizer) — ⚠ TTS : vérifier la LICENCE sur la card (souvent NC)
+    'automatic-speech-recognition': {'category': 'speech', 'poids_min_go': 0.05, 'max': 3},
+    'text-to-speech':               {'category': 'speech', 'poids_min_go': 0.05, 'max': 3},
+    # Image → image (enhancer)
+    'image-to-image': {'category': 'upscaling', 'poids_min_go': 0.05, 'max': 3},
+    # Détection (anonymizer…) — top downloads = COCO génériques ; les spécialisés
+    # (visage/plaque) exigent `search`, cf. docstring prospect_hf (leçon 2026-08-04)
+    'object-detection': {'category': 'vision', 'poids_min_go': 0.005, 'max': 3},
+    # Musique (composer)
+    'text-to-audio': {'category': 'music', 'poids_min_go': 0.05, 'max': 3},
+    # OCR / documents (reader)
+    'image-to-text': {'category': 'ocr', 'poids_min_go': 0.05, 'max': 3},
 }
 
 #: Un dépôt de génération sous ce poids est un LoRA/config, pas un modèle installable seul.
@@ -163,7 +186,8 @@ _POIDS_MIN_GO = 1.0
 #: d'outils tiers) qui noient les modèles canoniques — mesuré 2026-08-18 : le trending
 #: text-to-video était aux 3/4 des LoRA MiniMax-H3 de particuliers.
 _MOTIFS_BRUIT = ('lora', 'gguf', 'comfyui', 'repackaged', 'fp8', 'bnb',
-                 'int4', 'int8', 'fp4', 'nvfp4', '4bit')
+                 'int4', 'int8', 'fp4', 'nvfp4', '4bit',
+                 'coreml', 'mlx')   # formats Apple : non chargeables sur l'hôte CUDA
 
 
 def _poids_depot_go(hf_id: str):
@@ -175,21 +199,22 @@ def _poids_depot_go(hf_id: str):
         total = sum((s.size or 0) for s in (info.siblings or []))
         return round(total / 1024 ** 3, 1) if total else None
     except Exception as e:
-        logger.debug("[prospect_generation] poids de %s indéterminable : %s", hf_id, e)
+        logger.debug("[prospect_hf_seed] poids de %s indéterminable : %s", hf_id, e)
         return None
 
 
-def seed_generation_candidates(max_par_tache: int = 5, limit: int = 12,
-                               min_downloads: int = 1000) -> dict:
+def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -> dict:
     """
-    Candidats `is_proposed` pour la GÉNÉRATION image/vidéo — pendant HF de la découverte
-    par rôles de `prospect_ollama` (2026-08-18, demande Fabien : « que Wan3 sorte »).
+    Candidats `is_proposed` depuis la bibliothèque HuggingFace — pendant HF de la découverte
+    par rôles de `prospect_ollama`. Né « génération image/vidéo » (2026-08-18, demande
+    Fabien : « que Wan3 sorte ») puis étendu le même jour à TOUTE la table `HF_TASKS`
+    (parole, détection, upscaling, musique, OCR).
 
-    Réutilise : `prospect_hf` (découverte + flag « déjà chez nous » + licence + poids),
+    Réutilise : `prospect_hf` (découverte + flag « déjà chez nous » + licence),
     `ecrire_candidat` (writer unique, garde de préservation des évaluations comprise),
-    `AIModel.meilleurs_installes` (référentiel `concurrence` affiché sur la card).
-    Chaque candidat porte son **spec d'installation** (`install_from_spec`) — c'était le
-    RESTE (3) du pipeline (« spec attaché aux candidats »).
+    `AIModel.meilleurs_installes` (référentiel `concurrence` affiché sur la card),
+    `_poids_depot_go` (garde d'espace). Chaque candidat porte son **spec d'installation**
+    (`install_from_spec`) — c'était le RESTE (3) du pipeline (« spec attaché »).
 
     Purge CIBLÉE comme dans prospect_ollama : uniquement le périmètre des tâches dont le
     balayage a ABOUTI (une panne réseau HF ne vide pas la liste).
@@ -201,8 +226,9 @@ def seed_generation_candidates(max_par_tache: int = 5, limit: int = 12,
     vus: set = set()
     taches_ok: list = []
     refs_type: dict = {}
+    table = {t: HF_TASKS[t] for t in (tasks or HF_TASKS) if t in HF_TASKS}
 
-    for tache, categorie in GENERATION_TASKS.items():
+    for tache, regle in table.items():
         # Deux tris complémentaires : `downloads` = l'éprouvé, `trendingScore` = ce qui
         # MONTE (une famille publiée cette semaine — c'est LE tri qui la fait sortir avant
         # qu'elle domine les téléchargements). Dédupliqués via `vus`.
@@ -214,7 +240,7 @@ def seed_generation_candidates(max_par_tache: int = 5, limit: int = 12,
                 ok_tache = True
                 candidats.extend(res['candidates'])
             else:
-                logger.warning("[prospect_generation] %s (%s) indisponible : %s",
+                logger.warning("[prospect_hf_seed] %s (%s) indisponible : %s",
                                tache, tri, res.get('error'))
         if not ok_tache:
             continue
@@ -227,7 +253,7 @@ def seed_generation_candidates(max_par_tache: int = 5, limit: int = 12,
                 for m in AIModel.meilleurs_installes(model_type)]
         retenus = 0
         for c in candidats:
-            if retenus >= max_par_tache:
+            if retenus >= regle['max']:
                 break
             hf_id = c['hf_id']
             cand_key = PROPOSED_PREFIX + f"hf:{hf_id}"
@@ -236,23 +262,23 @@ def seed_generation_candidates(max_par_tache: int = 5, limit: int = 12,
             if any(motif in hf_id.lower() for motif in _MOTIFS_BRUIT):
                 continue    # dérivé (LoRA/quantif/repack), pas un modèle canonique
             poids = _poids_depot_go(hf_id)   # un appel HTTP — candidats retenus seulement
-            if poids is not None and poids < _POIDS_MIN_GO:
-                continue    # LoRA/config : pas un modèle installable seul
+            if poids is not None and poids < regle['poids_min_go']:
+                continue    # sous le plancher de la tâche : LoRA/config, pas un modèle
             vus.add(cand_key)
             retenus += 1
             cree = ecrire_candidat(
                 cand_key, nom=hf_id.split('/')[-1], model_type=model_type,
                 source='huggingface',
-                description=(f"[Génération {tache}] {c['downloads']} téléchargements, "
+                description=(f"[{tache}] {c['downloads']} téléchargements, "
                              f"{c['likes']} ♥ — proposé par la bibliothèque HuggingFace."),
                 kind='new', confidence=None,
-                extra={'kind': 'new', 'role': f"generation:{tache}", 'name': hf_id,
+                extra={'kind': 'new', 'role': f"hf:{tache}", 'name': hf_id,
                        'reason': f"tâche {tache} — non installé",
                        'concurrence': refs_type[model_type],
                        'downloads': c['downloads'], 'likes': c['likes'],
                        'metrique': c.get('metrique'),
-                       'spec': {'kind': 'hf', 'ref': hf_id, 'category': categorie,
-                                'note': f"prospection génération {tache}"}},
+                       'spec': {'kind': 'hf', 'ref': hf_id, 'category': regle['category'],
+                                'note': f"prospection HF {tache}"}},
                 hf_id=hf_id, license=str(c.get('license') or '')[:64],
                 platform_ref=f"huggingface:{hf_id}",
                 disk_gb=poids or 0.0,     # 0.0 = inconnu → la garde d'espace refusera (forçable)
@@ -261,7 +287,9 @@ def seed_generation_candidates(max_par_tache: int = 5, limit: int = 12,
             maj += int(not cree)
 
     supprimes = 0
-    roles_ok = {f"generation:{t}" for t in taches_ok}
+    # Transition : les candidats du 18/08 portaient `generation:<t>` avant le passage au
+    # préfixe générique `hf:<t>` — on purge les deux graphies du même périmètre.
+    roles_ok = {f"hf:{t}" for t in taches_ok} | {f"generation:{t}" for t in taches_ok}
     if roles_ok:
         perimetre = AIModel.objects.filter(
             is_proposed=True, source='huggingface', proposal_kind='new',
@@ -276,7 +304,7 @@ def seed_generation_candidates(max_par_tache: int = 5, limit: int = 12,
 
     resume = {'created': crees, 'updated': maj, 'removed': supprimes,
               'total': len(vus), 'tasks_ok': taches_ok}
-    logger.info("[prospect_generation] %s", resume)
+    logger.info("[prospect_hf_seed] %s", resume)
     return resume
 
 

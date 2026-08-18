@@ -1498,15 +1498,16 @@ def api_prospect_ollama(request):
     from .services.prospect_ollama import prospect_ollama
     try:
         summary = prospect_ollama()
-        # ── Prospection GÉNÉRATION image/vidéo (HF) — même clic, périmètre séparé ──
-        # Une panne HF ne doit pas faire échouer la prospection Ollama (et inversement).
+        # ── Balayage HuggingFace (génération, parole, détection, upscaling, musique,
+        # OCR — table déclarative HF_TASKS) — même clic, périmètre séparé : une panne HF
+        # ne doit pas faire échouer la prospection Ollama (et inversement).
         try:
-            from .services.prospector import seed_generation_candidates
-            summary['generation'] = seed_generation_candidates()
-            summary['total'] = (summary.get('total') or 0) + summary['generation']['total']
+            from .services.prospector import seed_hf_candidates
+            summary['hf'] = seed_hf_candidates()
+            summary['total'] = (summary.get('total') or 0) + summary['hf']['total']
         except Exception:
-            logger.warning("prospection génération HF en échec", exc_info=True)
-            summary['generation'] = {'error': 'indisponible'}
+            logger.warning("balayage HuggingFace en échec", exc_info=True)
+            summary['hf'] = {'error': 'indisponible'}
         try:
             from .tasks import assess_proposed_task
             assess_proposed_task.delay()
