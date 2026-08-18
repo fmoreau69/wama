@@ -21,6 +21,758 @@
       "settings_modal_item": true,
       "streaming": false
     },
+    "data": {
+      "models": [
+        {
+          "fields": [
+            {
+              "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "processing_seconds"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('private', 'Privé'), ('project', 'Projet (membres, cross-org)'), ('unit', 'Unité (labo/dépt/univ…)'), ('public', 'Public')]",
+                  "imports": []
+                },
+                "db_index": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'private'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "12",
+                  "imports": []
+                }
+              },
+              "name": "visibility"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "\"Unité de partage si visibility='unit'.\"",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "on_delete": {
+                  "expr": "django.db.models.deletion.SET_NULL",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'+'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'common.orgunit'",
+                  "imports": []
+                }
+              },
+              "name": "scope_org_unit"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "\"Projet de partage si visibility='project'.\"",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "on_delete": {
+                  "expr": "django.db.models.deletion.SET_NULL",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'+'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'common.project'",
+                  "imports": []
+                }
+              },
+              "name": "scope_project"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "on_delete": {
+                  "expr": "django.db.models.deletion.CASCADE",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'descriptions'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "settings.AUTH_USER_MODEL",
+                  "imports": [
+                    "from django.conf import settings"
+                  ]
+                }
+              },
+              "name": "user"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.DateTimeField",
+              "kwargs": {
+                "auto_now_add": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "created_at"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.DateTimeField",
+              "kwargs": {
+                "auto_now": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "updated_at"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('describer', 'input')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                },
+                "validators": {
+                  "expr": "[django.core.validators.FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'mp4', 'avi', 'mov', 'mkv', 'webm', 'mp3', 'wav', 'flac', 'ogg', 'm4a', 'txt', 'pdf', 'docx', 'md', 'csv'])]",
+                  "imports": [
+                    "import django.core.validators"
+                  ]
+                }
+              },
+              "name": "input_file"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "2000",
+                  "imports": []
+                }
+              },
+              "name": "source_url"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('image', 'Image'), ('video', 'Video'), ('audio', 'Audio'), ('text', 'Texte'), ('pdf', 'PDF'), ('auto', 'Detection auto')]",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'auto'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "20",
+                  "imports": []
+                }
+              },
+              "name": "content_type"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "20",
+                  "imports": []
+                }
+              },
+              "name": "detected_type"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('summary', 'Resume court'), ('detailed', 'Description detaillee'), ('scientific', 'Synthese scientifique'), ('bullet_points', 'Points cles'), ('meeting', 'Compte-rendu de reunion')]",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'detailed'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "20",
+                  "imports": []
+                }
+              },
+              "name": "output_style"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('fr', 'Francais'), ('en', 'English'), ('auto', 'Langue source')]",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'fr'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "10",
+                  "imports": []
+                }
+              },
+              "name": "output_language"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "500",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Maximum length of summary in words'",
+                  "imports": []
+                }
+              },
+              "name": "max_length"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.BooleanField",
+              "kwargs": {
+                "default": {
+                  "expr": "False",
+                  "imports": []
+                }
+              },
+              "name": "generate_summary"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.TextField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "summary"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.BooleanField",
+              "kwargs": {
+                "default": {
+                  "expr": "False",
+                  "imports": []
+                }
+              },
+              "name": "verify_coherence"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "coherence_score"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.TextField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "coherence_notes"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.TextField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "coherence_suggestion"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.TextField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "result_text"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('describer', 'output')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "result_file"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "255",
+                  "imports": []
+                }
+              },
+              "name": "filename"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.BigIntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "file_size"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "default": {
+                  "expr": "0.0",
+                  "imports": []
+                }
+              },
+              "name": "duration_seconds"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "20",
+                  "imports": []
+                }
+              },
+              "name": "duration_display"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "200",
+                  "imports": []
+                }
+              },
+              "name": "properties"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('PENDING', 'En attente'), ('RUNNING', 'En cours'), ('SUCCESS', 'Termine'), ('FAILURE', 'Echec')]",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'PENDING'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "20",
+                  "imports": []
+                }
+              },
+              "name": "status"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "progress"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "255",
+                  "imports": []
+                }
+              },
+              "name": "task_id"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.TextField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "error_message"
+            }
+          ],
+          "manager": "wama.common.models.ScopedManager",
+          "meta": {
+            "ordering": [
+              "-created_at"
+            ]
+          },
+          "name": "Description"
+        },
+        {
+          "fields": [
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('private', 'Privé'), ('project', 'Projet (membres, cross-org)'), ('unit', 'Unité (labo/dépt/univ…)'), ('public', 'Public')]",
+                  "imports": []
+                },
+                "db_index": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'private'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "12",
+                  "imports": []
+                }
+              },
+              "name": "visibility"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "\"Unité de partage si visibility='unit'.\"",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "on_delete": {
+                  "expr": "django.db.models.deletion.SET_NULL",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'+'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'common.orgunit'",
+                  "imports": []
+                }
+              },
+              "name": "scope_org_unit"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "\"Projet de partage si visibility='project'.\"",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "on_delete": {
+                  "expr": "django.db.models.deletion.SET_NULL",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'+'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'common.project'",
+                  "imports": []
+                }
+              },
+              "name": "scope_project"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "on_delete": {
+                  "expr": "django.db.models.deletion.CASCADE",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'batch_descriptions'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "settings.AUTH_USER_MODEL",
+                  "imports": [
+                    "from django.conf import settings"
+                  ]
+                }
+              },
+              "name": "user"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.DateTimeField",
+              "kwargs": {
+                "auto_now_add": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "created_at"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Fichier batch source'",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('describer', 'input')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "batch_file"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "total"
+            }
+          ],
+          "manager": "wama.common.models.ScopedManager",
+          "meta": {
+            "ordering": [
+              "-created_at"
+            ]
+          },
+          "name": "BatchDescription"
+        },
+        {
+          "fields": [
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "on_delete": {
+                  "expr": "django.db.models.deletion.CASCADE",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'items'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'describer.batchdescription'",
+                  "imports": []
+                }
+              },
+              "name": "batch"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.OneToOneField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "on_delete": {
+                  "expr": "django.db.models.deletion.CASCADE",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'batch_item'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'describer.description'",
+                  "imports": []
+                }
+              },
+              "name": "description"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "row_index"
+            }
+          ],
+          "manager": "",
+          "meta": {
+            "ordering": [
+              "row_index"
+            ]
+          },
+          "name": "BatchDescriptionItem"
+        }
+      ]
+    },
     "identity": {
       "category": "understand",
       "color": "#298fc2",

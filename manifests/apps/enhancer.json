@@ -11,7 +11,7 @@
       "accepts_url": true,
       "anti_race": true,
       "batch_type": "media_list",
-      "during_preview": false,
+      "during_preview": true,
       "has_batch": true,
       "has_url_import": true,
       "has_youtube": false,
@@ -20,6 +20,1449 @@
       "multi_format_download": null,
       "settings_modal_item": true,
       "streaming": false
+    },
+    "data": {
+      "models": [
+        {
+          "fields": [
+            {
+              "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "processing_seconds"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('private', 'Privé'), ('project', 'Projet (membres, cross-org)'), ('unit', 'Unité (labo/dépt/univ…)'), ('public', 'Public')]",
+                  "imports": []
+                },
+                "db_index": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'private'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "12",
+                  "imports": []
+                }
+              },
+              "name": "visibility"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "\"Unité de partage si visibility='unit'.\"",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "on_delete": {
+                  "expr": "django.db.models.deletion.SET_NULL",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'+'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'common.orgunit'",
+                  "imports": []
+                }
+              },
+              "name": "scope_org_unit"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "\"Projet de partage si visibility='project'.\"",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "on_delete": {
+                  "expr": "django.db.models.deletion.SET_NULL",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'+'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'common.project'",
+                  "imports": []
+                }
+              },
+              "name": "scope_project"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "on_delete": {
+                  "expr": "django.db.models.deletion.CASCADE",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'enhancements'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "settings.AUTH_USER_MODEL",
+                  "imports": [
+                    "from django.conf import settings"
+                  ]
+                }
+              },
+              "name": "user"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('image', 'Image'), ('video', 'Video')]",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'image'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "10",
+                  "imports": []
+                }
+              },
+              "name": "media_type"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.DateTimeField",
+              "kwargs": {
+                "auto_now_add": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "created_at"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('enhancer', 'input/media')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "input_file"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('enhancer', 'output/media')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "output_file"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "default": {
+                  "expr": "'original'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "20",
+                  "imports": []
+                }
+              },
+              "name": "output_format"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "default": {
+                  "expr": "'balanced'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "20",
+                  "imports": []
+                }
+              },
+              "name": "output_quality"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "width"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "height"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Duration in seconds (for videos)'",
+                  "imports": []
+                }
+              },
+              "name": "duration"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.BigIntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'File size in bytes'",
+                  "imports": []
+                }
+              },
+              "name": "file_size"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('RealESR_Gx4', 'RealESR-General x4 (Rapide)'), ('RealESR_Animex4', 'RealESR-Anime x4 (Anime)'), ('BSRGANx2', 'BSRGAN x2 (Qualité)'), ('BSRGANx4', 'BSRGAN x4 (Qualité)'), ('RealESRGANx4', 'RealESRGAN x4 (Haute qualité)'), ('IRCNN_Mx1', 'IRCNN-M x1 (Débruitage)'), ('IRCNN_Lx1', 'IRCNN-L x1 (Débruitage fort)')]",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'RealESR_Gx4'",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'AI model for upscaling'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "32",
+                  "imports": []
+                }
+              },
+              "name": "ai_model"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "4",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Upscaling factor (2x or 4x depending on model)'",
+                  "imports": []
+                }
+              },
+              "name": "upscale_factor"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.BooleanField",
+              "kwargs": {
+                "default": {
+                  "expr": "False",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Apply denoising before upscaling'",
+                  "imports": []
+                }
+              },
+              "name": "denoise"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "default": {
+                  "expr": "0.0",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Blend with original (0=full AI, 1=original)'",
+                  "imports": []
+                }
+              },
+              "name": "blend_factor"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Tile size for large images (0=auto)'",
+                  "imports": []
+                }
+              },
+              "name": "tile_size"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "''",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "2000",
+                  "imports": []
+                }
+              },
+              "name": "source_url"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "''",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "255",
+                  "imports": []
+                }
+              },
+              "name": "task_id"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('PENDING', 'En attente'), ('RUNNING', 'En cours'), ('SUCCESS', 'Terminé'), ('FAILURE', 'Échec')]",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'PENDING'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "32",
+                  "imports": []
+                }
+              },
+              "name": "status"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "progress"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.TextField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "''",
+                  "imports": []
+                }
+              },
+              "name": "error_message"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "output_width"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "output_height"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.BigIntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "output_file_size"
+            }
+          ],
+          "manager": "wama.common.models.ScopedManager",
+          "meta": {
+            "ordering": [
+              "-created_at"
+            ]
+          },
+          "name": "Enhancement"
+        },
+        {
+          "fields": [
+            {
+              "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "processing_seconds"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('private', 'Privé'), ('project', 'Projet (membres, cross-org)'), ('unit', 'Unité (labo/dépt/univ…)'), ('public', 'Public')]",
+                  "imports": []
+                },
+                "db_index": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'private'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "12",
+                  "imports": []
+                }
+              },
+              "name": "visibility"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "\"Unité de partage si visibility='unit'.\"",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "on_delete": {
+                  "expr": "django.db.models.deletion.SET_NULL",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'+'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'common.orgunit'",
+                  "imports": []
+                }
+              },
+              "name": "scope_org_unit"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "\"Projet de partage si visibility='project'.\"",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "on_delete": {
+                  "expr": "django.db.models.deletion.SET_NULL",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'+'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'common.project'",
+                  "imports": []
+                }
+              },
+              "name": "scope_project"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "on_delete": {
+                  "expr": "django.db.models.deletion.CASCADE",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'audio_enhancements'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "settings.AUTH_USER_MODEL",
+                  "imports": [
+                    "from django.conf import settings"
+                  ]
+                }
+              },
+              "name": "user"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.DateTimeField",
+              "kwargs": {
+                "auto_now_add": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "created_at"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('enhancer', 'input/audio')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "input_file"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('enhancer', 'output/audio')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "output_file"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "default": {
+                  "expr": "'original'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "20",
+                  "imports": []
+                }
+              },
+              "name": "output_format"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "default": {
+                  "expr": "'balanced'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "20",
+                  "imports": []
+                }
+              },
+              "name": "output_quality"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "''",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "2000",
+                  "imports": []
+                }
+              },
+              "name": "source_url"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.BigIntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Input file size in bytes'",
+                  "imports": []
+                }
+              },
+              "name": "file_size"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Duration in seconds'",
+                  "imports": []
+                }
+              },
+              "name": "duration"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('resemble', 'Resemble Enhance (Recommandé — 44.1kHz)'), ('deepfilternet', 'DeepFilterNet 3 (Rapide — temps réel)')]",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'resemble'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "20",
+                  "imports": []
+                }
+              },
+              "name": "engine"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('both', 'Débruitage + Amélioration (Recommandé)'), ('denoise', 'Débruitage seul (Rapide)'), ('enhance', 'Amélioration seule (Qualité)')]",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'both'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "20",
+                  "imports": []
+                }
+              },
+              "name": "mode"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "default": {
+                  "expr": "0.5",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Denoising strength 0.0–1.0 (Resemble only)'",
+                  "imports": []
+                }
+              },
+              "name": "denoising_strength"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "64",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'NFE quality steps 32/64/128 (Resemble only)'",
+                  "imports": []
+                }
+              },
+              "name": "quality"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "''",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "255",
+                  "imports": []
+                }
+              },
+              "name": "task_id"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('PENDING', 'En attente'), ('RUNNING', 'En cours'), ('SUCCESS', 'Terminé'), ('FAILURE', 'Échec')]",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'PENDING'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "32",
+                  "imports": []
+                }
+              },
+              "name": "status"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "progress"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.TextField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "''",
+                  "imports": []
+                }
+              },
+              "name": "error_message"
+            }
+          ],
+          "manager": "wama.common.models.ScopedManager",
+          "meta": {
+            "ordering": [
+              "-created_at"
+            ]
+          },
+          "name": "AudioEnhancement"
+        },
+        {
+          "fields": [
+            {
+              "args": [],
+              "class": "django.db.models.OneToOneField",
+              "kwargs": {
+                "on_delete": {
+                  "expr": "django.db.models.deletion.CASCADE",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'enhancer_settings'",
+                  "imports": []
+                },
+                "related_query_name": {
+                  "expr": "'enhancer_settings'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "settings.AUTH_USER_MODEL",
+                  "imports": [
+                    "from django.conf import settings"
+                  ]
+                }
+              },
+              "name": "user"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('RealESR_Gx4', 'RealESR-General x4 (Rapide)'), ('RealESR_Animex4', 'RealESR-Anime x4 (Anime)'), ('BSRGANx2', 'BSRGAN x2 (Qualité)'), ('BSRGANx4', 'BSRGAN x4 (Qualité)'), ('RealESRGANx4', 'RealESRGAN x4 (Haute qualité)'), ('IRCNN_Mx1', 'IRCNN-M x1 (Débruitage)'), ('IRCNN_Lx1', 'IRCNN-L x1 (Débruitage fort)')]",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'RealESR_Gx4'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "32",
+                  "imports": []
+                }
+              },
+              "name": "default_ai_model"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.BooleanField",
+              "kwargs": {
+                "default": {
+                  "expr": "False",
+                  "imports": []
+                }
+              },
+              "name": "default_denoise"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "default": {
+                  "expr": "0.0",
+                  "imports": []
+                }
+              },
+              "name": "default_blend_factor"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.BooleanField",
+              "kwargs": {
+                "default": {
+                  "expr": "False",
+                  "imports": []
+                }
+              },
+              "name": "show_advanced_settings"
+            }
+          ],
+          "manager": "",
+          "meta": {},
+          "name": "UserSettings"
+        },
+        {
+          "fields": [
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('private', 'Privé'), ('project', 'Projet (membres, cross-org)'), ('unit', 'Unité (labo/dépt/univ…)'), ('public', 'Public')]",
+                  "imports": []
+                },
+                "db_index": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'private'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "12",
+                  "imports": []
+                }
+              },
+              "name": "visibility"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "\"Unité de partage si visibility='unit'.\"",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "on_delete": {
+                  "expr": "django.db.models.deletion.SET_NULL",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'+'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'common.orgunit'",
+                  "imports": []
+                }
+              },
+              "name": "scope_org_unit"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "\"Projet de partage si visibility='project'.\"",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "on_delete": {
+                  "expr": "django.db.models.deletion.SET_NULL",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'+'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'common.project'",
+                  "imports": []
+                }
+              },
+              "name": "scope_project"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "on_delete": {
+                  "expr": "django.db.models.deletion.CASCADE",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'batch_enhancements'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "settings.AUTH_USER_MODEL",
+                  "imports": [
+                    "from django.conf import settings"
+                  ]
+                }
+              },
+              "name": "user"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.DateTimeField",
+              "kwargs": {
+                "auto_now_add": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "created_at"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('enhancer', 'input')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "batch_file"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "total"
+            }
+          ],
+          "manager": "wama.common.models.ScopedManager",
+          "meta": {
+            "ordering": [
+              "-created_at"
+            ]
+          },
+          "name": "BatchEnhancement"
+        },
+        {
+          "fields": [
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "on_delete": {
+                  "expr": "django.db.models.deletion.CASCADE",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'items'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'enhancer.batchenhancement'",
+                  "imports": []
+                }
+              },
+              "name": "batch"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.OneToOneField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "on_delete": {
+                  "expr": "django.db.models.deletion.CASCADE",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'batch_item'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'enhancer.enhancement'",
+                  "imports": []
+                }
+              },
+              "name": "enhancement"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "row_index"
+            }
+          ],
+          "manager": "",
+          "meta": {
+            "ordering": [
+              "row_index"
+            ]
+          },
+          "name": "BatchEnhancementItem"
+        },
+        {
+          "fields": [
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('private', 'Privé'), ('project', 'Projet (membres, cross-org)'), ('unit', 'Unité (labo/dépt/univ…)'), ('public', 'Public')]",
+                  "imports": []
+                },
+                "db_index": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'private'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "12",
+                  "imports": []
+                }
+              },
+              "name": "visibility"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "\"Unité de partage si visibility='unit'.\"",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "on_delete": {
+                  "expr": "django.db.models.deletion.SET_NULL",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'+'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'common.orgunit'",
+                  "imports": []
+                }
+              },
+              "name": "scope_org_unit"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "\"Projet de partage si visibility='project'.\"",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "on_delete": {
+                  "expr": "django.db.models.deletion.SET_NULL",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'+'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'common.project'",
+                  "imports": []
+                }
+              },
+              "name": "scope_project"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "on_delete": {
+                  "expr": "django.db.models.deletion.CASCADE",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'batch_audio_enhancements'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "settings.AUTH_USER_MODEL",
+                  "imports": [
+                    "from django.conf import settings"
+                  ]
+                }
+              },
+              "name": "user"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.DateTimeField",
+              "kwargs": {
+                "auto_now_add": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "created_at"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('enhancer', 'input')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "batch_file"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "total"
+            }
+          ],
+          "manager": "wama.common.models.ScopedManager",
+          "meta": {
+            "ordering": [
+              "-created_at"
+            ]
+          },
+          "name": "BatchAudioEnhancement"
+        },
+        {
+          "fields": [
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "on_delete": {
+                  "expr": "django.db.models.deletion.CASCADE",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'items'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'enhancer.batchaudioenhancement'",
+                  "imports": []
+                }
+              },
+              "name": "batch"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.OneToOneField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "on_delete": {
+                  "expr": "django.db.models.deletion.CASCADE",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'batch_item'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'enhancer.audioenhancement'",
+                  "imports": []
+                }
+              },
+              "name": "audio_enhancement"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "row_index"
+            }
+          ],
+          "manager": "",
+          "meta": {
+            "ordering": [
+              "row_index"
+            ]
+          },
+          "name": "BatchAudioEnhancementItem"
+        }
+      ]
     },
     "identity": {
       "category": "transform",
@@ -343,6 +1786,122 @@
             "step": null,
             "type": "select",
             "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": [
+              [
+                "original",
+                "Original (inchangé)"
+              ],
+              [
+                "mp3",
+                ".MP3"
+              ],
+              [
+                "wav",
+                ".WAV"
+              ],
+              [
+                "flac",
+                ".FLAC"
+              ],
+              [
+                "ogg",
+                ".OGG"
+              ],
+              [
+                "m4a",
+                ".M4A"
+              ],
+              [
+                "aac",
+                ".AAC"
+              ],
+              [
+                "opus",
+                ".OPUS"
+              ]
+            ],
+            "contexts": [
+              "item"
+            ],
+            "default": null,
+            "dom_id": {
+              "item": "settingsAudioOutputFormat"
+            },
+            "group": null,
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-file-export",
+            "inline": false,
+            "label": "Format de sortie",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "output_format",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "select",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": [
+              [
+                "web",
+                "Web (léger)"
+              ],
+              [
+                "balanced",
+                "Équilibré"
+              ],
+              [
+                "max",
+                "Maximum"
+              ]
+            ],
+            "contexts": [
+              "item"
+            ],
+            "default": null,
+            "dom_id": {
+              "item": "settingsAudioOutputQuality"
+            },
+            "group": null,
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-sliders",
+            "inline": false,
+            "label": "Qualité",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "output_quality",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "select",
+            "unit": ""
           }
         ],
         "MEDIA_PARAMS_JSON": [
@@ -520,6 +2079,181 @@
             "show_if": null,
             "step": 0.1,
             "type": "range",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": true,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item"
+            ],
+            "default": null,
+            "dom_id": {
+              "item": "settingsOutputFormat",
+              "panel": "output_format"
+            },
+            "group": "",
+            "help": "Doit correspondre au type du média (image ou vidéo).",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-file-export",
+            "inline": false,
+            "label": "Format de sortie",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "output_format",
+            "option_groups": [
+              [
+                "Conserver",
+                [
+                  [
+                    "original",
+                    "Original (inchangé)"
+                  ]
+                ]
+              ],
+              [
+                "Image",
+                [
+                  [
+                    "jpg",
+                    ".JPG"
+                  ],
+                  [
+                    "png",
+                    ".PNG"
+                  ],
+                  [
+                    "webp",
+                    ".WEBP"
+                  ],
+                  [
+                    "tiff",
+                    ".TIFF"
+                  ],
+                  [
+                    "bmp",
+                    ".BMP"
+                  ],
+                  [
+                    "gif",
+                    ".GIF"
+                  ],
+                  [
+                    "avif",
+                    ".AVIF"
+                  ],
+                  [
+                    "pdf",
+                    ".PDF"
+                  ]
+                ]
+              ],
+              [
+                "Vidéo",
+                [
+                  [
+                    "mp4",
+                    ".MP4"
+                  ],
+                  [
+                    "webm",
+                    ".WEBM"
+                  ],
+                  [
+                    "avi",
+                    ".AVI"
+                  ],
+                  [
+                    "mov",
+                    ".MOV"
+                  ],
+                  [
+                    "mkv",
+                    ".MKV"
+                  ],
+                  [
+                    "gif",
+                    ".GIF"
+                  ],
+                  [
+                    "mp3",
+                    ".MP3"
+                  ],
+                  [
+                    "wav",
+                    ".WAV"
+                  ],
+                  [
+                    "ogg",
+                    ".OGG"
+                  ]
+                ]
+              ]
+            ],
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "select",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": [
+              [
+                "web",
+                "Web (léger)"
+              ],
+              [
+                "balanced",
+                "Équilibré"
+              ],
+              [
+                "max",
+                "Maximum"
+              ]
+            ],
+            "contexts": [
+              "panel",
+              "item"
+            ],
+            "default": null,
+            "dom_id": {
+              "item": "settingsOutputQuality",
+              "panel": "output_quality"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-sliders",
+            "inline": false,
+            "label": "Qualité",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "output_quality",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "select",
             "unit": ""
           }
         ]
@@ -826,7 +2560,9 @@
           "params_fields": [
             "ai_model",
             "denoise",
-            "blend_factor"
+            "blend_factor",
+            "output_format",
+            "output_quality"
           ],
           "user_related_name": "enhancements"
         }

@@ -21,6 +21,1048 @@
       "settings_modal_item": true,
       "streaming": false
     },
+    "data": {
+      "models": [
+        {
+          "fields": [
+            {
+              "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "processing_seconds"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('private', 'Privé'), ('project', 'Projet (membres, cross-org)'), ('unit', 'Unité (labo/dépt/univ…)'), ('public', 'Public')]",
+                  "imports": []
+                },
+                "db_index": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'private'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "12",
+                  "imports": []
+                }
+              },
+              "name": "visibility"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "\"Unité de partage si visibility='unit'.\"",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "on_delete": {
+                  "expr": "django.db.models.deletion.SET_NULL",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'+'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'common.orgunit'",
+                  "imports": []
+                }
+              },
+              "name": "scope_org_unit"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "\"Projet de partage si visibility='project'.\"",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "on_delete": {
+                  "expr": "django.db.models.deletion.SET_NULL",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'+'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'common.project'",
+                  "imports": []
+                }
+              },
+              "name": "scope_project"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.TextField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "''",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Prompt traité effectivement envoyé au modèle (vide = utiliser `prompt`)'",
+                  "imports": []
+                }
+              },
+              "name": "prompt_processed"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.JSONField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "dict",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Trace PromptPipeline par champ : {enriched, source, language, keywords}'",
+                  "imports": []
+                }
+              },
+              "name": "prompt_trace"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.JSONField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "list",
+                  "imports": []
+                }
+              },
+              "name": "prompt_keywords"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "on_delete": {
+                  "expr": "django.db.models.deletion.CASCADE",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "to": {
+                  "expr": "settings.AUTH_USER_MODEL",
+                  "imports": [
+                    "from django.conf import settings"
+                  ]
+                }
+              },
+              "name": "user"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('txt2img', 'Text to Image'), ('file2img', 'File to Image (batch)'), ('describe2img', 'Describe to Image'), ('style2img', 'Style Transfer'), ('img2img', 'Image to Image'), ('txt2vid', 'Text to Video'), ('img2vid', 'Image to Video')]",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'txt2img'",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Type of generation'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "20",
+                  "imports": []
+                }
+              },
+              "name": "generation_mode"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.TextField",
+              "kwargs": {
+                "help_text": {
+                  "expr": "'Description of the image to generate'",
+                  "imports": []
+                }
+              },
+              "name": "prompt"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.TextField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "''",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'What to avoid in the image'",
+                  "imports": []
+                }
+              },
+              "name": "negative_prompt"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Text file containing prompts for batch generation'",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('imager', 'input/prompts')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                },
+                "validators": {
+                  "expr": "[django.core.validators.FileExtensionValidator(['txt', 'json', 'yaml', 'yml'])]",
+                  "imports": [
+                    "import django.core.validators"
+                  ]
+                }
+              },
+              "name": "prompt_file"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ImageField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Reference image for img2img, style transfer, or auto-describe'",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('imager', 'input/references')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "reference_image"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "''",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "1000",
+                  "imports": []
+                }
+              },
+              "name": "source_url"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "default": {
+                  "expr": "0.75",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Influence of reference image (0=ignore, 1=copy)'",
+                  "imports": []
+                },
+                "validators": {
+                  "expr": "[django.core.validators.MinValueValidator(0.0), django.core.validators.MaxValueValidator(1.0)]",
+                  "imports": [
+                    "import django.core.validators"
+                  ]
+                }
+              },
+              "name": "image_strength"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.TextField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "''",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Prompt automatically generated from reference image'",
+                  "imports": []
+                }
+              },
+              "name": "auto_prompt"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "default": {
+                  "expr": "'stable-diffusion-v1-5'",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'AI model to use'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "100",
+                  "imports": []
+                }
+              },
+              "name": "model"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "512",
+                  "imports": []
+                },
+                "validators": {
+                  "expr": "[django.core.validators.MinValueValidator(64), django.core.validators.MaxValueValidator(2048)]",
+                  "imports": [
+                    "import django.core.validators"
+                  ]
+                }
+              },
+              "name": "width"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "512",
+                  "imports": []
+                },
+                "validators": {
+                  "expr": "[django.core.validators.MinValueValidator(64), django.core.validators.MaxValueValidator(2048)]",
+                  "imports": [
+                    "import django.core.validators"
+                  ]
+                }
+              },
+              "name": "height"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "30",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Number of diffusion steps'",
+                  "imports": []
+                },
+                "validators": {
+                  "expr": "[django.core.validators.MinValueValidator(1), django.core.validators.MaxValueValidator(100)]",
+                  "imports": [
+                    "import django.core.validators"
+                  ]
+                }
+              },
+              "name": "steps"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "default": {
+                  "expr": "7.5",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'How closely to follow the prompt'",
+                  "imports": []
+                },
+                "validators": {
+                  "expr": "[django.core.validators.MinValueValidator(1.0), django.core.validators.MaxValueValidator(20.0)]",
+                  "imports": [
+                    "import django.core.validators"
+                  ]
+                }
+              },
+              "name": "guidance_scale"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Random seed for reproducibility'",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "seed"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "1",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Number of images to generate'",
+                  "imports": []
+                },
+                "validators": {
+                  "expr": "[django.core.validators.MinValueValidator(1), django.core.validators.MaxValueValidator(4)]",
+                  "imports": [
+                    "import django.core.validators"
+                  ]
+                }
+              },
+              "name": "num_images"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.BooleanField",
+              "kwargs": {
+                "default": {
+                  "expr": "False",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Upscale the generated image'",
+                  "imports": []
+                }
+              },
+              "name": "upscale"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('image', 'Image'), ('video', 'Video')]",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'image'",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Type of output (image or video)'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "10",
+                  "imports": []
+                }
+              },
+              "name": "output_type"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "default": {
+                  "expr": "5.0",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Video duration in seconds (1-15)'",
+                  "imports": []
+                },
+                "validators": {
+                  "expr": "[django.core.validators.MinValueValidator(1.0), django.core.validators.MaxValueValidator(15.0)]",
+                  "imports": [
+                    "import django.core.validators"
+                  ]
+                }
+              },
+              "name": "video_duration"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "16",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Video frames per second'",
+                  "imports": []
+                },
+                "validators": {
+                  "expr": "[django.core.validators.MinValueValidator(8), django.core.validators.MaxValueValidator(30)]",
+                  "imports": [
+                    "import django.core.validators"
+                  ]
+                }
+              },
+              "name": "video_fps"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "81",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Number of video frames (calculated as 4k+1)'",
+                  "imports": []
+                }
+              },
+              "name": "video_frames"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('480p', '480p (832x480) 16:9'), ('720p', '720p (1280x720) 16:9')]",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'480p'",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Video resolution preset'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "10",
+                  "imports": []
+                }
+              },
+              "name": "video_resolution"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.JSONField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "list",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'List of generated image paths'",
+                  "imports": []
+                }
+              },
+              "name": "generated_images"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Generated video file'",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('imager', 'output/video')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "output_video"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "default": {
+                  "expr": "'original'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "20",
+                  "imports": []
+                }
+              },
+              "name": "output_format"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "default": {
+                  "expr": "'balanced'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "20",
+                  "imports": []
+                }
+              },
+              "name": "output_quality"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('PENDING', 'Pending'), ('RUNNING', 'Running'), ('SUCCESS', 'Success'), ('FAILURE', 'Failure')]",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'PENDING'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "20",
+                  "imports": []
+                }
+              },
+              "name": "status"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                },
+                "validators": {
+                  "expr": "[django.core.validators.MinValueValidator(0), django.core.validators.MaxValueValidator(100)]",
+                  "imports": [
+                    "import django.core.validators"
+                  ]
+                }
+              },
+              "name": "progress"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.TextField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "''",
+                  "imports": []
+                }
+              },
+              "name": "error_message"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "''",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "255",
+                  "imports": []
+                }
+              },
+              "name": "task_id"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.DateTimeField",
+              "kwargs": {
+                "auto_now_add": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "created_at"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.DateTimeField",
+              "kwargs": {
+                "auto_now": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "updated_at"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.DateTimeField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "completed_at"
+            }
+          ],
+          "manager": "wama.common.models.ScopedManager",
+          "meta": {
+            "ordering": [
+              "-created_at"
+            ]
+          },
+          "name": "ImageGeneration"
+        },
+        {
+          "fields": [
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('private', 'Privé'), ('project', 'Projet (membres, cross-org)'), ('unit', 'Unité (labo/dépt/univ…)'), ('public', 'Public')]",
+                  "imports": []
+                },
+                "db_index": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'private'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "12",
+                  "imports": []
+                }
+              },
+              "name": "visibility"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "\"Unité de partage si visibility='unit'.\"",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "on_delete": {
+                  "expr": "django.db.models.deletion.SET_NULL",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'+'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'common.orgunit'",
+                  "imports": []
+                }
+              },
+              "name": "scope_org_unit"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "\"Projet de partage si visibility='project'.\"",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "on_delete": {
+                  "expr": "django.db.models.deletion.SET_NULL",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'+'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'common.project'",
+                  "imports": []
+                }
+              },
+              "name": "scope_project"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "on_delete": {
+                  "expr": "django.db.models.deletion.CASCADE",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'generation_batches'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "settings.AUTH_USER_MODEL",
+                  "imports": [
+                    "from django.conf import settings"
+                  ]
+                }
+              },
+              "name": "user"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.DateTimeField",
+              "kwargs": {
+                "auto_now_add": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "created_at"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('imager', 'input/prompts')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "batch_file"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "default": {
+                  "expr": "'image'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "10",
+                  "imports": []
+                }
+              },
+              "name": "domain"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "total"
+            }
+          ],
+          "manager": "wama.common.models.ScopedManager",
+          "meta": {
+            "ordering": [
+              "-created_at"
+            ]
+          },
+          "name": "GenerationBatch"
+        },
+        {
+          "fields": [
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "on_delete": {
+                  "expr": "django.db.models.deletion.CASCADE",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'items'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'imager.generationbatch'",
+                  "imports": []
+                }
+              },
+              "name": "batch"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.OneToOneField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "on_delete": {
+                  "expr": "django.db.models.deletion.CASCADE",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'batch_item'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'imager.imagegeneration'",
+                  "imports": []
+                }
+              },
+              "name": "generation"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "row_index"
+            }
+          ],
+          "manager": "",
+          "meta": {
+            "ordering": [
+              "row_index"
+            ]
+          },
+          "name": "GenerationBatchItem"
+        }
+      ]
+    },
     "identity": {
       "category": "create",
       "color": "#b254db",

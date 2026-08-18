@@ -21,6 +21,1076 @@
       "settings_modal_item": true,
       "streaming": false
     },
+    "data": {
+      "models": [
+        {
+          "fields": [
+            {
+              "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "processing_seconds"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('private', 'Privé'), ('project', 'Projet (membres, cross-org)'), ('unit', 'Unité (labo/dépt/univ…)'), ('public', 'Public')]",
+                  "imports": []
+                },
+                "db_index": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'private'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "12",
+                  "imports": []
+                }
+              },
+              "name": "visibility"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "\"Unité de partage si visibility='unit'.\"",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "on_delete": {
+                  "expr": "django.db.models.deletion.SET_NULL",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'+'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'common.orgunit'",
+                  "imports": []
+                }
+              },
+              "name": "scope_org_unit"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "\"Projet de partage si visibility='project'.\"",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "on_delete": {
+                  "expr": "django.db.models.deletion.SET_NULL",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'+'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'common.project'",
+                  "imports": []
+                }
+              },
+              "name": "scope_project"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "on_delete": {
+                  "expr": "django.db.models.deletion.CASCADE",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'voice_syntheses'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "settings.AUTH_USER_MODEL",
+                  "imports": [
+                    "from django.conf import settings"
+                  ]
+                }
+              },
+              "name": "user"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.DateTimeField",
+              "kwargs": {
+                "auto_now_add": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "created_at"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.DateTimeField",
+              "kwargs": {
+                "auto_now": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "updated_at"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "help_text": {
+                  "expr": "'Fichier texte à synthétiser'",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('synthesizer', 'input')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                },
+                "validators": {
+                  "expr": "[django.core.validators.FileExtensionValidator(allowed_extensions=['txt', 'pdf', 'docx', 'csv', 'md'])]",
+                  "imports": [
+                    "import django.core.validators"
+                  ]
+                }
+              },
+              "name": "text_file"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.TextField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Contenu texte extrait du fichier'",
+                  "imports": []
+                }
+              },
+              "name": "text_content"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Échantillon audio pour clonage de voix (6-10 secondes recommandé)'",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('synthesizer', 'input')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                },
+                "validators": {
+                  "expr": "[django.core.validators.FileExtensionValidator(allowed_extensions=['wav', 'mp3', 'flac', 'ogg'])]",
+                  "imports": [
+                    "import django.core.validators"
+                  ]
+                }
+              },
+              "name": "voice_reference"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "''",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "\"URL d'un échantillon de voix à télécharger comme référence de clonage\"",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "2000",
+                  "imports": []
+                }
+              },
+              "name": "source_url"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('xtts_v2', 'XTTS v2 (Clonage vocal, 16 langues)'), ('bark', 'Bark (Naturel, Expressif, Effets sonores, 14 langues)'), ('kokoro', 'Kokoro 82M (Léger, FR/EN/ES/IT/PT/JA/ZH)'), ('vits', 'VITS (Rapide, EN uniquement)'), ('tacotron2', 'Tacotron2 (Classique, EN uniquement)'), ('speedy_speech', 'SpeedySpeech (Très rapide, EN uniquement)'), ('higgs_audio', 'Higgs Audio v2 (Multilocuteur, Clonage vocal, 9 langues, 24 Go VRAM)')]",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'xtts_v2'",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Modèle TTS à utiliser'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "50",
+                  "imports": []
+                }
+              },
+              "name": "tts_model"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('fr', 'Français'), ('en', 'English'), ('es', 'Español'), ('de', 'Deutsch'), ('it', 'Italiano'), ('pt', 'Português'), ('pl', 'Polski'), ('tr', 'Türkçe'), ('ru', 'Русский'), ('nl', 'Nederlands'), ('cs', 'Čeština'), ('ar', 'العربية'), ('zh-cn', '中文'), ('ja', '日本語'), ('ko', '한국어')]",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'fr'",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Langue de synthèse'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "10",
+                  "imports": []
+                }
+              },
+              "name": "language"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('default', 'Voix par défaut'), ('male_1', 'Voix masculine 1'), ('male_2', 'Voix masculine 2'), ('female_1', 'Voix féminine 1'), ('female_2', 'Voix féminine 2'), ('custom', 'Voix personnalisée (clonage)'), ('bark_v2_en_0', 'Bark EN Speaker 0'), ('bark_v2_en_1', 'Bark EN Speaker 1'), ('bark_v2_en_2', 'Bark EN Speaker 2'), ('bark_v2_en_3', 'Bark EN Speaker 3'), ('bark_v2_en_4', 'Bark EN Speaker 4'), ('bark_v2_en_5', 'Bark EN Speaker 5'), ('bark_v2_fr_0', 'Bark FR Speaker 0'), ('bark_v2_fr_1', 'Bark FR Speaker 1'), ('bark_v2_es_0', 'Bark ES Speaker 0'), ('bark_v2_de_0', 'Bark DE Speaker 0')]",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'default'",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Preset de voix'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "100",
+                  "imports": []
+                }
+              },
+              "name": "voice_preset"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "default": {
+                  "expr": "1.0",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Vitesse de parole (0.5 = lent, 2.0 = rapide)'",
+                  "imports": []
+                }
+              },
+              "name": "speed"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "default": {
+                  "expr": "1.0",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Hauteur de la voix (0.5 = grave, 2.0 = aigu)'",
+                  "imports": []
+                }
+              },
+              "name": "pitch"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "default": {
+                  "expr": "1.0",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Intensité émotionnelle (0.0 = neutre, 2.0 = très expressif)'",
+                  "imports": []
+                }
+              },
+              "name": "emotion_intensity"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.BooleanField",
+              "kwargs": {
+                "default": {
+                  "expr": "False",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Mode multi-speaker avec tags [S1], [S2] (Higgs Audio)'",
+                  "imports": []
+                }
+              },
+              "name": "multi_speaker"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.TextField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Description de la scène pour le mode multi-speaker Higgs Audio'",
+                  "imports": []
+                }
+              },
+              "name": "scene_description"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Fichier audio généré'",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('synthesizer', 'output')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "audio_output"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "default": {
+                  "expr": "'original'",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Format de sortie audio : original | mp3 | wav | flac | ogg | m4a | aac | opus'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "20",
+                  "imports": []
+                }
+              },
+              "name": "output_format"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "default": {
+                  "expr": "'balanced'",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Preset qualité : web | balanced | max'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "20",
+                  "imports": []
+                }
+              },
+              "name": "output_quality"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Nombre de mots dans le texte'",
+                  "imports": []
+                }
+              },
+              "name": "word_count"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "default": {
+                  "expr": "0.0",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "\"Durée estimée de l'audio en secondes\"",
+                  "imports": []
+                }
+              },
+              "name": "duration_seconds"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Durée formatée (mm:ss)'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "20",
+                  "imports": []
+                }
+              },
+              "name": "duration_display"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Propriétés audio (format, sample rate, etc.)'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "200",
+                  "imports": []
+                }
+              },
+              "name": "properties"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('PENDING', 'En attente'), ('RUNNING', 'En cours'), ('SUCCESS', 'Terminé'), ('FAILURE', 'Échec')]",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'PENDING'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "20",
+                  "imports": []
+                }
+              },
+              "name": "status"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Progression de la synthèse (0-100)'",
+                  "imports": []
+                }
+              },
+              "name": "progress"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'ID de la tâche Celery'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "255",
+                  "imports": []
+                }
+              },
+              "name": "task_id"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.TextField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "\"Message d'erreur en cas d'échec\"",
+                  "imports": []
+                }
+              },
+              "name": "error_message"
+            }
+          ],
+          "manager": "wama.common.models.ScopedManager",
+          "meta": {
+            "ordering": [
+              "-created_at"
+            ]
+          },
+          "name": "VoiceSynthesis"
+        },
+        {
+          "fields": [
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "max_length": {
+                  "expr": "100",
+                  "imports": []
+                },
+                "unique": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "name"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.TextField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "description"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "upload_to": {
+                  "expr": "'synthesizer/presets/'",
+                  "imports": []
+                },
+                "validators": {
+                  "expr": "[django.core.validators.FileExtensionValidator(allowed_extensions=['wav', 'mp3', 'flac'])]",
+                  "imports": [
+                    "import django.core.validators"
+                  ]
+                }
+              },
+              "name": "reference_audio"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "default": {
+                  "expr": "'en'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "10",
+                  "imports": []
+                }
+              },
+              "name": "language"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('male', 'Male'), ('female', 'Female'), ('neutral', 'Neutral')]",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'neutral'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "10",
+                  "imports": []
+                }
+              },
+              "name": "gender"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.BooleanField",
+              "kwargs": {
+                "default": {
+                  "expr": "False",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Si activé, disponible pour tous les utilisateurs'",
+                  "imports": []
+                }
+              },
+              "name": "is_public"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "on_delete": {
+                  "expr": "django.db.models.deletion.CASCADE",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'voice_presets'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "settings.AUTH_USER_MODEL",
+                  "imports": [
+                    "from django.conf import settings"
+                  ]
+                }
+              },
+              "name": "created_by"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.DateTimeField",
+              "kwargs": {
+                "auto_now_add": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "created_at"
+            }
+          ],
+          "manager": "",
+          "meta": {
+            "ordering": [
+              "name"
+            ]
+          },
+          "name": "VoicePreset"
+        },
+        {
+          "fields": [
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "on_delete": {
+                  "expr": "django.db.models.deletion.CASCADE",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'custom_voices'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "settings.AUTH_USER_MODEL",
+                  "imports": [
+                    "from django.conf import settings"
+                  ]
+                }
+              },
+              "name": "user"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "max_length": {
+                  "expr": "100",
+                  "imports": []
+                }
+              },
+              "name": "name"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('synthesizer', 'custom_voices')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                },
+                "validators": {
+                  "expr": "[django.core.validators.FileExtensionValidator(allowed_extensions=['wav', 'mp3', 'flac', 'ogg'])]",
+                  "imports": [
+                    "import django.core.validators"
+                  ]
+                }
+              },
+              "name": "audio"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.DateTimeField",
+              "kwargs": {
+                "auto_now_add": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "created_at"
+            }
+          ],
+          "manager": "",
+          "meta": {
+            "ordering": [
+              "name"
+            ],
+            "unique_together": [
+              [
+                "user",
+                "name"
+              ]
+            ]
+          },
+          "name": "CustomVoice"
+        },
+        {
+          "fields": [
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "choices": {
+                  "expr": "[('private', 'Privé'), ('project', 'Projet (membres, cross-org)'), ('unit', 'Unité (labo/dépt/univ…)'), ('public', 'Public')]",
+                  "imports": []
+                },
+                "db_index": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "'private'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "12",
+                  "imports": []
+                }
+              },
+              "name": "visibility"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "\"Unité de partage si visibility='unit'.\"",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "on_delete": {
+                  "expr": "django.db.models.deletion.SET_NULL",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'+'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'common.orgunit'",
+                  "imports": []
+                }
+              },
+              "name": "scope_org_unit"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "\"Projet de partage si visibility='project'.\"",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "on_delete": {
+                  "expr": "django.db.models.deletion.SET_NULL",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'+'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'common.project'",
+                  "imports": []
+                }
+              },
+              "name": "scope_project"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "on_delete": {
+                  "expr": "django.db.models.deletion.CASCADE",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'batch_syntheses'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "settings.AUTH_USER_MODEL",
+                  "imports": [
+                    "from django.conf import settings"
+                  ]
+                }
+              },
+              "name": "user"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.DateTimeField",
+              "kwargs": {
+                "auto_now_add": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "created_at"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Fichier batch source'",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('synthesizer', 'input')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "batch_file"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "total"
+            }
+          ],
+          "manager": "wama.common.models.ScopedManager",
+          "meta": {
+            "ordering": [
+              "-created_at"
+            ]
+          },
+          "name": "BatchSynthesis"
+        },
+        {
+          "fields": [
+            {
+              "args": [],
+              "class": "django.db.models.ForeignKey",
+              "kwargs": {
+                "on_delete": {
+                  "expr": "django.db.models.deletion.CASCADE",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'items'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'synthesizer.batchsynthesis'",
+                  "imports": []
+                }
+              },
+              "name": "batch"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.OneToOneField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "on_delete": {
+                  "expr": "django.db.models.deletion.CASCADE",
+                  "imports": [
+                    "import django.db.models.deletion"
+                  ]
+                },
+                "related_name": {
+                  "expr": "'batch_item'",
+                  "imports": []
+                },
+                "to": {
+                  "expr": "'synthesizer.voicesynthesis'",
+                  "imports": []
+                }
+              },
+              "name": "synthesis"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.CharField",
+              "kwargs": {
+                "help_text": {
+                  "expr": "'Nom du fichier audio de sortie désiré (ex: consigne_1.wav)'",
+                  "imports": []
+                },
+                "max_length": {
+                  "expr": "255",
+                  "imports": []
+                }
+              },
+              "name": "output_filename"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "default": {
+                  "expr": "0",
+                  "imports": []
+                }
+              },
+              "name": "row_index"
+            }
+          ],
+          "manager": "",
+          "meta": {
+            "ordering": [
+              "row_index"
+            ]
+          },
+          "name": "BatchSynthesisItem"
+        }
+      ]
+    },
     "identity": {
       "category": "create",
       "color": "#bf70e1",
