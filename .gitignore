@@ -90,8 +90,11 @@ target/
 # celery beat schedule file
 celerybeat-schedule
 
-# dotenv
+# dotenv — le filet couvre AUSSI les copies (.env.avant-reordre, .env.bak…) : une copie de
+# secrets non ignorée a failli être commitable le 19/08. L'example, lui, est VERSIONNÉ.
 .env
+.env.*
+!.env.example
 
 # virtualenv
 venv/
