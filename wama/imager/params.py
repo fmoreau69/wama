@@ -58,6 +58,9 @@ IMAGE_PARAMS = derive_from_model(
             type="select", label="Modèle", icon="fa-microchip",
             dom_id={"item": "settings_model", "panel": "model"},
             group="modele",
+            # Descriptif court + VRAM sous le select (catalogue — ids = model_key strippés,
+            # vérifié 18/08 ; câblage annoncé en tête de ce fichier depuis P1).
+            help_source="imager",
             help="Modèle de génération (Auto = tirage VRAM-aware au lancement).",
             # Options peuplées par settings_modal.js depuis les MÊMES groupes de catalogue
             # que la card d'entrée (Images / Logos / Vidéos) — pas de 2ᵉ liste.
@@ -126,6 +129,7 @@ VIDEO_PARAMS = derive_from_model(
             type="select", label="Modèle vidéo", icon="fa-film",
             dom_id={"item": "video_settings_model", "panel": "panel_video_model"},
             group="modele",
+            help_source="imager",   # descriptif court + VRAM (catalogue), cf. domaine image
         ),
         "negative_prompt": dict(
             type="textarea", label="Prompt négatif", icon="fa-ban",

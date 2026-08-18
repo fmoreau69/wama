@@ -17,12 +17,23 @@ PANEL_ITEM = ("panel", "item")
 PANEL_ITEM_BATCH = ("panel", "item", "batch")
 
 PARAMS = [
-    # Ordre = celui du VOLET (Type[switch statique] → Modèle → Durée → Prompt → Format → Qualité).
+    # Ordre = ordre de DÉCLARATION (WamaParams déroule la liste). Le PROMPT ouvre la modale
+    # (décision Fabien 18/08 : l'intention d'abord, les réglages ensuite) — contexts item
+    # seulement, donc l'ordre du VOLET (Modèle → Durée → Format → Qualité) est inchangé.
+    Param(name="prompt", type="textarea", label="Prompt", icon="fa-pen",
+          dom_id={"item": "settingsPrompt"}, contexts=("item",)),
     # `option_groups` depuis COMPOSER_MODELS (même source que le <select> legacy), groupés par
     # MODE Musique/Bruitages — miroir des optgroups du volet ; le JS masque le groupe non
     # pertinent selon le generation_type de l'item. Volet : select serveur (#modelSelect,
     # initFromSchema lit/applique par dom_id sans re-rendre) ; modale : rendue par WamaParams (P1).
+    # help_source : descriptif court + VRAM sous le select (catalogue, 18/08) ; les pseudo-
+    # options auto-* sont HORS catalogue → repli statique.
     Param(name="model", type="select", label="Modèle", icon="fa-music", chip=True,
+          help_source="composer",
+          help_fallback={
+              "auto-music": "Choix automatique : le plus gros modèle MUSIQUE tenant dans la VRAM libre au lancement.",
+              "auto-sfx": "Choix automatique : le plus gros modèle BRUITAGES tenant dans la VRAM libre au lancement.",
+          },
           dom_id={"panel": "modelSelect", "item": "settingsModel", "batch": "batchSettingsModel"},
           contexts=PANEL_ITEM_BATCH,
           option_groups=[
@@ -44,9 +55,6 @@ PARAMS = [
           dom_id={"panel": "durationSlider", "item": "settingsDuration",
                   "batch": "batchSettingsDuration"},
           contexts=PANEL_ITEM_BATCH),
-    # Prompt éditable par item (modale seulement : le volet a sa zone de composition dédiée).
-    Param(name="prompt", type="textarea", label="Prompt", icon="fa-pen",
-          dom_id={"item": "settingsPrompt"}, contexts=("item",)),
 ]
 
 # Format + qualité de sortie depuis la brique commune (audio, early-binding auto via le catalogue).
