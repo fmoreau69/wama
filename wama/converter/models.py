@@ -119,3 +119,18 @@ class ConversionJob(ProcessingTimeMixin, ScopedVisibility):
             from pathlib import Path
             return Path(self.output_file.name).name
         return ''
+
+    @property
+    def gear_data(self):
+        """Réglages du job APLATIS pour les data-* du bouton ⚙ de la card — consommés par
+        WamaInspector.initFromSchema (cardSettings) pour refléter la card dans le volet.
+        Booléens en 'true'/'false' (le apply de la brique ne reconnaît pas 'True' Python) ;
+        TOUS les params item du schéma sont émis ('' si absents) pour qu'un changement de
+        sélection ne laisse pas les valeurs de la card précédente dans le volet."""
+        from .params import PARAMS
+        out = {p.name: '' for p in PARAMS if 'item' in (p.contexts or ())}
+        out['media_type'] = self.media_type or ''
+        out['output_format'] = self.output_format or ''
+        for k, v in {**(self.options or {}), **(self.cross_app_options or {})}.items():
+            out[k] = 'true' if v is True else 'false' if v is False else v
+        return out

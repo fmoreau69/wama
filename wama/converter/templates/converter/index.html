@@ -45,6 +45,10 @@ alignement reader/composer/transcriber/describer, 2026-07-10 — bug remonté : 
 {# ── Right panel : paramètres de conversion ──────────────────────────────── #}
 {% block app_right_panel_settings %}
 
+{% comment %}Zone de COMPOSITION (défauts des prochains uploads) — masquée pendant
+l'inspection d'une card (hideOnInspect) au profit du host schéma en fin de bloc.{% endcomment %}
+<div id="converterUploadDefaults">
+
 <!-- Type de média détecté (mis à jour par JS) -->
 <div class="mb-2">
     <label class="form-label small fw-bold text-light mb-1">
@@ -179,6 +183,12 @@ alignement reader/composer/transcriber/describer, 2026-07-10 — bug remonté : 
 <button class="btn btn-outline-secondary btn-sm w-100" id="converterResetOptions">
     <i class="fas fa-undo"></i> Réinitialiser
 </button>
+</div>{# /converterUploadDefaults #}
+
+{% comment %}Réglages de l'ÉLÉMENT inspecté — MÊMES params que la modale ⚙ (WamaParams
+context=panel, rendu dans le script inspecteur ci-dessous), valeurs appliquées depuis les
+data-* du gear (initFromSchema). Pattern describer (demande Fabien 18/08).{% endcomment %}
+<div id="converterPanelParams" class="d-none"></div>
 {% endblock %}
 
 {# ── Right panel : actions ───────────────────────────────────────────────── #}
@@ -341,26 +351,71 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!window.WamaInspector || !WamaInspector.initFromSchema) return;
     var q = document.getElementById('converterQueue');
     if (!q) return;
-    // Inspecteur contextuel commun : sélection card/batch → aperçu inline (unified_preview) +
-    // section Infos en chips (unified_detail) + actions CLONÉES de la card (cloneActions).
-    // Converter édite per-job via la MODALE schéma-driven (bouton ⚙ → jobSettingsModal) ;
-    // le volet reste la zone de composition (format/options par média) — aucun param en contexte
-    // 'panel' dans le schéma, la synchro volet dérivée est donc neutre.
+    // Inspecteur contextuel commun (pattern describer, 18/08) : sélection card → aperçu inline +
+    // Infos en chips + actions clonées + PARAMS de la card REFLÉTÉS dans le volet : host
+    // #converterPanelParams rendu du MÊME schéma que la modale ⚙ (context 'panel'), valeurs
+    // appliquées depuis les data-* du gear (gear_data), save routé sur converter:update.
+    // La zone de composition (défauts d'upload) est masquée pendant l'inspection (hideOnInspect).
+    var ph = document.getElementById('converterPanelParams');
+    if (ph && window.WamaParams && window.CONVERTER_APP) {
+        WamaParams.render(ph, CONVERTER_APP.schema, {
+            context: 'panel', values: {},
+            optionsResolver: function (p) {
+                if (p.options_source !== 'formats') return null;
+                // UNION des familles : le media_type varie par card inspectée, le select doit
+                // pouvoir AFFICHER la valeur de chacune (le show_if par media_type fait le tri).
+                var seen = {}, out = [];
+                Object.keys(CONVERTER_APP.supportedFormats || {}).forEach(function (mt) {
+                    ((CONVERTER_APP.supportedFormats[mt] || {}).output || []).forEach(function (f) {
+                        if (!seen[f]) { seen[f] = 1; out.push({ value: f, label: '.' + f.toUpperCase() }); }
+                    });
+                });
+                return out;
+            },
+        });
+    }
+    function showPanelParams(on) { if (ph) ph.classList.toggle('d-none', !on); }
     WamaInspector.initFromSchema({
         queueContainer: q,
         cardSelector: '.job-card',
         batchSelector: '.batch-group',
         schema: (window.CONVERTER_APP && CONVERTER_APP.schema) || [],
-        itemLabel: function (id) { return "l'élément #" + id + " (⚙ pour éditer)"; },
+        panelContainer: ph,
+        hideOnInspect: ['converterUploadDefaults'],
+        itemLabel: function (id) { return "l'élément #" + id; },
         batchLabel: function (id) { return "le batch #" + id; },
         renderItemActions: function (host, card) {
+            showPanelParams(true);
             WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
                 '<i class="fas fa-clone text-info"></i> Actions — élément #' + card.dataset.id);
         },
         renderBatchActions: function (host, batchId) {
+            showPanelParams(false);   // batch : réglages via la modale batch (quality_preset)
             var grp = q.querySelector('.batch-group[data-batch-id="' + batchId + '"] .btn-group-actions');
             WamaInspector.cloneActions(host, grp,
                 '<i class="fas fa-layer-group text-info"></i> Actions — batch #' + batchId);
+        },
+        onDeselect: function () { showPanelParams(false); },
+        saveItem: function (id) {
+            if (!ph || !CONVERTER_APP.readParamsFrom) return Promise.resolve();
+            var p = CONVERTER_APP.readParamsFrom(ph);   // filtre show_if par media_type + coercitions
+            var fd = new FormData();
+            fd.append('output_format', p.output_format || '');
+            fd.append('options_json', JSON.stringify(p.options || {}));
+            return fetch(CONVERTER_APP.urls.update.replace('/0/', '/' + id + '/'), {
+                method: 'POST', headers: { 'X-CSRFToken': CONVERTER_APP.csrfToken }, body: fd,
+            }).then(function (r) {
+                if (!r.ok) return;
+                // Cohérence au prochain clic : reflète les valeurs dans les data-* du gear.
+                var btn = q.querySelector('.job-card[data-id="' + id + '"] .job-settings-btn');
+                if (btn) {
+                    btn.setAttribute('data-output_format', p.output_format || '');
+                    Object.keys(p.options || {}).forEach(function (k) {
+                        var v = p.options[k];
+                        btn.setAttribute('data-' + k, v === true ? 'true' : v === false ? 'false' : v);
+                    });
+                }
+            });
         },
     });
 });

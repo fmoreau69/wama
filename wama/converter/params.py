@@ -40,8 +40,11 @@ VID = {"field": "media_type", "equals": "video"}
 AUD = {"field": "media_type", "equals": "audio"}
 IMG_VID = {"field": "media_type", "in": ["image", "video"]}
 
-ITEM = ("item",)
-ITEM_BATCH = ("item", "batch")   # rendu aussi dans la modale de BATCH (application en masse)
+# 'panel' ajouté (18/08, demande Fabien) : l'inspecteur du volet droit REFLÈTE les params
+# de la modale pour la card sélectionnée (host #converterPanelParams, WamaParams context=panel,
+# valeurs appliquées depuis les data-* du gear par WamaInspector.initFromSchema — pattern describer).
+ITEM = ("item", "panel")
+ITEM_BATCH = ("item", "batch", "panel")   # + modale de BATCH (application en masse)
 
 PARAMS = [
     # Porteur (invisible) : pilote les show_if + le resolver de formats. Non sauvegardé (type fixe du job).

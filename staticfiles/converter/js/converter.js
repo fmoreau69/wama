@@ -709,15 +709,17 @@
         return { output_format: outputFormat, options };
     }
 
-    // Lecture de la modale SCHÉMA-DRIVEN (WamaParams) → même forme {output_format, options} que
-    // readModalForm : coercition nombres/toggles + filtre show_if pour ne garder que les options du
-    // media_type courant (WamaParams.read voit aussi les sections cachées).
-    function readModalViaSchema() {
-        const body = document.getElementById('jobSettingsBody');
+    // Lecture SCHÉMA-DRIVEN d'un conteneur WamaParams (modale ⚙ OU volet inspecteur) →
+    // {output_format, options} : coercition nombres/toggles + filtre show_if pour ne garder
+    // que les options du media_type (WamaParams.read voit aussi les sections cachées).
+    // PARTAGÉE modale/inspecteur (18/08) — exposée via APP.readParamsFrom pour le script
+    // initFromSchema (index.html).
+    function readParamsFrom(container, mediaType) {
+        const body = container;
         const raw = WamaParams.read(body);
         const byName = {};
         (APP.schema || []).forEach(function (p) { byName[p.name] = p; });
-        const mt = currentModalMediaType;
+        const mt = (mediaType !== undefined && mediaType !== null) ? mediaType : (raw.media_type || '');
         function matches(p) {
             const c = p.show_if;
             if (!c || typeof c === 'string' || c.field !== 'media_type') return true;
@@ -743,6 +745,11 @@
             if (v !== '' && v != null) options[k] = v;
         });
         return { output_format: raw.output_format || '', options: options };
+    }
+    APP.readParamsFrom = readParamsFrom;
+
+    function readModalViaSchema() {
+        return readParamsFrom(document.getElementById('jobSettingsBody'), currentModalMediaType);
     }
 
     let currentModalJobId = null;

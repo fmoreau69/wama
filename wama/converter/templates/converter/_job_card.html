@@ -94,8 +94,12 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
     <div class="wcv3-sec wcv3-sec--actions">
       <span class="wcv3-lbl">Actions</span>
       <div class="btn-group-actions wcv3-actions">
+        {% comment %}data-* = réglages du job (gear_data, booléens 'true'/'false') — lus par
+        WamaInspector.initFromSchema pour REFLÉTER la card dans le volet (pattern
+        describer/synthesizer, demande Fabien 18/08).{% endcomment %}
         <button class="btn btn-sm btn-outline-secondary job-settings-btn"
-                title="Paramètres" data-job-id="{{ job.id }}">
+                title="Paramètres" data-job-id="{{ job.id }}"
+                {% for k, v in job.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}>
           <i class="fas fa-cog"></i>
         </button>
         {% include 'common/_cycle_button.html' with id=job.id status=job.status %}
@@ -134,28 +138,27 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
 
   </div>{# /.wcv3 #}
 
-  {% comment %}Preview PERMANENTE (§11, contrat famille — porté d'anonymizer/_media_card
-  le 18/08, constat Fabien : la card converter n'avait pas de zone preview) : résultat
-  affiché en SUCCESS sous la barre ; le placeholder reste dans tous les cas (contrat JS
-  de la famille). output_file = FileField → .url direct.{% endcomment %}
+  {% comment %}Preview PERMANENTE du RÉSULTAT (§11, contrat famille) : briques COMMUNES
+  uniquement — audio = _audio_waveform.html (wama-audio-player.js, chargé global base.html),
+  vidéo = pattern anonymizer/_media_card, image/document = clic → unified_preview ?side=output
+  (la sortie ; le défaut side=input servait l'ENTRÉE — retour Fabien 18/08). Le placeholder
+  #preview-row-N reste dans tous les cas (contrat JS de la famille).{% endcomment %}
   {% if job.status == 'SUCCESS' and job.output_file %}
   <div class="wcv3-preview" id="preview-row-{{ job.id }}">
-    {% if job.media_type == 'video' %}
+    {% if job.media_type == 'audio' %}
+    {% include 'common/_audio_waveform.html' with audio_url=job.output_file.url player_id=job.id %}
+    {% elif job.media_type == 'video' %}
     <video class="w-100" controls preload="metadata" style="border-radius:6px;max-height:220px;">
       <source src="{{ job.output_file.url }}">
     </video>
-    {% elif job.media_type == 'audio' %}
-    <audio class="w-100" controls preload="metadata" style="display:block;">
-      <source src="{{ job.output_file.url }}">
-    </audio>
     {% elif job.media_type == 'image' %}
     <img src="{{ job.output_file.url }}" alt="Résultat #{{ job.id }}"
-         class="preview-media-link" role="button" title="Aperçu"
-         data-preview-url="{% url 'common:unified_preview' 'converter' job.id %}"
+         class="preview-media-link" role="button" title="Aperçu du résultat"
+         data-preview-url="{% url 'common:unified_preview' 'converter' job.id %}?side=output"
          style="display:block;max-width:100%;max-height:220px;border-radius:6px;cursor:pointer;">
     {% else %}
     <span role="button" class="preview-media-link small text-info" title="Aperçu du résultat"
-          data-preview-url="{% url 'common:unified_preview' 'converter' job.id %}">
+          data-preview-url="{% url 'common:unified_preview' 'converter' job.id %}?side=output">
       <i class="fas fa-file-lines me-1"></i>{{ job.output_filename }}
     </span>
     {% endif %}
