@@ -55,6 +55,7 @@ _SUBSTITUTABLE = {
     'urls':   ('urls.py',   'wama.common.manifests.codegen.urls_gen',   'render_urls'),
     'models': ('models.py', 'wama.common.manifests.codegen.models_gen', 'render_models'),
     'tasks':  ('tasks.py',  'wama.common.manifests.codegen.tasks_gen',  'render_tasks'),
+    'views':  ('views.py',  'wama.common.manifests.codegen.views_gen',  'render_views'),
 }
 
 
