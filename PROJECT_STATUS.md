@@ -2477,10 +2477,38 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 >   `wama_nightly_test` (tier de base) est refusé sur 13 lectures/17 → la couverture nocturne
 >   du contrat se limite aux apps ouvertes (converter…) ; lui accorder un tier/rôles élargirait
 >   la sonde à toutes les triades. Trou #8 ROUTE §11 (test de contrat triade) : ENTAMÉ.
+> - **DÉCISION TRANCHÉE (Fabien 18/08 soir) — permissions du user nocturne** : rôles cumulatifs
+>   `communication`+`recherche` accordés à `wama_nightly_test` DANS `get_test_user()`
+>   (déclaratif, reproductible), SANS tier développeur (pas de bypass : model_manager +
+>   jumelles sandbox fermés). Couverture du contrat tool_api : **4 → 17 lectures OK**, borne
+>   de choix + MEDIA_ROOT sondées (3/3, rapport 18:31). NB : l'échec « borne inerte » du 1er
+>   run était le GATING, pas la surface — rectifié en commentaire.
+> - **SÉLECTION LLM × NIGHTLY — confronté au réel (question Fabien)** : la charpente nocturne
+>   n'a AUCUN maillon LLM aujourd'hui (wired=imports, ui=Playwright, consistency=commandes,
+>   model_loaded=backends d'app via leur sélection VRAM-aware, output=pipeline studio) — donc
+>   rien n'y « présélectionne » un modèle ; « wama-dev-ai exécuteur/analyste » reste une
+>   synergie consignée NON implémentée, sans rôle 'nightly' dans ses fallback chains.
+>   La sélection dynamique WAMA (`modele_par_tier` → `select_model`) résout AU 18/08 :
+>   fast→gemma4:12b, default→gemma4:12b, heavy→**qwen3.6:35b**. **qwen3.8:latest (17,7 Go,
+>   installé via l'UI, présent sur l'hôte) n'est référencé dans AUCUN code de sélection**
+>   (ni tiers WAMA — >16 Go donc heavy seulement, où qwen3.6:35b prime — ni chaînes
+>   wama-dev-ai) : PAS présélectionné, nulle part.
+> - **POURQUOI qwen3.8 perd (instruit au réel, question Fabien)** : l'indice a priori
+>   (`model_quality.py` : 10·log2(params TOTAUX) + contexte + quant) crédite le MoE de ses
+>   paramètres totaux — qwen3.6:35b = 36 Md totaux/**1,12 Md actifs** → 58,7 ; qwen3.8 =
+>   **27,3 Md DENSES** → 54,71 — et **exclut volontairement la récence de génération**
+>   (docstring : signal intra-famille porté par la prospection). Le jugement « qwen3.8 est
+>   le meilleur » est précisément la mesure RÉELLE que l'indice s'interdit ; sa propre doc
+>   dit « dès qu'une mesure interne existera, elle devra primer » → boucle qualité, bloquée
+>   sur les DONNÉES. ⚠ **TENSION DÉTECTÉE** : la doc de l'indice promet « valeur posée à la
+>   main PRIME », mais pour un modèle OLLAMA la découverte émet TOUJOURS un indice →
+>   `model_sync.py:203-205` le réécrit à chaque sync (la protection du 12/08 ne couvre que
+>   les modèles sans indice découvert) — poser 60 à la main sur qwen3.8 serait écrasé en ≤2 h
+>   (même classe que le piège `audio_enhance`). Décision Fabien en attente : épingle
+>   déclarée / correction du sync / attendre la mesure.
 > - 🔚 **Pending B** : ✅ restart FAIT par Fabien 18/08 (~17h) → catégorie `'3d'` et fix
 >   `get_imager_status` VIVANTS ; suite du chantier 3D = ROADMAP §17ter trous 2-6 (preview
->   médiathèque, port déclaré par une app, prospection modèles 2D→3D — quand Fabien la demande) ;
->   décision en attente = tier du user de test nocturne (ci-dessus).
+>   médiathèque, port déclaré par une app, prospection modèles 2D→3D — quand Fabien la demande).
 
 ## §REPRISE — 2026-08-14 : PAQUET SYNTHESIZER — moteurs TTS sous contrat commun (87 → 95 %)
 
