@@ -3,6 +3,10 @@ Scénarios `consistency` — les contrôles mécaniques de la base de connaissan
 chaque nuit par la charpente nocturne (SEUL ordonnanceur de ces contrôles, §16.9 :
 pas de cron concurrent). CPU pur, aucun média, aucun GPU.
 
+S'y ajoute (2026-08-18) le CONTRAT TOOL_API (stage `wired`, §fin de module) : le pivot de
+l'assistant éprouvé chaque nuit — versé du banc d'épreuve demandé par Fabien (trou #8 ROUTE
+§11, « test de contrat triade », entamé).
+
 Ce module n'implémente AUCUN contrôle : il joue les commandes existantes (check_docs,
 check_app_conformity, manifest_export --check, manifest_roundtrip, doc_facts --check,
 check_redundancy, check_dep_vulns, check_secret_leaks) et traduit leur verdict en
@@ -120,6 +124,166 @@ def _run_secret_leaks(ctx):
     return code == 0, derniere
 
 
+# ── Contrat TOOL_API (stage 'wired') — versé du banc d'épreuve du 2026-08-18 ─────────────
+# Le pivot de l'assistant (`execute_tool` : gating F7 → sanitisation → bornes de choix →
+# coercition) est éprouvé chaque nuit. Règles héritées du banc :
+#   - les noms se DÉRIVENT (`primary_arg_name`, `schema_for_app`), jamais devinés ;
+#   - sondes mutantes sous transaction à ROLLBACK FORCÉ (zéro trace en base) ;
+#   - user de test dédié (ctx['user'], jamais id=1) ; AUCUN start_*/translate_text
+#     (dispatch Celery/GPU/LLM hôte — hors périmètre 'wired') ;
+#   - 'forbidden' = POLITIQUE d'accès du user de test, distingué d'un échec.
+# Ce contrat aurait attrapé la nuit même le FieldError de `get_imager_status` (self-FK
+# `parent_generation` retiré le 07/08, glu manuelle dérivée du modèle — corrigé le 18/08).
+
+
+class _RollbackProbe(Exception):
+    """Force l'annulation de la transaction d'une sonde mutante (aucune trace en base)."""
+
+
+def _call_rolled_back(tool, args, user):
+    from django.db import transaction
+    from wama import tool_api as T
+    box = {}
+    try:
+        with transaction.atomic():
+            box['out'] = T.execute_tool(tool, args, user)
+            raise _RollbackProbe
+    except _RollbackProbe:
+        pass
+    return box['out'] or {}
+
+
+def _run_tool_api_inventaire(ctx):
+    """Contrat STRUCTUREL du registre — aucun compte en dur (il évolue avec les outils) :
+    tout outil décrit, triades complètes (studio excepté : add+start fusionnés dans run,
+    voulu), argument principal dérivable pour tout add/start."""
+    from wama import tool_api as T
+    reg = T.TOOL_REGISTRY
+    desc = T.tool_descriptions()
+    sans_desc = [n for n in reg
+                 if not str((desc.get(n) or {}).get('description', '')).strip()]
+    roles = {}
+    for n in reg:
+        app, role = T.app_id_for_tool(n), T.tool_role(n)
+        if app and role in ('add', 'start', 'status'):
+            roles.setdefault(app, set()).add(role)
+    incomplets = {a: sorted({'add', 'start', 'status'} - r) for a, r in roles.items()
+                  if a != 'studio' and r != {'add', 'start', 'status'}}
+    sans_arg = [n for n in reg
+                if T.tool_role(n) in ('add', 'start') and not T.primary_arg_name(n)]
+    problemes = ([f"sans description : {sans_desc}"] if sans_desc else []) \
+        + ([f"triades incomplètes : {incomplets}"] if incomplets else []) \
+        + ([f"arg principal non dérivable : {sans_arg}"] if sans_arg else [])
+    if problemes:
+        return False, ' ; '.join(problemes)
+    return True, f"{len(reg)} outils décrits, {len(roles)} apps à triade complète"
+
+
+def _run_tool_api_lectures(ctx):
+    """Toutes les LECTURES du registre répondent via la porte réelle (la sonde qui aurait
+    attrapé le FieldError imager du 07→18/08). Refus 'forbidden' comptés à part ; s'ils
+    couvrent TOUT, on skippe (un vert vide masquerait la classe de bug visée)."""
+    from wama import tool_api as T
+    user = ctx['user']
+    lectures = [n for n in sorted(T.TOOL_REGISTRY) if T.tool_role(n) == 'status']
+    lectures += ['list_user_files', 'list_media_assets', 'sam3_examples',
+                 'list_ai_models', 'list_studio_pipelines']
+    echecs, refus, ok = [], [], 0
+    for tool in lectures:
+        try:
+            out = T.execute_tool(tool, {}, user) or {}
+        except Exception as e:      # execute_tool promet de ne jamais lever
+            echecs.append(f"{tool} LÈVE {type(e).__name__}: {e}")
+            continue
+        err = out.get('error')
+        if err == 'forbidden':
+            refus.append(tool)
+        elif err:
+            echecs.append(f"{tool}: {str(err)[:90]}")
+        else:
+            ok += 1
+    if echecs:
+        return False, ' ; '.join(echecs)
+    if refus and not ok:
+        raise SkipScenario(f"user de test refusé sur les {len(refus)} lectures — gating à ouvrir")
+    note = f" ({len(refus)} refusées au user de test : politique, pas un échec)" if refus else ""
+    return True, f"{ok} lectures OK{note}"
+
+
+def _run_tool_api_garde_fous(ctx):
+    """Chemins négatifs de la porte : outil inconnu, gating anonyme, borne de choix
+    (paramètre DÉRIVÉ du schéma), garde MEDIA_ROOT — sondes mutantes sous rollback."""
+    from django.contrib.auth.models import AnonymousUser
+    from wama import tool_api as T
+    from wama.common.utils.param_schema import schema_for_app
+    user = ctx['user']
+    echecs = []
+
+    out = T.execute_tool('outil_inexistant_nightly', {}, user)
+    if 'Outil inconnu' not in str(out.get('error', '')):
+        echecs.append('outil inconnu non refusé')
+
+    garde = next((n for n in sorted(T.TOOL_REGISTRY)
+                  if T.tool_role(n) == 'status' and T.app_id_for_tool(n)), None)
+    if garde:
+        out = T.execute_tool(garde, {}, AnonymousUser())
+        if out.get('error') != 'forbidden':
+            echecs.append(f'anonyme non refusé sur {garde}')
+
+    # Les sondes suivantes doivent TRAVERSER la porte : elles se choisissent parmi les
+    # outils ACCESSIBLES au user de test (sinon le gating répond avant la borne — 1er run
+    # nocturne pris à ce piège : `forbidden` sur add_to_anonymizer diagnostiqué « borne
+    # inerte », et le même `forbidden` faisait passer la sonde MEDIA_ROOT en vert).
+    from wama.accounts.permissions import tool_accessible
+    notes = []
+
+    # Borne de choix : 1er add_* accessible dont un paramètre à choix du schéma figure
+    # dans la SURFACE ACCEPTÉE par l'outil (tool_descriptions()['args'] — la vue du
+    # mécanisme : signature ∪ schéma si **params ; un paramètre hors surface est FILTRÉ
+    # avant la borne). Refus attendu AVANT exécution (le fichier factice n'est jamais lu).
+    desc = T.tool_descriptions()
+    probe = None
+    for n in sorted(T.TOOL_REGISTRY):
+        if T.tool_role(n) != 'add' or not tool_accessible(user, n):
+            continue
+        app = T.app_id_for_tool(n)
+        surface = set((desc.get(n) or {}).get('args') or {})
+        choix = [p['name'] for p in (schema_for_app(app) if app else [])
+                 if p.get('choices') and p['name'] in surface]
+        arg = T.primary_arg_name(n)
+        if choix and arg:
+            probe = (n, arg, choix[0])
+            break
+    if probe:
+        n, arg, param = probe
+        out = _call_rolled_back(n, {arg: 'sonde_nightly.tmp', param: 'hors_schema_nightly'}, user)
+        if 'hors schéma' not in str(out.get('error', '')):
+            echecs.append(f'borne de choix inerte ({n}.{param}) : {str(out)[:90]}')
+        else:
+            notes.append(f'borne ({n}.{param})')
+    else:
+        notes.append('borne de choix NON sondée (aucun add_* accessible au user de test)')
+
+    if 'add_to_reader' in T.TOOL_REGISTRY and tool_accessible(user, 'add_to_reader'):
+        from wama.reader.models import ReadingItem
+        arg = T.primary_arg_name('add_to_reader')
+        n0 = ReadingItem.objects.count()
+        out = _call_rolled_back('add_to_reader',
+                                {arg: '/hors/media_root/sonde_nightly.pdf'}, user)
+        if not out.get('error') or out.get('error') == 'forbidden':
+            echecs.append(f'garde MEDIA_ROOT douteuse : {str(out)[:90]}')
+        elif ReadingItem.objects.count() != n0:
+            echecs.append('ligne fuitée par la sonde reader')
+        else:
+            notes.append('MEDIA_ROOT')
+    else:
+        notes.append('MEDIA_ROOT NON sondée (reader inaccessible au user de test)')
+
+    if echecs:
+        return False, ' ; '.join(echecs)
+    return True, 'porte saine — inconnu, gating anonyme, ' + ', '.join(notes)
+
+
 def register_scenarios():
     # check_docs parcourt l'arborescence : minutes depuis WSL2 (/mnt/d), secondes depuis
     # Windows — d'où le timeout large. Les autres tiennent en secondes.
@@ -147,3 +311,13 @@ def register_scenarios():
     register(id='common.consistency.secrets', app='common', stage='consistency',
              description='Fuites de secrets : historique git complet + hook pre-commit (gitleaks)',
              run=_run_secret_leaks, timeout_s=300)
+    # ── Contrat tool_api (stage 'wired' : CPU + DB, aucun GPU, sondes sous rollback) ──
+    register(id='common.tool_api.inventaire', app='common', stage='wired',
+             description='Contrat structurel du pivot assistant (descriptions, triades, args dérivables)',
+             run=_run_tool_api_inventaire, timeout_s=60)
+    register(id='common.tool_api.lectures', app='common', stage='wired',
+             description='Toutes les lectures tool_api répondent via execute_tool (user de test dédié)',
+             run=_run_tool_api_lectures, timeout_s=120)
+    register(id='common.tool_api.garde_fous', app='common', stage='wired',
+             description='Chemins négatifs de la porte : gating, bornes de choix, garde MEDIA_ROOT (rollback)',
+             run=_run_tool_api_garde_fous, timeout_s=120)
