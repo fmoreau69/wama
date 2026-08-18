@@ -2506,6 +2506,15 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 >   les modèles sans indice découvert) — poser 60 à la main sur qwen3.8 serait écrasé en ≤2 h
 >   (même classe que le piège `audio_enhance`). Décision Fabien en attente : épingle
 >   déclarée / correction du sync / attendre la mesure.
+> - **VÉRIFIÉ (19/08, question Fabien « Ollama donne un indice de qualité ? ») : NON.**
+>   `/api/show` inspecté live (41 clés `model_info`) : uniquement du STRUCTUREL
+>   (`parameter_size` 27.3B, `Q4_K_M`, ctx 262k, `capabilities`) — déjà réutilisé par la
+>   découverte pour CALCULER notre indice a priori (registry:1319-1328, `_ollama_fiche`).
+>   Le souvenir = la métrique **`model-index` de HUGGINGFACE** (prospection 05/08,
+>   `prospector._metrique_declaree`) : seul signal qualité d'une plateforme, auto-déclaré/
+>   non vérifié/jeu de l'auteur → affiché en prospection avec `jeu`+`verifie`, volontairement
+>   PAS injecté dans `quality_index` (« de quoi trier des candidats, pas de quoi conclure »).
+>   Sans effet sur le cas qwen3.8 (modèle Ollama, pas de fiche HF à model-index).
 > - 🔚 **Pending B** : ✅ restart FAIT par Fabien 18/08 (~17h) → catégorie `'3d'` et fix
 >   `get_imager_status` VIVANTS ; suite du chantier 3D = ROADMAP §17ter trous 2-6 (preview
 >   médiathèque, port déclaré par une app, prospection modèles 2D→3D — quand Fabien la demande).
