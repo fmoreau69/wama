@@ -2584,7 +2584,14 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 >   WAMA_EMAIL_* (l'example l'avait EN COMMENTAIRE — correction Fabien, ma 1re lecture
 >   « absent des deux » était fausse ; bloc enrichi USE_TLS + note console, .env aligné
 >   clés actives) + OLLAMA_MODELS_DIR rangé section Ollama.
->   **SUITE ACTÉE : câblage wama-dev-ai** (sa table MODELS interroge la réalité — sans MCP).
+>   ~~SUITE ACTÉE : câblage wama-dev-ai~~ → **FAIT (19/08 soir, commit `feat(wama-dev-ai)`)** :
+>   la table MODELS reste l'intention, `/api/tags` la FILTRE à chaque sélection (fantôme en
+>   tête de chaîne ignoré avec warning — prouvé), installés non déclarés = `auto:<tag>` en
+>   dernier recours ; entrée `qwen38` (AA 52,0) en tête dev/architect, chaînes codegen (banc
+>   mesuré) et audit (stabilité) INTACTES. `.gitignore` : filet `.env.*` + `!.env.example`
+>   (quasi-incident copie de secrets 19/08 ; chantier sécurisation gitleaks en cours côté
+>   Fabien). `.env` réordonné sur la trame de l'example (équivalence clé=valeur prouvée,
+>   aucune valeur affichée).
 > - 🔚 **Pending B** : ✅ restart FAIT par Fabien 18/08 (~17h) → catégorie `'3d'` et fix
 >   `get_imager_status` VIVANTS ; suite du chantier 3D = ROADMAP §17ter trous 2-6 (preview
 >   médiathèque, port déclaré par une app, prospection modèles 2D→3D — quand Fabien la demande).
