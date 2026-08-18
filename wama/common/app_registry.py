@@ -50,6 +50,13 @@ DOCUMENT_EXTENSIONS = ('.pdf', '.docx', '.md', '.markdown', '.html',
 ARCHIVE_EXTENSIONS = ('.zip', '.tar', '.gz', '.tgz', '.bz2', '.tbz2',
                       '.xz', '.txz', '.7z', '.rar')
 
+# 3D object formats (chaîne objets 3D — ROADMAP §17ter, consigné 2026-08-18).
+# Pivot d'interéchange = GLB ; FBX/USD visés côté passerelle Unreal/virtualib.
+# Déclaré UNE fois ici : catégorie '3d' — normalize_types / category_of_path /
+# typage des ports studio / TYPE_GROUPS médiathèque en DÉRIVENT (zéro code par consommateur).
+OBJECT3D_EXTENSIONS = ('.glb', '.gltf', '.obj', '.fbx', '.stl', '.ply',
+                       '.usd', '.usdz', '.dae')
+
 
 # ---------------------------------------------------------------------------
 # Normalisation type → CATÉGORIE média (vocabulaire unifié pour la méta-app studio).
@@ -57,13 +64,13 @@ ARCHIVE_EXTENSIONS = ('.zip', '.tar', '.gz', '.tgz', '.bz2', '.tbz2',
 # parfois extensions : 'wav'/'srt'). On ramène tout à un jeu fini de catégories pour que le
 # « typage par connexion » du studio soit cohérent (sortie ∩ entrée sur des catégories).
 # ---------------------------------------------------------------------------
-MEDIA_CATEGORIES = ('image', 'video', 'audio', 'document', 'archive', 'text')
+MEDIA_CATEGORIES = ('image', 'video', 'audio', 'document', 'archive', 'text', '3d')
 
 def _build_cat_of():
     m = {}
     for cat, exts in (('image', IMAGE_EXTENSIONS), ('video', VIDEO_EXTENSIONS),
                       ('audio', AUDIO_EXTENSIONS), ('archive', ARCHIVE_EXTENSIONS),
-                      ('document', DOCUMENT_EXTENSIONS)):
+                      ('document', DOCUMENT_EXTENSIONS), ('3d', OBJECT3D_EXTENSIONS)):
         for e in exts:
             m.setdefault(e.lstrip('.').lower(), cat)
     # Sous-titres / texte / données → 'text' (prime sur 'document' pour ces extensions).
@@ -75,7 +82,7 @@ _CAT_OF = _build_cat_of()
 
 
 def category_of_path(path):
-    """Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'text') d'un chemin
+    """Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'text'|'3d') d'un chemin
     d'après son extension. Source UNIQUE (studio, previews, etc.) — défaut 'document'."""
     import os
     ext = os.path.splitext(str(path or ''))[1].lstrip('.').lower()

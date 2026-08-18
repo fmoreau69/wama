@@ -1945,18 +1945,21 @@ Tencent — OK recherche Lescot, à vérifier pour livrables partenaire/valorisa
 **⚠ Reconstruction PLAUSIBLE, pas métrique** : les faces occultées sont HALLUCINÉES (un véhicule
 partiellement visible sort complet mais inventé). Parfait pour des props de simulation ; EXCLU
 pour toute reconstruction mesurée. → à déclarer en **métadonnée** du modèle/de la fonction
-(même geste que la licence au §17), pas en mémoire humaine.
+(même geste que la licence au §17), pas en mémoire humaine. **Niveau de qualité = PROGRESSIF
+(décision Fabien 18/08)** : commencer par le plus facile (mono-image, props plausibles), puis
+approfondir en testant jusqu'où on peut aller (multi-vues, fidélité au véhicule réel).
 
 **Trous d'infrastructure (dans l'ordre)** :
-1. **Taxonomie** : catégorie `'3d'` absente de `MEDIA_CATEGORIES` (`common/app_registry.py:60`)
-   — extension DÉCLARATIVE (+ `normalize_types()`), format pivot **GLB**, export FBX/USD côté
-   passerelle Unreal.
+1. ✅ **Taxonomie (fait 2026-08-18)** : catégorie `'3d'` + `OBJECT3D_EXTENSIONS` (pivot **GLB**)
+   déclarées dans `common/app_registry.py` — `normalize_types`/`category_of_path`/ports studio/
+   `TYPE_GROUPS` médiathèque en dérivent (validé : `glb→['3d']`) ; type d'asset `object3d`
+   déclaré dans `media_library/models.py` (migration 0013, no-op SQL, appliquée WSL2).
 2. **Médiathèque** : ingest + preview des objets 3D (viewer three.js **vendorisé local**, règle
    pas-de-CDN) ; collecte dans la médiathèque D'ABORD.
 3. **Port studio `object_3d`** (DataType) pour câbler detector → 2D→3D → médiathèque.
 4. **Manifeste `function` « image→3D »** + backend (contrat `BaseModelBackend`).
-5. **Passerelle virtualib** : APRÈS collecte en médiathèque, **sens unique (export) d'abord** ;
-   lien inter-mondes déclaré (manifeste), pas de glu ad hoc.
+5. **Passerelle virtualib** : APRÈS collecte en médiathèque ; **IMPORT ET EXPORT (décision
+   Fabien 18/08)**, export d'abord ; lien inter-mondes déclaré (manifeste), pas de glu ad hoc.
 6. **Insertion dans une scène générée** (retour 3D→2D ET avatar-dans-décor, chaîne 4 studio) :
    couture PARTAGÉE — règle du second consommateur, cf. `STUDIO_VISION.md ⚑ Convergence`.
    NE PAS extraire par anticipation.

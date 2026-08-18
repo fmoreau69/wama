@@ -18,6 +18,7 @@ ASSET_TYPES = [
     ('video',       'Vidéo'),
     ('document',    'Document'),
     ('avatar',      'Avatar'),
+    ('object3d',    'Objet 3D'),   # chaîne objets 3D (ROADMAP §17ter) — pivot GLB
 ]
 
 ALLOWED_EXTENSIONS = {
@@ -28,6 +29,7 @@ ALLOWED_EXTENSIONS = {
     'video':       ['mp4', 'webm', 'mov', 'avi', 'mkv'],  # wama:redondance-ok — politique d'acceptation médiathèque par type d'asset
     'document':    ['pdf', 'txt', 'docx', 'md', 'csv'],
     'avatar':      ['jpg', 'jpeg', 'png', 'webp'],
+    'object3d':    ['glb', 'gltf', 'obj', 'fbx', 'stl', 'ply', 'usdz'],  # ⊂ app_registry.OBJECT3D_EXTENSIONS
 }
 
 # Union de toutes les extensions pour le FileExtensionValidator
@@ -44,6 +46,7 @@ ASSET_TYPE_CATEGORY = {
     'image': 'image', 'avatar': 'image',
     'video': 'video',
     'document': 'document',
+    'object3d': '3d',
 }
 
 # Alias logiques → liste de vraies valeurs ASSET_TYPES (bug 2026-07-09 : le picker/les modes d'app
