@@ -2565,12 +2565,24 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 >   top-20 frontière (source complète = dataset HF `lmarena-ai/leaderboard-dataset`, non
 >   branché) ; appariement STRICT (gemma4:26b ≠ « Gemma 4 31B » → NULL — table d'alias
 >   déclarative à créer si des équivalences sont confirmées à la main).
-> - **PROSPECTION (accord Fabien 19/08, consigné NON ouvert)** : intégrer le critère
->   benchmark tiers aux candidats de prospection AVANT installation — la brique
->   (`_identite` + `charger_aa`) est réutilisable telle quelle pour annoter les candidats ;
->   triplet de critères cible = **mesure tierce + confiance LLM + simplicité d'installation**.
->   Précondition = clé AA ; ⚠ chemin `prospector/prospect_*` = territoire récent de
->   l'instance portage (commit f9b0bc4) → coordonner avant d'ouvrir.
+> - **BENCHMARK UNIVERSALISÉ + RUN RÉEL (19/08 soir, clé AA de Fabien active)** : 6 catégories
+>   déclaratives (llm + 5 modalités média — **tier gratuit AA vérifié : tout répond**, 472
+>   LLM + 48-111/modalité), Arena via dataset HF officiel **CC-BY-4.0** (parquet latest,
+>   category=overall), **lignes `proposed:` incluses = le critère de PROSPECTION est EN
+>   PLACE** (avant installation, aux côtés confiance LLM + simplicité d'installation).
+>   **16 modèles benchmarkés en base** — la mesure tierce CONFIRME Fabien : qwen3.8 27B=52,0
+>   ≫ qwen3.6:35b=32,1 > gemma4:26b=26,1 (la √ sous-classait le MoE) ; imager apparié
+>   (flux-1-dev 1141, qwen-image-2 1369, hunyuan 1077, sd-v1.5 665), coqui-xtts 920.
+>   Tiers stables (heavy→qwen3.8). **Le 1er dry-run a attrapé 4 FAUX appariements** (familles
+>   parasites 1 lettre, variantes frontière max/preview sans taille, embeddings en cat. llm,
+>   :latest→qwen3.8-max) → corrigés : taille REQUISE en cat. llm, familles ≥2 lettres,
+>   `completion` exigé, parent_model prioritaire, marqueur v<n>. Étage de tri : lot homogène
+>   en ÉCHELLE exigé (Index~0-70 vs Elo~1400 jamais mélangés). Restes : étage benchmark
+>   dormant sur les lots LLM complets tant que e4b/translategemma non appariés (→ `ALIAS`
+>   déclaratif, candidats aussi : higgs-audio, ltx, sdxl) ; candidats `proposed:*:latest`
+>   sans taille = non scorés (limite honnête). `.env`/`.env.example` : clé AA + bloc
+>   WAMA_EMAIL_* (absent des DEUX, repli console silencieux) + OLLAMA_MODELS_DIR alignés.
+>   **SUITE ACTÉE : câblage wama-dev-ai** (sa table MODELS interroge la réalité — sans MCP).
 > - 🔚 **Pending B** : ✅ restart FAIT par Fabien 18/08 (~17h) → catégorie `'3d'` et fix
 >   `get_imager_status` VIVANTS ; suite du chantier 3D = ROADMAP §17ter trous 2-6 (preview
 >   médiathèque, port déclaré par une app, prospection modèles 2D→3D — quand Fabien la demande).
