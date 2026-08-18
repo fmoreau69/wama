@@ -593,7 +593,23 @@ outillé avant d'ouvrir cette marche.
   2 pièges d'OUTIL mesurés/corrigés en route : sur-suffixage des related_name INTERNES sur
   code généré (kwargs alphabétiques : le `to=` vient APRÈS related_name → lire l'appel
   COMPLET à parenthèses équilibrées), et la famille de renommage `'src.` (réfs par app_label
-  des FK sérialisées). Restes S2 : `views_gen` + gabarit templates, puis JS/backends.
+  des FK sérialisées).
+  **S2 — JALON FINAL (même journée) : 6/6 substitutions TIENNENT, la jumelle est une app
+  ESSENTIELLEMENT GÉNÉRÉE qui tourne.** ⑤ `views_gen` ÉCRIT (la pièce annoncée au cadrage
+  A0) : UNE définition par callable du urls généré — idiomes conventionnels paramétrés par
+  le manifeste (item + batch/FK DÉRIVÉS de la facette data, tâche processing.tasks,
+  fabrique `make_queue_manipulation_views_direct`, briques begin_processing/stop_instance/
+  duplicate_instance/apply_queue_sort_filter/console) + STUBS 501 marqués TROU DE GLU pour
+  le hors-convention (card_html, batch_preview/create, consolidate, extra_routes) — la page
+  boote, la fonctionnalité manque VISIBLEMENT. v1 = forme FK-DIRECTE (converter) ; la forme
+  à modèle de liaison est un trou déclaré. **views tient** (diff glu 1341 l.).
+  ⑥ `templates_gen` v1 ÉCRIT (multi-fichiers — `substitute` étendu, revert multi-fichiers) :
+  index CONVENTIONNEL depuis les briques communes (_global_progress, _new_item_card
+  paramétrée d'identity.input_extensions, _queue_toolbar, boucle _batch_card) + card
+  GÉNÉRIQUE minimale — l'écart visuel avec la vraie card EST la mesure. **templates tient**
+  (diff 404 l.). Restent COPIÉS (glu/marche B) : base.html, card réelle, JS d'app, params.py
+  (write-back existant, cible à câbler), backends/, utils/. Prochain geste : Playwright
+  côte à côte /converter/ ↔ /converter_01/ (Fabien) = la lecture VISUELLE des trous.
   La cible « Translator DE ZÉRO » (ci-dessus) devient le cas « create sans generated_from » du
   même outil : le bac à sable est l'étape commune aux deux chemins (régénérer ≈ créer).
 

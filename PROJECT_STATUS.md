@@ -2853,6 +2853,16 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > l'appel COMPLET ; famille de renommage `'src.`). Corpus régénéré (facette data ×10 apps).
 > Restes S2 : views_gen + gabarit templates, puis JS/backends (marche B).
 >
+> **SUITE (18/08) : S2 JALON FINAL — 6/6 SUBSTITUTIONS, jumelle ESSENTIELLEMENT GÉNÉRÉE.**
+> `views_gen` écrit (une def par callable du urls généré : conventionnel paramétré par le
+> manifeste + stubs 501 TROU DE GLU visibles ; v1 forme FK-directe) → **views tient**
+> (glu 1341 l.). `templates_gen` v1 écrit (index conventionnel briques communes + card
+> générique minimale ; `substitute` multi-fichiers avec revert complet) → **templates
+> tient** (404 l.). converter_01 = apps/urls/models/tasks/views/templates GÉNÉRÉS, page
+> 200. Restent copiés : base.html, card réelle, JS, params.py (cible à câbler), backends/
+> utils (marche B). **Prochain geste : Playwright côte à côte par Fabien** = lecture
+> visuelle des trous. Détail : ROUTE §10.3 marche S.
+>
 > **🔚 POINT D'ENTRÉE SESSION SUIVANTE — ordre acté :** ① transverses portage (during ×3
 > restants : imager/avatarizer/synthesizer, + enhancer audio — GPU avec Fabien, valider les
 > 3 câblés d'abord ; model_caps_ui ×3 = enrichir la MATIÈRE d'abord — composer/reader/imager) ;

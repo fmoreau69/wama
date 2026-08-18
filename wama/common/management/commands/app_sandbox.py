@@ -56,6 +56,8 @@ _SUBSTITUTABLE = {
     'models': ('models.py', 'wama.common.manifests.codegen.models_gen', 'render_models'),
     'tasks':  ('tasks.py',  'wama.common.manifests.codegen.tasks_gen',  'render_tasks'),
     'views':  ('views.py',  'wama.common.manifests.codegen.views_gen',  'render_views'),
+    # Multi-fichiers (le gabarit rend un DICT nom→contenu) : écrits sous templates/<label>/.
+    'templates': ('templates/', 'wama.common.manifests.codegen.templates_gen', 'render_index'),
 }
 
 
@@ -272,18 +274,31 @@ class Command(BaseCommand):
             raise CommandError(f'Gabarit {cible} : rien à générer — {raison}')
 
         # 2. SUFFIXAGE identique à la copie (la génération vise `converter`, la jumelle
-        #    parle `converter_01`) + patch related_name pour models.
-        text = _rename_text(rendered, src, label)
-        if cible == 'models':
-            text = _patch_related_names(text, label)
-
-        target = WAMA_DIR / label / fname
-        temoin = target.with_name(fname + '.temoin')
-        if target.exists() and not temoin.exists():
-            shutil.copy2(target, temoin)      # référence du diff, préservée UNE fois
-        target.write_text(text, encoding='utf-8')
-        self.stdout.write(f'{fname} ← GÉNÉRÉ ({len(text.splitlines())} lignes ; '
-                          f'témoin : {temoin.name})')
+        #    parle `converter_01`) + patch related_name pour models. Un gabarit peut rendre
+        #    un DICT nom→contenu (multi-fichiers, ex. templates : index + card générique).
+        fichiers = rendered if isinstance(rendered, dict) else {fname: rendered}
+        temoin = None
+        ecrits = []
+        for nom, contenu in fichiers.items():
+            texte = _rename_text(contenu, src, label)
+            if cible == 'models':
+                texte = _patch_related_names(texte, label)
+            if isinstance(rendered, dict):
+                cible_path = WAMA_DIR / label / 'templates' / label / nom
+            else:
+                cible_path = WAMA_DIR / label / nom
+            cible_path.parent.mkdir(parents=True, exist_ok=True)
+            t = cible_path.with_name(cible_path.name + '.temoin')
+            if cible_path.exists() and not t.exists():
+                shutil.copy2(cible_path, t)   # référence du diff, préservée UNE fois
+            if temoin is None and t.exists():
+                temoin, target, text = t, cible_path, texte   # diff/revert = 1er fichier témoin
+            cible_path.write_text(texte, encoding='utf-8')
+            ecrits.append((cible_path, t))
+            self.stdout.write(f'{cible_path.relative_to(WAMA_DIR / label)} ← GÉNÉRÉ '
+                              f'({len(texte.splitlines())} lignes)')
+        if temoin is None:                     # aucun fichier préexistant (tout est neuf)
+            target, text = ecrits[0][0], ecrits[0][0].read_text(encoding='utf-8')
 
         # 3. RE-MESURE : check + (models → makemigrations) + smoke page en sous-process frais.
         verdict, details = 'ok', []
@@ -324,8 +339,14 @@ class Command(BaseCommand):
             details.append(f'diff copie↔généré : {len(delta)} lignes')
 
         # 5. Échec → RETOUR AU TÉMOIN (jamais une jumelle morte) ; sinon journal.
+        # Multi-fichiers : chaque fichier revient à SON témoin ; un fichier NEUF (sans
+        # témoin) est retiré.
         if verdict == 'revert':
-            shutil.copy2(temoin, target)
+            for _cible_path, _t in ecrits:
+                if _t.exists():
+                    shutil.copy2(_t, _cible_path)
+                else:
+                    _cible_path.unlink(missing_ok=True)
             # Revert COMPLET côté schéma (défaut mesuré au 1er run : la migration divergente
             # restait APPLIQUÉE avec le modèle revenu au témoin) : désappliquer puis retirer
             # les fichiers de migration créés par CETTE substitution.
