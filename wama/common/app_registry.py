@@ -469,7 +469,9 @@ APP_CATALOG = {
         'has_youtube': False,
         'output_types': ('wav', 'mp3'),
         'conventions': _conv(
-            start=None,  # auto-start on generate, no per-item start button needed
+            start=True,  # bouton de cycle commun ▶/⏹/↻ par card (WamaCycleButton, composer/js/index.js:559
+                         #   + endpoint composer:start) — l'ancien N/A « auto-start on generate » était
+                         #   périmé depuis le portage du bouton de cycle (re-vérifié 2026-08-18)
             during_preview=True,  # aperçu « pendant » activé : le worker publie l'audio via on_audio
                                   #   (composer/tasks.py) → face ?side=during (mécanisme commun)
             settings_modal_item=True,
@@ -756,7 +758,9 @@ APP_CATALOG = {
         'has_youtube': False,
         'output_types': ('mp3', 'wav'),
         'conventions': _conv(
-            start=None,
+            start=True,  # bouton de cycle commun ▶/⏹/↻ par card (clics délégués, synthesizer/js/index.js:13
+                         #   + endpoint synthesizer:start) — l'ancien N/A datait d'avant le portage du
+                         #   bouton de cycle (re-vérifié 2026-08-18)
             settings_modal_item=True,  # ⚠ modale = HTML hand-built (index.html:472), params.py existe
                                        # mais ponte seulement les dom_id — à migrer vers WamaParams.render
             tool_api=True,
