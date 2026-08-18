@@ -3059,9 +3059,11 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > (card_gear, preview hydratée, sections inspecteur) — design proposé, borné.
 > ③ Marche S suite (cible params du substitute, marche B stubs TROU DE GLU) — inchangé.
 > ④ Trous notés : manifest_export sans purge/signalement d'orphelins ; pas de seuil de
-> promotion des apps générées ; enhancer audio card sur include direct (migrable
-> hydrateur) ; anonymizer hors card_gear (chantier inspector tracé) ; catalogue describer
-> stale (blip/whisper) ; fichiers de test jetables dans `media/converter/22/`.
+> promotion des apps générées ; les résidus de code de la session sont TRACÉS AU LEDGER
+> (**R20-R23** : shims identité, catalogue describer stale, card audio enhancer hors
+> mécanisme n°30, WamaModelHelp direct) ; fichiers de test jetables dans
+> `media/converter/22/`. ⚠ Audit fraîcheur du REMOVAL_LEDGER : 2 sondées = 2 périmées
+> (R4/R7 rattrapées) → **les 21 autres ⛔/🟡 à confronter au code** (/doc-sync candidat).
 > PENDINGS : **push 15+ commits = demander** ; jumelle converter_01 en place (jetable).
 > **Contrôles attendus au prochain `/reprise`** : check_docs **2 CASSÉ** · doc_facts 4 à
 > jour · corpus **117** (depuis WSL2) · migrate --check OK · grille CLI :
