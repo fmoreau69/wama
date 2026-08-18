@@ -577,9 +577,23 @@ outillé avant d'ouvrir cette marche.
   `urls` ✅ tient (82) · `models` ❌ TROU — schéma DIVERGENT, 155 lignes (le gabarit A5 ne
   dérive que la facette params ; le schéma réel porte ConversionProfile entier + champs
   batch/options) · `tasks` ❌ TROU — smoke KO, 226 lignes (la glu réelle dépasse le gabarit).
-  Restes S2 : analyser/combler ces 2 trous, écrire `views_gen` + gabarit templates, puis
-  substitutions suivantes — le diff copie↔généré reste le détecteur, fichier par fichier,
-  sans jamais une jumelle morte.
+  **RE-VERDICTS (même journée)** — analyse des 2 « trous » : `tasks` était un FAUX négatif
+  (collatéral de l'incohérence DB du revert models, réparée) — le gabarit A2b préserve le NOM
+  de tâche que les vues importent et délègue au squelette commun : **✅ tient** (le corps =
+  trou DÉCLARÉ marche B). `models` était le seul vrai trou → **comblé par la facette `data`**
+  (marche S2) : spine de données INTROSPECTÉ — tous les modèles Django de l'app, champs
+  sérialisés par `MigrationWriter.serialize` (LE sérialiseur des migrations : upload_to
+  déconstructibles, choices, defaults callables — fidélité de schéma PAR CONSTRUCTION),
+  manager par défaut capturé (ScopedManager — les vues appellent visible_to()), meta
+  ordering/unique_together ; `models_gen` rend depuis `data` quand elle est là (repli
+  squelette A5 pour la création DE ZÉRO). **Verdict mesurable atteint : makemigrations « No
+  changes » sur la jumelle.** État pilote : **4/4 substitutions TIENNENT** (apps 29 l. d'écart
+  · urls 82 · tasks 226 · models 145 — ces diffs = la GLU documentée : properties,
+  WAMA_INGEST, corps des tâches), jumelle en service avec les 4 fichiers GÉNÉRÉS.
+  2 pièges d'OUTIL mesurés/corrigés en route : sur-suffixage des related_name INTERNES sur
+  code généré (kwargs alphabétiques : le `to=` vient APRÈS related_name → lire l'appel
+  COMPLET à parenthèses équilibrées), et la famille de renommage `'src.` (réfs par app_label
+  des FK sérialisées). Restes S2 : `views_gen` + gabarit templates, puis JS/backends.
   La cible « Translator DE ZÉRO » (ci-dessus) devient le cas « create sans generated_from » du
   même outil : le bac à sable est l'étape commune aux deux chemins (régénérer ≈ créer).
 

@@ -61,12 +61,76 @@ def _champ_option(entry: dict) -> str:
     return f"{nom} = models.CharField(max_length=255, blank=True, default={str(d or '')!r})"
 
 
+def _render_from_data(app_id: str, data: dict) -> str:
+    """Rendu FIDÈLE depuis la facette `data` (marche S2) : chaque modèle avec ses champs tels
+    que les migrations les sérialisent (`MigrationWriter.serialize` à l'extraction) — la
+    fidélité de schéma est PAR CONSTRUCTION, verdict mesurable = makemigrations « No
+    changes » sur la jumelle. La GLU (WAMA_INGEST, properties, __str__, méthodes) reste le
+    trou déclaré des marches B — le SCHÉMA, lui, est complet."""
+    from ..builtin.app import _GEN_MARK
+    mark = _GEN_MARK.format(app_id=app_id)
+    imports = set()
+    blocs = []
+    for m in data.get('models') or []:
+        corps = []
+        mgr = m.get('manager')
+        if mgr:
+            mod, cls = mgr.rsplit('.', 1)
+            imports.add(f'from {mod} import {cls}')
+            corps.append('    # Manager par défaut du modèle SOURCE (les vues en dépendent — visible_to()…).')
+            corps.append(f'    objects = {cls}()')
+            corps.append('')
+        for f in m.get('fields') or []:
+            if f.get('_error'):
+                corps.append(f"    # CHAMP INSÉRIALISABLE {f['name']} — trou documenté : {f['_error']}")
+                continue
+            path = f['class']
+            if path.startswith('django.db.models'):
+                cls_expr = 'models.' + path.rsplit('.', 1)[1]
+            else:
+                mod, cls = path.rsplit('.', 1)
+                imports.add(f'from {mod} import {cls}')
+                cls_expr = cls
+            morceaux = [a['expr'] for a in f.get('args') or []]
+            morceaux += [f"{k}={v['expr']}" for k, v in (f.get('kwargs') or {}).items()]
+            for val in list(f.get('args') or []) + list((f.get('kwargs') or {}).values()):
+                imports.update(val.get('imports') or [])
+            corps.append(f"    {f['name']} = {cls_expr}({', '.join(morceaux)})")
+        meta = m.get('meta') or {}
+        if meta:
+            corps.append('')
+            corps.append('    class Meta:')
+            if meta.get('ordering'):
+                corps.append(f"        ordering = {meta['ordering']!r}")
+            if meta.get('unique_together'):
+                corps.append(f"        unique_together = {meta['unique_together']!r}")
+        blocs.append(f"class {m['name']}(models.Model):\n" + '\n'.join(corps))
+
+    tete = [
+        '"""',
+        f'{mark} — models.py GÉNÉRÉ depuis la facette `data` (marche S2, spine introspecté).',
+        '',
+        'SCHÉMA COMPLET par construction (sérialiseur des migrations à l\'extraction).',
+        'La GLU reste le trou déclaré (marche B) : WAMA_INGEST, properties, __str__, méthodes.',
+        'CREATE-ONLY après le premier makemigrations (même contrat que le gabarit A5).',
+        '"""',
+        'from django.db import models',
+        *sorted(i for i in imports if i != 'from django.db import models'),
+        '', '',
+    ]
+    return '\n'.join(tete) + '\n\n\n'.join(blocs) + '\n'
+
+
 def render_models(manifest: dict) -> tuple:
-    """(source, raison) — models.py squelette complet, ou (None, raison) si la facette ne
-    porte pas de quoi le rendre. Jamais de fichier partiel."""
+    """(source, raison) — models.py. Depuis la facette `data` (spine INTROSPECTÉ, fidèle au
+    schéma) quand elle est là — repli sur le squelette A5 (spine conventionnel + params)
+    pour une app SANS existant (création de zéro). Jamais de fichier partiel."""
     from ..builtin.app import _GEN_MARK, _params_facet
     app_id = manifest.get('key')
     body = manifest.get('body') or {}
+    data = body.get('data') or {}
+    if data.get('models'):
+        return _render_from_data(app_id, data), None
     proc = body.get('processing') or {}
     spec = proc.get('model_spec') or {}
     item = spec.get('item') or {}

@@ -78,16 +78,33 @@ def _patch_related_names(text: str, label: str) -> str:
     (E304/E305 mesurés au pilote converter). Les relations INTERNES gardent leur nom : le
     code de l'app consomme ses propres accesseurs (`batch.items` — vérifié au pilote)."""
     internal = set(re.findall(r'^class\s+(\w+)\(', text, re.M))
+    internal_lower = {c.lower() for c in internal}
 
     def _is_internal(target: str) -> bool:
         t = target.strip('\'"').split('.')[-1]
-        return t == 'self' or t in internal
+        return t == 'self' or t in internal or t.lower() in internal_lower
 
     out, pos = [], 0
     for m in re.finditer(r"related_name\s*=\s*(['\"])(\w+)\1", text):
         # Le champ propriétaire = le dernier appel de relation AVANT ce related_name.
         calls = list(_FIELD_CALL_RE.finditer(text, 0, m.start()))
-        external = bool(calls) and not _is_internal(calls[-1].group('target'))
+        # Cible RÉELLE : le `to=` DANS l'appel COMPLET prime (code généré = kwargs
+        # alphabétiques : `to=` vient APRÈS related_name — une fenêtre arrêtée au
+        # related_name le manquait, sur-suffixage mesuré ×2 au pilote S2) ; repli sur le
+        # token positionnel (code réel copié : classe en 1er argument).
+        target = ''
+        if calls:
+            debut = calls[-1].end()
+            prof, fin = 1, debut
+            while fin < len(text) and prof:
+                if text[fin] == '(':
+                    prof += 1
+                elif text[fin] == ')':
+                    prof -= 1
+                fin += 1
+            m_to = re.search(r"to\s*=\s*['\"]([\w.]+)['\"]", text[calls[-1].start():fin])
+            target = m_to.group(1) if m_to else calls[-1].group('target')
+        external = bool(target) and not _is_internal(target)
         out.append(text[pos:m.start()])
         if external:
             q, name = m.group(1), m.group(2)
@@ -106,6 +123,8 @@ def _rename_text(text: str, src: str, dst: str) -> str:
     for q in ("'", '"'):
         text = text.replace(f'{q}{src}:', f'{q}{dst}:')      # namespaces d'URL
         text = text.replace(f'{q}{src}/', f'{q}{dst}/')      # chemins templates/static
+        text = text.replace(f'{q}{src}.', f'{q}{dst}.')      # réfs par app_label ('converter.Model'
+                                                             #  des FK sérialisées — facette data S2)
         text = re.sub(rf'{q}{re.escape(src)}{q}', f'{q}{dst}{q}', text)  # app id exact
     return text
 

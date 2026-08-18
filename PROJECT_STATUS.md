@@ -2841,6 +2841,18 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > et documentés dès la première passe. Jumelle SAINE (page 200, apps+urls générés en
 > service). Suite : analyse des 2 trous, views_gen, gabarit templates.
 >
+> **SUITE (18/08) : S2 — 4/4 SUBSTITUTIONS TIENNENT (facette `data` livrée).** Re-verdicts
+> après analyse : `tasks` = FAUX négatif (collatéral DB du revert models, réparé) → ✅ tient ;
+> `models` = le seul vrai trou → COMBLÉ par la nouvelle **facette `data`** (spine de données
+> INTROSPECTÉ : tous les modèles Django, champs sérialisés par `MigrationWriter.serialize` —
+> fidélité de schéma PAR CONSTRUCTION, manager ScopedManager capturé, meta) + rendu
+> `models_gen` depuis `data` (repli squelette A5 = création de zéro). **Verdict mesurable
+> atteint : makemigrations « No changes » sur la jumelle.** converter_01 = S2-partiel,
+> apps/urls/models/tasks GÉNÉRÉS en service (diffs restants 29/82/145/226 l. = la GLU
+> documentée). 2 pièges d'outil corrigés (related_name internes sur code généré — lire
+> l'appel COMPLET ; famille de renommage `'src.`). Corpus régénéré (facette data ×10 apps).
+> Restes S2 : views_gen + gabarit templates, puis JS/backends (marche B).
+>
 > **🔚 POINT D'ENTRÉE SESSION SUIVANTE — ordre acté :** ① transverses portage (during ×3
 > restants : imager/avatarizer/synthesizer, + enhancer audio — GPU avec Fabien, valider les
 > 3 câblés d'abord ; model_caps_ui ×3 = enrichir la MATIÈRE d'abord — composer/reader/imager) ;

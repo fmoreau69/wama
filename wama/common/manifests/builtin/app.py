@@ -44,7 +44,12 @@ GROUP_TO_WORLD = {
 }
 
 # Facettes attendues d'un manifeste `app` complet (pour signaler les trous par app).
-APP_FACETS = ('identity', 'ports', 'capabilities', 'modes', 'params', 'inspector',
+# `data` (2026-08-18, marche S2) : SPINE DE DONNÉES introspecté — tous les modèles Django de
+# l'app, champs sérialisés par le MÊME sérialiseur que les migrations (fidélité de schéma par
+# construction). Consommée par codegen/models_gen ; verdict mesurable = makemigrations « No
+# changes » sur la jumelle. Le 1er verdict S2 (models ✗, 155 lignes d'écart) venait de là :
+# le gabarit ne dérivait que la facette params, le schéma réel porte bien plus.
+APP_FACETS = ('identity', 'ports', 'capabilities', 'modes', 'params', 'data', 'inspector',
               'models', 'processing', 'prompts', 'tool_api', 'access', 'studio')
 
 # Endpoints standard (convention §3) — CIBLE documentaire. N'est PLUS extraite comme réalité :
@@ -137,6 +142,56 @@ def validate_app_body(body: dict) -> list[str]:
 
 
 # ── Extraction (registres → manifeste) ──────────────────────────────────────────
+def _data(app_id: str) -> Optional[dict]:
+    """Facette `data` (marche S2) : SPINE DE DONNÉES introspecté — chaque modèle Django de
+    l'app, champs sérialisés par `MigrationWriter.serialize` (LE sérialiseur des migrations :
+    fidélité de schéma PAR CONSTRUCTION — upload_to déconstructibles, choices, defaults
+    callables… tout ce qu'une migration sait écrire). Verdict aval mesurable : makemigrations
+    « No changes » sur une jumelle rendue depuis cette facette (codegen/models_gen)."""
+    try:
+        from django.apps import apps as django_apps
+        from django.db.migrations.writer import MigrationWriter
+        cfg = django_apps.get_app_config(app_id)
+    except Exception:
+        return None
+
+    def _ser(value):
+        expr, imports = MigrationWriter.serialize(value)
+        return {'expr': expr, 'imports': sorted(imports)}
+
+    models_out = []
+    for model in cfg.get_models():
+        fields = []
+        for f in list(model._meta.local_fields) + list(model._meta.local_many_to_many):
+            if getattr(f, 'auto_created', False):
+                continue   # pk implicite (id) / liens auto — recréés par Django
+            try:
+                name, path, args, kwargs = f.deconstruct()
+                fields.append({
+                    'name': name, 'class': path,
+                    'args': [_ser(a) for a in args],
+                    'kwargs': {k: _ser(v) for k, v in sorted(kwargs.items())},
+                })
+            except Exception as exc:   # un champ insérialisable = trou DOCUMENTÉ, pas silencieux
+                fields.append({'name': f.name, 'class': '', '_error': repr(exc)})
+        manager_cls = type(model._default_manager)
+        meta = {}
+        if model._meta.ordering:
+            meta['ordering'] = list(model._meta.ordering)
+        if model._meta.unique_together:
+            meta['unique_together'] = [list(t) for t in model._meta.unique_together]
+        models_out.append({
+            'name': model.__name__,
+            'fields': fields,
+            'meta': meta,
+            # Manager par défaut ≠ Manager standard (ex. ScopedManager — les vues appellent
+            # visible_to()) : rendu par models_gen, sinon la jumelle casse au premier queryset.
+            'manager': (f'{manager_cls.__module__}.{manager_cls.__name__}'
+                        if manager_cls.__name__ not in ('Manager',) else ''),
+        })
+    return {'models': models_out} if models_out else None
+
+
 def extract_app(app_id: str) -> Optional[dict]:
     from wama.common.app_registry import APP_CATALOG, studio_node_ports
 
@@ -180,6 +235,11 @@ def extract_app(app_id: str) -> Optional[dict]:
     params = _params(app_id)
     if params is not None:
         body['params'] = params
+    # SPINE DE DONNÉES (marche S2) — introspection Django, sérialisation « migration-grade ».
+    data = _data(app_id)
+    if data:
+        body['data'] = data
+
     body['inspector'] = _inspector(app_id)
 
     # F4 MODÈLES
