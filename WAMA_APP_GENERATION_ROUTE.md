@@ -610,6 +610,20 @@ outillé avant d'ouvrir cette marche.
   (diff 404 l.). Restent COPIÉS (glu/marche B) : base.html, card réelle, JS d'app, params.py
   (write-back existant, cible à câbler), backends/, utils/. Prochain geste : Playwright
   côte à côte /converter/ ↔ /converter_01/ (Fabien) = la lecture VISUELLE des trous.
+  **ARBITRAGE GLU (question Fabien 18/08 : template générique complétable vs glu par app
+  sur règles ?) — HYBRIDE, frontière MESURÉE :** ① PAS de template d'app copié-complété
+  (un template copié dérive et devient une 2ᵉ source de vérité, irré-générable sans
+  écraser les éditions) → le conventionnel est RENDU par les gabarits depuis le manifeste
+  (re-rendable, comparable, diffable — c'est ce que S2 a prouvé). ② La glu restante est
+  remplie PAR APP par le rôle LLM `codegen` CONTRAINT (marche B telle qu'actée : règles
+  strictes façon librarian, contrat BaseModelBackend, manifeste composé requires
+  app→model→library, few-shot = le corpus des 10 apps existantes — qui JOUE le rôle de
+  « bibliothèque de templates » sans en être un — interdits explicites, jugé par le
+  harnais, jamais auto-appliqué), en ne visant QUE les emplacements marqués `TROU DE GLU`
+  (stubs 501, commentaires [manifest-gen]). ③ La frontière BOUGE par la mesure : une glu
+  qui réapparaît semblable dans 2+ apps au diff du détecteur = candidate /brique ou
+  gabarit (promotion vers le commun) — le bac à sable NOURRIT le commun, le template
+  figé n'existe jamais.
   La cible « Translator DE ZÉRO » (ci-dessus) devient le cas « create sans generated_from » du
   même outil : le bac à sable est l'étape commune aux deux chemins (régénérer ≈ créer).
 

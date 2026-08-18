@@ -2863,22 +2863,35 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > utils (marche B). **Prochain geste : Playwright côte à côte par Fabien** = lecture
 > visuelle des trous. Détail : ROUTE §10.3 marche S.
 >
-> **🔚 POINT D'ENTRÉE SESSION SUIVANTE — ordre acté :** ① transverses portage (during ×3
-> restants : imager/avatarizer/synthesizer, + enhancer audio — GPU avec Fabien, valider les
-> 3 câblés d'abord ; model_caps_ui ×3 = enrichir la MATIÈRE d'abord — composer/reader/imager) ;
-> P2 audit API ✅ FAIT
-> (17/08 apm, ci-dessus — gating `/model-manager/api/` tranché, test contrat triades #8
-> toujours À CRÉER) ; ② phase R ×7 ; ③ couche API auto-instruite (projection manifestes —
-> P3 orchestration UI avec Speak pilote, P4 modèles écriture + librairies lecture ;
-> arbitrages wama_lab/media_library écriture ; précondition HTTPS = déploiement) ;
-> réconciliation /apps/ ↔ grille ; prospection PLAQUES. PENDINGS : push = demander ;
-> ⚠ restart gunicorn+workers (2 outils tool_api + brique input_match + adoptions ×7).
+> **🔚 POINT D'ENTRÉE SESSION SUIVANTE — ordre acté (clôture 18/08, sessions 17-18/08
+> poussées) :**
+> ① **VALIDATIONS FABIEN d'abord** (rien de neuf avant) : (a) Playwright/2 onglets côte à
+> côte `/converter/` ↔ `/converter_01/` — la lecture VISUELLE des trous (jumelle 6/6
+> générée, ROUTE §10.3 marche S) ; (b) les 3 `during` câblés en réel (vidéo anonymizer —
+> sélectionner la card PENDANT le floutage, le during ne vit qu'en passe 2 ; vidéo
+> enhancer ; PDF multi-pages olmocr) ; (c) modales enhancer (format/qualité, 2 domaines) ;
+> (d) preview card anonymizer + boutons 1 ligne (Ctrl+F5).
+> ② **during ×3 restants** (imager = callback diffusion + décodage latentes par famille ;
+> avatarizer = MuseTalk sous-processus ; synthesizer = à trancher) + enhancer AUDIO
+> (callback dans audio_enhancer).
+> ③ **Marche S suite** : cible `params` du substitute (write-back existant à câbler) ;
+> marche B sur les stubs TROU DE GLU de converter_01 (rôle codegen — arbitrage glu consigné
+> ROUTE : gabarits génératifs + glu par app CONTRAINTE, jamais de template copié ;
+> promotion de la glu récurrente vers briques/gabarits via le détecteur) ; forme LIAISON de
+> views_gen (transcriber…).
+> ④ model_caps_ui ×3 = MATIÈRE d'abord (composer/reader/imager) ; phase R ×7 ; couche API
+> auto-instruite (P3 Speak pilote, P4 — après portage, arbitrage 17/08 inchangé ; test
+> contrat triades #8 à créer) ; réconciliation /apps/ ↔ grille ; prospection PLAQUES ;
+> **pilote TalkingHead** (mode avatar AI-Assistant — session dédiée,
+> `docs/PROSPECTION_AVATARS_2026-08-17.md`).
+> PENDINGS : aucun commit local (poussé 18/08) ; jumelle `converter_01` EN PLACE (jetable :
+> `app_sandbox drop converter_01`) ; ⚠ tout restart la ressert (registre sandbox lu au boot).
 > **Contrôles attendus au prochain `/reprise`** : check_docs **2 CASSÉ** · doc_facts 4 à
 > jour · corpus **110** (depuis WSL2) · migrate --check OK · `TOOL_REGISTRY` = **48** ·
 > grille CLI : **converter/transcriber/describer 100 · enhancer 99 · avatarizer/composer/
-> reader/synthesizer 98 · anonymizer/imager 97** (page /apps/ = − les clés
-> déclarées-seulement, liste complétée : streaming ×10, inspector ×2, eta_batch,
-> cross_app_options, modes ×2, recursive_import composer).
+> reader/synthesizer 98 · anonymizer/imager 97** (page /apps/ = − clés déclarées-seulement :
+> streaming ×10, inspector ×2, eta_batch, cross_app_options, modes ×2, recursive_import
+> composer) · `app_sandbox list` = **converter_01 ← converter, S2-partiel, 6/6 ok**.
 
 ## §REPRISE — 2026-08-13 (nuit) : BANC CODEGEN JOUÉ (marche B front 2) + skills à jour
 
