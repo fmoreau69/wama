@@ -70,8 +70,8 @@ class HiggsAudioBackend(TTSBackend):
             audio_tokenizer_name_or_path=TOKENIZER_PATH,
             device="cuda",
         )
-        self.loaded_model = "higgs_audio"
-        self._current_model = CATALOG_KEYS['higgs_audio']
+        self.loaded_model = "higgs-audio"
+        self._current_model = CATALOG_KEYS['higgs-audio']
 
         # Debug : désactiver entièrement les CUDA graphs (start_wama_prod.sh l'exporte).
         if os.environ.get("HIGGS_DISABLE_CUDA_GRAPHS"):

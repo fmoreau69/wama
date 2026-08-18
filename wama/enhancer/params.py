@@ -63,6 +63,9 @@ MEDIA_PARAMS = [
     Param(name='ai_model', type='select', label='Modèle AI', icon='fa-brain', chip=True,
           dom_id={'panel': 'defaultAiModel', 'item': 'settingsAiModel'}, contexts=('panel', 'item'),
           choices=list(Enhancement.AI_MODEL_CHOICES),
+          # Catalogue (desc + VRAM) branchable depuis l'ALIGNEMENT des model_key (18/08,
+          # artefact _fp16 retiré : clés = valeurs d'option) ; le repli statique reste.
+          help_source='enhancer',
           help_fallback=MEDIA_MODEL_HELP),
     Param(name='denoise', type='toggle', label='Débruitage', icon='fa-broom',
           chip=True, chip_label='Débruitage',
@@ -79,6 +82,7 @@ AUDIO_PARAMS = [
           dom_id={'panel': 'audioEngine', 'item': 'settingsAudioEngine'}, contexts=('panel', 'item'),
           choices=[('resemble', 'Resemble Enhance (Recommandé)'),
                    ('deepfilternet', 'DeepFilterNet 3 (Rapide — temps réel)')],
+          help_source='enhancer',   # moteurs audio au catalogue (déjà alignés) ; repli statique
           help_fallback=AUDIO_ENGINE_HELP),
     # mode/force/qualité = spécifiques Resemble → affichés seulement si engine=resemble (show_if).
     Param(name='mode', type='select', label='Mode', icon='fa-sliders-h', chip=True,

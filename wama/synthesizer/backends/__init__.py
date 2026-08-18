@@ -28,8 +28,8 @@ def engine_for_model(model_name: str) -> str:
     """Nom de moteur pour un modèle UI — repli historique : tenté comme modèle Coqui."""
     if model_name in COQUI_MODEL_MAPPING:
         return 'coqui'
-    if model_name in ('bark', 'higgs_audio', 'kokoro'):
-        return {'bark': 'bark', 'higgs_audio': 'higgs', 'kokoro': 'kokoro'}[model_name]
+    if model_name in ('bark', 'higgs-audio', 'kokoro'):
+        return {'bark': 'bark', 'higgs-audio': 'higgs', 'kokoro': 'kokoro'}[model_name]
     return 'coqui'
 
 

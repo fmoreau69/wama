@@ -66,7 +66,7 @@ class AvatarJob(ProcessingTimeMixin, ScopedVisibility):
     # Pipeline : inputs TTS
     text_content = models.TextField(blank=True, help_text="Texte à synthétiser (mode Pipeline)")
     tts_model = models.CharField(
-        max_length=50, choices=TTS_MODEL_CHOICES, default='xtts_v2',
+        max_length=50, choices=TTS_MODEL_CHOICES, default='coqui-xtts',
     )
     language = models.CharField(max_length=10, choices=LANGUAGE_CHOICES, default='fr')
     voice_preset = models.CharField(max_length=50, choices=VOICE_PRESET_CHOICES, default='default')

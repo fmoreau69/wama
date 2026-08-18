@@ -165,14 +165,10 @@ def _decorate_audio_card(ae):
 
 
 def _input_match_meta_enhancer():
-    """Meta de la brique COMMUNE, re-clée sur les valeurs d'option du select (sans _fp16)."""
+    """Meta de la brique COMMUNE — clés catalogue = valeurs d'option DEPUIS l'alignement
+    18/08 (l'artefact _fp16 des model_key est retiré à la découverte) : plus de re-clé."""
     from wama.common.utils.input_match import input_match_meta
-
-    def _key(mk):
-        mid = mk.split(':', 1)[-1]
-        return mid[:-5] if mid.endswith('_fp16') else mid
-
-    return input_match_meta('enhancer', key=_key)
+    return input_match_meta('enhancer')
 
 
 class IndexView(View):
@@ -249,9 +245,8 @@ class IndexView(View):
             'media_params_json': _json.dumps(MEDIA_PARAMS_JSON),
             'audio_params_json': _json.dumps(AUDIO_PARAMS_JSON),
             # Appariement entrée↔modèles (brique commune input_match) : clés catalogue =
-            # valeur du select + suffixe _fp16 (stems ONNX, cf. ai_upscaler.MODELS_INFO) —
-            # on retire le suffixe pour retrouver les valeurs d'option ; les moteurs audio
-            # (resemble, deepfilternet) sont déjà alignés.
+            # valeurs d'option depuis l'alignement 18/08 (artefact _fp16 retiré à la
+            # découverte ; moteurs audio déjà alignés).
             'input_match_meta': _json.dumps(_input_match_meta_enhancer()),
             'input_labels': _json.dumps(_input_labels()),
         })

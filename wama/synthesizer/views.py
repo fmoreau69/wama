@@ -154,7 +154,7 @@ class IndexView(View):
             return {
                 'success_pct': int(done / batch.total * 100) if batch.total > 0 else 0,
                 'eta_ids': [w.id for w in works],
-                'first_tts_model': first_s.tts_model if first_s else 'xtts_v2',
+                'first_tts_model': first_s.tts_model if first_s else 'coqui-xtts',
                 'first_language': first_s.language if first_s else 'fr',
                 'first_voice_preset': first_s.voice_preset if first_s else 'default',
                 'first_speed': first_s.speed if first_s else 1.0,
@@ -287,7 +287,7 @@ def upload(request):
 
         # Récupérer les options avec gestion d'erreur
         try:
-            tts_model = request.POST.get('tts_model', 'xtts_v2')
+            tts_model = request.POST.get('tts_model', 'coqui-xtts')
             language = request.POST.get('language', 'fr')
             voice_preset = request.POST.get('voice_preset', 'default')
             speed = float(request.POST.get('speed', 1.0))
@@ -445,7 +445,7 @@ def upload_text(request):
 
         # Récupérer les options (utiliser les valeurs par défaut si non fournies)
         try:
-            tts_model = request.POST.get('tts_model', 'xtts_v2')
+            tts_model = request.POST.get('tts_model', 'coqui-xtts')
             language = request.POST.get('language', 'fr')
             voice_preset = request.POST.get('voice_preset', 'default')
             speed = float(request.POST.get('speed', 1.0))
@@ -1170,7 +1170,7 @@ def import_individual_from_path(request):
 
     synthesis = VoiceSynthesis.objects.create(
         user=user,
-        tts_model=request.POST.get('tts_model', 'xtts_v2'),
+        tts_model=request.POST.get('tts_model', 'coqui-xtts'),
         language=request.POST.get('language', 'fr'),
         voice_preset=request.POST.get('voice_preset', 'default'),
         speed=float(request.POST.get('speed', 1.0)),
@@ -1288,7 +1288,7 @@ def batch_create(request):
         return JsonResponse({'error': 'Aucun fichier fourni'}, status=400)
 
     # Global synthesis settings from the right panel
-    tts_model = request.POST.get('tts_model', 'xtts_v2')
+    tts_model = request.POST.get('tts_model', 'coqui-xtts')
     language = request.POST.get('language', 'fr')
     default_voice = request.POST.get('voice_preset', 'default')
     try:
@@ -1658,7 +1658,7 @@ def voice_preview(request):
     """
     try:
         text_content = request.POST.get('text_content', '').strip()
-        tts_model = request.POST.get('tts_model', 'xtts_v2')
+        tts_model = request.POST.get('tts_model', 'coqui-xtts')
         language = request.POST.get('language', 'fr')
         voice_preset = request.POST.get('voice_preset', 'male_1')
         speed = float(request.POST.get('speed', 1.0))
@@ -1749,7 +1749,7 @@ def voice_preview_stream(request, preview_id):
             # Envoyer un événement de début
             yield f"data: {json.dumps({'event': 'start', 'message': 'Génération audio...'})}\n\n"
 
-            tts_model_name = preview_data.get('tts_model', 'xtts_v2')
+            tts_model_name = preview_data.get('tts_model', 'coqui-xtts')
             language = preview_data.get('language', 'fr')
             voice_preset = preview_data.get('voice_preset', 'default')
             speaker_wav = preview_data.get('speaker_wav')  # résolu côté voice_preview (clonage XTTS)

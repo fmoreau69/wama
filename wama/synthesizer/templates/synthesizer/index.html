@@ -22,7 +22,7 @@
     </label>
     <select class="form-select form-select-sm bg-dark text-white border-secondary" id="tts_model" name="tts_model">
         {% for value, label in tts_models %}
-        <option value="{{ value }}" {% if value == 'xtts_v2' %}selected{% endif %}>{{ label }}</option>
+        <option value="{{ value }}" {% if value == 'coqui-xtts' %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
     </select>
     {# Descriptif modèle (courte + ⓘ longue) lu du CATALOGUE (vue) via WamaModelHelp — cf. transcriber #}
@@ -504,8 +504,8 @@ document.addEventListener('DOMContentLoaded', function () {
             source: 'synthesizer',
             modelSelectId: 'tts_model',
             resolveKey: function (v) {
-                const m = { xtts_v2: 'coqui-xtts', higgs_audio: 'higgs-audio' };
-                return 'synthesizer:' + (m[v] || v);
+                // Identité depuis l'alignement 18/08 (valeurs du select = clés catalogue).
+                return 'synthesizer:' + v;
             },
             filters: [
                 { selectId: 'voice_preset',
@@ -551,7 +551,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Language compatibility warning for batch settings modal — les champs étant GÉNÉRÉS à
     // l'ouverture (WamaParams), le re-bind se fait après chaque rendu (cf. ouverture ci-dessous).
-    const ENGLISH_ONLY_MODELS = new Set(['tacotron2', 'speedy_speech', 'vits']);
+    const ENGLISH_ONLY_MODELS = new Set(['tacotron2', 'speedy-speech', 'vits']);
     function _updateBatchLangWarning() {
         const model = document.getElementById('batchSettingsTtsModel');
         const lang  = document.getElementById('batchSettingsLanguage');
@@ -614,7 +614,7 @@ document.addEventListener('DOMContentLoaded', function () {
             WamaParams.render(host, window.SYNTH_PARAMS_SCHEMA, {
                 context: 'batch',
                 values: {
-                    tts_model: fd.ttsModel || 'xtts_v2', language: fd.language || 'fr',
+                    tts_model: fd.ttsModel || 'coqui-xtts', language: fd.language || 'fr',
                     voice_preset: fd.voicePreset || 'default',
                     speed: fd.speed || '1.0', pitch: fd.pitch || '1.0',
                 },

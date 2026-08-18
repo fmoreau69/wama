@@ -78,7 +78,7 @@ class VoiceSynthesis(ProcessingTimeMixin, ScopedVisibility):
     tts_model = models.CharField(
         max_length=50,
         choices=TTS_MODEL_CHOICES,
-        default='xtts_v2',
+        default='coqui-xtts',
         help_text="Modèle TTS à utiliser"
     )
 

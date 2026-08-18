@@ -22,6 +22,9 @@ PARAMS = derive_from_model(
         "tts_model": dict(
             type="select", label="Modèle TTS", icon="fa-microchip", chip=True,
             dom_id={"panel": "tts_model", "item": "settingsTtsModel", "batch": "batchSettingsTtsModel"},
+            # Descriptif court + VRAM du catalogue — branchable depuis l'ALIGNEMENT 18/08
+            # (valeurs du select = clés catalogue ; xtts_v2→coqui-xtts etc., rows migrées).
+            help_source="synthesizer",
         ),
         "language": dict(
             type="select", label="Langue", icon="fa-language", chip=True,

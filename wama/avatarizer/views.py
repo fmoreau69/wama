@@ -144,7 +144,7 @@ def create(request):
         if not text_content:
             return JsonResponse({'error': 'Le texte est obligatoire en mode Pipeline.'}, status=400)
         job.text_content = text_content
-        job.tts_model = request.POST.get('tts_model', 'xtts_v2')
+        job.tts_model = request.POST.get('tts_model', 'coqui-xtts')
         job.language = request.POST.get('language', 'fr')
         job.voice_preset = request.POST.get('voice_preset', 'default')
 
@@ -748,7 +748,7 @@ def _unified_item_to_avatar_row(it: dict) -> dict:
         'text_content': prompt or '',
         'audio_path': audio or '',
         'avatar_gallery_name': reference,
-        'tts_model': opts.get('tts') or opts.get('model') or 'xtts_v2',
+        'tts_model': opts.get('tts') or opts.get('model') or 'coqui-xtts',
         'language': opts.get('language', 'fr'),
         'voice_preset': opts.get('voice', 'default'),
         'use_enhancer': (str(opts.get('enhancer', '')).lower() in ('1', 'true', 'yes')

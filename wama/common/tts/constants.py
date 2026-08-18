@@ -14,13 +14,13 @@ Pour ajouter un modèle, une langue ou un preset, modifiez uniquement ce fichier
 # ---------------------------------------------------------------------------
 
 TTS_MODEL_CHOICES = [
-    ('xtts_v2',       'XTTS v2 (Clonage vocal, 16 langues)'),
+    ('coqui-xtts',       'XTTS v2 (Clonage vocal, 16 langues)'),
     ('bark',          'Bark (Naturel, Expressif, Effets sonores, 14 langues)'),
     ('kokoro',        'Kokoro 82M (Léger, FR/EN/ES/IT/PT/JA/ZH)'),
     ('vits',          'VITS (Rapide, EN uniquement)'),
     ('tacotron2',     'Tacotron2 (Classique, EN uniquement)'),
-    ('speedy_speech', 'SpeedySpeech (Très rapide, EN uniquement)'),
-    ('higgs_audio',   'Higgs Audio v2 (Multilocuteur, Clonage vocal, 9 langues, 24 Go VRAM)'),
+    ('speedy-speech', 'SpeedySpeech (Très rapide, EN uniquement)'),
+    ('higgs-audio',   'Higgs Audio v2 (Multilocuteur, Clonage vocal, 9 langues, 24 Go VRAM)'),
 ]
 
 # ---------------------------------------------------------------------------
@@ -74,10 +74,10 @@ VOICE_PRESET_CHOICES = [
 # ---------------------------------------------------------------------------
 
 COQUI_MODEL_MAPPING = {  # wama:redondance-ok — mapping keyé par le vocabulaire, porte les ids Coqui (info nouvelle)
-    "xtts_v2":       "tts_models/multilingual/multi-dataset/xtts_v2",
+    "coqui-xtts":       "tts_models/multilingual/multi-dataset/xtts_v2",
     "vits":          "tts_models/en/vctk/vits",
     "tacotron2":     "tts_models/en/ljspeech/tacotron2-DDC",
-    "speedy_speech": "tts_models/en/ljspeech/speedy-speech",
+    "speedy-speech": "tts_models/en/ljspeech/speedy-speech",
 }
 
 # ---------------------------------------------------------------------------

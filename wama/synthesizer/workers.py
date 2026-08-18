@@ -341,7 +341,7 @@ def synthesize_voice(self, synthesis_id: int):
                 speaker_wav = cv.audio.path
             except (ValueError, CustomVoice.DoesNotExist):
                 speaker_wav = _get_default_speaker_wav('default')
-        elif synthesis.tts_model == 'xtts_v2':
+        elif synthesis.tts_model == 'coqui-xtts':
             speaker_wav = _get_default_speaker_wav(synthesis.voice_preset)
 
         # Generate audio via TTS service (with chunking for long texts)
@@ -478,8 +478,8 @@ def _synthesize_via_service(synthesis, text, output_path, speaker_wav,
     chunk_limits = {  # wama:redondance-ok — limites de chunk par moteur (info nouvelle)
         'bark': 200,
         'kokoro': 400,   # EspeakG2P (FR/ES/IT/PT) truncates long texts — keep short
-        'higgs_audio': 500,
-        'xtts_v2': 1000,
+        'higgs-audio': 500,
+        'coqui-xtts': 1000,
     }
     max_chars = chunk_limits.get(model, 800)
 

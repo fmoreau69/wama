@@ -843,7 +843,7 @@ def synthesize_text(
     user,
     text: str,
     language: str = 'fr',
-    tts_model: str = 'xtts_v2',
+    tts_model: str = 'coqui-xtts',
     voice_preset: str = 'default',
     speed: float = 1.0,
     pitch: float = 1.0,
@@ -857,7 +857,7 @@ def synthesize_text(
         user:              Django User instance
         text:              Text to synthesize (required)
         language:          Language code (e.g. 'fr', 'en', 'es')
-        tts_model:         TTS model ('xtts_v2', 'higgs_audio_v2', etc.)
+        tts_model:         TTS model ('coqui-xtts', 'higgs-audio', etc.)
         voice_preset:      Voice preset key ('default', 'male_1', 'female_1', etc.)
         speed:             Speech speed 0.5–2.0 (default: 1.0)
         pitch:             Voice pitch 0.5–2.0 (default: 1.0)
@@ -1769,7 +1769,7 @@ def add_to_avatarizer(
     user,
     mode: str = 'pipeline',
     text_content: str = '',
-    tts_model: str = 'xtts_v2',
+    tts_model: str = 'coqui-xtts',
     language: str = 'fr',
     voice_preset: str = 'default',
     audio_path: str = '',
@@ -1786,7 +1786,7 @@ def add_to_avatarizer(
     Args:
         mode:                'pipeline' (texte → TTS → avatar) | 'standalone' (audio fourni)
         text_content:        Texte à synthétiser (requis si mode='pipeline')
-        tts_model:           Modèle TTS (ex: 'xtts_v2') — mode pipeline
+        tts_model:           Modèle TTS (ex: 'coqui-xtts') — mode pipeline
         language:            Langue TTS (ex: 'fr') — mode pipeline
         voice_preset:        Voix TTS (ex: 'default') — mode pipeline
         audio_path:          Chemin (relatif à MEDIA_ROOT) d'un audio — requis si mode='standalone'
@@ -1810,7 +1810,7 @@ def add_to_avatarizer(
         if not (text_content or '').strip():
             return {'error': "Le texte (text_content) est obligatoire en mode pipeline."}
         job.text_content = text_content.strip()
-        job.tts_model = tts_model or 'xtts_v2'
+        job.tts_model = tts_model or 'coqui-xtts'
         job.language = language or 'fr'
         job.voice_preset = voice_preset or 'default'
     else:  # standalone

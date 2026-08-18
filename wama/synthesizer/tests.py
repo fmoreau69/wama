@@ -47,13 +47,13 @@ class VoiceSynthesisModelTest(TestCase):
         synthesis = VoiceSynthesis.objects.create(
             user=self.user,
             text_file=self.text_file,
-            tts_model='xtts_v2',
+            tts_model='coqui-xtts',
             language='fr'
         )
 
         self.assertEqual(synthesis.user, self.user)
         self.assertEqual(synthesis.status, 'PENDING')
-        self.assertEqual(synthesis.tts_model, 'xtts_v2')
+        self.assertEqual(synthesis.tts_model, 'coqui-xtts')
         self.assertEqual(synthesis.language, 'fr')
 
     def test_filename_property(self):

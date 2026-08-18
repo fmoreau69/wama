@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 #: VRAM a-priori par modèle UI (repli si la mesure du contrat est non concluante).
 #: XTTS v2 est le seul moteur Coqui lourd ; les EN-only sont légers.
-_VRAM_GB = {'xtts_v2': 2.5, 'vits': 0.5, 'tacotron2': 0.5, 'speedy_speech': 0.5}
+_VRAM_GB = {'coqui-xtts': 2.5, 'vits': 0.5, 'tacotron2': 0.5, 'speedy-speech': 0.5}
 
 
 class CoquiBackend(TTSBackend):
@@ -40,7 +40,7 @@ class CoquiBackend(TTSBackend):
         return self._tts is not None
 
     def load(self, model: str | None = None) -> bool:
-        model = model or 'xtts_v2'
+        model = model or 'coqui-xtts'
         if self._tts is not None and self.loaded_model == model:
             return True
 
@@ -84,7 +84,7 @@ class CoquiBackend(TTSBackend):
         kwargs["file_path"] = tmp.name
         tmp.close()
 
-        if (model or self.loaded_model) == "xtts_v2":
+        if (model or self.loaded_model) == "coqui-xtts":
             kwargs["language"] = language
             if speaker_wav and os.path.exists(speaker_wav):
                 kwargs["speaker_wav"] = speaker_wav

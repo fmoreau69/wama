@@ -90,7 +90,7 @@ from wama.synthesizer.backends.base import CATALOG_KEYS as ENGINE_CATALOG_KEYS  
 # =============================================================================
 
 SYNTHESIZER_MODELS = {
-    'xtts_v2': {
+    'coqui-xtts': {
         'model_id': 'tts_models/multilingual/multi-dataset/xtts_v2',
         'type': 'tts',
         'engine': 'coqui',
@@ -117,7 +117,7 @@ SYNTHESIZER_MODELS = {
         'description': 'Tacotron2 - High quality English TTS',
         'languages': ['en'],
     },
-    'speedy_speech': {
+    'speedy-speech': {
         'model_id': 'tts_models/en/ljspeech/speedy-speech',
         'type': 'tts',
         'engine': 'coqui',
@@ -135,7 +135,7 @@ SYNTHESIZER_MODELS = {
         'description': 'Bark - Natural, emotional TTS with sound effects',
         'languages': ['en', 'fr', 'es', 'de', 'it', 'pt', 'pl', 'tr', 'ru', 'nl', 'cs', 'zh-cn', 'ja', 'ko'],
     },
-    'higgs_audio': {
+    'higgs-audio': {
         'model_id': 'bosonai/higgs-audio-v2-generation-3B-base',
         'tokenizer_id': 'bosonai/higgs-audio-v2-tokenizer',
         'type': 'tts',
@@ -158,7 +158,7 @@ SYNTHESIZER_MODELS = {
 }
 
 # Default model
-DEFAULT_MODEL = 'xtts_v2'
+DEFAULT_MODEL = 'coqui-xtts'
 
 
 def setup_model_environment():

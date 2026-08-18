@@ -54,14 +54,15 @@ def speech_dir(engine: str) -> Path:
     return d
 
 
-#: Suffixe de `AIModel.model_key` (catalogue) par nom de modèle UI — la clé d'owner
-#: publiée au gouverneur (`synthesizer:<suffixe>`) doit être celle du CATALOGUE pour
-#: que `resident_models()` / `select_model(prefer_loaded=True)` la reconnaissent.
-#: `model_config.ENGINE_CATALOG_KEYS` expose la même table côté Django (import d'ici).
+#: Suffixe de `AIModel.model_key` (catalogue) par nom de modèle UI. Table devenue IDENTITÉ
+#: le 18/08 : l'app est ALIGNÉE sur les clés canoniques du catalogue (route SPEC §356 —
+#: xtts_v2→coqui-xtts, higgs_audio→higgs-audio, speedy_speech→speedy-speech ; lignes
+#: VoiceSynthesis migrées). Conservée comme point d'accroche (consommateurs existants +
+#: un futur id divergent se déclarerait ICI, nulle part ailleurs).
 CATALOG_KEYS = {
-    'xtts_v2': 'coqui-xtts',
+    'coqui-xtts': 'coqui-xtts',
     'bark': 'bark',
-    'higgs_audio': 'higgs-audio',
+    'higgs-audio': 'higgs-audio',
     'kokoro': 'kokoro',
 }
 
@@ -108,7 +109,7 @@ class TTSBackend(BaseModelBackend):
 
     def __init__(self):
         self._current_model: Optional[str] = None   # suffixe CATALOGUE (clé gouverneur)
-        self.loaded_model: Optional[str] = None     # nom UI ('xtts_v2'…) — /health
+        self.loaded_model: Optional[str] = None     # nom UI ('coqui-xtts'…) — /health
 
     def synthesize(self, **kwargs) -> str:
         """Alias métier : rend le CHEMIN d'un WAV temporaire généré."""

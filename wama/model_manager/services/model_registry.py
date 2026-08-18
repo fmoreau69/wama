@@ -947,10 +947,18 @@ class ModelRegistry:
             # Get preferred format for upscaling models
             preferred = self._get_preferred_format(ModelType.UPSCALING)
 
+            # ALIGNEMENT 18/08 (route : clés canoniques = catalogue, SPEC §356) : la clé était
+            # frappée sur le STEM DU FICHIER (RealESR_Gx4_fp16) — un artefact : `_fp16` est le
+            # FORMAT (champ dédié du registre), pas l'identité. On résout stem → id canonique
+            # de l'app via ENHANCER_MODELS (id → file) ; repli stem pour un ONNX inconnu.
+            from wama.enhancer.utils.model_config import ENHANCER_MODELS as _ENH_MODELS
+            _stem_to_id = {Path(cfg.get('file', '')).stem: mid
+                           for mid, cfg in _ENH_MODELS.items() if cfg.get('file')}
+
             onnx_dir = settings.MODEL_PATHS.get('upscaling', {}).get('onnx')
             if onnx_dir and Path(onnx_dir).exists():
                 for onnx_file in Path(onnx_dir).glob('*.onnx'):
-                    model_name = onnx_file.stem
+                    model_name = _stem_to_id.get(onnx_file.stem, onnx_file.stem)
                     size_mb = onnx_file.stat().st_size / (1024 * 1024)
 
                     # Capacités : tâche (débruitage IRCNN vs upscaling) + facteur d'échelle.
