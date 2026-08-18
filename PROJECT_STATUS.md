@@ -2448,9 +2448,28 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 >   Commits `docs(studio+roadmap)` + `feat(taxonomie)` sur dev.
 > - ⚠ **Point de contact** : `app_registry.py` touché par B (bloc extensions + MEDIA_CATEGORIES,
 >   l.50-90) — si A doit y toucher, rebaser sur le commit `feat(taxonomie)`.
+> - **BANC D'ÉPREUVE tool_api (18/08, demandé par Fabien — « tirer les capacités par les
+>   mécanismes de l'assistant »)** : ~38 sondes via `execute_tool` (LA porte : gating F7 →
+>   sanitisation → bornes de choix → coercition), base live WSL2, read-only strict (add_* en
+>   transaction ROLLBACK forcé, comptages avant/après ; start_*/translate_text/switch_ui_mode
+>   EXCLUS — GPU/Ollama hôte/état UI réel). **Verdict : mécanisme SAIN, confiance haute.**
+>   48/48 outils décrits, triades 10 apps complètes (studio add+start fusionnés dans run =
+>   voulu), latences 1–231 ms, gating anonyme → `forbidden` (même forme que le middleware),
+>   outil/clé inconnus → erreurs guidantes, borne de choix refuse AVANT exécution en nommant
+>   les valeurs valides, garde MEDIA_ROOT anti-traversée, coercition str→int, zéro ligne fuitée.
+>   **1 vrai bug détecté ET corrigé** : `get_imager_status` filtrait sur `parent_generation`
+>   (self-FK retiré le 07/08, migration 0014) → FieldError sur tout statut imager assistant
+>   pendant 11 jours ; fix = même geste que `views.py:75`, validé en réel (commit `fix(tool_api)`).
+>   **Leçon ×2** : (a) la classe du bug = glu MANUELLE par app qui dérive du modèle — les triades
+>   DÉCLARATIVES (TRIAD_SPECS, converter/reader) y sont immunisées → argument pour finir la
+>   migration déclarative (marche B) ; (b) les noms se DÉRIVENT (`primary_arg_name`, schéma),
+>   jamais devinés — mes 2 sondes ratées l'ont re-prouvé. NON évalué : la couche LLM de
+>   sélection d'outil (Ollama hôte = jamais par moi) → session avec Fabien. Candidat naturel :
+>   verser le banc (scratchpad `bench_tool_api*.py`) dans la charpente nocturne déclarative.
 > - 🔚 **Pending B** : catégorie `'3d'` vivante au prochain restart des process WSL2 (rien ne la
->   consomme d'ici là) ; suite du chantier 3D = ROADMAP §17ter trous 2-6 (preview médiathèque,
->   port déclaré par une app, prospection modèles 2D→3D — quand Fabien la demande).
+>   consomme d'ici là) ; **restart aussi requis pour le fix `get_imager_status`** (gunicorn/
+>   workers tiennent l'ancien code) ; suite du chantier 3D = ROADMAP §17ter trous 2-6 (preview
+>   médiathèque, port déclaré par une app, prospection modèles 2D→3D — quand Fabien la demande).
 
 ## §REPRISE — 2026-08-14 : PAQUET SYNTHESIZER — moteurs TTS sous contrat commun (87 → 95 %)
 
