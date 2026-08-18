@@ -2466,10 +2466,21 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 >   jamais devinés — mes 2 sondes ratées l'ont re-prouvé. NON évalué : la couche LLM de
 >   sélection d'outil (Ollama hôte = jamais par moi) → session avec Fabien. Candidat naturel :
 >   verser le banc (scratchpad `bench_tool_api*.py`) dans la charpente nocturne déclarative.
-> - 🔚 **Pending B** : catégorie `'3d'` vivante au prochain restart des process WSL2 (rien ne la
->   consomme d'ici là) ; **restart aussi requis pour le fix `get_imager_status`** (gunicorn/
->   workers tiennent l'ancien code) ; suite du chantier 3D = ROADMAP §17ter trous 2-6 (preview
->   médiathèque, port déclaré par une app, prospection modèles 2D→3D — quand Fabien la demande).
+> - **BANC VERSÉ EN NOCTURNE (18/08 soir, demandé par Fabien)** : 3 scénarios `common.tool_api.*`
+>   (stage `wired`) dans `common/nightly_scenarios.py` — inventaire structurel (aucun compte en
+>   dur), lectures via `execute_tool` (la sonde qui aurait attrapé le FieldError imager la nuit
+>   même), garde-fous (gating/bornes/MEDIA_ROOT, sondes sous rollback). Validé 3/3 par
+>   `run_nightly_tests`, dry-run complet sans régression (commit `b15ebbf`). **2 pièges du 1er
+>   run codés en commentaire** : un paramètre de schéma hors surface d'outil est FILTRÉ avant la
+>   borne ; le gating répond avant la borne → les sondes traversantes se choisissent parmi les
+>   outils ACCESSIBLES au user de test. **Constat POLITIQUE à trancher (Fabien)** : le user
+>   `wama_nightly_test` (tier de base) est refusé sur 13 lectures/17 → la couverture nocturne
+>   du contrat se limite aux apps ouvertes (converter…) ; lui accorder un tier/rôles élargirait
+>   la sonde à toutes les triades. Trou #8 ROUTE §11 (test de contrat triade) : ENTAMÉ.
+> - 🔚 **Pending B** : ✅ restart FAIT par Fabien 18/08 (~17h) → catégorie `'3d'` et fix
+>   `get_imager_status` VIVANTS ; suite du chantier 3D = ROADMAP §17ter trous 2-6 (preview
+>   médiathèque, port déclaré par une app, prospection modèles 2D→3D — quand Fabien la demande) ;
+>   décision en attente = tier du user de test nocturne (ci-dessus).
 
 ## §REPRISE — 2026-08-14 : PAQUET SYNTHESIZER — moteurs TTS sous contrat commun (87 → 95 %)
 
