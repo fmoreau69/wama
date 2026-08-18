@@ -395,6 +395,11 @@ class Command(BaseCommand):
         target = WAMA_DIR / label
         if target.exists():
             shutil.rmtree(target)
+        # Écho collectstatic de la jumelle (staticfiles/<label>/ — ramassé par le restart) :
+        # retiré aussi, sinon il traîne orphelin (constat Fabien 18/08 ; gitignoré par ailleurs).
+        echo = BASE_DIR / 'staticfiles' / label
+        if echo.exists():
+            shutil.rmtree(echo, ignore_errors=True)
         self.stdout.write(self.style.SUCCESS(
             f'Jumelle {label} retirée (tables, registre, package). '
             '⚠ Redémarrer gunicorn/workers.'))

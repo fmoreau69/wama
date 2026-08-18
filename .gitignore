@@ -126,3 +126,4 @@ backups/
 tools/security/bin/
 wama/sandbox_apps.json
 wama/*_[0-9][0-9]/
+staticfiles/*_[0-9][0-9]/
