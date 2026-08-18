@@ -2581,7 +2581,9 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 >   dormant sur les lots LLM complets tant que e4b/translategemma non appariés (→ `ALIAS`
 >   déclaratif, candidats aussi : higgs-audio, ltx, sdxl) ; candidats `proposed:*:latest`
 >   sans taille = non scorés (limite honnête). `.env`/`.env.example` : clé AA + bloc
->   WAMA_EMAIL_* (absent des DEUX, repli console silencieux) + OLLAMA_MODELS_DIR alignés.
+>   WAMA_EMAIL_* (l'example l'avait EN COMMENTAIRE — correction Fabien, ma 1re lecture
+>   « absent des deux » était fausse ; bloc enrichi USE_TLS + note console, .env aligné
+>   clés actives) + OLLAMA_MODELS_DIR rangé section Ollama.
 >   **SUITE ACTÉE : câblage wama-dev-ai** (sa table MODELS interroge la réalité — sans MCP).
 > - 🔚 **Pending B** : ✅ restart FAIT par Fabien 18/08 (~17h) → catégorie `'3d'` et fix
 >   `get_imager_status` VIVANTS ; suite du chantier 3D = ROADMAP §17ter trous 2-6 (preview
