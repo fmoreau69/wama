@@ -480,10 +480,11 @@ def get_imager_status(user) -> dict:
     from wama.imager.models import ImageGeneration
     from django.core.cache import cache
 
-    jobs_qs = ImageGeneration.objects.filter(
-        user=user,
-        parent_generation__isnull=True,
-    ).order_by('-id')[:10]
+    # Le filtre `parent_generation__isnull=True` (« top-level ») est RETIRÉ : le self-FK
+    # n'existe plus depuis le 2026-08-07 (migration imager 0014, regroupement porté par
+    # GenerationBatch) — il faisait lever un FieldError sur TOUT appel de statut assistant.
+    # Détecté par le banc d'épreuve tool_api du 2026-08-18.
+    jobs_qs = ImageGeneration.objects.filter(user=user).order_by('-id')[:10]
 
     jobs = []
     for gen in jobs_qs:
