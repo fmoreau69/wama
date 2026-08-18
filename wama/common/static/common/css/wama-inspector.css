@@ -225,3 +225,16 @@
 .wama-queue-stacked .wama-card[data-stack]:not([data-stack="0"]) .wcv3-in-name {
     white-space: nowrap;
 }
+
+/* ── Sections de la face Infos (18/08, demande Fabien) — miroir de l'anatomie card v3 §11
+   (Entrée / Réglages / Sortie) : libellé identique au .wcv3-lbl des cards « Affinée ». */
+.wama-insp-sec { margin-bottom: .45rem; }
+.wama-insp-sec-lbl {
+  display: block;
+  font-size: .62rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: #7a838c;
+  margin-bottom: .2rem;
+  user-select: none;
+}

@@ -164,7 +164,6 @@
     output_quality: { label: 'Qualité', icon: 'fa-sliders' },
     processing_time_display: { label: 'Temps de traitement', icon: 'fa-stopwatch' },
   };
-  var DETAIL_ORDER = ['source_duration_display', 'engine', 'engine_effective', 'output_format', 'output_quality', 'processing_time_display'];
   // Basename LISIBLE d'un chemin/URL : l'URL média percent-encode les accents (%C3%A9…) —
   // on décode pour l'AFFICHAGE (constat Fabien 17/08, « Au_th%C3%A9%C3%A2tre_… ») ; le lien
   // href, lui, garde l'URL encodée. Fallback brut si séquence invalide.
@@ -177,6 +176,15 @@
     var lbl = label ? '<span class="opacity-75">' + escapeHtml(label) + '</span> ' : '';
     return '<span class="wama-chip" title="' + escapeHtml(label || '') + '"><i class="fas ' + icon + '"></i> ' + lbl + escapeHtml(value) + '</span>';
   }
+  // Groupement par SECTION — miroir de l'anatomie card v3 (CARD_DESIGN §11 : Entrée /
+  // Réglages / Sortie ; l'ÉTAT vit dans l'en-tête id+badge+date+temps). Décision Fabien
+  // 18/08 : les chips « en vrac » sur une seule rangée étaient illisibles.
+  function _chipRow(chips) {
+    return chips.length ? '<div class="d-flex flex-wrap gap-1">' + chips.join('') + '</div>' : '';
+  }
+  function _section(label, inner) {
+    return inner ? '<div class="wama-insp-sec"><span class="wama-insp-sec-lbl">' + label + '</span>' + inner + '</div>' : '';
+  }
   function renderDetailChips(d) {
     var st = (d.status || '').toUpperCase();
     var stCls = st === 'SUCCESS' ? 'success' : st === 'FAILURE' ? 'danger' : st === 'RUNNING' ? 'warning text-dark' : 'secondary';
@@ -185,21 +193,42 @@
     if (d.id != null) head += '<strong class="text-light">#' + escapeHtml(d.id) + '</strong>';
     if (st) head += '<span class="badge bg-' + stCls + '">' + escapeHtml(stLbl) + '</span>';
     if (d.created_at) head += '<small class="text-white-50"><i class="fas fa-calendar-alt"></i> ' + escapeHtml(d.created_at) + '</small>';
+    if (d.processing_time_display) head += '<small class="text-white-50" title="Temps de traitement"><i class="fas fa-stopwatch"></i> ' + escapeHtml(d.processing_time_display) + '</small>';
     head += '<button type="button" class="btn btn-sm btn-link text-white-50 p-0 ms-auto wama-info-deselect" title="Fermer la sélection"><i class="fas fa-xmark"></i></button>';
     head += '</div>';
+
+    // ── ENTRÉE : fichier source + durée + propriétés ──────────────────────────
     var srcLine = '';
     if (d.source_file) {
       var fn = _basename(d.source_file);
       srcLine = '<div class="small text-truncate mb-1" title="' + escapeHtml(d.source_file) + '"><i class="fas fa-file text-info"></i> ' + escapeHtml(fn) + '</div>';
     }
-    var chips = [];
-    DETAIL_ORDER.forEach(function (k) { if (d[k]) { var m = DETAIL_META[k]; chips.push(_detailChip(m.icon, d[k], m.label)); } });
-    if (d.source_properties) chips.push(_detailChip(d.source_properties_icon || 'fa-circle-info', d.source_properties, 'Propriétés'));
-    if (d.extra) Object.keys(d.extra).forEach(function (lbl) { chips.push(_detailChip('fa-sliders', d.extra[lbl], lbl)); });
-    if (d.result_file) { var rf = _basename(d.result_file); chips.push('<a class="wama-chip" href="' + d.result_file + '" title="Résultat"><i class="fas fa-download"></i> ' + escapeHtml(rf) + '</a>'); }
-    var chipsHtml = chips.length ? '<div class="d-flex flex-wrap gap-1">' + chips.join('') + '</div>' : '';
-    var errHtml = d.error_message ? '<div class="small text-danger mt-1"><i class="fas fa-triangle-exclamation"></i> ' + escapeHtml(d.error_message) + '</div>' : '';
-    return head + srcLine + chipsHtml + errHtml;
+    var inChips = [];
+    if (d.source_duration_display) inChips.push(_detailChip(DETAIL_META.source_duration_display.icon, d.source_duration_display, DETAIL_META.source_duration_display.label));
+    if (d.source_properties) inChips.push(_detailChip(d.source_properties_icon || 'fa-circle-info', d.source_properties, 'Propriétés'));
+    var secIn = _section('Entrée', srcLine + _chipRow(inChips));
+
+    // ── RÉGLAGES : moteur(s) + extras déclarés par l'app ─────────────────────
+    var regChips = [];
+    ['engine', 'engine_effective'].forEach(function (k) {
+      if (d[k]) regChips.push(_detailChip(DETAIL_META[k].icon, d[k], DETAIL_META[k].label));
+    });
+    if (d.extra) Object.keys(d.extra).forEach(function (lbl) { regChips.push(_detailChip('fa-sliders', d.extra[lbl], lbl)); });
+    var secReg = _section('Réglages', _chipRow(regChips));
+
+    // ── SORTIE : format/qualité + fichier résultat ; l'ERREUR remplace (§11) ──
+    var secOut;
+    if (d.error_message) {
+      secOut = _section('Sortie', '<div class="small text-danger"><i class="fas fa-triangle-exclamation"></i> ' + escapeHtml(d.error_message) + '</div>');
+    } else {
+      var outChips = [];
+      ['output_format', 'output_quality'].forEach(function (k) {
+        if (d[k]) outChips.push(_detailChip(DETAIL_META[k].icon, d[k], DETAIL_META[k].label));
+      });
+      if (d.result_file) { var rf = _basename(d.result_file); outChips.push('<a class="wama-chip" href="' + d.result_file + '" title="Résultat"><i class="fas fa-download"></i> ' + escapeHtml(rf) + '</a>'); }
+      secOut = _section('Sortie', _chipRow(outChips));
+    }
+    return head + secIn + secReg + secOut;
   }
 
   function init(cfg) {

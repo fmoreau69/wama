@@ -133,16 +133,11 @@ Contexte : media (décoré par _decorate_card → media.chips), in_batch, user.
   {% load static %}
   {% if media.status == 'SUCCESS' and media.output_file %}
   <div class="wcv3-preview" id="preview-row-{{ media.id }}">
-    {% if media.media_type == 'video' %}
-    <video class="w-100" controls preload="metadata" style="border-radius:6px;max-height:220px;">
-      <source src="{% get_media_prefix %}{{ media.output_file }}">
-    </video>
-    {% else %}
-    <img src="{% get_media_prefix %}{{ media.output_file }}" alt="Média anonymisé #{{ media.id }}"
-         class="preview-media-link" role="button" title="Aperçu"
-         data-preview-url="{% url 'common:unified_preview' 'anonymizer' media.id %}"
-         style="display:block;max-width:100%;max-height:220px;border-radius:6px;cursor:pointer;">
-    {% endif %}
+    {% comment %}Brique COMMUNE _card_media_preview (extraite 18/08 — ce markup était dupliqué
+    avec avatarizer/converter). output_file = CharField → URL via get_media_prefix.{% endcomment %}
+    {% get_media_prefix as mp_prefix %}
+    {% url 'common:unified_preview' 'anonymizer' media.id as pv_out %}
+    {% include 'common/_card_media_preview.html' with kind=media.media_type|default:'image' file_url=mp_prefix|add:media.output_file player_id=media.id preview_url=pv_out %}
   </div>
   {% else %}
   <div id="preview-row-{{ media.id }}"></div>

@@ -386,6 +386,14 @@ document.addEventListener('DOMContentLoaded', function () {
         batchLabel: function (id) { return "le batch #" + id; },
         renderItemActions: function (host, card) {
             showPanelParams(true);
+            // Descriptif moteur du TYPE de la card inspectée (même correction que la modale,
+            // 18/08) — le help_fallback statique par format est ambigu (mp3 multi-famille).
+            var helpEl = document.getElementById('wp-panel-output_format-help');
+            var gear = card.querySelector('.job-settings-btn');
+            var mt = gear && gear.dataset ? gear.dataset.media_type : '';
+            if (helpEl && CONVERTER_APP.engineHelp && CONVERTER_APP.engineHelp[mt]) {
+                helpEl.textContent = CONVERTER_APP.engineHelp[mt];
+            }
             WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
                 '<i class="fas fa-clone text-info"></i> Actions — élément #' + card.dataset.id);
         },

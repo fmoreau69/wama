@@ -136,9 +136,9 @@ Contexte : job (chips = propriété du modèle), media_url, in_batch.
   reste dans tous les cas (contrat JS historique).{% endcomment %}
   {% if job.status == 'SUCCESS' and job.output_video %}
   <div class="wcv3-preview" id="preview-row-{{ job.id }}">
-    <video class="w-100" controls style="border-radius:6px;max-height:220px;">
-      <source src="{{ media_url }}{{ job.output_video.name }}" type="video/mp4">
-    </video>
+    {% comment %}Brique COMMUNE _card_media_preview (extraite 18/08 — markup vidéo dupliqué
+    avec anonymizer/converter).{% endcomment %}
+    {% include 'common/_card_media_preview.html' with kind='video' file_url=media_url|add:job.output_video.name player_id=job.id %}
   </div>
   {% else %}
   <div id="preview-row-{{ job.id }}"></div>
