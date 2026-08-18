@@ -95,7 +95,9 @@ def _describe_image(path: str, language: str, timeout: int) -> str:
         model = None
     lang_name = 'en français' if (language or 'en').startswith('fr') else f"in {language}"
     prompt = f"Describe this reference image precisely and concisely ({lang_name})."
-    res = describe_image_ollama(path, model=model or 'gemma4:12b', prompt=prompt, timeout=timeout)
+    # Modèle vide → résolu par la route commune DANS describe_image_ollama (point unique,
+    # audit 19/08) — l'ancien repli littéral 'gemma4:12b' aurait pourri à son remplacement.
+    res = describe_image_ollama(path, model=model or '', prompt=prompt, timeout=timeout)
     return res.get('description', '') if res.get('ok') else ''
 
 

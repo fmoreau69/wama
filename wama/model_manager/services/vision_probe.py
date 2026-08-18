@@ -10,10 +10,18 @@ import base64
 import os
 
 
-def describe_image_ollama(image_path: str, model: str = 'gemma4:12b',
+def describe_image_ollama(image_path: str, model: str = '',
                           prompt: str | None = None, timeout: int = 180,
                           keep_alive: str | None = None):
     """Décrit une image via un modèle vision Ollama LOCAL. Retourne {'ok', 'description'|'error'}.
+
+    `model` vide → RÉSOLU par la route commune (`modele_par_tier('default',
+    exige=['completion','vision'])`) — plus de nom en dur : l'ancien défaut `'gemma4:12b'`
+    aurait désigné un modèle absent à son remplacement par la prospection (même leçon que
+    les six noms figés éradiqués de llm_utils le 04/08 ; audit Fabien du 19/08). Le tier
+    `default` (≤16 Go) porte l'intention « triage/description rapide », pas « le meilleur ».
+    ICI est le seul point de résolution : les appelants passent un modèle explicite (bench)
+    ou rien — jamais un littéral de repli.
 
     `keep_alive` : résidence VRAM après réponse (défaut Ollama : 5 min). Une valeur courte
     ('120s') laisse s'enchaîner un LOT d'images sans repayer le chargement des poids, puis
@@ -22,6 +30,11 @@ def describe_image_ollama(image_path: str, model: str = 'gemma4:12b',
     from django.conf import settings
     import requests
 
+    if not model:
+        from wama.common.utils.llm_utils import modele_par_tier
+        model = modele_par_tier('default', exige=['completion', 'vision'])
+        if not model:
+            return {'ok': False, 'error': "aucun modèle vision résoluble (catalogue et Ollama muets)"}
     if not os.path.exists(image_path):
         return {'ok': False, 'error': f"image introuvable : {image_path}"}
     try:

@@ -44,9 +44,11 @@ CUR_DIR = SHOTS_DIR / 'current'
 
 # Au-delà de ce ratio de pixels changés, la capture part au triage VLM (elle ne casse rien).
 DIFF_TRIAGE_RATIO = 0.02
-# Modèle vision : défaut du banc de modèles, installé. Résidence courte → les scénarios UI
-# s'enchaînent sans repayer le chargement, et le modèle expire tout seul après la série.
-VLM_MODEL = os.environ.get('WAMA_UI_SMOKE_VLM', 'gemma4:12b')
+# Modèle vision : env = épingle déclarée ; vide → résolu par la route commune DANS
+# describe_image_ollama (tier default + vision, point unique — audit 19/08, plus de littéral
+# qui pourrit). Résidence courte → les scénarios UI s'enchaînent sans repayer le chargement,
+# et le modèle expire tout seul après la série.
+VLM_MODEL = os.environ.get('WAMA_UI_SMOKE_VLM', '')
 VLM_KEEP_ALIVE = '120s'
 
 # Erreurs console à ignorer : bruit d'environnement, pas des régressions applicatives.
