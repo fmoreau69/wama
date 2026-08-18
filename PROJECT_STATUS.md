@@ -2436,6 +2436,22 @@ travail**. La base LIVE est celle de **WSL2 (Postgres 16)**, conforme à
 exécute WAMA nativement sous Windows (`venv_win runserver`) ; sinon c'est une taxe d'entretien
 supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 
+## §REPRISE — 2026-08-18 : PARTITION MULTI-INSTANCES (session vision 3D, périmètre disjoint du portage)
+
+> **Deux instances en parallèle ce jour** (déclaration de partition, règle CLAUDE.md git multi-instances) :
+> - **Instance A (portage)** : portage/bac à sable — en vol au moment de cette déclaration :
+>   `.claude/settings.json`, `wama/common/management/commands/app_sandbox.py`, `staticfiles/converter_01/`.
+> - **Instance B (cette session, TERMINÉE et commitée)** : consignation cas d'usage studio
+>   (STUDIO_VISION chaînes 3-4 + ROADMAP §17ter) + **taxonomie `'3d'`** : `OBJECT3D_EXTENSIONS`
+>   + catégorie dans `common/app_registry.py`, asset `object3d` dans `media_library/models.py`
+>   (migration 0013 no-op, appliquée base live WSL2 ; migrations non versionnées — `.gitignore:13`).
+>   Commits `docs(studio+roadmap)` + `feat(taxonomie)` sur dev.
+> - ⚠ **Point de contact** : `app_registry.py` touché par B (bloc extensions + MEDIA_CATEGORIES,
+>   l.50-90) — si A doit y toucher, rebaser sur le commit `feat(taxonomie)`.
+> - 🔚 **Pending B** : catégorie `'3d'` vivante au prochain restart des process WSL2 (rien ne la
+>   consomme d'ici là) ; suite du chantier 3D = ROADMAP §17ter trous 2-6 (preview médiathèque,
+>   port déclaré par une app, prospection modèles 2D→3D — quand Fabien la demande).
+
 ## §REPRISE — 2026-08-14 : PAQUET SYNTHESIZER — moteurs TTS sous contrat commun (87 → 95 %)
 
 > **Reprise** : 5 contrôles conformes au bloc attendu du 13/08 (check_docs a dit 3 CASSÉ mais la
