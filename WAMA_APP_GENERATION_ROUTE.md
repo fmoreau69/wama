@@ -569,9 +569,17 @@ outillé avant d'ouvrir cette marche.
   ② œuf-poule du drop : une jumelle cassée bloque le boot du sous-process → `migrate zero
   --skip-checks` obligatoire ; ③ l'anonyme PASSE le gating (convention plateforme « tier
   anonyme », identique aux autres apps) — le dev-only ne vaut que pour les comptes
-  authentifiés. **S2 (suivante)** : substituer un à un les fichiers copiés par les GÉNÉRÉS
-  (urls/models/tasks/apps gabaritisés ; `views_gen` + gabarit templates À ÉCRIRE) — le diff
-  copie↔généré = le détecteur de trous, fichier par fichier, sans jamais une jumelle morte.
+  authentifiés. **S2 EN COURS (2026-08-18)** : outil `app_sandbox substitute <label> <cible>`
+  LIVRÉ — génère depuis le manifeste LIVE de la SOURCE (jamais modifiée), suffixe, écrit dans
+  la jumelle, témoin préservé en `.temoin`, re-mesure (check + makemigrations + smoke),
+  ÉCHEC → auto-revert COMPLET (migrations divergentes désappliquées/retirées — défaut du
+  1er run corrigé). **Premiers verdicts converter_01** : `apps` ✅ tient (29 lignes d'écart) ·
+  `urls` ✅ tient (82) · `models` ❌ TROU — schéma DIVERGENT, 155 lignes (le gabarit A5 ne
+  dérive que la facette params ; le schéma réel porte ConversionProfile entier + champs
+  batch/options) · `tasks` ❌ TROU — smoke KO, 226 lignes (la glu réelle dépasse le gabarit).
+  Restes S2 : analyser/combler ces 2 trous, écrire `views_gen` + gabarit templates, puis
+  substitutions suivantes — le diff copie↔généré reste le détecteur, fichier par fichier,
+  sans jamais une jumelle morte.
   La cible « Translator DE ZÉRO » (ci-dessus) devient le cas « create sans generated_from » du
   même outil : le bac à sable est l'étape commune aux deux chemins (régénérer ≈ créer).
 
