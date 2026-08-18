@@ -62,15 +62,29 @@ def _cle_de_rang(pool):
     Règle : on ne compare des indices QUE si tout le lot en a un ; sinon on retombe sur `vram_gb`
     pour TOUT LE MONDE. On ne mélange jamais les deux. `NULL` reste « inconnu », pas « mauvais ».
 
-    Effet sur l'existant : nul. Les 11 modèles Ollama réellement sélectionnables ont tous un
-    indice (le seul sans, `qwen3.5:35b-a3b`, n'est pas téléchargé donc déjà hors lot) → la
-    sélection LLM est inchangée ; aucun modèle vision n'a d'indice → tri par VRAM, inchangé.
+    Étage BENCHMARK (2026-08-19, échelle des signaux : a priori < benchmark tiers < mesure
+    interne) : même règle de lot, un étage au-dessus — si TOUT le lot porte un
+    `benchmark_index` (mesure tierce Artificial Analysis, `sync_benchmarks`), c'est lui qui
+    ordonne ; sinon l'a priori si tout le lot en a un ; sinon la VRAM. Trois échelles,
+    jamais mélangées — une couverture benchmark PARTIELLE retombe donc sur l'a priori,
+    ce qui est l'incitation à compléter l'appariement, pas un bug.
+
+    Effet sur l'existant : nul tant que `sync_benchmarks` n'a pas tourné (benchmark_index
+    NULL partout → étage inerte) ; ensuite, les lots 100 % appariés (LLM Ollama) passent
+    sur la mesure tierce.
     """
+    tous_benchmarkes = bool(pool) and all(
+        getattr(m, 'benchmark_index', None) is not None for m in pool)
     tous_qualifies = bool(pool) and all(m.quality_index is not None for m in pool)
 
     def cle(m):
-        return (m.is_loaded,
-                m.quality_index if tous_qualifies else (m.vram_gb or 0))
+        if tous_benchmarkes:
+            q = m.benchmark_index
+        elif tous_qualifies:
+            q = m.quality_index
+        else:
+            q = m.vram_gb or 0
+        return (m.is_loaded, q)
     return cle
 
 

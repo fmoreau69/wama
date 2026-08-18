@@ -354,6 +354,21 @@ class AIModel(models.Model):
         null=True, blank=True, db_index=True,
         help_text="Indice de qualité a priori (structurel). NULL = inconnu, pas zéro.")
 
+    # ── Qualité (benchmark TIERS confronté) — 2e étage de l'échelle des signaux ───────────
+    # a priori (ci-dessus) < benchmark tiers confronté (ICI) < mesure interne (qui primera
+    # toujours — contrainte qc.py §16.5). Alimenté par `services/benchmark_sync.py`
+    # (Artificial Analysis Intelligence Index, confronté à l'Elo Arena stocké en meta) via
+    # `manage.py sync_benchmarks` — champ SÉPARÉ de quality_index : la découverte (sync_models)
+    # n'a PAS autorité ici et ne l'écrase jamais (leçon audio_enhance/quality_index du 18/08).
+    # NULL = non apparié à une mesure ; le tri ne compare des benchmarks QUE si tout le lot
+    # en a un (même règle d'échelles que `_cle_de_rang`). Jamais une valeur inventée.
+    benchmark_index = models.FloatField(
+        null=True, blank=True, db_index=True,
+        help_text="Intelligence Index (Artificial Analysis) apparié. NULL = non mesuré/apparié.")
+    benchmark_meta = models.JSONField(
+        default=dict, blank=True,
+        help_text="Traçabilité du benchmark : source, nom apparié, Elo Arena, date, version.")
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
