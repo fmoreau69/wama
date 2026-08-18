@@ -34,7 +34,10 @@ class Command(BaseCommand):
         parser.add_argument('--verbose-ok', action='store_true', help='Afficher aussi les critères conformes')
 
     def handle(self, *args, **opts):
-        apps = [opts['app']] if opts.get('app') else sorted(APP_CATALOG.keys())
+        # Les jumelles bac à sable sont au catalogue (estampillées) mais JAMAIS notées :
+        # on les écarte de l'itération (le rapport ne les contient pas) et on les signale.
+        from wama.common.sandbox import non_sandbox_apps
+        apps = [opts['app']] if opts.get('app') else non_sandbox_apps(APP_CATALOG)
         # Run COMPLET avec écriture → brique commune (partagée avec le bouton /apps/) ;
         # run partiel ou --no-write → mesure seule, la photo globale est préservée.
         if not opts.get('app') and not opts.get('no_write'):
@@ -58,6 +61,12 @@ class Command(BaseCommand):
                 ev = data['evidence'].get(c.key) or ''
                 self.stdout.write(f"  {STATE_FMT[state]} [{c.facette}] {c.key:24s} {c.label}"
                                   + (f"\n       ↳ {ev}" if ev else ''))
+
+        for name, spec in APP_CATALOG.items():
+            if (spec or {}).get('sandbox'):
+                self.stdout.write(self.style.WARNING(
+                    f"\n{name.upper()} — ⚠ BAC À SABLE (← {spec.get('generated_from', '?')}) : "
+                    f"comparée à sa source, jamais notée"))
 
         if not opts.get('no_write'):
             # Rapport COMPLET seulement (les 10 apps) — un run partiel ne doit pas

@@ -196,7 +196,11 @@ def api_apps(request):
             'has_url_import':   spec['has_url_import'],
             'has_youtube':      spec['has_youtube'],
             'output_types':     list(spec['output_types']),
-            'conformity':       conformity[name],
+            # Jumelle bac à sable : présente au catalogue (estampillée) mais JAMAIS notée
+            # (comparée à sa source) → conformity = None, marqueurs sandbox exposés.
+            'conformity':       conformity.get(name),
+            'sandbox':          bool(spec.get('sandbox')),
+            'generated_from':   spec.get('generated_from', ''),
         }
     return JsonResponse({'apps': apps})
 
@@ -236,7 +240,9 @@ def apps_catalog_view(request):
         apps_list.append({
             'name':       name,
             'spec':       spec,
-            'conformity': conformity[name],
+            # None pour une jumelle bac à sable (estampillée, jamais notée) — le
+            # template affiche alors le tampon sandbox à la place de la barre.
+            'conformity': conformity.get(name),
             'url':        url,
         })
 
@@ -259,7 +265,7 @@ def apps_catalog_view(request):
 
     # Horodatage de la dernière MESURE (le plus récent des measured_at par app) —
     # affiché à côté du bouton « Re-mesurer » de la grille.
-    measured_at = max((a.get('conformity', {}).get('measured_at') or ''
+    measured_at = max(((a.get('conformity') or {}).get('measured_at') or ''
                        for a in apps_list), default='') or None
     if measured_at:
         measured_at = measured_at.replace('T', ' ')[:16]

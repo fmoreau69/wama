@@ -165,7 +165,9 @@
                     </span>
                 </div>
 
-                <!-- Conformity bar -->
+                <!-- Conformity bar — une jumelle bac à sable (conf = None) n'est JAMAIS
+                     notée : tampon sandbox à la place (comparée à sa source, marche S) -->
+                {% if conf %}
                 <div class="conformity-bar-wrap">
                     <div class="conformity-header">
                         <span class="conformity-label">Conformité</span>
@@ -183,6 +185,14 @@
                     </div>
                     {% endif %}
                 </div>
+                {% else %}
+                <div class="conformity-bar-wrap">
+                    <div class="conformity-header">
+                        <span class="conformity-label">Bac à sable</span>
+                        <span class="badge bg-warning text-dark">⚠ non notée — générée depuis {{ spec.generated_from }}</span>
+                    </div>
+                </div>
+                {% endif %}
 
                 <!-- Open link -->
                 <a href="{% url spec.url_name %}"
@@ -292,11 +302,15 @@
                     <td class="text-center">{% if conv.drag_drop == None %}<span class="check-na">—</span>{% elif conv.drag_drop %}<i class="fas fa-check check-ok"></i>{% else %}<i class="fas fa-times check-fail"></i>{% endif %}</td>
                     <!-- batch -->
                     <td class="text-center">{% if conv.batch == None %}<span class="check-na">—</span>{% elif conv.batch %}<i class="fas fa-check check-ok"></i>{% else %}<i class="fas fa-times check-fail"></i>{% endif %}</td>
-                    <!-- score badge -->
+                    <!-- score badge (jumelle bac à sable : estampillée, pas de note) -->
                     <td class="text-center">
+                        {% if conf %}
                         <span class="mini-badge badge {% if conf.pct >= 80 %}bg-success{% elif conf.pct >= 50 %}bg-warning text-dark{% else %}bg-danger{% endif %}">
                             {{ conf.pct }}%
                         </span>
+                        {% else %}
+                        <span class="mini-badge badge bg-warning text-dark" title="Jumelle bac à sable — comparée à {{ spec.generated_from }}, jamais notée">sandbox</span>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endwith %}
