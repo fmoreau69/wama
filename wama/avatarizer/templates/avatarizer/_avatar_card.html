@@ -135,11 +135,12 @@ Contexte : job (chips = propriété du modèle), media_url, in_batch.
   {% comment %}Preview PERMANENTE (§11) — vidéo en SUCCESS ; le placeholder #preview-row
   reste dans tous les cas (contrat JS historique).{% endcomment %}
   {% if job.status == 'SUCCESS' and job.output_video %}
-  <div class="wcv3-preview" id="preview-row-{{ job.id }}">
-    {% comment %}Brique COMMUNE _card_media_preview (extraite 18/08 — markup vidéo dupliqué
-    avec anonymizer/converter).{% endcomment %}
-    {% include 'common/_card_media_preview.html' with kind='video' file_url=media_url|add:job.output_video.name player_id=job.id %}
-  </div>
+  {% comment %}MÉCANISME COMMUN « Preview unifiée » (route n°30) : placeholder seul, hydraté
+  par WamaInspector.hydrateCardPreviews (unified_preview ?side=output, rendu mime-driven
+  commun). Le <video> à la main était hors-route (18/08).{% endcomment %}
+  {% url 'common:unified_preview' 'avatarizer' job.id as pv_out %}
+  <div class="wcv3-preview" id="preview-row-{{ job.id }}"
+       data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ job.id }}"></div>
   {% else %}
   <div id="preview-row-{{ job.id }}"></div>
   {% endif %}

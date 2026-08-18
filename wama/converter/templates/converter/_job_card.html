@@ -138,16 +138,15 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
 
   </div>{# /.wcv3 #}
 
-  {% comment %}Preview PERMANENTE du RÉSULTAT (§11, contrat famille) : briques COMMUNES
-  uniquement — audio = _audio_waveform.html (wama-audio-player.js, chargé global base.html),
-  vidéo = pattern anonymizer/_media_card, image/document = clic → unified_preview ?side=output
-  (la sortie ; le défaut side=input servait l'ENTRÉE — retour Fabien 18/08). Le placeholder
-  #preview-row-N reste dans tous les cas (contrat JS de la famille).{% endcomment %}
+  {% comment %}Preview PERMANENTE du RÉSULTAT (§11) — MÉCANISME COMMUN « Preview unifiée »
+  (route, mécanisme n°30) : la card ne déclare qu'un PLACEHOLDER ; l'hydrateur commun
+  (WamaInspector.hydrateCardPreviews) fetch unified_preview ?side=output et rend en
+  mime-driven (renderInlinePreview : image/vidéo/audio-waveform/pdf/texte). AUCUN markup
+  média par app (correction Fabien 18/08 — le markup à la main était hors-route).{% endcomment %}
   {% if job.status == 'SUCCESS' and job.output_file %}
-  <div class="wcv3-preview" id="preview-row-{{ job.id }}">
-    {% url 'common:unified_preview' 'converter' job.id as pv_out %}
-    {% include 'common/_card_media_preview.html' with kind=job.media_type file_url=job.output_file.url player_id=job.id preview_url=pv_out|add:'?side=output' file_label=job.output_filename %}
-  </div>
+  {% url 'common:unified_preview' 'converter' job.id as pv_out %}
+  <div class="wcv3-preview" id="preview-row-{{ job.id }}"
+       data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ job.id }}"></div>
   {% else %}
   <div id="preview-row-{{ job.id }}"></div>
   {% endif %}

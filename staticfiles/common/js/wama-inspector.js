@@ -79,14 +79,17 @@
         'class="wama-inspector-preview-media" style="max-width:100%;max-height:220px;border-radius:6px;"></video>';
     } else if (mime.indexOf('audio/') === 0) {
       if (global.WamaAudioPlayer && WamaAudioPlayer.create) {
+        // playerId : data-player-id de l'hôte si fourni (previews DANS les cards — N players
+        // simultanés), repli 'insp' (volet inspecteur, hôte unique). 18/08.
+        var pid = (host.dataset && host.dataset.playerId) || 'insp';
         host.innerHTML = '';
         try {
-          host.appendChild(WamaAudioPlayer.create(url, 'insp', { autoplay: !!autoplay }));
+          host.appendChild(WamaAudioPlayer.create(url, pid, { autoplay: !!autoplay }));
           // Pics serveur (common/utils/waveform.compute_peaks) : onde dessinée SANS décoder
           // (fichiers longs) ou qui se CONSTRUIT (streaming « pendant »). setPeaks normalise
           // l'échelle uint8→0-1. Additif : sans data.peaks, comportement inchangé.
           if (Array.isArray(data.peaks) && data.peaks.length && WamaAudioPlayer.setPeaks) {
-            WamaAudioPlayer.setPeaks('insp', data.peaks);
+            WamaAudioPlayer.setPeaks(pid, data.peaks);
           }
         }
         catch (e) { host.innerHTML = '<audio src="' + u + '" controls ' + (autoplay ? 'autoplay ' : '') + 'style="width:100%;"></audio>'; }
@@ -768,5 +771,41 @@
     return init(Object.assign({}, cfg, { panel: panel, cardSettings: cardSettings }));
   }
 
-  global.WamaInspector = { init: init, initFromSchema: initFromSchema, cloneActions: cloneActions };
+  // ── Preview de RÉSULTAT dans les CARDS — mécanisme COMMUN (18/08, décision Fabien) ─────
+  // La route (mécanisme « Preview unifiée » n°30) veut que la preview vienne du COMMUN, pas
+  // d'un markup par app : une card déclare UNIQUEMENT un placeholder
+  //   <div class="wcv3-preview" data-card-preview="<unified_preview>?side=output"
+  //        data-player-id="<pk>"></div>
+  // et l'hydrateur ci-dessous fetch le JSON unified_preview puis rend via le MÊME
+  // renderInlinePreview que le volet (mime-driven : image/vidéo/audio-waveform+pics/pdf/
+  // texte). Remplace les markups <video>/<img> écrits à la main dans les templates.
+  function hydrateCardPreviews(root) {
+    var scope = root || document;
+    var hosts = scope.querySelectorAll('[data-card-preview]:not([data-preview-hydrated])');
+    hosts.forEach(function (host) {
+      host.setAttribute('data-preview-hydrated', '1');
+      fetch(host.getAttribute('data-card-preview'))
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          if (d && (d.url || typeof d.content === 'string')) renderInlinePreview(host, d, false);
+        })
+        .catch(function () { /* best-effort : la card reste lisible sans preview */ });
+    });
+  }
+  // Auto : au chargement + sur toute mutation de la page (refreshCard remplace des nœuds,
+  // les batchs se déplient…). Observer léger : ne re-scanne que si des nœuds sont AJOUTÉS.
+  document.addEventListener('DOMContentLoaded', function () {
+    hydrateCardPreviews(document);
+    try {
+      new MutationObserver(function (muts) {
+        for (var i = 0; i < muts.length; i++) {
+          if (muts[i].addedNodes && muts[i].addedNodes.length) { hydrateCardPreviews(document); return; }
+        }
+      }).observe(document.body, { childList: true, subtree: true });
+    } catch (e) { /* très vieux navigateur : hydratation au chargement seulement */ }
+  });
+
+  global.WamaInspector = { init: init, initFromSchema: initFromSchema, cloneActions: cloneActions,
+                           renderInlinePreview: renderInlinePreview,
+                           hydrateCardPreviews: hydrateCardPreviews };
 })(window);

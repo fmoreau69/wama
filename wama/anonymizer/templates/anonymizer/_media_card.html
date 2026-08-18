@@ -132,13 +132,12 @@ Contexte : media (décoré par _decorate_card → media.chips), in_batch, user.
   l'URL se construit avec get_media_prefix (le contexte de la card n'a pas media_url).{% endcomment %}
   {% load static %}
   {% if media.status == 'SUCCESS' and media.output_file %}
-  <div class="wcv3-preview" id="preview-row-{{ media.id }}">
-    {% comment %}Brique COMMUNE _card_media_preview (extraite 18/08 — ce markup était dupliqué
-    avec avatarizer/converter). output_file = CharField → URL via get_media_prefix.{% endcomment %}
-    {% get_media_prefix as mp_prefix %}
-    {% url 'common:unified_preview' 'anonymizer' media.id as pv_out %}
-    {% include 'common/_card_media_preview.html' with kind=media.media_type|default:'image' file_url=mp_prefix|add:media.output_file player_id=media.id preview_url=pv_out %}
-  </div>
+  {% comment %}MÉCANISME COMMUN « Preview unifiée » (route n°30) : placeholder seul, hydraté
+  par WamaInspector.hydrateCardPreviews depuis unified_preview ?side=output (rendu
+  mime-driven commun). Le markup <video>/<img> à la main était hors-route (18/08).{% endcomment %}
+  {% url 'common:unified_preview' 'anonymizer' media.id as pv_out %}
+  <div class="wcv3-preview" id="preview-row-{{ media.id }}"
+       data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ media.id }}"></div>
   {% else %}
   <div id="preview-row-{{ media.id }}"></div>
   {% endif %}
