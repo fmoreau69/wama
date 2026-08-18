@@ -8,6 +8,9 @@ Descriptions modèles (courtes + longues) = métadonnée-driven via help_fallbac
 description_long, recommended_vram_gb}} — mécanisme d'aide modèle (WamaModelHelp), pour les modèles hors
 catalogue model_manager. Image/vidéo : dérivées de MODELS_INFO (source unique). Audio : curées.
 """
+from wama.common.utils.output_formats import (
+    get_output_formats, get_output_qualities, output_format_params,
+)
 from wama.common.utils.param_schema import Param, schema_to_dicts
 from wama.enhancer.models import Enhancement
 from wama.enhancer.utils.ai_upscaler import MODELS_INFO
@@ -95,6 +98,38 @@ AUDIO_PARAMS = [
                    ('128', 'Meilleur (128 étapes)')],
           show_if={'field': 'engine', 'equals': 'resemble'}),
 ]
+
+# ── Format/qualité de SORTIE (la docstring le PROMETTAIT « via la brique commune » sans
+# jamais le câbler — la modale n'offrait pas le choix, constat Fabien 18/08).
+# MEDIA : un Enhancement est image OU vidéo PAR ITEM → la brique app-level ne sait déduire
+# qu'UN domaine ; on suit le contrat du VOLET (index.html) : select UNION en optgroups
+# Image/Vidéo + « Original », choix sourcés de la brique COMMUNE (get_output_formats).
+def _media_format_groups():
+    img = [c for c in get_output_formats('image') if c[0] != 'original']
+    vid = [c for c in get_output_formats('video') if c[0] != 'original']
+    return [('Conserver', [('original', 'Original (inchangé)')]),
+            ('Image', img), ('Vidéo', vid)]
+
+
+MEDIA_PARAMS += [
+    Param(name='output_format', type='select', label='Format de sortie', icon='fa-file-export',
+          chip=True, option_groups=_media_format_groups(),
+          dom_id={'panel': 'output_format', 'item': 'settingsOutputFormat'},
+          contexts=('panel', 'item'),
+          help='Doit correspondre au type du média (image ou vidéo).'),
+    Param(name='output_quality', type='select', label='Qualité', icon='fa-sliders',
+          choices=get_output_qualities('image'),
+          dom_id={'panel': 'output_quality', 'item': 'settingsOutputQuality'},
+          contexts=('panel', 'item')),
+]
+
+# AUDIO : domaine déterministe → brique telle quelle (item seulement : le volet audio n'a
+# pas de champs de sortie — la valeur voyage par la modale → gear → payload de start).
+AUDIO_PARAMS += output_format_params(
+    'audio', contexts=('item',),
+    dom_id_format={'item': 'settingsAudioOutputFormat'},
+    dom_id_quality={'item': 'settingsAudioOutputQuality'},
+)
 
 MEDIA_PARAMS_JSON = schema_to_dicts(MEDIA_PARAMS)
 AUDIO_PARAMS_JSON = schema_to_dicts(AUDIO_PARAMS)

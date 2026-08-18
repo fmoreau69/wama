@@ -2782,6 +2782,19 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > frames peu accessibles), synthesizer (moteurs non chunkés — à trancher). Reste enhancer
 > AUDIO (callback à câbler dans audio_enhancer).
 >
+> **SUITE (18/08) : FORMAT/QUALITÉ DE SORTIE EN MODALE — audit des 7 apps EARLY (constat
+> Fabien : absent de l'enhancer).** Mesuré : early = anonymizer/avatarizer*/composer/
+> converter/enhancer/imager/synthesizer ; late (rien à faire) = describer/reader/transcriber ;
+> *avatarizer = mp4 fixe, aucun champ → exclu. État : composer/imager/synthesizer/converter ✓
+> déjà en modale ; anonymizer ✓ (déjà au schéma, groupe « Sortie » avancé, fix 14/08) ;
+> **enhancer = le trou** — sa docstring PROMETTAIT « format/qualité via la brique commune »
+> sans jamais le câbler. Câblé sur les DEUX domaines : MEDIA (union optgroups Image/Vidéo +
+> Original, contrat du volet, sources get_output_formats) + AUDIO (brique `output_format_params
+> ('audio')`, item seulement — le volet audio n'a pas ces champs, la valeur voyage
+> modale→gear→payload de start) ; `_apply_enhancement_settings` et `audio_start._apply_settings`
+> étendus ; préremplissage par data-* des gears (2 cards). La conversion inline existait déjà
+> des deux côtés (`_apply_enhancer_output_format`) — c'était le RÉGLAGE par item qui manquait.
+>
 > **🔚 POINT D'ENTRÉE SESSION SUIVANTE — ordre acté :** ① transverses portage (during ×3
 > restants : imager/avatarizer/synthesizer, + enhancer audio — GPU avec Fabien, valider les
 > 3 câblés d'abord ; model_caps_ui ×3 = enrichir la MATIÈRE d'abord — composer/reader/imager) ;

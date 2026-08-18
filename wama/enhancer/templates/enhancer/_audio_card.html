@@ -81,7 +81,9 @@ Contexte : ae (AudioEnhancement, décorée .chips), in_batch (bool).
         <button class="btn btn-sm btn-outline-secondary js-audio-settings"
                 data-id="{{ ae.id }}" data-engine="{{ ae.engine }}"
                 data-mode="{{ ae.mode }}" data-strength="{{ ae.denoising_strength }}"
-                data-quality="{{ ae.quality }}" title="Paramètres">
+                data-quality="{{ ae.quality }}"
+                data-output-format="{{ ae.output_format }}"
+                data-output-quality="{{ ae.output_quality }}" title="Paramètres">
           <i class="fas fa-cog"></i>
         </button>
         {% include 'common/_cycle_button.html' with id=ae.id status=ae.status %}

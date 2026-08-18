@@ -405,7 +405,9 @@ document.addEventListener('DOMContentLoaded', function () {
           id: btn.dataset.id,
           ai_model: btn.dataset.aiModel,
           denoise: btn.dataset.denoise === 'true',
-          blend_factor: parseFloat(btn.dataset.blendFactor) || 0
+          blend_factor: parseFloat(btn.dataset.blendFactor) || 0,
+          output_format: btn.dataset.outputFormat || 'original',
+          output_quality: btn.dataset.outputQuality || 'balanced'
         };
         createSettingsModal(data);
         const modal = new bootstrap.Modal(document.getElementById(`settingsModal${data.id}`));

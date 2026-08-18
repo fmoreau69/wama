@@ -734,7 +734,8 @@ def download_all(request):
 
 
 def _apply_enhancement_settings(e, post):
-    """Applique ai_model/denoise/blend_factor (depuis le form) à un Enhancement (sans save)."""
+    """Applique ai_model/denoise/blend_factor + format/qualité de sortie (depuis le form)
+    à un Enhancement (sans save)."""
     ai_model = post.get('ai_model')
     if ai_model:
         e.ai_model = ai_model
@@ -747,6 +748,11 @@ def _apply_enhancement_settings(e, post):
             e.blend_factor = float(blend_factor)
         except (ValueError, TypeError):
             pass
+    # Format/qualité de sortie (schéma 18/08 — champs de la modale générée).
+    if post.get('output_format'):
+        e.output_format = post['output_format']
+    if post.get('output_quality'):
+        e.output_quality = post['output_quality']
 
 
 @require_POST
@@ -1226,6 +1232,9 @@ def audio_start(request, pk: int):
         a.mode = data.get('mode', a.mode)
         a.denoising_strength = float(data.get('denoising_strength', a.denoising_strength))
         a.quality = int(data.get('quality', a.quality))
+        # Format/qualité de sortie PER-ITEM (modale → gear → payload, 18/08).
+        a.output_format = data.get('output_format', a.output_format)
+        a.output_quality = data.get('output_quality', a.output_quality)
         a.progress = 0
         a.error_message = ''
 

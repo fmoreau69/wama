@@ -360,7 +360,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // ── Per-row settings modal ───────────────────────────────────────────────
 
-  function createAudioSettingsModal(id, engine, mode, strength, quality) {
+  function createAudioSettingsModal(id, engine, mode, strength, quality, outputFormat, outputQuality) {
     const existing = document.getElementById(`audioSettingsModal${id}`);
     if (existing) existing.remove();
 
@@ -406,7 +406,9 @@ document.addEventListener('DOMContentLoaded', function () {
     if (window.WamaParams && window.ENHANCER_AUDIO_SCHEMA) {
       WamaParams.render(modal.querySelector('#wamaAudioFields' + id),
                         window.ENHANCER_AUDIO_SCHEMA,
-                        { context: 'item', values: { engine: engine, mode: mode, strength: strength, quality: quality } });
+                        { context: 'item', values: { engine: engine, mode: mode, strength: strength, quality: quality,
+                                                     output_format: outputFormat || 'original',
+                                                     output_quality: outputQuality || 'balanced' } });
     }
 
     // Lecture par name (WamaParams rend name=engine/mode/strength/quality). Fallback null-safe :
@@ -418,6 +420,8 @@ document.addEventListener('DOMContentLoaded', function () {
         mode:     v('mode', mode),
         strength: v('strength', strength),
         quality:  v('quality', quality),
+        output_format:  v('output_format', outputFormat || 'original'),
+        output_quality: v('output_quality', outputQuality || 'balanced'),
       };
     }
 
@@ -428,6 +432,8 @@ document.addEventListener('DOMContentLoaded', function () {
         gearBtn.dataset.mode     = settings.mode;
         gearBtn.dataset.strength = settings.strength;
         gearBtn.dataset.quality  = settings.quality;
+        gearBtn.dataset.outputFormat  = settings.output_format;
+        gearBtn.dataset.outputQuality = settings.output_quality;
       }
     }
 
@@ -465,7 +471,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const strength = btn.dataset.strength || '0.5';
     const quality  = btn.dataset.quality  || '64';
 
-    const modal = createAudioSettingsModal(id, engine, mode, strength, quality);
+    const modal = createAudioSettingsModal(id, engine, mode, strength, quality,
+                                           btn.dataset.outputFormat, btn.dataset.outputQuality);
     new bootstrap.Modal(modal).show();
   }
 
@@ -499,12 +506,20 @@ document.addEventListener('DOMContentLoaded', function () {
     const mode = document.getElementById('audioMode')?.value || 'both';
     const strength = document.getElementById('audioDenoisingStrength')?.value || '0.5';
     const quality = document.getElementById('audioQuality')?.value || '64';
+    // Format/qualité de SORTIE : PER-ITEM (gear de la card — posé par la modale ; le volet
+    // audio n'a pas ces champs). Défaut : valeurs déjà stockées côté serveur.
+    const gear = document.querySelector(`#audio-enhancer-queue .js-audio-settings[data-id="${id}"]`);
+    const outFmt  = gear?.dataset.outputFormat;
+    const outQual = gear?.dataset.outputQuality;
 
     try {
+      const body = { engine, mode, denoising_strength: parseFloat(strength), quality: parseInt(quality) };
+      if (outFmt)  body.output_format  = outFmt;
+      if (outQual) body.output_quality = outQual;
       const resp = await fetch(getUrl(cfg.audioStartUrlTemplate, id), {
         method: 'POST',
         headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ engine, mode, denoising_strength: parseFloat(strength), quality: parseInt(quality) }),
+        body: JSON.stringify(body),
       });
       const data = await resp.json();
       if (data.error) throw new Error(data.error);
