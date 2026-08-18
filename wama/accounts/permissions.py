@@ -87,6 +87,14 @@ def app_group(app_id):
     return APP_GROUP.get(app_id, 'Autres')
 
 
+# ── Bac à sable (route §10.3 marche S) : jumelles DEV-ONLY, groupe dédié ─────────────────
+try:
+    from wama.common.sandbox import inject_sandbox_access
+    inject_sandbox_access(DEFAULT_APP_ACCESS, APP_GROUP)
+except Exception:
+    pass
+
+
 # Résolution URL → app_id pour les apps dont le préfixe d'URL diffère de l'app_id
 # (le middleware gate aussi ces chemins). Le 1er match de préfixe gagne.
 PATH_APP_MAP = [

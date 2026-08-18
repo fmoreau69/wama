@@ -937,7 +937,10 @@ def measure_and_write_conformity() -> dict:
     from django.conf import settings as _settings
     from wama.common.services.conformity_checker import run_checks
 
-    report = run_checks(sorted(APP_CATALOG.keys()))
+    # Les jumelles bac à sable sont EXCLUES : on ne MESURE pas un bac à sable, on le
+    # COMPARE à sa source (route §10.3 marche S).
+    from wama.common.sandbox import non_sandbox_apps
+    report = run_checks(non_sandbox_apps(APP_CATALOG))
     report['generated_at'] = datetime.now(timezone.utc).isoformat(timespec='seconds')
     path = _Path(_settings.BASE_DIR) / 'logs' / 'conformity_report.json'
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -954,6 +957,8 @@ def get_conformity_summary() -> dict:
     """
     summary = {}
     for app_name, spec in APP_CATALOG.items():
+        if (spec or {}).get('sandbox'):
+            continue   # jumelle bac à sable : comparée à sa source, jamais notée
         conv = dict(spec.get('conventions', {}))
         measured, measured_at = _measured_conformity(app_name)
         conv.update(measured)  # le réel écrase le déclaré
@@ -1006,3 +1011,13 @@ _DESCRIPTION_LONG = {
 for _app_id, _long in _DESCRIPTION_LONG.items():
     if _app_id in APP_CATALOG:
         APP_CATALOG[_app_id]['description_long'] = _long
+
+
+# ── Bac à sable (route §10.3 marche S) : entrées APP_CATALOG des jumelles ────────────────
+# APRÈS la fusion des descriptions longues (le clone les emporte). Badge « BAC À SABLE »,
+# marqueurs sandbox/generated_from ; EXCLUES de la grille (cf. measure_and_write_conformity).
+try:
+    from wama.common.sandbox import inject_sandbox_catalog
+    inject_sandbox_catalog(APP_CATALOG)
+except Exception:
+    pass

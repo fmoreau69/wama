@@ -124,3 +124,5 @@ backups/
 
 # Binaires des outils de sécurité (provisionnés par scripts/fetch_security_tools.py)
 tools/security/bin/
+wama/sandbox_apps.json
+wama/*_[0-9][0-9]/

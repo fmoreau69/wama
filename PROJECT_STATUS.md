@@ -2804,6 +2804,17 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > (catalogue/briques/workers) sans le dupliquer. Translator DE ZÉRO = le cas « create sans
 > generated_from » du même outil. Pilote : converter_01.
 >
+> **SUITE (18/08) : MARCHE S — ÉTAPE S1 LIVRÉE (jumelle témoin `converter_01` qui TOURNE).**
+> `manage.py app_sandbox create converter` → page 200, tables migrées, badge « ⚠ BAC À
+> SABLE » au catalogue, gating dev-only (non-dev connecté → 302 ; l'anonyme passe =
+> convention plateforme), grille INCHANGÉE (jumelle exclue de la mesure), git PROPRE
+> (package + registre gitignorés). Mécanisme : `common/sandbox.py` (injections boot) +
+> commande create/drop/list (renommages 4 familles, migrations fraîches en sous-process,
+> drop `--skip-checks` — une jumelle cassée doit toujours pouvoir être retirée). 3 pièges
+> mesurés consignés ROUTE §10.3 marche S (related_name externes, œuf-poule du drop,
+> anonyme). **⚠ restart gunicorn requis pour que FABIEN voie `/converter_01/`** (le boot lit
+> le registre). S2 = substitution copie→généré (views_gen + gabarit templates à écrire).
+>
 > **🔚 POINT D'ENTRÉE SESSION SUIVANTE — ordre acté :** ① transverses portage (during ×3
 > restants : imager/avatarizer/synthesizer, + enhancer audio — GPU avec Fabien, valider les
 > 3 câblés d'abord ; model_caps_ui ×3 = enrichir la MATIÈRE d'abord — composer/reader/imager) ;

@@ -52,6 +52,15 @@ urlpatterns = [
     # path('celery-progress/', include('celery_progress.urls')),
 ]
 
+# ── Bac à sable (route §10.3 marche S) : URLconfs des jumelles `<app>_NN` ───────────────
+# Préfixe = label à UNDERSCORE (`/converter_01/`) : le 1er segment résout le gating
+# directement (piège du tiret mesuré sur model-manager, audit P2 17/08).
+try:
+    from wama.common.sandbox import sandbox_urlpatterns
+    urlpatterns += sandbox_urlpatterns()
+except Exception:
+    pass
+
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

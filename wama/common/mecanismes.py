@@ -240,6 +240,12 @@ MECANISMES = (
 
     )),
 
+    Mecanisme('app_sandbox', "Bac à sable d'apps (jumelles exécutables)",
+              "Jumelle <app>_NN coexistante pour comparaison Playwright + diff dé-suffixé "
+              "(route §10.3 marche S) — registre sandbox_apps.json injecté au boot "
+              "(INSTALLED_APPS/urls/gating/catalogue), create/drop symétriques",
+              'wama/common/sandbox.py', 'WAMA_APP_GENERATION_ROUTE.md',
+              annexes=('wama/common/management/commands/app_sandbox.py',)),
     *_domaine('UI générée', (
     # Les briques FRONT d'un mécanisme (js/partials) sont ses ANNEXES : même identité, le
     # comptage voit alors aussi les gabarits qui les référencent (balise <script>, include).

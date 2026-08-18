@@ -557,6 +557,21 @@ outillé avant d'ouvrir cette marche.
   7. **Pilote : `converter_01`** (app la plus simple, 100 % grille, pilote historique de C) ;
      les facettes encore non-write-back (inspector/models/processing/tool_api) apparaîtront
      comme manques VISIBLES de la jumelle — c'est le but, pas un préalable.
+  **✅ S1 LIVRÉE (2026-08-18)** — jumelle TÉMOIN opérationnelle : `manage.py app_sandbox
+  create converter` → `converter_01` qui REND (page 200, reverse OK, tables `converter_01_*`
+  migrées, badge catalogue, grille inchangée à 10 apps). Mécanisme : `common/sandbox.py`
+  (registre `wama/sandbox_apps.json` GITIGNORÉ + injections boot settings/urls/permissions/
+  app_registry, garde anti-registre-orphelin) + commande `app_sandbox` (create/drop/list,
+  renommages mécaniques 4 familles + dossiers templates/static, migrations FRAÎCHES en
+  sous-process). **3 pièges MESURÉS au pilote** : ① `related_name` des relations vers des
+  modèles EXTERNES (User) = collision E304/E305 → suffixés par `_patch_related_names`
+  (les relations INTERNES gardent leur nom — `batch.items` consommé par le code) ;
+  ② œuf-poule du drop : une jumelle cassée bloque le boot du sous-process → `migrate zero
+  --skip-checks` obligatoire ; ③ l'anonyme PASSE le gating (convention plateforme « tier
+  anonyme », identique aux autres apps) — le dev-only ne vaut que pour les comptes
+  authentifiés. **S2 (suivante)** : substituer un à un les fichiers copiés par les GÉNÉRÉS
+  (urls/models/tasks/apps gabaritisés ; `views_gen` + gabarit templates À ÉCRIRE) — le diff
+  copie↔généré = le détecteur de trous, fichier par fichier, sans jamais une jumelle morte.
   La cible « Translator DE ZÉRO » (ci-dessus) devient le cas « create sans generated_from » du
   même outil : le bac à sable est l'étape commune aux deux chemins (régénérer ≈ créer).
 

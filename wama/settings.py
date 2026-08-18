@@ -351,6 +351,16 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
 ]
 
+# ── Bac à sable d'apps (route §10.3 marche S) : jumelles régénérées `<app>_NN` ──────────
+# Registre `wama/sandbox_apps.json` (gitignoré), écrit UNIQUEMENT par `manage.py app_sandbox`.
+# Le helper est PUR (json/pathlib) — importable ici sans effet de bord ; garde anti-orphelin
+# incluse (une entrée sans package ne casse pas le boot).
+try:
+    from wama.common.sandbox import sandbox_installed_apps
+    INSTALLED_APPS += sandbox_installed_apps()
+except Exception:
+    pass
+
 # Django REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
