@@ -31,9 +31,17 @@ CE QUI N'EST VOLONTAIREMENT PAS DANS L'INDICE.
     comparer « 3.6 » à « gemma 4 » n'a aucun sens, et un bonus global classerait gemma4 au-dessus
     de qwen3.6 sur un simple numéro. C'est la PROSPECTION qui porte ce signal (elle propose le
     successeur), pas le classement de l'installé.
-  • Les paramètres ACTIFS. Ils mesurent un COÛT, pas une qualité — ils sont exposés séparément
-    (`params_active_b`) pour qu'un appelant sensible à la latence puisse en tenir compte sans
-    polluer l'axe qualité.
+
+RÉVISION 2026-08-19 (décision Fabien) — les paramètres ACTIFS entrent dans l'axe qualité.
+  L'hypothèse d'origine (« un MoE raisonne comme un gros modèle » → crédité de ses paramètres
+  TOTAUX) a été prise en défaut par le réel : elle classait qwen3.6:35b (MoE 8/256, 1,12 Md
+  actifs) au-dessus de qwen3.8 (27,3 Md DENSES), à rebours du jugement de qualité constaté.
+  L'indice retient désormais les paramètres EFFECTIFS = moyenne géométrique √(totaux × actifs)
+  (heuristique usuelle d'équivalent dense d'un MoE) : un dense est inchangé (actifs = totaux),
+  un MoE est ramené entre ses actifs et ses totaux. Limite ASSUMÉE : sur une sparsité extrême
+  (8/256), l'√ pénalise peut-être trop — c'est toujours de l'a priori, et la contrainte d'en
+  tête reste entière : une mesure (interne, ou benchmark tiers confronté) devra PRIMER.
+  Les actifs restent AUSSI exposés séparément (`params_active_b`) comme axe de COÛT.
 """
 from __future__ import annotations
 
@@ -68,21 +76,27 @@ def params_en_milliards(libelle: str) -> float | None:
 
 
 def indice_qualite(*, params_b: float | None, context_length: int | None = None,
-                   quantization: str = '') -> float | None:
+                   quantization: str = '', params_active_b: float | None = None) -> float | None:
     """
     Indice a priori, croissant avec la capacité. None si le signal principal manque.
 
     Composition (chaque terme est borné pour qu'aucun ne domine seul) :
-      • paramètres TOTAUX, en log2 — un 70B n'est pas 9× meilleur qu'un 8B ;
+      • paramètres EFFECTIFS, en log2 — √(totaux × actifs) pour un MoE (révision 2026-08-19,
+        cf. en-tête), les totaux seuls pour un dense ; un 70B n'est pas 9× meilleur qu'un 8B ;
       • fenêtre de contexte, en log2 du rapport à la référence ;
       • quantification, en pénalité additive.
+
+    `params_active_b` absent ou ≥ `params_b` → modèle traité comme dense (inchangé).
 
     Retourne None plutôt que 0 quand `params_b` est inconnu : un indice absent doit se distinguer
     d'un indice nul, sinon le tri traite « inconnu » comme « mauvais ».
     """
     if not params_b or params_b <= 0:
         return None
-    score = 10.0 * math.log2(params_b)
+    effectifs = params_b
+    if params_active_b and 0 < params_active_b < params_b:
+        effectifs = math.sqrt(params_b * params_active_b)
+    score = 10.0 * math.log2(effectifs)
     if context_length and context_length > CONTEXTE_REFERENCE:
         score += 2.0 * math.log2(context_length / CONTEXTE_REFERENCE)
     score += PENALITE_QUANT.get(_niveau_quant(quantization), 0.0)

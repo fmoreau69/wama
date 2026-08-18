@@ -1321,13 +1321,17 @@ class ModelRegistry:
                             # dernier laissait `vram_gb=0.0` sur les noms composés (`35b-a3b`).
                             fiche = self._ollama_fiche(model_name)
                             pb = _params_b(fiche.get('params_b'))
+                            # Actifs AVANT l'indice : depuis la révision 2026-08-19, l'axe
+                            # qualité retient les paramètres EFFECTIFS √(totaux × actifs)
+                            # (un MoE 8/256 ne vaut plus ses totaux — cf. model_quality.py).
+                            actifs = _params_actifs(pb, fiche.get('experts_total'),
+                                                    fiche.get('experts_actifs'))
                             qualite = _indice_qualite(
                                 params_b=pb,
                                 context_length=fiche.get('context_length'),
                                 quantization=fiche.get('quantization', ''),
+                                params_active_b=actifs,
                             )
-                            actifs = _params_actifs(pb, fiche.get('experts_total'),
-                                                    fiche.get('experts_actifs'))
 
                             self._models[f"ollama:{model_name}"] = ModelInfo(
                                 id=f"ollama:{model_name}",
