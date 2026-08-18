@@ -281,6 +281,11 @@ MECANISMES = (
               'wama/common/utils/preview_registry.py', '',
               annexes=('wama/common/utils/preview_utils.py',
                        'wama/common/static/common/js/media-preview.js')),
+    Mecanisme('card_gear', 'data-* du gear ⚙ des cards',
+              "data-* du bouton ⚙ DÉRIVÉS du schéma (contrat cardSettings de l'inspecteur : "
+              "le volet reflète la card sélectionnée) — remplace les attributs écrits à la main "
+              "par app ; booléens 'true'/'false', tous les params item émis (anti-résidus)",
+              'wama/common/utils/card_gear.py', ''),
     Mecanisme('card_chips', 'Chips méta des cards',
               "Chips de l'état concis GÉNÉRÉS du schéma params (chip=True) — jamais écrits par app",
               'wama/common/utils/card_chips.py', 'CARD_DESIGN.md §10.3',

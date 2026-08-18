@@ -166,6 +166,14 @@ class Description(ProcessingTimeMixin, ScopedVisibility):
             return self.result_file.name.split('/')[-1]
         return "N/A"
 
+    @property
+    def gear_data(self):
+        """data-* du bouton ⚙ (reflet de la card dans le volet inspecteur) — brique COMMUNE
+        card_gear dérivée du schéma (remplace les 5 attributs écrits à la main, 18/08)."""
+        from wama.common.utils.card_gear import gear_data
+        from .params import PARAMS
+        return gear_data(self, PARAMS)
+
     def format_file_size(self):
         """Format file size for display."""
         if self.file_size < 1024:

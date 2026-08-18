@@ -199,6 +199,14 @@ class VoiceSynthesis(ProcessingTimeMixin, ScopedVisibility):
     def __str__(self):
         return f"Synthesis #{self.id} - {self.user.username} - {self.status}"
 
+    @property
+    def gear_data(self):
+        """data-* du bouton ⚙ (reflet de la card dans le volet inspecteur) — brique COMMUNE
+        card_gear dérivée du schéma (remplace les 5 attributs écrits à la main, 18/08)."""
+        from wama.common.utils.card_gear import gear_data
+        from .params import PARAMS
+        return gear_data(self, PARAMS)
+
     def get_voice_preset_display(self):
         """Resolve custom voice names (ua_<id> or legacy cv_<id>) to their actual name."""
         if self.voice_preset and self.voice_preset.startswith('ua_'):

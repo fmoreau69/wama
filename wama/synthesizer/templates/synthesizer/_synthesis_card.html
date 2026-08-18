@@ -79,15 +79,11 @@ principal affiche le fichier d'ENTRÉE (ex. .docx) si présent.
     <div class="wcv3-sec wcv3-sec--actions">
       <span class="wcv3-lbl">Actions</span>
       <div class="btn-group-actions wcv3-actions">
+        {% comment %}data-* DÉRIVÉS du schéma (brique commune card_gear, 18/08) — remplace
+        les 7 attributs écrits à la main (contrat cardSettings inchangé).{% endcomment %}
         <button class="btn btn-sm btn-outline-secondary settings-btn"
                 data-id="{{ synthesis.id }}"
-                data-tts-model="{{ synthesis.tts_model }}"
-                data-language="{{ synthesis.language }}"
-                data-voice-preset="{{ synthesis.voice_preset }}"
-                data-speed="{{ synthesis.speed }}"
-                data-pitch="{{ synthesis.pitch }}"
-                data-output-format="{{ synthesis.output_format }}"
-                data-output-quality="{{ synthesis.output_quality }}"
+                {% for k, v in synthesis.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}
                 title="Paramètres">
           <i class="fas fa-cog"></i>
         </button>

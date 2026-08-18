@@ -82,13 +82,11 @@ Rendue au chargement (cards autonomes ET filles) et par describer:card_html (ref
     <div class="wcv3-sec wcv3-sec--actions">
       <span class="wcv3-lbl">Actions</span>
       <div class="btn-group-actions wcv3-actions">
+        {% comment %}data-* DÉRIVÉS du schéma (brique commune card_gear, 18/08) — remplace
+        les 5 attributs écrits à la main (contrat cardSettings inchangé).{% endcomment %}
         <button class="btn btn-sm btn-outline-secondary settings-btn"
                 data-id="{{ desc.id }}"
-                data-output-style="{{ desc.output_style }}"
-                data-output-language="{{ desc.output_language }}"
-                data-max-length="{{ desc.max_length }}"
-                data-generate-summary="{{ desc.generate_summary|yesno:'true,false' }}"
-                data-verify-coherence="{{ desc.verify_coherence|yesno:'true,false' }}"
+                {% for k, v in desc.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}
                 title="Paramètres">
           <i class="fas fa-cog"></i>
         </button>

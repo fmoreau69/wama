@@ -122,15 +122,10 @@ class ConversionJob(ProcessingTimeMixin, ScopedVisibility):
 
     @property
     def gear_data(self):
-        """Réglages du job APLATIS pour les data-* du bouton ⚙ de la card — consommés par
-        WamaInspector.initFromSchema (cardSettings) pour refléter la card dans le volet.
-        Booléens en 'true'/'false' (le apply de la brique ne reconnaît pas 'True' Python) ;
-        TOUS les params item du schéma sont émis ('' si absents) pour qu'un changement de
-        sélection ne laisse pas les valeurs de la card précédente dans le volet."""
+        """data-* du bouton ⚙ (reflet de la card dans le volet) — brique COMMUNE card_gear
+        dérivée du schéma ; valeurs = options + cross_app_options (JSON), repli champs de
+        modèle homonymes (media_type/output_format)."""
+        from wama.common.utils.card_gear import gear_data
         from .params import PARAMS
-        out = {p.name: '' for p in PARAMS if 'item' in (p.contexts or ())}
-        out['media_type'] = self.media_type or ''
-        out['output_format'] = self.output_format or ''
-        for k, v in {**(self.options or {}), **(self.cross_app_options or {})}.items():
-            out[k] = 'true' if v is True else 'false' if v is False else v
-        return out
+        return gear_data(self, PARAMS,
+                         values={**(self.options or {}), **(self.cross_app_options or {})})
