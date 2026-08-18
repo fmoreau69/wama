@@ -773,18 +773,13 @@ def _mirror_job_start(request, task, cache_key):
     Idempotent : si une passe tourne déjà, on renvoie son état au lieu d'en lancer une
     seconde (deux passes concurrentes se marcheraient dessus sur le même arbre distant).
     """
-    from django.core.cache import cache
-    from celery.result import AsyncResult
+    from wama.common.utils.task_progress import progression_en_cours
 
-    current = cache.get(cache_key)
-    if current and current.get('state') == 'RUNNING':
-        task_id = current.get('task_id')
-        # Le cache peut survivre à un worker tué : ne considérer « en cours » que si
-        # Celery confirme que la tâche est encore vivante.
-        if task_id and AsyncResult(task_id).state in ('PENDING', 'STARTED', 'RETRY'):
-            return JsonResponse({
-                'success': True, 'already_running': True, 'progress': current,
-            })
+    current = progression_en_cours(cache_key)   # brique commune : cache + vérif Celery
+    if current:
+        return JsonResponse({
+            'success': True, 'already_running': True, 'progress': current,
+        })
 
     overwrite = bool(json.loads(request.body or '{}').get('overwrite', False))
     started = task.delay(overwrite=overwrite)
@@ -1574,19 +1569,13 @@ def api_prospect_install(request):
         # aveugle, et un re-clic ouvrait une requête CONCURRENTE. Désormais : réponse
         # immédiate + avancement pollable ; un re-clic REJOINT l'installation en cours
         # (même motif d'idempotence que `_mirror_job_start`).
-        from celery.result import AsyncResult
-        from django.core.cache import cache
+        from wama.common.utils.task_progress import progression_en_cours
 
         from .tasks import INSTALL_CACHE_PREFIX, install_proposed_task
-        cache_key = INSTALL_CACHE_PREFIX + model_id
-        en_cours = cache.get(cache_key)
-        if en_cours and en_cours.get('state') == 'RUNNING':
-            task_id = en_cours.get('task_id')
-            # Le cache peut survivre à un worker tué : ne considérer « en cours » que si
-            # Celery confirme que la tâche est encore vivante.
-            if task_id and AsyncResult(task_id).state in ('PENDING', 'STARTED', 'RETRY'):
-                return JsonResponse({'success': True, 'already_running': True,
-                                     'model_id': model_id, 'progress': en_cours})
+        en_cours = progression_en_cours(INSTALL_CACHE_PREFIX + model_id)
+        if en_cours:
+            return JsonResponse({'success': True, 'already_running': True,
+                                 'model_id': model_id, 'progress': en_cours})
 
         started = install_proposed_task.delay(model_id)
         return JsonResponse({'success': True, 'started': True,

@@ -305,12 +305,12 @@ def run_mirror_job(runner, *, cache_key, task_id, label, ttl=24 * 3600):
                  démarrage puisse vérifier auprès de Celery qu'une tâche est bien vivante.
         label: préfixe de journalisation.
     """
-    from django.core.cache import cache
+    # Brique commune (extraite le 2026-08-18 au 2ᵉ consommateur — install de modèles) :
+    # `state`/`task_id` gagnent sur le payload, TTL, clé par domaine.
+    from wama.common.utils.task_progress import publier_progression
 
     def publish(state: str, payload: dict):
-        # `state`/`task_id` en DERNIER : ils doivent gagner sur le contenu du summary,
-        # jamais l'inverse (une clé homonyme dans le payload écraserait l'état publié).
-        cache.set(cache_key, dict(payload, state=state, task_id=task_id), ttl)
+        publier_progression(cache_key, task_id, state, payload, ttl)
 
     publish('RUNNING', {'phase': 'scan', 'total_files': 0, 'processed': 0,
                         'copied': 0, 'skipped': 0, 'failed': 0, 'copied_mb': 0.0})

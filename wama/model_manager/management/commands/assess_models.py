@@ -17,8 +17,9 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('--app', help="App WAMA (cf. APP_TASKS).")
         parser.add_argument('--task', help="Tache HF brute (prioritaire sur --app).")
-        parser.add_argument('--agents', default='ollama:qwen3.5:9b',
-                            help="provider:model separes par virgule (defaut: ollama:qwen3.5:9b).")
+        parser.add_argument('--agents', default='ollama',
+                            help="provider[:model] separes par virgule (defaut: 'ollama' seul = "
+                                 "modele resolu par le catalogue, jamais un nom fige).")
         parser.add_argument('--limit', type=int, default=10, help="Candidats prospectes a recuperer.")
         parser.add_argument('--max-assess', type=int, default=3,
                             help="Nb max de NOUVEAUX candidats a evaluer (limite le cout LLM).")

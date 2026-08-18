@@ -32,8 +32,11 @@ _AGENT_SYSTEM = (
 )
 
 #: Réglage par défaut des agents de la chaîne UI (surchargable : `settings.PROSPECT_ASSESS_AGENTS`).
+#: `'ollama'` SANS nom de modèle : `llm_chat(model=None)` résout via `modele_par_defaut()`
+#: (catalogue → VRAM libre → repli Ollama) — un nom figé ici pourrirait au premier
+#: remplacement par la prospection (leçon qwen3.5→qwen3.6, cf. llm_utils).
 #: Local d'abord (gratuit) ; ajouter un agent cloud = ajouter `,google:gemini-2.0-flash` (clé requise).
-_AGENTS_DEFAUT = 'ollama:qwen3.5:9b'
+_AGENTS_DEFAUT = 'ollama'
 
 
 def _hf_card_excerpt(hf_id: str, max_chars: int = 2500) -> str:
@@ -47,8 +50,10 @@ def _hf_card_excerpt(hf_id: str, max_chars: int = 2500) -> str:
 
 
 def _juger(contexte: str, provider, model, timeout=120):
-    """Un agent rend un verdict JSON sur `contexte` → dict d'avis (ou {'agent','error'})."""
+    """Un agent rend un verdict JSON sur `contexte` → dict d'avis (ou {'agent','error'}).
+    `model=None` = résolution par le catalogue (`llm_chat` → `modele_par_defaut`)."""
     from wama.common.utils.llm_utils import llm_chat, extract_json_from_llm
+    etiquette = f"{provider}:{model}" if model else f"{provider} (catalogue)"
     prompt = (
         contexte + "\n\n"
         "Évalue l'adoption pour WAMA. Critères : tient sur 24GB de préférence, qualité, "
@@ -62,14 +67,14 @@ def _juger(contexte: str, provider, model, timeout=120):
         provider=provider, model=model, num_predict=500, think=False, timeout=timeout,
     )
     if err or not text:
-        return {'agent': f"{provider}:{model}", 'error': err or 'réponse vide'}
+        return {'agent': etiquette, 'error': err or 'réponse vide'}
     data = extract_json_from_llm(text) or {}
     try:
         conf = float(data.get('confidence') or 0)
     except (TypeError, ValueError):
         conf = 0.0
     return {
-        'agent': f"{provider}:{model}",
+        'agent': etiquette,
         'recommend': bool(data.get('recommend')),
         'confidence': max(0.0, min(1.0, conf)),
         'vram_fit': str(data.get('vram_fit', 'unknown')),

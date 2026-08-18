@@ -258,3 +258,18 @@ Leçon opératoire : un pull refusé par un démon Ollama trop ancien pour le mo
 erreur générique — vérifier la version d'Ollama avant de diagnostiquer plus loin.
 
 RESTE (inchangé) : beat hebdo, découverte large registre, HF/diffusers, matching besoin↔apps.
+
+### Addendum audit anti-réinvention (même session, sur question de Fabien)
+
+Trois écarts trouvés dans la livraison ci-dessus et corrigés dans la foulée :
+1. `_AGENTS_DEFAUT`/CLI `assess_models` épinglaient `ollama:qwen3.5:9b` — remplacé par
+   `'ollama'` seul : `llm_chat(model=None)` résout via `modele_par_defaut()` (catalogue),
+   un nom figé aurait pourri au prochain remplacement (leçon déjà consignée dans llm_utils).
+2. Le polling JS refaisait une boucle à la main — rebasé sur la brique commune
+   `WamaApp.Poller` (wama-app-base.js). NB : `createMirrorBackupUI` (backups, antérieur)
+   garde sa boucle locale — dette préexistante, à rebaser à l'occasion.
+3. « publication cache + garde tâche vivante » se dupliquait entre `run_mirror_job` /
+   `_mirror_job_start` et l'install → EXTRAIT en brique commune
+   `common/utils/task_progress.py` (`publier_progression` + `progression_en_cours`),
+   adoptée par les miroirs, l'install et l'assess ; entrée ajoutée au registre
+   `mecanismes.py` (carte régénérée par `doc_facts --only mecanismes`).

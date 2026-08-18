@@ -1034,26 +1034,40 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Actions de prospection partagées (cards + inspecteur).
-    // Suit l'avancement d'une installation (tâche Celery, cache Redis) jusqu'au verdict.
-    // Motif (2026-08-18) : le pull synchrone (18 Go) dépassait le timeout du proxy Apache —
-    // le navigateur recevait une page HTML (« Unexpected token '<' ») pendant que le
-    // serveur continuait en aveugle. Désormais la vue répond tout de suite et on polle.
-    async function mmProspectPoll(id) {
+    // Suit l'avancement d'une installation (tâche Celery, cache Redis) jusqu'au verdict —
+    // sur la brique COMMUNE `WamaApp.Poller` (wama-app-base.js, boucle résiliente), pas
+    // de setInterval refait à la main. Motif (2026-08-18) : le pull synchrone (18 Go)
+    // dépassait le timeout du proxy Apache — le navigateur recevait une page HTML
+    // (« Unexpected token '<' ») pendant que le serveur continuait en aveugle.
+    function mmProspectPoll(id) {
         const url = '{% url "model_manager:api_prospect_install_progress" %}?model_id='
-            + encodeURIComponent(id);
-        for (let i = 0; i < 1800; i++) {            // ~1 h — garde anti-boucle infinie
-            await new Promise(res => setTimeout(res, 2000));
-            let p = null;
-            try { p = (await (await fetch(url)).json()).progress; }
-            catch (err) { /* réseau : on réessaie au tour suivant */ }
-            if (!p) continue;
-            if (p.state === 'SUCCESS') { loadModels(); return; }
-            if (p.state === 'FAILURE') {
-                alert('Échec : ' + (p.error || 'inconnu')); loadModels(); return;
-            }
-            showLoading('Installation ' + (p.name || '') + ' — ' + (p.status || '…'));
-        }
-        alert("L'installation dépasse 1 h : voir logs/wama.log et la file Celery.");
+            + encodeURIComponent(id);   // URL complète : sans motif /0/, Poller la garde telle quelle
+        let ticks = 0;
+        const poller = new WamaApp.Poller({
+            urlTemplate: url,
+            interval: 2000,
+            onData: function (pid, data) {
+                const p = data.progress;
+                if (++ticks > 1800) {   // ~1 h : cache RUNNING périmé (worker tué)
+                    poller.stop(pid); hideLoading();
+                    alert("L'installation dépasse 1 h : voir logs/wama.log et la file Celery.");
+                    return;
+                }
+                if (!p) return;         // la tâche n'a pas encore publié
+                if (p.state === 'SUCCESS') { poller.stop(pid); hideLoading(); loadModels(); return; }
+                if (p.state === 'FAILURE') {
+                    poller.stop(pid); hideLoading();
+                    alert('Échec : ' + (p.error || 'inconnu')); loadModels(); return;
+                }
+                showLoading('Installation ' + (p.name || '') + ' — ' + (p.status || '…'));
+            },
+            onGiveUp: function () {
+                hideLoading();
+                alert("Suivi interrompu (réseau) — l'installation continue côté serveur ; "
+                    + 'recharger la page pour reprendre le suivi.');
+            },
+        });
+        poller.start(id);
     }
     async function mmProspectInstall(id) {
         if (!confirm('Installer ce modèle proposé (ollama pull) ?')) return;
@@ -1065,7 +1079,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: JSON.stringify({ model_id: id })
             });
             const data = await r.json();
-            if (data.success) { await mmProspectPoll(id); return; }
+            if (data.success) { mmProspectPoll(id); return; }   // l'overlay vit avec le poller
             // 507 = garde d'espace disque. On propose le forçage plutôt que de laisser
             // l'utilisateur devant un échec sec, mais JAMAIS par défaut : sur un volume
             // presque plein, remplir le disque casse aussi les journaux et Postgres.
@@ -1079,14 +1093,15 @@ document.addEventListener('DOMContentLoaded', function() {
                         body: JSON.stringify({ model_id: id, force: true })
                     });
                     const d2 = await r2.json();
-                    if (d2.success) { await mmProspectPoll(id); }
-                    else { alert('Échec : ' + (d2.error || 'inconnu')); }
+                    if (d2.success) { mmProspectPoll(id); return; }
+                    alert('Échec : ' + (d2.error || 'inconnu'));
                 }
+                hideLoading();
                 return;
             }
+            hideLoading();
             alert('Échec : ' + (data.error || 'inconnu'));
-        } catch (err) { alert('Erreur : ' + err.message); }
-        finally { hideLoading(); }
+        } catch (err) { hideLoading(); alert('Erreur : ' + err.message); }
     }
     async function mmProspectReject(id) {
         if (!confirm('Rejeter cette proposition ?')) return;

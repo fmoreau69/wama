@@ -83,6 +83,12 @@ MECANISMES = (
     Mecanisme('task_skeleton', 'Squelette de tâche',
               "Enchaînement commun des tâches Celery d'item : gardes, progress, statuts, ETA",
               'wama/common/utils/task_skeleton.py', 'WAMA_APP_GENERATION_ROUTE.md'),
+    Mecanisme('task_progress', 'Progression de tâche longue',
+              "Avancement d'une tâche Celery HORS file d'items publié dans le cache "
+              "(F5-proof) + garde « déjà en cours » vérifiée auprès de Celery ; "
+              "pendant navigateur = WamaApp.Poller",
+              'wama/common/utils/task_progress.py',
+              'wama/model_manager/PROSPECTION_PIPELINE.md'),
     Mecanisme('process_control', 'Gardes de process',
               "Anti-boucle-de-crash (redélivrance) et réconciliation des tâches orphelines",
               'wama/common/utils/process_control.py', 'PROJECT_STATUS.md §0'),

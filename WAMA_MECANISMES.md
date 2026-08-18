@@ -63,7 +63,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 ---
 
 <!-- WAMA:FAITS(mecanismes) — généré par « python manage.py doc_facts », ne pas éditer -->
-#### Ressources & exécution (8)
+#### Ressources & exécution (9)
 
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
@@ -73,6 +73,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Gouverneur de ressources** | Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités | `wama/common/services/resource_governor.py` | `PROJECT_STATUS.md §0` | 12 |
 | **Moniteur système** | Mesure unifiée CPU/RAM/GPU/disque (WSL + hôte Windows) — barre de ressources, model manager | `wama/common/services/system_monitor.py` | — | 6 |
 | **Mémoire GPU** | Garantit la VRAM avant un chargement, la reprend sur les autres modèles, et réessaie après libération sur erreur CUDA | `wama/model_manager/services/memory_manager.py` | `PROJECT_STATUS.md §0` | 15 |
+| **Progression de tâche longue** | Avancement d'une tâche Celery HORS file d'items publié dans le cache (F5-proof) + garde « déjà en cours » vérifiée auprès de Celery ; pendant navigateur = WamaApp.Poller | `wama/common/utils/task_progress.py` | `wama/model_manager/PROSPECTION_PIPELINE.md` | 3 |
 | **Squelette de tâche** | Enchaînement commun des tâches Celery d'item : gardes, progress, statuts, ETA | `wama/common/utils/task_skeleton.py` | `WAMA_APP_GENERATION_ROUTE.md` | 4 |
 | **Tests nocturnes** | Registre déclaratif de scénarios + runner sérialisé VRAM-aware (wired/ui/consistency/…) | `wama/common/services/nightly_tests.py` | `PROJECT_STATUS.md §Tests fonctionnels nocturnes` | 6 |
 
@@ -85,8 +86,8 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Couverture multi-modèles** | Choisit un ENSEMBLE de modèles couvrant des classes (couverture ou spécialisation) | `wama/common/services/model_coverage.py` | — | 3 |
 | **Découverte de modèles** | Découverte unifiée des modèles (apps + sources externes), synchronisée vers le catalogue AIModel | `wama/model_manager/services/model_registry.py` | — | 9 |
 | **Indice de qualité a priori** | Ordonne les modèles autrement que par la taille (paramètres, contexte, quantif.) | `wama/model_manager/services/model_quality.py` | — | 1 |
-| **Installation de modèles** | Pipeline accept→download→register : télécharge au bon endroit puis enregistre au catalogue | `wama/model_manager/services/model_installer.py` | — | 3 |
-| **Prospection de modèles** | Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run) | `wama/model_manager/services/prospector.py` | `wama/model_manager/PROSPECTION_PIPELINE.md` | 6 |
+| **Installation de modèles** | Pipeline accept→download→register : télécharge au bon endroit puis enregistre au catalogue | `wama/model_manager/services/model_installer.py` | — | 4 |
+| **Prospection de modèles** | Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run) | `wama/model_manager/services/prospector.py` | `wama/model_manager/PROSPECTION_PIPELINE.md` | 7 |
 | **Provenance de modèle** | Identité chez l'éditeur (licence, auteur, plateforme), posée VIA le manifeste | `wama/model_manager/services/provenance.py` | — | 4 |
 | **Sonde vision** | Décrit une image via un modèle multimodal Ollama local (bench, smoke UI, fichiers de référence) | `wama/model_manager/services/vision_probe.py` | — | 4 |
 | **Sélection de modèle** | Choisit UN modèle : capacités, entrées, priorités, budget VRAM, qualité | `wama/model_manager/services/model_selector.py` | `INPUT_MODEL_MATCHING.md` | 7 |
@@ -133,7 +134,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
-| **Bac à sable d'apps (jumelles exécutables)** | Jumelle <app>_NN coexistante pour comparaison Playwright + diff dé-suffixé (route §10.3 marche S) — registre sandbox_apps.json injecté au boot (INSTALLED_APPS/urls/gating/catalogue), create/drop symétriques | `wama/common/sandbox.py` | `WAMA_APP_GENERATION_ROUTE.md` | 7 |
+| **Bac à sable d'apps (jumelles exécutables)** | Jumelle <app>_NN coexistante pour comparaison Playwright + diff dé-suffixé (route §10.3 marche S) — registre sandbox_apps.json injecté au boot (INSTALLED_APPS/urls/gating/catalogue), create/drop symétriques | `wama/common/sandbox.py` | `WAMA_APP_GENERATION_ROUTE.md` | 8 |
 
 #### UI générée (12)
 
@@ -149,7 +150,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Preview unifiée** | Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps | `wama/common/utils/preview_registry.py` | — | 30 |
 | **Progression & ETA (front)** | Moteur ETA par débit observé + barres aux 3 niveaux : card, batch, globale | `wama/common/static/common/js/wama-eta.js` | `PROJECT_STATUS.md §10` | 39 |
 | **Schéma de paramètres** | Source unique des réglages d'app : volet droit et modale sont RENDUS depuis lui | `wama/common/utils/param_schema.py` | `WAMA_APP_GENERATION_ROUTE.md` | 36 |
-| **Socle JS des apps** | Plomberie commune file/cards : csrfFetch, urls, Poller de progression, états vides | `wama/common/static/common/js/wama-app-base.js` | `WAMA_APP_GENERATION_ROUTE.md` | 15 |
+| **Socle JS des apps** | Plomberie commune file/cards : csrfFetch, urls, Poller de progression, états vides | `wama/common/static/common/js/wama-app-base.js` | `WAMA_APP_GENERATION_ROUTE.md` | 17 |
 | **Vocabulaire des capacités** | Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage UI | `wama/common/utils/model_capabilities.py` | `INPUT_MODEL_MATCHING.md` | 20 |
 
 #### Données & infrastructure (11)
@@ -176,7 +177,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Runner générique du studio** | Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app | `wama/studio/services/generic_runner.py` | `STUDIO_VISION.md` | 7 |
 | **Surface d'outils** | Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas | `wama/tool_api.py` | `WAMA_APP_GENERATION_ROUTE.md` | 8 |
 
-**Mécanismes déclarés : 63** · domiciles absents : 0 · sans consommateur : 1 · assumés locaux : 18 · modules balayés non rattachés : 0
+**Mécanismes déclarés : 64** · domiciles absents : 0 · sans consommateur : 1 · assumés locaux : 18 · modules balayés non rattachés : 0
 - ⚠ **Sans consommateur** (brique morte ou pas encore adoptée) : `qc` (wama/common/utils/qc.py)
 
 <details><summary>Assumés utilitaires locaux : 18 (chacun avec sa raison — <code>ASSUMES_LOCAUX</code>, wama/common/mecanismes.py)</summary>

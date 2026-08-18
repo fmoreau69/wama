@@ -193,7 +193,7 @@ def install_proposed_task(self, model_key: str):
     n'exécute que la séquence longue (`installer_candidat`), en publiant l'avancement
     du pull (avec %) dans le cache Redis.
     """
-    from django.core.cache import cache
+    from wama.common.utils.task_progress import publier_progression
 
     from .models import AIModel
     from .services.model_installer import installer_candidat
@@ -201,10 +201,7 @@ def install_proposed_task(self, model_key: str):
     cache_key = INSTALL_CACHE_PREFIX + model_key
 
     def publier(state: str, payload: dict):
-        # `state`/`task_id` en DERNIER : ils doivent gagner sur le payload (même règle
-        # que run_mirror_job).
-        cache.set(cache_key, dict(payload, state=state, task_id=self.request.id),
-                  INSTALL_TTL)
+        publier_progression(cache_key, self.request.id, state, payload, INSTALL_TTL)
 
     cand = AIModel.objects.filter(model_key=model_key, is_proposed=True).first()
     if not cand:
@@ -233,20 +230,20 @@ def assess_proposed_task(max_assess: int = 10):
     confiance se remplissent au fil de la passe, la card lit `AIModel.confidence`.
     Incrémentale : `max_assess` candidats par passe, le reste à la passe suivante.
     """
-    from django.core.cache import cache
+    from wama.common.utils.task_progress import publier_progression
 
     from .services.prospect_agents import assess_proposed_ollama
 
-    def publier(p):
-        cache.set(ASSESS_CACHE_KEY, dict(p, state='RUNNING'), ASSESS_TTL)
+    def publier(p, state='RUNNING'):
+        publier_progression(ASSESS_CACHE_KEY, None, state, p, ASSESS_TTL)
 
     try:
         res = assess_proposed_ollama(max_assess=max_assess, progress=publier)
     except Exception as exc:
         logger.exception("[assess_proposed] échec de la passe")
-        cache.set(ASSESS_CACHE_KEY, {'state': 'FAILURE', 'error': str(exc)}, ASSESS_TTL)
+        publier({'error': str(exc)}, state='FAILURE')
         raise
-    cache.set(ASSESS_CACHE_KEY, dict(res, state='SUCCESS'), ASSESS_TTL)
+    publier(res, state='SUCCESS')
     return res
 
 
