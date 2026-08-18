@@ -8,12 +8,11 @@
         "image",
         "video"
       ],
-      "scale": 4,
-      "task": "upscale"
+      "task": "denoise"
     },
     "extra_info": {
-      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/upscaling/onnx/BSRGANx4_fp16.onnx",
-      "size_mb": 32.25595569610596
+      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/upscaling/onnx/IRCNN_Lx1_fp16.onnx",
+      "size_mb": 0.36255931854248047
     },
     "formats": {
       "can_convert_to": [],
@@ -22,7 +21,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "BSRGAN ×4 — robuste aux dégradations réelles.",
+      "description_short": "IRCNN L ×1 — débruitage sans agrandissement.",
       "hf_id": null,
       "license": null,
       "model_type": "upscaling",
@@ -37,19 +36,19 @@
       "update_complexity": null
     },
     "resources": {
-      "disk_gb": 0.031499956734478474,
+      "disk_gb": 0.0003540618345141411,
       "ram_gb": 0.0,
-      "vram_gb": 0.1
+      "vram_gb": 0.0
     }
   },
-  "description": "BSRGAN ×4 (fp16, ONNX) : super-résolution entraînée sur des dégradations réalistes (flou, bruit, compression JPEG). Robuste sur images de qualité médiocre là où d'autres modèles amplifient les artefacts.",
-  "key": "enhancer:BSRGANx4_fp16",
+  "description": "IRCNN variante L (fp16, ONNX) : débruitage pur (×1, aucune mise à l'échelle). Nettoie le bruit et les artefacts avant un éventuel upscale — à combiner avec un modèle ×2/×4.",
+  "key": "enhancer:IRCNN_Lx1",
   "manifest_kind": "model",
-  "name": "BSRGANx4_fp16",
+  "name": "IRCNN_Lx1_fp16",
   "projects": [],
   "schema_version": "1.0",
   "source": {
-    "ref": "AIModel:enhancer:BSRGANx4_fp16",
+    "ref": "AIModel:enhancer:IRCNN_Lx1",
     "type": "extract"
   },
   "visibility": "public",

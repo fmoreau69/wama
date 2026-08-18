@@ -267,11 +267,11 @@
               "class": "django.db.models.CharField",
               "kwargs": {
                 "choices": {
-                  "expr": "[('xtts_v2', 'XTTS v2 (Clonage vocal, 16 langues)'), ('bark', 'Bark (Naturel, Expressif, Effets sonores, 14 langues)'), ('kokoro', 'Kokoro 82M (Léger, FR/EN/ES/IT/PT/JA/ZH)'), ('vits', 'VITS (Rapide, EN uniquement)'), ('tacotron2', 'Tacotron2 (Classique, EN uniquement)'), ('speedy_speech', 'SpeedySpeech (Très rapide, EN uniquement)'), ('higgs_audio', 'Higgs Audio v2 (Multilocuteur, Clonage vocal, 9 langues, 24 Go VRAM)')]",
+                  "expr": "[('coqui-xtts', 'XTTS v2 (Clonage vocal, 16 langues)'), ('bark', 'Bark (Naturel, Expressif, Effets sonores, 14 langues)'), ('kokoro', 'Kokoro 82M (Léger, FR/EN/ES/IT/PT/JA/ZH)'), ('vits', 'VITS (Rapide, EN uniquement)'), ('tacotron2', 'Tacotron2 (Classique, EN uniquement)'), ('speedy-speech', 'SpeedySpeech (Très rapide, EN uniquement)'), ('higgs-audio', 'Higgs Audio v2 (Multilocuteur, Clonage vocal, 9 langues, 24 Go VRAM)')]",
                   "imports": []
                 },
                 "default": {
-                  "expr": "'xtts_v2'",
+                  "expr": "'coqui-xtts'",
                   "imports": []
                 },
                 "help_text": {
@@ -1175,7 +1175,7 @@
             "chip_label": "",
             "choices": [
               [
-                "xtts_v2",
+                "coqui-xtts",
                 "XTTS v2 (Clonage vocal, 16 langues)"
               ],
               [
@@ -1195,11 +1195,11 @@
                 "Tacotron2 (Classique, EN uniquement)"
               ],
               [
-                "speedy_speech",
+                "speedy-speech",
                 "SpeedySpeech (Très rapide, EN uniquement)"
               ],
               [
-                "higgs_audio",
+                "higgs-audio",
                 "Higgs Audio v2 (Multilocuteur, Clonage vocal, 9 langues, 24 Go VRAM)"
               ]
             ],
@@ -1208,7 +1208,7 @@
               "batch",
               "panel"
             ],
-            "default": "xtts_v2",
+            "default": "coqui-xtts",
             "dom_id": {
               "batch": "batchSettingsTtsModel",
               "item": "settingsTtsModel",
@@ -1218,7 +1218,7 @@
             "help": "Modèle TTS à utiliser",
             "help_fallback": null,
             "help_html": "",
-            "help_source": null,
+            "help_source": "synthesizer",
             "icon": "fa-microchip",
             "inline": false,
             "label": "Modèle TTS",
@@ -1936,7 +1936,7 @@
             "pitch": "range — Hauteur de la voix (0.5 = grave, 2.0 = aigu) [0.5–2.0] (défaut : 1.0)",
             "speed": "range — Vitesse de parole (0.5 = lent, 2.0 = rapide) [0.5–2.0] (défaut : 1.0)",
             "text": "str (requis)",
-            "tts_model": "select — Modèle TTS à utiliser (choix : xtts_v2 | bark | kokoro | vits | tacotron2 | speedy_speech | higgs_audio) (défaut : 'xtts_v2')",
+            "tts_model": "select — Modèle TTS à utiliser (choix : coqui-xtts | bark | kokoro | vits | tacotron2 | speedy-speech | higgs-audio) (défaut : 'coqui-xtts')",
             "voice_preset": "select — Preset de voix (choix : default | male_1 | male_2 | female_1 | female_2 | custom | bark_v2_en_0 | bark_v2_en_1 …) (défaut : 'default')"
           },
           "description": "Ajoute un élément à la file d'attente de Synthesizer (Synthèse vocale TTS (XTTS, Higgs Audio, Kokoro…)) et renvoie son item_id."

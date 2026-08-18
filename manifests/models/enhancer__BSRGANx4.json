@@ -12,8 +12,8 @@
       "task": "upscale"
     },
     "extra_info": {
-      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/upscaling/onnx/RealESR_Gx4_fp16.onnx",
-      "size_mb": 2.3317737579345703
+      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/upscaling/onnx/BSRGANx4_fp16.onnx",
+      "size_mb": 32.25595569610596
     },
     "formats": {
       "can_convert_to": [],
@@ -22,7 +22,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Real-ESR general ×4 — généraliste ultra-léger.",
+      "description_short": "BSRGAN ×4 — robuste aux dégradations réelles.",
       "hf_id": null,
       "license": null,
       "model_type": "upscaling",
@@ -37,19 +37,19 @@
       "update_complexity": null
     },
     "resources": {
-      "disk_gb": 0.002277122810482979,
+      "disk_gb": 0.031499956734478474,
       "ram_gb": 0.0,
-      "vram_gb": 0.0
+      "vram_gb": 0.1
     }
   },
-  "description": "Real-ESR general ×4 (fp16, ONNX) : version généraliste très compacte de Real-ESRGAN. Rapide et sobre, qualité légèrement en retrait — pour les traitements en volume ou les machines modestes.",
-  "key": "enhancer:RealESR_Gx4_fp16",
+  "description": "BSRGAN ×4 (fp16, ONNX) : super-résolution entraînée sur des dégradations réalistes (flou, bruit, compression JPEG). Robuste sur images de qualité médiocre là où d'autres modèles amplifient les artefacts.",
+  "key": "enhancer:BSRGANx4",
   "manifest_kind": "model",
-  "name": "RealESR_Gx4_fp16",
+  "name": "BSRGANx4_fp16",
   "projects": [],
   "schema_version": "1.0",
   "source": {
-    "ref": "AIModel:enhancer:RealESR_Gx4_fp16",
+    "ref": "AIModel:enhancer:BSRGANx4",
     "type": "extract"
   },
   "visibility": "public",

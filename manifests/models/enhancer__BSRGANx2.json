@@ -43,13 +43,13 @@
     }
   },
   "description": "BSRGAN ×2 (fp16, ONNX) : même robustesse aux dégradations réelles que la version ×4, avec un agrandissement modéré ×2 — utile quand la source est déjà d'une taille correcte.",
-  "key": "enhancer:BSRGANx2_fp16",
+  "key": "enhancer:BSRGANx2",
   "manifest_kind": "model",
   "name": "BSRGANx2_fp16",
   "projects": [],
   "schema_version": "1.0",
   "source": {
-    "ref": "AIModel:enhancer:BSRGANx2_fp16",
+    "ref": "AIModel:enhancer:BSRGANx2",
     "type": "extract"
   },
   "visibility": "public",

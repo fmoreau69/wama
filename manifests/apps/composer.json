@@ -680,6 +680,41 @@
         "PARAMS_JSON": [
           {
             "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item"
+            ],
+            "default": null,
+            "dom_id": {
+              "item": "settingsPrompt"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-pen",
+            "inline": false,
+            "label": "Prompt",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "prompt",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "step": null,
+            "type": "textarea",
+            "unit": ""
+          },
+          {
+            "advanced": false,
             "chip": true,
             "chip_label": "",
             "choices": null,
@@ -696,9 +731,12 @@
             },
             "group": "",
             "help": "",
-            "help_fallback": null,
+            "help_fallback": {
+              "auto-music": "Choix automatique : le plus gros modèle MUSIQUE tenant dans la VRAM libre au lancement.",
+              "auto-sfx": "Choix automatique : le plus gros modèle BRUITAGES tenant dans la VRAM libre au lancement."
+            },
             "help_html": "",
-            "help_source": null,
+            "help_source": "composer",
             "icon": "fa-music",
             "inline": false,
             "label": "Modèle",
@@ -790,41 +828,6 @@
             "step": 5,
             "type": "range",
             "unit": "s"
-          },
-          {
-            "advanced": false,
-            "chip": false,
-            "chip_label": "",
-            "choices": null,
-            "contexts": [
-              "item"
-            ],
-            "default": null,
-            "dom_id": {
-              "item": "settingsPrompt"
-            },
-            "group": "",
-            "help": "",
-            "help_fallback": null,
-            "help_html": "",
-            "help_source": null,
-            "icon": "fa-pen",
-            "inline": false,
-            "label": "Prompt",
-            "max": null,
-            "max_label": "",
-            "min": null,
-            "min_label": "",
-            "name": "prompt",
-            "option_groups": null,
-            "options_source": null,
-            "pills": [],
-            "radio_name": "",
-            "section": "settings",
-            "show_if": null,
-            "step": null,
-            "type": "textarea",
-            "unit": ""
           },
           {
             "advanced": false,
@@ -1097,9 +1100,9 @@
             "-created_at"
           ],
           "params_fields": [
+            "prompt",
             "model",
             "duration",
-            "prompt",
             "output_format",
             "output_quality"
           ],

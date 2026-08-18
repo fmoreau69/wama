@@ -265,11 +265,11 @@
               "class": "django.db.models.CharField",
               "kwargs": {
                 "choices": {
-                  "expr": "[('xtts_v2', 'XTTS v2 (Clonage vocal, 16 langues)'), ('bark', 'Bark (Naturel, Expressif, Effets sonores, 14 langues)'), ('kokoro', 'Kokoro 82M (Léger, FR/EN/ES/IT/PT/JA/ZH)'), ('vits', 'VITS (Rapide, EN uniquement)'), ('tacotron2', 'Tacotron2 (Classique, EN uniquement)'), ('speedy_speech', 'SpeedySpeech (Très rapide, EN uniquement)'), ('higgs_audio', 'Higgs Audio v2 (Multilocuteur, Clonage vocal, 9 langues, 24 Go VRAM)')]",
+                  "expr": "[('coqui-xtts', 'XTTS v2 (Clonage vocal, 16 langues)'), ('bark', 'Bark (Naturel, Expressif, Effets sonores, 14 langues)'), ('kokoro', 'Kokoro 82M (Léger, FR/EN/ES/IT/PT/JA/ZH)'), ('vits', 'VITS (Rapide, EN uniquement)'), ('tacotron2', 'Tacotron2 (Classique, EN uniquement)'), ('speedy-speech', 'SpeedySpeech (Très rapide, EN uniquement)'), ('higgs-audio', 'Higgs Audio v2 (Multilocuteur, Clonage vocal, 9 langues, 24 Go VRAM)')]",
                   "imports": []
                 },
                 "default": {
-                  "expr": "'xtts_v2'",
+                  "expr": "'coqui-xtts'",
                   "imports": []
                 },
                 "max_length": {
@@ -1118,7 +1118,7 @@
             "mode": "str (défaut : 'pipeline')",
             "quality_mode": "str (défaut : 'fast')",
             "text_content": "str",
-            "tts_model": "str (défaut : 'xtts_v2')",
+            "tts_model": "str (défaut : 'coqui-xtts')",
             "use_enhancer": "toggle — Restauration faciale haute qualité — légèrement plus lent. (défaut : False)",
             "voice_preset": "str (défaut : 'default')"
           },

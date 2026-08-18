@@ -12,8 +12,8 @@
       "task": "upscale"
     },
     "extra_info": {
-      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/upscaling/onnx/RealESR_Animex4_fp16.onnx",
-      "size_mb": 1.195145606994629
+      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/upscaling/onnx/RealESR_Gx4_fp16.onnx",
+      "size_mb": 2.3317737579345703
     },
     "formats": {
       "can_convert_to": [],
@@ -22,7 +22,7 @@
     },
     "identity": {
       "author": null,
-      "description_short": "Real-ESRGAN Anime ×4 — dessins et illustrations.",
+      "description_short": "Real-ESR general ×4 — généraliste ultra-léger.",
       "hf_id": null,
       "license": null,
       "model_type": "upscaling",
@@ -37,19 +37,19 @@
       "update_complexity": null
     },
     "resources": {
-      "disk_gb": 0.0011671343818306923,
+      "disk_gb": 0.002277122810482979,
       "ram_gb": 0.0,
       "vram_gb": 0.0
     }
   },
-  "description": "Real-ESRGAN Anime ×4 (fp16, ONNX) : variante spécialisée dessins, anime et illustrations — préserve les aplats et les contours nets sans inventer de texture photographique.",
-  "key": "enhancer:RealESR_Animex4_fp16",
+  "description": "Real-ESR general ×4 (fp16, ONNX) : version généraliste très compacte de Real-ESRGAN. Rapide et sobre, qualité légèrement en retrait — pour les traitements en volume ou les machines modestes.",
+  "key": "enhancer:RealESR_Gx4",
   "manifest_kind": "model",
-  "name": "RealESR_Animex4_fp16",
+  "name": "RealESR_Gx4_fp16",
   "projects": [],
   "schema_version": "1.0",
   "source": {
-    "ref": "AIModel:enhancer:RealESR_Animex4_fp16",
+    "ref": "AIModel:enhancer:RealESR_Gx4",
     "type": "extract"
   },
   "visibility": "public",

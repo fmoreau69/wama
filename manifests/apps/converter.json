@@ -17,7 +17,7 @@
       "layout": true,
       "multi_format_download": null,
       "settings_modal_item": true,
-      "streaming": false
+      "streaming": true
     },
     "data": {
       "models": [
@@ -955,7 +955,8 @@
             "chip_label": "",
             "choices": null,
             "contexts": [
-              "item"
+              "item",
+              "panel"
             ],
             "default": null,
             "dom_id": "",
@@ -989,7 +990,8 @@
             "choices": null,
             "contexts": [
               "item",
-              "batch"
+              "batch",
+              "panel"
             ],
             "default": null,
             "dom_id": "",
@@ -1109,7 +1111,8 @@
             "chip_label": "",
             "choices": null,
             "contexts": [
-              "item"
+              "item",
+              "panel"
             ],
             "default": 85,
             "dom_id": "",
@@ -1145,7 +1148,8 @@
             "chip_label": "",
             "choices": null,
             "contexts": [
-              "item"
+              "item",
+              "panel"
             ],
             "default": null,
             "dom_id": "",
@@ -1181,7 +1185,8 @@
             "chip_label": "",
             "choices": null,
             "contexts": [
-              "item"
+              "item",
+              "panel"
             ],
             "default": null,
             "dom_id": "",
@@ -1234,7 +1239,8 @@
               ]
             ],
             "contexts": [
-              "item"
+              "item",
+              "panel"
             ],
             "default": null,
             "dom_id": "",
@@ -1273,7 +1279,8 @@
             "chip_label": "",
             "choices": null,
             "contexts": [
-              "item"
+              "item",
+              "panel"
             ],
             "default": null,
             "dom_id": "",
@@ -1312,7 +1319,8 @@
             "chip_label": "",
             "choices": null,
             "contexts": [
-              "item"
+              "item",
+              "panel"
             ],
             "default": null,
             "dom_id": "",
@@ -1351,7 +1359,8 @@
             "chip_label": "",
             "choices": null,
             "contexts": [
-              "item"
+              "item",
+              "panel"
             ],
             "default": null,
             "dom_id": "",
@@ -1387,7 +1396,8 @@
             "chip_label": "",
             "choices": null,
             "contexts": [
-              "item"
+              "item",
+              "panel"
             ],
             "default": null,
             "dom_id": "",
@@ -1423,7 +1433,8 @@
             "chip_label": "",
             "choices": null,
             "contexts": [
-              "item"
+              "item",
+              "panel"
             ],
             "default": 12,
             "dom_id": "",
@@ -1459,7 +1470,8 @@
             "chip_label": "",
             "choices": null,
             "contexts": [
-              "item"
+              "item",
+              "panel"
             ],
             "default": 480,
             "dom_id": "",
@@ -1516,7 +1528,8 @@
               ]
             ],
             "contexts": [
-              "item"
+              "item",
+              "panel"
             ],
             "default": null,
             "dom_id": "",
@@ -1569,7 +1582,8 @@
               ]
             ],
             "contexts": [
-              "item"
+              "item",
+              "panel"
             ],
             "default": null,
             "dom_id": "",
@@ -1618,7 +1632,8 @@
               ]
             ],
             "contexts": [
-              "item"
+              "item",
+              "panel"
             ],
             "default": null,
             "dom_id": "",
@@ -1654,7 +1669,8 @@
             "chip_label": "",
             "choices": null,
             "contexts": [
-              "item"
+              "item",
+              "panel"
             ],
             "default": null,
             "dom_id": "",
@@ -1679,6 +1695,133 @@
             "show_if": {
               "equals": "audio",
               "field": "media_type"
+            },
+            "step": null,
+            "type": "toggle",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": [
+              [
+                "",
+                "Aucun"
+              ],
+              [
+                "x2",
+                "×2"
+              ],
+              [
+                "x4",
+                "×4"
+              ]
+            ],
+            "contexts": [
+              "item",
+              "panel"
+            ],
+            "default": null,
+            "dom_id": "",
+            "group": "",
+            "help": "Post-traitement IA via l'app enhancer — appliqué après la conversion (charge un modèle GPU).",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-wand-magic-sparkles",
+            "inline": false,
+            "label": "Upscaling IA (Real-ESRGAN)",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "upscale",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": {
+              "equals": "image",
+              "field": "media_type"
+            },
+            "step": null,
+            "type": "select",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "panel"
+            ],
+            "default": null,
+            "dom_id": "",
+            "group": "",
+            "help": "Post-traitement IA via l'app enhancer — appliqué après la conversion (charge un modèle GPU).",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-wand-magic-sparkles",
+            "inline": false,
+            "label": "Débruitage IA (Real-ESRGAN)",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "denoise",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": {
+              "equals": "image",
+              "field": "media_type"
+            },
+            "step": null,
+            "type": "toggle",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "panel"
+            ],
+            "default": null,
+            "dom_id": "",
+            "group": "",
+            "help": "Post-traitement IA via l'app enhancer — appliqué après la conversion (charge un modèle GPU).",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-wand-magic-sparkles",
+            "inline": false,
+            "label": "Enhancement audio (DeepFilterNet)",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "audio_enhance",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": {
+              "field": "media_type",
+              "in": [
+                "video",
+                "audio"
+              ]
             },
             "step": null,
             "type": "toggle",
@@ -1842,7 +1985,9 @@
         "add_to_converter": {
           "args": {
             "audio_bitrate": "select — Débit audio (choix :  | 128k | 192k | 256k | 320k)",
+            "audio_enhance": "toggle — Post-traitement IA via l'app enhancer — appliqué après la conversion (charge un modèle GPU).",
             "channels": "select — Canaux (choix :  | 1 | 2)",
+            "denoise": "toggle — Post-traitement IA via l'app enhancer — appliqué après la conversion (charge un modèle GPU).",
             "file_path": "str (requis)",
             "flip_h": "toggle — Miroir horizontal",
             "flip_v": "toggle — Miroir vertical",
@@ -1858,6 +2003,7 @@
             "resize_w": "number — 0 = inchangé. [0–None]",
             "rotation": "select — Rotation (choix : 0 | 90 | 180 | 270)",
             "sample_rate": "select — Fréquence d'échantillonnage (choix :  | 22050 | 44100 | 48000)",
+            "upscale": "select — Post-traitement IA via l'app enhancer — appliqué après la conversion (charge un modèle GPU). (choix :  | x2 | x4)",
             "video_quality": "number — 0 = sans perte, 23 = défaut, 51 = pire qualité. [0–51]"
           },
           "description": "Ajoute un élément à la file d'attente de Converter (Conversion de formats : image, vidéo, audio, documents, archives (Pillow + FFmpeg + Pandoc)) et renvoie son item_id."
