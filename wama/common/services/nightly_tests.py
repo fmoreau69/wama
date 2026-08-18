@@ -96,13 +96,25 @@ def register(**kwargs) -> Scenario:
 # ── Garde-fous & utilitaires ────────────────────────────────────────────────
 
 def get_test_user():
-    """Utilisateur de test DÉDIÉ (jamais le compte réel). Créé si absent."""
+    """Utilisateur de test DÉDIÉ (jamais le compte réel). Créé si absent.
+
+    Rôles métier accordés (décision Fabien 2026-08-18 — travail de lecture/vérification/
+    confrontation) : `communication` + `recherche` ouvrent toutes les apps à triade au
+    gating (§F7), SANS tier développeur (pas de bypass : model_manager et jumelles bac à
+    sable restent fermés — les outils de catalogue utiles sont transverses). Accordé ICI,
+    déclarativement, pour être reproductible sur toute base (jamais un coup de base à la main).
+    """
     from django.contrib.auth import get_user_model
+    from django.contrib.auth.models import Group
     User = get_user_model()
     user, _ = User.objects.get_or_create(
         username=TEST_USERNAME,
         defaults={"email": "nightly-test@wama.local", "is_active": True, "is_staff": False},
     )
+    from wama.accounts.permissions import GROUP_PREFIX
+    for role in ("communication", "recherche"):
+        group, _ = Group.objects.get_or_create(name=f"{GROUP_PREFIX}{role}")
+        user.groups.add(group)                 # idempotent
     return user
 
 

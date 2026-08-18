@@ -239,8 +239,12 @@ def _run_tool_api_garde_fous(ctx):
 
     # Borne de choix : 1er add_* accessible dont un paramètre à choix du schéma figure
     # dans la SURFACE ACCEPTÉE par l'outil (tool_descriptions()['args'] — la vue du
-    # mécanisme : signature ∪ schéma si **params ; un paramètre hors surface est FILTRÉ
-    # avant la borne). Refus attendu AVANT exécution (le fichier factice n'est jamais lu).
+    # mécanisme : signature ∪ schéma si **params ; un paramètre hors surface serait FILTRÉ
+    # avant la borne, donc jamais borné — d'où la dérivation par la surface et non par le
+    # schéma brut). Refus attendu AVANT exécution (le fichier factice n'est jamais lu).
+    # NB : l'échec du 1er run sur add_to_anonymizer.output_quality était le GATING (forbidden
+    # avant la borne), pas la surface — vérifié le 18/08 : une fois l'app accessible, la
+    # borne refuse bien output_quality hors schéma.
     desc = T.tool_descriptions()
     probe = None
     for n in sorted(T.TOOL_REGISTRY):
