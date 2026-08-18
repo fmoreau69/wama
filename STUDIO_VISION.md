@@ -49,7 +49,7 @@ Conséquences :
 - **Mixage/Mastering** = **app dédiée** également (édition audio, page type station de mixage),
   **dans un second temps**. Même logique : nœud studio + standalone.
 
-## Deux chaînes (mêmes briques studio)
+## Quatre chaînes (mêmes briques studio)
 
 ### 1. Chaîne VIDÉO — du rush au montage
 - **Constituer la base de médias (rushs)** :
@@ -89,6 +89,38 @@ Conséquences :
 Améliorer la **génération de musique dans le Composer** pour la **personnaliser** (dans l'esprit de
 Suno ou équivalents), afin qu'elle alimente la chaîne audio avec des ressources de qualité et
 contrôlables.
+
+### 3. Chaîne OBJETS 3D — de la photo au prop de simulation (idée Fabien 2026-08-18)
+**Cas d'usage** : image contenant un/des véhicules → **segmentation** (future app **detector**,
+YOLO/SAM3 — périmètre = ROADMAP §17bis) → **reconstruction 2D→3D** (modèle mono-image → mesh
+texturé) → objet 3D collecté dans la **médiathèque WAMA**, puis **passerelle vers virtualib**
+(librairie d'objets 3D existante, hors WAMA, non connectée) → usage en **simulation Unreal Engine**.
+- **Retour 3D→2D** : réutiliser l'objet 3D dans l'**Imager** — générer un décor en image, rendre
+  l'objet sous un point de vue choisi (« l'aplatir »), l'**insérer correctement placé** dans le
+  décor (harmonisation img2img/inpainting + profondeur). Recouvre le périmètre Detector §17bis
+  (« remplacer/insérer, traçable comme synthétique »).
+- **Chantier technique consigné dans `ROADMAP.md §17ter`** (candidats modèles, licences, taxonomie
+  `'3d'`, port `object_3d`, séquencement) — ne pas redocumenter ici.
+- **PoC possible SANS l'app detector** : SAM3 (déjà pilotable par prompt dans l'anonymizer) →
+  crop → modèle 2D→3D → GLB en médiathèque. GPU : avec Fabien.
+
+### 4. Chaîne CONSIGNE ANIMÉE — avatar parlant dans un décor généré (idée Fabien 2026-08-18)
+**Cas d'usage** : chaîner **Synthesizer (TTS) → Avatarizer → Imager (décor)** pour produire des
+**consignes animées** présentées à des participants d'expérimentation (SHS) — un avatar parlant,
+incrusté dans un décor généré.
+- C'est le prolongement DIRECT du précédent de référence (mode TTS retiré de l'avatarizer, le
+  studio chaîne TTS → avatar, ROUTE §10.4 espèce « production ») : **cas de validation de bout en
+  bout** du studio, et candidat naturel au premier **`StudioPipeline` sauvegardé = capacité
+  composite** (write-back du kind `pipeline`, maillon restant).
+- Trou propre : **l'avatar dans le décor** — voie par défaut = compositing (matte du buste →
+  incrustation sur fond Imager) plutôt qu'un modèle avatar à fond de référence, car mutualisable.
+
+### ⚑ Convergence des chaînes 3 et 4 — couture identifiée, NE PAS construire par anticipation
+Les deux chaînes butent sur la **même brique manquante : « insérer un élément dans une scène
+générée »** (objet 3D rendu → décor ; avatar détouré → décor : détourage/matte, placement,
+perspective, harmonisation lumière). Règle du **second consommateur** (cf. ROADMAP §17bis) : la
+première chaîne qui l'implémente le fait dans son app ; la seconde déclenche l'extraction vers
+`common/`. La couture est notée ici pour que ce jour-là ce soit une heure, pas une redécouverte.
 
 ## Pourquoi ça colle au modèle studio
 - Chaque étape = un **nœud-app** à **ports typés** (vidéo in/out, audio in/out, **stems**, **prompt**,

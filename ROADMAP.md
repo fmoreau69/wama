@@ -1927,6 +1927,43 @@ open-vocab supprimerait le reste du problème de couverture de classes), cam_ana
 **Alternatives libres** si la licence bloque : YOLO-World, MM-Grounding-DINO (Apache-2.0), OWLv2 —
 la brique (2) est agnostique au backend, l'investissement reste bon dans tous les cas.
 
+### 17ter. Reconstruction 2D→3D + chaîne objets 3D (consigné 2026-08-18 — NON ouvert)
+
+> Cas d'usage moteur (Fabien 18/08, domicile = `STUDIO_VISION.md` chaîne 3) : photo de véhicule(s)
+> → segmentation (detector §17bis) → reconstruction 3D → médiathèque → passerelle **virtualib**
+> (librairie d'objets 3D existante hors WAMA) → simulation Unreal Engine ; retour 3D→2D via
+> l'Imager (insertion dans un décor généré). Même règle qu'au §17 : **capability-first** (§16.6) —
+> d'abord un manifeste `function` « image→3D » (nœud studio natif), une app dédiée seulement si
+> l'usage le justifie.
+
+**Candidats modèles (prospection à jouer — chaîne Ollama-first/HF existante)** : **TRELLIS**
+(Microsoft, MIT), **TripoSR** (Stability+Tripo, MIT), **Hunyuan3D-2.x** (licence communauté
+Tencent — OK recherche Lescot, à vérifier pour livrables partenaire/valorisation),
+**Stable Fast 3D / SPAR3D** (Stability community). Mono-image → mesh texturé, VRAM ~6–16 Go
+(passe sur la 4090). Licence+auteur en base comme d'habitude (politique licences).
+
+**⚠ Reconstruction PLAUSIBLE, pas métrique** : les faces occultées sont HALLUCINÉES (un véhicule
+partiellement visible sort complet mais inventé). Parfait pour des props de simulation ; EXCLU
+pour toute reconstruction mesurée. → à déclarer en **métadonnée** du modèle/de la fonction
+(même geste que la licence au §17), pas en mémoire humaine.
+
+**Trous d'infrastructure (dans l'ordre)** :
+1. **Taxonomie** : catégorie `'3d'` absente de `MEDIA_CATEGORIES` (`common/app_registry.py:60`)
+   — extension DÉCLARATIVE (+ `normalize_types()`), format pivot **GLB**, export FBX/USD côté
+   passerelle Unreal.
+2. **Médiathèque** : ingest + preview des objets 3D (viewer three.js **vendorisé local**, règle
+   pas-de-CDN) ; collecte dans la médiathèque D'ABORD.
+3. **Port studio `object_3d`** (DataType) pour câbler detector → 2D→3D → médiathèque.
+4. **Manifeste `function` « image→3D »** + backend (contrat `BaseModelBackend`).
+5. **Passerelle virtualib** : APRÈS collecte en médiathèque, **sens unique (export) d'abord** ;
+   lien inter-mondes déclaré (manifeste), pas de glu ad hoc.
+6. **Insertion dans une scène générée** (retour 3D→2D ET avatar-dans-décor, chaîne 4 studio) :
+   couture PARTAGÉE — règle du second consommateur, cf. `STUDIO_VISION.md ⚑ Convergence`.
+   NE PAS extraire par anticipation.
+
+**PoC sans attendre l'app detector** : SAM3 (déjà prompt-piloté dans l'anonymizer) → crop →
+modèle 2D→3D → GLB. Partie GPU : **avec Fabien uniquement** (règle crashs hôte).
+
 ## 18. Réorganisation de l'arbre en MONDES (POST-portage schéma-driven — NE PAS ouvrir avant)
 
 - **Constat 2026-07-27** : `wama/common/` (14 sous-packages) mélange glu de plateforme (sa vraie
