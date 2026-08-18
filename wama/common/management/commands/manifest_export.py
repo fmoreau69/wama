@@ -80,7 +80,11 @@ class Command(BaseCommand):
         if o['cle']:
             cibles = [(o['kind'], o['cle'])]
         else:
-            cibles = [('app', a) for a in sorted(APP_CATALOG)]
+            # Jumelles bac à sable EXCLUES : le corpus décrit les apps RÉELLES — une jumelle
+            # est jetable et se COMPARE à sa source (route §10.3 marche S, fuite mesurée
+            # 18/08 : converter_01 entrait au corpus).
+            from wama.common.sandbox import non_sandbox_apps
+            cibles = [('app', a) for a in non_sandbox_apps(APP_CATALOG)]
             cibles += [('library', _cle_du_stem(f.stem))
                        for f in sorted((base / DOSSIERS['library']).glob('*.json'))]
             # Modèles : DÉRIVÉS des requires des apps (composition app → model) ∪ refresh

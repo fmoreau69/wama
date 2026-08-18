@@ -75,11 +75,13 @@ def _fait_roundtrip():
     """Tableau par app : couverture de projection, fidélité, verdict — via _roundtrip."""
     from wama.common.app_registry import APP_CATALOG
     from wama.common.management.commands.manifest_roundtrip import Command as Roundtrip
+    from wama.common.sandbox import non_sandbox_apps
 
     rt = Roundtrip()
     lignes = ["| App | Facettes | Projetables | Fidélité | Validation |",
               "|---|---|---|---|---|"]
-    for app_id in sorted(APP_CATALOG):
+    # Jumelles bac à sable exclues (même règle que conformité/export — fuite mesurée 18/08).
+    for app_id in non_sandbox_apps(APP_CATALOG):
         r = rt._roundtrip(app_id)
         if 'erreur' in r:
             lignes.append(f"| {app_id} | — | — | — | {r['erreur']} |")

@@ -154,7 +154,10 @@ class Command(BaseCommand):
         from wama.common.app_registry import APP_CATALOG
 
         if o['all']:
-            cibles = sorted(APP_CATALOG)
+            # Jumelles bac à sable EXCLUES (même règle que manifest_export/conformité) :
+            # on ne juge pas la régénérabilité d'un bac à sable, on le compare à sa source.
+            from wama.common.sandbox import non_sandbox_apps
+            cibles = non_sandbox_apps(APP_CATALOG)
         elif o['app_id']:
             cibles = [o['app_id']]
         else:
