@@ -2550,7 +2550,27 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 >   CLAUDE.md « ne pas précipiter ») ; tous ses tags existent encore sur l'hôte, MAIS la
 >   dérive a commencé : **aucune entrée qwen3.8** — dev/coder/architect/codegen restent sur
 >   qwen3.6:35b. Décision Fabien : maj ponctuelle de la table, ou accélérer l'unification
->   par la route commune (MCP Phase 4).
+>   par la route commune. **Précision Fabien 19/08 : le MCP est ORTHOGONAL** (= conformité à
+>   la norme officielle pour l'interop extérieure, le tool_api reproduit déjà l'esprit) —
+>   le hardcode wama-dev-ai se résout par câblage local, sans MCP.
+> - **CHANTIER BENCHMARK LIVRÉ (19/08 soir, commit `feat(benchmark)`)** : étage 2 opérationnel —
+>   champs `benchmark_index`+`benchmark_meta` (SÉPARÉS, sync_models sans autorité), service
+>   `benchmark_sync` (appariement conservateur via `decomposer`/`_milliards` réutilisés,
+>   `:latest` résolu par parent_model, variantes tracées), commande `sync_benchmarks`
+>   (code 3 = SKIP), étage benchmark dans `_cle_de_rang` (règle de lot). Migration 0013
+>   appliquée. Validé hors-ligne (identités ×3 graphies, appariement, classement) + SKIP
+>   exact en live. **🔑 ACTION FABIEN (porte du chantier)** : créer la clé GRATUITE
+>   Artificial Analysis (artificialanalysis.ai/data-api) → `ARTIFICIAL_ANALYSIS_API_KEY`
+>   dans `.env`, puis `manage.py sync_benchmarks`. Limites consignées : miroir Arena =
+>   top-20 frontière (source complète = dataset HF `lmarena-ai/leaderboard-dataset`, non
+>   branché) ; appariement STRICT (gemma4:26b ≠ « Gemma 4 31B » → NULL — table d'alias
+>   déclarative à créer si des équivalences sont confirmées à la main).
+> - **PROSPECTION (accord Fabien 19/08, consigné NON ouvert)** : intégrer le critère
+>   benchmark tiers aux candidats de prospection AVANT installation — la brique
+>   (`_identite` + `charger_aa`) est réutilisable telle quelle pour annoter les candidats ;
+>   triplet de critères cible = **mesure tierce + confiance LLM + simplicité d'installation**.
+>   Précondition = clé AA ; ⚠ chemin `prospector/prospect_*` = territoire récent de
+>   l'instance portage (commit f9b0bc4) → coordonner avant d'ouvrir.
 > - 🔚 **Pending B** : ✅ restart FAIT par Fabien 18/08 (~17h) → catégorie `'3d'` et fix
 >   `get_imager_status` VIVANTS ; suite du chantier 3D = ROADMAP §17ter trous 2-6 (preview
 >   médiathèque, port déclaré par une app, prospection modèles 2D→3D — quand Fabien la demande).
