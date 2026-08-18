@@ -135,6 +135,21 @@ MODELS = {
     # -------------------------------------------------------------------------
     # Development Models
     # -------------------------------------------------------------------------
+    # Déclaré au câblage 2026-08-19 : meilleur généraliste MESURÉ du parc (Artificial
+    # Analysis Intelligence Index 52,0 — vs qwen3.6:35b MoE à 32,1), dense 27,3 Md,
+    # 17,7 Go. Préféré par les chaînes dev/architect ; PAS codegen (ordre issu du BANC
+    # mesuré, la mesure interne prime — qwen3.8 y entrera comme challenger au prochain banc).
+    "qwen38": ModelConfig(
+        name="Qwen3.8 27B",
+        ollama_id="qwen3.8:latest",
+        description="Best measured generalist (AA index 52.0) — dense 27.3B, vision+thinking",
+        context_length=262144,
+        temperature=0.6,
+        role="dev",
+        ram_required_gb=19.0,
+        priority=100,
+    ),
+
     "dev": ModelConfig(
         name="Qwen3.6 35B (MoE)",
         ollama_id="qwen3.6:35b",
@@ -479,12 +494,15 @@ MEMORY_SAFETY_MARGIN_GB = 2.0
 # Fallback chains: ordered list of model keys to try for each role
 # When a model doesn't fit in memory, try the next one in the chain
 MODEL_FALLBACK_CHAINS = {
-    "dev": ["dev", "coder", "fast", "ultra_fast"],
+    # `qwen38` en tête des rôles pilotés par l'A PRIORI (meilleure mesure AA du parc, 19/08).
+    # Les chaînes issues d'une MESURE restent intactes : codegen (banc — qwen3.8 = challenger
+    # au prochain run) et audit (stabilité éprouvée, qwen3.5 crashait sur prompts complexes).
+    "dev": ["qwen38", "dev", "coder", "fast", "ultra_fast"],
     # codegen (marche B) : candidat principal + challengers du banc — one-shot, pas
     # d'agentique. ⚠ Ne lancer le banc qu'ACCOMPAGNÉ (charge GPU, règle crashs hôte).
     "codegen": ["codegen", "debug", "gemma4_26b", "gemma4_e4b", "fast"],
     "debug": ["debug", "fast", "ultra_fast"],
-    "architect": ["architect", "orchestrator", "fast", "ultra_fast"],
+    "architect": ["qwen38", "architect", "orchestrator", "fast", "ultra_fast"],
     # audit role: prefers non-thinking models (qwen3.5 crashes on complex prompts)
     # debug (qwen3-coder:30b) est le meilleur choix — 256K ctx, moins d'hallucinations
     "audit": ["debug", "gemma4_e4b", "fast", "ultra_fast"],
@@ -532,6 +550,67 @@ def get_available_vram_gb() -> float:
     return 0.0
 
 
+_TAGS_CACHE = {'val': None, 'ts': 0.0}
+
+
+def _tags_installes(ttl_s: float = 60.0):
+    """
+    {tag: taille_gb} des modèles RÉELLEMENT présents sur Ollama (/api/tags), ou None si
+    Ollama est injoignable (inconnu ≠ absent : on ne filtre pas à l'aveugle).
+
+    CÂBLAGE 2026-08-19 (audit Fabien « modèles tirés proprement, pas écrits en dur ») : la
+    table MODELS reste l'INTENTION déclarée (rôles, prompts, priorités), mais elle avait
+    commencé à dériver en silence (aucune entrée qwen3.8 ; un tag retiré serait resté
+    sélectionnable). Désormais la RÉALITÉ filtre l'intention à chaque sélection.
+    """
+    import time
+    if _TAGS_CACHE['val'] is not None and time.monotonic() - _TAGS_CACHE['ts'] < ttl_s:
+        return _TAGS_CACHE['val']
+    try:
+        import json
+        from urllib.request import urlopen
+        with urlopen(f'{OLLAMA_HOST}/api/tags', timeout=5) as r:
+            data = json.load(r)
+        tags = {m['name']: m.get('size', 0) / 1e9 for m in data.get('models', [])}
+    except Exception:
+        return None
+    _TAGS_CACHE.update(val=tags, ts=time.monotonic())
+    return tags
+
+
+def modeles_effectifs(verbose: bool = False):
+    """
+    Le catalogue VÉRIDIQUE d'une sélection : MODELS ∩ installés, PLUS les modèles installés
+    non déclarés (entrées génériques `auto:<tag>`, priorité basse — atteignables par le
+    dernier recours, jamais par les chaînes de rôle, qui restent de la curation humaine).
+    Ollama injoignable → MODELS tel quel (dégradation honnête, tracée si verbose).
+    """
+    tags = _tags_installes()
+    if tags is None:
+        if verbose:
+            print('[Model] Ollama injoignable : table MODELS utilisée SANS vérification')
+        return dict(MODELS), []
+    effectifs, absents = {}, []
+    declares = set()
+    for key, cfg in MODELS.items():
+        declares.add(cfg.ollama_id)
+        if cfg.ollama_id in tags:
+            effectifs[key] = cfg
+        else:
+            absents.append(f'{key} ({cfg.ollama_id})')
+    for tag, taille in tags.items():
+        if tag in declares or 'embed' in tag or tag.startswith('bge'):
+            continue        # /api/tags ne donne pas les capacités : heuristique embeddings assumée
+        effectifs[f'auto:{tag}'] = ModelConfig(
+            name=tag, ollama_id=tag, role='general', priority=10,
+            ram_required_gb=round(taille + 1.5, 1),
+            description='Découvert sur Ollama, absent de la table MODELS (câblage 19/08) — '
+                        'à déclarer si un rôle doit le préférer.')
+    if verbose and absents:
+        print(f"[Model] ABSENTS d'Ollama, ignorés (table à dépoussiérer) : {', '.join(absents)}")
+    return effectifs, absents
+
+
 def select_model_for_role(
     role: str,
     preferred_model: str = None,
@@ -569,12 +648,12 @@ def select_model_for_role(
         print(f"[Memory] Available: {ram_available:.1f} GiB RAM / "
               f"{vram_free:.1f} GiB VRAM -> using {mem_label}, Usable: {usable_mem:.1f} GiB")
 
-    # Build candidate list
-    candidates = []
+    # Catalogue VÉRIDIQUE (table ∩ installés + découverts) — câblage 2026-08-19.
+    catalogue, _ = modeles_effectifs(verbose)
 
     # If preferred model is specified and fits, use it
-    if preferred_model and preferred_model in MODELS:
-        model = MODELS[preferred_model]
+    if preferred_model and preferred_model in catalogue:
+        model = catalogue[preferred_model]
         if model.ram_required_gb <= usable_mem:
             if verbose:
                 print(f"[Model] Using preferred: {preferred_model} ({model.ram_required_gb:.1f} GiB)")
@@ -587,9 +666,9 @@ def select_model_for_role(
 
     # Try models in fallback chain order
     for model_key in fallback_chain:
-        if model_key not in MODELS:
+        if model_key not in catalogue:
             continue
-        model = MODELS[model_key]
+        model = catalogue[model_key]
         if model.ram_required_gb <= usable_mem:
             if verbose:
                 print(f"[Model] Selected: {model_key} ({model.ram_required_gb:.1f} GiB) for role '{role}'")
@@ -597,9 +676,10 @@ def select_model_for_role(
         elif verbose:
             print(f"[Model] Skipping {model_key}: needs {model.ram_required_gb:.1f} GiB")
 
-    # Last resort: find ANY chat-capable model that fits (exclude embed models)
+    # Last resort: find ANY chat-capable model that fits (exclude embed models).
+    # Les `auto:<tag>` découverts sont atteignables ICI seulement (priorité basse).
     fitting_models = [
-        (key, cfg) for key, cfg in MODELS.items()
+        (key, cfg) for key, cfg in catalogue.items()
         if cfg.ram_required_gb <= usable_mem and cfg.role != "embed"
     ]
 
