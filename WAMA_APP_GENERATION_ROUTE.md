@@ -532,6 +532,34 @@ outillé avant d'ouvrir cette marche.
   réversible ; garde anti-collision `__`). L'export fichier ne sert que la revue humaine et
   le few-shot du rôle codegen — la composition résout les requires par extraction LIVE.
 
+- **S. BAC À SABLE — jumelle EXÉCUTABLE (actée Fabien 2026-08-18, marche suivante).** Constat :
+  le harnais C régénère EN PLACE (strip→write-back→mesure→restore) — il juge des artefacts,
+  jamais une app QUI TOURNE. Or la grille mesure le DÉCLARÉ, le roundtrip le PROJETABLE :
+  seule une jumelle exécutable mesure le TOUT — c'est le meilleur détecteur des « trous »
+  laissés hors mécanismes (l'écart visuel/fonctionnel entre l'app en place et sa régénérée
+  EST la liste des trous). Principe : régénérer une app existante sous un identifiant
+  distinct (`converter_01`) qui COEXISTE avec l'app en place → comparaison visuelle
+  (Playwright côte à côte) + diff code, puis cycle **ajouter / tester / supprimer**.
+  Contrats actés :
+  1. **Identifiant** : suffixe `_NN` sur l'app label (`converter_01` — identifiant Python et
+     slug URL valides, `/converter-01/`) ; tables Django séparées par construction (préfixe
+     app_label) → ZÉRO collision de données avec l'app en place.
+  2. **Marqueur déclaratif** : l'entrée APP_CATALOG de la jumelle porte
+     `generated_from='converter'` + l'id du run de génération → jumelles ÉNUMÉRABLES
+     (nettoyage sûr, jamais orphelines) + badge « BAC À SABLE » dans l'UI.
+  3. **Gating dev-only** (app_access) : invisibles des non-devs.
+  4. **Cycle outillé, jamais manuel** : `manage.py app_sandbox create <app>` / `drop <app_NN>`
+     (drop = migrate zero + retrait INSTALLED_APPS/urls/registres — symétrique et complet).
+  5. **La jumelle RÉFÉRENCE le monde, elle ne le duplique pas** : même catalogue `AIModel`
+     (lecture), mêmes briques common, mêmes workers — on régénère l'APP, pas la plateforme.
+  6. **Diff normalisé** : dé-suffixer avant diff (étend le principe du harnais C — juger des
+     artefacts NORMALISÉS, jamais du byte à byte) ; Playwright = pages côte à côte.
+  7. **Pilote : `converter_01`** (app la plus simple, 100 % grille, pilote historique de C) ;
+     les facettes encore non-write-back (inspector/models/processing/tool_api) apparaîtront
+     comme manques VISIBLES de la jumelle — c'est le but, pas un préalable.
+  La cible « Translator DE ZÉRO » (ci-dessus) devient le cas « create sans generated_from » du
+  même outil : le bac à sable est l'étape commune aux deux chemins (régénérer ≈ créer).
+
 **Cadrage A0 — la convention RÉELLE, mesurée (2026-08-11, balayage 6 cibles × 10 apps) :**
 - **urls.py** : AUCUNE app ne colle à `STANDARD_ENDPOINTS` — cette liste était une CIBLE que le
   manifeste affirmait comme réalité pour les 10 apps (mensonge d'extraction, corrigé en A1).

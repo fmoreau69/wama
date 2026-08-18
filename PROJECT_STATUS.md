@@ -2795,6 +2795,15 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > étendus ; préremplissage par data-* des gears (2 cards). La conversion inline existait déjà
 > des deux côtés (`_apply_enhancer_output_format`) — c'était le RÉGLAGE par item qui manquait.
 >
+> **SUITE (18/08) : MARCHE « BAC À SABLE » ACTÉE (proposition Fabien, consignée ROUTE §10.3
+> marche S).** Le harnais C régénère EN PLACE — il juge des artefacts, jamais une app QUI
+> TOURNE ; la jumelle EXÉCUTABLE (`converter_01` coexistant avec l'app en place) devient LE
+> détecteur des trous hors-mécanismes : Playwright côte à côte + diff code dé-suffixé, cycle
+> ajouter/tester/supprimer outillé (`manage.py app_sandbox create/drop`), marqueur
+> `generated_from` + badge BAC À SABLE, gating dev-only, la jumelle référence le monde
+> (catalogue/briques/workers) sans le dupliquer. Translator DE ZÉRO = le cas « create sans
+> generated_from » du même outil. Pilote : converter_01.
+>
 > **🔚 POINT D'ENTRÉE SESSION SUIVANTE — ordre acté :** ① transverses portage (during ×3
 > restants : imager/avatarizer/synthesizer, + enhancer audio — GPU avec Fabien, valider les
 > 3 câblés d'abord ; model_caps_ui ×3 = enrichir la MATIÈRE d'abord — composer/reader/imager) ;
