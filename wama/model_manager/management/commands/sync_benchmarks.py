@@ -29,15 +29,20 @@ class Command(BaseCommand):
             self.stdout.write(f"SKIP : aucune source de benchmark joignable — {e}")
             sys.exit(3)
 
-        for src, n in r['sources'].items():
-            self.stdout.write(f"source {src} : {n} entrées")
+        for src, cats in r['sources'].items():
+            detail = ', '.join(f'{c}={n}' for c, n in sorted(cats.items()))
+            self.stdout.write(f"source {src} : {detail}")
+        for src, motifs in (r.get('motifs') or {}).items():
+            for cat, motif in motifs.items():
+                self.stdout.write(self.style.WARNING(f"  {src}/{cat} : {motif}"))
         for src, motif in r['indisponibles'].items():
             self.stdout.write(self.style.WARNING(f"source {src} INDISPONIBLE : {motif}"))
         mode = ' (dry-run, rien écrit)' if opts['dry_run'] else ''
-        self.stdout.write(f"\nAppariés{mode} : {len(r['apparies'])}")
-        for nom, idx, elo in r['apparies']:
-            self.stdout.write(f"  {nom:24s} AA={idx if idx is not None else '—':>6}  "
-                              f"Elo={elo if elo is not None else '—'}")
+        self.stdout.write(f"\nAppariés{mode} : {len(r['apparies'])} "
+                          f"(hors catégorie : {r['sans_categorie']})")
+        for cle, cat, val, echelle, elo in r['apparies']:
+            self.stdout.write(f"  {cle:40s} [{cat}] {val:>8} ({echelle})"
+                              + (f"  Elo={elo}" if elo is not None else ''))
         if r['non_apparies']:
             self.stdout.write(f"Non appariés (benchmark_index reste NULL) : "
                               f"{', '.join(r['non_apparies'])}")
