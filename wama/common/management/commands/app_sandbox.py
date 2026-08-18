@@ -48,6 +48,15 @@ BASE_DIR = WAMA_DIR.parent
 TEXT_EXT = {'.py', '.html', '.js', '.css', '.md', '.txt', '.json'}
 SKIP_DIRS = {'__pycache__', 'migrations', '.pytest_cache'}
 
+#: Cibles substituables (étape S2) : fichier ← gabarit codegen (render_*(manifest) → (src, raison)).
+#: L'ordre du dict = l'ordre RECOMMANDÉ de substitution (du plus conventionnel au plus spécifique).
+_SUBSTITUTABLE = {
+    'apps':   ('apps.py',   'wama.common.manifests.codegen.apps_gen',   'render_apps'),
+    'urls':   ('urls.py',   'wama.common.manifests.codegen.urls_gen',   'render_urls'),
+    'models': ('models.py', 'wama.common.manifests.codegen.models_gen', 'render_models'),
+    'tasks':  ('tasks.py',  'wama.common.manifests.codegen.tasks_gen',  'render_tasks'),
+}
+
 
 def _next_label(base: str) -> str:
     taken = {e['label'] for e in load_registry()}
@@ -148,8 +157,10 @@ class Command(BaseCommand):
     help = "Bac à sable d'apps : create <app> / drop <app_NN> / list (route §10.3 marche S)"
 
     def add_arguments(self, parser):
-        parser.add_argument('action', choices=['create', 'drop', 'list'])
-        parser.add_argument('app', nargs='?', help='app source (create) ou label jumeau (drop)')
+        parser.add_argument('action', choices=['create', 'drop', 'list', 'substitute'])
+        parser.add_argument('app', nargs='?', help='app source (create) ou label jumeau (drop/substitute)')
+        parser.add_argument('cible', nargs='?',
+                            help=f"substitute : {sorted(_SUBSTITUTABLE)} — fichier à passer en GÉNÉRÉ")
 
     def handle(self, *args, **opts):
         action = opts['action']
@@ -159,8 +170,10 @@ class Command(BaseCommand):
                 self.stdout.write('Aucune jumelle (registre vide ou absent : '
                                   f'{REGISTRY_PATH}).')
             for e in entries:
+                subs = ', '.join(f"{k}:{v.get('verdict')}" for k, v in
+                                 (e.get('substituted') or {}).items()) or '—'
                 self.stdout.write(f"  {e['label']}  ← {e.get('generated_from')}  "
-                                  f"({e.get('created', '?')})")
+                                  f"({e.get('created', '?')})  substitués : {subs}")
             return
 
         app = opts.get('app')
@@ -169,6 +182,8 @@ class Command(BaseCommand):
 
         if action == 'create':
             self._create(app)
+        elif action == 'substitute':
+            self._substitute(app, opts.get('cible'))
         else:
             self._drop(app)
 
@@ -209,6 +224,110 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f'Jumelle {label} prête : /{label}/ (dev-only). '
             '⚠ Redémarrer gunicorn/workers pour la servir.'))
+
+    # ── substitute (étape S2) ────────────────────────────────────────────────
+    def _substitute(self, label: str, cible: str):
+        """Remplace UN fichier copié de la jumelle par sa version GÉNÉRÉE (gabarit codegen
+        sur le manifeste extrait LIVE de la SOURCE), puis re-mesure. Le fichier copié est
+        préservé en `.temoin` (= la référence du diff copie↔généré). ÉCHEC → auto-revert :
+        jamais une jumelle morte. Verdicts journalisés au registre (stage S2)."""
+        import importlib
+
+        if cible not in _SUBSTITUTABLE:
+            raise CommandError(f'Cible inconnue : {cible} (attendu {sorted(_SUBSTITUTABLE)}).')
+        entries = load_registry()
+        entry = next((e for e in entries if e['label'] == label), None)
+        if not entry:
+            raise CommandError(f'{label} absent du registre.')
+        src = entry['generated_from']
+
+        # 1. GÉNÉRATION depuis le manifeste LIVE de la source (l'app d'origine n'est que LUE).
+        from wama.common.manifests.ingest import extract
+        manifest = extract('app', src)
+        if not manifest:
+            raise CommandError(f"Extraction du manifeste de {src} impossible.")
+        fname, mod_path, fn_name = _SUBSTITUTABLE[cible]
+        rendered, raison = getattr(importlib.import_module(mod_path), fn_name)(manifest)
+        if rendered is None:
+            raise CommandError(f'Gabarit {cible} : rien à générer — {raison}')
+
+        # 2. SUFFIXAGE identique à la copie (la génération vise `converter`, la jumelle
+        #    parle `converter_01`) + patch related_name pour models.
+        text = _rename_text(rendered, src, label)
+        if cible == 'models':
+            text = _patch_related_names(text, label)
+
+        target = WAMA_DIR / label / fname
+        temoin = target.with_name(fname + '.temoin')
+        if target.exists() and not temoin.exists():
+            shutil.copy2(target, temoin)      # référence du diff, préservée UNE fois
+        target.write_text(text, encoding='utf-8')
+        self.stdout.write(f'{fname} ← GÉNÉRÉ ({len(text.splitlines())} lignes ; '
+                          f'témoin : {temoin.name})')
+
+        # 3. RE-MESURE : check + (models → makemigrations) + smoke page en sous-process frais.
+        verdict, details = 'ok', []
+        r = _manage(['check'])
+        if r.returncode != 0:
+            verdict = 'revert'
+            details.append('manage.py check KO')
+        mig_dir = WAMA_DIR / label / 'migrations'
+        mig_avant = {p.name for p in mig_dir.glob('0*.py')}
+        if verdict == 'ok' and cible == 'models':
+            r = _manage(['makemigrations', label])
+            if r.returncode != 0:
+                verdict, details = 'revert', ['makemigrations KO']
+            elif 'No changes detected' not in (r.stdout or ''):
+                details.append('schéma DIVERGENT (migration créée — champs en écart)')
+                r2 = _manage(['migrate', label])
+                if r2.returncode != 0:
+                    verdict, details = 'revert', ['migrate de l’écart KO']
+        if verdict == 'ok':
+            smoke = subprocess.run(
+                [sys.executable, '-c',
+                 "import os,django;os.environ.setdefault('DJANGO_SETTINGS_MODULE','wama.settings');"
+                 "django.setup();from django.test import Client;"
+                 f"r=Client().get('/{label}/',follow=True);print(r.status_code);"
+                 "raise SystemExit(0 if r.status_code==200 else 1)"],
+                capture_output=True, text=True, cwd=str(BASE_DIR))
+            if smoke.returncode != 0:
+                verdict = 'revert'
+                details.append(f"smoke /{label}/ KO ({(smoke.stdout or smoke.stderr).strip()[:120]})")
+
+        # 4. Diff compact copie↔généré (le DÉTECTEUR : chaque écart est un fait).
+        if temoin.exists():
+            a = temoin.read_text(encoding='utf-8').splitlines()
+            b = text.splitlines()
+            import difflib
+            delta = [l for l in difflib.unified_diff(a, b, lineterm='') if l[:1] in '+-'
+                     and not l.startswith(('+++', '---'))]
+            details.append(f'diff copie↔généré : {len(delta)} lignes')
+
+        # 5. Échec → RETOUR AU TÉMOIN (jamais une jumelle morte) ; sinon journal.
+        if verdict == 'revert':
+            shutil.copy2(temoin, target)
+            # Revert COMPLET côté schéma (défaut mesuré au 1er run : la migration divergente
+            # restait APPLIQUÉE avec le modèle revenu au témoin) : désappliquer puis retirer
+            # les fichiers de migration créés par CETTE substitution.
+            nouvelles = sorted({p.name for p in mig_dir.glob('0*.py')} - mig_avant)
+            if nouvelles:
+                derniere_saine = sorted(mig_avant)[-1].split('_', 1)[0] if mig_avant else 'zero'
+                _manage(['migrate', label, derniere_saine, '--skip-checks'])
+                for n in nouvelles:
+                    (mig_dir / n).unlink(missing_ok=True)
+                details.append(f'migrations divergentes désappliquées/retirées : {nouvelles}')
+            self.stderr.write(self.style.ERROR(
+                f'ÉCHEC — {fname} REVENU au témoin. TROU documenté : ' + ' ; '.join(details)))
+        else:
+            self.stdout.write(self.style.SUCCESS(
+                f'{cible} : GÉNÉRÉ tient ({" ; ".join(details) or "aucun écart"})'))
+        entry.setdefault('substituted', {})[cible] = {
+            'verdict': verdict, 'details': details,
+            'at': datetime.now(timezone.utc).isoformat(timespec='seconds')}
+        entry['stage'] = ('S2-partiel'
+                          if any(v.get('verdict') == 'ok'
+                                 for v in entry['substituted'].values()) else entry['stage'])
+        save_registry(entries)
 
     # ── drop ─────────────────────────────────────────────────────────────────
     def _drop(self, label: str):

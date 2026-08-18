@@ -2831,6 +2831,16 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > anonyme). **⚠ restart gunicorn requis pour que FABIEN voie `/converter_01/`** (le boot lit
 > le registre). S2 = substitution copie→généré (views_gen + gabarit templates à écrire).
 >
+> **SUITE (18/08) : S2 EN COURS — `app_sandbox substitute` LIVRÉ, premiers verdicts.**
+> Garantie confirmée à Fabien : l'app d'ORIGINE n'est JAMAIS modifiée (lue pour copie et
+> extraction de manifeste ; toutes les écritures ciblent la jumelle). Substitution un-à-un
+> avec témoin `.temoin`, re-mesure, auto-revert complet (migrations divergentes comprises —
+> défaut du 1er run corrigé dans l'outil). **converter_01 : apps ✅ (29 l. d'écart) · urls ✅
+> (82) · models ❌ TROU (schéma divergent 155 l. — le gabarit A5 ne couvre que la facette
+> params) · tasks ❌ TROU (smoke KO, 226 l.)** — le détecteur fonctionne : 2 trous localisés
+> et documentés dès la première passe. Jumelle SAINE (page 200, apps+urls générés en
+> service). Suite : analyse des 2 trous, views_gen, gabarit templates.
+>
 > **🔚 POINT D'ENTRÉE SESSION SUIVANTE — ordre acté :** ① transverses portage (during ×3
 > restants : imager/avatarizer/synthesizer, + enhancer audio — GPU avec Fabien, valider les
 > 3 câblés d'abord ; model_caps_ui ×3 = enrichir la MATIÈRE d'abord — composer/reader/imager) ;
