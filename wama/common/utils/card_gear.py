@@ -25,7 +25,12 @@ Règles :
 - booléens aplatis en 'true'/'false' (le apply de la brique JS ne reconnaît pas le
   'True' de Python) ;
 - la valeur vient de `values` (dict, ex. options JSON) puis de l'attribut de modèle
-  HOMONYME (schémas derive_from_model : noms = champs) ; `extra` force/complète.
+  HOMONYME (schémas derive_from_model : noms = champs) ; `extra` force/complète ;
+- clés émises À TIRETS (`output_format` → `data-output-format`) : le dataset les expose
+  en camelCase, lu PAR LES DEUX consommateurs — le cardSettings dérivé (qui teste
+  underscore PUIS camel) ET le JS existant des apps (préremplissage de modale :
+  `btn.dataset.outputStyle`…). Une émission underscore casse le second — mesuré sur
+  describer le 18/08.
 """
 
 
@@ -39,16 +44,17 @@ def _flat(v):
 
 
 def gear_data(instance, params, values=None, extra=None) -> dict:
-    """dict {param_name: valeur aplatie} pour les data-* du bouton ⚙ (voir docstring)."""
+    """dict {nom-a-tirets: valeur aplatie} pour les data-* du bouton ⚙ (voir docstring)."""
     out = {}
     src = values or {}
     for p in params:
         if 'item' not in (getattr(p, 'contexts', None) or ()):
             continue
+        key = p.name.replace('_', '-')
         if p.name in src:
-            out[p.name] = _flat(src[p.name])
+            out[key] = _flat(src[p.name])
         else:
-            out[p.name] = _flat(getattr(instance, p.name, None))
+            out[key] = _flat(getattr(instance, p.name, None))
     for k, v in (extra or {}).items():
-        out[k] = _flat(v)
+        out[k.replace('_', '-')] = _flat(v)
     return out

@@ -16,17 +16,10 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
      data-id="{{ gen.id }}"
      data-status="{{ gen.status }}"
      data-domain="{{ domain }}"
-     data-model="{{ gen.model }}"
-     data-steps="{{ gen.steps }}"
-     data-guidance-scale="{{ gen.guidance_scale }}"
-     data-seed="{{ gen.seed|default_if_none:'' }}"
-     data-num-images="{{ gen.num_images }}"
-     data-upscale="{{ gen.upscale|yesno:'true,false' }}"
-     data-output-format="{{ gen.output_format }}"
-     data-output-quality="{{ gen.output_quality }}"
-     data-video-resolution="{{ gen.video_resolution }}"
-     data-video-duration="{{ gen.video_duration }}"
-     data-video-fps="{{ gen.video_fps }}">
+     {% comment %}data-* DÉRIVÉS du schéma du DOMAINE (brique commune card_gear, 18/08 —
+     gear_data choisit IMAGE_PARAMS/VIDEO_PARAMS selon generation_mode) ; remplace la
+     liste écrite à la main, et complète negative_prompt/image_strength oubliés.{% endcomment %}
+     {% for k, v in gen.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}>
 <div class="card-body py-2">
 
   <div class="wcv3-head">#{{ gen.id }}<span class="sep">·</span>{{ gen.created_at|date:"d/m H:i" }}</div>

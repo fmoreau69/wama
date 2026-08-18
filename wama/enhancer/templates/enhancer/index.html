@@ -558,12 +558,9 @@ document.addEventListener('DOMContentLoaded', function () {
         queueContainer: document.getElementById('enhancer-queue'),
         cardSelector: '.synthesis-card',
         itemLabel: function (id) { return "l'élément #" + id + ' (⚙ pour éditer)'; },
-        cardSettings: function (card) {
-            // Les data-* image/vidéo sont sur le bouton ⚙ (.js-open-settings), pas sur la card racine.
-            var btn = card.querySelector('.js-open-settings, .settings-btn, [data-action="settings"]') || card;
-            var d = btn.dataset;
-            return { ai_model: d.aiModel, denoise: d.denoise, blend_factor: d.blendFactor };
-        },
+        // cardSettings DÉFAUT (dérivé du schéma) : le gear porte data-action="settings"
+        // (sélecteur commun) + data-* émis par la brique card_gear ; custom supprimé le 18/08
+        // (il ne lisait que 3 params sur 5 — output_format/quality manquaient).
         saveItem: function (id, fd) { return postPanel('/enhancer/update_settings/' + id + '/', fd); },
         renderItemActions: function (host, card) {
             WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
@@ -581,11 +578,8 @@ document.addEventListener('DOMContentLoaded', function () {
         queueContainer: document.getElementById('audio-enhancer-queue'),
         cardSelector: '.synthesis-card',
         itemLabel: function (id) { return "l'audio #" + id + ' (⚙ pour éditer)'; },
-        cardSettings: function (card) {
-            var btn = card.querySelector('.settings-btn, [data-action="settings"], .js-audio-settings') || card;
-            var d = btn.dataset;
-            return { engine: d.engine, mode: d.mode, strength: d.strength, quality: d.quality };
-        },
+        // cardSettings DÉFAUT (dérivé du schéma) : gear data-action="settings" + data-*
+        // de la brique card_gear ; custom supprimé le 18/08.
         saveItem: function (id, fd) { return postPanel('/enhancer/audio/update/' + id + '/', fd); },
         renderItemActions: function (host, card) {
             WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),

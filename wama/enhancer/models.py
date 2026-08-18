@@ -111,6 +111,14 @@ class Enhancement(ProcessingTimeMixin, ScopedVisibility):
     def __str__(self):
         return f"Enhancement {self.id} ({self.user.username}) - {self.get_status_display()}"
 
+    @property
+    def gear_data(self):
+        """data-* du bouton ⚙ (reflet dans le volet inspecteur) — brique COMMUNE card_gear
+        dérivée du schéma MEDIA (remplace les attrs à la main, 18/08)."""
+        from wama.common.utils.card_gear import gear_data
+        from .params import MEDIA_PARAMS
+        return gear_data(self, MEDIA_PARAMS)
+
     def get_input_filename(self):
         """Return the input filename without path."""
         import os
@@ -195,6 +203,15 @@ class AudioEnhancement(ProcessingTimeMixin, ScopedVisibility):
 
     def __str__(self):
         return f"AudioEnhancement {self.id} ({self.user.username}) - {self.get_status_display()}"
+
+    @property
+    def gear_data(self):
+        """data-* du bouton ⚙ (reflet dans le volet inspecteur) — brique COMMUNE card_gear
+        dérivée du schéma AUDIO. Mapping DÉCLARÉ (params.py:76) : le param 'strength' du
+        schéma correspond au champ modèle denoising_strength."""
+        from wama.common.utils.card_gear import gear_data
+        from .params import AUDIO_PARAMS
+        return gear_data(self, AUDIO_PARAMS, values={'strength': self.denoising_strength})
 
     def get_input_filename(self):
         import os

@@ -101,11 +101,11 @@ Contexte : item = ReadingItem décoré par _decorate_card() (.chips, .input_prop
     <div class="wcv3-sec wcv3-sec--actions">
       <span class="wcv3-lbl">{% trans "Actions" %}</span>
       <div class="btn-group-actions wcv3-actions">
+        {% comment %}data-* DÉRIVÉS du schéma (brique commune card_gear, 18/08) — le
+        hand-written n'émettait que 3 params sur 4 (output_format oublié).{% endcomment %}
         <button class="btn btn-sm btn-outline-secondary" data-action="settings" title="{% trans "Paramètres" %}"
                 data-id="{{ item.id }}"
-                data-backend="{{ item.backend }}"
-                data-mode="{{ item.mode }}"
-                data-language="{{ item.language }}">
+                {% for k, v in item.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}>
           <i class="fas fa-cog"></i>
         </button>
         {% include 'common/_cycle_button.html' with id=item.id status=item.status %}

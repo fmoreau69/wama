@@ -395,13 +395,8 @@ document.addEventListener('DOMContentLoaded', function () {
         itemLabel: function (id) { return "l'élément #" + id; },
         batchLabel: function (id) { return "le batch #" + id + " (tous les éléments)"; },
         saveBatch: function (bid) { return postPanel('/avatarizer/batch/' + bid + '/update/').then(function () { window.location.reload(); }); },
-        cardSettings: function (card) {
-            var b = card.querySelector('.btn-settings-job');
-            if (!b) return {};
-            return {
-                use_enhancer: b.dataset.useEnhancer, bbox_shift: b.dataset.bboxShift,
-            };
-        },
+        // cardSettings DÉFAUT (dérivé du schéma) : lit les data-* du gear .btn-settings-job
+        // (sélecteur commun) — émis par la brique card_gear ; custom supprimé le 18/08.
         saveItem: function (id) { return postPanel('/avatarizer/update-options/' + id + '/').then(function () { window.location.reload(); }); },
         renderItemActions: function (host, card) {
             WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),

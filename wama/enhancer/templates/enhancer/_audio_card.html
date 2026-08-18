@@ -78,12 +78,13 @@ Contexte : ae (AudioEnhancement, décorée .chips), in_batch (bool).
     <div class="wcv3-sec wcv3-sec--actions">
       <span class="wcv3-lbl">Actions</span>
       <div class="btn-group-actions wcv3-actions">
-        <button class="btn btn-sm btn-outline-secondary js-audio-settings"
-                data-id="{{ ae.id }}" data-engine="{{ ae.engine }}"
-                data-mode="{{ ae.mode }}" data-strength="{{ ae.denoising_strength }}"
-                data-quality="{{ ae.quality }}"
-                data-output-format="{{ ae.output_format }}"
-                data-output-quality="{{ ae.output_quality }}" title="Paramètres">
+        {% comment %}data-* DÉRIVÉS du schéma AUDIO (brique commune card_gear, 18/08 —
+        strength↔denoising_strength mappé dans la property) ; data-action="settings"
+        AJOUTÉ pour le cardSettings DÉFAUT (custom supprimé).{% endcomment %}
+        <button class="btn btn-sm btn-outline-secondary js-audio-settings" data-action="settings"
+                data-id="{{ ae.id }}"
+                {% for k, v in ae.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}
+                title="Paramètres">
           <i class="fas fa-cog"></i>
         </button>
         {% include 'common/_cycle_button.html' with id=ae.id status=ae.status %}

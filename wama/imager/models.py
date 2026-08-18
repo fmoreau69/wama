@@ -365,6 +365,15 @@ class ImageGeneration(ProcessingTimeMixin, PromptScoped, ScopedVisibility):
         return self.generation_mode in ('txt2vid', 'img2vid')
 
     @property
+    def gear_data(self):
+        """data-* de réglages de la card (reflet dans le volet inspecteur) — brique COMMUNE
+        card_gear dérivée du schéma du DOMAINE (image/vidéo), remplace les attributs écrits
+        à la main sur la racine de card (18/08)."""
+        from wama.common.utils.card_gear import gear_data
+        from .params import IMAGE_PARAMS, VIDEO_PARAMS
+        return gear_data(self, VIDEO_PARAMS if self.is_video_generation else IMAGE_PARAMS)
+
+    @property
     def output_images(self):
         """Return list of image URLs for display in templates"""
         import os

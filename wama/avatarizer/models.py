@@ -134,6 +134,14 @@ class AvatarJob(ProcessingTimeMixin, ScopedVisibility):
         return f"AvatarJob #{self.id} - {self.user.username} - {self.get_mode_display()} - {self.status}"
 
     @property
+    def gear_data(self):
+        """data-* du bouton ⚙ (reflet dans le volet inspecteur + préremplissage modale JS) —
+        brique COMMUNE card_gear dérivée du schéma (remplace les attrs à la main, 18/08)."""
+        from wama.common.utils.card_gear import gear_data
+        from .params import PARAMS
+        return gear_data(self, PARAMS)
+
+    @property
     def video_filename(self):
         if self.output_video:
             return self.output_video.name.split('/')[-1]

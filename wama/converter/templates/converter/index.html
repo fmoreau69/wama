@@ -393,7 +393,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // 18/08) — le help_fallback statique par format est ambigu (mp3 multi-famille).
             var helpEl = document.getElementById('wp-panel-output_format-help');
             var gear = card.querySelector('.job-settings-btn');
-            var mt = gear && gear.dataset ? gear.dataset.media_type : '';
+            var mt = gear && gear.dataset ? gear.dataset.mediaType : '';   // data-media-type (gear_data, clés à tirets)
             if (helpEl && CONVERTER_APP.engineHelp && CONVERTER_APP.engineHelp[mt]) {
                 helpEl.textContent = CONVERTER_APP.engineHelp[mt];
             }
@@ -420,10 +420,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Cohérence au prochain clic : reflète les valeurs dans les data-* du gear.
                 var btn = q.querySelector('.job-card[data-id="' + id + '"] .job-settings-btn');
                 if (btn) {
-                    btn.setAttribute('data-output_format', p.output_format || '');
+                    btn.setAttribute('data-output-format', p.output_format || '');
                     Object.keys(p.options || {}).forEach(function (k) {
                         var v = p.options[k];
-                        btn.setAttribute('data-' + k, v === true ? 'true' : v === false ? 'false' : v);
+                        btn.setAttribute('data-' + k.replace(/_/g, '-'),
+                                         v === true ? 'true' : v === false ? 'false' : v);
                     });
                 }
             });

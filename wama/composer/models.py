@@ -74,6 +74,14 @@ class ComposerGeneration(ProcessingTimeMixin, ScopedVisibility):
         return f"[{self.get_generation_type_display()}] {self.prompt[:40]} ({self.model})"
 
     @property
+    def gear_data(self):
+        """data-* du bouton ⚙ (reflet dans le volet inspecteur + préremplissage modale JS) —
+        brique COMMUNE card_gear dérivée du schéma (remplace les attrs à la main, 18/08)."""
+        from wama.common.utils.card_gear import gear_data
+        from .params import PARAMS
+        return gear_data(self, PARAMS)
+
+    @property
     def duration_display(self):
         return f"{int(self.duration)}s"
 

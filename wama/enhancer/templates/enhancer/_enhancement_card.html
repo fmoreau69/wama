@@ -81,13 +81,12 @@ Contexte : e (Enhancement, décorée .chips), in_batch (bool).
     <div class="wcv3-sec wcv3-sec--actions">
       <span class="wcv3-lbl">Actions</span>
       <div class="btn-group-actions wcv3-actions">
-        <button class="btn btn-sm btn-outline-secondary js-open-settings"
+        {% comment %}data-* DÉRIVÉS du schéma MEDIA (brique commune card_gear, 18/08) ;
+        data-action="settings" AJOUTÉ : le cardSettings DÉFAUT de l'inspecteur trouve le
+        gear par ce sélecteur commun (le custom par app est supprimé).{% endcomment %}
+        <button class="btn btn-sm btn-outline-secondary js-open-settings" data-action="settings"
                 data-id="{{ e.id }}"
-                data-ai-model="{{ e.ai_model }}"
-                data-denoise="{{ e.denoise|lower }}"
-                data-blend-factor="{{ e.blend_factor }}"
-                data-output-format="{{ e.output_format }}"
-                data-output-quality="{{ e.output_quality }}"
+                {% for k, v in e.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}
                 title="Paramètres">
           <i class="fas fa-cog"></i>
         </button>

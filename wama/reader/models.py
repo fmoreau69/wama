@@ -78,6 +78,14 @@ class ReadingItem(ProcessingTimeMixin, ScopedVisibility):
         return f"ReadingItem {self.id} ({self.filename})"
 
     @property
+    def gear_data(self):
+        """data-* du bouton ⚙ (reflet dans le volet inspecteur) — brique COMMUNE card_gear
+        dérivée du schéma (le hand-written n'émettait QUE data-language sur 4 params, 18/08)."""
+        from wama.common.utils.card_gear import gear_data
+        from .params import PARAMS
+        return gear_data(self, PARAMS)
+
+    @property
     def filename(self):
         if self.original_filename:
             return self.original_filename

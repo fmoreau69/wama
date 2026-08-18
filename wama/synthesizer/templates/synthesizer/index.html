@@ -465,16 +465,9 @@ document.addEventListener('DOMContentLoaded', function () {
         panelContainer: ph,
         schema: schema,
         itemLabel: function (id) { return "l'élément #" + id; },
-        // data-* sur le bouton ⚙ de la card (pas la racine) → cardSettings dédié.
-        cardSettings: function (card) {
-            var b = card.querySelector('.settings-btn');
-            if (!b) return {};
-            return {
-                tts_model: b.dataset.ttsModel, language: b.dataset.language,
-                voice_preset: b.dataset.voicePreset, speed: b.dataset.speed, pitch: b.dataset.pitch,
-                output_format: b.dataset.outputFormat, output_quality: b.dataset.outputQuality,
-            };
-        },
+        // cardSettings DÉFAUT (dérivé du schéma) : lit les data-* du gear .settings-btn —
+        // émis par la brique card_gear (le custom listait 5 params à la main et avait
+        // oublié tts_model/language ; supprimé le 18/08).
         saveItem: function (id) { return saveItemReq(id).then(function () { window.location.reload(); }); },
         renderItemActions: function (host, card) {
             WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),

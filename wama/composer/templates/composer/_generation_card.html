@@ -84,14 +84,12 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
     <div class="wcv3-sec wcv3-sec--actions">
       <span class="wcv3-lbl">Actions</span>
       <div class="btn-group-actions wcv3-actions">
+        {% comment %}data-* DÉRIVÉS du schéma (brique commune card_gear, 18/08) ;
+        gen-type conservé À PART : hors schéma (discriminant, pas un réglage).{% endcomment %}
         <button class="btn btn-sm btn-outline-secondary settings-btn"
                 data-id="{{ gen.id }}"
-                data-model="{{ gen.model }}"
-                data-duration="{{ gen.duration }}"
-                data-prompt="{{ gen.prompt }}"
                 data-gen-type="{{ gen.generation_type }}"
-                data-output-format="{{ gen.output_format }}"
-                data-output-quality="{{ gen.output_quality }}"
+                {% for k, v in gen.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}
                 title="Modifier les paramètres">
           <i class="fas fa-cog"></i>
         </button>
