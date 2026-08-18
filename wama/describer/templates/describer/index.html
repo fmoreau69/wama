@@ -262,7 +262,9 @@ item (_settingsBatchId + titre échangé). Corps GÉNÉRÉ du MÊME schéma (con
 <script src="{% static_v 'common/js/batch-import.js' %}"></script>
 <script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
 <script src="{% static_v 'common/js/wama-params.js' %}"></script>
-<script src="{% static_v 'common/js/wama-app-base.js' %}"></script>
+{% comment %}⚠ wama-app-base.js est chargé GLOBALEMENT par base.html:285 — ne JAMAIS le
+ré-inclure : double BroadcastChannel → l'exclusivité audio fait taire son propre onglet
+(même défaut que converter, corrigé le 18/08).{% endcomment %}
 <script>
 (function () {
   if (!window.WamaParams) return;
