@@ -232,13 +232,13 @@ def assess_proposed_task(max_assess: int = 10):
     """
     from wama.common.utils.task_progress import publier_progression
 
-    from .services.prospect_agents import assess_proposed_ollama
+    from .services.prospect_agents import assess_proposed
 
     def publier(p, state='RUNNING'):
         publier_progression(ASSESS_CACHE_KEY, None, state, p, ASSESS_TTL)
 
     try:
-        res = assess_proposed_ollama(max_assess=max_assess, progress=publier)
+        res = assess_proposed(max_assess=max_assess, progress=publier)
     except Exception as exc:
         logger.exception("[assess_proposed] échec de la passe")
         publier({'error': str(exc)}, state='FAILURE')

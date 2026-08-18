@@ -4,8 +4,8 @@ Prospection — couche LLM multi-agents (v0), AU-DESSUS des signaux déterminist
 Deux entrées, un même juge :
   • `assess_candidate` (HF)      — candidats `prospect_hf`, contexte = carte de modèle HF.
     Consommée par la CLI `assess_models` (rapport dry-run, rien n'est persisté).
-  • `assess_proposed_ollama`     — candidats `prospect_ollama` `kind='new'` (chaîne UI),
-    contexte = ce que le registre et le catalogue savent (taille, rôle, installés comparables).
+  • `assess_proposed`            — candidats `kind='new'` de la chaîne UI (Ollama ET
+    HuggingFace/génération), contexte = registre/carte HF + installés comparables.
     PERSISTE le verdict dans la ligne candidate : `AIModel.confidence` +
     `extra_info['prospect']['assess']` — la card et l'inspecteur les affichent déjà.
     Comble la SUITE (a) de la prospection (2026-06-24) : les `new` restaient à
@@ -153,14 +153,7 @@ def _contexte_ollama(cand) -> str:
         taille = ollama_registry.taille_go(nom, tag or 'latest')
     except Exception:
         taille = None
-    comparables = AIModel.objects.filter(
-        source='ollama', is_downloaded=True, is_proposed=False,
-        model_type=cand.model_type,
-    ).order_by('-quality_index')[:5]
-    lignes = "\n".join(
-        f"  - {m.name} (indice a priori {m.quality_index}, VRAM {m.vram_gb} Go)"
-        for m in comparables
-    ) or "  (aucun)"
+    lignes = _referentiel(cand.model_type)
     return (
         f"Modèle candidat de la bibliothèque Ollama : {cand.name}\n"
         f"Rôle WAMA visé : {p.get('role') or cand.model_type} — {p.get('reason', '')}\n"
@@ -169,13 +162,44 @@ def _contexte_ollama(cand) -> str:
     )
 
 
-def assess_proposed_ollama(max_assess: int = 10, agents=None, timeout: int = 120,
-                           progress=None) -> dict:
+def _referentiel(model_type: str) -> str:
+    """Référentiel installé d'un type, en lignes lisibles (brique `meilleurs_installes`)."""
+    from wama.model_manager.models import AIModel
+    return "\n".join(
+        f"  - {m.name} (indice a priori {m.quality_index}, VRAM {m.vram_gb} Go)"
+        for m in AIModel.meilleurs_installes(model_type, limit=5)
+    ) or "  (aucun)"
+
+
+def _contexte_hf(cand) -> str:
     """
-    Confronte les candidats Ollama `kind='new'` SANS confiance à N agents LLM et PERSISTE :
+    Contexte d'un candidat HuggingFace (prospection génération) : la CARTE de modèle HF
+    (même source factuelle que la voie CLI `assess_models`) + popularité + référentiel.
+    """
+    p = (cand.extra_info or {}).get('prospect', {})
+    carte = _hf_card_excerpt(cand.hf_id)
+    return (
+        f"Modèle HF candidat : {cand.hf_id}\n"
+        f"Rôle WAMA visé : {p.get('role') or cand.model_type} — {p.get('reason', '')}\n"
+        f"Téléchargements : {p.get('downloads')} | Likes : {p.get('likes')} | "
+        f"Poids : {cand.disk_gb or '?'} Go\n"
+        f"Modèles déjà installés pour ce type (référentiel à surpasser) :\n"
+        f"{_referentiel(cand.model_type)}\n"
+        f"Carte (extrait) :\n{carte or '(non disponible)'}"
+    )
+
+
+def assess_proposed(max_assess: int = 10, agents=None, timeout: int = 120,
+                    progress=None) -> dict:
+    """
+    Confronte les candidats `kind='new'` SANS confiance (Ollama ET HuggingFace) à N agents
+    LLM et PERSISTE :
       - `AIModel.confidence` = probabilité que l'adoption vaille le coup, consolidée des avis
         (un avis « contre » à confiance c compte pour 1−c — un « non » sûr tire vers 0) ;
       - `extra_info['prospect']['assess']` = consensus + avis détaillés (badge card + inspecteur).
+
+    Le contexte factuel dépend de la source : registre + référentiel installé (Ollama),
+    carte de modèle HF + popularité + référentiel (HuggingFace — même source que la CLI).
 
     Idempotent et incrémental : ne traite que `confidence IS NULL`, `max_assess` par passe
     (les suivants partent à la passe d'après). `progress(dict)` optionnel pour publication.
@@ -186,7 +210,8 @@ def assess_proposed_ollama(max_assess: int = 10, agents=None, timeout: int = 120
     agents = agents or parse_agents(
         getattr(settings, 'PROSPECT_ASSESS_AGENTS', _AGENTS_DEFAUT))
     file_attente = AIModel.objects.filter(
-        is_proposed=True, source='ollama', proposal_kind='new', confidence__isnull=True,
+        is_proposed=True, source__in=('ollama', 'huggingface'),
+        proposal_kind='new', confidence__isnull=True,
     ).order_by('name')
     cands = list(file_attente[:max_assess])
 
@@ -194,7 +219,9 @@ def assess_proposed_ollama(max_assess: int = 10, agents=None, timeout: int = 120
     for i, cand in enumerate(cands):
         if progress:
             progress({'current': cand.name, 'done': i, 'total': len(cands)})
-        opinions = [_juger(_contexte_ollama(cand), p, m, timeout=timeout)
+        contexte = (_contexte_hf(cand) if cand.source == 'huggingface'
+                    else _contexte_ollama(cand))
+        opinions = [_juger(contexte, p, m, timeout=timeout)
                     for (p, m) in agents]
         consensus = _consolider(opinions)
         if consensus is None:
@@ -215,7 +242,8 @@ def assess_proposed_ollama(max_assess: int = 10, agents=None, timeout: int = 120
                     cand.name, cand.confidence, consensus['recommend'], consensus['n_agents'])
 
     restants = AIModel.objects.filter(
-        is_proposed=True, source='ollama', proposal_kind='new', confidence__isnull=True,
+        is_proposed=True, source__in=('ollama', 'huggingface'),
+        proposal_kind='new', confidence__isnull=True,
     ).count()
     resume = {'assessed': evalues, 'no_verdict': sans_avis, 'remaining': restants}
     logger.info("[prospect_agents] passe terminée : %s", resume)

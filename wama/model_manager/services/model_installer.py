@@ -233,6 +233,21 @@ def installer_candidat(cand, progress=None) -> dict:
     """
     from ..models import AIModel
 
+    # ── Candidat porteur d'un SPEC non-Ollama (génération HF…) : le driver est
+    # `install_from_spec` (pull au bon dossier + sync + provenance — RÉUTILISÉ, pas
+    # réécrit). Pas de séquence de remplacement ici : un candidat HF est toujours
+    # `kind='new'` (la MAJ des installés HF relève d'update_checker).
+    spec = (cand.extra_info or {}).get('prospect', {}).get('spec')
+    if spec and spec.get('kind') and spec['kind'] != 'ollama':
+        if progress:
+            progress(f"téléchargement {spec.get('ref')} (HuggingFace)…")
+        res = install_from_spec(spec)
+        if not res.get('ok'):
+            return {'ok': False, 'error': res.get('error', 'installation échouée')}
+        installed_name = cand.name
+        cand.delete()
+        return {'ok': True, 'installed': installed_name, 'path': res.get('path')}
+
     rollback = None
     remplace, _ = modele_remplace(cand)
     origine_key = (cand.extra_info or {}).get('prospect', {}).get('origin_key')

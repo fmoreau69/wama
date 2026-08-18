@@ -70,7 +70,7 @@ def _metrique_declaree(card_data):
 
 
 def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_downloads: int = 0,
-                search: str | None = None):
+                search: str | None = None, sort: str = 'downloads'):
     """
     Top modèles HF d'une `task` (par téléchargements), avec flag « déjà dans WAMA ».
     Retourne {'ok': True, 'task': str, 'candidates': [...]} ou {'ok': False, 'error': str}.
@@ -99,7 +99,10 @@ def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_down
 
     api = HfApi()
     # huggingface_hub 1.x : filtrage par tâche = `pipeline_tag` (pas `task`), librairie via `filter`.
-    kwargs = {'pipeline_tag': task, 'sort': 'downloads', 'limit': limit,
+    # `sort` : 'downloads' (éprouvé) ou 'trendingScore' (ce qui MONTE — seul tri qui fait
+    # sortir une famille fraîchement publiée avant qu'elle domine les téléchargements ;
+    # vérifié 2026-08-18 : le top downloads text-to-video ignorait les sorties de la semaine).
+    kwargs = {'pipeline_tag': task, 'sort': sort, 'limit': limit,
               'expand': ['downloads', 'likes', 'lastModified', 'pipeline_tag', 'cardData']}
     if library:
         kwargs['filter'] = library
@@ -142,6 +145,139 @@ def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_down
             'url': f"https://huggingface.co/{m.id}",
         })
     return {'ok': True, 'task': task, 'candidates': candidates}
+
+
+# ── Prospection GÉNÉRATION (image/vidéo) → candidats `is_proposed` (cards UI) ──────
+# Tâches HF balayées et leur catégorie d'installation (dossier `model_locations`).
+# Déclaratif : élargir la prospection génération = ajouter une entrée.
+GENERATION_TASKS = {
+    'text-to-image': 'diffusion',
+    'text-to-video': 'diffusion',
+    'image-to-video': 'diffusion',
+}
+
+#: Un dépôt de génération sous ce poids est un LoRA/config, pas un modèle installable seul.
+_POIDS_MIN_GO = 1.0
+
+#: Motifs de BRUIT dans l'id d'un dépôt de génération : dérivés (LoRA, quantifs, repacks
+#: d'outils tiers) qui noient les modèles canoniques — mesuré 2026-08-18 : le trending
+#: text-to-video était aux 3/4 des LoRA MiniMax-H3 de particuliers.
+_MOTIFS_BRUIT = ('lora', 'gguf', 'comfyui', 'repackaged', 'fp8', 'bnb',
+                 'int4', 'int8', 'fp4', 'nvfp4', '4bit')
+
+
+def _poids_depot_go(hf_id: str):
+    """Poids total d'un dépôt HF en Go (somme des fichiers), ou None si indéterminable.
+    Un appel HTTP par dépôt : à réserver aux candidats RETENUS, pas au listing."""
+    try:
+        from huggingface_hub import HfApi
+        info = HfApi().model_info(hf_id, files_metadata=True)
+        total = sum((s.size or 0) for s in (info.siblings or []))
+        return round(total / 1024 ** 3, 1) if total else None
+    except Exception as e:
+        logger.debug("[prospect_generation] poids de %s indéterminable : %s", hf_id, e)
+        return None
+
+
+def seed_generation_candidates(max_par_tache: int = 5, limit: int = 12,
+                               min_downloads: int = 1000) -> dict:
+    """
+    Candidats `is_proposed` pour la GÉNÉRATION image/vidéo — pendant HF de la découverte
+    par rôles de `prospect_ollama` (2026-08-18, demande Fabien : « que Wan3 sorte »).
+
+    Réutilise : `prospect_hf` (découverte + flag « déjà chez nous » + licence + poids),
+    `ecrire_candidat` (writer unique, garde de préservation des évaluations comprise),
+    `AIModel.meilleurs_installes` (référentiel `concurrence` affiché sur la card).
+    Chaque candidat porte son **spec d'installation** (`install_from_spec`) — c'était le
+    RESTE (3) du pipeline (« spec attaché aux candidats »).
+
+    Purge CIBLÉE comme dans prospect_ollama : uniquement le périmètre des tâches dont le
+    balayage a ABOUTI (une panne réseau HF ne vide pas la liste).
+    """
+    from wama.model_manager.models import AIModel
+    from .prospect_ollama import PROPOSED_PREFIX, ecrire_candidat
+
+    crees = maj = 0
+    vus: set = set()
+    taches_ok: list = []
+    refs_type: dict = {}
+
+    for tache, categorie in GENERATION_TASKS.items():
+        # Deux tris complémentaires : `downloads` = l'éprouvé, `trendingScore` = ce qui
+        # MONTE (une famille publiée cette semaine — c'est LE tri qui la fait sortir avant
+        # qu'elle domine les téléchargements). Dédupliqués via `vus`.
+        candidats, ok_tache = [], False
+        for tri in ('downloads', 'trendingScore'):
+            res = prospect_hf(tache, limit=limit, min_downloads=(min_downloads
+                              if tri == 'downloads' else 0), sort=tri)
+            if res.get('ok'):
+                ok_tache = True
+                candidats.extend(res['candidates'])
+            else:
+                logger.warning("[prospect_generation] %s (%s) indisponible : %s",
+                               tache, tri, res.get('error'))
+        if not ok_tache:
+            continue
+        taches_ok.append(tache)
+        model_type = _TASK_MODEL_TYPE.get(tache, 'diffusion')
+        if model_type not in refs_type:
+            # Identité courte : `name` du catalogue porte parfois un descriptif après « — ».
+            refs_type[model_type] = [
+                (m.name or '').split('—')[0].strip()
+                for m in AIModel.meilleurs_installes(model_type)]
+        retenus = 0
+        for c in candidats:
+            if retenus >= max_par_tache:
+                break
+            hf_id = c['hf_id']
+            cand_key = PROPOSED_PREFIX + f"hf:{hf_id}"
+            if c['have'] or cand_key in vus:
+                continue
+            if any(motif in hf_id.lower() for motif in _MOTIFS_BRUIT):
+                continue    # dérivé (LoRA/quantif/repack), pas un modèle canonique
+            poids = _poids_depot_go(hf_id)   # un appel HTTP — candidats retenus seulement
+            if poids is not None and poids < _POIDS_MIN_GO:
+                continue    # LoRA/config : pas un modèle installable seul
+            vus.add(cand_key)
+            retenus += 1
+            cree = ecrire_candidat(
+                cand_key, nom=hf_id.split('/')[-1], model_type=model_type,
+                source='huggingface',
+                description=(f"[Génération {tache}] {c['downloads']} téléchargements, "
+                             f"{c['likes']} ♥ — proposé par la bibliothèque HuggingFace."),
+                kind='new', confidence=None,
+                extra={'kind': 'new', 'role': f"generation:{tache}", 'name': hf_id,
+                       'reason': f"tâche {tache} — non installé",
+                       'concurrence': refs_type[model_type],
+                       'downloads': c['downloads'], 'likes': c['likes'],
+                       'metrique': c.get('metrique'),
+                       'spec': {'kind': 'hf', 'ref': hf_id, 'category': categorie,
+                                'note': f"prospection génération {tache}"}},
+                hf_id=hf_id, license=str(c.get('license') or '')[:64],
+                platform_ref=f"huggingface:{hf_id}",
+                disk_gb=poids or 0.0,     # 0.0 = inconnu → la garde d'espace refusera (forçable)
+            )
+            crees += int(cree)
+            maj += int(not cree)
+
+    supprimes = 0
+    roles_ok = {f"generation:{t}" for t in taches_ok}
+    if roles_ok:
+        perimetre = AIModel.objects.filter(
+            is_proposed=True, source='huggingface', proposal_kind='new',
+            model_key__startswith=PROPOSED_PREFIX + 'hf:',
+        ).exclude(model_key__in=vus)
+        for m in perimetre:
+            # Ne purger que le périmètre des tâches qui ont réellement abouti : un candidat
+            # d'une tâche en échec réseau reste en place (même règle que prospect_ollama).
+            if (m.extra_info.get('prospect', {}).get('role') or '') in roles_ok:
+                m.delete()
+                supprimes += 1
+
+    resume = {'created': crees, 'updated': maj, 'removed': supprimes,
+              'total': len(vus), 'tasks_ok': taches_ok}
+    logger.info("[prospect_generation] %s", resume)
+    return resume
 
 
 def apply_recommendations(candidates, source: str, task: str):

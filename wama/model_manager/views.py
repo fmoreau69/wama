@@ -1428,7 +1428,8 @@ MARGE_DISQUE_GO = 10.0
 # (2026-08-18) : la tâche Celery d'installation en a besoin autant que la garde d'espace.
 
 
-def _garde_espace_disque(ref: str, *, reclaim_gb: float = 0.0, force: bool = False):
+def _garde_espace_disque(ref: str, *, reclaim_gb: float = 0.0, force: bool = False,
+                         besoin_gb: float | None = None):
     """
     Refuse une installation qui saturerait le volume. Retourne None si l'installation peut
     passer, sinon le dict d'erreur à renvoyer tel quel.
@@ -1448,8 +1449,13 @@ def _garde_espace_disque(ref: str, *, reclaim_gb: float = 0.0, force: bool = Fal
     from wama.common.services.system_monitor import SystemMonitor
     from .services.ollama_registry import taille_go
 
-    nom, _, tag = ref.partition(':')
-    besoin = taille_go(nom, tag or 'latest')
+    # `besoin_gb` fourni (candidat HF : poids `usedStorage` relevé à la prospection) →
+    # pas d'interrogation du registre Ollama, qui ne connaît pas ces modèles.
+    if besoin_gb:
+        besoin = float(besoin_gb)
+    else:
+        nom, _, tag = ref.partition(':')
+        besoin = taille_go(nom, tag or 'latest')
     disque = SystemMonitor.get_disk_info()
     if disque is None:
         return None if force else {
@@ -1492,6 +1498,15 @@ def api_prospect_ollama(request):
     from .services.prospect_ollama import prospect_ollama
     try:
         summary = prospect_ollama()
+        # ── Prospection GÉNÉRATION image/vidéo (HF) — même clic, périmètre séparé ──
+        # Une panne HF ne doit pas faire échouer la prospection Ollama (et inversement).
+        try:
+            from .services.prospector import seed_generation_candidates
+            summary['generation'] = seed_generation_candidates()
+            summary['total'] = (summary.get('total') or 0) + summary['generation']['total']
+        except Exception:
+            logger.warning("prospection génération HF en échec", exc_info=True)
+            summary['generation'] = {'error': 'indisponible'}
         try:
             from .tasks import assess_proposed_task
             assess_proposed_task.delay()
@@ -1542,8 +1557,11 @@ def api_prospect_install(request):
         cand = AIModel.objects.filter(model_key=model_id, is_proposed=True).first()
         if not cand:
             return JsonResponse({'success': False, 'error': 'Candidat introuvable'}, status=404)
-        if cand.source != 'ollama':
-            return JsonResponse({'success': False, 'error': 'Installation Ollama uniquement (phase 1)'}, status=400)
+        cand_spec = (cand.extra_info or {}).get('prospect', {}).get('spec')
+        if cand.source != 'ollama' and not cand_spec:
+            return JsonResponse({'success': False,
+                                 'error': "Candidat sans spec d'installation (source "
+                                          f"{cand.source}) — non installable."}, status=400)
 
         # ── GARDE D'ESPACE DISQUE (SYNCHRONE : le 507/forçage est un dialogue) ──
         # `ollama pull` n'a AUCUN garde-fou : il télécharge jusqu'à saturer le volume. Mesuré le
@@ -1558,7 +1576,11 @@ def api_prospect_install(request):
         remplace, reclaim_gb = modele_remplace(cand)
 
         garde = _garde_espace_disque(cand.name, reclaim_gb=reclaim_gb,
-                                     force=bool(data.get('force')))
+                                     force=bool(data.get('force')),
+                                     # HF : poids relevé à la prospection (usedStorage) ;
+                                     # 0.0 = inconnu → refus prudent avec forçage possible.
+                                     besoin_gb=(cand.disk_gb or None)
+                                               if cand.source != 'ollama' else None)
         if garde is not None:
             garde['replaces'] = remplace
             return JsonResponse(garde, status=507)   # 507 Insufficient Storage

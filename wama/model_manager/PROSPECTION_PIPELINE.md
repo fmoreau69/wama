@@ -273,3 +273,39 @@ Trois écarts trouvés dans la livraison ci-dessus et corrigés dans la foulée 
    `common/utils/task_progress.py` (`publier_progression` + `progression_en_cours`),
    adoptée par les miroirs, l'install et l'assess ; entrée ajoutée au registre
    `mecanismes.py` (carte régénérée par `doc_facts --only mecanismes`).
+
+## État livré — session du 2026-08-18 (suite) : prospection GÉNÉRATION image/vidéo + « remplace/concurrence » sur les cards
+
+Demande Fabien : « que Wan3 sorte » + voir depuis la card d'un candidat ce qu'il pourrait
+remplacer. ⚠ Constat factuel au passage : **Wan3 n'existe pas sur HF à ce jour** (dernières
+sorties Wan-AI = Wan2.2-Animate-2 ; les dépôts « wan3 » sont des utilisateurs sans rapport) —
+le mécanisme le fera sortir dès publication, via le tri TENDANCE.
+
+1. **`prospector.seed_generation_candidates()`** — pendant HF de la découverte par rôles :
+   balaye `GENERATION_TASKS` (text-to-image / text-to-video / image-to-video, déclaratif)
+   avec DEUX tris complémentaires (`downloads` = l'éprouvé, `trendingScore` = ce qui monte —
+   vérifié : seul ce tri fait sortir LTX-2.5-Diffusers à 3 747 dl), filtre de bruit
+   déclaratif `_MOTIFS_BRUIT` (LoRA/GGUF/ComfyUI/quantifs — le trending était aux 3/4 des
+   LoRA de particuliers), poids RÉEL par `model_info(files_metadata=True)` sur les seuls
+   retenus (LTX-2 = 292,8 Go mesurés → la garde d'espace est sérieuse ici), et candidats
+   écrits par le writer UNIQUE `ecrire_candidat` (généralisé : source/complexité/champs).
+   Chaque candidat porte son **spec d'installation** (`install_from_spec`) — RESTE (3)
+   du pipeline enfin comblé. Purge scopée par tâche ABOUTIE (règle prospect_ollama).
+   Branché au MÊME clic « Prospecter » (échec HF ≠ échec Ollama). Le bruit résiduel
+   (finetunes de particuliers dans le trending) est le travail de la confrontation LLM.
+2. **Install HF asynchrone** : `installer_candidat` route les candidats porteurs d'un spec
+   non-Ollama vers `install_from_spec` (RÉUTILISÉ : bon dossier + sync + provenance) ;
+   garde d'espace généralisée (`besoin_gb` = poids relevé à la prospection, 0.0 = inconnu
+   → refus prudent forçable) ; `assess_proposed` (ex-`assess_proposed_ollama`) évalue
+   AUSSI les candidats HF — contexte = carte de modèle HF (même source que la CLI).
+3. **Cards/inspecteur** : ligne « Remplace <ancien> » (candidat successeur — ce que
+   l'installation RETIRE) ou « Concurrence : a, b, c » (candidat nouveau — les meilleurs
+   installés du même type via `AIModel.meilleurs_installes`, persistés dans
+   `prospect.concurrence` par les deux prospections). ⚠ Un candidat NOUVEAU ne déclenche
+   JAMAIS de retrait automatique : la concurrence est un référentiel affiché, l'arbitrage
+   réel reste la sélection (indices) puis l'humain.
+
+RESTE (mis à jour) : beat hebdo (Ollama + génération) ; vision (YOLO) auto-proposée ;
+`createMirrorBackupUI` à rebaser sur WamaApp.Poller (dette antérieure) ; chargeur/backends
+pour EXPLOITER un modèle diffusion fraîchement installé (installé+catalogué ≠ utilisable,
+cf. note pull_hf_model).

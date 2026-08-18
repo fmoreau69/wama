@@ -466,6 +466,21 @@ class AIModel(models.Model):
             return f"{self.ram_gb:.1f}GB RAM"
         return "Unknown"
 
+    @classmethod
+    def meilleurs_installes(cls, model_type: str, limit: int = 3):
+        """
+        Les meilleurs modèles INSTALLÉS d'un type (indice a priori décroissant, NULL en
+        queue) — le référentiel qu'un candidat de prospection devrait surpasser.
+        Consommé par la prospection (champ `concurrence` des candidats, affiché sur la
+        card) et par la confrontation LLM (`prospect_agents`).
+        """
+        from django.db.models import F
+        return list(
+            cls.objects.filter(model_type=model_type, is_downloaded=True,
+                               is_proposed=False)
+            .order_by(F('quality_index').desc(nulls_last=True))[:limit]
+        )
+
     def to_dict(self):
         """Convert to dictionary for API responses."""
         return {

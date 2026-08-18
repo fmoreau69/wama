@@ -80,16 +80,26 @@ def _installes() -> set:
     }
 
 
-def _ecrire(cand_key, *, nom, model_type, description, kind, confidence, extra):
+def ecrire_candidat(cand_key, *, nom, model_type, description, kind, confidence, extra,
+                    source='ollama', complexite='simple', **champs):
+    """
+    Écrit/rafraîchit UN candidat de prospection (`AIModel(is_proposed=True)`).
+
+    Writer UNIQUE, toutes sources (généralisé le 2026-08-18 pour la prospection
+    génération HF — `prospector.seed_generation_candidates`) : c'est lui qui porte la
+    garde de préservation des évaluations LLM, elle doit valoir partout.
+    `champs` : colonnes additionnelles (hf_id, license, platform_ref, disk_gb…).
+    """
     from wama.model_manager.models import AIModel
     defaults = dict(
-        name=nom, model_type=model_type, source='ollama',
+        name=nom, model_type=model_type, source=source,
         description=description, is_proposed=True, proposal_kind=kind,
         confidence=confidence,
-        update_complexity='simple',      # `ollama pull` : remplacement en place
+        update_complexity=complexite,    # ollama pull / snapshot HF : install en place
         is_downloaded=False, is_loaded=False, is_available=False, hf_id='',
         extra_info={'prospect': extra},
     )
+    defaults.update(champs)
     # Une évaluation LLM persistée (`assess_proposed_ollama`) a COÛTÉ des appels d'agents :
     # la re-prospection rafraîchit le candidat (raison, cible…), elle ne l'efface pas.
     # Sans cette garde, chaque clic « Prospecter » remettait `confidence=None` sur tous
@@ -163,11 +173,11 @@ def prospect_ollama(age_days_threshold: int = 120, include_new: bool = True,
         else:
             desc = f"Mise à jour suggérée — {r.get('reason', 'version locale ancienne')}."
             conf = _confidence_from_age(age)
-        cree = _ecrire(cand_key, nom=cible or src.name, model_type=src.model_type,
-                       description=desc, kind='update', confidence=conf,
-                       extra={'kind': 'update', 'origin_key': origine,
-                              'reason': r.get('reason', ''), 'age_days': age,
-                              'cible': cible})
+        cree = ecrire_candidat(cand_key, nom=cible or src.name, model_type=src.model_type,
+                               description=desc, kind='update', confidence=conf,
+                               extra={'kind': 'update', 'origin_key': origine,
+                                      'reason': r.get('reason', ''), 'age_days': age,
+                                      'cible': cible})
         crees += int(cree)
         maj += int(not cree)
 
@@ -181,7 +191,14 @@ def prospect_ollama(age_days_threshold: int = 120, include_new: bool = True,
                                             proposal_kind='update')
         } - {''}
         deja = set(installes) | familles_ciblees
+        # Référentiel « à surpasser » par type — calculé UNE fois par rôle et PERSISTÉ sur le
+        # candidat (`concurrence`) : c'est ce que la card affiche pour répondre à « qu'est-ce
+        # que ce nouveau modèle pourrait remplacer ? » (demande Fabien 2026-08-18).
+        _refs_type: dict = {}
         for nom_role, role in ROLES.items():
+            if role['model_type'] not in _refs_type:
+                _refs_type[role['model_type']] = [
+                    m.name for m in AIModel.meilleurs_installes(role['model_type'])]
             retenus = 0
             for req in (role['requetes'] or ('',)):
                 res = reg.rechercher(requete=req, capacite=role['capacite'])
@@ -198,12 +215,13 @@ def prospect_ollama(age_days_threshold: int = 120, include_new: bool = True,
                     vus_new.add(cand_key)
                     deja.add(nom)
                     retenus += 1
-                    cree = _ecrire(
+                    cree = ecrire_candidat(
                         cand_key, nom=ref, model_type=role['model_type'],
                         description=f"[{role['libelle']}] Proposé par la bibliothèque Ollama.",
                         kind='new', confidence=None,
                         extra={'kind': 'new', 'role': nom_role, 'name': ref,
-                               'reason': f"rôle {nom_role} — non installé"})
+                               'reason': f"rôle {nom_role} — non installé",
+                               'concurrence': _refs_type[role['model_type']]})
                     crees += int(cree)
                     maj += int(not cree)
 
