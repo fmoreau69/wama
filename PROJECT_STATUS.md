@@ -2515,6 +2515,27 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 >   non vérifié/jeu de l'auteur → affiché en prospection avec `jeu`+`verifie`, volontairement
 >   PAS injecté dans `quality_index` (« de quoi trier des candidats, pas de quoi conclure »).
 >   Sans effet sur le cas qwen3.8 (modèle Ollama, pas de fiche HF à model-index).
+> - **INDICE RÉVISÉ (19/08, décision Fabien)** : paramètres EFFECTIFS √(totaux×actifs) dans
+>   `indice_qualite()` (un dense inchangé, un MoE ramené entre actifs et totaux) ; re-sync
+>   live validé : **heavy→qwen3.8**, fast/default inchangés (gemma4:12b). Limite assumée en
+>   docstring : l'√ sur-pénalise sans doute la sparsité extrême — confirmé par les mesures
+>   AA ci-dessous (qwen3.6:35b-A3B mesuré 43, DEVANT Gemma4 31B à 39, alors que notre √ le
+>   met sous gemma4:12b). Le correctif de fond = le signal benchmark.
+> - **VÉRIFICATION « comparateurs/benchmarks » (question Fabien 19/08)** : ai-sdk.dev =
+>   Vercel AI SDK (toolkit TS + gateway multi-fournisseurs, catalogue capacités/prix) — PAS
+>   un mesureur de qualité. Les bonnes sources, qui COUVRENT nos modèles open-weights :
+>   ① **Artificial Analysis** — Data API PUBLIQUE GRATUITE (1 000 req/j), Intelligence Index
+>   composite v4.1 mesuré par eux (Qwen3.6 27B=46, **Qwen3.6 35B-A3B=43**, Qwen3.5 27B=42,
+>   Gemma4 31B=39) + Elo + prix/vitesse ; ② **Arena (ex-LMArena) Elo** — pas d'API publique,
+>   mais dataset HF officiel `lmarena-ai/leaderboard-dataset` + miroir JSON quotidien GitHub
+>   `arena-ai-leaderboards` (= la « confrontation » à 2 sources indépendantes).
+>   **CHANTIER PROPOSÉ (non ouvert)** — échelle des signaux : a priori < benchmark tiers
+>   confronté < mesure interne (qui primera toujours, contrainte qc.py) : champ SÉPARÉ
+>   `benchmark_index`+méta sur AIModel (PAS quality_index — évite la tension sync),
+>   commande `sync_benchmarks` (patron check_dep_vulns : code 3 = réseau absent → SKIP ;
+>   appariement nom AA ↔ tag ollama par famille+taille, non-apparié = null plutôt que
+>   plausible ; ⚠ AA mesure fp8/16, nous Q4 → borne haute à tracer), classement
+>   `select_model` : benchmark prime sur a priori quand présent. À arbitrer par Fabien.
 > - 🔚 **Pending B** : ✅ restart FAIT par Fabien 18/08 (~17h) → catégorie `'3d'` et fix
 >   `get_imager_status` VIVANTS ; suite du chantier 3D = ROADMAP §17ter trous 2-6 (preview
 >   médiathèque, port déclaré par une app, prospection modèles 2D→3D — quand Fabien la demande).
