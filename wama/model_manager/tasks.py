@@ -169,6 +169,87 @@ def backup_db_task(keep: int = 10):
     return report
 
 
+#: Avancement d'une installation de candidat de prospection — clé PAR modèle (deux
+#: installations peuvent coexister), lue par `api_prospect_install_progress`. Même motif
+#: que BACKUP_ALL_CACHE_KEY : le cache survit au F5 (le navigateur perd le task_id).
+INSTALL_CACHE_PREFIX = 'model_manager:prospect_install:'
+INSTALL_TTL = 6 * 3600
+
+#: Avancement de la passe d'évaluation LLM des candidats (confiance).
+ASSESS_CACHE_KEY = 'model_manager:assess_proposed'
+ASSESS_TTL = 6 * 3600
+
+
+@shared_task(bind=True, name='model_manager.install_proposed')
+def install_proposed_task(self, model_key: str):
+    """
+    Installe un candidat de prospection Ollama EN TÂCHE DE FOND — remplace le corps
+    synchrone de `api_prospect_install` (2026-08-18). Motif : un pull de 18 Go dans la
+    requête dépassait le timeout du proxy Apache → le navigateur recevait une page HTML
+    d'erreur pendant que le worker continuait en aveugle, et un re-clic ouvrait une
+    requête CONCURRENTE au lieu de rejoindre celle en cours.
+
+    La garde d'espace disque reste dans la VUE (réponse immédiate 507/force) ; ici on
+    n'exécute que la séquence longue (`installer_candidat`), en publiant l'avancement
+    du pull (avec %) dans le cache Redis.
+    """
+    from django.core.cache import cache
+
+    from .models import AIModel
+    from .services.model_installer import installer_candidat
+
+    cache_key = INSTALL_CACHE_PREFIX + model_key
+
+    def publier(state: str, payload: dict):
+        # `state`/`task_id` en DERNIER : ils doivent gagner sur le payload (même règle
+        # que run_mirror_job).
+        cache.set(cache_key, dict(payload, state=state, task_id=self.request.id),
+                  INSTALL_TTL)
+
+    cand = AIModel.objects.filter(model_key=model_key, is_proposed=True).first()
+    if not cand:
+        publier('FAILURE', {'error': 'Candidat introuvable (déjà installé ou rejeté ?)'})
+        return {'ok': False, 'error': 'Candidat introuvable'}
+
+    publier('RUNNING', {'status': 'démarrage…', 'name': cand.name})
+    try:
+        res = installer_candidat(
+            cand, progress=lambda s: publier('RUNNING', {'status': s, 'name': cand.name}))
+    except Exception as exc:
+        logger.exception("[install_proposed] échec inattendu pour %s", model_key)
+        publier('FAILURE', {'error': f"{type(exc).__name__}: {exc}", 'name': cand.name})
+        raise
+    publier('SUCCESS' if res.get('ok') else 'FAILURE', dict(res, name=cand.name))
+    logger.info("[install_proposed] %s → %s", model_key,
+                'installé' if res.get('ok') else res.get('error'))
+    return res
+
+
+@shared_task(name='model_manager.assess_proposed')
+def assess_proposed_task(max_assess: int = 10):
+    """
+    Passe d'évaluation LLM des candidats de prospection Ollama `new` (confiance) —
+    enfilée à la fin de `api_prospect_ollama` (fire-and-forget) : les badges de
+    confiance se remplissent au fil de la passe, la card lit `AIModel.confidence`.
+    Incrémentale : `max_assess` candidats par passe, le reste à la passe suivante.
+    """
+    from django.core.cache import cache
+
+    from .services.prospect_agents import assess_proposed_ollama
+
+    def publier(p):
+        cache.set(ASSESS_CACHE_KEY, dict(p, state='RUNNING'), ASSESS_TTL)
+
+    try:
+        res = assess_proposed_ollama(max_assess=max_assess, progress=publier)
+    except Exception as exc:
+        logger.exception("[assess_proposed] échec de la passe")
+        cache.set(ASSESS_CACHE_KEY, {'state': 'FAILURE', 'error': str(exc)}, ASSESS_TTL)
+        raise
+    cache.set(ASSESS_CACHE_KEY, dict(res, state='SUCCESS'), ASSESS_TTL)
+    return res
+
+
 @shared_task(name='model_manager.update_loaded_status')
 def update_loaded_status_task(model_key: str, is_loaded: bool):
     """

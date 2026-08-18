@@ -82,17 +82,26 @@ def _installes() -> set:
 
 def _ecrire(cand_key, *, nom, model_type, description, kind, confidence, extra):
     from wama.model_manager.models import AIModel
-    _, cree = AIModel.objects.update_or_create(
-        model_key=cand_key,
-        defaults=dict(
-            name=nom, model_type=model_type, source='ollama',
-            description=description, is_proposed=True, proposal_kind=kind,
-            confidence=confidence,
-            update_complexity='simple',      # `ollama pull` : remplacement en place
-            is_downloaded=False, is_loaded=False, is_available=False, hf_id='',
-            extra_info={'prospect': extra},
-        ),
+    defaults = dict(
+        name=nom, model_type=model_type, source='ollama',
+        description=description, is_proposed=True, proposal_kind=kind,
+        confidence=confidence,
+        update_complexity='simple',      # `ollama pull` : remplacement en place
+        is_downloaded=False, is_loaded=False, is_available=False, hf_id='',
+        extra_info={'prospect': extra},
     )
+    # Une évaluation LLM persistée (`assess_proposed_ollama`) a COÛTÉ des appels d'agents :
+    # la re-prospection rafraîchit le candidat (raison, cible…), elle ne l'efface pas.
+    # Sans cette garde, chaque clic « Prospecter » remettait `confidence=None` sur tous
+    # les `new` et repartait de zéro (constaté à la conception, 2026-08-18).
+    existant = AIModel.objects.filter(model_key=cand_key, is_proposed=True).first()
+    if existant:
+        assess = ((existant.extra_info or {}).get('prospect') or {}).get('assess')
+        if assess:
+            defaults['extra_info'] = {'prospect': dict(extra, assess=assess)}
+            if confidence is None:
+                defaults['confidence'] = existant.confidence
+    _, cree = AIModel.objects.update_or_create(model_key=cand_key, defaults=defaults)
     return cree
 
 

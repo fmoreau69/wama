@@ -57,6 +57,7 @@ RUNTIME_LOGS = (
     "gunicorn-error.log",
     "model-sync.log",
     "tts-service.log",
+    "wama.log",           # journal applicatif global (loggers `wama.*`, common/apps.py)
 )
 
 # PAS dans la liste : `wama-console.log` tourne DÉJÀ tout seul, par taille

@@ -1429,30 +1429,8 @@ def api_check_disk_space(request):
 MARGE_DISQUE_GO = 10.0
 
 
-def _modele_remplace(cand):
-    """
-    (nom Ollama de l'ancien modèle, espace qu'il rendra en Go) pour un candidat successeur,
-    sinon (None, 0.0).
-
-    La prospection écrit l'origine dans `extra_info['prospect']['origin_key']` quand elle a
-    identifié une famille supérieure — c'est ce lien qui rend le remplacement possible sans
-    demander à l'utilisateur de désigner lui-même ce qu'il faut retirer.
-    """
-    from .models import AIModel
-    prospect = (cand.extra_info or {}).get('prospect', {})
-    origine, cible = prospect.get('origin_key'), prospect.get('cible')
-    if not origine or not cible or cand.proposal_kind != 'update':
-        return None, 0.0
-    ancien = AIModel.objects.filter(model_key=origine, is_proposed=False).first()
-    if ancien is None:
-        return None, 0.0
-    nom = origine.split(':', 1)[1] if ':' in origine else ancien.name
-    # Garde-fou : sans `cible`, un candidat « âge seul » porte le nom du modèle EXISTANT, et la
-    # séquence retirerait puis re-tirerait le même modèle — churn pur, avec la fenêtre de risque
-    # d'une restauration. On ne remplace que si la cible est réellement un AUTRE modèle.
-    if nom == cand.name:
-        return None, 0.0
-    return nom, float(ancien.disk_gb or 0)
+# `_modele_remplace` a déménagé dans `services/model_installer.py::modele_remplace`
+# (2026-08-18) : la tâche Celery d'installation en a besoin autant que la garde d'espace.
 
 
 def _garde_espace_disque(ref: str, *, reclaim_gb: float = 0.0, force: bool = False):
@@ -1511,10 +1489,22 @@ def _garde_espace_disque(ref: str, *, reclaim_gb: float = 0.0, force: bool = Fal
 @user_passes_test(is_admin_or_dev)
 @require_POST
 def api_prospect_ollama(request):
-    """On-demand : lance la prospection Ollama et écrit les candidats proposés."""
+    """On-demand : lance la prospection Ollama et écrit les candidats proposés.
+    Enfile ensuite la passe d'ÉVALUATION LLM (fire-and-forget) : les candidats `new`
+    naissent sans confiance (`confidence=None` — l'heuristique d'âge ne vaut que pour
+    les `update`) ; la confrontation multi-agents la remplit au fil de l'eau et les
+    badges apparaissent au rechargement des cards. Trou comblé le 2026-08-18."""
     from .services.prospect_ollama import prospect_ollama
     try:
         summary = prospect_ollama()
+        try:
+            from .tasks import assess_proposed_task
+            assess_proposed_task.delay()
+            summary['assess_enqueued'] = True
+        except Exception:
+            # Broker indisponible : la prospection reste valable, la confiance attendra.
+            logger.warning("assess_proposed_task non enfilée", exc_info=True)
+            summary['assess_enqueued'] = False
         return JsonResponse({'success': True, 'summary': summary})
     except Exception as e:
         logger.exception("api_prospect_ollama failed")
@@ -1530,8 +1520,7 @@ def api_prospect_install(request):
     `{'source': 'yolo', 'name': 'yolo26s-seg'}` → poids officiels Ultralytics téléchargés
     dans `AI-models/models/vision/yolo/<task>/` + sync du catalogue."""
     from .models import AIModel
-    from .services.model_installer import (pull_ollama_model, pull_yolo_weights,
-                                           register_after_install)
+    from .services.model_installer import pull_yolo_weights, register_after_install
     try:
         data = json.loads(request.body or '{}')
         # ── Install par DESCRIPTEUR (point d'entrée générique — UI/prospection/assistant) ──
@@ -1561,16 +1550,17 @@ def api_prospect_install(request):
         if cand.source != 'ollama':
             return JsonResponse({'success': False, 'error': 'Installation Ollama uniquement (phase 1)'}, status=400)
 
-        # ── GARDE D'ESPACE DISQUE ────────────────────────────────────────────
+        # ── GARDE D'ESPACE DISQUE (SYNCHRONE : le 507/forçage est un dialogue) ──
         # `ollama pull` n'a AUCUN garde-fou : il télécharge jusqu'à saturer le volume. Mesuré le
         # 2026-08-04, D: était à 96 % (23,7 Go libres) alors que `qwen3.6:35b` pèse 22,3 Go —
         # une installation aurait laissé ~1,4 Go. Rien n'est libéré par ailleurs : l'ancien
-        # modèle n'est pas supprimé (cf. `reclaim` plus bas) et les modèles Ollama ne sont pas
-        # sauvegardés (décision 2026-08-04, PROSPECTION_PIPELINE.md).
+        # modèle n'est pas supprimé et les modèles Ollama ne sont pas sauvegardés
+        # (décision 2026-08-04, PROSPECTION_PIPELINE.md).
         # REMPLACEMENT : un candidat « successeur » connaît le modèle qu'il remplace. L'espace
         # du nouveau n'est disponible qu'APRÈS retrait de l'ancien — on le compte donc dans le
-        # garde, puis on applique la séquence désinstallation → installation.
-        remplace, reclaim_gb = _modele_remplace(cand)
+        # garde ; la séquence désinstallation → installation vit dans `installer_candidat`.
+        from .services.model_installer import modele_remplace
+        remplace, reclaim_gb = modele_remplace(cand)
 
         garde = _garde_espace_disque(cand.name, reclaim_gb=reclaim_gb,
                                      force=bool(data.get('force')))
@@ -1578,64 +1568,48 @@ def api_prospect_install(request):
             garde['replaces'] = remplace
             return JsonResponse(garde, status=507)   # 507 Insufficient Storage
 
-        rollback = None
-        origine_key = (cand.extra_info or {}).get('prospect', {}).get('origin_key')
-        if remplace:
-            from .services.model_installer import delete_ollama_model
-            sup = delete_ollama_model(remplace)
-            if not sup.get('ok'):
-                return JsonResponse({
-                    'success': False,
-                    'error': f"Retrait de « {remplace} » impossible : {sup.get('error')}. "
-                             f"Installation annulée (l'espace n'aurait pas suffi).",
-                }, status=409)
-            rollback = remplace      # à re-tirer si l'installation échoue
+        # ── SÉQUENCE LONGUE → TÂCHE CELERY (2026-08-18) ─────────────────────
+        # Un pull de 18 Go dans la requête dépassait le timeout du proxy Apache : le
+        # navigateur recevait une page HTML d'erreur pendant que le worker continuait en
+        # aveugle, et un re-clic ouvrait une requête CONCURRENTE. Désormais : réponse
+        # immédiate + avancement pollable ; un re-clic REJOINT l'installation en cours
+        # (même motif d'idempotence que `_mirror_job_start`).
+        from celery.result import AsyncResult
+        from django.core.cache import cache
 
-        res = pull_ollama_model(cand.name)
-        if not res.get('ok') and rollback:
-            # L'ancien a été retiré et le nouveau n'est pas venu : on restaure. C'est possible
-            # sans sauvegarde précisément parce que `ollama pull` EST le chemin de restauration
-            # (décision 2026-08-04, PROSPECTION_PIPELINE.md).
-            reprise = pull_ollama_model(rollback)
-            return JsonResponse({
-                'success': False,
-                'error': (f"Installation de « {cand.name} » échouée : {res.get('error')}. "
-                          + (f"« {rollback} » a été restauré." if reprise.get('ok')
-                             else f"⚠ ÉCHEC DE LA RESTAURATION de « {rollback} » : "
-                                  f"{reprise.get('error')} — à réinstaller à la main.")),
-                'restored': bool(reprise.get('ok')), 'replaced': rollback,
-            }, status=502)
-        if not res.get('ok'):
-            return JsonResponse({'success': False, 'error': res.get('error', 'pull échoué')}, status=500)
-        # Re-synchronise pour que le modèle réel apparaisse, puis retire le candidat.
-        try:
-            register_after_install()
-        except Exception:
-            logger.warning("register_after_install a échoué (le sync périodique rattrapera)", exc_info=True)
+        from .tasks import INSTALL_CACHE_PREFIX, install_proposed_task
+        cache_key = INSTALL_CACHE_PREFIX + model_id
+        en_cours = cache.get(cache_key)
+        if en_cours and en_cours.get('state') == 'RUNNING':
+            task_id = en_cours.get('task_id')
+            # Le cache peut survivre à un worker tué : ne considérer « en cours » que si
+            # Celery confirme que la tâche est encore vivante.
+            if task_id and AsyncResult(task_id).state in ('PENDING', 'STARTED', 'RETRY'):
+                return JsonResponse({'success': True, 'already_running': True,
+                                     'model_id': model_id, 'progress': en_cours})
 
-        # RÉCONCILIER LE REMPLACÉ. `register_after_install()` → `full_sync()` n'enlève rien :
-        # c'est voulu (une indisponibilité passagère ne doit pas purger le catalogue), mais ici
-        # la suppression était DÉLIBÉRÉE — sans ce recalage, l'ancien modèle restait
-        # `is_downloaded=True, is_available=True` alors qu'Ollama ne l'avait plus, et
-        # `select_model()` pouvait désigner un modèle inexistant (constaté au test réel du
-        # 2026-08-04 : `ollama:qwen3.5:35b-a3b` fantôme après son remplacement par qwen3.6:35b).
-        # On MARQUE au lieu de supprimer : la ligne porte l'historique (statistiques de runtime,
-        # ETA appris) qu'un `delete()` détruirait. `downloaded_only=True` suffit à l'écarter
-        # de la sélection.
-        if remplace and origine_key:
-            maj = AIModel.objects.filter(model_key=origine_key).update(
-                is_downloaded=False, is_available=False, is_loaded=False)
-            logger.info("[prospect_install] %s remplacé par %s — %d ligne(s) recalée(s)",
-                        origine_key, cand.name, maj)
-
-        installed_name = cand.name
-        cand.delete()
-        return JsonResponse({'success': True, 'installed': installed_name})
+        started = install_proposed_task.delay(model_id)
+        return JsonResponse({'success': True, 'started': True,
+                             'model_id': model_id, 'task_id': started.id})
     except json.JSONDecodeError:
         return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
     except Exception as e:
         logger.exception("api_prospect_install failed")
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_admin_or_dev)
+@require_GET
+def api_prospect_install_progress(request):
+    """Avancement d'une installation de candidat (cache Redis, écrit par la tâche).
+    `?model_id=<model_key>` — F5-proof : le cache porte l'état, pas le navigateur."""
+    from django.core.cache import cache
+
+    from .tasks import INSTALL_CACHE_PREFIX
+    model_id = request.GET.get('model_id') or ''
+    progress = cache.get(INSTALL_CACHE_PREFIX + model_id)
+    return JsonResponse({'success': True, 'running': bool(progress), 'progress': progress})
 
 
 @login_required

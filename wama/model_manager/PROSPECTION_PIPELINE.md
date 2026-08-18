@@ -208,3 +208,53 @@ suffit, l'application n'est pas requise — le plan gratuit restrictif n'est don
    jamais exécutable `AI-models/weekly_model_discovery.py` (à supprimer alors).
 5. Matching besoin↔app (capacités APP_CATALOG) — fonction pure, testable.
 6. Génération d'app : rejoindre le chantier manifeste existant (P0).
+
+## État livré — session du 2026-08-18 : install asynchrone + confiance LLM des `new` + journal applicatif
+
+Déclencheur : première installation RÉELLE via l'UI (qwen3.8:latest, 18 Go) supervisée de bout
+en bout. La chaîne a abouti, mais en révélant trois trous, tous comblés dans la foulée :
+
+1. **Install asynchrone (tâche Celery + avancement pollable).** Le pull synchrone dans la requête
+   dépassait le timeout du proxy Apache : le navigateur recevait une page HTML d'erreur
+   (« Unexpected token '<' ») pendant que le worker gunicorn continuait en aveugle, et un re-clic
+   ouvrait une requête CONCURRENTE. Désormais :
+   - la séquence longue vit dans `model_installer.installer_candidat()` (corps unique :
+     retrait de l'ancien si successeur → pull → rollback éventuel → re-sync → recalage →
+     suppression du candidat) ; `_modele_remplace` a déménagé de `views.py` vers
+     `model_installer.modele_remplace` (la tâche en a besoin autant que la garde) ;
+   - `tasks.install_proposed_task` publie l'avancement (statut du pull AVEC pourcentage —
+     `pull_ollama_model` exploite maintenant `completed/total` du flux) dans le cache Redis
+     (`INSTALL_CACHE_PREFIX + model_key`), même motif F5-proof que `BACKUP_ALL_CACHE_KEY` ;
+   - la vue garde la GARDE D'ESPACE synchrone (le 507/forçage est un dialogue), répond
+     immédiatement, et un re-clic REJOINT l'installation en cours (idempotence vérifiée
+     auprès de Celery, motif `_mirror_job_start`) ; nouvelle vue
+     `api_prospect_install_progress` + polling JS (`mmProspectPoll`).
+
+2. **Confiance des candidats `new` = confrontation LLM PERSISTÉE** (SUITE (a) du 2026-06-24,
+   enfin câblée). `prospect_agents` : juge (`_juger`) et consolidation (`_consolider`) extraits
+   et partagés avec la voie HF (CLI `assess_models`, inchangée) ; nouveau
+   `assess_proposed_ollama()` évalue les candidats Ollama `kind='new'` sans confiance —
+   contexte FACTUEL (rôle, taille via registre, installés comparables du même type comme
+   référentiel « à surpasser ») — et PERSISTE : `AIModel.confidence` = probabilité consolidée
+   que l'adoption vaille le coup (un avis « contre » à confiance c compte 1−c),
+   `extra_info['prospect']['assess']` = consensus + avis (badge card + inspecteur, existants).
+   Enfilé automatiquement à la fin de `api_prospect_ollama` (`assess_proposed_task`,
+   incrémental `max_assess=10` par passe). Agents : `settings.PROSPECT_ASSESS_AGENTS`
+   (défaut `ollama:qwen3.5:9b` ; cloud = ajouter `,google:gemini-2.0-flash` + clé).
+   `prospect_ollama._ecrire` PRÉSERVE désormais une évaluation persistée lors des
+   re-prospections (sinon chaque clic « Prospecter » remettait tout à zéro).
+
+3. **Journal applicatif `logs/wama.log`.** Les loggers `wama.*` n'avaient AUCUN handler
+   (`settings.LOGGING` n'existe que dans la branche LDAP) : le `logger.exception` de l'install
+   partait dans le vide. `common/apps.py ready()` attache maintenant `attach_dedicated_log('wama',
+   'wama.log', propagate=True)` — propagate=True, à l'INVERSE de model-sync.log, pour ne pas
+   priver les `celery-*.log` des traces de tâches. Ajouté à `RUNTIME_LOGS` (rotation démarrage).
+
+Bonus (même session) : le sélecteur de modèle du chat assistant (home.html) affichait des
+libellés FIGÉS (« Qwen3.5 35B-A3B (Dev) ») alors que la value (rôle) était résolue par le
+catalogue — libellés désormais résolus au rendu (`views._chat_model_options`).
+
+Leçon opératoire : un pull refusé par un démon Ollama trop ancien pour le modèle sort en
+erreur générique — vérifier la version d'Ollama avant de diagnostiquer plus loin.
+
+RESTE (inchangé) : beat hebdo, découverte large registre, HF/diffusers, matching besoin↔apps.

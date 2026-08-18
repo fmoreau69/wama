@@ -67,10 +67,45 @@ File search strategy:
 """
 
 
+#: Intitulés des rôles de la surface chat (le RÔLE est la valeur stable ; le nom du
+#: modèle est résolu au rendu — cf. `_chat_model_options`).
+_ROLE_LIBELLES = (
+    ('fast', 'Fast'),
+    ('ultra_fast', 'Ultra Fast'),
+    ('dev', 'Dev'),
+    ('coder', 'Coder'),
+    ('architect', 'Architect'),
+)
+
+
+def _chat_model_options():
+    """
+    Options du sélecteur de modèle du chat — libellés RÉSOLUS PAR LE CATALOGUE au rendu.
+
+    Remplace les libellés codés en dur du gabarit (2026-08-18) : « Qwen3.5 35B-A3B (Dev) »
+    affichait un modèle REMPLACÉ depuis le 2026-08-12 (qwen3.6:35b) alors que la value
+    (le rôle) était, elle, correctement résolue par `_ollama_model_for` — l'UI mentait
+    sur ce que le backend faisait. Même leçon que `_limite_sure_chars` : un nom figé
+    meurt au premier remplacement de modèle par la prospection.
+    """
+    options = []
+    for role, libelle in _ROLE_LIBELLES:
+        try:
+            nom = _ollama_model_for(role)
+        except Exception:
+            nom = None
+        options.append({'value': role, 'label': f"{nom or '?'} ({libelle})"})
+    return options
+
+
 def home(request):
     """Home page view with admin check for AI chat."""
+    is_admin = request.user.is_staff if request.user.is_authenticated else False
     context = {
-        'is_admin': request.user.is_staff if request.user.is_authenticated else False
+        'is_admin': is_admin,
+        # Résolution catalogue à chaque rendu : 5 requêtes DB, uniquement pour l'admin
+        # qui voit la surface chat.
+        'chat_model_options': _chat_model_options() if is_admin else [],
     }
     return render(request, 'home.html', context)
 

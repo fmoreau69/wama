@@ -76,6 +76,8 @@ urlpatterns = [
     # API endpoints - Prospection (proposés par IA, Ollama-first)
     path('api/prospect/ollama/', views.api_prospect_ollama, name='api_prospect_ollama'),
     path('api/prospect/install/', views.api_prospect_install, name='api_prospect_install'),
+    path('api/prospect/install/progress/', views.api_prospect_install_progress,
+         name='api_prospect_install_progress'),
     path('api/prospect/reject/', views.api_prospect_reject, name='api_prospect_reject'),
     path('functions/', views.function_catalog, name='function_catalog'),
     path('libraries/', views.library_catalog, name='library_catalog'),

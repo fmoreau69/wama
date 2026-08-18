@@ -610,12 +610,13 @@
               </div>
               <div class="col-md-6" id="model-container">
                 <label class="form-label small">Model</label>
+                {% comment %} Libellés RÉSOLUS PAR LE CATALOGUE (views._chat_model_options,
+                2026-08-18) : les noms codés en dur ici affichaient encore Qwen3.5 après son
+                remplacement par la prospection. La value reste le RÔLE (stable). {% endcomment %}
                 <select id="ai-model" class="form-select form-select-sm" style="background: #1a1d21; border: 1px solid #495057; color: #fff;">
-                  <option value="fast" selected>Qwen3.5 9B (Fast)</option>
-                  <option value="ultra_fast">Qwen3.5 4B (Ultra Fast)</option>
-                  <option value="dev">Qwen3.5 35B-A3B (Dev)</option>
-                  <option value="coder">Qwen3.5 35B-A3B (Coder)</option>
-                  <option value="architect">Qwen3.5 35B-A3B (Architect)</option>
+                  {% for opt in chat_model_options %}
+                  <option value="{{ opt.value }}"{% if forloop.first %} selected{% endif %}>{{ opt.label }}</option>
+                  {% endfor %}
                 </select>
               </div>
             </div>

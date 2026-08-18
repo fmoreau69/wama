@@ -42,6 +42,12 @@ def pull_ollama_model(name: str, timeout: int = 1800, progress=None):
                 if data.get('error'):
                     return {'ok': False, 'error': data['error']}
                 status = data.get('status')
+                # Le flux porte `completed`/`total` par couche : un POURCENTAGE dans le
+                # statut (2026-08-18, install asynchrone) — le callback garde sa signature
+                # (str) et n'est appelé qu'au changement, donc ~100 appels par couche max.
+                total, fait = data.get('total'), data.get('completed')
+                if status and total and fait is not None:
+                    status = f"{status} {int(fait * 100 / total)}%"
                 if status and status != last:
                     last = status
                     if progress:
@@ -185,6 +191,105 @@ def register_after_install():
     """
     from .model_sync import ModelSyncService
     return ModelSyncService().full_sync()
+
+
+def modele_remplace(cand):
+    """
+    (nom Ollama de l'ancien modèle, espace qu'il rendra en Go) pour un candidat successeur,
+    sinon (None, 0.0).
+
+    La prospection écrit l'origine dans `extra_info['prospect']['origin_key']` quand elle a
+    identifié une famille supérieure — c'est ce lien qui rend le remplacement possible sans
+    demander à l'utilisateur de désigner lui-même ce qu'il faut retirer.
+    (Migré depuis views.py le 2026-08-18 : la tâche Celery d'install en a besoin autant
+    que la garde d'espace de la vue.)
+    """
+    from ..models import AIModel
+    prospect = (cand.extra_info or {}).get('prospect', {})
+    origine, cible = prospect.get('origin_key'), prospect.get('cible')
+    if not origine or not cible or cand.proposal_kind != 'update':
+        return None, 0.0
+    ancien = AIModel.objects.filter(model_key=origine, is_proposed=False).first()
+    if ancien is None:
+        return None, 0.0
+    nom = origine.split(':', 1)[1] if ':' in origine else ancien.name
+    # Garde-fou : sans `cible`, un candidat « âge seul » porte le nom du modèle EXISTANT, et la
+    # séquence retirerait puis re-tirerait le même modèle — churn pur, avec la fenêtre de risque
+    # d'une restauration. On ne remplace que si la cible est réellement un AUTRE modèle.
+    if nom == cand.name:
+        return None, 0.0
+    return nom, float(ancien.disk_gb or 0)
+
+
+def installer_candidat(cand, progress=None) -> dict:
+    """
+    Séquence d'installation d'un CANDIDAT de prospection Ollama — corps unique, appelé par
+    la tâche Celery (`install_proposed_task`, chemin normal depuis le 2026-08-18) et
+    réutilisable en synchrone. La GARDE D'ESPACE DISQUE reste chez l'appelant : elle doit
+    répondre AVANT d'engager quoi que ce soit (le 507/forçage est un dialogue utilisateur).
+
+    Retourne {'ok': True, 'installed': nom} ou {'ok': False, 'error': …[, 'restored',
+    'replaced']}. `progress(status:str)` : avancement du pull (avec pourcentage).
+    """
+    from ..models import AIModel
+
+    rollback = None
+    remplace, _ = modele_remplace(cand)
+    origine_key = (cand.extra_info or {}).get('prospect', {}).get('origin_key')
+    if remplace:
+        # REMPLACEMENT : l'espace du nouveau n'est disponible qu'APRÈS retrait de l'ancien —
+        # séquence désinstallation → installation (décision 2026-08-04, PROSPECTION_PIPELINE.md).
+        if progress:
+            progress(f"retrait de {remplace}…")
+        sup = delete_ollama_model(remplace)
+        if not sup.get('ok'):
+            return {'ok': False,
+                    'error': f"Retrait de « {remplace} » impossible : {sup.get('error')}. "
+                             f"Installation annulée (l'espace n'aurait pas suffi)."}
+        rollback = remplace      # à re-tirer si l'installation échoue
+
+    res = pull_ollama_model(cand.name, progress=progress)
+    if not res.get('ok') and rollback:
+        # L'ancien a été retiré et le nouveau n'est pas venu : on restaure. C'est possible
+        # sans sauvegarde précisément parce que `ollama pull` EST le chemin de restauration
+        # (décision 2026-08-04, PROSPECTION_PIPELINE.md).
+        reprise = pull_ollama_model(rollback)
+        return {'ok': False,
+                'error': (f"Installation de « {cand.name} » échouée : {res.get('error')}. "
+                          + (f"« {rollback} » a été restauré." if reprise.get('ok')
+                             else f"⚠ ÉCHEC DE LA RESTAURATION de « {rollback} » : "
+                                  f"{reprise.get('error')} — à réinstaller à la main.")),
+                'restored': bool(reprise.get('ok')), 'replaced': rollback}
+    if not res.get('ok'):
+        return {'ok': False, 'error': res.get('error', 'pull échoué')}
+
+    # Re-synchronise pour que le modèle réel apparaisse, puis retire le candidat.
+    if progress:
+        progress("enregistrement au catalogue…")
+    try:
+        register_after_install()
+    except Exception:
+        logger.warning("register_after_install a échoué (le sync périodique rattrapera)",
+                       exc_info=True)
+
+    # RÉCONCILIER LE REMPLACÉ. `register_after_install()` → `full_sync()` n'enlève rien :
+    # c'est voulu (une indisponibilité passagère ne doit pas purger le catalogue), mais ici
+    # la suppression était DÉLIBÉRÉE — sans ce recalage, l'ancien modèle restait
+    # `is_downloaded=True, is_available=True` alors qu'Ollama ne l'avait plus, et
+    # `select_model()` pouvait désigner un modèle inexistant (constaté au test réel du
+    # 2026-08-04 : `ollama:qwen3.5:35b-a3b` fantôme après son remplacement par qwen3.6:35b).
+    # On MARQUE au lieu de supprimer : la ligne porte l'historique (statistiques de runtime,
+    # ETA appris) qu'un `delete()` détruirait. `downloaded_only=True` suffit à l'écarter
+    # de la sélection.
+    if remplace and origine_key:
+        maj = AIModel.objects.filter(model_key=origine_key).update(
+            is_downloaded=False, is_available=False, is_loaded=False)
+        logger.info("[prospect_install] %s remplacé par %s — %d ligne(s) recalée(s)",
+                    origine_key, cand.name, maj)
+
+    installed_name = cand.name
+    cand.delete()
+    return {'ok': True, 'installed': installed_name}
 
 
 def install_from_spec(spec: dict) -> dict:
