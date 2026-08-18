@@ -303,6 +303,7 @@ window.CONVERTER_APP = {
     },
     supportedFormats: {{ supported_formats_json|safe }},
     schema: {{ params_json|safe }},   {# schéma modale per-job (WamaParams) #}
+    engineHelp: {{ engine_help_json|safe }},   {# descriptif moteur par TYPE du job #}
 };
 window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'converter:global_progress' %}";
 </script>

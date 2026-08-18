@@ -123,9 +123,10 @@ inclure le script → card repliée MORTE (support ≠ adoption). Auto-init + ga
                     <input type="text" class="form-control bg-dark text-white border-secondary"
                            id="{{ url_input_id }}" placeholder="{{ url_placeholder }}">
                     {% if url_submit_id %}
-                    {# Bouton d'import IMMÉDIAT — optionnel : une app dont l'URL fait partie du
-                       payload de création (composer : mélodie téléchargée AU LANCEMENT par
-                       ensure_local_input) fournit le champ SANS bouton. #}
+                    {% comment %}Bouton d'import IMMÉDIAT — optionnel : une app dont l'URL fait
+                    partie du payload de création (composer : mélodie téléchargée AU LANCEMENT par
+                    ensure_local_input) fournit le champ SANS bouton. ⚠ JAMAIS de {# #} multi-ligne
+                    (7ᵉ récidive — rendu en TEXTE sur la page, vu au smoke du 18/08).{% endcomment %}
                     <button class="btn btn-danger" type="button" id="{{ url_submit_id }}" title="Importer depuis l'URL">
                         <i class="fas fa-download"></i>
                     </button>

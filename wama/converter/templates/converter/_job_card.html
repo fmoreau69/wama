@@ -134,5 +134,35 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
 
   </div>{# /.wcv3 #}
 
+  {% comment %}Preview PERMANENTE (§11, contrat famille — porté d'anonymizer/_media_card
+  le 18/08, constat Fabien : la card converter n'avait pas de zone preview) : résultat
+  affiché en SUCCESS sous la barre ; le placeholder reste dans tous les cas (contrat JS
+  de la famille). output_file = FileField → .url direct.{% endcomment %}
+  {% if job.status == 'SUCCESS' and job.output_file %}
+  <div class="wcv3-preview" id="preview-row-{{ job.id }}">
+    {% if job.media_type == 'video' %}
+    <video class="w-100" controls preload="metadata" style="border-radius:6px;max-height:220px;">
+      <source src="{{ job.output_file.url }}">
+    </video>
+    {% elif job.media_type == 'audio' %}
+    <audio class="w-100" controls preload="metadata" style="display:block;">
+      <source src="{{ job.output_file.url }}">
+    </audio>
+    {% elif job.media_type == 'image' %}
+    <img src="{{ job.output_file.url }}" alt="Résultat #{{ job.id }}"
+         class="preview-media-link" role="button" title="Aperçu"
+         data-preview-url="{% url 'common:unified_preview' 'converter' job.id %}"
+         style="display:block;max-width:100%;max-height:220px;border-radius:6px;cursor:pointer;">
+    {% else %}
+    <span role="button" class="preview-media-link small text-info" title="Aperçu du résultat"
+          data-preview-url="{% url 'common:unified_preview' 'converter' job.id %}">
+      <i class="fas fa-file-lines me-1"></i>{{ job.output_filename }}
+    </span>
+    {% endif %}
+  </div>
+  {% else %}
+  <div id="preview-row-{{ job.id }}"></div>
+  {% endif %}
+
 </div>
 </div>

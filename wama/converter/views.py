@@ -181,6 +181,7 @@ class IndexView(View):
         }
 
         from wama.converter.params import PARAMS_JSON as CONVERTER_PARAMS_JSON
+        from wama.converter.params import _ENGINE_BY_TYPE as _ENGINE_HELP_BY_TYPE
         return render(request, 'converter/index.html', {
             'jobs':                 jobs,
             'batches_list':         batches_list,
@@ -188,6 +189,7 @@ class IndexView(View):
             'supported_formats':    SUPPORTED_CONVERSIONS,
             'supported_formats_json': json.dumps(formats_for_js),
             'params_json':          json.dumps(CONVERTER_PARAMS_JSON),  # schéma modale per-job (WamaParams)
+            'engine_help_json':     json.dumps(_ENGINE_HELP_BY_TYPE),   # descriptif moteur par TYPE (modale)
             'q_sort':               q_sort,
             'q_filter':             q_filter,
         })

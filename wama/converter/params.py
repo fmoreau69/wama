@@ -19,6 +19,9 @@ from wama.common.utils.param_schema import Param, schema_to_dicts
 # En cas de format multi-famille (pdf, gif, mp3…), le texte de la 1re famille gagne.
 from .utils.format_router import SUPPORTED_CONVERSIONS
 
+# Exporté vers le front (views.index → CONVERTER_APP.engineHelp) : la modale remplace le
+# help_fallback PAR FORMAT (ambigu pour les formats multi-famille — mp3/wav/ogg sortent
+# aussi de la famille vidéo, gif de l'image…) par le texte du TYPE du job.
 _ENGINE_BY_TYPE = {
     'image':    "Moteur : Pillow — qualité, redimensionnement, rotations/miroirs.",
     'video':    "Moteur : FFmpeg — CRF, FPS, rotations ; extraction audio possible.",

@@ -770,6 +770,19 @@
             if (window.WamaParams && APP.schema) {
                 const values = Object.assign(
                     { media_type: data.media_type, output_format: data.output_format }, data.options || {});
+                // Descriptif moteur du TYPE du job (18/08) : le help_fallback statique par
+                // format donnait le texte d'une AUTRE famille pour les formats multi-famille
+                // (mp3/wav/ogg sortent aussi de la famille vidéo, gif de l'image…).
+                if (APP.engineHelp && APP.engineHelp[data.media_type]) {
+                    (APP.schema || []).forEach(function (p) {
+                        if (p.name !== 'output_format') return;
+                        const fb = {};
+                        (((FORMATS[data.media_type] || {}).output) || []).forEach(function (f) {
+                            fb[f] = APP.engineHelp[data.media_type];
+                        });
+                        p.help_fallback = fb;
+                    });
+                }
                 WamaParams.render(body, APP.schema, {
                     context: 'item',
                     values: values,
