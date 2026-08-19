@@ -2436,6 +2436,56 @@ travail**. La base LIVE est celle de **WSL2 (Postgres 16)**, conforme à
 exécute WAMA nativement sous Windows (`venv_win runserver`) ; sinon c'est une taxe d'entretien
 supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 
+## §REPRISE — 2026-08-19 (CLÔTURE, instance « vision 3D / qualité modèles ») — 🔚 POINT D'ENTRÉE
+
+> **Session close le 19/08 au soir. Périmètre disjoint de l'instance portage** (qui a livré en
+> parallèle : jonction mécanismes↔grille, briques front, inspecteur imager, smoke, prospection
+> gouvernée). Le détail chronologique est dans le bloc « PARTITION » ci-dessous — ceci en est le
+> résumé exécutable.
+
+### ✅ LIVRÉ ET VALIDÉ EN RÉEL (14 commits)
+| # | Livraison | Preuve |
+|---|---|---|
+| 1 | **Taxonomie `'3d'`** — `OBJECT3D_EXTENSIONS` + catégorie déclarées (`app_registry`), asset `object3d` médiathèque | `glb→['3d']`, migration 0013 no-op appliquée WSL2 |
+| 2 | **Fix `get_imager_status`** — filtrait sur `parent_generation`, self-FK retiré le 07/08 → cassé 11 jours | 10 jobs rendus après fix |
+| 3 | **Contrat tool_api en nocturne** (3 scénarios `wired`) — trou #8 ROUTE §11 entamé | 3/3, dry-run registre sans régression |
+| 4 | **Permissions du user nocturne** (rôles `communication`+`recherche`, sans bypass dev) | couverture 4 → **17/17 lectures** |
+| 5 | **3 littéraux de modèle éradiqués** (`vision_probe`, `reference_comprehension`, `ui_smoke`) → route commune | résolution → gemma4:12b, inchangé |
+| 6 | **Indice a priori révisé** : params EFFECTIFS √(totaux×actifs) | heavy → **qwen3.8** |
+| 7 | **Benchmark tiers confronté UNIVERSEL** (`sync_benchmarks`, 6 catégories, AA + Elo Arena CC-BY-4.0, `proposed:` inclus) | **18 modèles** benchmarkés ; 4 faux appariements attrapés au dry-run |
+| 8 | **Table `ALIAS`** par égalité de slug + `gemma4:e4b` confirmé | 12,2 (et non 29,7 du 31B) |
+| 9 | **3 axes modèles** : `specialisation` (3ᵉ axe) + capacité `audio` récupérée (`/api/tags` ⊊ `/api/show`) + sous-indices par domaine | pool LLM **8/8** → **étage benchmark ACTIF** ; `benchmark_domaine='coding'` → qwen3.8 (68,1) |
+| 10 | **Câblage wama-dev-ai** : table = intention, `/api/tags` filtre à chaque sélection ; entrée `qwen38` | fantôme en tête de chaîne ignoré (prouvé) |
+| 11 | Hygiène : `.gitignore` filet `.env.*` + `!.env.example`, `.env`/`.env.example` conformes et **ordonnés pareil**, registre des mécanismes complété (`benchmark_sync`) | `check-ignore` OK, `doc_facts` à jour |
+
+### 🔚 CE QUI RESTE — 3D, pour une SESSION NEUVE (rien n'est commencé, tout est consigné)
+> **Point d'entrée unique : `ROADMAP.md §17ter`** (chantier) **+ `STUDIO_VISION.md` chaînes 3-4**
+> (usage). Mémoire : [[project_studio_3d_pipeline]]. **Ne rien re-prospecter avant de les lire.**
+1. **Trou 2 — preview médiathèque des `.glb`** (viewer three.js **vendorisé**, jamais de CDN).
+   ⚠ `media_probe` ne connaît pas encore `'3d'` : un `.glb` déposé aujourd'hui a la bonne
+   catégorie mais aucune miniature. **C'est la première marche, et elle sert AUSSI les avatars.**
+2. **Trou 3-4** : port studio `object_3d` + manifeste `function` « image→3D » (capability-first,
+   pas d'app) ; **trou 5** : passerelle virtualib **import ET export** (export d'abord).
+3. **Prospection 2D→3D** : TRELLIS / TripoSR (MIT), Hunyuan3D-2, SF3D/SPAR3D — 6-16 Go, tient sur
+   la 4090. ⚠ reconstruction **plausible, pas métrique** (à déclarer en métadonnée). Qualité
+   **progressive** (mono-image d'abord). **PoC possible SANS l'app detector** : SAM3 → crop → GLB.
+4. **Sens inverse 3D→2D — arbitrage DÉJÀ tranché, ne pas le rouvrir** : rendu = DÉTERMINISTE
+   (Blender/three.js) ; seule l'harmonisation justifie un modèle IA, et après mesure.
+5. **Avatars — DÉJÀ prospectés** (`docs/PROSPECTION_AVATARS_2026-08-17.md`) : (a) consignes
+   offline, (b) temps réel AI-Assistant (TalkingHead, navigateur). **Jonction 19/08 : même
+   moteur three.js que 1. → vendoriser une fois sert preview 3D + rendu 3D→2D + avatar.**
+6. **Brique « insertion dans une scène générée »** = couture PARTAGÉE chaînes 3 et 4 :
+   **extraire au SECOND consommateur seulement** (précédent `couvrir_classes`, 8 jours sans
+   consommateur). Ne pas construire par anticipation.
+
+### ⏳ PENDINGS / DÉCISIONS EN ATTENTE (hors 3D)
+- **Banc codegen** : qwen3.8 = challenger au prochain run — **GPU, donc avec Fabien** (règle crashs).
+- **`ALIAS` restants** : instruits le 19/08, ce sont des **écarts de VERSION réels**, pas des alias
+  (higgs v2≠v3, ltx 0.9.8≠2.x, SDXL≠SD3, FLUX.1-LoRA≠FLUX.2) → NULL est correct. Seul candidat :
+  `mochi-1-preview ↔ mochi-1`, à poser AVEC la déclaration de sa tâche (sinon inerte).
+- **Étage benchmark** désormais actif sur les LLM ; le rendre visible côté UI/cards reste à faire.
+- Redémarrer les workers WSL2 après ce palier (capacités `audio`/`specialisation` en mémoire).
+
 ## §REPRISE — 2026-08-18 : PARTITION MULTI-INSTANCES (session vision 3D, périmètre disjoint du portage)
 
 > **Deux instances en parallèle ce jour** (déclaration de partition, règle CLAUDE.md git multi-instances) :

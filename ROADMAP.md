@@ -1964,8 +1964,34 @@ approfondir en testant jusqu'où on peut aller (multi-vues, fidélité au véhic
    couture PARTAGÉE — règle du second consommateur, cf. `STUDIO_VISION.md ⚑ Convergence`.
    NE PAS extraire par anticipation.
 
+**SENS INVERSE 3D→2D — arbitrage à trancher (question Fabien 19/08) : avec ou sans modèle IA ?**
+Le retour 3D→2D se décompose en DEUX étapes que rien n'oblige à traiter pareil :
+  a. **Rendu** (objet 3D → image sous un point de vue) : **DÉTERMINISTE, aucun modèle IA
+     nécessaire** — Blender headless (`bpy`, CLI) ou three.js offscreen, tous deux déjà dans
+     l'orbite du projet (three.js sera vendorisé pour la preview médiathèque, trou 2). Un
+     modèle IA ici serait une régression : on perd le contrôle exact de la pose, de la focale
+     et de l'échelle, qui sont précisément ce qu'on veut MAÎTRISER pour une expérimentation.
+  b. **Harmonisation** (le rendu doit *appartenir* au décor : lumière, ombre portée, grain,
+     perspective) : **c'est là — et là seulement — qu'un modèle IA se justifie**. Candidats :
+     img2img/inpainting à faible force conditionné par profondeur (qwen-image-edit est DÉJÀ
+     actif), ou un modèle de compositing/relighting dédié si la qualité ne suit pas.
+  → **Règle proposée** : commencer SANS modèle IA (rendu + collage), mesurer, n'ajouter le
+  modèle qu'à l'étape (b) si le résultat ne tient pas — même discipline que « capability-first ».
+  ⚠ Ne PAS confondre avec la **synthèse de vues nouvelles** (novel view synthesis) : elle sert
+  à *fabriquer* des vues quand on n'a pas de 3D ; ici on A la 3D, donc elle est hors sujet.
+
 **PoC sans attendre l'app detector** : SAM3 (déjà prompt-piloté dans l'anonymizer) → crop →
 modèle 2D→3D → GLB. Partie GPU : **avec Fabien uniquement** (règle crashs hôte).
+
+**AVATARS — deux usages déjà prospectés (ne pas re-prospecter)** : la veille complète est
+`docs/PROSPECTION_AVATARS_2026-08-17.md` (12+ candidats, licences vérifiées au fichier ;
+⚠ Hunyuan EXCLUT l'UE). (a) **consignes offline** avec avatar « scientist » → EchoMimicV3-Flash
+/ StableAvatar ; (b) **mode avatar temps réel de l'AI-Assistant** → 1ʳᵉ voie **TalkingHead**
+(MIT, rendu NAVIGATEUR three.js, zéro VRAM serveur, visèmes FR). **Le lien avec le 3D est
+direct et sous-exploité** : (b) rend un GLB dans le navigateur — c'est le MÊME moteur de rendu
+que le trou 2 (preview médiathèque) et que le rendu (a) ci-dessus. Vendoriser three.js une
+fois sert les trois. L'« avatar avancé intégré dans un décor » (chaîne 4 studio) est la
+rencontre des deux chantiers : avatar rendu + insertion dans une scène générée (point 6).
 
 ## 18. Réorganisation de l'arbre en MONDES (POST-portage schéma-driven — NE PAS ouvrir avant)
 

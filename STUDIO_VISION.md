@@ -99,6 +99,11 @@ texturé) → objet 3D collecté dans la **médiathèque WAMA**, puis **passerel
   l'objet sous un point de vue choisi (« l'aplatir »), l'**insérer correctement placé** dans le
   décor (harmonisation img2img/inpainting + profondeur). Recouvre le périmètre Detector §17bis
   (« remplacer/insérer, traçable comme synthétique »).
+  ⚠ **Avec ou sans modèle IA dédié ? Arbitrage tranché en deux étapes** (question Fabien 19/08,
+  détail = ROADMAP §17ter) : le **rendu** reste DÉTERMINISTE (Blender headless / three.js — un
+  modèle IA y ferait perdre la maîtrise de pose/focale/échelle, justement ce qu'on veut contrôler
+  pour une expérimentation) ; seule l'**harmonisation** (lumière, ombre, grain) justifie un
+  modèle — et on ne l'ajoute qu'après avoir mesuré que le collage simple ne suffit pas.
 - **Chantier technique consigné dans `ROADMAP.md §17ter`** (candidats modèles, licences, taxonomie
   `'3d'`, port `object_3d`, séquencement) — ne pas redocumenter ici.
 - **PoC possible SANS l'app detector** : SAM3 (déjà pilotable par prompt dans l'anonymizer) →
@@ -114,6 +119,14 @@ incrusté dans un décor généré.
   composite** (write-back du kind `pipeline`, maillon restant).
 - Trou propre : **l'avatar dans le décor** — voie par défaut = compositing (matte du buste →
   incrustation sur fond Imager) plutôt qu'un modèle avatar à fond de référence, car mutualisable.
+- **Modèles d'avatars : DÉJÀ PROSPECTÉS, ne pas re-prospecter** — `docs/PROSPECTION_AVATARS_2026-08-17.md`
+  (12+ candidats, licences vérifiées AU FICHIER ; ⚠ Hunyuan EXCLUT l'UE). Deux usages distincts,
+  tous deux actés (mémoire `project-avatar-talking`) : **(a) consignes offline** avec avatar
+  « scientist » (EchoMimicV3-Flash / StableAvatar) = CETTE chaîne ; **(b) mode avatar parlant
+  TEMPS RÉEL de l'AI-Assistant** (1ʳᵉ voie TalkingHead, MIT, rendu navigateur three.js, zéro VRAM
+  serveur, visèmes FR) = un autre chantier, mais **le même moteur de rendu** que la preview 3D de
+  la chaîne 3 et que le rendu 3D→2D : vendoriser three.js une fois sert les trois (cf. ROADMAP
+  §17ter, « AVATARS »). « Avatar avancé intégré dans un décor » = (a) + la couture ci-dessous.
 
 ### ⚑ Convergence des chaînes 3 et 4 — couture identifiée, NE PAS construire par anticipation
 Les deux chaînes butent sur la **même brique manquante : « insérer un élément dans une scène
