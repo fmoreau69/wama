@@ -3224,12 +3224,37 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
   `progressive_blur = 0`) ;
 - **P2 — boîte progressive** : `blur_detection` → `apply_progressive_blur` (label ∈ {face, person}
   **et** `progressive_blur > 0`) ;
-- **P3 — masque** : `blur_segmentation` → `apply_mask_blur` (SAM3 ou modèle YOLO-seg).
-- Les détections **interpolées** (`anonymize.py:810`) repassent toujours par P1/P2 — jamais P3.
+- **P3 — masque** : `blur_segmentation` → `apply_mask_blur`.
+
+⚠ **CORRECTION (recadrage Fabien 19/08) — P3 n'est PAS « le chemin SAM3 ».** C'est le chemin
+MASQUE, et YOLO y entre aussi : `_est_segmentation` (`anonymize.py:220`) reconnaît un modèle
+`-seg`, `_detections_retenues:650` ne produit un masque que si le modèle en est un, et le choix
+d'un modèle `-seg` est **AUTOMATIQUE** — `should_use_segmentation` (`utils/model_selector.py:571`)
+retourne `precision_level >= 50`, propagé en `preferer_segmentation` (`:816`). **Conséquence
+majeure : franchir 50 sur le curseur de précision change le CHEMIN DE FLOUTAGE**, donc la
+géométrie floutée, l'application de `roi_enlargement`/`rounded_edges` (perdus) et celle du flou
+progressif (soudain appliqué à toutes les classes). C'est une explication bien plus probable des
+« résultats étranges » que l'opposition YOLO/SAM3 — et ça se produit **à l'intérieur de YOLO**.
+
+Trois autres faits mesurés, tous producteurs d'hétérogénéité :
+- **Mixité dans UNE MÊME frame** : le moteur boucle sur plusieurs modèles (`par_modele`), chacun
+  avec son propre drapeau `seg` — un visage détecté par un modèle segmentant sort en P3 pendant
+  qu'une plaque détectée par un modèle non segmentant sort en P1, sur la même image ;
+- **Interpolation** : les détections interpolées (`anonymize.py:810`) repassent **toujours** par
+  `blur_detection` (P1/P2), même quand la détection d'origine était un masque → dans une vidéo,
+  le même objet alterne entre flou-masque (frames détectées) et flou-boîte (frames interpolées),
+  ce qui se voit comme une **pulsation** de la zone floutée ;
+- **SAM3 est un moteur SÉPARÉ** (`core/sam3_processor.py:317, 413`) qui appelle `blur_segmentation`
+  directement : `roi_enlargement` et `rounded_edges` ne lui sont **même pas passés**.
+
+⚠ **Paramètre INERTE trouvé au passage** : `use_segmentation` est stocké (`models.py:101`),
+transmis par la tâche (`tasks.py:242`)… et **jamais lu** par le moteur — `anonymize.py:764` le
+RE-DÉRIVE de `self._is_segmentation_model` (le modèle chargé). Un réglage déclaré au schéma dont
+la valeur n'a aucun effet.
 
 **INVENTAIRE — à quels chemins chaque réglage s'applique VRAIMENT :**
 
-| Réglage | P1 boîte | P2 boîte progressive | P3 masque |
+| Réglage | P1 boîte | P2 boîte progressive | P3 masque (YOLO-seg **ou** SAM3) |
 |---|---|---|---|
 | `blur_ratio` (noyau gaussien) | ✅ sur le **crop** | ✅ sur le **crop** | ✅ sur **l'image ENTIÈRE** puis fusion alpha |
 | `roi_enlargement` | ✅ `Bounds.scale` | ✅ | ❌ **jamais appliqué** |
@@ -3263,11 +3288,15 @@ le retour arrière est un flag, pas un revert ; ④ A/B chiffré ancien vs nouve
 chemin ; ⑤ défaut basculé seulement après validation sur du réel, flag conservé.
 Effet secondaire utile : ce banc chiffrera **de combien** YOLO et SAM3 divergeaient.
 
-**JONCTION AVEC LE MONDE DATA** : la taxonomie porte déjà `detections` (l'entrée) et un précédent
-de raster non tabulaire (`depth_map`) → déclarer `image`/`mask` y est cohérent. ⚠ Mais c'est
-exactement le point média↔data signalé comme NON TRANCHÉ (cf. `docs/VISION_STATUS.md`) : ce
-chantier en est le **premier cas concret**, et le trancher sur un cas réel vaut mieux que sur une
-spéc abstraite.
+**JONCTION AVEC LE MONDE DATA** : la taxonomie porte déjà `detections` — c'est **l'entrée** des
+fonctions de floutage, déjà typée. Il manque le type de l'image et du masque. ⚠ Précision suite à
+une question de Fabien : `DataType.DEPTH_MAP` n'a **AUCUN lien fonctionnel** avec l'anonymizer —
+c'est la carte de profondeur du **cam_analyzer** (`wama_lab/cam_analyzer/utils/depth_estimator.py`,
+`common/data/functions/geometry/depth_geometry.py`). Il n'était cité que comme **précédent** : la
+taxonomie accepte déjà un type raster non tabulaire, donc y déclarer `image`/`mask` ne serait pas
+un corps étranger. Rien de plus. ⚠ Et c'est exactement le point média↔data signalé comme NON
+TRANCHÉ (cf. `docs/VISION_STATUS.md`) : ce chantier en est le **premier cas concret**, et le
+trancher sur un cas réel vaut mieux que sur une spéc abstraite.
 
 ### Addendum 19/08 (soir) — ARBITRAGES D'ARCHITECTURE : mécanisme ≠ plugin, bornage fonction/librairie/plugin, mondes
 
