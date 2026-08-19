@@ -228,14 +228,12 @@ def _fait_mecanismes():
     assumes_perimes = sorted(p for p in ASSUMES_LOCAUX if not (base / p).exists())
 
     lignes.append("")
-    from wama.common.services.mecanismes_scan import rendus_declares as _rendus
     _trous = mecanismes_sans_critere(sources)
     lignes.append(f"**Mécanismes déclarés : {len(MECANISMES)}** · "
                   f"domiciles absents : {len(absents)} · sans consommateur : {len(orphelins)} · "
                   f"assumés locaux : {len(ASSUMES_LOCAUX)} · "
                   f"modules balayés non rattachés : {len(candidats)} · "
-                  f"**de niveau app sans critère de grille : {len(_trous)}** · "
-                  f"rendus enfichables : {len(_rendus())}")
+                  f"**de niveau app sans critère de grille : {len(_trous)}**")
     if contradictions:
         lignes.append(f"- ❌ **Assumé ET déclaré** (contradiction, retirer d'un des deux) : "
                       + ', '.join(f"`{c}`" for c in contradictions))
@@ -257,19 +255,6 @@ def _fait_mecanismes():
     # par app n'y aurait aucun sens ; c'est ce qui remplace un seuil arbitraire.
     trous_grille = mecanismes_sans_critere(sources)
     orphelins_liaison = criteres_orphelins()
-    # Distinction MÉCANISME (appelé par son nom) vs RENDU ENFICHABLE (résolu au runtime par la
-    # donnée) — Fabien 19/08 : « ne pas mélanger ces 2 niveaux sans pouvoir les distinguer ».
-    # Le compte est rendu même à 0 : c'est l'information utile aujourd'hui (aucun résolveur
-    # n'existe encore, donc aucun rendu ne peut être déclaré honnêtement).
-    from wama.common.services.mecanismes_scan import rendus_declares, rendus_incoherents
-    rendus = rendus_declares()
-    rendus_ko = rendus_incoherents()
-    if rendus_ko:
-        lignes.append("- ❌ **Rendu déclaré sans résolveur au registre** (étiquette sans "
-                      "mécanisme en face) : " + ', '.join(f"`{r}`" for r in rendus_ko))
-    if rendus:
-        lignes.append("- ⧉ **Rendus enfichables** (résolus au runtime, pas appelés par leur nom) : "
-                      + ', '.join(f"`{m.cle}` ← {m.resolu_par}" for m in rendus))
     if orphelins_liaison:
         lignes.append(f"- ❌ **Liaison de critère cassée** (clé absente du registre — la "
                       f"jonction est inerte) : "

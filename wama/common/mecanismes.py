@@ -53,24 +53,21 @@ class Mecanisme:
     symbole: str = ''
     #: Domaine de rendu de la carte (sous-table). Posé par `_domaine()` — jamais entrée par entrée.
     domaine: str = ''
-    #: RENDU ENFICHABLE (« plugin graphique ») : clé du mécanisme RÉSOLVEUR qui le sélectionne
-    #: au runtime. '' = mécanisme ordinaire, atteint par son NOM (import, appel).
-    #:
-    #: LE TEST DÉCISIF (question de Fabien, 19/08 — « ne pas mélanger les deux niveaux ») :
-    #:   « peut-on ajouter ou retirer ce composant SANS toucher au code de l'hôte ? »
-    #:   • oui → c'est un RENDU : l'hôte déclare un emplacement, le résolveur choisit le
-    #:     composant d'après la DONNÉE (mime, type de port). L'hôte ignore ce qu'il affiche.
-    #:   • non → c'est un MÉCANISME ordinaire : quelqu'un l'appelle par son nom. Une brique
-    #:     d'interface, même très visuelle, en reste un (`media_picker`, `shuttle`, `card_gear`).
-    #: La différence n'est donc PAS « ça dessine / ça ne dessine pas », mais **résolu vs appelé**.
-    #:
-    #: ⚠ ÉTAT AU 2026-08-19 : **aucun mécanisme n'est un rendu**, et c'est exact — le seul
-    #: aiguillage existant (`renderInlinePreview`) est une cascade de `if mime`, pas un registre :
-    #: ajouter un rendu OBLIGE aujourd'hui à modifier le commun. Le champ existe pour que la
-    #: distinction soit DÉCLARÉE le jour où le résolveur existe, pas pour classer par avance.
-    #: `audio_player` est le premier candidat. Renseigner ce champ sans résolveur en face
-    #: ferait exactement ce que Fabien veut éviter : mélanger les deux niveaux sous une étiquette.
-    resolu_par: str = ''
+    # ⚠ CE REGISTRE NE DÉCRIT PAS LES PLUGINS DE VISUALISATION — arbitrage Fabien du
+    # 2026-08-19, après une tentative (la mienne) d'ajouter ici un champ `resolu_par` :
+    # c'était mélanger deux niveaux qui ne doivent pas cohabiter, et le champ a été RETIRÉ.
+    #
+    #   • un MÉCANISME est adressé par le DÉVELOPPEUR, au moment d'écrire le code : il
+    #     s'importe, il s'appelle par son nom, et sa mesure est l'ADOPTION (grille de
+    #     conformité). Une brique très visuelle en reste un (`card_gear`, `media_picker`).
+    #   • un PLUGIN de visualisation est chargé par l'UTILISATEUR, À CHAUD, pendant une
+    #     session d'analyse (« je veux aussi le cardiaque »). Sa mesure n'est pas l'adoption
+    #     mais la COMPATIBILITÉ (types de données acceptés) et la SYNCHRONISATION sur un axe
+    #     partagé avec les autres plugins chargés — une propriété de SESSION, pas de code.
+    #     Sa finalité première est le monde DATA (modèle BIND) ; son registre vivra donc là,
+    #     avec la taxonomie de types (`common/data/data_types.py`) et `FUNCTION_CATALOG`.
+    #
+    # Un plugin pourra RÉUTILISER des mécanismes ; il n'en est pas une espèce.
 
 
 def _domaine(nom: str, mecanismes: tuple) -> tuple:
