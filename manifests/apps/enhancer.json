@@ -1518,19 +1518,12 @@
     "models": {
       "catalog_keys": [
         "enhancer:BSRGANx2",
-        "enhancer:BSRGANx2_fp16",
         "enhancer:BSRGANx4",
-        "enhancer:BSRGANx4_fp16",
         "enhancer:IRCNN_Lx1",
-        "enhancer:IRCNN_Lx1_fp16",
         "enhancer:IRCNN_Mx1",
-        "enhancer:IRCNN_Mx1_fp16",
         "enhancer:RealESRGANx4",
-        "enhancer:RealESRGANx4_fp16",
         "enhancer:RealESR_Animex4",
-        "enhancer:RealESR_Animex4_fp16",
         "enhancer:RealESR_Gx4",
-        "enhancer:RealESR_Gx4_fp16",
         "enhancer:deepfilternet",
         "enhancer:resemble"
       ],
@@ -2644,15 +2637,7 @@
       "kind": "model"
     },
     {
-      "key": "enhancer:BSRGANx2_fp16",
-      "kind": "model"
-    },
-    {
       "key": "enhancer:BSRGANx4",
-      "kind": "model"
-    },
-    {
-      "key": "enhancer:BSRGANx4_fp16",
       "kind": "model"
     },
     {
@@ -2660,15 +2645,7 @@
       "kind": "model"
     },
     {
-      "key": "enhancer:IRCNN_Lx1_fp16",
-      "kind": "model"
-    },
-    {
       "key": "enhancer:IRCNN_Mx1",
-      "kind": "model"
-    },
-    {
-      "key": "enhancer:IRCNN_Mx1_fp16",
       "kind": "model"
     },
     {
@@ -2676,23 +2653,11 @@
       "kind": "model"
     },
     {
-      "key": "enhancer:RealESRGANx4_fp16",
-      "kind": "model"
-    },
-    {
       "key": "enhancer:RealESR_Animex4",
       "kind": "model"
     },
     {
-      "key": "enhancer:RealESR_Animex4_fp16",
-      "kind": "model"
-    },
-    {
       "key": "enhancer:RealESR_Gx4",
-      "kind": "model"
-    },
-    {
-      "key": "enhancer:RealESR_Gx4_fp16",
       "kind": "model"
     },
     {

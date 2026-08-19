@@ -45,7 +45,7 @@
   "description": "Real-ESRGAN Anime ×4 (fp16, ONNX) : variante spécialisée dessins, anime et illustrations — préserve les aplats et les contours nets sans inventer de texture photographique.",
   "key": "enhancer:RealESR_Animex4",
   "manifest_kind": "model",
-  "name": "RealESR_Animex4_fp16",
+  "name": "RealESR_Animex4",
   "projects": [],
   "schema_version": "1.0",
   "source": {

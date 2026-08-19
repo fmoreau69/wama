@@ -44,7 +44,7 @@
   "description": "IRCNN variante M (fp16, ONNX) : débruitage pur (×1), intensité de filtrage différente de la variante L — essayer les deux selon le niveau de bruit de la source.",
   "key": "enhancer:IRCNN_Mx1",
   "manifest_kind": "model",
-  "name": "IRCNN_Mx1_fp16",
+  "name": "IRCNN_Mx1",
   "projects": [],
   "schema_version": "1.0",
   "source": {

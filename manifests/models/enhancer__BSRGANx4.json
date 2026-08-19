@@ -45,7 +45,7 @@
   "description": "BSRGAN ×4 (fp16, ONNX) : super-résolution entraînée sur des dégradations réalistes (flou, bruit, compression JPEG). Robuste sur images de qualité médiocre là où d'autres modèles amplifient les artefacts.",
   "key": "enhancer:BSRGANx4",
   "manifest_kind": "model",
-  "name": "BSRGANx4_fp16",
+  "name": "BSRGANx4",
   "projects": [],
   "schema_version": "1.0",
   "source": {

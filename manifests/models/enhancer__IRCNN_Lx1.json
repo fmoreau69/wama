@@ -44,7 +44,7 @@
   "description": "IRCNN variante L (fp16, ONNX) : débruitage pur (×1, aucune mise à l'échelle). Nettoie le bruit et les artefacts avant un éventuel upscale — à combiner avec un modèle ×2/×4.",
   "key": "enhancer:IRCNN_Lx1",
   "manifest_kind": "model",
-  "name": "IRCNN_Lx1_fp16",
+  "name": "IRCNN_Lx1",
   "projects": [],
   "schema_version": "1.0",
   "source": {

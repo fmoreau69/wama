@@ -45,7 +45,7 @@
   "description": "Real-ESR general ×4 (fp16, ONNX) : version généraliste très compacte de Real-ESRGAN. Rapide et sobre, qualité légèrement en retrait — pour les traitements en volume ou les machines modestes.",
   "key": "enhancer:RealESR_Gx4",
   "manifest_kind": "model",
-  "name": "RealESR_Gx4_fp16",
+  "name": "RealESR_Gx4",
   "projects": [],
   "schema_version": "1.0",
   "source": {

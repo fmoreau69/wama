@@ -45,7 +45,7 @@
   "description": "Real-ESRGAN ×4 (fp16, ONNX) : la référence de la super-résolution photographique — agrandit ×4 en reconstruisant détails et textures. Bon choix par défaut pour photos et captures réelles.",
   "key": "enhancer:RealESRGANx4",
   "manifest_kind": "model",
-  "name": "RealESRGANx4_fp16",
+  "name": "RealESRGANx4",
   "projects": [],
   "schema_version": "1.0",
   "source": {
