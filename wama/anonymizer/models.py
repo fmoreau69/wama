@@ -149,6 +149,20 @@ class Media(ProcessingTimeMixin, ScopedVisibility):
     def get_field_value(self, field):
         return getattr(self, field, None)
 
+    @property
+    def gear_data(self):
+        """data-* du bouton ⚙ — brique COMMUNE `card_gear`, dérivée du schéma (2026-08-19).
+
+        L'anonymizer n'émettait AUCUN paramètre sur son gear (seulement `data-id`) : sa modale
+        va chercher les valeurs au serveur (`settingsGetUrlTemplate`), ce qui marche pour la
+        modale mais laisse le VOLET sans rien à refléter — le `cardSettings` par défaut de
+        `WamaInspector.initFromSchema` lit les data-* du gear, et il n'y en avait pas. Les
+        valeurs viennent des champs de modèle homonymes (schéma `derive_from_model`).
+        """
+        from wama.common.utils.card_gear import gear_data
+        from .params import PARAMS
+        return gear_data(self, PARAMS)
+
 
 class GlobalSettings(models.Model):
     title = models.CharField(max_length=255)

@@ -125,6 +125,27 @@ class Transcript(ProcessingTimeMixin, ScopedVisibility):
         """Nombre de locuteurs identifiés (exclut les segments sans locuteur attribué)."""
         return self.segments.exclude(speaker_id='').values('speaker_id').distinct().count()
 
+    @property
+    def gear_data(self):
+        """data-* du bouton ⚙ — brique COMMUNE `card_gear`, dérivée du schéma (2026-08-19).
+
+        Le gabarit de card écrivait ces attributs À LA MAIN (9 lignes) : le portage du 18/08
+        avait sauté transcriber et anonymizer, et rien ne le signalait avant que la jonction
+        mécanismes↔grille ne le mesure. Conséquence concrète du hardcode : `temperature` et
+        `max_tokens` ont été RETIRÉS du schéma (params.py : « ASR = reproductibilité »), mais
+        la card continuait de les émettre — un attribut ne peut pas suivre un schéma qu'il ne
+        lit pas.
+
+        `extra` conserve ces deux-là À L'IDENTIQUE : `index.js:551-552` les lit encore
+        (`parseFloat(btn.dataset.temperature)`, `parseInt(btn.dataset.maxTokens)`). Le DOM
+        produit est donc inchangé — seuls les 7 params réels suivent désormais le schéma.
+        """
+        from wama.common.utils.card_gear import gear_data
+        from .params import PARAMS
+        return gear_data(self, PARAMS,
+                         extra={'temperature': self.temperature,
+                                'max_tokens': self.max_tokens})
+
 
 class TranscriptSegment(models.Model):
     """

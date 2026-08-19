@@ -67,7 +67,11 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card` en tête de l
                    name="precision_level"
                    id="user_setting_precision_level"
                    value="{% if gs_values.precision_level %}{{ gs_values.precision_level }}{% else %}50{% endif %}"
-                   min="0" max="100" step="5"
+                   {% comment %}step ALIGNÉ sur params.py (step=1) le 2026-08-19 : le curseur était
+                   à 5, donc la valeur d'une card (ex. 77) était QUANTIFIÉE à 75 en arrivant dans le
+                   volet — le schéma est la source unique, un widget qui le contredit corrompt
+                   silencieusement la valeur qu'il affiche puis enregistre.{% endcomment %}
+                   min="0" max="100" step="1"
                    style="flex: 1;"
                    oninput="this.nextElementSibling.textContent = this.value">
             <output class="text-light" style="min-width: 2rem; text-align: center;">{{ gs_values.precision_level|default:"50" }}</output>
@@ -168,7 +172,12 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card` en tête de l
                    name="blur_ratio"
                    id="user_setting_blur_ratio"
                    value="{{ gs_values.blur_ratio|default:'25' }}"
-                   min="1" max="49" step="2"
+                   {% comment %}step ALIGNÉ sur params.py (step=1) le 2026-08-19 : à step=2 le
+                   curseur ne prenait que des valeurs impaires (42 → 43). ⚠ `max` LAISSÉ À 49
+                   alors que le schéma déclare 100 — divergence RÉELLE non tranchée : soit 49 est
+                   une borne métier à remonter dans params.py, soit le volet bride à tort la
+                   moitié de la plage. À arbitrer, pas à corriger en silence.{% endcomment %}
+                   min="1" max="49" step="1"
                    style="flex: 0 0 90px;"
                    oninput="this.nextElementSibling.textContent = this.value">
             <output class="text-light" style="min-width: 2rem; text-align: center;">{{ gs_values.blur_ratio|default:"25" }}</output>

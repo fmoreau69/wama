@@ -85,8 +85,15 @@ Contexte : media (décoré par _decorate_card → media.chips), in_batch, user.
     <div class="wcv3-sec wcv3-sec--actions">
       <span class="wcv3-lbl">Actions</span>
       <div class="btn-group-actions wcv3-actions">
+        {% comment %}data-* DÉRIVÉS du schéma (brique commune card_gear, portage 2026-08-19 —
+        anonymizer avait été sauté le 18/08). Sans eux le volet n'avait RIEN à refléter au clic
+        sur une card : le cardSettings par défaut de l'inspecteur lit les data-* du gear.
+        data-action="settings" = le sélecteur commun de ce contrat.{% endcomment %}
         <button type="button" class="btn btn-sm btn-outline-secondary settings-btn"
-                data-id="{{ media.id }}" title="Configurer les paramètres">
+                data-action="settings"
+                data-id="{{ media.id }}"
+                {% for k, v in media.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}
+                title="Configurer les paramètres">
           <i class="fas fa-cog"></i>
         </button>
         {% include 'common/_cycle_button.html' with id=media.id status=media.status %}
