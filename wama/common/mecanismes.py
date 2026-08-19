@@ -306,6 +306,28 @@ MECANISMES = (
     Mecanisme('app_base_js', 'Socle JS des apps',
               "Plomberie commune file/cards : csrfFetch, urls, Poller de progression, états vides",
               'wama/common/static/common/js/wama-app-base.js', 'WAMA_APP_GENERATION_ROUTE.md'),
+    # ── Rendus enfichables (« plugins graphiques ») ─────────────────────────────────────
+    # Espèce PARTICULIÈRE de mécanisme : sélectionnée AU RUNTIME par la donnée (aujourd'hui le
+    # mime, via renderInlinePreview), et montable dans n'importe quel hôte (volet, card, page
+    # d'édition). Les autres mécanismes s'importent ; ceux-ci se RÉSOLVENT. Déclarés le
+    # 2026-08-19 : ils vivaient dans `common/` sans être au registre — invisibles de la carte,
+    # donc de la jonction avec la grille (le balayage ne regardait pas `common/static/`).
+    Mecanisme('audio_player', 'Lecteur audio (onde + transport)',
+              "Widget autonome : onde canvas (pics serveur ou décodés), play/pause, exclusivité "
+              "inter-lecteurs et inter-onglets ; monté par la preview dans le volet ET les cards",
+              'wama/common/static/common/js/wama-audio-player.js', ''),
+    Mecanisme('shuttle', 'Shuttle J/K/L',
+              "État de vitesse/direction de lecture (paliers éditeur) + binding clavier ; l'app "
+              "fournit apply(speed) — la commande est commune, l'application au lecteur reste locale",
+              'wama/common/static/common/js/wama-shuttle.js', ''),
+    Mecanisme('media_picker', 'Sélecteur de médiathèque',
+              "Modale commune de choix d'un asset de la médiathèque (filtrée par type), rendue "
+              "à l'appelant sous forme de File + méta",
+              'wama/common/static/common/js/media-picker.js', ''),
+    Mecanisme('fm_notify', 'Signalement au gestionnaire de fichiers',
+              "Noms d'événements centralisés (media:uploaded/processed/deleted) — l'arborescence "
+              "du filemanager se rafraîchit sans que chaque app invente son event",
+              'wama/common/static/common/js/wama-fm-notify.js', ''),
     Mecanisme('card_system', 'Card v3',
               "Dimensionnement déclaratif des pistes de card — dépend de l'app, des actions, des libellés",
               'wama/common/static/common/js/wama-card-v3.js', 'CARD_DESIGN.md §11',

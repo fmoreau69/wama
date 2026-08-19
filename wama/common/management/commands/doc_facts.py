@@ -206,11 +206,20 @@ def _fait_mecanismes():
     # INVISIBLE de la carte la brique qui ALIMENTE tout le suivi des modèles
     # (`BaseModelBackend` et ses trois enveloppes). Un dossier hors balayage ne produit
     # aucun signal — ni « non rattaché », ni rien : le trou était silencieux.
+    # `wama/common/static/common/js/` ajouté le 2026-08-19 — MÊME leçon, côté FRONT cette fois :
+    # le balayage ne regardait que des dossiers Python, donc 4 briques communes vivaient hors
+    # carte sans le moindre signal, dont les DEUX du transport (`wama-audio-player.js`,
+    # `wama-shuttle.js`). Une brique front invisible de la carte l'est aussi de la jonction avec
+    # la grille : personne ne pouvait voir qu'aucun critère ne les vérifiait.
     dossiers_balayes = ('wama/common/services/', 'wama/common/utils/',
                         'wama/common/backends/',
+                        'wama/common/static/common/js/',
                         'wama/model_manager/services/', 'wama/studio/services/')
+    # `modules` ne contient que du .py : le front est balayé à part (mêmes exclusions).
+    balayables = list(modules) + [rel for rel in sources
+                                  if rel.startswith('wama/common/static/common/js/')]
     candidats = sorted(
-        rel for rel in modules
+        rel for rel in balayables
         if rel.startswith(dossiers_balayes)
         and not rel.endswith('__init__.py') and rel not in declares
         and rel not in ASSUMES_LOCAUX

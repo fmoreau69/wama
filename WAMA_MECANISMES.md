@@ -138,7 +138,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 |---|---|---|---|---|
 | **Bac à sable d'apps (jumelles exécutables)** | Jumelle <app>_NN coexistante pour comparaison Playwright + diff dé-suffixé (route §10.3 marche S) — registre sandbox_apps.json injecté au boot (INSTALLED_APPS/urls/gating/catalogue), create/drop symétriques | `wama/common/sandbox.py` | `WAMA_APP_GENERATION_ROUTE.md` | 8 |
 
-#### UI générée (13)
+#### UI générée (17)
 
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
@@ -149,10 +149,14 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Domaines → modes** | Schéma déclaratif des onglets-domaine et modes par app — scope la file | `wama/common/utils/app_modes.py` | `MODES_QUEUE_UX.md` | 11 |
 | **Import de dossier récursif** | Traversée récursive d'un drop/webkitdirectory — brique F2 montée globale (base.html) | `wama/common/static/common/js/wama-folder-import.js` | `WAMA_APP_GENERATION_ROUTE.md` | 2 |
 | **Inspecteur — champs de détail** | Schéma canonique des infos d'item affichées au volet droit | `wama/common/utils/detail_registry.py` | `INSPECTOR_DETAIL_FIELDS.md` | 35 |
+| **Lecteur audio (onde + transport)** | Widget autonome : onde canvas (pics serveur ou décodés), play/pause, exclusivité inter-lecteurs et inter-onglets ; monté par la preview dans le volet ET les cards | `wama/common/static/common/js/wama-audio-player.js` | — | 4 |
 | **Preview unifiée** | Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps | `wama/common/utils/preview_registry.py` | — | 31 |
 | **Progression & ETA (front)** | Moteur ETA par débit observé + barres aux 3 niveaux : card, batch, globale | `wama/common/static/common/js/wama-eta.js` | `PROJECT_STATUS.md §10` | 39 |
 | **Schéma de paramètres** | Source unique des réglages d'app : volet droit et modale sont RENDUS depuis lui | `wama/common/utils/param_schema.py` | `WAMA_APP_GENERATION_ROUTE.md` | 37 |
+| **Shuttle J/K/L** | État de vitesse/direction de lecture (paliers éditeur) + binding clavier ; l'app fournit apply(speed) — la commande est commune, l'application au lecteur reste locale | `wama/common/static/common/js/wama-shuttle.js` | — | 3 |
+| **Signalement au gestionnaire de fichiers** | Noms d'événements centralisés (media:uploaded/processed/deleted) — l'arborescence du filemanager se rafraîchit sans que chaque app invente son event | `wama/common/static/common/js/wama-fm-notify.js` | — | 2 |
 | **Socle JS des apps** | Plomberie commune file/cards : csrfFetch, urls, Poller de progression, états vides | `wama/common/static/common/js/wama-app-base.js` | `WAMA_APP_GENERATION_ROUTE.md` | 17 |
+| **Sélecteur de médiathèque** | Modale commune de choix d'un asset de la médiathèque (filtrée par type), rendue à l'appelant sous forme de File + méta | `wama/common/static/common/js/media-picker.js` | — | 4 |
 | **Vocabulaire des capacités** | Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage UI | `wama/common/utils/model_capabilities.py` | `INPUT_MODEL_MATCHING.md` | 20 |
 | **data-* du gear ⚙ des cards** | data-* du bouton ⚙ DÉRIVÉS du schéma (contrat cardSettings de l'inspecteur : le volet reflète la card sélectionnée) — remplace les attributs écrits à la main par app ; booléens 'true'/'false', tous les params item émis (anti-résidus) | `wama/common/utils/card_gear.py` | — | 8 |
 
@@ -180,10 +184,10 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Runner générique du studio** | Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app | `wama/studio/services/generic_runner.py` | `STUDIO_VISION.md` | 7 |
 | **Surface d'outils** | Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas | `wama/tool_api.py` | `WAMA_APP_GENERATION_ROUTE.md` | 8 |
 
-**Mécanismes déclarés : 67** · domiciles absents : 0 · sans consommateur : 2 · assumés locaux : 18 · modules balayés non rattachés : 0 · **de niveau app sans critère de grille : 16**
+**Mécanismes déclarés : 71** · domiciles absents : 0 · sans consommateur : 2 · assumés locaux : 18 · modules balayés non rattachés : 0 · **de niveau app sans critère de grille : 18**
 - ⚠ **Sans consommateur** (brique morte ou pas encore adoptée) : `benchmark_sync` (wama/model_manager/services/benchmark_sync.py), `qc` (wama/common/utils/qc.py)
 
-<details><summary>⚠ <b>16 mécanisme(s) de niveau app SANS critère de grille</b> — adoptés par des apps, vérifiés par aucun critère (<code>Criterion.mecanisme</code>) : une app peut sortir à 100 % sans les avoir adoptés</summary>
+<details><summary>⚠ <b>18 mécanisme(s) de niveau app SANS critère de grille</b> — adoptés par des apps, vérifiés par aucun critère (<code>Criterion.mecanisme</code>) : une app peut sortir à 100 % sans les avoir adoptés</summary>
 
 | Mécanisme | Adopté par | Domicile |
 |---|---|---|
@@ -196,9 +200,11 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | `audio_decode` — Décodage audio robuste | **4** app(s) : converter, enhancer, synthesizer, transcriber | `wama/common/utils/audio_decode.py` |
 | `document_export` — Export document | **3** app(s) : describer, reader, transcriber | `wama/common/utils/document_export.py` |
 | `llm` — Accès LLM | **3** app(s) : describer, reader, transcriber | `wama/common/utils/llm_utils.py` |
+| `media_picker` — Sélecteur de médiathèque | **2** app(s) : avatarizer, imager | `wama/common/static/common/js/media-picker.js` |
 | `media_probe` — Sonde média | **2** app(s) : converter, transcriber | `wama/common/utils/media_probe.py` |
 | `nightly_tests` — Tests nocturnes | **2** app(s) : enhancer, transcriber | `wama/common/services/nightly_tests.py` |
 | `task_skeleton` — Squelette de tâche | **2** app(s) : converter, reader | `wama/common/utils/task_skeleton.py` |
+| `audio_player` — Lecteur audio (onde + transport) | **1** app(s) : transcriber | `wama/common/static/common/js/wama-audio-player.js` |
 | `model_coverage` — Couverture multi-modèles | **1** app(s) : anonymizer | `wama/common/services/model_coverage.py` |
 | `provenance` — Provenance de modèle | **1** app(s) : anonymizer | `wama/model_manager/services/provenance.py` |
 | `resource_governor` — Gouverneur de ressources | **1** app(s) : avatarizer | `wama/common/services/resource_governor.py` |
