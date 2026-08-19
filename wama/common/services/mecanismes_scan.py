@@ -169,6 +169,33 @@ def mecanismes_sans_critere(sources: dict[str, str] | None = None) -> list[tuple
     return sorted(trous, key=lambda t: (-len(t[1]), t[0].cle))
 
 
+def rendus_incoherents() -> list[str]:
+    """
+    Garde de la distinction MÉCANISME vs RENDU ENFICHABLE (question Fabien 19/08).
+
+    Un mécanisme qui se déclare « résolu par X » doit désigner un résolveur qui EXISTE au
+    registre. Sans ce contrôle, `resolu_par` deviendrait une étiquette décorative — et les deux
+    niveaux se remélangeraient sous un mot. Rend la liste des incohérences (vide = sain).
+    """
+    from wama.common.mecanismes import MECANISMES, par_cle
+
+    connues = par_cle()
+    mauvais = []
+    for m in MECANISMES:
+        cible = getattr(m, 'resolu_par', '')
+        if cible and cible not in connues:
+            mauvais.append(f"{m.cle} → résolveur inconnu « {cible} »")
+    return sorted(mauvais)
+
+
+def rendus_declares() -> list:
+    """Mécanismes déclarés comme rendus enfichables (résolus au runtime), triés par résolveur."""
+    from wama.common.mecanismes import MECANISMES
+
+    return sorted((m for m in MECANISMES if getattr(m, 'resolu_par', '')),
+                  key=lambda m: (m.resolu_par, m.cle))
+
+
 def criteres_orphelins() -> list[str]:
     """
     Garde-fou SYMÉTRIQUE : critère dont le `mecanisme=` ne correspond à aucune clé du registre.

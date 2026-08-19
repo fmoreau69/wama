@@ -53,6 +53,24 @@ class Mecanisme:
     symbole: str = ''
     #: Domaine de rendu de la carte (sous-table). Posé par `_domaine()` — jamais entrée par entrée.
     domaine: str = ''
+    #: RENDU ENFICHABLE (« plugin graphique ») : clé du mécanisme RÉSOLVEUR qui le sélectionne
+    #: au runtime. '' = mécanisme ordinaire, atteint par son NOM (import, appel).
+    #:
+    #: LE TEST DÉCISIF (question de Fabien, 19/08 — « ne pas mélanger les deux niveaux ») :
+    #:   « peut-on ajouter ou retirer ce composant SANS toucher au code de l'hôte ? »
+    #:   • oui → c'est un RENDU : l'hôte déclare un emplacement, le résolveur choisit le
+    #:     composant d'après la DONNÉE (mime, type de port). L'hôte ignore ce qu'il affiche.
+    #:   • non → c'est un MÉCANISME ordinaire : quelqu'un l'appelle par son nom. Une brique
+    #:     d'interface, même très visuelle, en reste un (`media_picker`, `shuttle`, `card_gear`).
+    #: La différence n'est donc PAS « ça dessine / ça ne dessine pas », mais **résolu vs appelé**.
+    #:
+    #: ⚠ ÉTAT AU 2026-08-19 : **aucun mécanisme n'est un rendu**, et c'est exact — le seul
+    #: aiguillage existant (`renderInlinePreview`) est une cascade de `if mime`, pas un registre :
+    #: ajouter un rendu OBLIGE aujourd'hui à modifier le commun. Le champ existe pour que la
+    #: distinction soit DÉCLARÉE le jour où le résolveur existe, pas pour classer par avance.
+    #: `audio_player` est le premier candidat. Renseigner ce champ sans résolveur en face
+    #: ferait exactement ce que Fabien veut éviter : mélanger les deux niveaux sous une étiquette.
+    resolu_par: str = ''
 
 
 def _domaine(nom: str, mecanismes: tuple) -> tuple:
@@ -306,12 +324,13 @@ MECANISMES = (
     Mecanisme('app_base_js', 'Socle JS des apps',
               "Plomberie commune file/cards : csrfFetch, urls, Poller de progression, états vides",
               'wama/common/static/common/js/wama-app-base.js', 'WAMA_APP_GENERATION_ROUTE.md'),
-    # ── Rendus enfichables (« plugins graphiques ») ─────────────────────────────────────
-    # Espèce PARTICULIÈRE de mécanisme : sélectionnée AU RUNTIME par la donnée (aujourd'hui le
-    # mime, via renderInlinePreview), et montable dans n'importe quel hôte (volet, card, page
-    # d'édition). Les autres mécanismes s'importent ; ceux-ci se RÉSOLVENT. Déclarés le
-    # 2026-08-19 : ils vivaient dans `common/` sans être au registre — invisibles de la carte,
-    # donc de la jonction avec la grille (le balayage ne regardait pas `common/static/`).
+    # ── Briques d'INTERFACE communes (⚠ PAS des plugins — voir « rendu résolu » ci-dessus) ──
+    # Déclarées le 2026-08-19 : elles vivaient dans `common/` sans être au registre — invisibles
+    # de la carte, donc de la jonction avec la grille (le balayage ne regardait pas
+    # `common/static/`). Elles sont toutes APPELÉES PAR LEUR NOM par leur hôte : ce sont donc
+    # des mécanismes ordinaires, pas des rendus enfichables. `audio_player` est le seul
+    # CANDIDAT au statut de rendu — il le deviendra le jour où l'aiguillage par mime de
+    # `renderInlinePreview` sera un registre et non une cascade de `if`.
     Mecanisme('audio_player', 'Lecteur audio (onde + transport)',
               "Widget autonome : onde canvas (pics serveur ou décodés), play/pause, exclusivité "
               "inter-lecteurs et inter-onglets ; monté par la preview dans le volet ET les cards",
