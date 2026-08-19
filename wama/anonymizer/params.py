@@ -97,10 +97,17 @@ PARAMS = derive_from_model(
             # Options peuplées par le JS anonymizer (modèles YOLO découverts) — bridge par dom_id legacy.
             help="Modèle de détection YOLO (vide = auto selon la précision).",
         ),
+        # ⚠ step ALIGNÉ SUR LE RÉEL (2026-08-19). Le curseur déclarait 101 positions alors que
+        # le moteur n'en distingue que CINQ : `get_model_size_from_precision`
+        # (utils/model_selector.py:559) seuille à 20/40/60/80 → n/s/m/l/x, plus un seuil
+        # BINAIRE à 50 (`should_use_segmentation`). 75 et 77 donnent donc le MÊME traitement.
+        # Le volet déclarait 5 et le schéma 1 : la valeur d'une card était quantifiée
+        # différemment selon la surface. À terme, 5 positions nommées (10/30/50/70/90 =
+        # un palier par taille de modèle) diraient la vérité — décision UX à prendre.
         "precision_level": dict(
             type="range", label="Niveau de précision", icon="fa-gauge-high",
-            dom_id={"panel": "user_setting_precision_level"}, min=0, max=100, step=1,
-            help="0=Rapide · 50=Équilibré · 100=Précis (lent).",
+            dom_id={"panel": "user_setting_precision_level"}, min=0, max=100, step=5,
+            help="0=Rapide · 50=Équilibré · 100=Précis (lent). 5 paliers effectifs (n/s/m/l/x).",
             chip=True, group="yolo",
         ),
         "detection_threshold": dict(
@@ -108,9 +115,17 @@ PARAMS = derive_from_model(
             dom_id={"panel": "user_setting_detection_threshold"}, min=0, max=1, step=0.05,
             group="comment",
         ),
+        # ⚠ step=2 N'ÉTAIT PAS ARBITRAIRE (compris le 2026-08-19) : `blur_ratio` est la TAILLE
+        # DE NOYAU d'un flou gaussien, qui DOIT être impaire — `normalize_blur_ratio`
+        # (core/blur_utils.py:234) force le +1 sur une valeur paire. Avec step=1 l'utilisateur
+        # choisissait 42 et le moteur appliquait 43 : l'affichage mentait. Le pas de 2 depuis
+        # min=1 ne produit que des valeurs RÉELLEMENT applicables. Le schéma s'aligne donc sur
+        # le volet, et non l'inverse. `max` 49→100 (arbitrage Fabien : la borne 49 n'était pas
+        # justifiée ; un noyau de 99 reste valide, seul le coût CPU croît).
         "blur_ratio": dict(
             type="range", label="Intensité du flou", icon="fa-droplet",
-            dom_id={"panel": "user_setting_blur_ratio"}, min=1, max=100, step=1,
+            dom_id={"panel": "user_setting_blur_ratio"}, min=1, max=99, step=2,
+            help="Taille du noyau gaussien (impaire).",
             group="comment",
         ),
         "rounded_edges": dict(
