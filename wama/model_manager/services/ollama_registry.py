@@ -106,10 +106,17 @@ def existe(nom: str, tag: str = 'latest') -> bool:
         return False
 
 
-@lru_cache(maxsize=256)
 def _manifeste_brut(nom: str, tag: str = 'latest') -> bytes | None:
-    """Octets BRUTS du manifeste d'un `nom:tag` distant, ou None. Point d'accès unique :
-    `taille_go` (somme des couches) et `digest_distant` (sha256 du corps) en dérivent."""
+    """
+    Octets BRUTS du manifeste d'un `nom:tag` distant, ou None. Point d'accès unique :
+    `taille_go` (somme des couches) et `digest_distant` (sha256 du corps) en dérivent.
+
+    ⚠ VOLONTAIREMENT SANS `lru_cache` — contrairement à `taille_go`, qui garde le sien
+    (une taille ne bouge pas). Mettre le manifeste en cache figerait le DIGEST pour la vie
+    du process : un tag republié en amont ne serait alors JAMAIS détecté avant un
+    redémarrage, c'est-à-dire l'inverse exact de ce que `digest_distant` sert à voir
+    (défaut introduit puis corrigé le 2026-08-19, avant toute mise en service).
+    """
     import requests
     from wama.common.utils.http_proxy import outbound_proxies
     try:

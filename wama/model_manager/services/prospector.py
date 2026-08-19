@@ -286,7 +286,7 @@ def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -
             crees += int(cree)
             maj += int(not cree)
 
-    supprimes = 0
+    supprimes = preserves = 0
     # Transition : les candidats du 18/08 portaient `generation:<t>` avant le passage au
     # préfixe générique `hf:<t>` — on purge les deux graphies du même périmètre.
     roles_ok = {f"hf:{t}" for t in taches_ok} | {f"generation:{t}" for t in taches_ok}
@@ -298,11 +298,24 @@ def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -
         for m in perimetre:
             # Ne purger que le périmètre des tâches qui ont réellement abouti : un candidat
             # d'une tâche en échec réseau reste en place (même règle que prospect_ollama).
-            if (m.extra_info.get('prospect', {}).get('role') or '') in roles_ok:
-                m.delete()
-                supprimes += 1
+            pr = m.extra_info.get('prospect', {})
+            if (pr.get('role') or '') not in roles_ok:
+                continue
+            # ⚠ NE JAMAIS PURGER UN CANDIDAT ÉVALUÉ (2026-08-19). Le tri « tendance » de HF
+            # bouge en continu : d'un run à l'autre la liste retenue change presque
+            # entièrement (mesuré : 32 créés / 32 purgés). Sans cette garde, chaque clic
+            # « Prospecter » DÉTRUISAIT les évaluations LLM déjà payées (13 perdues au test)
+            # et le badge de confiance disparaissait. Un candidat évalué reste jusqu'à ce
+            # qu'un humain le rejette — c'est la même règle que `ecrire_candidat`, qui
+            # préserve déjà l'évaluation à l'écriture.
+            if pr.get('assess'):
+                preserves += 1
+                continue
+            m.delete()
+            supprimes += 1
 
     resume = {'created': crees, 'updated': maj, 'removed': supprimes,
+              'preserved': preserves,      # évalués, sortis de la tendance : conservés
               'total': len(vus), 'tasks_ok': taches_ok}
     logger.info("[prospect_hf_seed] %s", resume)
     return resume

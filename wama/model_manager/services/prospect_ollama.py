@@ -267,18 +267,28 @@ def prospect_ollama(age_days_threshold: int = 120, include_new: bool = True,
     # ── 4) Purge CIBLÉE : uniquement le périmètre des sources qui ont abouti ──────
     # Une source en échec ne doit RIEN effacer : c'est précisément ce qui, avant, réduisait la
     # liste aux seuls candidats codés en dur dès qu'Ollama ou le réseau hoquetait.
-    supprimes = 0
+    # ⚠ Un candidat porteur d'une ÉVALUATION LLM n'est jamais purgé : elle a coûté des
+    # appels d'agents (et du GPU). Il reste jusqu'à ce qu'un humain le rejette — même règle
+    # que `ecrire_candidat`, qui préserve déjà l'évaluation à l'écriture (2026-08-19).
+    supprimes = preserves = 0
+
+    def _purger(qs):
+        nonlocal supprimes, preserves
+        for m in qs:
+            if ((m.extra_info or {}).get('prospect') or {}).get('assess'):
+                preserves += 1
+                continue
+            m.delete()
+            supprimes += 1
+
     base = AIModel.objects.filter(is_proposed=True, source='ollama')
     if ok_installes:
-        perimetre = base.filter(proposal_kind='update').exclude(model_key__in=vus_maj)
-        supprimes += perimetre.count()
-        perimetre.delete()
+        _purger(base.filter(proposal_kind='update').exclude(model_key__in=vus_maj))
     if ok_registre and include_new:
-        perimetre = base.filter(proposal_kind='new').exclude(model_key__in=vus_new)
-        supprimes += perimetre.count()
-        perimetre.delete()
+        _purger(base.filter(proposal_kind='new').exclude(model_key__in=vus_new))
 
     resume = {'created': crees, 'updated': maj, 'removed': supprimes,
+              'preserved': preserves,   # évalués, hors périmètre courant : conservés
               'total': len(vus_maj) + len(vus_new),
               # « MAJ » écartées : tag ancien mais digest distant IDENTIQUE (le pull serait
               # un no-op). Tracé pour qu'un écart de comptage s'explique sans lire le code.

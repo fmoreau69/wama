@@ -481,3 +481,27 @@ proposé en remplacement de lui-même. Deux défauts distincts, tous deux corrig
    qualifiés honnêtement : « Nouvelle version du même tag » (republication prouvée) ou
    « Ancienneté d'installation ». Nouvelle ligne d'inspecteur « Nature de la MAJ »
    (`prospect.maj` = successeur | republication | age).
+
+### Une évaluation LLM n'est JAMAIS purgée (2026-08-19, question « pas de réintroduction erronée ? »)
+
+Vérification du cycle complet (2 prospections d'affilée) demandée avant clôture. Elle a
+révélé un défaut réel, corrigé : **le tri « tendance » de HuggingFace bouge en continu**, donc
+la liste retenue change presque entièrement d'un run à l'autre (mesuré : 32 créés / 31 purgés,
+puis 31 / 32). La purge ciblée détruisait alors les candidats évalués — **13 évaluations LLM
+perdues au test**, badges de confiance disparus, GPU dépensé pour rien.
+
+Règle posée, aux trois purges (`prospect_ollama` update + new, `seed_hf_candidates`) : un
+candidat porteur de `prospect.assess` **n'est jamais supprimé automatiquement** ; il reste
+jusqu'à ce qu'un humain le rejette. C'est la même règle que `ecrire_candidat`, qui préservait
+déjà l'évaluation à l'ÉCRITURE — elle manquait à la SUPPRESSION. Les résumés portent
+`preserved`. Prouvé : un candidat évalué survit à deux cycles consécutifs (`preserved: 1`),
+et aucune « MAJ âge seul » ne réapparaît (`identiques: 5→8`).
+
+⚠ RESTE (comportement, non corrigé) : la liste HF non évaluée se renouvelle presque
+intégralement à chaque prospection — c'est la nature du signal « tendance », mais l'affichage
+ne le dit pas. Piste si ça gêne : afficher la provenance (téléchargements vs tendance) sur la
+card, ou n'appliquer le trending qu'à une part fixe des places.
+
+⚠ Piège évité au passage : `_manifeste_brut` avait été écrit avec `@lru_cache` (copié de
+`taille_go`) — le digest distant aurait été figé pour la vie du process, rendant TOUTE
+republication indétectable. Cache retiré là, conservé sur `taille_go` (une taille ne bouge pas).
