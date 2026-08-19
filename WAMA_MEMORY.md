@@ -1,0 +1,240 @@
+# WAMA_MEMORY.md — Mémoire & RAG : référence unique du domaine
+
+> **Statut : DÉCIDÉ, NON CONSTRUIT** (2026-08-20). Ce document fixe l'architecture ; aucune ligne
+> de `wama/common/memory/` n'existe encore. Il remplace, pour ce domaine, les intentions
+> dispersées dans `PROJECT_STATUS §6`, `ROADMAP §16.2/§16.7` et `docs/WAMA_Vision_Complet_v2 §11`
+> — qui restent valables sur le *pourquoi* mais sont **périmés sur le substrat** (ils disent
+> ChromaDB, voir §7).
+
+---
+
+## 1. Le besoin, en trois usages qui n'en font qu'un
+
+| Usage | Qui produit | Exemple |
+|---|---|---|
+| **Auto-amélioration** — wama-dev-ai se souvient d'une session à l'autre | wama-dev-ai | « le backend Qwen3-ASR casse à l'import, piste = conflit deps » |
+| **Assistant IA** — l'assistant connaît l'utilisateur et son contexte | assistant (`tool_api.py`) | « Fabien travaille en FR, exporte toujours en PDF » |
+| **Mémoire de travail utilisateur** — WAMA se souvient de ce que l'utilisateur y a fait | runtime WAMA | « la transcription du 12/08 a été corrigée à la main puis exportée » |
+| **RAG** — retrouver un fragment d'un document possédé | indexation médiathèque / corpus | « que dit le protocole toolbox tierce sur les sections ? » |
+
+Ces quatre usages n'ont **qu'un seul mécanisme** : *retrouver le bon morceau de texte, pour le bon
+utilisateur, au bon moment*. Ils diffèrent par la **provenance** et le **cycle de vie**, pas par la
+technique. D'où : **une brique, `wama/common/memory/`** — pas un module RAG + un module mémoire.
+
+## 2. Le point qui décide tout : WAMA possède déjà la gouvernance
+
+`OrgUnit` + `Project` + `ScopedVisibility` + `scoped_visible_q()` (`common/models.py:74-219`)
+implémentent **déjà** la hiérarchie université → labo/service → équipe → utilisateur, plus un scope
+`project` qui traverse les organisations. Le docstring d'`OrgUnit` le dit : « COLONNE VERTÉBRALE
+unique : sert **l'héritage RAG**, les scopes de partage ET le gating d'accès. »
+
+Conséquence directe : **un rappel mémoire est une queryset Django avec `scoped_visible_q(user)`
+appliqué.** La hiérarchie RAG de la vision §11 n'est pas à construire — elle est héritée d'un
+mixin. C'est la raison n°1 de ne pas adopter un framework tiers : aucun ne connaît ce modèle, et
+l'adopter reviendrait à monter **un second modèle de scope à côté du vrai**.
+
+Corollaire de séquencement : la vision §11 imposait « RAG utilisateur d'abord, extension aux
+niveaux org **seulement si** la valeur est démontrée ». Cette prudence portait sur le coût de
+*construire* la hiérarchie. Ce coût est nul ici. La prudence se déplace donc sur l'**usage**
+(n'indexer au niveau labo que ce qu'un humain y a explicitement mis), pas sur le schéma.
+
+## 3. Deux natures, un substrat — et pourquoi deux tables
+
+| | **Souvenir** (`MemoryItem`) | **Fragment** (`RagChunk`) |
+|---|---|---|
+| Est | un fait, un événement, une procédure | un morceau d'un document source |
+| Re-dérivable ? | **NON** — perdu = perdu | **OUI** — on réindexe la source |
+| Purge automatique | **INTERDITE** | normale (réindexation) |
+| Fenêtre de validité | oui (`valid_from`/`valid_to`) | non (le document fait foi) |
+
+**Pourquoi deux tables et pas un discriminateur.** Leurs cycles de vie sont opposés : l'un se
+reconstruit, l'autre jamais. Le 2026-08-19, une purge ciblée de candidats de prospection a
+**détruit 13 évaluations LLM** parce que deux natures cohabitaient dans la même table (GPU dépensé
+pour rien ; garde posée aux 3 purges). Séparer physiquement rend l'accident **impossible**, pas
+seulement improbable. Elles partagent un mixin abstrait `Embedded` et **une seule** fonction
+`recall()`.
+
+## 4. Modèle de données
+
+```python
+# wama/common/memory/models.py
+
+class Embedded(models.Model):            # ABSTRAIT — le socle vectoriel commun
+    content          = TextField()       # VERBATIM. Jamais résumé, jamais paraphrasé à l'écriture.
+    content_hash     = CharField(64, db_index=True)      # dédup exacte, avant tout appel LLM
+    embedding        = VectorField(dimensions=1024, null=True)   # pgvector
+    embedding_model  = CharField(64)     # 'bge-m3' — un changement de modèle = réindex, pas une
+                                         # corruption silencieuse (espaces vectoriels différents)
+    created_at, updated_at
+    class Meta: abstract = True
+
+class MemoryItem(Embedded, ScopedVisibility):            # LE SOUVENIR
+    kind        = 'semantic' | 'episodic' | 'procedural'   # ('emotional' RÉSERVÉ, cf. §8)
+    user        = FK(auth.User, null=True)               # à qui appartient le souvenir
+    subject     = CharField(128, db_index=True)          # de quoi ça parle (app, model_key, thème)
+    source_app, source_object_type, source_object_id     # d'où il vient (projection §5)
+    provenance  = 'projection' | 'assistant' | 'dev-ai' | 'human'   # OBLIGATOIRE
+    confidence  = Float(null=True)       # None pour un fait mécanique — pas de faux chiffre
+    valid_from, valid_to                 # périmé => on INVALIDE, on n'écrase jamais
+    superseded_by = FK('self', null=True)   # merge : on chaîne, on ne détruit pas
+    approved_at, approved_by             # HITL — None = invisible au rappel (§6)
+    salience    = Float(default=0.0)     # dérivé de RunOutcome, RECALCULABLE (§8)
+
+class RagChunk(Embedded, ScopedVisibility):              # LE FRAGMENT
+    source_kind = 'media' | 'manifest' | 'corpus' | 'doc'
+    source_id, source_ref                # identifiant + chemin/URL + offset
+    ordinal                              # position dans la source (restitution du contexte)
+    indexed_at
+```
+
+⚠ **Piège connu — visibilité dénormalisée.** La visibilité d'un `RagChunk` est une **copie** de
+celle de sa source (jointure à la volée impossible : les sources sont hétérogènes). Elle doit donc
+être rafraîchie quand la source change de visibilité, sinon un fragment reste partagé après que le
+média a été repassé en privé. Un signal sur le changement de `visibility` de la source est
+**obligatoire**, pas optionnel.
+
+## 5. Les cinq opérations
+
+Vocabulaire emprunté à **memorywire** (arXiv 2606.01138) : c'est le seul travail sérieux de
+normalisation du domaine (5 opérations × 4 types, interface `MemoryStore`, canal HITL). On en prend
+**la forme du contrat, pas la dépendance** — v0.4 par un chercheur isolé, qui se réserve de casser
+le format jusqu'en v0.5. Adopter la forme rend un adaptateur externe possible plus tard sans rien
+réécrire ; adopter le paquet nous accrocherait à un format instable.
+
+```python
+remember(content, *, kind, user, scope, provenance, ...)  -> MemoryItem
+recall(query, *, user, kinds=None, scope=None, k=8, include_rag=True) -> list[Hit]
+forget(item, *, reason, hard=False)   # DÉFAUT = invalidation (valid_to). hard=True réservé au RGPD.
+merge(items)                          # PROPOSE une fusion. N'applique JAMAIS.
+expire()                              # applique les TTL déclarés. N'atteint jamais un item approuvé.
+```
+
+**`recall()` est hybride, fusionné par RRF** (Reciprocal Rank Fusion) : recherche vectorielle
+pgvector (cosinus) + recherche lexicale Postgres full-text FR. Pas de max ni de somme pondérée —
+l'évaluation memorywire montre que RRF tient recall@5 = 1.000 sous injection adverse en rang 0, là
+où la fusion `max` s'effondre à 0.500 avec 80 % de fuite dès K ≥ 5. Le lexical n'est pas un luxe :
+il rattrape les identifiants exacts (`model_key`, nom de fichier, code projet) que le vectoriel rate.
+
+## 6. Gouvernance de l'écriture
+
+1. **Tout écrit issu d'un LLM arrive non approuvé** (`approved_at=None`) et est **invisible au
+   rappel**. Mesure vécue : sur les 6 audits wama-dev-ai du 17/07, les affirmations d'absence
+   étaient fausses **4 fois sur 6**. Une mémoire qui gobe ces sorties se corrompt en une nuit.
+2. **`provenance` est obligatoire.** C'est le levier le plus efficace pour récupérer un magasin
+   empoisonné : on invalide par provenance, pas item par item.
+3. **Seules les projections mécaniques (§7) s'auto-approuvent** — elles ne font que pointer un fait
+   déjà en base, sans inférence.
+4. **Aucune purge automatique n'atteint un `MemoryItem`.** Règle directe du 19/08 ; `expire()` ne
+   travaille que sur du non-approuvé et du `RagChunk`.
+5. **`merge()` propose, l'humain valide** — doctrine « propose-cite-tu-valides » (ROADMAP §16.1).
+
+## 7. Producteurs, consommateurs, substrat
+
+```
+PRODUCTEURS                       wama/common/memory/                CONSOMMATEURS
+                                  ├─ models.py   MemoryItem / RagChunk
+wama-dev-ai        ─┐             ├─ store.py    les 5 opérations        ┌─ prompt_pipeline « Hook B »
+ (procédural/       │             ├─ embed.py    bge-m3 via Ollama       │   (déjà présent, no-op)
+  sémantique dev)   ├───────────► ├─ project.py  projections read-only  ─┤─ tool_api.py (assistant)
+assistant IA        │             └─ index.py    indexation RAG          │─ wama-dev-ai (remplace
+ (épisodique)       │                                                    │   memory.json)
+runtime WAMA       ─┘   ⚠ RunOutcome / items de file / Manifest ne sont   └─ UI « ce que j'ai fait »
+ (via projection)          PAS RECOPIÉS : `project.py` les INDEXE en place.
+```
+
+**La mémoire de travail utilisateur est une projection, pas une copie.** `RunOutcome`
+(`common/models.py:475`) est déjà le journal append-only des gestes réels — produit, échec,
+téléchargé, corrigé, relancé, supprimé — avec `app`, `object_type/id`, `user`, `model_keys`. Il
+reste **la source de vérité** ; `project.py` n'y ajoute qu'un texte rappelable et un vecteur.
+Recopier ces faits créerait deux vérités qui divergent — exactement la maladie déjà diagnostiquée
+sur les `.md`.
+
+**Substrat : Postgres + pgvector.** Vérifié le 2026-08-20 : Postgres 16.10 (WSL2), client Python
+`pgvector.django` installé ✅, **extension serveur `vector` ABSENTE** ❌ — prérequis :
+`sudo apt-get install -y postgresql-16-pgvector` puis `CREATE EXTENSION vector;` en superuser
+(paquet 0.6.0-1 dispo dans noble/universe ; proxy UGE déjà configuré dans apt).
+
+> **Correction d'un plan périmé.** `PROJECT_STATUS §6`, `prompt_pipeline.py:116-118` et la vision
+> §11 annoncent **ChromaDB**. C'est abandonné, et pas par goût : un store séparé (a) ne peut pas
+> être filtré par `scoped_visible_q()` — la gouvernance devrait être ré-implémentée en filtres de
+> métadonnées, sans jointure possible ; (b) ajoute une 2ᵉ surface d'état à sauvegarder, hors du
+> périmètre `mirror_sync`/backup ; (c) contredit `ROADMAP §16.2`, qui avait **déjà adopté pgvector**
+> (« RAG dans Postgres existant »). C'est ROADMAP qui avait raison ; les trois autres n'ont pas suivi.
+
+**Embeddings : `bge-m3`** (1024 dims, multilingue) via Ollama — pas `nomic-embed-text`, anglo-centré
+(quick-win déjà identifié ROADMAP §16.1 ; le corpus Lescot est en français). `embedding_model` est
+stocké par ligne : une bascule de modèle devient un réindex explicite, jamais une corruption
+silencieuse. Index HNSW (dispo depuis pgvector 0.5 ; plafond 2000 dims, 1024 passe).
+
+## 8. La mémoire « émotionnelle » — RÉSERVÉE, non implémentée (décision 2026-08-20)
+
+Le 4ᵉ type de memorywire annote un souvenir d'une valence + intensité, pour (a) pondérer le rappel
+par saillance et (b) adapter le ton. **Non retenu**, pour trois raisons :
+
+1. C'est le seul type **sans producteur mécanique** : les trois autres constatent (un fait, un
+   événement horodaté, une séquence d'actions), celui-ci **infère**. L'inférence serait écrite en
+   mémoire permanente avec le même statut qu'un fait — ce que `RunOutcome` interdit explicitement
+   (« on enregistre un fait, pas un jugement »).
+2. Une inférence fausse est **indétectable après coup** : rien contre quoi la confronter.
+3. Profiler l'état émotionnel d'un agent public sur son poste, dans un magasin qui a un scope
+   `unit` donc **partageable au labo**, n'est neutre ni juridiquement ni socialement.
+
+⚠ **Ne pas confondre deux objets homonymes.** L'émotion **objet de recherche** du Lescot (annotations
+sur sujets/médias, protocole, instruments, annotateurs) est de la **donnée métier** : sa place est
+dans le modèle de l'app ou la couche dataset (wama-data), avec sa provenance et son protocole.
+Elle n'a aucun rapport avec « ce que l'IA croit deviner de l'humeur de l'utilisateur ». Les loger
+dans le même champ serait la surcharge de champ déjà proscrite.
+
+**Le bénéfice est obtenu sans l'inférence** : la pondération de saillance (`MemoryItem.salience`)
+se **calcule depuis `RunOutcome`** — `corrige`/`relance`/`supprime` = friction sur ce résultat,
+`telecharge` = il l'a emporté. Des gestes observés, pas des devinettes, conformément à la doctrine
+« on ne se nourrit que de gestes que l'utilisateur fait déjà ». `salience` est donc **dérivé et
+recalculable**, jamais saisi.
+
+Le type reste **réservé dans la taxonomie** : si un usage recherche apparaît, il s'ajoute sans
+migration de vocabulaire, et ce paragraphe évite de re-litiger la question.
+
+## 9. Ce qu'on n'adopte pas, et pourquoi (état de l'art au 2026-08-20)
+
+| | Licence | Le mur |
+|---|---|---|
+| **MemPalace** | MIT | Étoiles achetées (audit sur 42 497), benchmark surajusté (issue #29 : correction sur les questions ratées puis re-test sur le même jeu → « 100 % », ramené à 96,6 %), **la structure « palace » n'est pas impliquée** dans le score et dégrade le rappel en reproduction indépendante, **8 vulnérabilités dont 3 critiques** (issue #809) non corrigées. |
+| **mem0** | Apache 2.0 | Self-host = conteneur API + Postgres/pgvector + **Neo4j**. Optimisations propriétaires hors du SDK OSS (dit par leur README). Vendeur VC unique → risque de relicence. |
+| **Letta / MemGPT** | Apache 2.0 | C'est un **runtime d'agent**, pas une couche mémoire → même verdict que Hermes (§16.7) : 2ᵉ ordonnanceur à côté du `resource_governor` = corps étranger. |
+| **Zep / Graphiti** | Apache 2.0 | Exige un **serveur de graphe externe** (Neo4j 5.26+/FalkorDB). Coût LLM par épisode très élevé. CE self-hosted de Zep retirée. |
+| **cognee** | Apache 2.0 | Le graphe comme primitive de rappel principale = sur-ingénierie ; re-crée un modèle de données parallèle. |
+
+**Ce qu'on emprunte quand même** : le *contrat* de memorywire (§5) ; la **rétention verbatim** et le
+**rappel scopé** de MemPalace (ses deux bonnes idées) ; la **fenêtre de validité** de Graphiti — le
+vrai apport du graphe temporel, qui coûte deux colonnes et non un serveur ; le **merge dédupliqué**
+de mem0, mais proposé et non appliqué.
+
+⚠ Tous les scores LOCOMO publiés sont **auto-mesurés** (Zep a publié une réfutation du papier mem0).
+Ne rien arbitrer sur ces chiffres.
+
+## 10. Jalons
+
+| # | Jalon | Dépend de |
+|---|---|---|
+| 1 | Extension `vector` installée + activée sur `wama_db` | **Fabien (sudo)** — §7 |
+| 2 | `bge-m3` tiré dans Ollama + `embed.py` (+ entrée catalogue `AIModel`) | 1 |
+| 3 | `models.py` + migration + `store.py` (5 opérations) — **inerte, aucun appelant** | 2 |
+| 4 | `project.py` : projection `RunOutcome` → `MemoryItem` (mécanique, sans LLM) | 3 |
+| 5 | `index.py` : indexation RAG depuis la médiathèque | 3 |
+| 6 | Branchement `prompt_pipeline` Hook B (remplace le no-op ChromaDB l.116-118) | 4, 5 |
+| 7 | wama-dev-ai : `memory.json` → `MemoryItem` (`provenance='dev-ai'`, non approuvé) | 3 |
+| 8 | Outil `memory_recall` dans `tool_api.py` | 6 |
+| 9 | Entrée au registre `common/mecanismes.py` (la table de `WAMA_MECANISMES.md` en est générée) | 3 |
+
+Jalons 3 à 5 = **construits mais non branchés**, conformément à la consigne : wama-dev-ai reste sur
+sa tâche de fond wama-data. Rien ne change pour un utilisateur avant le jalon 6.
+
+## 11. Hors périmètre (tracé ailleurs)
+
+- **Traçage des process + génération de code réutilisable hors WAMA** → scope **wama-data**. Point
+  de jonction : le type `procedural`, dont le format de stockage est **déjà** `common/prompt_skills/`
+  (ROADMAP §16.7 : « ce qui manque n'est pas le dossier mais **l'écrivain** » — cette brique est
+  l'écrivain).
+- **Anonymisation du texte avant écriture** (PII dans un souvenir partagé au labo) → `ROADMAP §16.4`,
+  Presidio + GLiNER FR. À rebrancher ici quand ce composant existera : un `MemoryItem` de scope
+  `unit` ou `public` devra passer la porte privacy.

@@ -153,6 +153,7 @@ apply_patch(
 | Conventions d'app | `WAMA_APP_CONVENTIONS.md` |
 | Cam Analyzer | `wama_lab/cam_analyzer/CAM_ANALYZER_CHAINE_TRAITEMENT.md` (chaîne+conception) + `CAM_ANALYZER_CHANGELOG.md` (historique) + `README.md` (carte) — l'ancien `CAM_ANALYZER_TOPDOWN_STATUS.md` est archivé (`wama_lab/cam_analyzer/archive/`) |
 | Prompts (traduction/enrichissement) | `PROMPT_PIPELINE.md` |
+| **Mémoire & RAG** (mémoire agent + mémoire de travail utilisateur + RAG = UN mécanisme) | **`WAMA_MEMORY.md`** — architecture décidée 2026-08-20, non construite. ⚠ **Périme le plan ChromaDB** (`PROJECT_STATUS §6`, vision §11, `prompt_pipeline.py:116`) : cible = `wama/common/memory/` sur **Postgres + pgvector**, scoping **hérité** de `ScopedVisibility`. |
 | Transcriber — correction assistée | `wama/transcriber/TRANSCRIBER_CORRECTION.md` |
 
 ---

@@ -422,8 +422,22 @@ Docs (3 piliers, 2026-07-21) : `wama_lab/cam_analyzer/README.md` (carte) + `CAM_
   (étapes 1-3) ; **reste** : validation terrain des vitesses, infos caméras pour mesures absolues,
   (option) palliatif UI segments < 1 s. Détail : `CAM_ANALYZER_CHANGELOG.md`.
 
-## 6. RAG (fondation §8c) — non démarré (prérequis du hook RAG §1)
-- ⏳ Store ChromaDB + embedder bge-m3 ; module `wama/rag/` (store + embedder) ; indexation via Médiathèque
+## 6. Mémoire & RAG (fondation §8c) — ARCHITECTURE DÉCIDÉE 2026-08-20, non construit
+> **Doc de référence UNIQUE du domaine : [`WAMA_MEMORY.md`](WAMA_MEMORY.md)** (mémoire agent +
+> mémoire de travail utilisateur + RAG = **un seul mécanisme**, une seule brique).
+- ⚠ **Le plan « store ChromaDB + module `wama/rag/` » est ABANDONNÉ** — un store séparé ne peut pas
+  être filtré par `scoped_visible_q()` (la gouvernance devrait être ré-implémentée en filtres de
+  métadonnées, sans jointure), ajoute une 2ᵉ surface d'état hors backup, et contredisait
+  `ROADMAP §16.2` qui avait **déjà adopté pgvector**. Cible : `wama/common/memory/` sur
+  **Postgres + pgvector**, embeddings **bge-m3** via Ollama.
+- ✅ La hiérarchie RAG de la vision §11 (univ → labo → équipe → user) est **héritée**, pas à
+  construire : `MemoryItem`/`RagChunk` héritent de `ScopedVisibility` ; un rappel = une queryset
+  avec `scoped_visible_q(user)`.
+- ⏳ Jalons 1→9 dans `WAMA_MEMORY.md §10`. **Bloquant #1 = Fabien (sudo)** :
+  `postgresql-16-pgvector` + `CREATE EXTENSION vector` (client Python déjà installé, extension
+  serveur absente — vérifié 2026-08-20).
+- Décision consignée : type de mémoire `emotional` **réservé, non implémenté** (`§8` du doc) — la
+  saillance se dérive de `RunOutcome`, pas d'une inférence d'humeur.
 
 ## 7. Anonymisation multimodale (§16.4) — décidé, non construit
 - ⏳ Presidio + GLiNER FR ; mode « texte » = porte privacy avant-cloud (même composant) ; audio (PII + biométrie) ; dispatcher par modalité
@@ -1162,6 +1176,7 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 | WAMA_MANIFEST_SPEC.md | — | formalisme des manifestes (7 kinds) | ✅ vivant (créé 2026-07-21) |
 | WAMA_MANIFEST_ARCHITECTURE.md | — | schéma fonctionnel manifestes/ingest/projection | ✅ vivant (créé 2026-07-21) |
 | WAMA_DATA_FUNCTION_CARDS.md | — | catalogue capability WAMA Data | ✅ vivant (créé 2026-07-20 ; à resynchroniser post-refactoring `data/functions/` par domaine) |
+| WAMA_MEMORY.md | — | référence UNIQUE mémoire + RAG (architecture décidée, non construite) | ✅ vivant (créé 2026-08-20 ; **périme le plan ChromaDB** de §6 / vision §11 / `prompt_pipeline.py:116`) |
 | ~~REPRISE_2026-07-22.md~~ | — | handoff daté | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-25, B8 ; vivant migré §40 + R18/R19 + CLAUDE.md) |
 
 ### 23.2 Recouvrements identifiés (pas de vrai doublon strict trouvé)
