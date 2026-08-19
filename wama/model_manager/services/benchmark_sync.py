@@ -90,10 +90,17 @@ TACHE_VERS_CATEGORIE = {
     'image-to-video': 'image-to-video',
 }
 
-#: Équivalences CONFIRMÉES À LA MAIN : model_key local → nom/slug tiers. L'identité stricte
-#: prime ; une entrée ici se justifie en commentaire (qui l'a confirmée, sur quoi).
+#: Équivalences CONFIRMÉES À LA MAIN : model_key local → slug/nom EXACT chez le tiers.
+#: Appariement par ÉGALITÉ de slug (pas par identité) : une confirmation humaine désigne UNE
+#: entrée, jamais une famille — `gemma4:e4b` rapproché par identité aurait capté le score du
+#: « Gemma 4 31B » (29,7), la taille `e4b` n'étant pas un nombre de milliards analysable.
+#: Chaque ligne se justifie : qui l'a confirmée, sur quoi.
 ALIAS: dict[str, str] = {
-    # ex. 'ollama:gemma4:26b': 'gemma-4-31b',  # si Fabien confirme que 26b == « Gemma 4 31B »
+    # Fabien 2026-08-19 : même modèle, AA nomme la variante de raisonnement à part
+    # (« Gemma 4 E4B (Reasoning) » 12,2 vs « (Non-reasoning) » 8,7) ; notre tag Ollama
+    # déclare `thinking` → variante Reasoning.
+    'ollama:gemma4:e4b': 'gemma-4-e4b',
+    'proposed:ollama:gemma4:e4b': 'gemma-4-e4b',
 }
 
 
@@ -173,6 +180,14 @@ def _apparier(ident_local, entrees, taille_requise=False):
     c = [e for e in entrees if _compatibles(ident_local, e['identite'], taille_requise)]
     exacts = [e for e in c if ident_local and e['identite'][2] == ident_local[2]]
     return exacts or c
+
+
+def _apparier_alias(cible: str, entrees):
+    """Entrées dont le slug OU le nom vaut EXACTEMENT `cible` (comparaison normalisée)."""
+    def norme(s):
+        return re.sub(r'[\s_]+', '-', (s or '').strip().lower())
+    c = norme(cible)
+    return [e for e in entrees if norme(e.get('slug')) == c or norme(e.get('nom')) == c]
 
 
 # ── Sources ──────────────────────────────────────────────────────────────────────────────
@@ -278,10 +293,8 @@ def _categorie_locale(m):
 
 
 def _identites_locales(m):
-    """Identités candidates d'une ligne AIModel : alias déclaré > tag/nom/hf_id/platform_ref."""
-    if m.model_key in ALIAS:
-        i = _identite(ALIAS[m.model_key])
-        return [i] if i else []
+    """Identités candidates d'une ligne AIModel : tag/nom/hf_id/platform_ref (hors ALIAS,
+    traité à part par égalité de slug — cf. `_apparier_alias`)."""
     bruts = [m.model_key.split(':', 1)[1] if ':' in m.model_key else m.model_key,
              m.name or '', (m.hf_id or '').rsplit('/', 1)[-1],
              (m.platform_ref or '').rpartition(':')[2].rsplit('/', 1)[-1]]
@@ -348,20 +361,26 @@ def synchroniser(dry_run: bool = False, inclure_proposes: bool = True):
         if cat is None:
             rapport['sans_categorie'] += 1
             continue
-        idents = _identites_locales(m)
-        stricte = (cat == 'llm')     # cf. _compatibles : jamais une variante frontière sans taille
+        alias = ALIAS.get(m.model_key)
         cands_aa, cands_ar = [], []
-        for ident in idents:
-            cands_aa = _apparier(ident, sources.get('aa', {}).get(cat, []), stricte)
-            cands_ar = _apparier(ident, sources.get('arena', {}).get(cat, []), stricte)
-            if cands_aa or cands_ar:
-                break
+        if alias:       # confirmation humaine : égalité de slug, aucune heuristique
+            cands_aa = _apparier_alias(alias, sources.get('aa', {}).get(cat, []))
+            cands_ar = _apparier_alias(alias, sources.get('arena', {}).get(cat, []))
+        else:
+            idents = _identites_locales(m)
+            stricte = (cat == 'llm')  # cf. _compatibles : jamais une variante frontière sans taille
+            for ident in idents:
+                cands_aa = _apparier(ident, sources.get('aa', {}).get(cat, []), stricte)
+                cands_ar = _apparier(ident, sources.get('arena', {}).get(cat, []), stricte)
+                if cands_aa or cands_ar:
+                    break
         if not cands_aa and not cands_ar:
             if idents:      # identifiable mais absent des leaderboards : tracé, pas un échec
                 rapport['non_apparies'].append(f'{m.model_key} [{cat}]')
             continue
 
         meta = {'synced_at': timezone.now().isoformat(), 'categorie': cat,
+                **({'alias_declare': alias} if alias else {}),
                 'attribution': 'Artificial Analysis (Data API) / Arena leaderboard-dataset CC-BY-4.0',
                 'quant_locale': 'score tiers = borne haute (mesuré fp8/16, local souvent Q4)'}
         valeur = echelle = None
