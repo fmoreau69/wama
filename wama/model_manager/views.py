@@ -1508,13 +1508,24 @@ def api_prospect_ollama(request):
         except Exception:
             logger.warning("balayage HuggingFace en échec", exc_info=True)
             summary['hf'] = {'error': 'indisponible'}
-        try:
-            from .tasks import assess_proposed_task
-            assess_proposed_task.delay()
-            summary['assess_enqueued'] = True
-        except Exception:
-            # Broker indisponible : la prospection reste valable, la confiance attendra.
-            logger.warning("assess_proposed_task non enfilée", exc_info=True)
+        # ⚠ ENFILAGE AUTO DÉSACTIVÉ PAR DÉFAUT (2026-08-19). La passe LLM enchaînée sur
+        # l'Ollama hôte a déclenché un CRASH WINDOWS reproductible à chaque prospection
+        # (1er verdict 01:57:44 → hôte tombé, Ollama relancé 01:59:02) — c'est le pattern
+        # « Ollama hôte enchaîné » déjà proscrit sur cette machine (instabilité SOUS l'OS,
+        # même à faible charge). La confiance s'évalue désormais sur ACTION EXPLICITE
+        # (CLI `assess_models --proposed` à venir, ou réactivation via ce réglage quand
+        # l'hôte sera stabilisé).
+        from django.conf import settings as _settings
+        if getattr(_settings, 'PROSPECT_ASSESS_AUTO', False):
+            try:
+                from .tasks import assess_proposed_task
+                assess_proposed_task.delay()
+                summary['assess_enqueued'] = True
+            except Exception:
+                # Broker indisponible : la prospection reste valable, la confiance attendra.
+                logger.warning("assess_proposed_task non enfilée", exc_info=True)
+                summary['assess_enqueued'] = False
+        else:
             summary['assess_enqueued'] = False
         return JsonResponse({'success': True, 'summary': summary})
     except Exception as e:
