@@ -3112,6 +3112,33 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > synthesizer 98 · anonymizer/imager 97** · `app_sandbox list` = converter_01 6/6 ·
 > ⚠ `AIModel` `_fp16` = **0 après restart+purge** (7 = beat ancien code, pas une dérive).
 
+### Addendum 19/08 (journée) — VALIDATIONS NAVIGATEUR ①(b)(c) JOUÉES (passe Playwright, compte ui_smoke_v3)
+
+> Passe `logs/ui_smoke/smoke_handoff_1908.py` (10 apps, seeds idempotents par app, session forgée —
+> compte smoke doté des Groups `user` + `role:*`, prérequis @app_access). Captures :
+> `logs/ui_smoke/manual/handoff1908/`. **Vu à l'écran, pas déduit.**
+>
+> **✅ VALIDÉ** : previews hydratées converter 2/2 · anonymizer 1/1 · avatarizer 1/1 (mécanisme
+> n°30 ; sortie avatarizer factice → décodage non testé) ; volet reflété au clic card sur
+> **9/10 apps** avec sections Entrée/Réglages/Sortie (les sections vides sont omises par design —
+> `_section()` rend '' ; describer/transcriber PENDING sans Sortie, synthesizer sans Entrée :
+> conformes) ; modales prefill describer (detailed/fr/500) + composer (**prompt EN TÊTE** +
+> descriptif MusicGen) + enhancer (#100, descriptif RealESR inline = `help_source` ⑪, chips
+> `RealESR_Gx4` = clé canonique post-alignement) ; **player converter** : lecture démarrée ET
+> maintenue (icône fa-pause à 700 ms, fin naturelle du wav 1 s) + **1 seule inclusion
+> wama-app-base.js sur les 10 apps** (bug ⑥ non régressé) ; **0 erreur console** sur les 10 apps
+> (1 transitoire `refreshConsole` reader au 2ᵉ run, disparue ensuite).
+>
+> **❌ ÉCART RÉEL (confronté au code)** : **imager** — la card se sélectionne (liseré, params
+> liés « génération #71 ») mais NI Infos NI Aperçu : `_generation_card.html` ne porte pas
+> `data-preview-url` (reader `_item_card.html:32` et composer `_generation_card.html:19` l'ont)
+> → `fillDetail()` fait `hideDetail()`. Fix = 1 attr sur les cards image+vidéo ; rejoint les
+> ❌ F3 existants d'imager.
+>
+> **RESTE DÛ (hors périmètre smoke)** : during ×3 = jobs GPU réels → **Fabien** ;
+> `/converter_01/` redirige vers l'accueil pour le compte smoke (gating catalogue) → valider
+> avec le compte Fabien ou élargir les groupes du compte smoke.
+
 ## §REPRISE — 2026-08-13 (nuit) : BANC CODEGEN JOUÉ (marche B front 2) + skills à jour
 
 > **Reprise** : les 5 contrôles conformes au bloc attendu (check_docs 2 CASSÉ, corpus 110,

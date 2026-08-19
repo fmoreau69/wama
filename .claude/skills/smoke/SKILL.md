@@ -60,6 +60,16 @@ le RENDU RÉEL, pas la structure du code.
   compter comme erreur que ce qui reste visible après l'échec.
 - **`OLLAMA_HOST` doit être exporté** (Ollama tourne sur l'hôte Windows) sinon le triage VLM
   échoue en silence — les couches déterministes, elles, continuent de fonctionner.
+- **`innerText` subit `text-transform: uppercase`** (19/08) : chercher « Réglages » dans le texte
+  rendu échoue sur les libellés stylés en capitales — comparer en minuscules, ou viser les nœuds
+  (`.wama-insp-sec-lbl`) plutôt que le texte.
+- **Le gear ⚙ n'a PAS de sélecteur uniforme** (mesuré 19/08) : `[data-action="settings"]`
+  (enhancer, contrat cardSettings), `.settings-btn` (transcriber/imager…), `.job-settings-btn`
+  (converter), `.btn-settings-job` (avatarizer). Les viser TOUS ; et `closest()` sur la card doit
+  inclure `[class*="-card"]`.
+- **Le compte smoke doit porter les Groups `user` + `role:*`** sinon @app_access répond 302 vers
+  l'accueil — et une page « chargée » peut être L'ACCUEIL après redirect : vérifier un marqueur de
+  la page visée, pas le seul code 200 (piège vécu sur `/converter_01/`).
 - **Le contrôle « zéro erreur console » est le plus rentable** : il a trouvé une double inclusion
   de brique globale (`MediaPicker`) sur 2 apps dès la 1re exécution, sur des pages utilisées tous
   les jours. `node --check` ne voit que la syntaxe, jamais une erreur au chargement.
