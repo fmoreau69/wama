@@ -22,6 +22,19 @@ from enum import Enum
 logger = logging.getLogger(__name__)
 
 
+#: SPÉCIALISATION déclarée d'un modèle Ollama : préfixe de famille → domaine de spécialité.
+#: Troisième axe, distinct des deux autres (2026-08-19) : `ModelType` dit ce qu'un modèle EST,
+#: `capabilities`/`ModelTask` ce qu'il SAIT FAIRE, et ceci ce POUR QUOI il est fait. Ollama ne
+#: l'expose pas — `translategemma:12b` rend `completion, vision`, exactement comme un
+#: généraliste : un spécialiste entrait donc dans le pool généraliste de `select_model()`
+#: (et son absence des benchmarks tiers y rendait l'étage de mesure inerte).
+#: Déclaration HUMAINE, jamais devinée ; un modèle spécialisé n'est retenu que si l'appelant
+#: demande sa spécialité (`select_model(specialisation='translation')`).
+SPECIALISATIONS_OLLAMA = {
+    'translategemma': 'translation',   # Google, variante Gemma dédiée à la traduction
+}
+
+
 def _check_hf_model_downloaded(cache_dir: Path, hf_id: str) -> bool:
     """
     Check if a HuggingFace model is downloaded in the cache directory.
@@ -1221,7 +1234,11 @@ class ModelRegistry:
             `vram_gb=0.0` et faisant paraître le modèle gratuit au sélecteur ;
           • le ratio d'experts d'un MoE (`<arch>.expert_used_count` / `expert_count`), donc la
             séparation entre qualité (params totaux) et coût (params actifs) ;
-          • la fenêtre de contexte, capacité canonique jamais renseignée jusqu'ici.
+          • la fenêtre de contexte, capacité canonique jamais renseignée jusqu'ici ;
+          • les capacités COMPLÈTES : `/api/tags` en rend un sous-ensemble — mesuré le
+            2026-08-19, gemma4:12b y annonce [completion, tools, thinking, vision] quand
+            `/api/show` ajoute `audio`. L'entrée audio native du parc était donc invisible.
+            Récupérées ICI, sans requête supplémentaire (l'appel est déjà fait).
 
         ⚠ UN APPEL PAR MODÈLE. Acceptable à la synchro (périodique, ~12 modèles) ; à ne pas
         mettre dans un chemin de requête.
@@ -1242,29 +1259,43 @@ class ModelRegistry:
                 'experts_total': infos.get(f'{arch}.expert_count'),
                 'experts_actifs': infos.get(f'{arch}.expert_used_count'),
                 'arch': arch,
+                'capabilities': set(d.get('capabilities') or []),
             }
         except Exception as exc:
             logger.debug("[ModelRegistry] /api/show %s indisponible : %s", nom, exc)
             return {}
 
     @staticmethod
-    def _capacites_canoniques(brutes: set) -> dict:
+    def _capacites_canoniques(brutes: set, nom_modele: str = '') -> dict:
         """Capacités Ollama → vocabulaire CANONIQUE (`model_capabilities.CANONICAL_CAPABILITIES`).
 
         `requires=` de `select_model()` teste des clés TRUTHY : on expose donc des drapeaux
-        positifs (`completion`, `vision`, `tools`, `embedding`) plutôt qu'une négation, qu'il
-        ne saurait pas exprimer.
+        positifs (`completion`, `vision`, `audio`, `tools`, `embedding`) plutôt qu'une
+        négation, qu'il ne saurait pas exprimer. `nom_modele` sert à la SPÉCIALISATION
+        déclarée (cf. `SPECIALISATIONS_OLLAMA`), que la découverte ne peut pas deviner.
         """
         embarque = 'embedding' in brutes
-        modalites = ['text'] + (['image'] if 'vision' in brutes else [])
+        # `audio` (ENTRÉE audio native) était JETÉ : absent de la liste blanche et des
+        # modalités, alors que gemma4:12b et gemma4:e4b le déclarent (mesuré 2026-08-19).
+        # Une capacité réelle du parc restait invisible à `select_model(requires=...)`.
+        modalites = (['text'] + (['image'] if 'vision' in brutes else [])
+                     + (['audio'] if 'audio' in brutes else []))
         caps = {
             'modalities': modalites,
             'task': 'feature-extraction' if embarque else 'text-generation',
             'inputs_required': ['prompt'],
         }
-        for drapeau in ('completion', 'vision', 'tools', 'thinking', 'embedding'):
+        for drapeau in ('completion', 'vision', 'audio', 'tools', 'thinking', 'embedding'):
             if drapeau in brutes:
                 caps[drapeau] = True
+        # Spécialisation DÉCLARÉE (humaine) : elle ne se découvre pas — Ollama rend
+        # `completion, vision` pour translategemma comme pour un généraliste. Déclarée ICI
+        # parce que la découverte réécrit `capabilities` EN ENTIER à chaque sync (une valeur
+        # posée en base serait effacée au passage suivant — leçon `audio_enhance`, 05/08).
+        for prefixe, domaine in SPECIALISATIONS_OLLAMA.items():
+            if nom_modele and nom_modele.split(':')[0].lower().startswith(prefixe):
+                caps['specialisation'] = domaine
+                break
         # Un modèle sans capacité déclarée (Ollama ancien, ou API injoignable) est traité comme
         # un modèle de complétion : c'est le comportement d'avant, on ne régresse pas.
         if not brutes:
@@ -1362,7 +1393,13 @@ class ModelRegistry:
                                 # hors de portée.
                                 quality_index=qualite,
                                 capabilities=dict(
-                                    self._capacites_canoniques(capacites.get(model_name, set())),
+                                    # UNION tags ∪ show : `/api/tags` rend un SOUS-ENSEMBLE
+                                    # (pas d'`audio`), `/api/show` la liste complète — la
+                                    # fiche est déjà chargée, donc gratuit (mesuré 19/08).
+                                    self._capacites_canoniques(
+                                        capacites.get(model_name, set())
+                                        | (fiche.get('capabilities') or set()),
+                                        model_name),
                                     # L'ensemble BRUT d'Ollama, conservé tel quel : `tools` et
                                     # `thinking` n'ont d'équivalent dans aucune autre taxonomie, et
                                     # ce sont eux qui disent si un modèle peut servir l'assistant.
@@ -1370,8 +1407,10 @@ class ModelRegistry:
                                     # découverte réécrit `capabilities` en entier à chaque sync et
                                     # effacerait toute valeur posée en dehors d'elle (constaté le
                                     # 2026-08-05 — 11 modèles renseignés, puis 0 après un sync).
-                                    **({'abilities': sorted(capacites.get(model_name, set()))}
-                                       if capacites.get(model_name) else {}),
+                                    **({'abilities': sorted(capacites.get(model_name, set())
+                                                            | (fiche.get('capabilities') or set()))}
+                                       if (capacites.get(model_name)
+                                           or fiche.get('capabilities')) else {}),
                                     # `context_length` est au vocabulaire canonique et n'était
                                     # jamais rempli ; `params_*_b` séparent explicitement la
                                     # QUALITÉ (totaux) du COÛT (actifs) — voir model_quality.py.

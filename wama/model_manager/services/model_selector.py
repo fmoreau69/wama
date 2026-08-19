@@ -29,6 +29,18 @@ def get_free_vram_gb() -> Optional[float]:
     return None
 
 
+def _specialisation_ok(model, demandee) -> bool:
+    """
+    Un modèle SPÉCIALISÉ (`capabilities['specialisation']`) n'entre dans un lot que si
+    l'appelant demande sa spécialité — sinon il concourt à armes inégales dans un pool
+    généraliste (cas `translategemma:12b`, spécialiste traduction que rien ne distinguait :
+    Ollama lui rend `completion, vision` comme à un généraliste). Réciproquement, demander
+    une spécialité ne retient QUE les modèles qui la portent. Cf. `SPECIALISATIONS_OLLAMA`.
+    """
+    spec = (model.capabilities or {}).get('specialisation')
+    return spec == demandee if demandee else not spec
+
+
 def _supports(model, requires, classes) -> bool:
     """Filtre capacités via `capabilities` (source canonique) — `requires` = clés truthy ;
     `classes` ⊆ capabilities['classes'].
@@ -48,7 +60,7 @@ def _supports(model, requires, classes) -> bool:
     return True
 
 
-def _cle_de_rang(pool):
+def _cle_de_rang(pool, domaine=None):
     """
     Fabrique la clé de tri « (déjà chargé, qualité) » pour CE lot de candidats.
 
@@ -73,6 +85,18 @@ def _cle_de_rang(pool):
     NULL partout → étage inerte) ; ensuite, les lots 100 % appariés (LLM Ollama) passent
     sur la mesure tierce.
     """
+    # Étage 2bis — SOUS-INDICE DE DOMAINE (2026-08-19) : « le meilleur » n'est pas le même
+    # selon ce qu'on demande. Artificial Analysis publie des indices par domaine (coding,
+    # math) dans la même réponse : `qwen3.8` = 52,0 en général mais 68,1 en coding, quand
+    # `gemma4:e4b` tombe à 9,4 — un rôle codegen doit trier là-dessus, pas sur l'indice
+    # général. Même règle de lot que partout : TOUT le lot doit porter ce domaine, sinon on
+    # redescend d'un étage (un domaine absent = inconnu, jamais « mauvais »).
+    def _sous(m):
+        return ((getattr(m, 'benchmark_meta', None) or {}).get('sous_indices') or {}).get(domaine)
+
+    domaine_utilisable = bool(domaine) and bool(pool) and all(
+        _sous(m) is not None for m in pool)
+
     # Un benchmark n'est comparable qu'à MÊME ÉCHELLE (Intelligence Index ~0-70 vs Elo
     # ~1000-1500 : incommensurables — on ne normalise jamais, cf. benchmark_sync). Le lot
     # doit donc être 100 % benchmarké ET homogène en échelle (`benchmark_meta['echelle']`).
@@ -82,7 +106,9 @@ def _cle_de_rang(pool):
     tous_qualifies = bool(pool) and all(m.quality_index is not None for m in pool)
 
     def cle(m):
-        if tous_benchmarkes:
+        if domaine_utilisable:
+            q = _sous(m)
+        elif tous_benchmarkes:
             q = m.benchmark_index
         elif tous_qualifies:
             q = m.quality_index
@@ -92,7 +118,7 @@ def _cle_de_rang(pool):
     return cle
 
 
-def _best_by_vram(models, budget_gb: Optional[float]):
+def _best_by_vram(models, budget_gb: Optional[float], domaine=None):
     """
     Parmi `models`, choisir le meilleur compromis QUALITÉ/VRAM :
       - déjà chargé prioritaire (évite un déchargement/rechargement) ;
@@ -108,10 +134,10 @@ def _best_by_vram(models, budget_gb: Optional[float]):
     # La clé se calcule sur le lot RÉELLEMENT en compétition (cf. `_cle_de_rang`) : le lot
     # complet si aucun budget, sinon les seuls candidats qui tiennent.
     if budget_gb is None:
-        return max(models, key=_cle_de_rang(models))
+        return max(models, key=_cle_de_rang(models, domaine))
     fit = [m for m in models if (m.vram_gb or 0) <= budget_gb]
     if fit:
-        return max(fit, key=_cle_de_rang(fit))
+        return max(fit, key=_cle_de_rang(fit, domaine))
     return min(models, key=lambda m: (m.vram_gb or 0))
 
 
@@ -128,6 +154,8 @@ def select_model(
     name_contains: Optional[str] = None,
     priority: Optional[List[str]] = None,
     availability_probe=None,
+    benchmark_domaine: Optional[str] = None,
+    specialisation: Optional[str] = None,
 ):
     """
     Choisit le meilleur `AIModel` pour `source` (valeur ModelSource), ou None.
@@ -153,6 +181,13 @@ def select_model(
                          catalogue (ex. import Python réellement possible). Permet de
                          couvrir les apps « backend-class » sans se fier au seul
                          is_downloaded du catalogue.
+        benchmark_domaine: domaine de compétence à privilégier ('coding', 'math' —
+                         `benchmark_meta['sous_indices']`, alimenté par `sync_benchmarks`).
+                         Trie sur CE domaine si TOUT le lot le porte, sinon redescend d'un
+                         étage. « Le meilleur » dépend de ce qu'on demande : qwen3.8 vaut
+                         52,0 en général mais 68,1 en coding.
+        specialisation:  spécialité EXIGÉE ('translation'…). Sans elle, les modèles
+                         spécialisés sont ÉCARTÉS du lot (cf. `_specialisation_ok`).
 
     Returns:
         AIModel | None.
@@ -172,7 +207,8 @@ def select_model(
         nc = name_contains.lower()
         models = [m for m in models if nc in m.model_key.lower() or nc in (m.name or '').lower()]
 
-    models = [m for m in models if _supports(m, requires, classes)]
+    models = [m for m in models if _supports(m, requires, classes)
+              and _specialisation_ok(m, specialisation)]
 
     # Disponibilité runtime (au-delà du catalogue) : ex. l'import Python du backend.
     if availability_probe:
@@ -210,8 +246,8 @@ def select_model(
         if prefer_loaded:
             loaded = [m for m in pool if m.is_loaded or m.model_key in residents]
             if loaded:
-                return _best_by_vram(loaded, budget)
-        return _best_by_vram(pool, budget)
+                return _best_by_vram(loaded, budget, benchmark_domaine)
+        return _best_by_vram(pool, budget, benchmark_domaine)
 
     # Priorité explicite : le 1er palier ayant des candidats l'emporte (domine la VRAM).
     if priority:

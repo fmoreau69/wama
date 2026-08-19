@@ -33,6 +33,23 @@ CANONICAL_CAPABILITIES: Dict[str, str] = {
     "task":                "str — identifiant de tâche façon HF (ex. 'text-to-image', 'segment')",
     "languages":           "list[str] — codes ISO gérés ; ['*'] = agnostique/toutes langues",
     "context_length":      "int — fenêtre de contexte (llm/vlm)",
+    # Capacités d'un LLM/VLM — un ENSEMBLE, pas une tâche unique (cf. models.py §ModelTask :
+    # « qwen3.6:35b rend [completion, vision, tools, thinking] ; `tools`/`thinking` n'ont aucun
+    # équivalent HF »). Écrites par la découverte Ollama (`_capacites_canoniques`) et lues par
+    # `select_model(requires=…)` / `llm_utils`. DÉCLARÉES ICI depuis le 2026-08-19 : elles
+    # circulaient sans figurer au vocabulaire qui se dit « source unique » — la carte ignorait
+    # l'axe LLM tout entier (relevé en répondant à la question de Fabien sur les sous-catégories).
+    "completion":          "bool — génération de texte (chat/instruct) ; faux pour un embedding",
+    "vision":              "bool — entrée IMAGE native (multimodal)",
+    "audio":               "bool — entrée AUDIO native (gemma4 12b/e4b)",
+    "tools":               "bool — appel d'outils (function calling) — décisif pour l'assistant",
+    "thinking":            "bool — mode raisonnement explicite (chaîne de pensée)",
+    "embedding":           "bool — produit des vecteurs, PAS du texte",
+    "abilities":           "list[str] — capacités BRUTES telles que déclarées par Ollama",
+    #: Ce POUR QUOI le modèle est fait, quand ce n'est pas « tout » — 3e axe, DÉCLARÉ par un
+    #: humain (`model_registry.SPECIALISATIONS_OLLAMA`), jamais découvert. Un modèle qui le
+    #: porte sort du pool généraliste sauf demande explicite.
+    "specialisation":      "str — domaine de spécialité (ex. 'translation') ; exclut du pool généraliste",
     # Capacités booléennes (préfixe supports_ — ALIGNÉ sur les flags backend)
     "supports_diarization": "bool — diarisation locuteur native (⇐ ex-`native_diarization`)",
     "supports_timestamps":  "bool — horodatage mot/segment",

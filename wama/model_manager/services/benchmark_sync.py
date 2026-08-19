@@ -214,12 +214,23 @@ def charger_aa():
             continue
         out = []
         for m in (data.get('data') or []):
-            v = (m.get('evaluations') or {}).get(spec['aa_champ'], m.get(spec['aa_champ']))
+            ev = m.get('evaluations') or {}
+            v = ev.get(spec['aa_champ'], m.get(spec['aa_champ']))
             ident = _identite(m.get('slug') or m.get('name') or '')
             if v is None or ident is None:
                 continue    # null plutôt que plausible
+            # Sous-indices PAR DOMAINE : « le meilleur » dépend de ce qu'on demande
+            # (qwen3.8 = 52,0 en général, 68,1 en coding). Même requête, coût nul ;
+            # consommés par `select_model(benchmark_domaine='coding')`.
+            sous = {cle[len('artificial_analysis_'):-len('_index')]: val
+                    for cle, val in ev.items()
+                    if cle.startswith('artificial_analysis_') and cle.endswith('_index')
+                    and cle != f"artificial_analysis_{spec['aa_champ'].split('_')[-1]}"
+                    and val is not None}
+            sous.pop('intelligence', None)      # déjà porté par `benchmark_index`
             out.append({'nom': m.get('name', ''), 'slug': m.get('slug', ''),
-                        'valeur': float(v), 'echelle': spec['aa_echelle'], 'identite': ident})
+                        'valeur': float(v), 'echelle': spec['aa_echelle'], 'identite': ident,
+                        'sous_indices': sous})
         if out:
             par_cat[cat] = out
         else:
@@ -390,6 +401,8 @@ def synchroniser(dry_run: bool = False, inclure_proposes: bool = True):
             meta.update({'source': 'artificial-analysis', 'aa_nom': retenu['nom'],
                          'aa_slug': retenu['slug'],
                          'aa_variantes': [(e['nom'], e['valeur']) for e in cands_aa]})
+            if retenu.get('sous_indices'):
+                meta['sous_indices'] = retenu['sous_indices']
         arena_elo = None
         if cands_ar:
             best = max(cands_ar, key=lambda e: e['elo'])
