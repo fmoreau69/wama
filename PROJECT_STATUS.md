@@ -3210,6 +3210,65 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > `/converter_01/` redirige vers l'accueil pour le compte smoke (gating catalogue) → valider
 > avec le compte Fabien ou élargir les groupes du compte smoke.
 
+### Addendum 19/08 (soir) — FLOUTAGE ANONYMIZER : inventaire des divergences YOLO/SAM3 (chantier ACTÉ, non commencé)
+
+> Origine : Fabien observait depuis longtemps « une quantité de floutage qui diffère entre YOLO
+> et SAM3 ». **Confirmé, et c'est structurel** — trois chemins de floutage écrits séparément,
+> auxquels les mêmes réglages ne s'appliquent pas de la même façon. Objectif acté : normaliser,
+> porter les procédés au COMMUN en fonctions data (schéma-driven), puis reporter à l'anonymizer
+> avec retour arrière possible. **Rien n'est modifié à ce stade** (le floutage est la fonction de
+> conformité RGPD de l'app : on ne change pas sa sortie en passant).
+
+**LES TROIS CHEMINS** (`core/anonymize.py:792-798`, `core/blur_utils.py`) :
+- **P1 — boîte simple** : `blur_detection` → `apply_simple_blur` (label ∉ {face, person} **ou**
+  `progressive_blur = 0`) ;
+- **P2 — boîte progressive** : `blur_detection` → `apply_progressive_blur` (label ∈ {face, person}
+  **et** `progressive_blur > 0`) ;
+- **P3 — masque** : `blur_segmentation` → `apply_mask_blur` (SAM3 ou modèle YOLO-seg).
+- Les détections **interpolées** (`anonymize.py:810`) repassent toujours par P1/P2 — jamais P3.
+
+**INVENTAIRE — à quels chemins chaque réglage s'applique VRAIMENT :**
+
+| Réglage | P1 boîte | P2 boîte progressive | P3 masque |
+|---|---|---|---|
+| `blur_ratio` (noyau gaussien) | ✅ sur le **crop** | ✅ sur le **crop** | ✅ sur **l'image ENTIÈRE** puis fusion alpha |
+| `roi_enlargement` | ✅ `Bounds.scale` | ✅ | ❌ **jamais appliqué** |
+| `rounded_edges` | ✅ `Bounds.expand` | ✅ | ❌ **jamais appliqué** |
+| `progressive_blur` | ❌ (son absence DÉFINIT P1) | ✅ ellipse floutée | ✅ adoucissement du masque |
+| Géométrie floutée | rectangle | **ellipse** inscrite | contour réel de l'objet |
+
+**Effets de bord relevés** : ① plancher de `progressive_blur` incohérent — `max(1, …)` en P2
+(`blur_utils.py:181`) vs `max(3, …)` en P3 (`:35`) ; ② **coût** : P3 floute l'image entière **à
+chaque détection** (N détections/frame = N flous plein cadre) là où P1/P2 floutent un crop —
+piste sérieuse de lenteur du chemin SAM3 ; ③ le flou progressif n'atteint **jamais les plaques**
+(réservé à face/person).
+
+**CE QUE NORMALISER IMPLIQUE — 3 décisions de PRODUIT (en attente de Fabien)** : ① le flou
+progressif doit-il s'appliquer aux plaques (aujourd'hui non) ? ② `roi_enlargement`/`rounded_edges`
+doivent-ils s'appliquer au masque SAM3 (aujourd'hui non) — ce qui **élargira** les zones floutées
+des sorties SAM3 ? ③ géométrie par défaut d'une boîte : rectangle ou ellipse (aujourd'hui ça
+dépend du label) ?
+
+**PROPOSITION TECHNIQUE (chemin unique sans surcoût)** : tout devient un **masque** (une boîte =
+rectangle rempli, arrondi si `rounded_edges`), et le flou n'est PAS calculé plein cadre mais sur
+la **bbox du masque élargie d'une marge ≥ k/2** — mathématiquement identique au flou plein cadre
+À L'INTÉRIEUR du masque (le noyau ne voit pas au-delà de k/2), au coût du crop. L'argument
+technique en faveur de deux méthodes tombe alors.
+
+**PROTOCOLE ANTI-RÉGRESSION (ordre non négociable)** : ① **figer la référence** — jeu de médias +
+sorties actuelles YOLO *et* SAM3, écart mesuré objectivement (règle « A/B objective, jamais
+visuel seul ») ; ② fonctions **pures** dans `common/data/functions/` + `FunctionSpec`, sans aucun
+appel depuis l'app ; ③ bascule derrière le mécanisme **`feature_flags`** (`ANONYMIZER_BLUR_V2`) —
+le retour arrière est un flag, pas un revert ; ④ A/B chiffré ancien vs nouveau par réglage et par
+chemin ; ⑤ défaut basculé seulement après validation sur du réel, flag conservé.
+Effet secondaire utile : ce banc chiffrera **de combien** YOLO et SAM3 divergeaient.
+
+**JONCTION AVEC LE MONDE DATA** : la taxonomie porte déjà `detections` (l'entrée) et un précédent
+de raster non tabulaire (`depth_map`) → déclarer `image`/`mask` y est cohérent. ⚠ Mais c'est
+exactement le point média↔data signalé comme NON TRANCHÉ (cf. `docs/VISION_STATUS.md`) : ce
+chantier en est le **premier cas concret**, et le trancher sur un cas réel vaut mieux que sur une
+spéc abstraite.
+
 ### Addendum 19/08 (soir) — ARBITRAGES D'ARCHITECTURE : mécanisme ≠ plugin, bornage fonction/librairie/plugin, mondes
 
 > Discussion de fond ouverte par Fabien à partir du chantier transport. **Aucun code d'app
