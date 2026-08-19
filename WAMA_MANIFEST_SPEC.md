@@ -259,6 +259,47 @@ les **besoins de modèles** de l'app. Le manifeste `app` les rend explicites.
 
 ---
 
+## 6bis. Kind `plugin` — CANDIDAT acté sur le principe (Fabien, 2026-08-19), non implémenté
+
+> Né de la réflexion sur le **monde DATA** (modèle BIND : charger à chaud des plugins de
+> visualisation/traitement synchronisés dans une session d'analyse). Le bornage complet
+> fonction/librairie/plugin — avec ses tests falsifiables et ses exemples — est consigné dans
+> **`WAMA_DATA_FUNCTION_CARDS.md §7ter`** (document de référence du monde data) ; on ne le
+> recopie pas ici. Cette section ne retient que ce qui touche AU FORMALISME.
+
+**Ce qui justifie un 8ᵉ kind** (et pas un simple `library` ou une `function`) : un plugin déclare
+① un **point d'extension** (où il se branche), ② un **contrat de session** (synchronisation avec
+les pairs co-chargés), ③ des **contributions UI**. Aucun autre kind ne porte ces trois-là.
+Formule retenue, calquée sur les marketplaces (pytest `entry_points`, VSCode `contributes`) :
+**plugin = librairie + point d'extension déclaré**.
+
+**Composition attendue** (rien de neuf, `requires` existant) :
+`plugin` → `library` (ses dépendances) + `function`(s) (ses traitements) ; `pipeline` → `plugin`(s) ;
+`project` → `pipeline`(s). **Règle** : un plugin RÉFÉRENCE ses traitements, il ne les CONTIENT pas —
+sinon il devient une boîte noire et l'héritage de capacités par le studio tombe.
+
+**⚠ Ce qui N'EST PAS un plugin** : un mécanisme transversal (`wama/common/mecanismes.py`). Un
+mécanisme est adressé par le DÉVELOPPEUR à l'écriture du code et se mesure en ADOPTION ; un plugin
+est chargé par l'UTILISATEUR à chaud et se mesure en COMPATIBILITÉ + SYNCHRONISATION. Une tentative
+d'encoder la notion de plugin DANS le registre des mécanismes (champ `resolu_par`) a été faite puis
+**retirée le 19/08** sur arbitrage Fabien : « ne pas mettre les deux ensemble ». Un plugin réutilise
+des mécanismes ; il n'en est pas une espèce.
+
+### 6bis.1 Collision de sens à trancher : `library` extraite vs autorée
+
+Le kind `library` désigne aujourd'hui **une distribution tierce installée** (extraction mécanique
+`importlib.metadata`, clé = nom PyPI, version obligatoire). Or le monde data appelle « librairie »
+un **ensemble WAMA-interne** de fonctions livrées ensemble (ex. le traitement cardiaque : pics,
+correction, intervalles RR, rythme). Deux sens sous un mot = le flou qui produit les mauvais
+bornages.
+
+Le formalisme **résout déjà ce cas sans nouveau kind** grâce à la distinction §1 EXTRAIT vs AUTORÉ :
+- `library` **extraite** (`source.type = extract`) = paquet tiers, aujourd'hui le seul cas ;
+- `library` **autorée** (`source.type = authored`) = ensemble WAMA versionné, avec ses dépendances
+  propres et l'inventaire des fonctions qu'il expose.
+**À acter explicitement avant la première librairie autorée** — sinon les deux sens cohabiteront
+en silence.
+
 ## 7. COMPOSITION des manifestes — « une app = app + model(s) + library(ies) »
 
 > **Cadrage Fabien, 2026-08-02.** Le manifeste d'app ne doit PAS tout décrire : il **compose**.

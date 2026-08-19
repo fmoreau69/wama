@@ -46,6 +46,46 @@
 - **Transversal** est en réalité le substrat plus qu'un monde-pair ; le traiter comme un monde reste
   cohérent pour l'UX (une porte d'entrée par monde).
 
+### ⚠ Traçabilité des mondes — QUESTION OUVERTE (discussion Fabien 2026-08-19, rien d'implémenté)
+
+**Fait mesuré, à corriger AVANT toute traçabilité** : `world` n'est aujourd'hui **ni déclaré ni
+fiable**. Il est DÉRIVÉ du groupe d'UI (`manifests/builtin/app.py:202`, table `GROUP_TO_WORLD`),
+ce qui donne : `describer`/`reader`/`transcriber` → **data**, `converter` → **transverse**, les 6
+autres → media. Cela contredit la doctrine (« les apps généralistes sont des apps du monde
+média ») : un renommage de groupe de navigation déplacerait silencieusement une app de monde.
+**Préalable n°1 : DÉCLARER le monde (APP_CATALOG/manifeste) au lieu de l'inférer.** Toute mesure
+bâtie sur le monde dérivé est du bruit (vérifié : une sonde d'adoption par monde a produit des
+« multi-mondes » qui n'étaient que l'artefact des groupes d'UI).
+
+**Ce qui casse SANS traçabilité des mondes** (la question « à quel niveau ça bloque ») — rien ne
+plante ; le coût est en **réponses fausses silencieuses**, et le premier cas s'est déjà produit :
+1. **Collision de vocabulaire, DÉJÀ SURVENUE** : « librairie » désigne une distribution PyPI
+   (transverse) ET un ensemble de fonctions data. Tranché dans `WAMA_MANIFEST_SPEC §6bis.1`.
+2. **Deux taxonomies de types qui vont diverger** : `MEDIA_CATEGORIES`/`normalize_types()` (média)
+   et `common/data/data_types.py` (data) sont deux systèmes de types de ports. Le studio doit déjà
+   parler les deux : quelle est la règle de compatibilité entre un port `audio` (média) et un port
+   `signal` (data) ? **Personne ne l'a tranchée** — tracer les mondes rend la question VISIBLE au
+   lieu de la laisser résoudre en silence par le premier qui code la connexion.
+3. **Hypothèses cachées** : `media_paths` suppose un fichier utilisateur, `output_formats` des
+   formats média, `ffmpeg` un média temporel. Réutilisées en data, elles ne « refusent » pas —
+   elles supposent.
+4. **Le gate d'accès par monde** (doctrine : chercheur → Lab+Data+Transversal) est **impossible**
+   tant que le monde est inféré d'une étiquette de navigation.
+5. **La grille de conformité est média** (file, cards, batch, ETA…) : appliquée telle quelle à une
+   app data, elle noterait n'importe quoi. Sans monde déclaré, le jour où la première app data
+   arrive, elle sera notée à tort ou exclue en silence.
+
+**Piste proposée (non actée)** : deux champs plutôt qu'un — `origine` (le monde où la brique est
+née : fait historique immuable) et `portee` (les mondes où sa réutilisation est reconnue :
+déclaratif, évolutif). **L'écart entre les deux est le seul signal utile** — « consommée depuis un
+monde hors de sa portée » — et il est mécaniquement mesurable (le chemin d'un consommateur dit son
+monde, cf. `common/services/mecanismes_scan.py`). ⚠ **Ne jamais faire du monde une frontière de
+réutilisation** : la doctrine (`WAMA_MANIFEST_SPEC §1.1`) dit que le monde classe la FINALITÉ, que
+la capacité vit dans les ports+kinds, et qu'« une classification de monde discutable est
+cosmétique, jamais structurelle ». La réutilisation inter-mondes **existe déjà et fonctionne** —
+mesuré le 19/08 : WAMA Lab consomme 6 briques communes (`console`, `video_utils`, `app_base_js`,
+`prompt_pipeline`, `shuttle`, `feature_flags`). Il manque une TRAÇABILITÉ, pas une autorisation.
+
 **Traçabilité & confidentialité — ✅ FAIT (35073dd)** :
 - **Médiathèque : promotion par scope** — `UserAsset` hérite de `ScopedVisibility` (privé / unité / public
   + `scope_org_unit`). API `POST /media-library/api/assets/<pk>/promote/` : promotion par le **propriétaire**

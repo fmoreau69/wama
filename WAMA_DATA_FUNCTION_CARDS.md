@@ -185,6 +185,84 @@ Deux `binding` cohabitent dans le MÊME `FUNCTION_CATALOG` :
 3. `register(spec)` (import chargé via l'`apps.py::ready` de l'app) → il apparaît au catalogue.
 4. Types d'E/S pris dans la taxonomie `data_types` ; étendre la taxonomie AVANT d'inventer un type.
 
+## 7ter. BORNAGE fonction / librairie / plugin (arbitrage Fabien, 2026-08-19)
+
+> Point d'entrée de la réflexion « monde DATA » ouverte le 19/08 (modèle **BIND** : charger à chaud
+> des plugins de visualisation/traitement TOUS SYNCHRONISÉS pendant une session d'analyse — « je
+> veux aussi analyser le cardiaque »). Le cadre complet du monde data fera l'objet d'un document
+> dédié que Fabien rédigera ; **cette section ne fixe QUE le bornage des objets**, pour qu'il ne
+> soit pas re-débattu à chaque fois.
+
+**La limite n'est PAS la taille.** C'est le piège qui a déclenché la discussion (« une fonction
+mathématique simple est une fonction, mais mon traitement cardiaque agrège 6 traitements — est-ce
+encore une fonction ? »). Le formalisme WAMA borne déjà par le **mode de consommation** :
+`library` exige un nom + une version + des dépendances (« *une library sans version n'est pas
+installable* », `manifests/builtin/library.py`), `FunctionSpec` exige des ports typés. Ni l'un ni
+l'autre ne parle de volume.
+
+> **Règle universelle : on ne classe pas ce qu'une chose EST, on déclare comment elle se CONSOMME.**
+
+| Question (falsifiable) | Oui → | Nature |
+|---|---|---|
+| Appelable avec des entrées typées → sorties typées, **sans session ni UI** ? | `function` | unité de **calcul** |
+| Identité de livraison propre — **nom + version + dépendances** — qu'on installe ? | `library` | unité d'**installation** |
+| Se **branche** dans un hôte via un point d'extension déclaré, chargeable **à chaud** par l'utilisateur ? | `plugin` | unité de **montage** |
+
+**Les trois ne s'excluent pas — ce sont des ANGLES, pas des cases.** Le traitement cardiaque est
+les trois à la fois : 6 **fonctions** (détection de pics, correction, intervalles RR, rythme…),
+chacune chaînable seule dans le studio ; **une librairie** si elle porte ses propres dépendances
+et son cycle de version ; **un plugin** pour l'usage « clic bouton » synchronisé en session.
+Vouloir un classement EXCLUSIF est précisément ce qui produit les mauvais bornages.
+
+**Appartenance = RELATION, jamais contenance** (précision Fabien) : une fonction reste déclarée au
+`FUNCTION_CATALOG` même quand une librairie la regroupe. La librairie ajoute l'écosystème
+d'intégration (dépendances, vocabulaire partagé, défauts, adaptateurs) qui rend les fonctions
+exploitables par un plugin sans réécrire la glu à chaque fois. Une fonction « dans » une librairie
+au sens où elle y disparaîtrait casserait le chaînage studio.
+
+**Ce qui justifie le kind `plugin`** — trois propriétés qu'aucun autre kind ne porte :
+1. **un point d'extension** (où ça se branche : canvas studio, axe d'une session data, slot de card) ;
+2. **la session partagée** : contrat de synchronisation avec les **pairs co-chargés** (ni fonction
+   ni librairie n'ont de pairs) ;
+3. **des contributions UI déclarées** (vues, actions, params exposés). Une fonction n'a pas d'UI
+   propre : la sienne est DÉRIVÉE de ses ports.
+
+⚠ **Garde-fou anti-fourre-tout** : sans AUCUNE des trois, ce n'est pas un plugin — c'est une
+fonction ou une librairie mal nommée. Et **un plugin ne CONTIENT pas de traitement, il en
+RÉFÉRENCE** (prolonge §7bis) : sinon il devient une boîte noire et l'héritage studio tombe.
+
+**Inspiration des écosystèmes** (question Fabien « comment GitHub distingue-t-il ? ») : GitHub ne
+distingue RIEN — un dépôt est un dépôt. La distinction se fait dans les **registres** (PyPI/npm :
+manifeste = nom + version + dépendances + points d'entrée) et les **marketplaces** : un plugin
+pytest est un paquet ordinaire qui déclare `entry_points={"pytest11": …}`, une extension VSCode
+déclare `contributes` + `activationEvents`. D'où la formule retenue :
+**plugin = librairie + point d'extension déclaré (+ contributions UI)**.
+
+**Dimensionnement — aucun objet intermédiaire à inventer.** Des fonctions qui partagent un domaine
+sans dépendance ni cycle propres restent des fonctions groupées par `category`/`tags` (champs qui
+existent déjà). Elles deviennent une librairie le jour où elles tirent leurs propres dépendances.
+Test factuel, pas jugement de taille.
+
+**Studio & profils de pipeline** : un plugin qui DÉCLARE ses fonctions les fait entrer au
+`FUNCTION_CATALOG` → elles apparaissent au canvas sans code studio spécifique (héritage de
+capacités déjà acté). Une chaîne de plugins enregistrée comme profil réutilisable = le kind
+**`pipeline`** existant (`requires` → plugins), `project` par-dessus pour la portée.
+
+**Horizon : auto-instanciation de plugins** (objectif LONG TERME, explicitement pas un chantier).
+Transposition de l'auto-génération d'apps du monde média. Le banc codegen du 13/08 a montré que les
+écarts décisifs sont des **trous de MATIÈRE**, pas de modèle — un générateur invente ce qu'on ne
+lui décrit pas. Prérequis à garder en tête AVANT d'y prétendre :
+1. tout traitement déclaré (§7bis) — déjà la règle ;
+2. le manifeste `library` doit porter l'**inventaire** des fonctions exposées avec leur
+   VOCABULAIRE (unités, noms de champs attendus), pas seulement leurs signatures ;
+3. **la vue doit devenir déclarative** — décrite par ce qu'elle CONSOMME (axe x, séries, unités,
+   axe de synchronisation), pas par son code de dessin. C'est le vrai verrou : côté média l'UI est
+   générée parce que `param_schema` + ports existent ; l'équivalent « vue de données » n'existe pas ;
+4. l'axe de session doit être un **contrat explicite** (souscription), sinon aucune synchronisation
+   générique n'est possible.
+⚠ Ne pas spécifier la « vue déclarative » dans l'abstrait : la route média n'a gagné sa généralité
+qu'APRÈS 10 apps réelles. Écrire 2-3 plugins d'abord, extraire ensuite (règle du 2ᵉ consommateur).
+
 ## 8. Reste à trancher (quand on implémentera)
 
 - ✅ TRANCHÉ (2026-07-20, c3b009c) — représentation runtime : wrapper **`TypedFrame`**

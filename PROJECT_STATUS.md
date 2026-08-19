@@ -3210,6 +3210,50 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > `/converter_01/` redirige vers l'accueil pour le compte smoke (gating catalogue) → valider
 > avec le compte Fabien ou élargir les groupes du compte smoke.
 
+### Addendum 19/08 (soir) — ARBITRAGES D'ARCHITECTURE : mécanisme ≠ plugin, bornage fonction/librairie/plugin, mondes
+
+> Discussion de fond ouverte par Fabien à partir du chantier transport. **Aucun code d'app
+> touché** ; ce qui est livré est un bornage consigné + un revert. Le monde DATA sera cadré par
+> Fabien (modèle **BIND**) dans un document dédié, en session séparée.
+
+- **Mécanisme ≠ plugin — erreur structurelle évitée.** J'avais encodé la notion de plugin DANS le
+  registre des mécanismes (champ `resolu_par`) : recadrage Fabien (« ne surtout pas les mettre
+  ensemble »), champ **RETIRÉ**. Un mécanisme est adressé par le DÉVELOPPEUR à l'écriture du code
+  (import, appel par son nom, mesure = adoption/grille) ; un plugin est chargé par l'UTILISATEUR
+  **à chaud** en session d'analyse, et sa mesure est la COMPATIBILITÉ (types de données) + la
+  SYNCHRONISATION sur un axe partagé — **propriété de session, pas de code**. La distinction reste
+  consignée en tête de `mecanismes.py`, elle n'y est plus encodée.
+- **Bornage fonction / librairie / plugin** → `WAMA_DATA_FUNCTION_CARDS.md §7ter` (référence) +
+  `WAMA_MANIFEST_SPEC.md §6bis` (formalisme). Règle universelle : **on ne classe pas ce qu'une
+  chose EST, on déclare comment elle se CONSOMME** — appelable (`function`) / installable
+  (`library`) / montable (`plugin`). Les trois sont des ANGLES, pas des cases : le traitement
+  cardiaque est les trois à la fois. Kind `plugin` = candidat acté sur le principe, justifié par
+  ① point d'extension ② contrat de session ③ contributions UI ; **plugin = librairie + point
+  d'extension** (calque pytest/VSCode ; GitHub, lui, ne distingue rien — ce sont les registres qui
+  distinguent). Collision `library` extraite (PyPI) vs autorée (ensemble WAMA) tranchée par la
+  distinction EXTRAIT/AUTORÉ existante, à acter avant la première librairie autorée.
+- **Conséquence sur le TRANSPORT (chantier suspendu par Fabien)** : dans le modèle BIND le
+  transport n'est **pas un plugin parmi d'autres, c'est l'AXE PARTAGÉ** auquel les plugins
+  s'abonnent. Mon brouillon de brique commune (barre de commandes + adaptateurs) répondait au
+  besoin média (unifier 4 transports dupliqués) mais pas au besoin data (axe observable,
+  souscription, sélection partagée) → **sorti du dépôt**, à reprendre APRÈS la conception de
+  l'axe. ⚠ Consigne Fabien : « ne rien casser, ne pas lancer le portage tant qu'on n'est pas ok
+  sur le transport commun » — les transports transcriber (audio + texte) et cam_analyzer
+  (4 vidéos synchronisées) sont **structurellement différents**.
+- **Inventaire transport (fait, read-only)** : 4 implémentations indépendantes (transcriber
+  `edit.js`, cam_analyzer, face_analyzer `video.html` 100 % inline, filemanager) + 5 rendus
+  « mime → aperçu » concurrents. Dupliqués : 4 `formatTime`, 4 gardes clavier, 2 lectures arrière
+  par timer, 3 réglages de vitesse, 2 frame-steppers. Le commun couvre l'**audio** seulement
+  (`WamaAudioPlayer` — ni vitesse, ni volume, ni skip) ; **rien pour la vidéo**. ⚠ Fait vérifié :
+  `wama-shuttle.js` n'est chargé QUE par `cam_analyzer/base.html:924` — le transcriber ne PEUT pas
+  l'utiliser et l'a réimplémenté (`edit.js:291-328`), alors que la brique le nomme dans son en-tête.
+- **Mondes — question ouverte, rien d'implémenté** → `docs/VISION_STATUS.md §Traçabilité des
+  mondes`. Fait mesuré bloquant : `world` est **dérivé du groupe d'UI** (`app.py:202`) →
+  describer/reader/transcriber sortent en *data*, converter en *transverse*. Préalable : le
+  DÉCLARER. Piste : `origine` (immuable) + `portee` (déclarative), l'écart étant le seul signal
+  utile ; **jamais un gate de réutilisation**. Mesuré : le Lab consomme déjà 6 briques communes —
+  la réutilisation inter-mondes existe, il manque la traçabilité.
+
 ### Addendum 19/08 — JONCTION mécanismes↔grille LIVRÉE (décision ② du 🔚 du 18/08)
 
 > Les 4 questions ouvertes ont été tranchées par Fabien le 19/08 : **Q1** le registre
