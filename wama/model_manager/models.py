@@ -484,12 +484,21 @@ class AIModel(models.Model):
     @classmethod
     def meilleurs_installes(cls, model_type: str, limit: int = 3):
         """
-        Les meilleurs modèles INSTALLÉS d'un type (indice a priori décroissant, NULL en
-        queue) — le référentiel qu'un candidat de prospection devrait surpasser.
-        Consommé par la prospection (champ `concurrence` des candidats, affiché sur la
-        card) et par la confrontation LLM (`prospect_agents`).
+        Les meilleurs modèles INSTALLÉS d'un type — le référentiel qu'un candidat de
+        prospection devrait surpasser. Consommé par la prospection (champ `concurrence`
+        des candidats, affiché sur la card) et par la confrontation LLM (`prospect_agents`).
+
+        ⚠ MÊME RÈGLE D'ÉTAGE QUE LA SÉLECTION (`model_selector._cle_de_rang`, audit du
+        2026-08-19) : on classe par `benchmark_index` (mesure tierce) SI TOUT le lot en a
+        un, sinon par `quality_index` (a priori) pour tout le monde. Mélanger les deux
+        comparerait des échelles incommensurables — le piège déjà corrigé le 2026-08-12.
         """
         from django.db.models import F
+        lot = list(cls.objects.filter(model_type=model_type, is_downloaded=True,
+                                      is_proposed=False))
+        if lot and all(m.benchmark_index is not None for m in lot):
+            lot.sort(key=lambda m: m.benchmark_index, reverse=True)
+            return lot[:limit]
         return list(
             cls.objects.filter(model_type=model_type, is_downloaded=True,
                                is_proposed=False)

@@ -741,14 +741,26 @@
         <i class="fas fa-times"></i>
     </button>
 </div>
+{% comment %} Volet « aucune sélection » = POSTE DE MAINTENANCE du catalogue, pas seulement la
+mémoire (le texte d'accueil ne parlait que de mémoire alors que le volet porte prospection,
+sauvegardes et suivi des modèles chargés — remarque Fabien 2026-08-19). Les IDs sont ceux
+qu'attendent WamaInspector (inspectorActions) et le JS de la page : ne pas renommer. {% endcomment %}
 <div id="inspectorActions">
-    <p class="text-muted small mb-0"><i class="fas fa-hand-pointer me-1"></i>Cliquez une carte de modèle pour l'inspecter — sinon, gestion mémoire ci-dessous.</p>
+    <p class="text-muted small mb-2">
+        <i class="fas fa-hand-pointer me-1"></i>Cliquez une carte pour inspecter un modèle.
+        Sans sélection, ce volet est le <strong>poste de maintenance</strong> du catalogue :
+    </p>
+    <ul class="small text-muted ps-3 mb-0" style="line-height:1.6">
+        <li><strong class="text-light">Prospection</strong> — détecter mises à jour et modèles concurrents, évaluer leur confiance</li>
+        <li><strong class="text-light">Mémoire &amp; modèles chargés</strong> — suivi de la VRAM, modèles inactifs, déchargement</li>
+        <li><strong class="text-light">Sauvegardes</strong> — miroir des modèles et de la base (panneau principal)</li>
+    </ul>
 </div>
 {# Prospection (proposés par IA) — visible quand aucune card n'est sélectionnée. #}
 <div id="mmProspectBar" class="mt-3 p-2 rounded" style="background:rgba(111,66,193,0.12);border:1px solid rgba(111,66,193,0.4);">
-    <div class="d-flex align-items-center justify-content-between gap-2">
-        <span class="small text-light"><i class="fas fa-wand-magic-sparkles text-purple me-1" style="color:#b388ff"></i>Prospection de modèles</span>
-        <span class="d-flex gap-1">
+    <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
+        <span class="small text-light fw-semibold"><i class="fas fa-wand-magic-sparkles me-1" style="color:#b388ff"></i>Prospection de modèles</span>
+        <span class="d-flex gap-1 flex-wrap">
             <button type="button" id="mmProspectBtn" class="btn btn-sm btn-outline-light py-0">
                 <i class="fas fa-rotate me-1"></i>Prospecter (Ollama + HuggingFace)
             </button>
@@ -763,7 +775,10 @@
     <p id="mmProspectStatus" class="small text-muted mb-0 mt-1">Détecte MAJ + modèles concurrents. Résultats sous le filtre « ✨ Proposés par IA ».</p>
 </div>
 {# mmSystemRow (cleaner + idle models) déplacé ici par JS ; masqué quand une card est sélectionnée. #}
-<div id="mmSystemSlot" class="mt-3"></div>
+<div id="mmSystemTitle" class="small text-light fw-semibold mt-3 mb-1">
+    <i class="fas fa-memory me-1" style="color:#8ecae6"></i>Mémoire &amp; modèles chargés
+</div>
+<div id="mmSystemSlot"></div>
 {% endblock %}
 
 {% block right_panel_actions_title %}Actions du modèle{% endblock %}
@@ -1160,7 +1175,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // générique piloté par schéma déclaratif depuis AIModel.to_dict()).
     // =========================================================================
     let mmCurrentId = null;
-    const MM_HINT = '<p class="text-muted small mb-0"><i class="fas fa-hand-pointer me-1"></i>Cliquez une carte de modèle pour l\'inspecter — sinon, gestion mémoire ci-dessous.</p>';
+    // Invite du volet « aucune sélection » : CAPTURÉE depuis le gabarit, jamais recopiée ici.
+    // Avant (2026-08-19) le texte était dupliqué en JS : toute retouche du gabarit était
+    // silencieusement écrasée dès la première désélection.
+    const MM_HINT = (document.getElementById('inspectorActions') || {}).innerHTML
+        || '<p class="text-muted small mb-0">Cliquez une carte de modèle pour l\'inspecter.</p>';
 
     function mmReselect() {
         if (!mmCurrentId) return;
@@ -1371,7 +1390,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // main branché sur le seul clic de la croix laissait le volet incomplet après
     // Échap. mmCatalogSection y figure car il vit hors de #media-section et n'est
     // donc pas couvert par keepMediaSection.
-    const MM_HIDE_ON_INSPECT = ['mmSystemRow', 'mmProspectBar', 'mmCatalogSection'];
+    const MM_HIDE_ON_INSPECT = ['mmSystemRow', 'mmSystemTitle', 'mmProspectBar', 'mmCatalogSection'];
 
     // Pendant de renderModelInspector : remise du volet à « aucune sélection ».
     function mmResetPanel() {
@@ -1454,6 +1473,10 @@ document.addEventListener('DOMContentLoaded', function() {
             // Masquage/restauration confiés à la brique : elle les applique sur TOUS
             // les chemins de désélection (croix, Échap, clic hors card).
             hideOnInspect: MM_HIDE_ON_INSPECT,
+            // Section « Actions du modèle » : elle n'a de sens qu'AVEC un modèle sélectionné.
+            // Son titre restait affiché sous un volet système, annonçant des actions
+            // inexistantes (remarque Fabien 2026-08-19). Option commune `showOnInspect`.
+            showOnInspect: ['actions-section'],
             onDeselect: mmResetPanel,
             // #media-section accueille ici les cartes Ressources (CPU/RAM/GPU/Disque).
             // 'no-selection' = visibles tant qu'aucun modèle n'est sélectionné, masquées

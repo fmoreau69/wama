@@ -238,8 +238,10 @@ en bout. La chaîne a abouti, mais en révélant trois trous, tous comblés dans
    référentiel « à surpasser ») — et PERSISTE : `AIModel.confidence` = probabilité consolidée
    que l'adoption vaille le coup (un avis « contre » à confiance c compte 1−c),
    `extra_info['prospect']['assess']` = consensus + avis (badge card + inspecteur, existants).
-   Enfilé automatiquement à la fin de `api_prospect_ollama` (`assess_proposed_task`,
-   incrémental `max_assess=10` par passe). Agents : `settings.PROSPECT_ASSESS_AGENTS`
+   ⚠ PÉRIMÉ le 2026-08-19 (crash hôte, cf. section suivante) : l'enfilage automatique à la
+   fin de `api_prospect_ollama` est DÉSACTIVÉ (`PROSPECT_ASSESS_AUTO=False`) — la passe est
+   déclenchée explicitement (bouton « Évaluer la confiance » / `assess_models --proposed`),
+   incrémentale `max_assess=10` par passe. Fonction renommée `assess_proposed` (Ollama + HF). Agents : `settings.PROSPECT_ASSESS_AGENTS`
    (défaut `ollama:qwen3.5:9b` ; cloud = ajouter `,google:gemini-2.0-flash` + clé).
    `prospect_ollama._ecrire` PRÉSERVE désormais une évaluation persistée lors des
    re-prospections (sinon chaque clic « Prospecter » remettait tout à zéro).
@@ -413,3 +415,44 @@ indice 1369) — deux modèles sans rapport, la famille « image 2 » a suffi. L
 « Apparié à » de l'inspecteur existe précisément pour rendre ce genre d'erreur visible à
 l'œil humain. Tant qu'il n'est pas corrigé, l'indice de qwen-image-2 est FAUX et sert à la
 sélection diffusion.
+
+### Appariement benchmark CORRIGÉ + audit de non-régression (2026-08-19, fin de session)
+
+**Deux erreurs d'appariement mesurées et corrigées** (`benchmark_sync.py`) — elles faussaient
+la sélection, qui consomme `benchmark_index` :
+1. **Famille = mot commun.** `qwen-image-2` et `GPT Image 2 (high)` donnaient tous deux la
+   famille « image » → l'imager local héritait de l'indice 1369 de GPT Image 2. `_avec_prefixe`
+   rattache désormais les segments introducteurs (« qwenimage » ≠ « gptimage »), en
+   concaténant SANS séparateur pour que les graphies des sources convergent
+   (`hunyuan-image-2.1` ↔ `HunyuanImage 2.1` — appariement correct PRÉSERVÉ).
+   Effet réel : qwen-image-2 retrouve son vrai jumeau Arena `qwen-image-2512` (Elo 1125,8).
+2. **`max(valeur)` sur les variantes.** On prenait la MIEUX NOTÉE d'une famille, jamais celle
+   qui correspond : `flux-1-dev` recevait **FLUX.1 Kontext [max]** (1141) au lieu de
+   **FLUX.1 [dev]** (1041) ; `qwen3-coder:30b` recevait 14,6 (« Qwen3 30B A3B 2507 Reasoning »)
+   parmi **9** candidats compatibles au lieu de « Qwen3 Coder 30B A3B Instruct » (13,6).
+   `_choisir_variante` départage par MOTS communs/étrangers (`_mots`, générique — une liste
+   fermée de qualificatifs aurait raté « coder »), puis similarité, puis valeur la plus basse.
+   Run réel appliqué : 17 appariés, flux-1-dev 1041, qwen3-coder 13,6, qwen-image-2 1125,8.
+
+**Audit de non-régression de la session** (renommages, extraction `task_progress`, `set→dict`,
+refactors) : **aucune régression** — tous les appelants vérifiés. Défauts latents corrigés dans
+la foulée : passe 100 % cloud qui réclamait 8 Go de VRAM ; report éternel sur machine SANS GPU
+(`effective_free_gb` rend 0.0 quand CUDA est absent — on ne reporte plus si aucun GPU) ;
+`meilleurs_installes` triait par a priori alors que l'étage benchmark existe (même règle de lot
+que `_cle_de_rang` désormais) ; commentaires et section de doc périmés.
+RESTE (noté, non fait) : `benchmark_meta` est exposé à tout utilisateur authentifié (données
+publiques, mais surface élargie non décidée) ; le déchargement post-passe est hors du bloc de
+réservation (fenêtre courte, état final correct).
+
+### Volet droit du model_manager (design, remarques Fabien)
+- « Actions du modèle » restait affiché — titre compris — sous un volet sans sélection :
+  nouvelle option COMMUNE `WamaInspector.showOnInspect` (symétrique de `hideOnInspect`,
+  optionnelle donc sans effet sur les autres apps) + appel `toggleSections(false)` à l'init
+  (l'état initial n'était jamais posé). model_manager déclare `showOnInspect: ['actions-section']`.
+- Le texte d'accueil ne parlait que de mémoire : le volet est présenté comme le **poste de
+  maintenance** du catalogue (prospection / mémoire & modèles chargés / sauvegardes), avec un
+  titre de groupe « Mémoire & modèles chargés » devant le bloc système.
+- `MM_HINT` dupliquait ce texte en JS (il écrasait le gabarit à la première désélection) :
+  il est désormais CAPTURÉ depuis le DOM. `staticfiles/common/js/wama-inspector.js` resynchronisé.
+Rendu vérifié par le client Django authentifié (10/10 contrôles) ; validation VISUELLE
+navigateur encore à faire (la page exige une session — passer par le skill `/smoke`).

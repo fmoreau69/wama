@@ -213,7 +213,9 @@ def _vram_agents(agents) -> float:
         nom = model or _modele_local_resolu()
         m = AIModel.objects.filter(model_key=f"ollama:{nom}").first() if nom else None
         besoin = max(besoin, float((m and m.vram_gb) or 8.0))   # 8 Go = repli prudent
-    return besoin or 8.0
+    # 0.0 quand AUCUN agent local : une passe 100 % cloud ne consomme pas de VRAM et ne doit
+    # donc jamais être reportée pour cause de GPU occupé (audit du 2026-08-19).
+    return besoin
 
 
 def _contexte_hf(cand) -> str:
@@ -274,7 +276,16 @@ def assess_proposed(max_assess: int = 10, agents=None, timeout: int = 120,
                                                         vram_reservation)
     besoin_gb = _vram_agents(agents)
     libre = effective_free_gb()
-    if libre < besoin_gb:
+    # `effective_free_gb()` rend 0.0 quand torch/CUDA est ABSENT (machine sans GPU) : sans
+    # cette distinction, la passe y serait éternellement « reportée », indiscernable d'un GPU
+    # plein (audit du 2026-08-19). Sans GPU, il n'y a pas de VRAM à arbitrer — on laisse
+    # passer : le coût retombe sur le CPU, qui n'est pas la ressource gouvernée ici.
+    try:
+        import torch
+        gpu_present = bool(torch.cuda.is_available())
+    except Exception:
+        gpu_present = False
+    if gpu_present and libre < besoin_gb:
         resume = {'assessed': 0, 'deferred': True, 'free_gb': round(libre, 1),
                   'needed_gb': besoin_gb}
         logger.info("[prospect_agents] passe REPORTÉE : VRAM effective %.1f Go < besoin "
@@ -327,7 +338,7 @@ def assess_proposed(max_assess: int = 10, agents=None, timeout: int = 120,
             continue
         try:
             from .memory_manager import MemoryManager
-            MemoryManager().unload_model(f"ollama:{model}")
+            MemoryManager.unload_model(f"ollama:{model}")
         except Exception as exc:
             logger.debug("[prospect_agents] déchargement post-passe ignoré : %s", exc)
     try:                       # le registre partagé doit refléter la libération TOUT DE SUITE

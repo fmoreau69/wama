@@ -86,7 +86,7 @@ def ecrire_candidat(cand_key, *, nom, model_type, description, kind, confidence,
     Écrit/rafraîchit UN candidat de prospection (`AIModel(is_proposed=True)`).
 
     Writer UNIQUE, toutes sources (généralisé le 2026-08-18 pour la prospection
-    génération HF — `prospector.seed_generation_candidates`) : c'est lui qui porte la
+    génération HF — `prospector.seed_hf_candidates`) : c'est lui qui porte la
     garde de préservation des évaluations LLM, elle doit valoir partout.
     `champs` : colonnes additionnelles (hf_id, license, platform_ref, disk_gb…).
     """
@@ -100,7 +100,7 @@ def ecrire_candidat(cand_key, *, nom, model_type, description, kind, confidence,
         extra_info={'prospect': extra},
     )
     defaults.update(champs)
-    # Une évaluation LLM persistée (`assess_proposed_ollama`) a COÛTÉ des appels d'agents :
+    # Une évaluation LLM persistée (`assess_proposed`) a COÛTÉ des appels d'agents :
     # la re-prospection rafraîchit le candidat (raison, cible…), elle ne l'efface pas.
     # Sans cette garde, chaque clic « Prospecter » remettait `confidence=None` sur tous
     # les `new` et repartait de zéro (constaté à la conception, 2026-08-18).

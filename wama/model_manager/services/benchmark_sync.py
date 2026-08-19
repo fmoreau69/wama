@@ -110,6 +110,73 @@ class SourceIndisponible(Exception):
 
 # ── Identité (les sources parlent des noms différents) ───────────────────────────────────
 
+def _avec_prefixe(mot: str, segments: list, i: int) -> str:
+    """
+    Famille COMPLÈTE quand elle est détectée sous forme éclatée : le mot porteur PRÉCÉDÉ des
+    segments alphabétiques qui l'introduisent, concaténés SANS séparateur.
+
+    ⚠ CORRIGE UN FAUX APPARIEMENT MESURÉ (2026-08-19) : `qwen-image-2` et `GPT Image 2 (high)`
+    donnaient tous deux la famille « image » — un MOT COMMUN, pas une identité — et se sont
+    appariés (l'imager local a hérité de l'indice 1369 de GPT Image 2). En rendant
+    « qwenimage » ≠ « gptimage », l'appariement disparaît au lieu d'être faux.
+
+    Concaténation SANS tiret pour que les graphies des deux sources convergent :
+    `hunyuan-image-2.1` (local) et `HunyuanImage 2.1` (AA) donnent tous deux « hunyuanimage »
+    — cet appariement-là, correct, devait être PRÉSERVÉ.
+    """
+    prefixe = []
+    j = i - 1
+    while j >= 0 and re.fullmatch(r'[a-z]{2,}', segments[j]):
+        prefixe.insert(0, segments[j])
+        j -= 1
+    return ''.join(prefixe) + mot
+
+
+def _mots(texte: str) -> set:
+    """
+    Jetons PUREMENT alphabétiques (≥ 2 lettres) d'un nom — les mots qui QUALIFIENT la variante.
+
+    Volontairement générique plutôt qu'une liste fermée de qualificatifs : une liste figée
+    aurait raté « coder » (mesuré le 2026-08-19 — voir `_choisir_variante`) et aurait dérivé
+    à chaque nouvelle série. Les jetons alphanumériques (`qwen3`, `30b`, `a3b`, `2507`) sont
+    écartés : ils portent famille/taille/date, déjà traitées par l'identité.
+    """
+    return {j for j in re.split(r'[^a-z]+', (texte or '').lower()) if len(j) >= 2}
+
+
+def _choisir_variante(nom_local: str, candidats: list, cle):
+    """
+    LA variante qui correspond au modèle local parmi des candidats déjà compatibles.
+
+    ⚠ CORRIGE DEUX ERREURS MESURÉES LE 2026-08-19, toutes deux dues à `max(valeur)` :
+      • `flux-1-dev` recevait l'indice de **FLUX.1 Kontext [max]** (1141) alors que
+        **FLUX.1 [dev]** (1041) était dans la même liste — prendre le meilleur score d'une
+        famille flatte systématiquement nos poids locaux, qui sont la variante ouverte
+        (dev/schnell), jamais la variante frontière ;
+      • `qwen3-coder:30b` recevait 14,6 (« Qwen3 30B A3B 2507 Reasoning ») parmi **9**
+        candidats compatibles — l'identité famille+version+taille ne distingue pas Coder,
+        VL et Omni — alors que « Qwen3 Coder 30B A3B Instruct » (13,6) est LE bon.
+
+    Départage : (1) mots COMMUNS avec le nom local (« coder » ↔ « Coder ») ; (2) à égalité,
+    moins de mots ÉTRANGERS (« Omni », « Kontext » absents du nom local) ; (3) similarité de
+    chaîne ; (4) en dernier recours la valeur la PLUS BASSE — conservateur, cohérent avec la
+    règle « null plutôt que plausible » du module.
+    """
+    from difflib import SequenceMatcher
+    if len(candidats) == 1:
+        return candidats[0]
+    plat = re.sub(r'[^a-z0-9]+', ' ', (nom_local or '').lower())
+    mots_local = _mots(nom_local)
+
+    def rang(e):
+        nom = re.sub(r'[^a-z0-9]+', ' ', (e.get('nom') or '').lower())
+        mots = _mots(e.get('nom'))
+        return (len(mots_local & mots), -len(mots - mots_local),
+                SequenceMatcher(None, plat, nom).ratio(), -float(cle(e) or 0))
+
+    return max(candidats, key=rang)
+
+
 def _identite(texte: str):
     """
     'qwen3.6:35b' / 'qwen3-6-35b-a3b' / 'Qwen3.6 35B A3B' / 'Gemma 4 31B' / 'veo-3.1'
@@ -134,13 +201,13 @@ def _identite(texte: str):
                 fam, ver = d
             elif (re.fullmatch(r'[a-z]{2,}', seg) and i + 1 < len(segments)
                   and re.fullmatch(r'\d+(?:\.\d+)*', segments[i + 1])):
-                fam = seg
+                fam = _avec_prefixe(seg, segments, i)
                 i += 1
                 ver = tuple(int(x) for x in segments[i].split('.'))
             elif (re.fullmatch(r'v\d+(?:\.\d+)*', seg) and i > 0
                   and re.fullmatch(r'[a-z]{2,}', segments[i - 1])):
                 # 'stable-diffusion-v1-5' : 'v1' = marqueur de VERSION du mot précédent.
-                fam = segments[i - 1]
+                fam = _avec_prefixe(segments[i - 1], segments, i - 1)
                 ver = tuple(int(x) for x in seg[1:].split('.'))
             if fam is not None:
                 while i + 1 < len(segments) and segments[i + 1].isdigit():
@@ -396,7 +463,9 @@ def synchroniser(dry_run: bool = False, inclure_proposes: bool = True):
                 'quant_locale': 'score tiers = borne haute (mesuré fp8/16, local souvent Q4)'}
         valeur = echelle = None
         if cands_aa:
-            retenu = max(cands_aa, key=lambda e: e['valeur'])
+            # La variante qui CORRESPOND, pas la mieux notée (cf. `_choisir_variante`).
+            retenu = _choisir_variante(m.name or m.model_key, cands_aa,
+                                       lambda e: e['valeur'])
             valeur, echelle = retenu['valeur'], retenu['echelle']
             meta.update({'source': 'artificial-analysis', 'aa_nom': retenu['nom'],
                          'aa_slug': retenu['slug'],
@@ -405,7 +474,7 @@ def synchroniser(dry_run: bool = False, inclure_proposes: bool = True):
                 meta['sous_indices'] = retenu['sous_indices']
         arena_elo = None
         if cands_ar:
-            best = max(cands_ar, key=lambda e: e['elo'])
+            best = _choisir_variante(m.name or m.model_key, cands_ar, lambda e: e['elo'])
             arena_elo = best['elo']
             meta.update({'arena_nom': best['nom'], 'arena_elo': best['elo'],
                          'arena_votes': best['votes']})

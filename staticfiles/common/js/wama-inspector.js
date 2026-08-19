@@ -16,6 +16,8 @@
  *     queueContainer,                       // élément de la file
  *     ids: { banner, label, deselect, actions, hint },   // ids du volet (défauts ci-dessous)
  *     hideOnInspect: ['resetOptions'],      // ids masqués pendant l'inspection
+ *     showOnInspect: ['actions-section'],   // ids masqués TANT QUE rien n'est sélectionné
+ *                                           // (une section d'actions vide ne doit pas s'afficher)
  *     settingsTitleSelector, settingsTitleInspect,        // titre de section contextualisé
  *     panel: { read(), apply(values) },     // lecture/écriture du formulaire du volet
  *     cardSettings(card) -> values,         // extrait les réglages d'une card (data-*)
@@ -248,6 +250,7 @@
       actions: 'inspectorActions', hint: 'inspectorActionsHint',
     }, cfg.ids || {});
     const hideOnInspect = cfg.hideOnInspect || [];
+    const showOnInspect = cfg.showOnInspect || [];   // masqués tant que RIEN n'est sélectionné
     const itemLabel  = cfg.itemLabel  || function (id) { return "l'élément #" + id; };
     const batchLabel = cfg.batchLabel || function (id) { return 'le batch #' + id; };
     const panel = cfg.panel || {};
@@ -263,6 +266,14 @@
       hideOnInspect.forEach(function (id) {
         const el = $(id);
         if (el) el.style.display = inspecting ? 'none' : '';
+      });
+      // Symétrique : sections qui n'ont de sens QUE pendant l'inspection (2026-08-19).
+      // Sans elle, une section d'actions vide — TITRE COMPRIS — restait affichée en bas du
+      // volet « aucune sélection » : le titre annonçait des actions qui n'existaient pas
+      // (constaté sur model_manager, « Actions du modèle » sous un volet système).
+      showOnInspect.forEach(function (id) {
+        const el = $(id);
+        if (el) el.style.display = inspecting ? '' : 'none';
       });
       const hint = $(ids.hint);
       if (hint) hint.style.display = inspecting ? 'none' : '';
@@ -653,6 +664,10 @@
       });
     }
 
+    // État INITIAL du volet : rien n'est sélectionné au chargement. Sans cet appel, les
+    // sections `showOnInspect` restaient visibles jusqu'à la première sélection/désélection
+    // — exactement le symptôme corrigé (une section d'actions vide affichée d'entrée).
+    try { toggleSections(false); } catch (e) {}
     try { showQueueInfo(); } catch (e) {}
     document.addEventListener('media:processed', function () {
       if (itemId == null && batchId == null) { try { showQueueInfo(); } catch (e) {} }
