@@ -223,7 +223,7 @@ def install_proposed_task(self, model_key: str):
 
 
 @shared_task(bind=True, name='model_manager.assess_proposed')
-def assess_proposed_task(self, max_assess: int = 10):
+def assess_proposed_task(self, max_assess: int = 10, chainer: bool = True):
     """
     Passe d'évaluation LLM des candidats de prospection `new` (confiance) — déclenchée
     sur ACTION EXPLICITE uniquement (bouton « Évaluer la confiance » / CLI
@@ -232,6 +232,23 @@ def assess_proposed_task(self, max_assess: int = 10):
     (settings.CELERY_TASK_ROUTES) → sérialisée derrière les traitements utilisateur ;
     la passe elle-même passe par le gouverneur (garde `effective_free_gb` + réservation,
     cf. `assess_proposed`). Incrémentale : `max_assess` candidats par passe.
+
+    CHAÎNAGE AUTOMATIQUE (2026-08-19, demande Fabien) : tant qu'il reste des candidats sans
+    confiance, la passe suivante est RÉ-ENFILÉE. Un seul clic suffit donc à traiter la file
+    entière, sans revenir aux 6 clics qu'imposait le lot de 10.
+
+    ⚠ POURQUOI RÉ-ENFILER PLUTÔT QUE BOUCLER DANS LA TÂCHE. Fabien a raison sur la VRAM :
+    la passe est séquentielle, un seul modèle chargé, boucler n'en consommerait pas plus.
+    Le vrai enjeu est la FILE : le worker `gpu` est en `--pool=solo`, donc une tâche qui
+    tourne 30 min immobilise le seul exécutant GPU et un traitement utilisateur (palier
+    supérieur) attend la fin. En ré-enfilant, le worker se libère entre deux lots : la file
+    reprend la main, la garde de ressources est réévaluée, et un échec ne perd qu'un lot.
+
+    Arrêts du chaînage — jamais de boucle folle :
+      • plus de candidat sans confiance (`remaining == 0`) ;
+      • aucun verdict obtenu (`assessed == 0`, agents injoignables) — sinon on ré-enfilerait
+        indéfiniment une passe qui n'avance pas ;
+      • passe REPORTÉE par le gouverneur (GPU occupé) : on s'arrête et on le dit.
     """
     from wama.common.utils.task_progress import publier_progression
 
@@ -246,7 +263,19 @@ def assess_proposed_task(self, max_assess: int = 10):
         logger.exception("[assess_proposed] échec de la passe")
         publier({'error': str(exc)}, state='FAILURE')
         raise
-    publier(res, state='SUCCESS')
+
+    restants = res.get('remaining') or 0
+    suite = bool(chainer and restants and res.get('assessed') and not res.get('deferred'))
+    if suite:
+        # L'état RESTE `RUNNING` : l'UI ne doit pas annoncer « terminé » alors que le lot
+        # suivant est déjà en file (le poller s'arrêterait au premier lot).
+        publier(dict(res, chained=True), state='RUNNING')
+        assess_proposed_task.apply_async(
+            kwargs={'max_assess': max_assess, 'chainer': True}, countdown=5)
+        logger.info("[assess_proposed] lot terminé (%s évalué(s)), %s restant(s) — "
+                    "passe suivante enfilée", res.get('assessed'), restants)
+    else:
+        publier(res, state='SUCCESS')
     return res
 
 

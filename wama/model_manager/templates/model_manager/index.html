@@ -767,7 +767,7 @@ qu'attendent WamaInspector (inspectorActions) et le JS de la page : ne pas renom
             {% comment %} Passe LLM = action EXPLICITE (jamais auto depuis le crash hôte du
             2026-08-19) : file gpu sérialisée + gouverneur (garde VRAM + réservation). {% endcomment %}
             <button type="button" id="mmAssessBtn" class="btn btn-sm btn-outline-warning py-0"
-                    title="Confronte les candidats sans confiance à un agent LLM local (charge GPU — sérialisée derrière les traitements en cours)">
+                    title="Confronte TOUS les candidats sans confiance à un agent LLM local, par lots enchaînés automatiquement (charge GPU — sérialisée derrière les traitements en cours, la file reprend la main entre deux lots)">
                 <i class="fas fa-scale-balanced me-1"></i>Évaluer la confiance
             </button>
         </span>
@@ -1389,8 +1389,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (status) status.textContent = 'Échec de la passe : ' + (p.error || 'inconnu');
                         return;
                     }
-                    if (status) status.textContent =
-                        'Évaluation ' + (p.done ?? 0) + '/' + (p.total ?? '?') + ' — ' + (p.current || '…');
+                    // `chained` = lot terminé, suivant déjà en file (l'état reste RUNNING) :
+                    // on montre l'avancement GLOBAL, sinon l'utilisateur croit que ça
+                    // repart de zéro à chaque lot.
+                    if (status) status.textContent = p.chained
+                        ? `Lot terminé (${p.assessed || 0} évalué(s)) — ${p.remaining ?? '?'} restant(s), suite en cours…`
+                        : 'Évaluation ' + (p.done ?? 0) + '/' + (p.total ?? '?') + ' — ' + (p.current || '…');
                 },
                 onGiveUp: function () { if (btn) btn.disabled = false; },
             });

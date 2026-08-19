@@ -505,3 +505,24 @@ card, ou n'appliquer le trending qu'à une part fixe des places.
 ⚠ Piège évité au passage : `_manifeste_brut` avait été écrit avec `@lru_cache` (copié de
 `taille_go`) — le digest distant aurait été figé pour la vie du process, rendant TOUTE
 republication indétectable. Cache retiré là, conservé sur `taille_go` (une taille ne bouge pas).
+
+### Chaînage automatique des lots d'évaluation (2026-08-19, décision Fabien)
+
+Un lot de 10 imposait 6 clics pour ~56 candidats. **Fabien a raison sur la VRAM** : la passe
+est séquentielle, un seul modèle chargé — tout enchaîner n'en consomme pas plus, le lot n'a
+jamais protégé de ça. Le seul enjeu réel est la **file** : le worker `gpu` est en `--pool=solo`,
+donc une tâche de 30 min immobilise le seul exécutant GPU et un traitement utilisateur (palier
+supérieur) attend la fin.
+
+D'où le choix : **ré-enfiler** la passe suivante (`apply_async`, countdown 5 s) plutôt que
+boucler dans la tâche. Le worker se libère entre deux lots (la file reprend la main), la garde
+de ressources est réévaluée à chaque lot, et un échec ne perd qu'un lot. Un seul clic traite
+désormais toute la file. Arrêts — jamais de boucle folle : `remaining == 0` ; `assessed == 0`
+(agents injoignables : ré-enfiler une passe qui n'avance pas serait une boucle) ; passe
+REPORTÉE par le gouverneur (GPU occupé). L'état publié reste `RUNNING` pendant le chaînage
+(sinon le poller annoncerait « terminé » au premier lot) et l'UI affiche l'avancement GLOBAL
+(« Lot terminé (N évalué(s)) — M restant(s), suite en cours… »).
+
+Vérifié sans GPU (agent cloud sans clé → échec immédiat) : aucun verdict ⇒ **pas de
+ré-enfilement**, et les 4 combinaisons d'arrêt/poursuite se comportent comme spécifié.
+SUITE possible (Fabien) : supprimer complètement les lots si le chaînage donne satisfaction.
