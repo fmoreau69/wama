@@ -154,41 +154,22 @@ def _fait_mecanismes():
     from wama.common.mecanismes import ASSUMES_LOCAUX, MECANISMES
 
     base = Path(settings.BASE_DIR)
-    modules = list(_modules_python(base))
-    sources = {}
-    for rel in modules + list(_sources_front(base)):
-        try:
-            sources[rel] = (base / rel).read_text(encoding='utf-8', errors='ignore')
-        except OSError:
-            continue
+    # Balayage d'adoption : la logique vivait ICI en closure, elle a un 2ᵉ consommateur depuis
+    # le 19/08 (contrôle de jonction mécanismes↔grille) → extraite dans le commun plutôt que
+    # dupliquée. Le rendu ci-dessous est INCHANGÉ (fidélité vérifiée par `doc_facts --check`).
+    # ⚠ Forme d'import IMPORTANTE : `from wama.common.services.mecanismes_scan import …`.
+    # Le détecteur de consommateurs cherche `from <module> import` / `import <module>` — la
+    # forme `from wama.common.services import mecanismes_scan` lui ÉCHAPPE, et le module
+    # apparaissait « sans consommateur » alors que cette ligne l'utilise (mesuré 19/08).
+    from wama.common.services.mecanismes_scan import (charger_sources, consommateurs,
+                                                      criteres_orphelins,
+                                                      mecanismes_sans_critere, modules_python)
+
+    modules = list(modules_python(base))
+    sources = charger_sources(base)
 
     def _consommateurs(mecanisme):
-        """
-        Fichiers qui IMPORTENT le domicile (ou une annexe), hors le mécanisme lui-même.
-
-        Quand `symbole` est renseigné, on compte les importateurs de CE symbole et non du
-        module : un mécanisme logé dans un module partagé (`common/models.py`) héritait sinon
-        du compte de tous ses importateurs, quelle que soit la raison de leur import.
-        """
-        siens = {mecanisme.domicile, *mecanisme.annexes}
-        if mecanisme.symbole:
-            motif = re.compile(rf'\b{re.escape(mecanisme.symbole)}\b')
-            return sorted({rel for rel, src in sources.items()
-                           if rel not in siens and motif.search(src)})
-        motifs = []
-        for chemin in siens:
-            if chemin.endswith('.py'):
-                pointe = chemin[:-3].replace('/', '.')      # wama/common/x.py → wama.common.x
-                feuille = chemin.rsplit('/', 1)[-1][:-3]     # → x
-                motifs.append(re.compile(
-                    rf'(?:from\s+{re.escape(pointe)}\s+import|import\s+{re.escape(pointe)}\b'
-                    rf'|from\s+[.\w]*\.?{re.escape(feuille)}\s+import)'))
-            else:
-                # Brique front (.js/.html) : consommée par la référence de son NOM de fichier
-                # (balise <script src=…>, {% include %}, {% static %}).
-                motifs.append(re.compile(re.escape(chemin.rsplit('/', 1)[-1])))
-        return sorted({rel for rel, src in sources.items()
-                       if rel not in siens and any(m.search(src) for m in motifs)})
+        return consommateurs(mecanisme, sources)
 
     # Une sous-table par DOMAINE (ordre du registre) : un tableau unique de 60+ lignes ne se
     # lit pas — demande Fabien du 2026-08-13 en intégrant la couche UI générée.
@@ -238,10 +219,12 @@ def _fait_mecanismes():
     assumes_perimes = sorted(p for p in ASSUMES_LOCAUX if not (base / p).exists())
 
     lignes.append("")
+    _trous = mecanismes_sans_critere(sources)
     lignes.append(f"**Mécanismes déclarés : {len(MECANISMES)}** · "
                   f"domiciles absents : {len(absents)} · sans consommateur : {len(orphelins)} · "
                   f"assumés locaux : {len(ASSUMES_LOCAUX)} · "
-                  f"modules balayés non rattachés : {len(candidats)}")
+                  f"modules balayés non rattachés : {len(candidats)} · "
+                  f"**de niveau app sans critère de grille : {len(_trous)}**")
     if contradictions:
         lignes.append(f"- ❌ **Assumé ET déclaré** (contradiction, retirer d'un des deux) : "
                       + ', '.join(f"`{c}`" for c in contradictions))
@@ -253,6 +236,31 @@ def _fait_mecanismes():
     if orphelins:
         lignes.append(f"- ⚠ **Sans consommateur** (brique morte ou pas encore adoptée) : "
                       f"{', '.join(orphelins)}")
+
+    # 4ᵉ FORME D'OUBLI (jonction mécanismes↔grille, décision Fabien 19/08) : un mécanisme
+    # ADOPTÉ PAR DES APPS que la grille de conformité ne vérifie nulle part. C'est le trou qui
+    # laisse une app sortir à 100 % sans avoir adopté la brique — mesuré sur `card_gear`,
+    # annoncé « porté aux 9 apps » alors que 8 l'exposent et que transcriber/anonymizer
+    # écrivent encore leurs data-* à la main. Les mécanismes d'INFRASTRUCTURE (aucune app ne
+    # les consomme : bench, mirror_sync, retention…) en sont exclus mécaniquement — un critère
+    # par app n'y aurait aucun sens ; c'est ce qui remplace un seuil arbitraire.
+    trous_grille = mecanismes_sans_critere(sources)
+    orphelins_liaison = criteres_orphelins()
+    if orphelins_liaison:
+        lignes.append(f"- ❌ **Liaison de critère cassée** (clé absente du registre — la "
+                      f"jonction est inerte) : "
+                      + ', '.join(f"`{c}`" for c in orphelins_liaison))
+    if trous_grille:
+        lignes.append(f"\n<details><summary>⚠ <b>{len(trous_grille)} mécanisme(s) de niveau "
+                      f"app SANS critère de grille</b> — adoptés par des apps, vérifiés par "
+                      f"aucun critère (<code>Criterion.mecanisme</code>) : une app peut sortir "
+                      f"à 100 % sans les avoir adoptés</summary>\n")
+        lignes.append("| Mécanisme | Adopté par | Domicile |")
+        lignes.append("|---|---|---|")
+        for m, apps in trous_grille:
+            lignes.append(f"| `{m.cle}` — {m.nom} | **{len(apps)}** app(s) : "
+                          f"{', '.join(apps)} | `{m.domicile}` |")
+        lignes.append("\n</details>")
     if candidats:
         # Rendu en liste par dossier plutôt qu'en paragraphe : c'est un BACKLOG à traiter, pas
         # une note de bas de page. Un mur de 54 noms ne se lit pas et ne se traite donc jamais.

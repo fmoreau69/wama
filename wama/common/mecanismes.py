@@ -208,6 +208,10 @@ MECANISMES = (
     Mecanisme('license_audit', 'Audit des licences',
               "Vue dérivée : licences+auteurs des 4 registres, traversée par app",
               'wama/common/services/license_audit.py', ''),
+    Mecanisme('mecanismes_scan', 'Adoption des mécanismes',
+              "Qui consomme quoi (imports + briques front), niveau APP vs infrastructure, et "
+              "jonction registre↔grille : mécanisme adopté par des apps que rien ne vérifie",
+              'wama/common/services/mecanismes_scan.py', 'WAMA_MECANISMES.md'),
     Mecanisme('conformity', 'Grille de conformité',
               "Mesure les 8 facettes F1–F8 des apps par analyse du code réel",
               'wama/common/services/conformity_checker.py', 'WAMA_APP_CONVENTIONS.md'),

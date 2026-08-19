@@ -70,7 +70,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Contrat de backend** | Cycle de vie commun des porteurs de modèle — et ALIMENTATION du gouverneur : enveloppe load/unload/process à toute profondeur d'héritage | `wama/common/backends/base.py` | `WAMA_APP_GENERATION_ROUTE.md` | 30 |
 | **ETA auto-apprenante** | Estimation de durée par a-priori puis moyenne mobile, bucketisée par matériel | `wama/model_manager/services/eta_estimator.py` | `PROJECT_STATUS.md §10` | 20 |
 | **Gardes de process** | Anti-boucle-de-crash (redélivrance) et réconciliation des tâches orphelines | `wama/common/utils/process_control.py` | `PROJECT_STATUS.md §0` | 22 |
-| **Gouverneur de ressources** | Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités | `wama/common/services/resource_governor.py` | `PROJECT_STATUS.md §0` | 12 |
+| **Gouverneur de ressources** | Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités | `wama/common/services/resource_governor.py` | `PROJECT_STATUS.md §0` | 13 |
 | **Moniteur système** | Mesure unifiée CPU/RAM/GPU/disque (WSL + hôte Windows) — barre de ressources, model manager | `wama/common/services/system_monitor.py` | — | 6 |
 | **Mémoire GPU** | Garantit la VRAM avant un chargement, la reprend sur les autres modèles, et réessaie après libération sur erreur CUDA | `wama/model_manager/services/memory_manager.py` | `PROJECT_STATUS.md §0` | 15 |
 | **Progression de tâche longue** | Avancement d'une tâche Celery HORS file d'items publié dans le cache (F5-proof) + garde « déjà en cours » vérifiée auprès de Celery ; pendant navigateur = WamaApp.Poller | `wama/common/utils/task_progress.py` | `wama/model_manager/PROSPECTION_PIPELINE.md` | 3 |
@@ -110,13 +110,14 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Ingest de source** | Télécharge une source distante vers le FileField, déclaré par WAMA_INGEST | `wama/common/utils/source_ingest.py` | `WAMA_APP_GENERATION_ROUTE.md` | 11 |
 | **Pipeline de prompts** | Traduction/enrichissement centralisés, déclarés par PROMPT_TARGETS | `wama/common/utils/prompt_enrichment.py` | `PROMPT_PIPELINE.md` | 15 |
 
-#### Manifestes & registres (4)
+#### Manifestes & registres (5)
 
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
+| **Adoption des mécanismes** | Qui consomme quoi (imports + briques front), niveau APP vs infrastructure, et jonction registre↔grille : mécanisme adopté par des apps que rien ne vérifie | `wama/common/services/mecanismes_scan.py` | `WAMA_MECANISMES.md` | 1 |
 | **Audit des licences** | Vue dérivée : licences+auteurs des 4 registres, traversée par app | `wama/common/services/license_audit.py` | — | 2 |
 | **Formats de sortie** | Source commune des formats+qualités de fichier par domaine (réutilise le vocabulaire converter) | `wama/common/utils/output_formats.py` | — | 5 |
-| **Grille de conformité** | Mesure les 8 facettes F1–F8 des apps par analyse du code réel | `wama/common/services/conformity_checker.py` | `WAMA_APP_CONVENTIONS.md` | 3 |
+| **Grille de conformité** | Mesure les 8 facettes F1–F8 des apps par analyse du code réel | `wama/common/services/conformity_checker.py` | `WAMA_APP_CONVENTIONS.md` | 4 |
 | **Manifestes** | Extraction/validation/projection des 7 kinds vers les registres | `wama/common/manifests/ingest.py` | `WAMA_MANIFEST_ARCHITECTURE.md` | 22 |
 
 #### File d'attente & lots (7)
@@ -148,7 +149,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Domaines → modes** | Schéma déclaratif des onglets-domaine et modes par app — scope la file | `wama/common/utils/app_modes.py` | `MODES_QUEUE_UX.md` | 11 |
 | **Import de dossier récursif** | Traversée récursive d'un drop/webkitdirectory — brique F2 montée globale (base.html) | `wama/common/static/common/js/wama-folder-import.js` | `WAMA_APP_GENERATION_ROUTE.md` | 2 |
 | **Inspecteur — champs de détail** | Schéma canonique des infos d'item affichées au volet droit | `wama/common/utils/detail_registry.py` | `INSPECTOR_DETAIL_FIELDS.md` | 35 |
-| **Preview unifiée** | Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps | `wama/common/utils/preview_registry.py` | — | 30 |
+| **Preview unifiée** | Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps | `wama/common/utils/preview_registry.py` | — | 31 |
 | **Progression & ETA (front)** | Moteur ETA par débit observé + barres aux 3 niveaux : card, batch, globale | `wama/common/static/common/js/wama-eta.js` | `PROJECT_STATUS.md §10` | 39 |
 | **Schéma de paramètres** | Source unique des réglages d'app : volet droit et modale sont RENDUS depuis lui | `wama/common/utils/param_schema.py` | `WAMA_APP_GENERATION_ROUTE.md` | 37 |
 | **Socle JS des apps** | Plomberie commune file/cards : csrfFetch, urls, Poller de progression, états vides | `wama/common/static/common/js/wama-app-base.js` | `WAMA_APP_GENERATION_ROUTE.md` | 17 |
@@ -179,8 +180,31 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Runner générique du studio** | Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app | `wama/studio/services/generic_runner.py` | `STUDIO_VISION.md` | 7 |
 | **Surface d'outils** | Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas | `wama/tool_api.py` | `WAMA_APP_GENERATION_ROUTE.md` | 8 |
 
-**Mécanismes déclarés : 66** · domiciles absents : 0 · sans consommateur : 2 · assumés locaux : 18 · modules balayés non rattachés : 0
+**Mécanismes déclarés : 67** · domiciles absents : 0 · sans consommateur : 2 · assumés locaux : 18 · modules balayés non rattachés : 0 · **de niveau app sans critère de grille : 16**
 - ⚠ **Sans consommateur** (brique morte ou pas encore adoptée) : `benchmark_sync` (wama/model_manager/services/benchmark_sync.py), `qc` (wama/common/utils/qc.py)
+
+<details><summary>⚠ <b>16 mécanisme(s) de niveau app SANS critère de grille</b> — adoptés par des apps, vérifiés par aucun critère (<code>Criterion.mecanisme</code>) : une app peut sortir à 100 % sans les avoir adoptés</summary>
+
+| Mécanisme | Adopté par | Domicile |
+|---|---|---|
+| `media_paths` — Chemins média | **10** app(s) : anonymizer, avatarizer, composer, converter, describer, enhancer, imager, reader, synthesizer, transcriber | `wama/common/utils/media_paths.py` |
+| `manifests` — Manifestes | **8** app(s) : anonymizer, avatarizer, composer, describer, enhancer, imager, synthesizer, transcriber | `wama/common/manifests/ingest.py` |
+| `notifications` — Notifications de tâche | **8** app(s) : anonymizer, avatarizer, composer, describer, enhancer, imager, synthesizer, transcriber | `wama/common/utils/notifications.py` |
+| `ffmpeg` — Accès ffmpeg | **5** app(s) : anonymizer, converter, describer, enhancer, transcriber | `wama/common/utils/ffmpeg_utils.py` |
+| `output_formats` — Formats de sortie | **5** app(s) : anonymizer, composer, enhancer, imager, synthesizer | `wama/common/utils/output_formats.py` |
+| `video_utils` — Utilitaires vidéo | **5** app(s) : anonymizer, converter, describer, enhancer, transcriber | `wama/common/utils/video_utils.py` |
+| `audio_decode` — Décodage audio robuste | **4** app(s) : converter, enhancer, synthesizer, transcriber | `wama/common/utils/audio_decode.py` |
+| `document_export` — Export document | **3** app(s) : describer, reader, transcriber | `wama/common/utils/document_export.py` |
+| `llm` — Accès LLM | **3** app(s) : describer, reader, transcriber | `wama/common/utils/llm_utils.py` |
+| `media_probe` — Sonde média | **2** app(s) : converter, transcriber | `wama/common/utils/media_probe.py` |
+| `nightly_tests` — Tests nocturnes | **2** app(s) : enhancer, transcriber | `wama/common/services/nightly_tests.py` |
+| `task_skeleton` — Squelette de tâche | **2** app(s) : converter, reader | `wama/common/utils/task_skeleton.py` |
+| `model_coverage` — Couverture multi-modèles | **1** app(s) : anonymizer | `wama/common/services/model_coverage.py` |
+| `provenance` — Provenance de modèle | **1** app(s) : anonymizer | `wama/model_manager/services/provenance.py` |
+| `resource_governor` — Gouverneur de ressources | **1** app(s) : avatarizer | `wama/common/services/resource_governor.py` |
+| `run_outcome` — Signaux d'exécution | **1** app(s) : transcriber | `wama/common/services/run_outcome.py` |
+
+</details>
 
 <details><summary>Assumés utilitaires locaux : 18 (chacun avec sa raison — <code>ASSUMES_LOCAUX</code>, wama/common/mecanismes.py)</summary>
 

@@ -3160,6 +3160,55 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > `/converter_01/` redirige vers l'accueil pour le compte smoke (gating catalogue) → valider
 > avec le compte Fabien ou élargir les groupes du compte smoke.
 
+### Addendum 19/08 — JONCTION mécanismes↔grille LIVRÉE (décision ② du 🔚 du 18/08)
+
+> Les 4 questions ouvertes ont été tranchées par Fabien le 19/08 : **Q1** le registre
+> `mecanismes.py` est la SOURCE, la grille l'EXPLOITE → champ `Criterion.mecanisme` (cardinalité :
+> un critère vérifie 0-1 mécanisme, un mécanisme peut avoir N critères — `param_schema` en a 5) ;
+> **Q2** avertissement, pas échec dur, et **réutilisation de l'affichage rouge existant** des
+> cards d'app (`conf.issues`) ; **Q3** on part de l'APP (cadrage Fabien) ; **Q4** durcir —
+> « pas simplement ça y est ou pas, mais est-ce que c'est proprement intégré ».
+>
+> **Q3 — le seuil disparaît.** Un mécanisme est **de niveau app** si ≥1 fichier sous
+> `wama/<app>/` le consomme ; sinon il est d'**infrastructure**. Mesuré : **45 de niveau app /
+> 21 infra** sur 66. Plus de nombre magique, et les mécanismes d'infra (bench, mirror_sync,
+> retention…) sortent mécaniquement du périmètre de la grille.
+>
+> **LIVRÉ** : ① `common/services/mecanismes_scan.py` — le balayage d'adoption, **extrait** de la
+> closure de `doc_facts` (2ᵉ consommateur = la règle du dépôt), domicile unique de « qui consomme
+> quoi » ; ② `Criterion.mecanisme` + **54/74 critères liés** couvrant **32 mécanismes**, avec le
+> garde-fou symétrique `criteres_orphelins()` (une clé mal orthographiée rendrait la liaison
+> inerte) ; ③ **4ᵉ forme d'oubli** dans la carte : « mécanisme de niveau app SANS critère » →
+> **16 trous** listés avec leur adoption (media_paths 10 apps, manifests 8, notifications 8,
+> ffmpeg/output_formats/video_utils 5…) ; ④ **les 3 critères manquants**, durcis :
+> `card_gear`, `card_preview_hydratee`, `inspector_detail_wired`.
+>
+> **Q4 — ce que « durcir » a donné, avec la preuve** : `_AppFiles.find_code()` neutralise les
+> COMMENTAIRES avant de chercher, et `inspector_adapters` interroge désormais le **registre
+> runtime** (comme `_tool_api_triad` depuis A4) au lieu du texte d'`apps.py`. Motif mesuré ce
+> jour : imager était **vert** sur ce critère alors que `register_app_preview` n'existait pas —
+> le motif matchait la ligne `# NB : PAS de register_app_preview pour l'instant`. **86** checks
+> reposent sur ce grep : la porte reste ouverte ailleurs, `find_code` est le chemin de sortie.
+>
+> **CE QUE LA GRILLE VOIT MAINTENANT (et ne voyait pas)** : `card_gear` — transcriber 🔶 (10
+> data-* de paramètres écrits à la main, nommés dans la preuve), anonymizer ❌ (gear sans aucun
+> data-* de réglage) : le handoff du 18/08 annonçait « porté aux 9 apps », le réel est **8** ;
+> `card_preview_hydratee` — seuls converter/anonymizer/avatarizer l'ont, imager 🔶 (markup
+> d'app, famille R22). Scores : converter **100**, avatarizer/describer 98, composer/enhancer/
+> reader/synthesizer/transcriber 97, anonymizer/imager 96 — la baisse est du SIGNAL RETROUVÉ,
+> pas une régression (dénominateurs 63→77 selon l'applicabilité).
+>
+> **Contrôles après livraison** : check_docs **2 CASSÉ** (inchangé, 388 réf.) · doc_facts **4 à
+> jour** · corpus **110 à jour** (imager réexporté : la facette `inspector` a bougé avec la
+> registration preview) · registre **67 mécanismes**, 0 non-rattaché, 2 sans consommateur.
+> ⚠ Piège consigné : `from wama.common.services import X` **échappe** au détecteur de
+> consommateurs (il cherche `from <module> import`) — mon propre module s'affichait « brique
+> morte » ; import corrigé, mais le détecteur reste borgne sur cette forme.
+>
+> **SUITE proposée** (ordre acté) : ③ page `/common/mecanismes/` (matrice mécanisme × app,
+> alimentée par le rapport, motif `/apps/` + `/common/licences/`) → ④ facette `mecanismes` du
+> manifeste d'app. Les 16 trous sont le backlog naturel des prochains critères.
+
 ## §REPRISE — 2026-08-13 (nuit) : BANC CODEGEN JOUÉ (marche B front 2) + skills à jour
 
 > **Reprise** : les 5 contrôles conformes au bloc attendu (check_docs 2 CASSÉ, corpus 110,

@@ -1090,7 +1090,11 @@
     },
     "inspector": {
       "detail_registered": true,
-      "preview_registered": false
+      "preview": {
+        "file_field": "reference_image",
+        "user_field": "user"
+      },
+      "preview_registered": true
     },
     "models": {
       "catalog_keys": [
