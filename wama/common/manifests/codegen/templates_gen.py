@@ -29,6 +29,17 @@ def render_index(manifest: dict) -> tuple:
     accept = ','.join(ident.get('input_extensions') or []) or '*/*'
     mark = _GEN_MARK.format(app_id=app)
 
+    # Import par URL — DÉRIVÉ des capacités du manifeste (2026-08-19). La jumelle converter_01
+    # n'offrait pas le champ URL alors que l'app source l'a : ce n'était PAS un trou de glu
+    # assumé mais un manque du gabarit — l'information était DANS le manifeste
+    # (`capabilities.accepts_url` / `has_url_import`) et n'était pas lue. Constat Fabien en
+    # comparant la jumelle à sa source.
+    caps = body.get('capabilities') or {}
+    url_bits = ''
+    if caps.get('accepts_url') or caps.get('has_url_import'):
+        url_bits = (f" show_url=True url_input_id='{app}Url' url_submit_id='{app}UrlSubmit'"
+                    " url_placeholder='https://… (page web, média distant)'")
+
     src = f'''{{% extends '{app}/base.html' %}}
 {{% load static %}}
 {{% load wama_static %}}
@@ -59,7 +70,7 @@ document.addEventListener('DOMContentLoaded', function () {{
     {{% include 'common/_global_progress.html' %}}
 
     {{% url '{app}:batch_template' as batch_tpl_url %}}
-    {{% include 'common/_new_item_card.html' with drop_zone_id='{app}DropZone' file_input_id='{app}FileInput' file_accept='{accept}' formats_label='{label}' show_batch_bar=True show_media_library=True batch_template_url=batch_tpl_url collapsible=True %}}
+    {{% include 'common/_new_item_card.html' with drop_zone_id='{app}DropZone' file_input_id='{app}FileInput' file_accept='{accept}' formats_label='{label}' show_batch_bar=True show_media_library=True batch_template_url=batch_tpl_url collapsible=True{url_bits} %}}
     <hr class="border-secondary">
 
     {{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='{app}StartAllBtn' clear_id='{app}ClearAllBtn' download_id='{app}DownloadAllBtn' show_download=True %}}
