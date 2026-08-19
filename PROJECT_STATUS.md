@@ -3129,11 +3129,32 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > wama-app-base.js sur les 10 apps** (bug ⑥ non régressé) ; **0 erreur console** sur les 10 apps
 > (1 transitoire `refreshConsole` reader au 2ᵉ run, disparue ensuite).
 >
-> **❌ ÉCART RÉEL (confronté au code)** : **imager** — la card se sélectionne (liseré, params
-> liés « génération #71 ») mais NI Infos NI Aperçu : `_generation_card.html` ne porte pas
-> `data-preview-url` (reader `_item_card.html:32` et composer `_generation_card.html:19` l'ont)
-> → `fillDetail()` fait `hideDetail()`. Fix = 1 attr sur les cards image+vidéo ; rejoint les
-> ❌ F3 existants d'imager.
+> **❌ ÉCART RÉEL → CORRIGÉ le jour même (imager, 3 causes en cascade)** : la card se
+> sélectionnait (liseré, params liés) mais NI Infos NI Aperçu. Le diagnostic a remonté
+> **trois** manques, pas un :
+> ① `_generation_card.html` ne portait pas `data-preview-url` (reader `_item_card.html:32`,
+> composer `:19` l'ont) → `fillDetail()` faisait `hideDetail()` ;
+> ② `register_app_preview('imager')` n'avait jamais été fait — différé en 07/26 sur « quelle
+> image prévisualiser », alors que la décision était **déjà prise** depuis le 13/07 par la clé
+> canonique `result_file` (vidéo, sinon 1ʳᵉ image) ; sans registration `unified_preview`
+> répond **404** (la face SORTIE, elle, est zéro-code : `_output_preview_data` la dérive du
+> détail) ;
+> ③ **bug latent trouvé au passage** : le détail servait `generated_images[0]` = un chemin
+> **ABSOLU de disque** (`tasks.py:308`) → lien Sortie et preview inexploitables dès la 1ʳᵉ
+> génération réussie. L'ACCESSEUR existait (`ImageGeneration.output_images`, models.py:377,
+> conversion → URL MEDIA) : on passe par lui (règle « chercher l'accesseur avant de déduire »).
+> \+ `source_text=g.prompt` (clé canonique) et chip **Prompt** dans `extra` (forme composer) —
+> sans quoi le volet d'une app PROMPT-primaire n'affiche nulle part l'entrée que la card met
+> en avant.
+> **PREUVE (génération SUCCESS semée, compte smoke)** : `detail.result_file` =
+> `/media/imager/54/output/gen_71_1_smoke.png` (URL, plus un chemin disque) · preview
+> `?side=output` = image/png servie · volet = **Aperçu `<img>` rendu** + chips Réglages/Sortie
+> dont « Prompt paysage smoke handoff » · 0 erreur console · **aucune régression** sur les 9
+> autres apps (passe rejouée à l'identique). Grille imager inchangée à 97 % (les 2 ❌ restants
+> sont `model_caps_ui` et `during_preview` — le critère mesuré ne couvre pas cette registration).
+> ⚠ Reste noté (hors périmètre) : les cards imager affichent leurs images par un markup
+> d'app, **hors mécanisme n°30** (`data-card-preview` = 0 sur imager) — même famille que
+> R22 du ledger.
 >
 > **RESTE DÛ (hors périmètre smoke)** : during ×3 = jobs GPU réels → **Fabien** ;
 > `/converter_01/` redirige vers l'accueil pour le compte smoke (gating catalogue) → valider

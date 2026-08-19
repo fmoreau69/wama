@@ -16,6 +16,10 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
      data-id="{{ gen.id }}"
      data-status="{{ gen.status }}"
      data-domain="{{ domain }}"
+     {% comment %}data-preview-url : contrat de l'inspecteur commun (WamaInspector.fillDetail
+     lit l'attribut et en DÉRIVE l'URL /detail/) — sans lui la card se sélectionne mais le
+     volet reste vide (mesuré à la passe smoke du 19/08). Même forme que reader/composer.{% endcomment %}
+     data-preview-url="{% url 'common:unified_preview' 'imager' gen.id %}"
      {% comment %}data-* DÉRIVÉS du schéma du DOMAINE (brique commune card_gear, 18/08 —
      gear_data choisit IMAGE_PARAMS/VIDEO_PARAMS selon generation_mode) ; remplace la
      liste écrite à la main, et complète negative_prompt/image_strength oubliés.{% endcomment %}
