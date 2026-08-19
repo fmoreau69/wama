@@ -517,6 +517,9 @@ if ENABLE_CELERY:
         # Charge des modèles → queue GPU, mais palier le plus BAS : une campagne
         # de tests nocturnes ne doit jamais passer devant un traitement demandé.
         'common.run_nightly_tests': {'queue': 'gpu', 'priority': _prio('_nightly_tests')},
+        # Passe LLM de la prospection : GPU (Ollama hôte = même carte) en --pool=solo →
+        # SÉRIALISÉE derrière tout traitement utilisateur, jamais en concurrence (2026-08-19).
+        'model_manager.assess_proposed': {'queue': 'gpu', 'priority': _prio('_prospect_assess')},
     }
     CELERY_TASK_DEFAULT_QUEUE = 'default'
 

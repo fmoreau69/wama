@@ -15,6 +15,10 @@ class Command(BaseCommand):
     help = "Evaluation multi-agents des candidats de prospection (dry-run). Adoption = decision admin."
 
     def add_arguments(self, parser):
+        parser.add_argument('--proposed', action='store_true',
+                            help="Évaluer les CANDIDATS UI (is_proposed, Ollama+HF) et "
+                                 "PERSISTER la confiance — gouverné (garde VRAM + réservation). "
+                                 "Seule voie synchrone depuis la désactivation de l'auto (19/08).")
         parser.add_argument('--app', help="App WAMA (cf. APP_TASKS).")
         parser.add_argument('--task', help="Tache HF brute (prioritaire sur --app).")
         parser.add_argument('--agents', default='ollama',
@@ -29,6 +33,23 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         from wama.model_manager.services.prospector import prospect_hf, APP_TASKS
         from wama.model_manager.services.prospect_agents import assess_candidate, parse_agents
+
+        # ── Mode CANDIDATS UI (persistant, gouverné) ─────────────────────────────
+        if options.get('proposed'):
+            from wama.model_manager.services.prospect_agents import assess_proposed
+            res = assess_proposed(max_assess=options['max_assess'],
+                                  agents=parse_agents(options['agents']),
+                                  timeout=options['timeout'])
+            if res.get('deferred'):
+                self.stdout.write(self.style.WARNING(
+                    f"Passe REPORTÉE : {res['free_gb']} Go de VRAM effective < "
+                    f"{res['needed_gb']} Go requis (GPU occupé)."))
+            else:
+                self.stdout.write(self.style.SUCCESS(
+                    f"✓ {res.get('assessed', 0)} candidat(s) évalué(s), "
+                    f"{res.get('no_verdict', 0)} sans avis, "
+                    f"{res.get('remaining', '?')} restant(s)."))
+            return
 
         task = options.get('task')
         if not task:

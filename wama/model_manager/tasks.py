@@ -222,20 +222,23 @@ def install_proposed_task(self, model_key: str):
     return res
 
 
-@shared_task(name='model_manager.assess_proposed')
-def assess_proposed_task(max_assess: int = 10):
+@shared_task(bind=True, name='model_manager.assess_proposed')
+def assess_proposed_task(self, max_assess: int = 10):
     """
-    Passe d'évaluation LLM des candidats de prospection Ollama `new` (confiance) —
-    enfilée à la fin de `api_prospect_ollama` (fire-and-forget) : les badges de
-    confiance se remplissent au fil de la passe, la card lit `AIModel.confidence`.
-    Incrémentale : `max_assess` candidats par passe, le reste à la passe suivante.
+    Passe d'évaluation LLM des candidats de prospection `new` (confiance) — déclenchée
+    sur ACTION EXPLICITE uniquement (bouton « Évaluer la confiance » / CLI
+    `assess_models --proposed`), JAMAIS auto depuis le 2026-08-19 (crash hôte, pattern
+    « Ollama hôte enchaîné »). Gouvernée : routée file `gpu` --pool=solo palier `basse`
+    (settings.CELERY_TASK_ROUTES) → sérialisée derrière les traitements utilisateur ;
+    la passe elle-même passe par le gouverneur (garde `effective_free_gb` + réservation,
+    cf. `assess_proposed`). Incrémentale : `max_assess` candidats par passe.
     """
     from wama.common.utils.task_progress import publier_progression
 
     from .services.prospect_agents import assess_proposed
 
     def publier(p, state='RUNNING'):
-        publier_progression(ASSESS_CACHE_KEY, None, state, p, ASSESS_TTL)
+        publier_progression(ASSESS_CACHE_KEY, self.request.id, state, p, ASSESS_TTL)
 
     try:
         res = assess_proposed(max_assess=max_assess, progress=publier)

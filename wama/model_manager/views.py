@@ -1623,6 +1623,37 @@ def api_prospect_install(request):
 
 @login_required
 @user_passes_test(is_admin_or_dev)
+@require_POST
+def api_prospect_assess(request):
+    """Déclenchement EXPLICITE de la passe de confiance LLM — jamais auto depuis le
+    crash hôte du 2026-08-19 (« Ollama hôte enchaîné »). La tâche est routée file
+    `gpu` --pool=solo palier `basse` (sérialisée derrière tout traitement) et la passe
+    est GOUVERNÉE (garde `effective_free_gb` + `vram_reservation`). Idempotent : une
+    passe déjà vivante est rejointe au lieu d'être doublée."""
+    from wama.common.utils.task_progress import progression_en_cours
+
+    from .tasks import ASSESS_CACHE_KEY, assess_proposed_task
+    en_cours = progression_en_cours(ASSESS_CACHE_KEY)
+    if en_cours:
+        return JsonResponse({'success': True, 'already_running': True, 'progress': en_cours})
+    started = assess_proposed_task.delay()
+    return JsonResponse({'success': True, 'started': True, 'task_id': started.id})
+
+
+@login_required
+@user_passes_test(is_admin_or_dev)
+@require_GET
+def api_prospect_assess_progress(request):
+    """Avancement de la passe de confiance (cache Redis, écrit par la tâche)."""
+    from django.core.cache import cache
+
+    from .tasks import ASSESS_CACHE_KEY
+    progress = cache.get(ASSESS_CACHE_KEY)
+    return JsonResponse({'success': True, 'running': bool(progress), 'progress': progress})
+
+
+@login_required
+@user_passes_test(is_admin_or_dev)
 @require_GET
 def api_prospect_install_progress(request):
     """Avancement d'une installation de candidat (cache Redis, écrit par la tâche).

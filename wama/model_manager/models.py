@@ -529,6 +529,10 @@ class AIModel(models.Model):
             'proposal_kind': self.proposal_kind,
             'confidence': self.confidence,
             'update_complexity': self.update_complexity,
+            # Benchmark TIERS confronté (étage 2 de l'échelle qualité, sync_benchmarks) —
+            # exposé depuis le 2026-08-19 : cards + inspecteur + agents d'évaluation le lisent.
+            'benchmark_index': self.benchmark_index,
+            'benchmark_meta': self.benchmark_meta,
         }
 
 

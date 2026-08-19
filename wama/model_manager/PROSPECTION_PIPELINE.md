@@ -344,3 +344,35 @@ Session du 18/08 soir : `seed_generation_candidates` GÉNÉRALISÉ en `seed_hf_c
 plafond par tâche, rôle `hf:<tâche>`, purge à double graphie pour la transition) ; motifs de
 bruit enrichis (quantifs, CoreML/MLX). Test réel : 32 candidats / 9 tâches, licences relevées
 (musicgen = cc-by-nc-4.0 visible), whisper-large-v3 installé correctement exclu (flag have).
+
+## Session du 2026-08-19 : CRASH HÔTE → passe LLM GOUVERNÉE + benchmark exposé
+
+**Incident** : la passe assess enfilée AUTO après la prospection a fait tomber Windows à
+chaque clic (1er verdict 01:57:44 → hôte down, Ollama relancé 01:59:02) — pattern « Ollama
+hôte enchaîné » déjà proscrit sur cette machine (instabilité SOUS l'OS, même à faible charge).
+
+**Câblage correctif (tout par les briques EXISTANTES) :**
+1. Enfilage auto DÉSACTIVÉ (`PROSPECT_ASSESS_AUTO=False`, settings) — la passe est une
+   ACTION EXPLICITE : bouton « Évaluer la confiance » (mmProspectBar, suivi WamaApp.Poller
+   + `api/prospect/assess[/progress]`) ou CLI `assess_models --proposed`.
+2. **Gouverneur de ressources** (le mécanisme d'auto-adaptation existant, enfin consommé
+   par la prospection) : garde `effective_free_gb()` (< besoin → passe REPORTÉE, candidats
+   restent sans confiance) + `vram_reservation(f"model_manager.assess:{pid}", besoin)` pour
+   la durée de la passe — même motif que MuseTalk/CodeFormer : la charge tourne dans
+   l'OLLAMA HÔTE, invisible des process WAMA sans déclaration. Besoin = `_vram_agents()`
+   (empreinte RÉELLE du plus gourmand des agents locaux, résolue par le catalogue).
+3. **Parallélisme** : tâche routée file `gpu` `--pool=solo` palier `basse`
+   (pseudo-app `_prospect_assess` dans APP_TIERS + route nommée dans settings) →
+   sérialisée derrière tout traitement utilisateur, jamais en concurrence GPU.
+
+**Benchmark tiers confronté (chantier de l'autre session, 017d237/44d3a28) — intégré :**
+la sélection le consommait déjà (`_cle_de_rang` étage 2 ; qwen3.8 52.0 ≫ qwen3.6 32.1 —
+la mesure tierce corrige l'a priori) et `sync_benchmarks` couvre les lignes `proposed:`.
+Ce qui manquait et est branché : `to_dict` expose `benchmark_index`/`benchmark_meta` →
+badge « bench X » sur les cards proposées + ligne « Benchmark tiers » à l'inspecteur ;
+le CONTEXTE des agents d'évaluation inclut le benchmark du candidat (`_ligne_benchmark`)
+et celui du référentiel installé (`_referentiel`). Vérifié en base : 16 modèles
+benchmarkés, échelles par catégorie (Elo imager ~1369 ≠ AA llm 52) jamais mélangées.
+
+⚠ La passe LLM RÉELLE n'a toujours pas été validée de bout en bout (elle plantait l'hôte
+avant) : premier essai à faire par le bouton, hors traitement GPU, en surveillant wama.log.

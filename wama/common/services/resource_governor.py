@@ -438,6 +438,12 @@ APP_TIERS = {
     # Charge des modèles, donc file GPU, mais ne doit JAMAIS passer devant un
     # traitement demandé par un utilisateur.
     "_nightly_tests": "basse",
+    # Pseudo-app : passe d'évaluation LLM des candidats de prospection
+    # (`model_manager.assess_proposed`). La charge tourne dans l'OLLAMA HÔTE (même GPU
+    # physique) : file gpu --pool=solo pour la SÉRIALISER derrière les traitements, palier
+    # le plus bas. Leçon du 2026-08-19 : enchaînée hors gouverneur, elle a fait tomber
+    # l'hôte (pattern « Ollama hôte enchaîné », instabilité sous l'OS).
+    "_prospect_assess": "basse",
 }
 
 DEFAULT_TIER = "normale"

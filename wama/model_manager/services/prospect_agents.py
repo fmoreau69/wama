@@ -158,17 +158,57 @@ def _contexte_ollama(cand) -> str:
         f"Modèle candidat de la bibliothèque Ollama : {cand.name}\n"
         f"Rôle WAMA visé : {p.get('role') or cand.model_type} — {p.get('reason', '')}\n"
         f"Taille estimée : {taille if taille is not None else '?'} Go\n"
-        f"Modèles déjà installés pour ce type (référentiel à surpasser) :\n{lignes}"
+        + _ligne_benchmark(cand)
+        + f"Modèles déjà installés pour ce type (référentiel à surpasser) :\n{lignes}"
     )
 
 
 def _referentiel(model_type: str) -> str:
-    """Référentiel installé d'un type, en lignes lisibles (brique `meilleurs_installes`)."""
+    """Référentiel installé d'un type, en lignes lisibles (brique `meilleurs_installes`).
+    Le benchmark TIERS confronté (étage 2, `sync_benchmarks`) prime sur l'a priori quand
+    il existe — c'est la mesure qui a corrigé « qwen3.6 devant qwen3.8 » le 19/08."""
     from wama.model_manager.models import AIModel
-    return "\n".join(
-        f"  - {m.name} (indice a priori {m.quality_index}, VRAM {m.vram_gb} Go)"
-        for m in AIModel.meilleurs_installes(model_type, limit=5)
-    ) or "  (aucun)"
+    lignes = []
+    for m in AIModel.meilleurs_installes(model_type, limit=5):
+        bench = (f", benchmark tiers {m.benchmark_index}"
+                 if m.benchmark_index is not None else "")
+        lignes.append(f"  - {m.name} (indice a priori {m.quality_index}{bench}, "
+                      f"VRAM {m.vram_gb} Go)")
+    return "\n".join(lignes) or "  (aucun)"
+
+
+def _ligne_benchmark(cand) -> str:
+    """Ligne « benchmark tiers » du candidat lui-même, si `sync_benchmarks` l'a apparié
+    (les lignes `proposed:` sont incluses dans le sync — critère AVANT installation)."""
+    if cand.benchmark_index is None:
+        return ""
+    meta = cand.benchmark_meta or {}
+    return (f"Benchmark tiers confronté : {cand.benchmark_index}"
+            f" ({meta.get('source', 'source inconnue')})\n")
+
+
+def _vram_agents(agents) -> float:
+    """
+    VRAM (Go) à déclarer au gouverneur pour une passe : le PLUS GOURMAND des agents
+    locaux (Ollama ne garde qu'un modèle chargé en NUM_PARALLEL=1 ; les agents cloud
+    ne coûtent rien ici). Agent sans nom (résolution catalogue) → on résout MAINTENANT
+    pour réserver la vraie empreinte, pas une supposition.
+    """
+    from wama.model_manager.models import AIModel
+    besoin = 0.0
+    for provider, model in agents:
+        if provider != 'ollama':
+            continue
+        nom = model
+        if not nom:
+            try:
+                from wama.common.utils.llm_utils import modele_par_defaut
+                nom = modele_par_defaut()
+            except Exception:
+                nom = ''
+        m = AIModel.objects.filter(model_key=f"ollama:{nom}").first() if nom else None
+        besoin = max(besoin, float((m and m.vram_gb) or 8.0))   # 8 Go = repli prudent
+    return besoin or 8.0
 
 
 def _contexte_hf(cand) -> str:
@@ -183,8 +223,9 @@ def _contexte_hf(cand) -> str:
         f"Rôle WAMA visé : {p.get('role') or cand.model_type} — {p.get('reason', '')}\n"
         f"Téléchargements : {p.get('downloads')} | Likes : {p.get('likes')} | "
         f"Poids : {cand.disk_gb or '?'} Go\n"
-        f"Modèles déjà installés pour ce type (référentiel à surpasser) :\n"
-        f"{_referentiel(cand.model_type)}\n"
+        + _ligne_benchmark(cand)
+        + f"Modèles déjà installés pour ce type (référentiel à surpasser) :\n"
+          f"{_referentiel(cand.model_type)}\n"
         f"Carte (extrait) :\n{carte or '(non disponible)'}"
     )
 
@@ -209,6 +250,27 @@ def assess_proposed(max_assess: int = 10, agents=None, timeout: int = 120,
 
     agents = agents or parse_agents(
         getattr(settings, 'PROSPECT_ASSESS_AGENTS', _AGENTS_DEFAUT))
+
+    # ── GOUVERNEUR DE RESSOURCES (obligatoire depuis le 2026-08-19) ──────────────
+    # La charge tourne dans l'OLLAMA HÔTE — même GPU physique, mais INVISIBLE des process
+    # WAMA : sans déclaration, le gouverneur croit la VRAM libre et laisse une autre tâche
+    # GPU s'empiler (scénario des kernel panics du 29/07 ; et la passe enchaînée hors
+    # gouverneur a fait tomber l'hôte le 19/08). Même motif que MuseTalk/CodeFormer :
+    # garde `effective_free_gb` PUIS `vram_reservation` pour la durée de la passe.
+    import os as _os
+
+    from wama.common.services.resource_governor import (effective_free_gb,
+                                                        vram_reservation)
+    besoin_gb = _vram_agents(agents)
+    libre = effective_free_gb()
+    if libre < besoin_gb:
+        resume = {'assessed': 0, 'deferred': True, 'free_gb': round(libre, 1),
+                  'needed_gb': besoin_gb}
+        logger.info("[prospect_agents] passe REPORTÉE : VRAM effective %.1f Go < besoin "
+                    "%.1f Go (les candidats restent sans confiance, repasse plus tard)",
+                    libre, besoin_gb)
+        return resume
+
     file_attente = AIModel.objects.filter(
         is_proposed=True, source__in=('ollama', 'huggingface'),
         proposal_kind='new', confidence__isnull=True,
@@ -216,30 +278,32 @@ def assess_proposed(max_assess: int = 10, agents=None, timeout: int = 120,
     cands = list(file_attente[:max_assess])
 
     evalues, sans_avis = 0, 0
-    for i, cand in enumerate(cands):
-        if progress:
-            progress({'current': cand.name, 'done': i, 'total': len(cands)})
-        contexte = (_contexte_hf(cand) if cand.source == 'huggingface'
-                    else _contexte_ollama(cand))
-        opinions = [_juger(contexte, p, m, timeout=timeout)
-                    for (p, m) in agents]
-        consensus = _consolider(opinions)
-        if consensus is None:
-            sans_avis += 1     # agents injoignables : on laisse `None`, repassera
-            continue
-        valid = [o for o in opinions if 'error' not in o]
-        worth = sum((o['confidence'] if o['recommend'] else 1.0 - o['confidence'])
-                    for o in valid) / len(valid)
-        cand.confidence = round(worth, 2)
-        info = dict(cand.extra_info or {})
-        prospect = dict(info.get('prospect') or {})
-        prospect['assess'] = {'consensus': consensus, 'opinions': opinions}
-        info['prospect'] = prospect
-        cand.extra_info = info
-        cand.save(update_fields=['confidence', 'extra_info'])
-        evalues += 1
-        logger.info("[prospect_agents] %s → confiance %.2f (recommandé=%s, %d agent(s))",
-                    cand.name, cand.confidence, consensus['recommend'], consensus['n_agents'])
+    with vram_reservation(f"model_manager.assess:{_os.getpid()}", besoin_gb):
+        for i, cand in enumerate(cands):
+            if progress:
+                progress({'current': cand.name, 'done': i, 'total': len(cands)})
+            contexte = (_contexte_hf(cand) if cand.source == 'huggingface'
+                        else _contexte_ollama(cand))
+            opinions = [_juger(contexte, p, m, timeout=timeout)
+                        for (p, m) in agents]
+            consensus = _consolider(opinions)
+            if consensus is None:
+                sans_avis += 1     # agents injoignables : on laisse `None`, repassera
+                continue
+            valid = [o for o in opinions if 'error' not in o]
+            worth = sum((o['confidence'] if o['recommend'] else 1.0 - o['confidence'])
+                        for o in valid) / len(valid)
+            cand.confidence = round(worth, 2)
+            info = dict(cand.extra_info or {})
+            prospect = dict(info.get('prospect') or {})
+            prospect['assess'] = {'consensus': consensus, 'opinions': opinions}
+            info['prospect'] = prospect
+            cand.extra_info = info
+            cand.save(update_fields=['confidence', 'extra_info'])
+            evalues += 1
+            logger.info("[prospect_agents] %s → confiance %.2f (recommandé=%s, %d agent(s))",
+                        cand.name, cand.confidence, consensus['recommend'],
+                        consensus['n_agents'])
 
     restants = AIModel.objects.filter(
         is_proposed=True, source__in=('ollama', 'huggingface'),
