@@ -107,6 +107,40 @@ def existe(nom: str, tag: str = 'latest') -> bool:
 
 
 @lru_cache(maxsize=256)
+def _manifeste_brut(nom: str, tag: str = 'latest') -> bytes | None:
+    """Octets BRUTS du manifeste d'un `nom:tag` distant, ou None. Point d'accès unique :
+    `taille_go` (somme des couches) et `digest_distant` (sha256 du corps) en dérivent."""
+    import requests
+    from wama.common.utils.http_proxy import outbound_proxies
+    try:
+        r = requests.get(f"{BASE_REGISTRY}/v2/library/{nom}/manifests/{tag}",
+                         timeout=15, proxies=outbound_proxies(),
+                         headers={'Accept': 'application/vnd.docker.distribution.manifest.v2+json'})
+        return r.content if r.status_code == 200 else None
+    except Exception as exc:
+        logger.info("[ollama_registry] manifeste %s:%s indisponible : %s", nom, tag, exc)
+        return None
+
+
+def digest_distant(nom: str, tag: str = 'latest') -> str | None:
+    """
+    Digest Ollama du tag DISTANT = sha256 du manifeste — l'identité de version d'un tag.
+
+    Vérifié le 2026-08-19 : c'est exactement ce que le démon local publie dans `/api/tags`
+    (`digest`), donc les deux se comparent directement. Sert à distinguer « tag ancien mais
+    IDENTIQUE au distant » (re-tirer ne changerait rien) de « nouvelle version publiée sous
+    le même tag » — la prospection proposait les deux indistinctement, sur le seul critère
+    de l'âge d'installation.
+
+    None si indéterminable : l'appelant doit alors garder son comportement d'avant plutôt
+    que de conclure à une égalité qu'il n'a pas mesurée.
+    """
+    import hashlib
+    brut = _manifeste_brut(nom, tag)
+    return hashlib.sha256(brut).hexdigest() if brut else None
+
+
+@lru_cache(maxsize=256)
 def taille_go(nom: str, tag: str = 'latest') -> float | None:
     """
     Poids sur disque d'un `nom:tag` AVANT téléchargement — somme des couches du manifeste.
@@ -119,15 +153,12 @@ def taille_go(nom: str, tag: str = 'latest') -> float | None:
     Retourne None si indéterminable : l'appelant doit alors REFUSER d'installer plutôt que de
     supposer une taille (sur un volume à 96 %, une supposition optimiste remplit le disque).
     """
-    import requests
-    from wama.common.utils.http_proxy import outbound_proxies
+    import json
+    brut = _manifeste_brut(nom, tag)
+    if not brut:
+        return None
     try:
-        r = requests.get(f"{BASE_REGISTRY}/v2/library/{nom}/manifests/{tag}",
-                         timeout=15, proxies=outbound_proxies(),
-                         headers={'Accept': 'application/vnd.docker.distribution.manifest.v2+json'})
-        if r.status_code != 200:
-            return None
-        couches = r.json().get('layers') or []
+        couches = json.loads(brut).get('layers') or []
         total = sum(int(c.get('size') or 0) for c in couches)
         return round(total / (1024 ** 3), 2) if total else None
     except Exception as exc:

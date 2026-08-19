@@ -50,6 +50,24 @@ def _ollama_tags(timeout=5):
     return {m['name']: m.get('modified_at', '') for m in r.json().get('models', [])}
 
 
+def digests_locaux(timeout=5) -> dict:
+    """
+    `{nom: digest}` des modèles Ollama INSTALLÉS (`/api/tags`). Le digest est l'identité de
+    VERSION d'un tag ; comparé à `ollama_registry.digest_distant`, il dit si un `pull`
+    apporterait réellement quelque chose (2026-08-19 — voir `prospect_ollama`).
+    Best-effort : {} si le démon ne répond pas, l'appelant garde alors son comportement.
+    """
+    import requests
+    from wama.common.utils.ollama_host import ollama_base, ollama_kwargs
+    try:
+        r = requests.get(f"{ollama_base()}/api/tags", **ollama_kwargs(timeout=timeout))
+        r.raise_for_status()
+        return {m['name']: (m.get('digest') or '') for m in r.json().get('models', [])}
+    except Exception as exc:
+        logger.debug("[update_checker] digests locaux indisponibles : %s", exc)
+        return {}
+
+
 def _local_mtime(path):
     """mtime le plus récent sous un fichier/dossier → datetime UTC, ou None."""
     if not path or not os.path.exists(path):

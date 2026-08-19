@@ -456,3 +456,28 @@ réservation (fenêtre courte, état final correct).
   il est désormais CAPTURÉ depuis le DOM. `staticfiles/common/js/wama-inspector.js` resynchronisé.
 Rendu vérifié par le client Django authentifié (10/10 contrôles) ; validation VISUELLE
 navigateur encore à faire (la page exige une session — passer par le skill `/smoke`).
+
+### « MAJ » qui ne met rien à jour — corrigé à la SOURCE (2026-08-19, remarque Fabien)
+
+Symptôme : `qwen3.5:9b` proposé en « MAJ proposée … **Remplace qwen3.5:9b** » — un modèle
+proposé en remplacement de lui-même. Deux défauts distincts, tous deux corrigés :
+
+1. **À la source (le vrai problème).** Un candidat `update` sans successeur identifié était
+   émis sur le SEUL critère de l'âge d'installation (> 120 j) : il proposait de re-tirer le
+   même tag sans savoir si le distant avait changé. Le **digest** tranche — vérifié le
+   2026-08-19 : le `digest` publié par `/api/tags` est exactement le sha256 du manifeste
+   distant, les deux se comparent donc directement. Briques ajoutées :
+   `ollama_registry.digest_distant()` (sha256 du manifeste, via le nouveau `_manifeste_brut`
+   que `taille_go` partage désormais) et `update_checker.digests_locaux()`.
+   Règle : digest identique ⇒ **aucun candidat** (et l'ancien est purgé, il n'est plus dans
+   `vus_maj`) ; digests différents ⇒ candidat qualifié « nouvelle version publiée sous le
+   même tag » (confiance 0,9, sur PREUVE et non sur l'âge) ; digest indéterminable (réseau)
+   ⇒ comportement d'avant. Le résumé porte `identiques` pour expliquer l'écart de comptage.
+   **Run réel : les 8 candidats « MAJ » existants étaient TOUS de faux positifs** (même
+   digest des deux côtés) — purgés. La liste « ✨ Proposés par IA » perd 8 entrées de bruit.
+2. **À l'affichage.** « Remplace X » n'a de sens que pour un SUCCESSEUR : la card et
+   l'inspecteur se basent désormais sur `prospect.cible` (le successeur nommé), pas sur
+   `origin_key` (qui, sur une MAJ d'âge, désigne le modèle lui-même). Les autres cas sont
+   qualifiés honnêtement : « Nouvelle version du même tag » (republication prouvée) ou
+   « Ancienneté d'installation ». Nouvelle ligne d'inspecteur « Nature de la MAJ »
+   (`prospect.maj` = successeur | republication | age).

@@ -987,9 +987,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     ${(() => {
                         // Ce que l'installation RETIRE (successeur) / le référentiel installé
                         // que le candidat devrait surpasser (nouveau) — 2026-08-18.
+                        // ⚠ « Remplace X » n'a de sens QUE pour un successeur (cible ≠ modèle
+                        // installé). Sur une MAJ « âge seul », la cible est le modèle LUI-MÊME :
+                        // afficher « Remplace qwen3.5:9b » sur la card de qwen3.5:9b n'a aucun
+                        // sens (constaté par Fabien 19/08). La prospection n'émet plus ce cas
+                        // quand le digest distant est identique ; ici on qualifie le reste.
                         const pr = (model.extra_info || {}).prospect || {};
-                        if (model.proposal_kind === 'update' && pr.origin_key) {
-                            return `<div class="small text-warning mb-2" title="Modèle installé retiré et remplacé à l'installation"><i class="fas fa-rotate me-1"></i>Remplace ${pr.origin_key.replace(/^ollama:/, '')}</div>`;
+                        if (model.proposal_kind === 'update' && pr.cible) {
+                            return `<div class="small text-warning mb-2" title="Ce modèle installé est retiré puis remplacé par le successeur, à l'installation"><i class="fas fa-rotate me-1"></i>Remplace ${(pr.origin_key || '').replace(/^ollama:/, '')}</div>`;
+                        }
+                        if (model.proposal_kind === 'update' && pr.maj === 'republication') {
+                            return `<div class="small text-info mb-2" title="Même tag, contenu republié en amont (digests différents) — mise à jour en place"><i class="fas fa-arrows-rotate me-1"></i>Nouvelle version du même tag</div>`;
+                        }
+                        if (model.proposal_kind === 'update') {
+                            return `<div class="small text-muted mb-2" title="Signal d'ancienneté d'installation ; aucun successeur identifié et contenu distant non confirmé différent"><i class="fas fa-clock me-1"></i>Ancienneté d'installation</div>`;
                         }
                         if (pr.concurrence && pr.concurrence.length) {
                             return `<div class="small text-secondary mb-2" title="Meilleurs modèles installés du même type — le référentiel que ce candidat devrait surpasser"><i class="fas fa-scale-balanced me-1"></i>Concurrence : ${pr.concurrence.join(', ')}</div>`;
@@ -1212,9 +1223,16 @@ document.addEventListener('DOMContentLoaded', function() {
             // Ce que l'installation RETIRE (candidat successeur) / le référentiel installé
             // que le candidat devrait surpasser (candidat nouveau) — 2026-08-18.
             { k: 'Remplace', get: function (m) {
+                // Uniquement un VRAI remplacement (successeur nommé) — cf. commentaire card.
                 const pr = (m.extra_info || {}).prospect || {};
-                return (m.is_proposed && m.proposal_kind === 'update' && pr.origin_key)
-                    ? pr.origin_key.replace(/^ollama:/, '') : '';
+                return (m.is_proposed && m.proposal_kind === 'update' && pr.cible)
+                    ? (pr.origin_key || '').replace(/^ollama:/, '') : '';
+            } },
+            { k: 'Nature de la MAJ', get: function (m) {
+                const pr = (m.extra_info || {}).prospect || {};
+                return ({ successeur: 'successeur de famille',
+                          republication: 'même tag, contenu republié',
+                          age: "ancienneté d'installation" })[pr.maj] || '';
             } },
             { k: 'En concurrence avec', get: function (m) {
                 const pr = (m.extra_info || {}).prospect || {};

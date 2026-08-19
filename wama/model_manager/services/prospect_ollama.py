@@ -147,6 +147,10 @@ def prospect_ollama(age_days_threshold: int = 120, include_new: bool = True,
         logger.warning("[prospect_ollama] check_updates indisponible: %s", exc)
         revue = []
 
+    from .update_checker import digests_locaux
+    digests = digests_locaux()      # {nom: digest} — vide si le démon ne répond pas
+    identiques = 0                  # « MAJ » écartées parce que le distant est le même
+
     for r in revue:
         origine = r.get('model_key')
         src = AIModel.objects.filter(model_key=origine).first() if origine else None
@@ -154,6 +158,7 @@ def prospect_ollama(age_days_threshold: int = 120, include_new: bool = True,
             continue
         nom_installe = origine.split(':', 1)[1]
         age = r.get('age_days')
+        maj_reelle = False          # digests différents = republication du même tag
 
         cible = None
         if ok_registre:
@@ -164,11 +169,41 @@ def prospect_ollama(age_days_threshold: int = 120, include_new: bool = True,
                     cible = f"{succ}:{tag}"
                     break
 
+        # ── « MAJ » qui ne mettrait RIEN à jour : on ne la propose pas ────────────────
+        # Sans successeur identifié, un candidat `update` propose de re-tirer LE MÊME TAG sur
+        # le seul critère de l'âge d'installation — d'où l'absurdité constatée par Fabien le
+        # 2026-08-19 : « qwen3.5:9b … Remplace qwen3.5:9b » (installé il y a 166 j, mais le
+        # tag distant a EXACTEMENT le même digest : le pull serait un no-op).
+        # Le digest tranche : identique ⇒ pas de candidat (et le candidat existant sera purgé,
+        # puisqu'il ne figure pas dans `vus_maj`) ; différent ⇒ vraie nouvelle version publiée
+        # sous le même tag, on le dit. Indéterminable (réseau) ⇒ comportement d'avant.
+        if not cible:
+            distant = None
+            try:
+                nom_court, _, tag_court = nom_installe.partition(':')
+                distant = reg.digest_distant(nom_court, tag_court or 'latest')
+            except Exception:
+                distant = None
+            local = digests.get(nom_installe) or ''
+            if distant and local and distant == local:
+                identiques += 1
+                logger.info("[prospect_ollama] %s : tag distant IDENTIQUE (digest %s…) — "
+                            "aucune mise à jour à proposer", nom_installe, local[:12])
+                continue
+            if distant and local and distant != local:
+                maj_reelle = True
+
         cand_key = PROPOSED_PREFIX + origine
         vus_maj.add(cand_key)
         if cible:
             desc = (f"Successeur disponible : {cible} (remplace {nom_installe}, "
                     f"installé il y a {age} j).")
+            conf = 0.9
+        elif maj_reelle:
+            # Le tag n'a pas changé de nom, mais son CONTENU a été republié : c'est une vraie
+            # mise à jour en place, et on l'affirme sur preuve (digests différents), pas sur l'âge.
+            desc = (f"Nouvelle version publiée sous le même tag {nom_installe} "
+                    f"(local installé il y a {age} j).")
             conf = 0.9
         else:
             desc = f"Mise à jour suggérée — {r.get('reason', 'version locale ancienne')}."
@@ -177,7 +212,11 @@ def prospect_ollama(age_days_threshold: int = 120, include_new: bool = True,
                                description=desc, kind='update', confidence=conf,
                                extra={'kind': 'update', 'origin_key': origine,
                                       'reason': r.get('reason', ''), 'age_days': age,
-                                      'cible': cible})
+                                      'cible': cible,
+                                      # Preuve de la nature de la MAJ (vue par l'inspecteur) :
+                                      # 'republication' = même tag, contenu différent.
+                                      'maj': ('successeur' if cible else
+                                              'republication' if maj_reelle else 'age')})
         crees += int(cree)
         maj += int(not cree)
 
@@ -241,6 +280,9 @@ def prospect_ollama(age_days_threshold: int = 120, include_new: bool = True,
 
     resume = {'created': crees, 'updated': maj, 'removed': supprimes,
               'total': len(vus_maj) + len(vus_new),
+              # « MAJ » écartées : tag ancien mais digest distant IDENTIQUE (le pull serait
+              # un no-op). Tracé pour qu'un écart de comptage s'explique sans lire le code.
+              'identiques': identiques,
               'sources': {'installes': ok_installes, 'registre': ok_registre}}
     logger.info("[prospect_ollama] %s", resume)
     return resume
