@@ -2436,6 +2436,65 @@ travail**. La base LIVE est celle de **WSL2 (Postgres 16)**, conforme à
 exécute WAMA nativement sous Windows (`venv_win runserver`) ; sinon c'est une taxe d'entretien
 supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 
+## §REPRISE — 2026-08-19 (CLÔTURE, instance « PROSPECTION de modèles ») — 🔚 POINT D'ENTRÉE
+
+> **Périmètre disjoint** des deux autres clôtures du jour (vision 3D/qualité modèles ; portage
+> anonymizer/card_gear). Ici : chaîne de prospection, installation, confiance LLM, gouverneur,
+> appariement benchmark, volet droit du model_manager. **Doc de référence unique du domaine :
+> `wama/model_manager/PROSPECTION_PIPELINE.md`** (§ÉTAT DES LIEUX = table de couverture).
+
+### ✅ LIVRÉ ET VÉRIFIÉ (9 commits — `8555a85`, `c5e83b9`, `0b19b5a`, `ce57745`, `2bcda96`…)
+| # | Livraison | Preuve |
+|---|---|---|
+| 1 | **Install qwen3.8 supervisée de bout en bout** (première install réelle par l'UI) | indice auto 54,71, capacités VLM re-dérivées, candidat purgé, 0 résidu disque |
+| 2 | **Install ASYNCHRONE** (`installer_candidat` + tâche Celery + avancement %) | fini les timeouts Apache (« Unexpected token '<' ») ; re-clic REJOINT la tâche |
+| 3 | **Journal applicatif `logs/wama.log`** (les loggers `wama.*` n'avaient AUCUN handler) | vivant après restart, rotation câblée |
+| 4 | **Couverture HF 9 tâches** (`seed_hf_candidates` + table déclarative `HF_TASKS`) | 32 candidats réels ; Wan2.1/2.2, Kokoro, whisper, FLUX… ⚠ **Wan3 n'existe pas sur HF au 19/08** |
+| 5 | **Confiance LLM persistée + GOUVERNÉE** (garde `effective_free_gb` + `vram_reservation`, file gpu/`basse`, déclencheurs explicites) | **validée en réel par Fabien : « 10 évalué(s), 40 restant(s) », sans crash** |
+| 6 | **Résidence Ollama déclarée au gouverneur** (`refresh_ollama_residency`) + `unload_model` qui décharge VRAIMENT Ollama | `resident_models`/`idle_models` ne sont plus aveugles au service séparé |
+| 7 | **Appariement benchmark corrigé (2 erreurs)** : famille = mot commun (`qwen-image-2` ↔ GPT Image 2 → 1369 faux) ; `max(valeur)` sur variantes (flux-1-dev → Kontext max) | sync appliqué : flux-1-dev **1041**, qwen3-coder **13,6**, qwen-image-2 → vrai jumeau Arena |
+| 8 | **« MAJ » qui ne met rien à jour, éradiquée** : le DIGEST tranche (≡ sha256 du manifeste distant, vérifié) | **les 8 candidats MAJ existants étaient TOUS faux** → purgés |
+| 9 | **Une évaluation LLM n'est JAMAIS purgée** (garde aux 3 purges) | la tendance HF renouvelle la liste à chaque run (32/31) — prouvé sur 2 cycles, `preserved: 1` |
+| 10 | **Chaînage automatique des lots** (ré-enfilement, pas boucle : le worker `--pool=solo` se libère entre lots) | 4 combinaisons d'arrêt conformes ; anti-boucle vérifié sans GPU |
+| 11 | UI : badge `bench` sur toutes les cards + section **Qualité** (dont le **nom tiers apparié**, qui rend une erreur d'appariement visible), « Remplace » réservé aux vrais successeurs, `WamaInspector.showOnInspect` (brique commune) | rendu vérifié côté serveur 10/10 ; `node --check` OK |
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+> **Lire `wama/model_manager/PROSPECTION_PIPELINE.md` §ÉTAT DES LIEUX (table de couverture) puis
+> les sections datées du 18-19/08.** Premier geste conseillé : **un clic « Évaluer la confiance »**
+> (43 candidats sans confiance, le chaînage traite désormais toute la file en un clic) et vérifier
+> dans `logs/wama.log` que les lots s'enchaînent.
+
+### File des chantiers ouverts (ordre conseillé)
+1. **MAJ des installés HF** — les signaux existent (`check_updates(do_hf=True)`, CLI) mais AUCUN
+   candidat `update` UI : le remplacement automatique n'existe que côté Ollama. *Le plus rentable.*
+2. **Vision spécialisée** (visage/plaque) — le top téléchargements ne les montre jamais ; il faut
+   des `search` ciblés + veille des releases Ultralytics.
+3. **Beat hebdo** — aucune prospection périodique, tout est au clic.
+4. **Supprimer les lots** si le chaînage donne satisfaction (décision Fabien à prendre après usage).
+5. Afficher la **provenance** d'un candidat HF (téléchargements vs tendance) : la liste non évaluée
+   se renouvelle presque intégralement à chaque prospection et l'UI ne l'explique pas.
+6. Purger/rejeter les **3 candidats legacy `synthesizer:*`** (seed de juin, confiance 0,9 figée).
+
+### ⚠ Pendings système / décisions
+- **RESTART des workers Celery requis** (nouvelles tâches `install_proposed`/`assess_proposed`,
+  chaînage, route file `gpu` du palier `_prospect_assess`). Gunicorn a déjà reçu un HUP.
+- **9 commits locaux non poussés** (périmètre prospection) — push = décision Fabien.
+- **Validation VISUELLE du volet droit** encore à faire (Playwright n'avait pas de session
+  authentifiée ; le rendu serveur est vérifié). Passer par le skill `/smoke`.
+- **13 évaluations HF détruites** pendant le test qui a révélé le bug de purge : à régénérer
+  d'un clic (chaînage). Une confiance factice posée pour la démonstration a été **retirée**.
+- Non tranché : `benchmark_meta` est exposé à tout utilisateur authentifié (données publiques,
+  surface élargie non décidée) ; déchargement post-passe hors bloc de réservation (fenêtre courte,
+  état final correct, rattrapé par `refresh_ollama_residency`).
+
+### Contrôles attendus au prochain `/reprise` (chiffres de référence)
+- `doc_facts --check` : **4 faits à jour** (mecanismes, modeles, outils, roundtrip).
+- `check_docs` : **2 CASSÉ attendus** — `PROJECT_STATUS.md:2257` (`common/_result_tabs.html`) et
+  `ROADMAP.md:1117` (`wama/common/middleware.py`), dette PRÉEXISTANTE hors périmètre prospection.
+- Base : **~56 candidats proposés** (24 Ollama `new` + 32 HF), **0 candidat `update`** (les 8 étaient
+  faux), **43 sans confiance**, **17 modèles benchmarkés**.
+- Scripts de session : jetables, dans le scratchpad (hors dépôt) — rien à récupérer.
+
 ## §REPRISE — 2026-08-19 (CLÔTURE, instance « vision 3D / qualité modèles ») — 🔚 POINT D'ENTRÉE
 
 > **Session close le 19/08 au soir. Périmètre disjoint de l'instance portage** (qui a livré en
