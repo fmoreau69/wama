@@ -376,3 +376,40 @@ benchmarkés, échelles par catégorie (Elo imager ~1369 ≠ AA llm 52) jamais m
 
 ⚠ La passe LLM RÉELLE n'a toujours pas été validée de bout en bout (elle plantait l'hôte
 avant) : premier essai à faire par le bouton, hors traitement GPU, en surveillant wama.log.
+
+### Suivi de résidence OLLAMA + lisibilité du benchmark (2026-08-19, questions Fabien)
+
+**Q1 « le LLM est resté chargé mais je vois *No idle models detected* — a-t-on cassé le
+tracking ? »** → Rien de cassé : TROU PRÉEXISTANT rendu visible. Le gouverneur ne connaissait
+la résidence que par `BaseModelBackend` (in-process) et `vram_reservation` (sous-processus) ;
+l'OLLAMA HÔTE, service séparé, n'y a JAMAIS eu de ligne. `AIModel.is_loaded` disait vrai (il
+vient de `/api/ps`) mais `resident_models()`/`idle_models()` — donc la vue « modèles inactifs »
+et le nettoyeur — étaient aveugles à plusieurs Go réellement occupés. Trois correctifs :
+1. `ModelRegistry.refresh_ollama_residency()` : `/api/ps` → registre du gouverneur (owner
+   `ollama-host#ollama:<nom>`, empreinte réelle), et RETRAIT immédiat des modèles qu'Ollama a
+   déchargés (laisser expirer au TTL ferait croire le GPU occupé 1 h). Appelée dans
+   `_overlay_residency()` — donc à chaque découverte/sync périodique. `_ollama_charges()` rend
+   désormais `{nom: Go}` (le `in` de l'unique appelant est inchangé).
+2. `MemoryManager.unload_model()` DÉCHARGE VRAIMENT un modèle Ollama (`keep_alive: 0` sur
+   /api/generate) au lieu de retourner True sans rien faire — le même mensonge que les anciens
+   unloaders, resté invisible tant qu'Ollama n'apparaissait pas dans `idle_models()`.
+3. La passe assess rend la VRAM À LA FIN (un seul `unload_model`, puis refresh du registre).
+   ⚠ Surtout PAS `keep_alive=0` par appel : ce serait un rechargement complet entre chaque
+   candidat — un va-et-vient GPU bien pire sur un hôte fragile. Le modèle des agents locaux est
+   RÉSOLU UNE FOIS par passe (`_modele_local_resolu`) : même nom pour réserver, juger, décharger.
+
+**Q2 « je ne vois pas le benchmark sur les cards — est-il dans la confiance ? »** → NON, et
+l'intuition est juste : ce sont deux étages distincts. **Confiance** = verdict d'un agent LLM
+sur l'opportunité d'ADOPTER un candidat (0-100 %, prospection). **Benchmark tiers** =
+PERFORMANCE mesurée par un banc externe (AA / Arena). Le badge n'était affiché que sur les
+cards PROPOSÉES (or 5 candidats sur 64 ont un benchmark, contre 13 modèles installés) :
+il est désormais sur TOUTES les cards, et l'inspecteur porte une section **Qualité** (visible
+pour tout modèle) : benchmark + source, **nom tiers apparié**, échelle, indice a priori,
+réserve de quantification.
+
+⚠ **FAUX APPARIEMENT CONSTATÉ** (à traiter dans le chantier benchmark) :
+`imager:qwen-image-2` est apparié à **« GPT Image 2 (high) »** (aa_slug `gpt-image-2`,
+indice 1369) — deux modèles sans rapport, la famille « image 2 » a suffi. La ligne
+« Apparié à » de l'inspecteur existe précisément pour rendre ce genre d'erreur visible à
+l'œil humain. Tant qu'il n'est pas corrigé, l'indice de qwen-image-2 est FAUX et sert à la
+sélection diffusion.

@@ -529,8 +529,11 @@ class AIModel(models.Model):
             'proposal_kind': self.proposal_kind,
             'confidence': self.confidence,
             'update_complexity': self.update_complexity,
-            # Benchmark TIERS confronté (étage 2 de l'échelle qualité, sync_benchmarks) —
-            # exposé depuis le 2026-08-19 : cards + inspecteur + agents d'évaluation le lisent.
+            # Échelle de qualité, exposée depuis le 2026-08-19 (cards + inspecteur + agents) :
+            # `quality_index` = a priori STRUCTUREL (étage 1), `benchmark_index` = performance
+            # mesurée par un banc TIERS (étage 2). Ni l'un ni l'autre n'est la « confiance »,
+            # qui est le verdict d'un agent LLM sur l'opportunité d'adopter un CANDIDAT.
+            'quality_index': self.quality_index,
             'benchmark_index': self.benchmark_index,
             'benchmark_meta': self.benchmark_meta,
         }

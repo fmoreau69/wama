@@ -455,9 +455,25 @@ class MemoryManager:
         app = (model_id.split(':', 1)[0] or '').strip()
         try:
             if app == 'ollama':
-                # Ollama gère sa propre mémoire (service séparé, hors de ce process).
-                logger.info(f"Ollama models are managed by Ollama server: {model_id}")
-                return True
+                # Ollama gère sa propre mémoire (service séparé), mais il SAIT décharger à
+                # la demande : `keep_alive: 0` sur /api/generate vide le modèle tout de suite.
+                # Avant le 2026-08-19 on retournait True sans rien faire — le même mensonge
+                # que les anciens unloaders (« l'appelant croit la VRAM libérée alors que rien
+                # ne l'est »), resté invisible tant que les modèles Ollama n'apparaissaient
+                # pas dans `idle_models()` (cf. `refresh_ollama_residency`).
+                nom = model_id.split(':', 1)[1] if ':' in model_id else model_id
+                try:
+                    import requests
+                    from wama.common.utils.ollama_host import ollama_base, ollama_kwargs
+                    r = requests.post(f"{ollama_base()}/api/generate",
+                                      json={'model': nom, 'keep_alive': 0},
+                                      **ollama_kwargs(timeout=30))
+                    r.raise_for_status()
+                    logger.info(f"[MemoryManager] Ollama a déchargé {nom}")
+                    return True
+                except Exception as exc:
+                    logger.warning(f"[MemoryManager] déchargement Ollama de {nom} échoué : {exc}")
+                    return False
             # Une app peut enregistrer PLUSIEURS unloaders : l'automatique sous son nom
             # (`transcriber`) et un explicite pour ce qui échappe au contrat de backend
             # (`transcriber-diarizer`, pipeline caché en variable de module). On les

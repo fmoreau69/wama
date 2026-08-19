@@ -169,6 +169,47 @@ class ModelRegistry:
 
         return self._models
 
+    @staticmethod
+    def refresh_ollama_residency() -> int:
+        """
+        DÉCLARE au gouverneur les modèles résidents dans l'OLLAMA HÔTE (`/api/ps`), et
+        retire ceux qui n'y sont plus. Retourne le nombre de résidents déclarés.
+
+        TROU COMBLÉ LE 2026-08-19 (question Fabien : « le LLM est resté chargé mais je vois
+        *No idle models detected* »). Le gouverneur ne connaissait la résidence que par les
+        enveloppes de `BaseModelBackend` (in-process) et `vram_reservation` (sous-process) :
+        Ollama, service SÉPARÉ, n'y a jamais eu de ligne. `AIModel.is_loaded` disait vrai
+        (il vient d'ici, `/api/ps`) mais `resident_models()`/`idle_models()` — donc la vue
+        « modèles inactifs » et le nettoyeur — étaient AVEUGLES à plusieurs Go occupés.
+
+        Owner `ollama-host#ollama:<nom>` : le préfixe identifie le détenteur (le service),
+        le suffixe porte la clé catalogue (cf. `model_key_of`) pour que le modèle apparaisse
+        nommément dans `resident_models()`. Réservation RAFRAÎCHIE à chaque passage — donc
+        jamais périmée par le TTL tant que le sync tourne, et retirée dès qu'Ollama a
+        déchargé (`OLLAMA_KEEP_ALIVE`, 5 min par défaut).
+        """
+        from wama.common.services.resource_governor import (OWNER_MODEL_SEP,
+                                                            release_reservation,
+                                                            reservations, reserve_vram)
+        prefixe = f"ollama-host{OWNER_MODEL_SEP}"
+        try:
+            charges = ModelRegistry._ollama_charges()
+        except Exception:
+            return 0
+        vivants = set()
+        for nom, go in charges.items():
+            if not nom:
+                continue
+            owner = f"{prefixe}ollama:{nom}"
+            vivants.add(owner)
+            reserve_vram(owner, float(go or 0))
+        # Ollama a déchargé (keep_alive écoulé) → la ligne doit disparaître TOUT DE SUITE :
+        # laisser expirer au TTL ferait croire le GPU occupé pendant une heure.
+        for owner in reservations():
+            if owner.startswith(prefixe) and owner not in vivants:
+                release_reservation(owner)
+        return len(vivants)
+
     def _overlay_residency(self):
         """Rabat la résidence RÉELLE (registre VRAM partagé) sur `is_loaded`.
 
@@ -183,6 +224,9 @@ class ModelRegistry:
         inter-process légitime (`/api/ps`) et n'apparaît pas au registre VRAM.
         """
         try:
+            # Déclarer d'abord la résidence Ollama (service séparé) : sans ce passage, le
+            # registre partagé ignore plusieurs Go réellement occupés (2026-08-19).
+            self.refresh_ollama_residency()
             from wama.common.services.resource_governor import resident_models
             residents = resident_models()
         except Exception as e:
@@ -1170,9 +1214,14 @@ class ModelRegistry:
             logger.debug(f"Could not discover Reader models: {e}")
 
     @staticmethod
-    def _ollama_charges() -> set:
+    def _ollama_charges() -> dict:
         """
-        Noms des modèles Ollama actuellement EN MÉMOIRE (`/api/ps`).
+        Modèles Ollama actuellement EN MÉMOIRE : `{nom: empreinte_Go}` (`/api/ps`).
+
+        ⚠ Rend un DICT depuis le 2026-08-19 (auparavant un `set` de noms) : l'empreinte est
+        nécessaire pour DÉCLARER cette résidence au gouverneur (`refresh_ollama_residency`).
+        Le test d'appartenance (`nom in charges`) est identique sur un dict — l'unique
+        appelant historique n'a pas eu à changer.
 
         Sans ce signal, `select_model(prefer_loaded=True)` ne peut rien privilégier côté LLM :
         `is_loaded` restait à False pour les 11 modèles Ollama du catalogue, donc l'arbitrage
@@ -1188,10 +1237,11 @@ class ModelRegistry:
             from wama.common.utils.ollama_host import ollama_base, ollama_kwargs
             r = requests.get(f"{ollama_base()}/api/ps", **ollama_kwargs(timeout=3))
             r.raise_for_status()
-            return {m.get('name', '') for m in r.json().get('models', [])}
+            return {m.get('name', ''): round((m.get('size') or 0) / (1024 ** 3), 2)
+                    for m in r.json().get('models', [])}
         except Exception as exc:
             logger.debug("[ModelRegistry] /api/ps indisponible : %s", exc)
-            return set()
+            return {}
 
     @staticmethod
     def _ollama_capacites() -> dict:

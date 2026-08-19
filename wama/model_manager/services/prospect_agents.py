@@ -187,6 +187,17 @@ def _ligne_benchmark(cand) -> str:
             f" ({meta.get('source', 'source inconnue')})\n")
 
 
+def _modele_local_resolu() -> str:
+    """Nom du modèle Ollama que le CATALOGUE désigne (point unique `modele_par_defaut`),
+    ou '' s'il ne rend rien. Résolu UNE fois par passe — cf. `assess_proposed`."""
+    try:
+        from wama.common.utils.llm_utils import modele_par_defaut
+        return modele_par_defaut() or ''
+    except Exception:
+        logger.debug("[prospect_agents] résolution du modèle local indisponible", exc_info=True)
+        return ''
+
+
 def _vram_agents(agents) -> float:
     """
     VRAM (Go) à déclarer au gouverneur pour une passe : le PLUS GOURMAND des agents
@@ -199,13 +210,7 @@ def _vram_agents(agents) -> float:
     for provider, model in agents:
         if provider != 'ollama':
             continue
-        nom = model
-        if not nom:
-            try:
-                from wama.common.utils.llm_utils import modele_par_defaut
-                nom = modele_par_defaut()
-            except Exception:
-                nom = ''
+        nom = model or _modele_local_resolu()
         m = AIModel.objects.filter(model_key=f"ollama:{nom}").first() if nom else None
         besoin = max(besoin, float((m and m.vram_gb) or 8.0))   # 8 Go = repli prudent
     return besoin or 8.0
@@ -250,6 +255,12 @@ def assess_proposed(max_assess: int = 10, agents=None, timeout: int = 120,
 
     agents = agents or parse_agents(
         getattr(settings, 'PROSPECT_ASSESS_AGENTS', _AGENTS_DEFAUT))
+    # Résoudre MAINTENANT le modèle des agents locaux laissés au catalogue ('ollama' seul) :
+    # le même nom sert à réserver la bonne empreinte, à juger, puis à décharger. Sans cette
+    # fixation, trois résolutions indépendantes pourraient désigner trois modèles différents
+    # (le catalogue bouge avec la VRAM libre).
+    agents = [(p, m or _modele_local_resolu()) if p == 'ollama' else (p, m)
+              for (p, m) in agents]
 
     # ── GOUVERNEUR DE RESSOURCES (obligatoire depuis le 2026-08-19) ──────────────
     # La charge tourne dans l'OLLAMA HÔTE — même GPU physique, mais INVISIBLE des process
@@ -304,6 +315,26 @@ def assess_proposed(max_assess: int = 10, agents=None, timeout: int = 120,
             logger.info("[prospect_agents] %s → confiance %.2f (recommandé=%s, %d agent(s))",
                         cand.name, cand.confidence, consensus['recommend'],
                         consensus['n_agents'])
+
+    # ── RENDRE LA VRAM À LA FIN DE LA PASSE ─────────────────────────────────────
+    # Une passe est PONCTUELLE : sans ce geste, le modèle reste résident tout le
+    # `OLLAMA_KEEP_ALIVE` (5 min) après le dernier verdict — constaté par Fabien le
+    # 2026-08-19. On décharge UNE FOIS, à la fin (surtout pas `keep_alive=0` par appel :
+    # ce serait un rechargement complet entre chaque candidat, donc un va-et-vient GPU
+    # bien pire sur un hôte fragile). SAVOIR = gouverneur, AGIR = MemoryManager.
+    for provider, model in agents:
+        if provider != 'ollama' or not model:
+            continue
+        try:
+            from .memory_manager import MemoryManager
+            MemoryManager().unload_model(f"ollama:{model}")
+        except Exception as exc:
+            logger.debug("[prospect_agents] déchargement post-passe ignoré : %s", exc)
+    try:                       # le registre partagé doit refléter la libération TOUT DE SUITE
+        from .model_registry import ModelRegistry
+        ModelRegistry.refresh_ollama_residency()
+    except Exception:
+        pass
 
     restants = AIModel.objects.filter(
         is_proposed=True, source__in=('ollama', 'huggingface'),

@@ -993,7 +993,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <div class="model-meta">
                             ${model.vram_gb ? `<span class="me-2" title="VRAM required"><i class="fas fa-microchip text-success"></i> ${model.vram_gb}GB</span>` : ''}
-                            ${model.ram_gb ? `<span title="RAM required"><i class="fas fa-memory text-info"></i> ${model.ram_gb}GB</span>` : ''}
+                            ${model.ram_gb ? `<span class="me-2" title="RAM required"><i class="fas fa-memory text-info"></i> ${model.ram_gb}GB</span>` : ''}
+                            ${model.benchmark_index != null ? `<span class="badge bg-info-subtle text-info border border-info" title="Performance MESURÉE par un banc tiers (Artificial Analysis / Arena) — distincte de la confiance de prospection. Comparable uniquement entre modèles de même catégorie.">bench ${model.benchmark_index}</span>` : ''}
                         </div>
                         ${model.is_loaded ?
                             `<button class="btn btn-sm btn-outline-warning btn-unload" data-model="${model.id}" title="Unload from memory">
@@ -1188,11 +1189,6 @@ document.addEventListener('DOMContentLoaded', function() {
         { section: 'Prospection', rows: [
             { k: 'Type', get: function (m) { return m.is_proposed ? (m.proposal_kind === 'update' ? 'Mise à jour' : 'Nouveau / concurrent') : ''; } },
             { k: 'Confiance', get: function (m) { return (m.is_proposed && m.confidence != null) ? Math.round(m.confidence * 100) + ' %' : ''; } },
-            { k: 'Benchmark tiers', get: function (m) {
-                if (m.benchmark_index == null) return '';
-                const meta = m.benchmark_meta || {};
-                return m.benchmark_index + (meta.source ? ' (' + meta.source + ')' : '');
-            } },
             { k: 'Complexité', get: function (m) { return m.is_proposed ? ({ simple: 'simple', moderate: 'modérée', complex: 'complexe' })[m.update_complexity] || m.update_complexity : ''; } },
             // Ce que l'installation RETIRE (candidat successeur) / le référentiel installé
             // que le candidat devrait surpasser (candidat nouveau) — 2026-08-18.
@@ -1205,6 +1201,35 @@ document.addEventListener('DOMContentLoaded', function() {
                 const pr = (m.extra_info || {}).prospect || {};
                 return (m.is_proposed && pr.concurrence && pr.concurrence.length)
                     ? pr.concurrence.join(', ') : '';
+            } },
+        ] },
+        {% comment %} Section QUALITÉ — visible pour TOUS les modèles (installés comme
+        proposés), à ne pas confondre avec « Confiance » de la section Prospection :
+        la confiance est le verdict d'un agent LLM sur l'opportunité d'ADOPTER un candidat ;
+        le benchmark est une PERFORMANCE mesurée par un banc tiers. Deux étages distincts
+        (a priori < benchmark tiers < mesure interne). Précision demandée par Fabien 19/08. {% endcomment %}
+        { section: 'Qualité', rows: [
+            { k: 'Benchmark tiers', get: function (m) {
+                if (m.benchmark_index == null) return '';
+                const meta = m.benchmark_meta || {};
+                return m.benchmark_index + (meta.source ? ' — ' + meta.source : '');
+            } },
+            {% comment %} Le NOM TIERS apparié est affiché exprès : c'est le seul moyen pour
+            un humain de repérer un mauvais appariement (l'appariement est automatique et
+            conservateur, mais pas infaillible). {% endcomment %}
+            { k: 'Apparié à', get: function (m) {
+                const meta = m.benchmark_meta || {};
+                return meta.aa_nom || meta.arena_nom || '';
+            } },
+            { k: 'Échelle', get: function (m) {
+                const meta = m.benchmark_meta || {};
+                return meta.echelle || meta.categorie || '';
+            } },
+            { k: 'Indice a priori', get: function (m) {
+                return m.quality_index != null ? m.quality_index : '';
+            } },
+            { k: 'Réserve', get: function (m) {
+                return (m.benchmark_meta || {}).quant_locale || '';
             } },
         ] },
         { section: 'Ressources', rows: [
