@@ -289,8 +289,17 @@ def licenses_catalog_view(request):
     """
     from .services.license_audit import synthese
 
+    # Facettes de la barre commune. Les options sont DÉCLARÉES bien qu'on soit en mode client :
+    # la dérivation depuis le DOM rendrait les valeurs brutes (« model », « library »), alors que
+    # la page affichait des libellés français. Déclarer prime sur dériver quand le libellé compte.
+    facettes = [{
+        'cle': 'registre', 'label': 'Registre', 'tous': 'Tous les registres',
+        'options': {'model': 'Modèles', 'library': 'Librairies', 'media': 'Médias'},
+    }]
+
     return render(request, 'common/licenses.html',
-                  {'audit': synthese(request.user if request.user.is_authenticated else None)})
+                  {'audit': synthese(request.user if request.user.is_authenticated else None),
+                   'facettes_licences': facettes})
 
 
 @login_required

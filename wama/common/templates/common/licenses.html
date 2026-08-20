@@ -183,15 +183,11 @@
   <div class="li-section">
     <h3>Détail — tous les éléments</h3>
     <p>Modèles, librairies et médias. Les médias affichés se limitent à votre périmètre visible.</p>
-    <div class="li-filters">
-      <input id="li-q" type="search" placeholder="Filtrer (nom, licence, auteur…)" size="34">
-      <select id="li-registre">
-        <option value="">Tous les registres</option>
-        <option value="model">Modèles</option>
-        <option value="library">Librairies</option>
-        <option value="media">Médias</option>
-      </select>
-    </div>
+    {% comment %}Barre de filtrage COMMUNE (mode client : toutes les lignes sont dans le DOM).
+    Les options du registre se DÉRIVENT du DOM — rien à déclarer ici, et une option ne peut pas
+    lister un registre absent du tableau. Remplace `#li-q` + `#li-registre` + `filtrer()`
+    (REMOVAL_LEDGER R21).{% endcomment %}
+    {% include 'common/_filter_bar.html' with facettes=facettes_licences cible='#li-table tbody tr' mode='client' placeholder='Filtrer (nom, licence, auteur…)' %}
     <div class="li-scroll">
       <table class="li-table" id="li-table">
         <thead>
@@ -199,8 +195,10 @@
         </thead>
         <tbody>
           {% for l in audit.lignes %}
-          <tr data-registre="{{ l.registre }}"
-              data-q="{{ l.nom|lower }} {{ l.q.id }} {{ l.auteur|lower }} {{ l.registre }}">
+          {% comment %}`data-f-*` = contrat de la barre commune : `data-f-<facette>` pour les
+          facettes, `data-f-text` pour la recherche.{% endcomment %}
+          <tr data-f-registre="{{ l.registre }}"
+              data-f-text="{{ l.nom|lower }} {{ l.q.id }} {{ l.auteur|lower }} {{ l.registre }}">
             <td><b>{{ l.nom }}</b>{% if l.detail %} <span class="li-muted">{{ l.detail }}</span>{% endif %}</td>
             <td class="li-meta">{{ l.registre }}</td>
             <td>
@@ -221,25 +219,6 @@
 </div>
 {% endblock %}
 
-{% block extra_js %}
-<script>
-// Filtrage CLIENT : la page est entièrement rendue côté serveur (pas d'API dédiée à maintenir),
-// et le volume reste de l'ordre de la centaine de lignes. Même parti que function_catalog.
-(function () {
-  const q = document.getElementById('li-q');
-  const reg = document.getElementById('li-registre');
-  const lignes = Array.from(document.querySelectorAll('#li-table tbody tr'));
-  function filtrer() {
-    const terme = (q.value || '').trim().toLowerCase();
-    const registre = reg.value;
-    lignes.forEach(tr => {
-      const okReg = !registre || tr.dataset.registre === registre;
-      const okTerme = !terme || (tr.dataset.q || '').includes(terme);
-      tr.style.display = (okReg && okTerme) ? '' : 'none';
-    });
-  }
-  q.addEventListener('input', filtrer);
-  reg.addEventListener('change', filtrer);
-})();
-</script>
-{% endblock %}
+{% comment %}Le filtrage client maison (`#li-q` + `#li-registre` + `filtrer()`) a été REMPLACÉ le
+2026-08-20 par la brique commune `common/_filter_bar.html` — elle se monte seule, aucun JS ici.
+Ne pas le réintroduire : c'était l'une des trois variantes du même geste (REMOVAL_LEDGER R21).{% endcomment %}
