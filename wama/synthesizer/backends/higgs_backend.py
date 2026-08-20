@@ -34,6 +34,8 @@ class HiggsAudioBackend(TTSBackend):
     engine = "higgs"
     description = "Higgs Audio v2 — multi-locuteurs, clonage, conditionnement de scène."
 
+    supports_cloning = True    # clonage multi-locuteurs (aligné sur le catalogue)
+
     REQUIRED_PACKAGES = ['boson_multimodal', 'transformers', 'librosa', 'soundfile', 'scipy']
     # boson_multimodal s'installe depuis le dépôt Boson AI (pas de wheel PyPI fiable).
     PIP_PACKAGES = []

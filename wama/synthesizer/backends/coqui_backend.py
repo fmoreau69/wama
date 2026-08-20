@@ -26,6 +26,8 @@ class CoquiBackend(TTSBackend):
     engine = "coqui"
     description = "Coqui TTS — XTTS v2 (clonage multilingue) et moteurs EN légers."
 
+    supports_cloning = True    # XTTS = clonage par speaker_wav (aligné sur le catalogue)
+
     REQUIRED_PACKAGES = ['TTS', 'soundfile']
     # `pip install TTS` est le paquet idiap/coqui-ai-TTS maintenu — nom pip = nom d'import.
 

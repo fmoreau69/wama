@@ -31,6 +31,8 @@ class BarkBackend(TTSBackend):
     engine = "bark"
     description = "Bark (Suno) — TTS expressif (rires, hésitations, bruitages)."
 
+    supports_cloning = False   # presets de locuteurs, pas de clonage libre (aligné sur le catalogue)
+
     REQUIRED_PACKAGES = ['bark', 'scipy']
     # ⚠ `pip install bark` installe un paquet HOMONYME sans rapport — l'installation
     # passe par le dépôt Suno (même précédent que vibevoice) : rien d'automatique.

@@ -27,6 +27,22 @@ class KokoroBackend(TTSBackend):
     engine = "kokoro"
     description = "Kokoro 82M — TTS léger FR/EN/ES/IT/PT/JA/ZH, temps réel."
 
+    supports_cloning = False   # voix FIXES par langue (aligné sur le catalogue)
+    #: Kokoro calcule les timestamps mot PENDANT la synthèse — `KPipeline.join_timestamps()`
+    #: les dérive de `pred_dur`, la durée prédite par le modèle qui a GÉNÉRÉ l'audio : ils sont
+    #: donc exacts par construction, pas estimés après coup. WAMA les jetait faute de les
+    #: déclarer nulle part.
+    #: MAIS la lib ne les produit que sur la branche anglaise (`pipeline.py` : `if
+    #: self.lang_code in 'ab'`) ; la branche non-anglaise yield un `Result` SANS `tokens`.
+    supports_timestamps = True
+    #: DÉRIVÉE du mapping, jamais figée en dur : les langues sans pipeline propre (de/nl/pl/
+    #: tr/ru/cs/ar/ko) sont RABATTUES sur le pipeline 'a' par KOKORO_LANG_MAP — elles passent
+    #: donc par la branche anglaise et obtiennent les timestamps elles aussi. Une liste écrite
+    #: à la main dirait `['en']` et se tromperait sur 8 langues ; et elle divergerait au premier
+    #: changement du mapping. (La QUALITÉ de ces replis est un autre sujet, déjà connu :
+    #: la capacité « horodatage » est orthogonale à la justesse de la voix.)
+    timestamp_languages = sorted(l for l, c in KOKORO_LANG_MAP.items() if c in ('a', 'b'))
+
     REQUIRED_PACKAGES = ['kokoro', 'soundfile']
 
     recommended_vram_gb = 0.4
