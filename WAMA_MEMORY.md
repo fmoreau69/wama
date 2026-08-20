@@ -388,6 +388,50 @@ qui fait son travail.
 ils décrivent le traitement, pas le contenu. Un corpus d'entretiens contient « consentement », pas
 « transcription ». Tester un RAG demande des mots du CORPUS, pas du domaine technique.
 
+## 7quater. Hook B branché — et deux pièges du rappel lexical
+
+`process_prompt(..., rag=True)` ajoute au prompt des extraits des documents de l'utilisateur,
+**avec leur source citée** (`[transcriber:134] …`) : un contexte injecté sans provenance est
+invérifiable, et c'est exactement ce qu'on reproche aux RAG opaques. **Opt-in** (`rag=False` par
+défaut) et **data-gated** — sans rappel, le prompt sort inchangé. Aucune app ne l'active à ce
+jour : le brancher ne change donc encore rien pour un utilisateur.
+
+`rag_semantic=False` par défaut, pour deux raisons cumulées : un rappel sémantique embarque la
+requête donc **charge `bge-m3` à chaque prompt**, sur le chemin interactif et sur un poste où une
+série d'embeddings a précédé un crash (§5bis) ; et les 939 fragments n'ont pas encore de vecteur,
+donc le sémantique ne rendrait rien de plus. À rebasculer après `--reindex`.
+
+### ⚠ Piège 1 — `rank > 0` ne veut PAS dire « ça correspond »
+
+Quand **aucun** terme de la requête n'est connu du dictionnaire, Postgres rend un rang **plancher
+de 1e-20 sur TOUTES les lignes**. Or `1e-20 > 0` : le filtre `_rank__gt=0` laissait donc tout
+passer. Mesuré : « xyzzy quuxbaz » ramenait les **939** fragments, et le Hook B injectait du
+contexte hors-sujet dans un prompt sans la moindre correspondance. Corrigé par un **seuil**
+(`SEUIL_LEXICAL = 1e-6`) : six ordres de grandeur au-dessus du plancher, six en dessous du plus
+faible vrai positif du corpus (0.06).
+
+### ⚠ Piège 2 — `plainto_tsquery` fait un ET, donc tue les questions en langage naturel
+
+`SearchQuery(phrase)` exige que **tous** les termes soient dans le **même** fragment. « que disent
+mes entretiens sur le consentement ? » réclamait donc *disent* ET *entretiens* ET *consentement*
+côte à côte → **0 résultat**, là où le seul mot « consentement » en rendait 8. Les termes sont
+désormais combinés en **OU**, le RANG faisant le tri. Les mots vides sont écartés par le
+dictionnaire français lui-même — inutile d'en tenir une liste.
+
+### Ce que ça donne, sans complaisance
+
+| Requête | Résultat |
+|---|---|
+| « que disent mes entretiens sur le consentement ? » | ✅ 3 extraits, tous sur le formulaire de consentement |
+| « xyzzy quuxbaz » | ✅ 0 — aucun faux positif |
+| « photo de chat » | 🟡 2, dont la bonne en 2ᵉ place |
+| « anonymisation des données personnelles » | ❌ 3 extraits **hors sujet** (témoignages sur le handicap, appariés sur « personnelles ») |
+
+**Le lexical seul est un REPLI, pas la cible.** Il est bon sur un mot rare et précis, médiocre sur
+une requête conceptuelle — le OU ramène du bruit thématique que seul le classement sémantique
+sait écarter. C'est précisément à quoi servent les vecteurs, et pourquoi `--reindex` reste la
+prochaine marche qui compte. Ne pas conclure de « 3 résultats » que le RAG fonctionne.
+
 ## 8. La mémoire « émotionnelle » — RÉSERVÉE, non implémentée (décision 2026-08-20)
 
 Le 4ᵉ type de memorywire annote un souvenir d'une valence + intensité, pour (a) pondérer le rappel
@@ -443,7 +487,7 @@ Ne rien arbitrer sur ces chiffres.
 | 3 | Modèles + migration `common/0007` + `store.py` (5 opérations) | ✅ 2026-08-20 — **inerte, aucun appelant** |
 | 4 | `project.py` + `manage.py sync_memory` : projection `RunOutcome` → `MemoryItem` | ✅ 2026-08-20 — mais **rien à projeter**, cf. §7bis |
 | 5 | `index.py` : indexation RAG des sorties texte (+ `sync_memory --rag`) | ✅ 2026-08-21 — **939 fragments réels** |
-| 6 | Branchement `prompt_pipeline` Hook B (remplace le no-op ChromaDB l.116-118) | ⏳ — dépend de 4, 5 |
+| 6 | Branchement `prompt_pipeline` **Hook B** (`rag=True`, opt-in) | ✅ 2026-08-21 — §7quater |
 | 7 | wama-dev-ai : `memory.json` → `MemoryItem` (`provenance='dev-ai'`, non approuvé) | ⏳ |
 | 8 | Outil `memory_recall` dans `tool_api.py` | ⏳ — dépend de 6 |
 | 9 | Entrée au registre `common/mecanismes.py` (la table de `WAMA_MECANISMES.md` en est générée) | ⏳ |

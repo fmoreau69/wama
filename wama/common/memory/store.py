@@ -28,6 +28,12 @@ RRF_K = 60
 #: la fusion n'a d'intérêt que si les listes se recouvrent partiellement.
 CANDIDATS_PAR_RANKER = 50
 
+#: Rang minimal pour qu'un appariement lexical COMPTE. Voir `_par_lexique` : Postgres rend
+#: 1e-20 sur toutes les lignes quand la requête ne contient aucun terme connu, et `> 0` laissait
+#: donc tout passer. Sur ce corpus un vrai appariement note ≥ 0.06 : le seuil est six ordres de
+#: grandeur au-dessus du plancher et six en dessous du plus faible vrai positif.
+SEUIL_LEXICAL = 1e-6
+
 #: Poids de la saillance dans le score final. Une saillance de 1.0 majore le score de 25 % —
 #: assez pour départager deux résultats proches, trop peu pour faire remonter un hors-sujet.
 #: Voir `WAMA_MEMORY.md §8` : la saillance est DÉRIVÉE de gestes réels, jamais d'une inférence.
@@ -236,10 +242,34 @@ def _par_lexique(queryset, query):
     """
     try:
         from django.contrib.postgres.search import SearchQuery, SearchRank, SearchVector
+
         vecteur = SearchVector('content', config='french')
-        requete = SearchQuery(query, config='french')
+        # ⚠ OU, PAS ET. `SearchQuery(phrase)` utilise `plainto_tsquery`, qui exige que TOUS les
+        # termes soient présents dans le MÊME fragment. Une question en langage naturel — « que
+        # disent mes entretiens sur le consentement ? » — n'a alors AUCUNE chance : elle
+        # réclamerait « disent » ET « entretiens » ET « consentement » côte à côte. Mesuré le
+        # 2026-08-21 : la phrase rendait 0 là où le seul mot « consentement » rendait 8.
+        # En OU, chaque terme contribue et le RANG fait le tri — c'est le rang qui distingue le
+        # fragment pertinent, pas la conjonction. Les mots vides sont écartés par le
+        # dictionnaire français lui-même, on n'en tient donc pas de liste.
+        termes = [t for t in re.split(r'\W+', query) if len(t) > 2]
+        if not termes:
+            return []
+        requete = SearchQuery(termes[0], config='french')
+        for t in termes[1:]:
+            requete = requete | SearchQuery(t, config='french')
+        # ⚠ SEUIL, ET NON `> 0`. Quand AUCUN terme de la requête n'est connu du dictionnaire,
+        # Postgres rend un rang PLANCHER de 1e-20 — sur TOUTES les lignes. Or 1e-20 > 0 : le
+        # filtre laissait donc tout passer. Mesuré le 2026-08-21 : « xyzzy quuxbaz » ramenait
+        # les 939 fragments, et le Hook B injectait du contexte hors-sujet dans un prompt sans
+        # la moindre correspondance — le mode d'échec qu'on reproche aux RAG opaques.
+        # Le seuil sépare proprement : un vrai appariement note ≥ 0.06 sur ce corpus, le
+        # plancher vaut 1e-20 — six ordres de grandeur d'écart avec 1e-6.
+        # (Le filtre `@@` via une 2e annotation donne EXACTEMENT les mêmes résultats — vérifié
+        # sur 4 requêtes — mais chaîner deux annotations sur la même queryset la vidait ; une
+        # seule annotation est plus simple et plus sûre.)
         qs = (queryset.annotate(_rank=SearchRank(vecteur, requete))
-                      .filter(_rank__gt=0)
+                      .filter(_rank__gte=SEUIL_LEXICAL)
                       .order_by('-_rank')[:CANDIDATS_PAR_RANKER])
         return list(qs)
     except Exception:

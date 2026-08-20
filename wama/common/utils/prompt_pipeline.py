@@ -28,10 +28,42 @@ def _user_lang(user):
     return getattr(getattr(user, 'profile', None), 'preferred_language', None) or 'en'
 
 
+def _rappel_rag(prompt, user, *, k=3, semantic=False):
+    """
+    Rend `(extraits, sources)` tirés des fragments RAG visibles par `user`. Best-effort ABSOLU.
+
+    Rend `([], [])` sur la moindre difficulté : un contexte manquant dégrade la réponse, une
+    exception ici casserait la génération elle-même. Même précaution que le reste de la pipeline.
+
+    ⚠ `semantic=False` PAR DÉFAUT, et ce n'est pas de la timidité : (1) un rappel sémantique
+    embarque la requête, donc charge `bge-m3` À CHAQUE PROMPT — sur le chemin interactif, et sur
+    un poste où une série d'embeddings a précédé un crash hôte (WAMA_MEMORY.md §5bis) ; (2) les
+    939 fragments indexés n'ont PAS encore de vecteur, donc le sémantique ne rendrait rien de
+    plus que le lexical aujourd'hui. À rebasculer quand `sync_memory --reindex` aura tourné et
+    que la résidence du modèle sera arbitrée par le gouverneur de ressources.
+    """
+    try:
+        from ..memory import recall
+
+        hits = recall(prompt, user=user, include_memory=False, semantic=semantic, k=k)
+    except Exception:
+        logger.debug('[prompt_pipeline] rappel RAG indisponible', exc_info=True)
+        return [], []
+
+    extraits, sources = [], []
+    for h in hits:
+        obj = h.obj
+        # La source est CITÉE avec l'extrait : un contexte injecté sans provenance est
+        # invérifiable par l'utilisateur, et c'est exactement ce qu'on reproche aux RAG opaques.
+        sources.append(getattr(obj, 'source_id', '') or '')
+        extraits.append(f"[{getattr(obj, 'source_id', '?')}] {obj.content}")
+    return extraits, sources
+
+
 def process_prompt(prompt, *, kind='generative', model_capabilities=None, model_type=None,
                    user=None, input_lang=None, glossary=None, enrich=False,
                    reference_files=None, console=None, timeout=120,
-                   app=None, domain=None):
+                   app=None, domain=None, rag=False, rag_k=3, rag_semantic=False):
     """
     Traite un prompt selon les métadonnées (KIND + capacités du modèle cible).
 
@@ -46,12 +78,20 @@ def process_prompt(prompt, *, kind='generative', model_capabilities=None, model_
     existent, ils sont compris (image/doc/texte) et repliés dans le prompt comme contexte de
     grounding (cf. [[reference_comprehension]]). Data-gated : aucun coût si la liste est vide.
 
+    `rag` : si True ET `user` fourni, ajoute au prompt des extraits des documents de
+    l'utilisateur (fragments `RagChunk` visibles par lui — cf. `WAMA_MEMORY.md`). OPT-IN et
+    data-gated : sans rappel, le prompt sort inchangé. `rag_semantic=False` par défaut — voir
+    `_rappel_rag` pour le pourquoi (coût GPU sur le chemin interactif + vecteurs pas encore
+    calculés).
+
     Retourne {'prompt': traité, 'original': prompt, 'translated': bool, 'enriched': bool,
-              'reference_context': bool, 'routing': dict|None, 'reason': str}.
+              'reference_context': bool, 'rag': bool, 'rag_sources': list,
+              'routing': dict|None, 'reason': str}.
     `console` : callback(msg) optionnel (transparence).
     """
     result = {'prompt': prompt, 'original': prompt, 'translated': False, 'enriched': False,
-              'reference_context': False, 'routing': None, 'reason': 'direct'}
+              'reference_context': False, 'rag': False, 'rag_sources': [],
+              'routing': None, 'reason': 'direct'}
     if not prompt or not str(prompt).strip():
         return result
 
@@ -113,9 +153,22 @@ def process_prompt(prompt, *, kind='generative', model_capabilities=None, model_
                 result['prompt'] = f"{result['prompt']}\n\n[Reference context]\n{ctx}"
                 result['reference_context'] = True
 
-        # ── Hook futur (§16.6 / §8c) : RAG — récupération de contexte depuis le store ChromaDB
-        # (embeddings bge-m3). No-op tant que la fondation wama/rag/ + l'indexation n'existent pas.
-        # result['prompt'] = apply_rag(result['prompt'], user, ...)
+        # ── Hook B : RAG — contexte tiré de ce que l'utilisateur POSSÈDE (WAMA_MEMORY.md) ──
+        # OPT-IN (`rag=True`) et data-gated : sans rappel, le prompt sort INCHANGÉ. Aucune app ne
+        # l'active à ce jour — le brancher ne change donc rien tant qu'un appelant ne le demande.
+        #
+        # ⚠ Le commentaire précédent annonçait ChromaDB : PÉRIMÉ. Le substrat est Postgres +
+        # pgvector (`common/memory/`), décidé le 2026-08-20 — cf. WAMA_MEMORY.md §7.
+        if rag and user is not None and kind in ('generative', 'intent'):
+            extraits, sources = _rappel_rag(result['prompt'], user, k=rag_k,
+                                            semantic=rag_semantic)
+            if extraits:
+                result['prompt'] = (f"{result['prompt']}\n\n[Contexte — vos documents]\n"
+                                    + "\n\n".join(extraits))
+                result['rag'] = True
+                result['rag_sources'] = sources
+                if console:
+                    console(f"📚 {len(extraits)} extrait(s) de vos documents ajouté(s) au contexte.")
     except Exception as e:
         result['reason'] = f"pipeline ignorée ({e})"
         logger.debug(f"[prompt_pipeline] {e}")
