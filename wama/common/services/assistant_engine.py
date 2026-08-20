@@ -41,7 +41,26 @@ logger = logging.getLogger(__name__)
 # Prompts système
 # ---------------------------------------------------------------------------
 
-WAMA_SYSTEM_PROMPT = """You are a helpful assistant for WAMA (Web App for Media Automation), a Django-based web application for media processing including video anonymization, audio transcription, voice synthesis, image generation, and image/video enhancement. Answer questions concisely and helpfully in French."""
+#: `{LANGUE}` est résolu par `_consigne_langue()` depuis le profil de l'utilisateur.
+#: Avant le 2026-08-20 la langue était ÉCRITE EN DUR (« in French ») : un utilisateur dont le
+#: profil dit `en` recevait quand même du français, et `preferred_language` — pourtant respecté
+#: par le synthesizer et la pipeline de prompts — n'avait aucun effet ici. Le durcissement
+#: devenait structurant depuis l'extraction « UN cerveau, N surfaces » : la consigne vaut pour
+#: TOUTES les surfaces (web, API, futurs bots), pas seulement la page d'accueil.
+WAMA_SYSTEM_PROMPT = """You are a helpful assistant for WAMA (Web App for Media Automation), a Django-based web application for media processing including video anonymization, audio transcription, voice synthesis, image generation, and image/video enhancement. Answer questions concisely and helpfully in {LANGUE}."""
+
+
+def _consigne_langue(user) -> str:
+    """Nom ANGLAIS de la langue de réponse (le prompt système est rédigé en anglais).
+
+    Source = `UserProfile.preferred_language`, comme `prompt_pipeline` et `app_metadata` —
+    surtout PAS une nouvelle préférence. Utilisateur inconnu ou langue non répertoriée →
+    français, qui était le comportement en dur jusqu'ici : on ne change rien pour les
+    utilisateurs dont le profil dit déjà `fr` (c'est le défaut du modèle).
+    """
+    from wama.common.tts.constants import LANGUAGE_NAMES_EN
+    langue = getattr(getattr(user, 'profile', None), 'preferred_language', None) or 'fr'
+    return LANGUAGE_NAMES_EN.get(langue, 'French')
 
 WAMA_TOOLS_PROMPT = """
 You can interact with WAMA applications by calling tools.
@@ -380,7 +399,9 @@ def run_assistant_turn(user, message: str, provider: str = 'wama-dev-ai',
     # Liste des outils GÉNÉRÉE depuis le registre tool_api (source unique → exhaustive,
     # avatarizer/composer/converter inclus). Le préambule + règles restent rédigés à la main.
     tools_prompt = WAMA_TOOLS_PROMPT.replace('{TOOLS}', build_tools_list()) if user else ""
-    system_prompt = WAMA_SYSTEM_PROMPT + wama_context + tools_prompt
+    # Langue de réponse = profil utilisateur (plus de « in French » en dur).
+    system_prompt = (WAMA_SYSTEM_PROMPT.replace('{LANGUE}', _consigne_langue(user))
+                     + wama_context + tools_prompt)
 
     # Build messages: system + prior history (capped) + current user message
     prior = _sanitize_history(history)[-20:]  # keep last 10 exchanges max

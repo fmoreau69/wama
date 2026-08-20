@@ -256,7 +256,14 @@ def kokoro_tts(request):
     try:
         data = json.loads(request.body)
         text = (data.get('text') or '').strip()
-        voice = data.get('voice', 'ff_siwis')
+        # Défaut = la voix de la LANGUE DU PROFIL, plus `ff_siwis` en dur. Un utilisateur dont
+        # le profil dit `en` était vocalisé en français alors que le synthesizer, lui, respecte
+        # `preferred_language` depuis toujours. Le client reste maître : s'il envoie `voice`,
+        # c'est le sien qui prime — seul le DÉFAUT change. Vaut donc aussi pour une surface
+        # sans sélecteur (API, bot), qui n'en enverra jamais.
+        from wama.common.tts.voices import voix_pour
+        langue = getattr(getattr(request.user, 'profile', None), 'preferred_language', None) or 'fr'
+        voice = data.get('voice') or voix_pour(langue)
         if not text:
             return JsonResponse({'error': 'text requis'}, status=400)
 

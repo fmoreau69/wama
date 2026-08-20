@@ -16,7 +16,7 @@ import threading
 
 import numpy as np
 
-from wama.common.tts.constants import HIGGS_LANGUAGE_NAMES
+from wama.common.tts.constants import LANGUAGE_NAMES_EN
 
 from .base import CATALOG_KEYS, TTSBackend, project_root, speech_dir, write_wav_int16
 
@@ -107,7 +107,7 @@ class HiggsAudioBackend(TTSBackend):
         content_parts = []
         _tmp_ref_path = None  # fichier tronqué à nettoyer
 
-        lang_name = HIGGS_LANGUAGE_NAMES.get(language, language.capitalize())
+        lang_name = LANGUAGE_NAMES_EN.get(language, language.capitalize())
         system_message = Message(
             role="system",
             content=TextContent(text=f"Generate high-quality {lang_name} speech audio of the provided text.")

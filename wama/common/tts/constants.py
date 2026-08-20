@@ -102,13 +102,20 @@ BARK_LANG_DEFAULTS = {  # wama:redondance-ok — voix Bark par langue (info nouv
 }
 
 # ---------------------------------------------------------------------------
-# Higgs Audio v2 — noms de langues en anglais (utilisés dans le system prompt)
+# Noms de langues EN ANGLAIS — pour les prompts système (rédigés en anglais)
 # ---------------------------------------------------------------------------
+# Renommée depuis `HIGGS_LANGUAGE_NAMES` le 2026-08-20 : la table n'a jamais rien eu de
+# spécifique à Higgs, c'est une donnée générique « code langue → nom anglais ». Elle porte
+# désormais un nom qui dit ce qu'elle est, ce qui évite qu'un second consommateur (l'assistant,
+# dont le prompt système est en anglais) en recrée une jumelle sous un autre nom.
+# ⚠ `zh-cn` AJOUTÉ : WAMA emploie `zh-cn` (cf. LANGUAGE_CHOICES) là où cette table ne
+# connaissait que `zh` — Higgs retombait donc sur `capitalize()` et disait « Zh-Cn ».
 
-HIGGS_LANGUAGE_NAMES = {  # wama:redondance-ok — noms affichables Higgs par langue (info nouvelle)
+LANGUAGE_NAMES_EN = {  # wama:redondance-ok — noms anglais par code langue (info nouvelle)
     "fr": "French",    "en": "English",    "de": "German",   "es": "Spanish",
     "it": "Italian",   "pt": "Portuguese", "nl": "Dutch",    "pl": "Polish",
-    "ru": "Russian",   "zh": "Chinese",    "ja": "Japanese", "ko": "Korean",
+    "ru": "Russian",   "zh": "Chinese",    "zh-cn": "Chinese",
+    "ja": "Japanese",  "ko": "Korean",
     "ar": "Arabic",    "tr": "Turkish",    "sv": "Swedish",  "da": "Danish",
     "fi": "Finnish",   "nb": "Norwegian",  "cs": "Czech",    "hu": "Hungarian",
 }
