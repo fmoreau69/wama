@@ -25,6 +25,8 @@ class Command(BaseCommand):
                             help='Ne considérer que les gestes depuis cette date (AAAA-MM-JJ).')
         parser.add_argument('--limite', type=int, default=None,
                             help="Nombre maximum d'objets traités.")
+        parser.add_argument('--rag', action='store_true',
+                            help='Indexe aussi les sorties texte en fragments RAG (sans modèle).')
         parser.add_argument('--reindex', action='store_true',
                             help='⚠ Calcule les vecteurs manquants — CHARGE bge-m3 sur Ollama.')
         parser.add_argument('--modeles-obsoletes', action='store_true',
@@ -63,10 +65,20 @@ class Command(BaseCommand):
         if opts['dry_run']:
             self.stdout.write(self.style.WARNING('  (--dry-run : rien écrit)'))
 
+        if opts['rag']:
+            from wama.common.memory.index import indexer
+            self.stdout.write('\n── Indexation RAG des sorties texte (aucun modèle appelé) ──')
+            i = indexer(limite=opts['limite'], dry_run=opts['dry_run'])
+            self.stdout.write(
+                f"  objets parcourus : {i['objets']}\n"
+                f"  indexés          : {i['indexes']} ({i['fragments']} fragments)\n"
+                f"  inchangés        : {i['inchanges']}\n"
+                f"  sans texte       : {i['sans_texte']}")
+
         if not opts['reindex']:
             self.stdout.write(
                 '\n  Vecteurs NON calculés. `--reindex` quand la machine est libre '
-                '(les souvenirs restent trouvables en lexical entre-temps).')
+                '(les souvenirs et fragments restent trouvables en lexical entre-temps).')
             return
 
         self.stdout.write('\n── Réindexation vectorielle (CHARGE bge-m3) ──')

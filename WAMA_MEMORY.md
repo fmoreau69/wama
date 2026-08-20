@@ -347,6 +347,47 @@ l'inspecteur racontent la même chose — deux projections écrites séparément
    dans sa liste (mesuré : 73 → 31 requêtes en différant l'hydratation). `list_my_items` doit
    rester léger ; `get_item_detail` est le coûteux, à la demande.
 
+## 7ter. Indexation RAG — on n'extrait rien, on indexe ce que WAMA a produit
+
+**Le principe qui évite un doublon de chaîne.** WAMA possède déjà ses couches d'extraction : le
+Transcriber rend un texte, le Reader une OCR, le Describer une description. Ré-extraire depuis le
+fichier source produirait un **second** texte, différent de celui que l'utilisateur voit dans
+l'app. `index.py` indexe donc la **sortie existante**, jamais le fichier.
+
+**Sources dérivées, pas déclarées** — même mécanisme que le journal : `detail_registry` donne les
+modèles, et le champ texte est **détecté** parmi `result_text`, `text`, `extracted_text`,
+`transcription`, `summary`. Une app qui gagnera une sortie texte entrera au RAG sans qu'on touche
+au module. Mesuré au 2026-08-21 :
+
+| App | Champs | Fragments produits |
+|---|---|---|
+| transcriber | `text`, `summary` | **907** |
+| describer | `result_text`, `summary` | 19 |
+| reader | `result_text` | 13 |
+| *(9 autres apps)* | *aucun* | — *elles produisent des médias* |
+
+**939 fragments**, taille 64–799 caractères (moyenne 745), découpés sur frontière de phrase avec
+120 caractères de recouvrement — sans recouvrement, une phrase coupée en deux devient introuvable.
+
+**Réécriture complète à la mise à jour** : quand le texte d'un objet change, ses fragments sont
+supprimés puis réécrits. Légitime **parce qu'un `RagChunk` est re-dérivable** (§3) — la source fait
+foi. Le même geste sur un `MemoryItem` serait une faute.
+
+> ⚠ **Le piège de la visibilité dénormalisée (§4) ne s'applique PAS à cette famille de sources.**
+> `Transcript`, `Description` et `ReadingItem` n'ont **pas** de champ `visibility` : leur seule
+> vérité est leur propriétaire, donc les fragments sont `private` + `user`. Le piège s'ouvrira le
+> jour où l'on indexera la **médiathèque** (`UserAsset`), qui hérite, elle, de `ScopedVisibility`.
+
+**Isolation prouvée sur données réelles multi-utilisateurs** : les 939 fragments se répartissent
+entre 3 utilisateurs (751 / 116 / 72). Les 16 fragments contenant « voiture » appartiennent aux
+utilisateurs 2 et 3 — l'utilisateur 1 en voit **0**. Ce n'est pas un rappel vide, c'est le scoping
+qui fait son travail.
+
+⚠ **Piège de vérification à ne pas répéter** : mes premières requêtes de contrôle (« transcription »,
+« whisper », « plaque ») rendaient 0 et m'ont fait croire à une panne. Ce sont des mots **méta** —
+ils décrivent le traitement, pas le contenu. Un corpus d'entretiens contient « consentement », pas
+« transcription ». Tester un RAG demande des mots du CORPUS, pas du domaine technique.
+
 ## 8. La mémoire « émotionnelle » — RÉSERVÉE, non implémentée (décision 2026-08-20)
 
 Le 4ᵉ type de memorywire annote un souvenir d'une valence + intensité, pour (a) pondérer le rappel
@@ -401,7 +442,7 @@ Ne rien arbitrer sur ces chiffres.
 | 2 | `bge-m3` + `embed.py` | ✅ 2026-08-20 — le modèle **était déjà tiré** dans Ollama |
 | 3 | Modèles + migration `common/0007` + `store.py` (5 opérations) | ✅ 2026-08-20 — **inerte, aucun appelant** |
 | 4 | `project.py` + `manage.py sync_memory` : projection `RunOutcome` → `MemoryItem` | ✅ 2026-08-20 — mais **rien à projeter**, cf. §7bis |
-| 5 | `index.py` : indexation RAG depuis la médiathèque (+ rafraîchissement de visibilité, §4) | ⏳ |
+| 5 | `index.py` : indexation RAG des sorties texte (+ `sync_memory --rag`) | ✅ 2026-08-21 — **939 fragments réels** |
 | 6 | Branchement `prompt_pipeline` Hook B (remplace le no-op ChromaDB l.116-118) | ⏳ — dépend de 4, 5 |
 | 7 | wama-dev-ai : `memory.json` → `MemoryItem` (`provenance='dev-ai'`, non approuvé) | ⏳ |
 | 8 | Outil `memory_recall` dans `tool_api.py` | ⏳ — dépend de 6 |
