@@ -307,7 +307,7 @@ def journal_view(request):
     qui filtre sur `request.user` sans exiger l'authentification rendrait une page vide et
     trompeuse à un anonyme au lieu de l'envoyer se connecter.
     """
-    from .services.journal import compter_par_app, entrees
+    from .services.journal import STATUTS, TRIS, compter_par_app, entrees
 
     try:
         offset = max(0, int(request.GET.get('offset', 0)))
@@ -316,13 +316,33 @@ def journal_view(request):
     limite = 25
     app = (request.GET.get('app') or '').strip() or None
 
+    # Préférences persistées en session, comme la barre d'outils des files. ⚠ Clés PROPRES au
+    # journal (`journal_*`) et NON les `q_sort`/`q_filter` partagés : le vocabulaire diffère
+    # (pas de batchs ici, donc pas de `batches_first` ni de `draft`), et écrire dans les clés
+    # communes changerait silencieusement l'ordre des files de toutes les apps depuis une page
+    # qui n'en est pas une.
+    tri = request.GET.get('tri') or request.session.get('journal_tri') or 'recent'
+    statut = request.GET.get('statut') or request.session.get('journal_statut') or 'all'
+    tri = tri if tri in TRIS else 'recent'
+    statut = statut if statut in STATUTS else 'all'
+    request.session['journal_tri'] = tri
+    request.session['journal_statut'] = statut
+    # La recherche n'est PAS persistée : une recherche oubliée en session ferait revenir sur une
+    # page filtrée sans qu'on comprenne pourquoi elle semble vide.
+    q = (request.GET.get('q') or '').strip()
+
     page, total = entrees(request.user, apps=[app] if app else None,
-                          limite=limite, offset=offset)
+                          limite=limite, offset=offset, tri=tri, statut=statut, q=q)
 
     return render(request, 'common/journal.html', {
         'page': page,
         'total': total,
         'app_active': app,
+        'tri': tri,
+        'statut': statut,
+        'q': q,
+        'tris': TRIS,
+        'statuts': STATUTS,
         'repartition': compter_par_app(request.user),
         'debut': offset + 1 if page else 0,
         'fin': offset + len(page),

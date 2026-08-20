@@ -14,10 +14,20 @@ inscription (`journal.enregistrer_source`), pas une modification de cette page.
 {% block title %}WAMA — Mon journal{% endblock %}
 
 {% block extra_css %}
+{% comment %}L'inspecteur n'est PAS chargé globalement : `base.html` fournit son CSS et ses
+hôtes DOM (#inspectorInfo, #info-section), mais les scripts sont montés page par page. Même
+précédent que `common/apps.html`, l'autre page transversale du menu utilisateur.{% endcomment %}
+<link rel="stylesheet" href="{% static_v 'common/css/wama-inspector-autofill.css' %}">
 <style>
     .journal-page { padding: 2rem 0; }
     .journal-page h1 { font-size: 1.6rem; font-weight: 600; color: #e9ecef; margin-bottom: .25rem; }
     .journal-page .subtitle { color: #6c757d; font-size: .9rem; margin-bottom: 1.5rem; }
+    .journal-barre { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap;
+                     margin-bottom: .75rem; }
+    .journal-barre .form-control, .journal-barre .form-select {
+        background: #1a1a2e; border-color: #2d2d4e; color: #e9ecef; width: auto;
+    }
+    .journal-barre .journal-q { min-width: 260px; flex: 1 1 260px; }
     .journal-filtres { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1.25rem; }
     .journal-filtre {
         background: #1a1a2e; border: 1px solid #2d2d4e; border-radius: 999px;
@@ -51,6 +61,33 @@ inscription (`journal.enregistrer_source`), pas une modification de cette page.
     Cliquez une ligne pour ouvrir son inspecteur.
   </p>
 
+  {% comment %}Barre d'outils — MÊME vocabulaire que `common/_queue_toolbar.html` (tri, filtre
+  par statut) pour que le geste soit identique à celui des files. On ne l'INCLUT pas : ce
+  gabarit exige `start_id`/`clear_id` (actions globales de file) et propose `batches_first` /
+  `draft`, notions qui n'existent pas ici. Réutiliser sa forme sans forcer son contrat.{% endcomment %}
+  <form class="journal-barre" method="get" action="{% url 'common:journal' %}">
+    {% if app_active %}<input type="hidden" name="app" value="{{ app_active }}">{% endif %}
+    <input type="search" name="q" value="{{ q }}" class="form-control form-control-sm journal-q"
+           placeholder="Rechercher dans mon journal…" aria-label="Rechercher">
+    <select name="tri" class="form-select form-select-sm" onchange="this.form.submit()"
+            title="Trier">
+      {% for cle, lib in tris.items %}
+      <option value="{{ cle }}" {% if tri == cle %}selected{% endif %}>{{ lib }}</option>
+      {% endfor %}
+    </select>
+    <select name="statut" class="form-select form-select-sm" onchange="this.form.submit()"
+            title="Filtrer par état">
+      {% for cle, lib in statuts.items %}
+      <option value="{{ cle }}" {% if statut == cle %}selected{% endif %}>{{ lib }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-sm btn-outline-secondary" type="submit">Filtrer</button>
+    {% if q or statut != 'all' or tri != 'recent' %}
+    <a class="btn btn-sm btn-link text-white-50"
+       href="{% url 'common:journal' %}{% if app_active %}?app={{ app_active }}{% endif %}">Réinitialiser</a>
+    {% endif %}
+  </form>
+
   <div class="journal-filtres">
     <a class="journal-filtre {% if not app_active %}actif{% endif %}" href="{% url 'common:journal' %}">
       Tout <span class="n">{{ total }}</span>
@@ -69,13 +106,25 @@ inscription (`journal.enregistrer_source`), pas une modification de cette page.
     comme les files d'apps, sans une ligne de CSS propre.{% endcomment %}
     {% comment %}Regroupement sur `e.mois` (calculé en Python) et NON `date|date:"F Y"` :
     `LANGUAGE_CODE = 'en-us'` rendait « August 2026 » sur une UI française.{% endcomment %}
-    {% regroup page by mois as mois_list %}
-    {% for mois in mois_list %}
-      <div class="journal-mois">{{ mois.grouper }}</div>
-      <div class="journal-liste" data-card-design="{{ card_design|default:'v3' }}">
-        {% for e in mois.list %}{% include 'common/_journal_card.html' with e=e %}{% endfor %}
-      </div>
-    {% endfor %}
+    {% comment %}UN SEUL conteneur pour toutes les cards : c'est le `queueContainer` que
+    `WamaInspector.init` attend (il y délègue la sélection). Les en-têtes de mois vivent
+    dedans — l'inspecteur ne s'intéresse qu'aux `.journal-card`.{% endcomment %}
+    <div id="journalListe" class="journal-liste" data-card-design="{{ card_design|default:'v3' }}">
+      {% comment %}⚠ Les en-têtes de mois n'ont de sens QUE sur un tri chronologique.
+      `{% templatetag openblock %} regroup {% templatetag closeblock %}` ne groupe que des éléments CONSÉCUTIFS : avec le tri « Nom », on
+      obtenait « JUILLET / MARS / JUILLET / JUIN / MARS… », des en-têtes répétés qui ne
+      découpaient plus rien (constaté au navigateur le 2026-08-20). Sur un tri non
+      chronologique, la frise devient une simple liste.{% endcomment %}
+      {% if tri == 'name' %}
+        {% for e in page %}{% include 'common/_journal_card.html' with e=e %}{% endfor %}
+      {% else %}
+        {% regroup page by mois as mois_list %}
+        {% for mois in mois_list %}
+          <div class="journal-mois">{{ mois.grouper }}</div>
+          {% for e in mois.list %}{% include 'common/_journal_card.html' with e=e %}{% endfor %}
+        {% endfor %}
+      {% endif %}
+    </div>
 
     <nav class="d-flex justify-content-between align-items-center mt-3">
       {% if precedent is not None %}
@@ -98,23 +147,44 @@ inscription (`journal.enregistrer_source`), pas une modification de cette page.
 {% endblock %}
 
 {% block extra_js %}
+<script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
+<script src="{% static_v 'common/js/wama-inspector-autofill.js' %}"></script>
 <script>
-// Clic sur une ligne → on VA À L'ITEM, dans sa propre app, avec toutes ses actions.
-//
-// On ne réimplémente NI volet NI card d'app : `wama-queue.js` documente lui-même le passage
-// inter-pages (`sessionStorage['wama_focus_card']`, lu par focusFromSession au chargement).
-// Le sélecteur `[data-id]` marche pour les 14 gabarits de cards d'items (vérifié) — inutile de
-// connaître la convention d'id de chaque app.
-document.querySelectorAll('.journal-card').forEach(function (card) {
-  card.addEventListener('click', function () {
-    var url = card.dataset.appUrl;
-    if (!url) { return; }                     // app sans route déclarée : ligne non cliquable
-    try {
-      sessionStorage.setItem('wama_focus_card',
-                             '.wama-card[data-id="' + card.dataset.id + '"]');
-    } catch (e) { /* mode privé : on navigue quand même, sans mise au point */ }
-    window.location.href = url;
+// ── Inspecteur : le journal se comporte comme une file d'app ──────────────────────────
+// CLIC sur une card → volet droit peuplé ; aucune sélection → le volet reste dans son état par
+// défaut. On ne réimplémente RIEN : `WamaInspector.init` gère déjà sélection, surbrillance,
+// désélection, aperçu et remplissage via `data-preview-url` (dont il dérive l'URL de détail).
+// La seule chose que le journal fournit, c'est le conteneur et le sélecteur de card.
+(function () {
+  var liste = document.getElementById('journalListe');
+  if (liste && window.WamaInspector && typeof window.WamaInspector.init === 'function') {
+    window.WamaInspector.init({
+      queueContainer: liste,
+      cardSelector: '.journal-card',
+      itemLabel: function (id) { return "l'élément #" + id; },
+    });
+  }
+
+  // ── Bouton → : ALLER à l'item dans son app, sélectionné à l'arrivée ────────────────
+  // `stopPropagation` : sans lui, le clic remonterait à la card et déclencherait AUSSI la
+  // sélection dans l'inspecteur juste avant de quitter la page.
+  // `wama_focus_select` demande la sélection à l'arrivée (support ajouté à `wama-queue.js`) :
+  // sans elle on atterrissait sur une card centrée et pulsée 1,3 s, puis plus aucune trace —
+  // d'où le « on est un peu perdu en arrivant ».
+  document.querySelectorAll('.journal-goto').forEach(function (btn) {
+    btn.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      var card = btn.closest('.journal-card');
+      var url = card && card.dataset.appUrl;
+      if (!url) { return; }              // app sans route déclarée : bouton inopérant
+      try {
+        sessionStorage.setItem('wama_focus_card',
+                               '.wama-card[data-id="' + card.dataset.id + '"]');
+        sessionStorage.setItem('wama_focus_select', '1');
+      } catch (e) { /* mode privé : on navigue quand même, sans mise au point */ }
+      window.location.href = url;
+    });
   });
-});
+})();
 </script>
 {% endblock %}

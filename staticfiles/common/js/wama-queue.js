@@ -377,13 +377,27 @@
 
     // Reprise après rechargement : une app peut poser sessionStorage['wama_focus_card'] = id avant
     // un reload (cas d'ajout qui recharge la page) ; on met au point la card au chargement suivant.
+    // `wama_focus_select` (ajouté 2026-08-20) : demander en plus la SÉLECTION de la card, donc
+    // le remplissage de l'inspecteur. Sans lui, on arrive sur une card centrée et pulsée mais
+    // NON sélectionnée — retour de Fabien depuis le journal transversal : « on est un peu perdu
+    // en arrivant ». Le pulse dure 1,3 s et ne laisse aucune trace ; la sélection, si.
+    // Additif et rétrocompatible : une app qui ne pose que `wama_focus_card` garde exactement
+    // le comportement d'avant.
     function focusFromSession() {
-        var id;
-        try { id = sessionStorage.getItem('wama_focus_card'); } catch (e) { return; }
+        var id, select;
+        try {
+            id = sessionStorage.getItem('wama_focus_card');
+            select = sessionStorage.getItem('wama_focus_select') === '1';
+        } catch (e) { return; }
         if (!id) return;
-        try { sessionStorage.removeItem('wama_focus_card'); } catch (e) {}
+        try {
+            sessionStorage.removeItem('wama_focus_card');
+            sessionStorage.removeItem('wama_focus_select');
+        } catch (e) {}
         // léger délai : laisser le layout/le prepend de la card « nouveau » se stabiliser
-        setTimeout(function () { focusCard(id, { scroll: 'center', pulse: true }); }, 120);
+        setTimeout(function () {
+            focusCard(id, { scroll: 'center', pulse: true, select: select });
+        }, 120);
     }
 
     // ── Init ─────────────────────────────────────────────────────────────────

@@ -217,10 +217,23 @@ class Entree:
         return reverse('common:unified_preview', args=[self.app, self.pk])
 
 
+#: Tris du journal. Vocabulaire ALIGNÉ sur `_queue_toolbar.html` pour que le geste soit le même
+#: partout — mais SANS `batches_first`/`singles_first`, qui n'ont pas de sens ici (le journal n'a
+#: pas de batchs, il agrège des items de 12 apps).
+TRIS = {'recent': 'Plus récent', 'oldest': 'Plus ancien', 'name': 'Nom'}
+
+#: Filtres d'état, sur le statut NORMALISÉ (alias résolus). `draft` de la barre d'app est omis :
+#: il se définit par rapport au total d'un batch, notion absente du journal.
+STATUTS = {'all': 'Tous les statuts', 'PENDING': 'En attente', 'RUNNING': 'En cours',
+           'SUCCESS': 'Terminé', 'FAILURE': 'Échec'}
+
+
 def entrees(user, *, mondes=None, apps=None, depuis=None, jusqu_a=None, limite=50, offset=0,
-            avec_gestes=True):
+            avec_gestes=True, tri='recent', statut='all', q=''):
     """
-    Rend `(liste d'Entree triée du plus récent au plus ancien, total)`.
+    Rend `(liste d'Entree triée, total)`.
+
+    `tri` ∈ `TRIS`, `statut` ∈ `STATUTS`, `q` = recherche texte sur le titre et l'app.
 
     ⚠ TRI INTER-MODÈLES EN PYTHON. Une union SQL sur 12 tables hétérogènes (colonnes et types
     différents) demanderait une vue matérialisée ou un `UNION ALL` construit à la main, qui se
@@ -232,8 +245,17 @@ def entrees(user, *, mondes=None, apps=None, depuis=None, jusqu_a=None, limite=5
     if not getattr(user, 'is_authenticated', False):
         return [], 0
 
-    besoin = offset + limite
-    candidats, total = [], 0
+    q = (q or '').strip().lower()
+    filtre_actif = bool(q) or (statut and statut != 'all')
+
+    # ⚠ Quand un filtre ou une recherche est actif, on ne peut PAS se limiter aux `offset+limite`
+    # plus récents de chaque source : une correspondance peut se trouver n'importe où dans
+    # l'historique, et la tronquer rendrait un résultat FAUX en silence. On charge donc tout —
+    # tenable ici (207 items pour l'utilisateur le plus fourni, mesuré). À revoir au-delà de
+    # quelques milliers d'items par personne : il faudra alors pousser le filtre en SQL, ce qui
+    # suppose de connaître le champ texte de chaque modèle (aujourd'hui on lit `__str__`).
+    besoin = None if filtre_actif else offset + limite
+    candidats = []
 
     for src in sources():
         if mondes and src.monde not in mondes:
@@ -245,15 +267,19 @@ def entrees(user, *, mondes=None, apps=None, depuis=None, jusqu_a=None, limite=5
             qs = qs.filter(**{f'{src.champ_date}__gte': depuis})
         if jusqu_a is not None:
             qs = qs.filter(**{f'{src.champ_date}__lte': jusqu_a})
-        total += qs.count()
-        for obj in qs.order_by(f'-{src.champ_date}')[:besoin]:
+        qs = qs.order_by(f'-{src.champ_date}')
+        for obj in (qs if besoin is None else qs[:besoin]):
             candidats.append((getattr(obj, src.champ_date), obj, src))
+
+    if filtre_actif:
+        candidats = [t for t in candidats if _retenu(t[1], t[2], statut, q)]
+    total = len(candidats) if filtre_actif else _total_brut(user, mondes, apps, depuis, jusqu_a)
 
     # ⚠ ON TRIE ET ON TRANCHE **AVANT** DE FABRIQUER LES ENTRÉES. Fabriquer d'abord coûterait les
     # chips (donc des accès aux relations) sur ~sources × besoin objets pour n'en afficher que
     # `limite` : mesuré 73 requêtes SQL pour 20 lignes, ramené à ~26 en différant l'hydratation.
     # C'est la même règle que partout : ne payer que ce qu'on affiche.
-    candidats.sort(key=lambda t: t[0], reverse=True)
+    _trier(candidats, tri)
     tranche = candidats[offset:offset + limite]
 
     schemas = {}   # schéma params mémoïsé PAR APP — sinon une lecture de schéma par ligne
@@ -262,6 +288,51 @@ def entrees(user, *, mondes=None, apps=None, depuis=None, jusqu_a=None, limite=5
     if avec_gestes and page:
         _hydrater_gestes(page, user)
     return page, total
+
+
+def _statut_de(obj):
+    """Statut normalisé d'un objet, quel que soit le nom du champ selon l'app."""
+    from ..utils.detail_registry import normalize_status
+    return normalize_status(getattr(obj, 'status', '') or getattr(obj, 'state', '') or '')
+
+
+def _retenu(obj, src, statut, q):
+    """Filtre d'état + recherche texte. Appliqué sur l'OBJET, avant toute hydratation coûteuse."""
+    if statut and statut != 'all' and _statut_de(obj) != statut:
+        return False
+    if q:
+        # `str(obj)` est la seule chaîne lisible commune à 12 modèles hétérogènes — la même que
+        # le titre affiché, donc l'utilisateur cherche exactement ce qu'il voit. L'app est
+        # incluse pour que « imager » retrouve ses items sans passer par le filtre d'app.
+        return q in f'{obj} {src.app}'.lower()
+    return True
+
+
+def _total_brut(user, mondes, apps, depuis, jusqu_a):
+    """Total SANS filtre — un COUNT par source, sans charger les objets."""
+    total = 0
+    for src in sources():
+        if mondes and src.monde not in mondes:
+            continue
+        if apps and src.app not in apps:
+            continue
+        qs = src.model.objects.filter(**{src.champ_user: user})
+        if depuis is not None:
+            qs = qs.filter(**{f'{src.champ_date}__gte': depuis})
+        if jusqu_a is not None:
+            qs = qs.filter(**{f'{src.champ_date}__lte': jusqu_a})
+        total += qs.count()
+    return total
+
+
+def _trier(candidats, tri):
+    """Tri en place. `name` trie sur le titre affiché, pas sur un champ interne."""
+    if tri == 'oldest':
+        candidats.sort(key=lambda t: t[0])
+    elif tri == 'name':
+        candidats.sort(key=lambda t: str(t[1]).lower())
+    else:                                   # 'recent' — défaut, et repli de tout tri inconnu
+        candidats.sort(key=lambda t: t[0], reverse=True)
 
 
 def _vers_entree(obj, src, schemas=None):

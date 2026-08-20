@@ -20,6 +20,10 @@ Contexte : e = Entree (services/journal.py).
 <div class="card bg-dark border-secondary mb-2 wama-card journal-card"
      data-app="{{ e.app }}" data-id="{{ e.pk }}" data-status="{{ e.statut }}"
      data-app-url="{{ e.url_app }}"
+     {% comment %}`data-preview-url` est LE crochet de l'inspecteur commun : `fillDetail()` en
+     dérive l'URL de détail (`replace('/preview/', '/detail/')`) et remplit le volet droit.
+     C'est ce seul attribut qui fait que le journal se comporte comme une file d'app.{% endcomment %}
+     data-preview-url="{{ e.url_preview }}"
      {% if e.saillance %}data-saillance="{{ e.saillance }}"{% endif %}>
 
   <div class="wcv3-head">#{{ e.pk }}<span class="sep">·</span>{{ e.date|date:"d/m H:i" }}</div>
@@ -70,10 +74,12 @@ Contexte : e = Entree (services/journal.py).
       <span class="wcv3-lbl">Actions</span>
       <div class="btn-group-actions wcv3-actions">
         {% comment %}Une seule action, et c'est la bonne : aller à l'item dans son app, où
-        TOUTES les actions existent déjà. En rejouer une ici les dupliquerait.{% endcomment %}
-        <span class="btn btn-sm btn-outline-secondary" title="Ouvrir dans {{ e.app }}">
+        TOUTES les actions existent déjà. En rejouer une ici les dupliquerait. Le CLIC sur la
+        card, lui, ne navigue plus : il peuple l'inspecteur (volet droit), comme dans les apps.{% endcomment %}
+        <button type="button" class="btn btn-sm btn-outline-secondary journal-goto"
+                title="Ouvrir dans {{ e.app }}">
           <i class="fas fa-arrow-right"></i>
-        </span>
+        </button>
       </div>
     </div>
   </div>
