@@ -716,8 +716,8 @@
 {% endblock %}
 
 {# ── Volet droit global (#wama-right-panel) ───────────────────────────────── #}
-{# Section EN TÊTE : le catalogue. Séparée des ressources système parce qu'un
-   décompte de modèles n'en est pas une. mmCatalogRow y est déplacé par JS. #}
+{% comment %}Section EN TÊTE : le catalogue. Séparée des ressources système parce qu'un
+décompte de modèles n'en est pas une. mmCatalogRow y est déplacé par JS.{% endcomment %}
 {% block right_panel_top %}
 <div class="right-panel-section" id="mmCatalogSection">
     <div class="right-panel-section-title"><i class="fas fa-cube me-1"></i> Catalogue</div>

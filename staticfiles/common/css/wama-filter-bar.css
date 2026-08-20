@@ -1,0 +1,52 @@
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   WAMA — Barre de filtrage COMMUNE (recherche + facettes), brique `wama-filter-bar.js`.
+
+   L'apparence est celle de la barre du MODEL MANAGER, retenue par Fabien le 2026-08-20 comme
+   référence commune. Ces règles en sont l'EXTRACTION telle quelle (fond, rayon, marges, selects
+   sombres, focus cyan) — surtout ne pas la « réinterpréter » : trois pages avaient déjà chacune
+   leur variante, c'est ce qu'on est en train de solder.
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+
+.wama-filter-bar {
+    background: #2b3035;
+    border-radius: 8px;
+    padding: 12px 15px;
+    margin-bottom: 15px;
+}
+
+.wama-filter-bar .filter-select {
+    background: #1a1d20;
+    border: 1px solid #495057;
+    color: #e9ecef;
+    font-size: 0.85rem;
+}
+
+.wama-filter-bar .filter-select:focus {
+    border-color: #0dcaf0;
+    box-shadow: 0 0 0 0.2rem rgba(13, 202, 240, 0.25);
+}
+
+.wama-filter-bar .wama-filter-search { width: 220px; }
+.wama-filter-bar .wama-filter-search input { font-size: 0.85rem; }
+
+/* Compteur « X sur Y » — discret, à droite. Il n'apparaît qu'une fois la brique montée :
+   sans JS, afficher un compteur figé mentirait. */
+.wama-filter-count {
+    color: #6c757d;
+    font-size: 0.82rem;
+    white-space: nowrap;
+}
+
+/* « Réinitialiser » n'existe QUE si un filtre est actif — d'où le masquage par défaut, levé
+   par le JS. Un bouton toujours visible suggère qu'il y a quelque chose à annuler. */
+.wama-filter-reset { display: none; }
+.wama-filter-bar.is-filtered .wama-filter-reset { display: inline-block; }
+
+/* État vide DÛ AU FILTRE, distinct de « la page n'a rien à montrer » : le second est un fait,
+   le premier est réversible et doit le dire. */
+.wama-filter-empty {
+    display: none;
+    color: #6c757d;
+    text-align: center;
+    padding: 2rem 0;
+}

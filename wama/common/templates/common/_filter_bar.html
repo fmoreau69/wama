@@ -1,0 +1,72 @@
+{% comment %}
+WAMA Common — BARRE DE FILTRAGE (recherche + facettes), brique `wama-filter-bar.js`.
+
+Apparence = celle du MODEL MANAGER, retenue comme référence commune (Fabien, 2026-08-20).
+Filtrage EN DIRECT : aucun bouton « Filtrer ». Montage automatique, aucune page n'écrit de JS.
+
+Variables :
+  facettes   — liste de {cle, label, tous, options, valeur} :
+                 cle     : nom de la facette ; lu sur les éléments en `data-f-<cle>`
+                 label   : libellé affiché devant le select
+                 tous    : libellé de l'option « tout » (défaut : « Tous »)
+                 options : {valeur: libellé} — OBLIGATOIRE en mode `server`, facultatif en
+                           mode `client` (les options s'y dérivent alors du DOM, donc elles ne
+                           peuvent pas mentir)
+                 valeur  : valeur courante (mode `server`). ⚠ Portée par la facette ELLE-MÊME
+                           et non par un dict `valeurs` séparé : Django ne sait pas indexer un
+                           dict par une variable sans filtre maison, et en ajouter un pour ça
+                           seul serait un mécanisme de plus à connaître.
+  cible      — sélecteur CSS des éléments filtrables (mode `client`)
+  mode       — 'client' (défaut) | 'server'
+  placeholder, recherche (valeur courante), nom_recherche (défaut 'q'), url_reset
+
+⚠ MODE `server` : la barre DOIT être dans un `<form method="get">`, et les champs portent des
+`name=` — c'est le formulaire qui est soumis (débouncé). Un `<input type="hidden" name="offset">`
+y est remis à 0 par la brique : conserver l'offset sur un filtre changé afficherait « 26–50 sur
+3 », donc une page vide sans explication.
+
+Usage :
+  {% include 'common/_filter_bar.html' with facettes=facettes cible='.ma-card' mode='client' %}
+{% endcomment %}
+<div class="wama-filter-bar" data-wama-filter-bar
+     data-mode="{{ mode|default:'client' }}"
+     {% if cible %}data-cible="{{ cible }}"{% endif %}>
+  <div class="row align-items-center g-3">
+
+    {% for f in facettes %}
+    <div class="col-auto">
+      <label class="text-muted small me-2" for="f-{{ f.cle }}">{{ f.label }}&nbsp;:</label>
+      <select class="form-select form-select-sm filter-select d-inline-block w-auto"
+              id="f-{{ f.cle }}" name="{{ f.cle }}" data-f-facette="{{ f.cle }}">
+        <option value="all">{{ f.tous|default:"Tous" }}</option>
+        {% for val, lib in f.options.items %}
+        <option value="{{ val }}" {% if f.valeur == val %}selected{% endif %}>{{ lib }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endfor %}
+
+    <div class="col-auto">
+      <div class="input-group input-group-sm wama-filter-search">
+        <span class="input-group-text bg-dark border-secondary">
+          <i class="fas fa-search text-muted"></i>
+        </span>
+        <input type="text" class="form-control bg-dark border-secondary text-light"
+               name="{{ nom_recherche|default:'q' }}" value="{{ recherche|default:'' }}"
+               data-f-role="recherche"
+               placeholder="{{ placeholder|default:'Rechercher…' }}">
+        <button class="btn btn-outline-secondary" type="button" data-f-role="effacer"
+                title="Effacer la recherche" style="display:none;">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="col-auto ms-auto d-flex align-items-center gap-2">
+      <span class="wama-filter-count"></span>
+      <a href="{{ url_reset|default:'?' }}" class="btn btn-sm btn-link text-white-50 wama-filter-reset">
+        Réinitialiser
+      </a>
+    </div>
+  </div>
+</div>

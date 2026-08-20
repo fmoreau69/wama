@@ -307,6 +307,8 @@ def journal_view(request):
     qui filtre sur `request.user` sans exiger l'authentification rendrait une page vide et
     trompeuse à un anonyme au lieu de l'envoyer se connecter.
     """
+    from django.urls import reverse
+
     from .services.journal import STATUTS, TRIS, compter_par_app, entrees
 
     try:
@@ -323,6 +325,11 @@ def journal_view(request):
     # qui n'en est pas une.
     tri = request.GET.get('tri') or request.session.get('journal_tri') or 'recent'
     statut = request.GET.get('statut') or request.session.get('journal_statut') or 'all'
+    # La barre commune envoie `all` pour son option « tout » ; côté tri, « tout » n'a pas de sens
+    # — c'est le tri PAR DÉFAUT. On traduit ici plutôt que d'inventer une option `all` dans TRIS,
+    # qui obligerait chaque appelant du service à connaître une valeur qui ne trie rien.
+    if tri == 'all':
+        tri = 'recent'
     tri = tri if tri in TRIS else 'recent'
     statut = statut if statut in STATUTS else 'all'
     request.session['journal_tri'] = tri
@@ -334,6 +341,16 @@ def journal_view(request):
     page, total = entrees(request.user, apps=[app] if app else None,
                           limite=limite, offset=offset, tri=tri, statut=statut, q=q)
 
+    # Facettes de la barre commune (`common/_filter_bar.html`). En mode `server` les options
+    # DOIVENT être déclarées : le DOM ne porte qu'une page, la brique ne peut donc pas les
+    # dériver comme elle le fait sur les catalogues.
+    facettes = [
+        {'cle': 'tri', 'label': 'Trier', 'tous': 'Plus récent',
+         'options': {c: l for c, l in TRIS.items() if c != 'recent'}, 'valeur': tri},
+        {'cle': 'statut', 'label': 'État', 'tous': STATUTS['all'],
+         'options': {c: l for c, l in STATUTS.items() if c != 'all'}, 'valeur': statut},
+    ]
+
     return render(request, 'common/journal.html', {
         'page': page,
         'total': total,
@@ -341,8 +358,8 @@ def journal_view(request):
         'tri': tri,
         'statut': statut,
         'q': q,
-        'tris': TRIS,
-        'statuts': STATUTS,
+        'facettes': facettes,
+        'url_reset': f"{reverse('common:journal')}{'?app=' + app if app else ''}",
         'repartition': compter_par_app(request.user),
         'debut': offset + 1 if page else 0,
         'fin': offset + len(page),

@@ -27,6 +27,8 @@
     <link href="{% static_v 'common/css/wama-inspector.css' %}" rel="stylesheet">
     <link href="{% static_v 'common/css/wama-params.css' %}" rel="stylesheet">
     <link href="{% static_v 'common/css/wama-card-v3.css' %}" rel="stylesheet">
+    {# Barre de filtrage commune (apparence model manager) — voir _filter_bar.html #}
+    <link href="{% static_v 'common/css/wama-filter-bar.css' %}" rel="stylesheet">
     <link rel="shortcut icon" type="image/png" href="{% static 'images/favicon.png' %}" >
 
     <!-- jstree CSS -->
@@ -295,13 +297,20 @@
     <script src="{% static_v 'common/js/wama-queue.js' %}"></script>
     <!-- Card v3 — mesure le contenu de la file et pose les largeurs de pistes (no-op sans .wcv3) -->
     <script src="{% static_v 'common/js/wama-card-v3.js' %}"></script>
-    {# WamaInspector + WamaDetails GLOBAUX (2026-08-20) : 13 gabarits les tiraient localement, alors
-       que base.html fournit déjà leur CSS et leurs hôtes DOM (#inspectorInfo, #info-section) et que
-       toute page transversale en a besoin (catalogue, journal). Mêmes raisons que media-picker.js
-       (REMOVAL_LEDGER R7). ⚠ NE PAS les ré-inclure par app : la double inclusion est le bug déjà
-       vécu deux fois ici (media-picker, wama-app-base du 18/08). #}
+    {% comment %}WamaInspector + WamaDetails GLOBAUX (2026-08-20) : 14 gabarits les tiraient
+    localement, alors que base.html fournit déjà leur CSS et leurs hôtes DOM (#inspectorInfo,
+    #info-section) et que toute page transversale en a besoin (catalogue, journal). Mêmes raisons
+    que media-picker.js (REMOVAL_LEDGER R20/R7). ⚠ NE PAS les ré-inclure par app : la double
+    inclusion est le bug déjà vécu deux fois ici (media-picker, wama-app-base du 18/08).
+    ⚠ `{% templatetag openblock %} comment {% templatetag closeblock %}` et NON `{ #…# }` : ce dernier est MONO-LIGNE en Django et
+    rendrait son contenu à l'écran — piège déjà répertorié, que j'ai reproduit ici le 2026-08-20.
+    {% endcomment %}
     <script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
     <script src="{% static_v 'common/js/wama-inspector-autofill.js' %}"></script>
+    {% comment %}WamaFilterBar global : recherche + facettes en direct, auto-monté sur
+    [data-wama-filter-bar]. Inerte sur une page sans barre. Remplace 3 implémentations
+    maison (REMOVAL_LEDGER R21).{% endcomment %}
+    <script src="{% static_v 'common/js/wama-filter-bar.js' %}"></script>
     <!-- System stats monitor -->
     <script src="{% static_v 'common/js/system-stats.js' %}"></script>
     <!-- Queue actions (duplication générique) -->

@@ -60,31 +60,15 @@ les ré-inclure ici. Seule cette feuille de style reste locale : elle n'est pas 
     Cliquez une ligne pour ouvrir son inspecteur.
   </p>
 
-  {% comment %}Barre d'outils — MÊME vocabulaire que `common/_queue_toolbar.html` (tri, filtre
-  par statut) pour que le geste soit identique à celui des files. On ne l'INCLUT pas : ce
-  gabarit exige `start_id`/`clear_id` (actions globales de file) et propose `batches_first` /
-  `draft`, notions qui n'existent pas ici. Réutiliser sa forme sans forcer son contrat.{% endcomment %}
-  <form class="journal-barre" method="get" action="{% url 'common:journal' %}">
+  {% comment %}Barre de filtrage COMMUNE (`common/_filter_bar.html`) en mode `server` : la liste
+  est paginée (25 sur {{ total }}), donc filtrer côté client ne filtrerait que la page courante
+  et mentirait. Le geste reste celui des catalogues — filtrage en direct, sans bouton.
+  ⚠ Ma première version écrivait sa propre barre à boutons : c'était une 4e implémentation du
+  même geste (relevé de Fabien, 2026-08-20). Elle a été remplacée par la brique.{% endcomment %}
+  <form method="get" action="{% url 'common:journal' %}">
     {% if app_active %}<input type="hidden" name="app" value="{{ app_active }}">{% endif %}
-    <input type="search" name="q" value="{{ q }}" class="form-control form-control-sm journal-q"
-           placeholder="Rechercher dans mon journal…" aria-label="Rechercher">
-    <select name="tri" class="form-select form-select-sm" onchange="this.form.submit()"
-            title="Trier">
-      {% for cle, lib in tris.items %}
-      <option value="{{ cle }}" {% if tri == cle %}selected{% endif %}>{{ lib }}</option>
-      {% endfor %}
-    </select>
-    <select name="statut" class="form-select form-select-sm" onchange="this.form.submit()"
-            title="Filtrer par état">
-      {% for cle, lib in statuts.items %}
-      <option value="{{ cle }}" {% if statut == cle %}selected{% endif %}>{{ lib }}</option>
-      {% endfor %}
-    </select>
-    <button class="btn btn-sm btn-outline-secondary" type="submit">Filtrer</button>
-    {% if q or statut != 'all' or tri != 'recent' %}
-    <a class="btn btn-sm btn-link text-white-50"
-       href="{% url 'common:journal' %}{% if app_active %}?app={{ app_active }}{% endif %}">Réinitialiser</a>
-    {% endif %}
+    <input type="hidden" name="offset" value="0">
+    {% include 'common/_filter_bar.html' with facettes=facettes mode='server' recherche=q placeholder='Rechercher dans mon journal…' url_reset=url_reset %}
   </form>
 
   <div class="journal-filtres">

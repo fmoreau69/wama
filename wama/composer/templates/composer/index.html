@@ -168,9 +168,9 @@ id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.
     </div>
 </div>
 
-{# ── Modal paramètres BATCH — DÉDIÉE (contrat reader, 17/08), remplace le détournement de la
-     modale item (_composerBatchSettingsId). Champs GÉNÉRÉS du MÊME schéma (context 'batch' =
-     ce que views.batch_update accepte : modèle/durée/format/qualité — le prompt reste per-item). #}
+{% comment %}── Modal paramètres BATCH — DÉDIÉE (contrat reader, 17/08), remplace le détournement
+de la modale item (_composerBatchSettingsId). Champs GÉNÉRÉS du MÊME schéma (context 'batch' =
+ce que views.batch_update accepte : modèle/durée/format/qualité — le prompt reste per-item).{% endcomment %}
 <div class="modal fade" id="batchSettingsModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content bg-dark text-light border-secondary">
