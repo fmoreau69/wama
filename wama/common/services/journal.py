@@ -156,9 +156,15 @@ class Entree:
     @property
     def url_detail(self):
         """
-        Endpoint canonique de détail. ⚠ Aucun consommateur JS à ce jour (vérifié 2026-08-20) :
-        l'inspecteur des apps se remplit depuis les `data-*` de la card (`card_gear.py`), pas
-        par un fetch. Exposé ici pour l'API/le débogage, PAS utilisé par le clic.
+        Endpoint canonique de détail (`detail_registry.unified_detail`).
+
+        ⚠ IL EST PORTEUR, pas dormant : `wama-inspector.js::fillDetail()` le FETCH pour remplir
+        la section « Infos » du volet droit. Il ne le nomme jamais littéralement — il dérive
+        l'URL de `data-preview-url` par `replace('/preview/', '/detail/')` (l.328), ce qui le
+        rend invisible à toute recherche du chemin. Ne pas le retirer ni en changer le contrat
+        sans passer par l'inspecteur.
+
+        Non utilisé par le clic du journal, qui emmène sur la page de l'app (cf. `url_app`).
         """
         from django.urls import reverse
         return reverse('common:unified_detail', args=[self.app, self.pk])

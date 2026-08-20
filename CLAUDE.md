@@ -153,8 +153,28 @@ apply_patch(
 | Conventions d'app | `WAMA_APP_CONVENTIONS.md` |
 | Cam Analyzer | `wama_lab/cam_analyzer/CAM_ANALYZER_CHAINE_TRAITEMENT.md` (chaîne+conception) + `CAM_ANALYZER_CHANGELOG.md` (historique) + `README.md` (carte) — l'ancien `CAM_ANALYZER_TOPDOWN_STATUS.md` est archivé (`wama_lab/cam_analyzer/archive/`) |
 | Prompts (traduction/enrichissement) | `PROMPT_PIPELINE.md` |
-| **Mémoire & RAG** (mémoire agent + mémoire de travail utilisateur + RAG = UN mécanisme) | **`WAMA_MEMORY.md`** — architecture décidée 2026-08-20, non construite. ⚠ **Périme le plan ChromaDB** (`PROJECT_STATUS §6`, vision §11, `prompt_pipeline.py:116`) : cible = `wama/common/memory/` sur **Postgres + pgvector**, scoping **hérité** de `ScopedVisibility`. |
+| **Mémoire & RAG** + **journal utilisateur** (mémoire agent + mémoire de travail + RAG = UN mécanisme) | **`WAMA_MEMORY.md`** — jalons 1-4 et 11 LIVRÉS le 2026-08-20 (brique `wama/common/memory/` sur **Postgres + pgvector**, scoping **hérité** de `ScopedVisibility`, journal `/common/journal/`), reste 5-10 et 12. ⚠ **Périme le plan ChromaDB** (vision §11, `prompt_pipeline.py:116`). |
 | Transcriber — correction assistée | `wama/transcriber/TRANSCRIBER_CORRECTION.md` |
+| Formalisme de card (anatomie, 3 densités v1/v2/v3, batchs) | `CARD_DESIGN.md` |
+| UX de la file / modes applicatifs | `MODES_QUEUE_UX.md` |
+| Inspecteur — champs de détail (schéma canonique) | `INSPECTOR_DETAIL_FIELDS.md` |
+| Studio & production AV | `STUDIO_VISION.md` |
+| Monde Data (périmètre, cartographie de corpus) | `WAMA_DATA_WORLD.md` + `WAMA_DATA_FUNCTION_CARDS.md` (catalogue) |
+| Vision produit d'ensemble | `docs/WAMA_Vision_Complet_v2.md` (+ `docs/VISION_STATUS.md` = confrontation au réel) |
+| Prospection & veille de modèles | `wama/model_manager/PROSPECTION_PIPELINE.md` |
+| Profils, permissions, notifications, rétention | `PROFILES_PERMISSIONS.md` |
+| Infra WSL2 ↔ Windows | `INFRA_WSL_VS_WINDOWS.md` |
+| Appariement entrée ↔ modèle | `INPUT_MODEL_MATCHING.md` |
+| Stockage média & tiering | `MEDIA_STORAGE_TIERING.md` |
+| Format des fichiers batch | `BATCH_FORMAT.md` |
+| Retraits / dette soldée (registre) | `REMOVAL_LEDGER.md` |
+| Briques communes — carte d'entrée du dossier | `wama/common/README.md` |
+
+> ⚠ Cette table n'est **PAS** générée — contrairement à celle de `WAMA_MECANISMES.md`. Elle dérive
+> donc si on ne l'entretient pas : elle ne couvrait que 10 domaines pour ~25 documents de référence
+> réels au 2026-08-20 (relevé à la demande de Fabien). **Créer un `.md` de référence = ajouter sa
+> ligne ici dans le même commit**, sinon le suivant ne le trouvera pas et en écrira un concurrent —
+> ce que la règle ci-dessus interdit précisément.
 
 ---
 

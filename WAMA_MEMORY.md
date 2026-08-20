@@ -276,9 +276,18 @@ vers la page de l'app — passage inter-pages que `wama-queue.js` documente lui-
 `[data-id]` fonctionne sur les 14 gabarits de cards d'items (vérifié). L'utilisateur atterrit sur sa
 card, mise en évidence, avec **toutes** les actions de l'app.
 
-> ⚠ Découverte au passage : **`/common/detail/<app>/<pk>/` n'a aucun consommateur** (vérifié
-> 2026-08-20). L'inspecteur des apps se remplit depuis les `data-*` de la card (`card_gear.py`),
-> pas par un fetch. L'endpoint reste exposé pour l'API et le débogage.
+> ⚠ **ERREUR CORRIGÉE LE MÊME JOUR — `/common/detail/<app>/<pk>/` EST porteur.** J'avais écrit
+> ici qu'il n'avait « aucun consommateur ». C'est FAUX : `wama-inspector.js::fillDetail()` (l.328)
+> le **fetch** pour remplir la section « Infos » du volet droit. Il est invisible à toute recherche
+> du chemin parce qu'il ne le nomme jamais — il dérive l'URL de `data-preview-url` par
+> `replace('/preview/', '/detail/')`. **Ne pas le retirer, ne pas le reclasser en endpoint d'API
+> seule, ne pas changer son contrat sans passer par l'inspecteur.**
+>
+> Méthode qui a manqué (et qui est déjà une règle acquise) : **tracer le chaînage d'exécution**
+> plutôt que grepper un littéral. Une URL construite par concaténation ou substitution
+> n'apparaît dans AUCUNE recherche de son chemin — c'est le mode de défaillance normal du grep,
+> pas une exception. Chercher le consommateur par ce qu'il FAIT (`fetch(`, `replace('/preview/`)
+> et non par ce qu'on croit qu'il écrit.
 
 **La card du journal HÉRITE des trois designs communs.** Elle émet les **5 sections nommées** de
 la card v3 (`CARD_DESIGN §11.6`) — Entrée · Réglages · Sortie · État · Actions — et le conteneur
@@ -300,6 +309,43 @@ les 10 apps. Vérifié au rendu : 25 cards × 5 sections, `data-card-design="v3"
 la page). Le tri inter-modèles se fait en Python — une union SQL sur 12 tables hétérogènes se
 casserait à la première app ajoutée, exactement ce qu'on veut éviter. ⚠ Les entrées sont fabriquées
 **après** le tri et la tranche : les fabriquer avant coûtait 73 requêtes pour 20 lignes.
+
+## 9ter. tool_api — la lecture est générique, l'écriture ne l'est pas (proposition, non construit)
+
+**Constat.** `wama/tool_api.py` (2746 l., ~46 outils) suit une **triade par app** :
+`add_to_<app>` · `start_<app>` · `get_<app>_status`. Les deux premiers sont irréductiblement
+spécifiques — les paramètres d'une transcription ne sont pas ceux d'une génération d'image. Le
+troisième, non : `get_transcriber_status` (l.1459) est une projection maison des 10 derniers items
+avec ses **propres noms de clés** (`filename`, `duration_display`, `used_backend`, `text_preview`),
+et chacune des 10 apps a son équivalent avec des clés **différentes**. L'assistant doit donc
+apprendre 10 vocabulaires pour lire la même chose : l'état d'un item.
+
+**Proposition — deux outils génériques remplacent les ~10 `get_*_status`** :
+
+| Outil | Adossé à | Ce que ça donne |
+|---|---|---|
+| `list_my_items(app=None, limite=25)` | `services/journal.entrees()` | La liste transversale existe déjà : dérivée de `detail_registry`, scopée à l'utilisateur, toutes apps. |
+| `get_item_detail(app, pk)` | l'adapter de `detail_registry` | Le schéma **canonique** — celui de l'inspecteur. |
+
+**Pourquoi c'est solide plutôt qu'une 4ᵉ surface** : ce contrat a déjà **deux consommateurs
+éprouvés** — l'inspecteur (`wama-inspector.js::fillDetail`) et le runner du studio, qui suit
+`status`/`progress`/`result_file` sur les clés canoniques (`STUDIO_VISION.md §176`, 8/10 apps).
+tool_api en serait le **troisième**, ce qui renforce le contrat au lieu de le concurrencer. Et une
+app nouvelle obtient lecture + listing **gratuitement**, puisqu'elle enregistre déjà son adapter
+pour l'inspecteur.
+
+**Bénéfice qui n'est pas qu'une économie de lignes** : l'assistant voit alors **exactement ce que
+l'utilisateur voit** dans le volet droit. Aujourd'hui, rien ne garantit que `get_X_status` et
+l'inspecteur racontent la même chose — deux projections écrites séparément divergent.
+
+⚠ **Deux réserves à traiter, pas à ignorer** :
+1. `build_detail` produit une charge d'**affichage** (libellés, icônes, dates formatées
+   `12/08/2026 14:03`). Lisible par un LLM, mais **lossy pour le calcul**. Prévoir soit un mode
+   `raw`, soit d'exposer en plus les clés canoniques brutes que le studio consomme déjà.
+2. `build_detail` peut déclencher `probe_media` (sonde ffmpeg). Acceptable **à l'unité**,
+   inacceptable sur un listing — c'est précisément pourquoi le journal n'appelle pas l'adapter
+   dans sa liste (mesuré : 73 → 31 requêtes en différant l'hydratation). `list_my_items` doit
+   rester léger ; `get_item_detail` est le coûteux, à la demande.
 
 ## 8. La mémoire « émotionnelle » — RÉSERVÉE, non implémentée (décision 2026-08-20)
 
@@ -361,6 +407,8 @@ Ne rien arbitrer sur ces chiffres.
 | 8 | Outil `memory_recall` dans `tool_api.py` | ⏳ — dépend de 6 |
 | 9 | Entrée au registre `common/mecanismes.py` (la table de `WAMA_MECANISMES.md` en est générée) | ⏳ |
 | 10 | Entrée catalogue `AIModel` pour `bge-m3` (il tourne, il n'est pas déclaré) | ⏳ |
+| 11 | Journal `/common/journal/` (couche 1) + captation générique (couche 2) | ✅ 2026-08-20 — §9bis |
+| 12 | **tool_api : lecture générique** (`list_my_items` / `get_item_detail`) — §9ter | ⏳ |
 
 **Validation empirique du jalon 3** (2026-08-20, 21 contrôles, 0 échec) — écriture verbatim, dédup
 par `content_hash`, garde-fou « approbation sans approbateur » refusée, brouillon LLM invisible au

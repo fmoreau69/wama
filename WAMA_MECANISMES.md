@@ -93,13 +93,17 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Sonde vision** | Décrit une image via un modèle multimodal Ollama local (bench, smoke UI, fichiers de référence) | `wama/model_manager/services/vision_probe.py` | — | 4 |
 | **Sélection de modèle** | Choisit UN modèle : capacités, entrées, priorités, budget VRAM, qualité | `wama/model_manager/services/model_selector.py` | `INPUT_MODEL_MATCHING.md` | 7 |
 
-#### Qualité & auto-amélioration (3)
+#### Qualité & auto-amélioration (7)
 
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
+| **Captation générique des gestes** | Middleware : telecharge/supprime/relance lus de resolver_match — zéro ligne par app | `wama/common/middleware.py` | `WAMA_MEMORY.md §7bis` | 2 |
 | **Contrôle qualité de sortie** | Note une sortie par un validateur LLM INDÉPENDANT ; signal relatif, escalade humaine | `wama/common/utils/qc.py` | `ROADMAP.md §16.5` | ⚠ **0** |
 | **Divergence inter-systèmes** | Désaccord entre deux sorties du même travail — signal objectif, sans avis de modèle | `wama/common/services/divergence.py` | `wama/transcriber/TRANSCRIBER_CORRECTION.md §8.3` | 1 |
-| **Signaux d'exécution** | Journal append-only des FAITS observés sur un résultat (produit/corrigé/relancé…) | `wama/common/services/run_outcome.py` | `ROADMAP.md §16.7` | 2 |
+| **Journal transversal de l'utilisateur** | Tout ce qu'il a lancé, toutes apps — DÉRIVÉ de detail_registry, aucune ligne par app | `wama/common/services/journal.py` | `WAMA_MEMORY.md §9bis` | 1 |
+| **Mémoire & RAG** | Souvenirs + fragments sur pgvector, scope hérité de ScopedVisibility ; 5 opérations | `wama/common/memory/store.py` | `WAMA_MEMORY.md` | 3 |
+| **Projection des faits en souvenirs** | RunOutcome → MemoryItem par OBJET (mécanique, sans modèle, idempotente) | `wama/common/memory/project.py` | `WAMA_MEMORY.md §7` | 2 |
+| **Signaux d'exécution** | Journal append-only des FAITS observés sur un résultat (produit/corrigé/relancé…) | `wama/common/services/run_outcome.py` | `ROADMAP.md §16.7` | 3 |
 
 #### Contenu & prompts (4)
 
@@ -126,7 +130,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 |---|---|---|---|---|
 | **Console utilisateur** | Lignes de journal structurées par utilisateur et par app, via Redis | `wama/common/utils/console_utils.py` | — | 30 |
 | **Duplication et suppression sûres** | duplicate_instance() et safe_delete_file() — fichiers partagés entre items | `wama/common/utils/queue_duplication.py` | `WAMA_APP_CONVENTIONS.md` | 15 |
-| **File d'attente (front)** | Comportements communs des files : collapse de batch persisté, focus card, data-wama-* | `wama/common/static/common/js/wama-queue.js` | `CARD_DESIGN.md` | 42 |
+| **File d'attente (front)** | Comportements communs des files : collapse de batch persisté, focus card, data-wama-* | `wama/common/static/common/js/wama-queue.js` | `CARD_DESIGN.md` | 44 |
 | **Import par lot** | Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot | `wama/common/utils/batch_parsers.py` | `BATCH_FORMAT.md` | 44 |
 | **Manipulation directe de la file** | Endpoints génériques : sortir une card d'un batch, réordonner, déplacer, consolider | `wama/common/utils/queue_manipulation.py` | `CARD_DESIGN.md §3bis` | 11 |
 | **Notifications de tâche** | notify_job() — fin de traitement, succès comme échec | `wama/common/utils/notifications.py` | `PROFILES_PERMISSIONS.md` | 12 |
@@ -143,16 +147,16 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
 | **Bouton de cycle** | Bouton commun ▶/⏹/↻ toujours vert — l'icône porte l'action, l'état vit sur la card | `wama/common/static/common/js/wama-cycle-button.js` | — | 17 |
-| **Card v3** | Dimensionnement déclaratif des pistes de card — dépend de l'app, des actions, des libellés | `wama/common/static/common/js/wama-card-v3.js` | `CARD_DESIGN.md §11` | 3 |
+| **Card v3** | Dimensionnement déclaratif des pistes de card — dépend de l'app, des actions, des libellés | `wama/common/static/common/js/wama-card-v3.js` | `CARD_DESIGN.md §11` | 4 |
 | **Card « Nouvel élément »** | Card d'entrée dépliable commune (dropzones, URL, médiathèque, batch) — auto-init | `wama/common/static/common/js/wama-new-item-card.js` | `MODES_QUEUE_UX.md` | 23 |
-| **Chips méta des cards** | Chips de l'état concis GÉNÉRÉS du schéma params (chip=True) — jamais écrits par app | `wama/common/utils/card_chips.py` | `CARD_DESIGN.md §10.3` | 24 |
+| **Chips méta des cards** | Chips de l'état concis GÉNÉRÉS du schéma params (chip=True) — jamais écrits par app | `wama/common/utils/card_chips.py` | `CARD_DESIGN.md §10.3` | 26 |
 | **Domaines → modes** | Schéma déclaratif des onglets-domaine et modes par app — scope la file | `wama/common/utils/app_modes.py` | `MODES_QUEUE_UX.md` | 11 |
 | **Import de dossier récursif** | Traversée récursive d'un drop/webkitdirectory — brique F2 montée globale (base.html) | `wama/common/static/common/js/wama-folder-import.js` | `WAMA_APP_GENERATION_ROUTE.md` | 2 |
-| **Inspecteur — champs de détail** | Schéma canonique des infos d'item affichées au volet droit | `wama/common/utils/detail_registry.py` | `INSPECTOR_DETAIL_FIELDS.md` | 35 |
+| **Inspecteur — champs de détail** | Schéma canonique des infos d'item affichées au volet droit | `wama/common/utils/detail_registry.py` | `INSPECTOR_DETAIL_FIELDS.md` | 37 |
 | **Lecteur audio (onde + transport)** | Widget autonome : onde canvas (pics serveur ou décodés), play/pause, exclusivité inter-lecteurs et inter-onglets ; monté par la preview dans le volet ET les cards | `wama/common/static/common/js/wama-audio-player.js` | — | 4 |
 | **Preview unifiée** | Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps | `wama/common/utils/preview_registry.py` | — | 31 |
 | **Progression & ETA (front)** | Moteur ETA par débit observé + barres aux 3 niveaux : card, batch, globale | `wama/common/static/common/js/wama-eta.js` | `PROJECT_STATUS.md §10` | 39 |
-| **Schéma de paramètres** | Source unique des réglages d'app : volet droit et modale sont RENDUS depuis lui | `wama/common/utils/param_schema.py` | `WAMA_APP_GENERATION_ROUTE.md` | 37 |
+| **Schéma de paramètres** | Source unique des réglages d'app : volet droit et modale sont RENDUS depuis lui | `wama/common/utils/param_schema.py` | `WAMA_APP_GENERATION_ROUTE.md` | 38 |
 | **Shuttle J/K/L** | État de vitesse/direction de lecture (paliers éditeur) + binding clavier ; l'app fournit apply(speed) — la commande est commune, l'application au lecteur reste locale | `wama/common/static/common/js/wama-shuttle.js` | — | 3 |
 | **Signalement au gestionnaire de fichiers** | Noms d'événements centralisés (media:uploaded/processed/deleted) — l'arborescence du filemanager se rafraîchit sans que chaque app invente son event | `wama/common/static/common/js/wama-fm-notify.js` | — | 2 |
 | **Socle JS des apps** | Plomberie commune file/cards : csrfFetch, urls, Poller de progression, états vides | `wama/common/static/common/js/wama-app-base.js` | `WAMA_APP_GENERATION_ROUTE.md` | 17 |
@@ -174,7 +178,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Sauvegarde & tirage** | Moteur unique de miroir (modèles, base, médias, secrets) et restauration | `wama/common/services/mirror_sync.py` | — | 8 |
 | **Sonde média** | Durée/codec/dimensions/pages d'un média pour les propriétés de card (via ffmpeg_utils) | `wama/common/utils/media_probe.py` | — | 4 |
 | **Utilitaires vidéo** | Extraction audio des vidéos + téléchargement YouTube/yt-dlp | `wama/common/utils/video_utils.py` | — | 16 |
-| **Visibilité et portée** | Privé / unité / public : filtrage des lectures, mutations inchangées | `wama/common/models.py` | `PROFILES_PERMISSIONS.md` | 21 |
+| **Visibilité et portée** | Privé / unité / public : filtrage des lectures, mutations inchangées | `wama/common/models.py` | `PROFILES_PERMISSIONS.md` | 22 |
 
 #### Studio & surface d'outils (API) (3)
 
@@ -184,7 +188,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Runner générique du studio** | Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app | `wama/studio/services/generic_runner.py` | `STUDIO_VISION.md` | 7 |
 | **Surface d'outils** | Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas | `wama/tool_api.py` | `WAMA_APP_GENERATION_ROUTE.md` | 8 |
 
-**Mécanismes déclarés : 71** · domiciles absents : 0 · sans consommateur : 2 · assumés locaux : 18 · modules balayés non rattachés : 0 · **de niveau app sans critère de grille : 18**
+**Mécanismes déclarés : 75** · domiciles absents : 0 · sans consommateur : 2 · assumés locaux : 18 · modules balayés non rattachés : 0 · **de niveau app sans critère de grille : 18**
 - ⚠ **Sans consommateur** (brique morte ou pas encore adoptée) : `benchmark_sync` (wama/model_manager/services/benchmark_sync.py), `qc` (wama/common/utils/qc.py)
 
 <details><summary>⚠ <b>18 mécanisme(s) de niveau app SANS critère de grille</b> — adoptés par des apps, vérifiés par aucun critère (<code>Criterion.mecanisme</code>) : une app peut sortir à 100 % sans les avoir adoptés</summary>

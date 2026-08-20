@@ -438,6 +438,17 @@ Docs (3 piliers, 2026-07-21) : `wama_lab/cam_analyzer/README.md` (carte) + `CAM_
   serveur absente — vérifié 2026-08-20).
 - Décision consignée : type de mémoire `emotional` **réservé, non implémenté** (`§8` du doc) — la
   saillance se dérive de `RunOutcome`, pas d'une inférence d'humeur.
+- ✅ **Jalons 1-4 + 11 LIVRÉS le 2026-08-20** : pgvector actif, brique `common/memory/`
+  (`embed`/`store`/`project`, 5 opérations + `reindex`), `manage.py sync_memory`, et la
+  **première surface visible** : `/common/journal/` (menu utilisateur → « Mon journal »),
+  agrégat transversal DÉRIVÉ de `detail_registry` — **aucune ligne dans les apps**, héritant des
+  3 densités de card communes. Captation des gestes par **un middleware générique**
+  (`common/middleware.py`) plutôt que ~30 retouches par app.
+- ⚠ **Le goulot n'est pas la mémoire, c'est `RunOutcome`** (`§7bis` du doc) : 1 seule ligne en base
+  au 20/08, 2 points de captation. Le middleware le résout pour l'AVENIR — l'historique est perdu,
+  aucun framework ne le récupérera rétroactivement.
+- ⏳ Suite proposée : `tool_api` — remplacer les ~10 `get_<app>_status` par `list_my_items` +
+  `get_item_detail` adossés au schéma canonique (`§9ter` du doc).
 
 ## 7. Anonymisation multimodale (§16.4) — décidé, non construit
 - ⏳ Presidio + GLiNER FR ; mode « texte » = porte privacy avant-cloud (même composant) ; audio (PII + biométrie) ; dispatcher par modalité

@@ -179,6 +179,23 @@ MECANISMES = (
     Mecanisme('run_outcome', "Signaux d'exécution",
               "Journal append-only des FAITS observés sur un résultat (produit/corrigé/relancé…)",
               'wama/common/services/run_outcome.py', 'ROADMAP.md §16.7'),
+    # `symbole` OBLIGATOIRE ici : un middleware n'est jamais IMPORTÉ, il est nommé par une chaîne
+    # pointée dans `settings.MIDDLEWARE`. Sans lui, le scanner (qui compte les imports) le classe
+    # « sans consommateur » alors qu'il est actif sur CHAQUE requête — un faux positif qui ferait
+    # croire à une brique morte.
+    Mecanisme('run_outcome_capture', "Captation générique des gestes",
+              "Middleware : telecharge/supprime/relance lus de resolver_match — zéro ligne par app",
+              'wama/common/middleware.py', 'WAMA_MEMORY.md §7bis',
+              symbole='RunOutcomeCaptureMiddleware'),
+    Mecanisme('memory', 'Mémoire & RAG',
+              "Souvenirs + fragments sur pgvector, scope hérité de ScopedVisibility ; 5 opérations",
+              'wama/common/memory/store.py', 'WAMA_MEMORY.md'),
+    Mecanisme('memory_project', 'Projection des faits en souvenirs',
+              "RunOutcome → MemoryItem par OBJET (mécanique, sans modèle, idempotente)",
+              'wama/common/memory/project.py', 'WAMA_MEMORY.md §7'),
+    Mecanisme('journal', "Journal transversal de l'utilisateur",
+              "Tout ce qu'il a lancé, toutes apps — DÉRIVÉ de detail_registry, aucune ligne par app",
+              'wama/common/services/journal.py', 'WAMA_MEMORY.md §9bis'),
     Mecanisme('qc', 'Contrôle qualité de sortie',
               "Note une sortie par un validateur LLM INDÉPENDANT ; signal relatif, escalade humaine",
               'wama/common/utils/qc.py', 'ROADMAP.md §16.5'),
