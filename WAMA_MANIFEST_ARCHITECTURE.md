@@ -94,7 +94,7 @@ flowchart LR
         F["function<br/>(FUNCTION_CATALOG, 19)"]
     end
     subgraph AU["AUTORÉS — le manifeste EST l'origine → validate + store → PROJECTION"]
-        D["dataset<br/>(généralisation toolbox tierce)"]
+        D["dataset<br/>(généralisation d'un modèle tiers)"]
         PJ["project<br/>(Project cross-org)"]
     end
 

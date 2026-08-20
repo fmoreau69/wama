@@ -124,19 +124,19 @@ un port de sortie typé par la sélection. **Card de sortie** = vue/export/stock
 
 ---
 
-## 6. Inspiration toolbox tierce
+## 6. Inspiration d'une toolbox tierce
 
-Le modèle toolbox tierce (`manifest.xml`) EST déjà un pipeline de blocs à I/O déclarées : chaque flux
+Le modèle de la toolbox tierce (`manifest.xml`) EST déjà un pipeline de blocs à I/O déclarées : chaque flux
 (`TS_NavyaAPI`, GNSS, accéléro, `TS_OperatorAnnotation`) est une timeseries typée que les scripts
 consomment/produisent. La logique gérée/validité/near des annotations, les extracteurs par section,
 le map-matching = autant de **fonctions à I/O nettes** qui se transposent 1-pour-1 en `FunctionSpec`.
-Voir [[project_toolbox tierce_integration]] : ses fonctions seront **les premières function-cards**.
+Voir [[project_toolbox_tierce_integration]] : ses fonctions seront **les premières function-cards**.
 
 ---
 
 ## 7. Conséquence IMMÉDIATE (avant même l'UI de chaînage)
 
-> Toute fonction de traitement écrite à partir de maintenant (à commencer par toolbox tierce) est **conçue
+> Toute fonction de traitement écrite à partir de maintenant (à commencer par les fonctions portées de la toolbox tierce) est **conçue
 > capability-first** : signature pure `(données_typées, params) → données_typées`, sans I/O de fichiers
 > ni dépendance à une app, et **accompagnée de son `FunctionSpec`** (même si le registre/canvas n'existe
 > pas encore). Ainsi le jour où l'UI arrive, on branche — zéro réécriture.
@@ -147,7 +147,7 @@ Ne PAS coder ces fonctions dans une app : brique commune d'abord (règle de cent
 **Placement par DOMAINE (refactoring 2026-07-22, 9945ca8/a06f3be)** : les implémentations vivent
 sous `wama/common/data/functions/<domaine>/` — 4 sous-paquets : `io/` (parsing, ex. RTMaps .rec),
 `geometry/` (primitives + métriques), `kinematics/` (extrapolation, collision), `driving/`
-(fonctions métier conduite, dont les 4 toolbox tierce). Le domaine est un **3ᵉ axe orthogonal** à
+(fonctions métier conduite, dont les 4 fonctions portées). Le domaine est un **3ᵉ axe orthogonal** à
 `data_type` et `category` (cf. docstring `functions/__init__.py`). Les anciens paquets
 `common/rtmaps/` et `common/prediction/` sont SUPPRIMÉS (consolidés ici).
 
@@ -165,7 +165,7 @@ sous `wama/common/data/functions/<domaine>/` — 4 sous-paquets : `io/` (parsing
 
 Deux `binding` cohabitent dans le MÊME `FUNCTION_CATALOG` :
 - **`pure`** — signature `(données_typées, params) → données_typées`, chaînable direct. Défaut pour
-  toute nouvelle fonction. Ex. les 4 fonctions toolbox tierce (`wama/common/data/functions/driving/`).
+  toute nouvelle fonction. Ex. les 4 fonctions de conduite portées (`wama/common/data/functions/driving/`).
 - **`app`** — couplée à une app (lit/écrit la session/BDD via une passe Celery). **Cataloguée** (capacités
   déclarées, `impl` = chemin d'implémentation) mais **pas encore chaînable** ; à porter vers `pure` au cas
   par cas via un adaptateur de ports quand on veut la mettre dans une chaîne.

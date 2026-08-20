@@ -31,7 +31,7 @@ Dernière mise à jour : 2026-07-21.
 | `name` | ENA — navette autonome Navya, site Nice (CASA) |
 | `world` | `lab` |
 | `visibility` | `unit` (labo Lescot) |
-| `source` | `{type: 'toolbox tierce', ref: 'claude/WAMA-Lab/Cam_Analyzer/toolbox tierce/ENA_NAVYA/7_00/Model/manifest.xml'}` (+ variante `ENA_MILLA`) |
+| `source` | `{type: 'external_model', ref: '<manifeste de la toolbox tierce, hors dépôt>'}` (2 variantes) |
 | `projects` | `['ENA_CASA']` |
 
 > ⚠️ **Pré-projet ≠ réalité.** Les specs d'instrumentation annoncées (4× AXIS F4005-E Dome 110°,
@@ -81,7 +81,7 @@ Dernière mise à jour : 2026-07-21.
 >   depuis le `.rec` (utiliser les CSV par canal).
 
 ### `reference_tables{}`
-- Tables d'annotation toolbox tierce (`NV_AnnotationTag`, sections `Section CASA-sections.csv`, tags
+- Tables d'annotation de la toolbox tierce (`NV_AnnotationTag`, sections `Section CASA-sections.csv`, tags
   opérateur) — à recopier depuis le manifeste XML source lors de l'ingest.
 
 ### `records[]`
@@ -144,7 +144,7 @@ Zones nommées `{lat, lon, radius}` du site CASA — définies dans `AnalysisPro
 ## Chantiers manifeste révélés par ce projet
 
 1. **§1 ingestable maintenant** : le kind `dataset` est prêt → écrire le `body` JSON depuis le XML
-   toolbox tierce source et `ingest_manifest()`. Reste : le **reader source-agnostique** (projection) pour
+   modèle tiers source et `ingest_manifest()`. Reste : le **reader source-agnostique** (projection) pour
    que les apps consomment le dataset (chantier `dataset` projection).
 2. **§2 sans foyer** : la **calibration/rig** n'a pas de kind → concevoir soit une **extension du
    body `project`**, soit un kind **`calibration`** (par session/caméra, avec époques de dérive), +

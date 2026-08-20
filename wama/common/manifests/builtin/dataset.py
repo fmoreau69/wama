@@ -1,5 +1,5 @@
 """
-Kind `dataset` — généralisation du manifeste toolbox tierce (`ENA_NAVYA/manifest.xml`, référence quasi-idéale).
+Kind `dataset` — généralisation d'un manifeste de toolbox tierce (référence quasi-idéale).
 
 À la différence de `app`/`model` (EXTRAITS du code existant), un `dataset` est AUTORÉ : le manifeste EST
 l'origine (wama-dev-ai explore un dossier projet → infère un brouillon → l'humain valide). Donc PAS de
@@ -19,11 +19,11 @@ Le chantier ultérieur n'est donc pas une projection mais un **reader source-agn
 qui va lire `source.ref` et rendre les `signals`/`records` déclarés ici. Ne pas le confondre avec
 `write_back`, qui pour les autres kinds signifie « écrire dans le registre ».
 
-Généralisation toolbox tierce → WAMA (cf. mémoire project_manifests_projects) :
+Généralisation du modèle tiers → WAMA (cf. mémoire project_manifests_projects) :
   - `das`/`channel`/`signal` typés + unités        → `signals[]` typés sur `data_types` (source-agnostique)
   - `reference_table` (enums : NV_AnnotationTag…)   → `reference_tables{}`
   - `record`/`timeseries` (GNSS→geo_track, …)       → `records[]` (groupements de signaux)
-  - couche propriété/projet/visibilité (absente toolbox tierce) → portée par l'ENVELOPPE commune (world/visibility/scope)
+  - couche propriété/projet/visibilité (absente du modèle tiers) → portée par l'ENVELOPPE commune (world/visibility/scope)
 """
 
 from __future__ import annotations
@@ -106,7 +106,7 @@ register_kind(ManifestKind(
     kind='dataset',
     validate=validate_dataset_body,
     extract=None,      # AUTORÉ (pas de registre code) — le manifeste est l'origine
-    description="Jeu de données brut typé (généralisation toolbox tierce) : source-agnostique + signals typés sur "
+    description="Jeu de données brut typé (généralisation d'un modèle tiers) : source-agnostique + signals typés sur "
                 "data_types + reference_tables (enums) + records. Validate+store : un dataset est un "
                 "ACCÈS (source.ref = arborescence serveur), pas un objet à instancier — aucun "
                 "registre où écrire. Chantier ultérieur = un reader source-agnostique.",

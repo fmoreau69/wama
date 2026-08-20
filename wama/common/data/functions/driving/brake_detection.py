@@ -1,11 +1,11 @@
 """
-Détection de freinage brusque — portage toolbox tierce (`ComputeAccClean` + `identifyBrakeSignal`
+Détection de freinage brusque — portage d'une toolbox tierce (`ComputeAccClean` + `identifyBrakeSignal`
 + `extractBrake` + `calculatePlage`), capability-first.
 
 Chaîne : nettoyage de l'accéléro longitudinal → détection des plages de décélération
 sous seuil, graduées en 3 niveaux de sévérité (modéré → urgence) → events.
 
-⚠️ Les seuils de toolbox tierce n'étaient PAS dans les .m (dans le modèle compilé) : les défauts
+⚠️ Les seuils d'origine n'étaient PAS dans les .m (dans le modèle compilé) : les défauts
 ci-dessous (m/s²) sont des a-priori RAISONNABLES à RECALIBRER sur données Navya réelles,
 et dépendent de l'orientation physique de l'accéléromètre (X = longitudinal, décél. < 0).
 """

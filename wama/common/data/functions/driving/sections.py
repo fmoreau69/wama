@@ -1,8 +1,8 @@
 """
-Découpage en sections routières — portage toolbox tierce `generateSection`/`extractSection`
+Découpage en sections routières — portage d'une toolbox tierce (`generateSection`/`extractSection`)
 (parties GÉNÉRIQUES uniquement), capability-first.
 
-`numeroteSection`/`initAttSection` de toolbox tierce encodaient le parcours CASA en dur (tables de
+`numeroteSection`/`initAttSection` d'origine encodaient le parcours CASA en dur (tables de
 numéros, typologie giratoire/stop…) : NON portés — la typologie d'infrastructure doit venir
 d'une MÉTADONNÉE (colonne `type` du road_map), pas d'un switch (philosophie métadonnée-driven).
 

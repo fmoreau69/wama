@@ -1853,7 +1853,7 @@ libres), ground_single/multi (referring expressions), point, detect_text, ground
 Linux only (WSL2 OK). `generation_mode="hybrid"` + `max_new_tokens=8192` recommandés.
 
 **⚠ Licence NVIDIA NON-COMMERCIALE** (+ Qwen Research License sur le LLM) : OK recherche Lescot,
-**EXCLU pour livrables partenaire/toolbox tierce ou valorisation**. → Conséquence architecturale : déclarer
+**EXCLU pour livrables partenaires ou valorisation**. → Conséquence architecturale : déclarer
 `license` en **métadonnée** (`AIModel`/`capabilities`) pour que `select_model()`/Studio filtrent ou
 avertissent — métadonnée-driven, pas mémoire humaine.
 
@@ -1938,7 +1938,7 @@ la brique (2) est agnostique au backend, l'investissement reste bon dans tous le
 
 **Candidats modèles (prospection à jouer — chaîne Ollama-first/HF existante)** : **TRELLIS**
 (Microsoft, MIT), **TripoSR** (Stability+Tripo, MIT), **Hunyuan3D-2.x** (licence communauté
-Tencent — OK recherche Lescot, à vérifier pour livrables partenaire/valorisation),
+Tencent — OK recherche Lescot, à vérifier pour livrables partenaires/valorisation),
 **Stable Fast 3D / SPAR3D** (Stability community). Mono-image → mesh texturé, VRAM ~6–16 Go
 (passe sur la 4090). Licence+auteur en base comme d'habitude (politique licences).
 
@@ -2043,8 +2043,7 @@ l'outillage d'auto-maintenance (grille, redondances, faits, gate nocturne) est w
    premier commit, avec ses commons internes) ; `wama/` = plateforme + monde média ASSUMÉ et
    documenté (déplacer 10 apps portées serait un churn injustifié).
 2. **`common/` mélange les étages, et le bon critère de tri n'est PAS le sujet** mais la
-   **largeur de consommation** : ≥ 2 mondes = transverse (`ffmpeg_utils` : média + lab + data
-   toolbox tierce) ; 1 seul monde = ça appartient au monde (`tts/` : synthesizer + avatarizer = média).
+   **largeur de consommation** : ≥ 2 mondes = transverse (`ffmpeg_utils` : média + lab + data) ; 1 seul monde = ça appartient au monde (`tts/` : synthesizer + avatarizer = média).
    Étiqueter les sous-packages dans `common/README.md` AVANT la naissance de data — sinon les
    briques data (dataframes, map-matching — embryons déjà dans cam_analyzer) tomberont dans
    `common/` par gravité.

@@ -1,5 +1,5 @@
 """
-Annotations opérateur — portage toolbox tierce (paquet `+Annotation` + `ProcCleanTag`),
+Annotations opérateur — portage d'une toolbox tierce (paquet `+Annotation` + `ProcCleanTag`),
 capability-first.
 
 L'opérateur de la navette tapait des annotations en conduite (situation bien/mal gérée,

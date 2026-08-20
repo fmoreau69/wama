@@ -1,6 +1,6 @@
 ---
 name: cam-analyzer
-description: Travailler sur WAMA Lab Cam Analyzer — tracking 360°, projection sol, map-matching GPS, vue de dessus, marquages, indicateurs. Utiliser dès qu'une demande touche wama_lab/cam_analyzer (détection, calibration, recalage, overlays, mini-carte, rapport d'interactions), ou quand l'utilisateur parle de navette, intersections, ENA_CASA, toolbox tierce.
+description: Travailler sur WAMA Lab Cam Analyzer — tracking 360°, projection sol, map-matching GPS, vue de dessus, marquages, indicateurs. Utiliser dès qu'une demande touche wama_lab/cam_analyzer (détection, calibration, recalage, overlays, mini-carte, rapport d'interactions), ou quand l'utilisateur parle de navette, intersections, ENA_CASA, ou de la toolbox tierce d'origine.
 ---
 
 # /cam-analyzer — Chaîne d'analyse vidéo embarquée

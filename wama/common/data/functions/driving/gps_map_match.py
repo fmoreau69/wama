@@ -1,11 +1,11 @@
 """
-Map-matching GPS — portage toolbox tierce `MapMatch.m` (partenaire/ENA), capability-first.
+Map-matching GPS — portage d'une toolbox tierce (`MapMatch.m`), capability-first.
 
 Recale une trace GPS bruitée sur l'axe routier réel (plus-proche-segment) et attribue à
 chaque échantillon : la SECTION routière, le SENS de circulation (±1, aller/retour), et un
 CAP DE RÉFÉRENCE propre (bien plus stable que le cap de course GPS à basse vitesse).
 
-Méthode (identique à toolbox tierce) :
+Méthode (identique à l'original) :
 - projection plane locale des waypoints et du véhicule (repère ENU centré sur la moyenne) ;
 - distance²-point-segment (projection paramétrique t clampée [0,1]) sur tous les segments ;
 - match si distance ≤ `max_dist_m` (défaut 20 m) → section + cap du segment ;

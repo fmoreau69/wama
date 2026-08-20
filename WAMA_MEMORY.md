@@ -15,7 +15,7 @@
 | **Auto-amélioration** — wama-dev-ai se souvient d'une session à l'autre | wama-dev-ai | « le backend Qwen3-ASR casse à l'import, piste = conflit deps » |
 | **Assistant IA** — l'assistant connaît l'utilisateur et son contexte | assistant (`tool_api.py`) | « Fabien travaille en FR, exporte toujours en PDF » |
 | **Mémoire de travail utilisateur** — WAMA se souvient de ce que l'utilisateur y a fait | runtime WAMA | « la transcription du 12/08 a été corrigée à la main puis exportée » |
-| **RAG** — retrouver un fragment d'un document possédé | indexation médiathèque / corpus | « que dit le protocole toolbox tierce sur les sections ? » |
+| **RAG** — retrouver un fragment d'un document possédé | indexation médiathèque / corpus | « que dit le protocole d'expérimentation sur les sections ? » |
 
 Ces quatre usages n'ont **qu'un seul mécanisme** : *retrouver le bon morceau de texte, pour le bon
 utilisateur, au bon moment*. Ils diffèrent par la **provenance** et le **cycle de vie**, pas par la

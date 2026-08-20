@@ -55,7 +55,7 @@ class CommonConfig(AppConfig):
             logging.getLogger(__name__).debug(
                 'Récepteurs prompt_ingest non enregistrés', exc_info=True)
 
-        # Enregistre les fonctions WAMA Data pures (toolbox tierce : map-matching, freinage…)
+        # Enregistre les fonctions WAMA Data pures (conduite : map-matching, freinage…)
         # dans le catalogue au démarrage.
         try:
             from wama.common.data import functions  # noqa: F401

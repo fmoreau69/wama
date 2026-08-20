@@ -21,7 +21,7 @@
 | Monde | Contenu | Entrées/sorties | État |
 |---|---|---|---|
 | **Médias** | apps média (Imager, Converter, Transcriber, Composer, Avatarizer, Synthesizer, Reader, Describer, Enhancer…) | média → média | ✅ existant (apps en place) |
-| **Data** | fonctions de traitement déclarées par capacités (catalogue WAMA Data), toolbox tierce, analyse tabulaire/timeseries/geo | données → tri/traitement → données | 🔄 socle posé (`common/data/`, 4 fn + catalogue) |
+| **Data** | fonctions de traitement déclarées par capacités (catalogue WAMA Data), analyse de conduite, tabulaire/timeseries/geo | données → tri/traitement → données | 🔄 socle posé (`common/data/`, 4 fn + catalogue) |
 | **Lab** | apps métier de recherche (Cam Analyzer, Face Analyzer…) | domaine-spécifique | 🔄 en cours (Cam Analyzer) |
 | **Transversal** | substrat commun : assistant IA, model_manager, RAG, translator, anonymizer, pipeline de prompts, **le studio lui-même**, médiathèque, profils/permissions | services partagés | 🔄 partiel |
 
@@ -110,14 +110,14 @@ mesuré le 19/08 : WAMA Lab consomme 6 briques communes (`console`, `video_utils
 > valide** (doctrine wama-dev-ai : propose, l'humain valide). Multi-projets : indexer/labéliser un dossier
 > contenant plusieurs projets, un manifeste par projet.
 
-**Le manifeste toolbox tierce (`ENA_NAVYA/manifest.xml`) = RÉFÉRENCE quasi-idéale** — il fait déjà exactement ça :
+**Le manifeste de la toolbox tierce = RÉFÉRENCE quasi-idéale** — il fait déjà exactement ça :
 `das`/`channel`/`signal` typés (VIDEO, TABBED_TEXT) avec datatype + unité, mappés aux sorties brutes
 (`rtMapsOutputName`) ; `reference_table` = vocabulaires contrôlés (enums BatteryState/DoorsState/RobotMode
 + **le dico NV_AnnotationTag des 36 tags** dont on avait besoin) ; `record`/`timeseries` = signaux typés
 (GNSS→geo_track, Accéléro→signal, Annotations→events, NavyaAPI→timeseries). **Ce que WAMA généralise** :
 (a) source-AGNOSTIQUE (un « reader » par type : rtmaps/lsl/rosbag/csv, pas seulement `rtMapsOutputName`) ;
-(b) mapping des types toolbox tierce → **taxonomie de types WAMA Data** (`data_types`) ; (c) ajout de la couche
-**propriété / projet / visibilité** (absente de toolbox tierce). → Le manifeste WAMA = richesse descriptive toolbox tierce
+(b) mapping des types du modèle tiers → **taxonomie de types WAMA Data** (`data_types`) ; (c) ajout de la couche
+**propriété / projet / visibilité** (absente du modèle tiers). → Le manifeste WAMA = richesse descriptive du modèle tiers
 + reader pluggable + types WAMA + métadonnées projet.
 
 **Formalisme des manifestes (doctrine 2026-07-21 — ✅ LIVRÉ 2026-07-21→08-05)** — la doctrine

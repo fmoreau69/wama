@@ -2299,7 +2299,7 @@ duplication describer (fix double-fire 2026-07-25) ; entrée URL ×3 apps.
 ## 41. Capacité détection open-vocabulary — LocateAnything 🔄 (ouvert 2026-07-27)
 
 - Évaluation complète faite (session 2026-07-27) → **décision + séquencement 4 étapes = ROADMAP §17**
-  (licence non-commerciale OK Lescot / EXCLU partenaire-toolbox tierce ; latence VLM → jamais per-frame vidéo).
+  (licence non-commerciale OK Lescot / EXCLU livrables partenaires ; latence VLM → jamais per-frame vidéo).
 - Réorganisation de l'arbre en mondes consignée **ROADMAP §18** — POST-portage, NE PAS ouvrir avant.
 - État 2026-07-27 soir : poids téléchargés (7,3 Go, non-gated) après élagage `gpt-oss:20b` (D: ≈22 Go
   libres) ; transformers 4.57.6 compatible ; chargement CPU ✅ (11 s, pic 2,4 Go) ; chargement CUDA

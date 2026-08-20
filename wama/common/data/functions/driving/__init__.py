@@ -1,4 +1,4 @@
-"""driving/ — analyse de conduite toolbox tierce (partenaire/ENA).
+"""driving/ — analyse de conduite (portée d'une toolbox tierce).
 
 Importer ce paquet enregistre les FunctionSpec correspondantes (auto-déclaration).
 """

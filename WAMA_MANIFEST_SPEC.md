@@ -37,7 +37,7 @@ body: { ... }                 # spécifique au kind (voir §3 pour app)
 ```
 
 Kinds prévus : **`app`** (§3), **`function`** (= `FunctionSpec`, déjà fait, `WAMA_DATA_FUNCTION_CARDS.md`),
-**`dataset`** (style toolbox tierce : channels/signals/reference_tables), **`model`** (= `AIModel`), **`pipeline`**
+**`dataset`** (style modèle tiers : channels/signals/reference_tables), **`model`** (= `AIModel`), **`pipeline`**
 (= `StudioPipeline.graph`), **`project`** (= `Project`, déjà fait).
 
 > **Distinction EXTRAIT vs AUTORÉ** (dégagée en construisant `dataset`) : deux familles de kinds.
@@ -255,7 +255,7 @@ les **besoins de modèles** de l'app. Le manifeste `app` les rend explicites.
      destructif validé (2026-07-23). **1re facette réellement écrite.**
    - ⏳ **Projection des 9 autres facettes = CODE-GEN** (models.py/urls/params/nœud studio…) — chantier.
 4. **Round-trip** : extraire le manifeste d'une app existante → régénérer en sandbox → diff → itérer.
-5. Puis kind `dataset` (toolbox tierce généralisé), et convergence `app` (APP_CATALOG ⟷ GENERIC_APPS).
+5. Puis kind `dataset` (modèle tiers généralisé), et convergence `app` (APP_CATALOG ⟷ GENERIC_APPS).
 
 ---
 
