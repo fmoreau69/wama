@@ -217,8 +217,10 @@ def _tts_via_service(text: str, voice: str):
     course env dans Django). Renvoie le WAV en base64, ou None si le service est indisponible
     (→ l'appelant retombe sur Kokoro en-process).
 
-    Mapping exact voix brute → (language, voice_preset) : le service recalcule la même voix
-    via KOKORO_VOICE_MAP (voice[0]=lang_code, voice[1]=='m' → masculin).
+    Mapping exact voix brute → (language, voice_preset) : le service TTS RECALCULE la même
+    voix de son côté, il faut donc lui passer la langue qui redonne cette voix-là. La
+    convention de nommage Kokoro est encapsulée par `common/tts/voices.langue_de_voix()`
+    (elle était dépliée ici, en miroir du calcul aller du backend).
     """
     try:
         import requests

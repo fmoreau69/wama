@@ -17,7 +17,19 @@
         "audio"
       ],
       "supports_cloning": false,
-      "task": "text-to-speech"
+      "supports_timestamps": true,
+      "task": "text-to-speech",
+      "timestamp_languages": [
+        "ar",
+        "cs",
+        "de",
+        "en",
+        "ko",
+        "nl",
+        "pl",
+        "ru",
+        "tr"
+      ]
     },
     "extra_info": {
       "hf_id": "hexgrad/Kokoro-82M",
