@@ -67,9 +67,19 @@ def content_hash(text: str) -> str:
 def remember(content, *, kind, provenance, user=None, subject='', source_app='',
              source_object_type='', source_object_id=None, confidence=None,
              visibility=None, scope_org_unit=None, scope_project=None,
-             approved=False, approved_by=None, salience=0.0, valid_from=None):
+             approved=False, approved_by=None, salience=0.0, valid_from=None,
+             embed=True):
     """
     Écrit un souvenir. Rend le `MemoryItem` (créé ou déjà existant), ou `None` en cas d'échec.
+
+    ⚠ `embed=False` écrit SANS TOUCHER AU GPU (`embedding=NULL`), à rattraper par `reindex()`.
+    À utiliser dans les trois cas où embarquer à l'écriture est une faute :
+      - **projection en masse** (jalon 4 : des milliers de `RunOutcome`) — un appel Ollama par
+        ligne serait absurde là où un lot en fait un seul ;
+      - **tests** — un smoke ne doit jamais charger un modèle sur la machine de quelqu'un ;
+      - **GPU occupé** — une écriture n'a pas à attendre, ni à concurrencer un traitement.
+    L'écriture et le calcul du vecteur sont deux choses : la première ne doit jamais échouer ni
+    attendre, la seconde peut se faire plus tard et par lot.
 
     ⚠ `approved=False` PAR DÉFAUT, et un souvenir non approuvé est INVISIBLE au rappel. Seules
     les projections mécaniques (`provenance='projection'`) ont le droit de s'auto-approuver :
@@ -102,7 +112,9 @@ def remember(content, *, kind, provenance, user=None, subject='', source_app='',
     if existant is not None:
         return existant
 
-    vecteur = embed_text(content)   # None si l'embedder est indisponible — cas NORMAL
+    # None si `embed=False` (aucun appel GPU) OU si l'embedder est indisponible : les deux sont
+    # des cas NORMAUX, rattrapés par `reindex()`. La ligne s'écrit dans tous les cas.
+    vecteur = embed_text(content) if embed else None
 
     try:
         return MemoryItem.objects.create(
@@ -134,9 +146,13 @@ def remember(content, *, kind, provenance, user=None, subject='', source_app='',
 # ───────────────────────────────────────────────────────────── recall ────────
 
 def recall(query, *, user, kinds=None, subject=None, k=8, include_rag=True,
-           include_memory=True):
+           include_memory=True, semantic=True):
     """
     Retrouve les `k` meilleurs éléments visibles par `user`.
+
+    ⚠ `semantic=False` force le LEXICAL SEUL et ne touche pas au GPU (aucun embedding de la
+    requête). Même motivation que `remember(embed=False)` : un test, ou un contexte où le GPU
+    ne doit pas être sollicité, doit pouvoir rappeler sans charger de modèle.
 
     HYBRIDE — vecteur (pgvector, cosinus) ET lexical (full-text FR), fusionnés par RRF. Le
     lexical n'est pas un luxe : il rattrape les identifiants exacts (`model_key`, nom de
@@ -151,7 +167,7 @@ def recall(query, *, user, kinds=None, subject=None, k=8, include_rag=True,
     if not (query or '').strip():
         return []
 
-    vecteur = embed_text(query)
+    vecteur = embed_text(query) if semantic else None
     listes = []
 
     if include_memory:
@@ -255,6 +271,73 @@ def _fusion_rrf(listes):
         hits.append(Hit(obj, cle[0], score * (1 + POIDS_SAILLANCE * saillance), rangs[cle]))
     hits.sort(key=lambda h: h.score, reverse=True)
     return hits
+
+
+# ──────────────────────────────────────────────────────────── reindex ────────
+
+def reindex(*, lot=64, limite=None, modeles_obsoletes=False, dry_run=False):
+    """
+    Calcule les vecteurs manquants, PAR LOT. Rend un résumé `{...}`.
+
+    C'est le complément OBLIGATOIRE de `remember(embed=False)` : sans lui, une écriture sans
+    vecteur resterait introuvable en sémantique pour toujours. Les deux vont ensemble — écrire
+    d'abord (jamais bloquant, jamais sur le GPU), vectoriser ensuite (par lot, quand la machine
+    est libre).
+
+    ⚠ SEUL ENDROIT où la mémoire sollicite le GPU en volume. À déclencher explicitement (commande
+    ou tâche), jamais dans le chemin d'une requête utilisateur : la règle d'exploitation de ce
+    poste interdit les chargements Ollama enchaînés hors action explicite.
+
+    `modeles_obsoletes=True` reprend AUSSI les lignes vectorisées par un autre modèle — c'est ce
+    qui rend une bascule d'embedder possible sans corrompre la colonne : les deux espaces
+    vectoriels ne cohabitent que le temps du réindex, et on sait lesquels restent à refaire.
+    """
+    from ..models import MemoryItem, RagChunk
+    from .embed import EMBEDDING_MODEL, embed_batch, embedder_disponible
+
+    resume = {'embedder_disponible': embedder_disponible(), 'traites': 0, 'echecs': 0,
+              'restants': 0, 'dry_run': dry_run}
+    if not resume['embedder_disponible']:
+        # On ne tente rien : sans le modèle, chaque lot partirait en timeout puis en `[]`, et on
+        # aurait dépensé une série d'appels réseau pour rien.
+        logger.warning("[memory] reindex : embedder indisponible (modèle tiré ? Ollama démarré ?)")
+        return resume
+
+    from django.db.models import Q
+    manquant = Q(embedding__isnull=True)
+    if modeles_obsoletes:
+        manquant |= ~Q(embedding_model=EMBEDDING_MODEL)
+
+    for modele in (MemoryItem, RagChunk):
+        qs = modele.objects.filter(manquant).order_by('pk')
+        resume['restants'] += qs.count()
+        if dry_run:
+            continue
+        traites_ici = 0
+        while True:
+            if limite is not None and resume['traites'] >= limite:
+                break
+            paquet = list(qs[:lot])
+            if not paquet:
+                break
+            vecteurs = embed_batch([o.content for o in paquet])
+            if not vecteurs:
+                # Lot perdu : on ARRÊTE au lieu de boucler. Les lignes restent sans vecteur (elles
+                # seront reprises au prochain passage) — insister ferait tourner à vide.
+                resume['echecs'] += len(paquet)
+                logger.warning('[memory] reindex : lot de %s échoué, arrêt', len(paquet))
+                break
+            for obj, vec in zip(paquet, vecteurs):
+                obj.embedding = vec
+                obj.embedding_model = EMBEDDING_MODEL
+            modele.objects.bulk_update(paquet, ['embedding', 'embedding_model'])
+            traites_ici += len(paquet)
+            resume['traites'] += len(paquet)
+        if traites_ici:
+            logger.info('[memory] reindex : %s %s vectorisés', traites_ici, modele.__name__)
+    if not dry_run:
+        resume['restants'] = max(0, resume['restants'] - resume['traites'])
+    return resume
 
 
 # ───────────────────────────────────────────────────────────── forget ────────

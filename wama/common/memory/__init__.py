@@ -13,6 +13,10 @@ mais rien dans WAMA ne l'invoque : le Hook B de `prompt_pipeline` (jalon 6) rest
 Ne pas la brancher sans avoir soldé les jalons 4-5 (projections + indexation).
 """
 
-from .store import expire, forget, merge, recall, remember
+from .store import expire, forget, merge, recall, reindex, remember
 
-__all__ = ['remember', 'recall', 'forget', 'merge', 'expire']
+#: `reindex` n'est pas une 6e opération du contrat memorywire : c'est l'ENTRETIEN du substrat
+#: (calculer les vecteurs manquants par lot). Il est exporté parce qu'il est le complément
+#: obligatoire de `remember(embed=False)` — sans lui, une écriture sans vecteur resterait
+#: introuvable en sémantique.
+__all__ = ['remember', 'recall', 'forget', 'merge', 'expire', 'reindex']

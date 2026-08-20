@@ -107,12 +107,42 @@ le format jusqu'en v0.5. Adopter la forme rend un adaptateur externe possible pl
 réécrire ; adopter le paquet nous accrocherait à un format instable.
 
 ```python
-remember(content, *, kind, user, scope, provenance, ...)  -> MemoryItem
-recall(query, *, user, kinds=None, scope=None, k=8, include_rag=True) -> list[Hit]
+remember(content, *, kind, user, scope, provenance, embed=True, ...) -> MemoryItem
+recall(query, *, user, kinds=None, k=8, include_rag=True, semantic=True) -> list[Hit]
 forget(item, *, reason, hard=False)   # DÉFAUT = invalidation (valid_to). hard=True réservé au RGPD.
 merge(items)                          # PROPOSE une fusion. N'applique JAMAIS.
 expire()                              # applique les TTL déclarés. N'atteint jamais un item approuvé.
+
+reindex(*, lot=64, modeles_obsoletes=False)   # ENTRETIEN, pas une 6e opération du contrat
 ```
+
+### 5bis. Écrire n'est PAS vectoriser — discipline GPU (incident 2026-08-20)
+
+**Ce qui s'est passé.** Le smoke du jalon 3 a lancé une quinzaine d'appels d'embedding sur l'Ollama
+de l'hôte, parce que `remember()` vectorisait **obligatoirement** à l'écriture. L'hôte Windows a
+crashé pendant la séance. La causalité n'est pas établie — la piste retenue reste une instabilité
+sous l'OS, et la datation se fait sur hwlog, pas sur l'event 6008 — mais ces appels tombaient dans
+la catégorie que la règle d'exploitation interdit (chargements Ollama enchaînés hors action
+explicite de l'utilisateur). Un smoke ne doit jamais charger un modèle sur la machine de quelqu'un.
+
+**La correction n'est pas une précaution, c'est une meilleure conception.** Écrire et vectoriser
+sont deux gestes distincts : le premier ne doit jamais échouer ni attendre, le second peut se faire
+plus tard et **par lot**. Trois points, portés par le code et non par la vigilance :
+
+1. **`remember(..., embed=False)`** écrit sans toucher au GPU (`embedding=NULL`). Obligatoire pour
+   la projection en masse (jalon 4 : un appel Ollama par `RunOutcome` serait absurde là où un lot
+   en fait un seul), pour les tests, et quand le GPU est occupé.
+2. **`recall(..., semantic=False)`** rappelle en lexical seul, sans embarquer la requête.
+3. **`reindex()`** est le complément OBLIGATOIRE du point 1 : sans lui, une écriture sans vecteur
+   resterait introuvable en sémantique pour toujours. C'est **le seul endroit** où la mémoire
+   sollicite le GPU en volume — à déclencher explicitement, jamais dans une requête utilisateur.
+   `modeles_obsoletes=True` reprend aussi les lignes vectorisées par un autre modèle : c'est ce
+   qui rend une bascule d'embedder possible sans corrompre la colonne.
+
+S'y ajoute **`keep_alive='0'`** sur chaque appel d'embedding (`embed.py`) — le modèle est déchargé
+aussitôt au lieu de résider 5 minutes (défaut Ollama). Sans ça, une série d'écritures laisse
+`bge-m3` squatter la VRAM entre deux appels, en concurrence avec un traitement utilisateur. C'est
+le motif que `llm_utils.ollama_chat` documentait déjà ; il n'avait pas été repris.
 
 **`recall()` est hybride, fusionné par RRF** (Reciprocal Rank Fusion) : recherche vectorielle
 pgvector (cosinus) + recherche lexicale Postgres full-text FR. Pas de max ni de somme pondérée —
