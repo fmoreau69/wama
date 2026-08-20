@@ -33,4 +33,27 @@ done < <(find wama wama_lab -name "*.js" \
             -not -path "*/vendors/*" -not -name "*.min.js" | sort)
 
 echo "=== $n fichiers contrôlés, $ko en erreur ==="
-[ "$ko" -eq 0 ]
+
+# ── Parité source ↔ staticfiles ────────────────────────────────────────────────────────
+# Pourquoi ici : `CLAUDE.md` impose de recopier tout JS/CSS modifié de `wama/<app>/static/`
+# vers `staticfiles/<app>/`, et c'est CETTE copie que le serveur sert. Le contrôle syntaxique
+# ci-dessus ne balaie que les sources : une copie oubliée laisse donc le script au vert
+# pendant que la page tourne avec l'ANCIEN code — exactement le mode de défaillance
+# silencieux que ce script existe pour empêcher. Ajouté le 2026-08-20 (0 divergence à la pose,
+# 53 paires).
+div=0
+paires=0
+while IFS= read -r src; do
+    rel="${src#*/static/}"
+    dst="staticfiles/$rel"
+    [ -f "$dst" ] || continue
+    paires=$((paires + 1))
+    if ! cmp -s "$src" "$dst"; then
+        echo "DIVERGE  $rel   (recopier vers staticfiles/)"
+        div=$((div + 1))
+    fi
+done < <(find wama -path "*/static/*" -name "*.js" \
+            -not -path "*/vendors/*" -not -name "*.min.js" | sort)
+
+echo "=== $paires paires source↔staticfiles, $div divergente(s) ==="
+[ "$ko" -eq 0 ] && [ "$div" -eq 0 ]
