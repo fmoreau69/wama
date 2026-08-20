@@ -271,9 +271,15 @@ def apps_catalog_view(request):
     if measured_at:
         measured_at = measured_at.replace('T', ' ')[:16]
 
+    # Facette « catégorie » SANS options : en mode client la brique les dérive du DOM, et les
+    # libellés y sont déjà lisibles (« Comprendre », « Créer »…). Rien à déclarer, donc rien qui
+    # puisse diverger des catégories réellement présentes.
+    facettes = [{'cle': 'categorie', 'label': 'Catégorie', 'tous': 'Toutes les catégories'}]
+
     return render(request, 'common/apps.html',
                   {'apps_list': apps_list, 'apps_grouped': apps_grouped,
-                   'conformity_measured_at': measured_at})
+                   'conformity_measured_at': measured_at,
+                   'facettes_apps': facettes})
 
 
 def licenses_catalog_view(request):

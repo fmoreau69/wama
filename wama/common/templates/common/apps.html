@@ -97,9 +97,18 @@
     <h1><i class="fas fa-cubes me-2 text-primary"></i>Catalogue des applications WAMA</h1>
     <p class="subtitle">Vue d'ensemble de toutes les applications — extensions, capacités et état de conformité aux conventions UI.</p>
 
+    {% comment %}Barre de filtrage COMMUNE, mode client (les 16 cards sont toutes dans le DOM).
+    Cette page n'en avait AUCUNE : c'est un ajout net, rien à préserver. Les options de la
+    facette « catégorie » se DÉRIVENT du DOM — les catégories sont déjà lisibles telles quelles
+    (« Comprendre », « Créer »…), donc rien à déclarer.{% endcomment %}
+    {% include 'common/_filter_bar.html' with facettes=facettes_apps cible='.app-item' mode='client' placeholder='Rechercher une application…' %}
+
     <!-- ── Cards GROUPÉES par catégorie (APP_CATEGORIES : nature de l'opération — 2026-07-05).
          Le domaine média est un attribut de l'app (badges d'extensions), pas un groupe. -->
+    {% comment %}`data-f-groupe` EMBRASSE l'en-tête et les cards : la brique masque la section
+    entière quand le filtre n'y laisse plus rien, sinon on lirait « Créer » au-dessus du vide.{% endcomment %}
     {% for group in apps_grouped %}
+    <div data-f-groupe="{{ group.meta.label }}">
     <div class="d-flex align-items-baseline gap-2 mt-4 mb-2">
         <h2 class="h5 mb-0 text-light">{{ group.meta.icon }} {{ group.meta.label }}</h2>
         <small class="text-muted">{{ group.meta.tagline }}</small>
@@ -107,7 +116,12 @@
     <div class="row g-3 mb-4">
         {% for item in group.apps %}
         {% with spec=item.spec conf=item.conformity %}
-        <div class="col-12 col-md-6 col-xl-4 app-item" data-id="{{ item.name }}">
+        {% comment %}Contrat de la barre commune : `data-f-<facette>` + `data-f-text`. Le texte
+        cherchable est CONSTRUIT ici plutôt que laissé au texte rendu — la card affiche aussi des
+        extensions et des badges de conformité, qui feraient remonter n'importe quoi.{% endcomment %}
+        <div class="col-12 col-md-6 col-xl-4 app-item" data-id="{{ item.name }}"
+             data-f-categorie="{{ group.meta.label }}"
+             data-f-text="{{ item.name|lower }} {{ spec.label|lower }} {{ spec.description|lower }}">
             <div class="app-card">
 
                 <div class="app-card-header">
@@ -206,13 +220,16 @@
         {% endwith %}
         {% endfor %}
         {% for link in group.links %}
-        <div class="col-12 col-md-6 col-xl-4 app-item">
+        <div class="col-12 col-md-6 col-xl-4 app-item"
+             data-f-categorie="{{ group.meta.label }}"
+             data-f-text="{{ link.label|lower }}">
             <a href="{{ link.url }}" class="app-card d-flex align-items-center gap-3 text-decoration-none">
                 <div class="app-icon" style="background:#6c757d22;color:#9aa5b4;"><i class="fas {{ link.icon }}"></i></div>
                 <h3 class="mb-0">{{ link.label }}</h3>
             </a>
         </div>
         {% endfor %}
+    </div>
     </div>
     {% endfor %}
 

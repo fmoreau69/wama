@@ -91,6 +91,17 @@
                 el.style.display = ok ? '' : 'none';
                 if (ok) { visibles++; }
             });
+            // GROUPES — un en-tête de section n'a pas de sens si sa section est vide. Sans ça,
+            // filtrer une page groupée (catalogue d'apps par catégorie, frise par mois) laisse
+            // des titres qui n'annoncent plus rien : l'utilisateur lit « Créer » au-dessus du
+            // vide. Le groupe se déclare par `data-f-groupe` sur le conteneur qui EMBRASSE
+            // l'en-tête ET les éléments.
+            $$('[data-f-groupe]').forEach(function (g) {
+                var dedans = selCible ? $$(selCible, g) : [];
+                var visiblesIci = dedans.filter(function (e) { return e.style.display !== 'none'; });
+                g.style.display = (dedans.length && !visiblesIci.length) ? 'none' : '';
+            });
+
             if (compteur) {
                 compteur.textContent = visibles === elements.length
                     ? elements.length + ' élément' + (elements.length > 1 ? 's' : '')

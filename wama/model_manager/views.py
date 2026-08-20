@@ -1742,5 +1742,13 @@ def library_catalog(request):
         'allowed': sum(1 for r in rows if r['lib'].is_allowed),
         'drift': sum(1 for r in rows if r['drift']),
     }
+    # Facettes SANS options : en mode client la brique les dérive du DOM, et les valeurs y sont
+    # déjà les libellés affichés (« installée »/« absente »…). Rien à déclarer, donc rien qui
+    # puisse lister un état absent de la page.
+    facettes = [
+        {'cle': 'installee', 'label': 'Installation', 'tous': 'Toutes'},
+        {'cle': 'allowlist', 'label': 'Allowlist', 'tous': 'Toutes'},
+    ]
+
     return render(request, 'model_manager/library_catalog.html',
-                  {'rows': rows, 'stats': stats})
+                  {'rows': rows, 'stats': stats, 'facettes_librairies': facettes})

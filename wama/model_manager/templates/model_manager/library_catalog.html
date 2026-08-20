@@ -47,10 +47,21 @@
     <div class="lc-stat"><b>{{ stats.drift }}</b> en dérive de version</div>
   </div>
 
+  {% comment %}Barre de filtrage COMMUNE, mode client. Cette page n'en avait AUCUNE : ajout net.
+  Les facettes se DÉRIVENT du DOM — rien à déclarer, et aucune option ne peut lister un état
+  absent de la page.{% endcomment %}
+  {% include 'common/_filter_bar.html' with facettes=facettes_librairies cible='.lc-card' mode='client' placeholder='Rechercher une librairie…' %}
+
   {% if rows %}
   <div class="lc-grid">
     {% for r in rows %}
-    <div class="lc-card">
+    {% comment %}Contrat de la barre : `data-f-<facette>` + `data-f-text`. L'état d'installation
+    et l'allowlist sont les deux questions qu'on se pose sur cette page — ce sont donc les
+    facettes.{% endcomment %}
+    <div class="lc-card"
+         data-f-installee="{% if r.live_version %}installée{% else %}absente{% endif %}"
+         data-f-allowlist="{% if r.lib.is_allowed %}autorisée{% else %}non autorisée{% endif %}"
+         data-f-text="{{ r.lib.key|lower }} {{ r.lib.summary|lower }} {{ r.lib.license|lower }}">
       <h3>
         {{ r.lib.key }}
         {% if r.live_version %}<span class="lc-badge lc-ok">installée {{ r.live_version }}</span>
