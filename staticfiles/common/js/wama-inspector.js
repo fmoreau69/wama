@@ -809,12 +809,29 @@
   }
   // Auto : au chargement + sur toute mutation de la page (refreshCard remplace des nœuds,
   // les batchs se déplient…). Observer léger : ne re-scanne que si des nœuds sont AJOUTÉS.
+  //
+  // ⚠ Le déclencheur regarde si les nœuds AJOUTÉS portent (ou contiennent) un hôte de preview,
+  // au lieu de re-scanner tout le document à chaque lot. Sans ce filtre, ce fichier ne pouvait
+  // pas être chargé globalement : sur une page à fort brassage DOM et SANS card (filemanager et
+  // son arbre jstree, polling des stats), chaque ajout de nœud déclenchait un
+  // `querySelectorAll` sur tout le document, pour rien. Le comportement est inchangé là où il
+  // y a des cards — on ne fait que cesser de payer là où il n'y en a pas. (2026-08-20, préalable
+  // au chargement global demandé par Fabien.)
+  var HOTE_PREVIEW = '[data-card-preview]';
+  function _contientHote(n) {
+    if (!n || n.nodeType !== 1) return false;
+    return (n.matches && n.matches(HOTE_PREVIEW)) ||
+           (n.querySelector && !!n.querySelector(HOTE_PREVIEW));
+  }
   document.addEventListener('DOMContentLoaded', function () {
     hydrateCardPreviews(document);
     try {
       new MutationObserver(function (muts) {
         for (var i = 0; i < muts.length; i++) {
-          if (muts[i].addedNodes && muts[i].addedNodes.length) { hydrateCardPreviews(document); return; }
+          var ajouts = muts[i].addedNodes;
+          for (var j = 0; ajouts && j < ajouts.length; j++) {
+            if (_contientHote(ajouts[j])) { hydrateCardPreviews(document); return; }
+          }
         }
       }).observe(document.body, { childList: true, subtree: true });
     } catch (e) { /* très vieux navigateur : hydratation au chargement seulement */ }

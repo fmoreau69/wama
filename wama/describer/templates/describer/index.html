@@ -260,7 +260,7 @@ item (_settingsBatchId + titre échangé). Corps GÉNÉRÉ du MÊME schéma (con
 {# wama-inspector.css + wama-params.css chargés globalement (base.html) — plus de link local ici #}
 <script src="{% static_v 'common/js/wama-eta.js' %}"></script>
 <script src="{% static_v 'common/js/batch-import.js' %}"></script>
-<script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
+{# wama-inspector.js + wama-inspector-autofill.js : GLOBAUX (base.html) — ne PAS les ré-inclure ici (double inclusion, cf. REMOVAL_LEDGER R7). #}
 <script src="{% static_v 'common/js/wama-params.js' %}"></script>
 {% comment %}⚠ wama-app-base.js est chargé GLOBALEMENT par base.html:285 — ne JAMAIS le
 ré-inclure : double BroadcastChannel → l'exclusivité audio fait taire son propre onglet

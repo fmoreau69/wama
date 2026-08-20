@@ -348,8 +348,7 @@
 
 {% block javascript %}
 {{ block.super }}
-<script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
-<script src="{% static_v 'common/js/wama-inspector-autofill.js' %}"></script>
+{# wama-inspector.js + wama-inspector-autofill.js : GLOBAUX (base.html) — ne PAS les ré-inclure ici (double inclusion, cf. REMOVAL_LEDGER R7). #}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const dataEl = document.getElementById('apps-data');

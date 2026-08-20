@@ -14,9 +14,8 @@ inscription (`journal.enregistrer_source`), pas une modification de cette page.
 {% block title %}WAMA — Mon journal{% endblock %}
 
 {% block extra_css %}
-{% comment %}L'inspecteur n'est PAS chargé globalement : `base.html` fournit son CSS et ses
-hôtes DOM (#inspectorInfo, #info-section), mais les scripts sont montés page par page. Même
-précédent que `common/apps.html`, l'autre page transversale du menu utilisateur.{% endcomment %}
+{% comment %}Les SCRIPTS de l'inspecteur sont GLOBAUX depuis le 2026-08-20 (base.html) — ne pas
+les ré-inclure ici. Seule cette feuille de style reste locale : elle n'est pas dans base.html.{% endcomment %}
 <link rel="stylesheet" href="{% static_v 'common/css/wama-inspector-autofill.css' %}">
 <style>
     .journal-page { padding: 2rem 0; }
@@ -147,8 +146,7 @@ précédent que `common/apps.html`, l'autre page transversale du menu utilisateu
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
-<script src="{% static_v 'common/js/wama-inspector-autofill.js' %}"></script>
+{# wama-inspector.js + wama-inspector-autofill.js : GLOBAUX (base.html) — ne PAS les ré-inclure ici (double inclusion, cf. REMOVAL_LEDGER R7). #}
 <script>
 // ── Inspecteur : le journal se comporte comme une file d'app ──────────────────────────
 // CLIC sur une card → volet droit peuplé ; aucune sélection → le volet reste dans son état par

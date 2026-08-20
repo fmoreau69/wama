@@ -295,6 +295,13 @@
     <script src="{% static_v 'common/js/wama-queue.js' %}"></script>
     <!-- Card v3 — mesure le contenu de la file et pose les largeurs de pistes (no-op sans .wcv3) -->
     <script src="{% static_v 'common/js/wama-card-v3.js' %}"></script>
+    {# WamaInspector + WamaDetails GLOBAUX (2026-08-20) : 13 gabarits les tiraient localement, alors
+       que base.html fournit déjà leur CSS et leurs hôtes DOM (#inspectorInfo, #info-section) et que
+       toute page transversale en a besoin (catalogue, journal). Mêmes raisons que media-picker.js
+       (REMOVAL_LEDGER R7). ⚠ NE PAS les ré-inclure par app : la double inclusion est le bug déjà
+       vécu deux fois ici (media-picker, wama-app-base du 18/08). #}
+    <script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
+    <script src="{% static_v 'common/js/wama-inspector-autofill.js' %}"></script>
     <!-- System stats monitor -->
     <script src="{% static_v 'common/js/system-stats.js' %}"></script>
     <!-- Queue actions (duplication générique) -->

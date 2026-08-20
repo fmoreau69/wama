@@ -99,7 +99,7 @@
 </script>
 <script src="{% static_v 'common/js/batch-import.js' %}"></script>
 <script src="{% static_v 'common/js/wama-eta.js' %}"></script>
-<script src="{% static_v 'common/js/wama-inspector.js' %}"></script>
+{# wama-inspector.js + wama-inspector-autofill.js : GLOBAUX (base.html) — ne PAS les ré-inclure ici (double inclusion, cf. REMOVAL_LEDGER R7). #}
 <script src="{% static_v 'common/js/wama-model-help.js' %}"></script>
 <script src="{% static_v 'common/js/wama-model-caps.js' %}"></script>  {# UI depuis les capacités-modèle (diarisation par moteur) #}
 <script src="{% static_v 'common/js/wama-input-match.js' %}"></script>  {# appariement card d'entrée ↔ modèles (INPUT_MODEL_MATCHING.md) #}
