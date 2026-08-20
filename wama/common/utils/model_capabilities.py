@@ -53,6 +53,14 @@ CANONICAL_CAPABILITIES: Dict[str, str] = {
     # Capacités booléennes (préfixe supports_ — ALIGNÉ sur les flags backend)
     "supports_diarization": "bool — diarisation locuteur native (⇐ ex-`native_diarization`)",
     "supports_timestamps":  "bool — horodatage mot/segment",
+    #: Une capacité peut être RESTREINTE À CERTAINES LANGUES — le booléen seul ment alors.
+    #: Cas mesuré (2026-08-20) : Kokoro calcule les timestamps mot pendant la synthèse
+    #: (`join_timestamps`, dérivés de `pred_dur`, donc exacts par construction) mais SEULEMENT
+    #: pour l'anglais — `pipeline.py:374` teste `lang_code in 'ab'` et la branche non-anglaise
+    #: yield un Result SANS `tokens`. Mettre `supports_timestamps=False` perdrait la capacité
+    #: anglaise ; le mettre à True mentirait en français. D'où cette borne.
+    #: ABSENTE = la capacité vaut pour toutes les langues du modèle (cas général).
+    "timestamp_languages":  "list[str] — langues où `supports_timestamps` s'applique ; absent = toutes",
     "supports_hotwords":    "bool — biais lexical / hotwords",
     "supports_streaming":   "bool — inférence en flux (temps réel)",
     "supports_cloning":     "bool — clonage de voix (TTS)",
@@ -99,6 +107,25 @@ def languages_count(caps: Dict[str, Any]) -> int:
 def supports(caps: Dict[str, Any], flag: str) -> bool:
     """Lecture booléenne tolérante d'un `supports_*` (ex. supports('supports_cloning'))."""
     return bool((caps or {}).get(flag))
+
+
+def supports_timestamps_for(caps: Dict[str, Any], lang: str) -> bool:
+    """
+    Horodatage mot disponible POUR CETTE LANGUE.
+
+    `supports_timestamps` seul ne suffit pas quand la capacité est bornée par
+    `timestamp_languages` (cf. le vocabulaire ci-dessus, cas Kokoro). Les consommateurs
+    passent par ici plutôt que de relire les deux clés — sinon la borne se perd au
+    premier appelant qui l'ignore.
+
+    Borne absente → la capacité vaut pour toutes les langues (cas général).
+    """
+    if not supports(caps, "supports_timestamps"):
+        return False
+    bornes = (caps or {}).get("timestamp_languages")
+    if not isinstance(bornes, (list, tuple)) or not bornes:
+        return True
+    return ANY_LANGUAGE in bornes or (lang or "") in bornes
 
 
 # ── NORMALISATION des dicts LEGACY vers le vocabulaire canonique ──────────────
