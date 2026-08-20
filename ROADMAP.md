@@ -92,8 +92,8 @@
     (CC BY-NC-SA — NC acceptable labo).
   - **(b) assistant TEMPS RÉEL** : ① **TalkingHead met4citizen** (MIT, three.js CÔTÉ NAVIGATEUR =
     zéro VRAM serveur, lip-sync à visèmes AVEC module FRANÇAIS, API streaming branchable sur le TTS
-    WAMA — la voie « Praktika » sans conflit GPU/Celery ; avatars GLB Ready Player Me = service
-    tiers, sinon GLB via Blender/VRoid) ; ② **LiveTalking** (Apache-2.0, réutilise MuseTalk,
+    WAMA — la voie « Praktika » sans conflit GPU/Celery ; GLB via **MPFB (CC0/CC-BY)** ou
+    **RocketBox (MIT)** — ⛔ **PAS Ready Player Me, fermé le 31/01/2026**, cf. rapport) ; ② **LiveTalking** (Apache-2.0, réutilise MuseTalk,
     72 FPS annoncés/4090, WebRTC + interruption ; coût = GPU mobilisé par session → arbitrage
     resource_governor) ; ③ **OpenAvatarChat** (Alibaba, Apache-2.0, LLM OpenAI-compatible → Ollama
     local ; à piller en composants — LAM 3D rendu client — plutôt qu'adopter en bloc).
@@ -110,7 +110,8 @@
     serveur, visèmes FR, streaming branchable sur le TTS WAMA) — **sans exclure les autres
     candidats** (LiveTalking photoréaliste, composants OpenAvatarChat/LAM) qui restent au banc.
     Pilote à ouvrir : vendoriser three.js + TalkingHead (règle assets LOCAUX, pas de CDN), avatar
-    GLB « scientist » (Ready Player Me = service tiers, sinon Blender/VRoid), pont TTS→audio+texte
+    avatar de TEST du repo pour juger (le GLB « scientist » est un chantier SÉPARÉ — MPFB ou
+    RocketBox ; ⛔ Ready Player Me FERMÉ le 31/01/2026, vérifié 20/08), pont TTS→audio+texte
     (speakAudio, alignement approché acceptable au pilote), toggle de mode dans l'UI assistant —
     ≈ une session dédiée. Cas (a) : gate de test EchoMimicV3 (rituel GNM : venv isolé, pin,
     mesures VRAM/latence/qualité) avant intégration avatarizer.

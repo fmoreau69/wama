@@ -46,9 +46,33 @@ des auteurs, non reproduits.
 v1.7, actif.
 - Avatar 3D corps entier **dans le navigateur** (three.js/WebGL) : **zéro VRAM serveur**, aucun
   conflit avec les files Celery/gouverneur.
-- Modèles **GLB Ready Player Me** (rig Mixamo + 52 blendshapes ARKit + 15 visèmes Oculus).
-  RPM = service tiers (conditions propres) ; alternative : GLB « scientist » via
-  MPFB/Blender/VRoid.
+- Rig EXIGÉ (vérifié au README le 2026-08-20) : squelette **Mixamo** + **52 blendshapes ARKit**
+  + **15 visèmes Oculus**. Sans les trois, la lib se charge mais la bouche ne bouge pas.
+- ⛔ **CORRECTION 2026-08-20 — Ready Player Me N'EXISTE PLUS.** Racheté par Netflix le 19/12/2025,
+  services arrêtés le **31/01/2026** (avatar creator, API, PlayerZero). Cette prospection du 17/08
+  le donnait pour disponible : l'agent web n'a pas vu une fermeture vieille de 7 mois — **erreur de
+  fait, corrigée après vérification**. Mesuré : `readyplayer.me`, `demo.`, `models.`, `api.` →
+  **HTTP 000 les quatre**, alors que `github.com` rend 200 par le même proxy (témoin). Le GitHub
+  `readyplayerme` SURVIT mais est mort : dernier push de TOUTE l'org le 24/10/2025, `rpm-unity-sdk-core`
+  ARCHIVÉ, `rpm-unreal-sdk` figé depuis le 21/07/2025. Un SDK qui charge depuis `models.readyplayer.me`
+  est un client sans serveur — et de toute façon Unreal ne nous concerne pas : ce qu'il nous fallait,
+  c'est l'avatar creator, qui produisait le GLB.
+- **Sources de GLB compatibles — annexe A du README TalkingHead** (fait autorité : elle garantit le
+  rig ci-dessus, ce qu'aucun comparatif marketing ne fait) :
+  | Source | Licence | Tiers ? | Note |
+  |---|---|---|---|
+  | **MPFB** (Blender/MakeHuman) | **CC0 / CC-BY** | non | guide `MPFB.md` dédié dans le repo |
+  | **Microsoft RocketBox** | **MIT** | non | ARKit+Oculus déjà présents, re-rigging Mixamo requis |
+  | VRoid Studio | gratuit | non | anime ; guide VRM→GLB |
+  | Avaturn | gratuit **non-commercial** | oui | « T2 fully TalkingHead-compatible » |
+  | Avatar SDK / MetaPerson | commercial | oui | scripts Blender fournis |
+  ⚠ Le README avertit que beaucoup d'assets sont **inutilisables dans une app web publique où le
+  fichier est téléchargeable** — c'est NOTRE cas (le GLB part au navigateur). Seuls **MPFB** et
+  **RocketBox** sont sans contrainte de redistribution.
+- **Le pilote ne tranche PAS le GLB** : l'avatar de test du repo (`brunette.glb`, CC BY-NC 4.0 — NC
+  acceptable au labo) suffit à répondre à « est-ce que ça convainc ? ». L'avatar « scientist » est un
+  chantier SÉPARÉ (MPFB ou RocketBox) ; le contrat de rig étant identique, remplacer le `.glb` ne
+  touche pas une ligne de code.
 - **Lip-sync à règles AVEC module FRANÇAIS** (en/de/fr/fi/lt) — rare et décisif.
 - **API streaming temps réel** (`streamStart`/`streamAudio`, AudioWorklet PCM 16 bits) : se
   branche sur tout TTS fournissant audio(+timestamps de mots) → le mode texte+TTS de
