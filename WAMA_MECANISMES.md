@@ -67,7 +67,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
-| **Contrat de backend** | Cycle de vie commun des porteurs de modèle — et ALIMENTATION du gouverneur : enveloppe load/unload/process à toute profondeur d'héritage | `wama/common/backends/base.py` | `WAMA_APP_GENERATION_ROUTE.md` | 30 |
+| **Contrat de backend** | Cycle de vie commun des porteurs de modèle — ALIMENTATION du gouverneur (enveloppe load/unload/process à toute profondeur d'héritage) et CAPACITÉS déclarées par le moteur (supports_*), lues par le catalogue | `wama/common/backends/base.py` | `WAMA_APP_GENERATION_ROUTE.md` | 30 |
 | **ETA auto-apprenante** | Estimation de durée par a-priori puis moyenne mobile, bucketisée par matériel | `wama/model_manager/services/eta_estimator.py` | `PROJECT_STATUS.md §10` | 20 |
 | **Gardes de process** | Anti-boucle-de-crash (redélivrance) et réconciliation des tâches orphelines | `wama/common/utils/process_control.py` | `PROJECT_STATUS.md §0` | 22 |
 | **Gouverneur de ressources** | Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités | `wama/common/services/resource_governor.py` | `PROJECT_STATUS.md §0` | 13 |
