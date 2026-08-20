@@ -5,8 +5,9 @@ Exposes WAMA tools via DRF.
 Adding a tool to tool_api.TOOL_REGISTRY automatically makes it available here.
 
 Endpoints:
-  GET  /api/v1/tools/      → list available tools
-  POST /api/v1/tools/run/  → execute a tool
+  GET  /api/v1/tools/           → list available tools
+  POST /api/v1/tools/run/       → execute a tool
+  POST /api/v1/assistant/chat/  → one assistant conversation turn (agentic loop)
 """
 
 from rest_framework.views import APIView
@@ -75,5 +76,54 @@ class RunToolView(APIView):
 
         if "error" in result:
             return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(result)
+
+
+class AssistantChatView(APIView):
+    """
+    POST /api/v1/assistant/chat/
+    Body: {"message": "...", "provider": "wama-dev-ai"?, "model": "fast"?, "history": [...]?}
+
+    UN tour de conversation avec l'assistant WAMA — le MÊME moteur que la surface web
+    (`assistant_engine.run_assistant_turn`, boucle agentique + outils tool_api), mais
+    derrière l'auth token : c'est la porte des canaux tiers (bot Matrix/Tchap, Discord —
+    chantier « passerelle de canaux », étape 0 du 2026-08-20).
+
+    Persistance de conversation DIFFÉRÉE (décision Fabien 2026-08-20, jonction avec la
+    brique mémoire/RAG en cours ailleurs) : `history` est fourni par le client à chaque
+    tour, comme le fait la page web (localStorage) — et assaini par le moteur (rôles
+    user/assistant seulement, pas d'injection de tour system par un client token).
+    """
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from wama.common.services.assistant_engine import run_assistant_turn
+
+        message = (request.data.get("message") or "").strip()
+        if not message:
+            return Response(
+                {"error": "Champ 'message' manquant."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        history = request.data.get("history") or []
+        if not isinstance(history, list):
+            return Response(
+                {"error": "Champ 'history' doit être une liste de tours {role, content}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        result = run_assistant_turn(
+            request.user,
+            message,
+            provider=request.data.get("provider", "wama-dev-ai"),
+            model=request.data.get("model", "fast"),
+            history=history,
+        )
+
+        if "error" in result:
+            return Response(result, status=result.pop("status", 500))
 
         return Response(result)

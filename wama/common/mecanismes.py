@@ -219,6 +219,11 @@ MECANISMES = (
     Mecanisme('llm', 'Accès LLM',
               "Route unique vers les LLM (tiers déclaratifs, sélection catalogue, Ollama local)",
               'wama/common/utils/llm_utils.py', ''),
+    Mecanisme('assistant_engine', "Moteur de l'assistant IA",
+              "Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — "
+              "la vue web et /api/v1/assistant/chat/ en sont des clients",
+              'wama/common/services/assistant_engine.py', '',
+              symbole='run_assistant_turn'),
     Mecanisme('source_ingest', 'Ingest de source',
               "Télécharge une source distante vers le FileField, déclaré par WAMA_INGEST",
               'wama/common/utils/source_ingest.py', 'WAMA_APP_GENERATION_ROUTE.md',

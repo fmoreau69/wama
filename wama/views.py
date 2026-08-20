@@ -36,35 +36,15 @@ def _admin_api(view_func):
 
 
 # ---------------------------------------------------------------------------
-# System prompts
+# Assistant IA — le moteur (prompts, résolution de modèle, boucle agentique)
+# est EXTRAIT vers wama/common/services/assistant_engine.py (2026-08-20) :
+# UN cerveau pour N surfaces — cette vue web, l'API v1 token
+# (/api/v1/assistant/chat/), et les adaptateurs de canaux à venir.
 # ---------------------------------------------------------------------------
-
-WAMA_SYSTEM_PROMPT = """You are a helpful assistant for WAMA (Web App for Media Automation), a Django-based web application for media processing including video anonymization, audio transcription, voice synthesis, image generation, and image/video enhancement. Answer questions concisely and helpfully in French."""
-
-WAMA_TOOLS_PROMPT = """
-You can interact with WAMA applications by calling tools.
-When you need to perform an action, output ONLY the JSON tool call on a single line, with NO surrounding text:
-{"tool": "<name>", "args": {<arguments>}}
-
-{TOOLS}
-
-Rules:
-- Make ONE tool call per turn. Wait for the result before calling another tool.
-- When the user asks you to perform an action (add a file, launch processing, etc.), use the tools.
-- When the user asks a question or wants information, answer directly without tools.
-- Always confirm what you did after tool calls.
-- Respond in French.
-- COMPLETION NOTIFICATION: After starting a task (start_anonymizer, start_imager, start_enhancer, start_audio_enhancer, start_synthesizer, start_describer, start_transcriber), automatically call the corresponding get_*_status tool. If the task is already SUCCESS/done, immediately report the result with the file URL/preview link. If still RUNNING/PENDING, tell the user "La tâche a démarré — vous serez notifié dès la fin." and explain they can ask "quel est le statut ?" to check progress.
-- OUTPUT LINKS: When a get_*_status result shows status="SUCCESS" or status="done" and contains output_url / audio_url / output_urls / video_url, ALWAYS include these links in your response using Markdown format: [📥 Télécharger](URL) or [🖼️ Voir l'image](URL).
-
-File search strategy:
-- When the user asks to anonymize a file: check "anon_input" first, then "temp".
-- When the user asks to transcribe a file: check "transcriber_input" first, then "temp".
-- When the user asks to describe a file: check "describer_input" first, then "temp".
-- For any other request, search "temp" first.
-- When the user references an asset from the médiathèque (e.g. "ma voix X", "l'image Y"), use list_media_assets to find it.
-- If the file is not found in any folder, tell the user to upload it via the WAMA File Manager at /filemanager/ or the corresponding application page.
-"""
+from wama.common.services.assistant_engine import (  # noqa: E402
+    resolve_chat_model,
+    run_assistant_turn,
+)
 
 
 #: Intitulés des rôles de la surface chat (le RÔLE est la valeur stable ; le nom du
@@ -84,14 +64,14 @@ def _chat_model_options():
 
     Remplace les libellés codés en dur du gabarit (2026-08-18) : « Qwen3.5 35B-A3B (Dev) »
     affichait un modèle REMPLACÉ depuis le 2026-08-12 (qwen3.6:35b) alors que la value
-    (le rôle) était, elle, correctement résolue par `_ollama_model_for` — l'UI mentait
+    (le rôle) était, elle, correctement résolue par `resolve_chat_model` — l'UI mentait
     sur ce que le backend faisait. Même leçon que `_limite_sure_chars` : un nom figé
     meurt au premier remplacement de modèle par la prospection.
     """
     options = []
     for role, libelle in _ROLE_LIBELLES:
         try:
-            nom = _ollama_model_for(role)
+            nom = resolve_chat_model(role)
         except Exception:
             nom = None
         options.append({'value': role, 'label': f"{nom or '?'} ({libelle})"})
@@ -125,402 +105,6 @@ def fiches(request):
     return render(request, 'includes/wama_fiches.html')
 
 
-# Rôles de la surface chat → TIER de résolution (llm_utils.modele_par_tier — LE point
-# unique existant, mécanique du describer depuis le 2026-08-04). Plus de table de tags :
-# elle mourait au premier remplacement de modèle (qwen3.5:35b-a3b → qwen3.6:35b, leçon du
-# 2026-08-12, cf. check_model_declarations). `priority` exprime une préférence nominale
-# (jamais un tag épinglé) ; prefer_loaded=False = intention de GABARIT explicite (le rôle
-# 'dev' veut le tier heavy, pas le petit modèle déjà en mémoire).
-_ROLE_TIER = {
-    'dev':        {'tier': 'heavy', 'prefer_loaded': False},
-    'coder':      {'tier': 'heavy', 'prefer_loaded': False},
-    'architect':  {'tier': 'heavy', 'prefer_loaded': False},
-    'debug':      {'tier': 'heavy', 'priority': ['coder'], 'prefer_loaded': False},
-    'fast':       {'tier': 'default'},
-    'ultra_fast': {'tier': 'fast'},
-}
-
-
-def _ollama_model_for(cle: str) -> str:
-    """Rôle de chat ('dev', 'fast'…) → tag Ollama résolu par le catalogue (source unique) ;
-    un tag complet ('gemma4:12b') passe tel quel."""
-    regle = _ROLE_TIER.get(cle)
-    if regle is None:
-        return cle
-    try:
-        from wama.common.utils.llm_utils import modele_par_tier
-        return modele_par_tier(**regle) or cle
-    except Exception:
-        logger.debug('[ai_chat] résolution du modèle par tier indisponible', exc_info=True)
-        return cle
-
-# Safe context limits per model (chars, not tokens — ~4 chars/token estimate)
-# Below these limits quality stays high; above them we upgrade to a larger model.
-#: Repli quand le catalogue ne connaît pas la fenêtre de contexte d'un modèle (~4 caractères
-#: par jeton, marge de sécurité prise sur 30K jetons).
-_SAFE_CHARS_DEFAUT = 120_000
-
-#: Fraction de la fenêtre annoncée qu'on s'autorise à remplir : l'estimation en caractères est
-#: grossière et le prompt système s'ajoute au fil de la conversation.
-_MARGE_CONTEXTE = 0.6
-
-
-def _limite_sure_chars(nom_modele: str) -> int:
-    """
-    Limite de contexte, en caractères, DÉRIVÉE du catalogue.
-
-    Remplace une table codée en dur (2026-08-04) qui listait quatre modèles nommés : elle
-    devenait fausse au premier remplacement — `qwen3.5:35b-a3b` y figurait encore alors que la
-    prospection venait de le remplacer par `qwen3.6:35b`. La fenêtre réelle est désormais lue
-    dans `capabilities['context_length']`, renseignée depuis `/api/show`.
-    """
-    try:
-        from wama.model_manager.models import AIModel
-        m = AIModel.objects.filter(model_key=f"ollama:{nom_modele}", is_downloaded=True).first()
-        ctx = (m.capabilities or {}).get('context_length') if m else None
-        if ctx:
-            return int(ctx * 4 * _MARGE_CONTEXTE)
-    except Exception:
-        logger.debug("[ai_chat] fenêtre de contexte indisponible pour %s", nom_modele, exc_info=True)
-    return _SAFE_CHARS_DEFAUT
-
-
-def _build_wama_context(user) -> str:
-    """
-    Build a short WAMA status string to inject into the system prompt.
-    Tells the assistant about current queue state without revealing sensitive data.
-    """
-    try:
-        from django.apps import apps as django_apps
-        lines = []
-        checks = [
-            ('anonymizer',   'Media',            'status'),
-            ('transcriber',  'Transcript',       'status'),
-            ('describer',    'Description',      'status'),
-            ('enhancer',     'Enhancement',      'status'),
-            ('imager',       'Generation',       'status'),
-            ('synthesizer',  'VoiceSynthesis',   'status'),
-            ('composer',     'ComposerGeneration','status'),
-            ('reader',       'ReadingItem',      'status'),
-        ]
-        for app_label, model_name, _ in checks:
-            try:
-                model = django_apps.get_model(f'wama.{app_label}', model_name)
-                pending = model.objects.filter(user=user, status='PENDING').count()
-                running = model.objects.filter(user=user, status__in=['RUNNING', 'processing']).count()
-                failed  = model.objects.filter(user=user, status__in=['FAILURE', 'ERROR', 'error']).count()
-                if pending or running or failed:
-                    parts = []
-                    if pending: parts.append(f"{pending} en attente")
-                    if running: parts.append(f"{running} en cours")
-                    if failed:  parts.append(f"{failed} en erreur")
-                    lines.append(f"  - {app_label}: {', '.join(parts)}")
-            except Exception:
-                pass
-        if lines:
-            return "\n\nÉtat actuel des files WAMA (utilisateur connecté):\n" + "\n".join(lines)
-        return "\n\nToutes les files WAMA sont vides pour cet utilisateur."
-    except Exception:
-        return ""
-
-
-def _route_model_by_context(ollama_model: str, messages: list) -> str:
-    """
-    Upgrade the Ollama model if the conversation context is too long for it.
-    Uses a conservative char-based estimate (~4 chars per token).
-    """
-    total_chars = sum(len(m.get('content', '')) for m in messages)
-    if total_chars <= _limite_sure_chars(ollama_model):
-        return ollama_model
-
-    # Bascule vers le modèle le plus CAPABLE du catalogue — plus vers un nom figé.
-    # L'ancienne cible codée en dur était `qwen3.5:35b-a3b` : la prospection l'ayant remplacé
-    # par `qwen3.6:35b` le 2026-08-04, l'assistant basculait vers un modèle ABSENT dès que la
-    # conversation s'allongeait. Un nom en dur dans un chemin de repli est un piège : il ne
-    # casse que le jour où le repli sert.
-    try:
-        from wama.model_manager.services.model_selector import select_model
-        meilleur = select_model('ollama', model_type='llm', requires=['completion'],
-                                prefer_loaded=False)
-        cible = meilleur.model_key.split(':', 1)[1] if meilleur else ollama_model
-    except Exception:
-        logger.debug("[ai_chat] sélection du modèle de repli indisponible", exc_info=True)
-        cible = ollama_model
-
-    if cible != ollama_model:
-        logger.info("[ai_chat] contexte trop long (%d caractères) pour %s — bascule vers %s",
-                    total_chars, ollama_model, cible)
-    return cible
-
-
-def _ollama_call(messages: list, ollama_model: str) -> tuple:
-    """
-    Low-level Ollama POST.
-
-    Returns:
-        (text: str, usage: dict) on success
-        (None, error_dict) on failure
-    """
-    import httpx
-
-    ollama_host = getattr(settings, 'OLLAMA_HOST', 'http://127.0.0.1:11434').rstrip('/')
-    ollama_url = f"{ollama_host}/api/chat"
-
-    try:
-        with httpx.Client(timeout=180.0, trust_env=False) as client:
-            resp = client.post(
-                ollama_url,
-                json={
-                    "model": ollama_model,
-                    "messages": messages,
-                    "options": {"temperature": 0.7, "num_predict": 4096},
-                    "stream": False,
-                },
-            )
-        if resp.status_code != 200:
-            return None, {'error': f'Ollama error: {resp.text}', 'status': resp.status_code}
-
-        data = resp.json()
-        text = data.get("message", {}).get("content", "")
-        usage = {
-            'input_tokens': data.get("prompt_eval_count", 0),
-            'output_tokens': data.get("eval_count", 0),
-        }
-        return text, usage
-
-    except httpx.ConnectError:
-        host_cfg = getattr(settings, 'OLLAMA_HOST', 'http://127.0.0.1:11434')
-        return None, {
-            'error': (
-                f'Ollama inaccessible à {ollama_url}. '
-                f'Vérifiez que Ollama est démarré (ollama serve) et que OLLAMA_HOST '
-                f'pointe sur la bonne adresse (actuel : {host_cfg}).'
-            ),
-            'status': 503,
-        }
-    except httpx.TimeoutException:
-        return None, {'error': 'Ollama : délai dépassé. Le modèle est peut-être en cours de chargement.', 'status': 504}
-    except Exception as e:
-        logger.error(f"Ollama error: {e}")
-        return None, {'error': f'Ollama error: {e}', 'status': 500}
-
-
-def _strip_think_tags(text: str) -> str:
-    """Remove <think>...</think> reasoning blocks emitted by thinking models."""
-    return re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
-
-
-def _parse_tool_call(text: str) -> dict | None:
-    """
-    Detect a JSON tool call in the LLM response.
-
-    Expected format (on any line):
-        {"tool": "tool_name", "args": {...}}
-
-    Returns parsed dict or None.
-    """
-    # Strip reasoning tags first
-    clean = _strip_think_tags(text)
-    # Look for {"tool": ..., "args": ...} anywhere in the text
-    match = re.search(r'\{[^{}]*"tool"\s*:\s*"[^"]+"\s*,\s*"args"\s*:\s*\{[^{}]*\}\s*\}', clean)
-    if match:
-        try:
-            return json.loads(match.group())
-        except json.JSONDecodeError:
-            pass
-    return None
-
-
-def _chat_with_ollama(message: str, model: str = "fast", user=None, history: list = None) -> dict:
-    """
-    Agentic chat with local Ollama server.
-
-    Supports tool-calling: if the LLM response contains a JSON tool call,
-    the tool is executed and the result is fed back into the conversation
-    (up to MAX_TOOL_ITERATIONS times). The final LLM response is returned
-    along with the list of executed tool steps.
-
-    Args:
-        message: User message
-        model:   Rôle de chat (_ROLE_TIER) ou tag Ollama complet
-        user:    Django User instance (required for tool execution)
-        history: Prior conversation turns as list of {role, content} dicts
-
-    Returns:
-        dict with success, response, model, usage, tool_steps
-    """
-    from .tool_api import execute_tool, build_tools_list
-
-    ollama_model = _ollama_model_for(model)
-
-    # Inject current WAMA queue state into system prompt (when user is known)
-    wama_context = _build_wama_context(user) if user else ""
-    # Liste des outils GÉNÉRÉE depuis le registre tool_api (source unique → exhaustive,
-    # avatarizer/composer/converter inclus). Le préambule + règles restent rédigés à la main.
-    tools_prompt = WAMA_TOOLS_PROMPT.replace('{TOOLS}', build_tools_list()) if user else ""
-    system_prompt = WAMA_SYSTEM_PROMPT + wama_context + tools_prompt
-
-    # Build messages: system + prior history (capped) + current user message
-    prior = (history or [])[-20:]  # keep last 10 exchanges max
-    messages = [
-        {"role": "system", "content": system_prompt},
-        *prior,
-        {"role": "user",   "content": message},
-    ]
-
-    # Auto-upgrade model if context is too long for the selected model
-    ollama_model = _route_model_by_context(ollama_model, messages)
-
-    # Intention (KIND 'intent', §2bis.4 / §16.6) : si le LLM résolu ne gère pas la langue de
-    # l'utilisateur, traduire le message vers une langue qu'il gère. Modèles assistant
-    # multilingues (qwen…) → routing direct → AUCUN appel/chargement traducteur (résource-safe :
-    # pas de cascade). Ne fait quelque chose que si le modèle déclare explicitement ses langues.
-    try:
-        from wama.common.utils.app_metadata import process_prompt_for
-        routed = process_prompt_for('assistant', 'message', message, user=user,
-                                    model_id=ollama_model)
-        if routed and routed != message:
-            messages[-1]['content'] = routed
-    except Exception:
-        pass
-
-    tool_steps = []
-    total_usage = {'input_tokens': 0, 'output_tokens': 0}
-    MAX_TOOL_ITERATIONS = 5
-
-    for _ in range(MAX_TOOL_ITERATIONS):
-        text, result = _ollama_call(messages, ollama_model)
-        if text is None:
-            return result  # error dict
-
-        # Accumulate token usage
-        total_usage['input_tokens']  += result.get('input_tokens', 0)
-        total_usage['output_tokens'] += result.get('output_tokens', 0)
-
-        # Detect tool call in response
-        tool_call = _parse_tool_call(text) if user else None
-
-        if not tool_call:
-            # No tool call → this is the final answer
-            # Strip any remaining reasoning tags from the displayed response
-            clean_text = _strip_think_tags(text)
-            return {
-                'success': True,
-                'response': clean_text,
-                'model': f"wama-dev-ai ({ollama_model})",
-                'usage': total_usage,
-                'tool_steps': tool_steps,
-            }
-
-        # Execute the tool
-        tool_name = tool_call.get('tool', '')
-        tool_args  = tool_call.get('args', {})
-        logger.info(f"[ai_chat] tool_call: {tool_name}({tool_args})")
-
-        tool_result = execute_tool(tool_name, tool_args, user)
-        tool_steps.append({'tool': tool_name, 'args': tool_args, 'result': tool_result})
-
-        # Add assistant tool-call turn + tool result to conversation
-        messages.append({"role": "assistant", "content": text})
-        messages.append({
-            "role": "user",
-            "content": f"Résultat du tool {tool_name} : {json.dumps(tool_result, ensure_ascii=False)}",
-        })
-
-    # Reached iteration limit — return last LLM text as-is
-    logger.warning("[ai_chat] tool-calling iteration limit reached")
-    last_text = messages[-2].get("content", "") if len(messages) >= 2 else ""
-    return {
-        'success': True,
-        'response': _strip_think_tags(last_text),
-        'model': f"wama-dev-ai ({ollama_model})",
-        'usage': total_usage,
-        'tool_steps': tool_steps,
-    }
-
-
-def _chat_with_claude(message: str, history: list = None) -> dict:
-    """
-    Chat with Anthropic Claude API.
-
-    Args:
-        message: User message
-        history: Prior conversation turns as list of {role, content} dicts
-
-    Returns:
-        dict with success, response, model, and usage info
-    """
-    try:
-        import anthropic
-    except ImportError:
-        return {
-            'error': 'Anthropic library not installed. Run: pip install anthropic',
-            'status': 500
-        }
-
-    # Get API key from environment or settings
-    api_key = getattr(settings, 'ANTHROPIC_API_KEY', None)
-    if not api_key:
-        api_key = os.environ.get('ANTHROPIC_API_KEY')
-
-    if not api_key:
-        return {
-            'error': 'ANTHROPIC_API_KEY not configured. Set it in settings.py or environment variables.',
-            'status': 500
-        }
-
-    try:
-        # Create Anthropic client with proxy support
-        import httpx
-        proxy_url = os.environ.get('HTTPS_PROXY') or os.environ.get('HTTP_PROXY')
-
-        if proxy_url:
-            http_client = httpx.Client(proxy=proxy_url)
-            client = anthropic.Anthropic(api_key=api_key, http_client=http_client)
-        else:
-            client = anthropic.Anthropic(api_key=api_key)
-
-        prior = (history or [])[-20:]
-        response = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=4096,
-            messages=[*prior, {"role": "user", "content": message}],
-            system=WAMA_SYSTEM_PROMPT
-        )
-
-        # Extract response text
-        response_text = ""
-        for block in response.content:
-            if block.type == "text":
-                response_text += block.text
-
-        return {
-            'success': True,
-            'response': response_text,
-            'model': response.model,
-            'usage': {
-                'input_tokens': response.usage.input_tokens,
-                'output_tokens': response.usage.output_tokens
-            }
-        }
-
-    except anthropic.BadRequestError as e:
-        error_msg = str(e)
-        if 'credit balance' in error_msg.lower():
-            return {
-                'error': 'Anthropic API: Insufficient credits. Please add credits at console.anthropic.com/settings/billing',
-                'status': 402
-            }
-        return {'error': f'API Error: {error_msg}', 'status': 400}
-    except anthropic.AuthenticationError:
-        return {
-            'error': 'Invalid API key. Please check your ANTHROPIC_API_KEY.',
-            'status': 401
-        }
-    except Exception as e:
-        return {'error': str(e), 'status': 500}
-
-
 @require_http_methods(["POST"])
 @csrf_protect
 def ai_chat(request):
@@ -541,12 +125,10 @@ def ai_chat(request):
         if not message:
             return JsonResponse({'error': 'Message is required'}, status=400)
 
-        # Route to appropriate provider
-        if provider == 'claude':
-            result = _chat_with_claude(message, history=history)
-        else:
-            # Default: wama-dev-ai (Ollama) — pass user for tool-calling support
-            result = _chat_with_ollama(message, model, user=request.user, history=history)
+        # Moteur commun (assistant_engine) : cette vue n'est plus qu'une surface
+        # cliente parmi N — même boucle à outils pour local ET cloud.
+        result = run_assistant_turn(request.user, message, provider=provider,
+                                    model=model, history=history)
 
         # Check for errors
         if 'error' in result:
