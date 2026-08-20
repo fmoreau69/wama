@@ -826,16 +826,46 @@ class ModelRegistry:
             # Descriptions = source unique dans le model_config de l'app (R9) — plus de hardcode ici.
             from wama.synthesizer.utils.model_config import REGISTRY_MODEL_DESCRIPTIONS as _SYNTH_DESC
 
-            def _tts_caps(**caps):
+            # Les FLAGS de capacité viennent du MOTEUR (lot 4, 2026-08-20) : c'est lui qui sait
+            # ce qu'il sait faire. Ils étaient écrits ici À SA PLACE, en dur, alors qu'aucun
+            # backend TTS ne pouvait les déclarer (le contrat commun ne portait pas de
+            # `supports_*` avant le lot 1). Import TOLÉRANT + trace explicite : sans les
+            # classes on ne peut PAS deviner les capacités, et une absence silencieuse de
+            # `supports_cloning` ferait disparaître les voix clonées de l'UI (voice_options
+            # filtre dessus) — panne invisible, donc on la rend bruyante.
+            # Coût nul : ces 4 modules n'importent rien de lourd (torch/TTS sont paresseux).
+            try:
+                from wama.synthesizer.backends import (
+                    BarkBackend, CoquiBackend, HiggsAudioBackend, KokoroBackend,
+                )
+                _TTS_BACKENDS = {'coqui-xtts': CoquiBackend, 'bark': BarkBackend,
+                                 'higgs-audio': HiggsAudioBackend, 'kokoro': KokoroBackend}
+            except Exception as _e:
+                _TTS_BACKENDS = {}
+                logger.error("[ModelRegistry] backends TTS illisibles (%s) — capacités de "
+                             "clonage/horodatage ABSENTES du catalogue ce cycle", _e)
+
+            def _tts_caps(engine_key=None, **caps):
                 """Complète les capacités d'un moteur TTS avec le tronc CANONIQUE.
 
                 `supports_cloning` était déjà déclaré par les 4 moteurs, mais dans un
                 vocabulaire propre à l'app : rien ne le reliait à l'appariement
                 entrée↔modèle. C'est exactement `inputs_optional: ['reference_voice']`
                 (INPUT_MODEL_MATCHING.md) — une voix de référence ACCEPTÉE, jamais exigée
-                (sans elle le moteur parle avec sa voix par défaut). Le drapeau d'app est
-                conservé : le traduire ici évite de le dupliquer à 4 endroits.
+                (sans elle le moteur parle avec sa voix par défaut).
+
+                `engine_key` → la classe de backend dont on LIT les flags. On ne pose que
+                ce qui est significatif : `supports_cloning` toujours (le catalogue le porte
+                déjà, en True comme en False, et l'UI filtre dessus), les autres seulement
+                s'ils sont vrais — sinon on noierait chaque modèle sous des False sans objet.
                 """
+                cls = _TTS_BACKENDS.get(engine_key)
+                if cls is not None:
+                    caps.setdefault('supports_cloning', bool(cls.supports_cloning))
+                    if cls.supports_timestamps:
+                        caps.setdefault('supports_timestamps', True)
+                        if cls.timestamp_languages:
+                            caps.setdefault('timestamp_languages', list(cls.timestamp_languages))
                 caps.setdefault('task', 'text-to-speech')
                 caps.setdefault('modalities', ['audio'])
                 caps.setdefault('inputs_required', ['prompt'])
@@ -885,7 +915,7 @@ class ModelRegistry:
                 can_convert_to=['onnx', 'safetensors'],
                 extra_info={'path': str(coqui_model_path) if coqui_model_path else ''},
                 capabilities=_tts_caps(
-                    supports_cloning=True,  # XTTS = clonage de voix par speaker_wav
+                    engine_key='coqui-xtts',   # clonage LU sur CoquiBackend
                     languages=['fr', 'en', 'es', 'it', 'pt', 'de', 'nl', 'pl', 'ru',
                                'cs', 'ar', 'zh-cn', 'ja', 'ko', 'tr', 'hu', 'hi'],
                 ),
@@ -924,7 +954,7 @@ class ModelRegistry:
                 can_convert_to=['onnx', 'safetensors'],
                 extra_info={'path': str(bark_model_path) if bark_model_path else ''},
                 capabilities=_tts_caps(
-                    supports_cloning=False,  # Bark = presets de locuteurs, pas de clonage libre
+                    engine_key='bark',         # clonage LU sur BarkBackend
                     languages=['en', 'de', 'es', 'fr', 'hi', 'it', 'ja', 'ko',
                                'pl', 'pt', 'ru', 'tr', 'zh-cn'],
                 ),
@@ -953,7 +983,7 @@ class ModelRegistry:
                 extra_info={'hf_id': 'bosonai/higgs-audio-v2-generation-3B-base',
                             'path': str(higgs_dir)},
                 capabilities=_tts_caps(
-                    supports_cloning=True,  # Higgs = clonage multi-locuteurs
+                    engine_key='higgs-audio',  # clonage LU sur HiggsAudioBackend
                     languages=['en', 'fr', 'de', 'es', 'it', 'pt', 'zh-cn', 'ja', 'ko'],
                 ),
             )
@@ -979,7 +1009,7 @@ class ModelRegistry:
                 can_convert_to=[],
                 extra_info={'hf_id': 'hexgrad/Kokoro-82M', 'path': str(kokoro_dir)},
                 capabilities=_tts_caps(
-                    supports_cloning=False,  # Kokoro = voix fixes par langue
+                    engine_key='kokoro',       # clonage + HORODATAGE lus sur KokoroBackend
                     languages=['fr', 'en', 'es', 'it', 'pt', 'ja', 'zh-cn'],
                 ),
             )
