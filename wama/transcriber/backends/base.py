@@ -10,10 +10,11 @@ la déclaration automatique d'empreinte VRAM au gouverneur de ressources — c'e
 mécanisme même dont le transcriber avait été l'app de référence. Cf. PROJECT_STATUS §0 (3bis).
 
 Ce qui vient du COMMUN (ne pas dupliquer) : cycle de vie (load/is_loaded/unload/process),
-`missing_packages()`/`is_available()`/`pip_install_spec()` dérivés de `REQUIRED_PACKAGES`, et
-l'enveloppe automatique load/unload qui déclare/libère la VRAM (`__init_subclass__`).
-Ce qui est PROPRE au domaine ici : le verbe `transcribe()`, `TranscriptionResult/Segment`,
-les capacités (diarisation, timestamps, hotwords, streaming) et `max_audio_seconds`.
+`missing_packages()`/`is_available()`/`pip_install_spec()` dérivés de `REQUIRED_PACKAGES`,
+l'enveloppe automatique load/unload qui déclare/libère la VRAM (`__init_subclass__`), et
+— depuis le 2026-08-20 — les FLAGS DE CAPACITÉ `supports_*` (+ la borne `timestamp_languages`).
+Ce qui est PROPRE au domaine ici : le verbe `transcribe()`, `TranscriptionResult/Segment`
+et `max_audio_seconds`.
 """
 
 from abc import abstractmethod
@@ -88,11 +89,12 @@ class SpeechToTextBackend(BaseModelBackend):
     # Vide → on retombe sur `description`.
     description_long: str = ""
 
-    # Feature flags
-    supports_diarization: bool = False
-    supports_timestamps: bool = False
-    supports_hotwords: bool = False
-    supports_streaming: bool = False
+    # Feature flags : HÉRITÉS du contrat commun depuis le 2026-08-20 (ils y sont déclarés avec
+    # les mêmes défauts `False`). Redéclarés ici jusque-là, ils faisaient croire que « capacité »
+    # était une notion STT — or `supports_timestamps`/`supports_streaming` sont des notions de
+    # PAROLE (la TTS les a aussi), et le vocabulaire commun listait même `supports_cloning`, qui
+    # est purement TTS. Les moteurs concrets (whisper/qwen/vibevoice) continuent de les déclarer :
+    # c'est leur rôle. Ne pas les re-poser ici — ce serait rouvrir la divergence.
 
     # Resource requirements
     min_vram_gb: float = 0
