@@ -209,6 +209,30 @@ sur les `.md`.
 stocké par ligne : une bascule de modèle devient un réindex explicite, jamais une corruption
 silencieuse. Index HNSW (dispo depuis pgvector 0.5 ; plafond 2000 dims, 1024 passe).
 
+## 7bis. ⚠ LE VRAI GOULOT : `RunOutcome` est quasi vide (mesuré 2026-08-20)
+
+La projection (jalon 4) fonctionne et est validée — mais **elle n'a presque rien à projeter**.
+Mesure du jour :
+
+- **1 seule ligne** dans `RunOutcome` sur toute la base (`converter` / `produit`, 18/08) ;
+- **2 points de captation** dans tout le code : `common/utils/task_skeleton.py:94-95` (générique,
+  `produit`/`echec`) et `transcriber/views.py:852` (`corrige`) ;
+- **aucun** appelant pour `telecharge`, `relance`, `supprime` — donc **la moitié du vocabulaire de
+  signaux n'est jamais écrite**, et ce sont précisément ceux qui portent la saillance.
+
+Conséquence à ne pas se cacher : **la mémoire de travail utilisateur est bloquée sur l'adoption de
+`RunOutcome`, pas sur la brique mémoire.** Le chemin est complet de bout en bout, il est alimenté
+par un filet d'eau. C'est le même diagnostic que la boucle qualité, « bloquée sur les DONNÉES ».
+
+Et c'est urgent au sens propre, pour la raison écrite dans le docstring de `RunOutcome` :
+**aucun framework ne récupérera ces signaux rétroactivement.** Chaque téléchargement, chaque
+correction, chaque suppression qui se produit aujourd'hui sans être captée est définitivement
+perdue. Le coût d'attendre n'est pas nul, il est cumulatif.
+
+→ **La suite la plus rentable n'est pas le jalon 5, c'est de câbler `enregistrer()` aux vues
+`download`/`delete`/`start` des 10 apps** (elles existent toutes, ce sont les boutons conventionnels
+de la file). Une ligne best-effort par vue, aucun geste nouveau demandé à l'utilisateur.
+
 ## 8. La mémoire « émotionnelle » — RÉSERVÉE, non implémentée (décision 2026-08-20)
 
 Le 4ᵉ type de memorywire annote un souvenir d'une valence + intensité, pour (a) pondérer le rappel
@@ -262,7 +286,7 @@ Ne rien arbitrer sur ces chiffres.
 | 1 | Extension `vector` installée + activée sur `wama_db` | ✅ 2026-08-20 (pgvector 0.6.0) |
 | 2 | `bge-m3` + `embed.py` | ✅ 2026-08-20 — le modèle **était déjà tiré** dans Ollama |
 | 3 | Modèles + migration `common/0007` + `store.py` (5 opérations) | ✅ 2026-08-20 — **inerte, aucun appelant** |
-| 4 | `project.py` : projection `RunOutcome` → `MemoryItem` (mécanique, sans LLM) | ⏳ |
+| 4 | `project.py` + `manage.py sync_memory` : projection `RunOutcome` → `MemoryItem` | ✅ 2026-08-20 — mais **rien à projeter**, cf. §7bis |
 | 5 | `index.py` : indexation RAG depuis la médiathèque (+ rafraîchissement de visibilité, §4) | ⏳ |
 | 6 | Branchement `prompt_pipeline` Hook B (remplace le no-op ChromaDB l.116-118) | ⏳ — dépend de 4, 5 |
 | 7 | wama-dev-ai : `memory.json` → `MemoryItem` (`provenance='dev-ai'`, non approuvé) | ⏳ |
