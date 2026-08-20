@@ -767,7 +767,7 @@ accueil + /apps/ groupés + couleurs + liseré. Migration `describer 0008` appli
 
 | App | Score | Restes bloquants |
 |---|---|---|
-| **Transcriber** | ~90 % | ① start/start_all/batch_start SANS anti-race `select_for_update` (pattern CLAUDE.md — vérifié : 0 occurrence ; **describer seul l'a**, views.py:519) ; ② `stop()` sans `@require_POST` ; ③ bouton cycle inline `_transcript_card.html:87-91` au lieu de `_cycle_button.html` ; ④ card mère batch hand-made (A2-6) ; ⑤ sync card↔inspecteur manuelle 9 data-* + `_renderBatchActions` en chaînes JS (A3-12/13, vérifié index.js:1139) ; ⑥ `showToast`=alert (A6-26, vérifié index.js:104) ; ⑦ dropdown formats dupliqué partial+JS (A2-7 résiduel) ; ⑧ extractions de vue A5 : `_describe_audio`→media_probe, `_wrap_transcript_in_batch`/`_auto_wrap_orphans`→batch_common, agrégats→`build_batches_list`, prefs cache artisanales, SRT ×3, `clear_all` `.delete()` direct sans `safe_delete_file` ; ⑨ styles modales info/résultat (A4-15/16) |
+| **Transcriber** | ~90 % | ① start/start_all/batch_start SANS anti-race `select_for_update` (pattern CLAUDE.md — vérifié : 0 occurrence dans transcriber. ⚠ **la mention « describer seul l'a » était FAUSSE, corrigée le 2026-08-21** : `describer/views.py` n'en contient AUCUNE, et 8 fichiers en portent — avatarizer, composer, converter, enhancer, imager, synthesizer + `process_control`, `manifests/ingest`. Transcriber est donc en retard sur 6 apps, pas en avance sur 9) ; ② `stop()` sans `@require_POST` ; ③ bouton cycle inline `_transcript_card.html:87-91` au lieu de `_cycle_button.html` ; ④ card mère batch hand-made (A2-6) ; ⑤ sync card↔inspecteur manuelle 9 data-* + `_renderBatchActions` en chaînes JS (A3-12/13, vérifié index.js:1139) ; ⑥ `showToast`=alert (A6-26, vérifié index.js:104) ; ⑦ dropdown formats dupliqué partial+JS (A2-7 résiduel) ; ⑧ extractions de vue A5 : `_describe_audio`→media_probe, `_wrap_transcript_in_batch`/`_auto_wrap_orphans`→batch_common, agrégats→`build_batches_list`, prefs cache artisanales, SRT ×3, `clear_all` `.delete()` direct sans `safe_delete_file` ; ⑨ styles modales info/résultat (A4-15/16) |
 | **Describer** | ~90 % | ① classe `.synthesis-card` (11× JS + 3× HTML) au lieu du contrat `.wama-card` ; ② **`wama-app-base.js` NON chargé** (seul des 3 — polling/CSRF locaux) ; ③ manipulation directe partielle : `consolidate` seul (pas de reorder/move_to_batch/remove_from_batch) ; ④ réglages user non persistés. Le reste est au niveau (card_html+refreshCard avec re-bind, anti-race, ETA seedée, exports late TXT/PDF/DOCX, toolbar) |
 | **Composer** | ~75 % | ① manipulation directe ABSENTE (0/4 endpoints, brique `consolidate_into_batch` non consommée) ; ② anti-race absent ; ③ descriptions modèles hardcodées `COMPOSER_MODELS` (model_config.py:34-101) au lieu du catalogue `AIModel` (points 9/10 checklist) ; ④ card mère batch = bandeau violet minimal sans ▶/compteurs/barre agrégée (B3-8) ; ⑤ styles inline `_generation_card.html` (B2-7) ; ⑥ 2 impls modale-batch à fusionner (A6-28) ; ⑦ réglages user via localStorage seul |
 
@@ -1617,9 +1617,13 @@ inchangée : `/apps/` (`get_conformity_summary()`).
    queue_manipulation*, begin_processing*, ProcessingTimeMixin, initFromSchema+
    _inspector_actions+detail/preview registries). Les 5 autres n'ont RIEN de la couche
    file commune. (*converter : consolidate artisanal + verrou local — voir 31.5.)
-2. **anti_race absent = seul risque fonctionnel réel** des 5 non portées : start() de
-   enhancer (views.py:423), synthesizer (:549), imager (:626), avatarizer (:172) font
-   check-then-set sans verrou ni revoke.
+2. ~~**anti_race absent = seul risque fonctionnel réel** des 5 non portées : start() de
+   enhancer, synthesizer, imager, avatarizer font check-then-set sans verrou ni revoke.~~
+   ✅ **RÉSORBÉ — re-mesuré le 2026-08-21** : `select_for_update` est présent dans **8 fichiers**
+   (avatarizer, composer, converter, enhancer, imager, synthesizer + `process_control`,
+   `manifests/ingest`). `enhancer/views.py:475` porte même le commentaire « Anti-race COMMUN
+   (atomic + select_for_update + revoke) — audit 2026-07-11 ». Le constat ci-dessus datait
+   d'avant ce portage ; les numéros de ligne cités sont retirés (ils désignaient un état disparu).
 3. **`alert()` : ~106 occurrences** dans 8 apps (le helper `WamaApp.toast` existe et
    marche — describer = preuve).
 4. **params.py = 10/10 EXISTENT** (contradiction UI_MECHANISMS §0bis/§7 tranchée
