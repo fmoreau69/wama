@@ -202,9 +202,110 @@ combinations, ALL the plugins will react, no matter which one has the focus »*.
 devenir déclarative — décrite par ce qu'elle CONSOMME »*), et une preuve que la marche est
 franchissable — BIND l'a franchie à moitié.
 
-⛏ **Reste à cartographier** : la classe `Experimentation` ; la répartition `configurators` /
-`loading` / `widgets` annoncée par Fabien (elle n'apparaît pas dans `BIND_core/+plugins` — donc
-probablement côté `BIND_plugins` ou `BIND_GUI`, à confirmer en passe 3).
+### 4.6 Le PIPELINE DE MONTAGE (passe 3) — et la réponse à « que déclare un plugin ? »
+
+> Le découpage annoncé par Fabien (`configurators` / `loading` / `plugins` / `widgets`) est
+> **intégralement confirmé**. Il n'était pas dans `BIND_core/+plugins` : ce sont quatre **packages
+> parallèles**, ce qui explique que la passe 2 ne l'ait pas vu.
+
+| package | domicile | rôle |
+|---|---|---|
+| `+loading` | `BIND_core` — **`Loader.m` (933 l.)** | découvre les plugins, calcule ce qui est utilisable, instancie, sauvegarde l'environnement |
+| `+configurators` | `BIND_core` (contrat, 4 classes) + `BIND_plugins` (**18 impls**) | GUI de paramétrage par plugin |
+| `+widgets` | `BIND_plugins` | briques de sélection réutilisées : `VariablesSelector`, `EventSituationSelector`, `EventSituationList`, `PositionChooser` |
+| `+plugins` | `BIND_core` (templates) + `BIND_plugins` (impls) | les plugins eux-mêmes |
+
+**Le contrat de configuration** (`BIND_core/+configurators/`) :
+
+- **`Argument`** = un argument d'appel du constructeur du plugin : `name`, `isOptionnal`, `value`,
+  `order` (position 1 réservée au plugin). Optionnel ⇒ le nom sert de clé (syntaxe clé/valeur MATLAB).
+- **`Configuration`** = collection ordonnée d'`Argument`s, avec unicité de l'`order` vérifiée.
+- **`ConfiguratorUser`** = interface de rappel à un seul verbe : `receiveConfiguration(pluginId, configuration)`.
+- **`PluginConfigurator`** = fenêtre modale construite avec `(pluginId, metaTrip, caller, [configuration])`,
+  où **`metaTrip` est le catalogue de ce qui est disponible** — *« the MetaInformations object that
+  contains all the data and variables the plugin should be able to **propose** »*.
+
+> ### ⭐ Le point le plus important de la passe 3
+>
+> **Un plugin BIND ne déclare PAS ce qu'il consomme.** Le liage donnée↔plugin est résolu par
+> l'**UTILISATEUR au moment du montage** :
+>
+> 1. le `Loader` calcule un `MetaInformations` = catalogue des `Data`/`Event`/`Situation` et de leurs
+>    variables réellement présentes dans le trip ;
+> 2. il le passe au **configurateur** du plugin (que le plugin nomme via `getConfiguratorClass`) ;
+> 3. le configurateur **propose** ce catalogue à l'utilisateur, via des widgets réutilisables
+>    (`VariablesSelector(figureHandler, metaTrip, 'DATA', …)`, `DataPlotterConfigurator.m:138`) ;
+> 4. l'utilisateur choisit ; le configurateur émet une `Configuration` ;
+> 5. le rappel `receiveConfiguration` rend le tout au `Loader`, qui instancie le plugin avec ces
+>    arguments (`addPluginWithConfiguration`).
+>
+> Exemple réel — `DataPlotterConfigurator` produit : `dataIdentifiers`(2, les variables choisies),
+> `position`(3), `timeWindow`(4), `scaleMode`(5), `scale`(6), `colors`(7), `lineTypes`(8), `markers`(9).
+
+**Ce que ça coûte, et ce que ça dit pour WAMA.** Le prix de ce choix est **18 GUI écrites à la main**
+— `DataPlotterConfigurator.m` fait **802 lignes**. Et `Argument.value` n'est *« une chaîne ou un
+tableau de chaînes »* : **aucun système de types**, pas d'unité, pas de bornes, pas de choix
+énumérés. Le typage vit dans la GUI, en dur, une fois par plugin.
+
+> **C'est exactement l'inverse de WAMA**, dont le `Param` porte type, choix, unité, bornes,
+> `show_if`, et dont l'UI est **générée**. Autrement dit : *WAMA peut GÉNÉRER ce que BIND écrit à la
+> main* — à condition qu'un plugin déclare ce qu'il consomme en **types de données** plutôt que de
+> livrer une GUI sur mesure. C'est précisément le verrou « vue déclarative » de §7ter point 3, et on
+> sait désormais ce qu'il remplace : 18 configurateurs, ~4000 lignes.
+
+**Deux mécanismes du `Loader` à reprendre** :
+
+- **`validateConfiguration(metaInformations, configuration)`** — méthode **statique du configurateur**,
+  appelée par `isPluginConfigurationValid(pluginId, metaInformations)`. Elle vérifie qu'une
+  configuration **enregistrée** reste valide face au catalogue d'un **autre** trip. C'est la mesure de
+  **compatibilité** que l'arbitrage du 19/08 prescrit pour un plugin — BIND l'a, écrite à la main par
+  configurateur. Chez WAMA elle serait **dérivable** de `is_compatible()` sur les types.
+- **`getTripsCommonMetaInformations()`** — sur un `TripSet`, on ne propose que ce qui est **commun à
+  tous les trips**. La compatibilité au niveau du corpus, gratuitement.
+
+**Sauvegarde d'environnement — le mécanisme existe déjà** : `Loader` sauvegarde/recharge un
+environnement par fichier (`saveEnvironment`/`loadEnvironment`), contenant `pluginSet` +
+`pluginConfigurationSet` + le `TripSet`. C'est exactement le « Presets de configurations
+trips/plugins » de §7, et sa composition (plugins + leurs configurations + trips) **confirme la
+position retenue : c'est un manifeste**, pas un dump de session.
+
+### 4.7 Les 18 plugins réels — héritage et déclarations
+
+| template | plugins |
+|---|---|
+| **`GraphicalPlugin & TripStreamingPlugin`** (8) | `DataPlotter` · `Annotation` · `AtlasCoding` · `AtlasRRverification` · `RCE2Coding` · `RCE2RRverification` · `ValueDisplay` · `ContinentalTechnologiesViewer` (+ `XMPPStreamer`, ordre inversé) |
+| `GraphicalPlugin & TripPlugin` (4) | `Magneto` · `MessageDisplay` · `EventSituationBrowser` · `GpsViewer` (ordre inversé) |
+| `VisualisationPlugin` (3) | `EventSituationDisplay` · `SituationDisplay` · `VideoSynchroniser` |
+| `TripPlugin` seul (2) | `VideoPlayer` · `MockUpTripPlugin` |
+
+**Le template dominant est `TripStreamingPlugin`** — *« display some scrolling datas contained in a
+certain timeframe **to avoid loading the whole data** »*. La lecture par FENÊTRE temporelle est donc
+la norme chez BIND, pas l'exception. Ça confirme §3.5 : sans contrat de fenêtrage/décimation, aucun
+plugin de visualisation n'est viable.
+
+**Déclarations statiques** : 17 plugins sur 18 déclarent `isInstanciable = true` et un configurateur
+dédié — la correspondance **1 plugin ↔ 1 configurateur est systématique**.
+
+**Deux résidus établis** (le corpus a des années d'histoire — les signaler est utile, ne pas les
+lire comme des intentions) :
+
+1. **`VisualisationPlugin` = `GraphicalPlugin & TripPlugin`** existe comme template nommé, et
+   **4 plugins réécrivent cette combinaison à la main** au lieu de l'utiliser (`Magneto`,
+   `MessageDisplay`, `EventSituationBrowser`, `GpsViewer`). Deux d'entre eux inversent même l'ordre
+   des parents. Le template nommé n'a jamais été adopté partout.
+2. **`isMultiTrip` est incohérent, et ça a une conséquence.** Aucun plugin ne le surcharge : tous
+   héritent. Or `TripPlugin.isMultiTrip` rend **`true`** alors que sa propre docstring dit *« focused
+   on an only Trip »* (bug relevé en passe 2), tandis que `VisualisationPlugin` le surcharge à
+   `false`. Résultat : `Magneto` et `EventSituationDisplay` — tous deux mono-trip et graphiques —
+   annoncent des valeurs **opposées**. Comme le `Loader` filtre les plugins offerts selon le mode,
+   ce booléen ment pour 15 plugins sur 18.
+3. `MockUpTripPlugin` déclare `getConfiguratorClass = 'banana.split'` et n'override pas
+   `isInstanciable` (donc `false`) : c'est un **doublure de test**, pas un plugin réel. À exclure de
+   tout inventaire fonctionnel.
+
+⛏ **Reste** : `Loader.getAvailablePlugins` (mécanique exacte de la découverte par package) ; le
+détail interne des 4 widgets ; les arguments consommés plugin par plugin (seul `DataPlotter` est
+détaillé ci-dessus).
 
 **Correspondance pressentie avec l'existant WAMA** (à confirmer/infirmer par la cartographie) :
 
@@ -342,8 +443,59 @@ sujets ? »*
 > Rattachement WAMA pressenti : c'est le niveau **`dataset`** / **`project`** des kinds existants,
 > pas une brique temporelle.
 
-⛏ **Reste à cartographier** : ce que `rec2trip` (pynd) convertit et depuis quoi (passe 4) ;
-la sémantique exacte du `mode` d'agrégation de `TripSet`.
+### 6.5 `pynd` — ce que le portage Python a retenu, et ce qu'il a abandonné (passe 4)
+
+**Il a retenu la couche DONNÉES, intégralement. Il a abandonné tout le reste.**
+
+| | MATLAB | pynd |
+|---|---|---|
+| API données | `Trip` : ~76 méthodes abstraites | **`sqlite_trip.py` : 106 méthodes**, API portée fidèlement (`get_data_occurences_in_time_interval`, `..._near_time`, `..._at_time`, min/max, `add_*`…) |
+| contrat abstrait | `Trip.m` (1240 l.) | **`trip.py` : 9 lignes** — `__init__` = `pass`, tout le reste `NotImplementedError` |
+| couche temporelle | `TimerTrip.m` | **absente** — `# TODO Uncomment when timer is implement` (`sqlite_trip.py:114`) |
+| observers / messages | `Observable`/`Observer`, `TripMessage`, `TimerMessage` | **absents** |
+| plugins / configurateurs / widgets | 4 packages | **absents** |
+
+`Record` (45 l.) enveloppe un curseur `sqlite3` en colonnes (`zip(*cursor.fetchall())`) avec
+`get_variable_values(nom)`.
+
+> **Lecture pour WAMA — le portage a fait le tri à notre place.** Ce qui a survécu au changement de
+> langage est exactement ce qui était *portable* : l'accès aux données. Ce qui est tombé était
+> couplé à MATLAB — le timer est un `timer` MATLAB, les observateurs des `handle` classes, les
+> plugins des `figure`. **Cela valide le découpage en 4 couches** : le référentiel est portable tel
+> quel, le curseur / la télécommande / les vues sont propres à l'hôte et se rebâtissent pour le web.
+
+### 6.6 `rec2trip` — la spécification de l'Importer
+
+`DataParser` (ABC) identifie un flux par `(component, output)` — le vocabulaire **RTMaps**. Il
+vérifie la continuité des index (`check_idx`, erreur si un index saute) et délègue l'horodatage :
+
+```python
+def parse_line_common(self, time_of_issue, idx, data, timestamp=None):
+    self.check_idx(idx)
+    ts = self._timestamper.timestamp(time_of_issue, idx, data, timestamp)
+    self.parse_data(data, ts)
+```
+
+**⭐ Le `Timestamper` est LA réponse à la question d'alignement de §3.** Trois stratégies, choisies
+**par flux** à l'import :
+
+| stratégie | règle |
+|---|---|
+| `TimestampTS` | utiliser l'horodatage porté par la donnée elle-même (repli sur `time_of_issue` + avertissement s'il manque) |
+| `TimeOfIssueTS` | utiliser l'heure d'émission du système d'acquisition |
+| **`ResamplingTS(frequency)`** | **reconstruire la ligne de temps** : `start_time + idx / frequency` — le 1ᵉʳ échantillon fixe l'origine, l'index fait le reste |
+
+C'est ainsi que `MetaDatas.frequency` prend son sens, et **pourquoi le `.trip` peut supposer tout le
+monde sur une base de temps commune** : le recalage est fait UNE fois, à l'ingestion, flux par flux.
+Seules les vidéos gardent un `offset` (fichiers externes, non rééchantillonnés).
+
+**Sources réellement supportées** (= périmètre concret de l'Importer WAMA) : **RTMaps** `.rec`
+(pivot) · **Pupil Labs** (gaze, fixations, blinks, surfaces, pupil) · **Empatica E4** (physiologie) ·
+**SIMAX** dr2 (simulateur de conduite) · **ProSivic** (car observer, object observer) · **IDS/ueye**
+(timings caméra) · **Adeunis** · **CADISP** · média (audio, vidéo) · primitives (float, int, string,
+vector, unique_data).
+
+⛏ **Reste** : la sémantique exacte du `mode` d'agrégation de `TripSet` ; le package `ttm` de rec2trip.
 
 ---
 
@@ -382,17 +534,54 @@ Ce que WAMA a déjà et qui sert directement :
 - manifestes 7 kinds avec `write_back` / `un_write_back` — effets réversibles au build ;
 - `mecanismes.py` — registre des briques transversales et de leur adoption.
 
-Ce qui manque, par ordre de blocage :
+### 8.1 Confrontation terme à terme (passe 5)
 
-1. **le référentiel temporel** (§3) — rien n'existe ;
-2. **le noyau de plugins** : cycle de vie, pairs, souscription à l'axe (§4) ;
-3. **la vue déclarative** — verrou identifié en §7ter point 3 : décrire une vue par ce qu'elle
-   CONSOMME (axe x, séries, unités, axe de synchronisation) et non par son code de dessin.
-   ⚠ Garde-fou §7ter : **ne pas spécifier dans l'abstrait** — écrire 2-3 plugins d'abord, extraire
-   ensuite (règle du 2ᵉ consommateur) ;
-4. le conteneur de vues : **layout dockable + détachement en vraie fenêtre** (`window.open` +
-   `BroadcastChannel`), jamais un gestionnaire de fenêtres simulé en `div` absolus.
+| # | BIND | WAMA | verdict |
+|---|---|---|---|
+| 1 | 3 familles `Data` / `Event` / `Situation` | `SIGNAL`/`TIMESERIES`, `EVENTS`, **rien pour l'intervalle** | ⚠ **trou** — bloque Segmenter ET Calculator (**D8**) |
+| 2 | 1 table SQLite **par signal**, indexée ; transactions | — | ✅ à reprendre tel quel, c'est la bonne réponse au haut débit |
+| 3 | `unit` par variable, `frequency` par Data, `isBase` (acquis/dérivé) | `Param` a l'unité ; pas d'équivalent `frequency`/`isBase` | ⚠ à ajouter — `isBase` est le socle de la provenance |
+| 4 | alignement **à l'ingestion** (`Timestamper` ×3 stratégies) | — | ✅ modèle à copier ; déplace l'effort vers l'Importer |
+| 5 | **jamais d'interpolation** (`at`/`near` seulement) | — | **D6** — position pressentie : reprendre pour la VALEUR, interpolation en option d'AFFICHAGE |
+| 6 | manifeste de plugin = **méthodes statiques** + balayage du path | registres déclaratifs (`MANIFEST_KINDS`, `FUNCTION_CATALOG`, `mecanismes.py`) | ✅ WAMA est **plus fort** — registre explicite > convention de nommage |
+| 7 | `Argument` **non typé** (chaîne ou tableau de chaînes) + **18 GUI à la main** (~4000 l.) | `Param` typé (type, choix, unité, bornes, `show_if`) + **UI générée** | ✅✅ **WAMA génère ce que BIND écrit à la main** — c'est LE gain de l'intégration |
+| 8 | `validateConfiguration(metaInfos, config)` écrite par configurateur | `is_compatible()` sur les types | ✅ WAMA la **dérive** au lieu de l'écrire |
+| 9 | synchro = **un canal Observer**, messages typés | — | ✅ contrat à reprendre (c'est §7ter point 4) |
+| 10 | environnement = plugins + configurations + trips, dans un fichier | kinds `project`/`dataset`, diffables | ✅ **c'est un manifeste**, position confirmée |
+| 11 | fenêtres OS flottantes (conséquence de MATLAB) | navigateur | ❌ **ne pas reproduire** — layout dockable + détachement `window.open` + `BroadcastChannel` |
+
+**Ce que le portage `pynd` a prouvé** (§6.5) : la couche données est portable, la couche
+temporelle et la couche plugins ne le sont pas. Elles se rebâtissent, elles ne se transposent pas.
+
+### 8.2 Ce qui manque à WAMA, par ordre de blocage
+
+1. **type « intervalle »** dans `data_types.py` (**D8**) — le moins cher, et il débloque le plus ;
+2. **le référentiel temporel** (§3) — rien n'existe ; sa difficulté réelle est à l'**ingestion**, pas
+   à la consultation, ce qui la rend beaucoup plus abordable qu'estimé au 19/08 ;
+3. **le noyau de plugins** : cycle de vie, pairs, souscription au canal (§4.3) ;
+4. **la vue déclarative** — le verrou §7ter point 3. On sait maintenant ce qu'elle remplace : les
+   18 configurateurs de BIND. ⚠ Garde-fou §7ter maintenu : **ne pas spécifier dans l'abstrait** —
+   écrire 2-3 plugins d'abord, extraire ensuite ;
+5. **le conteneur de vues** : layout dockable + détachement en vraie fenêtre.
    > Amorce existante : `audio_player` gère déjà l'exclusivité **inter-onglets** (`mecanismes.py:333`).
+
+### 8.3 Plan d'intégration ordonné
+
+> Chaque marche est **utile seule** et ne présuppose que les précédentes. Aucune n'est engagée.
+
+| # | marche | pourquoi ici | dépend de |
+|---|---|---|---|
+| **A** | `DataType.INTERVALS` + champs `frequency` / `is_base` dans la taxonomie | quelques dizaines de lignes, déverrouille Segmenter + Calculator, et rend la compatibilité vérifiable | — |
+| **B** | **Importer** : `Timestamper` (3 stratégies) + lecture `.trip` SQLite | c'est là qu'est la vraie difficulté temporelle ; pynd donne le code de référence à 90 % | A |
+| **C** | **Référentiel** : `at(t)`, `range(t₀,t₁)`, `next_event(t)` + **vue décimée** (min/max par pixel) | sans la décimation aucun plugin de visualisation n'est viable (§3.5) ; BIND l'a résolu par `TripStreamingPlugin`, template dominant | B |
+| **D** | **Curseur de session** + canal de messages typés (souscription) | couche 2 : trois valeurs et un canal ; c'est le contrat explicite de §7ter point 4 | C |
+| **E** | **`WamaShuttle` émet une commande** au lieu d'appliquer une vitesse + spec magneto BIND | débloque la forme fenêtrée ET l'adoption Transcriber ; la brique existe déjà | D |
+| **F** | **2-3 plugins écrits à la main** (courbe, carte, bandes d'événements) | la règle du 2ᵉ consommateur interdit d'extraire avant | C, D |
+| **G** | **Extraire la vue déclarative** de ces 2-3 plugins | remplace les 18 configurateurs de BIND par de la génération | F |
+| **H** | Segmenter, Calculator, Visualizer, Analyzer | deviennent minces une fois A→D en place | A, C |
+
+**Non planifié, à trancher avant d'y toucher** : Recorder temps réel (LSL/RTMaps/ROS) — **D5** ;
+conteneur de vues détachables — après F.
 
 ---
 
@@ -449,9 +638,14 @@ Ce qui manque, par ordre de blocage :
 | 0 | ✅ faite | inventaire ci-dessus (~460 fichiers retenus sur 4305) |
 | 1 | ✅ **faite** | §2 (confirmation couche 2), §3bis (corrections), §6 (schéma `.trip` complet) — lus : `TimerTrip.m`, `TripMessage.m`, `Trip.m`, `TripSet.m`, `SQLiteTrip.m` |
 | 2 | ✅ **faite** | §4 (manifeste statique, hiérarchie de templates, contrat de synchronisation, clavier, amorce de vue déclarative) — lus : `Plugin.m`, `TripPlugin.m`, `GraphicalPlugin.m`, `VisualisationPlugin.m`, `MultiGraphicalPlugin.m`, `AnalysisPlugin.m`, `TripStreamingPlugin.m` |
-| 3 | 🔄 **lancée** 20/08 | plugins réels (`Magneto`, `DataPlotter`, `GpsViewer`, `EventSituation*`, `Annotation`) — wama-dev-ai / qwen3.8. Questions : ce que chaque plugin DÉCLARE consommer · existence réelle du découpage configurators/loading/widgets · `Magneto` en détail · classe `Experimentation` · résidus |
-| 4 | ⏳ wama-dev-ai | `pynd` : ce que le portage Python a retenu / abandonné, et `rec2trip` |
-| 5 | ⏳ à faire | confrontation §8 arbitrée + plan d'intégration ordonné |
+| 3 | ✅ **faite** (Claude, lecture directe) | §4.6 pipeline de montage · §4.7 les 18 plugins · §5bis magneto. Découpage `configurators`/`loading`/`plugins`/`widgets` **confirmé** (4 packages parallèles). ⭐ Un plugin **ne déclare pas** ce qu'il consomme : c'est l'utilisateur qui le lie au montage |
+| 4 | ✅ **faite** | §6.5 ce que `pynd` a retenu (données : 106 méthodes) / abandonné (temporel, observers, plugins) · §6.6 `rec2trip` + le `Timestamper` ×3 stratégies + les sources réelles |
+| 5 | ✅ **faite** | §8.1 confrontation terme à terme (11 points) · §8.2 manques ordonnés · §8.3 plan d'intégration A→H |
+
+> **wama-dev-ai n'a produit aucune de ces passes.** Quatre tentatives ont échoué (prompt sans
+> `{tools}`, outils aveugles au corpus, navigation en boucle), puis les chargements de modèle ont
+> fait tomber la machine — Ollama est à l'arrêt sur décision de Fabien (20/08). L'outillage est
+> corrigé et commité ; les passes ont été faites en lecture directe.
 
 ---
 
@@ -489,3 +683,16 @@ Ce qui manque, par ordre de blocage :
   explicite que §7ter point 4 réclamait. Amorce de **vue déclarative** trouvée dans
   `TripStreamingPlugin` (le plugin déclare les data/variables qu'il consomme). Verrue à ne pas
   reproduire : diffusion clavier à TOUS les plugins sans notion de capture.
+- **2026-08-20 — passes 3, 4 et 5 faites : LA CARTOGRAPHIE EST COMPLÈTE.** Résultat central : **un
+  plugin BIND ne déclare pas ce qu'il consomme** — le `Loader` calcule un catalogue
+  (`MetaInformations`), le configurateur le PROPOSE via des widgets, l'utilisateur choisit, et la
+  `Configuration` (liste d'`Argument`s ordonnés, **non typés**) sert d'arguments au constructeur.
+  Prix payé : **18 GUI écrites à la main, ~4000 lignes**, dont `DataPlotterConfigurator` à 802.
+  ⇒ **C'est exactement ce que WAMA sait GÉNÉRER** — le gain principal de l'intégration est là, pas
+  dans la reprise de code. Le portage `pynd` confirme le découpage en couches : la couche données a
+  survécu au changement de langage (106 méthodes), la couche temporelle et la couche plugins non
+  (timer en `TODO`, aucun observer, aucun plugin). L'alignement multi-sources est résolu à
+  l'ingestion par un `Timestamper` à 3 stratégies, dont une qui **reconstruit la ligne de temps**
+  depuis la fréquence déclarée et l'index. Plan d'intégration ordonné A→H en §8.3, la première
+  marche étant le type « intervalle » (quelques dizaines de lignes, débloque le plus).
+  **Toujours aucune ligne de WAMA Data implémentée.**
