@@ -504,8 +504,21 @@ MODEL_FALLBACK_CHAINS = {
     "debug": ["debug", "fast", "ultra_fast"],
     "architect": ["qwen38", "architect", "orchestrator", "fast", "ultra_fast"],
     # audit role: prefers non-thinking models (qwen3.5 crashes on complex prompts)
-    # debug (qwen3-coder:30b) est le meilleur choix — 256K ctx, moins d'hallucinations
-    "audit": ["debug", "gemma4_e4b", "fast", "ultra_fast"],
+    #
+    # ⚠ RÉORDONNÉ LE 2026-08-20 SUR MESURE. Même appel (prompt système réel ~7-9 Ko + liste
+    # d'outils + tâche), même `num_ctx`, modèles testés un par un après déchargement complet :
+    #     qwen3-coder:30b  ECHEC  EOF 500 en 24,3 s    <- ancienne tête de chaîne
+    #     qwen3.6:35b      ECHEC  EOF 500 en 40,5 s
+    #     qwen3.8:latest   ECHEC  EOF 500 / timeout
+    #     gemma4:26b       OK     tool_call valide, 39,7 s
+    #     gemma4:e4b       OK     tool_call valide, 17,6 s
+    # 4 Qwen testés (qwen3.5 étant déjà noté ci-dessus), 4 échecs ; 2 Gemma testés, 2 succès.
+    # Les mêmes Qwen répondent en ~10 s à un prompt COURT à tous les num_ctx : ce n'est ni la
+    # VRAM ni le contexte, c'est la famille Qwen sur ce build d'Ollama — ce que cette ligne
+    # notait déjà pour qwen3.5, et qui vaut en fait pour toute la famille.
+    # Le sélecteur ne sait PAS distinguer « ne tient pas en VRAM » de « plante » : il n'aurait
+    # jamais basculé tout seul, l'audit échouait simplement. D'où le réordonnancement.
+    "audit": ["gemma4_26b", "gemma4_e4b", "debug", "fast", "ultra_fast"],
     "vision": ["vision", "vision_fast", "vision_lite"],
     "prompt": ["prompt_enricher_premium", "prompt_enricher"],
     "translate": ["translator", "prompt_enricher"],

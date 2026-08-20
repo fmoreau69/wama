@@ -4,6 +4,7 @@ WAMA Dev AI - LLM Client
 Unified interface for Ollama LLM models with streaming support.
 """
 
+import os
 import ollama
 import logging
 from typing import Optional, Generator, Dict, Any, List, Callable
@@ -42,8 +43,21 @@ class LLMClient:
     - Structured output parsing (JSON, code blocks)
     """
 
-    def __init__(self, host: str = OLLAMA_HOST):
-        self._client = ollama.Client(host=host)
+    #: Plafond d'une requête Ollama, en secondes. Sans lui, `ollama.Client` hérite du défaut
+    #: httpx et une requête que le serveur ne traite JAMAIS suspend le processus indéfiniment.
+    #: Mesuré le 2026-08-20 : après un EOF 500 au premier appel (transitoire connu de ce build),
+    #: la tentative suivante est restée bloquée 45 min — modèle résident, GPU à 0 %, 20 W, aucun
+    #: message. La boucle de retry d'un appelant ne sert à rien si l'appel ne rend jamais la main.
+    #: 20 min couvre très largement une génération longue sur un modèle 27B en 16k de contexte.
+    #: Surchargeable par `OLLAMA_REQUEST_TIMEOUT` (secondes) — utile pour un smoke où l'on veut
+    #: échouer vite plutôt qu'attendre le plafond de production.
+    REQUEST_TIMEOUT_S = float(os.environ.get("OLLAMA_REQUEST_TIMEOUT", "1200"))
+
+    def __init__(self, host: str = OLLAMA_HOST, timeout: float = None):
+        self._client = ollama.Client(
+            host=host,
+            timeout=self.REQUEST_TIMEOUT_S if timeout is None else timeout,
+        )
         self._host = host
         self._conversation_history: List[Dict] = []
 

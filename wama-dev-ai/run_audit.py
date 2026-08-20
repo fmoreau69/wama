@@ -334,11 +334,73 @@ def _get_free_vram_gb() -> float:
 
 # Thinking models generate long <think>...</think> blocks for complex tasks.
 # They must have /no_think injected and a larger num_ctx to avoid EOF crashes.
-_THINKING_MODEL_PATTERNS = ('qwen3', 'qwq', 'deepseek-r1', 'marco-o1')
+#
+# ⚠ ON DEMANDE À OLLAMA, ON NE DEVINE PLUS (2026-08-20, recadrage Fabien).
+# L'ancien test était `any(p in model_id for p in ('qwen3', 'qwq', 'deepseek-r1', 'marco-o1'))`.
+# Le motif 'qwen3' attrapait TOUTE la famille — qwen3.5, qwen3.6, qwen3.8, qwen3-coder — sans
+# rien savoir d'aucune, et un modèle découvert dynamiquement (`auto:<tag>`) n'était classé que
+# par la forme de son nom. Or `/api/show` expose la vérité : `capabilities` contient "thinking"
+# quand le modèle sait raisonner. Injecter `/no_think` à un modèle qui ne connaît pas la
+# directive lui envoie du texte parasite qu'il traite comme du contenu utilisateur ; l'omettre
+# sur un vrai modèle de raisonnement produit des blocs <think> à rallonge et des EOF.
+#
+# Les motifs ne subsistent QUE comme repli si Ollama est injoignable — et ils sont resserrés :
+# 'qwen3' est retiré, la famille étant désormais résolue par capacité.
+_THINKING_FALLBACK_PATTERNS = ('qwq', 'deepseek-r1', 'marco-o1', 'thinking')
+
+#: Cache par identifiant de modèle — `/api/show` est un appel réseau, appelé à chaque run.
+_THINKING_CACHE: dict = {}
 
 
-def _is_thinking_model(model_id: str) -> bool:
-    return any(p in model_id.lower() for p in _THINKING_MODEL_PATTERNS)
+def _is_thinking_model(model_id: str, ollama_host: str = None) -> bool:
+    """
+    Le modèle sait-il produire un bloc <think> ? Réponse d'Ollama, pas du nom du modèle.
+
+    Repli sur les motifs si Ollama ne répond pas (hôte éteint, modèle absent) : mieux vaut une
+    heuristique étroite qu'une exception au milieu d'un audit.
+    """
+    key = (model_id or "").lower()
+    if key in _THINKING_CACHE:
+        return _THINKING_CACHE[key]
+
+    result = None
+    try:
+        import requests
+        resp = requests.post(
+            f"{ollama_host or OLLAMA_HOST}/api/show",
+            json={"model": model_id},
+            timeout=10,
+        )
+        if resp.ok:
+            caps = resp.json().get("capabilities") or []
+            result = "thinking" in [str(c).lower() for c in caps]
+    except Exception:
+        result = None   # Ollama muet → repli
+
+    if result is None:
+        result = any(p in key for p in _THINKING_FALLBACK_PATTERNS)
+
+    _THINKING_CACHE[key] = result
+    return result
+
+
+#: Familles qui comprennent la directive texte `/no_think`. C'est une convention **Qwen**, pas un
+#: standard : mesuré le 2026-08-20, `gemma4:e4b` DÉCLARE la capacité `thinking` mais n'a jamais
+#: connu `/no_think` — la lui envoyer ajouterait du texte parasite traité comme contenu utilisateur.
+_NO_THINK_FAMILIES = ('qwen',)
+
+
+def _honors_no_think(model_id: str) -> bool:
+    """
+    Le modèle comprend-il `/no_think` ? Question DISTINCTE de « sait-il penser ».
+
+    ⚠ DETTE ASSUMÉE : la bonne réponse durable n'est pas une liste de familles mais le paramètre
+    d'API `think: false` (Ollama ≥ 0.9), qui coupe le raisonnement quelle que soit la famille et
+    sans toucher au prompt. Le basculement suppose de modifier la construction des requêtes dans
+    `core/llm.py` — hors périmètre ici, où l'on ne veut RIEN changer à la stabilité éprouvée du
+    rôle `audit`. À faire dès qu'on retouche `llm.py`.
+    """
+    return any(f in (model_id or "").lower() for f in _NO_THINK_FAMILIES)
 
 
 def _compute_num_ctx(free_vram_gb: float) -> int:
@@ -366,7 +428,10 @@ class AuditAgent:
     Suitable for interactive use and cron/non-interactive use.
     """
 
-    MAX_TOOL_ROUNDS = 20   # Safety: stop after N tool call rounds
+    # 20 était trop bas pour une cartographie : le 2026-08-20 une passe a consommé ses 20 tours
+    # en navigation et recherches cassées, sans lire un fichier. Une passe réelle lit des dizaines
+    # de fichiers ; le garde-fou doit borner une boucle folle, pas un travail normal.
+    MAX_TOOL_ROUNDS = 80   # Safety: stop after N tool call rounds
 
     # Stable last-resort model: non-thinking, light, leaves VRAM headroom on a shared
     # 24 GB host (qwen3-coder:30b is too heavy for agentic use; qwen3.5:9b EOFs on this
@@ -374,7 +439,7 @@ class AuditAgent:
     _FALLBACK_MODEL = "gemma4:e4b"
 
     def __init__(self, model_role: str = "architect", verbose: bool = True,
-                 force_model: str = None):
+                 force_model: str = None, prompt: str = "audit"):
         self.llm = LLMClient()
         self.tools = AuditToolRegistry(llm=self.llm)
         self.verbose = verbose
@@ -403,10 +468,27 @@ class AuditAgent:
                 self._model_cfg = types.SimpleNamespace(
                     ollama_id=self._FALLBACK_MODEL, name=self._FALLBACK_MODEL)
 
-        # Load audit system prompt
-        audit_prompt_path = PROMPTS_DIR / "audit.txt"
+        # Load the system prompt. Sélectionnable (`--prompt`) : le prompt PORTE la méthode, et
+        # une cartographie de corpus externe n'obéit pas aux mêmes règles qu'un audit de code
+        # WAMA (pas de suggested_actions, preuves obligatoires, couverture déclarée). Le codage
+        # en dur de "audit.txt" rendait `prompts/cartography.txt` inatteignable.
+        audit_prompt_path = PROMPTS_DIR / f"{prompt}.txt"
         if audit_prompt_path.exists():
+            if verbose:
+                print(f"[Audit] Prompt: {audit_prompt_path.name}")
             self._system_prompt = audit_prompt_path.read_text(encoding='utf-8')
+            # ⚠ GARDE — un prompt sans `{tools}` produit un ÉCHEC SILENCIEUX : le modèle ne reçoit
+            # ni la liste des outils ni la syntaxe d'appel, ne peut donc appeler personne, répond
+            # vide, l'agent ne parse aucun appel et conclut « terminé » avec un rapport de 0 octet
+            # et un code de sortie 0. Constaté le 2026-08-20 sur `cartography.txt` : une passe
+            # perdue sans le moindre signal. Mieux vaut refuser de démarrer.
+            missing = [ph for ph in ("{tools}", "{task}") if ph not in self._system_prompt]
+            if missing:
+                raise ValueError(
+                    f"prompt '{audit_prompt_path.name}' inutilisable : {', '.join(missing)} "
+                    f"absent(s). `{{tools}}` reçoit la liste des outils et la syntaxe d'appel, "
+                    f"`{{task}}` la tâche. Sans eux l'agent tourne à vide sans erreur visible."
+                )
         else:
             self._system_prompt = (
                 "You are wama-dev-ai in AUDIT MODE. "
@@ -442,9 +524,25 @@ class AuditAgent:
 
     def run(self, task: str) -> str:
         """
-        Run the audit agent for a given task.
-        Returns the final text response from the model.
+        Run the audit agent for a given task, then RELEASE the model.
+
+        Le modèle est chargé avec `keep_alive=-1` (résidence indéfinie) pour qu'aucune étape
+        d'outil longue ne provoque un déchargement — donc aucun rechargement, donc pas le crash
+        transitoire EOF que ce build d'Ollama produit au premier appel après un (re)chargement.
+        La durée d'un run n'étant pas prévisible, c'est le run LUI-MÊME qui libère, ici, en
+        `finally` : fin normale, exception ou Ctrl-C laissent la VRAM propre pour la suite.
         """
+        try:
+            return self._run_loop(task)
+        finally:
+            try:
+                _free_ollama_models(OLLAMA_HOST, verbose=self.verbose)
+            except Exception as exc:      # libérer ne doit JAMAIS masquer le résultat du run
+                if self.verbose:
+                    print(f"[Audit] Déchargement final impossible : {exc}")
+
+    def _run_loop(self, task: str) -> str:
+        """Boucle agentique proprement dite (cf. `run`, qui en garantit la libération)."""
         self._report_saved = False  # track whether write_report was called
         if self.verbose:
             print(f"\n[Audit] Task: {task}\n")
@@ -461,14 +559,21 @@ class AuditAgent:
         # Thinking models need larger context for their <think> blocks.
         free_vram = _get_free_vram_gb()
         num_ctx = _compute_num_ctx(free_vram)
+        # Deux questions DISTINCTES : le modèle pense-t-il (capacité, demandée à Ollama), et
+        # comprend-il la directive `/no_think` (convention Qwen). On n'injecte que si les deux
+        # sont vraies — sinon on envoie du texte parasite (cf. `_honors_no_think`).
         thinking = _is_thinking_model(model_id)
+        inject_no_think = thinking and _honors_no_think(model_id)
         if self.verbose:
+            detail = ""
+            if thinking:
+                detail = " -> /no_think" if inject_no_think else " (pense, mais n'honore pas /no_think)"
             print(f"[Audit] VRAM free: {free_vram:.1f} GiB -> num_ctx={num_ctx}"
-                  f"{' (thinking model -> /no_think)' if thinking else ''}")
+                  f"{' [thinking]' + detail if thinking else ' [non-thinking]'}")
 
         # For thinking models, /no_think disables the <think> block so the model
         # responds directly — saves thousands of tokens and avoids context overflow.
-        first_user = ("/no_think\n" if thinking else "") + task
+        first_user = ("/no_think\n" if inject_no_think else "") + task
 
         messages = [
             {"role": "system", "content": system},
@@ -492,6 +597,15 @@ class AuditAgent:
                         model=model_id,
                         messages=messages,
                         options={"temperature": 0.3, "num_ctx": num_ctx},
+                        # keep_alive=-1 : résidence INDÉFINIE pendant le run. Le défaut Ollama
+                        # (5 min) déchargeait le modèle dès qu'une étape d'outil dépassait ce
+                        # délai — et le commentaire ci-dessus dit que le PREMIER appel après un
+                        # (re)chargement crashe transitoirement (EOF 500) sur ce build. On
+                        # supprime donc la cause au lieu de la rattraper par retry.
+                        # ⚠ La contrepartie est un modèle qui squatte la VRAM : le déchargement
+                        # est fait par `run()` en `finally` — c'est LE RUN qui sait quand il a
+                        # fini, aucune durée n'est devinée ici.
+                        keep_alive=-1,
                     )
                     break
                 except Exception as e:
@@ -601,6 +715,19 @@ def main():
         action="store_true",
         help="Skip automatic VRAM clearing before model selection",
     )
+    parser.add_argument(
+        "--prompt", "-p",
+        default="audit",
+        help="Nom du prompt système dans prompts/ (sans .txt). Ex : 'cartography' pour "
+             "cartographier un corpus externe (bind, pynd). Défaut : 'audit'.",
+    )
+    parser.add_argument(
+        "--ask-password",
+        action="store_true",
+        help="Autoriser la demande interactive du mot de passe WAMA (libération VRAM par l'API). "
+             "SANS ce drapeau, l'outil ne demande JAMAIS rien et saute l'étape : c'est le défaut, "
+             "parce qu'un prompt dans un run non surveillé bloque indéfiniment sans message.",
+    )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     args = parser.parse_args()
 
@@ -647,11 +774,22 @@ def main():
     # Step 2: Free WAMA GPU cache (PyTorch) via WAMA API.
     # Password: from WAMA_PASSWORD env var, or prompted interactively if username is known.
     wama_password = WAMA_PASSWORD
-    if not args.no_free_vram and WAMA_USERNAME and not wama_password and verbose:
+    # ⚠ NE JAMAIS demander un mot de passe SAUF si l'opérateur l'a demandé (`--ask-password`).
+    # Historique du 2026-08-20, trois lancements perdus : la condition portait sur `verbose`, si
+    # bien qu'un run lancé sans `--non-interactive` appelait `getpass` et attendait indéfiniment
+    # une saisie impossible — sans afficher quoi que ce soit, le processus paraissant vivant.
+    # `isatty()` NE SUFFIT PAS : mesuré, il renvoie True sous un hôte qui attache un handle de
+    # console alors qu'aucun humain n'est derrière. Le seul critère fiable est une intention
+    # EXPLICITE. Par défaut, l'outil ne demande rien et saute proprement l'étape.
+    if (not args.no_free_vram and WAMA_USERNAME and not wama_password
+            and args.ask_password and sys.stdin is not None and sys.stdin.isatty()):
         import getpass
         wama_password = getpass.getpass(
             f"[wama-dev-ai] Mot de passe WAMA pour '{WAMA_USERNAME}': "
         )
+    elif not args.no_free_vram and WAMA_USERNAME and not wama_password:
+        print("[wama-dev-ai] WAMA_PASSWORD absent et --ask-password non passé — libération VRAM "
+              "par l'API WAMA sautée (le déchargement Ollama, lui, a bien eu lieu).")
 
     if not args.no_free_vram and WAMA_USERNAME and wama_password:
         print(f"[wama-dev-ai] Libération VRAM via WAMA API ({WAMA_BASE_URL})…")
@@ -660,7 +798,8 @@ def main():
             import time
             time.sleep(2)  # Give the GPU a moment to settle
 
-    agent = AuditAgent(model_role=args.model, verbose=verbose, force_model=args.force_model)
+    agent = AuditAgent(model_role=args.model, verbose=verbose, force_model=args.force_model,
+                       prompt=args.prompt)
     result = agent.run(args.task)
 
     if not verbose:
