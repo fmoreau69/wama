@@ -40,6 +40,10 @@ urlpatterns = [
     # aucun ne la contient.
     path('licences/', views.licenses_catalog_view, name='licenses_catalog'),
 
+    # Journal transversal de l'utilisateur (WAMA_MEMORY.md §9bis) — dérive de detail_registry,
+    # aucune ligne dans les apps.
+    path('journal/', views.journal_view, name='journal'),
+
     # Schéma domaines→modes d'une app (clé de voûte UX, consommé par WamaModes JS)
     path('api/app-modes/<str:app>/', views.api_app_modes, name='api_app_modes'),
     path('modes-demo/', views.modes_demo, name='modes_demo'),

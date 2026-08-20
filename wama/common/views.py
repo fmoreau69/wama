@@ -4,6 +4,7 @@ WAMA Common - Views
 Common views for system utilities.
 """
 
+from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 from django.http import JsonResponse
 from django.shortcuts import render
@@ -290,6 +291,44 @@ def licenses_catalog_view(request):
 
     return render(request, 'common/licenses.html',
                   {'audit': synthese(request.user if request.user.is_authenticated else None)})
+
+
+@login_required
+def journal_view(request):
+    """
+    Journal de l'utilisateur — tout ce qu'il a lancé dans WAMA, toutes apps confondues.
+    Doc : `WAMA_MEMORY.md §9bis`.
+
+    Vue TRANSVERSALE qui DÉRIVE, comme le catalogue des licences : aucune table propre, aucune
+    ligne dans les apps. Les sources viennent de `detail_registry` (que chaque app alimente déjà
+    pour l'inspecteur), le tri/la pagination du service, les chips du schéma params.
+
+    `@login_required` n'est pas décoratif : le journal est personnel par définition, et une page
+    qui filtre sur `request.user` sans exiger l'authentification rendrait une page vide et
+    trompeuse à un anonyme au lieu de l'envoyer se connecter.
+    """
+    from .services.journal import compter_par_app, entrees
+
+    try:
+        offset = max(0, int(request.GET.get('offset', 0)))
+    except (TypeError, ValueError):
+        offset = 0
+    limite = 25
+    app = (request.GET.get('app') or '').strip() or None
+
+    page, total = entrees(request.user, apps=[app] if app else None,
+                          limite=limite, offset=offset)
+
+    return render(request, 'common/journal.html', {
+        'page': page,
+        'total': total,
+        'app_active': app,
+        'repartition': compter_par_app(request.user),
+        'debut': offset + 1 if page else 0,
+        'fin': offset + len(page),
+        'precedent': max(0, offset - limite) if offset else None,
+        'suivant': offset + limite if offset + limite < total else None,
+    })
 
 
 # ── Brique À-propos / Aide (2026-08-11) ──────────────────────────────────────────

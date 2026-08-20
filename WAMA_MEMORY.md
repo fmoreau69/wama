@@ -229,9 +229,68 @@ Et c'est urgent au sens propre, pour la raison écrite dans le docstring de `Run
 correction, chaque suppression qui se produit aujourd'hui sans être captée est définitivement
 perdue. Le coût d'attendre n'est pas nul, il est cumulatif.
 
-→ **La suite la plus rentable n'est pas le jalon 5, c'est de câbler `enregistrer()` aux vues
-`download`/`delete`/`start` des 10 apps** (elles existent toutes, ce sont les boutons conventionnels
-de la file). Une ligne best-effort par vue, aucun geste nouveau demandé à l'utilisateur.
+### Résolu le 2026-08-20 — captation générique, zéro ligne dans les apps
+
+Le réflexe aurait été de câbler `enregistrer()` à la main dans les vues `download`/`delete`/`start`
+des 10 apps : **~30 retouches**, à refaire à chaque app ajoutée, et une app oubliée aurait creusé
+un trou **silencieux** dans le journal.
+
+Or les routes de file sont d'une régularité remarquable (vérifié sur les 10 apps) : `download`,
+`start`, `restart`, `delete`, toutes avec un `pk`. D'où **`common/middleware.py`
+(`RunOutcomeCaptureMiddleware`)** : il lit `resolver_match.url_name`, retrouve le modèle via
+`detail_registry`, et écrit le signal. Les apps futures sont captées sans qu'on y touche.
+
+Trois choix qui font la justesse de la captation :
+
+1. **Middleware, pas signal `post_delete`.** Un signal capterait aussi les suppressions en cascade
+   et les purges de maintenance — or `RunOutcome` enregistre des **gestes d'utilisateur**. Passer
+   par la requête HTTP rend la captation juste par construction : pas de requête, pas de geste.
+2. **`url_name`, pas la forme du chemin.** Les chemins varient (`/converter/<pk>/download/`), les
+   noms de route non. La captation est donc insensible à la disposition des URL.
+3. **Seules les réponses < 400 comptent.** Un 404 n'est pas un téléchargement.
+
+Et une distinction qui pèse dans la saillance : un `start` n'est une **relance** que si l'objet a
+déjà produit ou échoué. Sans ce test, une première exécution serait comptée comme l'échec implicite
+d'un précédent qui n'existait pas.
+
+⚠ Restent non captés : les routes `*_all` (batch), qui n'ont pas de `pk` — les capter demanderait
+de rejouer la sélection côté serveur. À faire quand le besoin sera réel, pas en le devinant.
+
+## 9bis. Le journal de l'utilisateur — première surface visible
+
+`/common/journal/` (menu utilisateur → « Mon journal ») : tout ce que l'utilisateur a lancé, toutes
+apps confondues, du plus récent au plus ancien.
+
+**Il DÉRIVE, il ne stocke rien** — même principe que le catalogue des licences. Les sources sont
+tirées de `detail_registry`, que chaque app alimente **déjà** pour l'inspecteur : une app présente
+dans l'inspecteur est au journal le jour où elle est écrite, **sans une ligne de code dans l'app**.
+Le champ de date est détecté (`created_at`, sinon `uploaded_at`…), les chips viennent de
+`card_chips` (générés du schéma params), le titre est le `__str__` du modèle — un titre médiocre
+est un défaut de `__str__` à corriger dans le modèle, où il profitera aussi à l'admin.
+
+**Mondes.** Seul `media` est peuplé, mais l'ajout d'un monde (studio, lab, data) est une
+**inscription** (`journal.enregistrer_source()`), jamais une modification de la page.
+
+**Le clic ne réinvente pas de volet** : il pose `sessionStorage['wama_focus_card']` puis navigue
+vers la page de l'app — passage inter-pages que `wama-queue.js` documente lui-même, et le sélecteur
+`[data-id]` fonctionne sur les 14 gabarits de cards d'items (vérifié). L'utilisateur atterrit sur sa
+card, mise en évidence, avec **toutes** les actions de l'app.
+
+> ⚠ Découverte au passage : **`/common/detail/<app>/<pk>/` n'a aucun consommateur** (vérifié
+> 2026-08-20). L'inspecteur des apps se remplit depuis les `data-*` de la card (`card_gear.py`),
+> pas par un fetch. L'endpoint reste exposé pour l'API et le débogage.
+
+**Dette assumée, à ne pas aggraver** : la card *fille* reste écrite par app (10 gabarits
+`_*_card.html`) — la codegen le signale elle-même comme « TROU DE GLU » dans
+`converter_01/_generic_card.html`. `_journal_card.html` est volontairement bâtie sur le squelette
+`.wama-card` commun et sans **aucune** condition par app, pour être la **candidate à l'extraction**
+de cette card fille commune. Ne rien y introduire de spécifique : ce serait refermer le trou dans
+le mauvais sens.
+
+**Performance** : une page de 25 coûte ~31 requêtes (12 sources × count+select, plus les chips de
+la page). Le tri inter-modèles se fait en Python — une union SQL sur 12 tables hétérogènes se
+casserait à la première app ajoutée, exactement ce qu'on veut éviter. ⚠ Les entrées sont fabriquées
+**après** le tri et la tranche : les fabriquer avant coûtait 73 requêtes pour 20 lignes.
 
 ## 8. La mémoire « émotionnelle » — RÉSERVÉE, non implémentée (décision 2026-08-20)
 

@@ -386,6 +386,11 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # Permissions d'app (défense en profondeur) — après auth/messages (request.user requis).
     'wama.accounts.middleware.AppAccessMiddleware',
+    # Captation générique des gestes (telecharge/supprime/relance) vers RunOutcome — évite ~30
+    # retouches par app et les trous silencieux quand une app est ajoutée (WAMA_MEMORY.md §7bis).
+    # EN DERNIER : il lit `resolver_match` et le code de statut, donc il doit voir la réponse
+    # finale, après les middlewares qui peuvent la remplacer (permissions d'app incluses).
+    'wama.common.middleware.RunOutcomeCaptureMiddleware',
 ]
 
 ROOT_URLCONF = 'wama.urls'

@@ -1,0 +1,42 @@
+{% comment %}
+WAMA Common — CARD D'ITEM du journal transversal (WAMA_MEMORY.md §9bis).
+
+⚠ CE N'EST PAS UNE 4e CARD. Elle reprend le squelette `.wama-card` des files et DÉLÈGUE aux
+briques communes : `_card_state.html` pour l'état, `_card_chips.html` pour les chips (générés du
+schéma params, jamais écrits ici), `/common/preview/` et `/common/detail/` pour le reste.
+
+⚠ DETTE CONNUE, à ne pas aggraver : la card FILLE reste écrite par app (10 gabarits
+`_*_card.html`), et la codegen le signale elle-même comme « TROU DE GLU » dans
+`converter_01/_generic_card.html`. Cette card-ci est volontairement construite sur le squelette
+commun et sans rien d'app-spécifique, pour être la CANDIDATE à l'extraction de cette card fille
+commune. Ne pas y introduire de condition par app : ce serait refermer le trou dans le mauvais sens.
+
+Contexte : e = Entree (services/journal.py).
+{% endcomment %}
+<div class="card bg-dark border-secondary mb-2 wama-card journal-card"
+     data-app="{{ e.app }}" data-id="{{ e.pk }}" data-status="{{ e.statut }}"
+     data-app-url="{{ e.url_app }}"
+     {% if e.saillance %}data-saillance="{{ e.saillance }}"{% endif %}>
+  <div class="card-body py-2">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <span class="journal-app badge" title="Monde {{ e.monde }}">{{ e.app }}</span>
+      <strong class="text-light">#{{ e.pk }}</strong>
+      <span class="text-truncate flex-fill text-light" title="{{ e.titre }}">{{ e.titre }}</span>
+      <small class="text-white-50 journal-date">{{ e.date|date:"d/m/Y H:i" }}</small>
+      {% include 'common/_card_state.html' with status=e.statut %}
+    </div>
+
+    {% if e.chips %}
+    <div class="wama-chips mt-1">{% include 'common/_card_chips.html' with chips=e.chips %}</div>
+    {% endif %}
+
+    {% comment %}Couche 2 — l'histoire des gestes. Absente tant que RunOutcome n'est pas câblé
+    aux vues download/delete/start : la ligne reste utile sans elle.{% endcomment %}
+    {% if e.gestes %}
+    <div class="journal-gestes mt-1">
+      <i class="fas fa-clock-rotate-left text-white-50"></i>
+      {% for g in e.gestes %}<span class="journal-geste">{{ g }}</span>{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>

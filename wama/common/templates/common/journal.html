@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load wama_static %}
+
+{% comment %}
+Journal de l'utilisateur — WAMA_MEMORY.md §9bis. Vue TRANSVERSALE : tout ce que l'utilisateur a
+lancé, toutes apps confondues, du plus récent au plus ancien.
+
+Les sources sont DÉRIVÉES de `detail_registry` (aucune ligne dans les apps) et les mondes sont
+prévus dès maintenant même si seul « Médias » est peuplé — ajouter un monde doit rester une
+inscription (`journal.enregistrer_source`), pas une modification de cette page.
+{% endcomment %}
+
+{% block title %}WAMA — Mon journal{% endblock %}
+
+{% block extra_css %}
+<style>
+    .journal-page { padding: 2rem 0; }
+    .journal-page h1 { font-size: 1.6rem; font-weight: 600; color: #e9ecef; margin-bottom: .25rem; }
+    .journal-page .subtitle { color: #6c757d; font-size: .9rem; margin-bottom: 1.5rem; }
+    .journal-filtres { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1.25rem; }
+    .journal-filtre {
+        background: #1a1a2e; border: 1px solid #2d2d4e; border-radius: 999px;
+        padding: .25rem .75rem; color: #adb5bd; font-size: .85rem; text-decoration: none;
+    }
+    .journal-filtre:hover { border-color: #4a4a7a; color: #e9ecef; }
+    .journal-filtre.actif { border-color: #0d6efd; color: #e9ecef; background: #16213e; }
+    .journal-filtre .n { color: #6c757d; margin-left: .35rem; }
+    .journal-card { cursor: pointer; }
+    .journal-card:hover { border-color: #4a4a7a !important; }
+    .journal-app {
+        background: #16213e; color: #8ab4f8; border: 1px solid #2d2d4e;
+        font-weight: 500; font-size: .72rem; text-transform: lowercase;
+    }
+    .journal-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .journal-gestes { font-size: .78rem; color: #adb5bd; display: flex; gap: .4rem;
+                      flex-wrap: wrap; align-items: center; }
+    .journal-geste::after { content: '·'; margin-left: .4rem; color: #495057; }
+    .journal-geste:last-child::after { content: ''; }
+    .journal-mois { color: #6c757d; font-size: .8rem; text-transform: uppercase;
+                    letter-spacing: .06em; margin: 1.5rem 0 .5rem; }
+    .journal-vide { color: #6c757d; text-align: center; padding: 3rem 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container journal-page">
+  <h1>Mon journal</h1>
+  <p class="subtitle">
+    Tout ce que vous avez lancé dans WAMA — {{ total }} élément{{ total|pluralize }}.
+    Cliquez une ligne pour ouvrir son inspecteur.
+  </p>
+
+  <div class="journal-filtres">
+    <a class="journal-filtre {% if not app_active %}actif{% endif %}" href="{% url 'common:journal' %}">
+      Tout <span class="n">{{ total }}</span>
+    </a>
+    {% for l in repartition %}
+    <a class="journal-filtre {% if app_active == l.app %}actif{% endif %}"
+       href="{% url 'common:journal' %}?app={{ l.app }}" title="Monde {{ l.libelle_monde }}">
+      {{ l.app }} <span class="n">{{ l.total }}</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  {% if page %}
+    {% regroup page by date|date:"F Y" as mois_list %}
+    {% for mois in mois_list %}
+      <div class="journal-mois">{{ mois.grouper }}</div>
+      {% for e in mois.list %}{% include 'common/_journal_card.html' with e=e %}{% endfor %}
+    {% endfor %}
+
+    <nav class="d-flex justify-content-between align-items-center mt-3">
+      {% if precedent is not None %}
+        <a class="btn btn-sm btn-outline-secondary"
+           href="?{% if app_active %}app={{ app_active }}&{% endif %}offset={{ precedent }}">‹ Plus récent</a>
+      {% else %}<span></span>{% endif %}
+      <small class="text-white-50">{{ debut }}–{{ fin }} sur {{ total }}</small>
+      {% if suivant is not None %}
+        <a class="btn btn-sm btn-outline-secondary"
+           href="?{% if app_active %}app={{ app_active }}&{% endif %}offset={{ suivant }}">Plus ancien ›</a>
+      {% else %}<span></span>{% endif %}
+    </nav>
+  {% else %}
+    <div class="journal-vide">
+      <i class="fas fa-clock-rotate-left fa-2x mb-3 d-block"></i>
+      Rien à afficher pour l'instant.
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Clic sur une ligne → on VA À L'ITEM, dans sa propre app, avec toutes ses actions.
+//
+// On ne réimplémente NI volet NI card d'app : `wama-queue.js` documente lui-même le passage
+// inter-pages (`sessionStorage['wama_focus_card']`, lu par focusFromSession au chargement).
+// Le sélecteur `[data-id]` marche pour les 14 gabarits de cards d'items (vérifié) — inutile de
+// connaître la convention d'id de chaque app.
+document.querySelectorAll('.journal-card').forEach(function (card) {
+  card.addEventListener('click', function () {
+    var url = card.dataset.appUrl;
+    if (!url) { return; }                     // app sans route déclarée : ligne non cliquable
+    try {
+      sessionStorage.setItem('wama_focus_card',
+                             '.wama-card[data-id="' + card.dataset.id + '"]');
+    } catch (e) { /* mode privé : on navigue quand même, sans mise au point */ }
+    window.location.href = url;
+  });
+});
+</script>
+{% endblock %}
