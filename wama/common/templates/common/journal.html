@@ -64,10 +64,15 @@ inscription (`journal.enregistrer_source`), pas une modification de cette page.
   </div>
 
   {% if page %}
+    {% comment %}`data-card-design` porte la densité choisie par l'utilisateur (profil, diffusé
+    par le context processor) : le journal hérite des trois designs communs v1/v2/v3 exactement
+    comme les files d'apps, sans une ligne de CSS propre.{% endcomment %}
     {% regroup page by date|date:"F Y" as mois_list %}
     {% for mois in mois_list %}
       <div class="journal-mois">{{ mois.grouper }}</div>
-      {% for e in mois.list %}{% include 'common/_journal_card.html' with e=e %}{% endfor %}
+      <div class="journal-liste" data-card-design="{{ card_design|default:'v3' }}">
+        {% for e in mois.list %}{% include 'common/_journal_card.html' with e=e %}{% endfor %}
+      </div>
     {% endfor %}
 
     <nav class="d-flex justify-content-between align-items-center mt-3">

@@ -1,15 +1,19 @@
 {% comment %}
 WAMA Common — CARD D'ITEM du journal transversal (WAMA_MEMORY.md §9bis).
 
-⚠ CE N'EST PAS UNE 4e CARD. Elle reprend le squelette `.wama-card` des files et DÉLÈGUE aux
-briques communes : `_card_state.html` pour l'état, `_card_chips.html` pour les chips (générés du
-schéma params, jamais écrits ici), `/common/preview/` et `/common/detail/` pour le reste.
+⚠ CE N'EST PAS UN 4e DESIGN DE CARD. Elle émet les **5 sections nommées** de la card v3
+(`CARD_DESIGN §11`) — Entrée · Réglages · Sortie · État · Actions — donc elle HÉRITE des trois
+densités communes (v1 détaillé · v2 compact · v3 affiné) sans une ligne de CSS ici : ce sont les
+trois blocs de `wama-card-v3.css`, sélectionnés par `data-card-design` sur le conteneur de file.
+Le journal respecte ainsi le design choisi par l'utilisateur dans son profil, comme les 10 apps.
 
-⚠ DETTE CONNUE, à ne pas aggraver : la card FILLE reste écrite par app (10 gabarits
-`_*_card.html`), et la codegen le signale elle-même comme « TROU DE GLU » dans
-`converter_01/_generic_card.html`. Cette card-ci est volontairement construite sur le squelette
-commun et sans rien d'app-spécifique, pour être la CANDIDATE à l'extraction de cette card fille
-commune. Ne pas y introduire de condition par app : ce serait refermer le trou dans le mauvais sens.
+RÈGLE HÉRITÉE ET NON NÉGOCIABLE (§11.4) : **aucun `{% templatetag openblock %} if design {% templatetag closeblock %}` ici.** La différence entre les
+trois densités est un `display`, donc une feuille de style — jamais un branchement de gabarit.
+
+Ce que le journal n'a PAS, et pourquoi les sections restent vides plutôt qu'absentes : il ne
+propose pas les actions de l'app (elles vivent sur la page de l'app, où le clic emmène) et
+l'« Entrée » se réduit au titre, faute d'un accès générique au fichier source. Garder les pistes
+préserve l'alignement vertical d'une card à l'autre, qui est la raison d'être de la v3.
 
 Contexte : e = Entree (services/journal.py).
 {% endcomment %}
@@ -17,26 +21,52 @@ Contexte : e = Entree (services/journal.py).
      data-app="{{ e.app }}" data-id="{{ e.pk }}" data-status="{{ e.statut }}"
      data-app-url="{{ e.url_app }}"
      {% if e.saillance %}data-saillance="{{ e.saillance }}"{% endif %}>
-  <div class="card-body py-2">
-    <div class="d-flex align-items-center gap-2 flex-wrap">
-      <span class="journal-app badge" title="Monde {{ e.monde }}">{{ e.app }}</span>
-      <strong class="text-light">#{{ e.pk }}</strong>
-      <span class="text-truncate flex-fill text-light" title="{{ e.titre }}">{{ e.titre }}</span>
-      <small class="text-white-50 journal-date">{{ e.date|date:"d/m/Y H:i" }}</small>
-      {% include 'common/_card_state.html' with status=e.statut %}
+
+  <div class="wcv3-head">#{{ e.pk }}<span class="sep">·</span>{{ e.date|date:"d/m H:i" }}</div>
+
+  <div class="wcv3">
+    <div class="wcv3-sec wcv3-sec--input">
+      <span class="wcv3-lbl">Entrée</span>
+      <div class="wcv3-in">
+        <div class="wcv3-in-lines">
+          <span class="wcv3-in-name" title="{{ e.titre }}">{{ e.titre }}</span>
+          <span class="wcv3-in-props">{{ e.app }}</span>
+        </div>
+      </div>
     </div>
 
-    {% if e.chips %}
-    <div class="wama-chips mt-1">{% include 'common/_card_chips.html' with chips=e.chips %}</div>
-    {% endif %}
-
-    {% comment %}Couche 2 — l'histoire des gestes. Absente tant que RunOutcome n'est pas câblé
-    aux vues download/delete/start : la ligne reste utile sans elle.{% endcomment %}
-    {% if e.gestes %}
-    <div class="journal-gestes mt-1">
-      <i class="fas fa-clock-rotate-left text-white-50"></i>
-      {% for g in e.gestes %}<span class="journal-geste">{{ g }}</span>{% endfor %}
+    <div class="wcv3-sec wcv3-sec--settings">
+      <span class="wcv3-lbl">Réglages</span>
+      <div class="wcv3-out">
+        {% include 'common/_card_chips.html' with chips=e.chips %}
+      </div>
     </div>
-    {% endif %}
+
+    <div class="wcv3-sec wcv3-sec--output">
+      <span class="wcv3-lbl">Sortie</span>
+      <div class="wcv3-out">
+        {% comment %}Couche 2 — l'histoire des gestes, quand RunOutcome en a. La captation étant
+        générique (middleware), elle se remplit d'elle-même à l'usage.{% endcomment %}
+        {% for g in e.gestes %}<span class="wcv3-out-step">{{ g }}</span>{% endfor %}
+      </div>
+    </div>
+
+    <div class="wcv3-sec wcv3-sec--state">
+      <span class="wcv3-lbl">État</span>
+      <div class="wcv3-state">
+        {% include 'common/_card_state.html' with status=e.statut %}
+      </div>
+    </div>
+
+    <div class="wcv3-sec wcv3-sec--actions">
+      <span class="wcv3-lbl">Actions</span>
+      <div class="btn-group-actions wcv3-actions">
+        {% comment %}Une seule action, et c'est la bonne : aller à l'item dans son app, où
+        TOUTES les actions existent déjà. En rejouer une ici les dupliquerait.{% endcomment %}
+        <span class="btn btn-sm btn-outline-secondary" title="Ouvrir dans {{ e.app }}">
+          <i class="fas fa-arrow-right"></i>
+        </span>
+      </div>
+    </div>
   </div>
 </div>

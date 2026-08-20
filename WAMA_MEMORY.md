@@ -280,12 +280,21 @@ card, mise en évidence, avec **toutes** les actions de l'app.
 > 2026-08-20). L'inspecteur des apps se remplit depuis les `data-*` de la card (`card_gear.py`),
 > pas par un fetch. L'endpoint reste exposé pour l'API et le débogage.
 
-**Dette assumée, à ne pas aggraver** : la card *fille* reste écrite par app (10 gabarits
-`_*_card.html`) — la codegen le signale elle-même comme « TROU DE GLU » dans
-`converter_01/_generic_card.html`. `_journal_card.html` est volontairement bâtie sur le squelette
-`.wama-card` commun et sans **aucune** condition par app, pour être la **candidate à l'extraction**
-de cette card fille commune. Ne rien y introduire de spécifique : ce serait refermer le trou dans
-le mauvais sens.
+**La card du journal HÉRITE des trois designs communs.** Elle émet les **5 sections nommées** de
+la card v3 (`CARD_DESIGN §11.6`) — Entrée · Réglages · Sortie · État · Actions — et le conteneur
+porte `data-card-design` (densité choisie au profil, diffusée par le context processor). Les trois
+densités **v1 détaillé · v2 compact · v3 affiné** sont trois blocs CSS de `wama-card-v3.css` : le
+journal les obtient sans une ligne de style propre, et respecte le choix de l'utilisateur comme
+les 10 apps. Vérifié au rendu : 25 cards × 5 sections, `data-card-design="v3"`, **aucun
+`{% templatetag openblock %} if design {% templatetag closeblock %}`** — le garde-fou de §11.4 tient (la différence entre densités est un
+`display`, jamais un branchement de gabarit).
+
+> ⚠ **Correction d'une erreur de ce document (2026-08-20).** Une version antérieure de ce §
+> affirmait qu'« il n'existe pas de card commune, chaque app écrit la sienne ». **C'est faux** :
+> ce que chaque app écrit est l'ÉMISSION des 5 sections ; le design, lui, est commun et
+> sélectionnable. La confusion venait d'avoir listé les gabarits `_*_card.html` sans lire
+> `CARD_DESIGN §11.4/§11.6`. Le « TROU DE GLU » de `converter_01/_generic_card.html` concerne la
+> **codegen** (elle ne génère pas encore la card réelle), pas l'absence d'une card commune.
 
 **Performance** : une page de 25 coûte ~31 requêtes (12 sources × count+select, plus les chips de
 la page). Le tri inter-modèles se fait en Python — une union SQL sur 12 tables hétérogènes se
