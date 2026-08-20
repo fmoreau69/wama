@@ -48,22 +48,62 @@
     <div class="fc-stat"><b>{{ stats.projects|length }}</b> projets</div>
   </div>
 
-  <div class="fc-bar">
-    <input type="text" id="fcSearch" placeholder="🔍 Rechercher (nom, description, tag)…" style="min-width:240px;">
-    <select id="fcBinding"><option value="">Tout binding</option>
-      <option value="pure">Pures</option><option value="app">App-bound</option></select>
-    <select id="fcCategory"><option value="">Toute catégorie</option>
-      {% for c in stats.categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select>
-    <select id="fcProject"><option value="">Tout projet</option>
-      {% for p in stats.projects %}<option value="{{ p }}">{{ p }}</option>{% endfor %}</select>
-    <select id="fcApp"><option value="">Toute app</option>
-      {% for a in stats.apps %}<option value="{{ a }}">{{ a }}</option>{% endfor %}</select>
-    <select id="fcSort">
-      <option value="name">Tri : nom</option>
-      <option value="category">Tri : catégorie</option>
-      <option value="app">Tri : app</option>
-      <option value="binding">Tri : binding</option></select>
-    <span class="text-secondary small" id="fcCount"></span>
+  {% comment %}APPARENCE de la barre commune (`.wama-filter-bar`, CSS global), mais MÉCANISME
+  d'origine conservé — et c'est délibéré.
+
+  Cette page ne masque pas des éléments du DOM : elle filtre un TABLEAU JS (`DATA`) et RE-GÉNÈRE
+  la grille (`grid.innerHTML`). Elle a en plus une facette multivaluée (`projects` est une liste)
+  et un tri. La brique `wama-filter-bar.js` montre/masque des nœuds existants : la brancher ici
+  imposerait de rendre les cards côté serveur, donc de réécrire le rendu de la page — hors de
+  proportion avec une harmonisation de barre, et risqué pour zéro gain fonctionnel.
+
+  Ce qui est mutualisé ici est donc l'APPARENCE et le geste (mêmes classes, mêmes selects
+  sombres, filtrage en direct, compteur). ⚠ Pas de `data-wama-filter-bar` : la brique ne doit
+  PAS s'auto-monter dessus, sinon deux mécanismes se disputeraient les mêmes contrôles.
+  Corrige au passage mon cadrage de R21, qui comptait cette page comme une 3ᵉ implémentation du
+  même mécanisme : c'en est un autre, qui lui ressemble.{% endcomment %}
+  <div class="wama-filter-bar fc-bar">
+    <div class="row align-items-center g-3">
+      <div class="col-auto">
+        <div class="input-group input-group-sm wama-filter-search">
+          <span class="input-group-text bg-dark border-secondary">
+            <i class="fas fa-search text-muted"></i>
+          </span>
+          <input type="text" id="fcSearch" class="form-control bg-dark border-secondary text-light"
+                 placeholder="Rechercher (nom, description, tag)…">
+        </div>
+      </div>
+      <div class="col-auto">
+        <select id="fcBinding" class="form-select form-select-sm filter-select d-inline-block w-auto">
+          <option value="">Tout binding</option>
+          <option value="pure">Pures</option><option value="app">App-bound</option></select>
+      </div>
+      <div class="col-auto">
+        <select id="fcCategory" class="form-select form-select-sm filter-select d-inline-block w-auto">
+          <option value="">Toute catégorie</option>
+          {% for c in stats.categories %}<option value="{{ c }}">{{ c }}</option>{% endfor %}</select>
+      </div>
+      <div class="col-auto">
+        <select id="fcProject" class="form-select form-select-sm filter-select d-inline-block w-auto">
+          <option value="">Tout projet</option>
+          {% for p in stats.projects %}<option value="{{ p }}">{{ p }}</option>{% endfor %}</select>
+      </div>
+      <div class="col-auto">
+        <select id="fcApp" class="form-select form-select-sm filter-select d-inline-block w-auto">
+          <option value="">Toute app</option>
+          {% for a in stats.apps %}<option value="{{ a }}">{{ a }}</option>{% endfor %}</select>
+      </div>
+      <div class="col-auto">
+        <select id="fcSort" class="form-select form-select-sm filter-select d-inline-block w-auto">
+          <option value="name">Tri : nom</option>
+          <option value="category">Tri : catégorie</option>
+          <option value="app">Tri : app</option>
+          <option value="binding">Tri : binding</option></select>
+      </div>
+      <div class="col-auto ms-auto">
+        <span class="wama-filter-count" id="fcCount"></span>
+      </div>
+    </div>
   </div>
 
   <div class="fc-grid" id="fcGrid"></div>
