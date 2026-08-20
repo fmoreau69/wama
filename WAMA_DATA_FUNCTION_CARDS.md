@@ -189,9 +189,10 @@ Deux `binding` cohabitent dans le MÊME `FUNCTION_CATALOG` :
 
 > Point d'entrée de la réflexion « monde DATA » ouverte le 19/08 (modèle **BIND** : charger à chaud
 > des plugins de visualisation/traitement TOUS SYNCHRONISÉS pendant une session d'analyse — « je
-> veux aussi analyser le cardiaque »). Le cadre complet du monde data fera l'objet d'un document
-> dédié que Fabien rédigera ; **cette section ne fixe QUE le bornage des objets**, pour qu'il ne
-> soit pas re-débattu à chaque fois.
+> veux aussi analyser le cardiaque »). Le cadre complet du monde data fait l'objet d'un document
+> dédié — **[`WAMA_DATA_WORLD.md`](WAMA_DATA_WORLD.md)**, ouvert le 2026-08-19 (couche temporelle,
+> sessions, plugins graphiques, format `.trip`, intégration BIND/pynd) ; **cette section ne fixe QUE
+> le bornage des objets**, pour qu'il ne soit pas re-débattu à chaque fois.
 
 **La limite n'est PAS la taille.** C'est le piège qui a déclenché la discussion (« une fonction
 mathématique simple est une fonction, mais mon traitement cardiaque agrège 6 traitements — est-ce
