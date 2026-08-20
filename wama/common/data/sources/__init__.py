@@ -115,9 +115,19 @@ class StreamSpec:
     rows: Optional[Callable[[int, int], Any]] = None
     #: Décalage vis-à-vis de la base de temps commune (médias externes non ré-horodatés).
     offset: float = 0.0
+    #: Bornes de FIN si le flux est une collection de segments — sans elles, « quel segment
+    #: contient t ? » est indécidable.
+    ends: Optional[Sequence[float]] = None
+    #: `(i0, i1, colonne) -> (min, max)` quand la source sait agréger elle-même. Une base SQL le
+    #: fait sans rien transférer ; c'est ce qui rend une vue décimée fidèle abordable.
+    extent: Optional[Callable[[float, float, str], Any]] = None
+    #: `(t0, t1, buckets, colonne) -> {n° tranche: (min, max)}` — TOUTES les tranches en
+    #: une passe. Optionnel, mais c'est le seul niveau viable pour une vue d'interface.
+    extents: Optional[Callable[[float, float, int, str], Any]] = None
 
     def to_signal(self) -> Signal:
-        return Signal(self.meta, self.times, self.rows)
+        return Signal(self.meta, self.times, self.rows,
+                      ends=self.ends, extent=self.extent, extents=self.extents)
 
 
 @dataclass

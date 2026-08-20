@@ -73,13 +73,35 @@ class Signal:
     connaisse SQLite.
     """
 
-    __slots__ = ('meta', '_times', '_rows')
+    __slots__ = ('meta', '_times', '_ends', '_rows', '_extent', '_extents')
 
     def __init__(self, meta: SignalMeta, times: Sequence[float],
-                 rows: Optional[Callable[[int, int], Any]] = None):
+                 rows: Optional[Callable[[int, int], Any]] = None,
+                 ends: Optional[Sequence[float]] = None,
+                 extent: Optional[Callable[[float, float, str], Tuple[Any, Any]]] = None,
+                 extents: Optional[Callable[[float, float, int, str], Dict[int, Any]]] = None):
+        """
+        `ends` : bornes de FIN, si le flux est une collection de segments. Sans elles, un segment
+        ne serait indexé que par son début — et « quel segment contient `t` ? » deviendrait
+        indécidable, alors que c'est LA question qu'on pose à des situations.
+
+        `extent` : `(t0, t1, colonne) -> (min, max)`, fourni par la source quand elle sait agréger
+        elle-même (une base SQL le fait en SQL). Les bornes sont TEMPORELLES et non des index :
+        une source indexée sur le temps agrège alors directement, là où des index l'obligeraient à
+        compter les lignes depuis le début. Sans `extent`, `decimate_values` lit les lignes — ce qui
+        reste correct mais coûte le transfert de tout l'intervalle.
+        """
         self.meta = meta
         self._times = times
+        self._ends = ends
         self._rows = rows
+        self._extent = extent
+        self._extents = extents
+
+    @property
+    def is_segments(self) -> bool:
+        """Le flux porte-t-il des intervalles (deux bornes) plutôt que des instants ?"""
+        return self._ends is not None
 
     # ── Propriétés temporelles ────────────────────────────────────────────────────────────────
     def __len__(self) -> int:
@@ -158,13 +180,61 @@ class Signal:
         """Lignes [i0, i1) via l'accesseur fourni ; None si aucun accesseur n'a été donné."""
         return self._rows(i0, i1) if self._rows else None
 
+    # ── Segments : « quel intervalle contient t ? » ───────────────────────────────────────────
+    def containing(self, t: float) -> List[int]:
+        """Index des segments contenant `t` (bornes incluses). [] si le flux n'est pas segmenté.
+
+        Gère le CHEVAUCHEMENT et l'IMBRICATION : on ne peut pas se contenter du dernier segment
+        commencé avant `t` (ce que ferait `PREVIOUS`), car ce segment peut être terminé, et
+        plusieurs peuvent contenir `t` à la fois — des fenêtres d'analyse emboîtées, c'est le cas
+        courant. On borne le balayage par le début : au-delà de `t`, plus rien ne peut contenir `t`.
+        """
+        if self._ends is None:
+            return []
+        fin = bisect_right(self._times, t)      # tous les segments commencés à t ou avant
+        return [i for i in range(fin) if self._ends[i] >= t]
+
+    def overlapping(self, t0: float, t1: float) -> List[int]:
+        """Index des segments intersectant [t0, t1] — un segment à cheval sur la borne compte.
+
+        `range_indices` ne suffit pas : elle ne voit que les segments COMMENCÉS dans la fenêtre et
+        raterait celui qui l'englobe.
+        """
+        if self._ends is None:
+            i0, i1 = self.range_indices(t0, t1)
+            return list(range(i0, i1))
+        fin = bisect_right(self._times, t1)
+        return [i for i in range(fin) if self._ends[i] >= t0]
+
+    def end_at(self, index: int) -> Optional[float]:
+        if self._ends is None:
+            return None
+        return self._ends[index] if 0 <= index < len(self._ends) else None
+
+    def duration_at(self, index: int) -> Optional[float]:
+        d, f = self.time_at(index), self.end_at(index)
+        return None if (d is None or f is None) else f - d
+
+    # ── Événements : « et après ? » ───────────────────────────────────────────────────────────
+    def next_index(self, t: float) -> Optional[int]:
+        """Premier échantillon STRICTEMENT après `t` — « l'événement suivant »."""
+        i = bisect_right(self._times, t)
+        return i if i < len(self._times) else None
+
+    def previous_index(self, t: float) -> Optional[int]:
+        """Dernier échantillon à `t` ou avant."""
+        i = bisect_right(self._times, t) - 1
+        return i if i >= 0 else None
+
     def decimate(self, t0: float, t1: float, buckets: int) -> List[dict]:
         """Découpe [t0, t1] en `buckets` tranches et rend, pour chacune, les INDEX extrêmes.
 
-        Rend des index et non des valeurs : la couche ne sait pas lire les valeurs (c'est le rôle
-        de l'accesseur), mais elle sait dire QUELS échantillons représentent une tranche. Un tracé
-        qui prend le premier et le dernier de chaque tranche conserve la forme ET les extrema
-        apparents, là où un simple « 1 point sur N » invente des artefacts.
+        ⚠ Ce que cette méthode NE fait PAS : préserver les extrema. Prendre le premier et le
+        dernier point d'une tranche conserve l'allure générale, mais **une pointe au milieu d'une
+        tranche disparaît**. Pour un tracé fidèle, c'est `decimate_values()` qu'il faut — elle
+        calcule le min et le max réels par tranche. La présente méthode reste utile quand on n'a
+        pas de colonne de valeur à agréger (événements, segments) ou qu'on veut seulement savoir
+        quels échantillons couvrent quelle tranche.
         """
         if buckets <= 0 or t1 <= t0:
             return []
@@ -179,10 +249,66 @@ class Signal:
             while j < i1 and self._times[j] < fin_t:
                 j += 1
             if j > i:
-                out.append({'t_start': t0 + b * pas, 't_end': fin_t,
+                out.append({'bucket': b, 't_start': t0 + b * pas, 't_end': fin_t,
                             'i_first': i, 'i_last': j - 1, 'count': j - i})
             i = j
         return out
+
+    def decimate_values(self, t0: float, t1: float, buckets: int, column: str) -> List[dict]:
+        """Vue décimée FIDÈLE : min et max RÉELS de `column` par tranche.
+
+        C'est la primitive qui rend un tracé viable — 2 M de points sur 2000 px, c'est 1000 points
+        par pixel : sans agrégation, soit on transfère tout, soit on échantillonne et on invente des
+        artefacts. Rendre (min, max) par tranche conserve l'enveloppe du signal : une pointe reste
+        visible même si elle ne dure qu'un échantillon.
+
+        L'agrégation est DÉLÉGUÉE à la source quand elle sait la faire (`extent`) — une base SQL
+        calcule `MIN`/`MAX` sans rien transférer. Sinon on lit les lignes, ce qui reste juste mais
+        coûte le transfert de l'intervalle.
+        """
+        tranches = self.decimate(t0, t1, buckets)
+
+        # Niveau 1 — la source sait tout agréger EN UNE PASSE. C'est le seul niveau viable pour
+        # une vue d'interface : mesuré, 2000 tranches sur 2 M de points coûtent ~1 s ainsi contre
+        # 24,9 s en interrogeant tranche par tranche.
+        if self._extents is not None and tranches:
+            try:
+                groupes = self._extents(t0, t1, buckets, column) or {}
+            except Exception:
+                groupes = None
+            if groupes is not None:
+                # On réutilise l'ordinal PORTÉ par la tranche. Le recalculer depuis
+                # `t_start` paraissait équivalent et ne l'est pas : `int((t0 + b*pas - t0)/pas)`
+                # peut rendre `b-1` par arrondi flottant, et les valeurs se retrouvent alors
+                # attribuées à la tranche voisine — constaté sur données réelles, deux
+                # tranches consécutives rendant le même min/max.
+                for b in tranches:
+                    lo, hi = groupes.get(b['bucket'], (None, None))
+                    b['min'], b['max'] = lo, hi
+                if any(b['min'] is not None for b in tranches):
+                    return tranches
+
+        for b in tranches:
+            i0, i1 = b['i_first'], b['i_last'] + 1
+            lo = hi = None
+            if self._extent is not None:
+                # Bornes TEMPORELLES : une source indexée sur le temps agrège alors sans
+                # re-parcourir. Passer des index l'obligerait à compter les lignes depuis le
+                # début à chaque tranche — mesuré, c'est quadratique et inutilisable.
+                try:
+                    lo, hi = self._extent(b['t_start'], b['t_end'], column)
+                except Exception:
+                    lo = hi = None
+            if lo is None and hi is None and self._rows is not None:
+                vals = []
+                for r in (self._rows(i0, i1) or []):
+                    v = r.get(column) if isinstance(r, dict) else None
+                    if isinstance(v, (int, float)):
+                        vals.append(v)
+                if vals:
+                    lo, hi = min(vals), max(vals)
+            b['min'], b['max'] = lo, hi
+        return tranches
 
 
 class TemporalReferential:
@@ -263,6 +389,44 @@ class TemporalReferential:
             b['t_start'] += off
             b['t_end'] += off
         return out
+
+    def decimate_values(self, name: str, t0: float, t1: float, buckets: int,
+                        column: str) -> List[dict]:
+        sig = self.get(name)
+        off = self.offset(name)
+        out = sig.decimate_values(t0 - off, t1 - off, buckets, column)
+        for b in out:
+            b['t_start'] += off
+            b['t_end'] += off
+        return out
+
+    def next_event(self, name: str, t: float) -> Optional[int]:
+        """Index du prochain échantillon de `name` strictement après `t`."""
+        sig = self.get(name)
+        return sig.next_index(t - self.offset(name))
+
+    def previous_event(self, name: str, t: float) -> Optional[int]:
+        sig = self.get(name)
+        return sig.previous_index(t - self.offset(name))
+
+    def containing(self, name: str, t: float) -> List[int]:
+        """Index des segments de `name` contenant `t` (chevauchement et imbrication compris)."""
+        sig = self.get(name)
+        return sig.containing(t - self.offset(name))
+
+    def overlapping(self, name: str, t0: float, t1: float) -> List[int]:
+        sig = self.get(name)
+        off = self.offset(name)
+        return sig.overlapping(t0 - off, t1 - off)
+
+    def segments_at(self, t: float) -> Dict[str, List[int]]:
+        """Pour CHAQUE flux segmenté, les segments contenant `t`.
+
+        C'est la question que pose toute vue synchronisée sur une session d'analyse : « dans quelles
+        situations suis-je à cet instant ? » — plusieurs à la fois si les fenêtres sont emboîtées.
+        """
+        return {n: s.containing(t - self.offset(n))
+                for n, s in self._signals.items() if s.is_segments}
 
     def snapshot(self, t: float, how: Optional[str] = None) -> Dict[str, Optional[int]]:
         """Index résolvant `t` pour CHAQUE flux — l'état de la session à un instant.

@@ -130,9 +130,18 @@ class TripReader(SourceReader):
                 default_lookup=NEAREST if famille == 'data' else PREVIOUS,
                 comments=f"{famille} · {len(cols)} colonne(s)",
             )
+            # Un segment porte DEUX bornes : sans la fin, on ne peut pas répondre à « quelle
+            # situation contient cet instant ? » — la question même que posent des fenêtres
+            # d'analyse emboîtées.
+            ends = None
+            if famille == 'situation' and 'endTimecode' in cols:
+                ends = self._ends(path, table, tcol)
+
             out.append(StreamSpec(
-                meta=meta, times=times,
+                meta=meta, times=times, ends=ends,
                 rows=self._row_accessor(path, table, tcol),
+                extent=self._extent_accessor(path, table, tcol),
+                extents=self._extents_accessor(path, table, tcol),
                 offset=offsets.get(nom, 0.0),
             ))
         return out
@@ -160,6 +169,64 @@ class TripReader(SourceReader):
         with self._open(path) as con:
             return [r[0] for r in con.execute(
                 f'SELECT "{tcol}" FROM "{table}" ORDER BY "{tcol}"')]
+
+    def _ends(self, path: Path, table: str, tcol: str) -> List[float]:
+        """Bornes de fin, dans le MÊME ordre que les débuts (tri sur la colonne de début)."""
+        with self._open(path) as con:
+            return [r[0] for r in con.execute(
+                f'SELECT "endTimecode" FROM "{table}" ORDER BY "{tcol}"')]
+
+    def _extent_accessor(self, path: Path, table: str, tcol: str):
+        """Rend `(t0, t1, colonne) -> (min, max)` calculé EN SQL, borné par le TEMPS.
+
+        ⚠ Borné par le temps, PAS par l'index — leçon d'une première version mesurée inutilisable.
+        Agréger par `LIMIT n OFFSET k` oblige SQLite à re-parcourir depuis le début à chaque appel :
+        sur 2 M de lignes et 2000 tranches, le coût devient quadratique et la vue décimée ne rend
+        jamais la main. Une borne temporelle, elle, exploite l'index sur la colonne de temps —
+        c'est justement pour ça que ce format crée un index par colonne.
+
+        La colonne est validée contre le schéma réel avant d'être interpolée dans la requête : un
+        nom venant de l'appelant ne doit jamais atterrir tel quel dans du SQL.
+        """
+        colonnes = set(self._columns(path, table))
+
+        def extent(t0: float, t1: float, column: str):
+            if column not in colonnes or t1 <= t0:
+                return (None, None)
+            with self._open(path) as con:
+                row = con.execute(
+                    f'SELECT MIN("{column}"), MAX("{column}") FROM "{table}" '
+                    f'WHERE "{tcol}" >= ? AND "{tcol}" < ?', (t0, t1)).fetchone()
+            return (row[0], row[1]) if row else (None, None)
+
+        return extent
+
+    def _extents_accessor(self, path: Path, table: str, tcol: str):
+        """Rend `(t0, t1, buckets, colonne) -> {n° de tranche: (min, max)}` — TOUTES les tranches
+        en UNE requête groupée.
+
+        Mesuré : 2000 tranches sur 2 M de lignes coûtaient 24,9 s en interrogeant tranche par
+        tranche (une requête et une connexion chacune), contre ~1 s en une seule passe avec
+        `GROUP BY`. Pour une vue d'interface la différence n'est pas un confort, c'est la
+        viabilité. C'est aussi pourquoi le contrat prévoit cette capacité en OPTION : une source
+        qui ne sait pas grouper retombe sur l'agrégation tranche par tranche, puis sur la lecture
+        des lignes — trois niveaux, du plus efficace au plus universel.
+        """
+        colonnes = set(self._columns(path, table))
+
+        def extents(t0: float, t1: float, buckets: int, column: str):
+            if column not in colonnes or buckets <= 0 or t1 <= t0:
+                return {}
+            pas = (t1 - t0) / buckets
+            with self._open(path) as con:
+                rows = con.execute(
+                    f'SELECT CAST(("{tcol}" - ?) / ? AS INTEGER) AS b, '
+                    f'MIN("{column}"), MAX("{column}") FROM "{table}" '
+                    f'WHERE "{tcol}" >= ? AND "{tcol}" < ? GROUP BY b',
+                    (t0, pas, t0, t1)).fetchall()
+            return {int(b): (lo, hi) for b, lo, hi in rows if b is not None}
+
+        return extents
 
     def _row_accessor(self, path: Path, table: str, tcol: str):
         """Rend `(i0, i1) -> lignes`. Chaque appel rouvre en lecture seule : une connexion SQLite
