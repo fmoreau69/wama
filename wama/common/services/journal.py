@@ -49,6 +49,21 @@ CHAMPS_DATE = ('created_at', 'uploaded_at', 'added_at', 'date_created')
 #: Sources hors `detail_registry` (autres mondes). Vide aujourd'hui — c'est le point d'extension.
 _SOURCES_EXPLICITES: list = []
 
+#: Mois en français. POURQUOI ICI et pas `{{ date|date:"F Y" }}` : `LANGUAGE_CODE = 'en-us'`
+#: (settings:451), donc le filtre `date` rendait « August 2026 » sur une UI française (constaté au
+#: navigateur le 2026-08-20). Basculer `LANGUAGE_CODE` corrigerait la cause mais changerait TOUTE
+#: l'application (dates, admin, messages de validation) et empiéterait sur le chantier i18n
+#: (ROADMAP §10.A) — un correctif local est le bon périmètre tant que ce chantier n'est pas fait.
+_MOIS_FR = ('janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+            'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre')
+
+#: Libellés d'état. Les 10 apps écrivent CHACUNE cette chaîne de `{% if %}` dans leur card v3
+#: (ex. `enhancer/_enhancement_card.html:73`) — c'est une duplication réelle, à extraire au
+#: prochain passage sur les cards. On ne l'aggrave pas ici : le libellé est calculé UNE fois, en
+#: Python, et le gabarit n'en sait rien.
+_ETATS_FR = {'PENDING': 'En attente', 'RUNNING': 'En cours',
+             'SUCCESS': 'Terminé', 'FAILURE': 'Échec'}
+
 
 @dataclass(frozen=True)
 class SourceJournal:
@@ -130,6 +145,33 @@ class Entree:
     #: Histoire des gestes, quand `RunOutcome` en a (couche 2). Vide sinon — la ligne reste utile.
     gestes: list = None
     saillance: float = 0.0
+
+    @property
+    def mois(self):
+        """« août 2026 » — regroupement de la frise. Cf. `_MOIS_FR` pour le pourquoi."""
+        return f'{_MOIS_FR[self.date.month - 1]} {self.date.year}'
+
+    @property
+    def statut_libelle(self):
+        """
+        État lisible. Vide UNIQUEMENT si le statut est inconnu — jamais pour un succès.
+
+        ⚠ Ne PAS utiliser `common/_card_state.html` ici : ce partial (v1/v2) ne rend **rien**
+        pour `SUCCESS`, ce qui va dans une file d'app (la bordure et l'aperçu de la card disent
+        déjà la réussite) mais rendait au journal une colonne État VIDE, indiscernable de
+        « inconnu » — constaté au navigateur le 2026-08-20 sur 3 items sur 25. Les cards v3 des
+        apps n'utilisent pas ce partial non plus : elles rendent `wama-status-dot` + libellé.
+        """
+        from ..utils.detail_registry import normalize_status
+
+        s = normalize_status(self.statut)
+        return _ETATS_FR.get(s, s.capitalize() if s else '')
+
+    @property
+    def statut_normalise(self):
+        """Statut canonique (alias résolus : DONE→SUCCESS…) — alimente `wama-status-dot[data-s]`."""
+        from ..utils.detail_registry import normalize_status
+        return normalize_status(self.statut)
 
     @property
     def url_app(self):
