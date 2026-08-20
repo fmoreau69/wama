@@ -76,6 +76,154 @@
     return v || '';
   }
 
+  // ──────────────────────────────────────────────────────────────────────────────────────────
+  // REGISTRY DE RENDERERS — vocabulaire FERMÉ de composants, mais EXTENSIBLE sans toucher au
+  // moteur. Remplace la cascade `if (p.type === 'select') … else if (p.type === 'range') …` :
+  // ajouter un type de champ était jusqu'ici une ÉDITION DE CE FICHIER COMMUN, donc impossible
+  // depuis le codegen (templates_gen génère pourtant déjà l'appel à WamaParams.render) comme
+  // depuis une app. Le déterminisme est INTACT : un schéma ne peut référencer qu'un type
+  // ENREGISTRÉ (sinon repli texte), seule l'indirection change.
+  //
+  //   WamaParams.registerRenderer('mon-type', function (p, api) { return '<…>'; }, { … });
+  //
+  // Le renderer reçoit le param `p` (Param.to_dict()) et une `api` — TOUT ce dont il a besoin,
+  // pour qu'un renderer défini HORS de ce fichier ait exactement les mêmes moyens qu'un natif :
+  //   api.id        identifiant DOM résolu (dom_id legacy ou 'wp-{ctx}-{name}')
+  //   api.idAttr    attribut d'identité PRÊT À POSER — name="…" (modale) ou data-param="…" (volet)
+  //   api.ctx       'item' | 'batch' | 'panel'
+  //   api.value     valeur courante (déjà repliée sur p.default)
+  //   api.helpEl    <small> d'aide déjà rendu (help_html brut / help échappé)
+  //   api.esc       échappement HTML — À UTILISER pour toute valeur venant du schéma
+  //   api.options(p)            options plates [{value,label}] (choices ou optionsResolver)
+  //   api.selectOptionsHtml(p)  <option>/<optgroup> prêts (plat ou groupé)
+  //
+  // Drapeaux (3ᵉ argument) — ce sont les CAPACITÉS du type, plus des `p.type === …` codés en dur
+  // ailleurs dans le moteur (row, aide modèle, options async) :
+  //   standalone    : le renderer rend TOUT (label + aide compris) → pas d'enveloppe label/aide
+  //   noRow         : pas de <div class="wama-param"> autour (champ invisible)
+  //   labelIsBlock  : le libellé est un <div> et non un <label for> (contrôle multi-éléments)
+  //   modelHelp     : accepte l'aide MODÈLE dynamique (help_source → WamaModelHelp)
+  //   optionSources : accepte le peuplement ASYNC des options (options_source → endpoint)
+  const RENDERERS = {};
+
+  function registerRenderer(type, fn, flags) {
+    const r = { render: fn };
+    if (flags) Object.keys(flags).forEach(function (k) { r[k] = flags[k]; });
+    RENDERERS[type] = r;
+    return r;
+  }
+
+  function rendererFor(type) {
+    return RENDERERS[type] || RENDERERS.text;
+  }
+
+  // Un TYPE déclare-t-il telle capacité ? (remplace les `p.type === 'select'` du moteur)
+  function typeSupports(type, flag) {
+    const r = RENDERERS[type];
+    return !!(r && r[flag]);
+  }
+
+  // ── Renderers natifs (le vocabulaire fermé actuel — HTML inchangé) ─────────────────────────
+
+  // Champ porteur (ex. media_type d'un job) : invisible, mais lisible par read() et par les
+  // conditions show_if {field: '<ce nom>'}. Rendu sans wrapper visible (cf. render()).
+  registerRenderer('hidden', function (p, api) {
+    const v = api.value;
+    return '<input type="hidden" id="' + api.id + '" ' + api.idAttr +
+      ' value="' + esc(v != null ? v : '') + '">';
+  }, { standalone: true, noRow: true });
+
+  registerRenderer('toggle', function (p, api) {
+    const id = api.id, idA = api.idAttr, v = api.value;
+    const on = (v === true || v === 'true' || v === 1 || v === '1');
+    const tic = p.icon ? '<i class="fas ' + esc(p.icon) + ' me-1"></i>' : '';
+    // pills=[off,on] : sélecteur segmenté (2 radios btn-check) — read()/show_if voient la même
+    // valeur 'true'/'false' qu'un switch (radios de même name → la cochée gagne dans read()).
+    if (Array.isArray(p.pills) && p.pills.length === 2) {
+      // item : idA porte déjà name="…" (groupe les radios) ; panel : idA = data-param → name explicite.
+      const rname = idA.indexOf('name=') === 0 ? '' : ' name="' + id + '-seg"';
+      const seg = ['false', 'true'].map(function (val, i) {
+        const rid = id + '-' + val;
+        const it = p.pills[i];                          // "libellé" ou {label, icon}
+        const plab = (it && typeof it === 'object') ? it.label : it;
+        const pic = (it && typeof it === 'object' && it.icon)
+          ? '<i class="fas ' + esc(it.icon) + ' me-1"></i>' : '';
+        return '<input type="radio" class="btn-check" id="' + rid + '" ' + idA + rname +
+          ' value="' + val + '"' + ((on ? 'true' : 'false') === val ? ' checked' : '') + '>' +
+          '<label class="btn btn-outline-primary" for="' + rid + '">' + pic + esc(plab) + '</label>';
+      }).join('');
+      return (p.label ? '<div class="form-label small mb-1">' + tic + esc(p.label) + '</div>' : '') +
+        '<div class="btn-group wama-param-pills w-100" role="group">' + seg + '</div>' + api.helpEl;
+    }
+    const checked = on ? 'checked' : '';
+    return '<div class="form-check form-switch">' +
+      '<input class="form-check-input" type="checkbox" id="' + id + '" ' + idA + ' ' + checked + '>' +
+      '<label class="form-check-label" for="' + id + '">' + tic + esc(p.label) + '</label></div>' +
+      api.helpEl;   // l'aide du toggle (manquait → bug corrigé)
+  }, { standalone: true });
+
+  registerRenderer('select', function (p, api) {
+    return '<select class="form-select form-select-sm" id="' + api.id + '" ' + api.idAttr + '>' +
+      api.selectOptionsHtml(p) + '</select>';
+  }, { modelHelp: true, optionSources: true });
+
+  registerRenderer('radio', function (p, api) {
+    // name = groupage des radios (obligatoire) ; radio_name = pont vers le nom legacy si fourni
+    // (string ou objet par contexte, comme dom_id).
+    const id = api.id, idA = api.idAttr, v = api.value;
+    const rname = perCtx(p.radio_name, api.ctx) || id;
+    const rcls = p.inline ? 'form-check form-check-inline' : 'form-check';
+    return api.options(p).map(function (o, i) {
+      const checked = (String(o.value) === String(v)) ? 'checked' : '';
+      const rid = id + '-' + i;
+      return '<div class="' + rcls + '">' +
+        '<input class="form-check-input" type="radio" name="' + rname + '" id="' + rid + '" ' + idA +
+        ' value="' + esc(o.value) + '" ' + checked + '>' +
+        '<label class="form-check-label" for="' + rid + '">' + esc(o.label) + '</label></div>';
+    }).join('');
+  }, { labelIsBlock: true });
+
+  registerRenderer('textarea', function (p, api) {
+    return '<textarea class="form-control form-control-sm" id="' + api.id + '" ' + api.idAttr +
+      ' rows="2">' + esc(api.value) + '</textarea>';
+  });
+
+  registerRenderer('number', function (p, api) {
+    const attrs = [p.min != null ? 'min="' + p.min + '"' : '',
+                   p.max != null ? 'max="' + p.max + '"' : '',
+                   p.step != null ? 'step="' + p.step + '"' : ''].join(' ');
+    return '<input type="number" class="form-control form-control-sm" id="' + api.id + '" ' +
+      api.idAttr + ' value="' + esc(api.value) + '" ' + attrs + '>';
+  });
+
+  registerRenderer('range', function (p, api) {
+    const id = api.id, idA = api.idAttr, v = api.value;
+    const rattrs = [p.min != null ? 'min="' + p.min + '"' : '',
+                    p.max != null ? 'max="' + p.max + '"' : '',
+                    p.step != null ? 'step="' + p.step + '"' : ''].join(' ');
+    // Valeur courante (+ unité déclarée) à droite + bornes SOUS le slider — libellés FORMATÉS
+    // min_label/max_label prioritaires sur min/max bruts (P2-bis, cf. volet composer 10s/10min).
+    const unit = p.unit || '';
+    return '<div class="wama-range">' +
+      '<div class="d-flex align-items-center gap-2">' +
+      '<input type="range" class="form-range" id="' + id + '" ' + idA + ' value="' + esc(v) + '" ' + rattrs +
+      ' data-unit="' + esc(unit) + '"' +
+      ' oninput="this.parentNode.querySelector(\'.wama-range-val\').textContent=this.value+(this.dataset.unit||\'\')">' +
+      '<span class="wama-range-val small text-muted">' + esc(v) + esc(unit) + '</span></div>' +
+      ((p.min != null || p.max != null || p.min_label || p.max_label)
+        ? '<div class="d-flex justify-content-between small text-muted" style="margin-top:-4px;opacity:.7">' +
+          '<span>' + esc(p.min_label || (p.min != null ? String(p.min) + unit : '')) + '</span>' +
+          '<span>' + esc(p.max_label || (p.max != null ? String(p.max) + unit : '')) + '</span></div>'
+        : '') +
+      '</div>';
+  });
+
+  // Repli : type absent du registry → champ texte (comportement historique du `else` final).
+  registerRenderer('text', function (p, api) {
+    return '<input type="text" class="form-control form-control-sm" id="' + api.id + '" ' +
+      api.idAttr + ' value="' + esc(api.value) + '">';
+  });
+
   function controlHtml(p, ctx, value, resolver) {
     // dom_id : pont de MIGRATION — réutilise l'ID legacy d'un volet existant pour ne pas casser
     // le JS qui le référence (read/apply/save/async). Sinon ID schéma-driven 'wp-{ctx}-{name}'.
@@ -88,100 +236,28 @@
       ? '<small class="text-muted d-block">' + p.help_html + '</small>'
       : (p.help ? '<small class="text-muted d-block">' + esc(p.help) + '</small>' : '');
 
-    if (p.type === 'hidden') {
-      // Champ porteur (ex. media_type d'un job) : invisible, mais lisible par read() et par les
-      // conditions show_if {field: '<ce nom>'}. Rendu sans wrapper visible (cf. render()).
-      return '<input type="hidden" id="' + id + '" ' + idA + ' value="' + esc(v != null ? v : '') + '">';
-    }
-
-    if (p.type === 'toggle') {
-      const on = (v === true || v === 'true' || v === 1 || v === '1');
-      const tic = p.icon ? '<i class="fas ' + esc(p.icon) + ' me-1"></i>' : '';
-      // pills=[off,on] : sélecteur segmenté (2 radios btn-check) — read()/show_if voient la même
-      // valeur 'true'/'false' qu'un switch (radios de même name → la cochée gagne dans read()).
-      if (Array.isArray(p.pills) && p.pills.length === 2) {
-        // item : idA porte déjà name="…" (groupe les radios) ; panel : idA = data-param → name explicite.
-        const rname = idA.indexOf('name=') === 0 ? '' : ' name="' + id + '-seg"';
-        const seg = ['false', 'true'].map(function (val, i) {
-          const rid = id + '-' + val;
-          const it = p.pills[i];                          // "libellé" ou {label, icon}
-          const plab = (it && typeof it === 'object') ? it.label : it;
-          const pic = (it && typeof it === 'object' && it.icon)
-            ? '<i class="fas ' + esc(it.icon) + ' me-1"></i>' : '';
-          return '<input type="radio" class="btn-check" id="' + rid + '" ' + idA + rname +
-            ' value="' + val + '"' + ((on ? 'true' : 'false') === val ? ' checked' : '') + '>' +
-            '<label class="btn btn-outline-primary" for="' + rid + '">' + pic + esc(plab) + '</label>';
-        }).join('');
-        return (p.label ? '<div class="form-label small mb-1">' + tic + esc(p.label) + '</div>' : '') +
-          '<div class="btn-group wama-param-pills w-100" role="group">' + seg + '</div>' + helpEl;
+    const api = {
+      id: id, idAttr: idA, ctx: ctx, value: v, resolver: resolver, helpEl: helpEl, esc: esc,
+      options: function (pp) { return optionsFor(pp || p, resolver); },
+      selectOptionsHtml: function (pp, vv) {
+        return selectInnerHtml(pp || p, vv !== undefined ? vv : v, resolver);
       }
-      const checked = on ? 'checked' : '';
-      return '<div class="form-check form-switch">' +
-        '<input class="form-check-input" type="checkbox" id="' + id + '" ' + idA + ' ' + checked + '>' +
-        '<label class="form-check-label" for="' + id + '">' + tic + esc(p.label) + '</label></div>' +
-        helpEl;   // l'aide du toggle (manquait → bug corrigé)
-    }
+    };
 
-    let inner;
-    if (p.type === 'select') {
-      inner = '<select class="form-select form-select-sm" id="' + id + '" ' + idA + '>' +
-        selectInnerHtml(p, v, resolver) + '</select>';
-    } else if (p.type === 'radio') {
-      // name = groupage des radios (obligatoire) ; radio_name = pont vers le nom legacy si fourni
-      // (string ou objet par contexte, comme dom_id).
-      const rname = perCtx(p.radio_name, ctx) || id;
-      const rcls = p.inline ? 'form-check form-check-inline' : 'form-check';
-      inner = optionsFor(p, resolver).map(function (o, i) {
-        const checked = (String(o.value) === String(v)) ? 'checked' : '';
-        const rid = id + '-' + i;
-        return '<div class="' + rcls + '">' +
-          '<input class="form-check-input" type="radio" name="' + rname + '" id="' + rid + '" ' + idA +
-          ' value="' + esc(o.value) + '" ' + checked + '>' +
-          '<label class="form-check-label" for="' + rid + '">' + esc(o.label) + '</label></div>';
-      }).join('');
-    } else if (p.type === 'textarea') {
-      inner = '<textarea class="form-control form-control-sm" id="' + id + '" ' + idA + ' rows="2">' +
-        esc(v) + '</textarea>';
-    } else if (p.type === 'number') {
-      const attrs = [p.min != null ? 'min="' + p.min + '"' : '',
-                     p.max != null ? 'max="' + p.max + '"' : '',
-                     p.step != null ? 'step="' + p.step + '"' : ''].join(' ');
-      inner = '<input type="number" class="form-control form-control-sm" id="' + id + '" ' +
-        idA + ' value="' + esc(v) + '" ' + attrs + '>';
-    } else if (p.type === 'range') {
-      const rattrs = [p.min != null ? 'min="' + p.min + '"' : '',
-                      p.max != null ? 'max="' + p.max + '"' : '',
-                      p.step != null ? 'step="' + p.step + '"' : ''].join(' ');
-      // Valeur courante (+ unité déclarée) à droite + bornes SOUS le slider — libellés FORMATÉS
-      // min_label/max_label prioritaires sur min/max bruts (P2-bis, cf. volet composer 10s/10min).
-      const unit = p.unit || '';
-      inner = '<div class="wama-range">' +
-        '<div class="d-flex align-items-center gap-2">' +
-        '<input type="range" class="form-range" id="' + id + '" ' + idA + ' value="' + esc(v) + '" ' + rattrs +
-        ' data-unit="' + esc(unit) + '"' +
-        ' oninput="this.parentNode.querySelector(\'.wama-range-val\').textContent=this.value+(this.dataset.unit||\'\')">' +
-        '<span class="wama-range-val small text-muted">' + esc(v) + esc(unit) + '</span></div>' +
-        ((p.min != null || p.max != null || p.min_label || p.max_label)
-          ? '<div class="d-flex justify-content-between small text-muted" style="margin-top:-4px;opacity:.7">' +
-            '<span>' + esc(p.min_label || (p.min != null ? String(p.min) + unit : '')) + '</span>' +
-            '<span>' + esc(p.max_label || (p.max != null ? String(p.max) + unit : '')) + '</span></div>'
-          : '') +
-        '</div>';
-    } else {
-      inner = '<input type="text" class="form-control form-control-sm" id="' + id + '" ' +
-        idA + ' value="' + esc(v) + '">';
-    }
+    const r = rendererFor(p.type);
+    const inner = r.render(p, api);
+    if (r.standalone) return inner;   // le renderer a rendu son libellé et son aide lui-même
 
     // Icône optionnelle (déclarée dans le schéma) — STRUCTURE seulement ; le look reste en CSS.
     const ic = p.icon ? '<i class="fas ' + esc(p.icon) + ' me-1"></i>' : '';
     const label = !p.label
       ? ''   // pas de label déclaré → on n'en rend aucun (évite un libellé vide/redondant)
-      : (p.type === 'radio'
+      : (r.labelIsBlock
           ? '<div class="form-label small mb-1">' + ic + esc(p.label) + '</div>'
           : '<label class="form-label small mb-1" for="' + id + '">' + ic + esc(p.label) + '</label>');
     // Aide MODÈLE dynamique (desc courte + ⓘ longue + VRAM) : placeholder rempli par WamaModelHelp
-    // dans render() pour les selects qui déclarent help_source (catalogue model_manager).
-    const modelHelp = (p.type === 'select' && (p.help_source || p.help_fallback))
+    // dans render() pour les types qui déclarent la capacité `modelHelp` (catalogue model_manager).
+    const modelHelp = (r.modelHelp && (p.help_source || p.help_fallback))
       ? '<div class="wama-model-help small text-muted mt-1" id="' + id + '-help"></div>' : '';
     return label + inner + helpEl + modelHelp;
   }
@@ -221,8 +297,8 @@
     });
     function rowHtml(p) {
       const value = (p.name in values) ? values[p.name] : undefined;
-      // hidden : input nu, sans wrapper visible (pas de marge/label).
-      if (p.type === 'hidden') return controlHtml(p, ctx, value, resolver);
+      // Types `noRow` (hidden) : input nu, sans wrapper visible (pas de marge/label).
+      if (typeSupports(p.type, 'noRow')) return controlHtml(p, ctx, value, resolver);
       return '<div class="wama-param mb-2" data-param-row="' + esc(p.name) + '"' +
         _showIfAttr(p.show_if) +
         (p.advanced ? ' data-advanced="1"' : '') + '>' +
@@ -265,7 +341,7 @@
   var _optionSourceCache = {};
   function _bindOptionSources(container, schema, ctx) {
     (schema || []).forEach(function (p) {
-      if (p.type !== 'select' || !p.options_source) return;
+      if (!typeSupports(p.type, 'optionSources') || !p.options_source) return;
       if (p.contexts && p.contexts.indexOf(ctx) === -1) return;
       var url = OPTION_SOURCES[p.options_source];
       if (!url) return;   // pas d'endpoint connu → l'app gère via optionsResolver (rendu synchrone)
@@ -298,7 +374,7 @@
   function _bindModelHelp(container, schema, ctx) {
     if (!global.WamaModelHelp) return;
     (schema || []).forEach(function (p) {
-      if (p.type !== 'select' || (!p.help_source && !p.help_fallback)) return;
+      if (!typeSupports(p.type, 'modelHelp') || (!p.help_source && !p.help_fallback)) return;
       if (p.contexts && p.contexts.indexOf(ctx) === -1) return;
       const sid = perCtx(p.dom_id, ctx) || ('wp-' + ctx + '-' + p.name);
       if (!document.getElementById(sid + '-help')) return;
@@ -559,5 +635,9 @@
 
   global.WamaParams = { render: render, read: read, apply: apply,
                         renderSettingsModal: renderSettingsModal,
-                        settingsModal: settingsModal };
+                        settingsModal: settingsModal,
+                        // Extension du vocabulaire de composants SANS toucher au moteur :
+                        // un type absent du registry retombe sur le champ texte (jamais d'erreur).
+                        registerRenderer: registerRenderer,
+                        rendererTypes: function () { return Object.keys(RENDERERS); } };
 })(window);
