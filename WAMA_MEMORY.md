@@ -1,7 +1,10 @@
 # WAMA_MEMORY.md — Mémoire & RAG : référence unique du domaine
 
-> **Statut : DÉCIDÉ, NON CONSTRUIT** (2026-08-20). Ce document fixe l'architecture ; aucune ligne
-> de `wama/common/memory/` n'existe encore. Il remplace, pour ce domaine, les intentions
+> **Statut : CONSTRUIT ET INERTE** (mis à jour 2026-08-21). Jalons **1-8 et 11 livrés** — brique
+> `wama/common/memory/`, journal `/common/journal/`, 939 fragments RAG, 25 souvenirs repris de
+> wama-dev-ai, Hook B branché, outil `memory_recall`. ⚠ **Aucune app n'active le RAG** et les
+> vecteurs ne sont **pas** calculés (`--reindex` en attente) : rien ne change encore pour un
+> utilisateur. Restent 9, 10 et la bascule sémantique. Il remplace, pour ce domaine, les intentions
 > dispersées dans `PROJECT_STATUS §6`, `ROADMAP §16.2/§16.7` et `docs/WAMA_Vision_Complet_v2 §11`
 > — qui restent valables sur le *pourquoi* mais sont **périmés sur le substrat** (ils disent
 > ChromaDB, voir §7).
@@ -488,8 +491,8 @@ Ne rien arbitrer sur ces chiffres.
 | 4 | `project.py` + `manage.py sync_memory` : projection `RunOutcome` → `MemoryItem` | ✅ 2026-08-20 — mais **rien à projeter**, cf. §7bis |
 | 5 | `index.py` : indexation RAG des sorties texte (+ `sync_memory --rag`) | ✅ 2026-08-21 — **939 fragments réels** |
 | 6 | Branchement `prompt_pipeline` **Hook B** (`rag=True`, opt-in) | ✅ 2026-08-21 — §7quater |
-| 7 | wama-dev-ai : `memory.json` → `MemoryItem` (`provenance='dev-ai'`, non approuvé) | ⏳ |
-| 8 | Outil `memory_recall` dans `tool_api.py` | ⏳ — dépend de 6 |
+| 7 | wama-dev-ai : `memory.json` → `MemoryItem` (`provenance='dev-ai'`) | ✅ 2026-08-21 — **25 souvenirs, 0 approuvé** |
+| 8 | Outil `memory_recall` dans `tool_api.py` | ✅ 2026-08-21 — 49 outils, scopé |
 | 9 | Entrée au registre `common/mecanismes.py` (la table de `WAMA_MECANISMES.md` en est générée) | ⏳ |
 | 10 | Entrée catalogue `AIModel` pour `bge-m3` (il tourne, il n'est pas déclaré) | ⏳ |
 | 11 | Journal `/common/journal/` (couche 1) + captation générique (couche 2) | ✅ 2026-08-20 — §9bis |

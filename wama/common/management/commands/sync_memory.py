@@ -27,6 +27,8 @@ class Command(BaseCommand):
                             help="Nombre maximum d'objets traités.")
         parser.add_argument('--rag', action='store_true',
                             help='Indexe aussi les sorties texte en fragments RAG (sans modèle).')
+        parser.add_argument('--dev-ai', action='store_true',
+                            help="Reprend wama-dev-ai/memory.json en souvenirs NON APPROUVÉS.")
         parser.add_argument('--reindex', action='store_true',
                             help='⚠ Calcule les vecteurs manquants — CHARGE bge-m3 sur Ollama.')
         parser.add_argument('--modeles-obsoletes', action='store_true',
@@ -74,6 +76,24 @@ class Command(BaseCommand):
                 f"  indexés          : {i['indexes']} ({i['fragments']} fragments)\n"
                 f"  inchangés        : {i['inchanges']}\n"
                 f"  sans texte       : {i['sans_texte']}")
+
+        if opts['dev_ai']:
+            from wama.common.memory.dev_ai import importer
+            self.stdout.write('\n── Reprise de wama-dev-ai/memory.json ──')
+            d = importer(dry_run=opts['dry_run'])
+            if d.get('erreur'):
+                self.stderr.write(self.style.ERROR(f"  lecture impossible : {d['erreur']}"))
+            else:
+                self.stdout.write(
+                    f"  source           : {d['fichier']} (maj {d['date_source']})\n"
+                    f"  entrées lues     : {d['lus']}\n"
+                    f"  créées           : {d['crees']}\n"
+                    f"  déjà présentes   : {d['deja_presents']}")
+                if d['crees']:
+                    self.stdout.write(self.style.WARNING(
+                        "  ⚠ NON APPROUVÉES, donc INVISIBLES au rappel : une revue humaine est "
+                        "requise.\n    Le fichier date du "
+                        f"{d['date_source']} — vérifier avant d'approuver."))
 
         if not opts['reindex']:
             self.stdout.write(

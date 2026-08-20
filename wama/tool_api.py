@@ -2144,8 +2144,64 @@ def get_ai_model(user, model_key: str) -> dict:
     }
 
 
+def memory_recall(user, query: str, k: int = 5, include_rag: bool = True,
+                  include_memory: bool = True) -> dict:
+    """
+    Cherche dans la mémoire et les documents de l'utilisateur (`WAMA_MEMORY.md`).
+
+    Args:
+        query:          ce qu'on cherche, en langage naturel.
+        k:              nombre maximum d'extraits (défaut 5).
+        include_rag:    inclure les fragments de documents (transcriptions, OCR, descriptions).
+        include_memory: inclure les souvenirs (faits, procédures, historique d'activité).
+
+    Returns:
+        {"results": [{"source", "reference", "content", "score"}], "count": int}
+
+    ⚠ SCOPÉ, et ce n'est pas négociable : le rappel passe par `scoped_visible_q(user)`, donc
+    l'assistant ne peut RIEN voir que son utilisateur ne verrait pas lui-même. C'est le même
+    filtre que l'UI — il n'y a pas de « vue assistant » privilégiée à maintenir à part.
+
+    ⚠ LEXICAL pour l'instant (`semantic=False`) : un rappel sémantique chargerait `bge-m3` à
+    chaque appel d'outil, et les fragments n'ont pas encore de vecteur. À rebasculer après
+    `manage.py sync_memory --reindex` (cf. WAMA_MEMORY.md §7quater).
+    """
+    try:
+        from wama.common.memory import recall
+    except Exception as e:
+        return {"error": f"Mémoire indisponible : {e}", "results": [], "count": 0}
+
+    if not (query or '').strip():
+        return {"error": "query vide", "results": [], "count": 0}
+
+    try:
+        hits = recall(query, user=user, k=max(1, min(int(k or 5), 20)),
+                      include_rag=bool(include_rag), include_memory=bool(include_memory),
+                      semantic=False)
+    except Exception as e:
+        return {"error": str(e), "results": [], "count": 0}
+
+    resultats = []
+    for h in hits:
+        obj = h.obj
+        resultats.append({
+            "source": h.source,                       # 'memory' | 'rag'
+            # La RÉFÉRENCE est rendue avec l'extrait : un contexte sans provenance n'est pas
+            # vérifiable par l'utilisateur, et l'assistant doit pouvoir la citer.
+            "reference": (getattr(obj, 'source_id', '')
+                          or f"{getattr(obj, 'source_app', '')}#{getattr(obj, 'source_object_id', '')}"
+                          or f"memoire#{obj.pk}"),
+            "content": obj.content,
+            "score": round(h.score, 5),
+        })
+    return {"results": resultats, "count": len(resultats)}
+
+
 TOOL_REGISTRY = {
     'translate_text': translate_text,
+    # Mémoire & RAG — LECTURE SEULE et scopée (jalon 8, WAMA_MEMORY.md). Transverse : ce que
+    # l'assistant retrouve, c'est ce que SON utilisateur possède, dans n'importe quelle app.
+    'memory_recall':  memory_recall,
     # model_manager — LECTURE SEULE (trou #18 : « lister modèles/capacités, utile à l'assistant »)
     'list_ai_models': list_ai_models,
     'get_ai_model':   get_ai_model,
@@ -2213,6 +2269,9 @@ TOOL_APP_OVERRIDE = {
     'list_user_files':     None,
     'translate_text':      None,
     'switch_ui_mode':      None,
+    # Mémoire : transverse par nature (elle agrège les 12 apps) et LECTURE SEULE, scopée par
+    # `scoped_visible_q`. La garder derrière une app la rendrait inutile depuis les autres.
+    'memory_recall':       None,
     # Catalogue de modèles : LECTURE SEULE, transverse (tout connecté) — alignée sur
     # l'ouverture du méta-catalogue côté UI (WamaModelHelp le sert à tous les selects
     # d'app). L'app model_manager reste dev-gated pour la GESTION ; une future action
