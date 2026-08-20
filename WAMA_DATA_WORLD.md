@@ -112,7 +112,7 @@ d'un plugin (mesure prescrite par l'arbitrage du 19/08) devient **vérifiable m�
 | # | ma supposition | ce que BIND fait | source |
 |---|---|---|---|
 | 4 | politique d'**interpolation** déclarée par type | **BIND n'interpole JAMAIS.** L'API n'expose que `…OccurenceAtTime(name, t)` (valeur exacte) et `…OccurenceNearTime(name, t)` (échantillon le plus proche). Rien entre les deux. | `Trip.m:235-299` |
-| 1 | fréquences déduites du signal | la fréquence est **DÉCLARÉE** par donnée : `MetaDatas.frequency INT DEFAULT -1` (−1 = non régulier) | `SQLiteTrip.m:125` |
+| 1 | fréquences déduites du signal | le schéma PRÉVOIT une fréquence déclarée (`MetaDatas.frequency INT DEFAULT -1`) — ⚠ **mais elle vaut 0 pour les 10 flux d'un trip réel**, voir §6.7 : la cadence est EMERGENTE, pas déclarée | `SQLiteTrip.m:125` + mesure |
 | 2 | recalage d'origine par source | **seules les VIDÉOS portent un offset** (`MetaTripVideos.offset DOUBLE DEFAULT 0`). Les données sont supposées déjà ramenées à la base de temps du trip **à l'import** (rôle de `rec2trip`) | `SQLiteTrip.m:122` |
 
 **Conséquence de conception majeure** : chez BIND, l'alignement multi-sources est un problème
@@ -499,6 +499,101 @@ vector, unique_data).
 
 ---
 
+### 6.7 CONFRONTATION À UNE BASE `.trip` RÉELLE (2026-08-20)
+
+> Jusqu'ici tout venait du CODE. Une base réelle a été fournie : **1,28 Go, un participant,
+> 34 min d'enregistrement, 5,26 M de lignes, 37 tables**. Elle confirme le schéma — et corrige deux
+> de mes affirmations.
+
+#### Aucun rééchantillonnage — six cadences natives coexistent
+
+| table | lignes | cadence **mesurée** |
+|---|---|---|
+| `data_BIOPAC_MP150` | 2 037 207 | **1000,0 Hz** |
+| `data_ECG_processed` | 2 037 206 | 1000,0 Hz |
+| `data_PUPIL_GLASSES_gaze` / `_pupil` / `_processed` | ~251 400 | **123,1 Hz** |
+| `data_DR2_Vehicule_VHS_vp` / `_Simulateur` | 115 033 | **56,3 Hz** |
+| `data_IDSCAM_MASTER` / `_SLAVE` | ~81 500 | **40,0 Hz** |
+| `data_PUPIL_GLASSES_fixations` | 38 262 | **18,7 Hz** |
+
+**Position d'architecture (Fabien, 20/08)** : rééchantillonner à l'import est une **erreur
+structurelle** — on perd le signal d'origine par interpolation, la vidéo garde de toute façon sa
+propre cadence, et un signal catégoriel interpolé est simplement faux. Un rééchantillonnage se fait
+**après import, dans une table annexe, pour un usage précis** (ce que fait déjà `cam_analyzer`),
+jamais systématiquement. La base réelle montre que BIND respecte ce principe.
+
+> ⚠ **Correction à §3bis** : j'écrivais « la fréquence est DÉCLARÉE ». Faux en pratique —
+> `MetaDatas.frequency = 0` pour **les dix flux**. Le champ existe et n'est pas rempli. La cadence
+> est une propriété **émergente** de la donnée. (Un modèle tiers comparable déclare, lui, une
+> `resampling_base_frequency` globale *et* une source de temps par canal ; ce que la première
+> déclenche réellement n'est pas vérifiable, son code étant protégé.)
+
+`isBase` en revanche fonctionne exactement comme décrit : **1** pour les 8 flux acquis, **0** pour
+`ECG_processed` et `PUPIL_GLASSES_processed` — les deux dérivés.
+
+#### ⭐ La Situation est l'UNITÉ D'ANALYSE — c'est là que tout converge
+
+12 tables `situation_<début>_<fin>` : `0_15`, `0_30`, `0_60`, `0_120`, `15_45`, `30_60`, `30_90`,
+`45_75`, `60_90`, `60_120`, `75_105`, `90_120`. Ce sont des **fenêtres d'analyse glissantes et
+emboîtées, ancrées sur les events**.
+
+Chacune porte **26 colonnes** : `startTimecode`, `endTimecode`, `name`, `duration`, `situation`
+(TAG/DEP), `level`, `disconfort`, puis les indicateurs calculés — `RRint_min/max/moy`, `SDNN`,
+`RMSSD` (variabilité cardiaque), `SDLP`, `SDWA`, `SRR` (conduite), `nb_fix`, `duree_fix_*`,
+`nb_sac`, `duree_sac_*`, `ampli_sac_*` (oculométrie).
+
+> **Le Calculator n'écrit pas ailleurs : il AJOUTE DES COLONNES à la table de situation.** Une ligne
+> = un (participant × event × fenêtre) avec tous ses indicateurs. C'est le point de jonction entre
+> signaux bruts et statistique — et la raison d'être des situations.
+
+**Les trois voies vers une situation** (dualité explicite/implicite) :
+
+| voie | entrée | ce que fait le Segmenter |
+|---|---|---|
+| autour d'un **event** | 1 timestamp + durée | `[t, t+d]`, borné à l'occurrence suivante |
+| **conditionnelle** | signal + prédicat | plages où le prédicat tient, avec **durée mini et trou toléré** (sans hystérésis on produit du confetti) |
+| **états** | signal catégoriel | les plages de valeur constante SONT des situations (run-length) |
+
+Les deux représentations — lignes `(start, end)` explicites, ou signal catégoriel échantillonné —
+sont **convertibles**. C'est ça qu'il faut modéliser, pas seulement ajouter un type (⇒ **D8**).
+
+#### La chaîne complète, jusqu'au livrable chercheur
+
+```
+RTMaps .rec → rec2trip → .trip (1,28 Go / participant / 34 min)
+   ├─ 8 flux acquis (isBase=1) à cadences natives
+   ├─ 2 flux dérivés (isBase=0)
+   ├─ 6 tables event_* (17 à 62 lignes)
+   └─ 12 tables situation_* = fenêtres × indicateurs
+        ↓ export BIND_GUI
+   AllSituations.xlsx — 12 onglets (un par fenêtre), 377 lignes, colonnes préfixées « 0_15.* »
+        ↓ remaniement par les chercheurs
+   Indicateurs final N passations.xlsx — onglet Global à 393 COLONNES (fenêtres côte à côte,
+   renommées par domaine ECG_/COMP_/EYE_/EDA_), + onglets par condition + Personnalité joint
+```
+
+Trois enseignements que la lecture de code ne donnait pas :
+
+1. **L'Exporter fait un pivot long → large.** Le `.trip` stocke une table par fenêtre ; le livrable
+   met les fenêtres côte à côte, une ligne par passation. C'est son vrai travail.
+2. **Les paramètres de fenêtre vivent dans le NOM de la table** (`situation_0_15`) — fragile. Chez
+   WAMA ce seraient des colonnes ou des métadonnées, donc **interrogeables** au lieu d'être devinées.
+3. **`MetaTripDatas` est un journal de calcul** : `calcul_RRIntervalsV2: OK`,
+   `calcul_...IndicatorsECG_0_30: OK`… — des marqueurs d'idempotence disant ce qui a déjà tourné.
+   À rapprocher de `RunOutcome` et de l'idempotence des manifestes.
+
+#### Volume — la décimation est une condition d'existence
+
+1,28 Go pour **34 min et un seul participant**. À l'échelle d'une étude (69 passations), ~88 Go.
+Afficher `BIOPAC` (2 M points) sur 2000 px, c'est **1000 points par pixel** : sans vue décimée
+(min/max par pixel, §3.5), aucun plugin de visualisation n'est viable. Ce n'est pas une
+optimisation.
+
+Enfin, les vidéos sont bien rattachées avec un **offset négatif sub-seconde** (−0,650804 s et
+−0,661709 s pour l'audio) — le recalage fin des médias externes, conforme à §6.2.
+
+---
+
 ## 7. Modules et applications WAMA-Data (périmètre visé)
 
 > Liste posée par Fabien le 19/08. **Application** = UI standalone accessible depuis le studio ;
@@ -662,6 +757,8 @@ conteneur de vues détachables — après F.
 | D7 | le curseur appartient-il au **jeu de données** (choix BIND : un trip = une horloge) ou à la **session** (plusieurs sources hétérogènes) ? | après passe 2 |
 | D8 | type « **intervalle** » dans `data_types.py` : nouveau `DataType.INTERVALS`, ou sous-type d'`EVENTS` avec durée ? (sans lui, pas de Segmenter ni de Calculator) | après passe 3 |
 | D9 | vocabulaire temporel : garder `time` (WAMA) ou adopter `timecode`/`startTimecode`/`endTimecode` (BIND) ? — tranché au plus tard à l'écriture de l'Importer | différable |
+| D10 | **rééchantillonnage à l'import : NON** — position arrêtée par Fabien le 20/08 (on perd le signal d'origine, la vidéo garde sa cadence, un catégoriel interpolé est faux). Un rééchantillonnage se fait APRÈS import, en table annexe, pour un usage précis. Reste à trancher : où vit cette table annexe et comment elle se déclare | quasi tranchée |
+| D11 | les paramètres de fenêtre d'une situation : **colonnes/métadonnées** (interrogeables) plutôt que dans le NOM de la table comme BIND (`situation_0_15`) ? | après A |
 
 ---
 
@@ -696,3 +793,16 @@ conteneur de vues détachables — après F.
   depuis la fréquence déclarée et l'index. Plan d'intégration ordonné A→H en §8.3, la première
   marche étant le type « intervalle » (quelques dizaines de lignes, débloque le plus).
   **Toujours aucune ligne de WAMA Data implémentée.**
+- **2026-08-20 — confrontation à une base `.trip` RÉELLE** (§6.7) : 1,28 Go, 1 participant, 34 min,
+  5,26 M lignes. **Aucun rééchantillonnage** — six cadences natives coexistent (1000 / 123,1 / 56,3
+  / 40 / 18,7 Hz) ; position d'architecture arrêtée (**D10**) : on ne rééchantillonne PAS à
+  l'import. ⚠ **Correction** : `MetaDatas.frequency` vaut 0 pour les 10 flux — la cadence est
+  émergente, pas déclarée, contrairement à ce que §3bis affirmait. `isBase` en revanche est bien
+  utilisé (8 acquis / 2 dérivés). ⭐ **La Situation est l'unité d'analyse** : 12 fenêtres glissantes
+  ancrées sur events, 26 colonnes chacune, et **le Calculator écrit ses indicateurs COMME COLONNES
+  de la table de situation**. Trois voies vers une situation (autour d'un event · conditionnelle
+  avec durée mini + trou toléré · run-length d'un signal catégoriel) — les représentations explicite
+  et implicite sont convertibles. Chaîne complète établie jusqu'au livrable chercheur : l'Exporter
+  fait un **pivot long → large** (12 onglets → 393 colonnes). Volume : ~88 Go pour une étude, donc
+  la **décimation est une condition d'existence**, pas une optimisation. Deux décisions ajoutées
+  (D10, D11).
