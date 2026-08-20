@@ -96,10 +96,17 @@
             // des titres qui n'annoncent plus rien : l'utilisateur lit « Créer » au-dessus du
             // vide. Le groupe se déclare par `data-f-groupe` sur le conteneur qui EMBRASSE
             // l'en-tête ET les éléments.
+            // ⚠ On ne considère QUE les groupes qui contiennent des éléments DE CETTE barre.
+            // Chercher `[data-f-groupe]` dans tout le document sans ce rattachement ferait que,
+            // sur une page à deux barres, l'une forcerait la visibilité des groupes de l'autre
+            // (leurs éléments ne matchant pas son `cible`, elle les croirait vides d'enjeu).
+            // Aucun bug aujourd'hui — une seule page a des groupes — mais c'est un piège posé
+            // pour le prochain adoptant, et il ne coûte rien à désamorcer maintenant.
             $$('[data-f-groupe]').forEach(function (g) {
-                var dedans = selCible ? $$(selCible, g) : [];
+                var dedans = elements.filter(function (e) { return g.contains(e); });
+                if (!dedans.length) { return; }          // groupe d'une AUTRE barre : on n'y touche pas
                 var visiblesIci = dedans.filter(function (e) { return e.style.display !== 'none'; });
-                g.style.display = (dedans.length && !visiblesIci.length) ? 'none' : '';
+                g.style.display = visiblesIci.length ? '' : 'none';
             });
 
             if (compteur) {
