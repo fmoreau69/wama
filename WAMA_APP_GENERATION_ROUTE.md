@@ -790,6 +790,20 @@ roundtrip monte partout (converter 8/10 — reste `processing` partiel + `tool_a
 consignée : kwargs étendus de preview (describer/enhancer) non retenus par PreviewRegistry —
 bac « porter » avant leur régénération.
 
+> **Retombée inattendue de la facette `inspector` (2026-08-20)** — `detail_registry` s'est révélé
+> être un **registre `app → modèle` universel**, donc bien plus qu'un mécanisme d'inspecteur : le
+> **journal transversal** (`WAMA_MEMORY.md §9bis`) en DÉRIVE ses 12 sources, sans une ligne dans
+> les apps ; une app qui enregistre son adapter y entre gratuitement. Même levier proposé pour
+> **tool_api §9ter** (`list_my_items` / `get_item_detail` en remplacement des ~10
+> `get_<app>_status` écrits à la main). Enseignement pour la route : **un registre `app → modèle`
+> a plus de consommateurs que celui pour lequel on l'a écrit** — le déclarer largement (et non
+> comme détail d'implémentation d'une facette) est ce qui rend ces retombées possibles.
+>
+> ⚠ Et un rappel de prudence gagné le même jour : `unified_detail` **est consommé** par
+> `wama-inspector.js::fillDetail()` (l.328), qui dérive l'URL par
+> `replace('/preview/', '/detail/')` — invisible à toute recherche du chemin. Ne pas conclure
+> qu'un endpoint dort sans avoir cherché les URL **construites**.
+
 **Palier A3a ✅ LIVRÉ (2026-08-12) — Detail/Preview DÉCLARATIFS (déblocage de la facette
 `inspector`)** : `register_app_detail_spec(app, Model, spec)` dans `detail_registry` — la
 registration devient une SPEC-donnée (mapping build_detail : champs/constantes,
