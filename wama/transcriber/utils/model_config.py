@@ -67,9 +67,10 @@ VIBEVOICE_MODELS = {
         'vram_gb': 16,
         # Description ABSENTE : tirée de la CLASSE backend (VibeVoiceBackend) par la découverte
         # — source unique = ce qui s'affiche. (L'ancien stub dupliquait, avec VRAM-in-text.)
-        'supports_diarization': True,
-        'supports_timestamps': True,
-        'supports_hotwords': True,
+        # `supports_*` RETIRÉS le 2026-08-20 : DONNÉES MORTES. La seule boucle qui lit ce dict
+        # (model_registry._discover_transcriber_models) n'en consommait que hf_model_id/size_gb/
+        # vram_gb/description — jamais ces flags, ni avant ni après leur lecture sur la classe
+        # backend. Ils donnaient l'illusion d'une source de vérité de plus.
         'max_audio_minutes': 60,
         'languages': '50+',
     },
@@ -86,8 +87,7 @@ QWEN_ASR_MODELS = {
         # Description PAR-MODÈLE (2 tailles pour un même moteur) — la VRAM vient du catalogue
         # (vram_gb), jamais du texte.
         'description': 'Qwen3-ASR 0.6B — rapide, context biasing, 52 langues',
-        'supports_hotwords': True,
-        'supports_timestamps': True,
+        # `supports_*` retirés — données mortes (cf. VIBEVOICE_MODELS ci-dessus).
         'languages': '52',
     },
     'qwen3-asr-1.7b': {
@@ -97,8 +97,7 @@ QWEN_ASR_MODELS = {
         'size_gb': 3.5,
         'vram_gb': 4,
         'description': 'Qwen3-ASR 1.7B — précis, context biasing, 52 langues',
-        'supports_hotwords': True,
-        'supports_timestamps': True,
+        # `supports_*` retirés — données mortes (cf. VIBEVOICE_MODELS ci-dessus).
         'languages': '52',
     },
 }

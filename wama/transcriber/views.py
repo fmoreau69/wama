@@ -1629,16 +1629,17 @@ def get_backends(request):
             backends = get_backends_info()
             cache.set(_BACKENDS_CACHE_KEY, backends, timeout=3600)
         except ImportError:
-            backends = [
-                {
-                    'name': 'whisper',
-                    'display_name': 'Whisper (OpenAI)',
-                    'available': True,
-                    'supports_diarization': False,
-                    'supports_timestamps': True,
-                    'supports_hotwords': False,
-                }
-            ]
+            # Le repli INVENTAIT un moteur : 'available': True alors que l'import venait
+            # d'échouer (donc whisper n'est justement PAS utilisable), et des capacités
+            # FAUSSES — 'supports_hotwords': False quand WhisperBackend les déclare True.
+            # Une panne se présentait ainsi comme un état nominal. L'erreur était en plus
+            # avalée sans la moindre trace. On journalise, et on ne répond que ce qu'on sait.
+            # Sûr côté client : le front ne lit que name/display_name de cet endpoint et
+            # traite déjà la liste vide (`if (!backends.length) return;`, index.js:1359) —
+            # il garde l'option « auto », qui laisse l'app choisir. Non mis en cache non
+            # plus : la panne peut être transitoire (course d'imports accelerate déjà vue).
+            logger.exception('[transcriber] get_backends_info indisponible — liste vide rendue')
+            backends = []
     return JsonResponse({'backends': backends, 'default': 'auto'})
 
 

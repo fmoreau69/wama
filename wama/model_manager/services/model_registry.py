@@ -782,21 +782,24 @@ class ModelRegistry:
                             else str(ct2_dir))
                     extra = {'hf_id': hf_id, 'path': path if is_downloaded else ''}
 
-                # Capacités CANONIQUES. ⚠️ DOIVENT rester alignées sur les attributs de classe
-                # backend (`*Backend.supports_*`) — source déclarative de référence. diarisation
-                # NATIVE (vibevoice) vs pyannote post-traitement (whisper/qwen ; le flag reste
-                # False = pas de diar. NATIVE, mais l'app la fournit via pyannote). hotwords :
-                # les 3 backends l'exposent (whisper = param NATIF faster-whisper, cf.
-                # WhisperBackend.supports_hotwords=True). languages ['*'] = multilingue.
-                # `task`/`modalities`/`inputs_required` complètent le tronc commun (2026-07-31) :
-                # un ASR consomme la piste audio du média de travail, jamais un prompt.
-                caps = {'languages': ['*'], 'supports_timestamps': True, 'supports_hotwords': True,
+                # Capacités CANONIQUES — LUES sur `_cls` (lot 4b, 2026-08-20), la même classe
+                # backend qui sert déjà de « SOURCE UNIQUE » aux descriptions 60 lignes plus haut.
+                # Elles étaient ÉCRITES EN DUR ici, sous un avertissement « ⚠️ DOIVENT rester
+                # alignées sur les attributs de classe backend » : un commentaire qui demandait à
+                # l'humain de tenir à la main ce que le code avait déjà sous la main. Le même
+                # bloc lisait la classe pour le texte affiché et l'ignorait pour les capacités.
+                # Sémantique INCHANGÉE : `supports_diarization` = diarisation NATIVE (vibevoice
+                # seul) ; whisper/qwen restent False, l'app fournissant pyannote en
+                # post-traitement. hotwords : les 3 l'exposent (whisper = param NATIF
+                # faster-whisper). languages ['*'] = multilingue.
+                # `task`/`modalities`/`inputs_required` = tronc commun (2026-07-31) : un ASR
+                # consomme la piste audio du média de travail, jamais un prompt.
+                caps = {'languages': ['*'],
+                        'supports_timestamps': _cls.supports_timestamps,
+                        'supports_hotwords': _cls.supports_hotwords,
+                        'supports_diarization': _cls.supports_diarization,
                         'task': 'transcription', 'modalities': ['audio'],
                         'inputs_required': ['work_audio']}
-                if model_id.startswith('vibevoice'):
-                    caps.update({'supports_diarization': True})
-                else:  # whisper / qwen3-asr — diarisation via pyannote (post-traitement)
-                    caps.update({'supports_diarization': False})
 
                 self._models[f"transcriber:{model_id}"] = ModelInfo(
                     id=f"transcriber:{model_id}",
