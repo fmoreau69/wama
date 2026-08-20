@@ -2462,6 +2462,50 @@ travail**. La base LIVE est celle de **WSL2 (Postgres 16)**, conforme à
 exécute WAMA nativement sous Windows (`venv_win runserver`) ; sinon c'est une taxe d'entretien
 supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 
+## §REPRISE — 2026-08-20, instance « PASSERELLE DE CANAUX » (Tchap/Matrix, Discord) — EN COURS
+
+> **Partition** : cette instance ne touche QUE l'assistant et ses surfaces
+> (`wama/common/services/assistant_engine.py`, `wama/views.py`, `wama/api/v1/*`). Une autre
+> instance travaille en parallèle sur le **monde Data** (`wama/common/data/*`,
+> `WAMA_DATA_WORLD.md`, `wama_lab/cam_analyzer/function_specs.py`) — périmètres disjoints,
+> aucun fichier commun. **Doc de référence du domaine : `ROADMAP.md` §19** (créée ce jour ;
+> le sujet n'était qu'une ligne d'horizon H3, désormais barrée et renvoyée vers §19).
+
+### ✅ Étape 0 LIVRÉE — extraction du moteur d'assistant (1 commit)
+La boucle agentique vivait dans une vue session+CSRF : **seule la page web** pouvait parler à
+l'assistant. Extraite en brique commune → **UN cerveau, N surfaces**. `views.py` 750 → 332
+lignes (coupe par script à assertions, garde finale : aucun symbole déplacé ne subsiste).
+
+| Livrable | Preuve |
+|---|---|
+| `common/services/assistant_engine.py::run_assistant_turn` + mécanisme déclaré (76) | `doc_facts` régénéré ; smoke : vue web et moteur = **la même fonction** |
+| `POST /api/v1/assistant/chat/` (TokenAuthentication) — la porte des canaux tiers | smoke auth **401** (témoin `/api/v1/tools/` identique) |
+| Cloud routé par `llm_chat()`/LiteLLM **avec la boucle à outils** | remplace `_chat_with_claude` (modèle FIGÉ périmé + **zéro outil**) |
+| `_sanitize_history` — pas d'injection de tour `system` par un client token | smoke : le tour `system` injecté est rejeté |
+
+⏳ **NON validé — pour Fabien** : le chat bout-en-bout au navigateur (demande un LLM ; je n'ai
+lancé aucune charge GPU). Vérifier la page d'accueil (surface admin) : réponse + appel d'outil.
+
+### 🔚 SUITE — 4 décisions à trancher AVANT de coder la passerelle (`ROADMAP.md` §19.4)
+1. **Où tourne la passerelle** — process séparé (supervisor/systemd) ou commande Django longue ?
+   (un bot Matrix/Discord est un client à socket persistant : ni Celery, ni gunicorn).
+2. **Dépendances à installer** : `matrix-nio[e2e]`, `discord.py` (+ `simplematrixbotlib` ?).
+3. **Credentials** : compte de service Tchap (démarche DINUM — **à lancer tôt**, administrative)
+   et application/bot Discord sur le serveur du labo.
+4. **Modèle de menace** (condition posée par H3) : appariement obligatoire + rate-limit +
+   politique de fichiers entrants.
+
+**Acquis qui débloque la suite** : Tchap étant un fork Element/Synapse, un adaptateur écrit
+contre **Matrix** se développe et se teste sur un Synapse local **sans rien attendre de la
+DINUM**, puis se pointe vers Tchap sans changement de code. À lire avant d'écrire :
+`etalab-ia/albert-tchapbot` (bot LLM DINUM open source). ⛔ Botpress abandonné (l'agent EST WAMA).
+
+**Découverte annexe consignée en `ROADMAP.md` §8d** : le catalogue `AIModel` **ne sait pas
+décrire un modèle cloud** (pas d'`execution`, pas de provider cloud dans `ModelSource`, pas de
+coût — et `select_model()` filtre `is_downloaded=True` par défaut, ce qui exclurait
+mécaniquement tout modèle cloud). C'est CE verrou, plus que LiteLLM déjà câblé, qui empêche
+d'étendre la sélection automatique au cloud. Chantier orthogonal, non ouvert.
+
 ## §REPRISE — 2026-08-19 (CLÔTURE, instance « PROSPECTION de modèles ») — 🔚 POINT D'ENTRÉE
 
 > **Périmètre disjoint** des deux autres clôtures du jour (vision 3D/qualité modèles ; portage

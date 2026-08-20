@@ -61,8 +61,9 @@
   conformité (RGPD/consentement/SSO) et à l'adoption interne de la médiathèque.
 - Story Director / storyboard / apps montage & mixage (partie V) — après Studio complet, avec cas
   d'usage labo nommé.
-- Connecteurs conversationnels (Mattermost/Matrix) + gouvernance des IA (partie XI) — après
-  modèle de menace de l'assistant.
+- ~~Connecteurs conversationnels (Mattermost/Matrix)~~ → **OUVERT le 2026-08-20, voir §19**
+  (étape 0 livrée le jour même). Le modèle de menace reste une condition, traitée DANS le
+  chantier (§19.4) au lieu de le précéder. Gouvernance des IA (partie XI) : toujours H3.
 - Auto-instanciation d'apps ; migration infra Nginx/Linux étapes 2-3.
 
 ### Études / veille (aucun chantier ouvert)
@@ -942,16 +943,50 @@ WAMA utilise alors le provider cloud à la place d'Ollama pour les tâches séle
   (`LITELLM_PROVIDER`, tout ou rien). Pour qu'un modèle cloud alimente une app, il doit se déclarer
   **par tâche**, dans la chaîne descriptive (registres) comme le reste — pas par un réglage global
   ni par un `if` dans chaque app. Sans ça : on connecte, mais on ne peut pas utiliser.
+- **SECOND VERROU, mesuré le 2026-08-20 — le catalogue ne sait pas DÉCRIRE un modèle cloud.**
+  `AIModel` n'a ni `execution` (local/cloud), ni provider cloud dans `ModelSource` (qui n'énumère
+  que des apps WAMA + `ollama`/`huggingface`/`custom`), ni coût. Pire : `select_model()` filtre
+  `is_downloaded=True` **par défaut** → tout modèle cloud serait mécaniquement exclu de la
+  sélection automatique. C'est ce verrou-ci, plus que LiteLLM (déjà câblé), qui empêche
+  d'étendre la sélection automatique au cloud. Chantier :
+  ① champs `execution` + valeurs cloud de `ModelSource` + `cost_tier` (`free`/`metered`/
+  `subscription`) ; un modèle cloud a `vram_gb=0` et sa disponibilité = clé API présente ;
+  ② `select_model()` : VRAM et `is_downloaded` ne s'appliquent qu'aux locaux (le tri par
+  `benchmark_index`/`quality_index` fonctionne déjà tel quel, le banc tiers note du cloud) ;
+  ③ **politique de routage déclarative, par tâche** — *confidentialité d'abord* (un flag de
+  sensibilité force le local, non négociable : c'est ce qui rend le cloud acceptable pour un
+  labo SHS), puis *gratuit d'abord* (`local → cloud free → cloud payant`, arbitrage Fabien),
+  puis *capacité* (contexte/VRAM saturés → escalade cloud, dont `_route_model_by_context` est
+  déjà l'embryon local) ; ④ override utilisateur `auto` par défaut (patron `resolve_auto_model`
+  de l'imager). ⚠ Le choix manuel est un **override**, jamais le mécanisme principal.
+- **Duplicata à résorber** : `wama-dev-ai/config.py::select_model_for_role` réimplémente une
+  sélection RAM-aware avec chaînes de fallback, et appelle Ollama en direct (pas LiteLLM). Une
+  fois la politique ci-dessus en place, c'est à **lui d'adopter la brique** (il gagne le cloud
+  au passage) — plus simple que le plan initial « exposer `config.py` via MCP ».
 - `llm_chat(provider=user_provider, api_key=user_key)` → LiteLLM route vers le bon provider
 - UI : section "Providers IA" dans le profil utilisateur + indicateur "mode hybride actif"
 - ⚠️ À préciser dans l'UI : **abonnement ChatGPT Plus / Claude.ai ≠ accès API**
   (API = facturation séparée à la requête, nécessite une clé API distincte)
+  — ⚠ **NUANCE VÉRIFIÉE 2026-08-20** : vrai pour l'API *au sens LiteLLM* (une clé reste
+  requise pour router un provider ici). Mais il existe désormais un chemin **par
+  l'abonnement**, hors LiteLLM : depuis juin 2026 le titulaire peut piloter Claude Code
+  programmatiquement (token OAuth `claude setup-token` + `claude -p` headless ou Agent SDK),
+  avec un crédit mensuel dédié. Ce n'est PAS un provider LiteLLM et ça ne remplace pas une
+  clé API — c'est la brique du canal développeur (§19.3). Ne pas confondre les deux dans l'UI.
 
 ### Phase 3 — MCP Server WAMA 💡 (long terme)
 
 **Concept :** Exposer les outils WAMA comme serveur MCP pour clients compatibles
 (Claude Code, Claude Desktop, IDEs). Distincts de LiteLLM — MCP = protocole d'outils,
 pas un routeur LLM.
+
+> ⚠ **Ce que MCP ne résout PAS** (question tranchée le 2026-08-20) : « lancer une requête à
+> Claude Code depuis l'AI-Assistant » ne passe **pas** par MCP. `claude mcp serve` n'expose que
+> les *outils* de Claude Code (Bash/Read/Edit…), **pas sa boucle d'agent** — l'orchestration
+> resterait à notre charge. Le chemin est `claude -p` headless / Agent SDK avec le token
+> d'abonnement (§19.3). MCP côté WAMA garde sa valeur propre : faire de **WAMA un serveur**
+> d'outils pour des clients tiers — l'inverse du besoin ci-dessus, et complémentaire de
+> `/api/v1/tools/` qui expose déjà les mêmes 48 outils en HTTP+token.
 
 Exemples d'outils exposables :
 - `wama_transcribe(file_path)` → lance une transcription WAMA
@@ -2076,3 +2111,120 @@ Règles sur le graphe d'imports (AST, top-level ET locaux) — **état MESURÉ a
 **Acceptation** : l'outil doit retrouver les 12+1 violations ci-dessus. Ne pas le livrer sans.
 Création : idéalement AVANT l'ouverture du §18 (il mesure le point de départ du déménagement)
 et AVANT la première app data (il garde la frontière du monde naissant).
+
+---
+
+## 19. Passerelle de canaux conversationnels (Tchap/Matrix, Discord) — OUVERT le 2026-08-20
+
+> **Domicile de ce chantier.** Le sujet n'était qu'une ligne d'horizon H3 (« Connecteurs
+> conversationnels (Mattermost/Matrix) — après modèle de menace de l'assistant »). Arbitrage
+> Fabien du 2026-08-20 : **ouvert**, en commençant par le maillon interne (étape 0) qui ne
+> dépend d'aucun tiers. La ligne H3 renvoie désormais ici.
+
+**Intention.** Utiliser WAMA depuis un canal de discussion — deux usages distincts :
+1. **Usage utilisateur (labo)** : déposer un fichier, lancer une tâche, suivre son statut,
+   récupérer la sortie — soit exactement ce que l'AI-Assistant sait déjà faire (48 outils).
+2. **Usage développeur (Fabien, depuis smartphone)** : lancer des audits/cartographies à
+   wama-dev-ai, et déclencher des tâches Claude Code — surface SÉPARÉE et verrouillée.
+
+**Ordre d'attaque (arbitré 20/08).** Tchap **d'abord** (souverain, DINUM, open source),
+Discord ensuite (usage réel du labo). ⚠ Ce n'est pas un compromis : Tchap étant un fork
+Element/Synapse, la DINUM confirme qu'« il n'y a pas de spécificité Tchap par rapport à
+Matrix ayant un impact sur la création d'un bot ». Un adaptateur écrit contre **Matrix**
+se développe et se teste sur un Synapse local **sans rien attendre de la DINUM**, puis se
+pointe vers Tchap sans changement de code. Précédents à lire AVANT d'écrire :
+[`etalab-ia/albert-tchapbot`](https://github.com/etalab-ia/albert-tchapbot) (bot LLM DINUM,
+open source) et le REX Insee (`simplematrixbotlib` / `matrix-nio`). Éligibilité : les
+universités sont éligibles (établissements publics) — vérifier le domaine `univ-eiffel.fr`,
+sinon demande à la DINUM (démarche à lancer TÔT, elle est administrative).
+⛔ **Botpress abandonné** (piste 2025 non aboutie) : l'agent EST WAMA (boucle + outils) ;
+Botpress n'ajouterait qu'une orchestration concurrente à maintenir.
+
+### 19.0 Extraction du moteur d'assistant — ✅ LIVRÉ 2026-08-20
+
+Préalable à tout le reste, et bénéfique seul. La boucle agentique était enfermée dans une
+vue session+CSRF (`views._chat_with_ollama`) : seule la page web pouvait converser.
+Extraite en brique commune — **UN cerveau, N surfaces**.
+
+| Livrable | État |
+|---|---|
+| `wama/common/services/assistant_engine.py` (`run_assistant_turn`) — mécanisme déclaré | ✅ |
+| `POST /api/v1/assistant/chat/` (TokenAuthentication) = porte des canaux tiers | ✅ |
+| `views.py` 750 → 332 lignes ; la vue web est un CLIENT du moteur | ✅ |
+| Cloud passé par `llm_chat()`/LiteLLM **avec la boucle à outils** | ✅ |
+| `_sanitize_history` — un client token ne peut pas injecter de tour `system` | ✅ |
+| Validation bout-en-bout au navigateur (demande un LLM) | ⏳ **Fabien** |
+
+**Deux défauts corrigés au passage** (trouvés en lisant le code déplacé) :
+- `_chat_with_claude` **supprimée, pas déplacée** : elle appelait le SDK `anthropic` en
+  direct sur un modèle FIGÉ (`claude-sonnet-4-20250514`, périmé) et **sans aucun outil** —
+  choisir « claude » dans le sélecteur donnait un assistant amnésique de WAMA, incapable de
+  lancer une tâche. Même piège que `_route_model_by_context` : un nom figé ne casse que le
+  jour où l'on s'en sert.
+- L'historique client n'était pas assaini — sans conséquence en même-origine+CSRF, mais
+  inacceptable derrière un token.
+
+**Persistance de conversation DIFFÉRÉE** (décision Fabien 20/08) : la brique mémoire/RAG est
+en cours de livraison dans une autre instance (`WAMA_MEMORY.md`). `history` reste fourni par
+le client à chaque tour (localStorage côté web, store du bot côté canal), exactement comme
+avant. La jonction se fera **sans changer la signature** de `run_assistant_turn`.
+
+### 19.1 Passerelle — cœur commun + adaptateurs ⏳
+
+```
+Tchap/Matrix ──┐
+Discord ───────┤→  passerelle (1 process, N adaptateurs)  →  /api/v1/assistant/chat/
+(futur…) ──────┘                                             /api/v1/tools/run/
+```
+
+Un **cœur commun** (appariement d'identité, entrée/sortie de fichiers, formatage) + un
+**adaptateur mince par protocole** — jamais de logique métier dans un adaptateur.
+
+- **Appariement d'identité** (point de sécurité central) : `/link` dans le canal → code court
+  → collé dans le profil WAMA → liaison `identité-canal ↔ user Django ↔ token`. Sans
+  appariement, le bot ne répond rien. Le gating F7 s'applique ensuite **inchangé** (les outils
+  passent toujours par `execute_tool`).
+- **Fichiers — entrée** : pièce jointe → `POST /filemanager/api/upload/` puis
+  `POST /filemanager/api/import/` (les `import_to_<app>` existent pour les 10 apps).
+- **Fichiers — sortie** : ⚠ les `output_url` des `get_*_status` exigent une SESSION. Le bot
+  doit re-télécharger par l'API token et re-poster en pièce jointe (au-delà d'une taille
+  limite : lien vers WAMA).
+- **Chiffrement** : prévoir E2EE dès le départ côté Matrix (salons Tchap chiffrés,
+  `matrix-nio[e2e]` + store de clés) — pas un ajout ultérieur.
+- **Discord** : les slash commands peuvent être **générées depuis `TOOL_REGISTRY`**
+  (métadonnée-driven jusque dans Discord), pas écrites à la main.
+
+### 19.2 Notifications proactives — gain rapide, indépendant du bot ⏳
+
+`notify_job()` (`common/utils/notifications.py`) est déjà LE point unique appelé par toutes
+les apps en fin de tâche. Y brancher un fan-out vers les canaux (en plus de l'email) donne
+« ✅ transcription terminée + fichier » en DM — **sans toucher une seule app**, et sans
+polling. À faire dès que l'appariement d'identité existe.
+
+### 19.3 Canal DÉVELOPPEUR (surface séparée, verrouillée) ⏳
+
+- **wama-dev-ai** n'a **aucune API** (CLI pur : `run_audit.py`, `run_codegen.py`). Wrapper
+  minimal = tâche Celery en file **basse priorité** qui lance le CLI `--non-interactive` et
+  reposte le rapport de `wama-dev-ai/outputs/`. Reste Phase 1 read-only : le canal déclenche
+  et lit, **jamais n'applique**. ⚠ Aucune charge GPU nocturne non gouvernée (crashs hôte).
+- **Claude Code — VÉRIFIÉ POSSIBLE le 2026-08-20** (ça ne l'était pas lors du premier examen) :
+  depuis juin 2026, l'usage programmatique par le titulaire de l'abonnement est supporté et
+  couvert par les CGU, avec un crédit mensuel dédié qui n'entame pas l'usage interactif.
+  Chemin : `claude setup-token` (token OAuth) → `claude -p "…" --output-format json` en
+  headless, ou le **Claude Agent SDK** Python.
+  ⚠ **MCP n'est PAS le levier ici** : `claude mcp serve` n'expose que les *outils* de Claude
+  Code (Bash/Read/Edit…), pas la boucle d'agent — l'orchestration resterait à notre charge.
+  ⚠ Bug connu : le refresh du token OAuth échoue en non-interactif (~10-15 min) → découper en
+  invocations courtes plutôt qu'une session longue.
+
+### 19.4 Ce qui reste à trancher avant de coder 19.1
+
+1. **Où tourne la passerelle** : process séparé (`supervisor`/`systemd`) ou commande de
+   gestion Django longue ? (Un bot Matrix/Discord est un client à socket persistant — il ne
+   vit pas dans un worker Celery.)
+2. **Dépendances à installer** : `matrix-nio[e2e]` (+ `simplematrixbotlib` ?), `discord.py`.
+3. **Credentials** : compte de service Tchap (démarche DINUM), application/bot Discord sur le
+   serveur du labo.
+4. **Modèle de menace** (la condition posée par H3, toujours valable) : un canal ouvre
+   l'assistant à des messages non sollicités — l'appariement obligatoire (19.1) en est la
+   première réponse, à compléter par un rate-limit et une politique de fichiers entrants.
