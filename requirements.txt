@@ -6,6 +6,7 @@ celery>=5.5.2
 python-dotenv>=1.0.0
 deep-translator>=1.11.4
 Django>=5.2.1
+pgvector>=0.4  # colonne vector + CosineDistance (memoire/RAG, cf. WAMA_MEMORY.md)
 django-auth-ldap>=5.2.0
 django-celery-beat>=2.8.1
 django-celery-results>=2.6.0

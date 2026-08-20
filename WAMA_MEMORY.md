@@ -56,8 +56,13 @@ seulement improbable. Elles partagent un mixin abstrait `Embedded` et **une seul
 
 ## 4. Modèle de données
 
+> **Où vivent les modèles** : dans **`wama/common/models.py`**, pas dans la brique — même
+> précédent que `RunOutcome` (modèle dans `models.py`, logique dans `common/services/`). Les
+> loger dans `common/memory/` imposerait un import circulaire avec `ScopedVisibility` sans rien
+> gagner. La brique `common/memory/` ne porte que la logique.
+
 ```python
-# wama/common/memory/models.py
+# wama/common/models.py  (à la suite de RunOutcome)
 
 class Embedded(models.Model):            # ABSTRAIT — le socle vectoriel commun
     content          = TextField()       # VERBATIM. Jamais résumé, jamais paraphrasé à l'écriture.
@@ -132,7 +137,7 @@ il rattrape les identifiants exacts (`model_key`, nom de fichier, code projet) q
 
 ```
 PRODUCTEURS                       wama/common/memory/                CONSOMMATEURS
-                                  ├─ models.py   MemoryItem / RagChunk
+                                  │  (modèles dans common/models.py)
 wama-dev-ai        ─┐             ├─ store.py    les 5 opérations        ┌─ prompt_pipeline « Hook B »
  (procédural/       │             ├─ embed.py    bge-m3 via Ollama       │   (déjà présent, no-op)
   sémantique dev)   ├───────────► ├─ project.py  projections read-only  ─┤─ tool_api.py (assistant)
@@ -149,10 +154,18 @@ reste **la source de vérité** ; `project.py` n'y ajoute qu'un texte rappelable
 Recopier ces faits créerait deux vérités qui divergent — exactement la maladie déjà diagnostiquée
 sur les `.md`.
 
-**Substrat : Postgres + pgvector.** Vérifié le 2026-08-20 : Postgres 16.10 (WSL2), client Python
-`pgvector.django` installé ✅, **extension serveur `vector` ABSENTE** ❌ — prérequis :
-`sudo apt-get install -y postgresql-16-pgvector` puis `CREATE EXTENSION vector;` en superuser
-(paquet 0.6.0-1 dispo dans noble/universe ; proxy UGE déjà configuré dans apt).
+**Substrat : Postgres + pgvector.** Posé le 2026-08-20 : Postgres 16.10 (WSL2), client Python
+`pgvector.django` ✅, extension serveur `vector` 0.6.0 installée et activée sur `wama_db` ✅
+(`sudo apt-get install -y postgresql-16-pgvector` + `CREATE EXTENSION vector;` en superuser —
+`wama_user` ne suffit pas ; paquet dans noble/universe, proxy UGE déjà configuré dans apt).
+
+> ⚠ **PIÈGE — l'extension ne peut PAS reposer sur la migration.** `.gitignore:13` exclut
+> `**/migrations/0*.py` : les migrations numérotées ne sont **pas versionnées**. Celle qui porte
+> `VectorExtension()` est donc régénérée par `makemigrations` sur une base neuve — et
+> `makemigrations` ne devine pas les extensions Postgres. `migrate` échouerait alors sur
+> `type "vector" does not exist`, sans que rien n'indique pourquoi. Le `CREATE EXTENSION` est donc
+> posé **dans les scripts de démarrage**, avant `migrate` (`start_wama_prod.sh` §PostgreSQL et
+> `start_wama_dev.sh`) — seul endroit versionné qui précède la migration. Idempotent.
 
 > **Correction d'un plan périmé.** `PROJECT_STATUS §6`, `prompt_pipeline.py:116-118` et la vision
 > §11 annoncent **ChromaDB**. C'est abandonné, et pas par goût : un store séparé (a) ne peut pas
@@ -214,20 +227,29 @@ Ne rien arbitrer sur ces chiffres.
 
 ## 10. Jalons
 
-| # | Jalon | Dépend de |
+| # | Jalon | État |
 |---|---|---|
-| 1 | Extension `vector` installée + activée sur `wama_db` | **Fabien (sudo)** — §7 |
-| 2 | `bge-m3` tiré dans Ollama + `embed.py` (+ entrée catalogue `AIModel`) | 1 |
-| 3 | `models.py` + migration + `store.py` (5 opérations) — **inerte, aucun appelant** | 2 |
-| 4 | `project.py` : projection `RunOutcome` → `MemoryItem` (mécanique, sans LLM) | 3 |
-| 5 | `index.py` : indexation RAG depuis la médiathèque | 3 |
-| 6 | Branchement `prompt_pipeline` Hook B (remplace le no-op ChromaDB l.116-118) | 4, 5 |
-| 7 | wama-dev-ai : `memory.json` → `MemoryItem` (`provenance='dev-ai'`, non approuvé) | 3 |
-| 8 | Outil `memory_recall` dans `tool_api.py` | 6 |
-| 9 | Entrée au registre `common/mecanismes.py` (la table de `WAMA_MECANISMES.md` en est générée) | 3 |
+| 1 | Extension `vector` installée + activée sur `wama_db` | ✅ 2026-08-20 (pgvector 0.6.0) |
+| 2 | `bge-m3` + `embed.py` | ✅ 2026-08-20 — le modèle **était déjà tiré** dans Ollama |
+| 3 | Modèles + migration `common/0007` + `store.py` (5 opérations) | ✅ 2026-08-20 — **inerte, aucun appelant** |
+| 4 | `project.py` : projection `RunOutcome` → `MemoryItem` (mécanique, sans LLM) | ⏳ |
+| 5 | `index.py` : indexation RAG depuis la médiathèque (+ rafraîchissement de visibilité, §4) | ⏳ |
+| 6 | Branchement `prompt_pipeline` Hook B (remplace le no-op ChromaDB l.116-118) | ⏳ — dépend de 4, 5 |
+| 7 | wama-dev-ai : `memory.json` → `MemoryItem` (`provenance='dev-ai'`, non approuvé) | ⏳ |
+| 8 | Outil `memory_recall` dans `tool_api.py` | ⏳ — dépend de 6 |
+| 9 | Entrée au registre `common/mecanismes.py` (la table de `WAMA_MECANISMES.md` en est générée) | ⏳ |
+| 10 | Entrée catalogue `AIModel` pour `bge-m3` (il tourne, il n'est pas déclaré) | ⏳ |
 
-Jalons 3 à 5 = **construits mais non branchés**, conformément à la consigne : wama-dev-ai reste sur
-sa tâche de fond wama-data. Rien ne change pour un utilisateur avant le jalon 6.
+**Validation empirique du jalon 3** (2026-08-20, 21 contrôles, 0 échec) — écriture verbatim, dédup
+par `content_hash`, garde-fou « approbation sans approbateur » refusée, brouillon LLM invisible au
+rappel, isolation entre deux utilisateurs, `forget()` qui invalide sans supprimer, `merge()` qui
+n'écrit rien, `expire()` en `dry_run` qui ne compte que du non-approuvé, et **rappel sémantique
+sans mot commun** (« quel traitement pour du son Apple ? » → « pour un fichier m4a, décoder avant
+Whisper ») — ce dernier prouve que le vectoriel apporte ce que le lexical ne peut pas trouver, et
+que la fusion RRF classe bien les deux (`{'vecteur/memory': 1, 'lexical/memory': 1}`).
+
+⚠ **Rien n'appelle la brique.** Elle est complète et testée, mais aucun code WAMA ne l'invoque :
+le Hook B de `prompt_pipeline` reste un no-op. Rien ne change pour un utilisateur avant le jalon 6.
 
 ## 11. Hors périmètre (tracé ailleurs)
 

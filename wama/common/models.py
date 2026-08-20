@@ -14,6 +14,7 @@ ABSTRAIT (une migration additive par app concrète).
 """
 
 from django.db import models
+from pgvector.django import VectorField
 
 
 class ProcessingTimeMixin(models.Model):
@@ -545,3 +546,202 @@ class RunOutcome(models.Model):
 
     def __str__(self):
         return f"{self.app}:{self.object_type}#{self.object_id} → {self.signal}"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Mémoire & RAG — doc de référence : WAMA_MEMORY.md
+#
+# Les modèles vivent ICI (et non dans `common/memory/`) par le même précédent que `RunOutcome` :
+# le modèle est dans `models.py`, la logique dans une brique dédiée (`common/memory/`). Les y
+# déplacer imposerait un import circulaire avec `ScopedVisibility`, sans rien gagner.
+#
+# ⚠ AUCUN APPELANT à ce jour — jalon 3 de WAMA_MEMORY.md §10. Rien ne change pour un utilisateur
+# tant que le Hook B de `prompt_pipeline` n'est pas branché (jalon 6).
+# ─────────────────────────────────────────────────────────────────────────────
+
+#: Dimension des vecteurs `bge-m3`. Figée ici parce qu'un changement impose une MIGRATION (la
+#: colonne pgvector est typée `vector(N)`), pas un simple réindex — contrairement au changement
+#: de modèle à dimension égale, qui n'exige que de recalculer les embeddings.
+EMBEDDING_DIMS = 1024
+
+
+class Embedded(models.Model):
+    """
+    Socle vectoriel commun au souvenir et au fragment. ABSTRAIT — aucune table.
+
+    RÈGLE : `content` est conservé VERBATIM. On n'y résume ni ne paraphrase à l'écriture, parce
+    que la perte serait irréversible et qu'on ne saurait jamais ce qu'on a jeté. La condensation
+    est un choix de LECTURE (ce qu'on injecte dans un prompt), jamais d'écriture.
+    """
+
+    content = models.TextField(help_text="Texte VERBATIM. Jamais résumé à l'écriture.")
+
+    #: SHA-256 du contenu normalisé — dédup EXACTE, réglée avant tout appel LLM ou embedding.
+    #: L'écrasante majorité des doublons sont des re-projections à l'identique : les traiter ici
+    #: coûte un index, alors que les traiter par similarité coûterait un embedding par candidat.
+    content_hash = models.CharField(max_length=64, db_index=True, blank=True, default='')
+
+    #: NULL tant que l'embedder n'a pas tourné. C'est un état NORMAL, pas une anomalie : une
+    #: écriture ne doit jamais être perdue parce qu'Ollama était éteint (cf. `embed.py`).
+    embedding = VectorField(dimensions=EMBEDDING_DIMS, null=True, blank=True)
+
+    #: Le modèle qui a produit le vecteur. Sans ce champ, une bascule d'embedder mélangerait deux
+    #: espaces vectoriels dans la même colonne — les distances deviendraient du bruit SANS AUCUNE
+    #: erreur visible. Avec lui, une bascule est un réindex explicite et mesurable.
+    embedding_model = models.CharField(max_length=64, blank=True, default='')
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+
+
+class MemoryItem(Embedded, ScopedVisibility):
+    """
+    LE SOUVENIR — un fait, un événement ou une procédure. NON re-dérivable.
+
+    ⚠ JAMAIS PURGÉ AUTOMATIQUEMENT. C'est la raison d'être de la séparation d'avec `RagChunk` :
+    le 2026-08-19, une purge ciblée a détruit 13 évaluations LLM parce que deux natures de
+    données cohabitaient dans la même table (GPU dépensé pour rien). Deux tables rendent
+    l'accident IMPOSSIBLE, pas seulement improbable.
+
+    Le scope (privé / projet / unité / public) vient de `ScopedVisibility` : un rappel est une
+    queryset filtrée par `scoped_visible_q(user)`. La hiérarchie RAG université → labo → équipe →
+    utilisateur de la vision §11 est donc HÉRITÉE, pas ré-implémentée.
+    """
+
+    KIND_SEMANTIC = 'semantic'      # un fait stable      : « Fabien exporte en PDF »
+    KIND_EPISODIC = 'episodic'      # un événement daté   : « transcription 142 corrigée le 12/08 »
+    KIND_PROCEDURAL = 'procedural'  # une manière de faire : « pour un m4a, décoder avant Whisper »
+    # ⚠ 'emotional' (4e type de memorywire) est RÉSERVÉ, PAS implémenté — décision 2026-08-20,
+    # raisonnement complet dans WAMA_MEMORY.md §8. En résumé : seul type sans producteur
+    # mécanique (il INFÈRE au lieu de constater), inférence fausse indétectable, et profiler
+    # l'humeur d'un agent public dans un magasin de scope `unit` n'est pas neutre. Le bénéfice
+    # visé (pondération du rappel) est obtenu par `salience`, dérivée de gestes RÉELS.
+    KIND_CHOICES = [
+        (KIND_SEMANTIC, 'Fait'), (KIND_EPISODIC, 'Événement'), (KIND_PROCEDURAL, 'Procédure'),
+    ]
+
+    #: Provenance — OBLIGATOIRE. C'est le levier le plus efficace pour dépoisonner un magasin :
+    #: on invalide par provenance en une requête, au lieu d'auditer item par item.
+    PROV_PROJECTION = 'projection'  # dérivé mécaniquement d'un fait déjà en base (RunOutcome…)
+    PROV_ASSISTANT = 'assistant'    # produit par l'assistant IA au fil d'une conversation
+    PROV_DEV_AI = 'dev-ai'          # produit par wama-dev-ai
+    PROV_HUMAN = 'human'            # saisi ou validé explicitement par un humain
+    PROVENANCE_CHOICES = [
+        (PROV_PROJECTION, 'Projection'), (PROV_ASSISTANT, 'Assistant IA'),
+        (PROV_DEV_AI, 'wama-dev-ai'), (PROV_HUMAN, 'Humain'),
+    ]
+
+    kind = models.CharField(max_length=12, choices=KIND_CHOICES, db_index=True)
+    user = models.ForeignKey('auth.User', on_delete=models.CASCADE, null=True, blank=True,
+                             related_name='memory_items',
+                             help_text='À qui appartient le souvenir (None = souvenir système).')
+    subject = models.CharField(max_length=128, blank=True, default='', db_index=True,
+                               help_text='De quoi ça parle : app, model_key, thème.')
+
+    #: D'où vient le souvenir. Même convention que `RunOutcome` (chaîne + pk, pas de ContentType) :
+    #: les items vivent dans 10 apps et une FK générique ne servirait qu'à joindre ce qu'on ne
+    #: joint jamais. Vide pour un souvenir qui ne pointe aucun objet (une préférence, une règle).
+    source_app = models.CharField(max_length=32, blank=True, default='', db_index=True)
+    source_object_type = models.CharField(max_length=64, blank=True, default='')
+    source_object_id = models.IntegerField(null=True, blank=True, db_index=True)
+
+    provenance = models.CharField(max_length=12, choices=PROVENANCE_CHOICES, db_index=True)
+
+    #: None pour un fait MÉCANIQUE. Mettre 1.0 sur une projection inventerait un chiffre là où il
+    #: n'y a pas de mesure — et rendrait incomparables les confiances qui, elles, en sont une.
+    confidence = models.FloatField(null=True, blank=True)
+
+    #: Fenêtre de validité (l'apport réel du graphe temporel de Graphiti, pour deux colonnes au
+    #: lieu d'un serveur). Un souvenir périmé est INVALIDÉ (`valid_to`), jamais écrasé : l'écraser
+    #: détruirait la trace de ce qui était tenu pour vrai, et donc toute possibilité d'audit.
+    valid_from = models.DateTimeField(null=True, blank=True, db_index=True)
+    valid_to = models.DateTimeField(null=True, blank=True, db_index=True)
+
+    #: `merge()` CHAÎNE les souvenirs fusionnés au lieu de les supprimer.
+    superseded_by = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True,
+                                      related_name='supersedes')
+
+    #: HITL. `approved_at IS NULL` ⇒ INVISIBLE au rappel. Tout écrit issu d'un LLM naît ainsi :
+    #: mesure du 2026-07-17 sur 6 audits wama-dev-ai — affirmations d'absence fausses 4 fois sur 6.
+    #: Une mémoire qui gobe ces sorties se corrompt en une nuit, et le poison est indiscernable
+    #: d'un fait une fois écrit.
+    approved_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    approved_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True,
+                                    related_name='approved_memory_items')
+
+    #: Saillance — pondère le rappel. DÉRIVÉE de `RunOutcome` (corrigé/relancé/supprimé = friction ;
+    #: téléchargé = emporté), donc RECALCULABLE et jamais saisie. C'est ce qui donne le bénéfice
+    #: de la « mémoire émotionnelle » sans inférer quoi que ce soit sur l'utilisateur.
+    salience = models.FloatField(default=0.0, db_index=True)
+
+    class Meta:
+        verbose_name = 'Souvenir'
+        verbose_name_plural = 'Souvenirs'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'kind']),
+            models.Index(fields=['subject', 'kind']),
+            models.Index(fields=['source_app', 'source_object_type', 'source_object_id']),
+            models.Index(fields=['provenance', 'approved_at']),
+            models.Index(fields=['content_hash']),
+        ]
+
+    def __str__(self):
+        return f"[{self.kind}/{self.provenance}] {self.content[:60]}"
+
+    @property
+    def is_active(self):
+        """Approuvé ET non invalidé. Le rappel n'expose QUE des souvenirs actifs."""
+        from django.utils import timezone
+        if self.approved_at is None:
+            return False
+        return self.valid_to is None or self.valid_to > timezone.now()
+
+
+class RagChunk(Embedded, ScopedVisibility):
+    """
+    LE FRAGMENT — un morceau d'un document source. RE-DÉRIVABLE : la source fait foi, donc une
+    réindexation peut le détruire et le reconstruire sans perte. C'est exactement ce qu'un
+    `MemoryItem` ne supporte pas — d'où deux tables.
+
+    ⚠ PIÈGE — la visibilité est DÉNORMALISÉE depuis la source. Les sources sont hétérogènes
+    (média, manifeste, corpus, document) : joindre à la volée est impossible, on copie donc le
+    scope au moment de l'indexation. Cette copie DOIT être rafraîchie quand la source change de
+    visibilité, sans quoi un fragment resterait partagé au labo après que le média a été repassé
+    en privé. Le rafraîchissement est une obligation, pas une optimisation (jalon 5).
+    """
+
+    SOURCE_CHOICES = [
+        ('media', 'Média (médiathèque)'), ('manifest', 'Manifeste'),
+        ('corpus', 'Corpus externe'), ('doc', 'Document'),
+    ]
+
+    source_kind = models.CharField(max_length=12, choices=SOURCE_CHOICES, db_index=True)
+    source_id = models.CharField(max_length=64, db_index=True)
+    source_ref = models.TextField(blank=True, default='',
+                                  help_text='Chemin/URL + offset — pour citer et rouvrir.')
+    #: Position dans la source : permet de restituer le voisinage d'un fragment retrouvé, ce
+    #: qu'un fragment isolé ne peut pas faire (une phrase sans son paragraphe induit en erreur).
+    ordinal = models.IntegerField(default=0)
+    user = models.ForeignKey('auth.User', on_delete=models.CASCADE, null=True, blank=True,
+                             related_name='rag_chunks')
+    indexed_at = models.DateTimeField(auto_now=True, db_index=True)
+
+    class Meta:
+        verbose_name = 'Fragment RAG'
+        verbose_name_plural = 'Fragments RAG'
+        ordering = ['source_kind', 'source_id', 'ordinal']
+        indexes = [
+            models.Index(fields=['source_kind', 'source_id', 'ordinal']),
+            models.Index(fields=['content_hash']),
+        ]
+        constraints = [
+            models.UniqueConstraint(fields=['source_kind', 'source_id', 'ordinal'],
+                                    name='ragchunk_unique_source_position'),
+        ]
+
+    def __str__(self):
+        return f"{self.source_kind}:{self.source_id}#{self.ordinal}"

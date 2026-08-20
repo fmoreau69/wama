@@ -98,6 +98,15 @@ else
     echo "PostgreSQL is already running."
 fi
 
+# Extension pgvector — prérequis des tables mémoire/RAG (cf. WAMA_MEMORY.md §7).
+# POURQUOI ICI ET PAS DANS UNE MIGRATION : `.gitignore` exclut `**/migrations/0*.py`, donc la
+# migration qui porte `VectorExtension()` n'est PAS versionnée — sur une base neuve elle est
+# régénérée par `makemigrations`, qui ne devine pas l'extension, et `migrate` échouerait sur
+# « type "vector" does not exist ». Le poser ici est le seul endroit VERSIONNÉ qui précède migrate.
+# Idempotent (IF NOT EXISTS) ; exige un superuser à la première pose seulement.
+sudo -n -u postgres psql -d "${WAMA_DB_NAME:-wama_db}" -c 'CREATE EXTENSION IF NOT EXISTS vector;' >/dev/null 2>&1 \
+    || echo "AVERTISSEMENT: extension pgvector non verifiee (sudo indisponible) — si migrate echoue sur 'type vector does not exist', lancer 'sudo -u postgres psql -d wama_db -c \"CREATE EXTENSION vector;\"'"
+
 # ------------------------------------------------------
 # REDIS
 # ------------------------------------------------------

@@ -1,6 +1,7 @@
 celery
 deep-translator
 Django
+pgvector
 django_auth_ldap
 django-git-submodules
 django-wysiwyg

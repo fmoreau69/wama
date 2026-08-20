@@ -38,6 +38,12 @@ echo "=== Starting PostgreSQL ==="
 sudo service postgresql start
 sleep 3
 
+# Extension pgvector — prérequis des tables mémoire/RAG (cf. WAMA_MEMORY.md §7). Posée ici parce
+# que `.gitignore` exclut les migrations numérotées : celle qui porte `VectorExtension()` n'est pas
+# versionnée et serait régénérée sans elle sur une base neuve. Idempotent.
+sudo -u postgres psql -d "${WAMA_DB_NAME:-wama_db}" -c 'CREATE EXTENSION IF NOT EXISTS vector;' >/dev/null 2>&1 \
+    || echo "AVERTISSEMENT: extension pgvector non verifiee — voir WAMA_MEMORY.md §7"
+
 # ------------------------------------------------------
 # REDIS
 # ------------------------------------------------------
