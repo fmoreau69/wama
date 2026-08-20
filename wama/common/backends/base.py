@@ -345,6 +345,27 @@ class BaseModelBackend(ABC):
     recommended_vram_gb: Optional[float] = None
     description: str = ""
 
+    # ── Capacités déclarées par le moteur (vocabulaire commun) ───────────────
+    # Vocabulaire figé par `common/utils/model_capabilities.py` (source unique) — qui annonce
+    # depuis 2026-07-01 que le préfixe `supports_` est « ALIGNÉ sur les flags backend », alors
+    # que le contrat commun n'en portait AUCUN. Conséquence mesurée le 2026-08-20 : DEUX chemins
+    # de déclaration pour la même notion — le STT les portait au backend (`SpeechToTextBackend`,
+    # recopiés par son manager), le TTS ne les portait nulle part et c'est le registre de
+    # découverte qui les écrivait à la main À LA PLACE des moteurs (`supports_cloning=True
+    # # XTTS = clonage`). Un moteur ne pouvait donc pas déclarer ce qu'il sait faire.
+    #
+    # Défauts FALSE : un backend ne promet rien tant qu'il ne l'a pas déclaré. Une sous-classe
+    # qui redéclare le même flag garde exactement son comportement (override à valeur égale).
+    supports_diarization: bool = False
+    supports_timestamps: bool = False
+    supports_hotwords: bool = False
+    supports_streaming: bool = False
+    supports_cloning: bool = False
+    #: Borne LANGUE de `supports_timestamps` (cf. vocabulaire commun) : liste vide/None = la
+    #: capacité vaut pour toutes les langues du moteur. Lire via `supports_timestamps_for()`,
+    #: jamais le booléen seul — sinon la borne se perd au premier appelant qui l'ignore.
+    timestamp_languages: Optional[List[str]] = None
+
     # ── Disponibilité / dépendances (hook prospection) ───────────────────────
     @classmethod
     def missing_packages(cls) -> List[str]:
