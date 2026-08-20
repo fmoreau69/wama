@@ -145,19 +145,19 @@ _spec('learned_branches', 'Branches apprises du trafic', "Voies croisantes aux i
       FC.AGGREGATE, 'cam_analyzer.utils.intersection_branches:learn_branches', ['geo', 'per-section'],
       inputs=[PortSpec('detections', DT.DETECTIONS, required_fields=['world_en', 'global_track_id']),
               PortSpec('track', DT.GEO_TRACK)],
-      outputs=[PortSpec('branches', DT.SECTIONS, produced_fields=['bearing_deg', 'width_m', 'a', 'b'])])
+      outputs=[PortSpec('branches', DT.SEGMENTS, produced_fields=['bearing_deg', 'width_m', 'a', 'b'])])
 
 _spec('world_markings', 'Marquages SAM3 en monde', "stop_line/crossing projetés au sol et agrégés "
       "multi-passages (bornes d'intersection).",
       FC.AGGREGATE, 'cam_analyzer.utils.marking_world:aggregate_markings', ['vision', 'geo', 'per-section'],
       inputs=[PortSpec('detections', DT.DETECTIONS, required_fields=['polygon', 'label']),
               PortSpec('track', DT.GEO_TRACK)],
-      outputs=[PortSpec('markings', DT.SECTIONS, produced_fields=['a', 'b', 'label', 'bearing_deg'])])
+      outputs=[PortSpec('markings', DT.SEGMENTS, produced_fields=['a', 'b', 'label', 'bearing_deg'])])
 
 _spec('ortho_recalage', 'Recalage absolu ortho', "Segmente les passages piétons sur l'orthophoto IGN et "
       "mesure le décalage avec les crossings caméra (offset de recalage GPS/projection).",
       FC.INDICATOR, 'cam_analyzer.tasks:compute_ortho_recalage_task', ['vision', 'geo', 'gpu'],
-      inputs=[PortSpec('markings', DT.SECTIONS, required_fields=['a', 'b', 'label']),
+      inputs=[PortSpec('markings', DT.SEGMENTS, required_fields=['a', 'b', 'label']),
               PortSpec('road_map', DT.ROAD_MAP, optional=True)],
       outputs=[PortSpec('recalage', DT.SCALAR, produced_fields=['de_m', 'dn_m'])])
 _spec('ortho_correction', 'Correction de trajectoire (ortho)',

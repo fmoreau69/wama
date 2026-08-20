@@ -489,6 +489,23 @@ C'est ainsi que `MetaDatas.frequency` prend son sens, et **pourquoi le `.trip` p
 monde sur une base de temps commune** : le recalage est fait UNE fois, à l'ingestion, flux par flux.
 Seules les vidéos gardent un `offset` (fichiers externes, non rééchantillonnés).
 
+#### ⚠ TROIS opérations à ne jamais confondre (précision Fabien, 2026-08-20)
+
+| # | opération | effet sur les échantillons | statut |
+|---|---|---|---|
+| 1 | **Ré-horodatage** — `ResamplingTS` : recalculer les timestamps depuis `start + idx / fréquence_théorique` | **aucun** : tous les échantillons sont conservés, seule leur étiquette de temps change. **Pas d'interpolation.** | ✅ à l'import, **par flux**, quand le pas de temps dérive alors que l'équipement a une cadence théorique connue |
+| 2 | **Rééchantillonnage sur grille commune** — interpoler tous les flux vers une cadence unique | **crée de nouvelles valeurs** ; détruit le signal d'origine ; faux sur un catégoriel | ❌ **jamais systématique** (D10) |
+| 3 | **Rééchantillonnage à la demande** — vers une **table annexe**, pour un usage précis | crée de nouvelles valeurs, mais **à côté** : l'original reste intact | ✅ **option explicite**, après import ou plus tard ; c'est ce que fait déjà `cam_analyzer` |
+
+> Le nom de `ResamplingTS` est trompeur : **il ne rééchantillonne rien**, il ré-horodate. C'est
+> exactement le geste que Fabien décrit — « si le pas variable n'est pas voulu, on corrige à l'import
+> en fixant la fréquence théorique de l'équipement ». BIND l'a donc déjà, comme une des trois
+> stratégies choisies **flux par flux**.
+
+**Et le pas de temps variable est une CAPACITÉ, pas un défaut** : certains équipements produisent
+légitimement des échantillons irréguliers (événements, détections, fixations oculaires). Le
+référentiel doit les porter tels quels — d'où `frequency` optionnelle et non contraignante.
+
 **Sources réellement supportées** (= périmètre concret de l'Importer WAMA) : **RTMaps** `.rec`
 (pivot) · **Pupil Labs** (gaze, fixations, blinks, surfaces, pupil) · **Empatica E4** (physiologie) ·
 **SIMAX** dr2 (simulateur de conduite) · **ProSivic** (car observer, object observer) · **IDS/ueye**
@@ -757,7 +774,7 @@ conteneur de vues détachables — après F.
 | D7 | le curseur appartient-il au **jeu de données** (choix BIND : un trip = une horloge) ou à la **session** (plusieurs sources hétérogènes) ? | après passe 2 |
 | D8 | type « **intervalle** » dans `data_types.py` : nouveau `DataType.INTERVALS`, ou sous-type d'`EVENTS` avec durée ? (sans lui, pas de Segmenter ni de Calculator) | après passe 3 |
 | D9 | vocabulaire temporel : garder `time` (WAMA) ou adopter `timecode`/`startTimecode`/`endTimecode` (BIND) ? — tranché au plus tard à l'écriture de l'Importer | différable |
-| D10 | **rééchantillonnage à l'import : NON** — position arrêtée par Fabien le 20/08 (on perd le signal d'origine, la vidéo garde sa cadence, un catégoriel interpolé est faux). Un rééchantillonnage se fait APRÈS import, en table annexe, pour un usage précis. Reste à trancher : où vit cette table annexe et comment elle se déclare | quasi tranchée |
+| D10 | **rééchantillonnage : jamais systématique** (Fabien, 20/08) — mais **TROIS opérations distinctes**, cf. §6.6 : le **ré-horodatage** par fréquence théorique est ✅ à l'import et par flux (il n'interpole pas) ; le **rééchantillonnage sur grille commune** est ❌ ; le **rééchantillonnage à la demande vers une table annexe** est ✅ en option. Le **pas de temps variable est une capacité à porter**, pas un défaut à corriger. Reste : où vit la table annexe et comment elle se déclare | tranchée sauf table annexe |
 | D11 | les paramètres de fenêtre d'une situation : **colonnes/métadonnées** (interrogeables) plutôt que dans le NOM de la table comme BIND (`situation_0_15`) ? | après A |
 
 ---

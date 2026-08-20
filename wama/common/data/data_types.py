@@ -17,7 +17,20 @@ class DataType:
     TABLE = 'table'              # lignes × colonnes (tabulaire générique)
     COLUMN = 'column'            # une colonne isolée (applicable colonne-à-colonne)
     SCALAR = 'scalar'            # valeur unique / indicateur agrégé
-    SECTIONS = 'sections'        # intervalles typés (start, end[, type, id])
+    # ── LE type « portion de temps bornée » — universel, tous domaines ────────────────────────
+    # Renommé depuis `SECTIONS`/'sections' le 2026-08-20 : « section » est connoté routier, or
+    # WAMA Data doit rester universel. « segment » l'est (audio, vidéo, texte, séries), et surtout
+    # il est DÉJÀ le vocabulaire de WAMA — le Transcriber manipule des segments (début, fin, texte,
+    # locuteur) et sa page de correction les édite. Une transcription EST donc une collection de
+    # segments au sens de ce type : le même outillage (segmenter, calculer par segment, exporter
+    # par segment) s'applique sans traduction. Ce n'est pas un choix de nom, c'est une unification.
+    #
+    # Un segment absorbe les trois notions rencontrées ailleurs :
+    #   • « situation » (fenêtre porteuse de sens, ancrée sur un événement) ;
+    #   • « état »      (plage de valeur constante d'un signal catégoriel — run-length) ;
+    #   • « section »   (portion de parcours) — désormais un simple cas d'usage.
+    # Un seul type, plusieurs producteurs. Aucune valeur n'était persistée : renommage sans migration.
+    SEGMENTS = 'segments'        # portions de temps bornées (start, end[, type, id, …attributs])
     ROAD_MAP = 'road_map'        # polylignes routières de référence (geometry, id[, type])
     DETECTIONS = 'detections'    # objets détectés par frame (frame, bbox, class, track_id…)
     DEPTH_MAP = 'depth_map'      # raster HxW de profondeur métrique (mètres) — non tabulaire
@@ -30,7 +43,7 @@ _SUPERTYPES = {
     DataType.TIMESERIES: [DataType.TABLE],
     DataType.SIGNAL: [DataType.TIMESERIES],
     DataType.EVENTS: [DataType.TABLE],
-    DataType.SECTIONS: [DataType.TABLE],
+    DataType.SEGMENTS: [DataType.TABLE],
     DataType.DETECTIONS: [DataType.TABLE],
     DataType.COLUMN: [],
     DataType.SCALAR: [],
@@ -45,9 +58,28 @@ CANONICAL_FIELDS = {
     DataType.TIMESERIES: ['time'],
     DataType.SIGNAL: ['time', 'value'],
     DataType.EVENTS: ['time'],
-    DataType.SECTIONS: ['start', 'end'],
+    DataType.SEGMENTS: ['start', 'end'],
     DataType.ROAD_MAP: ['geometry', 'id'],
 }
+
+
+#: Valeurs de type ANCIENNES pouvant subsister en base. `UserFunction.inputs`/`.outputs` sont des
+#: `JSONField` contenant des `PortSpec` sérialisés : un `data_type` y est donc PERSISTÉ, et une
+#: ligne créée avant le 2026-08-20 peut porter `'sections'`.
+#:
+#: Pourquoi une normalisation à la lecture plutôt qu'une migration de données : les migrations
+#: numérotées ne sont PAS versionnées (`.gitignore:13` → `**/migrations/0*.py`). Une migration
+#: corrigerait cette base-ci et n'arriverait jamais sur une autre installation — le correctif doit
+#: donc vivre dans le CODE. Ce n'est pas une juxtaposition de deux noms vivants (interdite) : c'est
+#: la lecture d'une donnée héritée, ramenée au vocabulaire courant à l'entrée.
+LEGACY_TYPE_ALIASES = {
+    'sections': DataType.SEGMENTS,   # renommé le 2026-08-20 (« section » était connoté routier)
+}
+
+
+def normalize_type(data_type):
+    """Ramène une valeur éventuellement héritée au vocabulaire courant. Idempotent."""
+    return LEGACY_TYPE_ALIASES.get(data_type, data_type)
 
 
 def ancestors(data_type):
@@ -64,8 +96,13 @@ def ancestors(data_type):
 
 def is_compatible(produced, expected):
     """Une sortie de type `produced` peut alimenter une entrée attendant `expected`
-    ssi `expected` est `produced` ou l'un de ses super-types (sous-typage)."""
-    return expected in ancestors(produced)
+    ssi `expected` est `produced` ou l'un de ses super-types (sous-typage).
+
+    Les deux valeurs passent par `normalize_type` : c'est le POINT DE PASSAGE UNIQUE de
+    l'appariement de ports, donc le seul endroit où brancher la lecture des valeurs héritées
+    (un `PortSpec` venant d'un `UserFunction` en base peut porter un ancien nom).
+    """
+    return normalize_type(expected) in ancestors(normalize_type(produced))
 
 
 class TypedFrame:

@@ -25,7 +25,7 @@ def generate_sections(track: TypedFrame, *, section_field='section_id', time_fie
     df = track.df
     if section_field not in df.columns or time_field not in df.columns or len(df) == 0:
         return TypedFrame(pd.DataFrame(columns=['start', 'end', 'section_id']),
-                          DataType.SECTIONS)
+                          DataType.SEGMENTS)
     has_dir = 'direction' in df.columns
     t = df[time_field].to_numpy()
     sid = df[section_field].tolist()
@@ -60,7 +60,7 @@ def generate_sections(track: TypedFrame, *, section_field='section_id', time_fie
             row['direction'] = max(set(seg), key=seg.count) if seg else None
         rows.append(row)
     cols = ['start', 'end', 'section_id'] + (['direction'] if has_dir else [])
-    return TypedFrame(pd.DataFrame(rows, columns=cols), DataType.SECTIONS, meta=track.meta)
+    return TypedFrame(pd.DataFrame(rows, columns=cols), DataType.SEGMENTS, meta=track.meta)
 
 
 def extract_context(sections: TypedFrame, *, time_event=None, n_prev=3, n_next=2) -> dict:
@@ -101,7 +101,7 @@ SPEC = register(FunctionSpec(
                  description='Trace map-matchée (sortie de gps_map_match).'),
     ],
     outputs=[
-        PortSpec('sections', DataType.SECTIONS,
+        PortSpec('sections', DataType.SEGMENTS,
                  produced_fields=['start', 'end', 'section_id', 'direction']),
     ],
     params=[
