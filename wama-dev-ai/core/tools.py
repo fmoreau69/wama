@@ -13,6 +13,7 @@ import subprocess
 import re
 
 from config import BASE_DIR, EXCLUDE_DIRS
+import corpus   # accès nommé, lecture seule, aux dépôts externes (bind:, pynd:)
 
 
 @dataclass
@@ -364,7 +365,10 @@ class ToolRegistry:
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {path}")
 
-        content = file_path.read_text(encoding='utf-8')
+        # `corpus.read_text` décode les formats conditionnés (.mlapp = ZIP) ; pour tout le reste
+        # c'est un read_text ordinaire. L'agent n'a donc jamais à connaître le format.
+        import corpus
+        content = corpus.read_text(file_path)
 
         lines = content.splitlines()
         start = (start_line or 1) - 1 if (start_line is not None or end_line is not None) else 0
@@ -375,19 +379,25 @@ class ToolRegistry:
 
     def _write_file(self, path: str, content: str) -> str:
         """Write content to file."""
+        import corpus
+
         file_path = self._resolve_path(path)
+        corpus.assert_readonly(file_path)   # un corpus externe n'est JAMAIS modifié
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.write_text(content, encoding='utf-8')
         return f"Written {len(content)} bytes to {path}"
 
     def _edit_file(self, path: str, old_string: str, new_string: str) -> str:
         """Replace string in file."""
+        import corpus
+
         file_path = self._resolve_path(path)
+        corpus.assert_readonly(file_path)   # un corpus externe n'est JAMAIS modifié
 
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {path}")
 
-        content = file_path.read_text(encoding='utf-8')
+        content = corpus.read_text(file_path)
 
         if old_string not in content:
             raise ValueError(f"String not found in file: {old_string[:50]}...")
@@ -399,8 +409,17 @@ class ToolRegistry:
 
     def _search_files(self, pattern: str) -> str:
         """Search for files by pattern. Returns only files, not directories."""
+        import fnmatch
+
         results = []
         directories_found = []
+
+        # Corpus d'abord : `self._base_dir.rglob` ne les voit PAS (ils sont hors du dépôt), donc
+        # sans cette boucle `search_files` répondait « No files found » sur tout le corpus.
+        for corpus_def in corpus.CORPORA.values():
+            for cpath in corpus.iter_files(corpus_def):
+                if fnmatch.fnmatch(cpath.name, pattern):
+                    results.append(corpus.label(cpath))
 
         for path in self._base_dir.rglob(pattern):
             try:
@@ -431,6 +450,24 @@ class ToolRegistry:
         results = sorted(set(results))
         return "\n".join(results[:50])  # Limit to 50 results
 
+    def _rel_label(self, path: Path) -> str:
+        """
+        Étiquette d'un chemin pour l'affichage — RÉUTILISABLE TELLE QUELLE par le modèle.
+
+        ⚠ Ne JAMAIS appeler `relative_to(self._base_dir)` sur un chemin qui peut venir d'un
+        corpus : il lève `ValueError`, et le `except Exception: continue` des boucles de
+        recherche avalait alors CHAQUE résultat de corpus. Symptôme observé le 2026-08-20 :
+        « No matches found for 'classdef' in bind:BIND_plugins » dans un dossier qui n'est
+        QUE des `classdef`. Une recherche qui rend « rien trouvé » au lieu d'une erreur est
+        indiscernable d'une absence réelle — c'est le pire résultat possible pour un agent.
+        """
+        if corpus.find_corpus(path) is not None:
+            return corpus.label(path)
+        try:
+            return str(path.relative_to(self._base_dir))
+        except ValueError:
+            return str(path)
+
     def _search_content(self, query: str, extensions: str = ".py", path: str = None) -> str:
         """Search for content in files, optionally limited to a specific folder."""
         ext_list = [e.strip() for e in extensions.split(",")]
@@ -444,9 +481,9 @@ class ToolRegistry:
             # If path points directly to a file, search only that file
             if search_root.is_file():
                 try:
-                    content = search_root.read_text(encoding='utf-8', errors='ignore')
+                    content = corpus.read_text(search_root)
                     if query.lower() in content.lower():
-                        rel = search_root.relative_to(self._base_dir)
+                        rel = self._rel_label(search_root)
                         results = []
                         for i, line in enumerate(content.splitlines(), 1):
                             if query.lower() in line.lower():
@@ -470,9 +507,9 @@ class ToolRegistry:
                     continue
 
                 try:
-                    content = file_path.read_text(encoding='utf-8', errors='ignore')
+                    content = corpus.read_text(file_path)
                     if query.lower() in content.lower():
-                        rel = file_path.relative_to(self._base_dir)
+                        rel = self._rel_label(file_path)
                         # Find matching lines
                         for i, line in enumerate(content.splitlines(), 1):
                             if query.lower() in line.lower():
@@ -503,13 +540,19 @@ class ToolRegistry:
             size = dir_path.stat().st_size
             return f"'{path}' is a file ({size} bytes), not a directory. Use read_file to read its contents."
 
+        # ⚠ On rend le chemin COMPLET de chaque enfant, pas seulement son nom. Avec des noms nus,
+        # le modèle ne peut pas composer le chemin suivant : observé le 2026-08-20, l'agent a
+        # renavigué en boucle depuis la racine (+fr → +lescot → +bind → …, deux fois) et épuisé
+        # ses 20 tours sans lire un seul fichier. Un chemin rendu ici est un chemin qu'il peut
+        # recopier tel quel dans read_file.
+        base = path.rstrip("/\\")
         items = []
         for item in sorted(dir_path.iterdir()):
             if item.name.startswith("."):
                 continue
-
             prefix = "📁" if item.is_dir() else "📄"
-            items.append(f"{prefix} {item.name}")
+            enfant = f"{base}/{item.name}" if base and base != "." else item.name
+            items.append(f"{prefix} {enfant}")
 
         return "\n".join(items) if items else "Empty directory"
 
@@ -638,7 +681,18 @@ class ToolRegistry:
         return dot_product / (norm1 * norm2)
 
     def _resolve_path(self, path: str) -> Path:
-        """Resolve a path relative to base directory."""
+        """Resolve a path relative to base directory.
+
+        Point de passage UNIQUE de toutes les opérations fichier de l'agent — c'est donc ici, et
+        nulle part ailleurs, qu'on reconnaît une référence de corpus externe (« bind:… »).
+        `corpus.resolve()` refuse toute évasion hors de la racine du corpus.
+        """
+        import corpus
+
+        name, _ = corpus.parse_ref(path)
+        if name is not None:
+            return corpus.resolve(path)
+
         p = Path(path)
         if not p.is_absolute():
             p = self._base_dir / p
@@ -646,6 +700,21 @@ class ToolRegistry:
 
     def _should_include(self, path: Path) -> bool:
         """Check if path should be included."""
+        # Chemin de corpus : c'est le PÉRIMÈTRE DÉCLARÉ du corpus qui fait foi, pas EXCLUDE_DIRS
+        # (qui décrit le dépôt WAMA). Sans ça, une recherche scopée sur un dossier de corpus
+        # parcourt tout ce qu'il contient et rend des libs tierces vendorisées (mesuré :
+        # `BIND_plugins/lib/Matjab/…`) que le périmètre écarte pourtant explicitement — du bruit
+        # qui coûte des tours à l'agent et pollue le rapport.
+        corpus_def = corpus.find_corpus(path)
+        if corpus_def is not None:
+            try:
+                rel = Path(str(path)[len(str(corpus_def.root)):].lstrip("\\/"))
+            except Exception:
+                return True
+            if any(part in corpus_def.exclude for part in rel.parts):
+                return False
+            return True
+
         for part in path.parts:
             if part in EXCLUDE_DIRS:
                 return False

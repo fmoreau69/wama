@@ -11,7 +11,7 @@ import json
 import hashlib
 import logging
 from pathlib import Path
-from typing import List, Optional, Dict, Set, Tuple
+from typing import List, Optional, Dict, Set, Tuple, Union
 from dataclasses import dataclass
 import fnmatch
 
@@ -28,7 +28,11 @@ logger = logging.getLogger(__name__)
 class FileInfo:
     """Information about a discovered file."""
     path: Path
-    relative_path: Path
+    #: Chemin relatif au dépôt (`Path`) OU étiquette de corpus rejouable (`str`, ex.
+    #: « bind:BIND_core/src/…/Trip.m »). L'étiquette reste une CHAÎNE à dessein : la repasser par
+    #: `Path` la rendrait en antislashs sous Windows, et elle ne serait plus copiable-collable
+    #: telle quelle dans `read_file` ni citable dans un rapport lu ailleurs.
+    relative_path: Union[Path, str]
     size: int
     extension: str
     is_important: bool = False
@@ -59,6 +63,36 @@ class FileDiscovery:
     # Quick Search Methods (No LLM)
     # =========================================================================
 
+    def _walk(self, extensions: Optional[Set[str]] = None, glob: Optional[str] = None):
+        """
+        Fichiers candidats : ceux du dépôt WAMA, PUIS ceux des corpus externes déclarés.
+
+        Point d'entrée unique du parcours — sans lui, chaque méthode de recherche referait sa
+        propre boucle `self._base_dir.rglob(...)` et il aurait fallu les modifier une par une à
+        chaque nouveau corpus. Les corpus injoignables (partage démonté, VPN absent) sont
+        silencieusement ignorés : l'agent doit rester utilisable sur le seul dépôt WAMA.
+        """
+        import corpus as corpus_mod
+
+        if glob is not None:
+            for path in self._base_dir.rglob(glob):
+                if self._should_include(path):
+                    yield path
+        else:
+            exts = extensions if extensions is not None else CODE_EXTENSIONS
+            for ext in exts:
+                for path in self._base_dir.rglob(f"*{ext}"):
+                    if self._should_include(path):
+                        yield path
+
+        for corpus_def in corpus_mod.CORPORA.values():
+            # Le corpus applique SON périmètre (include/exclude/extensions déclarés) : les
+            # exclusions du dépôt WAMA n'ont pas de sens sur un dépôt tiers.
+            for path in corpus_mod.iter_files(corpus_def, extensions):
+                if glob is not None and not fnmatch.fnmatch(path.name, glob):
+                    continue
+                yield path
+
     def find_by_name(self, pattern: str) -> List[FileInfo]:
         """
         Find files by name pattern (glob).
@@ -69,13 +103,9 @@ class FileDiscovery:
         Returns:
             List of matching FileInfo objects
         """
-        results = []
+        results = [self._get_file_info(path) for path in self._walk(glob=pattern)]
 
-        for path in self._base_dir.rglob(pattern):
-            if self._should_include(path):
-                results.append(self._get_file_info(path))
-
-        return sorted(results, key=lambda f: (not f.is_important, f.relative_path))
+        return sorted(results, key=lambda f: (not f.is_important, str(f.relative_path)))
 
     def find_by_content(self, keyword: str, extensions: Optional[Set[str]] = None) -> List[FileInfo]:
         """
@@ -94,20 +124,18 @@ class FileDiscovery:
         results = []
         keyword_lower = keyword.lower()
 
-        for ext in extensions:
-            for path in self._base_dir.rglob(f"*{ext}"):
-                if not self._should_include(path):
-                    continue
+        import corpus as corpus_mod
 
-                try:
-                    content = path.read_text(encoding='utf-8', errors='ignore')
-                    if keyword_lower in content.lower():
-                        info = self._get_file_info(path)
-                        # Count occurrences for relevance
-                        info.relevance_score = content.lower().count(keyword_lower)
-                        results.append(info)
-                except Exception:
-                    continue
+        for path in self._walk(extensions):
+            try:
+                content = corpus_mod.read_text(path)   # décode .mlapp, texte brut sinon
+                if keyword_lower in content.lower():
+                    info = self._get_file_info(path)
+                    # Count occurrences for relevance
+                    info.relevance_score = content.lower().count(keyword_lower)
+                    results.append(info)
+            except Exception:
+                continue
 
         return sorted(results, key=lambda f: -f.relevance_score)
 
@@ -128,20 +156,18 @@ class FileDiscovery:
         regex = re.compile(pattern, re.IGNORECASE | re.MULTILINE)
         results = []
 
-        for ext in extensions:
-            for path in self._base_dir.rglob(f"*{ext}"):
-                if not self._should_include(path):
-                    continue
+        import corpus as corpus_mod
 
-                try:
-                    content = path.read_text(encoding='utf-8', errors='ignore')
-                    matches = regex.findall(content)
-                    if matches:
-                        info = self._get_file_info(path)
-                        info.relevance_score = len(matches)
-                        results.append(info)
-                except Exception:
-                    continue
+        for path in self._walk(extensions):
+            try:
+                content = corpus_mod.read_text(path)   # décode .mlapp, texte brut sinon
+                matches = regex.findall(content)
+                if matches:
+                    info = self._get_file_info(path)
+                    info.relevance_score = len(matches)
+                    results.append(info)
+            except Exception:
+                continue
 
         return sorted(results, key=lambda f: -f.relevance_score)
 
@@ -323,13 +349,9 @@ class FileDiscovery:
         if extensions is None:
             extensions = CODE_EXTENSIONS
 
-        results = []
-        for ext in extensions:
-            for path in self._base_dir.rglob(f"*{ext}"):
-                if self._should_include(path):
-                    results.append(self._get_file_info(path))
+        results = [self._get_file_info(path) for path in self._walk(extensions)]
 
-        return sorted(results, key=lambda f: f.relative_path)
+        return sorted(results, key=lambda f: str(f.relative_path))
 
     def list_directory(self, directory: Path) -> List[FileInfo]:
         """List files in a specific directory."""
@@ -401,10 +423,17 @@ class FileDiscovery:
 
     def _get_file_info(self, path: Path) -> FileInfo:
         """Get FileInfo for a path."""
-        try:
-            rel_path = path.relative_to(self._base_dir)
-        except ValueError:
-            rel_path = path
+        import corpus as corpus_mod
+
+        if corpus_mod.find_corpus(path) is not None:
+            # Chemin de corpus → étiquette REJOUABLE (« bind:BIND_core/… ») et non un chemin UNC
+            # brut, qu'un lecteur sans le partage monté ne pourrait ni vérifier ni rouvrir.
+            rel_path = corpus_mod.label(path)
+        else:
+            try:
+                rel_path = path.relative_to(self._base_dir)
+            except ValueError:
+                rel_path = path
 
         return FileInfo(
             path=path,
