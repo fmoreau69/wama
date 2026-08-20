@@ -223,11 +223,11 @@ def _tts_via_service(text: str, voice: str):
     try:
         import requests
         import base64
-        from wama.common.tts.constants import KOKORO_LANG_MAP
+        from wama.common.tts.voices import langue_de_voix
 
-        lang_code = (voice[:1] or 'a')
-        is_male = len(voice) > 1 and voice[1] == 'm'
-        language = next((k for k, v in KOKORO_LANG_MAP.items() if v == lang_code), 'en')
+        # Sens RETOUR (voix → langue) : brique COMMUNE. Le calcul était écrit ici en miroir
+        # de celui du backend Kokoro — deux exemplaires d'une même table lue à l'envers.
+        language, is_male = langue_de_voix(voice)
         voice_preset = 'male_1' if is_male else 'default'
 
         resp = requests.post(

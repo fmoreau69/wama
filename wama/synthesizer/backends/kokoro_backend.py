@@ -14,7 +14,7 @@ import threading
 
 import numpy as np
 
-from wama.common.tts.constants import KOKORO_LANG_MAP, KOKORO_VOICE_MAP
+from wama.common.tts.constants import KOKORO_LANG_MAP
 
 from .base import CATALOG_KEYS, TTSBackend, speech_dir, write_wav_int16
 
@@ -95,10 +95,12 @@ class KokoroBackend(TTSBackend):
 
     def process(self, text: str = "", language: str = "fr",
                 voice_preset: str = "default", **_ignored) -> str:
-        lang_code = KOKORO_LANG_MAP.get(language, 'a')
+        # Résolution langue→voix : brique COMMUNE (le même calcul vivait ici et, en miroir,
+        # dans la vue TTS de l'assistant). `voice_preset` reste du vocabulaire synthesizer.
+        from wama.common.tts.voices import code_langue, voix_pour
+        lang_code = code_langue(language)
         is_male = voice_preset in ('male_1', 'male_2')
-        voice = (KOKORO_VOICE_MAP.get((lang_code, is_male))
-                 or KOKORO_VOICE_MAP.get((lang_code, False), 'af_heart'))
+        voice = voix_pour(language, is_male)
 
         pipeline = self._get_pipeline(lang_code)
 
