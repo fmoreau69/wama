@@ -230,23 +230,13 @@
     .format-pt { background: #6c757d; color: white; }
     .format-bin { background: #495057; color: white; }
     .format-unknown { background: #343a40; color: #adb5bd; }
-    /* Filter bar */
-    .filter-bar {
-        background: #2b3035;
-        border-radius: 8px;
-        padding: 12px 15px;
-        margin-bottom: 15px;
-    }
-    .filter-select {
-        background: #1a1d20;
-        border: 1px solid #495057;
-        color: #e9ecef;
-        font-size: 0.85rem;
-    }
-    .filter-select:focus {
-        border-color: #0dcaf0;
-        box-shadow: 0 0 0 0.2rem rgba(13, 202, 240, 0.25);
-    }
+    /* Filter bar — l'APPARENCE vit désormais dans `common/css/wama-filter-bar.css` (chargée
+       globalement), et cette page utilise la classe commune `.wama-filter-bar`.
+       Pourquoi ce sens de reprise : c'est CETTE barre que Fabien a retenue comme référence
+       (2026-08-20) et qui a été extraite vers le commun. La laisser aussi définie ici en aurait
+       fait DEUX définitions de la même apparence — la référence et sa copie auraient dérivé,
+       exactement ce que l'extraction visait à empêcher. Les règles locales sont donc supprimées,
+       pas dupliquées. */
     /* Selection toolbar */
     .selection-toolbar {
         background: linear-gradient(135deg, #1a1a2e 0%, #0d6efd22 100%);
@@ -536,7 +526,19 @@
     </div>
 
     <!-- Filter Bar -->
-    <div class="filter-bar">
+    {% comment %}Apparence COMMUNE (`.wama-filter-bar`), mécanisme d'origine conservé — et c'est
+    délibéré, comme pour le catalogue de fonctions.
+
+    Cette page ne se prête pas à la brique : (1) ses cards sont construites en JS après un fetch,
+    or la brique capture ses éléments au montage — elle en verrait zéro ; (2) `applyFilters()`
+    porte trois règles qu'une égalité de facette ne sait pas dire : les modèles `proposed` sont
+    masqués partout SAUF sous leur propre filtre (156 en DOM / 100 affichés), `format=pt` doit
+    matcher `pt` ET `pth`, et `status` est DÉRIVÉ de trois booléens. La brancher imposerait
+    d'ajouter à la brique un crochet ET la gestion des listes asynchrones pour un SEUL appelant :
+    c'est ainsi qu'une brique commune se déforme.
+
+    ⚠ Pas de `data-wama-filter-bar` : la brique ne doit pas s'auto-monter ici.{% endcomment %}
+    <div class="wama-filter-bar">
         <div class="row align-items-center g-3">
             <div class="col-auto">
                 <label class="text-muted small me-2">Type:</label>
