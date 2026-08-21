@@ -23,8 +23,9 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 
 from wama.common.memory import expire, forget, merge, recall, remember
-from wama.common.memory.index import decouper
-from wama.common.models import MemoryItem, RagChunk, ScopedVisibility
+from wama.common.memory.index import (ajouter_au_rag, decouper, lister_rag,
+                                      retirer_du_rag)
+from wama.common.models import MemoryItem, OrgUnit, RagChunk, ScopedVisibility
 
 
 class GouvernanceTests(TestCase):
@@ -192,3 +193,149 @@ class FragmentRagTests(TestCase):
         autre = User.objects.create_user('memo_rag_b', password='x')
         self.assertEqual(recall('formulaire de consentement', user=autre, semantic=False,
                                 include_memory=False), [])
+
+
+def _affilier(user, *codes):
+    """Pose les affiliations d'unité sur le profil (auto-créé par signal `post_save`)."""
+    prof = user.profile
+    prof.org_affiliations = list(codes)
+    prof.save()
+
+
+class EntreeExpliciteRagTests(TestCase):
+    """
+    CORRECTION DE CONCEPTION du 2026-08-21 : l'entrée au RAG est un GESTE, jamais un balayage.
+
+    La première version indexait les sorties de TOUTES les apps de TOUS les utilisateurs
+    (939 fragments écrits sans qu'aucun n'ait rien demandé — purgés). Ces tests protègent le
+    remplacement : `ajouter_au_rag` est le SEUL point d'entrée, au niveau choisi par
+    l'utilisateur, et ce qui entre par un geste ressort par un geste (`retirer_du_rag`).
+    """
+
+    def setUp(self):
+        self.labo = OrgUnit.objects.create(code='LAB-TEST', name='Labo test', unit_type='labo')
+        self.equipe = OrgUnit.objects.create(code='EQ-TEST', name='Équipe test',
+                                             unit_type='equipe', parent=self.labo)
+        self.a = User.objects.create_user('rag_a', password='x')
+        self.b = User.objects.create_user('rag_b', password='x')
+        _affilier(self.a, 'EQ-TEST')      # membre de l'ÉQUIPE (le labo est son ancêtre)
+        _affilier(self.b, 'LAB-TEST')     # membre du LABO directement
+
+    def test_niveau_user_par_defaut_prive_et_sans_gpu(self):
+        r = ajouter_au_rag(self.a, 'le protocole des essais sur les chevaux miniatures',
+                           source_ref='reader#1', source_id='reader:1')
+        self.assertEqual(r['etat'], 'indexé')
+        chunks = RagChunk.objects.filter(source_id='reader:1')
+        self.assertTrue(chunks.exists())
+        self.assertTrue(all(c.visibility == ScopedVisibility.VIS_PRIVATE for c in chunks))
+        self.assertTrue(all(c.embedding is None for c in chunks))      # jamais de GPU au geste
+        # Rappelable par le propriétaire, invisible pour l'autre.
+        self.assertTrue(recall('chevaux', user=self.a, semantic=False, include_memory=False))
+        self.assertEqual(recall('chevaux', user=self.b, semantic=False, include_memory=False), [])
+
+    def test_niveau_unit_partage_au_labo_et_herite_par_l_equipe(self):
+        """LE test du niveau 2 : un doc partagé au LABO est vu d'un membre d'une ÉQUIPE du labo."""
+        r = ajouter_au_rag(self.b, 'protocole du laboratoire sur le consentement',
+                           source_ref='doc#1', source_id='doc:1', niveau='unit')
+        self.assertEqual(r['niveau'], 'unit')
+        chunk = RagChunk.objects.get(source_id='doc:1')
+        self.assertEqual(chunk.visibility, ScopedVisibility.VIS_UNIT)
+        self.assertEqual(chunk.scope_org_unit, self.labo)
+        # `a` est membre de l'équipe, dont le labo est l'ancêtre → il voit le doc du labo.
+        trouves = recall('consentement', user=self.a, semantic=False, include_memory=False)
+        self.assertTrue(trouves, "l'héritage OrgUnit équipe→labo doit ouvrir le doc au membre")
+
+    def test_niveau_unit_sans_affiliation_refuse(self):
+        seul = User.objects.create_user('rag_seul', password='x')
+        r = ajouter_au_rag(seul, 'texte', source_ref='x', niveau='unit')
+        self.assertIn('erreur', r)
+        self.assertEqual(RagChunk.objects.filter(user=seul).count(), 0)
+
+    def test_niveau_unit_ambigu_exige_de_nommer_l_unite(self):
+        """Multi-entités (précision Fabien) : plusieurs affiliations ⇒ on ne devine JAMAIS."""
+        multi = User.objects.create_user('rag_multi', password='x')
+        _affilier(multi, 'LAB-TEST', 'EQ-TEST')
+        r = ajouter_au_rag(multi, 'texte partagé', source_ref='x', niveau='unit')
+        self.assertIn('erreur', r)
+        self.assertIn('plusieurs affiliations', r['erreur'])
+        # En nommant l'unité, le geste passe.
+        r2 = ajouter_au_rag(multi, 'texte partagé', source_ref='x', niveau='unit',
+                            org_unit='LAB-TEST')
+        self.assertEqual(r2.get('niveau'), 'unit')
+
+    def test_publier_vers_un_ancetre_est_refuse(self):
+        """`a` est affilié à l'ÉQUIPE : publier au LABO (ancêtre) = niveau 3/4, pas ouvert."""
+        r = ajouter_au_rag(self.a, 'texte', source_ref='x', niveau='unit', org_unit='LAB-TEST')
+        self.assertIn('erreur', r)
+
+    def test_idempotence_et_changement_de_niveau_sans_perdre_les_vecteurs(self):
+        texte = 'un document stable dont seul le niveau de partage change'
+        ajouter_au_rag(self.b, texte, source_ref='d', source_id='doc:2')
+        # Simule un réindex passé : le fragment a son vecteur.
+        RagChunk.objects.filter(source_id='doc:2').update(embedding=[0.0] * 1024,
+                                                          embedding_model='bge-m3')
+        r = ajouter_au_rag(self.b, texte, source_ref='d', source_id='doc:2', niveau='unit')
+        self.assertEqual(r['etat'], 'inchangé')
+        chunk = RagChunk.objects.get(source_id='doc:2')
+        self.assertEqual(chunk.visibility, ScopedVisibility.VIS_UNIT)
+        self.assertIsNotNone(chunk.embedding,
+                             'changer la portée ne doit PAS coûter un réindex')
+
+    def test_contenu_modifie_est_redecoupe(self):
+        ajouter_au_rag(self.a, 'premier contenu', source_ref='d', source_id='reader:9')
+        r = ajouter_au_rag(self.a, 'un contenu entièrement différent',
+                          source_ref='d', source_id='reader:9')
+        self.assertEqual(r['etat'], 'réindexé')
+        self.assertIn('entièrement différent',
+                      RagChunk.objects.get(source_id='reader:9').content)
+
+    def test_retirer_du_rag_ne_touche_que_le_proprietaire(self):
+        ajouter_au_rag(self.a, 'document à retirer ensuite', source_ref='d', source_id='reader:5')
+        self.assertEqual(retirer_du_rag(self.b, 'reader:5'), 0)     # pas le sien : rien
+        self.assertTrue(retirer_du_rag(self.a, 'reader:5') > 0)
+        self.assertEqual(RagChunk.objects.filter(source_id='reader:5').count(), 0)
+
+    def test_lister_rag_pour_la_page_de_gestion(self):
+        ajouter_au_rag(self.a, 'un premier document', source_ref='reader#7', source_id='reader:7')
+        lignes = lister_rag(self.a)
+        self.assertEqual(len(lignes), 1)
+        self.assertEqual(lignes[0]['niveau'], 'user')
+        self.assertEqual(lignes[0]['vectorises'], 0)    # signale qu'un reindex est à faire
+
+
+class NiveauxRappelTests(TestCase):
+    """Le SÉLECTEUR de niveaux au rappel : mon RAG, celui du labo, les deux — ou rien."""
+
+    def setUp(self):
+        self.labo = OrgUnit.objects.create(code='LAB-N', name='Labo', unit_type='labo')
+        self.a = User.objects.create_user('niv_a', password='x')
+        self.b = User.objects.create_user('niv_b', password='x')
+        _affilier(self.a, 'LAB-N')
+        _affilier(self.b, 'LAB-N')
+        # `a` possède un doc PRIVÉ ; `b` partage un doc au LABO. Même mot « protocole » dans
+        # les deux : c'est le NIVEAU qui discrimine, pas la requête.
+        ajouter_au_rag(self.a, 'mes notes personnelles sur le protocole des essais',
+                       source_ref='n', source_id='n:1')
+        ajouter_au_rag(self.b, 'protocole du laboratoire sur les entretiens',
+                       source_ref='l', source_id='l:1', niveau='unit')
+
+    def _ids(self, niveaux):
+        hits = recall('protocole', user=self.a, semantic=False, include_memory=False,
+                      rag_niveaux=niveaux)
+        return {h.obj.source_id for h in hits}
+
+    def test_mon_rag_seulement(self):
+        self.assertEqual(self._ids({'user'}), {'n:1'})
+
+    def test_rag_du_labo_seulement_exclut_mes_prives(self):
+        # Choix documenté : « le RAG du labo » ≠ « le mien + celui du labo ».
+        self.assertEqual(self._ids({'unit'}), {'l:1'})
+
+    def test_les_deux(self):
+        self.assertEqual(self._ids({'user', 'unit'}), {'n:1', 'l:1'})
+
+    def test_ne_rien_selectionner_est_legitime(self):
+        self.assertEqual(self._ids(set()), set())
+
+    def test_defaut_none_egale_tout_le_visible(self):
+        self.assertEqual(self._ids(None), {'n:1', 'l:1'})

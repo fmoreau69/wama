@@ -159,8 +159,19 @@ def remember(content, *, kind, provenance, user=None, subject='', source_app='',
 
 # ───────────────────────────────────────────────────────────── recall ────────
 
+#: Niveaux de RAG sélectionnables AU RAPPEL — c'est le sélecteur voulu par Fabien (2026-08-21) :
+#: l'utilisateur choisit son RAG, celui du labo, les deux, ou RIEN. `rag_niveaux=None` = tout ce
+#: qui lui est visible (comportement d'avant) ; ensemble VIDE = aucun fragment — « ne rien
+#: sélectionner » est un choix légitime, pas un cas d'erreur.
+#:   'user'    = mes documents (quel que soit leur niveau de partage) ;
+#:   'unit'    = partagés à mes unités — labo/équipe, sous-unités comprises via l'héritage ;
+#:   'project' = partagés à mes projets (niveau ANNONCÉ, pas encore ouvert à l'écriture) ;
+#:   'public'  = publics.
+NIVEAUX_RAG = ('user', 'unit', 'project', 'public')
+
+
 def recall(query, *, user, kinds=None, subject=None, k=8, include_rag=True,
-           include_memory=True, semantic=True, resident=True):
+           include_memory=True, semantic=True, resident=True, rag_niveaux=None):
     """
     Retrouve les `k` meilleurs éléments visibles par `user`.
 
@@ -200,7 +211,7 @@ def recall(query, *, user, kinds=None, subject=None, k=8, include_rag=True,
         cand_vect += [(d, 'memory', o) for d, o in _par_vecteur(base, vecteur)]
         cand_lex += [(r, 'memory', o) for r, o in _par_lexique(base, query)]
     if include_rag:
-        base = _rag_visible(user)
+        base = _rag_visible(user, rag_niveaux)
         cand_vect += [(d, 'rag', o) for d, o in _par_vecteur(base, vecteur)]
         cand_lex += [(r, 'rag', o) for r, o in _par_lexique(base, query)]
 
@@ -237,9 +248,42 @@ def _q_valides(maintenant):
     return Q(valid_to__isnull=True) | Q(valid_to__gt=maintenant)
 
 
-def _rag_visible(user):
+def _rag_visible(user, niveaux=None):
+    """
+    Fragments RAG rappelables par `user`, restreints aux `niveaux` demandés.
+
+    `None` = tout le visible (`scoped_visible_q`, comme avant). Un ensemble = SEULEMENT ces
+    niveaux : choisir `{'unit'}` exclut ses propres documents privés — c'est voulu, l'utilisateur
+    a demandé « le RAG du labo », pas « le mien plus celui du labo ». Vide = rien.
+    """
     from ..models import RagChunk, scoped_visible_q
-    return RagChunk.objects.filter(scoped_visible_q(user))
+
+    if niveaux is None:
+        return RagChunk.objects.filter(scoped_visible_q(user))
+    return RagChunk.objects.filter(_q_niveaux(user, set(niveaux)))
+
+
+def _q_niveaux(user, niveaux):
+    """`Q` des niveaux demandés. Chaque niveau reprend LA branche correspondante de
+    `scoped_visible_q` — même logique, jamais une réimplémentation qui pourrait diverger."""
+    from django.db.models import Q
+
+    from ..models import ScopedVisibility, user_projects, user_scope_org_ids
+
+    q = Q(pk__in=[])                                  # rien par défaut : niveaux vide = vide
+    if 'user' in niveaux and getattr(user, 'is_authenticated', False):
+        q |= Q(user=user)
+    if 'unit' in niveaux:
+        ids = user_scope_org_ids(user)
+        if ids:
+            q |= Q(visibility=ScopedVisibility.VIS_UNIT, scope_org_unit_id__in=ids)
+    if 'project' in niveaux:
+        pids = user_projects(user)
+        if pids:
+            q |= Q(visibility=ScopedVisibility.VIS_PROJECT, scope_project_id__in=pids)
+    if 'public' in niveaux:
+        q |= Q(visibility=ScopedVisibility.VIS_PUBLIC)
+    return q
 
 
 def _par_vecteur(queryset, vecteur):

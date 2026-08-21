@@ -26,7 +26,7 @@ class Command(BaseCommand):
         parser.add_argument('--limite', type=int, default=None,
                             help="Nombre maximum d'objets traités.")
         parser.add_argument('--rag', action='store_true',
-                            help='Indexe aussi les sorties texte en fragments RAG (sans modèle).')
+                            help="(RETIRÉ 2026-08-21) L'entrée au RAG est un geste utilisateur.")
         parser.add_argument('--dev-ai', action='store_true',
                             help="Reprend wama-dev-ai/memory.json en souvenirs NON APPROUVÉS.")
         parser.add_argument('--reindex', action='store_true',
@@ -68,14 +68,17 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING('  (--dry-run : rien écrit)'))
 
         if opts['rag']:
-            from wama.common.memory.index import indexer
-            self.stdout.write('\n── Indexation RAG des sorties texte (aucun modèle appelé) ──')
-            i = indexer(limite=opts['limite'], dry_run=opts['dry_run'])
-            self.stdout.write(
-                f"  objets parcourus : {i['objets']}\n"
-                f"  indexés          : {i['indexes']} ({i['fragments']} fragments)\n"
-                f"  inchangés        : {i['inchanges']}\n"
-                f"  sans texte       : {i['sans_texte']}")
+            # ⚠ RETIRÉ le 2026-08-21, et le refus est VOLONTAIREMENT un message plutôt qu'une
+            # suppression du flag : la commande doit expliquer POURQUOI l'option a disparu, pas
+            # répondre « unrecognized arguments » à qui suit une vieille doc. Le balayage
+            # indexait les sorties de TOUS les utilisateurs sans qu'aucun n'ait rien demandé
+            # (939 fragments, purgés) — l'entrée au RAG est un GESTE, cf. WAMA_MEMORY.md §7ter.
+            self.stderr.write(self.style.ERROR(
+                "--rag a été RETIRÉ (2026-08-21) : le balayage global indexait les sorties de "
+                "tous les utilisateurs sans leur geste. L'entrée au RAG passe désormais par "
+                "wama.common.memory.index.ajouter_au_rag() — action explicite de l'utilisateur, "
+                "niveau choisi ('user' | 'unit'). Cf. WAMA_MEMORY.md §7ter."))
+            return
 
         if opts['dev_ai']:
             from wama.common.memory.dev_ai import importer

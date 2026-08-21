@@ -1,10 +1,11 @@
 # WAMA_MEMORY.md — Mémoire & RAG : référence unique du domaine
 
-> **Statut : CONSTRUIT ET INERTE** (mis à jour 2026-08-21). Jalons **1-8 et 11 livrés** — brique
-> `wama/common/memory/`, journal `/common/journal/`, 939 fragments RAG, 25 souvenirs repris de
-> wama-dev-ai, Hook B branché, outil `memory_recall`. ⚠ **Aucune app n'active le RAG** et les
-> vecteurs ne sont **pas** calculés (`--reindex` en attente) : rien ne change encore pour un
-> utilisateur. Restent 9, 10 et la bascule sémantique. Il remplace, pour ce domaine, les intentions
+> **Statut : CONSTRUIT — RAG VIDE PAR DÉCISION** (mis à jour 2026-08-21). Jalons 1-13 livrés —
+> brique `wama/common/memory/`, journal `/common/journal/`, `memory_recall` **hybride** (résidence
+> `bge-m3` arbitrée par le gouverneur), 25 souvenirs dev-ai en file de revue, et **entrée au RAG
+> par GESTE avec niveaux user/labo** (§7ter). ⚠ Le balayage initial a été **purgé** (939 → 0) et
+> le RAG restera **vide** tant qu'aucune surface ne porte le geste « Ajouter au RAG » (jalon 14) :
+> c'est l'état **voulu**, pas un manque. Il remplace, pour ce domaine, les intentions
 > dispersées dans `PROJECT_STATUS §6`, `ROADMAP §16.2/§16.7` et `docs/WAMA_Vision_Complet_v2 §11`
 > — qui restent valables sur le *pourquoi* mais sont **périmés sur le substrat** (ils disent
 > ChromaDB, voir §7).
@@ -350,46 +351,75 @@ l'inspecteur racontent la même chose — deux projections écrites séparément
    dans sa liste (mesuré : 73 → 31 requêtes en différant l'hydratation). `list_my_items` doit
    rester léger ; `get_item_detail` est le coûteux, à la demande.
 
-## 7ter. Indexation RAG — on n'extrait rien, on indexe ce que WAMA a produit
+## 7ter. Entrée au RAG — un GESTE de l'utilisateur, jamais un balayage (CORRIGÉ 2026-08-21)
 
-**Le principe qui évite un doublon de chaîne.** WAMA possède déjà ses couches d'extraction : le
-Transcriber rend un texte, le Reader une OCR, le Describer une description. Ré-extraire depuis le
-fichier source produirait un **second** texte, différent de celui que l'utilisateur voit dans
-l'app. `index.py` indexe donc la **sortie existante**, jamais le fichier.
+> ⚠ **CORRECTION DE CONCEPTION.** La première version de cette section décrivait un **balayage** :
+> `sync_memory --rag` dérivait ses sources de `detail_registry` et indexait les sorties texte de
+> toutes les apps, **tous utilisateurs confondus** — 939 fragments écrits sans qu'aucun
+> utilisateur n'ait rien demandé (transcriber 907, describer 19, reader 13, sur 3 comptes).
+> Objection de Fabien, confirmée (§ suivant). Les 939 fragments ont été **PURGÉS** (939 → 0,
+> souvenirs intacts) — un `RagChunk` est re-dérivable par construction (§3), la purge est donc
+> sans perte : ce qui doit entrer au RAG y rentrera par le geste. Le balayage est **retiré**
+> (`--rag` refuse désormais, avec l'explication et le renvoi ici).
 
-**Sources dérivées, pas déclarées** — même mécanisme que le journal : `detail_registry` donne les
-modèles, et le champ texte est **détecté** parmi `result_text`, `text`, `extracted_text`,
-`transcription`, `summary`. Une app qui gagnera une sortie texte entrera au RAG sans qu'on touche
-au module. Mesuré au 2026-08-21 :
+**Le flux voulu** :
 
-| App | Champs | Fragments produits |
+```
+sortie d'app → (si l'utilisateur le veut) médiathèque → (ACTION EXPLICITE) → RAG
+```
+
+Cas d'usage nommé par Fabien : un scan de notes manuscrites passe par le reader (OCR), et c'est
+**ce texte-là** que l'utilisateur ajoute au RAG — où il servira ensuite, par exemple, à rédiger un
+compte-rendu depuis une transcription de réunion. La chaîne peut aller loin ; deux principes la
+tiennent : **on n'extrait rien** (les apps l'ont déjà fait — ré-extraire produirait un second
+texte, différent de celui que l'utilisateur voit), et **rien n'entre sans geste**.
+
+**Le seul point d'entrée** : `index.ajouter_au_rag(user, texte, source_ref=…, niveau=…)` —
+idempotent par `source_id`, `embedding=NULL` au geste (les vecteurs viennent par `reindex()`,
+§5bis), et un changement de **niveau** met à jour la visibilité **sans perdre les vecteurs**
+(changer la portée d'un document ne doit pas coûter un réindex). Ses pendants :
+`retirer_du_rag()` — ce qui entre par un geste sort par un geste — et `lister_rag()`, la matière
+de la future page de gestion (documents, niveau, `vectorises < fragments` ⇒ réindex à faire).
+
+**Ce qui survit de la première version** : le découpage sur frontière de phrase avec 120
+caractères de recouvrement (sans lui, une phrase coupée en deux devient introuvable) ; la
+réécriture complète quand le contenu change (légitime parce que re-dérivable — le même geste sur
+un `MemoryItem` serait une faute) ; et le piège de vérification : tester un RAG demande des mots
+du **corpus** (« consentement »), pas du domaine technique (« transcription » rendait 0 sur 907
+fragments de transcriptions — ce sont des mots *méta*, ils décrivent le traitement, pas le
+contenu).
+
+### Les NIVEAUX de RAG — écriture ET lecture (décision Fabien 2026-08-21)
+
+**À l'écriture**, l'utilisateur choisit le niveau du document **au moment du geste** :
+
+| Niveau | Qui voit | État |
 |---|---|---|
-| transcriber | `text`, `summary` | **907** |
-| describer | `result_text`, `summary` | 19 |
-| reader | `result_text` | 13 |
-| *(9 autres apps)* | *aucun* | — *elles produisent des médias* |
+| `'user'` (défaut) | moi seul | ✅ ouvert |
+| `'unit'` | les membres de l'unité **et de ses sous-unités** (héritage `OrgUnit.parent`) | ✅ ouvert |
+| `'project'` | les membres du projet (traverse les orgs) | **annoncé** — niveau suivant |
+| `'public'` | tous | plus tard |
 
-**939 fragments**, taille 64–799 caractères (moyenne 745), découpés sur frontière de phrase avec
-120 caractères de recouvrement — sans recouvrement, une phrase coupée en deux devient introuvable.
+Le niveau **EST** la visibilité `ScopedVisibility` — aucun second modèle de scope. ⚠
+**Multi-entités** (précision Fabien) : `org_affiliations` est une **liste** — plusieurs
+labos/équipes par utilisateur, plusieurs entités par niveau. Une seule affiliation ⇒ résolue
+seule ; **plusieurs ⇒ le geste doit nommer l'unité** (on ne devine pas : un partage parti dans la
+mauvaise entité ne se voit pas) ; publier vers un **ancêtre** (département, université) est refusé
+tant que les niveaux 3/4 ne sont pas ouverts.
 
-**Réécriture complète à la mise à jour** : quand le texte d'un objet change, ses fragments sont
-supprimés puis réécrits. Légitime **parce qu'un `RagChunk` est re-dérivable** (§3) — la source fait
-foi. Le même geste sur un `MemoryItem` serait une faute.
+**À la lecture**, `recall(..., rag_niveaux={'user','unit'})` filtre par niveau — le sélecteur
+voulu : son RAG, celui du labo, les deux, **ou rien** (`set()` vide = choix légitime, pas une
+erreur ; `None` = tout le visible). Chaque niveau reprend **la** branche correspondante de
+`scoped_visible_q` — même logique, jamais une réimplémentation qui pourrait diverger. ⚠ Choix
+documenté : `{'unit'}` seul **exclut** ses documents privés — « le RAG du labo » ≠ « le mien plus
+celui du labo ». Exposé à l'assistant via `memory_recall(niveaux=…)` ; les **surfaces d'UI**
+restent à construire (jalon 14) : sélecteur **par défaut** sur la future page de gestion du RAG +
+sélecteur **à chaque point d'usage**.
 
-> ⚠ **Le piège de la visibilité dénormalisée (§4) ne s'applique PAS à cette famille de sources.**
-> `Transcript`, `Description` et `ReadingItem` n'ont **pas** de champ `visibility` : leur seule
-> vérité est leur propriétaire, donc les fragments sont `private` + `user`. Le piège s'ouvrira le
-> jour où l'on indexera la **médiathèque** (`UserAsset`), qui hérite, elle, de `ScopedVisibility`.
-
-**Isolation prouvée sur données réelles multi-utilisateurs** : les 939 fragments se répartissent
-entre 3 utilisateurs (751 / 116 / 72). Les 16 fragments contenant « voiture » appartiennent aux
-utilisateurs 2 et 3 — l'utilisateur 1 en voit **0**. Ce n'est pas un rappel vide, c'est le scoping
-qui fait son travail.
-
-⚠ **Piège de vérification à ne pas répéter** : mes premières requêtes de contrôle (« transcription »,
-« whisper », « plaque ») rendaient 0 et m'ont fait croire à une panne. Ce sont des mots **méta** —
-ils décrivent le traitement, pas le contenu. Un corpus d'entretiens contient « consentement », pas
-« transcription ». Tester un RAG demande des mots du CORPUS, pas du domaine technique.
+**Testé, versionné** (`tests_memory.py`, 31 tests) — dont **le** test du niveau labo : un document
+partagé au LABO par un de ses membres est rappelable par un membre d'une **ÉQUIPE** du labo
+(héritage `parent`), et les trois gardes en face (sans affiliation : refus ; affiliations
+multiples sans nom d'unité : refus motivé ; publication vers un ancêtre : refus).
 
 ### ⚠ OBJECTION DE FABIEN (2026-08-21) — l'entrée au RAG doit être un GESTE, pas un balayage
 
@@ -428,10 +458,12 @@ pas la détection des sources. Trois pistes, à arbitrer par qui possède ce mod
 ⚠ **Quelle que soit l'option, `indexer(user=…)` existe déjà** (`index.py:100`) mais **aucun appelant
 ne le passe** : `sync_memory --rag` indexe globalement. Le paramètre est là, la porte est ouverte.
 
-> **Question ouverte** (non tranchée) : que faire des 939 fragments déjà indexés ? Les conserver
-> revient à valider rétroactivement un balayage non consenti ; les purger fait perdre le seul
-> corpus réel sur lequel le rappel a été mesuré. Un compromis possible : conserver ceux du
-> propriétaire de l'instance, purger ceux des autres comptes, et redemander explicitement.
+> ~~**Question ouverte** (non tranchée) : que faire des 939 fragments déjà indexés ?~~
+> **✅ TRANCHÉ par Fabien le 2026-08-21** : « rien ne va dans le RAG concernant ces 939
+> fragments ». **Purge totale exécutée** (939 → 0, souvenirs intacts), balayage retiré,
+> remplacement par le geste explicite avec niveaux — la correction complète est en tête de §7ter.
+> L'option 1 (opt-in **par objet**) est celle retenue ; le placement des surfaces d'UI reste à
+> décider (jalon 14).
 
 ## 7quater. Hook B branché — et deux pièges du rappel lexical
 
@@ -531,7 +563,7 @@ Ne rien arbitrer sur ces chiffres.
 | 2 | `bge-m3` + `embed.py` | ✅ 2026-08-20 — le modèle **était déjà tiré** dans Ollama |
 | 3 | Modèles + migration `common/0007` + `store.py` (5 opérations) | ✅ 2026-08-20 — **inerte, aucun appelant** |
 | 4 | `project.py` + `manage.py sync_memory` : projection `RunOutcome` → `MemoryItem` | ✅ 2026-08-20 — mais **rien à projeter**, cf. §7bis |
-| 5 | `index.py` : indexation RAG des sorties texte (+ `sync_memory --rag`) | ✅ 2026-08-21 — **939 fragments réels** |
+| 5 | ~~Indexation RAG des sorties texte (balayage)~~ **REFONDU** : entrée par GESTE — `ajouter_au_rag` / `retirer_du_rag` / `lister_rag` | ✅ 2026-08-21 — balayage **retiré**, 939 fragments **purgés** (§7ter) |
 | 6 | Branchement `prompt_pipeline` **Hook B** (`rag=True`, opt-in) | ✅ 2026-08-21 — §7quater |
 | 7 | wama-dev-ai : `memory.json` → `MemoryItem` (`provenance='dev-ai'`) | ✅ 2026-08-21 — **25 souvenirs, 0 approuvé** |
 | 8 | Outil `memory_recall` dans `tool_api.py` | ✅ 2026-08-21 — 49 outils, scopé |
@@ -539,6 +571,8 @@ Ne rien arbitrer sur ces chiffres.
 | 10 | ~~Entrée catalogue `AIModel` pour `bge-m3`~~ | ✅ **le jalon n'avait pas lieu d'être** — `bge-m3` y était déjà. Mais un VRAI défaut a été trouvé et corrigé : 3 modèles d'embedding étaient typés `llm`, donc **sélectionnables comme modèles de chat** à budget VRAM serré |
 | 11 | Journal `/common/journal/` (couche 1) + captation générique (couche 2) | ✅ 2026-08-20 — §9bis |
 | 12 | **tool_api : lecture générique** (`list_my_items` / `get_item_detail`) — §9ter | ⏳ |
+| 13 | **Niveaux de RAG** — `rag_niveaux` dans `recall()` + `memory_recall(niveaux=…)` + niveaux à l'écriture | ✅ 2026-08-21 — 31 tests, héritage équipe→labo prouvé |
+| 14 | **Surfaces du geste** : bouton « Ajouter au RAG » (cards de résultat, médiathèque) + **page de gestion du RAG** (défaut de niveaux, liste, retrait, état des vecteurs) | ⏳ — placement à trancher avec Fabien |
 
 **Validation empirique du jalon 3** (2026-08-20, 21 contrôles, 0 échec) — écriture verbatim, dédup
 par `content_hash`, garde-fou « approbation sans approbateur » refusée, brouillon LLM invisible au
