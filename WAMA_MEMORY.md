@@ -391,6 +391,48 @@ qui fait son travail.
 ils décrivent le traitement, pas le contenu. Un corpus d'entretiens contient « consentement », pas
 « transcription ». Tester un RAG demande des mots du CORPUS, pas du domaine technique.
 
+### ⚠ OBJECTION DE FABIEN (2026-08-21) — l'entrée au RAG doit être un GESTE, pas un balayage
+
+> Mots de Fabien : « *Si on veut ajouter un fichier au RAG, il faut le faire explicitement, pas
+> ajouter toutes les sorties des apps au RAG.* » Il refusait d'abord d'y croire (« ce n'est pas
+> possible qu'on ait fait ça comme ça »). **Vérification faite en base, c'est pourtant l'état
+> réel** — et le voici, pour que le débat porte sur des chiffres :
+
+```
+RagChunk : 939   ·   source_kind : {'doc': 939}   ·   visibility : {'private': 939}
+par utilisateur  : fabien.moreau 751 · regis.blanchet 116 · anonymous 72
+exemples source_id : describer:12, describer:18, describer:28, …
+```
+
+**Ce que la section ci-dessus démontre, et qui reste vrai** : l'isolation tient. Le scoping fait
+son travail, personne ne voit les fragments d'un autre.
+
+**Ce qu'elle ne démontre pas** : le **consentement**. Les 116 fragments de `regis.blanchet` sont
+entrés au RAG parce qu'un `sync_memory --rag` a balayé les sorties d'apps de **tous** les
+utilisateurs — personne ne l'a demandé, et rien ne l'a annoncé. **Isolation ≠ consentement.** Pour
+un laboratoire SHS dont les corpus sont des entretiens, la distinction n'est pas théorique : elle
+est la différence entre un index technique et un traitement de données de recherche.
+
+**La dérivation automatique reste le bon mécanisme** — c'est le *déclenchement* qui est en cause,
+pas la détection des sources. Trois pistes, à arbitrer par qui possède ce module :
+
+1. **Opt-in par objet** — un geste « ajouter au RAG » sur l'item (transcription, description, doc
+   de médiathèque). C'est ce que décrit Fabien, et c'est ce que l'encart RAG de l'accueil promet
+   déjà visuellement (`home.html:974`) sans rien faire.
+2. **Opt-in par utilisateur** — une préférence de profil « indexer mes sorties » (défaut : non).
+   ⚠ Précédent à ne pas répéter : `UserProfile.prompt_enrich` existe **sans aucun endpoint ni case
+   à cocher** — un champ sans surface reste mort.
+3. **Statu quo assumé + information** — si le balayage est conservé, il doit au minimum être
+   annoncé aux utilisateurs et réversible (un « retirer du RAG » par objet).
+
+⚠ **Quelle que soit l'option, `indexer(user=…)` existe déjà** (`index.py:100`) mais **aucun appelant
+ne le passe** : `sync_memory --rag` indexe globalement. Le paramètre est là, la porte est ouverte.
+
+> **Question ouverte** (non tranchée) : que faire des 939 fragments déjà indexés ? Les conserver
+> revient à valider rétroactivement un balayage non consenti ; les purger fait perdre le seul
+> corpus réel sur lequel le rappel a été mesuré. Un compromis possible : conserver ceux du
+> propriétaire de l'instance, purger ceux des autres comptes, et redemander explicitement.
+
 ## 7quater. Hook B branché — et deux pièges du rappel lexical
 
 `process_prompt(..., rag=True)` ajoute au prompt des extraits des documents de l'utilisateur,
