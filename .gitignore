@@ -130,3 +130,9 @@ tools/security/bin/
 wama/sandbox_apps.json
 wama/*_[0-9][0-9]/
 staticfiles/*_[0-9][0-9]/
+
+# Avatars GLB (TalkingHead) — TELECHARGES par tools/update_vendors.sh, jamais commites :
+# 4,7 Mo de binaire par fichier, et git ne compresse pas un GLB (chaque revision repeserait
+# autant dans l historique). Meme parti que MuseTalk, cloné par setup_avatarizer.sh.
+wama/static/vendors/avatars/
+staticfiles/vendors/avatars/

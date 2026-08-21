@@ -24,6 +24,10 @@ set -euo pipefail
 BOOTSTRAP_VER=5.3.0
 FA_VER=6.4.0
 JSTREE_VER=3.3.16
+# three 0.180.0 = la version qu'exige l'importmap de l'exemple TalkingHead. Une autre n'est
+# PAS garantie compatible : ne pas la monter sans revérifier l'exemple en amont.
+THREE_VER=0.180.0
+TALKINGHEAD_VER=1.7
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 V="$ROOT/wama/static/vendors"
@@ -62,6 +66,45 @@ for img in 32px.png 40px.png throbber.gif; do
   dl "https://cdnjs.cloudflare.com/ajax/libs/jstree/$JSTREE_VER/themes/default-dark/$img" "$V/jstree-$JSTREE_VER/themes/default-dark/$img"
 done
 dl "https://cdnjs.cloudflare.com/ajax/libs/jstree/$JSTREE_VER/jstree.min.js" "$V/jstree-$JSTREE_VER/jstree.min.js"
+
+echo "== three.js $THREE_VER (module + addons) =="
+# ⚠ LISTE ISSUE D'UNE FERMETURE TRANSITIVE DES IMPORTS, pas des seuls addons cités par
+# TalkingHead. Partir de ses 7 imports aurait manqué fflate (tiré par FBXLoader),
+# BufferGeometryUtils et les NURBS* : la page casse alors DANS LE NAVIGATEUR, au premier
+# import — rien côté Django ne le signale. À toute montée de version : REVÉRIFIER la liste
+# (relancer une résolution récursive des `from '...'` relatifs), ne pas la supposer stable.
+THREE_ADDONS=(
+  controls/OrbitControls.js
+  loaders/GLTFLoader.js
+  loaders/DRACOLoader.js
+  loaders/FBXLoader.js
+  libs/meshopt_decoder.module.js
+  libs/stats.module.js
+  libs/fflate.module.js
+  environments/RoomEnvironment.js
+  utils/BufferGeometryUtils.js
+  curves/NURBSCurve.js
+  curves/NURBSUtils.js
+)
+mkdir -p "$V/three-$THREE_VER/build"
+dl "https://cdn.jsdelivr.net/npm/three@$THREE_VER/build/three.module.js" "$V/three-$THREE_VER/build/three.module.js"
+for a in "${THREE_ADDONS[@]}"; do
+  mkdir -p "$V/three-$THREE_VER/addons/$(dirname "$a")"
+  dl "https://cdn.jsdelivr.net/npm/three@$THREE_VER/examples/jsm/$a" "$V/three-$THREE_VER/addons/$a"
+done
+
+echo "== TalkingHead $TALKINGHEAD_VER (modules ES6) =="
+mkdir -p "$V/talkinghead-$TALKINGHEAD_VER"
+for m in talkinghead.mjs retargeter.mjs dynamicbones.mjs; do
+  dl "https://raw.githubusercontent.com/met4citizen/TalkingHead/main/modules/$m" "$V/talkinghead-$TALKINGHEAD_VER/$m"
+done
+
+echo "== Avatar de test (GLB) — NON COMMITÉ =="
+# 4,7 Mo de binaire : téléchargé comme MuseTalk l'est par setup_avatarizer.sh, PAS versionné
+# (git ne compresse pas un GLB : chaque révision pèserait à nouveau 4,7 Mo dans l'historique).
+# Le dossier est gitignoré. Licence CC BY-NC 4.0 — usage recherche, acceptable au labo.
+mkdir -p "$V/avatars"
+dl "https://raw.githubusercontent.com/met4citizen/TalkingHead/main/avatars/brunette.glb" "$V/avatars/brunette.glb"
 
 echo
 echo "✔ Assets vendorés mis à jour. Étapes suivantes :"
