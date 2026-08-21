@@ -74,7 +74,7 @@ Rules:
 - When the user asks you to perform an action (add a file, launch processing, etc.), use the tools.
 - When the user asks a question or wants information, answer directly without tools.
 - Always confirm what you did after tool calls.
-- Respond in French.
+- Respond in {LANGUE}.
 - COMPLETION NOTIFICATION: After starting a task (start_anonymizer, start_imager, start_enhancer, start_audio_enhancer, start_synthesizer, start_describer, start_transcriber), automatically call the corresponding get_*_status tool. If the task is already SUCCESS/done, immediately report the result with the file URL/preview link. If still RUNNING/PENDING, tell the user "La tâche a démarré — vous serez notifié dès la fin." and explain they can ask "quel est le statut ?" to check progress.
 - OUTPUT LINKS: When a get_*_status result shows status="SUCCESS" or status="done" and contains output_url / audio_url / output_urls / video_url, ALWAYS include these links in your response using Markdown format: [📥 Télécharger](URL) or [🖼️ Voir l'image](URL).
 
@@ -400,8 +400,13 @@ def run_assistant_turn(user, message: str, provider: str = 'wama-dev-ai',
     # avatarizer/composer/converter inclus). Le préambule + règles restent rédigés à la main.
     tools_prompt = WAMA_TOOLS_PROMPT.replace('{TOOLS}', build_tools_list()) if user else ""
     # Langue de réponse = profil utilisateur (plus de « in French » en dur).
-    system_prompt = (WAMA_SYSTEM_PROMPT.replace('{LANGUE}', _consigne_langue(user))
-                     + wama_context + tools_prompt)
+    # ⚠ La consigne est posée sur les DEUX prompts : ils sont concaténés, et le prompt d'outils
+    # portait lui aussi un « Respond in French » en dur — un profil `en` recevait donc deux
+    # consignes CONTRADICTOIRES (corrigé 2026-08-21). Toujours `.replace`, jamais `.format` :
+    # le prompt d'outils contient des accolades littérales (`{"tool": …}`) que `format` casserait.
+    langue = _consigne_langue(user)
+    system_prompt = (WAMA_SYSTEM_PROMPT.replace('{LANGUE}', langue)
+                     + wama_context + tools_prompt.replace('{LANGUE}', langue))
 
     # Build messages: system + prior history (capped) + current user message
     prior = _sanitize_history(history)[-20:]  # keep last 10 exchanges max

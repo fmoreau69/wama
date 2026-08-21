@@ -2131,14 +2131,42 @@ et AVANT la première app data (il garde la frontière du monde naissant).
 Discord ensuite (usage réel du labo). ⚠ Ce n'est pas un compromis : Tchap étant un fork
 Element/Synapse, la DINUM confirme qu'« il n'y a pas de spécificité Tchap par rapport à
 Matrix ayant un impact sur la création d'un bot ». Un adaptateur écrit contre **Matrix**
-se développe et se teste sur un Synapse local **sans rien attendre de la DINUM**, puis se
-pointe vers Tchap sans changement de code. Précédents à lire AVANT d'écrire :
-[`etalab-ia/albert-tchapbot`](https://github.com/etalab-ia/albert-tchapbot) (bot LLM DINUM,
-open source) et le REX Insee (`simplematrixbotlib` / `matrix-nio`). Éligibilité : les
-universités sont éligibles (établissements publics) — vérifier le domaine `univ-eiffel.fr`,
-sinon demande à la DINUM (démarche à lancer TÔT, elle est administrative).
+se développe et se teste sur un Synapse local, puis se pointe vers Tchap sans changement
+de code. Précédents à lire AVANT d'écrire : le dépôt d'exemple **officiel**
+[`tchapgouv/tchap-sample-bot`](https://github.com/tchapgouv/tchap-sample-bot),
+[`etalab-ia/albert-tchapbot`](https://github.com/etalab-ia/albert-tchapbot) (bot LLM DINUM),
+et le REX Insee (`simplematrixbotlib` / `matrix-nio`).
 ⛔ **Botpress abandonné** (piste 2025 non aboutie) : l'agent EST WAMA (boucle + outils) ;
 Botpress n'ajouterait qu'une orchestration concurrente à maintenir.
+
+> ⚠ **CORRECTION 2026-08-21 (reprise de Fabien — j'avais durci à tort).** J'avais écrit que la
+> démarche DINUM était un préalable « à lancer tôt ». **C'est faux si le domaine est déjà
+> autorisé** : on crée alors le compte du bot **comme un compte agent ordinaire, sans aucune
+> démarche**. La demande à la DINUM (`tchap@beta.gouv.fr`) ne concerne QUE les domaines non
+> encore référencés. Vérification à faire une fois, sur la page d'accueil de Tchap, avec
+> l'adresse `@univ-eiffel.fr`. Les universités sont éligibles (établissements publics).
+>
+> **Ce qui EST une vraie contrainte, en revanche** (et que je n'avais pas vu) :
+> - ⚠ **la notion de « compte de service » n'existe PAS sur Tchap** → le compte du bot est
+>   soumis au **renouvellement périodique par email** (~11 mois). Il faut donc une **boîte mail
+>   réellement accessible** pour le bot, et un rappel calendaire : sinon le bot meurt tout seul
+>   au bout d'un an. À décider avec le service info du labo (alias ou vraie boîte).
+> - ⚠ **l'inscription échoue SILENCIEUSEMENT** si l'adresse n'appartient pas à un domaine
+>   référencé — un échec de création de compte ne dira pas pourquoi.
+> - Bac à sable : `tchap.incubateur.net` accepte les adresses `*.gouv.fr`, mais les serveurs y
+>   sont **instables et réinitialisables sans préavis** — ne rien y bâtir de durable.
+
+**Bonnes pratiques Matrix/Synapse à intégrer DÈS l'écriture** (source : doc technique DINUM) :
+- **`allowed_room_ids`** — restreindre le bot à une liste de salons explicite (patron du
+  `config.toml` de `tchap-sample-bot`). C'est la garde la moins chère contre un bot invité
+  n'importe où ; à poser dès le premier jet, pas après.
+- **Ne JAMAIS se reconnecter à chaque appel** : partager l'access token. Sinon on crée des
+  centaines de sessions et un volume de données considérable.
+- **Délai entre invitations** en masse → rate-limits Synapse et frontaux web.
+- Les droits ne s'accordent qu'à un compte **ayant déjà rejoint** le salon (à savoir pour
+  promouvoir le bot administrateur).
+- Un salon peut être créé directement (`POST /_matrix/client/v3/createRoom`) — l'invitation
+  n'est pas obligatoire.
 
 ### 19.0 Extraction du moteur d'assistant — ✅ LIVRÉ 2026-08-20
 
@@ -2223,8 +2251,9 @@ polling. À faire dès que l'appariement d'identité existe.
    gestion Django longue ? (Un bot Matrix/Discord est un client à socket persistant — il ne
    vit pas dans un worker Celery.)
 2. **Dépendances à installer** : `matrix-nio[e2e]` (+ `simplematrixbotlib` ?), `discord.py`.
-3. **Credentials** : compte de service Tchap (démarche DINUM), application/bot Discord sur le
-   serveur du labo.
+3. **Credentials** : compte Tchap du bot (⚠ **aucune** démarche DINUM si le domaine est déjà
+   autorisé — cf. correction du 21/08 ; mais il faut une **boîte mail accessible** pour le
+   renouvellement ~annuel, faute de compte de service natif), application/bot Discord du labo.
 4. **Modèle de menace** (la condition posée par H3, toujours valable) : un canal ouvre
    l'assistant à des messages non sollicités — l'appariement obligatoire (19.1) en est la
    première réponse, à compléter par un rate-limit et une politique de fichiers entrants.
