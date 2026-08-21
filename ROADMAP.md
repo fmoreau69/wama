@@ -2294,6 +2294,24 @@ dans le portail développeur, le bot reçoit les événements mais `message.cont
 
 ### 19.5 Store de conversation ⏳ — rendu NÉCESSAIRE par la passerelle
 
+> ⚠ **VÉRIFIÉ le 2026-08-21, à rebours d'une impression répandue : il n'existe RIEN.** Ni
+> modèle, ni table, ni migration — grep exhaustif sur `Conversation|ChatMessage|Thread|
+> Dialogue|Turn|Session` et sur toutes les migrations. `wama/common/migrations/` s'arrête à
+> `0007_memoryitem_ragchunk`. Le chantier mémoire a livré `MemoryItem`/`RagChunk`, qui sont
+> **autre chose** : des souvenirs et des fragments RAG, écrits par `sync_memory` — et
+> `PROV_ASSISTANT` (`common/models.py:629`) n'a **aucun producteur**, donc aucun tour de chat
+> n'y entre. Il ne faut pas compter sur un store déjà prêt : il est **entièrement à écrire**.
+>
+> Ce que le chantier mémoire apporte quand même, et qu'il faut réutiliser : `ScopedVisibility`
+> (gouvernance multi-utilisateur héritée), `Embedded`, `content_hash`, et le `recall()`
+> hybride. ⚠ Et sa **leçon à respecter** (`WAMA_MEMORY.md:44-58`) : deux natures de données
+> ⇒ deux tables. Un tour de conversation (re-jouable, purgeable, volumineux) n'a rien à faire
+> dans `MemoryItem` (non re-dérivable, jamais purgé) — c'est un **3ᵉ modèle**.
+>
+> **La jonction utile n'est donc pas le stockage, c'est la PROJECTION** : un fil clos peut
+> produire un `MemoryItem` de provenance `assistant`, **non approuvé par défaut**
+> (`WAMA_MEMORY.md §6`). C'est là que les deux chantiers se rejoignent, nulle part ailleurs.
+
 Question de Fabien (21/08) : « plusieurs conversations en parallèle, et le multi-utilisateur ? »
 
 - **Multi-utilisateur : déjà acquis.** Chaque appel porte son `user`, les outils filtrent
@@ -2311,6 +2329,38 @@ Question de Fabien (21/08) : « plusieurs conversations en parallèle, et le mul
   modèles + l'UI (liste de conversations).
 - **La passerelle le rend nécessaire, pas seulement souhaitable** : un DM Discord et un
   salon Matrix **sont** des conversations distinctes — `core.py` a déjà la notion de `fil`.
+  `_cle_fil()` (`gateway/core.py:88`) donne déjà la clé naturelle `(canal, fil)` de la
+  future clé étrangère, et `_HISTORIQUES` (`:31-41`) est le **seul appelant à remplacer**.
+
+### 19.6 ⚠ CONTRAT À DÉFENDRE entre les 3 chantiers de l'assistant (posé le 2026-08-21)
+
+Trois instances travaillent en parallèle sur l'assistant : **mémoire & RAG**, **avatar
+parlant**, **passerelle de canaux**. Cartographie croisée faite ce jour — voici ce qui doit
+être tenu, avant que quiconque code la suite.
+
+**① Le moteur reste TEXTE.** `run_assistant_turn` rend du texte et des étapes d'outil ; il ne
+doit jamais porter d'audio. Le risque est concret : pour synchroniser ses visèmes, l'avatar
+pourrait être tenté de faire remonter le WAV dans le tour d'assistant — et un bot Discord se
+retrouverait à recevoir du base64 dont il n'a rien à faire. **La TTS reste une étape CLIENTE
+post-réponse** (ce que fait déjà `home.html` : il appelle `/api/tts-kokoro/` après coup). Si
+l'avatar a besoin de timings de visèmes, ils viennent d'un **endpoint TTS distinct**, jamais
+du tour d'assistant. C'est la contrepartie de « UN cerveau, N surfaces » : le contrat commun
+ne porte que ce qui vaut pour toutes les surfaces.
+
+**② `home.html` va devenir disputé.** Trois chantiers veulent y écrire la même semaine :
+langues (fait), toggle avatar (annoncé §17ter), liste de conversations (§19.5). **Sortir le
+JS du chat vers `common/static/` avant** d'y toucher à trois, sinon les conflits seront
+mécaniques et répétés.
+
+**③ Collisions mécaniques connues, sans enjeu sémantique** : `wama/common/mecanismes.py` et
+`wama/tool_api.py` (`TOOL_REGISTRY`, `TOOL_APP_OVERRIDE`) reçoivent des *append* des trois
+chantiers. Conflits git à absorber, pas à débattre.
+
+**④ État réel au 21/08** : l'avatar n'a livré que des **vendors** (three.js, TalkingHead) et
+un partial d'importmap — **aucun template ne l'inclut encore**, donc zéro collision à ce jour
+(et rien dans les docs de statut : invisible pour qui les lit). La mémoire **n'a pas touché**
+`assistant_engine.py` ; son seul chemin vers l'assistant est l'outil `memory_recall`, déjà
+scopé — donc rien à re-garder côté canal, il fonctionne dans le bot comme sur le web.
 
 ### 19.2 Notifications proactives — gain rapide, indépendant du bot ⏳
 
@@ -2325,7 +2375,25 @@ polling. À faire dès que l'appariement d'identité existe.
   minimal = tâche Celery en file **basse priorité** qui lance le CLI `--non-interactive` et
   reposte le rapport de `wama-dev-ai/outputs/`. Reste Phase 1 read-only : le canal déclenche
   et lit, **jamais n'applique**. ⚠ Aucune charge GPU nocturne non gouvernée (crashs hôte).
-- **Claude Code — VÉRIFIÉ POSSIBLE le 2026-08-20** (ça ne l'était pas lors du premier examen) :
+- ✅ **Claude Code sur l'abonnement — LIVRÉ le 2026-08-21** (`common/services/claude_code.py`,
+  outil `ask_claude_code`, mécanisme `claude_code`). Appel réel prouvé depuis Django/WSL2.
+  Trois faits mesurés qu'il faut connaître avant de s'en servir :
+  - ⚠⚠ **`ANTHROPIC_API_KEY` doit être retirée de l'environnement du sous-processus.** Claude
+    Code la préfère à l'abonnement ; WAMA la renseigne dans `.env` pour LiteLLM. Hériter de
+    l'environnement Django aurait **facturé l'API en croyant utiliser l'abonnement**, sans
+    que rien ne le signale. L'environnement est donc construit explicitement.
+  - ⚠ **Le CLI est un binaire Windows** (`~/.local/bin/claude.exe`) alors que Django tourne
+    dans WSL2. L'interop le lance, mais **seulement avec un environnement propre** — sinon
+    l'appel meurt sur `C:/Program: No such file or directory`. Même correctif que ci-dessus.
+  - ⚠⚠ **Coût de base élevé** : « réponds uniquement OK » → `total_cost_usd ≈ 0,99` en 3,3 s,
+    parce que Claude Code charge le **contexte du projet** (CLAUDE.md + arborescence) à chaque
+    invocation. Le coût dépend donc du **dépôt**, pas de la longueur de la question : réserver
+    l'outil aux tâches qui valent ce contexte (audit, cartographie), pas au bavardage.
+  - Sécurité : **lecture seule par défaut** (`Read/Grep/Glob`) ; `write=True` sur intention
+    explicite ; garde **écrite dans le corps de la fonction** et non dans le gating d'app (un
+    outil sans app est autorisé à tous) ; les **deux vocabulaires de rôle** sont acceptés
+    (groupes `dev`/`developpeur`, tiers `developpeur`/`admin` — homonymes trompeurs).
+- **Contexte historique — VÉRIFIÉ POSSIBLE le 2026-08-20** (ça ne l'était pas lors du premier examen) :
   depuis juin 2026, l'usage programmatique par le titulaire de l'abonnement est supporté et
   couvert par les CGU, avec un crédit mensuel dédié qui n'entame pas l'usage interactif.
   Chemin : `claude setup-token` (token OAuth) → `claude -p "…" --output-format json` en
