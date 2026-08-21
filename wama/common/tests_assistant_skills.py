@@ -126,3 +126,69 @@ class InjectionDansLeMoteurTests(TestCase):
         systeme = self._prompt_systeme(domain='science')
         self.assertIn('in French', systeme)
         self.assertNotIn('{LANGUE}', systeme)
+
+
+class ChargementParLAssistantTests(TestCase):
+    """
+    L'assistant choisit LUI-MÊME sa compétence — arbitrage Fabien (2026-08-21).
+
+    Le choix n'appartient ni à la surface (une vue web, un adaptateur de canal), ni à une
+    heuristique sur le nom d'un salon : un canal porte le nom d'un projet de recherche, pas
+    d'une discipline. Il appartient au modèle, dans la boucle à outils qui existe déjà.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create(username='chercheur')
+
+    def test_outil_present_et_decrit(self):
+        """Un outil non DÉCRIT est un outil que l'assistant ne saura jamais appeler."""
+        from wama.tool_api import TOOL_REGISTRY, tool_descriptions
+        self.assertIn('charger_competence', TOOL_REGISTRY)
+        self.assertIn('domaine', str(tool_descriptions()['charger_competence']))
+
+    def test_rend_la_consigne_du_bon_domaine(self):
+        from wama.tool_api import execute_tool
+        science = execute_tool('charger_competence', {'domaine': 'science'}, self.user)
+        design = execute_tool('charger_competence', {'domaine': 'design'}, self.user)
+
+        self.assertEqual(science['domaine'], 'science')
+        self.assertIn('MEASURED', science['consigne'])
+        self.assertIn('logo', design['consigne'].lower())      # posture distincte
+
+    def test_domaine_inconnu_retombe_sur_le_defaut(self):
+        from wama.tool_api import execute_tool
+        r = execute_tool('charger_competence', {'domaine': 'nimportequoi'}, self.user)
+        self.assertEqual(r['domaine'], sk.DOMAINE_DEFAUT)
+
+    def test_les_competences_sont_annoncees_au_prompt_systeme(self):
+        """Sans annonce, l'assistant ignore que ces compétences existent."""
+        capture = {}
+
+        def _faux_llm(messages, llm_model, provider):
+            capture['system'] = messages[0]['content']
+            return 'ok', {'input_tokens': 0, 'output_tokens': 0}
+
+        with patch.object(assistant_engine, '_llm_call', side_effect=_faux_llm):
+            assistant_engine.run_assistant_turn(self.user, 'bonjour')
+
+        self.assertIn('charger_competence', capture['system'])
+        self.assertIn('`science`', capture['system'])
+
+    def test_le_domaine_actif_n_est_pas_re_annonce(self):
+        capture = {}
+
+        def _faux_llm(messages, llm_model, provider):
+            capture['system'] = messages[0]['content']
+            return 'ok', {'input_tokens': 0, 'output_tokens': 0}
+
+        with patch.object(assistant_engine, '_llm_call', side_effect=_faux_llm):
+            assistant_engine.run_assistant_turn(self.user, 'bonjour', domain='science')
+
+        self.assertNotIn('- `science`', capture['system'])
+
+    def test_annoncer_coute_bien_moins_que_tout_charger(self):
+        """La raison d'être de l'annonce : la fenêtre des modèles locaux est étroite."""
+        annonce = len(sk.annonce_des_competences())
+        entiers = sum(len(sk.consigne_de_role(d.cle)) for d in sk.DOMAINES)
+        self.assertLess(annonce, 600)
+        self.assertLess(annonce * 5, entiers)     # au moins 5× moins cher

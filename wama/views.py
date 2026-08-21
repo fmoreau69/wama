@@ -128,6 +128,13 @@ def ai_chat(request):
         provider = data.get('provider', 'wama-dev-ai')  # Default to local
         model = data.get('model', 'fast')  # Default Ollama model
         history = data.get('history', [])  # Prior conversation turns
+        # Domaine d'intervention (`assistant_skills.DOMAINES`). Facultatif : sans lui,
+        # l'assistant part en `general` et charge lui-même la compétence dont il a besoin
+        # via l'outil `charger_competence`. Le passer ne sert qu'à l'AMORCER dans un
+        # domaine — utile quand la surface le sait d'avance (futur sélecteur d'UI).
+        # ⚠ Sans cette ligne, la surface WEB ne pouvait PAS amorcer un domaine, alors que
+        # l'API v1 le pouvait déjà : les deux surfaces divergeaient en silence.
+        domain = data.get('domain')
 
         if not message:
             return JsonResponse({'error': 'Message is required'}, status=400)
@@ -135,7 +142,7 @@ def ai_chat(request):
         # Moteur commun (assistant_engine) : cette vue n'est plus qu'une surface
         # cliente parmi N — même boucle à outils pour local ET cloud.
         result = run_assistant_turn(request.user, message, provider=provider,
-                                    model=model, history=history)
+                                    model=model, history=history, domain=domain)
 
         # Check for errors
         if 'error' in result:
