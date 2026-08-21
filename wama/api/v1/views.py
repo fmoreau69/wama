@@ -5,15 +5,18 @@ Exposes WAMA tools via DRF.
 Adding a tool to tool_api.TOOL_REGISTRY automatically makes it available here.
 
 Endpoints:
-  GET  /api/v1/tools/           → list available tools
-  POST /api/v1/tools/run/       → execute a tool
-  POST /api/v1/assistant/chat/  → one assistant conversation turn (agentic loop)
+  GET  /api/v1/tools/            → list available tools
+  POST /api/v1/tools/run/        → execute a tool
+  POST /api/v1/assistant/chat/   → one assistant conversation turn (agentic loop)
+  POST /api/v1/files/upload/     → deposit a file into the caller's space
+  GET  /api/v1/files/download/   → read back a file the caller may access
 """
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 
 from wama.tool_api import TOOL_REGISTRY, execute_tool, tool_descriptions
@@ -127,3 +130,73 @@ class AssistantChatView(APIView):
             return Response(result, status=result.pop("status", 500))
 
         return Response(result)
+
+
+class FileUploadView(APIView):
+    """
+    POST /api/v1/files/upload/   (multipart : champ `file`)
+
+    Dépose un fichier dans l'espace de l'APPELANT et rend son `path` relatif à MEDIA_ROOT —
+    la clé que les outils de l'assistant (`list_user_files`, `add_to_<app>`) consomment.
+
+    POURQUOI CET ENDPOINT EXISTE (2026-08-21). `/filemanager/api/upload/` est écrit pour un
+    NAVIGATEUR : il n'a pas d'authentification par token, et son `get_user()` retombe sur
+    l'utilisateur ANONYME PARTAGÉ hors session. Un bot porteur d'un token (Matrix/Tchap,
+    Discord — `ROADMAP.md` §19) s'y voyait refusé par CSRF ; et dans tout montage qui
+    contournerait le CSRF, il aurait déposé ses fichiers dans l'espace anonyme au lieu de
+    celui du membre du labo, SANS ERREUR. Sans cette porte, la passerelle ne peut pas
+    recevoir de pièce jointe du tout.
+
+    Le geste d'enregistrement est PARTAGÉ avec la vue web
+    (`filemanager.services.enregistrer_fichier_utilisateur`) — jamais recopié.
+    """
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        from wama.filemanager.services import enregistrer_fichier_utilisateur
+
+        fichier = request.FILES.get("file")
+        if fichier is None:
+            return Response(
+                {"error": "Aucun fichier : envoyer un multipart avec le champ 'file'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            depose = enregistrer_fichier_utilisateur(request.user, fichier)
+        except Exception as exc:  # pragma: no cover — dépend du stockage
+            return Response({"error": str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response(depose, status=status.HTTP_201_CREATED)
+
+
+class FileDownloadView(APIView):
+    """
+    GET /api/v1/files/download/?path=<chemin relatif à MEDIA_ROOT>
+
+    Rend le fichier si l'appelant y a droit. Pendant token de `/filemanager/api/download/` :
+    les `output_url` que les outils `get_*_status` renvoient exigent une SESSION, donc un bot
+    ne peut pas récupérer un résultat sans cette porte — il doit re-télécharger ici puis
+    re-poster la pièce jointe dans son canal.
+
+    La garde d'accès est celle du filemanager (`is_path_allowed`, dérivée d'APP_CATALOG,
+    scopée par `user.id`, refusant le segment `..`) — réutilisée via
+    `filemanager.services.resoudre_chemin_lisible`, JAMAIS réimplémentée : dupliquer une
+    garde de sécurité, c'est garantir que les deux copies divergent.
+    """
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from django.http import FileResponse
+
+        from wama.filemanager.services import resoudre_chemin_lisible
+
+        chemin, erreur = resoudre_chemin_lisible(request.user, request.query_params.get("path"))
+        if erreur is not None:
+            message, code = erreur
+            return Response({"error": message}, status=code)
+
+        return FileResponse(open(chemin, "rb"), as_attachment=True, filename=chemin.name)

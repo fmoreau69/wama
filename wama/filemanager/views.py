@@ -636,20 +636,12 @@ def api_upload(request):
                     })
                     continue
 
-            # Standard upload (no folder structure)
-            user_file = UserFile.objects.create(
-                user=user,
-                file=file,
-                original_name=file.name,
-                mime_type=file.content_type or mimetypes.guess_type(file.name)[0] or '',
-                file_size=file.size,
-            )
-            uploaded.append({
-                'id': user_file.id,
-                'name': user_file.original_name,
-                'path': user_file.file.name,
-                'size': user_file.file_size,
-            })
+            # Dépôt simple (sans arborescence) — geste PARTAGÉ avec la surface token
+            # `/api/v1/files/upload/` (un bot de canal ne peut pas passer par cette vue :
+            # ni token, ni CSRF, et `get_user()` retomberait sur l'utilisateur ANONYME).
+            # Une seule implémentation : cf. `filemanager/services.py`.
+            from .services import enregistrer_fichier_utilisateur
+            uploaded.append(enregistrer_fichier_utilisateur(user, file))
         except Exception as e:
             logger.error(f"Error uploading file {file.name}: {e}")
 
