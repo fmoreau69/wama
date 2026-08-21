@@ -323,11 +323,14 @@ def reindex(*, lot=64, limite=None, modeles_obsoletes=False, dry_run=False):
     vectoriels ne cohabitent que le temps du réindex, et on sait lesquels restent à refaire.
     """
     from ..models import MemoryItem, RagChunk
-    from .embed import EMBEDDING_MODEL, decharger, embed_batch, embedder_disponible
+    from .embed import (EMBEDDING_MODEL, decharger, embed_batch, embedder_disponible,
+                        liberer, reserver, residence_autorisee)
 
     #: Résidence tenue PENDANT le réindex — cf. `embed_batch`. Décharger entre chaque lot
     #: imposerait ~15 cycles charge/décharge sur 940 éléments, et c'est un enchaînement de
     #: chargements qui a précédé le crash du 2026-08-20. On décharge UNE fois, à la fin.
+    #: ⚠ MAIS c'est le GOUVERNEUR qui autorise, pas cette constante : si la VRAM est prise,
+    #: on retombe sur le déchargement par lot — plus lent, jamais concurrent d'un traitement.
     RESIDENCE_REINDEX = '5m'
 
     resume = {'embedder_disponible': embedder_disponible(), 'traites': 0, 'echecs': 0,
@@ -337,6 +340,17 @@ def reindex(*, lot=64, limite=None, modeles_obsoletes=False, dry_run=False):
         # aurait dépensé une série d'appels réseau pour rien.
         logger.warning("[memory] reindex : embedder indisponible (modèle tiré ? Ollama démarré ?)")
         return resume
+
+    # ── Le GOUVERNEUR décide de la résidence, pas ce module ────────────────────────────
+    # `effective_free_gb()` déduit ce que les AUTRES process ont réservé sans l'avoir encore
+    # alloué : un job imager qui s'apprête à prendre 16 Go est donc vu AVANT qu'il n'alloue.
+    # Refus ⇒ on retombe sur le déchargement par lot : plus lent, mais jamais en concurrence
+    # avec un traitement utilisateur. L'incertitude ne se résout jamais en occupant.
+    autorisee, pourquoi = (False, 'dry-run') if dry_run else residence_autorisee()
+    resume['residence'] = f"{'accordée' if autorisee else 'refusée'} ({pourquoi})"
+    keep_alive = RESIDENCE_REINDEX if autorisee else '0'
+    if autorisee:
+        reserver()
 
     from django.db.models import Q
     manquant = Q(embedding__isnull=True)
@@ -355,8 +369,7 @@ def reindex(*, lot=64, limite=None, modeles_obsoletes=False, dry_run=False):
             paquet = list(qs[:lot])
             if not paquet:
                 break
-            vecteurs = embed_batch([o.content for o in paquet],
-                                   keep_alive=RESIDENCE_REINDEX)
+            vecteurs = embed_batch([o.content for o in paquet], keep_alive=keep_alive)
             if not vecteurs:
                 # Lot perdu : on ARRÊTE au lieu de boucler. Les lignes restent sans vecteur (elles
                 # seront reprises au prochain passage) — insister ferait tourner à vide.
@@ -375,8 +388,14 @@ def reindex(*, lot=64, limite=None, modeles_obsoletes=False, dry_run=False):
         resume['restants'] = max(0, resume['restants'] - resume['traites'])
         # Point final OBLIGATOIRE : la résidence tenue pendant l'opération ne doit pas lui
         # survivre. Sans ce déchargement, on aurait remplacé 15 cycles par un squat de VRAM.
+        # ⚠ Les DEUX gestes, toujours ensemble : `decharger()` libère la VRAM (Ollama),
+        # `liberer()` retire la ligne du registre (comptabilité). N'en faire qu'un laisserait
+        # soit un modèle en VRAM que personne ne sait là, soit une réservation fantôme qui
+        # ferait refuser de la place à un autre process pour rien.
         if resume['traites']:
             resume['decharge'] = decharger()
+        if autorisee:
+            liberer()
     return resume
 
 

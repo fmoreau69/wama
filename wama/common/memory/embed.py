@@ -114,6 +114,70 @@ def embed_batch(texts, *, model: str = '', timeout: float = TIMEOUT_S, keep_aliv
     return vecteurs
 
 
+#: Empreinte VRAM de `bge-m3` — MESURÉE le 2026-08-21 (5926 Mo résident − 4903 après
+#: déchargement), pas estimée d'après la taille du fichier.
+VRAM_GB = 1.0
+
+#: Détenteur déclaré au gouverneur. Convention `<qui>#<clé catalogue>` (`OWNER_MODEL_SEP`) :
+#: c'est ce qui permet à `resident_models()` de rattacher la réservation au modèle du catalogue.
+OWNER = 'memory-embed#ollama:bge-m3:latest'
+
+
+def residence_autorisee(gb: float = VRAM_GB) -> tuple[bool, str]:
+    """
+    Demande au GOUVERNEUR s'il y a de la place pour garder l'embedder résident.
+
+    Rend `(autorisée, raison)`. C'est LUI qui arbitre, pas ce module : `effective_free_gb()`
+    déduit ce que les AUTRES process ont réservé sans l'avoir encore alloué — donc un job imager
+    qui s'apprête à prendre 16 Go est vu AVANT qu'il n'alloue. Une résidence écrite en dur
+    (`keep_alive='5m'`) ignorerait cela et garderait `bge-m3` en VRAM pendant ce chargement,
+    exactement le motif d'enchaînement qui a précédé le crash du 2026-08-20.
+
+    Best-effort : gouverneur indisponible ⇒ (False, …). On dégrade vers le déchargement immédiat,
+    jamais vers une résidence non arbitrée — l'incertitude ne doit pas se résoudre en occupant.
+    """
+    try:
+        from ..services.resource_governor import effective_free_gb
+
+        libre = effective_free_gb(exclude=OWNER)
+    except Exception:
+        return False, 'gouverneur indisponible'
+    if libre <= 0:
+        return False, 'VRAM libre inconnue ou nulle'
+    # Marge : on ne prend pas la dernière once. Rester résident ne doit jamais être la raison
+    # pour laquelle un traitement utilisateur échoue à charger.
+    if libre < gb * 3:
+        return False, f'{libre:.1f} Go libres — insuffisant pour {gb:.1f} Go avec marge'
+    return True, f'{libre:.1f} Go libres'
+
+
+def reserver(gb: float = VRAM_GB) -> bool:
+    """Déclare la résidence au gouverneur, pour que les AUTRES process la voient."""
+    try:
+        from ..services.resource_governor import mark_used, reserve_vram
+
+        ok = reserve_vram(OWNER, gb)
+        mark_used(OWNER)          # horodate : `idle_models()` peut réclamer la place plus tard
+        return ok
+    except Exception:
+        return False
+
+
+def liberer() -> bool:
+    """
+    Libère la réservation. ⚠ COMPTABILITÉ SEULEMENT — le déchargement réel, c'est `decharger()`.
+
+    Les deux vont toujours ensemble : libérer sans décharger laisserait le modèle en VRAM sans
+    que personne ne le sache, ce qui est pire qu'une résidence déclarée.
+    """
+    try:
+        from ..services.resource_governor import release_reservation
+
+        return release_reservation(OWNER)
+    except Exception:
+        return False
+
+
 def decharger(model: str = '') -> bool:
     """
     Décharge le modèle d'embedding de la VRAM, tout de suite. Rend True si la demande a abouti.
