@@ -5289,13 +5289,32 @@ les smokes audio, à garder).
 4. **Extraction de l'assistant WEB au commun** — le moteur est sorti (`assistant_engine.py`,
    chantier canaux), mais les ~500 lignes de JS inline de `home.html` restent à extraire.
 
+### ⚠ DETTE RELEVÉE PAR FABIEN LE 21/08 — le suivi du portage est en partie FAUX
+> « J'ai cru voir pas mal de fausseté dans le suivi du portage dans PROJECT_STATUS. »
+> **Constat confirmé sur les deux lignes que j'ai eu à toucher ce jour** : l'anti-race était
+> décrit à tort comme manquant, *deux fois et en sens opposés* (§770 et §1620), parce que le
+> constat reposait sur un grep de `select_for_update` qui ne voit pas la brique commune qui
+> l'a remplacé. **Rien ne garantit que les autres items ⑤⑥⑦⑧⑨ de ces tableaux soient à jour** :
+> ils datent d'avant plusieurs vagues de portage.
+> 👉 **À traiter dans une SESSION DE PORTAGE dédiée**, pas au fil de l'eau : re-mesurer chaque
+> item contre le code (la grille `check_app_conformity` ne couvre que les 72 critères mesurés,
+> ces listes-ci sont déclaratives et dérivent). Méthode qui a marché ici : pour chaque item,
+> **tracer le consommateur runtime** avant de conclure — jamais un grep de symbole.
+
 ### ⏳ PENDINGS SYSTÈME (hors code)
 - **Pile WAMA ARRÊTÉE** : `wsl --shutdown` lancé pour libérer les fichiers d'échange orphelins.
   À relancer (`start_wama_prod.sh --fast`).
 - **Crash hôte du 21/08 ~14:14** pendant l'essai de l'avatar — analyse complète dans la fiche
-  mémoire des crashs. **+11,7 Go récupérés sur C:** (14,5 → 26,2). Gisement restant : cache
-  `pip` 25,8 Go. ⚠ **Deux de mes affirmations sur ce crash étaient fausses et sont corrigées**
-  (taille de dump ; `.ollama` est un lien vers D:).
+  mémoire des crashs. ⚠ **Deux de mes affirmations sur ce crash étaient fausses et sont
+  corrigées** (taille de dump : un dump « automatique » est un dump NOYAU, 14,5 Go suffisaient ;
+  `.ollama` est un LIEN vers D:, il n'occupe rien sur C:).
+- **Disque : C: 14,5 → 52,1 Go libres (+37,6 Go, 4,1 % → 15 %)** — `swap.vhdx` WSL2 orphelin
+  (8 Go, laissé par un arrêt brutal : **chaque crash en produit un**), cache `pip` (25,8 Go),
+  temp > 7 jours. **Décisions restantes, volontairement NON prises** : clichés instantanés
+  **~58 Go** (= perdre les points de restauration, mauvais moment vu l'instabilité matérielle),
+  compactage de `ext4.vhdx` (49,6 Go, manipule le disque qui porte la distro), corbeille.
+  **D: reste à 35,5 Go** : ses deux postes (`AI-models` 312 Go, `.ollama` 107 Go) sont légitimes,
+  y gagner de la place est une décision produit (élaguer des modèles).
 - **627 commits** d'écart avec `origin/dev` (historique réécrit) — push géré par Fabien.
 
 ### Contrôles attendus au prochain /reprise
