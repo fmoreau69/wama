@@ -81,11 +81,18 @@ def _chat_model_options():
 def home(request):
     """Home page view with admin check for AI chat."""
     is_admin = request.user.is_staff if request.user.is_authenticated else False
+    # Voix de l'assistant DÉRIVÉES de la langue du profil (brique commune) au lieu des 3
+    # options écrites en dur dans le gabarit — qui ignoraient `preferred_language` et 13 des
+    # 16 voix disponibles. `preferred_language` vient déjà du context processor global, mais
+    # la LISTE doit être construite côté serveur : c'est là que vit la table des voix.
+    from wama.common.tts.voices import choix_voix
+    langue = getattr(getattr(request.user, 'profile', None), 'preferred_language', None) or 'fr'
     context = {
         'is_admin': is_admin,
         # Résolution catalogue à chaque rendu : 5 requêtes DB, uniquement pour l'admin
         # qui voit la surface chat.
         'chat_model_options': _chat_model_options() if is_admin else [],
+        'voix_assistant': choix_voix(langue),
     }
     return render(request, 'home.html', context)
 

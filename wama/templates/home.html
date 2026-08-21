@@ -186,7 +186,12 @@
           return;
         }
         recognition = new SR();
-        recognition.lang = 'fr-FR';
+        // Langue d'écoute = celle du profil, plus 'fr-FR' en dur : un utilisateur anglophone
+        // dictait à un moteur réglé sur le français. `preferred_language` vient du context
+        // processor global. Normalisation BCP-47 : la Web Speech API attend la région en
+        // MAJUSCULES ('zh-cn' du profil → 'zh-CN'), une langue nue ('fr', 'en') restant valide.
+        recognition.lang = ('{{ preferred_language|default:"fr" }}')
+            .replace(/-(\w+)$/, function (_, region) { return '-' + region.toUpperCase(); });
         recognition.interimResults = false;
         recognition.maxAlternatives = 1;
         isRecording = true;
@@ -584,10 +589,15 @@
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h4 class="mb-0"><i class="fas fa-comments"></i> AI Assistant</h4>
           <div class="d-flex gap-2 align-items-center">
+            {% comment %}
+              Voix GÉNÉRÉES depuis la langue du profil (vue home → common/tts/voices.choix_voix).
+              Trois options étaient écrites en dur ici — elles ignoraient `preferred_language`
+              et 13 des 16 voix de la table. La première est celle de la langue préférée.
+            {% endcomment %}
             <select id="ai-voice-select" class="form-select form-select-sm" style="background:#1a1d21;border:1px solid #495057;color:#fff;width:auto;">
-              <option value="ff_siwis">FR Féminin</option>
-              <option value="am_adam">EN Masculin</option>
-              <option value="af_heart">EN Féminin</option>
+              {% for v in voix_assistant %}
+              <option value="{{ v.valeur }}"{% if forloop.first %} selected{% endif %}>{{ v.libelle }}</option>
+              {% endfor %}
             </select>
             <button id="ai-voice-toggle" class="btn btn-outline-secondary btn-sm" title="Activer la vocalisation">
               <i class="fas fa-volume-mute"></i>
