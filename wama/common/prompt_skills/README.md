@@ -1,4 +1,19 @@
-# Skills de prompt (consignes d'enrichissement par application)
+# Skills de prompt
+
+> ⚠ **DEUX FAMILLES COHABITENT ICI, avec des contrats OPPOSÉS.** Les confondre coûte une
+> passe LLM inutile (enrichir un prompt déjà enrichi) ou un assistant sans posture.
+>
+> | Famille | Fichiers | Destinataire | Contrat |
+> |---|---|---|---|
+> | **Enrichissement** | `imager-image.md`, `composer-music.md`, `default-generative.md`… | le LLM d'**enrichissement**, au lancement d'une tâche d'app | transforme un prompt ; **sortie = le prompt enrichi SEUL** |
+> | **Rôle** (2026-08-21) | `assistant-*.md` | l'**assistant lui-même**, dans son prompt système | ne transforme rien ; définit une posture, un domaine, des interdits |
+>
+> Les skills de rôle sont déclarés dans `common/utils/assistant_skills.py::DOMAINES` (avec
+> leur besoin de contexte RAG) et injectés par `assistant_engine`. **Ajouter un domaine =
+> une entrée au registre + un fichier `assistant-<clé>.md`** — aucune vue à modifier.
+> Le reste de ce document décrit la famille **enrichissement**.
+
+## Enrichissement (consignes par application)
 
 > Contrat consommé par `common/utils/prompt_skills.py` (voir sa docstring pour la résolution
 > `<app>-<domain>` → `<app>` → `default-<kind>`). Sources d'appel : pipeline de prompts

@@ -231,6 +231,10 @@ MECANISMES = (
     Mecanisme('llm', 'Accès LLM',
               "Route unique vers les LLM (tiers déclaratifs, sélection catalogue, Ollama local)",
               'wama/common/utils/llm_utils.py', ''),
+    Mecanisme('assistant_skills', "Skills de rôle de l'assistant",
+              "Posture et domaine de l'assistant (science, design, dev) + rappel du "
+              "contexte de laboratoire, déclarés par domaine — distinct de l'enrichissement",
+              'wama/common/utils/assistant_skills.py', 'ROADMAP.md §19.7'),
     Mecanisme('claude_code', "Claude Code sur abonnement",
               "Délègue une tâche de développement au CLI Claude Code en headless — "
               "lecture seule par défaut, environnement construit sans la clé API",

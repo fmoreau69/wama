@@ -2357,6 +2357,41 @@ Question de Fabien (21/08) : « plusieurs conversations en parallèle, et le mul
 
 </details>
 
+### 19.7 Skills de RÔLE de l'assistant + contexte du laboratoire — ✅ LIVRÉ 2026-08-21
+
+> **Recadrage de Fabien, justifié.** J'avais conclu « rien à câbler » après avoir vérifié que
+> l'enrichissement des prompts de génération se faisait déjà dans les apps
+> (`process_prompt_for`). C'était répondre à côté : il ne parlait pas d'enrichir des prompts,
+> mais de donner à **l'assistant** un rôle, un domaine et la connaissance du laboratoire.
+
+⚠ **Deux natures de skills, aux contrats opposés** — les confondre coûte une passe LLM
+inutile (enrichir un prompt déjà enrichi) ou un assistant sans posture :
+
+| Famille | Destinataire | Contrat | Où |
+|---|---|---|---|
+| **Enrichissement** (`imager-image`…) | LLM d'enrichissement, au lancement d'une tâche | transforme un prompt, rend le prompt seul | dans l'app (`process_prompt_for`) |
+| **Rôle** (`assistant-*`) | l'assistant lui-même | ne transforme rien : posture, domaine, interdits | prompt système (`assistant_engine`) |
+
+**4 domaines déclarés** (`common/utils/assistant_skills.py::DOMAINES`) : `general`,
+`science` (RAG), `design` (RAG), `dev`. Ajouter un domaine = une entrée au registre + un
+fichier `assistant-<clé>.md`, **aucune vue à modifier**.
+
+**Le contexte du laboratoire** est ce qui rend l'assistant « du labo » plutôt que générique —
+sans lui, « propose-moi un logo pour le Lescot » oblige à redécrire le laboratoire à chaque
+demande, ce qui vide le RAG de sa raison d'être. Trois gardes : **déclaré** (seuls les
+domaines `rag=True` paient la recherche — pas de vectoriel sur « où en est ma
+transcription ? ») ; **data-gated** (aucun extrait pertinent → prompt **inchangé**, jamais de
+bruit injecté) ; **fail-safe** (toute panne rend `''` — le RAG est un bonus de contexte, pas
+une dépendance de la conversation). Chaque extrait porte sa **référence** : un contexte sans
+provenance n'est pas vérifiable.
+
+`domain` est propagé sur `run_assistant_turn`, `tour_de_conversation` et
+`/api/v1/assistant/chat/`. Rétro-compatible : sans domaine, rôle `general`, aucun rappel.
+
+**⏳ Reste** : le sélecteur de domaine dans l'UI web (`domaines_pour_ui()` est prêt et dérivé
+du registre) et, côté passerelle, la déduction du domaine depuis le canal (un salon `#dev`
+→ domaine `dev`). ⚠ L'UI touche `home.html`, fichier disputé — cf. §19.6 ②.
+
 ### 19.6 ⚠ CONTRAT À DÉFENDRE entre les 3 chantiers de l'assistant (posé le 2026-08-21)
 
 Trois instances travaillent en parallèle sur l'assistant : **mémoire & RAG**, **avatar
