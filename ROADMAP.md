@@ -2197,30 +2197,68 @@ en cours de livraison dans une autre instance (`WAMA_MEMORY.md`). `history` rest
 le client à chaque tour (localStorage côté web, store du bot côté canal), exactement comme
 avant. La jonction se fera **sans changer la signature** de `run_assistant_turn`.
 
-### 19.1 Passerelle — cœur commun + adaptateurs ⏳
+### 19.0bis Portes FICHIERS de l'API v1 — ✅ LIVRÉ 2026-08-21
+
+Trou trouvé **en vérifiant, pas en supposant** : `/filemanager/api/…` est écrit pour un
+navigateur — aucune authentification par token, et son `get_user()`
+(`filemanager/views.py:22`) retombe sur l'**utilisateur anonyme partagé** hors session. Un
+bot porteur d'un token s'y voyait refuser par CSRF ; et dans tout montage contournant le
+CSRF, il aurait déposé les fichiers dans l'espace **anonyme** au lieu de celui du membre du
+labo, **sans aucune erreur**. Sans ces portes, la passerelle ne peut ni recevoir une pièce
+jointe ni rendre un résultat — préalable **dur**, pas un confort.
+
+| Livrable | État |
+|---|---|
+| `POST /api/v1/files/upload/` (multipart `file`) → `{id,name,path,size}` | ✅ |
+| `GET /api/v1/files/download/?path=…` | ✅ |
+| `filemanager/services.py` — geste de dépôt **partagé** avec la vue web, qui l'adopte | ✅ |
+| Gardes prouvées : tiers → 403, traversée `..` → 403 (3 formes), non-régression vue web | ✅ |
+
+⚠ La garde d'accès reste `is_path_allowed()` **réutilisée telle quelle** — dupliquer une
+garde de sécurité est la pire espèce de duplication : les deux copies divergent, et c'est
+la moins relue qui laisse passer. Corollaire préservé : ajouter une app à `APP_CATALOG`
+continue de suffire pour que ses fichiers deviennent accessibles.
+
+### 19.1 Passerelle — cœur commun + adaptateurs 🔄
 
 ```
 Tchap/Matrix ──┐
 Discord ───────┤→  passerelle (1 process, N adaptateurs)  →  /api/v1/assistant/chat/
 (futur…) ──────┘                                             /api/v1/tools/run/
+                                                             /api/v1/files/{upload,download}/
 ```
 
 Un **cœur commun** (appariement d'identité, entrée/sortie de fichiers, formatage) + un
 **adaptateur mince par protocole** — jamais de logique métier dans un adaptateur.
 
-- **Appariement d'identité** (point de sécurité central) : `/link` dans le canal → code court
-  → collé dans le profil WAMA → liaison `identité-canal ↔ user Django ↔ token`. Sans
-  appariement, le bot ne répond rien. Le gating F7 s'applique ensuite **inchangé** (les outils
-  passent toujours par `execute_tool`).
-- **Fichiers — entrée** : pièce jointe → `POST /filemanager/api/upload/` puis
-  `POST /filemanager/api/import/` (les `import_to_<app>` existent pour les 10 apps).
-- **Fichiers — sortie** : ⚠ les `output_url` des `get_*_status` exigent une SESSION. Le bot
-  doit re-télécharger par l'API token et re-poster en pièce jointe (au-delà d'une taille
-  limite : lien vers WAMA).
-- **Chiffrement** : prévoir E2EE dès le départ côté Matrix (salons Tchap chiffrés,
-  `matrix-nio[e2e]` + store de clés) — pas un ajout ultérieur.
-- **Discord** : les slash commands peuvent être **générées depuis `TOOL_REGISTRY`**
-  (métadonnée-driven jusque dans Discord), pas écrites à la main.
+**✅ Appariement d'identité — LIVRÉ 2026-08-21** (`wama/gateway/`, mécanisme
+`gateway_identity`). Le canal **propose**, WAMA **dispose** : la personne demande la liaison
+dans le canal → code court ; elle le saisit **déjà connectée à WAMA** → c'est cette session
+authentifiée qui apporte la preuve, et la liaison est scellée sur SON compte. Un code volé
+dans une discussion ne sert donc qu'à se lier soi-même à l'identité du voleur — aucun accès.
+`compte_pour()` est la garde que tout adaptateur appelle avant d'agir ; elle rend `None`
+pour un inconnu, ce qui doit se traduire par une invitation à se lier, **jamais** par un
+traitement « en anonyme » (le piège mesuré en 19.0bis). 16 assertions vertes, scénarios
+d'attaque compris (usage unique, réappropriation, pilonnage, expiration, déliaison d'autrui).
+Décisions structurantes : app **hors `APP_CATALOG`** (sinon 0/72 dans la grille), **pas**
+nommée `channels` (collision Django Channels), **pas** de `ScopedVisibility` (un secret ne
+se partage pas — patron `UserProfile`).
+
+**⏳ Reste :**
+- **Le process** : où tourne la passerelle (cf. §19.4 ①) — c'est le prochain arbitrage.
+- **Adaptateur Matrix** puis **Discord** (dépendances à installer, §19.4 ②).
+- **Fichiers — entrée** : pièce jointe → `POST /api/v1/files/upload/` (✅ existe) puis
+  `POST /filemanager/api/import/` pour pousser vers une app — ⚠ **cet import-là est encore
+  session-only** : à porter en v1 au moment de câbler le premier adaptateur, même motif
+  qu'en 19.0bis.
+- **Fichiers — sortie** : les `output_url` des `get_*_status` exigent une session → le bot
+  re-télécharge via `/api/v1/files/download/` (✅) et re-poste en pièce jointe (au-delà
+  d'une taille limite : lien vers WAMA).
+- **Chiffrement** : E2EE prévu dès le départ côté Matrix (`matrix-nio[e2e]` + store de
+  clés) — pas un ajout ultérieur.
+- **Discord** : slash commands **générées depuis `TOOL_REGISTRY`**, pas écrites à la main.
+- **Rate-limit** par identité de canal (§19.4 ④) — l'appariement borne le *qui*, pas le
+  *combien*.
 
 ### 19.2 Notifications proactives — gain rapide, indépendant du bot ⏳
 

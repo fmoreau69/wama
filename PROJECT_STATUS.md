@@ -2490,7 +2490,25 @@ lignes (coupe par script à assertions, garde finale : aucun symbole déplacé n
 ⏳ **NON validé — pour Fabien** : le chat bout-en-bout au navigateur (demande un LLM ; je n'ai
 lancé aucune charge GPU). Vérifier la page d'accueil (surface admin) : réponse + appel d'outil.
 
-### 🔚 SUITE — 4 décisions à trancher AVANT de coder la passerelle (`ROADMAP.md` §19.4)
+### ✅ 2026-08-21 — 3 livraisons de plus (3 commits)
+| # | Livraison | Preuve |
+|---|---|---|
+| 1 | **Portes FICHIERS de l'API v1** (`files/upload/`, `files/download/`) + `filemanager/services.py`, geste de dépôt **partagé** avec la vue web qui l'adopte | 13 assertions : tiers → 403, traversée `..` → 403 (3 formes), non-régression vue web (contrat inchangé) |
+| 2 | **Appariement d'identité** (`wama/gateway/`, mécanisme `gateway_identity`) — le canal propose, WAMA dispose | **16/16**, scénarios d'attaque compris (usage unique, réappropriation, pilonnage, expiration, déliaison d'autrui) |
+| 3 | Consigne de **langue** posée sur les DEUX prompts concaténés | complète 5b91ef3 (autre instance) : le prompt d'outils gardait « Respond in French » en dur → 2 consignes contradictoires pour un profil `en` |
+
+⚠ **Trou trouvé en vérifiant** (motif de la livraison 1) : `/filemanager/api/…` n'a pas
+d'auth par token et son `get_user()` retombe sur l'**utilisateur anonyme partagé** hors
+session — un bot y aurait déposé ses fichiers dans l'espace anonyme **sans erreur**. Même
+motif encore ouvert sur `POST /filemanager/api/import/` (à porter en v1 au 1ᵉʳ adaptateur).
+
+⚠ `migrate` appliqué sur la base **LIVE (WSL2)** — création de table, additif. Migration
+**non versionnée** (`.gitignore:13`) → `makemigrations gateway && migrate` à rejouer ailleurs.
+
+### 🔚 SUITE — décisions à trancher (`ROADMAP.md` §19.4) — ① et ② deviennent bloquantes
+> ③ **corrigé le 21/08 sur reprise de Fabien** : **aucune démarche DINUM** si le domaine est
+> déjà autorisé (j'avais durci à tort). Vraie contrainte à la place : pas de compte de
+> service sur Tchap → **boîte mail accessible** pour le renouvellement ~annuel du compte bot.
 1. **Où tourne la passerelle** — process séparé (supervisor/systemd) ou commande Django longue ?
    (un bot Matrix/Discord est un client à socket persistant : ni Celery, ni gunicorn).
 2. **Dépendances à installer** : `matrix-nio[e2e]`, `discord.py` (+ `simplematrixbotlib` ?).
