@@ -211,6 +211,17 @@ message utilisateur (+ domaine transmis par la surface, sinon 'general')
    routage langue seul, pas d'enrichissement]
 ```
 
+**Le pivot API — `wama/tool_api.py`** : `TOOL_REGISTRY`, **51 outils** — triades
+`add_to_/start_/get_…_status` (déclaratives, marche A4) pour les apps + studio ; l'inventaire
+complet et ses trous vivent dans `WAMA_APP_GENERATION_ROUTE.md §11` (trou #18), pas ici. Ce qui
+appartient à CE document : les outils **IA-transverses** (gating `None` — aucune app ne les
+garde), exactement **8** au 2026-08-22 : `translate_text` (§2bis) · `memory_recall` (§3-4) ·
+`charger_competence` (§0bis) · `list_ai_models`/`get_ai_model` (§2ter) · `list_user_files` ·
+`switch_ui_mode` · `ask_claude_code` (garde développeur écrite DANS son corps, pas dans le
+registre — ne pas « corriger »). À venir : `list_my_items`/`get_item_detail` (jalon 12,
+`WAMA_MEMORY.md §9ter`). Toutes les surfaces (web, API v1 `/api/v1/assistant/chat/`, canaux
+Discord/Matrix — ROADMAP §19) passent par ce même pivot : ajouter un outil ICI l'offre partout.
+
 ⚠ **Contrat de surface** (ROADMAP §19 ①) : le tour d'assistant ne porte **jamais** d'audio — la
 TTS est une **étape cliente post-réponse** (`home.html` appelle `/api/tts-kokoro/` après coup),
 et les visèmes de l'avatar viendront d'un endpoint TTS distinct. C'est la contrepartie de « UN
@@ -255,6 +266,7 @@ sortie : modèle (pivot)   ──routage──▶ [output_translate ? traduire p
 - **ENTRÉE ✅** — vécue dans `process_prompt_for` (§2) : `lang_routing` DÉCIDE (capacités du
   modèle cible ; `_TYPE_LANG_DEFAULT` diffusion/music → EN), `translator` AGIT (translategemma,
   glossaire do-not-translate, passthrough si la langue est gérée → coût nul, silence si direct).
+  L'assistant dispose du même acteur en **outil explicite** : `translate_text` (transverse, §1).
 - **SORTIE ❌ non branchée** — mesuré le 2026-08-22 : le DÉCIDEUR existe (`routing_for_model`
   rend `output_translate`/`output_source`) et l'ACTEUR existe
   (`TranslatorService.translate_output`), mais **aucun appelant ne déclenche** — la pipeline
@@ -276,7 +288,9 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
 - **Assistant** : rôle → tier (`_ROLE_TIER` → `modele_par_tier`, catalogue — plus de table de
   tags, elle mourait à chaque remplacement de modèle) + **escalade par taille de contexte**
   (`_route_model_by_context` : conversation trop longue ⇒ modèle à plus grande fenêtre) +
-  fournisseurs **cloud** via `llm_chat` (LiteLLM, ROADMAP §8d — livré).
+  fournisseurs **cloud** via `llm_chat` (LiteLLM, ROADMAP §8d — livré). Le CATALOGUE est
+  exposé à l'assistant en lecture par deux outils transverses : `list_ai_models` /
+  `get_ai_model` (§1).
 - **Apps** : `select_model()` (model_manager) — VRAM-aware, `prefer_loaded`, capacités requises ;
   les tiers de `llm_utils` s'appuient dessus.
 - **Cible non atteinte** (§15 + ROADMAP §8d) : croiser **intention + fichiers d'entrée +
