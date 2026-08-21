@@ -767,7 +767,7 @@ accueil + /apps/ groupés + couleurs + liseré. Migration `describer 0008` appli
 
 | App | Score | Restes bloquants |
 |---|---|---|
-| **Transcriber** | ~90 % | ① start/start_all/batch_start SANS anti-race `select_for_update` (pattern CLAUDE.md — vérifié : 0 occurrence dans transcriber. ⚠ **la mention « describer seul l'a » était FAUSSE, corrigée le 2026-08-21** : `describer/views.py` n'en contient AUCUNE, et 8 fichiers en portent — avatarizer, composer, converter, enhancer, imager, synthesizer + `process_control`, `manifests/ingest`. Transcriber est donc en retard sur 6 apps, pas en avance sur 9) ; ② `stop()` sans `@require_POST` ; ③ bouton cycle inline `_transcript_card.html:87-91` au lieu de `_cycle_button.html` ; ④ card mère batch hand-made (A2-6) ; ⑤ sync card↔inspecteur manuelle 9 data-* + `_renderBatchActions` en chaînes JS (A3-12/13, vérifié index.js:1139) ; ⑥ `showToast`=alert (A6-26, vérifié index.js:104) ; ⑦ dropdown formats dupliqué partial+JS (A2-7 résiduel) ; ⑧ extractions de vue A5 : `_describe_audio`→media_probe, `_wrap_transcript_in_batch`/`_auto_wrap_orphans`→batch_common, agrégats→`build_batches_list`, prefs cache artisanales, SRT ×3, `clear_all` `.delete()` direct sans `safe_delete_file` ; ⑨ styles modales info/résultat (A4-15/16) |
+| **Transcriber** | ~90 % | ~~① start/start_all/batch_start SANS anti-race~~ ✅ **RÉSORBÉ — re-mesuré le 2026-08-21 (2ᵉ passe)** : le grep `select_for_update` induit en erreur, il ne voit QUE les occurrences littérales — or le verrou vit désormais dans la **brique commune `common/utils/process_control.begin_processing`**, adoptée par **10 apps sur 10** (anonymizer, avatarizer, composer, converter_01, describer, enhancer, imager, reader, synthesizer, transcriber). `transcriber/views.py` l'appelle **8 fois**, `describer/views.py` **7 fois** ; l'unique `select_for_update` du transcriber est dans un COMMENTAIRE (`views.py:462`) qui documente la brique. Les deux formulations antérieures étaient donc fausses en sens opposés (« describer seul l'a », puis « transcriber en retard sur 6 apps ») : **personne n'est en retard, la brique est adoptée partout**. Leçon : tracer le consommateur runtime, jamais conclure d'un grep de symbole ; ② `stop()` sans `@require_POST` ; ③ bouton cycle inline `_transcript_card.html:87-91` au lieu de `_cycle_button.html` ; ④ card mère batch hand-made (A2-6) ; ⑤ sync card↔inspecteur manuelle 9 data-* + `_renderBatchActions` en chaînes JS (A3-12/13, vérifié index.js:1139) ; ⑥ `showToast`=alert (A6-26, vérifié index.js:104) ; ⑦ dropdown formats dupliqué partial+JS (A2-7 résiduel) ; ⑧ extractions de vue A5 : `_describe_audio`→media_probe, `_wrap_transcript_in_batch`/`_auto_wrap_orphans`→batch_common, agrégats→`build_batches_list`, prefs cache artisanales, SRT ×3, `clear_all` `.delete()` direct sans `safe_delete_file` ; ⑨ styles modales info/résultat (A4-15/16) |
 | **Describer** | ~90 % | ① classe `.synthesis-card` (11× JS + 3× HTML) au lieu du contrat `.wama-card` ; ② **`wama-app-base.js` NON chargé** (seul des 3 — polling/CSRF locaux) ; ③ manipulation directe partielle : `consolidate` seul (pas de reorder/move_to_batch/remove_from_batch) ; ④ réglages user non persistés. Le reste est au niveau (card_html+refreshCard avec re-bind, anti-race, ETA seedée, exports late TXT/PDF/DOCX, toolbar) |
 | **Composer** | ~75 % | ① manipulation directe ABSENTE (0/4 endpoints, brique `consolidate_into_batch` non consommée) ; ② anti-race absent ; ③ descriptions modèles hardcodées `COMPOSER_MODELS` (model_config.py:34-101) au lieu du catalogue `AIModel` (points 9/10 checklist) ; ④ card mère batch = bandeau violet minimal sans ▶/compteurs/barre agrégée (B3-8) ; ⑤ styles inline `_generation_card.html` (B2-7) ; ⑥ 2 impls modale-batch à fusionner (A6-28) ; ⑦ réglages user via localStorage seul |
 
@@ -5259,3 +5259,48 @@ les smokes audio, à garder).
 - Redondances 8 → 0 (résorption `_params`→`declared_param_schemas` + `normalize_types`
   anonymizer + pragmas) ; corpus manifestes : les 3 « périmés » venv_win = faux positifs CODÉS
   en skip (le contrôle fait foi depuis WSL2).
+
+## §REPRISE — 2026-08-21 (instance CAPACITÉS / LANGUES / AVATAR) — 🔚 POINT D'ENTRÉE
+
+> Session ouverte sur le chantier avatar, élargie en amont : les capacités de moteur et les
+> langues le conditionnaient. **Point d'entrée = `ROADMAP §Études/veille` (avatars) + la fiche
+> mémoire `project-backend-capabilities`.**
+
+### ✅ LIVRÉ ET VÉRIFIÉ (13 commits)
+| # | Livraison | Preuve |
+|---|---|---|
+| 1 | **Capacités au contrat de backend COMMUN** (lots 0→4d) — les `supports_*` montent dans `BaseModelBackend` ; le catalogue les **LIT** au lieu de les écrire | 4 sources résorbées ; A/B `diff` vide ; E2E 8/8 |
+| 2 | **Borne de langue `timestamp_languages`** — une capacité peut être restreinte à certaines langues | dérivée de `KOKORO_LANG_MAP` (9 langues, pas 1) |
+| 3 | **Langues de l'assistant** — 4 durcissements levés (prompt système, défaut TTS, sélecteur, `recognition.lang`) | 22/22 serveur + 25/25 sur le HTML rendu |
+| 4 | **Brique `common/tts/voices.py`** — 2 calculs en miroir résorbés | 85/85 sur toute la table |
+| 5 | **`tools/install_wama.sh`** — l'orchestrateur d'installation qui n'existait pas | dry-run 9 étapes + existence des 12 cibles |
+| 6 | **three.js 0.180 + TalkingHead 1.7 vendorisés** via `update_vendors.sh` + importmap commune | reproduction **à l'octet** (md5) ; 15/15 |
+| 7 | **Pilote avatar** — l'assistant a un avatar 3D parlant (rendu navigateur, 0 VRAM serveur) | 21/21 sur la page rendue + assets servis en HTTP 200 |
+| 8 | **Ready Player Me est FERMÉ** (31/01/2026) — erreur de fait corrigée dans 3 documents | 4 hôtes HTTP 000 vs témoin github 200 |
+| 9 | **19 tests VERSIONNÉS** (`tests_capabilities_languages.py`) | 19/19 |
+
+### 🔚 CE QUI RESTE
+1. **L'avatar n'a JAMAIS été vu à l'écran** — le seul essai a fini en crash hôte. C'est le
+   premier geste de la prochaine session (et il exige une pile démarrée).
+2. **Volet droit masqué en mode simplifié** → l'avatar n'y a pas de domicile : second
+   emplacement à trancher (décision produit, pas technique).
+3. **Lip-sync FR estimé** (Kokoro n'horodate qu'en anglais) : l'A/B contre l'anglais exact
+   reste à jouer — profil en `en` = version alignée sur les vrais timestamps.
+4. **Extraction de l'assistant WEB au commun** — le moteur est sorti (`assistant_engine.py`,
+   chantier canaux), mais les ~500 lignes de JS inline de `home.html` restent à extraire.
+
+### ⏳ PENDINGS SYSTÈME (hors code)
+- **Pile WAMA ARRÊTÉE** : `wsl --shutdown` lancé pour libérer les fichiers d'échange orphelins.
+  À relancer (`start_wama_prod.sh --fast`).
+- **Crash hôte du 21/08 ~14:14** pendant l'essai de l'avatar — analyse complète dans la fiche
+  mémoire des crashs. **+11,7 Go récupérés sur C:** (14,5 → 26,2). Gisement restant : cache
+  `pip` 25,8 Go. ⚠ **Deux de mes affirmations sur ce crash étaient fausses et sont corrigées**
+  (taille de dump ; `.ollama` est un lien vers D:).
+- **627 commits** d'écart avec `origin/dev` (historique réécrit) — push géré par Fabien.
+
+### Contrôles attendus au prochain /reprise
+`check_docs` **2 CASSÉ / 0 périmée** (les 2 attendus) · `manifest_export --check` **corpus à jour
+(110)** · `manifest_roundtrip` fidélité OK ×10 · `doc_facts` **4/4 à jour** · `check_js` **55
+fichiers 0 erreur, 54 paires 0 divergente** · grille : converter 100, anonymizer/avatarizer/
+describer/transcriber 98, composer/enhancer/reader/synthesizer 97, imager 96 · `manage.py test
+wama.common.tests_capabilities_languages` **19/19**.
