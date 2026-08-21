@@ -28,22 +28,17 @@ from .services import ErreurAppariement, compte_pour, delier, demander_liaison
 
 logger = logging.getLogger(__name__)
 
-#: Historique de conversation EN MÉMOIRE, par (canal, identifiant de fil).
-#: ⚠ VOLATILE ET PROVISOIRE — la persistance serveur est différée (décision Fabien
-#: 2026-08-20, en attente de la jonction avec la brique mémoire/RAG). Conséquences assumées
-#: tant qu'elle n'existe pas : l'historique est perdu au redémarrage de la passerelle, et il
-#: ne serait pas partagé entre deux process. C'est le « store du bot » annoncé dans
-#: `ROADMAP.md` §19.0 — à REMPLACER par un vrai modèle `Conversation`, pas à étoffer.
-_HISTORIQUES: dict[tuple[str, str], list] = {}
-
-#: Tours conservés par fil (10 échanges). Le moteur retronque de son côté ; cette borne-ci
-#: existe pour que la mémoire du process ne croisse pas indéfiniment.
-MAX_TOURS = 20
-
 #: Longueur au-delà de laquelle une réponse est coupée par l'adaptateur. Chaque protocole a
 #: sa propre limite (Discord : 2000 caractères) — la valeur réelle est celle de l'adaptateur,
 #: celle-ci n'est qu'un repli.
 LIMITE_TEXTE = 2000
+
+# L'historique de conversation vivait ici, dans un dict EN MÉMOIRE DU PROCESS
+# (`_HISTORIQUES`) : perdu à chaque redémarrage de la passerelle, non partagé entre process,
+# et invisible depuis le web. Il est REMPLACÉ (2026-08-21) par le store commun
+# `common/services/conversation_store.py` — le même que la surface web, de sorte qu'un fil
+# ouvert dans Discord et la liste des conversations du navigateur parlent enfin de la même
+# chose. Le geste de la passerelle se résume désormais à nommer son fil (`_cle_fil`).
 
 
 @dataclass
@@ -85,9 +80,15 @@ AIDE = (
 )
 
 
-def _cle_fil(msg: MessageEntrant) -> tuple[str, str]:
-    """Un fil = une conversation. À défaut de fil déclaré, l'identité fait office de fil."""
-    return (msg.channel, msg.fil or msg.external_id)
+def _cle_fil(msg: MessageEntrant) -> str:
+    """
+    Clé du fil DANS sa surface — un salon/DM = une conversation.
+
+    À défaut de fil déclaré par l'adaptateur, l'identité de la personne fait office de fil :
+    un canal qui n'a pas la notion de salon reste ainsi une conversation par interlocuteur,
+    jamais un fil global où tout le monde se mélangerait.
+    """
+    return msg.fil or msg.external_id
 
 
 def traiter_message(msg: MessageEntrant) -> Reponse:
@@ -149,11 +150,8 @@ def _traiter(msg: MessageEntrant) -> Reponse:
     if not texte and not deposes:
         return Reponse(texte=AIDE)
 
-    # ── Le tour d'assistant : MÊME moteur que la page web ───────────────────────
-    from wama.common.services.assistant_engine import run_assistant_turn
-
-    cle = _cle_fil(msg)
-    historique = _HISTORIQUES.get(cle, [])
+    # ── Le tour d'assistant : MÊME moteur ET MÊME store que la page web ─────────
+    from wama.common.services.assistant_engine import tour_de_conversation
 
     invite = texte
     if deposes:
@@ -161,18 +159,15 @@ def _traiter(msg: MessageEntrant) -> Reponse:
         entete = f"[Fichiers déposés dans mon espace WAMA : {liste}]"
         invite = f"{entete}\n{texte}" if texte else f"{entete}\nQue puis-je en faire ?"
 
-    resultat = run_assistant_turn(user, invite, history=historique)
+    # L'historique est résolu et persisté SERVEUR (plus de dict en mémoire du process) :
+    # la passerelle n'a qu'à nommer son fil.
+    resultat = tour_de_conversation(user, invite, surface=msg.channel,
+                                    thread_key=_cle_fil(msg))
 
     if 'error' in resultat:
         return Reponse(texte=f"⚠ {resultat['error']}")
 
-    reponse = resultat.get('response') or '(réponse vide)'
-    _HISTORIQUES[cle] = (historique + [
-        {'role': 'user', 'content': invite},
-        {'role': 'assistant', 'content': reponse},
-    ])[-MAX_TOURS:]
-
-    return Reponse(texte=reponse)
+    return Reponse(texte=resultat.get('response') or '(réponse vide)')
 
 
 def _deposer_pieces_jointes(user, pieces) -> list:

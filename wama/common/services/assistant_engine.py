@@ -373,11 +373,54 @@ def _sanitize_history(history) -> list:
     return clean
 
 
+def tour_de_conversation(user, message: str, *, surface: str = 'web', thread_key: str = '',
+                         provider: str = 'wama-dev-ai', model: str = 'fast') -> dict:
+    """
+    UN tour, avec historique PERSISTÉ côté serveur — la voie normale pour une surface.
+
+    Enveloppe `run_assistant_turn` : résout le fil `(user, surface, thread_key)`, fournit
+    son historique au moteur, puis enregistre l'échange. Le moteur, lui, reste SANS ÉTAT —
+    c'est ce qui permet de le tester sans base de données et de laisser intacts les clients
+    qui gèrent leur propre trace (`run_assistant_turn(history=…)`).
+
+    ⚠ BEST-EFFORT SUR LE STOCKAGE, JAMAIS SUR LA RÉPONSE : si le store est indisponible, on
+    répond quand même, sans historique. Un assistant muet parce que sa trace est cassée
+    serait un défaut bien pire que la perte de la trace.
+
+    Rend le dict du moteur, augmenté de `conversation_id`.
+    """
+    from wama.common.services import conversation_store
+
+    fil = None
+    historique = []
+    try:
+        fil = conversation_store.fil(user, surface=surface, thread_key=thread_key)
+        historique = conversation_store.historique(fil)
+    except Exception:
+        logger.exception("[ai_chat] store de conversation indisponible — tour sans historique")
+
+    resultat = run_assistant_turn(user, message, provider=provider, model=model,
+                                  history=historique)
+
+    if fil is not None and 'error' not in resultat:
+        try:
+            conversation_store.enregistrer_echange(fil, message, resultat)
+            resultat['conversation_id'] = fil.pk
+        except Exception:
+            logger.exception("[ai_chat] échange non enregistré (fil %s)", fil.pk)
+
+    return resultat
+
+
 def run_assistant_turn(user, message: str, provider: str = 'wama-dev-ai',
                        model: str = 'fast', history: list = None) -> dict:
     """
-    UN tour de conversation avec l'assistant WAMA — point d'entrée unique de toutes les
-    surfaces (vue web `ai_chat`, API v1 `assistant/chat/`, adaptateurs de canaux à venir).
+    UN tour de conversation avec l'assistant WAMA — cœur SANS ÉTAT, commun à toutes les
+    surfaces (vue web `ai_chat`, API v1 `assistant/chat/`, adaptateurs de canaux).
+
+    Pour un historique persisté côté serveur, préférer `tour_de_conversation()` ci-dessus ;
+    cette fonction-ci reste le point d'entrée quand l'appelant apporte son propre `history`
+    (harnais de test, client qui gère sa propre trace).
 
     Boucle agentique : si la réponse du LLM contient un appel d'outil JSON, l'outil est
     exécuté (porte unique `execute_tool`, gating F7 compris) et le résultat réinjecté dans

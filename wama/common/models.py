@@ -745,3 +745,110 @@ class RagChunk(Embedded, ScopedVisibility):
 
     def __str__(self):
         return f"{self.source_kind}:{self.source_id}#{self.ordinal}"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CONVERSATION — le fil de dialogue avec l'assistant  (ROADMAP §19.5)
+# ─────────────────────────────────────────────────────────────────────────────
+# POURQUOI UNE TROISIÈME TABLE, et surtout pas `MemoryItem`. La règle de ce module vaut ici
+# plus qu'ailleurs : deux natures de données ⇒ deux tables. Un tour de conversation est
+# RE-JOUABLE, PURGEABLE et VOLUMINEUX ; un `MemoryItem` n'est pas re-dérivable et n'est
+# JAMAIS purgé automatiquement. Les faire cohabiter reproduirait l'accident du 2026-08-19,
+# où une purge ciblée a détruit 13 évaluations LLM parce que deux natures partageaient une
+# table.
+#
+# La jonction avec la mémoire n'est donc PAS le stockage, c'est la PROJECTION : un fil clos
+# pourra produire un `MemoryItem` de provenance `assistant`, non approuvé par défaut
+# (`WAMA_MEMORY.md §6`). Elle n'est pas faite ici — elle viendra quand elle aura un usage.
+#
+# CE QUE ÇA REMPLACE : l'historique vivait CHEZ LE CLIENT — `localStorage` côté web (perdu
+# en changeant de navigateur, invisible depuis un autre appareil) et un dict EN MÉMOIRE DU
+# PROCESS côté passerelle (perdu à chaque redémarrage, non partagé entre process).
+
+
+class Conversation(models.Model):
+    """
+    Un fil de dialogue avec l'assistant, quelle que soit la surface qui le porte.
+
+    L'IDENTITÉ D'UN FIL est `(user, surface, thread_key)` : c'est ce qui permet à un DM
+    Discord, un salon Matrix et un onglet de navigateur d'être trois conversations
+    distinctes sans que le moteur ait à le savoir. La passerelle a déjà cette clé
+    (`gateway/core.py::_cle_fil`) ; le web fournit un identifiant d'onglet.
+    """
+
+    SURFACES = [
+        ('web', 'Navigateur'),
+        ('api', 'API'),
+        ('discord', 'Discord'),
+        ('matrix', 'Tchap / Matrix'),
+    ]
+
+    user = models.ForeignKey('auth.User', on_delete=models.CASCADE,
+                             related_name='conversations')
+    surface = models.CharField(max_length=16, choices=SURFACES, default='web',
+                               verbose_name='Surface')
+    #: Identifiant du fil DANS sa surface (id de salon Discord, id d'onglet web…).
+    #: Vide = fil unique de cette surface pour cet utilisateur.
+    thread_key = models.CharField(max_length=255, blank=True, default='',
+                                  verbose_name='Clé de fil')
+    #: Titre lisible — dérivé du premier message si personne ne le fixe.
+    title = models.CharField(max_length=200, blank=True, default='', verbose_name='Titre')
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Conversation'
+        verbose_name_plural = 'Conversations'
+        ordering = ['-updated_at']
+        constraints = [
+            # Un fil par (utilisateur, surface, clé). Sans cette contrainte, deux messages
+            # simultanés du même salon créeraient deux fils et l'historique se scinderait
+            # EN SILENCE — le genre de défaut qui ne se voit qu'au bout de trois semaines.
+            models.UniqueConstraint(fields=['user', 'surface', 'thread_key'],
+                                    name='conversation_unique_fil'),
+        ]
+        indexes = [models.Index(fields=['user', 'surface', 'thread_key'])]
+
+    def __str__(self):
+        return self.title or f"{self.get_surface_display()} #{self.pk}"
+
+    def titre_auto(self, message: str) -> str:
+        """Pose un titre depuis le premier message, si le fil n'en a pas encore."""
+        if self.title or not message:
+            return self.title
+        propre = ' '.join(message.split())[:80]
+        self.title = propre + ('…' if len(propre) == 80 else '')
+        self.save(update_fields=['title'])
+        return self.title
+
+
+class ConversationTurn(models.Model):
+    """
+    Un tour de conversation — ce que l'utilisateur a dit, ou ce que l'assistant a répondu.
+
+    `tool_steps` porte les outils réellement exécutés pendant le tour : c'est la trace qui
+    rend une conversation VÉRIFIABLE après coup (« qu'a-t-il lancé, avec quels arguments ? »),
+    et elle ne se reconstitue pas depuis le texte de la réponse.
+    """
+
+    ROLES = [('user', 'Utilisateur'), ('assistant', 'Assistant')]
+
+    conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE,
+                                     related_name='turns')
+    role = models.CharField(max_length=16, choices=ROLES)
+    content = models.TextField()
+    #: Étapes d'outil du tour (liste de {tool, args, result}) — vide pour un tour utilisateur.
+    tool_steps = models.JSONField(default=list, blank=True)
+    #: Modèle ayant produit la réponse — permet de comparer deux moteurs a posteriori.
+    model = models.CharField(max_length=120, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Tour de conversation'
+        verbose_name_plural = 'Tours de conversation'
+        ordering = ['created_at', 'pk']
+        indexes = [models.Index(fields=['conversation', 'created_at'])]
+
+    def __str__(self):
+        return f"{self.role}: {self.content[:60]}"
