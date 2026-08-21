@@ -326,14 +326,20 @@ de rencontre entre les deux chantiers).
 | 8 | Peuplement : `OrgUnit` + affiliations des profils | ❌ 0 en base | débloque le niveau labo SANS code (sync LDAP/SUPANN prévue) |
 | 9 | Surfaces du geste RAG + page de gestion (défaut de niveaux, retrait) | ⏳ jalon 14 | placement à trancher avec Fabien |
 | 10 | **Traduction de SORTIE** (§12 : `Traitement IA → Traduction sortie → Utilisateur`) | ❌ non branchée | décideur (`output_translate`) + acteur (`translate_output`) livrés, **zéro appelant** ; candidats = textes GÉNÉRÉS uniquement — jamais transcription/OCR (fidélité verbatim) |
-| 11 | **Parseur STRUCTUREL de document** (§13 : texte / figures / images-texte → traitement → réassemblage, mise en page conservée) | ❌ | aujourd'hui : `batch_parsers` (texte brut) + `comprehend_files` (grounding) — la STRUCTURE est perdue ; brique commune prévue pour Describer + futur Translator ; Docling « à évaluer » (§16.2) est ce candidat |
+| 11 | **Parseur STRUCTUREL de document** (§13 : texte / figures / images-texte → traitement → réassemblage, mise en page conservée) | partiel — **la moitié RENDU existe** | le RÉASSEMBLAGE/mise en forme est VIVANT (rappel de Fabien, vérifié 22/08) : `common/utils/html_render.py` — brique commune HTML→PDF à **2 moteurs** (Chromium headless/Playwright PRÉFÉRÉ : CSS complet + JS ; WeasyPrint en repli sans dépendance navigateur), consommée par le converter — + `common/utils/document_export.py` (PDF/DOCX stylés : describer, reader). Ce qui MANQUE : le **PARSING** structurel (document → texte/figures/images-texte — `batch_parsers`/`comprehend_files` aplatissent tout) et l'aller-retour complet ; Docling (§16.2) reste le candidat du parsing |
 | 12 | **QC post-génération** (§16.5 : validateur LLM indépendant après le modèle) | ❌ brique morte | `qc.py` : 0 consommateur hors bench (grep 22/08) — le maillon APRÈS le dispatch manque à toute la chaîne |
 
 **Hors du scope de ce document (et où ça vit)** : i18n **statique** de l'UI (fichiers `.po`,
 ROADMAP §10.A — traduction d'interface, pas de contenu) · boucle qualité `RunOutcome`
 (`WAMA_MEMORY.md §7bis`, ROADMAP §16.7 — signaux d'usage, pas enrichissement de requête) ·
 substrat mémoire/RAG (`WAMA_MEMORY.md`) · mécanique fine de la VRAM (`model_manager`,
-`PROJECT_STATUS §0`).
+`PROJECT_STATUS §0`) · **service TTS** (restitution VOCALE : microservice dédié port 8001 +
+brique `common/tts/` — résolution de voix par LANGUE dans `voices.py`, capacité
+`timestamp_languages` bornée par langue) — orthogonal à l'enrichissement de requête ; seul son
+**contrat de surface** (§1 : étape cliente, jamais dans le tour d'assistant) appartient à cette
+chaîne. ⚠ Le TTS n'a **aucun document de référence dédié** dans la table des domaines
+(`CLAUDE.md`) — son intention vit dans le code et la fiche « langues » ; trou à combler le jour
+où le sujet grossit, sans créer de doc concurrent d'ici là.
 
 ## Voir aussi
 - `ROADMAP.md §10.B` (traduction runtime) et `§16.6` (pipeline + vision méta).
