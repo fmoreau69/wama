@@ -71,9 +71,8 @@ wsl.exe -e bash -lc "PGPASSWORD=*** psql -h 127.0.0.1 -U wama_user -d wama_db -t
 - **Config env-driven** : `SECRET_KEY`, mot de passe DB, `PROXY`/`HTTP_PROXY`, LDAP… lus via
   `os.environ.get(...)` dans `settings.py`. Plus AUCUN secret en dur. Valeurs réelles dans `.env`
   (gitignoré, **jamais commité**) ; modèle sans secret = `.env.example` (commité).
-- **Secrets externalisés** : les anciens secrets ont été sortis du dépôt
-  ( puis republiés → **les références ont été mises à jour** le 2026-07-23. Aucun secret
-  ne subsiste dans l'arbre ni l'historique (les 2 branches). Rotation reportée à la prod (assumé :
+- **Contrôle continu** : `check_secret_leaks` (gitleaks) passe sur le dépôt complet et sort à
+  **0 fuite** ; un hook `pre-commit` bloque en amont. Rotation reportée à la prod (assumé :
   DB en `127.0.0.1`, infra interne université, pas de données sensibles).
 - **Rotation à la demande** : `python manage.py rotate_secrets` (voir `wama/common/management/commands/`).
   - `--all --also-wsl` = rote clé Django + mot de passe DB, applique l'`ALTER USER` à la base **dev

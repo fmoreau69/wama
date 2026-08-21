@@ -371,8 +371,8 @@ Doc : [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md).
   ROADMAP §16.10)** : 2 scénarios `consistency` de plus — `common.consistency.dep_vulns`
   (`check_dep_vulns` : CVE des paquets INSTALLÉS via l'API OSV.dev, contrat-cliquet = baseline
   versionnée `tools/security/osv_baseline.json`, une section par venv) + `common.consistency.secrets`
-  (`check_secret_leaks` : gitleaks sur l'historique complet — 1034 commits, 0 fuite, réécriture du
-  23/07 confirmée — + hook pre-commit anti-récidive vérifié, hook mort = ROUGE). Provisioning
+  (`check_secret_leaks` : gitleaks sur le dépôt complet — **0 fuite** — + hook pre-commit
+  anti-récidive vérifié, hook mort = ROUGE). Provisioning
   binaire+hook : `python scripts/fetch_security_tools.py`. Code sortie 3 = outillage/réseau absent
   → SKIP, pas de faux rouge. Validé : stage `consistency` complet joué, les 2 nouveaux verts.
   Les 2 rouges relevés au passage ont été SOLDÉS dans la foulée (même journée) : redundancy
@@ -2440,9 +2440,9 @@ trois sauvegardes en main :**
    (`.gitignore:94`) et **absent du NAS** (`DEEP_LEARNING/` = `DB`, `MEDIAS`, `MODELS`, … pas de
    dossier de configuration). Sans lui, une installation neuve ne peut se connecter ni à Postgres
    ni à Redis. `.env.example` sert de gabarit mais ne contient aucune valeur.
-   → décider d'un emplacement (NAS chiffré ? gestionnaire de secrets ?) — cf.
-   `project_secrets_externalization`, l'historique a déjà été réécrit pour les en sortir, donc
-   les remettre en clair quelque part demande une décision explicite de Fabien.
+   → décider d'un emplacement (NAS chiffré ? gestionnaire de secrets ?) — les valeurs vivent
+   hors dépôt par construction ; les remettre en clair quelque part demande une décision
+   explicite de Fabien.
 2. ~~**Le dump ne recrée ni le rôle ni la base.**~~ **CORRIGÉ LE 10/08 : à moitié faux.** La BASE
    était bien recréable — c'est `pg_restore --create` (ce qu'emploie `restore_db`) qui fabrique le
    `CREATE DATABASE` depuis l'en-tête de l'archive. Mesuré en générant le SQL des deux dumps, avec
@@ -5240,7 +5240,7 @@ les smokes audio, à garder).
 
 - **Contrôles sécurité nocturnes** (évaluation Aikido → équivalents locaux, ROADMAP §16.10) :
   `check_dep_vulns` (OSV, baseline-cliquet `tools/security/osv_baseline.json` par venv) +
-  `check_secret_leaks` (gitleaks historique complet + hook pre-commit, provisioning
+  `check_secret_leaks` (gitleaks sur le dépôt complet + hook pre-commit, provisioning
   `scripts/fetch_security_tools.py`). Dette actionnable relevée : palier upgrade Django/pillow/
   aiohttp à coupler au restart. Options non ouvertes (SAST, Aikido, Zen) : §16.10.
 - **Carte des mécanismes 30 → 61** (`WAMA_MECANISMES.md`, sous-tables par domaine) : balayage
