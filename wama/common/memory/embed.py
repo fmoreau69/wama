@@ -59,12 +59,21 @@ def embed_text(text: str, *, model: str = '', timeout: float = TIMEOUT_S):
     return vectors[0] if vectors else None
 
 
-def embed_batch(texts, *, model: str = '', timeout: float = TIMEOUT_S):
+def embed_batch(texts, *, model: str = '', timeout: float = TIMEOUT_S, keep_alive: str = None):
     """
     Rend la liste des vecteurs (même ordre que `texts`), ou `[]` si l'embedder est indisponible.
 
     Le lot est traité en UN appel : Ollama recharge sinon le modèle à chaque requête, ce qui
     dominerait le coût d'une indexation de médiathèque.
+
+    `keep_alive` : résidence VRAM APRÈS la réponse. `None` = `KEEP_ALIVE` ('0', déchargement
+    immédiat), le bon défaut pour une écriture interactive isolée.
+
+    ⚠ MAIS PAS POUR UN RÉINDEX. Sur 940 éléments en lots de 64, décharger entre chaque lot
+    impose ~15 cycles charge/décharge — or c'est un ENCHAÎNEMENT de chargements Ollama qui a
+    précédé le crash hôte du 2026-08-20 (§5bis). `store.reindex()` passe donc une résidence
+    courte et décharge UNE fois à la fin : 1 cycle au lieu de 15. Moins de cycles, pas plus de
+    résidence — les deux vont dans le même sens ici.
     """
     textes = [t for t in (texts or []) if t and t.strip()]
     if not textes:
@@ -81,7 +90,8 @@ def embed_batch(texts, *, model: str = '', timeout: float = TIMEOUT_S):
         with httpx.Client(timeout=timeout, trust_env=False) as client:
             resp = client.post(f"{ollama_base()}/api/embed",
                                json={"model": model, "input": textes,
-                                     "keep_alive": KEEP_ALIVE})
+                                     "keep_alive": KEEP_ALIVE if keep_alive is None
+                                     else keep_alive})
         if resp.status_code != 200:
             logger.warning("[memory.embed] Ollama HTTP %s (%s) — écriture sans vecteur",
                            resp.status_code, resp.text[:160])
@@ -102,6 +112,30 @@ def embed_batch(texts, *, model: str = '', timeout: float = TIMEOUT_S):
                          len(v), EXPECTED_DIMS, model)
             return []
     return vecteurs
+
+
+def decharger(model: str = '') -> bool:
+    """
+    Décharge le modèle d'embedding de la VRAM, tout de suite. Rend True si la demande a abouti.
+
+    Un appel d'embedding vide avec `keep_alive='0'` est la façon documentée de demander à Ollama
+    de libérer un modèle. Sert de POINT FINAL au réindex : la résidence tenue pendant l'opération
+    ne doit pas lui survivre, sinon on aurait juste déplacé le problème d'un enchaînement de
+    cycles vers un squat de VRAM.
+    """
+    import httpx
+
+    from ..utils.ollama_host import ollama_base
+
+    model = model or EMBEDDING_MODEL
+    try:
+        with httpx.Client(timeout=10.0, trust_env=False) as client:
+            r = client.post(f"{ollama_base()}/api/embed",
+                            json={"model": model, "input": [], "keep_alive": "0"})
+        return r.status_code == 200
+    except Exception:
+        logger.debug('[memory.embed] déchargement impossible', exc_info=True)
+        return False
 
 
 def embedder_disponible(model: str = '') -> bool:

@@ -323,7 +323,12 @@ def reindex(*, lot=64, limite=None, modeles_obsoletes=False, dry_run=False):
     vectoriels ne cohabitent que le temps du réindex, et on sait lesquels restent à refaire.
     """
     from ..models import MemoryItem, RagChunk
-    from .embed import EMBEDDING_MODEL, embed_batch, embedder_disponible
+    from .embed import EMBEDDING_MODEL, decharger, embed_batch, embedder_disponible
+
+    #: Résidence tenue PENDANT le réindex — cf. `embed_batch`. Décharger entre chaque lot
+    #: imposerait ~15 cycles charge/décharge sur 940 éléments, et c'est un enchaînement de
+    #: chargements qui a précédé le crash du 2026-08-20. On décharge UNE fois, à la fin.
+    RESIDENCE_REINDEX = '5m'
 
     resume = {'embedder_disponible': embedder_disponible(), 'traites': 0, 'echecs': 0,
               'restants': 0, 'dry_run': dry_run}
@@ -350,7 +355,8 @@ def reindex(*, lot=64, limite=None, modeles_obsoletes=False, dry_run=False):
             paquet = list(qs[:lot])
             if not paquet:
                 break
-            vecteurs = embed_batch([o.content for o in paquet])
+            vecteurs = embed_batch([o.content for o in paquet],
+                                   keep_alive=RESIDENCE_REINDEX)
             if not vecteurs:
                 # Lot perdu : on ARRÊTE au lieu de boucler. Les lignes restent sans vecteur (elles
                 # seront reprises au prochain passage) — insister ferait tourner à vide.
@@ -367,6 +373,10 @@ def reindex(*, lot=64, limite=None, modeles_obsoletes=False, dry_run=False):
             logger.info('[memory] reindex : %s %s vectorisés', traites_ici, modele.__name__)
     if not dry_run:
         resume['restants'] = max(0, resume['restants'] - resume['traites'])
+        # Point final OBLIGATOIRE : la résidence tenue pendant l'opération ne doit pas lui
+        # survivre. Sans ce déchargement, on aurait remplacé 15 cycles par un squat de VRAM.
+        if resume['traites']:
+            resume['decharge'] = decharger()
     return resume
 
 
