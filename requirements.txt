@@ -41,3 +41,10 @@ pypandoc==1.13
 pdf2docx==0.5.13  # PDF → DOCX en préservant images/tableaux/mise en forme (converter)
 weasyprint==69.0  # HTML → PDF fidèle (CSS + SVG inline) sans LaTeX/rsvg-convert (converter)
 playwright==1.61.0  # HTML → PDF via Chromium headless (CSS moderne + JS + responsive) ; route préférée, fallback weasyprint. Provisioning navigateur : voir start_wama_prod.sh (playwright install chromium)
+
+# Passerelle de canaux conversationnels (ROADMAP §19) — adaptateurs de protocole.
+# Optionnelles au sens strict : sans elles WAMA démarre et tourne normalement, seule la
+# commande `manage.py run_gateway` refuse de se lancer (import tardif, message explicite).
+discord.py>=2.4  # adaptateur Discord (1er livré : ni compte mail, ni E2EE, ni renouvellement)
+# matrix-nio[e2e]  # adaptateur Tchap/Matrix — à décommenter quand l'adaptateur sera écrit
+#                    (E2EE obligatoire : les salons Tchap sont chiffrés)
