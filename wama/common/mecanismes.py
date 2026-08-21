@@ -264,8 +264,10 @@ MECANISMES = (
               "Source commune des formats+qualités de fichier par domaine (réutilise le vocabulaire converter)",
               'wama/common/utils/output_formats.py', ''),
     Mecanisme('license_audit', 'Audit des licences',
-              "Vue dérivée : licences+auteurs des 4 registres, traversée par app",
-              'wama/common/services/license_audit.py', ''),
+              "Vue dérivée : licences+auteurs des 4 registres, traversée par app. "
+              "Ne voit PAS le code vendorisé (`static/vendors/`, codeformer) — inventorié à "
+              "la main dans LICENSING.md §3",
+              'wama/common/services/license_audit.py', 'LICENSING.md'),
     Mecanisme('mecanismes_scan', 'Adoption des mécanismes',
               "Qui consomme quoi (imports + briques front), niveau APP vs infrastructure, et "
               "jonction registre↔grille : mécanisme adopté par des apps que rien ne vérifie",

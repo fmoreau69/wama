@@ -371,8 +371,8 @@ Doc : [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md).
   ROADMAP §16.10)** : 2 scénarios `consistency` de plus — `common.consistency.dep_vulns`
   (`check_dep_vulns` : CVE des paquets INSTALLÉS via l'API OSV.dev, contrat-cliquet = baseline
   versionnée `tools/security/osv_baseline.json`, une section par venv) + `common.consistency.secrets`
-  (`check_secret_leaks` : gitleaks sur l'historique complet — 1034 commits, 0 fuite, réécriture du
-  23/07 confirmée — + hook pre-commit anti-récidive vérifié, hook mort = ROUGE). Provisioning
+  (`check_secret_leaks` : gitleaks sur le dépôt complet — **0 fuite** — + hook pre-commit
+  anti-récidive vérifié, hook mort = ROUGE). Provisioning
   binaire+hook : `python scripts/fetch_security_tools.py`. Code sortie 3 = outillage/réseau absent
   → SKIP, pas de faux rouge. Validé : stage `consistency` complet joué, les 2 nouveaux verts.
   Les 2 rouges relevés au passage ont été SOLDÉS dans la foulée (même journée) : redundancy
@@ -623,8 +623,8 @@ neuve** (contexte chargé = erreurs). Recoupe et précise §19.
 - 🩹 **`show_if engine=resemble` hardcodé** (enhancer audio, `params.py`) = anti-pattern à remplacer par
   capacités-driven (WamaModelCaps) — pièce 3 de la couche capacités (§20). Cf. `feedback_ui_from_model_capabilities`.
 - 🔐 **Secrets externalisés (✅ 2026-07-23)** : `SECRET_KEY` + mot de passe DB + proxy sortis de
-  `settings.py` vers `.env` (gitignoré) ; `.env.example` commité ; secrets sortis du dépôt (`outillage git`,
-  les références ont été mises à jour) sur `main`+`dev`. Commande `rotate_secrets --all --also-wsl` (2 bases Postgres).
+  `settings.py` vers `.env` (gitignoré) ; `.env.example` commité ; contrôle `check_secret_leaks`
+  à **0 fuite**. Commande `rotate_secrets --all --also-wsl` (2 bases Postgres).
   Détails : `INFRA_WSL_VS_WINDOWS.md §Secrets`. **Reste (prod)** : rotation effective des secrets +
   injection env via systemd/Vault ; option : masquer `vrlescot`/`172.29.240.1` (divulgation infra mineure).
 - ✅ **Tâches RUNNING orphelines après crash worker (2026-07-24/25)** : brique commune
@@ -2440,9 +2440,9 @@ trois sauvegardes en main :**
    (`.gitignore:94`) et **absent du NAS** (`DEEP_LEARNING/` = `DB`, `MEDIAS`, `MODELS`, … pas de
    dossier de configuration). Sans lui, une installation neuve ne peut se connecter ni à Postgres
    ni à Redis. `.env.example` sert de gabarit mais ne contient aucune valeur.
-   → décider d'un emplacement (NAS chiffré ? gestionnaire de secrets ?) — cf.
-   `project_secrets_externalization`, l'historique a déjà été réécrit pour les en sortir, donc
-   les remettre en clair quelque part demande une décision explicite de Fabien.
+   → décider d'un emplacement (NAS chiffré ? gestionnaire de secrets ?) — les valeurs vivent
+   hors dépôt par construction ; les remettre en clair quelque part demande une décision
+   explicite de Fabien.
 2. ~~**Le dump ne recrée ni le rôle ni la base.**~~ **CORRIGÉ LE 10/08 : à moitié faux.** La BASE
    était bien recréable — c'est `pg_restore --create` (ce qu'emploie `restore_db`) qui fabrique le
    `CREATE DATABASE` depuis l'en-tête de l'archive. Mesuré en générant le SQL des deux dumps, avec
@@ -2465,6 +2465,77 @@ travail**. La base LIVE est celle de **WSL2 (Postgres 16)**, conforme à
 `reference_infra_wsl_windows`. La règle « migrer des DEUX côtés » ne se justifie donc que si l'on
 exécute WAMA nativement sous Windows (`venv_win runserver`) ; sinon c'est une taxe d'entretien
 supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
+
+## §REPRISE — 2026-08-21, instance « LICENCES & DÉPÔT OFFICIEL » — ✅ PALIER LIVRÉ
+
+> **Partition** : cette instance n'a touché QUE le domaine licences — `LICENSE`, `LICENSING.md`
+> (créé), `README.md`, `CLAUDE.md` (une ligne de table), `manifests/models/*` (régénérés),
+> `common/services/license_audit.py`, `common/templates/common/licenses.html`,
+> `model_manager/management/commands/backfill_platform_refs.py`, `common/mecanismes.py`.
+> Une autre instance travaillait en parallèle sur la **passerelle de canaux** (§REPRISE
+> ci-dessous) — périmètres disjoints, seuls `PROJECT_STATUS.md`/`ROADMAP.md` sont partagés
+> (édités par petits blocs). **Doc de référence du domaine : `LICENSING.md`** ; état du
+> chantier : **`ROADMAP.md` §20** (créée ce jour).
+>
+> 🔚 **Point d'entrée de la suite** = `ROADMAP.md` §20, dans l'ordre : ① **déclarer WAMA à la
+> valorisation UGE** (bloquant pour TOUT dépôt) ② **décider du retrait de
+> `imager:hunyuan-image-2.1`** (interdit en UE) ③ dépôt HAL/Software Heritage.
+
+### ✅ Livré — le 2026-08-21 (63 fichiers)
+
+| Livrable | Preuve / mesure |
+|---|---|
+| **Inventaire complété** | 65 → **102 licences établies / 119** ; **0 « à qualifier »** (6 licences maison lues) ; 30 → **2** attributions sans auteur |
+| **`LICENSE` = AGPL-3.0** + **`COPYRIGHT`** | le texte AGPL seul ne nommait personne ; `COPYRIGHT` pose les deux étages (UGE titulaire / Fabien auteur) |
+| Famille **« Interdite (territoire) »** (rang 6) | `hunyuan-community` : la licence Tencent **exclut l'UE** ; page `/common/licences/` smoke **200**, badge `li-r6` rendu |
+| `LICENSING.md` | doc de référence du domaine (politique, code vendorisé, dépôt APP/HAL-SWH/Soleau/marque, §7 décisions) — déclaré dans la table `CLAUDE.md` |
+| Corpus `manifests/models` | régénéré (`manifest_export`, 56 écrits) — le `git diff` du corpus EST la revue de ce qui a changé |
+
+**Pourquoi AGPL-3.0 et pas la cible « non commercial » annoncée le 04/08.** 36 poids
+ultralytics/YOLOv12 sont **AGPL-3.0** et WAMA les sert **en réseau** — le cas exact que
+l'AGPL couvre. Une clause NC ne peut pas se greffer dessus : on ne redistribue pas du code
+AGPL sous des termes plus restrictifs. L'effet recherché (pas d'appropriation commerciale)
+est atteint autrement : copyleft réseau de l'AGPL + licences NC des **modèles** embarqués,
+qui restent NC là où l'éditeur l'a voulu. ⚠ **Décision d'ingénierie, pas d'établissement** :
+à faire entériner par l'UGE (art. L113-9 CPI) avant publication.
+
+### Trois choses apprises, à réappliquer
+
+1. **Le placeholder n'est pas un fait.** HuggingFace rend `other` pour toute licence maison.
+   `backfill_platform_refs --licences` écrasait une qualification déjà posée par ce
+   placeholder → garde ajoutée. Une lecture humaine ne doit jamais être annulée par un
+   rafraîchissement automatique.
+2. **Chercher la provenance DANS le dépôt avant de la chercher sur le web.** Les `hf_id` de
+   whisper, Qwen3-ASR, bark, XTTS, kokoro, higgs, sam3 étaient **déjà déclarés** dans les
+   `model_config.py` des apps ; ils manquaient seulement au catalogue. Un `--poser` a suffi,
+   puis `--licences` a lu les cartes éditeur.
+3. **« Interdite » se classe AU-DESSUS d'« inconnue ».** Une licence lue qui ne concède rien
+   sur notre territoire est plus contraignante qu'une licence non lue — celle-ci laisse au
+   moins l'espoir d'un feu vert après lecture.
+
+### ⚙ Maintenance de dépôt — historique réécrit le 2026-08-21
+
+> 🔴 **TOUS LES SHA ANTÉRIEURS AU 2026-08-21 SONT CADUCS** — dans ce fichier, `ROADMAP.md`,
+> les CHANGELOG et la mémoire. Deuxième réécriture après celle du 2026-07-23.
+> Ne pas « corriger » un SHA mort en cherchant un équivalent : citer la **date + l'objet**,
+> qui survivent à une réécriture.
+
+`dev` et `main` sont alignés sur le même commit (historique unique et linéaire).
+Sauvegarde restaurable et compte rendu d'opération : `D:\WAMA\_backup_history_2026-08-21\`
+(**hors dépôt**, volontairement).
+
+### ⏳ Pour Fabien
+
+- **Validation navigateur** de `/common/licences/` — le smoke Django passe (200, familles et
+  qualifications rendues), mais **le service WSL2 doit être redémarré** pour charger le
+  nouveau `license_audit.py` (règle : code → redémarrage → données).
+- ✅ **Poussé** — `dev` et `main` synchronisés avec `origin`, working tree propre.
+- ⚠ **Laissé à l'instance passerelle, volontairement** : `doc_facts --check` signale le bloc
+  **`outils` PÉRIMÉ** dans `WAMA_APP_GENERATION_ROUTE.md`. Il compte les outils de
+  `tool_api.TOOL_REGISTRY`, que cette instance-là vient de modifier — le régénérer aurait
+  consigné SA mesure dans MON commit. Un `python manage.py doc_facts --only outils` de leur
+  côté suffit. (`check_docs` : 2 cassés, les 2 **assumés** connus, aucun nouveau.)
+- Décisions §20 : valorisation UGE, retrait Hunyuan, HAL/SWH, marque INPI.
 
 ## §REPRISE — 2026-08-20, instance « PASSERELLE DE CANAUX » (Tchap/Matrix, Discord) — EN COURS
 
@@ -4273,11 +4344,16 @@ n'a pas produite. Voie envisagée : la médiathèque. **Non tranché, repoussé 
 
 - **10 poids sans origine établie** : `yolov9{s,t}-face-lindevs` (publiés sur **GitHub**, pas HF —
   `platform_ref` supporte déjà le préfixe `github:`) et les 8 `yolov8*_face_plate_*p.pt`.
+  ↳ **toujours vrai au 2026-08-21** : ce sont les 2 derniers « attribution sans auteur » et les
+  8 dernières licences inconnues côté modèles. Les rattacher demande un appariement nom+taille
+  d'octets contre le dépôt amont — pas une déduction depuis le nom de fichier.
 - **`synthesizer` : 3 `requires` hors registre** (repéré par la page licences, non creusé).
 - `verify_models` : **2 faux positifs** (`anonymizer:sam3`, `reader:doctr` — catalogués
   téléchargés, absents du disque) et 30 orphelins `proposed:*`.
 - **Étage B** des licences : auteur des **apps** et **fonctions** — `APP_CATALOG` n'a pas de
   champ, et c'est une déclaration INTERNE, pas un fait externe qu'on lit. À trancher.
+  ↳ **Étage A CLOS le 2026-08-21** (102/119 établies, 0 « à qualifier ») — politique, licence
+  du dépôt (AGPL-3.0) et procédure de dépôt officiel : **`LICENSING.md`**, chantier `ROADMAP.md` §20.
 
 ### D. Documentation & mécanismes
 
@@ -5164,7 +5240,7 @@ les smokes audio, à garder).
 
 - **Contrôles sécurité nocturnes** (évaluation Aikido → équivalents locaux, ROADMAP §16.10) :
   `check_dep_vulns` (OSV, baseline-cliquet `tools/security/osv_baseline.json` par venv) +
-  `check_secret_leaks` (gitleaks historique complet + hook pre-commit, provisioning
+  `check_secret_leaks` (gitleaks sur le dépôt complet + hook pre-commit, provisioning
   `scripts/fetch_security_tools.py`). Dette actionnable relevée : palier upgrade Django/pillow/
   aiohttp à coupler au restart. Options non ouvertes (SAST, Aikido, Zen) : §16.10.
 - **Carte des mécanismes 30 → 61** (`WAMA_MECANISMES.md`, sous-tables par domaine) : balayage

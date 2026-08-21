@@ -2415,3 +2415,52 @@ polling. À faire dès que l'appariement d'identité existe.
 4. **Modèle de menace** (la condition posée par H3, toujours valable) : un canal ouvre
    l'assistant à des messages non sollicités — l'appariement obligatoire (19.1) en est la
    première réponse, à compléter par un rate-limit et une politique de fichiers entrants.
+
+---
+
+## 20. Dépôt officiel de WAMA + licence du dépôt — OUVERT le 2026-08-21
+
+> **Doc de référence du domaine : [`LICENSING.md`](LICENSING.md)** (politique, licences
+> traversées, code vendorisé, procédure de dépôt, §7 = décisions en attente). Cette section
+> ne porte que **l'état du chantier** — ne pas y recopier la politique, elle divergerait.
+> La vue **mesurée** reste la page `/common/licences/` (`common/services/license_audit.py`).
+
+**Ce qui est LIVRÉ (2026-08-21).**
+- Inventaire **complété** : 65 → **102 licences établies sur 119**, **0 « à qualifier »**
+  (les 6 licences maison `other` ont été LUES et cataloguées), 30 → **2** attributions
+  sans auteur.
+- `LICENSE` = **AGPL-3.0**, et `COPYRIGHT` nomme titulaire et auteur. Motif : 36 poids
+  ultralytics/YOLOv12 AGPL sont servis **en réseau** ; une clause « non commercial » ne peut
+  pas se greffer dessus (incompatible avec l'AGPL des composants liés), et l'effet NC reste
+  porté par les licences des **modèles**.
+- Nouvelle famille **« Interdite (territoire) »** (rang 6, au-dessus d'`INCONNUE`) : une
+  licence LUE qui ne concède aucun droit chez nous interdit plus sûrement qu'une licence
+  non lue. Premier cas : `hunyuan-image-2.1`.
+
+**Ce qui reste — dans l'ordre.**
+1. 🔴 **BLOQUANT pour tout dépôt : déclarer WAMA à la valorisation UGE** (agent public,
+   art. L113-9 CPI → les droits patrimoniaux sont à l'établissement). C'est elle qui
+   entérine l'AGPL-3.0 et signe un éventuel dépôt. Aucun dépôt ne se fait sans ça.
+2. **`imager:hunyuan-image-2.1` : retirer ou désactiver** — la Tencent Hunyuan Community
+   License **exclut textuellement l'Union européenne** (« excluding the territory of the
+   European Union ») : aucun droit d'usage, **même en recherche**. Décision Fabien.
+   ⚠ Réflexe déjà noté au §17ter pour HunyuanVideo-Avatar — il vaut pour **tout** modèle
+   Hunyuan, y compris ceux déjà installés.
+   ↳ **Ampleur mesurée** : « hunyuan » apparaît dans **15 fichiers** (`imager/params.py`,
+   `models.py`, `views.py`, `tasks.py`, un backend dédié `hunyuan_video_backend.py`,
+   `model_registry.py`, `settings.py`, `app_registry.py`…). Ce n'est donc pas une ligne à
+   supprimer : prévoir un vrai retrait (modèle catalogué + backend + choix d'UI + poids sur
+   disque), ou une **désactivation déclarative** si on veut garder la trace de la raison.
+3. **Dépôt HAL + Software Heritage** (gratuit, standard recherche, SWHID citable) — ajouter
+   un `codemeta.json` au moment du dépôt. APP et enveloppe Soleau = compléments, pas
+   substituts (LICENSING.md §5).
+4. **Marque « WAMA »** : recherche d'antériorité INPI puis dépôt au nom de l'UGE si le nom
+   est libre. C'est le seul levier qui protège vraiment le **nom** ; « déposer l'idée »
+   n'existe pas en droit (LICENSING.md §6).
+5. **Trous d'inventaire résiduels** (LICENSING.md §4) : 8 poids `yolov8*_face_plate_*.pt`
+   sans origine + 2 `yolov9*-lindevs` sans auteur (rejoint « 10 poids sans origine établie »
+   du §5b) ; 9 médias utilisateur sans licence (à renseigner par leur propriétaire) ;
+   `leaflet-rotate.js` sans en-tête de licence.
+6. **Angle mort à combler un jour** : l'audit ne voit que les 4 registres — le **code
+   vendorisé** (`static/vendors/`, `avatarizer/codeformer/` = **NTU S-Lab NON COMMERCIAL**)
+   a dû être inventorié à la main. Le rattacher au registre `Library` le rendrait mesuré.
