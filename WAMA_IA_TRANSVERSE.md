@@ -211,6 +211,12 @@ message utilisateur (+ domaine transmis par la surface, sinon 'general')
    routage langue seul, pas d'enrichissement]
 ```
 
+⚠ **Contrat de surface** (ROADMAP §19 ①) : le tour d'assistant ne porte **jamais** d'audio — la
+TTS est une **étape cliente post-réponse** (`home.html` appelle `/api/tts-kokoro/` après coup),
+et les visèmes de l'avatar viendront d'un endpoint TTS distinct. C'est la contrepartie de « UN
+cerveau, N surfaces » : le contrat commun ne porte que ce qui vaut pour toutes les surfaces —
+un bot Discord n'a rien à faire d'un WAV en base64.
+
 ### 2. Apps — au lancement de la tâche Celery
 
 Appelants **réels** de `process_prompt_for` (grep 2026-08-22) : **imager** (×2 chemins),
@@ -262,6 +268,25 @@ sortie : modèle (pivot)   ──routage──▶ [output_translate ? traduire p
   sait pas émettre la langue voulue — le describer obtient déjà le FR par consigne au modèle
   multilingue (route directe, coût nul).
 
+### 2ter. Sélection & ROUTAGE du modèle — le « routage » du titre de la Partie IV
+
+La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RAG → Sélection du modèle
+→ traduction → adaptateur → dispatch`). Ce qui existe, mesuré :
+
+- **Assistant** : rôle → tier (`_ROLE_TIER` → `modele_par_tier`, catalogue — plus de table de
+  tags, elle mourait à chaque remplacement de modèle) + **escalade par taille de contexte**
+  (`_route_model_by_context` : conversation trop longue ⇒ modèle à plus grande fenêtre) +
+  fournisseurs **cloud** via `llm_chat` (LiteLLM, ROADMAP §8d — livré).
+- **Apps** : `select_model()` (model_manager) — VRAM-aware, `prefer_loaded`, capacités requises ;
+  les tiers de `llm_utils` s'appuient dessus.
+- **Cible non atteinte** (§15 + ROADMAP §8d) : croiser **intention + fichiers d'entrée +
+  résultats du RAG** pour choisir le modèle, et l'escalade cloud par *capacité* (VRAM saturée) —
+  aujourd'hui seule l'escalade par **contexte** est vécue. C'est la ligne 5 du tableau §5.
+- **Post-génération — QC** : la vision §15 s'arrête au dispatch, mais la chaîne réelle a un
+  maillon prévu APRÈS le modèle : `qc.py::assess_output_quality` (validateur LLM indépendant,
+  ROADMAP §16.5). **0 consommateur hors bench** (vérifié par grep — la carte des mécanismes le
+  signale comme brique morte). Ligne 12 du tableau §5.
+
 ### 3. RAG — alimentation par GESTE, rappel par NIVEAUX (`WAMA_MEMORY.md §7ter`)
 
 ```
@@ -293,14 +318,22 @@ de rencontre entre les deux chantiers).
 |---|---|---|---|
 | 1 | Niveau d'enrichissement ORGANISATIONNEL (§10) + skills INSTITUTIONNELS (§9) | ❌ | le substrat existe désormais (RAG niveau `unit`) ; aucun skill org écrit |
 | 2 | Skills UTILISATEUR (§9-10 : habitudes, formats favoris) | ❌ | seules préférences réelles : langue, enrich on/off |
-| 3 | Classification d'INTENTION amont pilotant skills + niveau de RAG (§11, §13) | partiel | le choix est aujourd'hui à l'ASSISTANT (`charger_competence` ✅) ; pas de classification auto, pas de sélecteur d'UI |
+| 3 | Classification d'INTENTION amont pilotant skills + niveau de RAG (§11, §15) | partiel | le choix est aujourd'hui à l'ASSISTANT (`charger_competence` ✅) ; pas de classification auto, pas de sélecteur d'UI |
 | 4 | RAG dans l'enrichissement d'app (chemin B) | ❌ **arbitré À FAIRE** (21/08) | ouvrir le passe-plat `rag` dans `process_prompt_for` + déclaration `PROMPT_TARGETS` |
-| 5 | Sélection de MODÈLE croisant intention + RAG (§13) | ❌ | la sélection réelle est tier/VRAM (`select_model`) |
-| 6 | Adaptateur de FORMAT en fin de chaîne (§13) | partiel | couvert ponctuellement par les KINDs (`concept` → EN pour SAM3) |
+| 5 | Sélection de MODÈLE croisant intention + fichiers + RAG (§15) | ❌ | la sélection réelle est tier/VRAM/contexte (§2ter) ; escalade cloud par VRAM saturée non vécue (§8d) |
+| 6 | Adaptateur de FORMAT (§14 : compilation DÉTERMINISTE post-LLM, distincte de l'enrichissement) | partiel | seul cas vivant = le KIND `concept` (SAM3 : liste d'objets EN) ; pas de couche générique par modèle |
 | 7 | RAG niveaux université / global (§11) | fermés **volontairement** | trajectoire v2 : user + labo d'abord, projet ensuite — décision Fabien |
 | 8 | Peuplement : `OrgUnit` + affiliations des profils | ❌ 0 en base | débloque le niveau labo SANS code (sync LDAP/SUPANN prévue) |
 | 9 | Surfaces du geste RAG + page de gestion (défaut de niveaux, retrait) | ⏳ jalon 14 | placement à trancher avec Fabien |
 | 10 | **Traduction de SORTIE** (§12 : `Traitement IA → Traduction sortie → Utilisateur`) | ❌ non branchée | décideur (`output_translate`) + acteur (`translate_output`) livrés, **zéro appelant** ; candidats = textes GÉNÉRÉS uniquement — jamais transcription/OCR (fidélité verbatim) |
+| 11 | **Parseur STRUCTUREL de document** (§13 : texte / figures / images-texte → traitement → réassemblage, mise en page conservée) | ❌ | aujourd'hui : `batch_parsers` (texte brut) + `comprehend_files` (grounding) — la STRUCTURE est perdue ; brique commune prévue pour Describer + futur Translator ; Docling « à évaluer » (§16.2) est ce candidat |
+| 12 | **QC post-génération** (§16.5 : validateur LLM indépendant après le modèle) | ❌ brique morte | `qc.py` : 0 consommateur hors bench (grep 22/08) — le maillon APRÈS le dispatch manque à toute la chaîne |
+
+**Hors du scope de ce document (et où ça vit)** : i18n **statique** de l'UI (fichiers `.po`,
+ROADMAP §10.A — traduction d'interface, pas de contenu) · boucle qualité `RunOutcome`
+(`WAMA_MEMORY.md §7bis`, ROADMAP §16.7 — signaux d'usage, pas enrichissement de requête) ·
+substrat mémoire/RAG (`WAMA_MEMORY.md`) · mécanique fine de la VRAM (`model_manager`,
+`PROJECT_STATUS §0`).
 
 ## Voir aussi
 - `ROADMAP.md §10.B` (traduction runtime) et `§16.6` (pipeline + vision méta).
