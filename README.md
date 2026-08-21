@@ -125,6 +125,26 @@ Uses `python manage.py runserver` instead of Gunicorn. No daemon mode — logs p
 
 ## Initial setup
 
+> **Raccourci — un seul script.** `tools/install_wama.sh` enchaîne toutes les étapes ci-dessous
+> dans le bon ordre (l'ordre compte : `requirements_torch` **avant** `requirements_linux`, les
+> patches **après** pip) et appelle les setups qu'aucun texte ne reliait jusqu'ici
+> (`update_vendors.sh`, `apply_patches.py`, `setup_avatarizer.sh`).
+>
+> ```bash
+> git clone https://github.com/fmoreau69/web-app-for-media-automation.git
+> cd web-app-for-media-automation
+> bash tools/install_wama.sh --dry-run     # voir le plan sans rien exécuter
+> bash tools/install_wama.sh               # installer
+> ```
+>
+> Options : `--skip-venv`, `--skip-vendors`, `--with-avatarizer` (MuseTalk + CodeFormer, lourd),
+> `--help`. Le script est **idempotent** (relançable sans dégât) et ne fait **pas** les deux
+> gestes qui demandent une décision humaine : remplir `.env` et créer le superutilisateur — il
+> les rappelle à la fin. **Réseau requis** (contrairement au démarrage, qui reste hors-ligne).
+>
+> Les sections qui suivent détaillent chaque étape, pour comprendre ce que fait le script ou
+> pour installer à la main.
+
 ### 1. Clone
 
 ```bash
