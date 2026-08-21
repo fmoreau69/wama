@@ -86,7 +86,7 @@ locales `_prompt`/`_negative`, la base garde l'original) ; composer `enrich=True
   encore « ChromaDB + fondation `wama/rag/` inexistante » : **doublement périmé** — le
   substrat est **pgvector** (`RagChunk`, `common/memory/`) et le hook existe. Il reste
   **`rag=False` par défaut et aucun appelant ne l'active** : voir la section
-  « PROMPT + RAG » plus bas, qui fait autorité sur ce sujet.
+  « PROMPT + SKILLS + RAG + MÉMOIRE — la chaîne complète » plus bas, qui fait autorité.
 - **QC** : câbler `qc.py` en post-génération dans les apps (seul consommateur actuel = la
   commande de bench `bench --task`).
 
@@ -146,105 +146,132 @@ s'affiche en lecture seule. **Silence total si le prompt part tel quel.**
   glossaire donc sont préservés verbatim.
 - Adopté par imager (4 champs) ; prêt pour composer et le studio, sans code par app.
 
-## PROMPT + RAG — la chaîne complète (état MESURÉ au 2026-08-21)
+## PROMPT + SKILLS + RAG + MÉMOIRE — la chaîne complète par surface (état MESURÉ au 2026-08-22)
 
-> ⚠ Cette section remplace l'ancienne « anticipation de l'architecture », périmée sur deux
-> points : elle annonçait « PAS encore implémenté » (le RAG de l'assistant est livré) et
-> **ChromaDB** (le stockage réel est **pgvector**, cf. `WAMA_MEMORY.md`).
+> ⚠ Remplace la version du 2026-08-21, antérieure à DEUX corrections : l'entrée au RAG est
+> devenue un **GESTE à niveaux** (le balayage a été purgé — `WAMA_MEMORY.md §7ter`) et le
+> sélecteur de niveaux existe au rappel. **Méthode** : chaque ✅ ci-dessous a été confronté au
+> CODE le 2026-08-22 (appelants relevés par grep, jamais déduits des docs) ; ce que la vision
+> prévoit sans que le code l'ait est au §5 — jamais mélangé au réel.
+>
+> **Documents** (réponse à « a-t-on un document sur le RAG ? ») : prompts + skills = **CE
+> document** · RAG + mémoire = **`WAMA_MEMORY.md`** (UN mécanisme, décision 2026-08-20) · la vue
+> de chaîne transverse = **cette section**, en un seul exemplaire — pas de 3ᵉ document (« un
+> domaine = un fichier »).
 
-### Le principe, en une phrase
+### 0. Les TROIS axes de « niveaux » — les confondre fait perdre le fil
 
-Une demande utilisateur est complétée par **trois apports distincts** avant d'atteindre un
-modèle : **QUI répond** (skill de rôle), **COMMENT écrire le prompt** (skill d'enrichissement)
-et **CE QUE SAIT le laboratoire** (RAG). Les trois sont **déclarés**, jamais écrits en dur, et
-chacun s'applique à un endroit différent de la chaîne.
+Trois notions distinctes portent le mot « niveau » ; elles se croisent mais ne se recouvrent pas :
 
-### Les DEUX familles de skills — contrats opposés, ne pas confondre
+| Axe | Question à laquelle il répond | Mécanisme | État mesuré |
+|---|---|---|---|
+| **A. Hiérarchie ORGANISATIONNELLE** | qui appartient à quoi ? | arbre `OrgUnit` (`parent` : institut→université→département→labo→service→équipe) + affiliations du profil (`org_affiliations` — une **LISTE** : multi-labos, multi-équipes) | mécanisme ✅ (héritage ancêtres testé) · **données ❌ : 0 `OrgUnit` en base** |
+| **B. Niveaux de PARTAGE du RAG** | qui peut rappeler ce document ? | `ScopedVisibility` porté par chaque fragment : `user` / `unit` / `project` / `public` | écriture `user`+`unit` ✅ (`project` ANNONCÉ, `public` plus tard) · lecture `rag_niveaux` ✅ : son RAG / labo / les deux / **rien** |
+| **C. Niveaux d'ENRICHISSEMENT du prompt** (vision §10) | qu'ajoute-t-on au prompt avant le modèle ? | global (règles DANS le code : langue d'émission, glossaire verbatim) · métier (skills `<app>-<domaine>.md`) · organisationnel · utilisateur | global ✅ · métier ✅ · **organisationnel ❌** · **utilisateur ❌** |
 
-| Famille | Fichiers | Destinataire | Contrat | Appliqué |
-|---|---|---|---|---|
-| **Rôle** | `assistant-*.md` | l'assistant lui-même | ne transforme rien : posture, domaine, interdits | prompt système (`assistant_engine`) |
-| **Enrichissement** | `imager-image.md`, `composer-music.md`… | LLM d'enrichissement | transforme un prompt, **rend le prompt seul** | dans l'app, au lancement (`process_prompt_for`) |
+### 0bis. Les SKILLS — deux natures de contrat, cinq familles (vision §9), état mesuré
 
-Registre des rôles : `common/utils/assistant_skills.py::DOMAINES` (`general`, `science`,
-`design`, `dev`). Registre des cibles d'enrichissement : `app_metadata.py::PROMPT_TARGETS`.
+**Rôle vs skill** (transversal) : le RÔLE fixe *qui répond* — un seul actif, `assistant-*.md`,
+appliqué au prompt système ; les SKILLS disent *comment traiter* — composables, appliqués à
+l'enrichissement. Contrats opposés : un skill de rôle ne transforme rien, un skill
+d'enrichissement transforme un prompt et ne rend que lui. Les confondre coûte une passe LLM
+inutile ou un assistant sans posture.
 
-### Les DEUX chemins d'une demande — et pourquoi le RAG doit être aux deux endroits
-
-**Chemin A — par l'assistant** (« propose-moi un logo pour le labo ») ✅ **livré 21/08**
-```
-demande → skill de RÔLE (design)  +  RAG labo (contexte)  →  l'assistant COMPOSE un prompt informé
-       → outil create_image(prompt=…)  →  l'app enrichit (skill imager-image)  →  génération
-```
-Le contexte du laboratoire arrive **avant** la composition : l'assistant sait déjà ce qu'est
-le labo, donc le prompt qu'il écrit le porte. C'est ce qui évite de tout redécrire à chaque
-demande.
-
-**Chemin B — directement dans l'app** (bouton ✨ de l'imager) ⏳ **le RAG y manque**
-```
-prompt tapé → l'app enrichit (skill imager-image)  →  génération
-                        ↑ AUCUN contexte de laboratoire
-```
-Le hook RAG de l'enrichissement existe (`prompt_pipeline`, paramètre `rag`) mais il est
-**`rag=False` par défaut et aucun appelant ne l'active** — donc l'utilisateur qui passe par
-l'app plutôt que par l'assistant perd tout le contexte.
-
-> **Arbitrage Fabien (21/08)** : il FAUT activer le RAG sur le chemin B. L'objection retenue
-> jusqu'ici était « 5 s par génération, très visible » — **elle ne tient pas ici** : une
-> génération d'image est **asynchrone (Celery) et dure 10 à 60 s**, l'utilisateur ne regarde
-> pas l'écran. Ces 5 s sont visibles dans le **chat**, pas dans une tâche de fond. L'arbitrage
-> actuel a écarté le RAG là où il coûte le moins et rapporte le plus.
-
-### Les trois gardes du rappel de contexte (livrées, chemin A)
-
-Elles valent pour tout branchement RAG, y compris le futur chemin B :
-1. **DÉCLARÉ** — seuls les domaines marqués `rag=True` paient la recherche. Pas de vectoriel
-   sur « où en est ma transcription ? ».
-2. **DATA-GATED** — aucun extrait pertinent ⇒ prompt **inchangé**. On n'injecte jamais de
-   bruit : un contexte hors-sujet dégrade plus qu'il n'aide.
-3. **FAIL-SAFE** — toute panne du rappel rend `''`. Le RAG est un **bonus de contexte**, jamais
-   une dépendance de la conversation.
-
-Chaque extrait est injecté **avec sa référence** : un contexte sans provenance n'est pas
-vérifiable par l'utilisateur, et l'assistant doit pouvoir le citer.
-
-### Le MULTI-NIVEAU — la structure existe DÉJÀ, elle n'est pas à construire
-
-Cible : `université → labo/service → équipe → utilisateur`, chaque niveau héritant des
-niveaux au-dessus. **C'est exactement ce que `ScopedVisibility` + `OrgUnit` font déjà** —
-il n'y a pas de mécanisme à écrire, seulement des données à peupler.
-
-| Niveau visé | Mécanisme EXISTANT | Où |
+| Famille (vision §9) | Réalité dans le code | État |
 |---|---|---|
-| Utilisateur (privé) | `visibility='private'` + `user` | `common/models.py:190` |
-| Équipe / labo / dépt / université | `visibility='unit'` + `scope_org_unit` | idem |
-| Projet (⚠ **traverse** les orgs — partenaires externes) | `visibility='project'` + `scope_project` | idem |
-| Public | `visibility='public'` | idem |
+| **Spécialisés MODÈLE** (format exact attendu par un modèle) | les KINDs de `PROMPT_TARGETS` (`concept` → concepts EN pour SAM3, `generative`…) + résolution du modèle cible par target | partiel — les KINDs couvrent le cas langue/forme, pas un gabarit par modèle |
+| **DOMAINE** (app × métier) | `prompt_skills/<app>-<domaine>.md` (imager-image, composer-music, cam-analyzer-transport…) + rôles assistant `assistant-*` (`DOMAINES` : general, science, design, dev) | ✅ les deux registres vivent (`PROMPT_TARGETS`, `assistant_skills.DOMAINES`) |
+| **DÉVELOPPEUR / workflow** | wama-dev-ai importe `PROMPT_SKILLS_DIR` (les mêmes fichiers) ; rôle `assistant-dev` ; outil `ask_claude_code` | ✅ |
+| **INSTITUTIONNELS** (université, instances — « souvent couplés au RAG organisationnel ») | — | ❌ **substrat désormais prêt** (RAG niveau `unit`) ; aucun skill écrit, aucun contenu org indexé |
+| **UTILISATEUR** (préférences, habitudes, formats favoris) | langue du profil + enrich on/off, c'est tout | ❌ pas de skill par utilisateur |
 
-**L'héritage est déjà hiérarchique** : `OrgUnit` a un `parent` (institut → université →
-département → labo → service → équipe), et `user_scope_org_ids()` (`common/models.py:167`)
-remonte **tous les ancêtres** — un fragment partagé au LABO est donc visible d'un membre d'une
-ÉQUIPE du labo, sans rien coder de plus. `scoped_visible_q()` (`:206`) compose les quatre
-niveaux en un seul `Q`, et `recall()` l'applique : **le rappel est scopé par construction**,
-il n'y a rien à re-garder côté assistant ni côté canal.
+### 1. Assistant — UN cerveau, N surfaces (web `home.html`, API v1, canaux Discord/Matrix)
 
-**Aujourd'hui, deux niveaux suffisent** (labo + utilisateur) : ce sont deux valeurs de
-`visibility`, pas deux implémentations. Passer à quatre = peupler `OrgUnit` et renseigner les
-affiliations des profils — **aucune migration, aucun code**.
+```
+message utilisateur (+ domaine transmis par la surface, sinon 'general')
+  │
+  ├─ prompt système : {LANGUE du profil} + RÔLE (consigne_de_role) + contexte WAMA (files)
+  ├─ CONTEXTE LABO : contexte_laboratoire(user, message, domaine)
+  │     = recall() hybride scopé — SEULEMENT si le domaine déclare rag=True (science, design)
+  │     3 gardes : DÉCLARÉ · DATA-GATED (rien de pertinent ⇒ prompt inchangé) · FAIL-SAFE ('')
+  │     chaque extrait injecté AVEC sa référence ([transcriber:134] …)
+  │
+  └─ boucle LLM à outils (51 outils, gating F7) — c'est ICI que tout se rejoint :
+       • charger_competence(domaine)  → l'ASSISTANT charge LUI-MÊME posture + contexte labo
+         (jamais la surface : un adaptateur de canal ne devine pas le domaine)
+       • memory_recall(query, niveaux=…) → recall() souvenirs + RAG, sélecteur de niveaux,
+         HYBRIDE — résidence bge-m3 arbitrée par le GOUVERNEUR (~5 s à froid, ~350 ms résident)
+       • add_to_<app> / start_<app> → tâches d'app ⇒ la pipeline d'app s'applique (§2)
+  [le message lui-même : kind='intent' via process_prompt_for('assistant','message') —
+   routage langue seul, pas d'enrichissement]
+```
 
-⚠ **Piège connu** : sur `RagChunk`, la visibilité est **dénormalisée depuis la source**
-(`common/models.py:704`). Changer la visibilité d'un document ne repropage donc pas seule aux
-fragments déjà indexés — la réindexation fait foi.
+### 2. Apps — au lancement de la tâche Celery
 
-### Reste à faire
+Appelants **réels** de `process_prompt_for` (grep 2026-08-22) : **imager** (×2 chemins),
+**composer**, **anonymizer**, l'**assistant** (§1) — et **cam_analyzer** via `enrich_on_demand`.
+Les autres apps n'ont pas de champ prompt (`PROMPT_TARGETS` vide pour elles).
 
-| # | Chantier | Note |
-|---|---|---|
-| 1 | **RAG sur le chemin B** (enrichissement d'app) | l'arbitrage ci-dessus ; hook `rag` déjà présent, personne ne l'active |
-| 2 | Sélecteur de domaine dans l'UI | `domaines_pour_ui()` prêt ; ⚠ touche `home.html`, fichier disputé |
-| 3 | Domaine déduit du canal (passerelle) | salon `#dev` → domaine `dev` |
-| 4 | Peupler `OrgUnit` + affiliations | débloque les 4 niveaux sans une ligne de code |
-| 5 | Opt-in utilisateur par niveau (RGPD) | intention d'origine : base = privé, l'utilisateur ÉLARGIT |
+```
+prompt tapé
+  │  [INGESTION — si le modèle hérite de PromptScoped ET est nommé dans PROMPT_TARGETS :
+  │   enrichissement générique on_commit (prompt_ingest) — l'utilisateur VOIT et peut annuler]
+  │
+  └─ process_prompt_for(app, field, value)          ← LE passe-plat unique
+       ├─ détection langue → ROUTAGE (lang_routing : capacités du modèle cible)
+       ├─ TRADUCTION si le modèle ne gère pas la langue (translategemma, glossaire verbatim)
+       ├─ ENRICHISSEMENT si déclaré (skill <app>-<domaine>.md ; gaté user + kill-switch)
+       ├─ FICHIERS DE RÉFÉRENCE (comprehend_files, data-gated)
+       └─ ⚠ Hook B RAG : EXISTE dans process_prompt(rag=True) mais INATTEIGNABLE —
+          process_prompt_for ne transmet PAS `rag` et PROMPT_TARGETS ne le déclare pas.
+          Arbitrage Fabien 21/08 : À OUVRIR — une génération est asynchrone (10-60 s), les
+          ~5 s du rappel y sont invisibles ; l'objection « latence » ne vaut que pour le chat.
+  → modèle (keep_alive='0' sur le chemin critique)
+```
+
+**Bouton ✨** (à la demande) : `common/views` → `enrich_on_demand` — mêmes skills, PAS gaté (le
+clic vaut demande). **Studio** : `generic_runner` → `execute_tool('add_to_<app>' / 'start_…')` →
+chemin ci-dessus — le studio n'implémente **rien**, il hérite tout des apps. **wama-dev-ai** :
+importe `PROMPT_SKILLS_DIR` (les mêmes fichiers de skills).
+
+### 3. RAG — alimentation par GESTE, rappel par NIVEAUX (`WAMA_MEMORY.md §7ter`)
+
+```
+sortie d'app ──(si l'utilisateur veut)──▶ médiathèque ──(ACTION EXPLICITE)──▶ RAG
+                                             ajouter_au_rag(texte, niveau='user'|'unit')
+                                               • plusieurs affiliations ⇒ NOMMER l'unité
+                                               • ancêtre (dépt/univ) ⇒ REFUSÉ (niveaux 3/4 fermés)
+                                               • embedding=NULL au geste → reindex par lot
+rappel  : recall(rag_niveaux={'user','unit'}) — son RAG / celui du labo / les deux / RIEN
+retrait : retirer_du_rag — ce qui entre par un geste sort par un geste
+```
+
+Cas d'usage canonique (Fabien) : scan manuscrit → OCR reader → **ce texte** entre au RAG par le
+geste → sert ensuite, p. ex., au compte-rendu tiré d'une transcription de réunion.
+État : le RAG est **VIDE par décision** (balayage initial purgé, 939 → 0) tant que les surfaces
+du geste n'existent pas (jalon 14 de `WAMA_MEMORY.md`).
+
+### 4. Mémoire — souvenirs, PAS le RAG (deux tables, cycles opposés)
+
+`RunOutcome` (gestes captés par middleware) ──projection mécanique──▶ `MemoryItem` auto-approuvé ·
+imports LLM (dev-ai : 25 souvenirs) ──▶ **NON approuvés** (invisibles au rappel, file de revue) ·
+surfaces : journal `/common/journal/` + `memory_recall`. Producteur `PROV_ASSISTANT` : **aucun**
+— un fil de conversation clos pourra se PROJETER en souvenir (jonction canaux §19.5, seul point
+de rencontre entre les deux chantiers).
+
+### 5. Ce que la VISION prévoit et que le code N'A PAS (confronté le 2026-08-22)
+
+| # | Élément (vision) | État réel | Note |
+|---|---|---|---|
+| 1 | Niveau d'enrichissement ORGANISATIONNEL (§10) + skills INSTITUTIONNELS (§9) | ❌ | le substrat existe désormais (RAG niveau `unit`) ; aucun skill org écrit |
+| 2 | Skills UTILISATEUR (§9-10 : habitudes, formats favoris) | ❌ | seules préférences réelles : langue, enrich on/off |
+| 3 | Classification d'INTENTION amont pilotant skills + niveau de RAG (§11, §13) | partiel | le choix est aujourd'hui à l'ASSISTANT (`charger_competence` ✅) ; pas de classification auto, pas de sélecteur d'UI |
+| 4 | RAG dans l'enrichissement d'app (chemin B) | ❌ **arbitré À FAIRE** (21/08) | ouvrir le passe-plat `rag` dans `process_prompt_for` + déclaration `PROMPT_TARGETS` |
+| 5 | Sélection de MODÈLE croisant intention + RAG (§13) | ❌ | la sélection réelle est tier/VRAM (`select_model`) |
+| 6 | Adaptateur de FORMAT en fin de chaîne (§13) | partiel | couvert ponctuellement par les KINDs (`concept` → EN pour SAM3) |
+| 7 | RAG niveaux université / global (§11) | fermés **volontairement** | trajectoire v2 : user + labo d'abord, projet ensuite — décision Fabien |
+| 8 | Peuplement : `OrgUnit` + affiliations des profils | ❌ 0 en base | débloque le niveau labo SANS code (sync LDAP/SUPANN prévue) |
+| 9 | Surfaces du geste RAG + page de gestion (défaut de niveaux, retrait) | ⏳ jalon 14 | placement à trancher avec Fabien |
 
 ## Voir aussi
 - `ROADMAP.md §10.B` (traduction runtime) et `§16.6` (pipeline + vision méta).

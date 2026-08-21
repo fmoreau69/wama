@@ -9,6 +9,10 @@
 > dispersées dans `PROJECT_STATUS §6`, `ROADMAP §16.2/§16.7` et `docs/WAMA_Vision_Complet_v2 §11`
 > — qui restent valables sur le *pourquoi* mais sont **périmés sur le substrat** (ils disent
 > ChromaDB, voir §7).
+>
+> **La vue de CHAÎNE COMPLÈTE** (prompt + RAG + mémoire, par surface, confrontée au code — et la
+> distinction des TROIS axes de « niveaux ») vit dans **`PROMPT_PIPELINE.md`**, en un seul
+> exemplaire. Ce document-ci reste la référence du SUBSTRAT (modèles, opérations, gouvernance).
 
 ---
 
