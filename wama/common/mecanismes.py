@@ -221,7 +221,7 @@ MECANISMES = (
     *_domaine('Contenu & prompts', (
     Mecanisme('prompt_pipeline', 'Pipeline de prompts',
               "Traduction/enrichissement centralisés, déclarés par PROMPT_TARGETS",
-              'wama/common/utils/prompt_enrichment.py', 'PROMPT_PIPELINE.md',
+              'wama/common/utils/prompt_enrichment.py', 'WAMA_IA_TRANSVERSE.md',
               annexes=('wama/common/utils/app_metadata.py',
                        'wama/common/utils/prompt_pipeline.py',
                        'wama/common/utils/prompt_skills.py',

@@ -181,7 +181,7 @@
    l'imager (`python manage.py check_app_conformity`, skill `/conformite`).
 
 ## 1. PromptPipeline (prompts centralisés §16.6 / §10.B) — bien avancé
-Doc : [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md).
+Doc : [`WAMA_IA_TRANSVERSE.md`](WAMA_IA_TRANSVERSE.md).
 - ✅ A Enrichissement génératif (`prompt_enrichment.py`, OFF par défaut `WAMA_PROMPT_ENRICH`)
 - ✅ B Assistant (kind `intent`, résource-safe)
 - ✅ C Transparence console (🌐 traduit / ✨ enrichi / 📎 référence ; silence si direct)
@@ -1104,7 +1104,7 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 
 ## 22. Skills de prompt par application (2026-07-08) — FAIT, validé Fabien
 
-> Doc de référence : **`PROMPT_PIPELINE.md` §Skills** + `wama/common/prompt_skills/README.md`.
+> Doc de référence : **`WAMA_IA_TRANSVERSE.md` §Skills** + `wama/common/prompt_skills/README.md`.
 > Mémoire : `project_prompt_skills.md`.
 
 - ✅ Brique `common/utils/prompt_skills.py` (résolution `<app>-<domain>` → `<app>` →
@@ -1174,7 +1174,7 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 | MODES_QUEUE_UX.md | 178 | boussole produit vivante | ✅ **corrigé ce jour** : P1 marqué fait (était en retard sur le code) |
 | ~~NEXT_SESSION_KICKOFF.md~~ | 55 | brief de session | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-09 ; livrable produit = `UI_MECHANISMS_CONSOLIDATION.md`) |
 | PROFILES_PERMISSIONS.md | 166 | référence vivante | ✅ sain, vérifié |
-| PROMPT_PIPELINE.md | 98 | référence vivante | ✅ **exemplaire** — le plus frais (skills du jour même) |
+| WAMA_IA_TRANSVERSE.md | 98 | référence vivante | ✅ **exemplaire** — le plus frais (skills du jour même) |
 | README.md | 269 | point d'entrée | 🔧 table doc ne référence que 8/26 fichiers — désynchronisée |
 | REMOVAL_LEDGER.md | 105 | registre actif | 🔧 table §1 désync de son propre journal (R1/R2 dits soldés, table dit encore ⛔) |
 | ROADMAP.md | 1219 | **hétérogène** | 🔨 RESTRUCTURER — ~55-60% de doublon avec PROJECT_STATUS (voir 23.2) |

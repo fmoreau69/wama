@@ -17,7 +17,7 @@ urlpatterns = [
     # Unified detail (infos inspecteur) : /common/detail/<app_name>/<pk>/
     path('detail/<str:app_name>/<int:pk>/', detail_registry.unified_detail, name='unified_detail'),
 
-    # Enrichissement de prompt à la demande (✨) — générique {prompt, app, domain}, cf. PROMPT_PIPELINE.md §Skills
+    # Enrichissement de prompt à la demande (✨) — générique {prompt, app, domain}, cf. WAMA_IA_TRANSVERSE.md §Skills
     path('api/enrich-prompt/', views.api_enrich_prompt, name='enrich_prompt'),
 
     # System stats endpoints

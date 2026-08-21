@@ -328,7 +328,7 @@ Full dependency list: `requirements.txt` (Windows) / `requirements_linux.txt` (W
 | [`WAMA_APP_GENERATION_ROUTE.md`](WAMA_APP_GENERATION_ROUTE.md) | Route F1–F8 vers l'auto-génération d'apps : briques communes, adoption, write-back, trous priorisés. |
 | [`WAMA_MANIFEST_SPEC.md`](WAMA_MANIFEST_SPEC.md) | Formalisme des manifestes (7 kinds, enveloppe, composition `requires`, propriétés de sûreté). |
 | [`WAMA_MANIFEST_ARCHITECTURE.md`](WAMA_MANIFEST_ARCHITECTURE.md) | Flux manifeste : extract / ingest / verify / write-back, corpus et registres. |
-| [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md) | Pipeline de prompts centralisée (traduction/enrichissement/fichiers de référence). |
+| [`WAMA_IA_TRANSVERSE.md`](WAMA_IA_TRANSVERSE.md) | Pipeline de prompts centralisée (traduction/enrichissement/fichiers de référence). |
 | [`CARD_DESIGN.md`](CARD_DESIGN.md) | Formalisme de card + UI card-centric (volet droit = inspecteur ; absorbe l'ex-`CARD_CENTRIC_UI.md`). |
 | [`BATCH_FORMAT.md`](BATCH_FORMAT.md) | Format des fichiers d'import batch. |
 

@@ -152,7 +152,7 @@ apply_patch(
 | Avancement des chantiers | `PROJECT_STATUS.md` + `ROADMAP.md` |
 | Conventions d'app | `WAMA_APP_CONVENTIONS.md` |
 | Cam Analyzer | `wama_lab/cam_analyzer/CAM_ANALYZER_CHAINE_TRAITEMENT.md` (chaîne+conception) + `CAM_ANALYZER_CHANGELOG.md` (historique) + `README.md` (carte) — l'ancien `CAM_ANALYZER_TOPDOWN_STATUS.md` est archivé (`wama_lab/cam_analyzer/archive/`) |
-| Prompts (traduction/enrichissement) | `PROMPT_PIPELINE.md` |
+| IA transverse — prompts, skills, chaîne complète (traduction/enrichissement/RAG) | `WAMA_IA_TRANSVERSE.md` |
 | **Mémoire & RAG** + **journal utilisateur** (mémoire agent + mémoire de travail + RAG = UN mécanisme) | **`WAMA_MEMORY.md`** — jalons 1-4 et 11 LIVRÉS le 2026-08-20 (brique `wama/common/memory/` sur **Postgres + pgvector**, scoping **hérité** de `ScopedVisibility`, journal `/common/journal/`), reste 5-10 et 12. ⚠ **Périme le plan ChromaDB** (vision §11, `prompt_pipeline.py:116`). |
 | Transcriber — correction assistée | `wama/transcriber/TRANSCRIBER_CORRECTION.md` |
 | Formalisme de card (anatomie, 3 densités v1/v2/v3, batchs) | `CARD_DESIGN.md` |
@@ -251,7 +251,7 @@ Si deux apps ont besoin de la même logique, elle va dans `common/` et les deux 
 
 ### Pipeline de prompts commune
 
-> **Document de référence : [`PROMPT_PIPELINE.md`](PROMPT_PIPELINE.md)** — traitement centralisé
+> **Document de référence : [`WAMA_IA_TRANSVERSE.md`](WAMA_IA_TRANSVERSE.md)** — traitement centralisé
 > métadonnée-driven des prompts (traduction/enrichissement/fichiers de référence ; RAG à venir).
 > Déclarer les champs-prompt dans `common/utils/app_metadata.py::PROMPT_TARGETS` — ne JAMAIS patcher
 > la traduction/l'enrichissement par app.

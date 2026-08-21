@@ -194,7 +194,7 @@
                 toast('Décrivez ce que vous voulez générer, ou fournissez une image / un fichier de prompts.', 'warning');
                 return;
             }
-            // INVARIANT prompt (PROMPT_PIPELINE) : on poste toujours l'ORIGINAL — l'enrichi
+            // INVARIANT prompt (WAMA_IA_TRANSVERSE) : on poste toujours l'ORIGINAL — l'enrichi
             // vit en prompt_processed et est recalculé à l'ingestion, jamais figé à la création.
             let promptValue = (promptEl.value || '').trim();
             if (window.WamaPromptEnrich) {

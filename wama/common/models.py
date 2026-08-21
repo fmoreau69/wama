@@ -224,7 +224,7 @@ class PromptScoped(models.Model):
     """
     Modèle portant un prompt utilisateur TRAITÉ par la PromptPipeline (enrichissement).
 
-    Convention commune (cf. `common/utils/app_metadata.py`, PROMPT_PIPELINE.md) :
+    Convention commune (cf. `common/utils/app_metadata.py`, WAMA_IA_TRANSVERSE.md) :
     - `prompt` (déclaré par l'app) reste **ce que l'utilisateur a tapé** — jamais écrasé ;
     - `prompt_processed` = ce qui part réellement au modèle (vide → on envoie `prompt`) ;
     - `prompt_trace` = ce que la pipeline a fait, pour pouvoir le montrer et l'annuler ;
