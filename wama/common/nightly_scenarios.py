@@ -288,6 +288,41 @@ def _run_tool_api_garde_fous(ctx):
     return True, 'porte saine — inconnu, gating anonyme, ' + ', '.join(notes)
 
 
+def _run_wama_data(ctx):
+    """Cœur de WAMA Data : référentiel temporel + importer universel.
+
+    Pourquoi au stage `consistency` et pas `wired` : ces contrôles sont du **CPU pur**, sans
+    modèle ni GPU — ils peuvent donc tourner sans le gate, comme les autres contrôles nocturnes.
+
+    Deux niveaux dans ces modules (cf. leur en-tête) : la logique sur données synthétiques tourne
+    partout, les contrôles sur base réelle se SAUTENT quand elle est absente (dossier hors dépôt).
+    Un `skipped` non nul est donc NORMAL sur une installation sans corpus — on le rapporte au lieu
+    de le taire, sinon on croirait avoir tout couvert.
+    """
+    from django.test.utils import get_runner
+    from django.conf import settings
+
+    runner = get_runner(settings)(verbosity=0, interactive=False, keepdb=True)
+    suite = runner.test_loader.loadTestsFromNames([
+        'wama.common.data.tests_temporal',
+        'wama.common.data.tests_sources',
+    ])
+    total = suite.countTestCases()
+    if not total:
+        return False, "aucun test chargé — les modules de test ont-ils été déplacés ?"
+
+    result = runner.run_suite(suite)
+    echecs = len(result.failures) + len(result.errors)
+    sautes = len(getattr(result, 'skipped', ()))
+    detail = f"{result.testsRun} test(s), {echecs} échec(s), {sautes} sauté(s)"
+    if echecs:
+        premier = (result.failures + result.errors)[0]
+        return False, f"{detail} — 1er : {premier[0]}"
+    if sautes:
+        detail += " (base d'expérimentation absente : contrôles sur volumes réels non joués)"
+    return True, detail
+
+
 def register_scenarios():
     # check_docs parcourt l'arborescence : minutes depuis WSL2 (/mnt/d), secondes depuis
     # Windows — d'où le timeout large. Les autres tiennent en secondes.
@@ -306,6 +341,10 @@ def register_scenarios():
     register(id='common.consistency.doc_facts', app='common', stage='consistency',
              description='Couche factuelle des .md à jour (doc_facts --check)',
              run=_run_doc_facts, timeout_s=300)
+    register(id='common.consistency.wama_data', app='common', stage='consistency',
+             description='Cœur WAMA Data : référentiel temporel + importer universel '
+                         '(CPU pur ; contrôles sur base réelle sautés si le corpus est absent)',
+             run=_run_wama_data, timeout_s=300)
     register(id='common.consistency.redundancy', app='common', stage='consistency',
              description='Recopies locales d\'un domicile unique (contrat : ≤5, dette anonymizer)',
              run=_run_redundancy, timeout_s=300)
