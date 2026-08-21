@@ -343,6 +343,12 @@ INSTALLED_APPS = [
     'wama.reader',         # OCR Document — imprimé + manuscrit
     'wama.converter',      # Format Converter (image / video / audio)
     'wama.studio',         # Studio - méta-app (orchestration de pipelines)
+    # Passerelle de canaux conversationnels (Tchap/Matrix, Discord) — ROADMAP §19.
+    # App TECHNIQUE : délibérément HORS APP_CATALOG (la grille ne note que le catalogue ;
+    # l'y inscrire l'afficherait à 0/72 sur des critères média qui ne la concernent pas).
+    # ⚠ pas nommée « channels » : ce nom est celui de Django Channels et son label par
+    # défaut rendrait ce paquet impossible à installer plus tard.
+    'wama.gateway',
     # WAMA Lab - Experimental/Research applications
     'wama_lab.face_analyzer',
     'wama_lab.cam_analyzer',

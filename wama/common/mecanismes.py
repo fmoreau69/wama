@@ -231,6 +231,11 @@ MECANISMES = (
     Mecanisme('llm', 'Accès LLM',
               "Route unique vers les LLM (tiers déclaratifs, sélection catalogue, Ollama local)",
               'wama/common/utils/llm_utils.py', ''),
+    Mecanisme('gateway_identity', "Appariement d'identité de canal",
+              "Relie une identité Matrix/Discord à un compte WAMA par code prouvé hors "
+              "canal — la garde que tout adaptateur appelle avant d'agir",
+              'wama/gateway/services.py', 'ROADMAP.md §19',
+              annexes=('wama/gateway/models.py',)),
     Mecanisme('assistant_engine', "Moteur de l'assistant IA",
               "Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — "
               "la vue web et /api/v1/assistant/chat/ en sont des clients",
