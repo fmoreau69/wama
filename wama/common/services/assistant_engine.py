@@ -374,7 +374,8 @@ def _sanitize_history(history) -> list:
 
 
 def tour_de_conversation(user, message: str, *, surface: str = 'web', thread_key: str = '',
-                         provider: str = 'wama-dev-ai', model: str = 'fast') -> dict:
+                         provider: str = 'wama-dev-ai', model: str = 'fast',
+                         domain: str = None) -> dict:
     """
     UN tour, avec historique PERSISTÉ côté serveur — la voie normale pour une surface.
 
@@ -400,7 +401,7 @@ def tour_de_conversation(user, message: str, *, surface: str = 'web', thread_key
         logger.exception("[ai_chat] store de conversation indisponible — tour sans historique")
 
     resultat = run_assistant_turn(user, message, provider=provider, model=model,
-                                  history=historique)
+                                  history=historique, domain=domain)
 
     if fil is not None and 'error' not in resultat:
         try:
@@ -413,7 +414,8 @@ def tour_de_conversation(user, message: str, *, surface: str = 'web', thread_key
 
 
 def run_assistant_turn(user, message: str, provider: str = 'wama-dev-ai',
-                       model: str = 'fast', history: list = None) -> dict:
+                       model: str = 'fast', history: list = None,
+                       domain: str = None) -> dict:
     """
     UN tour de conversation avec l'assistant WAMA — cœur SANS ÉTAT, commun à toutes les
     surfaces (vue web `ai_chat`, API v1 `assistant/chat/`, adaptateurs de canaux).
@@ -434,8 +436,10 @@ def run_assistant_turn(user, message: str, provider: str = 'wama-dev-ai',
         provider: 'wama-dev-ai' (défaut, local) | 'claude'/'anthropic' | 'openai' | …
         model:    Rôle de chat (`_ROLE_TIER` : 'fast', 'dev'…) ou nom de modèle complet.
                   Pour un fournisseur cloud, un rôle de chat est ignoré (défaut fournisseur).
-        history:  Tours précédents [{role, content}] — fournis par le client (persistance
-                  serveur différée, cf. docstring module) ; assainis ici.
+        history:  Tours précédents [{role, content}] — fournis par le client ; assainis ici.
+        domain:   Domaine d'intervention (`assistant_skills.DOMAINES` : 'general', 'science',
+                  'design', 'dev'). Détermine le skill de RÔLE injecté au prompt système et,
+                  pour les domaines qui le déclarent, le rappel du contexte de laboratoire.
 
     Returns:
         dict succès : {success, response, model, usage, tool_steps}
@@ -464,7 +468,25 @@ def run_assistant_turn(user, message: str, provider: str = 'wama-dev-ai',
     # consignes CONTRADICTOIRES (corrigé 2026-08-21). Toujours `.replace`, jamais `.format` :
     # le prompt d'outils contient des accolades littérales (`{"tool": …}`) que `format` casserait.
     langue = _consigne_langue(user)
+
+    # Skill de RÔLE + contexte du laboratoire (`ROADMAP.md` §19.7). Le prompt système était
+    # jusqu'ici générique en trois lignes : l'assistant ne savait ni dans quel domaine il
+    # intervenait, ni ce que fait ce laboratoire. Le rôle est DÉCLARÉ par domaine, et le
+    # contexte n'est cherché que pour les domaines qui le déclarent — pas de recherche
+    # vectorielle pour « où en est ma transcription ? ».
+    # ⚠ Ce n'est PAS l'enrichissement de prompt : celui-là est fait dans l'app au lancement
+    # de la tâche (`process_prompt_for`). Deux natures distinctes, cf. `assistant_skills`.
+    role, contexte_labo = '', ''
+    try:
+        from wama.common.utils.assistant_skills import consigne_de_role, contexte_laboratoire
+        role = consigne_de_role(domain)
+        contexte_labo = contexte_laboratoire(user, message, domain)
+    except Exception:
+        logger.debug("[ai_chat] skill de rôle indisponible", exc_info=True)
+
     system_prompt = (WAMA_SYSTEM_PROMPT.replace('{LANGUE}', langue)
+                     + (f"\n\n{role}" if role else '')
+                     + contexte_labo
                      + wama_context + tools_prompt.replace('{LANGUE}', langue))
 
     # Build messages: system + prior history (capped) + current user message

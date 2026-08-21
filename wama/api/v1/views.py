@@ -124,6 +124,9 @@ class AssistantChatView(APIView):
             provider=request.data.get("provider", "wama-dev-ai"),
             model=request.data.get("model", "fast"),
             history=history,
+            # Domaine d'intervention (`assistant_skills.DOMAINES`) : détermine le skill de
+            # rôle et, pour les domaines qui le déclarent, le rappel du contexte de labo.
+            domain=request.data.get("domain"),
         )
 
         if "error" in result:
