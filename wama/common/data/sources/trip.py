@@ -118,12 +118,9 @@ class TripReader(SourceReader):
                 times = [ts.timestamp(t, i, t) for i, t in enumerate(times)]
 
             d = declares.get(nom, {})
-            freq = d.get('frequency')
             meta = SignalMeta(
                 name=nom,
-                # 0 et -1 signifient « non renseigné » dans ce format : mesuré sur une base réelle,
-                # le champ valait 0 pour les 10 flux. On ne fabrique pas une cadence déclarée.
-                fs=float(freq) if freq not in (None, 0, -1) else None,
+                fs=self._frequence(d.get('frequency')),
                 is_base=d.get('is_base', True),
                 # Un événement ou un segment vaut jusqu'au suivant : PREVIOUS est la sémantique
                 # juste. Un signal échantillonné admet le plus proche.
@@ -145,6 +142,22 @@ class TripReader(SourceReader):
                 offset=offsets.get(nom, 0.0),
             ))
         return out
+
+    @staticmethod
+    def _frequence(valeur) -> Optional[float]:
+        """Cadence déclarée, ou None si le champ ne dit rien d'exploitable.
+
+        ⚠ Le champ n'est PAS fiable dans les bases réelles. Mesuré : il valait `0` pour les dix
+        flux d'une passation, et **la chaîne vide** pour les flux dérivés — ce qui faisait lever
+        `float('')` et rendait le flux entier illisible. Toute valeur non numérique ou non
+        strictement positive signifie « non renseigné » : on rend None plutôt que de fabriquer une
+        cadence, puisque `measured_fs()` sait la déduire de la donnée elle-même.
+        """
+        try:
+            f = float(valeur)
+        except (TypeError, ValueError):
+            return None
+        return f if f > 0 else None
 
     # ── Accès bas niveau ──────────────────────────────────────────────────────────────────────
     def _declarations(self, path: Path) -> Dict[str, dict]:

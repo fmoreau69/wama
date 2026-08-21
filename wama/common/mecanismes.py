@@ -419,6 +419,25 @@ MECANISMES = (
     )),
 
     *_domaine('Données & infrastructure', (
+    Mecanisme('temporal_referential', 'Référentiel temporel (WAMA Data)',
+              "Aligne des flux à cadences INCOMMENSURABLES et répond aux questions temporelles : "
+              "quel échantillon à t, quels segments le contiennent, quel événement suit, et la vue "
+              "DÉCIMÉE (min/max par tranche) sans laquelle aucun tracé n'est viable. N'interpole "
+              "jamais : la valeur rendue est toujours un échantillon existant",
+              'wama/common/data/temporal.py', 'WAMA_DATA_WORLD.md §2-§3'),
+    Mecanisme('data_import', 'Importer universel (WAMA Data)',
+              "REGISTRE de capacités de lecture — aucun format privilégié : ajouter un format = "
+              "déposer un lecteur, jamais éditer le moteur. Porte aussi l'HORODATAGE par flux "
+              "(dont le ré-horodatage par fréquence théorique, qui n'interpole rien et ne "
+              "s'applique que sur demande)",
+              'wama/common/data/sources/__init__.py', 'WAMA_DATA_WORLD.md §6.6',
+              annexes=('wama/common/data/sources/trip.py',
+                       'wama/common/data/sources/tabular.py')),
+    Mecanisme('data_types', 'Taxonomie des types de donnée',
+              "Vocabulaire commun des sources et des fonctions : sous-typage + compatibilité de "
+              "ports. `segments` y est LE type « portion de temps bornée » (situation, état, section)",
+              'wama/common/data/data_types.py', 'WAMA_DATA_FUNCTION_CARDS.md §3',
+              symbole='DataType'),
     Mecanisme('ffmpeg', 'Accès ffmpeg',
               "Résolution centralisée du binaire et des conversions (échappatoire FFMPEG_BINARY)",
               'wama/common/utils/ffmpeg_utils.py', ''),
