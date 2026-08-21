@@ -2292,7 +2292,31 @@ dans le portail développeur, le bot reçoit les événements mais `message.cont
 > fonctionne donc de bout en bout sans cet endpoint, qui ne sert que le bouton d'import
 > de l'UI web. Le porter en v1 reste souhaitable, ce n'est pas un préalable.
 
-### 19.5 Store de conversation ⏳ — rendu NÉCESSAIRE par la passerelle
+### 19.5 Store de conversation — ✅ LIVRÉ le 2026-08-21
+
+| Livrable | État |
+|---|---|
+| `common/models.py` — `Conversation` + `ConversationTurn` (migration `common.0008`) | ✅ |
+| `common/services/conversation_store.py` — fil, historique, enregistrement, effacement | ✅ |
+| `assistant_engine.tour_de_conversation()` — enveloppe ; le moteur reste **sans état** | ✅ |
+| La passerelle **adopte** le store — `_HISTORIQUES` (dict en mémoire) **supprimé** | ✅ |
+| 16 assertions vertes, dont **3 fils distincts** pour un même utilisateur | ✅ |
+| UI (liste des conversations dans le chat web) | ⏳ |
+
+**Un fil = `(user, surface, thread_key)`** — c'est ce qui fait qu'un DM Discord, un salon
+Matrix et un onglet de navigateur sont trois conversations distinctes sans que le moteur ait
+à le savoir. Décisions structurantes : **3ᵉ table** et surtout pas `MemoryItem` (deux natures
+⇒ deux tables — l'accident du 19/08) ; contrainte d'unicité sur le fil (sinon deux messages
+simultanés du même salon scindent l'historique **en silence**) ; historique servi en ordre
+**chronologique** même tronqué (à l'envers, il produit des réponses incohérentes sans que
+rien ne le signale) ; `tool_steps` et modèle tracés (une conversation doit rester
+**vérifiable** : qu'a-t-il lancé, avec quels arguments) ; **best-effort sur le stockage,
+jamais sur la réponse**.
+
+Reste : l'UI web (liste des fils) et la **projection** vers la mémoire (fil clos → souvenir
+de provenance `assistant`, non approuvé) — la seule jonction utile entre les deux chantiers.
+
+<details><summary>Contexte d'origine (question de Fabien du 21/08) — conservé</summary>
 
 > ⚠ **VÉRIFIÉ le 2026-08-21, à rebours d'une impression répandue : il n'existe RIEN.** Ni
 > modèle, ni table, ni migration — grep exhaustif sur `Conversation|ChatMessage|Thread|
@@ -2329,8 +2353,9 @@ Question de Fabien (21/08) : « plusieurs conversations en parallèle, et le mul
   modèles + l'UI (liste de conversations).
 - **La passerelle le rend nécessaire, pas seulement souhaitable** : un DM Discord et un
   salon Matrix **sont** des conversations distinctes — `core.py` a déjà la notion de `fil`.
-  `_cle_fil()` (`gateway/core.py:88`) donne déjà la clé naturelle `(canal, fil)` de la
-  future clé étrangère, et `_HISTORIQUES` (`:31-41`) est le **seul appelant à remplacer**.
+  `_cle_fil()` donne la clé naturelle, et `_HISTORIQUES` était le seul appelant à remplacer.
+
+</details>
 
 ### 19.6 ⚠ CONTRAT À DÉFENDRE entre les 3 chantiers de l'assistant (posé le 2026-08-21)
 
@@ -2352,9 +2377,24 @@ langues (fait), toggle avatar (annoncé §17ter), liste de conversations (§19.5
 JS du chat vers `common/static/` avant** d'y toucher à trois, sinon les conflits seront
 mécaniques et répétés.
 
-**③ Collisions mécaniques connues, sans enjeu sémantique** : `wama/common/mecanismes.py` et
-`wama/tool_api.py` (`TOOL_REGISTRY`, `TOOL_APP_OVERRIDE`) reçoivent des *append* des trois
-chantiers. Conflits git à absorber, pas à débattre.
+**③ Collisions — ⚠ ce ne sont PAS que des conflits git, c'est de la PERTE DE TRAVAIL.**
+`wama/common/mecanismes.py` et `wama/tool_api.py` reçoivent des *append* des trois
+chantiers : conflits mécaniques, à absorber. **Mais le 2026-08-21, deux éditions ont été
+purement et simplement ÉCRASÉES** — `common/models.py` (les modèles `Conversation`
+disparus, fichier revenu à sa taille d'avant) puis `assistant_engine.py`
+(`tour_de_conversation` disparue). Cause : les instances partagent **le même arbre de
+travail**, donc il n'y a ni merge ni conflit — la dernière écriture gagne, en silence.
+
+> **Protocole à tenir tant que plusieurs instances travaillent sur l'assistant :**
+> 1. **Commiter immédiatement** après chaque édition d'un fichier partagé — un fichier
+>    commité se récupère, un fichier écrasé non commité est perdu.
+> 2. **Relire juste avant d'écrire** (l'outil d'édition le signale, mais une réécriture
+>    complète du fichier, elle, ne le signale pas).
+> 3. **Vérifier après coup** que l'ajout est toujours là (`grep` du symbole), surtout avant
+>    de bâtir dessus : les deux pertes ci-dessus ont été détectées par l'échec du test
+>    suivant, pas par l'édition elle-même.
+> 4. Fichiers actuellement disputés sur ce chantier : `common/models.py`,
+>    `common/services/assistant_engine.py`, `common/mecanismes.py`, `tool_api.py`.
 
 **④ État réel au 21/08** : l'avatar n'a livré que des **vendors** (three.js, TalkingHead) et
 un partial d'importmap — **aucun template ne l'inclut encore**, donc zéro collision à ce jour
