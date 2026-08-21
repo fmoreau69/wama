@@ -143,11 +143,23 @@ Rendue au chargement (cards autonomes ET filles) et par describer:card_html (ref
   </div>{# /.wcv3 #}
 
   {% comment %}Preview PERMANENTE (§11) — récap avant, texte réel après. `.result-preview`
-  = contrat JS (partial_text live pendant le RUN, index.js:506).{% endcomment %}
+  = contrat JS (partial_text live pendant le RUN, index.js:519).
+
+  L'extrait n'est plus écrit ici : il vient du mécanisme COMMUN n°30 (portage 2026-08-22), qui
+  sait désormais rendre du TEXTE à la densité d'une card — l'hôte DÉCLARE sa densité
+  (data-preview-mode/max-chars) au lieu que chaque app réécrive son propre `truncatechars`.
+  La classe `.result-preview` est CONSERVÉE sur l'hôte : le rendu commun écrit dans son
+  contenu et ne touche ni aux classes ni aux attributs, donc le polling du RUN continue d'y
+  écrire le texte partiel exactement comme avant.
+  ⚠ La garde sur `desc.result_text` ci-dessous est OBLIGATOIRE et non cosmétique :
+  mesuré le 22/08, `?side=output` sur un item SANS sortie
+  ne renvoie pas « rien » mais REPLIE SILENCIEUSEMENT SUR L'ENTRÉE (preview_utils:287) — sans
+  garde, une card PENDING afficherait son image source à la place de son blueprint.{% endcomment %}
   {% if desc.result_text %}
-  <div class="wcv3-preview result-preview" title="Description générée">
-    {{ desc.result_text|truncatechars:400 }}
-  </div>
+  {% url 'common:unified_preview' 'describer' desc.id as pv_out %}
+  <div class="wcv3-preview result-preview" title="Description générée"
+       data-card-preview="{{ pv_out }}?side=output"
+       data-preview-mode="excerpt" data-preview-max-chars="400"></div>
   {% else %}
   <div class="wcv3-preview wcv3-preview--blueprint result-preview">
     {% if desc.status == 'RUNNING' %}

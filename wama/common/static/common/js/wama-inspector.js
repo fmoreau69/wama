@@ -64,6 +64,41 @@
     });
   }
 
+  // ── DENSITÉ d'un aperçu texte, DÉCLARÉE par l'hôte (2026-08-22) ───────────────────────
+  // Un volet et une CARD n'ont pas la même densité : le volet peut dérouler 3000 caractères
+  // dans un <pre> scrollable, une card veut un extrait NU de quelques centaines de signes.
+  // Cette différence était jusqu'ici résolue en RÉÉCRIVANT l'extrait dans chaque gabarit —
+  // describer 400 (.result-preview), reader 400 (.reader-preview + filtre compact_preview),
+  // transcriber 160 (.wama-card-preview) : trois longueurs, trois classes, trois bouts de
+  // markup pour un seul et même geste. L'hôte la DÉCLARE désormais, le commun la rend.
+  //   data-preview-mode="excerpt"     → extrait nu (pas de <pre>, pas de légende)
+  //   data-preview-max-chars="400"    → longueur, propre à la card
+  // Absent = comportement d'AVANT, à l'identique (volet et adoptants du 18/08 intacts).
+  var TEXTE_MAX_VOLET = 3000, TEXTE_MAX_CARD = 400;
+
+  function _densitePreview(host) {
+    var d = (host && host.dataset) || {};
+    var mode = d.previewMode || 'rich';
+    var max = parseInt(d.previewMaxChars, 10);
+    if (!(max > 0)) max = (mode === 'excerpt') ? TEXTE_MAX_CARD : TEXTE_MAX_VOLET;
+    return { mode: mode, max: max };
+  }
+
+  // Compactage pour extrait de card : syntaxe markdown retirée, blancs écrasés. MIROIR CLIENT
+  // du filtre `compact_preview` de reader (reader_tags.py:8) — même traitement, mêmes étapes,
+  // dans le même ordre. Il devient inutile dans les gabarits : un extrait rendu par le commun
+  // ne peut plus dépendre d'un filtre que seul reader possède.
+  function _compacteTexte(t) {
+    return String(t == null ? '' : t)
+      .replace(/^#{1,6}\s+/gm, '')
+      .replace(/\*{1,3}|_{1,3}/g, '')
+      .replace(/^\s*[-*+]\s+/gm, '')
+      .replace(/\|/g, ' ')
+      .replace(/`+/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   // Rendu INLINE compact d'un aperçu média dans le volet (≠ modale plein écran de media-preview.js).
   // Données = JSON de common:unified_preview {name, url, mime_type, …}. autoplay gated par le profil
   // (jamais de génération : on n'affiche que l'existant — CARD_DESIGN §10.6 / décision Fabien).
@@ -106,6 +141,27 @@
       media = '<iframe src="' + u + '" sandbox class="wama-inspector-preview-media" ' +
         'style="width:100%;height:220px;border:0;background:#fff;border-radius:6px;"></iframe>';
     } else if (mime.indexOf('text/') === 0) {
+      var dens = _densitePreview(host);
+      if (dens.mode === 'excerpt') {
+        // EXTRAIT de card : texte nu dans l'hôte lui-même — ni <pre> scrollable ni légende,
+        // qui sont la densité du volet. On écrit dans l'hôte SANS toucher à ses classes ni à
+        // ses attributs : c'est ce qui préserve les gestes déjà posés par les apps dessus
+        // (reader = data-action="expand" + double-clic texte intégral, transcriber = double-clic
+        // overlay via .wama-card-preview, describer = .result-preview où son polling écrit le
+        // texte partiel pendant le RUN). Tous ces contrats portent sur l'ÉLÉMENT, aucun sur son
+        // contenu — vérifié consommateur par consommateur avant le portage.
+        var _extrait = function (t) {
+          var c = _compacteTexte(t);
+          host.textContent = c ? (c.length > dens.max ? c.slice(0, dens.max) + ' …' : c) : '(vide)';
+        };
+        if (typeof data.content === 'string') {
+          _extrait(data.content);
+        } else {
+          fetch(url).then(function (r) { return r.ok ? r.text() : ''; }).then(_extrait)
+            .catch(function () { /* best-effort : la card reste lisible sans extrait */ });
+        }
+        return;
+      }
       // Texte (plain/markdown/csv… ; ex. le PROMPT en entrée). Contenu inline si fourni
       // (data.content, cas prompt sans fichier), sinon chargé en async depuis l'URL.
       host.innerHTML = '<div class="wama-inspector-preview"><pre class="small text-white-50 text-start mb-1" ' +

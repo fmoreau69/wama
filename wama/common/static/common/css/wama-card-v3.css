@@ -178,12 +178,26 @@
 }
 .wcv3-preview[data-action="expand"] { cursor: pointer; }
 
-/* Préviz MÉDIA (img/vidéo/audio) : le plafond 80px ci-dessus est le contrat des préviz TEXTE
-   (repli expandPreview) — appliqué aux médias il TRONQUAIT l'aperçu (vidéo carrée avatarizer
+/* Préviz MÉDIA : le plafond 80px ci-dessus est le contrat des préviz TEXTE (repli
+   expandPreview) — appliqué aux médias il TRONQUAIT l'aperçu (vidéo carrée avatarizer
    clippée au 1/3 haut, constat Fabien 17/08 ; imager/enhancer pareils). Le conteneur ne
    clippe plus ; chaque média garde sa PROPRE borne de hauteur (max-height inline/app) et se
-   letterboxe entier (object-fit contain par défaut des <video>) — valable ligne ET mosaïque. */
-.wcv3-preview:has(img, video, audio) { max-height: none; }
+   letterboxe entier (object-fit contain par défaut des <video>) — valable ligne ET mosaïque.
+
+   ⚠ La liste ne peut PAS se limiter aux balises média (constat Fabien 22/08 : « le bouton de
+   lecture devient presque masqué quand l'onde s'affiche »). Le lecteur d'onde ne contient
+   AUCUN <audio> : son élément est un `new Audio()` volontairement HORS DOM
+   (wama-audio-player.js:43-44 et :138 — c'est ce qui oblige d'ailleurs l'exclusivité à couper
+   les autres players à la main). Il n'était donc jamais matché, gardait le plafond de 80 px,
+   et se faisait couper la rangée du bas : onde 48 px + marges 10 px + rangée bouton/temps
+   ~24 px + padding ~13 px ≈ 95 px pour 80 px de plafond — le bouton ⏵ et le temps tombaient
+   pile dans les 15 px coupés. On matche donc le COMPOSANT (.wama-audio-player), pas sa balise.
+
+   <embed> (PDF) et <iframe> (HTML) sont ajoutés au même titre : renderInlinePreview les rend
+   en 220 px de haut, ils étaient tronqués au tiers exactement pour la même raison. Le défaut
+   ne s'était pas vu parce qu'aucune card ne servait encore ces types — le portage du mécanisme
+   n°30 aux apps à sortie fichier les rend atteignables. */
+.wcv3-preview:has(img, video, audio, embed, iframe, .wama-audio-player) { max-height: none; }
 
 /* État « rien encore produit » : récapitulatif de ce qui sortira, en retrait typographique. */
 .wcv3-preview--blueprint { color: #868e96; font-style: italic; }

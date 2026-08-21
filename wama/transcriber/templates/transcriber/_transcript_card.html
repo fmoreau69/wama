@@ -173,11 +173,25 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                         {% include 'common/_card_progress.html' with status=t.status progress=t.progress elapsed=t.processing_display bar_only=True %}
                     </div>
                 </div>
-                {# Preview compacte (niveau 1) sous la barre ; double-clic -> overlay (niveau 3) ; composant commun .wama-card-preview #}
+                {% comment %}Preview compacte (niveau 1) sous la barre ; double-clic → overlay
+                (niveau 3). DEUX briques communes se COMPOSENT ici, elles ne se concurrencent pas :
+                  · `.wama-card-preview` (media-preview.js) porte le GESTE — curseur, double-clic,
+                    événement `wama:card-expand` que l'app intercepte pour ouvrir SON modal de
+                    résultat (index.js:1400) plutôt que l'aperçu d'entrée ;
+                  · `data-card-preview` (mécanisme n°30) porte le CONTENU — extrait rendu par le
+                    commun à la densité déclarée, au lieu du `truncatechars:160` écrit ici.
+                Le rendu commun n'écrit que le contenu de l'hôte : le geste, `data-id` et les
+                classes survivent intacts. Le span interne disparaît, ses propriétés visuelles
+                (text-light, 48px, overflow) passent sur l'hôte — aucune CSS ne le ciblait.
+                ⚠ Garde `SUCCESS and t.text` conservée À L'IDENTIQUE : `?side=output` replie
+                silencieusement sur l'ENTRÉE quand il n'y a pas de sortie (mesuré 22/08), et un
+                transcript FAILURE peut porter du texte partiel — l'app avait déjà tranché.{% endcomment %}
                 {% if t.status == 'SUCCESS' and t.text %}
-                <div class="wama-card-preview mt-2 p-2 rounded bg-black bg-opacity-50 small"
-                     data-id="{{ t.id }}" title="Double-cliquez pour voir le résultat">
-                    <span class="text-light d-block" style="max-height:48px; overflow:hidden;">{{ t.text|truncatechars:160 }}</span>
-                </div>
+                {% url 'common:unified_preview' 'transcriber' t.id as pv_out %}
+                <div class="wama-card-preview mt-2 p-2 rounded bg-black bg-opacity-50 small text-light"
+                     style="max-height:48px; overflow:hidden;"
+                     data-id="{{ t.id }}" title="Double-cliquez pour voir le résultat"
+                     data-card-preview="{{ pv_out }}?side=output"
+                     data-preview-mode="excerpt" data-preview-max-chars="160"></div>
                 {% endif %}
             </div>
