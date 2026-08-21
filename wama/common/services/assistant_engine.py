@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 
 from django.conf import settings
@@ -241,7 +242,22 @@ def _ollama_call(messages: list, ollama_model: str) -> tuple:
     """
     import httpx
 
-    ollama_host = getattr(settings, 'OLLAMA_HOST', 'http://127.0.0.1:11434').rstrip('/')
+    # Résolution par la BRIQUE COMMUNE, comme les 8 autres consommateurs d'Ollama
+    # (`llm_utils`, `memory/embed`, `model_registry`, `vision_probe`…). Elle détecte WSL2 et
+    # calcule la passerelle de l'hôte Windows toute seule.
+    #
+    # ⚠ Le repli codé en dur sur `127.0.0.1` était juste en apparence : sous WSL2 cette adresse
+    # désigne la VM, pas l'hôte où tourne Ollama. L'assistant ne fonctionnait donc que parce que
+    # `start_wama_prod.sh:44` exporte `OLLAMA_HOST` — n'importe quel autre contexte (commande de
+    # gestion, cron, test, shell) tombait sur un 503, alors que tous les autres appelants
+    # marchaient partout. Constaté le 2026-08-21 en testant l'assistant hors du script.
+    # ⚠ On lit l'ENV, pas `settings.OLLAMA_HOST` : ce réglage vaut
+    # `os.environ.get('OLLAMA_HOST', 'http://127.0.0.1:11434')` (settings.py:661), donc il n'est
+    # JAMAIS vide — un `or` dessus retomberait toujours sur le mauvais défaut au lieu de laisser
+    # la brique répondre. Une valeur explicitement exportée continue de gagner.
+    from wama.common.utils.ollama_host import ollama_base
+
+    ollama_host = (os.environ.get('OLLAMA_HOST') or ollama_base()).rstrip('/')
     ollama_url = f"{ollama_host}/api/chat"
 
     try:
