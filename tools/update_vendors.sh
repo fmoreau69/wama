@@ -94,8 +94,14 @@ for a in "${THREE_ADDONS[@]}"; do
 done
 
 echo "== TalkingHead $TALKINGHEAD_VER (modules ES6) =="
+# ⚠ Les `lipsync-<lang>.mjs` ne sont PAS des imports statiques : `lipsyncGetProcessor()` fait un
+# `import()` DYNAMIQUE, chemin par défaut "./" — donc résolu À CÔTÉ de talkinghead.mjs. Ils sont
+# invisibles d'une analyse des imports statiques, et leur absence ne casse rien au chargement :
+# elle casse À LA PREMIÈRE PHRASE PRONONCÉE. Le module `fr` est justement ce qui rend cette
+# voie intéressante pour un labo français (lip-sync à visèmes avec règles françaises).
 mkdir -p "$V/talkinghead-$TALKINGHEAD_VER"
-for m in talkinghead.mjs retargeter.mjs dynamicbones.mjs; do
+for m in talkinghead.mjs retargeter.mjs dynamicbones.mjs \
+         lipsync-fr.mjs lipsync-en.mjs lipsync-de.mjs lipsync-fi.mjs lipsync-lt.mjs; do
   dl "https://raw.githubusercontent.com/met4citizen/TalkingHead/main/modules/$m" "$V/talkinghead-$TALKINGHEAD_VER/$m"
 done
 

@@ -1,6 +1,32 @@
 {% extends 'base.html' %}
+{# `load` ne s'hérite PAS de base.html : sans cette ligne, tout {% templatetag openblock %}% static %{% templatetag closeblock %} d'ici casse le rendu. #}
+{% load static %}
+
+{% comment %}
+  ── Avatar parlant de l'assistant (pilote) ────────────────────────────────────
+  Domicile = `right_panel_top`, l'emplacement libre EN TÊTE du volet droit prévu pour
+  exactement ce cas (base.html : « ni un média, ni un paramètre, ni une action »). En page
+  d'accueil ce volet n'affichait qu'un « Sélectionnez un fichier » sans objet.
+  ⚠ En mode SIMPLIFIÉ le volet droit est masqué (`body.wama-simple #wama-right-panel`) :
+  l'avatar n'y existe donc pas — c'est assumé au pilote, un second domicile central reste
+  à trancher.
+{% endcomment %}
+{% block right_panel_top %}
+<div class="right-panel-section" id="assistant-avatar-section" style="display:none;">
+  <div class="right-panel-section-title">
+    <i class="fas fa-user-astronaut me-1"></i> Assistant
+    <button id="avatar-collapse" class="btn btn-sm btn-link p-0 float-end text-secondary"
+            title="Replier l'avatar"><i class="fas fa-chevron-up"></i></button>
+  </div>
+  {# Hauteur explicite : three.js ne rend rien dans un conteneur de hauteur nulle. #}
+  <div id="assistant-avatar" style="width:100%;height:260px;border-radius:8px;overflow:hidden;background:#15181c;"></div>
+  <div id="avatar-status" class="small text-muted mt-1"></div>
+</div>
+{% endblock %}
 
 {% block extra_css %}
+{# Importmap three.js — DOIT précéder tout import de module (y compris dynamique). #}
+{% include 'common/_three_importmap.html' %}
 <style>
   /* Simple mode: show/hide home sections */
   #homeSimple { display: none; }
@@ -74,6 +100,7 @@
       let chatHistory = [];   // [{type, content?, steps?, model?}]
 
       // ── Voice / TTS state ─────────────────────────────────────────────────
+      const VOICE_LANG = '{{ preferred_language|default:"fr" }}';
       const VOICE_KEY = 'wama_ai_voice_{{ request.user.username }}';
       let voiceEnabled = localStorage.getItem(VOICE_KEY) === '1';
       // (l'état de lecture vit désormais dans WamaApp.Speech — canal unique commun)
@@ -165,11 +192,66 @@
           const binStr = atob(data.audio_b64);
           const bytes = new Uint8Array(binStr.length);
           for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
-          turn.play(new Blob([bytes], { type: 'audio/wav' }));
+          const blob = new Blob([bytes], { type: 'audio/wav' });
+          // Avatar : s'il est prêt, IL joue l'audio (et anime la bouche dessus). Sinon on
+          // retombe sur le canal de parole commun — la voix n'est JAMAIS perdue, même si
+          // three.js/le GLB ont échoué à charger.
+          if (window.WamaAvatar && WamaAvatar.estPret()) {
+            if (await WamaAvatar.speak(blob, clean, VOICE_LANG)) return;
+          }
+          turn.play(blob);
         } catch(e) {
           if (e.name !== 'AbortError') console.error('Kokoro TTS error:', e);
         }
       }
+
+      // ── Avatar parlant (chargé À LA DEMANDE) ──────────────────────────────
+      // three.js + TalkingHead + GLB ≈ 6 Mo : les charger au rendu de la page pénaliserait
+      // TOUS les utilisateurs pour une fonction optionnelle. Le module n'est donc importé
+      // qu'au premier clic sur le bouton, et une seule fois.
+      const avatarBtn     = document.getElementById('ai-avatar-toggle');
+      const avatarSection = document.getElementById('assistant-avatar-section');
+      const avatarStatus  = document.getElementById('avatar-status');
+      let avatarCharge = false;
+
+      function majAvatarBtn(actif) {
+        avatarBtn.classList.toggle('btn-outline-info', actif);
+        avatarBtn.classList.toggle('btn-outline-secondary', !actif);
+        avatarBtn.title = actif ? "Masquer l'avatar parlant" : "Afficher l'avatar parlant";
+      }
+
+      async function basculerAvatar() {
+        // Volet droit masqué en mode simplifié : le dire plutôt que de laisser un bouton inerte.
+        if (document.body.classList.contains('wama-simple')) {
+          WamaApp.toast("L'avatar s'affiche dans le volet droit, absent du mode simplifié.");
+          return;
+        }
+        const visible = avatarSection.style.display !== 'none';
+        if (visible) { avatarSection.style.display = 'none'; majAvatarBtn(false); return; }
+
+        avatarSection.style.display = '';
+        majAvatarBtn(true);
+        if (avatarCharge) return;
+        avatarCharge = true;                       // évite un double chargement si on reclique
+        avatarStatus.textContent = 'Chargement de l’avatar…';
+        try {
+          await import('{% static "common/js/wama-avatar.js" %}');
+          await WamaAvatar.init(document.getElementById('assistant-avatar'), {
+            glbUrl: '{% static "vendors/avatars/brunette.glb" %}',
+            lang: VOICE_LANG,
+          });
+          avatarStatus.textContent = '';
+        } catch (e) {
+          console.error('[avatar]', e);
+          avatarCharge = false;                    // permet une nouvelle tentative
+          avatarStatus.textContent = "L’avatar n’a pas pu être chargé — la voix reste disponible.";
+        }
+      }
+      if (avatarBtn) avatarBtn.addEventListener('click', basculerAvatar);
+      const avatarCollapse = document.getElementById('avatar-collapse');
+      if (avatarCollapse) avatarCollapse.addEventListener('click', function () {
+        avatarSection.style.display = 'none'; majAvatarBtn(false);
+      });
 
       // ── Microphone (Web Speech API) ───────────────────────────────────────
       let recognition = null;
@@ -601,6 +683,10 @@
             </select>
             <button id="ai-voice-toggle" class="btn btn-outline-secondary btn-sm" title="Activer la vocalisation">
               <i class="fas fa-volume-mute"></i>
+            </button>
+            {# Avatar : chargé À LA DEMANDE (three.js + GLB ≈ 6 Mo) — jamais au chargement de la page. #}
+            <button id="ai-avatar-toggle" class="btn btn-outline-secondary btn-sm" title="Afficher l'avatar parlant">
+              <i class="fas fa-user-astronaut"></i>
             </button>
             <button id="ai-chat-clear" class="btn btn-outline-secondary btn-sm" title="Effacer la conversation">
               <i class="fas fa-trash-alt me-1"></i> Effacer
