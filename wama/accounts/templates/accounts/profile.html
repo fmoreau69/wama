@@ -185,6 +185,63 @@
                 </div>
             </div>
 
+            {% comment %}
+              ── Canaux de discussion (passerelle — ROADMAP §19) ──────────────────────
+              C'est l'écran qui SCELLE l'appariement : le canal ne fait que proposer un
+              code, c'est CETTE session authentifiée qui apporte la preuve d'identité et
+              détermine le compte lié. D'où l'avertissement explicite sur le code : le
+              communiquer revient à donner l'accès à son propre compte.
+            {% endcomment %}
+            <div class="card bg-dark border-secondary mb-4">
+                <div class="card-header border-secondary">
+                    <h5 class="mb-0"><i class="fas fa-comments me-2"></i>Canaux de discussion</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        Reliez votre compte à Discord ou Tchap pour piloter WAMA depuis une
+                        conversation. Envoyez <code class="text-light">!lier</code> au bot,
+                        puis saisissez ici le code qu'il vous répond.
+                    </p>
+
+                    {% if channel_links %}
+                    <ul class="list-group list-group-flush mb-3">
+                        {% for lien in channel_links %}
+                        <li class="list-group-item bg-dark text-light border-secondary d-flex justify-content-between align-items-center px-0">
+                            <span>
+                                <i class="fas fa-link text-success me-2"></i>
+                                <strong>{{ lien.get_channel_display }}</strong>
+                                — {{ lien.external_label|default:lien.external_id }}
+                            </span>
+                            <button class="btn btn-outline-danger btn-sm channel-unlink-btn"
+                                    data-channel="{{ lien.channel }}"
+                                    data-external-id="{{ lien.external_id }}">
+                                <i class="fas fa-unlink me-1"></i> Délier
+                            </button>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-muted small fst-italic mb-3">Aucun canal relié.</p>
+                    {% endif %}
+
+                    <div class="input-group">
+                        <input type="text" id="channelCodeInput" maxlength="16"
+                               class="form-control bg-dark text-light border-secondary text-uppercase"
+                               placeholder="Code d'appariement (ex. K7M2P9QR)"
+                               autocomplete="off" style="letter-spacing:0.12em;">
+                        <button class="btn btn-outline-primary" type="button" id="channelLinkBtn">
+                            <i class="fas fa-link me-1"></i> Relier
+                        </button>
+                    </div>
+                    <div class="form-text text-muted">
+                        Le code expire au bout de 15 minutes.
+                        <strong>Ne le communiquez à personne</strong> : qui le saisit relie
+                        ce canal à SON compte.
+                    </div>
+                    <div id="channelMsg" class="mt-2" style="display:none;"></div>
+                </div>
+            </div>
+
             <!-- ── Mot de passe (comptes locaux uniquement) ─────────── -->
             {% if not is_ldap %}
             <div class="card bg-dark border-secondary mb-4">
@@ -277,6 +334,8 @@ const RETENTION_URL      = "{% url 'accounts:profile-retention' %}";
 const CHANGE_PWD_URL     = "{% url 'accounts:change-password' %}";
 {% endif %}
 const TOKEN_REGEN_URL = "{% url 'accounts:token-regenerate' %}";
+const CHANNEL_LINK_URL   = "{% url 'accounts:channel-link' %}";
+const CHANNEL_UNLINK_URL = "{% url 'accounts:channel-unlink' %}";
 const PROVIDER_KEYS_URL = "{% url 'media_library:api_provider_keys' %}";
 const PROVIDER_KEY_SAVE_URL = "{% url 'media_library:api_provider_key_save' slug='SLUG' %}";
 const CSRF_TOKEN      = "{{ csrf_token }}";
@@ -297,6 +356,55 @@ async function postJson(url, body) {
     });
     return resp.json();
 }
+
+// ── Canaux de discussion (passerelle — ROADMAP §19) ─────────────────────────
+const channelLinkBtn = document.getElementById('channelLinkBtn');
+if (channelLinkBtn) {
+    const codeInput = document.getElementById('channelCodeInput');
+    const msg = document.getElementById('channelMsg');
+
+    async function relier() {
+        const code = (codeInput.value || '').trim().toUpperCase();
+        if (!code) { showMsg(msg, 'Saisissez le code donné par le bot.', true); return; }
+        channelLinkBtn.disabled = true;
+        try {
+            const data = await postJson(CHANNEL_LINK_URL, { code });
+            if (data.error) { showMsg(msg, data.error, true); return; }
+            showMsg(msg, `✓ ${data.channel} relié (${data.label}) — rechargement…`);
+            // Rechargement : la liste des liaisons est rendue côté serveur.
+            setTimeout(() => window.location.reload(), 900);
+        } catch (e) {
+            showMsg(msg, 'Erreur réseau', true);
+        } finally {
+            channelLinkBtn.disabled = false;
+        }
+    }
+
+    channelLinkBtn.addEventListener('click', relier);
+    // Entrée vaut clic : on tape un code, on valide — sans chercher le bouton.
+    codeInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); relier(); }
+    });
+}
+
+document.querySelectorAll('.channel-unlink-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+        const msg = document.getElementById('channelMsg');
+        btn.disabled = true;
+        try {
+            const data = await postJson(CHANNEL_UNLINK_URL, {
+                channel: btn.dataset.channel,
+                external_id: btn.dataset.externalId,
+            });
+            if (data.error) { showMsg(msg, data.error, true); btn.disabled = false; return; }
+            showMsg(msg, '✓ Liaison supprimée — rechargement…');
+            setTimeout(() => window.location.reload(), 900);
+        } catch (e) {
+            showMsg(msg, 'Erreur réseau', true);
+            btn.disabled = false;
+        }
+    });
+});
 
 // ── Langue ──────────────────────────────────────────────────────────────────
 document.getElementById('saveLanguageBtn').addEventListener('click', async () => {

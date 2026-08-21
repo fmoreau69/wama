@@ -208,11 +208,21 @@ def profile_view(request):
     token_obj, _ = Token.objects.get_or_create(user=request.user)
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
 
+    # Liaisons de canal (passerelle Discord/Tchap — ROADMAP §19). Import tardif et
+    # défensif : la page de profil ne doit pas tomber si l'app passerelle est absente.
+    try:
+        from wama.gateway.models import ChannelLink
+        liaisons = list(ChannelLink.objects.filter(user=request.user)
+                        .exclude(confirmed_at__isnull=True).order_by('channel'))
+    except Exception:
+        liaisons = []
+
     return render(request, 'accounts/profile.html', {
         'token': token_obj.key,
         'profile': profile,
         'languages': LANGUAGE_CHOICES,
         'is_ldap': _is_ldap_user(request),
+        'channel_links': liaisons,
     })
 
 
@@ -379,6 +389,60 @@ def token_regenerate(request):
     Token.objects.filter(user=request.user).delete()
     token = Token.objects.create(user=request.user)
     return JsonResponse({'success': True, 'token': token.key})
+
+
+def _champ(request, nom: str) -> str:
+    """
+    Lit un champ que la requête soit en JSON ou en formulaire.
+
+    La page de profil poste en JSON (helper `postJson`) ; un client en ligne de commande
+    postera plus volontiers un formulaire. Accepter les deux évite le « ça marche dans le
+    navigateur mais pas au curl » — et coûte trois lignes.
+    """
+    if request.content_type and 'application/json' in request.content_type:
+        try:
+            return (json.loads(request.body or '{}').get(nom) or '').strip()
+        except (json.JSONDecodeError, AttributeError):
+            return ''
+    return (request.POST.get(nom) or '').strip()
+
+
+@login_required
+@require_POST
+def channel_link_confirm(request):
+    """
+    AJAX : scelle une liaison de canal à partir du code obtenu dans la discussion.
+
+    C'EST ICI QUE LA PREUVE D'IDENTITÉ EST APPORTÉE (passerelle, `ROADMAP.md` §19.1) : le
+    compte lié est celui de la session courante, jamais un compte nommé dans le canal. Un
+    code intercepté dans une discussion ne permet donc que de se lier SOI-MÊME à l'identité
+    de canal de celui qui l'a demandé — ce qui ne donne aucun accès.
+    """
+    from wama.gateway.services import ErreurAppariement, confirmer_liaison
+
+    try:
+        lien = confirmer_liaison(request.user, _champ(request, 'code'))
+    except ErreurAppariement as e:
+        return JsonResponse({'error': str(e)}, status=400)
+
+    return JsonResponse({
+        'success': True,
+        'channel': lien.get_channel_display(),
+        'label': lien.external_label or lien.external_id,
+    })
+
+
+@login_required
+@require_POST
+def channel_unlink(request):
+    """AJAX : supprime une de SES liaisons de canal (jamais celle d'autrui)."""
+    from wama.gateway.services import delier
+
+    supprime = delier(request.user, _champ(request, 'channel'),
+                      _champ(request, 'external_id'))
+    if not supprime:
+        return JsonResponse({'error': 'Liaison introuvable.'}, status=404)
+    return JsonResponse({'success': True})
 
 
 def add_user(username, first_name, last_name, email):

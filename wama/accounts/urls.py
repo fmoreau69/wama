@@ -25,6 +25,10 @@ urlpatterns = [
     path('manage/app-access/', views.app_access_matrix, name='app-access-matrix'),
     path('manage/app-access/toggle/', views.app_access_toggle, name='app-access-toggle'),
     path('profile/token/regenerate/', views.token_regenerate, name='token-regenerate'),
+    # Passerelle de canaux (ROADMAP §19) — l'écran qui SCELLE l'appariement : c'est cette
+    # session authentifiée qui apporte la preuve d'identité, pas le canal.
+    path('profile/channel/link/', views.channel_link_confirm, name='channel-link'),
+    path('profile/channel/unlink/', views.channel_unlink, name='channel-unlink'),
     path('profile/password/', views.change_password, name='change-password'),
 
     # User Management (Admin only)
