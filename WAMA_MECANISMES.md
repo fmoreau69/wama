@@ -269,7 +269,7 @@ Rappel des domiciles de l'**intention** — la carte pointe vers eux, elle ne le
 | Route d'auto-génération des apps (F1–F8) | `WAMA_APP_GENERATION_ROUTE.md` |
 | Manifestes — formalisme / flux | `WAMA_MANIFEST_SPEC.md` · `WAMA_MANIFEST_ARCHITECTURE.md` |
 | Conventions d'application | `WAMA_APP_CONVENTIONS.md` |
-| Pipeline de prompts | `PROMPT_PIPELINE.md` |
+| IA transverse — prompts, skills, chaîne complète | `WAMA_IA_TRANSVERSE.md` |
 | Appariement entrée ↔ modèle | `INPUT_MODEL_MATCHING.md` |
 | Profils, permissions, portée | `PROFILES_PERMISSIONS.md` |
 | Prospection de modèles | `wama/model_manager/PROSPECTION_PIPELINE.md` |
