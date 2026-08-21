@@ -2437,6 +2437,15 @@ un partial d'importmap — **aucun template ne l'inclut encore**, donc zéro col
 `assistant_engine.py` ; son seul chemin vers l'assistant est l'outil `memory_recall`, déjà
 scopé — donc rien à re-garder côté canal, il fonctionne dans le bot comme sur le web.
 
+> ⚠ **CECI N'EST PLUS VRAI depuis le 2026-08-21 (instance mémoire).** J'ai touché
+> `assistant_engine.py` — une seule fonction, `_ollama_call` : elle résolvait Ollama par un repli
+> **codé en dur sur `127.0.0.1`**, qui sous WSL2 désigne la VM et non l'hôte. L'assistant ne
+> marchait donc que parce que `start_wama_prod.sh:44` exporte `OLLAMA_HOST` — hors du script
+> (commande de gestion, cron, test, shell) c'était un 503 systématique, alors que les 8 autres
+> consommateurs d'Ollama passent par la brique `common/utils/ollama_host` et marchent partout.
+> Trouvé en testant l'assistant de bout en bout. **Commité immédiatement** (protocole ③) ; diff
+> vérifié comme exclusivement mien avant commit, aucune édition de l'autre chantier écrasée.
+
 ### 19.2 Notifications proactives — gain rapide, indépendant du bot ⏳
 
 `notify_job()` (`common/utils/notifications.py`) est déjà LE point unique appelé par toutes

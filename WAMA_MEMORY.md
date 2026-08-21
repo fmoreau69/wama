@@ -535,8 +535,8 @@ Ne rien arbitrer sur ces chiffres.
 | 6 | Branchement `prompt_pipeline` **Hook B** (`rag=True`, opt-in) | ✅ 2026-08-21 — §7quater |
 | 7 | wama-dev-ai : `memory.json` → `MemoryItem` (`provenance='dev-ai'`) | ✅ 2026-08-21 — **25 souvenirs, 0 approuvé** |
 | 8 | Outil `memory_recall` dans `tool_api.py` | ✅ 2026-08-21 — 49 outils, scopé |
-| 9 | Entrée au registre `common/mecanismes.py` (la table de `WAMA_MECANISMES.md` en est générée) | ⏳ |
-| 10 | Entrée catalogue `AIModel` pour `bge-m3` (il tourne, il n'est pas déclaré) | ⏳ |
+| 9 | Entrée au registre `common/mecanismes.py` | ✅ 2026-08-21 — 5 mécanismes + `common/memory/` **ajouté aux dossiers balayés** (il en était absent : 4 modules invisibles, « non rattachés : 0 » mentait) |
+| 10 | ~~Entrée catalogue `AIModel` pour `bge-m3`~~ | ✅ **le jalon n'avait pas lieu d'être** — `bge-m3` y était déjà. Mais un VRAI défaut a été trouvé et corrigé : 3 modèles d'embedding étaient typés `llm`, donc **sélectionnables comme modèles de chat** à budget VRAM serré |
 | 11 | Journal `/common/journal/` (couche 1) + captation générique (couche 2) | ✅ 2026-08-20 — §9bis |
 | 12 | **tool_api : lecture générique** (`list_my_items` / `get_item_detail`) — §9ter | ⏳ |
 
