@@ -49,13 +49,30 @@ TIMEOUT_S = 20.0
 KEEP_ALIVE = '0'
 
 
-def embed_text(text: str, *, model: str = '', timeout: float = TIMEOUT_S):
+#: Résidence demandée pour un rappel — courte. Le gouverneur peut refuser, auquel cas chaque
+#: rappel recharge le modèle (~5 s au lieu de ~300 ms) : lent, jamais concurrent.
+RESIDENCE_RAPPEL = '5m'
+
+
+def embed_text(text: str, *, model: str = '', timeout: float = TIMEOUT_S, resident: bool = False):
     """
     Rend le vecteur de `text`, ou `None` si l'embedder est indisponible.
 
     `None` est un retour NORMAL, pas une anomalie — voir la règle de dégradation ci-dessus.
+
+    `resident=True` : DEMANDE au gouverneur de garder l'embedder chargé après l'appel. Sans
+    cela, un rappel sémantique repaie le chargement complet à chaque fois — mesuré le
+    2026-08-21 : 5,3 s par appel, y compris le second enchaîné. C'est ce qui rendait
+    l'arbitrage « hybride pour `memory_recall` » creux : la qualité y gagnait, la latence non.
+    Le gouverneur reste seul juge — refus ⇒ déchargement immédiat, comme avant.
     """
-    vectors = embed_batch([text], model=model, timeout=timeout)
+    keep_alive = None
+    if resident:
+        autorisee, _ = residence_autorisee()
+        if autorisee:
+            reserver()
+            keep_alive = RESIDENCE_RAPPEL
+    vectors = embed_batch([text], model=model, timeout=timeout, keep_alive=keep_alive)
     return vectors[0] if vectors else None
 
 

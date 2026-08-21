@@ -34,6 +34,14 @@ CANDIDATS_PAR_RANKER = 50
 #: grandeur au-dessus du plancher et six en dessous du plus faible vrai positif.
 SEUIL_LEXICAL = 1e-6
 
+#: Distance cosinus MAXIMALE pour qu'un voisin vectoriel compte. Sans elle, la recherche
+#: vectorielle rend TOUJOURS `k` résultats, si loin soient-ils — le mode d'échec classique du RAG :
+#: répondre du plausible plutôt que rien. Mesuré le 2026-08-21 sur « anonymisation des données
+#: personnelles » : les fragments PERTINENTS sont à 0.46–0.52, les souvenirs HORS SUJET à 0.69+.
+#: 0.60 sépare les deux populations avec de la marge des deux côtés.
+#: ⚠ Valeur liée au COUPLE (modèle, corpus) : à re-mesurer si l'on change d'embedder.
+SEUIL_VECTORIEL = 0.60
+
 #: Poids de la saillance dans le score final. Une saillance de 1.0 majore le score de 25 % —
 #: assez pour départager deux résultats proches, trop peu pour faire remonter un hors-sujet.
 #: Voir `WAMA_MEMORY.md §8` : la saillance est DÉRIVÉE de gestes réels, jamais d'une inférence.
@@ -152,7 +160,7 @@ def remember(content, *, kind, provenance, user=None, subject='', source_app='',
 # ───────────────────────────────────────────────────────────── recall ────────
 
 def recall(query, *, user, kinds=None, subject=None, k=8, include_rag=True,
-           include_memory=True, semantic=True):
+           include_memory=True, semantic=True, resident=True):
     """
     Retrouve les `k` meilleurs éléments visibles par `user`.
 
@@ -173,18 +181,34 @@ def recall(query, *, user, kinds=None, subject=None, k=8, include_rag=True,
     if not (query or '').strip():
         return []
 
-    vecteur = embed_text(query) if semantic else None
-    listes = []
+    # `resident=True` : on DEMANDE au gouverneur de garder l'embedder chargé entre deux rappels.
+    # Sans cela, chaque rappel sémantique repaie ~5 s de chargement — l'hybride devient alors
+    # coûteux SANS être plus rapide au 2e appel, ce qui vide l'arbitrage de son sens. Le
+    # gouverneur reste seul juge, et refuse dès que la VRAM est demandée ailleurs.
+    vecteur = embed_text(query, resident=resident) if semantic else None
 
+    # ⚠ UNE liste PAR RANKER, pas une par (ranker × source). RRF classe sur le RANG : fusionner
+    # quatre listes séparées faisait qu'une PETITE liste hors-sujet pesait autant qu'une grande
+    # liste pertinente — avec 3 souvenirs approuvés seulement, le plus proche d'entre eux était
+    # « rang 1 » comme le meilleur fragment, alors qu'il était à 0.73 de distance contre 0.46.
+    # Mesuré le 2026-08-21 : « anonymisation des données personnelles » remontait deux souvenirs
+    # de conversion de fichier. Souvenirs et fragments doivent concourir DANS le même ranker,
+    # départagés par leur score réel — pas être fusionnés après coup à rang égal.
+    cand_vect, cand_lex = [], []
     if include_memory:
         base = _memoire_visible(user, kinds=kinds, subject=subject)
-        listes.append(('vecteur', 'memory', _par_vecteur(base, vecteur)))
-        listes.append(('lexical', 'memory', _par_lexique(base, query)))
+        cand_vect += [(d, 'memory', o) for d, o in _par_vecteur(base, vecteur)]
+        cand_lex += [(r, 'memory', o) for r, o in _par_lexique(base, query)]
     if include_rag:
         base = _rag_visible(user)
-        listes.append(('vecteur', 'rag', _par_vecteur(base, vecteur)))
-        listes.append(('lexical', 'rag', _par_lexique(base, query)))
+        cand_vect += [(d, 'rag', o) for d, o in _par_vecteur(base, vecteur)]
+        cand_lex += [(r, 'rag', o) for r, o in _par_lexique(base, query)]
 
+    cand_vect.sort(key=lambda t: t[0])              # distance : plus PETIT = plus proche
+    cand_lex.sort(key=lambda t: -t[0])              # rang lexical : plus GRAND = meilleur
+
+    listes = [('vecteur', cand_vect[:CANDIDATS_PAR_RANKER]),
+              ('lexical', cand_lex[:CANDIDATS_PAR_RANKER])]
     return _fusion_rrf(listes)[:k]
 
 
@@ -219,15 +243,22 @@ def _rag_visible(user):
 
 
 def _par_vecteur(queryset, vecteur):
-    """Candidats par distance cosinus. Liste VIDE si pas de vecteur de requête (dégradation)."""
+    """
+    Candidats `(distance, objet)` par distance cosinus, SEUILLÉS. Vide si pas de vecteur.
+
+    ⚠ Le seuil n'est pas un réglage de confort : sans lui la recherche vectorielle rend toujours
+    `k` voisins, si lointains soient-ils, et le rappel répond du plausible au lieu de ne rien
+    répondre. Cf. `SEUIL_VECTORIEL` pour la mesure qui fixe la valeur.
+    """
     if vecteur is None:
         return []
     try:
         from pgvector.django import CosineDistance
         qs = (queryset.exclude(embedding__isnull=True)
                       .annotate(_dist=CosineDistance('embedding', vecteur))
+                      .filter(_dist__lte=SEUIL_VECTORIEL)
                       .order_by('_dist')[:CANDIDATS_PAR_RANKER])
-        return list(qs)
+        return [(o._dist, o) for o in qs]
     except Exception:
         logger.warning('[memory] recherche vectorielle indisponible — lexical seul', exc_info=True)
         return []
@@ -271,7 +302,7 @@ def _par_lexique(queryset, query):
         qs = (queryset.annotate(_rank=SearchRank(vecteur, requete))
                       .filter(_rank__gte=SEUIL_LEXICAL)
                       .order_by('-_rank')[:CANDIDATS_PAR_RANKER])
-        return list(qs)
+        return [(o._rank, o) for o in qs]
     except Exception:
         logger.warning('[memory] recherche lexicale indisponible', exc_info=True)
         return []
@@ -284,13 +315,14 @@ def _fusion_rrf(listes):
     On fusionne sur (source, pk) et non sur l'objet : un même souvenir remonté par les deux
     rankers doit CUMULER, c'est tout l'intérêt de la fusion.
     """
-    scores, objets, rangs = {}, {}, {}
-    for nom_ranker, source, resultats in listes:
-        for rang, obj in enumerate(resultats):
+    scores, objets, rangs, sources = {}, {}, {}, {}
+    for nom_ranker, resultats in listes:
+        for rang, (_score, source, obj) in enumerate(resultats):
             cle = (source, obj.pk)
             scores[cle] = scores.get(cle, 0.0) + 1.0 / (RRF_K + rang + 1)
             objets[cle] = obj
-            rangs.setdefault(cle, {})[f'{nom_ranker}/{source}'] = rang + 1
+            sources[cle] = source
+            rangs.setdefault(cle, {})[nom_ranker] = rang + 1
 
     hits = []
     for cle, score in scores.items():

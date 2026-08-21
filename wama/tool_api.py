@@ -2162,9 +2162,20 @@ def memory_recall(user, query: str, k: int = 5, include_rag: bool = True,
     l'assistant ne peut RIEN voir que son utilisateur ne verrait pas lui-même. C'est le même
     filtre que l'UI — il n'y a pas de « vue assistant » privilégiée à maintenir à part.
 
-    ⚠ LEXICAL pour l'instant (`semantic=False`) : un rappel sémantique chargerait `bge-m3` à
-    chaque appel d'outil, et les fragments n'ont pas encore de vecteur. À rebasculer après
-    `manage.py sync_memory --reindex` (cf. WAMA_MEMORY.md §7quater).
+    HYBRIDE (`semantic=True`) — arbitré le 2026-08-21, contre le Hook B qui reste lexical.
+
+    Ce qui départage les deux n'est PAS la qualité (l'hybride gagne partout : « anonymisation des
+    données personnelles » y remonte le bon fragment alors qu'il ne contient pas le mot), c'est
+    **où la latence se voit** :
+      • ici, l'outil n'est appelé que si le LLM le décide, et un tour LLM le suit de toute façon —
+        les ~6 s de première requête s'y noient, et depuis un canal de discussion l'attente est
+        socialement admise (l'indicateur « en train d'écrire » est déjà câblé) ;
+      • dans le Hook B, la latence s'ajouterait à CHAQUE génération, en plein chemin navigateur.
+
+    ⚠ Le vrai coût n'est pas la latence, c'est la RÉSIDENCE VRAM de l'embedder, qui concurrence
+    les modèles de traitement sur la 4090. C'est précisément ce que le **gouverneur** arbitre
+    (`memory/embed.py::residence_autorisee` — 1,0 Go mesuré) : s'il refuse, chaque appel recharge
+    (~5 s) au lieu d'occuper. La dégradation est lente, jamais concurrente.
     """
     try:
         from wama.common.memory import recall
@@ -2177,7 +2188,7 @@ def memory_recall(user, query: str, k: int = 5, include_rag: bool = True,
     try:
         hits = recall(query, user=user, k=max(1, min(int(k or 5), 20)),
                       include_rag=bool(include_rag), include_memory=bool(include_memory),
-                      semantic=False)
+                      semantic=True)
     except Exception as e:
         return {"error": str(e), "results": [], "count": 0}
 

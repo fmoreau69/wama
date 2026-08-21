@@ -35,12 +35,21 @@ def _rappel_rag(prompt, user, *, k=3, semantic=False):
     Rend `([], [])` sur la moindre difficulté : un contexte manquant dégrade la réponse, une
     exception ici casserait la génération elle-même. Même précaution que le reste de la pipeline.
 
-    ⚠ `semantic=False` PAR DÉFAUT, et ce n'est pas de la timidité : (1) un rappel sémantique
-    embarque la requête, donc charge `bge-m3` À CHAQUE PROMPT — sur le chemin interactif, et sur
-    un poste où une série d'embeddings a précédé un crash hôte (WAMA_MEMORY.md §5bis) ; (2) les
-    939 fragments indexés n'ont PAS encore de vecteur, donc le sémantique ne rendrait rien de
-    plus que le lexical aujourd'hui. À rebasculer quand `sync_memory --reindex` aura tourné et
-    que la résidence du modèle sera arbitrée par le gouverneur de ressources.
+    ⚠ `semantic=False` PAR DÉFAUT — motif RÉVISÉ le 2026-08-21, après le réindex.
+
+    L'ancienne justification invoquait deux raisons, dont l'une est devenue FAUSSE : « les 939
+    fragments n'ont pas encore de vecteur ». Ils en ont désormais **939/939**. La laisser en place
+    aurait fait lire au suivant une raison caduque et en tirer une mauvaise conclusion — c'est
+    exactement la dérive que ce projet combat, et elle a été signalée par l'instance assistant.
+
+    Le motif qui SUBSISTE est le seul vrai : la latence, **là où elle se voit**. Un rappel
+    sémantique embarque la requête, donc charge `bge-m3`. Ici, ce coût s'ajouterait à **chaque
+    génération**, en plein chemin navigateur — mesuré ~5 s sans résidence, ~300 ms avec. C'est
+    l'inverse de `tool_api.memory_recall`, passé en hybride le même jour : là-bas l'outil n'est
+    appelé que si le LLM le décide et un tour LLM suit, donc l'attente s'y noie.
+
+    À rebasculer si un jour ce hook sert un chemin non interactif (traitement par lot, tâche de
+    fond), pas « quand ce sera prêt » : c'est prêt.
     """
     try:
         from ..memory import recall
