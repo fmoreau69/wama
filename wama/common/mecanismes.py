@@ -231,6 +231,10 @@ MECANISMES = (
     Mecanisme('llm', 'Accès LLM',
               "Route unique vers les LLM (tiers déclaratifs, sélection catalogue, Ollama local)",
               'wama/common/utils/llm_utils.py', ''),
+    Mecanisme('claude_code', "Claude Code sur abonnement",
+              "Délègue une tâche de développement au CLI Claude Code en headless — "
+              "lecture seule par défaut, environnement construit sans la clé API",
+              'wama/common/services/claude_code.py', 'ROADMAP.md §19.3'),
     Mecanisme('gateway_identity', "Appariement d'identité de canal",
               "Relie une identité Matrix/Discord à un compte WAMA par code prouvé hors "
               "canal — la garde que tout adaptateur appelle avant d'agir",

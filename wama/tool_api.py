@@ -2197,6 +2197,64 @@ def memory_recall(user, query: str, k: int = 5, include_rag: bool = True,
     return {"results": resultats, "count": len(resultats)}
 
 
+def ask_claude_code(user, task: str, write: bool = False, timeout: int = 300) -> dict:
+    """
+    Delegate a DEVELOPMENT task to Claude Code, running on the owner's subscription.
+
+    Read-only by default (Read/Grep/Glob): code audits, cartography, "where does X live",
+    "why does Y break". Reserved to developers and admins.
+
+    Args:
+        task:    The development task, in plain language.
+        write:   Allow Claude Code to MODIFY the repository. Off by default.
+        timeout: Maximum seconds to wait (10-900).
+
+    Returns:
+        {"response": str, "cost_usd": float|None, "duration_ms": int|None}
+    """
+    # ⚠ GARDE EXPLICITE, ET NON PAS le gating d'app. Un outil sans app (`None` dans
+    # TOOL_APP_OVERRIDE) est AUTORISÉ À TOUS par `tool_accessible` — ce qui serait ici une
+    # faille béante : cet outil exécute un agent avec accès au dépôt et consomme
+    # l'abonnement du titulaire. La restriction est donc écrite dans le corps, là où
+    # aucune évolution du registre ne peut la contourner par mégarde.
+    # ⚠ DEUX VOCABULAIRES DE RÔLE COEXISTENT dans WAMA (mesuré le 2026-08-21) : les GROUPES
+    # Django (`dev`, `admin` — ce que lit `is_dev()`) et les TIERS de profil
+    # (`developpeur`, `admin` — ce que lit `permissions.BYPASS_TIERS`). Et un groupe
+    # `developpeur` existe AUSSI en base, homonyme du tier mais invisible pour `is_dev()`.
+    # S'en remettre à un seul vocabulaire produirait un refus incompréhensible pour un
+    # compte légitimement développeur. On accepte donc les deux.
+    from wama.accounts.views import is_admin, is_dev
+
+    autorise = (
+        is_dev(user) or is_admin(user)
+        or user.groups.filter(name='developpeur').exists()
+        or getattr(getattr(user, 'profile', None), 'tier', '') in ('developpeur', 'admin')
+    )
+    if not autorise:
+        return {"error": "forbidden",
+                "detail": "Outil réservé aux développeurs et administrateurs."}
+
+    tache = (task or '').strip()
+    if not tache:
+        return {"error": "Champ 'task' vide : décrivez la tâche à confier à Claude Code."}
+
+    from wama.common.services.claude_code import ClaudeCodeIndisponible, demander
+
+    try:
+        resultat = demander(tache, delai=timeout, ecriture=bool(write))
+    except ClaudeCodeIndisponible as e:
+        return {"error": str(e)}
+
+    if not resultat.get('success'):
+        return {"error": resultat.get('error', 'échec inconnu')}
+
+    return {
+        "response": resultat.get('texte', ''),
+        "cost_usd": resultat.get('cout_usd'),
+        "duration_ms": resultat.get('duree_ms'),
+    }
+
+
 TOOL_REGISTRY = {
     'translate_text': translate_text,
     # Mémoire & RAG — LECTURE SEULE et scopée (jalon 8, WAMA_MEMORY.md). Transverse : ce que
@@ -2205,6 +2263,10 @@ TOOL_REGISTRY = {
     # model_manager — LECTURE SEULE (trou #18 : « lister modèles/capacités, utile à l'assistant »)
     'list_ai_models': list_ai_models,
     'get_ai_model':   get_ai_model,
+    # Claude Code sur l'ABONNEMENT du titulaire (ROADMAP §19.3) — surface DÉVELOPPEUR.
+    # ⚠ Sa garde n'est PAS le gating d'app (un outil sans app est autorisé à tous) : elle
+    # est écrite DANS la fonction, cf. son corps.
+    'ask_claude_code': ask_claude_code,
     'list_user_files':       list_user_files,
     'add_to_avatarizer':     add_to_avatarizer,
     'start_avatarizer':      start_avatarizer,
@@ -2278,6 +2340,11 @@ TOOL_APP_OVERRIDE = {
     # d'écriture (install/unload) serait gardée 'model_manager', pas ces lectures.
     'list_ai_models':      None,
     'get_ai_model':        None,
+    # ⚠ `None` ici veut dire « aucune app ne le garde », donc `tool_accessible` l'AUTORISE
+    # à tous. Ce n'est pas un oubli : la restriction (développeurs/admins) est écrite dans
+    # le CORPS de `ask_claude_code`, précisément pour qu'aucune retouche de ce registre ne
+    # puisse la lever par inadvertance. Ne pas « corriger » cette ligne sans lire la fonction.
+    'ask_claude_code':     None,
     # Studio : list/run/status (le run FUSIONNE add+start — un run = création + dispatch),
     # gardés par l'app `studio` comme la navigation.
     'list_studio_pipelines': 'studio',
