@@ -13,6 +13,31 @@
 > une entrée au registre + un fichier `assistant-<clé>.md`** — aucune vue à modifier.
 > Le reste de ce document décrit la famille **enrichissement**.
 
+## ⚠ Ce dossier n'est PAS en concurrence avec `wama-dev-ai/prompts/`
+
+Précision de Fabien (2026-08-21), après que j'aie conclu trop vite à une duplication :
+**« il y a les prompts et les skills ; il y a ce qui sert au DEV et ce qui sert à
+l'USAGE »**. Les deux dossiers servent des besoins distincts, pas le même besoin deux fois :
+
+| | `wama/common/prompt_skills/` (ici) | `wama-dev-ai/prompts/` |
+|---|---|---|
+| Sert | l'**usage** — apps et assistant | le **dev** — l'agent CLI de développement |
+| Vit dans | Django (registres, RAG, scoping) | un CLI autonome, hors Django |
+| Consommé par | `prompt_pipeline`, `prompt_enrichment`, `assistant_skills` | `cli.py`, `run_audit.py`, `run_codegen.py`, `run_librarian.py` |
+
+**Les fusionner serait une erreur** : ils n'ont ni le même cycle de vie, ni le même
+destinataire, ni les mêmes contraintes d'exécution.
+
+> ⚠ **La vraie dette est ailleurs, et elle est documentaire** : `wama-dev-ai/config.py:21`
+> déclare `PROMPT_SKILLS_DIR` vers ce dossier — **cette constante n'est lue nulle part**, et
+> `wama-dev-ai/README.md:151-162` documente un pont (`resolve_skill`, `skills_catalog`
+> depuis wama-dev-ai) **qui n'existe pas dans le code**. Soit on le construit, soit on retire
+> la promesse ; la laisser fait croire à un câblage absent.
+
+**`skills_catalog()` n'est pas une fonction morte** — c'est la brique du futur **catalogue de
+skills** (page de gestion dans le menu utilisateur, pendant de la page RAG). Elle attend son
+consommateur, elle ne le remplace pas.
+
 ## Enrichissement (consignes par application)
 
 > Contrat consommé par `common/utils/prompt_skills.py` (voir sa docstring pour la résolution
