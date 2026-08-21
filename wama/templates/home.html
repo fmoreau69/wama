@@ -599,23 +599,45 @@
       }
     }
 
+    {% comment %}
+      Dépôt vers la médiathèque — CORRIGÉ le 2026-08-21. Trois défauts cumulés faisaient
+      que cette zone ne déposait RIEN, sans jamais dire pourquoi :
+        1. l'URL `/media-library/api/upload/` n'existe pas (la route est `api/assets/upload/`)
+           → 404 à chaque dépôt ;
+        2. l'API attend UN fichier avec `name` et `asset_type` ; le JS envoyait `files` en
+           multiple, sans nom ni type → 400 même une fois l'URL corrigée ;
+        3. le code ne lisait que `r.ok`, donc le message d'erreur RÉEL de l'API était jeté
+           et l'utilisateur ne voyait qu'un « indisponible » opaque.
+      Les fichiers sont désormais envoyés UN PAR UN (l'API est unitaire), le nom est dérivé
+      du fichier, et l'erreur du serveur est affichée telle quelle.
+    {% endcomment %}
     async function _uploadToMediaLibrary(files, zone) {
       _dzStatus(zone, 'Envoi en cours…');
-      var fd = new FormData();
-      files.forEach(function(f) { fd.append('files', f); });
-      try {
-        var r = await fetch('/media-library/api/upload/', {
-          method: 'POST',
-          headers: { 'X-CSRFToken': '{{ csrf_token }}' },
-          body: fd
-        });
-        if (r.ok) {
-          _dzStatus(zone, files.length + ' document(s) ajouté(s) à la Médiathèque');
-        } else {
-          _dzStatus(zone, 'Envoi vers la médiathèque indisponible', true);
+      var ok = 0, erreurs = [];
+      for (var i = 0; i < files.length; i++) {
+        var f = files[i];
+        var fd = new FormData();
+        fd.append('file', f);
+        // Nom = fichier sans extension ; l'API refuse un nom vide et impose l'unicité par type.
+        fd.append('name', f.name.replace(/\.[^.]+$/, ''));
+        fd.append('asset_type', 'document');
+        try {
+          var r = await fetch('{% url "media_library:api_upload" %}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+            body: fd
+          });
+          var data = await r.json().catch(function() { return {}; });
+          if (r.ok) { ok++; }
+          else { erreurs.push(f.name + ' : ' + (data.error || ('HTTP ' + r.status))); }
+        } catch(e) {
+          erreurs.push(f.name + ' : erreur réseau');
         }
-      } catch(e) {
-        _dzStatus(zone, 'Erreur réseau', true);
+      }
+      if (erreurs.length) {
+        _dzStatus(zone, (ok ? ok + ' ajouté(s). ' : '') + erreurs.join(' — '), true);
+      } else {
+        _dzStatus(zone, ok + ' document(s) ajouté(s) à la Médiathèque');
       }
     }
 
@@ -971,15 +993,27 @@
           </div>
         </div>
 
-        <!-- Zone Documents RAG -->
+        {% comment %}
+          Zone Documents — libellé RECTIFIÉ le 2026-08-21. Elle annonçait « Documents IA /
+          RAG » et « enrichir la mémoire de l'assistant » : c'était une PROMESSE NON TENUE,
+          et à trois titres. Le dépôt échouait (cf. `_uploadToMediaLibrary`), le lien
+          pointait vers un onglet `?tab=rag` qui n'existe pas, et surtout — même réussi —
+          l'ajout n'aurait eu AUCUN effet RAG : rien n'indexe un `UserAsset` aujourd'hui
+          (`common/memory/index.py` n'indexe que les SORTIES d'apps, cf. `WAMA_MEMORY.md`
+          §7ter). Une zone qui ment sur ce qu'elle fait est pire qu'une zone absente : on
+          croit son corpus indexé alors qu'il dort dans la médiathèque.
+          Le dépôt est réparé et l'intitulé dit désormais ce qu'il fait VRAIMENT. La mention
+          RAG reviendra quand l'indexation explicite existera (arbitrage Fabien du 21/08 :
+          l'entrée au RAG doit être un GESTE, pas un balayage).
+        {% endcomment %}
         <div class="col-md-4">
           <div id="dzRag" class="simple-drop-zone">
             <input type="file" multiple accept=".pdf,.docx,.txt,.md,.csv" style="display:none">
-            <div class="dz-icon text-warning"><i class="fas fa-brain"></i></div>
-            <div class="dz-label text-light">Documents IA / RAG</div>
-            <div class="dz-hint">Documents pour enrichir la mémoire de l'assistant</div>
+            <div class="dz-icon text-warning"><i class="fas fa-file-lines"></i></div>
+            <div class="dz-label text-light">Documents</div>
+            <div class="dz-hint">Déposer dans la Médiathèque (PDF, DOCX, TXT, MD, CSV)</div>
             <div class="dz-status"></div>
-            <a href="{% url 'media_library:index' %}?tab=rag" class="btn btn-sm btn-outline-warning mt-2" onclick="event.stopPropagation()">
+            <a href="{% url 'media_library:index' %}" class="btn btn-sm btn-outline-warning mt-2" onclick="event.stopPropagation()">
               <i class="fas fa-photo-film me-1"></i> Médiathèque
             </a>
           </div>
