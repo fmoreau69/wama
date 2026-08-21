@@ -63,8 +63,17 @@ ex. imager `output_type` image|video), repli sur le `model_type` du modèle cibl
 - **à la demande** (bouton ✨) : `prompt_enrichment.enrich_on_demand(prompt, app=, domain=)` —
   PAS gaté par l'interrupteur maître (le clic vaut demande), même cache. Imager consommateur
   (son `utils/prompt_enhancer.py` dupliqué a été SUPPRIMÉ) ;
-- assistant IA : ses tools dispatchent les tâches Celery → skills appliqués by design ;
-- wama-dev-ai : importe le même module (`PROMPT_SKILLS_DIR` dans son `config.py`).
+- assistant IA : ses tools dispatchent les tâches Celery → skills d'enrichissement appliqués
+  by design. ⚠ **Cela ne couvre QUE l'enrichissement.** La posture de l'assistant lui-même
+  (« qui répond, avec quelle rigueur, avec quel contexte de labo ») est une **autre famille**,
+  livrée le 2026-08-21 : `assistant-*.md` + `common/utils/assistant_skills.py`. Confondre les
+  deux a coûté un aller-retour — cf. la table des deux familles dans
+  `prompt_skills/README.md` ;
+- ⚠ **wama-dev-ai : PROMESSE NON TENUE.** Cette ligne affirmait « importe le même module ».
+  Vérifié le 2026-08-21 : `PROMPT_SKILLS_DIR` est **déclaré** dans `wama-dev-ai/config.py:21`
+  et **lu nulle part**. wama-dev-ai a ses propres consignes (`wama-dev-ai/prompts/*.txt`,
+  8 fichiers réellement consommés) — ce qui est légitime (**le dev n'est pas l'usage**), mais
+  le pont documenté ici n'existe pas. Soit on le construit, soit on retire la promesse.
 
 Règles DANS LE CODE (mécanisme, pas skills) : clause de langue d'émission + préservation
 verbatim des mots-clés forcés (`glossary`). Contrat : `wama/common/prompt_skills/README.md`.
@@ -72,9 +81,12 @@ Comblé au passage : `generate_video_task` (imager) n'appelait PAS la pipeline (
 locales `_prompt`/`_negative`, la base garde l'original) ; composer `enrich=True` (le blocage
 « consignes visuelles » est levé par `composer-music.md`).
 
-## Hooks à venir
-- **RAG** (`apply_rag`, commenté dans `prompt_pipeline`) : récupération depuis store **ChromaDB** +
-  embeddings **bge-m3**. No-op tant que la fondation `wama/rag/` + l'indexation (§8c) n'existent pas.
+## Hooks
+- ✅ **RAG — BRANCHÉ** (`prompt_pipeline._rappel_rag`, jalon 6). ⚠ Cette entrée annonçait
+  encore « ChromaDB + fondation `wama/rag/` inexistante » : **doublement périmé** — le
+  substrat est **pgvector** (`RagChunk`, `common/memory/`) et le hook existe. Il reste
+  **`rag=False` par défaut et aucun appelant ne l'active** : voir la section
+  « PROMPT + RAG » plus bas, qui fait autorité sur ce sujet.
 - **QC** : câbler `qc.py` en post-génération dans les apps (seul consommateur actuel = la
   commande de bench `bench --task`).
 
