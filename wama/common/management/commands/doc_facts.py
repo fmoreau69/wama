@@ -211,8 +211,15 @@ def _fait_mecanismes():
     # carte sans le moindre signal, dont les DEUX du transport (`wama-audio-player.js`,
     # `wama-shuttle.js`). Une brique front invisible de la carte l'est aussi de la jonction avec
     # la grille : personne ne pouvait voir qu'aucun critère ne les vérifiait.
+    # `wama/common/memory/` ajouté le 2026-08-21 — TROISIÈME occurrence de la même leçon, et
+    # trouvée en la cherchant : la brique mémoire a été écrite en 5 modules (`store`, `embed`,
+    # `project`, `index`, `dev_ai`) dans un dossier HORS de cette liste. Le contrôle annonçait
+    # donc « modules non rattachés : 0 » alors que 4 d'entre eux n'étaient déclarés nulle part.
+    # Une liste blanche ne voit jamais le trou qui est hors de sa liste : tout nouveau dossier
+    # de briques communes doit être ajouté ICI le jour où il est créé, sinon il naît invisible.
     dossiers_balayes = ('wama/common/services/', 'wama/common/utils/',
                         'wama/common/backends/',
+                        'wama/common/memory/',
                         'wama/common/static/common/js/',
                         'wama/model_manager/services/', 'wama/studio/services/')
     # `modules` ne contient que du .py : le front est balayé à part (mêmes exclusions).

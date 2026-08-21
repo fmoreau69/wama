@@ -190,7 +190,14 @@ MECANISMES = (
               symbole='RunOutcomeCaptureMiddleware'),
     Mecanisme('memory', 'Mémoire & RAG',
               "Souvenirs + fragments sur pgvector, scope hérité de ScopedVisibility ; 5 opérations",
-              'wama/common/memory/store.py', 'WAMA_MEMORY.md'),
+              'wama/common/memory/store.py', 'WAMA_MEMORY.md',
+              # ANNEXES et non mécanismes séparés : `embed` (vecteurs), `index` (découpe RAG) et
+              # `dev_ai` (reprise de memory.json) n'ont de sens QUE par le magasin — les déclarer
+              # à part gonflerait la carte de trois entrées qu'on ne consulte jamais seules.
+              # Le domicile reste `store.py`, point d'entrée des 5 opérations.
+              annexes=('wama/common/memory/embed.py',
+                       'wama/common/memory/index.py',
+                       'wama/common/memory/dev_ai.py')),
     Mecanisme('memory_project', 'Projection des faits en souvenirs',
               "RunOutcome → MemoryItem par OBJET (mécanique, sans modèle, idempotente)",
               'wama/common/memory/project.py', 'WAMA_MEMORY.md §7'),

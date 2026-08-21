@@ -97,12 +97,12 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
-| **Barre de filtrage** | Recherche + facettes EN DIRECT ; options dérivées du DOM (client) ou déclarées (server) | `wama/common/static/common/js/wama-filter-bar.js` | `CARD_DESIGN.md` | 6 |
+| **Barre de filtrage** | Recherche + facettes EN DIRECT ; options dérivées du DOM (client) ou déclarées (server) | `wama/common/static/common/js/wama-filter-bar.js` | `CARD_DESIGN.md` | 8 |
 | **Captation générique des gestes** | Middleware : telecharge/supprime/relance lus de resolver_match — zéro ligne par app | `wama/common/middleware.py` | `WAMA_MEMORY.md §7bis` | 2 |
 | **Contrôle qualité de sortie** | Note une sortie par un validateur LLM INDÉPENDANT ; signal relatif, escalade humaine | `wama/common/utils/qc.py` | `ROADMAP.md §16.5` | ⚠ **0** |
 | **Divergence inter-systèmes** | Désaccord entre deux sorties du même travail — signal objectif, sans avis de modèle | `wama/common/services/divergence.py` | `wama/transcriber/TRANSCRIBER_CORRECTION.md §8.3` | 1 |
 | **Journal transversal de l'utilisateur** | Tout ce qu'il a lancé, toutes apps — DÉRIVÉ de detail_registry, aucune ligne par app | `wama/common/services/journal.py` | `WAMA_MEMORY.md §9bis` | 1 |
-| **Mémoire & RAG** | Souvenirs + fragments sur pgvector, scope hérité de ScopedVisibility ; 5 opérations | `wama/common/memory/store.py` | `WAMA_MEMORY.md` | 3 |
+| **Mémoire & RAG** | Souvenirs + fragments sur pgvector, scope hérité de ScopedVisibility ; 5 opérations | `wama/common/memory/store.py` | `WAMA_MEMORY.md` | 5 |
 | **Projection des faits en souvenirs** | RunOutcome → MemoryItem par OBJET (mécanique, sans modèle, idempotente) | `wama/common/memory/project.py` | `WAMA_MEMORY.md §7` | 2 |
 | **Signaux d'exécution** | Journal append-only des FAITS observés sur un résultat (produit/corrigé/relancé…) | `wama/common/services/run_outcome.py` | `ROADMAP.md §16.7` | 3 |
 
@@ -154,7 +154,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Chips méta des cards** | Chips de l'état concis GÉNÉRÉS du schéma params (chip=True) — jamais écrits par app | `wama/common/utils/card_chips.py` | `CARD_DESIGN.md §10.3` | 26 |
 | **Domaines → modes** | Schéma déclaratif des onglets-domaine et modes par app — scope la file | `wama/common/utils/app_modes.py` | `MODES_QUEUE_UX.md` | 11 |
 | **Import de dossier récursif** | Traversée récursive d'un drop/webkitdirectory — brique F2 montée globale (base.html) | `wama/common/static/common/js/wama-folder-import.js` | `WAMA_APP_GENERATION_ROUTE.md` | 2 |
-| **Inspecteur — champs de détail** | Schéma canonique des infos d'item affichées au volet droit | `wama/common/utils/detail_registry.py` | `INSPECTOR_DETAIL_FIELDS.md` | 39 |
+| **Inspecteur — champs de détail** | Schéma canonique des infos d'item affichées au volet droit | `wama/common/utils/detail_registry.py` | `INSPECTOR_DETAIL_FIELDS.md` | 40 |
 | **Lecteur audio (onde + transport)** | Widget autonome : onde canvas (pics serveur ou décodés), play/pause, exclusivité inter-lecteurs et inter-onglets ; monté par la preview dans le volet ET les cards | `wama/common/static/common/js/wama-audio-player.js` | — | 4 |
 | **Preview unifiée** | Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps | `wama/common/utils/preview_registry.py` | — | 31 |
 | **Progression & ETA (front)** | Moteur ETA par débit observé + barres aux 3 niveaux : card, batch, globale | `wama/common/static/common/js/wama-eta.js` | `PROJECT_STATUS.md §10` | 39 |
@@ -180,7 +180,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Sauvegarde & tirage** | Moteur unique de miroir (modèles, base, médias, secrets) et restauration | `wama/common/services/mirror_sync.py` | — | 8 |
 | **Sonde média** | Durée/codec/dimensions/pages d'un média pour les propriétés de card (via ffmpeg_utils) | `wama/common/utils/media_probe.py` | — | 4 |
 | **Utilitaires vidéo** | Extraction audio des vidéos + téléchargement YouTube/yt-dlp | `wama/common/utils/video_utils.py` | — | 16 |
-| **Visibilité et portée** | Privé / unité / public : filtrage des lectures, mutations inchangées | `wama/common/models.py` | `PROFILES_PERMISSIONS.md` | 22 |
+| **Visibilité et portée** | Privé / unité / public : filtrage des lectures, mutations inchangées | `wama/common/models.py` | `PROFILES_PERMISSIONS.md` | 23 |
 
 #### Studio & surface d'outils (API) (3)
 

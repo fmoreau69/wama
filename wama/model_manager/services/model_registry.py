@@ -1447,10 +1447,24 @@ class ModelRegistry:
                                 params_active_b=actifs,
                             )
 
+                            # ⚠ TYPE DÉRIVÉ DES CAPACITÉS, plus posé en dur. Le docstring de
+                            # `_ollama_capacites` annonçait ce problème comme RÉSOLU (« les
+                            # modèles d'EMBEDDING étaient étiquetés ModelType.LLM ») : les
+                            # capacités ont bien été enregistrées, mais le `model_type` est resté
+                            # `LLM` sans condition. Conséquence MESURÉE le 2026-08-21 :
+                            # `select_model('ollama', model_type='llm', vram_budget_gb=2.0)`
+                            # rendait `ollama:bge-m3:latest` — un modèle d'embedding servi comme
+                            # modèle de chat. Latent aux budgets courants (8/16 Go → gemma4),
+                            # il se déclenche quand la VRAM manque, donc au pire moment.
+                            _caps_ollama = (capacites.get(model_name, set())
+                                            | (fiche.get('capabilities') or set()))
+                            _type = (ModelType.EMBEDDING if 'embedding' in _caps_ollama
+                                     else ModelType.LLM)
+
                             self._models[f"ollama:{model_name}"] = ModelInfo(
                                 id=f"ollama:{model_name}",
                                 name=model_name,
-                                model_type=ModelType.LLM,
+                                model_type=_type,
                                 source=ModelSource.OLLAMA,
                                 description=f"Ollama LLM ({size_display})",
                                 ram_gb=ram_gb,
@@ -1575,10 +1589,18 @@ class ModelRegistry:
                                     # Ollama models use GGUF format
                                     preferred = self._get_preferred_format(ModelType.LLM)
 
+                                    # Même dérivation que le chemin principal : ce repli
+                                    # (manifestes sur disque) ne doit pas réintroduire le typage
+                                    # en dur qu'on vient de retirer. `capacites` est dans la
+                                    # portée — la seule différence est qu'elle peut être vide si
+                                    # `/api/tags` n'a pas répondu, auquel cas on retombe sur LLM
+                                    # comme avant.
                                     self._models[f"ollama:{full_name}"] = ModelInfo(
                                         id=f"ollama:{full_name}",
                                         name=full_name,
-                                        model_type=ModelType.LLM,
+                                        model_type=(ModelType.EMBEDDING
+                                                    if 'embedding' in capacites.get(full_name, set())
+                                                    else ModelType.LLM),
                                         source=ModelSource.OLLAMA,
                                         description=f"Ollama LLM ({size_gb:.1f}GB)" if size_gb > 0 else "Ollama LLM",
                                         ram_gb=round(size_gb, 1),
