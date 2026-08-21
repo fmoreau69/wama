@@ -336,10 +336,17 @@ Full dependency list: `requirements.txt` (Windows) / `requirements_linux.txt` (W
 
 ## Licence
 
-WAMA est distribué sous **GNU AGPL-3.0** — voir [LICENSE](LICENSE), et
-[LICENSING.md](LICENSING.md) pour la politique complète (licences des modèles traversées,
-composants non commerciaux, procédure de dépôt). Les modèles et composants embarqués
-conservent leurs licences propres — inventaire vivant sur `/common/licences/`.
+Copyright (C) 2023-2026 **Université Gustave Eiffel** — auteur : **Fabien Moreau**
+(laboratoire Lescot). Voir [COPYRIGHT](COPYRIGHT) : les droits d'exploitation sont à
+l'établissement (art. L113-9 CPI), la qualité d'auteur reste à la personne.
+
+WAMA est distribué sous **GNU AGPL-3.0** — texte intégral dans [LICENSE](LICENSE). Toute
+personne utilisant WAMA **à distance via le réseau** a droit d'en obtenir le code source
+(AGPL art. 13).
+
+Les modèles d'IA et composants embarqués conservent **leurs** licences propres, dont
+certaines sont non commerciales ou territorialement restreintes — inventaire vivant sur
+`/common/licences/`, politique et procédure de dépôt dans [LICENSING.md](LICENSING.md).
 
 ---
 

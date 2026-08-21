@@ -1,0 +1,61 @@
+WAMA — Web App for Media Automation
+===================================
+
+Copyright (C) 2023-2026 Université Gustave Eiffel
+
+Auteur / Author : Fabien Moreau <fabien.moreau@univ-eiffel.fr>
+                  Laboratoire Lescot, Université Gustave Eiffel
+
+---------------------------------------------------------------------------
+POURQUOI DEUX NOMS — ce n'est pas une redondance
+---------------------------------------------------------------------------
+
+Le droit d'auteur français se dédouble pour un logiciel créé par un agent
+public dans l'exercice de ses fonctions :
+
+  * les DROITS PATRIMONIAUX (reproduction, adaptation, distribution — donc le
+    choix de la licence ci-dessous) sont dévolus à l'employeur, l'Université
+    Gustave Eiffel, par l'article L113-9 du Code de la propriété
+    intellectuelle ;
+
+  * la QUALITÉ D'AUTEUR et le DROIT DE PATERNITÉ restent attachés à la
+    personne qui a écrit le logiciel. Ils sont inaliénables et incessibles :
+    ils ne se transfèrent pas, ne se vendent pas, et ne s'éteignent pas avec
+    un changement de licence ou une cession d'exploitation.
+
+Une licence ne CONFÈRE pas la qualité d'auteur — celle-ci est un fait, pas
+une concession. Ce fichier ne fait donc que l'ÉNONCER, ce qui est
+précisément ce qui la rend opposable en pratique.
+
+Voir LICENSING.md §8 pour le détail (intéressement légal de l'auteur en cas
+de valorisation : Code de la recherche, art. D532-2 à D532-6).
+
+---------------------------------------------------------------------------
+NOTICE DE LICENCE (formulation recommandée par la Free Software Foundation)
+---------------------------------------------------------------------------
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU Affero General Public License as published by the
+Free Software Foundation, either version 3 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public License
+for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+Le texte intégral et non modifié de la licence se trouve dans le fichier
+LICENSE — il ne doit pas être altéré (la licence l'interdit expressément).
+
+---------------------------------------------------------------------------
+COMPOSANTS TIERS
+---------------------------------------------------------------------------
+
+Cette notice couvre le code de WAMA. Les modèles d'IA, les librairies et le
+code tiers embarqués conservent LEURS licences propres, dont certaines sont
+non commerciales ou territorialement restreintes. L'inventaire complet est
+mesuré en continu et consultable sur la page /common/licences/ ; la
+politique et les cas particuliers sont décrits dans LICENSING.md.
