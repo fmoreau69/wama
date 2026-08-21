@@ -239,6 +239,29 @@ clic vaut demande). **Studio** : `generic_runner` → `execute_tool('add_to_<app
 chemin ci-dessus — le studio n'implémente **rien**, il hérite tout des apps. **wama-dev-ai** :
 importe `PROMPT_SKILLS_DIR` (les mêmes fichiers de skills).
 
+### 2bis. Traduction automatique ENTRÉE / SORTIE (vision §12) — l'entrée vit, la sortie n'est pas branchée
+
+```
+entrée : utilisateur (fr) ──routage──▶ [modèle gère fr ? DIRECT · sinon traduire fr→pivot] ──▶ modèle
+sortie : modèle (pivot)   ──routage──▶ [output_translate ? traduire pivot→fr]              ──▶ utilisateur
+```
+
+- **ENTRÉE ✅** — vécue dans `process_prompt_for` (§2) : `lang_routing` DÉCIDE (capacités du
+  modèle cible ; `_TYPE_LANG_DEFAULT` diffusion/music → EN), `translator` AGIT (translategemma,
+  glossaire do-not-translate, passthrough si la langue est gérée → coût nul, silence si direct).
+- **SORTIE ❌ non branchée** — mesuré le 2026-08-22 : le DÉCIDEUR existe (`routing_for_model`
+  rend `output_translate`/`output_source`) et l'ACTEUR existe
+  (`TranslatorService.translate_output`), mais **aucun appelant ne déclenche** — la pipeline
+  force `has_text_output=False` (un prompt n'est pas une sortie), et rien dans le dépôt ne lit
+  `output_translate` ni n'appelle `translate_output`. Même motif que le Hook B avant son
+  branchement : brique complète, zéro consommateur.
+- ⚠ **La sortie ne se traduit pas partout — deux natures de texte** : les textes **FIDÈLES**
+  (transcription, OCR) ne se traduisent JAMAIS d'office — c'est la règle de fidélité verbatim du
+  transcriber, une traduction est alors un NOUVEAU produit demandé explicitement. Les vrais
+  candidats sont les textes **GÉNÉRÉS** (description, résumé), et seulement quand le modèle ne
+  sait pas émettre la langue voulue — le describer obtient déjà le FR par consigne au modèle
+  multilingue (route directe, coût nul).
+
 ### 3. RAG — alimentation par GESTE, rappel par NIVEAUX (`WAMA_MEMORY.md §7ter`)
 
 ```
@@ -277,6 +300,7 @@ de rencontre entre les deux chantiers).
 | 7 | RAG niveaux université / global (§11) | fermés **volontairement** | trajectoire v2 : user + labo d'abord, projet ensuite — décision Fabien |
 | 8 | Peuplement : `OrgUnit` + affiliations des profils | ❌ 0 en base | débloque le niveau labo SANS code (sync LDAP/SUPANN prévue) |
 | 9 | Surfaces du geste RAG + page de gestion (défaut de niveaux, retrait) | ⏳ jalon 14 | placement à trancher avec Fabien |
+| 10 | **Traduction de SORTIE** (§12 : `Traitement IA → Traduction sortie → Utilisateur`) | ❌ non branchée | décideur (`output_translate`) + acteur (`translate_output`) livrés, **zéro appelant** ; candidats = textes GÉNÉRÉS uniquement — jamais transcription/OCR (fidélité verbatim) |
 
 ## Voir aussi
 - `ROADMAP.md §10.B` (traduction runtime) et `§16.6` (pipeline + vision méta).
