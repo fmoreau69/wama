@@ -50,9 +50,16 @@ class Command(BaseCommand):
         salons = discord_bot._salons_autorises()
         self.stdout.write(f"Canal        : discord")
         self.stdout.write(f"Jeton        : présent ({len(jeton)} caractères)")
-        self.stdout.write("Salons servis : " + (', '.join(sorted(salons)) if salons
-                          else "TOUS ceux où le bot est présent "
-                               "(borner avec WAMA_DISCORD_ALLOWED_CHANNELS)"))
+        if salons:
+            self.stdout.write("Canal dédié   : " + ', '.join(sorted(salons))
+                              + "  (répond SANS mention ; muet ailleurs)")
+        else:
+            # Sans liste blanche, le bot répond partout où on le mentionne. Ce n'est PAS le
+            # modèle retenu (WAMA a son canal, il n'entre pas dans ceux du labo) : on le dit.
+            self.stdout.write(self.style.WARNING(
+                "Canal dédié   : AUCUN — le bot répondra sur MENTION dans tout salon où il "
+                "est présent.\n                Déclarez WAMA_DISCORD_ALLOWED_CHANNELS avec "
+                "l'id du canal WAMA."))
 
         try:
             client = discord_bot.construire_client()

@@ -5,12 +5,25 @@ Tout ce qui est une décision (qui est l'utilisateur, a-t-il le droit, que répo
 faire d'une pièce jointe) vit dans `gateway/core.py` et est partagé avec les futurs
 adaptateurs. Ce fichier ne contient donc que : écouter, traduire, répondre.
 
+MODÈLE D'USAGE ARRÊTÉ PAR FABIEN (2026-08-21) : **WAMA n'entre PAS dans les canaux du
+laboratoire.** Il a SON canal sur le serveur, et les échanges se font en tête-à-tête — DM,
+ou ce canal dédié. Le labo n'acceptera pas autre chose tant que l'outil n'a pas fait ses
+preuves, et c'est la position prudente.
+
 CE QUI EST DÉLIBÉRÉMENT RESTREINT :
-  • en salon, le bot ne répond QUE s'il est mentionné — un bot qui lit tout un salon de
-    labo est une aspiration de données que personne n'a demandée ;
-  • `allowed_room_ids` (`WAMA_DISCORD_ALLOWED_CHANNELS`) borne les salons servis, sur la
-    recommandation explicite de la doc DINUM pour Tchap — la garde est bonne partout ;
+  • `WAMA_DISCORD_ALLOWED_CHANNELS` borne les salons servis (patron `allowed_room_ids`
+    recommandé par la doc DINUM pour Tchap — la garde est bonne partout). Avec le seul
+    canal WAMA déclaré, le bot ne PEUT structurellement pas répondre ailleurs ;
+  • dans un salon NON déclaré, le bot ne répond QUE s'il est mentionné — un bot qui lit
+    tout un salon de labo est une aspiration de données que personne n'a demandée ;
+  • dans le canal DÉDIÉ (déclaré), il répond sans mention : exiger `@WAMA` à chaque message
+    dans un salon qui lui appartient serait une friction absurde ;
   • aucune réponse à un autre bot, ni à soi-même (boucles de bots).
+
+⚠ CE QU'UN CANAL DÉDIÉ PARTAGÉ N'EST PAS. Les conversations y restent séparées par
+utilisateur (un fil = `user` + salon, cf. `conversation_store`), mais les RÉPONSES y sont
+lisibles par tous ceux qui voient le salon. Pour des données de recherche, le tête-à-tête
+en DM reste le mode sûr ; le canal dédié convient aux demandes anodines et à la découverte.
 
 ⚠ Discord est propriétaire et hors UE. Pour des données de recherche sensibles, c'est
 Tchap qui est la cible ; Discord sert d'abord le confort d'usage du labo et le
@@ -85,10 +98,17 @@ def construire_client():
 
         prive = isinstance(message.channel, discord.DMChannel)
         mentionne = client.user in getattr(message, 'mentions', [])
-        if not prive and not mentionne:              # en salon : uniquement si mentionné
+        # Salon DÉDIÉ = salon explicitement déclaré dans WAMA_DISCORD_ALLOWED_CHANNELS.
+        # C'est le modèle d'usage retenu : WAMA a SON canal, on n'y écrit pas `@WAMA` à
+        # chaque message. Ailleurs, la mention reste obligatoire.
+        dedie = (not prive) and str(message.channel.id) in salons_autorises
+
+        if not prive and not dedie and not mentionne:
             return
 
-        if salons_autorises and not prive and str(message.channel.id) not in salons_autorises:
+        # Salon ni dédié ni autorisé → on se tait, même mentionné. La liste blanche prime
+        # sur la mention : n'importe qui peut mentionner un bot depuis n'importe où.
+        if salons_autorises and not prive and not dedie:
             logger.debug("[gateway/discord] salon %s non autorisé", message.channel.id)
             return
 
