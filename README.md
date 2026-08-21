@@ -336,7 +336,10 @@ Full dependency list: `requirements.txt` (Windows) / `requirements_linux.txt` (W
 
 ## Licence
 
-See [LICENSE](LICENSE).
+WAMA est distribué sous **GNU AGPL-3.0** — voir [LICENSE](LICENSE), et
+[LICENSING.md](LICENSING.md) pour la politique complète (licences des modèles traversées,
+composants non commerciaux, procédure de dépôt). Les modèles et composants embarqués
+conservent leurs licences propres — inventaire vivant sur `/common/licences/`.
 
 ---
 

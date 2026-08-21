@@ -41,12 +41,12 @@
       "preferred_format": "onnx"
     },
     "identity": {
-      "author": null,
+      "author": "hexgrad",
       "description_short": "Kokoro 82M — TTS multilingue ultra-léger.",
-      "hf_id": null,
-      "license": null,
+      "hf_id": "hexgrad/Kokoro-82M",
+      "license": "apache-2.0",
       "model_type": "speech",
-      "platform_ref": null,
+      "platform_ref": "huggingface:hexgrad/Kokoro-82M",
       "source": "synthesizer"
     },
     "provenance": {

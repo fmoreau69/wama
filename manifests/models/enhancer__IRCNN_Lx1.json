@@ -20,12 +20,12 @@
       "preferred_format": "onnx"
     },
     "identity": {
-      "author": null,
+      "author": "Kai Zhang (cszn), ETH Zurich",
       "description_short": "IRCNN L ×1 — débruitage sans agrandissement.",
       "hf_id": null,
-      "license": null,
+      "license": "mit",
       "model_type": "upscaling",
-      "platform_ref": null,
+      "platform_ref": "github:cszn/KAIR",
       "source": "enhancer"
     },
     "provenance": {

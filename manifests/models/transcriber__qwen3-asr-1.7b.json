@@ -25,12 +25,12 @@
       "preferred_format": "onnx"
     },
     "identity": {
-      "author": null,
+      "author": "Qwen",
       "description_short": "Qwen3-ASR 1.7B — précis, context biasing, 52 langues",
-      "hf_id": null,
-      "license": null,
+      "hf_id": "Qwen/Qwen3-ASR-1.7B",
+      "license": "apache-2.0",
       "model_type": "speech",
-      "platform_ref": null,
+      "platform_ref": "huggingface:Qwen/Qwen3-ASR-1.7B",
       "source": "transcriber"
     },
     "provenance": {

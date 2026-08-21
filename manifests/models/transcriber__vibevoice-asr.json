@@ -25,12 +25,12 @@
       "preferred_format": "onnx"
     },
     "identity": {
-      "author": null,
+      "author": "microsoft",
       "description_short": "VibeVoice-ASR — multi-locuteurs, précis, un seul passage. Diarisation + timestamps natifs.",
-      "hf_id": null,
-      "license": null,
+      "hf_id": "microsoft/VibeVoice-ASR",
+      "license": "mit",
       "model_type": "speech",
-      "platform_ref": null,
+      "platform_ref": "huggingface:microsoft/VibeVoice-ASR",
       "source": "transcriber"
     },
     "provenance": {

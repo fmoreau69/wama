@@ -17,10 +17,10 @@
       "preferred_format": "safetensors"
     },
     "identity": {
-      "author": "hunyuanvideo-community",
+      "author": "Tencent Hunyuan",
       "description_short": "HunyuanImage 2.1 — qualité max, text rendering, 1K-4K",
       "hf_id": "hunyuanvideo-community/HunyuanImage-2.1-Diffusers",
-      "license": "other",
+      "license": "hunyuan-community",
       "model_type": "diffusion",
       "platform_ref": "huggingface:hunyuanvideo-community/HunyuanImage-2.1-Diffusers",
       "source": "imager"

@@ -19,12 +19,12 @@
       "preferred_format": null
     },
     "identity": {
-      "author": null,
+      "author": "Z.ai (zai-org)",
       "description_short": "GLM-OCR 0.9B — via Ollama — léger, excellent sur documents courants",
       "hf_id": null,
-      "license": null,
+      "license": "mit",
       "model_type": "ocr",
-      "platform_ref": null,
+      "platform_ref": "ollama:glm-ocr",
       "source": "reader"
     },
     "provenance": {

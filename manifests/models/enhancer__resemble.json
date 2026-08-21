@@ -21,12 +21,12 @@
       "preferred_format": null
     },
     "identity": {
-      "author": null,
+      "author": "Resemble AI",
       "description_short": "Restauration par diffusion — débruitage + extension de bande, meilleure qualité",
       "hf_id": null,
-      "license": null,
+      "license": "mit",
       "model_type": "speech",
-      "platform_ref": null,
+      "platform_ref": "github:resemble-ai/resemble-enhance",
       "source": "enhancer"
     },
     "provenance": {

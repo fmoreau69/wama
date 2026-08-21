@@ -22,7 +22,7 @@
       "author": "Lightricks",
       "description_short": "LTX-Video 13B Distilled FP8 — léger, T2V + I2V",
       "hf_id": "Lightricks/LTX-Video-0.9.8-13B-distilled",
-      "license": "other",
+      "license": "ltxv-open-weights",
       "model_type": "diffusion",
       "platform_ref": "huggingface:Lightricks/LTX-Video-0.9.8-13B-distilled",
       "source": "imager"

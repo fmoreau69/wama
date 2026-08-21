@@ -27,12 +27,12 @@
       "preferred_format": "onnx"
     },
     "identity": {
-      "author": null,
+      "author": "CAIC-AD",
       "description_short": "YOLO segment",
       "hf_id": null,
-      "license": null,
+      "license": "mit",
       "model_type": "vision",
-      "platform_ref": null,
+      "platform_ref": "github:CAIC-AD/YOLOPv2",
       "source": "anonymizer"
     },
     "provenance": {

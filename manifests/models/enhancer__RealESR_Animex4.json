@@ -21,12 +21,12 @@
       "preferred_format": "onnx"
     },
     "identity": {
-      "author": null,
+      "author": "Xintao Wang (Tencent ARC Lab)",
       "description_short": "Real-ESRGAN Anime ×4 — dessins et illustrations.",
       "hf_id": null,
-      "license": null,
+      "license": "bsd-3-clause",
       "model_type": "upscaling",
-      "platform_ref": null,
+      "platform_ref": "github:xinntao/Real-ESRGAN",
       "source": "enhancer"
     },
     "provenance": {

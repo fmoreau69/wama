@@ -17,12 +17,12 @@
       "preferred_format": null
     },
     "identity": {
-      "author": null,
+      "author": "Hendrik Schroeter (Rikorose)",
       "description_short": "Débruitage temps réel — rapide, faible empreinte",
       "hf_id": null,
-      "license": null,
+      "license": "mit",
       "model_type": "speech",
-      "platform_ref": null,
+      "platform_ref": "github:Rikorose/DeepFilterNet",
       "source": "enhancer"
     },
     "provenance": {

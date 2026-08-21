@@ -44,12 +44,12 @@
       "preferred_format": "onnx"
     },
     "identity": {
-      "author": null,
+      "author": "Coqui",
       "description_short": "Coqui XTTS v2 — TTS multilingue avec clonage de voix.",
-      "hf_id": null,
-      "license": null,
+      "hf_id": "coqui/XTTS-v2",
+      "license": "cpml-1.0",
       "model_type": "speech",
-      "platform_ref": null,
+      "platform_ref": "huggingface:coqui/XTTS-v2",
       "source": "synthesizer"
     },
     "provenance": {

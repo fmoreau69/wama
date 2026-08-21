@@ -34,12 +34,12 @@
       "preferred_format": "onnx"
     },
     "identity": {
-      "author": null,
+      "author": "Boson AI",
       "description_short": "Higgs Audio v2 — multi-locuteurs avec clonage de voix.",
-      "hf_id": null,
-      "license": null,
+      "hf_id": "bosonai/higgs-audio-v2-generation-3B-base",
+      "license": "higgs-community",
       "model_type": "speech",
-      "platform_ref": null,
+      "platform_ref": "huggingface:bosonai/higgs-audio-v2-generation-3B-base",
       "source": "synthesizer"
     },
     "provenance": {

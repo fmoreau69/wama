@@ -25,12 +25,12 @@
       "preferred_format": "onnx"
     },
     "identity": {
-      "author": null,
+      "author": "openai",
       "description_short": "large-v3 — rapide, polyvalent, multilingue. Diarisation via pyannote.",
-      "hf_id": null,
-      "license": null,
+      "hf_id": "openai/whisper-large-v3",
+      "license": "apache-2.0",
       "model_type": "speech",
-      "platform_ref": null,
+      "platform_ref": "huggingface:openai/whisper-large-v3",
       "source": "transcriber"
     },
     "provenance": {

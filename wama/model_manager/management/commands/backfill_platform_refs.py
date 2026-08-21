@@ -219,6 +219,11 @@ class Command(BaseCommand):
             lic = str(lic)[:64]
             if not lic or lic == m.license:
                 continue
+            # `other` n'est pas un fait : c'est le placeholder HuggingFace pour « licence
+            # maison ». Une qualification déjà posée (cpml-1.0, hunyuan-community…) est PLUS
+            # précise que le placeholder — l'écraser referait le travail de lecture à l'envers.
+            if lic == 'other' and m.license and m.license != 'other':
+                continue
             if m.license:
                 corriges += 1
                 self.stdout.write(self.style.WARNING(

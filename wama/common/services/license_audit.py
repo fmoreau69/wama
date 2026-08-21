@@ -28,7 +28,10 @@ import re
 from collections import defaultdict
 
 #: Familles, de la plus permissive à la plus contraignante. `rang` sert au « moins permissif ».
-PERMISSIVE, COPYLEFT_FAIBLE, COPYLEFT_FORT, NON_COMMERCIAL, A_QUALIFIER, INCONNUE = range(6)
+#: INTERDITE dépasse INCONNUE : une licence LUE qui ne concède aucun droit sur notre territoire
+#: (cas Hunyuan : « excluding the territory of the European Union ») interdit plus sûrement
+#: qu'une licence non lue — le trou d'inventaire laisse au moins l'espoir d'un feu vert.
+PERMISSIVE, COPYLEFT_FAIBLE, COPYLEFT_FORT, NON_COMMERCIAL, A_QUALIFIER, INCONNUE, INTERDITE = range(7)
 
 FAMILLES = {
     PERMISSIVE:       ('Permissive', 'Usage libre, y compris commercial.'),
@@ -37,6 +40,7 @@ FAMILLES = {
     NON_COMMERCIAL:   ('Non commerciale', 'Recherche et enseignement seulement.'),
     A_QUALIFIER:      ('À qualifier', 'Licence maison — à lire une par une.'),
     INCONNUE:         ('Inconnue', 'Non établie : ne permet rien tant qu’elle n’est pas lue.'),
+    INTERDITE:        ('Interdite (territoire)', 'Lue : aucun droit concédé dans l’UE — ne pas utiliser.'),
 }
 
 #: Identifiant normalisé → (famille, exige une attribution).
@@ -67,6 +71,18 @@ _CATALOGUE = {
     'cc-by-nc-nd-4.0':        (NON_COMMERCIAL, True),
     'apple-amlr':             (NON_COMMERCIAL, True),
     'other':                  (A_QUALIFIER, True),
+    # ── Licences maison QUALIFIÉES (lues une par une le 2026-08-21, textes éditeur) ──────────
+    # Le classement « permissive » des community licenses suit le précédent OpenRAIL déjà dans
+    # cette table : des restrictions d'usage existent, mais recherche ET commercial sont permis
+    # à l'échelle d'un labo. Le détail (plafonds, attribution) se lit sur la page liée (`url`).
+    'gemma-terms':            (PERMISSIVE, True),      # Gemma Terms of Use (Gemma ≤3) — usage policy Google
+    'sam-license':            (PERMISSIVE, True),      # SAM License (Meta, SAM3) — pas de clause NC
+    'higgs-community':        (PERMISSIVE, True),      # Boson Higgs Audio 2 — commercial < 100k utilisateurs/an
+    'ltxv-open-weights':      (PERMISSIVE, True),      # LTXV Open Weights — gratuit < 10 M$ de CA annuel
+    'cpml-1.0':               (NON_COMMERCIAL, True),  # Coqui Public Model License — NC strict (Coqui dissoute)
+    'flux-1-dev-non-commercial': (NON_COMMERCIAL, True),  # FLUX.1 [dev] NC — les SORTIES restent libres
+    'cogvideox-license':      (NON_COMMERCIAL, True),  # CogVideoX — recherche libre ; commercial = enregistrement
+    'hunyuan-community':      (INTERDITE, True),       # Tencent Hunyuan — « excluding … European Union »
 }
 
 #: Graphies rencontrées en amont → identifiant normalisé. PyPI rend du texte libre
