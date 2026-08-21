@@ -1,0 +1,33 @@
+{% load static %}
+{% comment %}
+  Importmap LOCALE de three.js — brique COMMUNE, à inclure dans le <head> de toute page
+  qui charge un module three (TalkingHead, preview `.glb` de la médiathèque, rendu 3D→2D).
+
+  POURQUOI UN PARTIAL ET PAS UNE COPIE PAR PAGE. Les trois chantiers 3D actés (avatar parlant,
+  preview d'objet 3D, rendu déterministe 3D→2D) tournent sur le MÊME moteur : vendoriser et
+  déclarer une fois sert les trois (jonction relevée le 2026-08-19). Une importmap recopiée par
+  page divergerait à la première montée de version.
+
+  POURQUOI UNE IMPORTMAP TOUT COURT. `talkinghead.mjs` importe `three` et `three/addons/...`
+  par NOM DE MODULE — sans cette table, le navigateur ne sait pas les résoudre et la page casse
+  au premier import. L'exemple officiel de TalkingHead pointe ces noms vers un CDN jsDelivr ;
+  la règle WAMA (assets locaux, jamais de CDN) impose de les faire pointer vers `vendors/`.
+
+  ⚠ `{% templatetag openvariable %}% static %{% templatetag closevariable %}` et non `static_v` : le second suffixe une empreinte de
+  version au chemin, ce qui est correct pour un fichier mais casse un PRÉFIXE de dossier
+  (`three/addons/`), qui doit rester nu pour que la concaténation du navigateur tombe juste.
+
+  Versions vendorisées : three 0.180.0 (celle qu'exige l'exemple TalkingHead — une version
+  différente n'est pas garantie compatible), TalkingHead 1.7.
+  Dépendances résolues en FERMETURE TRANSITIVE (fflate, BufferGeometryUtils, NURBS* ne sont
+  cités par aucun import de TalkingHead mais sont tirés par FBXLoader/GLTFLoader).
+{% endcomment %}
+<script type="importmap">
+{
+  "imports": {
+    "three": "{% static 'vendors/three-0.180.0/build/three.module.js' %}",
+    "three/addons/": "{% static 'vendors/three-0.180.0/addons/' %}",
+    "talkinghead": "{% static 'vendors/talkinghead-1.7/talkinghead.mjs' %}"
+  }
+}
+</script>
