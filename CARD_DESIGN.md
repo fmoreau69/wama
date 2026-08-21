@@ -450,7 +450,7 @@ tranchent une fois sur les briques communes et se propagent. Consignés au fil d
 > grille, les couleurs relevées du réel, l'anatomie des 5 sections, les comportements décrits.
 > L'implémentation part des briques EXISTANTES (_batch_card, card_chips, _cycle_button,
 > _card_progress, preview_utils, wama-queue…) — traduire, jamais recopier la maquette.
-> Maquette vivante : docs/card_designs/card_v3.5_maquette.html (URL stable, versions étiquetées ; v3.4 = arbitrages du 2026-08-01). ⚠ v3.4 : l exemple de card en ÉCHEC (barre figée) manque encore dans la maquette — à ajouter. Fusion
+> Maquette de référence : [docs/card_designs/card_v3.5_maquette.html](docs/card_designs/card_v3.5_maquette.html) — archivée dans le dépôt le 2026-08-21 (v3.5 ; les arbitrages du 2026-08-01 y sont intégrés). ⚠ v3.4 : l exemple de card en ÉCHEC (barre figée) manque encore dans la maquette — à ajouter. Fusion
 > v1 Transcriber (sections nommées) × v2 chips (compacité). RIEN de nouveau côté mécanismes :
 > déclaratif → briques → UI. Pilote de portage : **SYNTHESIZER** (décision 2026-08-01 —
 > pas le Transcriber), puis composer.

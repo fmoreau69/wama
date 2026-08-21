@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WAMA — Card v3.5 (maquette)</title>
+<!--
+  MAQUETTE DE RÉFÉRENCE du formalisme de card — archivée dans le dépôt le 2026-08-21.
+  Elle était auparavant hébergée en ligne ; le dépôt ne dépend plus d'un service externe.
+  Document de référence du domaine : CARD_DESIGN.md (qui pointe vers ce fichier).
+  Version archivée : v3.5 (CARD_DESIGN.md décrivait v3.4 — la maquette avait évolué).
+-->
+<style>
+  /* Palette = celle du code réel (app_modern.css, wama-inspector.css, composer/index.css) */
+  :root {
+    --bg: #1a1d20; --card: #212529; --card-edge: #495057; --batch-bg: #1e2124;
+    --ink: #e9ecef; --ink-2: #adb5bd; --ink-3: #6c757d;
+    --hair: rgba(255,255,255,.08);
+    --info: #0dcaf0; --warn: #ffc107; --ok: #28a745; --ko: #dc3545;
+    --ghost: #8b949e; --ghost-edge: rgba(255,255,255,.22);
+  }
+  html { color-scheme: dark; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         padding: 2.2rem 1rem 4rem; }
+  .wrap { max-width: 1120px; margin: 0 auto; }
+  h1 { font-size: 1.15rem; font-weight: 600; margin: 0 0 .25rem; }
+  .sub { color: var(--ink-2); font-size: .85rem; max-width: 72ch; margin: 0 0 1.2rem; }
+  .annot { color: var(--ink-3); font-size: .74rem; margin: .35rem 0 0; }
+  .annot b { color: var(--ink-2); font-weight: 600; }
+  .demo-label { font-size: .68rem; text-transform: uppercase; letter-spacing: .1em;
+    color: var(--ink-3); margin: 1.8rem 0 .5rem; display: flex; align-items: center; gap: .6rem; }
+  .demo-label::after { content: ""; flex: 1; height: 1px; background: var(--hair); }
+  .demo-label .note { text-transform: none; letter-spacing: 0; font-size: .72rem; }
+
+  /* ══ CARD v3.2 — grille à pistes fixes partagées ══ */
+  .card3 {
+    display: grid; align-items: center;
+    grid-template-columns: 232px minmax(0,1fr) minmax(0,1.15fr) 118px 198px;
+    background: var(--card); border: 1px solid var(--card-edge); border-radius: 8px;
+    padding: .45rem .75rem .5rem; margin-bottom: .55rem;
+    border-left-width: 4px; position: relative;
+  }
+  /* Liserés gauches = codes du réel : 4px ; NOUVELLE card (fraîchement déposée) = info */
+  .card3.pending    { border-left-color: var(--card-edge); }
+  .card3.fresh      { border-left-color: var(--info); }
+  .card3.processing { border-left-color: var(--warn); }
+  .card3.success    { border-left-color: var(--ok); }
+  .card3.error      { border-left-color: var(--ko); }
+  /* Card SÉLECTIONNÉE (inspecteur / focusCard) = encadré cyan, comme .inspector-selected */
+  .card3.is-selected { outline: 2px solid var(--info); outline-offset: 1px;
+                       box-shadow: 0 0 10px rgba(13,202,240,.25); }
+  /* Mère de lot : fond DISTINCT (réel : #1e2124) */
+  .card3.batch-mother { background: #0d1a1a; border-color: rgba(13,202,240,.55); }
+  .card3.in-batch { margin-bottom: .3rem; background: #0d1a1a; border-color: rgba(13,202,240,.35); }
+  .card3.in-batch::before { content: ""; position: absolute; left: -14px; top: 50%;
+                            width: 11px; height: 1px; background: var(--ink-3); opacity: .55; }
+  .batch-group { border-left: 2px solid rgba(13,202,240,.45); padding-left: 14px; margin-left: 6px; }
+
+  .sect { display: flex; flex-direction: column; gap: .14rem; justify-content: center;
+          padding: 0 .8rem; border-left: 1px solid var(--hair); min-width: 0; align-self: stretch; }
+  .sect:first-child { padding-left: 0; border-left: none; }
+  .eyebrow { font-size: .55rem; text-transform: uppercase; letter-spacing: .09em;
+             color: var(--ink-3); user-select: none; white-space: nowrap; }
+  .sect-body { display: flex; align-items: center; gap: .4rem; min-height: 22px; flex-wrap: wrap; }
+  .sect-body.stack { flex-direction: column; align-items: flex-start; gap: .05rem; }
+
+  .fname { font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden;
+           text-overflow: ellipsis; max-width: 210px; cursor: pointer; display: block; }
+  .fname .fa { color: var(--info); margin-right: .35rem; font-style: normal; }
+  .fprops, .subid { font-size: .65rem; color: var(--ink-3); font-variant-numeric: tabular-nums;
+                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fprops { color: var(--ink-2); }
+
+  .chip { display: inline-flex; align-items: center; gap: .3rem; font-size: .68rem;
+          color: var(--ink-2); background: rgba(255,255,255,.06); border: 1px solid transparent;
+          border-radius: 999px; padding: .08rem .5rem; white-space: nowrap; }
+  .chip .ic { font-size: .62rem; opacity: .75; font-style: normal; }
+  .chip.ghost { background: transparent; border: 1px dashed var(--ghost-edge); color: var(--ghost); }
+  .chip.solid { border-color: rgba(40,167,69,.45); color: #b6e3c8; background: rgba(40,167,69,.12); }
+  .live-step { font-size: .74rem; color: var(--warn); white-space: nowrap; }
+  .live-step .pct { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-3); flex-shrink: 0; }
+  .processing .dot { background: var(--warn); box-shadow: 0 0 6px var(--warn); }
+  .success .dot { background: var(--ok); }
+  .error .dot { background: var(--ko); }
+  .state-lbl { font-size: .72rem; color: var(--ink-2); white-space: nowrap; }
+  .eta { font-size: .66rem; color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .acts { display: flex; gap: .28rem; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+  .b { width: 27px; height: 25px; display: inline-flex; align-items: center; justify-content: center;
+       background: transparent; border: 1px solid; border-radius: .3rem; font-size: .72rem;
+       cursor: pointer; transition: background .12s; flex-shrink: 0; }
+  .b:focus-visible { outline: 2px solid var(--info); outline-offset: 1px; }
+  .b.gear { border-color: var(--ink-3); color: var(--ink-2); }
+  .b.cycle { border-color: var(--ok); color: #5dd879; }
+  .b.app { border-color: #9d7bd8; color: #b9a3e3; }
+  .b.dl { border-color: var(--info); color: var(--info); }
+  .b.dl[disabled] { opacity: .35; cursor: default; }
+  .b.dup { border-color: var(--warn); color: var(--warn); }
+  .b.del { border-color: var(--ko); color: var(--ko); }
+  .b:not([disabled]):hover { background: rgba(255,255,255,.07); }
+  .b.primary { width: auto; padding: 0 .7rem; gap: .35rem; font-size: .78rem; }
+
+  .track { grid-column: 1 / -1; height: 4px; background: rgba(255,255,255,.08);
+           border-radius: 2px; margin-top: .45rem; overflow: hidden; }
+  .fill { height: 100%; border-radius: 2px; background: var(--ok); }
+  .fill.active { background: linear-gradient(90deg, var(--ok), #34ce57); }
+  /* Echec : barre FIGEE au pourcentage atteint, pointe rouge */
+  .fill.frozen { background: var(--ok); opacity: .55; border-right: 3px solid var(--ko); }
+  .preview { grid-column: 1 / -1; margin-top: .45rem; padding: .45rem .6rem; border-radius: .3rem;
+             background: rgba(0,0,0,.45); font-size: .78rem; color: var(--ink-2);
+             display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+             overflow: hidden; cursor: pointer; }
+  /* Préviz RÉCAPITULATIVE (dès l'ajout) : fond légèrement distinct de la préviz post-process */
+  .preview.recap { background: rgba(13,202,240,.05); border: 1px dashed rgba(13,202,240,.18);
+                   color: var(--ghost); }
+
+  /* Card d'ENTRÉE = card v3 à l'état BROUILLON (CARD_DESIGN §8.5) :
+     mini-onglets de MODALITÉ dans la cellule Entrée — une modalité visible à la fois. */
+  .card3.draft { border-left: 4px dashed var(--info); border-style: solid; }
+  .modal-tabs { display: flex; gap: .15rem; margin-bottom: .25rem; }
+  .mtab { font-size: .68rem; padding: .1rem .45rem; border-radius: .3rem; cursor: pointer;
+          color: var(--ink-3); border: 1px solid transparent; }
+  .mtab.on { color: var(--info); border-color: rgba(13,202,240,.4); background: rgba(13,202,240,.08); }
+  .dropmini { border: 1px dashed rgba(255,255,255,.3); border-radius: .35rem;
+              padding: .3rem .6rem; font-size: .72rem; color: var(--ink-2); cursor: pointer;
+              display: flex; align-items: center; gap: .45rem; }
+  .dropmini:hover { background: rgba(255,255,255,.04); }
+
+  /* ══ MOSAÏQUE (reprend .wama-queue-grid du réel) ══
+     batch REPLIÉ = une cellule ; batch DÉPLIÉ = bande pleine largeur teintée
+     contenant la grille interne des filles (le contenant EST le lien). */
+  .queue.mosaic { display: grid; grid-template-columns: repeat(auto-fill, minmax(262px, 1fr)); gap: .6rem; }
+  .queue.mosaic .card3 { grid-template-columns: 1fr; align-items: start; margin-bottom: 0; row-gap: .35rem; }
+  .queue.mosaic .sect { border-left: none; padding: 0; }
+  .queue.mosaic .acts { justify-content: flex-start; }
+  .queue.mosaic .card3.draft { border-style: dashed; }   /* tuile NORMALE, contour pointillé */
+  .queue.mosaic .card3.in-batch::before { display: none; }
+  .queue.mosaic .batch-group { display: contents; }   /* les filles rejoignent la grille de la bande */
+  /* Le lot ne s'étend PAS : mère = tuile normale ; les filles suivent dans le flux,
+     liseré HAUT pointillé + fond lot = appartenance (le statut garde le liseré gauche). */
+  .queue.mosaic .batch-band, .queue.mosaic .band-inner { display: contents; }
+  .queue.mosaic .card3.in-batch { border-top: 3px solid rgba(13,202,240,.55); }
+  .queue.mosaic .card3.batch-mother { border-top: 3px solid #0dcaf0; }
+  .queue:not(.mosaic) .batch-band { display: contents; }
+  .queue:not(.mosaic) .band-inner { display: contents; }
+  /* batch replié (cellule mosaïque) */
+  .collapsed-count { font-size: .68rem; color: var(--ink-2); background: rgba(255,255,255,.08);
+      border-radius: 999px; padding: .05rem .5rem; }
+
+  /* ══ PILE (jeu de cartes) : la card focus est entière, les voisines de plus en plus
+     écrasées avec la distance — clic ou flèches ↑/↓ pour déplacer le focus. ══ */
+  .queue.deck .card3 { overflow: hidden; transition: max-height .22s ease, opacity .22s ease,
+                       margin .22s ease; cursor: pointer; }
+  .queue.deck .card3[data-dist="0"] { max-height: 220px; }
+  .queue.deck .card3[data-dist="1"] { max-height: 46px; opacity: .9; margin-bottom: .3rem; }
+  .queue.deck .card3[data-dist="2"] { max-height: 28px; opacity: .7; margin-bottom: .22rem;
+                                      padding-top: .2rem; }
+  .queue.deck .card3:not([data-dist="0"]):not([data-dist="1"]):not([data-dist="2"])
+                                    { max-height: 15px; opacity: .45; margin-bottom: .15rem;
+                                      padding-top: .12rem; }
+  .queue.deck .card3[data-dist="0"] { outline: 2px solid var(--info); outline-offset: 1px; }
+  .queue.deck .batch-group { border-left: 1px dashed rgba(255,255,255,.18); }
+  .queue.deck .card3.draft { max-height: none !important; opacity: 1 !important; }
+  .card3.kin { outline: 2px solid rgba(13,202,240,.8); outline-offset: 1px; }
+
+  .toggle-bar { display: flex; gap: .5rem; align-items: center; margin: 0 0 1rem; }
+  .toggle-bar button { background: var(--card); border: 1px solid var(--card-edge); color: var(--ink-2);
+      border-radius: .35rem; padding: .3rem .8rem; font-size: .78rem; cursor: pointer; }
+  .toggle-bar button[aria-pressed="true"] { border-color: var(--info); color: var(--info); }
+
+  .legend { display: flex; gap: 1.6rem; flex-wrap: wrap; margin-top: 2.4rem; padding-top: 1rem;
+            border-top: 1px solid var(--hair); }
+  .legend div { font-size: .76rem; color: var(--ink-2); max-width: 32ch; }
+  .legend b { display: block; color: var(--ink); font-size: .72rem; text-transform: uppercase;
+              letter-spacing: .07em; margin-bottom: .2rem; }
+  @media (max-width: 900px) {
+    .card3 { grid-template-columns: 1fr 1fr; row-gap: .4rem; }
+    .sect { border-left: none; padding: 0 .4rem 0 0; }
+    .track, .preview { grid-column: 1 / -1; }
+  }
+  @media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <h1>Card v3.5 — lot en famille cyan (codes du réel), pile réservée à la file</h1>
+  <p class="sub">Arbitrages intégrés : <b>Pile = modificateur</b> on/off qui s'applique à la file
+  ET à la mosaïque (atténuation sans reflow) — la card d'entrée n'est jamais compressée. Barre de
+  progression <b>verte sur tout le cycle</b> ; en échec elle reste <b>figée au % atteint</b>
+  (pointe rouge). <b>Préviz permanente</b> : récap dès l'ajout → process pendant → résultat après
+  (faces cliquables, système de l'inspecteur). Lot : survoler la mère <b>surligne ses filles</b>
+  (+ chip 📦) ; en mosaïque la card d'entrée est une tuile normale au contour pointillé.</p>
+
+  <div class="toggle-bar">
+    <button id="btnList" aria-pressed="true" onclick="setLayout(false)">☰ File (ligne)</button>
+    <button id="btnMosaic" aria-pressed="false" onclick="setLayout(true)">▦ Mosaïque</button>
+    <button id="btnDeck" aria-pressed="false" onclick="setDeck()">🂠 Pile on/off</button>
+    <span class="annot">— géométrie (file/mosaïque) × modificateur Pile.</span>
+  </div>
+
+  <div class="queue" id="queue">
+
+    <!-- CARD D'ENTRÉE = card v3 en BROUILLON : mini-onglets de modalité (une seule visible) -->
+    <div class="card3 draft">
+      <div class="sect">
+        <span class="eyebrow">Entrée · modalité</span>
+        <div class="modal-tabs">
+          <span class="mtab on">📄 Fichier</span><span class="mtab">📚</span>
+          <span class="mtab">🔗</span><span class="mtab">🎙</span><span class="mtab">🗂</span>
+        </div>
+        <div class="sect-body">
+          <span class="dropmini"><span class="fa">⬆</span> Déposer ou cliquer — wav, mp3, ogg…</span>
+        </div>
+      </div>
+      <div class="sect">
+        <span class="eyebrow">Réglages</span>
+        <div class="sect-body">
+          <span class="chip"><span class="ic">⚙</span>whisper large-v3</span>
+          <span class="chip"><span class="ic">🌐</span>auto</span>
+        </div>
+      </div>
+      <div class="sect">
+        <span class="eyebrow">Sortie</span>
+        <div class="sect-body">
+          <span class="chip ghost">.docx horodaté</span>
+          <span class="chip ghost">~ETA apprise</span>
+        </div>
+      </div>
+      <div class="sect">
+        <span class="eyebrow">État</span>
+        <div class="sect-body"><span class="state-lbl" style="color:var(--ink-3)">Brouillon</span></div>
+      </div>
+      <div class="sect">
+        <span class="eyebrow">&nbsp;</span>
+        <div class="acts"><button class="b cycle primary">▶ Transcrire</button></div>
+      </div>
+    </div>
+
+    <!-- FRAÎCHEMENT DÉPOSÉE : liseré gauche CYAN + card SÉLECTIONNÉE (encadré inspecteur) -->
+    <div class="card3 fresh is-selected">
+      <div class="sect">
+        <span class="eyebrow">Entrée</span>
+        <div class="sect-body stack">
+          <span class="fname"><span class="fa">🎵</span>interview_maire.mp3</span>
+          <span class="fprops">mp3 · 44,1 kHz · stéréo · 24 min</span>
+          <span class="subid">#241 · 01/08 09:12</span>
+        </div>
+      </div>
+      <div class="sect">
+        <span class="eyebrow">Réglages</span>
+        <div class="sect-body">
+          <span class="chip"><span class="ic">⚙</span>whisper large-v3</span>
+          <span class="chip"><span class="ic">🌐</span>fr</span>
+          <span class="chip"><span class="ic">👥</span>diarisation</span>
+        </div>
+      </div>
+      <div class="sect">
+        <span class="eyebrow">Sortie</span>
+        <div class="sect-body">
+          <span class="chip ghost">.docx horodaté</span>
+          <span class="chip ghost">~9 000 mots</span>
+          <span class="chip ghost">~14 min</span>
+        </div>
+      </div>
+      <div class="sect">
+        <span class="eyebrow">État</span>
+        <div class="sect-body"><span class="dot"></span><span class="state-lbl">En attente</span></div>
+      </div>
+      <div class="sect">
+        <span class="eyebrow">&nbsp;</span>
+        <div class="acts">
+          <button class="b gear" title="Paramètres">⚙</button>
+          <button class="b cycle" title="Démarrer">▶</button>
+          <button class="b app" title="Correction assistée (Transcriber)">✏️</button>
+          <button class="b dl" disabled>⬇</button>
+          <button class="b dup" title="Dupliquer">⧉</button>
+          <button class="b del" title="Supprimer">🗑</button>
+        </div>
+      </div>
+      <div class="preview recap">Transcription (texte) + diarisation · formats au choix après
+      traitement : TXT · SRT · PDF · DOCX</div>
+    </div>
+
+    <!-- EN COURS -->
+    <div class="card3 processing">
+      <div class="sect">
+        <span class="eyebrow">Entrée</span>
+        <div class="sect-body stack">
+          <span class="fname"><span class="fa">🎵</span>table_ronde_mobilite.wav</span>
+          <span class="fprops">wav · 48 kHz · mono · 1 h 07</span>
+          <span class="subid">#240 · 01/08 08:55</span>
+        </div>
+      </div>
+      <div class="sect">
+        <span class="eyebrow">Réglages</span>
+        <div class="sect-body">
+          <span class="chip"><span class="ic">⚙</span>whisper large-v3</span>
+          <span class="chip"><span class="ic">🌐</span>fr</span>
+        </div>
+      </div>
+      <div class="sect">
+        <span class="eyebrow">Sortie</span>
+        <div class="sect-body">
+          <span class="live-step"><span class="pct">62 %</span> — Diarisation des locuteurs…</span>
+        </div>
+      </div>
+      <div class="sect">
+        <span class="eyebrow">État</span>
+        <div class="sect-body"><span class="dot"></span><span class="state-lbl">En cours</span><span class="eta">≈ 9 min</span></div>
+      </div>
+      <div class="sect">
+        <span class="eyebrow">&nbsp;</span>
+        <div class="acts">
+          <button class="b gear">⚙</button><button class="b cycle" title="Arrêter">⏹</button>
+          <button class="b app">✏️</button><button class="b dl" disabled>⬇</button>
+          <button class="b dup">⧉</button><button class="b del">🗑</button>
+        </div>
+      </div>
+      <div class="track"><div class="fill active" style="width:62%"></div></div>
+      <div class="preview">…nous allons donc aborder le plan de circulation du centre-ville, la
+      rénovation de la halle — <i style="color:var(--ink-3)">texte partiel (face « pendant »)</i></div>
+    </div>
+
+    <!-- TERMINÉ -->
+    <div class="card3 success">
+      <div class="sect">
+        <span class="eyebrow">Entrée</span>
+        <div class="sect-body stack">
+          <span class="fname"><span class="fa">🎵</span>conseil_juillet.mp3</span>
+          <span class="fprops">mp3 · 44,1 kHz · stéréo · 52 min</span>
+          <span class="subid">#238 · 31/07 17:20</span>
+        </div>
+      </div>
+      <div class="sect">
+        <span class="eyebrow">Réglages</span>
+        <div class="sect-body">
+          <span class="chip"><span class="ic">⚙</span>whisper large-v3</span>
+          <span class="chip"><span class="ic">🌐</span>fr</span>
+        </div>
+      </div>
+      <div class="sect">
+        <span class="eyebrow">Sortie</span>
+        <div class="sect-body">
+          <span class="chip solid">.docx · 84 Ko</span>
+          <span class="chip solid">8 742 mots</span>
+          <span class="chip solid">3 locuteurs</span>
+          <span class="chip solid">cohérence 85/100</span>
+        </div>
+      </div>
+      <div class="sect">
+        <span class="eyebrow">État</span>
+        <div class="sect-body"><span class="dot"></span><span class="state-lbl">Terminé</span><span class="eta">en 12 min 40</span></div>
+      </div>
+      <div class="sect">
+        <span class="eyebrow">&nbsp;</span>
+        <div class="acts">
+          <button class="b gear">⚙</button><button class="b cycle" title="Relancer">↻</button>
+          <button class="b app" title="Corriger">✏️</button><button class="b dl">⬇</button>
+          <button class="b dup">⧉</button><button class="b del">🗑</button>
+        </div>
+      </div>
+      <div class="track"><div class="fill" style="width:100%"></div></div>
+      <div class="preview">
+        <span style="font-size:.6rem;color:var(--ink-3);letter-spacing:.06em;">FACES :
+          <span style="cursor:pointer;">entrée</span> ·
+          <span style="cursor:pointer;">pendant</span> ·
+          <span style="color:var(--info);cursor:pointer;">sortie</span></span><br>
+        Bonjour à toutes et à tous, merci d'être présents ce matin. Nous allons aborder le plan
+        de circulation du centre-ville, la rénovation de la halle et le budget participatif 2026…</div>
+    </div>
+
+    <!-- LOT DÉPLIÉ : en ligne = rail ; en mosaïque = BANDE pleine largeur teintée -->
+    <div class="batch-band">
+      <div class="card3 processing batch-mother" data-batch="12">
+        <div class="sect">
+          <span class="eyebrow">Entrée</span>
+          <div class="sect-body stack">
+            <span class="fname"><span class="fa">📦</span>Lot conseil municipal</span>
+            <span class="fprops">3 éléments · 2 h 41 au total</span>
+            <span class="subid">lot #12 · 01/08 09:02</span>
+          </div>
+        </div>
+        <div class="sect">
+          <span class="eyebrow">Réglages</span>
+          <div class="sect-body">
+            <span class="chip"><span class="ic">⚙</span>whisper large-v3</span>
+            <span class="chip"><span class="ic">🌐</span>fr</span>
+          </div>
+        </div>
+        <div class="sect">
+          <span class="eyebrow">Sortie</span>
+          <div class="sect-body">
+            <span class="chip solid">1 terminé</span>
+            <span class="live-step"><span class="pct">1</span> en cours</span>
+            <span class="chip ghost">1 en attente</span>
+          </div>
+        </div>
+        <div class="sect">
+          <span class="eyebrow">État</span>
+          <div class="sect-body"><span class="dot"></span><span class="state-lbl">1/3</span><span class="eta">≈ 26 min</span></div>
+        </div>
+        <div class="sect">
+          <span class="eyebrow">&nbsp;</span>
+          <div class="acts">
+            <button class="b gear" title="Paramètres du lot">⚙</button>
+            <button class="b cycle" title="Tout démarrer">▶</button>
+            <button class="b dl" title="Tout télécharger (ZIP)">⬇</button>
+            <button class="b dup" title="Dupliquer le lot">⧉</button>
+            <button class="b del" title="Supprimer le lot">🗑</button>
+          </div>
+        </div>
+        <div class="track"><div class="fill active" style="width:38%"></div></div>
+      </div>
+      <div class="band-inner">
+        <div class="batch-group">
+          <div class="card3 in-batch success" data-batch="12">
+            <div class="sect">
+              <span class="eyebrow">Entrée</span>
+              <div class="sect-body stack">
+                <span class="fname"><span class="fa">🎵</span>partie_1.mp3</span>
+                <span class="fprops">mp3 · 44,1 kHz · 38 min</span>
+                <span class="subid">#243 · 📦 lot 12</span>
+              </div>
+            </div>
+            <div class="sect">
+              <span class="eyebrow">Réglages</span>
+              <div class="sect-body"><span class="chip"><span class="ic">⚙</span>whisper large-v3</span></div>
+            </div>
+            <div class="sect">
+              <span class="eyebrow">Sortie</span>
+              <div class="sect-body"><span class="chip solid">.docx · 51 Ko</span><span class="chip solid">2 locuteurs</span></div>
+            </div>
+            <div class="sect">
+              <span class="eyebrow">État</span>
+              <div class="sect-body"><span class="dot"></span><span class="state-lbl">Terminé</span></div>
+            </div>
+            <div class="sect">
+              <span class="eyebrow">&nbsp;</span>
+              <div class="acts">
+                <button class="b gear">⚙</button><button class="b cycle">↻</button>
+                <button class="b app">✏️</button><button class="b dl">⬇</button>
+                <button class="b dup">⧉</button><button class="b del">🗑</button>
+              </div>
+            </div>
+          </div>
+          <div class="card3 in-batch processing" data-batch="12">
+            <div class="sect">
+              <span class="eyebrow">Entrée</span>
+              <div class="sect-body stack">
+                <span class="fname"><span class="fa">🎵</span>partie_2.mp3</span>
+                <span class="fprops">mp3 · 44,1 kHz · 61 min</span>
+                <span class="subid">#244 · 📦 lot 12</span>
+              </div>
+            </div>
+            <div class="sect">
+              <span class="eyebrow">Réglages</span>
+              <div class="sect-body"><span class="chip"><span class="ic">⚙</span>whisper large-v3</span></div>
+            </div>
+            <div class="sect">
+              <span class="eyebrow">Sortie</span>
+              <div class="sect-body"><span class="live-step"><span class="pct">18 %</span> — Transcription…</span></div>
+            </div>
+            <div class="sect">
+              <span class="eyebrow">État</span>
+              <div class="sect-body"><span class="dot"></span><span class="state-lbl">En cours</span><span class="eta">≈ 22 min</span></div>
+            </div>
+            <div class="sect">
+              <span class="eyebrow">&nbsp;</span>
+              <div class="acts">
+                <button class="b gear">⚙</button><button class="b cycle">⏹</button>
+                <button class="b app">✏️</button><button class="b dl" disabled>⬇</button>
+                <button class="b dup">⧉</button><button class="b del">🗑</button>
+              </div>
+            </div>
+            <div class="track"><div class="fill active" style="width:18%"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LOT REPLIÉ : une seule card (une cellule en mosaïque) -->
+    <div class="card3 pending batch-mother">
+      <div class="sect">
+        <span class="eyebrow">Entrée</span>
+        <div class="sect-body stack">
+          <span class="fname"><span class="fa">📦</span>Lot interviews terrain ▸</span>
+          <span class="fprops">5 éléments · 3 h 12 au total</span>
+          <span class="subid">lot #11 · 31/07 16:44</span>
+        </div>
+      </div>
+      <div class="sect">
+        <span class="eyebrow">Réglages</span>
+        <div class="sect-body"><span class="chip"><span class="ic">⚙</span>whisper large-v3</span></div>
+      </div>
+      <div class="sect">
+        <span class="eyebrow">Sortie</span>
+        <div class="sect-body"><span class="collapsed-count">5 en attente</span></div>
+      </div>
+      <div class="sect">
+        <span class="eyebrow">État</span>
+        <div class="sect-body"><span class="dot"></span><span class="state-lbl">Replié</span></div>
+      </div>
+      <div class="sect">
+        <span class="eyebrow">&nbsp;</span>
+        <div class="acts">
+          <button class="b gear">⚙</button><button class="b cycle">▶</button>
+          <button class="b dl" disabled>⬇</button><button class="b dup">⧉</button>
+          <button class="b del">🗑</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="annot"><b>Couleurs du réel :</b> liserés 4px <span style="color:var(--warn)">#ffc107</span> /
+  <span style="color:var(--ok)">#28a745</span> / <span style="color:var(--ko)">#dc3545</span>,
+  <b>cyan</b> pour la card fraîchement déposée, encadré cyan = card sélectionnée (inspecteur),
+  fond #1e2124 pour tout ce qui est lot. <b>Card d'entrée :</b> état brouillon (§8.5), liseré
+  cyan pointillé + mini-onglets de modalité (📄 fichier · 📚 médiathèque · 🔗 URL · 🎙 Speak ·
+  🗂 lot) — une modalité affichée à la fois, la section reste courte quel que soit le nombre de
+  modalités de l'app.</p>
+
+  <div class="legend">
+    <div><b>Lot en mosaïque</b>La mère garde sa forme de tuile ; les filles suivent dans le flux
+    avec le liseré haut pointillé + fond #1e2124 ; les cards hors lot reprennent ensuite, sans
+    liseré.</div>
+    <div><b>Entrée multi-modalités</b>Divulgation progressive : les onglets changent le contenu
+    de la cellule Entrée, jamais sa hauteur. Speak (temps réel) est une modalité comme les autres.</div>
+    <div><b>Pilote proposé</b>Synthesizer : app la plus conforme, card v1 riche (voix, sortie
+    audio avec lecteur), parfait pour éprouver la migration v1 → v3 sans toucher au Transcriber.</div>
+  </div>
+</div>
+
+<script>
+  var q = document.getElementById('queue');
+  function press(id, on) { document.getElementById(id).setAttribute('aria-pressed', String(on)); }
+  function setLayout(mosaic) {
+    q.classList.toggle('mosaic', mosaic);
+    press('btnList', !mosaic); press('btnMosaic', mosaic);
+  }
+  var cards = [].slice.call(q.querySelectorAll('.card3'));
+  var focusIdx = 3;
+  function clearDeck() { cards.forEach(function(c){ c.removeAttribute('data-dist'); }); }
+  function applyDeck() {
+    cards.forEach(function(c, i) {
+      if (c.classList.contains('draft')) { c.setAttribute('data-dist', '0'); return; }
+      c.setAttribute('data-dist', Math.min(Math.abs(i - focusIdx), 9));
+    });
+  }
+  q.addEventListener('mouseover', function(e) {
+    var m = e.target.closest('[data-batch]'); if (!m) return;
+    q.querySelectorAll('[data-batch="' + m.getAttribute('data-batch') + '"]')
+     .forEach(function(c) { if (c !== m) c.classList.add('kin'); });
+  });
+  q.addEventListener('mouseout', function(e) {
+    var m = e.target.closest('[data-batch]'); if (!m) return;
+    q.querySelectorAll('.kin').forEach(function(c) { c.classList.remove('kin'); });
+  });
+  function setDeck() {
+    if (q.classList.contains('mosaic')) { alert('Pile en mosaïque : point OUVERT (à re-imaginer).'); return; }
+    var on = !q.classList.contains('deck');
+    q.classList.toggle('deck', on);
+    if (on) applyDeck(); else clearDeck();
+    press('btnDeck', on);
+  }
+  q.addEventListener('click', function(e) {
+    if (!q.classList.contains('deck')) return;
+    var c = e.target.closest('.card3');
+    if (c) { focusIdx = cards.indexOf(c); applyDeck(); }
+  });
+  document.addEventListener('keydown', function(e) {
+    if (!q.classList.contains('deck')) return;
+    if (e.key === 'ArrowDown') { focusIdx = Math.min(focusIdx + 1, cards.length - 1); applyDeck(); e.preventDefault(); }
+    if (e.key === 'ArrowUp')   { focusIdx = Math.max(focusIdx - 1, 0); applyDeck(); e.preventDefault(); }
+  });
+</script>
+
+</body>
+</html>
