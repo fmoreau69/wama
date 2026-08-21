@@ -134,20 +134,105 @@ s'affiche en lecture seule. **Silence total si le prompt part tel quel.**
   glossaire donc sont préservés verbatim.
 - Adopté par imager (4 champs) ; prêt pour composer et le studio, sans code par app.
 
-## RAG — anticipation de l'architecture (PAS encore implémenté, prochain gros chantier)
+## PROMPT + RAG — la chaîne complète (état MESURÉ au 2026-08-21)
 
-> Décision (Fabien, 2026-06) : **différer l'implémentation** (l'harmonisation UI/modes/cards est la
-> priorité et fournit le socle), mais **anticiper l'archi** pour ne pas se peindre dans un coin.
+> ⚠ Cette section remplace l'ancienne « anticipation de l'architecture », périmée sur deux
+> points : elle annonçait « PAS encore implémenté » (le RAG de l'assistant est livré) et
+> **ChromaDB** (le stockage réel est **pgvector**, cf. `WAMA_MEMORY.md`).
 
-- **Point de branchement = l'étape `enrich` de CETTE pipeline.** Enrichir un prompt = récupérer du
-  contexte documentaire (ChromaDB, cf. Lescot) en plus de la passe LLM. Zéro nouvelle surface : le RAG
-  s'injecte dans l'enrichissement déjà déclaré par `PROMPT_TARGETS`.
-- **Niveaux (hiérarchie d'héritage)** : `université → labo/service → équipe → individuel`, **extensible
-  vers le haut** (national, global, général). Chaque niveau **hérite** des niveaux au-dessus — c'est le
-  **MÊME pattern d'héritage que batch→item (`WAMA_APP_CONVENTIONS §9.9`)**, réutilisable.
-- **Opt-in utilisateur** : base = RAG **individuel** ; l'utilisateur **choisit** d'activer les niveaux
-  supérieurs (équipe/labo/université) → cohérent RGPD (rien de partagé par défaut).
-- **Stockage** : ChromaDB (par niveau / collection). Glossaire do-not-translate Lescot (cf. roadmap Translator).
+### Le principe, en une phrase
+
+Une demande utilisateur est complétée par **trois apports distincts** avant d'atteindre un
+modèle : **QUI répond** (skill de rôle), **COMMENT écrire le prompt** (skill d'enrichissement)
+et **CE QUE SAIT le laboratoire** (RAG). Les trois sont **déclarés**, jamais écrits en dur, et
+chacun s'applique à un endroit différent de la chaîne.
+
+### Les DEUX familles de skills — contrats opposés, ne pas confondre
+
+| Famille | Fichiers | Destinataire | Contrat | Appliqué |
+|---|---|---|---|---|
+| **Rôle** | `assistant-*.md` | l'assistant lui-même | ne transforme rien : posture, domaine, interdits | prompt système (`assistant_engine`) |
+| **Enrichissement** | `imager-image.md`, `composer-music.md`… | LLM d'enrichissement | transforme un prompt, **rend le prompt seul** | dans l'app, au lancement (`process_prompt_for`) |
+
+Registre des rôles : `common/utils/assistant_skills.py::DOMAINES` (`general`, `science`,
+`design`, `dev`). Registre des cibles d'enrichissement : `app_metadata.py::PROMPT_TARGETS`.
+
+### Les DEUX chemins d'une demande — et pourquoi le RAG doit être aux deux endroits
+
+**Chemin A — par l'assistant** (« propose-moi un logo pour le labo ») ✅ **livré 21/08**
+```
+demande → skill de RÔLE (design)  +  RAG labo (contexte)  →  l'assistant COMPOSE un prompt informé
+       → outil create_image(prompt=…)  →  l'app enrichit (skill imager-image)  →  génération
+```
+Le contexte du laboratoire arrive **avant** la composition : l'assistant sait déjà ce qu'est
+le labo, donc le prompt qu'il écrit le porte. C'est ce qui évite de tout redécrire à chaque
+demande.
+
+**Chemin B — directement dans l'app** (bouton ✨ de l'imager) ⏳ **le RAG y manque**
+```
+prompt tapé → l'app enrichit (skill imager-image)  →  génération
+                        ↑ AUCUN contexte de laboratoire
+```
+Le hook RAG de l'enrichissement existe (`prompt_pipeline`, paramètre `rag`) mais il est
+**`rag=False` par défaut et aucun appelant ne l'active** — donc l'utilisateur qui passe par
+l'app plutôt que par l'assistant perd tout le contexte.
+
+> **Arbitrage Fabien (21/08)** : il FAUT activer le RAG sur le chemin B. L'objection retenue
+> jusqu'ici était « 5 s par génération, très visible » — **elle ne tient pas ici** : une
+> génération d'image est **asynchrone (Celery) et dure 10 à 60 s**, l'utilisateur ne regarde
+> pas l'écran. Ces 5 s sont visibles dans le **chat**, pas dans une tâche de fond. L'arbitrage
+> actuel a écarté le RAG là où il coûte le moins et rapporte le plus.
+
+### Les trois gardes du rappel de contexte (livrées, chemin A)
+
+Elles valent pour tout branchement RAG, y compris le futur chemin B :
+1. **DÉCLARÉ** — seuls les domaines marqués `rag=True` paient la recherche. Pas de vectoriel
+   sur « où en est ma transcription ? ».
+2. **DATA-GATED** — aucun extrait pertinent ⇒ prompt **inchangé**. On n'injecte jamais de
+   bruit : un contexte hors-sujet dégrade plus qu'il n'aide.
+3. **FAIL-SAFE** — toute panne du rappel rend `''`. Le RAG est un **bonus de contexte**, jamais
+   une dépendance de la conversation.
+
+Chaque extrait est injecté **avec sa référence** : un contexte sans provenance n'est pas
+vérifiable par l'utilisateur, et l'assistant doit pouvoir le citer.
+
+### Le MULTI-NIVEAU — la structure existe DÉJÀ, elle n'est pas à construire
+
+Cible : `université → labo/service → équipe → utilisateur`, chaque niveau héritant des
+niveaux au-dessus. **C'est exactement ce que `ScopedVisibility` + `OrgUnit` font déjà** —
+il n'y a pas de mécanisme à écrire, seulement des données à peupler.
+
+| Niveau visé | Mécanisme EXISTANT | Où |
+|---|---|---|
+| Utilisateur (privé) | `visibility='private'` + `user` | `common/models.py:190` |
+| Équipe / labo / dépt / université | `visibility='unit'` + `scope_org_unit` | idem |
+| Projet (⚠ **traverse** les orgs — partenaires externes) | `visibility='project'` + `scope_project` | idem |
+| Public | `visibility='public'` | idem |
+
+**L'héritage est déjà hiérarchique** : `OrgUnit` a un `parent` (institut → université →
+département → labo → service → équipe), et `user_scope_org_ids()` (`common/models.py:167`)
+remonte **tous les ancêtres** — un fragment partagé au LABO est donc visible d'un membre d'une
+ÉQUIPE du labo, sans rien coder de plus. `scoped_visible_q()` (`:206`) compose les quatre
+niveaux en un seul `Q`, et `recall()` l'applique : **le rappel est scopé par construction**,
+il n'y a rien à re-garder côté assistant ni côté canal.
+
+**Aujourd'hui, deux niveaux suffisent** (labo + utilisateur) : ce sont deux valeurs de
+`visibility`, pas deux implémentations. Passer à quatre = peupler `OrgUnit` et renseigner les
+affiliations des profils — **aucune migration, aucun code**.
+
+⚠ **Piège connu** : sur `RagChunk`, la visibilité est **dénormalisée depuis la source**
+(`common/models.py:704`). Changer la visibilité d'un document ne repropage donc pas seule aux
+fragments déjà indexés — la réindexation fait foi.
+
+### Reste à faire
+
+| # | Chantier | Note |
+|---|---|---|
+| 1 | **RAG sur le chemin B** (enrichissement d'app) | l'arbitrage ci-dessus ; hook `rag` déjà présent, personne ne l'active |
+| 2 | Sélecteur de domaine dans l'UI | `domaines_pour_ui()` prêt ; ⚠ touche `home.html`, fichier disputé |
+| 3 | Domaine déduit du canal (passerelle) | salon `#dev` → domaine `dev` |
+| 4 | Peupler `OrgUnit` + affiliations | débloque les 4 niveaux sans une ligne de code |
+| 5 | Opt-in utilisateur par niveau (RGPD) | intention d'origine : base = privé, l'utilisateur ÉLARGIT |
 
 ## Voir aussi
 - `ROADMAP.md §10.B` (traduction runtime) et `§16.6` (pipeline + vision méta).
