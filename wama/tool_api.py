@@ -2145,7 +2145,7 @@ def get_ai_model(user, model_key: str) -> dict:
 
 
 def memory_recall(user, query: str, k: int = 5, include_rag: bool = True,
-                  include_memory: bool = True) -> dict:
+                  include_memory: bool = True, niveaux: list = None) -> dict:
     """
     Cherche dans la mémoire et les documents de l'utilisateur (`WAMA_MEMORY.md`).
 
@@ -2154,6 +2154,11 @@ def memory_recall(user, query: str, k: int = 5, include_rag: bool = True,
         k:              nombre maximum d'extraits (défaut 5).
         include_rag:    inclure les fragments de documents (transcriptions, OCR, descriptions).
         include_memory: inclure les souvenirs (faits, procédures, historique d'activité).
+        niveaux:        restreindre le RAG à certains niveaux — 'user' (mes documents),
+                        'unit' (partagés à mon labo/équipe). None = tous les niveaux visibles.
+                        C'est le sélecteur de niveaux voulu par Fabien (2026-08-21) : l'appelant
+                        (ou l'utilisateur, via le futur sélecteur d'UI) choisit son RAG, celui
+                        du labo, les deux — ou aucun (liste vide).
 
     Returns:
         {"results": [{"source", "reference", "content", "score"}], "count": int}
@@ -2188,7 +2193,8 @@ def memory_recall(user, query: str, k: int = 5, include_rag: bool = True,
     try:
         hits = recall(query, user=user, k=max(1, min(int(k or 5), 20)),
                       include_rag=bool(include_rag), include_memory=bool(include_memory),
-                      semantic=True)
+                      semantic=True,
+                      rag_niveaux=set(niveaux) if niveaux is not None else None)
     except Exception as e:
         return {"error": str(e), "results": [], "count": 0}
 
@@ -2206,6 +2212,45 @@ def memory_recall(user, query: str, k: int = 5, include_rag: bool = True,
             "score": round(h.score, 5),
         })
     return {"results": resultats, "count": len(resultats)}
+
+
+def charger_competence(user, domaine: str) -> dict:
+    """
+    Load a specialised competence (role skill) and the matching laboratory context.
+
+    Call this BEFORE answering when the request calls for a specialised posture — a
+    scientific or methodological question, a visual/design request, a development question.
+    Load one competence per topic, not one per message.
+
+    Args:
+        domaine: One of the competences announced in your system prompt
+                 ('science', 'design', 'dev', 'general').
+
+    Returns:
+        {"domaine", "libelle", "consigne", "contexte"} — apply `consigne` to the rest of
+        this conversation; `contexte` holds laboratory material, cite its references.
+    """
+    # ⚠ LE CHOIX EST CELUI DE L'ASSISTANT, jamais de la surface qui l'appelle. Un adaptateur
+    # de canal ne connaît que son protocole ; lui faire deviner le domaine (par le nom d'un
+    # salon, par exemple) serait de la logique métier hors de sa place ET faux la plupart du
+    # temps. D'où un OUTIL : l'assistant décide, dans la boucle agentique qui existe déjà.
+    from wama.common.utils.assistant_skills import (
+        contexte_laboratoire, consigne_de_role, domaine as resoudre_domaine,
+    )
+
+    d = resoudre_domaine(domaine)
+    consigne = consigne_de_role(d.cle)
+    if not consigne:
+        return {"error": f"Compétence « {d.cle} » indisponible."}
+
+    return {
+        "domaine": d.cle,
+        "libelle": d.libelle,
+        "consigne": consigne,
+        # Le contexte n'est cherché que pour les domaines qui le déclarent (`rag=True`),
+        # et reste vide si rien de pertinent n'est trouvé — jamais de bruit injecté.
+        "contexte": contexte_laboratoire(user, domaine or '', d.cle),
+    }
 
 
 def ask_claude_code(user, task: str, write: bool = False, timeout: int = 300) -> dict:
@@ -2278,6 +2323,9 @@ TOOL_REGISTRY = {
     # ⚠ Sa garde n'est PAS le gating d'app (un outil sans app est autorisé à tous) : elle
     # est écrite DANS la fonction, cf. son corps.
     'ask_claude_code': ask_claude_code,
+    # Compétences spécialisées de l'assistant (ROADMAP §19.7) — LECTURE SEULE, transverse.
+    # C'est l'assistant qui décide d'en charger une, jamais la surface qui l'appelle.
+    'charger_competence': charger_competence,
     'list_user_files':       list_user_files,
     'add_to_avatarizer':     add_to_avatarizer,
     'start_avatarizer':      start_avatarizer,
@@ -2356,6 +2404,9 @@ TOOL_APP_OVERRIDE = {
     # le CORPS de `ask_claude_code`, précisément pour qu'aucune retouche de ce registre ne
     # puisse la lever par inadvertance. Ne pas « corriger » cette ligne sans lire la fonction.
     'ask_claude_code':     None,
+    # Transverse et LECTURE SEULE : charger une posture ne donne accès à rien. Le contexte
+    # de laboratoire qu'il rend est scopé par `recall()` (`scoped_visible_q`).
+    'charger_competence':  None,
     # Studio : list/run/status (le run FUSIONNE add+start — un run = création + dispatch),
     # gardés par l'app `studio` comme la navigation.
     'list_studio_pipelines': 'studio',

@@ -93,6 +93,29 @@ def consigne_de_role(cle: str = None) -> str:
         return ''
 
 
+def annonce_des_competences(sauf: str = None) -> str:
+    """
+    Ligne d'annonce injectée au prompt système : quelles compétences existent, et comment
+    en charger une.
+
+    POURQUOI ANNONCER PLUTÔT QUE TOUT CHARGER. Concaténer les quatre skills coûterait
+    plusieurs milliers de jetons à CHAQUE tour, sur des modèles locaux à fenêtre étroite —
+    et noierait la question de l'utilisateur. On annonce donc leur existence en quelques
+    lignes, et l'assistant charge celui dont il a besoin, quand il en a besoin.
+
+    ⚠ LE CHOIX APPARTIENT À L'ASSISTANT, pas à la surface qui l'appelle (arbitrage Fabien,
+    2026-08-21). Un adaptateur de canal ne doit pas décider du domaine : il ne connaît que
+    le protocole. Déduire le domaine du nom d'un salon serait de surcroît faux la plupart
+    du temps — un canal porte le nom d'un projet de recherche, pas d'une discipline.
+    """
+    lignes = [f"- `{d.cle}` : {d.aide}" for d in DOMAINES if d.cle != (sauf or '')]
+    if not lignes:
+        return ''
+    return ("\n\nSpecialised competences you can load with the `charger_competence` tool "
+            "when the request calls for one (do it BEFORE answering, and only once per "
+            "topic):\n" + "\n".join(lignes))
+
+
 def contexte_laboratoire(user, question: str, cle: str = None) -> str:
     """
     Extraits du corpus du laboratoire pertinents pour la question — '' si rien.

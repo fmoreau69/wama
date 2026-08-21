@@ -476,17 +476,25 @@ def run_assistant_turn(user, message: str, provider: str = 'wama-dev-ai',
     # vectorielle pour « où en est ma transcription ? ».
     # ⚠ Ce n'est PAS l'enrichissement de prompt : celui-là est fait dans l'app au lancement
     # de la tâche (`process_prompt_for`). Deux natures distinctes, cf. `assistant_skills`.
-    role, contexte_labo = '', ''
+    role, contexte_labo, annonce = '', '', ''
     try:
-        from wama.common.utils.assistant_skills import consigne_de_role, contexte_laboratoire
+        from wama.common.utils.assistant_skills import (
+            annonce_des_competences, consigne_de_role, contexte_laboratoire,
+        )
         role = consigne_de_role(domain)
         contexte_labo = contexte_laboratoire(user, message, domain)
+        # ⚠ On ANNONCE les autres compétences au lieu de toutes les charger : quatre skills
+        # concaténés à chaque tour coûteraient des milliers de jetons sur un modèle local à
+        # fenêtre étroite, et noieraient la question. L'assistant charge celle dont il a
+        # besoin via l'outil `charger_competence` — c'est LUI qui décide, pas la surface qui
+        # l'appelle (un adaptateur de canal ne connaît que son protocole).
+        annonce = annonce_des_competences(sauf=domain) if user else ''
     except Exception:
         logger.debug("[ai_chat] skill de rôle indisponible", exc_info=True)
 
     system_prompt = (WAMA_SYSTEM_PROMPT.replace('{LANGUE}', langue)
                      + (f"\n\n{role}" if role else '')
-                     + contexte_labo
+                     + contexte_labo + annonce
                      + wama_context + tools_prompt.replace('{LANGUE}', langue))
 
     # Build messages: system + prior history (capped) + current user message
