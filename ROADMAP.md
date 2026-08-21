@@ -2244,21 +2244,73 @@ Décisions structurantes : app **hors `APP_CATALOG`** (sinon 0/72 dans la grille
 nommée `channels` (collision Django Channels), **pas** de `ScopedVisibility` (un secret ne
 se partage pas — patron `UserProfile`).
 
+**✅ Cœur + adaptateur DISCORD + `run_gateway` — LIVRÉS 2026-08-21.** Ordre inversé sur
+arbitrage Fabien : **Discord avant Tchap**, parce que c'est nettement plus simple (ni
+adresse mail institutionnelle à demander, ni E2EE, ni renouvellement annuel). ⚠ Réserve
+consignée : Discord est **propriétaire et hors UE** — pour des données de recherche SHS
+sensibles, la cible reste **Tchap** ; Discord sert le confort d'usage et le développement.
+
+| Livrable | État |
+|---|---|
+| `gateway/core.py` — décide tout, ne connaît aucun protocole | ✅ |
+| `gateway/adapters/discord_bot.py` — traduit, ne décide rien | ✅ |
+| `manage.py run_gateway <canal>` (+ `--check` qui valide sans se connecter) | ✅ |
+| 16 assertions vertes (sans réseau, sans LLM, sans GPU) | ✅ |
+| Bout en bout réel (jeton Discord + LLM) | ⏳ **Fabien** |
+
+**Gardes posées dès le premier jet** : en salon le bot ne répond **que s'il est mentionné**
+(un bot qui lit tout un salon de labo est une aspiration de données que personne n'a
+demandée) ; `WAMA_DISCORD_ALLOWED_CHANNELS` borne les salons ; une réponse **privée** n'est
+jamais publiée dans un salon (DM fermés → on le dit, on ne replie pas) ; plafond 25 Mo en
+entrée ; aucune réponse aux bots ; un inconnu obtient une invitation à se lier, **jamais**
+un traitement « en anonyme ».
+
+⚠ **Deux pièges d'exécution**, traités : `traiter_message` est **bloquant** et touche l'ORM
+→ appelé via `asyncio.to_thread`, sinon le bot fige pour tout le monde pendant qu'une
+personne attend ; et l'intent **`message_content` est privilégié** → sans la case cochée
+dans le portail développeur, le bot reçoit les événements mais `message.content` arrive
+**vide** (panne silencieuse qui ressemble à un bot qui « ignore » les messages).
+
 **⏳ Reste :**
-- **Le process** : où tourne la passerelle (cf. §19.4 ①) — c'est le prochain arbitrage.
-- **Adaptateur Matrix** puis **Discord** (dépendances à installer, §19.4 ②).
-- **Fichiers — entrée** : pièce jointe → `POST /api/v1/files/upload/` (✅ existe) puis
-  `POST /filemanager/api/import/` pour pousser vers une app — ⚠ **cet import-là est encore
-  session-only** : à porter en v1 au moment de câbler le premier adaptateur, même motif
-  qu'en 19.0bis.
+- **Store de conversation** — le prochain vrai morceau (voir §19.5) : l'historique est
+  aujourd'hui **en mémoire du process**, perdu au redémarrage.
+- **Adaptateur Matrix/Tchap** (`matrix-nio[e2e]`, E2EE obligatoire — salons chiffrés).
 - **Fichiers — sortie** : les `output_url` des `get_*_status` exigent une session → le bot
-  re-télécharge via `/api/v1/files/download/` (✅) et re-poste en pièce jointe (au-delà
-  d'une taille limite : lien vers WAMA).
-- **Chiffrement** : E2EE prévu dès le départ côté Matrix (`matrix-nio[e2e]` + store de
-  clés) — pas un ajout ultérieur.
-- **Discord** : slash commands **générées depuis `TOOL_REGISTRY`**, pas écrites à la main.
+  re-télécharge via `/api/v1/files/download/` (✅ existe) et re-poste en pièce jointe. Le
+  câblage `Reponse.fichiers` existe ; reste à le nourrir depuis les résultats d'outil.
+- **Discord** : slash commands **générées depuis `TOOL_REGISTRY`** (métadonnée-driven
+  jusque dans Discord), en remplacement des commandes texte `!lier`/`!aide`.
 - **Rate-limit** par identité de canal (§19.4 ④) — l'appariement borne le *qui*, pas le
   *combien*.
+- **UI de saisie du code** côté WAMA (profil) — aujourd'hui `confirmer_liaison()` n'a pas
+  encore d'écran ; c'est ce qui manque pour boucler l'appariement sans passer par le shell.
+
+> ✅ **Faux bloquant retiré (vérifié le 21/08).** J'avais écrit ici que
+> `POST /filemanager/api/import/`, session-only, bloquerait le parcours. **C'est faux** :
+> les outils `add_to_<app>(user, file_path, …)` prennent un **chemin** et copient
+> eux-mêmes le fichier dans la file. Le parcours « envoie un fichier → transcris-le »
+> fonctionne donc de bout en bout sans cet endpoint, qui ne sert que le bouton d'import
+> de l'UI web. Le porter en v1 reste souhaitable, ce n'est pas un préalable.
+
+### 19.5 Store de conversation ⏳ — rendu NÉCESSAIRE par la passerelle
+
+Question de Fabien (21/08) : « plusieurs conversations en parallèle, et le multi-utilisateur ? »
+
+- **Multi-utilisateur : déjà acquis.** Chaque appel porte son `user`, les outils filtrent
+  tous sur `user=`, le gating F7 s'applique. Le seul point de contention est le **GPU**
+  (Ollama sérialise) → de la latence arbitrée par le gouverneur, pas un défaut.
+- **Multi-conversation : inexistant.** L'historique vit en `localStorage` côté web et **en
+  mémoire du process** côté passerelle. ⚠ Et la brique mémoire livrée (`common/memory/`)
+  **ne le couvre pas** : c'est `remember/recall/forget` sur des souvenirs et des fragments
+  RAG — deux natures de données, deux tables (la leçon du 19/08 : une purge ciblée avait
+  détruit 13 évaluations parce que deux natures cohabitaient).
+- **Ampleur : modérée**, précisément parce que l'extraction du §19.0 a mis le moteur au bon
+  endroit — `run_assistant_turn(user, message, history=…)` prend **déjà** l'historique en
+  paramètre. On ajoute `conversation_id`, on résout l'historique en base au lieu de le
+  recevoir du client, et **le moteur ne change pas d'une ligne**. Le travail est dans les
+  modèles + l'UI (liste de conversations).
+- **La passerelle le rend nécessaire, pas seulement souhaitable** : un DM Discord et un
+  salon Matrix **sont** des conversations distinctes — `core.py` a déjà la notion de `fil`.
 
 ### 19.2 Notifications proactives — gain rapide, indépendant du bot ⏳
 

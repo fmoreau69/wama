@@ -2505,7 +2505,36 @@ motif encore ouvert sur `POST /filemanager/api/import/` (à porter en v1 au 1ᵉ
 ⚠ `migrate` appliqué sur la base **LIVE (WSL2)** — création de table, additif. Migration
 **non versionnée** (`.gitignore:13`) → `makemigrations gateway && migrate` à rejouer ailleurs.
 
-### 🔚 SUITE — décisions à trancher (`ROADMAP.md` §19.4) — ① et ② deviennent bloquantes
+### ✅ 2026-08-21 (suite) — le CŒUR + l'adaptateur DISCORD + `run_gateway`
+**Décisions ① et ② tranchées par Fabien** : commande de gestion Django (un bot est un socket
+persistant : ni Celery, ni gunicorn), et **Discord AVANT Tchap** — il avait raison, c'est
+nettement plus simple (ni adresse mail institutionnelle, ni E2EE, ni renouvellement annuel).
+⚠ Réserve : Discord est propriétaire et **hors UE** → pour des données SHS sensibles la
+cible reste Tchap ; l'architecture cœur+adaptateurs fait que l'ordre n'engage rien.
+
+16 assertions vertes sans réseau, sans LLM (moteur remplacé par un faux), sans GPU.
+Gardes dès le 1ᵉʳ jet : réponse en salon **seulement si mentionné**, salons bornés, réponse
+privée jamais publiée, 25 Mo max en entrée, inconnu → invitation (jamais d'« anonyme »).
+⚠ 2 pièges traités : `traiter_message` **bloquant** → `asyncio.to_thread` (sinon le bot fige
+pour tous) ; intent **`message_content` privilégié** → sans la case cochée dans le portail,
+`message.content` arrive **vide** (panne silencieuse).
+
+> ✅ **Faux bloquant que j'avais annoncé, retiré après vérification** : `/filemanager/api/import/`
+> session-only **ne bloque pas** la passerelle — les outils `add_to_<app>(user, file_path…)`
+> prennent un chemin et copient eux-mêmes. Le parcours « envoie un fichier → transcris-le »
+> est complet sans lui. Le porter en v1 reste souhaitable, pas préalable.
+
+### 🔚 SUITE — ce qui manque pour un bot VIVANT
+1. **Jeton Discord** (Fabien) : portail dev → application → Bot → jeton dans `.env`
+   (`WAMA_DISCORD_TOKEN`), **+ cocher l'intent Message Content**, puis inviter le bot.
+   `manage.py run_gateway discord --check` valide la config sans se connecter.
+2. **UI de saisie du code d'appariement** dans le profil — `confirmer_liaison()` existe mais
+   n'a pas d'écran : sans elle, l'appariement se termine au shell.
+3. **Store de conversation** (`ROADMAP §19.5`) — l'historique est en MÉMOIRE du process,
+   perdu au redémarrage. Rendu nécessaire par la passerelle (un fil = une conversation).
+4. Rate-limit, sortie de fichiers vers le canal, slash commands générées du `TOOL_REGISTRY`.
+
+### Décisions antérieures (`ROADMAP.md` §19.4)
 > ③ **corrigé le 21/08 sur reprise de Fabien** : **aucune démarche DINUM** si le domaine est
 > déjà autorisé (j'avais durci à tort). Vraie contrainte à la place : pas de compte de
 > service sur Tchap → **boîte mail accessible** pour le renouvellement ~annuel du compte bot.
