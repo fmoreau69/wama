@@ -122,11 +122,16 @@ principal affiche le fichier d'ENTRÉE (ex. .docx) si présent.
 
   </div>{# /.wcv3 #}
 
-  {% comment %}Lecteur waveform (résultat) — zone de preview PERMANENTE de la v3.{% endcomment %}
+  {% comment %}Preview PERMANENTE (§11) du RÉSULTAT — mécanisme COMMUN n°30 (portage 2026-08-22).
+  L'include statique `_audio_waveform.html` est REMPLACÉ par le placeholder hydraté (voir le même
+  portage sur composer/enhancer). Le rendu audio du commun passe par WamaAudioPlayer.create, dont
+  le DOM est IDENTIQUE à celui de l'include — exclusivité et navette inchangées.{% endcomment %}
   {% if synthesis.audio_output %}
-  <div class="wcv3-preview">
-    {% include 'common/_audio_waveform.html' with audio_url=synthesis.audio_output.url player_id=synthesis.id %}
-  </div>
+  {% url 'common:unified_preview' 'synthesizer' synthesis.id as pv_out %}
+  <div class="wcv3-preview" id="preview-row-{{ synthesis.id }}"
+       data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ synthesis.id }}"></div>
+  {% else %}
+  <div id="preview-row-{{ synthesis.id }}"></div>
   {% endif %}
 
 </div>

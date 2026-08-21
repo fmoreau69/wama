@@ -137,11 +137,20 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
 
   </div>{# /.wcv3 #}
 
-  {% comment %}Lecteur waveform (résultat) — zone de preview PERMANENTE de la v3.{% endcomment %}
+  {% comment %}Preview PERMANENTE (§11) du RÉSULTAT — mécanisme COMMUN n°30 (portage 2026-08-22).
+  L'include statique `_audio_waveform.html` est REMPLACÉ par le placeholder hydraté :
+  WamaInspector.hydrateCardPreviews fetch unified_preview ?side=output et rend en mime-driven
+  (renderInlinePreview). Pour l'audio ce rendu passe par WamaAudioPlayer.create, dont le DOM est
+  IDENTIQUE à celui de l'include (mêmes classes/ids/bouton, vérifié wama-audio-player.js:248) —
+  donc même exclusivité inter-cards et mêmes contrats de navette, sans markup par app. Gain :
+  l'app cesse de décider du rendu (une correction du commun profite à tous) et les pics calculés
+  serveur pourront être servis sans retoucher la card.{% endcomment %}
   {% if gen.audio_output %}
-  <div class="wcv3-preview">
-    {% include 'common/_audio_waveform.html' with audio_url=gen.audio_output.url player_id=gen.id %}
-  </div>
+  {% url 'common:unified_preview' 'composer' gen.id as pv_out %}
+  <div class="wcv3-preview" id="preview-row-{{ gen.id }}"
+       data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ gen.id }}"></div>
+  {% else %}
+  <div id="preview-row-{{ gen.id }}"></div>
   {% endif %}
 
 </div>

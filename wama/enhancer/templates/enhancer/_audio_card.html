@@ -120,11 +120,19 @@ Contexte : ae (AudioEnhancement, décorée .chips), in_batch (bool).
 
   </div>{# /.wcv3 #}
 
-  {% comment %}Lecteur waveform (résultat audio) — zone de preview PERMANENTE de la v3.{% endcomment %}
+  {% comment %}Preview PERMANENTE (§11) du RÉSULTAT audio — mécanisme COMMUN n°30 (portage
+  2026-08-22). L'include statique est REMPLACÉ par le placeholder hydraté ; le rendu audio du
+  commun passe par WamaAudioPlayer.create, DOM identique à l'include (exclusivité et navette
+  inchangées). ⚠ Le nom d'app est `audio_enhancer` et NON `enhancer` : l'app enregistre DEUX
+  previews (apps.py:27 et :37, modèles Enhancement et AudioEnhancement). Vérifié au registre
+  runtime avant portage — result_file présent sur AudioEnhancement #3.
+  La garde `not in_batch` est CONSERVÉE : un enfant de batch n'affiche pas de player.{% endcomment %}
   {% if ae.output_file and not in_batch %}
-  <div class="wcv3-preview">
-    {% include 'common/_audio_waveform.html' with audio_url=ae.output_file.url player_id=ae.id %}
-  </div>
+  {% url 'common:unified_preview' 'audio_enhancer' ae.id as pv_out %}
+  <div class="wcv3-preview" id="preview-row-{{ ae.id }}"
+       data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ ae.id }}"></div>
+  {% else %}
+  <div id="preview-row-{{ ae.id }}"></div>
   {% endif %}
 
 </div>

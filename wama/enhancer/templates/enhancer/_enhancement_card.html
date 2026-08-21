@@ -127,5 +127,20 @@ Contexte : e (Enhancement, décorée .chips), in_batch (bool).
 
   </div>{# /.wcv3 #}
 
+  {% comment %}Preview PERMANENTE (§11) du RÉSULTAT — mécanisme COMMUN n°30 (portage 2026-08-22).
+  AJOUT, pas une substitution : cette card ne montrait NULLE PART l'image/vidéo améliorée — elle
+  se contentait d'une ligne « fichier produit » (:57-61), alors que l'app produit précisément un
+  média à regarder, et que sa card audio sœur affichait son résultat depuis la v3. Le rendu vient
+  du commun (mime-driven) : image ET vidéo sans markup par app.
+  Garde `not in_batch` alignée sur la card audio de la MÊME app (:124) : un enfant de batch est
+  une ligne compacte (wcv3--batch-child), un aperçu par enfant la ferait exploser.{% endcomment %}
+  {% if e.output_file and not in_batch %}
+  {% url 'common:unified_preview' 'enhancer' e.id as pv_out %}
+  <div class="wcv3-preview" id="preview-row-{{ e.id }}"
+       data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ e.id }}"></div>
+  {% else %}
+  <div id="preview-row-{{ e.id }}"></div>
+  {% endif %}
+
 </div>
 </div>
