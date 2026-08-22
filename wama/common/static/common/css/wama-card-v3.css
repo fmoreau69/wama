@@ -154,6 +154,16 @@
    AVANT le premier (mesuré), qui décrochait la rangée de sa micro-étiquette et poussait la
    corbeille à la ligne dès que la piste se resserrait. Les boutons partent du bord gauche
    de leur piste, comme le contenu de toutes les autres sections. */
+/* ⚠ `wrap` n'est PAS en contradiction avec le « débordement JAMAIS » ci-dessus, et il ne faut
+   pas le passer en `nowrap` : la piste ACTIONS est MESURÉE par `wama-card-v3.js`
+   (`actionsWidth()` mesure la rangée wrap ignoré, puis pose `--wcv3-c-actions`), donc une fois
+   le JS passé, la rangée tient QUEL QUE SOIT le nombre de boutons. Le `wrap` ne sert que dans
+   la fenêtre AVANT ce passage (ou si le JS est absent) : y mettre `nowrap` remplacerait un
+   repli propre par une troncature.
+   Piège vécu le 2026-08-23 : le `186px` de la ligne 37 a été lu comme la largeur de la piste et
+   j'en ai conclu que six boutons ne tiendraient pas, puis qu'il fallait élargir. C'est une
+   valeur de REPLI — le commentaire de la ligne 28 le dit déjà. Constat de Fabien : les six
+   boutons sont en place et tiennent. Ne pas redimensionner cette piste à la main. */
 .wcv3-actions {
   display: flex; flex-wrap: wrap; gap: .25rem;
   justify-content: flex-start;
