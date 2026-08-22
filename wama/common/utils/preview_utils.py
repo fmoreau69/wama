@@ -43,6 +43,24 @@ def _output_preview_data(app_name, instance, request):
         if not adapter:
             return None
         d = adapter(instance)
+        from .mime_utils import guess_mime_type as _mime
+        # Sortie MULTIPLE (2026-08-22) : si l'app déclare la clé canonique `result_files`, la
+        # face Sortie sert la COLLECTION — le rendu commun en fait une grille. Le représentant
+        # `result_file` reste servi en `url` : un consommateur qui ne connaît pas `files`
+        # (studio, modale, anciens appels) continue d'afficher exactement ce qu'il affichait.
+        multi = (d or {}).get('result_files')
+        if multi and len(multi) > 1:
+            repr_url = (d or {}).get('result_file') or multi[0]
+            propre = repr_url.split('?')[0]
+            return {
+                'name': f'{len(multi)} fichiers',
+                'url': request.build_absolute_uri(repr_url),
+                'mime_type': _mime(propre) or 'application/octet-stream',
+                'files': [{'name': os.path.basename(u.split('?')[0]),
+                           'url': request.build_absolute_uri(u),
+                           'mime_type': _mime(u.split('?')[0]) or 'application/octet-stream'}
+                          for u in multi],
+            }
         url = (d or {}).get('result_file')
         if not url:
             # Sortie TEXTE (transcriber/describer/reader…) : servir `result_text` inline —

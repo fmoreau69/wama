@@ -53,6 +53,12 @@ class ImagerConfig(AppConfig):
                 # existe : `ImageGeneration.output_images` (models.py:377) convertit en URL
                 # MEDIA. On passe donc par lui (jamais de re-dérivation de chemin ici).
                 result_file=(g.output_video or (g.output_images[0] if g.output_images else None)),
+                # COLLECTION (2026-08-22) : une génération rend N images, pas une. `result_file`
+                # ci-dessus reste le REPRÉSENTANT (inchangé, tous ses consommateurs aussi) ;
+                # `result_files` ajoute la liste, d'où le rendu commun tire sa grille ET la
+                # navigation de la visionneuse. Toujours via l'ACCESSEUR `output_images` (URL
+                # MEDIA), jamais `generated_images` qui contient des chemins ABSOLUS de disque.
+                result_files=(g.output_images or None),
                 # App PROMPT-PRIMAIRE : le prompt est l'ENTRÉE (anatomie card v3 §11) —
                 # clé CANONIQUE `source_text`, comme composer/synthesizer. Sans elle, la
                 # section Entrée du volet resterait vide quand il n'y a pas d'image source.

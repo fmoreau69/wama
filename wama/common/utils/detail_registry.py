@@ -165,8 +165,8 @@ def _short_error(err: str, limit: int = 280) -> str:
 
 
 def build_detail(instance, *, source_file=None, source_type=None, engine=None,
-                 engine_effective=None, result_file=None, result_text=None,
-                 source_text=None, extra=None):
+                 engine_effective=None, result_file=None, result_files=None,
+                 result_text=None, source_text=None, extra=None):
     """Assemble le dict canonique d'un item (épine dorsale). Les valeurs vides sont OMISES
     (la ligne disparaît côté WamaDetails). `extra` = réglages spécifiques d'app {label: valeur}.
 
@@ -235,6 +235,17 @@ def build_detail(instance, *, source_file=None, source_type=None, engine=None,
     res = _url(result_file)
     if res:
         d['result_file'] = res
+
+    # Sortie MULTIPLE — clé canonique ajoutée le 2026-08-22. Certaines apps produisent N
+    # fichiers d'un seul traitement (imager : N images par génération). `result_file` reste le
+    # REPRÉSENTANT et ne bouge pas : c'est lui que lisent le studio, le lien Sortie et la face
+    # ?side=output des apps à sortie unique. `result_files` ajoute la COLLECTION à côté — un
+    # consommateur qui l'ignore se comporte donc exactement comme avant.
+    # Émise à partir de DEUX éléments seulement : en dessous, `result_file` dit déjà tout, et
+    # une collection d'un seul élément ferait rendre une grille d'une case.
+    urls = [u for u in (_url(f) for f in (result_files or [])) if u]
+    if len(urls) > 1:
+        d['result_files'] = urls
 
     if result_text:
         d['result_text'] = result_text

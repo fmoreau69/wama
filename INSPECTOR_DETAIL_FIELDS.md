@@ -76,3 +76,25 @@ Voir l'audit (transcriber `backend→engine` `audio→source_file` … ; reader 
   `result_text`). Complète `result_file` pour les apps dont la sortie n'est pas un fichier.
   Consommateurs : runner générique du studio (chaînage texte→synthesizer, nœud Sortie .txt) ;
   l'inspecteur peut l'afficher à terme (aperçu du texte côté Sortie).
+
+## Ajout au schéma canonique (2026-08-22)
+
+- **`result_files`** — la COLLECTION des sorties d'un même traitement, quand il en produit
+  plusieurs (imager : N images par génération). Liste d'URL.
+
+  **`result_file` ne bouge pas et reste le REPRÉSENTANT** — c'est lui que lisent le studio, le
+  lien Sortie et la face `?side=output` des apps à sortie unique. `result_files` s'ajoute *à
+  côté* : un consommateur qui l'ignore se comporte exactement comme avant. C'est ce qui permet
+  de l'introduire sans toucher aux 9 autres apps.
+
+  Émise **à partir de deux entrées** seulement : en dessous, `result_file` dit déjà tout, et une
+  collection d'un seul élément ferait rendre une grille d'une case.
+
+  Consommateur : `preview_utils._output_preview_data` la sert sous la clé `files` (en gardant
+  `url` = le représentant, pour la rétro-compatibilité), et `renderInlinePreview` en fait une
+  **grille de vignettes** dont le clic ouvre la visionneuse commune — la navigation étant
+  nourrie par la collection elle-même, jamais par un balayage du DOM.
+
+  > Ne contredit PAS la décision figée n°2 du 2026-07-07 (« `result_file` non distingué par
+  > type ») : il ne s'agit pas de distinguer un type de sortie, mais un **cardinal**. Le concept
+  > « résultat » reste unique ; on nomme seulement le cas où il y en a N.

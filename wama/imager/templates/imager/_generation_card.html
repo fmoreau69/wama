@@ -127,31 +127,28 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
 
   </div>{# /.wcv3 #}
 
-  {% comment %}Preview PERMANENTE (§11) — grille d'images | player vidéo (aperçus communs).{% endcomment %}
+  {% comment %}Preview PERMANENTE (§11) du RÉSULTAT — mécanisme COMMUN n°30 (portage 2026-08-22,
+  dernière des 10 apps). La card ne décide PLUS du rendu : les deux branches qu'elle portait
+  (player vidéo à vignette+pastille, et grille d'images en style inline) sont remplacées par
+  UN placeholder ; le commun choisit vidéo / image / grille d'après la charge, comme il le fait
+  pour converter, anonymizer et avatarizer depuis le 18/08.
+
+  La grille vient de la clé canonique `result_files` (apps.py) que le commun sait rendre depuis
+  ce jour — c'est ce qui manquait pour qu'imager entre dans le mécanisme, et c'est pour ça qu'il
+  était resté « partiel » : `result_file` seul n'aurait montré qu'UNE image sur N.
+
+  Ce que le portage RÉPARE au passage : la visionneuse tire sa navigation de la COLLECTION, plus
+  d'un balayage du DOM. `openImagePreview` (index.html:342) collectait `.generated-image-preview
+  img` — un <img> DESCENDANT d'un élément portant la classe — alors que la classe était SUR le
+  <img> ci-dessous : la collecte rendait 0 et la visionneuse retombait sur « image seule, sans
+  navigation ». Les images ne peuvent plus se désaccorder du markup, elles VIENNENT de la donnée.
+  ⚠ `openImagePreview`/`openVideoPreview` n'ont plus d'appelant — candidats REMOVAL_LEDGER.
+  ⚠ Garde obligatoire : `?side=output` sans sortie replie sur l'ENTRÉE (mesuré 22/08).{% endcomment %}
   {% if gen.status == 'SUCCESS' %}
-    {% if domain == 'video' and gen.output_video %}
-    <div class="wcv3-preview video-preview-container position-relative rounded overflow-hidden"
-         style="cursor:pointer; max-width:400px;"
-         onclick="openVideoPreview('{{ gen.output_video.url }}', 'Vidéo #{{ gen.id }}')">
-      <video class="w-100 rounded" style="max-height:200px; pointer-events:none;" preload="metadata">
-        <source src="{{ gen.output_video.url }}" type="video/mp4">
-      </video>
-      <div class="position-absolute top-50 start-50 translate-middle">
-        <div class="btn btn-light rounded-circle shadow d-flex align-items-center justify-content-center"
-             style="width:48px; height:48px;">
-          <i class="fas fa-play text-dark" style="margin-left:3px;"></i>
-        </div>
-      </div>
-    </div>
-    {% elif domain != 'video' and gen.output_images %}
-    <div class="wcv3-preview d-flex flex-wrap gap-2 image-preview-row">
-      {% for img_url in gen.output_images %}
-      <img src="{{ img_url }}" alt="Image #{{ gen.id }}-{{ forloop.counter }}"
-           class="img-thumbnail bg-dark border-secondary generated-image-preview"
-           style="flex:0 0 calc(25% - 6px); max-width:calc(25% - 6px); min-width:100px; max-height:150px; object-fit:cover; cursor:pointer;"
-           onclick="openImagePreview('{{ img_url }}', 'Image #{{ gen.id }}-{{ forloop.counter }}')">
-      {% endfor %}
-    </div>
+    {% if gen.output_video or gen.output_images %}
+    {% url 'common:unified_preview' 'imager' gen.id as pv_out %}
+    <div class="wcv3-preview" id="preview-row-{{ gen.id }}"
+         data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ gen.id }}"></div>
     {% endif %}
   {% endif %}
 

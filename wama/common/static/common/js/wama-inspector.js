@@ -99,11 +99,55 @@
       .trim();
   }
 
+  // ── Sortie MULTIPLE : grille de vignettes (2026-08-22) ────────────────────────────────
+  // Rend la clé canonique `result_files` (N fichiers issus d'UN traitement — imager génère N
+  // images). Remplace les boucles d'<img> écrites par app.
+  // La NAVIGATION de la visionneuse est nourrie par la COLLECTION elle-même, jamais par un
+  // balayage du DOM : imager collectait `.generated-image-preview img` alors que la classe est
+  // SUR le <img>, donc sa collecte rendait 0 et la visionneuse retombait silencieusement sur
+  // « image seule, sans navigation » (constaté 22/08). Ici la liste vient de la donnée, elle
+  // ne peut pas se désaccorder du markup.
+  function _renderPreviewGrid(host, files) {
+    host.innerHTML = '';
+    var grille = document.createElement('div');
+    grille.className = 'wama-preview-grid d-flex flex-wrap gap-2';
+    files.forEach(function (f, i) {
+      var mime = (f.mime_type || '').toLowerCase();
+      var tuile;
+      if (mime.indexOf('video/') === 0) {
+        tuile = document.createElement('video');
+        tuile.src = f.url;
+        tuile.preload = 'metadata';
+      } else {
+        tuile = document.createElement('img');
+        tuile.src = f.url;
+        tuile.alt = f.name || '';
+      }
+      tuile.className = 'wama-preview-tile img-thumbnail bg-dark border-secondary';
+      tuile.title = f.name || '';
+      tuile.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();          // ne pas voler le clic de sélection de la card
+        if (global.showPreviewModalWithNav) global.showPreviewModalWithNav(f, files, i);
+        else if (global.showPreviewModal) global.showPreviewModal(f);
+      });
+      grille.appendChild(tuile);
+    });
+    host.appendChild(grille);
+    _previewCaption(host, files.length + ' fichiers');
+  }
+
   // Rendu INLINE compact d'un aperçu média dans le volet (≠ modale plein écran de media-preview.js).
   // Données = JSON de common:unified_preview {name, url, mime_type, …}. autoplay gated par le profil
   // (jamais de génération : on n'affiche que l'existant — CARD_DESIGN §10.6 / décision Fabien).
   function renderInlinePreview(host, data, autoplay) {
     if (!host) return;
+    // Collection AVANT l'aiguillage par mime : `files` décrit N sorties, `mime_type` ne décrit
+    // que le représentant — trancher sur le mime ferait rendre une seule vignette.
+    if (Array.isArray(data.files) && data.files.length > 1) {
+      _renderPreviewGrid(host, data.files);
+      return;
+    }
     const mime = (data.mime_type || '').toLowerCase();
     const url = data.url || '';
     const name = escapeHtml(data.name || '');

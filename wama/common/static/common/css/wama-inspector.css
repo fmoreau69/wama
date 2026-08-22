@@ -238,3 +238,19 @@
   margin-bottom: .2rem;
   user-select: none;
 }
+
+/* ── Grille de sortie MULTIPLE (2026-08-22) — rendu commun de la clé canonique `result_files`.
+   Reprend les valeurs RELEVÉES sur la grille d'imager (4 par ligne, vignette 150px, recadrage
+   couvrant) plutôt que d'en réinventer : c'est la même densité à l'écran, mais décidée une
+   fois pour toutes les apps à sorties multiples au lieu d'être écrite en style inline dans un
+   gabarit. La hauteur de la zone hôte est libérée par .wcv3-preview:has(img, video, …). */
+.wama-preview-grid { width: 100%; }
+.wama-preview-tile {
+  flex: 0 0 calc(25% - 6px);
+  max-width: calc(25% - 6px);
+  min-width: 100px;
+  max-height: 150px;
+  object-fit: cover;
+  cursor: zoom-in;
+  border-radius: .25rem;
+}
