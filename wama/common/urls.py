@@ -34,6 +34,9 @@ urlpatterns = [
     path('api/apps/', views.api_apps, name='api_apps'),
     path('apps/', views.apps_catalog_view, name='apps_catalog'),
     # Actualisation UNIVERSELLE des catalogues : une route pour tous les registres.
+    # La PAGE de supervision (`registres/`) dérive du même `etat()` que l'API : ce que
+    # l'endpoint annonçait servir existe enfin.
+    path('registres/', views.registres_view, name='registres'),
     path('api/registres/', views.registres_etat, name='registres_etat'),
     path('api/registres/<str:cle>/refresh/', views.registre_refresh, name='registre_refresh'),
     path('api/registres/tache/<str:task_id>/', views.registre_tache, name='registre_tache'),

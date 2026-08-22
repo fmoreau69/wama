@@ -101,6 +101,17 @@
                                 <i class="fas fa-scale-balanced me-2 text-success"></i> Licences
                             </a>
                         </li>
+                        <li>
+                            {% comment %}
+                              Registres : la CARTE des catalogues — ce qui se tient à jour et
+                              comment. Elle dérive du registre des registres, donc elle ne peut
+                              pas diverger de lui ; y placer un lien évite d'avoir à lire
+                              CELERY_BEAT_SCHEDULE pour savoir ce qui se rafraîchit seul.
+                            {% endcomment %}
+                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:registres' %}">
+                                <i class="fas fa-layer-group me-2 text-warning"></i> Registres
+                            </a>
+                        </li>
                         {% if is_admin %}
                         <li>
                             <a class="dropdown-item d-flex align-items-center" href="{% url 'accounts:user-management' %}">

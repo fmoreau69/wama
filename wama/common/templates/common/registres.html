@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load wama_catalog %}
+{% block title %}Registres — WAMA{% endblock %}
+{% block console_app_name %}common{% endblock %}
+
+{% comment %}
+  Vue DÉRIVÉE de `registries.etat()` — aucune donnée propre, donc aucune divergence possible
+  avec le registre : ajouter un registre le fait apparaître ici tout seul.
+
+  Même charte que les catalogues existants (licences / librairies / fonctions) : bandeau de
+  stats, barre de filtrage COMMUNE, puis cartes. L'homogénéité des catalogues est un objectif
+  de design, pas un effet de bord.
+
+  ⚠ La NATURE commande l'affichage. Un bouton « Actualiser » sur un registre DÉRIVÉ (recalculé
+  à chaque requête) serait un mensonge : il ne ferait rien et laisserait croire que le reste
+  est périmé. Les dérivés montrent donc « toujours à jour », jamais un bouton inerte.
+{% endcomment %}
+
+{% block extra_css %}
+<style>
+  .rg-wrap { padding: 16px 20px; }
+  .rg-stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .rg-stat { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+             border-radius: 8px; padding: 6px 12px; font-size: .85rem; }
+  .rg-stat b { color: #ffb300; }
+
+  .rg-hero { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.10);
+             border-left: 3px solid #ffb300; border-radius: 10px; padding: 12px 16px;
+             margin-bottom: 16px; }
+  .rg-hero h3 { font-size: 1rem; margin: 0 0 4px; }
+  .rg-hero p { margin: 0; font-size: .82rem; color: #b0bac4; }
+
+  .rg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 12px; }
+  .rg-card { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.10);
+             border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .rg-card h4 { font-size: .95rem; margin: 0; display: flex; align-items: center;
+                gap: 8px; flex-wrap: wrap; }
+  .rg-desc { font-size: .78rem; color: #b0bac4; line-height: 1.35; }
+  .rg-meta { font-size: .72rem; color: #8fa3b3; }
+  .rg-meta code { color: #c8d6e5; }
+
+  .rg-badge { font-size: .62rem; font-weight: 700; text-transform: uppercase;
+              letter-spacing: .03em; padding: 2px 7px; border-radius: 5px; white-space: nowrap; }
+  .rg-scan     { background: #4a148c; color: #e1bee7; }
+  .rg-mesure   { background: #0d47a1; color: #bbdefb; }
+  .rg-redecl   { background: #1b5e20; color: #c8facc; }
+  .rg-derive   { background: #37474f; color: #cfd8dc; }
+  .rg-total    { background: rgba(255,179,0,.15); color: #ffb300; }
+
+  .rg-actions { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 6px; }
+  .rg-etat { font-size: .74rem; color: #8fa3b3; flex: 1; }
+  .rg-etat.ok { color: #81c784; }
+  .rg-etat.ko { color: #ff8a80; }
+  .rg-auto { font-size: .7rem; color: #90a4ae; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="rg-wrap">
+
+  <h2 class="text-light mb-1"><i class="fas fa-layer-group me-2"></i>Registres</h2>
+
+  <div class="rg-hero">
+    <h3>Ce qui se tient à jour, et comment</h3>
+    <p>
+      WAMA construit un catalogue par capacité. Chacun déclare sa <strong>nature</strong> — et
+      c'est elle qui dit si une actualisation a un sens : un registre <em>dérivé</em> est
+      recalculé à chaque requête, il n'y a rien à y rafraîchir. Cette page dérive du registre
+      des registres : elle ne peut pas diverger de lui.
+    </p>
+  </div>
+
+  <div class="rg-stats">
+    <div class="rg-stat"><b>{{ registres|length }}</b> registre{{ registres|length|pluralize }}</div>
+    <div class="rg-stat"><b>{{ total_entrees }}</b> entrée{{ total_entrees|pluralize }} au total</div>
+    <div class="rg-stat"><b>{{ nb_actualisables }}</b> actualisable{{ nb_actualisables|pluralize }}</div>
+    <div class="rg-stat"><b>{{ nb_periodiques }}</b> automatique{{ nb_periodiques|pluralize }}</div>
+  </div>
+
+  {% include 'common/_filter_bar.html' with facettes=facettes_registres cible='.rg-card' mode='client' placeholder='Filtrer (nom, source, description…)' %}
+
+  <div class="rg-grid mt-3">
+    {% for r in registres %}
+    <div class="rg-card" data-f-nature="{{ r.nature }}" data-cle="{{ r.cle }}">
+      <h4>
+        {{ r.nom }}
+        <span class="rg-badge rg-{{ r.nature|slice:':6' }}">{{ r.nature_label }}</span>
+        {% if r.total %}<span class="rg-badge rg-total">{{ r.total }}</span>{% endif %}
+      </h4>
+
+      <div class="rg-desc">{{ r.description }}</div>
+      <div class="rg-meta">Source : {{ r.source|safe }}</div>
+
+      <div class="rg-meta">
+        <code>{{ r.cle }}</code>
+        {% if r.manifest_kind %} · manifeste <code>{{ r.manifest_kind }}</code>{% endif %}
+        {% if r.doc %} · <span title="Document de référence">{{ r.doc }}</span>{% endif %}
+      </div>
+
+      {% if r.periodique %}
+      <div class="rg-auto"><i class="fas fa-clock me-1"></i>Automatique — {{ r.periodique }}</div>
+      {% endif %}
+
+      {% comment %}
+        Le contrôle vient de la BRIQUE COMMUNE `{% bouton_actualiser %}` — jamais réécrit ici.
+        Elle décide seule des trois rendus depuis la nature déclarée (bouton / « toujours à
+        jour » / « réservé »), applique la permission, gère le mode arrière-plan et le
+        rechargement. Une page qui recopierait ce bouton serait la dérive que le registre des
+        registres a précisément arrêtée — il y en avait déjà deux, aux réponses différentes.
+      {% endcomment %}
+      <div class="rg-actions">{% bouton_actualiser r.cle %}</div>
+    </div>
+    {% empty %}
+    <p class="text-white-50">Aucun registre déclaré.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+
+{% comment %}
+  AUCUN bloc `extra_js` : le clic, le suivi de tâche Celery, l'état d'attente et le
+  rechargement sont portés par `wama-catalog-refresh.js`, montée globalement. Écrire un
+  script ici aurait été la troisième implémentation du même geste — exactement ce que le
+  registre des registres a été créé pour supprimer.
+{% endcomment %}

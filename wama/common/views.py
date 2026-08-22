@@ -325,6 +325,48 @@ def apps_catalog_view(request):
                    'facettes_apps': facettes})
 
 
+def registres_view(request):
+    """
+    Page des REGISTRES — la carte de ce qui se tient à jour, et comment.
+
+    POURQUOI ELLE MANQUAIT. Le registre des registres a été construit pour que chaque page
+    catalogue HÉRITE de son bouton d'actualisation ; l'endpoint `api/registres/` existait
+    déjà et son docstring annonçait « sert la page de supervision » — mais aucune page ne le
+    rendait. Résultat : savoir quels catalogues se rafraîchissent seuls exigeait de lire
+    `CELERY_BEAT_SCHEDULE`, et le mécanisme restait invisible à qui ne lit pas le code.
+
+    Elle DÉRIVE entièrement de `registries.etat()` : aucune donnée propre, donc aucune
+    divergence possible avec le registre. Ajouter un registre l'y fait apparaître seul.
+
+    ⚠ La NATURE est ce que la page montre en premier, parce que c'est elle qui dit si un
+    bouton a du sens : un « Actualiser » sur un catalogue DÉRIVÉ (recalculé à chaque
+    requête) serait un mensonge — il ne ferait rien et laisserait croire que le reste est
+    périmé. Les dérivés affichent donc « toujours à jour », pas un bouton inerte.
+    """
+    from .registries import etat
+
+    registres = etat()
+
+    # Facettes DÉCLARÉES (et non dérivées du DOM) : les valeurs brutes sont des clés
+    # techniques (`scan`, `derive`…) alors que la page affiche des libellés français —
+    # déclarer prime sur dériver dès que le libellé compte (même motif que /licences/).
+    from .registries import NATURES
+    facettes = [{
+        'cle': 'nature', 'label': 'Nature', 'tous': 'Toutes les natures',
+        'options': dict(NATURES),
+    }]
+
+    return render(request, 'common/registres.html', {
+        'registres': registres,
+        'total_entrees': sum(r['total'] for r in registres),
+        'nb_actualisables': sum(1 for r in registres if r['actualisable']),
+        'nb_periodiques': sum(1 for r in registres if r['periodique']),
+        'facettes_registres': facettes,
+        'peut_actualiser': request.user.is_authenticated,
+        'est_staff': request.user.is_authenticated and request.user.is_staff,
+    })
+
+
 def licenses_catalog_view(request):
     """
     Catalogue des LICENCES — vue transversale, sans registre propre.
