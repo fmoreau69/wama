@@ -1,5 +1,5 @@
 """
-temporal/ — fonctions de SEGMENTATION, déclarées au catalogue.
+temporal/ — fonctions de SEGMENTATION et de CALCUL, déclarées au catalogue.
 
 Domaine transverse (contrairement à `driving/`, `geo/`, `kinematics/`) : segmenter un signal ne
 suppose aucun métier. C'est la raison d'être de l'axe DOMAINE — il est orthogonal au `data_type`
@@ -12,3 +12,4 @@ pipeline — et l'on se retrouve à réécrire à la main ce qui aurait dû se c
 """
 from . import segmentation  # noqa: F401  (l'import enregistre les FunctionSpec)
 from . import coding        # noqa: F401  (le CODAGE est le 5e mode de segmentation)
+from . import calculation   # noqa: F401  (Calculator — colonnes dérivées + indicateurs/segment)

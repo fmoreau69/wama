@@ -98,10 +98,22 @@ MODULES: Tuple[ModuleData, ...] = (
                    "et de la vue déclarative, donc du Visualizer",
     ),
     ModuleData(
-        'calculator', 'Calculator', "Calcule des indicateurs PAR SEGMENT et les y adjoint",
-        "`segments` + signaux → colonnes d'indicateurs",
+        'calculator', 'Calculator',
+        # ⚠ La déclaration ne portait QUE le second mode. Précision de Fabien (2026-08-22) :
+        # le Calculator en a DEUX, et le premier n'est pas un cas particulier du second — il ne
+        # change pas la granularité (une ligne par échantillon reste une ligne par échantillon),
+        # là où l'agrégation par segment la change. D'où deux catégories de catalogue distinctes,
+        # `enricher` et `aggregate`, et non une famille unique.
+        "Calcule des COLONNES DÉRIVÉES (moyenne glissante, dérivée, cumul) et des INDICATEURS "
+        "PAR SEGMENT qu'il adjoint aux segments",
+        "signal → signal enrichi · `segments` + signal → colonnes d'indicateurs",
+        briques=('wama_data/core/calculation.py',
+                 'wama_data/core/valeurs.py',
+                 'wama_data/functions/temporal/calculation.py'),
+        fonctions=('calcul_glissant', 'calcul_derivee', 'calcul_cumul', 'calcul_par_segment'),
         doc='§6.7',
-        bloque_par="le Segmenter lui fournit désormais ses entrées ; c'est le seul module de la chaîne SANS modèle — aucun des trois systèmes confrontés ne l'a jamais écrit",
+        bloque_par="MOTEUR écrit et éprouvé (32 tests) — reste son emploi sur un corpus RÉEL, "
+                   "qui dépend de l'Importer : sans flux aligné, il n'y a rien à calculer",
     ),
     ModuleData(
         'visualizer', 'Visualizer', "Vues synchronisées sur l'axe partagé (plugins)",

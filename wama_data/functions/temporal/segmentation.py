@@ -16,6 +16,10 @@ from __future__ import annotations
 from wama.common.catalog.data_types import CANONICAL_FIELDS, DataType, TypedFrame
 from wama.common.catalog.function_catalog import (FunctionCategory, FunctionSpec, ParamSpec, PortSpec, register)
 from ...core.segmentation import autour, conditionnelle, etats, jonction, present_dans
+#: RÉEXPORT délibéré — `manquant` a été remonté au cœur (`core/valeurs.py`) quand le Calculator
+#: en est devenu le 4ᵉ consommateur : `core/` ne peut pas dépendre de `functions/`. Le garder
+#: importable d'ici évite de toucher les 3 importateurs existants pour un simple déménagement.
+from ...core.valeurs import manquant  # noqa: F401  (réexporté pour `coding.py` et les tests)
 
 #: Champs canoniques d'un segment produit — `start`/`end` viennent de la taxonomie, le reste est
 #: la traçabilité systématique (voir `_tracer` dans l'implémentation).
@@ -48,24 +52,6 @@ def _segments(rows: list, meta=None) -> TypedFrame:
     if 'end' in df.columns and any(r.get('end') is None for r in rows):
         df['end'] = pd.Series([r.get('end') for r in rows], dtype=object)
     return TypedFrame(df, DataType.SEGMENTS, meta=meta)
-
-
-def manquant(valeur) -> bool:
-    """Une valeur ABSENTE au sens d'un cadre pandas — `None` **ou** `NaN`.
-
-    ⚠ Le piège est systématique à la frontière avec pandas, et il s'est présenté TROIS fois dans
-    cette seule couche d'adaptation : une fin de segment inconnue devient `NaN` à l'aller, et une
-    colonne qui ne concerne que certaines lignes est remplie de `NaN` sur les autres. Or `NaN`
-    n'est ni `None` ni faux : il traverse tous les tests d'absence naïfs et ressort en donnée.
-    D'où UNE fonction, utilisée partout où l'on relit un cadre — plutôt qu'une rustine par champ.
-    """
-    if valeur is None:
-        return True
-    try:
-        import math
-        return isinstance(valeur, float) and math.isnan(valeur)
-    except Exception:
-        return False
 
 
 def _fin(valeur):
