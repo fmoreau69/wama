@@ -2690,6 +2690,131 @@ coût — et `select_model()` filtre `is_downloaded=True` par défaut, ce qui ex
 mécaniquement tout modèle cloud). C'est CE verrou, plus que LiteLLM déjà câblé, qui empêche
 d'étendre la sélection automatique au cloud. Chantier orthogonal, non ouvert.
 
+## §REPRISE — 2026-08-22 (session « WAMA DATA → MONDES → REGISTRES ») — 🔚 POINT D'ENTRÉE
+
+> **Un seul fil**, même si la session a l'air d'en mêler trois : le Segmenter avait besoin d'entrer
+> au catalogue, le catalogue a révélé que Data vivait dans le substrat, et le déport a montré que
+> les catalogues n'avaient aucun mécanisme d'actualisation. Chaque étape a été **ouverte par la
+> précédente**, pas juxtaposée.
+>
+> 🔚 **POINT D'ENTRÉE SESSION SUIVANTE** — au choix de Fabien, les deux sont prêts :
+> ① **normaliser les tests sur les registres** (porter `ConformiteTest` à `mecanismes.py`,
+> `MANIFEST_KINDS`, `APP_CATALOG`) ⚠ **exige de se coordonner** : renommer au passage les fonctions
+> françaises de `registries.py` casserait `registres_view` de l'autre instance ;
+> ② **WAMA Data — le Calculator**, seul module de la chaîne SANS modèle (aucun des trois systèmes
+> confrontés ne l'a écrit), et le Segmenter lui fournit désormais ses entrées.
+
+### ✅ LIVRÉ — ① WAMA DATA (le chantier d'origine de la session)
+
+**Le Segmenter est COMPLET — son 5ᵉ et dernier mode, le CODAGE, est écrit** (`wama_data/core/coding.py`).
+Le découpage vient d'un mécanisme réel de 2019, repris tel quel : un **protocole séparé** (ce qui est
+codable), une **interface générique** pilotée par lui, une **session qui refuse de démarrer sans
+média**. C'est du schéma-driven sept ans avant qu'on le nomme ainsi ici — rien à inventer, à traduire.
+
+> **Le point qui justifie le module** : `rejouer(protocole, média, gestes, codeur=…)` est le point
+> d'entrée du **codage vidéo par IA**. Un modèle de vision produit des gestes, on les rejoue, et l'on
+> obtient EXACTEMENT la sortie d'un codage humain — même validation, mêmes refus (un code hors
+> éthogramme est rejeté que la faute vienne d'un doigt ou d'une hallucination). Il n'y a donc PAS de
+> « module de codage IA » à écrire : il y a un champ `codeur` qui change. `codage_accord` mesure
+> ensuite l'écart entre les deux.
+
+Apports du codage comportemental que le modèle MATLAB n'avait pas : l'**état OUVERT** (`end=None`,
+D15), les **modificateurs typés**, les **sujets** (deux personnes tiennent le même état sans se
+fermer l'une l'autre), l'**exclusion mutuelle** dont la fermeture SUBIE est tracée (`closed_by`)
+séparément d'une fermeture voulue — et `closed_at` : une durée refermée par la fin de
+l'enregistrement n'est pas une durée observée, les confondre fausse toute statistique de durée.
+**8 fonctions au catalogue** (5 modes + 3 de codage). L'**interface** de codage n'est délibérément
+PAS écrite : elle doit se GÉNÉRER du protocole, donc elle dépend du Visualizer.
+
+**⚠ Défaut trouvé par la vérification — 3ᵉ occurrence du même piège** : pandas convertit un `None`
+mêlé à des flottants en `NaN`, la sentinelle numérique que le modèle refuse. Un cadre porte une
+colonne par modificateur de TOUT le protocole, remplie de `NaN` ailleurs. La détection d'absence est
+désormais **une seule fonction** (`manquant()`), avec régression versionnée.
+
+### ✅ LIVRÉ — ② LE MONDE DATA SORT DU SUBSTRAT
+
+`wama/common/data/` → **`wama_data/`**, racine sœur de `wama/` et `wama_lab/`. Réalise la cible de
+`ROADMAP §18`, écrite le 27/07 et jamais exécutée. `docs/VISION_STATUS.md` notait même
+« socle posé (`common/data/`) » comme un état normal — la doctrine était actée, sa traduction en
+arborescence ne l'avait jamais été.
+
+> **Où passe la frontière** — seule vraie décision, tranchée par la MESURE : le registre de fonctions
+> et la taxonomie de types RESTENT dans **`wama/common/catalog/`**. `cam_analyzer/function_specs.py`
+> y déclare des fonctions du **Lab**, et les manifestes `function`/`dataset` du substrat en dépendent.
+> Les emporter ferait dépendre le Lab et le substrat du monde Data.
+
+**⚠ Défaut qui rendait le déport risqué** : `load_all()` citait `wama.common.data` ET
+`wama_lab.cam_analyzer` **en dur**. Le substrat nommait deux mondes — le déport l'aurait cassé
+**silencieusement** (catalogue à moitié peuplé, zéro erreur). Chaque monde se déclare désormais dans
+son `apps.py:ready()` ; le registre parcourt les apps installées.
+
+**⚠ MON ERREUR, consignée en règle** : `git commit` SANS pathspec ne prend QUE l'index — il a laissé
+derrière toutes les réécritures d'imports. **HEAD était cassé** (`wama_data` absent d'`INSTALLED_APPS`,
+cam_analyzer sur l'ancien chemin) pendant que l'arbre de travail passait 245 tests. `CLAUDE.md` porte
+maintenant les deux sens du danger + la règle **« vérifier SUR HEAD via un worktree jetable après un
+commit structurel »**.
+
+**Honnêteté sur le motif** : sortir Data n'a PAS désengorgé `common/` (5 107 lignes sur ~39 800, 13 % ;
+les vrais blocs sont `utils/` 9 859 et `static/` 8 384). La justification est doctrinale.
+
+### ✅ LIVRÉ — ③ LE REGISTRE DES REGISTRES (actualisation des catalogues)
+
+Relevé avant écriture : **7 surfaces catalogues, 2 seulement avaient un bouton**, 1 seule était
+actualisée périodiquement, chacune avec son endpoint et son script inline recopié.
+
+⚠ **La clé n'est PAS le `manifest_kind`** (intuition de Fabien, tranchée par la mesure) : 4 des 7
+pages seulement correspondent à un kind ; 3 kinds n'ont aucune page ; 3 pages ne sont pas des kinds.
+`manifest_kind` reste un LIEN facultatif. **Quatre natures déclarées** (scan / mesure /
+re-déclaration / **DÉRIVÉ**) — un bouton sur une page dérivée serait un mensonge, elle affiche
+« toujours à jour ».
+
+**⚠ Recadrage de Fabien, appliqué** : « il faut faire la tâche en Celery non bloquant ». MESURÉ :
+`apps` **31,2 s** et `modeles` **20,6 s** en synchrone, sur 4 workers × 2 threads = **1/8 du serveur
+bloqué par un clic** — et **le défaut PRÉEXISTAIT** (la docstring annonçait « ~1 s »). La NATURE
+impose désormais le lieu : état partagé → Celery (202 + suivi de tâche) ; registre en mémoire → sur
+place, **obligatoirement** (en Celery il rechargerait les modules du mauvais processus).
+**Propagation** entre les 4 workers par compteur de version, sinon le total changeait d'un
+rechargement à l'autre.
+
+**⚠ Deux défauts invisibles en lecture** : la propagation écrite avec `django_redis` — **paquet
+ABSENT des deux venvs**, mécanisme mort EN SILENCE (le client `redis` brut est là, brique
+`resource_governor._redis`) ; et `apps.html` gardant un bouton écrit à la main, qui « marchait » mais
+perdait la resynchronisation.
+
+**Tests pilotés par le registre** (recadrage Fabien : porter l'infrastructure SUR les registres,
+comme `conformity_checker.CRITERIA`). Mesuré : 27 tests sur 29 nommaient des clés en dur — en
+ajoutant un 8ᵉ registre la suite **ne cassait pas, elle devenait MUETTE**. `ConformiteTest` = 12
+contrôles sur TOUS les registres, dont le **budget de durée** (le contrôle qui aurait attrapé les
+31 s tout seul) et l'**idempotence**, qui a trouvé un défaut au premier passage (`skills` annonçait
+« 10 retirés » sans rien retirer). **Couverture MESURÉE**, jamais déclarée (`registries_coverage.py`) —
+un champ à tenir à jour aurait menti, comme `§39` le matin même. Affichée sur la page de supervision
+livrée en parallèle par l'autre instance (`d55bc79a`), **sans conflit**.
+
+### ⏳ PENDINGS — rien à retenir de tête
+
+| # | pending | note |
+|---|---|---|
+| 1 | ⚠ **RESTART gunicorn + Celery** | les workers tournent sur le code d'AVANT le correctif Celery : un clic sur `/apps/` bloque encore 31 s |
+| 2 | **Dette de nommage** | `registries.py` : 31 % de fonctions FRANÇAISES (`rafraichir`, `lancer`, `etat`…) contre 97 % d'anglais dans le dépôt. Mesuré. **Non renommé** : `registres_view` de l'autre instance importe `etat` — coordination requise |
+| 3 | `console_utils` | tourne DEPUIS TOUJOURS sur son repli cache, **non atomique** (lignes perdues quand gunicorn + workers poussent ensemble). Correctif = brique `redis` existante, **PAS** ajouter `django_redis` |
+| 4 | Segmenter — interface de codage | dépend du transport + de la vue déclarative, donc du Visualizer |
+| 5 | WAMA Data — Calculator | seul module de la chaîne SANS modèle ; le Segmenter lui fournit ses entrées |
+| 6 | Conformité générique aux AUTRES registres | `mecanismes.py`, `MANIFEST_KINDS`, `APP_CATALOG` — même patron que `ConformiteTest` |
+| 7 | Traduction intégrale de l'UI | chantier acté, EN ATTENTE : cartographier toute la prose avec wama-dev-ai d'abord (info Fabien, 22/08) |
+| 8 | 1 commit non poussé | `9bc81bc3` — **appartient à l'autre instance**, ne pas le pousser à sa place |
+
+### 📊 CONTRÔLES ATTENDUS AU PROCHAIN /reprise (chiffres de clôture)
+
+| contrôle | valeur |
+|---|---|
+| `check_docs` | **2 cassées / 0 périmée** sur 475 réf. (11 docs) — les 2 = `common/_result_tabs.html`, dette `REMOVAL_LEDGER R18` |
+| `manifest_export --check` | corpus **à jour, 110 manifestes** |
+| `doc_facts --check` | **5 faits à jour** (mecanismes, modeles, outils, roundtrip, wama_data) |
+| `check_app_conformity` | converter/describer/transcriber **100** · enhancer 99 · anonymizer/avatarizer/composer/reader/synthesizer 98 · imager 97 |
+| tests | **291 OK** (`wama.common` + `wama_data`) — dont 149 `wama_data`, 42 registres |
+| `FUNCTION_CATALOG` | **39 fonctions** = 20 Data + 19 `cam_analyzer.*` |
+| registres catalogués | **7** — 4 actualisables, 2 périodiques, 7/7 avec tests spécifiques |
+
 ## §REPRISE — 2026-08-22 (session PORTAGE + CODEGEN + DROITS) — 🔚 POINT D'ENTRÉE
 
 > Session très longue, close proprement. **La session suivante repart sur le PORTAGE**, pas sur
