@@ -112,8 +112,9 @@ MODULES: Tuple[ModuleData, ...] = (
                  'wama_data/functions/temporal/calculation.py'),
         fonctions=('calcul_glissant', 'calcul_derivee', 'calcul_cumul', 'calcul_par_segment'),
         doc='§6.7',
-        bloque_par="MOTEUR écrit et éprouvé (32 tests) — reste son emploi sur un corpus RÉEL, "
-                   "qui dépend de l'Importer : sans flux aligné, il n'y a rien à calculer",
+        bloque_par="MOTEUR écrit et éprouvé (49 tests — 32 sur le cœur pur, 17 sur la frontière "
+                   "pandas) : reste son emploi sur un corpus RÉEL, qui dépend de l'Importer — "
+                   "sans flux aligné, il n'y a rien à calculer",
     ),
     ModuleData(
         'visualizer', 'Visualizer', "Vues synchronisées sur l'axe partagé (plugins)",
