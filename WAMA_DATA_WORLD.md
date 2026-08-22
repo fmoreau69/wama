@@ -32,7 +32,7 @@
 > Mesuré depuis le code — **ne pas éditer à la main** (`python manage.py doc_facts`).
 > Registre des modules : `wama_data/modules.py`.
 
-**Bilan** : 5 ⏳ (non commencé) · 5 🔶 (livré mais INERTE)
+**Bilan** : 4 ⏳ (non commencé) · 6 🔶 (livré mais INERTE)
 
 > 🔶 **AUCUN consommateur hors `wama_data/` — le sous-système entier est INERTE.** Aucune app, tâche ou route ne s'en sert encore : les briques s'appellent entre elles, et c'est tout. Le premier module à donner un usage réel fera basculer ces lignes en ✅.
 
@@ -45,17 +45,18 @@
 | **Segmenter** | Produit des segments : autour d'un événement, par jonction de deux flux, par prédicat avec hystérésis, par plages constantes d'un catégoriel, ou par CODAGE (humain ou IA) | `events` ou signal + prédicat → `segments` | 🔶 | 4/4 | 2 | 12/0 | §9ter (spécification), §6.7 |
 | **Calculator** | Calcule des COLONNES DÉRIVÉES (moyenne glissante, dérivée, cumul) et des INDICATEURS PAR SEGMENT qu'il adjoint aux segments | signal → signal enrichi · `segments` + signal → colonnes d'indicateurs | 🔶 | 3/3 | 2 | 3/0 | §6.7 |
 | **Visualizer** | Vues synchronisées sur l'axe partagé (plugins) | référentiel → plugins co-chargés | ⏳ | — | — | — | §4, §8.2 |
-| **Exporter** | Rend les segments et indicateurs exploitables hors WAMA | `segments` + indicateurs → fichiers (pivot long → large) | ⏳ | — | — | — | §6.7 |
+| **Exporter** | Rend les segments et indicateurs exploitables hors WAMA | `segments` + indicateurs → fichiers (pivot long → large) | 🔶 | 2/2 | 2 | 2/0 | §6.7 |
 | **Recorder** | Enregistre depuis une source temps réel | flux LSL/RTMaps/ROS → `dataset` | ⏳ | — | — | — | §7 |
 | **Analyzer** | Orchestre les modules selon un manifeste `pipeline` | manifeste `pipeline` → exécution | ⏳ | — | — | — | §9bis.2 |
 
-<details><summary>⚠ <b>7 module(s) avec un blocage déclaré</b> — ce qui empêche d'avancer, en une ligne</summary>
+<details><summary>⚠ <b>8 module(s) avec un blocage déclaré</b> — ce qui empêche d'avancer, en une ligne</summary>
 
 - **Importer** — alignement par TRIGGERS non conçu (D12) ; `DATASET_SOURCES` non réconcilié avec le registre des lecteurs (G1) ; lecteur `.rec` encore une FONCTION (`functions/io/rtmaps_rec.py`) au lieu d'un lecteur de source
 - **Référentiel temporel** — AUCUN consommateur — la brique est inerte tant qu'un module ne s'en sert pas
 - **Segmenter** — MOTEUR complet (5 modes) — reste l'INTERFACE de codage, qui doit se GÉNÉRER du protocole et non s'écrire : elle dépend du transport (Magneto + vue média) et de la vue déclarative, donc du Visualizer
 - **Calculator** — MOTEUR écrit et éprouvé (49 tests — 32 sur le cœur pur, 17 sur la frontière pandas) : reste son emploi sur un corpus RÉEL, qui dépend de l'Importer — sans flux aligné, il n'y a rien à calculer
 - **Visualizer** — vue déclarative = verrou §7ter point 3 ; écrire 2-3 plugins AVANT d'extraire
+- **Exporter** — PIVOT écrit et éprouvé (30 tests) — reste l'ÉCRITURE de fichier (CSV/TSV/XLSX) : `export_tableau` rend le tableau prêt, mais le choix du format et de la destination relève du studio, pas d'une fonction pure
 - **Recorder** — périmètre v1 non tranché (D5)
 - **Analyzer** — nœud FONCTION absent du kind `pipeline` (D13)
 

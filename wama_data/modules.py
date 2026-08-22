@@ -123,9 +123,23 @@ MODULES: Tuple[ModuleData, ...] = (
         bloque_par="vue déclarative = verrou §7ter point 3 ; écrire 2-3 plugins AVANT d'extraire",
     ),
     ModuleData(
-        'exporter', 'Exporter', "Rend les segments et indicateurs exploitables hors WAMA",
+        'exporter', 'Exporter',
+        # ⚠ Le PIVOT n'existe dans AUCUN des 4 chemins d'export de BIND_GUI (tous lus le
+        # 2026-08-23) : ils produisent tous du long, et le livrable à 393 colonnes de §6.7 naît
+        # d'un remaniement Excel fait à la main par les chercheurs. BIND le savait — la branche
+        # `nb_occurrences > 1` de `buildHeader` compose le nommage du format large mais référence
+        # `i_occurrence`, non définie dans sa portée, et n'est jamais appelée qu'avec 1.
+        # L'intention existait, le code n'a jamais tourné. C'est donc l'étape MANUELLE que ce
+        # module absorbe, pas une reprise.
+        "Rend les segments et indicateurs exploitables hors WAMA",
         "`segments` + indicateurs → fichiers (pivot long → large)",
+        briques=('wama_data/core/export.py',
+                 'wama_data/functions/io/export.py'),
+        fonctions=('export_pivot_large',),
         doc='§6.7',
+        bloque_par="PIVOT écrit et éprouvé (30 tests) — reste l'ÉCRITURE de fichier "
+                   "(CSV/TSV/XLSX) : `export_tableau` rend le tableau prêt, mais le choix du "
+                   "format et de la destination relève du studio, pas d'une fonction pure",
     ),
     ModuleData(
         'recorder', 'Recorder', "Enregistre depuis une source temps réel",

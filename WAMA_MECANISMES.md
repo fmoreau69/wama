@@ -85,7 +85,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Benchmark tiers confronté** | Étage 2 qualité (a priori < benchmark < mesure) : AA + Elo Arena appariés au catalogue, prospection incluse | `wama/model_manager/services/benchmark_sync.py` | `PROJECT_STATUS.md §REPRISE 2026-08-18` | ⚠ **0** |
 | **Cache HF scopé** | Bascule TEMPORAIRE du cache HuggingFace par backend — anti-fuite d'artefacts inter-apps | `wama/common/utils/hf_cache.py` | — | 2 |
 | **Couverture multi-modèles** | Choisit un ENSEMBLE de modèles couvrant des classes (couverture ou spécialisation) | `wama/common/services/model_coverage.py` | — | 3 |
-| **Découverte de modèles** | Découverte unifiée des modèles (apps + sources externes), synchronisée vers le catalogue AIModel | `wama/model_manager/services/model_registry.py` | — | 11 |
+| **Découverte de modèles** | Découverte unifiée des modèles (apps + sources externes), synchronisée vers le catalogue AIModel | `wama/model_manager/services/model_registry.py` | — | 12 |
 | **Indice de qualité a priori** | Ordonne les modèles autrement que par la taille (params EFFECTIFS √(totaux×actifs), contexte, quantif.) | `wama/model_manager/services/model_quality.py` | — | 1 |
 | **Installation de modèles** | Pipeline accept→download→register : télécharge au bon endroit puis enregistre au catalogue | `wama/model_manager/services/model_installer.py` | — | 4 |
 | **Prospection de modèles** | Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run) | `wama/model_manager/services/prospector.py` | `wama/model_manager/PROSPECTION_PIPELINE.md` | 8 |
@@ -112,7 +112,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
 | **Accès LLM** | Route unique vers les LLM (tiers déclaratifs, sélection catalogue, Ollama local) | `wama/common/utils/llm_utils.py` | — | 13 |
-| **Appariement d'identité de canal** | Relie une identité Matrix/Discord à un compte WAMA par code prouvé hors canal — la garde que tout adaptateur appelle avant d'agir | `wama/gateway/services.py` | `ROADMAP.md §19` | 174 |
+| **Appariement d'identité de canal** | Relie une identité Matrix/Discord à un compte WAMA par code prouvé hors canal — la garde que tout adaptateur appelle avant d'agir | `wama/gateway/services.py` | `ROADMAP.md §19` | 175 |
 | **Claude Code sur abonnement** | Délègue une tâche de développement au CLI Claude Code en headless — lecture seule par défaut, environnement construit sans la clé API | `wama/common/services/claude_code.py` | `ROADMAP.md §19.3` | 1 |
 | **Export document** | Génère PDF (fpdf2) / DOCX (python-docx) depuis les résultats d'app | `wama/common/utils/document_export.py` | — | 3 |
 | **Garde des URL sortantes** | Valide toute cible de téléchargement pilotée par une saisie : schéma, identifiants, et adresses privées/bouclage/lien-local — anti-SSRF | `wama/common/utils/url_guard.py` | `PROFILES_PERMISSIONS.md` | 2 |
@@ -138,7 +138,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 |---|---|---|---|---|
 | **Console utilisateur** | Lignes de journal structurées par utilisateur et par app. ⚠ Annoncé « via Redis », mais le chemin Redis exige `django_redis` — ABSENT des deux venvs et des `requirements` (vérifié 2026-08-22) : la console tourne DEPUIS TOUJOURS sur son repli cache, qui fonctionne mais n'est pas atomique (lire/insérer/réécrire, donc des lignes perdues quand gunicorn et les workers Celery poussent en même temps). Le correctif n'est PAS d'ajouter la dépendance : le client `redis` brut est déjà installé et la brique d'accès existe (`resource_governor._redis`, via `CELERY_BROKER_URL`) | `wama/common/utils/console_utils.py` | — | 31 |
 | **Duplication et suppression sûres** | duplicate_instance() et safe_delete_file() — fichiers partagés entre items | `wama/common/utils/queue_duplication.py` | `WAMA_APP_CONVENTIONS.md` | 15 |
-| **File d'attente (front)** | Comportements communs des files : collapse de batch persisté, focus card, data-wama-* | `wama/common/static/common/js/wama-queue.js` | `CARD_DESIGN.md` | 45 |
+| **File d'attente (front)** | Comportements communs des files : collapse de batch persisté, focus card, data-wama-* | `wama/common/static/common/js/wama-queue.js` | `CARD_DESIGN.md` | 46 |
 | **Import par lot** | Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot | `wama/common/utils/batch_parsers.py` | `BATCH_FORMAT.md` | 49 |
 | **Manipulation directe de la file** | Endpoints génériques : sortir une card d'un batch, réordonner, déplacer, consolider | `wama/common/utils/queue_manipulation.py` | `CARD_DESIGN.md §3bis` | 11 |
 | **Notifications de tâche** | notify_job() — fin de traitement, succès comme échec | `wama/common/utils/notifications.py` | `PROFILES_PERMISSIONS.md` | 12 |
