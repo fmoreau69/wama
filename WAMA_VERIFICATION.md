@@ -98,6 +98,48 @@ Le catalogue n'est **pas à inventer** : c'est la table des composants obligatoi
 
 ---
 
+## 3bis. Matrice des ACTIONS DE CARD — relevé exhaustif (2026-08-23)
+
+> Demandée par Fabien après une soirée de découvertes au coup par coup : « établir la liste
+> exhaustive de toutes les actions communes ou proposables au commun ». Elle remplace
+> l'archéologie — un bouton, un test rouge, une enquête — par **une passe unique**. Hors
+> périmètre pour l'instant, à sa demande : modales de réglages et inspecteur.
+
+| Action | Nature | Brique commune | Graphies relevées | Uniformité |
+|---|---|---|---|---|
+| **⧉ Dupliquer** | POST via JS | ✅ `queue-actions.js` | `.duplicate-btn[data-duplicate-url]` | **12/12** |
+| **🗑 Supprimer** | POST via JS | ✅ *depuis le 2026-08-22* | `delete-btn` (6) · `job-delete-btn` (converter ×2) · `btn-delete-job` (avatarizer) · `js-audio-delete` + `js-delete-enhancement` (enhancer) · `video-delete-btn` (imager vidéo) · `data-action="delete"` (reader) | **1/11 porté** |
+| **▶ Cycle** | POST via JS | ✅ `wama-cycle-button.js` | `.wama-cycle-btn` | **2/10 adoptée** (anonymizer, imager) |
+| **⚙ Paramètres** | ouvre une modale | ❌ *aucune* — `WamaParams` rend le CONTENU, mais le BOUTON n'est délégué nulle part | `settings-btn` (6) · `job-settings-btn` (converter ×2) · `video-settings-btn` (imager vidéo) · avatarizer et reader : rien (modale montée à la main) | divergent |
+| **⬇ Télécharger** | **lien `<a href>`** | *sans objet* | `href="{% url 'app:download' %}"` partout ; quelques `download-btn` résiduels | n/a |
+
+**Le motif est sans exception, et c'est le résultat principal de ce relevé :**
+
+| état de la brique | conséquence observée |
+|---|---|
+| brique **et** adoptée | **uniformité totale** (dupliquer, 12/12) |
+| brique mais **non adoptée** | l'adoption est le chantier, le nommage tient (cycle, 2/10) |
+| **pas de brique** | **divergence** (supprimer : 6 graphies ; paramètres : 3 + 2 absences) |
+| l'action est un **lien** | aucune brique n'est requise — un `<a href>` n'a rien à déléguer |
+
+> **La divergence n'est jamais une négligence de style : c'est la trace d'une brique absente.**
+> Corollaire pratique — on ne « corrige pas un nommage », on crée la brique qui le rend inutile
+> à discuter. Et corollaire de méthode : la seule action encore divergente à traiter est
+> **⚙ Paramètres**, tout le reste est soit fait, soit sans objet.
+
+### Nommage canonique retenu
+
+`.<action>-btn` + `data-<action>-url` pour l'élément, `.batch-<action>-btn` pour le lot — c'est
+déjà ce que fait le couple `duplicate-btn`/`batch-duplicate-btn`, seul modèle qui ait produit de
+l'homogénéité. On généralise le précédent qui marche, on n'invente pas une convention de plus.
+
+⚠ **Une tension à trancher** : le bouton de cycle s'appelle `.wama-cycle-btn`, préfixé du nom de
+sa brique, là où la famille dit `.<action>-btn`. Le renommer touche une brique **déjà adoptée**
+par 2 apps ; ne pas le renommer laisse une exception dans la convention. À décider — ne pas
+laisser dériver par défaut.
+
+---
+
 ## 4. Contrainte qui dicte l'ordre : le GPU
 
 Les gestes 8–13 exigent un **traitement réel**. Or la règle est absolue ici : **jamais de charge
@@ -133,6 +175,25 @@ orphelin (aucune liaison morte — le point positif).
 **Priorité par cardinalité** : un mécanisme adopté par 10 apps et vérifié par rien est le plus
 coûteux à laisser dériver. `media_paths`, `rag_geste`, `gateway_identity`, `manifests`,
 `notifications` d'abord.
+
+### ⚠ Le scan a une MAILLE TROP GROSSIÈRE (constat de Fabien, 2026-08-23)
+
+Question posée : « si les mécanismes de suppression/duplication sont au registre, comment
+peut-on être vert partout alors que les noms diffèrent ? ».
+
+Réponse vérifiée : **la grille n'est pas GÉNÉRÉE depuis le registre.** Le champ `mecanisme` d'un
+critère est un simple *lien*, servant à repérer les mécanismes que rien ne vérifie. Or ce scan
+travaille à la maille du **mécanisme**, alors qu'un mécanisme héberge **plusieurs comportements**.
+
+Cas mesuré : `queue_front` héberge `queue-actions.js` (dupliquer **et** supprimer), le collapse
+de lot, le focus de card et les `data-wama-*`. Il porte **deux** critères — il n'a donc JAMAIS
+été signalé comme non couvert, pendant que **personne ne vérifiait la suppression**. Un mécanisme
+à cinq comportements avec un seul critère compte comme « couvert » ; les quatre autres sont
+invisibles.
+
+**Ce n'est pas un défaut de génération, c'est un défaut de granularité.** La correction est la
+matrice du §3bis : elle énumère des **actions**, pas des mécanismes — et une action se vérifie
+ou ne se vérifie pas, sans moyenne possible.
 
 ⚠ Ne PAS écrire un critère par mécanisme mécaniquement : certains (`resource_governor`,
 `provenance`) sont des briques de niveau **système**, pas d'app — un critère par app n'y aurait
