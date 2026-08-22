@@ -146,6 +146,18 @@ def upload(request):
     item = {item}.objects.create(**kwargs)
     return JsonResponse({{'id': item.id, 'status': item.status}})'''
 
+    # APERÇU DE LOT — conventionnel, plus un stub (2026-08-22). Le parsing d'un fichier de lot
+    # n'a jamais été une « politique d'app » : `batch_media_list_preview_response` fait tout le
+    # travail (parse, nom de fichier, avertissements, JSON {items, warnings, count}) et c'est
+    # déjà ce qu'appelle l'app en place. Sans cette route, le front ne peut RIEN faire d'un
+    # fichier de lot — et il ne peut pas non plus décider qu'un texte n'en est pas un, puisque
+    # c'est le `count == 0` du serveur qui le lui dit (batch-import.js:140).
+    vues['batch_preview'] = '''@require_POST
+def batch_preview(request):
+    """Aperçu d'un fichier de lot AVANT création — brique commune, zéro code d'app."""
+    from wama.common.utils.batch_parsers import batch_media_list_preview_response
+    return batch_media_list_preview_response(request)'''
+
     vues['start'] = f'''@require_POST
 def start(request, pk):
     user = _user(request)
@@ -357,7 +369,14 @@ move_to_batch     = _qm['move_to_batch']
 remove_from_batch = _qm['remove_from_batch']'''
 
     # ── Assemblage : UNE définition par callable exigé (conventionnel ou stub) ──
-    stubs_pk = {'card_html', 'batch_preview'}
+    # `batch_preview` RETIRÉ de cet ensemble (2026-08-22) : sa route conventionnelle est
+    # `batch/preview/` — SANS pk. Le stub était généré avec `(request, pk)` et Django levait
+    # TypeError avant d'entrer dedans : 500 au lieu du 501 annoncé. Un bouchon dont toute la
+    # raison d'être est d'échouer VISIBLEMENT se sabordait donc lui-même — le front recevait
+    # une page d'erreur HTML au lieu de JSON (« Unexpected token '<' ») et le vrai manque
+    # devenait indéchiffrable. Le second chemin d'assemblage (`extras`, plus bas) l'excluait
+    # déjà correctement : les deux se contredisaient.
+    stubs_pk = {'card_html'}
     couverts_fabrique = {'reorder', 'move_to_batch', 'remove_from_batch'}
     ignores = {'about', 'help'}     # servis par common.views dans le urls généré
     blocs, deja = [], set()
