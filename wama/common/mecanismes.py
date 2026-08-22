@@ -476,6 +476,14 @@ MECANISMES = (
               "Privé / unité / public : filtrage des lectures, mutations inchangées",
               'wama/common/models.py', 'PROFILES_PERMISSIONS.md',
               symbole='ScopedVisibility'),
+    Mecanisme('org_sync', "Arbre organisationnel depuis l'annuaire",
+              "ou=structures (SUPANN) → OrgUnit + parents ; peuple ce dont dépend le partage "
+              "par unité (RAG labo, médiathèque). Lecture seule côté LDAP, idempotente",
+              'wama/accounts/management/commands/sync_org_units.py',
+              'reference_ldap_supann_orgunit',
+              # `annexes` : la remontée d'attributs au PROFIL est l'autre moitié — elle marchait
+              # déjà (signaux au login) ; c'est l'ARBRE qui manquait, d'où le domicile ici.
+              annexes=('wama/accounts/ldap.py',)),
     Mecanisme('scoping', 'Accès scopé aux objets',
               "Deux chemins NOMMÉS pour lire un objet partageable depuis une vue (possédé / visible)",
               'wama/common/utils/scoping.py', 'PROFILES_PERMISSIONS.md'),

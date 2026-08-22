@@ -79,6 +79,16 @@ class UserProfile(models.Model):
         choices=[('user', 'Mon RAG (privé)'), ('unit', 'RAG du labo')],
         verbose_name="Niveau par défaut de mes ajouts au RAG",
     )
+    # UNITÉ CIBLE du partage au labo. Nécessaire dès qu'un utilisateur a PLUSIEURS
+    # rattachements reconnus — cas courant et non exotique : l'annuaire UGE porte les codes
+    # hérités (« {IFSTTAR}LESCOT ») À CÔTÉ des codes actuels (« CFR - LESCOT ») pour le MÊME
+    # laboratoire. `_resoudre_unite` refuse alors de deviner (un partage parti dans la mauvaise
+    # entité ne se voit pas) : sans ce réglage, le niveau labo est inatteignable pour eux.
+    rag_unite_defaut = models.CharField(
+        max_length=64, blank=True, default='',
+        verbose_name="Unité cible de mes partages au labo",
+        help_text="Code d'unité (vide = déduit si un seul rattachement).",
+    )
     # Lire : trois états, pas deux — et c'est la raison du `null=True`.
     #   NULL  = l'utilisateur n'a jamais choisi ⇒ tous les niveaux qu'il a le droit de voir
     #           (comportement historique : on ne prive personne de son RAG par défaut) ;

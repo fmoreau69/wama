@@ -5352,9 +5352,11 @@ wama.common.tests_capabilities_languages` **19/19**.
    document qui n'est passé par aucune app.
 2. **Hook B RAG dans les apps** — passe-plat `rag` de `process_prompt_for` + déclaration
    `PROMPT_TARGETS` (arbitré À FAIRE le 21/08, §5 l.4). **Devient le vrai point d'entrée.**
-3. **Peuplement `OrgUnit` + affiliations** (0 en base) — débloque le niveau labo SANS code
-   (LDAP/SUPANN, §5 l.8). ⚠ Sans lui le niveau « RAG du labo » reste refusé au clic : la page
-   « Mon RAG » le DIT à l'utilisateur, mais la fonctionnalité est de fait en attente de données.
+3. ~~Peuplement `OrgUnit` + affiliations~~ **✅ LIVRÉ le 22/08** — ⚠ **mon diagnostic était faux
+   et Fabien l'a corrigé** : le LDAP est en place depuis longtemps et la remontée SUPANN peuplait
+   déjà les profils ; seul l'**arbre `OrgUnit`** était vide, sans commande pour le peupler.
+   `manage.py sync_org_units` livré ; niveau labo **opérationnel** (20 contrôles sur données
+   réelles). Leçon : « X est vide » ne dit pas *quel maillon* est cassé — mesurer chaque maillon.
 4. Traduction de SORTIE (l.10) · QC post-génération (l.12) · parsing structurel/Docling (l.11) ·
    skills org/utilisateur (l.1-2) · sélection croisée intention+fichiers+RAG (l.5).
 **BORNES (anti-chevauchement)** : cette session ne touche PAS au portage des apps, ni au studio,

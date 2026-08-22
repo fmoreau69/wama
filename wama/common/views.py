@@ -463,12 +463,18 @@ def rag_ajouter(request):
     if niveau not in NIVEAUX_ECRITURE:
         return JsonResponse({'erreur': f"niveau non ouvert : {niveau}"}, status=400)
 
+    # L'unité cible ne se DEVINE pas quand il y en a plusieurs (`_resoudre_unite` refuse) : on
+    # la prend du geste, sinon du réglage de profil. Sans ce repli, un utilisateur à plusieurs
+    # rattachements — cas courant à l'UGE, où les codes hérités coexistent avec les actuels —
+    # ne pourrait jamais partager au labo depuis le bouton.
+    unite = (request.POST.get('org_unit') or '').strip() \
+        or (getattr(prof, 'rag_unite_defaut', '') if prof else '')
     res = ajouter_au_rag(
         request.user, texte,
         # Référence CITABLE : c'est elle que le rappel affiche à côté de l'extrait ([reader:12]).
         source_ref=f'{app_name}:{pk}', source_id=f'{app_name}:{pk}',
         source_kind=app_name, niveau=niveau,
-        org_unit=(request.POST.get('org_unit') or '').strip() or None)
+        org_unit=unite or None)
     if res.get('erreur'):
         return JsonResponse({'erreur': res['erreur']}, status=400)
     res['origine'] = origine
@@ -517,6 +523,19 @@ def rag_preference(request):
         choisis = [n for n in request.POST.getlist('niveaux_rappel') if n in NIVEAUX_RAG]
         prof.rag_niveaux_rappel = choisis
         champs.append('rag_niveaux_rappel')
+
+    if request.POST.get('unite_soumise'):
+        # On VALIDE contre les affiliations réelles : accepter un code arbitraire laisserait
+        # croire à un partage possible vers une unité dont l'utilisateur n'est pas membre —
+        # `ajouter_au_rag` le refuserait ensuite, mais seulement au moment du clic.
+        code = (request.POST.get('unite_defaut') or '').strip()
+        affiliations = list(prof.org_affiliations or [])
+        if prof.org_entity_code:
+            affiliations.append(prof.org_entity_code)
+        if code and code not in affiliations:
+            return JsonResponse({'erreur': f"vous n'êtes pas rattaché à « {code} »"}, status=400)
+        prof.rag_unite_defaut = code
+        champs.append('rag_unite_defaut')
 
     if champs:
         prof.save(update_fields=champs)
@@ -585,10 +604,30 @@ def rag_view(request):
         'niveaux_ecriture': [(n, LIBELLE[n]) for n in NIVEAUX_ECRITURE],
         'niveaux_rappel': [(n, LIBELLE[n], n in rappel) for n in NIVEAUX_RAG],
         'niveau_defaut': getattr(prof, 'rag_niveau_defaut', 'user') if prof else 'user',
-        # Un profil sans affiliation ne peut pas publier au labo : on le DIT sur la page plutôt
-        # que de laisser le geste échouer au clic avec un message d'erreur.
-        'affiliations': list(getattr(prof, 'org_affiliations', None) or []) if prof else [],
+        # Un profil sans affiliation RECONNUE ne peut pas publier au labo : on le DIT sur la
+        # page plutôt que de laisser le geste échouer au clic avec un message d'erreur. Et on
+        # ne liste que les unités RÉSOLUES (une `OrgUnit` existe) : proposer un code que
+        # l'annuaire ignore offrirait un choix qui échouerait ensuite.
+        'unites': unites_partageables(prof),
+        'unite_defaut': getattr(prof, 'rag_unite_defaut', '') if prof else '',
     })
+
+
+def unites_partageables(profile):
+    """Les unités vers lesquelles CE profil peut réellement partager — `[{code, nom}]`.
+
+    Intersection entre ses rattachements d'annuaire et l'arbre `OrgUnit` peuplé par
+    `manage.py sync_org_units`. Vide = le niveau labo restera refusé, et la page le dit.
+    """
+    from .models import OrgUnit
+
+    if profile is None:
+        return []
+    codes = list(profile.org_affiliations or [])
+    if profile.org_entity_code:
+        codes.append(profile.org_entity_code)
+    unites = OrgUnit.objects.filter(code__in=set(codes))
+    return [{'code': u.code, 'nom': u.name, 'type': u.get_unit_type_display()} for u in unites]
 
 
 # ── Brique À-propos / Aide (2026-08-11) ──────────────────────────────────────────

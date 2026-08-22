@@ -55,6 +55,7 @@ du 2026-08-21 (le balayage a été purgé), pas une fonctionnalité oubliée.
   <form class="rag-prefs" method="post" action="{% url 'common:rag_preference' %}">
     {% csrf_token %}
     <input type="hidden" name="rappel_soumis" value="1">
+    <input type="hidden" name="unite_soumise" value="1">
     <div class="row g-3">
       <div class="col-md-5">
         <h2>Niveau de mes ajouts</h2>
@@ -64,11 +65,34 @@ du 2026-08-21 (le balayage a été purgé), pas une fonctionnalité oubliée.
           <option value="{{ code }}" {% if code == niveau_defaut %}selected{% endif %}>{{ libelle }}</option>
           {% endfor %}
         </select>
-        {% if not affiliations %}
+        {% if unites %}
+          {% comment %}Le choix d'unité n'apparaît qu'à partir de DEUX : avec une seule,
+          `_resoudre_unite` la déduit et un sélecteur à une entrée serait du bruit. Avec
+          plusieurs il est OBLIGATOIRE — on ne devine pas une cible de partage.{% endcomment %}
+          {% if unites|length > 1 %}
+          <p class="hint mt-3 mb-1">
+            Vous avez plusieurs rattachements : indiquez lequel reçoit vos partages.
+          </p>
+          <select class="form-select form-select-sm" name="unite_defaut">
+            <option value="">— choisir une unité —</option>
+            {% for u in unites %}
+            <option value="{{ u.code }}" {% if u.code == unite_defaut %}selected{% endif %}>
+              {{ u.nom }} ({{ u.type }})
+            </option>
+            {% endfor %}
+          </select>
+          {% else %}
+          <input type="hidden" name="unite_defaut" value="{{ unites.0.code }}">
+          <p class="hint mt-2 mb-0">
+            <i class="fas fa-building-columns"></i> Unité de partage : {{ unites.0.nom }}.
+          </p>
+          {% endif %}
+        {% else %}
         <p class="hint mt-2 mb-0">
           <i class="fas fa-circle-info"></i>
-          Votre profil n'a aucun rattachement d'unité : le niveau labo restera refusé tant que
-          l'annuaire ne l'aura pas renseigné.
+          Aucun rattachement d'unité reconnu sur votre profil : le niveau labo restera refusé.
+          Les rattachements remontent de l'annuaire — voir votre
+          <a href="{% url 'accounts:profile' %}">profil</a>.
         </p>
         {% endif %}
       </div>

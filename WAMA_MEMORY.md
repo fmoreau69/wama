@@ -395,6 +395,46 @@ sémantiquement alors que les vecteurs se calculent par lot.
 Reste ouvert : le sélecteur de niveau **par requête** (en plus du défaut), et l'entrée depuis la
 médiathèque pour un document qui n'est passé par aucune app.
 
+### Le niveau LABO est OPÉRATIONNEL depuis le 2026-08-22 — ce qui manquait n'était pas le LDAP
+
+> ⚠ **Correction d'un diagnostic que j'ai répété plusieurs fois** : j'écrivais « `OrgUnit` 0 en
+> base, sync LDAP/SUPANN **prévue** ». C'était **faux sur la moitié qui compte**. Recadrage de
+> Fabien (« le LDAP est en place depuis longtemps, je m'identifie via le LDAP ») puis mesure :
+
+| Maillon | État réel au 22/08 avant correction |
+|---|---|
+| Authentification LDAP | ✅ en place de longue date (`django_auth_ldap`) |
+| Remontée SUPANN → **profil** | ✅ **fonctionnait** — le profil de Fabien portait `establishment`, `org_entity_code` et **trois** `org_affiliations` |
+| Arbre **`OrgUnit`** | ❌ **VIDE — le seul maillon cassé** |
+| Commande de synchro | ❌ **inexistante** (`resolve_org_hierarchy` vivait sans appelant depuis sa création) |
+
+**Livré** : `manage.py sync_org_units` (lecture seule côté annuaire, idempotente) — remonte la
+chaîne `supannCodeEntiteParent` depuis `ou=structures`, crée les `OrgUnit` **parents d'abord**
+puis rattache, et rafraîchit `org_entity_name`/`org_hierarchy` sur les profils. Bind **anonyme**
+suffisant à l'UGE (vérifié) ; 612 entités exposées ; par défaut la commande ne synchronise que
+les chaînes **utiles** (celles des codes portés par les profils), pas les 612.
+
+⚠ **Deux réalités d'annuaire découvertes à la mesure, qui ne s'inventent pas :**
+1. **Les rattachements multiples sont la NORME, pas l'exception.** L'annuaire UGE porte les codes
+   **hérités** (`{IFSTTAR}LESCOT`) **à côté** des codes actuels (`CFR - LESCOT`) pour le **même**
+   laboratoire — conséquence de la fusion IFSTTAR → Université Gustave Eiffel. `_resoudre_unite`
+   refuse alors de deviner (à raison : un partage parti dans la mauvaise entité ne se voit pas),
+   ce qui rendait le niveau labo **inatteignable**. D'où `rag_unite_defaut` (`accounts.0016`) et
+   un sélecteur d'unité sur « Mon RAG », affiché **seulement à partir de deux** rattachements.
+2. **Un code peut être porté par un profil et ABSENT de l'annuaire** — `{EIFFEL}CFR - LESCOT`
+   est dans ce cas. Ni la commande ni l'UI ne le taisent : la commande le signale, le profil
+   l'affiche « inconnu de l'annuaire », et la page ne le propose pas comme cible (offrir un
+   choix qui échouerait ensuite serait pire que ne pas l'offrir).
+
+**Le profil AFFICHE enfin son rattachement** (demande de Fabien) : carte « Rattachement
+institutionnel » — établissement, qualité, rattachements marqués reconnu/inconnu, chaîne
+d'ancêtres, et le lien vers « Mon RAG ». Ces champs existaient depuis des mois **sans être
+visibles nulle part** ; les montrer explique à l'utilisateur pourquoi le partage labo lui est
+ouvert ou refusé. Ils restent en **lecture seule** (l'annuaire est autoritaire, rafraîchi au login).
+
+Vérifié de bout en bout sur les **données réelles** (20 contrôles) : annuaire → profil →
+`OrgUnit` (avec parent, donc héritage) → unités proposées → résolution → pages rendues.
+
 ## 7ter. Entrée au RAG — un GESTE de l'utilisateur, jamais un balayage (CORRIGÉ 2026-08-21)
 
 > ⚠ **CORRECTION DE CONCEPTION.** La première version de cette section décrivait un **balayage** :

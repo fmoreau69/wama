@@ -52,6 +52,78 @@
                 </div>
             </div>
 
+            {% comment %}Rattachement institutionnel — remonté de l'annuaire (SUPANN) à CHAQUE
+            connexion LDAP. Ces champs existaient depuis des mois sans être affichés nulle part.
+            Les montrer explique à l'utilisateur pourquoi le partage « RAG du labo » lui est
+            ouvert ou refusé — voir WAMA_MEMORY.md §7ter.{% endcomment %}
+            <div class="card bg-dark border-secondary mb-4">
+                <div class="card-header border-secondary">
+                    <h5 class="mb-0"><i class="fas fa-building-columns me-2"></i>Rattachement institutionnel</h5>
+                </div>
+                <div class="card-body">
+                    {% if rattachement.rattachements %}
+                    <div class="row mb-2">
+                        <div class="col-4 label-col">Établissement</div>
+                        <div class="col-8 value-col">{{ rattachement.etablissement|default:"—" }}</div>
+                    </div>
+                    {% if rattachement.affiliation_ldap %}
+                    <div class="row mb-2">
+                        <div class="col-4 label-col">Qualité</div>
+                        <div class="col-8 value-col">{{ rattachement.affiliation_ldap }}</div>
+                    </div>
+                    {% endif %}
+                    <div class="row mb-2">
+                        <div class="col-4 label-col">Rattachements</div>
+                        <div class="col-8 value-col">
+                            {% for r in rattachement.rattachements %}
+                            <div class="mb-2">
+                                {% if r.reconnu %}
+                                <span class="badge bg-success-subtle text-success border border-success-subtle">
+                                    <i class="fas fa-check"></i> reconnu
+                                </span>
+                                {% else %}
+                                {% comment %}Un code absent de l'annuaire n'est PAS un bug WAMA :
+                                mesuré le 22/08, « {EIFFEL}CFR - LESCOT » est porté par le profil
+                                mais n'existe pas dans ou=structures.{% endcomment %}
+                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle"
+                                      title="Ce code figure sur votre fiche d'annuaire mais aucune entité ne lui correspond dans ou=structures. Le partage vers cette unité n'est pas possible.">
+                                    <i class="fas fa-question"></i> inconnu de l'annuaire
+                                </span>
+                                {% endif %}
+                                {% if r.principal %}<span class="badge bg-primary-subtle text-primary border border-primary-subtle">principal</span>{% endif %}
+                                <span class="ms-1">{{ r.nom|default:r.code }}</span>
+                                {% if r.type %}<small class="text-white-50">· {{ r.type }}</small>{% endif %}
+                                {% if r.nom %}<small class="text-white-50 d-block ms-1">code : <code>{{ r.code }}</code></small>{% endif %}
+                                {% if r.chaine|length > 1 %}
+                                <small class="text-white-50 d-block ms-1">{{ r.chaine|join:" › " }}</small>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <p class="text-white-50 small mb-0">
+                        <i class="fas fa-circle-info me-1"></i>
+                        Ces informations viennent de l'annuaire et se rafraîchissent à chaque
+                        connexion — elles ne se modifient pas ici.
+                        {% if rattachement.partage_possible %}
+                        Elles vous ouvrent le partage au niveau labo dans
+                        <a href="{% url 'common:rag' %}">Mon RAG</a>.
+                        {% else %}
+                        Aucun de vos rattachements n'est reconnu : le partage au niveau labo
+                        restera indisponible.
+                        {% endif %}
+                    </p>
+                    {% else %}
+                    <p class="text-white-50 small mb-0">
+                        <i class="fas fa-circle-info me-1"></i>
+                        Aucun rattachement institutionnel n'est remonté sur ce compte.
+                        {% if is_ldap %}L'annuaire n'expose pas d'entité d'affectation pour vous.
+                        {% else %}Ce compte n'est pas un compte d'annuaire.{% endif %}
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+
             <!-- ── Langue par défaut ────────────────────────────────────── -->
             <div class="card bg-dark border-secondary mb-4">
                 <div class="card-header border-secondary">

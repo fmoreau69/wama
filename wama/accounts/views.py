@@ -223,7 +223,50 @@ def profile_view(request):
         'languages': LANGUAGE_CHOICES,
         'is_ldap': _is_ldap_user(request),
         'channel_links': liaisons,
+        'rattachement': rattachement_institutionnel(profile),
     })
+
+
+def rattachement_institutionnel(profile):
+    """L'appartenance organisationnelle du profil, RÉSOLUE contre l'arbre `OrgUnit`.
+
+    Ces champs arrivent de l'annuaire (SUPANN, à chaque connexion — `accounts/ldap.py`) et
+    n'étaient affichés NULLE PART : le profil de Fabien portait ses trois rattachements depuis
+    des mois sans qu'on puisse les voir. Les montrer n'est pas cosmétique — c'est ce qui
+    explique à l'utilisateur pourquoi le niveau « RAG du labo » lui est ouvert… ou refusé.
+
+    Chaque rattachement est marqué RECONNU (une `OrgUnit` existe, donc le partage au labo
+    fonctionne) ou INCONNU. Un code inconnu n'est pas forcément une erreur de WAMA : mesuré le
+    2026-08-22, « {EIFFEL}CFR - LESCOT » est porté par le profil mais absent de `ou=structures`.
+    Le dire évite de chercher un bug ici.
+    """
+    from wama.common.models import OrgUnit
+
+    codes = list(profile.org_affiliations or [])
+    if profile.org_entity_code and profile.org_entity_code not in codes:
+        codes.insert(0, profile.org_entity_code)
+    connues = {u.code: u for u in OrgUnit.objects.filter(code__in=codes)}
+
+    rattachements = []
+    for code in codes:
+        unite = connues.get(code)
+        rattachements.append({
+            'code': code,
+            'nom': unite.name if unite else '',
+            'type': unite.get_unit_type_display() if unite else '',
+            'reconnu': unite is not None,
+            'principal': code == profile.org_entity_code,
+            # La chaîne d'ancêtres EST le mécanisme d'héritage du RAG : un document partagé au
+            # labo est visible depuis une équipe fille. L'afficher rend l'héritage lisible.
+            'chaine': [u.name for u in unite.ancestors()] if unite else [],
+        })
+    return {
+        'etablissement': profile.establishment,
+        'affiliation_ldap': profile.ldap_affiliation,
+        'rattachements': rattachements,
+        'partage_possible': [r for r in rattachements if r['reconnu']],
+        'hierarchie': profile.org_hierarchy or [],
+    }
 
 
 @login_required

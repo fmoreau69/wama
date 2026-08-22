@@ -466,3 +466,84 @@ class SurfacesDuGesteTests(TestCase):
         self.client.force_login(self.autre)
         r = self.client.get('/common/rag/')
         self.assertEqual(r.context['total'], 0)
+
+
+class RattachementMultipleTests(TestCase):
+    """
+    LE cas réel qui bloquait le niveau labo (mesuré sur le profil de Fabien, 2026-08-22).
+
+    L'annuaire UGE porte les codes HÉRITÉS (« {IFSTTAR}LESCOT ») À CÔTÉ des codes actuels
+    (« CFR - LESCOT ») pour le MÊME laboratoire : l'utilisateur a donc plusieurs rattachements
+    sans être membre de plusieurs labos. `_resoudre_unite` refuse alors de deviner — à raison,
+    un partage parti dans la mauvaise entité ne se voit pas — mais sans réglage d'unité cible le
+    niveau labo devenait INATTEIGNABLE. Ces tests protègent la sortie de ce blocage.
+    """
+
+    def setUp(self):
+        from wama.common.utils.detail_registry import DetailRegistry
+
+        self.actuel = OrgUnit.objects.create(code='CFR - LESCOT', name='LESCOT',
+                                             unit_type='labo')
+        self.herite = OrgUnit.objects.create(code='{IFSTTAR}LESCOT', name='{IFSTTAR}LESCOT',
+                                             unit_type='autre')
+        self.u = User.objects.create_user('multi', password='x')
+        prof = self.u.profile
+        # Trois codes, dont un FANTÔME absent de l'annuaire — exactement le profil mesuré.
+        prof.org_affiliations = ['{IFSTTAR}LESCOT', 'CFR - LESCOT', '{EIFFEL}CFR - LESCOT']
+        prof.rag_niveau_defaut = 'unit'
+        prof.save()
+
+        self.item = MemoryItem.objects.create(subject='p', content='x', user=self.u,
+                                              provenance=MemoryItem.PROV_PROJECTION)
+        avant = dict(DetailRegistry._registry)
+        DetailRegistry.register('apptest', MemoryItem,
+                                lambda i: {'id': i.pk, 'result_text': 'compte rendu de réunion'})
+        self.addCleanup(lambda: DetailRegistry._registry.clear()
+                        or DetailRegistry._registry.update(avant))
+        self.client.force_login(self.u)
+
+    def _ajouter(self):
+        return self.client.post('/common/api/rag/ajouter/',
+                                {'app': 'apptest', 'pk': self.item.pk})
+
+    def test_sans_unite_choisie_le_partage_est_refuse_et_MOTIVE(self):
+        r = self._ajouter()
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('nommer', r.json()['erreur'])       # refus explicite, pas un plantage
+        self.assertEqual(RagChunk.objects.count(), 0)
+
+    def test_l_unite_par_defaut_du_profil_debloque_le_partage(self):
+        prof = self.u.profile
+        prof.rag_unite_defaut = 'CFR - LESCOT'
+        prof.save()
+        r = self._ajouter()
+        self.assertEqual(r.status_code, 200)
+        chunk = RagChunk.objects.filter(user=self.u).first()
+        self.assertEqual(chunk.visibility, ScopedVisibility.VIS_UNIT)
+        self.assertEqual(chunk.scope_org_unit_id, self.actuel.id)
+
+    def test_la_page_ne_propose_que_les_unites_RESOLUES(self):
+        r = self.client.get('/common/rag/')
+        codes = {u['code'] for u in r.context['unites']}
+        # Le code fantôme est écarté : proposer un choix qui échouerait ensuite serait pire
+        # que ne pas le proposer.
+        self.assertEqual(codes, {'CFR - LESCOT', '{IFSTTAR}LESCOT'})
+
+    def test_on_ne_peut_pas_choisir_une_unite_dont_on_n_est_pas_membre(self):
+        OrgUnit.objects.create(code='AUTRE-LABO', name='Autre labo', unit_type='labo')
+        r = self.client.post('/common/api/rag/preference/',
+                             {'unite_soumise': '1', 'unite_defaut': 'AUTRE-LABO'})
+        self.assertEqual(r.status_code, 400)
+        self.u.profile.refresh_from_db()
+        self.assertEqual(self.u.profile.rag_unite_defaut, '')
+
+
+class SyncOrgUnitsTests(TestCase):
+    """`deviner_type` est du best-effort ASSUMÉ : le type d'unité est cosmétique, l'héritage
+    RAG ne dépend que de `parent`. Ces tests fixent le comportement, pas une exactitude."""
+
+    def test_types_devines_depuis_le_code_ou_le_type_supann(self):
+        from wama.accounts.management.commands.sync_org_units import deviner_type
+        self.assertEqual(deviner_type('{EIFFEL}CR-LR', 'CFR - LESCOT'), 'labo')
+        self.assertEqual(deviner_type('', 'UNIV-EIFFEL'), 'universite')
+        self.assertEqual(deviner_type('', '{IFSTTAR}'), 'autre')     # repli silencieux
