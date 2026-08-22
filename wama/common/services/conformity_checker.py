@@ -445,6 +445,49 @@ def _duplicate_wiring(f: _AppFiles):
     return False, None
 
 
+def _delete_wiring(f: _AppFiles):
+    """Suppression d'un ÉLÉMENT câblée sur la brique `queue-actions.js` — jumeau de
+    `_duplicate_wiring`, écrit le 2026-08-22 le jour où la brique a existé.
+
+    ⚠ POURQUOI IL N'EXISTAIT PAS AVANT, et ce que ça dit de la grille (question de Fabien).
+    La duplication avait son critère depuis longtemps ; la suppression n'en avait aucun, non
+    par oubli mais parce qu'il n'y avait **pas de brique** : le registre des mécanismes recense
+    ce qui EXISTE, donc `mecanismes_sans_critere()` ne pouvait rien signaler d'absent. Le point
+    aveugle de la grille n'est pas « un mécanisme sans critère » — celui-là est détecté — c'est
+    **« un geste sans brique »** : 10 apps faisant la même chose de 6 façons, sans domicile
+    commun, et aucun instrument n'avait de nom pour ça. C'est le scénario fonctionnel
+    `<app>.duplicate_delete` qui l'a trouvé, en butant sur le nommage réel.
+
+    Les 6 graphies relevées ce jour-là : `delete-btn` (6 apps), `job-delete-btn` (converter ×2),
+    `btn-delete-job` (avatarizer), `js-audio-delete`/`js-delete-enhancement` (enhancer),
+    `video-delete-btn` (imager vidéo), `data-action="delete"` sans classe (reader).
+    """
+    # Le contrat de la brique est un COUPLE : la classe `.delete-btn` ET l'attribut
+    # `data-delete-url`. Mesurer le seul attribut produit un FAUX VERT — constaté sur enhancer
+    # dans la minute qui a suivi l'écriture de ce critère : il porte `data-delete-url` sur un
+    # bouton `js-delete-enhancement`, donc la délégation ne se déclenche JAMAIS et le critère
+    # validait un câblage inexistant.
+    data_url = f.find_code(TEMPLATES, r'class="[^"]*(?<![\w-])delete-btn[^"]*"[^>]*data-delete-url'
+                                      r'|data-delete-url[^>]*class="[^"]*(?<![\w-])delete-btn')
+    # (?<![\w-]) : ne compter NI `.batch-delete-btn` (card mère, hors périmètre), NI les
+    # graphies préfixées (`job-delete-btn`…) — celles-ci sont justement ce qu'on veut voir
+    # rester en `partial` tant que l'app n'est pas portée.
+    # `find_code` et NON `find` : le converter portait un COMMENTAIRE disant « la brique délègue
+    # sur `.delete-btn` », et un `find` brut y lisait un handler local — donc un faux DOUBLE-FIRE
+    # sur l'app justement portée. Exactement la leçon d'`inspector_adapters` (19/08), refaite le
+    # jour même : un critère qu'un commentaire fait mentir devine au lieu de mesurer.
+    local = f.find_code(JS, r"(?<![\w-])\.delete-btn|(?<![\w-])delete-btn'\)|(?<![\w-])delete-btn\"\)")
+    if data_url and not local:
+        return True, data_url
+    if data_url and local:
+        # Exactement le défaut que §3 de CARD_DESIGN décrit : l'app ET la brique répondent au
+        # même clic, donc DEUX requêtes de suppression. Le portage doit être ATOMIQUE.
+        return False, f"DOUBLE-FIRE possible: brique + handler local {local}"
+    if local:
+        return 'partial', f"{local} (impl locale, brique queue-actions non consommée)"
+    return False, None
+
+
 def _help_about(f: _AppFiles):
     # Durci 2026-08-11 : l'ancien motif `class (Help|About)View` mesurait la PRÉSENCE d'une
     # classe — or 9 apps sur 10 rendaient 500 (templates fantômes), et le seul 200 (converter)
@@ -1058,6 +1101,10 @@ CRITERIA: list[Criterion] = [
               mecanisme='app_base_js'),
     Criterion('duplicate_wiring', 'F5', 'Duplication via la brique (handler UNIQUE)', _duplicate_wiring,
               mecanisme='queue_duplication'),
+    # Jumeau du précédent, ajouté le 2026-08-22 EN MÊME TEMPS que la brique de suppression :
+    # tant qu'aucun domicile commun n'existait, il n'y avait rien à mesurer (cf. `_delete_wiring`).
+    Criterion('delete_wiring', 'F5', 'Suppression via la brique (handler UNIQUE)', _delete_wiring,
+              mecanisme='queue_front'),
     Criterion('duplicate_instance', 'F5', 'duplicate_instance() (brique commune)',
               lambda f: _present(f, VIEWS, r'duplicate_instance'),
               mecanisme='queue_duplication'),
