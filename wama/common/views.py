@@ -215,17 +215,28 @@ def registre_refresh(request, cle):
     un endpoint par catalogue était la dérive à arrêter — il y en avait déjà deux, avec des
     réponses de formes différentes.
     """
-    from .registries import get, rafraichir
+    from .registries import execution_de, get, lancer
     try:
         registre = get(cle)
     except KeyError as e:
         return JsonResponse({'ok': False, 'error': str(e)}, status=404)
-    res = rafraichir(cle, user=request.user)
-    if not res.ok and any('réservé' in m for m in res.messages):
-        return JsonResponse({'ok': False, 'error': res.messages[0]}, status=403)
-    charge = res.en_dict()
-    charge['registre'] = {'cle': registre.cle, 'nom': registre.nom, 'nature': registre.nature}
-    return JsonResponse(charge, status=200 if res.ok else 500)
+    charge = lancer(cle, user=request.user)
+    if not charge.get('ok') and 'réservé' in (charge.get('error') or ''):
+        return JsonResponse(charge, status=403)
+    charge['registre'] = {'cle': registre.cle, 'nom': registre.nom, 'nature': registre.nature,
+                          'execution': execution_de(registre)}
+    # ⚠ Une actualisation MISE EN FILE est un succès de mise en file, pas un succès d'exécution :
+    # elle rend 202, et le client interroge `registre_tache`. Rendre 200 laisserait croire que le
+    # travail est fait — or il commence à peine.
+    if charge.get('asynchrone') and charge.get('ok'):
+        return JsonResponse(charge, status=202)
+    return JsonResponse(charge, status=200 if charge.get('ok') else 500)
+
+
+def registre_tache(request, task_id):
+    """État d'une actualisation lancée en arrière-plan. Générique, comme le reste."""
+    from .registries import etat_tache
+    return JsonResponse(etat_tache(task_id))
 
 
 def registres_etat(request):

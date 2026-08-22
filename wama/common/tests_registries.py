@@ -8,8 +8,10 @@ from pathlib import Path
 
 from django.test import TestCase
 
-from .registries import (DERIVE, MESURE, REGISTRES, Registre, Resultat, autorise, enregistrer,
-                         etat, get, rafraichir)
+from .registries import (CELERY, DERIVE, MESURE, PROCESSUS, REDECLARATION, REGISTRES, Registre,
+                         Resultat, _cache, _cle_version, _VERSIONS_VUES, autorise, enregistrer,
+                         etat, execution_de, get, lancer, marquer_actualise, rafraichir,
+                         synchroniser)
 
 
 class _Anon:
@@ -199,6 +201,82 @@ register(FunctionSpec(key='_sonde_test', name='Sonde', description='test',
         self.assertTrue(res.ok, f"l'actualisation ne doit pas échouer : {res.messages}")
         self.assertNotIn('_sonde_test', self._catalogue())
         self.assertEqual(len(self._catalogue()), avant)
+
+
+class ExecutionTest(TestCase):
+    """OÙ tourne l'actualisation — imposé par la nature, jamais laissé au hasard.
+
+    ⚠ Mesuré le 2026-08-22 : en synchrone dans gunicorn, `apps` bloquait un worker **31,2 s** et
+    `modeles` **20,6 s**, sur 4 workers × 2 threads = 8 requêtes concurrentes. Les deux boutons
+    d'origine faisaient déjà cela — c'est le défaut que ces tests empêchent de revenir.
+    """
+
+    def tearDown(self):
+        REGISTRES.pop('_t_exec', None)
+
+    def test_un_etat_PARTAGE_part_en_celery(self):
+        self.assertEqual(execution_de(get('modeles')), CELERY)
+        self.assertEqual(execution_de(get('apps')), CELERY)
+
+    def test_un_registre_en_MEMOIRE_reste_dans_le_process(self):
+        # Le faire en Celery rechargerait les modules du worker Celery, pas ceux des processus
+        # qui servent les pages : l'actualisation n'aurait aucun effet visible.
+        self.assertEqual(execution_de(get('fonctions')), PROCESSUS)
+        self.assertEqual(execution_de(get('skills')), PROCESSUS)
+
+    def test_memoire_plus_celery_est_REFUSE(self):
+        with self.assertRaises(ValueError) as ctx:
+            enregistrer(Registre(cle='_t_exec', nom='x', nature=REDECLARATION, source='s',
+                                 rafraichir=lambda: Resultat(), execution=CELERY))
+        self.assertIn('MÉMOIRE', str(ctx.exception))
+
+    def test_execution_inconnue_refusee(self):
+        with self.assertRaises(ValueError):
+            enregistrer(Registre(cle='_t_exec', nom='x', nature=MESURE, source='s',
+                                 rafraichir=lambda: Resultat(), execution='ailleurs'))
+
+    def test_lancer_rend_la_main_pour_un_registre_en_memoire(self):
+        d = lancer('skills')
+        self.assertTrue(d['ok'])
+        self.assertFalse(d['asynchrone'], "un registre en mémoire s'exécute sur place")
+        self.assertIn('resume', d)
+
+
+class PropagationTest(TestCase):
+    """Le trou qu'un registre en mémoire creuse forcément : gunicorn tourne à 4 workers.
+
+    Sans propagation, actualiser dans l'un laisse les trois autres périmés — l'utilisateur verrait
+    son total changer d'un rechargement à l'autre. Un mécanisme à moitié efficace est pire
+    qu'aucun : il donne l'impression d'avoir agi.
+    """
+
+    def test_actualiser_incremente_la_version_partagee(self):
+        cache = _cache()
+        if cache is None:
+            self.skipTest("cache indisponible — la propagation est facultative")
+        avant = int(cache.get(_cle_version('fonctions')) or 0)
+        marquer_actualise('fonctions')
+        self.assertEqual(int(cache.get(_cle_version('fonctions')) or 0), avant + 1)
+
+    def test_un_processus_en_retard_se_resynchronise(self):
+        if _cache() is None:
+            self.skipTest("cache indisponible")
+        marquer_actualise('fonctions')
+        vue = _VERSIONS_VUES['fonctions']
+        _VERSIONS_VUES['fonctions'] = vue - 1          # simule un AUTRE worker
+        self.assertTrue(synchroniser('fonctions'))
+        self.assertEqual(_VERSIONS_VUES['fonctions'], vue)
+
+    def test_a_jour_il_ne_recharge_PAS(self):
+        if _cache() is None:
+            self.skipTest("cache indisponible")
+        marquer_actualise('fonctions')
+        self.assertFalse(synchroniser('fonctions'), "le coût d'un passage doit être une lecture")
+
+    def test_rien_a_propager_pour_les_autres_natures(self):
+        # Un état partagé (base, rapport) est déjà commun à tous les processus.
+        self.assertFalse(synchroniser('modeles'))
+        self.assertFalse(synchroniser('licences'))
 
 
 class ResumeTest(TestCase):

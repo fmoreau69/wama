@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load wama_catalog %}
 {% load static %}
 {% load wama_static %}
 
@@ -241,18 +242,14 @@
         <h2 class="h5 text-white mb-0"><i class="fas fa-table me-2 text-secondary"></i>Grille de conformité</h2>
         <div class="d-flex align-items-center gap-2">
             <small class="text-white-50" id="conformityMeasuredAt">{% if conformity_measured_at %}mesurée le {{ conformity_measured_at }}{% endif %}</small>
-            {% if user.is_staff %}
             {% comment %}
-              Le script inline qui vivait ici (30 lignes) est remplacé par la brique commune
-              `wama-catalog-refresh.js` : la page ne déclare plus que la CLÉ de son registre.
-              C'était le premier des deux boutons recopiés que le mécanisme universel remplace.
+              Le script inline qui vivait ici (30 lignes) est remplacé par le tag commun.
+              ⚠ Écrire le bouton À LA MAIN — même avec le bon attribut — perdait deux choses que
+              le tag apporte : la mention de l'exécution en arrière-plan, et surtout l'appel de
+              resynchronisation entre workers gunicorn. Passer par `{% templatetag openblock %} bouton_actualiser {% templatetag closeblock %}` n'est
+              donc pas cosmétique.
             {% endcomment %}
-            <button type="button" class="btn btn-sm btn-outline-info"
-                    data-wama-refresh="apps" data-refresh-reload="1"
-                    data-refresh-busy="Mesure…">
-                <i class="fas fa-rotate"></i> Re-mesurer
-            </button>
-            {% endif %}
+            {% bouton_actualiser "apps" %}
         </div>
     </div>
     <div class="table-responsive">

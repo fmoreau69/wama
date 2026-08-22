@@ -18,6 +18,34 @@
     'use strict';
 
     var URL_MODELE = '/common/api/registres/__CLE__/refresh/';
+    var URL_TACHE = '/common/api/registres/tache/__ID__/';
+    // Une actualisation en Celery peut durer : mesuré 31 s pour la grille de conformité, 21 s
+    // pour le scan des modèles. On sonde donc jusqu'à 5 minutes, sans jamais bloquer la page.
+    var SONDE_MS = 1500;
+    var SONDE_MAX = 200;
+
+    function attendre(ms) {
+        return new Promise(function (r) { setTimeout(r, ms); });
+    }
+
+    /**
+     * Suit une actualisation lancée en arrière-plan jusqu'à son terme.
+     * Rendre la main tout de suite serait plus simple, mais l'utilisateur resterait devant des
+     * chiffres périmés sans savoir si son clic a servi.
+     */
+    async function suivre(taskId, btn) {
+        for (var i = 0; i < SONDE_MAX; i++) {
+            await attendre(SONDE_MS);
+            var r = await fetch(URL_TACHE.replace('__ID__', encodeURIComponent(taskId)));
+            var d = await r.json();
+            if (d.termine) { return d; }
+            if (btn) {
+                label(btn, 'Actualisation… ' + ((i + 1) * SONDE_MS / 1000 | 0) + ' s', true);
+            }
+        }
+        return { ok: false, termine: false,
+                 error: 'toujours en cours après 5 min — voir les journaux Celery' };
+    }
 
     function csrf() {
         var m = document.cookie.match(/csrftoken=([^;]+)/);
@@ -51,6 +79,14 @@
                 headers: { 'X-CSRFToken': csrf() },
             });
             var d = await reponse.json();
+
+            // 202 = mise en FILE réussie, exécution pas commencée. Traiter ce cas comme un succès
+            // afficherait « aucun changement » alors que le travail démarre à peine.
+            if (reponse.status === 202 && d.task_id) {
+                toast((d.registre ? d.registre.nom + ' : ' : '') +
+                      'actualisation lancée en arrière-plan', 'info');
+                d = await suivre(d.task_id, btn);
+            }
 
             if (!d.ok) {
                 toast(d.error || (d.messages || []).join(' · ') || 'Actualisation impossible',

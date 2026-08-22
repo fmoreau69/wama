@@ -56,6 +56,22 @@ NATURES = {
     DERIVE: "Dérivé à chaque affichage — toujours à jour",
 }
 
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+# OÙ tourne l'actualisation — et ce n'est PAS un réglage libre : la nature l'impose.
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+
+#: Tâche Celery, non bloquante. Le seul choix acceptable dès que l'état est PARTAGÉ (base, fichier
+#: de rapport) : le résultat profite à tout le monde, et le worker web reste libre.
+#: ⚠ Mesuré le 2026-08-22 : en synchrone, `apps` immobilisait un worker gunicorn **31,2 s** et
+#: `modeles` **20,6 s** — sur 4 workers × 2 threads, soit 1/8 du serveur bloqué par un clic. Les
+#: deux boutons d'origine faisaient déjà exactement cela (la docstring annonçait « ~1 s »).
+CELERY = 'celery'
+#: Dans le processus web qui reçoit la requête. OBLIGATOIRE pour un registre en MÉMOIRE : le faire
+#: en Celery rechargerait les modules du worker Celery, pas ceux des processus qui servent les
+#: pages — l'actualisation n'aurait littéralement aucun effet visible.
+PROCESSUS = 'processus'
+EXECUTIONS = {CELERY: "Tâche Celery (non bloquante)", PROCESSUS: "Dans le processus web"}
+
 
 @dataclass
 class Resultat:
@@ -104,6 +120,9 @@ class Registre:
     source: str
     #: Le rafraîchisseur. `None` pour un registre DÉRIVÉ : il n'y a rien à actualiser.
     rafraichir: Optional[Callable[[], Resultat]] = None
+    #: Où il tourne. Laissé vide, il est DÉDUIT de la nature — c'est le bon défaut, parce que la
+    #: nature contraint réellement le lieu (état partagé → Celery ; mémoire du process → sur place).
+    execution: str = ''
     #: Comptage courant, pour afficher un total sans lancer d'actualisation.
     compter: Optional[Callable[[], int]] = None
     url_name: str = ''
@@ -123,12 +142,27 @@ class Registre:
 
 REGISTRES: Dict[str, Registre] = {}
 
+#: Lieu d'exécution IMPOSÉ par la nature. Ce n'est pas une préférence : un état partagé mis à jour
+#: dans le worker web bloque le serveur, et un registre en mémoire actualisé en Celery n'a aucun
+#: effet sur les processus qui servent les pages.
+EXECUTION_PAR_NATURE = {SCAN: CELERY, MESURE: CELERY, REDECLARATION: PROCESSUS}
+
+
+def execution_de(r: Registre) -> str:
+    return r.execution or EXECUTION_PAR_NATURE.get(r.nature, PROCESSUS)
+
 
 def enregistrer(r: Registre) -> Registre:
     if r.cle in REGISTRES:
         raise ValueError(f"registre '{r.cle}' déjà enregistré")
     if r.nature not in NATURES:
         raise ValueError(f"nature '{r.nature}' inconnue (attendu : {', '.join(NATURES)})")
+    if r.execution and r.execution not in EXECUTIONS:
+        raise ValueError(f"exécution '{r.execution}' inconnue (attendu : {', '.join(EXECUTIONS)})")
+    if r.nature == REDECLARATION and r.execution == CELERY:
+        raise ValueError(
+            f"'{r.cle}' : un registre en MÉMOIRE ne peut pas s'actualiser en Celery — le worker "
+            f"rechargerait ses propres modules, pas ceux des processus qui servent les pages")
     if r.nature == DERIVE and r.rafraichir is not None:
         raise ValueError(
             f"'{r.cle}' : un registre DÉRIVÉ ne peut pas avoir de rafraîchisseur — s'il en a un, "
@@ -155,8 +189,94 @@ def autorise(r: Registre, user) -> bool:
     return bool(user and user.is_authenticated)
 
 
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+# PROPAGATION entre processus — le trou qu'un registre en mémoire creuse forcément
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+
+#: Version vue par CE processus, par clé. Comparée à un compteur partagé dans Redis.
+_VERSIONS_VUES: Dict[str, int] = {}
+
+
+def _cle_version(cle: str) -> str:
+    return f"wama:registre:{cle}:version"
+
+
+def _cache():
+    """Le cache Django — PAS un client Redis direct.
+
+    ⚠ Première version écrite avec `django_redis.get_redis_connection` : le paquet **n'est pas
+    installé** ici (WAMA emploie le backend Redis natif de Django, `CACHES` → `RedisCache`). La
+    propagation se désactivait donc en silence, et seule la vérification l'a vu. Passer par l'API
+    de cache la rend indépendante du backend — et si celui-ci devient local par processus, on perd
+    la propagation sans rien casser d'autre.
+    """
+    try:
+        from django.core.cache import cache
+        return cache
+    except Exception:
+        return None
+
+
+def _version_partagee(cle: str) -> Optional[int]:
+    c = _cache()
+    if c is None:
+        return None
+    try:
+        return int(c.get(_cle_version(cle)) or 0)
+    except Exception:
+        return None
+
+
+def marquer_actualise(cle: str) -> None:
+    """Signale aux AUTRES processus qu'ils sont périmés.
+
+    ⚠ Sans cela, un registre en mémoire actualisé n'est à jour que dans le worker qui a reçu le
+    clic. Gunicorn en fait tourner **4** : l'utilisateur verrait « 40 fonctions », rechargerait, et
+    retomberait sur « 39 » une fois sur deux. Un mécanisme à moitié efficace est pire qu'aucun,
+    parce qu'il donne l'impression d'avoir agi.
+    """
+    c = _cache()
+    if c is None:
+        return
+    try:
+        # `incr` lève si la clé n'existe pas — `add` ne l'écrase pas si un autre processus l'a
+        # déjà posée entre-temps, ce qui rend l'amorçage sûr à plusieurs.
+        c.add(_cle_version(cle), 0, timeout=None)
+        _VERSIONS_VUES[cle] = int(c.incr(_cle_version(cle)))
+    except Exception:
+        logger.debug("propagation de '%s' impossible", cle, exc_info=True)
+
+
+def synchroniser(cle: str) -> bool:
+    """Recharge SI un autre processus a actualisé depuis notre dernier passage. Rend True s'il a
+    fallu recharger.
+
+    Appelé au rendu de chaque page catalogue (via le tag `bouton_actualiser`) : une lecture Redis,
+    et un rechargement seulement quand quelqu'un a réellement actualisé. C'est le prix minimal pour
+    que la même déclaration donne le bouton ET la cohérence entre workers.
+    """
+    r = REGISTRES.get(cle)
+    if r is None or r.nature != REDECLARATION:
+        return False           # les autres écrivent dans un état partagé : rien à propager
+    partagee = _version_partagee(cle)
+    if partagee is None or partagee <= _VERSIONS_VUES.get(cle, 0):
+        return False
+    try:
+        r.rafraichir()
+        _VERSIONS_VUES[cle] = partagee
+        logger.info("registre '%s' resynchronisé depuis un autre processus (v%s)", cle, partagee)
+        return True
+    except Exception:
+        logger.warning("resynchronisation de '%s' en échec", cle, exc_info=True)
+        return False
+
+
 def rafraichir(cle: str, *, user=None) -> Resultat:
-    """LE point d'entrée unique. Vérifie la permission, chronomètre, uniformise le compte-rendu.
+    """Exécute l'actualisation ICI, en synchrone. Chronomètre et uniformise le compte-rendu.
+
+    ⚠ Ce n'est PAS le point d'entrée des vues : pour un registre en Celery, la vue doit passer par
+    `lancer()`, sinon elle bloque un worker web (31 s mesurées pour `apps`). Cette fonction est
+    ce que la tâche Celery appelle, et ce que les registres en mémoire utilisent directement.
 
     Une exception du rafraîchisseur devient un `Resultat` en échec plutôt qu'une 500 : une
     actualisation qui plante ne doit pas emporter la page qu'elle sert.
@@ -178,7 +298,54 @@ def rafraichir(cle: str, *, user=None) -> Resultat:
     res.duree_s = time.monotonic() - t0
     if not res.total:
         res.total = _compter(r)
+    if res.ok and r.nature == REDECLARATION:
+        marquer_actualise(cle)
     return res
+
+
+def lancer(cle: str, *, user=None) -> dict:
+    """LE point d'entrée des vues. Décide où l'actualisation tourne et rend une réponse immédiate.
+
+    - registre en Celery  → met la tâche en file, rend `{'asynchrone': True, 'task_id': …}` ;
+    - registre en mémoire → exécute sur place (mesuré < 0,4 s) et rend le compte-rendu complet.
+
+    Si le courtier Celery est injoignable, on le DIT au lieu de basculer en synchrone : un repli
+    silencieux rendrait la page muette 31 secondes, ce qui ressemble à une panne réseau.
+    """
+    r = get(cle)
+    if user is not None and not autorise(r, user):
+        return {'ok': False, 'error': f"réservé au {r.permission}"}
+    if r.nature == DERIVE:
+        return dict(rafraichir(cle).en_dict(), asynchrone=False)
+
+    if execution_de(r) == PROCESSUS:
+        return dict(rafraichir(cle).en_dict(), asynchrone=False)
+
+    try:
+        from .tasks import rafraichir_registre
+        tache = rafraichir_registre.delay(cle)
+    except Exception as e:                       # noqa: BLE001
+        logger.warning("mise en file de '%s' impossible", cle, exc_info=True)
+        return {'ok': False, 'asynchrone': True,
+                'error': f"file de tâches injoignable — actualisation non lancée ({str(e)[:120]})"}
+    return {'ok': True, 'asynchrone': True, 'task_id': tache.id,
+            'resume': f"{r.nom} : actualisation lancée en arrière-plan"}
+
+
+def etat_tache(task_id: str) -> dict:
+    """État d'une actualisation lancée en Celery — de quoi faire patienter l'utilisateur."""
+    try:
+        from celery.result import AsyncResult
+        res = AsyncResult(task_id)
+    except Exception as e:                       # noqa: BLE001
+        return {'ok': False, 'termine': True, 'error': str(e)[:200]}
+    if not res.ready():
+        return {'ok': True, 'termine': False, 'etat': res.state}
+    if res.failed():
+        return {'ok': False, 'termine': True, 'etat': res.state,
+                'error': str(res.result)[:300]}
+    charge = res.result if isinstance(res.result, dict) else {}
+    return dict({'ok': True, 'termine': True, 'etat': res.state}, **charge)
 
 
 def _compter(r: Registre) -> int:

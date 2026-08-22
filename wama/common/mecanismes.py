@@ -455,7 +455,9 @@ MECANISMES = (
               "REGISTRE des registres : une page catalogue déclare la CLÉ de son registre et "
               "hérite du bouton, de l'endpoint, de la permission et du compte-rendu. La NATURE "
               "déclarée (scan / mesure / re-déclaration / DÉRIVÉ) décide du rendu — un dérivé "
-              "affiche « toujours à jour » au lieu d'un bouton qui ne ferait rien",
+              "affiche « toujours à jour » au lieu d'un bouton qui ne ferait rien — ET le LIEU "
+              "d'exécution : état partagé → tâche Celery non bloquante, registre en mémoire → "
+              "sur place, avec propagation aux autres workers gunicorn",
               'wama/common/registries.py', '',
               annexes=('wama/common/registries_builtin.py',
                        'wama/common/static/common/js/wama-catalog-refresh.js',

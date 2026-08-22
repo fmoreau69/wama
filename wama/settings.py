@@ -533,6 +533,11 @@ if ENABLE_CELERY:
         # Charge des modèles → queue GPU, mais palier le plus BAS : une campagne
         # de tests nocturnes ne doit jamais passer devant un traitement demandé.
         'common.run_nightly_tests': {'queue': 'gpu', 'priority': _prio('_nightly_tests')},
+        # Actualisation d'un catalogue (scan disque, greps de code) : CPU pur, JAMAIS de GPU.
+        # Elle tomberait déjà sur `default` par défaut — on la déclare parce qu'une tâche
+        # générique, appelable pour n'importe quel registre présent ou futur, ne doit pas
+        # dépendre d'un défaut pour rester hors de la file GPU.
+        'common.rafraichir_registre': {'queue': 'default'},
         # Passe LLM de la prospection : GPU (Ollama hôte = même carte) en --pool=solo →
         # SÉRIALISÉE derrière tout traitement utilisateur, jamais en concurrence (2026-08-19).
         'model_manager.assess_proposed': {'queue': 'gpu', 'priority': _prio('_prospect_assess')},

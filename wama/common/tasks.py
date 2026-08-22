@@ -98,6 +98,26 @@ def enrich_prompt_at_ingest_task(app_label, model_name, pk):
     return {'enriched': done}
 
 
+@shared_task(name='common.rafraichir_registre')
+def rafraichir_registre(cle: str):
+    """Actualise UN registre catalogué, hors du processus web.
+
+    Générique par construction : la tâche ne connaît aucun catalogue, elle exécute celui que la
+    clé désigne. Ajouter un catalogue n'ajoute donc pas de tâche — c'est tout l'intérêt du registre
+    keyé, et la raison pour laquelle il n'y a pas ici de `sync_models_task` bis.
+
+    ⚠ Ne convient QU'aux registres dont l'état est PARTAGÉ (base, fichier de rapport). Un registre
+    en mémoire actualisé ici rechargerait les modules de CE worker, pas ceux des processus qui
+    servent les pages — `registries.enregistrer()` refuse d'ailleurs cette combinaison.
+
+    Mesuré le 2026-08-22, et c'est ce qui a motivé la tâche : en synchrone dans gunicorn, `apps`
+    bloquait un worker 31,2 s et `modeles` 20,6 s, sur 8 requêtes concurrentes au total.
+    """
+    from .registries import rafraichir
+    res = rafraichir(cle)
+    return res.en_dict()
+
+
 @shared_task(name='common.run_nightly_tests')
 def run_nightly_tests_task(app=None, stage=None):
     """

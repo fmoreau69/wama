@@ -36,6 +36,7 @@ urlpatterns = [
     # Actualisation UNIVERSELLE des catalogues : une route pour tous les registres.
     path('api/registres/', views.registres_etat, name='registres_etat'),
     path('api/registres/<str:cle>/refresh/', views.registre_refresh, name='registre_refresh'),
+    path('api/registres/tache/<str:task_id>/', views.registre_tache, name='registre_tache'),
     # ⚠ Conservée comme ALIAS : des pages et des scripts l'appellent. Équivaut désormais à
     # `registre_refresh('apps')` — ne PAS en créer d'autres de ce genre.
     path('api/conformity/refresh/', views.conformity_refresh, name='conformity_refresh'),

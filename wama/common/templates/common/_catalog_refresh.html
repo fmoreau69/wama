@@ -17,8 +17,10 @@ déclarée : un bouton sur une page dérivée ne ferait rien tout en suggérant 
           data-wama-refresh="{{ cle }}"
           data-refresh-reload="{{ recharger }}"
           data-refresh-busy="Actualisation…"
-          title="{{ registre.description }}&#10;&#10;Source : {{ registre.source }}">
-    <i class="fas fa-rotate"></i> Actualiser
+          title="{{ registre.description }}&#10;&#10;Source : {{ registre.source }}&#10;Exécution : {{ execution_label }}">
+    <i class="fas fa-rotate"></i> Actualiser{% if en_arriere_plan %}
+    <i class="fas fa-clock-rotate-left ms-1 small opacity-75"
+       title="S'exécute en arrière-plan — la page reste utilisable"></i>{% endif %}
   </button>
 {% else %}
   <span class="text-white-50 small"
