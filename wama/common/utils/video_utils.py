@@ -163,7 +163,13 @@ def upload_media_from_url(url, output_path):
 
     For YouTube URLs, try yt_dlp with youtube-specific extractor args and proper headers. If that
     fails, fallback to pytube. For generic HTTP URLs, stream with a desktop-like User-Agent.
+
+    ⚠ Point d'entrée de TÉLÉCHARGEMENT piloté par une saisie utilisateur (champ URL, fichier de
+    lot, ingest déclaratif) : la cible est validée AVANT toute sortie réseau — sans quoi le
+    serveur interroge le réseau interne avec ses droits à lui (SSRF, cf. `url_guard`).
     """
+    from wama.common.utils.url_guard import verifier_url
+    verifier_url(url)
     try:
         # YouTube and similar platforms
         if 'youtube.com' in url or 'youtu.be' in url:

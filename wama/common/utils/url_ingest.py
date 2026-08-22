@@ -85,7 +85,13 @@ def fetch_html_as_text(url: str, temp_dir: str) -> str:
                       '(KHTML, like Gecko) Chrome/122 Safari/537.36',
         'Accept-Language': 'en-US,en;q=0.9',
     }
+    # Garde de sortie AVANT la requête, puis re-validation des REDIRECTIONS suivies : une
+    # cible publique peut rediriger vers une adresse interne, et ne valider que l'URL saisie
+    # laisserait passer exactement ce qu'on cherche à empêcher (cf. url_guard).
+    from wama.common.utils.url_guard import verifier_url, verifier_redirections
+    verifier_url(url)
     resp = requests.get(url, headers=headers, timeout=20)
+    verifier_redirections(resp)
     resp.raise_for_status()
 
     soup = BeautifulSoup(resp.text, 'lxml')
@@ -139,6 +145,11 @@ def fetch_url_content(url: str, dest_dir: str) -> str:
     upload_media_from_url (YouTube/HTTP) + sniff HTML post-download.
     """
     from wama.common.utils.video_utils import upload_media_from_url
+    from wama.common.utils.url_guard import verifier_url
+
+    # Validée ICI aussi, et pas seulement dans les appelés : le `requests.head` ci-dessous est
+    # une sortie réseau à part entière — c'est déjà une sonde exploitable.
+    verifier_url(url)
 
     is_media_platform = any(d in url for d in MEDIA_PLATFORM_DOMAINS)
     has_media_ext = url.lower().split('?')[0].endswith(MEDIA_EXTS)
