@@ -300,12 +300,65 @@ def _fait_mecanismes():
     return '\n'.join(lignes)
 
 
+def _fait_wama_data() -> str:
+    """État d'avancement MESURÉ des modules de WAMA Data.
+
+    Pourquoi ce fait existe (2026-08-22) : `PROJECT_STATUS §39` annonçait « 10 DataType » et
+    « 19 fonctions » alors que le réel était 11 et 31, et ignorait deux briques entières. Un état
+    écrit à la main dérive ; celui-ci est calculé depuis le code à chaque régénération.
+
+    La colonne qui compte le plus est **Conso.** : elle sépare « livré » de « livré ET utilisé ».
+    Une brique sans consommateur est inerte — l'afficher évite de confondre écrire du code et
+    avancer, ce qui est arrivé au référentiel temporel (440 lignes, 0 appelant).
+    """
+    from wama.common.data.modules import mesurer
+
+    etats = mesurer()
+    legende = {'✅': 'livré et consommé', '🔶': 'livré mais INERTE',
+               '🔄': 'partiel', '⏳': 'non commencé'}
+    compte = {}
+    for e in etats:
+        compte[e['etat']] = compte.get(e['etat'], 0) + 1
+
+    externe_total = sum(e['externe'] for e in etats)
+    lignes = ["> Mesuré depuis le code — **ne pas éditer à la main** (`python manage.py doc_facts`).",
+              "> Registre des modules : `wama/common/data/modules.py`.", "",
+              "**Bilan** : " + " · ".join(f"{n} {s} ({legende[s]})"
+                                          for s, n in sorted(compte.items())), ""]
+    if not externe_total:
+        lignes += ["> 🔶 **AUCUN consommateur hors `common/data/` — le sous-système entier est "
+                   "INERTE.** Aucune app, tâche ou route ne s'en sert encore : les briques "
+                   "s'appellent entre elles, et c'est tout. Le premier module à donner un usage "
+                   "réel fera basculer ces lignes en ✅.", ""]
+    lignes += ["| Module | Rôle | Flux | État | Briques | Testées | Conso. int/ext | Doc |",
+               "|---|---|---|---|---|---|---|---|"]
+    for e in etats:
+        b = f"{e['briques'][0]}/{e['briques'][1]}" if e['briques'][1] else "—"
+        t = str(e['testees']) if e['briques'][1] else "—"
+        c = f"{e['interne']}/{e['externe']}" if e['briques'][0] else "—"
+        # Une barre verticale dans une cellule casse la colonne, et un `flux` porte déjà ses
+        # propres backticks : on échappe la barre et on n'en rajoute pas.
+        flux = e['flux'].replace('|', '\\|')
+        lignes.append(f"| **{e['nom']}** | {e['role']} | {flux} | {e['etat']} | "
+                      f"{b} | {t} | {c} | {e['doc'] or '—'} |")
+
+    bloques = [e for e in etats if e['bloque_par']]
+    if bloques:
+        lignes.append(f"\n<details><summary>⚠ <b>{len(bloques)} module(s) avec un blocage "
+                      f"déclaré</b> — ce qui empêche d'avancer, en une ligne</summary>\n")
+        for e in bloques:
+            lignes.append(f"- **{e['nom']}** — {e['bloque_par']}")
+        lignes.append("\n</details>")
+    return '\n'.join(lignes)
+
+
 # fait → (fichier de référence, fonction). Un fait vit dans UN doc (un domaine = un fichier).
 FAITS = {
     'outils': ('WAMA_APP_GENERATION_ROUTE.md', _fait_outils),
     'modeles': ('WAMA_MANIFEST_SPEC.md', _fait_modeles),
     'roundtrip': ('WAMA_MANIFEST_ARCHITECTURE.md', _fait_roundtrip),
     'mecanismes': ('WAMA_MECANISMES.md', _fait_mecanismes),
+    'wama_data': ('WAMA_DATA_WORLD.md', _fait_wama_data),
 }
 
 OUVRANT = "<!-- WAMA:FAITS({fid}) — généré par « python manage.py doc_facts », ne pas éditer -->"

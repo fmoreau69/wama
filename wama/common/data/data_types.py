@@ -25,11 +25,17 @@ class DataType:
     # segments au sens de ce type : le même outillage (segmenter, calculer par segment, exporter
     # par segment) s'applique sans traduction. Ce n'est pas un choix de nom, c'est une unification.
     #
-    # Un segment absorbe les trois notions rencontrées ailleurs :
-    #   • « situation » (fenêtre porteuse de sens, ancrée sur un événement) ;
-    #   • « état »      (plage de valeur constante d'un signal catégoriel — run-length) ;
-    #   • « section »   (portion de parcours) — désormais un simple cas d'usage.
-    # Un seul type, plusieurs producteurs. Aucune valeur n'était persistée : renommage sans migration.
+    # ⚠ `segment` est le MODÈLE, jamais le mot montré à l'utilisateur (arbitrage Fabien, 2026-08-22).
+    # L'UI parle de **situation** et d'**état** — deux présentations métier du même type technique :
+    #   • « situation » : fenêtre porteuse de sens, ancrée sur un événement ;
+    #   • « état »      : plage de valeur constante d'un signal catégoriel (run-length) ;
+    #   • « section »   : portion de parcours — un cas d'usage de plus, côté conduite.
+    # Un seul type, plusieurs producteurs, plusieurs libellés. C'est la règle métadonnée-driven
+    # habituelle : le vocabulaire métier vit dans la déclaration, pas dans le type.
+    # ⚠ Corollaire (note PROJECT_STATUS du 2026-08-05, vérifiée le 22/08) : ne JAMAIS nommer un
+    # modèle Django `Segment` — « segment » est déjà pris par l'anonymizer au sens SPATIAL (tâche
+    # YOLO de segmentation d'image), sens sans rapport avec celui-ci.
+    # Aucune valeur n'était persistée : renommage sans migration.
     SEGMENTS = 'segments'        # portions de temps bornées (start, end[, type, id, …attributs])
     ROAD_MAP = 'road_map'        # polylignes routières de référence (geometry, id[, type])
     DETECTIONS = 'detections'    # objets détectés par frame (frame, bbox, class, track_id…)

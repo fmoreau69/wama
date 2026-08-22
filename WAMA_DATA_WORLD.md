@@ -18,6 +18,52 @@
 
 ---
 
+## 0. ÉTAT D'AVANCEMENT — mesuré, jamais écrit
+
+> **C'est le point d'entrée du chantier.** Le reste du document porte la vision, la cartographie et
+> le plan ; cette section dit **où on en est réellement**, et elle est régénérée depuis le code.
+>
+> Pourquoi mesurée : `PROJECT_STATUS §39` annonçait « 10 DataType » et « 19 fonctions » quand le
+> réel était 11 et 31, en ignorant deux briques entières — et personne ne l'avait corrigé. Un état
+> écrit à la main dérive **toujours**. Ajouter un `.md` de statut aurait reproduit le défaut ;
+> mesurer l'empêche par construction.
+
+<!-- WAMA:FAITS(wama_data) — généré par « python manage.py doc_facts », ne pas éditer -->
+> Mesuré depuis le code — **ne pas éditer à la main** (`python manage.py doc_facts`).
+> Registre des modules : `wama/common/data/modules.py`.
+
+**Bilan** : 7 ⏳ (non commencé) · 3 🔶 (livré mais INERTE)
+
+> 🔶 **AUCUN consommateur hors `common/data/` — le sous-système entier est INERTE.** Aucune app, tâche ou route ne s'en sert encore : les briques s'appellent entre elles, et c'est tout. Le premier module à donner un usage réel fera basculer ces lignes en ✅.
+
+| Module | Rôle | Flux | État | Briques | Testées | Conso. int/ext | Doc |
+|---|---|---|---|---|---|---|---|
+| **Importer** | Lit une source et rend un référentiel temporel interrogeable | fichiers + manifeste `dataset` → référentiel | 🔶 | 3/3 | 1 | 1/0 | §6.6, §9bis.1 |
+| **Référentiel temporel** | Aligne des flux à cadences incommensurables | référentiel → échantillons, `segments`, vue décimée | 🔶 | 1/1 | 1 | 3/0 | §2, §3 |
+| **Connector** | Branche une base existante comme source | base SQLite → référentiel | 🔶 | 1/1 | 0 | 1/0 | §6.2 |
+| **Explorer** | Explore un dataset en table et en graphe | référentiel → vues | ⏳ | — | — | — | §7 |
+| **Segmenter** | Produit des segments : autour d'un événement, par prédicat, ou par plages constantes d'un catégoriel | `events` ou signal + prédicat → `segments` | ⏳ | — | — | — | §6.7, §9bis.1 |
+| **Calculator** | Calcule des indicateurs PAR SEGMENT et les y adjoint | `segments` + signaux → colonnes d'indicateurs | ⏳ | — | — | — | §6.7 |
+| **Visualizer** | Vues synchronisées sur l'axe partagé (plugins) | référentiel → plugins co-chargés | ⏳ | — | — | — | §4, §8.2 |
+| **Exporter** | Rend les segments et indicateurs exploitables hors WAMA | `segments` + indicateurs → fichiers (pivot long → large) | ⏳ | — | — | — | §6.7 |
+| **Recorder** | Enregistre depuis une source temps réel | flux LSL/RTMaps/ROS → `dataset` | ⏳ | — | — | — | §7 |
+| **Analyzer** | Orchestre les modules selon un manifeste `pipeline` | manifeste `pipeline` → exécution | ⏳ | — | — | — | §9bis.2 |
+
+<details><summary>⚠ <b>7 module(s) avec un blocage déclaré</b> — ce qui empêche d'avancer, en une ligne</summary>
+
+- **Importer** — alignement par TRIGGERS non conçu (D12) ; `DATASET_SOURCES` non réconcilié avec le registre des lecteurs (G1) ; lecteur `.rec` encore une FONCTION (`functions/io/rtmaps_rec.py`) au lieu d'un lecteur de source
+- **Référentiel temporel** — AUCUN consommateur — la brique est inerte tant qu'un module ne s'en sert pas
+- **Segmenter** — ⚠ NE PAS RÉINVENTER — un équivalent complet existe et n'a PAS été cartographié (BIND_GUI, 478 Ko de source non lus). Confronter aux 3 sources avant d'écrire
+- **Calculator** — même angle mort que le Segmenter ; dépend de lui
+- **Visualizer** — vue déclarative = verrou §7ter point 3 ; écrire 2-3 plugins AVANT d'extraire
+- **Recorder** — périmètre v1 non tranché (D5)
+- **Analyzer** — nœud FONCTION absent du kind `pipeline` (D13)
+
+</details>
+<!-- /WAMA:FAITS(wama_data) -->
+
+---
+
 ## 1. Pourquoi ce document existe
 
 Objectif posé par Fabien : **ne pas implémenter des bouts de BIND dans WAMA pour découvrir ensuite
