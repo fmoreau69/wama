@@ -32,6 +32,31 @@ from django.views.decorators.http import require_POST
 from wama.common.utils.batch_common import wrap_in_batch, consolidate_into_batch
 
 
+def _ids_de_la_requete(request):
+    """Identifiants postés — quelle que soit la FORME de la requête.
+
+    ⚠ Ne JAMAIS toucher `request.body` sans avoir vérifié le type de contenu. Sur un POST
+    **multipart** (ce qu'envoie tout `FormData`), Django a déjà consommé le flux pour peupler
+    `request.POST`, et `request.body` lève alors `RawPostDataException` — qui n'est ni
+    `ValueError` ni `TypeError`, donc que le `try/except` d'origine ne rattrapait pas. La vue
+    partait en 500 dès qu'un navigateur l'appelait.
+
+    Pourquoi ça n'avait pas été vu : le client de test Django poste en **urlencoded**, où
+    `request.body` reste lisible — le défaut ne se manifeste QUE depuis un vrai navigateur.
+    Mesuré le 2026-08-22 au smoke Playwright de converter_01 (import multi-fichiers).
+
+    Formes acceptées : JSON `{"ids": [...]}`, et champs répétés `ids` ou `ids[]`.
+    """
+    if (request.content_type or '').startswith('application/json'):
+        try:
+            return [int(i) for i in (json.loads(request.body or '{}').get('ids') or [])
+                    if str(i).isdigit()]
+        except (ValueError, TypeError):
+            return []
+    brut = request.POST.getlist('ids[]') or request.POST.getlist('ids')
+    return [int(i) for i in brut if str(i).isdigit()]
+
+
 def make_queue_manipulation_views(*, work_model, batch_model, item_model, fk_name,
                                   get_user, item_extra=None, batch_extra=None):
     """Retourne {'remove_from_batch', 'reorder', 'move_to_batch', 'consolidate'} (vues Django).
@@ -99,11 +124,7 @@ def make_queue_manipulation_views(*, work_model, batch_model, item_model, fk_nam
         Défait les batch-of-1 créés à l'upload puis crée le batch-of-N.
         """
         user = get_user(request)
-        try:
-            ids = json.loads(request.body or '{}').get('ids', [])
-        except (ValueError, TypeError):
-            ids = request.POST.getlist('ids[]') or request.POST.getlist('ids')
-        ids = [int(i) for i in ids if str(i).isdigit()]
+        ids = _ids_de_la_requete(request)
 
         works = list(work_model.objects.filter(id__in=ids, user=user))
         pos = {wid: p for p, wid in enumerate(ids)}
@@ -231,11 +252,7 @@ def make_queue_manipulation_views_direct(*, work_model, batch_model,
         delete d'un batch encore peuplé — cf. CASCADE).
         """
         user = get_user(request)
-        try:
-            ids = json.loads(request.body or '{}').get('ids', [])
-        except (ValueError, TypeError):
-            ids = request.POST.getlist('ids[]') or request.POST.getlist('ids')
-        ids = [int(i) for i in ids if str(i).isdigit()]
+        ids = _ids_de_la_requete(request)
 
         works = list(work_model.objects.filter(id__in=ids, user=user))
         pos = {wid: p for p, wid in enumerate(ids)}

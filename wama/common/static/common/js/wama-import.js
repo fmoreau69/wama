@@ -113,9 +113,19 @@
       if (!ids.length) return;
 
       // Regroupement en lot(s) — l'app le déclare ; sans URL, les cards restent unitaires.
+      //
+      // ⚠ DEUX contrats coexistent, et se tromper ne PLANTE PAS : le regroupement répond
+      // simplement `{"consolidated": false}` et les cards restent isolées, sans message.
+      //   • fabrique commune (`queue_manipulation`) → lit `ids`  ← le défaut, car c'est elle
+      //     qu'utilise toute app générée ;
+      //   • vue propre au converter (`views.py:605`) → lit `job_ids`.
+      // Mesuré le 2026-08-22 : j'avais repris `job_ids` de converter.js, donc la voie
+      // « plusieurs fichiers » créait bien les cards mais ne les groupait jamais.
+      // Une app au contrat historique passe `consolidateField: 'job_ids'`.
       if (cfg.consolidateUrl && ids.length > 1) {
         var fd = new FormData();
-        ids.forEach(function (id) { fd.append('job_ids', id); });
+        var champ = cfg.consolidateField || 'ids';
+        ids.forEach(function (id) { fd.append(champ, id); });
         try { await poster(cfg.consolidateUrl, fd); } catch (e) { /* non bloquant */ }
       }
 
