@@ -2603,11 +2603,69 @@ pour tous) ; intent **`message_content` privilégié** → sans la case cochée 
 1. **Jeton Discord** (Fabien) : portail dev → application → Bot → jeton dans `.env`
    (`WAMA_DISCORD_TOKEN`), **+ cocher l'intent Message Content**, puis inviter le bot.
    `manage.py run_gateway discord --check` valide la config sans se connecter.
-2. **UI de saisie du code d'appariement** dans le profil — `confirmer_liaison()` existe mais
-   n'a pas d'écran : sans elle, l'appariement se termine au shell.
-3. **Store de conversation** (`ROADMAP §19.5`) — l'historique est en MÉMOIRE du process,
-   perdu au redémarrage. Rendu nécessaire par la passerelle (un fil = une conversation).
+2. ~~UI de saisie du code d'appariement~~ — ✅ **LIVRÉE** (profil, §Canaux de discussion).
+3. ~~Store de conversation~~ — ✅ **LIVRÉ** (`ROADMAP §19.5`, `common.0008`).
 4. Rate-limit, sortie de fichiers vers le canal, slash commands générées du `TOOL_REGISTRY`.
+
+---
+
+## §REPRISE — 2026-08-21→22 (CLÔTURE, instance « PASSERELLE DE CANAUX ») — 🔚 POINT D'ENTRÉE
+
+> Même instance, même partition (assistant + ses surfaces + `wama/gateway/`). Bloc AJOUTÉ,
+> les blocs ci-dessus restent tels quels. **Doc de référence du domaine : `ROADMAP.md` §19.**
+
+### ✅ LIVRÉ (17 commits, tout vérifié en réel)
+| # | Livraison | Preuve |
+|---|---|---|
+| 1 | **Moteur d'assistant** en brique commune + `/api/v1/assistant/chat/` | `views.py` 750→332 ; 2 défauts corrigés dont un « claude » **sans outils** |
+| 2 | **Portes fichiers v1** (`files/upload`, `files/download`) | tiers → 403, traversée `..` → 403 (3 formes), vue web non régressée |
+| 3 | **Appariement d'identité** (`wama/gateway/`) + écran au profil | 16/16 dont usage unique, pilonnage, expiration, déliaison d'autrui |
+| 4 | **Cœur + adaptateur Discord + `run_gateway`** | 20/20 ; garde salon dédié / mention ; `asyncio.to_thread` ; intent privilégié |
+| 5 | **Store de conversation** (`common.0008`) | 3 fils distincts pour un même compte ; moteur resté SANS ÉTAT |
+| 6 | **Claude Code sur l'abonnement** (`ask_claude_code`) | appel réel OK ; ⚠ `ANTHROPIC_API_KEY` retirée de l'env (sinon API facturée) |
+| 7 | **Skills de RÔLE + contexte labo** + outil `charger_competence` | 18/18 ; l'assistant choisit LUI-MÊME sa compétence |
+| 8 | **66 tests VERSIONNÉS** (gateway 20 + conversation 8 + skills 18 + …) | remplacent des smokes volatils — 2 avaient déjà disparu |
+
+### ⚠ CE QUE LA SESSION A MESURÉ, ET QUI CONTREDIT DES CROYANCES
+- **Headroom = 0 % de gain** en mode `cache` (190 requêtes, 0 compressée). Les « 264 $
+  d'économies » viennent du **prompt caching natif d'Anthropic**. ⚠ Son champ
+  `savings_percent` affiche **100.0 pour `tokens_saved: 0`** — ne jamais le lire.
+  Détail : `memory/reference_headroom_proxy.md`.
+- **Le RAG contient les SORTIES D'APPS de 3 utilisateurs** (939 fragments : 751/116/72),
+  indexées par un balayage global. Isolation OK, **consentement absent** → objection de
+  Fabien consignée `WAMA_MEMORY.md §7ter` (3 pistes + question des 939 déjà indexés).
+- **L'encart RAG de l'accueil était un leurre** : URL 404, payload invalide, et **aucun
+  effet RAG même réussi**. Réparé + libellé rectifié.
+- **`PROMPT_PIPELINE.md` se contredisait** (ChromaDB vs pgvector) — ma réécriture partielle.
+  Et il affirmait que wama-dev-ai importe `prompt_skills` : **faux**, `PROMPT_SKILLS_DIR`
+  n'est lu nulle part.
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+**Le seul geste qui débloque tout : créer le bot Discord** (portail dev → intent Message
+Content → inviter → `.env`), puis `run_gateway discord --check`. Mode d'emploi complet en 6
+étapes dans `ROADMAP.md` §19. Tout le reste du code est livré et testé.
+
+### File des chantiers ouverts (ordre conseillé)
+1. **Bot Discord vivant** — bloquant : jeton + intent (Fabien seul).
+2. **RAG côté génération** (`PROMPT_PIPELINE.md`, chemin B) — repris par l'instance mémoire.
+3. **Ingestion RAG explicite** + page « Mon RAG » — l'instance mémoire a commencé.
+4. Sélecteur de domaine dans l'UI (`domaines_pour_ui()` prêt) — ⚠ `home.html` disputé (§19.6 ②).
+5. Durcissement du token : **expiration avec préavis** d'abord, scope ensuite. ⚠ **PAS**
+   via `rotate_secrets` : elle est zéro-downtime par construction, tourner un token
+   utilisateur casserait ses scripts en silence — c'est de la péremption, pas de la rotation.
+
+### Pendings système
+- ⏳ **Validation navigateur du chat** (demande un LLM — Fabien).
+- ⏳ **Bout en bout Discord** (après création du bot).
+- ⚠ **Migrations non versionnées** (`.gitignore:13`) : `makemigrations gateway common && migrate`
+  à rejouer sur tout autre environnement (`gateway.0001`, `common.0008`).
+- ⚠ **Redis et Postgres doivent tourner** : sans Redis, 3 tests de pages d'app échouent —
+  ce n'est pas une régression (constaté et levé le 21/08).
+
+### Contrôles attendus au prochain `/reprise`
+`manage.py test wama.gateway` → **20 OK** · `wama.common` → **≥86 OK** ·
+`doc_facts --check` → tout à jour · `manifest_export --check` → **110 manifestes** ·
+`Conversation`/`ChannelLink` → **0 ligne** tant que le bot n'a pas tourné.
 
 ### Décisions antérieures (`ROADMAP.md` §19.4)
 > ③ **corrigé le 21/08 sur reprise de Fabien** : **aucune démarche DINUM** si le domaine est
