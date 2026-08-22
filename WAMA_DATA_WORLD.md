@@ -30,19 +30,19 @@
 
 <!-- WAMA:FAITS(wama_data) — généré par « python manage.py doc_facts », ne pas éditer -->
 > Mesuré depuis le code — **ne pas éditer à la main** (`python manage.py doc_facts`).
-> Registre des modules : `wama/common/data/modules.py`.
+> Registre des modules : `wama_data/modules.py`.
 
 **Bilan** : 6 ⏳ (non commencé) · 4 🔶 (livré mais INERTE)
 
-> 🔶 **AUCUN consommateur hors `common/data/` — le sous-système entier est INERTE.** Aucune app, tâche ou route ne s'en sert encore : les briques s'appellent entre elles, et c'est tout. Le premier module à donner un usage réel fera basculer ces lignes en ✅.
+> 🔶 **AUCUN consommateur hors `wama_data/` — le sous-système entier est INERTE.** Aucune app, tâche ou route ne s'en sert encore : les briques s'appellent entre elles, et c'est tout. Le premier module à donner un usage réel fera basculer ces lignes en ✅.
 
 | Module | Rôle | Flux | État | Briques | Testées | Conso. int/ext | Doc |
 |---|---|---|---|---|---|---|---|
 | **Importer** | Lit une source et rend un référentiel temporel interrogeable | fichiers + manifeste `dataset` → référentiel | 🔶 | 3/3 | 1 | 1/0 | §6.6, §9bis.1 |
-| **Référentiel temporel** | Aligne des flux à cadences incommensurables | référentiel → échantillons, `segments`, vue décimée | 🔶 | 1/1 | 1 | 4/0 | §2, §3 |
+| **Référentiel temporel** | Aligne des flux à cadences incommensurables | référentiel → échantillons, `segments`, vue décimée | 🔶 | 1/1 | 1 | 1/0 | §2, §3 |
 | **Connector** | Branche une base existante comme source | base SQLite → référentiel | 🔶 | 1/1 | 0 | 1/0 | §6.2 |
 | **Explorer** | Explore un dataset en table et en graphe | référentiel → vues | ⏳ | — | — | — | §7 |
-| **Segmenter** | Produit des segments : autour d'un événement, par jonction de deux flux, par prédicat avec hystérésis, par plages constantes d'un catégoriel, ou par CODAGE (humain ou IA) | `events` ou signal + prédicat → `segments` | 🔶 | 4/4 | 2 | 5/0 | §9ter (spécification), §6.7 |
+| **Segmenter** | Produit des segments : autour d'un événement, par jonction de deux flux, par prédicat avec hystérésis, par plages constantes d'un catégoriel, ou par CODAGE (humain ou IA) | `events` ou signal + prédicat → `segments` | 🔶 | 4/4 | 2 | 8/0 | §9ter (spécification), §6.7 |
 | **Calculator** | Calcule des indicateurs PAR SEGMENT et les y adjoint | `segments` + signaux → colonnes d'indicateurs | ⏳ | — | — | — | §6.7 |
 | **Visualizer** | Vues synchronisées sur l'axe partagé (plugins) | référentiel → plugins co-chargés | ⏳ | — | — | — | §4, §8.2 |
 | **Exporter** | Rend les segments et indicateurs exploitables hors WAMA | `segments` + indicateurs → fichiers (pivot long → large) | ⏳ | — | — | — | §6.7 |
@@ -87,7 +87,7 @@ Deux sources :
 
 | couche | ce qu'elle sait | ce qu'elle ignore | domicile visé |
 |---|---|---|---|
-| **1. Référentiel temporel** | bases de temps, origines, dérives, discontinuités, politique de rééchantillonnage **par type de donnée** ; répond `at(t)`, `range(t₀,t₁)`, `next_event(t)`, vue décimée | qu'on lit, qu'il y a une vitesse, qu'il y a un écran | **WAMA Data** (`wama/common/data/`) |
+| **1. Référentiel temporel** | bases de temps, origines, dérives, discontinuités, politique de rééchantillonnage **par type de donnée** ; répond `at(t)`, `range(t₀,t₁)`, `next_event(t)`, vue décimée | qu'on lit, qu'il y a une vitesse, qu'il y a un écran | **WAMA Data** (`wama_data/`) |
 | **2. Curseur de session** | une position, une vitesse, une direction — *dans* le référentiel | la nature des données | session |
 | **3. Télécommande** (shuttle / magneto) | émettre des **commandes** de navigation | tout le reste | **brique UI** (`mecanismes.py`, clé `shuttle`) |
 | **4. Vues** (plugins graphiques) | dessiner ce que le référentiel rend à `t` | comment le temps est aligné | **plugins** (kind `plugin`) |
@@ -126,7 +126,7 @@ appartient au *jeu de données* ou à la *session*.
 
 ## 3. Cahier des charges du référentiel temporel
 
-Dérivé des modules visés (§7) et de la taxonomie **existante** `wama/common/data/data_types.py`
+Dérivé des modules visés (§7) et de la taxonomie **existante** `wama/common/catalog/data_types.py`
 (`SIGNAL` avec `fs`, `TIMESERIES`, `EVENTS`, `GEO_TRACK`, tous ancrés sur `time` via
 `CANONICAL_FIELDS`, avec sous-typage et `is_compatible`).
 
@@ -833,7 +833,7 @@ conteneur de vues détachables — après F.
 | **Exporter** | `segments` + indicateurs → fichiers | ⏳ | module |
 | **Analyzer** | orchestre les précédents | ⏳ | app |
 
-**Le découpage brique/app est le même que côté média** : le traitement vit dans `common/data/`, l'app
+**Le découpage brique/app est le même que côté média** : le traitement vit dans `wama_data/`, l'app
 n'est qu'une surface. Un module qui code sa logique dans son app est hors-route.
 
 ### 9bis.2 Le chaînage — rien de neuf à inventer
@@ -985,7 +985,7 @@ Trois pièces séparées, et c'est ce découpage qui compte :
 > se génère, et **une IA de vision n'est qu'un producteur de plus des mêmes événements** — même
 > sortie, origine tracée. C'est la conséquence 6 de §9ter.3, confirmée par un mécanisme réel.
 
-#### Ce qui est ÉCRIT (2026-08-22) — `common/data/coding.py`
+#### Ce qui est ÉCRIT (2026-08-22) — `wama_data/core/coding.py`
 
 Le découpage ci-dessus est repris **tel quel**, moteur d'abord :
 
@@ -1052,7 +1052,7 @@ qui ne sait lire que des acquisitions déjà synchronisées, c'est-à-dire le ca
 
 | # | question | qui tranche |
 |---|---|---|
-| D1 | domicile du référentiel temporel : `wama/common/data/` ou module dédié ? | après passe 1 |
+| D1 | domicile du référentiel temporel : `wama_data/` ou module dédié ? | après passe 1 |
 | D2 | le magneto : une brique à deux chromes, ou brique + plugin distincts ? | après passe 2 |
 | D3 | `.trip` : format importé/converti, ou format natif supporté par WAMA Data ? | après passe 1 |
 | D4 | quels 2-3 plugins écrire en premier (pour extraire la vue déclarative ensuite) ? | après passe 3 |
@@ -1071,6 +1071,30 @@ qui ne sait lire que des acquisitions déjà synchronisées, c'est-à-dire le ca
 ---
 
 ## Journal
+
+- **2026-08-22** — **le monde sort du substrat.** WAMA Data quitte `wama/common/data/` pour une
+  racine `wama_data/`, sœur de `wama/` et `wama_lab/` — cible déjà écrite dans `ROADMAP §18` (« un
+  monde = un package frère »), jamais exécutée. La doctrine des MONDES était actée depuis le
+  2026-07-20 ; `docs/VISION_STATUS.md` notait même « socle posé (`common/data/`) » comme un état
+  normal, ce qui laissait croire que la traduction en arborescence avait été faite.
+  - **Où passe la frontière** — seule vraie décision : le registre de fonctions et la taxonomie de
+    types RESTENT dans `wama/common/catalog/`. Mesuré, pas déduit : `cam_analyzer/function_specs.py`
+    y déclare des fonctions du **Lab**, et les manifestes `function`/`dataset` du substrat en
+    dépendent. Les emporter ferait dépendre le Lab et le substrat du monde Data.
+  - **Défaut corrigé, et c'est lui qui rendait le déport risqué** : `load_all()` citait
+    `wama.common.data` ET `wama_lab.cam_analyzer` **en dur** — le déport l'aurait cassé
+    **silencieusement** (catalogue à moitié peuplé, zéro erreur). Chaque monde se déclare désormais
+    dans son propre `apps.py:ready()` ; le registre parcourt les apps installées.
+  - **Structure** : `core/` (moteur sans Django), `sources/`, `functions/`, `modules.py`.
+  - **Vérifié après redémarrage réel de WAMA** : 39 fonctions au catalogue peuplées par le seul
+    cycle `ready()` (20 Data + 19 `cam_`), `load_all()` idempotent, les 19 fonctions cam_analyzer
+    saines une par une, les 7 imports **différés** de cam_analyzer (invisibles au chargement des
+    modules, donc seuls capables de casser en cours de tâche) résolus à la main, 282 connexions de
+    chaînage valides, workers Celery avec leurs 15 tâches enregistrées, aucun `.pyc` orphelin sous
+    l'ancien chemin, `check_app_conformity` inchangé. 245 tests OK.
+  - ⚠ **Sortir Data n'a PAS désengorgé `common/`** (5 107 lignes sur ~39 800, soit 13 % ; les vrais
+    blocs sont `utils/` 9 859 et `static/` 8 384) — et ce n'était pas le but. La justification est
+    doctrinale : un monde n'est pas un sous-dossier du substrat.
 
 - **2026-08-19** — ouverture. Pile en 4 couches arrêtée (recadrage Fabien : gestion du temps ≠
   transport). Périmètre de cartographie établi (~460 fichiers). Spec magneto consignée depuis BIND.

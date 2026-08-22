@@ -2263,18 +2263,22 @@ l'ancienne note « à ajouter » n'avait jamais été exécutée).
 - ⏳ Code-gen des **9** facettes d'app restantes (`codegen_required`) ; trou #15 réduit à
   `system_tools` (§23.6, MAJ 2026-08-11)
 
-## 39. Couche WAMA Data (2026-07-20→22) — synthèse
+## 39. Monde WAMA Data → **l'état vit ailleurs, et il est MESURÉ**
 
-> Doc de référence : `WAMA_DATA_FUNCTION_CARDS.md` (⚠ à resynchroniser : il précède le
-> refactoring par domaine).
+> 🔗 **`WAMA_DATA_WORLD.md §0`** — table générée depuis `wama_data/modules.py` par
+> `python manage.py doc_facts`. C'est LA source de l'avancement du monde Data.
+> Catalogue de fonctions : `WAMA_DATA_FUNCTION_CARDS.md`.
 
-- ✅ Socle `common/data/` : `data_types.py` (10 DataType + `TypedFrame`) + `function_catalog.py`
-  (capability-first) + page `/model-manager/functions/` (cards, tri/filtre, projet, confidentialité)
-- ✅ **Consolidation 2026-07-22 (9945ca8/a06f3be)** : `common/rtmaps/` et `common/prediction/`
-  SUPPRIMÉS — tout vit sous `common/data/functions/{driving,geometry,io,kinematics}/` (axe DOMAINE,
-  orthogonal à data_type/category) ; cam_analyzer réaligné (tasks/views/prediction_adapter)
-- ✅ 19 fonctions au catalogue (5 pures dont `placement_spread` b779395 + 14 app-bound
-  `cam_analyzer.*`) ; les libs helper (io/geometry.shapes/kinematics) restent hors catalogue
+**Pourquoi cette section n'est plus qu'un pointeur.** Elle annonçait « 10 DataType » et
+« 19 fonctions au catalogue » : le réel au 2026-08-22 est **11** et **39**. Personne ne l'a mise à
+jour depuis le 2026-07-22 — un état écrit à la main dérive, toujours. C'est précisément le constat
+qui a fait créer `wama_data/modules.py` : **on ne déclare pas l'avancement, on le mesure**. La
+maintenir ici en parallèle reproduirait le défaut.
+
+- ✅ **Déport hors de `common/` (2026-08-22)** — `wama_data/` est une racine, sœur de `wama/` et
+  `wama_lab/`. Réalise la cible de `ROADMAP §18` (« un monde = un package frère »). Le registre de
+  fonctions et la taxonomie de types RESTENT dans `wama/common/catalog/` : glu inter-mondes, le Lab
+  y déclare ses propres fonctions. Règles écrites dans `CLAUDE.md` (nommage + structure en mondes).
 - ⏳ UI de chaînage (canvas), exposition `tool_api` du catalogue
 
 ## 40. Backlog repris du handoff REPRISE_2026-07-22 (archivé 2026-07-25) — état re-vérifié
@@ -2541,7 +2545,7 @@ Sauvegarde restaurable et compte rendu d'opération : `D:\WAMA\_backup_history_2
 
 > **Partition** : cette instance ne touche QUE l'assistant et ses surfaces
 > (`wama/common/services/assistant_engine.py`, `wama/views.py`, `wama/api/v1/*`). Une autre
-> instance travaille en parallèle sur le **monde Data** (`wama/common/data/*`,
+> instance travaille en parallèle sur le **monde Data** (`wama_data/*`,
 > `WAMA_DATA_WORLD.md`, `wama_lab/cam_analyzer/function_specs.py`) — périmètres disjoints,
 > aucun fichier commun. **Doc de référence du domaine : `ROADMAP.md` §19** (créée ce jour ;
 > le sujet n'était qu'une ligne d'horizon H3, désormais barrée et renvoyée vers §19).
@@ -3533,7 +3537,7 @@ technique en faveur de deux méthodes tombe alors.
 
 **PROTOCOLE ANTI-RÉGRESSION (ordre non négociable)** : ① **figer la référence** — jeu de médias +
 sorties actuelles YOLO *et* SAM3, écart mesuré objectivement (règle « A/B objective, jamais
-visuel seul ») ; ② fonctions **pures** dans `common/data/functions/` + `FunctionSpec`, sans aucun
+visuel seul ») ; ② fonctions **pures** dans `wama_data/functions/` + `FunctionSpec`, sans aucun
 appel depuis l'app ; ③ bascule derrière le mécanisme **`feature_flags`** (`ANONYMIZER_BLUR_V2`) —
 le retour arrière est un flag, pas un revert ; ④ A/B chiffré ancien vs nouveau par réglage et par
 chemin ; ⑤ défaut basculé seulement après validation sur du réel, flag conservé.
@@ -3543,7 +3547,7 @@ Effet secondaire utile : ce banc chiffrera **de combien** YOLO et SAM3 divergeai
 fonctions de floutage, déjà typée. Il manque le type de l'image et du masque. ⚠ Précision suite à
 une question de Fabien : `DataType.DEPTH_MAP` n'a **AUCUN lien fonctionnel** avec l'anonymizer —
 c'est la carte de profondeur du **cam_analyzer** (`wama_lab/cam_analyzer/utils/depth_estimator.py`,
-`common/data/functions/geometry/depth_geometry.py`). Il n'était cité que comme **précédent** : la
+`wama_data/functions/geometry/depth_geometry.py`). Il n'était cité que comme **précédent** : la
 taxonomie accepte déjà un type raster non tabulaire, donc y déclarer `image`/`mask` ne serait pas
 un corps étranger. Rien de plus. ⚠ Et c'est exactement le point média↔data signalé comme NON
 TRANCHÉ (cf. `docs/VISION_STATUS.md`) : ce chantier en est le **premier cas concret**, et le
@@ -5377,8 +5381,8 @@ touche pas `PROMPT_TARGETS` d'une app en cours de portage.
   géré par Fabien. ⚠ Ne PAS reprendre le « 627 » du §REPRISE du 21/08 : Fabien a poussé depuis
   (`origin/dev` = `7a3a9849`, 21/08), l'écart post-réécriture d'historique est résorbé.
 - **Working tree — fichiers d'une AUTRE instance** (monde Data, non touchés par moi, laissés en
-  place volontairement) : `WAMA_DATA_WORLD.md`, `common/data/data_types.py`,
-  `commands/doc_facts.py` + non suivis `common/data/modules.py`, `wama-import.js` (×2 copies).
+  place volontairement) : `WAMA_DATA_WORLD.md`, `common/catalog/data_types.py`,
+  `commands/doc_facts.py` + non suivis `wama_data/modules.py`, `wama-import.js` (×2 copies).
 - `RunOutcome` ne capte que VERS L'AVANT — l'historique d'avant le middleware est perdu (assumé).
 - Imports wama-dev-ai : 25 souvenirs NON approuvés en file de revue (invisible au rappel).
 

@@ -1520,7 +1520,7 @@ migration 0004) ET le kind `library` existent (1er lien transcriber→faster-whi
 modèles (`AIModel`/`model_registry.py`) ✅ · apps (`app_registry.py`/`APP_CATALOG`) ✅ ·
 **outils assistant** (`TOOL_REGISTRY`/`tool_api.py` — surface de PILOTAGE des apps, facette F6) ✅ ·
 **fonctions DATA** (fonctions-cartes appliquées aux données, ex. cam_analyzer :
-`common/data/function_catalog.py::FUNCTION_CATALOG` + `UserFunction` DB scopée — kind `function`
+`common/catalog/function_catalog.py::FUNCTION_CATALOG` + `UserFunction` DB scopée — kind `function`
 les EXTRAIT, page `/model-manager/functions/`) ✅ ·
 bibliothèques (`common.models.Library` + kind `library`) ✅.
 ~~⚠ Trou write-back côté fonctions data~~ **FERMÉ (2026-08-11 soir)** : `write_back_function`
@@ -2029,18 +2029,43 @@ que le trou 2 (preview médiathèque) et que le rendu (a) ci-dessus. Vendoriser 
 fois sert les trois. L'« avatar avancé intégré dans un décor » (chaîne 4 studio) est la
 rencontre des deux chantiers : avatar rendu + insertion dans une scène générée (point 6).
 
-## 18. Réorganisation de l'arbre en MONDES (POST-portage schéma-driven — NE PAS ouvrir avant)
+## 18. Réorganisation de l'arbre en MONDES — **1ʳᵉ marche FAITE le 2026-08-22 (monde Data)**
 
 - **Constat 2026-07-27** : `wama/common/` (14 sous-packages) mélange glu de plateforme (sa vraie
   vocation) et services de domaine qui préfigurent des mondes. Le problème n'est PAS la taille,
   c'est le mélange des étages.
 - **Cible** : un monde = un package frère de `wama/` (précédent vivant : `wama_lab/`). Si le monde
   Data grossit → `wama_data/` à côté, PAS un éclatement de `common/`.
-- **Conditions d'ouverture** : fin du portage anonymizer/imager (grille mesurée stable — un
-  déménagement invalide les chemins analysés) + aucun chantier multi-instances en cours (un
-  refactoring d'imports transverse casse toutes les partitions à la fois).
-- **D'ici là** : structurer l'INTÉRIEUR de `common/` (sous-packages par facette, ex. détection §17)
-  — rend le déménagement ultérieur trivial.
+
+### ✅ Marche 1 — le monde DATA est sorti de `common/` (2026-08-22, demande de Fabien)
+
+La cible ci-dessus était juste et a été suivie **à la lettre** : `wama_data/` est une racine sœur,
+pas un éclatement de `common/`. Ce que la prévision n'avait pas tranché, c'est **où passe la
+frontière** — et c'est la seule vraie décision :
+
+> Le registre de fonctions et la taxonomie de types RESTENT dans `wama/common/catalog/`. Fait
+> mesuré, pas doctrine : `wama_lab/cam_analyzer/function_specs.py` y déclare des fonctions du
+> **Lab**, et les manifestes `function`/`dataset` du substrat en dépendent. Les loger dans
+> `wama_data` ferait dépendre le Lab et le substrat du monde Data.
+
+**Défaut trouvé et corrigé au passage** — c'est lui qui rendait le déport risqué : `load_all()`
+citait `wama.common.data` ET `wama_lab.cam_analyzer` **en dur**. Le substrat nommait deux mondes,
+donc le déport l'aurait cassé **silencieusement** (catalogue à moitié vide, aucune erreur). Le
+registre parcourt maintenant les apps installées ; chaque monde se déclare dans son `ready()`.
+
+⚠ **Les conditions d'ouverture n'étaient PAS remplies** (portage anonymizer/imager non fini) —
+décision de Fabien, à qui la structure coûtait plus cher que l'attente. Ce que la condition
+protégeait a donc été vérifié explicitement à la place : `check_app_conformity` re-passé après le
+déménagement, **grille inchangée** (la grille analyse `wama/<app>/`, que le déport ne touche pas),
+`conformity_report.json` identique. Reste vrai pour la suite : ne PAS enchaîner sur le monde
+Médias tant qu'un chantier multi-instances est ouvert — un refactoring d'imports transverse casse
+toutes les partitions à la fois.
+
+- **Marches suivantes (non ouvertes)** : monde Médias (`wama/` confond encore plomberie projet +
+  10 apps média + plateforme transverse), puis structuration interne de `common/` — `utils/`
+  (61 fichiers, 9 859 lignes) et `static/` (8 384) sont les vrais blocs, pas `data/` (5 107, 13 %).
+  **Sortir Data n'a PAS désengorgé `common/`** et ce n'était pas le but : la justification est
+  doctrinale.
 
 ### 18.0bis Génération-MIROIR + surfaces de travail (idées Fabien 2026-08-03 soir, cadrées)
 
