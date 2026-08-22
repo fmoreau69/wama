@@ -1,0 +1,53 @@
+{% load wama_static %}{% comment %}
+WAMA — Couche JS d'APPLICATION (brique commune, 2026-08-22).
+
+POURQUOI. Cette liste était recopiée dans les 10 `index.html`, et donc ABSENTE de la
+onzième dès qu'une app est générée : converter_01 n'a jamais chargé le moindre script
+d'app, sans une seule erreur console — rien ne plante quand rien n'est chargé. Déclarée
+ici, une app générée hérite du même socle que les autres.
+
+CE QUI N'EST PAS ICI, ET POURQUOI. `base.html` charge DÉJÀ globalement, pour toutes les
+surfaces et tous les mondes : wama-app-base, wama-inspector (+autofill), wama-queue,
+wama-card-v3, wama-cycle-button, wama-model-help, media-preview, media-picker,
+wama-audio-player, wama-prompt-enrich, wama-filter-bar, queue-actions, system-stats ;
+`app_modern_base.html` y ajoute console.js. Les re-déclarer ici les chargerait DEUX fois
+— c'est le défaut qui avait rendu le player audio muet le 18/08 (deux BroadcastChannel,
+l'exclusivité inter-onglets faisant taire son propre onglet). Relevé au passage le
+2026-08-22 : 8 doublons subsistent dans les gabarits d'app (wama-model-help ×4,
+wama-queue ×2, wama-cycle-button ×1, console ×1) — ils disparaissent à l'adoption.
+
+PORTÉE. Rien ici n'est propre au monde MÉDIA (garde-fou Fabien) : ce sont les briques de
+FILE et de FORMULAIRE, valables pour une app Data ou Lab. Ce qui est spécifiquement média
+reste hors de cette liste.
+
+Options (toutes fausses par défaut — on ne charge que ce qui sert) :
+  with_input_match  — appariement entrée ↔ modèle (wama-input-match.js)
+  with_model_caps   — show_if dérivé des capacités-modèle (wama-model-caps.js)
+  with_modes        — modes applicatifs déclarés (wama-modes.js)
+  with_prompt_chips — chips de prompt (wama-prompt-chips.js + css)
+
+Usage, dans le gabarit d'une app :
+  {% block app_scripts %}
+    {% include 'common/_app_scripts.html' with with_input_match=True %}
+    <script src="{% templatetag openblock %} static_v 'monapp/js/index.js' {% templatetag closeblock %}"></script>
+  {% endblock %}
+{% endcomment %}
+
+{# ── Noyau : chargé par les 10 apps, mesuré le 2026-08-22 ─────────────────────────── #}
+<script src="{% static_v 'common/js/wama-params.js' %}"></script>
+<script src="{% static_v 'common/js/wama-eta.js' %}"></script>
+<script src="{% static_v 'common/js/batch-import.js' %}"></script>
+
+{# Card d'entrée : le repli/dépli (new-item-card) et LA VOIE D'IMPORT (wama-import).
+   wama-import.js est la brique qui manquait : batch-import ne traite que les fichiers de
+   LOT et laisse le fichier ordinaire à l'app — ce que ne fait aucune app générée. #}
+<script src="{% static_v 'common/js/wama-new-item-card.js' %}"></script>
+<script src="{% static_v 'common/js/wama-import.js' %}"></script>
+
+{# Barre de progression globale de la file (9 apps sur 10 ; inerte sans WAMA_GLOBAL_PROGRESS_URL) #}
+<script src="{% static_v 'common/js/wama-global-progress.js' %}"></script>
+
+{% if with_input_match %}<script src="{% static_v 'common/js/wama-input-match.js' %}"></script>{% endif %}
+{% if with_model_caps %}<script src="{% static_v 'common/js/wama-model-caps.js' %}"></script>{% endif %}
+{% if with_modes %}<script src="{% static_v 'common/js/wama-modes.js' %}"></script>{% endif %}
+{% if with_prompt_chips %}<script src="{% static_v 'common/js/wama-prompt-chips.js' %}"></script>{% endif %}
