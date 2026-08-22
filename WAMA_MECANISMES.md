@@ -148,7 +148,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 |---|---|---|---|---|
 | **Bac à sable d'apps (jumelles exécutables)** | Jumelle <app>_NN coexistante pour comparaison Playwright + diff dé-suffixé (route §10.3 marche S) — registre sandbox_apps.json injecté au boot (INSTALLED_APPS/urls/gating/catalogue), create/drop symétriques | `wama/common/sandbox.py` | `WAMA_APP_GENERATION_ROUTE.md` | 8 |
 
-#### UI générée (17)
+#### UI générée (18)
 
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
@@ -168,6 +168,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Socle JS des apps** | Plomberie commune file/cards : csrfFetch, urls, Poller de progression, états vides | `wama/common/static/common/js/wama-app-base.js` | `WAMA_APP_GENERATION_ROUTE.md` | 17 |
 | **Sélecteur de médiathèque** | Modale commune de choix d'un asset de la médiathèque (filtrée par type), rendue à l'appelant sous forme de File + méta | `wama/common/static/common/js/media-picker.js` | — | 4 |
 | **Vocabulaire des capacités** | Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage UI | `wama/common/utils/model_capabilities.py` | `INPUT_MODEL_MATCHING.md` | 22 |
+| **Voie d'import (front)** | Envoi d'un fichier vers l'endpoint upload de l'app depuis toutes les sources (dépôt, clic, médiathèque), délégation du LOT à batch_import, consolidation et rafraîchissement — agnostique du monde (ni MIME ni extension) | `wama/common/static/common/js/wama-import.js` | `WAMA_APP_GENERATION_ROUTE.md` | 2 |
 | **data-* du gear ⚙ des cards** | data-* du bouton ⚙ DÉRIVÉS du schéma (contrat cardSettings de l'inspecteur : le volet reflète la card sélectionnée) — remplace les attributs écrits à la main par app ; booléens 'true'/'false', tous les params item émis (anti-résidus) | `wama/common/utils/card_gear.py` | — | 10 |
 
 #### Données & infrastructure (15)
@@ -186,7 +187,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Rétention des médias** | Purge automatique des sorties au-delà de la durée choisie par l'utilisateur (FileField découverts) | `wama/common/services/retention.py` | `PROFILES_PERMISSIONS.md` | 2 |
 | **Sauvegarde & tirage** | Moteur unique de miroir (modèles, base, médias, secrets) et restauration | `wama/common/services/mirror_sync.py` | — | 8 |
 | **Sonde média** | Durée/codec/dimensions/pages d'un média pour les propriétés de card (via ffmpeg_utils) | `wama/common/utils/media_probe.py` | — | 4 |
-| **Taxonomie des types de donnée** | Vocabulaire commun des sources et des fonctions : sous-typage + compatibilité de ports. `segments` y est LE type « portion de temps bornée » (situation, état, section) | `wama/common/data/data_types.py` | `WAMA_DATA_FUNCTION_CARDS.md §3` | 15 |
+| **Taxonomie des types de donnée** | Vocabulaire commun des sources et des fonctions : sous-typage + compatibilité de ports. `segments` y est LE type « portion de temps bornée » (situation, état, section) | `wama/common/data/data_types.py` | `WAMA_DATA_FUNCTION_CARDS.md §3` | 17 |
 | **Utilitaires vidéo** | Extraction audio des vidéos + téléchargement YouTube/yt-dlp | `wama/common/utils/video_utils.py` | — | 16 |
 | **Visibilité et portée** | Privé / unité / public : filtrage des lectures, mutations inchangées | `wama/common/models.py` | `PROFILES_PERMISSIONS.md` | 25 |
 
@@ -198,7 +199,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Runner générique du studio** | Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app | `wama/studio/services/generic_runner.py` | `STUDIO_VISION.md` | 7 |
 | **Surface d'outils** | Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas | `wama/tool_api.py` | `WAMA_APP_GENERATION_ROUTE.md` | 9 |
 
-**Mécanismes déclarés : 85** · domiciles absents : 0 · sans consommateur : 2 · assumés locaux : 18 · modules balayés non rattachés : 3 · **de niveau app sans critère de grille : 20**
+**Mécanismes déclarés : 86** · domiciles absents : 0 · sans consommateur : 2 · assumés locaux : 18 · modules balayés non rattachés : 2 · **de niveau app sans critère de grille : 20**
 - ⚠ **Sans consommateur** (brique morte ou pas encore adoptée) : `benchmark_sync` (wama/model_manager/services/benchmark_sync.py), `qc` (wama/common/utils/qc.py)
 
 <details><summary>⚠ <b>20 mécanisme(s) de niveau app SANS critère de grille</b> — adoptés par des apps, vérifiés par aucun critère (<code>Criterion.mecanisme</code>) : une app peut sortir à 100 % sans les avoir adoptés</summary>
@@ -228,12 +229,12 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 
 </details>
 
-<details><summary>⚠ <b>3 module(s) balayé(s) non rattachés au registre</b> — à déclarer dans <code>wama/common/mecanismes.py</code>, ou à assumer comme utilitaires locaux (tout n'est pas un mécanisme transversal)</summary>
+<details><summary>⚠ <b>2 module(s) balayé(s) non rattachés au registre</b> — à déclarer dans <code>wama/common/mecanismes.py</code>, ou à assumer comme utilitaires locaux (tout n'est pas un mécanisme transversal)</summary>
 
 
 `wama/common/services/` (1) — `conversation_store.py`
 
-`wama/common/static/common/js/` (2) — `wama-avatar.js` · `wama-import.js`
+`wama/common/static/common/js/` (1) — `wama-avatar.js`
 
 </details>
 

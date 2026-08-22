@@ -408,6 +408,17 @@ MECANISMES = (
               "Card d'entrée dépliable commune (dropzones, URL, médiathèque, batch) — auto-init",
               'wama/common/static/common/js/wama-new-item-card.js', 'MODES_QUEUE_UX.md',
               annexes=('wama/common/templates/common/_new_item_card.html',)),
+    # La card d'entrée porte les MODALITÉS ; celle-ci porte le GESTE d'envoi. Elles se
+    # complètent : `new_item_card` déplie/replie, `batch_import` traite les fichiers de LOT,
+    # `WamaApp.initUrlImport` le champ URL — et personne ne prenait le fichier ORDINAIRE.
+    # Chaque app réécrivait sa boucle `handleFiles` (converter.js, reader.js…), donc une app
+    # GÉNÉRÉE n'en avait aucune et ne pouvait créer aucune card, sans erreur console.
+    Mecanisme('import_front', "Voie d'import (front)",
+              "Envoi d'un fichier vers l'endpoint upload de l'app depuis toutes les sources "
+              "(dépôt, clic, médiathèque), délégation du LOT à batch_import, consolidation et "
+              "rafraîchissement — agnostique du monde (ni MIME ni extension)",
+              'wama/common/static/common/js/wama-import.js', 'WAMA_APP_GENERATION_ROUTE.md',
+              annexes=('wama/common/templates/common/_app_scripts.html',)),
     Mecanisme('cycle_button', 'Bouton de cycle',
               "Bouton commun ▶/⏹/↻ toujours vert — l'icône porte l'action, l'état vit sur la card",
               'wama/common/static/common/js/wama-cycle-button.js', '',
