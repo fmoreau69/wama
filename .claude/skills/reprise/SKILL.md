@@ -39,14 +39,18 @@ python manage.py doc_facts --check          # blocs GÉNÉRÉS des .md (dont la 
 - Comparer les chiffres au bloc « Contrôles attendus au prochain /reprise » du **dernier
   §REPRISE** de `PROJECT_STATUS.md` (corpus N manifestes, roundtrip, scores de grille) — c'est
   lui qui porte les valeurs à jour, pas ce skill.
-- **État attendu au 2026-08-10** : `check_docs` = **2 CASSÉ**, et ce sont des **références EN AVANT**
-  assumées, pas des liens morts — des fichiers que la doc annonce et qui restent à créer :
-  - `common/_result_tabs.html` (cible de `REMOVAL_LEDGER` R18 — duplication vérifiée toujours
-    présente le 10/08 : `transcriber/index.html:307` et `describer/index.html:109` portent le même
-    `#resultTabs` + `tab-resume-btn`/`tab-coherence-btn`, plus le JS des deux côtés) ;
-  - `wama/common/middleware.py` (`UserLanguageMiddleware`, tableau i18n du `ROADMAP`).
+- **État attendu au 2026-08-22** : `check_docs` = **2 CASSÉ / 0 périmée (sur 457)**, et les 2
+  sont LA MÊME référence EN AVANT citée deux fois — pas des liens morts :
+  - `common/_result_tabs.html` ×2 (`PROJECT_STATUS.md:2287` et `:2684` — cible de
+    `REMOVAL_LEDGER` R18, duplication vérifiée toujours présente le 10/08 :
+    `transcriber/index.html:307` et `describer/index.html:109` portent le même `#resultTabs`).
+  - ⚠ `wama/common/middleware.py` a QUITTÉ cette liste le 20/08 : le fichier EXISTE désormais
+    (`RunOutcomeCaptureMiddleware`, chantier mémoire) — mais `UserLanguageMiddleware` (tableau
+    i18n du `ROADMAP`) n'y est toujours PAS écrit : la référence résout, l'intention i18n reste due.
 
-  **Une 3ᵉ = vraie dérive, à traiter.**
+  **Une 3ᵉ = vraie dérive, à traiter.** (Le compte est resté « 2 » par coïncidence entre le
+  10/08 et le 22/08 alors que sa COMPOSITION avait changé — comparer les fichiers cités, pas
+  seulement le nombre.)
 
   > ⚠ Ce seuil était à « 3 attendus / une 4ᵉ = dérive » jusqu'au 10/08 et **il était devenu faux** :
   > `_settings_modal.html` a été **livré autrement** le 06/08 (la modale est GÉNÉRÉE par

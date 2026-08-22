@@ -15,9 +15,15 @@ Règle CLAUDE.md : tout code utilisé par plus d'une app va dans `wama/common/`.
 > + `queue_view.py` — donc UN seul domicile pour les 10 apps, pas dix. Lire la facette F d'abord.
 
 ```bash
-ls wama/common/utils/ wama/common/services/ wama/common/static/common/js/
+ls -d wama/common/*/ ; ls wama/common/utils/ wama/common/services/ wama/common/static/common/js/
 grep -nE "^#{2,3} " WAMA_APP_GENERATION_ROUTE.md        # repérer la facette F concernée
 ```
+
+> ⚠ Le `ls -d wama/common/*/` n'est pas décoratif : les briques ne vivent PAS toutes dans
+> `utils/`+`services/`. Une brique cohésive multi-fichiers devient un **PACKAGE** — au
+> 2026-08-22 : `memory/` (mémoire+RAG), `tts/` (voix), `backends/`, `manifests/`, `assets/`,
+> `data/`, `prompt_skills/`. L'ancienne version de ce skill n'affichait que 3 dossiers et
+> rendait ces 7 packages **invisibles à sa propre étape de découverte**.
 
 - **Lire d'abord la carte des mécanismes `WAMA_MECANISMES.md`** (table GÉNÉRÉE depuis le
   registre `wama/common/mecanismes.py`) : elle dit quels mécanismes existent, où ils habitent,
@@ -33,8 +39,10 @@ grep -nE "^#{2,3} " WAMA_APP_GENERATION_ROUTE.md        # repérer la facette F 
 - Partir de la MEILLEURE implémentation existante (souvent transcriber/reader), pas d'une moyenne.
 - La brique est déclarative/paramétrable (kwargs, hooks `reset=`/`derive=`/`extra=`) — jamais de
   `if app == 'x'` dedans.
-- Python → `common/utils/` ou `common/services/` ; template → `templates/common/_*.html` ;
-  JS → s'ajoute à `wama-app-base.js` ou fichier dédié `static/common/js/`.
+- Python → `common/utils/` (fonction) ou `common/services/` (service) ; **plusieurs fichiers
+  cohésifs → un PACKAGE `common/<domaine>/`** (modèle : `memory/` = embed+store+index+project) ;
+  template → `templates/common/_*.html` ; JS → s'ajoute à `wama-app-base.js` ou fichier dédié
+  `static/common/js/`.
 - Spécificités légitimes d'app : elles se DÉCLARENT (capacité, schéma, adapter), elles ne se
   codent pas en dur dans la brique.
 
