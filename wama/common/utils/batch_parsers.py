@@ -27,6 +27,7 @@ Schéma de colonne (pour parse_pipe_batch) :
 """
 
 import os
+import re
 import shlex
 import tempfile
 import logging
@@ -218,7 +219,42 @@ def parse_media_list_batch(
     return _parse_media_lines(raw_text)
 
 
+#: Une ligne est une RÉFÉRENCE (URL ou chemin) si elle porte un de ces marqueurs STRUCTURELS.
+#: On ne devine pas « est-ce de la prose ? » — on vérifie « est-ce adressable ? ».
+_REF_SCHEME = re.compile(r'^[a-z][a-z0-9+.\-]*://', re.I)      # http://, https://, ftp://, file://
+_REF_EXTENSION = re.compile(r'\.[A-Za-z0-9]{1,8}$')            # se TERMINE par une extension
+_REF_CHEMIN_WIN = re.compile(r'^[A-Za-z]:[\\/]')               # C:\… ou C:/…
+_REF_PREFIXES = ('/', './', '../', '~/', '\\\\')               # posix, relatif, UNC
+
+
+def ligne_est_une_reference(ligne: str) -> bool:
+    """Cette ligne DÉSIGNE-T-ELLE un fichier (URL ou chemin) ? — critère structurel.
+
+    C'est le discriminant qui manquait, et son absence était un vrai défaut (mesuré le
+    2026-08-22) : `_parse_media_lines` acceptait TOUTE ligne non vide comme un chemin, si
+    bien que trois lignes de prose devenaient trois « médias ». Comme le front ne retombe
+    sur l'upload direct que si le serveur renvoie `count == 0` (batch-import.js:140), ce
+    repli ne se déclenchait JAMAIS pour un fichier texte non vide : déposer un `.txt` sur
+    le converter ou le describer — deux apps qui acceptent le texte en ENTRÉE — ouvrait la
+    barre de lot au lieu de créer la card du document à traiter.
+    """
+    return bool(
+        _REF_SCHEME.match(ligne)
+        or _REF_EXTENSION.search(ligne)
+        or _REF_CHEMIN_WIN.match(ligne)
+        or ligne.startswith(_REF_PREFIXES)
+    )
+
+
 def _parse_media_lines(text: str) -> Tuple[List[Dict], List[str]]:
+    """Legacy « une URL/un chemin par ligne » — désormais VALIDÉ ligne à ligne.
+
+    Règle : le fichier est une liste de médias seulement si TOUTES ses lignes utiles en
+    sont. Une seule ligne non adressable suffit à dire « ce n'est pas une liste » — et
+    l'appelant retombe alors sur le traitement du fichier comme CONTENU. C'est volontaire :
+    un « presque-lot » silencieusement amputé de ses lignes non conformes serait pire
+    qu'un refus net, et c'est le refus qui rend la voie « document » possible.
+    """
     items: List[Dict] = []
     warnings: List[str] = []
 
@@ -226,7 +262,10 @@ def _parse_media_lines(text: str) -> Tuple[List[Dict], List[str]]:
         line = line.strip()
         if not line or line.startswith('#'):
             continue
-
+        if not ligne_est_une_reference(line):
+            apercu = line if len(line) <= 60 else line[:57] + '…'
+            return [], [f"Ligne {line_num} : « {apercu} » n'est ni une URL ni un chemin — "
+                        f"ce fichier n'est pas une liste de médias."]
         items.append({'path': line, 'line_num': line_num})
 
     if not items:

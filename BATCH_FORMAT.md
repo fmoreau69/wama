@@ -82,6 +82,55 @@ prompt,voice,speed,output
   `is_structured_batch_text()` = CSV à en-têtes **ou** balises ; `parse_unified_batch()`
   et `parse_structured_batch_text()` dispatchent automatiquement.
 
+## Comment sait-on qu'un fichier texte est un LOT ? (règle de décision, 2026-08-22)
+
+C'est LA question qui bloquait, et elle ne se pose que pour le texte : un `.mp4` n'est
+jamais un lot. Trois familles d'apps, selon ce qu'un `.txt` déposé peut signifier :
+
+| famille | apps | un `.txt` déposé est |
+|---|---|---|
+| **A** — sans ambiguïté | anonymizer, enhancer, transcriber, reader, avatarizer | forcément un lot |
+| **B** — texte = **contenu** | converter, describer | un document à traiter **ou** un lot |
+| **C** — texte = **prompt** | synthesizer, composer, imager | un prompt **ou** un lot de N prompts |
+
+**Règle : on décide par la STRUCTURE, jamais par le sens du texte.** Une ligne est retenue
+comme référence si elle est *adressable* — schéma d'URL, extension de fichier en fin de
+ligne, ou préfixe de chemin (`/`, `./`, `~/`, `C:\`, UNC). Un fichier n'est une liste que
+si **toutes** ses lignes utiles le sont : une seule ligne non adressable suffit à dire
+« ce n'est pas une liste », et l'appelant retombe alors sur le traitement en CONTENU.
+
+> **Défaut corrigé le 2026-08-22.** `_parse_media_lines` acceptait TOUTE ligne non vide
+> comme un chemin : trois lignes de prose devenaient trois « médias ». Or le front ne
+> retombe sur l'upload direct que si le serveur renvoie `count == 0`
+> (`batch-import.js:140`) — ce repli ne se déclenchait donc **jamais** pour un fichier
+> texte non vide. Conséquence mesurée : déposer un `.txt` sur **converter** ou
+> **describer** ouvrait la barre de lot au lieu de créer la card du document à convertir.
+> Accessoirement, le `pipe positionnel` rendait 2 items de déchets aux apps média.
+> Discriminant : `ligne_est_une_reference()` (`batch_parsers.py`).
+
+Ordre de décision, du plus explicite au plus inféré :
+1. **l'intention déclarée** par l'utilisateur (modalité de la card d'entrée) prime ;
+2. sinon la **structure** : balises → CSV/à-en-têtes → liste d'adresses ;
+3. sinon c'est du **contenu**.
+
+## Le séparateur vertical `|` — sa vraie place
+
+Le pipe est le séparateur **historique** de WAMA (cf. l'en-tête de `batch_parsers.py`).
+Il existe sous **deux** formes qu'il ne faut pas confondre :
+
+- **avec en-tête** — `prompt|voice|speed|output` : c'est un **CSV à séparateur `|`**,
+  strictement équivalent au CSV à virgules. **Déjà reconnu** par `is_csv_header_batch()`
+  (vérifié le 2026-08-22) — la spec ne le disait pas.
+- **sans en-tête, positionnel** — `nom|prompt|modèle|durée` : c'est le format **originel**,
+  conservé pour la compatibilité des fichiers déjà importés dans le **synthesizer**. Il
+  n'est compris que par `parse_pipe_batch()` (composer/synthesizer), et n'est vu ni par
+  `is_structured_batch_text()` ni par les apps média.
+
+> **En-tête requis ?** Non, et il ne doit pas le devenir : le positionnel sans en-tête
+> reste accepté pour ne pas invalider les fichiers existants. L'en-tête est ce qui rend un
+> fichier **auto-descriptif** et donc portable entre apps — à privilégier pour tout
+> nouveau fichier, quel que soit le séparateur (`,` `;` `|` tabulation).
+
 ## Matrice des champs par application
 
 | App | `-i` input | `-p` prompt | `-r` reference | `-o` output | options usuelles |
