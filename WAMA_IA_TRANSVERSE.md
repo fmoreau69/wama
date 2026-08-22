@@ -315,8 +315,15 @@ retrait : retirer_du_rag — ce qui entre par un geste sort par un geste
 
 Cas d'usage canonique (Fabien) : scan manuscrit → OCR reader → **ce texte** entre au RAG par le
 geste → sert ensuite, p. ex., au compte-rendu tiré d'une transcription de réunion.
-État : le RAG est **VIDE par décision** (balayage initial purgé, 939 → 0) tant que les surfaces
-du geste n'existent pas (jalon 14 de `WAMA_MEMORY.md`).
+
+**SURFACES livrées le 2026-08-22** (jalon 14) : le geste est un bouton de l'**inspecteur** — donc
+présent dans les 10 apps **sans une ligne par app**, et data-gaté sur la présence de texte — et la
+page **« Mon RAG »** (`/common/rag/`) porte les défauts de niveaux, la liste, le retrait et l'état
+des vecteurs. Les défauts vivent sur le profil et sont **lus au rappel** (`contexte_laboratoire`),
+avec trois états distincts pour le sélecteur de lecture (`NULL` = tout le visible · `[]` = ne rien
+rappeler · sélection). Détail et raisons du placement : `WAMA_MEMORY.md §9quater`.
+État : le RAG reste **VIDE tant que personne n'a cliqué** (balayage initial purgé, 939 → 0) —
+c'est voulu : il n'existe aucune autre porte d'écriture.
 
 ### 4. Mémoire — souvenirs, PAS le RAG (deux tables, cycles opposés)
 
@@ -338,7 +345,7 @@ de rencontre entre les deux chantiers).
 | 6 | Adaptateur de FORMAT (§14 : compilation DÉTERMINISTE post-LLM, distincte de l'enrichissement) | partiel | seul cas vivant = le KIND `concept` (SAM3 : liste d'objets EN) ; pas de couche générique par modèle |
 | 7 | RAG niveaux université / global (§11) | fermés **volontairement** | trajectoire v2 : user + labo d'abord, projet ensuite — décision Fabien |
 | 8 | Peuplement : `OrgUnit` + affiliations des profils | ❌ 0 en base | débloque le niveau labo SANS code (sync LDAP/SUPANN prévue) |
-| 9 | Surfaces du geste RAG + page de gestion (défaut de niveaux, retrait) | ⏳ jalon 14 | placement à trancher avec Fabien |
+| 9 | Surfaces du geste RAG + page de gestion (défaut de niveaux, retrait) | ✅ 2026-08-22 | **placement tranché : l'INSPECTEUR** (global, déjà nourri par `detail_registry` qui porte le texte ⇒ 10 apps sans une ligne par app, data-gaté) + page « Mon RAG » `/common/rag/` ; défauts sur le profil (`accounts.0015`), lus par `contexte_laboratoire`. Reste : sélecteur **par requête** + entrée depuis la médiathèque — `WAMA_MEMORY.md §9quater` |
 | 10 | **Traduction de SORTIE** (§12 : `Traitement IA → Traduction sortie → Utilisateur`) | ❌ non branchée | décideur (`output_translate`) + acteur (`translate_output`) livrés, **zéro appelant** ; candidats = textes GÉNÉRÉS uniquement — jamais transcription/OCR (fidélité verbatim) |
 | 11 | **Parseur STRUCTUREL de document** (§13 : texte / figures / images-texte → traitement → réassemblage, mise en page conservée) | partiel — **la moitié RENDU existe** | le RÉASSEMBLAGE/mise en forme est VIVANT (rappel de Fabien, vérifié 22/08) : `common/utils/html_render.py` — brique commune HTML→PDF à **2 moteurs** (Chromium headless/Playwright PRÉFÉRÉ : CSS complet + JS ; WeasyPrint en repli sans dépendance navigateur), consommée par le converter — + `common/utils/document_export.py` (PDF/DOCX stylés : describer, reader). Ce qui MANQUE : le **PARSING** structurel (document → texte/figures/images-texte — `batch_parsers`/`comprehend_files` aplatissent tout) et l'aller-retour complet ; Docling (§16.2) reste le candidat du parsing |
 | 12 | **QC post-génération** (§16.5 : validateur LLM indépendant après le modèle) | ❌ brique morte | `qc.py` : 0 consommateur hors bench (grep 22/08) — le maillon APRÈS le dispatch manque à toute la chaîne |

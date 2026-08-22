@@ -383,6 +383,214 @@ def journal_view(request):
     })
 
 
+# ── RAG : les SURFACES du geste (jalon 14, WAMA_MEMORY.md §7ter) ─────────────────
+# Rappel de la décision qui commande tout ce bloc (objection de Fabien, 2026-08-21) :
+# l'entrée au RAG est un GESTE EXPLICITE de l'utilisateur, jamais un balayage. Le premier
+# balayage a écrit 939 fragments sans que personne n'ait rien demandé ; il a été purgé.
+# Ces vues sont donc les SEULES portes d'écriture, et chacune part d'un clic.
+#
+# ⚠ PLACEMENT (tranché ici, 2026-08-22) : le geste vit dans l'INSPECTEUR, pas sur les cards
+# des apps. L'inspecteur est global depuis le 20/08 et déjà nourri par `detail_registry`, qui
+# porte `result_text`/`source_text` — donc AUCUNE ligne par app, et une app future obtient le
+# geste le jour où elle enregistre son adapter de détail. C'est la même dérivation que le
+# journal ; l'alternative (un bouton dans chaque gabarit de card) aurait été 10 portages à
+# maintenir pour le même geste.
+
+def _texte_indexable(detail):
+    """Le texte d'un item, tel que le schéma canonique l'expose. `(texte, origine)`.
+
+    On ne fabrique RIEN : `result_text` (sortie produite par WAMA — OCR, transcription,
+    description) puis `source_text` (le document était déjà textuel). Un item sans texte n'est
+    pas indexable, et c'est ce qui data-gate le bouton : pas de « Ajouter au RAG » sur une vidéo.
+    """
+    for cle, origine in (('result_text', 'sortie'), ('source_text', 'entrée')):
+        v = (detail.get(cle) or '').strip()
+        if v:
+            return v, origine
+    return '', ''
+
+
+def _item_pour_rag(request, app_name, pk):
+    """Résout (detail, erreur_http). Mutualise la garde de propriété d'`unified_detail`."""
+    from django.http import JsonResponse
+    from django.shortcuts import get_object_or_404
+
+    from .utils.detail_registry import DetailRegistry
+
+    entry = DetailRegistry.get(app_name)
+    if not entry:
+        return None, JsonResponse({'erreur': f"app inconnue : {app_name}"}, status=404)
+    instance = get_object_or_404(entry['model'], pk=pk)
+    proprio = getattr(instance, 'user', None)
+    # Un item d'un collègue ne s'ajoute pas à MON rag : ce serait recopier son contenu sous mon
+    # identité, donc contourner le partage par NIVEAU au lieu de l'utiliser.
+    if proprio is not None and proprio != request.user and not request.user.is_staff:
+        return None, JsonResponse({'erreur': "cet élément ne vous appartient pas"}, status=403)
+    return entry['adapter'](instance), None
+
+
+@login_required
+@require_POST
+def rag_ajouter(request):
+    """Ajoute au RAG le texte d'un item d'app — LA porte d'écriture des surfaces.
+
+    Générique par construction : `app`/`pk` suffisent, le texte vient du schéma canonique.
+    `source_id` = `<app>:<pk>` — stable, donc le geste est IDEMPOTENT (re-cliquer ne duplique
+    pas, changer de niveau ne recalcule pas les vecteurs) et la page de gestion sait remonter
+    à l'item d'origine.
+    """
+    from .memory.index import NIVEAUX_ECRITURE, ajouter_au_rag
+
+    app_name = (request.POST.get('app') or '').strip()
+    try:
+        pk = int(request.POST.get('pk') or 0)
+    except (TypeError, ValueError):
+        pk = 0
+    if not app_name or not pk:
+        return JsonResponse({'erreur': 'app et pk requis'}, status=400)
+
+    detail, erreur = _item_pour_rag(request, app_name, pk)
+    if erreur is not None:
+        return erreur
+
+    texte, origine = _texte_indexable(detail)
+    if not texte:
+        return JsonResponse({'erreur': "cet élément ne porte pas de texte à indexer"}, status=400)
+
+    prof = getattr(request.user, 'profile', None)
+    niveau = (request.POST.get('niveau') or '').strip() \
+        or (getattr(prof, 'rag_niveau_defaut', '') if prof else '') or 'user'
+    if niveau not in NIVEAUX_ECRITURE:
+        return JsonResponse({'erreur': f"niveau non ouvert : {niveau}"}, status=400)
+
+    res = ajouter_au_rag(
+        request.user, texte,
+        # Référence CITABLE : c'est elle que le rappel affiche à côté de l'extrait ([reader:12]).
+        source_ref=f'{app_name}:{pk}', source_id=f'{app_name}:{pk}',
+        source_kind=app_name, niveau=niveau,
+        org_unit=(request.POST.get('org_unit') or '').strip() or None)
+    if res.get('erreur'):
+        return JsonResponse({'erreur': res['erreur']}, status=400)
+    res['origine'] = origine
+    return JsonResponse(res)
+
+
+@login_required
+@require_POST
+def rag_retirer(request):
+    """Retire un document du RAG. Le pendant du geste d'ajout — condition posée dès l'objection :
+    ce qui entre par un geste doit pouvoir sortir par un geste."""
+    from .memory.index import retirer_du_rag
+
+    source_id = (request.POST.get('source_id') or '').strip()
+    if not source_id:
+        return JsonResponse({'erreur': 'source_id requis'}, status=400)
+    return JsonResponse({'retires': retirer_du_rag(request.user, source_id)})
+
+
+@login_required
+@require_POST
+def rag_preference(request):
+    """Enregistre les défauts de niveaux du profil (écriture + rappel).
+
+    DEUX préférences distinctes, demandées comme telles par Fabien : à quel niveau MES ajouts
+    partent par défaut, et quels niveaux sont rappelés par défaut. Le rappel accepte l'ensemble
+    VIDE — « ne rien utiliser » est un choix légitime, pas une valeur manquante (d'où le
+    marqueur explicite plutôt qu'une liste absente, qu'on ne saurait pas distinguer d'un
+    formulaire incomplet)."""
+    from .memory.index import NIVEAUX_ECRITURE
+    from .memory.store import NIVEAUX_RAG
+
+    prof = getattr(request.user, 'profile', None)
+    if prof is None:
+        return JsonResponse({'erreur': 'profil introuvable'}, status=400)
+
+    champs = []
+    niveau = (request.POST.get('niveau_defaut') or '').strip()
+    if niveau:
+        if niveau not in NIVEAUX_ECRITURE:
+            return JsonResponse({'erreur': f"niveau non ouvert : {niveau}"}, status=400)
+        prof.rag_niveau_defaut = niveau
+        champs.append('rag_niveau_defaut')
+
+    if request.POST.get('rappel_soumis'):
+        choisis = [n for n in request.POST.getlist('niveaux_rappel') if n in NIVEAUX_RAG]
+        prof.rag_niveaux_rappel = choisis
+        champs.append('rag_niveaux_rappel')
+
+    if champs:
+        prof.save(update_fields=champs)
+    return JsonResponse({'niveau_defaut': prof.rag_niveau_defaut,
+                         'niveaux_rappel': prof.rag_niveaux_rappel})
+
+
+@login_required
+def rag_view(request):
+    """« Mon RAG » — page de gestion : ce que J'AI ajouté, à quel niveau, et le retrait.
+
+    Sœur du journal, et volontairement à côté de lui dans le menu : le journal montre ce que
+    l'utilisateur a FAIT, cette page ce qu'il a CONFIÉ à l'IA. Elle est la seule vue où l'on
+    voit d'un coup l'étendue de ce partage — c'est ce qui rend le consentement vérifiable, et
+    pas seulement demandé une fois au moment du clic.
+    """
+    from django.urls import reverse
+
+    from .app_registry import APP_CATALOG
+    from .memory.index import NIVEAUX_ECRITURE, lister_rag
+    from .memory.store import NIVEAUX_RAG
+
+    LIBELLE = {'user': 'Mon RAG (privé)', 'unit': 'RAG du labo',
+               'project': 'RAG du projet', 'public': 'Public'}
+
+    docs = lister_rag(request.user)
+
+    niveau_actif = (request.GET.get('niveau') or '').strip()
+    q = (request.GET.get('q') or '').strip()
+    if niveau_actif and niveau_actif != 'all':
+        docs = [d for d in docs if d['niveau'] == niveau_actif]
+    if q:
+        docs = [d for d in docs if q.lower() in (d['source_ref'] or '').lower()]
+
+    for d in docs:
+        # `source_id` = `<app>:<pk>` pour les ajouts venus de l'inspecteur ; `adhoc:…` sinon.
+        app_id, _, pk = (d['source_id'] or '').partition(':')
+        spec = APP_CATALOG.get(app_id) or {}
+        d['app'] = app_id if spec else ''
+        d['app_libelle'] = spec.get('name') or app_id
+        d['niveau_libelle'] = LIBELLE.get(d['niveau'], d['niveau'])
+        # `vectorises < fragments` = un reindex reste dû : on l'AFFICHE au lieu de le taire,
+        # sinon un document ajouté semble actif alors qu'aucun rappel sémantique ne le trouve.
+        d['en_attente'] = d['vectorises'] < d['fragments']
+        d['url_item'] = (reverse(spec['url_name']) if spec.get('url_name') else '')
+        d['pk'] = pk
+
+    prof = getattr(request.user, 'profile', None)
+    # NULL = jamais choisi ⇒ on présente TOUS les niveaux cochés, ce qui est le comportement
+    # réel (rien n'est filtré). Cocher/décocher devient alors un choix explicite, et la liste
+    # vide — « ne rien rappeler » — reste atteignable en décochant tout.
+    brut = getattr(prof, 'rag_niveaux_rappel', None) if prof else None
+    rappel = list(NIVEAUX_RAG) if brut is None else list(brut)
+    facettes = [{'cle': 'niveau', 'label': 'Niveau', 'tous': 'Tous les niveaux',
+                 'options': {n: LIBELLE[n] for n in NIVEAUX_ECRITURE},
+                 'valeur': niveau_actif or 'all'}]
+
+    return render(request, 'common/rag.html', {
+        'docs': docs,
+        'total': len(docs),
+        'fragments': sum(d['fragments'] for d in docs),
+        'en_attente': sum(1 for d in docs if d['en_attente']),
+        'facettes': facettes,
+        'q': q,
+        'url_reset': reverse('common:rag'),
+        'niveaux_ecriture': [(n, LIBELLE[n]) for n in NIVEAUX_ECRITURE],
+        'niveaux_rappel': [(n, LIBELLE[n], n in rappel) for n in NIVEAUX_RAG],
+        'niveau_defaut': getattr(prof, 'rag_niveau_defaut', 'user') if prof else 'user',
+        # Un profil sans affiliation ne peut pas publier au labo : on le DIT sur la page plutôt
+        # que de laisser le geste échouer au clic avec un message d'erreur.
+        'affiliations': list(getattr(prof, 'org_affiliations', None) or []) if prof else [],
+    })
+
+
 # ── Brique À-propos / Aide (2026-08-11) ──────────────────────────────────────────
 # L'À-propos et l'Aide sont des ONGLETS du gabarit commun (`app_modern_base.html`,
 # blocs `about_content`/`help_content` auto-remplis d'APP_CATALOG via le context

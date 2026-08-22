@@ -208,6 +208,13 @@ MECANISMES = (
     Mecanisme('journal', "Journal transversal de l'utilisateur",
               "Tout ce qu'il a lancé, toutes apps — DÉRIVÉ de detail_registry, aucune ligne par app",
               'wama/common/services/journal.py', 'WAMA_MEMORY.md §9bis'),
+    Mecanisme('rag_geste', "Ajout au RAG (geste explicite)",
+              "Bouton dans l'INSPECTEUR + page « Mon RAG » ; texte pris au schéma canonique, "
+              "aucune ligne par app. Pas de balayage : l'entrée au RAG est un geste, par décision",
+              'wama/common/static/common/js/wama-inspector.js', 'WAMA_MEMORY.md §7ter',
+              # Le domicile est le JS : c'est LUI qui rend le geste universel (inspecteur global).
+              # Les vues sont l'annexe serveur — la seule porte d'écriture offerte à l'UI.
+              annexes=('wama/common/templates/common/rag.html',)),
     Mecanisme('qc', 'Contrôle qualité de sortie',
               "Note une sortie par un validateur LLM INDÉPENDANT ; signal relatif, escalade humaine",
               'wama/common/utils/qc.py', 'ROADMAP.md §16.5'),

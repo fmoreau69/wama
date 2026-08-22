@@ -290,7 +290,7 @@
   function _section(label, inner) {
     return inner ? '<div class="wama-insp-sec"><span class="wama-insp-sec-lbl">' + label + '</span>' + inner + '</div>' : '';
   }
-  function renderDetailChips(d) {
+  function renderDetailChips(d, ctx) {
     var st = (d.status || '').toUpperCase();
     var stCls = st === 'SUCCESS' ? 'success' : st === 'FAILURE' ? 'danger' : st === 'RUNNING' ? 'warning text-dark' : 'secondary';
     var stLbl = (global.WamaApp && WamaApp.STATUS_LABEL && WamaApp.STATUS_LABEL[st]) || st;
@@ -333,7 +333,72 @@
       if (d.result_file) { var rf = _basename(d.result_file); outChips.push('<a class="wama-chip" href="' + d.result_file + '" title="Résultat"><i class="fas fa-download"></i> ' + escapeHtml(rf) + '</a>'); }
       secOut = _section('Sortie', _chipRow(outChips));
     }
-    return head + secIn + secReg + secOut;
+    return head + secIn + secReg + secOut + _ragChip(d, ctx);
+  }
+
+  // ── « Ajouter au RAG » — le GESTE, générique (WAMA_MEMORY.md §7ter, jalon 14) ─────────
+  // Vit ICI et non dans les gabarits d'app : l'inspecteur est global et déjà nourri par
+  // `detail_registry`, donc les 10 apps (et les suivantes) obtiennent le geste sans une ligne.
+  // DATA-GATED : pas de texte dans le schéma canonique ⇒ pas de bouton. Une vidéo ou une image
+  // sans sortie textuelle n'affiche rien plutôt qu'un bouton qui échouerait au clic.
+  // ⚠ L'entrée au RAG est un GESTE EXPLICITE : ce bouton ne s'auto-déclenche JAMAIS, et il n'a
+  // pas d'équivalent « tout ajouter » — c'est la décision de conception du 21/08, pas un manque.
+  function _ragChip(d, ctx) {
+    if (!ctx || !ctx.app || !ctx.pk) return '';
+    var origine = d.result_text ? 'la sortie' : (d.source_text ? "l'entrée" : '');
+    if (!origine) return '';
+    return '<div class="wai-sec wama-rag-geste">'
+      + '<button type="button" class="btn btn-sm btn-outline-success wama-rag-add"'
+      + ' data-app="' + escapeHtml(ctx.app) + '" data-pk="' + escapeHtml(ctx.pk) + '"'
+      + ' title="Indexer ' + origine + ' de cet élément pour que l\'IA puisse s\'en servir">'
+      + '<i class="fas fa-book-open-reader"></i> Ajouter au RAG</button>'
+      + '<span class="wama-rag-etat small text-white-50 ms-2"></span></div>';
+  }
+
+  function _cookie(nom) {
+    var m = ('; ' + document.cookie).split('; ' + nom + '=');
+    return m.length === 2 ? m.pop().split(';').shift() : '';
+  }
+
+  // Câble le bouton. Le niveau n'est PAS demandé ici : il vient du défaut de profil (page
+  // « Mon RAG »). Demander le niveau à chaque clic ferait payer un arbitrage à chaque geste,
+  // alors que le cas courant est « toujours le même niveau » ; le changer reste possible
+  // depuis la page de gestion, où l'on voit ce qu'on a déjà partagé.
+  function _wireRag(host) {
+    var btn = host && host.querySelector('.wama-rag-add');
+    if (!btn) return;
+    var etat = host.querySelector('.wama-rag-etat');
+    btn.addEventListener('click', function () {
+      btn.disabled = true;
+      if (etat) etat.textContent = 'Indexation…';
+      var fd = new FormData();
+      fd.append('app', btn.dataset.app);
+      fd.append('pk', btn.dataset.pk);
+      fetch('/common/api/rag/ajouter/', {
+        method: 'POST', body: fd, headers: { 'X-CSRFToken': _cookie('csrftoken') },
+      }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          if (!res.ok || res.j.erreur) {
+            btn.disabled = false;
+            if (etat) etat.textContent = res.j.erreur || 'échec';
+            return;
+          }
+          // « en attente de vectorisation » est dit, pas tu : sans embedding le document ne
+          // remonte pas encore au rappel sémantique — laisser croire l'inverse serait un
+          // mensonge d'interface (les vecteurs se calculent par lot, cf. store.reindex).
+          btn.innerHTML = '<i class="fas fa-check"></i> Au RAG';
+          btn.classList.remove('btn-outline-success');
+          btn.classList.add('btn-success');
+          if (etat) {
+            etat.textContent = res.j.fragments + ' fragment'
+              + (res.j.fragments > 1 ? 's' : '') + ' · ' + res.j.niveau
+              + ' · en attente de vectorisation';
+          }
+        }).catch(function () {
+          btn.disabled = false;
+          if (etat) etat.textContent = 'échec réseau';
+        });
+    });
   }
 
   function init(cfg) {
@@ -426,9 +491,17 @@
       var purl = link && link.getAttribute('data-preview-url');
       if (!purl) { hideDetail(); return; }
       var durl = purl.replace('/preview/', '/detail/');
+      // L'app et le pk ne sont PAS dans la charge utile de `unified_detail` (schéma canonique
+      // figé, INSPECTOR_DETAIL_FIELDS.md) : on les lit sur l'URL qu'on vient d'appeler, qui les
+      // porte par construction (`/common/detail/<app>/<pk>/`). Les ajouter au schéma aurait
+      // touché les 10 adapters pour une donnée que l'appelant connaît déjà.
+      var seg = durl.split('/detail/')[1] || '';
+      var parts = seg.split('/').filter(Boolean);
+      var ctx = parts.length >= 2 ? { app: parts[0], pk: parts[1] } : null;
       fetch(durl).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
         if (!d || d.error) { hideDetail(); return; }
-        infoHost.innerHTML = renderDetailChips(d);
+        infoHost.innerHTML = renderDetailChips(d, ctx);
+        _wireRag(infoHost);
         if (infoSection) infoSection.style.display = '';
         // Identité + désélection remontées ici → le bandeau Paramètres (#N redondant) est masqué.
         // (Apps portées au détail : le bandeau est RETIRÉ du template — §21.3.6 ; on ne proxifie

@@ -70,6 +70,29 @@ class UserProfile(models.Model):
         default=True,
         verbose_name="Enrichir automatiquement mes prompts de génération",
     )
+    # ── Défauts de NIVEAUX du RAG (jalon 14, WAMA_MEMORY.md §7ter) ────────────────────
+    # DEUX préférences, et non une : le niveau auquel MES ajouts partent, et les niveaux
+    # rappelés quand l'IA cherche. Les confondre obligerait à partager pour pouvoir lire.
+    # Écrire : 'user' (privé) par défaut — le partage au labo est un geste, jamais l'inertie.
+    rag_niveau_defaut = models.CharField(
+        max_length=16, default='user',
+        choices=[('user', 'Mon RAG (privé)'), ('unit', 'RAG du labo')],
+        verbose_name="Niveau par défaut de mes ajouts au RAG",
+    )
+    # Lire : trois états, pas deux — et c'est la raison du `null=True`.
+    #   NULL  = l'utilisateur n'a jamais choisi ⇒ tous les niveaux qu'il a le droit de voir
+    #           (comportement historique : on ne prive personne de son RAG par défaut) ;
+    #   []    = il a explicitement décoché TOUT ⇒ ne rien rappeler. Fabien a nommé ce choix
+    #           comme légitime ; il doit donc être REPRÉSENTABLE ;
+    #   [..]  = la sélection.
+    # ⚠ Un `default=list` aurait confondu les deux premiers et coupé le RAG de tous les profils
+    # existants au déploiement — le vide n'est significatif que s'il se distingue de l'absence.
+    rag_niveaux_rappel = models.JSONField(
+        null=True, blank=True, default=None,
+        verbose_name="Niveaux de RAG rappelés par défaut",
+        help_text="NULL = tous ceux qui me sont visibles. Liste vide = ne rien rappeler. "
+                  "Valeurs : user, unit, project, public.",
+    )
     # Axe A — profil de compte (tier). Les rôles métier (axe B) = Django Groups 'role:*'.
     account_tier = models.CharField(
         max_length=16,

@@ -339,3 +339,130 @@ class NiveauxRappelTests(TestCase):
 
     def test_defaut_none_egale_tout_le_visible(self):
         self.assertEqual(self._ids(None), {'n:1', 'l:1'})
+
+
+class SurfacesDuGesteTests(TestCase):
+    """
+    JALON 14 — les SURFACES du geste (bouton d'inspecteur + page « Mon RAG »).
+
+    Ce qui est protégé ici n'est pas l'ergonomie mais les INVARIANTS de la décision du 21/08 :
+    l'écriture passe par un geste sur UN élément, l'élément doit porter du texte, il doit
+    m'appartenir, et le geste est idempotent. Une régression sur l'un d'eux rouvrirait la porte
+    que le retrait du balayage avait fermée.
+
+    Le registre de détail est peuplé ICI avec un adapter de test : les vues sont GÉNÉRIQUES
+    (elles ne connaissent aucune app), donc les tester à travers une app réelle ferait dépendre
+    la garantie d'un gabarit d'app — et masquerait la généricité qu'on veut justement prouver.
+    """
+
+    def setUp(self):
+        from wama.common.utils.detail_registry import DetailRegistry
+
+        self.u = User.objects.create_user('surf_a', password='x')
+        self.autre = User.objects.create_user('surf_b', password='x')
+        # Porteur commode : MemoryItem a un FK `user`, donc la garde de propriété est réelle.
+        self.item = MemoryItem.objects.create(
+            subject='porteur', content='inutilisé', user=self.u,
+            provenance=MemoryItem.PROV_PROJECTION)
+        self.muet = MemoryItem.objects.create(
+            subject='muet', content='inutilisé', user=self.u,
+            provenance=MemoryItem.PROV_PROJECTION)
+        textes = {self.item.pk: 'le compte rendu de la réunion sur les chevaux miniatures',
+                  self.muet.pk: ''}
+
+        def adapter(instance):
+            d = {'id': instance.pk, 'status': 'SUCCESS'}
+            if textes.get(instance.pk):
+                d['result_text'] = textes[instance.pk]
+            return d
+
+        avant = dict(DetailRegistry._registry)
+        DetailRegistry.register('apptest', MemoryItem, adapter)
+        self.addCleanup(lambda: DetailRegistry._registry.clear()
+                        or DetailRegistry._registry.update(avant))
+        self.client.force_login(self.u)
+
+    def _ajouter(self, pk, **extra):
+        return self.client.post('/common/api/rag/ajouter/',
+                                dict({'app': 'apptest', 'pk': pk}, **extra))
+
+    def test_le_geste_indexe_le_texte_du_schema_canonique(self):
+        r = self._ajouter(self.item.pk)
+        self.assertEqual(r.status_code, 200)
+        self.assertGreaterEqual(r.json()['fragments'], 1)
+        # `source_id` = <app>:<pk> — c'est lui qui rend le geste idempotent ET qui permet à la
+        # page de gestion de remonter à l'élément d'origine.
+        chunks = RagChunk.objects.filter(user=self.u, source_id=f'apptest:{self.item.pk}')
+        self.assertTrue(chunks.exists())
+        self.assertTrue(all(c.embedding is None for c in chunks))   # jamais de GPU au geste
+
+    def test_un_element_sans_texte_n_est_pas_indexable(self):
+        r = self._ajouter(self.muet.pk)
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(RagChunk.objects.count(), 0)
+
+    def test_l_element_d_un_autre_ne_peut_pas_entrer_dans_mon_rag(self):
+        self.item.user = self.autre
+        self.item.save(update_fields=['user'])
+        self.assertEqual(self._ajouter(self.item.pk).status_code, 403)
+        self.assertEqual(RagChunk.objects.count(), 0)
+
+    def test_re_cliquer_ne_duplique_pas(self):
+        self._ajouter(self.item.pk)
+        n = RagChunk.objects.count()
+        r = self._ajouter(self.item.pk)
+        self.assertEqual(r.json()['etat'], 'inchangé')
+        self.assertEqual(RagChunk.objects.count(), n)
+
+    def test_le_retrait_est_le_pendant_du_geste(self):
+        self._ajouter(self.item.pk)
+        r = self.client.post('/common/api/rag/retirer/',
+                             {'source_id': f'apptest:{self.item.pk}'})
+        self.assertGreaterEqual(r.json()['retires'], 1)
+        self.assertEqual(RagChunk.objects.count(), 0)
+
+    def test_anonyme_ne_peut_rien_ecrire(self):
+        self.client.logout()
+        r = self._ajouter(self.item.pk)
+        self.assertIn(r.status_code, (302, 403))       # login_required
+        self.assertEqual(RagChunk.objects.count(), 0)
+
+    def test_niveau_par_defaut_du_profil_est_applique(self):
+        _affilier(self.u, 'LAB-SURF')
+        OrgUnit.objects.create(code='LAB-SURF', name='Labo', unit_type='labo')
+        prof = self.u.profile
+        prof.rag_niveau_defaut = 'unit'
+        prof.save()
+        self._ajouter(self.item.pk)
+        chunk = RagChunk.objects.filter(user=self.u).first()
+        self.assertEqual(chunk.visibility, ScopedVisibility.VIS_UNIT)
+
+    def test_preference_de_rappel_distingue_JAMAIS_CHOISI_de_RIEN(self):
+        """L'invariant qui a failli être manqué : `null` et `[]` ne veulent pas dire pareil.
+
+        `null` = jamais choisi ⇒ tous les niveaux visibles (comportement historique) ;
+        `[]` = décoché volontairement ⇒ ne rien rappeler. Un `default=list` aurait confondu
+        les deux et coupé le RAG de tous les profils existants au déploiement.
+        """
+        self.assertIsNone(self.u.profile.rag_niveaux_rappel)      # profil neuf = jamais choisi
+        r = self.client.post('/common/api/rag/preference/',
+                             {'rappel_soumis': '1'})              # aucune case cochée
+        self.assertEqual(r.status_code, 200)
+        self.u.profile.refresh_from_db()
+        self.assertEqual(self.u.profile.rag_niveaux_rappel, [])   # RIEN, et non « jamais choisi »
+
+    def test_la_page_de_gestion_liste_ce_que_j_ai_confie(self):
+        self._ajouter(self.item.pk)
+        r = self.client.get('/common/rag/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.context['total'], 1)
+        self.assertGreaterEqual(r.context['fragments'], 1)
+        # Le document est annoncé NON VECTORISÉ tant que le lot n'est pas passé : le taire
+        # laisserait croire que le rappel sémantique le trouve déjà.
+        self.assertEqual(r.context['en_attente'], 1)
+
+    def test_la_page_ne_montre_que_MES_documents(self):
+        self._ajouter(self.item.pk)
+        self.client.force_login(self.autre)
+        r = self.client.get('/common/rag/')
+        self.assertEqual(r.context['total'], 0)

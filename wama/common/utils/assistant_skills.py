@@ -139,8 +139,16 @@ def contexte_laboratoire(user, question: str, cle: str = None) -> str:
 
     try:
         from wama.common.memory.store import recall
+        # NIVEAUX choisis par l'utilisateur (page « Mon RAG », jalon 14). Trois états :
+        # NULL ⇒ None ⇒ tous les niveaux visibles (défaut historique) ; [] ⇒ ne rien rappeler
+        # du RAG — un choix explicite qu'on RESPECTE, y compris quand il vide le contexte ;
+        # sinon la sélection. La mémoire (souvenirs) n'est PAS concernée : elle n'a pas de
+        # niveaux de partage, c'est le RAG seul que l'utilisateur dose.
+        prof = getattr(user, 'profile', None)
+        niveaux = getattr(prof, 'rag_niveaux_rappel', None) if prof else None
         hits = recall(question, user=user, k=RAPPEL_K,
-                      include_rag=True, include_memory=True)
+                      include_rag=True, include_memory=True,
+                      rag_niveaux=None if niveaux is None else set(niveaux))
     except Exception:
         logger.debug("[assistant_skills] rappel de contexte indisponible", exc_info=True)
         return ''

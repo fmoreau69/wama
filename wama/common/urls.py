@@ -44,6 +44,13 @@ urlpatterns = [
     # aucune ligne dans les apps.
     path('journal/', views.journal_view, name='journal'),
 
+    # RAG — SURFACES du geste (jalon 14, WAMA_MEMORY.md §7ter). `rag_ajouter` est la SEULE
+    # porte d'écriture offerte à l'UI : il n'existe pas de route de balayage, par décision.
+    path('rag/', views.rag_view, name='rag'),
+    path('api/rag/ajouter/', views.rag_ajouter, name='rag_ajouter'),
+    path('api/rag/retirer/', views.rag_retirer, name='rag_retirer'),
+    path('api/rag/preference/', views.rag_preference, name='rag_preference'),
+
     # Schéma domaines→modes d'une app (clé de voûte UX, consommé par WamaModes JS)
     path('api/app-modes/<str:app>/', views.api_app_modes, name='api_app_modes'),
     path('modes-demo/', views.modes_demo, name='modes_demo'),

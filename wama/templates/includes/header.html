@@ -68,6 +68,15 @@
                                 <i class="fas fa-clock-rotate-left me-2 text-info"></i> Mon journal
                             </a>
                         </li>
+                        {% comment %}« Mon RAG » juste sous « Mon journal » : les deux pages
+                        transversales personnelles. Le journal dit ce que l'utilisateur a FAIT,
+                        celle-ci ce qu'il a CONFIÉ à l'IA — voir d'un coup l'étendue de ce
+                        partage est ce qui rend le consentement vérifiable (WAMA_MEMORY §7ter).{% endcomment %}
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:rag' %}">
+                                <i class="fas fa-book-open-reader me-2 text-success"></i> Mon RAG
+                            </a>
+                        </li>
                         <li>
                             <a class="dropdown-item d-flex align-items-center" href="{% url 'common:apps_catalog' %}">
                                 <i class="fas fa-cubes me-2 text-primary"></i> Apps

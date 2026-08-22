@@ -1,11 +1,14 @@
 # WAMA_MEMORY.md — Mémoire & RAG : référence unique du domaine
 
-> **Statut : CONSTRUIT — RAG VIDE PAR DÉCISION** (mis à jour 2026-08-21). Jalons 1-13 livrés —
+> **Statut : CONSTRUIT ET OUVERT AUX UTILISATEURS** (mis à jour 2026-08-22). Jalons 1-14 livrés —
 > brique `wama/common/memory/`, journal `/common/journal/`, `memory_recall` **hybride** (résidence
-> `bge-m3` arbitrée par le gouverneur), 25 souvenirs dev-ai en file de revue, et **entrée au RAG
-> par GESTE avec niveaux user/labo** (§7ter). ⚠ Le balayage initial a été **purgé** (939 → 0) et
-> le RAG restera **vide** tant qu'aucune surface ne porte le geste « Ajouter au RAG » (jalon 14) :
-> c'est l'état **voulu**, pas un manque. Il remplace, pour ce domaine, les intentions
+> `bge-m3` arbitrée par le gouverneur), 25 souvenirs dev-ai en file de revue, **entrée au RAG
+> par GESTE avec niveaux user/labo** (§7ter) et, depuis le 2026-08-22, **ses SURFACES** :
+> bouton « Ajouter au RAG » dans l'**inspecteur** (donc les 10 apps, sans une ligne par app) +
+> page **« Mon RAG »** `/common/rag/` (défauts de niveaux, liste, retrait, état des vecteurs).
+> ⚠ Le RAG reste **vide tant que personne n'a cliqué** — c'est l'état **voulu** : le balayage
+> initial a été purgé (939 → 0) et il n'existe aucune autre porte d'écriture.
+> Il remplace, pour ce domaine, les intentions
 > dispersées dans `PROJECT_STATUS §6`, `ROADMAP §16.2/§16.7` et `docs/WAMA_Vision_Complet_v2 §11`
 > — qui restent valables sur le *pourquoi* mais sont **périmés sur le substrat** (ils disent
 > ChromaDB, voir §7).
@@ -355,6 +358,43 @@ l'inspecteur racontent la même chose — deux projections écrites séparément
    dans sa liste (mesuré : 73 → 31 requêtes en différant l'hydratation). `list_my_items` doit
    rester léger ; `get_item_detail` est le coûteux, à la demande.
 
+## 9quater. Les SURFACES du geste — placement tranché (jalon 14, livré 2026-08-22)
+
+Le geste existait (§7ter) sans porte : `ajouter_au_rag` n'avait aucun appelant d'UI. Deux
+surfaces le portent désormais, et le **placement** est la seule vraie décision de ce jalon.
+
+**① Le geste vit dans l'INSPECTEUR, pas sur les cards des apps.**
+`renderDetailChips` ajoute un bouton « Ajouter au RAG » quand l'item porte du texte. Pourquoi
+là et pas ailleurs :
+
+- l'inspecteur est **global** depuis le 2026-08-20 (`base.html`) et déjà nourri par
+  `detail_registry`, **qui porte `result_text`/`source_text`** — le texte à indexer est donc
+  **déjà dans la charge utile**, sans requête ni champ supplémentaire ;
+- **zéro ligne par app**, et une app future obtient le geste le jour où elle enregistre son
+  adapter de détail. C'est la dérivation qui a fait le journal (§9bis) ; l'alternative — un
+  bouton dans chacun des gabarits de card — aurait été **10 portages** pour un seul geste, et
+  la 11ᵉ app l'aurait oublié ;
+- **DATA-GATED** : pas de texte dans le schéma ⇒ **pas de bouton**. Une vidéo sans sortie
+  textuelle n'affiche rien, plutôt qu'un bouton qui échouerait au clic.
+
+⚠ Le bouton **ne demande pas le niveau à chaque clic** : il applique le défaut du profil. Le cas
+courant est « toujours le même niveau » ; faire payer un arbitrage à chaque geste le rendrait
+pénible, alors que le changer reste possible depuis la page — là où l'on **voit** ce qu'on a
+déjà partagé. Et il n'existe **aucun** « tout ajouter » : c'est la décision du 21/08, pas un manque.
+
+**② La page « Mon RAG » (`/common/rag/`), voisine de « Mon journal » dans le menu.**
+Le journal montre ce que l'utilisateur a **fait** ; celle-ci ce qu'il a **confié** à l'IA. Elle
+porte les défauts de niveaux, la liste, le retrait, et **annonce les documents non vectorisés**
+(`vectorises < fragments`) — les taire laisserait croire qu'un ajout est déjà rappelable
+sémantiquement alors que les vecteurs se calculent par lot.
+
+> **Pourquoi une page et pas seulement un bouton** : un consentement donné clic par clic, sans
+> vue d'ensemble, ne se vérifie jamais. C'est cette page qui rend l'étendue du partage
+> **constatable** — la contrepartie directe de l'objection du 21/08.
+
+Reste ouvert : le sélecteur de niveau **par requête** (en plus du défaut), et l'entrée depuis la
+médiathèque pour un document qui n'est passé par aucune app.
+
 ## 7ter. Entrée au RAG — un GESTE de l'utilisateur, jamais un balayage (CORRIGÉ 2026-08-21)
 
 > ⚠ **CORRECTION DE CONCEPTION.** La première version de cette section décrivait un **balayage** :
@@ -416,11 +456,20 @@ voulu : son RAG, celui du labo, les deux, **ou rien** (`set()` vide = choix lég
 erreur ; `None` = tout le visible). Chaque niveau reprend **la** branche correspondante de
 `scoped_visible_q` — même logique, jamais une réimplémentation qui pourrait diverger. ⚠ Choix
 documenté : `{'unit'}` seul **exclut** ses documents privés — « le RAG du labo » ≠ « le mien plus
-celui du labo ». Exposé à l'assistant via `memory_recall(niveaux=…)` ; les **surfaces d'UI**
-restent à construire (jalon 14) : sélecteur **par défaut** sur la future page de gestion du RAG +
-sélecteur **à chaque point d'usage**.
+celui du labo ». Exposé à l'assistant via `memory_recall(niveaux=…)`.
 
-**Testé, versionné** (`tests_memory.py`, 31 tests) — dont **le** test du niveau labo : un document
+**Le DÉFAUT de niveaux vit sur le profil** (livré 2026-08-22, `accounts.0015`) — deux préférences
+distinctes, et non une : `rag_niveau_defaut` (où partent mes ajouts, `'user'` par défaut — le
+partage au labo est un geste, jamais l'inertie) et `rag_niveaux_rappel` (ce que l'IA consulte).
+⚠ **`rag_niveaux_rappel` distingue TROIS états**, et c'est la raison de son `null=True` :
+`NULL` = jamais choisi ⇒ tout le visible (comportement historique) · `[]` = décoché
+volontairement ⇒ **ne rien rappeler** · `[…]` = la sélection. Un `default=list` aurait confondu
+les deux premiers et **coupé le RAG de tous les profils existants** au déploiement — le vide n'est
+significatif que s'il se distingue de l'absence. Lu par `contexte_laboratoire()` : la préférence
+n'est donc pas décorative, elle agit sur le rappel réel de l'assistant. Le sélecteur **à chaque
+point d'usage** (par requête, en plus du défaut) reste à venir.
+
+**Testé, versionné** (`tests_memory.py`, 41 tests) — dont **le** test du niveau labo : un document
 partagé au LABO par un de ses membres est rappelable par un membre d'une **ÉQUIPE** du labo
 (héritage `parent`), et les trois gardes en face (sans affiliation : refus ; affiliations
 multiples sans nom d'unité : refus motivé ; publication vers un ancêtre : refus).
@@ -576,7 +625,7 @@ Ne rien arbitrer sur ces chiffres.
 | 11 | Journal `/common/journal/` (couche 1) + captation générique (couche 2) | ✅ 2026-08-20 — §9bis |
 | 12 | **tool_api : lecture générique** (`list_my_items` / `get_item_detail`) — §9ter | ⏳ |
 | 13 | **Niveaux de RAG** — `rag_niveaux` dans `recall()` + `memory_recall(niveaux=…)` + niveaux à l'écriture | ✅ 2026-08-21 — 31 tests, héritage équipe→labo prouvé |
-| 14 | **Surfaces du geste** : bouton « Ajouter au RAG » (cards de résultat, médiathèque) + **page de gestion du RAG** (défaut de niveaux, liste, retrait, état des vecteurs) | ⏳ — placement à trancher avec Fabien |
+| 14 | **Surfaces du geste** : bouton « Ajouter au RAG » + **page de gestion** (défauts de niveaux, liste, retrait, état des vecteurs) | ✅ 2026-08-22 — **placement tranché : l'INSPECTEUR**, pas les cards (§9quater) ; page `/common/rag/` ; 10 tests |
 
 **Validation empirique du jalon 3** (2026-08-20, 21 contrôles, 0 échec) — écriture verbatim, dédup
 par `content_hash`, garde-fou « approbation sans approbateur » refusée, brouillon LLM invisible au
