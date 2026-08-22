@@ -84,9 +84,9 @@ MODULES: Tuple[ModuleData, ...] = (
         'segmenter', 'Segmenter', "Produit des segments : autour d'un événement, par prédicat, "
                                   "ou par plages constantes d'un catégoriel",
         "`events` ou signal + prédicat → `segments`",
-        doc='§6.7, §9bis.1',
-        bloque_par="⚠ NE PAS RÉINVENTER — un équivalent complet existe et n'a PAS été cartographié "
-                   "(BIND_GUI, 478 Ko de source non lus). Confronter aux 3 sources avant d'écrire",
+        doc='§9ter (spécification), §6.7',
+        bloque_par="SPÉCIFIÉ (§9ter) mais non écrit — 8 modes tirés des 3 sources. ⚠ le modèle "
+                   "actuel ne sait pas représenter un segment OUVERT (fin inconnue), D15",
     ),
     ModuleData(
         'calculator', 'Calculator', "Calcule des indicateurs PAR SEGMENT et les y adjoint",

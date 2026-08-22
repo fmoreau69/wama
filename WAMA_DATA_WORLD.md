@@ -42,7 +42,7 @@
 | **Référentiel temporel** | Aligne des flux à cadences incommensurables | référentiel → échantillons, `segments`, vue décimée | 🔶 | 1/1 | 1 | 3/0 | §2, §3 |
 | **Connector** | Branche une base existante comme source | base SQLite → référentiel | 🔶 | 1/1 | 0 | 1/0 | §6.2 |
 | **Explorer** | Explore un dataset en table et en graphe | référentiel → vues | ⏳ | — | — | — | §7 |
-| **Segmenter** | Produit des segments : autour d'un événement, par prédicat, ou par plages constantes d'un catégoriel | `events` ou signal + prédicat → `segments` | ⏳ | — | — | — | §6.7, §9bis.1 |
+| **Segmenter** | Produit des segments : autour d'un événement, par prédicat, ou par plages constantes d'un catégoriel | `events` ou signal + prédicat → `segments` | ⏳ | — | — | — | §9ter (spécification), §6.7 |
 | **Calculator** | Calcule des indicateurs PAR SEGMENT et les y adjoint | `segments` + signaux → colonnes d'indicateurs | ⏳ | — | — | — | §6.7 |
 | **Visualizer** | Vues synchronisées sur l'axe partagé (plugins) | référentiel → plugins co-chargés | ⏳ | — | — | — | §4, §8.2 |
 | **Exporter** | Rend les segments et indicateurs exploitables hors WAMA | `segments` + indicateurs → fichiers (pivot long → large) | ⏳ | — | — | — | §6.7 |
@@ -53,7 +53,7 @@
 
 - **Importer** — alignement par TRIGGERS non conçu (D12) ; `DATASET_SOURCES` non réconcilié avec le registre des lecteurs (G1) ; lecteur `.rec` encore une FONCTION (`functions/io/rtmaps_rec.py`) au lieu d'un lecteur de source
 - **Référentiel temporel** — AUCUN consommateur — la brique est inerte tant qu'un module ne s'en sert pas
-- **Segmenter** — ⚠ NE PAS RÉINVENTER — un équivalent complet existe et n'a PAS été cartographié (BIND_GUI, 478 Ko de source non lus). Confronter aux 3 sources avant d'écrire
+- **Segmenter** — SPÉCIFIÉ (§9ter) mais non écrit — 8 modes tirés des 3 sources. ⚠ le modèle actuel ne sait pas représenter un segment OUVERT (fin inconnue), D15
 - **Calculator** — même angle mort que le Segmenter ; dépend de lui
 - **Visualizer** — vue déclarative = verrou §7ter point 3 ; écrire 2-3 plugins AVANT d'extraire
 - **Recorder** — périmètre v1 non tranché (D5)
@@ -907,7 +907,76 @@ sens ». Chacun doit être un contrôle exécutable, pas une règle écrite.
 | G6 | **grille de conformité WAMA Data** | mesurée, comme la grille d'apps — sinon l'avancement se raconte |
 | G7 | **cas complet de bout en bout** | ⏳ quand une chaîne WAMA produira un export : rejouer le cas connu. ⚠ nécessite un **échantillon réduit VERSIONNÉ** (le corpus réel est hors dépôt) |
 
-### 9bis.6 Ce que la cartographie n'a pas couvert — à traiter avant l'Importer v2
+### 9ter. LE SEGMENTER — spécification tirée des trois sources (passe 6, 2026-08-22)
+
+> ⚠ **Rectification.** J'avais déclaré la cartographie « complète » alors que **BIND_GUI n'avait
+> pas été lu** — or c'est là que vivent le Segmenter, le Calculator et l'Exporter. 478 Ko de source
+> MATLAB (8791 lignes, 151 fonctions) étaient restés fermés. Voici la passe qui manquait.
+
+### 9ter.1 Les modes réels
+
+Sources : présentation BIND_GUI (2019, schéma) **confrontée au code** (`BIND_GUI.mlapp`), plus le
+modèle tiers (fonction `calculatePlageSansTrou`) et BORIS (`constants.py`).
+
+| mode | définition RÉELLE | BIND_GUI | modèle tiers | BORIS |
+|---|---|---|---|---|
+| **temporelle simple** | ancre + **DEUX offsets** : `start = tc + o₁`, `end = tc + o₂` | ✅ | — | — |
+| **temporelle double** | **jonction de DEUX tables** : début pris dans l'une, fin dans l'autre, appariement occurrence à occurrence avec curseurs indépendants | ✅ | — | — |
+| **conditionnelle** | conditions sur variables, combinées par **ET / OU** | ✅ | ✅ | — |
+| **hystérésis** | durée minimale + **trou toléré** | ❌ | ✅ | — |
+| **état (run-length)** | plages de valeur constante d'un catégoriel | implicite | ✅ | ✅ |
+| **codage** (manuel ou IA) | protocole déclaré + exécution | ✅ | — | ✅ (éthogramme) |
+| **sous-segmentation « présent dans »** | ne garder que les segments **strictement inclus** dans un segment de référence | ✅ | — | — |
+| **filtrage manuel** | curation humaine des events/situations produits | ✅ | — | — |
+| **segment OUVERT** (fin inconnue) | état commencé, non terminé | ❌ | ❌ | ✅ `UNPAIRED` |
+
+**Ce que j'avais modélisé était faux sur deux points** :
+
+1. Je décrivais « autour d'un événement **+ durée** ». Le réel est **deux offsets indépendants** —
+   c'est ce qui permet `15_45` (fenêtre commençant 15 s *après* l'ancre), impossible à exprimer
+   avec une simple durée. Confirmé par les 12 tables mesurées dans la base réelle.
+2. Je ne connaissais pas la **jonction de deux tables**. C'est pourtant le mode qui produit
+   « du début du bloc à la pause suivante », « du début de scénario à la fin de virage » — des
+   segments dont les deux bornes viennent de flux *différents*.
+
+### 9ter.2 Le meilleur des trois mondes
+
+Chaque source apporte ce que les autres n'ont pas :
+
+- **BIND_GUI** — la *combinatoire* : simple/double, ET/OU, « présent dans », filtrage manuel, et la
+  **sauvegarde/rechargement d'une segmentation** (`load_segmentation`, menus `Segmentation` /
+  `Export` / `Environnement complet`). C'est une segmentation **rejouable**, donc déjà un manifeste
+  qui s'ignore.
+- **Modèle tiers** — l'*hystérésis* (`durée minimale`, `trou toléré`). Sans elle, une segmentation
+  par seuil produit du confetti : c'est un détail de spécification qui ne s'invente pas.
+- **BORIS** — l'*état ouvert* (`UNPAIRED`) et le vocabulaire de **codage** (éthogramme, sujet,
+  modificateurs typés, comportements mutuellement exclusifs). Indispensable dès qu'un humain **ou
+  une IA** code en cours de flux : ni BIND ni WAMA ne savent aujourd'hui représenter un segment
+  commencé et non terminé.
+
+### 9ter.3 Conséquences pour WAMA
+
+| # | conséquence | statut |
+|---|---|---|
+| 1 | la signature du Segmenter est **`(ancre, o₁, o₂)`**, pas `(ancre, durée)` | à écrire |
+| 2 | ajouter le mode **jonction de deux flux** | à écrire |
+| 3 | l'hystérésis (`durée_min`, `trou_toléré`) est un **paramètre du mode conditionnel** | à écrire |
+| 4 | « présent dans » est une **opération ensembliste sur segments** (inclusion stricte), réutilisée **aussi à l'export** — donc une fonction du catalogue, pas un bout de Segmenter | à écrire |
+| 5 | `Signal` doit accepter une **fin `None`** = segment ouvert (D15) | ⚠ modèle actuel incapable |
+| 6 | le **codage** (manuel ou IA) produit des segments comme les autres modes — même sortie, origine tracée | à écrire |
+| 7 | une segmentation **se sauvegarde et se rejoue** → c'est un manifeste `pipeline`, pas un réglage d'écran | à écrire |
+
+> **Ne pas réinventer** : les concepts sont posés depuis des années et éprouvés sur de vraies
+> campagnes. Le travail est de les **traduire** dans le vocabulaire typé de WAMA — pas de les
+> redécouvrir.
+
+⛏ Reste non lu de BIND_GUI : le Calculator (annoncé « à venir » en 2019, donc probablement absent),
+l'Exporter (`ExportConcatPresentDans`, `exporterTousNormalPresentDans`…), et le cycle de vie du
+protocole de codage (`vbCreerProtocole` / `vbEditerProtocole` / `vbLancerCodage`).
+
+---
+
+## 9bis.6 Ce que la cartographie n'a pas couvert — à traiter avant l'Importer v2
 
 **L'alignement par TRIGGERS.** RTMaps et LSL fournissent une horloge d'acquisition commune ; des
 enregistrements **isolés** recalés par triggers, non : la référence commune y est un **événement
@@ -937,6 +1006,7 @@ qui ne sait lire que des acquisitions déjà synchronisées, c'est-à-dire le ca
 | D11 | les paramètres de fenêtre d'une situation : **colonnes/métadonnées** (interrogeables) plutôt que dans le NOM de la table comme BIND (`situation_0_15`) ? | après A |
 | D12 | **alignement par TRIGGERS** (§9bis.6) : où vit l'appariement d'événements entre flux — dans l'Importer, ou comme fonction du catalogue applicable après import ? | avant l'Importer v2 |
 | D13 | nœud **fonction** dans le kind `pipeline` : étendre `source\|sink\|app`, ou déclarer les fonctions comme un `app` d'un genre particulier ? | avant le 1ᵉʳ pipeline de données |
+| D15 | **segment OUVERT** (fin inconnue) : `Signal.ends` accepte-t-il `None` ? Indispensable au codage en cours de flux — un humain ou une IA qui code ouvre un état avant de le fermer. BORIS le porte (`UNPAIRED`), ni BIND ni WAMA ne savent le représenter | avant le codage vidéo |
 | D14 | granularité du **script généré** : un fichier plat rejouable, ou un module par fonction + un orchestrateur ? (impacte la lisibilité pour un relecteur académique) | avant l'Exporter de pipeline |
 
 ---
