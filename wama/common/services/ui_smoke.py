@@ -268,3 +268,209 @@ def register_ui_scenarios():
             ))(),
             timeout_s=120, vram_gb=0.0,
         )
+
+
+# ── Scénario d'IMPORT : la page est saine, mais fait-elle quelque chose ? ───────────────
+#
+# POURQUOI IL A FALLU L'ÉCRIRE. `<app>.ui` mesure la SANTÉ de la page : HTTP 200, zéro
+# erreur console. converter_01 satisfaisait les deux tout en étant totalement INERTE — son
+# gabarit généré n'émettait aucun script, donc aucun écouteur n'était posé et aucune voie
+# d'import n'émettait la moindre requête. Rien ne plante quand rien n'est chargé : le
+# scénario passait au vert sur une app incapable de créer une seule card (mesuré 2026-08-22).
+# La santé ne dit rien du COMPORTEMENT ; il fallait un scénario qui exerce un geste et
+# vérifie qu'il PRODUIT quelque chose.
+
+def _fichier_temoin(extensions: str) -> Path:
+    """Un fichier minuscule d'une extension que l'app ACCEPTE (déduite de sa zone de dépôt)."""
+    import tempfile
+    bruts = [e.strip() for e in (extensions or '').split(',') if e.strip()]
+    # Les familles MIME (`image/*`, `audio/*`) n'ont pas d'extension : les traduire, sinon on
+    # retombait sur `.txt` — et un .txt déposé sur l'imager part vers l'APERÇU DE LOT (c'est un
+    # fichier de prompts), donc aucun élément n'était créé et le test criait au loup.
+    FAMILLES = {'image/*': '.png', 'audio/*': '.wav', 'video/*': '.mp4'}
+    ext = next((FAMILLES[b] for b in bruts if b in FAMILLES),
+               next((b.lstrip('*') for b in bruts if b.startswith('.')), '.txt'))
+    # PNG 1×1 : la seule donnée binaire qu'on peut écrire sans dépendance.
+    png = bytes.fromhex('89504e470d0a1a0a0000000d494844520000000100000001080600000'
+                        '01f15c4890000000a49444154789c6360000002000100' '05fe02fea7'
+                        'dc9a730000000049454e44ae426082'.replace(' ', ''))
+    contenu = png if ext in ('.png', '.jpg', '.jpeg', '.webp') else b'temoin import WAMA\n'
+    f = tempfile.NamedTemporaryFile('wb', suffix=ext, delete=False)
+    f.write(contenu); f.close()
+    return Path(f.name)
+
+
+def check_app_import(app: str, url_path: str):
+    """L'app sait-elle CRÉER un élément depuis sa card d'entrée ? (ok, detail).
+
+    Trois constats, du plus structurel au plus concret — le premier qui manque explique les
+    suivants, d'où l'ordre :
+      1. la voie d'import est-elle CÂBLÉE (WamaImport instancié) ?
+      2. la zone de dépôt et le champ de fichier existent-ils ?
+      3. déposer un fichier émet-il une requête, et un élément apparaît-il ?
+
+    Ne démarre AUCUN traitement : on dépose, on observe, on nettoie.
+    """
+    from wama.common.services.nightly_tests import SkipScenario
+    from playwright.sync_api import sync_playwright
+
+    _nettoyes = []
+    url = f"{BASE_URL.rstrip('/')}{url_path}"
+    ETAT = """(() => {
+        const dz = document.querySelector('[id$="DropZone"], [data-wama-nic] .dropzone, .dropzone');
+        // Le champ d'IMPORT, pas le premier venu : une page porte souvent plusieurs
+        // input[type=file] (image de référence, avatar, voix de clonage…). On vise d'abord
+        // celui de la card d'entrée, puis la convention de nommage, puis le premier.
+        // Le champ d'import est celui de la CARD D'ENTRÉE commune, identifié par le marqueur
+        // de la brique (`data-wama-nic`) et par sa zone de dépôt. Hors de là, on ne devine pas :
+        // une page porte jusqu'à 6 input[type=file] (image de référence, voix de clonage,
+        // fichier de lot…), et en viser un au hasard produit un faux échec — mesuré le 22/08
+        // sur composer (batchFileInput), imager (imgFileInput) et avatarizer (audio_input).
+        // On s en tient au CONTRAT DE NOMMAGE de la brique commune (`_new_item_card.html`
+        // reçoit `file_input_id` et la convention est `<app>FileInput`). Toute autre
+        // heuristique vise à côté : ces pages portent jusqu'à 6 input[type=file], dont des
+        // champs de RÉFÉRENCE (mélodie, avatar, image de style) qui ne créent aucun élément
+        // — mesuré le 22/08 sur composer (melodyInput), imager (imgFileInput), avatarizer
+        // (audio_input). Pas de champ au contrat = app sans import par fichier -> non applicable.
+        // Ordre de visée, du plus sûr au plus large — chaque cran a été mesuré le 22/08 :
+        //  1. DANS la zone de dépôt : c'est le champ de l'import, par construction ;
+        //  2. le contrat de nommage de la brique (`<app>FileInput`) ;
+        //  3. dans la card d'entrée, hors champs de LOT et de RÉFÉRENCE.
+        // Sans le cran 1, on visait melodyInput (composer), imgFileInput (imager) ou
+        // audio_input (avatarizer) — des champs de référence qui ne créent aucun élément,
+        // d'où trois faux échecs. Avec le seul cran 2, on rejetait 5 apps qui importent très
+        // bien mais nomment leur champ autrement (transcriber-file…).
+        const exclus = '[id*="atch"], [id*="elody"], [id*="eference"], [id*="voice"], [id*="avatar"]';
+        const tous = [...document.querySelectorAll(`input[type=file]:not(${exclus})`)];
+        const fi = (dz && dz.querySelector(`input[type=file]:not(${exclus})`))
+                || document.querySelector(`[id$="FileInput"]:not(${exclus})`)
+                || (carte && carte.querySelector(`input[type=file]:not(${exclus})`))
+                // Dernier cran : UN SEUL champ candidat dans la page = aucune ambiguïté.
+                // S'il y en a plusieurs et qu'aucun marqueur ne les départage, on ne devine
+                // PAS — un test qui vise au hasard produit des faux échecs, et un faux échec
+                // répété apprend à ignorer la barrière.
+                || (tous.length === 1 ? tous[0] : null);
+        return {cable: !!window._import || typeof window.WamaImport === 'function',
+                instancie: !!window._import,
+                dropzone: !!dz, champ: !!fi,
+                accept: fi ? (fi.getAttribute('accept') || '') : '',
+                champ_id: fi ? (fi.id || '(sans id)') : '',
+                champs_total: document.querySelectorAll('input[type=file]').length,
+                cards: document.querySelectorAll('.wama-card').length};
+    })()"""
+
+    # NETTOYAGE : un test qui laisse des traces ne peut pas tourner toutes les nuits. Le modèle
+    # d'item de l'app est déjà connu du PreviewRegistry — on n'invente pas de table de
+    # correspondance, on lit celle qui existe. Sans lui, on ne supprime rien (et on le dit).
+    modele = None
+    try:
+        from wama.common.utils.preview_registry import PreviewRegistry
+        modele = PreviewRegistry.get_model(app)
+    except Exception:
+        modele = None
+    ids_avant = set()
+    if modele is not None:
+        try:
+            ids_avant = set(modele.objects.values_list('id', flat=True))
+        except Exception:
+            modele = None
+
+    temoin = None
+    sessions_before = _session_keys()
+    try:
+        with sync_playwright() as p:
+            navigateur = p.chromium.launch()
+            try:
+                page = navigateur.new_page(viewport={'width': 1500, 'height': 1000})
+                posts = []
+                page.on('response', lambda r: posts.append((r.status, r.url.split('?')[0]))
+                        if r.request.method == 'POST' else None)
+                resp = page.goto(url, wait_until='networkidle', timeout=45000)
+                if not resp or resp.status != 200:
+                    return False, f"page HTTP {resp.status if resp else '?'}"
+                page.wait_for_timeout(1200)
+                etat = page.evaluate(ETAT)
+
+                # Le CÂBLAGE n'est pas le verdict — seulement une information. Première
+                # version de ce test : « pas de WamaImport → échec ». Confronté aux 10 apps,
+                # il déclarait le converter EN PLACE défaillant alors qu'il importe très
+                # bien, avec son propre converter.js. C'était confondre l'ADOPTION de la
+                # brique commune (affaire de la grille de conformité) avec la CAPACITÉ à
+                # importer (objet de ce test). Seul le comportement tranche ici.
+                voie = 'brique commune' if etat['cable'] else 'JS propre à l’app'
+                if not (etat['dropzone'] or etat['champ']):
+                    # Surface SANS card d'entrée (médiathèque, gestionnaire de modèles,
+                    # studio) : le scénario ne s'y applique pas. SKIP, pas échec — une
+                    # barrière qui crie au loup sur des cas hors périmètre ne serait pas relue.
+                    raise SkipScenario("aucune card d'entrée sur cette surface — "
+                                       "scénario d'import non applicable")
+                if not etat['champ']:
+                    # PAS un échec : une app PROMPT-PRIMAIRE (composer, imager, avatarizer en
+                    # mode pipeline) n'importe pas de fichier de travail — on y saisit un texte.
+                    # Le geste équivalent existe, il n'est simplement pas celui-ci.
+                    raise SkipScenario(
+                        f"pas de champ de fichier dans la card d'entrée "
+                        f"({etat['champs_total']} ailleurs dans la page) : app sans import "
+                        f"par fichier — scénario non applicable")
+
+                temoin = _fichier_temoin(etat['accept'])
+                avant = etat['cards']
+                cible = etat['champ_id']
+                sel = f"#{cible}" if cible and cible != '(sans id)' else 'input[type=file]'
+                page.set_input_files(sel, str(temoin))
+                page.wait_for_timeout(4500)
+                apres = page.evaluate("document.querySelectorAll('.wama-card').length")
+                envoyes = [f"{s} {u.rsplit('/', 2)[-2]}/" for s, u in posts]
+            finally:
+                navigateur.close()
+    except Exception as e:
+        raise SkipScenario(f"navigateur/serveur indisponible ({type(e).__name__}: {str(e)[:100]})")
+    finally:
+        if temoin:
+            try:
+                temoin.unlink()
+            except OSError:
+                pass
+        _drop_new_sessions(sessions_before)
+        if modele is not None:
+            try:
+                crees = set(modele.objects.values_list('id', flat=True)) - ids_avant
+                if crees:
+                    modele.objects.filter(id__in=crees).delete()
+                    _nettoyes.append(len(crees))
+            except Exception:
+                pass
+
+    if not posts:
+        return False, (f"dépôt sur {etat['champ_id']} ({etat['champs_total']} champ(s) fichier "
+                       f"dans la page) : AUCUNE requête émise — la zone de dépôt existe "
+                       "mais RIEN NE L'ÉCOUTE. Défaut silencieux : ni erreur console, ni "
+                       "message ; c'est l'état exact d'une app générée sans couche JS.")
+    echecs = [f"{s} {u}" for s, u in posts if s >= 400]
+    if echecs:
+        return False, f"requêtes en échec : {', '.join(echecs[:3])}"
+    trace = f" ; {sum(_nettoyes)} élément(s) de test supprimé(s)" if _nettoyes else \
+            ("" if modele is not None else " ; ⚠ modèle inconnu du PreviewRegistry : rien nettoyé")
+    if apres <= avant:
+        return False, (f"requête(s) acceptée(s) ({', '.join(envoyes[:3])}) mais aucun élément "
+                       f"n'apparaît ({avant} → {apres}) — contrat de réponse ou rafraîchissement"
+                       + trace)
+    return True, (f"élément créé ({avant} → {apres} cards ; {', '.join(envoyes[:3])} ; "
+                  f"voie : {voie}){trace}")
+
+
+def register_import_scenarios():
+    """Enregistre un scénario `<app>.import` par app disposant d'une page d'index.
+
+    Déduit des URL comme `register_ui_scenarios` — aucune liste à tenir, donc toute app
+    NOUVELLE (générée comprise) est couverte le jour où elle expose son index.
+    """
+    from wama.common.services.nightly_tests import register
+
+    for label, path in discoverable_apps():
+        register(
+            id=f"{label}.import", app=label, stage="ui",
+            description=f"Card d'entrée {label} : un dépôt crée un élément",
+            run=(lambda p=path, a=label: (lambda ctx: check_app_import(a, p)))(),
+            timeout_s=180, vram_gb=0.0,
+        )

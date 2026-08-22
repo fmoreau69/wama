@@ -22,16 +22,43 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--app", help="Filtrer par app (ex. transcriber)")
         parser.add_argument("--stage", choices=STAGES, help="Filtrer par étape cible")
+        # Un scénario NOMMÉ : c'est ce qui manquait pour rejouer un cas précis après
+        # correction, sans relancer toute la série. Accepte plusieurs ids séparés par des
+        # virgules, et un préfixe (`--id converter_01.` joue tous ceux de la jumelle).
+        parser.add_argument("--id", dest="ids",
+                            help="Scénario(s) par id, séparés par des virgules. Un id terminé "
+                                 "par '.' vaut PRÉFIXE (converter_01. = toute la jumelle) ; "
+                                 "commencé par '.', SUFFIXE (.import = la famille import)")
+        parser.add_argument("--list", action="store_true", dest="lister",
+                            help="Liste les scénarios enregistrés (alias de --dry-run)")
         parser.add_argument("--dry-run", action="store_true",
                             help="Liste les scénarios sans les exécuter")
 
     def handle(self, *args, **opts):
+        voulus = [i.strip() for i in (opts.get("ids") or "").split(",") if i.strip()]
+
+        def _retenu(s):
+            if not voulus:
+                return True
+            return any(s.id == v
+                       or (v.endswith('.') and s.id.startswith(v))
+                       or (v.startswith('.') and s.id.endswith(v))
+                       for v in voulus)
+
         scenarios = [
             s for s in REGISTRY
             if s.enabled
             and (not opts.get("app") or s.app == opts["app"])
             and (not opts.get("stage") or s.stage == opts["stage"])
+            and _retenu(s)
         ]
+        if voulus and not scenarios:
+            connus = ", ".join(sorted(s.id for s in REGISTRY)[:12])
+            self.stdout.write(self.style.WARNING(
+                f"Aucun scénario pour --id {opts['ids']}. Connus (extrait) : {connus}…"))
+            return
+        if opts.get("lister"):
+            opts["dry_run"] = True
 
         if not scenarios:
             self.stdout.write(self.style.WARNING("Aucun scénario ne correspond."))
