@@ -144,12 +144,18 @@ register(FunctionSpec(key='_sonde_test', name='Sonde', description='test',
 '''
 
     def setUp(self):
-        self.init_orig = self.INIT.read_text(encoding='utf-8')
+        # ⚠ En OCTETS, jamais en texte : `write_text` normalise les fins de ligne et laissait le
+        # fichier « modifié » après chaque passage. Dans un dépôt où plusieurs instances
+        # travaillent, une modification parasite finit dans le commit de quelqu'un d'autre.
+        self.init_orig = self.INIT.read_bytes()
 
     def tearDown(self):
         self.SONDE.unlink(missing_ok=True)
-        self.INIT.write_text(self.init_orig, encoding='utf-8')
+        self.INIT.write_bytes(self.init_orig)
         rafraichir('fonctions')
+
+    def _ajouter_import(self):
+        self.INIT.write_bytes(self.init_orig + b'\nfrom . import _sonde_test  # noqa\n')
 
     def _catalogue(self):
         from .catalog.function_catalog import FUNCTION_CATALOG
@@ -165,8 +171,7 @@ register(FunctionSpec(key='_sonde_test', name='Sonde', description='test',
     def test_fonction_ajoutee_a_chaud(self):
         avant = len(self._catalogue())
         self.SONDE.write_text(self.SOURCE, encoding='utf-8')
-        self.INIT.write_text(self.init_orig + "\nfrom . import _sonde_test  # noqa\n",
-                             encoding='utf-8')
+        self._ajouter_import()
 
         from .catalog.function_catalog import load_all
         load_all()
@@ -184,13 +189,12 @@ register(FunctionSpec(key='_sonde_test', name='Sonde', description='test',
         # propre suppression. Le module doit être RETIRÉ de sys.modules.
         avant = len(self._catalogue())
         self.SONDE.write_text(self.SOURCE, encoding='utf-8')
-        self.INIT.write_text(self.init_orig + "\nfrom . import _sonde_test  # noqa\n",
-                             encoding='utf-8')
+        self._ajouter_import()
         rafraichir('fonctions')
         self.assertIn('_sonde_test', self._catalogue())
 
         self.SONDE.unlink()
-        self.INIT.write_text(self.init_orig, encoding='utf-8')
+        self.INIT.write_bytes(self.init_orig)
         res = rafraichir('fonctions')
         self.assertTrue(res.ok, f"l'actualisation ne doit pas échouer : {res.messages}")
         self.assertNotIn('_sonde_test', self._catalogue())
