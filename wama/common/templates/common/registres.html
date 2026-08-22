@@ -103,6 +103,25 @@
       {% endif %}
 
       {% comment %}
+        Couverture de test MESUREE, pas declaree (`registries_coverage`). Le contrat de TOUT
+        registre est verifie par `ConformiteTest` ; ce compteur ne parle que des tests visant ce
+        registre EN PARTICULIER — sa semantique propre, qu'aucun controle generique ne peut
+        atteindre. Un registre DERIVE n'a pas de rafraichisseur, donc rien a eprouver : le
+        signaler produirait une alerte permanente que tout le monde apprendrait a ignorer.
+      {% endcomment %}
+      {% if r.tests_specifiques is not None %}
+      <div class="rg-auto" title="{{ r.tests_noms|join:', ' }}">
+        {% if r.tests_manquants %}
+          <i class="fas fa-triangle-exclamation me-1 text-warning"></i>Contrat verifie, aucun test
+          specifique
+        {% else %}
+          <i class="fas fa-vial me-1"></i>Contrat verifie
+          {% if r.tests_specifiques %} + {{ r.tests_specifiques }} test{{ r.tests_specifiques|pluralize }} specifique{{ r.tests_specifiques|pluralize }}{% endif %}
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {% comment %}
         Le contrôle vient de la BRIQUE COMMUNE `{% bouton_actualiser %}` — jamais réécrit ici.
         Elle décide seule des trois rendus depuis la nature déclarée (bouton / « toujours à
         jour » / « réservé »), applique la permission, gère le mode arrière-plan et le

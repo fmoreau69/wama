@@ -345,7 +345,9 @@ def registres_view(request):
     """
     from .registries import etat
 
-    registres = etat()
+    # `avec_couverture` : la page dit AUSSI ce qui est eprouve. La couverture est MESUREE
+    # (lecture des fichiers de test), jamais declaree -- un champ a tenir a jour aurait menti.
+    registres = etat(avec_couverture=True)
 
     # Facettes DÉCLARÉES (et non dérivées du DOM) : les valeurs brutes sont des clés
     # techniques (`scan`, `derive`…) alors que la page affiche des libellés français —

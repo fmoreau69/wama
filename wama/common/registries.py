@@ -357,11 +357,30 @@ def _compter(r: Registre) -> int:
         return 0
 
 
-def etat() -> List[dict]:
-    """Photo de tous les registres, pour l'UI et pour la documentation générée."""
+def etat(avec_couverture: bool = False) -> List[dict]:
+    """Photo de tous les registres, pour l'UI et pour la documentation générée.
+
+    `avec_couverture` ajoute la couverture de test MESURÉE (`registries_coverage`). Optionnel et
+    désactivé par défaut à dessein : le calcul lit et analyse les fichiers de test, ce qui n'a rien
+    à faire dans un appel qui ne veut que l'inventaire. La page de supervision, elle, l'active.
+    """
+    couvertures = {}
+    if avec_couverture:
+        try:
+            from .registries_coverage import couverture
+            couvertures = {c['cle']: c for c in couverture()}
+        except Exception:
+            logger.debug("couverture de test indisponible", exc_info=True)
+
     out = []
     for r in sorted(REGISTRES.values(), key=lambda x: x.nom):
+        c = couvertures.get(r.cle) or {}
         out.append({
+            # Couverture : présente uniquement si demandée. `tests_specifiques` vaut None quand la
+            # mesure n'a pas tourné — à distinguer de 0, qui affirmerait « aucun test » à tort.
+            'tests_specifiques': c.get('nb_specifiques') if c else None,
+            'tests_noms': c.get('specifiques') or [],
+            'tests_manquants': bool(c.get('manquant')),
             'cle': r.cle, 'nom': r.nom, 'nature': r.nature,
             'nature_label': NATURES[r.nature], 'source': r.source,
             'actualisable': r.nature != DERIVE, 'permission': r.permission,

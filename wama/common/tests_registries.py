@@ -468,6 +468,19 @@ class CouvertureTest(TestCase):
         self.assertGreater(detail['fonctions']['nb_specifiques'], 2)
         self.assertIn('test_fonction_ajoutee_a_chaud', detail['fonctions']['specifiques'])
 
+    def test_etat_ne_calcule_la_couverture_QUE_si_on_la_demande(self):
+        # Le calcul lit et analyse des fichiers : il n'a rien à faire dans un appel qui ne veut
+        # que l'inventaire. `None` (non mesuré) doit rester distinct de 0 (mesuré, aucun test) —
+        # les confondre affirmerait « aucun test » là où l'on n'a simplement pas regardé.
+        for e in etat():
+            self.assertIsNone(e['tests_specifiques'])
+        for e in etat(avec_couverture=True):
+            with self.subTest(registre=e['cle']):
+                self.assertIsInstance(e['tests_specifiques'], int)
+                self.assertEqual(e['tests_manquants'],
+                                 REGISTRES[e['cle']].nature != DERIVE
+                                 and e['tests_specifiques'] == 0)
+
     def test_la_couverture_generique_vaut_pour_TOUS(self):
         # Le contrat est couvert partout : l'absence de test spécifique n'est pas une absence
         # de test, et confondre les deux pousserait à écrire des tests de complaisance.
