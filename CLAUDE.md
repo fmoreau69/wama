@@ -153,6 +153,25 @@ apply_patch(
   `MODEL_PATHS` et des centaines de Go sur disque ; `wama-dev-ai` n'est importé nulle part
   (vérifié 2026-08-22 : 0 import depuis WAMA). Renommer coûterait sans rien gagner.
 
+### Le même critère tranche la LANGUE des identifiants (écrit le 2026-08-22, question de Fabien)
+
+> La question revenait par fichier — « ce test, je le nomme en anglais ? ». Elle a déjà sa réponse :
+> **c'est le même critère, « Python l'importe-t-il ? »**, appliqué un cran plus bas.
+
+| identifiant | importé ? | langue | pourquoi |
+|---|---|---|---|
+| module, classe, fonction, champ de modèle | **oui** — il se lit dans un `import`, une signature, un gabarit | **anglais** | c'est une API ; 97 % du dépôt l'est déjà |
+| méthode `test_*` | **jamais** | **français** | elle se lit dans un **rapport d'échec**, et nulle part ailleurs |
+
+- **Un nom de test énonce un COMPORTEMENT, pas un sujet.** C'est ce qui sépare réellement les deux
+  familles mesurées le 2026-08-22 (253 méthodes sur 369 en français) : les anglaises nomment la
+  cible (`test_create_synthesis`, `test_filename_property`), les françaises disent ce qui doit
+  arriver (`test_actualiser_deux_fois_ne_change_rien_la_seconde`). Le second style est celui qu'on
+  garde — traduire la phrase ne l'améliore pas, et aucun appelant n'en dépend.
+- **Dette ouverte, elle, RÉELLE** : `common/registries.py` expose `rafraichir`, `lancer`, `etat`…
+  en français alors qu'ils s'importent (`registres_view` importe `etat`). À renommer — mais
+  **jamais sans coordonner** avec les instances qui les importent (pending #2 du §REPRISE 22/08).
+
 ---
 
 ## 🔴 RÈGLE OBLIGATOIRE : UN MONDE N'EST PAS UN SOUS-DOSSIER DU SUBSTRAT

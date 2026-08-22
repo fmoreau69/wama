@@ -473,5 +473,6 @@ interchangeable). Validation prévue : vocabulaire canonique fermé, `when` ∈
 
 <!-- WAMA:FAITS(modeles) — généré par « python manage.py doc_facts », ne pas éditer -->
 - Manifestes du corpus (`manifests/apps/`) : **10**
-- Références de modèles (`body.models.catalog_keys`) : **91/91 résolvables** contre le catalogue `AIModel.model_key`
+- Références de modèles (`body.models.catalog_keys`) : **90/91 résolvables** contre le catalogue `AIModel.model_key`
+- ⚠ Pendantes : anonymizer:anonymizer:sam3
 <!-- /WAMA:FAITS(modeles) -->

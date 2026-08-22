@@ -293,6 +293,15 @@ MECANISMES = (
     Mecanisme('conformity', 'Grille de conformité',
               "Mesure les 8 facettes F1–F8 des apps par analyse du code réel",
               'wama/common/services/conformity_checker.py', 'WAMA_APP_CONVENTIONS.md'),
+    # ⚠ Déclaré ICI et non entre deux groupes : hors d'un `_domaine()` une entrée perd son
+    # domaine, donc n'apparaît dans AUCUNE sous-table de la carte — invisible, pas fausse.
+    # C'était son état jusqu'au 2026-08-22 (seul cas sur 88, trouvé par `tests_catalogues`).
+    Mecanisme('app_sandbox', "Bac à sable d'apps (jumelles exécutables)",
+              "Jumelle <app>_NN coexistante pour comparaison Playwright + diff dé-suffixé "
+              "(route §10.3 marche S) — registre sandbox_apps.json injecté au boot "
+              "(INSTALLED_APPS/urls/gating/catalogue), create/drop symétriques",
+              'wama/common/sandbox.py', 'WAMA_APP_GENERATION_ROUTE.md',
+              annexes=('wama/common/management/commands/app_sandbox.py',)),
 
     )),
 
@@ -340,12 +349,6 @@ MECANISMES = (
 
     )),
 
-    Mecanisme('app_sandbox', "Bac à sable d'apps (jumelles exécutables)",
-              "Jumelle <app>_NN coexistante pour comparaison Playwright + diff dé-suffixé "
-              "(route §10.3 marche S) — registre sandbox_apps.json injecté au boot "
-              "(INSTALLED_APPS/urls/gating/catalogue), create/drop symétriques",
-              'wama/common/sandbox.py', 'WAMA_APP_GENERATION_ROUTE.md',
-              annexes=('wama/common/management/commands/app_sandbox.py',)),
     *_domaine('UI générée', (
     # Les briques FRONT d'un mécanisme (js/partials) sont ses ANNEXES : même identité, le
     # comptage voit alors aussi les gabarits qui les référencent (balise <script>, include).
@@ -516,7 +519,10 @@ MECANISMES = (
               "ou=structures (SUPANN) → OrgUnit + parents ; peuple ce dont dépend le partage "
               "par unité (RAG labo, médiathèque). Lecture seule côté LDAP, idempotente",
               'wama/accounts/management/commands/sync_org_units.py',
-              'reference_ldap_supann_orgunit',
+              # ⚠ Pointait sur un souvenir d'agent (`reference_ldap_supann_orgunit`) : un
+              # pointeur que personne lisant le dépôt ne peut suivre. Le document du domaine
+              # est celui-là — `scoped_visibility`, l'autre moitié du mécanisme, l'y désigne déjà.
+              'PROFILES_PERMISSIONS.md',
               # `annexes` : la remontée d'attributs au PROFIL est l'autre moitié — elle marchait
               # déjà (signaux au login) ; c'est l'ARBRE qui manquait, d'où le domicile ici.
               annexes=('wama/accounts/ldap.py',)),
