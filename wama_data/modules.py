@@ -123,9 +123,19 @@ MODULES: Tuple[ModuleData, ...] = (
         bloque_par="vue déclarative = verrou §7ter point 3 ; écrire 2-3 plugins AVANT d'extraire",
     ),
     ModuleData(
-        'exporter', 'Exporter', "Rend les segments et indicateurs exploitables hors WAMA",
-        "`segments` + indicateurs → fichiers (pivot long → large)",
-        doc='§6.7',
+        'exporter', 'Exporter',
+        # ⚠ « pivot long → large » a été RETIRÉ le 2026-08-23 : c'était faux (§6.7, corrigé).
+        # Une table de situations est déjà `occurrences × indicateurs` ; l'export n'oriente rien,
+        # il SÉLECTIONNE des colonnes, les ordonne, et concatène. Le portage schéma-driven est
+        # spécifié en §9ter.6 — une DÉCLARATION d'export (donc un manifeste), deux axes de
+        # regroupement au lieu de quatre branches, et l'interface générée du schéma.
+        "Sélection ordonnée de colonnes + identité + contexte, écrite en fichiers exploitables "
+        "hors WAMA",
+        "`segments`/`events`/données + sélection → fichiers (concaténation, jamais pivot)",
+        doc='§9ter.5, §9ter.6',
+        bloque_par="À ÉCRIRE sur le modèle réel (§9ter.6) — un premier jet fondé sur un pivot "
+                   "inexistant a été reverté (ef756b63). Dépend du Segmenter : la chaîne "
+                   "conditionnelle décide de ce qu'il y aura à exporter",
     ),
     ModuleData(
         'recorder', 'Recorder', "Enregistre depuis une source temps réel",

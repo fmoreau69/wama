@@ -637,8 +637,20 @@ RTMaps .rec → rec2trip → .trip (1,28 Go / participant / 34 min)
 
 Trois enseignements que la lecture de code ne donnait pas :
 
-1. **L'Exporter fait un pivot long → large.** Le `.trip` stocke une table par fenêtre ; le livrable
-   met les fenêtres côte à côte, une ligne par passation. C'est son vrai travail.
+1. ~~**L'Exporter fait un pivot long → large.**~~ ⚠ **FAUX — corrigé le 2026-08-23 (Fabien).**
+   Il n'y a **aucun pivot**, nulle part. Une table `situation_*` est DÉJÀ `occurrences ×
+   indicateurs` (mesuré : `situation_0_15` = 7 lignes, `MetaSituationVariables` = 312 variables
+   pour 12 situations, soit ~26 colonnes chacune) — c'est-à-dire déjà l'orientation du fichier de
+   sortie. L'export écrit les tables telles quelles ; la seule différence avec le livrable est la
+   **mise en onglets Excel par type de situation**. Ce que BIND appelle « combinaison » est une
+   **concaténation** (verticale entre trips ou entre déclarations, horizontale en mode
+   `concat_all`), jamais un remaniement d'orientation.
+
+   > **Pourquoi cette ligne a coûté cher.** Elle contredisait §9ter.5, qui décrit l'export
+   > CORRECTEMENT parce qu'il a été lu dans le code. Le 2026-08-23 une session a suivi celle-ci,
+   > et a livré un Exporter « pivot long → large » — reverté (`ef756b63`). Deux récits du même
+   > mécanisme dans un même document : **le suivant lira celui qui l'arrange**. D'où la règle
+   > ci-dessous, §9ter.6.
 2. **Les paramètres de fenêtre vivent dans le NOM de la table** (`situation_0_15`) — fragile. Chez
    WAMA ce seraient des colonnes ou des métadonnées, donc **interrogeables** au lieu d'être devinées.
 3. **`MetaTripDatas` est un journal de calcul** : `calcul_RRIntervalsV2: OK`,
@@ -1032,6 +1044,118 @@ sentinelle numérique que le modèle refuse. La détection est désormais **une 
 ⛏ Seul reste non lu : le **Calculator**, annoncé « à venir » en 2019 — et l'absence de toute
 fonction de calcul d'indicateurs dans les 151 fonctions de BIND_GUI confirme qu'il n'a jamais
 existé. C'est le module que WAMA écrira **sans modèle**, et le seul de la chaîne dans ce cas.
+
+---
+
+### 9ter.6 PORTAGE SCHÉMA-DRIVEN du Segmenter et de l'Exporter (2026-08-23)
+
+> **Consigne de Fabien, qui commande toute cette section** : « reprendre le concept et le
+> fonctionnement pour l'adapter et le porter à WAMA en schéma-driven. Pas juste transposer le
+> code. » Les sources lues : `BIND_GUI.mlapp` (le code VIVANT — 2 537 lignes d'export, extraites
+> de l'archive ; les 3 `.m` de `BIND_GUI/src/+export` n'ont **aucun appelant**) et
+> `claude/WAMA-Data/Présentation_BIND_GUI.pptx` (diapos 12 et 17 = les schémas fonctionnels,
+> diapos 14-16 et 18 = les captures d'interface).
+
+#### A. Ce qui manque au Segmenter — mesuré, pas supposé
+
+| BIND (diapo 12 + captures) | WAMA aujourd'hui |
+|---|---|
+| Temporelle **simple** : ancre ± inf/sup | ✅ `autour(ancres, offset_debut, offset_fin)` |
+| Temporelle **double** : Table 1 **+ offset**, Table 2 **+ offset** | ❌ `jonction()` n'a **aucun offset** |
+| ☐ **Répéter sur les prochains segments** | ❌ absent |
+| Conditionnelle : **liste de conditions** `(C1) (C2)…` | ❌ **un seul** prédicat |
+| **Connecteur logique** `ET / OU / XOR / NON` + imbrication | ❌ absent |
+| Opérateurs **texte** (`contient`) | ❌ 6 opérateurs numériques |
+| Cible **Event \| Situation** au choix | ❌ produit toujours des `segments` |
+| « Présent dans » **dans le geste** | 🔶 `present_dans` existe, mais à part |
+| **Filtrage manuel** occurrence par occurrence | ❌ absent |
+| Nom **auto-dérivé** des paramètres (`deb_fin_0_0`) | 🔶 `nom` libre |
+
+#### B. La chaîne conditionnelle — le morceau qui demande une vraie traduction
+
+BIND présente une liste `(C1) (C2)…` et un champ **texte** éditable, `ET (C1 ,C2)`, dont l'exemple
+affiché est `NON(C1 C2 OU(C4 XOR (C5 ET C6)))`. Transposer cela donnerait un champ texte et un
+parseur. Ce n'est pas ce qu'on fait — voici la traduction, point par point.
+
+1. **Une condition est une DÉCLARATION typée, pas une ligne d'interface.**
+   `Condition(cle='C1', source='commentaires_simu', champ='texte', operateur='contient',
+   valeur='FIN')` — donc sérialisable, donc **entrant dans un manifeste**, donc rejouable et
+   exportable en script. Chez BIND elle vit dans une struct d'application (`app.export.ficN`,
+   `save_env_*`), c'est-à-dire dans une session.
+
+2. **L'assemblage est un ARBRE ; le texte n'en est que le RENDU.**
+   `{"op":"ET","args":["C1",{"op":"OU","args":["C2",{"op":"NON","args":["C3"]}]}]}`
+   La chaîne `NON(C1 C2 OU(…))` reste une **saisie** acceptée (on la parse vers l'arbre) et un
+   **affichage**, jamais le modèle. Ce que ça gagne, concrètement : une référence à un `C4`
+   inexistant, une arité fausse ou une parenthèse manquante se refusent **à la déclaration** au
+   lieu d'échouer à l'exécution — et l'arbre se compare, se diffe et se stocke.
+
+3. **Les opérateurs se DÉCLARENT dans un registre, et se filtrent par TYPE de colonne.**
+   Même geste que `STATISTIQUES` du Calculator : un registre `{nom → (test, types admis)}`. Le
+   gain n'est pas la centralisation, c'est que **l'UI se dérive du type** — une colonne texte ne
+   propose pas `>=`, une colonne numérique ne propose pas `contient`. BIND offre une liste plate
+   où l'utilisateur peut composer une condition qui ne veut rien dire. WAMA a déjà `data_types.py`
+   pour savoir de quel type est une colonne : la vérification est **gratuite**, il suffit de la
+   brancher.
+
+4. **« Que créer ? Event | Situation » devient un PORT DE SORTIE, pas un bouton radio.**
+   La chaîne produit un **masque booléen**. Deux fonctions déclarées le consomment :
+   `masque → events` (instants de bascule) et `masque → segments` (plages, avec l'hystérésis
+   `duree_min`/`trou_tolere` déjà écrite). C'est composable, typé, et **le cœur ne bouge pas** :
+   `conditionnelle()` prend DÉJÀ un masque en entrée — c'est la couche déclarative au-dessus qui
+   manquait, pas le moteur.
+
+5. **« Présent dans » est un CONTEXTE déclaré, appliqué par la brique commune.**
+   BIND le recopie dans quatre fonctions (`ExportConcatPresentDans`, `ExportConEveSitPresentDans`,
+   `exporterPresentDans`, `exporterTousNormalPresentDans`). WAMA a `present_dans()` : il devient un
+   **champ** du geste (`contexte=[…]`), pas une quatrième variante de chaque fonction.
+
+6. **Le filtrage manuel n'est pas une UI à écrire — c'est la CARD.**
+   BIND affiche une table d'occurrences avec une case « Ignore » par ligne. WAMA possède déjà ce
+   geste : une file de cards avec sélection, et un inspecteur. Le « filtrage manuel events /
+   situations » de la diapo 12 est donc **la file appliquée à une collection de segments** —
+   mécanisme existant, zéro interface spécifique. C'est l'exemple le plus net de ce que veut dire
+   « porter le concept plutôt que le code ».
+
+7. **Le nom se DÉRIVE des paramètres.** `deb_fin_0_0` chez BIND est construit des deux tables et
+   des deux offsets. Même règle que `nom_produit()` du Calculator (`vitesse` + `moyenne` →
+   `vitesse_moyenne`) : une règle déclarée, pas une saisie à retenir.
+
+#### C. L'Exporter — la déclaration remplace la struct de session
+
+`§9ter.5` décrit correctement ce que BIND produit. Ce qui suit dit comment WAMA le porte.
+
+1. **Une DÉCLARATION D'EXPORT remplace `app.export.ficN`** : un nom, une liste **ordonnée** de
+   colonnes `source.champ`, l'identité en tête (`trip_id`, `participant`, `scénario`), le contexte
+   « présent dans », la décimation, le format. Sérialisable — donc **c'est un manifeste**, et §7 de
+   ce document l'a déjà tranché pour la sauvegarde d'environnement (« c'est un manifeste, pas un
+   dump de session »). Les `save_env_export` / `load_export` de BIND arrivent alors **gratuitement**.
+
+2. **Les 4 modes de concaténation sont DEUX AXES, pas quatre branches.** BIND croise deux cases
+   (`ConcatTrip`, `ConcatSituationEvents`) en quatre `elseif` qui recopient chacun la même boucle
+   d'écriture — et les défauts qui vont avec (dans `concat_all`, `i_trip` et `i_fic` sont lus hors
+   de leur boucle). WAMA déclare `regroupement = {lots: bool, declarations: bool}` et **une seule**
+   implémentation de groupement : les quatre modes deviennent une conséquence, pas un chemin de code.
+
+3. **L'interface ne s'écrit pas, elle se génère de la déclaration.** Le sélecteur à trois niveaux
+   (type → table → variables), l'ordre `▲▼✕`, l'aperçu : ce sont des **rendus** du schéma. WAMA a
+   déjà `param_schema.py` + `WamaParams` qui font exactement cela côté apps.
+
+4. **L'aperçu est l'export borné à N lignes**, pas un second chemin. Chez BIND `ebApercu` est une
+   fonction distincte : deux chemins qui peuvent diverger, donc un aperçu qui finit par mentir.
+
+#### D. Ordre de travail
+
+Segmenter d'abord (la chaîne conditionnelle conditionne ce qu'il y aura à exporter), Exporter
+ensuite. Le Calculator, lui, reste valide : ses deux modes ont été confirmés par la diapo 7
+(« Calcul d'indicateurs globaux et par situations ») et par la ligne du §7 (« transformation de
+colonnes … indicateurs par situation »).
+
+⚠ **Corpus à lire AVANT tout travail Data** : `claude/WAMA-Data/` — `Présentation_BIND_GUI.pptx`
+(schémas fonctionnels + captures), `BIND_contexte.doc`, `Fonctions.xlsx`, `Usages_BIND.xlsx`,
+`Plugins_BIND.xlsx`, `DOCUMENTATION_SauvegardeETchargementDeConfigPlugins.docx`. Aucun des six
+n'avait été ouvert avant le 2026-08-23, alors qu'ils étaient dans le dépôt : c'est la cause
+première des deux erreurs de cette session.
 
 ---
 
