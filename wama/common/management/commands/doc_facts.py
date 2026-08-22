@@ -311,7 +311,7 @@ def _fait_wama_data() -> str:
     Une brique sans consommateur est inerte — l'afficher évite de confondre écrire du code et
     avancer, ce qui est arrivé au référentiel temporel (440 lignes, 0 appelant).
     """
-    from wama.common.data.modules import mesurer
+    from wama_data.modules import mesurer
 
     etats = mesurer()
     legende = {'✅': 'livré et consommé', '🔶': 'livré mais INERTE',
@@ -322,11 +322,11 @@ def _fait_wama_data() -> str:
 
     externe_total = sum(e['externe'] for e in etats)
     lignes = ["> Mesuré depuis le code — **ne pas éditer à la main** (`python manage.py doc_facts`).",
-              "> Registre des modules : `wama/common/data/modules.py`.", "",
+              "> Registre des modules : `wama_data/modules.py`.", "",
               "**Bilan** : " + " · ".join(f"{n} {s} ({legende[s]})"
                                           for s, n in sorted(compte.items())), ""]
     if not externe_total:
-        lignes += ["> 🔶 **AUCUN consommateur hors `common/data/` — le sous-système entier est "
+        lignes += ["> 🔶 **AUCUN consommateur hors `wama_data/` — le sous-système entier est "
                    "INERTE.** Aucune app, tâche ou route ne s'en sert encore : les briques "
                    "s'appellent entre elles, et c'est tout. Le premier module à donner un usage "
                    "réel fera basculer ces lignes en ✅.", ""]

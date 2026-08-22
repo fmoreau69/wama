@@ -3,7 +3,7 @@ Adaptateur cam_analyzer ↔ Prédiction.
 
 Reconstruit les trajectoires MONDE (repère métrique local) de la navette et des objets
 suivis, puis calcule TTC/PET navette↔objet via le cœur Prédiction
-(common.data.functions.geometry + common.data.functions.kinematics).
+(wama_data.functions.geometry + wama_data.functions.kinematics).
 
 Pourquoi le repère monde : Prédiction extrapole les trajectoires ; comme la navette bouge,
 un objet à position ego constante avance en réalité → il faut le monde pour un TTC juste.
@@ -15,8 +15,8 @@ import math
 
 import numpy as np
 
-from wama.common.data.functions.geometry import point_traj_to_shape
-from wama.common.data.functions.kinematics import (extrapolate_speed_accel,
+from wama_data.functions.geometry import point_traj_to_shape
+from wama_data.functions.kinematics import (extrapolate_speed_accel,
                                                    extrapolate_kalman, collision_detection)
 
 # Dimensions (longueur, largeur) en m par classe pour les empreintes.

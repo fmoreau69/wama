@@ -55,11 +55,6 @@ class CommonConfig(AppConfig):
             logging.getLogger(__name__).debug(
                 'Récepteurs prompt_ingest non enregistrés', exc_info=True)
 
-        # Enregistre les fonctions WAMA Data pures (conduite : map-matching, freinage…)
-        # dans le catalogue au démarrage.
-        try:
-            from wama.common.data import functions  # noqa: F401
-        except Exception:
-            import logging
-            logging.getLogger(__name__).warning(
-                'wama.common.data functions non enregistrées', exc_info=True)
+        # ⚠ Le substrat n'enregistre PLUS les fonctions du monde Data (déport du 2026-08-22) :
+        # chaque monde se déclare dans son propre `ready()` — `wama_data/apps.py`,
+        # `wama_lab/cam_analyzer/apps.py`. Le substrat ne doit connaître aucun monde par son nom.

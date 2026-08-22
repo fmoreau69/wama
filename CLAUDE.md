@@ -125,6 +125,53 @@ apply_patch(
 
 ---
 
+## 🔴 RÈGLE OBLIGATOIRE : NOMMAGE DES DOSSIERS — LE CRITÈRE EST « PYTHON L'IMPORTE-T-IL ? »
+
+> La coexistence de `AI-models`, `wama-dev-ai`, `wama_lab`, `cam_analyzer` a l'air incohérente.
+> Elle ne l'est pas : **la langue tranche, pas le goût.** `import wama-data` est une erreur de
+> syntaxe — Python y lit « wama moins data ». Règle écrite le 2026-08-22 (question de Fabien) parce
+> qu'elle n'était appliquée que par accident, donc destinée à dériver au premier dossier créé.
+
+| forme | quand | exemples |
+|---|---|---|
+| `underscore_case` | le dossier est un **paquet Python** — importé, déclaré en `INSTALLED_APPS`, porteur d'un `app_label` | `wama_data`, `wama_lab`, `cam_analyzer`, `face_analyzer`, `model_manager`, `media_library` |
+| `tiret-case` | le dossier n'est **jamais importé** — données, poids, outillage lancé en script | `AI-models`, `wama-dev-ai` |
+
+- **Créer un dossier de code = underscore, sans exception.** Un tiret y est irrattrapable sans
+  renommage, et un renommage de paquet Django touche `app_label`, les migrations et les tables.
+- **Ne PAS « uniformiser » l'existant** : `AI-models` est câblé dans `settings.py`, tous les
+  `MODEL_PATHS` et des centaines de Go sur disque ; `wama-dev-ai` n'est importé nulle part
+  (vérifié 2026-08-22 : 0 import depuis WAMA). Renommer coûterait sans rien gagner.
+
+---
+
+## 🔴 RÈGLE OBLIGATOIRE : UN MONDE N'EST PAS UN SOUS-DOSSIER DU SUBSTRAT
+
+> Doctrine des MONDES actée le 2026-07-20 (`docs/VISION_STATUS.md §Architecture en MONDES`), traduite
+> en arborescence le 2026-08-22. WAMA Data avait grandi sous `wama/common/data/` jusqu'à devenir une
+> chaîne de traitement de 10 modules — c'est-à-dire un monde logé dans le substrat.
+
+**Trois racines, trois natures :**
+
+| racine | contenu |
+|---|---|
+| `wama/` | apps du monde **Médias** + le **substrat transversal** (`common/`, studio, model_manager, médiathèque…) |
+| `wama_data/` | le monde **Data** — `core/` (moteur sans Django), `sources/`, `functions/`, `modules.py` |
+| `wama_lab/` | le monde **Lab** — apps métier de recherche (cam_analyzer, face_analyzer) |
+
+**Ce qui reste dans `wama/common/catalog/` et pourquoi** — la taxonomie de types (`data_types.py`)
+et le registre de fonctions (`function_catalog.py`) sont **la glu INTER-mondes**, pas une pièce du
+monde Data : `wama_lab/cam_analyzer/function_specs.py` y déclare des fonctions du Lab, et les
+manifestes `function`/`dataset` du substrat en dépendent. Les loger dans `wama_data` ferait dépendre
+le Lab et le substrat du monde Data.
+
+**Corollaire — le registre ne connaît JAMAIS ses producteurs.** Chaque monde déclare ses fonctions
+dans son propre `apps.py:ready()` ; `load_all()` parcourt les apps installées et importe leur module
+déclarant (`functions` ou `function_specs`) s'il existe. Citer un monde en dur dans le substrat est
+le défaut qui a rendu ce déport risqué — ne pas le réintroduire.
+
+---
+
 ## 🔴 RÈGLE OBLIGATOIRE : PAS DE NOUVEAU `.md` CONCURRENT — COMPLÉTER L'EXISTANT
 
 > **Trop de fichiers `.md` coexistent avec des redondances et des dérives de mise à jour** (la même

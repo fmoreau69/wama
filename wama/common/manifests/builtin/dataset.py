@@ -35,7 +35,7 @@ DATASET_SOURCES = ('rtmaps', 'lsl', 'rosbag', 'csv', 'parquet', 'db', 'docs', 'o
 
 
 def _valid_data_types() -> set:
-    from wama.common.data.data_types import DataType
+    from wama.common.catalog.data_types import DataType
     return {v for k, v in vars(DataType).items() if k.isupper() and isinstance(v, str)}
 
 

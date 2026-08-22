@@ -349,6 +349,11 @@ INSTALLED_APPS = [
     # ⚠ pas nommée « channels » : ce nom est celui de Django Channels et son label par
     # défaut rendrait ce paquet impossible à installer plus tard.
     'wama.gateway',
+    # WAMA Data — le monde des DONNÉES (racine du dépôt, à côté de wama/ et wama_lab/).
+    # Sorti de `wama/common/data/` le 2026-08-22 : un monde n'est pas un sous-dossier du substrat
+    # (doctrine des MONDES, docs/VISION_STATUS.md). Son `ready()` déclare ses fonctions au
+    # catalogue commun, resté dans `wama/common/catalog/` parce qu'il est la glu INTER-mondes.
+    'wama_data',
     # WAMA Lab - Experimental/Research applications
     'wama_lab.face_analyzer',
     'wama_lab.cam_analyzer',

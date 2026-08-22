@@ -304,8 +304,8 @@ def _run_wama_data(ctx):
 
     runner = get_runner(settings)(verbosity=0, interactive=False, keepdb=True)
     suite = runner.test_loader.loadTestsFromNames([
-        'wama.common.data.tests_temporal',
-        'wama.common.data.tests_sources',
+        'wama_data.core.tests_temporal',
+        'wama_data.sources.tests_sources',
     ])
     total = suite.countTestCases()
     if not total:

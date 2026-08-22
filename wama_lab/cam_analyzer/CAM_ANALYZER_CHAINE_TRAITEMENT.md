@@ -476,7 +476,7 @@ scoring reste dans `estimate_camera` → `placement_spread` calculée à l'ident
 homographie vs pinhole.
 
 **Câblage effectif (2026-08-05, 1ère passe — 3 ÉTAGES)** :
-- **Couche de calcul = briques PURES du tronc commun** (`wama/common/data/functions/geometry/depth_geometry.py`,
+- **Couche de calcul = briques PURES du tronc commun** (`wama_data/functions/geometry/depth_geometry.py`,
   numpy seul) : `deproject_depth`, `fit_plane_ransac` (RANSAC + raffinement SVD), `plane_pitch_height`,
   `ground_plane_from_depth`, `contact_depth`. Auto-déclarées au **catalogue** (`geometry.depth_ground_plane`,
   `geometry.depth_contact_distance`) + type `DataType.DEPTH_MAP`. **Aucune géométrie dans `utils/`** : la règle

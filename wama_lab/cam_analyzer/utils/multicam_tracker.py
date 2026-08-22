@@ -600,7 +600,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     # observation ne vivent que dans `track_hist`, filtré ici par `_stat_set`.
     placement_spread = None
     try:
-        from wama.common.data.functions.geometry.placement_metrics import track_position_spread
+        from wama_data.functions.geometry.placement_metrics import track_position_spread
         _pos_by_stat = {gid: [(h[2], h[3]) for h in track_hist.get(gid, [])]
                         for gid in _stat_set}
         placement_spread = track_position_spread(_pos_by_stat, min_obs=3)

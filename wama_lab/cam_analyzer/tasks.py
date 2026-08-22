@@ -2549,9 +2549,9 @@ def compute_ortho_correction_task(self, session_id: str):
     """
     from .models import AnalysisSession
     from .utils.features import effective as _feff
-    from wama.common.data.functions.driving.trajectory_offset import (
+    from wama_data.functions.driving.trajectory_offset import (
         decompose, build_anchors, correction_report)
-    from wama.common.data.functions.geo.ign_vector import sky_mask_at
+    from wama_data.functions.geo.ign_vector import sky_mask_at
 
     session = AnalysisSession.objects.get(pk=session_id)
     uid = session.user_id
@@ -3270,7 +3270,7 @@ def extract_rtmaps_task(self, session_id: str, rec_path: str = None, csv_path: s
                           if 'LogConsole' not in os.path.basename(r)]
                 _sync_rec = _cands[0] if _cands else None
             if _sync_rec:
-                from wama.common.data.functions.io.rtmaps_rec import parse_rec
+                from wama_data.functions.io.rtmaps_rec import parse_rec
                 _p = parse_rec(_sync_rec)
                 _vt = _p.get('video_timestamps') or []
                 _gp = _p.get('gps') or []

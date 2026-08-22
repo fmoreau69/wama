@@ -56,7 +56,7 @@ def _envelope_from_spec(key: str, d: dict, *, owner=None, visibility='public',
 
 def extract_function(key: str) -> Optional[dict]:
     # 1) catalogue code (FunctionSpec)
-    from wama.common.data import function_catalog as fc
+    from wama.common.catalog import function_catalog as fc
     try:
         fc.load_all()
     except Exception:
@@ -113,7 +113,7 @@ def write_back_function(manifest: dict, *, apply: bool = False) -> dict:
         return {'function': key, 'binding': binding, 'changed': [],
                 'skipped': f"binding '{binding}' = catalogue CODE (FUNCTION_CATALOG) — code-gen, "
                            f"pas de projection runtime"}
-    from wama.common.data import function_catalog as fc
+    from wama.common.catalog import function_catalog as fc
     try:
         fc.load_all()
     except Exception:

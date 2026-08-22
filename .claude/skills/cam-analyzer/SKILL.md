@@ -23,7 +23,7 @@ règle des bascules.
   que les fonctions pures WAMA Data. **Ne jamais la recopier ailleurs** (règle « un domaine = un
   fichier de référence ») : la tenir à jour EST le geste. Ajouter un traitement sans l'y déclarer
   le rend invisible du catalogue, de `/model-manager/functions/` et du Studio.
-- **Toute logique PURE et réutilisable va dans `wama/common/data/functions/<domaine>/`**, avec sa
+- **Toute logique PURE et réutilisable va dans `wama_data/functions/<domaine>/`**, avec sa
   `FunctionSpec` **auto-déclarée en fin de module** (patron : `driving/gps_map_match.py`). PAS dans
   `cam_analyzer/utils/`. Domaines existants : `io`, `geometry`, `kinematics`, `driving`, `geo`.
 - Ce qui reste couplé à `AnalysisSession` (lit/écrit la BDD, passe Celery) se déclare en

@@ -43,7 +43,7 @@ from django.conf import settings
 # Cœur de calcul PUR (déprojection, RANSAC de plan, pitch/hauteur, contact-sol) — tronc commun
 # WAMA Data. Ce module N'IMPLÉMENTE PLUS la géométrie : il charge le modèle, décode les frames,
 # écrit en base, et DÉLÈGUE tout le calcul à ces briques (cf. skill cam-analyzer §3).
-from wama.common.data.functions.geometry.depth_geometry import (
+from wama_data.functions.geometry.depth_geometry import (
     deproject_depth, fit_plane_ransac, plane_pitch_height, contact_depth)
 
 logger = logging.getLogger(__name__)

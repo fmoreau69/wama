@@ -1689,7 +1689,7 @@ def function_catalog(request):
     """Catalogue des FONCTIONS de traitement WAMA Data (card-style, tri/filtre côté client).
     Lit `FUNCTION_CATALOG` (fonctions pures + app-bound déclarées par capacités)."""
     import json as _json
-    from wama.common.data.function_catalog import load_all, catalog_dict
+    from wama.common.catalog.function_catalog import load_all, catalog_dict
     load_all()
     cat = catalog_dict()
     funcs = list(cat.values())

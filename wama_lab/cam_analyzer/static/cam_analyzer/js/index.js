@@ -2668,7 +2668,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // ⚑ ortho_correction — offset (est, nord) au temps ts, interpolé entre ancres et pondéré
     // par la fiabilité (nombre d'appariements). Port fidèle de `offset_at()`
-    // (common/data/functions/driving/trajectory_offset.py) : PAS d'extrapolation hors bornes,
+    // (wama_data/functions/driving/trajectory_offset.py) : PAS d'extrapolation hors bornes,
     // on maintient la valeur extrême. Toute divergence entre les deux implémentations
     // produirait un affichage qui ment sur la correction réellement calculée.
     function _orthoOffsetAt(anchors, ts) {

@@ -11,8 +11,8 @@ detections/geo_track ↔ TypedFrame) se fera au cas par cas quand on voudra les 
 
 Importé au chargement de l'app (`apps.py::ready`) → tout le catalogue voit ces traitements.
 """
-from wama.common.data.data_types import DataType as DT
-from wama.common.data.function_catalog import (
+from wama.common.catalog.data_types import DataType as DT
+from wama.common.catalog.function_catalog import (
     FunctionSpec, PortSpec, ParamSpec, FunctionCategory as FC, Binding, register)
 
 _APP = 'cam_analyzer'

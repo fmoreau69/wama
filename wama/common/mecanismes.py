@@ -65,7 +65,7 @@ class Mecanisme:
     #     mais la COMPATIBILITÉ (types de données acceptés) et la SYNCHRONISATION sur un axe
     #     partagé avec les autres plugins chargés — une propriété de SESSION, pas de code.
     #     Sa finalité première est le monde DATA (modèle BIND) ; son registre vivra donc là,
-    #     avec la taxonomie de types (`common/data/data_types.py`) et `FUNCTION_CATALOG`.
+    #     avec la taxonomie de types (`common/catalog/data_types.py`) et `FUNCTION_CATALOG`.
     #
     # Un plugin pourra RÉUTILISER des mécanismes ; il n'en est pas une espèce.
 
@@ -442,19 +442,19 @@ MECANISMES = (
               "quel échantillon à t, quels segments le contiennent, quel événement suit, et la vue "
               "DÉCIMÉE (min/max par tranche) sans laquelle aucun tracé n'est viable. N'interpole "
               "jamais : la valeur rendue est toujours un échantillon existant",
-              'wama/common/data/temporal.py', 'WAMA_DATA_WORLD.md §2-§3'),
+              'wama_data/core/temporal.py', 'WAMA_DATA_WORLD.md §2-§3'),
     Mecanisme('data_import', 'Importer universel (WAMA Data)',
               "REGISTRE de capacités de lecture — aucun format privilégié : ajouter un format = "
               "déposer un lecteur, jamais éditer le moteur. Porte aussi l'HORODATAGE par flux "
               "(dont le ré-horodatage par fréquence théorique, qui n'interpole rien et ne "
               "s'applique que sur demande)",
-              'wama/common/data/sources/__init__.py', 'WAMA_DATA_WORLD.md §6.6',
-              annexes=('wama/common/data/sources/trip.py',
-                       'wama/common/data/sources/tabular.py')),
+              'wama_data/sources/__init__.py', 'WAMA_DATA_WORLD.md §6.6',
+              annexes=('wama_data/sources/trip.py',
+                       'wama_data/sources/tabular.py')),
     Mecanisme('data_types', 'Taxonomie des types de donnée',
               "Vocabulaire commun des sources et des fonctions : sous-typage + compatibilité de "
               "ports. `segments` y est LE type « portion de temps bornée » (situation, état, section)",
-              'wama/common/data/data_types.py', 'WAMA_DATA_FUNCTION_CARDS.md §3',
+              'wama/common/catalog/data_types.py', 'WAMA_DATA_FUNCTION_CARDS.md §3',
               symbole='DataType'),
     Mecanisme('ffmpeg', 'Accès ffmpeg',
               "Résolution centralisée du binaire et des conversions (échappatoire FFMPEG_BINARY)",

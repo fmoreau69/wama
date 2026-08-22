@@ -168,7 +168,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Socle JS des apps** | Plomberie commune file/cards : csrfFetch, urls, Poller de progression, états vides | `wama/common/static/common/js/wama-app-base.js` | `WAMA_APP_GENERATION_ROUTE.md` | 17 |
 | **Sélecteur de médiathèque** | Modale commune de choix d'un asset de la médiathèque (filtrée par type), rendue à l'appelant sous forme de File + méta | `wama/common/static/common/js/media-picker.js` | — | 4 |
 | **Vocabulaire des capacités** | Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage UI | `wama/common/utils/model_capabilities.py` | `INPUT_MODEL_MATCHING.md` | 22 |
-| **Voie d'import (front)** | Envoi d'un fichier vers l'endpoint upload de l'app depuis toutes les sources (dépôt, clic, médiathèque), délégation du LOT à batch_import, consolidation et rafraîchissement — agnostique du monde (ni MIME ni extension) | `wama/common/static/common/js/wama-import.js` | `WAMA_APP_GENERATION_ROUTE.md` | 2 |
+| **Voie d'import (front)** | Envoi d'un fichier vers l'endpoint upload de l'app depuis toutes les sources (dépôt, clic, médiathèque), délégation du LOT à batch_import, consolidation et rafraîchissement — agnostique du monde (ni MIME ni extension) | `wama/common/static/common/js/wama-import.js` | `WAMA_APP_GENERATION_ROUTE.md` | 3 |
 | **data-* du gear ⚙ des cards** | data-* du bouton ⚙ DÉRIVÉS du schéma (contrat cardSettings de l'inspecteur : le volet reflète la card sélectionnée) — remplace les attributs écrits à la main par app ; booléens 'true'/'false', tous les params item émis (anti-résidus) | `wama/common/utils/card_gear.py` | — | 10 |
 
 #### Données & infrastructure (15)
@@ -181,13 +181,13 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Bascules de fonctionnalités** | Registre de Feature par app + surcharges JSON de l'objet porteur — comparer AVEC/SANS | `wama/common/utils/feature_flags.py` | — | 1 |
 | **Chemins média** | Emplacements canoniques des entrées/sorties par app et par utilisateur | `wama/common/utils/media_paths.py` | — | 22 |
 | **Décodage audio robuste** | Décode l'audio là où torchcodec/torchaudio sont cassés (WSL) : soundfile + repli ffmpeg. Annexe torchaudio_compat = l'autre forme du même problème : shims soundfile posés DANS torchaudio pour les libs tierces qui l'appellent en interne (Coqui, DeepFilterNet) | `wama/common/utils/audio_decode.py` | — | 5 |
-| **Importer universel (WAMA Data)** | REGISTRE de capacités de lecture — aucun format privilégié : ajouter un format = déposer un lecteur, jamais éditer le moteur. Porte aussi l'HORODATAGE par flux (dont le ré-horodatage par fréquence théorique, qui n'interpole rien et ne s'applique que sur demande) | `wama/common/data/sources/__init__.py` | `WAMA_DATA_WORLD.md §6.6` | 2 |
-| **Référentiel temporel (WAMA Data)** | Aligne des flux à cadences INCOMMENSURABLES et répond aux questions temporelles : quel échantillon à t, quels segments le contiennent, quel événement suit, et la vue DÉCIMÉE (min/max par tranche) sans laquelle aucun tracé n'est viable. N'interpole jamais : la valeur rendue est toujours un échantillon existant | `wama/common/data/temporal.py` | `WAMA_DATA_WORLD.md §2-§3` | 4 |
+| **Importer universel (WAMA Data)** | REGISTRE de capacités de lecture — aucun format privilégié : ajouter un format = déposer un lecteur, jamais éditer le moteur. Porte aussi l'HORODATAGE par flux (dont le ré-horodatage par fréquence théorique, qui n'interpole rien et ne s'applique que sur demande) | `wama_data/sources/__init__.py` | `WAMA_DATA_WORLD.md §6.6` | 2 |
+| **Référentiel temporel (WAMA Data)** | Aligne des flux à cadences INCOMMENSURABLES et répond aux questions temporelles : quel échantillon à t, quels segments le contiennent, quel événement suit, et la vue DÉCIMÉE (min/max par tranche) sans laquelle aucun tracé n'est viable. N'interpole jamais : la valeur rendue est toujours un échantillon existant | `wama_data/core/temporal.py` | `WAMA_DATA_WORLD.md §2-§3` | ⚠ **0** |
 | **Réglages utilisateur par app** | Persistance cache user_{id}_{app}_{clé} avec défauts déclarés par l'app | `wama/common/utils/user_settings.py` | — | 8 |
 | **Rétention des médias** | Purge automatique des sorties au-delà de la durée choisie par l'utilisateur (FileField découverts) | `wama/common/services/retention.py` | `PROFILES_PERMISSIONS.md` | 2 |
 | **Sauvegarde & tirage** | Moteur unique de miroir (modèles, base, médias, secrets) et restauration | `wama/common/services/mirror_sync.py` | — | 8 |
 | **Sonde média** | Durée/codec/dimensions/pages d'un média pour les propriétés de card (via ffmpeg_utils) | `wama/common/utils/media_probe.py` | — | 4 |
-| **Taxonomie des types de donnée** | Vocabulaire commun des sources et des fonctions : sous-typage + compatibilité de ports. `segments` y est LE type « portion de temps bornée » (situation, état, section) | `wama/common/data/data_types.py` | `WAMA_DATA_FUNCTION_CARDS.md §3` | 17 |
+| **Taxonomie des types de donnée** | Vocabulaire commun des sources et des fonctions : sous-typage + compatibilité de ports. `segments` y est LE type « portion de temps bornée » (situation, état, section) | `wama/common/catalog/data_types.py` | `WAMA_DATA_FUNCTION_CARDS.md §3` | 4 |
 | **Utilitaires vidéo** | Extraction audio des vidéos + téléchargement YouTube/yt-dlp | `wama/common/utils/video_utils.py` | — | 16 |
 | **Visibilité et portée** | Privé / unité / public : filtrage des lectures, mutations inchangées | `wama/common/models.py` | `PROFILES_PERMISSIONS.md` | 25 |
 
@@ -199,8 +199,8 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Runner générique du studio** | Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app | `wama/studio/services/generic_runner.py` | `STUDIO_VISION.md` | 7 |
 | **Surface d'outils** | Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas | `wama/tool_api.py` | `WAMA_APP_GENERATION_ROUTE.md` | 9 |
 
-**Mécanismes déclarés : 86** · domiciles absents : 0 · sans consommateur : 2 · assumés locaux : 18 · modules balayés non rattachés : 2 · **de niveau app sans critère de grille : 20**
-- ⚠ **Sans consommateur** (brique morte ou pas encore adoptée) : `benchmark_sync` (wama/model_manager/services/benchmark_sync.py), `qc` (wama/common/utils/qc.py)
+**Mécanismes déclarés : 86** · domiciles absents : 0 · sans consommateur : 3 · assumés locaux : 18 · modules balayés non rattachés : 2 · **de niveau app sans critère de grille : 20**
+- ⚠ **Sans consommateur** (brique morte ou pas encore adoptée) : `benchmark_sync` (wama/model_manager/services/benchmark_sync.py), `qc` (wama/common/utils/qc.py), `temporal_referential` (wama_data/core/temporal.py)
 
 <details><summary>⚠ <b>20 mécanisme(s) de niveau app SANS critère de grille</b> — adoptés par des apps, vérifiés par aucun critère (<code>Criterion.mecanisme</code>) : une app peut sortir à 100 % sans les avoir adoptés</summary>
 

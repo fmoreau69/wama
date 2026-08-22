@@ -97,8 +97,8 @@ Tu as aussi accès au dépôt WAMA. Quand un mécanisme du corpus a un équivale
 dans un champ SÉPARÉ des faits, et toujours sous forme d'hypothèse à valider, jamais de décision.
 
 Points d'accroche connus, à utiliser comme repères de comparaison :
-  • `wama/common/data/data_types.py`     — taxonomie de types de données (sous-typage, compatibilité)
-  • `wama/common/data/function_catalog.py` — fonctions à ports typés
+  • `wama/common/catalog/data_types.py`  — taxonomie de types de données (sous-typage, compatibilité)
+  • `wama/common/catalog/function_catalog.py` — fonctions à ports typés
   • `wama/common/manifests/`             — manifestes, 7 kinds, write_back/un_write_back
   • `wama/common/mecanismes.py`          — registre des briques transversales
   • `WAMA_DATA_WORLD.md`                 — le document que ton travail alimente (lis-le d'abord)

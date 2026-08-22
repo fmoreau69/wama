@@ -1,6 +1,6 @@
 # WAMA Data — Fonctions comme cards génériques par capacités
 
-> **Statut : IMPLÉMENTÉ (MAJ 2026-07-25).** Taxonomie (`common/data/data_types.py`) + catalogue
+> **Statut : IMPLÉMENTÉ (MAJ 2026-07-25).** Taxonomie (`common/catalog/data_types.py`) + catalogue
 > (`function_catalog.py`) + **19 fonctions** enregistrées au démarrage + page catalogue
 > `/model-manager/functions/` (cards, tri/filtre, projet, confidentialité). **Reste** : l'UI de
 > chaînage (canvas) + exposition `tool_api`. Ce document fixe le cap capability-first pour toute
@@ -35,7 +35,7 @@ Chaîne cible :
 
 ## 2. Le descripteur de fonction (`FunctionSpec`)
 
-À déclarer dans un registre central `wama/common/data/function_catalog.py` (analogue de `APP_CATALOG`).
+À déclarer dans un registre central `wama/common/catalog/function_catalog.py` (analogue de `APP_CATALOG`).
 
 ```python
 FunctionSpec:
@@ -70,7 +70,7 @@ d'où viennent les données ni où elles vont — c'est le canvas qui relie.
 ## 3. Taxonomie des TYPES DE DONNÉE (le cœur — analogue de `MEDIA_CATEGORIES`)
 
 Le pendant, côté données, de la taxonomie média (`app_registry.MEDIA_CATEGORIES`/`normalize_types()`).
-**À déclarer UNE fois, centralement** (`wama/common/data/data_types.py`) pour que sources et fonctions
+**À déclarer UNE fois, centralement** (`wama/common/catalog/data_types.py`) pour que sources et fonctions
 parlent la même langue. Proposition de départ (extensible) :
 
 | `data_type` | Description | Champs canoniques |
@@ -141,11 +141,11 @@ Voir [[project_toolbox_tierce_integration]] : ses fonctions seront **les premiè
 > ni dépendance à une app, et **accompagnée de son `FunctionSpec`** (même si le registre/canvas n'existe
 > pas encore). Ainsi le jour où l'UI arrive, on branche — zéro réécriture.
 
-Placement : `wama/common/data/` (implémentations + `function_catalog.py` + `data_types.py`).
+Placement : `wama_data/` (implémentations + `function_catalog.py` + `data_types.py`).
 Ne PAS coder ces fonctions dans une app : brique commune d'abord (règle de centralisation).
 
 **Placement par DOMAINE (refactoring 2026-07-22, 9945ca8/a06f3be)** : les implémentations vivent
-sous `wama/common/data/functions/<domaine>/` — 4 sous-paquets : `io/` (parsing, ex. RTMaps .rec),
+sous `wama_data/functions/<domaine>/` — 4 sous-paquets : `io/` (parsing, ex. RTMaps .rec),
 `geometry/` (primitives + métriques), `kinematics/` (extrapolation, collision), `driving/`
 (fonctions métier conduite, dont les 4 fonctions portées). Le domaine est un **3ᵉ axe orthogonal** à
 `data_type` et `category` (cf. docstring `functions/__init__.py`). Les anciens paquets
@@ -165,7 +165,7 @@ sous `wama/common/data/functions/<domaine>/` — 4 sous-paquets : `io/` (parsing
 
 Deux `binding` cohabitent dans le MÊME `FUNCTION_CATALOG` :
 - **`pure`** — signature `(données_typées, params) → données_typées`, chaînable direct. Défaut pour
-  toute nouvelle fonction. Ex. les 4 fonctions de conduite portées (`wama/common/data/functions/driving/`).
+  toute nouvelle fonction. Ex. les 4 fonctions de conduite portées (`wama_data/functions/driving/`).
 - **`app`** — couplée à une app (lit/écrit la session/BDD via une passe Celery). **Cataloguée** (capacités
   déclarées, `impl` = chemin d'implémentation) mais **pas encore chaînable** ; à porter vers `pure` au cas
   par cas via un adaptateur de ports quand on veut la mettre dans une chaîne.
@@ -181,7 +181,7 @@ Deux `binding` cohabitent dans le MÊME `FUNCTION_CATALOG` :
 
 **Checklist à l'ajout d'un traitement (toute app)** :
 1. Écrire un `FunctionSpec` (key, name, description, category, tags, inputs/outputs typés, params).
-2. `binding='pure'` si possible (impl dans `common/data/`), sinon `'app'` + `impl` + `app`.
+2. `binding='pure'` si possible (impl dans `wama_data/`), sinon `'app'` + `impl` + `app`.
 3. `register(spec)` (import chargé via l'`apps.py::ready` de l'app) → il apparaît au catalogue.
 4. Types d'E/S pris dans la taxonomie `data_types` ; étendre la taxonomie AVANT d'inventer un type.
 
@@ -267,7 +267,7 @@ qu'APRÈS 10 apps réelles. Écrire 2-3 plugins d'abord, extraire ensuite (règl
 ## 8. Reste à trancher (quand on implémentera)
 
 - ✅ TRANCHÉ (2026-07-20, c3b009c) — représentation runtime : wrapper **`TypedFrame`**
-  (DataFrame + `data_type` + `meta`), cf. `common/data/data_types.py:69`, consommé par les
+  (DataFrame + `data_type` + `meta`), cf. `common/catalog/data_types.py:69`, consommé par les
   fonctions (`placement_metrics` retourne un `TypedFrame(DataType.SCALAR)`).
 - Persistance des chaînes (comme les graphes studio) + exécution (réutiliser Celery + le scheduling
   par `cost`).
