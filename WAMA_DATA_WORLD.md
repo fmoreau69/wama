@@ -32,7 +32,7 @@
 > Mesuré depuis le code — **ne pas éditer à la main** (`python manage.py doc_facts`).
 > Registre des modules : `wama/common/data/modules.py`.
 
-**Bilan** : 7 ⏳ (non commencé) · 3 🔶 (livré mais INERTE)
+**Bilan** : 6 ⏳ (non commencé) · 4 🔶 (livré mais INERTE)
 
 > 🔶 **AUCUN consommateur hors `common/data/` — le sous-système entier est INERTE.** Aucune app, tâche ou route ne s'en sert encore : les briques s'appellent entre elles, et c'est tout. Le premier module à donner un usage réel fera basculer ces lignes en ✅.
 
@@ -42,7 +42,7 @@
 | **Référentiel temporel** | Aligne des flux à cadences incommensurables | référentiel → échantillons, `segments`, vue décimée | 🔶 | 1/1 | 1 | 3/0 | §2, §3 |
 | **Connector** | Branche une base existante comme source | base SQLite → référentiel | 🔶 | 1/1 | 0 | 1/0 | §6.2 |
 | **Explorer** | Explore un dataset en table et en graphe | référentiel → vues | ⏳ | — | — | — | §7 |
-| **Segmenter** | Produit des segments : autour d'un événement, par prédicat, ou par plages constantes d'un catégoriel | `events` ou signal + prédicat → `segments` | ⏳ | — | — | — | §9ter (spécification), §6.7 |
+| **Segmenter** | Produit des segments : autour d'un événement, par prédicat, ou par plages constantes d'un catégoriel | `events` ou signal + prédicat → `segments` | 🔶 | 1/1 | 1 | 0/0 | §9ter (spécification), §6.7 |
 | **Calculator** | Calcule des indicateurs PAR SEGMENT et les y adjoint | `segments` + signaux → colonnes d'indicateurs | ⏳ | — | — | — | §6.7 |
 | **Visualizer** | Vues synchronisées sur l'axe partagé (plugins) | référentiel → plugins co-chargés | ⏳ | — | — | — | §4, §8.2 |
 | **Exporter** | Rend les segments et indicateurs exploitables hors WAMA | `segments` + indicateurs → fichiers (pivot long → large) | ⏳ | — | — | — | §6.7 |
@@ -53,7 +53,7 @@
 
 - **Importer** — alignement par TRIGGERS non conçu (D12) ; `DATASET_SOURCES` non réconcilié avec le registre des lecteurs (G1) ; lecteur `.rec` encore une FONCTION (`functions/io/rtmaps_rec.py`) au lieu d'un lecteur de source
 - **Référentiel temporel** — AUCUN consommateur — la brique est inerte tant qu'un module ne s'en sert pas
-- **Segmenter** — SPÉCIFIÉ (§9ter) mais non écrit — 8 modes tirés des 3 sources. ⚠ le modèle actuel ne sait pas représenter un segment OUVERT (fin inconnue), D15
+- **Segmenter** — modes écrits et éprouvés ; RESTE le codage (protocole déclaré + exécution) et l'entrée au FUNCTION_CATALOG — sans quoi le studio ne les voit pas
 - **Calculator** — même angle mort que le Segmenter ; dépend de lui
 - **Visualizer** — vue déclarative = verrou §7ter point 3 ; écrire 2-3 plugins AVANT d'extraire
 - **Recorder** — périmètre v1 non tranché (D5)
@@ -970,9 +970,41 @@ Chaque source apporte ce que les autres n'ont pas :
 > campagnes. Le travail est de les **traduire** dans le vocabulaire typé de WAMA — pas de les
 > redécouvrir.
 
-⛏ Reste non lu de BIND_GUI : le Calculator (annoncé « à venir » en 2019, donc probablement absent),
-l'Exporter (`ExportConcatPresentDans`, `exporterTousNormalPresentDans`…), et le cycle de vie du
-protocole de codage (`vbCreerProtocole` / `vbEditerProtocole` / `vbLancerCodage`).
+### 9ter.4 Le CODAGE — le modèle direct du codage vidéo par IA
+
+Trois pièces séparées, et c'est ce découpage qui compte :
+
+| pièce | rôle |
+|---|---|
+| **le protocole** — un fichier `.pro` | déclare CE QUI EST CODABLE. Édité par une application à part (`ProtocolCreator`), pas par l'outil d'analyse |
+| **l'interface de codage** — `GenericCodingInterface(trip, protoPath)` | **GÉNÉRIQUE** : elle est pilotée par le protocole, jamais écrite par projet |
+| **la session** | refuse de démarrer sans vidéo (`getVideoFiles()`) et ouvre automatiquement **Magneto + VideoPlayer** — le codage EXIGE le transport et la vue, synchronisés |
+
+> C'est le principe schéma-driven appliqué au codage, et il date de 2019. Transposé à WAMA :
+> **le protocole est un manifeste** (l'éthogramme de BORIS en est l'équivalent nommé), l'interface
+> se génère, et **une IA de vision n'est qu'un producteur de plus des mêmes événements** — même
+> sortie, origine tracée. C'est la conséquence 6 de §9ter.3, confirmée par un mécanisme réel.
+
+### 9ter.5 L'EXPORT — ce que le livrable chercheur doit produire
+
+`exporterPresentDans` explique la forme du fichier remis aux chercheurs, mesurée en §6.7 :
+
+- colonnes nommées **`table.variable`** — d'où les en-têtes `0_15.startTimecode` ;
+- **nom du trip en 1ʳᵉ colonne** — d'où « Trip Name » ;
+- filtre **« présent dans »** appliqué à l'export lui-même ;
+- **concaténation entre trips** (`exportConcatenation`, `concatTrips`) — c'est ainsi qu'on passe
+  d'une passation à 377 lignes pour 69 ;
+- **aperçu** avant écriture ;
+- formats : `.csv`, `.txt`, `.xlsx`, `.mat`.
+
+> ⚠ **La présentation sur-promet.** Elle annonce une option « Échantillonnage » dans les options
+> d'export : **0 occurrence dans le code**. C'est la troisième fois de cette cartographie qu'un
+> document annonce ce que le code ne fait pas (avec `frequency` déclarée et le Calculator « à
+> venir ») — et la raison pour laquelle chaque affirmation ici est confrontée aux sources.
+
+⛏ Seul reste non lu : le **Calculator**, annoncé « à venir » en 2019 — et l'absence de toute
+fonction de calcul d'indicateurs dans les 151 fonctions de BIND_GUI confirme qu'il n'a jamais
+existé. C'est le module que WAMA écrira **sans modèle**, et le seul de la chaîne dans ce cas.
 
 ---
 

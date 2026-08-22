@@ -84,9 +84,10 @@ MODULES: Tuple[ModuleData, ...] = (
         'segmenter', 'Segmenter', "Produit des segments : autour d'un événement, par prédicat, "
                                   "ou par plages constantes d'un catégoriel",
         "`events` ou signal + prédicat → `segments`",
+        briques=('wama/common/data/segmentation.py',),
         doc='§9ter (spécification), §6.7',
-        bloque_par="SPÉCIFIÉ (§9ter) mais non écrit — 8 modes tirés des 3 sources. ⚠ le modèle "
-                   "actuel ne sait pas représenter un segment OUVERT (fin inconnue), D15",
+        bloque_par="modes écrits et éprouvés ; RESTE le codage (protocole déclaré + exécution) et "
+                   "l'entrée au FUNCTION_CATALOG — sans quoi le studio ne les voit pas",
     ),
     ModuleData(
         'calculator', 'Calculator', "Calcule des indicateurs PAR SEGMENT et les y adjoint",
