@@ -451,6 +451,15 @@ MECANISMES = (
               'wama_data/sources/__init__.py', 'WAMA_DATA_WORLD.md §6.6',
               annexes=('wama_data/sources/trip.py',
                        'wama_data/sources/tabular.py')),
+    Mecanisme('catalog_refresh', 'Actualisation des catalogues',
+              "REGISTRE des registres : une page catalogue déclare la CLÉ de son registre et "
+              "hérite du bouton, de l'endpoint, de la permission et du compte-rendu. La NATURE "
+              "déclarée (scan / mesure / re-déclaration / DÉRIVÉ) décide du rendu — un dérivé "
+              "affiche « toujours à jour » au lieu d'un bouton qui ne ferait rien",
+              'wama/common/registries.py', '',
+              annexes=('wama/common/registries_builtin.py',
+                       'wama/common/static/common/js/wama-catalog-refresh.js',
+                       'wama/common/templatetags/wama_catalog.py')),
     Mecanisme('data_types', 'Taxonomie des types de donnée',
               "Vocabulaire commun des sources et des fonctions : sous-typage + compatibilité de "
               "ports. `segments` y est LE type « portion de temps bornée » (situation, état, section)",

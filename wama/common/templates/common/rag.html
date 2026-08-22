@@ -14,6 +14,7 @@ On ne trouvera donc ici ni « tout ajouter », ni import de masse — c'est la d
 du 2026-08-21 (le balayage a été purgé), pas une fonctionnalité oubliée.
 {% endcomment %}
 
+{% load wama_catalog %}
 {% block title %}WAMA — Mon RAG{% endblock %}
 
 {% block extra_css %}
@@ -43,7 +44,10 @@ du 2026-08-21 (le balayage a été purgé), pas une fonctionnalité oubliée.
 
 {% block content %}
 <div class="container rag-page">
-  <h1>Mon RAG</h1>
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <h1 class="mb-0">Mon RAG</h1>
+    {% bouton_actualiser "rag" %}
+  </div>
   <p class="subtitle">
     Les documents que vous avez explicitement confiés à l'IA —
     {{ total }} document{{ total|pluralize }}, {{ fragments }} fragment{{ fragments|pluralize }}.

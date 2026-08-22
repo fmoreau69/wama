@@ -207,6 +207,38 @@ def api_apps(request):
 
 
 @require_POST
+def registre_refresh(request, cle):
+    """Actualise N'IMPORTE QUEL registre catalogué — endpoint UNIQUE.
+
+    C'est le pendant serveur de `wama-catalog-refresh.js` : la page ne déclare que la CLÉ de son
+    registre et hérite de tout le reste (permission, chronométrage, compte-rendu uniforme). Écrire
+    un endpoint par catalogue était la dérive à arrêter — il y en avait déjà deux, avec des
+    réponses de formes différentes.
+    """
+    from .registries import get, rafraichir
+    try:
+        registre = get(cle)
+    except KeyError as e:
+        return JsonResponse({'ok': False, 'error': str(e)}, status=404)
+    res = rafraichir(cle, user=request.user)
+    if not res.ok and any('réservé' in m for m in res.messages):
+        return JsonResponse({'ok': False, 'error': res.messages[0]}, status=403)
+    charge = res.en_dict()
+    charge['registre'] = {'cle': registre.cle, 'nom': registre.nom, 'nature': registre.nature}
+    return JsonResponse(charge, status=200 if res.ok else 500)
+
+
+def registres_etat(request):
+    """État de tous les registres — ce qui s'actualise, comment, et par quel moyen.
+
+    Sert la page de supervision et rend le mécanisme LISIBLE : sans cette vue, savoir quels
+    catalogues se tiennent à jour tout seuls exigeait de lire `CELERY_BEAT_SCHEDULE`.
+    """
+    from .registries import etat
+    return JsonResponse({'registres': etat()})
+
+
+@require_POST
 def conformity_refresh(request):
     """Re-mesure la grille de conformité (bouton « Re-mesurer » de /apps/).
 

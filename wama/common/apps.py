@@ -55,6 +55,17 @@ class CommonConfig(AppConfig):
             logging.getLogger(__name__).debug(
                 'Récepteurs prompt_ingest non enregistrés', exc_info=True)
 
+        # Registres catalogués : l'import DÉCLARE, il n'actualise rien (voir `registries.py`).
+        # C'est ce qui donne aux pages catalogue leur bouton sans une ligne d'UI par page.
+        try:
+            from . import registries_builtin  # noqa: F401
+            from .registries import au_demarrage
+            au_demarrage()
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning(
+                'registres catalogués non déclarés', exc_info=True)
+
         # ⚠ Le substrat n'enregistre PLUS les fonctions du monde Data (déport du 2026-08-22) :
         # chaque monde se déclare dans son propre `ready()` — `wama_data/apps.py`,
         # `wama_lab/cam_analyzer/apps.py`. Le substrat ne doit connaître aucun monde par son nom.

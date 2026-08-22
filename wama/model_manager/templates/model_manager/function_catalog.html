@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% load static %}
+{% load wama_catalog %}
 {% block title %}Catalogue des fonctions - WAMA{% endblock %}
 {% block console_app_name %}model_manager{% endblock %}
 
@@ -36,12 +37,15 @@
 
 {% block content %}
 <div class="fc-wrap">
-  <h2 class="mb-2">⚙️ Catalogue des fonctions</h2>
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+    <h2 class="mb-0">⚙️ Catalogue des fonctions</h2>
+    {% bouton_actualiser "fonctions" %}
+  </div>
   <p class="text-secondary small mb-3">Tous les traitements WAMA déclarés par leurs capacités
      (entrées/sorties typées). <b>Pures</b> = chaînables ; <b>app</b> = couplées à une app (cataloguées).</p>
 
   <div class="fc-stats">
-    <div class="fc-stat"><b>{{ stats.total }}</b> fonctions</div>
+    <div class="fc-stat"><b data-refresh-count="fonctions">{{ stats.total }}</b> fonctions</div>
     <div class="fc-stat"><b>{{ stats.pure }}</b> pures</div>
     <div class="fc-stat"><b>{{ stats.app }}</b> app-bound</div>
     <div class="fc-stat"><b>{{ stats.categories|length }}</b> catégories</div>

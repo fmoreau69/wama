@@ -1,0 +1,34 @@
+{% comment %}
+Contrôle d'actualisation d'un catalogue — rendu COMMUN, jamais recopié par page.
+
+Usage :  {% load wama_catalog %}   puis   {% bouton_actualiser "fonctions" %}
+
+Trois rendus, décidés par la NATURE déclarée du registre — c'est tout l'intérêt de l'avoir
+déclarée : un bouton sur une page dérivée ne ferait rien tout en suggérant que le reste est périmé.
+{% endcomment %}
+{% if erreur %}
+  <span class="badge bg-danger" title="Clé absente de wama/common/registries_builtin.py">{{ erreur }}</span>
+{% elif derive %}
+  <span class="text-white-50 small" title="{{ registre.source }} — {{ nature_label }}">
+    <i class="fas fa-bolt me-1 text-success"></i>toujours à jour
+  </span>
+{% elif peut %}
+  <button type="button" class="btn btn-sm btn-outline-info"
+          data-wama-refresh="{{ cle }}"
+          data-refresh-reload="{{ recharger }}"
+          data-refresh-busy="Actualisation…"
+          title="{{ registre.description }}&#10;&#10;Source : {{ registre.source }}">
+    <i class="fas fa-rotate"></i> Actualiser
+  </button>
+{% else %}
+  <span class="text-white-50 small"
+        title="Actualisation réservée au {{ registre.permission }} — {{ registre.source }}">
+    <i class="fas fa-lock me-1"></i>actualisation réservée
+  </span>
+{% endif %}
+{% if registre and registre.periodique %}
+  <span class="text-white-50 small ms-2"
+        title="Tâche planifiée : {{ registre.periodique }}">
+    <i class="fas fa-clock me-1"></i>auto
+  </span>
+{% endif %}
