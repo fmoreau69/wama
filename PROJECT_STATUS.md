@@ -5859,3 +5859,76 @@ touche pas `PROMPT_TARGETS` d'une app en cours de portage.
 · `doc_facts` **5/5 à jour** (le 5ᵉ, `wama_data`, vient de l'instance sœur) · `manage.py test
 wama.common.tests_memory` **41/41** · `tests_capabilities_languages` **19/19** (instance sœur) ·
 `check_js` **56 fichiers 0 erreur, 55 paires 0 divergente**.
+
+---
+
+## §REPRISE — 2026-08-22→23 (instance IMPORT / ROUTE / GRILLE FONCTIONNELLE / BOUTONS DE CARD) — 🔚 POINT D'ENTRÉE
+
+> **🔚 POINT D'ENTRÉE : `WAMA_VERIFICATION.md` — lire §1 (pourquoi DEUX grilles), §3bis (matrice
+> des actions de card) puis §6 (l'ordre retenu). Premier geste : la brique ⚙ Paramètres, seule
+> action de card encore divergente.**
+
+**12 commits, `dfbbe87d` → `077e767b`, NON POUSSÉS** (push = demander). Partition : je n'ai touché
+ni `wama_data/`, ni `mecanismes.py`, ni les blocs générés `mecanismes`/`modeles` — instance sœur.
+
+### La bascule de méthode (c'est ce qu'il faut retenir, pas la liste des correctifs)
+
+**Un critère de grille atteste une ADOPTION, jamais un FONCTIONNEMENT ; seul un scénario qui
+EXÉCUTE le geste le prouve.** La journée l'a payé deux fois : l'anonymizer rendait un 400 sur la
+voie du champ de fichier avec une grille verte, et converter_01 était inerte en satisfaisant les
+trois axes d'`app_regen_check`. D'où `WAMA_VERIFICATION.md` : deux grilles, deux prétentions,
+jamais confondues. **Couverture mesurée : 1 geste utilisateur sur 16 est prouvé par un clic.**
+
+### Livré
+
+| | preuve |
+|---|---|
+| Les 3 échecs du scénario d'import : 1 VRAI bug (anonymizer `paramName`), 2 conceptions mal lues (avatarizer/imager déclarent `data-wama-depot=attache`) | passe `.import` **7 OK / 0 échec / 7 skips**, chaque skip disant une raison VRAIE |
+| Passe de confirmation de la route : **2 trous étaient CLOS sans que la table le dise** (#19, #21), 1 faux sur ses chiffres ET sa liste (#2), 1 a changé de camp (#24) | re-mesuré contre le code, pas relu |
+| `job_id` → `id` sur converter **et** avatarizer (trou #24) | converter PROUVÉ (3 scénarios) ; **avatarizer NON prouvé** — voir pendings |
+| Critère `import_wired` (trou #26) + 6 tests qui l'exposent à la forme EXACTE de converter_01 | 12 vertes, 2 non applicables, 0 rouge |
+| **Premier scénario de la grille FONCTIONNELLE** : `<app>.duplicate_delete`, auto-nettoyant | 2 OK, 3 échecs, 9 skips — voir pendings |
+| **Brique de SUPPRESSION dans `queue-actions.js`** (6 graphies pour 10 apps, faute de brique) + converter porté | `converter.duplicate_delete` ✓ via la brique |
+| Critère `delete_wiring` | duplication **11/11** · suppression **1/11** — le contraste EST l'argument |
+| Bouton `edit` : l'état passe dans le CONTOUR + une PASTILLE, jamais en texte ni en couleur | capture des 3 états, largeur identique aux autres boutons |
+| `INSPECTOR_DETAIL_FIELDS.md` confronté au code : 5 manques, 1 affirmation fausse, renvoi réciproque vers `WAMA_VOLETS` | — |
+
+### Pendings — chacun est ouvert, aucun n'est « probablement réglé »
+
+1. **Brique ⚙ Paramètres** — seule action de card encore divergente (`settings-btn` ×6, `job-settings-btn` ×2, `video-settings-btn`, avatarizer et reader sans rien). La modale est commune, c'est **le bouton** qui n'est délégué nulle part.
+2. **Finir le portage de la suppression** — restent avatarizer, converter_01, enhancer ×2 (porte DÉJÀ `data-delete-url`, simple renommage), imager (branche vidéo), reader (`data-action="delete"`), puis les 6 apps à handler local. ⚠ **Portage ATOMIQUE** (classe + attribut + retrait du handler dans le même geste) : garder les deux = double-fire.
+3. **avatarizer : correctif `id` NON PROUVÉ** — `avatarizer.import` SKIPPE (dépôt qui joint), `avatarizer.ui` n'atteste que la page. **Aucun scénario n'exerce sa création.** C'est le geste n°7 de la matrice.
+4. **transcriber : duplication sans effet** — clic sans requête en échec. **NON CONFIRMÉ** : suspecter mon test avant l'app.
+5. **enhancer + reader : `duplicate_delete` rouge** parce que le test ne TROUVE pas le bouton, pas parce que la suppression casse. Se règle par le portage (pending 2).
+6. **`_duplicate_wiring` porte la faiblesse latente** de `_delete_wiring` corrigée aujourd'hui (`f.find` au lieu de `find_code`, et l'attribut vérifié sans la classe). **Aucun faux verdict aujourd'hui** — à corriger à froid, seul, pour ne pas mêler outillage et comportement.
+7. **converter_01 : `.import` skippe en « aucune card d'entrée »** — le gabarit généré ne rend pas encore la card commune.
+8. **Décision en attente** : `.wama-cycle-btn` est préfixé du nom de sa brique là où la famille dit `.<action>-btn`. Renommer touche une brique déjà adoptée. Ne pas laisser dériver.
+9. **Bouton PARTAGER** (souhait Fabien, non prioritaire) : suppose un lien public temporaire ou l'API de partage du navigateur. **Décision de confidentialité à prendre** (durée de vie, révocation) avant tout code — médias de recherche.
+
+### Pièges de la session — 5 erreurs de diagnostic, UNE seule cause
+
+J'ai lu des **valeurs et des motifs de texte** au lieu de lire des **mécanismes** : ① un grep sur
+`delete-btn` matche la sous-chaîne dans `job-delete-btn` ② « non conforme » conclu d'une ligne
+tronquée par un grep ③ `f.find` au lieu de `find_code` — un commentaire faisait mentir mon propre
+critère ④ le critère validait l'attribut sans la classe (faux vert sur enhancer) ⑤ **le `186px` de
+la piste ACTIONS lu comme une largeur réelle alors que c'est un REPLI** — la piste est MESURÉE par
+`wama-card-v3.js`. Les six boutons tiennent, constat de Fabien, et il avait raison.
+**Le garde-fou qui a marché à chaque fois : une mesure de bout en bout contredit un critère neuf
+⇒ c'est le critère qui a tort.**
+
+### Système
+
+- **Rien à redémarrer** : WSL2 a redémarré vers 20:44 (arrêt propre, pas un crash — journal Postgres sur checkpoints `immediate force`), pile relancée par Fabien, gunicorn frais → tous les changements Python sont actifs.
+- **12 commits à pousser** (sur décision).
+- **Scratchpad jetable** : `edit_states.html/png`, `shot.py`, `msg_*.txt` — hors git, rien à conserver.
+- **Aucune donnée semée** : `.import` et `.duplicate_delete` nettoient (filet ORM qui, en plus, DIT ce qu'il a nettoyé).
+
+### Contrôles attendus au prochain /reprise
+
+`check_docs` **4 CASSÉ / 0 périmée sur 489** — les 4 visent un partial d'onglets de résultat cité
+quatre fois par ce fichier, périmètre instance sœur · `doc_facts` **4/5 à jour** (`wama_data`
+périmé = instance sœur, chantier export en cours) · grille : converter **100 %**, describer et
+transcriber **99 %**, composer **98 %**, anonymizer/avatarizer/enhancer/reader/synthesizer **97 %**,
+imager **96 %** ⚠ **dénominateurs augmentés de 2** (critères `import_wired` et `delete_wiring`
+ajoutés) — un score qui « baisse » par rapport au 22/08 peut n'être que ça · nocturnes :
+`.import` **7/0/7**, `.ui` **14/14**, `.duplicate_delete` **2 OK / 3 échecs / 9 skips**.
