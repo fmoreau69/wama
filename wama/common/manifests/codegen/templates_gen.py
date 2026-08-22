@@ -35,10 +35,22 @@ def render_index(manifest: dict) -> tuple:
     # (`capabilities.accepts_url` / `has_url_import`) et n'était pas lue. Constat Fabien en
     # comparant la jumelle à sa source.
     caps = body.get('capabilities') or {}
-    url_bits = ''
+    url_bits = url_js = ''
     if caps.get('accepts_url') or caps.get('has_url_import'):
         url_bits = (f" show_url=True url_input_id='{app}Url' url_submit_id='{app}UrlSubmit'"
                     " url_placeholder='https://… (page web, média distant)'")
+        # L'URL est routée vers le MÊME formalisme de lot (une URL = un lot d'une ligne) :
+        # c'est le choix déjà fait par l'app en place, et il évite une seconde route serveur.
+        url_js = f'''
+    // URL : même chemin que le fichier de lot (WamaApp.initUrlImport, brique commune).
+    if (window.WamaApp && WamaApp.initUrlImport) {{
+        WamaApp.initUrlImport({{
+            inputId:  '{app}Url',
+            buttonId: '{app}UrlSubmit',
+            onSubmit: function (u) {{ return window._import.ingestText(u + '\\n', 'url.txt'); }},
+        }});
+    }}
+'''
 
     src = f'''{{% extends '{app}/base.html' %}}
 {{% load static %}}
@@ -91,6 +103,41 @@ document.addEventListener('DOMContentLoaded', function () {{
     </div>
 
 </div>
+{{% endblock %}}
+
+{{% comment %}}{mark} — COUCHE JS D'APPLICATION. Ce bloc manquait : le JS de l'app existait
+dans static/ mais n'était JAMAIS chargé (le socle offre pourtant le point d'extension,
+app_modern_base.html:294). Aucun écouteur n'était posé, aucune voie d'import n'émettait de
+requête, et RIEN ne le signalait — zéro erreur console, puisque rien ne plante quand rien
+n'est chargé. Mesuré sur converter_01 le 2026-08-22 : 0 card créable par 5 voies.
+
+Une app générée n'a PAS besoin d'un JS sur mesure pour importer : les cinq modalités sont
+des briques communes. On ne déclare donc ici que ce qui est propre à l'app — ses URL.{{% endcomment %}}
+{{% block app_scripts %}}
+{{% include 'common/_app_scripts.html' %}}
+<script>
+window.WAMA_GLOBAL_PROGRESS_URL = "{{% url '{app}:global_progress' %}}";
+
+document.addEventListener('DOMContentLoaded', function () {{
+    // Fichier de LOT : détection structurelle + aperçu AVANT création (brique commune).
+    window._batchImport = WamaBatchImport({{
+        batchPreviewUrl: "{{% url '{app}:batch_preview' %}}",
+        batchCreateUrl:  "{{% url '{app}:batch_create' %}}",
+        csrfToken:       '{{{{ csrf_token }}}}',
+        afterCreate:     function () {{ location.reload(); }},
+    }});
+
+    // Fichier ORDINAIRE (dépôt, clic, médiathèque) : le maillon qu'aucune brique ne portait.
+    window._import = WamaImport({{
+        uploadUrl:      "{{% url '{app}:upload' %}}",
+        consolidateUrl: "{{% url '{app}:consolidate' %}}",
+        csrfToken:      '{{{{ csrf_token }}}}',
+        dropZoneId:     '{app}DropZone',
+        fileInputId:    '{app}FileInput',
+        batch:          window._batchImport,
+    }});
+{url_js}}});
+</script>
 {{% endblock %}}
 '''
 
