@@ -50,6 +50,22 @@ class Command(BaseCommand):
         salons = discord_bot._salons_autorises()
         self.stdout.write(f"Canal        : discord")
         self.stdout.write(f"Jeton        : présent ({len(jeton)} caractères)")
+
+        # ⚠ Un identifiant Discord (snowflake) est un ENTIER de 17 à 20 chiffres. Une valeur
+        # comme « #wama » ne correspondra JAMAIS à `message.channel.id` : le salon ne serait
+        # pas reconnu comme dédié, et comme la liste blanche PRIME sur la mention, le bot
+        # resterait MUET dans ce salon — y compris mentionné. Panne silencieuse et
+        # déroutante (vécue le 2026-08-22) : mieux vaut refuser de démarrer.
+        invalides = sorted(s for s in salons if not (s.isdigit() and 17 <= len(s) <= 20))
+        if invalides:
+            raise CommandError(
+                "WAMA_DISCORD_ALLOWED_CHANNELS attend des IDENTIFIANTS numériques, pas des "
+                "noms de salon.\n  Valeur(s) invalide(s) : " + ', '.join(invalides) +
+                "\n  Pour obtenir un identifiant : Discord → Paramètres → Avancés → activer "
+                "le « Mode développeur », puis clic droit sur le salon → « Copier "
+                "l'identifiant » (18-19 chiffres)."
+            )
+
         if salons:
             self.stdout.write("Canal dédié   : " + ', '.join(sorted(salons))
                               + "  (répond SANS mention ; muet ailleurs)")
