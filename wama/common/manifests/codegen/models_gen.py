@@ -61,12 +61,25 @@ def _champ_option(entry: dict) -> str:
     return f"{nom} = models.CharField(max_length=255, blank=True, default={str(d or '')!r})"
 
 
-def _render_from_data(app_id: str, data: dict) -> str:
+def _render_from_data(app_id: str, data: dict, ingest: dict = None,
+                      item_name: str = '') -> str:
     """Rendu FIDÈLE depuis la facette `data` (marche S2) : chaque modèle avec ses champs tels
     que les migrations les sérialisent (`MigrationWriter.serialize` à l'extraction) — la
     fidélité de schéma est PAR CONSTRUCTION, verdict mesurable = makemigrations « No
-    changes » sur la jumelle. La GLU (WAMA_INGEST, properties, __str__, méthodes) reste le
-    trou déclaré des marches B — le SCHÉMA, lui, est complet."""
+    changes » sur la jumelle. La GLU (properties, __str__, méthodes) reste le trou déclaré
+    des marches B — le SCHÉMA, lui, est complet.
+
+    ⚠ `WAMA_INGEST` N'EST PLUS DANS CE TROU (2026-08-22, question de Fabien sur les
+    « sous-chemins parallèles »). Il l'était par CONSTRUCTION : ce rendu part du sérialiseur
+    de migrations, qui ne voit que des CHAMPS — or `WAMA_INGEST` est un attribut de classe
+    sans champ correspondant, donc structurellement invisible ici. Le rendu frère (squelette
+    A5, app créée de zéro) l'émettait, lui, depuis `processing.ingest` : **les deux chemins
+    ne produisaient pas la même app**, et c'est exactement le piège soupçonné — le champ URL
+    de la card vient d'un troisième endroit (les CAPACITÉS, côté gabarit), si bien qu'une app
+    régénérée pouvait AFFICHER le champ sans rien derrière pour résoudre l'URL.
+    Mesuré : les 10 apps déclarent `WAMA_INGEST` (enhancer deux fois) et toutes le perdaient.
+    Le manifeste le porte (`processing.ingest`) — il n'y avait plus de raison de l'abandonner.
+    Les `*_CHOICES`, eux, survivent : l'introspection les recopie inline dans `choices=`."""
     from ..builtin.app import _GEN_MARK
     mark = _GEN_MARK.format(app_id=app_id)
     imports = set()
@@ -79,6 +92,12 @@ def _render_from_data(app_id: str, data: dict) -> str:
             imports.add(f'from {mod} import {cls}')
             corps.append('    # Manager par défaut du modèle SOURCE (les vues en dépendent — visible_to()…).')
             corps.append(f'    objects = {cls}()')
+            corps.append('')
+        # Déclaration d'ingest sur le modèle d'ITEM (source_ingest.ensure_local_input la lit
+        # en tête de tâche). Invisible au sérialiseur de champs : elle vient du manifeste.
+        if ingest and item_name and m.get('name') == item_name:
+            corps.append('    # Ingest déclaratif commun (source_ingest.ensure_local_input).')
+            corps.append(f'    WAMA_INGEST = {dict(ingest)!r}')
             corps.append('')
         for f in m.get('fields') or []:
             if f.get('_error'):
@@ -129,9 +148,16 @@ def render_models(manifest: dict) -> tuple:
     app_id = manifest.get('key')
     body = manifest.get('body') or {}
     data = body.get('data') or {}
-    if data.get('models'):
-        return _render_from_data(app_id, data), None
     proc = body.get('processing') or {}
+    if data.get('models'):
+        # Le chemin INTROSPECTÉ reçoit désormais l'ingest et le nom du modèle d'item : sans
+        # eux il rendait une app au schéma parfait mais SANS sa déclaration d'ingest, quand
+        # le chemin frère (squelette) la posait — deux rendus, deux comportements.
+        return _render_from_data(
+            app_id, data,
+            ingest=proc.get('ingest') or {},
+            item_name=((proc.get('model_spec') or {}).get('item') or {}).get('name') or '',
+        ), None
     spec = proc.get('model_spec') or {}
     item = spec.get('item') or {}
     if not item.get('name'):
