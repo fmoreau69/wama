@@ -71,6 +71,60 @@ bypassent par le tier).
   3. **Studio** : `api/studio-nodes/` **filtré** par accès (on ne propose que les nœuds autorisés).
 - **Context processor** : exposer `accessible_apps` aux templates (déjà un `user_role()` existant à étendre).
 
+## 1.4 Le compte `anonymous` — DEUX notions qui s'annulaient (fermé le 2026-08-22)
+
+**Décision Fabien (2026-08-22) : WAMA n'est pas ouvert.** On s'y connecte par LDAP et
+l'inscription est validée à la main. Le compte anonyme ne doit donc **rien** pouvoir faire, et
+aucune app n'est déclarée `public` — la ligne « converter public » un temps envisagée est
+**abandonnée**.
+
+### Ce qui n'allait pas, et qui n'était écrit nulle part
+
+WAMA porte **deux** notions d'anonyme, et elles étaient opposées :
+
+| | tier résolu | rôles | `accessible()` |
+|---|---|---|---|
+| `AnonymousUser` (requête non connectée) | `anonymous` | — | False partout |
+| utilisateur **`anonymous` en base** (le repli des vues) | `utilisateur` | **les 4 rôles** | **True partout** |
+
+`get_or_create_anonymous_user()` — le repli qu'appellent les vues via `_user(request)` — rend le
+**second**. `user_tier()` teste `is_authenticated`, propriété qui vaut **toujours `True`** sur une
+instance `User` de la base : le compte anonyme était donc indiscernable d'un vrai utilisateur.
+
+Conséquence mesurée : `@app_access` laissait passer un visiteur non connecté (POST anonyme sur
+`transcriber/upload/` → **400 pour fichier manquant, pas 403** : la vue s'exécutait). La matrice
+d'accès était décorative sur ces chemins, et **la seule garde qui mordait réellement était le
+`@login_required` du converter** — c'est-à-dire sur l'app qu'on voulait justement ouvrir. La
+situation était exactement inversée par rapport à l'intention.
+
+### La fermeture, en deux gestes (base, réversibles)
+
+1. **retrait des 4 rôles** du compte `anonymous` → 14 apps accessibles sur 16 → **2** ;
+2. **tier `anonymous`** posé sur son profil → **0**. Sans ce second geste il gardait les apps
+   COMMUNES (`converter`, `media_library`), qui passent par la branche « app commune » — jamais
+   par la branche `anonymous`.
+
+Contrôle : `wama_nightly_test` 14/16 et un admin 16/16 restent inchangés.
+
+> **Rien dans le code n'attribue ces rôles** : le compte est créé sans groupe et `is_active=False`
+> (`accounts/views.py:511`). Ils avaient été posés à la main. Le geste ne sera donc pas défait au
+> redémarrage — mais rien ne l'empêche non plus d'être refait par la matrice d'administration.
+
+## 1.5 Trous d'application relevés au passage (2026-08-22, mesurés)
+
+- **Les pages d'index ne sont pas gardées** : `/converter/` et `/transcriber/` répondent **200**
+  à un visiteur non connecté alors qu'`accessible()` dit False. L'algorithme existe mais n'est
+  branché sur aucun index — seules certaines *actions* le sont.
+- **Gardes d'action hétérogènes sur `upload`** : converter `@login_required + @app_access` ;
+  transcriber et enhancer `@app_access` ; describer, reader, synthesizer `@require_POST` seul ;
+  **anonymizer, imager, composer, avatarizer : aucune garde**.
+- **Aucune garde SSRF sur l'ingest d'URL** (`fetch_url_content`, `upload_media_from_url`) : ni
+  liste blanche, ni blocage des IP privées, ni restriction de schéma. Un utilisateur peut faire
+  fetcher au serveur une adresse interne. Vaut aussi pour les comptes authentifiés — durcissement
+  à faire indépendamment de la question de l'ouverture.
+- **Aucun contrôle de contenu à l'upload** : pas d'antivirus, pas de vérification du type réel,
+  pas de borne de taille dans `settings.py`.
+
 ## 2. Notifications email (axe indépendant)
 Préférences **par utilisateur** sur `UserProfile` :
 - `notify_email` (bool, défaut on), `notify_on` ∈ {`completion`, `failure`, `both`, `none`}, option

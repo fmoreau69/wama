@@ -363,6 +363,7 @@ def check_app_import(app: str, url_path: str):
         // audio_input (avatarizer) — des champs de référence qui ne créent aucun élément,
         // d'où trois faux échecs. Avec le seul cran 2, on rejetait 5 apps qui importent très
         // bien mais nomment leur champ autrement (transcriber-file…).
+        const carte = document.querySelector('[data-wama-nic]');
         const exclus = '[id*="atch"], [id*="elody"], [id*="eference"], [id*="voice"], [id*="avatar"]';
         const tous = [...document.querySelectorAll(`input[type=file]:not(${exclus})`)];
         const fi = (dz && dz.querySelector(`input[type=file]:not(${exclus})`))
