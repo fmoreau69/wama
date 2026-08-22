@@ -16,6 +16,8 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_POST
 
+from wama.common.utils.volet import VOLET_AUCUN
+
 from .models import (UserAsset, SystemAsset, MediaProvider, UserProviderConfig, PromptKeyword,
                      ASSET_TYPES, ALLOWED_EXTENSIONS, TYPE_GROUPS)
 from .providers.registry import get_provider
@@ -80,6 +82,11 @@ def index(request):
         # `models.py`, filtrage serveur). Avant 2026-07-09 : dupliqué en dur (`AUDIO_TYPES` codé
         # dans media-library.js) — retiré, ne reste que cette source.
         'audio_types_json': json.dumps(TYPE_GROUPS['audio']),
+        # La médiathèque a sa PROPRE mise en page (grille + onglets) et son propre aperçu :
+        # le volet n'y portait que 3 cadres vides (WAMA_VOLETS §2). ⚠ Elle expose un index,
+        # donc `discoverable_apps()` la voit — mais ce n'est PAS une app du catalogue, d'où
+        # son absence du test de non-régression des 10 apps (`tests_volet.PagesDAppTest`).
+        'volet': VOLET_AUCUN,
     }
     return render(request, 'media_library/index.html', context)
 

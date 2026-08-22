@@ -40,7 +40,12 @@
     <!-- Shims IE<9 (html5shiv/respond) retirés 2026-06-29 : obsolètes + c'étaient des liens CDN. -->
 
   </head>
-  <body>
+  {% comment %}`wama-sans-volet` : posée par le SERVEUR (donc sans clignotement) quand la page
+  ne déclare aucun volet. Elle rend au corps les 360 px que le CSS réservait au panneau —
+  `body > .container-fluid` porte `margin-right: var(--fm-right-panel-width) !important`.
+  Sans elle, retirer les cadres laisserait une bande vide : on aurait déplacé le décor, pas
+  supprimé. Même geste que `body.wama-simple`, qui libère déjà les deux marges.{% endcomment %}
+  <body{% if not volet.actif %} class="wama-sans-volet"{% endif %}>
     {# Anti-flash: apply wama-simple class before any render if stored in localStorage #}
     <script>
       (function() {
@@ -127,7 +132,21 @@
     {# FileManager Sidebar (left) #}
     {% include 'filemanager/sidebar.html' %}
 
-    {# WAMA Right Panel (settings & preview) #}
+    {% comment %}
+      WAMA Right Panel (settings & preview) — DÉCLARATIF depuis le 2026-08-22.
+
+      Chaque section n'est rendue que si la page la déclare, et le défaut est « les trois »
+      pour que les 10 apps n'aient RIEN à écrire (contrainte n°1 : défaut inchangé ⇒ zéro
+      régression). Le dict `volet` est toujours COMPLET — garanti par le context processor
+      `wama.common.context_processors.volet_defaut`. Contrat et raisons : `wama/common/utils/volet.py`,
+      état des lieux mesuré : `WAMA_VOLETS.md`.
+
+      ⚠ #info-section est la seule section SANS bloc surchargeable : c'est l'hôte de
+      l'inspecteur (`#inspectorInfo`, rempli par WamaInspector.fillDetail). Elle suit donc la
+      section Médias plutôt que d'être déclarable à part — une page qui montre des médias
+      montre des cards, donc des infos de card. Elle naît masquée, comme avant.
+    {% endcomment %}
+    {% if volet.actif %}
     <aside id="wama-right-panel">
         <!-- Header -->
         <div class="right-panel-header">
@@ -143,9 +162,13 @@
               Motif : certaines pages ont un contenu de volet qui n'est ni un média, ni
               un paramètre, ni une action (model_manager y met le résumé du catalogue,
               qui n'est pas une « ressource système »).
+              Le bloc reste rendu inconditionnellement : il n'a ni cadre ni titre, donc
+              il ne coûte rien quand il est vide. `volet.tete` ne sert qu'à garder le
+              volet OUVERT pour une page qui n'a que lui (accueil et son avatar).
             {% endcomment %}
             {% block right_panel_top %}{% endblock %}
 
+            {% if volet.medias %}
             <!-- Médias Section (drop zone app ou aperçu filemanager) -->
             <div class="right-panel-section" id="media-section">
                 <div class="right-panel-section-title" id="rightPanelMediaTitle">
@@ -172,7 +195,9 @@
                 </div>
                 <div id="inspectorInfo"></div>
             </div>
+            {% endif %}
 
+            {% if volet.parametres %}
             <!-- Settings Section -->
             <div class="right-panel-section" id="settings-section">
                 <div class="right-panel-section-title">
@@ -184,7 +209,9 @@
                     {% endblock %}
                 </div>
             </div>
+            {% endif %}
 
+            {% if volet.actions %}
             <!-- Actions Section -->
             <div class="right-panel-section" id="actions-section">
                 <div class="right-panel-section-title">
@@ -196,8 +223,10 @@
                     {% endblock %}
                 </div>
             </div>
+            {% endif %}
         </div>
     </aside>
+    {% endif %}
 
     <!-- Right Panel Script -->
     <script>

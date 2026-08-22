@@ -16,6 +16,7 @@ from functools import wraps
 from .models import LoginForm, UserRegistrationForm, UserProfile
 from ..anonymizer.forms import UserSettingsEdit
 from ..anonymizer.models import UserSettings
+from ..common.utils.volet import VOLET_AUCUN
 
 
 def admin_required(view_func):
@@ -75,7 +76,10 @@ def login_view(request):
         else:
             messages.error(request, "Invalid credentials.")
 
-    return render(request, 'accounts/login_v2.html', {'form': form, 'type_of_view': 'login'})
+    # Pages de COMPTE : aucun média, aucun paramètre d'app, aucune action de file — le volet
+    # n'y portait que des cadres vides (WAMA_VOLETS §2, 17 pages / 51 cadres).
+    return render(request, 'accounts/login_v2.html',
+                  {'form': form, 'type_of_view': 'login', 'volet': VOLET_AUCUN})
 
 
 def signup_view(request):
@@ -86,9 +90,10 @@ def signup_view(request):
             user = form.save()
             # Crée les UserSettings liés
             UserSettings.objects.get_or_create(user=user)
-            return render(request, 'accounts/signup_validation.html')
+            return render(request, 'accounts/signup_validation.html', {'volet': VOLET_AUCUN})
 
-    return render(request, 'accounts/login.html', {'form': form, 'type_of_view': 'register'})
+    return render(request, 'accounts/login.html',
+                  {'form': form, 'type_of_view': 'register', 'volet': VOLET_AUCUN})
 
 
 def logout_view(request):
@@ -110,6 +115,7 @@ class UserPage(DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['can_edit'] = (self.request.user.pk == self.object.pk)
+        context['volet'] = VOLET_AUCUN          # page de compte, cf. login_view
         return context
 
 
@@ -156,6 +162,11 @@ class UserSettingsUpdate(UpdateView):
 
     def get_success_url(self):
         return reverse('anonymizer:upload')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['volet'] = VOLET_AUCUN          # page de compte, cf. login_view
+        return context
 
     def get_object(self):
         return get_object_or_404(UserSettings, user=self.request.user)
@@ -224,6 +235,7 @@ def profile_view(request):
         'is_ldap': _is_ldap_user(request),
         'channel_links': liaisons,
         'rattachement': rattachement_institutionnel(profile),
+        'volet': VOLET_AUCUN,                   # page de compte, cf. login_view
     })
 
 
@@ -556,6 +568,7 @@ def user_management(request):
         'available_roles': ['admin', 'dev', 'user'],
         # Catalogue des métiers pour l'en-tête de colonnes (tooltip = description).
         'metier_roles': [(k, label, ROLE_DESCRIPTIONS.get(k, '')) for k, label in ROLES.items()],
+        'volet': VOLET_AUCUN,                   # tableau d'administration, cf. login_view
     }
     return render(request, 'accounts/user_management.html', context)
 
@@ -625,6 +638,7 @@ def app_access_matrix(request):
         'ncols': len(role_keys) + 3,  # nom + rôles + anonyme + tier
         # 'anonymous' est le plancher → inutile comme tier MINIMAL (équivalent à « aucun »).
         'tier_choices': [(v, l) for v, l in TIER_CHOICES if v != 'anonymous'],
+        'volet': VOLET_AUCUN,                   # matrice pleine largeur, cf. login_view
     }
     return render(request, 'accounts/app_access_matrix.html', context)
 

@@ -443,6 +443,10 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'wama.accounts.views.login_form',
                 'wama.accounts.context_processors.user_role',
+                # Volet droit DÉCLARATIF : fournit le dict complet par défaut (les trois
+                # sections), qu'une vue remplace pour en retirer. Sans ce processor, une page
+                # sans déclaration masquerait tout — cf. wama/common/utils/volet.py.
+                'wama.common.context_processors.volet_defaut',
             ],
         },
     },

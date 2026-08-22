@@ -11,6 +11,8 @@ from django.utils import timezone
 from django.conf import settings
 import os
 
+from wama.common.utils.volet import VOLET_AUCUN
+
 from .models import AnalysisSession, AnalysisFrame
 from .pipeline import FaceAnalysisPipeline, PipelineConfig, AnalysisMode
 from .rppg import RPPGMethod
@@ -47,6 +49,9 @@ def index(request):
     context = {
         'sessions': sessions,
         'analysis_modes': AnalysisSession.AnalysisMode.choices,
+        # face_analyzer ne déclarait RIEN : 9 cadres vides sur ses trois pages
+        # (WAMA_VOLETS §5). Ses vues sont pleine largeur — webcam, graphiques, sessions.
+        'volet': VOLET_AUCUN,
     }
 
     return render(request, 'face_analyzer/index.html', context)
@@ -64,7 +69,8 @@ def realtime_view(request):
 
     context = {
         'chart_configs': json.dumps(chart_configs),
-        'mode': 'realtime'
+        'mode': 'realtime',
+        'volet': VOLET_AUCUN,          # cf. index
     }
 
     return render(request, 'face_analyzer/realtime.html', context)
@@ -85,7 +91,8 @@ def video_view(request, session_id=None):
     context = {
         'session': session,
         'chart_configs': json.dumps(chart_configs),
-        'mode': 'video'
+        'mode': 'video',
+        'volet': VOLET_AUCUN,          # cf. index
     }
 
     return render(request, 'face_analyzer/video.html', context)

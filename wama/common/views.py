@@ -13,6 +13,7 @@ from django.views.generic import RedirectView
 
 from .services.system_monitor import SystemMonitor
 from .utils.console_utils import get_console_lines
+from .utils.volet import VOLET_AUCUN
 
 _STATS_CACHE_KEY = 'wama_footer_stats'
 _STATS_CACHE_TTL = 8  # secondes — subprocess wmic/nvidia-smi trop lents pour appel à chaque requête
@@ -366,6 +367,9 @@ def registres_view(request):
         'facettes_registres': facettes,
         'peut_actualiser': request.user.is_authenticated,
         'est_staff': request.user.is_authenticated and request.user.is_staff,
+        # Page de SUPERVISION : tout y est dans le corps (cf. WAMA_VOLETS §2 — elle figurait
+        # parmi les 17 pages héritant de 3 cadres vides).
+        'volet': VOLET_AUCUN,
     })
 
 
@@ -392,7 +396,8 @@ def licenses_catalog_view(request):
 
     return render(request, 'common/licenses.html',
                   {'audit': synthese(request.user if request.user.is_authenticated else None),
-                   'facettes_licences': facettes})
+                   'facettes_licences': facettes,
+                   'volet': VOLET_AUCUN})
 
 
 @login_required
@@ -697,6 +702,8 @@ def rag_view(request):
         # l'annuaire ignore offrirait un choix qui échouerait ensuite.
         'unites': unites_partageables(prof),
         'unite_defaut': getattr(prof, 'rag_unite_defaut', '') if prof else '',
+        # « Mon RAG » : liste de documents, tout est dans le corps (WAMA_VOLETS §2).
+        'volet': VOLET_AUCUN,
     })
 
 

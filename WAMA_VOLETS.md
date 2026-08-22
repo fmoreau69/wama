@@ -1,8 +1,10 @@
 # WAMA_VOLETS.md — Volets gauche et droit : référence unique du domaine
 
 > **Statut : état des lieux MESURÉ au 2026-08-22 ; les TROIS défauts du §4 sont CORRIGÉS le
-> même jour** (brique + 2 apps, 2 scénarios nocturnes vérifiés rouges sur le code d'avant). Le
-> chantier de fond — **déclaration des sections** (§8 n°2) — n'est PAS engagé.
+> même jour** (brique + 2 apps, 2 scénarios nocturnes vérifiés rouges sur le code d'avant),
+> **et le chantier de fond — la DÉCLARATION des sections (§8 n°2) — est LIVRÉ** : les 17 pages
+> déclarent, les 51 cadres vides sont retirés, 13 tests versionnés couvrent le mécanisme
+> (`wama/common/tests_volet.py`). Voir **§3-bis** pour le contrat.
 >
 > ⚠ Deux diagnostics du §4 étaient FAUX et la confrontation au code les a redressés : le ✕
 > cassé n'appelait pas un bandeau à rajouter (§4①) et l'import d'avatarizer n'était pas perdu
@@ -26,7 +28,7 @@
 | Élément | Lignes | Fait |
 |---|---|---|
 | Volet **gauche** | `:128` | `include` de `filemanager/sidebar.html` — arborescence de fichiers |
-| Volet **droit** `<aside id="wama-right-panel">` | `:131-200` | Rendu pour **TOUTE** page étendant `base.html` |
+| Volet **droit** `<aside id="wama-right-panel">` | `:131-200` | ~~Rendu pour **TOUTE** page étendant `base.html`~~ → rendu **si `volet.actif`** (§3-bis, 22/08) ; chaque section est conditionnée par sa clé |
 | `right_panel_top` | `:147` | Bloc libre, **vide et sans cadre** — « ni un média, ni un paramètre, ni une action » |
 | `#media-section` | `:150-166` | Défaut : placeholder « Sélectionnez un fichier pour l'aperçu » |
 | `#info-section` | `:169-174` | **Seule section née masquée**, hôte `#inspectorInfo`, aucun bloc surchargeable |
@@ -45,14 +47,18 @@ aujourd'hui puisque le CSS est chargé partout, mais un refactoring est prévu.
 
 ## 2. État des lieux — 35 pages mesurées
 
-| Mesure | Nombre |
-|---|---|
-| Pages rendant le volet droit | **35** (15 via `app_modern_base`, 20 en extension directe) |
-| Pages **déclarant** au moins un bloc `right_panel_*` | 17 / 35 |
-| Pages au volet **totalement vide de sens** (3 cadres, 0 déclaration, 0 inspecteur) | **17 / 35** |
-| **Cadres vides cumulés** sur ces pages | **51** |
-| Pages appelant l'inspecteur | 14 (**16 instances**) |
-| Pages **sans aucun** cadre inutile | **2 / 35** — `model_manager/index` et `transcriber/edit` |
+| Mesure | Avant (22/08 matin) | Après (22/08 soir) |
+|---|---|---|
+| Pages rendant le volet droit | **35** (15 via `app_modern_base`, 20 en extension directe) | 18 — les 17 autres n'en rendent plus |
+| Pages **déclarant** au moins un bloc `right_panel_*` | 17 / 35 | inchangé |
+| Pages au volet **totalement vide de sens** (3 cadres, 0 déclaration, 0 inspecteur) | **17 / 35** | **0** |
+| **Cadres vides cumulés** sur ces pages | **51** | **0** |
+| Pages appelant l'inspecteur | 14 (**16 instances**) | inchangé |
+| Pages **sans aucun** cadre inutile | **2 / 35** | **35 / 35** |
+
+> ⚠ L'accueil comptait EN PLUS 3 cadres sous son avatar (§5) : il déclare désormais `tete=True`
+> et garde son volet pour le seul avatar. Il n'était pas dans les 17 — c'est donc **54** cadres
+> retirés au total, pas 51.
 
 **Les 17 pages au volet vide** : licences · Mon RAG · **Registres** · médiathèque ·
 catalogue de fonctions · catalogue de librairies · profil · préférences (×2) · gestion des
@@ -86,6 +92,62 @@ contextualiser. Constat qui corrige une intuition naturelle (« aligner sur les 
 ⚠ **Ne rien casser ici** : ce comportement file/batch/card est éprouvé et s'accroche aux
 **identifiants** (`#media-section`, `#inspectorActions`, `#inspectorInfo`) et aux options de
 `init`. Toute évolution doit laisser ids, blocs et JS intacts.
+
+---
+
+## 3-bis. Le volet est DÉCLARATIF — contrat (livré 2026-08-22)
+
+**Référence unique du mécanisme : `wama/common/utils/volet.py`** (le pourquoi y est écrit ; ne
+pas le recopier ici). Patron suivi : celui de `_filter_bar.html` — une variable de contexte
+déclarée côté vue, consommée par des `{% if %}`, contrat documenté à la source.
+
+```python
+from wama.common.utils.volet import volet, VOLET_AUCUN
+
+context['volet'] = VOLET_AUCUN                    # aucun volet (17 pages transversales)
+context['volet'] = volet(medias=False)            # retrait CIBLÉ : garde Paramètres + Actions
+context['volet'] = volet(tete=True, medias=False, parametres=False, actions=False)   # accueil
+```
+
+| Clé | Effet |
+|---|---|
+| `medias` | section Médias **et** son satellite `#info-section` (hôte de l'inspecteur) |
+| `parametres` · `actions` | les sections homonymes |
+| `tete` | ne rend rien de plus — **garde le volet ouvert** pour une page qui n'a que `right_panel_top` |
+| `actif` | **dérivée** : si fausse, pas d'`<aside>` du tout **et** `<body class="wama-sans-volet">` |
+
+**Trois décisions, et leur raison :**
+
+1. **Le défaut est « les trois sections ».** Les apps ne déclarent RIEN et ne changent pas d'un
+   pixel — contrainte n°1 du chantier. C'est le context processor `volet_defaut` qui garantit
+   un dict complet ; sans lui, `{% if volet.medias %}` sur une variable absente vaudrait faux
+   et masquerait TOUT.
+2. **Une déclaration est toujours COMPLÈTE.** Un dict partiel masquerait les clés non citées
+   (même cause). `volet()` remplit les quatre. L'alternative — un filtre maison
+   `volet|section:'medias'` — a été écartée pour la raison que `_filter_bar.html` donne déjà :
+   « un mécanisme de plus à connaître » pour un seul usage.
+3. **Retirer l'`<aside>` ne suffit pas.** `body > .container-fluid` porte
+   `margin-right: var(--fm-right-panel-width) !important` : sans la classe `wama-sans-volet`,
+   on aurait laissé 360 px de bande morte — le décor déplacé, pas supprimé. **Mesuré** :
+   corps 860 px → **1220 px** sur `registres`, 860 px inchangé sur `transcriber`.
+
+⚠ **`cam_analyzer` DÉCLARE ses trois sections** au lieu d'en hériter (§5). Le rendu est le même
+aujourd'hui ; la déclaration est ce qui garantit qu'un futur changement de défaut ne détruira
+pas sa mini-carte Leaflet.
+
+### Preuves — `wama/common/tests_volet.py` (13 tests)
+
+| Classe | Ce qu'elle garde |
+|---|---|
+| `ContratTest` | dict toujours complet · `actif` dérivée · le défaut EST l'historique |
+| `DefautTest` | sans déclaration : les trois sections + `#info-section`, pas de classe |
+| `DeclarationTest` | retrait ciblé · retrait total (aside ET classe) · `tete` seule |
+| `PagesDAppTest` | **les 11 apps du catalogue** rendues à l'identique (pages réelles) |
+| `PagesDeclarantesTest` | 10 pages transversales + connexion en visiteur + accueil + cam_analyzer |
+
+⚠ Le périmètre de `PagesDAppTest` est `APP_CATALOG`, **pas** `discoverable_apps()` : la
+médiathèque expose un index mais est une surface transversale qui DÉCLARE. Les confondre
+ferait échouer le test au moment même où le chantier avance.
 
 ---
 
@@ -179,14 +241,18 @@ les trois sections sont détournées (« Carte & passages » porte une mini-cart
 L'unité de sélection est une **session/un passage**, pas une card. ⚠ Lui appliquer un
 masquage automatique **détruirait la carte**. Il devra **déclarer**, jamais hériter.
 
-**`face_analyzer`** — à l'inverse, ne déclare rien : **9 cadres vides** sur ses trois pages.
+**`face_analyzer`** — à l'inverse, ne déclarait rien : **9 cadres vides** sur ses trois pages.
+✅ Ses trois vues déclarent `VOLET_AUCUN` depuis le 2026-08-22 (webcam, graphiques et sessions
+occupent toute la largeur).
 
 **`home.html`** — l'avatar vit en `right_panel_top` (`:14-25`), posé `display:none`, chargé
 par **import dynamique au clic** (~6 Mo, une seule fois). ⚠ **Il n'est PAS persistant** :
 son conteneur n'existe que dans `home.html` (`base.html` ne référence `wama-avatar` nulle
 part), donc il **disparaît dès qu'on quitte l'accueil**. Ce qui persiste est son *état*, pas
-sa présence. Et il **s'ajoute** au volet sans rien remplacer : les trois cadres inutiles
-restent sous lui.
+sa présence. ~~Et il s'ajoute au volet sans rien remplacer : les trois cadres inutiles restent
+sous lui.~~ ✅ **Corrigé le 22/08** : l'accueil déclare `tete=True` + les trois sections à
+`False` — le volet reste ouvert pour le seul avatar. C'est le cas d'usage qui a rendu la clé
+`tete` nécessaire (un gabarit ne peut pas dire si son bloc libre est vide).
 
 **`filemanager`** — n'a **aucune** page étendant `base.html` ; il fournit la sidebar gauche
 et, par accident d'histoire, le CSS du volet droit. Son « aperçu global » annoncé en
@@ -233,7 +299,7 @@ prioritaire.
 | # | Chantier | Pourquoi cet ordre |
 |---|---|---|
 | 1 | ~~**Bandeau manquant** sur 8 pages~~ → **✅ FAIT autrement (22/08)** | Le diagnostic était faux : pas un `include` à ajouter mais **un chemin oublié** dans la brique. Voir §4① — l'`include` aurait REVERTÉ le retrait décidé le 07/08 |
-| 2 | **Déclaration des sections** (`volet = {...}` côté vue, comme `facettes`) | Défaut inchangé ⇒ **zéro régression** pour les apps ; corrige 17 pages et 51 cadres |
+| 2 | ~~**Déclaration des sections**~~ → **✅ LIVRÉ (22/08)** | Défaut inchangé ⇒ zéro régression pour les apps ; **17 pages et 54 cadres** retirés (§3-bis) |
 | 3 | ~~Double instance `enhancer`/`imager`~~ → **✅ FAIT (22/08)** | Traité avec ① : même brique, même passe de validation (§4②) |
 | 4 | **Portage depuis `model_manager`** vers la brique | Bandeau paramétrable · restauration du hint · `detailSchema`/`actionsSchema` · `ids.actionButtons` |
 | 5 | **Assistant dans le volet** (conteneur en `base.html`, préférence au profil) | Rend l'avatar réellement persistant ; ne pas engager avant 2 |

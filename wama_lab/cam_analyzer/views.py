@@ -22,6 +22,7 @@ from django.core.cache import cache
 from .models import AnalysisSession, AnalysisProfile, CameraView, DetectionFrame, TemporalSegment
 from .models import get_unique_filename
 from wama.common.utils.console_utils import push_console_line, get_console_lines
+from wama.common.utils.volet import volet
 from .utils.features import catalog as _features_catalog
 
 logger = logging.getLogger(__name__)
@@ -173,6 +174,14 @@ def index(request):
         'profiles': profiles,
         'available_models': json.dumps(available_models),
         'coco_classes': json.dumps(COCO_ROAD_CLASSES),
+        # ⚠ DÉCLARÉ EXPLICITEMENT, jamais hérité (WAMA_VOLETS §5). Le volet de cam_analyzer
+        # n'est PAS un inspecteur mais un PANNEAU DE TRAVAIL PERMANENT : les trois sections
+        # y sont détournées — « Carte & passages » porte une mini-carte Leaflet de 320 px,
+        # plus « Profil actif » et « Exports » —, pilotées par le JS métier et jamais par
+        # WamaInspector. L'unité de sélection est une session/un passage, pas une card.
+        # Hériter du défaut donnerait le même rendu AUJOURD'HUI ; le déclarer garantit qu'un
+        # changement de défaut ne détruira pas la carte demain.
+        'volet': volet(medias=True, parametres=True, actions=True),
     }
 
     return render(request, 'cam_analyzer/index.html', context)

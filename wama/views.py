@@ -91,6 +91,7 @@ def home(request):
     # toujours s'entendre dire le parcours (s'identifier, puis attendre la modération). Voir
     # `assistant_skills.accueil()` pour le pourquoi du déclaratif plutôt que du généré.
     from wama.common.utils.assistant_skills import accueil
+    from wama.common.utils.volet import volet
     context = {
         'is_admin': is_admin,
         'accueil_assistant': accueil(request.user),
@@ -98,6 +99,11 @@ def home(request):
         # qui voit la surface chat.
         'chat_model_options': _chat_model_options() if is_admin else [],
         'voix_assistant': choix_voix(langue),
+        # Volet = l'AVATAR SEUL, en bloc de tête (`right_panel_top`, home.html). Les trois
+        # sections restaient rendues SOUS lui — « Sélectionnez un fichier pour l'aperçu » sur
+        # l'accueil — parce que `base.html` les servait à toute page (WAMA_VOLETS §5).
+        # `tete=True` garde le volet ouvert pour l'avatar sans rien d'autre.
+        'volet': volet(tete=True, medias=False, parametres=False, actions=False),
     }
     return render(request, 'home.html', context)
 

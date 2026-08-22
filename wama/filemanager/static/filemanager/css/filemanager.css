@@ -155,6 +155,24 @@ body.wama-simple > .container-fluid {
     max-width: 100% !important;
 }
 
+/* Page SANS volet droit — classe posée par le SERVEUR (base.html) quand la déclaration
+   `volet` ne retient aucune section. Le corps et l'en-tête récupèrent les 360 px que
+   `body > .container-fluid` et `.top_nav` réservaient au panneau. Sans cette règle, retirer
+   les cadres vides laisserait une bande morte : on aurait déplacé le décor, pas supprimé.
+   Pendant exact du mode simple ci-dessus, à ceci près que la SIDEBAR GAUCHE reste en place.
+   ⚠ Vit ici parce que tout le CSS de structure du volet y vit déjà (WAMA_VOLETS §1) ; son
+   déplacement vers `common/` est décidé mais hors périmètre (arbitrage Fabien 2026-08-22). */
+body.wama-sans-volet .top_nav {
+    right: 0 !important;
+}
+
+body.wama-sans-volet > .container,
+body.wama-sans-volet > .container-fluid {
+    margin-right: 0 !important;
+    width: calc(100% - var(--fm-sidebar-width)) !important;
+    max-width: calc(100% - var(--fm-sidebar-width)) !important;
+}
+
 /* === TREE SECTION HEADERS === */
 /* Nodes with type="section" act as collapsible section headers */
 #filemanager-tree li#section_user > .jstree-anchor,
