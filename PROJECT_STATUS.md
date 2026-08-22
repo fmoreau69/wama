@@ -5323,3 +5323,57 @@ les smokes audio, à garder).
 fichiers 0 erreur, 54 paires 0 divergente** · grille : converter 100, anonymizer/avatarizer/
 describer/transcriber 98, composer/enhancer/reader/synthesizer 97, imager 96 · `manage.py test
 wama.common.tests_capabilities_languages` **19/19**.
+
+---
+
+## §REPRISE — 2026-08-22 (instance MÉMOIRE / RAG / JOURNAL → IA TRANSVERSE) — 🔚 POINT D'ENTRÉE
+
+> Session 20→22/08. Partie d'une demande « mémoire pour wama-dev-ai », arrivée à : brique
+> mémoire+RAG complète, journal utilisateur, et le SCHÉMA MESURÉ de toute l'IA transverse.
+> **Volonté de Fabien à la clôture : UNE session dédiée « IA transverse » qui récupère TOUT le
+> reste à faire de ce domaine** — pour cesser les chevauchements avec portage/studio/cam_analyzer.
+
+### ✅ LIVRÉ ET VÉRIFIÉ (~30 commits)
+| # | Livraison | Preuve |
+|---|---|---|
+| 1 | **Brique mémoire+RAG `wama/common/memory/`** (jalons 1-13 de `WAMA_MEMORY.md`) — pgvector, 5 opérations, rappel HYBRIDE (RRF corrigé, seuils mesurés), gouvernance d'approbation, résidence bge-m3 arbitrée par le gouverneur (5,3 s → ~360 ms) | **31 tests versionnés** `tests_memory.py` 31/31 |
+| 2 | **RAG = GESTE à NIVEAUX** (refonte sur objection Fabien : isolation ≠ consentement) — balayage PURGÉ (939→0), `ajouter_au_rag(niveau='user'|'unit')`, multi-affiliations, sélecteur de lecture `rag_niveaux` | héritage équipe→labo prouvé par test |
+| 3 | **Journal utilisateur `/common/journal/`** 2 couches (agrégat dérivé de `detail_registry`, 12 sources, zéro ligne par app) + **`RunOutcomeCaptureMiddleware`** (capte telecharge/supprime/relance par `url_name`) | smokes page 18/18, captation 8/8 |
+| 4 | **Barre de filtres commune** (`wama-filter-bar.js`, apparence Model Manager) portée sur 6 pages (R21 SOLDÉE) + **inspecteur global** (`wama-inspector.js` dans `base.html`) | Playwright avant/après ×6 |
+| 5 | **`WAMA_IA_TRANSVERSE.md`** (ex-PROMPT_PIPELINE.md, renommé + 24 réfs) — chaîne complète MESURÉE : 3 axes de niveaux, assistant/apps/traduction E-S/routage modèle/RAG/mémoire, **pivot API `tool_api.py` + 8 outils transverses**, tableau §5 = **12 manques** confrontés au code | chaque ✅ par grep d'appelants |
+| 6 | Correctifs au passage : 3 modèles d'embedding typés `llm` (sélectionnables en chat) → typage par capacités ; `check_js` étendu à la parité staticfiles (54 paires) ; `assistant_engine` `OLLAMA_HOST` sous WSL2 | prouvés en session |
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE — SESSION DÉDIÉE « IA TRANSVERSE »
+**Le backlog COMPLET du domaine est regroupé en UN endroit : `WAMA_IA_TRANSVERSE.md §5`**
+(12 lignes, chacune mesurée) **+ jalon 14 de `WAMA_MEMORY.md`**. Ordre suggéré :
+1. **Jalon 14 — SURFACES du geste RAG** : bouton « Ajouter au RAG » + page de gestion
+   (défaut de niveaux, `lister_rag`, retrait). **Placement à trancher AVEC Fabien** (§5 l.9).
+2. **Hook B RAG dans les apps** — passe-plat `rag` de `process_prompt_for` + déclaration
+   `PROMPT_TARGETS` (arbitré À FAIRE le 21/08, §5 l.4).
+3. **Peuplement `OrgUnit` + affiliations** (0 en base) — débloque le niveau labo SANS code
+   (LDAP/SUPANN, §5 l.8).
+4. Traduction de SORTIE (l.10) · QC post-génération (l.12) · parsing structurel/Docling (l.11) ·
+   skills org/utilisateur (l.1-2) · sélection croisée intention+fichiers+RAG (l.5).
+**BORNES (anti-chevauchement)** : cette session ne touche PAS au portage des apps, ni au studio,
+ni au cam_analyzer — chacun garde SA session. La jonction unique = les tâches d'app démarrées
+par l'assistant héritent de la pipeline d'app (§2 du doc), rien à coordonner tant qu'on ne
+touche pas `PROMPT_TARGETS` d'une app en cours de portage.
+
+### ⚠ DETTE RELEVÉE À LA CLÔTURE
+- **venv_win DÉSYNCHRONISÉ de `requirements.txt`** : `pgvector` y était déclaré (l.9) mais
+  jamais installé → `common/models.py:17` cassait TOUT `manage.py` depuis Windows
+  (`doc_facts`, `check_docs`…), silencieusement depuis le 20/08. **Réparé (pip install via
+  proxy UGE)**. Leçon : un ajout à `requirements.txt` s'installe dans LES DEUX venvs le jour même.
+- Le TTS n'a aucun doc de référence dédié (constat consigné dans `WAMA_IA_TRANSVERSE.md`,
+  bloc hors-scope) — à créer seulement le jour où le sujet grossit.
+
+### ⏳ PENDINGS SYSTÈME (hors code)
+- **Push** : nombreux commits locaux (627+ d'écart déjà avant la session) — géré par Fabien.
+- `RunOutcome` ne capte que VERS L'AVANT — l'historique d'avant le middleware est perdu (assumé).
+- Imports wama-dev-ai : 25 souvenirs NON approuvés en file de revue (invisible au rappel).
+
+### Contrôles attendus au prochain /reprise
+`check_docs` **2 CASSÉ / 0 périmée sur 457** · `manifest_export --check` **corpus à jour (110)**
+· `doc_facts` **4/4 à jour** · `manage.py test wama.common.tests_memory` **31/31** ·
+`tests_capabilities_languages` **19/19** (instance sœur) · `check_js` **0 erreur, 0 paire
+divergente**.
