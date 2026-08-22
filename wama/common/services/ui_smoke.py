@@ -300,6 +300,29 @@ def _fichier_temoin(extensions: str) -> Path:
     return Path(f.name)
 
 
+def _session_compte_de_test():
+    """Clé de session d'un compte de TEST existant, ou None.
+
+    On ne crée aucun compte : le dépôt en a déjà (`wama_nightly_test`, `ui_smoke_v3`), avec
+    leurs rôles. En forger un ici inventerait des droits et masquerait justement ce que le
+    scénario doit voir.
+    """
+    from importlib import import_module
+    from django.contrib.auth import get_user_model
+    for nom in ('wama_nightly_test', 'ui_smoke_v3', 'pw_smoke'):
+        u = get_user_model().objects.filter(username=nom, is_active=True).first()
+        if not u:
+            continue
+        SessionStore = import_module(settings.SESSION_ENGINE).SessionStore
+        s = SessionStore()
+        s['_auth_user_id'] = str(u.pk)
+        s['_auth_user_backend'] = 'django.contrib.auth.backends.ModelBackend'
+        s['_auth_user_hash'] = u.get_session_auth_hash()
+        s.create()
+        return s.session_key
+    return None
+
+
 def check_app_import(app: str, url_path: str):
     """L'app sait-elle CRÉER un élément depuis sa card d'entrée ? (ok, detail).
 
@@ -377,11 +400,25 @@ def check_app_import(app: str, url_path: str):
 
     temoin = None
     sessions_before = _session_keys()
+    # ⚠ Toute lecture ORM doit se faire AVANT `sync_playwright()` : à l'intérieur, Django
+    # refuse l'accès synchrone (SynchronousOnlyOperation). Le jeton est donc préparé ici.
+    jeton = _session_compte_de_test()
+    if not jeton:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3) "
+                           "— les droits ne sont pas simulables, on ne mesure pas à l'aveugle")
     try:
         with sync_playwright() as p:
             navigateur = p.chromium.launch()
             try:
-                page = navigateur.new_page(viewport={'width': 1500, 'height': 1000})
+                contexte = navigateur.new_context(viewport={'width': 1500, 'height': 1000})
+                # CONNECTÉ, et pas en visiteur : l'accès aux apps dépend des rôles (axe B) et
+                # du tier (axe A). En anonyme, converter renvoie 302 sur son upload — un échec
+                # de DROITS qu'on lirait à tort comme un défaut d'import. Le compte de test
+                # nocturne porte les rôles usuels ; s'il manque, on SKIPPE plutôt que de
+                # mesurer des droits en croyant mesurer un comportement.
+                contexte.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': jeton,
+                                       'domain': '127.0.0.1', 'path': '/'}])
+                page = contexte.new_page()
                 posts = []
                 page.on('response', lambda r: posts.append((r.status, r.url.split('?')[0]))
                         if r.request.method == 'POST' else None)
