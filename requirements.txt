@@ -32,6 +32,12 @@ safetensors>=0.4.0
 # (L'ancienne ligne `torch>=2.8.0+cu128` ne pouvait pas marcher — PyPI n'a aucune roue avec
 #  suffixe local, donc `>=` retombait toujours sur la version CPU. D'où sa mise en commentaire.)
 tqdm>=4.67.1
+# transformers : la borne HAUTE est structurante, pas cosmétique. Elle existait depuis le
+# 2026-08-04 dans requirements_linux.txt et MANQUAIT ici — or c'est CE fichier qui gouverne
+# venv_win, qui a donc dérivé jusqu'en 5.12.1 (mesuré 2026-08-22). Une majeure 5.x casse
+# boson-multimodal/Higgs (<4.47), vibevoice (==4.51.3), inference-exp/-models (<5.0.0), et
+# périme le patch n°1 de patches/apply_patches.py, écrit pour l'API 4.57.
+transformers>=4.57,<5
 ultralytics>=8.3.203
 watchdog>=3.0.0
 yt-dlp>=2025.6.9
