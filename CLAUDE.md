@@ -76,7 +76,17 @@
 > `git add <fichier> && git commit` a déjà **balayé 12 fichiers stagés par une autre instance**.
 
 - **Toujours** `git commit <chemins explicites> -m "…"` — JAMAIS `git add .` / `git add -A`, et
-  jamais un `git commit` sans pathspec (il emporte TOUT l'index partagé).
+  jamais un `git commit` sans pathspec. Le danger va dans **LES DEUX SENS**, et le second est le
+  plus sournois :
+  1. il emporte TOUT l'index partagé (les fichiers stagés par une autre instance) ;
+  2. il ne prend QUE l'index — donc il **laisse derrière** tout ce qui est modifié sans être stagé.
+     Vécu le 2026-08-22 sur le déport de WAMA Data : `git mv` avait stagé les renames, mais les
+     réécritures d'imports dans les fichiers déjà suivis ne l'étaient pas. **HEAD était cassé
+     (`wama_data` absent d'`INSTALLED_APPS`, cam_analyzer pointant sur l'ancien chemin) alors que
+     l'arbre de travail passait 245 tests.** Un `git checkout` de ce commit ne démarrait pas.
+- **Après un commit structurel, VÉRIFIER SUR HEAD, pas sur l'arbre de travail** :
+  `git worktree add /tmp/verif HEAD` puis `manage.py check` + tests dedans. C'est le seul contrôle
+  qui distingue « mon disque marche » de « ce que j'ai commité marche ».
 - `git status` avant de commiter ; ne commiter que ce que TU as touché.
 - **Partitionner** le travail par sous-système (deux instances ne touchent jamais le même fichier) ;
   la partition se déclare dans le handoff (`PROJECT_STATUS` §REPRISE).
