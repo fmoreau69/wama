@@ -21,7 +21,7 @@
 | Monde | Contenu | Entrées/sorties | État |
 |---|---|---|---|
 | **Médias** | apps média (Imager, Converter, Transcriber, Composer, Avatarizer, Synthesizer, Reader, Describer, Enhancer…) | média → média | ✅ existant (apps en place) |
-| **Data** | fonctions de traitement déclarées par capacités (catalogue WAMA Data), analyse de conduite, tabulaire/timeseries/geo | données → tri/traitement → données | 🔄 socle posé (`common/data/`, 4 fn + catalogue) |
+| **Data** | fonctions de traitement déclarées par capacités (catalogue WAMA Data), analyse de conduite, tabulaire/timeseries/geo | données → tri/traitement → données | 🔄 socle posé — **racine `wama_data/`** depuis le 2026-08-22 (un monde n'est pas un sous-dossier du substrat) ; 39 fn au catalogue commun `wama/common/catalog/` |
 | **Lab** | apps métier de recherche (Cam Analyzer, Face Analyzer…) | domaine-spécifique | 🔄 en cours (Cam Analyzer) |
 | **Transversal** | substrat commun : assistant IA, model_manager, RAG, translator, anonymizer, pipeline de prompts, **le studio lui-même**, médiathèque, profils/permissions | services partagés | 🔄 partiel |
 
@@ -62,7 +62,7 @@ plante ; le coût est en **réponses fausses silencieuses**, et le premier cas s
 1. **Collision de vocabulaire, DÉJÀ SURVENUE** : « librairie » désigne une distribution PyPI
    (transverse) ET un ensemble de fonctions data. Tranché dans `WAMA_MANIFEST_SPEC §6bis.1`.
 2. **Deux taxonomies de types qui vont diverger** : `MEDIA_CATEGORIES`/`normalize_types()` (média)
-   et `common/data/data_types.py` (data) sont deux systèmes de types de ports. Le studio doit déjà
+   et `common/catalog/data_types.py` (data) sont deux systèmes de types de ports. Le studio doit déjà
    parler les deux : quelle est la règle de compatibilité entre un port `audio` (média) et un port
    `signal` (data) ? **Personne ne l'a tranchée** — tracer les mondes rend la question VISIBLE au
    lieu de la laisser résoudre en silence par le premier qui code la connexion.
