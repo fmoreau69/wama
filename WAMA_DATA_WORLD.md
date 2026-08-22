@@ -42,7 +42,7 @@
 | **Référentiel temporel** | Aligne des flux à cadences incommensurables | référentiel → échantillons, `segments`, vue décimée | 🔶 | 1/1 | 1 | 4/0 | §2, §3 |
 | **Connector** | Branche une base existante comme source | base SQLite → référentiel | 🔶 | 1/1 | 0 | 1/0 | §6.2 |
 | **Explorer** | Explore un dataset en table et en graphe | référentiel → vues | ⏳ | — | — | — | §7 |
-| **Segmenter** | Produit des segments : autour d'un événement, par prédicat, ou par plages constantes d'un catégoriel | `events` ou signal + prédicat → `segments` | 🔶 | 2/2 | 1 | 0/0 | §9ter (spécification), §6.7 |
+| **Segmenter** | Produit des segments : autour d'un événement, par jonction de deux flux, par prédicat avec hystérésis, par plages constantes d'un catégoriel, ou par CODAGE (humain ou IA) | `events` ou signal + prédicat → `segments` | 🔶 | 4/4 | 2 | 5/0 | §9ter (spécification), §6.7 |
 | **Calculator** | Calcule des indicateurs PAR SEGMENT et les y adjoint | `segments` + signaux → colonnes d'indicateurs | ⏳ | — | — | — | §6.7 |
 | **Visualizer** | Vues synchronisées sur l'axe partagé (plugins) | référentiel → plugins co-chargés | ⏳ | — | — | — | §4, §8.2 |
 | **Exporter** | Rend les segments et indicateurs exploitables hors WAMA | `segments` + indicateurs → fichiers (pivot long → large) | ⏳ | — | — | — | §6.7 |
@@ -53,8 +53,8 @@
 
 - **Importer** — alignement par TRIGGERS non conçu (D12) ; `DATASET_SOURCES` non réconcilié avec le registre des lecteurs (G1) ; lecteur `.rec` encore une FONCTION (`functions/io/rtmaps_rec.py`) au lieu d'un lecteur de source
 - **Référentiel temporel** — AUCUN consommateur — la brique est inerte tant qu'un module ne s'en sert pas
-- **Segmenter** — RESTE le CODAGE (protocole déclaré + exécution), seul mode non écrit — c'est le point d'entrée du codage vidéo par IA
-- **Calculator** — même angle mort que le Segmenter ; dépend de lui
+- **Segmenter** — MOTEUR complet (5 modes) — reste l'INTERFACE de codage, qui doit se GÉNÉRER du protocole et non s'écrire : elle dépend du transport (Magneto + vue média) et de la vue déclarative, donc du Visualizer
+- **Calculator** — le Segmenter lui fournit désormais ses entrées ; c'est le seul module de la chaîne SANS modèle — aucun des trois systèmes confrontés ne l'a jamais écrit
 - **Visualizer** — vue déclarative = verrou §7ter point 3 ; écrire 2-3 plugins AVANT d'extraire
 - **Recorder** — périmètre v1 non tranché (D5)
 - **Analyzer** — nœud FONCTION absent du kind `pipeline` (D13)
@@ -958,13 +958,13 @@ Chaque source apporte ce que les autres n'ont pas :
 
 | # | conséquence | statut |
 |---|---|---|
-| 1 | la signature du Segmenter est **`(ancre, o₁, o₂)`**, pas `(ancre, durée)` | à écrire |
-| 2 | ajouter le mode **jonction de deux flux** | à écrire |
-| 3 | l'hystérésis (`durée_min`, `trou_toléré`) est un **paramètre du mode conditionnel** | à écrire |
-| 4 | « présent dans » est une **opération ensembliste sur segments** (inclusion stricte), réutilisée **aussi à l'export** — donc une fonction du catalogue, pas un bout de Segmenter | à écrire |
-| 5 | `Signal` doit accepter une **fin `None`** = segment ouvert (D15) | ⚠ modèle actuel incapable |
-| 6 | le **codage** (manuel ou IA) produit des segments comme les autres modes — même sortie, origine tracée | à écrire |
-| 7 | une segmentation **se sauvegarde et se rejoue** → c'est un manifeste `pipeline`, pas un réglage d'écran | à écrire |
+| 1 | la signature du Segmenter est **`(ancre, o₁, o₂)`**, pas `(ancre, durée)` | ✅ `autour()` + `segment_autour_event` |
+| 2 | ajouter le mode **jonction de deux flux** | ✅ `jonction()` — appariement par le TEMPS, pas par index |
+| 3 | l'hystérésis (`durée_min`, `trou_toléré`) est un **paramètre du mode conditionnel** | ✅ `conditionnelle()` |
+| 4 | « présent dans » est une **opération ensembliste sur segments** (inclusion stricte), réutilisée **aussi à l'export** — donc une fonction du catalogue, pas un bout de Segmenter | ✅ `present_dans()` / `chevauche()`, déclarées |
+| 5 | `Signal` doit accepter une **fin `None`** = segment ouvert (D15) | ✅ `OUVERT = None` — **pas** de sentinelle numérique |
+| 6 | le **codage** (manuel ou IA) produit des segments comme les autres modes — même sortie, origine tracée | ✅ `coding.py` — le `codeur` est le SEUL champ qui les distingue |
+| 7 | une segmentation **se sauvegarde et se rejoue** → c'est un manifeste `pipeline`, pas un réglage d'écran | 🔄 protocole sérialisable des deux sens ; kind `protocol` pas encore enregistré |
 
 > **Ne pas réinventer** : les concepts sont posés depuis des années et éprouvés sur de vraies
 > campagnes. Le travail est de les **traduire** dans le vocabulaire typé de WAMA — pas de les
@@ -984,6 +984,33 @@ Trois pièces séparées, et c'est ce découpage qui compte :
 > **le protocole est un manifeste** (l'éthogramme de BORIS en est l'équivalent nommé), l'interface
 > se génère, et **une IA de vision n'est qu'un producteur de plus des mêmes événements** — même
 > sortie, origine tracée. C'est la conséquence 6 de §9ter.3, confirmée par un mécanisme réel.
+
+#### Ce qui est ÉCRIT (2026-08-22) — `common/data/coding.py`
+
+Le découpage ci-dessus est repris **tel quel**, moteur d'abord :
+
+| pièce du modèle | dans WAMA | note |
+|---|---|---|
+| le protocole `.pro` | `Protocole` / `Comportement` / `Modificateur` — gelés, sérialisables JSON dans les deux sens | prêt pour un kind de manifeste ; l'éditeur reste une app à part, comme dans le modèle |
+| l'interface générique | ⏳ **pas écrite, et c'est volontaire** | elle doit se GÉNÉRER du protocole ; l'écrire avant la vue déclarative rejouerait la rigidité qu'on combat |
+| la session | `SessionCodage` — refuse de démarrer **sans média**, un seul geste (`marquer`) qui ouvre/ferme | la règle « pas de codage sans support » vient du modèle, pas d'un excès de prudence |
+
+Ce que le codage comportemental apporte et que le modèle MATLAB n'avait pas : l'**état ouvert**
+(`end = None`), les **modificateurs typés**, les **sujets** (deux personnes tiennent le même état
+sans se fermer l'une l'autre), et l'**exclusion mutuelle** — ouvrir un mode ferme le concurrent, et
+cette fermeture SUBIE est tracée (`closed_by='exclusive'`) séparément d'une fermeture voulue.
+
+> **Le point qui justifie tout le module** : `rejouer(protocole, média, gestes, codeur=…)` est le
+> point d'entrée du codage AUTOMATIQUE. Un modèle de vision produit une liste de gestes, on la
+> rejoue, et l'on obtient **exactement** la sortie d'un codage humain — validée par le même
+> protocole, refusée aux mêmes endroits (un code hors éthogramme est rejeté que la faute vienne
+> d'un doigt ou d'une hallucination). Il n'y a donc PAS de « module de codage IA » à écrire :
+> il y a un champ `codeur` qui change. `codage_accord` mesure ensuite l'écart entre les deux.
+
+⚠ **Trois fois** le même piège dans la couche d'adaptation vers pandas : une valeur absente devient
+`NaN`, qui n'est ni `None` ni faux et traverse tous les tests d'absence naïfs — réintroduisant la
+sentinelle numérique que le modèle refuse. La détection est désormais **une seule fonction**
+(`manquant()`), et une régression versionnée la garde.
 
 ### 9ter.5 L'EXPORT — ce que le livrable chercheur doit produire
 

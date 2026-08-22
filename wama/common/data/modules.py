@@ -81,22 +81,27 @@ MODULES: Tuple[ModuleData, ...] = (
         doc='§7',
     ),
     ModuleData(
-        'segmenter', 'Segmenter', "Produit des segments : autour d'un événement, par prédicat, "
-                                  "ou par plages constantes d'un catégoriel",
+        'segmenter', 'Segmenter', "Produit des segments : autour d'un événement, par jonction de "
+                                  "deux flux, par prédicat avec hystérésis, par plages constantes "
+                                  "d'un catégoriel, ou par CODAGE (humain ou IA)",
         "`events` ou signal + prédicat → `segments`",
         briques=('wama/common/data/segmentation.py',
-                 'wama/common/data/functions/temporal/segmentation.py'),
+                 'wama/common/data/coding.py',
+                 'wama/common/data/functions/temporal/segmentation.py',
+                 'wama/common/data/functions/temporal/coding.py'),
         fonctions=('segment_autour_event', 'segment_jonction', 'segment_conditionnel',
-                   'segment_etats', 'segment_present_dans'),
+                   'segment_etats', 'segment_present_dans',
+                   'codage_segments', 'codage_evenements', 'codage_accord'),
         doc='§9ter (spécification), §6.7',
-        bloque_par="RESTE le CODAGE (protocole déclaré + exécution), seul mode non écrit — "
-                   "c'est le point d'entrée du codage vidéo par IA",
+        bloque_par="MOTEUR complet (5 modes) — reste l'INTERFACE de codage, qui doit se GÉNÉRER "
+                   "du protocole et non s'écrire : elle dépend du transport (Magneto + vue média) "
+                   "et de la vue déclarative, donc du Visualizer",
     ),
     ModuleData(
         'calculator', 'Calculator', "Calcule des indicateurs PAR SEGMENT et les y adjoint",
         "`segments` + signaux → colonnes d'indicateurs",
         doc='§6.7',
-        bloque_par="même angle mort que le Segmenter ; dépend de lui",
+        bloque_par="le Segmenter lui fournit désormais ses entrées ; c'est le seul module de la chaîne SANS modèle — aucun des trois systèmes confrontés ne l'a jamais écrit",
     ),
     ModuleData(
         'visualizer', 'Visualizer', "Vues synchronisées sur l'axe partagé (plugins)",

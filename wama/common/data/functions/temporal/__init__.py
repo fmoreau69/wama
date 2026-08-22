@@ -11,3 +11,4 @@ n'entre pas au `FUNCTION_CATALOG` est invisible du canvas studio, donc inchaîna
 pipeline — et l'on se retrouve à réécrire à la main ce qui aurait dû se composer.
 """
 from . import segmentation  # noqa: F401  (l'import enregistre les FunctionSpec)
+from . import coding        # noqa: F401  (le CODAGE est le 5e mode de segmentation)

@@ -50,17 +50,27 @@ def _segments(rows: list, meta=None) -> TypedFrame:
     return TypedFrame(df, DataType.SEGMENTS, meta=meta)
 
 
-def _fin(valeur):
-    """Fin d'un segment lue depuis un cadre : `NaN` (venu d'ailleurs) est traité comme inconnu."""
+def manquant(valeur) -> bool:
+    """Une valeur ABSENTE au sens d'un cadre pandas — `None` **ou** `NaN`.
+
+    ⚠ Le piège est systématique à la frontière avec pandas, et il s'est présenté TROIS fois dans
+    cette seule couche d'adaptation : une fin de segment inconnue devient `NaN` à l'aller, et une
+    colonne qui ne concerne que certaines lignes est remplie de `NaN` sur les autres. Or `NaN`
+    n'est ni `None` ni faux : il traverse tous les tests d'absence naïfs et ressort en donnée.
+    D'où UNE fonction, utilisée partout où l'on relit un cadre — plutôt qu'une rustine par champ.
+    """
     if valeur is None:
-        return None
+        return True
     try:
         import math
-        if isinstance(valeur, float) and math.isnan(valeur):
-            return None
+        return isinstance(valeur, float) and math.isnan(valeur)
     except Exception:
-        pass
-    return valeur
+        return False
+
+
+def _fin(valeur):
+    """Fin d'un segment lue depuis un cadre : `NaN` (venu d'ailleurs) est traité comme inconnu."""
+    return None if manquant(valeur) else valeur
 
 
 # ──────────────────────────────────────────────────────────────────────────────────────────────
