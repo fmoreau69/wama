@@ -2752,7 +2752,11 @@ réponse. À traiter comme gunicorn et Celery (redémarrage automatique + alerte
    et hors UE ; il sert le confort d'usage et le développement).
 
 #### Pendings système
-- **Le bot est arrêté** (process non supervisé) — relancer par
+- ⚠ **Le bot TOURNE ENCORE** (PID 68715 au 22/08 19:5x, détaché par `nohup` — il a survécu à la
+  session qui l'a lancé). **NE PAS en relancer un second** : deux process connectés au même
+  jeton traitent chaque message DEUX FOIS. Vérifier d'abord
+  `pgrep -af run_gateway`. Il mourra en revanche au prochain arrêt de WSL2, et **rien ne le
+  relancera** — d'où le point d'entrée ci-dessus. Relance :
   `venv_linux/bin/python manage.py run_gateway discord` depuis WSL2.
 - **Rien à pousser de cette suite** hors le commit de consignation ; `fb0fd5bc` (garde `--check`)
   était déjà en place.
