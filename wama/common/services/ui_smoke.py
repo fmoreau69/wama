@@ -552,6 +552,200 @@ def register_import_scenarios():
         )
 
 
+# ── Gestes 3 et 4 : DUPLIQUER puis SUPPRIMER un élément ────────────────────────────────
+#
+# POURQUOI CE SCÉNARIO EXISTE (WAMA_VERIFICATION.md §3, phase 1). Sur les ~16 gestes que la
+# convention rend obligatoires, UN SEUL était prouvé par un clic (le dépôt). Tous les autres
+# n'étaient attestés que par la grille — c'est-à-dire par l'ADOPTION de la brique, jamais par
+# son fonctionnement. La journée du 2026-08-22 a montré deux fois ce que vaut cette différence :
+# l'anonymizer rendait un 400 à TOUS ses utilisateurs avec une grille verte.
+#
+# CE QU'IL MESURE EN PLUS DU GESTE. Les boutons `.duplicate-btn` / `.delete-btn` ne viennent
+# PAS d'un partial commun : chaque app les réécrit dans son propre gabarit de card. Leur
+# uniformité est donc une CONVENTION tenue par discipline (contrat documenté en tête de
+# `_media_card.html` & co.), et une convention non mesurée dérive. Ce scénario est le seul
+# endroit où elle est vérifiée sur pièces.
+#
+# ⚠ IL NE SUPPRIME QUE CE QU'IL A CRÉÉ. La suppression vise l'identifiant APPARU entre les deux
+# relevés — jamais « la première card », qui appartiendrait à un vrai travail de l'utilisateur
+# (règle : pas de test destructif ; le compte id=1 est le compte réel de Fabien).
+def check_app_duplicate_delete(app: str, url_path: str):
+    """Dupliquer un élément puis supprimer le doublon remet-il la file dans son état ? (ok, detail).
+
+    Auto-nettoyant par construction : le doublon créé par le geste EST celui que le geste
+    suivant supprime. Un aller-retour réussi ne laisse aucun résidu — et s'il en laisse, le
+    filet ORM du `finally` s'en charge et le DIT.
+    """
+    from wama.common.services.nightly_tests import SkipScenario
+    from playwright.sync_api import sync_playwright
+
+    _nettoyes = []
+    url = f"{BASE_URL.rstrip('/')}{url_path}"
+    # Identifiants des cards présentes — la seule source qui permette de distinguer le doublon
+    # d'un élément préexistant SANS lire l'ORM (interdit pendant `sync_playwright`).
+    IDS = "[...document.querySelectorAll('.wama-card[data-id]')].map(c => c.dataset.id)"
+
+    try:
+        from wama.common.utils.preview_registry import PreviewRegistry
+        modele = PreviewRegistry.get_model(app)
+    except Exception:
+        modele = None
+    ids_avant_orm = set()
+    if modele is not None:
+        try:
+            ids_avant_orm = set(modele.objects.values_list('id', flat=True))
+        except Exception:
+            modele = None
+
+    sessions_before = _session_keys()
+    jeton = _session_compte_de_test()
+    if not jeton:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3) "
+                           "— les droits ne sont pas simulables, on ne mesure pas à l'aveugle")
+    detail = ''
+    try:
+        with sync_playwright() as p:
+            navigateur = p.chromium.launch()
+            try:
+                contexte = navigateur.new_context(viewport={'width': 1500, 'height': 1000})
+                contexte.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': jeton,
+                                       'domain': '127.0.0.1', 'path': '/'}])
+                page = contexte.new_page()
+                # La suppression demande confirmation sur plusieurs apps (`confirm()` natif).
+                # Sans ce gestionnaire, Playwright la refuse par défaut et le geste échouerait
+                # pour une raison qui n'a rien à voir avec ce qu'on mesure.
+                page.on('dialog', lambda d: d.accept())
+                echecs = []
+                page.on('response', lambda r: (
+                    echecs.append(f"{r.status} {r.url.split('?')[0]}")
+                    if r.request.method == 'POST' and r.status >= 400 else None))
+
+                resp = page.goto(url, wait_until='networkidle', timeout=45000)
+                if not resp or resp.status != 200:
+                    return False, f"page HTTP {resp.status if resp else '?'}"
+                page.wait_for_timeout(1200)
+
+                ids0 = page.evaluate(IDS)
+                if not ids0:
+                    # MONTAGE, pas geste mesuré. Première version : on SKIPPAIT ici. Résultat
+                    # mesuré le 2026-08-22 — **14 apps sur 14 en skip**, parce que `<app>.import`
+                    # nettoie derrière lui et laisse donc les files vides. Un scénario qui ne
+                    # peut jamais tourner est pire qu'absent : il occupe la ligne du rapport en
+                    # promettant une couverture qu'il n'apporte pas.
+                    #
+                    # On monte donc la fixture ici. On ne recopie PAS l'heuristique à trois crans
+                    # de `check_app_import` : on s'en tient au CONTRAT de la brique commune —
+                    # le champ de fichier de la card d'entrée (`[data-wama-nic]`), hors champs
+                    # de lot et de référence. Si ce contrat ne suffit pas, on SKIPPE : l'import
+                    # a son propre scénario, ce n'est pas ici qu'on doit le diagnostiquer.
+                    exclus = '[id*="atch"], [id*="elody"], [id*="eference"], [id*="voice"], [id*="avatar"]'
+                    champ = page.query_selector(
+                        f'[data-wama-nic] input[type=file]:not({exclus})')
+                    if not champ:
+                        raise SkipScenario(
+                            "file vide et aucun champ d'import au contrat de la card commune "
+                            "— impossible de monter un élément à dupliquer (l'import lui-même "
+                            "est mesuré par `<app>.import`)")
+                    # Le témoin est fabriqué d'après l'`accept` DÉCLARÉ par le champ : une app
+                    # qui n'accepte que du .wav rejetterait un .txt, et on lirait un échec de
+                    # validation comme un défaut de duplication.
+                    temoin_fixture = _fichier_temoin(champ.get_attribute('accept') or '')
+                    try:
+                        champ.set_input_files(str(temoin_fixture))
+                        page.wait_for_timeout(4500)
+                        ids0 = page.evaluate(IDS)
+                    finally:
+                        try:
+                            temoin_fixture.unlink()
+                        except OSError:
+                            pass
+                    if not ids0:
+                        raise SkipScenario(
+                            "file vide et le dépôt de montage n'a créé aucun élément — le geste "
+                            "n'a pas d'objet ici (cause à chercher dans `<app>.import`)")
+                # ⚠ Les apps NE PARTAGENT PAS un nom de classe unique : anonymizer écrit
+                # `.delete-btn`, converter `.job-delete-btn`, et un grep sur « delete-btn »
+                # matche les DEUX (la sous-chaîne), ce qui avait fait conclure à tort que la
+                # convention était tenue (erreur du 2026-08-22). On vise donc le SUFFIXE, et on
+                # RAPPORTE la graphie trouvée : le geste est mesuré, la divergence est dite —
+                # jamais masquée par un sélecteur tolérant et muet.
+                DUP = '[class$="duplicate-btn"], [class*="duplicate-btn "]'
+                DEL = '[class$="delete-btn"], [class*="delete-btn "]'
+                bouton_dup = page.query_selector(DUP)
+                if not bouton_dup:
+                    return False, (f"{len(ids0)} élément(s) en file mais AUCUN bouton de "
+                                   "duplication (ni `.duplicate-btn`, ni suffixe équivalent) — "
+                                   "la convention de card n'est pas tenue par cette app")
+                graphies = page.evaluate(
+                    "(() => {const n = c => [...document.querySelectorAll(c)]"
+                    ".flatMap(e => [...e.classList]).filter(x => x.endsWith('delete-btn') "
+                    "|| x.endsWith('duplicate-btn')); return [...new Set(n('*'))].join(', ');})()")
+
+                bouton_dup.click()
+                page.wait_for_timeout(3000)
+                ids1 = page.evaluate(IDS)
+                nouveaux = [i for i in ids1 if i not in ids0]
+                if len(ids1) <= len(ids0) or not nouveaux:
+                    return False, (f"clic sur `.duplicate-btn` : la file ne bouge pas "
+                                   f"({len(ids0)} → {len(ids1)} cards)"
+                                   + (f" ; requêtes en échec : {echecs[0]}" if echecs else
+                                      " ; AUCUNE requête en échec — le bouton n'est pas écouté"))
+
+                doublon = nouveaux[0]
+                cible = page.query_selector(f'.wama-card[data-id="{doublon}"] :is({DEL})') \
+                    or page.query_selector(f':is({DEL})[data-id="{doublon}"]')
+                if not cible:
+                    return False, (f"doublon #{doublon} créé, mais aucun bouton de suppression "
+                                   f"ne le porte (graphies vues dans la page : {graphies or '—'}) "
+                                   "— il RESTE en file (nettoyé par le filet ORM)")
+                cible.click()
+                page.wait_for_timeout(3000)
+                ids2 = page.evaluate(IDS)
+                if doublon in ids2:
+                    return False, (f"doublon #{doublon} toujours présent après clic sur "
+                                   f"`.delete-btn` ({len(ids1)} → {len(ids2)} cards)"
+                                   + (f" ; {echecs[0]}" if echecs else ""))
+                detail = (f"aller-retour complet : {len(ids0)} → {len(ids1)} (doublon #{doublon}) "
+                          f"→ {len(ids2)} cards ; graphies : {graphies or '—'}")
+            finally:
+                navigateur.close()
+    except SkipScenario:
+        raise
+    except Exception as e:
+        raise SkipScenario(f"navigateur/serveur indisponible ({type(e).__name__}: {str(e)[:100]})")
+    finally:
+        _drop_new_sessions(sessions_before)
+        if modele is not None:
+            try:
+                restes = set(modele.objects.values_list('id', flat=True)) - ids_avant_orm
+                if restes:
+                    modele.objects.filter(id__in=restes).delete()
+                    _nettoyes.append(len(restes))
+            except Exception:
+                pass
+
+    # Un résidu n'invalide pas le geste, mais il se DIT : il signifie que la suppression a
+    # retiré la card de l'écran sans supprimer l'objet — exactement le genre d'écart qu'un
+    # « vert » muet laisserait s'installer.
+    if _nettoyes:
+        return True, (f"{detail} ⚠ mais {sum(_nettoyes)} objet(s) subsistai(en)t en base après "
+                      "le geste — la card disparaît de l'écran sans que l'objet soit supprimé")
+    return True, detail
+
+
+def register_duplicate_delete_scenarios():
+    """Enregistre un scénario `<app>.duplicate_delete` par app disposant d'une page d'index."""
+    from wama.common.services.nightly_tests import register
+
+    for label, path in discoverable_apps():
+        register(
+            id=f"{label}.duplicate_delete", app=label, stage="ui",
+            description=f"File {label} : dupliquer un élément puis supprimer le doublon",
+            run=(lambda p=path, a=label: (lambda ctx: check_app_duplicate_delete(a, p)))(),
+            timeout_s=180, vram_gb=0.0,
+        )
+
+
 # ── Volet droit : la DÉSÉLECTION d'un batch ────────────────────────────────────────────
 #
 # POURQUOI CE SCÉNARIO EXISTE. Le ✕ d'un batch ne désélectionnait RIEN sur 7 pages

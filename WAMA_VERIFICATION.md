@@ -57,8 +57,10 @@ Le catalogue n'est **pas à inventer** : c'est la table des composants obligatoi
 |---|---|---|---|
 | 1 | Déposer un fichier → une card apparaît | ✅ `<app>.import` | non |
 | 2 | Ouvrir les paramètres d'un item, modifier, enregistrer, relire | ❌ | non |
-| 3 | Dupliquer un item | ❌ | non |
-| 4 | Supprimer un item | ❌ | non |
+| 3 | Dupliquer un **élément** (`.duplicate-btn`) | ❌ | non |
+| 3b | Dupliquer un **lot** (`.batch-duplicate-btn`) | ❌ | non |
+| 4 | Supprimer un **élément** (`.delete-btn`) | ❌ | non |
+| 4b | Supprimer un **lot** (`.batch-delete-btn`) | ❌ | non |
 | 5 | Tout effacer | ❌ | non |
 | 6 | Sélectionner une card → l'inspecteur se remplit ; désélectionner | ❌ | non |
 | 7 | **Créer par le bouton primaire** (apps `data-wama-depot=attache` : avatarizer, imager) | ❌ | non |
@@ -70,8 +72,24 @@ Le catalogue n'est **pas à inventer** : c'est la table des composants obligatoi
 | 13 | Démarrer tout / télécharger tout (lot) | ❌ | **oui** |
 | 14 | Import dossier récursif · URL · fichier de lot · « Envoyer vers » | ❌ | non |
 
-**Couverture mesurée le 2026-08-22 : 1 geste sur 14.** Les deux seuls scénarios par app sont
+**Couverture mesurée le 2026-08-22 : 1 geste sur 16.** Les deux seuls scénarios par app sont
 `<app>.ui` (santé de la page : 200 + zéro erreur console — aucun geste) et `<app>.import`.
+
+> ⚠ **Élément et lot sont DEUX gestes, pas un** (précision de Fabien, 22/08 — la première version
+> de cette table les confondait). Ils n'ont pas la même difficulté, et c'est ce qui les rend
+> tous deux intéressants :
+> - le **lot** est uniforme *par construction* — ses boutons vivent dans le partial commun
+>   `_batch_card.html` (`.batch-duplicate-btn`, `.batch-delete-btn`, `data-batch-id`) ;
+> - l'**élément** repose sur une **convention de nommage tenue par discipline** — `.duplicate-btn`
+>   et `.delete-btn` sont réécrits dans le gabarit de card de CHAQUE app (`anonymizer/_media_card.html`,
+>   `transcriber/_transcript_card.html`, `converter/_job_card.html`…). Vérifié identique sur ces
+>   trois, mais rien ne le garantit : c'est exactement l'homogénéité qu'aucune analyse statique
+>   ne prouve et qu'un clic mesure.
+>
+> **À ne pas confondre avec le geste n°7.** Le « bouton primaire » (`primary_btn_id`, déclaré dans
+> l'include de la card d'entrée — `btn-generate` avatarizer, `generateBtn` composer,
+> `imgGenerateBtn`/`vidGenerateBtn` imager) sert à **créer** un élément quand le dépôt ne suffit
+> pas. Dupliquer et supprimer agissent sur un élément **déjà créé**. Trois gestes indépendants.
 
 > Illustration prise sur le vif le même soir : la normalisation `job_id`→`id` de l'**avatarizer**
 > n'a **pas pu être prouvée**, parce que `avatarizer.import` SKIPPE (son dépôt joint le fichier,

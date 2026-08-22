@@ -235,7 +235,8 @@ register_examples()
 # Scénarios UI (un par app exposant une page d'index) — import TARDIF et tolérant : Playwright
 # ou le serveur peuvent manquer sur une machine de dev, ça ne doit pas casser le registre.
 try:
-    from wama.common.services.ui_smoke import (register_import_scenarios,
+    from wama.common.services.ui_smoke import (register_duplicate_delete_scenarios,
+                                               register_import_scenarios,
                                                register_ui_scenarios,
                                                register_volet_scenarios)
     register_ui_scenarios()
@@ -243,6 +244,11 @@ try:
     # son COMPORTEMENT. Les deux sont nécessaires : converter_01 satisfaisait le premier tout
     # en étant inerte — aucun script chargé, donc rien à planter (mesuré 2026-08-22).
     register_import_scenarios()
+    # Phase 1 de la grille FONCTIONNELLE (WAMA_VERIFICATION.md §6) : les gestes 3 et 4 de la
+    # convention. Premier scénario à mesurer une convention que ​RIEN ne garantissait — les
+    # boutons `.duplicate-btn`/`.delete-btn` sont réécrits par chaque app, pas hérités d'un
+    # partial commun.
+    register_duplicate_delete_scenarios()
     # Le VOLET DROIT est une troisième surface : ni la santé de la page ni la création d'un
     # élément ne voient un ✕ qui ne désélectionne pas (aucune erreur console — cf. WAMA_VOLETS §4).
     register_volet_scenarios()
