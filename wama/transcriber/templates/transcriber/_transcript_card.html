@@ -126,9 +126,19 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
 
                             {% if t.status == 'SUCCESS' %}
                             {# Bouton œil retiré : double-clic sur la preview en bas de card → overlay #}
+                            {% comment %}Bouton ÉDITER — nom canonique `edit-btn` (2026-08-23) : ce
+                            geste s'appelle « edit » partout, jamais « correction » ni
+                            « vérification ». Son ÉTAT se déclare (`data-edit-state`) et se rend
+                            par le CSS commun — contour pointillé/plein + pastille — au lieu du
+                            `<span class="badge">brouillon</span>` qui vivait ICI et élargissait
+                            le bouton d'environ 60 px, poussant la corbeille à la ligne
+                            suivante. Le libellé n'est pas perdu : il est passé dans le
+                            `title`.{% endcomment %}
                             <a href="{% url 'transcriber:edit' t.id %}"
-                               class="btn btn-sm btn-outline-primary" title="Corriger (éditeur audio + texte)">
-                                <i class="fas fa-pen-to-square"></i>{% if t.correction_status == 'draft' %} <span class="badge bg-warning text-dark" style="font-size:.55rem;">brouillon</span>{% elif t.correction_status == 'done' %} <span class="badge bg-success" style="font-size:.55rem;">corrigé</span>{% endif %}
+                               class="btn btn-sm btn-outline-primary edit-btn"
+                               data-edit-state="{{ t.correction_status|default:'none' }}"
+                               title="Éditer (éditeur audio + texte){% if t.correction_status == 'draft' %} — brouillon en cours{% elif t.correction_status == 'done' %} — corrigé{% endif %}">
+                                <i class="fas fa-pen-to-square"></i>
                             </a>
                             <div class="btn-group btn-group-sm">
                                 <a href="{% url 'transcriber:download' t.id %}?format=txt"

@@ -160,6 +160,41 @@
 }
 .wcv3-actions .btn { flex: 0 0 auto; }
 
+/* ── Bouton ÉDITER : son état se lit sur le CONTOUR et une PASTILLE, jamais en texte ──
+   Le transcriber écrivait `<span class="badge">brouillon</span>` DANS le lien : le bouton
+   s'élargissait de ~60 px et poussait la corbeille à la ligne suivante. Un état ne doit pas
+   coûter de la largeur à la rangée qui le porte.
+
+   ⚠ ET IL NE DOIT PAS COÛTER DE LA COULEUR NON PLUS (règle Fabien, 2026-08-23). Chaque bouton
+   a SA couleur, fixe. On avait envisagé de teinter le bouton de cycle selon l'état du cycle :
+   mauvaise idée, pour deux raisons qui valent ici à l'identique — la CARD porte déjà la couleur
+   de l'état (liseré tricolore), et faire varier la couleur d'un bouton mélange deux codes
+   couleur dans la même rangée. Le bouton d'édition garde donc sa couleur en toutes
+   circonstances ; la pastille prend `currentColor`, donc n'introduit aucune teinte nouvelle.
+
+   DEUX CANAUX INDÉPENDANTS, aucun n'étant la couleur :
+     contour  → finalisé ou non   (pointillé = pas finalisé · plein = corrigé)
+     pastille → travail en cours  (présente = un brouillon existe)
+
+     aucune édition   pointillé, sans pastille
+     brouillon        pointillé, AVEC pastille
+     corrigé          plein,     sans pastille
+
+   Le libellé survit dans le `title` : l'information n'est pas perdue, elle cesse d'occuper
+   la rangée. */
+.wcv3-actions .edit-btn { position: relative; border-style: dashed; }
+.wcv3-actions .edit-btn[data-edit-state="done"] { border-style: solid; }
+.wcv3-actions .edit-btn[data-edit-state="draft"]::after {
+  content: ""; position: absolute; top: -2px; right: -2px;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: currentColor;                 /* la couleur du bouton, jamais une couleur d'état */
+  /* Détourage SOMBRE plutôt qu'un raccord au fond de la card : les cards filles de lot ont un
+     fond différent des cards simples, et une pastille détourée à la couleur d'UN fond y aurait
+     dessiné un halo faux. Un assombrissement fonctionne sur les deux (première version : une
+     var `--wcv3-card-bg` qui n'existait nulle part et retombait toujours sur le fond normal). */
+  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, .55);
+}
+
 /* ── Zone de PREVIEW PERMANENTE (§11 : jamais retirée) ──────────────────────────────
    Dès l'ajout elle annonce ce qui sortira ; pendant, la préviz de process ; après, la
    préviz réelle. C'est le même contrat de faces que l'inspecteur (preview_utils) — la
