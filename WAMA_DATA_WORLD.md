@@ -39,10 +39,10 @@
 | Module | Rôle | Flux | État | Briques | Testées | Conso. int/ext | Doc |
 |---|---|---|---|---|---|---|---|
 | **Importer** | Lit une source et rend un référentiel temporel interrogeable | fichiers + manifeste `dataset` → référentiel | 🔶 | 3/3 | 1 | 1/0 | §6.6, §9bis.1 |
-| **Référentiel temporel** | Aligne des flux à cadences incommensurables | référentiel → échantillons, `segments`, vue décimée | 🔶 | 1/1 | 1 | 3/0 | §2, §3 |
+| **Référentiel temporel** | Aligne des flux à cadences incommensurables | référentiel → échantillons, `segments`, vue décimée | 🔶 | 1/1 | 1 | 4/0 | §2, §3 |
 | **Connector** | Branche une base existante comme source | base SQLite → référentiel | 🔶 | 1/1 | 0 | 1/0 | §6.2 |
 | **Explorer** | Explore un dataset en table et en graphe | référentiel → vues | ⏳ | — | — | — | §7 |
-| **Segmenter** | Produit des segments : autour d'un événement, par prédicat, ou par plages constantes d'un catégoriel | `events` ou signal + prédicat → `segments` | 🔶 | 1/1 | 1 | 0/0 | §9ter (spécification), §6.7 |
+| **Segmenter** | Produit des segments : autour d'un événement, par prédicat, ou par plages constantes d'un catégoriel | `events` ou signal + prédicat → `segments` | 🔶 | 2/2 | 1 | 0/0 | §9ter (spécification), §6.7 |
 | **Calculator** | Calcule des indicateurs PAR SEGMENT et les y adjoint | `segments` + signaux → colonnes d'indicateurs | ⏳ | — | — | — | §6.7 |
 | **Visualizer** | Vues synchronisées sur l'axe partagé (plugins) | référentiel → plugins co-chargés | ⏳ | — | — | — | §4, §8.2 |
 | **Exporter** | Rend les segments et indicateurs exploitables hors WAMA | `segments` + indicateurs → fichiers (pivot long → large) | ⏳ | — | — | — | §6.7 |
@@ -53,7 +53,7 @@
 
 - **Importer** — alignement par TRIGGERS non conçu (D12) ; `DATASET_SOURCES` non réconcilié avec le registre des lecteurs (G1) ; lecteur `.rec` encore une FONCTION (`functions/io/rtmaps_rec.py`) au lieu d'un lecteur de source
 - **Référentiel temporel** — AUCUN consommateur — la brique est inerte tant qu'un module ne s'en sert pas
-- **Segmenter** — modes écrits et éprouvés ; RESTE le codage (protocole déclaré + exécution) et l'entrée au FUNCTION_CATALOG — sans quoi le studio ne les voit pas
+- **Segmenter** — RESTE le CODAGE (protocole déclaré + exécution), seul mode non écrit — c'est le point d'entrée du codage vidéo par IA
 - **Calculator** — même angle mort que le Segmenter ; dépend de lui
 - **Visualizer** — vue déclarative = verrou §7ter point 3 ; écrire 2-3 plugins AVANT d'extraire
 - **Recorder** — périmètre v1 non tranché (D5)

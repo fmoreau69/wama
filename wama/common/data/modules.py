@@ -84,10 +84,13 @@ MODULES: Tuple[ModuleData, ...] = (
         'segmenter', 'Segmenter', "Produit des segments : autour d'un événement, par prédicat, "
                                   "ou par plages constantes d'un catégoriel",
         "`events` ou signal + prédicat → `segments`",
-        briques=('wama/common/data/segmentation.py',),
+        briques=('wama/common/data/segmentation.py',
+                 'wama/common/data/functions/temporal/segmentation.py'),
+        fonctions=('segment_autour_event', 'segment_jonction', 'segment_conditionnel',
+                   'segment_etats', 'segment_present_dans'),
         doc='§9ter (spécification), §6.7',
-        bloque_par="modes écrits et éprouvés ; RESTE le codage (protocole déclaré + exécution) et "
-                   "l'entrée au FUNCTION_CATALOG — sans quoi le studio ne les voit pas",
+        bloque_par="RESTE le CODAGE (protocole déclaré + exécution), seul mode non écrit — "
+                   "c'est le point d'entrée du codage vidéo par IA",
     ),
     ModuleData(
         'calculator', 'Calculator', "Calcule des indicateurs PAR SEGMENT et les y adjoint",

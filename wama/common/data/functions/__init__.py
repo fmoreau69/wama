@@ -11,11 +11,14 @@ Domaines (axe orthogonal à `DataType` = type de donnée et `FunctionCategory` =
   - `kinematics/` : vitesse / accélération / TTC / collision / extrapolation
   - `driving/`    : analyse de conduite (portée d'une toolbox tierce) — freinage, map-matching GPS,
                     sections, annotations opérateur
+  - `temporal/`   : SEGMENTATION — transverse, aucun métier supposé (autour d'une ancre, jonction
+                    de deux flux, condition avec hystérésis, états, restriction à un contexte)
 
-Voir `WAMA_DATA_FUNCTION_CARDS.md`.
+Voir `WAMA_DATA_FUNCTION_CARDS.md` et `WAMA_DATA_WORLD.md` §9ter.
 """
 from . import io          # noqa: F401
 from . import geometry    # noqa: F401
 from . import kinematics  # noqa: F401
 from . import driving     # noqa: F401
 from . import geo         # noqa: F401
+from . import temporal    # noqa: F401
