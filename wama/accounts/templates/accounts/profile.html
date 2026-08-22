@@ -231,9 +231,24 @@
                     <h5 class="mb-0"><i class="fas fa-key me-2"></i>Token API</h5>
                 </div>
                 <div class="card-body">
+                    {% comment %}
+                      ⚠ Ce texte disait « depuis des scripts OU UN BOT DISCORD ». Trompeur
+                      depuis la passerelle (2026-08-21) : le bot WAMA n'utilise PAS ce token —
+                      il identifie chaque personne par l'appariement de canal (encart plus
+                      bas). Question posée par Fabien le 22/08 (« pourquoi les deux ? ») :
+                      si l'UI la suscite, elle doit y répondre.
+                    {% endcomment %}
                     <p class="text-muted small mb-3">
-                        Utilisez ce token pour accéder à l'API WAMA depuis des scripts ou un bot Discord :
+                        Utilisez ce token pour appeler l'API WAMA depuis <strong>vos propres
+                        scripts</strong>, qui agissent alors en votre nom :
                         <code class="text-light">Authorization: Token &lt;votre-token&gt;</code>
+                    </p>
+                    <p class="text-muted small mb-3">
+                        <i class="fas fa-circle-info me-1"></i>
+                        Ce token est un secret <strong>permanent</strong> : ne le collez jamais
+                        dans une messagerie. Pour discuter avec WAMA depuis Discord ou Tchap,
+                        utilisez l'appariement de canal ci-dessous — il n'expose que des codes
+                        temporaires.
                     </p>
                     <div class="input-group mb-3">
                         <input type="password" id="tokenInput"
@@ -273,6 +288,21 @@
                         Reliez votre compte à Discord ou Tchap pour piloter WAMA depuis une
                         conversation. Envoyez <code class="text-light">!lier</code> au bot,
                         puis saisissez ici le code qu'il vous répond.
+                    </p>
+                    {% comment %}
+                      Pourquoi ceci ET le token API — la distinction n'est pas évidente, et
+                      Fabien l'a posée le 22/08. Le token authentifie UN CLIENT qui n'agit
+                      que pour vous (votre script). Le bot, lui, est UN SEUL programme
+                      partagé par TOUT le laboratoire : il doit distinguer qui lui écrit,
+                      parmi N personnes. Un token ne peut pas jouer ce rôle sans que chacun
+                      colle son secret permanent dans une messagerie.
+                    {% endcomment %}
+                    <p class="text-muted small mb-3">
+                        <i class="fas fa-circle-info me-1"></i>
+                        Le bot est <strong>partagé par tout le laboratoire</strong> : l'appariement
+                        lui permet de savoir que c'est bien vous qui écrivez, sans que vous ayez
+                        à lui confier votre token. Le code est temporaire et à usage unique —
+                        c'est ce qui le rend inoffensif s'il traîne dans une conversation.
                     </p>
 
                     {% if channel_links %}
