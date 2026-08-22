@@ -1,9 +1,19 @@
 # Inspecteur — Schéma canonique des infos d'item (`DETAIL_FIELDS`)
 
-> Validé par Fabien 2026-07-07 (audit exhaustif des 10 apps). **Source de vérité** pour la section
-> « Infos/État » de l'inspecteur commun : `unified_detail(app, pk)` + adapter par app → `WamaDetails`.
+> Validé par Fabien 2026-07-07 (audit exhaustif des 10 apps). **Source de vérité du CONTRAT** de
+> la section « Infos/État » de l'inspecteur commun : quelles clés, quel sens, quels alias.
+> `unified_detail(app, pk)` + adapter/spec par app → `renderDetailChips`.
 > But : reporter les infos de la card dans l'inspecteur (métadonnée-driven, pérenne) pour pouvoir
-> **amincir les cards** ensuite. Labels figés UNE fois ici — ne pas re-labelliser par app.
+> **amincir les cards** ensuite.
+>
+> ⚠ **Confronté au code le 2026-08-22** (demande de Fabien — le document avait été oublié lors de
+> la session « volets »). Il était juste sur l'essentiel mais **cinq choses manquaient** et une
+> affirmation était fausse. Corrigé ici : ① la clé `source_text` (3 consommateurs, absente du
+> document) ② les clés dérivées `source_type`/`source_properties_icon` ③ la **seconde voie
+> d'enregistrement** `register_app_detail_spec` (3 apps) ④ quatre règles de rendu qui sont des
+> DÉCISIONS et non des accidents ⑤ les consommateurs hors affichage (RAG, aperçu, studio).
+> ⚠ **L'affirmation « labels figés UNE fois ici » était FAUSSE** — voir §Où vivent réellement les
+> labels. Ne pas s'y fier pour changer un libellé.
 
 ## Principe
 
@@ -29,6 +39,13 @@
 | `status` | Statut | `fa-circle` | État | (normalisé, voir ci-dessous) |
 | `error_message` | Erreur | `fa-triangle-exclamation` | État | — |
 | `processing_time_display` | Temps de traitement | `fa-stopwatch` | Temps | (déjà via `_processing_time.html`) |
+| `source_text` | *(pas de chip — cf. §Consommateurs)* | — | Entrée | ajoutée 2026-08 ; symétrique de `result_text` |
+| `source_type` · `source_properties_icon` | *(pas de chip)* | — | Entrée | dérivées, cf. §`source_properties` |
+
+> ⚠ Les trois dernières lignes ont été AJOUTÉES au document le 2026-08-22, après confrontation
+> au code : `build_detail` les émet depuis longtemps et elles ont de vrais consommateurs, mais
+> le tableau ne les portait pas. `source_text` en particulier n'apparaissait NULLE PART ici
+> alors que trois mécanismes en dépendent (voir §Consommateurs du schéma).
 
 ### `source_properties` : icône ADAPTATIVE selon le type de média
 Ne jamais afficher la vague audio par défaut. Icône dérivée du type d'entrée :
@@ -53,11 +70,68 @@ si l'app ne fournit ni `properties` ni durée, la sonde remplit `source_properti
 par chemin+mtime : une sonde par fichier, pas par clic). Zéro travail par app.
 
 ## Mécanisme
-- `common/utils/detail_registry.py` : registre `register_app_detail(app, model, adapter)` (miroir de
-  `preview_registry`).
-- `unified_detail(app, pk)` (vue commune) → JSON `{fields:[{key,label,icon,value,category}], extra:{…}}`.
+
+- `common/utils/detail_registry.py` (miroir de `preview_registry`) — **DEUX voies
+  d'enregistrement**, pas une :
+
+  | Voie | Signature | Adoption (mesurée 2026-08-22) |
+  |---|---|---|
+  | **Adapter** (fonction) | `register_app_detail(app, model, adapter)` | **9** — anonymizer, avatarizer, composer, describer, enhancer (×2 : `enhancer` + `audio_enhancer`), imager, synthesizer, transcriber |
+  | **Spec** (déclarative) | `register_app_detail_spec(app, model, spec)` → `detail_from_spec` | **3** — converter, converter_01, reader |
+
+  > ⚠ La voie **spec** ne figurait pas dans ce document, alors que c'est la plus alignée sur la
+  > philosophie (§3 : métadonnée-driven — l'app déclare `aliases` + champs au lieu d'écrire une
+  > fonction). Elle est aussi celle que le **codegen** peut produire. À considérer comme la
+  > cible ; l'adapter reste nécessaire quand la résolution demande du calcul.
+
+- `unified_detail(app, pk)` (vue commune) → JSON plat `{clé: valeur}` (+ `extra:{label: valeur}`),
+  et **non** `{fields:[{key,label,icon,…}]}` : les labels/icônes vivent côté CLIENT (voir ci-dessous).
 - Adapter par app = mapping `champ_modèle → clé_canonique` (+ `extra` tiré de `params.py`).
-- Rendu : `WamaDetails.renderSections` dans l'inspecteur (section « Infos »).
+- Rendu : `renderDetailChips` (`wama-inspector.js`) dans la section « Infos ».
+
+### ⚠ Où vivent RÉELLEMENT les labels (l'en-tête de ce document était faux)
+
+Ce document affirmait « **Labels figés UNE fois ici** ». **C'est inexact, et le rectifier
+importe** : les libellés effectifs vivent dans `DETAIL_META` (`wama-inspector.js`) et n'y
+couvrent que **7 clés** — `created_at`, `source_duration_display`, `engine`, `engine_effective`,
+`output_format`, `output_quality`, `processing_time_display`. Les autres sont rendues avec des
+libellés/icônes **écrits en dur** dans `renderDetailChips` (`source_file`, `source_properties`,
+`result_file`) ou n'ont pas de libellé du tout (`id`, `status`, `created_at` : rendus en
+**en-tête**, pas en ligne).
+
+Conséquence pratique : modifier un label ici ne change **rien** à l'écran. Le document reste la
+référence du CONTRAT (quelles clés, quel sens, quels alias) ; la source du RENDU est le JS.
+Les faire diverger est facile — c'est déjà arrivé pour les trois clés ajoutées ci-dessus.
+
+### Rendu — décisions non consignées jusqu'ici (mesurées dans `renderDetailChips`)
+
+1. **En-tête vs lignes.** `id`, `status` (badge coloré), `created_at` et
+   `processing_time_display` sont rendus dans une **ligne d'en-tête** avec le ✕ de désélection,
+   pas comme des lignes de l'épine dorsale. Le tableau ci-dessus décrit donc le CONTRAT, pas la
+   disposition.
+2. **L'erreur REMPLACE la section Sortie** (elle ne s'y ajoute pas) : un item en échec n'a pas
+   de résultat à montrer.
+3. **Une erreur n'est émise que si le statut n'est PAS `SUCCESS`** (`build_detail`). Sur un item
+   terminé, `error_message` est un **résidu** d'un run précédent — le champ n'est pas toujours
+   purgé au redémarrage. Vécu le 2026-08-13 : une note de smoke du 03/08 s'affichait encore sur
+   un item #49 en SUCCESS, faisant passer un succès pour un problème.
+4. **Troncature à 280 caractères** (`_short_error`) : une trace complète noierait le volet.
+
+### Consommateurs du schéma (au-delà de l'affichage)
+
+Le schéma canonique n'alimente pas que la section « Infos ». Trois autres mécanismes le lisent —
+c'est ce qui rend `source_text` / `result_text` structurants et non décoratifs :
+
+| Consommateur | Ce qu'il lit | Où |
+|---|---|---|
+| **Aperçu d'entrée** (texte) | `source_text` | `preview_utils.py:113-123` |
+| **Geste « Ajouter au RAG »** | `result_text`, sinon `source_text` — **data-gated** : pas de texte ⇒ pas de bouton | `wama-inspector.js` (`_ragChip`) |
+| **Ingestion RAG** | `result_text` (sortie) puis `source_text` (entrée) | `common/views.py:495-498` |
+| **Runner du studio** | `result_text` (chaînage texte → synthesizer) | cf. §Ajout 2026-07-13 |
+
+> Le geste RAG vit dans l'inspecteur **parce que** le schéma canonique y est déjà : les 10 apps
+> l'obtiennent sans une ligne de code par app. C'est l'argument qui a fait choisir cet
+> emplacement (`WAMA_MEMORY.md` §7ter, jalon 14) — il appartient donc à ce document aussi.
 
 ## Mapping par app
 Voir l'audit (transcriber `backend→engine` `audio→source_file` … ; reader `backend→engine`
