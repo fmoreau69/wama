@@ -23,7 +23,10 @@ retrouve-t-elle TOUT ? »*
 - Un REGISTRE a bougé (APP_CATALOG, params, capacités, tool_api, mecanismes.py…) →
   `manifest_export --check` (⚠ depuis WSL2 — venv_win = faux périmés sur les libraries) ;
   régénérer si périmé. `doc_facts --check` si un fait généré a pu bouger.
-- Des RÉFÉRENCES doc ont bougé → `check_docs` (depuis Windows). Si une cible attendue a été
+- Des RÉFÉRENCES doc ont bougé → `check_docs` (Windows OU WSL2 — rendu identique, vérifié le
+  22/08 : 2 cassées / 0 périmée des deux côtés). ⚠ Ne JAMAIS réécrire un chemin cassé dans un
+  §REPRISE pour le décrire : `check_docs` le compterait comme une référence de plus (piège
+  rencontré DEUX fois, 14/08 et 22/08). Si une cible attendue a été
   créée/abandonnée, **réajuster le seuil « N CASSÉ attendus » dans /reprise** (un seuil
   périmé fait passer une vraie dérive pour du normal — vécu 10/08).
 - La grille a pu bouger → `check_app_conformity` (rapport global, pas `--app`).

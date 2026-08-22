@@ -1,6 +1,6 @@
 ---
 name: smoke
-description: Validation visuelle et fonctionnelle réelle de WAMA dans le navigateur (Playwright MCP - screenshots lus par Claude). Utiliser pour les « validations navigateur en attente », après un port d'app, ou quand l'utilisateur demande de vérifier visuellement une page.
+description: Validation visuelle et fonctionnelle réelle de WAMA dans le navigateur (script Playwright → PNG → Read ; le MCP navigateur peut être là ou non — vérifier, jamais supposer). Utiliser pour les « validations navigateur en attente », après un port d'app, ou quand l'utilisateur demande de vérifier visuellement une page.
 ---
 
 # /smoke — Validation navigateur réelle
@@ -12,10 +12,19 @@ le RENDU RÉEL, pas la structure du code.
 - Le serveur doit tourner (WSL2) : vérifier `http://localhost:8000` répond (curl -s -o /dev/null
   -w '%{http_code}'). S'il ne répond pas, DEMANDER à l'utilisateur de le lancer — ne pas le
   démarrer soi-même sans demande.
-- **Aucun MCP Playwright n'est configuré dans ce dépôt** (vérifié 2026-07-31 : pas de `.mcp.json`,
-  aucun outil navigateur exposé). La route NORMALE est donc : **script Playwright → PNG → `Read`**
-  (l'outil de lecture rend l'image, la vérification visuelle marche sans MCP). Ne pas annoncer une
-  passe MCP avant d'avoir vérifié sa disponibilité.
+- **Le MCP Playwright existe, mais sa disponibilité VARIE — la vérifier, jamais la supposer.**
+  Corrigé le 2026-08-22 : ce skill affirmait « aucun MCP Playwright n'est configuré » (constat du
+  31/07). C'est faux — ses outils sont déclarés dans les allowlists (`.claude/settings.json` et
+  `settings.local.json`) et étaient disponibles en début de session. Ce qui reste vrai du constat
+  d'origine : il n'y a **pas de `.mcp.json` dans le dépôt** (le serveur est déclaré au niveau du
+  CLI, pas du projet) — d'où la confusion.
+  ⚠ Mesuré le 22/08 : la connexion MCP **est tombée en cours de session** et les outils ont
+  DISPARU du registre. Un skill qui promet une passe MCP fait donc perdre du temps une fois sur
+  deux. **Vérifier au moment** (`ToolSearch` sur `mcp__playwright__…`), et retomber sans état
+  d'âme sur la route qui, elle, ne dépend de rien :
+- **Route FIABLE, indépendante du MCP : script Playwright (python) → PNG → `Read`.** L'outil de
+  lecture rend l'image, la vérification visuelle marche sans MCP. Le dépôt a déjà ses sondes
+  (`logs/ui_smoke/*.py`) et surtout ses scénarios enregistrés — cf. la charpente ci-dessous.
 - Navigateurs installés **côté WSL2** (`~/.cache/ms-playwright`, chromium-1228), `playwright`
   importable dans `venv_linux` **et** `venv_win` → lancer le script sous WSL2, là où tourne aussi
   le serveur.
@@ -23,6 +32,20 @@ le RENDU RÉEL, pas la structure du code.
   chargement + erreurs console + parcours des onglets + capture + diff + triage VLM, et
   `python manage.py run_nightly_tests --stage ui` l'exécute sur les 13 apps en ~45 s. Commencer
   par là ; n'écrire un script ad hoc que pour ce qu'elle ne couvre pas.
+- **DEUX familles de scénarios, et elles ne disent pas la même chose** (22/08) :
+  `<app>.ui` mesure la SANTÉ (HTTP 200, zéro erreur console) — `converter_01` la satisfaisait tout
+  en étant totalement INERTE, aucun script chargé donc rien à planter ; `<app>.import` mesure le
+  COMPORTEMENT (un dépôt crée-t-il un élément ?). Sélection : `--id <id>`, préfixe
+  `--id converter_01.`, suffixe `--id .import`, ou `--list`. **Une sonde ad hoc de plus dans
+  `logs/ui_smoke/` est presque toujours la mauvaise réponse : la faire entrer ici la rend
+  rejouable et nocturne.**
+- ⚠ **Aucune lecture ORM À L'INTÉRIEUR de `sync_playwright()`** — Django lève
+  `SynchronousOnlyOperation`. Préparer sessions, ids et comptes AVANT d'ouvrir le contexte, et
+  faire les comptages/nettoyages APRÈS l'avoir refermé. Piège rencontré deux fois le 22/08.
+- ⚠ **Se connecter avec un compte de TEST existant** (`wama_nightly_test`, `ui_smoke_v3`,
+  `pw_smoke`), jamais en anonyme : depuis la fermeture du 22/08, le compte anonyme n'a plus aucun
+  rôle ni tier utilisateur — une passe anonyme mesure des DROITS en croyant mesurer un
+  comportement. Ne pas forger un compte : en inventer un inventerait ses droits.
 - ⚠ JAMAIS d'action destructive : pas de suppression d'items, pas de « Tout effacer », pas de
   lancement de génération lourde GPU sans accord. Le user id=1 est le compte réel de Fabien.
 

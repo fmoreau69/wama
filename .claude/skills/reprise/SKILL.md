@@ -26,7 +26,7 @@ Objectif : repartir de l'état RÉEL du projet, pas d'un souvenir. À dérouler 
 python manage.py check_docs                 # références doc→code
 python manage.py manifest_export --check    # corpus de manifestes périmé ? (⚠ depuis WSL2)
 python manage.py manifest_roundtrip --all   # régénération : facettes projetables, fidélité
-python manage.py check_app_conformity       # grille 74 critères par app
+python manage.py check_app_conformity       # grille 77 critères par app (mesuré 22/08)
 python manage.py doc_facts --check          # blocs GÉNÉRÉS des .md (dont la carte WAMA_MECANISMES)
 ```
 - ⚠ `check_docs` : lancer depuis **Windows** (`./venv_win/Scripts/python.exe`) — il parcourt
@@ -39,7 +39,8 @@ python manage.py doc_facts --check          # blocs GÉNÉRÉS des .md (dont la 
 - Comparer les chiffres au bloc « Contrôles attendus au prochain /reprise » du **dernier
   §REPRISE** de `PROJECT_STATUS.md` (corpus N manifestes, roundtrip, scores de grille) — c'est
   lui qui porte les valeurs à jour, pas ce skill.
-- **État attendu au 2026-08-22** : `check_docs` = **2 CASSÉ / 0 périmée (sur 457)**, et les 2
+- **État attendu au 2026-08-22** : `check_docs` = **2 CASSÉ / 0 périmée** (475 réfs vérifiées le
+  22/08 au soir — ce TOTAL grossit à chaque doc écrite, ne pas en faire un critère), et les 2
   sont LA MÊME référence EN AVANT citée deux fois — pas des liens morts :
   - `common/_result_tabs.html` ×2 (`PROJECT_STATUS.md:2287` et `:2684` — cible de
     `REMOVAL_LEDGER` R18, duplication vérifiée toujours présente le 10/08 :

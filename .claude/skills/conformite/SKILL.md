@@ -1,6 +1,6 @@
 ---
 name: conformite
-description: Mesurer la conformité RÉELLE des apps WAMA (check_app_conformity, 74 critères couvrant les 8 facettes F1-F8) et trier les écarts en plan d'action. Utiliser après un palier de portage, quand l'utilisateur demande « où en est la conformité », « re-mesure », ou pour choisir la prochaine app/critère à porter. Le score n'est PAS l'avancement du portage : voir l'avertissement en tête du skill.
+description: Mesurer la conformité RÉELLE des apps WAMA (check_app_conformity, 77 critères couvrant les 8 facettes F1-F8) et trier les écarts en plan d'action. Utiliser après un palier de portage, quand l'utilisateur demande « où en est la conformité », « re-mesure », ou pour choisir la prochaine app/critère à porter. Le score n'est PAS l'avancement du portage : voir l'avertissement en tête du skill.
 ---
 
 # /conformite — Mesure réelle + triage
@@ -9,14 +9,15 @@ La grille `/apps/` est MESURÉE, plus déclarée : ne JAMAIS éditer à la main 
 `_conv(...)` d'`app_registry.py` pour les critères mesurés (le rapport les écrase).
 
 > 🔴 **CE QUE LE SCORE DIT — ET NE DIT PAS.** Répartition des critères (élargie 2026-07-30,
-> **40 → 72** ; puis **74** le 2026-07-31 avec les 2 critères de partage) :
+> **40 → 72** ; **74** le 2026-07-31 (2 critères de partage) ; **77** le 2026-08-22
+> (card_gear, card_preview_hydratee, inspector_detail_wired — jonction du 19/08) :
 > **F1:4 · F2:9 · F3:13 · F4:9 · F5:27 · F6:5 · F7:5 · F8:2.** Les 8 facettes de
 > `WAMA_APP_GENERATION_ROUTE.md` sont désormais **toutes** couvertes — avant cet élargissement la
 > grille ne voyait que F1–F5 (dont 25 critères de F5 à eux seuls) et était donc **aveugle** au
 > contrat `BaseModelBackend`, à la déclaration VRAM, au tirage `select_model`, aux capacités
 > canoniques, à l'appariement entrée↔modèle, aux prompts, aux permissions et au nœud studio.
 >
-> Le dénominateur **varie par app** (60 à 72) : un critère peut être **non applicable** et sortir
+> Le dénominateur **varie par app** (63 à 77, mesuré 22/08) : un critère peut être **non applicable** et sortir
 > du calcul — F4 entier pour le converter (ffmpeg/pandoc, aucun modèle IA), les 4 critères prompt
 > pour une app sans champ prompt. C'est voulu : on ne pénalise pas une absence légitime.
 >
@@ -33,7 +34,10 @@ La grille `/apps/` est MESURÉE, plus déclarée : ne JAMAIS éditer à la main 
 > (`fichier:ligne`) : c'est elle qui rend l'écart actionnable.
 
 ## 1. Mesurer
-- `./venv_win/Scripts/python.exe manage.py check_app_conformity` (10 apps → écrit
+- `./venv_win/Scripts/python.exe manage.py check_app_conformity` — ⚠ ou `venv_linux` depuis
+  WSL2, qui est la voie de RÉFÉRENCE (WAMA y tourne). Le 22/08 `venv_win` a été inutilisable
+  une journée, `pgvector` y manquant : `django.setup()` échouait. Si la commande casse à
+  l'import, basculer sur WSL2 plutôt que de chercher un défaut de la grille. (10 apps → écrit
   `logs/conformity_report.json`, consommé par `/apps/`).
 - Détail d'une app : `--app <nom> --verbose-ok` (n'écrase pas le rapport global).
 

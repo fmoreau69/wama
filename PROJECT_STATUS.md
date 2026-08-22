@@ -2792,8 +2792,14 @@ son témoin retombait sur `.txt` pour les apps à images.
   visiteur alors qu'`accessible()` dit non) ; gardes d'action hétérogènes, **4 apps sans aucune
   garde** sur `upload` ; aucun contrôle de contenu à l'upload (ni antivirus, ni type réel, ni
   borne de taille).
-- **`venv_win` est CASSÉ** (`pgvector` manquant) : `check_docs` et `check_app_conformity` doivent
-  tourner depuis WSL2, contrairement à ce qu'annonce le skill `/reprise`.
+- **`venv_win` : alerte LEVÉE le 22/08 au soir.** `pgvector` y manquait en cours de journée —
+  `django.setup()` échouait, donc `check_docs` et `check_app_conformity` aussi — et il a été
+  installé depuis (autre session). Vérifié : `check_docs` depuis Windows rend **exactement** le
+  même bilan que depuis WSL2 (2 cassées / 0 périmée sur 475). **Les deux voies fonctionnent.**
+  ⚠ WSL2 reste la voie de RÉFÉRENCE : c'est là que WAMA tourne (Ollama excepté, côté hôte), donc
+  c'est le seul environnement qui reflète le runtime réel — ce qui vaut surtout pour les contrôles
+  VENV-DÉPENDANTS comme `manifest_export --check` (les manifestes `library` sont extraits par
+  `importlib.metadata` : depuis venv_win il déclare de faux « périmés », mesuré le 13/08).
 - **gunicorn n'a ni `reload` ni `preload_app`** : toute modification Python exige un redémarrage.
   Trois diagnostics de la journée s'y sont heurtés. Les gabarits, eux, se relisent à chaque requête.
 - Trous 21-28 consignés dans `WAMA_APP_GENERATION_ROUTE.md` ; le 21 est CLOS depuis (généré).
