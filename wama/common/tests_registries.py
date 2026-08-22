@@ -4,14 +4,17 @@ Ce qui est vérifié est ce qui justifie le mécanisme : qu'un catalogue hérite
 code, que la NATURE déclarée empêche un bouton menteur, et qu'une fonction ajoutée — ou supprimée —
 pendant que le serveur tourne devient visible sans redémarrage.
 """
+import time
 from pathlib import Path
 
+from django.conf import settings
 from django.test import TestCase
+from django.urls import NoReverseMatch, reverse
 
-from .registries import (CELERY, DERIVE, MESURE, PROCESSUS, REDECLARATION, REGISTRES, Registre,
-                         Resultat, _cache, _cle_version, _VERSIONS_VUES, autorise, enregistrer,
-                         etat, execution_de, get, lancer, marquer_actualise, rafraichir,
-                         synchroniser)
+from .registries import (CELERY, DERIVE, EXECUTION_PAR_NATURE, MESURE, NATURES, PROCESSUS,
+                         REDECLARATION, REGISTRES, Registre, Resultat, _cache, _cle_version,
+                         _VERSIONS_VUES, autorise, enregistrer, etat, execution_de, get, lancer,
+                         marquer_actualise, rafraichir, synchroniser)
 
 
 class _Anon:
@@ -75,7 +78,9 @@ class ContratTest(TestCase):
 class DeclarationsTest(TestCase):
     """Les registres réels de WAMA."""
 
-    def test_les_sept_registres_sont_declares(self):
+    def test_les_registres_attendus_sont_declares(self):
+        # Un PLANCHER, pas un inventaire : le nom ne fige plus de compte (« les sept » mentait
+        # dès le huitième), et la couverture des nouveaux est le travail de `ConformiteTest`.
         for cle in ('modeles', 'apps', 'fonctions', 'skills', 'librairies', 'licences', 'rag'):
             self.assertIn(cle, REGISTRES)
 
@@ -96,12 +101,13 @@ class DeclarationsTest(TestCase):
         self.assertFalse(par_cle['licences']['actualisable'])
         self.assertEqual(par_cle['modeles']['periodique'], 'model-manager-reconcile')
 
-    def test_le_lien_vers_le_kind_est_declare_quand_il_existe(self):
-        # 4 des 7 registres correspondent à un kind de manifeste — l'info est vraie et utile,
-        # mais ce n'est pas la clé (3 kinds n'ont aucune page, 3 pages ne sont pas des kinds).
-        avec_kind = {r.cle for r in REGISTRES.values() if r.manifest_kind}
-        self.assertEqual(avec_kind, {'modeles', 'apps', 'fonctions', 'librairies'})
+    def test_tous_les_kinds_declares_existent(self):
+        # ⚠ Cette assertion affirmait l'ensemble EXACT {modeles, apps, fonctions, librairies}.
+        # Mesuré : un 8ᵉ registre déclarant un `manifest_kind` la faisait échouer — un ajout
+        # légitime cassait un test. On vérifie donc la PROPRIÉTÉ (le kind existe), pas l'inventaire.
         from .manifests import MANIFEST_KINDS
+        avec_kind = {r.cle for r in REGISTRES.values() if r.manifest_kind}
+        self.assertTrue(avec_kind, "au moins un registre doit porter le lien vers son kind")
         for cle in avec_kind:
             self.assertIn(REGISTRES[cle].manifest_kind, MANIFEST_KINDS)
 
@@ -110,6 +116,161 @@ class DeclarationsTest(TestCase):
         for r in REGISTRES.values():
             self.assertTrue(r.source, f"{r.cle} : source non déclarée")
             self.assertTrue(r.description, f"{r.cle} : description non déclarée")
+
+
+class ConformiteTest(TestCase):
+    """CONFORMITÉ pilotée par le registre — chaque contrôle s'applique à TOUS les registres.
+
+    Réponse au défaut mesuré le 2026-08-22 : en ajoutant un 8ᵉ registre, la suite ne tombait pas,
+    **elle devenait muette**. 27 tests sur 29 nommaient des clés en dur, donc le nouveau venu
+    recevait zéro couverture et rien ne le disait — un vert qui se lit « couvert ».
+
+    Même geste que `conformity_checker.CRITERIA`, qui mesure les apps depuis un registre de critères
+    (chacun relié à son mécanisme). L'infrastructure de test se construit SUR les registres, elle ne
+    se recopie pas par sujet.
+
+    ⚠ Ces contrôles portent sur le CONTRAT. La sémantique d'un rafraîchisseur (« le scan détecte-t-il
+    un modèle renommé ? ») reste irréductiblement spécifique et vit dans sa propre classe.
+    """
+
+    #: Budget d'un registre `processus` : il s'exécute dans le worker web. Au-delà, il bloque le
+    #: serveur — mesuré, `apps` en synchrone tenait un worker 31,2 s sur les 8 disponibles.
+    BUDGET_PROCESSUS_S = 2.0
+
+    def _chaque(self):
+        """Tous les registres. Un sous-test par clé : un échec NOMME le registre fautif."""
+        return sorted(REGISTRES.values(), key=lambda r: r.cle)
+
+    def test_nature_et_execution_coherentes(self):
+        for r in self._chaque():
+            with self.subTest(registre=r.cle):
+                self.assertIn(r.nature, NATURES)
+                if r.nature == DERIVE:
+                    self.assertIsNone(r.rafraichir, "un dérivé n'a rien à actualiser")
+                    continue
+                self.assertIsNotNone(r.rafraichir)
+                self.assertEqual(
+                    execution_de(r), EXECUTION_PAR_NATURE[r.nature],
+                    "l'exécution déclarée contredit la nature — voir EXECUTION_PAR_NATURE")
+
+    def test_chaque_registre_dit_d_ou_vient_son_etat(self):
+        # « Actualiser quoi ? » doit avoir une réponse affichable : sans elle le bouton est opaque.
+        for r in self._chaque():
+            with self.subTest(registre=r.cle):
+                self.assertTrue(r.nom)
+                self.assertTrue(r.source, "source non déclarée")
+                self.assertTrue(r.description, "description non déclarée")
+
+    def test_permission_connue_et_anonyme_toujours_refuse(self):
+        for r in self._chaque():
+            with self.subTest(registre=r.cle):
+                self.assertIn(r.permission, ('staff', 'auth'))
+                self.assertFalse(autorise(r, _Anon()), "un anonyme n'actualise jamais")
+
+    def test_url_name_resolvable(self):
+        # Un `url_name` qui ne se résout pas casserait la page centrale des registres.
+        for r in self._chaque():
+            if not r.url_name:
+                continue
+            with self.subTest(registre=r.cle):
+                try:
+                    reverse(r.url_name)
+                except NoReverseMatch:
+                    self.fail(f"url_name='{r.url_name}' ne se résout pas")
+
+    def test_periodique_designe_une_VRAIE_tache_planifiee(self):
+        # Rien ne vérifiait ce champ : il pouvait annoncer « auto » dans l'UI en désignant une
+        # entrée de Beat supprimée depuis. Une promesse d'actualisation automatique doit être vraie.
+        beat = set(getattr(settings, 'CELERY_BEAT_SCHEDULE', {}) or {})
+        for r in self._chaque():
+            if not r.periodique:
+                continue
+            with self.subTest(registre=r.cle):
+                self.assertIn(r.periodique, beat,
+                              "ne correspond à aucune entrée de CELERY_BEAT_SCHEDULE")
+
+    def test_manifest_kind_existe_quand_il_est_declare(self):
+        from .manifests import MANIFEST_KINDS
+        for r in self._chaque():
+            if not r.manifest_kind:
+                continue
+            with self.subTest(registre=r.cle):
+                self.assertIn(r.manifest_kind, MANIFEST_KINDS)
+
+    def test_compter_ne_leve_jamais(self):
+        # `etat()` avale les exceptions de `compter()` : sans ce test, un compteur cassé
+        # afficherait 0 pour toujours sans que personne ne le sache.
+        for r in self._chaque():
+            if not r.compter:
+                continue
+            with self.subTest(registre=r.cle):
+                self.assertIsInstance(int(r.compter()), int)
+
+    def test_etat_expose_chaque_registre_completement(self):
+        champs = {'cle', 'nom', 'nature', 'nature_label', 'source', 'actualisable', 'permission',
+                  'url_name', 'au_demarrage', 'periodique', 'manifest_kind', 'total'}
+        self.assertEqual({e['cle'] for e in etat()}, set(REGISTRES),
+                         "un registre déclaré doit apparaître dans l'état")
+        for e in etat():
+            with self.subTest(registre=e['cle']):
+                self.assertTrue(champs.issubset(e), f"champs manquants : {champs - set(e)}")
+                self.assertEqual(e['actualisable'], REGISTRES[e['cle']].nature != DERIVE)
+
+    def test_lancer_repond_a_TOUT_registre_sans_lever(self):
+        # ⚠ On n'EXÉCUTE pas les registres `celery` : `modeles` coûte 20 s et `apps` 31 s, la suite
+        # passerait de 3 s à plus d'une minute. `lancer()` se contente de les mettre en file —
+        # c'est justement ce qu'on vérifie.
+        for r in self._chaque():
+            with self.subTest(registre=r.cle):
+                d = lancer(r.cle)
+                self.assertIn('ok', d)
+                attendu = execution_de(r) == CELERY and r.nature != DERIVE
+                self.assertEqual(d.get('asynchrone', False), attendu)
+
+    def test_budget_de_duree_des_registres_en_PROCESSUS(self):
+        """LE contrôle qui aurait attrapé les 31 s tout seul.
+
+        Un registre `processus` s'exécute dans le worker web. S'il devient lent, il doit basculer
+        en `celery` — et ce test le dit AVANT qu'un utilisateur ne le découvre en attendant.
+        """
+        for r in self._chaque():
+            if r.nature == DERIVE or execution_de(r) != PROCESSUS:
+                continue
+            with self.subTest(registre=r.cle):
+                debut = time.monotonic()
+                res = rafraichir(r.cle)
+                duree = time.monotonic() - debut
+                self.assertTrue(res.ok, f"actualisation en échec : {res.messages}")
+                self.assertLess(duree, self.BUDGET_PROCESSUS_S,
+                                f"{duree:.1f} s dans le worker web — déclarer execution=CELERY")
+
+    def test_actualiser_deux_fois_ne_change_rien_la_seconde(self):
+        # L'idempotence n'est pas un raffinement : un rafraîchisseur qui ajoute à chaque passage
+        # gonfle son registre en silence, et le compte-rendu ment à chaque clic.
+        for r in self._chaque():
+            if r.nature == DERIVE or execution_de(r) != PROCESSUS:
+                continue
+            with self.subTest(registre=r.cle):
+                rafraichir(r.cle)
+                second = rafraichir(r.cle)
+                self.assertTrue(second.ok)
+                self.assertEqual((second.ajoutes, second.retires), (0, 0),
+                                 "une seconde passe ne doit rien ajouter ni retirer")
+
+    def test_propagation_pour_tout_registre_en_MEMOIRE(self):
+        """Générique, et ce n'est pas théorique : c'est ce contrôle qui aurait attrapé la
+        propagation écrite avec `django_redis` — paquet absent, mécanisme mort EN SILENCE."""
+        if _cache() is None:
+            self.skipTest("cache indisponible — la propagation est facultative")
+        for r in self._chaque():
+            if r.nature != REDECLARATION:
+                continue
+            with self.subTest(registre=r.cle):
+                marquer_actualise(r.cle)
+                vue = _VERSIONS_VUES.get(r.cle)
+                self.assertIsNotNone(vue, "l'actualisation doit incrémenter la version partagée")
+                _VERSIONS_VUES[r.cle] = vue - 1
+                self.assertTrue(synchroniser(r.cle), "un processus en retard se resynchronise")
 
 
 class PermissionTest(TestCase):
@@ -277,6 +438,41 @@ class PropagationTest(TestCase):
         # Un état partagé (base, rapport) est déjà commun à tous les processus.
         self.assertFalse(synchroniser('modeles'))
         self.assertFalse(synchroniser('licences'))
+
+
+class CouvertureTest(TestCase):
+    """La couverture est MESURÉE — elle doit donc être juste, sinon elle rassure à tort."""
+
+    def _resume(self):
+        from .registries_coverage import resume
+        return resume()
+
+    def test_chaque_registre_apparait(self):
+        r = self._resume()
+        self.assertEqual(r['registres'], len(REGISTRES))
+        self.assertEqual({d['cle'] for d in r['detail']}, set(REGISTRES))
+
+    def test_un_derive_n_est_jamais_signale_comme_manquant(self):
+        # Il n'a pas de rafraîchisseur, donc aucune sémantique à éprouver. Le signaler
+        # produirait une alerte permanente que tout le monde apprendrait à ignorer.
+        for d in self._resume()['detail']:
+            if REGISTRES[d['cle']].nature == DERIVE:
+                with self.subTest(registre=d['cle']):
+                    self.assertFalse(d['attendu'])
+                    self.assertFalse(d['manquant'])
+
+    def test_le_rattachement_trouve_les_tests_qui_nomment_la_cle(self):
+        # `fonctions` est le registre le plus éprouvé du lot (rechargement à chaud, propagation) :
+        # si la mesure ne le voyait pas, c'est le rattachement qui serait cassé.
+        detail = {d['cle']: d for d in self._resume()['detail']}
+        self.assertGreater(detail['fonctions']['nb_specifiques'], 2)
+        self.assertIn('test_fonction_ajoutee_a_chaud', detail['fonctions']['specifiques'])
+
+    def test_la_couverture_generique_vaut_pour_TOUS(self):
+        # Le contrat est couvert partout : l'absence de test spécifique n'est pas une absence
+        # de test, et confondre les deux pousserait à écrire des tests de complaisance.
+        for d in self._resume()['detail']:
+            self.assertTrue(d['generique'])
 
 
 class ResumeTest(TestCase):

@@ -119,7 +119,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Ingest de source** | Télécharge une source distante vers le FileField, déclaré par WAMA_INGEST | `wama/common/utils/source_ingest.py` | `WAMA_APP_GENERATION_ROUTE.md` | 11 |
 | **Moteur de l'assistant IA** | Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — la vue web et /api/v1/assistant/chat/ en sont des clients | `wama/common/services/assistant_engine.py` | — | 7 |
 | **Pipeline de prompts** | Traduction/enrichissement centralisés, déclarés par PROMPT_TARGETS | `wama/common/utils/prompt_enrichment.py` | `WAMA_IA_TRANSVERSE.md` | 18 |
-| **Skills de rôle de l'assistant** | Posture et domaine de l'assistant (science, design, dev) + rappel du contexte de laboratoire, déclarés par domaine — distinct de l'enrichissement | `wama/common/utils/assistant_skills.py` | `ROADMAP.md §19.7` | 2 |
+| **Skills de rôle de l'assistant** | Posture et domaine de l'assistant (science, design, dev) + rappel du contexte de laboratoire, déclarés par domaine — distinct de l'enrichissement | `wama/common/utils/assistant_skills.py` | `ROADMAP.md §19.7` | 3 |
 
 #### Manifestes & registres (5)
 
@@ -135,7 +135,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
-| **Console utilisateur** | Lignes de journal structurées par utilisateur et par app, via Redis | `wama/common/utils/console_utils.py` | — | 31 |
+| **Console utilisateur** | Lignes de journal structurées par utilisateur et par app. ⚠ Annoncé « via Redis », mais le chemin Redis exige `django_redis` — ABSENT des deux venvs et des `requirements` (vérifié 2026-08-22) : la console tourne DEPUIS TOUJOURS sur son repli cache, qui fonctionne mais n'est pas atomique (lire/insérer/réécrire, donc des lignes perdues quand gunicorn et les workers Celery poussent en même temps). Le correctif n'est PAS d'ajouter la dépendance : le client `redis` brut est déjà installé et la brique d'accès existe (`resource_governor._redis`, via `CELERY_BROKER_URL`) | `wama/common/utils/console_utils.py` | — | 31 |
 | **Duplication et suppression sûres** | duplicate_instance() et safe_delete_file() — fichiers partagés entre items | `wama/common/utils/queue_duplication.py` | `WAMA_APP_CONVENTIONS.md` | 15 |
 | **File d'attente (front)** | Comportements communs des files : collapse de batch persisté, focus card, data-wama-* | `wama/common/static/common/js/wama-queue.js` | `CARD_DESIGN.md` | 44 |
 | **Import par lot** | Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot | `wama/common/utils/batch_parsers.py` | `BATCH_FORMAT.md` | 48 |
@@ -178,7 +178,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 |---|---|---|---|---|
 | **Accès ffmpeg** | Résolution centralisée du binaire et des conversions (échappatoire FFMPEG_BINARY) | `wama/common/utils/ffmpeg_utils.py` | — | 14 |
 | **Accès scopé aux objets** | Deux chemins NOMMÉS pour lire un objet partageable depuis une vue (possédé / visible) | `wama/common/utils/scoping.py` | `PROFILES_PERMISSIONS.md` | 10 |
-| **Actualisation des catalogues** | REGISTRE des registres : une page catalogue déclare la CLÉ de son registre et hérite du bouton, de l'endpoint, de la permission et du compte-rendu. La NATURE déclarée (scan / mesure / re-déclaration / DÉRIVÉ) décide du rendu — un dérivé affiche « toujours à jour » au lieu d'un bouton qui ne ferait rien — ET le LIEU d'exécution : état partagé → tâche Celery non bloquante, registre en mémoire → sur place, avec propagation aux autres workers gunicorn | `wama/common/registries.py` | — | 7 |
+| **Actualisation des catalogues** | REGISTRE des registres : une page catalogue déclare la CLÉ de son registre et hérite du bouton, de l'endpoint, de la permission et du compte-rendu. La NATURE déclarée (scan / mesure / re-déclaration / DÉRIVÉ) décide du rendu — un dérivé affiche « toujours à jour » au lieu d'un bouton qui ne ferait rien — ET le LIEU d'exécution : état partagé → tâche Celery non bloquante, registre en mémoire → sur place, avec propagation aux autres workers gunicorn | `wama/common/registries.py` | — | 8 |
 | **Arbre organisationnel depuis l'annuaire** | ou=structures (SUPANN) → OrgUnit + parents ; peuple ce dont dépend le partage par unité (RAG labo, médiathèque). Lecture seule côté LDAP, idempotente | `wama/accounts/management/commands/sync_org_units.py` | `reference_ldap_supann_orgunit` | 1 |
 | **Bascules de fonctionnalités** | Registre de Feature par app + surcharges JSON de l'objet porteur — comparer AVEC/SANS | `wama/common/utils/feature_flags.py` | — | 1 |
 | **Chemins média** | Emplacements canoniques des entrées/sorties par app et par utilisateur | `wama/common/utils/media_paths.py` | — | 22 |
@@ -189,7 +189,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Rétention des médias** | Purge automatique des sorties au-delà de la durée choisie par l'utilisateur (FileField découverts) | `wama/common/services/retention.py` | `PROFILES_PERMISSIONS.md` | 2 |
 | **Sauvegarde & tirage** | Moteur unique de miroir (modèles, base, médias, secrets) et restauration | `wama/common/services/mirror_sync.py` | — | 8 |
 | **Sonde média** | Durée/codec/dimensions/pages d'un média pour les propriétés de card (via ffmpeg_utils) | `wama/common/utils/media_probe.py` | — | 4 |
-| **Taxonomie des types de donnée** | Vocabulaire commun des sources et des fonctions : sous-typage + compatibilité de ports. `segments` y est LE type « portion de temps bornée » (situation, état, section) | `wama/common/catalog/data_types.py` | `WAMA_DATA_FUNCTION_CARDS.md §3` | 5 |
+| **Taxonomie des types de donnée** | Vocabulaire commun des sources et des fonctions : sous-typage + compatibilité de ports. `segments` y est LE type « portion de temps bornée » (situation, état, section) | `wama/common/catalog/data_types.py` | `WAMA_DATA_FUNCTION_CARDS.md §3` | 6 |
 | **Utilitaires vidéo** | Extraction audio des vidéos + téléchargement YouTube/yt-dlp | `wama/common/utils/video_utils.py` | — | 16 |
 | **Visibilité et portée** | Privé / unité / public : filtrage des lectures, mutations inchangées | `wama/common/models.py` | `PROFILES_PERMISSIONS.md` | 25 |
 

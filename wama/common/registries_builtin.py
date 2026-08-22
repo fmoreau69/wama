@@ -179,12 +179,21 @@ enregistrer(Registre(
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
 def _rafraichir_skills() -> Resultat:
+    """⚠ `retires` compte les entrées perdues par le REGISTRE, jamais les lignes de cache vidées.
+
+    Première version : elle rendait `retires = len(cache)`, donc « 10 retirés » à chaque passage
+    alors qu'aucun skill ne disparaissait — un compte-rendu qui alarme sans raison. Trouvé par le
+    contrôle générique d'idempotence, pas à la lecture : les deux passages rendaient le même
+    chiffre, ce qui ressemblait à un résultat stable.
+    """
     from .utils import prompt_skills
-    avant = len(prompt_skills._cache)
+    avant = set(prompt_skills.skills_catalog())
+    vidées = len(prompt_skills._cache)
     prompt_skills._cache.clear()
-    catalogue = prompt_skills.skills_catalog()
-    return Resultat(ok=True, retires=avant, total=len(catalogue),
-                    messages=("cache vidé — les fichiers seront relus à la demande",))
+    apres = set(prompt_skills.skills_catalog())
+    return Resultat(ok=True, ajoutes=len(apres - avant), retires=len(avant - apres),
+                    modifies=len(apres & avant), total=len(apres),
+                    messages=(f"cache vidé ({vidées} entrée(s)) — fichiers relus à la demande",))
 
 
 def _compter_skills() -> int:
