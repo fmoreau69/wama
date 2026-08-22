@@ -199,9 +199,9 @@ def correction_report(anchors, corrected_track=None):
 
 
 # ── Manifeste ─────────────────────────────────────────────────────────────────────────
-from wama.common.data.function_catalog import (  # noqa: E402
+from wama.common.catalog.function_catalog import (  # noqa: E402
     FunctionCategory, FunctionSpec, ParamSpec, PortSpec, register)
-from wama.common.data.data_types import DataType  # noqa: E402
+from wama.common.catalog.data_types import DataType  # noqa: E402
 
 
 def apply_anchored_offsets(track, anchors, **_):

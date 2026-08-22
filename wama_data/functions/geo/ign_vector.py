@@ -272,9 +272,9 @@ def mask_summary(mask):
 # Ce sont des fonctions SOURCE (aucun port d'entrée : elles sont paramétrées par un point,
 # pas alimentées par une donnée amont). `FunctionCategory` n'a pas de valeur `SOURCE` :
 # TRANSFORM est le moins faux — écart signalé plutôt que masqué.
-from wama.common.data.function_catalog import (  # noqa: E402
+from wama.common.catalog.function_catalog import (  # noqa: E402
     FunctionCategory, FunctionSpec, ParamSpec, PortSpec, register)
-from wama.common.data.data_types import DataType  # noqa: E402
+from wama.common.catalog.data_types import DataType  # noqa: E402
 
 _LOC_PARAMS = [
     ParamSpec('lat', 'float', None, -90.0, 90.0, unit='°', description='Latitude WGS84.'),

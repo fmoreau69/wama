@@ -54,9 +54,9 @@ MODULES: Tuple[ModuleData, ...] = (
     ModuleData(
         'importer', 'Importer', "Lit une source et rend un référentiel temporel interrogeable",
         "fichiers + manifeste `dataset` → référentiel",
-        briques=('wama/common/data/sources/__init__.py',
-                 'wama/common/data/sources/trip.py',
-                 'wama/common/data/sources/tabular.py'),
+        briques=('wama_data/sources/__init__.py',
+                 'wama_data/sources/trip.py',
+                 'wama_data/sources/tabular.py'),
         doc='§6.6, §9bis.1',
         bloque_par="alignement par TRIGGERS non conçu (D12) ; `DATASET_SOURCES` non réconcilié "
                    "avec le registre des lecteurs (G1) ; lecteur `.rec` encore une FONCTION "
@@ -65,14 +65,14 @@ MODULES: Tuple[ModuleData, ...] = (
     ModuleData(
         'referentiel', 'Référentiel temporel', "Aligne des flux à cadences incommensurables",
         "référentiel → échantillons, `segments`, vue décimée",
-        briques=('wama/common/data/temporal.py',),
+        briques=('wama_data/core/temporal.py',),
         doc='§2, §3',
         bloque_par="AUCUN consommateur — la brique est inerte tant qu'un module ne s'en sert pas",
     ),
     ModuleData(
         'connector', 'Connector', "Branche une base existante comme source",
         "base SQLite → référentiel",
-        briques=('wama/common/data/sources/trip.py',),
+        briques=('wama_data/sources/trip.py',),
         doc='§6.2',
     ),
     ModuleData(
@@ -85,10 +85,10 @@ MODULES: Tuple[ModuleData, ...] = (
                                   "deux flux, par prédicat avec hystérésis, par plages constantes "
                                   "d'un catégoriel, ou par CODAGE (humain ou IA)",
         "`events` ou signal + prédicat → `segments`",
-        briques=('wama/common/data/segmentation.py',
-                 'wama/common/data/coding.py',
-                 'wama/common/data/functions/temporal/segmentation.py',
-                 'wama/common/data/functions/temporal/coding.py'),
+        briques=('wama_data/core/segmentation.py',
+                 'wama_data/core/coding.py',
+                 'wama_data/functions/temporal/segmentation.py',
+                 'wama_data/functions/temporal/coding.py'),
         fonctions=('segment_autour_event', 'segment_jonction', 'segment_conditionnel',
                    'segment_etats', 'segment_present_dans',
                    'codage_segments', 'codage_evenements', 'codage_accord'),
@@ -140,7 +140,7 @@ def _racine() -> Path:
 
 def _catalogue() -> set:
     try:
-        from .function_catalog import FUNCTION_CATALOG
+        from wama.common.catalog.function_catalog import FUNCTION_CATALOG
         return set(FUNCTION_CATALOG)
     except Exception:
         return set()
@@ -174,7 +174,7 @@ def _consommateurs(brique: str) -> Tuple[int, int]:
         nom = Path(f).name
         if 'test' in nom or nom in ('mecanismes.py', 'modules.py'):
             continue
-        if f.startswith('wama/common/data/'):
+        if f.startswith('wama_data/'):
             interne += 1
         else:
             externe += 1

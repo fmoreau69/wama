@@ -15,7 +15,7 @@ import csv
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
-from ..temporal import NEAREST, SignalMeta
+from ..core.temporal import NEAREST, SignalMeta
 from . import SourceInfo, SourceReader, StreamSpec, register_reader
 
 #: Noms de colonne acceptés comme axe du temps, par ordre de préférence. Les données réelles

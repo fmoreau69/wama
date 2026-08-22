@@ -278,8 +278,8 @@ class AdaptateurDePortsTest(unittest.TestCase):
     """
 
     def setUp(self):
-        from .functions.temporal.coding import codage_rejouer
-        from .data_types import DataType, TypedFrame
+        from ..functions.temporal.coding import codage_rejouer
+        from wama.common.catalog.data_types import DataType, TypedFrame
         import pandas as pd
         self.codage_rejouer, self.DataType, self.TypedFrame, self.pd = (
             codage_rejouer, DataType, TypedFrame, pd)
@@ -311,7 +311,7 @@ class AdaptateurDePortsTest(unittest.TestCase):
                           "un etat ouvert doit rester None, jamais devenir NaN")
 
     def test_manquant_reconnait_les_deux_formes_d_absence(self):
-        from .functions.temporal.segmentation import manquant
+        from ..functions.temporal.segmentation import manquant
         self.assertTrue(manquant(None))
         self.assertTrue(manquant(float('nan')))
         self.assertFalse(manquant(0.0), "zero est une VALEUR, pas une absence")

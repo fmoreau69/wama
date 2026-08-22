@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence
 
-from ..temporal import Signal, SignalMeta, TemporalReferential
+from ..core.temporal import Signal, SignalMeta, TemporalReferential
 
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 # Horodatage — la seule couche autorisée à décider du temps d'un échantillon

@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
-from .data_types import is_compatible
+from wama.common.catalog.data_types import is_compatible
 
 
 class FunctionCategory:
@@ -147,14 +147,41 @@ def can_connect(out_port: PortSpec, in_port: PortSpec, available_fields=None):
     return True, ''
 
 
+#: Modules qu'une app peut exposer pour déclarer ses fonctions. Convention, pas configuration.
+MODULES_DECLARANTS = ('functions', 'function_specs')
+
+
 def load_all():
-    """Force l'import des fonctions du catalogue (idempotent) — utile hors cycle Django ready()."""
+    """Force l'import des fonctions du catalogue (idempotent) — utile hors cycle Django ready().
+
+    ⚠ Le registre ne connaît PAS ses producteurs. Il citait auparavant `wama.common.data` et
+    `wama_lab.cam_analyzer` **en dur** : le substrat nommait deux mondes, donc ajouter un monde
+    exigeait de modifier le registre, et le déport de WAMA Data l'aurait cassé silencieusement.
+    Il parcourt maintenant les apps installées et importe leur module déclarant s'il existe —
+    la même leçon de registre keyé qu'ailleurs dans WAMA.
+
+    En cycle Django normal, chaque app le fait déjà dans son `ready()` ; cette fonction sert aux
+    scripts et aux commandes qui lisent le catalogue hors de ce cycle. Les imports sont idempotents.
+    """
+    import importlib
     try:
-        from wama.common.data import functions  # noqa: F401
+        from django.apps import apps as django_apps
+        noms = [c.name for c in django_apps.get_app_configs()]
     except Exception:
-        pass
-    try:
-        from wama_lab.cam_analyzer import function_specs  # noqa: F401
-    except Exception:
-        pass
+        # PAS de repli citant des mondes en dur : ce serait réintroduire exactement le couplage
+        # qu'on vient de retirer. Hors Django on rend ce qui a été enregistré par les imports.
+        import logging
+        logging.getLogger(__name__).debug(
+            'registre Django indisponible — catalogue rendu en l’état')
+        return FUNCTION_CATALOG
+    for nom in noms:
+        for module in MODULES_DECLARANTS:
+            try:
+                importlib.import_module(f'{nom}.{module}')
+            except ImportError:
+                pass          # l'app ne déclare rien — le cas NORMAL, pas une erreur
+            except Exception:
+                import logging
+                logging.getLogger(__name__).warning(
+                    'fonctions de %s.%s non enregistrées', nom, module, exc_info=True)
     return FUNCTION_CATALOG

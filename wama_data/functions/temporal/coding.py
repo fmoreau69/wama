@@ -1,5 +1,5 @@
 """
-Déclaration au catalogue du CODAGE (implémentation : `common/data/coding.py`).
+Déclaration au catalogue du CODAGE (implémentation : `wama_data/core/coding.py`).
 
 Le codage est le 5ᵉ mode de segmentation. Il entre au catalogue comme les quatre autres, et c'est
 tout l'enjeu : **un codage automatique par un modèle de vision devient alors un NŒUD DE PIPELINE**,
@@ -16,9 +16,9 @@ la même exécution : `rejouer` construit une vraie session et lui envoie les ge
 """
 from __future__ import annotations
 
-from ...coding import Protocole, accord, rejouer
-from ...data_types import CANONICAL_FIELDS, DataType, TypedFrame
-from ...function_catalog import FunctionCategory, FunctionSpec, ParamSpec, PortSpec, register
+from ...core.coding import Protocole, accord, rejouer
+from wama.common.catalog.data_types import CANONICAL_FIELDS, DataType, TypedFrame
+from wama.common.catalog.function_catalog import FunctionCategory, FunctionSpec, ParamSpec, PortSpec, register
 from .segmentation import CHAMPS_SEGMENT, _colonne, _fin, _segments, manquant
 
 #: Champs d'un événement produit par le codage — un ponctuel garde la même forme qu'un état.

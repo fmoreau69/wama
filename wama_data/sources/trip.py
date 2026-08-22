@@ -21,7 +21,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
-from ..temporal import NEAREST, PREVIOUS, SignalMeta
+from ..core.temporal import NEAREST, PREVIOUS, SignalMeta
 from . import SourceInfo, SourceReader, StreamSpec, register_reader
 
 #: Préfixes de table → famille. Les situations portent DEUX bornes, d'où un traitement distinct.

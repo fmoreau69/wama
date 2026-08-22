@@ -9,10 +9,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from . import sources
-from .sources import ResamplingTS, TimeOfIssueTS, TimestampTS
+from wama_data import sources
+from wama_data.sources import ResamplingTS, TimeOfIssueTS, TimestampTS
 
-BASE_REELLE = (Path(__file__).resolve().parents[3]
+BASE_REELLE = (Path(__file__).resolve().parents[2]
                / "claude" / "Exemple_trip" / "RecFile_REC_20190502_144710.trip")
 
 

@@ -20,7 +20,7 @@ from pathlib import Path
 from .temporal import (EXACT, NEAREST, PREVIOUS, Signal, SignalMeta, TemporalReferential)
 
 #: Base d'expérimentation réelle, hors dépôt (dossier gitignoré). Absente = contrôles sautés.
-BASE_REELLE = (Path(__file__).resolve().parents[3]
+BASE_REELLE = (Path(__file__).resolve().parents[2]
                / "claude" / "Exemple_trip" / "RecFile_REC_20190502_144710.trip")
 
 
@@ -232,7 +232,7 @@ class BaseReelleTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from . import sources
+        from .. import sources
         cls.ref = sources.load(BASE_REELLE,
                                streams=["data_BIOPAC_MP150", "data_PUPIL_GLASSES_gaze",
                                         "situation_0_15", "situation_0_60"])

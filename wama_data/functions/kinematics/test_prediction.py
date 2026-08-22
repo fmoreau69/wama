@@ -1,5 +1,5 @@
 """Tests de validation du portage Prédiction
-(exécuter : python -m wama.common.data.functions.kinematics.test_prediction)."""
+(exécuter : python -m wama_data.functions.kinematics.test_prediction)."""
 import numpy as np
 
 from ..geometry import rect_intersect_sat, point_traj_to_shape

@@ -22,8 +22,8 @@ import math
 
 import numpy as np
 
-from ...data_types import DataType, TypedFrame
-from ...function_catalog import (FunctionSpec, PortSpec, ParamSpec,
+from wama.common.catalog.data_types import DataType, TypedFrame
+from wama.common.catalog.function_catalog import (FunctionSpec, PortSpec, ParamSpec,
                                  FunctionCategory, register)
 
 

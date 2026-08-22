@@ -10,7 +10,7 @@ from pathlib import Path
 from .segmentation import (autour, chevauche, conditionnelle, etats, fermer, jonction,
                            ouverts, present_dans)
 
-BASE_REELLE = (Path(__file__).resolve().parents[3]
+BASE_REELLE = (Path(__file__).resolve().parents[2]
                / "claude" / "Exemple_trip" / "RecFile_REC_20190502_144710.trip")
 
 
@@ -190,7 +190,7 @@ class BaseReelleTest(unittest.TestCase):
     """Reproduire les fenêtres RÉELLES d'une campagne à partir de ses événements."""
 
     def test_les_fenetres_reelles_se_reproduisent(self):
-        from . import sources
+        from .. import sources
         ref = sources.load(BASE_REELLE, streams=["event_finTag_finDep_pieton_voiture",
                                                  "situation_0_15", "situation_15_45"])
         ancres = [ref.get("finTag_finDep_pieton_voiture").time_at(i)

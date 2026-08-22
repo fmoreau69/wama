@@ -1,5 +1,5 @@
 """
-Déclaration au catalogue des modes de segmentation (implémentation : `common/data/segmentation.py`).
+Déclaration au catalogue des modes de segmentation (implémentation : `wama_data/core/segmentation.py`).
 
 Ce fichier ne contient AUCUNE logique : il expose les modes en fonctions à ports typés, pour que le
 canvas studio les voie et puisse les chaîner sans code studio spécifique. C'est le geste que §7ter
@@ -13,9 +13,9 @@ pures les rendrait dépendantes de pandas et intestables sans lui.
 """
 from __future__ import annotations
 
-from ...data_types import CANONICAL_FIELDS, DataType, TypedFrame
-from ...function_catalog import (FunctionCategory, FunctionSpec, ParamSpec, PortSpec, register)
-from ...segmentation import autour, conditionnelle, etats, jonction, present_dans
+from wama.common.catalog.data_types import CANONICAL_FIELDS, DataType, TypedFrame
+from wama.common.catalog.function_catalog import (FunctionCategory, FunctionSpec, ParamSpec, PortSpec, register)
+from ...core.segmentation import autour, conditionnelle, etats, jonction, present_dans
 
 #: Champs canoniques d'un segment produit — `start`/`end` viennent de la taxonomie, le reste est
 #: la traçabilité systématique (voir `_tracer` dans l'implémentation).
