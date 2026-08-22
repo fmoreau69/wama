@@ -319,7 +319,10 @@
         const data = await resp.json();
         if (!resp.ok) throw new Error(data.error || 'Erreur création job');
         if (window.WamaFM) WamaFM.uploaded();  // fichiers d'entrée ajoutés → refresh filemanager
-        return data.job_id;
+        // `id` = contrat COMMUN (trou #24) ; les anciennes graphies restent lues en repli le
+        // temps que le parc converge. Sans ce repli, un identifiant `undefined` ne lèverait
+        // RIEN — pas de card, pas d'erreur console : le mode de panne le plus coûteux à trouver.
+        return data.id || data.job_id || data.pk || null;
     }
 
     // -----------------------------------------------------------------------

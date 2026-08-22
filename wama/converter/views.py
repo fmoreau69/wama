@@ -250,9 +250,14 @@ def upload(request):
     # Re-persiste le choix comme défaut du prochain dépôt de ce type de média.
     save_user_app_settings(user, 'converter', {f'last_format_{media_type}': output_fmt})
 
+    # Clé `id` — contrat COMMUN des vues d'upload (trou #24 de la route). Le converter était la
+    # graphie divergente (`job_id`) : régénérer l'app aurait fait renvoyer `id` à une vue dont le
+    # JS lisait `job_id`, donc `undefined` → aucune card, SANS erreur console. C'est exactement
+    # le défaut qui a rendu converter_01 inerte le 2026-08-22. On TRADUIT (et on remplace) au
+    # lieu d'émettre les deux graphies : juxtaposer aurait figé la divergence dans le contrat.
     return JsonResponse({
         'success':    True,
-        'job_id':     job.id,
+        'id':         job.id,
         'media_type': media_type,
         'filename':   file_obj.name,
         'output_fmt': output_fmt,
@@ -469,7 +474,7 @@ def duplicate(request, pk):
         },
         clear_fields=['output_file'],
     )
-    return JsonResponse({'success': True, 'job_id': new_job.id})
+    return JsonResponse({'success': True, 'id': new_job.id})   # contrat commun (cf. upload)
 
 
 @login_required
@@ -983,7 +988,7 @@ def quick_convert(request):
     task = convert_media_task.delay(job.id)
     job.task_id = task.id
     job.save(update_fields=['task_id'])
-    return JsonResponse({'success': True, 'job_id': job.id, 'task_id': task.id})
+    return JsonResponse({'success': True, 'id': job.id, 'task_id': task.id})   # contrat commun
 
 
 # ═══════════════════════════════════════════════════════════════════════════

@@ -595,6 +595,54 @@ def _recursive_import(f: _AppFiles):
     return present
 
 
+def _import_wired(f: _AppFiles):
+    """Zone de dépôt que RIEN n'écoute (trou #26 de la route) — le défaut le plus SILENCIEUX.
+
+    La grille mesurait la PRÉSENCE du markup d'entrée, jamais l'existence d'un écouteur. Or le
+    JS d'une app peut exister dans `static/` sans être JAMAIS chargé, si le gabarit n'émet pas
+    le bloc `app_scripts` que le socle offre pourtant (`app_modern_base.html:294`). Rien n'est
+    chargé, donc rien ne plante : **zéro erreur console**, et aucun critère ne baissait. Mesuré
+    le 2026-08-22 sur converter_01 — 0 card créable par 5 voies, grille inchangée.
+
+    ⚠ **La preuve se cherche DANS LE GABARIT** (« ce JS est-il chargé ? »), jamais dans
+    l'existence du fichier `.js` — c'est toute la différence, et c'est ce que la grille
+    confondait. `find_code` (et non `find`) parce que le gabarit généré porte un `{% comment %}`
+    qui CITE `app_scripts` pour l'expliquer : un critère qu'un commentaire fait passer au vert
+    devine au lieu de mesurer (même leçon que `inspector_adapters`, 19/08).
+
+    NON APPLICABLE quand aucune card d'entrée n'est rendue (médiathèque, gestionnaire de
+    modèles, studio) : il n'y a alors pas de dépôt à écouter. Même exemption que le scénario
+    nocturne `<app>.import`, pour que les deux mesures racontent la même histoire.
+
+    N'exige PAS que le dépôt CRÉE l'élément : avatarizer et imager déclarent
+    `data-wama-depot="attache"` (le fichier est joint, le bouton primaire crée) et ont bien un
+    écouteur. Ce critère mesure « quelque chose écoute », pas « quoi ».
+    """
+    # ⚠ La card d'entrée est le plus souvent INCLUSE depuis `common/`, pas écrite dans l'app :
+    # ne chercher que du markup local répondait « aucune card d'entrée » sur 10 apps qui en ont
+    # une (converter, transcriber, anonymizer…). Erreur commise en écrivant ce critère le
+    # 2026-08-22, et de la MÊME famille que le trou qu'il traque : mesurer l'artefact local au
+    # lieu de ce qui est réellement rendu. L'inclusion de la brique commune EST le markup.
+    markup = f.find_code(
+        TEMPLATES,
+        r'_new_item_card\.html|data-wama-nic|wama-dropzone|dropzone|type=[\'"]file[\'"]')
+    if not markup:
+        return None, "aucune card d'entrée rendue — aucun dépôt à écouter"
+    # ⚠ Coller à l'IDIOME RÉEL des gabarits, pas à celui qu'on imagine : le projet charge par
+    # `{% static_v %}` (cache-busting), et la brique s'appelle `batch-import.js` avec un TIRET.
+    # Écrit d'abord avec `static` et `batch_import`, ce motif déclarait le converter en échec
+    # alors que son scénario d'import est VERT (mesuré le matin même). C'est ce vert empirique
+    # qui a servi de garde-fou : un critère qui contredit une mesure de bout en bout a tort
+    # jusqu'à preuve du contraire — on corrige le critère, jamais la mesure.
+    charge = f.find_code(
+        TEMPLATES,
+        r'_app_scripts\.html|block\s+app_scripts|wama-import\.js|batch[-_]import\.js'
+        rf'|static(?:_v)?\s+[\'"]{re.escape(f.app)}/js/')
+    if charge:
+        return True, charge
+    return False, f'dépôt rendu ({markup}) mais AUCUNE voie d\'import chargée par le gabarit'
+
+
 def _has_prompt(f: _AppFiles) -> bool:
     """L'app a-t-elle un champ prompt ? (sinon les critères F6 prompt sont non applicables)
 
@@ -884,6 +932,10 @@ CRITERIA: list[Criterion] = [
     Criterion('recursive_import', 'F2', 'Import de DOSSIER récursif (brique WamaFolderImport)',
               _recursive_import,
               mecanisme='folder_import'),
+    # Trou #26 (route §11) : le seul critère qui regarde si le markup d'entrée est ÉCOUTÉ.
+    # Les autres critères d'import constatent une présence ; celui-ci constate un chargement.
+    Criterion('import_wired', 'F2', 'Voie d’import CHARGÉE par le gabarit (dépôt non inerte)',
+              _import_wired),
     # ── F3 UI / params / inspecteur ──
     Criterion('settings_modal_item', 'F3', 'Modale paramètres générée (WamaParams.render)', _params_modal,
               mecanisme='param_schema'),

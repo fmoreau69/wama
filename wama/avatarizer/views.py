@@ -204,7 +204,11 @@ def create(request):
         'use_enhancer': job.use_enhancer,
         'bbox_shift': job.bbox_shift,
     })
-    return JsonResponse({'job_id': job.id, 'status': 'created'})
+    # Clé `id` — contrat COMMUN des vues qui créent un élément (trou #24 de la route). Cette vue
+    # et `duplicate` étaient les DEUX seules de l'app à écrire `job_id` : `start`/`stop` (l. 218,
+    # 221) émettaient déjà `id`. L'app était donc incohérente avec elle-même, et la normalisation
+    # la rend cohérente en interne autant que conforme au contrat.
+    return JsonResponse({'id': job.id, 'status': 'created'})
 
 
 def stop(request, pk):
@@ -410,7 +414,7 @@ def duplicate(request, pk):
     else:
         _wrap_job_in_batch(copy)
 
-    return JsonResponse({'status': 'duplicated', 'job_id': copy.id})
+    return JsonResponse({'status': 'duplicated', 'id': copy.id})   # contrat commun (cf. create)
 
 
 def card_html(request, pk):

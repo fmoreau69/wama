@@ -204,7 +204,11 @@
                 return null;
             }
             if (window.WamaFM) WamaFM.uploaded();  // fichier ajouté → refresh filemanager
-            return data.job_id || null;
+            // `id` = contrat COMMUN des vues d'upload (trou #24). Les deux anciennes graphies
+            // restent lues en repli le temps que le parc converge : un identifiant `undefined`
+            // ne lève RIEN ici (`return null` silencieux, aucune card, aucune erreur console) —
+            // c'est ce mutisme qui a rendu converter_01 inerte pendant tout le 22/08.
+            return data.id || data.job_id || data.pk || null;
         } catch (err) {
             WamaApp.toast('Erreur réseau : ' + err.message, 'error');
             return null;
