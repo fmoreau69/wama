@@ -260,6 +260,13 @@ MECANISMES = (
               "Télécharge une source distante vers le FileField, déclaré par WAMA_INGEST",
               'wama/common/utils/source_ingest.py', 'WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/utils/url_ingest.py',)),
+    # Garde de SORTIE, distincte de l'ingest : l'ingest sait CHERCHER, celle-ci dit OÙ il a le
+    # droit d'aller. Séparées parce que tout nouvel appelant réseau doit la traverser, même
+    # s'il n'a rien à voir avec WAMA_INGEST.
+    Mecanisme('url_guard', 'Garde des URL sortantes',
+              "Valide toute cible de téléchargement pilotée par une saisie : schéma, "
+              "identifiants, et adresses privées/bouclage/lien-local — anti-SSRF",
+              'wama/common/utils/url_guard.py', 'PROFILES_PERMISSIONS.md'),
     Mecanisme('document_export', 'Export document',
               "Génère PDF (fpdf2) / DOCX (python-docx) depuis les résultats d'app",
               'wama/common/utils/document_export.py', ''),
@@ -317,7 +324,14 @@ MECANISMES = (
                        'wama/common/templates/common/_queue_actions.html',
                        'wama/common/templates/common/_batch_card.html')),
     Mecanisme('console', 'Console utilisateur',
-              "Lignes de journal structurées par utilisateur et par app, via Redis",
+              "Lignes de journal structurées par utilisateur et par app. ⚠ Annoncé « via Redis », "
+              "mais le chemin Redis exige `django_redis` — ABSENT des deux venvs et des "
+              "`requirements` (vérifié 2026-08-22) : la console tourne DEPUIS TOUJOURS sur son "
+              "repli cache, qui fonctionne mais n'est pas atomique (lire/insérer/réécrire, donc "
+              "des lignes perdues quand gunicorn et les workers Celery poussent en même temps). "
+              "Le correctif n'est PAS d'ajouter la dépendance : le client `redis` brut est déjà "
+              "installé et la brique d'accès existe (`resource_governor._redis`, via "
+              "`CELERY_BROKER_URL`)",
               'wama/common/utils/console_utils.py', '',
               annexes=('wama/common/static/common/js/console.js',)),
     Mecanisme('notifications', 'Notifications de tâche',

@@ -119,11 +119,21 @@
       function clearChatHistory() {
         chatHistory = [];
         localStorage.removeItem(STORAGE_KEY);
+        {% comment %}Accueil DÉCLARÉ côté serveur (assistant_skills.accueil) et non écrit ici :
+        il VARIE selon l'état de connexion — un visiteur non identifié doit toujours s'entendre
+        dire le parcours (s'identifier, puis attendre la modération), ce qu'un texte figé dans le
+        gabarit ne pouvait pas faire. Déclaré aussi pour qu'il s'affiche même LLM indisponible,
+        et pour que sa voix puisse être pré-calculée (texte fixe → l'avatar parle sans attendre
+        le premier jeton).{% endcomment %}
         chatMessages.innerHTML = `
           <div class="text-center py-4">
             <i class="fas fa-robot fa-2x mb-2"></i>
-            <p class="mb-0">Posez-moi une question ou demandez-moi d'agir sur WAMA.</p>
+            <p class="mb-0" id="assistant-accueil">{{ accueil_assistant.message|linebreaksbr }}</p>
+            {% if accueil_assistant.identifie %}
             <p class="small mt-2 text-muted">Ex : "Liste mes fichiers temporaires" · "Ajoute biovam.mp4 à l'anonymizer avec SAM3" · "Lance le traitement"</p>
+            {% else %}
+            <p class="small mt-2"><a href="{% url 'accounts:login' %}">S'identifier</a></p>
+            {% endif %}
           </div>`;
       }
 
@@ -438,12 +448,23 @@
         const loadingDiv = document.createElement('div');
         loadingDiv.id = 'ai-loading';
         loadingDiv.className = 'mb-3';
-        loadingDiv.innerHTML = `<div class="d-inline-block p-3 rounded-3 bg-secondary text-white"><i class="fas fa-spinner fa-spin me-2"></i> ${providerName} is thinking...</div>`;
+        loadingDiv.innerHTML = `<div class="d-inline-block p-3 rounded-3 bg-secondary text-white"><i class="fas fa-spinner fa-spin me-2"></i> ${providerName} is thinking...<span id="ai-attente" class="d-block small mt-1 opacity-75"></span></div>`;
         chatMessages.appendChild(loadingDiv);
         chatMessages.scrollTop = chatMessages.scrollHeight;
+        {% comment %}Mot d'attente APRÈS un délai, pas tout de suite : un modèle local doit
+        parfois se charger (plusieurs secondes) et l'attente ressemble alors à une panne —
+        surtout pour un visiteur qui découvre. L'afficher immédiatement ferait au contraire
+        clignoter l'interface quand la réponse arrive vite. Texte et délai sont DÉCLARÉS
+        (assistant_skills), pas écrits ici.{% endcomment %}
+        clearTimeout(window._attenteTimer);
+        window._attenteTimer = setTimeout(function () {
+          const el = document.getElementById('ai-attente');
+          if (el) el.textContent = "{{ accueil_assistant.attente|escapejs }}";
+        }, {{ accueil_assistant.attente_apres_ms }});
       }
 
       function removeLoadingIndicator() {
+        clearTimeout(window._attenteTimer);
         const loading = document.getElementById('ai-loading');
         if (loading) loading.remove();
       }

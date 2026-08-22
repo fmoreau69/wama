@@ -171,3 +171,57 @@ def contexte_laboratoire(user, question: str, cle: str = None) -> str:
 
     return ("\n\nLaboratory context (retrieved from the lab corpus — cite the reference "
             "when you use it):\n" + "\n".join(f"- {e}" for e in extraits))
+
+
+# ── ACCUEIL : ce que l'assistant dit AVANT qu'on lui parle ─────────────────────────────
+#
+# POURQUOI DÉCLARÉ, ET NON GÉNÉRÉ NI PORTÉ PAR UNE SKILL (arbitrage 2026-08-22).
+#   • pas une skill : les skills `assistant-*` sont CHOISIES par l'assistant selon le sujet
+#     (`charger_competence`). Or un visiteur non identifié doit TOUJOURS s'entendre dire le
+#     chemin — s'identifier, puis attendre la modération. On ne laisse pas un modèle juger
+#     s'il mentionne l'essentiel. Un déclenchement discrétionnaire est le mauvais mécanisme
+#     pour une phrase obligatoire.
+#   • pas généré : un accueil déclaré s'affiche même LLM indisponible, sans latence et sans
+#     appel. Un accueil généré échouerait en silence — précisément sur la surface qui doit
+#     convaincre. Il permet aussi de pré-calculer la voix (texte fixe → TTS mis en cache) et
+#     donc à l'avatar de parler immédiatement, sans attendre le premier jeton.
+#
+# La POSTURE (ton, contexte de labo) reste portée par les skills : on ne duplique rien ici.
+
+#: Accueil d'un visiteur NON IDENTIFIÉ. Dit ce que WAMA sait faire, puis le parcours — dans
+#: cet ordre : on donne envie avant de demander un effort.
+ACCUEIL_ANONYME = (
+    "Bonjour, je suis l'assistant WAMA. Je peux répondre à vos questions, traiter vos "
+    "médias — transcrire, décrire, convertir, anonymiser, générer — et enchaîner ces "
+    "traitements pour vous.\n\n"
+    "Pour en faire usage, il faut d'abord vous identifier, puis attendre la validation de "
+    "votre inscription. En attendant, posez-moi vos questions : je vous explique ce que "
+    "WAMA sait faire."
+)
+
+#: Accueil d'un utilisateur identifié. Court : il sait déjà où il est.
+ACCUEIL_IDENTIFIE = (
+    "Bonjour, je suis votre assistant WAMA. Que puis-je faire pour vous aujourd'hui ?"
+)
+
+#: Affiché si la réponse tarde. Le modèle local peut devoir se charger (plusieurs secondes) :
+#: sans ce mot, l'attente ressemble à une panne — surtout pour un visiteur qui découvre.
+ATTENTE = "Je réfléchis — le modèle se prépare, cela peut prendre quelques secondes…"
+
+#: Au-delà de ce délai (ms), on affiche `ATTENTE`. En deçà, la réponse arrive avant qu'un
+#: message d'attente ait le temps d'être lu : l'afficher ferait clignoter l'interface.
+ATTENTE_APRES_MS = 1500
+
+
+def accueil(user) -> dict:
+    """Textes d'accueil pour cette surface : {'message', 'attente', 'attente_apres_ms'}.
+
+    `user` non authentifié → accueil qui explique le parcours d'inscription.
+    """
+    identifie = bool(user is not None and getattr(user, 'is_authenticated', False))
+    return {
+        'message': ACCUEIL_IDENTIFIE if identifie else ACCUEIL_ANONYME,
+        'attente': ATTENTE,
+        'attente_apres_ms': ATTENTE_APRES_MS,
+        'identifie': identifie,
+    }

@@ -87,8 +87,13 @@ def home(request):
     # la LISTE doit être construite côté serveur : c'est là que vit la table des voix.
     from wama.common.tts.voices import choix_voix
     langue = getattr(getattr(request.user, 'profile', None), 'preferred_language', None) or 'fr'
+    # Accueil DÉCLARÉ, variant selon l'état de connexion : un visiteur non identifié doit
+    # toujours s'entendre dire le parcours (s'identifier, puis attendre la modération). Voir
+    # `assistant_skills.accueil()` pour le pourquoi du déclaratif plutôt que du généré.
+    from wama.common.utils.assistant_skills import accueil
     context = {
         'is_admin': is_admin,
+        'accueil_assistant': accueil(request.user),
         # Résolution catalogue à chaque rendu : 5 requêtes DB, uniquement pour l'admin
         # qui voit la surface chat.
         'chat_model_options': _chat_model_options() if is_admin else [],
