@@ -2690,6 +2690,124 @@ coût — et `select_model()` filtre `is_downloaded=True` par défaut, ce qui ex
 mécaniquement tout modèle cloud). C'est CE verrou, plus que LiteLLM déjà câblé, qui empêche
 d'étendre la sélection automatique au cloud. Chantier orthogonal, non ouvert.
 
+## §REPRISE — 2026-08-22 (session PORTAGE + CODEGEN + DROITS) — 🔚 POINT D'ENTRÉE
+
+> Session très longue, close proprement. **La session suivante repart sur le PORTAGE**, pas sur
+> la page d'accueil (arbitrage Fabien). Contrôles 5/5 conformes au moment de la clôture.
+
+### ✅ LIVRÉ ET VALIDÉ
+
+**Aperçu de résultat — le mécanisme n°30 couvre enfin les 10 apps.** Porté à composer,
+synthesizer, enhancer (×2 cards) ; le mécanisme APPREND deux choses qu'il ne savait pas : le
+**texte** à densité déclarée par l'hôte (`data-preview-mode=excerpt`, remplaçant 3 extraits
+réécrits par app) et la **collection** (`result_files`, clé canonique ajoutée au schéma —
+imager rendait 1 image sur N). Trois défauts réparés au passage, dont deux que personne ne
+cherchait : le **bouton de lecture coupé** (35 px mesurés avant/après — le lecteur d'onde ne
+contient aucun `<audio>`, son élément est un `new Audio()` hors DOM, donc le `:has()` ne le
+matchait pas ; `<embed>`/`<iframe>` souffraient du même mal), la **navigation de la visionneuse
+imager** qui retombait sur « image seule » (sélecteur `.generated-image-preview img` alors que
+la classe est SUR le `<img>`), et l'**image améliorée de l'enhancer** affichée nulle part.
+
+**Fichiers de lot — la détection cesse d'être gloutonne.** `_parse_media_lines` acceptait TOUTE
+ligne non vide comme un chemin : 3 lignes de prose = 3 « médias », donc `count > 0` toujours,
+donc le repli du front (`batch-import.js:140`) ne se déclenchait JAMAIS pour un texte.
+Conséquence : on ne pouvait pas convertir un `.txt` par dépôt. Discriminant STRUCTUREL
+(`ligne_est_une_reference`) + refus net plutôt qu'amputation. `BATCH_FORMAT.md` gagne la règle
+de décision (3 familles d'apps) et la vraie place du **séparateur vertical** : le pipe À EN-TÊTE
+est déjà reconnu comme un CSV (vérifié), le pipe positionnel reste le format originel gardé pour
+la compatibilité des fichiers du synthesizer.
+
+**converter_01 crée enfin des cards — 4 défauts, dont 3 de brique commune.** ① le gabarit généré
+n'émettait AUCUN bloc de scripts (le socle offre pourtant `app_scripts`) : rien chargé, aucun
+écouteur, **zéro erreur console** — le silence qui l'a rendu invisible au banc codegen ;
+② `apply_queue_sort_filter` tombait sur un item HORS LOT, parce que la vue générée n'appelait
+pas l'enveloppement en lot-de-1 que les 10 apps respectent ; ③ `consolidate` bouchonné en 501
+alors que **la fabrique le rendait déjà** (4 clés, 3 reprises) ; ④ `batch_preview` bouchonné à
+la MAUVAISE signature → 500 au lieu du 501 annoncé, un bouchon qui se sabordait lui-même.
+
+**Brique d'import commune** (`wama-import.js`) + **couche JS d'application**
+(`_app_scripts.html`), toutes deux GÉNÉRÉES désormais. Ce qui manquait était précis : la
+fonction qui prend un `File` et le POSTe vers `upload`. `batch-import.js` s'arrêtait sur son
+propre commentaire (« laissons l'app s'en occuper » — dans une app générée, cette app n'existe
+pas) et `WamaApp` n'avait d'équivalent que pour le champ URL. Deux modalités bloquées, pas une :
+la médiathèque rend elle aussi un `File` à l'appelant.
+
+**Générateur — deux chemins qui ne produisaient pas la même app.** `render_models` a un rendu
+INTROSPECTÉ (app existante) et un rendu SQUELETTE (app neuve) ; seul le second émettait
+`WAMA_INGEST`, invisible au sérialiseur de champs puisque c'est un attribut de classe. Les
+**10 apps** le déclarent et toutes le perdaient à la régénération — d'où une app régénérée qui
+AFFICHE le champ URL (dérivé des capacités, 3ᵉ source indépendante) sans machinerie derrière.
+Question de Fabien à l'origine de la trouvaille.
+
+**Droits — le modèle était bon, son branchement l'annulait.** WAMA portait DEUX anonymes : la
+requête non connectée (tier `anonymous`, refusée partout) et l'utilisateur `anonymous` EN BASE
+— le repli des vues — qui portait les 4 rôles et le tier `utilisateur`, donc **accepté partout**.
+Mesuré : POST anonyme sur `transcriber/upload/` → 400 (fichier manquant), pas 403. Fermé en deux
+gestes de base (retrait des rôles, puis tier `anonymous`) : 14 apps → **0**. Décision Fabien :
+**WAMA n'est pas ouvert**, on s'identifie par LDAP et l'inscription est validée à la main —
+`converter public` ABANDONNÉ. Voir `PROFILES_PERMISSIONS §1.4-1.5`.
+
+**Garde SSRF** (`common/utils/url_guard.py`) : aucun chemin ne validait la cible d'un
+téléchargement piloté par une saisie. 11 cibles internes refusées (bouclage v4/v6, privé,
+lien-local, métadonnées d'instance, schémas `file`/`gopher`, identifiants dans l'URL, forme
+octale), 3 URL légitimes acceptées. Limites ÉCRITES dans le module : rebinding DNS non couvert.
+
+**Accueil de l'assistant** (idée Fabien) : texte DÉCLARÉ variant selon l'état de connexion — un
+visiteur s'entend toujours dire le parcours. Ni skill (choisie par l'assistant = mauvais
+déclencheur pour une phrase obligatoire) ni généré (échouerait en silence si le LLM est absent ;
+et un texte fixe permet de mettre la voix en cache, donc à l'avatar de parler sans latence).
+Mot d'attente après 1500 ms. Sûr par construction : `user=None` → chat sans outils.
+
+**Tests — les sondes entrent dans la charpente.** Scénario `<app>.import` (COMPORTEMENT) à côté
+de `<app>.ui` (SANTÉ) : converter_01 satisfaisait le second en étant totalement inerte. Dérivé
+des URL comme son voisin, donc toute app future est couverte ; nettoie ses éléments via le
+`PreviewRegistry`. Sélection par `--id` (préfixe `converter_01.`, suffixe `.import`), `--list`.
+**Deux biais de mon propre test corrigés par la confrontation aux 11 apps** — il déclarait le
+converter défaillant parce qu'il n'utilise pas `WamaImport` (confondre ADOPTION et CAPACITÉ), et
+son témoin retombait sur `.txt` pour les apps à images.
+
+### 🔚 CE QUI RESTE — reprendre PAR LÀ
+
+1. **`batch_create`** (trou 22) : dernier bouchon du chemin de lot. L'aperçu marche, le bouton ne
+   produit rien. Les pièces existent (`group_into_batches_by_nature`, `wrap_in_batch`) — c'est du
+   câblage, comme les trois précédents.
+2. **`anonymizer.import` échoue en 400** : sa route `upload/` est un **alias de l'IndexView**
+   (`urls.py:14`), pas un endpoint d'upload. À instruire — vrai signal, correctif non évident.
+3. **`avatarizer.import` / `imager.import`** : la sonde vise un champ de RÉFÉRENCE (avatar,
+   image de style). Ces apps sont prompt-primaires ; le geste équivalent n'est pas le dépôt.
+   Décider si le scénario doit les couvrir autrement, ou les déclarer non applicables.
+4. **Passe de confirmation de la route** (demande Fabien) : inventorier les EMBRANCHEMENTS du
+   codegen et, pour chacun, ce que le chemin non pris perd — fait à la main pour un seul
+   (`WAMA_INGEST`) et il couvrait les 10 apps. Puis réévaluer la grille avec ce qu'on aura appris.
+5. **Adoption de la card d'entrée commune** : les apps en place ne portent aucun marqueur
+   déclaratif désignant leur champ d'import (jusqu'à 6 `input[type=file]` par page). D'où la
+   règle « ambiguïté ⇒ SKIP » du scénario — le SKIP MESURE donc l'adoption, il se résorbera au
+   fil du portage.
+
+### ⏳ PENDINGS / DÉCISIONS
+
+- **Avant toute ouverture externe** : dégradation élégante quand un outil est refusé à l'anonyme,
+  mémoire/RAG hors de sa portée (compte UNIQUE = risque de fuite entre visiteurs), limite de débit.
+- **Trous de droits consignés** (`PROFILES_PERMISSIONS §1.5`) : index non gardés (200 pour un
+  visiteur alors qu'`accessible()` dit non) ; gardes d'action hétérogènes, **4 apps sans aucune
+  garde** sur `upload` ; aucun contrôle de contenu à l'upload (ni antivirus, ni type réel, ni
+  borne de taille).
+- **`venv_win` est CASSÉ** (`pgvector` manquant) : `check_docs` et `check_app_conformity` doivent
+  tourner depuis WSL2, contrairement à ce qu'annonce le skill `/reprise`.
+- **gunicorn n'a ni `reload` ni `preload_app`** : toute modification Python exige un redémarrage.
+  Trois diagnostics de la journée s'y sont heurtés. Les gabarits, eux, se relisent à chaque requête.
+- Trous 21-28 consignés dans `WAMA_APP_GENERATION_ROUTE.md` ; le 21 est CLOS depuis (généré).
+- **push : 30+ commits non poussés** — demander avant.
+
+> **Contrôles attendus au prochain `/reprise`** : `check_docs` **2 CASSÉ / 0 périmée** — les deux
+> pointent désormais sur le partial d'onglets de résultat (cité deux fois), la référence au
+> middleware i18n ayant disparu. ⚠ Ne PAS réécrire ces chemins ici : `check_docs` compte toute
+> forme de chemin comme une référence, donc en décrire une cassée en crée une troisième (piège
+> déjà rencontré le 14/08, cf. plus bas) · `doc_facts` **5/5 à jour** · corpus **110** · roundtrip
+> fidélité OK sur 10 · grille : **converter / describer / transcriber 100** · enhancer 99 ·
+> anonymizer / avatarizer / composer / reader / synthesizer 98 · imager 97 ·
+> `run_nightly_tests --id .import` = **5 OK / 3 échecs / 5 skips** (14 scénarios).
+
 ## §REPRISE — 2026-08-19 (CLÔTURE, instance « PROSPECTION de modèles ») — 🔚 POINT D'ENTRÉE
 
 > **Périmètre disjoint** des deux autres clôtures du jour (vision 3D/qualité modèles ; portage
