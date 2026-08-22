@@ -322,23 +322,13 @@
         }
     }
 
-    async function deleteJob(jobId) {
-        if (!confirm('Supprimer cette conversion ?')) return;
-        try {
-            await csrfPost(urlFor(APP.urls.delete, jobId));
-            const card = document.querySelector(`.job-card[data-job-id="${jobId}"]`);
-            if (card) card.remove();
-            stopPolling(jobId);
-            if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
-            if (!queue.querySelector('.job-card')) {
-                if (!emptyState) location.reload();
-            }
-        } catch (err) {
-            WamaApp.toast('Erreur réseau : ' + err.message, 'error');
-        }
-    }
+    // Suppression : retirée le 2026-08-22 avec le passage à `.delete-btn[data-delete-url]`.
+    // Ce que faisait la version locale et que le rechargement de la brique couvre : arrêt du
+    // polling de l'item, rafraîchissement du filemanager, retrait de la card. Seule différence
+    // assumée — un rechargement de page au lieu d'un retrait en place, exactement le
+    // comportement que la duplication a déjà depuis qu'elle est passée à la brique.
 
-    // Duplication : gérée par la brique commune queue-actions.js (délégation
+    // Duplication ET suppression : gérées par la brique commune queue-actions.js (délégation
     // globale sur le bouton de card, aucun handler local ici).
 
     // ── Polling ───────────────────────────────────────────────────────────────
@@ -414,8 +404,11 @@
         const startBtn = e.target.closest('.job-start-btn');   // legacy (plus rendu) — repli inerte
         if (startBtn) { startJob(startBtn.dataset.jobId); return; }
 
-        const delBtn = e.target.closest('.job-delete-btn');
-        if (delBtn) { deleteJob(delBtn.dataset.jobId); return; }
+        // Suppression d'un ÉLÉMENT : plus de handler ici — la brique commune
+        // `queue-actions.js` délègue sur `.delete-btn[data-delete-url]`, confirmation comprise
+        // (2026-08-22). Le retrait est SOLIDAIRE du changement de classe dans `_job_card.html` :
+        // les deux ensemble, sinon double-fire (app + brique) ou bouton mort.
+        // Les actions de LOT restent locales tant que la brique ne les porte pas.
 
         const settBtn = e.target.closest('.job-settings-btn');
         if (settBtn) { openSettingsModal(settBtn.dataset.jobId); return; }

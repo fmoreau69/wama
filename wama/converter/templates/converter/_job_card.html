@@ -117,8 +117,14 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
                 title="Dupliquer" data-duplicate-url="{% url 'converter:duplicate' job.id %}">
           <i class="fas fa-copy"></i>
         </button>
-        <button class="btn btn-sm btn-outline-danger job-delete-btn"
-                title="Supprimer" data-job-id="{{ job.id }}">
+        {% comment %}`delete-btn` + `data-delete-url` = contrat de la brique commune
+        (`queue-actions.js`), symétrique de `.duplicate-btn` juste au-dessus. Remplace
+        `job-delete-btn`, graphie propre au converter (2026-08-22). Le handler local de
+        `converter.js` est retiré DANS LE MÊME GESTE : garder les deux ferait tirer l'app ET
+        la brique — un double-fire, donc deux requêtes de suppression.{% endcomment %}
+        <button class="btn btn-sm btn-outline-danger delete-btn"
+                title="Supprimer" data-job-id="{{ job.id }}"
+                data-delete-url="{% url 'converter:delete' job.id %}">
           <i class="fas fa-trash"></i>
         </button>
       </div>
