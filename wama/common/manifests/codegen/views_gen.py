@@ -100,9 +100,21 @@ def render_views(manifest: dict) -> tuple:
 
     # ── Corps conventionnels (idiomes MESURÉS, paramétrés) ─────────────────────
     vues = {}
+    # ENVELOPPEMENT DES ORPHELINS — convention commune, et non un détail (2026-08-22).
+    # `batch_common.auto_wrap_orphans` la formule : « chaque orphelin → SON batch-of-1, la
+    # règle depuis 2026-08-14 (10 apps) », et `build_batches_list` s'y adosse (« une card
+    # isolée est déjà auto-enveloppée dans son propre batch »). L'app générée l'ignorait et
+    # laissait des items HORS LOT : `apply_queue_sort_filter` lit alors `b['obj'].created_at`
+    # sur un None et la file entière tombe en AttributeError — un seul item isolé suffisait.
+    # Le contrat de la brique n'était pas trop strict, c'est la vue générée qui le violait.
+    # ⚠ La brique commune suppose un modèle de LIAISON ; ici la FK est DIRECTE (comme
+    # converter, seule app dans ce cas), d'où la boucle explicite plutôt qu'un appel — même
+    # forme que `converter/views.py::_auto_wrap_orphans`. Trou consigné : `batch_common` n'a
+    # pas de variante FK-directe, et le motif est désormais écrit à 4 endroits.
     vues['index'] = f'''class IndexView(View):
     def get(self, request):
         user = _user(request)
+        _auto_wrap_orphans(user)
         jobs = {item}.objects.filter(user=user).order_by('{fk}_id', '{row}')
         grouped = {{}}
         for j in jobs:
@@ -366,7 +378,11 @@ _qm = make_queue_manipulation_views_direct(
 )
 reorder           = _qm['reorder']
 move_to_batch     = _qm['move_to_batch']
-remove_from_batch = _qm['remove_from_batch']'''
+remove_from_batch = _qm['remove_from_batch']
+# `consolidate` était BOUCHONNÉ en 501 alors que la fabrique ci-dessus le rend depuis
+# toujours — quatre clés, trois reprises (2026-08-22). Rien à écrire : le regroupement de
+# N dépôts en un lot était déjà là, dans le fichier même de l'app.
+consolidate       = _qm['consolidate']'''
 
     # ── Assemblage : UNE définition par callable exigé (conventionnel ou stub) ──
     # `batch_preview` RETIRÉ de cet ensemble (2026-08-22) : sa route conventionnelle est
@@ -377,7 +393,7 @@ remove_from_batch = _qm['remove_from_batch']'''
     # devenait indéchiffrable. Le second chemin d'assemblage (`extras`, plus bas) l'excluait
     # déjà correctement : les deux se contredisaient.
     stubs_pk = {'card_html'}
-    couverts_fabrique = {'reorder', 'move_to_batch', 'remove_from_batch'}
+    couverts_fabrique = {'reorder', 'move_to_batch', 'remove_from_batch', 'consolidate'}
     ignores = {'about', 'help'}     # servis par common.views dans le urls généré
     blocs, deja = [], set()
     for ep in d['endpoints']:
@@ -429,6 +445,26 @@ from .tasks import {task}
 
 def _user(request):
     return request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+
+
+def _auto_wrap_orphans(user):
+    """Chaque item HORS LOT devient son propre lot-de-1 — convention commune des 10 apps.
+
+    Non décoratif : `apply_queue_sort_filter` lit `b['obj'].created_at`, et un item sans lot
+    donne `obj = None` → la file entière tombe. La brique `batch_common.auto_wrap_orphans`
+    porte cette règle, mais suppose un modèle de LIAISON ; la FK est ici DIRECTE, d'où la
+    boucle (même forme que converter). Silencieux par item : un orphelin cassé ne doit pas
+    empêcher la page de s'afficher.
+    """
+    orphelins = {item}.objects.filter(user=user, {fk}__isnull=True)
+    for w in orphelins:
+        try:
+            b = {batch}.objects.create(user=user, total=1)
+            setattr(w, '{fk}', b)
+            setattr(w, '{row}', 0)
+            w.save(update_fields=['{fk}', '{row}'])
+        except Exception:
+            pass
 
 '''
     return tete + '\n\n\n'.join(blocs) + '\n', None
