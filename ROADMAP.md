@@ -2281,20 +2281,40 @@ sensibles, la cible reste **Tchap** ; Discord sert le confort d'usage et le dév
 | `gateway/adapters/discord_bot.py` — traduit, ne décide rien | ✅ |
 | `manage.py run_gateway <canal>` (+ `--check` qui valide sans se connecter) | ✅ |
 | 16 assertions vertes (sans réseau, sans LLM, sans GPU) | ✅ |
-| Bout en bout réel (jeton Discord + LLM) | ⏳ **Fabien** |
+| Bout en bout réel (jeton Discord, serveur du labo) | ✅ **ÉPROUVÉ le 2026-08-22** |
 
-**Gardes posées dès le premier jet** : en salon le bot ne répond **que s'il est mentionné**
-(un bot qui lit tout un salon de labo est une aspiration de données que personne n'a
-demandée) ; `WAMA_DISCORD_ALLOWED_CHANNELS` borne les salons ; une réponse **privée** n'est
-jamais publiée dans un salon (DM fermés → on le dit, on ne replie pas) ; plafond 25 Mo en
-entrée ; aucune réponse aux bots ; un inconnu obtient une invitation à se lier, **jamais**
-un traitement « en anonyme ».
+**✅ Épreuve réelle du 2026-08-22** — bot `WAMA#3080` connecté au serveur du labo, salon
+**privé** dédié, appariement bouclé (`demande` 19:16:16 → `liaison confirmée … → fabien.moreau`
+19:16:31). Chaque maillon a fonctionné pour de bon : Discord livre le **contenu** du message,
+l'adaptateur route vers le cœur, l'ORM écrit, la réponse repart dans le canal, et l'écran du
+profil scelle la liaison sur le compte de la **session** authentifiée.
 
-⚠ **Deux pièges d'exécution**, traités : `traiter_message` est **bloquant** et touche l'ORM
-→ appelé via `asyncio.to_thread`, sinon le bot fige pour tout le monde pendant qu'une
-personne attend ; et l'intent **`message_content` est privilégié** → sans la case cochée
-dans le portail développeur, le bot reçoit les événements mais `message.content` arrive
-**vide** (panne silencieuse qui ressemble à un bot qui « ignore » les messages).
+**Modèle d'usage arrêté par Fabien (2026-08-22)** — *« WAMA n'ira pas dans les canaux Discord,
+le labo ne sera jamais d'accord. WAMA aura son propre canal. »* WAMA a donc **son** salon, il
+n'entre pas dans ceux du labo. D'où la règle du code : dans un **salon déclaré**
+(`WAMA_DISCORD_ALLOWED_CHANNELS`) il répond **sans mention** ; **partout ailleurs il est muet,
+mention comprise** — la liste blanche **prime sur** la mention. Sans liste blanche il retombe
+sur « répond si mentionné », que `run_gateway` signale explicitement comme n'étant PAS le
+modèle retenu.
+
+**Autres gardes** : une réponse **privée** n'est jamais publiée dans un salon (DM fermés → on
+le dit, on ne replie pas) ; plafond 25 Mo en entrée ; aucune réponse aux bots ; un inconnu
+obtient une invitation à se lier, **jamais** un traitement « en anonyme ».
+
+⚠ **Trois pièges d'exécution.** `traiter_message` est **bloquant** et touche l'ORM → appelé via
+`asyncio.to_thread`, sinon le bot fige pour tout le monde pendant qu'une personne attend.
+
+⚠ **L'intent `message_content` est privilégié** — et la panne n'est **PAS** celle que ce
+document annonçait. Il y était écrit « le bot reçoit les événements mais `message.content`
+arrive vide, panne silencieuse ». **Faux, mesuré le 22/08** : `discord.py` lève
+`PrivilegedIntentsRequired` **à la connexion** et le process **meurt**, message de remède
+compris. La panne est explicite et immédiate — bien plus facile à traiter que ce qu'on
+craignait. Remède : portail développeur → application → **Bot** → *Privileged Gateway Intents*
+→ cocher **MESSAGE CONTENT** seul (ni Presence ni Server Members : le code n'en demande aucun).
+
+⚠ **Salon privé = le rôle du bot doit y être autorisé explicitement**, sinon il ne voit rien,
+ne reçoit rien et **ne dit rien** — aucune erreur nulle part. C'est LA panne silencieuse de ce
+chantier, celle contre laquelle il faut prévenir quiconque déclare un salon privé.
 
 **⏳ Reste :**
 - **Store de conversation** — le prochain vrai morceau (voir §19.5) : l'historique est
@@ -2307,8 +2327,16 @@ dans le portail développeur, le bot reçoit les événements mais `message.cont
   jusque dans Discord), en remplacement des commandes texte `!lier`/`!aide`.
 - **Rate-limit** par identité de canal (§19.4 ④) — l'appariement borne le *qui*, pas le
   *combien*.
-- **UI de saisie du code** côté WAMA (profil) — aujourd'hui `confirmer_liaison()` n'a pas
-  encore d'écran ; c'est ce qui manque pour boucler l'appariement sans passer par le shell.
+- 🔴 **SUPERVISION — le seul manque bloquant pour un usage réel.** `run_gateway` tourne
+  aujourd'hui dans un process lancé à la main : il meurt avec le terminal. Or *une passerelle
+  qui meurt ne se voit pas* — personne ne reçoit d'erreur, les messages restent simplement
+  sans réponse. À superviser comme gunicorn et Celery (redémarrage automatique), avec la même
+  alerte que les autres process du démarrage.
+
+> ✅ **Périmé, retiré le 22/08.** Il était écrit ici que « `confirmer_liaison()` n'a pas encore
+> d'écran ». **Faux** : l'écran existe et a servi à l'épreuve réelle — `accounts/views.py:467`
+> (`channel_link_confirm`, route `profile/channel/link/`) + section « Canaux de discussion »
+> de `profile.html:276`. C'est précisément cet écran qui apporte la preuve d'identité.
 
 > ✅ **Faux bloquant retiré (vérifié le 21/08).** J'avais écrit ici que
 > `POST /filemanager/api/import/`, session-only, bloquerait le parcours. **C'est faux** :

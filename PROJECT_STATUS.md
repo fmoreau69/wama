@@ -2690,6 +2690,80 @@ coût — et `select_model()` filtre `is_downloaded=True` par défaut, ce qui ex
 mécaniquement tout modèle cloud). C'est CE verrou, plus que LiteLLM déjà câblé, qui empêche
 d'étendre la sélection automatique au cloud. Chantier orthogonal, non ouvert.
 
+---
+
+### SUITE (2026-08-22, même instance) — 🔚 **LE BOT DISCORD EST EN SERVICE**
+
+**Ce qui a changé d'état** : la passerelle n'est plus du code éprouvé par des tests, elle a
+**tourné pour de bon**. Bot `WAMA#3080` connecté au serveur du labo, dans un salon **privé**
+déclaré. Appariement bouclé et **prouvé par les journaux** :
+
+```
+19:13:02  connecté comme WAMA#3080 (1 salon(s) autorisé(s))
+19:16:16  demande de liaison discord:<id utilisateur> (nouvelle)
+19:16:31  liaison confirmée discord:<id utilisateur> → fabien.moreau
+```
+> Identifiants **tronqués volontairement** : un snowflake Discord n'est pas un secret, mais ce
+> dépôt a vocation à devenir public (`LICENSING.md`) et l'identifiant personnel n'ajoute rien à
+> la démonstration. Le hook gitleaks a d'ailleurs refusé le premier jet — à raison sur le fond.
+
+Chaque maillon a donc fonctionné : Discord livre le **contenu**, l'adaptateur route, l'ORM
+écrit, la réponse repart dans le canal, l'écran du profil scelle la liaison sur le compte de
+la **session** authentifiée. Détail utile : l'appariement épingle `message.author.id`
+(**l'identité**, stable — jamais le pseudo), tandis que `fil` porte `channel.id` (**la
+conversation**). Une seule liaison vaut donc partout ; DM et salon restent deux fils distincts.
+
+⚠ **Ce qui N'EST PAS prouvé** : aucun **tour de conversation LLM** n'apparaît dans les
+journaux — seulement l'appariement. Fabien constate que « ça a l'air de bien fonctionner » et
+**aucune erreur** n'est remontée côté serveur (un échec produirait `[ERROR] échec de
+traitement`), mais l'absence de log de succès empêche de l'affirmer. **À reprendre** : `!aide`
+(sans modèle, isole le routage) puis une vraie question (sollicite Ollama sur l'hôte Windows).
+
+**Deux pièges vécus, désormais consignés en `ROADMAP.md` §19.1** :
+1. **`PrivilegedIntentsRequired`** — l'intent `message_content` doit être coché dans le portail
+   (Bot → *Privileged Gateway Intents* → **MESSAGE CONTENT** seul). ⚠ **La ROADMAP décrivait
+   la mauvaise panne** : elle annonçait un `message.content` vide, « silencieux ». Faux —
+   `discord.py` lève à la connexion et le process **meurt**, remède compris dans le message.
+   Corrigé.
+2. **Salon privé** → le rôle du bot doit y être **explicitement autorisé**, sinon il ne voit
+   rien et ne dit rien, sans la moindre erreur. **C'est** la panne silencieuse du chantier.
+
+**Périmé retiré de §19.1** : « `confirmer_liaison()` n'a pas encore d'écran » — il existe
+(`accounts/views.py:467`, route `profile/channel/link/`, section « Canaux de discussion » de
+`profile.html:276`) et c'est lui qui a servi à l'épreuve.
+
+#### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+**🔴 SUPERVISER `run_gateway`** — c'est le seul manque bloquant pour un usage réel. Le bot
+tourne dans un process lancé à la main : **il est mort à la fin de cette session**. Or *une
+passerelle qui meurt ne se voit pas* : personne ne reçoit d'erreur, les messages restent sans
+réponse. À traiter comme gunicorn et Celery (redémarrage automatique + alerte).
+
+#### File des chantiers ouverts (ordre)
+1. 🔴 **Supervision de `run_gateway`** (ci-dessus) — bloquant.
+2. **Vérifier un tour LLM réel** dans Discord (10 s, mais demande Ollama lancé côté Windows).
+3. **Slash commands générées depuis `TOOL_REGISTRY`** — métadonnée-driven jusque dans Discord,
+   en remplacement de `!lier`/`!aide`.
+4. **Rate-limit** par identité de canal (§19.4 ④) — l'appariement borne le *qui*, pas le *combien*.
+5. **Registre de credentials LLM** par utilisateur (api / abonnement) — architecture arrêtée,
+   **non construite** ; bloquée sur une décision : chiffre-t-on les jetons d'abonnement au repos ?
+6. **Claude Code comme fournisseur de chat** — le moteur existe (`common/services/claude_code.py`,
+   `demander()`), seule la branche `_llm_call` manque.
+7. **Adaptateur Matrix/Tchap** — la cible pour des données SHS sensibles (Discord = propriétaire
+   et hors UE ; il sert le confort d'usage et le développement).
+
+#### Pendings système
+- **Le bot est arrêté** (process non supervisé) — relancer par
+  `venv_linux/bin/python manage.py run_gateway discord` depuis WSL2.
+- **Rien à pousser de cette suite** hors le commit de consignation ; `fb0fd5bc` (garde `--check`)
+  était déjà en place.
+- **Jetable laissé au scratchpad** : `verif_token_discord.py` (diagnostique la *forme* d'un jeton
+  sans jamais l'afficher — utile si le jeton est de nouveau confondu avec la clé publique).
+
+#### Contrôles attendus au prochain `/reprise`
+`check_docs` → **3 CASSÉ** (toutes `common/_result_tabs.html`, périmètre codegen d'une autre
+instance — **pas** une régression de ce chantier) · `ChannelLink` → **1 ligne** (fabien.moreau
+↔ discord) au lieu de 0.
+
 ## §REPRISE — 2026-08-22 (session « WAMA DATA → MONDES → REGISTRES ») — 🔚 POINT D'ENTRÉE
 
 > **Un seul fil**, même si la session a l'air d'en mêler trois : le Segmenter avait besoin d'entrer
