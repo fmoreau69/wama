@@ -172,3 +172,27 @@ Voir l'audit (transcriber `backend→engine` `audio→source_file` … ; reader 
   > Ne contredit PAS la décision figée n°2 du 2026-07-07 (« `result_file` non distingué par
   > type ») : il ne s'agit pas de distinguer un type de sortie, mais un **cardinal**. Le concept
   > « résultat » reste unique ; on nomme seulement le cas où il y en a N.
+
+---
+
+## Voir aussi — la frontière avec `WAMA_VOLETS.md` (ajouté 2026-08-22)
+
+Les deux documents décrivent **deux couches** de la même région d'écran, et ne se recouvrent pas
+(vérifié dans les deux sens le 2026-08-22) :
+
+| | `WAMA_VOLETS.md` | **ce document** |
+|---|---|---|
+| Objet | le **CONTENANT** — ossature `base.html`, quelles sections existent et quand | le **CONTENU** d'une seule section : « Infos » |
+| Couvre | 4 états contextuels (file/item/batch/désélection), contrat déclaratif `volet.py`, 35 pages mesurées, mode simplifié | quelles clés, quel sens, quels alias, quelles règles de rendu |
+
+**La couture est `#inspectorInfo` + `fillDetail`.** `WAMA_VOLETS` §3 décrit l'état ② : un clic sur
+une card appelle `fillDetail` → `/common/detail/<app>/<pk>/` et remplit `#inspectorInfo`. **Ce
+document reprend exactement là.** Les deux pointent vers `wama-inspector.js`, mais vers des
+fonctions distinctes — `init`/`deselect`/machine à états là-bas, `renderDetailChips`/`DETAIL_META` ici.
+
+**Qui modifier :** l'hôte, le moment de l'appel ou la visibilité de la section → `WAMA_VOLETS`.
+Ce que l'appel RENVOIE et comment c'est rendu → ici.
+
+> Ce renvoi est ajouté parce que le lien était **unidirectionnel** : `WAMA_VOLETS` citait ce
+> document, l'inverse n'existait pas. C'est ainsi que deux références divergent — et
+> vraisemblablement pourquoi ce fichier a été oublié pendant la session « volets ».
