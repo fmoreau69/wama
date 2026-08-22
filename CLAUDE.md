@@ -215,6 +215,7 @@ le défaut qui a rendu ce déport risqué — ne pas le réintroduire.
 | Formalisme de card (anatomie, 3 densités v1/v2/v3, batchs) | `CARD_DESIGN.md` |
 | UX de la file / modes applicatifs | `MODES_QUEUE_UX.md` |
 | Inspecteur — champs de détail (schéma canonique) | `INSPECTOR_DETAIL_FIELDS.md` |
+| **Volets gauche et droit** (ossature, états contextuels, mode simplifié, repli) | `WAMA_VOLETS.md` — état des lieux MESURÉ des 35 pages ; `INSPECTOR_DETAIL_FIELDS.md` reste le schéma des CHAMPS, pas la structure |
 | Studio & production AV | `STUDIO_VISION.md` |
 | Monde Data (périmètre, cartographie de corpus) | `WAMA_DATA_WORLD.md` + `WAMA_DATA_FUNCTION_CARDS.md` (catalogue) |
 | Vision produit d'ensemble | `docs/WAMA_Vision_Complet_v2.md` (+ `docs/VISION_STATUS.md` = confrontation au réel) |
