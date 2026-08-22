@@ -117,6 +117,22 @@ class ModelRegistry:
 
     _instance = None
 
+    #: Échecs rencontrés pendant la découverte — une découverte INCOMPLÈTE doit se savoir.
+    #:
+    #: ⚠ Ce champ existe à cause d'une perte de données RÉELLE (2026-08-22, 18:38). La déclaration
+    #: de SAM3 est enveloppée dans un `except Exception: pass` ; elle a levé dans le processus qui
+    #: faisait le sync, SAM3 est donc sorti de la découverte SANS UN MOT, puis `delete_missing` l'a
+    #: rangé parmi les « modèles absents du disque » et a EFFACÉ sa ligne du catalogue. Le modèle
+    #: était pourtant installé, en cache et `ready`. Seule trace : `-1` dans un journal de sync, et
+    #: une référence de manifeste devenue pendante 4 heures plus tard.
+    #:
+    #: Défaut de conception derrière l'incident : l'absence à la découverte était traitée comme une
+    #: PREUVE de disparition, alors qu'elle peut n'être qu'un échec de lecture. Désormais on
+    #: distingue les deux — voir `ModelSyncService.full_sync`.
+    #: Déclaré au niveau CLASSE parce que `__init__` sort tôt sur le singleton déjà initialisé :
+    #: un attribut posé après ce garde n'existerait jamais sur l'instance vivante.
+    discovery_errors: List[str] = []
+
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
@@ -132,6 +148,9 @@ class ModelRegistry:
     def discover_all_models(self) -> Dict[str, ModelInfo]:
         """Discover models from all sources."""
         self._models.clear()
+        # Liste NEUVE (jamais une mutation du défaut de classe) : une passe ne doit pas hériter
+        # des échecs de la précédente, sinon la première panne gèlerait les suppressions à jamais.
+        self.discovery_errors = []
 
         logger.info("[ModelRegistry] Starting model discovery...")
 
@@ -652,8 +671,14 @@ class ModelRegistry:
                                   'modalities': ['image', 'video'],
                                   'inputs_required': ['work_file', 'prompt']},
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                # ⚠ NE JAMAIS repasser ce bloc en `pass` muet. C'est ce silence qui a fait
+                # EFFACER SAM3 du catalogue le 2026-08-22 : l'exception avalée le retirait de la
+                # découverte, et la réconciliation le prenait pour un modèle disparu du disque.
+                self.discovery_errors.append(f"anonymizer:sam3 : {type(e).__name__}: {e}")
+                logger.warning("[ModelRegistry] SAM3 non déclaré (%s: %s) — le catalogue sera "
+                               "INCOMPLET, la réconciliation ne supprimera rien",
+                               type(e).__name__, e)
 
         except ImportError as e:
             logger.debug(f"Could not import Anonymizer models: {e}")

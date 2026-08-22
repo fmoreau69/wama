@@ -96,6 +96,26 @@ class ModelSyncService:
                         logger.error(error_msg)
                         result.errors.append(error_msg)
 
+                # ⚠ UNE DÉCOUVERTE INCOMPLÈTE NE PROUVE AUCUNE DISPARITION.
+                #
+                # Incident du 2026-08-22 : la déclaration de SAM3 a levé dans le processus qui
+                # faisait le sync (exception avalée par un `except: pass` du registre). SAM3 est
+                # donc sorti de `discovered_models`, s'est retrouvé « absent des sources », et sa
+                # ligne de catalogue a été EFFACÉE — alors que le modèle était installé, en cache
+                # et opérationnel. Le seul signe visible fut un `-1` dans le journal de sync ;
+                # la référence de manifeste n'est devenue pendante que des heures plus tard.
+                #
+                # La réconciliation ne peut donc s'appuyer sur la découverte QUE si celle-ci s'est
+                # déroulée entièrement. Sinon on ne sait pas distinguer « retiré du disque » de
+                # « pas su le lire », et seule la première justifie une suppression.
+                echecs = list(getattr(registry, 'discovery_errors', ()) or ())
+                if echecs and (delete_missing or remove_missing):
+                    message = (f"réconciliation SUSPENDUE : découverte incomplète "
+                               f"({len(echecs)} échec(s)) — {'; '.join(echecs[:3])}")
+                    logger.error(message)
+                    result.errors.append(message)
+                    delete_missing = remove_missing = False
+
                 # Handle models no longer in sources
                 if delete_missing:
                     # Delete models that no longer exist on disk.
