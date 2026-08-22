@@ -5345,13 +5345,16 @@ wama.common.tests_capabilities_languages` **19/19**.
 
 ### 🔚 POINT D'ENTRÉE SESSION SUIVANTE — SESSION DÉDIÉE « IA TRANSVERSE »
 **Le backlog COMPLET du domaine est regroupé en UN endroit : `WAMA_IA_TRANSVERSE.md §5`**
-(12 lignes, chacune mesurée) **+ jalon 14 de `WAMA_MEMORY.md`**. Ordre suggéré :
-1. **Jalon 14 — SURFACES du geste RAG** : bouton « Ajouter au RAG » + page de gestion
-   (défaut de niveaux, `lister_rag`, retrait). **Placement à trancher AVEC Fabien** (§5 l.9).
+(12 lignes, chacune mesurée). Ordre suggéré :
+1. ~~Jalon 14 — SURFACES du geste RAG~~ **✅ LIVRÉ le 22/08** (placement tranché : l'INSPECTEUR
+   + page `/common/rag/` — `WAMA_MEMORY.md §9quater`). **Ce qu'il en reste** : sélecteur de
+   niveau **par requête** (en plus du défaut) et entrée depuis la **médiathèque** pour un
+   document qui n'est passé par aucune app.
 2. **Hook B RAG dans les apps** — passe-plat `rag` de `process_prompt_for` + déclaration
-   `PROMPT_TARGETS` (arbitré À FAIRE le 21/08, §5 l.4).
+   `PROMPT_TARGETS` (arbitré À FAIRE le 21/08, §5 l.4). **Devient le vrai point d'entrée.**
 3. **Peuplement `OrgUnit` + affiliations** (0 en base) — débloque le niveau labo SANS code
-   (LDAP/SUPANN, §5 l.8).
+   (LDAP/SUPANN, §5 l.8). ⚠ Sans lui le niveau « RAG du labo » reste refusé au clic : la page
+   « Mon RAG » le DIT à l'utilisateur, mais la fonctionnalité est de fait en attente de données.
 4. Traduction de SORTIE (l.10) · QC post-génération (l.12) · parsing structurel/Docling (l.11) ·
    skills org/utilisateur (l.1-2) · sélection croisée intention+fichiers+RAG (l.5).
 **BORNES (anti-chevauchement)** : cette session ne touche PAS au portage des apps, ni au studio,
@@ -5377,8 +5380,16 @@ touche pas `PROMPT_TARGETS` d'une app en cours de portage.
 - `RunOutcome` ne capte que VERS L'AVANT — l'historique d'avant le middleware est perdu (assumé).
 - Imports wama-dev-ai : 25 souvenirs NON approuvés en file de revue (invisible au rappel).
 
+### ✅ AJOUT DE FIN DE SESSION — jalon 14 livré (demande de Fabien à la clôture)
+| Livraison | Preuve |
+|---|---|
+| **Geste « Ajouter au RAG » dans l'INSPECTEUR** — donc les 10 apps, **sans une ligne par app** (le texte vient de `detail_registry`, déjà chargé) ; data-gaté sur la présence de texte | la carte des mécanismes mesure `rag_geste` **adopté par 10 apps** sans qu'aucune ait été touchée |
+| **Page « Mon RAG » `/common/rag/`** (menu, sous « Mon journal ») — défauts de niveaux, liste, retrait, **état des vecteurs annoncé** | smoke lecture seule sur la base RÉELLE **13/13** |
+| **Défauts de niveaux sur le profil** (`accounts.0015`), **lus par `contexte_laboratoire`** — la préférence agit sur le rappel réel | `tests_memory` **41/41** |
+| ⚠ **Piège évité** : `rag_niveaux_rappel` en `null=True` et non `default=list` — NULL (jamais choisi) ≠ `[]` (ne rien rappeler). Un `default=list` aurait **coupé le RAG de tous les profils existants** au déploiement | test dédié |
+
 ### Contrôles attendus au prochain /reprise
 `check_docs` **2 CASSÉ / 0 périmée sur 457** · `manifest_export --check` **corpus à jour (110)**
-· `doc_facts` **4/4 à jour** · `manage.py test wama.common.tests_memory` **31/31** ·
-`tests_capabilities_languages` **19/19** (instance sœur) · `check_js` **0 erreur, 0 paire
-divergente**.
+· `doc_facts` **5/5 à jour** (le 5ᵉ, `wama_data`, vient de l'instance sœur) · `manage.py test
+wama.common.tests_memory` **41/41** · `tests_capabilities_languages` **19/19** (instance sœur) ·
+`check_js` **56 fichiers 0 erreur, 55 paires 0 divergente**.
