@@ -5368,7 +5368,12 @@ touche pas `PROMPT_TARGETS` d'une app en cours de portage.
   bloc hors-scope) — à créer seulement le jour où le sujet grossit.
 
 ### ⏳ PENDINGS SYSTÈME (hors code)
-- **Push** : nombreux commits locaux (627+ d'écart déjà avant la session) — géré par Fabien.
+- **Push** : **30 commits d'écart** avec `origin/dev` (mesuré `git rev-list --count`, 22/08) —
+  géré par Fabien. ⚠ Ne PAS reprendre le « 627 » du §REPRISE du 21/08 : Fabien a poussé depuis
+  (`origin/dev` = `7a3a9849`, 21/08), l'écart post-réécriture d'historique est résorbé.
+- **Working tree — fichiers d'une AUTRE instance** (monde Data, non touchés par moi, laissés en
+  place volontairement) : `WAMA_DATA_WORLD.md`, `common/data/data_types.py`,
+  `commands/doc_facts.py` + non suivis `common/data/modules.py`, `wama-import.js` (×2 copies).
 - `RunOutcome` ne capte que VERS L'AVANT — l'historique d'avant le middleware est perdu (assumé).
 - Imports wama-dev-ai : 25 souvenirs NON approuvés en file de revue (invisible au rappel).
 
