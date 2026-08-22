@@ -761,6 +761,119 @@ conteneur de vues détachables — après F.
 
 ---
 
+## 9bis. PLAN D'IMPLÉMENTATION — modules, chaînage, points d'IA, garde-fous
+
+> Établi le 2026-08-22 avec Fabien. **Deux principes qui priment sur le découpage** :
+>
+> 1. **La modularité prime sur le cas d'usage.** Un cas concret complet existe et servira de
+>    référence de validation — mais *« l'exemple n'est qu'un chemin »* : l'Importer doit lire du
+>    RTMaps, du LSL, et des enregistrements isolés recalés par **triggers** via des fichiers
+>    classiques. Aucun format n'est la voie royale.
+> 2. **L'IA dans la chaîne est la RAISON D'ÊTRE de WAMA Data**, pas un ornement. Si un module ne
+>    laisse aucune place à l'assistant, il faut se demander pourquoi il vit dans WAMA plutôt que
+>    dans un script.
+
+### 9bis.1 Les modules et leur nature
+
+| module | consomme → produit | brique commune | app/UI |
+|---|---|---|---|
+| **Recorder** | flux temps réel → `dataset` | ⏳ (LSL/RTMaps/ROS) | app — **D5, différable** |
+| **Importer** | fichiers + `dataset` → référentiel | ✅ `data/sources/` (registre) | app |
+| **Connector** | base existante → référentiel | ✅ lecteur `.trip` (cas particulier) | module |
+| **Explorer** | référentiel → vues table/graphe | ⏳ | app |
+| **Segmenter** | signal/events + prédicat → `segments` | ⏳ | app |
+| **Calculator** | `segments` + signaux → colonnes d'indicateurs | ⏳ | app |
+| **Visualizer** | référentiel → plugins synchronisés | ⏳ | app |
+| **Exporter** | `segments` + indicateurs → fichiers | ⏳ | module |
+| **Analyzer** | orchestre les précédents | ⏳ | app |
+
+**Le découpage brique/app est le même que côté média** : le traitement vit dans `common/data/`, l'app
+n'est qu'une surface. Un module qui code sa logique dans son app est hors-route.
+
+### 9bis.2 Le chaînage — rien de neuf à inventer
+
+Les pièces existent et il faut **les relier, pas les refaire** :
+
+- **`FunctionSpec` + `FUNCTION_CATALOG`** : toute étape de traitement est une fonction à ports typés.
+  Règle §7bis déjà posée : *tout traitement se déclare*.
+- **Kind `pipeline`** : il **existe déjà** et porte exactement ce qu'il faut — `{nodes, links}` avec
+  la **présentation (`layout`) séparée du fonctionnel**. Il ne connaît que `source|sink|app` : il
+  faut y ajouter le nœud **fonction**. C'est une extension, pas un nouveau kind.
+- **Canvas studio** : le chaînage se dessine là. ⚠ **Ne JAMAIS créer un second canvas** — l'héritage
+  de capacités est déjà acté (§7ter) : une fonction déclarée apparaît au canvas sans code studio.
+
+### 9bis.3 Une source, N rendus — le piège à éviter
+
+Fabien souhaite pouvoir sortir la chaîne en script Python/MATLAB, en diagramme, et la réimporter.
+**Ne jamais faire traduire une représentation en une autre** : avec *n* représentations cela fait
+*n(n−1)* traducteurs qui divergent.
+
+```
+                     ┌── canvas studio        (édition)
+manifeste `pipeline` ├── diagramme Mermaid    (lecture ; UML d'activité si livrable académique)
+  = SOURCE UNIQUE    ├── script Python        (reproductibilité — exécutable)
+                     ├── squelette MATLAB     (portabilité BORNÉE, voir ci-dessous)
+                     └── résumé en langage naturel
+```
+
+C'est le geste déjà éprouvé pour `WAMA_MECANISMES.md` : le registre est la source, le `.md` un rendu
+régénéré, donc incapable de dériver.
+
+**Le retour (script → pipeline) recouvre DEUX fonctionnalités qu'il ne faut pas confondre :**
+
+| | faisabilité |
+|---|---|
+| réimporter un script **généré par WAMA** | ✅ exact — le script porte l'identifiant de son pipeline |
+| importer un script **étranger** | ⚠ assistif seulement : sortie = *proposition à relire*, jamais un import direct. C'est de la compréhension de programme, sans garantie |
+
+**Limite de l'export MATLAB** : générer du Python est tractable parce que les fonctions *sont* en
+Python. Pour MATLAB, seuls les pas ayant un équivalent MATLAB s'exportent. L'export MATLAB sera donc
+un **squelette + contrat de données**, pas une portabilité feinte.
+
+### 9bis.4 Où l'IA entre — et où elle n'entre pas
+
+| étape | rôle de l'IA | ⚠ garde |
+|---|---|---|
+| cartographie d'un dossier de données | **aucun** — un scan déterministe (types, tailles, nommage, en-têtes) fait mieux, gratuitement et sans hallucination | |
+| **protocole en langage naturel → manifeste `dataset`** | ⭐ **le pont sémantique** : c'est là que l'IA est irremplaçable | le manifeste est une **proposition** |
+| **protocole de traitement → manifeste `pipeline`** | ⭐ idem | idem |
+| validation de l'import | **aucun** — mécanique | le manifeste déclare des attentes VÉRIFIABLES (monotonie, cadence, plages, énumérés) et l'importer MESURE l'écart |
+| **codage vidéo** (annotation d'événements par vision) | ⭐ produit des `events`, donc des segments | relecture humaine ; traçabilité de l'origine |
+| lancement de traitements par lots | orchestration via `tool_api` | jamais d'apply automatique |
+
+> 🔴 **La règle qui évite le pire : le LLM propose, la machine dispose.** Un manifeste généré par LLM
+> qui « valide » ensuite l'import est CIRCULAIRE — si le modèle prend une colonne pour un horodatage,
+> l'import valide contre un manifeste faux et toute la chaîne est silencieusement erronée. Le contrat
+> `verify` de `ManifestKind` existe déjà : c'est sa place.
+
+### 9bis.5 Garde-fous MÉCANIQUES (pas des intentions)
+
+Ce sont eux que Fabien demande — « des mécanismes pour s'assurer qu'on ne part pas dans un mauvais
+sens ». Chacun doit être un contrôle exécutable, pas une règle écrite.
+
+| # | garde-fou | forme |
+|---|---|---|
+| G1 | **aucun format privilégié** dans l'Importer/Exporter | test : le moteur ne cite aucun format ; ajouter un lecteur ne le modifie pas |
+| G2 | **pas de second canvas** | contrôle : aucune implémentation de graphe/DAG hors `studio/` |
+| G3 | **tout traitement déclaré** (§7bis) | contrôle : aucune fonction de traitement hors `FUNCTION_CATALOG` |
+| G4 | **round-trip du `pipeline`** | `extract → verify` comme les autres kinds |
+| G5 | **sortie d'IA = proposition** | tout manifeste généré passe par `verify` et rapporte ses écarts |
+| G6 | **grille de conformité WAMA Data** | mesurée, comme la grille d'apps — sinon l'avancement se raconte |
+| G7 | **cas complet de bout en bout** | ⏳ quand une chaîne WAMA produira un export : rejouer le cas connu. ⚠ nécessite un **échantillon réduit VERSIONNÉ** (le corpus réel est hors dépôt) |
+
+### 9bis.6 Ce que la cartographie n'a pas couvert — à traiter avant l'Importer v2
+
+**L'alignement par TRIGGERS.** RTMaps et LSL fournissent une horloge d'acquisition commune ; des
+enregistrements **isolés** recalés par triggers, non : la référence commune y est un **événement
+partagé** (marqueur, impulsion) qu'il faut **apparier entre flux** pour en déduire l'offset. Ni le
+`Timestamper` (qui décide le temps d'un échantillon DANS un flux) ni §6.6 ne savent le faire.
+
+C'est une **quatrième stratégie d'ingestion**, de nature différente : elle ne porte pas sur un flux
+mais sur une **relation entre flux**. À concevoir explicitement — l'ignorer produirait un Importer
+qui ne sait lire que des acquisitions déjà synchronisées, c'est-à-dire le cas facile.
+
+---
+
 ## 10. Décisions en attente
 
 | # | question | qui tranche |
@@ -776,6 +889,9 @@ conteneur de vues détachables — après F.
 | D9 | vocabulaire temporel : garder `time` (WAMA) ou adopter `timecode`/`startTimecode`/`endTimecode` (BIND) ? — tranché au plus tard à l'écriture de l'Importer | différable |
 | D10 | **rééchantillonnage : jamais systématique** (Fabien, 20/08) — mais **TROIS opérations distinctes**, cf. §6.6 : le **ré-horodatage** par fréquence théorique est ✅ à l'import et par flux (il n'interpole pas) ; le **rééchantillonnage sur grille commune** est ❌ ; le **rééchantillonnage à la demande vers une table annexe** est ✅ en option. Le **pas de temps variable est une capacité à porter**, pas un défaut à corriger. Reste : où vit la table annexe et comment elle se déclare | tranchée sauf table annexe |
 | D11 | les paramètres de fenêtre d'une situation : **colonnes/métadonnées** (interrogeables) plutôt que dans le NOM de la table comme BIND (`situation_0_15`) ? | après A |
+| D12 | **alignement par TRIGGERS** (§9bis.6) : où vit l'appariement d'événements entre flux — dans l'Importer, ou comme fonction du catalogue applicable après import ? | avant l'Importer v2 |
+| D13 | nœud **fonction** dans le kind `pipeline` : étendre `source\|sink\|app`, ou déclarer les fonctions comme un `app` d'un genre particulier ? | avant le 1ᵉʳ pipeline de données |
+| D14 | granularité du **script généré** : un fichier plat rejouable, ou un module par fonction + un orchestrateur ? (impacte la lisibilité pour un relecteur académique) | avant l'Exporter de pipeline |
 
 ---
 
@@ -823,3 +939,19 @@ conteneur de vues détachables — après F.
   fait un **pivot long → large** (12 onglets → 393 colonnes). Volume : ~88 Go pour une étude, donc
   la **décimation est une condition d'existence**, pas une optimisation. Deux décisions ajoutées
   (D10, D11).
+- **2026-08-21 — marches A, B et C LIVRÉES** (`data_types` : `SECTIONS`→`SEGMENTS` ; `temporal.py` ;
+  `data/sources/` avec 2 lecteurs). ⚠ Correction : j'avais annoncé un TROU (« pas de type
+  intervalle ») — FAUX, `SECTIONS` existait et était consommé par 4 fonctions dont 3 du
+  cam_analyzer. Trois défauts trouvés par la MESURE : agrégation par index → quadratique ; min/max
+  attribués à la mauvaise tranche (arrondi flottant) ; `float('')` sur une fréquence vide rendant un
+  flux entier illisible. Contrôles consignés (`tests_temporal`, `tests_sources` — 57 tests, deux
+  niveaux : synthétique partout, base réelle sautée si absente) et inscrits au **nocturne**
+  (`common.consistency.wama_data`) ; 3 briques déclarées au registre des mécanismes.
+- **2026-08-22 — PLAN D'IMPLÉMENTATION** (§9bis) : modules, chaînage, points d'IA, 7 garde-fous
+  mécaniques. Deux recadrages de Fabien : *« l'exemple n'est qu'un chemin »* — la modularité prime
+  sur le cas d'usage, l'Importer doit couvrir RTMaps, LSL **et** des enregistrements isolés recalés
+  par **triggers** ; et **l'IA dans la chaîne est la raison d'être de WAMA Data**, pas un ornement.
+  Deux trouvailles : le kind **`pipeline` existe déjà** et sépare déjà le fonctionnel de la
+  présentation (donc aucun nouveau kind à créer pour le traitement) ; et **l'alignement par
+  triggers** est une 4ᵉ stratégie d'ingestion qu'aucune passe n'avait vue — elle porte sur une
+  RELATION entre flux, pas sur un flux. D12→D14 ajoutées.
