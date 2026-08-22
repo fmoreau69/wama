@@ -53,6 +53,8 @@ RUNTIME_LOGS = (
     "celery-beat.log",
     "celery-default.log",
     "celery-gpu.log",
+    "celery-studio.log",  # worker studio — ajouté au démarrage APRÈS cette liste, jamais tourné
+    "gateway-discord.log",  # passerelle de canaux (start_wama_prod.sh, §19)
     "gunicorn-access.log",
     "gunicorn-error.log",
     "model-sync.log",

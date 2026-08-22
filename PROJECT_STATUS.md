@@ -2733,13 +2733,26 @@ traitement`), mais l'absence de log de succès empêche de l'affirmer. **À repr
 `profile.html:276`) et c'est lui qui a servi à l'épreuve.
 
 #### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
-**🔴 SUPERVISER `run_gateway`** — c'est le seul manque bloquant pour un usage réel. Le bot
-tourne dans un process lancé à la main : **il est mort à la fin de cette session**. Or *une
-passerelle qui meurt ne se voit pas* : personne ne reçoit d'erreur, les messages restent sans
-réponse. À traiter comme gunicorn et Celery (redémarrage automatique + alerte).
+**✅ SUPERVISION DE `run_gateway` — LIVRÉE le 2026-08-22 (soir).** Ce qui était le manque
+bloquant est câblé dans `start_wama_prod.sh` : arrêt en tête de script (`pkill -f "manage.py
+run_gateway"`, motif précis pour ne pas emporter un `pgrep` de diagnostic), puis lancement
+gardé par `if ! pgrep` après Celery Beat, **conditionné à `--check`** — une instance mal
+configurée saute le bloc en le disant. Journal `logs/gateway-discord.log`, entré dans
+`RUNTIME_LOGS` (`common/utils/log_rotation.py`). **La panne qui l'a motivé** : le crash de
+l'hôte a emporté le bot (WSL2 redémarré, `pgrep -af run_gateway` vide), et **rien** ne l'a
+relancé — Fabien a écrit à un bot mort sans le moindre signal. La liaison, elle, n'a jamais
+bougé : `ChannelLink` = 1 ligne (`discord` ↔ `fabien.moreau`) **en base**. Ce n'est JAMAIS
+l'appariement qu'il faut refaire, seulement le process.
+
+> ⚠ **Trou distinct, non couvert et mesuré ce soir** : l'assistant **n'a aucun outil web**.
+> `TOOL_REGISTRY` (`wama/tool_api.py:2314`) expose 51 outils — files d'apps, fichiers, modèles,
+> mémoire — mais **ni `fetch_url` ni recherche**. Une demande du type « résume-moi ce dépôt
+> GitHub » ne crée donc aucun item de file (ce n'est pas une tâche) et le moteur n'a aucun
+> moyen d'aller lire le lien : au mieux il répond de mémoire du LLM, donc **il invente**.
+> À trancher : outil de lecture d'URL (avec la garde SSRF qui existe déjà) ou refus explicite.
 
 #### File des chantiers ouverts (ordre)
-1. 🔴 **Supervision de `run_gateway`** (ci-dessus) — bloquant.
+1. ✅ ~~Supervision de `run_gateway`~~ — **faite** (ci-dessus).
 2. **Vérifier un tour LLM réel** dans Discord (10 s, mais demande Ollama lancé côté Windows).
 3. **Slash commands générées depuis `TOOL_REGISTRY`** — métadonnée-driven jusque dans Discord,
    en remplacement de `!lier`/`!aide`.
@@ -2752,12 +2765,12 @@ réponse. À traiter comme gunicorn et Celery (redémarrage automatique + alerte
    et hors UE ; il sert le confort d'usage et le développement).
 
 #### Pendings système
-- ⚠ **Le bot TOURNE ENCORE** (PID 68715 au 22/08 19:5x, détaché par `nohup` — il a survécu à la
-  session qui l'a lancé). **NE PAS en relancer un second** : deux process connectés au même
-  jeton traitent chaque message DEUX FOIS. Vérifier d'abord
-  `pgrep -af run_gateway`. Il mourra en revanche au prochain arrêt de WSL2, et **rien ne le
-  relancera** — d'où le point d'entrée ci-dessus. Relance :
-  `venv_linux/bin/python manage.py run_gateway discord` depuis WSL2.
+- ⚠ **Le bot est MORT** — corrige l'entrée précédente qui le disait « TOURNE ENCORE » (PID 68715) :
+  c'était vrai à l'écriture, le **crash de l'hôte** l'a emporté depuis (WSL2 relancé, `pgrep -af
+  run_gateway` vide, `uptime` 19 min). Il repartira **seul au prochain `start_wama_prod.sh`**
+  (supervision livrée). Relance immédiate sans redémarrer la pile — vérifier `pgrep` d'abord,
+  **deux process sur le même jeton traitent chaque message DEUX FOIS** :
+  `nohup venv_linux/bin/python manage.py run_gateway discord >> logs/gateway-discord.log 2>&1 &`
 - **Rien à pousser de cette suite** hors le commit de consignation ; `fb0fd5bc` (garde `--check`)
   était déjà en place.
 - **Jetable laissé au scratchpad** : `verif_token_discord.py` (diagnostique la *forme* d'un jeton
@@ -2767,6 +2780,68 @@ réponse. À traiter comme gunicorn et Celery (redémarrage automatique + alerte
 `check_docs` → **3 CASSÉ** (toutes `common/_result_tabs.html`, périmètre codegen d'une autre
 instance — **pas** une régression de ce chantier) · `ChannelLink` → **1 ligne** (fabien.moreau
 ↔ discord) au lieu de 0.
+
+## §REPRISE — 2026-08-22 (soir, session « PASSERELLE SUPERVISÉE + CRASHS HÔTE »)
+
+> Deux fils, ouverts par le même incident : le bot Discord ne répondait plus **parce que l'hôte
+> avait crashé** et que rien ne relançait la passerelle. Fermer le premier trou (supervision) a
+> mené au second (pourquoi la machine meurt).
+
+### ✅ Livré — supervision de la passerelle
+- `start_wama_prod.sh` : arrêt (`pkill -f "manage.py run_gateway"`, motif précis) + **lancement gardé
+  `if ! pgrep` après Celery Beat, conditionné à `--check`** — une instance mal configurée saute le
+  bloc **en le disant**, au lieu d'envoyer l'échec dans un journal que personne ne lit.
+- `logs/gateway-discord.log` entré dans `RUNTIME_LOGS` (`common/utils/log_rotation.py`) ; au passage
+  **`celery-studio.log` y manquait** depuis l'ajout du worker studio — corrigé, vérifié au dry-run.
+- ⚠ `start_wama_dev.sh` **ne lance PAS le bot, délibérément** (code en cours d'édition + deux process
+  sur le même jeton = chaque message traité deux fois). La passerelle appartient à la prod.
+
+### ✅ Livré — le démarrage ne meurt plus en silence sur sudo
+`sudo -n` (obligatoire sans terminal : prompt invisible = blocage, vécu le 11/08) échoue dès que le
+cache sudo est vide, **donc après CHAQUE redémarrage de WSL2**. Résultat : Postgres non lancé →
+`migrate` en traceback psycopg de 60 lignes → pile morte. Le script **tranche désormais sur la
+présence d'un terminal** (`[ -t 0 ]`) et **contrôle `pg_isready` AVANT `migrate`**, avec la commande
+à taper. Syntaxe validée `bash -n`.
+
+### 🔴 Crashs hôte — ce que la mesure a établi ce soir
+Détail complet et historique : mémoire `reference_wsl_gpu_windows_update_regression`.
+- **2 morts, datées sur le hwlog** (l'event 6008 s'est encore trompé) : **20:02:40** et **20:41:58**,
+  toutes deux **au REPOS TOTAL** (22-26 W, horloge 210 MHz, util 0-2 %, VRAM = bureau Windows, CPU 0 %).
+  **La croyance « un message à l'assistant fait monter le GPU et tue le PC » n'est pas soutenue** :
+  au 2ᵉ crash le bot n'était même pas lancé, le message n'atteignait aucun processus WAMA.
+- **✅ Aucune config GPU introduite par nous** : cap retiré (450 W = défaut), aucune tâche
+  `WAMA-GPU-PowerCap`, `TdrDelay` inchangé, `.wslconfig` inchangé depuis le 29/07,
+  `git diff 10/08..HEAD` sur les scripts de démarrage = **zéro ligne GPU**.
+- **Corrélation forte** : **8 jours d'uptime continu sans un crash** (10/08 → 18/08 19:10), puis
+  cumulatif **KB5120701/KB5120249 le 18/08**, puis **8 crashs en 4 jours**. `dxgkrnl.sys` +
+  `dxgmms2.sys` réécrits en 10.0.19041.7663 face à un pilote **610.88 du 22/07** → **même paire
+  désynchronisée qu'en juillet**. ⚠ Mais **aucune installation de pilote le 18/08** (les 2 seules en
+  30 j : 25/07 et 31/07) et **ce pilote avait déjà produit 7 crashs avant le cumulatif** ⇒
+  corrélation datée, **pas** une démonstration.
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE — dans cet ordre, UNE VARIABLE À LA FOIS
+1. 🔴 **INSTRUMENTER LES RAILS +12 V** (arbitrage Fabien : « ok pour instrumenter d'abord »).
+   HWiNFO64 8.50 est installé mais **la version gratuite ne relance pas son journal après un
+   reboot** — c'est pour ça que la mesure n'a jamais été prise malgré 8 reboots. **Ne plus attendre
+   le hasard : journaliser PUIS provoquer** (chargement Ollama ~17-19 Go, déclencheur reproductible
+   depuis le 20/08). Sortie `logs/hwlog/rails.csv` → `python scripts/analyze_rails.py`.
+   ⚠ Le déclenchement est pour **Fabien**, JAMAIS pour Claude.
+2. **Pilote NVIDIA** : prendre **le numéro de version le plus élevé**, quelle que soit la branche
+   (Studio et Game Ready sont le même pilote ; aucun chemin de code WAMA ne traverse ce qui les
+   distingue). Installation propre + `wsl --shutdown` + relance de la pile.
+3. Barrettes G.Skill → Samsung · 4. Alim 1000 W ATX 3.1.
+
+### Pendings — décisions NON prises, rien lancé sans accord
+- **`transformers` a dérivé en 5.12.1 dans `venv_win`** (Linux conforme en 4.57.6) : la borne
+  `>=4.57,<5` n'existe que dans `requirements_linux.txt`, `requirements.txt` n'a **aucune** ligne
+  transformers. Casse `boson-multimodal`/`vibevoice`/`inference-*` et périme le patch n°1
+  d'`apply_patches.py`. **Prod (WSL2) non touchée.** Proposé : ① la ligne manquante dans
+  `requirements.txt` ② redescendre venv_win. Mémoire `project_venv_transformers_drift`.
+  **✅ La montée torch, elle, est correcte** (2.9.1+cu128 / 0.24.1 / 2.9.1, CUDA 12.8 alignée partout).
+- **2 `swap.vhdx` orphelins** (8 Go + 40 Mo) laissés par les crashs — suppression proposée, non faite.
+- **D: à 31,3 Go (5,8 %)**.
+- **Rien n'est commité** : `start_wama_prod.sh`, `common/utils/log_rotation.py`, `PROJECT_STATUS.md`,
+  `ROADMAP.md` + 2 fichiers mémoire.
 
 ## §REPRISE — 2026-08-22 (session « WAMA DATA → MONDES → REGISTRES ») — 🔚 POINT D'ENTRÉE
 

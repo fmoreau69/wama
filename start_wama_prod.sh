@@ -25,6 +25,14 @@ if pkill -f "uvicorn tts_service" 2>/dev/null; then
     sleep 3
     pkill -9 -f "uvicorn tts_service" 2>/dev/null || true
 fi
+# Passerelle de canaux : on l'arrête ICI comme les autres, pour deux raisons —
+#   • elle doit repartir sur le code du run courant (elle a l'ORM et les settings) ;
+#   • la rotation des journaux plus bas exige les services ARRÊTÉS (renommer un fichier
+#     encore ouvert ne détache pas le descripteur).
+# Motif PRÉCIS (`manage.py run_gateway`) et pas `run_gateway` seul : le motif large tuerait
+# n'importe quelle commande dont la ligne contient ce mot (un `pgrep -af run_gateway` de
+# diagnostic, une session d'édition…).
+pkill -f "manage.py run_gateway" || true
 pkill -f "redis-server" || true
 
 sleep 2
@@ -51,6 +59,23 @@ export TZ=Europe/Paris
 # pas le chemin UNC : monter \\vrlescot\SAVES sur /mnt/shares/SAVES (drvfs ou /etc/fstab).
 # Sûr même si non monté : is_available() voit que le dossier n'existe pas → backup désactivé proprement.
 export WAMA_MODEL_BACKUP_PATH=${WAMA_MODEL_BACKUP_PATH:-/mnt/shares/SAVES/DEEP_LEARNING/MODELS}
+
+# ------------------------------------------------------
+# SUDO : `-n` en non-interactif, interactif quand il y a un TERMINAL
+# ------------------------------------------------------
+# `sudo -n` (jamais de prompt) est OBLIGATOIRE quand le script tourne sans terminal
+# (session agent, cron) : un prompt invisible bloque la séquence — 16 min avant kill
+# manuel le 2026-08-11. Mais ce même `-n` échoue dès que le cache sudo est vide, donc
+# après CHAQUE redémarrage de WSL2 — précisément le moment où l'on relance la pile.
+# Vécu le 2026-08-22 : PostgreSQL non démarré → `migrate` part en traceback psycopg de
+# 60 lignes → pile morte, sans que la cause (« lance postgres ») soit lisible nulle part.
+# On tranche donc sur la présence d'un terminal : lancé à la main → on a le DROIT de
+# demander le mot de passe une fois ; sans terminal → on garde -n et on échoue proprement.
+if [ -t 0 ]; then
+    SUDO="sudo"
+else
+    SUDO="sudo -n"
+fi
 
 # Resync WSL2 clock (dérive après sleep/hibernate — source du "substantial drift" Celery)
 # `-n` : sans credentials sudo en cache, échouer AU LIEU de demander un mot de passe — lancé
@@ -92,7 +117,7 @@ if ! pgrep -x "postgres" > /dev/null; then
     echo "=== Starting PostgreSQL ==="
     # -n : en non-interactif un prompt sudo serait invisible et bloquerait ici — mieux vaut
     # échouer avec un message clair (les migrations le signaleront aussitôt).
-    sudo -n service postgresql start || echo "ERREUR: sudo indisponible pour lancer PostgreSQL — lancer 'sudo service postgresql start' a la main"
+    $SUDO service postgresql start || echo "ERREUR: sudo indisponible pour lancer PostgreSQL — lancer 'sudo service postgresql start' a la main"
     sleep 3
 else
     echo "PostgreSQL is already running."
@@ -104,8 +129,22 @@ fi
 # régénérée par `makemigrations`, qui ne devine pas l'extension, et `migrate` échouerait sur
 # « type "vector" does not exist ». Le poser ici est le seul endroit VERSIONNÉ qui précède migrate.
 # Idempotent (IF NOT EXISTS) ; exige un superuser à la première pose seulement.
-sudo -n -u postgres psql -d "${WAMA_DB_NAME:-wama_db}" -c 'CREATE EXTENSION IF NOT EXISTS vector;' >/dev/null 2>&1 \
+$SUDO -u postgres psql -d "${WAMA_DB_NAME:-wama_db}" -c 'CREATE EXTENSION IF NOT EXISTS vector;' >/dev/null 2>&1 \
     || echo "AVERTISSEMENT: extension pgvector non verifiee (sudo indisponible) — si migrate echoue sur 'type vector does not exist', lancer 'sudo -u postgres psql -d wama_db -c \"CREATE EXTENSION vector;\"'"
+
+# ── Postgres RÉPOND-il vraiment ? ────────────────────────────────────────────
+# Contrôle AVANT `migrate`, sinon l'échec se présente sous la forme d'un traceback
+# psycopg de 60 lignes qui noie la seule information utile : la base n'est pas lancée.
+# `set -e` ferait de toute façon mourir le script ici — autant qu'il meure en le DISANT.
+if ! pg_isready -h 127.0.0.1 -p 5432 -q; then
+    echo ""
+    echo "ERREUR: PostgreSQL ne repond pas sur 127.0.0.1:5432 — la pile ne peut pas demarrer."
+    echo "  Lancer :   sudo service postgresql start"
+    echo "  Puis   :   ./start_wama_prod.sh"
+    echo "  (Cause habituelle : apres un redemarrage de WSL2 le cache sudo est vide, et ce"
+    echo "   script refuse de bloquer sur un prompt invisible quand il tourne sans terminal.)"
+    exit 1
+fi
 
 # ------------------------------------------------------
 # REDIS
@@ -388,6 +427,46 @@ if ! pgrep -f "celery.*beat" > /dev/null; then
         --logfile $LOG_DIR/celery-beat.log
 else
     echo "Celery Beat is already running."
+fi
+
+# ------------------------------------------------------
+# PASSERELLE DE CANAUX — bot Discord (ROADMAP §19)
+# ------------------------------------------------------
+# Un bot est un CLIENT À SOCKET PERSISTANT : ni une requête (gunicorn), ni une tâche qui
+# commence et finit (Celery) — l'arbitrage est en tête de
+# `wama/gateway/management/commands/run_gateway.py`. Il se supervise donc ICI, avec les
+# autres process du démarrage.
+#
+# POURQUOI CE BLOC EXISTE : jusqu'au 2026-08-22 la passerelle était lancée À LA MAIN. Le
+# crash de l'hôte l'a emportée et RIEN ne l'a relancée — or *une passerelle morte ne se
+# voit pas* : aucune erreur nulle part, les messages restent simplement sans réponse
+# (vécu ce jour-là). L'appariement, lui, survit à tout : il vit en base (`ChannelLink`),
+# ce n'est JAMAIS lui qu'il faut refaire — seulement ce process.
+#
+# `--check` D'ABORD, lancement seulement s'il passe. `run_gateway` refuse de démarrer sans
+# jeton, sans la dépendance `discord.py`, ou si WAMA_DISCORD_ALLOWED_CHANNELS porte des
+# NOMS de salon au lieu d'identifiants numériques. Sans ce filtre, `nohup` enverrait
+# l'échec dans un fichier que personne ne lit et le démarrage annoncerait un bot qui
+# n'existe pas — soit exactement la panne muette qu'on ferme ici. Une instance non
+# configurée saute donc le bloc EN LE DISANT.
+if ! pgrep -f "manage.py run_gateway discord" > /dev/null; then
+    if python manage.py run_gateway discord --check --settings=$DJANGO_SETTINGS_MODULE \
+            >> $LOG_DIR/gateway-discord.log 2>&1; then
+        echo "=== Starting Discord gateway ==="
+        nohup python manage.py run_gateway discord --settings=$DJANGO_SETTINGS_MODULE \
+            >> $LOG_DIR/gateway-discord.log 2>&1 &
+        GATEWAY_PID=$!
+        disown $GATEWAY_PID
+        echo "  Discord gateway started (PID $GATEWAY_PID) → $LOG_DIR/gateway-discord.log"
+    else
+        echo "  Discord gateway NOT started — configuration incomplete."
+        echo "  Détail : tail -n 20 $LOG_DIR/gateway-discord.log"
+        echo "  (jeton WAMA_DISCORD_TOKEN dans .env ? ids de salon numériques ? discord.py installé ?)"
+    fi
+else
+    # ⚠ NE JAMAIS en lancer un second : deux process connectés au MÊME jeton traitent
+    # chaque message DEUX FOIS. Invisible côté serveur, criant côté Discord.
+    echo "Discord gateway is already running."
 fi
 
 # ------------------------------------------------------

@@ -2327,11 +2327,17 @@ chantier, celle contre laquelle il faut prévenir quiconque déclare un salon pr
   jusque dans Discord), en remplacement des commandes texte `!lier`/`!aide`.
 - **Rate-limit** par identité de canal (§19.4 ④) — l'appariement borne le *qui*, pas le
   *combien*.
-- 🔴 **SUPERVISION — le seul manque bloquant pour un usage réel.** `run_gateway` tourne
-  aujourd'hui dans un process lancé à la main : il meurt avec le terminal. Or *une passerelle
-  qui meurt ne se voit pas* — personne ne reçoit d'erreur, les messages restent simplement
-  sans réponse. À superviser comme gunicorn et Celery (redémarrage automatique), avec la même
-  alerte que les autres process du démarrage.
+- ✅ **SUPERVISION — LIVRÉE le 2026-08-22.** `run_gateway discord` est désormais lancé par
+  `start_wama_prod.sh` avec la garde `if ! pgrep` des autres services, arrêté avec eux en
+  tête de script (donc sur du code à jour, et journaux tournés fenêtre fermée), et journalisé
+  dans `logs/gateway-discord.log` (ajouté à `RUNTIME_LOGS`). **`--check` conditionne le
+  lancement** : une instance sans jeton, sans `discord.py` ou avec des NOMS de salon au lieu
+  d'identifiants saute le bloc **en le disant**, au lieu d'envoyer l'échec dans un fichier que
+  personne ne lit. Ce qui a motivé le correctif : le crash de l'hôte du 22/08 a emporté le bot
+  et rien ne l'a relancé — *une passerelle morte ne se voit pas*.
+  ⚠ **`start_wama_dev.sh` ne lance PAS le bot, délibérément** : un bot répondant à de vrais
+  utilisateurs depuis un code en cours d'édition n'est pas souhaitable, et deux process sur le
+  même jeton traiteraient chaque message deux fois. La passerelle appartient à la prod.
 
 > ✅ **Périmé, retiré le 22/08.** Il était écrit ici que « `confirmer_liaison()` n'a pas encore
 > d'écran ». **Faux** : l'écran existe et a servi à l'épreuve réelle — `accounts/views.py:467`
