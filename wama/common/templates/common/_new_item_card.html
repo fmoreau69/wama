@@ -56,7 +56,16 @@ inclure le script → card repliée MORTE (support ≠ adoption). Auto-init + ga
 (les inclusions d'app restantes sont inoffensives). {% endcomment %}
 <script src="{% static_v 'common/js/wama-new-item-card.js' %}"></script>
 {% endif %}
-<div class="card mb-3 shadow-sm wama-new-item-card" id="{{ card_id|default:'newItemCard' }}"{% if collapsible %} data-wama-nic{% if show_prompt %} data-nic-primary="{{ prompt_input_id }}"{% endif %}{% endif %}>
+{% comment %}`data-wama-depot` — ce que FAIT un dépôt de fichier sur cette card (2026-08-22) :
+  'cree'    (défaut) : le dépôt CRÉE l'élément immédiatement (transcriber, converter, reader…) ;
+  'attache' : il ATTACHE le fichier au formulaire de la card, et c'est le bouton primaire qui
+              crée l'élément (avatarizer : audio + avatar + réglages ; imager : prompt + image
+              de référence). Déclaré par l'app via `depot_cree=False`.
+Sans cette déclaration, rien ne distingue « personne n'écoute ce champ » (défaut) de « on
+écoute, mais créer n'est pas le geste du dépôt » (conception) : le scénario `<app>.import`
+lisait les deux comme un échec. Ce n'est pas une heuristique de DOM qui peut trancher ça —
+`primary_btn_id` ne le fait pas (synthesizer en a un ET crée au dépôt, mesuré).{% endcomment %}
+<div class="card mb-3 shadow-sm wama-new-item-card" id="{{ card_id|default:'newItemCard' }}" data-wama-depot="{% if depot_cree is False %}attache{% else %}cree{% endif %}"{% if collapsible %} data-wama-nic{% if show_prompt %} data-nic-primary="{{ prompt_input_id }}"{% endif %}{% endif %}>
     <div class="card-body py-2">
         <div class="d-flex align-items-center gap-2 mb-2 small text-white-50"{% if collapsible %} data-nic-toggle role="button" title="Déplier / replier les options d'import"{% endif %}>
             <i class="fas fa-plus-circle text-info"></i> <strong>Nouvel élément</strong>

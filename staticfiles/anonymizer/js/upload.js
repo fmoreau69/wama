@@ -106,6 +106,15 @@ $(function () {
     url: cfg.uploadUrl,
     dataType: 'json',
     sequentialUploads: true,
+    // ⚠ paramName EXPLICITE (2026-08-22). jQuery-file-upload le dérive de l'attribut `name`
+    // de l'input et retombe sur `files[]` quand il n'y en a pas — or la card d'entrée COMMUNE
+    // (`common/_new_item_card.html:85`) rend son input SANS `name`. Le serveur, lui, lit
+    // `request.FILES['file']` (views.upload_from_url) : le fichier n'arrivait donc jamais et
+    // la vue répondait 400 « No media file or URL provided. » Régression d'ADOPTION : le
+    // markup propre à l'app portait ce `name`, la brique commune ne le porte pas.
+    // Mesuré par le scénario `anonymizer.import`, dont l'échec ne devenait lisible qu'une fois
+    // le CORPS de la réponse capturé — jusque-là on soupçonnait la route.
+    paramName: 'file',
 
     // Inclut le format/qualité de sortie choisis dans le panneau (Phase 3 élargie)
     formData: function () {

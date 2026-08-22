@@ -374,8 +374,14 @@ def check_app_import(app: str, url_path: str):
                 // PAS — un test qui vise au hasard produit des faux échecs, et un faux échec
                 // répété apprend à ignorer la barrière.
                 || (tous.length === 1 ? tous[0] : null);
+        // Ce que FAIT un dépôt sur cette card — DÉCLARÉ par l'app, pas deviné
+        // (`common/_new_item_card.html`, data-wama-depot). 'attache' = le fichier se
+        // joint au formulaire et c'est le bouton primaire qui crée l'élément.
+        const carteDepot = (dz && dz.closest('[data-wama-depot]')) || carte
+                || document.querySelector('[data-wama-depot]');
         return {cable: !!window._import || typeof window.WamaImport === 'function',
                 instancie: !!window._import,
+                depot: (carteDepot && carteDepot.getAttribute('data-wama-depot')) || 'cree',
                 dropzone: !!dz, champ: !!fi,
                 accept: fi ? (fi.getAttribute('accept') || '') : '',
                 champ_id: fi ? (fi.id || '(sans id)') : '',
@@ -421,8 +427,22 @@ def check_app_import(app: str, url_path: str):
                                        'domain': '127.0.0.1', 'path': '/'}])
                 page = contexte.new_page()
                 posts = []
-                page.on('response', lambda r: posts.append((r.status, r.url.split('?')[0]))
-                        if r.request.method == 'POST' else None)
+                # Le CORPS des réponses en échec est capturé (2026-08-22). Sans lui, le
+                # scénario disait « 400 sur /anonymizer/upload/ » sans jamais dire POURQUOI :
+                # on soupçonnait la route (« alias de l'IndexView »), alors qu'elle traite bien
+                # les uploads en POST — c'est la VALIDATION du fichier témoin qui refusait.
+                # Un échec qui n'explique pas coûte une enquête à chaque lecture.
+                def _voir(r):
+                    if r.request.method != 'POST':
+                        return
+                    corps = ''
+                    if r.status >= 400:
+                        try:
+                            corps = (r.text() or '')[:200].replace('\\n', ' ')
+                        except Exception:
+                            corps = '(corps illisible)'
+                    posts.append((r.status, r.url.split('?')[0], corps))
+                page.on('response', _voir)
                 resp = page.goto(url, wait_until='networkidle', timeout=45000)
                 if not resp or resp.status != 200:
                     return False, f"page HTTP {resp.status if resp else '?'}"
@@ -442,6 +462,17 @@ def check_app_import(app: str, url_path: str):
                     # barrière qui crie au loup sur des cas hors périmètre ne serait pas relue.
                     raise SkipScenario("aucune card d'entrée sur cette surface — "
                                        "scénario d'import non applicable")
+                if etat.get('depot') == 'attache':
+                    # DÉCLARÉ : ici le dépôt joint le fichier au formulaire de la card, et
+                    # c'est le bouton primaire qui crée l'élément (avatarizer : audio +
+                    # avatar + réglages ; imager : prompt + image de référence). Exiger une
+                    # création au dépôt y mesurerait une conception, pas un défaut — les deux
+                    # apps échouaient pour cette seule raison (2026-08-22). Couvrir CE geste
+                    # demande de remplir la card puis de cliquer : un autre scénario.
+                    raise SkipScenario(
+                        "la card DÉCLARE `data-wama-depot=attache` : le dépôt joint le "
+                        "fichier, l'élément est créé par le bouton primaire — ce scénario "
+                        "mesure le dépôt-qui-crée, il ne s'applique pas")
                 if not etat['champ']:
                     # PAS un échec : une app PROMPT-PRIMAIRE (composer, imager, avatarizer en
                     # mode pipeline) n'importe pas de fichier de travail — on y saisit un texte.
@@ -458,9 +489,16 @@ def check_app_import(app: str, url_path: str):
                 page.set_input_files(sel, str(temoin))
                 page.wait_for_timeout(4500)
                 apres = page.evaluate("document.querySelectorAll('.wama-card').length")
-                envoyes = [f"{s} {u.rsplit('/', 2)[-2]}/" for s, u in posts]
+                envoyes = [f"{s} {u.rsplit('/', 2)[-2]}/" for s, u, _c in posts]
             finally:
                 navigateur.close()
+    except SkipScenario:
+        # Un SKIP DÉLIBÉRÉ traverse tel quel. Sans cette clause il retombait dans le `except
+        # Exception` ci-dessous et ressortait préfixé « navigateur/serveur indisponible » —
+        # un motif FAUX collé sur des raisons parfaitement établies (« aucune card d'entrée »,
+        # « data-wama-depot=attache »). Un rapport qui invente la cause d'un skip apprend à
+        # se méfier de tous les skips (mesuré le 2026-08-22 sur les 5 skips de la passe).
+        raise
     except Exception as e:
         raise SkipScenario(f"navigateur/serveur indisponible ({type(e).__name__}: {str(e)[:100]})")
     finally:
@@ -484,9 +522,9 @@ def check_app_import(app: str, url_path: str):
                        f"dans la page) : AUCUNE requête émise — la zone de dépôt existe "
                        "mais RIEN NE L'ÉCOUTE. Défaut silencieux : ni erreur console, ni "
                        "message ; c'est l'état exact d'une app générée sans couche JS.")
-    echecs = [f"{s} {u}" for s, u in posts if s >= 400]
+    echecs = [f"{s} {u}" + (f" → {c}" if c else '') for s, u, c in posts if s >= 400]
     if echecs:
-        return False, f"requêtes en échec : {', '.join(echecs[:3])}"
+        return False, f"requêtes en échec : {' | '.join(echecs[:2])}"
     trace = f" ; {sum(_nettoyes)} élément(s) de test supprimé(s)" if _nettoyes else \
             ("" if modele is not None else " ; ⚠ modèle inconnu du PreviewRegistry : rien nettoyé")
     if apres <= avant:
