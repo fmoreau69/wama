@@ -401,10 +401,41 @@
     });
   }
 
+  // ── Instances COEXISTANT sur une même page ────────────────────────────────────────────
+  // Les hôtes du volet sont UNIQUES par page : #inspectorInfo, #inspectorActions,
+  // #info-section, #media-section, #preview-container sont lus par `document.getElementById`,
+  // pas configurables. Deux instances sur la même page se les disputent donc forcément —
+  // c'est le cas d'`enhancer` (image + audio) et d'`imager` (image + vidéo), qui en câblent
+  // deux, une par domaine. Symptôme mesuré le 2026-08-22 : sélectionner dans un domaine puis
+  // basculer sur l'autre laissait le volet peuplé par le PREMIER (actions, infos, réglages) et
+  // sa card surlignée dans une file devenue invisible — deux sélections vivantes à la fois.
+  //
+  // Une sélection CHASSE donc les autres. Inerte par construction là où le défaut n'existe
+  // pas : sur une page à instance unique le registre ne contient que l'instance courante, que
+  // la boucle saute. Aucune des 14 autres instances ne change de comportement.
+  //
+  // ⚠ LIMITE ASSUMÉE : « même page » vaut ici « mêmes hôtes », ce qui est vrai tant que la
+  // brique lit ces hôtes par id fixe. Le jour où le volet devient déclaratif et où deux
+  // inspecteurs peuvent viser des hôtes DISTINCTS, il faudra les grouper par hôte plutôt que
+  // par page.
+  var _coexistantes = [];
+
+  function _cederLaMain(courante) {
+    _coexistantes.forEach(function (autre) {
+      if (autre === courante) return;
+      var s = autre.state();
+      if (s.itemId !== null || s.batchId !== null) autre.deselect();
+    });
+  }
+
   function init(cfg) {
     cfg = cfg || {};
     const qc = cfg.queueContainer;
     if (!qc) return null;
+
+    // Renseignée juste avant le `return` : les gestes de sélection ne peuvent survenir
+    // qu'après, puisqu'ils naissent d'un clic de l'utilisateur.
+    var api = null;
 
     const CARD_SEL   = cfg.cardSelector   || '.synthesis-card';
     const BATCH_SEL  = cfg.batchSelector  || '.batch-group';
@@ -734,12 +765,24 @@
       if (infoSection) infoSection.style.display = '';
       var banner = $(ids.banner); if (banner) banner.style.display = 'none';
       var db = infoHost.querySelector('.wama-info-deselect');
-      if (db) db.addEventListener('click', function () { var od = $(ids.deselect); if (od) od.click(); });
+      // ✕ → `deselect` EN DIRECT, comme le ✕ du chemin ITEM (fillDetail, plus haut).
+      // Ce chemin proxifiait encore par le bouton du bandeau (`$(ids.deselect).click()`),
+      // reliquat d'avant le 2026-07-08 : ce jour-là la mini-card « Réglages de l'élément #N »
+      // a été RETIRÉE des apps portées au détail (PROJECT_STATUS §21.3.6) et le chemin item
+      // est passé à l'appel direct — le chemin BATCH a été oublié. Conséquence mesurée le
+      // 2026-08-22 : sans bandeau dans la page, `od` vaut null et le clic ne faisait RIEN
+      // sur 7 pages (anonymizer, composer, converter, describer, enhancer, reader,
+      // transcriber) ; seul Échap désélectionnait. Le proxy n'avait aucune vertu propre —
+      // sur les pages AVEC bandeau il déclenchait ce même `deselect` (écouteur posé plus bas),
+      // et `showBatchInfo` masque le bandeau juste au-dessus.
+      if (db) db.addEventListener('click', deselect);
     }
 
     function selectItem(id) {
       const card = qc.querySelector(CARD_SEL + '[data-id="' + id + '"]');
       if (!card) return;
+      // APRÈS le garde : une sélection qui échoue ne doit pas défaire celle d'à côté.
+      _cederLaMain(api);
       snapshotDefaults();
       itemId = id; batchId = null;
       clearHighlight(); card.classList.add(HL);
@@ -755,6 +798,7 @@
     function selectBatch(bid) {
       const group = qc.querySelector(BATCH_SEL + '[data-batch-id="' + bid + '"]');
       if (!group) return;
+      _cederLaMain(api);                       // cf. selectItem
       snapshotDefaults();
       batchId = bid; itemId = null;
       clearHighlight(); group.classList.add(HL);
@@ -846,13 +890,15 @@
       if (itemId == null && batchId == null) { try { showQueueInfo(); } catch (e) {} }
     });
 
-    return {
+    api = {
       selectItem: selectItem,
       selectBatch: selectBatch,
       deselect: deselect,
       save: save,
       state: function () { return { itemId: itemId, batchId: batchId }; },
     };
+    _coexistantes.push(api);
+    return api;
   }
 
   // ── Câblage CONTEXTUEL générique depuis un schéma WamaParams ──────────────────

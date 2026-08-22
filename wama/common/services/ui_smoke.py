@@ -512,3 +512,236 @@ def register_import_scenarios():
             run=(lambda p=path, a=label: (lambda ctx: check_app_import(a, p)))(),
             timeout_s=180, vram_gb=0.0,
         )
+
+
+# ── Volet droit : la DÉSÉLECTION d'un batch ────────────────────────────────────────────
+#
+# POURQUOI CE SCÉNARIO EXISTE. Le ✕ d'un batch ne désélectionnait RIEN sur 7 pages
+# (anonymizer, composer, converter, describer, enhancer, reader, transcriber) : `showBatchInfo`
+# proxifiait le clic par le bouton du bandeau (`$(ids.deselect).click()`), or ce bandeau a été
+# retiré de ces pages le 2026-07-08 (PROJECT_STATUS §21.3.6). `od` valait null, le clic tombait
+# dans le vide, et seule la touche Échap désélectionnait. AUCUNE erreur console : le défaut est
+# invisible aux scénarios `<app>.ui`, qui ne mesurent que la santé de la page.
+#
+# CE QU'IL MESURE, ET SUR QUOI. La BRIQUE, pas les données : le scénario injecte une file
+# SYNTHÉTIQUE (un batch, deux cards) dans la page, y câble un `WamaInspector` à lui, exerce le
+# geste et retire tout. Il ne dépend donc d'aucun élément en base — il tourne sur une file vide,
+# toutes les nuits, sans rien créer ni supprimer. Une variante « cliquer un vrai batch » aurait
+# exigé des données de test, donc un scénario qui SKIPPE la plupart des nuits.
+#
+# La page hôte est celle d'une app RÉELLEMENT touchée, et le scénario VÉRIFIE qu'elle n'a pas
+# de bandeau : c'est la condition exacte du défaut. Si un bandeau y réapparaissait, le proxy
+# masquerait la régression — le scénario le dit au lieu de passer au vert par accident.
+
+VOLET_GESTE = """(() => {
+    const R = {banniere: !!document.getElementById('inspectorBanner')};
+    if (!window.WamaInspector || typeof window.WamaInspector.init !== 'function') {
+        R.erreur = 'WamaInspector absent de la page'; return R;
+    }
+    const box = document.createElement('div');
+    box.id = 'voletTestQueue';
+    box.style.display = 'none';
+    box.innerHTML = '<div class="batch-group" data-batch-id="999999">'
+        + '<div data-batch-total="2" data-batch-success="1" data-batch-running="0" data-batch-failure="0"></div>'
+        + '<div class="synthesis-card" data-id="999001"></div>'
+        + '<div class="synthesis-card" data-id="999002"></div>'
+        + '</div>';
+    document.body.appendChild(box);
+    try {
+        // keyboardNav:false — l'instance de test ne doit pas laisser d'écouteur clavier
+        // au niveau `document` derrière elle (le conteneur, lui, part avec `box.remove()`).
+        const insp = window.WamaInspector.init({
+            queueContainer: box, cardSelector: '.synthesis-card',
+            batchSelector: '.batch-group', keyboardNav: false,
+        });
+        if (!insp) { R.erreur = 'init() a rendu null'; return R; }
+        insp.selectBatch('999999');
+        const grp = box.querySelector('.batch-group');
+        R.selectionne = grp.classList.contains('inspector-selected');
+        R.batch_avant = (insp.state() || {}).batchId;
+        const croix = document.querySelector('#inspectorInfo .wama-info-deselect');
+        R.croix = !!croix;
+        if (croix) croix.click();
+        R.batch_apres = (insp.state() || {}).batchId;
+        R.encore_selectionne = grp.classList.contains('inspector-selected');
+    } catch (e) {
+        R.erreur = String(e && e.message || e);
+    } finally {
+        box.remove();
+    }
+    return R;
+})()"""
+
+
+def check_volet_deselection(app: str, url_path: str):
+    """Le ✕ d'un batch désélectionne-t-il vraiment ? (ok, detail)."""
+    from wama.common.services.nightly_tests import SkipScenario
+    from playwright.sync_api import sync_playwright
+
+    url = f"{BASE_URL.rstrip('/')}{url_path}"
+    sessions_before = _session_keys()
+    # ⚠ Lecture ORM AVANT sync_playwright (SynchronousOnlyOperation) — même contrainte
+    # que le scénario d'import.
+    jeton = _session_compte_de_test()
+    if not jeton:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3) "
+                           "— la page d'app exige une session")
+    try:
+        with sync_playwright() as p:
+            navigateur = p.chromium.launch()
+            try:
+                contexte = navigateur.new_context(viewport={'width': 1500, 'height': 1000})
+                contexte.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': jeton,
+                                       'domain': '127.0.0.1', 'path': '/'}])
+                page = contexte.new_page()
+                resp = page.goto(url, wait_until='networkidle', timeout=45000)
+                if not resp or resp.status != 200:
+                    return False, f"page HTTP {resp.status if resp else '?'}"
+                page.wait_for_timeout(800)
+                r = page.evaluate(VOLET_GESTE)
+            finally:
+                navigateur.close()
+    except Exception as e:
+        raise SkipScenario(f"navigateur/serveur indisponible ({type(e).__name__}: {str(e)[:100]})")
+    finally:
+        _drop_new_sessions(sessions_before)
+
+    if r.get('erreur'):
+        return False, f"brique inutilisable : {r['erreur']}"
+    if not r.get('selectionne'):
+        return False, ("`selectBatch` n'a pas surligné le batch synthétique — le contrat de "
+                       "sélection a changé (classe `inspector-selected` / `.batch-group`)")
+    if not r.get('croix'):
+        return False, ("aucun ✕ (`.wama-info-deselect`) dans #inspectorInfo après sélection d'un "
+                       "batch : `showBatchInfo` ne rend plus son bouton de fermeture")
+    if r.get('encore_selectionne') or r.get('batch_apres') is not None:
+        return False, (f"RÉGRESSION : le ✕ du batch ne désélectionne pas (batch "
+                       f"{r.get('batch_avant')} → {r.get('batch_apres')}, surbrillance "
+                       f"{'toujours là' if r.get('encore_selectionne') else 'retirée'}). "
+                       "C'est le défaut du 2026-08-22 : le ✕ proxifiait par le bouton du "
+                       "bandeau, absent de cette page.")
+    banniere = "⚠ un bandeau est réapparu sur cette page — la condition du défaut n'est plus " \
+               "reproduite ici" if r.get('banniere') else "sans bandeau (condition du défaut)"
+    return True, (f"✕ du batch : sélection {r.get('batch_avant')} → désélection effective, "
+                  f"surbrillance retirée ; {banniere}")
+
+
+# ── Volet droit : DEUX inspecteurs sur la même page ────────────────────────────────────
+#
+# POURQUOI. `enhancer` (image + audio) et `imager` (image + vidéo) câblent DEUX instances sur
+# une seule page, une par domaine. Or les hôtes du volet sont uniques par page (#inspectorInfo,
+# #inspectorActions, #media-section… lus par id fixe) : les deux instances écrivaient dans les
+# mêmes éléments sans se connaître. Sélectionner dans un domaine puis basculer sur l'autre
+# laissait DEUX sélections vivantes — volet peuplé par la première, sa card toujours surlignée
+# dans une file devenue invisible (mesuré 2026-08-22, WAMA_VOLETS §4②).
+#
+# Le scénario reproduit la situation avec deux files SYNTHÉTIQUES : il vaut donc pour toute
+# page à instances multiples, présente ou future, sans dépendre des données d'enhancer.
+
+VOLET_DEUX_INSTANCES = """(() => {
+    const R = {};
+    if (!window.WamaInspector || typeof window.WamaInspector.init !== 'function') {
+        R.erreur = 'WamaInspector absent de la page'; return R;
+    }
+    const boites = ['A', 'B'].map((n, i) => {
+        const b = document.createElement('div');
+        b.id = 'voletTest' + n;
+        b.style.display = 'none';
+        b.innerHTML = '<div class="synthesis-card" data-id="99900' + (i + 1) + '"></div>';
+        document.body.appendChild(b);
+        return b;
+    });
+    try {
+        const insp = boites.map(b => window.WamaInspector.init({
+            queueContainer: b, cardSelector: '.synthesis-card', keyboardNav: false,
+        }));
+        if (!insp[0] || !insp[1]) { R.erreur = 'init() a rendu null'; return R; }
+        insp[0].selectItem('999001');
+        R.a_seule = insp[0].state().itemId;
+        insp[1].selectItem('999002');
+        R.a_apres_b = insp[0].state().itemId;
+        R.b_apres_b = insp[1].state().itemId;
+        R.surbrillances = document.querySelectorAll(
+            '#voletTestA .inspector-selected, #voletTestB .inspector-selected').length;
+    } catch (e) {
+        R.erreur = String(e && e.message || e);
+    } finally {
+        boites.forEach(b => b.remove());
+    }
+    return R;
+})()"""
+
+
+def check_volet_instances(app: str, url_path: str):
+    """Deux inspecteurs coexistant : le second chasse-t-il la sélection du premier ? (ok, detail)."""
+    from wama.common.services.nightly_tests import SkipScenario
+    from playwright.sync_api import sync_playwright
+
+    url = f"{BASE_URL.rstrip('/')}{url_path}"
+    sessions_before = _session_keys()
+    jeton = _session_compte_de_test()
+    if not jeton:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
+    try:
+        with sync_playwright() as p:
+            navigateur = p.chromium.launch()
+            try:
+                contexte = navigateur.new_context(viewport={'width': 1500, 'height': 1000})
+                contexte.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': jeton,
+                                       'domain': '127.0.0.1', 'path': '/'}])
+                page = contexte.new_page()
+                resp = page.goto(url, wait_until='networkidle', timeout=45000)
+                if not resp or resp.status != 200:
+                    return False, f"page HTTP {resp.status if resp else '?'}"
+                page.wait_for_timeout(800)
+                r = page.evaluate(VOLET_DEUX_INSTANCES)
+            finally:
+                navigateur.close()
+    except Exception as e:
+        raise SkipScenario(f"navigateur/serveur indisponible ({type(e).__name__}: {str(e)[:100]})")
+    finally:
+        _drop_new_sessions(sessions_before)
+
+    if r.get('erreur'):
+        return False, f"brique inutilisable : {r['erreur']}"
+    if r.get('a_seule') != '999001':
+        return False, ("la 1re instance n'a pas sélectionné son élément "
+                       f"(itemId={r.get('a_seule')!r}) — contrat de sélection changé")
+    if r.get('b_apres_b') != '999002':
+        return False, ("la 2e instance n'a pas pris la sélection "
+                       f"(itemId={r.get('b_apres_b')!r})")
+    if r.get('a_apres_b') is not None or r.get('surbrillances') != 1:
+        return False, (f"RÉGRESSION : deux sélections vivantes à la fois — 1re instance "
+                       f"itemId={r.get('a_apres_b')!r} après sélection dans la 2e, "
+                       f"{r.get('surbrillances')} card(s) surlignée(s) au lieu d'une. "
+                       "C'est le défaut du 2026-08-22 sur enhancer/imager : les instances "
+                       "partagent les hôtes du volet sans se connaître.")
+    return True, ("2 inspecteurs coexistants : la sélection de la 2e chasse celle de la 1re "
+                  f"(1 seule card surlignée, itemId {r.get('a_seule')} → None)")
+
+
+def register_volet_scenarios():
+    """Enregistre les scénarios de volet droit (WAMA_VOLETS §4) — ✕ de batch, instances."""
+    from wama.common.services.nightly_tests import register
+
+    # Page hôte FIXE et VÉRIFIÉE : le transcriber est l'une des 7 pages mesurées sans bandeau
+    # (2026-08-22). La déduire dynamiquement ferait porter le test par une page qui pourrait,
+    # elle, avoir un bandeau — donc masquer la régression. Chemin par `reverse` et non écrit
+    # en dur : une URL supposée est une source d'aller-retours.
+    from django.urls import NoReverseMatch, reverse
+    try:
+        chemin = reverse('transcriber:index')
+    except NoReverseMatch:                                    # pragma: no cover
+        return
+    register(
+        id="common.volet.deselection", app="common", stage="ui",
+        description="Volet droit : le ✕ d'un batch désélectionne (brique, file synthétique)",
+        run=(lambda p=chemin: (lambda ctx: check_volet_deselection('transcriber', p)))(),
+        timeout_s=120, vram_gb=0.0,
+    )
+    register(
+        id="common.volet.instances", app="common", stage="ui",
+        description="Volet droit : deux inspecteurs coexistants ne gardent qu'une sélection",
+        run=(lambda p=chemin: (lambda ctx: check_volet_instances('transcriber', p)))(),
+        timeout_s=120, vram_gb=0.0,
+    )

@@ -3,12 +3,38 @@ Bandeau d'inspecteur COMMUN (volet droit) : affiche « Réglages de <élément/b
 ou un batch est sélectionné. Rempli/affiché par WamaInspector (#inspectorBanner/#inspectorLabel).
 À inclure EN TÊTE de la section réglages du volet, juste avant les champs (WamaParams context=panel).
 IDs fixes attendus par wama-inspector.js — ne pas renommer.
+
+⚠ QUI DOIT L'INCLURE. PAS les apps portées au détail : le 2026-07-08 la mini-card
+« Réglages de l'élément #N » y a été RETIRÉE (PROJECT_STATUS §21.3.6) parce qu'elle redoublait
+l'identité déjà portée par la section Infos, et le ✕ des Infos appelle `deselect` en direct.
+Le bandeau reste pour les surfaces qui n'ont PAS de section Infos peuplée : synthesizer,
+avatarizer, imager, et les pages de CATALOGUE (apps, model_manager) dont il porte le titre
+d'objet inspecté. Le rajouter ailleurs ferait clignoter un cadre redondant à chaque sélection
+(showBanner, puis masquage par fillDetail dès que le détail arrive).
+
+CONTRAT (tous les paramètres sont optionnels — sans eux, rendu historique du bandeau d'app) :
+  icone         classes de l'icône de tête           défaut « fas fa-crosshairs text-info »
+  prefixe       texte avant le libellé               défaut « Réglages de »
+  sans_prefixe  1 → aucun préfixe (le libellé seul)  défaut vide (préfixe rendu)
+  defaut        libellé au repos (remplacé par JS)   défaut « l'élément »
+  bouton_icone  classes de l'icône du bouton         défaut « fas fa-rotate-left »
+  bouton_titre  infobulle du bouton                  défaut « Quitter l'inspecteur… »
+  sans_cadre    1 → pas de p-2/rounded/small         défaut vide (cadre)
+
+Les DEUX copies inline (common/apps.html, model_manager/index.html) ont été absorbées ici le
+2026-08-22 ; elles passent `sans_cadre=1 sans_prefixe=1` et leurs propres icônes, ce qui
+reproduit leur rendu À L'IDENTIQUE — le fond et la bordure leur venaient déjà de la règle
+`#inspectorBanner` (wama-inspector.css), pas de classes utilitaires. Unifier leur apparence sur
+celle des apps serait un choix d'UI distinct, pas un effet de bord de la factorisation.
+
+⚠ `text-info` remplace l'ancien `style="color:#0dcaf0;"` : même couleur (c'est la valeur de
+`--bs-info`), une source de moins.
 {% endcomment %}
-<div id="inspectorBanner" class="d-none align-items-center gap-2 p-2 mb-2 rounded small">
-    <i class="fas fa-crosshairs" style="color:#0dcaf0;"></i>
-    <span class="text-light flex-grow-1">Réglages de <strong id="inspectorLabel">l'élément</strong></span>
+<div id="inspectorBanner" class="d-none align-items-center gap-2 mb-2{% if not sans_cadre %} p-2 rounded small{% endif %}">
+    <i class="{{ icone|default:'fas fa-crosshairs text-info' }}"></i>
+    <span class="text-light flex-grow-1 text-truncate">{% if not sans_prefixe %}{{ prefixe|default:'Réglages de' }} {% endif %}<strong id="inspectorLabel">{% if not sans_prefixe %}{{ defaut|default:"l'élément" }}{% endif %}</strong></span>
     <button type="button" id="inspectorDeselect" class="btn btn-sm btn-outline-light py-0 px-2"
-            title="Quitter l'inspecteur de cet élément (revenir aux réglages par défaut)">
-        <i class="fas fa-rotate-left"></i>
+            title="{{ bouton_titre|default:"Quitter l'inspecteur de cet élément (revenir aux réglages par défaut)" }}">
+        <i class="{{ bouton_icone|default:'fas fa-rotate-left' }}"></i>
     </button>
 </div>

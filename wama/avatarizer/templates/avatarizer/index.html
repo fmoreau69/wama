@@ -392,6 +392,15 @@ document.addEventListener('DOMContentLoaded', function () {
         batchSelector: '.batch-group',
         panelContainer: ph,
         schema: schema,
+        // #media-section porte ici un contenu PERMANENT — la zone d'import de l'avatar
+        // (app_right_panel_media, plus haut) — et non un aperçu : avatarizer n'a pas de
+        // #preview-container, donc `fillPreview` n'y écrit jamais. Sans cette déclaration,
+        // la brique masque la section au titre de « l'aperçu n'a de sens que pour un item »
+        // et l'import devenait INATTEIGNABLE : mesuré le 2026-08-22, `#media-section` est
+        // `display:none` DÈS LE CHARGEMENT (init → showQueueInfo → setMediaSection(false)),
+        // pas seulement après un clic. Le levier existait depuis le 19/08, une seule page
+        // (model_manager) l'utilisait.
+        keepMediaSection: true,
         itemLabel: function (id) { return "l'élément #" + id; },
         batchLabel: function (id) { return "le batch #" + id + " (tous les éléments)"; },
         saveBatch: function (bid) { return postPanel('/avatarizer/batch/' + bid + '/update/').then(function () { window.location.reload(); }); },

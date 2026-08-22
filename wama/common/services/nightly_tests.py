@@ -235,11 +235,16 @@ register_examples()
 # Scénarios UI (un par app exposant une page d'index) — import TARDIF et tolérant : Playwright
 # ou le serveur peuvent manquer sur une machine de dev, ça ne doit pas casser le registre.
 try:
-    from wama.common.services.ui_smoke import register_ui_scenarios, register_import_scenarios
+    from wama.common.services.ui_smoke import (register_import_scenarios,
+                                               register_ui_scenarios,
+                                               register_volet_scenarios)
     register_ui_scenarios()
     # `<app>.ui` mesure la SANTÉ de la page (200, 0 erreur console) ; `<app>.import` mesure
     # son COMPORTEMENT. Les deux sont nécessaires : converter_01 satisfaisait le premier tout
     # en étant inerte — aucun script chargé, donc rien à planter (mesuré 2026-08-22).
     register_import_scenarios()
+    # Le VOLET DROIT est une troisième surface : ni la santé de la page ni la création d'un
+    # élément ne voient un ✕ qui ne désélectionne pas (aucune erreur console — cf. WAMA_VOLETS §4).
+    register_volet_scenarios()
 except Exception as _e:                                   # pragma: no cover
     logger.debug(f"[nightly] scénarios UI non enregistrés ({_e})")

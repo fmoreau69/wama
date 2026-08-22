@@ -323,13 +323,10 @@
 {# ── Inspecteur dans le volet droit global (#wama-right-panel) ─────────────── #}
 {% block right_panel_settings_title %}Inspecteur de l'app{% endblock %}
 {% block right_panel_settings %}
-<div id="inspectorBanner" class="d-none align-items-center gap-2 mb-2">
-    <i class="fas fa-cube text-primary"></i>
-    <strong id="inspectorLabel" class="flex-grow-1 text-truncate"></strong>
-    <button type="button" id="inspectorDeselect" class="btn btn-sm btn-outline-light py-0 px-2" title="Fermer l'inspecteur">
-        <i class="fas fa-times"></i>
-    </button>
-</div>
+{% comment %}Bandeau = brique COMMUNE depuis le 2026-08-22 (ce markup dupliquait le partial à
+l'identique, aux icônes près). Paramètres = rendu de catalogue : pas de cadre utilitaire (le
+fond/bordure viennent de la règle #inspectorBanner), libellé seul sans « Réglages de ».{% endcomment %}
+{% include 'common/_inspector_banner.html' with sans_cadre=1 sans_prefixe=1 icone='fas fa-cube text-primary' bouton_icone='fas fa-times' bouton_titre="Fermer l'inspecteur" %}
 <div id="inspectorActions">
     <p class="text-muted small mb-0"><i class="fas fa-hand-pointer me-1"></i>Cliquez une carte d'application pour l'inspecter.</p>
 </div>

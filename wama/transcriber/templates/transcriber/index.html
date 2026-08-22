@@ -16,7 +16,9 @@
 <style>
   .synthesis-card.inspector-selected,
   .batch-group.inspector-selected { outline: 2px solid #0dcaf0; outline-offset: 1px; }
-  {# #inspectorBanner : encadré centralisé dans common/css/wama-inspector.css (chargé globalement) #}
+  {% comment %}Aucune règle #inspectorBanner ici : le transcriber n'a PAS de bandeau (voir plus
+  bas). La règle d'encadré vit dans common/css/wama-inspector.css pour les pages qui en ont
+  un.{% endcomment %}
   /* Section Médias plus masquée : elle porte l'aperçu de l'inspecteur (#preview-container),
      universel 2026-07-07. L'import reste dans la card « Nouvel élément » (zone centrale). */
   /* Nom de fichier : icône à gauche alignée, sur une seule ligne tronquée (évite l'icône centrée
@@ -32,7 +34,13 @@
      Ici ne restent que les spécificités transcriber (couleurs .is-batch, card « nouveau »). */
   /* Card « NOUVEAU » : look pointillés GLOBALISÉ (CSS commun .wama-new-item-card, 2026-07-03). */
 </style>
-<!-- Bandeau inspecteur : brique COMMUNE (le markup inline dupliquait _inspector_banner à l'identique). -->
+{% comment %}⚠ PAS de bandeau inspecteur ici, et c'est VOULU. Le commentaire précédent disait
+« brique COMMUNE » sans include en dessous — il laissait croire à un oubli (relevé le
+2026-08-22, WAMA_VOLETS §4). Le transcriber est une app PORTÉE AU DÉTAIL : la mini-card
+« Réglages de l'élément #N » y a été retirée le 2026-07-08 (PROJECT_STATUS §21.3.6) parce que
+la section Infos porte déjà l'identité de l'élément et son ✕. Ne pas inclure
+`common/_inspector_banner.html` ici : il clignoterait à chaque sélection avant d'être masqué
+par fillDetail.{% endcomment %}
 
 <!-- ░ Volet de réglages GÉNÉRÉ depuis le schéma (params.py → WamaParams). Apparence en wama-params.css. ░ -->
 <div id="panelSettings" class="wama-params"></div>

@@ -1,6 +1,14 @@
 # WAMA_VOLETS.md — Volets gauche et droit : référence unique du domaine
 
-> **Statut : ÉTAT DES LIEUX MESURÉ au 2026-08-22, aucun refactoring engagé.** Ce document
+> **Statut : état des lieux MESURÉ au 2026-08-22 ; les TROIS défauts du §4 sont CORRIGÉS le
+> même jour** (brique + 2 apps, 2 scénarios nocturnes vérifiés rouges sur le code d'avant). Le
+> chantier de fond — **déclaration des sections** (§8 n°2) — n'est PAS engagé.
+>
+> ⚠ Deux diagnostics du §4 étaient FAUX et la confrontation au code les a redressés : le ✕
+> cassé n'appelait pas un bandeau à rajouter (§4①) et l'import d'avatarizer n'était pas perdu
+> « au premier clic » mais dès le chargement (§4③). Un défaut se mesure au bon maillon.
+>
+> Ce document
 > existe parce qu'aucun ne couvrait le sujet : ni le filemanager (volet gauche), ni
 > l'inspecteur (volet droit) n'avaient de référence — seul `INSPECTOR_DETAIL_FIELDS.md`
 > traitait du *schéma des champs de détail*, pas de la structure des panneaux.
@@ -57,7 +65,8 @@ utilisateurs · matrice d'accès · connexion (×2) · validation d'inscription 
 |---|---|
 | `hideOnInspect` | 4 / 16 |
 | `onDeselect` | 2 / 16 |
-| `showOnInspect` · `keepMediaSection` · `settingsTitleInspect` | **1 / 16** chacune |
+| `keepMediaSection` | **2 / 16** (model_manager ; + avatarizer le 22/08, cf. §4③) |
+| `showOnInspect` · `settingsTitleInspect` | **1 / 16** chacune |
 
 **Une seule page exploite les quatre leviers : `model_manager/index.html`.** C'est donc
 **lui la référence à généraliser**, pas les apps média — elles consomment le socle sans le
@@ -80,22 +89,85 @@ contextualiser. Constat qui corrige une intuition naturelle (« aligner sur les 
 
 ---
 
-## 4. ⚠ Trois défauts MESURÉS — ce ne sont pas des cadres vides
+## 4. ⚠ Trois défauts MESURÉS — ✅ CORRIGÉS le 2026-08-22
 
-**① La croix ✕ d'un batch ne désélectionne pas, sur 8 pages.** `#inspectorBanner` n'existe
-que sur 5 pages (`_inspector_banner.html` inclus par avatarizer, imager, synthesizer + 2
-copies inline dans `apps.html` et `model_manager`). Ailleurs `ids.deselect` vaut `null` et
-`showBatchInfo` appelle `od.click()` sur un élément inexistant → **seul Échap fonctionne**.
-Concerne : anonymizer, composer, converter, describer, enhancer, reader, **transcriber**,
-journal. ⚠ Le commentaire de transcriber affirme que le bandeau est « centralisé » alors que
-le partial **n'est pas inclus** — une doc qui ment sur son propre fichier.
+> Les trois énoncés d'origine sont conservés **barrés** quand la confrontation au code les a
+> démentis : c'est le diagnostic, pas le symptôme, qui était faux. Chaque correctif est couvert
+> par un scénario nocturne dont on a vérifié qu'il **échoue** sur le code d'avant (§4.4).
 
-**② Deux instances d'inspecteur sur hôtes partagés.** `enhancer` (image + audio) et `imager`
-(image + vidéo) appellent `init` deux fois sur la même page ; les hôtes (`#inspectorActions`,
-`#media-section`…) étant **uniques par page**, la seconde réinitialise l'état de la première.
+**① Le ✕ d'un batch ne désélectionne pas — ✅ corrigé (1 ligne dans la brique).**
+Symptôme confirmé, ~~cause~~ **corrigée** : ce n'est PAS un bandeau manquant.
 
-**③ Chez `avatarizer`, l'import d'avatar disparaît au premier clic.** Sa zone d'upload vit
-dans `#media-section` — précisément la section que la brique masque à la sélection d'une card.
+- ~~« `#inspectorBanner` n'existe que sur 5 pages, il faut l'inclure sur les 8 autres »~~
+  **FAUX, et le rajouter aurait été une régression.** Son retrait est une décision ACTÉE :
+  le 2026-07-08, la mini-card « Réglages de l'élément #N » a été **retirée** des apps portées
+  au détail parce qu'elle redoublait l'identité déjà portée par la section Infos, et le ✕ des
+  Infos est passé à l'appel direct de `deselect` (`PROJECT_STATUS.md:910-913`, §21.3.6). Le
+  code le dit aussi, en commentaire, dans `wama-inspector.js` (chemin ITEM).
+- **La vraie cause** : ce jour-là le chemin ITEM (`fillDetail`) a été migré, le chemin **BATCH**
+  (`showBatchInfo`) a été **oublié** — il proxifiait encore par `$(ids.deselect).click()`. Sans
+  bandeau dans la page, `od` vaut `null` : le clic tombait dans le vide. Le proxy n'avait
+  d'ailleurs aucune vertu propre (sur les pages AVEC bandeau il déclenchait ce même `deselect`),
+  et `showBatchInfo` **masque** le bandeau deux lignes plus haut.
+- **Portée réelle : 7 pages, pas 8** — anonymizer, composer, converter, describer, enhancer,
+  reader, transcriber. ~~journal~~ n'était **pas** concerné : sa file n'a aucun `.batch-group`
+  (vérifié), donc `showBatchInfo` ne s'y exécute jamais.
+- Le commentaire mensonger de `transcriber/index.html` (« brique COMMUNE » sans include en
+  dessous) est **remplacé** par la raison du retrait — pour que le prochain lecteur ne « répare »
+  pas un choix délibéré.
+
+**② Deux instances d'inspecteur sur hôtes partagés — ✅ corrigé (registre inerte).**
+Confirmé : `enhancer` (image + audio) et `imager` (image + vidéo) câblent deux instances sur une
+page dont les hôtes (`#inspectorInfo`, `#inspectorActions`, `#media-section`…) sont **uniques**
+et lus par id fixe. Symptôme précisé par la mesure : ce n'est pas « la seconde réinitialise la
+première » mais **deux sélections vivantes à la fois** — volet peuplé par l'une, card de l'autre
+toujours surlignée. Correctif : une sélection **chasse** les autres instances de la page
+(`_cederLaMain`). **Inerte par construction** là où le défaut n'existe pas : sur une page à
+instance unique le registre ne contient que l'instance courante, que la boucle saute — les
+14 autres instances ne changent pas de comportement.
+
+**③ Chez `avatarizer`, la zone d'import d'avatar — ✅ corrigé (`keepMediaSection: true`).**
+~~« disparaît au premier clic »~~ **Pire que ça, et mesuré** : `#media-section` est
+`display:none` **dès le chargement** (`init` → `showQueueInfo` → `setMediaSection(false)`), donc
+la zone d'import n'apparaissait **jamais** — elle était dans le DOM, invisible. Le levier de
+déclaration existait depuis le 19/08 et une seule page l'utilisait. Avatarizer n'ayant **pas**
+de `#preview-container`, sa section Médias ne porte que du contenu permanent : `true` (jamais
+masquée) et non `'no-selection'`.
+
+### 4.4 Preuves — scénarios nocturnes versionnés
+
+| Scénario | Ce qu'il exerce | Vérifié **rouge** sur le code d'avant |
+|---|---|---|
+| `common.volet.deselection` | file **synthétique** (1 batch, 2 cards) injectée dans une page réelle **sans bandeau** ; `selectBatch` puis clic sur le ✕ | oui — « batch 999999 → 999999, surbrillance toujours là » |
+| `common.volet.instances` | **deux** files synthétiques, deux instances ; sélection dans l'une puis dans l'autre | oui — « 2 card(s) surlignée(s) au lieu d'une » |
+
+Files **synthétiques** délibérément : le test porte sur la BRIQUE, pas sur les données. Il
+tourne donc toutes les nuits sur une file vide, sans rien créer ni supprimer — une variante
+« cliquer un vrai batch » aurait SKIPPÉ la plupart des nuits.
+
+### 4.5 ⚠ Angle mort découvert en validant : `<app>.ui` ne s'authentifie pas
+
+`check_app_page` ne pose aucun cookie de session (contrairement à `<app>.import`). Playwright
+suit alors la redirection et lit le **200 de l'accueil** : le scénario passe au vert sans avoir
+jamais vu l'app. Mesuré le 2026-08-22 sur les 14 apps découvertes :
+
+- **12 pages sont réellement atteintes** sans cookie — le vert y est mérité (c'est ce qui rend
+  la non-régression de ce palier valide : transcriber, avatarizer, enhancer, imager en font partie) ;
+- **`model_manager` est détourné dans les DEUX cas** (`/?next=/model-manager/`) : `model_manager.ui`
+  n'a jamais mesuré cette page. Le compte de test nocturne n'a pas le droit ;
+- **`studio`** est détourné sans cookie, atteint avec : `studio.ui` mesure l'accueil ;
+- **`converter_01`** est l'inverse — atteint sans cookie, détourné **avec** le compte de test.
+
+> Que 12 index répondent 200 à un visiteur non identifié n'est PAS une découverte : c'est le
+> trou de droits déjà consigné (`PROFILES_PERMISSIONS §1.5`, « index non gardés »). Les deux
+> constats se recoupent, ils ne se contredisent pas.
+
+**Conséquence pour ce palier** : la modification de `model_manager/index.html` (absorption du
+bandeau) est prouvée par **rendu direct du gabarit** (égalité structurelle attributs + texte
+avec le markup retiré) et par le bout-en-bout de `/common/apps/`, qui applique le même motif de
+paramètres — **pas** par un passage navigateur sur la page elle-même, faute de droits. Corriger
+l'angle mort demande de trancher ce qu'on veut mesurer (santé en visiteur ? en utilisateur ?) et
+rendrait `model_manager.ui` **rouge** : à décider, pas à glisser dans un palier de volets.
 
 ---
 
@@ -160,9 +232,9 @@ prioritaire.
 
 | # | Chantier | Pourquoi cet ordre |
 |---|---|---|
-| 1 | **Bandeau manquant** sur 8 pages | Un `include` répare une **croix cassée** — c'est un bug, pas de l'esthétique |
+| 1 | ~~**Bandeau manquant** sur 8 pages~~ → **✅ FAIT autrement (22/08)** | Le diagnostic était faux : pas un `include` à ajouter mais **un chemin oublié** dans la brique. Voir §4① — l'`include` aurait REVERTÉ le retrait décidé le 07/08 |
 | 2 | **Déclaration des sections** (`volet = {...}` côté vue, comme `facettes`) | Défaut inchangé ⇒ **zéro régression** pour les apps ; corrige 17 pages et 51 cadres |
-| 3 | Double instance `enhancer`/`imager` | Bug latent, indépendant du reste |
+| 3 | ~~Double instance `enhancer`/`imager`~~ → **✅ FAIT (22/08)** | Traité avec ① : même brique, même passe de validation (§4②) |
 | 4 | **Portage depuis `model_manager`** vers la brique | Bandeau paramétrable · restauration du hint · `detailSchema`/`actionsSchema` · `ids.actionButtons` |
 | 5 | **Assistant dans le volet** (conteneur en `base.html`, préférence au profil) | Rend l'avatar réellement persistant ; ne pas engager avant 2 |
 | 6 | Hygiène : CSS du volet vers `common/`, retrait du code mort (§6) | Mécanique, sans risque, mais sans valeur d'usage |
