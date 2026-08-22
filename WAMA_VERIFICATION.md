@@ -1,0 +1,146 @@
+# WAMA — Vérification : grille d'ADOPTION et grille FONCTIONNELLE
+
+> **Référence unique du domaine « comment on sait que ça marche ».** Décidé avec Fabien le
+> 2026-08-22. Ne PAS créer de document concurrent : la grille de conformité est décrite dans
+> `WAMA_APP_CONVENTIONS.md` (ses critères), la charpente nocturne dans `PROJECT_STATUS.md §Tests
+> fonctionnels nocturnes` (son runner) — **ce fichier-ci tient la DOCTRINE** : qui prouve quoi,
+> ce qui reste non prouvé, et dans quel ordre on comble.
+
+---
+
+## 1. Le constat qui a déclenché ce document
+
+Le 2026-08-22, deux défauts ont été trouvés **le même jour**, tous deux invisibles à la grille :
+
+| Défaut | Ce que la grille en disait | Ce que le clic a dit |
+|---|---|---|
+| **anonymizer** — `paramName` absent : le fichier n'arrivait jamais, **400 pour tous les utilisateurs** | verte sur ses critères d'import : le markup était là, la brique était là | scénario `.import` ROUGE — rien n'était créé |
+| **converter_01** — bloc `app_scripts` non émis : aucun JS chargé, aucun écouteur | verte (et de toute façon **jamais notée** : les jumelles bac à sable sont exclues du run global) | 0 card créable par 5 voies, **zéro erreur console** |
+
+**La grille n'avait pas tort — elle mesurait autre chose.** Elle atteste que l'app a *adopté* la
+brique commune. C'est une propriété réelle et utile (l'homogénéité est un objectif de design,
+philosophie §2), mais ce n'est **pas** une preuve de fonctionnement. Confondre les deux, c'est
+lire « vert » là où l'utilisateur voit un écran mort.
+
+> ⚠ Corollaire opérationnel, appris le même jour : **la grille ne note jamais une app de bac à
+> sable** dans un run global (`non_sandbox_apps`). Un critère écrit pour attraper le défaut de
+> converter_01 ne pouvait donc structurellement pas l'attraper. On peut la noter explicitement —
+> `check_app_conformity --app converter_01` fonctionne (mesuré : 39✅/3🔶/21❌ sur 63 → 64 %) —
+> mais il faut le vouloir.
+
+---
+
+## 2. Deux grilles, deux prétentions — à ne jamais confondre
+
+| | **Grille d'ADOPTION** (existante) | **Grille FONCTIONNELLE** (à bâtir) |
+|---|---|---|
+| Question | « cette app utilise-t-elle la brique commune ? » | « ce geste utilisateur produit-il l'effet attendu ? » |
+| Instrument | `check_app_conformity` — analyse statique du code | scénarios nocturnes — Playwright, clics réels |
+| Coût | secondes, aucun service requis | minutes, exige serveur + base (+ parfois GPU) |
+| Source | `common/services/conformity_checker.py` | `common/services/nightly_tests.py` + `ui_smoke.py` |
+| Sortie | `logs/conformity_report.json` → `/apps/` | `logs/nightly_tests/nightly_*.json` → **à câbler** |
+| Prouve | l'homogénéité | le fonctionnement |
+| Ne prouve PAS | que ça marche | que le code est homogène |
+
+**Règle de lecture, à appliquer partout :** *un critère de grille atteste une ADOPTION, jamais un
+FONCTIONNEMENT ; seul un scénario qui exécute le geste le prouve.* Quand on annonce un résultat,
+préciser lequel des deux on cite.
+
+---
+
+## 3. Catalogue des gestes — il existe déjà, il n'est pas exécutable
+
+Le catalogue n'est **pas à inventer** : c'est la table des composants obligatoires de
+`CLAUDE.md` (§Conventions UI) + les voies d'import. Il faut le rendre *exécutable*.
+
+| # | Geste utilisateur | Scénario aujourd'hui | Traitement requis |
+|---|---|---|---|
+| 1 | Déposer un fichier → une card apparaît | ✅ `<app>.import` | non |
+| 2 | Ouvrir les paramètres d'un item, modifier, enregistrer, relire | ❌ | non |
+| 3 | Dupliquer un item | ❌ | non |
+| 4 | Supprimer un item | ❌ | non |
+| 5 | Tout effacer | ❌ | non |
+| 6 | Sélectionner une card → l'inspecteur se remplit ; désélectionner | ❌ | non |
+| 7 | **Créer par le bouton primaire** (apps `data-wama-depot=attache` : avatarizer, imager) | ❌ | non |
+| 8 | Démarrer un item → RUNNING → SUCCESS | ❌ | **oui** |
+| 9 | Arrêter / relancer (bouton de cycle) | ❌ | **oui** |
+| 10 | Progression : % et ETA visibles et qui avancent | ❌ | **oui** |
+| 11 | Aperçu du résultat (clic → visionneuse) | ❌ | **oui** |
+| 12 | Télécharger le résultat | ❌ | **oui** |
+| 13 | Démarrer tout / télécharger tout (lot) | ❌ | **oui** |
+| 14 | Import dossier récursif · URL · fichier de lot · « Envoyer vers » | ❌ | non |
+
+**Couverture mesurée le 2026-08-22 : 1 geste sur 14.** Les deux seuls scénarios par app sont
+`<app>.ui` (santé de la page : 200 + zéro erreur console — aucun geste) et `<app>.import`.
+
+> Illustration prise sur le vif le même soir : la normalisation `job_id`→`id` de l'**avatarizer**
+> n'a **pas pu être prouvée**, parce que `avatarizer.import` SKIPPE (son dépôt joint le fichier,
+> c'est le bouton primaire qui crée — geste n°7) et que `avatarizer.ui` n'atteste que la page.
+> Le correctif est sûr, il n'est pas *mesuré*. C'est le geste n°7 qui manque, pas le correctif.
+
+---
+
+## 4. Contrainte qui dicte l'ordre : le GPU
+
+Les gestes 8–13 exigent un **traitement réel**. Or la règle est absolue ici : **jamais de charge
+GPU en WSL2 déclenchée par l'assistant, ni de job GPU nocturne** (crashs hôte répétés,
+`reference_wsl_gpu_windows_update_regression`). Deux issues, aucune n'est un détail :
+
+1. **Commencer par les apps sans GPU** — le **converter** tourne sur ffmpeg/pandoc, en CPU. Il
+   sert de patron pour toute la famille « avec traitement ».
+2. **Traitement-jouet** pour les autres (entrée minuscule, modèle le plus léger), à n'activer que
+   sur décision explicite de Fabien.
+
+---
+
+## 5. Le second chantier : la grille d'adoption ne couvre pas tous les mécanismes
+
+Demande de Fabien (2026-08-22) : « mettre à jour la grille de conformité pour qu'elle reflète
+tous les mécanismes ». Ce n'est pas à estimer — **c'est mesuré** par
+`mecanismes_scan.mecanismes_sans_critere()`, qui exploite le champ `mecanisme` des critères.
+
+**Relevé du 2026-08-22 : 20 mécanismes ne sont vérifiés par AUCUN critère**, et 0 critère
+orphelin (aucune liaison morte — le point positif).
+
+| Mécanisme | Apps consommatrices | Mécanisme | Apps |
+|---|---|---|---|
+| `media_paths` | 10 | `output_formats` | 5 |
+| `rag_geste` | 10 | `video_utils` | 5 |
+| `gateway_identity` | 10 | `audio_decode` | 4 |
+| `manifests` | 8 | `document_export` | 3 |
+| `notifications` | 8 | `llm` | 3 |
+| `ffmpeg` | 5 | `audio_player` · `media_picker` · `media_probe` · `nightly_tests` · `task_skeleton` | 2 chacun |
+| | | `model_coverage` · `provenance` · `resource_governor` · `run_outcome` | 1 chacun |
+
+**Priorité par cardinalité** : un mécanisme adopté par 10 apps et vérifié par rien est le plus
+coûteux à laisser dériver. `media_paths`, `rag_geste`, `gateway_identity`, `manifests`,
+`notifications` d'abord.
+
+⚠ Ne PAS écrire un critère par mécanisme mécaniquement : certains (`resource_governor`,
+`provenance`) sont des briques de niveau **système**, pas d'app — un critère par app n'y aurait
+pas de sens. Le scan signale un manque de couverture, il ne dicte pas la réponse.
+
+---
+
+## 6. Ordre d'exécution retenu
+
+| Phase | Contenu | GPU | État |
+|---|---|---|---|
+| **1** | Gestes **2 à 7** — paramètres, dupliquer, supprimer, tout effacer, inspecteur, bouton primaire. Purement UI + base. Premier item : **création de l'avatarizer** (geste 7), justement celui qui manquait ce soir | non | ⏳ |
+| **2** | Câbler les résultats nocturnes en **grille fonctionnelle** : `nightly_*.json` → agrégat geste × app, rendu comme `/apps/` le fait pour l'adoption | non | ⏳ |
+| **3** | Gestes **8 à 13** sur le **converter** (CPU) comme patron, puis extension | CPU d'abord | ⏳ |
+| **4** | Critères pour les **20 mécanismes non couverts**, par cardinalité décroissante | non | ⏳ |
+| **5** | Voies d'import restantes (geste 14) | non | ⏳ |
+
+---
+
+## Voir aussi
+
+- `WAMA_APP_CONVENTIONS.md` — les critères de la grille d'adoption + la table des composants
+  obligatoires (= le catalogue des gestes, sous sa forme non exécutable).
+- `WAMA_MECANISMES.md` — index généré des mécanismes transversaux ; c'est lui qui alimente le
+  scan de couverture du §5.
+- `WAMA_APP_GENERATION_ROUTE.md §11` — les trous de la route ; #26 y est reclassé : il demandait
+  un critère de grille pour un défaut que la grille ne peut pas voir (§1).
+- `PROJECT_STATUS.md §Tests fonctionnels nocturnes` — le runner, le registre, la sérialisation
+  VRAM-aware.

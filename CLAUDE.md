@@ -216,6 +216,7 @@ le défaut qui a rendu ce déport risqué — ne pas le réintroduire.
 | UX de la file / modes applicatifs | `MODES_QUEUE_UX.md` |
 | Inspecteur — champs de détail (schéma canonique) | `INSPECTOR_DETAIL_FIELDS.md` |
 | **Volets gauche et droit** (ossature, états contextuels, mode simplifié, repli) | `WAMA_VOLETS.md` — état des lieux MESURÉ des 35 pages ; `INSPECTOR_DETAIL_FIELDS.md` reste le schéma des CHAMPS, pas la structure |
+| **Vérification — « comment sait-on que ça marche »** (grille d'ADOPTION vs grille FONCTIONNELLE, catalogue des gestes, couverture) | `WAMA_VERIFICATION.md` — **un critère de grille atteste une ADOPTION, jamais un FONCTIONNEMENT** ; couverture mesurée 2026-08-22 : **1 geste utilisateur sur 14** prouvé par un clic, **20 mécanismes** sans aucun critère |
 | Studio & production AV | `STUDIO_VISION.md` |
 | Monde Data (périmètre, cartographie de corpus) | `WAMA_DATA_WORLD.md` + `WAMA_DATA_FUNCTION_CARDS.md` (catalogue) |
 | Vision produit d'ensemble | `docs/WAMA_Vision_Complet_v2.md` (+ `docs/VISION_STATUS.md` = confrontation au réel) |
