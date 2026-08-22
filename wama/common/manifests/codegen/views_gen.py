@@ -170,6 +170,107 @@ def batch_preview(request):
     from wama.common.utils.batch_parsers import batch_media_list_preview_response
     return batch_media_list_preview_response(request)'''
 
+    # CRÉATION DE LOT — conventionnelle, plus un stub (trou 22, 2026-08-22). L'aperçu marchait,
+    # le bouton ne produisait rien : le dernier maillon bouchonné du chemin de lot. Rien de
+    # neuf n'est écrit ici, tout existait —
+    #   `parse_batch_file_from_request` (lecture du fichier, déjà utilisée par batch_preview),
+    #   `copy_into_app_input` (copie sûre + chemin relatif MEDIA_ROOT),
+    #   `group_into_batches_by_nature` (règle générale de regroupement, conventions §9).
+    #
+    # ⚠ UNE URL N'EST PAS TÉLÉCHARGÉE ICI. On enregistre la SOURCE et `ensure_local_input` la
+    # résout en tête de tâche (idempotent, WAMA_INGEST). Deux raisons, pas une : la requête ne
+    # part pas chercher N fichiers distants sous le nez de l'utilisateur (le converter, lui,
+    # télécharge en eager et un lot de 30 URL y tient la requête ouverte), et le seul chemin de
+    # téléchargement reste celui qui passe par la garde SSRF. Une app SANS ingest déclaré le dit
+    # dans `warnings` plutôt que d'échouer en silence.
+    # Fragments PRÉCALCULÉS (pas de f-string imbriquée : elle dépendrait de PEP 701 et se
+    # relit mal — le gabarit doit rester lisible par qui n'écrit pas de générateur).
+    nature_champ = d['batch_extra']          # 'media_type' si l'app la porte, sinon ''
+    _nom = d['name_field']
+    bc_nom_url = (f"""if nom:
+                    obj.{_nom} = nom
+                    obj.save(update_fields=['{_nom}'])""" if _nom else "pass")
+    bc_nom_fichier = f"kwargs['{_nom}'] = _dest.name" if _nom else "pass"
+    bc_nature = (f"str(getattr(o, '{nature_champ}', '') or '')" if nature_champ else "''")
+    bc_nature_kw = (f", **{{'{nature_champ}': nature}}" if nature_champ else "")
+    vues['batch_create'] = f'''@require_POST
+def batch_create(request):
+    """Crée N éléments depuis un fichier de lot, puis les regroupe — briques communes."""
+    from pathlib import Path as _Path
+    from django.conf import settings as _settings
+    from wama.common.utils.batch_common import group_into_batches_by_nature
+    from wama.common.utils.batch_parsers import parse_batch_file_from_request
+    from wama.common.utils.media_paths import copy_into_app_input
+
+    user = _user(request)
+    try:
+        lignes, avertissements = parse_batch_file_from_request(request)
+    except ValueError as e:
+        return JsonResponse({{'error': str(e)}}, status=400)
+    if not lignes:
+        return JsonResponse({{'error': 'Aucun élément valide trouvé dans le fichier'}}, status=400)
+
+    # Clé 'source' (défaut 'source_url') — c'est celle que lit `ensure_local_input`
+    # (source_ingest.py:77) et celle que porte le manifeste (`processing.ingest`).
+    # On vérifie AUSSI que le champ existe : un modèle généré avant le 2026-08-22 peut
+    # déclarer l'ingest sans porter le champ, et écrire dans un attribut fantôme
+    # échouerait à la création avec un message illisible.
+    ingest = getattr({item}, 'WAMA_INGEST', None) or {{}}
+    champ_source = ingest.get('source') or ('source_url' if ingest else '')
+    if champ_source and not any(f.name == champ_source for f in {item}._meta.get_fields()):
+        champ_source = ''
+    racine = _Path(_settings.MEDIA_ROOT).resolve()
+    crees = []
+    for ligne in lignes:
+        src = (ligne.get('path') or '').strip()
+        if not src:
+            continue
+        try:
+            kwargs = {{'user': user}}
+            if src.startswith(('http://', 'https://')):
+                if not champ_source:
+                    avertissements.append('URL non prise en charge (app sans ingest) : ' + src)
+                    continue
+                kwargs[champ_source] = src
+                nom = (ligne.get('filename') or '').strip()
+                obj = {item}.objects.create(**kwargs)
+                {bc_nom_url}
+            else:
+                cand = _Path(src)
+                absolu = (cand if cand.is_absolute() else (racine / src)).resolve()
+                if not str(absolu).startswith(str(racine)) or not absolu.exists():
+                    avertissements.append('Introuvable : ' + src)
+                    continue
+                _dest, rel = copy_into_app_input(absolu, '{app}', user.id, 'input')
+                {bc_nom_fichier}
+                obj = {item}.objects.create(**kwargs)
+                obj.{d['input_field']}.name = rel
+                obj.save(update_fields=['{d['input_field']}'])
+            crees.append(obj)
+        except Exception as e:
+            avertissements.append(src + ' : ' + str(e))
+
+    # TROU DE GLU {mark} — les champs DÉRIVÉS de l'entrée (converter : `media_type`, déduit du
+    # nom par son `format_router`) ne sont pas renseignés : la déduction est propre à l'app, il
+    # n'existe pas de détecteur COMMUN nom→type (`probe_media` travaille sur un fichier présent
+    # et rend une fiche, pas une valeur de `choices`). Le `upload` généré a exactement le même
+    # manque : on le laisse IDENTIQUE ici plutôt que de doter un seul des deux chemins — c'est
+    # la divergence entre chemins qui a produit les trois derniers défauts de codegen.
+    def _lier(lot, obj, idx):
+        setattr(obj, '{fk}', lot)
+        setattr(obj, '{row}', idx)
+        obj.save(update_fields=['{fk}', '{row}'])
+
+    lots = group_into_batches_by_nature(
+        crees,
+        nature_of=lambda o: {bc_nature},
+        create_batch=lambda nature, total: {batch}.objects.create(
+            user=user, total=total{bc_nature_kw}),
+        link_item=_lier,
+    )
+    return JsonResponse({{'success': True, 'count': len(crees),
+                         'batches': len(lots), 'warnings': avertissements}})'''
+
     vues['start'] = f'''@require_POST
 def start(request, pk):
     user = _user(request)
@@ -405,9 +506,18 @@ consolidate       = _qm['consolidate']'''
         else:
             blocs.append(stub(ep, pk=ep in stubs_pk or ep.rstrip('_') in
                               ('cancel', 'dismiss', 'update')))
+    # ⚠ Cette boucle consulte `vues` AVANT de boucher (2026-08-22). Elle ne le faisait pas : une
+    # route déclarée en `extra_routes` plutôt qu'en `endpoints` recevait un STUB 501 alors que
+    # la fabrique savait la rendre. C'est ce qui gardait `batch_create` bouché — le corps était
+    # à écrire, mais même écrit il n'aurait pas été émis pour une app qui le déclare en extra.
+    # Deux chemins d'assemblage qui ne donnent pas la même app : le défaut exact déjà trouvé
+    # sur `WAMA_INGEST` (models_gen) et sur le `pk` de `batch_preview` ci-dessus.
     for nom in d['extras']:
         if nom not in deja:
             deja.add(nom)
+            if nom in vues:
+                blocs.append(vues[nom])
+                continue
             blocs.append(stub(nom, pk=True) if nom not in ('quick_convert', 'batch_preview',
                                                            'batch_create', 'consolidate',
                                                            'profile_list', 'profile_save')
