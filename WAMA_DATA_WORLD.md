@@ -32,7 +32,7 @@
 > Mesuré depuis le code — **ne pas éditer à la main** (`python manage.py doc_facts`).
 > Registre des modules : `wama_data/modules.py`.
 
-**Bilan** : 5 ⏳ (non commencé) · 5 🔶 (livré mais INERTE)
+**Bilan** : 4 ⏳ (non commencé) · 6 🔶 (livré mais INERTE)
 
 > 🔶 **AUCUN consommateur hors `wama_data/` — le sous-système entier est INERTE.** Aucune app, tâche ou route ne s'en sert encore : les briques s'appellent entre elles, et c'est tout. Le premier module à donner un usage réel fera basculer ces lignes en ✅.
 
@@ -42,10 +42,10 @@
 | **Référentiel temporel** | Aligne des flux à cadences incommensurables | référentiel → échantillons, `segments`, vue décimée | 🔶 | 1/1 | 1 | 1/0 | §2, §3 |
 | **Connector** | Branche une base existante comme source | base SQLite → référentiel | 🔶 | 1/1 | 0 | 1/0 | §6.2 |
 | **Explorer** | Explore un dataset en table et en graphe | référentiel → vues | ⏳ | — | — | — | §7 |
-| **Segmenter** | Produit des segments : autour d'un événement, par jonction de deux flux, par prédicat avec hystérésis, par plages constantes d'un catégoriel, ou par CODAGE (humain ou IA) | `events` ou signal + prédicat → `segments` | 🔶 | 4/4 | 2 | 12/0 | §9ter (spécification), §6.7 |
+| **Segmenter** | Produit des segments : autour d'un événement, par jonction de deux flux, par CHAÎNE de conditions (ET/OU/XOR/NON) avec hystérésis, par plages constantes d'un catégoriel, ou par CODAGE (humain ou IA) — la chaîne sort en segments OU en événements, au choix du PORT | `events` ou signal + conditions → `segments` \| `events` | 🔶 | 6/6 | 4 | 14/0 | §9ter (spécification), §9ter.6 A-B (portage), §6.7 |
 | **Calculator** | Calcule des COLONNES DÉRIVÉES (moyenne glissante, dérivée, cumul) et des INDICATEURS PAR SEGMENT qu'il adjoint aux segments | signal → signal enrichi · `segments` + signal → colonnes d'indicateurs | 🔶 | 3/3 | 2 | 3/0 | §6.7 |
 | **Visualizer** | Vues synchronisées sur l'axe partagé (plugins) | référentiel → plugins co-chargés | ⏳ | — | — | — | §4, §8.2 |
-| **Exporter** | Exporte TOUT le contenu d'un trip de façon configurable — données, méta-infos, événements, situations et leurs indicateurs : sélection ordonnée de colonnes, identité, contexte, regroupement | données/méta/`events`/`segments` + sélection → fichiers (concaténation, jamais pivot) | ⏳ | — | — | — | §9ter.5, §9ter.6 |
+| **Exporter** | Exporte TOUT le contenu d'un trip de façon configurable — données, méta-infos, événements, situations et leurs indicateurs : sélection ordonnée de colonnes, identité, contexte, regroupement | données/méta/`events`/`segments` + sélection → fichiers (concaténation, jamais pivot) | 🔶 | 2/2 | 2 | 2/0 | §9ter.5, §9ter.6 C |
 | **Recorder** | Enregistre depuis une source temps réel | flux LSL/RTMaps/ROS → `dataset` | ⏳ | — | — | — | §7 |
 | **Analyzer** | Orchestre les modules selon un manifeste `pipeline` | manifeste `pipeline` → exécution | ⏳ | — | — | — | §9bis.2 |
 
@@ -53,10 +53,10 @@
 
 - **Importer** — alignement par TRIGGERS non conçu (D12) ; `DATASET_SOURCES` non réconcilié avec le registre des lecteurs (G1) ; lecteur `.rec` encore une FONCTION (`functions/io/rtmaps_rec.py`) au lieu d'un lecteur de source
 - **Référentiel temporel** — AUCUN consommateur — la brique est inerte tant qu'un module ne s'en sert pas
-- **Segmenter** — MOTEUR complet (5 modes) — reste l'INTERFACE de codage, qui doit se GÉNÉRER du protocole et non s'écrire : elle dépend du transport (Magneto + vue média) et de la vue déclarative, donc du Visualizer
+- **Segmenter** — MOTEUR complet — le portage schéma-driven de §9ter.6 A-B est LIVRÉ le 2026-08-23 (chaîne de conditions en ARBRE, 14 opérateurs filtrés par la SORTE de colonne LUE dans la donnée, offsets et « répéter » de la jonction, second port `masque → events`). Restent DEUX manques de §9ter.6 A, tous deux d'INTERFACE et non de moteur : le filtrage manuel occurrence par occurrence (= la file de cards + l'inspecteur, mécanisme existant, zéro code) et l'interface de codage, qui doit se GÉNÉRER du protocole — elle dépend du transport (Magneto + vue média) et de la vue déclarative, donc du Visualizer
 - **Calculator** — MOTEUR écrit et éprouvé (49 tests — 32 sur le cœur pur, 17 sur la frontière pandas) : reste son emploi sur un corpus RÉEL, qui dépend de l'Importer — sans flux aligné, il n'y a rien à calculer
 - **Visualizer** — vue déclarative = verrou §7ter point 3 ; écrire 2-3 plugins AVANT d'extraire
-- **Exporter** — À ÉCRIRE sur le modèle réel (§9ter.6) — un premier jet fondé sur un pivot INEXISTANT a été reverté (ef756b63). N'attend RIEN d'un autre module : écrivable dès maintenant
+- **Exporter** — MOTEUR écrit et éprouvé le 2026-08-23 (49 tests — 37 sur le cœur pur, 12 sur la frontière pandas) sur le modèle RÉEL cette fois : une DÉCLARATION sérialisable, DEUX axes de regroupement au lieu des quatre branches recopiées, l'aperçu qui EST l'export borné. ⚠ Il n'est PAS au catalogue de fonctions et ce n'est pas un oubli : un puits n'a pas de `FunctionCategory` honnête, et où vit ce nœud relève de la décision D13 — le trancher dans un adaptateur serait le trancher au mauvais endroit. Restent donc : le nœud de pipeline (D13), les formats `xlsx`/`mat` (refusés explicitement, pas écrits), et l'app qui le pilote
 - **Recorder** — périmètre v1 non tranché (D5)
 - **Analyzer** — nœud FONCTION absent du kind `pipeline` (D13)
 
@@ -1059,24 +1059,61 @@ existé. C'est le module que WAMA écrira **sans modèle**, et le seul de la cha
 
 #### A. Ce qui manque au Segmenter — mesuré, pas supposé
 
-| BIND (diapo 12 + captures) | WAMA aujourd'hui |
-|---|---|
-| Temporelle **simple** : ancre ± inf/sup | ✅ `autour(ancres, offset_debut, offset_fin)` |
-| Temporelle **double** : Table 1 **+ offset**, Table 2 **+ offset** | ❌ `jonction()` n'a **aucun offset** |
-| ☐ **Répéter sur les prochains segments** | ❌ absent |
-| Conditionnelle : **liste de conditions** `(C1) (C2)…` | ❌ **un seul** prédicat |
-| **Connecteur logique** `ET / OU / XOR / NON` + imbrication | ❌ absent |
-| Opérateurs **texte** (`contient`) | ❌ 6 opérateurs numériques |
-| Cible **Event \| Situation** au choix | ❌ produit toujours des `segments` |
-| « Présent dans » **dans le geste** | 🔶 `present_dans` existe, mais à part |
-| **Filtrage manuel** occurrence par occurrence | ❌ absent |
-| Nom **auto-dérivé** des paramètres (`deb_fin_0_0`) | 🔶 `nom` libre |
+> ✅ **PORTÉ le 2026-08-23.** La colonne de droite était l'état au 22/08 ; la troisième dit ce qui
+> a été livré. Les deux seuls manques restants sont d'**INTERFACE**, pas de moteur.
+
+| BIND (diapo 12 + captures) | WAMA au 22/08 | au 23/08 |
+|---|---|---|
+| Temporelle **simple** : ancre ± inf/sup | ✅ `autour(ancres, offset_debut, offset_fin)` | ✅ inchangé |
+| Temporelle **double** : Table 1 **+ offset**, Table 2 **+ offset** | ❌ `jonction()` n'a **aucun offset** | ✅ `offset_debut` / `offset_fin`, appliqués APRÈS l'appariement |
+| ☐ **Répéter sur les prochains segments** | ❌ absent | ✅ `repeter` — défaut **inversé** (voir ci-dessous) |
+| Conditionnelle : **liste de conditions** `(C1) (C2)…` | ❌ **un seul** prédicat | ✅ `Condition` déclarée, N par chaîne |
+| **Connecteur logique** `ET / OU / XOR / NON` + imbrication | ❌ absent | ✅ **arbre** validé à la déclaration |
+| Opérateurs **texte** (`contient`) | ❌ 6 opérateurs numériques | ✅ **14 opérateurs**, filtrés par la SORTE de colonne |
+| Cible **Event \| Situation** au choix | ❌ produit toujours des `segments` | ✅ deux **ports** du même masque |
+| « Présent dans » **dans le geste** | 🔶 `present_dans` existe, mais à part | 🔶 inchangé — c'est un CONTEXTE d'export (point 5), traité côté Exporter |
+| **Filtrage manuel** occurrence par occurrence | ❌ absent | ⏳ **c'est la CARD** (point 6) — mécanisme existant, aucune interface à écrire |
+| Nom **auto-dérivé** des paramètres (`deb_fin_0_0`) | 🔶 `nom` libre | ✅ `nom_jonction()` / `nom_chaine()`, `nom` libre restant possible |
+
+> **Le défaut de `repeter` est INVERSÉ par rapport à BIND, délibérément.** Chez lui, ne pas cocher
+> la case produit UN segment ; ici, `repeter=True` est le défaut et produit toute la série. Deux
+> raisons : c'est le comportement historique de `jonction()` (l'inverser serait une régression
+> silencieuse pour les chaînes existantes), et produire la série est le cas courant d'une analyse
+> — le cas particulier mérite d'être demandé plutôt que subi.
+
+> ⚠ **Ce que la lecture du code a corrigé dans le tableau ci-dessus.** « Répéter sur les prochains
+> segments » n'est pas seulement une case : son implémentation (`appliquer_prochainSeg`) apparie
+> les deux tables **par INDEX** et, quand elles n'ont pas le même nombre d'occurrences, ne sait que
+> refuser — « Impossible de répéter sur les prochains segments puisque la taille des tableaux sont
+> differents. Veuillez filtrer les tables. » L'appariement **par le temps** que `jonction()` faisait
+> déjà n'a pas ce cas d'échec : le choix WAMA était bon, et on sait maintenant contre quoi.
 
 #### B. La chaîne conditionnelle — le morceau qui demande une vraie traduction
 
 BIND présente une liste `(C1) (C2)…` et un champ **texte** éditable, `ET (C1 ,C2)`, dont l'exemple
-affiché est `NON(C1 C2 OU(C4 XOR (C5 ET C6)))`. Transposer cela donnerait un champ texte et un
+affiché est `NON(C1 ET C2 OU(C4 XOR (C5 ET C6)))`. Transposer cela donnerait un champ texte et un
 parseur. Ce n'est pas ce qu'on fait — voici la traduction, point par point.
+
+> ⚠ **CE QUE LA LECTURE DU CODE A ÉTABLI (2026-08-23), et qui rend ce §B plus fort qu'écrit.**
+> L'assemblage n'est pas « du texte » au sens vague : c'est du texte **passé à `eval()`** —
+>
+> ```matlab
+> ET = @and;  OU = @or;  NON = @not;  XOR = @xor;
+> master_mask = eval(strrep(operations, 'C', 'masks.C'));
+> ```
+>
+> Trois conséquences, toutes vérifiables :
+> - **Le rattrapage est un `uialert` unique** — « Probleme avec les connecteurs, Impossible de
+>   segmenter » — qui ne dit NI quelle condition, NI où. C'est ce que le point 2 remplace.
+> - **`ET`/`OU`/`XOR` sont BINAIRES** (`@and`, `@or`, `@xor`) et `NON` unaire. Le constructeur
+>   (`fusion_connecteur`) fabrique donc l'imbrication à gauche par concaténation de chaînes :
+>   `ET ( ET (C1 , C2) , C3 )` pour dire « les trois ».
+> - **L'exemple affiché par l'interface n'est pas dans la syntaxe qu'elle accepte.** Il montre de
+>   l'INFIXE (`C1 ET C2`) là où `eval()` n'exécute que du PRÉFIXE (`ET(C1, C2)`) — `ET` est une
+>   poignée de fonction, pas un opérateur. L'exemple est un **contre-exemple**. C'est le symptôme
+>   exact d'un texte qui sert à la fois de modèle et d'affichage : les deux divergent sans que
+>   rien ne le signale. ⚠ Une version antérieure de cette ligne recopiait l'exemple **sans son
+>   `ET`** (`NON(C1 C2 OU(…))`) — corrigé ici sur le source.
 
 1. **Une condition est une DÉCLARATION typée, pas une ligne d'interface.**
    `Condition(cle='C1', source='commentaires_simu', champ='texte', operateur='contient',
@@ -1091,13 +1128,32 @@ parseur. Ce n'est pas ce qu'on fait — voici la traduction, point par point.
    inexistant, une arité fausse ou une parenthèse manquante se refusent **à la déclaration** au
    lieu d'échouer à l'exécution — et l'arbre se compare, se diffe et se stocke.
 
-3. **Les opérateurs se DÉCLARENT dans un registre, et se filtrent par TYPE de colonne.**
-   Même geste que `STATISTIQUES` du Calculator : un registre `{nom → (test, types admis)}`. Le
-   gain n'est pas la centralisation, c'est que **l'UI se dérive du type** — une colonne texte ne
-   propose pas `>=`, une colonne numérique ne propose pas `contient`. BIND offre une liste plate
-   où l'utilisateur peut composer une condition qui ne veut rien dire. WAMA a déjà `data_types.py`
-   pour savoir de quel type est une colonne : la vérification est **gratuite**, il suffit de la
-   brancher.
+3. **Les opérateurs se DÉCLARENT dans un registre, et se filtrent par SORTE de colonne.**
+   Même geste que `STATISTIQUES` du Calculator : un registre `{nom → (test, sortes admises)}`. Le
+   gain n'est pas la centralisation, c'est que **l'UI se dérive de la donnée** — une colonne texte
+   ne propose pas `>=`, une colonne numérique ne propose pas `contient`.
+
+   > ⚠ **DEUX AFFIRMATIONS DE CETTE LIGNE ÉTAIENT FAUSSES**, corrigées le 2026-08-23 après lecture
+   > du code et de `data_types.py`. Les consigner importe : la seconde a failli faire écrire un
+   > branchement qui n'existait pas.
+   >
+   > - **« BIND offre une liste plate » — NON.** Il filtre, mais **sur le mauvais axe** : la liste
+   >   dépend de ce qu'on CRÉE (une situation n'a droit qu'aux 6 comparaisons numériques, un
+   >   événement aux 16), jamais du type de la colonne testée. On peut donc y appliquer `<` à une
+   >   colonne de texte — MATLAB compare alors les codes des caractères et rend un masque
+   >   plausible. Le défaut est plus intéressant que « pas de filtre » : filtrer sur la SORTIE est
+   >   arbitraire, c'est l'ENTRÉE qui décide du sens d'un opérateur.
+   > - **« WAMA a déjà `data_types.py` pour savoir de quel type est une colonne : la vérification
+   >   est gratuite » — NON.** `data_types.py` type le **CADRE** (`TypedFrame.data_type`), et
+   >   `TypedFrame` n'expose que `.fields`, une liste de NOMS. Rien n'y type une colonne. La
+   >   vérification a donc coûté une notion neuve — la **SORTE** (numérique / texte / booléen),
+   >   trois valeurs et pas une de plus — et sa dérivation depuis un `dtype`
+   >   (`functions/temporal/conditions.py::sorte_de_colonne`). Elle vit dans l'ADAPTATEUR : le
+   >   cœur reste sans pandas.
+   >
+   > **Et la sorte n'est jamais DÉCLARÉE, elle est LUE dans la donnée** — une `sorte` présente
+   > dans le JSON d'entrée est ignorée. Si on pouvait la saisir, se tromper en la saisissant
+   > rétablirait exactement le défaut qu'on corrige.
 
 4. **« Que créer ? Event | Situation » devient un PORT DE SORTIE, pas un bouton radio.**
    La chaîne produit un **masque booléen**. Deux fonctions déclarées le consomment :
@@ -1148,11 +1204,48 @@ parseur. Ce n'est pas ce qu'on fait — voici la traduction, point par point.
    ce document l'a déjà tranché pour la sauvegarde d'environnement (« c'est un manifeste, pas un
    dump de session »). Les `save_env_export` / `load_export` de BIND arrivent alors **gratuitement**.
 
+   > ⚠ **La décimation existe mais n'est OFFERTE nulle part** (relevé 2026-08-23). `subSampling`
+   > vaut **1000 écrit en dur** dans le script de lot, et l'option « Échantillonnage » annoncée par
+   > la présentation a 0 occurrence dans le code — c'est le cas déjà signalé en §9ter.5. Sa
+   > sémantique est un **PAS** (`for i = 1:sub_sampling:length`), donc « garder une ligne sur N »,
+   > **pas** « couper après N » : les deux lectures donnent des fichiers différents et seule la
+   > première est la sienne. Elle devient ici un champ déclaré (`Declaration.decimation`, ≥ 1),
+   > et **l'aperçu s'applique APRÈS elle** — montrer les 20 premières lignes brutes d'un export
+   > décimé au 1000ᵉ ne montrerait pas l'export.
+
 2. **Les 4 modes de concaténation sont DEUX AXES, pas quatre branches.** BIND croise deux cases
    (`ConcatTrip`, `ConcatSituationEvents`) en quatre `elseif` qui recopient chacun la même boucle
-   d'écriture — et les défauts qui vont avec (dans `concat_all`, `i_trip` et `i_fic` sont lus hors
-   de leur boucle). WAMA déclare `regroupement = {lots: bool, declarations: bool}` et **une seule**
+   d'écriture. WAMA déclare `regroupement = {lots: bool, declarations: bool}` et **une seule**
    implémentation de groupement : les quatre modes deviennent une conséquence, pas un chemin de code.
+
+   > ✅ **CONFIRMÉ SUR LE CODE (2026-08-23).** Les quatre branches de `exportation` (`normal`,
+   > `concat_event_situation`, `concat_trip`, `concat_all`) parcourent toutes la **même matrice**
+   > `data_for_all{i_fic, i_trip}` — déclarations × trips. Concaténer ou non sur chaque axe donne
+   > exactement ces quatre modes : ce sont bien deux booléens.
+   >
+   > ⚠ **Et les branches coûtent CINQ défauts, pas un.** La ligne précédente n'en citait qu'un ;
+   > le relevé ligne à ligne en donne cinq, tous dans le code recopié — c'est l'argument, pas le
+   > style :
+   > 1. `concat_all` accumule dans la **mauvaise variable** (`dataconcat_fic = [dataconcat; …]` au
+   >    lieu de `[dataconcat_fic; …]`) : seule la **dernière déclaration de chaque trip survit** ;
+   > 2. `concat_all` et `concat_trip` lisent `i_trip` / `i_fic` **après la fin de leur boucle** —
+   >    nom de fichier et chemin sont ceux du dernier tour (c'est le défaut déjà cité) ;
+   > 3. `concat_all` concatène **horizontalement** (`,`) là où les trois autres empilent (`;`) ;
+   > 4. le `header` retenu est celui de la **dernière** déclaration alors que les données en
+   >    concatènent plusieurs, **aux colonnes différentes** ;
+   > 5. deux `try … catch` **à corps vide** avalent en silence les incompatibilités de taille.
+   >
+   > Une implémentation unique n'en a aucun — non par talent, mais parce qu'il n'y a plus quatre
+   > endroits où diverger. Les cinq ont un test dans `wama_data/core/tests_export.py`.
+
+2bis. **Il y a DÉJÀ deux conventions d'en-tête dans le même système** (relevé 2026-08-23, non
+   anticipé). L'interface produit `table.variable` (`strcat(tables, '.', vars)`) — d'où les
+   en-têtes `0_15.startTimecode` du livrable décrit en §9ter.5. Le chemin script
+   (`ExportTrip2Files.buildHeader`) produit le nom de variable **NU**, précédé d'un `trip_id` ; et
+   sa branche multi-occurrences est du **code mort** qui référence une variable jamais définie
+   (`i_occurrence`) — elle lèverait si on l'atteignait. Deux chemins, deux conventions, dont une
+   qui ne peut pas s'exécuter. C'est pourquoi l'en-tête est ici un **CHAMP de la colonne déclarée**
+   (`Colonne.entete`, défaut `source.champ`) et non une reconstruction par chemin.
 
 3. **L'interface ne s'écrit pas, elle se génère de la déclaration.** Le sélecteur à trois niveaux
    (type → table → variables), l'ordre `▲▼✕`, l'aperçu : ce sont des **rendus** du schéma. WAMA a
@@ -1176,6 +1269,46 @@ en C.)
 - **L'Exporter** exporte **tout ce que le trip contient** : données, méta-infos, événements,
   situations et les indicateurs qui y ont été adjoints. Il est prêt à être écrit **dès
   maintenant** — il n'attend rien du Segmenter.
+
+#### E. Ce qui a été LIVRÉ le 2026-08-23, et ce qui reste
+
+Les deux chantiers étant indépendants, les deux ont été faits dans la même session.
+
+| livré | briques | preuve |
+|---|---|---|
+| **Chaîne conditionnelle** (B, points 1-4 et 7) | `core/conditions.py`, `functions/temporal/conditions.py` | 41 tests cœur + 26 frontière |
+| **Manques temporels** (A : offsets de jonction, `repeter`, second port) | `core/segmentation.py` (`jonction`, `bascules`) | 15 tests |
+| **Exporter** (C, points 1-4) | `core/export.py`, `functions/io/export.py` | 37 tests cœur + 12 frontière |
+
+`wama_data` passe de **198 à 327 tests**, tous verts. Les gardes centrales ont été vérifiées
+« mordantes » (neutralisées une à une → échec au symptôme exact), conformément à la leçon des deux
+harnais qui avaient annoncé « 0 FAIL » sur du vide.
+
+**Reste, et chaque manque est NOMMÉ :**
+
+1. **Le filtrage manuel** (A, point 6) — c'est la **file de cards + l'inspecteur**, mécanisme
+   existant. Rien à écrire dans le monde Data : le geste est de brancher une collection de
+   segments sur la file. À faire quand une app pilotera le Segmenter.
+2. **« Présent dans » dans le geste** (B, point 5) — `present_dans()` existe et reste à part. Sa
+   place est un **champ `contexte` de la déclaration d'export**, pas une variante de fonction ;
+   il n'est pas encore câblé dans `Declaration`.
+3. **L'Exporter n'est PAS au catalogue de fonctions**, et c'est une décision. Un puits ne rend
+   aucune donnée typée : aucune des sept `FunctionCategory` ne lui convient, et en ajouter une
+   modifierait le **substrat partagé avec le Lab** pour une valeur que rien ne consomme (aucune
+   interface ne rend les catégories). Où vit ce nœud est exactement la **décision D13**. Un test
+   (`PasDeDeclarationAuCatalogueTest`) verrouille l'abstention pour qu'elle ne se défasse pas par
+   inadvertance.
+4. **Formats `xlsx` / `mat`** — déclarés, refusés **explicitement** par le cœur (ils demandent une
+   bibliothèque, donc l'adaptateur). Rendre un CSV sous une extension `.xlsx` serait pire.
+5. **L'interface de codage** (5ᵉ mode) — inchangée : elle dépend du Visualizer.
+
+⚠ **Ce que ces deux portages ont appris sur la méthode**, au-delà du code : sur les **cinq**
+affirmations de ce §9ter.6 que la lecture du code a pu confronter, **deux étaient fausses** (« BIND
+offre une liste plate », « `data_types.py` sait typer une colonne ») et **une sous-estimait** le
+problème d'un facteur cinq (« les défauts qui vont avec » → cinq défauts distincts). Toutes trois
+allaient dans le même sens : **elles rendaient le travail plus facile qu'il n'était**. C'est la
+même famille d'erreur que le pivot inexistant qui a fait reverter le premier Exporter — écrire la
+spécification depuis un schéma et une intuition plutôt que depuis le code vivant.
 
 Le Calculator, lui, reste valide : ses deux modes sont confirmés par la diapo 7 (« Calcul
 d'indicateurs globaux et par situations ») et par la ligne du §7 (« transformation de colonnes …

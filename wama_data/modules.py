@@ -82,20 +82,30 @@ MODULES: Tuple[ModuleData, ...] = (
     ),
     ModuleData(
         'segmenter', 'Segmenter', "Produit des segments : autour d'un événement, par jonction de "
-                                  "deux flux, par prédicat avec hystérésis, par plages constantes "
-                                  "d'un catégoriel, ou par CODAGE (humain ou IA)",
-        "`events` ou signal + prédicat → `segments`",
+                                  "deux flux, par CHAÎNE de conditions (ET/OU/XOR/NON) avec "
+                                  "hystérésis, par plages constantes d'un catégoriel, ou par "
+                                  "CODAGE (humain ou IA) — la chaîne sort en segments OU en "
+                                  "événements, au choix du PORT",
+        "`events` ou signal + conditions → `segments` | `events`",
         briques=('wama_data/core/segmentation.py',
+                 'wama_data/core/conditions.py',
                  'wama_data/core/coding.py',
                  'wama_data/functions/temporal/segmentation.py',
+                 'wama_data/functions/temporal/conditions.py',
                  'wama_data/functions/temporal/coding.py'),
         fonctions=('segment_autour_event', 'segment_jonction', 'segment_conditionnel',
+                   'segment_chaine_conditionnelle', 'event_chaine_conditionnelle',
                    'segment_etats', 'segment_present_dans',
                    'codage_segments', 'codage_evenements', 'codage_accord'),
-        doc='§9ter (spécification), §6.7',
-        bloque_par="MOTEUR complet (5 modes) — reste l'INTERFACE de codage, qui doit se GÉNÉRER "
-                   "du protocole et non s'écrire : elle dépend du transport (Magneto + vue média) "
-                   "et de la vue déclarative, donc du Visualizer",
+        doc='§9ter (spécification), §9ter.6 A-B (portage), §6.7',
+        bloque_par="MOTEUR complet — le portage schéma-driven de §9ter.6 A-B est LIVRÉ le "
+                   "2026-08-23 (chaîne de conditions en ARBRE, 14 opérateurs filtrés par la SORTE "
+                   "de colonne LUE dans la donnée, offsets et « répéter » de la jonction, second "
+                   "port `masque → events`). Restent DEUX manques de §9ter.6 A, tous deux "
+                   "d'INTERFACE et non de moteur : le filtrage manuel occurrence par occurrence "
+                   "(= la file de cards + l'inspecteur, mécanisme existant, zéro code) et "
+                   "l'interface de codage, qui doit se GÉNÉRER du protocole — elle dépend du "
+                   "transport (Magneto + vue média) et de la vue déclarative, donc du Visualizer",
     ),
     ModuleData(
         'calculator', 'Calculator',
@@ -138,10 +148,18 @@ MODULES: Tuple[ModuleData, ...] = (
         "événements, situations et leurs indicateurs : sélection ordonnée de colonnes, identité, "
         "contexte, regroupement",
         "données/méta/`events`/`segments` + sélection → fichiers (concaténation, jamais pivot)",
-        doc='§9ter.5, §9ter.6',
-        bloque_par="À ÉCRIRE sur le modèle réel (§9ter.6) — un premier jet fondé sur un pivot "
-                   "INEXISTANT a été reverté (ef756b63). N'attend RIEN d'un autre module : "
-                   "écrivable dès maintenant",
+        briques=('wama_data/core/export.py',
+                 'wama_data/functions/io/export.py'),
+        doc='§9ter.5, §9ter.6 C',
+        bloque_par="MOTEUR écrit et éprouvé le 2026-08-23 (49 tests — 37 sur le cœur pur, 12 sur "
+                   "la frontière pandas) sur le modèle RÉEL cette fois : une DÉCLARATION "
+                   "sérialisable, DEUX axes de regroupement au lieu des quatre branches "
+                   "recopiées, l'aperçu qui EST l'export borné. ⚠ Il n'est PAS au catalogue de "
+                   "fonctions et ce n'est pas un oubli : un puits n'a pas de `FunctionCategory` "
+                   "honnête, et où vit ce nœud relève de la décision D13 — le trancher dans un "
+                   "adaptateur serait le trancher au mauvais endroit. Restent donc : le nœud de "
+                   "pipeline (D13), les formats `xlsx`/`mat` (refusés explicitement, pas écrits), "
+                   "et l'app qui le pilote",
     ),
     ModuleData(
         'recorder', 'Recorder', "Enregistre depuis une source temps réel",
