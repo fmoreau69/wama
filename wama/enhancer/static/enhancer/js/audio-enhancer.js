@@ -426,7 +426,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function applyToGearBtn(settings) {
-      const gearBtn = document.querySelector(`#audio-enhancer-queue .js-audio-settings[data-id="${id}"]`);
+      const gearBtn = document.querySelector(`#audio-enhancer-queue .settings-btn[data-id="${id}"]`);
       if (gearBtn) {
         gearBtn.dataset.engine   = settings.engine;
         gearBtn.dataset.mode     = settings.mode;
@@ -508,7 +508,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const quality = document.getElementById('audioQuality')?.value || '64';
     // Format/qualité de SORTIE : PER-ITEM (gear de la card — posé par la modale ; le volet
     // audio n'a pas ces champs). Défaut : valeurs déjà stockées côté serveur.
-    const gear = document.querySelector(`#audio-enhancer-queue .js-audio-settings[data-id="${id}"]`);
+    const gear = document.querySelector(`#audio-enhancer-queue .settings-btn[data-id="${id}"]`);
     const outFmt  = gear?.dataset.outputFormat;
     const outQual = gear?.dataset.outputQuality;
 
@@ -541,7 +541,7 @@ document.addEventListener('DOMContentLoaded', function () {
             : 'Rapide';
         }
         // Persist used settings on the gear button for next time
-        const gearBtn = row.querySelector('.js-audio-settings');
+        const gearBtn = row.querySelector('.settings-btn');
         if (gearBtn) {
           gearBtn.dataset.engine   = engine;
           gearBtn.dataset.mode     = mode;
@@ -689,16 +689,23 @@ document.addEventListener('DOMContentLoaded', function () {
         const startBtn    = e.target.closest('.js-audio-start');
         const dlBtn       = e.target.closest('.js-audio-download');
         const delBtn      = e.target.closest('.js-audio-delete');
-        const settingsBtn = e.target.closest('.js-audio-settings');
+        // ⚙ : plus de branche ici — ouvreur déclaré à la brique commune (voir plus bas).
 
         if (startBtn) startAudio(parseInt(startBtn.dataset.id));
         if (delBtn) deleteAudio(parseInt(delBtn.dataset.id));
-        if (settingsBtn) openAudioSettingsModal(settingsBtn);
         if (dlBtn && !dlBtn.classList.contains('disabled')) {
           // navigation handled by <a> href
         }
       });
     }
+
+    // ⚙ item (cards AUDIO) — ouvreur DÉCLARÉ à la brique commune (queue-actions.js), restreint
+    // à la file audio. C'est ce `within` qui permet aux DEUX familles de cards de l'enhancer
+    // (audio ici, amélioration dans index.js) de partager `.settings-btn` sans se marcher
+    // dessus : l'ouvreur scopé est évalué avant l'ouvreur par défaut (portage 2026-08-23).
+    WamaQueueActions.onSettings(function (id, btn) {
+      openAudioSettingsModal(btn);
+    }, { within: '#audio-enhancer-queue' });
 
     // Resume polling for running jobs on page load
     const audioContainer = document.getElementById('audio-enhancer-queue');

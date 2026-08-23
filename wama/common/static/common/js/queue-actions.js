@@ -8,6 +8,18 @@
  * Actions gérées :
  *   ⧉ Dupliquer  → <button class="… duplicate-btn" data-duplicate-url="{% url 'app:duplicate' o.id %}">
  *   🗑 Supprimer  → <button class="… delete-btn"    data-delete-url="{% url 'app:delete' o.id %}">
+ *   ⚙ Paramètres → <button class="… settings-btn"  data-id="{{ o.id }}">
+ *                  + côté app, UNE ligne : WamaQueueActions.onSettings((id, btn) => …)
+ *
+ * Hooks optionnels (une spécificité se DÉCLARE) :
+ *   WamaQueueActions.onDeleted((id, data, btn) => …)   suite après suppression, au lieu du reload
+ *
+ * POURQUOI ⚙ N'EST PAS UN POST (et pourquoi la brique s'arrête au clic). Dupliquer et supprimer
+ * SONT l'action : une URL, un POST, un rechargement — la brique peut tout faire. ⚙ ne fait
+ * qu'OUVRIR une modale dont le contenu est propre à l'app (schéma, hooks decorate/collect/
+ * onSaved de `WamaParams.settingsModal`). La brique possède donc exactement ce qui divergeait —
+ * la GRAPHIE du bouton et la DÉLÉGATION du clic — et délègue l'ouverture à l'app. C'est le même
+ * partage que `wama-cycle-button.js` : le bouton est commun, le verbe reste à l'app.
  *
  * Une SEULE délégation par action, posée sur le document. C'est ce qui satisfait l'intention de
  * CARD_DESIGN §3 (« un seul handler par file plutôt que N handlers ») : le mal visé y est le
@@ -24,6 +36,20 @@
  * et `data-action="delete"` sans classe (reader). Deux boutons côte à côte dans la même card,
  * l'un uniforme et l'autre éclaté : la divergence n'est pas une négligence de style, c'est la
  * conséquence mécanique de l'absence de brique.
+ *
+ * ⚙ A REFAIT LE MÊME PARCOURS (relevé du 2026-08-23). Six graphies pour dix apps :
+ * `settings-btn` (anonymizer, composer, describer, imager image, synthesizer, transcriber),
+ * `video-settings-btn` (imager vidéo), `job-settings-btn` (converter), `btn-settings-job`
+ * (avatarizer), `js-open-settings` + `js-audio-settings` (enhancer), `data-action="settings"`
+ * sans classe (reader). Exactement le compte de la suppression, pour exactement la même raison.
+ *
+ * ⚠ ET LA DIVERGENCE AVAIT DÉJÀ CONTAMINÉ UNE BRIQUE COMMUNE : le `cardSettings` par défaut de
+ * `wama-inspector.js` devait porter en dur l'UNION des graphies
+ * (`'.settings-btn, [data-action="settings"], .btn-settings-job, .job-settings-btn'`) pour
+ * retrouver le bouton ⚙ d'une card quelle que soit l'app. Une liste de graphies d'apps écrite
+ * dans le substrat est le symptôme le plus net qu'il manquait une brique ici : c'est le coût que
+ * la divergence finit toujours par facturer au commun. Cette union se réduit à `.settings-btn`
+ * une fois les 10 apps portées.
  */
 
 (function () {
@@ -93,6 +119,15 @@
     });
 
     // ── 🗑 SUPPRIMER ───────────────────────────────────────────────────────────────────
+    //
+    // Suite optionnelle après un succès :  WamaQueueActions.onDeleted(function (id, data, btn) {…})
+    // Déclarée, l'app remplace le rechargement par sa propre mise à jour de la file.
+    let apresSuppression = null;
+
+    function onDeleted(handler) {
+        if (typeof handler === 'function') apresSuppression = handler;
+    }
+
     document.addEventListener('click', function (e) {
         const btn = e.target.closest('.delete-btn[data-delete-url]');
         if (!btn) return;
@@ -119,6 +154,14 @@
         .then(lireReponse)
         .then(function (data) {
             if (data.deleted || data.success || data.status === 'deleted') {
+                // Suite DÉCLARÉE par l'app, sinon rechargement. Sans ce hook, porter le
+                // transcriber (app de référence) aurait été une RÉGRESSION : il retire la card
+                // du DOM, désélectionne l'inspecteur, arrête le polling et met à jour l'état de
+                // « Tout télécharger » — un `location.reload()` uniforme aurait remplacé tout
+                // cela par un clignotement de page. Une spécificité légitime se DÉCLARE
+                // (philosophie §4) ; l'uniformité visée porte sur le GESTE et son contrat, pas
+                // sur le raffinement que chaque app peut apporter APRÈS le succès.
+                if (apresSuppression) { apresSuppression(btn.dataset.id, data, btn); return; }
                 location.reload();
             } else {
                 alert(data.error || 'Suppression impossible');
@@ -132,4 +175,52 @@
             if (icon) { icon.className = iconeInitiale; }
         });
     });
+
+    // ── ⚙ PARAMÈTRES ──────────────────────────────────────────────────────────────────
+    //
+    // L'app déclare SON ouvreur ; la brique tient le sélecteur et la délégation.
+    //
+    //   WamaQueueActions.onSettings(function (id, btn) { openSettingsModal(id); });
+    //
+    // `within` (optionnel) restreint l'ouvreur à un type de card — c'est ce qui permet à une app
+    // à DEUX familles de cards (enhancer : audio / amélioration ; converter : job / média) d'en
+    // déclarer deux sans que la brique connaisse une seule app. Le premier ouvreur dont le
+    // `within` correspond gagne ; un ouvreur sans `within` sert de défaut, et il est évalué en
+    // DERNIER pour ne jamais masquer un ouvreur plus spécifique déclaré après lui.
+    const ouvreurs = [];
+
+    function onSettings(handler, options) {
+        if (typeof handler !== 'function') return;
+        ouvreurs.push({ handler: handler, within: (options || {}).within || null });
+    }
+
+    document.addEventListener('click', function (e) {
+        // `.settings-btn` est un sélecteur de CLASSE : il matche le jeton exact et NE matche
+        // donc ni `.batch-settings-btn` (bouton de lot, card mère) ni `save-settings-btn`
+        // (pied de modale). C'est le piège de sous-chaîne du 2026-08-22 — réel côté grep et
+        // côté `[class$=…]`, inexistant en CSS. Ne pas « durcir » ce sélecteur : ce serait
+        // corriger un défaut qui n'existe pas ici.
+        const btn = e.target.closest('.settings-btn[data-id]');
+        if (!btn) return;
+
+        const id = btn.dataset.id;
+        if (!id) return;
+
+        const candidats = ouvreurs.filter(function (o) { return o.within; })
+                                  .concat(ouvreurs.filter(function (o) { return !o.within; }));
+        for (let i = 0; i < candidats.length; i++) {
+            const o = candidats[i];
+            if (o.within && !btn.closest(o.within)) continue;
+            o.handler(id, btn);
+            return;
+        }
+
+        // Aucun ouvreur : le bouton est rendu mais rien ne l'écoute — c'est l'« écran mort »
+        // que la grille d'adoption ne voit pas (WAMA_VERIFICATION §1). On le DIT, plutôt que
+        // d'avaler le clic en silence.
+        console.warn('[queue-actions] ⚙ cliqué (#' + id + ') mais aucune app n\'a déclaré '
+                     + "d'ouvreur — appeler WamaQueueActions.onSettings(fn) au chargement.");
+    });
+
+    window.WamaQueueActions = { onSettings: onSettings, onDeleted: onDeleted };
 })();

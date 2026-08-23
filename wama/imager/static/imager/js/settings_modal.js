@@ -198,11 +198,10 @@
     // ça le volet rendait un <select> VIDE (mesuré au navigateur le 2026-08-06).
     window.imagerFillModelChoices = fillModelChoices;
 
-    // Ouverture depuis les cards (les deux domaines partagent la même modale générée).
-    // Délégation simple : les anciens handlers d'index.js ont été SUPPRIMÉS avec les
-    // modales hand-built — plus de concurrence, donc plus de capture ni de stopImmediate.
-    document.addEventListener('click', function (e) {
-        const btn = e.target.closest('.settings-btn, .video-settings-btn');
-        if (btn) openSettingsModal(btn.getAttribute('data-id'));
-    });
+    // Ouverture depuis les cards : ouvreur DÉCLARÉ à la brique commune (queue-actions.js).
+    // Les DEUX domaines partagent déjà la même modale générée — et depuis le 2026-08-23 ils
+    // partagent aussi la même GRAPHIE de bouton : `.video-settings-btn` a disparu du gabarit,
+    // le domaine se lit sur la card (`data-domain`) et, ici, sur `generation_mode`. Une classe
+    // par domaine ne portait aucune information que la donnée ne portait déjà.
+    WamaQueueActions.onSettings(function (id) { openSettingsModal(id); });
 })();

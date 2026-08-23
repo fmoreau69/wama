@@ -343,7 +343,9 @@
     <script src="{% static_v 'common/js/wama-filter-bar.js' %}"></script>
     <!-- System stats monitor -->
     <script src="{% static_v 'common/js/system-stats.js' %}"></script>
-    <!-- Queue actions (duplication générique) -->
+    {% comment %}Actions de card (domicile UNIQUE) : ⧉ dupliquer, 🗑 supprimer, ⚙ paramètres.
+    Chargée AVANT les scripts d'app — `WamaQueueActions.onSettings()` doit exister quand l'app
+    déclare son ouvreur de modale.{% endcomment %}
     <script src="{% static_v 'common/js/queue-actions.js' %}"></script>
 
     {% block javascript %}

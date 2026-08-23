@@ -124,6 +124,30 @@
         settingsModel.addEventListener('change', updateSettingsEstimate);
     }
 
+    // ⚙ item — ouvreur DÉCLARÉ à la brique commune (queue-actions.js). Le bouton `.settings-btn`
+    // et la délégation appartiennent désormais au commun ; l'app ne garde que le remplissage de
+    // SA modale. Remplace la branche `closest('.settings-btn')` du handler délégué local
+    // (portage 2026-08-23, ATOMIQUE : la branche a été retirée dans le même geste, sinon le clic
+    // partait deux fois).
+    WamaQueueActions.onSettings(function (id, settingsBtn) {
+        document.getElementById('settingsGenId').value = id;
+        if (settingsModel) settingsModel.value = settingsBtn.dataset.model || 'musicgen-small';
+        if (settingsDuration) {
+            settingsDuration.value = settingsBtn.dataset.duration || 10;
+            settingsDurationVal.textContent = _fmtDur(settingsDuration.value);
+            settingsDuration.dispatchEvent(new Event("input"));   // sync .wama-range-val (champ généré)
+        }
+        // Modale complète (P1) : prompt + format/qualité de sortie.
+        const sp = document.getElementById('settingsPrompt');
+        if (sp) sp.value = settingsBtn.dataset.prompt || '';
+        const sof = document.getElementById('settingsOutputFormat');
+        if (sof && settingsBtn.dataset.outputFormat) sof.value = settingsBtn.dataset.outputFormat;
+        const soq = document.getElementById('settingsOutputQuality');
+        if (soq && settingsBtn.dataset.outputQuality) soq.value = settingsBtn.dataset.outputQuality;
+        updateSettingsEstimate();
+        new bootstrap.Modal(document.getElementById('settingsModal')).show();
+    });
+
     // Init
     updateEstimate();
 
@@ -333,28 +357,6 @@
                 WamaParams.apply(bhost, vals);   // une clé absente n'écrase pas le champ
             }
             new bootstrap.Modal(document.getElementById('batchSettingsModal')).show();
-            return;
-        }
-
-        const settingsBtn = e.target.closest('.settings-btn');
-        if (settingsBtn) {
-            const id = settingsBtn.dataset.id;
-            document.getElementById('settingsGenId').value = id;
-            if (settingsModel) settingsModel.value = settingsBtn.dataset.model || 'musicgen-small';
-            if (settingsDuration) {
-                settingsDuration.value = settingsBtn.dataset.duration || 10;
-                settingsDurationVal.textContent = _fmtDur(settingsDuration.value);
-                settingsDuration.dispatchEvent(new Event("input"));   // sync .wama-range-val (champ généré)
-            }
-            // Modale complète (P1) : prompt + format/qualité de sortie.
-            const sp = document.getElementById('settingsPrompt');
-            if (sp) sp.value = settingsBtn.dataset.prompt || '';
-            const sof = document.getElementById('settingsOutputFormat');
-            if (sof && settingsBtn.dataset.outputFormat) sof.value = settingsBtn.dataset.outputFormat;
-            const soq = document.getElementById('settingsOutputQuality');
-            if (soq && settingsBtn.dataset.outputQuality) soq.value = settingsBtn.dataset.outputQuality;
-            updateSettingsEstimate();
-            new bootstrap.Modal(document.getElementById('settingsModal')).show();
             return;
         }
 

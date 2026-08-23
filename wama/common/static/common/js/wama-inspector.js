@@ -987,7 +987,13 @@
       const out = {};
       // Les data-* de params peuvent être sur la RACINE de card OU sur le bouton ⚙ (cas le plus courant :
       // Describer/Synthesizer/… rendent les data-output-format/… sur le bouton settings).
-      const btn = card.querySelector('.settings-btn, [data-action="settings"], .btn-settings-job, .job-settings-btn');
+      // UNE seule graphie depuis le 2026-08-23 : `.settings-btn`, contrat de la brique
+      // queue-actions.js, porté par les 10 apps. Cette ligne portait auparavant l'UNION des
+      // graphies d'apps (`.btn-settings-job`, `.job-settings-btn`…) — une liste de noms d'apps
+      // écrite dans le substrat, c'est-à-dire la facture que la divergence envoyait au commun.
+      // `[data-action="settings"]` est GARDÉ : enhancer et reader le portent en plus de la
+      // classe, et il dit l'INTENTION indépendamment du nommage.
+      const btn = card.querySelector('.settings-btn, [data-action="settings"]');
       const datasets = btn ? [card.dataset, btn.dataset] : [card.dataset];
       names.forEach(function (n) {
         const camel = n.replace(/_([a-z])/g, function (_, c) { return c.toUpperCase(); });

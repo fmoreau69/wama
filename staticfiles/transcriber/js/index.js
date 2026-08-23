@@ -368,17 +368,10 @@ document.addEventListener('DOMContentLoaded', function () {
       btn.addEventListener('click', () => handleStart(btn.dataset.id));
     });
 
-    root.querySelectorAll('.settings-btn').forEach(btn => {
-      if (btn.dataset.bound === '1') return;
-      btn.dataset.bound = '1';
-      btn.addEventListener('click', () => openSettingsModal(btn));
-    });
-
-    root.querySelectorAll('.delete-btn').forEach(btn => {
-      if (btn.dataset.bound === '1') return;
-      btn.dataset.bound = '1';
-      btn.addEventListener('click', () => handleDelete(btn.dataset.id));
-    });
+    // ⚙ et 🗑 : PLUS RIEN à lier ici. Les deux passent par la brique commune queue-actions.js
+    // (délégation UNIQUE sur le document, valable aussi pour les cards rendues plus tard) —
+    // portage 2026-08-23. Le `dataset.bound` qui protégeait ces boucles du re-binding disparaît
+    // avec elles : c'est le symptôme qui s'en va, pas seulement le code.
 
     // Duplication : brique commune queue-actions.js (data-duplicate-url sur le bouton),
     // qui pose aussi le focus de la card dupliquée avant le reload — le binder local est mort.
@@ -449,31 +442,23 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch(err => showToast(err.message || 'Erreur', 'danger'));
   }
 
-  function handleDelete(id) {
-    if (!confirm('Supprimer cette transcription ?')) return;
-
-    const url = getUrl(config.deleteUrlTemplate, id);
-    fetch(url, {
-      method: 'POST',
-      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({}),
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (!data.deleted) throw new Error('Suppression impossible');
-        // Élément issu d'un batch : le total/affichage du batch change (et un batch réduit à 1
-        // redevient une card simple) → recharger pour re-rendre proprement le groupe.
-        if (data.batch_changed) { if (window.WamaFM) WamaFM.deleted(); location.reload(); return; }
-        const card = queueContainer.querySelector(`.synthesis-card[data-id="${id}"]`);
-        if (card) card.remove();
-        if (_inspector && String(id) === String(_inspector.state().itemId)) _inspector.deselect();  // évite des actions inspecteur orphelines
-        stopPolling(id);
-        insertEmptyStateIfNeeded();
-        updateDownloadAllState();
-        if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
-      })
-      .catch(err => showToast(err.message || 'Erreur lors de la suppression', 'danger'));
-  }
+  // 🗑 SUITE de suppression — déclarée à la brique commune (queue-actions.js). La confirmation
+  // et le POST appartiennent désormais au commun ; ce qui reste ici est ce que la brique ne peut
+  // pas deviner : retirer la card SANS recharger la page, et remettre en cohérence ce que ce
+  // retrait invalide (inspecteur, polling, état vide, « Tout télécharger »).
+  // Portage 2026-08-23 — le binder `.delete-btn` de `bindCardActions` a été retiré au même geste.
+  WamaQueueActions.onDeleted(function (id, data) {
+    // Élément issu d'un batch : le total/affichage du batch change (et un batch réduit à 1
+    // redevient une card simple) → recharger pour re-rendre proprement le groupe.
+    if (data.batch_changed) { if (window.WamaFM) WamaFM.deleted(); location.reload(); return; }
+    const card = queueContainer.querySelector(`.synthesis-card[data-id="${id}"]`);
+    if (card) card.remove();
+    if (_inspector && String(id) === String(_inspector.state().itemId)) _inspector.deselect();  // évite des actions inspecteur orphelines
+    stopPolling(id);
+    insertEmptyStateIfNeeded();
+    updateDownloadAllState();
+    if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
+  });
 
 
   // ======================================================================
@@ -532,6 +517,10 @@ document.addEventListener('DOMContentLoaded', function () {
     if (e.target.closest('#saveBatchSettingsBtn')) saveBatchSettings(false);
     if (e.target.closest('#saveBatchSettingsAndStartBtn')) saveBatchSettings(true);
   });
+
+  // ⚙ item — ouvreur DÉCLARÉ à la brique commune (queue-actions.js) : une délégation unique,
+  // valable pour les cards rendues après coup (portage 2026-08-23).
+  WamaQueueActions.onSettings(function (id, btn) { openSettingsModal(btn); });
 
   function openSettingsModal(btn) {
     const modal = document.getElementById('settingsModal');

@@ -404,8 +404,8 @@ document.addEventListener('DOMContentLoaded', function () {
         itemLabel: function (id) { return "l'élément #" + id; },
         batchLabel: function (id) { return "le batch #" + id + " (tous les éléments)"; },
         saveBatch: function (bid) { return postPanel('/avatarizer/batch/' + bid + '/update/').then(function () { window.location.reload(); }); },
-        // cardSettings DÉFAUT (dérivé du schéma) : lit les data-* du gear .btn-settings-job
-        // (sélecteur commun) — émis par la brique card_gear ; custom supprimé le 18/08.
+        // cardSettings DÉFAUT (dérivé du schéma) : lit les data-* du gear `.settings-btn`
+        // (graphie commune depuis le 23/08) — émis par la brique card_gear ; custom supprimé le 18/08.
         saveItem: function (id) { return postPanel('/avatarizer/update-options/' + id + '/').then(function () { window.location.reload(); }); },
         renderItemActions: function (host, card) {
             WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),

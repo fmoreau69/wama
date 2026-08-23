@@ -108,12 +108,13 @@
     // ─── Card actions ─────────────────────────────────────────────────────────
 
     function bindCardActions(card, item) {
+        // ⚙ et 🗑 ne passent PLUS par ce dispatch : tous deux sont délégués par la brique commune
+        // queue-actions.js (portage 2026-08-23). Les garder ici en plus ferait partir chaque clic
+        // deux fois — le bind est par card, la brique est sur le document.
         card.querySelectorAll('[data-action]').forEach(btn => {
             btn.addEventListener('click', () => {
                 const action = btn.dataset.action;
-                if (action === 'settings') openItemSettings(btn);
                 if (action === 'start' || action === 'restart') startItem(item.id);
-                if (action === 'delete') deleteItem(item.id);
                 if (action === 'expand') expandPreview(item.id);
             });
         });
@@ -209,20 +210,19 @@
         }
     }
 
-    async function deleteItem(id) {
+    // 🗑 SUITE de suppression — déclarée à la brique commune (queue-actions.js), qui porte
+    // désormais la confirmation et le POST. Portage 2026-08-23.
+    WamaQueueActions.onDeleted(function (id, data) {
         stopPolling(id);
-        try {
-            const r = await csrfFetch(urlFor('delete', id), { method: 'POST' });
-            const data = await r.json().catch(() => ({}));
-            // Élément issu d'un batch : total/affichage du batch changent → recharger
-            if (data.batch_changed) { if (window.WamaFM) WamaFM.deleted(); location.reload(); return; }
-            removeCard(id);
-            updateGlobalProgress();
-            if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
-        } catch (e) {
-            console.error('[Reader] delete error:', e);
-        }
-    }
+        // Élément issu d'un batch : total/affichage du batch changent → recharger
+        if (data.batch_changed) { if (window.WamaFM) WamaFM.deleted(); location.reload(); return; }
+        removeCard(id);
+        updateGlobalProgress();
+        if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
+    });
+
+    // ⚙ item — ouvreur DÉCLARÉ à la brique commune (queue-actions.js).
+    WamaQueueActions.onSettings(function (id, btn) { openItemSettings(btn); });
 
     // Duplication : brique commune queue-actions.js (bouton [data-duplicate-url]),
     // qui pose aussi le focus de la card dupliquée avant le reload.

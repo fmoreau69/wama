@@ -490,6 +490,9 @@
         });
     }
 
+    // ⚙ item — ouvreur DÉCLARÉ à la brique commune (queue-actions.js), portage 2026-08-23.
+    WamaQueueActions.onSettings(function (id, btn) { openSettingsModal(btn); });
+
     function openSettingsModal(btn) {
         if (!settingsModal) return;
         const jobId      = btn.dataset.jobId;
@@ -560,7 +563,7 @@
                 }
 
                 // 2. Mettre à jour les data-* du bouton settings (pour le prochain ouverture du modal)
-                const settBtn = $('.btn-settings-job', card);
+                const settBtn = $('.settings-btn', card);   // graphie commune depuis le 23/08
                 if (settBtn) {
                     settBtn.dataset.useEnhancer = newEnhancer ? 'true' : 'false';
                     settBtn.dataset.bboxShift   = newBbox;
@@ -626,10 +629,8 @@
         }
 
 
-        const settingsBtn = $('.btn-settings-job', card);
-        if (settingsBtn) {
-            settingsBtn.addEventListener('click', () => openSettingsModal(settingsBtn));
-        }
+        // ⚙ : plus de bind PAR CARD ici — la brique commune (queue-actions.js) délègue une fois
+        // pour toutes, y compris sur les cards rendues après coup (portage 2026-08-23).
     }
 
     // Bind events on pre-existing job cards (server-side rendered)

@@ -382,12 +382,8 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   function bindRowActions(scope) {
-    const deleteButtons = (scope || document).querySelectorAll('.js-delete-enhancement');
-    deleteButtons.forEach((btn) => {
-      if (btn.dataset.bound === '1') return;
-      btn.dataset.bound = '1';
-      btn.addEventListener('click', () => handleDelete(btn));
-    });
+    // 🗑 : plus de bind ici — brique commune queue-actions.js sur `.delete-btn[data-delete-url]`
+    // (portage 2026-08-23 ; l'attribut était déjà posé, seule la classe manquait).
 
     const restartButtons = (scope || document).querySelectorAll('.js-restart-enhancement');
     restartButtons.forEach((btn) => {
@@ -396,26 +392,7 @@ document.addEventListener('DOMContentLoaded', function () {
       btn.addEventListener('click', () => handleRestartEnhancement(btn.dataset.id));
     });
 
-    const openSettingsButtons = (scope || document).querySelectorAll('.js-open-settings');
-    openSettingsButtons.forEach((btn) => {
-      if (btn.dataset.bound === '1') return;
-      btn.dataset.bound = '1';
-      btn.addEventListener('click', () => {
-        const data = {
-          id: btn.dataset.id,
-          ai_model: btn.dataset.aiModel,
-          denoise: btn.dataset.denoise === 'true',
-          blend_factor: parseFloat(btn.dataset.blendFactor) || 0,
-          output_format: btn.dataset.outputFormat || 'original',
-          output_quality: btn.dataset.outputQuality || 'balanced'
-        };
-        createSettingsModal(data);
-        const modal = new bootstrap.Modal(document.getElementById(`settingsModal${data.id}`));
-        modal.show();
-        // Re-bind settings buttons after modal creation
-        bindRowActions(document.getElementById(`settingsModal${data.id}`));
-      });
-    });
+    // ⚙ : plus de bind ici non plus — l'ouvreur est déclaré UNE fois à la brique (voir plus bas).
 
     const saveSettingsButtons = (scope || document).querySelectorAll('.save-settings-btn');
     saveSettingsButtons.forEach((btn) => {
@@ -432,42 +409,42 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  function handleDelete(button) {
-    const url = button.dataset.deleteUrl;
-    if (!url || !confirm('Supprimer ce fichier ?')) {
-      return;
-    }
+  // ⚙ item (card AMÉLIORATION) — ouvreur DÉCLARÉ à la brique commune (queue-actions.js).
+  // Sans `within` : c'est l'ouvreur par DÉFAUT de la page. Les cards AUDIO, qui vivent dans
+  // `#audio-enhancer-queue`, déclarent le leur avec un `within` (audio-enhancer.js) et sont donc
+  // évaluées en premier — deux familles de cards dans une même app, sans une ligne d'app dans la
+  // brique (portage 2026-08-23).
+  WamaQueueActions.onSettings(function (id, btn) {
+    const data = {
+      id: id,
+      ai_model: btn.dataset.aiModel,
+      denoise: btn.dataset.denoise === 'true',
+      blend_factor: parseFloat(btn.dataset.blendFactor) || 0,
+      output_format: btn.dataset.outputFormat || 'original',
+      output_quality: btn.dataset.outputQuality || 'balanced'
+    };
+    createSettingsModal(data);
+    const modal = new bootstrap.Modal(document.getElementById(`settingsModal${data.id}`));
+    modal.show();
+    // Re-bind des boutons d'enregistrement de la modale fraîchement créée.
+    bindRowActions(document.getElementById(`settingsModal${data.id}`));
+  });
 
-    button.disabled = true;
-    fetch(url, {
-      method: 'POST',
-      headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({}),
-    })
-      .then((response) => response.json())
-      .then((data) => {
-        if (!data.deleted) {
-          throw new Error('Suppression impossible');
-        }
-        // Élément issu d'un batch : total/affichage du batch changent → recharger
-        if (data.batch_changed) { if (window.WamaFM) WamaFM.deleted(); location.reload(); return; }
-        const card = button.closest('.synthesis-card');
-        if (card) {
-          const id = card.dataset.id;
-          card.remove();
-          stopPolling(id);
-          if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
-          insertEmptyRowIfNeeded();
-          updateDownloadAllState();
-        }
-      })
-      .catch((error) => {
-        WamaApp.toast(error.message || 'Erreur lors de la suppression', 'error');
-      })
-      .finally(() => {
-        button.disabled = false;
-      });
-  }
+  // 🗑 SUITE de suppression — déclarée à la brique. Confirmation et POST sont au commun ; ce qui
+  // reste est le retrait de card SANS recharger et la remise en cohérence (polling, état vide,
+  // « Tout télécharger »). Cf. transcriber, même arbitrage.
+  WamaQueueActions.onDeleted(function (id, data, button) {
+    // Élément issu d'un batch : total/affichage du batch changent → recharger
+    if (data.batch_changed) { if (window.WamaFM) WamaFM.deleted(); location.reload(); return; }
+    const card = button.closest('.synthesis-card');
+    if (card) {
+      card.remove();
+      stopPolling(id);
+      if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
+      insertEmptyRowIfNeeded();
+      updateDownloadAllState();
+    }
+  });
 
   function handleSaveSettings(button, restart = false) {
     const enhancementId = button.dataset.id;

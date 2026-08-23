@@ -7,7 +7,7 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
 
 ⚠ Contrats JS : .imager-card[data-id][data-status][data-domain] + TOUTES les data-* du
   schéma sur la racine (WamaInspector.cardSettings — sans elles le volet est INERTE) ;
-  .settings-btn / .video-settings-btn [data-id] ; .wama-cycle-btn ;
+  .settings-btn[data-id] (COMMUN aux 2 domaines depuis le 2026-08-23) ; .wama-cycle-btn ;
   .download-btn / .video-download-btn [data-id] ; .duplicate-btn[data-duplicate-url] ;
   .delete-btn / .video-delete-btn [data-id] ; .wama-eta ; .wama-progress-fill ;
   openImagePreview/openVideoPreview (aperçus).
@@ -90,8 +90,12 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
     <div class="wcv3-sec wcv3-sec--actions">
       <span class="wcv3-lbl">Actions</span>
       <div class="btn-group-actions wcv3-actions">
+        {% comment %}⚙ : graphie COMMUNE aux deux domaines depuis le 2026-08-23 (brique
+        queue-actions.js). L'ancien `video-settings-btn` distinguait par la classe une chose que
+        la card déclare déjà en donnée (`data-domain`) — c'est cette redondance qui produisait
+        une graphie de plus à connaître pour tout consommateur commun.{% endcomment %}
         <button type="button"
-                class="btn btn-sm btn-outline-secondary {% if domain == 'video' %}video-settings-btn{% else %}settings-btn{% endif %}"
+                class="btn btn-sm btn-outline-secondary settings-btn"
                 data-id="{{ gen.id }}" title="Configurer les paramètres">
           <i class="fas fa-cog"></i>
         </button>

@@ -5,7 +5,7 @@ b.items d'index.html) ET par card_html (refreshCard sur transition — index.js:
 Contexte : job (chips = propriété du modèle), media_url, in_batch.
 
 ⚠ Contrats JS (index.js) : #job-{{ id }} + [data-id][data-job-id][data-status][data-mode] ;
-  .btn-settings-job + data-* (masqué en RUNNING) ; .btn-delete-job[data-job-id] ;
+  .settings-btn[data-id] + data-* (masqué en RUNNING) ; .btn-delete-job[data-job-id] ;
   .duplicate-btn[data-duplicate-url] (brique globale) ; .step-desc (étape live :462) ;
   .wama-progress-fill ; .progress-text ; .wama-eta ; #preview-row-{{ id }}.
 {% endcomment %}
@@ -89,8 +89,13 @@ Contexte : job (chips = propriété du modèle), media_url, in_batch.
       <div class="btn-group-actions wcv3-actions">
         {% if job.status != 'RUNNING' %}
         {% comment %}data-* DÉRIVÉS du schéma (brique commune card_gear, 18/08).{% endcomment %}
-        <button class="btn btn-sm btn-outline-secondary btn-settings-job"
-                data-job-id="{{ job.id }}"
+        {% comment %}`settings-btn` + `data-id` = contrat de la brique commune queue-actions.js
+        (2026-08-23). Remplace `btn-settings-job`/`data-job-id` — graphie propre à l'avatarizer,
+        et la SEULE des six à inverser l'ordre des mots (`btn-settings-job` vs `*-settings-btn`),
+        ce qui la rendait invisible à tout relevé cherchant un suffixe. `data-job-id` RESTE en
+        plus : les data-* du gear sont relus par le rafraîchissement de card.{% endcomment %}
+        <button class="btn btn-sm btn-outline-secondary settings-btn"
+                data-id="{{ job.id }}" data-job-id="{{ job.id }}"
                 {% for k, v in job.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}
                 title="Paramètres">
           <i class="fas fa-cog"></i>

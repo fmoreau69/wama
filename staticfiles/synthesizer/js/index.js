@@ -329,74 +329,52 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        // .settings-btn — open item settings modal
-        const settingsBtn = e.target.closest('.settings-btn');
-        if (settingsBtn && settingsModalInstance) {
-            const id = settingsBtn.dataset.id;
-            const d = settingsBtn.dataset;
-            document.getElementById('settingsSynthesisId').value = id;
+        // Duplication, suppression et ⚙ paramètres : brique commune queue-actions.js. Les trois
+        // branches locales ont été retirées (⚙ et 🗑 le 2026-08-23) — les garder à côté de la
+        // délégation commune ferait partir CHAQUE clic deux fois.
+    });
 
-            // Corps de modale GÉNÉRÉ depuis le schéma déclaratif (params.py, contexte
-            // item). Options des selects : clonées du volet compose (source serveur
-            // unique — optgroups voix aplatis avec préfixe de groupe).
-            const paramsBody = document.getElementById('settingsParamsBody');
-            if (window.WamaParams && window.SYNTH_PARAMS_SCHEMA && paramsBody) {
-                WamaParams.render(paramsBody, window.SYNTH_PARAMS_SCHEMA, {
-                    context: 'item',
-                    values: {
-                        tts_model: d.ttsModel, language: d.language,
-                        voice_preset: d.voicePreset,
-                        speed: d.speed || '1.0', pitch: d.pitch || '1.0',
-                        output_format: d.outputFormat || '', output_quality: d.outputQuality || '',
-                    },
-                    optionsResolver: function (param) {
-                        const src = document.getElementById((param.dom_id && param.dom_id.panel) || param.name);
-                        if (!src || src.tagName !== 'SELECT') return null;
-                        return Array.from(src.options).map(function (o) {
-                            const grp = o.parentElement && o.parentElement.tagName === 'OPTGROUP'
-                                ? o.parentElement.label + ' — ' : '';
-                            return { value: o.value, label: grp + o.textContent.trim() };
-                        });
-                    },
-                });
-                // Warning de compatibilité langue : re-bindé sur les champs fraîchement rendus.
-                const mSel = document.getElementById('settingsTtsModel');
-                const lSel = document.getElementById('settingsLanguage');
-                const warn = document.getElementById('settings-lang-compat-warning');
-                const _check = function () {
-                    if (mSel && lSel) checkLangCompat(mSel.value, lSel.value, warn);
-                };
-                if (mSel) mSel.addEventListener('change', _check);
-                if (lSel) lSel.addEventListener('change', _check);
-                _check();
-            }
-            settingsModalInstance.show();
-            return;
+    // ⚙ item — ouvreur DÉCLARÉ à la brique commune (queue-actions.js).
+    WamaQueueActions.onSettings(function (id, settingsBtn) {
+        if (!settingsModalInstance) return;
+        const d = settingsBtn.dataset;
+        document.getElementById('settingsSynthesisId').value = id;
+
+        // Corps de modale GÉNÉRÉ depuis le schéma déclaratif (params.py, contexte
+        // item). Options des selects : clonées du volet compose (source serveur
+        // unique — optgroups voix aplatis avec préfixe de groupe).
+        const paramsBody = document.getElementById('settingsParamsBody');
+        if (window.WamaParams && window.SYNTH_PARAMS_SCHEMA && paramsBody) {
+            WamaParams.render(paramsBody, window.SYNTH_PARAMS_SCHEMA, {
+                context: 'item',
+                values: {
+                    tts_model: d.ttsModel, language: d.language,
+                    voice_preset: d.voicePreset,
+                    speed: d.speed || '1.0', pitch: d.pitch || '1.0',
+                    output_format: d.outputFormat || '', output_quality: d.outputQuality || '',
+                },
+                optionsResolver: function (param) {
+                    const src = document.getElementById((param.dom_id && param.dom_id.panel) || param.name);
+                    if (!src || src.tagName !== 'SELECT') return null;
+                    return Array.from(src.options).map(function (o) {
+                        const grp = o.parentElement && o.parentElement.tagName === 'OPTGROUP'
+                            ? o.parentElement.label + ' — ' : '';
+                        return { value: o.value, label: grp + o.textContent.trim() };
+                    });
+                },
+            });
+            // Warning de compatibilité langue : re-bindé sur les champs fraîchement rendus.
+            const mSel = document.getElementById('settingsTtsModel');
+            const lSel = document.getElementById('settingsLanguage');
+            const warn = document.getElementById('settings-lang-compat-warning');
+            const _check = function () {
+                if (mSel && lSel) checkLangCompat(mSel.value, lSel.value, warn);
+            };
+            if (mSel) mSel.addEventListener('change', _check);
+            if (lSel) lSel.addEventListener('change', _check);
+            _check();
         }
-
-        // Duplication : gérée par la brique commune queue-actions.js (délégation
-        // globale sur le bouton de card — le handler local doublait la requête).
-
-        // .delete-btn — remove a synthesis (no page reload: remove card from DOM)
-        const deleteBtn = e.target.closest('.delete-btn');
-        if (deleteBtn) {
-            if (!confirm('Supprimer cette synthèse ?')) return;
-            const id = deleteBtn.dataset.id;
-            try {
-                const r = await fetch(URLS.delete + id + '/', { method: 'POST', headers: { 'X-CSRFToken': csrfToken } });
-                if (r.ok) {
-                    // Élément issu d'un batch : total/affichage du batch changent → recharger
-                    const data = await r.json().catch(() => ({}));
-                    if (data.batch_changed) { if (window.WamaFM) WamaFM.deleted(); location.reload(); return; }
-                    const card = deleteBtn.closest('.synthesis-card');
-                    if (card) card.remove();
-                    if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
-                } else {
-                    WamaApp.toast('Erreur lors de la suppression', 'error');
-                }
-            } catch (err) { WamaApp.toast('Erreur: ' + err.message, 'error'); }
-            return;
-        }
+        settingsModalInstance.show();
     });
 
     // Bulk actions

@@ -15,7 +15,7 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
 
 ⚠ Contrats JS à ne pas casser (relevés dans converter.js) : .job-card[data-job-id]
   [data-id][data-status], .wama-eta (:364), .wama-progress-fill (:368),
-  .progress-text (:370), .btn-group-actions (clonage inspecteur), .job-settings-btn,
+  .progress-text (:370), .btn-group-actions (clonage inspecteur), .settings-btn[data-id],
   .job-delete-btn, .duplicate-btn[data-duplicate-url], .preview-media-link.
 {% endcomment %}
 <div class="job-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if job.status == 'RUNNING' %}processing{% elif job.status == 'SUCCESS' %}success{% elif job.status == 'FAILURE' %}error{% endif %}"
@@ -97,8 +97,12 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
         {% comment %}data-* = réglages du job (gear_data, booléens 'true'/'false') — lus par
         WamaInspector.initFromSchema pour REFLÉTER la card dans le volet (pattern
         describer/synthesizer, demande Fabien 18/08).{% endcomment %}
-        <button class="btn btn-sm btn-outline-secondary job-settings-btn"
-                title="Paramètres" data-job-id="{{ job.id }}"
+        {% comment %}`settings-btn` + `data-id` = contrat de la brique commune queue-actions.js
+        (2026-08-23), exactement comme `.delete-btn` plus bas l'a fait la veille. Remplace
+        `job-settings-btn`/`data-job-id`, graphie propre au converter ; le handler local de
+        `converter.js` est retiré DANS LE MÊME GESTE.{% endcomment %}
+        <button class="btn btn-sm btn-outline-secondary settings-btn"
+                title="Paramètres" data-id="{{ job.id }}"
                 {% for k, v in job.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}>
           <i class="fas fa-cog"></i>
         </button>

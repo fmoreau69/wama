@@ -163,15 +163,13 @@
   }
 
 
-  // Délégation : ouverture (⚙ des cards). Le pied est câblé PAR LA BRIQUE, sur la
-  // modale elle-même (pas de listener document qui s'accumulerait).
-  document.addEventListener('click', function (e) {
-    const openBtn = e.target.closest('.settings-btn[data-id]');
-    if (openBtn && openBtn.closest('.anon-card')) {
-      openSettingsModal(openBtn.dataset.id);
-      return;
-    }
-  });
+  // Ouverture (⚙ des cards) : ouvreur DÉCLARÉ à la brique commune (queue-actions.js), qui tient
+  // le sélecteur et la délégation. `within` conserve à l'identique le périmètre de l'ancien
+  // handler local (`openBtn.closest('.anon-card')`) — une garde d'app se DÉCLARE, elle ne se
+  // recode pas. Le pied de modale, lui, était déjà câblé par WamaParams sur la modale elle-même.
+  WamaQueueActions.onSettings(function (id) {
+    openSettingsModal(id);
+  }, { within: '.anon-card' });
 
   window.AnonSettingsModal = { open: openSettingsModal };
 })();

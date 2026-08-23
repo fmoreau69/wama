@@ -216,11 +216,10 @@ document.addEventListener('DOMContentLoaded', function() {
             previewBtn.addEventListener('click', () => showPreview(card.dataset.id));
         }
 
-        // Settings button
-        const settingsBtn = card.querySelector('.settings-btn');
-        if (settingsBtn) {
-            settingsBtn.addEventListener('click', () => openSettings(settingsBtn));
-        }
+        // ⚙ : plus rien à lier ICI. La brique commune (queue-actions.js) délègue une fois pour
+        // toutes ; ce bind PAR CARD était précisément le défaut visé par CARD_DESIGN §3 (N
+        // handlers pour N cards) et il fallait le rejouer à chaque re-render. L'ouvreur est
+        // déclaré une seule fois, plus bas (portage 2026-08-23).
     }
 
     // Bind events for existing cards
@@ -340,6 +339,11 @@ document.addEventListener('DOMContentLoaded', function() {
             settingsModalInstance.show();
         }
     }
+
+    // ⚙ item — ouvreur DÉCLARÉ à la brique commune (queue-actions.js). Une seule délégation pour
+    // toute la file, y compris les cards rendues APRÈS le chargement : le bind par card de
+    // `bindCardEvents` a été retiré dans le même geste (portage 2026-08-23).
+    WamaQueueActions.onSettings(function (id, btn) { openSettings(btn); });
 
     async function saveSettings(startAfterSave = false) {
         const descriptionId = document.getElementById('settingsDescriptionId').value;

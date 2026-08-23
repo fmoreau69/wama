@@ -5,8 +5,8 @@ SOURCE UNIQUE du markup : rendue au chargement (single + fille de batch) ET par 
 (refreshCard JS — transition d'état = re-rendu serveur, index.js:303).
 Contexte : e (Enhancement, décorée .chips), in_batch (bool).
 
-⚠ Contrats JS (index.js) : .wama-card[data-id][data-status], .js-open-settings + data-*,
-  .js-delete-enhancement[data-delete-url], .duplicate-btn[data-duplicate-url],
+⚠ Contrats JS (index.js) : .wama-card[data-id][data-status], .settings-btn[data-id] + data-*,
+  .delete-btn[data-delete-url], .duplicate-btn[data-duplicate-url],
   .preview-media-link, .wama-progress-fill (:297), .progress-text (:299), .wama-eta (:293).
 {% endcomment %}
 <div class="synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if e.status == 'RUNNING' %}processing{% elif e.status == 'SUCCESS' %}success{% elif e.status == 'FAILURE' %}error{% endif %}"
@@ -81,10 +81,11 @@ Contexte : e (Enhancement, décorée .chips), in_batch (bool).
     <div class="wcv3-sec wcv3-sec--actions">
       <span class="wcv3-lbl">Actions</span>
       <div class="btn-group-actions wcv3-actions">
-        {% comment %}data-* DÉRIVÉS du schéma MEDIA (brique commune card_gear, 18/08) ;
-        data-action="settings" AJOUTÉ : le cardSettings DÉFAUT de l'inspecteur trouve le
-        gear par ce sélecteur commun (le custom par app est supprimé).{% endcomment %}
-        <button class="btn btn-sm btn-outline-secondary js-open-settings" data-action="settings"
+        {% comment %}data-* DÉRIVÉS du schéma MEDIA (brique commune card_gear, 18/08).
+        `settings-btn` = contrat de la brique queue-actions.js (2026-08-23), remplace
+        `js-open-settings`. `data-action="settings"` RESTE : l'inspecteur l'utilise pour trouver
+        le gear, et il porte l'INTENTION indépendamment de la classe.{% endcomment %}
+        <button class="btn btn-sm btn-outline-secondary settings-btn" data-action="settings"
                 data-id="{{ e.id }}"
                 {% for k, v in e.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}
                 title="Paramètres">
@@ -106,8 +107,14 @@ Contexte : e (Enhancement, décorée .chips), in_batch (bool).
                 title="{% if in_batch %}Dupliquer dans le batch{% else %}Dupliquer{% endif %}">
           <i class="fas fa-copy"></i>
         </button>
-        <button class="btn btn-sm btn-outline-danger js-delete-enhancement"
+        {% comment %}`delete-btn` : la classe manquait, l'attribut était DÉJÀ là. C'est ce couple
+        qui forme le contrat de la brique — l'attribut seul ne déclenche rien, et il avait produit
+        un FAUX VERT au critère `delete_wiring` le 2026-08-22 (corrigé le jour même). Portage
+        2026-08-23, le bind local de `bindRowActions` retiré au même geste.{% endcomment %}
+        <button class="btn btn-sm btn-outline-danger delete-btn"
+                data-id="{{ e.id }}"
                 data-delete-url="{% url 'enhancer:delete' e.id %}"
+                data-confirm="Supprimer ce fichier ?"
                 title="Supprimer">
           <i class="fas fa-trash-alt"></i>
         </button>

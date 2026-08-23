@@ -410,8 +410,10 @@
         // les deux ensemble, sinon double-fire (app + brique) ou bouton mort.
         // Les actions de LOT restent locales tant que la brique ne les porte pas.
 
-        const settBtn = e.target.closest('.job-settings-btn');
-        if (settBtn) { openSettingsModal(settBtn.dataset.jobId); return; }
+        // ⚙ d'un ÉLÉMENT : plus de handler ici non plus — même mouvement que la suppression
+        // ci-dessus, un mois plus tard (2026-08-23). `.job-settings-btn` est devenu
+        // `.settings-btn[data-id]` dans `_job_card.html` AU MÊME GESTE, et l'ouvreur est
+        // déclaré à la brique (voir `WamaQueueActions.onSettings`, plus bas).
 
         // ── Actions de groupe batch (stopPropagation → ne pas toggler le collapse) ──
         const bSet = e.target.closest('.batch-settings-btn');
@@ -751,6 +753,9 @@
 
     let currentModalJobId = null;
     let currentModalMediaType = null;
+
+    // ⚙ item — ouvreur DÉCLARÉ à la brique commune (queue-actions.js), portage 2026-08-23.
+    WamaQueueActions.onSettings(function (id) { openSettingsModal(id); });
 
     async function openSettingsModal(jobId) {
         currentModalJobId = jobId;

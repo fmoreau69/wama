@@ -103,8 +103,15 @@ principal affiche le fichier d'ENTRÉE (ex. .docx) si présent.
                 title="Dupliquer (tester un autre modèle)">
           <i class="fas fa-copy"></i>
         </button>
+        {% comment %}`delete-btn` + `data-delete-url` = contrat de la brique queue-actions.js,
+        symétrique de `.duplicate-btn` juste au-dessus (portage 2026-08-23). `data-confirm` porte
+        le libellé propre à l'app — la confirmation est centralisée, son texte reste déclaré ici.
+        Le handler local d'index.js a été retiré dans le MÊME geste (sinon double-fire).
+        {% endcomment %}
         <button class="btn btn-sm btn-outline-danger delete-btn"
-                data-id="{{ synthesis.id }}" title="Supprimer">
+                data-id="{{ synthesis.id }}"
+                data-delete-url="{% url 'synthesizer:delete' synthesis.id %}"
+                data-confirm="Supprimer cette synthèse ?" title="Supprimer">
           <i class="fas fa-trash"></i>
         </button>
       </div>

@@ -4,8 +4,8 @@ remplace la card en colonnes du port 07/26). SOURCE UNIQUE du markup : rendue au
 (single + fille de batch) ET par `audio_card_html` (refreshCard JS).
 Contexte : ae (AudioEnhancement, décorée .chips), in_batch (bool).
 
-⚠ Contrats JS (audio-enhancer.js) : .wama-card[data-id][data-status], .js-audio-settings
-  + data-*, .js-audio-delete[data-id], .duplicate-btn[data-duplicate-url],
+⚠ Contrats JS (audio-enhancer.js) : .wama-card[data-id][data-status], .settings-btn[data-id]
+  + data-*, .delete-btn[data-delete-url], .duplicate-btn[data-duplicate-url],
   .preview-media-link, .wama-progress-fill, .progress-text, .wama-eta.
 {% endcomment %}
 <div class="synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if ae.status == 'RUNNING' %}processing{% elif ae.status == 'SUCCESS' %}success{% elif ae.status == 'FAILURE' %}error{% endif %}"
@@ -81,7 +81,7 @@ Contexte : ae (AudioEnhancement, décorée .chips), in_batch (bool).
         {% comment %}data-* DÉRIVÉS du schéma AUDIO (brique commune card_gear, 18/08 —
         strength↔denoising_strength mappé dans la property) ; data-action="settings"
         AJOUTÉ pour le cardSettings DÉFAUT (custom supprimé).{% endcomment %}
-        <button class="btn btn-sm btn-outline-secondary js-audio-settings" data-action="settings"
+        <button class="btn btn-sm btn-outline-secondary settings-btn" data-action="settings"
                 data-id="{{ ae.id }}"
                 {% for k, v in ae.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}
                 title="Paramètres">

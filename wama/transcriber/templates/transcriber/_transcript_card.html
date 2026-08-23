@@ -168,8 +168,14 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                                     title="Dupliquer{% if in_batch %} dans le batch{% endif %} (tester un autre modèle)">
                                 <i class="fas fa-copy"></i>
                             </button>
+                            {% comment %}`delete-btn` + `data-delete-url` = contrat de la brique
+                            queue-actions.js (portage 2026-08-23), symétrique de `.duplicate-btn`.
+                            La SUITE (retrait de card sans reload, inspecteur, polling) reste
+                            déclarée côté app via `WamaQueueActions.onDeleted`.{% endcomment %}
                             <button class="btn btn-sm btn-outline-danger delete-btn"
                                     data-id="{{ t.id }}"
+                                    data-delete-url="{% url 'transcriber:delete' t.id %}"
+                                    data-confirm="Supprimer cette transcription ?"
                                     title="Supprimer">
                                 <i class="fas fa-trash"></i>
                             </button>
