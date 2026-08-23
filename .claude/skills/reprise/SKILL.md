@@ -39,19 +39,23 @@ python manage.py doc_facts --check          # blocs GÉNÉRÉS des .md (dont la 
 - Comparer les chiffres au bloc « Contrôles attendus au prochain /reprise » du **dernier
   §REPRISE** de `PROJECT_STATUS.md` (corpus N manifestes, roundtrip, scores de grille) — c'est
   lui qui porte les valeurs à jour, pas ce skill.
-- **État attendu au 2026-08-22** : `check_docs` = **2 CASSÉ / 0 périmée** (475 réfs vérifiées le
-  22/08 au soir — ce TOTAL grossit à chaque doc écrite, ne pas en faire un critère), et les 2
-  sont LA MÊME référence EN AVANT citée deux fois — pas des liens morts :
-  - `common/_result_tabs.html` ×2 (`PROJECT_STATUS.md:2287` et `:2684` — cible de
-    `REMOVAL_LEDGER` R18, duplication vérifiée toujours présente le 10/08 :
-    `transcriber/index.html:307` et `describer/index.html:109` portent le même `#resultTabs`).
+- **État attendu au 2026-08-23** : `check_docs` = **4 CASSÉ / 0 périmée** (~489 réfs — ce TOTAL
+  grossit à chaque doc écrite, ne pas en faire un critère). Les 4 sont **UNE SEULE cible**,
+  `common/_result_tabs.html`, citée **quatre fois** par `PROJECT_STATUS.md` — pas des liens morts :
+  cible de `REMOVAL_LEDGER` R18, duplication vérifiée présente (`transcriber/index.html:307` et
+  `describer/index.html:109` portent le même `#resultTabs`).
   - ⚠ `wama/common/middleware.py` a QUITTÉ cette liste le 20/08 : le fichier EXISTE désormais
     (`RunOutcomeCaptureMiddleware`, chantier mémoire) — mais `UserLanguageMiddleware` (tableau
     i18n du `ROADMAP`) n'y est toujours PAS écrit : la référence résout, l'intention i18n reste due.
 
-  **Une 3ᵉ = vraie dérive, à traiter.** (Le compte est resté « 2 » par coïncidence entre le
-  10/08 et le 22/08 alors que sa COMPOSITION avait changé — comparer les fichiers cités, pas
-  seulement le nombre.)
+  🔴 **NE PAS LIRE CE NOMBRE COMME UN SEUIL — c'est le défaut de conception du contrat**
+  (relevé le 23/08, pending ouvert). `check_docs` et `nightly_scenarios.CASSE_ASSUMES` comptent
+  des **RÉFÉRENCES**, pas des **cibles manquantes**. Le compte monte donc **tout seul** dès qu'un
+  §REPRISE recite la même cible — c'est exactement ce qui l'a fait passer de 2 à 4 en une journée,
+  **sans aucune dérive réelle**. Un seuil qui bouge sans raison finit par être relevé
+  machinalement, donc à ne plus protéger.
+  **Le critère à appliquer : compter les CIBLES DISTINCTES — attendu = 1** (`_result_tabs.html`).
+  Une **2ᵉ cible distincte** = vraie dérive. Comparer les fichiers cités, jamais le seul nombre.
 
   > ⚠ Ce seuil était à « 3 attendus / une 4ᵉ = dérive » jusqu'au 10/08 et **il était devenu faux** :
   > `_settings_modal.html` a été **livré autrement** le 06/08 (la modale est GÉNÉRÉE par
