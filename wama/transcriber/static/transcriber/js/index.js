@@ -288,10 +288,22 @@ document.addEventListener('DOMContentLoaded', function () {
       }[status] || 'bg-secondary');
     }
 
-    // Update card class
-    card.className = 'synthesis-card' + ({
-      RUNNING: ' processing', SUCCESS: ' success', FAILURE: ' error'
-    }[status] || '');
+    // Classe d'ÉTAT de la card — par `classList`, JAMAIS par `className =`.
+    //
+    // ⚠ CORRIGÉ le 2026-08-23. Cette ligne réassignait la classe ENTIÈRE et effaçait donc
+    // `wama-card` au premier changement de statut. Conséquences mesurées au navigateur :
+    //   • le scénario `transcriber.duplicate_delete` échouait depuis le 22/08 (« la file ne
+    //     bouge pas ») — il compte les cards par `.wama-card[data-id]` et n'en voyait qu'UNE
+    //     sur trois, puis cliquait le bouton d'une card qu'il n'avait pas comptée ;
+    //   • la brique commune de suppression (`queue-actions.js`) retire la card par
+    //     `.wama-card[data-id]` : une card ayant perdu la classe ne disparaissait plus de
+    //     l'écran après suppression.
+    // Le diagnostic consigné le 22/08 disait « suspecter mon test avant l'app » : le test avait
+    // bien deux défauts (handle détaché, lot replié), mais celui-ci était dans l'app.
+    ['processing', 'success', 'error'].forEach(c => card.classList.remove(c));
+    const _etat = { RUNNING: 'processing', SUCCESS: 'success', FAILURE: 'error' }[status];
+    if (_etat) card.classList.add(_etat);
+    card.classList.add('synthesis-card', 'wama-card');   // filet : cards bâties avant ce correctif
     card.dataset.status = status;
 
     // Propriétés fichier (codec • kHz • canaux) : la ligne n'est remplie qu'à la création de card et
@@ -425,7 +437,11 @@ document.addEventListener('DOMContentLoaded', function () {
         // Update card to RUNNING state
         if (card) {
           card.dataset.status = 'RUNNING';
-          card.className = 'synthesis-card processing';
+          // `classList` et non `className =` : voir le correctif du 2026-08-23 plus haut —
+          // réassigner la classe entière effaçait `wama-card`, que la brique de suppression
+          // et les scénarios utilisent pour identifier une card.
+          ['success', 'error'].forEach(c => card.classList.remove(c));
+          card.classList.add('synthesis-card', 'wama-card', 'processing');
           const badge = card.querySelector('.status-badge');
           if (badge) { badge.textContent = 'RUNNING'; badge.className = 'badge status-badge bg-warning'; }
           const bar = card.querySelector('.wama-progress-fill');
@@ -442,22 +458,16 @@ document.addEventListener('DOMContentLoaded', function () {
       .catch(err => showToast(err.message || 'Erreur', 'danger'));
   }
 
-  // 🗑 SUITE de suppression — déclarée à la brique commune (queue-actions.js). La confirmation
-  // et le POST appartiennent désormais au commun ; ce qui reste ici est ce que la brique ne peut
-  // pas deviner : retirer la card SANS recharger la page, et remettre en cohérence ce que ce
-  // retrait invalide (inspecteur, polling, état vide, « Tout télécharger »).
+  // 🗑 RÉSIDU de suppression — la brique commune (queue-actions.js) porte la confirmation, le
+  // POST, le retrait de la card, le lot vidé, l'ETA et le signal au gestionnaire de fichiers.
+  // Ne reste ici que ce qui dépend d'un état LOCAL à l'app : la sélection de l'inspecteur, le
+  // poller (pas encore `WamaApp.Poller` ici) et deux libellés d'en-tête.
   // Portage 2026-08-23 — le binder `.delete-btn` de `bindCardActions` a été retiré au même geste.
-  WamaQueueActions.onDeleted(function (id, data) {
-    // Élément issu d'un batch : le total/affichage du batch change (et un batch réduit à 1
-    // redevient une card simple) → recharger pour re-rendre proprement le groupe.
-    if (data.batch_changed) { if (window.WamaFM) WamaFM.deleted(); location.reload(); return; }
-    const card = queueContainer.querySelector(`.synthesis-card[data-id="${id}"]`);
-    if (card) card.remove();
+  WamaQueueActions.onDeleted(function (id) {
     if (_inspector && String(id) === String(_inspector.state().itemId)) _inspector.deselect();  // évite des actions inspecteur orphelines
     stopPolling(id);
     insertEmptyStateIfNeeded();
     updateDownloadAllState();
-    if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
   });
 
 

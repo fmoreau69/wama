@@ -118,8 +118,13 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
                 data-duplicate-url="{% url 'composer:duplicate' gen.id %}" title="Dupliquer">
           <i class="fas fa-copy"></i>
         </button>
+        {% comment %}`data-delete-url` = second morceau du contrat de la brique queue-actions.js
+        (portage 2026-08-23) ; la classe était déjà bonne. La SUITE (retrait de card, groupe de
+        lot vidé, ETA, état vide) reste déclarée via `WamaQueueActions.onDeleted`.{% endcomment %}
         <button class="btn btn-sm btn-outline-danger delete-btn"
-                data-id="{{ gen.id }}" title="Supprimer">
+                data-id="{{ gen.id }}"
+                data-delete-url="{% url 'composer:delete' gen.id %}"
+                data-confirm="Supprimer cette génération ?" title="Supprimer">
           <i class="fas fa-trash"></i>
         </button>
       </div>

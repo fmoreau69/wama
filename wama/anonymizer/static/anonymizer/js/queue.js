@@ -127,33 +127,20 @@
     });
   }
 
-  // ── Suppression d'une card (le batch est recalé par le signal batch_sync) ──
-  document.addEventListener('click', async function (e) {
-    const del = e.target.closest('.anon-card .delete-btn[data-id]');
-    if (!del) return;
-    const id = del.dataset.id;
-    const fd = new FormData();
-    fd.append('media_id', id);
-    fd.append('csrfmiddlewaretoken', cfg.csrfToken);
-    try {
-      const d = await (await fetch(cfg.clearMediaUrl, { method: 'POST', body: fd })).json();
-      if (!d.success) {
-        if (window.WamaApp) WamaApp.toast(d.error || 'Suppression impossible', 'error');
-        return;
-      }
-    } catch (err) {
-      return;
-    }
+  // 🗑 RÉSIDU de suppression — la brique commune (queue-actions.js) porte désormais la
+  // confirmation, le POST vers `data-delete-url`, le retrait de la card, le lot vidé et le
+  // signal au gestionnaire de fichiers. Portage 2026-08-23, ATOMIQUE avec le gabarit.
+  //
+  // ⚠ Ce portage a demandé une route AU FORMAT COMMUN côté serveur (`anonymizer:delete`) :
+  // l'ancienne (`clear_media/` + `media_id` en champ de formulaire) ne pouvait pas être servie
+  // par la brique, qui poste un corps JSON vide. L'appartenance à un LOT était en outre devinée
+  // ICI en inspectant le DOM (`card.closest('.batch-group')`) faute que le serveur la dise ; la
+  // nouvelle vue répond `batch_changed`, et c'est la brique qui tranche — comme pour les 9
+  // autres apps.
+  WamaQueueActions.onDeleted(function (id) {
     stopPolling(parseInt(id, 10));
-    const card = queue.querySelector('.anon-card[data-id="' + id + '"]');
-    const inBatch = card && card.closest('.batch-group');
-    if (inBatch) {
-      location.reload(); // total/compteurs de la card mère recalés côté serveur
-    } else if (card) {
-      card.remove();
-      const badge = document.getElementById('queueCount');
-      if (badge) badge.textContent = Math.max(0, parseInt(badge.textContent || '1', 10) - 1);
-    }
+    const badge = document.getElementById('queueCount');
+    if (badge) badge.textContent = Math.max(0, parseInt(badge.textContent || '1', 10) - 1);
   });
 
   // ── Batch : lancer / paramètres (modale commune context:'batch') ────────

@@ -493,6 +493,22 @@
     // ⚙ item — ouvreur DÉCLARÉ à la brique commune (queue-actions.js), portage 2026-08-23.
     WamaQueueActions.onSettings(function (id, btn) { openSettingsModal(btn); });
 
+    // 🗑 RÉSIDU de suppression — la brique retire la card, le lot vidé et signale au gestionnaire
+    // de fichiers ; ne restent que le poller local (pas encore `WamaApp.Poller` ici), le compteur
+    // d'en-tête et le message de file vide.
+    WamaQueueActions.onDeleted(function (id) {
+        if (activePollers[id]) { clearInterval(activePollers[id]); delete activePollers[id]; }
+        updateJobsCount(-1);
+        if (!$('.synthesis-card')) {
+            const container = $('#jobs-container');
+            if (container) container.innerHTML = `
+                <div id="no-jobs-msg" class="text-center text-muted py-4">
+                    <i class="fas fa-film fa-3x mb-2 d-block opacity-50"></i>
+                    <p>Aucune vidéo générée pour l'instant.</p>
+                </div>`;
+        }
+    });
+
     function openSettingsModal(btn) {
         if (!settingsModal) return;
         const jobId      = btn.dataset.jobId;
@@ -594,39 +610,8 @@
     // Bind delete / start / preview-video buttons on job cards
     // -----------------------------------------------------------------------
     function bindJobCardEvents(card) {
-        const deleteBtn = $('.btn-delete-job', card);
-        if (deleteBtn) {
-            deleteBtn.addEventListener('click', async () => {
-                const jid = deleteBtn.dataset.jobId;
-                if (!confirm('Supprimer cette vidéo ?')) return;
-                try {
-                    const resp = await fetch(`${cfg.urls.delete}${jid}/`, {
-                        method: 'POST',
-                        headers: { 'X-CSRFToken': csrf },
-                    });
-                    if (resp.ok) {
-                        clearInterval(activePollers[jid]);
-                        delete activePollers[jid];
-                        // Élément issu d'un batch : total/affichage du batch changent → recharger
-                        const data = await resp.json().catch(() => ({}));
-                        if (data.batch_changed) { if (window.WamaFM) WamaFM.deleted(); location.reload(); return; }
-                        card.remove();
-                        updateJobsCount(-1);
-                        if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
-                        if (!$('.synthesis-card')) {
-                            const container = $('#jobs-container');
-                            if (container) container.innerHTML = `
-                                <div id="no-jobs-msg" class="text-center text-muted py-4">
-                                    <i class="fas fa-film fa-3x mb-2 d-block opacity-50"></i>
-                                    <p>Aucune vidéo générée pour l'instant.</p>
-                                </div>`;
-                        }
-                    }
-                } catch (err) {
-                    WamaApp.toast('Erreur lors de la suppression : ' + err.message, 'error');
-                }
-            });
-        }
+        // 🗑 : plus de bind PAR CARD ici — brique commune queue-actions.js, délégation unique
+        // (portage 2026-08-23). Le résidu est déclaré une seule fois, plus bas.
 
 
         // ⚙ : plus de bind PAR CARD ici — la brique commune (queue-actions.js) délègue une fois

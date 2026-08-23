@@ -577,41 +577,25 @@ document.addEventListener('DOMContentLoaded', function () {
     pollers.set(id, interval);
   }
 
-  async function deleteAudio(id) {
-    if (!confirm('Supprimer cet audio ?')) return;
-    try {
-      const r = await fetch(getUrl(cfg.audioDeleteUrlTemplate, id), {
-        method: 'POST',
-        headers: csrfHeaders(),
-      });
-      const data = await r.json().catch(() => ({}));
-      // Élément issu d'un batch : total/affichage du batch changent → recharger
-      if (data.batch_changed) { if (window.WamaFM) WamaFM.deleted(); location.reload(); return; }
-      const container = document.getElementById('audio-enhancer-queue');
-      const card = container ? container.querySelector(`[data-id="${id}"]`) : null;
-      if (card) {
-        // If inside a batch group, remove the group if it becomes empty
-        const batchGroup = card.closest('.batch-group');
-        card.remove();
-        if (batchGroup && !batchGroup.querySelector('[data-id]')) {
-          batchGroup.remove();
-        }
-      }
-      if (pollers.has(id)) {
-        clearInterval(pollers.get(id));
-        pollers.delete(id);
-      }
-      if (container && !container.querySelector('[data-id]')) {
-        const el = document.createElement('div');
-        el.className = 'empty-state text-center py-4 text-white-50';
-        el.textContent = 'Aucun fichier audio en attente.';
-        container.appendChild(el);
-      }
-      updateAudioGlobalProgress();
-    } catch (err) {
-      WamaApp.toast('Erreur suppression: ' + err.message);
+  // 🗑 RÉSIDU de suppression (cards AUDIO) — SCOPÉ à la file audio. Le `within` est indispensable
+  // ici : `index.js` déclare le résidu des cards d'AMÉLIORATION, et sans scope la seconde
+  // déclaration aurait écrasé la première en silence. La brique commune porte la confirmation,
+  // le POST, le retrait de card, le lot vidé et le signal au gestionnaire de fichiers ; il ne
+  // reste que le poller local (pas encore `WamaApp.Poller`) et deux rendus d'en-tête.
+  WamaQueueActions.onDeleted(function (id) {
+    if (pollers.has(id)) {
+      clearInterval(pollers.get(id));
+      pollers.delete(id);
     }
-  }
+    const container = document.getElementById('audio-enhancer-queue');
+    if (container && !container.querySelector('[data-id]')) {
+      const el = document.createElement('div');
+      el.className = 'empty-state text-center py-4 text-white-50';
+      el.textContent = 'Aucun fichier audio en attente.';
+      container.appendChild(el);
+    }
+    updateAudioGlobalProgress();
+  }, { within: '#audio-enhancer-queue' });
 
   // ── Global progress ───────────────────────────────────────────────────────
 
@@ -688,11 +672,10 @@ document.addEventListener('DOMContentLoaded', function () {
       queueTable.addEventListener('click', e => {
         const startBtn    = e.target.closest('.js-audio-start');
         const dlBtn       = e.target.closest('.js-audio-download');
-        const delBtn      = e.target.closest('.js-audio-delete');
-        // ⚙ : plus de branche ici — ouvreur déclaré à la brique commune (voir plus bas).
+        // ⚙ et 🗑 : plus de branche ici — délégués par la brique commune queue-actions.js,
+        // ouvreur et suite déclarés plus bas, tous deux scopés à cette file (2026-08-23).
 
         if (startBtn) startAudio(parseInt(startBtn.dataset.id));
-        if (delBtn) deleteAudio(parseInt(delBtn.dataset.id));
         if (dlBtn && !dlBtn.classList.contains('disabled')) {
           // navigation handled by <a> href
         }

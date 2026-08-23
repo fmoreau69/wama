@@ -469,7 +469,10 @@ document.addEventListener('DOMContentLoaded', function () {
         {% for job in b.items %}{% include 'converter/_job_card.html' %}{% endfor %}
         {% endif %}
         {% empty %}
-        <div id="converterEmptyState" class="text-center text-muted py-4">
+        {% comment %}`empty-queue` AJOUTÉ le 2026-08-23 : c'est la classe que la brique commune
+        `WamaApp.emptyState` cherche. Sans elle, le rendu SERVEUR et le rendu JS ne se voyaient
+        pas l'un l'autre et pouvaient coexister (deux états vides empilés).{% endcomment %}
+        <div id="converterEmptyState" class="text-center text-muted py-4 empty-queue">
             <i class="fas fa-exchange-alt fa-2x mb-2" style="color:#20c997; opacity:.4;"></i>
             <p class="mb-0">Aucune conversion — déposez un fichier pour commencer</p>
         </div>

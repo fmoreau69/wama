@@ -23,6 +23,11 @@ urlpatterns = [
     path('stop/<int:pk>/', views.stop, name='stop'),
     path('start_all/', views.start_all, name='start_all'),
     path('update_settings/', views.update_settings, name='update_settings'),
+    # Route au FORMAT COMMUN (2026-08-23) — les 9 autres apps exposent `delete/<pk>/` et
+    # répondent `batch_changed` ; c'est ce contrat que la brique `queue-actions.js` consomme.
+    path('delete/<int:pk>/', views.delete, name='delete'),
+    # Ancienne forme (media_id en champ de POST). Plus aucun consommateur dans le dépôt ;
+    # délègue au même travail que `delete`. À retirer après vérification externe.
     path('clear_media/', views.clear_media, name='clear_media'),
     path('reset_media_settings/', views.reset_media_settings, name='reset_media_settings'),
     path('reset_user_settings/', views.reset_user_settings, name='reset_user_settings'),

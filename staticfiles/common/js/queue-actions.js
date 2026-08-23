@@ -11,7 +11,8 @@
  *   ⚙ Paramètres → <button class="… settings-btn"  data-id="{{ o.id }}">
  *                  + côté app, UNE ligne : WamaQueueActions.onSettings((id, btn) => …)
  *
- * Hooks optionnels (une spécificité se DÉCLARE) :
+ * Hooks optionnels (une spécificité se DÉCLARE) — tous deux acceptent `{within: '<sélecteur>'}`
+ * pour être scopés à une famille de cards, l'ouvreur/la suite sans `within` servant de défaut :
  *   WamaQueueActions.onDeleted((id, data, btn) => …)   suite après suppression, au lieu du reload
  *
  * POURQUOI ⚙ N'EST PAS UN POST (et pourquoi la brique s'arrête au clic). Dupliquer et supprimer
@@ -120,12 +121,63 @@
 
     // ── 🗑 SUPPRIMER ───────────────────────────────────────────────────────────────────
     //
-    // Suite optionnelle après un succès :  WamaQueueActions.onDeleted(function (id, data, btn) {…})
-    // Déclarée, l'app remplace le rechargement par sa propre mise à jour de la file.
-    let apresSuppression = null;
+    // ── Ce qui suit une suppression réussie ────────────────────────────────────────────
+    //
+    // ⚠ CORRECTION DU 2026-08-23 (remarque de Fabien, le jour même du premier jet). La première
+    // version laissait CHAQUE app écrire sa propre suite via un hook, au motif d'une
+    // « spécificité légitime ». **C'était faux, et la méthode qui m'y a mené est l'erreur que ce
+    // dépôt répète de ne pas faire** : j'ai lu neuf NOMS DE FONCTIONS différents et j'en ai
+    // déduit neuf comportements. Mises côte à côte, les neuf suites faisaient EXACTEMENT ceci —
+    //
+    //     batch_changed → recharger · retirer la card · retirer le groupe de lot s'il est vide ·
+    //     remettre l'état vide · rafraîchir le compteur · signaler au gestionnaire de fichiers
+    //
+    // — un seul algorithme, recopié. La brique le tient donc elle-même, et l'app ne déclare plus
+    // que le RÉSIDU. Le test du skill /brique (« que doit écrire la prochaine app ? ») passait de
+    // douze lignes à une ou deux : c'est ce chiffre qui dit si une brique est une brique.
+    //
+    // CE QUI RESTE VRAIMENT À L'APP, ET POURQUOI CE N'EST PAS UNE SPÉCIFICITÉ. Arrêter le
+    // polling de l'élément supprimé et rafraîchir un compteur d'en-tête. La brique ne peut pas
+    // le faire tant que le poller vit dans une variable d'app — or `WamaApp.Poller` EXISTE et
+    // n'est adopté que par 4 apps sur 10 (transcriber, enhancer, imager, reader ; mesuré le
+    // 2026-08-23). Ce résidu n'est donc pas une divergence légitime : c'est **la trace d'un
+    // mécanisme commun non encore adopté**, et il disparaîtra à mesure de son adoption. Le noter
+    // ainsi, plutôt que « spécificité de l'app », est ce qui garde le chantier visible.
+    const suites = [];
 
-    function onDeleted(handler) {
-        if (typeof handler === 'function') apresSuppression = handler;
+    function onDeleted(handler, options) {
+        if (typeof handler !== 'function') return;
+        suites.push({ handler: handler, within: (options || {}).within || null });
+    }
+
+    // Spécifique d'abord, défaut ensuite — cf. le choix d'ouvreur côté ⚙, même règle. Le registre
+    // (et non un slot unique) est indispensable : l'enhancer déclare DEUX suites, dans deux
+    // fichiers JS séparés — un slot aurait laissé la seconde écraser la première en silence.
+    function choisirSuite(btn) {
+        const candidats = suites.filter(function (s) { return s.within; })
+                                .concat(suites.filter(function (s) { return !s.within; }));
+        for (let i = 0; i < candidats.length; i++) {
+            if (!candidats[i].within || btn.closest(candidats[i].within)) return candidats[i].handler;
+        }
+        return null;
+    }
+
+    function signalerAuGestionnaire() {
+        if (window.WamaFM && WamaFM.deleted) WamaFM.deleted();   // l'arborescence se rafraîchit
+    }
+
+    // Séquence STANDARD — le DOM commun suffit à la conduire : `.wama-card[data-id]` est porté
+    // par les 11 cards du dépôt (vérifié le 2026-08-23), `.batch-group` par tous les lots.
+    // Retourne true si la page se recharge (l'appelant n'a alors plus rien à faire).
+    function suiteStandard(id, btn) {
+        const card = document.querySelector('.wama-card[data-id="' + id + '"]')
+                  || (btn && btn.closest('.wama-card'));
+        const groupe = card && card.closest('.batch-group');
+        if (card) card.remove();
+        // Un lot vidé de ses enfants n'a plus d'objet : le laisser afficherait un groupe fantôme.
+        if (groupe && !groupe.querySelector('.wama-card[data-id]')) groupe.remove();
+        if (window.WamaEta && WamaEta.reset) WamaEta.reset(id);
+        signalerAuGestionnaire();
     }
 
     document.addEventListener('click', function (e) {
@@ -154,15 +206,17 @@
         .then(lireReponse)
         .then(function (data) {
             if (data.deleted || data.success || data.status === 'deleted') {
-                // Suite DÉCLARÉE par l'app, sinon rechargement. Sans ce hook, porter le
-                // transcriber (app de référence) aurait été une RÉGRESSION : il retire la card
-                // du DOM, désélectionne l'inspecteur, arrête le polling et met à jour l'état de
-                // « Tout télécharger » — un `location.reload()` uniforme aurait remplacé tout
-                // cela par un clignotement de page. Une spécificité légitime se DÉCLARE
-                // (philosophie §4) ; l'uniformité visée porte sur le GESTE et son contrat, pas
-                // sur le raffinement que chaque app peut apporter APRÈS le succès.
-                if (apresSuppression) { apresSuppression(btn.dataset.id, data, btn); return; }
-                location.reload();
+                const id = btn.dataset.id;
+                // Élément issu d'un LOT : le total et l'affichage de la card mère sont recalculés
+                // côté serveur (un lot réduit à 1 redevient une card simple) — seul un
+                // rechargement rend cet état correctement. Les 9 apps faisaient déjà exactement
+                // ce test, à l'identique.
+                if (data.batch_changed) { signalerAuGestionnaire(); location.reload(); return; }
+                suiteStandard(id, btn);
+                // Résidu déclaré par l'app (arrêt du polling, compteur d'en-tête) — voir plus haut
+                // pourquoi ce n'est pas une spécificité mais un mécanisme commun non encore adopté.
+                const suite = choisirSuite(btn);
+                if (suite) suite(id, data, btn);
             } else {
                 alert(data.error || 'Suppression impossible');
                 btn.disabled = false;

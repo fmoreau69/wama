@@ -430,20 +430,12 @@ document.addEventListener('DOMContentLoaded', function () {
     bindRowActions(document.getElementById(`settingsModal${data.id}`));
   });
 
-  // 🗑 SUITE de suppression — déclarée à la brique. Confirmation et POST sont au commun ; ce qui
-  // reste est le retrait de card SANS recharger et la remise en cohérence (polling, état vide,
-  // « Tout télécharger »). Cf. transcriber, même arbitrage.
-  WamaQueueActions.onDeleted(function (id, data, button) {
-    // Élément issu d'un batch : total/affichage du batch changent → recharger
-    if (data.batch_changed) { if (window.WamaFM) WamaFM.deleted(); location.reload(); return; }
-    const card = button.closest('.synthesis-card');
-    if (card) {
-      card.remove();
-      stopPolling(id);
-      if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
-      insertEmptyRowIfNeeded();
-      updateDownloadAllState();
-    }
+  // 🗑 RÉSIDU de suppression (cards AMÉLIORATION) — la brique fait le reste. Pas de `within` :
+  // c'est le résidu par DÉFAUT de la page, celui des cards audio étant scopé (audio-enhancer.js).
+  WamaQueueActions.onDeleted(function (id) {
+    stopPolling(id);
+    insertEmptyRowIfNeeded();
+    updateDownloadAllState();
   });
 
   function handleSaveSettings(button, restart = false) {

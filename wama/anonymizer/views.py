@@ -1259,6 +1259,63 @@ def clear_all_media(request):
     return JsonResponse({'success': True})
 
 
+@require_POST
+def delete(request, pk: int):
+    """Supprime UN média — route au format commun `delete/<pk>/` (2026-08-23).
+
+    POURQUOI CETTE VUE EXISTE, ALORS QUE LA SUPPRESSION MARCHAIT DÉJÀ. Le bouton de
+    l'anonymizer supprimait bien : il postait `media_id` en champ de formulaire vers
+    `clear_media/`. Ce qui n'était pas conforme, c'est la FORME de la route — les neuf autres
+    apps exposent `delete/<pk>/` et répondent `batch_changed`. Tant que l'anonymizer divergeait,
+    la brique commune `queue-actions.js` ne pouvait pas le servir : elle poste un corps JSON
+    vide vers `data-delete-url`, donc `media_id` serait arrivé VIDE — et une suppression sans
+    cible est précisément ce qu'on ne veut pas laisser partir au hasard.
+
+    Deux défauts de `clear_media` sont corrigés ici, et ils ne sont pas cosmétiques :
+      1. **Aucun scope utilisateur** — `Media.objects.filter(pk=media_id)` acceptait l'id de
+         N'IMPORTE QUEL utilisateur. Toutes les autres apps écrivent
+         `get_object_or_404(Model, pk=pk, user=user)` ; l'anonymizer était le seul à ne pas le
+         faire, sur des médias que l'app est faite pour anonymiser.
+      2. **`batch_changed` absent de la réponse** — le JS devait deviner l'appartenance à un lot
+         en inspectant le DOM. Le serveur sait ; il le dit désormais, comme partout ailleurs.
+    """
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    media = get_object_or_404(Media, pk=pk, user=user)
+
+    # Capturé AVANT la cascade : la suppression emporte le BatchAnonymizerItem.
+    parent_batch = None
+    try:
+        parent_batch = media.batch_item.batch
+    except Exception:
+        pass
+
+    _supprimer_media(media, user)
+    # batch.total / suppression du lot vidé : gérés par le signal batch_sync.
+    return JsonResponse({'success': True, 'deleted': pk,
+                         'batch_changed': parent_batch is not None})
+
+
+def _supprimer_media(media, user):
+    """Travail de suppression proprement dit — partagé par `delete` et `clear_media`.
+
+    Extrait le 2026-08-23 pour qu'il n'existe pas DEUX chemins de suppression : les verrous de
+    déduplication, la remise à zéro de `MSValues_customised` et la bascule `show_gs` sont des
+    effets de bord qu'on ne peut pas se permettre d'oublier d'un côté.
+    """
+    cache.delete(f"anon_lock:media:{media.pk}")
+    cache.delete(f"anon_task_owner:media:{media.pk}")
+
+    Media.objects.filter(pk=media.pk).update(MSValues_customised=0)
+    safe_delete_file(media, 'file')
+    media.delete()  # signal batch_sync : recale total / supprime le batch vidé
+
+    has_media = Media.objects.filter(user=user).exists()
+    UserSettings.objects.filter(user_id=user.id).update(media_added=int(has_media))
+    if not has_media:
+        # Hide global settings section when no media remains
+        UserSettings.objects.filter(user_id=user.id).update(show_gs=0)
+
+
 def clear_media(request):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
@@ -1269,22 +1326,12 @@ def clear_media(request):
         return JsonResponse({'success': False, 'error': 'Media not found'}, status=404)
 
     try:
-        # Clear dedup lock for this media
-        cache.delete(f"anon_lock:media:{media_id}")
-        cache.delete(f"anon_task_owner:media:{media_id}")
-
-        Media.objects.filter(pk=media_id).update(MSValues_customised=0)
-        safe_delete_file(media, 'file')
-        media.delete()  # signal batch_sync : recale total / supprime le batch vidé (le re-render reflète le bon total)
-
-        has_media = Media.objects.filter(user=user).exists()
-        UserSettings.objects.filter(user_id=user.id).update(media_added=int(has_media))
-        if not has_media:
-            # Hide global settings section when no media remains
-            UserSettings.objects.filter(user_id=user.id).update(show_gs=0)
-
-        # Plus de re-render de table (mécanisme legacy `refresh`) : le JS retire la
-        # card du DOM, la structure de batch est recalée par le signal batch_sync.
+        # DÉLÈGUE au même travail que `delete` (2026-08-23) : un seul chemin de suppression,
+        # sinon les effets de bord (verrous de dédup, MSValues_customised, bascule show_gs)
+        # divergent au premier oubli. Cette vue n'a plus AUCUN consommateur dans le dépôt
+        # depuis que la card passe par la brique commune — elle est conservée le temps de
+        # vérifier qu'aucun appelant externe n'en dépend, puis à retirer (REMOVAL_LEDGER).
+        _supprimer_media(media, user)
         return JsonResponse({'success': True})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)}, status=500)

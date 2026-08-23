@@ -111,9 +111,17 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
                 title="Dupliquer (tester d'autres paramètres)">
           <i class="fas fa-copy"></i>
         </button>
+        {% comment %}🗑 : graphie COMMUNE aux deux domaines depuis le 2026-08-23, comme le ⚙
+        au-dessus. L'endpoint de suppression est le MÊME pour image et vidéo
+        (`imager:delete`) — la classe par domaine ne portait donc aucune information, ni pour
+        l'URL ni pour le comportement. Le domaine reste lisible sur la card (`data-domain`),
+        et c'est de là que la suite déclarée le lit.{% endcomment %}
         <button type="button"
-                class="btn btn-sm btn-outline-danger {% if domain == 'video' %}video-delete-btn{% else %}delete-btn{% endif %}"
-                data-id="{{ gen.id }}" title="Supprimer la génération">
+                class="btn btn-sm btn-outline-danger delete-btn"
+                data-id="{{ gen.id }}"
+                data-delete-url="{% url 'imager:delete' gen.id %}"
+                data-confirm="Supprimer cette génération {% if domain == 'video' %}vidéo{% else %}image{% endif %} ?"
+                title="Supprimer la génération">
           <i class="fas fa-trash-alt"></i>
         </button>
       </div>

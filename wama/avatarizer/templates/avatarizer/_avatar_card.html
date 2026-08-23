@@ -5,7 +5,7 @@ b.items d'index.html) ET par card_html (refreshCard sur transition — index.js:
 Contexte : job (chips = propriété du modèle), media_url, in_batch.
 
 ⚠ Contrats JS (index.js) : #job-{{ id }} + [data-id][data-job-id][data-status][data-mode] ;
-  .settings-btn[data-id] + data-* (masqué en RUNNING) ; .btn-delete-job[data-job-id] ;
+  .settings-btn[data-id] + data-* (masqué en RUNNING) ; .delete-btn[data-delete-url] ;
   .duplicate-btn[data-duplicate-url] (brique globale) ; .step-desc (étape live :462) ;
   .wama-progress-fill ; .progress-text ; .wama-eta ; #preview-row-{{ id }}.
 {% endcomment %}
@@ -118,8 +118,14 @@ Contexte : job (chips = propriété du modèle), media_url, in_batch.
                 title="Dupliquer">
           <i class="fas fa-copy"></i>
         </button>
-        <button class="btn btn-sm btn-outline-danger btn-delete-job"
-                data-job-id="{{ job.id }}" title="Supprimer">
+        {% comment %}`delete-btn` + `data-delete-url` = contrat de la brique queue-actions.js
+        (portage 2026-08-23). Remplace `btn-delete-job`/`data-job-id` — comme le ⚙ juste au-dessus,
+        c'était l'ordre des mots inversé qui la rendait invisible aux relevés par suffixe.
+        `data-job-id` RESTE : le polling et le rafraîchissement de card s'en servent.{% endcomment %}
+        <button class="btn btn-sm btn-outline-danger delete-btn"
+                data-id="{{ job.id }}" data-job-id="{{ job.id }}"
+                data-delete-url="{% url 'avatarizer:delete' job.id %}"
+                data-confirm="Supprimer cette vidéo ?" title="Supprimer">
           <i class="fas fa-trash"></i>
         </button>
       </div>

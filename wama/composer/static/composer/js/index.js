@@ -124,6 +124,9 @@
         settingsModel.addEventListener('change', updateSettingsEstimate);
     }
 
+    // 🗑 RÉSIDU de suppression — la brique commune fait tout le reste (portage 2026-08-23).
+    WamaQueueActions.onDeleted(function () { checkEmptyState(); });
+
     // ⚙ item — ouvreur DÉCLARÉ à la brique commune (queue-actions.js). Le bouton `.settings-btn`
     // et la délégation appartiennent désormais au commun ; l'app ne garde que le remplissage de
     // SA modale. Remplace la branche `closest('.settings-btn')` du handler délégué local
@@ -272,29 +275,9 @@
 
     document.addEventListener('click', function (e) {
 
-        const deleteBtn = e.target.closest('.delete-btn');
-        if (deleteBtn) {
-            const id = deleteBtn.dataset.id;
-            if (!confirm('Supprimer cette génération ?')) return;
-            fetch(WamaApp.getUrl(APP.deleteUrlTemplate, id), { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
-                .then(r => r.json().catch(() => ({})))
-                .then((data) => {
-                    // Élément issu d'un batch : total/affichage du batch changent → recharger
-                    if (data.batch_changed) { if (window.WamaFM) WamaFM.deleted(); location.reload(); return; }
-                    const card = document.querySelector(`.generation-card[data-id="${id}"]`);
-                    if (card) {
-                        const batchGroup = card.closest('.batch-group');
-                        card.remove();
-                        if (batchGroup && batchGroup.querySelectorAll('.generation-card').length === 0) {
-                            batchGroup.remove();
-                        }
-                    }
-                    if (window.WamaEta) WamaEta.reset(id);
-                    checkEmptyState();
-                    if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
-                });
-            return;
-        }
+        // 🗑 item : plus de branche ici — brique commune queue-actions.js (portage 2026-08-23).
+        // La suite est déclarée par `onDeleted`, plus bas. Les actions de LOT restent locales
+        // tant que la brique ne les porte pas.
 
         const batchDeleteBtn = e.target.closest('.batch-delete-btn');
         if (batchDeleteBtn) {

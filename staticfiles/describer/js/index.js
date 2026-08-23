@@ -204,11 +204,8 @@ document.addEventListener('DOMContentLoaded', function() {
             startBtn.addEventListener('click', () => startDescription(card.dataset.id));
         }
 
-        // Delete button
-        const deleteBtn = card.querySelector('.delete-btn');
-        if (deleteBtn) {
-            deleteBtn.addEventListener('click', () => deleteDescription(card.dataset.id));
-        }
+        // 🗑 : plus de bind PAR CARD ici — brique commune queue-actions.js, délégation unique
+        // (portage 2026-08-23). La suite est déclarée par `onDeleted`, plus bas.
 
         // Preview button
         const previewBtn = card.querySelector('.preview-btn');
@@ -633,35 +630,12 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(() => {});
     }
 
-    async function deleteDescription(id) {
-        if (!confirm('Supprimer cette description ?')) return;
-
-        try {
-            const response = await fetch(config.urls.delete.replace('/0/', `/${id}/`), {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': config.csrfToken
-                }
-            });
-
-            const data = await response.json();
-
-            if (data.deleted) {
-                stopPolling(id);
-                // Élément issu d'un batch : total/affichage du batch changent → recharger
-                if (data.batch_changed) { if (window.WamaFM) WamaFM.deleted(); location.reload(); return; }
-                const card = document.querySelector(`.wama-card[data-id="${id}"]`);
-                if (card) card.remove();
-                updateQueueCount();
-                if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
-                showToast('Description supprimee', 'success');
-            }
-
-        } catch (error) {
-            console.error('Delete error:', error);
-            showToast('Erreur lors de la suppression', 'danger');
-        }
-    }
+    // 🗑 RÉSIDU de suppression — la brique commune fait tout le reste (portage 2026-08-23).
+    WamaQueueActions.onDeleted(function (id) {
+        stopPolling(id);
+        updateQueueCount();
+        showToast('Description supprimee', 'success');
+    });
 
     // === Preview Modal (tabbed) ===
 

@@ -102,7 +102,13 @@ Contexte : ae (AudioEnhancement, décorée .chips), in_batch (bool).
                 data-duplicate-url="{% url 'enhancer:audio_duplicate' ae.id %}" title="Dupliquer">
           <i class="fas fa-copy"></i>
         </button>
-        <button class="btn btn-sm btn-outline-danger js-audio-delete" data-id="{{ ae.id }}" title="Supprimer">
+        {% comment %}`delete-btn` + `data-delete-url` = contrat de la brique queue-actions.js
+        (portage 2026-08-23). La SUITE (retrait de card, groupe de lot vidé, état vide,
+        progression globale) est déclarée par `onDeleted` SCOPÉ à `#audio-enhancer-queue` —
+        l'enhancer a deux familles de cards, chacune sa suite.{% endcomment %}
+        <button class="btn btn-sm btn-outline-danger delete-btn" data-id="{{ ae.id }}"
+                data-delete-url="{% url 'enhancer:audio_delete' ae.id %}"
+                data-confirm="Supprimer cet audio ?" title="Supprimer">
           <i class="fas fa-trash-alt"></i>
         </button>
       </div>

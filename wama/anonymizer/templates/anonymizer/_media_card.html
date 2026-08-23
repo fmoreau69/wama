@@ -112,8 +112,15 @@ Contexte : media (décoré par _decorate_card → media.chips), in_batch, user.
                 title="Dupliquer (tester d'autres paramètres)">
           <i class="fas fa-copy"></i>
         </button>
+        {% comment %}`data-delete-url` = second morceau du contrat de la brique queue-actions.js
+        (2026-08-23) ; la classe était déjà bonne. Il pointe la route AU FORMAT COMMUN
+        (`delete/<pk>/`) et non l'ancienne `clear_media/`, que la brique ne pouvait pas servir —
+        elle poste un corps JSON, pas un champ `media_id`.{% endcomment %}
         <button type="button" class="btn btn-sm btn-outline-danger delete-btn"
-                data-id="{{ media.id }}" title="Supprimer le média">
+                data-id="{{ media.id }}"
+                data-delete-url="{% url 'anonymizer:delete' media.id %}"
+                data-confirm="Supprimer ce média ? Cette action est définitive."
+                title="Supprimer le média">
           <i class="fas fa-trash-alt"></i>
         </button>
       </div>

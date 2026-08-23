@@ -157,16 +157,9 @@
         });
 
 
-        // Individual delete buttons
-        document.addEventListener('click', function(e) {
-            if (e.target.closest('.delete-btn')) {
-                const btn = e.target.closest('.delete-btn');
-                const genId = btn.getAttribute('data-id');
-                if (confirm('Delete this generation?')) {
-                    deleteGeneration(genId);
-                }
-            }
-        });
+        // 🗑 (image ET vidéo) : plus de handler ici — brique commune queue-actions.js, une seule
+        // délégation pour les deux domaines depuis que la graphie est unifiée (2026-08-23).
+        // La suite est déclarée par `onDeleted` ; le domaine s'y lit sur la card.
 
 
 
@@ -227,16 +220,8 @@
 
 
 
-        // Video delete buttons
-        document.addEventListener('click', function(e) {
-            if (e.target.closest('.video-delete-btn')) {
-                const btn = e.target.closest('.video-delete-btn');
-                const genId = btn.getAttribute('data-id');
-                if (confirm('Supprimer cette génération vidéo ?')) {
-                    deleteGeneration(genId, true);
-                }
-            }
-        });
+        // 🗑 vidéo : fusionné avec l'image dans la brique commune (même endpoint, même geste) —
+        // c'est le doublon que la graphie par domaine entretenait (2026-08-23).
 
         // Video download buttons
         document.addEventListener('click', function(e) {
@@ -398,37 +383,15 @@
     /**
      * Delete a specific generation (image or video)
      */
-    function deleteGeneration(genId, isVideo = false) {
-        const url = config.urls.delete.replace('0', genId);
-        const type = isVideo ? 'vidéo' : 'image';
-
-        fetch(url, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': config.csrfToken
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                WamaApp.toast(`Génération ${type} supprimée`, 'success');
-                // Remove from DOM - check in both queues
-                const imageCard = document.querySelector(`#generationsQueue [data-id="${genId}"]`);
-                const videoCard = document.querySelector(`#videoGenerationsQueue [data-id="${genId}"]`);
-                if (imageCard) imageCard.remove();
-                if (videoCard) videoCard.remove();
-                updateQueueCount();
-                updateVideoQueueCount();
-                if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
-            } else {
-                WamaApp.toast('Erreur : ' + (data.error || 'Erreur inconnue'), 'error');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            WamaApp.toast(`Erreur lors de la suppression de la génération ${type}`, 'error');
-        });
-    }
+    // 🗑 RÉSIDU de suppression — la brique commune (queue-actions.js) porte la confirmation, le
+    // POST, le retrait de la card (dans l'une OU l'autre file : elle vise `.wama-card[data-id]`,
+    // que les deux domaines portent) et le signal au gestionnaire de fichiers. Ne restent que
+    // les deux compteurs d'onglet, qui comptent le DOM et doivent donc être relus APRÈS le
+    // retrait. Portage 2026-08-23 : `deleteGeneration` a disparu avec ses deux handlers.
+    WamaQueueActions.onDeleted(function () {
+        updateQueueCount();
+        updateVideoQueueCount();
+    });
 
     /**
      * Clear all generations

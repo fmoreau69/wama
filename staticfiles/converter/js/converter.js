@@ -30,7 +30,17 @@
     const outputFmtSel   = document.getElementById('converterOutputFormat');
     const mediaTypeBadge = document.getElementById('converterMediaTypeBadge');
     const queue          = document.getElementById('converterQueue');
-    const emptyState     = document.getElementById('converterEmptyState');
+    // État vide : ADOPTE la brique commune `WamaApp.emptyState` (2026-08-23). Le `const`
+    // précédent (`getElementById('converterEmptyState')`) était DÉCLARÉ ET JAMAIS UTILISÉ :
+    // l'app n'avait aucun état vide côté JS, elle rechargeait la page. Le retrait de card
+    // désormais chirurgical (brique queue-actions) rend cette bascule nécessaire — sans elle,
+    // supprimer la dernière conversion laissait une file vide SANS message.
+    const _empty = WamaApp.emptyState({
+        container: document.getElementById('converterQueue'),
+        cardSelector: '.job-card',
+        html: '<i class="fas fa-exchange-alt fa-2x mb-2" style="color:#20c997; opacity:.4;"></i>'
+            + '<p class="mb-0">Aucune conversion — déposez un fichier pour commencer</p>',
+    });
 
     // Options panels
     const imageOpts      = document.getElementById('imageOptions');
@@ -756,6 +766,10 @@
 
     // ⚙ item — ouvreur DÉCLARÉ à la brique commune (queue-actions.js), portage 2026-08-23.
     WamaQueueActions.onSettings(function (id) { openSettingsModal(id); });
+
+    // 🗑 RÉSIDU de suppression — la brique retire la card, le lot vidé et signale au gestionnaire
+    // de fichiers ; ne reste que l'état vide (brique commune, instance `_empty` en tête).
+    WamaQueueActions.onDeleted(function () { _empty.insertIfNeeded(); });
 
     async function openSettingsModal(jobId) {
         currentModalJobId = jobId;

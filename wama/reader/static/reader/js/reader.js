@@ -93,16 +93,16 @@
         return card;
     }
 
-    function removeCard(id) {
-        const card = document.querySelector(`.reader-card[data-id="${id}"]`);
-        if (card) card.remove();
-        if (document.querySelectorAll('.reader-card').length === 0) {
-            const container = document.getElementById('queueContainer');
-            container.innerHTML = `<div id="emptyState" class="text-center text-secondary py-5">
-                <i class="fas fa-inbox fa-3x mb-3 opacity-50"></i>
-                <p>File d'attente vide — importez des documents pour commencer</p>
-            </div>`;
-        }
+    // Le RETRAIT de card appartient désormais à la brique commune (queue-actions.js) ; il ne
+    // reste ici que la bascule d'état vide, appelée APRÈS elle (2026-08-23).
+    function insertEmptyStateIfNeeded() {
+        if (document.querySelectorAll('.reader-card').length > 0) return;
+        const container = document.getElementById('queueContainer');
+        if (!container || container.querySelector('#emptyState')) return;
+        container.innerHTML = `<div id="emptyState" class="text-center text-secondary py-5">
+            <i class="fas fa-inbox fa-3x mb-3 opacity-50"></i>
+            <p>File d'attente vide — importez des documents pour commencer</p>
+        </div>`;
     }
 
     // ─── Card actions ─────────────────────────────────────────────────────────
@@ -210,15 +210,12 @@
         }
     }
 
-    // 🗑 SUITE de suppression — déclarée à la brique commune (queue-actions.js), qui porte
-    // désormais la confirmation et le POST. Portage 2026-08-23.
-    WamaQueueActions.onDeleted(function (id, data) {
+    // 🗑 RÉSIDU de suppression — la brique commune (queue-actions.js) porte la confirmation, le
+    // POST et le retrait de la card. Portage 2026-08-23.
+    WamaQueueActions.onDeleted(function (id) {
         stopPolling(id);
-        // Élément issu d'un batch : total/affichage du batch changent → recharger
-        if (data.batch_changed) { if (window.WamaFM) WamaFM.deleted(); location.reload(); return; }
-        removeCard(id);
+        insertEmptyStateIfNeeded();
         updateGlobalProgress();
-        if (window.WamaFM) WamaFM.deleted();  // fichier supprimé → refresh filemanager
     });
 
     // ⚙ item — ouvreur DÉCLARÉ à la brique commune (queue-actions.js).

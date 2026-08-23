@@ -123,7 +123,12 @@ Rendue au chargement (cards autonomes ET filles) et par describer:card_html (ref
                 title="Dupliquer{% if in_batch %} dans le batch{% endif %}">
           <i class="fas fa-copy"></i>
         </button>
-        <button class="btn btn-sm btn-outline-danger delete-btn" data-id="{{ desc.id }}" title="Supprimer">
+        {% comment %}`data-delete-url` = second morceau du contrat de la brique queue-actions.js
+        (portage 2026-08-23) ; la classe était déjà bonne. Suite déclarée par `onDeleted`.
+        {% endcomment %}
+        <button class="btn btn-sm btn-outline-danger delete-btn" data-id="{{ desc.id }}"
+                data-delete-url="{% url 'describer:delete' desc.id %}"
+                data-confirm="Supprimer cette description ?" title="Supprimer">
           <i class="fas fa-trash"></i>
         </button>
       </div>
