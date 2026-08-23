@@ -32,7 +32,7 @@
 > Mesuré depuis le code — **ne pas éditer à la main** (`python manage.py doc_facts`).
 > Registre des modules : `wama_data/modules.py`.
 
-**Bilan** : 4 ⏳ (non commencé) · 6 🔶 (livré mais INERTE)
+**Bilan** : 3 ⏳ (non commencé) · 7 🔶 (livré mais INERTE)
 
 > 🔶 **AUCUN consommateur hors `wama_data/` — le sous-système entier est INERTE.** Aucune app, tâche ou route ne s'en sert encore : les briques s'appellent entre elles, et c'est tout. Le premier module à donner un usage réel fera basculer ces lignes en ✅.
 
@@ -41,7 +41,7 @@
 | **Importer** | Lit une source et rend un référentiel temporel interrogeable | fichiers + manifeste `dataset` → référentiel, écrit en `.wrec` | 🔶 | 3/3 | 1 | 3/0 | §6.6, §9bis.1, §9quater.2 (conteneur natif) |
 | **Référentiel temporel** | Aligne des flux à cadences incommensurables | référentiel → échantillons, `segments`, vue décimée, cadres typés | 🔶 | 2/2 | 2 | 1/0 | §2, §3, §9quater.7 |
 | **Connector** | Branche une base existante comme source | base SQLite (`.trip` externe, `.wrec` natif) → référentiel | 🔶 | 1/1 | 0 | 2/0 | §6.2, §9quater.2 |
-| **Explorer** | Explore un dataset en table et en graphe — c'est aussi l'INTERFACE du Calculator : la vue tableur est le lieu où l'on ajoute une colonne calculée et où l'on voit le résultat | référentiel → vues table/graphe + colonnes calculées | ⏳ | — | — | — | §7, §9quater.6 |
+| **Explorer** | Explore un dataset en table et en graphe — c'est aussi l'INTERFACE du Calculator : la vue tableur est le lieu où l'on ajoute une colonne calculée et où l'on voit le résultat | référentiel → vues table/graphe + colonnes calculées | 🔶 | 2/2 | 2 | 0/0 | §7, §9quater.6, §9quater.7 |
 | **Segmenter** | Produit des segments : autour d'un événement, par jonction de deux flux, par CHAÎNE de conditions (ET/OU/XOR/NON) avec hystérésis, par plages constantes d'un catégoriel, ou par CODAGE (humain ou IA) — la chaîne sort en segments OU en événements, au choix du PORT | `events` ou signal + conditions → `segments` \| `events` | 🔶 | 6/6 | 4 | 16/0 | §9ter (spécification), §9ter.6 A-B (portage), §6.7 |
 | **Calculator** | Calcule des COLONNES DÉRIVÉES (moyenne glissante, dérivée, cumul) et des INDICATEURS PAR SEGMENT qu'il adjoint aux segments | signal → signal enrichi · `segments` + signal → colonnes d'indicateurs | 🔶 | 3/3 | 2 | 5/0 | §6.7 |
 | **Visualizer** | Vues synchronisées sur l'axe partagé (plugins) | référentiel → plugins co-chargés | ⏳ | — | — | — | §4, §8.2 |
@@ -53,7 +53,7 @@
 
 - **Importer** — alignement par TRIGGERS non conçu (D12) ; `DATASET_SOURCES` non réconcilié avec le registre des lecteurs (G1) ; lecteur `.rec` encore une FONCTION (`functions/io/rtmaps_rec.py`) au lieu d'un lecteur de source ; l'ÉCRITURE du conteneur natif `.wrec` reste à écrire — D3 est tranchée (2026-08-23) mais aucune ligne de WAMA Data n'écrit encore de SQLite
 - **Référentiel temporel** — ⚠ Son blocage « AUCUN consommateur » est LEVÉ le 2026-08-23 : il n'en avait aucun parce que rien ne pouvait convertir sa sortie en `TypedFrame` — c'est désormais `frames.py`. Un flux chargé traverse une fonction du catalogue et revient au référentiel (34 tests). Reste : la fenêtre/résolution comme DÉCLARATION sérialisable (le view-model de l'Explorer)
-- **Explorer** — AUCUN blocage déclaré — avec le Connector, le seul module écrivable immédiatement. Le Calculator qu'il pilote est écrit et éprouvé (49 tests) et n'a aucune UI : c'est ce manque-là que l'Explorer comble
+- **Explorer** — CŒUR LIVRÉ le 2026-08-23 — le PONT (`frames.py`, 34 tests) et le VIEW-MODEL (`vue.py`, 31 tests) : une `Vue` déclare flux/fenêtre/résolution/colonnes dérivées, est sérialisable en JSON, et rend la règle de §9quater.4 EXÉCUTABLE en la dérivant de la `FunctionCategory`. Reste l'UI, et elle seule : `wama_data` n'a encore AUCUNE surface Django (ni views, ni urls, ni templates) et aucune bibliothèque de graphe n'est vendorée — deux décisions cadrées par §9quater.7 (« une lib qui DESSINE oui, une lib qui décide de la MISE EN PAGE non »)
 - **Segmenter** — MOTEUR complet — le portage schéma-driven de §9ter.6 A-B est LIVRÉ le 2026-08-23 (chaîne de conditions en ARBRE, 14 opérateurs filtrés par la SORTE de colonne LUE dans la donnée, offsets et « répéter » de la jonction, second port `masque → events`). Restent DEUX manques de §9ter.6 A, tous deux d'INTERFACE et non de moteur : le filtrage manuel occurrence par occurrence (= la file de cards + l'inspecteur, mécanisme existant, zéro code) et l'interface de codage, qui doit se GÉNÉRER du protocole — elle dépend du transport (Magneto + vue média) et de la vue déclarative, donc du Visualizer
 - **Calculator** — MOTEUR écrit et éprouvé (49 tests — 32 sur le cœur pur, 17 sur la frontière pandas) : reste son emploi sur un corpus RÉEL, qui dépend de l'Importer — sans flux aligné, il n'y a rien à calculer
 - **Visualizer** — vue déclarative = verrou §7ter point 3 ; écrire 2-3 plugins AVANT d'extraire
@@ -1569,6 +1569,44 @@ alimenter). C'est une frontière à part entière, au même niveau que `modules.
 > ⚠ **`adjoindre()` REFUSE d'écraser un flux existant** — `TemporalReferential.add()` le refusait
 > déjà, et on ne contourne pas : écraser en place rendrait irrécupérable ce qui l'a produit. Un
 > recalcul se range sous un nom dérivé, comme une colonne calculée.
+
+#### ✅ LE VIEW-MODEL est livré — `wama_data/vue.py` (2026-08-23, 31 tests)
+
+Seconde moitié du cœur. Une `Vue` déclare **quels flux (`Piste`), quelle fenêtre et quelle
+résolution (`Fenetre`), quelles colonnes dérivées (`ColonneDerivee`)** — et elle est
+**sérialisable en JSON pur, aller-retour vérifié**. C'est donc une déclaration au sens de
+§9quater.5 : *on persiste ça, pas les valeurs.* `appliquer()` calcule à la demande et **n'écrit
+rien** (test à l'appui : le référentiel ne gagne aucun flux au passage).
+
+**⚠ CE QU'IL APPORTE VRAIMENT : la règle de §9quater.4 devient EXÉCUTABLE — et DÉRIVÉE DU
+CATALOGUE.** Elle n'est plus une doctrine écrite ni une propriété émergente du Calculator : c'est
+la `FunctionCategory` **déclarée par chaque fonction** qui décide.
+
+| | catégories | conséquence |
+|---|---|---|
+| la clé temporelle **ne change pas** | `TRANSFORM` · `ENRICHER` | la colonne **s'adjoint** à la table regardée (`Resultat.tables`) |
+| la clé temporelle **change** | `DETECTOR` · `INDICATOR` · `RESAMPLER` · `AGGREGATE` · `JOIN` | **table à part** (`Resultat.annexes`) |
+
+Ce découpage n'est pas une invention : il se lit dans les définitions mêmes des catégories
+(`function_catalog.py`) — « ajoute des champs/colonnes à l'entrée » et « même type en sortie »
+d'un côté ; « produit des events », « produit un scalaire », « **change l'échantillonnage** »,
+« agrège par groupe », « combine plusieurs entrées » de l'autre. `RESAMPLER` est littéralement le
+cas (b) de §9quater.4.
+
+> **Conséquence pratique : ajouter une fonction au catalogue la range automatiquement du bon côté,
+> sans toucher `vue.py`.** Un test le vérifie sur **tout** le catalogue, et un autre refuse qu'une
+> catégorie non classée tombe d'un côté par défaut — elle lève, en demandant qu'on tranche.
+
+> ⚠ **`Resultat` sépare `tables` et `annexes` À DESSEIN** : c'est la règle rendue **visible**.
+> L'interface n'a rien à décider — une colonne qui s'ajoute à la table qu'on regarde, ou un onglet
+> qui s'ouvre. C'est ce que §9quater.6 annonçait : *« la règle n'a pas à être expliquée, elle se
+> montre »*.
+
+> ⚠ **`serie()` ne passe PAS par `appliquer()`** — un tracé qui matérialiserait un cadre pandas
+> annulerait la décimation, qui existe précisément pour ne pas charger 5 M points. Il appelle
+> `decimate_values` du référentiel, qui agrège **dans la source** quand elle sait le faire. Et il
+> exige une fenêtre bornée avec `buckets > 0` : `buckets = 0` signifie « table, échantillons
+> réels », pas « choisis pour moi ».
 
 #### Position sur les BIBLIOTHÈQUES (question de Fabien, 2026-08-23)
 

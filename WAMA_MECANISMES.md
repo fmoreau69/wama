@@ -192,7 +192,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Voie d'import (front)** | Envoi d'un fichier vers l'endpoint upload de l'app depuis toutes les sources (dépôt, clic, médiathèque), délégation du LOT à batch_import, consolidation et rafraîchissement — agnostique du monde (ni MIME ni extension) | `wama/common/static/common/js/wama-import.js` | `WAMA_APP_GENERATION_ROUTE.md` | 4 |
 | **data-* du gear ⚙ des cards** | data-* du bouton ⚙ DÉRIVÉS du schéma (contrat cardSettings de l'inspecteur : le volet reflète la card sélectionnée) — remplace les attributs écrits à la main par app ; booléens 'true'/'false', tous les params item émis (anti-résidus) | `wama/common/utils/card_gear.py` | — | 10 |
 
-#### Données & infrastructure (17)
+#### Données & infrastructure (18)
 
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
@@ -212,6 +212,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Sonde média** | Durée/codec/dimensions/pages d'un média pour les propriétés de card (via ffmpeg_utils) | `wama/common/utils/media_probe.py` | — | 4 |
 | **Taxonomie des types de donnée** | Vocabulaire commun des sources et des fonctions : sous-typage + compatibilité de ports. `segments` y est LE type « portion de temps bornée » (situation, état, section) | `wama/common/catalog/data_types.py` | `WAMA_DATA_FUNCTION_CARDS.md §3` | 6 |
 | **Utilitaires vidéo** | Extraction audio des vidéos + téléchargement YouTube/yt-dlp | `wama/common/utils/video_utils.py` | — | 16 |
+| **View-model d'exploration (WAMA Data)** | Une VUE déclare ce qu'on regarde — flux, fenêtre, résolution, colonnes dérivées — et rien de plus : sérialisable en JSON, donc rejouable et diffable, et on persiste ELLE plutôt que les valeurs (une colonne matérialisée se périme sans le dire). Rend EXÉCUTABLE la règle « une nouvelle table SSI la clé temporelle change » en la DÉRIVANT de la `FunctionCategory` : ajouter une fonction au catalogue la range du bon côté sans toucher le view-model. La séparation tables/annexes rend la règle visible à l'écran au lieu d'avoir à l'expliquer | `wama_data/vue.py` | `WAMA_DATA_WORLD.md §9quater.4, §9quater.7` | ⚠ **0** |
 | **Visibilité et portée** | Privé / unité / public : filtrage des lectures, mutations inchangées | `wama/common/models.py` | `PROFILES_PERMISSIONS.md` | 25 |
 
 #### Studio & surface d'outils (API) (3)
@@ -222,8 +223,8 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Runner générique du studio** | Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app | `wama/studio/services/generic_runner.py` | `STUDIO_VISION.md` | 7 |
 | **Surface d'outils** | Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas | `wama/tool_api.py` | `WAMA_APP_GENERATION_ROUTE.md` | 9 |
 
-**Mécanismes déclarés : 89** · domiciles absents : 0 · sans consommateur : 4 · assumés locaux : 18 · modules balayés non rattachés : 4 · **de niveau app sans critère de grille : 20**
-- ⚠ **Sans consommateur** (brique morte ou pas encore adoptée) : `benchmark_sync` (wama/model_manager/services/benchmark_sync.py), `qc` (wama/common/utils/qc.py), `data_frames_bridge` (wama_data/frames.py), `temporal_referential` (wama_data/core/temporal.py)
+**Mécanismes déclarés : 90** · domiciles absents : 0 · sans consommateur : 5 · assumés locaux : 18 · modules balayés non rattachés : 4 · **de niveau app sans critère de grille : 20**
+- ⚠ **Sans consommateur** (brique morte ou pas encore adoptée) : `benchmark_sync` (wama/model_manager/services/benchmark_sync.py), `qc` (wama/common/utils/qc.py), `data_frames_bridge` (wama_data/frames.py), `temporal_referential` (wama_data/core/temporal.py), `data_vue` (wama_data/vue.py)
 
 <details><summary>⚠ <b>20 mécanisme(s) de niveau app SANS critère de grille</b> — adoptés par des apps, vérifiés par aucun critère (<code>Criterion.mecanisme</code>) : une app peut sortir à 100 % sans les avoir adoptés</summary>
 

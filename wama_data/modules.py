@@ -87,10 +87,17 @@ MODULES: Tuple[ModuleData, ...] = (
                                 "l'INTERFACE du Calculator : la vue tableur est le lieu où l'on "
                                 "ajoute une colonne calculée et où l'on voit le résultat",
         "référentiel → vues table/graphe + colonnes calculées",
-        doc='§7, §9quater.6',
-        bloque_par="AUCUN blocage déclaré — avec le Connector, le seul module écrivable "
-                   "immédiatement. Le Calculator qu'il pilote est écrit et éprouvé (49 tests) et "
-                   "n'a aucune UI : c'est ce manque-là que l'Explorer comble",
+        briques=('wama_data/frames.py',
+                 'wama_data/vue.py'),
+        doc='§7, §9quater.6, §9quater.7',
+        bloque_par="CŒUR LIVRÉ le 2026-08-23 — le PONT (`frames.py`, 34 tests) et le VIEW-MODEL "
+                   "(`vue.py`, 31 tests) : une `Vue` déclare flux/fenêtre/résolution/colonnes "
+                   "dérivées, est sérialisable en JSON, et rend la règle de §9quater.4 EXÉCUTABLE "
+                   "en la dérivant de la `FunctionCategory`. Reste l'UI, et elle seule : "
+                   "`wama_data` n'a encore AUCUNE surface Django (ni views, ni urls, ni "
+                   "templates) et aucune bibliothèque de graphe n'est vendorée — deux décisions "
+                   "cadrées par §9quater.7 (« une lib qui DESSINE oui, une lib qui décide de la "
+                   "MISE EN PAGE non »)",
     ),
     ModuleData(
         'segmenter', 'Segmenter', "Produit des segments : autour d'un événement, par jonction de "

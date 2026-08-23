@@ -478,6 +478,15 @@ MECANISMES = (
               "non déclaré, et la PROVENANCE — ce qui revient d'un calcul ne peut pas se déclarer "
               "acquis (`is_base=False` sans échappatoire)",
               'wama_data/frames.py', 'WAMA_DATA_WORLD.md §9quater.7'),
+    Mecanisme('data_vue', "View-model d'exploration (WAMA Data)",
+              "Une VUE déclare ce qu'on regarde — flux, fenêtre, résolution, colonnes dérivées — "
+              "et rien de plus : sérialisable en JSON, donc rejouable et diffable, et on persiste "
+              "ELLE plutôt que les valeurs (une colonne matérialisée se périme sans le dire). "
+              "Rend EXÉCUTABLE la règle « une nouvelle table SSI la clé temporelle change » en la "
+              "DÉRIVANT de la `FunctionCategory` : ajouter une fonction au catalogue la range du "
+              "bon côté sans toucher le view-model. La séparation tables/annexes rend la règle "
+              "visible à l'écran au lieu d'avoir à l'expliquer",
+              'wama_data/vue.py', 'WAMA_DATA_WORLD.md §9quater.4, §9quater.7'),
     Mecanisme('catalog_refresh', 'Actualisation des catalogues',
               "REGISTRE des registres : une page catalogue déclare la CLÉ de son registre et "
               "hérite du bouton, de l'endpoint, de la permission et du compte-rendu. La NATURE "
