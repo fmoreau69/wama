@@ -6524,6 +6524,39 @@ anonymizer/avatarizer/composer/reader/synthesizer 98, imager 97 · nocturnes : `
   template autant que de Python (mesuré ce jour, cf. §B).
 - **Instance sœur** : `wama/common/services/ui_smoke.py` et `nightly_tests.py` **lus, non
   modifiés** — le correctif est entièrement dans `wama/enhancer/templates/enhancer/index.html`.
-- **Reste du handoff précédent, inchangé** : 🔚 2 (palier 3 `WamaInputMatch` converter+describer),
-  3 (2 axes médiathèque), 4 (5 apps d'actions de lot), 5 (taxonomie `text` vs `document`),
+- **Reste du handoff précédent** : 🔚 ~~2 (palier 3)~~ **SANS OBJET, cf. §E**, 3 (2 axes
+  médiathèque), 4 (5 apps d'actions de lot), 5 (taxonomie `text` vs `document`),
   6 (`converter_01`), 7 (`.wama-cycle-btn`), 8 (anonymizer audio/document).
+
+### E. Le palier 3 n'a PAS D'OBJET — une dette fantôme retirée du backlog
+
+Le 🔚 n°2 disait « généraliser `WamaInputMatch` à **converter et describer** (8 apps sur 10
+l'ont déjà ; ce sont les 2 mono-onglet multi-types qui refont leur détection à la main) ».
+**Trois mesures convergentes disent qu'il n'y a rien à porter :**
+
+1. **La grille est déjà pleine.** `input_match_ui` : **7 `True`, 3 `N/A`, ZÉRO `False`**
+   (`logs/conformity_report.json`). Toutes les apps qui ont un sélecteur de moteur ont adopté
+   la brique.
+2. **Les 3 `N/A` sont JUSTES**, pas des trous déguisés. Le gate est `_has_engine_select`
+   (`conformity_checker.py:375`, verdict Fabien 14/08) et aucune des trois n'a de sélecteur de
+   moteur — mesuré sur `PARAMS_JSON` : describer = `output_style`/`output_language`,
+   converter = formats/qualité/rotation…, avatarizer = aucun select. **La brique grise des
+   MODÈLES incompatibles ; sans modèle à choisir, elle n'a rien à apparier.** Le converter
+   tourne sur ffmpeg/pandoc (tout F4 y est déjà N/A), le describer sur les LLM ollama choisis
+   **par tier** (`get_describer_model`), pas par l'utilisateur.
+3. **La « détection à la main » n'est pas une dette non plus** — et c'est le point qu'il ne faut
+   pas re-ouvrir : côté describer, `content_analyzer.py` porte un marqueur explicite
+   `# wama:redondance-ok — domicile unique des jeux d'extensions du describer`, posé en
+   **résorbant 3 classifications divergentes en une** ; son vocabulaire de retour
+   (`image/video/audio/pdf/text`) diverge délibérément de `MEDIA_CATEGORIES`, et il est **stocké
+   en base** (`detected_type`) puis comparé en 5 endroits — l'aligner serait une migration de
+   données, pas un portage. Côté converter, `detect_media_type` dérive de `SUPPORTED_CONVERSIONS`
+   et rend **`None` quand l'app ne sait pas convertir** : une information que `category_of_path`
+   (défaut `'document'`) ne porte pas. Le remplacer **perdrait** la sémantique.
+
+**D'où venait le « 8 sur 10 » ?** De `PROJECT_STATUS:5327`, qui dit — correctement — « ⚠ **8 apps
+ont la card commune**, **une seule** charge la brique — **support ≠ adoption** ». C'est un
+décompte du SUPPORT, relu comme un décompte de l'ADOPTION. ⚠⚠ **Un chiffre survit à sa légende :
+recopié sans elle, « 8 apps ont la card » est devenu « 8 apps l'ont déjà », et une phrase qui
+disait `support ≠ adoption` a fini par affirmer l'inverse de ce qu'elle mettait en garde.**
+Vérifier un reste-à-faire AVANT de le porter : ici, l'instrument officiel le déclarait clos.
