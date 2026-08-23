@@ -1993,6 +1993,39 @@ seule chaîne. Le portage lui-même reste à faire — périmètre `wama_lab`.
 `wama_data` : **437 → 472 tests**. ⚠ Et la découverte nocturne (§9quinquies.6bis) est passée de 15
 à **18 modules toute seule** : le correctif de la veille a payé le jour même.
 
+### 9septies.6 Une vraie ZONE (polygone, couloir) — MESURÉ comme faisable, DIFFÉRÉ à dessein
+
+> **Question de Fabien** : le cas cam_analyzer est un rayon autour d'un point. Mais définir une
+> **zone spatiale** est un cas possible. Faut-il l'ajouter maintenant, ou sera-ce facile plus tard ?
+
+**« Facile plus tard » a été VÉRIFIÉ, pas affirmé.** Trois mesures :
+
+| cas | verdict |
+|---|---|
+| **zone RECTANGULAIRE** | ✅ **gratuite aujourd'hui** — `ET(C1, C2, C3, C4)` sur `lat`/`lon`, sans rien ajouter |
+| **colonne BOOLÉENNE** (ce que rendrait un point-dans-polygone) | ✅ la chaîne la consomme : `sorte_de_colonne` rend `booleen`, `== True` s'applique |
+| **booléen ✕ prédicat temporel** | ✅ `ET(dans_zone, vitesse >= 30)` fonctionne |
+
+**Tout l'aval d'un masque spatial est donc déjà en place.** Il ne manque que l'`ENRICHER` qui
+produit la colonne — une fonction, ~40 lignes, aucun risque d'architecture.
+
+**Différé quand même, et pour une raison qui n'est pas la paresse** : la question ouverte n'est pas
+l'algorithme, c'est **la FORME de la zone dans la déclaration**.
+
+- **paramètre** ? Une liste de coordonnées dans un `ParamSpec` — peu maniable, et un `ParamSpec`
+  ne porte que des scalaires (le type `'json'` existe mais n'est rendu nulle part, cf. §9ter.6 B).
+- **port typé** ? Alors il faut un `DataType` de zone. **Il n'existe pas** — `ROAD_MAP` est des
+  polylignes (`geometry, id`), pas des surfaces.
+
+Et derrière : géodésique ou plan (à quelle échelle bascule-t-on ?), règle d'enroulement, trous,
+points exactement sur l'arête. **Trancher tout cela sans cas d'usage, c'est écrire une spec depuis
+une intuition — l'erreur commise deux fois dans cette même journée, toujours dans le sens
+optimiste.** Le couloir le long d'une polyligne pose la même question, en réutilisant `ROAD_MAP`.
+
+⏳ **Pending nommé** : « zone spatiale — paramètre ou port typé ? et faut-il un `DataType` de
+surface ? ». À trancher **au premier cas réel**, pas avant. Le coût de l'attente est nul : le motif
+est prouvé et l'aval ne bougera pas.
+
 ---
 
 ## 9bis.6 Ce que la cartographie n'a pas couvert — à traiter avant l'Importer v2
