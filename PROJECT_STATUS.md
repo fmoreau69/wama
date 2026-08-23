@@ -6480,6 +6480,14 @@ manipulaient n'existent nulle part** dans `wama/`.
   livré et documenté sans que rien ne signale qu'il venait de retourner l'affichage d'une app.
   **Corollaire pour la suite du portage : après tout renommage d'identifiant DÉCLARÉ, grepper les
   COMPARAISONS à l'ancienne valeur** — pas seulement ses définitions.
+  **Corollaire APPLIQUÉ le jour même — le défaut était ISOLÉ** : balayage des comparaisons en dur
+  à un id de domaine/mode dans les gabarits et le JS des 12 apps. Les seules autres sont
+  `imager` (`domain === 'video'`, ×4 : `_generation_card.html:40/71/130`, `input_card.js:174/219`,
+  `queue.js:99`) et `anonymizer` (`mode === 'yolo'`, `right_panel.js:58`) — **toutes JUSTES**,
+  `imager` déclarant bien les domaines `image`/`video` et `anonymizer` les modes `yolo`/`sam3`
+  (`app_modes.py:104/109` et `:207/210`). Elles restent de la même famille de fragilité, mais
+  aucune n'est fausse : **ne pas y toucher** (généraliser, c'est déplacer, pas en profiter pour
+  changer).
 - ⚠⚠ **J'AI CONCLU « CORRIGÉ » SUR L'ÉTAT STATIQUE DU TEMPLATE.** Ma première mesure post-correctif
   montrait `imgvideoTab` en `show active` — mais c'est ce que le HTML porte **en dur** ligne 187,
   avant tout JS. Je lisais l'état AVANT `switchDomain()`, pas son résultat. Une mesure qui
