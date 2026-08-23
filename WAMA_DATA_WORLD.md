@@ -1881,6 +1881,120 @@ même à l'identique, échoue. La brique **n'a aucune dépendance** — conditio
 
 ---
 
+## 9septies. DOMAINES, MODES, SPATIAL — trois questions, une seule réponse (2026-08-23)
+
+> **Questions de Fabien** : le monde Médias fonctionne en **domaines** (un onglet par domaine) et
+> en **modes**. Faut-il des domaines dans le monde Data — « domaine temporel » vs « domaine
+> spatial » ? Les modes du Segmenter (temporel simple, double, conditionnel, états, codage)
+> aideraient-ils à générer l'UI schéma-driven ? Et faut-il un **mode de segmentation spatiale** ?
+>
+> **Réponse courte : non, non, et non — mais il manquait bien deux choses**, et ce ne sont pas
+> celles qu'on croyait.
+
+### 9septies.1 Domaines — le critère écrit le matin même y répond
+
+`app_modes.py` (refonte du 2026-08-23) pose : **« un domaine est un WORKFLOW distinct, PAS un type
+de fichier »**, et le critère qui tranche est *« le domaine se justifie quand la surface de
+RÉGLAGES et le workflow divergent »*.
+
+« Temporel » et « spatial » ne divergent ni en réglages ni en workflow : on cherche des bornes dans
+les deux cas. **Ce n'est pas un domaine.**
+
+### 9septies.2 Modes — la même doctrine l'écrit noir sur blanc
+
+> ⚠ **« Ne PAS confondre mode d'UI et workflow de backend.** L'imager choisit txt2img / img2img /
+> style2img **selon les entrées fournies** : c'est une décision de MOTEUR. »
+
+Les modes du Segmenter se choisissent **exactement ainsi** : selon ce qu'on a en entrée (des
+ancres ? deux flux ? un signal ? une vidéo ?). Décision de moteur, pas switch d'UI.
+
+**Et ils sont déjà déclarés, plus finement que des modes** : chacun est un `FunctionSpec` avec ses
+**ports typés** et ses `ParamSpec`.
+
+> **`app_modes.py` est ce qu'il faut quand l'UI doit se dériver d'une app qui n'est PAS décomposée.
+> Le catalogue de fonctions est ce qu'on obtient quand elle l'EST.** Une app média est une file
+> monolithique avec UN schéma de params — il faut un moyen déclaratif de la découper en onglets.
+> Le monde Data part déjà découpé.
+
+Pour la génération d'UI, le catalogue donne même **plus** : `can_connect()` sur les ports typés
+répond à « quelles fonctions proposer sur ce que j'ai sous la main », ce qu'`accepts` approxime
+côté média. **L'alignement est conceptuel, pas structurel — il n'y a rien à transposer.**
+
+### 9septies.3 Le spatial — mesuré dans `cam_analyzer`, et il n'a jamais eu besoin d'un mode
+
+`wama_lab/cam_analyzer/utils/intersection_analyzer.py::find_intersection_windows` fait déjà de la
+segmentation spatiale. Relevé ligne à ligne :
+
+```python
+dist = haversine(gps['lat'], gps['lon'], i_lat, i_lon)
+if dist <= radius:  … ouvre / poursuit la fenêtre
+else:               … ferme
+# puis : fusionne si écart ≤ merge_gap_s OU si jamais sorti au-delà de exit_distance_factor × radius
+#        et jette les fenêtres < min_duration_s
+```
+
+C'est **`conditionnelle()` avec hystérésis**, à un masque près — `merge_gap_s` = `trou_tolere`,
+`min_duration_s` = `duree_min`.
+
+> **La segmentation spatiale n'est donc pas un mode : c'est une COLONNE DÉRIVÉE suivie de la
+> chaîne conditionnelle existante.** La distance a la même clé temporelle que la trace dont elle
+> vient → `ENRICHER` → elle reste dans la table (§9quater.4) → la chaîne la voit comme n'importe
+> quelle colonne numérique.
+
+⚠ **Et c'est ce qui rend `distance_carrefour <= 40 ET vitesse > 30` exprimable sans une ligne
+neuve.** Un « mode spatial » séparé n'aurait *jamais* pu se mêler à un prédicat temporel : il
+aurait fallu un troisième mode pour ça, puis un quatrième. **C'est l'argument décisif, et il n'est
+pas esthétique.**
+
+> ⚠ **Correction assumée** : la réponse donnée une heure plus tôt — « il faut un opérateur de
+> masque spatial, donc un point d'extension de la chaîne » — était **plus compliquée que
+> nécessaire**. C'est la mesure de `cam_analyzer` qui l'a corrigée. Aucun point d'extension : une
+> colonne dérivée suffit.
+
+### 9septies.4 Les DEUX manques réels, tous deux trouvés par la mesure
+
+**① L'hystérésis de VALEUR n'existait pas.** `conditionnelle()` porte une hystérésis **de TEMPS**
+(`duree_min`, `trou_tolere`). `cam_analyzer` a en plus `exit_distance_factor` — « ne referme pas si
+le sujet n'est jamais *vraiment* sorti ». **Sans ce mécanisme, porter cam_analyzer serait une
+RÉGRESSION** : un GPS qui tremble sur la frontière découperait un passage unique en confettis.
+
+→ `core/segmentation.py::masque_hysteresis()` — le **déclencheur de Schmitt**, deux seuils, dans
+les deux sens (`<=` pour une distance, `>=` pour une vitesse). ⚠ **Pas bit-à-bit l'équivalent** de
+la fusion a posteriori de cam_analyzer, et le module le dit : lui ouvre deux fenêtres puis les
+recolle, le Schmitt n'en ouvre jamais qu'une. Les deux coïncident dans le cas courant et diffèrent
+aux bords. La forme en flux est la bonne généralisation — elle ne demande pas de connaître l'avenir.
+
+**② La distance géodésique était implémentée QUATRE fois**, toutes hors du monde Data :
+`intersection_analyzer::haversine`, `ego_pose::_haversine_m`, `cam_analyzer::make_local_frame`,
+`gps_map_match::_local_frame` (dont le commentaire dit déjà « cohérent avec … cam_analyzer »).
+
+→ `core/geo.py` est le **domicile unique**. Les copies du Lab sont des **candidates à l'adoption**,
+nommées dans le module pour que le portage soit un geste et non une redécouverte. ⚠ Une position
+absente rend une distance **absente**, jamais une distance : la calculer sur `0.0` placerait le
+sujet au large de l'Afrique — énorme, plausible, et faux.
+
+### 9septies.5 Livré, et ce qui n'a délibérément PAS été écrit
+
+| | |
+|---|---|
+| `core/geo.py` | haversine + distances à un point — domicile unique (11 tests) |
+| `core/segmentation.py::masque_hysteresis` | hystérésis de valeur, deux seuils, deux sens (8 tests) |
+| `functions/geo/spatial.py::distance_a_point` | **ENRICHER** déclaré au catalogue — le nom de colonne se dérive du nom du POINT (11 tests) |
+
+⚠ **PAS de `segment_dans_rayon()`.** Elle ne demanderait aucune brique neuve (distance +
+`segment_chaine_conditionnelle`) et dupliquerait le seuil et l'hystérésis. Même arbitrage, mot pour
+mot, que le « temps passé au-dessus d'un seuil » déjà écarté de `core/calculation.py`.
+
+**Le portage de cam_analyzer est attesté, pas promis** : `tests_spatial.py::CasCamAnalyzerTest`
+refait sa zone à rayon avec les briques génériques, montre que le tremblement de frontière découpe
+en confettis **sans** l'hystérésis de valeur et pas **avec**, et croise spatial et temporel dans une
+seule chaîne. Le portage lui-même reste à faire — périmètre `wama_lab`.
+
+`wama_data` : **437 → 472 tests**. ⚠ Et la découverte nocturne (§9quinquies.6bis) est passée de 15
+à **18 modules toute seule** : le correctif de la veille a payé le jour même.
+
+---
+
 ## 9bis.6 Ce que la cartographie n'a pas couvert — à traiter avant l'Importer v2
 
 **L'alignement par TRIGGERS.** RTMaps et LSL fournissent une horloge d'acquisition commune ; des

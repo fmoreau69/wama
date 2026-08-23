@@ -181,6 +181,61 @@ def conditionnelle(times: Sequence[float], masque: Sequence[bool], *,
     return out
 
 
+def masque_hysteresis(valeurs: Sequence[Any], seuil_entree: float, seuil_sortie: float,
+                      *, operateur: str = '<=') -> List[bool]:
+    """Masque à DEUX SEUILS — on entre à `seuil_entree`, on ne sort qu'à `seuil_sortie`.
+
+    C'est le déclencheur de Schmitt, et c'est la réponse classique au tremblement d'une mesure
+    autour d'une frontière. `conditionnelle()` porte déjà une hystérésis **de TEMPS**
+    (`duree_min`, `trou_tolere`) ; celle-ci est l'hystérésis **de VALEUR**, qui lui manquait.
+
+    ⚠ ELLE VIENT D'UNE MESURE, PAS D'UNE INTUITION (2026-08-23). `cam_analyzer` calcule des
+    fenêtres de proximité autour d'un carrefour et fusionne ensuite deux fenêtres consécutives
+    « si la navette n'a jamais dépassé `exit_distance_factor × radius` pendant l'écart » —
+    c'est-à-dire si elle n'est jamais vraiment sortie. Sans ce mécanisme, porter cam_analyzer sur
+    le Segmenter serait une RÉGRESSION : un GPS qui tremble sur la frontière découperait un
+    passage unique en confettis.
+
+    ⚠ CE N'EST PAS BIT-À-BIT L'ÉQUIVALENT DE SA FUSION A POSTERIORI, et il faut le dire : lui
+    OUVRE deux fenêtres puis les recolle ; le déclencheur de Schmitt n'en ouvre jamais qu'une. Les
+    deux coïncident dans le cas courant et diffèrent aux bords (une sortie franche suivie d'un
+    retour immédiat). La forme en flux est la bonne généralisation — elle ne demande pas de
+    connaître l'avenir.
+
+    `operateur` dit de quel côté est « dedans » :
+      `'<='` — dedans quand la valeur est PETITE (une distance) ; `seuil_sortie ≥ seuil_entree`.
+      `'>='` — dedans quand la valeur est GRANDE (une vitesse) ; `seuil_sortie ≤ seuil_entree`.
+
+    Une valeur ABSENTE ne décide de rien : elle **maintient l'état courant**. C'est le choix
+    honnête — un trou GPS n'est ni une entrée ni une sortie, et le traiter comme « dehors »
+    couperait un passage à chaque perte de fix.
+    """
+    if operateur not in ('<=', '>='):
+        raise ValueError(f"opérateur '{operateur}' : attendu '<=' (dedans = petit) "
+                         "ou '>=' (dedans = grand)")
+    if operateur == '<=' and seuil_sortie < seuil_entree:
+        raise ValueError(
+            f"hystérésis incohérente : avec '<=', on sort PLUS LOIN qu'on entre, donc "
+            f"seuil_sortie ({seuil_sortie}) doit être ≥ seuil_entree ({seuil_entree})")
+    if operateur == '>=' and seuil_sortie > seuil_entree:
+        raise ValueError(
+            f"hystérésis incohérente : avec '>=', on sort PLUS BAS qu'on entre, donc "
+            f"seuil_sortie ({seuil_sortie}) doit être ≤ seuil_entree ({seuil_entree})")
+
+    dedans = False
+    out: List[bool] = []
+    for v in valeurs:
+        if v is None or isinstance(v, bool) or not isinstance(v, (int, float)) or v != v:
+            out.append(dedans)          # absence : on maintient l'état
+            continue
+        if operateur == '<=':
+            dedans = (v <= seuil_entree) if not dedans else (v <= seuil_sortie)
+        else:
+            dedans = (v >= seuil_entree) if not dedans else (v >= seuil_sortie)
+        out.append(dedans)
+    return out
+
+
 def bascules(times: Sequence[float], masque: Sequence[bool], *,
              montantes: bool = True, descendantes: bool = False,
              nom: str = '') -> List[Dict[str, Any]]:

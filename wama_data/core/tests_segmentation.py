@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 from .segmentation import (autour, bascules, chevauche, conditionnelle, etats, fermer, jonction,
-                           ouverts, present_dans)
+                           masque_hysteresis, ouverts, present_dans)
 
 BASE_REELLE = (Path(__file__).resolve().parents[2]
                / "claude" / "Exemple_trip" / "RecFile_REC_20190502_144710.trip")
@@ -119,6 +119,68 @@ class JonctionTest(unittest.TestCase):
     def test_la_fenetre_n_est_tracee_que_si_un_offset_est_pose(self):
         self.assertNotIn('window', jonction([10.0], [30.0])[0])
         self.assertEqual(jonction([10.0], [30.0], offset_fin=5.0)[0]['window'], '0_5')
+
+
+class HysteresisDeValeurTest(unittest.TestCase):
+    """Le déclencheur de Schmitt — hystérésis de VALEUR, que le cœur n'avait pas.
+
+    ⚠ Vient d'une MESURE : `cam_analyzer::find_intersection_windows` fusionne deux fenêtres de
+    proximité « si la navette n'a jamais dépassé `exit_distance_factor × radius` », c'est-à-dire
+    si elle n'est jamais vraiment sortie. Sans ce mécanisme, porter cam_analyzer sur le Segmenter
+    serait une régression.
+    """
+
+    def test_un_seul_seuil_se_comporte_comme_un_seuil_simple(self):
+        vals = [50.0, 30.0, 50.0]
+        self.assertEqual(masque_hysteresis(vals, 40.0, 40.0), [False, True, False])
+
+    def test_le_tremblement_sur_la_frontiere_ne_coupe_PAS(self):
+        # Le cas cam_analyzer : rayon 40 m, sortie à 60 m. Le GPS oscille autour de 40 sans
+        # jamais s'éloigner — un seuil unique découperait ce passage en trois.
+        vals = [80.0, 38.0, 42.0, 39.0, 43.0, 37.0, 90.0]
+        simple = masque_hysteresis(vals, 40.0, 40.0)
+        double = masque_hysteresis(vals, 40.0, 60.0)
+        self.assertEqual(simple, [False, True, False, True, False, True, False])
+        self.assertEqual(double, [False, True, True, True, True, True, False])
+
+    def test_une_sortie_FRANCHE_referme(self):
+        self.assertEqual(masque_hysteresis([38.0, 70.0, 38.0], 40.0, 60.0),
+                         [True, False, True])
+
+    def test_sens_inverse_pour_une_grandeur_qui_MONTE(self):
+        # Une vitesse : on entre à 30, on ne sort qu'en dessous de 20.
+        vals = [10.0, 32.0, 25.0, 15.0]
+        self.assertEqual(masque_hysteresis(vals, 30.0, 20.0, operateur='>='),
+                         [False, True, True, False])
+
+    def test_une_valeur_ABSENTE_maintient_l_etat(self):
+        # Un trou GPS n'est ni une entrée ni une sortie ; le traiter comme « dehors » couperait
+        # un passage à chaque perte de fix.
+        self.assertEqual(masque_hysteresis([38.0, None, float('nan'), 38.0], 40.0, 60.0),
+                         [True, True, True, True])
+        self.assertEqual(masque_hysteresis([90.0, None, 90.0], 40.0, 60.0),
+                         [False, False, False])
+
+    def test_hysteresis_incoherente_REFUSEE(self):
+        # Sortir plus tôt qu'on entre n'est pas une hystérésis : c'est un piège silencieux.
+        with self.assertRaises(ValueError) as ctx:
+            masque_hysteresis([1.0], 40.0, 20.0)
+        self.assertIn('seuil_sortie', str(ctx.exception))
+        with self.assertRaises(ValueError):
+            masque_hysteresis([1.0], 30.0, 40.0, operateur='>=')
+
+    def test_operateur_inconnu_refuse(self):
+        with self.assertRaises(ValueError):
+            masque_hysteresis([1.0], 1.0, 1.0, operateur='!=')
+
+    def test_il_se_compose_avec_conditionnelle(self):
+        # Les deux hystérésis sont complémentaires : valeur d'abord, temps ensuite.
+        times = [float(i) for i in range(7)]
+        vals = [80.0, 38.0, 42.0, 39.0, 43.0, 37.0, 90.0]
+        m = masque_hysteresis(vals, 40.0, 60.0)
+        segs = conditionnelle(times, m, duree_min=2.0)
+        self.assertEqual(len(segs), 1)
+        self.assertEqual((segs[0]['start'], segs[0]['end']), (1.0, 5.0))
 
 
 class BasculesTest(unittest.TestCase):
