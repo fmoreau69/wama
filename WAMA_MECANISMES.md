@@ -47,6 +47,31 @@ du nom de fichier** (balise `<script>`, include) dans les gabarits et le front (
 | `⚠ 0` | **brique morte**, ou brique livrée et pas encore adoptée. À trancher, jamais à ignorer |
 | `n` | nombre de modules qui s'en servent |
 
+> ⚠⚠ **LE COMPTE INCLUT LES COMMENTAIRES — il SURESTIME l'adoption** (mesuré le 2026-08-23).
+> `consommateurs()` cherche le nom de fichier de la brique dans la source **brute** : une ligne
+> qui se contente de la CITER (« brique commune `queue-actions.js` — ne pas re-binder ici »)
+> compte autant qu'un `<script src=…>`. Écart mesuré sur les 88 mécanismes : **21 sont
+> affectés**, dont
+>
+> | mécanisme | affiché | consommateurs RÉELS (code seul) |
+> |---|---|---|
+> | `queue_front` | 60 | **18** |
+> | `rag_geste` | 23 | **5** |
+> | `new_item_card` | 27 | 16 |
+> | `app_base_js` | 17 | 6 |
+>
+> **Aucune brique morte n'est masquée par ce biais** (aucun mécanisme ne tomberait à `⚠ 0`), donc
+> le signal le plus important de la carte reste fiable. Mais l'ampleur — un facteur 3 sur
+> `queue_front` — interdit de lire ces nombres comme une mesure d'adoption.
+>
+> **C'est exactement le défaut déjà corrigé une fois ailleurs** : `conformity_checker` a dû
+> passer de `find` à `find_code` le 2026-08-19, parce qu'« un critère qu'un commentaire peut
+> faire mentir ne mesure pas, il devine ». Le correctif est le même — neutraliser les
+> commentaires avant de chercher, via `_sans_commentaires` qui existe déjà — mais il touche un
+> instrument PARTAGÉ et rejouerait tous les comptes : **à faire sur décision, pas au fil de
+> l'eau**. Corollaire immédiat : bien commenter une brique AUGMENTE son score d'adoption, ce qui
+> est précisément l'incitation qu'un instrument ne doit pas créer.
+
 Et sous la table, la liste des modules **non rattachés au registre** parmi les dossiers balayés
 (`common/services/`, `common/utils/`, `common/backends/`, `model_manager/services/`,
 `studio/services/` — étendu aux trois derniers le 2026-08-13) — la réponse mécanique à « qu'ai-je
@@ -97,7 +122,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
-| **Ajout au RAG (geste explicite)** | Bouton dans l'INSPECTEUR + page « Mon RAG » ; texte pris au schéma canonique, aucune ligne par app. Pas de balayage : l'entrée au RAG est un geste, par décision | `wama/common/static/common/js/wama-inspector.js` | `WAMA_MEMORY.md §7ter` | 22 |
+| **Ajout au RAG (geste explicite)** | Bouton dans l'INSPECTEUR + page « Mon RAG » ; texte pris au schéma canonique, aucune ligne par app. Pas de balayage : l'entrée au RAG est un geste, par décision | `wama/common/static/common/js/wama-inspector.js` | `WAMA_MEMORY.md §7ter` | 23 |
 | **Barre de filtrage** | Recherche + facettes EN DIRECT ; options dérivées du DOM (client) ou déclarées (server) | `wama/common/static/common/js/wama-filter-bar.js` | `CARD_DESIGN.md` | 11 |
 | **Captation générique des gestes** | Middleware : telecharge/supprime/relance lus de resolver_match — zéro ligne par app | `wama/common/middleware.py` | `WAMA_MEMORY.md §7bis` | 2 |
 | **Contrôle qualité de sortie** | Note une sortie par un validateur LLM INDÉPENDANT ; signal relatif, escalade humaine | `wama/common/utils/qc.py` | `ROADMAP.md §16.5` | ⚠ **0** |
@@ -138,7 +163,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 |---|---|---|---|---|
 | **Console utilisateur** | Lignes de journal structurées par utilisateur et par app. ⚠ Annoncé « via Redis », mais le chemin Redis exige `django_redis` — ABSENT des deux venvs et des `requirements` (vérifié 2026-08-22) : la console tourne DEPUIS TOUJOURS sur son repli cache, qui fonctionne mais n'est pas atomique (lire/insérer/réécrire, donc des lignes perdues quand gunicorn et les workers Celery poussent en même temps). Le correctif n'est PAS d'ajouter la dépendance : le client `redis` brut est déjà installé et la brique d'accès existe (`resource_governor._redis`, via `CELERY_BROKER_URL`) | `wama/common/utils/console_utils.py` | — | 31 |
 | **Duplication et suppression sûres** | duplicate_instance() et safe_delete_file() — fichiers partagés entre items | `wama/common/utils/queue_duplication.py` | `WAMA_APP_CONVENTIONS.md` | 15 |
-| **File d'attente (front)** | Comportements communs des files : collapse de batch persisté, focus card, data-wama-* | `wama/common/static/common/js/wama-queue.js` | `CARD_DESIGN.md` | 46 |
+| **File d'attente (front)** | Comportements communs des files : collapse de batch persisté, focus card, data-wama-* | `wama/common/static/common/js/wama-queue.js` | `CARD_DESIGN.md` | 61 |
 | **Import par lot** | Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot | `wama/common/utils/batch_parsers.py` | `BATCH_FORMAT.md` | 49 |
 | **Manipulation directe de la file** | Endpoints génériques : sortir une card d'un batch, réordonner, déplacer, consolider | `wama/common/utils/queue_manipulation.py` | `CARD_DESIGN.md §3bis` | 11 |
 | **Notifications de tâche** | notify_job() — fin de traitement, succès comme échec | `wama/common/utils/notifications.py` | `PROFILES_PERMISSIONS.md` | 12 |
@@ -148,13 +173,13 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
-| **Bouton de cycle** | Bouton commun ▶/⏹/↻ toujours vert — l'icône porte l'action, l'état vit sur la card | `wama/common/static/common/js/wama-cycle-button.js` | — | 17 |
+| **Bouton de cycle** | Bouton commun ▶/⏹/↻ toujours vert — l'icône porte l'action, l'état vit sur la card | `wama/common/static/common/js/wama-cycle-button.js` | — | 18 |
 | **Card v3** | Dimensionnement déclaratif des pistes de card — dépend de l'app, des actions, des libellés | `wama/common/static/common/js/wama-card-v3.js` | `CARD_DESIGN.md §11` | 5 |
 | **Card « Nouvel élément »** | Card d'entrée dépliable commune (dropzones, URL, médiathèque, batch) — auto-init | `wama/common/static/common/js/wama-new-item-card.js` | `MODES_QUEUE_UX.md` | 27 |
 | **Chips méta des cards** | Chips de l'état concis GÉNÉRÉS du schéma params (chip=True) — jamais écrits par app | `wama/common/utils/card_chips.py` | `CARD_DESIGN.md §10.3` | 26 |
 | **Domaines → modes** | Schéma déclaratif des onglets-domaine et modes par app — scope la file | `wama/common/utils/app_modes.py` | `MODES_QUEUE_UX.md` | 12 |
 | **Import de dossier récursif** | Traversée récursive d'un drop/webkitdirectory — brique F2 montée globale (base.html) | `wama/common/static/common/js/wama-folder-import.js` | `WAMA_APP_GENERATION_ROUTE.md` | 2 |
-| **Inspecteur — champs de détail** | Schéma canonique des infos d'item affichées au volet droit | `wama/common/utils/detail_registry.py` | `INSPECTOR_DETAIL_FIELDS.md` | 42 |
+| **Inspecteur — champs de détail** | Schéma canonique des infos d'item affichées au volet droit | `wama/common/utils/detail_registry.py` | `INSPECTOR_DETAIL_FIELDS.md` | 43 |
 | **Lecteur audio (onde + transport)** | Widget autonome : onde canvas (pics serveur ou décodés), play/pause, exclusivité inter-lecteurs et inter-onglets ; monté par la preview dans le volet ET les cards | `wama/common/static/common/js/wama-audio-player.js` | — | 5 |
 | **Preview unifiée** | Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps | `wama/common/utils/preview_registry.py` | — | 34 |
 | **Progression & ETA (front)** | Moteur ETA par débit observé + barres aux 3 niveaux : card, batch, globale | `wama/common/static/common/js/wama-eta.js` | `PROJECT_STATUS.md §10` | 40 |

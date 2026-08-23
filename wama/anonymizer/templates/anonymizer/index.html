@@ -350,7 +350,10 @@ window.WAMA_ANON = {
     progressUrl:         '{% url "anonymizer:process_progress" %}',
     settingsGetUrlTemplate: '{% url "anonymizer:get_media_settings" 0 %}',
     settingsSaveUrl:     '{% url "anonymizer:save_media_settings" %}',
-    clearMediaUrl:       '{% url "anonymizer:clear_media" %}',
+    {% comment %}`clearMediaUrl` RETIRÉ le 2026-08-23 : la suppression passe par la brique
+    commune (`data-delete-url` → `anonymizer:delete`), plus aucun JS ne lisait cette clé.
+    Laisser une URL morte dans la config d'app, c'est promettre un chemin qui n'existe plus.
+    {% endcomment %}
     clearAllUrl:         '{% url "anonymizer:clear_all_media" %}',
     downloadAllUrl:      '{% url "anonymizer:download_all_media" %}',
     batchStartUrlTemplate:  '{% url "anonymizer:batch_start" 0 %}',

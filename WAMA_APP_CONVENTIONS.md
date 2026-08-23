@@ -1282,6 +1282,23 @@ Le bouton ⚙ **réutilise la modale de paramètres individuelle existante** (m�
 `.settings-btn` + mêmes `data-*` que la carte autonome) — **ne pas créer de modale dédiée**.
 C'est le trou le plus fréquent : les items batch sont souvent rendus inline sans ces boutons.
 
+> **Depuis le 2026-08-23, trois de ces cinq boutons ont un DOMICILE COMMUN** —
+> `common/static/common/js/queue-actions.js`, chargé globalement par `base.html` :
+>
+> | bouton | contrat à rendre dans la card | côté JS de l'app |
+> |---|---|---|
+> | ⧉ Dupliquer | `class="… duplicate-btn" data-duplicate-url="…"` | rien |
+> | 🗑 Supprimer | `class="… delete-btn" data-delete-url="…"` (+ `data-confirm` pour le libellé) | rien, ou `WamaQueueActions.onDeleted(fn)` pour le RÉSIDU (compteur, polling) |
+> | ⚙ Paramètres | `class="… settings-btn" data-id="…"` | **une ligne** : `WamaQueueActions.onSettings((id, btn) => …)` |
+>
+> **N'écrire AUCUN écouteur de clic pour ces trois boutons dans une app.** La délégation est
+> unique et posée sur le document ; en ajouter une localement fait partir chaque clic DEUX fois.
+> Corollaire de portage : changer la graphie et retirer le handler local sont **un seul geste** —
+> l'un sans l'autre donne un bouton mort ou un double-fire.
+>
+> ▶ Le bouton de cycle a son propre domicile (`wama-cycle-button.js`) ; ⬇ Télécharger est un
+> `<a href>` et n'a rien à déléguer.
+
 **Modèle de paramètres — override + héritage (décision projet) :**
 - Le **batch** porte les **valeurs par défaut** (cf. §9.8, application en masse).
 - Un **élément** hérite de ces défauts et peut **surcharger** certains champs
