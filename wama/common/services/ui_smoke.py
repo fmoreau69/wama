@@ -671,6 +671,10 @@ def check_app_duplicate_delete(app: str, url_path: str):
                 # jamais masquée par un sélecteur tolérant et muet.
                 DUP = '[class$="duplicate-btn"], [class*="duplicate-btn "]'
                 DEL = '[class$="delete-btn"], [class*="delete-btn "]'
+                # Un utilisateur ne clique que ce qu'il VOIT. Sans ce filtre, `.first` peut
+                # résoudre sur la card d'un lot replié (dimensions nulles) et le clic expire —
+                # en accusant l'environnement au lieu de dire « le bouton est masqué ».
+                visible = lambda sel: ', '.join(s.strip() + ':visible' for s in sel.split(','))
                 bouton_dup = page.query_selector(DUP)
                 if not bouton_dup:
                     return False, (f"{len(ids0)} élément(s) en file mais AUCUN bouton de "
@@ -681,7 +685,18 @@ def check_app_duplicate_delete(app: str, url_path: str):
                     ".flatMap(e => [...e.classList]).filter(x => x.endsWith('delete-btn') "
                     "|| x.endsWith('duplicate-btn')); return [...new Set(n('*'))].join(', ');})()")
 
-                bouton_dup.click()
+                # ⚠ CLIQUER PAR LOCATOR, JAMAIS PAR ElementHandle (corrigé le 2026-08-23).
+                # `query_selector` rend un HANDLE sur un nœud PRÉCIS. Or les files se
+                # rafraîchissent : sur transition de statut, l'app REMPLACE le nœud de la card
+                # (`refreshCard`, partial serveur). Le handle capturé pointe alors sur un nœud
+                # détaché, et Playwright réessaie l'actionnabilité jusqu'au timeout.
+                # C'est exactement ce qui faisait skipper describer et synthesizer en
+                # « ElementHandle.click: Timeout 30000ms » : deux apps qui DÉMARRENT le
+                # traitement au dépôt, donc dont la card change d'état pendant le scénario.
+                # Diagnostiqué au navigateur — le bouton était visible, actif, `pointer-events:
+                # auto`, et `elementFromPoint` renvoyait bien son icône : rien n'était masqué.
+                # Un locator RE-RÉSOUT le sélecteur à chaque tentative : il suit le re-rendu.
+                page.locator(visible(DUP)).first.click(timeout=15000)
                 page.wait_for_timeout(3000)
                 ids1 = page.evaluate(IDS)
                 nouveaux = [i for i in ids1 if i not in ids0]
@@ -692,13 +707,43 @@ def check_app_duplicate_delete(app: str, url_path: str):
                                       " ; AUCUNE requête en échec — le bouton n'est pas écouté"))
 
                 doublon = nouveaux[0]
-                cible = page.query_selector(f'.wama-card[data-id="{doublon}"] :is({DEL})') \
-                    or page.query_selector(f':is({DEL})[data-id="{doublon}"]')
-                if not cible:
+
+                # ── DÉPLIER LE LOT SI LE DOUBLON Y ATTERRIT ────────────────────────────────
+                # Mesuré au navigateur le 2026-08-23 : sur describer et synthesizer, dupliquer
+                # CONSOLIDE l'élément et son doublon dans un LOT, dont le conteneur `.collapse`
+                # est replié par défaut. La card du doublon a donc des dimensions NULLES
+                # (`getBoundingClientRect` → 0×0, `offsetParent` null) et son bouton Supprimer
+                # n'est jamais actionnable : `click()` attendait 30 s puis abandonnait.
+                # Le scénario lisait cet abandon comme « navigateur indisponible » — un skip qui
+                # accusait l'environnement alors que la page allait parfaitement bien.
+                # On déplie par le VRAI geste (le toggle de la card mère, contrat commun
+                # `_batch_card.html` : `[data-bs-toggle=collapse][data-bs-target=#…]`), pour ne
+                # pas fabriquer un état que l'utilisateur ne pourrait pas atteindre lui-même.
+                replie = page.evaluate(
+                    "(d) => {const c = document.querySelector('.wama-card[data-id=\"'+d+'\"]');"
+                    " const col = c && c.closest('.collapse');"
+                    " return col && !col.classList.contains('show') ? col.id : null;}", doublon)
+                if replie:
+                    bascule = page.query_selector(f'[data-bs-toggle="collapse"][data-bs-target="#{replie}"]')
+                    if bascule:
+                        bascule.click()
+                        # L'ouverture est ANIMÉE : attendre l'état, pas une durée.
+                        try:
+                            page.wait_for_selector(f'#{replie}.show', timeout=5000)
+                        except Exception:
+                            pass
+                        page.wait_for_timeout(400)   # fin de transition Bootstrap
+
+                sel_del = f'.wama-card[data-id="{doublon}"] :is({DEL})'
+                if not page.query_selector(sel_del):
+                    sel_del = f':is({DEL})[data-id="{doublon}"]'
+                if not page.query_selector(sel_del):
                     return False, (f"doublon #{doublon} créé, mais aucun bouton de suppression "
                                    f"ne le porte (graphies vues dans la page : {graphies or '—'}) "
                                    "— il RESTE en file (nettoyé par le filet ORM)")
-                cible.click()
+                # Locator ici aussi : la card du doublon vient d'apparaître et peut être
+                # re-rendue par le premier tour de polling (même cause que ci-dessus).
+                page.locator(f'{sel_del}:visible').first.click(timeout=15000)
                 page.wait_for_timeout(3000)
                 ids2 = page.evaluate(IDS)
                 if doublon in ids2:
@@ -851,14 +896,48 @@ def check_app_settings(app: str, url_path: str):
                     ".filter(x => x.endsWith('settings-btn') || x.startsWith('btn-settings')"
                     " || x.includes('-settings')); return [...new Set(n)].join(', ');})()")
 
-                cible = page.query_selector('.wama-card[data-id] .settings-btn[data-id]')
-                if not cible:
+                SEL_GEAR = '.wama-card[data-id] .settings-btn[data-id]'
+                if not page.query_selector(SEL_GEAR):
                     return False, (f"{len(ids0)} élément(s) en file mais aucun bouton au contrat "
                                    f"commun `.settings-btn[data-id]` dans une card "
                                    f"(graphies vues : {graphies or '—'})")
+                # Le bouton existe — mais est-il ATTEIGNABLE ? Un ⚙ dans un lot replié a des
+                # dimensions nulles. La distinction compte : « absent » et « masqué » sont deux
+                # défauts différents, et un scénario qui les confond fait perdre le diagnostic.
+                #
+                # Si tout est replié, on DÉPLIE par le vrai geste (toggle de la card mère,
+                # contrat commun `_batch_card.html`) : une file dont tous les éléments sont dans
+                # un lot est un état parfaitement normal — mesuré sur describer, dont les
+                # éléments se consolident. Refuser de déplier reviendrait à déclarer le geste
+                # impossible alors que l'utilisateur l'atteint en un clic.
+                if not page.query_selector(f'{SEL_GEAR}:visible'):
+                    replie = page.evaluate(
+                        "(sel) => {const b = document.querySelector(sel);"
+                        " const col = b && b.closest('.collapse');"
+                        " return col && !col.classList.contains('show') ? col.id : null;}", SEL_GEAR)
+                    if replie:
+                        bascule = page.query_selector(
+                            f'[data-bs-toggle="collapse"][data-bs-target="#{replie}"]')
+                        if bascule:
+                            bascule.click()
+                            try:
+                                page.wait_for_selector(f'#{replie}.show', timeout=5000)
+                            except Exception:
+                                pass
+                            page.wait_for_timeout(400)
+                if not page.query_selector(f'{SEL_GEAR}:visible'):
+                    return False, (f"{len(ids0)} élément(s) en file : le ⚙ existe au contrat "
+                                   "commun mais AUCUN n'est visible (card dans un lot replié, "
+                                   "ou masquée) — le geste est hors de portée de l'utilisateur")
 
                 avant = page.evaluate("document.querySelectorAll('.modal.show').length")
-                cible.click()
+                # Locator VISIBLE et non ElementHandle — deux corrections du 2026-08-23, chacune
+                # après diagnostic au navigateur : un handle pointe sur un nœud PRÉCIS, or les
+                # cards sont remplacées au changement de statut (nœud détaché → clic qui expire) ;
+                # et `.first` sans filtre peut désigner une card repliée, invisible donc
+                # inactionnable. Un locator re-résout, `:visible` garantit qu'on clique ce que
+                # l'utilisateur voit.
+                page.locator(f'{SEL_GEAR}:visible').first.click(timeout=15000)
                 # Bootstrap anime l'ouverture : attendre l'ÉTAT, pas un délai au hasard.
                 try:
                     page.wait_for_selector('.modal.show', timeout=6000)

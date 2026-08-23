@@ -6086,26 +6086,39 @@ qu'un critère neuf qui passe au vert est un signal d'alarme, pas un résultat.
 | **`<app>.settings`** — geste 2 du catalogue, 14 scénarios enregistrés | **7 OK / 0 échec / 7 skips**, chaque skip disant une raison VRAIE |
 | **La matrice §3bis corrigée sur 2 erreurs** que mon propre relevé a produites | le scénario ÉNUMÈRE les graphies présentes et les rapporte à chaque passage |
 | **L'union codée en dur de `wama-inspector.js` réduite** (`.btn-settings-job, .job-settings-btn` retirés) | la brique absente se facturait au substrat |
-| **Suppression : 4 apps portées en plus** (synthesizer, transcriber, enhancer ×2, reader) | transcriber **99 → 100 %**, enhancer 97 → 99, reader et synthesizer 97 → 98 |
-| **`.duplicate_delete` re-mesuré APRÈS portage** | **2 OK → 4 OK**, **3 échecs → 1** : enhancer et reader passent au vert, et **par le geste, pas par le critère** |
+| **SUPPRESSION portée sur les 11 cards** (le 🔚 du handoff précédent, SOLDÉ) — 6 graphies résorbées, dont la route d'anonymizer alignée sur le format commun | critère `delete_wiring` **vert 10/10** |
+| **`.duplicate_delete` : 2 OK / 3 échecs → 7 OK / 0 échec** · **`.settings` : 7 OK / 0 échec** | par le GESTE, pas par le critère |
+| **3 anomalies de scénario élucidées** (2 défauts de harnais + 1 défaut d'app) | voir le tableau ci-dessous |
 
-#### ⚠ Deux observations du re-passage `.duplicate_delete` — ni l'une ni l'autre causée par cette session
+#### Les 3 anomalies du geste 3-4, ÉLUCIDÉES — et ce qu'elles coûtaient chacune
 
-1. **`transcriber.duplicate_delete` échoue** : « clic sur `.duplicate-btn` : la file ne bouge pas
-   (1 → 1 cards) ; AUCUNE requête en échec — le bouton n'est pas écouté ». C'est **le pending 4
-   du handoff 22→23, inchangé et toujours NON DIAGNOSTIQUÉ**. Ce qu'on sait de plus aujourd'hui :
-   la cause n'est **pas** un défaut de chargement de `queue-actions.js` sur cette page, puisque
-   `transcriber.settings` y ouvre sa modale PAR la délégation de cette même brique. Le champ des
-   causes se resserre donc à la duplication elle-même (ou au test). Consigne d'origine maintenue :
-   **suspecter le test avant l'app**.
-2. **`describer` et `synthesizer` skippent sur un TIMEOUT de clic** (`ElementHandle.click`, 30 s)
-   au lieu d'une file vide. Les deux étaient **déjà en skip avant cette session** (le compte de
-   skips est inchangé à 9) — ce n'est donc pas une régression, mais la raison a changé et mérite
-   d'être élucidée. Piste MESURÉE, non confirmée : le describer **auto-démarre au dépôt**
-   (`views.py:463`), la card passe en RUNNING et le gabarit rend à cet état des éléments
-   (`_description_card.html:165`) susceptibles de **couvrir la piste ACTIONS** — le bouton, lui,
-   n'est jamais `disabled`. Si c'est cela, le correctif est **dans le scénario** (attendre un état
-   stable avant de cliquer), pas dans les apps.
+> Ces trois lignes étaient consignées en cours de session comme « observations non
+> diagnostiquées ». Elles l'ont toutes été. **Le diagnostic a inversé deux fois mes conclusions
+> provisoires** — la version précédente de ce bloc annonçait, pour describer, un élément de
+> gabarit qui « couvrirait la piste ACTIONS » : mesuré au navigateur, c'était FAUX (le bouton
+> était visible, actif, `pointer-events:auto`, et `elementFromPoint` renvoyait bien son icône).
+
+| # | Symptôme | Cause RÉELLE, mesurée | Où était le défaut |
+|---|---|---|---|
+| 1 | `describer`/`synthesizer` : `ElementHandle.click: Timeout 30 s` | Le scénario capturait un **handle sur un nœud précis** ; ces deux apps DÉMARRENT au dépôt, donc la card change de statut et l'app **remplace le nœud** (`refreshCard`) — le handle pointait sur un nœud détaché | **le harnais** |
+| 2 | Même symptôme, après correction n°1, sur le bouton du doublon | Dupliquer **consolide en LOT**, dont le conteneur est **replié** : la card du doublon fait 0×0 et son bouton n'est jamais actionnable | **le harnais** |
+| 3 | `transcriber` : « la file ne bouge pas (1 → 1) ; AUCUNE requête en échec » | `index.js` réassignait `card.className` **en entier** (2 endroits) et **effaçait `wama-card`** au premier changement de statut. Le scénario ne voyait plus qu'1 card sur 3 et cliquait le bouton d'une card qu'il n'avait pas comptée | **l'app** |
+
+**La consigne du 22/08 (« suspecter le test avant l'app ») était la bonne méthode, et c'est en
+l'appliquant qu'on a trouvé le défaut d'app.** Deux corrections de harnais ont été nécessaires
+avant que le troisième symptôme cesse de mentir. L'ordre compte : tant que l'instrument est
+faux, tout verdict sur l'app est indécidable.
+
+⚠ **Le défaut n°3 ne concernait pas que le test.** La brique de suppression retire la card par
+`.wama-card[data-id]` : une card transcriber ayant perdu la classe **ne disparaissait plus de
+l'écran après suppression**. Corrigé par `classList` (jamais `className =`), avec un filet qui
+re-pose la classe sur les cards bâties avant le correctif.
+
+**Corrections de harnais apportées** (`ui_smoke.py`) : clic par **locator** et non par
+ElementHandle (re-résout le sélecteur à chaque tentative), filtre **`:visible`** (on ne clique
+que ce que l'utilisateur voit), **dépliage du lot par le vrai geste** (toggle de la card mère),
+et un message qui distingue désormais « bouton absent » de « bouton masqué » — deux défauts
+différents que l'ancien skip confondait en « navigateur indisponible ».
 
 ### Ce que la session a appris (au-delà des correctifs)
 
@@ -6124,12 +6137,14 @@ réellement présentes dans la page.
 
 ### Reste à faire — recette éprouvée, à appliquer telle quelle
 
-1. **Suppression, 5 apps restantes** : anonymizer, composer, describer, imager (2 domaines),
-   avatarizer. Pour chacune, **dans le même geste** : (a) gabarit → classe `delete-btn` +
-   `data-delete-url` + `data-confirm` (garder le libellé actuel de l'app) ; (b) retirer le
-   handler local ; (c) si l'app retire la card **sans recharger**, déclarer
-   `WamaQueueActions.onDeleted(...)` plutôt que d'accepter le `location.reload()` de la brique.
-   ⚠ Les trois ensemble : garder (a) sans (b) = double-fire.
+1. ~~Suppression, 5 apps restantes~~ **✅ SOLDÉ** — les 11 cards sont portées, `delete_wiring`
+   est vert 10/10 et le geste est prouvé au clic sur 7 apps. ⚠ **Anonymizer a demandé une route
+   au FORMAT COMMUN** (`delete/<pk>/`) : son bouton fonctionnait, mais via `clear_media/` +
+   `media_id` en champ de formulaire, que la brique ne peut pas servir (elle poste un JSON vide).
+   Deux défauts corrigés au passage : la vue **n'était scopée par aucun utilisateur**
+   (`Media.objects.filter(pk=…)` acceptait l'id de n'importe qui — seule app dans ce cas) et ne
+   renvoyait pas `batch_changed`. `clear_media` est conservée, délègue au même travail, et n'a
+   **plus aucun consommateur** : à retirer (REMOVAL_LEDGER) après vérification externe.
 2. **Seconde moitié du geste 2** (modifier / enregistrer / relire) — à traiter avec les gestes
    8-13, sur le **converter** en CPU : enregistrer relance un traitement sur plusieurs apps.
 3. **Décision en attente, inchangée** : `.wama-cycle-btn` reste préfixé du nom de sa brique là
@@ -6146,12 +6161,12 @@ Je n'ai touché **ni `wama_data/`, ni `mecanismes.py`, ni les blocs générés `
 
 ### Contrôles attendus au prochain /reprise
 
-`check_docs` **4 CASSÉ / 0 périmée sur 489** (inchangé — même partial cité 4×, périmètre instance
-sœur) · `check_js` **57 fichiers 0 erreur, 56 paires 0 divergente** · grille : converter et
-**transcriber 100 %**, describer et **enhancer 99 %**, composer/**reader**/**synthesizer** 98 %,
-anonymizer/avatarizer 97 %, imager 96 % ⚠ **dénominateurs +1** (critère `settings_wiring`) ·
-nocturnes : `.settings` **7 OK / 0 échec / 7 skips**, `.ui` **14/14**, `.duplicate_delete`
-**4 OK / 1 échec / 9 skips** (l'échec = transcriber, pending 4 inchangé), `.import` 7/0/7 ·
+`check_docs` **4 CASSÉ / 0 périmée sur 494** (les 4 = même partial cité 4×, périmètre instance
+sœur) · `check_js` **57 fichiers 0 erreur, 56 paires 0 divergente** · grille : converter,
+describer et **transcriber 100 %**, enhancer 99 %, anonymizer/avatarizer/composer/reader/
+synthesizer 98 %, imager 97 % ⚠ **dénominateurs +2** (critères `settings_wiring` et
+`delete_wiring`) · nocturnes : `.settings` **7 OK / 0 échec / 7 skips**, `.duplicate_delete`
+**7 OK / 0 échec / 7 skips**, `.ui` **14/14**, `.import` 7/0/7 ·
 ⚠ `manifest_export --check` **PÉRIMÉ sur `anonymizer:sam3`** et `doc_facts` **2/5** (`mecanismes`,
 `modeles`, `wama_data`) — **les trois PRÉEXISTAIENT à cette session** (mesurés à sa reprise), ils
 relèvent de l'instance sœur et n'ont volontairement pas été régénérés ici.
