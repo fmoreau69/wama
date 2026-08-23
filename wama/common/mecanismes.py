@@ -468,6 +468,16 @@ MECANISMES = (
               'wama_data/sources/__init__.py', 'WAMA_DATA_WORLD.md §6.6',
               annexes=('wama_data/sources/trip.py',
                        'wama_data/sources/tabular.py')),
+    Mecanisme('data_frames_bridge', 'Pont référentiel ↔ cadres typés (WAMA Data)',
+              "SEULE frontière entre les deux vocabulaires du monde Data : le référentiel "
+              "(paresseux, indexé, sans pandas) et le `TypedFrame` que mangent toutes les "
+              "fonctions du catalogue. Sans lui le référentiel n'avait AUCUN consommateur — non "
+              "parce qu'on ne s'en servait pas, mais parce qu'on ne POUVAIT pas. Traite quatre "
+              "pièges mesurés : le temps de SESSION (± offset) vs le temps local du flux, la "
+              "colonne temporelle brute PÉRIMÉE après ré-horodatage, le contrat `rows` réel mais "
+              "non déclaré, et la PROVENANCE — ce qui revient d'un calcul ne peut pas se déclarer "
+              "acquis (`is_base=False` sans échappatoire)",
+              'wama_data/frames.py', 'WAMA_DATA_WORLD.md §9quater.7'),
     Mecanisme('catalog_refresh', 'Actualisation des catalogues',
               "REGISTRE des registres : une page catalogue déclare la CLÉ de son registre et "
               "hérite du bouton, de l'endpoint, de la permission et du compte-rendu. La NATURE "

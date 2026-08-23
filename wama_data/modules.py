@@ -66,10 +66,15 @@ MODULES: Tuple[ModuleData, ...] = (
     ),
     ModuleData(
         'referentiel', 'Référentiel temporel', "Aligne des flux à cadences incommensurables",
-        "référentiel → échantillons, `segments`, vue décimée",
-        briques=('wama_data/core/temporal.py',),
-        doc='§2, §3',
-        bloque_par="AUCUN consommateur — la brique est inerte tant qu'un module ne s'en sert pas",
+        "référentiel → échantillons, `segments`, vue décimée, cadres typés",
+        briques=('wama_data/core/temporal.py',
+                 'wama_data/frames.py'),
+        doc='§2, §3, §9quater.7',
+        bloque_par="⚠ Son blocage « AUCUN consommateur » est LEVÉ le 2026-08-23 : il n'en avait "
+                   "aucun parce que rien ne pouvait convertir sa sortie en `TypedFrame` — c'est "
+                   "désormais `frames.py`. Un flux chargé traverse une fonction du catalogue et "
+                   "revient au référentiel (34 tests). Reste : la fenêtre/résolution comme "
+                   "DÉCLARATION sérialisable (le view-model de l'Explorer)",
     ),
     ModuleData(
         'connector', 'Connector', "Branche une base existante comme source",

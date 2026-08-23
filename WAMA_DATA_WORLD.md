@@ -39,7 +39,7 @@
 | Module | Rôle | Flux | État | Briques | Testées | Conso. int/ext | Doc |
 |---|---|---|---|---|---|---|---|
 | **Importer** | Lit une source et rend un référentiel temporel interrogeable | fichiers + manifeste `dataset` → référentiel, écrit en `.wrec` | 🔶 | 3/3 | 1 | 1/0 | §6.6, §9bis.1, §9quater.2 (conteneur natif) |
-| **Référentiel temporel** | Aligne des flux à cadences incommensurables | référentiel → échantillons, `segments`, vue décimée | 🔶 | 1/1 | 1 | 1/0 | §2, §3 |
+| **Référentiel temporel** | Aligne des flux à cadences incommensurables | référentiel → échantillons, `segments`, vue décimée, cadres typés | 🔶 | 2/2 | 2 | 1/0 | §2, §3, §9quater.7 |
 | **Connector** | Branche une base existante comme source | base SQLite (`.trip` externe, `.wrec` natif) → référentiel | 🔶 | 1/1 | 0 | 1/0 | §6.2, §9quater.2 |
 | **Explorer** | Explore un dataset en table et en graphe — c'est aussi l'INTERFACE du Calculator : la vue tableur est le lieu où l'on ajoute une colonne calculée et où l'on voit le résultat | référentiel → vues table/graphe + colonnes calculées | ⏳ | — | — | — | §7, §9quater.6 |
 | **Segmenter** | Produit des segments : autour d'un événement, par jonction de deux flux, par CHAÎNE de conditions (ET/OU/XOR/NON) avec hystérésis, par plages constantes d'un catégoriel, ou par CODAGE (humain ou IA) — la chaîne sort en segments OU en événements, au choix du PORT | `events` ou signal + conditions → `segments` \| `events` | 🔶 | 6/6 | 4 | 16/0 | §9ter (spécification), §9ter.6 A-B (portage), §6.7 |
@@ -52,7 +52,7 @@
 <details><summary>⚠ <b>9 module(s) avec un blocage déclaré</b> — ce qui empêche d'avancer, en une ligne</summary>
 
 - **Importer** — alignement par TRIGGERS non conçu (D12) ; `DATASET_SOURCES` non réconcilié avec le registre des lecteurs (G1) ; lecteur `.rec` encore une FONCTION (`functions/io/rtmaps_rec.py`) au lieu d'un lecteur de source ; l'ÉCRITURE du conteneur natif `.wrec` reste à écrire — D3 est tranchée (2026-08-23) mais aucune ligne de WAMA Data n'écrit encore de SQLite
-- **Référentiel temporel** — AUCUN consommateur — la brique est inerte tant qu'un module ne s'en sert pas
+- **Référentiel temporel** — ⚠ Son blocage « AUCUN consommateur » est LEVÉ le 2026-08-23 : il n'en avait aucun parce que rien ne pouvait convertir sa sortie en `TypedFrame` — c'est désormais `frames.py`. Un flux chargé traverse une fonction du catalogue et revient au référentiel (34 tests). Reste : la fenêtre/résolution comme DÉCLARATION sérialisable (le view-model de l'Explorer)
 - **Explorer** — AUCUN blocage déclaré — avec le Connector, le seul module écrivable immédiatement. Le Calculator qu'il pilote est écrit et éprouvé (49 tests) et n'a aucune UI : c'est ce manque-là que l'Explorer comble
 - **Segmenter** — MOTEUR complet — le portage schéma-driven de §9ter.6 A-B est LIVRÉ le 2026-08-23 (chaîne de conditions en ARBRE, 14 opérateurs filtrés par la SORTE de colonne LUE dans la donnée, offsets et « répéter » de la jonction, second port `masque → events`). Restent DEUX manques de §9ter.6 A, tous deux d'INTERFACE et non de moteur : le filtrage manuel occurrence par occurrence (= la file de cards + l'inspecteur, mécanisme existant, zéro code) et l'interface de codage, qui doit se GÉNÉRER du protocole — elle dépend du transport (Magneto + vue média) et de la vue déclarative, donc du Visualizer
 - **Calculator** — MOTEUR écrit et éprouvé (49 tests — 32 sur le cœur pur, 17 sur la frontière pandas) : reste son emploi sur un corpus RÉEL, qui dépend de l'Importer — sans flux aligné, il n'y a rien à calculer
@@ -1488,6 +1488,120 @@ La vue tableur est exactement le lieu où l'on ajoute une colonne calculée, où
 avant de le garder, et où la règle de §9quater.4 devient visible pour l'utilisateur : une colonne
 qui s'ajoute à la table qu'il regarde, ou un onglet qui s'ouvre parce que la clé temporelle a
 changé. **La règle n'a donc pas à être expliquée : elle se montre.**
+
+### 9quater.7 Le CŒUR de l'Explorer — mesuré le 2026-08-23, et il est déjà écrit à 80 %
+
+> **Recadrage de Fabien avant d'écrire une ligne** : « on parle bien du **cœur**, pas de l'UI ».
+> La mesure lui donne raison deux fois — non seulement l'UI serait prématurée, mais le cœur qu'on
+> croyait à écrire existe déjà et **n'attend qu'une pièce**.
+
+#### Ce qui existe déjà, et qu'il ne faut donc PAS écrire
+
+`core/temporal.py` (440 lignes, `TemporalReferential` + `Signal`) expose déjà l'essentiel de ce
+qu'un explorateur demande :
+
+| besoin de l'Explorer | brique existante |
+|---|---|
+| arbre des tables / colonnes / cadences | `sources.probe()` → `SourceInfo` |
+| charger un enregistrement | `sources.load()` → `TemporalReferential` |
+| **courbe zoomable sur des millions de points** | **`decimate_values(nom, t0, t1, buckets, colonne)`** — et la décimation rend les **min/max RÉELS** (premier+dernier de tranche perdrait une pointe) |
+| ligne du curseur (toutes les colonnes à l'instant *t*) | `snapshot(t)` |
+| navigation d'événement en événement | `next_event` / `previous_event` / `containing` / `overlapping` |
+| étendue commune à des flux de cadences différentes | `common_span()` |
+
+⚠ `buckets` est **littéralement** le paramètre d'un graphe zoomable : `buckets = largeur en pixels`.
+La brique a été écrite pour ça (« la décimation est une condition d'existence : 2 M points sur
+2000 px »), bien avant qu'on parle d'Explorer.
+
+#### ⚠⚠ LE TROU : le référentiel et le catalogue NE PARLENT PAS LE MÊME OBJET
+
+Il y a **deux mondes parallèles dans `wama_data`, et rien ne les relie** :
+
+```
+sources/ + core/temporal.py  →  Signal / TemporalReferential   (paresseux, indexé, décimant, SANS pandas)
+functions/                   →  TypedFrame                     (pandas — ce que mangent Segmenter, Calculator, Exporter)
+```
+
+Vérifié le 2026-08-23 : **aucune fonction de conversion dans un sens ni dans l'autre.** Conséquence
+concrète — on sait charger un `.trip` en référentiel, on sait calculer sur un `TypedFrame`, mais
+**on ne sait pas prendre un flux de l'enregistrement chargé et lui appliquer une fonction du
+catalogue.**
+
+> **Et le dépôt le disait déjà**, sans que le lien ait été fait : le blocage déclaré du Référentiel
+> dans `modules.py` est « **AUCUN consommateur** — la brique est inerte tant qu'un module ne s'en
+> sert pas ». Il n'a aucun consommateur **parce que rien ne convertit sa sortie en ce que les
+> fonctions mangent**. Le blocage n'était pas « personne ne s'en est encore servi », c'était
+> « personne ne PEUT s'en servir ». Troisième fois de la journée qu'un fait vivait dans le dépôt
+> sans être relié à sa conséquence.
+
+**Le cœur de l'Explorer est donc : le PONT + le VIEW-MODEL** (« quels flux, quelle fenêtre, quelle
+résolution, quelles colonnes dérivées ») — ce dernier sérialisable, donc une déclaration, comme
+l'export (§9quater.5). Zéro UI, **zéro bibliothèque**.
+
+#### ✅ LE PONT est livré — `wama_data/frames.py` (2026-08-23, 34 tests)
+
+`frame_depuis_referentiel()` / `frame_depuis_signal()` à l'aller, `signal_depuis_frame()` /
+`adjoindre()` au retour. **Le blocage déclaré du Référentiel est levé** : un flux chargé traverse
+une fonction du catalogue et revient interrogeable (test `PontCompletTest`, sur le Calculator ET
+sur la chaîne conditionnelle).
+
+**Il vit à la RACINE du monde**, pas dans `core/` (qui est pur, sans pandas), pas dans `sources/`
+(pur aussi, et qui n'a pas à connaître le catalogue), pas dans `functions/<domaine>/` (qui héberge
+des fonctions *déclarées au catalogue* — le pont n'en est pas une, il est ce qui permet de les
+alimenter). C'est une frontière à part entière, au même niveau que `modules.py`.
+
+**Les quatre pièges qu'il traite, tous MESURÉS dans le code et chacun avec son test :**
+
+| # | piège | pourquoi il est vicieux |
+|---|---|---|
+| ① | **le temps de session ≠ le temps du flux** | le référentiel travaille en temps de SESSION, chaque `Signal` en temps LOCAL (`± offset`). Un pont bâti sur le `Signal` seul **désalignerait silencieusement** deux flux d'offsets différents dans le même cadre |
+| ② | **la colonne temporelle brute peut être PÉRIMÉE** | les accesseurs font un `SELECT *`, donc les lignes portent encore `timecode`. Or les instants ont pu être **ré-horodatés** à l'import : la colonne brute rendrait l'ANCIENNE valeur. Le temps vient donc **toujours** des `times`, et l'axe brut est **retiré** du cadre — le laisser mettrait deux colonnes de temps contradictoires dans le même tableau |
+| ③ | **le contrat des lignes est réel mais N'ÉTAIT PAS DÉCLARÉ** | `StreamSpec.rows` est typé `Callable[[int,int], Any]` alors que les deux lecteurs rendent en fait une `List[Dict]`. Le pont le **vérifie** au lieu de l'espérer : un 3ᵉ lecteur rendant des tuples échoue ici avec un message clair, pas trois couches plus loin |
+| ④ | **un cadre qui revient d'un calcul n'est pas une donnée acquise** | `SignalMeta.is_base` existait DÉJÀ pour ça (« la PROVENANCE : sans elle, impossible de savoir ce qu'un recalcul peut écraser sans perte ») et n'était pas employé en ce sens. `signal_depuis_frame()` force `is_base=False`, **sans paramètre pour le contourner** |
+
+> ⚠ **Ce que le pont ne sait PAS faire, et qui n'est pas un oubli** : distinguer un flux de DONNÉES
+> d'un flux d'ÉVÉNEMENTS. Un `Signal` ne porte pas sa famille — structurellement, « des instants +
+> des colonnes » décrit les deux. On déduit donc `SEGMENTS` s'il y a des fins, `TIMESERIES` sinon,
+> et l'appelant peut imposer le type. **Déduire la famille du texte de `comments`
+> (« data · 3 colonne(s) ») serait prendre une TRACE pour une RÈGLE** — l'erreur déjà consignée.
+> C'est un manque réel du modèle `Signal`, à traiter avec D8 (type « intervalle »).
+
+> ⚠ **`adjoindre()` REFUSE d'écraser un flux existant** — `TemporalReferential.add()` le refusait
+> déjà, et on ne contourne pas : écraser en place rendrait irrécupérable ce qui l'a produit. Un
+> recalcul se range sous un nom dérivé, comme une colonne calculée.
+
+#### Position sur les BIBLIOTHÈQUES (question de Fabien, 2026-08-23)
+
+La réponse n'est pas la même par couche :
+
+| couche | verdict | motif |
+|---|---|---|
+| **données (le cœur)** | ❌ **non** | pandas est là ; lecture paresseuse et décimation min/max sont écrites, testées, **accordées au domaine** (pas de temps variable, 6 cadences). Les remplacer = réécrire une brique qui marche |
+| **rendu — courbes** | ✅ **oui, ÉTROITE** — candidat : **uPlot** (MIT, ~45 Ko) | fait pour les millions de points, se branche **directement** sur `decimate_values(buckets=largeur_px)` |
+| **rendu — grille** | ✅ **oui, ÉTROITE** — **Tabulator** ou **Grid.js** (MIT) | virtualisation, tri, édition. Un *renderer*, rien de plus |
+| **framework tout-en-un** (Perspective, Bokeh/Panel, Dash, Streamlit) | ❌ **NON** | chacun apporte **son paradigme d'interface, sa mise en page et souvent son modèle serveur** — donc un **second système de widgets** à côté de `WamaParams` / `wama-inspector` / cards, alors que toute la doctrine est « l'UI se génère des métadonnées », et que **G2** interdit déjà un second canvas |
+
+> **La ligne : une bibliothèque qui DESSINE, oui ; une bibliothèque qui décide de la MISE EN PAGE,
+> non.** Deux précédents du dépôt disent la même chose — le **runtime Hermes écarté**, et le
+> **DeepSeek Harness dont on n'a rien intégré** (« seule leçon = registre keyé »).
+
+⚠ **À mentionner pour l'écrivain `.wrec`, pas pour maintenant** : **DuckDB** (MIT) lit du SQLite
+directement et ferait une colonne dérivée sur 5 M lignes quasi gratuitement. C'est le moteur naturel
+d'un `.wrec` — mais il concurrencerait `core/temporal.py`, donc c'est une décision à part.
+
+⚠ Quel que soit le choix : **vendoring obligatoire** (pas de CDN, cf. les 9 paquets de
+`wama/static/vendors/` — aucune bibliothèque de graphe à ce jour), et **ratification par
+`LICENSING.md`** (dépôt en AGPL-3.0 : MIT / Apache-2.0 / BSD conviennent, mais c'est la politique
+qui tranche).
+
+#### Autres manques mesurés, à ne pas découvrir plus tard
+
+- **`wama_data` n'a AUCUNE surface Django** — ni `views.py`, ni `urls.py`, ni `templates/`. C'est
+  une app d'`INSTALLED_APPS` qui n'existe que pour son `ready()`. L'Explorer en sera la première :
+  c'est un geste d'architecture, pas un détail d'écran.
+- **Aucun point d'entrée « quel dataset j'explore »** — pas de modèle `Dataset`, et
+  `DATASET_SOURCES` n'est qu'une liste de validation du kind de manifeste, non réconciliée avec le
+  registre des lecteurs (c'est déjà le garde-fou **G1**, cité dans le blocage de l'Importer).
 
 ---
 
