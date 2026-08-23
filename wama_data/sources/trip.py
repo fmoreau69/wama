@@ -6,6 +6,17 @@ disponibles. Retenu comme PREMIER lecteur pour une raison pratique : c'est le se
 dispose d'un exemplaire réel (1,28 Go, 5,26 M lignes, 6 cadences natives), donc le seul qui permette
 d'éprouver le contrat d'import sur autre chose que des données inventées.
 
+⚠ `.trip` EST UN FORMAT ÉTRANGER, PAS CELUI DE WAMA — décision **D3**, tranchée le 2026-08-23
+(`WAMA_DATA_WORLD.md §9quater.2`). Le conteneur natif de WAMA Data s'appelle **`.wrec`**
+(« enregistrement WAMA ») : `trip` présuppose un DÉPLACEMENT là où le besoin est une **acquisition
+multi-flux datée**, et un labo qui analyse des données temporelles sans aucun trajet n'a pas à
+manipuler des « trips ». Même motif que le renommage `SECTIONS` → `SEGMENTS` du 2026-08-20
+(`data_types.py`), où « section » était jugé trop connoté routier.
+
+**Ce module NE SERA PAS renommé pour autant** : il lit le format de l'autre, et l'appeler autrement
+le rendrait faux. Ce qui portera le nom `.wrec`, c'est l'ÉCRIVAIN — qui n'existe pas encore
+(vérifié le 2026-08-23 : zéro écriture SQLite dans tout `wama_data`).
+
 Schéma (relevé sur le format, cf. `WAMA_DATA_WORLD.md` §6.2-6.3) : un catalogue de métadonnées fixe
 (`MetaDatas`, `MetaDataVariables`, `MetaEvents`, `MetaSituations`, `MetaTripVideos`…) et **une table
 par élément** — `data_<nom>` (colonne `timecode`), `event_<nom>` (`timecode`), `situation_<nom>`

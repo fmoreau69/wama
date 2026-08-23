@@ -38,21 +38,22 @@
 
 | Module | Rôle | Flux | État | Briques | Testées | Conso. int/ext | Doc |
 |---|---|---|---|---|---|---|---|
-| **Importer** | Lit une source et rend un référentiel temporel interrogeable | fichiers + manifeste `dataset` → référentiel | 🔶 | 3/3 | 1 | 1/0 | §6.6, §9bis.1 |
+| **Importer** | Lit une source et rend un référentiel temporel interrogeable | fichiers + manifeste `dataset` → référentiel, écrit en `.wrec` | 🔶 | 3/3 | 1 | 1/0 | §6.6, §9bis.1, §9quater.2 (conteneur natif) |
 | **Référentiel temporel** | Aligne des flux à cadences incommensurables | référentiel → échantillons, `segments`, vue décimée | 🔶 | 1/1 | 1 | 1/0 | §2, §3 |
-| **Connector** | Branche une base existante comme source | base SQLite → référentiel | 🔶 | 1/1 | 0 | 1/0 | §6.2 |
-| **Explorer** | Explore un dataset en table et en graphe | référentiel → vues | ⏳ | — | — | — | §7 |
-| **Segmenter** | Produit des segments : autour d'un événement, par jonction de deux flux, par CHAÎNE de conditions (ET/OU/XOR/NON) avec hystérésis, par plages constantes d'un catégoriel, ou par CODAGE (humain ou IA) — la chaîne sort en segments OU en événements, au choix du PORT | `events` ou signal + conditions → `segments` \| `events` | 🔶 | 6/6 | 4 | 14/0 | §9ter (spécification), §9ter.6 A-B (portage), §6.7 |
-| **Calculator** | Calcule des COLONNES DÉRIVÉES (moyenne glissante, dérivée, cumul) et des INDICATEURS PAR SEGMENT qu'il adjoint aux segments | signal → signal enrichi · `segments` + signal → colonnes d'indicateurs | 🔶 | 3/3 | 2 | 3/0 | §6.7 |
+| **Connector** | Branche une base existante comme source | base SQLite (`.trip` externe, `.wrec` natif) → référentiel | 🔶 | 1/1 | 0 | 1/0 | §6.2, §9quater.2 |
+| **Explorer** | Explore un dataset en table et en graphe — c'est aussi l'INTERFACE du Calculator : la vue tableur est le lieu où l'on ajoute une colonne calculée et où l'on voit le résultat | référentiel → vues table/graphe + colonnes calculées | ⏳ | — | — | — | §7, §9quater.6 |
+| **Segmenter** | Produit des segments : autour d'un événement, par jonction de deux flux, par CHAÎNE de conditions (ET/OU/XOR/NON) avec hystérésis, par plages constantes d'un catégoriel, ou par CODAGE (humain ou IA) — la chaîne sort en segments OU en événements, au choix du PORT | `events` ou signal + conditions → `segments` \| `events` | 🔶 | 6/6 | 4 | 16/0 | §9ter (spécification), §9ter.6 A-B (portage), §6.7 |
+| **Calculator** | Calcule des COLONNES DÉRIVÉES (moyenne glissante, dérivée, cumul) et des INDICATEURS PAR SEGMENT qu'il adjoint aux segments | signal → signal enrichi · `segments` + signal → colonnes d'indicateurs | 🔶 | 3/3 | 2 | 5/0 | §6.7 |
 | **Visualizer** | Vues synchronisées sur l'axe partagé (plugins) | référentiel → plugins co-chargés | ⏳ | — | — | — | §4, §8.2 |
 | **Exporter** | Exporte TOUT le contenu d'un trip de façon configurable — données, méta-infos, événements, situations et leurs indicateurs : sélection ordonnée de colonnes, identité, contexte, regroupement | données/méta/`events`/`segments` + sélection → fichiers (concaténation, jamais pivot) | 🔶 | 2/2 | 2 | 2/0 | §9ter.5, §9ter.6 C |
 | **Recorder** | Enregistre depuis une source temps réel | flux LSL/RTMaps/ROS → `dataset` | ⏳ | — | — | — | §7 |
 | **Analyzer** | Orchestre les modules selon un manifeste `pipeline` | manifeste `pipeline` → exécution | ⏳ | — | — | — | §9bis.2 |
 
-<details><summary>⚠ <b>8 module(s) avec un blocage déclaré</b> — ce qui empêche d'avancer, en une ligne</summary>
+<details><summary>⚠ <b>9 module(s) avec un blocage déclaré</b> — ce qui empêche d'avancer, en une ligne</summary>
 
-- **Importer** — alignement par TRIGGERS non conçu (D12) ; `DATASET_SOURCES` non réconcilié avec le registre des lecteurs (G1) ; lecteur `.rec` encore une FONCTION (`functions/io/rtmaps_rec.py`) au lieu d'un lecteur de source
+- **Importer** — alignement par TRIGGERS non conçu (D12) ; `DATASET_SOURCES` non réconcilié avec le registre des lecteurs (G1) ; lecteur `.rec` encore une FONCTION (`functions/io/rtmaps_rec.py`) au lieu d'un lecteur de source ; l'ÉCRITURE du conteneur natif `.wrec` reste à écrire — D3 est tranchée (2026-08-23) mais aucune ligne de WAMA Data n'écrit encore de SQLite
 - **Référentiel temporel** — AUCUN consommateur — la brique est inerte tant qu'un module ne s'en sert pas
+- **Explorer** — AUCUN blocage déclaré — avec le Connector, le seul module écrivable immédiatement. Le Calculator qu'il pilote est écrit et éprouvé (49 tests) et n'a aucune UI : c'est ce manque-là que l'Explorer comble
 - **Segmenter** — MOTEUR complet — le portage schéma-driven de §9ter.6 A-B est LIVRÉ le 2026-08-23 (chaîne de conditions en ARBRE, 14 opérateurs filtrés par la SORTE de colonne LUE dans la donnée, offsets et « répéter » de la jonction, second port `masque → events`). Restent DEUX manques de §9ter.6 A, tous deux d'INTERFACE et non de moteur : le filtrage manuel occurrence par occurrence (= la file de cards + l'inspecteur, mécanisme existant, zéro code) et l'interface de codage, qui doit se GÉNÉRER du protocole — elle dépend du transport (Magneto + vue média) et de la vue déclarative, donc du Visualizer
 - **Calculator** — MOTEUR écrit et éprouvé (49 tests — 32 sur le cœur pur, 17 sur la frontière pandas) : reste son emploi sur un corpus RÉEL, qui dépend de l'Importer — sans flux aligné, il n'y a rien à calculer
 - **Visualizer** — vue déclarative = verrou §7ter point 3 ; écrire 2-3 plugins AVANT d'extraire
@@ -1322,6 +1323,174 @@ première des deux erreurs de cette session.
 
 ---
 
+## 9quater. MANIPULATION DES DONNÉES — persistance, colonnes calculées, conteneur natif
+
+> **Origine : échange avec Fabien du 2026-08-23**, tranché dans la foulée. Cette section clôt
+> **D3** et **D9**, et complète le reste ouvert de **D10** (« où vit la table annexe et comment
+> elle se déclare »). Elle répond à une question qui n'avait jamais été posée en ces termes :
+> **quand une colonne calculée reste-t-elle dans sa table, et quand en sort-elle ?**
+
+### 9quater.1 L'état MESURÉ au moment de trancher (2026-08-23)
+
+Un point de la discussion partait d'une prémisse fausse — utile à consigner, parce que c'est elle
+qui rend les décisions ci-dessous peu coûteuses.
+
+| | mesuré |
+|---|---|
+| Écriture SQLite dans `wama_data` | **AUCUNE** — zéro `INSERT` / `CREATE TABLE` / `to_sql`. `sources/trip.py:53` ouvre en `mode=ro`, commentaire à l'appui : « on n'écrit **jamais** dans une source importée » |
+| Objet d'exécution | `TypedFrame` = `pandas.DataFrame` + `data_type` + `meta`. **C'est déjà pandas, partout** — il n'y a rien à décider là-dessus |
+| Lecture | **PARESSEUSE** — les instants sont chargés, les valeurs par tranche. Motif écrit dans le module : la base réelle fait 1,28 Go / 5,26 M lignes / 6 cadences |
+| Explorer | ⏳ — et c'est, **avec le Connector, le seul module sans blocage déclaré** (`modules.py`) |
+
+**Conséquence** : « on stocke en SQLite puis on réinjecte » est un PLAN, pas l'existant. Rien n'est
+encore écrit, donc **rien n'est encore à migrer** — c'est le moment le moins cher pour nommer le
+conteneur et fixer la règle.
+
+### 9quater.2 D3 TRANCHÉE — le conteneur natif s'appelle `.wrec`
+
+**Il faut séparer deux choses que le mot « `.trip` » confond :**
+
+| | quoi | renommé ? |
+|---|---|---|
+| **Le lecteur** `TripReader` | lit le format **externe** de BIND | **NON, jamais.** WAMA lira des `.trip` pour toujours ; l'appeler autrement rendrait le code faux |
+| **Le conteneur natif** | ce dans quoi WAMA écrira | **il n'existait pas et n'avait pas de nom** — c'était ça, la vraie question |
+
+**Pourquoi `trip` ne convient pas comme nom natif** — et l'argument n'est pas une préférence, il a
+un **précédent daté dans ce dépôt** : le 2026-08-20, le type `SECTIONS` a été renommé `SEGMENTS`,
+motif écrit dans `wama/common/catalog/data_types.py` — « *« section » est connoté routier, or WAMA
+Data doit rester universel* ». `trip` est la même faute un cran au-dessus : il présuppose un
+**déplacement** là où le besoin réel est **une acquisition multi-flux datée**. Un labo qui analyse
+des données temporelles sans aucun trajet — y compris le LESCOT — n'a pas à manipuler des « trips ».
+
+**Nom retenu : `.wrec`** (« enregistrement WAMA »). Trois raisons :
+
+1. il dit ce que la chose **est** (une acquisition datée), pas ce qu'on en fait ;
+2. il est neutre sur le domaine — routier, oculométrie, audio, comportement ;
+3. ⚠ **il évite une collision réelle** : `dataset` était le candidat naturel et il est **déjà pris**
+   — c'est un *kind* de manifeste, et il désigne un **corpus**, pas un enregistrement. Un `.trip`
+   BIND est **une passation**. Nommer le fichier `.dataset` aurait mis deux granularités sous un
+   mot.
+
+> ⚠ **`.rec` était écarté d'avance** : c'est l'extension de RTMaps, que l'Importer doit lire
+> (`functions/io/rtmaps_rec.py`). Le `w` n'est pas décoratif.
+
+### 9quater.3 D9 TRANCHÉE — `time`, et `timecode` reste un ALIAS D'ENTRÉE
+
+Ce n'était pas un arbitrage de goût : la mesure tranche seule.
+
+1. **`time` est déjà le champ canonique** de la taxonomie partagée — `CANONICAL_FIELDS` le déclare
+   pour `TIMESERIES`, `SIGNAL`, `EVENTS` et `GEO_TRACK`. Cette taxonomie est la **glu inter-mondes**
+   (le Lab en dépend) : la renommer coûterait bien au-delà du monde Data.
+2. ⚠ **`timecode` est DÉJÀ PRIS DANS WAMA, avec un AUTRE SENS ET UN AUTRE TYPE.** Ses 4 occurrences
+   du monde Médias sont le **timecode AV positionnel** du Transcriber — `mm:ss` / `hh:mm:ss`, donc
+   une **chaîne** (`transcriber/.../edit.js`, `edit.html`, `app_registry.py`). Celui de BIND est un
+   **flottant en secondes**. Adopter le mot donnerait **deux types incompatibles au même mot dans
+   la même plateforme** — exactement la juxtaposition de vocabulaires que WAMA s'interdit.
+3. **La normalisation existe déjà et fonctionne** : `sources/tabular.py:23` accepte
+   `('time', 'timestamp', 'timecode', 't', 'temps', 'time_s', 'seconds')` en entrée et rend `time` ;
+   `sources/trip.py` lit les colonnes `timecode` / `startTimecode` de BIND et produit
+   `time` / `start` / `end`. **Il n'y a rien à écrire, seulement à ne pas défaire.**
+
+### 9quater.4 LA RÈGLE — une nouvelle table SSI la clé temporelle change
+
+> **Une colonne calculée reste dans SA table tant que la CLÉ TEMPORELLE ne change pas.
+> Elle en sort dès qu'elle change.**
+
+⚠ **Cette règle n'est pas nouvelle : elle était DÉJÀ APPLIQUÉE par le code sans être écrite nulle
+part.** C'est exactement ce qui sépare les deux modes du Calculator, et les deux
+`FunctionCategory` qu'ils portent (`functions/temporal/calculation.py`) :
+
+| mode | catégorie | granularité | résultat |
+|---|---|---|---|
+| colonnes dérivées (glissant, dérivée, cumul) | `ENRICHER` — « ajoute des champs à l'entrée » | **inchangée** | colonne **adjointe** (`_avec_colonne` : `df[nom] = valeurs` sur une copie) |
+| indicateurs par segment | `AGGREGATE` — « agrège par groupe » | **change** | **nouveau** cadre, de type `segments` |
+
+La consigner ici lui donne le statut de règle, au lieu de la laisser être une propriété émergente
+que le prochain module pourrait contredire sans s'en apercevoir.
+
+#### Les trois cas, et ce qu'ils donnent
+
+**(a) Deux colonnes de la MÊME table** (« multiplier une colonne par une autre, comme dans Excel »)
+→ même clé temporelle → **même table**, une colonne de plus. Le nom se **dérive** par règle
+(`nom_produit()` existe : `vitesse` + `moyenne` → `vitesse_moyenne`), jamais saisi — mêmes motifs
+qu'en §9ter.6 B7.
+
+**(b) Deux colonnes de tables à PAS DIFFÉRENTS** → trois options, et **l'interpolation est la pire** :
+
+| option | verdict |
+|---|---|
+| **Interpoler** pour aligner, puis multiplier | ❌ — c'est ce que **D6** refuse (« jamais d'interpolation », admise en **affichage** seulement). Multiplier deux colonnes interpolées fabrique des valeurs que personne n'a mesurées, et rien dans la sortie ne le dit |
+| **Agréger** le flux rapide sur les intervalles du flux lent | ✅ **défaut recommandé** — `calcul_par_segment` **existe déjà**, n'invente aucune valeur, et répond au besoin réel dans la majorité des cas |
+| **Rééchantillonner** vers une **table annexe** | ✅ **en option, explicite et tracée** — sanctionné par D10. La grille change, donc c'est *nécessairement* une nouvelle table |
+
+> **Ne jamais offrir l'interpolation silencieuse.** Si l'utilisateur veut croiser deux cadences,
+> on lui propose l'agrégation ; s'il veut vraiment une grille commune, il la **déclare**.
+
+**(c) Calcul sur une PORTION, via `present_dans`** → **pas de nouvelle table.** Restreindre à un
+contexte ne change pas la clé temporelle : ce sont les mêmes instants, en moins. La colonne revient
+donc dans la table d'origine **avec des trous** (`None` hors contexte) — ce qui est *plus*
+informatif qu'une table à part, puisqu'on lit le contexte dans la donnée elle-même.
+
+> ⚠ **Nuance qui compte, et qui justifie de calculer SUR la restriction plutôt que de masquer
+> après.** Une moyenne glissante calculée sur la restriction n'est pas celle calculée sur tout puis
+> masquée : aux **bords du contexte**, la seconde laisse fuir des échantillons extérieurs dans la
+> fenêtre. Les deux sont des réponses différentes à des questions différentes — restreindre
+> d'abord est celle que l'utilisateur demande quand il dit « seulement pendant les dépassements ».
+>
+> **Corollaire** : le contexte doit être **tracé sur la colonne**. Deux colonnes de même nom
+> calculées sur deux contextes différents doivent être distinguables. C'est **D11** (« paramètres
+> en colonnes/métadonnées plutôt que dans le NOM de la table ») appliqué un cran plus bas.
+
+#### D10 complété — où vit la table annexe, et comment elle se déclare
+
+La table annexe n'est **pas un concept à inventer** : c'est un `TypedFrame` de plus, qui se
+distingue par sa **PROVENANCE DÉCLARÉE**. Le patron existe déjà un cran plus bas — `_tracer()` du
+Segmenter pose `origin` sur **chaque segment produit**, pour qu'on puisse distinguer plus tard un
+segment codé par un humain d'un segment proposé par un modèle. Même geste, au niveau de la table :
+
+- **elle vit dans le même conteneur** (`.wrec`) que ses sources, jamais dans un fichier à part —
+  une table dérivée séparée de son enregistrement devient orpheline à la première copie ;
+- **elle porte sa provenance en méta** : tables sources, grille cible, méthode d'alignement,
+  contexte éventuel. Pas dans son NOM (D11) ;
+- **elle est nommée par règle dérivée**, comme tout le reste (§9ter.6 B7) ;
+- **elle n'est jamais créée implicitement** : la produire est un geste, exactement comme l'entrée
+  au RAG est un geste et non un balayage.
+
+### 9quater.5 Ce qu'on PERSISTE — la déclaration, pas les valeurs
+
+Le geste d'interface décrit par Fabien est le bon : l'utilisateur voit la colonne calculée
+apparaître **dans la même table** que l'originale, et décide ensuite. Mais **ce qu'on écrit n'est
+pas ce qu'il voit** :
+
+> **On persiste la DÉCLARATION. Les valeurs ne sont qu'un CACHE, keyé par elle.**
+
+Trois raisons, toutes déjà des principes du dépôt :
+
+1. **une colonne matérialisée devient périmée vis-à-vis de sa source sans que rien ne le signale** —
+   c'est la même famille de défaut que les statuts de `.md` qui surestiment l'avancement ;
+2. **le volume** — l'enregistrement réel fait déjà 1,28 Go ; matérialiser chaque colonne dérivée le
+   multiplie, et la lecture paresseuse existante n'aurait plus de sens ;
+3. **c'est la doctrine WAMA partout ailleurs** — manifestes, `write_back` réversible, « jamais
+   d'apply auto ». La déclaration est l'objet durable ; le reste se recalcule.
+
+Les valeurs ne s'écrivent **en dur** qu'à l'**export**, où elles sont précisément le produit demandé.
+
+### 9quater.6 L'Explorer EST l'interface du Calculator
+
+L'« Excel intégré » (vue tableur + graphe, tracé de courbes) n'est **pas un module de plus à côté
+du Calculator** : c'est **son interface**. Deux constats le montrent —
+
+- le **Calculator est écrit et éprouvé** (49 tests) et **n'a aucune UI** ;
+- l'**Explorer** est déclaré « explore un dataset en table et en graphe », est ⏳, et est —
+  **avec le Connector — le seul module sans blocage déclaré**, donc écrivable immédiatement.
+
+La vue tableur est exactement le lieu où l'on ajoute une colonne calculée, où l'on voit le résultat
+avant de le garder, et où la règle de §9quater.4 devient visible pour l'utilisateur : une colonne
+qui s'ajoute à la table qu'il regarde, ou un onglet qui s'ouvre parce que la clé temporelle a
+changé. **La règle n'a donc pas à être expliquée : elle se montre.**
+
+---
+
 ## 9bis.6 Ce que la cartographie n'a pas couvert — à traiter avant l'Importer v2
 
 **L'alignement par TRIGGERS.** RTMaps et LSL fournissent une horloge d'acquisition commune ; des
@@ -1341,15 +1510,15 @@ qui ne sait lire que des acquisitions déjà synchronisées, c'est-à-dire le ca
 |---|---|---|
 | D1 | domicile du référentiel temporel : `wama_data/` ou module dédié ? | après passe 1 |
 | D2 | le magneto : une brique à deux chromes, ou brique + plugin distincts ? | après passe 2 |
-| D3 | `.trip` : format importé/converti, ou format natif supporté par WAMA Data ? | après passe 1 |
+| ~~D3~~ | ✅ **TRANCHÉE 2026-08-23 (§9quater.2)** — `.trip` reste un format **importé, en lecture seule** ; WAMA a un conteneur **natif distinct**, `.wrec`. `TripReader` garde son nom : il lit le format de BIND, pas le nôtre | Fabien |
 | D4 | quels 2-3 plugins écrire en premier (pour extraire la vue déclarative ensuite) ? | après passe 3 |
 | D5 | Recorder temps réel (LSL/RTMaps/ROS) : dans le périmètre v1 ou différé ? | Fabien |
 | D6 | reprendre le « **jamais d'interpolation** » de BIND ? (position pressentie : oui pour la VALEUR, interpolation autorisée en option d'AFFICHAGE seulement) | Fabien, §3bis |
 | D7 | le curseur appartient-il au **jeu de données** (choix BIND : un trip = une horloge) ou à la **session** (plusieurs sources hétérogènes) ? | après passe 2 |
 | D8 | type « **intervalle** » dans `data_types.py` : nouveau `DataType.INTERVALS`, ou sous-type d'`EVENTS` avec durée ? (sans lui, pas de Segmenter ni de Calculator) | après passe 3 |
-| D9 | vocabulaire temporel : garder `time` (WAMA) ou adopter `timecode`/`startTimecode`/`endTimecode` (BIND) ? — tranché au plus tard à l'écriture de l'Importer | différable |
-| D10 | **rééchantillonnage : jamais systématique** (Fabien, 20/08) — mais **TROIS opérations distinctes**, cf. §6.6 : le **ré-horodatage** par fréquence théorique est ✅ à l'import et par flux (il n'interpole pas) ; le **rééchantillonnage sur grille commune** est ❌ ; le **rééchantillonnage à la demande vers une table annexe** est ✅ en option. Le **pas de temps variable est une capacité à porter**, pas un défaut à corriger. Reste : où vit la table annexe et comment elle se déclare | tranchée sauf table annexe |
-| D11 | les paramètres de fenêtre d'une situation : **colonnes/métadonnées** (interrogeables) plutôt que dans le NOM de la table comme BIND (`situation_0_15`) ? | après A |
+| ~~D9~~ | ✅ **TRANCHÉE 2026-08-23 (§9quater.3)** — `time` / `start` / `end`, et `timecode` reste un **alias d'entrée** (`tabular.py:23`). Ce n'était pas un arbitrage : `timecode` est **déjà pris dans WAMA** au sens AV positionnel (`mm:ss`, une CHAÎNE — Transcriber), là où BIND en fait un flottant en secondes | mesure |
+| D10 | **rééchantillonnage : jamais systématique** (Fabien, 20/08) — mais **TROIS opérations distinctes**, cf. §6.6 : le **ré-horodatage** par fréquence théorique est ✅ à l'import et par flux (il n'interpole pas) ; le **rééchantillonnage sur grille commune** est ❌ ; le **rééchantillonnage à la demande vers une table annexe** est ✅ en option. Le **pas de temps variable est une capacité à porter**, pas un défaut à corriger. ✅ **RESTE CLOS le 2026-08-23 (§9quater.4)** : la table annexe vit **dans le même `.wrec`** que ses sources, porte sa **provenance en méta** (jamais dans son nom — D11), se nomme par règle dérivée, et n'est **jamais créée implicitement**. Et le défaut recommandé pour croiser deux cadences n'est PAS le rééchantillonnage mais l'**agrégation** (`calcul_par_segment`), qui n'invente aucune valeur | ✅ close |
+| D11 | les paramètres de fenêtre d'une situation : **colonnes/métadonnées** (interrogeables) plutôt que dans le NOM de la table comme BIND (`situation_0_15`) ? | ⚠ **MÛRE** — « après A », et A est faite (§9ter.6). Le principe est déjà **appliqué un cran plus bas** par §9quater.4 (le contexte se trace sur la COLONNE) et par la table annexe (provenance en méta, jamais dans le nom). Reste à le ratifier au niveau de la situation elle-même |
 | D12 | **alignement par TRIGGERS** (§9bis.6) : où vit l'appariement d'événements entre flux — dans l'Importer, ou comme fonction du catalogue applicable après import ? | avant l'Importer v2 |
 | D13 | nœud **fonction** dans le kind `pipeline` : étendre `source\|sink\|app`, ou déclarer les fonctions comme un `app` d'un genre particulier ? | avant le 1ᵉʳ pipeline de données |
 | D15 | **segment OUVERT** (fin inconnue) : `Signal.ends` accepte-t-il `None` ? Indispensable au codage en cours de flux — un humain ou une IA qui code ouvre un état avant de le fermer. BORIS le porte (`UNPAIRED`), ni BIND ni WAMA ne savent le représenter | avant le codage vidéo |
@@ -1358,6 +1527,29 @@ qui ne sait lire que des acquisitions déjà synchronisées, c'est-à-dire le ca
 ---
 
 ## Journal
+
+- **2026-08-23** — **portage du Segmenter et de l'Exporter, puis trois décisions de fond.**
+  - **Matin** : §9ter.6 A-B-C porté (chaîne conditionnelle en arbre, manques temporels, Exporter
+    sur le modèle réel). `wama_data` passe de **198 à 327 tests**. Détail en §9ter.6 E.
+  - **La leçon du portage** : sur les **cinq** affirmations de §9ter.6 que la lecture du code
+    vivant a pu confronter, **deux étaient fausses** (« BIND offre une liste plate », «
+    `data_types.py` sait typer une colonne ») et **une sous-estimait d'un facteur cinq** (un défaut
+    des quatre branches d'export, alors qu'il y en a cinq). **Toutes trois dans le même sens :
+    elles rendaient le travail plus facile qu'il n'était.** Même famille d'erreur que le pivot
+    inexistant qui avait fait reverter le premier Exporter — écrire une spécification depuis un
+    schéma et une intuition plutôt que depuis le code. Le corpus était dans le dépôt depuis le début.
+  - **Après-midi — §9quater**, issue d'un échange avec Fabien : **D3 close** (conteneur natif
+    `.wrec`, `.trip` reste un format importé en lecture seule), **D9 close** par la mesure
+    (`time` ; `timecode` est déjà pris au sens AV dans le monde Médias), **le reste de D10 clos**
+    (la table annexe vit dans le `.wrec`, provenance en méta, jamais implicite), et surtout **la
+    règle de manipulation écrite** : *une nouvelle table SSI la clé temporelle change*.
+  - ⚠ **Cette règle n'était pas nouvelle — elle était déjà APPLIQUÉE sans être écrite** : c'est ce
+    qui sépare `ENRICHER` de `AGGREGATE` dans les deux modes du Calculator. La consigner l'empêche
+    d'être contredite par le prochain module sans que personne ne s'en aperçoive. C'est le second
+    cas du jour où une règle vivait dans le code sans exister dans la doctrine.
+  - **L'Explorer est l'interface du Calculator**, pas un module de plus : le Calculator est écrit
+    et éprouvé (49 tests) sans aucune UI, et l'Explorer est — avec le Connector — le seul module
+    **sans blocage déclaré**, donc écrivable immédiatement.
 
 - **2026-08-22** — **le monde sort du substrat.** WAMA Data quitte `wama/common/data/` pour une
   racine `wama_data/`, sœur de `wama/` et `wama_lab/` — cible déjà écrite dans `ROADMAP §18` (« un

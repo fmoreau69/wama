@@ -53,14 +53,16 @@ class ModuleData:
 MODULES: Tuple[ModuleData, ...] = (
     ModuleData(
         'importer', 'Importer', "Lit une source et rend un référentiel temporel interrogeable",
-        "fichiers + manifeste `dataset` → référentiel",
+        "fichiers + manifeste `dataset` → référentiel, écrit en `.wrec`",
         briques=('wama_data/sources/__init__.py',
                  'wama_data/sources/trip.py',
                  'wama_data/sources/tabular.py'),
-        doc='§6.6, §9bis.1',
+        doc='§6.6, §9bis.1, §9quater.2 (conteneur natif)',
         bloque_par="alignement par TRIGGERS non conçu (D12) ; `DATASET_SOURCES` non réconcilié "
                    "avec le registre des lecteurs (G1) ; lecteur `.rec` encore une FONCTION "
-                   "(`functions/io/rtmaps_rec.py`) au lieu d'un lecteur de source",
+                   "(`functions/io/rtmaps_rec.py`) au lieu d'un lecteur de source ; l'ÉCRITURE du "
+                   "conteneur natif `.wrec` reste à écrire — D3 est tranchée (2026-08-23) mais "
+                   "aucune ligne de WAMA Data n'écrit encore de SQLite",
     ),
     ModuleData(
         'referentiel', 'Référentiel temporel', "Aligne des flux à cadences incommensurables",
@@ -71,14 +73,19 @@ MODULES: Tuple[ModuleData, ...] = (
     ),
     ModuleData(
         'connector', 'Connector', "Branche une base existante comme source",
-        "base SQLite → référentiel",
+        "base SQLite (`.trip` externe, `.wrec` natif) → référentiel",
         briques=('wama_data/sources/trip.py',),
-        doc='§6.2',
+        doc='§6.2, §9quater.2',
     ),
     ModuleData(
-        'explorer', 'Explorer', "Explore un dataset en table et en graphe",
-        "référentiel → vues",
-        doc='§7',
+        'explorer', 'Explorer', "Explore un dataset en table et en graphe — c'est aussi "
+                                "l'INTERFACE du Calculator : la vue tableur est le lieu où l'on "
+                                "ajoute une colonne calculée et où l'on voit le résultat",
+        "référentiel → vues table/graphe + colonnes calculées",
+        doc='§7, §9quater.6',
+        bloque_par="AUCUN blocage déclaré — avec le Connector, le seul module écrivable "
+                   "immédiatement. Le Calculator qu'il pilote est écrit et éprouvé (49 tests) et "
+                   "n'a aucune UI : c'est ce manque-là que l'Explorer comble",
     ),
     ModuleData(
         'segmenter', 'Segmenter', "Produit des segments : autour d'un événement, par jonction de "

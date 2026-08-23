@@ -16,6 +16,32 @@ LES DEUX MODES, ET POURQUOI DEUX CATÉGORIES DIFFÉRENTES
      « agrège par groupe » : une ligne PAR SEGMENT, plus du tout par échantillon. Le cadre change
      de granularité, donc de type (`segments`).
 
+⚠ CE QUI SÉPARE ① DE ② EST UNE RÈGLE GÉNÉRALE, ÉCRITE LE 2026-08-23 (`§9quater.4`) :
+
+      « Une colonne calculée reste dans SA table tant que la CLÉ TEMPORELLE ne change pas.
+        Elle en sort dès qu'elle change. »
+
+Cette règle était DÉJÀ APPLIQUÉE ici, mais n'existait nulle part comme doctrine — elle n'était
+qu'une propriété émergente de ces deux catégories, donc contredisible par le prochain module sans
+que personne ne s'en aperçoive. Ses trois conséquences, pour qui écrit une fonction de calcul :
+
+  • deux colonnes de la MÊME table  → `ENRICHER`, colonne adjointe, nom dérivé (`nom_produit()`) ;
+  • deux colonnes à PAS DIFFÉRENTS  → surtout PAS d'interpolation (D6). Le défaut recommandé est
+    l'AGRÉGATION du flux rapide sur les intervalles du lent — c'est `calcul_par_segment`, et elle
+    n'invente aucune valeur. Le rééchantillonnage vers une table annexe reste possible, mais
+    EXPLICITE et tracé (D10) : la grille change, donc c'est une nouvelle table ;
+  • calcul sur une PORTION (`present_dans`) → la clé temporelle ne change pas : mêmes instants, en
+    moins. La colonne revient donc dans la table d'origine AVEC DES TROUS (`None` hors contexte),
+    ce qui est plus informatif qu'une table à part. ⚠ Calculer SUR la restriction, jamais masquer
+    après : aux bords du contexte, masquer laisserait fuir des échantillons extérieurs dans la
+    fenêtre glissante. Et le contexte se TRACE sur la colonne (D11) — sans quoi deux colonnes de
+    même nom calculées sur deux contextes différents seraient indiscernables.
+
+⚠ ET CE QU'ON PERSISTE EST LA DÉCLARATION, PAS LES VALEURS (`§9quater.5`). Une colonne matérialisée
+devient périmée vis-à-vis de sa source sans que rien ne le signale, et l'enregistrement réel fait
+déjà 1,28 Go. Les valeurs sont un CACHE keyé par la déclaration ; elles ne s'écrivent en dur qu'à
+l'export, où elles sont le produit demandé.
+
 ⚠ UN `None` DU CŒUR RESSORT EN `NaN` DANS LE CADRE — et c'est VOULU, ne pas le « corriger ».
 `_segments()` force le type `object` sur la colonne `end`, parce que le Segmenter y teste
 `end is None` : c'est un marqueur STRUCTUREL. `duree` et les colonnes d'indicateurs, elles, sont
