@@ -6170,3 +6170,83 @@ synthesizer 98 %, imager 97 % ⚠ **dénominateurs +2** (critères `settings_wir
 ⚠ `manifest_export --check` **PÉRIMÉ sur `anonymizer:sam3`** et `doc_facts` **2/5** (`mecanismes`,
 `modeles`, `wama_data`) — **les trois PRÉEXISTAIENT à cette session** (mesurés à sa reprise), ils
 relèvent de l'instance sœur et n'ont volontairement pas été régénérés ici.
+
+---
+
+## §REPRISE — 2026-08-23 (instance WAMA DATA — Segmenter, Exporter, Explorer) — 🔚 POINT D'ENTRÉE
+
+> **🔚 POINT D'ENTRÉE : l'UI de l'Explorer, et elle seule — le cœur est complet.** Deux décisions
+> la précèdent, toutes deux cadrées mais non prises : (1) `wama_data` n'a **aucune surface Django**
+> (ni `views.py`, ni `urls.py`, ni `templates/`) — la créer est un geste d'architecture ;
+> (2) **aucune bibliothèque de graphe n'est vendorée** — candidats et critère en `§9quater.7`
+> (« une lib qui DESSINE oui, une lib qui décide de la MISE EN PAGE non »).
+
+Session ouverte sur le 🔚 du handoff 22→23 (portage schéma-driven du Segmenter et de l'Exporter),
+puis étendue par Fabien à l'Explorer et à trois décisions de fond.
+
+### Livré — 8 commits, `wama_data` de 198 à 411 tests
+
+| | preuve |
+|---|---|
+| **§9ter.6 A** — offsets de `jonction`, `repeter`, `bascules` (2ᵉ port `masque → events`) | 15 tests |
+| **§9ter.6 B** — chaîne conditionnelle en **ARBRE** : 14 opérateurs filtrés par la **SORTE** de colonne, validation à la déclaration, parseur de saisie, noms dérivés | 41 tests cœur + 26 frontière |
+| **§9ter.6 C** — Exporter réécrit **sur le modèle réel** (le 1ᵉʳ jet avait été reverté sur un pivot inexistant) | 37 + 12 tests |
+| **§9quater** — D3 (**`.wrec`**), D9 (**`time`**), reste de D10 (table annexe), **la RÈGLE** de manipulation | doc + code |
+| **§9quater.7** — le **PONT** `frames.py` : le Référentiel avait « AUCUN consommateur » parce que rien ne pouvait convertir sa sortie | 34 tests |
+| **§9quinquies** — capacités agrégatives : `FORMATS` devient un registre, les 2 registres du monde entrent au registre des registres | 19 tests |
+| **§9quater.7** — le **VIEW-MODEL** `vue.py` : la règle de §9quater.4 devient **exécutable et dérivée de la `FunctionCategory`** | 31 tests |
+
+### Les trois leçons de méthode, et elles se répètent
+
+1. **⚠⚠ UNE SPEC ÉCRITE DEPUIS UN SCHÉMA MENT DANS LE SENS OPTIMISTE.** Sur les 5 affirmations de
+   §9ter.6 que le code vivant a pu confronter : **2 fausses**, **1 sous-estimée d'un facteur 5** —
+   les trois rendant le travail plus facile qu'il n'était. Même famille que le pivot inexistant du
+   1ᵉʳ Exporter. Le corpus BIND était dans le dépôt depuis le début.
+2. **⚠ TROIS FOIS, UN FAIT VIVAIT DANS LE DÉPÔT SANS ÊTRE RELIÉ À SA CONSÉQUENCE** : « le
+   Référentiel n'a AUCUN consommateur » (= personne ne *pouvait* s'en servir), la règle
+   `ENRICHER`/`AGGREGATE` (= la doctrine de §9quater.4, jamais écrite), et `SignalMeta.is_base`
+   (= le champ de provenance, inemployé en ce sens). **Réflexe à garder : quand on croit inventer
+   une règle, chercher d'abord si le code ne l'applique pas déjà.**
+3. **⚠ VÉRIFIER LA PROPRIÉTÉ, PAS UN PROXY.** Mon test « le substrat ne cite aucun monde »
+   interdisait la *chaîne* `wama_data` et échouait sur de la **prose descriptive**. Réécrit **par
+   AST** sur l'invariant réel : aucun *import*. Même erreur que « prendre une trace pour une règle ».
+
+### Contrôles attendus au prochain /reprise
+
+`check_docs` **4 CASSÉ / 0 périmée sur 498** — ⚠ **1 SEULE cible distincte** (`_result_tabs.html`,
+citée 4×), c'est ELLE le critère · `check_js` **57 fichiers 0 erreur, 56 paires 0 divergente** ·
+`manifest_roundtrip` **10 apps, fidélité OK** · `doc_facts` **5/5 à jour** · `wama_data`
+**411 tests OK** · `wama.common.tests_registries` **46 OK** (avec les 2 registres neufs) ·
+`check_redundancy` **15 trouvailles, AUCUNE dans les fichiers de cette session** (la seule ligne
+`wama_data`, `calculation.py:78 _verifier()`, est un **faux positif préexistant** — collision de
+nom avec `verifier_url`, pas une duplication).
+
+⚠ **DEUX ROUGES SUR `dev` QUI NE SONT PAS DE CE PÉRIMÈTRE, tous deux prouvés :**
+- `manage.py test wama.common` → **11 échecs** `AppCatalogConformiteTest.test_conventions_completes_et_typees`.
+  Cause : `af0bb92b` ajoute la convention `export_formats`, un **tuple**, là où le test exige
+  `True`/`False`/`None`. `git merge-base --is-ancestor af0bb92b HEAD` ✓.
+- `manifest_export --check` → **11 périmés** (10 apps + `anonymizer:sam3`). Même cause : les
+  manifestes d'app transportent les `conventions` (`builtin/app.py:354`) et le corpus commité
+  contient **0** occurrence d'`export_formats`. **Non régénéré ici** — périmètre de l'instance sœur.
+
+### Pendings — aucun n'est « probablement réglé »
+
+| # | pending |
+|---|---|
+| 1 | **UI de l'Explorer** — le 🔚. Surface Django à créer + décision de bibliothèque (§9quater.7) |
+| 2 | **G1 ne peut PAS être fermé naïvement** : `manifests/builtin/dataset.py` est dans le SUBSTRAT, le registre des lecteurs dans un MONDE. La forme juste est un registre substrat que les mondes alimentent (comme `FUNCTION_CATALOG`). Modification du substrat, à coordonner |
+| 3 | **Écrivains `xlsx` / `mat`** — déclarés, sans écrivain. Le geste est prévu : `enregistrer_format('xlsx', ecrivain=…)` depuis l'adaptateur |
+| 4 | **Le pont ne distingue pas DONNÉES / ÉVÉNEMENTS** — un `Signal` ne porte pas sa famille. Manque réel du modèle, à traiter avec **D8** (type « intervalle ») |
+| 5 | **« Présent dans » n'est pas câblé dans `Declaration`** — il doit devenir un champ `contexte` de l'export, pas une variante de fonction |
+| 6 | **Filtrage manuel** (§9ter.6 A) — c'est la file de cards + l'inspecteur, mécanisme existant. Rien à écrire dans le monde Data |
+| 7 | **D11 est MÛRE** (« après A », et A est faite) — son principe est déjà appliqué un cran plus bas |
+| 8 | **Le Connector partage le registre des lecteurs** — à confirmer quand il aura une surface : une connexion vivante est-elle un lecteur comme un autre ? |
+
+### Partition (multi-instances) — tout le monde sur `dev`
+
+Je n'ai touché **aucun fichier d'app**, ni `conformity_checker.py`, ni `nightly_scenarios.py`, ni
+`app_modes.py`, ni `registries_builtin.py`. Deux fois, `doc_facts` a régénéré `WAMA_MECANISMES.md`
+en captant l'**état en vol** de l'instance sœur (compteurs de consommateurs 46 → 60 → 61) : la
+première fois **révoqué** (`git checkout`), la seconde vérifié ligne à ligne avant commit. Mes
+seules écritures hors `wama_data/` sont **deux entrées** au registre des mécanismes
+(`data_frames_bridge`, `data_vue`).

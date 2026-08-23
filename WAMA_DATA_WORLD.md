@@ -39,9 +39,9 @@
 | Module | Rôle | Flux | État | Briques | Testées | Conso. int/ext | Doc |
 |---|---|---|---|---|---|---|---|
 | **Importer** | Lit une source et rend un référentiel temporel interrogeable | fichiers + manifeste `dataset` → référentiel, écrit en `.wrec` | 🔶 | 3/3 | 1 | 3/0 | §6.6, §9bis.1, §9quater.2 (conteneur natif) |
-| **Référentiel temporel** | Aligne des flux à cadences incommensurables | référentiel → échantillons, `segments`, vue décimée, cadres typés | 🔶 | 2/2 | 2 | 1/0 | §2, §3, §9quater.7 |
+| **Référentiel temporel** | Aligne des flux à cadences incommensurables | référentiel → échantillons, `segments`, vue décimée, cadres typés | 🔶 | 2/2 | 2 | 2/0 | §2, §3, §9quater.7 |
 | **Connector** | Branche une base existante comme source | base SQLite (`.trip` externe, `.wrec` natif) → référentiel | 🔶 | 1/1 | 0 | 2/0 | §6.2, §9quater.2 |
-| **Explorer** | Explore un dataset en table et en graphe — c'est aussi l'INTERFACE du Calculator : la vue tableur est le lieu où l'on ajoute une colonne calculée et où l'on voit le résultat | référentiel → vues table/graphe + colonnes calculées | 🔶 | 2/2 | 2 | 0/0 | §7, §9quater.6, §9quater.7 |
+| **Explorer** | Explore un dataset en table et en graphe — c'est aussi l'INTERFACE du Calculator : la vue tableur est le lieu où l'on ajoute une colonne calculée et où l'on voit le résultat | référentiel → vues table/graphe + colonnes calculées | 🔶 | 2/2 | 2 | 1/0 | §7, §9quater.6, §9quater.7 |
 | **Segmenter** | Produit des segments : autour d'un événement, par jonction de deux flux, par CHAÎNE de conditions (ET/OU/XOR/NON) avec hystérésis, par plages constantes d'un catégoriel, ou par CODAGE (humain ou IA) — la chaîne sort en segments OU en événements, au choix du PORT | `events` ou signal + conditions → `segments` \| `events` | 🔶 | 6/6 | 4 | 16/0 | §9ter (spécification), §9ter.6 A-B (portage), §6.7 |
 | **Calculator** | Calcule des COLONNES DÉRIVÉES (moyenne glissante, dérivée, cumul) et des INDICATEURS PAR SEGMENT qu'il adjoint aux segments | signal → signal enrichi · `segments` + signal → colonnes d'indicateurs | 🔶 | 3/3 | 2 | 5/0 | §6.7 |
 | **Visualizer** | Vues synchronisées sur l'axe partagé (plugins) | référentiel → plugins co-chargés | ⏳ | — | — | — | §4, §8.2 |
