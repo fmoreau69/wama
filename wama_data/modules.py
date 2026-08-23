@@ -129,13 +129,19 @@ MODULES: Tuple[ModuleData, ...] = (
         # il SÉLECTIONNE des colonnes, les ordonne, et concatène. Le portage schéma-driven est
         # spécifié en §9ter.6 — une DÉCLARATION d'export (donc un manifeste), deux axes de
         # regroupement au lieu de quatre branches, et l'interface générée du schéma.
-        "Sélection ordonnée de colonnes + identité + contexte, écrite en fichiers exploitables "
-        "hors WAMA",
-        "`segments`/`events`/données + sélection → fichiers (concaténation, jamais pivot)",
+        # ⚠ 2ᵉ recadrage de Fabien le 2026-08-23 : l'Exporter n'est en aval d'AUCUN module. Il
+        # exporte TOUT le contenu d'un trip — données, méta-infos, événements, situations (avec
+        # les indicateurs qui y ont été adjoints) — de façon entièrement configurable. J'avais
+        # écrit qu'il dépendait de la chaîne conditionnelle du Segmenter : faux deux fois, car
+        # celle-ci n'est qu'un mode de segmentation parmi plusieurs, et l'export n'en dépend pas.
+        "Exporte TOUT le contenu d'un trip de façon configurable — données, méta-infos, "
+        "événements, situations et leurs indicateurs : sélection ordonnée de colonnes, identité, "
+        "contexte, regroupement",
+        "données/méta/`events`/`segments` + sélection → fichiers (concaténation, jamais pivot)",
         doc='§9ter.5, §9ter.6',
         bloque_par="À ÉCRIRE sur le modèle réel (§9ter.6) — un premier jet fondé sur un pivot "
-                   "inexistant a été reverté (ef756b63). Dépend du Segmenter : la chaîne "
-                   "conditionnelle décide de ce qu'il y aura à exporter",
+                   "INEXISTANT a été reverté (ef756b63). N'attend RIEN d'un autre module : "
+                   "écrivable dès maintenant",
     ),
     ModuleData(
         'recorder', 'Recorder', "Enregistre depuis une source temps réel",

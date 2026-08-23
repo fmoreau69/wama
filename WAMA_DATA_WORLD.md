@@ -1125,6 +1125,22 @@ parseur. Ce n'est pas ce qu'on fait — voici la traduction, point par point.
 
 `§9ter.5` décrit correctement ce que BIND produit. Ce qui suit dit comment WAMA le porte.
 
+> ⚠ **PÉRIMÈTRE — recadrage de Fabien (2026-08-23), après une formulation fausse de ma part.**
+> L'Exporter **n'est en aval d'aucun module en particulier**. Il exporte **tout le contenu d'un
+> trip, de façon entièrement configurable** : les **tables de données**, les **méta-informations**,
+> les **événements** et les **situations** — ces dernières portant les colonnes d'indicateurs que
+> le Calculator y a adjointes. Vérifié dans le code : le sélecteur à trois niveaux est alimenté
+> par la MÉTA (`meta.getDataVariablesNamesList` / `getEventVariablesNamesList`), et les colonnes
+> d'identité `Trip Name` / `Participant` / `Scénario` sont elles-mêmes des méta-infos
+> (`getAttribute('participant_id')`, `scenario()`).
+>
+> Ce que j'avais écrit — « la chaîne conditionnelle décide de ce qu'il y aura à exporter » — est
+> faux deux fois : elle n'est **qu'un mode de segmentation parmi plusieurs** (temporelle simple,
+> temporelle double, conditionnelle, états, codage vidéo), et l'export **ne dépend d'aucun** d'eux.
+> Ce qui alimente l'export, c'est **l'ensemble de ce que le trip contient** à l'instant où on
+> l'exporte : segments produits par n'importe quel mode, événements, données brutes, méta, et
+> calculs adjoints.
+
 1. **Une DÉCLARATION D'EXPORT remplace `app.export.ficN`** : un nom, une liste **ordonnée** de
    colonnes `source.champ`, l'identité en tête (`trip_id`, `participant`, `scénario`), le contexte
    « présent dans », la décimation, le format. Sérialisable — donc **c'est un manifeste**, et §7 de
@@ -1146,10 +1162,23 @@ parseur. Ce n'est pas ce qu'on fait — voici la traduction, point par point.
 
 #### D. Ordre de travail
 
-Segmenter d'abord (la chaîne conditionnelle conditionne ce qu'il y aura à exporter), Exporter
-ensuite. Le Calculator, lui, reste valide : ses deux modes ont été confirmés par la diapo 7
-(« Calcul d'indicateurs globaux et par situations ») et par la ligne du §7 (« transformation de
-colonnes … indicateurs par situation »).
+⚠ **Les deux chantiers sont INDÉPENDANTS** — il n'y a pas de dépendance à respecter, seulement une
+priorité à choisir. (Ma formulation précédente, « Segmenter d'abord parce que la chaîne
+conditionnelle décide de ce qu'il y aura à exporter », est fausse : voir l'encadré de PÉRIMÈTRE
+en C.)
+
+- **Le Segmenter** a **plusieurs modes** de production — temporelle simple, temporelle double,
+  conditionnelle, états, codage vidéo — dont chacun crée des situations **ou** des événements.
+  La chaîne conditionnelle est **un mode parmi eux** ; c'est celui dont le manque est le plus
+  large, pas celui dont les autres dépendent. Les manques listés en A touchent aussi la
+  segmentation double (offsets, « répéter ») et le filtrage manuel.
+- **L'Exporter** exporte **tout ce que le trip contient** : données, méta-infos, événements,
+  situations et les indicateurs qui y ont été adjoints. Il est prêt à être écrit **dès
+  maintenant** — il n'attend rien du Segmenter.
+
+Le Calculator, lui, reste valide : ses deux modes sont confirmés par la diapo 7 (« Calcul
+d'indicateurs globaux et par situations ») et par la ligne du §7 (« transformation de colonnes …
+indicateurs par situation »).
 
 ⚠ **Corpus à lire AVANT tout travail Data** : `claude/WAMA-Data/` — `Présentation_BIND_GUI.pptx`
 (schémas fonctionnels + captures), `BIND_contexte.doc`, `Fonctions.xlsx`, `Usages_BIND.xlsx`,
