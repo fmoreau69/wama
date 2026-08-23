@@ -6087,6 +6087,25 @@ qu'un critère neuf qui passe au vert est un signal d'alarme, pas un résultat.
 | **La matrice §3bis corrigée sur 2 erreurs** que mon propre relevé a produites | le scénario ÉNUMÈRE les graphies présentes et les rapporte à chaque passage |
 | **L'union codée en dur de `wama-inspector.js` réduite** (`.btn-settings-job, .job-settings-btn` retirés) | la brique absente se facturait au substrat |
 | **Suppression : 4 apps portées en plus** (synthesizer, transcriber, enhancer ×2, reader) | transcriber **99 → 100 %**, enhancer 97 → 99, reader et synthesizer 97 → 98 |
+| **`.duplicate_delete` re-mesuré APRÈS portage** | **2 OK → 4 OK**, **3 échecs → 1** : enhancer et reader passent au vert, et **par le geste, pas par le critère** |
+
+#### ⚠ Deux observations du re-passage `.duplicate_delete` — ni l'une ni l'autre causée par cette session
+
+1. **`transcriber.duplicate_delete` échoue** : « clic sur `.duplicate-btn` : la file ne bouge pas
+   (1 → 1 cards) ; AUCUNE requête en échec — le bouton n'est pas écouté ». C'est **le pending 4
+   du handoff 22→23, inchangé et toujours NON DIAGNOSTIQUÉ**. Ce qu'on sait de plus aujourd'hui :
+   la cause n'est **pas** un défaut de chargement de `queue-actions.js` sur cette page, puisque
+   `transcriber.settings` y ouvre sa modale PAR la délégation de cette même brique. Le champ des
+   causes se resserre donc à la duplication elle-même (ou au test). Consigne d'origine maintenue :
+   **suspecter le test avant l'app**.
+2. **`describer` et `synthesizer` skippent sur un TIMEOUT de clic** (`ElementHandle.click`, 30 s)
+   au lieu d'une file vide. Les deux étaient **déjà en skip avant cette session** (le compte de
+   skips est inchangé à 9) — ce n'est donc pas une régression, mais la raison a changé et mérite
+   d'être élucidée. Piste MESURÉE, non confirmée : le describer **auto-démarre au dépôt**
+   (`views.py:463`), la card passe en RUNNING et le gabarit rend à cet état des éléments
+   (`_description_card.html:165`) susceptibles de **couvrir la piste ACTIONS** — le bouton, lui,
+   n'est jamais `disabled`. Si c'est cela, le correctif est **dans le scénario** (attendre un état
+   stable avant de cliquer), pas dans les apps.
 
 ### Ce que la session a appris (au-delà des correctifs)
 
@@ -6131,7 +6150,8 @@ Je n'ai touché **ni `wama_data/`, ni `mecanismes.py`, ni les blocs générés `
 sœur) · `check_js` **57 fichiers 0 erreur, 56 paires 0 divergente** · grille : converter et
 **transcriber 100 %**, describer et **enhancer 99 %**, composer/**reader**/**synthesizer** 98 %,
 anonymizer/avatarizer 97 %, imager 96 % ⚠ **dénominateurs +1** (critère `settings_wiring`) ·
-nocturnes : `.settings` **7 OK / 0 échec / 7 skips**, `.import` 7/0/7, `.ui` 14/14 ·
+nocturnes : `.settings` **7 OK / 0 échec / 7 skips**, `.ui` **14/14**, `.duplicate_delete`
+**4 OK / 1 échec / 9 skips** (l'échec = transcriber, pending 4 inchangé), `.import` 7/0/7 ·
 ⚠ `manifest_export --check` **PÉRIMÉ sur `anonymizer:sam3`** et `doc_facts` **2/5** (`mecanismes`,
 `modeles`, `wama_data`) — **les trois PRÉEXISTAIENT à cette session** (mesurés à sa reprise), ils
 relèvent de l'instance sœur et n'ont volontairement pas été régénérés ici.
