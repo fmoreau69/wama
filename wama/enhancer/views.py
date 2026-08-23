@@ -810,19 +810,14 @@ def batch_template(request):
 def batch_preview(request):
     """Parse a batch file (one URL/path per line) and return the list for preview."""
     from wama.common.utils.batch_parsers import batch_media_list_preview_response
-    from wama.common.app_registry import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
-
-    _img = set(IMAGE_EXTENSIONS)
-    _vid = set(VIDEO_EXTENSIONS)
+    from wama.common.app_registry import normalize_types
 
     def _enrich(item):
-        ext_item = '.' + item['filename'].rsplit('.', 1)[-1].lower() if '.' in item['filename'] else ''
-        if ext_item in _img:
-            item['detected_type'] = 'image'
-        elif ext_item in _vid:
-            item['detected_type'] = 'video'
-        else:
-            item['detected_type'] = 'media'
+        # Même geste de classement que `tasks._derive`, défaut différent ('media' ici) :
+        # c'est la POLITIQUE qui diffère, pas la classification.
+        ext_item = item['filename'].rsplit('.', 1)[-1] if '.' in item['filename'] else ''
+        cat = (normalize_types([ext_item]) or [''])[0]
+        item['detected_type'] = cat if cat in ('image', 'video') else 'media'
 
     return batch_media_list_preview_response(request, item_enricher=_enrich)
 
@@ -1084,7 +1079,15 @@ def batch_duplicate(request, pk: int):
 # Audio Enhancement Views
 # ===========================================================================
 
-_AUDIO_EXTENSIONS = ['.mp3', '.wav', '.flac', '.ogg', '.m4a', '.aac', '.opus', '.wma']
+# Jeu d'extensions audio : LE commun (`app_registry.AUDIO_EXTENSIONS`), pas une copie.
+# La copie locale qui vivait ici omettait `.aif`/`.aiff` — deux portes (dépôt médiathèque et
+# upload direct) rendaient donc un 400 « Format audio non supporté » sur un fichier que la
+# dropzone (`audio/*`) laissait choisir et que la médiathèque classe en audio. Divergence
+# MUETTE : un sous-ensemble ne lève rien, il refuse. Décodage vérifié avant d'élargir —
+# soundfile (vers qui torchaudio est patché) écrit et relit l'AIFF.
+def _audio_extensions() -> set:
+    from wama.common.app_registry import AUDIO_EXTENSIONS
+    return {e if e.startswith('.') else '.' + e for e in AUDIO_EXTENSIONS}
 
 
 @require_POST
@@ -1110,7 +1113,7 @@ def audio_upload(request):
         media_root = _Path(_settings.MEDIA_ROOT).resolve()
         if not str(src).startswith(str(media_root)) or not src.exists():
             return JsonResponse({'error': 'Fichier introuvable ou accès refusé'}, status=400)
-        if src.suffix.lower() not in _AUDIO_EXTENSIONS:
+        if src.suffix.lower() not in _audio_extensions():
             return JsonResponse({'error': f'Format audio non supporté : {src.suffix}'}, status=400)
 
         try:
@@ -1139,7 +1142,7 @@ def audio_upload(request):
         return HttpResponseBadRequest('No file provided')
 
     ext = os.path.splitext(file.name)[1].lower()
-    if ext not in _AUDIO_EXTENSIONS:
+    if ext not in _audio_extensions():
         return JsonResponse({'error': f'Format audio non supporté : {ext}'}, status=400)
 
     try:

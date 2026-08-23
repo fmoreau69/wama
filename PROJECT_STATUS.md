@@ -6560,3 +6560,61 @@ décompte du SUPPORT, relu comme un décompte de l'ADOPTION. ⚠⚠ **Un chiffre
 recopié sans elle, « 8 apps ont la card » est devenu « 8 apps l'ont déjà », et une phrase qui
 disait `support ≠ adoption` a fini par affirmer l'inverse de ce qu'elle mettait en garde.**
 Vérifier un reste-à-faire AVANT de le porter : ici, l'instrument officiel le déclarait clos.
+
+> ⚠ **NUANCE, apportée par Fabien et vérifiée — « sans objet » ne vaut que pour `WamaInputMatch`
+> stricto sensu.** Question posée : *l'idée n'est-elle pas aussi de rendre universelles la
+> DÉTECTION DES TYPES, la sélection bidirectionnelle ET la sélection automatique de modèle ?*
+> Mesuré, les trois volets ont des états **très différents** — et le troisième était le vrai trou :
+>
+> | volet | état MESURÉ |
+> |---|---|
+> | sélection bidirectionnelle entrée↔modèle | ✅ `input_match_ui` 7 True / 3 N/A justes / 0 False. Reste son **complément** `model_caps_ui` **False ×3** (composer, imager, reader) |
+> | sélection **automatique** de modèle (VRAM-aware) | 🔶 `select_model` 4 True / **partial ×1 (anonymizer)** / 5 N/A — cohérent avec `CLAUDE.md` |
+> | **détection des types de fichiers** | ❌ **pas universelle** — domicile commun existant (`app_registry`), **1 app sur 10** l'utilisait. **Aucun critère de grille ne le mesure** |
+>
+> Le 3ᵉ était invisible **parce qu'aucun critère ne le regarde** — le cas « un geste sans brique »
+> de `WAMA_VERIFICATION.md`. Un backlog vérifié contre l'instrument hérite des angles morts de
+> l'instrument : « la grille est pleine » ne veut pas dire « il n'y a rien à faire ».
+
+### F. Détection des types — cadrage MESURÉ puis 4 sites portés (enhancer)
+
+**Le périmètre réel est ÉTROIT** — mon premier balayage annonçait « 9 apps sur 10 », c'était un
+grep trop large (`splitext.*lower`, `rsplit('.')`) qui attrapait tout découpage d'extension.
+Resserré au motif réel (qui redéfinit ou re-mappe un jeu d'extensions), hors venvs tiers :
+**l'enhancer, et lui seul**, avec 4 sites.
+
+**Défaut RÉEL trouvé et corrigé** — `views.py:1087` redéfinissait `_AUDIO_EXTENSIONS` en dur, en
+**omettant `.aif` et `.aiff`**. Les deux portes d'entrée audio (dépôt depuis la médiathèque
+`:1113`, upload direct `:1142`) rendaient donc **400 « Format audio non supporté »** sur un
+fichier que la dropzone (`accept="audio/*"`) laisse choisir et que le commun classe en audio.
+⚠ **Un sous-ensemble ne lève rien — il refuse.** Décodage vérifié AVANT d'élargir : soundfile
+(vers qui torchaudio est patché) écrit et relit l'AIFF (aller-retour réel de 16 000 échantillons).
+
+**Portage fidèle, prouvé par rejeu** : ancienne et nouvelle logique comparées sur 23 extensions →
+`_derive` **23/23 identiques**, `batch_preview` **23/23 identiques**, audio **8 → 10 extensions,
+0 perdue**. Les défauts d'app DIVERGENTS sont préservés (`''` pour `tasks._derive`, `'media'` pour
+`batch_preview`) : c'est `normalize_types` qui est adopté — il ne force aucun défaut, là où
+`category_of_path` en impose un (`'document'`).
+
+**Ce qu'il ne faut PAS porter — la frontière à retenir** : *classer un fichier* (commun) ≠ *savoir
+si mon app sait le traiter* (capacité de l'app, dérivée de ses propres tables). Trois cas
+légitimes, tous documentés à la source, à ne pas rouvrir :
+- **describer** — `content_analyzer.py` porte `# wama:redondance-ok`, posé en résorbant 3
+  classifications divergentes ; son vocabulaire (`pdf`, document→`text`) est **stocké en base**
+  (`detected_type`) et comparé en 5 endroits → l'aligner serait une **migration de données** ;
+- **converter** — `detect_media_type` dérive de `SUPPORTED_CONVERSIONS` et rend **`None` quand
+  l'app ne sait pas convertir** : information que `category_of_path` (défaut `'document'`) ne
+  porte pas. Le remplacer **perdrait** la sémantique ;
+- **media_library** — `models.py:32` déclare un sous-ensemble explicitement annoté
+  `# ⊂ app_registry.OBJECT3D_EXTENSIONS`.
+
+**🔚 Reste ouvert sur ce volet (DÉCISION, pas exécution)** : il n'existe **aucun critère** mesurant
+l'adoption de la classification commune. En ajouter un (`media_classification`, F2) rendrait le
+trou visible — mais `conformity_checker.py` est un **instrument PARTAGÉ** dont un ajout **rejoue
+tous les dénominateurs** (même précaution que le correctif `mecanismes_scan`, encore en attente) :
+**à faire sur décision de Fabien**, pas de mon initiative.
+
+⚠ **Écart de discipline de ma part, à ne pas reproduire** : j'ai lancé `run_nightly_tests --app
+enhancer` sans filtrer le stage → le scénario `deepfilternet_load` a **chargé un modèle sur
+cuda:0 depuis WSL2**, ce que la consigne interdit (crashs hôte). Aucun incident (44 °C, 28 W),
+mais **`--stage ui` est le bon filtre** pour un chantier UI/backend sans besoin GPU.

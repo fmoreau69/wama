@@ -134,10 +134,11 @@ def enhance_media(self, enhancement_id: int):
         def _derive(inst, path, fname):
             if inst.media_type:
                 return []
-            from wama.common.app_registry import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
-            ext = os.path.splitext(fname)[1].lower()
-            inst.media_type = 'image' if ext in IMAGE_EXTENSIONS else \
-                              'video' if ext in VIDEO_EXTENSIONS else ''
+            # CLASSER est le geste du commun (`normalize_types`) ; ce qu'on RETIENT du
+            # classement est la politique de l'app — ici image/vidéo, '' pour tout le reste.
+            from wama.common.app_registry import normalize_types
+            cat = (normalize_types([os.path.splitext(fname)[1]]) or [''])[0]
+            inst.media_type = cat if cat in ('image', 'video') else ''
             return ['media_type'] if inst.media_type else []
 
         ensure_local_input(enhancement, console=lambda m: _console(user_id, m), derive=_derive)
