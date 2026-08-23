@@ -5932,3 +5932,102 @@ transcriber **99 %**, composer **98 %**, anonymizer/avatarizer/enhancer/reader/s
 imager **96 %** ⚠ **dénominateurs augmentés de 2** (critères `import_wired` et `delete_wiring`
 ajoutés) — un score qui « baisse » par rapport au 22/08 peut n'être que ça · nocturnes :
 `.import` **7/0/7**, `.ui` **14/14**, `.duplicate_delete` **2 OK / 3 échecs / 9 skips**.
+
+---
+
+## §REPRISE — 2026-08-22→23 (instance REGISTRES / CALCULATOR / SAM3 / BIND) — 🔚 POINT D'ENTRÉE
+
+> Session partie des deux 🔚 du handoff « WAMA DATA → MONDES → REGISTRES » (pendings #6 et #5).
+> Les deux sont **livrés**. La suite a dérivé sur un incident de catalogue, puis sur une erreur de
+> conception que Fabien a corrigée — consignée ici sans la lisser, parce que sa cause est
+> réutilisable.
+
+### ✅ LIVRÉ ET VÉRIFIÉ
+
+| # | livraison | preuve |
+|---|---|---|
+| 1 | **Pending #6 — conformité générique des 3 AUTRES registres** (`tests_catalogues.py`, 22 contrôles pilotés par le registre) | 2 défauts RÉELS trouvés du 1ᵉʳ coup : `app_sandbox` déclaré hors `_domaine()` (la carte portait une sous-table « Sans domaine (1) » pour lui seul) et `org_sync` pointant sur un **souvenir d'agent** au lieu d'un document du dépôt |
+| 2 | **Pending #5 — le Calculator**, ses **DEUX** modes (précision de Fabien : la déclaration n'en portait qu'un) — colonnes dérivées (`enricher`) + indicateurs par segment (`aggregate`) | 49 tests (32 cœur pur + 17 frontière pandas) ; vocabulaire de statistiques UNIQUE aux deux modes, verrouillé par test |
+| 3 | **SAM3 restauré + la réconciliation ne détruit plus sur une découverte incomplète** | 7 tests (`model_manager/tests.py`, l'app n'en avait aucun) ; **vérifié que les tests mordent** (garde neutralisée → 2 échecs au symptôme exact) |
+| 4 | **Portage schéma-driven du Segmenter et de l'Exporter spécifié** (`WAMA_DATA_WORLD §9ter.6`) | confrontation au code VIVANT de BIND (2 537 lignes extraites du `.mlapp`) + aux captures de la présentation |
+
+**Suites** : `wama_data` **198**, `wama.common` **191**, `model_manager` **7**. Catalogue de
+fonctions **43** (44 puis retour à 43 après le revert).
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE — une ligne, actionnable
+
+**`check_sam3_installed()` (`wama/anonymizer/utils/sam3_manager.py:26`) fait `import sam3` →
+torch → CUDA, et ne rattrape qu'`ImportError`.** Dans un worker Celery `prefork` cela lève
+`RuntimeError: Cannot re-initialize CUDA in forked subprocess` — donc SAM3 sort de la découverte
+à CHAQUE passe (7 occurrences journalisées depuis 01:27, `logs/model-sync.log`). **Correctif :
+`importlib.util.find_spec('sam3')`** — un sondage de PRÉSENCE ne doit pas exécuter le paquet ;
+c'est déjà le motif de `BaseModelBackend`. 1 ligne + 1 test.
+
+> Ce diagnostic n'existe QUE parce que le correctif de cette session a remplacé un
+> `except Exception: pass` par une journalisation. Avant, la panne était muette depuis toujours.
+
+### ⚠ L'ERREUR DE LA SESSION — un Exporter livré puis REVERTÉ (`bfc5c2e4` → `ef756b63`)
+
+J'ai écrit un Exporter « pivot long → large ». **Il n'y a de pivot nulle part.** Trois causes qui
+se sont additionnées, toutes évitables :
+
+1. **Une ligne fausse dans ce dépôt** : `WAMA_DATA_WORLD §6.7` affirmait « l'Exporter fait un
+   pivot long → large, c'est son vrai travail » — en **contradiction avec §9ter.5** du même
+   document, qui décrit l'export correctement parce qu'il a été lu dans le code. Deux récits du
+   même mécanisme : le suivant lit celui qui l'arrange. **Corrigé** (§6.7 barré + renvoi).
+2. **J'ai conclu sur du code que rien n'appelle** : les 3 `.m` de
+   `BIND_GUI/src/+fr/+lescot/+bind/+export/` n'ont **aucun appelant**. Le code vivant est dans
+   `BIND_GUI.mlapp`, **archive ZIP invisible à tout grep**. Les 13 appels qu'on y trouve à
+   l'ancienne fonction sont d'ailleurs **commentés**.
+3. **Je n'avais ouvert aucun des 6 documents de `claude/WAMA-Data/`**, dans le dépôt, signalés par
+   Fabien dans une session antérieure — dont la présentation dont les diapos 12 et 17 sont les
+   schémas fonctionnels du Segmenter et de l'Exporter.
+
+**Tranché par la mesure** : dans la `.trip` d'exemple, `situation_0_15` = **7 lignes** et
+`MetaSituationVariables` = **312 variables pour 12 situations** (~26 colonnes) — la table est
+**déjà** `occurrences × indicateurs`.
+
+### ⚠ CE QUI MANQUE AU SEGMENTER (vérification demandée par Fabien — crainte fondée)
+
+Liste de conditions `(C1)(C2)…` + **connecteur logique ET/OU/XOR/NON avec imbrication**
+(WAMA n'a **qu'un** prédicat numérique) · opérateurs **texte** (`contient`) · **offsets par flux**
+de la segmentation double · « répéter sur les prochains segments » · cible **Event | Situation** ·
+filtrage manuel occurrence par occurrence · « présent dans » intégré au geste. Détail et
+traduction schéma-driven : **§9ter.6**.
+
+⚠ **Les deux chantiers (Segmenter, Exporter) sont INDÉPENDANTS** — recadrage de Fabien : l'Exporter
+exporte **tout le contenu d'un trip** (données, méta-infos, événements, situations + indicateurs
+adjoints) et n'attend rien d'aucun module. La chaîne conditionnelle n'est **qu'un mode** de
+segmentation parmi plusieurs.
+
+### ⏳ PENDINGS
+
+| # | pending | note |
+|---|---|---|
+| 1 | **`find_spec` pour SAM3** | le 🔚 ci-dessus — 1 ligne, cause racine journalisée |
+| 2 | **14 des 16 modules de tests ne tournent JAMAIS la nuit** | `nightly_scenarios.py:306` nomme **2 modules en dur** (`tests_temporal`, `tests_sources`). Même défaut de mutisme que `ConformiteTest` a tué, un étage plus haut. ⚠ **instance sœur active dans ce fichier** — coordonner |
+| 3 | **Contrat `docs` des nocturnes mal compté** | `CASSE_ASSUMES` compte des **références**, pas des **cibles manquantes** : les 4 « cassées » sont **le même fichier cité 4×**, et le seuil s'érode seul à chaque §REPRISE qui le recite |
+| 4 | `redundancy` **14 trouvailles** contre un contrat de **0** | non diagnostiqué — mesurer avant de décider si c'est une correction ou un contrat à réviser |
+| 5 | `dep_vulns` **11 nouvelles CVE** sur 577 paquets | idem |
+| 6 | Cousin du bug SAM3 : `model_registry.py:1556` | `except: pass` sur un répertoire Ollama de repli — même famille, **non couvert** par ma garde (il ne remonte rien) |
+| 7 | Dette de nommage `registries.py` | fonctions françaises **importées** (`rafraichir`, `lancer`, `etat`) — coordination requise. ⚠ Critère de langue désormais **écrit dans `CLAUDE.md`** : importé → anglais, `test_*` → français |
+| 8 | `created_at` de SAM3 **perdu** | janvier → 22/08 22:00 : la ligne a été détruite puis recréée. Irréversible, cosmétique. ⚠ **Si la suppression avait frappé l'un des 13 modèles portant un `benchmark_index`, la perte aurait été silencieuse ET irrécupérable** — c'est l'argument de la garde |
+| 9 | **31 commits d'écart** avec `origin/dev` | push sur décision de Fabien |
+
+### 📋 TRACES DE SESSION
+
+- **Aucune donnée semée** — sondes mutantes sous transaction à rollback forcé, tests sur base de test.
+- **Scratchpad jetable** (hors git) : scripts de mesure, `BIND_GUI_export.m` (2 537 l. extraites du
+  `.mlapp`), images de la présentation. **Re-dérivables** : la marche à suivre est en mémoire
+  (`reference_corpus_bind_wama_data`).
+- **`sync_models` lancé 3× manuellement** (additif, sans `--clean`) — SAM3 présent, 100 modèles.
+
+### Contrôles attendus au prochain /reprise
+
+`manifest_export --check` **corpus à jour (110)** · `manifest_roundtrip --all` **10 apps, fidélité
+OK** · `wama_data` **198 tests** · `wama.common` **191** · `model_manager` **7** ·
+`tests_catalogues` **22** · `FUNCTION_CATALOG` **43 fonctions** · `AIModel` **100 disponibles,
+`anonymizer:sam3` PRÉSENT** · `modeles` (fait généré) **91/91 résolvables**.
+
+⚠ `check_docs` et `doc_facts` : voir le bloc de l'instance sœur ci-dessus — leurs chiffres sont
+partagés et bougent avec les deux périmètres. `wama_data` (fait) est à régénérer après ce bloc.

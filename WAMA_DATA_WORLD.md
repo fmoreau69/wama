@@ -45,17 +45,18 @@
 | **Segmenter** | Produit des segments : autour d'un événement, par jonction de deux flux, par prédicat avec hystérésis, par plages constantes d'un catégoriel, ou par CODAGE (humain ou IA) | `events` ou signal + prédicat → `segments` | 🔶 | 4/4 | 2 | 12/0 | §9ter (spécification), §6.7 |
 | **Calculator** | Calcule des COLONNES DÉRIVÉES (moyenne glissante, dérivée, cumul) et des INDICATEURS PAR SEGMENT qu'il adjoint aux segments | signal → signal enrichi · `segments` + signal → colonnes d'indicateurs | 🔶 | 3/3 | 2 | 3/0 | §6.7 |
 | **Visualizer** | Vues synchronisées sur l'axe partagé (plugins) | référentiel → plugins co-chargés | ⏳ | — | — | — | §4, §8.2 |
-| **Exporter** | Rend les segments et indicateurs exploitables hors WAMA | `segments` + indicateurs → fichiers (pivot long → large) | ⏳ | — | — | — | §6.7 |
+| **Exporter** | Exporte TOUT le contenu d'un trip de façon configurable — données, méta-infos, événements, situations et leurs indicateurs : sélection ordonnée de colonnes, identité, contexte, regroupement | données/méta/`events`/`segments` + sélection → fichiers (concaténation, jamais pivot) | ⏳ | — | — | — | §9ter.5, §9ter.6 |
 | **Recorder** | Enregistre depuis une source temps réel | flux LSL/RTMaps/ROS → `dataset` | ⏳ | — | — | — | §7 |
 | **Analyzer** | Orchestre les modules selon un manifeste `pipeline` | manifeste `pipeline` → exécution | ⏳ | — | — | — | §9bis.2 |
 
-<details><summary>⚠ <b>7 module(s) avec un blocage déclaré</b> — ce qui empêche d'avancer, en une ligne</summary>
+<details><summary>⚠ <b>8 module(s) avec un blocage déclaré</b> — ce qui empêche d'avancer, en une ligne</summary>
 
 - **Importer** — alignement par TRIGGERS non conçu (D12) ; `DATASET_SOURCES` non réconcilié avec le registre des lecteurs (G1) ; lecteur `.rec` encore une FONCTION (`functions/io/rtmaps_rec.py`) au lieu d'un lecteur de source
 - **Référentiel temporel** — AUCUN consommateur — la brique est inerte tant qu'un module ne s'en sert pas
 - **Segmenter** — MOTEUR complet (5 modes) — reste l'INTERFACE de codage, qui doit se GÉNÉRER du protocole et non s'écrire : elle dépend du transport (Magneto + vue média) et de la vue déclarative, donc du Visualizer
 - **Calculator** — MOTEUR écrit et éprouvé (49 tests — 32 sur le cœur pur, 17 sur la frontière pandas) : reste son emploi sur un corpus RÉEL, qui dépend de l'Importer — sans flux aligné, il n'y a rien à calculer
 - **Visualizer** — vue déclarative = verrou §7ter point 3 ; écrire 2-3 plugins AVANT d'extraire
+- **Exporter** — À ÉCRIRE sur le modèle réel (§9ter.6) — un premier jet fondé sur un pivot INEXISTANT a été reverté (ef756b63). N'attend RIEN d'un autre module : écrivable dès maintenant
 - **Recorder** — périmètre v1 non tranché (D5)
 - **Analyzer** — nœud FONCTION absent du kind `pipeline` (D13)
 
@@ -839,10 +840,10 @@ conteneur de vues détachables — après F.
 | **Importer** | fichiers + `dataset` → référentiel | ✅ `data/sources/` (registre) | app |
 | **Connector** | base existante → référentiel | ✅ lecteur `.trip` (cas particulier) | module |
 | **Explorer** | référentiel → vues table/graphe | ⏳ | app |
-| **Segmenter** | signal/events + prédicat → `segments` | ⏳ | app |
-| **Calculator** | `segments` + signaux → colonnes d'indicateurs | ⏳ | app |
+| **Segmenter** | signal/events → `segments`/`events` (5 modes) | 🔶 moteur, cf. §9ter.6 pour les manques | app |
+| **Calculator** | colonnes dérivées · indicateurs par segment | 🔶 écrit (49 tests) | app |
 | **Visualizer** | référentiel → plugins synchronisés | ⏳ | app |
-| **Exporter** | `segments` + indicateurs → fichiers | ⏳ | module |
+| **Exporter** | TOUT le contenu d'un trip (données, méta, events, situations) → fichiers | ⏳ cf. §9ter.6 | module |
 | **Analyzer** | orchestre les précédents | ⏳ | app |
 
 **Le découpage brique/app est le même que côté média** : le traitement vit dans `wama_data/`, l'app
