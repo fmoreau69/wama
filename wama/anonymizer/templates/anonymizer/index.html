@@ -25,8 +25,15 @@ médiathèque) vit dans la card d'entrée commune `_new_item_card` en tête de l
         <i class="fas fa-crosshairs"></i> Mode de détection
     </div>
 
-    <!-- Detection Mode Toggle -->
-    <div class="btn-group w-100 mb-2" role="group" aria-label="Detection mode">
+    {% comment %}Switch de MODE — GÉNÉRÉ depuis la déclaration (app_modes.py) par la brique
+    commune WamaModes, 2026-08-23. Les radios natifs restent la SOURCE DE VÉRITÉ (tout le JS
+    existant les lit et bascule les sections yolo/sam3) : le switch généré les coche et dispatche
+    'change'. Résilient — si le fetch échoue, les radios natifs restent visibles et fonctionnels.
+    Avant ce portage, anonymizer était la SEULE app à déclarer des modes dans APP_MODES tout en
+    les rendant à la main : deux sources, aucune reliée — donc rien ne garantissait qu'elles
+    disent la même chose.{% endcomment %}
+    <div id="wamaAnonModes"></div>
+    <div class="btn-group w-100 mb-2" role="group" aria-label="Detection mode" id="anonModeRadios">
         <input type="radio" class="btn-check" name="detection_mode" id="detection_mode_yolo" value="yolo"
                {% if not gs_values.use_sam3 %}checked{% endif %} autocomplete="off">
         <label class="btn btn-outline-primary btn-sm" for="detection_mode_yolo">
@@ -368,6 +375,7 @@ window.WAMA_ANON = {
 <script src="{% static_v 'common/js/wama-params.js' %}"></script>
 <script src="{% static_v 'common/js/wama-model-caps.js' %}"></script>  {# UI depuis les capacités-modèle (classes par modèle) #}
 <script src="{% static_v 'common/js/wama-input-match.js' %}"></script>  {# appariement card d'entrée ↔ modèles (INPUT_MODEL_MATCHING.md) #}
+<script src="{% static_v 'common/js/wama-modes.js' %}"></script>  {# switch de mode GÉNÉRÉ du schéma (2026-08-23) — sans cette ligne le bloc plus bas ne faisait RIEN, en silence #}
 {# wama-inspector.js + wama-inspector-autofill.js : GLOBAUX (base.html) — ne PAS les ré-inclure ici (double inclusion, cf. REMOVAL_LEDGER R7). #}
 <script src="{% static_v 'anonymizer/js/update.js' %}"></script>
 <script src="{% static_v 'anonymizer/js/upload.js' %}"></script>
@@ -384,6 +392,33 @@ window._batchImport = WamaBatchImport({
         location.reload();
     },
 });
+
+// Switch de MODE depuis le schéma déclaratif (brique commune WamaModes).
+// Sous-schéma mono-domaine → WamaModes ne rend QUE le switch, pas d'onglet.
+if (window.WamaModes) {
+    WamaModes.fetch('anonymizer').then(function (schema) {
+        var dom = (schema.domains || [])[0];
+        if (!dom || (dom.modes || []).length < 2) return;   // pas de switch à une position
+        var coche = document.querySelector('input[name="detection_mode"]:checked');
+        WamaModes.create({
+            container: '#wamaAnonModes',
+            schema: { domains: [dom], input_types: schema.input_types },
+            mode: coche ? coche.value : null,
+            renderInputs: false,
+            block: true,
+            modesLabel: 'Mode de détection',
+            onChange: function (s) {
+                var radio = document.getElementById('detection_mode_' + s.mode);
+                if (radio && !radio.checked) {
+                    radio.checked = true;
+                    radio.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            },
+        });
+        var natifs = document.getElementById('anonModeRadios');
+        if (natifs) natifs.classList.add('d-none');   // gardés : source de vérité + soumission
+    }).catch(function () { /* radios natifs conservés */ });
+}
 
 // Descriptif modèle YOLO (courte + ⓘ longue) sous le select — meta lue du CATALOGUE (vue),
 // rendue par le composant commun WamaModelHelp (chargé globalement dans base.html).
