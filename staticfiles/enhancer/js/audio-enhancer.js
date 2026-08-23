@@ -595,7 +595,7 @@ document.addEventListener('DOMContentLoaded', function () {
       container.appendChild(el);
     }
     updateAudioGlobalProgress();
-  }, { within: '#audio-enhancer-queue' });
+  }, { domain: 'audio' });
 
   // ── Global progress ───────────────────────────────────────────────────────
 
@@ -688,7 +688,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // dessus : l'ouvreur scopé est évalué avant l'ouvreur par défaut (portage 2026-08-23).
     WamaQueueActions.onSettings(function (id, btn) {
       openAudioSettingsModal(btn);
-    }, { within: '#audio-enhancer-queue' });
+    }, { domain: 'audio' });
 
     // Resume polling for running jobs on page load
     const audioContainer = document.getElementById('audio-enhancer-queue');

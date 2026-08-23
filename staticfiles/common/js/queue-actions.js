@@ -80,6 +80,38 @@
         return r.json().catch(function () { return { success: r.ok }; });
     }
 
+    // ── Scoper une déclaration : par DOMAINE, jamais par sélecteur d'app ────────────────
+    //
+    // ⚠ REMPLACE `within: '#audio-enhancer-queue'` (2026-08-23). Ce `within` marchait, mais il
+    // écrivait un id CSS d'app dans la déclaration d'une app — donc il ne se propageait pas : la
+    // prochaine app à plusieurs domaines aurait dû inventer le sien. Le domaine, lui, est déjà
+    // DÉCLARÉ (app_modes.py) et porté au DOM (`data-domain` sur la card et la card mère de lot),
+    // donc la brique peut s'y scoper sans rien connaître d'aucune app.
+    //
+    // `within` reste accepté en ÉCHAPPATOIRE pour un cas qui ne serait pas un domaine — mais
+    // aucun ne l'utilise, et en introduire un doit être un choix motivé, pas un réflexe.
+    function domaineDe(el) {
+        const hote = el && el.closest('[data-domain]');
+        return hote ? hote.dataset.domain : null;
+    }
+
+    function correspond(btn, o) {
+        if (o.domain && domaineDe(btn) !== o.domain) return false;
+        if (o.within && !btn.closest(o.within)) return false;
+        return true;
+    }
+
+    // Le plus SPÉCIFIQUE d'abord (domaine ou within), le défaut en dernier : sans cet ordre, une
+    // déclaration sans scope masquerait une déclaration scopée écrite après elle.
+    function choisir(liste, btn) {
+        const scopes = liste.filter(function (o) { return o.domain || o.within; });
+        for (let i = 0; i < scopes.length; i++) {
+            if (correspond(btn, scopes[i])) return scopes[i].handler;
+        }
+        const defauts = liste.filter(function (o) { return !o.domain && !o.within; });
+        return defauts.length ? defauts[0].handler : null;
+    }
+
     // ── ⧉ DUPLIQUER ────────────────────────────────────────────────────────────────────
     document.addEventListener('click', function (e) {
         const btn = e.target.closest('.duplicate-btn[data-duplicate-url]');
@@ -147,20 +179,14 @@
 
     function onDeleted(handler, options) {
         if (typeof handler !== 'function') return;
-        suites.push({ handler: handler, within: (options || {}).within || null });
+        const o = options || {};
+        suites.push({ handler: handler, domain: o.domain || null, within: o.within || null });
     }
 
     // Spécifique d'abord, défaut ensuite — cf. le choix d'ouvreur côté ⚙, même règle. Le registre
     // (et non un slot unique) est indispensable : l'enhancer déclare DEUX suites, dans deux
     // fichiers JS séparés — un slot aurait laissé la seconde écraser la première en silence.
-    function choisirSuite(btn) {
-        const candidats = suites.filter(function (s) { return s.within; })
-                                .concat(suites.filter(function (s) { return !s.within; }));
-        for (let i = 0; i < candidats.length; i++) {
-            if (!candidats[i].within || btn.closest(candidats[i].within)) return candidats[i].handler;
-        }
-        return null;
-    }
+    function choisirSuite(btn) { return choisir(suites, btn); }
 
     function signalerAuGestionnaire() {
         if (window.WamaFM && WamaFM.deleted) WamaFM.deleted();   // l'arborescence se rafraîchit
@@ -245,7 +271,8 @@
 
     function onSettings(handler, options) {
         if (typeof handler !== 'function') return;
-        ouvreurs.push({ handler: handler, within: (options || {}).within || null });
+        const o = options || {};
+        ouvreurs.push({ handler: handler, domain: o.domain || null, within: o.within || null });
     }
 
     document.addEventListener('click', function (e) {
@@ -260,14 +287,8 @@
         const id = btn.dataset.id;
         if (!id) return;
 
-        const candidats = ouvreurs.filter(function (o) { return o.within; })
-                                  .concat(ouvreurs.filter(function (o) { return !o.within; }));
-        for (let i = 0; i < candidats.length; i++) {
-            const o = candidats[i];
-            if (o.within && !btn.closest(o.within)) continue;
-            o.handler(id, btn);
-            return;
-        }
+        const ouvreur = choisir(ouvreurs, btn);
+        if (ouvreur) { ouvreur(id, btn); return; }
 
         // Aucun ouvreur : le bouton est rendu mais rien ne l'écoute — c'est l'« écran mort »
         // que la grille d'adoption ne voit pas (WAMA_VERIFICATION §1). On le DIT, plutôt que
@@ -386,7 +407,8 @@
 
     function onBatchSettings(handler, options) {
         if (typeof handler !== 'function') return;
-        ouvreursLot.push({ handler: handler, within: (options || {}).within || null });
+        const o = options || {};
+        ouvreursLot.push({ handler: handler, domain: o.domain || null, within: o.within || null });
     }
 
     document.addEventListener('click', function (e) {
@@ -394,14 +416,8 @@
         if (!btn) return;
         e.stopPropagation();
         const id = btn.dataset.batchId;
-        const candidats = ouvreursLot.filter(function (o) { return o.within; })
-                                     .concat(ouvreursLot.filter(function (o) { return !o.within; }));
-        for (let i = 0; i < candidats.length; i++) {
-            const o = candidats[i];
-            if (o.within && !btn.closest(o.within)) continue;
-            o.handler(id, btn);
-            return;
-        }
+        const ouvreur = choisir(ouvreursLot, btn);
+        if (ouvreur) { ouvreur(id, btn); return; }
         console.warn('[queue-actions] ⚙ de lot cliqué (#' + id + ') mais aucun ouvreur déclaré — '
                      + 'appeler WamaQueueActions.onBatchSettings(fn).');
     });

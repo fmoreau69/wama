@@ -11,7 +11,7 @@ Contexte : e (Enhancement, décorée .chips), in_batch (bool).
   .preview-media-link, .wama-progress-fill (:297), .progress-text (:299), .wama-eta (:293).
 {% endcomment %}
 <div class="synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if e.status == 'RUNNING' %}processing{% elif e.status == 'SUCCESS' %}success{% elif e.status == 'FAILURE' %}error{% endif %}"
-     data-id="{{ e.id }}" data-status="{{ e.status }}"
+     data-id="{{ e.id }}" data-domain="image_video" data-status="{{ e.status }}"
      data-preview-url="{% url 'common:unified_preview' 'enhancer' e.id %}">
 <div class="card-body py-2">
 

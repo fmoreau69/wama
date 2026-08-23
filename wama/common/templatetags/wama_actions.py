@@ -38,3 +38,20 @@ def bouton_telecharger(app, url, pret, disponibles=None, titre=None, titre_vide=
         'titre_vide': titre_vide,
         'classe': classe,
     }
+
+
+@register.simple_tag
+def prefixe_routes(app, domain=None):
+    """Préfixe des routes de ce domaine, LU dans la déclaration (`app_modes.route_prefix`).
+
+    Remplace le paramètre `batch_ns` que la card mère de lot recevait à la main (2026-08-23).
+    La différence n'est pas cosmétique : `batch_ns='enhancer:audio_batch'` était un namespace
+    d'app écrit dans un gabarit d'app — donc une rustine qui ne se propageait pas. Ici le
+    gabarit ne connaît que SON nom et SON domaine ; c'est la déclaration qui sait le reste, et
+    une future app à trois domaines n'aura rien à passer de plus.
+    """
+    if not domain:
+        return ''
+    from wama.common.utils.app_modes import route_prefix
+    p = route_prefix(app, domain)
+    return f'{p}_' if p else ''

@@ -123,8 +123,13 @@ APP_MODES = {
                  'settings': ['ai_model', 'upscale_factor', 'denoise', 'blend_factor', 'tile_size',
                               'output_format', 'output_quality']},
             ]},
+            # `route_prefix` — le SEUL cas du dépôt où un domaine a ses PROPRES routes
+            # (`audio_batch_delete`, `audio_delete`… face à `batch_delete`, `delete`). Il est
+            # DÉCLARÉ et non déduit de l'ordre des domaines : une règle « le premier n'a pas de
+            # préfixe » se casserait au premier réordonnancement, et rien ne l'aurait signalé.
+            # Absent = pas de préfixe, ce qui est le cas de tous les autres domaines.
             {'id': 'audio', 'label': 'Audio', 'icon': 'fa-volume-high', 'variant': 'success',
-             'accepts': ('audio',), 'modes': [
+             'accepts': ('audio',), 'route_prefix': 'audio', 'modes': [
                 {'id': 'enhance_audio', 'label': 'Débruitage / Restauration', 'icon': 'fa-wave-square',
                  'inputs': ['work_audio'],
                  'settings': ['engine', 'mode', 'denoising_strength', 'quality']},
@@ -261,6 +266,30 @@ def get_mode(app: str, domain_id: str, mode_id: str) -> dict:
         if m.get('id') == mode_id:
             return m
     return {}
+
+
+def route_prefix(app: str, domain_id: str) -> str:
+    """Préfixe des routes de ce domaine (`audio` → `audio_batch_delete`), '' par défaut.
+
+    DÉCLARÉ, jamais déduit de la position : c'est ce qui permet à une app d'avoir plusieurs
+    familles de routes sans qu'aucune brique n'ait à connaître son nom.
+    """
+    return get_domain(app, domain_id).get('route_prefix') or ''
+
+
+def accepts(app: str, domain_id: str) -> tuple:
+    """Catégories média (MEDIA_CATEGORIES) que ce domaine prend en ENTRÉE."""
+    return tuple(get_domain(app, domain_id).get('accepts') or ())
+
+
+def domain_for_category(app: str, categorie: str) -> str | None:
+    """Domaine d'une app capable d'accueillir cette catégorie média — base du ROUTAGE d'un
+    fichier déposé vers le bon onglet. Le PREMIER qui accepte gagne : une app qui voudrait
+    trancher autrement doit ordonner ses domaines, ce qui se lit dans la déclaration."""
+    for d in get_domains(app):
+        if categorie in (d.get('accepts') or ()):
+            return d.get('id')
+    return None
 
 
 def resolve_inputs(mode: dict) -> list:

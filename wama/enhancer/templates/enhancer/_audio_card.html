@@ -10,7 +10,7 @@ Contexte : ae (AudioEnhancement, décorée .chips), in_batch (bool).
   .preview-media-link, .wama-progress-fill, .progress-text, .wama-eta.
 {% endcomment %}
 <div class="synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if ae.status == 'RUNNING' %}processing{% elif ae.status == 'SUCCESS' %}success{% elif ae.status == 'FAILURE' %}error{% endif %}"
-     data-id="{{ ae.id }}" data-status="{{ ae.status }}"
+     data-id="{{ ae.id }}" data-domain="audio" data-status="{{ ae.status }}"
      data-preview-url="{% url 'common:unified_preview' 'audio_enhancer' ae.id %}">
 <div class="card-body py-2">
 

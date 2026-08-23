@@ -22,8 +22,11 @@ Slots/options (tous optionnels) :
                            brique commune `queue-actions.js` prend ▶ ⧉ 🗑 en charge. À poser au
                            moment EXACT où l'app retire ses handlers locaux (sinon double-fire).
                            Portées au 2026-08-23 : transcriber, composer, describer.
-  batch_ns               : préfixe d'URL des routes de lot, défaut `<app>:batch` — à préciser pour
-                           une app à PLUSIEURS familles de lots (enhancer audio : `enhancer:audio_batch`).
+  domain                 : id du DOMAINE de ce lot. Porté au DOM (`data-domain`, pour que les
+                           briques s'y scopent) ET utilisé pour DÉRIVER le préfixe des routes
+                           depuis la déclaration (`route_prefix`) — l'enhancer audio résout ainsi
+                           `enhancer:audio_batch_delete` sans qu'aucun gabarit n'écrive ce nom.
+                           Remplace `batch_ns`, qui était un namespace passé à la main.
                            Une route absente rend une chaîne vide (`{% templatetag openblock %} url … as … {% templatetag closeblock %}` ne lève pas),
                            l'attribut n'est donc pas émis : pas de bouton mort par accident.
 L'app garde autour : le wrapper .batch-group + le conteneur .collapse des filles
@@ -39,18 +42,18 @@ d'app lui aurait servi les URLs de l'autre file — une suppression sur le mauva
 {% comment %}⚠ PAS de {% templatetag openblock %} with {% templatetag closeblock %} ici : `{% templatetag openblock %} url … as v {% templatetag closeblock %}` écrit `v` dans le contexte
 COURANT, or `with` en pousse un nouveau — les variables y seraient mortes au `endwith`. `if`, lui,
 ne pousse rien. Piège vérifié en rendant le partial, pas déduit.{% endcomment %}
+{% load wama_actions %}
 {% if actions_communes %}
-{% if batch_ns %}
-{% url batch_ns|add:'_delete' batch_info.obj.id as u_batch_delete %}
-{% url batch_ns|add:'_duplicate' batch_info.obj.id as u_batch_duplicate %}
-{% url batch_ns|add:'_start' batch_info.obj.id as u_batch_start %}
-{% else %}
-{% url app|add:':batch_delete' batch_info.obj.id as u_batch_delete %}
-{% url app|add:':batch_duplicate' batch_info.obj.id as u_batch_duplicate %}
-{% url app|add:':batch_start' batch_info.obj.id as u_batch_start %}
+{% prefixe_routes app domain as pfx %}
+{% url app|add:':'|add:pfx|add:'batch_delete' batch_info.obj.id as u_batch_delete %}
+{% url app|add:':'|add:pfx|add:'batch_duplicate' batch_info.obj.id as u_batch_duplicate %}
+{% url app|add:':'|add:pfx|add:'batch_start' batch_info.obj.id as u_batch_start %}
 {% endif %}
-{% endif %}
+{% comment %}`data-domain` — porte le DOMAINE au DOM pour que les briques s'y scopent sans
+connaître aucun sélecteur d'app (2026-08-23). Absent = app mono-domaine, rien à distinguer.
+{% endcomment %}
 <div class="{{ card_class|default:'' }} wama-card is-batch batch-group-header" data-status="batch"
+     {% if domain %}data-domain="{{ domain }}"{% endif %}
      data-batch-total="{{ batch_info.obj.total }}" data-batch-success="{{ batch_info.success_count }}"
      data-batch-running="{{ batch_info.running_count }}" data-batch-failure="{{ batch_info.failure_count }}">
     <div class="row align-items-center">
