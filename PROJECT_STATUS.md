@@ -2819,17 +2819,39 @@ Détail complet et historique : mémoire `reference_wsl_gpu_windows_update_regre
   30 j : 25/07 et 31/07) et **ce pilote avait déjà produit 7 crashs avant le cumulatif** ⇒
   corrélation datée, **pas** une démonstration.
 
-### 🔚 POINT D'ENTRÉE SESSION SUIVANTE — dans cet ordre, UNE VARIABLE À LA FOIS
-1. 🔴 **INSTRUMENTER LES RAILS +12 V** (arbitrage Fabien : « ok pour instrumenter d'abord »).
-   HWiNFO64 8.50 est installé mais **la version gratuite ne relance pas son journal après un
-   reboot** — c'est pour ça que la mesure n'a jamais été prise malgré 8 reboots. **Ne plus attendre
-   le hasard : journaliser PUIS provoquer** (chargement Ollama ~17-19 Go, déclencheur reproductible
-   depuis le 20/08). Sortie `logs/hwlog/rails.csv` → `python scripts/analyze_rails.py`.
-   ⚠ Le déclenchement est pour **Fabien**, JAMAIS pour Claude.
-2. **Pilote NVIDIA** : prendre **le numéro de version le plus élevé**, quelle que soit la branche
-   (Studio et Game Ready sont le même pilote ; aucun chemin de code WAMA ne traverse ce qui les
-   distingue). Installation propre + `wsl --shutdown` + relance de la pile.
-3. Barrettes G.Skill → Samsung · 4. Alim 1000 W ATX 3.1.
+### ✅ RAILS INSTRUMENTÉS LE 23/08 — la mesure est faite, et elle ne montre RIEN
+23 h de journal, **41 317 échantillons, 5 rails, zéro violation ATX**, y compris 2 s avant la mort
+(crash au REPOS à 21:43:42, GPU 27 W). Dérive sur 23 h : **−0,011 V**. ⇒ meurent : « rail
+chroniquement bas », « vieillissement visible », et l'« instabilité à faible charge » du 10/08.
+N'innocente PAS le bloc (un événement de quelques µs est invisible à 2 s d'échantillonnage).
+⚠⚠ **Deux bugs dans NOTRE instrument, trouvés au 1er usage** (`scripts/analyze_rails.py`, corrigés) :
+motif `+5V` non ancré pointant sur « Core 5 VID » → **faux « 🔴 HORS TOLÉRANCE 100 % »** ; et
+« +3 3V » (espace décimal, locale FR) jamais reconnu → rail **silencieusement** non analysé.
+**Réparer l'instrument avant d'accuser.**
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE — le test le moins cher est devenu le plus décisif
+1. 🔴🔴 **DÉBRANCHER LE PC DE L'ONDULEUR** quelques jours (retour au mur / multiprise seule).
+   **Pourquoi** : Fabien a installé un onduleur « le 19 » — la mesure dit **le 18/08 entre 19:27 et
+   19:48** (seul arrêt propre des 12 derniers jours, 21 min hors tension). Or **8 jours d'uptime
+   continu sans un incident** précèdent ce moment, et **9 crashs en 5 jours** le suivent. Le
+   cumulatif Windows (19:10-19:13) et l'onduleur (19:27-19:48) sont à **40 minutes l'un de l'autre**
+   : la corrélation que j'annonçais le 22/08 est **CONFONDUE**. Débrancher est gratuit, réversible,
+   et sépare les deux. Mécanisme plausible : onduleur à **pseudo-sinusoïde** + alimentation à **PFC
+   actif** = coupure nette au transfert, sans aucune trace OS. ⚠ Contre-intuitif (on n'enlève pas un
+   onduleur) — mais il coïncide à l'heure près avec le début de la série.
+2. **Brancher le câble USB de l'onduleur** (gratuit) : Windows n'en voit RIEN aujourd'hui — pas de
+   `Win32_Battery`, **0 événement 105** sur 40 jours. Une fois relié, chaque bascule sur batterie
+   est journalisée. Vérifier aussi **modèle + âge de batterie** et si le PC est sur les prises
+   **batterie** ou **parafoudre seul**.
+3. **Pilote NVIDIA** : le numéro le plus élevé, branche indifférente (Studio et Game Ready sont le
+   même pilote ; rien dans WAMA ne traverse ce qui les distingue). Install propre + `wsl --shutdown`.
+4. Barrettes G.Skill → Samsung · 5. Alim 1000 W ATX 3.1.
+
+> ❌ **Automatiser la lecture des rails : IMPASSE mesurée le 23/08**, ne pas y revenir sans lire la
+> mémoire `reference_wsl_gpu_windows_update_regression`. LibreHardwareMonitor 0.9.6 exige **PawnIO**
+> (pilote noyau à installer séparément) et, même ainsi, n'expose **ni `GPU 12VHPWR` ni
+> `GPU PCIe +12V`** — les deux meilleures sondes que HWiNFO fournit. L'automatisation serait une
+> **régression de mesure** payée d'un second pilote noyau.
 
 ### Pendings — décisions NON prises, rien lancé sans accord
 - **`transformers` a dérivé en 5.12.1 dans `venv_win`** (Linux conforme en 4.57.6) : la borne

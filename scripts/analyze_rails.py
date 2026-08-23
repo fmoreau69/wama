@@ -46,14 +46,32 @@ ATX_SPECS = {
     "+12V": (12.0, 11.40, 12.60),
     "+5V": (5.0, 4.75, 5.25),
     "+3.3V": (3.3, 3.135, 3.465),
+    "GPU 12VHPWR": (12.0, 11.40, 12.60),
+    "GPU PCIe +12V": (12.0, 11.40, 12.60),
 }
 
-# Les noms de capteurs varient selon la carte (ici MSI Z390-A PRO → Nuvoton).
-# On reconnaît par motif plutôt que par libellé exact.
+# Les noms de capteurs varient selon la carte (ici MSI Z390-A PRO → Nuvoton) ET selon la
+# LOCALE de HWiNFO. On ANCRE au début du libellé : c'est ce qui sépare le vrai rail
+# « +5V [V] » d'un homonyme comme « Core 5 VID [V] ».
+#
+# ⚠ DEUX BUGS CORRIGÉS LE 2026-08-23, AU PREMIER USAGE RÉEL (23 h de journal) :
+#   1. `search()` NON ANCRÉ + « première correspondance retenue » faisait pointer +5V sur
+#      « Core 5 VID [V] » (colonne 16) au lieu de « +5V [V] » (colonne 256) → le rapport
+#      annonçait « 🔴 HORS TOLÉRANCE : 100,00 % des échantillons, moy=1,089 V » sur un rail
+#      parfaitement sain à 5,08 V. Un instrument qui accuse à tort est pire que pas
+#      d'instrument : il aurait fait condamner une alimentation.
+#   2. La locale FR écrit « +3 3V (AVCC) » — ESPACE en séparateur décimal, pas un point.
+#      L'ancien motif `3[.,]3` ne matchait rien, et le +3,3 V n'était donc SILENCIEUSEMENT
+#      jamais analysé. Une absence ne se voyait nulle part dans le rapport.
 RAIL_PATTERNS = (
-    ("+12V", re.compile(r"(?<!\d)\+?12\s*V", re.I)),
-    ("+5V", re.compile(r"(?<!\d)\+?5\s*V(?!\s*SB)", re.I)),
-    ("+3.3V", re.compile(r"(?<!\d)\+?3[.,]3\s*V", re.I)),
+    ("+12V", re.compile(r"^\+?12\s*V\b", re.I)),
+    ("+5V", re.compile(r"^\+?5\s*V(?!\s*SB)\b", re.I)),
+    ("+3.3V", re.compile(r"^\+?3[.,\s]3\s*V", re.I)),
+    # Lus À LA CARTE et non au SuperIO. Le 12VHPWR est LE rail qui alimente la 4090 en
+    # rampe, et sa résolution est bien meilleure que celle du Nuvoton (qui quantifie par
+    # pas de ~96 mV, au point d'afficher min=max sur des dizaines d'échantillons).
+    ("GPU 12VHPWR", re.compile(r"^GPU\s+12VHPWR", re.I)),
+    ("GPU PCIe +12V", re.compile(r"^GPU\s+PCIe\s*\+?12\s*V", re.I)),
 )
 
 # Un trou supérieur à ce seuil dans la série = coupure (même convention qu'hwlog).
@@ -81,11 +99,17 @@ def sniff_reader(path: Path):
 
 
 def find_rail_columns(header: list[str]) -> dict[str, int]:
-    """Associe chaque rail ATX à sa colonne. Première correspondance retenue."""
+    """
+    Associe chaque rail à sa colonne, par motif ANCRÉ sur le début du libellé.
+
+    Le libellé HWiNFO peut être entre guillemets et suffixé de son unité
+    (« "+12V [V]" ») : on nettoie avant d'ancrer, sinon `^` ne matche jamais.
+    """
     found: dict[str, int] = {}
     for index, name in enumerate(header):
+        propre = name.strip().strip('"').strip()
         for rail, pattern in RAIL_PATTERNS:
-            if rail not in found and pattern.search(name):
+            if rail not in found and pattern.match(propre):
                 found[rail] = index
     return found
 

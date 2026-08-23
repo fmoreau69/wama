@@ -30,7 +30,12 @@
 param(
     [int]$IntervalSeconds = 10,
     [string]$LogDir = 'D:\WAMA\web-app-for-media-automation\logs\hwlog',
-    [int]$RetentionDays = 14
+    [int]$RetentionDays = 14,
+    # Archives de rails : gardees 4x plus longtemps que les hwlog. Une capture de
+    # rails vaut un crash INSTRUMENTE -- on en a obtenu la premiere le 2026-08-23
+    # apres douze jours d'echecs, ce n'est pas une donnee qu'on jette au bout de 14 j.
+    [int]$RailsRetentionDays = 60,
+    [int]$RailsWarnMB = 500
 )
 
 $ErrorActionPreference = 'Stop'
@@ -67,6 +72,30 @@ try {
             Get-ChildItem (Join-Path $LogDir 'hwlog_*.csv') -ErrorAction SilentlyContinue |
                 Where-Object { $_.LastWriteTime -lt $now.AddDays(-$RetentionDays) } |
                 Remove-Item -Force -ErrorAction SilentlyContinue
+
+            # --- Journaux de RAILS (HWiNFO) ---------------------------------
+            # Deux poids, deux mesures, et c'est deliberе :
+            #  * rails_*.csv = ARCHIVES de crash, ~73 Mo piece. Ce sont des PIECES A
+            #    CONVICTION (une capture = un crash date). On les garde bien plus
+            #    longtemps que les hwlog, sinon le menage detruit la seule preuve.
+            #  * rails.csv   = journal VIVANT, ecrit par HWiNFO en continu (~76 Mo/jour).
+            #    On ne peut PAS le tourner (c'est un process externe qui tient le
+            #    descripteur) : on se contente d'ALERTER quand il devient gros.
+            #    D: est deja sous 6 % de libre, donc le silence n'est pas une option.
+            Get-ChildItem (Join-Path $LogDir 'rails_*.csv') -ErrorAction SilentlyContinue |
+                Where-Object { $_.LastWriteTime -lt $now.AddDays(-$RailsRetentionDays) } |
+                ForEach-Object {
+                    $writer.WriteLine("# purge archive rails : $($_.Name) ($([math]::Round($_.Length/1MB)) Mo, > $RailsRetentionDays j)")
+                    Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
+                }
+
+            $vivant = Join-Path $LogDir 'rails.csv'
+            if (Test-Path $vivant) {
+                $mo = [math]::Round((Get-Item $vivant).Length / 1MB)
+                if ($mo -ge $RailsWarnMB) {
+                    $writer.WriteLine("# ATTENTION rails.csv = $mo Mo (seuil $RailsWarnMB) - archiver puis relancer la journalisation HWiNFO")
+                }
+            }
 
             $currentDay = $day
         }
