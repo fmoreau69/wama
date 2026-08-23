@@ -6215,10 +6215,14 @@ puis étendue par Fabien à l'Explorer et à trois décisions de fond.
 
 `check_docs` **4 CASSÉ / 0 périmée sur 498** — ⚠ **1 SEULE cible distincte** (`_result_tabs.html`,
 citée 4×), c'est ELLE le critère · `check_js` **57 fichiers 0 erreur, 56 paires 0 divergente** ·
-`manifest_roundtrip` **10 apps, fidélité OK** · `doc_facts` **4/5** — ⚠ `mecanismes` PÉRIMÉ
-**DÉLIBÉRÉMENT** : sa régénération mêlait ma ligne (Tests nocturnes 10 → 11) et celle de
-l'instance sœur (Domaines → modes 12 → 14, `app_modes.py` en vol) ; un bloc généré ne s'édite pas
-à la main, donc **à régénérer sur un arbre propre** · `wama_data` **411 tests OK** ·
+`manifest_roundtrip` **10 apps, fidélité OK** · `doc_facts` ~~**4/5**~~ → ✅ **5/5 (régénéré le
+2026-08-23 en clôture, par l'instance ACTIONS DE CARD)**. La réserve ci-dessous était juste et a
+été levée exactement comme elle le demandait : `mecanismes` a été régénéré **une fois les deux
+instances commitées**, et le bloc porte bien LES DEUX apports — `Tests nocturnes` **11** (cette
+instance) ET `Domaines → modes` **14** (instance sœur). ⚠ Réserve d'origine, conservée parce que
+la règle vaut toujours : « sa régénération mêlait ma ligne et celle de l'instance sœur,
+`app_modes.py` en vol ; un bloc généré ne s'édite pas à la main, donc à régénérer sur un arbre
+propre » · `wama_data` **411 tests OK** ·
 `wama.common.tests_nightly` **5 OK** · `wama.common.tests_registries` **46 OK** ·
 `check_redundancy` **15 trouvailles, AUCUNE dans les fichiers de cette session** (la seule ligne
 `wama_data`, `calculation.py:78 _verifier()`, est un **faux positif préexistant** — collision de
@@ -6255,6 +6259,16 @@ seules écritures hors `wama_data/` sont **deux entrées** au registre des méca
 (`data_frames_bridge`, `data_vue`).
 
 ---
+
+> ⚠ **CO-ÉCRITURE DU 23/08 — à lire si l'historique paraît étrange.** Le commit de clôture de
+> cette instance (`09bcedcf`) a emporté **2 lignes modifiées par l'instance sœur** qui étaient
+> encore dans l'arbre de travail : `git commit <chemin>` prend l'état COMPLET du fichier, pas
+> seulement ses propres modifications. **Rien n'a été perdu** (vérifié : 3 blocs §REPRISE du
+> 23/08 intacts, 6404 lignes), mais le travail de l'autre instance est commité sous un message
+> qui ne le mentionne pas. C'est la limite connue du commit par chemins explicites sur un fichier
+> co-édité : la règle protège de `git add -A`, elle ne protège pas d'une co-écriture SUR LE MÊME
+> FICHIER. Pour `PROJECT_STATUS.md`, seule discipline qui tienne — **relire `git diff <fichier>`
+> juste avant de commiter** et vérifier que tout ce qu'on y voit est bien de soi.
 
 ## §REPRISE — 2026-08-23 (instance ACTIONS DE CARD → DOMAINES & MODES) — 🔚 POINT D'ENTRÉE
 
