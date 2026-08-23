@@ -85,43 +85,29 @@ INPUT_TYPES = {
 # mode = {id, label, icon, realtime?, inputs:[input_type_id], settings:[setting_id]}
 APP_MODES = {
     # ── IMAGER (app de référence — le plus de modes) ─────────────────────────
+    # ── IMAGER — 2 domaines (Image, Vidéo), AUCUN mode ────────────────────────
+    # Déclarait 5 modes `image` (txt2img/img2img/style2img/file2img/describe2img) et 2 `video`
+    # (txt2vid/img2vid) — soit 7 switches. Ils ont RÉELLEMENT existé, puis ont été retirés au
+    # profit d'UNE card d'entrée par domaine offrant toutes les entrées possibles, avec
+    # appariement bidirectionnel entrée ⇄ modèle (WamaInputMatch). L'utilisateur n'a plus à
+    # choisir un mode : le moteur le DÉRIVE de ce qu'on lui donne.
+    #
+    # La déclaration, elle, n'avait pas suivi — et le JS non plus : `driveRadios` visait
+    # `#wamaImageModes`/`#imageModeRadios`, quatre ancres qui n'existent PLUS dans le DOM (elles
+    # ne subsistaient que comme chaînes dans l'appel lui-même). Trois étages morts en silence :
+    # déclaration → API → JS. Vérifié le 2026-08-23, pas déduit.
+    #
+    # ⚠ txt2img/img2vid restent des WORKFLOWS DE BACKEND, choisis d'après les entrées et les
+    # réglages. Un workflow de backend n'est pas un mode d'UI : il n'a rien à faire ici.
     'imager': {
         'domains': [
-            # Modes ALIGNÉS sur l'existant Imager (JS currentMode : txt2img/img2img/style2img/file2img/
-            # describe2img). NB : domaine image/vidéo aujourd'hui dérivé du MODÈLE choisi (à migrer en
-            # onglet domaine). describe2img = mini-pipeline → candidat MÉTA-APP (Describer→Imager).
             {'id': 'image', 'label': 'Image', 'icon': 'fa-image', 'variant': 'primary',
-             # accepts = ce que le DOMAINE prend en ENTRÉE (le prompt est du `text`), pas ce
-             # qu'il produit — le nom du domaine, lui, dit la SORTIE (image vs vidéo).
-             'accepts': ('text', 'image'), 'modes': [
-                {'id': 'txt2img', 'label': 'Texte → Image', 'icon': 'fa-font',
-                 'inputs': ['prompt', 'negative_prompt'],
-                 'settings': ['model', 'seed', 'steps', 'guidance', 'resolution']},
-                {'id': 'img2img', 'label': 'Édition (img2img)', 'icon': 'fa-wand-magic-sparkles',
-                 'inputs': ['work_image', 'prompt'],
-                 'settings': ['model', 'strength', 'seed', 'steps']},
-                {'id': 'style2img', 'label': 'Transfert de style', 'icon': 'fa-palette',
-                 'inputs': ['reference_image', 'prompt'],
-                 'settings': ['model', 'style_weight', 'seed', 'steps']},
-                {'id': 'file2img', 'label': 'Batch (fichier de prompts)', 'icon': 'fa-list',
-                 'inputs': ['prompt_file'],
-                 'settings': ['model', 'seed', 'steps', 'resolution']},
-                {'id': 'describe2img', 'label': 'Décrire → Image', 'icon': 'fa-comment-dots',
-                 'inputs': ['work_image'],
-                 'settings': ['model', 'seed', 'steps'],
-                 'pipeline_hint': 'Describer→Imager'},  # mini-pipeline → candidat MÉTA-APP
-                # futur : {'id': 'to_3d', 'label': 'Image → 3D', 'inputs': ['work_image']}
-            ]},
-            # Ids ALIGNÉS sur l'existant (template + JS currentVideoMode : txt2vid/img2vid).
+             # accepts = ce que le DOMAINE prend en ENTRÉE (le prompt est du `text`) ; son NOM
+             # dit la SORTIE. Les deux domaines acceptent la même chose et diffèrent par ce
+             # qu'ils produisent — la preuve qu'un domaine n'est pas une nature de fichier.
+             'accepts': ('text', 'image'), 'modes': []},
             {'id': 'video', 'label': 'Vidéo', 'icon': 'fa-film', 'variant': 'success',
-             'accepts': ('text', 'image'), 'modes': [
-                {'id': 'txt2vid', 'label': 'Texte → Vidéo', 'icon': 'fa-font',
-                 'inputs': ['prompt'],
-                 'settings': ['video_model', 'frames', 'fps', 'resolution']},
-                {'id': 'img2vid', 'label': 'Image → Vidéo', 'icon': 'fa-image',
-                 'inputs': ['work_image', 'prompt'],
-                 'settings': ['video_model', 'frames', 'fps']},
-            ]},
+             'accepts': ('text', 'image'), 'modes': []},
         ],
     },
 
