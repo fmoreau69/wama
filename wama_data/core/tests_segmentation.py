@@ -7,7 +7,7 @@ qui produirait du confetti sans hystérésis, état non refermé en fin de sessi
 import unittest
 from pathlib import Path
 
-from .segmentation import (autour, chevauche, conditionnelle, etats, fermer, jonction,
+from .segmentation import (autour, bascules, chevauche, conditionnelle, etats, fermer, jonction,
                            ouverts, present_dans)
 
 BASE_REELLE = (Path(__file__).resolve().parents[2]
@@ -80,6 +80,92 @@ class JonctionTest(unittest.TestCase):
         # Une fin qui PRÉCÈDE le début ne peut pas le clore.
         s = jonction([50.0], [10.0, 80.0])
         self.assertEqual(s[0]['end'], 80.0)
+
+    # ── Ajouts du 2026-08-23 : les deux manques relevés en §9ter.6 A ──────────────────────────
+
+    def test_offsets_independants_sur_les_deux_bornes(self):
+        # « du début du bloc moins 2 s jusqu'à la pause suivante plus 5 s » — inexprimable avant.
+        s = jonction([10.0], [30.0], offset_debut=-2.0, offset_fin=5.0)
+        self.assertEqual((s[0]['start'], s[0]['end']), (8.0, 35.0))
+
+    def test_les_offsets_ne_changent_PAS_l_appariement(self):
+        # Un décalage de bornes ne doit pas modifier quelle fin suit quel début : appliqué avant
+        # l'appariement, un offset de -25 s ferait passer le début de 50 sous la fin de 30.
+        sans = jonction([10.0, 50.0], [30.0, 70.0])
+        avec = jonction([10.0, 50.0], [30.0, 70.0], offset_debut=-25.0)
+        self.assertEqual([x['end'] for x in sans], [x['end'] for x in avec])
+        self.assertEqual([x['start'] for x in avec], [-15.0, 25.0])
+
+    def test_un_segment_ouvert_ne_recoit_pas_l_offset_de_fin(self):
+        # `None + 5.0` lèverait ; pire, une sentinelle numérique s'y ferait décaler en silence.
+        s = jonction([10.0, 90.0], [30.0], offset_fin=5.0)
+        self.assertEqual(s[0]['end'], 35.0)
+        self.assertIsNone(s[1]['end'])
+
+    def test_repeter_faux_ne_produit_qu_UN_segment(self):
+        # Mode par défaut de l'outil d'origine, où « Répéter sur les prochains segments » est une
+        # case à cocher. Ici c'est l'inverse qui est le défaut — le cas courant n'a pas à se cocher.
+        s = jonction([10.0, 50.0, 90.0], [30.0, 70.0, 110.0], repeter=False)
+        self.assertEqual(len(s), 1)
+        self.assertEqual((s[0]['start'], s[0]['end']), (10.0, 30.0))
+
+    def test_repeter_faux_part_du_curseur(self):
+        s = jonction([10.0, 50.0, 90.0], [30.0, 70.0, 110.0], depuis_debut=1, repeter=False)
+        self.assertEqual([(x['start'], x['end']) for x in s], [(50.0, 70.0)])
+
+    def test_repeter_vrai_est_le_comportement_historique(self):
+        self.assertEqual(len(jonction([10.0, 50.0, 90.0], [30.0, 70.0, 110.0])), 3)
+
+    def test_la_fenetre_n_est_tracee_que_si_un_offset_est_pose(self):
+        self.assertNotIn('window', jonction([10.0], [30.0])[0])
+        self.assertEqual(jonction([10.0], [30.0], offset_fin=5.0)[0]['window'], '0_5')
+
+
+class BasculesTest(unittest.TestCase):
+    """`masque → events` — le second port de sortie d'une condition (§9ter.6 B4)."""
+
+    def setUp(self):
+        self.times = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]
+        self.masque = [False, False, True, True, False, False]
+
+    def test_bascule_montante_datee_au_premier_echantillon_vrai(self):
+        ev = bascules(self.times, self.masque)
+        self.assertEqual([(e['time'], e['edge']) for e in ev], [(2.0, 'montante')])
+
+    def test_descendantes_sur_demande(self):
+        ev = bascules(self.times, self.masque, montantes=False, descendantes=True)
+        self.assertEqual([(e['time'], e['edge']) for e in ev], [(4.0, 'descendante')])
+
+    def test_les_deux_sens_ensemble(self):
+        ev = bascules(self.times, self.masque, descendantes=True)
+        self.assertEqual([e['edge'] for e in ev], ['montante', 'descendante'])
+
+    def test_un_masque_vrai_des_le_debut_ne_produit_PAS_de_montante(self):
+        # On n'a pas observé la transition : la dater reviendrait à la placer à un instant choisi
+        # par l'acquisition, pas par le phénomène.
+        ev = bascules([0.0, 1.0, 2.0], [True, True, False], descendantes=True)
+        self.assertEqual([e['edge'] for e in ev], ['descendante'])
+
+    def test_un_masque_constant_ne_produit_rien(self):
+        self.assertEqual(bascules([0.0, 1.0], [True, True], descendantes=True), [])
+
+    def test_les_bascules_ne_sont_PAS_des_segments(self):
+        # Un événement n'a pas de durée — c'est ce qui distingue les deux ports.
+        ev = bascules(self.times, self.masque)[0]
+        self.assertNotIn('start', ev)
+        self.assertNotIn('end', ev)
+        self.assertEqual(ev['origin'], 'bascule')
+
+    def test_le_MEME_masque_alimente_les_deux_ports(self):
+        # Le point de §9ter.6 B4 : le mode de production ne décide plus de la nature du produit.
+        seg = conditionnelle(self.times, self.masque)
+        ev = bascules(self.times, self.masque)
+        self.assertEqual((seg[0]['start'], seg[0]['end']), (2.0, 3.0))
+        self.assertEqual(ev[0]['time'], 2.0)
+
+    def test_longueurs_incoherentes_refusees(self):
+        with self.assertRaises(ValueError):
+            bascules([0.0, 1.0], [True])
 
 
 class ConditionnelleTest(unittest.TestCase):

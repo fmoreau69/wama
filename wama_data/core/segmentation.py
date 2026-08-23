@@ -78,6 +78,8 @@ def autour(ancres: Sequence[float], offset_debut: float, offset_fin: float,
 
 def jonction(debuts: Sequence[float], fins: Sequence[float], *, nom: str = '',
              depuis_debut: int = 0, depuis_fin: int = 0,
+             offset_debut: float = 0.0, offset_fin: float = 0.0,
+             repeter: bool = True,
              fermer_dernier: bool = False) -> List[Segment]:
     """Apparie le i-ème début avec la première fin qui le SUIT.
 
@@ -86,8 +88,25 @@ def jonction(debuts: Sequence[float], fins: Sequence[float], *, nom: str = '',
     `fins[i]` en face de `debuts[i]` produirait des segments à durée négative dès qu'une occurrence
     manque — défaut silencieux et difficile à voir sur un tracé.
 
+    ⚠ CE CHOIX EST CONFIRMÉ PAR LE CODE D'ORIGINE, qui fait l'inverse et en paie le prix. Son
+    `appliquer_prochainSeg` apparie bien par INDEX (`startTimecodes = tc1; endTimecodes = tc2;`)
+    et, quand les deux tables n'ont pas le même nombre d'occurrences, n'a d'autre recours que de
+    refuser en renvoyant l'utilisateur au filtrage manuel : « Impossible de répéter sur les
+    prochains segments puisque la taille des tableaux sont differents. Veuillez filtrer les
+    tables. » L'appariement temporel n'a pas ce cas d'échec.
+
     `depuis_debut` / `depuis_fin` sautent les premières occurrences de chaque flux (l'outil
-    d'origine expose exactement ces deux curseurs).
+    d'origine expose exactement ces deux curseurs, `tddAvant` / `tddApres`).
+
+    `offset_debut` / `offset_fin` décalent les DEUX bornes indépendamment, comme le fait la
+    segmentation temporelle double d'origine (`Table 1 + offset`, `Table 2 + offset`). Sans eux,
+    « du début du bloc moins 2 s jusqu'à la pause suivante plus 5 s » n'était pas exprimable.
+
+    `repeter=True` (défaut) produit un segment par début — c'est le comportement historique de
+    cette fonction. `repeter=False` n'en produit qu'UN, celui des curseurs : c'est le mode par
+    défaut de l'outil d'origine, où « Répéter sur les prochains segments » est une case à cocher.
+    Le défaut est inversé ici À DESSEIN — produire toute la série est le cas courant d'une analyse,
+    et le cas particulier mérite d'être demandé plutôt que subi.
 
     `fermer_dernier=False` : un début sans fin postérieure donne un segment **OUVERT** plutôt
     qu'un segment jeté. Perdre le dernier état d'une session est une perte de donnée, pas une
@@ -95,16 +114,24 @@ def jonction(debuts: Sequence[float], fins: Sequence[float], *, nom: str = '',
     """
     d = sorted(debuts)[depuis_debut:]
     f = sorted(fins)[depuis_fin:]
+    if not repeter:
+        d = d[:1]
     out: List[Segment] = []
     for i, t0 in enumerate(d):
         j = bisect_right(f, t0)
         t1 = f[j] if j < len(f) else OUVERT
         if t1 is OUVERT and fermer_dernier:
             continue
-        seg = {'start': t0, 'end': t1}
+        # Les offsets s'appliquent APRÈS l'appariement : les décaler avant changerait quelle fin
+        # suit quel début, donc l'appariement lui-même. Un décalage de bornes ne doit pas modifier
+        # la structure de ce qui a été apparié.
+        seg = {'start': t0 + offset_debut,
+               'end': OUVERT if t1 is OUVERT else t1 + offset_fin}
         if nom:
             seg['name'] = f"{nom}_{i + 1:02d}"
-        out.append(_tracer(seg, 'jonction', open=(t1 is OUVERT)))
+        out.append(_tracer(seg, 'jonction', open=(t1 is OUVERT),
+                           window=(f"{offset_debut:g}_{offset_fin:g}"
+                                   if (offset_debut or offset_fin) else None)))
     return out
 
 
@@ -151,6 +178,44 @@ def conditionnelle(times: Sequence[float], masque: Sequence[bool], *,
         out.append(_tracer(seg, 'conditionnelle',
                            min_duration=duree_min or None,
                            max_gap=trou_tolere or None))
+    return out
+
+
+def bascules(times: Sequence[float], masque: Sequence[bool], *,
+             montantes: bool = True, descendantes: bool = False,
+             nom: str = '') -> List[Dict[str, Any]]:
+    """Instants où le masque CHANGE d'état — le second port de sortie d'une condition.
+
+    C'est la traduction du choix « Que créer ? Event | Situation » de l'outil d'origine, où il est
+    un bouton radio au milieu du geste de segmentation. Ici les deux sorties sont deux fonctions
+    qui consomment le MÊME masque (`conditionnelle()` pour les plages, celle-ci pour les instants) :
+    le mode de production ne décide plus de la nature du produit. C'est ce que veut dire « la
+    sortie est un PORT, pas un mode » (§9ter.6 B4).
+
+    Rend des ÉVÉNEMENTS (`time`), pas des segments : une bascule n'a pas de durée. Chacune porte
+    `edge` (`'montante'` / `'descendante'`), sans quoi deux bascules successives seraient
+    indiscernables alors qu'elles disent le contraire l'une de l'autre.
+
+    ⚠ Un masque vrai DÈS le premier échantillon ne produit pas de bascule montante : on n'a pas
+    observé la transition, on a trouvé la condition déjà satisfaite. L'inventer daterait un
+    changement d'état au début de l'enregistrement — c'est-à-dire à un instant choisi par
+    l'acquisition, pas par le phénomène.
+    """
+    if len(times) != len(masque):
+        raise ValueError("times et masque doivent avoir la même longueur")
+    out: List[Dict[str, Any]] = []
+    for i in range(1, len(masque)):
+        avant, apres = bool(masque[i - 1]), bool(masque[i])
+        if avant == apres:
+            continue
+        sens = 'montante' if apres else 'descendante'
+        if (sens == 'montante' and not montantes) or (sens == 'descendante' and not descendantes):
+            continue
+        ev: Dict[str, Any] = {'time': times[i], 'edge': sens}
+        if nom:
+            ev['name'] = f"{nom}_{len(out) + 1:02d}"
+        ev['origin'] = 'bascule'
+        out.append(ev)
     return out
 
 
