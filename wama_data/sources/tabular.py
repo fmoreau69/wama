@@ -23,6 +23,61 @@ from . import SourceInfo, SourceReader, StreamSpec, register_reader
 COLONNES_TEMPS = ('time', 'timestamp', 'timecode', 't', 'temps', 'time_s', 'seconds')
 
 
+def _numerise(entetes: List[str], lignes: List[list]) -> List[list]:
+    """Convertit en flottants les colonnes ENTIÈREMENT numériques. Les autres restent telles quelles.
+
+    ⚠ POURQUOI, ET POURQUOI PAR COLONNE (défaut trouvé le 2026-08-24 par le test de chaîne
+    complète). Un CSV ne porte aucun type : `csv.reader` rend des chaînes. Le lecteur ne
+    convertissait que l'axe du temps, si bien qu'un jeu importé depuis un CSV traversait le
+    référentiel, le pont et la `Vue` sans broncher, **puis levait dans le Calculator**
+    (`fmean` : « must be real number, not str »). Un point d'entrée qui produit des données
+    inexploitables n'en est pas un.
+
+    ⚠ LA DÉCISION EST PRISE PAR COLONNE, JAMAIS PAR CELLULE. Convertir « quand ça marche » ferait
+    qu'une même colonne se comparerait tantôt comme du texte, tantôt comme un nombre, selon les
+    lignes — c'est exactement le défaut que `_num()` refuse dans `core/conditions.py`, et celui
+    que la notion de SORTE suppose absent (une colonne a UNE sorte). On exige donc que **toutes**
+    les valeurs présentes de la colonne soient numériques ; une seule ne l'est pas, la colonne
+    reste du texte, et `sorte_de_colonne` la verra comme telle.
+
+    Une cellule VIDE ne disqualifie pas la colonne et devient `None` : un trou est un trou, pas
+    une valeur textuelle. `.xlsx` arrive déjà typé (openpyxl) — la fonction est idempotente.
+    """
+    if not lignes:
+        return lignes
+
+    def _vide(v) -> bool:
+        return v is None or (isinstance(v, str) and not v.strip())
+
+    numeriques = []
+    for j in range(len(entetes)):
+        vues = 0
+        for r in lignes:
+            v = r[j] if j < len(r) else None
+            if _vide(v):
+                continue
+            if isinstance(v, bool) or not isinstance(v, (int, float)):
+                try:
+                    float(v)
+                except (TypeError, ValueError):
+                    break
+            vues += 1
+        else:
+            numeriques.append(j if vues else -1)   # colonne vide : rien à convertir
+    a_convertir = {j for j in numeriques if j >= 0}
+    if not a_convertir:
+        return lignes
+
+    out = []
+    for r in lignes:
+        ligne = list(r)
+        for j in a_convertir:
+            if j < len(ligne):
+                ligne[j] = None if _vide(ligne[j]) else float(ligne[j])
+        out.append(ligne)
+    return out
+
+
 class TabularReader(SourceReader):
     format = 'tabular'
     extensions = ('.csv', '.txt', '.tsv', '.xlsx')
@@ -107,7 +162,9 @@ class TabularReader(SourceReader):
                 continue          # ligne sans temps exploitable : écartée, pas devinée
         paires.sort(key=lambda p: p[0])
         times = [p[0] for p in paires]
-        donnees = [p[1] for p in paires]
+        # Typage PAR COLONNE avant exposition : sans lui, un CSV traverse tout et casse au premier
+        # calcul (voir `_numerise`). Fait ici, une seule fois, et non à chaque lecture de tranche.
+        donnees = _numerise(entetes, [p[1] for p in paires])
 
         ts = timestampers.get(nom)
         if ts is not None:

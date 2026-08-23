@@ -115,7 +115,36 @@ class TabulaireTest(unittest.TestCase):
     def test_acces_aux_valeurs(self):
         ref = sources.load(self.csv)
         i = ref.at("capteur", 1.0)
-        self.assertEqual(ref.get("capteur").rows(i, i + 1)[0]["time"], "1.0")
+        # ⚠ Ce test assertait `"1.0"` — une CHAÎNE — sans justification : il enregistrait le
+        # défaut plutôt qu'une décision. Un CSV ne porte aucun type, et le lecteur ne convertissait
+        # que l'axe du temps utilisé pour l'indexation ; les LIGNES restaient textuelles. Un jeu
+        # importé traversait donc tout et levait au premier calcul (`fmean` : « must be real
+        # number, not str »). Corrigé le 2026-08-24 (`tabular._numerise`).
+        self.assertEqual(ref.get("capteur").rows(i, i + 1)[0]["time"], 1.0)
+
+    def test_une_colonne_ENTIEREMENT_numerique_est_convertie(self):
+        # La fixture mêle du numérique (`time`, `speed`) et du catégoriel (`mode`) — c'est le cas
+        # réel, et il montre les deux comportements d'un coup.
+        ligne = sources.load(self.csv).get("capteur").rows(0, 1)[0]
+        self.assertIsInstance(ligne["time"], float)
+        self.assertIsInstance(ligne["speed"], float)
+        self.assertIsInstance(ligne["mode"], str)
+
+    def test_une_colonne_MIXTE_reste_du_TEXTE(self):
+        # La décision est prise PAR COLONNE, jamais par cellule : convertir « quand ça marche »
+        # ferait qu'une même colonne se comparerait tantôt comme du texte, tantôt comme un nombre.
+        f = Path(self.dir.name) / "mixte.csv"
+        f.write_text("time,v,note\n0,1,ok\n1,2,3\n", encoding="utf-8")
+        ligne = sources.load(f).get("mixte").rows(0, 1)[0]
+        self.assertEqual(ligne["v"], 1.0)
+        self.assertEqual(ligne["note"], "ok")
+
+    def test_une_cellule_VIDE_ne_disqualifie_pas_la_colonne(self):
+        # Un trou est un trou, pas une valeur textuelle — il devient `None`.
+        f = Path(self.dir.name) / "trou.csv"
+        f.write_text("time,v\n0,1\n1,\n2,3\n", encoding="utf-8")
+        lignes = sources.load(f).get("trou").rows(0, 3)
+        self.assertEqual([l["v"] for l in lignes], [1.0, None, 3.0])
 
     def test_separateur_point_virgule(self):
         f = Path(self.dir.name) / "fr.csv"

@@ -2028,6 +2028,97 @@ est prouvé et l'aval ne bougera pas.
 
 ---
 
+## 9octies. LE POINT D'ENTRÉE — le manifeste `dataset` devient EXÉCUTABLE (2026-08-24)
+
+> Chantier **C** du plan : « quel jeu de données j'ouvre ». La mesure a changé le périmètre — il
+> n'y avait **pas de modèle Django à créer**.
+
+### 9octies.1 La déclaration existait déjà, et n'était branchée nulle part
+
+Le kind `dataset` se valide depuis longtemps et déclare tout ce qu'il faut — `source {type, ref}`,
+`signals` typés, `reference_tables`, `records` — avec la mention explicite **« `extract=None` —
+AUTORÉ, le manifeste est l'origine »**. Mais **rien ne le consommait** : zéro référence hors de son
+module, et **zéro manifeste `dataset` au corpus** (`manifests/` ne contient qu'`apps`, `libraries`,
+`models`).
+
+⚠ **Même forme de trou que le Référentiel sans consommateur (§9quater.7)** : une pièce déclarée,
+complète, et débranchée. C'est la troisième de la journée — le motif mérite d'être nommé :
+*dans ce dépôt, ce qui manque est rarement la déclaration ; c'est ce qui la lit.*
+
+### 9octies.2 Ce qui est livré — `wama_data/dataset.py`
+
+| | |
+|---|---|
+| `verifier(body, racine)` → `Ecart` | confronte le manifeste à la source **sans la charger** (`probe` seul) — sur 1,28 Go, la différence compte |
+| `charger(body, racine)` → **`(référentiel, Ecart)`** | ouvre le jeu, ne charge que les signaux **déclarés** |
+
+**La doctrine du §9bis commande tout le module** — *« le LLM propose, la machine dispose ; un
+manifeste qui VALIDE ensuite l'import est CIRCULAIRE ; le manifeste déclare des attentes
+vérifiables mécaniquement et l'importer MESURE L'ÉCART »*. D'où deux choix qui n'en sont pas :
+
+- **On ne rend jamais le référentiel seul.** Le couple force la réception de l'écart : l'ignorer
+  devient un geste délibéré, pas une distraction.
+- **Un écart n'est pas une erreur par défaut.** Un corpus réel est hétérogène ; refuser de charger
+  parce qu'un signal manque rendrait le manifeste inutilisable sur une passation partielle.
+  `strict=True` reste disponible. ⚠ Asymétrie voulue : un flux **non déclaré** ne rend pas l'écart
+  non conforme (une source peut contenir plus qu'on n'en décrit) ; un signal **déclaré et absent**,
+  si — c'est une promesse non tenue.
+
+⚠ **Ce que le module NE peut PAS vérifier, et ne prétend pas vérifier** : le `data_type` de chaque
+signal. `SourceInfo` rend des **noms** de flux, pas leurs types. Annoncer une vérification de type
+serait promettre ce que la mesure ne donne pas.
+
+### 9octies.3 ⚠ G1 n'est pas « non réconcilié » — les deux vocabulaires sont EXCLUSIFS
+
+Constat non anticipé, sorti d'un test :
+
+```
+DATASET_SOURCES   = (rtmaps, lsl, rosbag, csv, parquet, db, docs, other)
+formats de lecteur = (trip, tabular)
+                     intersection : ∅
+```
+
+- un manifeste qui nomme le lecteur réel (`tabular`) est **REFUSÉ par la validation du kind** ;
+- un manifeste **valide** (`csv`) désigne un format auquel **aucun lecteur ne répond**.
+
+> **Conséquence mesurable : aucun manifeste `dataset` valide ne peut rendre « rien à signaler »
+> aujourd'hui.** `Ecart.type_source` le rapporte à chaque passage, et un test l'atteste — il
+> tombera le jour où G1 sera fermé, ce qui est exactement ce qu'on attend d'un test de garde-fou.
+
+Le correctif reste celui de §9quinquies.4 (un registre substrat que les mondes alimentent) — **non
+fait**, car il touche le substrat.
+
+### 9octies.4 ⚠ Un défaut RÉEL trouvé par le test de bout en bout
+
+`sources/tabular.py` ne typait **aucune** colonne : `csv.reader` rend des chaînes, et le lecteur ne
+convertissait que l'axe du temps servant à l'indexation. Un jeu importé depuis un CSV traversait
+donc le référentiel, le pont et la `Vue` sans broncher — **puis levait dans le Calculator**
+(`fmean` : « must be real number, not str »). Le test existant `test_acces_aux_valeurs` assertait
+même `"1.0"` en **chaîne**, sans justification : **il enregistrait le défaut au lieu d'une décision.**
+
+**Corrigé** — `tabular._numerise()` convertit les colonnes **entièrement** numériques.
+⚠ **La décision est prise PAR COLONNE, jamais par cellule** : convertir « quand ça marche » ferait
+qu'une même colonne se comparerait tantôt comme du texte tantôt comme un nombre selon les lignes —
+exactement ce que `_num()` refuse dans `core/conditions.py`, et ce que la notion de SORTE suppose
+absent. Une cellule vide ne disqualifie pas la colonne et devient `None` : un trou est un trou.
+
+### 9octies.5 Le premier chemin ENTIÈREMENT DÉCLARATIF, de bout en bout
+
+```
+manifeste `dataset` → référentiel → Vue → fonction du catalogue → Declaration d'export → fichier
+```
+
+`tests_dataset.py::ChaineDeclarativeTest` le parcourt en entier, vérifie que le manifeste employé
+**passe la validation officielle de son kind** (sinon il prouverait un chemin que le corpus
+refuserait), et que **les trois déclarations font l'aller-retour JSON** — sans quoi la chaîne ne
+serait pas rejouable.
+
+`wama_data` : **472 → 496 tests**. ⏳ Reste au chantier du point d'entrée : l'**écrivain `.wrec`**
+(aucune ligne n'écrit encore de SQLite) et un corpus de manifestes `dataset` (le dossier n'existe
+pas).
+
+---
+
 ## 9bis.6 Ce que la cartographie n'a pas couvert — à traiter avant l'Importer v2
 
 **L'alignement par TRIGGERS.** RTMaps et LSL fournissent une horloge d'acquisition commune ; des
