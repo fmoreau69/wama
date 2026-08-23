@@ -6049,3 +6049,89 @@ OK** · `wama_data` **198 tests** · `wama.common` **191** · `model_manager` **
 
 ⚠ `check_docs` et `doc_facts` : voir le bloc de l'instance sœur ci-dessus — leurs chiffres sont
 partagés et bougent avec les deux périmètres. `wama_data` (fait) est à régénérer après ce bloc.
+
+---
+
+## §REPRISE — 2026-08-23 (instance BRIQUE ⚙ PARAMÈTRES + GRILLE FONCTIONNELLE) — 🔚 POINT D'ENTRÉE
+
+> **🔚 POINT D'ENTRÉE : terminer le portage de la SUPPRESSION — 5 apps restantes, recette
+> éprouvée 6 fois aujourd'hui (voir « Reste à faire » ci-dessous). Puis geste 5 (Tout effacer)
+> ou 7 (bouton primaire avatarizer), au choix, dans `WAMA_VERIFICATION.md §6`.**
+
+Session ouverte sur le 🔚 du handoff précédent (« brique ⚙ Paramètres »), avec la consigne de
+Fabien de la **rattacher à l'amélioration des tests** — donc de ne jamais livrer une brique sans
+l'instrument qui la prouve.
+
+### La chaîne complète, dans l'ordre où elle a été faite
+
+**Outillage d'abord, à froid** (pending 6 du handoff 22→23) : `_duplicate_wiring` portait encore
+les deux faiblesses corrigées sur son jumeau `_delete_wiring` la veille — `f.find` au lieu de
+`find_code` (un commentaire pouvait fabriquer un faux DOUBLE-FIRE) et l'attribut mesuré **sans la
+classe** (le faux vert constaté sur enhancer). Aucun faux verdict n'en était sorti ; c'est
+précisément pour ça qu'il fallait le corriger **seul**, avant de toucher au comportement.
+
+**Puis la brique**, dans son domicile désigné (`queue-actions.js`, qui déclare depuis le 22/08
+héberger TOUTES les actions de card). ⚙ n'est pas un POST : la brique prend la **graphie** et la
+**délégation** — exactement ce qui divergeait — et l'app déclare son ouvreur en une ligne.
+
+**Puis le critère** `settings_wiring` (F5), jumeau de `delete_wiring`. **Puis le clic**, parce
+qu'un critère neuf qui passe au vert est un signal d'alarme, pas un résultat.
+
+### Livré et vérifié
+
+| | preuve |
+|---|---|
+| **Brique ⚙ dans `queue-actions.js`** — délégation unique `.settings-btn[data-id]` + `onSettings(fn, {within})` ; hook `onDeleted(fn)` ajouté pour ne pas dégrader les apps à suppression chirurgicale | `check_js` **57 fichiers 0 erreur, 56 paires 0 divergente** |
+| **10 apps + le jumeau bac à sable portées** (ATOMIQUE : graphie + retrait du handler au même geste) — 6 graphies résorbées en une | critère `settings_wiring` **vert 10/10** |
+| **`<app>.settings`** — geste 2 du catalogue, 14 scénarios enregistrés | **7 OK / 0 échec / 7 skips**, chaque skip disant une raison VRAIE |
+| **La matrice §3bis corrigée sur 2 erreurs** que mon propre relevé a produites | le scénario ÉNUMÈRE les graphies présentes et les rapporte à chaque passage |
+| **L'union codée en dur de `wama-inspector.js` réduite** (`.btn-settings-job, .job-settings-btn` retirés) | la brique absente se facturait au substrat |
+| **Suppression : 4 apps portées en plus** (synthesizer, transcriber, enhancer ×2, reader) | transcriber **99 → 100 %**, enhancer 97 → 99, reader et synthesizer 97 → 98 |
+
+### Ce que la session a appris (au-delà des correctifs)
+
+**Quand le commun se met à énumérer des apps, il compense une brique absente.** Le
+`cardSettings` par défaut de `wama-inspector.js` portait en dur l'UNION des graphies de ⚙ —
+et cette liste était **déjà incomplète** (`video-settings-btn`, `js-audio-settings` manquants),
+donc silencieusement fausse. C'est le symptôme le plus net et le plus tôt visible : bien avant
+qu'un utilisateur ne voie un bouton mort, le substrat, lui, paie déjà.
+
+**Un relevé par motif de texte hérite des angles morts du motif choisi.** La matrice des actions
+de card annonçait « avatarizer et reader : rien » pour ⚙. Faux : avatarizer avait
+`btn-settings-job` — seule graphie des six à **inverser l'ordre des mots**, donc invisible à tout
+relevé cherchant un suffixe — et enhancer, avec ses deux graphies, manquait entièrement de la
+table. Ce n'est pas une relecture qui l'a corrigée, c'est le scénario qui **énumère** les classes
+réellement présentes dans la page.
+
+### Reste à faire — recette éprouvée, à appliquer telle quelle
+
+1. **Suppression, 5 apps restantes** : anonymizer, composer, describer, imager (2 domaines),
+   avatarizer. Pour chacune, **dans le même geste** : (a) gabarit → classe `delete-btn` +
+   `data-delete-url` + `data-confirm` (garder le libellé actuel de l'app) ; (b) retirer le
+   handler local ; (c) si l'app retire la card **sans recharger**, déclarer
+   `WamaQueueActions.onDeleted(...)` plutôt que d'accepter le `location.reload()` de la brique.
+   ⚠ Les trois ensemble : garder (a) sans (b) = double-fire.
+2. **Seconde moitié du geste 2** (modifier / enregistrer / relire) — à traiter avec les gestes
+   8-13, sur le **converter** en CPU : enregistrer relance un traitement sur plusieurs apps.
+3. **Décision en attente, inchangée** : `.wama-cycle-btn` reste préfixé du nom de sa brique là
+   où la famille dit `.<action>-btn`. Maintenant que ⚙ a rejoint la convention, c'est la
+   **dernière** exception — ne pas la laisser dériver.
+4. Pendings 3, 4, 7, 9 du handoff 22→23 **inchangés** (avatarizer non prouvé, transcriber
+   duplication, converter_01 inerte, bouton PARTAGER).
+
+### Partition (multi-instances)
+
+Je n'ai touché **ni `wama_data/`, ni `mecanismes.py`, ni les blocs générés `mecanismes`/
+`modeles`** — instance sœur, chantier exporter. Les 2 fichiers non commités trouvés à la reprise
+(`WAMA_DATA_WORLD.md`, `wama_data/modules.py`) ont été **laissés intacts**.
+
+### Contrôles attendus au prochain /reprise
+
+`check_docs` **4 CASSÉ / 0 périmée sur 489** (inchangé — même partial cité 4×, périmètre instance
+sœur) · `check_js` **57 fichiers 0 erreur, 56 paires 0 divergente** · grille : converter et
+**transcriber 100 %**, describer et **enhancer 99 %**, composer/**reader**/**synthesizer** 98 %,
+anonymizer/avatarizer 97 %, imager 96 % ⚠ **dénominateurs +1** (critère `settings_wiring`) ·
+nocturnes : `.settings` **7 OK / 0 échec / 7 skips**, `.import` 7/0/7, `.ui` 14/14 ·
+⚠ `manifest_export --check` **PÉRIMÉ sur `anonymizer:sam3`** et `doc_facts` **2/5** (`mecanismes`,
+`modeles`, `wama_data`) — **les trois PRÉEXISTAIENT à cette session** (mesurés à sa reprise), ils
+relèvent de l'instance sœur et n'ont volontairement pas été régénérés ici.

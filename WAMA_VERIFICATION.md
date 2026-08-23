@@ -56,7 +56,7 @@ Le catalogue n'est **pas à inventer** : c'est la table des composants obligatoi
 | # | Geste utilisateur | Scénario aujourd'hui | Traitement requis |
 |---|---|---|---|
 | 1 | Déposer un fichier → une card apparaît | ✅ `<app>.import` | non |
-| 2 | Ouvrir les paramètres d'un item, modifier, enregistrer, relire | ❌ | non |
+| 2 | Ouvrir les paramètres d'un item, modifier, enregistrer, relire | ⚠️ **MOITIÉ** — `<app>.settings` (23/08) prouve l'OUVERTURE ; modifier/enregistrer/relire reste dû | non |
 | 3 | Dupliquer un **élément** (`.duplicate-btn`) | ❌ | non |
 | 3b | Dupliquer un **lot** (`.batch-duplicate-btn`) | ❌ | non |
 | 4 | Supprimer un **élément** (`.delete-btn`) | ❌ | non |
@@ -74,6 +74,15 @@ Le catalogue n'est **pas à inventer** : c'est la table des composants obligatoi
 
 **Couverture mesurée le 2026-08-22 : 1 geste sur 16.** Les deux seuls scénarios par app sont
 `<app>.ui` (santé de la page : 200 + zéro erreur console — aucun geste) et `<app>.import`.
+**Au 2026-08-23 : 3 gestes et demi sur 16** (import ; dupliquer + supprimer ; ouverture des
+paramètres). Chaque ajout se paie en minutes de passage nocturne, pas en lignes de code par app :
+les trois scénarios partagent le même montage de fixture et le même filet ORM de nettoyage.
+
+> ⚠ **`<app>.settings` mesure la MOITIÉ du geste 2, et le dit dans son propre détail** (« MOITIÉ
+> DU GESTE — modifier/enregistrer/relire n'est PAS mesuré ici »). Ce n'est pas de la modestie :
+> enregistrer déclenche selon les apps une **relance de traitement**, donc du GPU — ce qui range
+> la seconde moitié avec les gestes 8-13, à traiter sur le converter en CPU (§4). Un scénario qui
+> promet plus qu'il ne mesure est pire qu'absent : il éteint la question.
 
 > ⚠ **Élément et lot sont DEUX gestes, pas un** (précision de Fabien, 22/08 — la première version
 > de cette table les confondait). Ils n'ont pas la même difficulté, et c'est ce qui les rend
@@ -108,24 +117,65 @@ Le catalogue n'est **pas à inventer** : c'est la table des composants obligatoi
 | Action | Nature | Brique commune | Graphies relevées | Uniformité |
 |---|---|---|---|---|
 | **⧉ Dupliquer** | POST via JS | ✅ `queue-actions.js` | `.duplicate-btn[data-duplicate-url]` | **12/12** |
-| **🗑 Supprimer** | POST via JS | ✅ *depuis le 2026-08-22* | `delete-btn` (6) · `job-delete-btn` (converter ×2) · `btn-delete-job` (avatarizer) · `js-audio-delete` + `js-delete-enhancement` (enhancer) · `video-delete-btn` (imager vidéo) · `data-action="delete"` (reader) | **1/11 porté** |
+| **🗑 Supprimer** | POST via JS | ✅ *depuis le 2026-08-22* | `delete-btn` (6) · `job-delete-btn` (converter ×2) · `btn-delete-job` (avatarizer) · `js-audio-delete` + `js-delete-enhancement` (enhancer) · `video-delete-btn` (imager vidéo) · `data-action="delete"` (reader) | **6/11 porté** (23/08 : converter, synthesizer, transcriber, enhancer ×2, reader) |
 | **▶ Cycle** | POST via JS | ✅ `wama-cycle-button.js` | `.wama-cycle-btn` | **2/10 adoptée** (anonymizer, imager) |
-| **⚙ Paramètres** | ouvre une modale | ❌ *aucune* — `WamaParams` rend le CONTENU, mais le BOUTON n'est délégué nulle part | `settings-btn` (6) · `job-settings-btn` (converter ×2) · `video-settings-btn` (imager vidéo) · avatarizer et reader : rien (modale montée à la main) | divergent |
+| **⚙ Paramètres** | ouvre une modale | ✅ *depuis le 2026-08-23* — `queue-actions.js` tient le bouton et la délégation, l'app déclare son ouvreur (`onSettings`) | `.settings-btn[data-id]` | **11/11 porté** (+ le jumeau bac à sable) |
 | **⬇ Télécharger** | **lien `<a href>`** | *sans objet* | `href="{% url 'app:download' %}"` partout ; quelques `download-btn` résiduels | n/a |
+
+> ⚠ **La ligne ⚙ ci-dessus a été RÉÉCRITE le 2026-08-23, et son relevé initial était FAUX sur
+> deux points** — les deux dans le même sens, celui qui sous-estime la divergence :
+> - **avatarizer n'avait pas « rien »** : il avait `btn-settings-job`, seule graphie des six à
+>   inverser l'ordre des mots (`btn-settings-*` au lieu de `*-settings-btn`). Un relevé qui
+>   cherche un suffixe ne la voit pas — et c'est ainsi qu'elle a été classée « absence ».
+> - **enhancer manquait entièrement de la table** : ses DEUX familles de cards portaient
+>   `js-open-settings` et `js-audio-settings`.
+>
+> Total réel : **six graphies pour dix apps** — exactement le compte de la suppression, pour
+> exactement la même raison. La leçon n'est pas « le relevé était bâclé » : c'est qu'**un relevé
+> par motif de texte hérite des angles morts du motif choisi**. Ce qui a corrigé la table n'est
+> pas une relecture, c'est le scénario `<app>.settings` qui ÉNUMÈRE les classes réellement
+> présentes dans la page et les rapporte à chaque passage.
 
 **Le motif est sans exception, et c'est le résultat principal de ce relevé :**
 
 | état de la brique | conséquence observée |
 |---|---|
-| brique **et** adoptée | **uniformité totale** (dupliquer, 12/12) |
+| brique **et** adoptée | **uniformité totale** (dupliquer 12/12 ; paramètres 11/11 le 23/08) |
 | brique mais **non adoptée** | l'adoption est le chantier, le nommage tient (cycle, 2/10) |
-| **pas de brique** | **divergence** (supprimer : 6 graphies ; paramètres : 3 + 2 absences) |
+| **pas de brique** | **divergence** (supprimer et paramètres : 6 graphies chacun, avant leur brique) |
 | l'action est un **lien** | aucune brique n'est requise — un `<a href>` n'a rien à déléguer |
 
 > **La divergence n'est jamais une négligence de style : c'est la trace d'une brique absente.**
 > Corollaire pratique — on ne « corrige pas un nommage », on crée la brique qui le rend inutile
-> à discuter. Et corollaire de méthode : la seule action encore divergente à traiter est
-> **⚙ Paramètres**, tout le reste est soit fait, soit sans objet.
+> à discuter.
+
+### Ce que la brique ⚙ a coûté au commun AVANT d'exister (mesuré le 2026-08-23)
+
+La divergence ne reste pas dans les apps : **elle est facturée au substrat**. Le `cardSettings`
+par défaut de `wama-inspector.js` devait porter en dur l'UNION des graphies —
+
+```js
+card.querySelector('.settings-btn, [data-action="settings"], .btn-settings-job, .job-settings-btn')
+```
+
+— une **liste de noms d'apps écrite dans une brique commune**, qu'il fallait allonger à chaque
+app qui inventait la sienne (et qui, de fait, était déjà incomplète : `video-settings-btn` et
+`js-audio-settings` n'y figuraient pas). Après portage elle se lit `.settings-btn,
+[data-action="settings"]`. **C'est le meilleur indicateur qu'une brique manque** : quand le
+commun se met à énumérer des apps, il compense une brique absente.
+
+### Ce que la brique ⚙ partage, et ce qu'elle ne partage pas
+
+⚙ n'est **pas** un POST : dupliquer et supprimer SONT l'action (une URL, un POST), ⚙ ne fait
+qu'ouvrir une modale dont le contenu appartient à l'app. La brique prend donc exactement ce qui
+divergeait — **la graphie du bouton et la délégation du clic** — et l'app déclare son ouvreur en
+une ligne, comme `wama-cycle-button.js` le fait déjà pour ▶. Deux hooks déclarés couvrent les
+spécificités légitimes sans une seule condition d'app dans la brique :
+
+| hook | pourquoi il existe |
+|---|---|
+| `onSettings(fn, {within})` | `within` scope l'ouvreur à un type de card — c'est ce qui permet aux **deux familles de cards de l'enhancer** (audio / amélioration) de partager `.settings-btn` sans se marcher dessus |
+| `onDeleted(fn)` | suite après suppression **au lieu du rechargement** — sans lui, porter le transcriber aurait été une RÉGRESSION (il retire la card sans recharger, désélectionne l'inspecteur, arrête le polling) |
 
 ### Nommage canonique retenu
 
@@ -195,6 +245,19 @@ invisibles.
 matrice du §3bis : elle énumère des **actions**, pas des mécanismes — et une action se vérifie
 ou ne se vérifie pas, sans moyenne possible.
 
+**Application concrète (2026-08-23)** : `queue_front` porte désormais **trois** critères —
+`duplicate_wiring`, `delete_wiring`, `settings_wiring` — un par ACTION, jamais un pour le
+mécanisme. C'est la forme que doit prendre la réponse au relevé ci-dessus : découper par
+comportement là où le mécanisme en héberge plusieurs, et non ajouter un critère par ligne du
+tableau des 20.
+
+> ⚠ **Et un critère par action ne suffit toujours pas.** `settings_wiring` est passé **vert sur
+> 10/10 le jour de son écriture** — parce qu'il mesure ce qu'il peut mesurer : deux présences
+> dans le code (le bouton au contrat, l'ouvreur déclaré). Il ne voit pas un ouvreur qui lève, une
+> modale qui s'ouvre vide, un second handler qui la referme. **Le vert d'un critère neuf n'est
+> pas une bonne nouvelle, c'est le moment où il faut aller cliquer** — c'est exactement pourquoi
+> `<app>.settings` a été écrit dans la même passe, et non « plus tard quand on aura le temps ».
+
 ⚠ Ne PAS écrire un critère par mécanisme mécaniquement : certains (`resource_governor`,
 `provenance`) sont des briques de niveau **système**, pas d'app — un critère par app n'y aurait
 pas de sens. Le scan signale un manque de couverture, il ne dicte pas la réponse.
@@ -205,7 +268,7 @@ pas de sens. Le scan signale un manque de couverture, il ne dicte pas la répons
 
 | Phase | Contenu | GPU | État |
 |---|---|---|---|
-| **1** | Gestes **2 à 7** — paramètres, dupliquer, supprimer, tout effacer, inspecteur, bouton primaire. Purement UI + base. Premier item : **création de l'avatarizer** (geste 7), justement celui qui manquait ce soir | non | ⏳ |
+| **1** | Gestes **2 à 7** — paramètres, dupliquer, supprimer, tout effacer, inspecteur, bouton primaire. Purement UI + base. Premier item : **création de l'avatarizer** (geste 7), justement celui qui manquait ce soir | non | 🔄 **geste 2 à moitié (23/08)**, gestes 3-4 faits (22/08) ; restent 5, 6, 7 |
 | **2** | Câbler les résultats nocturnes en **grille fonctionnelle** : `nightly_*.json` → agrégat geste × app, rendu comme `/apps/` le fait pour l'adoption | non | ⏳ |
 | **3** | Gestes **8 à 13** sur le **converter** (CPU) comme patron, puis extension | CPU d'abord | ⏳ |
 | **4** | Critères pour les **20 mécanismes non couverts**, par cardinalité décroissante | non | ⏳ |
