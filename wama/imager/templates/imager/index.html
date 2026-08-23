@@ -160,7 +160,7 @@ Tout telecharger. {% endcomment %}
         {% endif %}{% endfor %}
     {% else %}
         <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
-            {% include 'common/_batch_card.html' with card_class='imager-card' %}
+            {% include 'common/_batch_card.html' with card_class='imager-card' app='imager' %}
             <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
                  data-wama-batch-key="imager_{{ batch_info.obj.id }}"
                  style="border-left:2px solid #6f42c1; margin-left:0.75rem;">
@@ -223,7 +223,7 @@ Tout telecharger. {% endcomment %}
         {% endif %}{% endfor %}
     {% else %}
         <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
-            {% include 'common/_batch_card.html' with card_class='imager-card' %}
+            {% include 'common/_batch_card.html' with card_class='imager-card' app='imager' %}
             <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
                  data-wama-batch-key="imager_{{ batch_info.obj.id }}"
                  style="border-left:2px solid #198754; margin-left:0.75rem;">

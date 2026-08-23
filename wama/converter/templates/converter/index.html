@@ -456,7 +456,7 @@ document.addEventListener('DOMContentLoaded', function () {
         {# ── Groupe batch (multi-fichiers même nature) — card mère COMMUNE (_batch_card.html) #}
         <div class="batch-group mb-2" data-batch-id="{{ b.obj.id }}" data-media-type="{{ b.obj.media_type }}">
             {% url 'converter:batch_download' b.obj.id as batch_dl_url %}
-            {% include 'common/_batch_card.html' with batch_info=b card_class='job-card' meta_template='converter/_batch_card_meta.html' eta_ids=b.eta_ids download_url=batch_dl_url %}
+            {% include 'common/_batch_card.html' with batch_info=b card_class='job-card' meta_template='converter/_batch_card_meta.html' eta_ids=b.eta_ids download_url=batch_dl_url app='converter' %}
             {% comment %}Repliée par défaut (Solitaire, wama-queue.js) — 'show' hardcodé retiré
             2026-07-10 : convention commune = collapsed + état persisté en localStorage, comme
             reader/composer/transcriber/describer.{% endcomment %}

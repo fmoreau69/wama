@@ -266,7 +266,7 @@ window._batchImport = WamaBatchImport({
                      (couleur). Ne diffère que par les méta agrégées et ses actions batch. Toggle collapse
                      sur la zone info (col-md-9) ; actions HORS toggle → handlers délégués préservés. -->
                 {# Card MÈRE : brique COMMUNE _batch_card.html (généralisée depuis transcriber, 2026-07-06) #}
-                {% include 'common/_batch_card.html' with card_class='synthesis-card' meta_template='transcriber/_batch_meta.html' download_menu_template='transcriber/_batch_download_menu.html' eta_ids=batch_info.eta_ids %}
+                {% include 'common/_batch_card.html' with card_class='synthesis-card' meta_template='transcriber/_batch_meta.html' download_menu_template='transcriber/_batch_download_menu.html' eta_ids=batch_info.eta_ids app='transcriber' actions_communes=True %}
                 <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
                      data-wama-batch-key="transcriber_{{ batch_info.obj.id }}"
                      style="border-left:2px solid #0dcaf0; margin-left:0.75rem;">

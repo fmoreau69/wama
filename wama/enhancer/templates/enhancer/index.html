@@ -210,7 +210,7 @@
             <!-- Multi-item batch: collapsible group -->
             <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
                 {% url 'enhancer:batch_download' batch_info.obj.id as batch_dl_url %}
-                {% include 'common/_batch_card.html' with eta_ids=batch_info.eta_ids download_url=batch_dl_url %}
+                {% include 'common/_batch_card.html' with eta_ids=batch_info.eta_ids download_url=batch_dl_url app='enhancer' %}
                 <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
                      data-wama-batch-key="enhancer_{{ batch_info.obj.id }}"
                      style="border-left:2px solid #0dcaf0; margin-left:0.75rem;">
@@ -266,7 +266,7 @@
             <!-- Multi-item audio batch: collapsible group -->
             <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
                 {% url 'enhancer:audio_batch_download' batch_info.obj.id as audio_batch_dl_url %}
-                {% include 'common/_batch_card.html' with collapse_prefix='audioBatchItems' eta_ids=batch_info.eta_ids show_settings=False download_url=audio_batch_dl_url %}
+                {% include 'common/_batch_card.html' with collapse_prefix='audioBatchItems' eta_ids=batch_info.eta_ids show_settings=False download_url=audio_batch_dl_url app='enhancer' %}
                 <div class="collapse" id="audioBatchItems{{ batch_info.obj.id }}"
                      data-wama-batch-key="enhancer_audio_{{ batch_info.obj.id }}"
                      style="border-left:2px solid #198754; margin-left:0.75rem;">

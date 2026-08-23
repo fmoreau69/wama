@@ -136,58 +136,17 @@ document.addEventListener('DOMContentLoaded', function () {
   // Staging (« à valider ») SUPPRIMÉ 2026-06-29 : les DRAFT sont des cards BROUILLON directement
   // dans la file (config via inspecteur, lancement via Lancer). Plus de zone ni de handlers staging.
 
-  // ── Batch delete ─────────────────────────────────────────────────────────
-  document.addEventListener('click', function(e) {
-    const btn = e.target.closest('.batch-delete-btn');
-    if (!btn) return;
-    const batchId = btn.dataset.batchId;
-    if (!confirm('Supprimer ce batch et toutes ses transcriptions ?')) return;
-    const url = config.batchDeleteUrlTemplate.replace('/0/', `/${batchId}/`);
-    fetch(url, {method: 'POST', headers: csrfHeaders()})
-      .then(r => r.json())
-      .then(() => {
-        const el = btn.closest('.batch-group');
-        if (el) el.remove();
-        else location.reload();
-        updateQueueCount();
-        if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
-      })
-      .catch(() => showToast('Erreur lors de la suppression', 'danger'));
-  });
+  // ── Actions de LOT (▶ ⧉ 🗑) : brique commune queue-actions.js (portage 2026-08-23).
+  // Les URLs sont émises par le partial `common/_batch_card.html`, dérivées de la convention
+  // de routes `batch/<pk>/<action>/` — l'app n'en construit plus aucune. Les trois handlers
+  // qui vivaient ici faisaient le même confirm+POST+reload que dans 7 autres apps.
 
-  // ── Batch start/restart (lancer tous les éléments du batch) ───────────────
-  document.addEventListener('click', function(e) {
-    const btn = e.target.closest('.batch-start-btn');
-    if (!btn) return;
-    const batchId = btn.dataset.batchId;
-    const url = config.batchStartUrlTemplate.replace('/0/', `/${batchId}/`);
-    fetch(url, {method: 'POST', headers: csrfHeaders()})
-      .then(r => r.json())
-      .then(() => location.reload())
-      .catch(() => showToast('Erreur lors du lancement du batch', 'danger'));
-  });
 
   // NB : sortir/entrer une card d'un batch = DRAG souris façon Solitaire (PAS un bouton — déjà trop
   // de boutons). Backend prêt : POST config.removeFromBatchUrlTemplate (sortie → batch-of-1 isolé) +
   // consolidate (entrée). Le handler de drag (SortableJS) sera ajouté en session VISUELLE (avec P2),
   // et posera sessionStorage['wama_focus_card'] sur l'id déplacé pour le repérer après reload.
 
-  // ── Batch duplicate ───────────────────────────────────────────────────────
-  document.addEventListener('click', function(e) {
-    const btn = e.target.closest('.batch-duplicate-btn');
-    if (!btn) return;
-    const batchId = btn.dataset.batchId;
-    const url = config.batchDuplicateUrlTemplate.replace('/0/', `/${batchId}/`);
-    fetch(url, {method: 'POST', headers: csrfHeaders()})
-      .then(r => r.json())
-      .then(data => {
-        if (data.success) {
-          showToast('Batch dupliqué', 'success');
-          setTimeout(() => location.reload(), 600);
-        }
-      })
-      .catch(() => showToast('Erreur lors de la duplication', 'danger'));
-  });
 
   function initUpload() {
     if (!fileInput) return;
@@ -474,11 +433,8 @@ document.addEventListener('DOMContentLoaded', function () {
   // ======================================================================
   // Settings modal
   // ======================================================================
-  document.addEventListener('click', function (e) {
-    const bbtn = e.target.closest('.batch-settings-btn');
-    if (!bbtn) return;
-    openBatchSettingsModal(bbtn);
-  });
+  // ⚙ de LOT — ouvreur DÉCLARÉ à la brique commune (queue-actions.js), portage 2026-08-23.
+  WamaQueueActions.onBatchSettings(function (id, btn) { openBatchSettingsModal(btn); });
 
   function openBatchSettingsModal(btn) {
     // Modale de BATCH dédiée (champs générés du schéma, context 'batch') — le

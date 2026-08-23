@@ -276,5 +276,137 @@
                      + "d'ouvreur — appeler WamaQueueActions.onSettings(fn) au chargement.");
     });
 
-    window.WamaQueueActions = { onSettings: onSettings, onDeleted: onDeleted };
+    // ══ ACTIONS DE LOT ═══════════════════════════════════════════════════════════════════
+    //
+    // Le partial `common/_batch_card.html` rend les boutons de lot depuis le 22/07 : leur
+    // NOMMAGE était donc uniforme par construction, `.batch-<action>-btn[data-batch-id]`. C'est
+    // exactement ce qui a masqué le problème — **30 handlers écrits dans 8 apps** (mesuré le
+    // 2026-08-23), pour trois actions qui font partout la même chose :
+    //
+    //     supprimer  → confirmation + POST + rechargement
+    //     dupliquer  → POST + rechargement
+    //     lancer     → POST + rechargement
+    //
+    // Leçon jumelle de celle des cards : au niveau ÉLÉMENT, c'est la divergence de nommage qui
+    // signalait l'absence de brique ; au niveau LOT, le nommage venait d'un partial commun et
+    // **rien ne signalait rien**. Un nommage uniforme peut donc cacher un comportement recopié —
+    // il faut regarder les DEUX. C'est le cas le plus trompeur des deux.
+    //
+    // L'URL n'est plus construite en JS par chaque app : le partial l'émet
+    // (`data-batch-<action>-url`), dérivée du nom d'app et de la convention de routes
+    // `batch/<pk>/<action>/`. Une app dont la route n'existe pas ne rend pas l'attribut, donc la
+    // brique ignore le bouton — pas de clic mort par accident.
+
+    function actionDeLot(classe, attribut, options) {
+        options = options || {};
+        document.addEventListener('click', function (e) {
+            const btn = e.target.closest('.' + classe + '[' + attribut + ']');
+            if (!btn) return;
+            const url = btn.getAttribute(attribut);
+            if (!url) return;
+            // La card mère est un toggle de repli : sans ça, agir sur un lot le replie aussi.
+            e.stopPropagation();
+
+            const demande = btn.dataset.confirm;
+            if (options.confirmer
+                && demande !== 'false'
+                && !window.confirm(demande || options.confirmer)) return;
+
+            btn.disabled = true;
+            const icon = btn.querySelector('i');
+            const iconeInitiale = icon ? icon.className : '';
+            if (icon) { icon.className = 'fas fa-spinner fa-spin'; }
+
+            poster(url)
+            .then(lireReponse)
+            .then(function (data) {
+                if (data.error) {
+                    alert(data.error);
+                    btn.disabled = false;
+                    if (icon) { icon.className = iconeInitiale; }
+                    return;
+                }
+                // Suite DÉCLARÉE (▶ seulement) : si l'app la fournit, elle remplace le
+                // rechargement — voir pourquoi juste au-dessus de `onBatchStarted`.
+                if (options.suite) {
+                    btn.disabled = false;
+                    if (icon) { icon.className = iconeInitiale; }
+                    if (options.suite(data, btn.dataset.batchId, btn)) return;
+                }
+                // Des fichiers ont disparu : l'arborescence du gestionnaire doit le savoir.
+                // Repris de transcriber/describer/enhancer, qui l'appelaient chacun — un
+                // rechargement ne le remplace pas (le filemanager vit dans une autre surface).
+                if (options.signalerFichiers) signalerAuGestionnaire();
+                // Un lot touche N cards, leurs compteurs, sa propre card mère et parfois son
+                // existence même (lot vidé) : le recharger est ce que faisaient DÉJÀ les 8 apps,
+                // et c'est le seul rendu correct sans réécrire l'agrégat côté client. Les rares
+                // retraits chirurgicaux (transcriber retirait le `.batch-group` à la main) ne
+                // sont PAS repris : sur un lot, l'agrégat à recalculer est trop large pour
+                // qu'un retrait de nœud soit fiable — et 7 apps sur 8 rechargeaient déjà.
+                location.reload();
+            })
+            .catch(function () {
+                alert('Erreur réseau');
+                btn.disabled = false;
+                if (icon) { icon.className = iconeInitiale; }
+            });
+        });
+    }
+
+    actionDeLot('batch-delete-btn', 'data-batch-delete-url',
+                { confirmer: 'Supprimer ce lot et tous ses éléments ? Cette action est définitive.',
+                  signalerFichiers: true });
+    actionDeLot('batch-duplicate-btn', 'data-batch-duplicate-url', {});
+
+    // ▶ LOT — la seule des trois qui ne soit PAS uniforme, et c'est MESURÉ (2026-08-23) :
+    //   rechargent      : avatarizer, converter, transcriber
+    //   insèrent+pollent: composer, describer, enhancer — `(data.started||[]).forEach(id => …)`
+    // Recharger partout aurait été une RÉGRESSION pour la seconde moitié : on perd le suivi en
+    // direct du lot qu'on vient de lancer, ce qui est précisément ce qu'on regarde à ce
+    // moment-là. Ne pas recharger du tout aurait cassé la première moitié.
+    //
+    // ⚠ C'est l'inverse du cas de la SUPPRESSION, où j'avais pris neuf copies d'un même
+    // algorithme pour neuf spécificités. Ici la divergence est réelle, et c'est la MÊME
+    // méthode qui l'établit : lire ce que le code FAIT après le POST, pas comment il s'appelle.
+    // La règle qui en sort : mesurer d'abord, et n'ouvrir un hook que quand la mesure le montre.
+    let apresLancementLot = null;
+
+    function onBatchStarted(handler) {
+        if (typeof handler === 'function') apresLancementLot = handler;
+    }
+
+    actionDeLot('batch-start-btn', 'data-batch-start-url', { suite: function (data, id, btn) {
+        if (apresLancementLot) { apresLancementLot(data, id, btn); return true; }
+        return false;   // pas de suite déclarée → rechargement (défaut sûr)
+    } });
+
+    // ⚙ du lot : comme pour l'élément, la brique tient le clic et l'app déclare son ouvreur —
+    // la modale de lot reste propre à l'app (schéma, contexte 'batch').
+    const ouvreursLot = [];
+
+    function onBatchSettings(handler, options) {
+        if (typeof handler !== 'function') return;
+        ouvreursLot.push({ handler: handler, within: (options || {}).within || null });
+    }
+
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('.batch-settings-btn[data-batch-id]');
+        if (!btn) return;
+        e.stopPropagation();
+        const id = btn.dataset.batchId;
+        const candidats = ouvreursLot.filter(function (o) { return o.within; })
+                                     .concat(ouvreursLot.filter(function (o) { return !o.within; }));
+        for (let i = 0; i < candidats.length; i++) {
+            const o = candidats[i];
+            if (o.within && !btn.closest(o.within)) continue;
+            o.handler(id, btn);
+            return;
+        }
+        console.warn('[queue-actions] ⚙ de lot cliqué (#' + id + ') mais aucun ouvreur déclaré — '
+                     + 'appeler WamaQueueActions.onBatchSettings(fn).');
+    });
+
+    window.WamaQueueActions = { onSettings: onSettings, onDeleted: onDeleted,
+                                onBatchSettings: onBatchSettings,
+                                onBatchStarted: onBatchStarted };
 })();

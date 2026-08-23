@@ -124,6 +124,34 @@
         settingsModel.addEventListener('change', updateSettingsEstimate);
     }
 
+
+    // ⚙ de LOT — ouvreur DÉCLARÉ à la brique commune (queue-actions.js).
+    WamaQueueActions.onBatchSettings(function (bid, btn) {
+        const group = btn.closest('.batch-group');
+        const firstItemBtn = group ? group.querySelector('.settings-btn') : null;
+        const fd = firstItemBtn ? firstItemBtn.dataset : {};
+        document.getElementById('batchSettingsBatchId').value = bid;
+        const lbl = document.getElementById('batchSettingsBatchLabel');
+        if (lbl) lbl.textContent = '#' + bid;
+        // Valeurs posées par la brique (WamaParams.apply : re-sync des sliders inclus —
+        // pas de setter maison, route unique).
+        const bhost = document.getElementById('composerBatchParams');
+        if (window.WamaParams && bhost) {
+            const vals = { model: fd.model || 'auto-music', duration: fd.duration || 10 };
+            if (fd.outputFormat) vals.output_format = fd.outputFormat;
+            if (fd.outputQuality) vals.output_quality = fd.outputQuality;
+            WamaParams.apply(bhost, vals);   // une clé absente n'écrase pas le champ
+        }
+        new bootstrap.Modal(document.getElementById('batchSettingsModal')).show();
+    });
+
+    // ▶ de LOT — suite DÉCLARÉE : composer insère les cards démarrées et lance leur
+    // polling au lieu de recharger. C'est une divergence RÉELLE (3 apps sur 6 le font),
+    // établie en lisant ce que le code fait après le POST — pas son nom.
+    WamaQueueActions.onBatchStarted(function (d) {
+        (d.started || []).forEach(function (id) { insertRenderedCard(id); startPolling(id); });
+    });
+
     // 🗑 RÉSIDU de suppression — la brique commune fait tout le reste (portage 2026-08-23).
     WamaQueueActions.onDeleted(function () { checkEmptyState(); });
 
@@ -278,70 +306,9 @@
         // 🗑 item : plus de branche ici — brique commune queue-actions.js (portage 2026-08-23).
         // La suite est déclarée par `onDeleted`, plus bas. Les actions de LOT restent locales
         // tant que la brique ne les porte pas.
-
-        const batchDeleteBtn = e.target.closest('.batch-delete-btn');
-        if (batchDeleteBtn) {
-            const bid = batchDeleteBtn.dataset.batchId;
-            if (!confirm('Supprimer ce batch et toutes ses générations ?')) return;
-            fetch(WamaApp.getUrl(APP.batchDeleteUrlTemplate, bid), { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
-                .then(() => {
-                    const group = document.querySelector(`.batch-group[data-batch-id="${bid}"]`);
-                    if (group) {
-                        if (window.WamaEta) group.querySelectorAll('.generation-card').forEach(c => WamaEta.reset(c.dataset.id));
-                        group.remove();
-                    }
-                    checkEmptyState();
-                    if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
-                });
-            return;
-        }
-
-        // Duplication d'item : brique commune queue-actions.js (couple classe+data-url sur
-        // la card, cf. _generation_card.html) — handler local retiré le 14/08.
-
-        // ▶ batch (card mère commune _batch_card.html, 2026-07-06) : lance les PENDING du batch.
-        const batchStartBtn = e.target.closest('.batch-start-btn');
-        if (batchStartBtn) {
-            const bid = batchStartBtn.dataset.batchId;
-            fetch(WamaApp.getUrl(APP.batchStartUrlTemplate, bid), { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
-                .then(r => r.json())
-                .then(d => { (d.started || []).forEach(id => { insertRenderedCard(id); startPolling(id); }); })
-                .catch(() => showToast('Erreur lors du lancement du batch', 'danger'));
-            return;
-        }
-
-        const batchDuplicateBtn = e.target.closest('.batch-duplicate-btn');
-        if (batchDuplicateBtn) {
-            const bid = batchDuplicateBtn.dataset.batchId;
-            fetch(WamaApp.getUrl(APP.batchDuplicateUrlTemplate, bid), { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
-                .then(r => r.json())
-                .then(d => { if (d.success) location.reload(); });
-            return;
-        }
-
-        // ⚙ batch : modale DÉDIÉE générée du schéma (context 'batch', contrat reader — remplace
-        // le détournement de la modale item par _composerBatchSettingsId, 17/08).
-        const batchSettingsBtn = e.target.closest('.batch-settings-btn');
-        if (batchSettingsBtn) {
-            const bid = batchSettingsBtn.dataset.batchId;
-            const group = batchSettingsBtn.closest('.batch-group');
-            const firstItemBtn = group ? group.querySelector('.settings-btn') : null;
-            const fd = firstItemBtn ? firstItemBtn.dataset : {};
-            document.getElementById('batchSettingsBatchId').value = bid;
-            const lbl = document.getElementById('batchSettingsBatchLabel');
-            if (lbl) lbl.textContent = '#' + bid;
-            // Valeurs posées par la brique (WamaParams.apply : re-sync des sliders inclus —
-            // pas de setter maison, route unique).
-            const bhost = document.getElementById('composerBatchParams');
-            if (window.WamaParams && bhost) {
-                const vals = { model: fd.model || 'auto-music', duration: fd.duration || 10 };
-                if (fd.outputFormat) vals.output_format = fd.outputFormat;
-                if (fd.outputQuality) vals.output_quality = fd.outputQuality;
-                WamaParams.apply(bhost, vals);   // une clé absente n'écrase pas le champ
-            }
-            new bootstrap.Modal(document.getElementById('batchSettingsModal')).show();
-            return;
-        }
+        // Actions de LOT (▶ ⧉ 🗑 ⚙) : brique commune queue-actions.js (portage 2026-08-23).
+        // Les URLs viennent du partial `_batch_card.html` ; ▶ garde sa suite déclarée
+        // (insertion + polling) parce qu'elle DIFFÈRE réellement — mesuré, cf. la brique.
 
         const exportBtn = e.target.closest('.export-btn');
         if (exportBtn) {

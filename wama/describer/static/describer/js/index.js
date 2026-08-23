@@ -242,11 +242,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Modale BATCH DÉDIÉE générée du schéma (context 'batch', contrat reader — remplace le
     // détournement de la modale item par _settingsBatchId + titre échangé, 17/08).
-    document.addEventListener('click', function (e) {
-        const bbtn = e.target.closest('.batch-settings-btn');
-        if (!bbtn) return;
-        openBatchSettings(bbtn);
-    });
+    // ⚙ de LOT — ouvreur DÉCLARÉ à la brique commune (queue-actions.js), portage 2026-08-23.
+    WamaQueueActions.onBatchSettings(function (bid, btn) { openBatchSettings(btn); });
 
     // Duplication : gérée par la brique commune queue-actions.js (base.html) via
     // le bouton [data-duplicate-url] — pas de handler local (un doublon ici
@@ -898,49 +895,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // ── Batch template download — now served by Django view ───────────────
     // The batchTemplateLink anchor uses href="{% url 'describer:batch_template' %}" directly.
 
-    // ── Batch delete ───────────────────────────────────────────────────────
-    document.addEventListener('click', function(e) {
-        const btn = e.target.closest('.batch-delete-btn');
-        if (!btn) return;
-        const batchId = btn.dataset.batchId;
-        if (!confirm('Supprimer ce batch et toutes ses descriptions ?')) return;
-        const url = config.urls.batchDelete.replace('/0/', `/${batchId}/`);
-        fetch(url, {method: 'POST', headers: {'X-CSRFToken': config.csrfToken}})
-            .then(r => r.json())
-            .then(() => {
-                const el = btn.closest('.batch-group');
-                if (el) el.remove();
-                else location.reload();
-                updateQueueCount();
-            })
-            .catch(() => showToast('Erreur lors de la suppression', 'danger'));
+    // 🗑 et ⧉ de LOT : brique commune queue-actions.js (portage 2026-08-23) — mêmes
+    // confirm+POST+reload que dans 7 autres apps, URLs émises par `_batch_card.html`.
+
+    // ▶ de LOT — suite DÉCLARÉE : describer rafraîchit les cards démarrées et lance leur
+    // polling au lieu de recharger (divergence RÉELLE, mesurée — cf. la brique).
+    WamaQueueActions.onBatchStarted(function (data) {
+        (data.started || []).forEach(id => { refreshCard(id); startPolling(id); });
     });
 
-    // ── Batch start (▶ de la card mère commune _batch_card.html, 2026-07-06) ──
-    document.addEventListener('click', function(e) {
-        const btn = e.target.closest('.batch-start-btn');
-        if (!btn) return;
-        const url = config.urls.batchStart.replace('/0/', `/${btn.dataset.batchId}/`);
-        fetch(url, {method: 'POST', headers: {'X-CSRFToken': config.csrfToken}})
-            .then(r => r.json())
-            .then(data => { (data.started || []).forEach(id => { refreshCard(id); startPolling(id); }); })
-            .catch(() => showToast('Erreur lors du lancement du batch', 'danger'));
-    });
-
-    // ── Batch duplicate ────────────────────────────────────────────────────
-    document.addEventListener('click', function(e) {
-        const btn = e.target.closest('.batch-duplicate-btn');
-        if (!btn) return;
-        const batchId = btn.dataset.batchId;
-        const url = config.urls.batchDuplicate.replace('/0/', `/${batchId}/`);
-        fetch(url, {method: 'POST', headers: {'X-CSRFToken': config.csrfToken}})
-            .then(r => r.json())
-            .then(d => {
-                if (d.success) {
-                    showToast('Batch dupliqué', 'success');
-                    setTimeout(() => location.reload(), 800);
-                }
-            })
-            .catch(() => showToast('Erreur lors de la duplication', 'danger'));
-    });
 });

@@ -149,7 +149,7 @@ est CONTEXTUEL (inspecteur) — les actions de FILE vivent dans la toolbar commu
                 {% endcomment %}
                 <div class="batch-group mb-2" data-batch-id="{{ b.obj.id }}">
                     {% url 'avatarizer:batch_download' b.obj.id as batch_dl_url %}
-                    {% include 'common/_batch_card.html' with batch_info=b download_url=batch_dl_url %}
+                    {% include 'common/_batch_card.html' with batch_info=b download_url=batch_dl_url app='avatarizer' %}
                     <div class="collapse show ps-2 pt-1" id="batchItems{{ b.obj.id }}" data-wama-batch-key="avatarizer_{{ b.obj.id }}" style="border-left:2px solid #0dcaf0; margin-left:.5rem;">
                 {% endif %}
                 {% for it in b.items %}{% with job=it.job %}

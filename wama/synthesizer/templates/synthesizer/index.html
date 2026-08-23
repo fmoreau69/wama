@@ -214,7 +214,7 @@ startAllBtn/downloadAllBtn/clearAllBtn migrent ici depuis le volet droit.{% endc
                 {% comment %}Card mère batch COMMUNE — ▶ (batch_start) câblé en JS ; le ⚙ lit
 ses défauts sur la 1re card fille (.settings-btn data-*).{% endcomment %}
                 {% url 'synthesizer:batch_download' batch_info.obj.id as batch_dl_url %}
-                {% include 'common/_batch_card.html' with eta_ids=batch_info.eta_ids download_url=batch_dl_url %}
+                {% include 'common/_batch_card.html' with eta_ids=batch_info.eta_ids download_url=batch_dl_url app='synthesizer' %}
                 <!-- Batch items (collapsible) -->
                 <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
                      data-wama-batch-key="synthesizer_{{ batch_info.obj.id }}"

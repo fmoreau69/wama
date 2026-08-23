@@ -17,9 +17,39 @@ Slots/options (tous optionnels) :
   download_menu_template : partial d'app pour les items du menu « ⬇ ZIP » (rendu si has_success).
   eta_ids                : ids des éléments (CSV) pour l'ETA agrégée (sinon pas d'ETA).
   show_start             : défaut True — bouton ▶ Lancer/relancer le batch (pos. 2, conventions §6).
+  app                    : NAMESPACE d'URL de l'app (ex. 'transcriber').
+  actions_communes       : True → le partial ÉMET `data-batch-{delete,duplicate,start}-url` et la
+                           brique commune `queue-actions.js` prend ▶ ⧉ 🗑 en charge. À poser au
+                           moment EXACT où l'app retire ses handlers locaux (sinon double-fire).
+                           Portées au 2026-08-23 : transcriber, composer, describer.
+  batch_ns               : préfixe d'URL des routes de lot, défaut `<app>:batch` — à préciser pour
+                           une app à PLUSIEURS familles de lots (enhancer audio : `enhancer:audio_batch`).
+                           Une route absente rend une chaîne vide (`{% templatetag openblock %} url … as … {% templatetag closeblock %}` ne lève pas),
+                           l'attribut n'est donc pas émis : pas de bouton mort par accident.
 L'app garde autour : le wrapper .batch-group + le conteneur .collapse des filles
 (#batchItems{{ batch_info.obj.id }}, data-wama-batch-key='<app>_<id>').
 {% endcomment %}
+{% comment %}URLs des actions de LOT — émises SEULEMENT si l'app le demande (`actions_communes`).
+⚠ L'opt-in n'est pas de la prudence décorative : tant qu'une app garde ses handlers locaux, émettre
+l'attribut ferait tirer la brique ET l'app sur le même clic (double POST). Le portage d'une app est
+donc ATOMIQUE — retirer ses handlers ET poser `actions_communes=True` dans le même geste.
+`batch_ns` (défaut `<app>:batch`) existe pour la seule app à DEUX familles de lots : l'enhancer,
+dont la file audio a ses propres routes `audio_batch_*`. Sans ce paramètre, la dérivation par nom
+d'app lui aurait servi les URLs de l'autre file — une suppression sur le mauvais lot.{% endcomment %}
+{% comment %}⚠ PAS de {% templatetag openblock %} with {% templatetag closeblock %} ici : `{% templatetag openblock %} url … as v {% templatetag closeblock %}` écrit `v` dans le contexte
+COURANT, or `with` en pousse un nouveau — les variables y seraient mortes au `endwith`. `if`, lui,
+ne pousse rien. Piège vérifié en rendant le partial, pas déduit.{% endcomment %}
+{% if actions_communes %}
+{% if batch_ns %}
+{% url batch_ns|add:'_delete' batch_info.obj.id as u_batch_delete %}
+{% url batch_ns|add:'_duplicate' batch_info.obj.id as u_batch_duplicate %}
+{% url batch_ns|add:'_start' batch_info.obj.id as u_batch_start %}
+{% else %}
+{% url app|add:':batch_delete' batch_info.obj.id as u_batch_delete %}
+{% url app|add:':batch_duplicate' batch_info.obj.id as u_batch_duplicate %}
+{% url app|add:':batch_start' batch_info.obj.id as u_batch_start %}
+{% endif %}
+{% endif %}
 <div class="{{ card_class|default:'' }} wama-card is-batch batch-group-header" data-status="batch"
      data-batch-total="{{ batch_info.obj.total }}" data-batch-success="{{ batch_info.success_count }}"
      data-batch-running="{{ batch_info.running_count }}" data-batch-failure="{{ batch_info.failure_count }}">
@@ -80,6 +110,7 @@ L'app garde autour : le wrapper .batch-group + le conteneur .collapse des filles
                 {# ▶ Lancer/Relancer (pos. 2, comme les cards individuelles — conventions §6) #}
                 <button class="btn btn-sm btn-outline-success batch-start-btn py-0 px-2"
                         data-batch-id="{{ batch_info.obj.id }}"
+                        {% if u_batch_start %}data-batch-start-url="{{ u_batch_start }}"{% endif %}
                         title="Lancer / relancer tous les éléments du batch">
                     <i class="fas {% if batch_info.has_success %}fa-rotate-right{% else %}fa-play{% endif %}"></i>
                 </button>
@@ -103,11 +134,15 @@ L'app garde autour : le wrapper .batch-group + le conteneur .collapse des filles
                 </a>
                 {% endif %}
                 <button class="btn btn-sm btn-outline-warning batch-duplicate-btn py-0 px-2"
-                        data-batch-id="{{ batch_info.obj.id }}" title="Dupliquer le batch">
+                        data-batch-id="{{ batch_info.obj.id }}"
+                        {% if u_batch_duplicate %}data-batch-duplicate-url="{{ u_batch_duplicate }}"{% endif %}
+                        title="Dupliquer le batch">
                     <i class="fas fa-copy"></i>
                 </button>
                 <button class="btn btn-sm btn-outline-danger batch-delete-btn py-0 px-2"
-                        data-batch-id="{{ batch_info.obj.id }}" title="Supprimer le batch">
+                        data-batch-id="{{ batch_info.obj.id }}"
+                        {% if u_batch_delete %}data-batch-delete-url="{{ u_batch_delete }}"{% endif %}
+                        title="Supprimer le batch">
                     <i class="fas fa-trash"></i>
                 </button>
             </div>
