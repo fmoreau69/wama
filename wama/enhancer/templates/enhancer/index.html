@@ -14,7 +14,7 @@
 {# ── Right panel : paramètres ────────────────────────────────────────────── #}
 {% block app_right_panel_settings %}
 <!-- === Image/Video settings === -->
-<div id="imgSettings">
+<div id="imgSettings" data-domain-settings="image_video">
     <div class="mb-3">
         <label for="defaultAiModel" class="form-label small fw-bold text-light">
             <i class="fas fa-brain"></i> Modèle AI
@@ -65,7 +65,7 @@
 </div>
 
 <!-- === Audio settings === -->
-<div id="audioSettings" style="display:none;">
+<div id="audioSettings" data-domain-settings="audio" style="display:none;">
     <div class="mb-3">
         <label for="audioEngine" class="form-label small fw-bold text-light">
             <i class="fas fa-cogs"></i> Moteur
@@ -184,7 +184,7 @@
 <!-- =====================================================================
      Image / Video Tab
      ===================================================================== -->
-<div class="tab-pane fade show active" id="imgvideoTab" role="tabpanel" aria-labelledby="imgvideo-tab">
+<div class="tab-pane fade show active" id="imgvideoTab" role="tabpanel" data-domain="image_video">
 
 {# Card d'entrée COMMUNE (dépôt fichier/URL/médiathèque + import batch) — port 2026-07-26 #}
 {% url 'enhancer:batch_template' as enhancer_batch_template_url %}
@@ -233,7 +233,7 @@
 <!-- =====================================================================
      Audio Tab
      ===================================================================== -->
-<div class="tab-pane fade" id="audioTab" role="tabpanel" aria-labelledby="audio-tab">
+<div class="tab-pane fade" id="audioTab" role="tabpanel" data-domain="audio">
 
 {# Card d'entrée COMMUNE audio (dépôt fichier/médiathèque + barre batch audio spécifique) #}
 {% include 'common/_new_item_card.html' with drop_zone_id='dropZoneAudio' file_input_id='audio-enhancer-file' folder_input_id='audioEnhFolderInput' file_accept='audio/*' formats_label='Audio — WAV, MP3, FLAC, M4A…' show_media_library=True media_library_type='audio' extra_zone_template='enhancer/_audio_batch_bar.html' collapsible=True %}
@@ -344,66 +344,19 @@
       audioBatchDuplicateUrlTemplate: '{% url "enhancer:audio_batch_duplicate" 0 %}',
     };
 
-    // Tab persistence + right-panel switching
-    document.addEventListener('DOMContentLoaded', function () {
-      const imgSettings   = document.getElementById('imgSettings');
-      const audioSettings = document.getElementById('audioSettings');
-      const imgActions    = document.getElementById('imgActions');
-      const audioActions  = document.getElementById('audioActions');
-      const dropZoneImg        = document.getElementById('dropZoneEnhancer');
-      const dropZoneAud        = document.getElementById('dropZoneAudio');
-      const dropZoneUrl        = document.getElementById('dropZoneUrl');
-      const batchDetectBar     = document.getElementById('batchDetectBar');
-      const audioBatchDetectBar = document.getElementById('audioBatchDetectBar');
-
-      function showImgPanel() {
-        if (imgSettings)    { imgSettings.style.display  = ''; }
-        if (audioSettings)  { audioSettings.style.display = 'none'; }
-        if (imgActions)     { imgActions.classList.remove('d-none'); }
-        if (audioActions)   { audioActions.classList.add('d-none'); }
-        if (dropZoneImg)    { dropZoneImg.classList.remove('d-none'); }
-        if (dropZoneAud)    { dropZoneAud.classList.add('d-none'); }
-        if (dropZoneUrl)    { dropZoneUrl.style.display = ''; }
-        // Hide audio batch bar when switching to img/video
-        if (audioBatchDetectBar) { audioBatchDetectBar.style.display = 'none'; }
-      }
-
-      function showAudioPanel() {
-        if (imgSettings)    { imgSettings.style.display  = 'none'; }
-        if (audioSettings)  { audioSettings.style.display = ''; }
-        if (imgActions)     { imgActions.classList.add('d-none'); }
-        if (audioActions)   { audioActions.classList.remove('d-none'); }
-        if (dropZoneImg)    { dropZoneImg.classList.add('d-none'); }
-        if (dropZoneAud)    { dropZoneAud.classList.remove('d-none'); }
-        if (dropZoneUrl)    { dropZoneUrl.style.display = 'none'; }
-        // Hide img/video batch bar when switching to audio
-        if (batchDetectBar) { batchDetectBar.style.display = 'none'; }
-      }
-
-      const imgvideoTabBtn = document.getElementById('imgvideo-tab');
-      const audioTabBtn    = document.getElementById('audio-tab');
-
-      if (imgvideoTabBtn) {
-        imgvideoTabBtn.addEventListener('shown.bs.tab', function () {
-          localStorage.setItem('enhancerTab', 'imgvideo');
-          showImgPanel();
-        });
-      }
-      if (audioTabBtn) {
-        audioTabBtn.addEventListener('shown.bs.tab', function () {
-          localStorage.setItem('enhancerTab', 'audio');
-          showAudioPanel();
-        });
-      }
-
-      // Restore last tab
-      const saved = localStorage.getItem('enhancerTab');
-      if (saved === 'audio' && audioTabBtn) {
-        const tab = new bootstrap.Tab(audioTabBtn);
-        tab.show();
-        showAudioPanel();
-      }
-    });
+    {% comment %}
+    RETIRÉ le 2026-08-23 — bascule d'onglets Bootstrap devenue MORTE, et morte en silence.
+    Elle s'accrochait à `#imgvideo-tab` / `#audio-tab`, deux boutons que la page n'a plus depuis
+    que les onglets de domaine sont rendus par la brique WamaModes (`wama-modes.js:93` : ni `id`,
+    ni `data-bs-toggle`, le clic étant géré par la brique elle-même). Mesuré au navigateur :
+    les deux `getElementById` rendent `null`, donc aucun listener n'était posé ; `showImgPanel`
+    et `showAudioPanel` n'étaient jamais appelés ; la clé `localStorage.enhancerTab` n'a jamais
+    été écrite (relevée à `null`). Trois des cinq ancres qu'elle manipulait — `imgActions`,
+    `audioActions`, `dropZoneUrl` — n'existent nulle part dans `wama/` ; les deux barres de batch
+    restantes vivent DANS les panes, donc basculent avec eux.
+    La bascule réelle est `switchDomain()` plus bas, câblée sur l'`onChange` de WamaModes.
+    Rien n'avait signalé cette mort : des gardes `if (x)` sur des ancres absentes ne lèvent pas.
+    {% endcomment %}
 </script>
 <script src="{% static_v 'common/js/wama-eta.js' %}"></script>
 <script src="{% static_v 'common/js/batch-import.js' %}"></script>
@@ -518,16 +471,24 @@ document.addEventListener('DOMContentLoaded', function () {
 document.addEventListener('DOMContentLoaded', function () {
     var host = document.getElementById('enhancerModes');
     if (!host || !window.WamaModes) return;
+    // Bascule par `data-domain` — AUCUNE comparaison à un id de domaine en dur. C'en était une,
+    // `domain === 'media'`, qui a survécu au renommage du domaine `media` → `image_video` (palier 2)
+    // sans lever la moindre erreur : la comparaison rendait `false` pour toujours, donc la page
+    // affichait la file AUDIO alors que l'onglet actif était Image/Vidéo. Le ⚙ d'une card
+    // image/vidéo devenait ainsi invisible — c'est ce que `enhancer.settings` mesurait.
+    // Scoper sur `.tab-pane[data-domain]` et non `[data-domain]` : le palier 2 a posé le même
+    // attribut sur les CARDS, qu'un sélecteur global raflerait.
     function switchDomain(domain) {
-        var media = (domain === 'media');
-        // 1) Panes de file (image/vidéo ↔ audio).
-        var p1 = document.getElementById('imgvideoTab'), p2 = document.getElementById('audioTab');
-        if (p1) { p1.classList.toggle('show', media); p1.classList.toggle('active', media); }
-        if (p2) { p2.classList.toggle('show', !media); p2.classList.toggle('active', !media); }
-        // 2) Réglages du VOLET DROIT (scopés au domaine) : image/vidéo ↔ audio.
-        var s1 = document.getElementById('imgSettings'), s2 = document.getElementById('audioSettings');
-        if (s1) s1.style.display = media ? '' : 'none';
-        if (s2) s2.style.display = media ? 'none' : '';
+        // 1) Panes de file (dropzone + barre de batch + file : tout est DANS le pane).
+        document.querySelectorAll('.tab-pane[data-domain]').forEach(function (p) {
+            var actif = (p.dataset.domain === domain);
+            p.classList.toggle('show', actif);
+            p.classList.toggle('active', actif);
+        });
+        // 2) Réglages du VOLET DROIT — hors des panes, d'où un attribut distinct.
+        document.querySelectorAll('[data-domain-settings]').forEach(function (s) {
+            s.style.display = (s.dataset.domainSettings === domain) ? '' : 'none';
+        });
         try { localStorage.setItem('enhancerDomain', domain); } catch (e) {}
     }
     WamaModes.fetch('enhancer').then(function (schema) {

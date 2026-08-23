@@ -6438,3 +6438,84 @@ reader/synthesizer 98, imager 97 ⚠ **dénominateurs +3** (`settings_wiring`, `
 `download_wiring`) · nocturnes : `.ui` **14/14**, `.duplicate_delete` **7 OK / 0 échec**,
 `.settings` **6 OK / 1 échec** (enhancer, cf. F.1), `.import` 7/0/7 ·
 ⚠ `manifest_export --check` périmé sur `anonymizer:sam3` — **antérieur** à cette session.
+
+---
+
+## §REPRISE — 2026-08-23 (nuit, instance `enhancer.settings`) — 🔚 POINT D'ENTRÉE
+
+> **🔚 POINT D'ENTRÉE : le 🔚 n°2 du handoff précédent — palier 3, `WamaInputMatch` sur converter
+> et describer. Le 🔚 n°1 (`enhancer.settings`) est CLOS ; son hypothèse était FAUSSE.**
+
+Session courte, entièrement consacrée au premier 🔚 laissé par la session précédente.
+**2 commits** (`e1823ec2` corpus, + celui-ci).
+
+### A. `enhancer.settings` — l'hypothèse du handoff était fausse, et c'est le résultat utile
+
+Le handoff supposait « la card de fixture est dans l'onglet inactif, **lacune de harnais** — le
+scénario sait déplier un lot, pas activer un onglet ». Elle était explicitement notée **NON
+VÉRIFIÉE AU NAVIGATEUR**. Vérifiée : **c'est un défaut d'APPLICATION, le harnais avait raison.**
+
+`enhancer/index.html:522` portait `var media = (domain === 'media')`. Or le palier 2 de la veille a
+renommé ce domaine **`media` → `image_video`**. La comparaison rendait donc `false` **pour
+toujours** : `switchDomain()` affichait la file AUDIO alors que l'onglet actif était Image/Vidéo.
+Relevé au navigateur avant correction — onglet `image_video` **actif**, pane `#imgvideoTab`
+**masqué**, `#audioTab` **affiché** : les panes étaient **inversés**. D'où le ⚙ « présent au
+contrat commun mais invisible » que le scénario mesurait, et qu'il mesurait **justement**.
+
+**Correctif** : plus aucune comparaison à un id de domaine en dur. Les panes portent
+`data-domain`, les réglages `data-domain-settings`, et `switchDomain()` bascule celui qui
+correspond. ⚠ Scoper sur **`.tab-pane[data-domain]`** et non `[data-domain]` : le palier 2 a posé
+le même attribut sur les **cards**, qu'un sélecteur global raflerait.
+
+**Second défaut trouvé au passage → `REMOVAL_LEDGER` R24** : ~58 lignes de bascule Bootstrap
+(`showImgPanel`/`showAudioPanel` + persistance `enhancerTab`) **mortes en silence** — WamaModes
+rend ses onglets sans `id` ni `data-bs-toggle` (`wama-modes.js:93`), donc les deux
+`getElementById` rendaient `null` et aucun listener n'était posé. **3 des 5 ancres qu'elles
+manipulaient n'existent nulle part** dans `wama/`.
+
+### B. Ce que la session a appris
+
+- ⚠⚠ **UN RENOMMAGE DE DONNÉE NE CASSE RIEN — IL REND FAUX.** `domain === 'media'` n'a levé
+  aucune erreur, n'a produit aucun log : il a simplement cessé d'être vrai. Le palier 2 a été
+  livré et documenté sans que rien ne signale qu'il venait de retourner l'affichage d'une app.
+  **Corollaire pour la suite du portage : après tout renommage d'identifiant DÉCLARÉ, grepper les
+  COMPARAISONS à l'ancienne valeur** — pas seulement ses définitions.
+- ⚠⚠ **J'AI CONCLU « CORRIGÉ » SUR L'ÉTAT STATIQUE DU TEMPLATE.** Ma première mesure post-correctif
+  montrait `imgvideoTab` en `show active` — mais c'est ce que le HTML porte **en dur** ligne 187,
+  avant tout JS. Je lisais l'état AVANT `switchDomain()`, pas son résultat. Une mesure qui
+  vaudrait la même chose si le code testé n'existait pas ne prouve rien. **Le geste qui a tranché :
+  basculer dans les DEUX sens et recharger**, pas relever un état au chargement.
+- ⚠⚠ **TROU #28, 6ᵉ occurrence — et cette fois sur un TEMPLATE, pas du Python.** Pendant ~20 min
+  mes sondes navigateur lisaient l'**ancien** gabarit pendant que `curl` recevait le **nouveau** :
+  4 workers gunicorn, `max_requests = 1000` les recyclant **un par un** → pile mixte, réponse
+  différente selon le worker touché. La règle du dépôt dit « HUP après tout changement **Python** » ;
+  **elle est trop étroite — l'étendre aux gabarits.** `kill -HUP <maître>` a tout aligné.
+- ⚠ **Le désaccord entre deux sondes est une DONNÉE, pas un bruit.** `curl` et Playwright se
+  contredisaient ; c'est en cherchant *pourquoi* que la pile mixte est apparue. Le réflexe de
+  relancer jusqu'à l'accord aurait masqué la cause.
+- ⚠ **`check_js` n'est PAS une commande `manage.py`** mais `bash scripts/check_js.sh`. Le bloc
+  « Contrôles attendus » le cite sans son préfixe → `Unknown command`. Corrigé ci-dessous.
+
+### C. Contrôles attendus au prochain /reprise
+
+`check_docs` **4 CASSÉ / 0 périmée** — ⚠ le critère est **1 CIBLE distincte** (`_result_tabs.html`),
+pas le nombre · `bash scripts/check_js.sh` **57 fichiers 0 erreur, 56 paires 0 divergente** ·
+`doc_facts` **5/5** · `manifest_export --check` **corpus à jour (110)** ← régénéré ce jour, le
+« périmé sur `anonymizer:sam3` seul » du bloc précédent était **déjà faux à l'écriture** (les 10
+manifestes d'apps l'étaient aussi, la facette `modes` étant exportée) · `manifest_roundtrip --all`
+fidélité **OK ×10** · grille **inchangée** : converter/describer/transcriber **100 %**, enhancer 99,
+anonymizer/avatarizer/composer/reader/synthesizer 98, imager 97 · nocturnes : `.settings`
+**7 OK / 0 échec** ← *(était 6/1)*, `.duplicate_delete` **7 OK / 0 échec** · `migrate --check` exit 0.
+
+> ⚠ **Un bloc d'attendus écrit sans être re-mesuré après le dernier commit décrit le MILIEU de la
+> session, pas sa fin.** Deux de ses lignes étaient fausses ce matin pour cette seule raison.
+
+### D. Système & partition
+
+- **Étendre le trou #28 aux GABARITS** : `kill -HUP <maître gunicorn>` après tout changement de
+  template autant que de Python (mesuré ce jour, cf. §B).
+- **Instance sœur** : `wama/common/services/ui_smoke.py` et `nightly_tests.py` **lus, non
+  modifiés** — le correctif est entièrement dans `wama/enhancer/templates/enhancer/index.html`.
+- **Reste du handoff précédent, inchangé** : 🔚 2 (palier 3 `WamaInputMatch` converter+describer),
+  3 (2 axes médiathèque), 4 (5 apps d'actions de lot), 5 (taxonomie `text` vs `document`),
+  6 (`converter_01`), 7 (`.wama-cycle-btn`), 8 (anonymizer audio/document).
