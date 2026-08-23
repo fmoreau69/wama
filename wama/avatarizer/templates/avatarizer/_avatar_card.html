@@ -1,3 +1,4 @@
+{% load wama_actions %}
 {% comment %}
 Card AvatarJob — CARD v3 « sections × chips » (CARD_DESIGN §11, portée le 2026-08-13 ;
 remplace la card en 5 colonnes). Partial serveur UNIQUE : rendue au chargement (boucle
@@ -102,15 +103,11 @@ Contexte : job (chips = propriété du modèle), media_url, in_batch.
         </button>
         {% endif %}
         {% include 'common/_cycle_button.html' with id=job.id status=job.status %}
+        {% url 'avatarizer:download' job.id as url_dl %}
         {% if job.status == 'SUCCESS' and job.output_video %}
-        <a href="{% url 'avatarizer:download' job.id %}"
-           class="btn btn-sm btn-outline-info" title="Télécharger">
-          <i class="fas fa-download"></i>
-        </a>
+          {% bouton_telecharger 'avatarizer' url_dl True %}
         {% else %}
-        <button class="btn btn-sm btn-outline-info" disabled title="Télécharger">
-          <i class="fas fa-download"></i>
-        </button>
+          {% bouton_telecharger 'avatarizer' url_dl False %}
         {% endif %}
         <button class="btn btn-sm btn-outline-warning duplicate-btn"
                 data-job-id="{{ job.id }}"

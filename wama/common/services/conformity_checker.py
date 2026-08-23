@@ -538,6 +538,37 @@ def _settings_wiring(f: _AppFiles):
     return False, None
 
 
+def _download_wiring(f: _AppFiles):
+    """⬇ Télécharger rendu par la brique commune — QUATRIÈME et dernier jumeau (2026-08-23).
+
+    ⚠ CELUI-CI NE MESURE PAS UN CÂBLAGE JS, ET C'EST TOUT SON INTÉRÊT. Dupliquer, supprimer et
+    paramétrer sont des BOUTONS à comportement : leur divergence se voyait dans le JS. Télécharger
+    est un LIEN — il n'a aucun handler, donc aucun grep d'`addEventListener` ne pouvait le
+    signaler. Sa divergence vivait entièrement dans le GABARIT, et elle y est restée longtemps :
+    trois apps recopiaient le même dropdown à la main, deux rendaient un `<button>`+JS contraire
+    à §6.3 (et à leur propre déclaration `export_binding`), une postait un FORMULAIRE.
+
+    Ce qu'on exige : le gabarit appelle `{% bouton_telecharger … %}`, et il ne reste NI dropdown
+    écrit à la main, NI handler de clic sur `.download-btn`. Le second membre compte autant que le
+    premier — adopter la brique en laissant l'ancien markup à côté donnerait deux boutons.
+    """
+    brique = f.find_code(TEMPLATES, r'bouton_telecharger')
+    # Dropdown de formats écrit à la main : la marque en est `?format=` dans un `dropdown-item`.
+    manuel = f.find_code(TEMPLATES, r'dropdown-item[^>]*\?format=')
+    # Un `<a href>` n'a pas de handler : un clic écouté sur `.download-btn` est le signe d'une
+    # navigation faite en JavaScript, que §6.3 ne prévoit pas.
+    local = f.find_code(JS, r"closest\(\s*['\"][^'\"]*(?<![\w-])\.(?:video-)?download-btn")
+    if manuel and brique:
+        return False, f"brique adoptée MAIS dropdown manuel subsistant ({manuel}) — deux boutons"
+    if local:
+        return False, f"navigation en JS sur .download-btn ({local}) — un téléchargement est un lien"
+    if brique:
+        return True, brique
+    if manuel:
+        return 'partial', f"{manuel} (dropdown écrit à la main, brique non consommée)"
+    return False, None
+
+
 def _help_about(f: _AppFiles):
     # Durci 2026-08-11 : l'ancien motif `class (Help|About)View` mesurait la PRÉSENCE d'une
     # classe — or 9 apps sur 10 rendaient 500 (templates fantômes), et le seul 200 (converter)
@@ -610,8 +641,21 @@ def _console(f: _AppFiles):
 
 
 def _btn_order(f: _AppFiles):
-    """M1 — ordre canonique ⚙▶⬇⧉🗑 dans le template de card (best effort)."""
-    markers = [r'fa-cog|fa-gear', r'_cycle_button\.html|fa-play|fa-redo', r'fa-download',
+    """M1 — ordre canonique ⚙▶⬇⧉🗑 dans le template de card (best effort).
+
+    ⚠ CHAQUE MARQUEUR DOIT ACCEPTER LA FORME COMMUNE AUTANT QUE LA FORME LOCALE, sinon ce
+    critère PUNIT l'adoption d'une brique. Vécu deux fois :
+      • ▶ : `_cycle_button.html` (include) accepté à côté de `fa-play|fa-redo` ;
+      • ⬇ : `bouton_telecharger` (tag d'inclusion) ajouté le 2026-08-23 — sans lui, les 10 apps
+        passaient au ROUGE le jour où le bouton de téléchargement a rejoint le commun, alors que
+        rien n'avait disparu de l'écran. Le critère ne cherchait plus l'icône au bon endroit :
+        elle avait simplement déménagé dans le partial.
+    C'est le défaut symétrique de celui des graphies : là on lisait un motif au lieu d'un
+    mécanisme, ici on lit un EMPLACEMENT au lieu d'une présence. Un critère qui mesure du markup
+    doit suivre le markup quand il se centralise — sinon il transforme un progrès en régression.
+    """
+    markers = [r'fa-cog|fa-gear', r'_cycle_button\.html|fa-play|fa-redo',
+               r'fa-download|bouton_telecharger',
                r'fa-copy|fa-clone', r'fa-trash']
     best = None
     for path in f.glob('templates/**/*card*.html') + f.glob('templates/**/index.html'):
@@ -1162,6 +1206,12 @@ CRITERIA: list[Criterion] = [
     # cinq comportements est vérifié.
     Criterion('settings_wiring', 'F5', 'Paramètres via la brique (bouton + ouvreur déclaré)',
               _settings_wiring, mecanisme='queue_front'),
+    # Quatrième jumeau (2026-08-23) : les QUATRE actions de card qui ont un domicile commun ont
+    # chacune leur critère. ⬇ est rattaché à `param_schema` et non à `queue_front` : sa forme est
+    # dictée par une DÉCLARATION du catalogue (`export_formats`/`export_binding`), pas par le
+    # comportement de la file.
+    Criterion('download_wiring', 'F3', 'Téléchargement via la brique (forme dérivée de la déclaration)',
+              _download_wiring, mecanisme='param_schema'),
     Criterion('duplicate_instance', 'F5', 'duplicate_instance() (brique commune)',
               lambda f: _present(f, VIEWS, r'duplicate_instance'),
               mecanisme='queue_duplication'),

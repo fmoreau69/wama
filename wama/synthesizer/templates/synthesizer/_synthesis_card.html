@@ -1,3 +1,4 @@
+{% load wama_actions %}
 {% comment %}
 Card VoiceSynthesis — CARD v3 « sections × chips » (CARD_DESIGN §11, portée le 2026-08-13 ;
 remplace la card en colonnes). SOURCE UNIQUE du markup : rendue au chargement (single +
@@ -88,16 +89,8 @@ principal affiche le fichier d'ENTRÉE (ex. .docx) si présent.
           <i class="fas fa-cog"></i>
         </button>
         {% include 'common/_cycle_button.html' with id=synthesis.id status=synthesis.status %}
-        {% if synthesis.audio_output %}
-        <a href="{% url 'synthesizer:download' synthesis.id %}"
-           class="btn btn-sm btn-outline-info" title="Télécharger">
-          <i class="fas fa-download"></i>
-        </a>
-        {% else %}
-        <button class="btn btn-sm btn-outline-info" disabled title="Télécharger">
-          <i class="fas fa-download"></i>
-        </button>
-        {% endif %}
+        {% url 'synthesizer:download' synthesis.id as url_dl %}
+        {% bouton_telecharger 'synthesizer' url_dl synthesis.audio_output %}
         <button class="btn btn-sm btn-outline-warning duplicate-btn"
                 data-duplicate-url="{% url 'synthesizer:duplicate' synthesis.id %}"
                 title="Dupliquer (tester un autre modèle)">

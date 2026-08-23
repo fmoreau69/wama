@@ -1,3 +1,4 @@
+{% load wama_actions %}
 {% comment %}
 Carte d'un ConversionJob — CARD v3 « sections × chips » (formalisme CARD_DESIGN §11,
 portée du pilote reader/_item_card.html le 2026-08-13 ; remplace la card empilée v2).
@@ -107,15 +108,11 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
           <i class="fas fa-cog"></i>
         </button>
         {% include 'common/_cycle_button.html' with id=job.id status=job.status %}
+        {% url 'converter:download' job.id as url_dl %}
         {% if job.status == 'SUCCESS' and job.output_file %}
-        <a href="{% url 'converter:download' job.id %}"
-           class="btn btn-sm btn-outline-info" title="Télécharger">
-          <i class="fas fa-download"></i>
-        </a>
+          {% bouton_telecharger 'converter' url_dl True %}
         {% else %}
-        <button class="btn btn-sm btn-outline-info" disabled title="Télécharger">
-          <i class="fas fa-download"></i>
-        </button>
+          {% bouton_telecharger 'converter' url_dl False %}
         {% endif %}
         <button class="btn btn-sm btn-outline-warning duplicate-btn"
                 title="Dupliquer" data-duplicate-url="{% url 'converter:duplicate' job.id %}">

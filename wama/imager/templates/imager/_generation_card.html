@@ -1,3 +1,4 @@
+{% load wama_actions %}
 {% comment %}
 Card d'une génération Imager (image ET vidéo) — CARD v3 « sections × chips » (CARD_DESIGN
 §11, portée le 2026-08-13 ; remplace la card en 3 lignes). Partial serveur UNIQUE : rendu
@@ -8,8 +9,9 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
 ⚠ Contrats JS : .imager-card[data-id][data-status][data-domain] + TOUTES les data-* du
   schéma sur la racine (WamaInspector.cardSettings — sans elles le volet est INERTE) ;
   .settings-btn[data-id] (COMMUN aux 2 domaines depuis le 2026-08-23) ; .wama-cycle-btn ;
-  .download-btn / .video-download-btn [data-id] ; .duplicate-btn[data-duplicate-url] ;
-  .delete-btn / .video-delete-btn [data-id] ; .wama-eta ; .wama-progress-fill ;
+  ⬇ = brique commune `_download_button.html` (plus de .video-download-btn) ;
+  .duplicate-btn[data-duplicate-url] ;
+  .delete-btn[data-delete-url] ; .wama-eta ; .wama-progress-fill ;
   openImagePreview/openVideoPreview (aperçus).
 {% endcomment %}
 <div class="imager-card synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if gen.status == 'RUNNING' %}processing{% elif gen.status == 'SUCCESS' %}success{% elif gen.status == 'FAILURE' %}error{% endif %}"
@@ -100,12 +102,17 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
           <i class="fas fa-cog"></i>
         </button>
         {% include 'common/_cycle_button.html' with id=gen.id status=gen.status %}
-        <button type="button"
-                class="btn btn-sm btn-outline-info {% if domain == 'video' %}video-download-btn{% else %}download-btn{% endif %} {% if gen.status != 'SUCCESS' %}disabled{% endif %}"
-                {% if gen.status != 'SUCCESS' %}disabled aria-disabled="true" tabindex="-1"{% endif %}
-                data-id="{{ gen.id }}" title="Télécharger le résultat">
-          <i class="fas fa-download"></i>
-        </button>
+        {% comment %}⬇ : brique commune (2026-08-23). Remplace un `<button>`+JS qui naviguait
+        en JavaScript — contraire à §6.3 ET à la propre déclaration de l'imager
+        (`export_binding='early'` ⇒ lien simple). Un téléchargement est une NAVIGATION : le faire
+        en JS coûtait deux handlers et privait l'utilisateur du clic-droit « Enregistrer sous ».
+        {% endcomment %}
+        {% url 'imager:download' gen.id as url_dl %}
+        {% if gen.status == 'SUCCESS' %}
+          {% bouton_telecharger 'imager' url_dl True titre='Télécharger le résultat' %}
+        {% else %}
+          {% bouton_telecharger 'imager' url_dl False %}
+        {% endif %}
         <button type="button" class="btn btn-sm btn-outline-warning duplicate-btn"
                 data-duplicate-url="{% url 'imager:duplicate' gen.id %}"
                 title="Dupliquer (tester d'autres paramètres)">

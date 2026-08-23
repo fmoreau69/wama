@@ -533,22 +533,41 @@ def task_status(request, task_id):
     return JsonResponse({"status": res.status})
 
 
+def download(request, pk: int):
+    """Télécharge le média traité — route au FORMAT COMMUN `download/<pk>/` (2026-08-23).
+
+    POURQUOI, ALORS QUE LE TÉLÉCHARGEMENT MARCHAIT. Comme pour la suppression, c'est la FORME
+    qui divergeait : l'anonymizer était la seule app dont le ⬇ n'était pas un lien mais un
+    `<form method="post">` postant `media_id`. La brique commune `_download_button.html` rend un
+    `<a href>` — elle ne pouvait donc pas le servir.
+
+    Ce que le formulaire coûtait à l'utilisateur, au-delà de l'homogénéité : un POST n'est pas
+    une navigation. Pas de clic-droit « Enregistrer sous », pas d'ouverture dans un nouvel
+    onglet, et un rechargement de page qui redemande la soumission. Un téléchargement est un GET.
+    """
+    from wama.common.utils.scoping import visible_or_404
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    return _servir_media_traite(request, visible_or_404(Media, user, pk=pk))
+
+
 def download_media(request):
+    """Ancienne forme (POST + `media_id`). Conservée le temps de vérifier qu'aucun appelant
+    externe n'en dépend, et DÉLÈGUE au même travail — pas de second chemin. Cf. REMOVAL_LEDGER."""
     if request.method != 'POST':
         return HttpResponseNotAllowed(['POST'])
 
     media_id = request.POST.get('media_id')
-    print(f"[download_media] Received media_id: {media_id}")
-
     if not media_id:
-        print("[download_media] ✗ Missing media_id")
         return HttpResponseBadRequest("Missing media_id.")
 
     # Lecture → partage F7 (le sien, ou partagé unité/projet/public)
     from wama.common.utils.scoping import visible_or_404
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    media = visible_or_404(Media, user, pk=media_id)
-    print(f"[download_media] Media found: {media.file.name} (ext: {media.file_ext}, processed: {media.processed})")
+    return _servir_media_traite(request, visible_or_404(Media, user, pk=media_id))
+
+
+def _servir_media_traite(request, media):
+    """Résout le fichier de sortie (le suffixe varie selon le backend) et le sert."""
 
     # Generate the canonical blurred output path; the actual file written
     # by the pipeline carries a suffix that varies by backend:

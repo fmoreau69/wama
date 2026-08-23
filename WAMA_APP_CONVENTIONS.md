@@ -549,6 +549,26 @@ utiliser un **split button dropdown Bootstrap** — un bouton principal (format 
 + une flèche qui déroule les formats alternatifs.
 **Ne pas ajouter un bouton séparé par format.**
 
+> ✅ **DEPUIS LE 2026-08-23 : NE PLUS RECOPIER LE MARKUP CI-DESSOUS.** Il est rendu par la brique
+> commune `common/_download_button.html`, et la card n'écrit qu'une ligne :
+>
+> ```django
+> {% templatetag openblock %} load wama_actions {% templatetag closeblock %}
+> {% templatetag openblock %} url 'app:download' o.id as url_dl {% templatetag closeblock %}
+> {% templatetag openblock %} bouton_telecharger 'app' url_dl o.a_un_resultat {% templatetag closeblock %}
+> ```
+>
+> **La FORME n'est pas un choix de gabarit** : lien simple, split ▾ ou bouton désactivé se
+> déduisent de `export_formats` (déclaré au catalogue) et de l'état de l'item. C'est ce qui a
+> manqué pendant des mois — la règle était écrite ici, la déclaration `export_binding` était
+> juste sur 10 apps sur 10, mais **rien ne les reliait** : trois apps recopiaient le dropdown,
+> deux rendaient un `<button>`+JS, une postait un `<form>`. Le markup ci-dessous reste comme
+> RÉFÉRENCE de ce que la brique produit, pas comme modèle à copier.
+>
+> Restriction au niveau de l'ITEM (un format que CET élément n'a pas) : 4ᵉ argument, par ex.
+> `{% templatetag openblock %} bouton_telecharger 'reader' url_dl True 'txt,md,pdf,docx' {% templatetag closeblock %}` — la déclaration dit
+> ce que l'app sait exporter, l'item dit ce qu'il a.
+
 ```html
 <!-- 3. Télécharger (multi-format) — remplace le lien <a> simple -->
 {% if item.has_result %}

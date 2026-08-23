@@ -68,7 +68,7 @@ Le catalogue n'est **pas à inventer** : c'est la table des composants obligatoi
 | 9 | Arrêter / relancer (bouton de cycle) | ❌ | **oui** |
 | 10 | Progression : % et ETA visibles et qui avancent | ❌ | **oui** |
 | 11 | Aperçu du résultat (clic → visionneuse) | ❌ | **oui** |
-| 12 | Télécharger le résultat | ❌ | **oui** |
+| 12 | Télécharger le résultat | ❌ — ⚠ le MARKUP est prouvé (critère `download_wiring` 12/12 + pages 200), le TRANSFERT non : le compte de test ne possède aucun élément traité, donc `download/<pk>/` lui répond 404 — **le scoping qui fonctionne**, pas une panne | **oui** |
 | 13 | Démarrer tout / télécharger tout (lot) | ❌ | **oui** |
 | 14 | Import dossier récursif · URL · fichier de lot · « Envoyer vers » | ❌ | non |
 
@@ -118,11 +118,21 @@ les trois scénarios partagent le même montage de fixture et le même filet ORM
 |---|---|---|---|---|
 | **⧉ Dupliquer** | POST via JS | ✅ `queue-actions.js` | `.duplicate-btn[data-duplicate-url]` | **12/12** |
 | **🗑 Supprimer** | POST via JS | ✅ *depuis le 2026-08-22* | `delete-btn` (6) · `job-delete-btn` (converter ×2) · `btn-delete-job` (avatarizer) · `js-audio-delete` + `js-delete-enhancement` (enhancer) · `video-delete-btn` (imager vidéo) · `data-action="delete"` (reader) | **6/11 porté** (23/08 : converter, synthesizer, transcriber, enhancer ×2, reader) |
-| **▶ Cycle** | POST via JS | ✅ `wama-cycle-button.js` | `.wama-cycle-btn` | **2/10 adoptée** (anonymizer, imager) |
+| **▶ Cycle** | POST via JS | ✅ `wama-cycle-button.js` | `.wama-cycle-btn` | **12/12** — re-mesuré le 2026-08-23 |
 | **⚙ Paramètres** | ouvre une modale | ✅ *depuis le 2026-08-23* — `queue-actions.js` tient le bouton et la délégation, l'app déclare son ouvreur (`onSettings`) | `.settings-btn[data-id]` | **11/11 porté** (+ le jumeau bac à sable) |
-| **⬇ Télécharger** | **lien `<a href>`** | *sans objet* | `href="{% url 'app:download' %}"` partout ; quelques `download-btn` résiduels | n/a |
+| **⬇ Télécharger** | lien, **ou split ▾ si N formats** | ✅ *depuis le 2026-08-23* — `common/_download_button.html` + tag `bouton_telecharger` ; la FORME se déduit de `export_formats` déclaré au catalogue | `.download-btn` dans le partial commun | **12/12** |
+| **✏ Éditer** | ouvre une page/vue | ❌ *aucune* — **1 seule implémentation** | `.edit-btn` (transcriber) | 1/12 — à généraliser |
 
-> ⚠ **La ligne ⚙ ci-dessus a été RÉÉCRITE le 2026-08-23, et son relevé initial était FAUX sur
+> ⚠⚠ **CE TABLEAU S'EST TROMPÉ QUATRE FOIS, TOUJOURS DANS LE MÊME SENS — il SOUS-ESTIME.**
+> ⚙ : avatarizer donné pour « rien » alors qu'il avait `btn-settings-job`, et enhancer absent de
+> la table avec ses DEUX graphies. ▶ Cycle : annoncé **2/10**, mesuré **12/12** — les douze cards
+> incluent le partial commun ET appellent `WamaCycleButton`. La cause est commune aux quatre :
+> **un relevé par motif de texte hérite des angles morts du motif choisi**, et un chiffre bas
+> n'attire pas la contradiction alors qu'un chiffre haut l'attirerait. Corollaire de méthode :
+> **ne jamais planifier depuis cette table sans re-mesurer la ligne qu'on s'apprête à traiter** —
+> c'est ce qui a failli faire porter une brique de cycle déjà adoptée partout.
+>
+> ⚠ **La ligne ⚙ a été RÉÉCRITE le 2026-08-23, et son relevé initial était FAUX sur
 > deux points** — les deux dans le même sens, celui qui sous-estime la divergence :
 > - **avatarizer n'avait pas « rien »** : il avait `btn-settings-job`, seule graphie des six à
 >   inverser l'ordre des mots (`btn-settings-*` au lieu de `*-settings-btn`). Un relevé qui
@@ -140,7 +150,7 @@ les trois scénarios partagent le même montage de fixture et le même filet ORM
 
 | état de la brique | conséquence observée |
 |---|---|
-| brique **et** adoptée | **uniformité totale** (dupliquer 12/12 ; paramètres 11/11 le 23/08) |
+| brique **et** adoptée | **uniformité totale** (dupliquer, paramètres, supprimer, télécharger : 12/12 le 23/08) |
 | brique mais **non adoptée** | l'adoption est le chantier, le nommage tient (cycle, 2/10) |
 | **pas de brique** | **divergence** (supprimer et paramètres : 6 graphies chacun, avant leur brique) |
 | l'action est un **lien** | aucune brique n'est requise — un `<a href>` n'a rien à déléguer |

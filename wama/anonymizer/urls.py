@@ -32,6 +32,10 @@ urlpatterns = [
     path('reset_media_settings/', views.reset_media_settings, name='reset_media_settings'),
     path('reset_user_settings/', views.reset_user_settings, name='reset_user_settings'),
     path('process_progress/', views.get_process_progress, name='process_progress'),
+    # Route au FORMAT COMMUN (2026-08-23) — un téléchargement est un GET, et c'est ce que la
+    # brique `_download_button.html` rend. `download_media/` (POST + media_id) délègue au même
+    # corps et n'a plus de consommateur : à retirer (REMOVAL_LEDGER).
+    path('download/<int:pk>/', views.download, name='download'),
     path('download_media/', views.download_media, name='download_media'),
     path('expand_area/', views.expand_area, name='expand_area'),
     path('stop_process/', views.stop_process_view, name='stop_process'),

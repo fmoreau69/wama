@@ -1,3 +1,4 @@
+{% load wama_actions %}
 {% comment %}
 WAMA Describer — CARD v3 « sections × chips » (formalisme CARD_DESIGN §11, portée le
 2026-08-13 depuis le pilote reader/_item_card.html ; remplace la card en colonnes v2).
@@ -95,28 +96,10 @@ Rendue au chargement (cards autonomes ET filles) et par describer:card_html (ref
         <button class="btn btn-sm btn-outline-success preview-btn" data-id="{{ desc.id }}" title="Voir le résultat">
           <i class="fas fa-eye"></i>
         </button>
-        <div class="btn-group btn-group-sm">
-          <a href="{% url 'describer:download' desc.id %}?format=txt"
-             class="btn btn-outline-info download-btn" title="Télécharger TXT">
-            <i class="fas fa-download"></i>
-          </a>
-          <button type="button" class="btn btn-outline-info dropdown-toggle dropdown-toggle-split"
-                  data-bs-toggle="dropdown" aria-expanded="false">
-            <span class="visually-hidden">Autres formats</span>
-          </button>
-          <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
-            <li><a class="dropdown-item" href="{% url 'describer:download' desc.id %}?format=txt">
-                <i class="fas fa-file-alt me-2"></i>TXT</a></li>
-            <li><a class="dropdown-item" href="{% url 'describer:download' desc.id %}?format=pdf">
-                <i class="fas fa-file-pdf me-2 text-danger"></i>PDF</a></li>
-            <li><a class="dropdown-item" href="{% url 'describer:download' desc.id %}?format=docx">
-                <i class="fas fa-file-word me-2 text-primary"></i>DOCX</a></li>
-          </ul>
-        </div>
+        {% url 'describer:download' desc.id as url_dl %}
+        {% bouton_telecharger 'describer' url_dl True %}
         {% else %}
-        <button class="btn btn-sm btn-outline-info" disabled title="Pas encore de résultat">
-          <i class="fas fa-download"></i>
-        </button>
+        {% bouton_telecharger 'describer' '' False %}
         {% endif %}
         <button class="btn btn-sm btn-outline-warning duplicate-btn"
                 data-duplicate-url="{% url 'describer:duplicate' desc.id %}"

@@ -1,3 +1,4 @@
+{% load wama_actions %}
 {% comment %}
 Card AudioEnhancement — CARD v3 « sections × chips » (CARD_DESIGN §11, portée le 2026-08-13 ;
 remplace la card en colonnes du port 07/26). SOURCE UNIQUE du markup : rendue au chargement
@@ -88,16 +89,8 @@ Contexte : ae (AudioEnhancement, décorée .chips), in_batch (bool).
           <i class="fas fa-cog"></i>
         </button>
         {% include 'common/_cycle_button.html' with id=ae.id status=ae.status %}
-        {% if ae.output_file %}
-        <a class="btn btn-sm btn-outline-info download-btn"
-           href="{% url 'enhancer:audio_download' ae.id %}" title="Télécharger">
-          <i class="fas fa-download"></i>
-        </a>
-        {% else %}
-        <button class="btn btn-sm btn-outline-info" disabled title="Télécharger">
-          <i class="fas fa-download"></i>
-        </button>
-        {% endif %}
+        {% url 'enhancer:audio_download' ae.id as url_dl %}
+        {% bouton_telecharger 'enhancer' url_dl ae.output_file %}
         <button class="btn btn-sm btn-outline-warning duplicate-btn"
                 data-duplicate-url="{% url 'enhancer:audio_duplicate' ae.id %}" title="Dupliquer">
           <i class="fas fa-copy"></i>

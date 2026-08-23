@@ -1,3 +1,4 @@
+{% load wama_actions %}
 {% comment %}
 Card ComposerGeneration — CARD v3 « sections × chips » (CARD_DESIGN §11, portée le
 2026-08-13 ; remplace la card en colonnes). SOURCE UNIQUE du markup : rendue au chargement
@@ -94,11 +95,9 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
           <i class="fas fa-cog"></i>
         </button>
         {% include 'common/_cycle_button.html' with id=gen.id status=gen.status %}
+        {% url 'composer:download' gen.id as url_dl %}
+        {% bouton_telecharger 'composer' url_dl gen.audio_output %}
         {% if gen.audio_output %}
-        <a href="{% url 'composer:download' gen.id %}"
-           class="btn btn-sm btn-outline-info" title="Télécharger">
-          <i class="fas fa-download"></i>
-        </a>
         {% if not gen.exported_to_library %}
         <button class="btn btn-sm export-btn" data-id="{{ gen.id }}" title="Exporter vers médiathèque">
           <i class="fas fa-photo-film"></i>
@@ -108,10 +107,6 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
           <i class="fas fa-check"></i>
         </span>
         {% endif %}
-        {% else %}
-        <button class="btn btn-sm btn-outline-info" disabled title="Télécharger">
-          <i class="fas fa-download"></i>
-        </button>
         {% endif %}
         <button class="btn btn-sm btn-outline-warning duplicate-btn"
                 data-id="{{ gen.id }}"

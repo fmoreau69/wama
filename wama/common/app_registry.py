@@ -208,6 +208,14 @@ def _conv(
     multi_format_download=False,   # §6.3 — split-button download multi-format
     export_binding='early',        # §6.4 — 'early' (format réglé AVANT génération, render-based) |
                                    #        'late' (format choisi AU TÉLÉCHARGEMENT, master-based)
+    # §6.3 — formats offerts par le split-button, DÉCLARÉS (2026-08-23). Liste de valeurs de
+    # `?format=` ; le libellé et l'icône sont dérivés par `common/utils/export_formats.py`.
+    # ⚠ NE PAS confondre avec `output_types` (au niveau de l'app, pas des conventions) : celui-ci
+    # décrit les TYPES DE DONNÉE produits, pas les formats de FICHIER téléchargeables. Les deux
+    # divergent légitimement — le transcriber produit `txt/srt/vtt/json` et propose au
+    # téléchargement `txt/srt/pdf/docx`. Les confondre, c'est ce qui a laissé le bouton ⬇ être
+    # le seul des six à n'avoir ni brique ni déclaration.
+    export_formats=(),             # ex. ('txt', 'srt', 'pdf', 'docx') — vide = format unique (lien)
     filemanager_import=False,      # §8.3 — "Envoyer vers app" + dispatch wama:fileimported
     recursive_import=False,        # §8.4 — import dossier récursif
     tool_api=False,                # §17 — fonctions exposées dans tool_api.py
@@ -251,6 +259,7 @@ def _conv(
         'eta_queue':              eta_queue,
         'multi_format_download':  multi_format_download,
         'export_binding':         export_binding,
+        'export_formats':         tuple(export_formats or ()),
         'filemanager_import':     filemanager_import,
         'recursive_import':       recursive_import,
         'tool_api':               tool_api,
@@ -580,6 +589,7 @@ APP_CATALOG = {
             settings_modal_item=True,
             multi_format_download=True,
             export_binding='late',
+            export_formats=('txt', 'pdf', 'docx'),  # §6.3 — mesurés sur `_description_card.html`
             tool_api=True,
             during_preview=True,  # texte partiel qui se construit (workers._set_partial →
                                   #   brique publish_partial_text → face ?side=during, 2026-08-13)
@@ -725,6 +735,7 @@ APP_CATALOG = {
             settings_modal_item=True,
             multi_format_download=True,
             export_binding='late',
+            export_formats=('txt', 'md', 'pdf', 'docx', 'json'),  # §6.3 — `json` n'est offert que si `item.raw_result` — le gabarit garde ce conditionnel
             tool_api=True,
             inspector=True,      # volet contextuel via WamaInspector.initFromSchema
             model_help=True,     # WamaModelHelp (help_fallback moteurs OCR, cf. reader/params.py)
@@ -814,6 +825,7 @@ APP_CATALOG = {
             settings_modal_item=True,
             multi_format_download=True,
             export_binding='late',
+            export_formats=('txt', 'srt', 'pdf', 'docx'),  # §6.3 — ⚠ diffère d'`output_types` ('txt','srt','vtt','json') : ce sont deux choses
             tool_api=True,
             during_preview=True,  # texte partiel qui se construit (workers._set_partial_text →
                                   #   brique publish_partial_text → face ?side=during, 2026-08-13)

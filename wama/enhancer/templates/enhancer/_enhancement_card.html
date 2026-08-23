@@ -1,3 +1,4 @@
+{% load wama_actions %}
 {% comment %}
 Card Enhancement (média image/vidéo) — CARD v3 « sections × chips » (CARD_DESIGN §11,
 portée le 2026-08-13 depuis le pilote reader ; remplace la card en colonnes du port 07/26).
@@ -92,16 +93,8 @@ Contexte : e (Enhancement, décorée .chips), in_batch (bool).
           <i class="fas fa-cog"></i>
         </button>
         {% include 'common/_cycle_button.html' with id=e.id status=e.status %}
-        {% if e.output_file %}
-        <a class="btn btn-sm btn-outline-info download-btn"
-           href="{% url 'enhancer:download' e.id %}" title="Télécharger">
-          <i class="fas fa-download"></i>
-        </a>
-        {% else %}
-        <button class="btn btn-sm btn-outline-info" disabled title="Télécharger">
-          <i class="fas fa-download"></i>
-        </button>
-        {% endif %}
+        {% url 'enhancer:download' e.id as url_dl %}
+        {% bouton_telecharger 'enhancer' url_dl e.output_file %}
         <button class="btn btn-sm btn-outline-warning duplicate-btn"
                 data-duplicate-url="{% url 'enhancer:duplicate' e.id %}"
                 title="{% if in_batch %}Dupliquer dans le batch{% else %}Dupliquer{% endif %}">

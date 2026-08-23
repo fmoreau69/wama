@@ -1,3 +1,4 @@
+{% load wama_actions %}
 {% comment %}
 WAMA Transcriber — CARD (source UNIQUE du markup — extraction 2026-07-05, audit A2-5/8/9/10).
 Contexte : t = Transcript (hérité ou passé) ; in_batch = True pour une fille de batch.
@@ -140,27 +141,16 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                                title="Éditer (éditeur audio + texte){% if t.correction_status == 'draft' %} — brouillon en cours{% elif t.correction_status == 'done' %} — corrigé{% endif %}">
                                 <i class="fas fa-pen-to-square"></i>
                             </a>
-                            <div class="btn-group btn-group-sm">
-                                <a href="{% url 'transcriber:download' t.id %}?format=txt"
-                                   class="btn btn-outline-info download-txt-btn" title="Télécharger TXT">
-                                    <i class="fas fa-download"></i>
-                                </a>
-                                <button type="button" class="btn btn-outline-info dropdown-toggle dropdown-toggle-split"
-                                        data-bs-toggle="dropdown" aria-expanded="false">
-                                    <span class="visually-hidden">Autres formats</span>
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
-                                    <li><a class="dropdown-item" href="{% url 'transcriber:download' t.id %}?format=txt">
-                                        <i class="fas fa-file-alt me-2"></i>TXT</a></li>
-                                    <li><a class="dropdown-item" href="{% url 'transcriber:download' t.id %}?format=srt">
-                                        <i class="fas fa-closed-captioning me-2"></i>SRT</a></li>
-                                    <li><hr class="dropdown-divider"></li>
-                                    <li><a class="dropdown-item" href="{% url 'transcriber:download' t.id %}?format=pdf">
-                                        <i class="fas fa-file-pdf me-2 text-danger"></i>PDF</a></li>
-                                    <li><a class="dropdown-item" href="{% url 'transcriber:download' t.id %}?format=docx">
-                                        <i class="fas fa-file-word me-2 text-primary"></i>DOCX</a></li>
-                                </ul>
-                            </div>
+                            {% comment %}⬇ : brique commune (2026-08-23). Les formats viennent de
+                            `export_formats` au catalogue — le dropdown n'est plus écrit ici.
+                            ⚠ COMPORTEMENT PRÉSERVÉ, PAS CORRIGÉ : ce bloc est tout entier sous
+                            `{% templatetag openblock %} if t.status == 'SUCCESS' {% templatetag closeblock %}`, donc hors succès la card n'affiche AUCUN
+                            bouton ⬇, là où §6.3 prescrit un `<button disabled>`. Le rendre ici
+                            ferait apparaître un bouton de plus sur toutes les cards en attente —
+                            un changement visible qui n'appartient pas à un portage de brique.
+                            Consigné, à trancher séparément.{% endcomment %}
+                            {% url 'transcriber:download' t.id as url_dl %}
+                            {% bouton_telecharger 'transcriber' url_dl True %}
                             {% endif %}
 
                             <button class="btn btn-sm btn-outline-warning duplicate-btn"

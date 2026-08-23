@@ -1,0 +1,63 @@
+{% comment %}
+Bouton ⬇ TÉLÉCHARGER — brique commune (2026-08-23). Applique `WAMA_APP_CONVENTIONS §6.3` :
+
+  • pas de résultat        → <button disabled>   (l'action existe, elle n'a pas d'objet)
+  • un seul format         → lien <a> simple
+  • plusieurs formats      → SPLIT BUTTON : lien (format par défaut) + ▾ des autres
+
+C'est la SIXIÈME et dernière action de card à recevoir son domicile commun. Elle est arrivée en
+dernier parce qu'elle est la seule qui ne soit pas un handler JS : un `<a href>` n'a rien à
+déléguer, donc la divergence ne se voyait ni au clic ni dans un grep de `addEventListener`. Elle
+se voyait dans le GABARIT — trois dropdowns recopiés et deux `<button>`+JS contraires à §6.3.
+
+Paramètres :
+  url        (requis) URL de téléchargement SANS query — `{% templatetag openblock %} url 'app:download' o.id {% templatetag closeblock %}`
+  pret       (requis) booléen : y a-t-il un résultat à télécharger ?
+  formats    (option) liste d'entrées de `common/utils/export_formats.entrees*()`. Vide → lien simple.
+  titre      (option) infobulle du bouton principal (défaut : « Télécharger »)
+  titre_vide (option) infobulle quand rien n'est prêt (défaut : « Pas encore de résultat »)
+  classe     (option) classes du bouton (défaut : `btn-outline-info`, couleur conventionnelle §6.2)
+
+⚠ Le bouton principal pointe `?format=<premier déclaré>` quand il y a plusieurs formats, et
+l'URL NUE quand il n'y en a qu'un. Ce n'est pas un choix : c'est ce que faisaient DÉJÀ les trois
+apps multi-format (`?format=txt` en dur sur leur lien principal). J'avais d'abord spécifié l'URL
+nue « pour laisser la vue décider de son défaut » — le relevé des gabarits a montré que c'était
+inventer un comportement au lieu d'en reprendre un. Généraliser, c'est déplacer le code existant,
+pas en profiter pour le changer.
+{% endcomment %}
+{% load i18n %}
+{% if not pret %}
+  <button class="btn btn-sm {{ classe|default:'btn-outline-info' }}" disabled
+          aria-disabled="true" tabindex="-1"
+          title="{{ titre_vide|default:_('Pas encore de résultat') }}">
+    <i class="fas fa-download"></i>
+  </button>
+{% elif not formats %}
+  <a href="{{ url }}" class="btn btn-sm {{ classe|default:'btn-outline-info' }} download-btn"
+     title="{{ titre|default:_('Télécharger') }}">
+    <i class="fas fa-download"></i>
+  </a>
+{% else %}
+  <div class="btn-group btn-group-sm">
+    <a href="{{ url }}?format={{ formats.0.valeur }}"
+       class="btn {{ classe|default:'btn-outline-info' }} download-btn"
+       title="{{ titre|default:_('Télécharger') }}">
+      <i class="fas fa-download"></i>
+    </a>
+    <button type="button"
+            class="btn {{ classe|default:'btn-outline-info' }} dropdown-toggle dropdown-toggle-split"
+            data-bs-toggle="dropdown" aria-expanded="false">
+      <span class="visually-hidden">{% trans "Autres formats" %}</span>
+    </button>
+    <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
+      {% for f in formats %}
+        {% if f.separateur %}<li><hr class="dropdown-divider"></li>{% endif %}
+        <li>
+          <a class="dropdown-item" href="{{ url }}?format={{ f.valeur }}">
+            <i class="{{ f.icone }} me-2"></i>{{ f.label }}
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}

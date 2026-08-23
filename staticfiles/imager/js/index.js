@@ -169,14 +169,10 @@
         // downloadAllBtn RETIRÉ avec les boutons globaux du volet : « Tout télécharger » vit
         // désormais dans la barre d'outils commune de chaque file (câblée plus haut).
 
-        // Download individual buttons
-        document.addEventListener('click', function(e) {
-            if (e.target.closest('.download-btn')) {
-                const btn = e.target.closest('.download-btn');
-                const genId = btn.getAttribute('data-id');
-                window.location.href = config.urls.download.replace('0', genId);
-            }
-        });
+        // ⬇ : plus de handler — le bouton est redevenu un LIEN (brique commune
+        // `_download_button.html`, 2026-08-23). Naviguer en JS sur un `<button>` privait
+        // l'utilisateur du clic-droit « Enregistrer sous » et du nouvel onglet, pour un geste
+        // que le navigateur sait faire seul.
 
 
         // Reset options button
@@ -223,14 +219,8 @@
         // 🗑 vidéo : fusionné avec l'image dans la brique commune (même endpoint, même geste) —
         // c'est le doublon que la graphie par domaine entretenait (2026-08-23).
 
-        // Video download buttons
-        document.addEventListener('click', function(e) {
-            if (e.target.closest('.video-download-btn')) {
-                const btn = e.target.closest('.video-download-btn');
-                const genId = btn.getAttribute('data-id');
-                window.location.href = config.urls.download.replace('0', genId);
-            }
-        });
+        // ⬇ vidéo : fusionné avec l'image dans la brique commune (même endpoint, même geste).
+
 
 
 
