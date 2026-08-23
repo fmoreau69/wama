@@ -188,29 +188,38 @@
     location.reload(); // chips/cards re-rendues avec les nouveaux réglages
   }
 
+  // Suite d'un lancement de LOT : insérer les cards démarrées et suivre en direct.
+  // Extraite parce qu'elle a DEUX appelants — le hook de la brique (clic sur ▶ du lot) et
+  // « enregistrer et lancer » (qui poste lui-même). Le POST n'est PAS ici : chaque appelant
+  // fait le sien, cette fonction ne traite que la réponse.
+  function appliquerDemarrageLot(d) {
+    ((d && d.started) || []).forEach(id => {
+      if (window.WamaEta) WamaEta.reset(id);
+      refreshCard(id).then(() => startPolling(id));
+    });
+  }
+
   async function startBatch(batchId) {
     try {
       const d = await (await fetch(getUrl(cfg.batchStartUrlTemplate, batchId), {
         method: 'POST', headers: csrfHeaders(),
       })).json();
-      (d.started || []).forEach(id => {
-        if (window.WamaEta) WamaEta.reset(id);
-        refreshCard(id).then(() => startPolling(id));
-      });
+      appliquerDemarrageLot(d);
     } catch (e) { /* réseau */ }
   }
 
+  // ▶ et ⚙ de LOT : la brique commune (`queue-actions.js`, montée dans base.html) tient le
+  // clic et poste ; l'app ne déclare que ce qui lui est PROPRE. L'anonymizer insère+polle au
+  // lancement (famille composer/describer/enhancer) — sans `onBatchStarted`, le défaut sûr de
+  // la brique rechargerait la page et ferait perdre le suivi en direct du lot qu'on vient de
+  // lancer, ce qu'on regarde précisément à ce moment-là.
+  // ⧉ et 🗑 de lot n'ont RIEN à déclarer : la brique fait confirm + POST + signalement au
+  // gestionnaire de fichiers (`signalerFichiers`) + rechargement, ce que faisaient les
+  // handlers retirés de `update.js`.
+  WamaQueueActions.onBatchStarted(appliquerDemarrageLot);
+  WamaQueueActions.onBatchSettings(function (batchId) { openBatchModal(batchId); });
+
   document.addEventListener('click', function (e) {
-    const bs = e.target.closest('.batch-start-btn[data-batch-id]');
-    if (bs) {
-      startBatch(bs.dataset.batchId);
-      return;
-    }
-    const bset = e.target.closest('.batch-settings-btn[data-batch-id]');
-    if (bset) {
-      openBatchModal(bset.dataset.batchId);
-      return;
-    }
     if (e.target.closest('#saveBatchSettingsBtn')) saveBatchSettings(false);
     if (e.target.closest('#saveBatchSettingsAndStartBtn')) saveBatchSettings(true);
   });

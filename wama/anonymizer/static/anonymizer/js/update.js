@@ -3,11 +3,12 @@
  *
  * Reste ici :
  *   • .setting-button (sliders/switches/selects du panneau droit) → update_settings ;
- *   • .batch-duplicate-btn / .batch-delete-btn (handlers d'app, contrat _batch_card) ;
  *   • #clear_all_media_btn (bouton du volet droit — la toolbar a le sien dans queue.js).
  *
  * Parti au port :
  *   • handler de duplication → brique GLOBALE queue-actions.js (double-fire sinon) ;
+ *   • .batch-duplicate-btn / .batch-delete-btn → brique commune (2026-08-24) : elle fait
+ *     le même confirm + POST + signalement au gestionnaire + rechargement ;
  *   • updateGlobalProgress → brique commune wama-global-progress.js (_global_progress.html) ;
  *   • refreshMediaTable/.ajax-form/expand_area → mécanisme legacy `refresh` supprimé
  *     (card = partial serveur via card_html, structure re-rendue par reload).
@@ -95,39 +96,17 @@ $(document).ready(function () {
     });
 
     /* ============================
-     * 📦 Actions de batch (contrat _batch_card : handlers d'app .batch-*-btn)
-     * ============================ */
-    $(document).on("click", ".batch-duplicate-btn", function (e) {
-        e.preventDefault();
-        const batchId = $(this).data("batch-id");
-        $.ajax({
-            type: "POST",
-            url: `/anonymizer/batch/${batchId}/duplicate/`,
-            data: { csrfmiddlewaretoken: $("input[name=csrfmiddlewaretoken]").val() },
-            success: function () { window.location.reload(); },
-            error: function (xhr) {
-                WamaApp.toast("Erreur lors de la duplication du batch : " + (xhr.responseText || "Erreur inconnue"), 'error');
-            },
-        });
-    });
-
-    $(document).on("click", ".batch-delete-btn", function (e) {
-        e.preventDefault();
-        const batchId = $(this).data("batch-id");
-        if (!confirm("Supprimer ce batch et tous ses médias ?")) return;
-        $.ajax({
-            type: "POST",
-            url: `/anonymizer/batch/${batchId}/delete/`,
-            data: { csrfmiddlewaretoken: $("input[name=csrfmiddlewaretoken]").val() },
-            success: function () {
-                if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
-                window.location.reload();
-            },
-            error: function (xhr) {
-                WamaApp.toast("Erreur lors de la suppression du batch : " + (xhr.responseText || "Erreur inconnue"), 'error');
-            },
-        });
-    });
+     * 📦 Actions de batch — PORTÉES à la brique commune (2026-08-24)
+     * ============================
+     * Les handlers `.batch-duplicate-btn` et `.batch-delete-btn` vivaient ici : POST + reload
+     * pour l'un, confirm + POST + `WamaFM.deleted()` + reload pour l'autre. `queue-actions.js`
+     * fait EXACTEMENT cela pour les 8 apps — `signalerFichiers: true` étant le nom commun du
+     * rafraîchissement du gestionnaire de fichiers. Rien de propre à l'anonymizer ne s'y
+     * jouait, donc rien à déclarer : les URLs viennent du partial (`actions_communes=True`).
+     * ⚠ Retrait et pose du drapeau dans le MÊME geste — les garder tous deux ferait tirer la
+     * brique ET l'app sur le même clic (double POST).
+     * ▶ et ⚙ de lot, eux, déclarent une suite : voir `queue.js`.
+     */
 
     // Le « Tout effacer » du volet droit est MORT (2026-08-03) : l'action vit
     // dans la toolbar commune (queue.js, #anon-clear-all-btn).

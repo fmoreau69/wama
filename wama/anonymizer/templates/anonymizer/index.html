@@ -501,7 +501,7 @@ Modalité principale = fichier → repliée avec en-tête quand la file n'est pa
     {% else %}
         <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
             {% url 'anonymizer:batch_download' batch_info.obj.id as batch_dl_url %}
-            {% include 'common/_batch_card.html' with card_class='anon-card' eta_ids=batch_info.eta_ids download_url=batch_dl_url app='anonymizer' %}
+            {% include 'common/_batch_card.html' with card_class='anon-card' eta_ids=batch_info.eta_ids download_url=batch_dl_url app='anonymizer' actions_communes=True %}
             <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
                  data-wama-batch-key="anonymizer_{{ batch_info.obj.id }}"
                  style="border-left:2px solid #6f42c1; margin-left:0.75rem;">
