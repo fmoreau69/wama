@@ -560,6 +560,69 @@ référentiel doit les porter tels quels — d'où `frequency` optionnelle et no
 (timings caméra) · **Adeunis** · **CADISP** · média (audio, vidéo) · primitives (float, int, string,
 vector, unique_data).
 
+#### 6.6bis Ce que la lecture du CODE et d'un `.rec` RÉEL ajoute (2026-08-24)
+
+> §6.6 ci-dessus est **juste** — la mieux cartographiée du document. Ce qui suit ne la corrige pas,
+> il ajoute ce qu'elle n'avait pas vu, et deux de ces points auraient rendu une implémentation
+> hâtive fausse. Sources : `pynd/rec2trip/` et le corpus réel (`.rec` de **1,54 Go**, son `.idy`,
+> son `.idx`, **et le `.trip` que BIND en a produit**).
+
+**① Les parseurs sont un REGISTRE.** `self._parsers: Dict[(component, output), DataParser]`, peuplé
+par `add_data_parser()`. C'est la capacité agrégative de §9quinquies, déjà présente chez pynd.
+
+**② ⭐ LE FICHIER `.idy` DÉCLARE TOUT L'INVENTAIRE — 2,7 Ko contre 1,54 Go.** Une ligne par flux :
+
+```
+<toi> @ Record <component>.<output>(<nom_de_table>,<producteur>[…]) as <encodage>
+```
+
+Il donne le **nom de la table `.trip`** (`BIOPAC_MP150_resp`) **et l'encodage déclaré** — `txt`,
+`tabbed_text`, `video_file`, `audio_file`, `raw`. **C'est la source du `probe()`** : inventorier
+sans toucher au gigaoctet. Rapport ~**500 000×**. Rien de tout cela n'était consigné.
+
+**③ ⚠ MAIS L'ENCODAGE N'EST QUE LE TRANSPORT, pas la structure.** Mesuré sur le fichier réel :
+`DR2.message` et `PUPIL_GLASSES.gaze` sont tous deux `as txt`, et pourtant —
+
+```
+DR2.message   → Pas=1776;Temps=00:00:32,13872;V_vp:Vitesse=0,000;V_vp:Pk=1420000;…
+PUPIL_GLASSES → {"topic": "gaze.3d.01.", "gaze_normals_3d": {…}}
+```
+
+l'un est du `clé=valeur;` **à virgule décimale française**, l'autre du JSON. **Deux couches
+distinctes** : le transport se lit du `.idy` (générique) ; la sémantique reste par famille de flux
+(c'est le rôle de `data_parser/`). ⚠ La virgule décimale est un piège concret : un `float()` naïf
+échoue, et la colonne resterait silencieusement du texte.
+
+**④ TROIS DÉTECTIONS DE PERTE QUI N'AGISSENT SUR RIEN** — chez pynd, la donnée est mesurée puis jetée :
+
+| détection | ce qui en est fait |
+|---|---|
+| `_check_enough_parser()` | **résultat calculé puis jeté** : `if not self._check_enough_parser(): pass` |
+| ligne sans parseur | **ignorée en silence** — l'avertissement est en commentaire |
+| `check_idx` (index qui saute = échantillon perdu) | `log.error` seulement, avec un `TODO` qui le reconnaît |
+
+WAMA a déjà le domicile de ces trois faits : l'**`Ecart`** (§9octies). *Le manifeste déclare,
+l'importer MESURE.* L'adaptation schéma-driven n'invente donc presque rien — elle donne une
+structure à ce que pynd calcule déjà et laisse tomber.
+
+**⑤ La logique `isBase` de `rec2trip` s'annule elle-même** : les parseurs `overwrite` posent
+`is_base=False`, puis les lignes suivantes remettent **tout** à `True`.
+
+**⑥ `.rec` est le premier format STREAMÉ à flux ENTRELACÉS.** `.trip` est du SQLite indexé, `.csv`
+un flux unique ; un `.rec` est un texte séquentiel où les 20 flux sont mêlés. `read()` exige donc
+une première passe, et l'accès paresseux suppose de garder des **offsets d'octets** (module
+`array`, pas des listes Python — 7,7 M lignes estimées).
+
+⏳ **Piste non vérifiée** : le `.idx` (16 Ko) est un index BINAIRE — en-tête `[STDB v2.0]`,
+section `[Index]`, puis des entiers 8 octets croissants (~2 075 entrées, soit un point tous les
+~740 Ko). Ce sont vraisemblablement des points de reprise dans le `.rec`, ce qui permettrait de
+chercher sans balayer. **Non confirmé** : pynd ne le lit pas, et je n'ai pas la spec RTMaps. À ne
+pas utiliser tant que sa sémantique n'est pas établie.
+
+**⑦ Le corpus contient l'ENTRÉE et la SORTIE** — le `.rec` **et** le `.trip` que BIND en a produit.
+C'est le banc d'essai idéal du portage : un `RecReader` WAMA se confronte à un résultat de
+référence, au lieu d'être jugé sur lui-même.
+
 ⛏ **Reste** : la sémantique exacte du `mode` d'agrégation de `TripSet` ; le package `ttm` de rec2trip.
 
 ---
@@ -1474,6 +1537,52 @@ Trois raisons, toutes déjà des principes du dépôt :
    d'apply auto ». La déclaration est l'objet durable ; le reste se recalcule.
 
 Les valeurs ne s'écrivent **en dur** qu'à l'**export**, où elles sont précisément le produit demandé.
+
+#### 9quater.5bis TROIS NIVEAUX D'ÉCRITURE — « on écrit là où c'est RÉGÉNÉRABLE » (2026-08-24)
+
+> **Précision de Fabien**, qui corrige une formulation trop courte de ma part. J'avais écrit que
+> « on n'écrit jamais dans une source importée » interdit de *muter* une source. C'est vrai mais
+> incomplet : ce qui est protégé, ce sont les **RAW DATA**. Le fichier **importé**, lui, est un
+> **fichier de TRAVAIL**, et on a le droit d'écrire dedans.
+
+| niveau | écriture | régénérable depuis |
+|---|---|---|
+| **raw data** — `.rec`, CSV, vidéos, hors dépôt | ❌ **jamais** | — c'est l'origine |
+| **fichier de travail** — le `.wrec` | ✅ **oui** | raw + protocole + gestes |
+| **déclarations** — `Vue`, `Declaration`, conditions, protocole | ✅ | elles SONT la source |
+
+> **Le critère tient en une ligne : on écrit là où c'est RÉGÉNÉRABLE.** Le fichier de travail est
+> writable *précisément parce que* le perdre ne perd rien d'irremplaçable.
+
+⚠ **LE POINT QUI AURAIT PU CASSER LE MODÈLE — et qui ne le casse pas.** Une chose du fichier de
+travail n'est pas dérivable des raw data : le **codage humain**. Un chercheur qui code trois heures
+de vidéo crée de l'information qui n'existe nulle part ailleurs.
+
+Sauf que `core/coding.py` l'a déjà résolu : le codage n'est pas stocké comme un RÉSULTAT, il est
+capturé comme une suite de **GESTES REJOUABLES** — `rejouer(protocole, media, gestes, codeur=…)`,
+même point d'entrée pour un humain et pour un modèle de vision. **La formule exacte est donc
+`raw + protocole + gestes`** : les gestes sont l'apport humain irréductible, ils sont petits,
+déclaratifs, et se rangent avec le protocole, pas avec le conteneur.
+
+#### ⚠ Conséquence : D13 n'est PAS une question de côté
+
+Le protocole de traitement est un manifeste **`pipeline`** (§9bis : « le kind existe déjà, aucun
+nouveau kind à créer »). Mais **il lui manque le nœud fonction — c'est D13**.
+
+Or sans ce nœud, le protocole n'est pas exprimable. Sans protocole exprimable, le fichier de
+travail **n'est pas régénérable**. Et alors y écrire n'est plus une commodité, c'est un **risque** :
+ce qu'on y écrit devient irremplaçable sans qu'on l'ait décidé.
+
+> **D13 est la précondition du droit d'écrire dans le fichier de travail**, pas un détail de canvas.
+
+Les briques de contrôle existent déjà : `SignalMeta.is_base` sépare acquis et dérivé, `_tracer`
+pose l'`origin` sur chaque segment produit, `rejouer()` ferme la boucle.
+
+⚠ **Et « régénérable » est une propriété à EXERCER, pas à déclarer.** Le même jour, une docstring
+promettait une isolation qui n'existait pas faute d'un `try` (§9decies). Tant qu'aucun test ne
+**reconstruit** un fichier de travail depuis `raw + protocole + gestes` et ne compare, la propriété
+reste une affirmation — et c'est justement celle sur laquelle repose le droit d'écrire. **C'est le
+vrai contenu du garde-fou G7.**
 
 ### 9quater.6 L'Explorer EST l'interface du Calculator
 
