@@ -6618,3 +6618,30 @@ tous les dénominateurs** (même précaution que le correctif `mecanismes_scan`,
 enhancer` sans filtrer le stage → le scénario `deepfilternet_load` a **chargé un modèle sur
 cuda:0 depuis WSL2**, ce que la consigne interdit (crashs hôte). Aucun incident (44 °C, 28 W),
 mais **`--stage ui` est le bon filtre** pour un chantier UI/backend sans besoin GPU.
+
+### G. Les « 2 trous » que j'avais annoncés n'en étaient pas — le vrai est le troisième
+
+Demande de Fabien : « il faut s'occuper des 2 trous que tu soulèves ». Confrontés au code **avant**
+de porter, les deux se dissolvent — et un troisième, que je n'avais pas relevé, est bien réel.
+
+| ce que j'avais annoncé | ce que la mesure dit |
+|---|---|
+| `model_caps_ui` ❌ ×3 (composer, imager, reader) | **rien à filtrer.** Les capacités du catalogue ne portent aucun axe différenciant pour ces apps : composer = `languages:['en']` **identique sur ses 4 modèles**, reader = 3 modèles **tous `task:ocr`**, imager = `task`/`category` **déjà matérialisés par ses domaines** image/vidéo. La clé canonique qui servirait (`params`, « réglages pertinents pour ce moteur ») est portée par **1 modèle sur 157** (`enhancer:resemble`). Aucun `show_if` ni masquage JS par moteur à remplacer dans les 3 apps. **Le manque est à la SOURCE (déclaration), pas dans l'UI** — y brancher `WamaModelCaps` produirait un filtre qui ne filtre rien |
+| `select_model` 🔶 anonymizer | **verdict nuancé DÉLIBÉRÉ**, écrit dans le critère lui-même (`conformity_checker.py:930-937`) : « un sélecteur qui lit DÉJÀ le catalogue n'est pas une source concurrente — l'anonymizer **combine plusieurs modèles pour couvrir un jeu de classes**, la brique commune n'en choisit qu'un ». Le détail mesuré le dit mot pour mot : « sur-ensemble, **pas doublon** ». **Rien à faire** |
+| *(non relevé)* | **`during_preview` ❌ ×3 — LE vrai trou.** avatarizer, imager, synthesizer n'émettent **aucun** aperçu « pendant » (`during_preview`/`emit_streaming_peaks`/`publish_partial`/`side=during` : zéro occurrence). **7 apps sur 10 l'ont**, le consommateur front est commun (`wama-inspector.js::_startDuring`). Manque fonctionnel réel, à forte valeur : image intermédiaire de diffusion (imager), forme d'onde au fil de la synthèse (synthesizer), frame intermédiaire (avatarizer) |
+
+⚠⚠ **J'AI REFAIT, LE JOUR MÊME, L'ERREUR QUE JE VENAIS D'ÉCRIRE.** Le §E consigne « vérifier un
+reste-à-faire AVANT de le porter » — puis j'ai présenté `False ×3` et `partial ×1` comme des
+« trous » **sur la seule lecture des verdicts**, sans les ouvrir. Un `partial` **documenté comme
+légitime** et un `False` **qui punit une app pour un manque situé ailleurs** ne sont pas des
+restes-à-faire. **Un verdict d'instrument est une QUESTION, pas une conclusion** : il dit où
+regarder, jamais ce qu'il faut faire. Écrire la leçon ne suffit pas à l'appliquer — c'est au
+moment de proposer un plan, pas au moment de consigner, qu'elle doit être relue.
+
+**🔚 Ce qui reste réellement ouvert et actionnable**, par valeur décroissante :
+1. **`during_preview` sur 3 apps** — vrai manque fonctionnel, 7 références disponibles.
+2. **5 apps d'actions de lot** (recette dans `34d19ca7`) — chantier balisé, purement mécanique.
+3. **DÉCISIONS d'instrument** (`conformity_checker.py` partagé, un ajout rejoue les dénominateurs) :
+   ① gater `model_caps_ui` sur « les modèles de l'app portent-ils une capacité différenciante ? »,
+   sinon il punit 3 apps pour un manque de déclaration ; ② ajouter `media_classification` (§F).
+4. **Enrichir `capabilities.params`** (1/157) si l'on veut que le filtrage par moteur ait un objet.
