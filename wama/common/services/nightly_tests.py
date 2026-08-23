@@ -237,6 +237,7 @@ register_examples()
 try:
     from wama.common.services.ui_smoke import (register_duplicate_delete_scenarios,
                                                register_import_scenarios,
+                                               register_settings_scenarios,
                                                register_ui_scenarios,
                                                register_volet_scenarios)
     register_ui_scenarios()
@@ -249,6 +250,11 @@ try:
     # boutons `.duplicate-btn`/`.delete-btn` sont réécrits par chaque app, pas hérités d'un
     # partial commun.
     register_duplicate_delete_scenarios()
+    # Geste 2 de la convention (2026-08-23), enregistré le jour où le ⚙ a obtenu sa brique et son
+    # critère `settings_wiring`. Le critère est vert sur 10/10 ; ce scénario existe précisément
+    # parce qu'un vert d'ADOPTION ne dit rien du FONCTIONNEMENT — il atteste deux présences dans
+    # le code, pas qu'une modale s'ouvre ni qu'elle contient quoi que ce soit.
+    register_settings_scenarios()
     # Le VOLET DROIT est une troisième surface : ni la santé de la page ni la création d'un
     # élément ne voient un ✕ qui ne désélectionne pas (aucune erreur console — cf. WAMA_VOLETS §4).
     register_volet_scenarios()

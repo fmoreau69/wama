@@ -746,6 +746,187 @@ def register_duplicate_delete_scenarios():
         )
 
 
+# ── Geste 2 : OUVRIR LES PARAMÈTRES d'un élément ───────────────────────────────────────
+#
+# POURQUOI CE SCÉNARIO, ET POURQUOI MAINTENANT (2026-08-23). Le ⚙ vient d'obtenir sa brique
+# (`queue-actions.js`) et son critère de grille (`settings_wiring`, vert sur 10/10). Or ce
+# critère atteste précisément DEUX PRÉSENCES — le bouton au contrat dans le gabarit, l'ouvreur
+# déclaré dans le JS — et rien de plus : il ne peut pas voir qu'un ouvreur lève avant d'afficher,
+# qu'une modale s'ouvre VIDE faute de schéma, ni qu'un second handler la referme aussitôt.
+# « Un critère de grille atteste une ADOPTION, jamais un FONCTIONNEMENT » (WAMA_VERIFICATION §1) :
+# le vert de `settings_wiring` est donc exactement ce qui APPELLE ce clic, pas ce qui le remplace.
+#
+# CE QU'IL EXIGE, ET POURQUOI CHAQUE EXIGENCE EST LÀ :
+#   1. le bouton existe au contrat commun → sinon la brique ne le voit pas ;
+#   2. le clic OUVRE une modale visible → c'est le geste, et c'est ce qu'aucune analyse ne prouve ;
+#   3. la modale contient au moins UN champ de saisie → une modale ouverte mais vide est le
+#      défaut réel qu'on a déjà vu ailleurs (volet rendu, `<select>` VIDE, imager 06/08) : « ça
+#      s'ouvre » n'est pas « ça sert ». C'est la marche qui sépare l'écran mort de l'écran utile.
+#
+# IL NE MODIFIE RIEN. Le geste catalogué complet est « ouvrir, modifier, enregistrer, relire » ;
+# on n'en prouve ici que la première moitié, et on le DIT dans le détail plutôt que de laisser
+# croire que le tour est joué. Enregistrer déclenche selon les apps une relance de traitement
+# (donc du GPU) : la seconde moitié se traitera avec les gestes 8-13, sur le converter en CPU
+# (WAMA_VERIFICATION §4). Un scénario qui promet plus qu'il ne mesure est pire qu'absent.
+def check_app_settings(app: str, url_path: str):
+    """Le ⚙ d'un élément ouvre-t-il une modale de paramètres utilisable ? (ok, detail)."""
+    from wama.common.services.nightly_tests import SkipScenario
+    from playwright.sync_api import sync_playwright
+
+    _nettoyes = []
+    url = f"{BASE_URL.rstrip('/')}{url_path}"
+    IDS = "[...document.querySelectorAll('.wama-card[data-id]')].map(c => c.dataset.id)"
+
+    try:
+        from wama.common.utils.preview_registry import PreviewRegistry
+        modele = PreviewRegistry.get_model(app)
+    except Exception:
+        modele = None
+    ids_avant_orm = set()
+    if modele is not None:
+        try:
+            ids_avant_orm = set(modele.objects.values_list('id', flat=True))
+        except Exception:
+            modele = None
+
+    sessions_before = _session_keys()
+    jeton = _session_compte_de_test()
+    if not jeton:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3) "
+                           "— les droits ne sont pas simulables, on ne mesure pas à l'aveugle")
+    detail = ''
+    try:
+        with sync_playwright() as p:
+            navigateur = p.chromium.launch()
+            try:
+                contexte = navigateur.new_context(viewport={'width': 1500, 'height': 1000})
+                contexte.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': jeton,
+                                       'domain': '127.0.0.1', 'path': '/'}])
+                page = contexte.new_page()
+                page.on('dialog', lambda d: d.accept())
+                erreurs = []
+                page.on('pageerror', lambda e: erreurs.append(str(e)[:120]))
+                echecs = []
+                page.on('response', lambda r: (
+                    echecs.append(f"{r.status} {r.url.split('?')[0]}")
+                    if r.status >= 400 and r.request.resource_type in ('xhr', 'fetch') else None))
+
+                resp = page.goto(url, wait_until='networkidle', timeout=45000)
+                if not resp or resp.status != 200:
+                    return False, f"page HTTP {resp.status if resp else '?'}"
+                page.wait_for_timeout(1200)
+
+                ids0 = page.evaluate(IDS)
+                if not ids0:
+                    # Même montage de fixture que `duplicate_delete`, et pour la même raison :
+                    # `<app>.import` nettoie derrière lui, donc la file est vide la plupart du
+                    # temps et un scénario qui skippe toujours ne couvre rien.
+                    exclus = '[id*="atch"], [id*="elody"], [id*="eference"], [id*="voice"], [id*="avatar"]'
+                    champ = page.query_selector(f'[data-wama-nic] input[type=file]:not({exclus})')
+                    if not champ:
+                        raise SkipScenario(
+                            "file vide et aucun champ d'import au contrat de la card commune "
+                            "— aucun élément dont ouvrir les paramètres")
+                    temoin = _fichier_temoin(champ.get_attribute('accept') or '')
+                    try:
+                        champ.set_input_files(str(temoin))
+                        page.wait_for_timeout(4500)
+                        ids0 = page.evaluate(IDS)
+                    finally:
+                        try:
+                            temoin.unlink()
+                        except OSError:
+                            pass
+                    if not ids0:
+                        raise SkipScenario(
+                            "file vide et le dépôt de montage n'a créé aucun élément "
+                            "(cause à chercher dans `<app>.import`)")
+
+                # Graphies RÉELLEMENT présentes — rapportées qu'on réussisse ou non. C'est ce
+                # relevé qui a montré, le 2026-08-23, que la matrice des actions de card
+                # sous-estimait la divergence du ⚙ (avatarizer et enhancer manquaient).
+                graphies = page.evaluate(
+                    "(() => {const n = [...document.querySelectorAll('button')]"
+                    ".flatMap(e => [...e.classList])"
+                    ".filter(x => x.endsWith('settings-btn') || x.startsWith('btn-settings')"
+                    " || x.includes('-settings')); return [...new Set(n)].join(', ');})()")
+
+                cible = page.query_selector('.wama-card[data-id] .settings-btn[data-id]')
+                if not cible:
+                    return False, (f"{len(ids0)} élément(s) en file mais aucun bouton au contrat "
+                                   f"commun `.settings-btn[data-id]` dans une card "
+                                   f"(graphies vues : {graphies or '—'})")
+
+                avant = page.evaluate("document.querySelectorAll('.modal.show').length")
+                cible.click()
+                # Bootstrap anime l'ouverture : attendre l'ÉTAT, pas un délai au hasard.
+                try:
+                    page.wait_for_selector('.modal.show', timeout=6000)
+                except Exception:
+                    return False, (
+                        "clic sur `.settings-btn` : AUCUNE modale ne s'ouvre"
+                        + (f" ; erreur JS : {erreurs[0]}" if erreurs else
+                           (f" ; requête en échec : {echecs[0]}" if echecs else
+                            " ; aucune erreur JS, aucune requête en échec — le clic n'aboutit à "
+                            "rien de visible (ouvreur non déclaré, ou modale absente du gabarit)"))
+                        + f" ; graphies : {graphies or '—'}")
+
+                apres = page.evaluate("document.querySelectorAll('.modal.show').length")
+                if apres <= avant:
+                    return False, f"aucune modale supplémentaire ouverte ({avant} → {apres})"
+
+                # Une modale ouverte mais VIDE ne rend aucun service : on exige au moins un
+                # contrôle de saisie. `:visible` écarte les champs cachés (ids techniques).
+                champs = page.evaluate(
+                    "(() => {const m = [...document.querySelectorAll('.modal.show')].pop();"
+                    " if (!m) return 0;"
+                    " return m.querySelectorAll('input:not([type=hidden]), select, textarea').length;})()")
+                titre = (page.evaluate(
+                    "(() => {const m = [...document.querySelectorAll('.modal.show')].pop();"
+                    " const t = m && m.querySelector('.modal-title');"
+                    " return t ? t.textContent.trim().slice(0, 60) : '';})()") or '—')
+                if not champs:
+                    return False, (f"modale « {titre} » ouverte mais SANS aucun champ de saisie "
+                                   "— l'ouverture réussit, le service rendu est nul")
+
+                detail = (f"⚙ cliqué → modale « {titre} » ouverte avec {champs} champ(s) ; "
+                          f"graphies : {graphies or '—'} ; "
+                          "⚠ MOITIÉ DU GESTE — modifier/enregistrer/relire n'est PAS mesuré ici")
+            finally:
+                navigateur.close()
+    except SkipScenario:
+        raise
+    except Exception as e:
+        raise SkipScenario(f"navigateur/serveur indisponible ({type(e).__name__}: {str(e)[:100]})")
+    finally:
+        _drop_new_sessions(sessions_before)
+        if modele is not None:
+            try:
+                restes = set(modele.objects.values_list('id', flat=True)) - ids_avant_orm
+                if restes:
+                    modele.objects.filter(id__in=restes).delete()
+                    _nettoyes.append(len(restes))
+            except Exception:
+                pass
+
+    if _nettoyes:
+        detail += f" ; {sum(_nettoyes)} élément(s) de montage nettoyé(s)"
+    return True, detail
+
+
+def register_settings_scenarios():
+    """Enregistre un scénario `<app>.settings` par app disposant d'une page d'index."""
+    from wama.common.services.nightly_tests import register
+
+    for label, path in discoverable_apps():
+        register(
+            id=f"{label}.settings", app=label, stage="ui",
+            description=f"File {label} : le ⚙ d'un élément ouvre une modale de paramètres",
+            run=(lambda p=path, a=label: (lambda ctx: check_app_settings(a, p)))(),
+            timeout_s=180, vram_gb=0.0,
+        )
+
+
 # ── Volet droit : la DÉSÉLECTION d'un batch ────────────────────────────────────────────
 #
 # POURQUOI CE SCÉNARIO EXISTE. Le ✕ d'un batch ne désélectionnait RIEN sur 7 pages

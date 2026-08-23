@@ -432,10 +432,19 @@ def _modes_declared(f: _AppFiles):
 
 
 def _duplicate_wiring(f: _AppFiles):
-    data_url = f.find(TEMPLATES, r'data-duplicate-url')
+    # RÉALIGNÉ le 2026-08-23 sur son jumeau `_delete_wiring` (pending 6 du §REPRISE 22→23) :
+    # écrit AVANT lui, il portait encore les deux faiblesses corrigées sur le jumeau le
+    # 2026-08-22 — sans avoir produit de faux verdict, mais la faiblesse était la même :
+    #   • `find` et non `find_code` — un COMMENTAIRE citant `.duplicate-btn` (queue-actions.js
+    #     en est plein) suffisait à fabriquer un faux DOUBLE-FIRE ;
+    #   • l'attribut mesuré SANS la classe — un `data-duplicate-url` posé sur un bouton d'une
+    #     autre graphie aurait validé un câblage que la délégation n'atteint jamais
+    #     (le faux vert constaté sur enhancer pour la suppression, même mécanique).
+    data_url = f.find_code(TEMPLATES, r'class="[^"]*(?<![\w-])duplicate-btn[^"]*"[^>]*data-duplicate-url'
+                                      r'|data-duplicate-url[^>]*class="[^"]*(?<![\w-])duplicate-btn')
     # (?<![\w-]) : ne pas compter `.batch-duplicate-btn` (bouton de la card MÈRE,
     # hors périmètre — la brique queue-actions ne cible que `.duplicate-btn`).
-    local = f.find(JS, r"(?<![\w-])\.duplicate-btn|(?<![\w-])duplicate-btn'\)|(?<![\w-])duplicate-btn\"\)")
+    local = f.find_code(JS, r"(?<![\w-])\.duplicate-btn|(?<![\w-])duplicate-btn'\)|(?<![\w-])duplicate-btn\"\)")
     if data_url and not local:
         return True, data_url
     if data_url and local:
@@ -485,6 +494,47 @@ def _delete_wiring(f: _AppFiles):
         return False, f"DOUBLE-FIRE possible: brique + handler local {local}"
     if local:
         return 'partial', f"{local} (impl locale, brique queue-actions non consommée)"
+    return False, None
+
+
+def _settings_wiring(f: _AppFiles):
+    """⚙ Paramètres câblé sur la brique `queue-actions.js` — troisième jumeau, écrit le
+    2026-08-23 le jour où la brique a existé (cf. `_delete_wiring`, même histoire à un mois).
+
+    ⚠ CE QUE CE CRITÈRE MESURE DE PLUS QUE SES DEUX JUMEAUX. Dupliquer et supprimer SONT des
+    POST : le contrat tient dans le gabarit (`classe + data-*-url`), et la brique fait le reste.
+    ⚙ ne fait qu'OUVRIR une modale propre à l'app : le contrat est donc en DEUX morceaux, et un
+    seul des deux ne prouve rien —
+      • le gabarit rend `.settings-btn[data-id]` (sinon la délégation ne voit rien) ;
+      • le JS déclare `WamaQueueActions.onSettings(...)` (sinon le clic est délégué… à personne,
+        et la brique le dit en console, mais l'écran, lui, reste mort).
+    C'est exactement l'écart « ADOPTION vs FONCTIONNEMENT » de WAMA_VERIFICATION §1, réduit ici
+    autant qu'une analyse statique le permet : le reste se prouve au clic (`<app>.settings`).
+
+    ⚠ ET LE PIÈGE PROPRE À CE CRITÈRE : `.settings-btn` est LU par plusieurs apps pour reporter
+    des `data-*` sur le gear (converter `index.html`, avatarizer, transcriber). Une LECTURE n'est
+    pas un handler, et la compter comme telle produirait un faux DOUBLE-FIRE sur des apps
+    correctement portées. On ne cherche donc pas la mention de la classe, on cherche les deux
+    idiomes qui ACCROCHENT un clic — `closest('.settings-btn')` (délégation) et
+    `querySelectorAll('.settings-btn')` (bind par bouton) — en laissant passer le
+    `querySelector` singulier, qui est le geste de lecture. Lire un MÉCANISME, pas un motif :
+    c'est la leçon des 5 erreurs de diagnostic du 2026-08-22.
+    """
+    markup = f.find_code(TEMPLATES, r'class="[^"]*(?<![\w-])settings-btn[^"]*"[^>]*data-id'
+                                    r'|data-id[^>]*class="[^"]*(?<![\w-])settings-btn')
+    declare = f.find_code(JS + TEMPLATES, r'WamaQueueActions\.onSettings')
+    # (?<![\w-]) : ne compter ni `.batch-settings-btn` (lot, hors périmètre) ni `.save-settings-btn`
+    # (pied de modale) — deux classes qui contiennent `settings-btn` en sous-chaîne.
+    local = f.find_code(JS, r"closest\(\s*['\"][^'\"]*(?<![\w-])\.settings-btn"
+                            r"|querySelectorAll\(\s*['\"][^'\"]*(?<![\w-])\.settings-btn")
+    if local:
+        return False, f"DOUBLE-FIRE possible: brique + handler local {local}"
+    if markup and declare:
+        return True, f"{markup} + {declare}"
+    if markup:
+        return 'partial', f"{markup} (bouton au contrat, mais AUCUN ouvreur déclaré — clic inerte)"
+    if declare:
+        return 'partial', f"{declare} (ouvreur déclaré, mais le gabarit ne rend pas .settings-btn[data-id])"
     return False, None
 
 
@@ -1105,6 +1155,13 @@ CRITERIA: list[Criterion] = [
     # tant qu'aucun domicile commun n'existait, il n'y avait rien à mesurer (cf. `_delete_wiring`).
     Criterion('delete_wiring', 'F5', 'Suppression via la brique (handler UNIQUE)', _delete_wiring,
               mecanisme='queue_front'),
+    # Troisième jumeau (2026-08-23) : la brique ⚙ a rejoint queue-actions.js. Les trois actions
+    # de card qui SONT des comportements (dupliquer, supprimer, paramétrer) ont désormais chacune
+    # leur critère — c'est la réponse à la « maille trop grossière » du §5 de WAMA_VERIFICATION :
+    # on note des ACTIONS, pas un mécanisme fourre-tout qui passe au vert dès qu'un seul de ses
+    # cinq comportements est vérifié.
+    Criterion('settings_wiring', 'F5', 'Paramètres via la brique (bouton + ouvreur déclaré)',
+              _settings_wiring, mecanisme='queue_front'),
     Criterion('duplicate_instance', 'F5', 'duplicate_instance() (brique commune)',
               lambda f: _present(f, VIEWS, r'duplicate_instance'),
               mecanisme='queue_duplication'),
