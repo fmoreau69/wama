@@ -1,0 +1,459 @@
+"""
+Chaîne conditionnelle — conditions DÉCLARÉES et assemblage logique en ARBRE.
+
+Sa spécification est `WAMA_DATA_WORLD.md §9ter.6 B`. Ce module fournit la couche qui manquait
+AU-DESSUS du moteur : `core/segmentation.py::conditionnelle()` prend déjà un masque booléen en
+entrée — ce qu'on ne savait pas faire, c'est **déclarer** ce masque autrement qu'en code.
+
+CE QUE LA LECTURE DU CODE D'ORIGINE A CHANGÉ (`BIND_GUI.mlapp`, extrait le 2026-08-23). Les trois
+points ci-dessous ne sont pas des critiques gratuites : chacun justifie une décision d'ici.
+
+  ① L'assemblage y est du TEXTE PASSÉ À `eval()` :
+
+         ET = @and;  OU = @or;  NON = @not;  XOR = @xor;
+         master_mask = eval(strrep(operations, 'C', 'masks.C'));
+
+     Conséquences mesurables, toutes évitées par l'arbre : une référence à un `C4` inexistant, une
+     arité fausse ou une parenthèse manquante ne se voient qu'À L'EXÉCUTION, et le rattrapage est
+     un `uialert` unique — « Probleme avec les connecteurs, Impossible de segmenter » — qui ne dit
+     NI lequel, NI où. Ici la même faute est refusée à la DÉCLARATION, en nommant le fautif.
+
+  ② L'exemple affiché par l'interface d'origine n'est pas dans la syntaxe qu'elle accepte.
+     Elle montre `NON(C1 ET C2 OU(C4 XOR (C5 ET C6)))` — de l'infixe — alors que son propre
+     constructeur (`fusion_connecteur`) n'émet que du PRÉFIXE binaire imbriqué, `ET (C1 , C2)`,
+     seule forme que `eval()` accepte vraiment (`ET` est une poignée de fonction, pas un opérateur).
+     L'exemple est donc un contre-exemple. C'est le symptôme habituel d'un texte qui sert à la fois
+     de modèle et d'affichage : les deux divergent sans que rien ne le signale.
+
+  ③ Le filtrage des opérateurs existe, mais sur le MAUVAIS AXE. L'interface d'origine restreint la
+     liste selon ce qu'on CRÉE (une situation n'a droit qu'aux 6 comparaisons numériques, un
+     événement aux 16), jamais selon le TYPE DE LA COLONNE TESTÉE. On peut donc y appliquer `<` à
+     une colonne de texte : MATLAB compare alors les codes des caractères et rend un masque
+     plausible. Ici la sorte de la colonne commande, et l'axe « quoi créer » ne restreint rien —
+     il n'a aucune raison de le faire (point 4 de §9ter.6 B : la sortie est un PORT, pas un mode).
+
+⚠ CE MODULE EST PUR — aucune dépendance à pandas ni à Django, comme `segmentation.py` et
+`calculation.py`. La sorte d'une colonne (numérique / texte / booléen) est une DONNÉE D'ENTRÉE : la
+déduire d'un `dtype` pandas est le travail de l'adaptateur, pas du cœur.
+
+⚠ `data_types.py` NE TYPE PAS LES COLONNES — il type le CADRE (`TypedFrame.data_type`), et
+`TypedFrame` n'expose que `.fields`, une liste de noms. La phrase de §9ter.6 B3 (« WAMA a déjà
+`data_types.py` pour savoir de quel type est une colonne : la vérification est gratuite ») est donc
+fausse, et c'est pour cela que la notion de SORTE est introduite ici au lieu d'être empruntée.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, FrozenSet, List, Mapping, Optional, Sequence, Tuple, Union
+
+from .valeurs import manquant
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+# 1. SORTES de colonne — le vocabulaire minimal qui suffit à filtrer les opérateurs
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+
+#: Trois sortes, pas plus. Ce n'est pas un système de types : c'est la seule distinction dont le
+#: filtrage des opérateurs a besoin. En ajouter (« entier », « date ») demanderait de justifier
+#: quel opérateur s'y comporte différemment — aucun aujourd'hui.
+NUMERIQUE = 'numerique'
+TEXTE = 'texte'
+BOOLEEN = 'booleen'
+
+SORTES: Tuple[str, ...] = (NUMERIQUE, TEXTE, BOOLEEN)
+
+_TOUTES = frozenset(SORTES)
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+# 2. Registre des OPÉRATEURS — même geste que `STATISTIQUES` du Calculator
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+
+@dataclass(frozen=True)
+class Operateur:
+    """Un opérateur de comparaison DÉCLARÉ.
+
+    `sortes` est ce qui rend l'UI dérivable : une colonne de texte ne se voit pas proposer `>=`.
+    `operande=False` marque les opérateurs qui ne prennent PAS de valeur de référence (`vide`) —
+    sans ce champ, l'interface afficherait une case de saisie inutile et la validation ne pourrait
+    pas distinguer « valeur oubliée » de « valeur sans objet ».
+    """
+    test: Callable[[Any, Any], bool]
+    sortes: FrozenSet[str]
+    libelle: str
+    operande: bool = True
+
+
+def _texte(v: Any) -> str:
+    """Vue TEXTE d'une valeur, pour les opérateurs de chaîne. `None`/NaN → chaîne vide.
+
+    Comparer `str(None)` donnerait `'None'`, qui « contient » un `o` : une absence de donnée se
+    mettrait à satisfaire des conditions. C'est le genre de faux positif qu'on ne voit jamais dans
+    un tableau de résultats.
+    """
+    return '' if manquant(v) else str(v)
+
+
+def _num(op: Callable[[Any, Any], bool]) -> Callable[[Any, Any], bool]:
+    """Comparaison numérique STRICTE : une valeur absente ou non numérique rend `False`.
+
+    Refuser plutôt que convertir. `float('12')` marcherait, mais alors la même colonne se
+    comparerait tantôt comme du texte tantôt comme un nombre selon les lignes — et le masque
+    dépendrait du contenu, pas de la déclaration.
+    """
+    def _test(valeur: Any, reference: Any) -> bool:
+        if manquant(valeur) or isinstance(valeur, bool):
+            return False
+        if not isinstance(valeur, (int, float)):
+            return False
+        try:
+            return bool(op(valeur, reference))
+        except TypeError:
+            return False
+    return _test
+
+
+#: Vocabulaire COMMUN des comparaisons : nom → `Operateur`. Ajouter une entrée ici la rend
+#: disponible à la déclaration, à la validation ET à l'UI — il n'y a pas d'autre endroit à toucher.
+#:
+#: ⚠ 14 entrées là où l'outil d'origine en a 16 : ses `=` / `≠` (numériques) et ses
+#: « est égal à » / « n'est pas égal à » (texte) sont FUSIONNÉS en `==` / `!=`. Le dédoublement
+#: n'existait chez lui que par contrainte du langage — en MATLAB, `==` sur deux chaînes compare les
+#: caractères un à un et rend un vecteur, pas un booléen, d'où un second opérateur pour `strcmp`.
+#: Python n'a pas ce défaut : garder deux noms pour une seule question créerait exactement la
+#: juxtaposition de vocabulaires que WAMA s'interdit.
+OPERATEURS: Dict[str, Operateur] = {
+    # ── Comparaisons d'ORDRE — numériques seules : « plus grand » n'a pas de sens sur du texte
+    #    (l'ordre lexicographique en a un, mais ce n'est pas ce que l'utilisateur demande).
+    '<':  Operateur(_num(lambda v, r: v < r),  frozenset({NUMERIQUE}), 'est inférieur à'),
+    '<=': Operateur(_num(lambda v, r: v <= r), frozenset({NUMERIQUE}), 'est inférieur ou égal à'),
+    '>':  Operateur(_num(lambda v, r: v > r),  frozenset({NUMERIQUE}), 'est supérieur à'),
+    '>=': Operateur(_num(lambda v, r: v >= r), frozenset({NUMERIQUE}), 'est supérieur ou égal à'),
+
+    # ── ÉGALITÉ — toutes sortes (voir la note de fusion ci-dessus).
+    '==': Operateur(lambda v, r: (not manquant(v)) and v == r, _TOUTES, 'est égal à'),
+    '!=': Operateur(lambda v, r: (not manquant(v)) and v != r, _TOUTES, "n'est pas égal à"),
+
+    # ── TEXTE.
+    'contient': Operateur(
+        lambda v, r: _texte(r) in _texte(v), frozenset({TEXTE}), 'contient'),
+    'ne_contient_pas': Operateur(
+        lambda v, r: _texte(r) not in _texte(v), frozenset({TEXTE}), 'ne contient pas'),
+    'commence_par': Operateur(
+        lambda v, r: _texte(v).startswith(_texte(r)), frozenset({TEXTE}), 'commence par'),
+    'ne_commence_pas_par': Operateur(
+        lambda v, r: not _texte(v).startswith(_texte(r)), frozenset({TEXTE}),
+        'ne commence pas par'),
+    'finit_par': Operateur(
+        lambda v, r: _texte(v).endswith(_texte(r)), frozenset({TEXTE}), 'finit par'),
+    'ne_finit_pas_par': Operateur(
+        lambda v, r: not _texte(v).endswith(_texte(r)), frozenset({TEXTE}), 'ne finit pas par'),
+
+    # ── PRÉSENCE — sans opérande, et applicables à toutes les sortes. Ce sont les seuls
+    #    opérateurs qui interrogent l'ABSENCE ; tous les autres la traitent comme un `False`.
+    'vide': Operateur(
+        lambda v, r=None: manquant(v) or _texte(v) == '', _TOUTES, 'est vide', operande=False),
+    'non_vide': Operateur(
+        lambda v, r=None: (not manquant(v)) and _texte(v) != '', _TOUTES, "n'est pas vide",
+        operande=False),
+}
+
+
+def operateurs_pour(sorte: str) -> List[str]:
+    """Opérateurs applicables à une sorte de colonne, dans l'ordre du registre.
+
+    C'EST LA FONCTION QUI DÉRIVE L'UI. Le menu d'une condition ne s'écrit pas : il s'obtient d'ici.
+    Sans elle, chaque interface recopierait la liste — et divergerait, exactement comme les six
+    graphies du bouton ⚙ avant qu'une brique ne les rende inutiles à discuter.
+    """
+    if sorte not in _TOUTES:
+        raise ValueError(f"sorte '{sorte}' inconnue (attendu : {', '.join(SORTES)})")
+    return [nom for nom, op in OPERATEURS.items() if sorte in op.sortes]
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+# 3. La CONDITION — une déclaration, pas une ligne d'interface
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+
+@dataclass(frozen=True)
+class Condition:
+    """Une condition atomique, SÉRIALISABLE — donc entrant dans un manifeste, donc rejouable.
+
+    Chez l'outil d'origine elle vit dans une struct d'application (`app.structCondition`, sauvée
+    par `save_env_*`) : elle appartient à une SESSION. Ici elle appartient à la DÉCLARATION, ce qui
+    est toute la différence entre « j'ai refait la même analyse » et « j'ai rejoué la même analyse ».
+
+    `cle` est l'étiquette (`C1`, `C2`…) par laquelle l'arbre logique la désigne. `source` nomme la
+    table d'où vient la colonne — deux conditions peuvent porter le même nom de champ dans deux
+    tables différentes, et sans `source` l'arbre serait ambigu.
+    """
+    cle: str
+    champ: str
+    operateur: str
+    valeur: Any = None
+    source: str = ''
+    sorte: str = NUMERIQUE
+
+    def __post_init__(self) -> None:
+        if not self.cle:
+            raise ValueError("une condition doit porter une clé (« C1 », « C2 »…)")
+        op = OPERATEURS.get(self.operateur)
+        if op is None:
+            raise ValueError(
+                f"{self.cle} : opérateur '{self.operateur}' inconnu "
+                f"(disponibles : {', '.join(OPERATEURS)})")
+        if self.sorte not in _TOUTES:
+            raise ValueError(f"{self.cle} : sorte '{self.sorte}' inconnue "
+                             f"(attendu : {', '.join(SORTES)})")
+        # LE contrôle qui n'existe pas dans l'outil d'origine : l'opérateur doit convenir à la
+        # sorte de la colonne. Sans lui, `<` sur du texte rend un masque plausible et faux.
+        if self.sorte not in op.sortes:
+            raise ValueError(
+                f"{self.cle} : l'opérateur '{self.operateur}' ne s'applique pas à une colonne "
+                f"{self.sorte} (admis : {', '.join(sorted(op.sortes))}) — "
+                f"pour cette colonne : {', '.join(operateurs_pour(self.sorte))}")
+        # Une valeur fournie à un opérateur qui n'en prend pas est une faute de déclaration, pas
+        # un détail à ignorer : elle signale que l'auteur croyait comparer à quelque chose.
+        if not op.operande and self.valeur is not None:
+            raise ValueError(
+                f"{self.cle} : l'opérateur '{self.operateur}' ne prend pas de valeur de référence")
+        if op.operande and self.valeur is None:
+            raise ValueError(
+                f"{self.cle} : l'opérateur '{self.operateur}' exige une valeur de référence")
+
+    def evaluer(self, valeurs: Sequence[Any]) -> List[bool]:
+        """Masque booléen de la condition sur une colonne, ligne à ligne."""
+        test = OPERATEURS[self.operateur].test
+        return [bool(test(v, self.valeur)) for v in valeurs]
+
+    def rendre(self) -> str:
+        """Phrase lisible — `vitesse contient « FIN »`. Sert aux libellés et aux messages."""
+        op = OPERATEURS[self.operateur]
+        cible = f"{self.source}.{self.champ}" if self.source else self.champ
+        return f"{cible} {op.libelle}" + (f" « {self.valeur} »" if op.operande else "")
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+# 4. L'ARBRE logique — le modèle ; le texte n'en est que le rendu
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+
+#: Un nœud : soit une clé de condition (`'C1'`), soit `{'op': 'ET', 'args': [...]}`.
+Arbre = Union[str, Dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class Connecteur:
+    """Un connecteur logique déclaré. `arite` vaut `None` pour « deux ou plus »."""
+    calcul: Callable[[List[bool]], bool]
+    arite: Optional[int]
+    libelle: str
+
+
+def _xor(bits: List[bool]) -> bool:
+    return bits[0] != bits[1]
+
+
+#: ⚠ `ET` et `OU` sont N-AIRES ici alors qu'ils sont binaires dans l'outil d'origine (`@and`,
+#: `@or`). Ce n'est pas un enrichissement gratuit : c'est ce qui supprime l'imbrication à gauche
+#: que son constructeur de texte devait fabriquer par concaténation — `ET ( ET (C1 , C2) , C3 )`
+#: pour dire « les trois ». L'arbre n-aire dit la même chose sans profondeur artificielle, et deux
+#: déclarations équivalentes s'y comparent.
+#:
+#: ⚠ `XOR` reste BINAIRE, délibérément. À trois arguments, « ou exclusif » a deux lectures
+#: courantes et incompatibles — parité (un nombre impair de vrais) ou exclusivité (exactement un
+#: vrai) — qui divergent dès `(V, V, V)`. Aucune n'est « la » bonne : on refuse la question plutôt
+#: que d'en trancher une au hasard dans un moteur d'analyse scientifique.
+CONNECTEURS: Dict[str, Connecteur] = {
+    'ET':  Connecteur(all, None, 'et'),
+    'OU':  Connecteur(any, None, 'ou'),
+    'XOR': Connecteur(_xor, 2, 'ou exclusif'),
+    'NON': Connecteur(lambda bits: not bits[0], 1, 'non'),
+}
+
+
+def valider(arbre: Arbre, cles: Sequence[str], _chemin: str = 'racine') -> None:
+    """Refuse un arbre mal formé À LA DÉCLARATION, en NOMMANT le fautif et son emplacement.
+
+    C'est la contrepartie directe du `try/catch` unique de l'outil d'origine, qui ne pouvait dire
+    que « Probleme avec les connecteurs ». Quatre fautes sont distinguées ici, et chacune a son
+    message : clé inconnue, connecteur inconnu, arité fausse, nœud malformé.
+    """
+    if isinstance(arbre, str):
+        if arbre not in cles:
+            connues = ', '.join(cles) if cles else '— aucune condition déclarée'
+            raise ValueError(f"{_chemin} : condition '{arbre}' jamais déclarée (connues : {connues})")
+        return
+
+    if not isinstance(arbre, dict) or 'op' not in arbre:
+        raise ValueError(
+            f"{_chemin} : nœud attendu sous la forme {{'op': …, 'args': [...]}}, reçu {arbre!r}")
+
+    op = arbre['op']
+    connecteur = CONNECTEURS.get(op)
+    if connecteur is None:
+        raise ValueError(
+            f"{_chemin} : connecteur '{op}' inconnu (disponibles : {', '.join(CONNECTEURS)})")
+
+    args = arbre.get('args')
+    if not isinstance(args, (list, tuple)) or not args:
+        raise ValueError(f"{_chemin} : le connecteur '{op}' attend une liste d'arguments non vide")
+
+    attendue = connecteur.arite
+    if attendue is not None and len(args) != attendue:
+        raise ValueError(
+            f"{_chemin} : '{op}' prend {attendue} argument(s), {len(args)} fourni(s)")
+    if attendue is None and len(args) < 2:
+        raise ValueError(
+            f"{_chemin} : '{op}' prend au moins 2 arguments, {len(args)} fourni(s)")
+
+    for i, sous in enumerate(args):
+        valider(sous, cles, f"{_chemin} › {op}[{i + 1}]")
+
+
+def evaluer(arbre: Arbre, masques: Mapping[str, Sequence[bool]]) -> List[bool]:
+    """Combine les masques des conditions selon l'arbre. Toutes de MÊME longueur.
+
+    L'égalité des longueurs est vérifiée : des masques dépareillés viendraient de colonnes de
+    tables différentes, et les combiner produirait un masque tronqué à la plus courte — donc des
+    segments qui s'arrêtent sans raison visible.
+    """
+    valider(arbre, list(masques))
+    longueurs = {len(m) for m in masques.values()}
+    if len(longueurs) > 1:
+        detail = ', '.join(f"{k}={len(v)}" for k, v in masques.items())
+        raise ValueError(f"masques de longueurs différentes ({detail}) — les conditions doivent "
+                         "porter sur des colonnes du même échantillonnage")
+    return _evaluer(arbre, masques, longueurs.pop() if longueurs else 0)
+
+
+def _evaluer(arbre: Arbre, masques: Mapping[str, Sequence[bool]], n: int) -> List[bool]:
+    if isinstance(arbre, str):
+        return [bool(x) for x in masques[arbre]]
+    calcul = CONNECTEURS[arbre['op']].calcul
+    sous = [_evaluer(a, masques, n) for a in arbre['args']]
+    return [calcul([m[i] for m in sous]) for i in range(n)]
+
+
+def rendre(arbre: Arbre) -> str:
+    """Rendu textuel canonique de l'arbre — `ET(C1, OU(C2, NON(C3)))`.
+
+    Une seule forme, préfixe et parenthésée, pour l'affichage comme pour la relecture. L'outil
+    d'origine en avait deux (celle qu'il construit et celle qu'il montre en exemple) et elles
+    n'étaient pas la même : voir ② en tête de module.
+    """
+    if isinstance(arbre, str):
+        return arbre
+    return f"{arbre['op']}({', '.join(rendre(a) for a in arbre['args'])})"
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+# 5. SAISIE textuelle — acceptée, immédiatement convertie en arbre
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+
+def analyser(texte: str, cles: Sequence[str]) -> Arbre:
+    """Convertit une saisie `ET(C1, OU(C2, NON(C3)))` en arbre validé.
+
+    Accepte la forme de l'outil d'origine — préfixe, séparateurs virgule OU espace, espaces libres
+    autour des parenthèses (`ET (C1 , C2)`). N'accepte PAS l'infixe (`C1 ET C2`) : la seule
+    interface qui l'ait jamais affiché ne savait pas non plus l'exécuter (② en tête).
+
+    Le résultat est un arbre — le texte n'est pas conservé. C'est le point : deux saisies
+    différemment espacées donnent le même modèle, donc se comparent.
+    """
+    jetons = _decouper(texte)
+    if not jetons:
+        raise ValueError("chaîne de connecteurs vide — déclarer au moins une condition")
+    arbre, reste = _lire(jetons, 0)
+    if reste != len(jetons):
+        raise ValueError(f"texte en trop après l'expression : « {' '.join(jetons[reste:])} »")
+    valider(arbre, cles)
+    return arbre
+
+
+def _decouper(texte: str) -> List[str]:
+    jetons: List[str] = []
+    courant = ''
+    for c in texte:
+        if c in '(),' or c.isspace():
+            if courant:
+                jetons.append(courant)
+                courant = ''
+            if c in '(),':
+                jetons.append(c)
+        else:
+            courant += c
+    if courant:
+        jetons.append(courant)
+    return jetons
+
+
+def _lire(jetons: List[str], i: int) -> Tuple[Arbre, int]:
+    if i >= len(jetons):
+        raise ValueError("expression incomplète — il manque un opérande")
+    jeton = jetons[i]
+    if jeton in '(),':
+        raise ValueError(f"« {jeton} » inattendu à la position {i + 1}")
+
+    # Un nom suivi d'une parenthèse est un connecteur ; seul, c'est une clé de condition.
+    if i + 1 < len(jetons) and jetons[i + 1] == '(':
+        if jeton not in CONNECTEURS:
+            raise ValueError(
+                f"connecteur '{jeton}' inconnu (disponibles : {', '.join(CONNECTEURS)})")
+        args: List[Arbre] = []
+        j = i + 2
+        while j < len(jetons) and jetons[j] != ')':
+            if jetons[j] == ',':
+                j += 1
+                continue
+            sous, j = _lire(jetons, j)
+            args.append(sous)
+        if j >= len(jetons):
+            raise ValueError(f"parenthèse jamais refermée après '{jeton}'")
+        return {'op': jeton, 'args': args}, j + 1
+
+    if jeton in CONNECTEURS:
+        raise ValueError(f"le connecteur '{jeton}' doit être suivi de ses arguments entre "
+                         f"parenthèses — par exemple {jeton}(C1, C2)")
+    return jeton, i + 1
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+# 6. Nom DÉRIVÉ — même règle que `nom_produit()` du Calculator
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+
+#: Longueur du préfixe retenu de chaque nom de table dans un nom dérivé. Trois caractères est la
+#: règle de l'outil d'origine (`app.tddTable1.Value(1:3)`), qui produit `deb_fin_0_0`. On la garde
+#: telle quelle : c'est un nom que les utilisateurs de ce laboratoire LISENT déjà.
+_PREFIXE = 3
+
+
+def _abreger(nom: str) -> str:
+    return (nom or '')[:_PREFIXE].lower()
+
+
+def _entier(x: float) -> str:
+    """`0` plutôt que `0.0`, `-2.5` conservé — un nom ne doit pas porter de décimale inutile."""
+    return f"{int(x)}" if float(x).is_integer() else f"{x:g}"
+
+
+def nom_jonction(table_debut: str, table_fin: str, offset_debut: float, offset_fin: float) -> str:
+    """Nom d'une segmentation temporelle double — `deb_fin_0_0`.
+
+    Le nom se DÉRIVE des paramètres au lieu d'être saisi : deux segmentations de mêmes réglages
+    portent alors le même nom, et deux réglages différents ne peuvent pas le partager. Une saisie
+    libre ne garantit ni l'un ni l'autre.
+    """
+    return (f"{_abreger(table_debut)}_{_abreger(table_fin)}"
+            f"_{_entier(offset_debut)}_{_entier(offset_fin)}")
+
+
+def nom_chaine(arbre: Arbre) -> str:
+    """Nom dérivé d'une chaîne conditionnelle — `et_c1_ou_c2_c3`, en minuscules et sans ponctuation.
+
+    Dérivé de l'ARBRE et non du texte saisi : c'est ce qui rend deux saisies équivalentes (espaces,
+    virgules) porteuses du même nom.
+    """
+    rendu = rendre(arbre).lower()
+    out = ''.join(c if c.isalnum() else '_' for c in rendu)
+    while '__' in out:
+        out = out.replace('__', '_')
+    return out.strip('_')

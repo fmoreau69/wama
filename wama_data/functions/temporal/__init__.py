@@ -13,3 +13,4 @@ pipeline — et l'on se retrouve à réécrire à la main ce qui aurait dû se c
 from . import segmentation  # noqa: F401  (l'import enregistre les FunctionSpec)
 from . import coding        # noqa: F401  (le CODAGE est le 5e mode de segmentation)
 from . import calculation   # noqa: F401  (Calculator — colonnes dérivées + indicateurs/segment)
+from . import conditions    # noqa: F401  (chaîne conditionnelle — les DEUX ports du même masque)
