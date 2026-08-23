@@ -6021,6 +6021,24 @@ segmentation parmi plusieurs.
   `.mlapp`), images de la présentation. **Re-dérivables** : la marche à suivre est en mémoire
   (`reference_corpus_bind_wama_data`).
 - **`sync_models` lancé 3× manuellement** (additif, sans `--clean`) — SAM3 présent, 100 modèles.
+- **Pile relancée par Fabien vers 01:20** — gunicorn et Celery portent donc le correctif de
+  réconciliation ; SAM3 tient depuis (`-0` sur toutes les passes).
+- ⚠ **`MEMORY.md` = 18,5 Ko après compactage**, au-dessus de la cible de 17,1 Ko (limite de
+  lecture 24,4 Ko). Les lignes de handoff les plus anciennes ont été fusionnées ; **le prochain
+  élagage doit viser les sections thématiques**, pas le bloc de handoff.
+
+### ⚠ DEUX LEÇONS DE MÉTHODE, consignées ici parce qu'elles ne tiennent à aucun fichier de code
+
+1. **Un fait GÉNÉRÉ peut capter un état TRANSITOIRE et publier une fausse régression.** `doc_facts`
+   a écrit « anonymizer : 1 écart, 1 erreur » dans le bloc `roundtrip` ; deux mesures indépendantes
+   ensuite rendent « aucun écart ». Le bloc a été régénéré avant commit — sans cette relecture, une
+   fausse régression entrait au dépôt. Ces faits se mesurent sur une base **vivante** que des syncs
+   modifient PENDANT la génération : la même passe a vu `modeles` à 91/91 puis 90/91, parce qu'un
+   modèle avait été supprimé en cours de route. **Une valeur générée surprenante se RE-MESURE avant
+   d'être consignée.** (Cette leçon n'existait que dans le message d'un commit REVERTÉ — d'où sa
+   reprise ici.)
+2. **Régénérer APRÈS la dernière modification mesurée, jamais avant.** Le contrôle m'a attrapé sur
+   mon PROPRE commit : bloc régénéré, puis 17 tests ajoutés qui changent ce que le bloc mesure.
 
 ### Contrôles attendus au prochain /reprise
 
