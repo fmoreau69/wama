@@ -133,16 +133,59 @@ class Regroupement:
                 (True, True): 'concat_all'}[(self.lots, self.declarations)]
 
 
-#: Formats d'écriture déclarés : extension → séparateur de colonnes. `None` = format non
-#: séparé par un caractère (le tableur et MATLAB sont écrits par l'adaptateur, pas par le cœur).
-FORMATS: Dict[str, Optional[str]] = {
-    'csv': ';',     # `;` et non `,` — c'est la convention de l'outil d'origine (`writecell`
-                    # `'Delimiter', ';'`), et celle qu'attend un tableur en locale française.
-    'tsv': '\t',
-    'txt': '\t',
-    'xlsx': None,
-    'mat': None,
-}
+@dataclass(frozen=True)
+class Format:
+    """Une CAPACITÉ de sortie déclarée.
+
+    ⚠ `ecrivain=None` signifie « format DÉCLARÉ, écrivain PAS ENCORE ÉCRIT » — et cette distinction
+    est le cœur du modèle. §9ter.5 recense `.csv`, `.txt`, `.xlsx`, `.mat` comme formats du livrable
+    chercheur : les quatre sont donc des cibles légitimes qu'une déclaration d'export a le droit de
+    nommer. Mais deux d'entre eux demandent une bibliothèque, donc un écrivain vivant dans
+    l'adaptateur. Les taire ferait croire qu'ils n'existent pas ; les accepter en silence ferait
+    écrire un CSV sous une extension `.xlsx`. On les déclare, et l'écriture échoue en le disant.
+    """
+    separateur: Optional[str] = None
+    ecrivain: Optional[Any] = None
+    description: str = ''
+
+
+#: REGISTRE des formats de sortie — `ajouter un format = enregistrer une capacité`, jamais éditer
+#: le moteur. Même geste que le registre de lecteurs de l'Importer (`sources/__init__.py`), et
+#: pour la même raison : **la méthode d'export est universelle, les formats sont agrégatifs.**
+#: (Doctrine consignée en `WAMA_DATA_WORLD.md §9quinquies`.)
+FORMATS: Dict[str, Format] = {}
+
+
+def enregistrer_format(extension: str, *, separateur: Optional[str] = None,
+                       ecrivain: Optional[Any] = None, description: str = '') -> None:
+    """Déclare une capacité de sortie. Idempotent par extension — le dernier inscrit gagne,
+    ce qui permet à un adaptateur de FOURNIR l'écrivain d'un format déclaré sans lui."""
+    FORMATS[extension] = Format(separateur=separateur, ecrivain=ecrivain,
+                                description=description)
+
+
+def formats_disponibles() -> List[str]:
+    """Extensions déclarées, dans l'ordre d'enregistrement. C'est cette liste que l'UI propose —
+    elle n'est écrite nulle part ailleurs."""
+    return list(FORMATS)
+
+
+def formats_ecrivables() -> List[str]:
+    """Extensions qui ont RÉELLEMENT un écrivain. Toujours un sous-ensemble de `formats_disponibles`
+    — l'écart est la dette, et elle est ainsi mesurable au lieu d'être supposée."""
+    return [e for e, f in FORMATS.items()
+            if f.ecrivain is not None or f.separateur is not None]
+
+
+# ── Formats natifs du cœur : ceux qui ne demandent aucune bibliothèque ────────────────────────
+# `;` et non `,` pour le CSV — c'est la convention de l'outil d'origine (`writecell`
+# `'Delimiter', ';'`) et celle qu'attend un tableur en locale française.
+enregistrer_format('csv', separateur=';', description='Tableur, séparateur point-virgule')
+enregistrer_format('tsv', separateur='\t', description='Tabulations')
+enregistrer_format('txt', separateur='\t', description='Texte, tabulations')
+# Déclarés SANS écrivain : ils appartiennent au livrable (§9ter.5) mais demandent une bibliothèque.
+enregistrer_format('xlsx', description='Classeur — écrivain à fournir par un adaptateur')
+enregistrer_format('mat', description='MATLAB — écrivain à fournir par un adaptateur')
 
 
 @dataclass(frozen=True)
@@ -361,11 +404,18 @@ def rendre(fichier: Fichier) -> str:
     et relèvent de l'adaptateur, qui a les bibliothèques. Le refuser explicitement vaut mieux que
     rendre un CSV sous une extension `.xlsx`.
     """
-    separateur = FORMATS.get(fichier.format)
-    if separateur is None:
+    fmt = FORMATS.get(fichier.format)
+    if fmt is None:
+        raise ValueError(f"format '{fichier.format}' non enregistré "
+                         f"(déclarés : {', '.join(formats_disponibles())})")
+    if fmt.ecrivain is not None:
+        return fmt.ecrivain(fichier)
+    if fmt.separateur is None:
         raise ValueError(
-            f"le format '{fichier.format}' n'est pas séparé par un caractère — "
-            "son écriture appartient à l'adaptateur")
-    out = [separateur.join(_cellule(e, separateur) for e in fichier.entetes)]
-    out += [separateur.join(_cellule(v, separateur) for v in ligne) for ligne in fichier.lignes]
+            f"le format '{fichier.format}' est DÉCLARÉ mais aucun écrivain n'est enregistré — "
+            "il demande une bibliothèque, donc un adaptateur "
+            "(`enregistrer_format('{0}', ecrivain=…)`)".format(fichier.format))
+    sep = fmt.separateur
+    out = [sep.join(_cellule(e, sep) for e in fichier.entetes)]
+    out += [sep.join(_cellule(v, sep) for v in ligne) for ligne in fichier.lignes]
     return '\n'.join(out) + '\n'

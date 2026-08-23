@@ -11,7 +11,8 @@ inexistant. `test_l_export_ne_pivote_RIEN` garde cette porte fermée.
 import unittest
 
 from .export import (FORMATS, Colonne, Declaration, Fichier, Identite, Regroupement,
-                     apercu, exporter, lignes, rendre)
+                     apercu, enregistrer_format, exporter, formats_disponibles,
+                     formats_ecrivables, lignes, rendre)
 
 # Un lot minimal mais réaliste : une table de situations et ses indicateurs adjoints, plus des
 # méta-informations d'identité — exactement ce que §9ter.6 C dit qu'un export doit pouvoir mêler.
@@ -270,6 +271,53 @@ class RenduTest(unittest.TestCase):
         # §9ter.5 : « formats : .csv, .txt, .xlsx, .mat » (+ .tsv du chemin script).
         for attendu in ('csv', 'txt', 'xlsx', 'mat', 'tsv'):
             self.assertIn(attendu, FORMATS)
+
+
+class RegistreDeFormatsTest(unittest.TestCase):
+    """Les formats de sortie sont une CAPACITÉ AGRÉGATIVE, pas une liste figée (§9quinquies).
+
+    Même modèle que le registre de lecteurs de l'Importer : la méthode d'export est universelle,
+    les formats s'ajoutent sans toucher le moteur.
+    """
+
+    def tearDown(self):
+        FORMATS.pop('zzz', None)
+
+    def test_declare_n_est_pas_ecrivable(self):
+        # LA distinction qui porte le modèle : `xlsx` est une cible légitime du livrable (§9ter.5)
+        # mais son écrivain demande une bibliothèque. Le taire ferait croire qu'il n'existe pas ;
+        # l'accepter en silence écrirait un CSV sous une extension `.xlsx`.
+        self.assertIn('xlsx', formats_disponibles())
+        self.assertNotIn('xlsx', formats_ecrivables())
+
+    def test_l_ecart_entre_declares_et_ecrivables_est_LA_dette_mesurable(self):
+        dette = set(formats_disponibles()) - set(formats_ecrivables())
+        self.assertEqual(dette, {'xlsx', 'mat'})
+
+    def test_ajouter_un_format_ne_touche_PAS_le_moteur(self):
+        enregistrer_format('zzz', separateur='|', description='essai')
+        f = Fichier(nom='x', entetes=['a', 'b'], lignes=[[1, 2]], format='zzz')
+        self.assertEqual(rendre(f), 'a|b\n1|2\n')
+
+    def test_un_adaptateur_peut_FOURNIR_l_ecrivain_d_un_format_declare(self):
+        # C'est le geste attendu : l'extension existe déjà, l'adaptateur apporte le comportement.
+        enregistrer_format('zzz', ecrivain=lambda fic: f"<{fic.nom}>")
+        self.assertEqual(rendre(Fichier(nom='ok', entetes=[], lignes=[], format='zzz')), '<ok>')
+        self.assertIn('zzz', formats_ecrivables())
+
+    def test_un_format_JAMAIS_enregistre_est_refuse_en_nommant_les_declares(self):
+        with self.assertRaises(ValueError) as ctx:
+            rendre(Fichier(nom='x', entetes=[], lignes=[], format='parquet'))
+        self.assertIn('csv', str(ctx.exception))
+
+    def test_un_format_declare_SANS_ecrivain_le_dit_explicitement(self):
+        with self.assertRaises(ValueError) as ctx:
+            rendre(Fichier(nom='x', entetes=['a'], lignes=[[1]], format='mat'))
+        self.assertIn('aucun écrivain', str(ctx.exception))
+
+    def test_la_declaration_accepte_tout_format_DECLARE(self):
+        # Refuser `xlsx` à la déclaration interdirait de décrire un export du livrable.
+        Declaration(nom='x', colonnes=(Colonne('t', 'v'),), format='xlsx')
 
 
 if __name__ == '__main__':

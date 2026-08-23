@@ -38,14 +38,14 @@
 
 | Module | Rôle | Flux | État | Briques | Testées | Conso. int/ext | Doc |
 |---|---|---|---|---|---|---|---|
-| **Importer** | Lit une source et rend un référentiel temporel interrogeable | fichiers + manifeste `dataset` → référentiel, écrit en `.wrec` | 🔶 | 3/3 | 1 | 1/0 | §6.6, §9bis.1, §9quater.2 (conteneur natif) |
+| **Importer** | Lit une source et rend un référentiel temporel interrogeable | fichiers + manifeste `dataset` → référentiel, écrit en `.wrec` | 🔶 | 3/3 | 1 | 3/0 | §6.6, §9bis.1, §9quater.2 (conteneur natif) |
 | **Référentiel temporel** | Aligne des flux à cadences incommensurables | référentiel → échantillons, `segments`, vue décimée, cadres typés | 🔶 | 2/2 | 2 | 1/0 | §2, §3, §9quater.7 |
-| **Connector** | Branche une base existante comme source | base SQLite (`.trip` externe, `.wrec` natif) → référentiel | 🔶 | 1/1 | 0 | 1/0 | §6.2, §9quater.2 |
+| **Connector** | Branche une base existante comme source | base SQLite (`.trip` externe, `.wrec` natif) → référentiel | 🔶 | 1/1 | 0 | 2/0 | §6.2, §9quater.2 |
 | **Explorer** | Explore un dataset en table et en graphe — c'est aussi l'INTERFACE du Calculator : la vue tableur est le lieu où l'on ajoute une colonne calculée et où l'on voit le résultat | référentiel → vues table/graphe + colonnes calculées | ⏳ | — | — | — | §7, §9quater.6 |
 | **Segmenter** | Produit des segments : autour d'un événement, par jonction de deux flux, par CHAÎNE de conditions (ET/OU/XOR/NON) avec hystérésis, par plages constantes d'un catégoriel, ou par CODAGE (humain ou IA) — la chaîne sort en segments OU en événements, au choix du PORT | `events` ou signal + conditions → `segments` \| `events` | 🔶 | 6/6 | 4 | 16/0 | §9ter (spécification), §9ter.6 A-B (portage), §6.7 |
 | **Calculator** | Calcule des COLONNES DÉRIVÉES (moyenne glissante, dérivée, cumul) et des INDICATEURS PAR SEGMENT qu'il adjoint aux segments | signal → signal enrichi · `segments` + signal → colonnes d'indicateurs | 🔶 | 3/3 | 2 | 5/0 | §6.7 |
 | **Visualizer** | Vues synchronisées sur l'axe partagé (plugins) | référentiel → plugins co-chargés | ⏳ | — | — | — | §4, §8.2 |
-| **Exporter** | Exporte TOUT le contenu d'un trip de façon configurable — données, méta-infos, événements, situations et leurs indicateurs : sélection ordonnée de colonnes, identité, contexte, regroupement | données/méta/`events`/`segments` + sélection → fichiers (concaténation, jamais pivot) | 🔶 | 2/2 | 2 | 2/0 | §9ter.5, §9ter.6 C |
+| **Exporter** | Exporte TOUT le contenu d'un trip de façon configurable — données, méta-infos, événements, situations et leurs indicateurs : sélection ordonnée de colonnes, identité, contexte, regroupement | données/méta/`events`/`segments` + sélection → fichiers (concaténation, jamais pivot) | 🔶 | 2/2 | 2 | 4/0 | §9ter.5, §9ter.6 C |
 | **Recorder** | Enregistre depuis une source temps réel | flux LSL/RTMaps/ROS → `dataset` | ⏳ | — | — | — | §7 |
 | **Analyzer** | Orchestre les modules selon un manifeste `pipeline` | manifeste `pipeline` → exécution | ⏳ | — | — | — | §9bis.2 |
 
@@ -1602,6 +1602,112 @@ qui tranche).
 - **Aucun point d'entrée « quel dataset j'explore »** — pas de modèle `Dataset`, et
   `DATASET_SOURCES` n'est qu'une liste de validation du kind de manifeste, non réconciliée avec le
   registre des lecteurs (c'est déjà le garde-fou **G1**, cité dans le blocage de l'Importer).
+
+---
+
+## 9quinquies. MÉTHODES UNIVERSELLES, CAPACITÉS AGRÉGATIVES — et ce qui entre dans un REGISTRE
+
+> **Doctrine posée par Fabien le 2026-08-23**, confrontée au code le jour même :
+> « **les méthodes d'import/connexion/export sont universelles et génériques ; les CAPACITÉS de
+> types, elles, sont de l'agrégation — un peu comme on ajoute de nouveaux modèles.** »
+>
+> Réponse courte : **oui, on est aligné, et c'était déjà à moitié implémenté** — mais le relevé a
+> trouvé **six vocabulaires de formats de natures différentes**, dont un désalignement introduit
+> le matin même. Cette section fixe le critère pour que la question ne se repose pas par fichier.
+
+### 9quinquies.1 Le relevé — six vocabularies, et ils ne sont PAS de même nature
+
+| # | où | quoi | nature | registre ? |
+|---|---|---|---|---|
+| 1 | `wama_data/sources/__init__.py` | lecteurs d'entrée (`register_reader`, `reader_for`, `supported_extensions`) | **CAPACITÉ** — un lecteur est du CODE qui sait lire | ✅ vrai registre… mais **il n'était pas au registre des registres** |
+| 2 | `wama_data/core/export.py::FORMATS` | formats de sortie | **CAPACITÉ** | ❌ **dict en dur** — écrit le matin du 23/08, **corrigé l'après-midi** |
+| 3 | `manifests/builtin/dataset.py::DATASET_SOURCES` | 8 chaînes de validation | **vocabulaire figé** | ❌ tuple en dur — c'est le garde-fou **G1**, toujours ouvert (voir §9quinquies.4) |
+| 4 | `app_registry.py::MEDIA_CATEGORIES` + `*_EXTENSIONS` | taxonomie média | **TAXONOMIE fermée** | ❌ **et c'est juste** — domicile unique déclaré, gardé par `check_redundancy.py` |
+| 5 | `common/utils/export_formats.py::VOCABULAIRE` | libellé / icône / groupe (téléchargement) | **PRÉSENTATION** | ❌ et c'est juste |
+| 6 | `common/utils/output_formats.py` | formats early-binding (réglage avant génération) | **PRÉSENTATION** | ❌ et c'est juste |
+
+**Le désalignement était donc réel mais étroit** : deux entrées sur six, et l'une des deux (2) était
+de moi. Les quatre autres sont correctes — ce qui compte autant que les défauts, parce que
+« tout mettre en registre » serait la sur-correction évidente.
+
+### 9quinquies.2 LE CRITÈRE — trois questions, dans cet ordre
+
+> **Registre** quand l'ajout apporte du **COMPORTEMENT** et que la liste doit pouvoir s'allonger
+> **sans toucher le moteur**.
+> **Table de vocabulaire** quand l'ajout n'apporte que des **MOTS** (libellé, icône, catégorie) et
+> que la liste est **fermée par la nature du domaine**.
+
+| question | oui → | non → |
+|---|---|---|
+| ① **L'ajout apporte-t-il du comportement ?** Un lecteur *sait lire*, un écrivain *sait écrire*. Un libellé + une icône ne savent rien faire | registre | vocabulaire |
+| ② **Un TIERS doit-il pouvoir l'ajouter sans modifier le moteur ?** (une app, un autre monde, un plugin) | registre | vocabulaire |
+| ③ **La liste est-elle fermée par la NATURE du domaine ?** `image/video/audio/document/archive/text/3d` n'est pas extensible « par ajout de capacité » — c'est une taxonomie | vocabulaire, **domicile unique** | registre |
+
+Et une quatrième, qui décide non pas *registre ou pas* mais *registre des registres ou pas* :
+
+| ④ **L'utilisateur doit-il en voir l'état et pouvoir le RAFRAÎCHIR ?** | alors il entre au **registre des registres** — et hérite du bouton, de l'endpoint, de la permission, du chronométrage et du compte-rendu, sans une ligne d'UI |
+
+⚠ **`MEDIA_CATEGORIES` répond NON à ③ et reste donc une taxonomie** — et son domicile unique est
+déjà déclaré et **gardé mécaniquement** (`check_redundancy.py` : « `app_registry.py` : LE domicile
+des vocabulaires média »). Le monde Médias n'a rien à changer. C'est le contre-exemple utile :
+la réponse n'est pas « tout en registre ».
+
+### 9quinquies.3 Faut-il un KIND DE MANIFESTE par famille de capacité ? **NON**
+
+Trois raisons, toutes déjà mesurées ailleurs dans le dépôt :
+
+1. **La question a déjà été tranchée pour la clé des registres**, et le relevé vaut ici :
+   `registries.py` en tête — sur 7 surfaces catalogues, **4 seulement** correspondent à un kind,
+   **3 kinds n'ont aucune page**, **3 pages ne sont pas des kinds**. `manifest_kind` est donc un
+   **LIEN facultatif**, jamais la clé. Un kind par famille de capacité multiplierait les kinds
+   morts.
+2. **Une capacité qui est du CODE se déclare par du code**, comme `FunctionSpec`. Le kind
+   `function` couvre déjà cette famille ; §9bis avait conclu la même chose pour le traitement
+   (« le kind `pipeline` EXISTE DÉJÀ — aucun nouveau kind à créer »).
+3. **Ce dont la couche manifeste a besoin n'est pas un kind de plus**, c'est que `DATASET_SOURCES`
+   cesse d'être un tuple figé — point suivant.
+
+### 9quinquies.4 ⚠ Pourquoi G1 ne peut PAS être fermé naïvement (trouvé le 2026-08-23)
+
+Le garde-fou **G1** demande que `DATASET_SOURCES` soit réconcilié avec le registre des lecteurs.
+La correction évidente — faire lire le registre par `manifests/builtin/dataset.py` — est
+**interdite** : ce fichier est dans le **SUBSTRAT**, et le registre est dans un **MONDE**. Le
+substrat importerait `wama_data`, c'est-à-dire exactement le défaut corrigé au déport du 22/08
+(« `load_all()` citait `wama.common.data` ET `wama_lab.cam_analyzer` **en dur** »).
+
+**La forme juste est l'inverse** : un registre de types de source vit dans le substrat (comme
+`FUNCTION_CATALOG` vit dans `wama/common/catalog/`) et **chaque monde y pousse ses types depuis
+son `apps.py:ready()`**. `DATASET_SOURCES` devient alors la vue de ce registre, et non une liste.
+⏳ **Non fait** — c'est une modification du substrat, à coordonner.
+
+### 9quinquies.5 Ce qui a été FAIT le 2026-08-23
+
+- **`core/export.py::FORMATS` est devenu un REGISTRE** (`enregistrer_format()`,
+  `formats_disponibles()`, `formats_ecrivables()`). ⚠ La distinction qui porte le modèle :
+  **un format DÉCLARÉ n'est pas un format ÉCRIVABLE.** `xlsx` et `mat` appartiennent au livrable
+  (§9ter.5) donc une déclaration a le droit de les nommer, mais leur écrivain demande une
+  bibliothèque et vit dans l'adaptateur. **L'écart entre déclaré et écrivable EST la dette, et il
+  est mesurable** au lieu d'être supposé.
+- **Les deux capacités du monde entrent au registre des registres** — `lecteurs_data` (partagé par
+  l'Importer ET le Connector) et `formats_export_data`. ⚠ **Déclarés depuis `wama_data/apps.py`,
+  jamais depuis `common/registries_builtin.py`** : le monde POUSSE, le substrat ne tire jamais.
+  Un test vérifie par AST que le substrat n'importe aucun monde.
+
+> ⚠ **Le rafraîchisseur des lecteurs a un piège qui a failli passer.** Un `importlib.reload()` du
+> paquet `sources` **VIDE le registre** au lieu de le recharger : le paquet repeuple via
+> `_register_builtins()`, qui fait `from . import trip, tabular` — des modules déjà en cache, donc
+> un import no-op. Mesuré en remettant la version naïve : **0 lecteur**, et le compte-rendu
+> annonçait « ok ». On reprend donc la séquence éprouvée du rafraîchisseur de fonctions —
+> `invalidate_caches` → instantané → purge → rechargement (modules découverts par `pkgutil`, jamais
+> cités en dur) → **restauration intégrale si quoi que ce soit casse**.
+
+### 9quinquies.6 Ce qui reste à décider
+
+| # | question |
+|---|---|
+| **G1** | le registre de types de source dans le substrat, alimenté par les mondes (§9quinquies.4) |
+| — | **écrivains `xlsx` / `mat`** : déclarés, sans écrivain. Le geste est prévu (`enregistrer_format('xlsx', ecrivain=…)` depuis l'adaptateur) |
+| — | le **Connector** partage le registre des lecteurs — à confirmer quand il aura une surface : une base branchée « en connexion » est-elle un lecteur comme un autre, ou une capacité distincte (connexion vivante vs import figé) ? |
 
 ---
 
