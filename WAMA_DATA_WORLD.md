@@ -1781,6 +1781,106 @@ tourner la nuit** — il n'y a plus rien à alimenter.
 
 ---
 
+## 9sexies. AUDIT A — les trois déclarations confrontées entre elles (2026-08-23)
+
+> **Demande de Fabien** : avant toute UI et avant l'API assistant, vérifier que ce qui a été écrit
+> dans la journée **tient ensemble**. `Vue`, `Declaration` d'export et l'arbre de conditions ont été
+> écrits **le même jour, sans jamais être confrontés**.
+
+### 9sexies.1 Ce qui tenait déjà, et n'était pas garanti
+
+- **✅ La composition Vue → Export marche sans une ligne de glu.** `Resultat.tables` est un
+  `Mapping[str, TypedFrame]`, exactement ce que `lot_depuis_frames()` attend. **Vérifié en
+  exécutant**, pas déduit : `livrable_A, 12 lignes`, en-têtes
+  `['trip_id', 'vitesse.time', 'vitesse.value', 'vitesse.value_moyenne']`. Les **annexes** aussi.
+- **✅ Deux patrons de validation cohérents** : `__post_init__` pour l'intrinsèque, fonction libre
+  pour ce qui dépend d'un contexte (le référentiel, la liste des clés).
+- **✅ `check_redundancy` : zéro trouvaille** dans ces fichiers.
+
+### 9sexies.2 🔴 Le défaut principal — une propriété AFFIRMÉE qui n'existait pas
+
+| | `to_dict` / aller-retour, AVANT l'audit |
+|---|---|
+| `Vue` | ✅ testé |
+| `Declaration` (export) | ❌ **rien** |
+| `Condition` | ❌ **rien** |
+
+Or **les deux docstrings l'affirmaient** : §9ter.6 B1 — « une condition est une DÉCLARATION typée…
+donc **sérialisable**, donc **entrant dans un manifeste** » ; §9quater C1 — « Sérialisable — donc
+**c'est un manifeste** ».
+
+> ⚠ **C'est le défaut reproché le matin même à §9ter.6 (« une spec écrite depuis une intuition ment
+> dans le sens optimiste »), reproduit l'après-midi dans mes propres docstrings.** `Vue` avait la
+> propriété uniquement parce qu'elle a été écrite en dernier, en y pensant.
+
+**Corrigé** : `Condition.to_dict()` / `condition_depuis_dict()`, `Declaration.to_dict()` /
+`declaration_depuis_dict()`, aller-retour **JSON pur** testé pour les deux, et **relecture validée
+comme à la construction** — un manifeste ne doit pas être la porte d'entrée des états impossibles.
+L'arbre logique, lui, **était déjà du JSON pur par construction** : rien à sérialiser.
+
+> ⚠ **`sorte` n'est PAS sérialisée, délibérément.** Elle est **lue dans la donnée** par
+> l'adaptateur ; la sérialiser inviterait à la relire, donc à laisser une déclaration contredire la
+> colonne qu'elle décrit — le défaut même que le filtrage par sorte corrige.
+
+### 9sexies.3 🟠 Le vocabulaire — `source` était DÉJÀ PRIS
+
+| concept | avant | après |
+|---|---|---|
+| la table nommée | `source` (export, conditions) · `flux` (vue) | **`flux`** partout |
+| la colonne | `champ` (export, conditions) · `colonnes` (vue) | **`champ`** partout |
+
+**Le choix de `flux` n'est pas une préférence** : dans ce monde, **`source` désigne déjà un
+fichier/format à lire** — `SourceReader`, `SourceInfo`, `sources/`, `SourceInfo.streams`. L'employer
+pour un nom de table était une **ambiguïté réelle**. Et `champ` s'aligne sur le substrat
+(`TypedFrame.fields`, `CANONICAL_FIELDS`, `required_fields`/`produced_fields`).
+
+> ⚠ **Le paramètre `colonne` des fonctions du catalogue N'EST PAS renommé, et ce n'est pas une
+> exception oubliée** : c'est le paramètre d'une fonction, pas un champ de déclaration. Une
+> fonction nomme ses arguments comme elle veut ; le renommer casserait les `ParamSpec` déclarés et
+> toute déclaration sérialisée. La frontière est nette : **`champ` dans les déclarations,
+> l'argument de la fonction dans les `params`.**
+
+⚠ Le renommage était **gratuit à cet instant précis** — rien n'est encore persisté. Le même
+argument que `.wrec` (§9quater.2) : c'est le moment le moins cher, et il ne se représentera pas.
+
+### 9sexies.4 🟠 Le nommage dérivé — quatre règles, trois lieux, dont une f-string
+
+La doctrine §9ter.6 B7 (« le nom se DÉRIVE, il ne se saisit pas ») était **appliquée par quatre
+règles éparpillées**, et l'une n'était pas une règle :
+
+```
+nom_produit()                functions/temporal/calculation.py   ← dans l'ADAPTATEUR
+nom_jonction(), nom_chaine() core/conditions.py                  ← dans le CŒUR
+Colonne.titre                core/export.py
+f"{d.flux}_{d.fonction}"     vue.py:259, EN DUR                  ← pas une règle du tout
+```
+
+**Corrigé** : brique unique `wama_data/core/noms.py` — `normaliser()` (point de passage unique),
+`nom_produit`, `nom_jonction`, `nom_annexe`. Les anciens emplacements **réexportent** au lieu de
+redéfinir, et un test vérifie **l'identité des fonctions** (`assertIs`) : une redéfinition locale,
+même à l'identique, échoue. La brique **n'a aucune dépendance** — condition pour que
+`conditions.py` l'importe sans cycle, ce qu'un test garde par AST.
+
+> ⚠ **`Colonne.titre` reste dans `export.py`, à dessein** : ce n'est pas un nom dérivé de
+> paramètres mais un **en-tête de fichier**, dont la convention (`flux.champ`) appartient au
+> livrable chercheur et se surcharge colonne par colonne. Le rapprocher mêlerait deux règles qui
+> n'ont ni la même source ni la même raison de changer.
+
+> ⚠ **Le chemin par défaut du nom d'annexe n'était couvert par AUCUN test** : tous passaient un
+> `nom=` explicite, donc la f-string n'était jamais exercée. C'est ainsi qu'une non-règle survit.
+
+### 9sexies.5 🟡 Ce qui reste ouvert après l'audit
+
+| # | point |
+|---|---|
+| 1 | **Deux fonctions `valider`** exportées (`core.conditions`, `vue`) → collision à l'import. Non traité : les renommer touche des appelants, et la collision n'a encore mordu personne |
+| 2 | **Aucun rattachement manifeste** pour les trois déclarations, alors que §7 tranche « c'est un manifeste, pas un dump de session ». Le kind `pipeline` est le candidat (§9bis : « aucun nouveau kind à créer »), mais il lui manque le nœud fonction — **D13** |
+| 3 | **Rien ne câble Vue → export** : la composition marche, elle n'est ni exposée ni testée hors de l'audit. Une composition qui marche par accident se casse au premier changement |
+
+`wama_data` : **411 → 437 tests**.
+
+---
+
 ## 9bis.6 Ce que la cartographie n'a pas couvert — à traiter avant l'Importer v2
 
 **L'alignement par TRIGGERS.** RTMaps et LSL fournissent une horloge d'acquisition commune ; des

@@ -217,15 +217,15 @@ class FenetreTest(unittest.TestCase):
     def test_sans_fenetre_on_prend_tout(self):
         self.assertEqual(len(frame_depuis_signal(_signal()).df), 4)
 
-    def test_restriction_de_colonnes(self):
+    def test_restriction_de_champs(self):
         lignes = [{'timecode': 0.0, 'a': 1, 'b': 2}]
-        f = frame_depuis_signal(_signal(times=(0.0,), lignes=lignes), colonnes=['a'])
+        f = frame_depuis_signal(_signal(times=(0.0,), lignes=lignes), champs=['a'])
         self.assertEqual(sorted(f.df.columns), ['a', 'time'])
 
     def test_le_champ_canonique_survit_a_la_restriction(self):
         # C'est lui qui rend le cadre chaînable : le retirer casserait tout port typé.
         lignes = [{'timecode': 0.0, 'a': 1}]
-        f = frame_depuis_signal(_signal(times=(0.0,), lignes=lignes), colonnes=[])
+        f = frame_depuis_signal(_signal(times=(0.0,), lignes=lignes), champs=[])
         self.assertIn('time', f.df.columns)
 
     def test_flux_vide_rend_un_cadre_bien_forme(self):

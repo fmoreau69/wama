@@ -69,22 +69,29 @@ Lot = Mapping[str, Table]
 
 @dataclass(frozen=True)
 class Colonne:
-    """Une colonne exportée : d'où elle vient, et sous quel en-tête elle sort.
+    """Une colonne exportée : de quel FLUX elle vient, quel CHAMP, et sous quel en-tête elle sort.
 
     `entete` est un CHAMP, pas une reconstruction : c'est ce qui règle ③ ci-dessus. Laissé vide,
-    il vaut `source.champ` — la convention du livrable chercheur (`0_15.startTimecode`).
+    il vaut `flux.champ` — la convention du livrable chercheur (`0_15.startTimecode`).
+
+    ⚠ `flux` et non `source` (renommé le 2026-08-23, §9sexies) : dans ce monde, **`source`
+    désigne déjà un fichier/format à lire** (`SourceReader`, `SourceInfo`, `sources/`). L'employer
+    pour un nom de table était une ambiguïté, pas une préférence de style.
     """
-    source: str
+    flux: str
     champ: str
     entete: str = ''
 
     def __post_init__(self) -> None:
-        if not self.source or not self.champ:
-            raise ValueError("une colonne exportée doit nommer sa source ET son champ")
+        if not self.flux or not self.champ:
+            raise ValueError("une colonne exportée doit nommer son flux ET son champ")
 
     @property
     def titre(self) -> str:
-        return self.entete or f"{self.source}.{self.champ}"
+        return self.entete or f"{self.flux}.{self.champ}"
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {'flux': self.flux, 'champ': self.champ, 'entete': self.entete}
 
 
 @dataclass(frozen=True)
@@ -224,12 +231,12 @@ class Declaration:
                              "préciser `entete` sur l'une des colonnes")
 
     @property
-    def sources(self) -> List[str]:
+    def flux(self) -> List[str]:
         """Tables citées par la déclaration, dans l'ordre de première apparition."""
         vues: List[str] = []
         for c in self.colonnes:
-            if c.source not in vues:
-                vues.append(c.source)
+            if c.flux not in vues:
+                vues.append(c.flux)
         return vues
 
     def entetes(self) -> List[str]:
@@ -240,6 +247,32 @@ class Declaration:
         à celui de la semaine précédente.
         """
         return self.identite.entetes() + [c.titre for c in self.colonnes]
+
+    # ── Sérialisation — §9quater C1 l'affirmait (« c'est un manifeste ») sans l'écrire (§9sexies)
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'nom': self.nom,
+            'colonnes': [c.to_dict() for c in self.colonnes],
+            'identite': list(self.identite.champs),
+            'decimation': self.decimation,
+            'format': self.format,
+        }
+
+
+def declaration_depuis_dict(brut: Mapping[str, Any]) -> Declaration:
+    """Reconstruit une déclaration d'export. Valide comme à la construction — une déclaration
+    relue d'un manifeste ne mérite pas moins de contrôles qu'une déclaration écrite en code."""
+    if not isinstance(brut, Mapping):
+        raise ValueError(f"déclaration attendue sous forme d'objet, reçu {type(brut).__name__}")
+    return Declaration(
+        nom=brut.get('nom', ''),
+        colonnes=tuple(Colonne(flux=c.get('flux', ''), champ=c.get('champ', ''),
+                               entete=c.get('entete', ''))
+                       for c in (brut.get('colonnes') or ())),
+        identite=Identite(tuple(brut.get('identite') or ())),
+        decimation=int(brut.get('decimation') or 1),
+        format=brut.get('format') or 'csv',
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════
@@ -270,7 +303,7 @@ def lignes(declaration: Declaration, lot: Lot, meta: Optional[Mapping[str, Any]]
     peuvent diverger, donc un aperçu qui finit par mentir.
     """
     meta = meta or {}
-    hauteurs = {nom: len(_table(lot, nom, declaration.nom)) for nom in declaration.sources}
+    hauteurs = {nom: len(_table(lot, nom, declaration.nom)) for nom in declaration.flux}
     if len(set(hauteurs.values())) > 1:
         detail = ', '.join(f"{n}={h}" for n, h in hauteurs.items())
         raise ValueError(
@@ -284,7 +317,7 @@ def lignes(declaration: Declaration, lot: Lot, meta: Optional[Mapping[str, Any]]
     # Décimation = un PAS, pas une troncature (④). L'aperçu s'applique APRÈS elle : montrer les
     # N premières lignes brutes d'un export décimé au 1000ᵉ ne montrerait pas l'export.
     for i in range(0, hauteur, declaration.decimation):
-        out.append(list(identite) + [_table(lot, c.source, declaration.nom)[i].get(c.champ)
+        out.append(list(identite) + [_table(lot, c.flux, declaration.nom)[i].get(c.champ)
                                      for c in declaration.colonnes])
         if limite is not None and len(out) >= limite:
             break

@@ -91,7 +91,7 @@ def _conditions(frame: TypedFrame, declaration: str) -> List[Condition]:
         cle = item.get('cle') or f"C{i + 1}"
         sorte = sorte_de_colonne(frame, champ)
         out.append(Condition(cle=cle, champ=champ, operateur=item.get('operateur', ''),
-                             valeur=item.get('valeur'), source=item.get('source', ''),
+                             valeur=item.get('valeur'), flux=item.get('flux', ''),
                              sorte=sorte))
     cles = [c.cle for c in out]
     doublons = sorted({c for c in cles if cles.count(c) > 1})

@@ -184,6 +184,19 @@ class ApplicationTest(unittest.TestCase):
         # La table regardée n'a PAS été modifiée : c'est ce que la séparation rend visible.
         self.assertNotIn('edge', r.tables['vitesse'].df.columns)
 
+    def test_le_nom_d_annexe_par_defaut_vient_de_la_REGLE(self):
+        # ⚠ Chemin non couvert avant l'audit A : tous les tests d'annexe passaient un `nom=`
+        # explicite, donc la f-string écrite en dur n'était jamais exercée.
+        from .core.noms import nom_annexe
+        v = Vue(nom='v', pistes=(Piste('vitesse'),),
+                derivees=(ColonneDerivee(
+                    'event_chaine_conditionnelle', 'vitesse',
+                    {'conditions': [{'cle': 'C1', 'champ': 'value',
+                                     'operateur': '>=', 'valeur': 30.0}]}),))
+        r = appliquer(v, _referentiel())
+        attendu = nom_annexe('vitesse', 'event_chaine_conditionnelle')
+        self.assertEqual(list(r.annexes), [attendu])
+
     def test_les_derivees_s_enchainent_dans_l_ordre_declare(self):
         # Geste ordinaire d'un tableur : une colonne calculée sur une colonne calculée.
         v = Vue(nom='v', pistes=(Piste('vitesse'),),

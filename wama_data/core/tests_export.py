@@ -11,7 +11,8 @@ inexistant. `test_l_export_ne_pivote_RIEN` garde cette porte fermée.
 import unittest
 
 from .export import (FORMATS, Colonne, Declaration, Fichier, Identite, Regroupement,
-                     apercu, enregistrer_format, exporter, formats_disponibles,
+                     apercu, declaration_depuis_dict, enregistrer_format, exporter,
+                     formats_disponibles,
                      formats_ecrivables, lignes, rendre)
 
 # Un lot minimal mais réaliste : une table de situations et ses indicateurs adjoints, plus des
@@ -85,8 +86,43 @@ class DeclarationTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             Declaration(nom='x', colonnes=(Colonne('t', 'v'),), format='parquet')
 
-    def test_sources_dans_l_ordre_de_premiere_apparition(self):
-        self.assertEqual(DECL_SIT.sources, ['sit_0_15', 'indicateurs'])
+    def test_flux_dans_l_ordre_de_premiere_apparition(self):
+        self.assertEqual(DECL_SIT.flux, ['sit_0_15', 'indicateurs'])
+
+
+class SerialisationTest(unittest.TestCase):
+    """§9quater C1 affirmait « c'est un manifeste » — sans qu'aucune ligne ne sache sérialiser.
+
+    ⚠ Défaut trouvé par l'audit A (§9sexies) : la docstring promettait une propriété que le code
+    n'avait pas. C'est exactement le reproche fait le matin même à une spécification écrite depuis
+    une intuition — reproduit l'après-midi dans mes propres docstrings.
+    """
+
+    def test_aller_retour_fidele(self):
+        self.assertEqual(declaration_depuis_dict(DECL_SIT.to_dict()), DECL_SIT)
+
+    def test_la_forme_serialisee_est_du_JSON_PUR(self):
+        import json
+        self.assertEqual(declaration_depuis_dict(json.loads(json.dumps(DECL_SIT.to_dict()))),
+                         DECL_SIT)
+
+    def test_l_ordre_des_colonnes_survit(self):
+        relu = declaration_depuis_dict(DECL_SIT.to_dict())
+        self.assertEqual([c.titre for c in relu.colonnes], [c.titre for c in DECL_SIT.colonnes])
+
+    def test_une_declaration_relue_est_VALIDEE_comme_a_la_construction(self):
+        # Une déclaration venue d'un manifeste ne mérite pas moins de contrôles qu'une déclaration
+        # écrite en code — sinon le manifeste devient la porte d'entrée des états impossibles.
+        brut = DECL_SIT.to_dict()
+        brut['colonnes'] = [{'flux': 't', 'champ': 'v'}, {'flux': 't', 'champ': 'v'}]
+        with self.assertRaises(ValueError):
+            declaration_depuis_dict(brut)
+
+    def test_decimation_et_format_survivent(self):
+        d = Declaration(nom='x', colonnes=(Colonne('t', 'v'),), identite=Identite(()),
+                        decimation=1000, format='tsv')
+        relu = declaration_depuis_dict(d.to_dict())
+        self.assertEqual((relu.decimation, relu.format), (1000, 'tsv'))
 
 
 class LignesTest(unittest.TestCase):

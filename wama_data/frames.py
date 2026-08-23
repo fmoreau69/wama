@@ -104,7 +104,7 @@ def type_par_defaut(signal: Signal) -> str:
 def frame_depuis_signal(signal: Signal, *, t0: Optional[float] = None,
                         t1: Optional[float] = None, offset: float = 0.0,
                         data_type: Optional[str] = None,
-                        colonnes: Optional[Iterable[str]] = None,
+                        champs: Optional[Iterable[str]] = None,
                         meta: Optional[Mapping[str, Any]] = None) -> TypedFrame:
     """Une FENÊTRE d'un flux, en cadre typé prêt pour le catalogue.
 
@@ -113,7 +113,7 @@ def frame_depuis_signal(signal: Signal, *, t0: Optional[float] = None,
     (1,28 Go pour une passation réelle) vaut ici aussi — matérialiser un flux entier en pandas est
     l'exception qu'on demande, pas le défaut qu'on subit.
 
-    `colonnes` restreint les colonnes de données. Les champs canoniques (`time`, ou `start`/`end`)
+    `champs` restreint les colonnes de données. Les champs canoniques (`time`, ou `start`/`end`)
     sont TOUJOURS présents : ce sont eux qui rendent le cadre chaînable.
     """
     import pandas as pd
@@ -125,7 +125,7 @@ def frame_depuis_signal(signal: Signal, *, t0: Optional[float] = None,
         i0, i1 = signal.range_indices(t0 - offset, t1 - offset)
 
     lignes = _verifier_lignes(signal.rows(i0, i1), nom)
-    garde = set(colonnes) if colonnes is not None else None
+    garde = set(champs) if champs is not None else None
 
     dt = data_type or type_par_defaut(signal)
     segments = dt == DataType.SEGMENTS
@@ -169,7 +169,7 @@ def frame_depuis_signal(signal: Signal, *, t0: Optional[float] = None,
 def frame_depuis_referentiel(ref: TemporalReferential, nom: str, *,
                              t0: Optional[float] = None, t1: Optional[float] = None,
                              data_type: Optional[str] = None,
-                             colonnes: Optional[Iterable[str]] = None) -> TypedFrame:
+                             champs: Optional[Iterable[str]] = None) -> TypedFrame:
     """Une fenêtre d'un flux du référentiel, **en temps de session** (piège ①).
 
     C'est la porte d'entrée normale. `frame_depuis_signal()` reste utile pour un flux isolé, mais
@@ -177,7 +177,7 @@ def frame_depuis_referentiel(ref: TemporalReferential, nom: str, *,
     """
     signal = ref.get(nom)
     return frame_depuis_signal(signal, t0=t0, t1=t1, offset=ref.offset(nom),
-                               data_type=data_type, colonnes=colonnes,
+                               data_type=data_type, champs=champs,
                                meta={'referentiel': ref.name})
 
 

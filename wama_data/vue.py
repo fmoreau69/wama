@@ -46,6 +46,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 from wama.common.catalog.data_types import DataType, TypedFrame
 from wama.common.catalog.function_catalog import FUNCTION_CATALOG, FunctionCategory, get
 
+from .core.noms import nom_annexe
 from .core.temporal import TemporalReferential
 from .frames import frame_depuis_referentiel
 
@@ -92,9 +93,9 @@ def change_la_cle_temporelle(cle_fonction: str) -> bool:
 
 @dataclass(frozen=True)
 class Piste:
-    """Un flux regardé, et les colonnes qu'on en montre. `colonnes` vide = toutes."""
+    """Un flux regardé, et les CHAMPS qu'on en montre. `champs` vide = tous."""
     flux: str
-    colonnes: Tuple[str, ...] = ()
+    champs: Tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.flux:
@@ -174,7 +175,7 @@ class Vue:
     def to_dict(self) -> Dict[str, Any]:
         return {
             'nom': self.nom,
-            'pistes': [{'flux': p.flux, 'colonnes': list(p.colonnes)} for p in self.pistes],
+            'pistes': [{'flux': p.flux, 'champs': list(p.champs)} for p in self.pistes],
             'fenetre': {'t0': self.fenetre.t0, 't1': self.fenetre.t1,
                         'buckets': self.fenetre.buckets},
             'derivees': [{'fonction': d.fonction, 'flux': d.flux,
@@ -189,7 +190,7 @@ def depuis_dict(brut: Mapping[str, Any]) -> Vue:
     f = brut.get('fenetre') or {}
     return Vue(
         nom=brut.get('nom', ''),
-        pistes=tuple(Piste(flux=p.get('flux', ''), colonnes=tuple(p.get('colonnes') or ()))
+        pistes=tuple(Piste(flux=p.get('flux', ''), champs=tuple(p.get('champs') or ()))
                      for p in (brut.get('pistes') or ())),
         fenetre=Fenetre(t0=f.get('t0'), t1=f.get('t1'), buckets=int(f.get('buckets') or 0)),
         derivees=tuple(ColonneDerivee(fonction=d.get('fonction', ''), flux=d.get('flux', ''),
@@ -245,7 +246,7 @@ def appliquer(vue: Vue, ref: TemporalReferential) -> Resultat:
     for p in vue.pistes:
         out.tables[p.flux] = frame_depuis_referentiel(
             ref, p.flux, t0=vue.fenetre.t0, t1=vue.fenetre.t1,
-            colonnes=p.colonnes or None)
+            champs=p.champs or None)
 
     for d in vue.derivees:
         spec = get(d.fonction)
@@ -256,13 +257,13 @@ def appliquer(vue: Vue, ref: TemporalReferential) -> Resultat:
             entree = frame_depuis_referentiel(ref, d.flux, t0=vue.fenetre.t0, t1=vue.fenetre.t1)
         produit = spec.fn(entree, **dict(d.params))
         if d.sort_de_la_table:
-            out.annexes[d.nom or f"{d.flux}_{d.fonction}"] = produit
+            out.annexes[d.nom or nom_annexe(d.flux, d.fonction)] = produit
         else:
             out.tables[d.flux] = produit      # la fonction a adjoint sa colonne à l'entrée
     return out
 
 
-def serie(vue: Vue, ref: TemporalReferential, flux: str, colonne: str) -> List[dict]:
+def serie(vue: Vue, ref: TemporalReferential, flux: str, champ: str) -> List[dict]:
     """La série DÉCIMÉE d'une colonne, pour un tracé — min/max RÉELS par tranche.
 
     ⚠ N'utilise pas `appliquer()` : passer par un cadre pandas matérialiserait les 5 M points que
@@ -279,4 +280,4 @@ def serie(vue: Vue, ref: TemporalReferential, flux: str, colonne: str) -> List[d
                          "(0 signifie « table, échantillons réels »)")
     valider(vue, ref)
     return ref.decimate_values(flux, vue.fenetre.t0, vue.fenetre.t1,
-                               vue.fenetre.buckets, colonne)
+                               vue.fenetre.buckets, champ)

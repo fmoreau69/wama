@@ -73,13 +73,10 @@ from ...core.calculation import (CHAMPS_DE_SERVICE, DEFAUT, STATISTIQUES, cumul,
 from .segmentation import _colonne, _fin, _segments
 
 
-def nom_produit(colonne: str, suffixe: str) -> str:
-    """Nom de la colonne dérivée — `vitesse` + `moyenne` → `vitesse_moyenne`.
-
-    Déterministe et sans paramètre de renommage : le nom se lit dans le tableau final sans avoir
-    à retrouver quel réglage l'a produit. C'est ce qui rend deux exports comparables.
-    """
-    return f"{colonne}_{suffixe}"
+#: ⚠ `nom_produit` VIVAIT ICI, dans l'adaptateur, alors que `nom_jonction`/`nom_chaine` vivaient
+#: dans le cœur — même famille de règle, deux étages (audit A, §9sexies). Elle a rejoint la brique
+#: unique `core/noms.py` ; on la garde importable d'ici, les appelants n'ont pas à savoir.
+from ...core.noms import nom_produit  # noqa: F401
 
 
 def _avec_colonne(signal: TypedFrame, nom: str, valeurs: list) -> TypedFrame:

@@ -182,15 +182,18 @@ class Condition:
     par `save_env_*`) : elle appartient à une SESSION. Ici elle appartient à la DÉCLARATION, ce qui
     est toute la différence entre « j'ai refait la même analyse » et « j'ai rejoué la même analyse ».
 
-    `cle` est l'étiquette (`C1`, `C2`…) par laquelle l'arbre logique la désigne. `source` nomme la
+    `cle` est l'étiquette (`C1`, `C2`…) par laquelle l'arbre logique la désigne. `flux` nomme la
     table d'où vient la colonne — deux conditions peuvent porter le même nom de champ dans deux
-    tables différentes, et sans `source` l'arbre serait ambigu.
+    tables différentes, et sans `flux` l'arbre serait ambigu.
+
+    ⚠ `flux` et non `source` (renommé le 2026-08-23, §9sexies) : dans ce monde, **`source`
+    désigne déjà un fichier/format à lire** (`SourceReader`, `SourceInfo`, `sources/`).
     """
     cle: str
     champ: str
     operateur: str
     valeur: Any = None
-    source: str = ''
+    flux: str = ''
     sorte: str = NUMERIQUE
 
     def __post_init__(self) -> None:
@@ -228,8 +231,18 @@ class Condition:
     def rendre(self) -> str:
         """Phrase lisible — `vitesse contient « FIN »`. Sert aux libellés et aux messages."""
         op = OPERATEURS[self.operateur]
-        cible = f"{self.source}.{self.champ}" if self.source else self.champ
+        cible = f"{self.flux}.{self.champ}" if self.flux else self.champ
         return f"{cible} {op.libelle}" + (f" « {self.valeur} »" if op.operande else "")
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Forme sérialisée — §9ter.6 B1 affirmait cette propriété, elle n'existait pas (§9sexies).
+
+        ⚠ `sorte` N'Y FIGURE PAS, délibérément : elle est **lue dans la donnée** par l'adaptateur,
+        jamais déclarée. La sérialiser inviterait à la relire, donc à laisser une déclaration
+        contredire la colonne qu'elle décrit — le défaut même que le filtrage par sorte corrige.
+        """
+        return {'cle': self.cle, 'flux': self.flux, 'champ': self.champ,
+                'operateur': self.operateur, 'valeur': self.valeur}
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════
@@ -417,33 +430,29 @@ def _lire(jetons: List[str], i: int) -> Tuple[Arbre, int]:
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════
-# 6. Nom DÉRIVÉ — même règle que `nom_produit()` du Calculator
+# 6. SÉRIALISATION d'une condition
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 
-#: Longueur du préfixe retenu de chaque nom de table dans un nom dérivé. Trois caractères est la
-#: règle de l'outil d'origine (`app.tddTable1.Value(1:3)`), qui produit `deb_fin_0_0`. On la garde
-#: telle quelle : c'est un nom que les utilisateurs de ce laboratoire LISENT déjà.
-_PREFIXE = 3
+def condition_depuis_dict(brut: Mapping[str, Any], sorte: str = NUMERIQUE) -> Condition:
+    """Reconstruit une condition depuis sa forme sérialisée, en LUI IMPOSANT une sorte.
 
-
-def _abreger(nom: str) -> str:
-    return (nom or '')[:_PREFIXE].lower()
-
-
-def _entier(x: float) -> str:
-    """`0` plutôt que `0.0`, `-2.5` conservé — un nom ne doit pas porter de décimale inutile."""
-    return f"{int(x)}" if float(x).is_integer() else f"{x:g}"
-
-
-def nom_jonction(table_debut: str, table_fin: str, offset_debut: float, offset_fin: float) -> str:
-    """Nom d'une segmentation temporelle double — `deb_fin_0_0`.
-
-    Le nom se DÉRIVE des paramètres au lieu d'être saisi : deux segmentations de mêmes réglages
-    portent alors le même nom, et deux réglages différents ne peuvent pas le partager. Une saisie
-    libre ne garantit ni l'un ni l'autre.
+    La sorte est un paramètre d'appel et non une clé du dict : c'est l'appelant qui la connaît
+    (l'adaptateur la lit dans le cadre), et une déclaration ne doit pas pouvoir la dicter.
     """
-    return (f"{_abreger(table_debut)}_{_abreger(table_fin)}"
-            f"_{_entier(offset_debut)}_{_entier(offset_fin)}")
+    if not isinstance(brut, Mapping):
+        raise ValueError(f"condition attendue sous forme d'objet, reçu {type(brut).__name__}")
+    return Condition(cle=brut.get('cle', ''), champ=brut.get('champ', ''),
+                     operateur=brut.get('operateur', ''), valeur=brut.get('valeur'),
+                     flux=brut.get('flux', ''), sorte=sorte)
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+# 7. Nom DÉRIVÉ — délégué à la brique unique `core/noms.py` (audit A, §9sexies)
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+
+#: Réexports : `nom_jonction` vivait ici alors qu'elle nomme une JONCTION, pas une condition.
+#: Elle a rejoint la brique ; on la garde importable d'ici pour ne pas casser les appelants.
+from .noms import nom_jonction, normaliser  # noqa: E402,F401
 
 
 def nom_chaine(arbre: Arbre) -> str:
@@ -452,8 +461,4 @@ def nom_chaine(arbre: Arbre) -> str:
     Dérivé de l'ARBRE et non du texte saisi : c'est ce qui rend deux saisies équivalentes (espaces,
     virgules) porteuses du même nom.
     """
-    rendu = rendre(arbre).lower()
-    out = ''.join(c if c.isalnum() else '_' for c in rendu)
-    while '__' in out:
-        out = out.replace('__', '_')
-    return out.strip('_')
+    return normaliser(rendre(arbre))

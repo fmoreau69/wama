@@ -8,7 +8,8 @@ test — sans quoi « on a corrigé » ne serait qu'une affirmation de message d
 import unittest
 
 from .conditions import (BOOLEEN, CONNECTEURS, NUMERIQUE, OPERATEURS, TEXTE, Condition,
-                         analyser, evaluer, nom_chaine, nom_jonction, operateurs_pour,
+                         analyser, condition_depuis_dict, evaluer, nom_chaine,
+                         nom_jonction, operateurs_pour,
                          rendre, valider)
 
 
@@ -50,7 +51,7 @@ class ConditionTest(unittest.TestCase):
     """La déclaration atomique — ce qu'elle accepte et ce qu'elle refuse AVANT d'exécuter."""
 
     def test_condition_texte_contient(self):
-        c = Condition(cle='C1', source='commentaires_simu', champ='texte',
+        c = Condition(cle='C1', flux='commentaires_simu', champ='texte',
                       operateur='contient', valeur='FIN', sorte=TEXTE)
         self.assertEqual(c.evaluer(['DEBUT', 'la FIN', '', None]), [False, True, False, False])
 
@@ -96,9 +97,49 @@ class ConditionTest(unittest.TestCase):
         self.assertIn('>=', str(ctx.exception))
 
     def test_rendu_lisible(self):
-        c = Condition(cle='C1', source='commentaires_simu', champ='texte',
+        c = Condition(cle='C1', flux='commentaires_simu', champ='texte',
                       operateur='contient', valeur='FIN', sorte=TEXTE)
         self.assertEqual(c.rendre(), 'commentaires_simu.texte contient « FIN »')
+
+
+class SerialisationTest(unittest.TestCase):
+    """§9ter.6 B1 affirmait « sérialisable, donc entrant dans un manifeste » — c'était faux.
+
+    Défaut trouvé par l'audit A (§9sexies) : la propriété était promise par la docstring et
+    n'existait nulle part dans le code.
+    """
+
+    def _c(self):
+        return Condition(cle='C1', flux='commentaires_simu', champ='texte',
+                         operateur='contient', valeur='FIN', sorte=TEXTE)
+
+    def test_aller_retour_fidele(self):
+        c = self._c()
+        self.assertEqual(condition_depuis_dict(c.to_dict(), sorte=TEXTE), c)
+
+    def test_forme_JSON_pure(self):
+        import json
+        c = self._c()
+        self.assertEqual(condition_depuis_dict(json.loads(json.dumps(c.to_dict())), sorte=TEXTE), c)
+
+    def test_la_SORTE_n_est_PAS_serialisee(self):
+        # ⚠ Délibéré : la sorte est LUE dans la donnée par l'adaptateur, jamais déclarée. La
+        # sérialiser inviterait à la relire, donc à laisser une déclaration contredire la colonne
+        # qu'elle décrit — le défaut même que le filtrage par sorte corrige.
+        self.assertNotIn('sorte', self._c().to_dict())
+
+    def test_une_condition_relue_est_VALIDEE(self):
+        # `<` sur une colonne texte doit être refusé à la relecture comme à la construction.
+        brut = {'cle': 'C1', 'flux': 't', 'champ': 'c', 'operateur': '<', 'valeur': 'M'}
+        with self.assertRaises(ValueError):
+            condition_depuis_dict(brut, sorte=TEXTE)
+
+    def test_l_arbre_est_DEJA_du_JSON_pur(self):
+        # Rien à sérialiser : c'est un dict de dicts et de chaînes, par construction.
+        import json
+        arbre = {'op': 'ET', 'args': ['C1', {'op': 'NON', 'args': ['C2']}]}
+        self.assertEqual(json.loads(json.dumps(arbre)), arbre)
+        self.assertEqual(rendre(json.loads(json.dumps(arbre))), rendre(arbre))
 
 
 class ArbreTest(unittest.TestCase):
