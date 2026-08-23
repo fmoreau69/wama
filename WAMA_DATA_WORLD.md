@@ -1739,6 +1739,38 @@ son `apps.py:ready()`**. `DATASET_SOURCES` devient alors la vue de ce registre, 
 > `invalidate_caches` → instantané → purge → rechargement (modules découverts par `pkgutil`, jamais
 > cités en dur) → **restauration intégrale si quoi que ce soit casse**.
 
+### 9quinquies.6bis Le même anti-patron ailleurs — les TESTS NOCTURNES (corrigé le 2026-08-23)
+
+> **Question de Fabien** : « peut-on aussi alimenter les tests nocturnes au fur et à mesure ? »
+> **Réponse : non — et c'est mieux ainsi.** « Au fur et à mesure » était précisément le symptôme.
+
+`nightly_scenarios.py::_run_wama_data` nommait **2 modules en dur** alors que le monde en comptait
+**15** : **13 suites ne tournaient jamais la nuit**, dont les 411 tests écrits ce jour-là. Et sa
+garde ne pouvait pas le voir —
+
+```python
+if not total:
+    return False, "aucun test chargé — les modules de test ont-ils été déplacés ?"
+```
+
+⚠ **Elle protège contre une DISPARITION, jamais contre une OMISSION. Une liste en dur ne peut
+détecter que sa propre péremption vers le bas.** C'est exactement le critère de §9quinquies.2
+appliqué un cran plus loin : la liste des suites est une **capacité agrégative** (écrire un fichier
+de test = ajouter une capacité de vérification), donc elle se **découvre**, elle ne s'énumère pas.
+
+**Corrigé** : `_modules_de_test(paquet)` parcourt le paquet (`pkgutil`) et accepte les deux
+conventions (`tests_*` du monde Data, `test_*` par défaut Django). Résultat mesuré : **15 modules,
+411 tests, 0 échec** au lieu de 2 modules. **Écrire un `tests_*.py` suffit désormais à le faire
+tourner la nuit** — il n'y a plus rien à alimenter.
+
+> ⚠ **Le correctif crée son propre mode de panne, et il est gardé** : `walk_packages` ne descend
+> pas dans un répertoire sans `__init__.py`. Une suite entière pourrait donc cesser d'être
+> découverte sans qu'aucun test n'échoue — seul un total baisserait, et personne ne connaît un
+> total par cœur. D'où `wama/common/tests_nightly.py`, dont le contrôle central compare la
+> découverte au **système de fichiers** (chemin délibérément différent de celui qu'il vérifie) et
+> **nomme les fichiers manquants** dans son message d'échec. Et le compte-rendu nocturne rapporte
+> désormais le **nombre de modules**, pas seulement le nombre de tests.
+
 ### 9quinquies.6 Ce qui reste à décider
 
 | # | question |

@@ -288,8 +288,36 @@ def _run_tool_api_garde_fous(ctx):
     return True, 'porte saine — inconnu, gating anonyme, ' + ', '.join(notes)
 
 
+def _modules_de_test(paquet: str):
+    """Modules de test d'un monde, DÉCOUVERTS — jamais énumérés.
+
+    ⚠ POURQUOI CETTE FONCTION EXISTE (mesuré le 2026-08-23). Cet exécuteur nommait **2 modules en
+    dur** alors que le monde en comptait **15** : 13 suites ne tournaient donc jamais la nuit, et
+    rien ne le signalait. Sa garde — « aucun test chargé, les modules ont-ils été déplacés ? » —
+    protégeait contre une DISPARITION, jamais contre une OMISSION : **une liste en dur ne peut
+    détecter que sa propre péremption vers le bas.**
+
+    C'est le même anti-patron que `WAMA_DATA_WORLD.md §9quinquies` vient de nommer pour les
+    capacités (« ajouter un format = déposer un lecteur, jamais éditer le moteur »). La réponse est
+    donc la même : on ne complète pas la liste au fil de l'eau, on supprime le besoin de la tenir.
+    Écrire un fichier `tests_*.py` suffit désormais à le faire tourner la nuit.
+    """
+    import importlib
+    import pkgutil
+
+    racine = importlib.import_module(paquet)
+    out = []
+    for info in pkgutil.walk_packages(racine.__path__, prefix=f'{paquet}.'):
+        feuille = info.name.rsplit('.', 1)[-1]
+        # `tests_*` est la convention du monde ; `test_*` existe aussi (kinematics) et c'est le
+        # motif par défaut de Django — on accepte les deux plutôt que d'en imposer un après coup.
+        if feuille.startswith(('tests_', 'test_')):
+            out.append(info.name)
+    return sorted(out)
+
+
 def _run_wama_data(ctx):
-    """Cœur de WAMA Data : référentiel temporel + importer universel.
+    """Cœur de WAMA Data : TOUTES ses suites de test, découvertes à chaque passage.
 
     Pourquoi au stage `consistency` et pas `wired` : ces contrôles sont du **CPU pur**, sans
     modèle ni GPU — ils peuvent donc tourner sans le gate, comme les autres contrôles nocturnes.
@@ -298,23 +326,31 @@ def _run_wama_data(ctx):
     partout, les contrôles sur base réelle se SAUTENT quand elle est absente (dossier hors dépôt).
     Un `skipped` non nul est donc NORMAL sur une installation sans corpus — on le rapporte au lieu
     de le taire, sinon on croirait avoir tout couvert.
+
+    ⚠ LE NOMBRE DE MODULES EST RAPPORTÉ, pas seulement le nombre de tests. Sans lui, une suite
+    entière qui cesserait d'être découverte (fichier renommé hors convention, paquet sans
+    `__init__`) ferait juste baisser un total que personne ne connaît par cœur.
     """
     from django.test.utils import get_runner
     from django.conf import settings
 
+    modules = _modules_de_test('wama_data')
+    if not modules:
+        return False, ("aucun module de test découvert sous `wama_data` — convention "
+                       "`tests_*.py` respectée ? paquet importable ?")
+
     runner = get_runner(settings)(verbosity=0, interactive=False, keepdb=True)
-    suite = runner.test_loader.loadTestsFromNames([
-        'wama_data.core.tests_temporal',
-        'wama_data.sources.tests_sources',
-    ])
+    suite = runner.test_loader.loadTestsFromNames(modules)
     total = suite.countTestCases()
     if not total:
-        return False, "aucun test chargé — les modules de test ont-ils été déplacés ?"
+        return False, (f"{len(modules)} module(s) découvert(s) mais aucun test chargé — "
+                       "erreur d'import dans les modules de test ?")
 
     result = runner.run_suite(suite)
     echecs = len(result.failures) + len(result.errors)
     sautes = len(getattr(result, 'skipped', ()))
-    detail = f"{result.testsRun} test(s), {echecs} échec(s), {sautes} sauté(s)"
+    detail = (f"{len(modules)} module(s) découvert(s), {result.testsRun} test(s), "
+              f"{echecs} échec(s), {sautes} sauté(s)")
     if echecs:
         premier = (result.failures + result.errors)[0]
         return False, f"{detail} — 1er : {premier[0]}"
@@ -342,9 +378,9 @@ def register_scenarios():
              description='Couche factuelle des .md à jour (doc_facts --check)',
              run=_run_doc_facts, timeout_s=300)
     register(id='common.consistency.wama_data', app='common', stage='consistency',
-             description='Cœur WAMA Data : référentiel temporel + importer universel '
+             description='Monde WAMA Data : TOUTES ses suites, découvertes à chaque passage '
                          '(CPU pur ; contrôles sur base réelle sautés si le corpus est absent)',
-             run=_run_wama_data, timeout_s=300)
+             run=_run_wama_data, timeout_s=600)
     register(id='common.consistency.redundancy', app='common', stage='consistency',
              description='Recopies locales d\'un domicile unique (contrat : ≤5, dette anonymizer)',
              run=_run_redundancy, timeout_s=300)
