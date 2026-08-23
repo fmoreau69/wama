@@ -425,52 +425,24 @@
         // `.settings-btn[data-id]` dans `_job_card.html` AU MÊME GESTE, et l'ouvreur est
         // déclaré à la brique (voir `WamaQueueActions.onSettings`, plus bas).
 
-        // ── Actions de groupe batch (stopPropagation → ne pas toggler le collapse) ──
-        const bSet = e.target.closest('.batch-settings-btn');
-        if (bSet) {
-            e.stopPropagation();
-            // Nature du lot : sur le wrapper .batch-group (la card mère commune _batch_card.html
-            // ne porte pas de data-media-type sur son bouton ⚙).
-            const mt = bSet.dataset.mediaType || bSet.closest('.batch-group')?.dataset.mediaType;
-            openBatchSettingsModal(bSet.dataset.batchId, mt);
-            return;
-        }
-
-        const bStart = e.target.closest('.batch-start-btn');
-        if (bStart) { e.stopPropagation(); startBatch(bStart.dataset.batchId); return; }
-
-        const bDup = e.target.closest('.batch-duplicate-btn');
-        if (bDup) { e.stopPropagation(); duplicateBatch(bDup.dataset.batchId); return; }
-
-        const bDel = e.target.closest('.batch-delete-btn');
-        if (bDel) { e.stopPropagation(); deleteBatch(bDel.dataset.batchId); return; }
+        // Actions de LOT (▶ ⧉ 🗑 ⚙) : portées à la brique commune le 2026-08-24 — voir le
+        // bloc `WamaQueueActions` plus bas. Le stopPropagation qui évitait de toggler le
+        // collapse est fait par la brique elle-même.
     });
 
-    async function duplicateBatch(batchId) {
-        try {
-            await csrfPost(urlFor(APP.urls.batchDuplicate, batchId));
-            location.reload();
-        } catch (err) { WamaApp.toast('Erreur : ' + err.message, 'error'); }
-    }
-
-    // ── Batch group actions ─────────────────────────────────────────────────────
-
-    async function startBatch(batchId) {
-        try {
-            const resp = await csrfPost(urlFor(APP.urls.batchStart, batchId));
-            const data = await resp.json();
-            if (data.started && data.started.length) data.started.forEach(id => startPolling(id));
-            location.reload();
-        } catch (err) { WamaApp.toast('Erreur : ' + err.message, 'error'); }
-    }
-
-    async function deleteBatch(batchId) {
-        if (!confirm('Supprimer ce batch et tous ses fichiers ?')) return;
-        try {
-            await csrfPost(urlFor(APP.urls.batchDelete, batchId));
-            location.reload();
-        } catch (err) { WamaApp.toast('Erreur : ' + err.message, 'error'); }
-    }
+    // ── Actions de LOT : brique commune (`queue-actions.js`) ────────────────────
+    // `startBatch`/`duplicateBatch`/`deleteBatch` vivaient ici et faisaient EXACTEMENT ce que
+    // fait la brique : POST + rechargement, avec confirm pour 🗑. Le converter appartient à la
+    // famille « rechargent » : son ▶ posait bien un `startPolling` sur les éléments démarrés,
+    // mais le `location.reload()` qui suivait l'annulait aussitôt — il n'y avait donc AUCUNE
+    // suite à préserver, et pas de `onBatchStarted` à déclarer (le défaut sûr de la brique EST
+    // le rechargement). Lu dans le code, pas supposé.
+    // Seul le ⚙ déclare quelque chose : sa modale a besoin de la NATURE du lot, que le bouton
+    // porte (ou son wrapper `.batch-group`) — la brique passe le bouton en 2ᵉ argument.
+    WamaQueueActions.onBatchSettings(function (batchId, btn) {
+        const mt = btn.dataset.mediaType || btn.closest('.batch-group')?.dataset.mediaType;
+        openBatchSettingsModal(batchId, mt);
+    });
 
     let _currentBatchId = null;
     function openBatchSettingsModal(batchId, mediaType) {
