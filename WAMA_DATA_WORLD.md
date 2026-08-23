@@ -51,7 +51,7 @@
 
 <details><summary>⚠ <b>9 module(s) avec un blocage déclaré</b> — ce qui empêche d'avancer, en une ligne</summary>
 
-- **Importer** — alignement par TRIGGERS non conçu (D12) ; `DATASET_SOURCES` non réconcilié avec le registre des lecteurs (G1) ; lecteur `.rec` encore une FONCTION (`functions/io/rtmaps_rec.py`) au lieu d'un lecteur de source ; l'ÉCRITURE du conteneur natif `.wrec` reste à écrire — D3 est tranchée (2026-08-23) mais aucune ligne de WAMA Data n'écrit encore de SQLite
+- **Importer** — alignement par TRIGGERS non conçu (D12) ; lecteur `.rec` encore une FONCTION (`functions/io/rtmaps_rec.py`) au lieu d'un lecteur de source ; l'ÉCRITURE du conteneur natif `.wrec` reste à écrire — D3 est tranchée (2026-08-23) mais aucune ligne de WAMA Data n'écrit encore de SQLite. ⚠ « `DATASET_SOURCES` non réconcilié avec le registre des lecteurs (G1) » a été RETIRÉ de cette liste le 2026-08-24 : c'était une glose fausse à deux titres (§9decies). G1 dit « le moteur ne cite aucun format » — vrai défaut, corrigé, testé. Et `source.type` (PROVENANCE) n'a pas à coïncider avec un format de lecteur (CAPACITÉ) : le kind réclame un reader source-AGNOSTIQUE
 - **Référentiel temporel** — ⚠ Son blocage « AUCUN consommateur » est LEVÉ le 2026-08-23 : il n'en avait aucun parce que rien ne pouvait convertir sa sortie en `TypedFrame` — c'est désormais `frames.py`. Un flux chargé traverse une fonction du catalogue et revient au référentiel (34 tests). Reste : la fenêtre/résolution comme DÉCLARATION sérialisable (le view-model de l'Explorer)
 - **Explorer** — CŒUR LIVRÉ le 2026-08-23 — le PONT (`frames.py`, 34 tests) et le VIEW-MODEL (`vue.py`, 31 tests) : une `Vue` déclare flux/fenêtre/résolution/colonnes dérivées, est sérialisable en JSON, et rend la règle de §9quater.4 EXÉCUTABLE en la dérivant de la `FunctionCategory`. Reste l'UI, et elle seule : `wama_data` n'a encore AUCUNE surface Django (ni views, ni urls, ni templates) et aucune bibliothèque de graphe n'est vendorée — deux décisions cadrées par §9quater.7 (« une lib qui DESSINE oui, une lib qui décide de la MISE EN PAGE non »)
 - **Segmenter** — MOTEUR complet — le portage schéma-driven de §9ter.6 A-B est LIVRÉ le 2026-08-23 (chaîne de conditions en ARBRE, 14 opérateurs filtrés par la SORTE de colonne LUE dans la donnée, offsets et « répéter » de la jonction, second port `masque → events`). Restent DEUX manques de §9ter.6 A, tous deux d'INTERFACE et non de moteur : le filtrage manuel occurrence par occurrence (= la file de cards + l'inspecteur, mécanisme existant, zéro code) et l'interface de codage, qui doit se GÉNÉRER du protocole — elle dépend du transport (Magneto + vue média) et de la vue déclarative, donc du Visualizer
@@ -2068,7 +2068,11 @@ vérifiables mécaniquement et l'importer MESURE L'ÉCART »*. D'où deux choix 
 signal. `SourceInfo` rend des **noms** de flux, pas leurs types. Annoncer une vérification de type
 serait promettre ce que la mesure ne donne pas.
 
-### 9octies.3 ⚠ G1 n'est pas « non réconcilié » — les deux vocabulaires sont EXCLUSIFS
+### 9octies.3 ⚠ ~~G1 n'est pas « non réconcilié » — les deux vocabulaires sont EXCLUSIFS~~
+
+> 🔴 **CETTE SECTION EST FAUSSE — corrigée le 2026-08-24 en §9decies.** Le constat de disjonction
+> est exact, mais l'INTERPRÉTATION ne l'est pas : ce n'est pas G1, et ce n'est pas un défaut. Lire
+> §9decies. La section est conservée telle quelle pour que la correction reste lisible.
 
 Constat non anticipé, sorti d'un test :
 
@@ -2181,6 +2185,86 @@ impossible à oublier au lieu d'être à répéter.
 
 `wama_data` : **496 → 500 tests**, et le lecteur `.trip` passe de **0** à **9** tests qui ne
 dépendent d'aucun fichier externe.
+
+---
+
+## 9decies. G1 — FERMÉ, et il n'était pas où on le disait (2026-08-24)
+
+> Chantier **D** du plan. Il a commencé par relire l'énoncé du garde-fou, et **c'est cette
+> relecture qui a tout changé** : ce qu'on appelait « G1 » depuis des semaines n'était pas G1.
+
+### 9decies.1 L'énoncé réel, et la glose qui l'avait remplacé
+
+Le tableau des garde-fous (§8) dit :
+
+> **G1** | *aucun format privilégié* dans l'Importer/Exporter | test : **le moteur ne cite aucun
+> format ; ajouter un lecteur ne le modifie pas**
+
+Il ne dit **rien** de `DATASET_SOURCES`. Or la formule répandue — reprise dans `modules.py`, dans
+§9quinquies et dans §9octies.3 — était « `DATASET_SOURCES` non réconcilié avec le registre des
+lecteurs (G1) ». **Une glose avait remplacé l'énoncé, et personne n'était retourné à la source.**
+
+Conséquence : on cherchait à fermer G1 en construisant un registre de types de source dans le
+substrat… alors que **le vrai défaut tenait en une ligne, ailleurs**.
+
+### 9decies.2 Le VRAI défaut de G1 — une ligne dans le moteur
+
+```python
+def _register_builtins():
+    from . import trip, tabular      # ← livrer un 3ᵉ lecteur oblige à ÉDITER le moteur
+```
+
+G1 exige littéralement l'inverse. **Troisième occurrence en deux jours du même anti-patron** —
+une énumération là où une découverte s'impose (après la liste des suites nocturnes et celle des
+lecteurs dans le rafraîchisseur).
+
+**Corrigé** : `sources.modules_lecteurs()` découvre par `pkgutil`, et c'est le **domicile unique**
+— le rafraîchisseur du registre (`apps.py`) en tenait une seconde copie, désormais supprimée.
+
+⚠ **Et un second défaut est tombé avec** : la docstring promettait « isolé pour qu'un format
+manquant n'empêche pas les autres (un `.trip` reste lisible même si `openpyxl` manque) » — **sans
+aucun `try`**. Une dépendance absente faisait donc échouer l'import du **paquet entier**, donc tout
+`wama_data`, pour un format optionnel. **La propriété était écrite, pas implémentée.** Elle l'est.
+
+**5 tests de garde-fou** vérifient G1 mécaniquement, dont le plus littéral : *déposer* un lecteur
+dans le paquet suffit à l'enregistrer, sans toucher au moteur. Morsure vérifiée — remettre
+`from . import trip, tabular` fait tomber deux tests.
+
+### 9decies.3 ⚠ Et `DATASET_SOURCES` n'est PAS un défaut — j'avais encodé une erreur de catégorie
+
+`source.type` dit **d'où la donnée vient** — provenance : `rtmaps`, `lsl`, `rosbag`, `csv`,
+`parquet`, `db`, `docs`. Le format d'un lecteur dit **qui sait l'ouvrir** — capacité : `trip`,
+`tabular`. **Deux axes, deux questions.**
+
+Et l'intention est écrite noir sur blanc dans le kind lui-même :
+
+> « Le chantier ultérieur n'est donc pas une projection mais un **reader source-agnostique** »
+
+`reader_for()` résout par le chemin et **ne consulte jamais `source.type`**. Les deux vocabularies
+sont donc **volontairement indépendants** — leur disjonction est une conséquence du design, pas un
+symptôme.
+
+> 🔴 **Ce que j'avais écrit la veille était donc une erreur de catégorie** : `Ecart.type_source`
+> comparait une provenance à une capacité et rapportait la différence comme une divergence
+> « garde-fou G1 ». Et je l'avais même mesurée en la prenant pour une trouvaille : « aucun
+> manifeste valide ne peut rendre *rien à signaler* ». **C'était vrai, et c'était le symptôme de
+> mon propre contrôle, pas du système.**
+>
+> ⚠ **Un contrôle qui sonne sur TOUT cas valide n'est pas un contrôle : il apprend à ignorer le
+> compte-rendu.** Le champ devient `Ecart.lecteur` — informatif (« qui a lu »), jamais un verdict.
+
+### 9decies.4 La leçon, et elle vaut au-delà de ce fil
+
+**Deux fois en deux jours, une glose a survécu à l'énoncé qu'elle résumait** — « G1 =
+`DATASET_SOURCES` », et « le Référentiel n'a aucun consommateur » (qui voulait dire « personne ne
+PEUT s'en servir »). Dans les deux cas la formule était plus mémorable que le fait, et c'est la
+formule qui a circulé.
+
+> **Avant de fermer un garde-fou, relire son énoncé — pas ce qu'on en dit ailleurs.** Le coût de
+> ne pas le faire, ici, aurait été de construire un registre substrat inutile tout en laissant la
+> vraie ligne fautive en place.
+
+`wama_data` : **500 → 504 tests**.
 
 ---
 

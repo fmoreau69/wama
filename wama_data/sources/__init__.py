@@ -30,6 +30,7 @@ L'HORODATAGE EST UNE DÉCISION D'INGESTION, PAR FLUX
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence
@@ -231,10 +232,41 @@ def load(path, streams=None, timestampers=None, name: str = '') -> TemporalRefer
     return ref
 
 
+def modules_lecteurs() -> List[str]:
+    """Modules de lecture du paquet — **DÉCOUVERTS, jamais cités**.
+
+    ⚠ C'EST LE GARDE-FOU **G1** LUI-MÊME : « aucun format privilégié — le moteur ne cite aucun
+    format ; **ajouter un lecteur ne le modifie pas** ». Il était en défaut : `_register_builtins`
+    écrivait `from . import trip, tabular`, donc livrer un troisième lecteur obligeait à éditer le
+    moteur. C'est le même anti-patron que la liste de suites nocturnes (§9quinquies.6bis) — une
+    énumération là où une découverte s'impose. Troisième occurrence en deux jours.
+
+    Domicile UNIQUE de cette découverte : le rafraîchisseur du registre (`wama_data/apps.py`)
+    l'utilise aussi, au lieu d'en tenir une seconde copie.
+    """
+    import pkgutil
+    return sorted(m.name for m in pkgutil.iter_modules(__path__)
+                  if not m.name.startswith(('_', 'test')))
+
+
 def _register_builtins():
-    """Enregistre les lecteurs livrés. Isolé pour qu'un format manquant n'empêche pas les autres
-    (un `.trip` reste lisible même si `openpyxl` n'est pas installé, et réciproquement)."""
-    from . import trip, tabular          # noqa: F401  (l'import enregistre)
+    """Enregistre les lecteurs livrés, **chacun isolé des autres**.
+
+    ⚠ L'ISOLATION ÉTAIT PROMISE ET N'EXISTAIT PAS. La docstring précédente annonçait « isolé pour
+    qu'un format manquant n'empêche pas les autres (un `.trip` reste lisible même si `openpyxl`
+    n'est pas installé) » — mais le code était un `from . import trip, tabular` **sans aucun
+    `try`**. Une seule dépendance absente faisait donc échouer l'import du PAQUET ENTIER, donc
+    tout le monde Data, pour un format optionnel. La propriété est désormais implémentée, pas
+    seulement écrite.
+    """
+    import importlib
+    for nom in modules_lecteurs():
+        try:
+            importlib.import_module(f'{__name__}.{nom}')
+        except Exception:
+            logging.getLogger(__name__).warning(
+                "lecteur '%s' non enregistré — les autres formats restent disponibles",
+                nom, exc_info=True)
 
 
 _register_builtins()

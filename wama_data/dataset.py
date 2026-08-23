@@ -59,9 +59,20 @@ class Ecart:
 
     manquants: Tuple[str, ...] = ()
     non_declares: Tuple[str, ...] = ()
-    #: `(type déclaré, format du lecteur qui a réellement lu)` quand les deux vocabulaires
-    #: ne se recouvrent pas — c'est le garde-fou **G1**, rendu MESURABLE (voir §9octies).
-    type_source: Optional[Tuple[str, str]] = None
+    #: Format du lecteur qui a RÉELLEMENT ouvert la source — INFORMATIF, jamais un écart.
+    #:
+    #: ⚠ CORRECTION DE MA PROPRE VEILLE (2026-08-24). Ce champ comparait `source.type` au format
+    #: du lecteur et rapportait la différence comme une divergence « garde-fou G1 ». **C'était une
+    #: erreur de catégorie** : `source.type` dit d'où la donnée VIENT (provenance : rtmaps, lsl,
+    #: csv, db…), le format du lecteur dit QUI SAIT L'OUVRIR (capacité : trip, tabular). Le kind
+    #: `dataset` le dit lui-même en toutes lettres — le chantier attendu était « un **reader
+    #: source-agnostique** ». Les deux vocabulaires sont donc **volontairement indépendants**, et
+    #: `reader_for()` ne consulte jamais `source.type`.
+    #:
+    #: Conséquence mesurée : la « divergence » se déclenchait sur **tout manifeste valide**. Un
+    #: contrôle qui sonne toujours n'est pas un contrôle — il apprend à ignorer le compte-rendu.
+    #: Le champ est conservé parce que savoir QUI a lu est utile ; il n'est plus un verdict.
+    lecteur: str = ''
     notes: Tuple[str, ...] = ()
 
     @property
@@ -83,12 +94,11 @@ class Ecart:
         if self.non_declares:
             bouts.append(f"{len(self.non_declares)} flux présent(s) non déclaré(s) : "
                          + ', '.join(self.non_declares))
-        if self.type_source:
-            declare, lu = self.type_source
-            bouts.append(f"source.type déclaré « {declare} », lue par le lecteur « {lu} » — "
-                         "les deux vocabulaires ne sont pas réconciliés (garde-fou G1)")
         bouts.extend(self.notes)
-        return ' · '.join(bouts) if bouts else 'conforme — rien à signaler'
+        if not bouts:
+            lu = f" (lue par « {self.lecteur} »)" if self.lecteur else ''
+            return f"conforme — rien à signaler{lu}"
+        return ' · '.join(bouts)
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════
@@ -140,15 +150,10 @@ def verifier(body: Mapping[str, Any], racine: Optional[Any] = None) -> Ecart:
     presents = set(info.streams)
     declares = signaux_declares(body)
 
-    type_declare = str((body.get('source') or {}).get('type') or '')
-    divergence = None
-    if type_declare and type_declare != lecteur.format:
-        divergence = (type_declare, lecteur.format)
-
     return Ecart(
         manquants=tuple(s for s in declares if s not in presents),
         non_declares=tuple(sorted(presents - set(declares))),
-        type_source=divergence,
+        lecteur=lecteur.format,
     )
 
 

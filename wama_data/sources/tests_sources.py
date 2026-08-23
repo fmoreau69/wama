@@ -52,6 +52,99 @@ class RegistreTest(unittest.TestCase):
         self.assertIn(".csv", sources.supported_extensions())
 
 
+class GardeFouG1Test(unittest.TestCase):
+    """**G1** tel qu'il est ÉNONCÉ (§8, ligne du tableau des garde-fous) :
+
+        « aucun format privilégié — le moteur ne cite aucun format ;
+          **ajouter un lecteur ne le modifie pas** »
+
+    ⚠ Il était EN DÉFAUT, et pas là où on le croyait. La glose répandue (« `DATASET_SOURCES` non
+    réconcilié avec le registre des lecteurs ») désignait une tout autre question — un vocabulaire
+    de PROVENANCE face à un vocabulaire de CAPACITÉ, volontairement indépendants (§9decies).
+    Le vrai défaut était une ligne : `_register_builtins` faisait `from . import trip, tabular`,
+    donc livrer un troisième lecteur obligeait à éditer le moteur.
+    """
+
+    #: Le moteur, c'est ce fichier-ci — pas les lecteurs qu'il charge.
+    MOTEUR = Path(sources.__file__)
+
+    def test_le_moteur_ne_cite_AUCUN_format_dans_son_CODE(self):
+        """Les mentions en PROSE sont légitimes ; c'est le code exécutable qui ne doit rien citer."""
+        import ast
+        arbre = ast.parse(self.MOTEUR.read_text(encoding='utf-8'))
+        # On retire les docstrings : un module a le droit d'ILLUSTRER avec des noms de formats.
+        for n in ast.walk(arbre):
+            if isinstance(n, (ast.Module, ast.ClassDef, ast.FunctionDef)) and ast.get_docstring(n):
+                n.body = n.body[1:]
+        litteraux = {n.value.lower() for n in ast.walk(arbre)
+                     if isinstance(n, ast.Constant) and isinstance(n.value, str)}
+        for format_livre in sources.READERS:
+            self.assertNotIn(format_livre, litteraux,
+                             f"le moteur cite le format '{format_livre}' — G1 exige qu'il n'en "
+                             "connaisse aucun (les lecteurs se DÉCOUVRENT)")
+
+    def test_le_moteur_n_IMPORTE_aucun_lecteur_par_son_nom(self):
+        import ast
+        arbre = ast.parse(self.MOTEUR.read_text(encoding='utf-8'))
+        importes = set()
+        for n in ast.walk(arbre):
+            if isinstance(n, ast.ImportFrom) and n.level:      # `from . import X`
+                importes.update(a.name for a in n.names)
+        self.assertEqual(importes & set(sources.modules_lecteurs()), set(),
+                         "ajouter un lecteur obligerait à éditer le moteur")
+
+    def test_la_decouverte_trouve_les_lecteurs_livres(self):
+        self.assertEqual(set(sources.modules_lecteurs()), set(sources.READERS))
+
+    def test_un_lecteur_DEPOSE_est_enregistre_sans_toucher_au_moteur(self):
+        """La formulation exacte de G1 : « ajouter un lecteur ne le modifie pas »."""
+        import importlib
+        nouveau = Path(sources.__file__).parent / 'zz_essai_g1.py'
+        nouveau.write_text(
+            "from . import SourceReader, register_reader\n"
+            "class _E(SourceReader):\n"
+            "    format = 'essai_g1'\n"
+            "    extensions = ('.essai_g1',)\n"
+            "register_reader(_E())\n", encoding='utf-8')
+        try:
+            importlib.invalidate_caches()
+            self.assertIn('zz_essai_g1', sources.modules_lecteurs())
+            importlib.import_module('wama_data.sources.zz_essai_g1')
+            self.assertIn('essai_g1', sources.READERS)
+            self.assertIn('.essai_g1', sources.supported_extensions())
+        finally:
+            sources.READERS.pop('essai_g1', None)
+            nouveau.unlink(missing_ok=True)
+            importlib.invalidate_caches()
+
+    def test_un_lecteur_qui_CASSE_n_empeche_pas_les_autres(self):
+        """L'isolation était PROMISE par la docstring et n'existait pas (aucun `try`).
+
+        ⚠ La propriété testée est « l'amorçage ne LÈVE PAS », pas « il réenregistre ». Un
+        ré-amorçage ne réenregistre rien de toute façon : `import_module` rend le module déjà en
+        cache — le même piège que la découverte des suites nocturnes. Avant le correctif, un
+        module de lecture cassé faisait échouer l'import du PAQUET ENTIER, donc tout `wama_data`.
+        """
+        import importlib
+        casse = Path(sources.__file__).parent / 'zz_casse_g1.py'
+        casse.write_text("raise ImportError('dependance absente')\n", encoding='utf-8')
+        try:
+            importlib.invalidate_caches()
+            self.assertIn('zz_casse_g1', sources.modules_lecteurs())
+            # Le module est RÉELLEMENT cassé — sinon le test ne prouverait rien.
+            with self.assertRaises(ImportError):
+                importlib.import_module('wama_data.sources.zz_casse_g1')
+
+            avant = dict(sources.READERS)
+            with self.assertLogs('wama_data.sources', level='WARNING'):
+                sources._register_builtins()          # ne doit PAS lever
+            self.assertEqual(dict(sources.READERS), avant,
+                             "les lecteurs sains doivent être intacts")
+        finally:
+            casse.unlink(missing_ok=True)
+            importlib.invalidate_caches()
+
+
 class HorodatageTest(unittest.TestCase):
     """Trois stratégies, et une distinction que la confusion courante écrase."""
 

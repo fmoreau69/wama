@@ -91,46 +91,26 @@ class EcartTest(unittest.TestCase):
         e = verifier(_manifeste('x.inconnu', ['x']), self.dossier)
         self.assertTrue(any('aucun lecteur' in n for n in e.notes), e.notes)
 
-    def test_G1_le_vocabulaire_de_source_type_est_MESURE(self):
-        # ⚠ `DATASET_SOURCES` dit « csv » ; le lecteur s'appelle « tabular ». Les deux vocabulaires
-        # ne se recouvrent PAS — c'est le garde-fou G1, ici transformé en constat chiffrable au
-        # lieu d'une intention.
-        e = verifier(_manifeste('capteur.csv', ['capteur'], type_source='csv'), self.dossier)
-        self.assertEqual(e.type_source, ('csv', 'tabular'))
-        self.assertIn('G1', e.rendre())
-        # Et ça ne rend PAS le jeu inexploitable : c'est un écart de vocabulaire, pas de donnée.
-        self.assertTrue(e.conforme)
+    def test_PROVENANCE_et_CAPACITE_sont_deux_axes_et_ne_se_comparent_PAS(self):
+        """⚠ Correction d'une erreur de catégorie que j'avais encodée la veille (§9decies).
 
-    def test_G1_TOUT_manifeste_VALIDE_porte_aujourd_hui_l_ecart(self):
-        """⚠ Le constat le plus dur sur G1, et il n'était pas anticipé.
+        `source.type` dit d'où la donnée VIENT (rtmaps, lsl, csv, db…) ; le format du lecteur dit
+        QUI SAIT L'OUVRIR (trip, tabular). Le kind `dataset` réclame en toutes lettres un
+        « **reader source-agnostique** » : les deux vocabulaires sont donc **volontairement
+        indépendants**, et `reader_for()` ne consulte jamais `source.type`.
 
-        Les deux vocabulaires ne sont pas seulement « non réconciliés » : ils sont **mutuellement
-        exclusifs**. `DATASET_SOURCES` = (rtmaps, lsl, rosbag, csv, parquet, db, docs, other) ;
-        les formats de lecteurs = (trip, tabular). **Aucune valeur commune.** Donc :
-
-          • un manifeste qui nomme le lecteur réel (`tabular`) est REFUSÉ par la validation du kind ;
-          • un manifeste valide (`csv`) désigne un format auquel aucun lecteur ne répond.
-
-        Conséquence mesurable : **aucun manifeste `dataset` valide ne peut rendre « rien à
-        signaler » aujourd'hui.** C'est ce test qui l'atteste ; il tombera le jour où G1 sera fermé,
-        et c'est exactement ce qu'on veut d'un test de garde-fou.
+        La version précédente rapportait leur différence comme une divergence « garde-fou G1 » —
+        elle se déclenchait donc sur TOUT manifeste valide. **Un contrôle qui sonne toujours
+        apprend à ignorer le compte-rendu.**
         """
-        from wama.common.manifests.builtin.dataset import DATASET_SOURCES
+        e = verifier(_manifeste('capteur.csv', ['capteur'], type_source='rtmaps'), self.dossier)
+        self.assertTrue(e.conforme)
+        self.assertEqual(e.lecteur, 'tabular')      # informatif : qui a lu
+        self.assertIn('conforme', e.rendre())       # et surtout : PAS un écart
 
-        from .sources import READERS
-        self.assertEqual(set(DATASET_SOURCES) & set(READERS), set(),
-                         "les deux vocabulaires se recouvrent enfin — G1 est fermé, "
-                         "mettre ce test à jour")
+    def test_le_rendu_dit_QUI_a_lu(self):
         e = verifier(_manifeste('capteur.csv', ['capteur']), self.dossier)
-        self.assertTrue(e.conforme)                 # la DONNÉE est là…
-        self.assertIsNotNone(e.type_source)         # …mais le vocabulaire diverge toujours
-
-    def test_rendu_lisible_quand_il_n_y_a_VRAIMENT_rien_a_signaler(self):
-        # `source.type` est facultatif au kind (`if src.get('type') and …`). Sans lui, aucune
-        # divergence de vocabulaire — c'est le seul cas où le rendu est vide aujourd'hui.
-        sans_type = {'source': {'ref': 'capteur.csv'},
-                     'signals': [{'id': 'capteur', 'data_type': 'timeseries'}]}
-        self.assertIn('conforme', verifier(sans_type, self.dossier).rendre())
+        self.assertIn('tabular', e.rendre())
 
 
 class ChargementTest(unittest.TestCase):

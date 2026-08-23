@@ -58,11 +58,15 @@ MODULES: Tuple[ModuleData, ...] = (
                  'wama_data/sources/trip.py',
                  'wama_data/sources/tabular.py'),
         doc='§6.6, §9bis.1, §9quater.2 (conteneur natif)',
-        bloque_par="alignement par TRIGGERS non conçu (D12) ; `DATASET_SOURCES` non réconcilié "
-                   "avec le registre des lecteurs (G1) ; lecteur `.rec` encore une FONCTION "
+        bloque_par="alignement par TRIGGERS non conçu (D12) ; lecteur `.rec` encore une FONCTION "
                    "(`functions/io/rtmaps_rec.py`) au lieu d'un lecteur de source ; l'ÉCRITURE du "
                    "conteneur natif `.wrec` reste à écrire — D3 est tranchée (2026-08-23) mais "
-                   "aucune ligne de WAMA Data n'écrit encore de SQLite",
+                   "aucune ligne de WAMA Data n'écrit encore de SQLite. "
+                   "⚠ « `DATASET_SOURCES` non réconcilié avec le registre des lecteurs (G1) » a "
+                   "été RETIRÉ de cette liste le 2026-08-24 : c'était une glose fausse à deux "
+                   "titres (§9decies). G1 dit « le moteur ne cite aucun format » — vrai défaut, "
+                   "corrigé, testé. Et `source.type` (PROVENANCE) n'a pas à coïncider avec un "
+                   "format de lecteur (CAPACITÉ) : le kind réclame un reader source-AGNOSTIQUE",
     ),
     ModuleData(
         'referentiel', 'Référentiel temporel', "Aligne des flux à cadences incommensurables",

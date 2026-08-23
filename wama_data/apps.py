@@ -66,15 +66,14 @@ class WamaDataConfig(AppConfig):
             Un registre à moitié rechargé serait pire que pas de rechargement.
             """
             import importlib
-            import pkgutil
 
             from . import sources
             importlib.invalidate_caches()
             avant = dict(sources.READERS)
-            # Les modules ne sont pas cités en dur : on parcourt le paquet. Citer ses producteurs
-            # est exactement le défaut corrigé lors du déport du monde.
-            noms = [m.name for m in pkgutil.iter_modules(sources.__path__)
-                    if not m.name.startswith(('_', 'tests_'))]
+            # ⚠ La découverte a UN SEUL domicile : `sources.modules_lecteurs()`. Elle vivait ici
+            # en copie, alors que le paquet lui-même en avait besoin pour son propre amorçage
+            # (garde-fou G1). Deux énumérations du même ensemble finissent par diverger.
+            noms = sources.modules_lecteurs()
             sources.READERS.clear()
             try:
                 for nom in noms:
