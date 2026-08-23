@@ -1116,121 +1116,25 @@
     "modes": {
       "domains": [
         {
+          "accepts": [
+            "text",
+            "image"
+          ],
           "icon": "fa-image",
           "id": "image",
           "label": "Image",
-          "modes": [
-            {
-              "icon": "fa-font",
-              "id": "txt2img",
-              "inputs": [
-                "prompt",
-                "negative_prompt"
-              ],
-              "label": "Texte → Image",
-              "settings": [
-                "model",
-                "seed",
-                "steps",
-                "guidance",
-                "resolution"
-              ]
-            },
-            {
-              "icon": "fa-wand-magic-sparkles",
-              "id": "img2img",
-              "inputs": [
-                "work_image",
-                "prompt"
-              ],
-              "label": "Édition (img2img)",
-              "settings": [
-                "model",
-                "strength",
-                "seed",
-                "steps"
-              ]
-            },
-            {
-              "icon": "fa-palette",
-              "id": "style2img",
-              "inputs": [
-                "reference_image",
-                "prompt"
-              ],
-              "label": "Transfert de style",
-              "settings": [
-                "model",
-                "style_weight",
-                "seed",
-                "steps"
-              ]
-            },
-            {
-              "icon": "fa-list",
-              "id": "file2img",
-              "inputs": [
-                "prompt_file"
-              ],
-              "label": "Batch (fichier de prompts)",
-              "settings": [
-                "model",
-                "seed",
-                "steps",
-                "resolution"
-              ]
-            },
-            {
-              "icon": "fa-comment-dots",
-              "id": "describe2img",
-              "inputs": [
-                "work_image"
-              ],
-              "label": "Décrire → Image",
-              "pipeline_hint": "Describer→Imager",
-              "settings": [
-                "model",
-                "seed",
-                "steps"
-              ]
-            }
-          ],
+          "modes": [],
           "variant": "primary"
         },
         {
+          "accepts": [
+            "text",
+            "image"
+          ],
           "icon": "fa-film",
           "id": "video",
           "label": "Vidéo",
-          "modes": [
-            {
-              "icon": "fa-font",
-              "id": "txt2vid",
-              "inputs": [
-                "prompt"
-              ],
-              "label": "Texte → Vidéo",
-              "settings": [
-                "video_model",
-                "frames",
-                "fps",
-                "resolution"
-              ]
-            },
-            {
-              "icon": "fa-image",
-              "id": "img2vid",
-              "inputs": [
-                "work_image",
-                "prompt"
-              ],
-              "label": "Image → Vidéo",
-              "settings": [
-                "video_model",
-                "frames",
-                "fps"
-              ]
-            }
-          ],
+          "modes": [],
           "variant": "success"
         }
       ]
@@ -2149,15 +2053,6 @@
           "multi": false,
           "types": [
             "prompt"
-          ]
-        },
-        {
-          "group": "reference",
-          "id": "reference_image",
-          "label": "Image de référence (style)",
-          "multi": false,
-          "types": [
-            "image"
           ]
         }
       ],

@@ -1532,8 +1532,12 @@
     "modes": {
       "domains": [
         {
+          "accepts": [
+            "image",
+            "video"
+          ],
           "icon": "fa-photo-film",
-          "id": "media",
+          "id": "image_video",
           "label": "Image / Vidéo",
           "modes": [
             {
@@ -1557,6 +1561,9 @@
           "variant": "primary"
         },
         {
+          "accepts": [
+            "audio"
+          ],
           "icon": "fa-volume-high",
           "id": "audio",
           "label": "Audio",
@@ -1576,6 +1583,7 @@
               ]
             }
           ],
+          "route_prefix": "audio",
           "variant": "success"
         }
       ]

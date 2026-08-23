@@ -672,7 +672,17 @@
       "source_attr": "COMPOSER_MODELS"
     },
     "modes": {
-      "domains": []
+      "domains": [
+        {
+          "accepts": [
+            "text"
+          ],
+          "icon": "fa-music",
+          "id": "composition",
+          "label": "Composition",
+          "modes": []
+        }
+      ]
     },
     "params": {
       "primary": "PARAMS_JSON",

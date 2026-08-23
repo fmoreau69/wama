@@ -832,116 +832,18 @@
     "modes": {
       "domains": [
         {
-          "icon": "fa-image",
-          "id": "image",
-          "label": "Image",
-          "modes": [
-            {
-              "icon": "fa-right-left",
-              "id": "convert",
-              "inputs": [
-                "work_file"
-              ],
-              "label": "Convertir",
-              "settings": [
-                "output_format",
-                "quality",
-                "resize_w",
-                "resize_h",
-                "rotation",
-                "flip_h",
-                "flip_v"
-              ]
-            }
+          "accepts": [
+            "image",
+            "video",
+            "audio",
+            "document",
+            "archive"
           ],
+          "icon": "fa-right-left",
+          "id": "conversion",
+          "label": "Conversion",
+          "modes": [],
           "variant": "info"
-        },
-        {
-          "icon": "fa-film",
-          "id": "video",
-          "label": "Vidéo",
-          "modes": [
-            {
-              "icon": "fa-right-left",
-              "id": "convert",
-              "inputs": [
-                "work_file"
-              ],
-              "label": "Convertir",
-              "settings": [
-                "output_format",
-                "video_quality",
-                "fps",
-                "resize_w",
-                "resize_h",
-                "rotation",
-                "flip_h",
-                "flip_v",
-                "gif_fps",
-                "gif_width"
-              ]
-            }
-          ],
-          "variant": "warning"
-        },
-        {
-          "icon": "fa-volume-high",
-          "id": "audio",
-          "label": "Audio",
-          "modes": [
-            {
-              "icon": "fa-right-left",
-              "id": "convert",
-              "inputs": [
-                "work_file"
-              ],
-              "label": "Convertir",
-              "settings": [
-                "output_format",
-                "audio_bitrate",
-                "sample_rate",
-                "channels",
-                "normalize"
-              ]
-            }
-          ],
-          "variant": "success"
-        },
-        {
-          "icon": "fa-file-lines",
-          "id": "document",
-          "label": "Document",
-          "modes": [
-            {
-              "icon": "fa-right-left",
-              "id": "convert",
-              "inputs": [
-                "work_file"
-              ],
-              "label": "Convertir",
-              "settings": [
-                "output_format"
-              ]
-            }
-          ]
-        },
-        {
-          "icon": "fa-file-zipper",
-          "id": "archive",
-          "label": "Archive",
-          "modes": [
-            {
-              "icon": "fa-right-left",
-              "id": "convert",
-              "inputs": [
-                "work_file"
-              ],
-              "label": "Convertir",
-              "settings": [
-                "output_format"
-              ]
-            }
-          ]
         }
       ]
     },

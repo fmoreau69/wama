@@ -1589,6 +1589,10 @@
     "modes": {
       "domains": [
         {
+          "accepts": [
+            "image",
+            "video"
+          ],
           "icon": "fa-photo-film",
           "id": "image_video",
           "label": "Image / Vidéo",
@@ -2444,6 +2448,8 @@
         "console",
         "consolidate",
         "debug_media_status",
+        "delete",
+        "download",
         "download_all_media",
         "download_media",
         "duplicate_media",
@@ -2507,6 +2513,11 @@
           "view": "views.update_settings"
         },
         {
+          "name": "delete",
+          "pattern": "delete/<int:pk>/",
+          "view": "views.delete"
+        },
+        {
           "name": "clear_media",
           "pattern": "clear_media/",
           "view": "views.clear_media"
@@ -2525,6 +2536,11 @@
           "name": "process_progress",
           "pattern": "process_progress/",
           "view": "views.get_process_progress"
+        },
+        {
+          "name": "download",
+          "pattern": "download/<int:pk>/",
+          "view": "views.download"
         },
         {
           "name": "download_media",

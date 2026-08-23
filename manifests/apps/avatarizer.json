@@ -806,24 +806,14 @@
     "modes": {
       "domains": [
         {
+          "accepts": [
+            "image",
+            "audio"
+          ],
           "icon": "fa-user-astronaut",
-          "id": "video",
+          "id": "avatar",
           "label": "Avatar parlant",
-          "modes": [
-            {
-              "icon": "fa-film",
-              "id": "standalone",
-              "inputs": [
-                "work_image",
-                "work_audio"
-              ],
-              "label": "Standalone",
-              "settings": [
-                "use_enhancer",
-                "bbox_shift"
-              ]
-            }
-          ]
+          "modes": []
         }
       ]
     },

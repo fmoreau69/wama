@@ -1109,6 +1109,10 @@
     "modes": {
       "domains": [
         {
+          "accepts": [
+            "audio",
+            "video"
+          ],
           "icon": "fa-microphone-lines",
           "id": "audio",
           "label": "Transcription",

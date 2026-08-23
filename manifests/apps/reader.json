@@ -764,7 +764,18 @@
       "source_attr": "READER_MODELS"
     },
     "modes": {
-      "domains": []
+      "domains": [
+        {
+          "accepts": [
+            "document",
+            "image"
+          ],
+          "icon": "fa-file-lines",
+          "id": "lecture",
+          "label": "Lecture",
+          "modes": []
+        }
+      ]
     },
     "params": {
       "primary": "PARAMS_JSON",

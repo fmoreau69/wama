@@ -837,7 +837,20 @@
       "source_attr": "DESCRIBER_MODELS"
     },
     "modes": {
-      "domains": []
+      "domains": [
+        {
+          "accepts": [
+            "image",
+            "video",
+            "audio",
+            "document"
+          ],
+          "icon": "fa-comment-dots",
+          "id": "description",
+          "label": "Description",
+          "modes": []
+        }
+      ]
     },
     "params": {
       "primary": "PARAMS_JSON",

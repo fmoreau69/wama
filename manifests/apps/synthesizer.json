@@ -1128,6 +1128,9 @@
     "modes": {
       "domains": [
         {
+          "accepts": [
+            "text"
+          ],
           "icon": "fa-volume-high",
           "id": "audio",
           "label": "Audio",
