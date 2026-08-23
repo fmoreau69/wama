@@ -12,8 +12,7 @@ from pathlib import Path
 from wama_data import sources
 from wama_data.sources import ResamplingTS, TimeOfIssueTS, TimestampTS
 
-BASE_REELLE = (Path(__file__).resolve().parents[2]
-               / "claude" / "Exemple_trip" / "RecFile_REC_20190502_144710.trip")
+from ..corpus import BASE_REELLE, raison_absence
 
 
 class RegistreTest(unittest.TestCase):
@@ -178,8 +177,112 @@ class TabulaireTest(unittest.TestCase):
         self.assertNotAlmostEqual(sans.measured_fs(), 10.0, places=3)
 
 
-@unittest.skipUnless(BASE_REELLE.exists(),
-                     f"base d'expérimentation absente ({BASE_REELLE.name}) — hors dépôt")
+def _trip_synthetique(chemin: Path) -> Path:
+    """Construit un `.trip` MINIMAL — les trois familles de table, quelques lignes.
+
+    ⚠ POURQUOI CE FIXTURE EXISTE (2026-08-24). Jusqu'ici, **les seuls tests du `TripReader`
+    étaient `BaseReelleTest`**, conditionnés à un fichier de 1,28 Go vivant HORS DÉPÔT
+    (`claude/`, gitignoré). Le jour où ce fichier a disparu de la machine, le lecteur le plus
+    complexe du monde Data s'est retrouvé avec **zéro couverture** — et rien ne l'a signalé
+    autrement que par « 10 sautés » dans un compte-rendu que personne ne lit ligne à ligne.
+
+    C'est le garde-fou **G7** (« cas complet de bout en bout — nécessite un échantillon réduit
+    VERSIONNÉ ») : on le satisfait en GÉNÉRANT l'échantillon plutôt qu'en committant un binaire.
+    Le schéma reproduit ici est celui relevé sur la base réelle (§6.2-6.3), pas un schéma inventé.
+    """
+    import sqlite3
+    con = sqlite3.connect(chemin)
+    try:
+        con.execute('CREATE TABLE "MetaDatas" (name TEXT, type TEXT, frequency TEXT, isBase INT)')
+        con.executemany('INSERT INTO "MetaDatas" VALUES (?,?,?,?)', [
+            ('vitesse', 'data', '10', 1),
+            ('freinage', 'event', '', 1),
+            ('0_15', 'situation', '', 0),
+        ])
+        con.execute('CREATE TABLE "data_vitesse" (timecode REAL, value REAL)')
+        con.executemany('INSERT INTO "data_vitesse" VALUES (?,?)',
+                        [(float(i), 10.0 * i) for i in range(5)])
+        con.execute('CREATE TABLE "event_freinage" (timecode REAL, intensite REAL)')
+        con.executemany('INSERT INTO "event_freinage" VALUES (?,?)', [(1.0, 0.4), (3.0, 0.9)])
+        con.execute('CREATE TABLE "situation_0_15" '
+                    '(startTimecode REAL, endTimecode REAL, label TEXT)')
+        con.executemany('INSERT INTO "situation_0_15" VALUES (?,?,?)', [(1.0, 3.0, 'approche')])
+        con.commit()
+    finally:
+        con.close()
+    return chemin
+
+
+class TripSynthetiqueTest(unittest.TestCase):
+    """Le `TripReader` sans le corpus de 1,28 Go — couverture qui ne dépend de rien d'externe."""
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.trip = _trip_synthetique(Path(self.dir.name) / "essai.trip")
+
+    def tearDown(self):
+        self.dir.cleanup()
+
+    def test_le_lecteur_le_reconnait(self):
+        r = sources.reader_for(self.trip)
+        self.assertIsNotNone(r)
+        self.assertEqual(r.format, 'trip')
+
+    def test_un_sqlite_SANS_le_catalogue_attendu_est_decline(self):
+        # `can_read` renifle le CONTENU : un fichier mal nommé ne doit pas échouer loin de sa cause.
+        import sqlite3
+        faux = Path(self.dir.name) / "faux.trip"
+        sqlite3.connect(faux).close()
+        self.assertIsNone(sources.reader_for(faux))
+
+    def test_probe_liste_les_trois_familles(self):
+        self.assertEqual(sorted(sources.probe(self.trip).streams),
+                         ['data_vitesse', 'event_freinage', 'situation_0_15'])
+
+    def test_la_FAMILLE_est_portee_comme_DONNEE_pas_comme_commentaire(self):
+        """⚠ Le test de la correction du 2026-08-24 : la famille vivait dans `comments`."""
+        from wama.common.catalog.data_types import DataType
+        ref = sources.load(self.trip)
+        self.assertEqual(ref.get('vitesse').meta.data_type, DataType.TIMESERIES)
+        self.assertEqual(ref.get('freinage').meta.data_type, DataType.EVENTS)
+        self.assertEqual(ref.get('0_15').meta.data_type, DataType.SEGMENTS)
+
+    def test_le_pont_distingue_desormais_DONNEES_et_EVENEMENTS(self):
+        # Structurellement identiques (des instants + des colonnes) : seule la famille déclarée
+        # les sépare. C'est exactement ce que le pont ne savait pas faire.
+        from wama.common.catalog.data_types import DataType
+
+        from wama_data.frames import frame_depuis_referentiel
+        ref = sources.load(self.trip)
+        self.assertEqual(frame_depuis_referentiel(ref, 'vitesse').data_type, DataType.TIMESERIES)
+        self.assertEqual(frame_depuis_referentiel(ref, 'freinage').data_type, DataType.EVENTS)
+
+    def test_une_situation_porte_ses_DEUX_bornes(self):
+        ref = sources.load(self.trip)
+        s = ref.get('0_15')
+        self.assertTrue(s.is_segments)
+        self.assertEqual(s.containing(2.0), [0])
+
+    def test_le_lookup_suit_la_famille(self):
+        from wama_data.core.temporal import NEAREST, PREVIOUS
+        ref = sources.load(self.trip)
+        self.assertEqual(ref.get('vitesse').meta.default_lookup, NEAREST)
+        self.assertEqual(ref.get('freinage').meta.default_lookup, PREVIOUS)
+
+    def test_les_valeurs_sont_lisibles(self):
+        ref = sources.load(self.trip, streams=['data_vitesse'])
+        ligne = ref.get('vitesse').rows(2, 3)[0]
+        self.assertEqual(ligne['value'], 20.0)
+
+    def test_frequence_non_numerique_ne_casse_PAS_le_flux(self):
+        # Mesuré sur la base réelle : `frequency` vaut '' pour les flux dérivés, et `float('')`
+        # levait, rendant le flux entier illisible.
+        ref = sources.load(self.trip)
+        self.assertIsNone(ref.get('freinage').meta.fs)
+        self.assertEqual(ref.get('vitesse').meta.fs, 10.0)
+
+
+@unittest.skipUnless(BASE_REELLE.exists(), raison_absence())
 class BaseReelleTest(unittest.TestCase):
     def test_reconnaissance_par_le_CONTENU(self):
         r = sources.reader_for(BASE_REELLE)

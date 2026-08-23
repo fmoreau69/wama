@@ -29,14 +29,23 @@ toutes les valeurs de tous les flux dépasserait le gigaoctet pour une seule pas
 from __future__ import annotations
 
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
+
+from wama.common.catalog.data_types import DataType
 
 from ..core.temporal import NEAREST, PREVIOUS, SignalMeta
 from . import SourceInfo, SourceReader, StreamSpec, register_reader
 
 #: Préfixes de table → famille. Les situations portent DEUX bornes, d'où un traitement distinct.
 _PREFIXES = {'data_': 'data', 'event_': 'event', 'situation_': 'situation'}
+
+#: Famille de table → type de la taxonomie PARTAGÉE. Le lecteur connaissait DÉJÀ la famille (il la
+#: tire du préfixe) et la jetait dans une chaîne de commentaire ; elle est désormais portée comme
+#: DONNÉE, dans `SignalMeta.data_type`. Le vocabulaire vient de `DataType`, jamais recopié.
+_TYPE_DE_FAMILLE = {'data': DataType.TIMESERIES, 'event': DataType.EVENTS,
+                    'situation': DataType.SEGMENTS}
 
 
 class TripReader(SourceReader):
@@ -59,9 +68,29 @@ class TripReader(SourceReader):
             return False
 
     @staticmethod
-    def _open(path: Path) -> sqlite3.Connection:
-        """Connexion LECTURE SEULE — on n'écrit jamais dans une source importée."""
-        return sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    @contextmanager
+    def _open(path: Path):
+        """Connexion LECTURE SEULE, RÉELLEMENT REFERMÉE — on n'écrit jamais dans une source importée.
+
+        ⚠ DÉFAUT CORRIGÉ LE 2026-08-24, trouvé par le `.trip` synthétique. Ce module écrivait
+        partout `with self._open(path) as con:` en croyant fermer. **Le gestionnaire de contexte
+        d'une `sqlite3.Connection` gère la TRANSACTION, pas la fermeture** : il committe ou
+        annule, puis laisse la connexion OUVERTE. Chaque `probe`, `read`, `_columns`, `_times`…
+        en fuyait une — et ce module en ouvre une par appel **à dessein** (sécurité entre fils
+        d'exécution), donc la fuite est proportionnelle à l'usage.
+
+        Invisible sous Linux, où l'on supprime un fichier ouvert sans broncher. Sous Windows, le
+        fichier devient indélogeable — c'est ainsi que le fixture temporaire l'a révélé, alors
+        que la base réelle (jamais supprimée) ne l'aurait jamais montré.
+
+        Écrit en `@contextmanager` : tous les appelants gardent leur `with`, et la fermeture
+        devient impossible à oublier au lieu d'être à répéter.
+        """
+        con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        try:
+            yield con
+        finally:
+            con.close()
 
     # ── Inventaire ────────────────────────────────────────────────────────────────────────────
     def probe(self, path: Path) -> SourceInfo:
@@ -131,6 +160,7 @@ class TripReader(SourceReader):
             d = declares.get(nom, {})
             meta = SignalMeta(
                 name=nom,
+                data_type=_TYPE_DE_FAMILLE.get(famille, ''),
                 fs=self._frequence(d.get('frequency')),
                 is_base=d.get('is_base', True),
                 # Un événement ou un segment vaut jusqu'au suivant : PREVIOUS est la sémantique

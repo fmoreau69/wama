@@ -20,8 +20,7 @@ from pathlib import Path
 from .temporal import (EXACT, NEAREST, PREVIOUS, Signal, SignalMeta, TemporalReferential)
 
 #: Base d'expérimentation réelle, hors dépôt (dossier gitignoré). Absente = contrôles sautés.
-BASE_REELLE = (Path(__file__).resolve().parents[2]
-               / "claude" / "Exemple_trip" / "RecFile_REC_20190502_144710.trip")
+from ..corpus import BASE_REELLE, raison_absence
 
 
 def signal(nom, times, ends=None, rows=None, **kw):
@@ -225,8 +224,7 @@ class ReferentielTest(unittest.TestCase):
             self.ref.add(signal("rapide", [0.0]))
 
 
-@unittest.skipUnless(BASE_REELLE.exists(),
-                     f"base d'expérimentation absente ({BASE_REELLE.name}) — hors dépôt")
+@unittest.skipUnless(BASE_REELLE.exists(), raison_absence())
 class BaseReelleTest(unittest.TestCase):
     """Ce que le synthétique ne peut pas prouver : volumes, cadences incommensurables, SQL."""
 

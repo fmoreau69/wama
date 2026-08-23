@@ -15,6 +15,8 @@ import csv
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
+from wama.common.catalog.data_types import DataType
+
 from ..core.temporal import NEAREST, SignalMeta
 from . import SourceInfo, SourceReader, StreamSpec, register_reader
 
@@ -173,7 +175,8 @@ class TabularReader(SourceReader):
         def rows(i0: int, i1: int):
             return [dict(zip(entetes, r)) for r in donnees[i0:i1]]
 
-        meta = SignalMeta(name=nom, fs=None, default_lookup=NEAREST,
+        meta = SignalMeta(name=nom, data_type=DataType.TIMESERIES, fs=None,
+                          default_lookup=NEAREST,
                           comments=f"tabulaire · {len(entetes)} colonne(s)")
         return [StreamSpec(meta=meta, times=times, rows=rows)]
 

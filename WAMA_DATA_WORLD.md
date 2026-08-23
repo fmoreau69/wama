@@ -38,7 +38,7 @@
 
 | Module | Rôle | Flux | État | Briques | Testées | Conso. int/ext | Doc |
 |---|---|---|---|---|---|---|---|
-| **Importer** | Lit une source et rend un référentiel temporel interrogeable | fichiers + manifeste `dataset` → référentiel, écrit en `.wrec` | 🔶 | 3/3 | 1 | 3/0 | §6.6, §9bis.1, §9quater.2 (conteneur natif) |
+| **Importer** | Lit une source et rend un référentiel temporel interrogeable | fichiers + manifeste `dataset` → référentiel, écrit en `.wrec` | 🔶 | 3/3 | 1 | 4/0 | §6.6, §9bis.1, §9quater.2 (conteneur natif) |
 | **Référentiel temporel** | Aligne des flux à cadences incommensurables | référentiel → échantillons, `segments`, vue décimée, cadres typés | 🔶 | 2/2 | 2 | 2/0 | §2, §3, §9quater.7 |
 | **Connector** | Branche une base existante comme source | base SQLite (`.trip` externe, `.wrec` natif) → référentiel | 🔶 | 1/1 | 0 | 2/0 | §6.2, §9quater.2 |
 | **Explorer** | Explore un dataset en table et en graphe — c'est aussi l'INTERFACE du Calculator : la vue tableur est le lieu où l'on ajoute une colonne calculée et où l'on voit le résultat | référentiel → vues table/graphe + colonnes calculées | 🔶 | 2/2 | 2 | 1/0 | §7, §9quater.6, §9quater.7 |
@@ -2116,6 +2116,71 @@ serait pas rejouable.
 `wama_data` : **472 → 496 tests**. ⏳ Reste au chantier du point d'entrée : l'**écrivain `.wrec`**
 (aucune ligne n'écrit encore de SQLite) et un corpus de manifestes `dataset` (le dossier n'existe
 pas).
+
+---
+
+## 9nonies. LA FAMILLE D'UN FLUX — portée comme DONNÉE (2026-08-24)
+
+> Chantier **B** du plan : « `Signal` ne porte pas sa famille ». Le fil a livré **la correction
+> attendue, plus deux défauts réels qu'il a fallu trouver pour la vérifier.**
+
+### 9nonies.1 Le fait était connu, et jeté dans un commentaire
+
+Le pont (§9quater.7) ne savait pas distinguer un flux de **DONNÉES** d'un flux d'**ÉVÉNEMENTS** :
+structurellement, « des instants + des colonnes » décrit les deux. On déduisait donc le type de la
+seule structure.
+
+⚠ **Mais le lecteur `.trip` CONNAISSAIT la famille** : il la calcule depuis le préfixe de table
+(`data_` / `event_` / `situation_`) — et la jetait dans **une chaîne de commentaire**
+(`comments=f"{famille} · …"`). Le pont refusait, à raison, de la relire de là : *un libellé est une
+TRACE, pas une règle*. **Le fait existait ; il n'était pas porté comme DONNÉE.**
+
+**Quatrième occurrence du même motif en deux jours** — après le Référentiel « sans consommateur »,
+la règle `ENRICHER`/`AGGREGATE` non écrite, et `SignalMeta.is_base` inemployé.
+
+**Corrigé** : `SignalMeta.data_type`, rempli par les lecteurs avec les constantes de la taxonomie
+**partagée** (jamais recopiées). `type_par_defaut()` préfère la famille **déclarée** et ne retombe
+sur la structure que si la source se tait. ⚠ Le champ est typé `str` et non `DataType` à dessein —
+`core/` reste sans dépendance ; ce sont les lecteurs, un étage plus haut, qui connaissent la
+taxonomie.
+
+### 9nonies.2 ⚠ Le lecteur `.trip` n'avait AUCUNE couverture — et personne ne pouvait le voir
+
+En voulant tester la correction, constat : **les seuls tests du `TripReader` étaient
+`BaseReelleTest`**, conditionnés à un fichier de **1,28 Go vivant hors dépôt** (`claude/`, gitignoré).
+
+Le jour où ce fichier a été **déplacé**, les tests se sont mis à **sauter en silence** — un
+`skipUnless` sur un chemin périmé n'annonce pas « le chemin a changé », il annonce « absente », ce
+qui est **faux et rassurant**. Le lecteur le plus complexe du monde s'est retrouvé sans filet, et
+le seul signal était « 10 sautés » dans un compte-rendu que personne ne lit ligne à ligne.
+
+**Deux réponses, et la seconde compte davantage :**
+
+1. **`wama_data/corpus.py`** — le chemin était **recopié dans trois fichiers de test**. Domicile
+   unique, et un message de skip qui **dit OÙ l'on a cherché**.
+2. **Un `.trip` SYNTHÉTIQUE généré** (`tests_sources::_trip_synthetique`) — les trois familles de
+   table, au schéma relevé. C'est le garde-fou **G7** (« échantillon réduit versionné ») satisfait
+   **sans committer de binaire**. La base réelle garde son rôle — éprouver le volume, les six
+   cadences, les valeurs sales — mais **elle n'est plus la CONDITION de toute vérification**.
+
+### 9nonies.3 ⚠ Le fixture a payé immédiatement : une FUITE DE CONNEXION
+
+`trip.py` écrivait partout `with self._open(path) as con:` **en croyant fermer**. Or le
+gestionnaire de contexte d'une `sqlite3.Connection` gère la **TRANSACTION**, pas la fermeture : il
+committe ou annule, puis laisse la connexion **ouverte**. Chaque `probe`, `read`, `_columns`,
+`_times`… en fuyait une — et ce module en ouvre une **par appel**, à dessein (sécurité entre fils
+d'exécution). **La fuite était donc proportionnelle à l'usage.**
+
+> ⚠ **Invisible sous Linux**, où l'on supprime un fichier ouvert sans broncher. Sous Windows, le
+> fichier devient indélogeable — et c'est un dossier temporaire de test qui l'a révélé. **La base
+> réelle, jamais supprimée, ne l'aurait jamais montré.** Un corpus qu'on ne fait que lire ne teste
+> pas ce qu'on lui fait subir.
+
+Corrigé par un `@contextmanager` : tous les appelants gardent leur `with`, et la fermeture devient
+impossible à oublier au lieu d'être à répéter.
+
+`wama_data` : **496 → 500 tests**, et le lecteur `.trip` passe de **0** à **9** tests qui ne
+dépendent d'aucun fichier externe.
 
 ---
 

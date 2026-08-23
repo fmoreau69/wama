@@ -10,8 +10,7 @@ from pathlib import Path
 from .segmentation import (autour, bascules, chevauche, conditionnelle, etats, fermer, jonction,
                            masque_hysteresis, ouverts, present_dans)
 
-BASE_REELLE = (Path(__file__).resolve().parents[2]
-               / "claude" / "Exemple_trip" / "RecFile_REC_20190502_144710.trip")
+from ..corpus import BASE_REELLE, raison_absence
 
 
 class AutourTest(unittest.TestCase):
@@ -332,8 +331,7 @@ class OuvertsTest(unittest.TestCase):
         self.assertNotIn('closed_at', segs[0])
 
 
-@unittest.skipUnless(BASE_REELLE.exists(),
-                     f"base d'expérimentation absente ({BASE_REELLE.name}) — hors dépôt")
+@unittest.skipUnless(BASE_REELLE.exists(), raison_absence())
 class BaseReelleTest(unittest.TestCase):
     """Reproduire les fenêtres RÉELLES d'une campagne à partir de ses événements."""
 

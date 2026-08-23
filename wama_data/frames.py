@@ -51,12 +51,17 @@ LES QUATRE PIÈGES QUE CE MODULE TRAITE — tous MESURÉS dans le code, aucun su
      dans ce sens. `signal_depuis_frame()` force donc `is_base=False` : **on ne peut pas fabriquer
      un flux « acquis » par ce chemin.**
 
-⚠ CE QUE CE PONT NE SAIT PAS FAIRE, ET QUI N'EST PAS UN OUBLI : distinguer un flux de DONNÉES d'un
-flux d'ÉVÉNEMENTS. Un `Signal` ne porte pas sa famille — seulement ses instants, ses fins
-éventuelles et un `comments` libre. Structurellement, « des instants + des colonnes » décrit les
-deux. On déduit donc `SEGMENTS` quand il y a des fins et `TIMESERIES` sinon, et l'appelant peut
-imposer `data_type`. Déduire la famille du texte de `comments` (« data · 3 colonne(s) ») serait
-prendre une TRACE pour une RÈGLE — l'erreur déjà consignée en mémoire de projet.
+⚠ CE PONT NE SAVAIT PAS distinguer un flux de DONNÉES d'un flux d'ÉVÉNEMENTS — CORRIGÉ le
+2026-08-24, et la correction mérite d'être lue. Le `Signal` ne portait pas sa famille : seulement
+ses instants, ses fins éventuelles et un `comments` libre — or « des instants + des colonnes »
+décrit les deux familles à l'identique.
+
+Mais **le lecteur `.trip` CONNAISSAIT la famille** : il la tire du préfixe de table
+(`data_`/`event_`/`situation_`) et la jetait dans le commentaire (`comments=f"{famille} · …"`).
+Le fait existait ; il n'était pas porté comme DONNÉE. Et le relire depuis un libellé aurait été
+prendre une TRACE pour une RÈGLE. D'où `SignalMeta.data_type`, rempli par les lecteurs avec les
+constantes de la taxonomie partagée. `type_par_defaut()` préfère désormais la famille DÉCLARÉE et
+ne retombe sur la structure que si la source ne dit rien.
 """
 from __future__ import annotations
 
@@ -89,11 +94,23 @@ def _verifier_lignes(lignes: Any, nom: str) -> List[Dict[str, Any]]:
 
 
 def type_par_defaut(signal: Signal) -> str:
-    """Type de cadre déduit de la STRUCTURE du flux, jamais d'un libellé.
+    """Type de cadre : la FAMILLE DÉCLARÉE d'abord, la structure en repli.
 
-    Des fins ⇒ `segments` ; sinon `timeseries`. La famille « données vs événements » n'est pas
-    récupérable d'un `Signal` (voir l'avertissement en tête) : l'appelant l'impose s'il la connaît.
+    ⚠ L'ORDRE EST LE POINT (corrigé le 2026-08-24). `SignalMeta.data_type` porte désormais la
+    famille que la source connaît — le lecteur `.trip` la tire du préfixe de table
+    (`data_`/`event_`/`situation_`) et la jetait auparavant dans un commentaire. **Une donnée
+    déclarée prime toujours sur une déduction structurelle** : c'est la seule façon de distinguer
+    un flux d'ÉVÉNEMENTS d'un flux de DONNÉES, que la structure (« des instants + des colonnes »)
+    décrit à l'identique.
+
+    Repli quand la source ne dit rien : des fins ⇒ `segments`, sinon `timeseries`. Il reste juste,
+    simplement moins fin.
+
+    ⚠ Ce qu'on ne fait TOUJOURS PAS : lire la famille dans `meta.comments`. Un libellé est une
+    TRACE, pas une règle — c'est précisément pour cela que le champ a été créé.
     """
+    if signal.meta.data_type:
+        return signal.meta.data_type
     return DataType.SEGMENTS if signal.is_segments else DataType.TIMESERIES
 
 

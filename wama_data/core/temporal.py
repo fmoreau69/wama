@@ -52,6 +52,21 @@ class SignalMeta:
     """
 
     name: str
+    #: FAMILLE du flux — une valeur de `DataType` (`timeseries`, `events`, `segments`…), vide si
+    #: la source ne la connaît pas.
+    #:
+    #: ⚠ POURQUOI CE CHAMP EXISTE (ajouté le 2026-08-24). La famille était CONNUE du lecteur
+    #: `.trip` — il la calcule depuis le préfixe de table (`data_`/`event_`/`situation_`) — et
+    #: **jetée dans une chaîne de commentaire** (`comments=f"{famille} · …"`). Le pont
+    #: (`frames.py`) refusait, à raison, de la relire de là : un libellé est une TRACE, pas une
+    #: règle. Résultat, il devait déduire le type de la seule STRUCTURE (des fins ⇒ segments,
+    #: sinon timeseries) et ne pouvait pas distinguer données et événements. Le fait existait,
+    #: il n'était pas porté comme DONNÉE.
+    #:
+    #: ⚠ Typé `str` et non `DataType` À DESSEIN : `core/` reste sans dépendance (« moteur sans
+    #: Django »). Ce sont les LECTEURS, un étage plus haut, qui remplissent ce champ avec les
+    #: constantes de la taxonomie partagée — le vocabulaire n'est donc recopié nulle part.
+    data_type: str = ''
     #: Cadence théorique en Hz. `None` = irrégulier ou inconnu — c'est un cas NORMAL.
     fs: Optional[float] = None
     #: Unité par variable, ex. {'speed': 'm/s'}. Porte le vocabulaire qu'un manifeste doit exposer.
