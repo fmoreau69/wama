@@ -32,8 +32,38 @@
 Question (Fabien) : faut-il un niveau au-DESSUS des modes, en **onglets** ? **Oui — mais c'est un axe
 distinct.** Il y a **deux axes** à ne pas mélanger :
 
-1. **Domaine média** (image / vidéo / audio / document) = type d'**entrée/sortie**. Change les formats,
-   la nature de sortie, les modèles, ET la file (items de natures ≠). → **vrai niveau utilisateur = ONGLET**.
+1. **Domaine** = un **WORKFLOW distinct**. → **vrai niveau utilisateur = ONGLET**.
+
+   ⚠⚠ **CORRIGÉ LE 2026-08-23 — ce n'est PAS « le type d'entrée/sortie ».** Cette formulation
+   initiale a produit deux erreurs de modélisation opposées, mesurées le même jour :
+   - le **converter** déclarait **5 domaines** = ses 5 natures d'entrée, et ne rendait AUCUN
+     onglet (aucun `WamaModes` dans son gabarit). Il ne doit pas en rendre : l'utilisateur y
+     dépose n'importe quel fichier, le type est **détecté**, les réglages s'adaptent. Cinq
+     onglets lui feraient classer son fichier à la main — un travail que la machine fait mieux ;
+   - le **describer** ne déclarait AUCUN domaine alors qu'il en a bien un (« décrire »),
+     simplement mono — donc rien à nommer, rien à porter au DOM.
+
+   **Le critère qui tranche : le domaine se justifie quand la surface de RÉGLAGES et le workflow
+   divergent, pas quand la nature du fichier diverge.** Décrire une image, un PDF ou un audio se
+   règle pareil (style, langue, longueur) → **un** domaine. Produire une image ou une vidéo n'a
+   ni les mêmes réglages ni le même moteur → **deux** domaines.
+
+   Deux faits mesurés le confirment : le **transcriber** a un domaine `audio` qui accepte aussi
+   la **vidéo** (source audio), et les domaines `image`/`video` de l'**imager** acceptent tous
+   deux `text`+`image` — leur nom dit la **SORTIE**, pas l'entrée.
+
+   **Corollaires actés (arbitrages Fabien, 2026-08-23) :**
+   - **Toujours déclaré et NOMMÉ, même seul** — jamais de `default` implicite : le jour d'un
+     second domaine on aurait `default` + `audio` + `document`, et le nommage perdrait sa
+     cohérence pour toujours.
+   - **Nommage** : mono-domaine → le workflow (`conversion`, `description`, `lecture`) ;
+     multi-domaines → l'axe qui les sépare, le plus souvent les catégories média jointes par `_`.
+     **`image_video`** et non `media` (qui englobe l'audio) ni `visuel` (la 3D, les documents et
+     le texte le sont aussi). Raison structurelle : le nom est **composé de la taxonomie**, donc
+     il EST la liste `accepts` — dérivable, vérifiable, jamais à re-débattre.
+   - **`accepts`** déclare les catégories média (`MEDIA_CATEGORIES`) que le domaine prend en
+     ENTRÉE. C'est la base du **routage automatique** d'un fichier déposé vers le bon domaine
+     (`domain_for_category()`), que chaque app refait aujourd'hui à la main.
 2. **Mode** = la façon de produire **dans** un domaine (texte→image, image→image, yolo/sam3). Vit **dans**
    le domaine.
 
@@ -46,7 +76,26 @@ distinct.** Il y a **deux axes** à ne pas mélanger :
 - La **file est scopée par le domaine actif** (cf. enhancer : file image/vidéo + file audio déjà en onglets).
 - **⚠️ Piège avatarizer** : `pipeline / standalone` n'est **PAS un domaine** — c'est un axe **WORKFLOW** →
   se résout par la **méta-app** (pipeline = chaînage ; standalone = mode normal). NE PAS le modéliser en
-  onglet-domaine. (Avatarizer = probablement mono-domaine vidéo, son pipeline partant en méta-app.)
+  onglet-domaine. → ✅ **SOLDÉ le 2026-08-23** : le mode `standalone` a été PURGÉ (résidu de l'époque à
+  deux modes TTS→audio→avatar ; le TTS relève du synthesizer depuis le 2026-07-15). Avatarizer est
+  mono-domaine `avatar`, `modes: []`.
+
+- **⚠️ UN MODE EST UN SWITCH — donc `[]` quand il n'y a pas de variante.** Un mode ne se déclare que si
+  l'UTILISATEUR a un choix à faire ; `wama-modes.js` ne rend le groupe de boutons que
+  `if (modes.length > 1)`. Déclarer un mode unique n'affiche donc **rien** : c'est de la taxonomie morte.
+  Purgés le 2026-08-23 : `standalone` (avatarizer), `convert` répété 5 fois (converter), et **les 7 modes
+  de l'imager**.
+
+- **⚠️⚠️ NE PAS CONFONDRE MODE D'UI ET WORKFLOW DE BACKEND.** L'imager choisit txt2img / img2img /
+  style2img d'après les entrées fournies et les réglages : c'est une décision de **moteur**, prise sans
+  switch à l'écran (une seule card d'entrée par domaine + appariement bidirectionnel `WamaInputMatch`).
+  Ces 7 « modes » sont restés déclarés longtemps après le retrait des switches, et le JS qui les rendait
+  visait **quatre ancres DOM supprimées** — 36 lignes mortes, sans erreur ni trace. Leçon :
+  **ce qui ne plante pas ne se signale pas.**
+
+- **État au 2026-08-23** : seules **3 apps ont de vrais modes** — anonymizer (yolo/sam3), synthesizer et
+  transcriber (normal/temps réel) — et toutes trois les rendent **depuis la déclaration**. Anonymizer a
+  été la dernière branchée : elle déclarait ses modes ET les rendait à la main (deux sources non reliées).
 
 ## 3. Le MODE = norme applicative (LA couche d'abstraction ajoutée)
 - Chaque app **déclare ses modes** en métadonnée :

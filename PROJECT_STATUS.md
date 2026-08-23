@@ -6215,8 +6215,11 @@ puis étendue par Fabien à l'Explorer et à trois décisions de fond.
 
 `check_docs` **4 CASSÉ / 0 périmée sur 498** — ⚠ **1 SEULE cible distincte** (`_result_tabs.html`,
 citée 4×), c'est ELLE le critère · `check_js` **57 fichiers 0 erreur, 56 paires 0 divergente** ·
-`manifest_roundtrip` **10 apps, fidélité OK** · `doc_facts` **5/5 à jour** · `wama_data`
-**411 tests OK** · `wama.common.tests_registries` **46 OK** (avec les 2 registres neufs) ·
+`manifest_roundtrip` **10 apps, fidélité OK** · `doc_facts` **4/5** — ⚠ `mecanismes` PÉRIMÉ
+**DÉLIBÉRÉMENT** : sa régénération mêlait ma ligne (Tests nocturnes 10 → 11) et celle de
+l'instance sœur (Domaines → modes 12 → 14, `app_modes.py` en vol) ; un bloc généré ne s'édite pas
+à la main, donc **à régénérer sur un arbre propre** · `wama_data` **411 tests OK** ·
+`wama.common.tests_nightly` **5 OK** · `wama.common.tests_registries` **46 OK** ·
 `check_redundancy` **15 trouvailles, AUCUNE dans les fichiers de cette session** (la seule ligne
 `wama_data`, `calculation.py:78 _verifier()`, est un **faux positif préexistant** — collision de
 nom avec `verifier_url`, pas une duplication).
@@ -6250,3 +6253,152 @@ en captant l'**état en vol** de l'instance sœur (compteurs de consommateurs 46
 première fois **révoqué** (`git checkout`), la seconde vérifié ligne à ligne avant commit. Mes
 seules écritures hors `wama_data/` sont **deux entrées** au registre des mécanismes
 (`data_frames_bridge`, `data_vue`).
+
+---
+
+## §REPRISE — 2026-08-23 (instance ACTIONS DE CARD → DOMAINES & MODES) — 🔚 POINT D'ENTRÉE
+
+> **🔚 POINT D'ENTRÉE : `wama/common/utils/app_modes.py` — son docstring porte la DOCTRINE
+> domaine/mode réécrite ce jour — puis `WAMA_VERIFICATION.md §3bis`. Premier geste : élucider
+> `enhancer.settings` (hypothèse NON vérifiée, cf. §F.1), puis le palier 3.**
+
+Session longue, partie du 🔚 « brique ⚙ Paramètres », arrivée à une refonte de la déclaration
+DOMAINES/MODES. **14 commits, `6fe3c400` → `92f6a8dd`, NON POUSSÉS.**
+
+### A. Actions de card — les SIX boutons ont un domicile commun
+
+| action | avant | après | preuve |
+|---|---|---|---|
+| ⧉ Dupliquer | brique (12/12) | inchangé | — |
+| ⚙ Paramètres | **6 graphies** | brique **12/12** | `settings_wiring` 10/10 + `<app>.settings` 7 OK |
+| 🗑 Supprimer | **6 graphies** | brique **12/12** | `delete_wiring` 10/10 + `.duplicate_delete` 7 OK |
+| ▶ Cycle | *annoncé 2/10* | **mesuré 12/12** — la matrice était FAUSSE | — |
+| ⬇ Télécharger | 3 formes (lien · dropdown manuel ×3 · bouton+JS ×2 · `<form>` POST) | brique **12/12** | `download_wiring` 12/12 |
+| ✏ Éditer | 1/12 (transcriber) | contrat figé (`.edit-btn` + `data-edit-state`) | à généraliser |
+
+**Actions de LOT : 3 apps sur 8** (transcriber, composer, describer). Opt-in
+`actions_communes=True` : tant qu'une app garde ses handlers, la brique ne voit rien — donc
+**pas de double-fire**. Restent anonymizer (2 handlers), avatarizer (4), converter (4),
+enhancer (7), imager (1). Recette dans le message de `34d19ca7`.
+
+⚠ **▶ de lot n'est PAS uniforme** (mesuré) : avatarizer/converter/transcriber rechargent ;
+composer/describer/enhancer insèrent les cards démarrées et lancent le polling. D'où
+`onBatchStarted`, avec le rechargement en défaut sûr. C'est l'INVERSE du cas de la suppression
+d'élément — même méthode, conclusion opposée.
+
+### B. Domaines & modes — la déclaration remise d'aplomb (paliers 1 et 2)
+
+**La doctrine était déjà juste** (docstring + `wama-modes.js` : `:90` onglets de domaine, `:99`
+switch seulement si >1 mode). **Ce sont les DONNÉES qui avaient dérivé.**
+
+- **Un domaine est un WORKFLOW, pas un type de fichier.** Critère : il se justifie quand la
+  surface de RÉGLAGES diverge. → converter **5 domaines → 1** (`conversion`, `accepts` les 5
+  natures) ; describer/composer/reader **0 → 1 domaine nommé**.
+- **Toujours nommé, jamais `default`** (arbitrage Fabien) : sinon `default`+`audio`+`document`
+  le jour d'un second domaine, et le nommage perd sa cohérence pour toujours.
+- **`image_video` plutôt que `media`/`visuel`** : `media` englobe l'audio, `visuel` engloberait
+  3D/documents/texte. Le nom retenu est **composé de la taxonomie**, donc il EST la liste
+  `accepts` — dérivable, vérifiable, jamais à re-débattre.
+- **Mode = switch → `[]` sans variante.** Purges : `standalone` (avatarizer), `convert` ×5
+  (converter), **7 modes morts de l'imager + 36 lignes de JS mort**. Restent **3 apps à vrais
+  modes** (anonymizer, synthesizer, transcriber) — et les trois les rendent depuis la déclaration.
+- **`accepts` sur les 12 domaines** + accesseurs `route_prefix()`, `accepts()`,
+  `domain_for_category()` (base du ROUTAGE d'un fichier déposé vers le bon domaine).
+- **Le domaine descend au DOM** (`data-domain` sur card et card mère de lot) et **les briques s'y
+  scopent**. Mes deux rustines de la veille — `within: '#audio-enhancer-queue'` et
+  `batch_ns='enhancer:audio_batch'` — **ont disparu**.
+
+### C. Défauts d'APPLICATION trouvés en chemin (pas des refactorings)
+
+1. **transcriber** — `card.className = …` réassigné EN ENTIER (2 endroits) **effaçait
+   `wama-card`** au premier changement de statut. Conséquence hors tests : la brique retire la
+   card par `.wama-card[data-id]` → **une card supprimée ne disparaissait plus de l'écran**.
+2. **anonymizer** — sa vue de suppression n'était scopée par **AUCUN utilisateur**
+   (`Media.objects.filter(pk=…)` acceptait l'id de n'importe qui). **Seule app dans ce cas.**
+   Deux routes au format commun ajoutées (`delete/<pk>/`, `download/<pk>/`) ; `clear_media` et
+   `download_media` délèguent au même corps → **REMOVAL_LEDGER R23**.
+3. **imager** — `<button>`+JS pour télécharger : ni clic-droit « Enregistrer sous », ni nouvel
+   onglet. Redevenu un lien.
+4. **converter** — `const emptyState` **déclaré et jamais utilisé** : l'app rechargeait la page.
+   Le retrait chirurgical le rendait nécessaire → adopte `WamaApp.emptyState`.
+
+### D. Défauts d'INSTRUMENT — trois, et c'est le fil rouge de la session
+
+1. **`_duplicate_wiring`** portait encore les 2 faiblesses corrigées la veille sur son jumeau.
+2. **Harnais de scénarios** : `ElementHandle` sur une card re-rendue (nœud détaché) ; `.first`
+   sans `:visible` (card dans un lot replié). **Deux corrections AVANT de pouvoir accuser une
+   app** — et c'est en les faisant qu'on a trouvé le vrai défaut d'app (C.1).
+3. **`mecanismes_scan` SURESTIME l'adoption** : il compte les mentions du nom de fichier
+   **commentaires compris**. 21 mécanismes sur 88 affectés — `queue_front` **60 affichés / 18
+   réels**, `rag_geste` 23/**5**, `app_base_js` 17/**6**. Mes propres commentaires de portage ont
+   gonflé le compte. ⚠ **Aucune brique morte n'est masquée** (aucun ne tombe à `⚠ 0`), donc le
+   signal principal reste fiable. Correctif identique à `find`→`find_code` (19/08),
+   `_sans_commentaires` existe déjà — **À FAIRE SUR DÉCISION** (instrument PARTAGÉ, rejouerait
+   tous les comptes). Consigné en tête de `WAMA_MECANISMES.md`.
+
+### E. Ce que la session a appris — à relire AVANT de conclure quoi que ce soit
+
+- ⚠⚠ **DES NOMS DE FONCTIONS DIFFÉRENTS NE SONT PAS DES COMPORTEMENTS DIFFÉRENTS.** J'ai pris
+  9 copies d'un même algorithme pour 9 « spécificités » (recadrage Fabien). Test qui tranche :
+  *que doit écrire la prochaine app ?* → 12 lignes = brique ratée.
+- ⚠⚠ **CE QUI NE PLANTE PAS NE SE SIGNALE PAS.** 36 lignes de JS visant des ancres supprimées ;
+  un garde `if (window.WamaModes)` **résilient ET muet** — j'y suis tombé dans l'heure suivant
+  sa documentation. Il faut PROUVER qu'une dépendance est chargée, jamais le supposer.
+- ⚠ **Un nommage uniforme peut CACHER un comportement recopié.** Au niveau élément, la
+  divergence de graphies alertait ; au niveau lot, le partial commun donnait un nommage propre
+  avec 30 handlers recopiés dessous. Regarder les DEUX.
+- ⚠ **Quand le COMMUN se met à ÉNUMÉRER des apps, il compense une brique absente**
+  (`wama-inspector.js` portait l'union des graphies de ⚙ — déjà incomplète, donc fausse).
+- ⚠ **6 sondes ne décident rien** : hypothèse « workers périmés » rejetée à tort sur 6 essais,
+  vraie sur 30 (2/30 en 404).
+- ⚠ **Réparer l'INSTRUMENT avant d'accuser l'app** — mais aussi : ne pas conclure « c'est le
+  test » sans le prouver. Les deux erreurs symétriques ont été commises le même jour.
+- ⚠ **Généraliser, c'est DÉPLACER le code existant, pas en profiter pour le changer.** Le lien ⬇
+  principal porte `?format=txt` parce que les 3 apps le faisaient — j'avais « inventé mieux ».
+- ⚠ **Un critère qui mesure du markup doit SUIVRE le markup quand il se centralise**, sinon il
+  PUNIT l'adoption (`btn_order` est passé rouge sur 10 apps quand ⬇ a rejoint le partial).
+- ⚠ **Un relevé par motif de texte hérite des angles morts du motif choisi.** La matrice §3bis
+  s'est trompée **4 fois, toujours en sous-estimant**.
+
+### F. 🔚 CE QUI RESTE — dans l'ordre
+
+1. **`enhancer.settings` échoue** : « le ⚙ existe au contrat commun mais AUCUN n'est visible ».
+   Enhancer a 2 onglets ; la card de fixture est **vraisemblablement dans l'onglet INACTIF**. Le
+   scénario sait déplier un lot replié, **pas activer un onglet de domaine** — lacune de harnais
+   que le palier 2 rend adressable (`data-domain` est désormais au DOM).
+   ⚠ **HYPOTHÈSE NON VÉRIFIÉE AU NAVIGATEUR** — plausible, pas établie.
+2. **Palier 3** — généraliser `WamaInputMatch` à **converter et describer** (8 apps sur 10
+   l'ont déjà ; ce sont les 2 mono-onglet multi-types qui refont leur détection à la main).
+3. **Palier 4** — relier les DEUX axes de la médiathèque : `MEDIA_CATEGORIES` (7 catégories,
+   source unique **importée** par la médiathèque) × `UserAsset.asset_type`
+   (voice/audio_music/audio_sfx/avatar/object3d = axe d'**USAGE**). Décision Fabien : **pas de
+   seconde couche d'onglets**, on relie les deux axes.
+4. **5 apps d'actions de lot** restantes (recette dans `34d19ca7`).
+5. **Taxonomie** : écrire `text` (texte brut) vs `document` (support : pdf/docx/txt) —
+   distinction confirmée par Fabien, absente de la doc.
+6. **converter_01** (bac à sable) : `.import` skippe, 21 ❌ — chantier codegen à part.
+7. **Décision en attente** : `.wama-cycle-btn` reste préfixé du nom de sa brique là où la famille
+   dit `.<action>-btn`. C'est la **dernière** exception de la convention.
+8. **Anonymizer + audio/document** (souhait Fabien) : 3 domaines justifiés (flouter des pixels,
+   biper une voix, caviarder du texte = 3 workflows). `domain_for_category('anonymizer','audio')`
+   rend `None` aujourd'hui et rendra `audio` le jour de la déclaration — rien d'autre à câbler.
+
+### G. Système & partition
+
+- **`kill -HUP <maître gunicorn>` après TOUT changement Python.** 5 occurrences du trou #28 en
+  deux sessions. `max_requests` recycle les workers UN PAR UN → **pile MIXTE** → 500
+  intermittents. Sans `preload_app`, HUP suffit (socket conservé) : inutile de relancer la pile.
+- **Instance sœur** : `wama_data/`, `WAMA_DATA_WORLD.md`, `mecanismes.py` **non touchés**.
+  ⚠ Elle a commencé `wama/common/nightly_scenarios.py` + `tests_nightly.py` — **recoupe le
+  périmètre des tests, à coordonner AVANT le palier 3**.
+- **14 commits non poussés** (push = décision Fabien).
+
+### Contrôles attendus au prochain /reprise
+
+`check_docs` **4 CASSÉ / 0 périmée** (même partial cité 4×, périmètre instance sœur) ·
+`check_js` **57 fichiers 0 erreur, 56 paires 0 divergente** · `doc_facts` **5/5** ·
+grille : converter/describer/transcriber **100 %**, enhancer 99, anonymizer/avatarizer/composer/
+reader/synthesizer 98, imager 97 ⚠ **dénominateurs +3** (`settings_wiring`, `delete_wiring`,
+`download_wiring`) · nocturnes : `.ui` **14/14**, `.duplicate_delete` **7 OK / 0 échec**,
+`.settings` **6 OK / 1 échec** (enhancer, cf. F.1), `.import` 7/0/7 ·
+⚠ `manifest_export --check` périmé sur `anonymizer:sam3` — **antérieur** à cette session.

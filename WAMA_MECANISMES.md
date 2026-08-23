@@ -100,7 +100,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Mémoire GPU** | Garantit la VRAM avant un chargement, la reprend sur les autres modèles, et réessaie après libération sur erreur CUDA | `wama/model_manager/services/memory_manager.py` | `PROJECT_STATUS.md §0` | 16 |
 | **Progression de tâche longue** | Avancement d'une tâche Celery HORS file d'items publié dans le cache (F5-proof) + garde « déjà en cours » vérifiée auprès de Celery ; pendant navigateur = WamaApp.Poller | `wama/common/utils/task_progress.py` | `wama/model_manager/PROSPECTION_PIPELINE.md` | 3 |
 | **Squelette de tâche** | Enchaînement commun des tâches Celery d'item : gardes, progress, statuts, ETA | `wama/common/utils/task_skeleton.py` | `WAMA_APP_GENERATION_ROUTE.md` | 4 |
-| **Tests nocturnes** | Registre déclaratif de scénarios + runner sérialisé VRAM-aware (wired/ui/consistency/…) | `wama/common/services/nightly_tests.py` | `PROJECT_STATUS.md §Tests fonctionnels nocturnes` | 10 |
+| **Tests nocturnes** | Registre déclaratif de scénarios + runner sérialisé VRAM-aware (wired/ui/consistency/…) | `wama/common/services/nightly_tests.py` | `PROJECT_STATUS.md §Tests fonctionnels nocturnes` | 11 |
 
 #### Modèles (11)
 
@@ -177,7 +177,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Card v3** | Dimensionnement déclaratif des pistes de card — dépend de l'app, des actions, des libellés | `wama/common/static/common/js/wama-card-v3.js` | `CARD_DESIGN.md §11` | 5 |
 | **Card « Nouvel élément »** | Card d'entrée dépliable commune (dropzones, URL, médiathèque, batch) — auto-init | `wama/common/static/common/js/wama-new-item-card.js` | `MODES_QUEUE_UX.md` | 27 |
 | **Chips méta des cards** | Chips de l'état concis GÉNÉRÉS du schéma params (chip=True) — jamais écrits par app | `wama/common/utils/card_chips.py` | `CARD_DESIGN.md §10.3` | 26 |
-| **Domaines → modes** | Schéma déclaratif des onglets-domaine et modes par app — scope la file | `wama/common/utils/app_modes.py` | `MODES_QUEUE_UX.md` | 12 |
+| **Domaines → modes** | Schéma déclaratif des onglets-domaine et modes par app — scope la file | `wama/common/utils/app_modes.py` | `MODES_QUEUE_UX.md` | 14 |
 | **Import de dossier récursif** | Traversée récursive d'un drop/webkitdirectory — brique F2 montée globale (base.html) | `wama/common/static/common/js/wama-folder-import.js` | `WAMA_APP_GENERATION_ROUTE.md` | 2 |
 | **Inspecteur — champs de détail** | Schéma canonique des infos d'item affichées au volet droit | `wama/common/utils/detail_registry.py` | `INSPECTOR_DETAIL_FIELDS.md` | 43 |
 | **Lecteur audio (onde + transport)** | Widget autonome : onde canvas (pics serveur ou décodés), play/pause, exclusivité inter-lecteurs et inter-onglets ; monté par la preview dans le volet ET les cards | `wama/common/static/common/js/wama-audio-player.js` | — | 5 |
