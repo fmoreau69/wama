@@ -200,7 +200,7 @@ window._batchImport = WamaBatchImport({
 
         {% if batch_info.obj.is_unitary %}
         <!-- Single-item batch: render as standalone card -->
-        {% for item in batch_info.items %}{% if item.reading %}
+        {% for item in batch_info.items %}{% if item.elem %}
         {% include 'reader/_item_card.html' with elem=item.elem %}
         {% endif %}{% endfor %}
 
@@ -217,7 +217,7 @@ window._batchImport = WamaBatchImport({
             <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
                  data-wama-batch-key="reader_{{ batch_info.obj.id }}"
                  style="border-left:2px solid #0dcaf0; margin-left:0.75rem;">
-                {% for item in batch_info.items %}{% if item.reading %}
+                {% for item in batch_info.items %}{% if item.elem %}
                 {% include 'reader/_item_card.html' with elem=item.elem in_batch=True %}
                 {% endif %}{% endfor %}
             </div>

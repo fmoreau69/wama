@@ -155,7 +155,7 @@ Tout telecharger. {% endcomment %}
 {% for batch_info in image_batches %}
     {% if batch_info.obj.is_unitary %}
         {% comment %} Batch unitaire : la card fille SEULE (pas de card mere). {% endcomment %}
-        {% for item in batch_info.items %}{% if item.generation %}
+        {% for item in batch_info.items %}{% if item.elem %}
         {% include 'imager/_generation_card.html' with elem=item.elem domain='image' in_batch=False %}
         {% endif %}{% endfor %}
     {% else %}
@@ -164,7 +164,7 @@ Tout telecharger. {% endcomment %}
             <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
                  data-wama-batch-key="imager_{{ batch_info.obj.id }}"
                  style="border-left:2px solid #6f42c1; margin-left:0.75rem;">
-                {% for item in batch_info.items %}{% if item.generation %}
+                {% for item in batch_info.items %}{% if item.elem %}
                 {% include 'imager/_generation_card.html' with elem=item.elem domain='image' in_batch=True %}
                 {% endif %}{% endfor %}
             </div>
@@ -218,7 +218,7 @@ Tout telecharger. {% endcomment %}
 {% for batch_info in video_batches %}
     {% if batch_info.obj.is_unitary %}
         {% comment %} Batch unitaire : la card fille SEULE (pas de card mere). {% endcomment %}
-        {% for item in batch_info.items %}{% if item.generation %}
+        {% for item in batch_info.items %}{% if item.elem %}
         {% include 'imager/_generation_card.html' with elem=item.elem domain='video' in_batch=False %}
         {% endif %}{% endfor %}
     {% else %}
@@ -227,7 +227,7 @@ Tout telecharger. {% endcomment %}
             <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
                  data-wama-batch-key="imager_{{ batch_info.obj.id }}"
                  style="border-left:2px solid #198754; margin-left:0.75rem;">
-                {% for item in batch_info.items %}{% if item.generation %}
+                {% for item in batch_info.items %}{% if item.elem %}
                 {% include 'imager/_generation_card.html' with elem=item.elem domain='video' in_batch=True %}
                 {% endif %}{% endfor %}
             </div>

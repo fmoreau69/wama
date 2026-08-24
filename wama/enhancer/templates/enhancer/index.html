@@ -202,7 +202,7 @@
 
             {% if batch_info.obj.is_unitary %}
             <!-- Single-item batch: render as standalone card -->
-            {% for item in batch_info.items %}{% if item.enhancement %}
+            {% for item in batch_info.items %}{% if item.elem %}
             {% include 'enhancer/_enhancement_card.html' with elem=item.elem in_batch=False %}
             {% endif %}{% endfor %}
 
@@ -214,7 +214,7 @@
                 <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
                      data-wama-batch-key="enhancer_{{ batch_info.obj.id }}"
                      style="border-left:2px solid #0dcaf0; margin-left:0.75rem;">
-                    {% for item in batch_info.items %}{% if item.enhancement %}
+                    {% for item in batch_info.items %}{% if item.elem %}
                     {% include 'enhancer/_enhancement_card.html' with elem=item.elem in_batch=True %}
                     {% endif %}{% endfor %}
                 </div>
@@ -258,7 +258,7 @@
 
             {% if batch_info.obj.is_unitary %}
             <!-- Single-item audio batch: render as standalone card -->
-            {% for item in batch_info.items %}{% if item.audio_enhancement %}
+            {% for item in batch_info.items %}{% if item.elem %}
             {% include 'enhancer/_audio_card.html' with elem=item.elem in_batch=False %}
             {% endif %}{% endfor %}
 
@@ -270,7 +270,7 @@
                 <div class="collapse" id="audioBatchItems{{ batch_info.obj.id }}"
                      data-wama-batch-key="enhancer_audio_{{ batch_info.obj.id }}"
                      style="border-left:2px solid #198754; margin-left:0.75rem;">
-                    {% for item in batch_info.items %}{% if item.audio_enhancement %}
+                    {% for item in batch_info.items %}{% if item.elem %}
                     {% include 'enhancer/_audio_card.html' with elem=item.elem in_batch=True %}
                     {% endif %}{% endfor %}
                 </div>

@@ -204,7 +204,7 @@ startAllBtn/downloadAllBtn/clearAllBtn migrent ici depuis le volet droit.{% endc
 
             {% if batch_info.obj.is_unitary %}
             <!-- Single-item batch: render as a standalone card (no batch header) -->
-            {% for item in batch_info.items %}{% if item.synthesis %}
+            {% for item in batch_info.items %}{% if item.elem %}
             {% include 'synthesizer/_synthesis_card.html' with elem=item.elem card_label=item.output_filename %}
             {% endif %}{% endfor %}
 
@@ -220,7 +220,7 @@ ses défauts sur la 1re card fille (.settings-btn data-*).{% endcomment %}
                      data-wama-batch-key="synthesizer_{{ batch_info.obj.id }}"
                      style="border-left:2px solid #6f42c1; margin-left:0.75rem;">
                     {% for item in batch_info.items %}
-                    {% if item.synthesis %}
+                    {% if item.elem %}
                     {% include 'synthesizer/_synthesis_card.html' with elem=item.elem card_label=item.output_filename %}
                     {% endif %}
                     {% endfor %}
