@@ -24,6 +24,29 @@ class CommonConfig(AppConfig):
             import logging
             logging.getLogger(__name__).debug('Journal wama.log non attaché', exc_info=True)
 
+        # `logs/django-errors.log` — MÊME trou que ci-dessus, un cran plus haut : c'est
+        # Django lui-même (`django.request`) qui n'avait aucun handler. Mesuré le
+        # 2026-08-24 : 11 réponses 500 en 36 h, aucune trace nulle part. La chaîne était
+        # `django.request` (0 handler) → `django` → StreamHandler(stderr), que le
+        # `daemon = True` de gunicorn envoyait dans /dev/null (corrigé en parallèle par
+        # `capture_output`). L'AdminEmailHandler, lui, est filtré par RequireDebugFalse
+        # et `ADMINS` est vide : les deux sorties par défaut étaient donc mortes.
+        # `propagate=False` — À L'INVERSE de 'wama' juste au-dessus : avec capture_output
+        # la propagation dupliquerait chaque traceback dans gunicorn-error.log. Ici on
+        # veut UN endroit. `level=ERROR` : les 4xx que `django.request` émet en WARNING
+        # n'ont pas de traceback et sont déjà lisibles dans les access logs.
+        try:
+            import logging as _logging
+            from wama.common.utils.log_rotation import attach_dedicated_log
+            attach_dedicated_log(
+                'django.request', 'django-errors.log',
+                level=_logging.ERROR, propagate=False,
+                fmt='%(asctime)s [%(levelname)s] [%(name)s] %(message)s')
+        except Exception:
+            import logging
+            logging.getLogger(__name__).debug(
+                'Journal django-errors.log non attaché', exc_info=True)
+
         # Gouverneur de ressources : plafonne l'allocateur CUDA de CE process.
         # Couvre les process Django (workers gunicorn) ; les workers Celery sont
         # couverts par le signal `worker_process_init` (wama/celery.py) et le

@@ -28,6 +28,13 @@ proc_name = "wama"
 daemon = True
 pidfile = "logs/gunicorn.pid"
 
+# `daemon = True` redirige stdout/stderr vers /dev/null (gunicorn/util.py:daemonize),
+# et `errorlog` ne reçoit QUE les logs propres de gunicorn. Sans cette ligne, tout ce
+# que l'application écrit sur stderr est perdu — mesuré le 2026-08-24 : 11 réponses 500
+# en 36 h, ZÉRO traceback dans gunicorn-error.log (494 lignes, dont les 52 [ERROR] ne
+# sont que des `Worker was sent SIGTERM` de recyclage `max_requests`).
+capture_output = True
+
 # Restart workers after handling N requests (prevents memory leaks)
 max_requests = 1000
 max_requests_jitter = 50
