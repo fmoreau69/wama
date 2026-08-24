@@ -6813,3 +6813,87 @@ d'élément ; il manque un **accesseur du modèle de LOT par app**. Purge manuel
 **Inventaire PAR COMPTE avant toute suppression** : les 44 résidus étaient tous dans
 `wama_nightly_test`, **0 chez un utilisateur réel** — la question « ai-je cassé quelque chose »
 se répond par un décompte, pas par une impression. Garde-fou de purge : `assert 1 not in cibles`.
+
+---
+
+## §REPRISE — 2026-08-24 (soir, SUITE : JOURNAUX APACHE / 500 DJANGO / MATÉRIEL)
+
+> Périmètre disjoint de la session « LOTS + APPARIEMENT » du même jour : aucun fichier commun
+> hors `PROJECT_STATUS.md`. Commits : `2cf0d69b`, `a569ebf8`, `021b69c2` (+ celui-ci).
+
+### ⚠⚠ CE QUE J'AI ANNONCÉ CORRIGÉ ET QUI NE L'EST PAS — à lire avant tout le reste
+`disablereuse=On` (Apache) **n'a rien changé** : **4,625 %** de 502 après correctif contre
+**4,336 %** avant. Le diagnostic « course sur le pool de connexions » est donc **FAUX** — un RST
+avant le premier octet sur une connexion **neuve** ne peut pas être une connexion périmée réutilisée.
+Détail, pistes et test décisif : `INFRA_WSL_VS_WINDOWS.md §Apache/Windows n'est PAS un résidu`
+(bloc « DÉMENTI le 2026-08-24 au soir »).
+
+⚠⚠ **La leçon porte sur MA vérification.** J'ai annoncé « vérifié » sur **115 requêtes en
+5 minutes**. À 4,3 %, ce volume attend ~5 échecs ; en voir 0 avait ~0,6 % de probabilité — je l'ai
+présenté comme une preuve. **Un taux ne se vérifie que sur un volume du même ordre que celui qui
+l'a établi** ; sinon on ne distingue pas « corrigé » de « pas de charge pendant 5 minutes ».
+
+### ✅ Acquis réels de la session
+- **Rotation des journaux Apache** (`rotatelogs -n 10 … 86400`) : ils n'étaient JAMAIS tournés,
+  `wama-access.log` pesait **614 Mo**. C'est elle qui a rendu la mesure du démenti possible.
+- **Les tracebacks des 500 partaient dans `/dev/null`** — chaîne vérifiée dans le process :
+  `django.request` (0 handler) → `django` → `StreamHandler(stderr)` → `daemon=True` sans
+  `capture_output`. Les DEUX sorties par défaut étaient mortes (`AdminEmailHandler` filtré par
+  `RequireDebugFalse` + `ADMINS=[]`). Corrigé : `capture_output = True` + `attach_dedicated_log`
+  sur `django.request` → `logs/django-errors.log` (+ ajouté à `RUNTIME_LOGS`). **Actif** depuis le
+  redémarrage de 16:44 ; fichier à 0 octet, donc aucun 500 depuis.
+- **Apache/Windows n'est pas un résidu** — tranché par la mesure (17 clients LAN / 261 000 requêtes ;
+  `Alias /media/` = **72,69 Go, 44 % des octets** hors gunicorn ; aucun apache2/nginx dans WSL2).
+  Le résidu réel est **`mod_wsgi`** (chargé, zéro `WSGIScriptAlias`). Sort d'Apache : **décidé —
+  on tranche au passage en prod**, cf. `INFRA_WSL_VS_WINDOWS.md §Implications… point 9`.
+
+### 🔴 MATÉRIEL — deux variables changées le 24/08 vers 16:35, ligne de base à comparer
+- **APC Line-R 1200 (LE1200I) RETIRÉ** — et ce n'est **pas un onduleur** : c'est un régulateur de
+  tension (AVR), **sans batterie**. Le « débrancher l'onduleur » du 🔚 précédent est donc fait,
+  mais il n'a jamais existé de secours batterie à perdre. PC désormais sur multiprise antifoudre.
+- **RAM : 3 × Samsung 32 Go** (96 Go) à la place de 2 Samsung + 2 G.Skill. ⚠ **Asymétrique** —
+  `BANK 2 (ChannelB-DIMM0)` vide : 4 rangs sur le canal A, 2 sur le B, à 3200 MT/s.
+- **Ligne de base sur 60 j (à comparer au prochain crash)** : **43 Kernel-Power 41**, **0 BugCheck
+  1001**, 3 WHEA `Internal parity error` (cœurs APIC 2, 3, 14 — 13/08 ×2, 15/07). **Zéro BSOD sur
+  43 arrêts = panne SOUS l'OS**, cohérent avec l'hypothèse alimentation.
+  Par semaine : S30 **13**, S31 5, S32 5, S33 1, S34 **9**, S35 1.
+- ⚠ **Deux variables à la fois** : si les crashs cessent, on ne saura pas laquelle. Et les crashs
+  **précèdent** les G.Skill (le `.wslconfig` atteste « 64 Go, 2× Samsung en dual channel » au 29/07,
+  or ils remontent à juin) → le retrait de l'AVR est la piste la plus prometteuse des deux.
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+1. 🔴🔴 **RELANCER LA JOURNALISATION HWiNFO** — elle est **arrêtée depuis 16:35 et n'a AUCUN
+   autostart** (ni clé Run, ni dossier Démarrage, ni tâche planifiée ; `HWiNFO64.INI` ne contient
+   que `Theme`/`SensorsOnly`). **On teste l'hypothèse alimentation avec la sonde d'alimentation
+   éteinte.** Archiver d'abord `rails.csv` (61 Mo, 23/08 22:11 → 24/08 16:35 = la période AVANT
+   retrait de l'AVR) sous un nom daté, puis relancer **comme le 23/08** (mêmes colonnes) et
+   contrôler : `python scripts/analyze_rails.py logs/hwlog/rails.csv` doit afficher **5 rails**.
+   ✅ `WAMA-HwWatchdog` (hwlog GPU), lui, redémarre bien au boot — vérifié.
+2. **Reprendre le diagnostic des 502** au test décisif décrit dans `INFRA_WSL_VS_WINDOWS.md`
+   (Apache vs `gunicorn-access.log` sur une MÊME fenêtre — ⚠ `rotate_logs` tourne les journaux
+   gunicorn à chaque démarrage, vérifier que le fichier lu couvre la fenêtre).
+3. **`/anonymizer/` en 500** — 5 fois en 36 h, le seul récurrent. Le traceback sera désormais dans
+   `logs/django-errors.log`.
+
+### Pendings — décisions NON prises
+- **`DEBUG = True` en production** (`settings.py:20`, en dur, aucune surcharge env). Expose à chaque
+  500 les variables locales de chaque frame, à 17 clients LAN. ⚠ **NE PAS corriger seul** :
+  `urls.py:64` conditionne le service des statiques à `DEBUG` et Apache n'a pas d'`Alias /static/`
+  → 404 sur tout le CSS/JS. Ordre : `Alias /static/` → vérifier l'UI → `DEBUG = False`. Rattaché au
+  passage en prod (`INFRA… point 8`).
+- **`.wslconfig` périmé** : calculé pour 64 Go, la machine en a 96 (plafond WSL2 resté à 48 Go).
+  **Volontairement NON touché** — ce serait une 3ᵉ variable dans l'expérience crashs en cours, et
+  augmenter le plafond réduit la réserve hôte (cause des freezes du 27/07). `set_wslconfig.ps1`
+  recalcule ; l'appliquer demande `wsl --shutdown` (→ Postgres WSL2 à relancer à la main).
+- **`mod_wsgi` à retirer** de `httpd.conf` — geste isolé, sans urgence.
+- **RAM asymétrique** — si les crashs persistent : 2 barrettes en DIMM1 de chaque canal (64 Go,
+  symétrique) ou 96 Go en descendant à 2933/2666.
+
+### Contrôles attendus au prochain /reprise
+- `check_docs` : **4 CASSÉ / 0 périmée sur 518** — les 4 pointent sur `common/_result_tabs.html`
+  depuis `PROJECT_STATUS.md` (l. 2291, 2780, 2985, 3170). ⚠ **Cible jamais créée** (absente de tout
+  l'historique git), pas une régression ; **hors de mon périmètre**, non corrigée. Le seuil connu
+  était 2 → **réajuster à 4** ou créer/retirer la cible.
+- Apache : `wama-error.log` doit rester **petit** (rotation active). Un taux de 502 qui reste
+  ~4,6 % confirme que la cause est ailleurs ; s'il tombe, c'est qu'autre chose a changé.
+- `logs/django-errors.log` : 0 octet aujourd'hui. Tout contenu = un vrai traceback à traiter.

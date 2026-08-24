@@ -76,7 +76,9 @@ wsl.exe -e bash -lc "PGPASSWORD=*** psql -h 127.0.0.1 -U wama_user -d wama_db -t
    l'UI → `DEBUG = False`. Le journal `logs/django-errors.log` (posé le 2026-08-24) est
    **indépendant de `DEBUG`** : il continuera de recevoir les tracebacks après la bascule.
 9. **Sort d'Apache/Windows — DÉCIDÉ le 2026-08-24 : on tranche au passage en prod, pas avant.**
-   Il n'impacte rien dans l'intervalle (les 58 500 × 502 sont soldés, cf. § plus bas). Ce n'est
+   ⚠ **Correction du 24/08 au soir : les 502 ne sont PAS soldés** (4,625 % après correctif contre
+   4,336 % avant — cf. le démenti au § plus bas). Ils restent une nuisance mesurée, pas un
+   bloquant pour la décision de reporter. Ce n'est
    **pas** un résidu au sens de la base Postgres Windows : il est sur le chemin de tout le trafic
    :80 — mesuré, y compris une session navigateur en direct. Ce qu'il faudra reprendre côté nginx
    natif : l'`Alias /media/` (**72,69 Go / 44 % des octets** servis hors gunicorn), le port 80, la
@@ -267,6 +269,52 @@ lecture de la status line** — donc RST reçu *avant le moindre octet de répon
 - **Correctif** (`httpd.conf`, vhost `wama.local`) : `disablereuse=On` sur le `ProxyPass`. Pas de
   pool → pas de connexion morte réutilisée. Préféré à `ttl=` qui n'aurait que **réduit** la fenêtre,
   alors que le relais peut lâcher à tout instant. Coût : un handshake par requête, à ~0,25 req/s.
+### ⚠⚠ DÉMENTI le 2026-08-24 au soir — `disablereuse=On` N'A RIEN CHANGÉ, et ma « vérification » ne prouvait rien
+
+**Mesuré 15 h après la pose du correctif, journaux vidés donc fenêtre propre :**
+
+| | 502 / requêtes | taux |
+|---|---|---|
+| AVANT (13/07→23/08) | 21 680 / 500 000 | **4,336 %** |
+| APRÈS `disablereuse=On` (24/08 01:59→17:47) | 567 / 12 260 | **4,625 %** |
+
+Identique, très légèrement pire. **Le diagnostic « course sur le pool de connexions » est donc
+FAUX** : `disablereuse=On` supprime le pool, et les `AH01102`/`WSAECONNRESET` continuent au même
+taux. Un RST reçu avant le premier octet sur une connexion **neuve** ne peut pas être une
+connexion périmée réutilisée — c'est l'autre bout qui coupe une connexion vivante.
+
+⚠⚠ **La leçon porte sur MA vérification, pas sur le correctif.** J'avais annoncé « vérifié » sur
+**115 requêtes en 5 minutes** — dont 6 espacées de 7 s censées reproduire le motif. À 4,3 %, 115
+requêtes donnent ~5 échecs attendus ; en voir 0 avait ~0,6 % de probabilité, ce que j'ai présenté
+comme une preuve. C'était une **fenêtre trop courte sur un phénomène à faible taux** : le test ne
+pouvait pas distinguer « corrigé » de « pas de charge pendant 5 minutes ». Un taux ne se vérifie
+que sur un volume du même ordre que celui qui l'a établi. Même famille que
+« un contrôle vert sur une surface ne dit rien d'une autre ».
+
+**Ce qui reste vrai** (mesuré, indépendant du correctif) : le comptage des erreurs, leur nature
+(97,6 % WSAECONNRESET), la concentration sur les endpoints de *polling*, et l'équivalence
+`AH01102` ≈ nombre de 502 servis. **Ce qui tombe** : la cause, et donc le correctif.
+
+**Pistes NON explorées, dans l'ordre de vraisemblance** (rien n'est mesuré, ne pas les citer
+comme des faits) :
+1. **Recyclage des workers** — `max_requests = 1000` + `max_requests_jitter = 50` : 52 `SIGTERM`
+   en 36 h dans `gunicorn-error.log`. Un worker qui sort peut réinitialiser ce qu'il tient.
+2. **Saturation** — 4 workers × 2 threads = **8 requêtes concurrentes** seulement, face à un
+   polling permanent. Le `backlog` du socket est à 2048, donc ce n'est pas lui ; mais la file
+   applicative, elle, n'a que 8 places.
+3. **Le relais `netsh portproxy`** (IP Helper, userland) sur le chemin.
+
+**Test le moins cher pour trancher** : comparer, sur une MÊME fenêtre, le nombre de requêtes vues
+par Apache et par `logs/gunicorn-access.log`. Si gunicorn ne les a jamais vues → la connexion meurt
+avant lui (relais, backlog) ; s'il les a servies en 200 → c'est Apache qui perd la réponse.
+⚠ Piège rencontré : `rotate_logs` tourne les journaux gunicorn à **chaque démarrage** — vérifier
+que la fenêtre comparée est bien couverte par le fichier lu (`.1`, `.2`…), sinon on compare à du vide.
+
+**`disablereuse=On` est laissé en place pour l'instant** (il ne nuit pas de façon mesurable et
+supprime un facteur confondant), mais il ne sert à rien : il coûte un handshake par requête. À
+retirer si la piste 1 ou 2 se confirme. La **rotation** des journaux Apache, elle, reste
+pleinement justifiée — c'est elle qui a rendu cette mesure possible.
+
 - **Non couvert par ce correctif** : les 500 (exceptions Django → `logs/gunicorn-error.log`, côté
   WSL2), les `10060`/`20014` (gunicorn indisponible ou saturé), et le **volume de polling** lui-même
   — 132 461 `system-stats` + 63 548 `console` en 6 semaines.
