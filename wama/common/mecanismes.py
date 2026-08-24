@@ -471,7 +471,7 @@ MECANISMES = (
               'wama_data/sources/__init__.py', 'WAMA_DATA_WORLD.md §6.6, §9terdecies',
               annexes=('wama_data/sources/_sqlite.py',
                        'wama_data/sources/trip.py',
-                       'wama_data/sources/wrec.py',
+                       'wama_data/sources/wdat.py',
                        'wama_data/sources/rtmaps.py',
                        'wama_data/sources/tabular.py')),
     Mecanisme('data_frames_bridge', 'Pont référentiel ↔ cadres typés (WAMA Data)',
@@ -507,7 +507,7 @@ MECANISMES = (
               "code du monde Data qui ÉCRIVE du SQLite (0 `INSERT` dans tout le monde avant lui). "
               "Le moteur tient la transaction, les tranches, l'indexation temporelle et la "
               "conversion des valeurs ; un schéma ne décide que des NOMS et du CATALOGUE — c'est "
-              "ce qui garantit que `.wrec` (natif, D3) et `.trip` (compatibilité BIND) se "
+              "ce qui garantit que `.wdat` (natif, D3) et `.trip` (compatibilité BIND) se "
               "comportent pareil là où ils le doivent. Écrit d'abord un `.partiel` puis renomme : "
               "un conteneur à moitié rempli s'ouvrirait normalement en mentant sur son contenu. "
               "⚠ CE QUE LE SCHÉMA CIBLE NE SAIT PAS PORTER EST COMPTÉ, pas tu (`Rapport.pertes`) "
@@ -516,7 +516,7 @@ MECANISMES = (
               "`.trip` — écrit contre le format de l'autre, sans rien savoir de l'écrivain — le "
               "relit",
               'wama_data/containers/__init__.py', 'WAMA_DATA_WORLD.md §9quater.2, §9duodecies',
-              annexes=('wama_data/containers/wrec.py',
+              annexes=('wama_data/containers/wdat.py',
                        'wama_data/containers/trip.py')),
     Mecanisme('catalog_refresh', 'Actualisation des catalogues',
               "REGISTRE des registres : une page catalogue déclare la CLÉ de son registre et "

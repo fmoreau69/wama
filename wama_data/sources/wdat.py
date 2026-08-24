@@ -1,8 +1,8 @@
 """
-Capacité d'import : conteneurs `.wrec` — le format NATIF de WAMA Data (décision **D3**).
+Capacité d'import : conteneurs `.wdat` — le format NATIF de WAMA Data (décision **D3**).
 
 POURQUOI CE LECTEUR N'EST PAS OPTIONNEL
-    Sans lui, `.wrec` serait **write-only**, donc inutilisable comme *fichier de travail* : on
+    Sans lui, `.wdat` serait **write-only**, donc inutilisable comme *fichier de travail* : on
     pourrait produire un conteneur et jamais le rouvrir. Or c'est précisément ce que le format est
     censé être — l'endroit où les traitements s'accumulent, régénérable depuis `raw_data + protocole`
     (`WAMA_DATA_WORLD §9quater.2`, §9undecies.1).
@@ -46,13 +46,13 @@ from ._sqlite import SqliteSourceReader
 
 #: Colonnes de temps par famille — la graphie tranchée par **D9** (`time`, `start`/`end`).
 #: ⚠ Le schéma natif n'encode PAS la famille dans le nom de table : on décide donc des bornes en
-#: regardant les COLONNES présentes, jamais un préfixe. C'est exactement ce que `.wrec` corrige.
+#: regardant les COLONNES présentes, jamais un préfixe. C'est exactement ce que `.wdat` corrige.
 DEBUT, FIN, INSTANT = 'start', 'end', 'time'
 
 
-class WrecReader(SqliteSourceReader):
-    format = 'wrec'
-    extensions = ('.wrec',)
+class WdatReader(SqliteSourceReader):
+    format = 'wdat'
+    extensions = ('.wdat',)
     table_temoin = 'WamaStreams'
     description = "Conteneur natif WAMA Data — catalogue complet, unités, pertes, protocole embarqué"
 
@@ -169,4 +169,4 @@ class WrecReader(SqliteSourceReader):
         return out
 
 
-register_reader(WrecReader())
+register_reader(WdatReader())

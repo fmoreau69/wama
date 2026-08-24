@@ -7,7 +7,7 @@ POURQUOI ON ÉCRIT LE FORMAT DE L'AUTRE
     fichiers : produire un conteneur que cet outil sait ouvrir n'est pas une concession, c'est la
     condition pour que WAMA entre dans une chaîne existante au lieu de la remplacer d'un bloc.
 
-    ⚠ Ce module N'EST PAS le conteneur natif — c'est `wrec.py` (**D3**). Ici on parle la langue de
+    ⚠ Ce module N'EST PAS le conteneur natif — c'est `wdat.py` (**D3**). Ici on parle la langue de
     l'autre, et on **compte ce qu'elle ne sait pas dire**.
 
 LE SCHÉMA EST RELEVÉ, PAS DEVINÉ (2026-08-24, sur la base réelle de 1,28 Go)
@@ -28,7 +28,7 @@ LE SCHÉMA EST RELEVÉ, PAS DEVINÉ (2026-08-24, sur la base réelle de 1,28 Go)
 
     ⚠ Et le relevé a confirmé **D11** une fois de plus, sur la donnée : les 12 situations réelles se
     nomment `0_15`, `15_45`, `30_60`… — **les paramètres de fenêtre SONT le nom**. C'est ce que
-    `.wrec` refuse de reconduire ; ici on l'écrit puisque c'est la langue de l'autre.
+    `.wdat` refuse de reconduire ; ici on l'écrit puisque c'est la langue de l'autre.
 
 CE QUE CE SCHÉMA NE SAIT PAS PORTER — énuméré, jamais tu
     Un `.trip` produit depuis un référentiel WAMA **perd** des faits. `Rapport.pertes` les nomme un

@@ -1,7 +1,7 @@
 """
 Accès SQLite PARTAGÉ par les lecteurs de bases — la mécanique, jamais le schéma.
 
-⚠ POURQUOI CE MODULE EXISTE (2026-08-24, à l'arrivée du lecteur `.wrec`). `TripReader` portait
+⚠ POURQUOI CE MODULE EXISTE (2026-08-24, à l'arrivée du lecteur `.wdat`). `TripReader` portait
 ~120 lignes d'accès SQLite — ouverture en lecture seule, décodage du texte, colonnes, instants,
 bornes, et les trois niveaux d'agrégation — qui ne doivent **rien** au format de BIND. Le lecteur
 du conteneur natif en avait besoin à l'identique, à deux noms de colonne près.

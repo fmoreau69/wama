@@ -7,7 +7,7 @@ POURQUOI IL N'EXISTAIT PAS, ET POURQUOI C'EST UN MANQUE
     fichier de travail, c'est-à-dire une chaîne qui recommence à zéro à chaque ouverture.
 
 UN MOTEUR, DEUX SCHÉMAS — et ce n'est pas une commodité
-    `.wrec`  le conteneur NATIF (décision **D3**, `WAMA_DATA_WORLD §9quater.2`) ;
+    `.wdat`  le conteneur NATIF (décision **D3**, `WAMA_DATA_WORLD §9quater.2`) ;
     `.trip`  le schéma de BIND, pour la **compatibilité** — « pouvoir recréer des fichiers trip à
              partir de fichiers rec est important » (Fabien, 2026-08-24).
 
@@ -19,7 +19,7 @@ UN MOTEUR, DEUX SCHÉMAS — et ce n'est pas une commodité
     ⚠ **La structure « une table par flux » n'est PAS une bizarrerie de BIND qu'on hérite** : c'est
     la **conséquence de D10** (aucune grille de temps commune). Six cadences natives coexistent dans
     une base réelle ; les fondre en une table exigerait de rééchantillonner, ce qui est refusé. Le
-    `.wrec` garde donc la structure et **enrichit le catalogue**, il ne la corrige pas.
+    `.wdat` garde donc la structure et **enrichit le catalogue**, il ne la corrige pas.
 
 CE QUE L'ÉCRITURE N'EST PAS AUTORISÉE À FAIRE
     Elle ne touche **jamais** une source. Elle crée un fichier NEUF, et le fichier de travail
@@ -152,7 +152,7 @@ class SchemaConteneur:
     moteur, et c'est ce qui garantit que deux formats se comportent pareil là où ils le doivent.
     """
 
-    #: Identifiant stable (« wrec », « trip »…).
+    #: Identifiant stable (« wdat », « trip »…).
     format = ''
     #: Extension produite, en minuscules, point compris.
     extension = ''

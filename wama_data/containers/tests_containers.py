@@ -23,7 +23,7 @@ from wama.common.catalog.data_types import DataType
 
 from ..core.temporal import PREVIOUS, Signal, SignalMeta, TemporalReferential
 from ..sources import trip as lecteur_trip
-from ..sources import wrec as lecteur_wrec
+from ..sources import wdat as lecteur_wdat
 from . import (Contexte, Rapport, SCHEMAS, ecrire, extensions_ecrivables, modules_schemas,
                schema_pour, schemas_disponibles)
 
@@ -58,7 +58,7 @@ class RegistreTest(unittest.TestCase):
     """G1 côté écriture : le moteur ne cite aucun format."""
 
     def test_les_deux_schemas_livres_sont_enregistres(self):
-        self.assertEqual(schemas_disponibles(), ['trip', 'wrec'])
+        self.assertEqual(schemas_disponibles(), ['trip', 'wdat'])
 
     def test_les_schemas_sont_DECOUVERTS_pas_cites(self):
         moteur = (Path(__file__).parent / '__init__.py').read_text(encoding='utf-8')
@@ -68,13 +68,13 @@ class RegistreTest(unittest.TestCase):
                 "le moteur cite un schéma : ajouter un format obligerait à l'éditer (G1)")
 
     def test_un_schema_se_trouve_par_son_nom_ou_par_une_extension(self):
-        self.assertIs(schema_pour('wrec'), SCHEMAS['wrec'])
+        self.assertIs(schema_pour('wdat'), SCHEMAS['wdat'])
         self.assertIs(schema_pour('/tmp/x/essai.trip'), SCHEMAS['trip'])
-        self.assertIs(schema_pour(Path('a.wrec')), SCHEMAS['wrec'])
+        self.assertIs(schema_pour(Path('a.wdat')), SCHEMAS['wdat'])
         self.assertIsNone(schema_pour('essai.inconnu'))
 
     def test_les_extensions_ecrivables_sont_annoncees(self):
-        self.assertEqual(extensions_ecrivables(), ['.trip', '.wrec'])
+        self.assertEqual(extensions_ecrivables(), ['.trip', '.wdat'])
 
 
 class EcritureTest(unittest.TestCase):
@@ -89,17 +89,17 @@ class EcritureTest(unittest.TestCase):
 
     # ── Moteur ────────────────────────────────────────────────────────────────────────────────
     def test_le_format_se_deduit_de_l_extension(self):
-        rapport = ecrire(self.ref, self.dossier / 'a.wrec')
-        self.assertEqual(rapport.format, 'wrec')
+        rapport = ecrire(self.ref, self.dossier / 'a.wdat')
+        self.assertEqual(rapport.format, 'wdat')
 
     def test_une_extension_inconnue_est_refusee_en_nommant_les_formats_connus(self):
         with self.assertRaises(ValueError) as ctx:
             ecrire(self.ref, self.dossier / 'a.inconnu')
         self.assertIn('trip', str(ctx.exception))
-        self.assertIn('wrec', str(ctx.exception))
+        self.assertIn('wdat', str(ctx.exception))
 
     def test_un_conteneur_existant_n_est_PAS_ecrase_sans_le_dire(self):
-        cible = self.dossier / 'a.wrec'
+        cible = self.dossier / 'a.wdat'
         ecrire(self.ref, cible)
         with self.assertRaises(FileExistsError):
             ecrire(self.ref, cible)
@@ -112,14 +112,14 @@ class EcritureTest(unittest.TestCase):
         casse.add(_signal('boum', [0.0, 1.0], None))
         signal = casse.get('boum')
         signal._rows = lambda i0, i1: (_ for _ in ()).throw(RuntimeError('disque'))
-        cible = self.dossier / 'casse.wrec'
+        cible = self.dossier / 'casse.wdat'
         with self.assertRaises(RuntimeError):
             ecrire(casse, cible)
         self.assertFalse(cible.exists())
         self.assertFalse(cible.with_name(cible.name + '.partiel').exists())
 
     def test_un_echec_ne_detruit_pas_la_version_precedente(self):
-        cible = self.dossier / 'a.wrec'
+        cible = self.dossier / 'a.wdat'
         ecrire(self.ref, cible)
         avant = cible.read_bytes()
         casse = TemporalReferential(name='casse')
@@ -131,7 +131,7 @@ class EcritureTest(unittest.TestCase):
                          "un échec a remplacé un conteneur valide par rien")
 
     def test_on_peut_n_ecrire_qu_une_partie_des_flux(self):
-        rapport = ecrire(self.ref, self.dossier / 'a.wrec', flux=['vitesse'])
+        rapport = ecrire(self.ref, self.dossier / 'a.wdat', flux=['vitesse'])
         self.assertEqual(list(rapport.tables), ['flux_vitesse'])
         self.assertEqual(rapport.lignes, 3)
 
@@ -145,7 +145,7 @@ class EcritureTest(unittest.TestCase):
         ref = TemporalReferential()
         ref.add(_signal('x', [0.0, 1.0, 2.0],
                         [{'v': 1.0}, {'v': None}, {'v': math.nan}]))
-        cible = self.dossier / 'a.wrec'
+        cible = self.dossier / 'a.wdat'
         ecrire(ref, cible)
         con = sqlite3.connect(cible)
         valeurs = [r[0] for r in con.execute('SELECT "v" FROM "flux_x" ORDER BY "time"')]
@@ -158,7 +158,7 @@ class EcritureTest(unittest.TestCase):
         import math
         ref = TemporalReferential()
         ref.add(_signal('x', [0.0], [{'v': [1.0, math.nan, {'k': math.nan}]}]))
-        cible = self.dossier / 'a.wrec'
+        cible = self.dossier / 'a.wdat'
         ecrire(ref, cible)
         con = sqlite3.connect(cible)
         brut = con.execute('SELECT "v" FROM "flux_x"').fetchone()[0]
@@ -168,7 +168,7 @@ class EcritureTest(unittest.TestCase):
 
     def test_l_axe_du_temps_n_est_PAS_reecrit_en_colonne_de_donnees(self):
         """Les lignes d'un `.trip` portent déjà `timecode` ; le recopier dupliquerait l'instant."""
-        cible = self.dossier / 'a.wrec'
+        cible = self.dossier / 'a.wdat'
         ecrire(self.ref, cible)
         con = sqlite3.connect(cible)
         cols = [r[1] for r in con.execute('PRAGMA table_info("flux_vitesse")')]
@@ -179,12 +179,12 @@ class EcritureTest(unittest.TestCase):
         ref = TemporalReferential()
         lignes = [{'a': 1}, {'a': 2}, {'a': 3, 'surprise': 9}]
         ref.add(_signal('x', [0.0, 1.0, 2.0], lignes))
-        rapport = ecrire(ref, self.dossier / 'a.wrec', tranche=2)
+        rapport = ecrire(ref, self.dossier / 'a.wdat', tranche=2)
         self.assertTrue(any('surprise' in p for p in rapport.pertes),
                         "une variable entière a disparu sans trace")
 
     def test_l_axe_du_temps_est_INDEXE(self):
-        cible = self.dossier / 'a.wrec'
+        cible = self.dossier / 'a.wdat'
         ecrire(self.ref, cible)
         con = sqlite3.connect(cible)
         idx = [r[0] for r in con.execute(
@@ -193,10 +193,10 @@ class EcritureTest(unittest.TestCase):
         self.assertIn('idx_flux_vitesse', idx)
 
 
-class WrecTest(unittest.TestCase):
+class WdatTest(unittest.TestCase):
     def setUp(self):
-        self.dossier = Path(tempfile.mkdtemp(prefix='wama_wrec_'))
-        self.cible = self.dossier / 'essai.wrec'
+        self.dossier = Path(tempfile.mkdtemp(prefix='wama_wdat_'))
+        self.cible = self.dossier / 'essai.wdat'
         self.ref = _referentiel()
 
     def tearDown(self):
@@ -275,7 +275,7 @@ class WrecTest(unittest.TestCase):
         meta = dict(self._table('SELECT key, value FROM "WamaMeta"'))
         self.assertEqual(meta['created_by'], 'fabien')
         self.assertEqual(meta['created_at'], '2026-08-24')
-        self.assertEqual(meta['format'], 'wrec')
+        self.assertEqual(meta['format'], 'wdat')
 
     def test_le_format_natif_ne_declare_AUCUNE_perte(self):
         rapport = ecrire(self.ref, self.cible)
@@ -452,20 +452,20 @@ class EncodageLecteurTest(unittest.TestCase):
 
 class RapportTest(unittest.TestCase):
     def test_un_rapport_sans_perte_est_fidele(self):
-        self.assertTrue(Rapport(chemin='a', format='wrec', tables={'t': 2}).fidele)
+        self.assertTrue(Rapport(chemin='a', format='wdat', tables={'t': 2}).fidele)
 
     def test_un_rapport_compte_toutes_ses_lignes(self):
-        self.assertEqual(Rapport(chemin='a', format='wrec',
+        self.assertEqual(Rapport(chemin='a', format='wdat',
                                  tables={'a': 2, 'b': 3}).lignes, 5)
 
 
-class WrecAllerRetourTest(unittest.TestCase):
+class WdatAllerRetourTest(unittest.TestCase):
     """⭐ G7 appliqué au format natif : on écrit, on relit, on compare. Un lecteur jugé sur des
     fixtures qu'il a lui-même inspirées ne prouverait que sa cohérence interne."""
 
     def setUp(self):
         self.dossier = Path(tempfile.mkdtemp(prefix='wama_ar_'))
-        self.cible = self.dossier / 'essai.wrec'
+        self.cible = self.dossier / 'essai.wdat'
         self.ref = _referentiel()
         self.contexte = Contexte(auteur='fabien', horodatage='2026-08-24', manifestes=[
             {'manifest_kind': 'pipeline', 'key': 'protocole-a', 'schema_version': '2',
@@ -478,18 +478,18 @@ class WrecAllerRetourTest(unittest.TestCase):
 
     def _relire(self):
         ecrire(self.ref, self.cible, contexte=self.contexte)
-        return {s.meta.name: s for s in lecteur_wrec.WrecReader().read(self.cible)}
+        return {s.meta.name: s for s in lecteur_wdat.WdatReader().read(self.cible)}
 
     def test_le_lecteur_natif_reconnait_ce_que_l_ecrivain_produit(self):
         ecrire(self.ref, self.cible, contexte=self.contexte)
-        self.assertTrue(lecteur_wrec.WrecReader().can_read(self.cible))
+        self.assertTrue(lecteur_wdat.WdatReader().can_read(self.cible))
 
-    def test_un_wrec_n_est_PAS_pris_pour_un_trip(self):
+    def test_un_wdat_n_est_PAS_pris_pour_un_trip(self):
         """Les deux sont du SQLite et le registre rend le PREMIER lecteur qui accepte : sans
         reniflage du contenu, l'un mangerait les fichiers de l'autre."""
         from .. import sources
         ecrire(self.ref, self.cible, contexte=self.contexte)
-        self.assertEqual(sources.reader_for(self.cible).format, 'wrec')
+        self.assertEqual(sources.reader_for(self.cible).format, 'wdat')
 
     def test_les_flux_les_instants_et_les_valeurs_reviennent(self):
         relu = self._relire()
@@ -520,7 +520,7 @@ class WrecAllerRetourTest(unittest.TestCase):
         ref = TemporalReferential()
         ref.add(_signal('x', [0.0], [{'a': 1}], pertes=3))
         ecrire(ref, self.cible)
-        relu = lecteur_wrec.WrecReader().read(self.cible)
+        relu = lecteur_wdat.WdatReader().read(self.cible)
         self.assertEqual(relu[0].meta.pertes, 3)
 
     def test_le_DECALAGE_par_flux_revient(self):
@@ -528,7 +528,7 @@ class WrecAllerRetourTest(unittest.TestCase):
         ref = TemporalReferential()
         ref.add(_signal('x', [0.0], [{'a': 1}]), offset=-0.65)
         ecrire(ref, self.cible)
-        self.assertAlmostEqual(lecteur_wrec.WrecReader().read(self.cible)[0].offset, -0.65)
+        self.assertAlmostEqual(lecteur_wdat.WdatReader().read(self.cible)[0].offset, -0.65)
 
     def test_un_segment_OUVERT_survit_a_l_aller_retour_ET_reste_INTERROGEABLE(self):
         """⚠ La leçon de D15 : prouver que la valeur SURVIT ne prouve pas qu'on puisse
@@ -547,7 +547,7 @@ class WrecAllerRetourTest(unittest.TestCase):
 
     def test_l_inventaire_COMPTE_les_protocoles_embarques(self):
         ecrire(self.ref, self.cible, contexte=self.contexte)
-        info = lecteur_wrec.WrecReader().probe(self.cible)
+        info = lecteur_wdat.WdatReader().probe(self.cible)
         self.assertIn('1 protocole(s) embarqué(s)', info.notes)
         self.assertIn('pipeline:protocole-a', info.notes)
         self.assertEqual(info.attributes['created_by'], 'fabien')
@@ -555,7 +555,7 @@ class WrecAllerRetourTest(unittest.TestCase):
     def test_les_protocoles_sont_EXPOSES_mais_jamais_ingeres(self):
         """Rouvrir un conteneur ne doit pas écrire dans le magasin par effet de bord (D16)."""
         ecrire(self.ref, self.cible, contexte=self.contexte)
-        protos = lecteur_wrec.WrecReader().protocoles(self.cible)
+        protos = lecteur_wdat.WdatReader().protocoles(self.cible)
         self.assertEqual(len(protos), 1)
         self.assertEqual(protos[0]['manifest_kind'], 'pipeline')
         self.assertTrue(protos[0]['read_only'])
@@ -564,12 +564,75 @@ class WrecAllerRetourTest(unittest.TestCase):
     def test_un_flux_INCONNU_est_refuse_en_nommant_les_flux_reels(self):
         ecrire(self.ref, self.cible, contexte=self.contexte)
         with self.assertRaises(ValueError) as ctx:
-            lecteur_wrec.WrecReader().read(self.cible, streams=['fantome'])
+            lecteur_wdat.WdatReader().read(self.cible, streams=['fantome'])
         self.assertIn('vitesse', str(ctx.exception))
 
-    def test_le_point_d_entree_UNIVERSEL_charge_un_wrec_sans_savoir_qui_le_lit(self):
+    def test_le_point_d_entree_UNIVERSEL_charge_un_wdat_sans_savoir_qui_le_lit(self):
         from .. import sources
         ecrire(self.ref, self.cible, contexte=self.contexte)
         referentiel = sources.load(self.cible)
         self.assertEqual(referentiel.names, ['marqueurs', 'phases', 'vitesse'])
         self.assertEqual(referentiel.at('vitesse', 0.11), 1)
+
+
+class NomAbandonneTest(unittest.TestCase):
+    """⚠ LA GARDE DU RENOMMAGE (D17, 2026-08-24). Le conteneur natif s'est appelé `.wrec` pendant
+    24 heures avant de devenir `.wdat`.
+
+    Pourquoi un test et pas une relecture : **un renommage ne casse rien, il rend FAUX** (leçon du
+    23/08). Une occurrence oubliée ne lève aucune exception — elle produit une comparaison qui
+    n'égale plus rien, un chemin qui ne pointe plus, ou une phrase de documentation qui décrit un
+    format disparu. Aucun de ces trois cas ne se signale.
+
+    ⚠ Le contrôle porte sur LE MONDE ENTIER, pas sur ce paquet : la chaîne vivait aussi dans
+    `modules.py`, `core/noms.py` et `sources/`. Un garde-fou qui ne regarde que chez lui reproduit
+    exactement le défaut de `mecanismes_scan.py`, corrigé le même jour — il accusait précisément
+    le monde qu'il ne balayait pas.
+    """
+
+    ABANDONNE = 'wrec'
+
+    #: Les SEULS fichiers autorisés à prononcer le nom abandonné, et pourquoi. ⚠ Une dérogation
+    #: non motivée est une porte ouverte : la liste est courte, nominative, et **vérifiée** par
+    #: `test_aucune_derogation_PERIMEE` — une dérogation qui ne sert plus doit disparaître, sinon
+    #: elle finirait par couvrir une vraie régression le jour où le fichier change de contenu.
+    DEROGATIONS = {
+        'containers/tests_containers.py': "la garde doit nommer ce qu'elle interdit",
+        'containers/wdat.py': "l'en-tête CONSIGNE la supersession (D3 → D17) — « consigner ce "
+                              "que ça remplace » est une règle du dépôt",
+    }
+
+    def _occurrences(self):
+        monde = Path(__file__).resolve().parents[1]
+        trouve = {}
+        for f in sorted(monde.rglob('*.py')):
+            if '__pycache__' in str(f):
+                continue
+            texte = f.read_text(encoding='utf-8')
+            if self.ABANDONNE in texte.lower():
+                rel = f.relative_to(monde).as_posix()
+                trouve[rel] = [i for i, l in enumerate(texte.splitlines(), 1)
+                               if self.ABANDONNE in l.lower()]
+        return trouve
+
+    def test_le_nom_ABANDONNE_ne_survit_nulle_part_dans_le_monde(self):
+        fautifs = [f"{rel}:{','.join(map(str, lignes))}"
+                   for rel, lignes in self._occurrences().items()
+                   if rel not in self.DEROGATIONS]
+        self.assertEqual(
+            fautifs, [],
+            f"« {self.ABANDONNE} » a survécu au renommage D17 — et ça ne lèvera jamais tout "
+            f"seul : {'; '.join(fautifs)}")
+
+    def test_aucune_derogation_PERIMEE(self):
+        """⚠ Le second risque d'une liste de dérogations : qu'elle survive à sa raison d'être."""
+        presents = set(self._occurrences())
+        mortes = sorted(set(self.DEROGATIONS) - presents)
+        self.assertEqual(mortes, [],
+                         f"dérogation sans objet — à retirer : {', '.join(mortes)}")
+
+    def test_le_nom_RETENU_est_bien_celui_qui_est_enregistre(self):
+        """Contre-épreuve : la garde ci-dessus passerait aussi si le format avait disparu."""
+        self.assertIn('wdat', SCHEMAS)
+        self.assertEqual(SCHEMAS['wdat'].extension, '.wdat')
+        self.assertIn('.wdat', extensions_ecrivables())

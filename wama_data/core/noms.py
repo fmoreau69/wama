@@ -46,7 +46,7 @@ PREFIXE_TABLE = 3
 COLONNES_TEMPS = ('time', 'timestamp', 'timecode', 't', 'temps', 'time_s', 'seconds')
 
 #: TOUS les noms d'axe temporel bruts — les alias d'ingestion **plus** les deux bornes du schéma
-#: `.trip` et celles du `.wrec`. C'est l'ensemble à retirer des colonnes de DONNÉES : l'instant d'un
+#: `.trip` et celles du `.wdat`. C'est l'ensemble à retirer des colonnes de DONNÉES : l'instant d'un
 #: échantillon est porté par le référentiel, le réécrire en colonne le dupliquerait.
 #:
 #: ⚠ Comparer en MINUSCULES : `startTimecode` et `starttimecode` désignent la même colonne, et

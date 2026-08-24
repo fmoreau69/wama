@@ -1,11 +1,29 @@
 """
-Schéma `.wrec` — le conteneur NATIF de WAMA Data (décision **D3**, `WAMA_DATA_WORLD §9quater.2`).
+Schéma `.wdat` — le conteneur NATIF de WAMA Data (**D3** puis **D17**, `WAMA_DATA_WORLD §9quater.2`).
 
-POURQUOI `.wrec` ET PAS `.trip`
-    `trip` présuppose un DÉPLACEMENT là où le besoin est une **acquisition multi-flux datée** : un
-    laboratoire qui analyse des données temporelles sans aucun trajet n'a pas à manipuler des
-    « trips ». Ni `.dataset` (déjà pris — un kind de manifeste désigne un CORPUS, pas un
-    enregistrement) ni `.rec` (RTMaps). Même motif que `SECTIONS` → `SEGMENTS` du 2026-08-20.
+POURQUOI `.wdat`, ET POURQUOI PAS LES QUATRE AUTRES CANDIDATS
+    `.trip`     présuppose un **DÉPLACEMENT** — un laboratoire qui analyse des données temporelles
+                sans aucun trajet n'a pas à manipuler des « trips ». C'est **D3**.
+    `.rec`      pris par RTMaps.
+    `.dataset`  pris — le kind de manifeste désigne une **EXPÉRIMENTATION** (un corpus de N
+                fichiers), pas un essai.
+    `.wrec`     ⚠ **le nom porté du 23 au 24/08, et abandonné le 24 — c'est D17.** « rec »
+                présuppose une **session d'enregistrement live**, exactement le même défaut que
+                `trip` un cran plus loin : le monde doit tenir des données temporelles sans aucune
+                acquisition. Retenir le critère pour `trip` et l'écarter pour `rec` aurait été
+                défendre un choix parce qu'il était le nôtre. Et `.wrec` était à **une lettre** de
+                `.rec`, qu'on lit — dans un Converter qui manipule les deux, la confusion était
+                garantie.
+    `.wds`      « WAMA DataSet » — écarté : il **écrase deux étages** de la hiérarchie
+                (projet → expérimentation → participant → **essai** → event/situation). Le kind
+                `dataset` est l'expérimentation ; ce fichier est UN essai.
+    `.wdb`      « WAMA DataBase » — écarté, et c'était le pire : il nomme **une chose qui existe
+                déjà et qui est différente**, la base Postgres de WAMA. Un nom faux par COLLISION
+                envoie au mauvais endroit ; un nom faux par connotation ne fait qu'être étroit.
+
+    ⭐ `.wdat` ne présuppose rien — ce qui est exactement l'objet du renommage.
+    ⚠ Le SCHÉMA, lui, n'a pas changé d'un octet : les tables du catalogue s'appelaient déjà
+    `Wama*`, jamais `Wrec*`. On a renommé l'emballage, pas le format.
 
 CE QU'IL GARDE DE `.trip`, ET POURQUOI CE N'EST PAS DE L'HÉRITAGE
     **Une table par flux.** C'est la conséquence directe de **D10** (aucune grille de temps
@@ -53,9 +71,9 @@ VERSION = '1'
 PREFIXE = 'flux_'
 
 
-class SchemaWrec(SchemaConteneur):
-    format = 'wrec'
-    extension = '.wrec'
+class SchemaWdat(SchemaConteneur):
+    format = 'wdat'
+    extension = '.wdat'
     description = "Conteneur natif WAMA Data — un flux par table, catalogue complet, protocole embarqué"
 
     def nom_table(self, signal: Signal) -> str:
@@ -83,7 +101,7 @@ class SchemaWrec(SchemaConteneur):
     def _meta(con, entrees: Sequence[Entree], contexte: Contexte) -> None:
         con.execute('CREATE TABLE "WamaMeta" (key TEXT PRIMARY KEY, value TEXT)')
         lignes = [
-            ('format', 'wrec'),
+            ('format', 'wdat'),
             ('schema_version', VERSION),
             ('created_at', contexte.date()),
             ('created_by', contexte.auteur),
@@ -157,4 +175,4 @@ class SchemaWrec(SchemaConteneur):
         return []
 
 
-enregistrer_schema(SchemaWrec())
+enregistrer_schema(SchemaWdat())

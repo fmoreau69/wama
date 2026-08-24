@@ -149,7 +149,7 @@ class RafraichissementConteneursTest(unittest.TestCase):
         """Un registre repeuplé d'objets inertes passerait les comptages sans rien savoir écrire."""
         from wama_data.containers import schema_pour
         REGISTRES['conteneurs_data'].rafraichir()
-        self.assertIsNotNone(schema_pour('essai.wrec'))
+        self.assertIsNotNone(schema_pour('essai.wdat'))
         self.assertIsNotNone(schema_pour('essai.trip'))
 
     def test_un_rechargement_qui_ECHOUE_restaure_le_registre(self):

@@ -38,9 +38,9 @@
 
 | Module | Rôle | Flux | État | Briques | Testées | Conso. int/ext | Doc |
 |---|---|---|---|---|---|---|---|
-| **Importer** | Lit une source et rend un référentiel temporel interrogeable | fichiers + manifeste `dataset` → référentiel, écrit en `.wrec` | 🔶 | 9/9 | 3 | 7/0 | §6.6, §6.6bis, §9bis.1, §9quater.2, §9duodecies, §9terdecies |
+| **Importer** | Lit une source et rend un référentiel temporel interrogeable | fichiers + manifeste `dataset` → référentiel, écrit en `.wdat` | 🔶 | 9/9 | 3 | 7/0 | §6.6, §6.6bis, §9bis.1, §9quater.2, §9duodecies, §9terdecies |
 | **Référentiel temporel** | Aligne des flux à cadences incommensurables | référentiel → échantillons, `segments`, vue décimée, cadres typés | 🔶 | 2/2 | 2 | 2/0 | §2, §3, §9quater.7 |
-| **Connector** | Branche une base existante comme source | base SQLite (`.trip` externe, `.wrec` natif) → référentiel | 🔶 | 3/3 | 0 | 3/0 | §6.2, §9quater.2, §9terdecies |
+| **Connector** | Branche une base existante comme source | base SQLite (`.trip` externe, `.wdat` natif) → référentiel | 🔶 | 3/3 | 0 | 3/0 | §6.2, §9quater.2, §9terdecies |
 | **Explorer** | Explore un dataset en table et en graphe — c'est aussi l'INTERFACE du Calculator : la vue tableur est le lieu où l'on ajoute une colonne calculée et où l'on voit le résultat | référentiel → vues table/graphe + colonnes calculées | 🔶 | 2/2 | 2 | 1/0 | §7, §9quater.6, §9quater.7 |
 | **Segmenter** | Produit des segments : autour d'un événement, par jonction de deux flux, par CHAÎNE de conditions (ET/OU/XOR/NON) avec hystérésis, par plages constantes d'un catégoriel, ou par CODAGE (humain ou IA) — la chaîne sort en segments OU en événements, au choix du PORT | `events` ou signal + conditions → `segments` \| `events` | 🔶 | 6/6 | 4 | 16/0 | §9ter (spécification), §9ter.6 A-B (portage), §6.7 |
 | **Calculator** | Calcule des COLONNES DÉRIVÉES (moyenne glissante, dérivée, cumul) et des INDICATEURS PAR SEGMENT qu'il adjoint aux segments | signal → signal enrichi · `segments` + signal → colonnes d'indicateurs | 🔶 | 3/3 | 2 | 5/0 | §6.7 |
@@ -51,9 +51,9 @@
 
 <details><summary>⚠ <b>10 module(s) avec un blocage déclaré</b> — ce qui empêche d'avancer, en une ligne</summary>
 
-- **Importer** — alignement par TRIGGERS non conçu (D12) ; ⚠ le lecteur `.rec` EXISTE depuis le 2026-08-24 (`sources/rtmaps.py`, inventaire par le `.idy`, vérifié sur les DEUX grammaires RTMaps et contre l'export CSV de RTMaps lui-même) — reste la couche SÉMANTIQUE par famille de flux (le `data_parser/` de pynd : `clé=valeur` à virgule française, JSON, colonnes tabulées), la charge étant aujourd'hui rendue telle quelle ; `functions/io/rtmaps_rec.py` demeure un utilitaire du Lab, non migré à dessein. ⚠ « l'ÉCRITURE du conteneur natif `.wrec` reste à écrire — aucune ligne n'écrit encore de SQLite » a été RETIRÉ le 2026-08-24 : l'écrivain (`containers/`, un moteur et deux schémas) ET le lecteur (`sources/wrec.py`) sont livrés, l'aller-retour est éprouvé et la compatibilité BIND attestée par contre-épreuve (§9duodecies, §9terdecies). ⚠ « `DATASET_SOURCES` non réconcilié avec le registre des lecteurs (G1) » a été RETIRÉ de cette liste le 2026-08-24 : c'était une glose fausse à deux titres (§9decies). G1 dit « le moteur ne cite aucun format » — vrai défaut, corrigé, testé. Et `source.type` (PROVENANCE) n'a pas à coïncider avec un format de lecteur (CAPACITÉ) : le kind réclame un reader source-AGNOSTIQUE
+- **Importer** — alignement par TRIGGERS non conçu (D12) ; ⚠ le lecteur `.rec` EXISTE depuis le 2026-08-24 (`sources/rtmaps.py`, inventaire par le `.idy`, vérifié sur les DEUX grammaires RTMaps et contre l'export CSV de RTMaps lui-même) — reste la couche SÉMANTIQUE par famille de flux (le `data_parser/` de pynd : `clé=valeur` à virgule française, JSON, colonnes tabulées), la charge étant aujourd'hui rendue telle quelle ; `functions/io/rtmaps_rec.py` demeure un utilitaire du Lab, non migré à dessein. ⚠ « l'ÉCRITURE du conteneur natif `.wdat` reste à écrire — aucune ligne n'écrit encore de SQLite » a été RETIRÉ le 2026-08-24 : l'écrivain (`containers/`, un moteur et deux schémas) ET le lecteur (`sources/wdat.py`) sont livrés, l'aller-retour est éprouvé et la compatibilité BIND attestée par contre-épreuve (§9duodecies, §9terdecies). ⚠ « `DATASET_SOURCES` non réconcilié avec le registre des lecteurs (G1) » a été RETIRÉ de cette liste le 2026-08-24 : c'était une glose fausse à deux titres (§9decies). G1 dit « le moteur ne cite aucun format » — vrai défaut, corrigé, testé. Et `source.type` (PROVENANCE) n'a pas à coïncider avec un format de lecteur (CAPACITÉ) : le kind réclame un reader source-AGNOSTIQUE
 - **Référentiel temporel** — ⚠ Son blocage « AUCUN consommateur » est LEVÉ le 2026-08-23 : il n'en avait aucun parce que rien ne pouvait convertir sa sortie en `TypedFrame` — c'est désormais `frames.py`. Un flux chargé traverse une fonction du catalogue et revient au référentiel (34 tests). Reste : la fenêtre/résolution comme DÉCLARATION sérialisable (le view-model de l'Explorer)
-- **Connector** — Les DEUX bases se lisent depuis le 2026-08-24 (`.trip` externe et `.wrec` natif, socle SQLite partagé). ⚠ Ce qui le sépare encore de l'Importer n'est PAS une capacité de lecture mais un GESTE : brancher une base sans la copier suppose de décider ce qu'on fait d'une source qui bouge sous les pieds — question jamais posée, et c'est elle le vrai reste
+- **Connector** — Les DEUX bases se lisent depuis le 2026-08-24 (`.trip` externe et `.wdat` natif, socle SQLite partagé). ⚠ Ce qui le sépare encore de l'Importer n'est PAS une capacité de lecture mais un GESTE : brancher une base sans la copier suppose de décider ce qu'on fait d'une source qui bouge sous les pieds — question jamais posée, et c'est elle le vrai reste
 - **Explorer** — CŒUR LIVRÉ le 2026-08-23 — le PONT (`frames.py`, 34 tests) et le VIEW-MODEL (`vue.py`, 31 tests) : une `Vue` déclare flux/fenêtre/résolution/colonnes dérivées, est sérialisable en JSON, et rend la règle de §9quater.4 EXÉCUTABLE en la dérivant de la `FunctionCategory`. Reste l'UI, et elle seule : `wama_data` n'a encore AUCUNE surface Django (ni views, ni urls, ni templates) et aucune bibliothèque de graphe n'est vendorée — deux décisions cadrées par §9quater.7 (« une lib qui DESSINE oui, une lib qui décide de la MISE EN PAGE non »)
 - **Segmenter** — MOTEUR complet — le portage schéma-driven de §9ter.6 A-B est LIVRÉ le 2026-08-23 (chaîne de conditions en ARBRE, 14 opérateurs filtrés par la SORTE de colonne LUE dans la donnée, offsets et « répéter » de la jonction, second port `masque → events`). Restent DEUX manques de §9ter.6 A, tous deux d'INTERFACE et non de moteur : le filtrage manuel occurrence par occurrence (= la file de cards + l'inspecteur, mécanisme existant, zéro code) et l'interface de codage, qui doit se GÉNÉRER du protocole — elle dépend du transport (Magneto + vue média) et de la vue déclarative, donc du Visualizer
 - **Calculator** — MOTEUR écrit et éprouvé (49 tests — 32 sur le cœur pur, 17 sur la frontière pandas) : reste son emploi sur un corpus RÉEL, qui dépend de l'Importer — sans flux aligné, il n'y a rien à calculer
@@ -1410,7 +1410,7 @@ qui rend les décisions ci-dessous peu coûteuses.
 encore écrit, donc **rien n'est encore à migrer** — c'est le moment le moins cher pour nommer le
 conteneur et fixer la règle.
 
-### 9quater.2 D3 TRANCHÉE — le conteneur natif s'appelle `.wrec`
+### 9quater.2 D3 TRANCHÉE — le conteneur natif s'appelle `.wdat`
 
 **Il faut séparer deux choses que le mot « `.trip` » confond :**
 
@@ -1426,7 +1426,7 @@ Data doit rester universel* ». `trip` est la même faute un cran au-dessus : il
 **déplacement** là où le besoin réel est **une acquisition multi-flux datée**. Un labo qui analyse
 des données temporelles sans aucun trajet — y compris le LESCOT — n'a pas à manipuler des « trips ».
 
-**Nom retenu : `.wrec`** (« enregistrement WAMA »). Trois raisons :
+**Nom retenu : `.wdat`** (« enregistrement WAMA »). Trois raisons :
 
 1. il dit ce que la chose **est** (une acquisition datée), pas ce qu'on en fait ;
 2. il est neutre sur le domaine — routier, oculométrie, audio, comportement ;
@@ -1512,7 +1512,7 @@ distingue par sa **PROVENANCE DÉCLARÉE**. Le patron existe déjà un cran plus
 Segmenter pose `origin` sur **chaque segment produit**, pour qu'on puisse distinguer plus tard un
 segment codé par un humain d'un segment proposé par un modèle. Même geste, au niveau de la table :
 
-- **elle vit dans le même conteneur** (`.wrec`) que ses sources, jamais dans un fichier à part —
+- **elle vit dans le même conteneur** (`.wdat`) que ses sources, jamais dans un fichier à part —
   une table dérivée séparée de son enregistrement devient orpheline à la première copie ;
 - **elle porte sa provenance en méta** : tables sources, grille cible, méthode d'alignement,
   contexte éventuel. Pas dans son NOM (D11) ;
@@ -1549,7 +1549,7 @@ Les valeurs ne s'écrivent **en dur** qu'à l'**export**, où elles sont précis
 | niveau | écriture | régénérable depuis |
 |---|---|---|
 | **raw data** — `.rec`, CSV, vidéos, hors dépôt | ❌ **jamais** | — c'est l'origine |
-| **fichier de travail** — le `.wrec` | ✅ **oui** | raw + protocole + gestes |
+| **fichier de travail** — le `.wdat` | ✅ **oui** | raw + protocole + gestes |
 | **déclarations** — `Vue`, `Declaration`, conditions, protocole | ✅ | elles SONT la source |
 
 > **Le critère tient en une ligne : on écrit là où c'est RÉGÉNÉRABLE.** Le fichier de travail est
@@ -1733,9 +1733,9 @@ La réponse n'est pas la même par couche :
 > non.** Deux précédents du dépôt disent la même chose — le **runtime Hermes écarté**, et le
 > **DeepSeek Harness dont on n'a rien intégré** (« seule leçon = registre keyé »).
 
-⚠ **À mentionner pour l'écrivain `.wrec`, pas pour maintenant** : **DuckDB** (MIT) lit du SQLite
+⚠ **À mentionner pour l'écrivain `.wdat`, pas pour maintenant** : **DuckDB** (MIT) lit du SQLite
 directement et ferait une colonne dérivée sur 5 M lignes quasi gratuitement. C'est le moteur naturel
-d'un `.wrec` — mais il concurrencerait `core/temporal.py`, donc c'est une décision à part.
+d'un `.wdat` — mais il concurrencerait `core/temporal.py`, donc c'est une décision à part.
 
 ⚠ Quel que soit le choix : **vendoring obligatoire** (pas de CDN, cf. les 9 paquets de
 `wama/static/vendors/` — aucune bibliothèque de graphe à ce jour), et **ratification par
@@ -1951,7 +1951,7 @@ pour un nom de table était une **ambiguïté réelle**. Et `champ` s'aligne sur
 > l'argument de la fonction dans les `params`.**
 
 ⚠ Le renommage était **gratuit à cet instant précis** — rien n'est encore persisté. Le même
-argument que `.wrec` (§9quater.2) : c'est le moment le moins cher, et il ne se représentera pas.
+argument que `.wdat` (§9quater.2) : c'est le moment le moins cher, et il ne se représentera pas.
 
 ### 9sexies.4 🟠 Le nommage dérivé — quatre règles, trois lieux, dont une f-string
 
@@ -2227,7 +2227,7 @@ manifeste `dataset` → référentiel → Vue → fonction du catalogue → Decl
 refuserait), et que **les trois déclarations font l'aller-retour JSON** — sans quoi la chaîne ne
 serait pas rejouable.
 
-`wama_data` : **472 → 496 tests**. ⏳ Reste au chantier du point d'entrée : l'**écrivain `.wrec`**
+`wama_data` : **472 → 496 tests**. ⏳ Reste au chantier du point d'entrée : l'**écrivain `.wdat`**
 (aucune ligne n'écrit encore de SQLite) et un corpus de manifestes `dataset` (le dossier n'existe
 pas).
 
@@ -2392,7 +2392,7 @@ formule qui a circulé.
         ↓  l'AI-Assistant traduit
    manifeste `pipeline`                (déclaration exécutable — le LLM propose, la machine dispose)
         ↓  WAMA déroule
-   écriture dans le fichier de TRAVAIL (.wrec natif, ou .trip si compatibilité BIND)
+   écriture dans le fichier de TRAVAIL (.wdat natif, ou .trip si compatibilité BIND)
         ↓  génération
    script rejouable                    (Python d'abord, autres langages selon couverture MESURÉE)
 ```
@@ -2464,7 +2464,7 @@ Deux emplacements, **et c'est bien les deux** :
 | | rôle | droits |
 |---|---|---|
 | **magasin** (`Manifest`) | LA source — éditable, versionnée, unique | lecture/écriture |
-| **copie projetée** (dans le `.wrec`) | rend le conteneur autoportant | **lecture seule, estampillée** |
+| **copie projetée** (dans le `.wdat`) | rend le conteneur autoportant | **lecture seule, estampillée** |
 
 L'estampille (quel manifeste, quelle version) est ce qui empêche la copie de devenir une **seconde
 source**. Sans elle, on aurait exactement la duplication que « une source, N rendus » interdit.
@@ -2502,7 +2502,7 @@ D'où la règle, en trois temps :
 
 ### 9duodecies.1 Pourquoi un seul moteur
 
-`.wrec` (natif, **D3**) et `.trip` (compatibilité BIND) partagent **toute** la mécanique : une table
+`.wdat` (natif, **D3**) et `.trip` (compatibilité BIND) partagent **toute** la mécanique : une table
 par flux, un index temporel, une écriture transactionnelle par tranches, la conversion des valeurs.
 Ils ne diffèrent que par des **noms** et par la **richesse du catalogue**. Deux écrivains auraient
 donc dupliqué la seule partie difficile pour ne varier que la partie triviale.
@@ -2530,7 +2530,7 @@ existante n'est remplacée qu'une fois la nouvelle complète, et un échec la la
 conteneur existant n'est jamais écrasé sans `ecraser=True` — c'est un fichier de **travail**, il
 porte des traitements.
 
-### 9duodecies.3 Ce que `.wrec` corrige — quatre faits que `.trip` connaît sans les porter
+### 9duodecies.3 Ce que `.wdat` corrige — quatre faits que `.trip` connaît sans les porter
 
 1. ⭐ **La famille n'est plus dans le NOM.** `.trip` l'encode en préfixe (`data_`/`event_`/
    `situation_`) ; ici **toutes** les tables portent le même préfixe `flux_` — le nom ne dit rien,
@@ -2543,7 +2543,7 @@ porte des traitements.
    rapprocher du magasin ni la dater, donc elle cesse d'être une projection pour devenir une
    seconde source (§9undecies.4).
 
-Et `.wrec` **garde** de `.trip` la structure « une table par flux » — parce qu'elle est la
+Et `.wdat` **garde** de `.trip` la structure « une table par flux » — parce qu'elle est la
 conséquence de **D10** (aucune grille commune), pas une bizarrerie héritée.
 
 ### 9duodecies.4 Le schéma `.trip` est RELEVÉ, pas deviné
@@ -2563,7 +2563,7 @@ Reproduit tel quel — un outil qui itère les variables attendrait sinon une co
 
 ⚠ **Et le relevé a confirmé D11 sur la donnée** : les 12 situations réelles se nomment `0_15`,
 `15_45`, `30_60`… — **les paramètres de fenêtre SONT le nom**, avec 312 lignes de variables pour
-12 situations. C'est ce que `.wrec` refuse de reconduire.
+12 situations. C'est ce que `.wdat` refuse de reconduire.
 
 **La compatibilité est attestée par CONTRE-ÉPREUVE**, pas par affirmation : ce que WAMA écrit,
 `TripReader` — écrit contre le format de BIND, sans rien savoir de cet écrivain — le relit, et
@@ -2610,11 +2610,11 @@ absence était donc écrite sous une forme qu'aucun analyseur standard ne relit 
 
 ---
 
-## 9terdecies. LE LECTEUR `.wrec` — et le socle SQLite que le second lecteur a révélé (2026-08-24)
+## 9terdecies. LE LECTEUR `.wdat` — et le socle SQLite que le second lecteur a révélé (2026-08-24)
 
-> Sans lecteur, `.wrec` était **write-only** : on pouvait produire un conteneur et jamais le
+> Sans lecteur, `.wdat` était **write-only** : on pouvait produire un conteneur et jamais le
 > rouvrir. Or c'est exactement ce que le format est censé être — **le fichier de travail**, l'endroit
-> où les traitements s'accumulent. `sources/wrec.py` le referme.
+> où les traitements s'accumulent. `sources/wdat.py` le referme.
 
 ### 9terdecies.1 Le socle, révélé par le second lecteur
 
@@ -2641,7 +2641,7 @@ est une règle qu'on perd en touchant l'autre. `_values(table, colonne, tri)` la
 
 ### 9terdecies.2 Ce que le lecteur natif relit et que `.trip` ne sait pas dire
 
-| fait | `.trip` | `.wrec` |
+| fait | `.trip` | `.wdat` |
 |---|---|---|
 | famille du flux | déduite d'un **préfixe de table** | `WamaStreams.data_type`, **relue** |
 | unité par colonne | champ présent, **vide partout, jamais relu** | `WamaVariables.unit`, écrite **et relue** |
@@ -2650,7 +2650,7 @@ est une règle qu'on perd en touchant l'autre. `_values(table, colonne, tri)` la
 | protocole embarqué | aucune table | `WamaManifests`, estampillé |
 
 ⭐ **La famille se décide sur les COLONNES PRÉSENTES, jamais sur le nom de table.** C'est ce que
-`.wrec` corrige : `flux_phases` ne dit rien, la présence de `start`/`end` et le catalogue disent
+`.wdat` corrige : `flux_phases` ne dit rien, la présence de `start`/`end` et le catalogue disent
 tout. Un lecteur qui analyserait le préfixe reconduirait le défaut qu'on vient de retirer.
 
 ### 9terdecies.3 L'aller-retour est la preuve, et il vérifie les DEUX choses
@@ -2660,8 +2660,8 @@ de D15 : **prouver qu'une valeur SURVIT ne prouve pas qu'on puisse l'INTERROGER*
 est donc vérifié aux deux niveaux — `end_at(1) is None` **et** `containing(99.0) == [1]` (l'état
 non refermé court encore).
 
-Le point d'entrée universel est éprouvé lui aussi : `sources.load(chemin.wrec)` rend un référentiel
-interrogeable **sans que l'appelant sache quel lecteur a travaillé** — et un `.wrec` n'est pas pris
+Le point d'entrée universel est éprouvé lui aussi : `sources.load(chemin.wdat)` rend un référentiel
+interrogeable **sans que l'appelant sache quel lecteur a travaillé** — et un `.wdat` n'est pas pris
 pour un `.trip`, les deux étant du SQLite (c'est le reniflage du contenu qui les sépare, pas
 l'extension seule).
 
@@ -2696,20 +2696,23 @@ qui ne sait lire que des acquisitions déjà synchronisées, c'est-à-dire le ca
 |---|---|---|
 | D1 | domicile du référentiel temporel : `wama_data/` ou module dédié ? | après passe 1 |
 | D2 | le magneto : une brique à deux chromes, ou brique + plugin distincts ? | après passe 2 |
-| ~~D3~~ | ✅ **TRANCHÉE 2026-08-23 (§9quater.2)** — `.trip` reste un format **importé, en lecture seule** ; WAMA a un conteneur **natif distinct**, `.wrec`. `TripReader` garde son nom : il lit le format de BIND, pas le nôtre | Fabien |
+| ~~D3~~ | ✅ **TRANCHÉE 2026-08-23 (§9quater.2)** — `.trip` reste un format **importé, en lecture seule** ; WAMA a un conteneur **natif distinct**. ⚠ D3 a tranché le PRINCIPE et proposé le nom `.wrec` ; **le nom est repris par D17** (2026-08-24) — lire les deux ensemble, D3 seule est périmée sur ce point. `TripReader` garde son nom : il lit le format de BIND, pas le nôtre | Fabien |
 | D4 | quels 2-3 plugins écrire en premier (pour extraire la vue déclarative ensuite) ? | après passe 3 |
 | D5 | Recorder temps réel (LSL/RTMaps/ROS) : dans le périmètre v1 ou différé ? | Fabien |
 | D6 | reprendre le « **jamais d'interpolation** » de BIND ? (position pressentie : oui pour la VALEUR, interpolation autorisée en option d'AFFICHAGE seulement) | Fabien, §3bis |
 | D7 | le curseur appartient-il au **jeu de données** (choix BIND : un trip = une horloge) ou à la **session** (plusieurs sources hétérogènes) ? | après passe 2 |
 | D8 | type « **intervalle** » dans `data_types.py` : nouveau `DataType.INTERVALS`, ou sous-type d'`EVENTS` avec durée ? (sans lui, pas de Segmenter ni de Calculator) | après passe 3 |
 | ~~D9~~ | ✅ **TRANCHÉE 2026-08-23 (§9quater.3)** — `time` / `start` / `end`, et `timecode` reste un **alias d'entrée** (`tabular.py:23`). Ce n'était pas un arbitrage : `timecode` est **déjà pris dans WAMA** au sens AV positionnel (`mm:ss`, une CHAÎNE — Transcriber), là où BIND en fait un flottant en secondes | mesure |
-| D10 | **rééchantillonnage : jamais systématique** (Fabien, 20/08) — mais **TROIS opérations distinctes**, cf. §6.6 : le **ré-horodatage** par fréquence théorique est ✅ à l'import et par flux (il n'interpole pas) ; le **rééchantillonnage sur grille commune** est ❌ ; le **rééchantillonnage à la demande vers une table annexe** est ✅ en option. Le **pas de temps variable est une capacité à porter**, pas un défaut à corriger. ✅ **RESTE CLOS le 2026-08-23 (§9quater.4)** : la table annexe vit **dans le même `.wrec`** que ses sources, porte sa **provenance en méta** (jamais dans son nom — D11), se nomme par règle dérivée, et n'est **jamais créée implicitement**. Et le défaut recommandé pour croiser deux cadences n'est PAS le rééchantillonnage mais l'**agrégation** (`calcul_par_segment`), qui n'invente aucune valeur | ✅ close |
+| D10 | **rééchantillonnage : jamais systématique** (Fabien, 20/08) — mais **TROIS opérations distinctes**, cf. §6.6 : le **ré-horodatage** par fréquence théorique est ✅ à l'import et par flux (il n'interpole pas) ; le **rééchantillonnage sur grille commune** est ❌ ; le **rééchantillonnage à la demande vers une table annexe** est ✅ en option. Le **pas de temps variable est une capacité à porter**, pas un défaut à corriger. ✅ **RESTE CLOS le 2026-08-23 (§9quater.4)** : la table annexe vit **dans le même `.wdat`** que ses sources, porte sa **provenance en méta** (jamais dans son nom — D11), se nomme par règle dérivée, et n'est **jamais créée implicitement**. Et le défaut recommandé pour croiser deux cadences n'est PAS le rééchantillonnage mais l'**agrégation** (`calcul_par_segment`), qui n'invente aucune valeur | ✅ close |
 | D11 | les paramètres de fenêtre d'une situation : **colonnes/métadonnées** (interrogeables) plutôt que dans le NOM de la table comme BIND (`situation_0_15`) ? | ⚠ **MÛRE** — « après A », et A est faite (§9ter.6). Le principe est déjà **appliqué un cran plus bas** par §9quater.4 (le contexte se trace sur la COLONNE) et par la table annexe (provenance en méta, jamais dans le nom). Reste à le ratifier au niveau de la situation elle-même |
 | D12 | **alignement par TRIGGERS** (§9bis.6) : où vit l'appariement d'événements entre flux — dans l'Importer, ou comme fonction du catalogue applicable après import ? | avant l'Importer v2 |
 | ~~D13~~ | ✅ **TRANCHÉE 2026-08-24 (§9undecies.2)** — **un seul kind `pipeline`, étendu** d'un nœud `function`. Décisif : **un protocole réel traverse les mondes** (« transcris la vidéo, puis segmente autour des mots-clés ») — deux kinds le rendraient inexprimable. La différence app/fonction (job asynchrone vs transformation typée) se traite dans l'**exécuteur**, qui dispatche déjà sur `kind` | Fabien |
 | ~~D15~~ | ✅ **TRANCHÉE 2026-08-24 par la MESURE** — `Signal.ends` accepte `None`, mais un seul état non refermé rendait le flux **entier ininterrogeable** (`TypeError` dans `containing`/`overlapping`), et `frames.signal_depuis_frame` en produisait. Corrigé : `Signal._fin()` vaut `+∞` **pour les comparaisons**, `end_at()`/`duration_at()` rendent toujours `None`. ⚠ La convention existait déjà dans `segmentation.py` sans avoir été portée | mesure |
 | D14 | granularité du **script généré** : un fichier plat rejouable, ou un module par fonction + un orchestrateur ? (impacte la lisibilité pour un relecteur académique) — ⚠ **le CADRE est posé (§9undecies.3)** : Python est **exact** (le script appelle `FunctionSpec.fn`), et la couverture des autres langages est **par fonction et mesurable** par contre-épreuve, pas « squelette par principe ». Reste la seule question de forme | avant l'Exporter de pipeline |
 | D16 | **conflit d'ingest inter-instances** (§9undecies.4) : `ingest()` écrase `body` en silence sur `kind+key` existant. Comparer et montrer — mais **où** ? garde dans `ingest()` (protège tous les appelants, change un contrat existant) ou dans l'import depuis copie projetée seul ? | avant le 1ᵉʳ échange dev↔prod |
+| ~~D17~~ | ✅ **TRANCHÉE 2026-08-24 (§9quater.2)** — le conteneur natif s'appelle **`.wdat`**, et non `.wrec` comme D3 l'avait proposé. ⚠⚠ **Le critère qui a tué `.trip` tue aussi `.wrec`** : « rec » présuppose une session d'ENREGISTREMENT là où le monde doit tenir des données temporelles sans aucune acquisition. Retenir le critère pour l'un et l'écarter pour l'autre aurait été défendre un choix parce qu'il était le nôtre. Second motif : `.wrec` était à **une lettre de `.rec`**, qu'on lit. Écartés aussi — `.wds` (écrase deux étages : le kind `dataset` est l'EXPÉRIMENTATION, le fichier est un ESSAI) et `.wdb` (nomme la base Postgres de WAMA — un nom faux par COLLISION est pire qu'un nom faux par connotation). ⭐ Coût réel : **le schéma n'a pas bougé d'un octet**, les tables du catalogue s'appelaient déjà `Wama*` | Fabien |
+| D18 | **routes du Converter** (§11) : par le PIVOT par défaut (2N adaptateurs au lieu de N(N−1)), ou route DIRECTE déclarée par paire ? ⚠ Le pivot est **prouvé lossy** pour `.rec` — il porte DEUX temps (émission + horodatage) et un index d'échantillon, `Signal.times` n'en garde qu'un. Et `trip2rec` de BIND l'atteste : il écrit le **même timecode aux deux places** parce que `.trip` avait déjà perdu l'autre. Quelle que soit la route, la PERTE doit être annoncée (`Rapport.pertes` existe) | avant le 1ᵉʳ Converter |
+| D19 | **nom du « Cataloger »** (§11) : le mot est **déjà pris deux fois** — `wama/common/catalog/` (glu inter-mondes) et le « catalogue de fonctions » que son propre écran affiche en bas. Et si le schéma se lit bien, **le Cataloger est l'INTERFACE du Connector** (même motif que « l'Explorer est l'interface du Calculator ») — auquel cas ce n'est pas un module de plus | avant l'UI |
 
 ---
 
@@ -2740,7 +2743,7 @@ qui ne sait lire que des acquisitions déjà synchronisées, c'est-à-dire le ca
     §9ter.6 : **une formule reprise d'un document plutôt que confrontée au code** — sauf qu'ici
     elle allait dans l'autre sens, elle rendait le travail plus PETIT qu'il n'est.
   - **§9duodecies — l'ÉCRIVAIN DE CONTENEUR** (`541 → 590` tests). Le monde Data écrit enfin du
-    SQLite : un moteur, deux schémas (`.wrec` natif, `.trip` pour BIND), le schéma de l'autre
+    SQLite : un moteur, deux schémas (`.wdat` natif, `.trip` pour BIND), le schéma de l'autre
     **relevé sur la base réelle** avant d'écrire une ligne, et la compatibilité **attestée par
     contre-épreuve** (le lecteur `.trip` relit ce que WAMA écrit). Ce qu'un schéma ne sait pas
     porter est **compté** (`Rapport.pertes`), jamais tu.
@@ -2751,7 +2754,7 @@ qui ne sait lire que des acquisitions déjà synchronisées, c'est-à-dire le ca
     tandis que le vrai trou (`json.dumps([nan])` → `[NaN]`, JSON invalide) n'était couvert par
     personne. *Un test de stockage n'est pas un test d'usage* — la leçon de la veille, appliquée
     à moi le lendemain.
-  - **§9terdecies — le LECTEUR `.wrec`** (`590 → 603` tests, lecteurs 3 → 4). Le format natif
+  - **§9terdecies — le LECTEUR `.wdat`** (`590 → 603` tests, lecteurs 3 → 4). Le format natif
     n'est plus write-only, donc il peut enfin servir de **fichier de travail**. ⚠ Et le second
     lecteur de base a révélé un **socle** : ~120 lignes d'accès SQLite qui ne devaient rien au
     format de BIND vivaient dans `TripReader` (qui passe de ~300 à 171 lignes, 73 tests
@@ -2769,9 +2772,9 @@ qui ne sait lire que des acquisitions déjà synchronisées, c'est-à-dire le ca
     inexistant qui avait fait reverter le premier Exporter — écrire une spécification depuis un
     schéma et une intuition plutôt que depuis le code. Le corpus était dans le dépôt depuis le début.
   - **Après-midi — §9quater**, issue d'un échange avec Fabien : **D3 close** (conteneur natif
-    `.wrec`, `.trip` reste un format importé en lecture seule), **D9 close** par la mesure
+    `.wdat`, `.trip` reste un format importé en lecture seule), **D9 close** par la mesure
     (`time` ; `timecode` est déjà pris au sens AV dans le monde Médias), **le reste de D10 clos**
-    (la table annexe vit dans le `.wrec`, provenance en méta, jamais implicite), et surtout **la
+    (la table annexe vit dans le `.wdat`, provenance en méta, jamais implicite), et surtout **la
     règle de manipulation écrite** : *une nouvelle table SSI la clé temporelle change*.
   - ⚠ **Cette règle n'était pas nouvelle — elle était déjà APPLIQUÉE sans être écrite** : c'est ce
     qui sépare `ENRICHER` de `AGGREGATE` dans les deux modes du Calculator. La consigner l'empêche

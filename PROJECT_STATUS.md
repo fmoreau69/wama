@@ -6213,7 +6213,7 @@ puis étendue par Fabien à l'Explorer et à trois décisions de fond.
 | **§9ter.6 A** — offsets de `jonction`, `repeter`, `bascules` (2ᵉ port `masque → events`) | 15 tests |
 | **§9ter.6 B** — chaîne conditionnelle en **ARBRE** : 14 opérateurs filtrés par la **SORTE** de colonne, validation à la déclaration, parseur de saisie, noms dérivés | 41 tests cœur + 26 frontière |
 | **§9ter.6 C** — Exporter réécrit **sur le modèle réel** (le 1ᵉʳ jet avait été reverté sur un pivot inexistant) | 37 + 12 tests |
-| **§9quater** — D3 (**`.wrec`**), D9 (**`time`**), reste de D10 (table annexe), **la RÈGLE** de manipulation | doc + code |
+| **§9quater** — D3 (**conteneur natif distinct**, nommé **`.wdat`** par D17), D9 (**`time`**), reste de D10 (table annexe), **la RÈGLE** de manipulation | doc + code |
 | **§9quater.7** — le **PONT** `frames.py` : le Référentiel avait « AUCUN consommateur » parce que rien ne pouvait convertir sa sortie | 34 tests |
 | **§9quinquies** — capacités agrégatives : `FORMATS` devient un registre, les 2 registres du monde entrent au registre des registres | 19 tests |
 | **§9quater.7** — le **VIEW-MODEL** `vue.py` : la règle de §9quater.4 devient **exécutable et dérivée de la `FunctionCategory`** | 31 tests |

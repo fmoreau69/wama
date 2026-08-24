@@ -53,15 +53,15 @@ class ModuleData:
 MODULES: Tuple[ModuleData, ...] = (
     ModuleData(
         'importer', 'Importer', "Lit une source et rend un référentiel temporel interrogeable",
-        "fichiers + manifeste `dataset` → référentiel, écrit en `.wrec`",
+        "fichiers + manifeste `dataset` → référentiel, écrit en `.wdat`",
         briques=('wama_data/sources/__init__.py',
                  'wama_data/sources/_sqlite.py',
                  'wama_data/sources/trip.py',
-                 'wama_data/sources/wrec.py',
+                 'wama_data/sources/wdat.py',
                  'wama_data/sources/tabular.py',
                  'wama_data/sources/rtmaps.py',
                  'wama_data/containers/__init__.py',
-                 'wama_data/containers/wrec.py',
+                 'wama_data/containers/wdat.py',
                  'wama_data/containers/trip.py'),
         doc='§6.6, §6.6bis, §9bis.1, §9quater.2, §9duodecies, §9terdecies',
         bloque_par="alignement par TRIGGERS non conçu (D12) ; ⚠ le lecteur `.rec` EXISTE depuis le "
@@ -70,10 +70,10 @@ MODULES: Tuple[ModuleData, ...] = (
                    "SÉMANTIQUE par famille de flux (le `data_parser/` de pynd : `clé=valeur` à "
                    "virgule française, JSON, colonnes tabulées), la charge étant aujourd'hui rendue "
                    "telle quelle ; `functions/io/rtmaps_rec.py` demeure un utilitaire du Lab, non "
-                   "migré à dessein. ⚠ « l'ÉCRITURE du conteneur natif `.wrec` reste à écrire — "
+                   "migré à dessein. ⚠ « l'ÉCRITURE du conteneur natif `.wdat` reste à écrire — "
                    "aucune ligne n'écrit encore de SQLite » a été RETIRÉ le 2026-08-24 : "
                    "l'écrivain (`containers/`, un moteur et deux schémas) ET le lecteur "
-                   "(`sources/wrec.py`) sont livrés, l'aller-retour est éprouvé et la "
+                   "(`sources/wdat.py`) sont livrés, l'aller-retour est éprouvé et la "
                    "compatibilité BIND attestée par contre-épreuve (§9duodecies, §9terdecies). "
                    "⚠ « `DATASET_SOURCES` non réconcilié avec le registre des lecteurs (G1) » a "
                    "été RETIRÉ de cette liste le 2026-08-24 : c'était une glose fausse à deux "
@@ -95,12 +95,12 @@ MODULES: Tuple[ModuleData, ...] = (
     ),
     ModuleData(
         'connector', 'Connector', "Branche une base existante comme source",
-        "base SQLite (`.trip` externe, `.wrec` natif) → référentiel",
+        "base SQLite (`.trip` externe, `.wdat` natif) → référentiel",
         briques=('wama_data/sources/_sqlite.py',
                  'wama_data/sources/trip.py',
-                 'wama_data/sources/wrec.py'),
+                 'wama_data/sources/wdat.py'),
         doc='§6.2, §9quater.2, §9terdecies',
-        bloque_par="Les DEUX bases se lisent depuis le 2026-08-24 (`.trip` externe et `.wrec` "
+        bloque_par="Les DEUX bases se lisent depuis le 2026-08-24 (`.trip` externe et `.wdat` "
                    "natif, socle SQLite partagé). ⚠ Ce qui le sépare encore de l'Importer n'est "
                    "PAS une capacité de lecture mais un GESTE : brancher une base sans la copier "
                    "suppose de décider ce qu'on fait d'une source qui bouge sous les pieds — "

@@ -7,7 +7,7 @@ dispose d'un exemplaire réel (1,28 Go, 5,26 M lignes, 6 cadences natives), donc
 d'éprouver le contrat d'import sur autre chose que des données inventées.
 
 ⚠ `.trip` EST UN FORMAT ÉTRANGER, PAS CELUI DE WAMA — décision **D3**, tranchée le 2026-08-23
-(`WAMA_DATA_WORLD.md §9quater.2`). Le conteneur natif de WAMA Data s'appelle **`.wrec`**
+(`WAMA_DATA_WORLD.md §9quater.2`). Le conteneur natif de WAMA Data s'appelle **`.wdat`**
 (« enregistrement WAMA ») : `trip` présuppose un DÉPLACEMENT là où le besoin est une **acquisition
 multi-flux datée**, et un labo qui analyse des données temporelles sans aucun trajet n'a pas à
 manipuler des « trips ». Même motif que le renommage `SECTIONS` → `SEGMENTS` du 2026-08-20
@@ -15,7 +15,7 @@ manipuler des « trips ». Même motif que le renommage `SECTIONS` → `SEGMENTS
 
 **Ce module NE SERA PAS renommé pour autant** : il lit le format de l'autre, et l'appeler autrement
 le rendrait faux. L'écrivain existe depuis le 2026-08-24 (`wama_data/containers/`), et le lecteur du
-conteneur natif est `sources/wrec.py`.
+conteneur natif est `sources/wdat.py`.
 
 ⚠ CE MODULE NE PORTE PLUS QUE LA CONNAISSANCE DU SCHÉMA. Toute la mécanique SQLite — ouverture en
 lecture seule, décodage du texte, colonnes, valeurs triées, les trois niveaux d'agrégation — vit

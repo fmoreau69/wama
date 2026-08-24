@@ -93,7 +93,7 @@ class WamaDataConfig(AppConfig):
             source="`wama_data/containers/` — un schéma par format de sortie, inscrit à l'import",
             rafraichir=_rafraichir_conteneurs, compter=_compter_conteneurs,
             doc='WAMA_DATA_WORLD.md §9quater.2 (D3), §9quinquies',
-            description="Conteneurs que WAMA Data sait ÉCRIRE : `.wrec` natif et `.trip` pour la "
+            description="Conteneurs que WAMA Data sait ÉCRIRE : `.wdat` natif et `.trip` pour la "
                         "compatibilité BIND. Un moteur, N schémas — ajouter un format = déposer "
                         "un module, jamais éditer le moteur (G1).",
         ))
