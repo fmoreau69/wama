@@ -214,7 +214,7 @@ startAllBtn/downloadAllBtn/clearAllBtn migrent ici depuis le volet droit.{% endc
                 {% comment %}Card mère batch COMMUNE — ▶ (batch_start) câblé en JS ; le ⚙ lit
 ses défauts sur la 1re card fille (.settings-btn data-*).{% endcomment %}
                 {% url 'synthesizer:batch_download' batch_info.obj.id as batch_dl_url %}
-                {% include 'common/_batch_card.html' with eta_ids=batch_info.eta_ids download_url=batch_dl_url app='synthesizer' %}
+                {% include 'common/_batch_card.html' with eta_ids=batch_info.eta_ids download_url=batch_dl_url app='synthesizer' actions_communes=True confirm_duplicate="Dupliquer ce lot ? Les fichiers sources seront partages, les resultats effaces." %}
                 <!-- Batch items (collapsible) -->
                 <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
                      data-wama-batch-key="synthesizer_{{ batch_info.obj.id }}"
@@ -574,32 +574,17 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // Batch delete
-    document.addEventListener('click', function (e) {
-        const btn = e.target.closest('.batch-delete-btn');
-        if (!btn) return;
-        const batchId = btn.dataset.batchId;
-        if (!confirm(`Supprimer le batch #${batchId} et toutes ses synthèses ?`)) return;
-        fetch(URLS.batchDelete + batchId + '/delete/', {
-            method: 'POST',
-            headers: { 'X-CSRFToken': csrf },
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) { location.reload(); }
-            else { WamaApp.toast('Erreur lors de la suppression', 'error'); }
-        })
-        .catch(() => WamaApp.toast('Erreur réseau', 'error'));
-    });
-
+    // 🗑 et ⧉ de LOT : brique commune (`queue-actions.js`). Les handlers retiraient ici
+    // faisaient confirm + POST + rechargement — exactement ce que fait la brique. La seule
+    // spécificité était la CONFIRMATION de la duplication (seule app des 8 à la demander) :
+    // elle est préservée, déclarée par `confirm_duplicate` sur le partial.
     // Batch settings modal
     const batchSettingsModalEl = document.getElementById('batchSettingsModal');
     const batchSettingsModal = batchSettingsModalEl ? new bootstrap.Modal(batchSettingsModalEl) : null;
 
-    document.addEventListener('click', function (e) {
-        const btn = e.target.closest('.batch-settings-btn');
-        if (!btn || !batchSettingsModal) return;
-        const id = btn.dataset.batchId;
+    // Le clic du ~ de lot appartient a la brique commune ; l app ne declare que son OUVREUR.
+    WamaQueueActions.onBatchSettings(function (id, btn) {
+        if (!batchSettingsModal) return;
         document.getElementById('batchSettingsBatchLabel').textContent = '#' + id;
         document.getElementById('batchSettingsBatchId').value = id;
         // Défauts lus sur la 1re card FILLE (la card mère commune ne porte que data-batch-id).
@@ -668,40 +653,12 @@ document.addEventListener('DOMContentLoaded', function () {
     const saveStartBtn = document.getElementById('saveBatchSettingsAndStartBtn');
     if (saveStartBtn) saveStartBtn.addEventListener('click', () => saveBatchSettings(true));
 
-    // Batch duplicate
-    document.addEventListener('click', function (e) {
-        const btn = e.target.closest('.batch-duplicate-btn');
-        if (!btn) return;
-        const batchId = btn.dataset.batchId;
-        if (!confirm(`Dupliquer le batch #${batchId} ? Les fichiers sources seront partagés, les résultats effacés.`)) return;
-        fetch(URLS.batchDuplicate + batchId + '/duplicate/', {
-            method: 'POST',
-            headers: { 'X-CSRFToken': csrf },
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) { location.reload(); }
-            else { WamaApp.toast('Erreur lors de la duplication du batch', 'error'); }
-        })
-        .catch(() => WamaApp.toast('Erreur réseau', 'error'));
-    });
-
     // Duplication d'item : brique commune queue-actions.js (chargée globalement) —
     // les handlers locaux (ici + index.js) provoquaient un DOUBLE-FIRE (2 doublons/clic).
 
-    // ▶ Lancer le batch (card mère COMMUNE — endpoint batch_start anti-race existant)
-    document.addEventListener('click', function (e) {
-        const btn = e.target.closest('.batch-start-btn');
-        if (!btn) return;
-        const id = btn.dataset.batchId;
-        btn.disabled = true;
-        fetch("{% url 'synthesizer:batch_start' 0 %}".replace('/0/', '/' + id + '/'), {
-            method: 'POST',
-            headers: { 'X-CSRFToken': csrf },
-        })
-        .then(r => r.json())
-        .then(() => location.reload())
-        .catch(() => { btn.disabled = false; WamaApp.toast('Erreur réseau au lancement du batch', 'error'); });
+    // ▶ de LOT : brique commune. Le synthesizer appartient à la famille « rechargent » —
+    // son handler postait puis rechargeait, donc AUCUNE suite à déclarer (le rechargement est
+    // le défaut sûr de la brique).
     });
 });
 </script>

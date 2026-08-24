@@ -328,10 +328,14 @@
             // La card mère est un toggle de repli : sans ça, agir sur un lot le replie aussi.
             e.stopPropagation();
 
+            // Confirmation : celle de l'ACTION (défaut de la brique) OU celle que le bouton
+            // DÉCLARE (`data-confirm`). Le second cas existe pour une action qui ne confirme
+            // pas par défaut mais qu'une app veut protéger — le synthesizer confirmait sa
+            // duplication de lot, seul des 8 ; porter sans cela aurait RETIRÉ une garde à
+            // l'utilisateur au nom de l'uniformité. `data-confirm="false"` neutralise.
             const demande = btn.dataset.confirm;
-            if (options.confirmer
-                && demande !== 'false'
-                && !window.confirm(demande || options.confirmer)) return;
+            const texte = (demande && demande !== 'false') ? demande : options.confirmer;
+            if (texte && demande !== 'false' && !window.confirm(texte)) return;
 
             btn.disabled = true;
             const icon = btn.querySelector('i');

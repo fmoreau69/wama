@@ -139,6 +139,7 @@ connaître aucun sélecteur d'app (2026-08-23). Absent = app mono-domaine, rien 
                 <button class="btn btn-sm btn-outline-warning batch-duplicate-btn py-0 px-2"
                         data-batch-id="{{ batch_info.obj.id }}"
                         {% if u_batch_duplicate %}data-batch-duplicate-url="{{ u_batch_duplicate }}"{% endif %}
+                        {% if confirm_duplicate %}data-confirm="{{ confirm_duplicate }}"{% endif %}
                         title="Dupliquer le batch">
                     <i class="fas fa-copy"></i>
                 </button>

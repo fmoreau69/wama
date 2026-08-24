@@ -210,7 +210,10 @@ window._batchImport = WamaBatchImport({
             {# Card MÈRE : brique COMMUNE _batch_card.html (pilote card v2, 2026-07-06) #}
             {% comment %}wcv3--batch-parent : bord cyan de la MÈRE (famille de lot, CARD_DESIGN §11
             v3.5). Passé par card_class — la brique commune _batch_card.html reste intacte.{% endcomment %}
-            {% include 'common/_batch_card.html' with card_class='reader-card' download_menu_template='reader/_batch_download_menu.html' eta_ids=batch_info.eta_ids app='reader' %}
+            {% comment %}`actions_communes` : le reader n'avait AUCUN handler de lot — ses ▶ ⧉ 🗑 de card mère
+étaient donc INERTES (rien ne le signalait : un bouton sans écouteur ne lève pas). Il n'y a rien
+à retirer ici, seulement à brancher. Révélé par `<app>.batch_actions` le 2026-08-24.{% endcomment %}
+{% include 'common/_batch_card.html' with card_class='reader-card' download_menu_template='reader/_batch_download_menu.html' eta_ids=batch_info.eta_ids app='reader' actions_communes=True %}
             <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
                  data-wama-batch-key="reader_{{ batch_info.obj.id }}"
                  style="border-left:2px solid #0dcaf0; margin-left:0.75rem;">
