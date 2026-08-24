@@ -332,6 +332,22 @@ MECANISMES = (
                        'wama/common/templates/common/_queue_toolbar.html',
                        'wama/common/templates/common/_queue_actions.html',
                        'wama/common/templates/common/_batch_card.html')),
+    Mecanisme('queue_entry', "Entrée de file (card seule OU lot)",
+              "Décide, pour une entrée de file, si elle s'affiche en card unique ou en card MÈRE "
+              "avec ses filles repliables — et rend l'un ou l'autre. Le bloc vivait recopié À "
+              "L'IDENTIQUE dans 9 gabarits ; il n'a pu être centralisé (2026-08-25) qu'une fois "
+              "deux verrous levés : `is_unitary` adopté (la décision se lit sur le modèle) et "
+              "`elem` (les 9 cards filles reçoivent leur élément sous le MÊME nom — avant, 8 "
+              "graphies). Signature à 3 paramètres : `card_template`, plus `collapse_prefix` et "
+              "`batch_key` pour la seule app à deux files sur une page (enhancer audio). ⚠ Tout "
+              "le reste TRAVERSE PAR LE CONTEXTE — les ~9 paramètres de `_batch_card.html` sont "
+              "fournis par l'app et passent au travers, sinon la signature atteindrait la "
+              "quinzaine. Apparence uniformisée sur le TRANSCRIBER (référence), conforme à "
+              "`CARD_DESIGN §11.2` (famille de lot = cyan #0dcaf0) : les 3 couleurs et 2 "
+              "habillages qui coexistaient étaient des séquelles d'implémentations successives",
+              'wama/common/templates/common/_queue_entry.html', 'CARD_DESIGN.md §11.2',
+              annexes=('wama/common/utils/batch_common.py',
+                       'wama/common/models.py')),
     Mecanisme('console', 'Console utilisateur',
               "Lignes de journal structurées par utilisateur et par app. ⚠ Annoncé « via Redis », "
               "mais le chemin Redis exige `django_redis` — ABSENT des deux venvs et des "

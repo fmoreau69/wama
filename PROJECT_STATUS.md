@@ -6897,3 +6897,92 @@ l'a établi** ; sinon on ne distingue pas « corrigé » de « pas de charge pen
 - Apache : `wama-error.log` doit rester **petit** (rotation active). Un taux de 502 qui reste
   ~4,6 % confirme que la cause est ailleurs ; s'il tombe, c'est qu'autre chose a changé.
 - `logs/django-errors.log` : 0 octet aujourd'hui. Tout contenu = un vrai traceback à traiter.
+
+---
+
+## §REPRISE — 2026-08-25 (ENTRÉE DE FILE COMMUNE) — 🔚 POINT D'ENTRÉE
+
+> **🔚 POINT D'ENTRÉE : `wama/common/templates/common/_queue_entry.html` — son en-tête porte la
+> doctrine. Premier geste : porter **avatarizer** (seul ❌ `queue_entry` de la grille), puis
+> décider du sort du **converter** (cf. §C).**
+
+Chantier né d'une question de Fabien — « pourquoi dans 10 gabarits ? Ce n'est pas centralisé
+dans common ? ». Ça ne l'était pas. **6 commits**, `cf52c766` → `321d63d3`.
+
+### A. Ce qui a été livré, dans l'ordre où les verrous sont tombés
+
+| # | livré | pourquoi c'était un préalable |
+|---|---|---|
+| 1 | **`is_unitary` adopté** (10 gabarits) | la décision « card seule ou lot » se lit sur le MODÈLE, plus recalculée en gabarit |
+| 2 | **`item.elem`** exposé par `build_batches_list` | le commun connaissait déjà le nom (`work_attr`) ; il l'expose, les gabarits cessent de le deviner |
+| 3 | **~511 occurrences renommées** dans 9 cards filles | 8 graphies (`media=`, `gen=`, `e=`, `ae=`, `t=`, `desc=`, `synthesis=`, `item=`) → **une seule** |
+| 4 | **20 gardes de boucle** `{% if item.X %}` → `{% if item.elem %}` | dernier endroit où le nom d'app subsistait — la garde décide s'il y a une card à rendre |
+| 5 | **`_queue_entry.html`** — 9 blocs recopiés → 1 partial | **80 lignes ajoutées, 214 supprimées** |
+
+**Signature à 3 paramètres** (`card_template` + `collapse_prefix`/`batch_key` pour l'enhancer
+audio seul) : tout le reste **traverse par le contexte**. Sans cela elle atteignait la quinzaine
+— et un partial à 15 paramètres n'est pas un progrès sur 10 blocs de 12 lignes.
+
+**Apparence uniformisée sur le TRANSCRIBER** (référence, Fabien) : 3 couleurs de lot et 2
+habillages coexistaient — séquelles d'implémentations successives, pas des intentions.
+`CARD_DESIGN §11.2` avait tranché le même cyan le 01/08 : deux sources concordent, **aucun choix
+n'a été fait ici**.
+
+### B. Défauts trouvés en chemin — tous invisibles sans mesure
+
+1. **anonymizer, composer, synthesizer avaient perdu leur bouton de téléchargement** : leur
+   `{% url … as batch_dl_url %}` vivait DANS le bloc supprimé, la variable restait référencée.
+   **Django ne lève rien pour une variable de template inexistante** — aucun test ne l'aurait vu.
+2. **synthesizer ne passait JAMAIS `in_batch`** : ses filles n'avaient pas `wcv3--batch-child`,
+   la classe de famille de lot du design v3.
+3. **`batch_card_common` est passé ❌ sur les 8 apps portées** — l'include a migré dans le
+   partial. ⚠⚠ **Un critère qui mesure du markup doit SUIVRE ce markup quand il se centralise,
+   sinon il PUNIT l'adoption.** Précédent identique : `btn_order`, rouge sur 10 apps le 23/08.
+   Critère élargi (`_batch_card` **ou** `_queue_entry`).
+
+### C. ⚠ Le chantier n'est PAS complet — 8 apps sur 10
+
+Mon extracteur ne voyait que le motif `{% if batch_info.obj.is_unitary %}` : **deux apps ont un
+idiome tout autre**, et je les ai annoncées portées à tort avant de les mesurer.
+
+- **avatarizer** — `{% if b.obj.total > 1 %}` qui OUVRE le lot, **une boucle unique partagée**,
+  puis un second `{% if %}` qui FERME. Pas de `if/else`, pas de boucle dupliquée (c'est
+  d'ailleurs plus économe). Variable `job`, `collapse show` (déplié par défaut). **Portable** —
+  il passe par `build_batches_list`. → seul ❌ `queue_entry` de la grille, à traiter en premier.
+- **converter** — **NON portable en l'état** : il **ne passe pas par `build_batches_list`**
+  (`views.py:150`, « FK directe job→batch, pas de modèle de liaison ») et groupe en mémoire.
+  `item.elem` n'existe donc pas chez lui. Son vrai reste-à-faire est l'adoption de
+  `build_batches_list`. Le critère le **gate en N/A** plutôt que de lui reprocher le mauvais
+  défaut — il reste à **100 %**.
+
+### D. Instruments corrigés ou créés
+
+- **critère de grille `queue_entry`** (F2, mécanisme `queue_entry`), gaté sur l'usage RÉEL de
+  `build_batches_list`. ⚠ Le gate cherche un **APPEL** (`build_batches_list\s*\(`) : le converter
+  cite le nom dans un **commentaire** tout en construisant sa file à la main — le piège des
+  commentaires, déjà mesuré sur `mecanismes_scan` (60 affichés / 18 réels).
+- **mécanisme `queue_entry`** déclaré (`mecanismes.py`) → 93 mécanismes, « sans critère » reste
+  à 20 : le nouveau naît AVEC son critère.
+- **comparateur de rendu structurel** — la comparaison à l'octet ne convient plus dès qu'on
+  DÉPLACE du markup (l'indentation change, les commentaires HTML disparaissent, le DOM non).
+  L'instrument compare balises + attributs + texte. ⚠ Il avait d'abord annoncé « 8/8 DIFFÈRE »
+  pour 12 lignes de token CSRF : **une comparaison incapable de dire « rien n'a changé » ne
+  prouve rien**.
+
+### E. Contrôles attendus au prochain /reprise
+
+`check_docs` **5 CASSÉ / 0 périmée** — ⚠ critère = **1 CIBLE distincte** (`_result_tabs.html`,
+citée 5×), pas le nombre · `doc_facts` **5/5** · grille : converter/describer/transcriber
+**100 %**, enhancer 99, anonymizer/composer/reader/synthesizer 98, **avatarizer 97** (❌
+`queue_entry`), imager 97 ⚠ **dénominateurs +1** (`queue_entry`) · Playwright `--stage ui` :
+**72 scénarios, 42 OK, 30 skips, 0 ÉCHEC**.
+
+### F. Système
+
+⚠⚠ **13 arrêts non prévus en 8 jours, 1 à 2 PAR JOUR sans exception, AUCUN BSOD** — panne SOUS
+l'OS. Trois ont interrompu cette session. **Aucun lien avec Playwright** (vérifié : le rythme est
+constant, plusieurs crashs sans qu'il tourne). ⚠ **HWiNFO est TOUJOURS éteint** alors que le
+handoff du 24/08 en faisait le premier geste : trois crashs de plus, aucun mesuré. Tant que la
+sonde ne tourne pas, l'hypothèse alimentation reste intestable.
+⚠ Corollaire de travail : **commiter souvent**. Le commit `321d63d3` a été fait avant Playwright
+précisément pour que le crash suivant ne coûte rien.

@@ -372,6 +372,31 @@ def _toast(f: _AppFiles):
     return False, alert_ev
 
 
+def _queue_entry(f: _AppFiles):
+    """L'entrée de file (card seule OU lot) vient-elle de la brique commune ?
+
+    ⚠ GATE : le partial `_queue_entry.html` lit `batch_info.items[].elem`, alias posé par
+    `build_batches_list`. Une app qui construit sa file À LA MAIN ne peut donc pas l'adopter
+    sans passer d'abord par la brique commune — le lui reprocher désignerait le mauvais
+    défaut. Mesuré le 2026-08-25 : le CONVERTER est dans ce cas (`views.py` groupe en mémoire,
+    « FK directe job→batch, pas de modèle de liaison »), et son vrai reste-à-faire est
+    l'adoption de `build_batches_list`, pas celle de ce partial.
+    """
+    #: ⚠ un APPEL, pas une mention : le converter cite `build_batches_list` dans un
+    #: COMMENTAIRE (`views.py:150`) tout en construisant sa file a la main. Chercher le
+    #: nom seul le declarait adoptant — le piege des commentaires, deja mesure sur
+    #: `mecanismes_scan` (60 affiches / 18 reels).
+    if not f.find(PY, r'build_batches_list\s*\('):
+        return None, None          # file construite à la main → autre chantier
+    trouve = f.find(TEMPLATES, r"common/_queue_entry\.html")
+    if trouve:
+        return True, trouve
+    # A-t-elle seulement une file à lots ? Sinon le critère n'a pas d'objet.
+    if not f.find(TEMPLATES, r'batch-group|_batch_card\.html'):
+        return None, None
+    return False, "bloc `card seule / lot` encore écrit dans le gabarit d'app"
+
+
 def _has_engine_select(f: _AppFiles) -> bool:
     """Y a-t-il un SÉLECTEUR de moteur dans l'UI ? — précondition commune des critères
     model_help / input_match_ui / model_caps_ui (gate « composant sans hôte → N/A »,
@@ -1043,6 +1068,8 @@ CRITERIA: list[Criterion] = [
     Criterion('new_item_card', 'F2', "Card d'entrée commune _new_item_card",
               lambda f: _present(f, TEMPLATES, r"common/_new_item_card\.html"),
               mecanisme='new_item_card'),
+    Criterion('queue_entry', 'F2', 'Entrée de file commune (_queue_entry : card seule OU lot)',
+              _queue_entry, mecanisme='queue_entry'),
     Criterion('drag_drop', 'F2', 'Zone drag & drop',
               lambda f: _present(f, TEMPLATES + JS, r'drop_zone_id|drop-zone|dragover')),
     Criterion('url_ingest', 'F2', 'Import URL déclaratif (WAMA_INGEST + ensure_local_input)', _url_ingest,
@@ -1163,8 +1190,14 @@ CRITERIA: list[Criterion] = [
     Criterion('card_html_endpoint', 'F5', 'Card = partial serveur + endpoint card_html',
               lambda f: _present(f, URLS, r'card_html'),
               mecanisme='card_system'),
-    Criterion('batch_card_common', 'F5', 'Card mère de batch commune (_batch_card)',
-              lambda f: _present(f, TEMPLATES, r"common/_batch_card\.html"),
+    #: ⚠ DEUX graphies acceptees, et c'est deliberé : depuis le 2026-08-25 l'include de la card
+    #: mere a migre dans `_queue_entry.html` (brique commune). Ne chercher que `_batch_card` dans
+    #: le gabarit d'app ferait passer au ROUGE les 8 apps qui viennent de l'adopter — un critere
+    #: qui mesure du markup doit SUIVRE ce markup quand il se centralise, sinon il punit
+    #: l'adoption. Precedent identique : `btn_order`, rouge sur 10 apps quand le bouton
+    #: telecharger a rejoint le partial commun (2026-08-23).
+    Criterion('batch_card_common', 'F5', 'Card mère de batch commune (_batch_card, direct ou via _queue_entry)',
+              lambda f: _present(f, TEMPLATES, r"common/_(batch_card|queue_entry)\.html"),
               mecanisme='queue_front'),
     Criterion('build_batches_list', 'F5', 'Agrégats de file communs (build_batches_list)',
               lambda f: _present(f, VIEWS, r'build_batches_list'),

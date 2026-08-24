@@ -1207,6 +1207,31 @@ encore la règle.
 > et confronter au code qui l'implémente (ici `queue_view.py:30` disait explicitement le
 > contraire : « plus de batchs d'abord — décision 2026-06-29 »).
 
+**Le bloc entier est COMMUN depuis le 2026-08-25 — `common/_queue_entry.html`.**
+Une app n'écrit plus la structure de sa file, elle la déclare :
+
+```django
+{% include 'common/_queue_entry.html' with card_template='<app>/_<x>_card.html' <params _batch_card> %}
+```
+
+`card_template` est le seul paramètre requis. `collapse_prefix` et `batch_key` n'existent que
+pour l'app à DEUX files sur une même page (enhancer audio) : sans eux, ses lots partageraient
+id de repli et mémoire `localStorage` avec l'autre file. **Tout le reste traverse par le
+CONTEXTE** — les paramètres de `_batch_card.html` sont fournis par l'app et passent au travers
+sans que le partial les connaisse ; c'est ce qui garde sa signature à 3 au lieu de 15.
+
+⚠ **Deux préalables, tous deux non négociables** — ils expliquent pourquoi cette centralisation
+n'était pas possible avant : la décision se lit sur le modèle (`is_unitary`), et **toutes les
+cards filles reçoivent leur élément sous le même nom** (`elem`, exposé par
+`build_batches_list` ; avant : 8 graphies `media=`, `gen=`, `e=`, `ae=`, `t=`, `desc=`,
+`synthesis=`, `item=`). Un partial ne peut pas appeler des cards qui ne répondent pas au même
+appel.
+⚠ **Une app qui construit sa file À LA MAIN ne peut pas l'adopter** — le partial lit
+`batch_info.items[].elem`, alias posé par `build_batches_list`. C'est le cas du **converter**
+(FK directe job→batch, groupement en mémoire) : son reste-à-faire est l'adoption de
+`build_batches_list`, pas celle de ce partial. Le critère de grille `queue_entry` le gate donc
+en N/A plutôt que de lui reprocher le mauvais défaut.
+
 **Règle « card unique vs card mère » :**
 Un lot d'UN seul membre s'affiche comme une card ordinaire, sans card mère. La décision se lit
 sur le modèle, **jamais recalculée à la main** :
