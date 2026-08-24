@@ -2677,6 +2677,172 @@ ingère à l'insu de quiconque.
 
 ---
 
+## 11. MODULES — cartographie détaillée, écran par écran (2026-08-24)
+
+> **Pourquoi cette section, et pourquoi elle n'existait pas.** §7 nomme les modules, §9bis trace le
+> plan, §0 mesure l'avancement. Aucun des trois ne dit **ce que l'utilisateur fait à l'écran**, ni
+> ne confronte l'écran de l'outil d'origine au code déjà écrit. Fabien a commencé à déposer, module
+> par module, schémas de principe et captures dans `claude/WAMA-Data/Modules/<Module>/` — cette
+> section est leur confrontation au réel.
+>
+> ⚠ **On ne reprend pas l'existant, on le critique.** Consigne du 23/08 : « reprendre le concept et
+> le fonctionnement pour l'ADAPTER et le PORTER en schéma-driven. **Pas juste transposer le code.** »
+> Chaque sous-section dit donc trois choses : ce qui s'aligne déjà, ce qui manque, et ce qu'on
+> propose de faire ÉVOLUER.
+
+---
+
+### 11.1 EXPORTER — ce qui s'aligne déjà, exactement
+
+Sources : `Modules/Exporter/Schéma de principe.png` + `Screenshot_Exporter.png`, et les précisions
+de Fabien du 2026-08-24.
+
+| écran d'origine | notre code | |
+|---|---|---|
+| « Concaténation : ☐ Trips ☐ Situation/Events » | `Regroupement(lots, declarations)` | ⭐ **1:1** — `mode_origine` rend littéralement `concat_trip` / `concat_event_situation` / `concat_all` |
+| « Vos fichiers » (la file d'export) | `exporter(declarations, …)` — N déclarations | ✅ |
+| « Aperçu » | `apercu()` — l'aperçu EST l'export borné | ✅ |
+| « Format : tsv ▾ » | registre `FORMATS` (5 déclarés, 3 écrivables) | ✅ |
+| « Votre fichier » + ▲▼✕ | `Declaration.colonnes` — tuple ORDONNÉ, l'ordre est une donnée | ✅ |
+| « Sous-échantillonnage : 1 » | `Declaration.decimation` | ✅ |
+| en-têtes `table.colonne` | `Colonne.titre` → `flux.champ` | ✅ |
+| identité de ligne | `Identite`, dont la docstring cite déjà « nom du trip, participant, scénario » | ✅ |
+
+**Le geste, tel que Fabien le décrit** : choisir une FAMILLE (1ʳᵉ colonne) → une ou des TABLES
+(2ᵉ colonne) → si **une seule** table, accès aux COLONNES ; si **plusieurs**, elles partent entières
+→ « Ajouter ces données » → le contenu s'accumule dans « Votre fichier », réordonnable et
+supprimable → on itère → « présent dans » optionnel → le fichier rejoint la file → format,
+destination, concaténation → **« Exporter Trip réf »** ou **« Exporter Sélection »**.
+
+### 11.2 EXPORTER — les quatre trous, mesurés
+
+**① L'outil d'adéquation n'existe pas.** `Declaration.__post_init__` vérifie le nom, les colonnes
+non vides, la décimation, le format et les en-têtes en double — **rien sur la cohérence**. On peut
+donc construire aujourd'hui une déclaration mêlant `event_X.timecode` et `situation_Y.startTimecode` :
+exactement le fichier incohérent que l'outil d'origine interdit.
+
+> ⭐ **Mais la règle n'est pas « on ne mélange pas les familles ».** Fabien précise qu'on peut
+> mélanger plusieurs tables `data`. Le vrai critère est **la CLÉ TEMPORELLE** — un événement en a
+> une, une situation en a deux. Or c'est **exactement la règle écrite le 23/08 pour le Calculator**
+> (§9quater.4) : *une nouvelle table SSI la clé temporelle change*. **La même règle gouverne
+> l'export.** Ce n'est pas une règle d'export, c'est la règle du monde.
+>
+> ⚠ Et la famille n'en est qu'un **PROXY** — le même piège que « le nom de table dit la famille »,
+> corrigé le même jour dans le `.wdat` (§9duodecies.3).
+
+**② Le filtrage / « présent dans » n'est pas câblé.** Zéro occurrence de filtre ou de condition
+dans tout `core/export.py`. Mais `present_dans()` existe (`core/segmentation.py`, exposé au
+catalogue sous `segment_present_dans`) et la chaîne conditionnelle complète aussi (14 opérateurs,
+arbre ET/OU/XOR/NON, 46 tests). **C'est un câblage, pas un moteur à écrire.**
+
+⚠ **Et il ne sera pas dessiné d'intuition.** C'est ce qui a coûté le revert du premier Exporter :
+sur 5 affirmations de §9ter.6 écrites depuis un schéma et une intuition, **2 étaient fausses et 1
+sous-estimait d'un facteur 5**, toutes dans le sens optimiste. Avant d'ajouter un champ `filtre` à
+`Declaration`, **lire le panneau d'export de `BIND_GUI.mlapp`** : filtre-t-il les LIGNES d'une table,
+les OCCURRENCES retenues, ou les deux ? par déclaration ou globalement ?
+
+**③ Les cadences différentes — le point dur, et Fabien le pose à part avec raison.** Deux tables
+`data` à 1000 Hz et 10 Hz n'ont pas les mêmes instants ; les mettre en colonnes côte à côte exige de
+décider quelle ligne va avec quelle ligne. ⚠ Et **D6/D10 interdisent l'interpolation**. Trois issues
+honnêtes :
+
+- **refuser** — un fichier par cadence ;
+- **agréger** vers la plus lente — `calcul_par_segment` existe et n'invente aucune valeur ;
+- **joindre au plus proche** sans interpoler (`at(how=NEAREST)`) — c'est une *jointure*, elle répète
+  ou omet des lignes mais ne fabrique rien.
+
+⚠ Dans les deux derniers cas, **il faut le DIRE dans le livrable** : une colonne à 10 Hz alignée sur
+une base à 1000 Hz répète 100 fois la même valeur, et le chercheur croira avoir mesuré à 1000 Hz.
+`Rapport.pertes` (§9duodecies.5) est déjà le mécanisme fait pour ça.
+
+**④ « Trip réf » vs « Sélection » n'existe nulle part** dans `wama_data` — voir 11.4.
+
+### 11.3 EXPORTER — trois évolutions proposées, plutôt qu'une reprise
+
+**⭐ Les méta-données ne sont pas une 4ᵉ famille — elles sont l'IDENTITÉ.** Question ouverte de
+Fabien (« à voir pour rajouter les meta-data et comment le faire »). Réponse : une méta **ne varie
+pas dans le temps**, donc elle n'a **pas de clé temporelle**, donc elle ne peut pas être une table
+qu'on concatène. Sa place est **en tête de ligne** — ce que `Identite` fait déjà.
+⚠ Exception : Audio/Video portent un *offset*, ce sont des **médias liés**, pas des métas de ligne.
+
+**Le nom du fichier doit rester DÉRIVABLE.** L'écran d'origine offre « Renommer ». Or la doctrine du
+monde (§9ter.6 B7, `core/noms.py`) est que **le nom se dérive des paramètres** : un nom saisi
+librement rompt le lien entre le fichier lu et le réglage qui l'a produit. Proposition — nom **dérivé
+par défaut**, renommage possible mais **tracé comme une surcharge**, jamais un champ libre silencieux.
+
+**L'aperçu doit montrer la PERTE, pas seulement les lignes.** `apercu()` rend l'export borné ; avec
+③, il doit aussi dire « cette colonne est répétée 100× » ou « ces deux tables ont été agrégées ».
+
+### 11.4 « Trip réf » vs « Sélection » — un MODE transverse, pas une option d'Exporter
+
+Fabien le dit lui-même : l'utilisateur applique les modules « soit uniquement sur son trip de
+référence (exploratoire/test), soit sur la sélection (production sur la pile sélectionnée) ». C'est
+donc un **mode du monde Data entier**, pas un bouton de l'Exporter.
+
+⭐ **Et WAMA a déjà ce geste** : c'est **item vs lot** du monde Médias (traiter cette card / traiter
+le lot), avec sa doctrine écrite dans `wama/common/app_modes.py`. Le recoder par module créerait un
+**troisième vocabulaire** pour une notion qui en a déjà un.
+
+### 11.5 CATALOGER — et pourquoi son nom pose problème
+
+Sources : `Modules/Cataloger/Schéma de principe.png` + `catalogue.png`.
+
+L'arbre de l'écran : **Trips** (Sélection / Liste, avec un `(réf)` qui marque le fichier de
+référence) · **Events & Situations** · **Datas** · **Metas** (Attributs, Audio/Video, Participant) ·
+**Catalogue**. Trois boutons contextuels en pied : ✏ renommer · ✕ supprimer/désélectionner ·
+👁 explorer (= l'Explorer).
+
+Le geste : le **Connector** connecte des fichiers de travail (récursivement — un dossier de
+passation, d'expérimentation, voire plusieurs si les datasets sont homogènes) ; le catalogue les
+liste, permet de désigner **un fichier de référence** et/ou **une sélection**, et sert aussi à
+**chercher / trier / filtrer à travers les données et méta-données**.
+
+⚠ **En amont** : sur un dataset non indexé, un LLM cartographie le dossier et propose le manifeste
+`dataset` — sinon l'utilisateur le fournit. C'est exactement « le LLM propose, la machine dispose »
+(§9bis) : le manifeste déclare des attentes **vérifiables**, et `dataset.charger()` **mesure l'écart**
+(`Ecart`, §9octies).
+
+⚠ Le crayon (renommer) demande une garde explicite, et Fabien la pose lui-même : **on ne renomme pas
+une table si elle diffère alors du manifeste `dataset`**. Si tout est passé par les mécanismes, il
+n'y a d'ailleurs aucune raison de renommer — sauf pour un essai jetable.
+
+⚠⚠ **Le nom « Cataloger » est déjà pris deux fois** — `wama/common/catalog/` (la glu inter-mondes :
+taxonomie de types + registre de fonctions), et le « catalogue de fonctions » que **son propre écran
+affiche en bas**. Trois choses porteraient le même mot. → **D19**.
+
+⭐ **Et une hypothèse de structure** : si le schéma se lit bien, **le Cataloger est l'INTERFACE du
+Connector** — le Connector connecte, le Cataloger liste, sélectionne et explore. C'est le même motif
+que « l'Explorer est l'interface du Calculator » (§9quater, 23/08). Auquel cas ce n'est pas un module
+de plus, et le compte de §7 ne bouge pas.
+
+### 11.6 LA HIÉRARCHIE — explicitée par Fabien, et elle range le monde
+
+> **projet → expérimentation → participant → scénario/essai → event/situation**
+
+| niveau | ce que c'est dans WAMA | état |
+|---|---|---|
+| **projet** | `Manifest.scope_project` / `projects` | ✅ **existe déjà** dans le substrat |
+| **expérimentation** | le manifeste **`dataset`** (un corpus de N fichiers) | ✅ kind livré |
+| **participant** | méta du fichier de travail (`MetaParticipantDatas` existe dans `.trip`) | 🔶 lu, pas modélisé |
+| **scénario / essai** | **UN fichier `.wdat`** | ✅ |
+| **event / situation** | tables *dans* le fichier | ✅ |
+
+⭐ **C'est ce qui a tranché D17** : `dataset` et le fichier de travail sont à **deux étages
+différents**, donc `.wds` (« WAMA DataSet ») les aurait écrasés. Dans BIND un `.trip` est un trajet
+ou un scénario de simulation ; **généralisé, c'est un ESSAI** — et c'est exactement ce que `.wdat`
+doit pouvoir désigner sans présupposer de déplacement.
+
+### 11.7 Ce que cette cartographie ne couvre pas encore
+
+⏳ Modules déposés mais non confrontés : **Importer**, **Explorer**, **Segmenter** (4 captures :
+codage vidéo, filtrage, segmentation conditionnelle, segmentation temporelle).
+
+⚠ Et la méthode vaut d'être répétée telle quelle : **rattacher chaque écran au code de `BIND_GUI`
+avant de conclure**. La cartographie de §9ter s'est faite depuis des schémas, et c'est là que les
+trois affirmations fausses sont nées.
+
+---
+
 ## 9bis.6 Ce que la cartographie n'a pas couvert — à traiter avant l'Importer v2
 
 **L'alignement par TRIGGERS.** RTMaps et LSL fournissent une horloge d'acquisition commune ; des
