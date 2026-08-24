@@ -55,19 +55,26 @@ MODULES: Tuple[ModuleData, ...] = (
         'importer', 'Importer', "Lit une source et rend un référentiel temporel interrogeable",
         "fichiers + manifeste `dataset` → référentiel, écrit en `.wrec`",
         briques=('wama_data/sources/__init__.py',
+                 'wama_data/sources/_sqlite.py',
                  'wama_data/sources/trip.py',
+                 'wama_data/sources/wrec.py',
                  'wama_data/sources/tabular.py',
-                 'wama_data/sources/rtmaps.py'),
-        doc='§6.6, §6.6bis, §9bis.1, §9quater.2 (conteneur natif)',
+                 'wama_data/sources/rtmaps.py',
+                 'wama_data/containers/__init__.py',
+                 'wama_data/containers/wrec.py',
+                 'wama_data/containers/trip.py'),
+        doc='§6.6, §6.6bis, §9bis.1, §9quater.2, §9duodecies, §9terdecies',
         bloque_par="alignement par TRIGGERS non conçu (D12) ; ⚠ le lecteur `.rec` EXISTE depuis le "
                    "2026-08-24 (`sources/rtmaps.py`, inventaire par le `.idy`, vérifié sur les DEUX "
                    "grammaires RTMaps et contre l'export CSV de RTMaps lui-même) — reste la couche "
                    "SÉMANTIQUE par famille de flux (le `data_parser/` de pynd : `clé=valeur` à "
                    "virgule française, JSON, colonnes tabulées), la charge étant aujourd'hui rendue "
                    "telle quelle ; `functions/io/rtmaps_rec.py` demeure un utilitaire du Lab, non "
-                   "migré à dessein ; l'ÉCRITURE du "
-                   "conteneur natif `.wrec` reste à écrire — D3 est tranchée (2026-08-23) mais "
-                   "aucune ligne de WAMA Data n'écrit encore de SQLite. "
+                   "migré à dessein. ⚠ « l'ÉCRITURE du conteneur natif `.wrec` reste à écrire — "
+                   "aucune ligne n'écrit encore de SQLite » a été RETIRÉ le 2026-08-24 : "
+                   "l'écrivain (`containers/`, un moteur et deux schémas) ET le lecteur "
+                   "(`sources/wrec.py`) sont livrés, l'aller-retour est éprouvé et la "
+                   "compatibilité BIND attestée par contre-épreuve (§9duodecies, §9terdecies). "
                    "⚠ « `DATASET_SOURCES` non réconcilié avec le registre des lecteurs (G1) » a "
                    "été RETIRÉ de cette liste le 2026-08-24 : c'était une glose fausse à deux "
                    "titres (§9decies). G1 dit « le moteur ne cite aucun format » — vrai défaut, "
@@ -89,8 +96,15 @@ MODULES: Tuple[ModuleData, ...] = (
     ModuleData(
         'connector', 'Connector', "Branche une base existante comme source",
         "base SQLite (`.trip` externe, `.wrec` natif) → référentiel",
-        briques=('wama_data/sources/trip.py',),
-        doc='§6.2, §9quater.2',
+        briques=('wama_data/sources/_sqlite.py',
+                 'wama_data/sources/trip.py',
+                 'wama_data/sources/wrec.py'),
+        doc='§6.2, §9quater.2, §9terdecies',
+        bloque_par="Les DEUX bases se lisent depuis le 2026-08-24 (`.trip` externe et `.wrec` "
+                   "natif, socle SQLite partagé). ⚠ Ce qui le sépare encore de l'Importer n'est "
+                   "PAS une capacité de lecture mais un GESTE : brancher une base sans la copier "
+                   "suppose de décider ce qu'on fait d'une source qui bouge sous les pieds — "
+                   "question jamais posée, et c'est elle le vrai reste",
     ),
     ModuleData(
         'explorer', 'Explorer', "Explore un dataset en table et en graphe — c'est aussi "
@@ -185,10 +199,13 @@ MODULES: Tuple[ModuleData, ...] = (
                    "sérialisable, DEUX axes de regroupement au lieu des quatre branches "
                    "recopiées, l'aperçu qui EST l'export borné. ⚠ Il n'est PAS au catalogue de "
                    "fonctions et ce n'est pas un oubli : un puits n'a pas de `FunctionCategory` "
-                   "honnête, et où vit ce nœud relève de la décision D13 — le trancher dans un "
-                   "adaptateur serait le trancher au mauvais endroit. Restent donc : le nœud de "
-                   "pipeline (D13), les formats `xlsx`/`mat` (refusés explicitement, pas écrits), "
-                   "et l'app qui le pilote",
+                   "honnête. ⚠ MAIS SON BLOCAGE A CHANGÉ DE NATURE le 2026-08-24 : **D13 est "
+                   "TRANCHÉE** (§9undecies.2 — un seul kind `pipeline`, étendu d'un nœud "
+                   "`function`). Ce n'est donc plus une décision qu'on attend, c'est une "
+                   "IMPLÉMENTATION qui manque, et l'abstention de `functions/io/export.py` — "
+                   "écrite « tant que D13 n'est pas tranchée » — doit être relue à cette lumière. "
+                   "Restent : le nœud `function` dans le kind, les formats `xlsx`/`mat` (refusés "
+                   "explicitement, pas écrits), et l'app qui le pilote",
     ),
     ModuleData(
         'recorder', 'Recorder', "Enregistre depuis une source temps réel",
@@ -200,7 +217,12 @@ MODULES: Tuple[ModuleData, ...] = (
         'analyzer', 'Analyzer', "Orchestre les modules selon un manifeste `pipeline`",
         "manifeste `pipeline` → exécution",
         doc='§9bis.2',
-        bloque_par="nœud FONCTION absent du kind `pipeline` (D13)",
+        bloque_par="⚠ D13 n'est plus en attente — TRANCHÉE le 2026-08-24 (§9undecies.2) : un "
+                   "seul kind `pipeline`, étendu d'un nœud `function`, parce qu'un protocole réel "
+                   "TRAVERSE les mondes et que deux kinds le rendraient inexprimable. Le nœud "
+                   "reste à IMPLÉMENTER, et avec lui le dispatch app (job de file, asynchrone) vs "
+                   "fonction (transformation typée, synchrone). C'est désormais le premier "
+                   "chantier non bloqué de la chaîne",
     ),
 )
 
