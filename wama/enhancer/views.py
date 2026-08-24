@@ -215,8 +215,9 @@ class IndexView(View):
             user, batch_model=BatchAudioEnhancement, work_attr='audio_enhancement',
             extra=_make_extra(_decorate_audio_card))
 
-        batches_list.sort(key=lambda b: 0 if b['obj'].total > 1 else 1)
-        audio_batches_list.sort(key=lambda b: 0 if b['obj'].total > 1 else 1)
+        # (« batchs d'abord » RETIRÉ le 2026-08-24 : règle abandonnée le 2026-06-29 au profit du
+        # tri de la barre commune — `apply_queue_sort_filter` ci-dessous trie TOUJOURS, défaut
+        # `recent`, et s'applique aux DEUX listes. Ces deux tris étaient donc écrasés juste après.)
 
         def _name_of(b):
             return (b['obj'].name or '') if hasattr(b['obj'], 'name') else str(b['obj'])

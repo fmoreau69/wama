@@ -171,7 +171,8 @@ class IndexView(View):
                     _decorate_synthesis(link.synthesis)
 
         # Multi-item batches first, then single-item batches
-        batches_list.sort(key=lambda b: 0 if b['obj'].total > 1 else 1)
+        # (« batchs d'abord » RETIRÉ le 2026-08-24 — écrasé par `apply_queue_sort_filter`
+        #  juste en dessous ; la règle a été abandonnée le 2026-06-29.)
 
         queue_count = sum(len(b['items']) for b in batches_list)
 

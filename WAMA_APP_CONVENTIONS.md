@@ -1182,13 +1182,30 @@ Un upload individuel crée un batch-de-1 (pattern du Synthesizer — `_wrap_in_b
 
 ### 9.7 Affichage de la file — ordre et état des batch groups
 
-**Règle d'ordre :**
-Les multi-batches (total > 1) s'affichent **toujours avant** les batches individuels (total == 1).
-Tri côté serveur dans `IndexView.get()` :
+**Règle d'ordre :** ⚠ **CETTE RÈGLE A ÉTÉ ABANDONNÉE LE 2026-06-29** — le texte ci-dessous
+la décrivait encore au 2026-08-24, deux mois après, et il a induit en erreur (voir plus bas).
+
+L'ordre de la file n'est plus décidé par l'app : il vient de la **barre commune de tri/filtrage**
+(`common/utils/queue_view.py::apply_queue_sort_filter`), persistée en session. **Défaut =
+chronologique récent** (`recent`), et non plus « batchs d'abord ». Le regroupement par type reste
+disponible, mais comme un CHOIX de l'utilisateur parmi d'autres — options `batches_first` et
+`singles_first`.
 
 ```python
-batches_list.sort(key=lambda b: 0 if b['obj'].total > 1 else 1)
+batches_list, q_sort, q_filter = apply_queue_sort_filter(request, batches_list, name_of=_name_of)
 ```
+
+⚠ **Ne PAS trier en dur avant cet appel** : `apply_queue_sort_filter` trie toujours, donc un tri
+préalable est écrasé. Trois de ces tris survivaient (enhancer ×2, synthesizer ×1), retirés le
+2026-08-24 — inoffensifs à l'exécution, mais ils faisaient croire que « batchs d'abord » était
+encore la règle.
+
+> ⚠⚠ **Leçon de cette fiche, à retenir avant d'accuser du code** : une doc périmée ne se contente
+> pas d'être inutile, elle **fait diagnostiquer à l'envers**. Le 2026-08-24, ces lignes m'ont servi
+> à conclure qu'un motif répété dans 10 gabarits « appliquait la convention » — alors que la
+> convention avait changé. **Vérifier la DATE d'une règle avant de s'en servir comme référence**,
+> et confronter au code qui l'implémente (ici `queue_view.py:30` disait explicitement le
+> contraire : « plus de batchs d'abord — décision 2026-06-29 »).
 
 **Règle de repliage :**
 - Les multi-batches sont **repliés par défaut** au premier affichage.
