@@ -63,9 +63,25 @@ wsl.exe -e bash -lc "PGPASSWORD=*** psql -h 127.0.0.1 -U wama_user -d wama_db -t
 5. **Services** : convertir `start_wama_*.sh` en **units systemd** (postgresql, redis, gunicorn,
    celery-gpu, celery-default, celery-beat, tts) avec dépendances et `Restart=on-failure`.
 6. **Static** : `collectstatic` + service par nginx/Apache (le `staticfiles/` prend alors tout son sens).
+   ⚠ C'est **lié au point 8** : aujourd'hui `urls.py:64` conditionne le service des statiques à
+   `settings.DEBUG`. Le frontal doit servir `/static/` **avant** que `DEBUG` passe à `False`,
+   sinon tout le CSS/JS tombe en 404.
 7. **Secrets** : ✅ FAIT (2026-07-23) — mot de passe DB, `SECRET_KEY`, proxy sortis de `settings.py`
    vers l'environnement/`.env` (voir section ci-dessous). En prod : injecter via systemd
    `EnvironmentFile=` / Docker secrets / Vault plutôt qu'un `.env` (le code ne change pas).
+8. **`DEBUG = False`** (`settings.py:20`, en dur aujourd'hui, aucune surcharge par env) — à traiter
+   **ici et pas avant** : c'est le passage en prod qui apporte le frontal servant `/static/`, donc
+   le préalable du point 6. Enjeu réel : en `DEBUG`, chaque 500 renvoie au navigateur les extraits
+   de source et les **variables locales** de chaque frame. Ordre : frontal `/static/` → vérifier
+   l'UI → `DEBUG = False`. Le journal `logs/django-errors.log` (posé le 2026-08-24) est
+   **indépendant de `DEBUG`** : il continuera de recevoir les tracebacks après la bascule.
+9. **Sort d'Apache/Windows — DÉCIDÉ le 2026-08-24 : on tranche au passage en prod, pas avant.**
+   Il n'impacte rien dans l'intervalle (les 58 500 × 502 sont soldés, cf. § plus bas). Ce n'est
+   **pas** un résidu au sens de la base Postgres Windows : il est sur le chemin de tout le trafic
+   :80 — mesuré, y compris une session navigateur en direct. Ce qu'il faudra reprendre côté nginx
+   natif : l'`Alias /media/` (**72,69 Go / 44 % des octets** servis hors gunicorn), le port 80, la
+   page d'attente 502. Le résidu réel, lui, est `mod_wsgi` (chargé, aucun `WSGIScriptAlias`) : il
+   disparaît de fait avec l'hôte Windows.
 
 ## Secrets & configuration (`.env`)  — externalisation 2026-07-23
 - **Config env-driven** : `SECRET_KEY`, mot de passe DB, `PROXY`/`HTTP_PROXY`, LDAP… lus via
