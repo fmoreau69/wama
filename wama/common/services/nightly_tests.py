@@ -235,7 +235,8 @@ register_examples()
 # Scénarios UI (un par app exposant une page d'index) — import TARDIF et tolérant : Playwright
 # ou le serveur peuvent manquer sur une machine de dev, ça ne doit pas casser le registre.
 try:
-    from wama.common.services.ui_smoke import (register_duplicate_delete_scenarios,
+    from wama.common.services.ui_smoke import (register_batch_actions_scenarios,
+                                               register_duplicate_delete_scenarios,
                                                register_import_scenarios,
                                                register_settings_scenarios,
                                                register_ui_scenarios,
@@ -255,6 +256,12 @@ try:
     # parce qu'un vert d'ADOPTION ne dit rien du FONCTIONNEMENT — il atteste deux présences dans
     # le code, pas qu'une modale s'ouvre ni qu'elle contient quoi que ce soit.
     register_settings_scenarios()
+    # Premier scénario portant sur le LOT et non sur l'ÉLÉMENT (2026-08-24). Il manquait, et le
+    # trou était structurel : `<app>.duplicate_delete` vise `.wama-card[data-id]`, donc la card
+    # FILLE — les boutons de la card MÈRE n'étaient exercés par AUCUN clic, alors qu'ils venaient
+    # d'être portés à la brique commune sur 5 apps. Un portage non exercé est un portage supposé ;
+    # celui-ci commence par dire si l'app est portée (URLs émises) avant de mesurer le geste.
+    register_batch_actions_scenarios()
     # Le VOLET DROIT est une troisième surface : ni la santé de la page ni la création d'un
     # élément ne voient un ✕ qui ne désélectionne pas (aucune erreur console — cf. WAMA_VOLETS §4).
     register_volet_scenarios()

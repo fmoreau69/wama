@@ -993,6 +993,168 @@ def check_app_settings(app: str, url_path: str):
     return True, detail
 
 
+def check_app_batch_actions(app: str, url_path: str):
+    """Les actions de LOT (⧉ puis 🗑) agissent-elles vraiment ? (ok, detail).
+
+    Geste 4 de la grille FONCTIONNELLE, et le premier qui porte sur le LOT et non sur
+    l'élément. Il manquait : `<app>.duplicate_delete` mesure `.wama-card[data-id]`, donc la
+    card FILLE — les boutons de la card MÈRE n'étaient couverts par aucun clic, alors même
+    qu'ils venaient d'être portés à la brique commune (`queue-actions.js`, 2026-08-23/24).
+    Un portage non exercé est un portage supposé.
+
+    Ce qui est mesuré, dans cet ordre — le premier manquant explique les suivants :
+      1. le partial ÉMET-il les URLs de lot (`actions_communes`) ? sinon l'app n'est pas portée
+         et le scénario le DIT, sans prétendre mesurer un geste qui n'existe pas encore ;
+      2. ⧉ ajoute-t-il un lot ?
+      3. 🗑 retire-t-il celui qu'on vient d'ajouter ?
+
+    Non destructif par construction : on ne supprime QUE le lot que l'on vient de créer,
+    identifié par différence d'ids — jamais un lot préexistant de l'utilisateur.
+    """
+    from wama.common.services.nightly_tests import SkipScenario
+    from playwright.sync_api import sync_playwright
+
+    url = f"{BASE_URL.rstrip('/')}{url_path}"
+    # Ids des cards MÈRES de lot (contrat `_batch_card.html` : `.wama-card.is-batch`).
+    # ⚠ La card MÈRE ne porte PAS `data-batch-id` — seuls ses BOUTONS le portent
+    # (`_batch_card.html`: la mère a `data-batch-total`, les boutons `data-batch-id`).
+    # Première version de ce scénario : 14 skips sur 14, l'id étant cherché sur la mère.
+    # Défaut d'INSTRUMENT, corrigé avant d'accuser une seule app.
+    LOTS = """(() => Array.from(document.querySelectorAll('.wama-card.is-batch'))
+        .map(e => { const b = e.querySelector('[data-batch-id]');
+                    return b ? b.getAttribute('data-batch-id') : ''; })
+        .filter(Boolean))()"""
+    # ⚠ Les URLs sont sur les BOUTONS, pas sur la card mère — c'est ce que lit la brique
+    # (`actionDeLot` fait `closest('.batch-delete-btn[data-batch-delete-url]')`), et c'est là
+    # que le partial les pose (`_batch_card.html:141/147`). Les chercher sur la mère faisait
+    # conclure « app non portée » sur deux apps qui l'étaient — 3ᵉ défaut d'instrument de ce
+    # scénario, tous trouvés avant d'avoir accusé une seule app.
+    URLS = """(() => {
+        const q = (c, a) => { const b = document.querySelector('.' + c + '[' + a + ']');
+                              return b ? b.getAttribute(a) : null; };
+        return {del:   q('batch-delete-btn',    'data-batch-delete-url'),
+                dup:   q('batch-duplicate-btn', 'data-batch-duplicate-url'),
+                start: q('batch-start-btn',     'data-batch-start-url')};
+    })()"""
+
+    jeton = _session_compte_de_test()
+    if not jeton:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
+
+    with sync_playwright() as p:
+        navigateur = p.chromium.launch()
+        try:
+            contexte = navigateur.new_context(viewport={'width': 1500, 'height': 1000})
+            contexte.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': jeton,
+                                   'domain': '127.0.0.1', 'path': '/'}])
+            page = contexte.new_page()
+            page.on('dialog', lambda d: d.accept())   # 🗑 confirme (confirm() natif)
+            echecs = []
+            page.on('response', lambda r: (
+                echecs.append(f"{r.status} {r.url.split('?')[0]}")
+                if r.request.method == 'POST' and r.status >= 400 else None))
+
+            resp = page.goto(url, wait_until='networkidle', timeout=45000)
+            if not resp or resp.status != 200:
+                return False, f"page HTTP {resp.status if resp else '?'}"
+            page.wait_for_timeout(1200)
+
+            lots0 = page.evaluate(LOTS)
+            if not lots0:
+                # Un dépôt suffit : les apps auto-enveloppent l'élément isolé dans un batch-of-1.
+                exclus = '[id*="atch"], [id*="elody"], [id*="eference"], [id*="voice"], [id*="avatar"]'
+                champ = page.query_selector(f'[data-wama-nic] input[type=file]:not({exclus})')
+                if not champ:
+                    raise SkipScenario("aucun lot en file et aucun champ d'import au contrat "
+                                       "de la card commune — rien a monter (cf. `<app>.import`)")
+                # ⚠ DEUX fichiers, pas un. Mesuré le 2026-08-24 sur converter : un dépôt
+                # simple crée une card ORDINAIRE, sans card mère (`is-batch` absent du DOM).
+                # Le lot n'apparaît qu'à partir de plusieurs fichiers de même nature — c'est
+                # ce que dit le gabarit (« Groupe batch (multi-fichiers même nature) »).
+                # Première version de ce scénario : 14 skips sur 14 pour cette seule raison.
+                accept = champ.get_attribute('accept') or ''
+                t1, t2 = _fichier_temoin(accept), _fichier_temoin(accept)
+                try:
+                    if champ.get_attribute('multiple') is not None:
+                        champ.set_input_files([str(t1), str(t2)])
+                        page.wait_for_timeout(6000)
+                    else:
+                        champ.set_input_files(str(t1))
+                        page.wait_for_timeout(4000)
+                        champ = page.query_selector(
+                            f'[data-wama-nic] input[type=file]:not({exclus})') or champ
+                        champ.set_input_files(str(t2))
+                        page.wait_for_timeout(4000)
+                    lots0 = page.evaluate(LOTS)
+                finally:
+                    for _t in (t1, t2):
+                        try:
+                            _t.unlink()
+                        except OSError:
+                            pass
+                if not lots0:
+                    raise SkipScenario("deux depots de montage n'ont cree aucun LOT (card mere "
+                                       "`is-batch` absente) — l'app ne groupe pas, ou l'import "
+                                       "echoue (cf. `<app>.import`)")
+
+            # 1. L'app est-elle PORTEE ? (l'opt-in `actions_communes` emet les URLs)
+            urls = page.evaluate(URLS) or {}
+            manquantes = [k for k in ('del', 'dup', 'start') if not urls.get(k)]
+            if manquantes:
+                return False, (f"{len(lots0)} lot(s) en file mais la card mere n'emet pas "
+                               f"{manquantes} — l'app n'a pas encore `actions_communes=True` "
+                               f"(portage a la brique commune non fait)")
+
+            # 2. ⧉ de LOT
+            bouton_dup = page.locator('.wama-card.is-batch .batch-duplicate-btn:visible').first
+            if not bouton_dup.count():
+                return False, f"URLs emises mais aucun ⧉ de lot VISIBLE ({len(lots0)} lot(s))"
+            bouton_dup.click(timeout=15000)
+            page.wait_for_load_state('networkidle', timeout=30000)
+            page.wait_for_timeout(1500)
+            lots1 = page.evaluate(LOTS)
+            if len(lots1) <= len(lots0):
+                return False, (f"⧉ de lot cliquee mais la file n'a pas grandi "
+                               f"({len(lots0)} → {len(lots1)})"
+                               + (f" — POST en echec : {echecs}" if echecs else ""))
+            nouveaux = [i for i in lots1 if i not in lots0]
+            if not nouveaux:
+                return False, "la file a grandi mais aucun id NOUVEAU — doublon non identifiable"
+
+            # 3. 🗑 de LOT, sur le doublon SEULEMENT
+            cible = nouveaux[0]
+            # Le 🗑 porte lui-même l'id : on vise le BOUTON, pas la mère (qui ne l'a pas).
+            btn_del = page.locator(f'.batch-delete-btn[data-batch-id="{cible}"]:visible').first
+            if not btn_del.count():
+                return False, (f"doublon #{cible} cree mais aucun 🗑 de lot dessus "
+                               f"— NETTOYAGE IMPOSSIBLE, lot laisse en file")
+            btn_del.click(timeout=15000)
+            page.wait_for_load_state('networkidle', timeout=30000)
+            page.wait_for_timeout(1500)
+            lots2 = page.evaluate(LOTS)
+            if cible in lots2:
+                return False, (f"🗑 de lot cliquee mais le doublon #{cible} est TOUJOURS la "
+                               + (f" — POST en echec : {echecs}" if echecs else ""))
+
+            return True, (f"⧉ puis 🗑 de LOT exerces : {len(lots0)} → {len(lots1)} → "
+                          f"{len(lots2)} lot(s) ; doublon #{cible} cree puis retire")
+        finally:
+            navigateur.close()
+
+
+def register_batch_actions_scenarios():
+    """Enregistre un scénario `<app>.batch_actions` par app disposant d'une page d'index."""
+    from wama.common.services.nightly_tests import register
+
+    for label, path in discoverable_apps():
+        register(
+            id=f"{label}.batch_actions", app=label, stage="ui",
+            description=f"File {label} : ⧉ puis 🗑 sur la card MÈRE d'un lot (brique commune)",
+            run=(lambda p=path, a=label: (lambda ctx: check_app_batch_actions(a, p)))(),
+            timeout_s=240, vram_gb=0.0,
+        )
+
+
 def register_settings_scenarios():
     """Enregistre un scénario `<app>.settings` par app disposant d'une page d'index."""
     from wama.common.services.nightly_tests import register
