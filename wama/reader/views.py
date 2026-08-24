@@ -415,7 +415,7 @@ def card_html(request, pk: int):
     _decorate_card(item)
     link = BatchReadingItemLink.objects.filter(reading=item).select_related('batch').first()
     in_batch = bool(link and link.batch.total > 1)
-    return render(request, 'reader/_item_card.html', {'item': item, 'in_batch': in_batch})
+    return render(request, 'reader/_item_card.html', {'elem': item, 'in_batch': in_batch})
 
 
 def progress(request, pk: int):

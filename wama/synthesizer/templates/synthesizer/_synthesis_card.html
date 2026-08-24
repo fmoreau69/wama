@@ -3,7 +3,7 @@
 Card VoiceSynthesis — CARD v3 « sections × chips » (CARD_DESIGN §11, portée le 2026-08-13 ;
 remplace la card en colonnes). SOURCE UNIQUE du markup : rendue au chargement (single +
 fille de batch) ET par synthesis_card_html (remplacement in-place à la complétion).
-Contexte : synthesis (décorée .chips), card_label = nom de SORTIE (.wav) — le libellé
+Contexte : elem (décorée .chips), card_label = nom de SORTIE (.wav) — le libellé
 principal affiche le fichier d'ENTRÉE (ex. .docx) si présent.
 
 ⚠ Contrats JS (index.js) : .synthesis-card.processing = sélection du polling (:483),
@@ -11,12 +11,12 @@ principal affiche le fichier d'ENTRÉE (ex. .docx) si présent.
   .preview-text-btn[data-id], .duplicate-btn[data-duplicate-url],
   .wama-progress-fill (:492), .progress-text (:493), .wama-eta (:499).
 {% endcomment %}
-<div class="synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if synthesis.status == 'RUNNING' %}processing{% elif synthesis.status == 'SUCCESS' %}success{% elif synthesis.status == 'FAILURE' %}error{% endif %}"
-     data-id="{{ synthesis.id }}" data-status="{{ synthesis.status }}"
-     data-preview-url="{% url 'common:unified_preview' 'synthesizer' synthesis.id %}">
+<div class="synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if elem.status == 'RUNNING' %}processing{% elif elem.status == 'SUCCESS' %}success{% elif elem.status == 'FAILURE' %}error{% endif %}"
+     data-id="{{ elem.id }}" data-status="{{ elem.status }}"
+     data-preview-url="{% url 'common:unified_preview' 'synthesizer' elem.id %}">
 <div class="card-body py-2">
 
-  <div class="wcv3-head">#{{ synthesis.id }}<span class="sep">·</span>{{ synthesis.created_at|date:"d/m H:i" }}</div>
+  <div class="wcv3-head">#{{ elem.id }}<span class="sep">·</span>{{ elem.created_at|date:"d/m H:i" }}</div>
 
   <div class="wcv3">
 
@@ -26,11 +26,11 @@ principal affiche le fichier d'ENTRÉE (ex. .docx) si présent.
       <div class="wcv3-in">
         <span class="wcv3-thumb"><i class="fas fa-file-alt text-info"></i></span>
         <div class="wcv3-in-lines">
-          <span role="button" class="wcv3-in-name preview-text-btn" data-id="{{ synthesis.id }}"
+          <span role="button" class="wcv3-in-name preview-text-btn" data-id="{{ elem.id }}"
                 title="Aperçu du texte source">
-            {% if synthesis.text_file %}{{ synthesis.filename }}{% else %}{{ card_label|default:synthesis.filename }}{% endif %}
+            {% if elem.text_file %}{{ elem.filename }}{% else %}{{ card_label|default:elem.filename }}{% endif %}
           </span>
-          <span class="wcv3-in-props">{{ synthesis.word_count }} mots<span class="sep">·</span>{{ synthesis.duration_display|default:"--:--" }}</span>
+          <span class="wcv3-in-props">{{ elem.word_count }} mots<span class="sep">·</span>{{ elem.duration_display|default:"--:--" }}</span>
         </div>
       </div>
     </div>
@@ -39,22 +39,22 @@ principal affiche le fichier d'ENTRÉE (ex. .docx) si présent.
     <div class="wcv3-sec wcv3-sec--settings">
       <span class="wcv3-lbl">Réglages</span>
       <div class="wcv3-out">
-        {% include 'common/_card_chips.html' with chips=synthesis.chips.settings %}
+        {% include 'common/_card_chips.html' with chips=elem.chips.settings %}
       </div>
     </div>
 
     {# ── SORTIE : étape live → fichier audio produit ; l'erreur la remplace ────────── #}
     <div class="wcv3-sec wcv3-sec--output">
       <span class="wcv3-lbl">Sortie</span>
-      {% if synthesis.status == 'FAILURE' and synthesis.error_message %}
-        <span class="wcv3-out-error" title="{{ synthesis.error_message|escape }}">
-          <i class="fas fa-triangle-exclamation"></i> {{ synthesis.error_message|truncatechars:120|escape }}
+      {% if elem.status == 'FAILURE' and elem.error_message %}
+        <span class="wcv3-out-error" title="{{ elem.error_message|escape }}">
+          <i class="fas fa-triangle-exclamation"></i> {{ elem.error_message|truncatechars:120|escape }}
         </span>
       {% else %}
         <div class="wcv3-out">
-          {% if synthesis.status == 'RUNNING' %}
-            <span class="wcv3-out-step"><span class="pct progress-text">{{ synthesis.progress }}%</span> — synthèse…</span>
-          {% elif synthesis.audio_output %}
+          {% if elem.status == 'RUNNING' %}
+            <span class="wcv3-out-step"><span class="pct progress-text">{{ elem.progress }}%</span> — synthèse…</span>
+          {% elif elem.audio_output %}
             <span class="wcv3-out-step" title="{{ card_label|default:'' }}">
               <i class="fas fa-check-circle text-success"></i> {{ card_label|default:"audio produit" }}
             </span>
@@ -68,11 +68,11 @@ principal affiche le fichier d'ENTRÉE (ex. .docx) si présent.
       <span class="wcv3-lbl">État</span>
       <div class="wcv3-state">
         <span class="wcv3-state-line">
-          <span class="wama-status-dot" data-s="{{ synthesis.status }}"></span>
-          <span>{% if synthesis.status == 'PENDING' %}En attente{% elif synthesis.status == 'RUNNING' %}En cours{% elif synthesis.status == 'SUCCESS' %}Terminé{% elif synthesis.status == 'FAILURE' %}Échec{% else %}{{ synthesis.status }}{% endif %}</span>
+          <span class="wama-status-dot" data-s="{{ elem.status }}"></span>
+          <span>{% if elem.status == 'PENDING' %}En attente{% elif elem.status == 'RUNNING' %}En cours{% elif elem.status == 'SUCCESS' %}Terminé{% elif elem.status == 'FAILURE' %}Échec{% else %}{{ elem.status }}{% endif %}</span>
         </span>
-        {% if synthesis.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ synthesis.id }}"></span>{% endif %}
-        {% if synthesis.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=synthesis.processing_display %}{% endif %}
+        {% if elem.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ elem.id }}"></span>{% endif %}
+        {% if elem.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=elem.processing_display %}{% endif %}
       </div>
     </div>
 
@@ -83,16 +83,16 @@ principal affiche le fichier d'ENTRÉE (ex. .docx) si présent.
         {% comment %}data-* DÉRIVÉS du schéma (brique commune card_gear, 18/08) — remplace
         les 7 attributs écrits à la main (contrat cardSettings inchangé).{% endcomment %}
         <button class="btn btn-sm btn-outline-secondary settings-btn"
-                data-id="{{ synthesis.id }}"
-                {% for k, v in synthesis.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}
+                data-id="{{ elem.id }}"
+                {% for k, v in elem.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}
                 title="Paramètres">
           <i class="fas fa-cog"></i>
         </button>
-        {% include 'common/_cycle_button.html' with id=synthesis.id status=synthesis.status %}
-        {% url 'synthesizer:download' synthesis.id as url_dl %}
-        {% bouton_telecharger 'synthesizer' url_dl synthesis.audio_output %}
+        {% include 'common/_cycle_button.html' with id=elem.id status=elem.status %}
+        {% url 'synthesizer:download' elem.id as url_dl %}
+        {% bouton_telecharger 'synthesizer' url_dl elem.audio_output %}
         <button class="btn btn-sm btn-outline-warning duplicate-btn"
-                data-duplicate-url="{% url 'synthesizer:duplicate' synthesis.id %}"
+                data-duplicate-url="{% url 'synthesizer:duplicate' elem.id %}"
                 title="Dupliquer (tester un autre modèle)">
           <i class="fas fa-copy"></i>
         </button>
@@ -102,8 +102,8 @@ principal affiche le fichier d'ENTRÉE (ex. .docx) si présent.
         Le handler local d'index.js a été retiré dans le MÊME geste (sinon double-fire).
         {% endcomment %}
         <button class="btn btn-sm btn-outline-danger delete-btn"
-                data-id="{{ synthesis.id }}"
-                data-delete-url="{% url 'synthesizer:delete' synthesis.id %}"
+                data-id="{{ elem.id }}"
+                data-delete-url="{% url 'synthesizer:delete' elem.id %}"
                 data-confirm="Supprimer cette synthèse ?" title="Supprimer">
           <i class="fas fa-trash"></i>
         </button>
@@ -111,11 +111,11 @@ principal affiche le fichier d'ENTRÉE (ex. .docx) si présent.
     </div>
 
     {% comment %}Barre pleine largeur — ligne 2 de la grille (§11) ; FIGÉE au % en échec.{% endcomment %}
-    {% if synthesis.status != 'PENDING' %}
+    {% if elem.status != 'PENDING' %}
     <div class="wcv3-bar" style="grid-column:1/-1;">
       <div class="wama-progress-track">
-        <div class="wama-progress-fill{% if synthesis.status == 'RUNNING' %} active{% elif synthesis.status == 'FAILURE' %} is-frozen{% endif %}"
-             style="width:{% if synthesis.status == 'SUCCESS' %}100{% else %}{{ synthesis.progress }}{% endif %}%"></div>
+        <div class="wama-progress-fill{% if elem.status == 'RUNNING' %} active{% elif elem.status == 'FAILURE' %} is-frozen{% endif %}"
+             style="width:{% if elem.status == 'SUCCESS' %}100{% else %}{{ elem.progress }}{% endif %}%"></div>
       </div>
     </div>
     {% endif %}
@@ -126,12 +126,12 @@ principal affiche le fichier d'ENTRÉE (ex. .docx) si présent.
   L'include statique `_audio_waveform.html` est REMPLACÉ par le placeholder hydraté (voir le même
   portage sur composer/enhancer). Le rendu audio du commun passe par WamaAudioPlayer.create, dont
   le DOM est IDENTIQUE à celui de l'include — exclusivité et navette inchangées.{% endcomment %}
-  {% if synthesis.audio_output %}
-  {% url 'common:unified_preview' 'synthesizer' synthesis.id as pv_out %}
-  <div class="wcv3-preview" id="preview-row-{{ synthesis.id }}"
-       data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ synthesis.id }}"></div>
+  {% if elem.audio_output %}
+  {% url 'common:unified_preview' 'synthesizer' elem.id as pv_out %}
+  <div class="wcv3-preview" id="preview-row-{{ elem.id }}"
+       data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ elem.id }}"></div>
   {% else %}
-  <div id="preview-row-{{ synthesis.id }}"></div>
+  <div id="preview-row-{{ elem.id }}"></div>
   {% endif %}
 
 </div>

@@ -657,7 +657,7 @@ def synthesis_card_html(request, pk: int):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     synthesis = get_object_or_404(VoiceSynthesis, pk=pk, user=user)
     html = render_to_string('synthesizer/_synthesis_card.html',
-                            {'synthesis': _decorate_synthesis(synthesis)}, request=request)
+                            {'elem': _decorate_synthesis(synthesis)}, request=request)
     return HttpResponse(html)
 
 

@@ -92,7 +92,7 @@ id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.
     {% if batch_info.obj.is_unitary %}
     {# Génération individuelle #}
     {% for item in batch_info.items %}{% if item.generation %}
-    {% include 'composer/_generation_card.html' with gen=item.generation card_label=item.output_filename %}
+    {% include 'composer/_generation_card.html' with elem=item.elem card_label=item.output_filename %}
     {% endif %}{% endfor %}
 
     {% else %}
@@ -106,7 +106,7 @@ id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.
         <div class="collapse p-2" id="batchItems{{ batch_info.obj.id }}"
              data-wama-batch-key="composer_{{ batch_info.obj.id }}">
             {% for item in batch_info.items %}{% if item.generation %}
-            {% include 'composer/_generation_card.html' with gen=item.generation card_label=item.output_filename %}
+            {% include 'composer/_generation_card.html' with elem=item.elem card_label=item.output_filename %}
             {% endif %}{% endfor %}
         </div>
     </div>

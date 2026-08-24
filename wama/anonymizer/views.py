@@ -700,7 +700,7 @@ def card_html(request, pk):
     item = BatchAnonymizerItem.objects.filter(media=media).select_related('batch').first()
     in_batch = bool(item and item.batch.total > 1)
     return render(request, 'anonymizer/_media_card.html',
-                  {'media': media, 'in_batch': in_batch, 'user': user})
+                  {'elem': media, 'in_batch': in_batch, 'user': user})
 
 
 def _reset_for_relaunch(media):

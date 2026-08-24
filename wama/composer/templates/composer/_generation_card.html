@@ -3,7 +3,7 @@
 Card ComposerGeneration — CARD v3 « sections × chips » (CARD_DESIGN §11, portée le
 2026-08-13 ; remplace la card en colonnes). SOURCE UNIQUE du markup : rendue au chargement
 ET par card_html (insertion à la création, remplacement complet en fin de tâche).
-Contexte : gen (décorée .chips), card_label = nom de sortie (optionnel).
+Contexte : elem (décorée .chips), card_label = nom de sortie (optionnel).
 App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
 
 ⚠ Contrats JS (index.js) : .generation-card[data-id][data-status][data-estimated-seconds],
@@ -13,14 +13,14 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
   Duplication : brique commune queue-actions.js (14/08 — le handler local d'index.js est
   SUPPRIMÉ, porter = remplacer).
 {% endcomment %}
-<div class="generation-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if gen.status == 'RUNNING' %}processing{% elif gen.status == 'SUCCESS' %}success{% elif gen.status == 'FAILURE' %}error{% endif %}"
-     data-id="{{ gen.id }}"
-     data-status="{{ gen.status }}"
-     data-estimated-seconds="{{ gen.estimated_seconds }}"
-     data-preview-url="{% url 'common:unified_preview' 'composer' gen.id %}">
+<div class="generation-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if elem.status == 'RUNNING' %}processing{% elif elem.status == 'SUCCESS' %}success{% elif elem.status == 'FAILURE' %}error{% endif %}"
+     data-id="{{ elem.id }}"
+     data-status="{{ elem.status }}"
+     data-estimated-seconds="{{ elem.estimated_seconds }}"
+     data-preview-url="{% url 'common:unified_preview' 'composer' elem.id %}">
 <div class="card-body py-2">
 
-  <div class="wcv3-head">#{{ gen.id }}<span class="sep">·</span>{{ gen.created_at|date:"d/m H:i" }}</div>
+  <div class="wcv3-head">#{{ elem.id }}<span class="sep">·</span>{{ elem.created_at|date:"d/m H:i" }}</div>
 
   <div class="wcv3">
 
@@ -29,12 +29,12 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
       <span class="wcv3-lbl">Entrée</span>
       <div class="wcv3-in">
         <span class="wcv3-thumb">
-          {% if gen.generation_type == 'music' %}<i class="fas fa-music text-success"></i>{% else %}<i class="fas fa-bolt text-danger"></i>{% endif %}
+          {% if elem.generation_type == 'music' %}<i class="fas fa-music text-success"></i>{% else %}<i class="fas fa-bolt text-danger"></i>{% endif %}
         </span>
         <div class="wcv3-in-lines">
-          <span class="wcv3-in-name" title="{{ gen.prompt }}">{{ card_label|default:gen.prompt|truncatechars:60 }}</span>
+          <span class="wcv3-in-name" title="{{ elem.prompt }}">{{ card_label|default:elem.prompt|truncatechars:60 }}</span>
           <span class="wcv3-in-props" title="Durée de génération estimée (GPU chaud)">
-            <i class="fas fa-hourglass-half fa-xs opacity-50"></i> <span class="estimated-time">{{ gen.estimated_display }}</span>
+            <i class="fas fa-hourglass-half fa-xs opacity-50"></i> <span class="estimated-time">{{ elem.estimated_display }}</span>
           </span>
         </div>
       </div>
@@ -44,24 +44,24 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
     <div class="wcv3-sec wcv3-sec--settings">
       <span class="wcv3-lbl">Réglages</span>
       <div class="wcv3-out">
-        {% include 'common/_card_chips.html' with chips=gen.chips.settings %}
+        {% include 'common/_card_chips.html' with chips=elem.chips.settings %}
       </div>
     </div>
 
     {# ── SORTIE : étape live → audio produit ; l'erreur la remplace ────────────────── #}
     <div class="wcv3-sec wcv3-sec--output">
       <span class="wcv3-lbl">Sortie</span>
-      {% if gen.status == 'FAILURE' and gen.error_message %}
-        <span class="wcv3-out-error error-message" title="{{ gen.error_message|escape }}">
-          <i class="fas fa-triangle-exclamation"></i> {{ gen.error_message|truncatechars:120|escape }}
+      {% if elem.status == 'FAILURE' and elem.error_message %}
+        <span class="wcv3-out-error error-message" title="{{ elem.error_message|escape }}">
+          <i class="fas fa-triangle-exclamation"></i> {{ elem.error_message|truncatechars:120|escape }}
         </span>
       {% else %}
         <div class="wcv3-out">
-          {% if gen.status == 'RUNNING' %}
-            <span class="wcv3-out-step"><span class="pct progress-text">{{ gen.progress }}%</span> — composition…</span>
-          {% elif gen.audio_output %}
+          {% if elem.status == 'RUNNING' %}
+            <span class="wcv3-out-step"><span class="pct progress-text">{{ elem.progress }}%</span> — composition…</span>
+          {% elif elem.audio_output %}
             <span class="wcv3-out-step" title="{{ card_label|default:'' }}">
-              <i class="fas fa-check-circle text-success"></i> {{ gen.duration_display }}
+              <i class="fas fa-check-circle text-success"></i> {{ elem.duration_display }}
             </span>
           {% endif %}
         </div>
@@ -73,11 +73,11 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
       <span class="wcv3-lbl">État</span>
       <div class="wcv3-state">
         <span class="wcv3-state-line">
-          <span class="wama-status-dot" data-s="{{ gen.status }}"></span>
-          <span>{% if gen.status == 'PENDING' %}En attente{% elif gen.status == 'RUNNING' %}En cours{% elif gen.status == 'SUCCESS' %}Terminé{% elif gen.status == 'FAILURE' %}Échec{% else %}{{ gen.status }}{% endif %}</span>
+          <span class="wama-status-dot" data-s="{{ elem.status }}"></span>
+          <span>{% if elem.status == 'PENDING' %}En attente{% elif elem.status == 'RUNNING' %}En cours{% elif elem.status == 'SUCCESS' %}Terminé{% elif elem.status == 'FAILURE' %}Échec{% else %}{{ elem.status }}{% endif %}</span>
         </span>
-        {% if gen.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ gen.id }}"></span>{% endif %}
-        {% if gen.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=gen.processing_display %}{% endif %}
+        {% if elem.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ elem.id }}"></span>{% endif %}
+        {% if elem.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=elem.processing_display %}{% endif %}
       </div>
     </div>
 
@@ -88,18 +88,18 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
         {% comment %}data-* DÉRIVÉS du schéma (brique commune card_gear, 18/08) ;
         gen-type conservé À PART : hors schéma (discriminant, pas un réglage).{% endcomment %}
         <button class="btn btn-sm btn-outline-secondary settings-btn"
-                data-id="{{ gen.id }}"
-                data-gen-type="{{ gen.generation_type }}"
-                {% for k, v in gen.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}
+                data-id="{{ elem.id }}"
+                data-gen-type="{{ elem.generation_type }}"
+                {% for k, v in elem.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}
                 title="Modifier les paramètres">
           <i class="fas fa-cog"></i>
         </button>
-        {% include 'common/_cycle_button.html' with id=gen.id status=gen.status %}
-        {% url 'composer:download' gen.id as url_dl %}
-        {% bouton_telecharger 'composer' url_dl gen.audio_output %}
-        {% if gen.audio_output %}
-        {% if not gen.exported_to_library %}
-        <button class="btn btn-sm export-btn" data-id="{{ gen.id }}" title="Exporter vers médiathèque">
+        {% include 'common/_cycle_button.html' with id=elem.id status=elem.status %}
+        {% url 'composer:download' elem.id as url_dl %}
+        {% bouton_telecharger 'composer' url_dl elem.audio_output %}
+        {% if elem.audio_output %}
+        {% if not elem.exported_to_library %}
+        <button class="btn btn-sm export-btn" data-id="{{ elem.id }}" title="Exporter vers médiathèque">
           <i class="fas fa-photo-film"></i>
         </button>
         {% else %}
@@ -109,16 +109,16 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
         {% endif %}
         {% endif %}
         <button class="btn btn-sm btn-outline-warning duplicate-btn"
-                data-id="{{ gen.id }}"
-                data-duplicate-url="{% url 'composer:duplicate' gen.id %}" title="Dupliquer">
+                data-id="{{ elem.id }}"
+                data-duplicate-url="{% url 'composer:duplicate' elem.id %}" title="Dupliquer">
           <i class="fas fa-copy"></i>
         </button>
         {% comment %}`data-delete-url` = second morceau du contrat de la brique queue-actions.js
         (portage 2026-08-23) ; la classe était déjà bonne. La SUITE (retrait de card, groupe de
         lot vidé, ETA, état vide) reste déclarée via `WamaQueueActions.onDeleted`.{% endcomment %}
         <button class="btn btn-sm btn-outline-danger delete-btn"
-                data-id="{{ gen.id }}"
-                data-delete-url="{% url 'composer:delete' gen.id %}"
+                data-id="{{ elem.id }}"
+                data-delete-url="{% url 'composer:delete' elem.id %}"
                 data-confirm="Supprimer cette génération ?" title="Supprimer">
           <i class="fas fa-trash"></i>
         </button>
@@ -126,11 +126,11 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
     </div>
 
     {% comment %}Barre pleine largeur — ligne 2 de la grille (§11), FIGÉE au % en échec.{% endcomment %}
-    {% if gen.status != 'PENDING' %}
+    {% if elem.status != 'PENDING' %}
     <div class="wcv3-bar" style="grid-column:1/-1;">
       <div class="wama-progress-track">
-        <div class="wama-progress-fill{% if gen.status == 'RUNNING' %} active{% elif gen.status == 'FAILURE' %} is-frozen{% endif %}"
-             style="width:{% if gen.status == 'SUCCESS' %}100{% else %}{{ gen.progress }}{% endif %}%"></div>
+        <div class="wama-progress-fill{% if elem.status == 'RUNNING' %} active{% elif elem.status == 'FAILURE' %} is-frozen{% endif %}"
+             style="width:{% if elem.status == 'SUCCESS' %}100{% else %}{{ elem.progress }}{% endif %}%"></div>
       </div>
     </div>
     {% endif %}
@@ -145,12 +145,12 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
   donc même exclusivité inter-cards et mêmes contrats de navette, sans markup par app. Gain :
   l'app cesse de décider du rendu (une correction du commun profite à tous) et les pics calculés
   serveur pourront être servis sans retoucher la card.{% endcomment %}
-  {% if gen.audio_output %}
-  {% url 'common:unified_preview' 'composer' gen.id as pv_out %}
-  <div class="wcv3-preview" id="preview-row-{{ gen.id }}"
-       data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ gen.id }}"></div>
+  {% if elem.audio_output %}
+  {% url 'common:unified_preview' 'composer' elem.id as pv_out %}
+  <div class="wcv3-preview" id="preview-row-{{ elem.id }}"
+       data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ elem.id }}"></div>
   {% else %}
-  <div id="preview-row-{{ gen.id }}"></div>
+  <div id="preview-row-{{ elem.id }}"></div>
   {% endif %}
 
 </div>

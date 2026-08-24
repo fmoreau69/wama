@@ -496,7 +496,7 @@ Modalité principale = fichier → repliée avec en-tête quand la file n'est pa
     {% for batch_info in batches_list %}
     {% if batch_info.obj.is_unitary %}
         {% for item in batch_info.items %}{% if item.media %}
-        {% include 'anonymizer/_media_card.html' with media=item.media in_batch=False %}
+        {% include 'anonymizer/_media_card.html' with elem=item.elem in_batch=False %}
         {% endif %}{% endfor %}
     {% else %}
         <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
@@ -506,7 +506,7 @@ Modalité principale = fichier → repliée avec en-tête quand la file n'est pa
                  data-wama-batch-key="anonymizer_{{ batch_info.obj.id }}"
                  style="border-left:2px solid #6f42c1; margin-left:0.75rem;">
                 {% for item in batch_info.items %}{% if item.media %}
-                {% include 'anonymizer/_media_card.html' with media=item.media in_batch=True %}
+                {% include 'anonymizer/_media_card.html' with elem=item.elem in_batch=True %}
                 {% endif %}{% endfor %}
             </div>
         </div>

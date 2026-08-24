@@ -3,21 +3,21 @@
 Card d'un Media anonymizer — CARD v3 « sections × chips » (CARD_DESIGN §11, portée le
 2026-08-13 ; remplace la card en 3 lignes du 03/08). Partial serveur UNIQUE : rendu par
 IndexView (boucle de file) ET par card_html (refreshCard sur transition d'état).
-Contexte : media (décoré par _decorate_card → media.chips), in_batch, user.
+Contexte : elem (décoré par _decorate_card → elem.chips), in_batch, user.
 
 ⚠ Contrats JS (queue.js) : .anon-card[data-id][data-status][data-media-name] — racine ;
   [data-preview-url] racine + .preview-media-link ; .settings-btn[data-id] ;
   .wama-cycle-btn (brique) ; .duplicate-btn[data-duplicate-url] (brique GLOBALE) ;
   .delete-btn[data-id] ; .wama-progress-fill (:85) ; .progress-text (:87).
 {% endcomment %}
-<div class="anon-card synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if media.status == 'RUNNING' %}processing{% elif media.status == 'SUCCESS' %}success{% elif media.status == 'FAILURE' %}error{% endif %}"
-     data-id="{{ media.id }}"
-     data-status="{{ media.status }}"
-     data-media-name="{{ media.get_filename }}"
-     data-preview-url="{% url 'common:unified_preview' 'anonymizer' media.id %}">
+<div class="anon-card synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if elem.status == 'RUNNING' %}processing{% elif elem.status == 'SUCCESS' %}success{% elif elem.status == 'FAILURE' %}error{% endif %}"
+     data-id="{{ elem.id }}"
+     data-status="{{ elem.status }}"
+     data-media-name="{{ elem.get_filename }}"
+     data-preview-url="{% url 'common:unified_preview' 'anonymizer' elem.id %}">
 <div class="card-body py-2">
 
-  <div class="wcv3-head">#{{ media.id }}{% if media.MSValues_customised %}<span class="sep">·</span><span class="badge bg-info text-dark" title="Paramètres personnalisés pour ce média">Personnalisé</span>{% endif %}</div>
+  <div class="wcv3-head">#{{ elem.id }}{% if elem.MSValues_customised %}<span class="sep">·</span><span class="badge bg-info text-dark" title="Paramètres personnalisés pour ce média">Personnalisé</span>{% endif %}</div>
 
   <div class="wcv3">
 
@@ -26,16 +26,16 @@ Contexte : media (décoré par _decorate_card → media.chips), in_batch, user.
       <span class="wcv3-lbl">Entrée</span>
       <div class="wcv3-in">
         <span class="wcv3-thumb">
-          {% if media.media_type == 'image' %}<i class="fas fa-image text-info"></i>
-          {% elif media.media_type == 'video' %}<i class="fas fa-video text-warning"></i>
+          {% if elem.media_type == 'image' %}<i class="fas fa-image text-info"></i>
+          {% elif elem.media_type == 'video' %}<i class="fas fa-video text-warning"></i>
           {% else %}<i class="fas fa-file text-secondary"></i>{% endif %}
         </span>
         <div class="wcv3-in-lines">
           <span role="button" class="wcv3-in-name preview-media-link" title="Aperçu"
-                data-preview-url="{% url 'common:unified_preview' 'anonymizer' media.id %}">
-            {{ media.get_filename }}
+                data-preview-url="{% url 'common:unified_preview' 'anonymizer' elem.id %}">
+            {{ elem.get_filename }}
           </span>
-          <span class="wcv3-in-props">{% if media.width and media.height %}{{ media.width }}×{{ media.height }}{% if media.fps %}<span class="sep">·</span>{{ media.fps }} fps{% endif %}{% endif %}{% if media.duration_inMinSec %}<span class="sep">·</span>{{ media.duration_inMinSec }}{% endif %}</span>
+          <span class="wcv3-in-props">{% if elem.width and elem.height %}{{ elem.width }}×{{ elem.height }}{% if elem.fps %}<span class="sep">·</span>{{ elem.fps }} fps{% endif %}{% endif %}{% if elem.duration_inMinSec %}<span class="sep">·</span>{{ elem.duration_inMinSec }}{% endif %}</span>
         </div>
       </div>
     </div>
@@ -44,23 +44,23 @@ Contexte : media (décoré par _decorate_card → media.chips), in_batch, user.
     <div class="wcv3-sec wcv3-sec--settings">
       <span class="wcv3-lbl">Réglages</span>
       <div class="wcv3-out">
-        {% include 'common/_card_chips.html' with chips=media.chips.settings %}
+        {% include 'common/_card_chips.html' with chips=elem.chips.settings %}
       </div>
     </div>
 
     {# ── SORTIE : chips 'output' → étape live → média traité ; l'erreur la remplace ── #}
     <div class="wcv3-sec wcv3-sec--output">
       <span class="wcv3-lbl">Sortie</span>
-      {% if media.status == 'FAILURE' and media.error_message %}
-        <span class="wcv3-out-error" title="{{ media.error_message|escape }}">
-          <i class="fas fa-triangle-exclamation"></i> {{ media.error_message|truncatechars:120|escape }}
+      {% if elem.status == 'FAILURE' and elem.error_message %}
+        <span class="wcv3-out-error" title="{{ elem.error_message|escape }}">
+          <i class="fas fa-triangle-exclamation"></i> {{ elem.error_message|truncatechars:120|escape }}
         </span>
       {% else %}
         <div class="wcv3-out">
-          {% include 'common/_card_chips.html' with chips=media.chips.output %}
-          {% if media.status == 'RUNNING' %}
-            <span class="wcv3-out-step"><span class="pct progress-text">{{ media.blur_progress }}%</span> — anonymisation…</span>
-          {% elif media.processed %}
+          {% include 'common/_card_chips.html' with chips=elem.chips.output %}
+          {% if elem.status == 'RUNNING' %}
+            <span class="wcv3-out-step"><span class="pct progress-text">{{ elem.blur_progress }}%</span> — anonymisation…</span>
+          {% elif elem.processed %}
             <span class="wcv3-out-step" title="Média anonymisé">
               <i class="fas fa-check-circle text-success"></i> média anonymisé
             </span>
@@ -74,11 +74,11 @@ Contexte : media (décoré par _decorate_card → media.chips), in_batch, user.
       <span class="wcv3-lbl">État</span>
       <div class="wcv3-state">
         <span class="wcv3-state-line">
-          <span class="wama-status-dot" data-s="{{ media.status }}"></span>
-          <span>{% if media.status == 'PENDING' %}En attente{% elif media.status == 'RUNNING' %}En cours{% elif media.status == 'SUCCESS' %}Terminé{% elif media.status == 'FAILURE' %}Échec{% else %}{{ media.status }}{% endif %}</span>
+          <span class="wama-status-dot" data-s="{{ elem.status }}"></span>
+          <span>{% if elem.status == 'PENDING' %}En attente{% elif elem.status == 'RUNNING' %}En cours{% elif elem.status == 'SUCCESS' %}Terminé{% elif elem.status == 'FAILURE' %}Échec{% else %}{{ elem.status }}{% endif %}</span>
         </span>
-        {% if media.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ media.id }}"></span>{% endif %}
-        {% if media.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=media.processing_display %}{% endif %}
+        {% if elem.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ elem.id }}"></span>{% endif %}
+        {% if elem.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=elem.processing_display %}{% endif %}
       </div>
     </div>
 
@@ -92,21 +92,21 @@ Contexte : media (décoré par _decorate_card → media.chips), in_batch, user.
         data-action="settings" = le sélecteur commun de ce contrat.{% endcomment %}
         <button type="button" class="btn btn-sm btn-outline-secondary settings-btn"
                 data-action="settings"
-                data-id="{{ media.id }}"
-                {% for k, v in media.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}
+                data-id="{{ elem.id }}"
+                {% for k, v in elem.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}
                 title="Configurer les paramètres">
           <i class="fas fa-cog"></i>
         </button>
-        {% include 'common/_cycle_button.html' with id=media.id status=media.status %}
+        {% include 'common/_cycle_button.html' with id=elem.id status=elem.status %}
         {% comment %}⬇ : brique commune (2026-08-23). Remplace un `<form method="post">` — la
         seule app dont le téléchargement n'était pas un lien. Un POST n'est pas une navigation :
         ni clic-droit « Enregistrer sous », ni nouvel onglet, et un rechargement redemandait la
         soumission. La route `anonymizer:download` (GET, `download/<pk>/`) a été ajoutée au même
         geste ; `download_media/` délègue au même corps en attendant son retrait.{% endcomment %}
-        {% url 'anonymizer:download' media.id as url_dl %}
-        {% bouton_telecharger 'anonymizer' url_dl media.processed titre='Télécharger le média traité' %}
+        {% url 'anonymizer:download' elem.id as url_dl %}
+        {% bouton_telecharger 'anonymizer' url_dl elem.processed titre='Télécharger le média traité' %}
         <button type="button" class="btn btn-sm btn-outline-warning duplicate-btn"
-                data-duplicate-url="{% url 'anonymizer:duplicate_media' media.id %}"
+                data-duplicate-url="{% url 'anonymizer:duplicate_media' elem.id %}"
                 title="Dupliquer (tester d'autres paramètres)">
           <i class="fas fa-copy"></i>
         </button>
@@ -115,8 +115,8 @@ Contexte : media (décoré par _decorate_card → media.chips), in_batch, user.
         (`delete/<pk>/`) et non l'ancienne `clear_media/`, que la brique ne pouvait pas servir —
         elle poste un corps JSON, pas un champ `media_id`.{% endcomment %}
         <button type="button" class="btn btn-sm btn-outline-danger delete-btn"
-                data-id="{{ media.id }}"
-                data-delete-url="{% url 'anonymizer:delete' media.id %}"
+                data-id="{{ elem.id }}"
+                data-delete-url="{% url 'anonymizer:delete' elem.id %}"
                 data-confirm="Supprimer ce média ? Cette action est définitive."
                 title="Supprimer le média">
           <i class="fas fa-trash-alt"></i>
@@ -126,11 +126,11 @@ Contexte : media (décoré par _decorate_card → media.chips), in_batch, user.
 
     {% comment %}Barre pleine largeur — ligne 2 de la grille (§11), FIGÉE au % en échec.
     Progression = blur_progress (champ propre à l'anonymizer).{% endcomment %}
-    {% if media.status != 'PENDING' %}
+    {% if elem.status != 'PENDING' %}
     <div class="wcv3-bar" style="grid-column:1/-1;">
       <div class="wama-progress-track">
-        <div class="wama-progress-fill{% if media.status == 'RUNNING' %} active{% elif media.status == 'FAILURE' %} is-frozen{% endif %}"
-             style="width:{% if media.status == 'SUCCESS' %}100{% else %}{{ media.blur_progress }}{% endif %}%"></div>
+        <div class="wama-progress-fill{% if elem.status == 'RUNNING' %} active{% elif elem.status == 'FAILURE' %} is-frozen{% endif %}"
+             style="width:{% if elem.status == 'SUCCESS' %}100{% else %}{{ elem.blur_progress }}{% endif %}%"></div>
       </div>
     </div>
     {% endif %}
@@ -143,15 +143,15 @@ Contexte : media (décoré par _decorate_card → media.chips), in_batch, user.
   {% comment %}output_file = CharField (chemin RELATIF sous MEDIA), pas un FileField —
   l'URL se construit avec get_media_prefix (le contexte de la card n'a pas media_url).{% endcomment %}
   {% load static %}
-  {% if media.status == 'SUCCESS' and media.output_file %}
+  {% if elem.status == 'SUCCESS' and elem.output_file %}
   {% comment %}MÉCANISME COMMUN « Preview unifiée » (route n°30) : placeholder seul, hydraté
   par WamaInspector.hydrateCardPreviews depuis unified_preview ?side=output (rendu
   mime-driven commun). Le markup <video>/<img> à la main était hors-route (18/08).{% endcomment %}
-  {% url 'common:unified_preview' 'anonymizer' media.id as pv_out %}
-  <div class="wcv3-preview" id="preview-row-{{ media.id }}"
-       data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ media.id }}"></div>
+  {% url 'common:unified_preview' 'anonymizer' elem.id as pv_out %}
+  <div class="wcv3-preview" id="preview-row-{{ elem.id }}"
+       data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ elem.id }}"></div>
   {% else %}
-  <div id="preview-row-{{ media.id }}"></div>
+  <div id="preview-row-{{ elem.id }}"></div>
   {% endif %}
 
 </div>

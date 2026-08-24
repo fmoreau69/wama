@@ -938,7 +938,7 @@ def card_html(request, pk):
     except ComposerBatchItem.DoesNotExist:
         label = ''
     html = render_to_string('composer/_generation_card.html',
-                            {'gen': _decorate_generation(gen), 'card_label': label}, request=request)
+                            {'elem': _decorate_generation(gen), 'card_label': label}, request=request)
     return HttpResponse(html)
 
 

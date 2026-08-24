@@ -2,7 +2,7 @@
 {% comment %}
 WAMA Describer — CARD v3 « sections × chips » (formalisme CARD_DESIGN §11, portée le
 2026-08-13 depuis le pilote reader/_item_card.html ; remplace la card en colonnes v2).
-Contexte : desc = Description (décorée par _decorate_desc → .chips) ; in_batch = fille de batch.
+Contexte : elem = Description (décorée par _decorate_desc → .chips) ; in_batch = fille de batch.
 Rendue au chargement (cards autonomes ET filles) et par describer:card_html (refresh in-place).
 
 ⚠ Contrats JS à ne pas casser (relevés dans describer/index.js) : .wama-card[data-id]
@@ -12,12 +12,12 @@ Rendue au chargement (cards autonomes ET filles) et par describer:card_html (ref
   L'ancien .status-badge n'existe plus : les transitions SUCCESS/FAILURE re-rendent la card
   côté serveur (refreshCard), l'update en place ne garde que barre/%/ETA/preview.
 {% endcomment %}
-<div class="synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if desc.status == 'RUNNING' %}processing{% elif desc.status == 'SUCCESS' %}success{% elif desc.status == 'FAILURE' %}error{% endif %}"
-     data-id="{{ desc.id }}" data-status="{{ desc.status }}"
-     data-preview-url="{% url 'common:unified_preview' 'describer' desc.id %}">
+<div class="synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if elem.status == 'RUNNING' %}processing{% elif elem.status == 'SUCCESS' %}success{% elif elem.status == 'FAILURE' %}error{% endif %}"
+     data-id="{{ elem.id }}" data-status="{{ elem.status }}"
+     data-preview-url="{% url 'common:unified_preview' 'describer' elem.id %}">
 <div class="card-body py-2">
 
-  <div class="wcv3-head">#{{ desc.id }}<span class="sep">·</span>{{ desc.created_at|date:"d/m H:i" }}</div>
+  <div class="wcv3-head">#{{ elem.id }}<span class="sep">·</span>{{ elem.created_at|date:"d/m H:i" }}</div>
 
   <div class="wcv3">
 
@@ -26,14 +26,14 @@ Rendue au chargement (cards autonomes ET filles) et par describer:card_html (ref
       <span class="wcv3-lbl">Entrée</span>
       <div class="wcv3-in">
         <span class="wcv3-thumb">
-          <i class="fas {{ desc.get_type_icon }} text-info"></i>
+          <i class="fas {{ elem.get_type_icon }} text-info"></i>
         </span>
         <div class="wcv3-in-lines">
           <span role="button" class="wcv3-in-name preview-media-link" title="Aperçu du fichier source"
-                data-preview-url="{% url 'common:unified_preview' 'describer' desc.id %}">
-            {{ desc.filename }}
+                data-preview-url="{% url 'common:unified_preview' 'describer' elem.id %}">
+            {{ elem.filename }}
           </span>
-          <span class="wcv3-in-props">{{ desc.detected_type|default:'—' }}<span class="sep">·</span>{{ desc.format_file_size }}</span>
+          <span class="wcv3-in-props">{{ elem.detected_type|default:'—' }}<span class="sep">·</span>{{ elem.format_file_size }}</span>
         </div>
       </div>
     </div>
@@ -42,24 +42,24 @@ Rendue au chargement (cards autonomes ET filles) et par describer:card_html (ref
     <div class="wcv3-sec wcv3-sec--settings">
       <span class="wcv3-lbl">Réglages</span>
       <div class="wcv3-out">
-        {% include 'common/_card_chips.html' with chips=desc.chips.settings %}
+        {% include 'common/_card_chips.html' with chips=elem.chips.settings %}
       </div>
     </div>
 
     {# ── SORTIE : étape live → longueur du texte produit ; l'erreur la remplace ────── #}
     <div class="wcv3-sec wcv3-sec--output">
       <span class="wcv3-lbl">Sortie</span>
-      {% if desc.status == 'FAILURE' and desc.error_message %}
-        <span class="wcv3-out-error" title="{{ desc.error_message|escape }}">
-          <i class="fas fa-triangle-exclamation"></i> {{ desc.error_message|truncatechars:120|escape }}
+      {% if elem.status == 'FAILURE' and elem.error_message %}
+        <span class="wcv3-out-error" title="{{ elem.error_message|escape }}">
+          <i class="fas fa-triangle-exclamation"></i> {{ elem.error_message|truncatechars:120|escape }}
         </span>
       {% else %}
         <div class="wcv3-out">
-          {% if desc.status == 'RUNNING' %}
-            <span class="wcv3-out-step"><span class="pct progress-text">{{ desc.progress }}%</span> — description…</span>
-          {% elif desc.status == 'SUCCESS' and desc.result_text %}
+          {% if elem.status == 'RUNNING' %}
+            <span class="wcv3-out-step"><span class="pct progress-text">{{ elem.progress }}%</span> — description…</span>
+          {% elif elem.status == 'SUCCESS' and elem.result_text %}
             <span class="wcv3-out-step" title="Description générée">
-              <i class="fas fa-check-circle text-success"></i> {{ desc.result_text|wordcount }} mots
+              <i class="fas fa-check-circle text-success"></i> {{ elem.result_text|wordcount }} mots
             </span>
           {% endif %}
         </div>
@@ -71,11 +71,11 @@ Rendue au chargement (cards autonomes ET filles) et par describer:card_html (ref
       <span class="wcv3-lbl">État</span>
       <div class="wcv3-state">
         <span class="wcv3-state-line">
-          <span class="wama-status-dot" data-s="{{ desc.status }}"></span>
-          <span>{% if desc.status == 'PENDING' %}En attente{% elif desc.status == 'RUNNING' %}En cours{% elif desc.status == 'SUCCESS' %}Terminé{% elif desc.status == 'FAILURE' %}Échec{% else %}{{ desc.status }}{% endif %}</span>
+          <span class="wama-status-dot" data-s="{{ elem.status }}"></span>
+          <span>{% if elem.status == 'PENDING' %}En attente{% elif elem.status == 'RUNNING' %}En cours{% elif elem.status == 'SUCCESS' %}Terminé{% elif elem.status == 'FAILURE' %}Échec{% else %}{{ elem.status }}{% endif %}</span>
         </span>
-        {% if desc.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ desc.id }}"></span>{% endif %}
-        {% if desc.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=desc.processing_display %}{% endif %}
+        {% if elem.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ elem.id }}"></span>{% endif %}
+        {% if elem.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=elem.processing_display %}{% endif %}
       </div>
     </div>
 
@@ -86,31 +86,31 @@ Rendue au chargement (cards autonomes ET filles) et par describer:card_html (ref
         {% comment %}data-* DÉRIVÉS du schéma (brique commune card_gear, 18/08) — remplace
         les 5 attributs écrits à la main (contrat cardSettings inchangé).{% endcomment %}
         <button class="btn btn-sm btn-outline-secondary settings-btn"
-                data-id="{{ desc.id }}"
-                {% for k, v in desc.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}
+                data-id="{{ elem.id }}"
+                {% for k, v in elem.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}
                 title="Paramètres">
           <i class="fas fa-cog"></i>
         </button>
-        {% include 'common/_cycle_button.html' with id=desc.id status=desc.status %}
-        {% if desc.status == 'SUCCESS' %}
-        <button class="btn btn-sm btn-outline-success preview-btn" data-id="{{ desc.id }}" title="Voir le résultat">
+        {% include 'common/_cycle_button.html' with id=elem.id status=elem.status %}
+        {% if elem.status == 'SUCCESS' %}
+        <button class="btn btn-sm btn-outline-success preview-btn" data-id="{{ elem.id }}" title="Voir le résultat">
           <i class="fas fa-eye"></i>
         </button>
-        {% url 'describer:download' desc.id as url_dl %}
+        {% url 'describer:download' elem.id as url_dl %}
         {% bouton_telecharger 'describer' url_dl True %}
         {% else %}
         {% bouton_telecharger 'describer' '' False %}
         {% endif %}
         <button class="btn btn-sm btn-outline-warning duplicate-btn"
-                data-duplicate-url="{% url 'describer:duplicate' desc.id %}"
+                data-duplicate-url="{% url 'describer:duplicate' elem.id %}"
                 title="Dupliquer{% if in_batch %} dans le batch{% endif %}">
           <i class="fas fa-copy"></i>
         </button>
         {% comment %}`data-delete-url` = second morceau du contrat de la brique queue-actions.js
         (portage 2026-08-23) ; la classe était déjà bonne. Suite déclarée par `onDeleted`.
         {% endcomment %}
-        <button class="btn btn-sm btn-outline-danger delete-btn" data-id="{{ desc.id }}"
-                data-delete-url="{% url 'describer:delete' desc.id %}"
+        <button class="btn btn-sm btn-outline-danger delete-btn" data-id="{{ elem.id }}"
+                data-delete-url="{% url 'describer:delete' elem.id %}"
                 data-confirm="Supprimer cette description ?" title="Supprimer">
           <i class="fas fa-trash"></i>
         </button>
@@ -119,11 +119,11 @@ Rendue au chargement (cards autonomes ET filles) et par describer:card_html (ref
 
     {% comment %}Barre pleine largeur — VERTE sur tout le cycle (§11), en LIGNE 2 de la grille.
     En ÉCHEC : FIGÉE au % atteint. Jamais de commentaire dièse ici (boîte fantôme).{% endcomment %}
-    {% if desc.status != 'PENDING' %}
+    {% if elem.status != 'PENDING' %}
     <div class="wcv3-bar" style="grid-column:1/-1;">
       <div class="wama-progress-track">
-        <div class="wama-progress-fill{% if desc.status == 'RUNNING' %} active{% elif desc.status == 'FAILURE' %} is-frozen{% endif %}"
-             style="width:{% if desc.status == 'SUCCESS' %}100{% else %}{{ desc.progress }}{% endif %}%"></div>
+        <div class="wama-progress-fill{% if elem.status == 'RUNNING' %} active{% elif elem.status == 'FAILURE' %} is-frozen{% endif %}"
+             style="width:{% if elem.status == 'SUCCESS' %}100{% else %}{{ elem.progress }}{% endif %}%"></div>
       </div>
     </div>
     {% endif %}
@@ -139,23 +139,23 @@ Rendue au chargement (cards autonomes ET filles) et par describer:card_html (ref
   La classe `.result-preview` est CONSERVÉE sur l'hôte : le rendu commun écrit dans son
   contenu et ne touche ni aux classes ni aux attributs, donc le polling du RUN continue d'y
   écrire le texte partiel exactement comme avant.
-  ⚠ La garde sur `desc.result_text` ci-dessous est OBLIGATOIRE et non cosmétique :
+  ⚠ La garde sur `elem.result_text` ci-dessous est OBLIGATOIRE et non cosmétique :
   mesuré le 22/08, `?side=output` sur un item SANS sortie
   ne renvoie pas « rien » mais REPLIE SILENCIEUSEMENT SUR L'ENTRÉE (preview_utils:287) — sans
   garde, une card PENDING afficherait son image source à la place de son blueprint.{% endcomment %}
-  {% if desc.result_text %}
-  {% url 'common:unified_preview' 'describer' desc.id as pv_out %}
+  {% if elem.result_text %}
+  {% url 'common:unified_preview' 'describer' elem.id as pv_out %}
   <div class="wcv3-preview result-preview" title="Description générée"
        data-card-preview="{{ pv_out }}?side=output"
        data-preview-mode="excerpt" data-preview-max-chars="400"></div>
   {% else %}
   <div class="wcv3-preview wcv3-preview--blueprint result-preview">
-    {% if desc.status == 'RUNNING' %}
+    {% if elem.status == 'RUNNING' %}
       Description en cours…
-    {% elif desc.status == 'FAILURE' %}
+    {% elif elem.status == 'FAILURE' %}
       Aucune description — le traitement a échoué.
     {% else %}
-      {{ desc.properties|default:"Description du média — formats après traitement : TXT · PDF · DOCX" }}
+      {{ elem.properties|default:"Description du média — formats après traitement : TXT · PDF · DOCX" }}
     {% endif %}
   </div>
   {% endif %}

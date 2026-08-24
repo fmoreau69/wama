@@ -51,7 +51,7 @@ migré 2026-07-05) ; IDs dropZone/fileInput/media_url conservés → handlers JS
             {% if batch_info.obj.is_unitary %}
             <!-- Single-item batch: render as standalone card -->
             {% for item in batch_info.items %}{% if item.description %}
-            {% with desc=item.description %}
+            {% with elem=item.elem %}
             {% include 'describer/_description_card.html' %}
             {% endwith %}
             {% endif %}{% endfor %}
@@ -65,7 +65,7 @@ migré 2026-07-05) ; IDs dropZone/fileInput/media_url conservés → handlers JS
                      data-wama-batch-key="describer_{{ batch_info.obj.id }}"
                      style="border-left:2px solid #0dcaf0; margin-left:0.75rem;">
                     {% for item in batch_info.items %}{% if item.description %}
-                    {% with desc=item.description %}
+                    {% with elem=item.elem %}
                     {% include 'describer/_description_card.html' with in_batch=True %}
                     {% endwith %}
                     {% endif %}{% endfor %}

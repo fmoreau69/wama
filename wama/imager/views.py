@@ -1285,7 +1285,7 @@ def card_html(request, generation_id):
     _decorate_card(generation)
     domain = 'video' if generation.is_video_generation else 'image'
     html = render_to_string('imager/_generation_card.html',
-                            {'gen': generation, 'domain': domain}, request=request)
+                            {'elem': generation, 'domain': domain}, request=request)
     return JsonResponse({'html': html, 'status': generation.status})
 
 

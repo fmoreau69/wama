@@ -3,7 +3,7 @@
 Card d'une génération Imager (image ET vidéo) — CARD v3 « sections × chips » (CARD_DESIGN
 §11, portée le 2026-08-13 ; remplace la card en 3 lignes). Partial serveur UNIQUE : rendu
 par la boucle de file ET par card_html (refreshCard de queue.js).
-Contexte : gen (décoré par _decorate_card → gen.chips), domain ('image'|'video').
+Contexte : elem (décoré par _decorate_card → elem.chips), domain ('image'|'video').
 App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
 
 ⚠ Contrats JS : .imager-card[data-id][data-status][data-domain] + TOUTES les data-* du
@@ -14,21 +14,21 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
   .delete-btn[data-delete-url] ; .wama-eta ; .wama-progress-fill ;
   openImagePreview/openVideoPreview (aperçus).
 {% endcomment %}
-<div class="imager-card synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if gen.status == 'RUNNING' %}processing{% elif gen.status == 'SUCCESS' %}success{% elif gen.status == 'FAILURE' %}error{% endif %}"
-     data-id="{{ gen.id }}"
-     data-status="{{ gen.status }}"
+<div class="imager-card synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if elem.status == 'RUNNING' %}processing{% elif elem.status == 'SUCCESS' %}success{% elif elem.status == 'FAILURE' %}error{% endif %}"
+     data-id="{{ elem.id }}"
+     data-status="{{ elem.status }}"
      data-domain="{{ domain }}"
      {% comment %}data-preview-url : contrat de l'inspecteur commun (WamaInspector.fillDetail
      lit l'attribut et en DÉRIVE l'URL /detail/) — sans lui la card se sélectionne mais le
      volet reste vide (mesuré à la passe smoke du 19/08). Même forme que reader/composer.{% endcomment %}
-     data-preview-url="{% url 'common:unified_preview' 'imager' gen.id %}"
+     data-preview-url="{% url 'common:unified_preview' 'imager' elem.id %}"
      {% comment %}data-* DÉRIVÉS du schéma du DOMAINE (brique commune card_gear, 18/08 —
      gear_data choisit IMAGE_PARAMS/VIDEO_PARAMS selon generation_mode) ; remplace la
      liste écrite à la main, et complète negative_prompt/image_strength oubliés.{% endcomment %}
-     {% for k, v in gen.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}>
+     {% for k, v in elem.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}>
 <div class="card-body py-2">
 
-  <div class="wcv3-head">#{{ gen.id }}<span class="sep">·</span>{{ gen.created_at|date:"d/m H:i" }}</div>
+  <div class="wcv3-head">#{{ elem.id }}<span class="sep">·</span>{{ elem.created_at|date:"d/m H:i" }}</div>
 
   <div class="wcv3">
 
@@ -40,8 +40,8 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
           {% if domain == 'video' %}<i class="fas fa-film text-warning"></i>{% else %}<i class="fas fa-image text-info"></i>{% endif %}
         </span>
         <div class="wcv3-in-lines">
-          <span class="wcv3-in-name" title="{{ gen.prompt }}">{{ gen.prompt|truncatechars:80|default:'(sans prompt)' }}</span>
-          <span class="wcv3-in-props"><i class="fas fa-robot"></i> {{ gen.model|default:'auto' }}</span>
+          <span class="wcv3-in-name" title="{{ elem.prompt }}">{{ elem.prompt|truncatechars:80|default:'(sans prompt)' }}</span>
+          <span class="wcv3-in-props"><i class="fas fa-robot"></i> {{ elem.model|default:'auto' }}</span>
         </div>
       </div>
     </div>
@@ -50,25 +50,25 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
     <div class="wcv3-sec wcv3-sec--settings">
       <span class="wcv3-lbl">Réglages</span>
       <div class="wcv3-out">
-        {% include 'common/_card_chips.html' with chips=gen.chips.settings %}
+        {% include 'common/_card_chips.html' with chips=elem.chips.settings %}
       </div>
     </div>
 
     {# ── SORTIE : chips 'output' + dimensions → étape live ; l'erreur la remplace ──── #}
     <div class="wcv3-sec wcv3-sec--output">
       <span class="wcv3-lbl">Sortie</span>
-      {% if gen.status == 'FAILURE' and gen.error_message %}
-        <span class="wcv3-out-error" title="{{ gen.error_message|escape }}">
-          <i class="fas fa-triangle-exclamation"></i> {{ gen.error_message|truncatechars:120|escape }}
+      {% if elem.status == 'FAILURE' and elem.error_message %}
+        <span class="wcv3-out-error" title="{{ elem.error_message|escape }}">
+          <i class="fas fa-triangle-exclamation"></i> {{ elem.error_message|truncatechars:120|escape }}
         </span>
       {% else %}
         <div class="wcv3-out">
-          {% include 'common/_card_chips.html' with chips=gen.chips.output %}
-          {% if gen.status == 'RUNNING' %}
-            <span class="wcv3-out-step"><span class="pct progress-text">{{ gen.progress }}%</span> — génération…</span>
+          {% include 'common/_card_chips.html' with chips=elem.chips.output %}
+          {% if elem.status == 'RUNNING' %}
+            <span class="wcv3-out-step"><span class="pct progress-text">{{ elem.progress }}%</span> — génération…</span>
           {% else %}
             <span class="wcv3-out-step">
-              {% if domain == 'video' %}{{ gen.video_resolution }} · {{ gen.video_duration }}s @ {{ gen.video_fps }} fps{% else %}{{ gen.width }}×{{ gen.height }}{% endif %}
+              {% if domain == 'video' %}{{ elem.video_resolution }} · {{ elem.video_duration }}s @ {{ elem.video_fps }} fps{% else %}{{ elem.width }}×{{ elem.height }}{% endif %}
             </span>
           {% endif %}
         </div>
@@ -80,11 +80,11 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
       <span class="wcv3-lbl">État</span>
       <div class="wcv3-state">
         <span class="wcv3-state-line">
-          <span class="wama-status-dot" data-s="{{ gen.status }}"></span>
-          <span>{% if gen.status == 'PENDING' %}En attente{% elif gen.status == 'RUNNING' %}En cours{% elif gen.status == 'SUCCESS' %}Terminé{% elif gen.status == 'FAILURE' %}Échec{% else %}{{ gen.status }}{% endif %}</span>
+          <span class="wama-status-dot" data-s="{{ elem.status }}"></span>
+          <span>{% if elem.status == 'PENDING' %}En attente{% elif elem.status == 'RUNNING' %}En cours{% elif elem.status == 'SUCCESS' %}Terminé{% elif elem.status == 'FAILURE' %}Échec{% else %}{{ elem.status }}{% endif %}</span>
         </span>
-        {% if gen.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ gen.id }}"></span>{% endif %}
-        {% if gen.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=gen.duration_display %}{% endif %}
+        {% if elem.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ elem.id }}"></span>{% endif %}
+        {% if elem.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=elem.duration_display %}{% endif %}
       </div>
     </div>
 
@@ -98,23 +98,23 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
         une graphie de plus à connaître pour tout consommateur commun.{% endcomment %}
         <button type="button"
                 class="btn btn-sm btn-outline-secondary settings-btn"
-                data-id="{{ gen.id }}" title="Configurer les paramètres">
+                data-id="{{ elem.id }}" title="Configurer les paramètres">
           <i class="fas fa-cog"></i>
         </button>
-        {% include 'common/_cycle_button.html' with id=gen.id status=gen.status %}
+        {% include 'common/_cycle_button.html' with id=elem.id status=elem.status %}
         {% comment %}⬇ : brique commune (2026-08-23). Remplace un `<button>`+JS qui naviguait
         en JavaScript — contraire à §6.3 ET à la propre déclaration de l'imager
         (`export_binding='early'` ⇒ lien simple). Un téléchargement est une NAVIGATION : le faire
         en JS coûtait deux handlers et privait l'utilisateur du clic-droit « Enregistrer sous ».
         {% endcomment %}
-        {% url 'imager:download' gen.id as url_dl %}
-        {% if gen.status == 'SUCCESS' %}
+        {% url 'imager:download' elem.id as url_dl %}
+        {% if elem.status == 'SUCCESS' %}
           {% bouton_telecharger 'imager' url_dl True titre='Télécharger le résultat' %}
         {% else %}
           {% bouton_telecharger 'imager' url_dl False %}
         {% endif %}
         <button type="button" class="btn btn-sm btn-outline-warning duplicate-btn"
-                data-duplicate-url="{% url 'imager:duplicate' gen.id %}"
+                data-duplicate-url="{% url 'imager:duplicate' elem.id %}"
                 title="Dupliquer (tester d'autres paramètres)">
           <i class="fas fa-copy"></i>
         </button>
@@ -125,8 +125,8 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
         et c'est de là que la suite déclarée le lit.{% endcomment %}
         <button type="button"
                 class="btn btn-sm btn-outline-danger delete-btn"
-                data-id="{{ gen.id }}"
-                data-delete-url="{% url 'imager:delete' gen.id %}"
+                data-id="{{ elem.id }}"
+                data-delete-url="{% url 'imager:delete' elem.id %}"
                 data-confirm="Supprimer cette génération {% if domain == 'video' %}vidéo{% else %}image{% endif %} ?"
                 title="Supprimer la génération">
           <i class="fas fa-trash-alt"></i>
@@ -135,11 +135,11 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
     </div>
 
     {% comment %}Barre pleine largeur — ligne 2 de la grille (§11), FIGÉE au % en échec.{% endcomment %}
-    {% if gen.status != 'PENDING' %}
+    {% if elem.status != 'PENDING' %}
     <div class="wcv3-bar" style="grid-column:1/-1;">
       <div class="wama-progress-track">
-        <div class="wama-progress-fill{% if gen.status == 'RUNNING' %} active{% elif gen.status == 'FAILURE' %} is-frozen{% endif %}"
-             style="width:{% if gen.status == 'SUCCESS' %}100{% else %}{{ gen.progress }}{% endif %}%"></div>
+        <div class="wama-progress-fill{% if elem.status == 'RUNNING' %} active{% elif elem.status == 'FAILURE' %} is-frozen{% endif %}"
+             style="width:{% if elem.status == 'SUCCESS' %}100{% else %}{{ elem.progress }}{% endif %}%"></div>
       </div>
     </div>
     {% endif %}
@@ -163,11 +163,11 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
   navigation ». Les images ne peuvent plus se désaccorder du markup, elles VIENNENT de la donnée.
   ⚠ `openImagePreview`/`openVideoPreview` n'ont plus d'appelant — candidats REMOVAL_LEDGER.
   ⚠ Garde obligatoire : `?side=output` sans sortie replie sur l'ENTRÉE (mesuré 22/08).{% endcomment %}
-  {% if gen.status == 'SUCCESS' %}
-    {% if gen.output_video or gen.output_images %}
-    {% url 'common:unified_preview' 'imager' gen.id as pv_out %}
-    <div class="wcv3-preview" id="preview-row-{{ gen.id }}"
-         data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ gen.id }}"></div>
+  {% if elem.status == 'SUCCESS' %}
+    {% if elem.output_video or elem.output_images %}
+    {% url 'common:unified_preview' 'imager' elem.id as pv_out %}
+    <div class="wcv3-preview" id="preview-row-{{ elem.id }}"
+         data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ elem.id }}"></div>
     {% endif %}
   {% endif %}
 

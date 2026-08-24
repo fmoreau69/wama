@@ -491,7 +491,7 @@ def card_html(request, pk):
     desc = visible_or_404(Description, user, pk=pk)
     in_batch = BatchDescriptionItem.objects.filter(description=desc, batch__total__gt=1).exists()
     html = render_to_string('describer/_description_card.html',
-                            {'desc': _decorate_desc(desc), 'in_batch': in_batch}, request=request)
+                            {'elem': _decorate_desc(desc), 'in_batch': in_batch}, request=request)
     return HttpResponse(html)
 
 
