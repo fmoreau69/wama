@@ -69,6 +69,16 @@ class SignalMeta:
     data_type: str = ''
     #: Cadence théorique en Hz. `None` = irrégulier ou inconnu — c'est un cas NORMAL.
     fs: Optional[float] = None
+    #: Échantillons PERDUS à l'acquisition, détectés à l'ingestion (index non consécutifs).
+    #:
+    #: ⚠ Porté comme DONNÉE, pas comme message (ajouté le 2026-08-24). RTMaps numérote ses
+    #: échantillons ; un index qui saute signale une perte réelle. `pynd` la détecte
+    #: (`DataParser.check_idx`) et se contente d'un `log.error` — son propre `TODO` reconnaît que
+    #: ce n'est pas suffisant. Une perte écrite dans un journal n'est pas exploitable : elle ne
+    #: remonte ni au compte-rendu d'import, ni à l'`Ecart` du manifeste, ni à l'utilisateur.
+    #: `0` signifie « aucune perte détectée », jamais « non mesuré » — un lecteur qui ne sait pas
+    #: compter laisse le champ à 0 et le dit dans `comments`.
+    pertes: int = 0
     #: Unité par variable, ex. {'speed': 'm/s'}. Porte le vocabulaire qu'un manifeste doit exposer.
     units: Dict[str, str] = field(default_factory=dict)
     #: Acquis (True) vs dérivé d'un calcul (False). C'est la PROVENANCE : sans elle, impossible de

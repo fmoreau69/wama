@@ -56,10 +56,16 @@ MODULES: Tuple[ModuleData, ...] = (
         "fichiers + manifeste `dataset` → référentiel, écrit en `.wrec`",
         briques=('wama_data/sources/__init__.py',
                  'wama_data/sources/trip.py',
-                 'wama_data/sources/tabular.py'),
-        doc='§6.6, §9bis.1, §9quater.2 (conteneur natif)',
-        bloque_par="alignement par TRIGGERS non conçu (D12) ; lecteur `.rec` encore une FONCTION "
-                   "(`functions/io/rtmaps_rec.py`) au lieu d'un lecteur de source ; l'ÉCRITURE du "
+                 'wama_data/sources/tabular.py',
+                 'wama_data/sources/rtmaps.py'),
+        doc='§6.6, §6.6bis, §9bis.1, §9quater.2 (conteneur natif)',
+        bloque_par="alignement par TRIGGERS non conçu (D12) ; ⚠ le lecteur `.rec` EXISTE depuis le "
+                   "2026-08-24 (`sources/rtmaps.py`, inventaire par le `.idy`, vérifié sur les DEUX "
+                   "grammaires RTMaps et contre l'export CSV de RTMaps lui-même) — reste la couche "
+                   "SÉMANTIQUE par famille de flux (le `data_parser/` de pynd : `clé=valeur` à "
+                   "virgule française, JSON, colonnes tabulées), la charge étant aujourd'hui rendue "
+                   "telle quelle ; `functions/io/rtmaps_rec.py` demeure un utilitaire du Lab, non "
+                   "migré à dessein ; l'ÉCRITURE du "
                    "conteneur natif `.wrec` reste à écrire — D3 est tranchée (2026-08-23) mais "
                    "aucune ligne de WAMA Data n'écrit encore de SQLite. "
                    "⚠ « `DATASET_SOURCES` non réconcilié avec le registre des lecteurs (G1) » a "
