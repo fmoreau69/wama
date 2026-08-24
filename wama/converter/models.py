@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
-from wama.common.models import ProcessingTimeMixin, ScopedManager, ScopedVisibility
+from wama.common.models import BatchMixin, ProcessingTimeMixin, ScopedManager, ScopedVisibility
 from wama.common.utils.media_paths import UploadToUserPath
 
 
@@ -21,7 +21,7 @@ class ConversionProfile(models.Model):
         return f"{self.name} ({self.output_format})"
 
 
-class ConversionBatch(ScopedVisibility):
+class ConversionBatch(BatchMixin, ScopedVisibility):
     """Groupe de conversions partageant la même nature (image/vidéo/audio/…).
 
     Créé soit par import multi-fichiers (1 batch par nature), soit par fichier
@@ -30,6 +30,13 @@ class ConversionBatch(ScopedVisibility):
 
     **Unité de partage de la file** (cf. `batch_common.build_batches_list`) — lecture seule
     pour le destinataire, PROFILES_PERMISSIONS §7.
+
+    ⚠ `BatchMixin` ajouté le 2026-08-24 : ce modèle était le SEUL lot du dépôt à ne pas
+    l'avoir (10/12 l'ont), alors qu'il porte un `batch_file`. Sans lui, `delete()` ne
+    déclenchait pas `cleanup_files()` — le fichier partagé d'un lot supprimé serait resté
+    sur disque. Dette LATENTE et non fuite constatée : mesuré à l'ajout, **0 lot sur 53
+    n'a de `batch_file` non vide** (ni ici, ni chez transcriber qui a pourtant le mixin).
+    Le mixin n'apporte AUCUN champ — pas de migration.
     """
 
     objects = ScopedManager()

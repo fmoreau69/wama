@@ -1052,13 +1052,25 @@ def check_app_batch_actions(app: str, url_path: str):
             ids_avant_orm = set(modele.objects.values_list('id', flat=True))
         except Exception:
             modele = None
+    # Le montage cree aussi des LOTS : `PreviewRegistry` ne connait que le modele d'ELEMENT,
+    # d'ou l'accesseur DERIVE (`batch_common.batch_model_for`). Sans lui, des lots vides
+    # survivaient a chaque passage (mesure : 9 chez converter).
+    from wama.common.utils.batch_common import batch_model_for
+    modele_lot = batch_model_for(modele) if modele is not None else None
+    lots_avant_orm = set()
+    if modele_lot is not None:
+        try:
+            lots_avant_orm = set(modele_lot.objects.values_list('id', flat=True))
+        except Exception:
+            modele_lot = None
     _nettoyes = []
 
     jeton = _session_compte_de_test()
     if not jeton:
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
 
-    with sync_playwright() as p:
+    try:
+      with sync_playwright() as p:
         navigateur = p.chromium.launch()
         try:
             contexte = navigateur.new_context(viewport={'width': 1500, 'height': 1000})
@@ -1166,16 +1178,27 @@ def check_app_batch_actions(app: str, url_path: str):
                       f"{len(lots2)} lot(s) ; doublon #{cible} créé puis retiré")
         finally:
             navigateur.close()
-            if modele is not None:
-                try:
-                    restes = set(modele.objects.values_list('id', flat=True)) - ids_avant_orm
-                    if restes:
-                        modele.objects.filter(id__in=restes).delete()
-                        _nettoyes.append(len(restes))
-                except Exception:
-                    pass
+    finally:
+        # ⚠ HORS du `with sync_playwright()` : l'ORM y lève `SynchronousOnlyOperation`, et un
+        # `except Exception: pass` AVALE cette erreur — le nettoyage semblait donc tourner alors
+        # qu'il ne faisait rien (constaté : le détail n'annonçait jamais d'objet nettoyé).
+        # Le fichier documente cette contrainte en tête ; je l'ai quand même réintroduite.
+        # ÉLÉMENTS d'abord, LOTS ensuite : dans la forme à FK directe (converter), supprimer le
+        # lot CASCADE sur ses éléments — l'inverse les ferait disparaître avant d'être comptés.
+        # On ne touche QUE ce que ce passage a créé.
+        for _modele, _avant in ((modele, ids_avant_orm), (modele_lot, lots_avant_orm)):
+            if _modele is None:
+                continue
+            try:
+                restes = set(_modele.objects.values_list('id', flat=True)) - _avant
+                if restes:
+                    _modele.objects.filter(id__in=restes).delete()
+                    _nettoyes.append(len(restes))
+            except Exception as _exc:            # ne JAMAIS avaler en silence
+                _nettoyes.append(0)
+                print(f"[batch_actions] nettoyage {app} impossible : {type(_exc).__name__}")
     if _nettoyes:
-        detail += f" ; {sum(_nettoyes)} élément(s) de montage nettoyé(s)"
+        detail += f" ; {sum(_nettoyes)} objet(s) de montage nettoyé(s)"
     return True, detail
 
 

@@ -266,3 +266,67 @@ def build_batches_list(user, *, batch_model, work_attr, items_related='items',
             row.update(extra(batch, items, works) or {})
         result.append(row)
     return result
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Modèle de LOT d'une app — DÉRIVÉ, jamais déclaré
+# ─────────────────────────────────────────────────────────────────────────────
+def batch_model_for(element_model):
+    """Modèle de LOT associé à un modèle d'ÉLÉMENT, ou None si indécidable.
+
+    DÉRIVÉ des métadonnées Django, pas déclaré : rien à maintenir, rien qu'une app puisse
+    oublier d'inscrire, toute app future couverte sans geste. C'est aussi la doctrine du
+    dépôt — le substrat ne cite jamais ses producteurs.
+
+    LA CONVENTION SUR LAQUELLE ON S'APPUIE EST LUE, PAS INVENTÉE : le rattachement à un lot
+    est une FK nommée `batch`, de `related_name='items'`. Uniforme sur les 9 modèles du
+    dépôt, et surtout **déjà consommée par le commun** — `build_batches_list(items_related=
+    'items')` en fait son défaut. S'appuyer dessus, c'est lire une règle existante.
+    ⚠ Ce qu'il ne FAUT PAS faire, et qui était ma première version : deviner sur le NOM DE
+    CLASSE. `ComposerBatch`, `BatchAnonymizer`, `GenerationBatch`, `BatchReadingItemLink` ne
+    suivent pas la même graphie — une règle sur le nom de classe serait fausse dès la 4ᵉ app.
+    ⚠ Ni se contenter de « une FK vers un modèle de la même app » : `ConversionJob` en a DEUX
+    (`profile` → ConversionProfile, `batch` → ConversionBatch), et l'accesseur rendait None.
+
+    Deux formes coexistent, mesurées sur les 12 surfaces enregistrées (2026-08-24) — c'est la
+    seule raison pour laquelle cette fonction n'est pas une ligne :
+      • FK DIRECTE (converter, converter_01) : Élément.batch → Lot ;
+      • via un modèle de LIAISON (10/12)     : Élément ← BatchXItem.batch → Lot.
+
+    AMBIGU ou introuvable = None, jamais un choix arbitraire : un appelant qui reçoit None
+    sait qu'il ne sait pas, là où un mauvais modèle ferait supprimer les mauvaises lignes.
+    """
+    if element_model is None:
+        return None
+
+    def _fk_batch(modele):
+        """Cible de la FK de rattachement (`batch`) de ce modèle, ou None."""
+        for f in modele._meta.get_fields():
+            if getattr(f, 'many_to_one', False) and f.name == 'batch':
+                return f.related_model
+        return None
+
+    # Forme B — l'élément porte lui-même son rattachement.
+    direct = _fk_batch(element_model)
+    if direct is not None:
+        return direct
+
+    # Forme A — un modèle de LIAISON référence l'élément et porte le rattachement.
+    candidats = set()
+    for rel in element_model._meta.related_objects:
+        cible = _fk_batch(rel.related_model)
+        if cible is not None and cible is not element_model:
+            candidats.add(cible)
+    return next(iter(candidats)) if len(candidats) == 1 else None
+
+
+def batch_model_for_app(app_name):
+    """Idem depuis un nom de SURFACE (`'enhancer'`, `'audio_enhancer'`…).
+
+    Passe par `PreviewRegistry`, déjà l'annuaire surface → modèle d'élément du dépôt
+    (manifestes, grille de conformité, scénarios nocturnes le lisent). ⚠ La clé est la
+    SURFACE et non l'app Django : l'enhancer en expose deux (`enhancer` et
+    `audio_enhancer`), avec deux modèles d'élément et deux modèles de lot distincts.
+    """
+    from wama.common.utils.preview_registry import PreviewRegistry
+    return batch_model_for(PreviewRegistry.get_model(app_name))
