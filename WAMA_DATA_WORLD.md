@@ -2377,6 +2377,121 @@ formule qui a circulé.
 
 ---
 
+## 9undecies. LE PROTOCOLE — du langage naturel au script rejouable (2026-08-24)
+
+> Issu d'un échange avec Fabien. **Ce n'est pas un module de plus** : c'est la description complète
+> du trajet qu'un traitement parcourt, du texte que le chercheur écrit jusqu'au script qu'un
+> relecteur peut rejouer. Trois choses s'y décident — D13, la borne du script généré, et le statut
+> de la copie projetée. Une seule d'entre elles était correctement énoncée avant cet échange.
+
+### 9undecies.1 La chaîne
+
+```
+   protocole en langage naturel        (le chercheur écrit ce qu'il veut faire)
+        ↓  l'AI-Assistant traduit
+   manifeste `pipeline`                (déclaration exécutable — le LLM propose, la machine dispose)
+        ↓  WAMA déroule
+   écriture dans le fichier de TRAVAIL (.wrec natif, ou .trip si compatibilité BIND)
+        ↓  génération
+   script rejouable                    (Python d'abord, autres langages selon couverture MESURÉE)
+```
+
+⚠ Rien dans cette chaîne n'écrit sur les **données brutes**. Le fichier de travail est régénérable
+depuis `raw_data + protocole` — c'est précisément ce qui autorise à y écrire (règle posée le
+2026-08-23, cf. §9quater.2).
+
+### 9undecies.2 D13 — CLOSE : un seul kind `pipeline`, étendu
+
+Le kind existe déjà avec la bonne forme : `{nodes:[{id, app, params}], links, layout}`, et
+`kind = source|sink|app`. Il lui manque le nœud **`function`**. Trois raisons de l'étendre plutôt
+que de créer un kind `data_process` :
+
+1. **La forme du graphe est identique** — nœuds, liens, paramètres, présentation séparée.
+2. §9bis l'avait déjà conclu (« aucun nouveau kind à créer ; il lui manque le nœud fonction »).
+3. ⭐ **Et l'argument décisif, apparu dans l'échange** : **un protocole réel TRAVERSE les mondes.**
+   « Transcris la vidéo, puis segmente les données autour des mots-clés » mêle une app du monde
+   Médias et une fonction du monde Data. **Deux kinds rendraient ce protocole inexprimable** — il
+   faudrait un troisième objet pour recoller les deux, c'est-à-dire réintroduire la duplication que
+   la règle « une source, N rendus » interdit.
+
+⚠ La nuance à porter dans l'exécuteur, pas dans le schéma : un nœud `app` est un **job de file**
+(asynchrone, produit des fichiers) ; un nœud `function` est une **transformation typée**
+(synchrone, produit un `TypedFrame`). Ce n'est pas une raison de séparer le kind — c'est une raison
+de **dispatcher sur `kind`**, ce que l'exécuteur fait déjà.
+
+### 9undecies.3 Le script généré : clé en main, et la borne n'est PAS où je l'avais mise
+
+**§9bis portait la borne « export MATLAB borné par la bibliothèque de fonctions → squelette +
+contrat de données ». Je l'ai reprise et ÉTENDUE À TOUS LES LANGAGES. C'était faux**, et Fabien l'a
+relevé : on a le dataset, les segments, les colonnes, et un manifeste qui dit quelle fonction
+s'applique sur quoi — il ne manque rien.
+
+**Mesuré** : `FunctionSpec.fn` **est le callable réel** (`function_catalog.py:67`). Donc
+`fn.__module__` + `fn.__qualname__` donnent le chemin d'import exact. Un script Python généré
+n'imite pas le traitement, il **appelle le même code** :
+
+```python
+ref, ecart = charger(manifeste_dataset)
+cadre = frame_depuis_referentiel(ref, 'vitesse')
+cadre = calcul_glissant(cadre, fenetre_s=2.0)   # LA fonction que WAMA appelle, pas une copie
+```
+
+**Le vrai critère n'est pas le langage, c'est : la cible peut-elle ATTEINDRE l'implémentation ?**
+
+| route | résultat | prix |
+|---|---|---|
+| **Python** | appelle les fonctions WAMA | aucun — exact par construction |
+| **pont** (MATLAB appelle Python) | exact | exige WAMA installé |
+| **transpilation** (vrai MATLAB) | autonome | **une SECONDE implémentation** → divergence silencieuse |
+
+⚠ Le piège : la raison même de vouloir du MATLAB est en général « tourner **sans** WAMA » — elle
+pousse donc vers la transpilation, c'est-à-dire vers le risque de divergence.
+
+⭐ **Et il se règle par la mesure, pas par la prudence.** WAMA peut dérouler sa propre chaîne ET le
+script généré sur le même dataset, puis **comparer les sorties**. La transpilation devient alors
+**vérifiée** au lieu d'être crue — même principe que G7 (exercer, pas déclarer).
+
+> **Conséquence sur la borne de §9bis : la couverture n'est pas PAR LANGAGE, elle est PAR FONCTION,
+> et elle est MESURABLE.** Une fonction dont l'équivalent cible passe la contre-épreuve est clé en
+> main ; le squelette n'est le **repli** que là où la couverture manque. Un « squelette toujours »
+> serait une borne posée par défaut d'avoir mesuré.
+
+### 9undecies.4 La copie projetée — et le semis inter-instances
+
+Deux emplacements, **et c'est bien les deux** :
+
+| | rôle | droits |
+|---|---|---|
+| **magasin** (`Manifest`) | LA source — éditable, versionnée, unique | lecture/écriture |
+| **copie projetée** (dans le `.wrec`) | rend le conteneur autoportant | **lecture seule, estampillée** |
+
+L'estampille (quel manifeste, quelle version) est ce qui empêche la copie de devenir une **seconde
+source**. Sans elle, on aurait exactement la duplication que « une source, N rendus » interdit.
+
+**L'usage collaboratif** que vise Fabien — plusieurs personnes sur le même dossier de dataset,
+voir ce que l'autre a traité, ajouter un traitement avec son suivi — a une conséquence directe :
+la copie projetée doit porter **qui et quand**, pas seulement le manifeste. C'est un **journal de
+traitements**, et c'est ce qui rend le suivi lisible **sans base partagée**.
+
+**Recopier le manifeste dans le catalogue d'une autre instance (dev → prod) : la porte existe
+déjà.** Mesuré : `ingest()` est **idempotent sur `kind+key`, transactionnel, et sandbox par défaut**
+(`visibility='private'`, `ingest.py:78-112`). Un manifeste venu d'ailleurs atterrit donc **privé**,
+et quelqu'un doit le `promote()`. Ce n'est pas une gêne — c'est la garde.
+
+⚠ **Un seul point à construire** : `ingest()` écrase `obj.body` **sans rien dire** si la clé existe
+déjà (`ingest.py:95-111`). Entre dev et prod, `pipeline:mon-protocole` peut exister **des deux côtés
+avec des contenus différents** — c'est le cas probable, pas le cas rare. L'import depuis une copie
+projetée doit **comparer avant** et **montrer le conflit**.
+
+D'où la règle, en trois temps :
+
+- **dans une instance** — la copie est en lecture seule, **le magasin gagne** ;
+- **entre instances, magasin vide** — **la copie sème** ;
+- **entre instances, les deux existent et diffèrent** — **conflit montré, jamais d'écrasement
+  silencieux.**
+
+---
+
 ## 9bis.6 Ce que la cartographie n'a pas couvert — à traiter avant l'Importer v2
 
 **L'alignement par TRIGGERS.** RTMaps et LSL fournissent une horloge d'acquisition commune ; des
@@ -2406,13 +2521,39 @@ qui ne sait lire que des acquisitions déjà synchronisées, c'est-à-dire le ca
 | D10 | **rééchantillonnage : jamais systématique** (Fabien, 20/08) — mais **TROIS opérations distinctes**, cf. §6.6 : le **ré-horodatage** par fréquence théorique est ✅ à l'import et par flux (il n'interpole pas) ; le **rééchantillonnage sur grille commune** est ❌ ; le **rééchantillonnage à la demande vers une table annexe** est ✅ en option. Le **pas de temps variable est une capacité à porter**, pas un défaut à corriger. ✅ **RESTE CLOS le 2026-08-23 (§9quater.4)** : la table annexe vit **dans le même `.wrec`** que ses sources, porte sa **provenance en méta** (jamais dans son nom — D11), se nomme par règle dérivée, et n'est **jamais créée implicitement**. Et le défaut recommandé pour croiser deux cadences n'est PAS le rééchantillonnage mais l'**agrégation** (`calcul_par_segment`), qui n'invente aucune valeur | ✅ close |
 | D11 | les paramètres de fenêtre d'une situation : **colonnes/métadonnées** (interrogeables) plutôt que dans le NOM de la table comme BIND (`situation_0_15`) ? | ⚠ **MÛRE** — « après A », et A est faite (§9ter.6). Le principe est déjà **appliqué un cran plus bas** par §9quater.4 (le contexte se trace sur la COLONNE) et par la table annexe (provenance en méta, jamais dans le nom). Reste à le ratifier au niveau de la situation elle-même |
 | D12 | **alignement par TRIGGERS** (§9bis.6) : où vit l'appariement d'événements entre flux — dans l'Importer, ou comme fonction du catalogue applicable après import ? | avant l'Importer v2 |
-| D13 | nœud **fonction** dans le kind `pipeline` : étendre `source\|sink\|app`, ou déclarer les fonctions comme un `app` d'un genre particulier ? | avant le 1ᵉʳ pipeline de données |
-| D15 | **segment OUVERT** (fin inconnue) : `Signal.ends` accepte-t-il `None` ? Indispensable au codage en cours de flux — un humain ou une IA qui code ouvre un état avant de le fermer. BORIS le porte (`UNPAIRED`), ni BIND ni WAMA ne savent le représenter | avant le codage vidéo |
-| D14 | granularité du **script généré** : un fichier plat rejouable, ou un module par fonction + un orchestrateur ? (impacte la lisibilité pour un relecteur académique) | avant l'Exporter de pipeline |
+| ~~D13~~ | ✅ **TRANCHÉE 2026-08-24 (§9undecies.2)** — **un seul kind `pipeline`, étendu** d'un nœud `function`. Décisif : **un protocole réel traverse les mondes** (« transcris la vidéo, puis segmente autour des mots-clés ») — deux kinds le rendraient inexprimable. La différence app/fonction (job asynchrone vs transformation typée) se traite dans l'**exécuteur**, qui dispatche déjà sur `kind` | Fabien |
+| ~~D15~~ | ✅ **TRANCHÉE 2026-08-24 par la MESURE** — `Signal.ends` accepte `None`, mais un seul état non refermé rendait le flux **entier ininterrogeable** (`TypeError` dans `containing`/`overlapping`), et `frames.signal_depuis_frame` en produisait. Corrigé : `Signal._fin()` vaut `+∞` **pour les comparaisons**, `end_at()`/`duration_at()` rendent toujours `None`. ⚠ La convention existait déjà dans `segmentation.py` sans avoir été portée | mesure |
+| D14 | granularité du **script généré** : un fichier plat rejouable, ou un module par fonction + un orchestrateur ? (impacte la lisibilité pour un relecteur académique) — ⚠ **le CADRE est posé (§9undecies.3)** : Python est **exact** (le script appelle `FunctionSpec.fn`), et la couverture des autres langages est **par fonction et mesurable** par contre-épreuve, pas « squelette par principe ». Reste la seule question de forme | avant l'Exporter de pipeline |
+| D16 | **conflit d'ingest inter-instances** (§9undecies.4) : `ingest()` écrase `body` en silence sur `kind+key` existant. Comparer et montrer — mais **où** ? garde dans `ingest()` (protège tous les appelants, change un contrat existant) ou dans l'import depuis copie projetée seul ? | avant le 1ᵉʳ échange dev↔prod |
 
 ---
 
 ## Journal
+
+- **2026-08-24** — **le point d'entrée, le lecteur `.rec`, et le PROTOCOLE.**
+  - §9octies (le manifeste `dataset` devient exécutable), §9nonies (la famille d'un flux portée
+    comme donnée), §9decies (G1 fermé — et il n'était pas où on le disait), puis le **lecteur
+    RTMaps `.rec`** (troisième capacité d'import, `504 → 534` tests) : premier format **streamé**,
+    et il **s'est enregistré sans qu'on touche au moteur** — G1 a payé le jour même.
+  - **D15 close par la mesure**, trouvée en répondant à une question de Fabien (« que signifie
+    segment ouvert ? »). ⚠ **La question a suffi à exposer un bug réel** introduit par mon propre
+    pont la veille : un état non refermé rendait le flux entier ininterrogeable. **Mon test
+    vérifiait que la valeur SURVIT, jamais qu'on puisse l'INTERROGER** — un test de stockage n'est
+    pas un test d'usage. Et la convention existait déjà **deux fichiers plus loin**
+    (`segmentation.py`), sans avoir été portée : **sixième occurrence** en deux jours du motif « le
+    fait est établi ailleurs dans le dépôt et n'est pas relié à sa conséquence ».
+  - **§9undecies — le protocole**, issu du même échange. **D13 close** (un seul kind `pipeline`
+    étendu ; décisif : un protocole réel traverse les mondes), la **copie projetée** actée
+    (lecture seule + estampille, journal qui/quand, semis inter-instances par `ingest()`), et
+    **D16 ouverte** (`ingest()` écrase `body` en silence).
+  - ⚠ **Et une borne que j'avais reprise SANS LA MESURER.** J'ai étendu à tous les langages la
+    restriction « squelette + contrat » que §9bis ne posait que pour MATLAB, puis je l'ai défendue.
+    Fabien a demandé pourquoi — **il avait raison** : `FunctionSpec.fn` est le callable réel, donc
+    un script Python généré **appelle le même code**, exactement. Le vrai critère n'est pas le
+    langage mais « la cible peut-elle atteindre l'implémentation ? », et la couverture est **par
+    fonction, mesurable par contre-épreuve**. Même famille d'erreur que les trois affirmations de
+    §9ter.6 : **une formule reprise d'un document plutôt que confrontée au code** — sauf qu'ici
+    elle allait dans l'autre sens, elle rendait le travail plus PETIT qu'il n'est.
 
 - **2026-08-23** — **portage du Segmenter et de l'Exporter, puis trois décisions de fond.**
   - **Matin** : §9ter.6 A-B-C porté (chaîne conditionnelle en arbre, manques temporels, Exporter
