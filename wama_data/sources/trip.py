@@ -14,8 +14,13 @@ manipuler des « trips ». Même motif que le renommage `SECTIONS` → `SEGMENTS
 (`data_types.py`), où « section » était jugé trop connoté routier.
 
 **Ce module NE SERA PAS renommé pour autant** : il lit le format de l'autre, et l'appeler autrement
-le rendrait faux. Ce qui portera le nom `.wrec`, c'est l'ÉCRIVAIN — qui n'existe pas encore
-(vérifié le 2026-08-23 : zéro écriture SQLite dans tout `wama_data`).
+le rendrait faux. L'écrivain existe depuis le 2026-08-24 (`wama_data/containers/`), et le lecteur du
+conteneur natif est `sources/wrec.py`.
+
+⚠ CE MODULE NE PORTE PLUS QUE LA CONNAISSANCE DU SCHÉMA. Toute la mécanique SQLite — ouverture en
+lecture seule, décodage du texte, colonnes, valeurs triées, les trois niveaux d'agrégation — vit
+dans `_sqlite.SqliteSourceReader`, dont il hérite. Elle n'avait jamais rien dû au format de BIND ;
+c'est l'arrivée du second lecteur de base qui l'a rendu visible.
 
 Schéma (relevé sur le format, cf. `WAMA_DATA_WORLD.md` §6.2-6.3) : un catalogue de métadonnées fixe
 (`MetaDatas`, `MetaDataVariables`, `MetaEvents`, `MetaSituations`, `MetaTripVideos`…) et **une table
@@ -29,14 +34,14 @@ toutes les valeurs de tous les flux dépasserait le gigaoctet pour une seule pas
 from __future__ import annotations
 
 import sqlite3
-from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from wama.common.catalog.data_types import DataType
 
 from ..core.temporal import NEAREST, PREVIOUS, SignalMeta
-from . import SourceInfo, SourceReader, StreamSpec, register_reader
+from . import SourceInfo, StreamSpec, register_reader
+from ._sqlite import SqliteSourceReader
 
 #: Préfixes de table → famille. Les situations portent DEUX bornes, d'où un traitement distinct.
 _PREFIXES = {'data_': 'data', 'event_': 'event', 'situation_': 'situation'}
@@ -48,83 +53,11 @@ _TYPE_DE_FAMILLE = {'data': DataType.TIMESERIES, 'event': DataType.EVENTS,
                     'situation': DataType.SEGMENTS}
 
 
-def _texte(octets: bytes) -> str:
-    """Décodeur du texte SQLite — UTF-8, repli **cp1252**. Voir `TripReader._open` pour le pourquoi.
-
-    L'ORDRE COMPTE, et c'est tout l'argument : cp1252 associe un caractère à 251 des 256 octets, si
-    bien qu'essayé en premier il rendrait **du texte plausible mais faux** pour n'importe quel
-    UTF-8 accentué (« Ajouté » y deviendrait « AjoutÃ© ») — sans jamais lever. L'UTF-8 en premier,
-    lui, ÉCHOUE proprement sur une séquence qui n'en est pas. On teste donc le codec qui sait dire
-    non, et on se replie sur celui qui dit toujours oui. Les cinq octets sans correspondance sont
-    couverts par `errors='replace'`, seul cas où l'on abîme réellement un caractère.
-    """
-    try:
-        return octets.decode('utf-8')
-    except UnicodeDecodeError:
-        return octets.decode('cp1252', 'replace')
-
-
-class TripReader(SourceReader):
+class TripReader(SqliteSourceReader):
     format = 'trip'
     extensions = ('.trip',)
+    table_temoin = 'MetaDatas'
     description = "Base SQLite d'expérimentation (flux, événements, segments, médias liés)"
-
-    # ── Reconnaissance ────────────────────────────────────────────────────────────────────────
-    def can_read(self, path: Path) -> bool:
-        if path.suffix.lower() not in self.extensions:
-            return False
-        # On renifle le contenu : un `.trip` est un SQLite portant le catalogue attendu. Sans ça,
-        # un fichier mal nommé ferait échouer l'import loin de sa cause.
-        try:
-            with self._open(path) as con:
-                noms = {r[0] for r in con.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table'")}
-            return 'MetaDatas' in noms
-        except Exception:
-            return False
-
-    @staticmethod
-    @contextmanager
-    def _open(path: Path):
-        """Connexion LECTURE SEULE, RÉELLEMENT REFERMÉE — on n'écrit jamais dans une source importée.
-
-        ⚠ DÉFAUT CORRIGÉ LE 2026-08-24, trouvé par le `.trip` synthétique. Ce module écrivait
-        partout `with self._open(path) as con:` en croyant fermer. **Le gestionnaire de contexte
-        d'une `sqlite3.Connection` gère la TRANSACTION, pas la fermeture** : il committe ou
-        annule, puis laisse la connexion OUVERTE. Chaque `probe`, `read`, `_columns`, `_times`…
-        en fuyait une — et ce module en ouvre une par appel **à dessein** (sécurité entre fils
-        d'exécution), donc la fuite est proportionnelle à l'usage.
-
-        Invisible sous Linux, où l'on supprime un fichier ouvert sans broncher. Sous Windows, le
-        fichier devient indélogeable — c'est ainsi que le fixture temporaire l'a révélé, alors
-        que la base réelle (jamais supprimée) ne l'aurait jamais montré.
-
-        Écrit en `@contextmanager` : tous les appelants gardent leur `with`, et la fermeture
-        devient impossible à oublier au lieu d'être à répéter.
-
-        ⚠ SECOND DÉFAUT, TROUVÉ LE 2026-08-24 EN RELEVANT LE SCHÉMA POUR L'ÉCRIVAIN. Quatre tables
-        de la base réelle portent du texte **cp1252**, pas de l'UTF-8 : `MetaEvents`,
-        `MetaEventVariables`, `MetaSituations`, `MetaSituationVariables` contiennent « Ajouté à
-        partir de BIND_GUI » écrit par l'outil MATLAB sous Windows. Le `sqlite3` de Python décode en
-        UTF-8 strict et lève `OperationalError: Could not decode to UTF-8` — pas une exception de
-        décodage, une erreur d'OPÉRATION, donc un message qui n'oriente pas vers l'encodage.
-
-        ⚠ Ce lecteur y survivait PAR CHANCE : il ne lit ni `MetaEvents` ni `MetaSituations` (seul
-        `MetaDatas`, dont les commentaires sont en ASCII). La première ligne qui aurait voulu les
-        déclarations d'événements ou de situations aurait échoué sur un corpus valide — et un
-        `SELECT *` sur une table de flux portant un commentaire accentué échouerait de même.
-
-        Le repli DÉCODE au lieu de remplacer : cp1252 rend « Ajouté à partir de BIND_GUI » exact,
-        là où `errors='replace'` aurait produit des losanges et fait passer une donnée lisible pour
-        une donnée corrompue. Même famille que la virgule décimale française du lecteur `.rec` :
-        l'octet n'est pas invalide, il est écrit dans une autre langue.
-        """
-        con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
-        con.text_factory = _texte
-        try:
-            yield con
-        finally:
-            con.close()
 
     # ── Inventaire ────────────────────────────────────────────────────────────────────────────
     def probe(self, path: Path) -> SourceInfo:
@@ -184,7 +117,7 @@ class TripReader(SourceReader):
             if tcol not in cols:
                 continue   # table sans colonne temporelle : hors périmètre du référentiel
 
-            times = self._times(path, table, tcol)
+            times = self._values(path, table, tcol, tcol)
             ts = timestampers.get(table) or timestampers.get(nom)
             if ts is not None:
                 # Ré-horodatage À LA DEMANDE : on conserve tous les échantillons, on recalcule
@@ -207,7 +140,7 @@ class TripReader(SourceReader):
             # d'analyse emboîtées.
             ends = None
             if famille == 'situation' and 'endTimecode' in cols:
-                ends = self._ends(path, table, tcol)
+                ends = self._values(path, table, 'endTimecode', tcol)
 
             out.append(StreamSpec(
                 meta=meta, times=times, ends=ends,
@@ -217,22 +150,6 @@ class TripReader(SourceReader):
                 offset=offsets.get(nom, 0.0),
             ))
         return out
-
-    @staticmethod
-    def _frequence(valeur) -> Optional[float]:
-        """Cadence déclarée, ou None si le champ ne dit rien d'exploitable.
-
-        ⚠ Le champ n'est PAS fiable dans les bases réelles. Mesuré : il valait `0` pour les dix
-        flux d'une passation, et **la chaîne vide** pour les flux dérivés — ce qui faisait lever
-        `float('')` et rendait le flux entier illisible. Toute valeur non numérique ou non
-        strictement positive signifie « non renseigné » : on rend None plutôt que de fabriquer une
-        cadence, puisque `measured_fs()` sait la déduire de la donnée elle-même.
-        """
-        try:
-            f = float(valeur)
-        except (TypeError, ValueError):
-            return None
-        return f if f > 0 else None
 
     # ── Accès bas niveau ──────────────────────────────────────────────────────────────────────
     def _declarations(self, path: Path) -> Dict[str, dict]:
@@ -248,88 +165,6 @@ class TripReader(SourceReader):
     def _media_offsets(info: SourceInfo) -> Dict[str, float]:
         """Les médias externes ne sont pas ré-horodatés : ils portent un décalage propre."""
         return {Path(m['file']).stem: float(m.get('offset') or 0.0) for m in info.media}
-
-    def _columns(self, path: Path, table: str) -> List[str]:
-        with self._open(path) as con:
-            return [r[1] for r in con.execute(f'PRAGMA table_info("{table}")')]
-
-    def _times(self, path: Path, table: str, tcol: str) -> List[float]:
-        with self._open(path) as con:
-            return [r[0] for r in con.execute(
-                f'SELECT "{tcol}" FROM "{table}" ORDER BY "{tcol}"')]
-
-    def _ends(self, path: Path, table: str, tcol: str) -> List[float]:
-        """Bornes de fin, dans le MÊME ordre que les débuts (tri sur la colonne de début)."""
-        with self._open(path) as con:
-            return [r[0] for r in con.execute(
-                f'SELECT "endTimecode" FROM "{table}" ORDER BY "{tcol}"')]
-
-    def _extent_accessor(self, path: Path, table: str, tcol: str):
-        """Rend `(t0, t1, colonne) -> (min, max)` calculé EN SQL, borné par le TEMPS.
-
-        ⚠ Borné par le temps, PAS par l'index — leçon d'une première version mesurée inutilisable.
-        Agréger par `LIMIT n OFFSET k` oblige SQLite à re-parcourir depuis le début à chaque appel :
-        sur 2 M de lignes et 2000 tranches, le coût devient quadratique et la vue décimée ne rend
-        jamais la main. Une borne temporelle, elle, exploite l'index sur la colonne de temps —
-        c'est justement pour ça que ce format crée un index par colonne.
-
-        La colonne est validée contre le schéma réel avant d'être interpolée dans la requête : un
-        nom venant de l'appelant ne doit jamais atterrir tel quel dans du SQL.
-        """
-        colonnes = set(self._columns(path, table))
-
-        def extent(t0: float, t1: float, column: str):
-            if column not in colonnes or t1 <= t0:
-                return (None, None)
-            with self._open(path) as con:
-                row = con.execute(
-                    f'SELECT MIN("{column}"), MAX("{column}") FROM "{table}" '
-                    f'WHERE "{tcol}" >= ? AND "{tcol}" < ?', (t0, t1)).fetchone()
-            return (row[0], row[1]) if row else (None, None)
-
-        return extent
-
-    def _extents_accessor(self, path: Path, table: str, tcol: str):
-        """Rend `(t0, t1, buckets, colonne) -> {n° de tranche: (min, max)}` — TOUTES les tranches
-        en UNE requête groupée.
-
-        Mesuré : 2000 tranches sur 2 M de lignes coûtaient 24,9 s en interrogeant tranche par
-        tranche (une requête et une connexion chacune), contre ~1 s en une seule passe avec
-        `GROUP BY`. Pour une vue d'interface la différence n'est pas un confort, c'est la
-        viabilité. C'est aussi pourquoi le contrat prévoit cette capacité en OPTION : une source
-        qui ne sait pas grouper retombe sur l'agrégation tranche par tranche, puis sur la lecture
-        des lignes — trois niveaux, du plus efficace au plus universel.
-        """
-        colonnes = set(self._columns(path, table))
-
-        def extents(t0: float, t1: float, buckets: int, column: str):
-            if column not in colonnes or buckets <= 0 or t1 <= t0:
-                return {}
-            pas = (t1 - t0) / buckets
-            with self._open(path) as con:
-                rows = con.execute(
-                    f'SELECT CAST(("{tcol}" - ?) / ? AS INTEGER) AS b, '
-                    f'MIN("{column}"), MAX("{column}") FROM "{table}" '
-                    f'WHERE "{tcol}" >= ? AND "{tcol}" < ? GROUP BY b',
-                    (t0, pas, t0, t1)).fetchall()
-            return {int(b): (lo, hi) for b, lo, hi in rows if b is not None}
-
-        return extents
-
-    def _row_accessor(self, path: Path, table: str, tcol: str):
-        """Rend `(i0, i1) -> lignes`. Chaque appel rouvre en lecture seule : une connexion SQLite
-        n'est pas sûre entre fils d'exécution, et un référentiel est destiné à être interrogé
-        depuis plusieurs contextes."""
-        def rows(i0: int, i1: int):
-            if i1 <= i0:
-                return []
-            with self._open(path) as con:
-                cur = con.execute(
-                    f'SELECT * FROM "{table}" ORDER BY "{tcol}" LIMIT ? OFFSET ?',
-                    (i1 - i0, i0))
-                noms = [c[0] for c in cur.description]
-                return [dict(zip(noms, r)) for r in cur.fetchall()]
-        return rows
 
 
 register_reader(TripReader())

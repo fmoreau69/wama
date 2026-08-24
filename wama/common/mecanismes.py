@@ -464,9 +464,15 @@ MECANISMES = (
               "REGISTRE de capacités de lecture — aucun format privilégié : ajouter un format = "
               "déposer un lecteur, jamais éditer le moteur. Porte aussi l'HORODATAGE par flux "
               "(dont le ré-horodatage par fréquence théorique, qui n'interpole rien et ne "
-              "s'applique que sur demande)",
-              'wama_data/sources/__init__.py', 'WAMA_DATA_WORLD.md §6.6',
-              annexes=('wama_data/sources/trip.py',
+              "s'applique que sur demande). ⚠ La MÉCANIQUE SQLite (ouverture en lecture seule, "
+              "décodage UTF-8→cp1252 du texte des bases MATLAB, valeurs triées, les trois niveaux "
+              "d'agrégation) est un socle partagé — un lecteur de base concret n'écrit plus que "
+              "`can_read`, `probe` et `read`, c'est-à-dire sa seule connaissance du schéma",
+              'wama_data/sources/__init__.py', 'WAMA_DATA_WORLD.md §6.6, §9terdecies',
+              annexes=('wama_data/sources/_sqlite.py',
+                       'wama_data/sources/trip.py',
+                       'wama_data/sources/wrec.py',
+                       'wama_data/sources/rtmaps.py',
                        'wama_data/sources/tabular.py')),
     Mecanisme('data_frames_bridge', 'Pont référentiel ↔ cadres typés (WAMA Data)',
               "SEULE frontière entre les deux vocabulaires du monde Data : le référentiel "

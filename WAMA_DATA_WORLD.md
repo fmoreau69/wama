@@ -2609,6 +2609,73 @@ absence était donc écrite sous une forme qu'aucun analyseur standard ne relit 
 
 ---
 
+## 9terdecies. LE LECTEUR `.wrec` — et le socle SQLite que le second lecteur a révélé (2026-08-24)
+
+> Sans lecteur, `.wrec` était **write-only** : on pouvait produire un conteneur et jamais le
+> rouvrir. Or c'est exactement ce que le format est censé être — **le fichier de travail**, l'endroit
+> où les traitements s'accumulent. `sources/wrec.py` le referme.
+
+### 9terdecies.1 Le socle, révélé par le second lecteur
+
+`TripReader` portait **~120 lignes d'accès SQLite** qui ne doivent rien au format de BIND :
+ouverture en lecture seule, décodage du texte, colonnes, valeurs triées, les trois niveaux
+d'agrégation. Le lecteur natif en avait besoin **à l'identique, à deux noms de colonne près**.
+
+→ `sources/_sqlite.py::SqliteSourceReader`. Un lecteur de base concret n'écrit plus que
+**`can_read`, `probe`, `read`** — c'est-à-dire sa seule connaissance du schéma. `trip.py` passe de
+~300 à **171 lignes** sans perdre une garantie (73 tests `sources` inchangés).
+
+⚠ **Symétrie exacte avec `containers/` écrit le même jour** : la mécanique est commune, la
+connaissance du schéma est le seul propre de chacun. Ce n'est pas une coïncidence — lire et écrire
+un conteneur posent le même problème, et il se résout du même côté.
+
+⚠ Le module s'appelle `_sqlite.py` **par contrat, pas par politesse** : `modules_lecteurs()`
+découvre les modules du paquet pour les enregistrer comme lecteurs (G1), et le préfixe `_` est ce
+qui l'en exclut.
+
+⚠ Et une règle a été **récupérée** au passage : `_times` et `_ends` ne différaient que par la
+colonne lue, mais **seule la seconde** portait la remarque qui vaut pour les deux — *les fins
+doivent sortir dans le même ordre que les débuts*. Une règle écrite dans une seule de deux copies
+est une règle qu'on perd en touchant l'autre. `_values(table, colonne, tri)` la porte une fois.
+
+### 9terdecies.2 Ce que le lecteur natif relit et que `.trip` ne sait pas dire
+
+| fait | `.trip` | `.wrec` |
+|---|---|---|
+| famille du flux | déduite d'un **préfixe de table** | `WamaStreams.data_type`, **relue** |
+| unité par colonne | champ présent, **vide partout, jamais relu** | `WamaVariables.unit`, écrite **et relue** |
+| pertes d'acquisition | aucun champ | `WamaStreams.losses` |
+| décalage **par flux** | seulement par média | `WamaStreams.offset` |
+| protocole embarqué | aucune table | `WamaManifests`, estampillé |
+
+⭐ **La famille se décide sur les COLONNES PRÉSENTES, jamais sur le nom de table.** C'est ce que
+`.wrec` corrige : `flux_phases` ne dit rien, la présence de `start`/`end` et le catalogue disent
+tout. Un lecteur qui analyserait le préfixe reconduirait le défaut qu'on vient de retirer.
+
+### 9terdecies.3 L'aller-retour est la preuve, et il vérifie les DEUX choses
+
+13 tests écrivent un référentiel puis le relisent. ⚠ Et l'un d'eux applique explicitement la leçon
+de D15 : **prouver qu'une valeur SURVIT ne prouve pas qu'on puisse l'INTERROGER**. Le segment ouvert
+est donc vérifié aux deux niveaux — `end_at(1) is None` **et** `containing(99.0) == [1]` (l'état
+non refermé court encore).
+
+Le point d'entrée universel est éprouvé lui aussi : `sources.load(chemin.wrec)` rend un référentiel
+interrogeable **sans que l'appelant sache quel lecteur a travaillé** — et un `.wrec` n'est pas pris
+pour un `.trip`, les deux étant du SQLite (c'est le reniflage du contenu qui les sépare, pas
+l'extension seule).
+
+### 9terdecies.4 Ce qu'il ne fait PAS, et pourquoi c'est délibéré
+
+⏳ **Il ne réinjecte pas les protocoles embarqués dans le magasin.** Rouvrir un conteneur ne doit
+pas écrire dans le catalogue **par effet de bord** : c'est un **ingest**, donc une décision
+d'utilisateur, et il porte le conflit de **D16** (`ingest()` écrase `body` en silence sur
+`kind+key` existant). `probe()` les **compte** et `protocoles()` les **expose** ; personne ne les
+ingère à l'insu de quiconque.
+
+`wama_data` : **590 → 603 tests** · lecteurs : **3 → 4**.
+
+---
+
 ## 9bis.6 Ce que la cartographie n'a pas couvert — à traiter avant l'Importer v2
 
 **L'alignement par TRIGGERS.** RTMaps et LSL fournissent une horloge d'acquisition commune ; des
@@ -2683,6 +2750,12 @@ qui ne sait lire que des acquisitions déjà synchronisées, c'est-à-dire le ca
     tandis que le vrai trou (`json.dumps([nan])` → `[NaN]`, JSON invalide) n'était couvert par
     personne. *Un test de stockage n'est pas un test d'usage* — la leçon de la veille, appliquée
     à moi le lendemain.
+  - **§9terdecies — le LECTEUR `.wrec`** (`590 → 603` tests, lecteurs 3 → 4). Le format natif
+    n'est plus write-only, donc il peut enfin servir de **fichier de travail**. ⚠ Et le second
+    lecteur de base a révélé un **socle** : ~120 lignes d'accès SQLite qui ne devaient rien au
+    format de BIND vivaient dans `TripReader` (qui passe de ~300 à 171 lignes, 73 tests
+    inchangés). **Même geste que `containers/` le même jour** — lire et écrire un conteneur posent
+    le même problème et il se résout du même côté.
 
 - **2026-08-23** — **portage du Segmenter et de l'Exporter, puis trois décisions de fond.**
   - **Matin** : §9ter.6 A-B-C porté (chaîne conditionnelle en arbre, manques temporels, Exporter

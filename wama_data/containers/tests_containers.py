@@ -23,6 +23,7 @@ from wama.common.catalog.data_types import DataType
 
 from ..core.temporal import PREVIOUS, Signal, SignalMeta, TemporalReferential
 from ..sources import trip as lecteur_trip
+from ..sources import wrec as lecteur_wrec
 from . import (Contexte, Rapport, SCHEMAS, ecrire, extensions_ecrivables, modules_schemas,
                schema_pour, schemas_disponibles)
 
@@ -456,3 +457,119 @@ class RapportTest(unittest.TestCase):
     def test_un_rapport_compte_toutes_ses_lignes(self):
         self.assertEqual(Rapport(chemin='a', format='wrec',
                                  tables={'a': 2, 'b': 3}).lignes, 5)
+
+
+class WrecAllerRetourTest(unittest.TestCase):
+    """⭐ G7 appliqué au format natif : on écrit, on relit, on compare. Un lecteur jugé sur des
+    fixtures qu'il a lui-même inspirées ne prouverait que sa cohérence interne."""
+
+    def setUp(self):
+        self.dossier = Path(tempfile.mkdtemp(prefix='wama_ar_'))
+        self.cible = self.dossier / 'essai.wrec'
+        self.ref = _referentiel()
+        self.contexte = Contexte(auteur='fabien', horodatage='2026-08-24', manifestes=[
+            {'manifest_kind': 'pipeline', 'key': 'protocole-a', 'schema_version': '2',
+             'body': {'nodes': [{'id': 'n1'}]}}])
+
+    def tearDown(self):
+        for f in self.dossier.glob('*'):
+            f.unlink(missing_ok=True)
+        self.dossier.rmdir()
+
+    def _relire(self):
+        ecrire(self.ref, self.cible, contexte=self.contexte)
+        return {s.meta.name: s for s in lecteur_wrec.WrecReader().read(self.cible)}
+
+    def test_le_lecteur_natif_reconnait_ce_que_l_ecrivain_produit(self):
+        ecrire(self.ref, self.cible, contexte=self.contexte)
+        self.assertTrue(lecteur_wrec.WrecReader().can_read(self.cible))
+
+    def test_un_wrec_n_est_PAS_pris_pour_un_trip(self):
+        """Les deux sont du SQLite et le registre rend le PREMIER lecteur qui accepte : sans
+        reniflage du contenu, l'un mangerait les fichiers de l'autre."""
+        from .. import sources
+        ecrire(self.ref, self.cible, contexte=self.contexte)
+        self.assertEqual(sources.reader_for(self.cible).format, 'wrec')
+
+    def test_les_flux_les_instants_et_les_valeurs_reviennent(self):
+        relu = self._relire()
+        self.assertEqual(sorted(relu), ['marqueurs', 'phases', 'vitesse'])
+        self.assertEqual(list(relu['vitesse'].times), [0.0, 0.1, 0.2])
+        lignes = relu['vitesse'].rows(0, 3)
+        self.assertEqual([l['value'] for l in lignes], [10.0, 11.5, None])
+        self.assertEqual([l['mode'] for l in lignes], ['auto', 'auto', 'manuel'])
+
+    def test_la_FAMILLE_revient_sans_analyser_un_prefixe(self):
+        relu = self._relire()
+        self.assertEqual({n: s.meta.data_type for n, s in relu.items()},
+                         {'vitesse': DataType.TIMESERIES, 'marqueurs': DataType.EVENTS,
+                          'phases': DataType.SEGMENTS})
+
+    def test_les_UNITES_reviennent(self):
+        """⭐ Le fait que `.trip` écrit et ne relit jamais. Ici, écrit ET relu."""
+        relu = self._relire()
+        self.assertEqual(relu['vitesse'].meta.units, {'value': 'm/s'})
+
+    def test_une_unite_VIDE_n_encombre_pas_le_dictionnaire(self):
+        relu = self._relire()
+        self.assertEqual(relu['marqueurs'].meta.units, {},
+                         "un dictionnaire plein de chaînes vides ne se distingue pas d'un "
+                         "dictionnaire renseigné")
+
+    def test_les_PERTES_d_acquisition_reviennent(self):
+        ref = TemporalReferential()
+        ref.add(_signal('x', [0.0], [{'a': 1}], pertes=3))
+        ecrire(ref, self.cible)
+        relu = lecteur_wrec.WrecReader().read(self.cible)
+        self.assertEqual(relu[0].meta.pertes, 3)
+
+    def test_le_DECALAGE_par_flux_revient(self):
+        """BIND n'a qu'un décalage par média ; le format natif le porte par flux."""
+        ref = TemporalReferential()
+        ref.add(_signal('x', [0.0], [{'a': 1}]), offset=-0.65)
+        ecrire(ref, self.cible)
+        self.assertAlmostEqual(lecteur_wrec.WrecReader().read(self.cible)[0].offset, -0.65)
+
+    def test_un_segment_OUVERT_survit_a_l_aller_retour_ET_reste_INTERROGEABLE(self):
+        """⚠ La leçon de D15 : prouver que la valeur SURVIT ne prouve pas qu'on puisse
+        l'INTERROGER. On vérifie donc les deux."""
+        relu = self._relire()
+        phases = relu['phases'].to_signal()
+        self.assertEqual(list(relu['phases'].ends), [3.0, None])
+        self.assertIsNone(phases.end_at(1))
+        self.assertEqual(phases.containing(99.0), [1])       # l'état ouvert court encore
+        self.assertEqual(phases.overlapping(0.0, 100.0), [0, 1])
+
+    def test_la_cadence_et_la_PROVENANCE_reviennent(self):
+        relu = self._relire()
+        self.assertEqual(relu['vitesse'].meta.fs, 10.0)
+        self.assertTrue(relu['vitesse'].meta.is_base)
+
+    def test_l_inventaire_COMPTE_les_protocoles_embarques(self):
+        ecrire(self.ref, self.cible, contexte=self.contexte)
+        info = lecteur_wrec.WrecReader().probe(self.cible)
+        self.assertIn('1 protocole(s) embarqué(s)', info.notes)
+        self.assertIn('pipeline:protocole-a', info.notes)
+        self.assertEqual(info.attributes['created_by'], 'fabien')
+
+    def test_les_protocoles_sont_EXPOSES_mais_jamais_ingeres(self):
+        """Rouvrir un conteneur ne doit pas écrire dans le magasin par effet de bord (D16)."""
+        ecrire(self.ref, self.cible, contexte=self.contexte)
+        protos = lecteur_wrec.WrecReader().protocoles(self.cible)
+        self.assertEqual(len(protos), 1)
+        self.assertEqual(protos[0]['manifest_kind'], 'pipeline')
+        self.assertTrue(protos[0]['read_only'])
+        self.assertEqual(protos[0]['body']['body'], {'nodes': [{'id': 'n1'}]})
+
+    def test_un_flux_INCONNU_est_refuse_en_nommant_les_flux_reels(self):
+        ecrire(self.ref, self.cible, contexte=self.contexte)
+        with self.assertRaises(ValueError) as ctx:
+            lecteur_wrec.WrecReader().read(self.cible, streams=['fantome'])
+        self.assertIn('vitesse', str(ctx.exception))
+
+    def test_le_point_d_entree_UNIVERSEL_charge_un_wrec_sans_savoir_qui_le_lit(self):
+        from .. import sources
+        ecrire(self.ref, self.cible, contexte=self.contexte)
+        referentiel = sources.load(self.cible)
+        self.assertEqual(referentiel.names, ['marqueurs', 'phases', 'vitesse'])
+        self.assertEqual(referentiel.at('vitesse', 0.11), 1)
