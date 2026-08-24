@@ -1037,6 +1037,23 @@ def check_app_batch_actions(app: str, url_path: str):
                 start: q('batch-start-btn',     'data-batch-start-url')};
     })()"""
 
+    # ⚠ Lecture ORM AVANT `sync_playwright` (SynchronousOnlyOperation) — et NETTOYAGE après :
+    # ce scénario MONTE deux éléments pour obtenir un lot. Sans cette reprise, chaque passage
+    # laissait deux résidus par app — mesuré le 2026-08-24 : 39 objets accumulés en une session
+    # (tous dans le compte de TEST, aucun chez un utilisateur réel, mais c'est de la dette).
+    try:
+        from wama.common.utils.preview_registry import PreviewRegistry
+        modele = PreviewRegistry.get_model(app)
+    except Exception:
+        modele = None
+    ids_avant_orm = set()
+    if modele is not None:
+        try:
+            ids_avant_orm = set(modele.objects.values_list('id', flat=True))
+        except Exception:
+            modele = None
+    _nettoyes = []
+
     jeton = _session_compte_de_test()
     if not jeton:
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
@@ -1105,13 +1122,24 @@ def check_app_batch_actions(app: str, url_path: str):
                                f"{manquantes} — l'app n'a pas encore `actions_communes=True` "
                                f"(portage a la brique commune non fait)")
 
+            # ⧉ et 🗑 de lot RECHARGENT la page (la brique ne leur déclare aucune suite) : il
+            # FAUT attendre la navigation, sinon l'évaluation qui suit tombe dans un contexte
+            # détruit — « Execution context was destroyed » (vu sur anonymizer, pas sur
+            # converter : une race ne se manifeste pas partout, ce qui la rend trompeuse).
+            def _clic_puis_rechargement(loc):
+                try:
+                    with page.expect_navigation(wait_until='load', timeout=30000):
+                        loc.click(timeout=15000)
+                except Exception:
+                    loc.click(timeout=15000)          # pas de navigation : on retombe ici
+                page.wait_for_load_state('networkidle', timeout=30000)
+                page.wait_for_timeout(1200)
+
             # 2. ⧉ de LOT
             bouton_dup = page.locator('.wama-card.is-batch .batch-duplicate-btn:visible').first
             if not bouton_dup.count():
                 return False, f"URLs emises mais aucun ⧉ de lot VISIBLE ({len(lots0)} lot(s))"
-            bouton_dup.click(timeout=15000)
-            page.wait_for_load_state('networkidle', timeout=30000)
-            page.wait_for_timeout(1500)
+            _clic_puis_rechargement(bouton_dup)
             lots1 = page.evaluate(LOTS)
             if len(lots1) <= len(lots0):
                 return False, (f"⧉ de lot cliquee mais la file n'a pas grandi "
@@ -1128,18 +1156,27 @@ def check_app_batch_actions(app: str, url_path: str):
             if not btn_del.count():
                 return False, (f"doublon #{cible} cree mais aucun 🗑 de lot dessus "
                                f"— NETTOYAGE IMPOSSIBLE, lot laisse en file")
-            btn_del.click(timeout=15000)
-            page.wait_for_load_state('networkidle', timeout=30000)
-            page.wait_for_timeout(1500)
+            _clic_puis_rechargement(btn_del)
             lots2 = page.evaluate(LOTS)
             if cible in lots2:
                 return False, (f"🗑 de lot cliquee mais le doublon #{cible} est TOUJOURS la "
                                + (f" — POST en echec : {echecs}" if echecs else ""))
 
-            return True, (f"⧉ puis 🗑 de LOT exerces : {len(lots0)} → {len(lots1)} → "
-                          f"{len(lots2)} lot(s) ; doublon #{cible} cree puis retire")
+            detail = (f"⧉ puis 🗑 de LOT exercés : {len(lots0)} → {len(lots1)} → "
+                      f"{len(lots2)} lot(s) ; doublon #{cible} créé puis retiré")
         finally:
             navigateur.close()
+            if modele is not None:
+                try:
+                    restes = set(modele.objects.values_list('id', flat=True)) - ids_avant_orm
+                    if restes:
+                        modele.objects.filter(id__in=restes).delete()
+                        _nettoyes.append(len(restes))
+                except Exception:
+                    pass
+    if _nettoyes:
+        detail += f" ; {sum(_nettoyes)} élément(s) de montage nettoyé(s)"
+    return True, detail
 
 
 def register_batch_actions_scenarios():
