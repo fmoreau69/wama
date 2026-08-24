@@ -6644,3 +6644,117 @@ moment de proposer un plan, pas au moment de consigner, qu'elle doit être relue
    ① gater `model_caps_ui` sur « les modèles de l'app portent-ils une capacité différenciante ? »,
    sinon il punit 3 apps pour un manque de déclaration ; ② ajouter `media_classification` (§F).
 4. **Enrichir `capabilities.params`** (1/157) si l'on veut que le filtrage par moteur ait un objet.
+
+---
+
+## §REPRISE — 2026-08-24 (nuit, suite : LOTS + APPARIEMENT) — 🔚 POINT D'ENTRÉE
+
+> **🔚 POINT D'ENTRÉE : `wama/common/services/ui_smoke.py::check_app_batch_actions` — le premier
+> scénario qui clique un LOT. Il dit lui-même quelles apps restent à porter. Premier geste :
+> porter **reader** et **synthesizer** (les 2 apps que ce scénario a révélées, absentes du
+> recensement), puis avatarizer et enhancer.**
+
+Suite directe du §REPRISE précédent. **6 commits** de plus (`3cfe3208` → `a348b9b7`).
+
+### A. Actions de lot — 5 apps sur 10 (et non sur 8 : le recensement était faux)
+
+| app | état | preuve |
+|---|---|---|
+| transcriber, composer, describer | portées (23/08) | describer ✓ au clic ; transcriber/composer **non exerçables** (leur import ne crée pas de lot) |
+| **anonymizer**, **converter** | **portées ce jour** | **✓ au clic** (⧉ crée un lot, 🗑 le retire) |
+| **reader**, **synthesizer** | **NON portées — révélées par le scénario** | ✗ « les boutons n'émettent pas les URLs » |
+| avatarizer, enhancer | non portées | ⊘ (leur import ne crée pas de lot) |
+| imager | **cas à part** | aucune route de lot (`start_batch` hors convention), seul le ⚙ existe |
+
+⚠⚠ **UN RECENSEMENT ÉTABLI EN LISANT LES HANDLERS NE VOIT PAS LES APPS QUI N'EN ONT PAS.** Le
+handoff annonçait « 8 apps » — ce sont **10** apps qui ont des lots. Reader et synthesizer
+n'avaient aucun handler de lot à compter, donc elles étaient invisibles au décompte. Le
+scénario, lui, part de ce qui est À L'ÉCRAN : il les a trouvées en une passe.
+
+### B. Le scénario `<app>.batch_actions` — et ses TROIS défauts d'instrument
+
+`<app>.duplicate_delete` vise `.wama-card[data-id]`, donc la card **fille**. Les boutons de la
+card **mère** n'étaient exercés par **aucun clic**, alors qu'ils venaient d'être portés sur
+5 apps. **Un portage non exercé est un portage supposé.**
+
+Trois défauts trouvés et corrigés **avant d'avoir accusé une seule app** — c'est la discipline,
+pas le compte, qui importe ici :
+1. id du lot cherché sur la card mère, qui **ne le porte pas** (seuls ses boutons l'ont) →
+   **14 skips sur 14**, exactement le défaut que `ui_smoke.py` documente déjà (« un scénario qui
+   ne peut jamais tourner est pire qu'absent ») ;
+2. montage à **un** fichier → une card ordinaire, pas de lot. Le lot n'apparaît qu'à partir de
+   **plusieurs fichiers de même nature**. Corrigé en déposant deux témoins ;
+3. URLs cherchées sur la card mère alors que le partial les pose sur les **boutons**
+   (`_batch_card.html:141/147`) → « app non portée » annoncé sur **deux apps qui l'étaient**.
+
+Le 3ᵉ est le plus instructif : il produisait un **faux positif de non-conformité** — le genre de
+verdict qu'on recopie ensuite dans un handoff sans jamais le rouvrir.
+
+### C. Appariement entrée↔modèles — prouvé au navigateur, et un défaut trouvé
+
+Premier passage au clic sur ce geste (aucun scénario ne le couvre). **Les deux sens sont
+effectifs** — mesure sur 3 cards :
+
+- composer / mélodie : **6 actifs → 2** (`auto-music`, `musicgen-melody`), 4 grisés ;
+- imager IMAGE / image : **9 → 4** (auto, SD 1.5, SDXL, qwen-image-edit) ;
+- imager VIDÉO / image : **5 → 4** (auto, cogvideox-i2v, ltx ×2) ;
+- infobulle (« Incompatible avec : … — retirez la pièce ✕ ») et ligne d'état présentes partout.
+
+**Défaut corrigé (`205156df`)** : le pseudo-modèle **« Auto » n'est pas au catalogue**, donc sans
+déclaration explicite il n'accepte RIEN — `WamaInputMatch` le **grisait** dès qu'une entrée
+était fournie, c'est-à-dire exactement quand il sert. Le composer déclarait déjà ses `auto-*`
+(union par groupe) ; l'imager appelait la même brique **sans ajouter la sienne**. Effet de bord
+résolu au passage : le **sens 2 était muet** sur l'imager pour la même cause (modèle par défaut
+sans capacités → aucune entrée annoncée) — `slot mis en évidence` passe de `(aucun)` à
+`wama-slot-suggested`.
+
+### D. Ce que la session a appris (suite)
+
+- ⚠⚠ **`model_help` ≠ `model_caps_ui` ≠ `input_match_ui`.** Trois mécanismes aux noms trop
+  proches, que j'ai confondus devant Fabien : le **descriptif** du moteur (court sous le
+  sélecteur, long en overlay — 8 apps/10), le **filtrage d'un second menu** par les capacités
+  (composer/imager/reader : pas de menu dépendant, donc rien à filtrer), et l'**appariement
+  entrée↔modèles** (ce que Fabien décrivait — déjà là et fonctionnel). **Nommer précisément
+  AVANT de conclure** : j'ai annoncé « rien à faire » sur un mécanisme en pensant à un autre.
+- ⚠⚠ **NE JAMAIS RÉUTILISER UN PID NOTÉ PLUS TÔT.** Trou #28, 8ᵉ occurrence, variante nouvelle :
+  mes `kill -HUP 326` visaient le maître d'avant le redémarrage de WAMA (devenu **24152**). Le
+  HUP partait dans le vide et j'ai cru deux fois que mon correctif ne marchait pas. Ce qui a
+  tranché : **rendre la vue EN PROCESS** (`django.test.Client`) — elle produisait déjà la bonne
+  méta, donc le défaut n'était pas dans mon code mais dans ce que le serveur servait.
+  **Dériver le PID à chaque fois** (`ps -eo pid,ppid,cmd | grep [g]unicorn`).
+- ⚠ **Une référence doc qui cite un NUMÉRO DE LIGNE se périme quand on touche le fichier — y
+  compris soi-même, dans le même commit** (`ff52edf7`). Citer le chemin d'app, pas la ligne.
+
+### E. Contrôles attendus au prochain /reprise
+
+`check_docs` **4 CASSÉ / 0 périmée** (critère = **1 CIBLE distincte**, `_result_tabs.html`) ·
+`bash scripts/check_js.sh` **57 fichiers 0 erreur, 56 paires 0 divergente** ·
+`manifest_export --check` **corpus à jour (110)** · grille **inchangée** (converter/describer/
+transcriber 100, enhancer 99, anonymizer/avatarizer/composer/reader/synthesizer 98, imager 97) ·
+`.batch_actions` **3 OK / 2 échecs (reader, synthesizer) / 9 skips** ·
+`.settings` 7 OK · `.duplicate_delete` 7 OK.
+
+⚠ **`doc_facts` : `mecanismes` ET `wama_data` PÉRIMÉS — périmètre de l'INSTANCE SŒUR**, pas le
+mien. Elle a ajouté un mécanisme (« Écrivain de conteneur ») dans `mecanismes.py` ; le bloc
+généré de `WAMA_MECANISMES.md` doit être régénéré **dans son commit**. Je l'avais régénéré par
+réflexe puis **restauré** : un fichier généré suit le commit qui change sa SOURCE.
+
+⚠ **2 contrats nocturnes en échec, tous deux ANTÉRIEURS à cette session** :
+`common.consistency.docs` (**4 cassées pour un contrat ≤2** — le contrat compte des RÉFÉRENCES
+là où il devrait compter des CIBLES distinctes, cf. §E du handoff précédent) et
+`common.consistency.redundancy` (**15 pour un contrat ≤0**, alors que l'inventaire annonce ≤5 —
+deux chiffres qui ne se parlent pas ; non instruit).
+
+### F. 🔚 Ce qui reste, dans l'ordre
+
+1. **Porter reader et synthesizer** (révélées ci-dessus), puis **avatarizer** et **enhancer**
+   (7 handlers, deux familles de lots, `route_prefix` audio). Recette : `34d19ca7` + `3cfe3208`.
+2. **imager** : lui créer ses routes de lot au format commun AVANT tout portage.
+3. **Rendre exerçables** transcriber et composer (leur import ne crée pas de lot → skip).
+4. **DÉCISIONS d'instrument** (`conformity_checker.py` partagé — un ajout rejoue tous les
+   dénominateurs) : ① critère `media_classification` (§F du handoff précédent) ② corriger le
+   contrat `docs` pour qu'il compte des cibles ③ trancher `model_caps_ui`, **en partant de ce
+   qui est affiché dans chaque app** et non d'un verdict de grille (recadrage Fabien).
+5. **`during_preview`** (avatarizer, imager, synthesizer) — **à discuter avant d'agir**.
+6. Union par domaine du pseudo-modèle `auto` de l'imager, le jour où une entrée serait acceptée
+   d'un côté seulement (aucun cas aujourd'hui).
