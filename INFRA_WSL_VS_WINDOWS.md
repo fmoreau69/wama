@@ -310,10 +310,15 @@ avant lui (relais, backlog) ; s'il les a servies en 200 → c'est Apache qui per
 ⚠ Piège rencontré : `rotate_logs` tourne les journaux gunicorn à **chaque démarrage** — vérifier
 que la fenêtre comparée est bien couverte par le fichier lu (`.1`, `.2`…), sinon on compare à du vide.
 
-**`disablereuse=On` est laissé en place pour l'instant** (il ne nuit pas de façon mesurable et
-supprime un facteur confondant), mais il ne sert à rien : il coûte un handshake par requête. À
-retirer si la piste 1 ou 2 se confirme. La **rotation** des journaux Apache, elle, reste
-pleinement justifiée — c'est elle qui a rendu cette mesure possible.
+**`disablereuse=On` RETIRÉ le 24/08 au soir** (décision de Fabien) : il ne corrigeait rien et
+coûtait un handshake par requête. `ProxyPass` est revenu à `retry=0 timeout=130`. La **rotation**
+des journaux Apache, elle, reste pleinement justifiée — c'est elle qui a rendu cette mesure possible.
+
+**`mod_wsgi` RETIRÉ le 24/08 au soir** dans le même geste (`LoadFile python311.dll`,
+`LoadModule wsgi_module`, `WSGIPythonHome`, `WSGIApplicationGroup`) : chargé à chaque démarrage
+sans aucun `WSGIScriptAlias`. Contrôlé après coup : `httpd -M` ne liste plus aucun module wsgi,
+les deux modules proxy sont conservés, `httpd -t` = Syntax OK, WAMA répond 200.
+Sauvegarde : `httpd.conf.bak-20260824-soir`.
 
 - **Non couvert par ce correctif** : les 500 (exceptions Django → `logs/gunicorn-error.log`, côté
   WSL2), les `10060`/`20014` (gunicorn indisponible ou saturé), et le **volume de polling** lui-même
