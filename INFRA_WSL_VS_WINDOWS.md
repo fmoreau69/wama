@@ -201,7 +201,69 @@ Le 29/07, c'est `celery-gpu.log` (append) qui a identifié la tâche imager #42 
 - `[ModelSync]` cloisonné dans `logs/model-sync.log` (`propagate=False`) : il pesait **71 %** de
   `celery-default.log` (138 328 lignes / 194 328). Après portage : 0 occurrence, fichier 28 Mo → 9,5 Ko.
 
+## ⚠ Apache/Windows n'est PAS un résidu — et la course qui produisait 58 500 × 502 (2026-08-24)
+
+**La question posée** (Fabien, 24/08) : pourquoi garder Apache côté Windows alors que WAMA tourne
+dans WSL2 ? Elle est légitime — la réponse est **non, ce n'est pas un résidu**, mais une pièce
+l'est. Mesuré, pas supposé.
+
+### La chaîne réelle (deux relais, pas un)
+
+```
+client → Apache:80 (Windows) → 127.0.0.1:8000 → netsh portproxy (svchost/IP Helper)
+                                              → 172.21.107.186:8000 → gunicorn (WSL2)
+```
+
+Le `127.0.0.1:8000` que vise `ProxyPass` **n'est pas** le relais natif `wslrelay` de WSL2 : c'est la
+règle `netsh portproxy 0.0.0.0:8000 → WSL2_IP:8000` posée par `start_wama_prod.sh:99-105`
+(vérifié 24/08 : le `LISTENING` sur `:8000` est un `svchost`, pas `wslrelay`). Le coût loopback
+n'est donc pas un choix d'Apache — il est **intrinsèque au NAT de WSL2**, et il resterait
+identique sans Apache.
+
+### Ce qui rend Apache porteur (chiffres sur les 6,1 M lignes de `wama-access.log`)
+
+| Fonction | Preuve |
+|---|---|
+| **Point d'entrée LAN** | **17 clients distincts** hors localhost (137.121.x = réseau UGE, 10.0.16.x), **261 000 requêtes** ; le plus gros à 218 603. Windows 10 19045 → **pas de réseau miroir WSL2** (Win11 22H2+ seulement) : sans frontal, l'accès LAN reposerait sur la seule règle `netsh`, à réémettre à chaque redémarrage WSL2 (l'IP change) |
+| **Service direct de `/media/`** | `Alias /media/` → `D:/…/media/` : **72,69 Go sur 23 744 requêtes**, soit **44 % des octets servis**, qui ne touchent **jamais** gunicorn. Les rapatrier dans Django saturerait ses 8 slots (4 workers × 2 threads) avec des vidéos |
+| **Port 80** | URL sans `:8000` |
+
+### Ce qui EST un résidu
+
+`httpd.conf:543-548` charge `mod_wsgi` (Python 3.11 Windows + `WSGIPythonHome` sur `venv/`) alors
+qu'**aucun `WSGIScriptAlias` n'existe dans le fichier**. C'est l'ancien mode d'exécution, d'avant le
+passage en reverse proxy. Chargé à chaque démarrage, jamais appelé. À retirer — sans urgence, mais
+c'est bien lui la trace du « avant ».
+
+### La course qui remplissait le journal
+
+`wama-error.log` ne contenait que **deux** erreurs, toujours par paire : `AH01102` (58 504) →
+`AH00898` (31 372), du 01/04 au 23/08/2026. **97,6 % portaient `OS 10054` (WSAECONNRESET) à la
+lecture de la status line** — donc RST reçu *avant le moindre octet de réponse*.
+
+- **Cause** : réutilisation d'une connexion du pool `mod_proxy_http` que l'autre bout avait déjà
+  démontée — gunicorn (`keepalive = 5`, `gunicorn_conf.py:16`) et/ou le relais IP Helper.
+- **Ampleur** : recoupé avec l'access log, avril→août = **58 611 réponses 502**, soit ~1 pour 1 avec
+  les `AH01102`. **Chaque ligne du journal était un échec vu par un navigateur.** Sur les 500 000
+  dernières requêtes : **4,3 % de 502**.
+- **Cibles** : exclusivement les endpoints de *polling* (`system-stats` 9 612, `console` 9 534,
+  les `global_progress`) — ceux qui rouvrent une connexion en permanence.
+- **Correctif** (`httpd.conf`, vhost `wama.local`) : `disablereuse=On` sur le `ProxyPass`. Pas de
+  pool → pas de connexion morte réutilisée. Préféré à `ttl=` qui n'aurait que **réduit** la fenêtre,
+  alors que le relais peut lâcher à tout instant. Coût : un handshake par requête, à ~0,25 req/s.
+- **Non couvert par ce correctif** : les 500 (exceptions Django → `logs/gunicorn-error.log`, côté
+  WSL2), les `10060`/`20014` (gunicorn indisponible ou saturé), et le **volume de polling** lui-même
+  — 132 461 `system-stats` + 63 548 `console` en 6 semaines.
+
+### Journaux Apache — même politique que le reste (cf. § ci-dessus)
+
+Ils n'étaient **jamais** tournés : `wama-access.log` avait atteint **614 Mo**. Désormais pipés dans
+`rotatelogs -n 10 … 86400` (10 fichiers glissants quotidiens, le courant garde son nom — même
+convention que `rotate_logs`). Les deux fichiers accumulés ont été **vidés** le 24/08 sans archive :
+la cause était identifiée et corrigée, les erreurs restantes se re-signaleront d'elles-mêmes.
+
 ## Voir aussi
+- `C:\Apache24\conf\httpd.conf` (vhost `wama.local`) — sauvegarde `httpd.conf.bak-20260824`.
 - `start_wama_dev.sh`, `start_wama_prod.sh`, `gunicorn_conf.py`, `.env` / `.env.example`.
 - `wama/common/management/commands/rotate_secrets.py` (rotation des secrets).
 - `scripts/set_wslconfig.ps1` (plafond RAM WSL2), `wama/common/utils/log_rotation.py` (journaux).
