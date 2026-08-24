@@ -17,12 +17,9 @@ from typing import Any, Dict, Iterable, List, Optional
 
 from wama.common.catalog.data_types import DataType
 
+from ..core.noms import COLONNES_TEMPS  # noqa: F401 — réexporté : consommateurs historiques
 from ..core.temporal import NEAREST, SignalMeta
 from . import SourceInfo, SourceReader, StreamSpec, register_reader
-
-#: Noms de colonne acceptés comme axe du temps, par ordre de préférence. Les données réelles
-#: n'emploient pas un nom unique — refuser tout sauf `time` rendrait le lecteur inutilisable.
-COLONNES_TEMPS = ('time', 'timestamp', 'timecode', 't', 'temps', 'time_s', 'seconds')
 
 
 def _numerise(entetes: List[str], lignes: List[list]) -> List[list]:

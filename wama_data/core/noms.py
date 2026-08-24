@@ -34,6 +34,26 @@ from __future__ import annotations
 #: c'est un nom que les utilisateurs de ce laboratoire LISENT déjà.
 PREFIXE_TABLE = 3
 
+#: Noms de colonne acceptés comme AXE DU TEMPS à l'ingestion, par ordre de préférence. Les données
+#: réelles n'emploient pas un nom unique — refuser tout sauf `time` rendrait l'import inutilisable.
+#:
+#: ⚠ REMONTÉ ICI LE 2026-08-24, depuis `sources/tabular.py`. Le vocabulaire avait déjà DEUX
+#: consommateurs (`tabular` pour reconnaître l'axe, `frames` pour l'exclure du cadre produit), le
+#: second important le premier — donc le paquet de lecture était devenu une dépendance du pont pour
+#: une simple liste de mots. Le troisième consommateur (l'écrivain de conteneur, qui doit exclure
+#: l'axe des colonnes de données) l'aurait rendu dépendant des lecteurs à son tour. Un vocabulaire
+#: partagé n'appartient à aucun de ses usagers.
+COLONNES_TEMPS = ('time', 'timestamp', 'timecode', 't', 'temps', 'time_s', 'seconds')
+
+#: TOUS les noms d'axe temporel bruts — les alias d'ingestion **plus** les deux bornes du schéma
+#: `.trip` et celles du `.wrec`. C'est l'ensemble à retirer des colonnes de DONNÉES : l'instant d'un
+#: échantillon est porté par le référentiel, le réécrire en colonne le dupliquerait.
+#:
+#: ⚠ Comparer en MINUSCULES : `startTimecode` et `starttimecode` désignent la même colonne, et
+#: SQLite ne distingue pas la casse des identifiants.
+AXES_TEMPORELS = frozenset(c.lower() for c in COLONNES_TEMPS) | {
+    'starttimecode', 'endtimecode', 'start', 'end'}
+
 
 def abreger(nom: str) -> str:
     """Préfixe minuscule d'un nom de table — `debut_bloc` → `deb`."""

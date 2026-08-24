@@ -496,6 +496,22 @@ MECANISMES = (
               "redéfinition locale même à l'identique échoue. Sans dépendance, par nécessité : "
               "c'est ce qui permet à `conditions.py` de l'importer sans cycle",
               'wama_data/core/noms.py', 'WAMA_DATA_WORLD.md §9ter.6 B7, §9sexies.4'),
+    Mecanisme('data_containers', 'Écrivain de conteneur (WAMA Data)',
+              "UN MOTEUR, N SCHÉMAS — le pendant exact du registre de lecteurs, et le premier "
+              "code du monde Data qui ÉCRIVE du SQLite (0 `INSERT` dans tout le monde avant lui). "
+              "Le moteur tient la transaction, les tranches, l'indexation temporelle et la "
+              "conversion des valeurs ; un schéma ne décide que des NOMS et du CATALOGUE — c'est "
+              "ce qui garantit que `.wrec` (natif, D3) et `.trip` (compatibilité BIND) se "
+              "comportent pareil là où ils le doivent. Écrit d'abord un `.partiel` puis renomme : "
+              "un conteneur à moitié rempli s'ouvrirait normalement en mentant sur son contenu. "
+              "⚠ CE QUE LE SCHÉMA CIBLE NE SAIT PAS PORTER EST COMPTÉ, pas tu (`Rapport.pertes`) "
+              "— une conversion qui appauvrit en silence fait croire à un aller-retour fidèle. "
+              "La compatibilité est attestée par CONTRE-ÉPREUVE : ce que WAMA écrit, le lecteur "
+              "`.trip` — écrit contre le format de l'autre, sans rien savoir de l'écrivain — le "
+              "relit",
+              'wama_data/containers/__init__.py', 'WAMA_DATA_WORLD.md §9quater.2, §9duodecies',
+              annexes=('wama_data/containers/wrec.py',
+                       'wama_data/containers/trip.py')),
     Mecanisme('catalog_refresh', 'Actualisation des catalogues',
               "REGISTRE des registres : une page catalogue déclare la CLÉ de son registre et "
               "hérite du bouton, de l'endpoint, de la permission et du compte-rendu. La NATURE "

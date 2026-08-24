@@ -2492,6 +2492,123 @@ D'où la règle, en trois temps :
 
 ---
 
+## 9duodecies. L'ÉCRIVAIN DE CONTENEUR — un moteur, deux schémas (2026-08-24)
+
+> Vérifié le 2026-08-23 : **zéro écriture SQLite dans tout `wama_data`** (0 `INSERT`, 0 `to_sql`).
+> Le monde savait lire trois formats et n'en savait écrire aucun — un importeur sans fichier de
+> travail, c'est-à-dire une chaîne qui recommence à zéro à chaque ouverture. `wama_data/containers/`
+> le comble : le pendant exact de `sources/`, registre compris.
+
+### 9duodecies.1 Pourquoi un seul moteur
+
+`.wrec` (natif, **D3**) et `.trip` (compatibilité BIND) partagent **toute** la mécanique : une table
+par flux, un index temporel, une écriture transactionnelle par tranches, la conversion des valeurs.
+Ils ne diffèrent que par des **noms** et par la **richesse du catalogue**. Deux écrivains auraient
+donc dupliqué la seule partie difficile pour ne varier que la partie triviale.
+
+Le partage des rôles est ce qui rend les deux formats comparables :
+
+| le MOTEUR décide | le SCHÉMA décide |
+|---|---|
+| transaction, tranches, index, conversion des valeurs, écriture atomique | noms de table, colonnes de temps, tables de catalogue, **ce qui est perdu** |
+
+⚠ **Le contrat est SANS ÉTAT, et la signature le garantit.** `nom_table()` reçoit le **signal**, pas
+sa seule méta — sinon le schéma `.trip`, qui encode la famille dans le préfixe, devrait mémoriser ce
+qu'il a vu ailleurs. Or **un schéma est un singleton de registre** : tout état retenu fuirait d'une
+écriture à la suivante et entre fils d'exécution. Défaut écrit puis corrigé dans la même passe.
+
+⚠ **G1 s'applique à l'écriture à l'identique** : les schémas sont **découverts** (`pkgutil`), jamais
+cités. Et le nouveau module de test a été ramassé tout seul par le scénario nocturne (20 → 21
+modules) — troisième fois que la découverte paie le jour même.
+
+### 9duodecies.2 Écriture atomique — on écrit à côté, on renomme ensuite
+
+Une écriture interrompue ne doit pas laisser un conteneur à moitié rempli : **il s'ouvrirait
+normalement** et mentirait sur son contenu. Un `.partiel` est écrit puis renommé ; une version
+existante n'est remplacée qu'une fois la nouvelle complète, et un échec la laisse intacte. Un
+conteneur existant n'est jamais écrasé sans `ecraser=True` — c'est un fichier de **travail**, il
+porte des traitements.
+
+### 9duodecies.3 Ce que `.wrec` corrige — quatre faits que `.trip` connaît sans les porter
+
+1. ⭐ **La famille n'est plus dans le NOM.** `.trip` l'encode en préfixe (`data_`/`event_`/
+   `situation_`) ; ici **toutes** les tables portent le même préfixe `flux_` — le nom ne dit rien,
+   le catalogue dit tout (`WamaStreams.data_type`). C'est §9nonies appliqué à l'écriture.
+2. **Les unités sont écrites** (`WamaVariables.unit`) — le champ que `.trip` déclare, laisse vide
+   **partout** et ne relit jamais.
+3. **Les pertes d'acquisition sont une colonne**, pas un message de journal.
+4. **La copie projetée du protocole est dans le conteneur** (`WamaManifests`), **estampillée** et
+   marquée `read_only`. Une copie **sans estampille est refusée** : sans elle on ne peut ni la
+   rapprocher du magasin ni la dater, donc elle cesse d'être une projection pour devenir une
+   seconde source (§9undecies.4).
+
+Et `.wrec` **garde** de `.trip` la structure « une table par flux » — parce qu'elle est la
+conséquence de **D10** (aucune grille commune), pas une bizarrerie héritée.
+
+### 9duodecies.4 Le schéma `.trip` est RELEVÉ, pas deviné
+
+Neuf tables de catalogue, mesurées sur la base réelle avant d'écrire une ligne :
+
+```
+MetaDatas      (name, type, frequency INT, comments, isBase)   ← flux `data_`
+MetaEvents     (name, comments, isBase)          ⚠ PAS de frequency
+MetaSituations (name, comments, isBase)          ⚠ PAS de frequency
+Meta{Data,Event,Situation}Variables (<x>_name, name, type, unit, comments)
+MetaTripDatas / MetaParticipantDatas (key, value)   MetaTripVideos (filename, offset, description)
+```
+
+⚠ Les trois tables `*Variables` comptent **la colonne de temps elle-même** parmi les variables.
+Reproduit tel quel — un outil qui itère les variables attendrait sinon une colonne de moins.
+
+⚠ **Et le relevé a confirmé D11 sur la donnée** : les 12 situations réelles se nomment `0_15`,
+`15_45`, `30_60`… — **les paramètres de fenêtre SONT le nom**, avec 312 lignes de variables pour
+12 situations. C'est ce que `.wrec` refuse de reconduire.
+
+**La compatibilité est attestée par CONTRE-ÉPREUVE**, pas par affirmation : ce que WAMA écrit,
+`TripReader` — écrit contre le format de BIND, sans rien savoir de cet écrivain — le relit, et
+retrouve flux, familles, instants, bornes et valeurs. Un aller-retour jugé par le seul écrivain ne
+prouverait que sa cohérence interne. Même geste que la contre-épreuve CSV du lecteur `.rec`.
+
+### 9duodecies.5 Ce que la langue de l'autre ne sait pas dire — **compté**
+
+`Rapport.pertes` énumère, fait par fait, ce qu'un `.trip` ne porte pas : pertes d'acquisition ·
+`default_lookup` · décalage **par flux** (seul un décalage par média existe) · cadence **arrondie**
+(`frequency` est un entier) · cadence **perdue** sur un événement ou une situation (pas de colonne)
+· **segments ouverts** (D15 — aucune représentation de « fin non observée ») · **copies projetées**
+(pas de table de manifestes, donc le conteneur n'est pas autoportant) · famille **devinée** quand
+aucune n'est déclarée.
+
+> **Le pire cas n'est pas la perte, c'est la perte SILENCIEUSE** : elle laisse croire à un
+> aller-retour fidèle, et c'est en la découvrant six mois plus tard qu'on doute de tout le reste.
+> `Rapport.fidele` répond par oui ou non, et « non » n'est pas une erreur — c'est un fait à lire.
+
+### 9duodecies.6 Deux défauts trouvés par la mesure, dont un dans mon propre récit
+
+⚠ **Le lecteur `.trip` échouait sur du texte cp1252, et survivait PAR CHANCE.** Quatre tables de la
+base réelle (`MetaEvents`, `MetaSituations` et leurs `*Variables`) contiennent « Ajouté à partir de
+BIND_GUI » écrit par MATLAB sous Windows. Le `sqlite3` de Python décode en UTF-8 strict et lève
+`OperationalError: Could not decode to UTF-8` — **pas une exception de décodage**, donc un message
+qui n'oriente même pas vers l'encodage. Le lecteur y survivait parce qu'il ne lit **ni** `MetaEvents`
+**ni** `MetaSituations` ; la première ligne qui aurait voulu ces déclarations aurait échoué sur un
+corpus valide. Corrigé par un décodeur UTF-8 → cp1252 qui **rend le texte** au lieu de le remplacer.
+⚠ L'ORDRE des codecs est l'argument : cp1252 associe un caractère à 251 octets sur 256, donc essayé
+en premier il rendrait « AjoutÃ© » **sans jamais lever**. On teste le codec qui sait dire non.
+
+⚠⚠ **Et une morsure sur six n'a pas mordu — la mienne.** J'avais écrit que `manquant()` protégeait
+du piège pandas à l'écriture. Neutraliser l'appel n'a fait échouer **aucun** test, et la mesure dit
+pourquoi : **SQLite coerce lui-même `NaN` en `NULL`**. Le garde-fou n'était pas porteur, et mon test
+prouvait le résultat sans rien prouver du mécanisme — *un test de stockage n'est pas un test
+d'usage*, la leçon de la veille appliquée à moi le lendemain.
+
+⭐ **Le vrai trou était à côté, et la même mesure l'a montré** : `json.dumps([nan])` produit le
+littéral `[NaN]`, **que la spécification JSON n'accepte pas**. Une valeur composite contenant une
+absence était donc écrite sous une forme qu'aucun analyseur standard ne relit — couvert ni par
+`manquant()` ni par SQLite. D'où `_sans_nan`, récursif, et un test qui mord.
+
+`wama_data` : **541 → 590 tests** (44 pour l'écrivain, 4 pour son registre, +1 pour le trou JSON).
+
+---
+
 ## 9bis.6 Ce que la cartographie n'a pas couvert — à traiter avant l'Importer v2
 
 **L'alignement par TRIGGERS.** RTMaps et LSL fournissent une horloge d'acquisition commune ; des
@@ -2554,6 +2671,18 @@ qui ne sait lire que des acquisitions déjà synchronisées, c'est-à-dire le ca
     fonction, mesurable par contre-épreuve**. Même famille d'erreur que les trois affirmations de
     §9ter.6 : **une formule reprise d'un document plutôt que confrontée au code** — sauf qu'ici
     elle allait dans l'autre sens, elle rendait le travail plus PETIT qu'il n'est.
+  - **§9duodecies — l'ÉCRIVAIN DE CONTENEUR** (`541 → 590` tests). Le monde Data écrit enfin du
+    SQLite : un moteur, deux schémas (`.wrec` natif, `.trip` pour BIND), le schéma de l'autre
+    **relevé sur la base réelle** avant d'écrire une ligne, et la compatibilité **attestée par
+    contre-épreuve** (le lecteur `.trip` relit ce que WAMA écrit). Ce qu'un schéma ne sait pas
+    porter est **compté** (`Rapport.pertes`), jamais tu.
+  - ⚠ **Deux défauts trouvés par la mesure, dont un dans mon propre récit.** Le lecteur `.trip`
+    échouait sur le texte **cp1252** des bases réelles et n'y survivait que parce qu'il ne lit ni
+    `MetaEvents` ni `MetaSituations`. Et **une morsure sur six n'a pas mordu — la mienne** :
+    `manquant()` ne protégeait rien à l'écriture puisque **SQLite coerce déjà `NaN` en `NULL`**,
+    tandis que le vrai trou (`json.dumps([nan])` → `[NaN]`, JSON invalide) n'était couvert par
+    personne. *Un test de stockage n'est pas un test d'usage* — la leçon de la veille, appliquée
+    à moi le lendemain.
 
 - **2026-08-23** — **portage du Segmenter et de l'Exporter, puis trois décisions de fond.**
   - **Matin** : §9ter.6 A-B-C porté (chaîne conditionnelle en arbre, manques temporels, Exporter

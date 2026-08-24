@@ -48,47 +48,9 @@ class WamaDataConfig(AppConfig):
             return len(READERS)
 
         def _rafraichir_lecteurs() -> Resultat:
-            """Re-déclare les lecteurs en RECHARGEANT les modules du paquet `sources`.
-
-            ⚠ TROIS PIÈGES, tous déjà rencontrés par le rafraîchisseur de fonctions — on reprend
-            sa séquence au lieu de la redécouvrir :
-
-              ① `importlib.reload(sources)` NE SUFFIT PAS et vide même le registre. Le paquet
-                 repeuple via `_register_builtins()`, qui fait `from . import trip, tabular` :
-                 des modules DÉJÀ en cache, donc un import no-op. On rechargerait un `READERS`
-                 neuf que personne ne remplirait.
-              ② `register_reader()` LÈVE sur format dupliqué — recharger sans purger échouerait
-                 au premier module.
-              ③ Sans `invalidate_caches()`, un fichier CRÉÉ pendant que le serveur tourne reste
-                 invisible : le chercheur de modules garde en cache le listing du répertoire.
-
-            D'où : instantané → purge → rechargement → RESTAURATION si quoi que ce soit casse.
-            Un registre à moitié rechargé serait pire que pas de rechargement.
-            """
-            import importlib
-
             from . import sources
-            importlib.invalidate_caches()
-            avant = dict(sources.READERS)
-            # ⚠ La découverte a UN SEUL domicile : `sources.modules_lecteurs()`. Elle vivait ici
-            # en copie, alors que le paquet lui-même en avait besoin pour son propre amorçage
-            # (garde-fou G1). Deux énumérations du même ensemble finissent par diverger.
-            noms = sources.modules_lecteurs()
-            sources.READERS.clear()
-            try:
-                for nom in noms:
-                    mod = importlib.import_module(f'{sources.__name__}.{nom}')
-                    importlib.reload(mod)
-            except Exception as e:
-                sources.READERS.clear()
-                sources.READERS.update(avant)          # restauration intégrale
-                return Resultat(ok=False, total=len(avant),
-                                messages=(f"rechargement abandonné, registre restauré : {e}",))
-            apres = set(sources.READERS)
-            return Resultat(ok=True, ajoutes=len(apres - set(avant)),
-                            retires=len(set(avant) - apres), modifies=len(apres & set(avant)),
-                            total=len(apres),
-                            messages=(f"{len(noms)} module(s) de lecture rechargé(s)",))
+            return _recharger_greffons(sources, sources.READERS, sources.modules_lecteurs(),
+                                       'lecture')
 
         enregistrer(Registre(
             cle='lecteurs_data', nom="Formats d'entrée (WAMA Data)", nature=REDECLARATION,
@@ -115,6 +77,70 @@ class WamaDataConfig(AppConfig):
             description="Formats que l'Exporter sait NOMMER, et parmi eux ceux qu'il sait "
                         "ÉCRIRE — l'écart entre les deux est la dette, et elle est mesurée.",
         ))
+
+        # ── Schémas de CONTENEUR (l'écrivain) ────────────────────────────────────────────────
+        def _compter_conteneurs() -> int:
+            from .containers import SCHEMAS
+            return len(SCHEMAS)
+
+        def _rafraichir_conteneurs() -> Resultat:
+            from . import containers
+            return _recharger_greffons(containers, containers.SCHEMAS,
+                                       containers.modules_schemas(), 'schéma')
+
+        enregistrer(Registre(
+            cle='conteneurs_data', nom='Schémas de conteneur (WAMA Data)', nature=REDECLARATION,
+            source="`wama_data/containers/` — un schéma par format de sortie, inscrit à l'import",
+            rafraichir=_rafraichir_conteneurs, compter=_compter_conteneurs,
+            doc='WAMA_DATA_WORLD.md §9quater.2 (D3), §9quinquies',
+            description="Conteneurs que WAMA Data sait ÉCRIRE : `.wrec` natif et `.trip` pour la "
+                        "compatibilité BIND. Un moteur, N schémas — ajouter un format = déposer "
+                        "un module, jamais éditer le moteur (G1).",
+        ))
+
+
+def _recharger_greffons(paquet, registre: dict, noms, quoi: str):
+    """Re-déclare les greffons d'un paquet en RECHARGEANT ses modules. Purge, ou restauration.
+
+    ⚠ TROIS PIÈGES, tous rencontrés d'abord par le rafraîchisseur de fonctions — on reprend sa
+    séquence au lieu de la redécouvrir :
+
+      ① `importlib.reload(paquet)` NE SUFFIT PAS et vide même le registre : l'amorçage du paquet
+         ré-importe des modules DÉJÀ en cache, donc un no-op. On rechargerait un registre neuf que
+         personne ne remplirait.
+      ② `register_reader()` / `enregistrer_schema()` LÈVENT sur doublon — recharger sans purger
+         échouerait au premier module.
+      ③ Sans `invalidate_caches()`, un fichier CRÉÉ pendant que le serveur tourne reste invisible :
+         le chercheur de modules garde en cache le listing du répertoire.
+
+    D'où : instantané → purge → rechargement → RESTAURATION intégrale si quoi que ce soit casse.
+    Un registre à moitié rechargé serait pire que pas de rechargement.
+
+    ⚠ FACTORISÉ LE 2026-08-24, à l'arrivée du registre des conteneurs. Le corps était écrit pour
+    les lecteurs ; le second usage l'aurait recopié à l'identique, à trois identifiants près. La
+    liste des modules est passée en paramètre plutôt que devinée : sa découverte a **un seul
+    domicile**, dans le paquet concerné (garde-fou G1), et ce serait la redécouvrir ici que de la
+    recalculer.
+    """
+    import importlib
+
+    from wama.common.registries import Resultat
+
+    importlib.invalidate_caches()
+    avant = dict(registre)
+    registre.clear()
+    try:
+        for nom in noms:
+            importlib.reload(importlib.import_module(f'{paquet.__name__}.{nom}'))
+    except Exception as e:
+        registre.clear()
+        registre.update(avant)
+        return Resultat(ok=False, total=len(avant),
+                        messages=(f"rechargement abandonné, registre restauré : {e}",))
+    apres = set(registre)
+    return Resultat(ok=True, ajoutes=len(apres - set(avant)),
+                    retires=len(set(avant) - apres), modifies=len(apres & set(avant)),
+                    total=len(apres), messages=(f"{len(noms)} module(s) de {quoi} rechargé(s)",))
 
 
 def _rafraichir_formats():

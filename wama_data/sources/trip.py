@@ -48,6 +48,22 @@ _TYPE_DE_FAMILLE = {'data': DataType.TIMESERIES, 'event': DataType.EVENTS,
                     'situation': DataType.SEGMENTS}
 
 
+def _texte(octets: bytes) -> str:
+    """Décodeur du texte SQLite — UTF-8, repli **cp1252**. Voir `TripReader._open` pour le pourquoi.
+
+    L'ORDRE COMPTE, et c'est tout l'argument : cp1252 associe un caractère à 251 des 256 octets, si
+    bien qu'essayé en premier il rendrait **du texte plausible mais faux** pour n'importe quel
+    UTF-8 accentué (« Ajouté » y deviendrait « AjoutÃ© ») — sans jamais lever. L'UTF-8 en premier,
+    lui, ÉCHOUE proprement sur une séquence qui n'en est pas. On teste donc le codec qui sait dire
+    non, et on se replie sur celui qui dit toujours oui. Les cinq octets sans correspondance sont
+    couverts par `errors='replace'`, seul cas où l'on abîme réellement un caractère.
+    """
+    try:
+        return octets.decode('utf-8')
+    except UnicodeDecodeError:
+        return octets.decode('cp1252', 'replace')
+
+
 class TripReader(SourceReader):
     format = 'trip'
     extensions = ('.trip',)
@@ -85,8 +101,26 @@ class TripReader(SourceReader):
 
         Écrit en `@contextmanager` : tous les appelants gardent leur `with`, et la fermeture
         devient impossible à oublier au lieu d'être à répéter.
+
+        ⚠ SECOND DÉFAUT, TROUVÉ LE 2026-08-24 EN RELEVANT LE SCHÉMA POUR L'ÉCRIVAIN. Quatre tables
+        de la base réelle portent du texte **cp1252**, pas de l'UTF-8 : `MetaEvents`,
+        `MetaEventVariables`, `MetaSituations`, `MetaSituationVariables` contiennent « Ajouté à
+        partir de BIND_GUI » écrit par l'outil MATLAB sous Windows. Le `sqlite3` de Python décode en
+        UTF-8 strict et lève `OperationalError: Could not decode to UTF-8` — pas une exception de
+        décodage, une erreur d'OPÉRATION, donc un message qui n'oriente pas vers l'encodage.
+
+        ⚠ Ce lecteur y survivait PAR CHANCE : il ne lit ni `MetaEvents` ni `MetaSituations` (seul
+        `MetaDatas`, dont les commentaires sont en ASCII). La première ligne qui aurait voulu les
+        déclarations d'événements ou de situations aurait échoué sur un corpus valide — et un
+        `SELECT *` sur une table de flux portant un commentaire accentué échouerait de même.
+
+        Le repli DÉCODE au lieu de remplacer : cp1252 rend « Ajouté à partir de BIND_GUI » exact,
+        là où `errors='replace'` aurait produit des losanges et fait passer une donnée lisible pour
+        une donnée corrompue. Même famille que la virgule décimale française du lecteur `.rec` :
+        l'octet n'est pas invalide, il est écrit dans une autre langue.
         """
         con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        con.text_factory = _texte
         try:
             yield con
         finally:

@@ -17,8 +17,8 @@ from wama.common.registries import REGISTRES, etat
 class DeclarationTest(unittest.TestCase):
     """Le monde POUSSE ses registres vers le substrat ; le substrat ne tire jamais."""
 
-    def test_les_deux_registres_du_monde_sont_declares(self):
-        for cle in ('lecteurs_data', 'formats_export_data'):
+    def test_les_trois_registres_du_monde_sont_declares(self):
+        for cle in ('lecteurs_data', 'formats_export_data', 'conteneurs_data'):
             self.assertIn(cle, REGISTRES, f"{cle} absent du registre des registres")
 
     def test_le_substrat_n_IMPORTE_aucun_monde(self):
@@ -122,3 +122,43 @@ class RafraichissementFormatsTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class RafraichissementConteneursTest(unittest.TestCase):
+    """Le rafraîchisseur des schémas de conteneur — même corps que celui des lecteurs, désormais
+    FACTORISÉ (`apps.py::_recharger_greffons`). Ces tests mordent donc pour les deux."""
+
+    def test_le_rafraichissement_ne_VIDE_pas_le_registre(self):
+        """Le piège ① : un `reload` du paquet vide le registre au lieu de le recharger."""
+        from wama_data.containers import SCHEMAS
+        avant = dict(SCHEMAS)
+        resultat = REGISTRES['conteneurs_data'].rafraichir()
+        self.assertTrue(resultat.ok, resultat.messages)
+        self.assertEqual(set(SCHEMAS), set(avant))
+        self.assertEqual(resultat.total, len(avant))
+
+    def test_deux_passages_donnent_le_MEME_etat(self):
+        """Le piège ② : `enregistrer_schema()` lève sur doublon — sans purge, le 2ᵉ passage casse."""
+        premier = REGISTRES['conteneurs_data'].rafraichir()
+        second = REGISTRES['conteneurs_data'].rafraichir()
+        self.assertTrue(second.ok, second.messages)
+        self.assertEqual((premier.total, premier.ajoutes, premier.retires),
+                         (second.total, second.ajoutes, second.retires))
+
+    def test_les_schemas_restent_FONCTIONNELS_apres_rechargement(self):
+        """Un registre repeuplé d'objets inertes passerait les comptages sans rien savoir écrire."""
+        from wama_data.containers import schema_pour
+        REGISTRES['conteneurs_data'].rafraichir()
+        self.assertIsNotNone(schema_pour('essai.wrec'))
+        self.assertIsNotNone(schema_pour('essai.trip'))
+
+    def test_un_rechargement_qui_ECHOUE_restaure_le_registre(self):
+        """La garantie qui compte : un registre à moitié rechargé serait pire que pas de
+        rechargement du tout."""
+        from wama_data import apps, containers
+        avant = dict(containers.SCHEMAS)
+        resultat = apps._recharger_greffons(
+            containers, containers.SCHEMAS, ['schema_qui_n_existe_pas'], 'schéma')
+        self.assertFalse(resultat.ok)
+        self.assertEqual(containers.SCHEMAS, avant,
+                         "le registre n'a pas été restauré après un rechargement raté")

@@ -69,14 +69,8 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
 
 from wama.common.catalog.data_types import CANONICAL_FIELDS, DataType, TypedFrame
 
+from .core.noms import AXES_TEMPORELS as _AXES_BRUTS  # noqa: F401 — nom local historique
 from .core.temporal import NEAREST, PREVIOUS, Signal, SignalMeta, TemporalReferential
-from .sources.tabular import COLONNES_TEMPS
-
-#: Colonnes d'AXE TEMPOREL des sources, retirées du cadre produit (piège ②). Réunit les alias
-#: reconnus à l'ingestion tabulaire et les deux bornes du schéma `.trip`. ⚠ Une seule liste :
-#: `COLONNES_TEMPS` est importée, jamais recopiée.
-_AXES_BRUTS = frozenset(c.lower() for c in COLONNES_TEMPS) | {
-    'starttimecode', 'endtimecode'}
 
 
 def _verifier_lignes(lignes: Any, nom: str) -> List[Dict[str, Any]]:
