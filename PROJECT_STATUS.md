@@ -6731,7 +6731,7 @@ sans capacités → aucune entrée annoncée) — `slot mis en évidence` passe 
 `bash scripts/check_js.sh` **57 fichiers 0 erreur, 56 paires 0 divergente** ·
 `manifest_export --check` **corpus à jour (110)** · grille **inchangée** (converter/describer/
 transcriber 100, enhancer 99, anonymizer/avatarizer/composer/reader/synthesizer 98, imager 97) ·
-`.batch_actions` **3 OK / 2 échecs (reader, synthesizer) / 9 skips** ·
+`.batch_actions` **5 OK / 0 échec / 9 skips** *(reader et synthesizer portés depuis)* · **vérification complète `--stage ui` : 72 scénarios, 42 OK, 30 skips, 0 ÉCHEC** ·
 `.settings` 7 OK · `.duplicate_delete` 7 OK.
 
 ⚠ **`doc_facts` : `mecanismes` ET `wama_data` PÉRIMÉS — périmètre de l'INSTANCE SŒUR**, pas le
@@ -6758,3 +6758,58 @@ deux chiffres qui ne se parlent pas ; non instruit).
 5. **`during_preview`** (avatarizer, imager, synthesizer) — **à discuter avant d'agir**.
 6. Union par domaine du pseudo-modèle `auto` de l'imager, le jour où une entrée serait acceptée
    d'un côté seulement (aucun cas aujourd'hui).
+
+### H. VÉRIFICATION COMPLÈTE de la session (demande de Fabien) — 0 échec, et 1 régression trouvée
+
+Pile fraîche, instance sœur à l'arrêt, dépôt poussé. **72 scénarios, 42 OK, 30 skips, 0 ÉCHEC.**
+
+| famille | OK | skip | échec |
+|---|---|---|---|
+| `ui` (santé de page, erreurs JS) | **14** | 0 | 0 |
+| `import` · `duplicate_delete` · `settings` | 7 · 7 · 7 | 7 · 7 · 7 | 0 |
+| `batch_actions` | **5** | 9 | 0 |
+| volets | 2 | 0 | 0 |
+
+**Une régression trouvée — et elle était de MOI.** Le premier passage donnait 2 échecs
+(`reader`/`synthesizer` sur `batch_actions`, apps jamais portées) ; après les avoir portées,
+un troisième est apparu : **`synthesizer.ui` — `Unexpected token '}'`**. En retirant le handler
+du ▶ de lot, mon découpage par `index()` de chaîne avait laissé son `});` de fermeture : **tout
+le bloc `<script>` de la page mourait**, emportant inspecteur, modales et polling.
+
+⚠⚠ **`check_js.sh` ÉTAIT AU VERT** (57 fichiers, 0 erreur) — il ne contrôle que les fichiers
+`.js`, or ce code vit **INLINE dans un gabarit**. Le contrôle statique ne couvrait pas la
+surface où j'écrivais ; c'est `<app>.ui`, qui EXÉCUTE la page, qui l'a vue. **Un contrôle vert
+sur une surface ne dit rien d'une autre.**
+
+⚠ **Découper du code par index de chaîne sans vérifier l'ÉQUILIBRE des accolades est un couteau
+sans garde.** Trois retraits ainsi faits, deux corrects, un faux — et rien dans l'outillage ne
+distinguait les trois. Retirer un bloc, c'est retirer une STRUCTURE, pas un intervalle de texte.
+
+**Trou d'instrument confirmé, NON comblé** : aucun contrôle ne vérifie la syntaxe du JS **inline**
+des gabarits (**93 blocs** dans le dépôt). Tentative avec esprima + neutralisation des tags
+Django → **14 blocs signalés, en majorité des FAUX POSITIFS** (remplacer `{% if %}` par un
+littéral casse une syntaxe légitime). Approche trop grossière pour être un garde-fou :
+**non livrée**, consignée comme piste. Le filet réel reste `<app>.ui`.
+
+### I. Portage des lots — 7 apps sur 10, et une garde préservée
+
+**reader** n'avait **aucun handler de lot** : ses ▶ ⧉ 🗑 de card mère étaient **inertes** — un
+bouton sans écouteur ne lève rien. Rien à retirer, seulement à brancher.
+
+**synthesizer** avait 4 handlers, dont une divergence RÉELLE : **seule des 8 apps à confirmer sa
+duplication de lot**. Porter tel quel aurait **retiré une garde à l'utilisateur au nom de
+l'homogénéité**. La brique honore désormais un `data-confirm` **déclaré par le bouton**, même
+pour une action qui ne confirme pas par défaut (`confirm_duplicate` au partial) — 3 lignes au
+commun, zéro cas d'app. **Prouvé avec CONTRE-ÉPREUVE** : sonde qui REFUSE le dialogue →
+synthesizer confirme (bon message), converter ne confirme pas. ⚠ Sans contre-épreuve, une sonde
+qui accepte tout (comme `batch_actions`) serait passée à l'identique si la garde avait disparu.
+
+### J. Hygiène des fixtures
+
+`batch_actions` ne nettoyait pas son montage (2 fichiers par passage) : **39 objets accumulés**.
+Corrigé (ids capturés avant `sync_playwright`, différence supprimée au `finally`).
+⚠ **Nettoie les ÉLÉMENTS, pas les LOTS** — `PreviewRegistry.get_model()` rend le modèle
+d'élément ; il manque un **accesseur du modèle de LOT par app**. Purge manuelle en attendant.
+**Inventaire PAR COMPTE avant toute suppression** : les 44 résidus étaient tous dans
+`wama_nightly_test`, **0 chez un utilisateur réel** — la question « ai-je cassé quelque chose »
+se répond par un décompte, pas par une impression. Garde-fou de purge : `assert 1 not in cibles`.
