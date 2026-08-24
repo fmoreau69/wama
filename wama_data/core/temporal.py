@@ -217,7 +217,7 @@ class Signal:
         if self._ends is None:
             return []
         fin = bisect_right(self._times, t)      # tous les segments commencés à t ou avant
-        return [i for i in range(fin) if self._ends[i] >= t]
+        return [i for i in range(fin) if self._fin(i) >= t]
 
     def overlapping(self, t0: float, t1: float) -> List[int]:
         """Index des segments intersectant [t0, t1] — un segment à cheval sur la borne compte.
@@ -229,7 +229,29 @@ class Signal:
             i0, i1 = self.range_indices(t0, t1)
             return list(range(i0, i1))
         fin = bisect_right(self._times, t1)
-        return [i for i in range(fin) if self._ends[i] >= t0]
+        return [i for i in range(fin) if self._fin(i) >= t0]
+
+    def _fin(self, index: int) -> float:
+        """Fin d'un segment pour les COMPARAISONS — une fin inconnue vaut `+∞`.
+
+        ⚠ BUG CORRIGÉ LE 2026-08-24, et il répond à **D15** (« `Signal.ends` accepte-t-il
+        `None` ? »). La réponse mesurée était : **structurellement oui, à l'interrogation non** —
+        `containing()` et `overlapping()` comparaient `None >= float` et levaient un `TypeError`.
+        Un segment encore OUVERT rendait donc le flux entier ininterrogeable.
+
+        ⚠ Et la convention existait DÉJÀ, deux fichiers plus loin : `present_dans()` et
+        `chevauche()` (`core/segmentation.py`) écrivent depuis toujours
+        `fin = s['end'] if s['end'] is not None else float('inf')`. Elle n'avait simplement pas été
+        portée ici. Sixième occurrence du même motif — le fait est établi ailleurs dans le dépôt et
+        n'est pas relié à sa conséquence.
+
+        `+∞` est la sémantique juste : un état commencé et non refermé **court encore**, donc il
+        contient tout instant postérieur à son début. Le refermer d'office à la fin du média
+        donnerait une durée mesurée là où rien n'a été mesuré (cf. `fermer()`, qui exige un acte
+        explicite et le trace).
+        """
+        f = self._ends[index] if self._ends is not None else None
+        return float('inf') if f is None or f != f else f
 
     def end_at(self, index: int) -> Optional[float]:
         if self._ends is None:

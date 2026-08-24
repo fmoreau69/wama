@@ -115,6 +115,64 @@ class SegmentsTest(unittest.TestCase):
         self.assertIsNone(signal("plat", [1.0]).duration_at(0))
 
 
+class SegmentOuvertTest(unittest.TestCase):
+    """**D15** — un segment dont la fin est INCONNUE (état commencé, pas encore refermé).
+
+    ⚠ Bug trouvé le 2026-08-24 en répondant à la question « qu'est-ce qu'un segment ouvert ? ».
+    `Signal` acceptait `ends=[…, None]` **structurellement** mais `containing()` et `overlapping()`
+    comparaient `None >= float` : un seul état non refermé rendait le flux **ininterrogeable**.
+    Et `frames.signal_depuis_frame()` en produit — le test d'aller-retour existant vérifiait que la
+    valeur SURVIT, jamais qu'on puisse l'INTERROGER.
+
+    La convention existait déjà dans `core/segmentation.py` (`present_dans`, `chevauche` traitent
+    une fin absente comme `+∞`) ; elle n'avait pas été portée ici.
+    """
+
+    def _signal(self):
+        # Un segment refermé [0,5], un état ouvert commencé à 10 et jamais refermé.
+        return Signal(SignalMeta(name='sit'), [0.0, 10.0], ends=[5.0, None])
+
+    def test_containing_APRES_le_debut_de_l_etat_ouvert(self):
+        # C'est le cas qui levait : `t` postérieur au début du segment ouvert.
+        self.assertEqual(self._signal().containing(12.0), [1])
+
+    def test_containing_avant_ne_le_retient_pas(self):
+        self.assertEqual(self._signal().containing(2.0), [0])
+
+    def test_overlapping_traverse_l_etat_ouvert(self):
+        self.assertEqual(self._signal().overlapping(0.0, 20.0), [0, 1])
+
+    def test_un_etat_ouvert_COURT_ENCORE(self):
+        # Sémantique de `+∞` : il contient tout instant postérieur à son début, aussi loin soit-il.
+        self.assertEqual(self._signal().containing(1e9), [1])
+
+    def test_la_fin_reste_INCONNUE_elle_n_est_pas_remplacee(self):
+        # `+∞` sert aux COMPARAISONS ; la donnée, elle, reste `None`. Refermer d'office donnerait
+        # une durée mesurée là où rien n'a été mesuré.
+        s = self._signal()
+        self.assertIsNone(s.end_at(1))
+        self.assertIsNone(s.duration_at(1))
+
+    def test_un_NaN_est_traite_comme_une_fin_inconnue(self):
+        # pandas convertit un `None` mêlé à des flottants en `NaN` — la 4ᵉ face du piège connu.
+        s = Signal(SignalMeta(name='x'), [0.0], ends=[float('nan')])
+        self.assertEqual(s.containing(99.0), [0])
+
+    def test_un_signal_VENU_DU_PONT_est_interrogeable(self):
+        """Le chemin réel qui produisait des signaux cassés."""
+        import pandas as pd
+
+        from wama.common.catalog.data_types import DataType, TypedFrame
+
+        from ..frames import signal_depuis_frame
+        f = TypedFrame(pd.DataFrame({'start': [0.0, 10.0],
+                                     'end': pd.Series([5.0, None], dtype=object)}),
+                       DataType.SEGMENTS)
+        s = signal_depuis_frame(f, 'sit')
+        self.assertEqual(s.overlapping(0.0, 20.0), [0, 1])
+        self.assertEqual(s.containing(12.0), [1])
+
+
 class EvenementsTest(unittest.TestCase):
     def setUp(self):
         self.ref = TemporalReferential("t")
