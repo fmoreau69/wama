@@ -494,7 +494,7 @@ Modalité principale = fichier → repliée avec en-tête quand la file n'est pa
 
 <div id="anonymizer-queue" class="wama-queue-{{ card_layout|default:'list' }}">
     {% for batch_info in batches_list %}
-    {% if batch_info.obj.total == 1 %}
+    {% if batch_info.obj.is_unitary %}
         {% for item in batch_info.items %}{% if item.media %}
         {% include 'anonymizer/_media_card.html' with media=item.media in_batch=False %}
         {% endif %}{% endfor %}

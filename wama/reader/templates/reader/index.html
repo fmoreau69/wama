@@ -198,7 +198,7 @@ window._batchImport = WamaBatchImport({
     <div id="queueContainer" class="wama-queue-{{ card_layout|default:'list' }}">
         {% for batch_info in batches_list %}
 
-        {% if batch_info.obj.total == 1 %}
+        {% if batch_info.obj.is_unitary %}
         <!-- Single-item batch: render as standalone card -->
         {% for item in batch_info.items %}{% if item.reading %}
         {% include 'reader/_item_card.html' with item=item.reading %}

@@ -200,7 +200,7 @@
         <div id="enhancer-queue" class="wama-queue-{{ card_layout|default:'list' }}">
             {% for batch_info in batches_list %}
 
-            {% if batch_info.obj.total == 1 %}
+            {% if batch_info.obj.is_unitary %}
             <!-- Single-item batch: render as standalone card -->
             {% for item in batch_info.items %}{% if item.enhancement %}
             {% include 'enhancer/_enhancement_card.html' with e=item.enhancement in_batch=False %}
@@ -256,7 +256,7 @@
         <div id="audio-enhancer-queue" class="wama-queue-{{ card_layout|default:'list' }}">
             {% for batch_info in audio_batches_list %}
 
-            {% if batch_info.obj.total == 1 %}
+            {% if batch_info.obj.is_unitary %}
             <!-- Single-item audio batch: render as standalone card -->
             {% for item in batch_info.items %}{% if item.audio_enhancement %}
             {% include 'enhancer/_audio_card.html' with ae=item.audio_enhancement in_batch=False %}

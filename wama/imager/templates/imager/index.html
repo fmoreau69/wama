@@ -153,7 +153,7 @@ Tout telecharger. {% endcomment %}
 {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='imager-image-start-all' clear_id='imager-image-clear-all' download_id='imager-image-download-all' show_download=True %}
 
 {% for batch_info in image_batches %}
-    {% if batch_info.obj.total == 1 %}
+    {% if batch_info.obj.is_unitary %}
         {% comment %} Batch unitaire : la card fille SEULE (pas de card mere). {% endcomment %}
         {% for item in batch_info.items %}{% if item.generation %}
         {% include 'imager/_generation_card.html' with gen=item.generation domain='image' in_batch=False %}
@@ -216,7 +216,7 @@ Tout telecharger. {% endcomment %}
 {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='imager-video-start-all' clear_id='imager-video-clear-all' download_id='imager-video-download-all' show_download=True %}
 
 {% for batch_info in video_batches %}
-    {% if batch_info.obj.total == 1 %}
+    {% if batch_info.obj.is_unitary %}
         {% comment %} Batch unitaire : la card fille SEULE (pas de card mere). {% endcomment %}
         {% for item in batch_info.items %}{% if item.generation %}
         {% include 'imager/_generation_card.html' with gen=item.generation domain='video' in_batch=False %}

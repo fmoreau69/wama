@@ -251,7 +251,7 @@ window._batchImport = WamaBatchImport({
         <div id="transcriptQueue" class="wama-queue-{{ card_layout }}">
             {% for batch_info in batches_list %}
 
-            {% if batch_info.obj.total == 1 %}
+            {% if batch_info.obj.is_unitary %}
             <!-- Single-item batch: render as standalone card -->
             {% for item in batch_info.items %}{% if item.transcript %}
             {% with t=item.transcript %}

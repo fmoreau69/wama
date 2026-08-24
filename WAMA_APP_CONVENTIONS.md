@@ -1207,6 +1207,33 @@ encore la règle.
 > et confronter au code qui l'implémente (ici `queue_view.py:30` disait explicitement le
 > contraire : « plus de batchs d'abord — décision 2026-06-29 »).
 
+**Règle « card unique vs card mère » :**
+Un lot d'UN seul membre s'affiche comme une card ordinaire, sans card mère. La décision se lit
+sur le modèle, **jamais recalculée à la main** :
+
+```django
+{% if batch_info.obj.is_unitary %}   {# BatchMixin — et non `obj.total == 1` #}
+```
+
+`is_unitary` est adopté par les **10 gabarits** depuis le 2026-08-24 (REMOVAL_LEDGER R25) ;
+`obj.total == 1` en gabarit est désormais une **régression** à corriger.
+
+⚠ **POURQUOI CE TEST EST ENCORE DANS 10 GABARITS ET NON DANS `common/`** — question de Fabien,
+2026-08-24. Ce n'est PAS une fatalité de structure : j'avais d'abord répondu « le test décide
+s'il faut inclure `_batch_card.html`, donc il est en amont et non absorbable ». **C'est faux.**
+Le bloc entier (`if unitaire → card fille seule ; else → .batch-group + card mère + .collapse`)
+est **identique dans les 10 gabarits** et pourrait vivre dans un partial commun de plus haut
+niveau, qui recevrait le template de card fille en paramètre.
+
+**Ce qui l'empêche réellement, mesuré : le CONTRAT des cards filles diverge.** Sept graphies
+pour la même chose — `media=`, `gen=`+`card_label=`, `synthesis=`+`card_label=`, `item=`, `e=`,
+`ae=`, `gen=`+`domain=`, et transcriber qui ne passe RIEN (contexte implicite). Un partial
+commun ne peut pas les appeler tant qu'ils ne répondent pas au même appel.
+
+**→ Chantier tracé (REMOVAL_LEDGER R26)** : uniformiser le contrat des cards filles, PUIS
+absorber le bloc dans un partial commun. Dans cet ordre — l'inverse est impossible. Et c'est
+le motif connu du dépôt : *la divergence de nommage est la trace d'une brique absente*.
+
 **Règle de repliage :**
 - Les multi-batches sont **repliés par défaut** au premier affichage.
 - L'état replié/déplié est **persisté par batch ID dans localStorage** (`wama_batch_{app}_{id}`).

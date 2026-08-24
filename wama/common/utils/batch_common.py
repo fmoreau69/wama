@@ -244,7 +244,25 @@ def build_batches_list(user, *, batch_model, work_attr, items_related='items',
         # sorted() sur le cache prefetch (pas de .order_by() ici : re-requêterait par batch)
         items = sorted(getattr(batch, items_related).all(),
                        key=lambda it: getattr(it, 'row_index', 0) or 0)
-        works = [w for w in (getattr(it, work_attr) for it in items) if w]
+        # ── Alias NORMALISÉ `elem` (2026-08-24) ───────────────────────────────
+        # Chaque app nomme son élément métier autrement sur la liaison — `media`,
+        # `generation`, `transcript`, `reading`, `synthesis`, `enhancement`… — et le
+        # gabarit devait donc connaître ce nom pour l'atteindre. Résultat : SIX graphies
+        # d'`{% include %}` pour un seul geste, ce qui interdisait tout partial commun
+        # (mesuré le 2026-08-24 sur les 10 gabarits).
+        # Le nom, le commun le CONNAÎT DÉJÀ : c'est `work_attr`, que l'app déclare ici même.
+        # On l'expose donc sous un nom unique, et les gabarits cessent de le deviner.
+        # ⚠ `elem` et non `work` : côté serveur `work` dit ce qu'on EXÉCUTE (`work_model`,
+        # `work_attr`) — mais une FILE affiche un ÉLÉMENT, elle ne l'exécute pas (arbitrage
+        # Fabien 2026-08-24). C'est aussi le mot de la doc et des scénarios (« le ⚙ d'un
+        # élément », « élément vs lot »). ⚠ Ni `item`, déjà pris par la LIAISON dans
+        # `{% for item in batch_info.items %}` — l'écraser est l'ambiguïté que reader avait
+        # introduite. Abrégé : il sera écrit ~500 fois dans les gabarits.
+        # Posé sur l'instance (pas en base) : aucun champ, aucune migration, aucune requête —
+        # la valeur vient du `prefetch_related` juste au-dessus.
+        for _it in items:
+            _it.elem = getattr(_it, work_attr, None)
+        works = [it.elem for it in items if it.elem]
         # Vocabulaires de statut variables selon les apps (reader : DONE/ERROR…) —
         # même tolérance que _cycle_button.html / wama-cycle-button.js stateFor().
         _ALIAS = {'DONE': 'SUCCESS', 'COMPLETED': 'SUCCESS', 'ERROR': 'FAILURE',

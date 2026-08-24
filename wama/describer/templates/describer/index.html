@@ -48,7 +48,7 @@ migré 2026-07-05) ; IDs dropZone/fileInput/media_url conservés → handlers JS
         <div id="descriptionQueue" class="wama-queue-{{ card_layout|default:'list' }}">
             {% for batch_info in batches_list %}
 
-            {% if batch_info.obj.total == 1 %}
+            {% if batch_info.obj.is_unitary %}
             <!-- Single-item batch: render as standalone card -->
             {% for item in batch_info.items %}{% if item.description %}
             {% with desc=item.description %}

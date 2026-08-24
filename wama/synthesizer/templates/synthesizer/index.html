@@ -202,7 +202,7 @@ startAllBtn/downloadAllBtn/clearAllBtn migrent ici depuis le volet droit.{% endc
         <div id="synthesisQueue" class="wama-queue-{{ card_layout|default:'list' }}">
             {% for batch_info in batches_list %}
 
-            {% if batch_info.obj.total == 1 %}
+            {% if batch_info.obj.is_unitary %}
             <!-- Single-item batch: render as a standalone card (no batch header) -->
             {% for item in batch_info.items %}{% if item.synthesis %}
             {% include 'synthesizer/_synthesis_card.html' with synthesis=item.synthesis card_label=item.output_filename %}

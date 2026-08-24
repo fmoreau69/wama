@@ -89,7 +89,7 @@ id melodyInput conservé (payload generate inchangé). Cf. INPUT_MODEL_MATCHING.
 
     {% for batch_info in batches_list %}
 
-    {% if batch_info.obj.total == 1 %}
+    {% if batch_info.obj.is_unitary %}
     {# Génération individuelle #}
     {% for item in batch_info.items %}{% if item.generation %}
     {% include 'composer/_generation_card.html' with gen=item.generation card_label=item.output_filename %}
