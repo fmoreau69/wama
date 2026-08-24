@@ -196,6 +196,21 @@ def index(request):
     from wama.common.utils.input_match import input_match_meta as _im_meta, input_labels as _im_labels
     input_match_meta = _im_meta('imager')
     input_labels = _im_labels()
+    # Pseudo-modèle « Auto » : il n'est PAS au catalogue, donc sans cette union il n'accepte
+    # RIEN — et une entrée fournie le désactivait, alors que c'est justement le cas où il sert
+    # (mesuré au navigateur le 2026-08-24 : déposer une image de référence grisait « Auto »
+    # dans les DEUX domaines, forçant un choix manuel de moteur). Même politique que le
+    # composer (`views.py::_input_match_meta`) : l'auto accepte ce qu'accepte AU MOINS UN
+    # candidat, la résolution au lancement (`utils/auto_model.py`) restreignant ensuite.
+    # ⚠ Union GLOBALE et non par domaine : l'imager n'expose qu'UN id `auto`, partagé par ses
+    # deux selects (`imgModelSelect`/`vidModelSelect`). Une union par domaine supposerait deux
+    # ids distincts — à faire le jour où une entrée serait acceptée par un modèle vidéo et par
+    # aucun modèle image (aucun cas aujourd'hui : `work_image` est accepté des deux côtés).
+    if input_match_meta:
+        _acceptees = set()
+        for _e in input_match_meta.values():
+            _acceptees |= set(_e.get('inputs_required') or ()) | set(_e.get('inputs_optional') or ())
+        input_match_meta['auto'] = {'inputs_required': [], 'inputs_optional': sorted(_acceptees)}
 
     # ── File bâtie sur les BATCHS (contrat commun) ───────────────────────────────
     # Tout est batch ; une génération isolée est auto-enveloppée dans son batch-of-1
