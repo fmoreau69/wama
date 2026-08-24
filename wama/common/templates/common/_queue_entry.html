@@ -1,0 +1,63 @@
+{% comment %}
+ENTRÉE DE FILE — card unique OU lot (card mère + filles repliables). Brique COMMUNE.
+
+Remplace un bloc recopié À L'IDENTIQUE dans les 10 gabarits d'app (2026-08-25). Il n'a pu
+être centralisé qu'une fois deux verrous levés :
+  • `is_unitary` adopté — la décision « card seule ou card mère » se lit sur le modèle ;
+  • `elem` — toutes les cards filles reçoivent leur élément sous le MÊME nom (avant : 8
+    graphies, `media=`, `gen=`, `e=`, `ae=`, `t=`, `desc=`, `synthesis=`, `item=`).
+
+PARAMÈTRES
+  card_template   (requis) chemin de la card fille — ex. 'reader/_item_card.html'
+  collapse_prefix (défaut 'batchItems') id du bloc repliable. L'enhancer AUDIO utilise
+                  'audioBatchItems' : ses deux files coexistent sur la même page, deux lots
+                  peuvent porter le même id, et un seul `#batchItemsN` replierait les deux.
+  batch_key       (défaut = `app`) préfixe de `data-wama-batch-key`, qui persiste l'état
+                  replié/déplié en localStorage. Même raison : 'enhancer_audio' pour l'audio,
+                  sinon les deux files partageraient leur mémoire de repli.
+
+TOUT LE RESTE PASSE PAR LE CONTEXTE. `{% templatetag openblock %} include {% templatetag closeblock %}` le propage, donc les paramètres
+de `_batch_card.html` (`card_class`, `download_url`, `download_menu_template`, `meta_template`,
+`eta_ids`, `app`, `actions_communes`, `show_settings`, `confirm_duplicate`…) sont fournis par
+l'appelant et traversent ce partial sans qu'il ait à les connaître ni à les répéter. C'est ce
+qui garde sa signature à trois paramètres au lieu d'une quinzaine — et ce qui fait qu'ajouter
+demain une option à `_batch_card.html` ne demandera AUCUNE modification ici.
+
+APPARENCE UNIFORME — RÉFÉRENCE = LE TRANSCRIBER (Fabien, 2026-08-25), et le markup ci-dessous
+est le sien, repris tel quel : `batch-group mb-2`, `collapse`, `border-left:2px solid #0dcaf0`.
+Deux sources indépendantes concordent, ce qui est la meilleure garantie qu'on ne choisit rien
+ici : le transcriber est l'app de référence du dépôt, et `CARD_DESIGN.md §11.2` a TRANCHÉ le
+même cyan le 2026-08-01 (v3.5 — « famille de lot = CYAN #0dcaf0 »).
+Les gabarits portaient trois couleurs (#0dcaf0 ×4, #6f42c1 ×3, #198754 ×2) et deux habillages de
+wrapper (composer seul avait `border border-secondary rounded` + `p-2`) : séquelles
+d'implémentations successives, pas des intentions — ces variantes ont servi à converger vers le
+design actuel, elles n'ont plus lieu d'être.
+⚠ Le liseré reste en style INLINE comme avant — le passer en classe CSS relève du chantier
+design (v2/v3), pas de cette centralisation : porter, c'est déplacer, pas en profiter pour
+changer le mécanisme.
+
+`in_batch` est posé ICI (False en card seule, True en fille de lot) : c'est une propriété de la
+POSITION dans la file, que l'app n'a pas à répéter. `card_label` est posé systématiquement —
+les cards qui ne l'affichent pas l'ignorent, celles qui l'affichent (composer, synthesizer) le
+trouvent sans que l'appelant ait à le passer.
+{% endcomment %}
+{% if batch_info.obj.is_unitary %}
+  {% for item in batch_info.items %}{% if item.elem %}
+    {% with elem=item.elem card_label=item.output_filename in_batch=False %}
+      {% include card_template %}
+    {% endwith %}
+  {% endif %}{% endfor %}
+{% else %}
+  <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
+    {% include 'common/_batch_card.html' %}
+    <div class="collapse" id="{{ collapse_prefix|default:'batchItems' }}{{ batch_info.obj.id }}"
+         data-wama-batch-key="{{ batch_key|default:app }}_{{ batch_info.obj.id }}"
+         style="border-left:2px solid #0dcaf0; margin-left:0.75rem;">
+      {% for item in batch_info.items %}{% if item.elem %}
+        {% with elem=item.elem card_label=item.output_filename in_batch=True %}
+          {% include card_template %}
+        {% endwith %}
+      {% endif %}{% endfor %}
+    </div>
+  </div>
+{% endif %}

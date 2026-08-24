@@ -494,23 +494,8 @@ Modalité principale = fichier → repliée avec en-tête quand la file n'est pa
 
 <div id="anonymizer-queue" class="wama-queue-{{ card_layout|default:'list' }}">
     {% for batch_info in batches_list %}
-    {% if batch_info.obj.is_unitary %}
-        {% for item in batch_info.items %}{% if item.elem %}
-        {% include 'anonymizer/_media_card.html' with elem=item.elem in_batch=False %}
-        {% endif %}{% endfor %}
-    {% else %}
-        <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
-            {% url 'anonymizer:batch_download' batch_info.obj.id as batch_dl_url %}
-            {% include 'common/_batch_card.html' with card_class='anon-card' eta_ids=batch_info.eta_ids download_url=batch_dl_url app='anonymizer' actions_communes=True %}
-            <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
-                 data-wama-batch-key="anonymizer_{{ batch_info.obj.id }}"
-                 style="border-left:2px solid #6f42c1; margin-left:0.75rem;">
-                {% for item in batch_info.items %}{% if item.elem %}
-                {% include 'anonymizer/_media_card.html' with elem=item.elem in_batch=True %}
-                {% endif %}{% endfor %}
-            </div>
-        </div>
-    {% endif %}
+    {% url 'anonymizer:batch_download' batch_info.obj.id as batch_dl_url %}
+    {% include 'common/_queue_entry.html' with card_template='anonymizer/_media_card.html' card_class='anon-card' eta_ids=batch_info.eta_ids download_url=batch_dl_url app='anonymizer' actions_communes=True %}
     {% empty %}
     <div class="text-center text-white-50 py-5">
         <i class="fas fa-inbox fa-3x mb-3"></i>

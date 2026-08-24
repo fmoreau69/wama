@@ -48,30 +48,7 @@ migré 2026-07-05) ; IDs dropZone/fileInput/media_url conservés → handlers JS
         <div id="descriptionQueue" class="wama-queue-{{ card_layout|default:'list' }}">
             {% for batch_info in batches_list %}
 
-            {% if batch_info.obj.is_unitary %}
-            <!-- Single-item batch: render as standalone card -->
-            {% for item in batch_info.items %}{% if item.elem %}
-            {% with elem=item.elem %}
-            {% include 'describer/_description_card.html' %}
-            {% endwith %}
-            {% endif %}{% endfor %}
-
-            {% else %}
-            <!-- Multi-item batch: collapsible group -->
-            <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
-                {# Card MÈRE : brique COMMUNE _batch_card.html (2026-07-06 — remplace la variante compacte locale ; apporte ▶ batch + compteurs détaillés + méta, conventions §6) #}
-                {% include 'common/_batch_card.html' with card_class='synthesis-card' download_menu_template='describer/_batch_download_menu.html' eta_ids=batch_info.eta_ids app='describer' actions_communes=True %}
-                <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
-                     data-wama-batch-key="describer_{{ batch_info.obj.id }}"
-                     style="border-left:2px solid #0dcaf0; margin-left:0.75rem;">
-                    {% for item in batch_info.items %}{% if item.elem %}
-                    {% with elem=item.elem %}
-                    {% include 'describer/_description_card.html' with in_batch=True %}
-                    {% endwith %}
-                    {% endif %}{% endfor %}
-                </div>
-            </div>
-            {% endif %}
+            {% include 'common/_queue_entry.html' with card_template='describer/_description_card.html' card_class='synthesis-card' download_menu_template='describer/_batch_download_menu.html' eta_ids=batch_info.eta_ids app='describer' actions_communes=True %}
 
             {% empty %}
             <div class="text-center py-5 empty-queue">

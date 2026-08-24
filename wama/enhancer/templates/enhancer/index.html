@@ -200,26 +200,7 @@
         <div id="enhancer-queue" class="wama-queue-{{ card_layout|default:'list' }}">
             {% for batch_info in batches_list %}
 
-            {% if batch_info.obj.is_unitary %}
-            <!-- Single-item batch: render as standalone card -->
-            {% for item in batch_info.items %}{% if item.elem %}
-            {% include 'enhancer/_enhancement_card.html' with elem=item.elem in_batch=False %}
-            {% endif %}{% endfor %}
-
-            {% else %}
-            <!-- Multi-item batch: collapsible group -->
-            <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
-                {% url 'enhancer:batch_download' batch_info.obj.id as batch_dl_url %}
-                {% include 'common/_batch_card.html' with eta_ids=batch_info.eta_ids download_url=batch_dl_url app='enhancer' %}
-                <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
-                     data-wama-batch-key="enhancer_{{ batch_info.obj.id }}"
-                     style="border-left:2px solid #0dcaf0; margin-left:0.75rem;">
-                    {% for item in batch_info.items %}{% if item.elem %}
-                    {% include 'enhancer/_enhancement_card.html' with elem=item.elem in_batch=True %}
-                    {% endif %}{% endfor %}
-                </div>
-            </div>
-            {% endif %}
+            {% include 'common/_queue_entry.html' with card_template='enhancer/_enhancement_card.html' eta_ids=batch_info.eta_ids download_url=batch_dl_url app='enhancer' %}
 
             {% empty %}
             <div class="empty-state text-center py-4 text-white-50">Aucun fichier en attente.</div>
@@ -256,26 +237,7 @@
         <div id="audio-enhancer-queue" class="wama-queue-{{ card_layout|default:'list' }}">
             {% for batch_info in audio_batches_list %}
 
-            {% if batch_info.obj.is_unitary %}
-            <!-- Single-item audio batch: render as standalone card -->
-            {% for item in batch_info.items %}{% if item.elem %}
-            {% include 'enhancer/_audio_card.html' with elem=item.elem in_batch=False %}
-            {% endif %}{% endfor %}
-
-            {% else %}
-            <!-- Multi-item audio batch: collapsible group -->
-            <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
-                {% url 'enhancer:audio_batch_download' batch_info.obj.id as audio_batch_dl_url %}
-                {% include 'common/_batch_card.html' with collapse_prefix='audioBatchItems' eta_ids=batch_info.eta_ids show_settings=False download_url=audio_batch_dl_url app='enhancer' %}
-                <div class="collapse" id="audioBatchItems{{ batch_info.obj.id }}"
-                     data-wama-batch-key="enhancer_audio_{{ batch_info.obj.id }}"
-                     style="border-left:2px solid #198754; margin-left:0.75rem;">
-                    {% for item in batch_info.items %}{% if item.elem %}
-                    {% include 'enhancer/_audio_card.html' with elem=item.elem in_batch=True %}
-                    {% endif %}{% endfor %}
-                </div>
-            </div>
-            {% endif %}
+            {% include 'common/_queue_entry.html' with card_template='enhancer/_audio_card.html' collapse_prefix='audioBatchItems' eta_ids=batch_info.eta_ids show_settings=False download_url=audio_batch_dl_url app='enhancer' batch_key='enhancer_audio' %}
 
             {% empty %}
             <div class="empty-state text-center py-4 text-white-50">Aucun fichier audio en attente.</div>

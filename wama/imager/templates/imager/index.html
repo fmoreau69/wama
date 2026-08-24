@@ -153,23 +153,7 @@ Tout telecharger. {% endcomment %}
 {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='imager-image-start-all' clear_id='imager-image-clear-all' download_id='imager-image-download-all' show_download=True %}
 
 {% for batch_info in image_batches %}
-    {% if batch_info.obj.is_unitary %}
-        {% comment %} Batch unitaire : la card fille SEULE (pas de card mere). {% endcomment %}
-        {% for item in batch_info.items %}{% if item.elem %}
-        {% include 'imager/_generation_card.html' with elem=item.elem domain='image' in_batch=False %}
-        {% endif %}{% endfor %}
-    {% else %}
-        <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
-            {% include 'common/_batch_card.html' with card_class='imager-card' app='imager' %}
-            <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
-                 data-wama-batch-key="imager_{{ batch_info.obj.id }}"
-                 style="border-left:2px solid #6f42c1; margin-left:0.75rem;">
-                {% for item in batch_info.items %}{% if item.elem %}
-                {% include 'imager/_generation_card.html' with elem=item.elem domain='image' in_batch=True %}
-                {% endif %}{% endfor %}
-            </div>
-        </div>
-    {% endif %}
+    {% include 'common/_queue_entry.html' with card_template='imager/_generation_card.html' card_class='imager-card' app='imager' domain='image' %}
 {% empty %}
     <div class="card bg-dark border-secondary">
         <div class="card-body text-center text-white-50 py-4">
@@ -216,23 +200,7 @@ Tout telecharger. {% endcomment %}
 {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='imager-video-start-all' clear_id='imager-video-clear-all' download_id='imager-video-download-all' show_download=True %}
 
 {% for batch_info in video_batches %}
-    {% if batch_info.obj.is_unitary %}
-        {% comment %} Batch unitaire : la card fille SEULE (pas de card mere). {% endcomment %}
-        {% for item in batch_info.items %}{% if item.elem %}
-        {% include 'imager/_generation_card.html' with elem=item.elem domain='video' in_batch=False %}
-        {% endif %}{% endfor %}
-    {% else %}
-        <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
-            {% include 'common/_batch_card.html' with card_class='imager-card' app='imager' %}
-            <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
-                 data-wama-batch-key="imager_{{ batch_info.obj.id }}"
-                 style="border-left:2px solid #198754; margin-left:0.75rem;">
-                {% for item in batch_info.items %}{% if item.elem %}
-                {% include 'imager/_generation_card.html' with elem=item.elem domain='video' in_batch=True %}
-                {% endif %}{% endfor %}
-            </div>
-        </div>
-    {% endif %}
+    {% include 'common/_queue_entry.html' with card_template='imager/_generation_card.html' card_class='imager-card' app='imager' domain='video' %}
 {% empty %}
     <div class="card bg-dark border-secondary">
         <div class="card-body text-center text-white-50 py-4">

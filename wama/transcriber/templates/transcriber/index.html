@@ -251,33 +251,11 @@ window._batchImport = WamaBatchImport({
         <div id="transcriptQueue" class="wama-queue-{{ card_layout }}">
             {% for batch_info in batches_list %}
 
-            {% if batch_info.obj.is_unitary %}
-            <!-- Single-item batch: render as standalone card -->
-            {% for item in batch_info.items %}{% if item.elem %}
-            {% with elem=item.elem %}
-            {% include 'transcriber/_transcript_card.html' %}
-            {% endwith %}
-            {% endif %}{% endfor %}
-
-            {% else %}
-            <!-- Multi-item batch: collapsible group -->
-            <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
-                <!-- Card MÈRE : MÊME squelette .synthesis-card que les filles + modificateur .is-batch
-                     (couleur). Ne diffère que par les méta agrégées et ses actions batch. Toggle collapse
-                     sur la zone info (col-md-9) ; actions HORS toggle → handlers délégués préservés. -->
-                {# Card MÈRE : brique COMMUNE _batch_card.html (généralisée depuis transcriber, 2026-07-06) #}
-                {% include 'common/_batch_card.html' with card_class='synthesis-card' meta_template='transcriber/_batch_meta.html' download_menu_template='transcriber/_batch_download_menu.html' eta_ids=batch_info.eta_ids app='transcriber' actions_communes=True %}
-                <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
-                     data-wama-batch-key="transcriber_{{ batch_info.obj.id }}"
-                     style="border-left:2px solid #0dcaf0; margin-left:0.75rem;">
-                    {% for item in batch_info.items %}{% if item.elem %}
-                    {% with elem=item.elem %}
-                    {% include 'transcriber/_transcript_card.html' with in_batch=True %}
-                    {% endwith %}
-                    {% endif %}{% endfor %}
-                </div>
-            </div>
-            {% endif %}
+            {% comment %}Entrée de file (card seule OU lot) — brique COMMUNE `_queue_entry.html`.
+            Le bloc qui vivait ici était recopié à l'identique dans les 10 gabarits ; le markup du
+            partial EST celui du transcriber, app de référence. `_batch_card.html` reçoit ses
+            paramètres par le CONTEXTE — d'où le `with` ci-dessous, qui les fournit une fois.{% endcomment %}
+            {% include 'common/_queue_entry.html' with card_template='transcriber/_transcript_card.html' card_class='synthesis-card' meta_template='transcriber/_batch_meta.html' download_menu_template='transcriber/_batch_download_menu.html' eta_ids=batch_info.eta_ids app='transcriber' actions_communes=True %}
 
             {% empty %}
             <div class="text-center py-5 empty-queue">

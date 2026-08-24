@@ -202,31 +202,8 @@ startAllBtn/downloadAllBtn/clearAllBtn migrent ici depuis le volet droit.{% endc
         <div id="synthesisQueue" class="wama-queue-{{ card_layout|default:'list' }}">
             {% for batch_info in batches_list %}
 
-            {% if batch_info.obj.is_unitary %}
-            <!-- Single-item batch: render as a standalone card (no batch header) -->
-            {% for item in batch_info.items %}{% if item.elem %}
-            {% include 'synthesizer/_synthesis_card.html' with elem=item.elem card_label=item.output_filename %}
-            {% endif %}{% endfor %}
-
-            {% else %}
-            <!-- Multi-item batch: collapsible group with header -->
-            <div class="batch-group mb-2" data-batch-id="{{ batch_info.obj.id }}">
-                {% comment %}Card mère batch COMMUNE — ▶ (batch_start) câblé en JS ; le ⚙ lit
-ses défauts sur la 1re card fille (.settings-btn data-*).{% endcomment %}
-                {% url 'synthesizer:batch_download' batch_info.obj.id as batch_dl_url %}
-                {% include 'common/_batch_card.html' with eta_ids=batch_info.eta_ids download_url=batch_dl_url app='synthesizer' actions_communes=True confirm_duplicate="Dupliquer ce lot ? Les fichiers sources seront partages, les resultats effaces." %}
-                <!-- Batch items (collapsible) -->
-                <div class="collapse" id="batchItems{{ batch_info.obj.id }}"
-                     data-wama-batch-key="synthesizer_{{ batch_info.obj.id }}"
-                     style="border-left:2px solid #6f42c1; margin-left:0.75rem;">
-                    {% for item in batch_info.items %}
-                    {% if item.elem %}
-                    {% include 'synthesizer/_synthesis_card.html' with elem=item.elem card_label=item.output_filename %}
-                    {% endif %}
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
+            {% url 'synthesizer:batch_download' batch_info.obj.id as batch_dl_url %}
+            {% include 'common/_queue_entry.html' with card_template='synthesizer/_synthesis_card.html' eta_ids=batch_info.eta_ids download_url=batch_dl_url app='synthesizer' actions_communes=True confirm_duplicate="Dupliquer ce lot ? Les fichiers sources seront partages, les resultats effaces." %}
 
             {% endfor %}
 
