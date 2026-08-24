@@ -254,7 +254,7 @@ window._batchImport = WamaBatchImport({
             {% if batch_info.obj.is_unitary %}
             <!-- Single-item batch: render as standalone card -->
             {% for item in batch_info.items %}{% if item.transcript %}
-            {% with t=item.transcript %}
+            {% with elem=item.elem %}
             {% include 'transcriber/_transcript_card.html' %}
             {% endwith %}
             {% endif %}{% endfor %}
@@ -271,7 +271,7 @@ window._batchImport = WamaBatchImport({
                      data-wama-batch-key="transcriber_{{ batch_info.obj.id }}"
                      style="border-left:2px solid #0dcaf0; margin-left:0.75rem;">
                     {% for item in batch_info.items %}{% if item.transcript %}
-                    {% with t=item.transcript %}
+                    {% with elem=item.elem %}
                     {% include 'transcriber/_transcript_card.html' with in_batch=True %}
                     {% endwith %}
                     {% endif %}{% endfor %}

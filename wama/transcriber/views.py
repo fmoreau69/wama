@@ -909,7 +909,7 @@ def card_html(request, pk: int):
     in_batch = BatchTranscriptItem.objects.filter(transcript=t, batch__total__gt=1).exists()
     _decorate_card(t)
     html = render_to_string('transcriber/_transcript_card.html',
-                            {'t': t, 'in_batch': in_batch}, request=request)
+                            {'elem': t, 'in_batch': in_batch}, request=request)
     return HttpResponse(html)
 
 

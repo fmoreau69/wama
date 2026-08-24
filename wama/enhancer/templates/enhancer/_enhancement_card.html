@@ -4,18 +4,18 @@ Card Enhancement (média image/vidéo) — CARD v3 « sections × chips » (CARD
 portée le 2026-08-13 depuis le pilote reader ; remplace la card en colonnes du port 07/26).
 SOURCE UNIQUE du markup : rendue au chargement (single + fille de batch) ET par `card_html`
 (refreshCard JS — transition d'état = re-rendu serveur, index.js:303).
-Contexte : e (Enhancement, décorée .chips), in_batch (bool).
+Contexte : elem (Enhancement, décorée .chips), in_batch (bool).
 
 ⚠ Contrats JS (index.js) : .wama-card[data-id][data-status], .settings-btn[data-id] + data-*,
   .delete-btn[data-delete-url], .duplicate-btn[data-duplicate-url],
   .preview-media-link, .wama-progress-fill (:297), .progress-text (:299), .wama-eta (:293).
 {% endcomment %}
-<div class="synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if e.status == 'RUNNING' %}processing{% elif e.status == 'SUCCESS' %}success{% elif e.status == 'FAILURE' %}error{% endif %}"
-     data-id="{{ e.id }}" data-domain="image_video" data-status="{{ e.status }}"
-     data-preview-url="{% url 'common:unified_preview' 'enhancer' e.id %}">
+<div class="synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if elem.status == 'RUNNING' %}processing{% elif elem.status == 'SUCCESS' %}success{% elif elem.status == 'FAILURE' %}error{% endif %}"
+     data-id="{{ elem.id }}" data-domain="image_video" data-status="{{ elem.status }}"
+     data-preview-url="{% url 'common:unified_preview' 'enhancer' elem.id %}">
 <div class="card-body py-2">
 
-  <div class="wcv3-head">#{{ e.id }}<span class="sep">·</span>{{ e.created_at|date:"d/m H:i" }}</div>
+  <div class="wcv3-head">#{{ elem.id }}<span class="sep">·</span>{{ elem.created_at|date:"d/m H:i" }}</div>
 
   <div class="wcv3">
 
@@ -24,14 +24,14 @@ Contexte : e (Enhancement, décorée .chips), in_batch (bool).
       <span class="wcv3-lbl">Entrée</span>
       <div class="wcv3-in">
         <span class="wcv3-thumb">
-          {% if e.media_type == 'image' %}<i class="fas fa-image text-info"></i>{% else %}<i class="fas fa-video text-warning"></i>{% endif %}
+          {% if elem.media_type == 'image' %}<i class="fas fa-image text-info"></i>{% else %}<i class="fas fa-video text-warning"></i>{% endif %}
         </span>
         <div class="wcv3-in-lines">
           <span role="button" class="wcv3-in-name preview-media-link" title="Aperçu"
-                data-preview-url="{% url 'common:unified_preview' 'enhancer' e.id %}">
-            {% if e.get_input_filename %}{{ e.get_input_filename }}{% else %}{{ e.source_url|truncatechars:40 }}{% endif %}
+                data-preview-url="{% url 'common:unified_preview' 'enhancer' elem.id %}">
+            {% if elem.get_input_filename %}{{ elem.get_input_filename }}{% else %}{{ elem.source_url|truncatechars:40 }}{% endif %}
           </span>
-          {% if e.width %}<span class="wcv3-in-props">{{ e.width }}×{{ e.height }}</span>{% endif %}
+          {% if elem.width %}<span class="wcv3-in-props">{{ elem.width }}×{{ elem.height }}</span>{% endif %}
         </div>
       </div>
     </div>
@@ -40,25 +40,25 @@ Contexte : e (Enhancement, décorée .chips), in_batch (bool).
     <div class="wcv3-sec wcv3-sec--settings">
       <span class="wcv3-lbl">Réglages</span>
       <div class="wcv3-out">
-        {% include 'common/_card_chips.html' with chips=e.chips.settings %}
+        {% include 'common/_card_chips.html' with chips=elem.chips.settings %}
       </div>
     </div>
 
     {# ── SORTIE : étape live → dimensions produites ; l'erreur la remplace ─────────── #}
     <div class="wcv3-sec wcv3-sec--output">
       <span class="wcv3-lbl">Sortie</span>
-      {% if e.status == 'FAILURE' and e.error_message %}
-        <span class="wcv3-out-error" title="{{ e.error_message|escape }}">
-          <i class="fas fa-triangle-exclamation"></i> {{ e.error_message|truncatechars:120|escape }}
+      {% if elem.status == 'FAILURE' and elem.error_message %}
+        <span class="wcv3-out-error" title="{{ elem.error_message|escape }}">
+          <i class="fas fa-triangle-exclamation"></i> {{ elem.error_message|truncatechars:120|escape }}
         </span>
       {% else %}
         <div class="wcv3-out">
-          {% if e.status == 'RUNNING' %}
-            <span class="wcv3-out-step"><span class="pct progress-text">{{ e.progress }}%</span> — amélioration…</span>
-          {% elif e.output_file %}
+          {% if elem.status == 'RUNNING' %}
+            <span class="wcv3-out-step"><span class="pct progress-text">{{ elem.progress }}%</span> — amélioration…</span>
+          {% elif elem.output_file %}
             <span class="wcv3-out-step" title="Fichier produit">
               <i class="fas fa-check-circle text-success"></i>
-              {% if e.output_width %}{{ e.output_width }}×{{ e.output_height }}{% else %}fichier produit{% endif %}
+              {% if elem.output_width %}{{ elem.output_width }}×{{ elem.output_height }}{% else %}fichier produit{% endif %}
             </span>
           {% endif %}
         </div>
@@ -70,11 +70,11 @@ Contexte : e (Enhancement, décorée .chips), in_batch (bool).
       <span class="wcv3-lbl">État</span>
       <div class="wcv3-state">
         <span class="wcv3-state-line">
-          <span class="wama-status-dot" data-s="{{ e.status }}"></span>
-          <span>{% if e.status == 'PENDING' %}En attente{% elif e.status == 'RUNNING' %}En cours{% elif e.status == 'SUCCESS' %}Terminé{% elif e.status == 'FAILURE' %}Échec{% else %}{{ e.status }}{% endif %}</span>
+          <span class="wama-status-dot" data-s="{{ elem.status }}"></span>
+          <span>{% if elem.status == 'PENDING' %}En attente{% elif elem.status == 'RUNNING' %}En cours{% elif elem.status == 'SUCCESS' %}Terminé{% elif elem.status == 'FAILURE' %}Échec{% else %}{{ elem.status }}{% endif %}</span>
         </span>
-        {% if e.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ e.id }}"></span>{% endif %}
-        {% if e.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=e.processing_display %}{% endif %}
+        {% if elem.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ elem.id }}"></span>{% endif %}
+        {% if elem.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=elem.processing_display %}{% endif %}
       </div>
     </div>
 
@@ -87,16 +87,16 @@ Contexte : e (Enhancement, décorée .chips), in_batch (bool).
         `js-open-settings`. `data-action="settings"` RESTE : l'inspecteur l'utilise pour trouver
         le gear, et il porte l'INTENTION indépendamment de la classe.{% endcomment %}
         <button class="btn btn-sm btn-outline-secondary settings-btn" data-action="settings"
-                data-id="{{ e.id }}"
-                {% for k, v in e.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}
+                data-id="{{ elem.id }}"
+                {% for k, v in elem.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}
                 title="Paramètres">
           <i class="fas fa-cog"></i>
         </button>
-        {% include 'common/_cycle_button.html' with id=e.id status=e.status %}
-        {% url 'enhancer:download' e.id as url_dl %}
-        {% bouton_telecharger 'enhancer' url_dl e.output_file %}
+        {% include 'common/_cycle_button.html' with id=elem.id status=elem.status %}
+        {% url 'enhancer:download' elem.id as url_dl %}
+        {% bouton_telecharger 'enhancer' url_dl elem.output_file %}
         <button class="btn btn-sm btn-outline-warning duplicate-btn"
-                data-duplicate-url="{% url 'enhancer:duplicate' e.id %}"
+                data-duplicate-url="{% url 'enhancer:duplicate' elem.id %}"
                 title="{% if in_batch %}Dupliquer dans le batch{% else %}Dupliquer{% endif %}">
           <i class="fas fa-copy"></i>
         </button>
@@ -105,8 +105,8 @@ Contexte : e (Enhancement, décorée .chips), in_batch (bool).
         un FAUX VERT au critère `delete_wiring` le 2026-08-22 (corrigé le jour même). Portage
         2026-08-23, le bind local de `bindRowActions` retiré au même geste.{% endcomment %}
         <button class="btn btn-sm btn-outline-danger delete-btn"
-                data-id="{{ e.id }}"
-                data-delete-url="{% url 'enhancer:delete' e.id %}"
+                data-id="{{ elem.id }}"
+                data-delete-url="{% url 'enhancer:delete' elem.id %}"
                 data-confirm="Supprimer ce fichier ?"
                 title="Supprimer">
           <i class="fas fa-trash-alt"></i>
@@ -116,11 +116,11 @@ Contexte : e (Enhancement, décorée .chips), in_batch (bool).
 
     {% comment %}Barre pleine largeur — ligne 2 de la grille (§11) ; FIGÉE au % en échec.
     Jamais de commentaire dièse ici (boîte fantôme dans la grille).{% endcomment %}
-    {% if e.status != 'PENDING' %}
+    {% if elem.status != 'PENDING' %}
     <div class="wcv3-bar" style="grid-column:1/-1;">
       <div class="wama-progress-track">
-        <div class="wama-progress-fill{% if e.status == 'RUNNING' %} active{% elif e.status == 'FAILURE' %} is-frozen{% endif %}"
-             style="width:{% if e.status == 'SUCCESS' %}100{% else %}{{ e.progress }}{% endif %}%"></div>
+        <div class="wama-progress-fill{% if elem.status == 'RUNNING' %} active{% elif elem.status == 'FAILURE' %} is-frozen{% endif %}"
+             style="width:{% if elem.status == 'SUCCESS' %}100{% else %}{{ elem.progress }}{% endif %}%"></div>
       </div>
     </div>
     {% endif %}
@@ -134,12 +134,12 @@ Contexte : e (Enhancement, décorée .chips), in_batch (bool).
   du commun (mime-driven) : image ET vidéo sans markup par app.
   Garde `not in_batch` alignée sur la card audio de la MÊME app (:124) : un enfant de batch est
   une ligne compacte (wcv3--batch-child), un aperçu par enfant la ferait exploser.{% endcomment %}
-  {% if e.output_file and not in_batch %}
-  {% url 'common:unified_preview' 'enhancer' e.id as pv_out %}
-  <div class="wcv3-preview" id="preview-row-{{ e.id }}"
-       data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ e.id }}"></div>
+  {% if elem.output_file and not in_batch %}
+  {% url 'common:unified_preview' 'enhancer' elem.id as pv_out %}
+  <div class="wcv3-preview" id="preview-row-{{ elem.id }}"
+       data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ elem.id }}"></div>
   {% else %}
-  <div id="preview-row-{{ e.id }}"></div>
+  <div id="preview-row-{{ elem.id }}"></div>
   {% endif %}
 
 </div>

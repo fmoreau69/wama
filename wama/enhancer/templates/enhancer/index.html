@@ -203,7 +203,7 @@
             {% if batch_info.obj.is_unitary %}
             <!-- Single-item batch: render as standalone card -->
             {% for item in batch_info.items %}{% if item.enhancement %}
-            {% include 'enhancer/_enhancement_card.html' with e=item.enhancement in_batch=False %}
+            {% include 'enhancer/_enhancement_card.html' with elem=item.elem in_batch=False %}
             {% endif %}{% endfor %}
 
             {% else %}
@@ -215,7 +215,7 @@
                      data-wama-batch-key="enhancer_{{ batch_info.obj.id }}"
                      style="border-left:2px solid #0dcaf0; margin-left:0.75rem;">
                     {% for item in batch_info.items %}{% if item.enhancement %}
-                    {% include 'enhancer/_enhancement_card.html' with e=item.enhancement in_batch=True %}
+                    {% include 'enhancer/_enhancement_card.html' with elem=item.elem in_batch=True %}
                     {% endif %}{% endfor %}
                 </div>
             </div>
@@ -259,7 +259,7 @@
             {% if batch_info.obj.is_unitary %}
             <!-- Single-item audio batch: render as standalone card -->
             {% for item in batch_info.items %}{% if item.audio_enhancement %}
-            {% include 'enhancer/_audio_card.html' with ae=item.audio_enhancement in_batch=False %}
+            {% include 'enhancer/_audio_card.html' with elem=item.elem in_batch=False %}
             {% endif %}{% endfor %}
 
             {% else %}
@@ -271,7 +271,7 @@
                      data-wama-batch-key="enhancer_audio_{{ batch_info.obj.id }}"
                      style="border-left:2px solid #198754; margin-left:0.75rem;">
                     {% for item in batch_info.items %}{% if item.audio_enhancement %}
-                    {% include 'enhancer/_audio_card.html' with ae=item.audio_enhancement in_batch=True %}
+                    {% include 'enhancer/_audio_card.html' with elem=item.elem in_batch=True %}
                     {% endif %}{% endfor %}
                 </div>
             </div>

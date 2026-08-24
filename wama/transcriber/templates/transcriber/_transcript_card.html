@@ -1,45 +1,45 @@
 {% load wama_actions %}
 {% comment %}
 WAMA Transcriber — CARD (source UNIQUE du markup — extraction 2026-07-05, audit A2-5/8/9/10).
-Contexte : t = Transcript (hérité ou passé) ; in_batch = True pour une fille de batch.
+Contexte : elem = Transcript (hérité ou passé) ; in_batch = True pour une fille de batch.
 Rendue : (1) au chargement (index.html, cards autonomes ET filles de batch) ;
 (2) par l'endpoint transcriber:card_html → insertion/remplacement in-place côté JS
 (CARD_DESIGN « partial server-side + update JS en place, PAS de rebuild »).
 La copie batch historique avait dérivé (pas de data-status, ni badge temps réel,
 ni badges brouillon/corrigé) — l'unification lui redonne tout.
 {% endcomment %}
-            <div class="synthesis-card wama-card {% if t.status == 'RUNNING' %}processing{% elif t.status == 'SUCCESS' %}success{% elif t.status == 'FAILURE' %}error{% endif %}"
-                 data-id="{{ t.id }}" data-status="{{ t.status }}"
-                 {% if t.is_realtime %}data-cycle-restart-title="Re-transcrire via le pipeline complet (diarisation, résumé…)" data-cycle-restart-icon="fa-rotate"{% endif %}>
+            <div class="synthesis-card wama-card {% if elem.status == 'RUNNING' %}processing{% elif elem.status == 'SUCCESS' %}success{% elif elem.status == 'FAILURE' %}error{% endif %}"
+                 data-id="{{ elem.id }}" data-status="{{ elem.status }}"
+                 {% if elem.is_realtime %}data-cycle-restart-title="Re-transcrire via le pipeline complet (diarisation, résumé…)" data-cycle-restart-icon="fa-rotate"{% endif %}>
                 <div class="wcv3">
                     <!-- File Info -->
                     <div class="wcv3-sec wcv3-sec--input">
                         <span class="wcv3-lbl">Entrée</span>
-                        <span class="wcv3-head">#{{ t.id }}<span class="sep">·</span>{{ t.created_at|date:"d/m H:i" }}</span><small class="text-muted d-block" style="font-size:.65rem;"></small>
-                        {% if t.audio %}
+                        <span class="wcv3-head">#{{ elem.id }}<span class="sep">·</span>{{ elem.created_at|date:"d/m H:i" }}</span><small class="text-muted d-block" style="font-size:.65rem;"></small>
+                        {% if elem.audio %}
                         <button type="button" class="btn btn-link p-0 text-decoration-none preview-media-link filename"
-                                data-preview-url="{% url 'common:unified_preview' 'transcriber' t.id %}"
+                                data-preview-url="{% url 'common:unified_preview' 'transcriber' elem.id %}"
                                 style="color: inherit;">
                             <i class="fas fa-file-audio"></i>
-                            {{ t.filename }}
+                            {{ elem.filename }}
                         </button>
                         {% else %}
                         <span class="filename text-light">
                             <i class="fas fa-link"></i>
-                            {{ t.source_url|truncatechars:40 }}
+                            {{ elem.source_url|truncatechars:40 }}
                         </span>
                         {% endif %}
                         <br>
                         {# Propriétés audio source juste sous le nom, puis la durée en dessous #}
-                        {% if t.properties %}
-                        <small class="text-white-50 d-block"><i class="fas fa-wave-square"></i> {{ t.properties }}</small>
+                        {% if elem.properties %}
+                        <small class="text-white-50 d-block"><i class="fas fa-wave-square"></i> {{ elem.properties }}</small>
                         {% endif %}
                         <small class="text-white-50 d-block">
-                            <i class="fas fa-clock"></i> {{ t.duration_display|default:"--:--" }}
-                            {% if t.is_realtime %}
+                            <i class="fas fa-clock"></i> {{ elem.duration_display|default:"--:--" }}
+                            {% if elem.is_realtime %}
                             <span class="badge bg-info text-dark ms-1" title="Transcription temps réel (micro) — provisoire, re-transcriptible"><i class="fas fa-microphone"></i> temps réel</span>
                             {% endif %}
-                            {% if t.preprocess_audio %}
+                            {% if elem.preprocess_audio %}
                             <span class="badge bg-warning text-dark ms-1">Prétraité</span>
                             {% endif %}
                         </small>
@@ -56,7 +56,7 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                     <div class="wcv3-sec wcv3-sec--settings">
                         <span class="wcv3-lbl">Réglages</span>
                         <small class="wcv3-out">
-                            {% include 'common/_card_chips.html' with chips=t.chips.settings %}
+                            {% include 'common/_card_chips.html' with chips=elem.chips.settings %}
                         </small>
                     </div>
 
@@ -69,16 +69,16 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                     c'est un CONTENU, pas une propriété de sortie.{% endcomment %}
                     <div class="wcv3-sec wcv3-sec--output">
                         <span class="wcv3-lbl">Sortie</span>
-                        {% if t.status == 'SUCCESS' and t.text %}
+                        {% if elem.status == 'SUCCESS' and elem.text %}
                         <div class="wcv3-out">
-                            <span class="wama-chip"><i class="fas fa-align-left"></i><span class="wama-chip-label">Transcription {{ t.text|wordcount }} mots</span></span>
-                            {% if t.enable_diarization %}<span class="wama-chip"><i class="fas fa-users"></i><span class="wama-chip-label">Diarisation{% if t.speaker_count %} ({{ t.speaker_count }} voix){% endif %}</span></span>{% endif %}
-                            {% if t.summary %}<span class="wama-chip"><i class="fas fa-file-lines"></i><span class="wama-chip-label">Résumé {{ t.summary|wordcount }} mots</span></span>{% endif %}
-                            {% if t.coherence_score is not None %}<span class="wama-chip"><i class="fas fa-spell-check"></i><span class="wama-chip-label">Cohérence {{ t.coherence_score }}/100</span></span>{% endif %}
+                            <span class="wama-chip"><i class="fas fa-align-left"></i><span class="wama-chip-label">Transcription {{ elem.text|wordcount }} mots</span></span>
+                            {% if elem.enable_diarization %}<span class="wama-chip"><i class="fas fa-users"></i><span class="wama-chip-label">Diarisation{% if elem.speaker_count %} ({{ elem.speaker_count }} voix){% endif %}</span></span>{% endif %}
+                            {% if elem.summary %}<span class="wama-chip"><i class="fas fa-file-lines"></i><span class="wama-chip-label">Résumé {{ elem.summary|wordcount }} mots</span></span>{% endif %}
+                            {% if elem.coherence_score is not None %}<span class="wama-chip"><i class="fas fa-spell-check"></i><span class="wama-chip-label">Cohérence {{ elem.coherence_score }}/100</span></span>{% endif %}
                         </div>
                         {% else %}
                         <div class="wcv3-out">
-                            <span class="wama-chip wama-chip--blueprint"><i class="fas fa-align-left"></i><span class="wama-chip-label">Transcription{% if t.enable_diarization %} + diarisation{% endif %}{% if t.generate_summary %} + résumé{% endif %}</span></span>
+                            <span class="wama-chip wama-chip--blueprint"><i class="fas fa-align-left"></i><span class="wama-chip-label">Transcription{% if elem.enable_diarization %} + diarisation{% endif %}{% if elem.generate_summary %} + résumé{% endif %}</span></span>
                             {% comment %} Icône export (pas celle du bouton Télécharger) : le chip
                             précède les actions dans le DOM et l'ordre canonique ⚙▶⬇⧉🗑 est MESURÉ
                             sur la première occurrence de chaque icône (btn_order). {% endcomment %}
@@ -88,13 +88,13 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                     </div>
                     <div class="wcv3-sec wcv3-sec--state">
                         <span class="wcv3-lbl">État</span>
-                        {% include 'common/_card_state.html' with status=t.status text=t.text %}
+                        {% include 'common/_card_state.html' with status=elem.status text=elem.text %}
                     
                         {% comment %}Badge, %, ETA et durée vivent dans la section ÉTAT — pas en bas
                         de card. Seule la BARRE traverse toute la largeur (voir wcv3-bar-cell).{% endcomment %}
-                        {% include 'common/_card_progress.html' with status=t.status progress=t.progress elapsed=t.processing_display no_bar=True %}
-                        {% if t.status == 'FAILURE' and t.error_message %}
-                        <small class="text-danger d-block mt-1 text-truncate" title="{{ t.error_message }}">{{ t.error_message|truncatechars:120 }}</small>
+                        {% include 'common/_card_progress.html' with status=elem.status progress=elem.progress elapsed=elem.processing_display no_bar=True %}
+                        {% if elem.status == 'FAILURE' and elem.error_message %}
+                        <small class="text-danger d-block mt-1 text-truncate" title="{{ elem.error_message }}">{{ elem.error_message|truncatechars:120 }}</small>
                         {% endif %}
                     </div>
 
@@ -104,7 +104,7 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                     <div class="wcv3-sec wcv3-sec--actions">
                         <span class="wcv3-lbl">Actions</span>
                         <div class="btn-group-actions wcv3-actions">
-                            {% if t.status != 'RUNNING' %}
+                            {% if elem.status != 'RUNNING' %}
                             {# Ordre conventionnel : ⚙ Paramètres → ▶ Start (cf. WAMA_APP_CONVENTIONS §6) #}
                             {% comment %}data-* DÉRIVÉS du schéma (brique commune card_gear,
                             portage 2026-08-19 — transcriber avait été sauté le 18/08).
@@ -112,20 +112,20 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                             par défaut de l'inspecteur.{% endcomment %}
                             <button class="btn btn-sm btn-outline-secondary settings-btn"
                                     data-action="settings"
-                                    data-id="{{ t.id }}"
-                                    {% for k, v in t.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}
+                                    data-id="{{ elem.id }}"
+                                    {% for k, v in elem.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}
                                     title="Paramètres">
                                 <i class="fas fa-cog"></i>
                             </button>
                             {% endif %}
                             {# Bouton de cycle ▶/⏹/↻ — brique commune (toujours visible, ⏹ pendant RUNNING) #}
-                            {% if t.is_realtime %}
-                            {% include 'common/_cycle_button.html' with id=t.id status=t.status restart_title='Re-transcrire via le pipeline complet (diarisation, résumé…)' restart_icon='fa-rotate' %}
+                            {% if elem.is_realtime %}
+                            {% include 'common/_cycle_button.html' with id=elem.id status=elem.status restart_title='Re-transcrire via le pipeline complet (diarisation, résumé…)' restart_icon='fa-rotate' %}
                             {% else %}
-                            {% include 'common/_cycle_button.html' with id=t.id status=t.status %}
+                            {% include 'common/_cycle_button.html' with id=elem.id status=elem.status %}
                             {% endif %}
 
-                            {% if t.status == 'SUCCESS' %}
+                            {% if elem.status == 'SUCCESS' %}
                             {# Bouton œil retiré : double-clic sur la preview en bas de card → overlay #}
                             {% comment %}Bouton ÉDITER — nom canonique `edit-btn` (2026-08-23) : ce
                             geste s'appelle « edit » partout, jamais « correction » ni
@@ -135,26 +135,26 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                             le bouton d'environ 60 px, poussant la corbeille à la ligne
                             suivante. Le libellé n'est pas perdu : il est passé dans le
                             `title`.{% endcomment %}
-                            <a href="{% url 'transcriber:edit' t.id %}"
+                            <a href="{% url 'transcriber:edit' elem.id %}"
                                class="btn btn-sm btn-outline-primary edit-btn"
-                               data-edit-state="{{ t.correction_status|default:'none' }}"
-                               title="Éditer (éditeur audio + texte){% if t.correction_status == 'draft' %} — brouillon en cours{% elif t.correction_status == 'done' %} — corrigé{% endif %}">
+                               data-edit-state="{{ elem.correction_status|default:'none' }}"
+                               title="Éditer (éditeur audio + texte){% if elem.correction_status == 'draft' %} — brouillon en cours{% elif elem.correction_status == 'done' %} — corrigé{% endif %}">
                                 <i class="fas fa-pen-to-square"></i>
                             </a>
                             {% comment %}⬇ : brique commune (2026-08-23). Les formats viennent de
                             `export_formats` au catalogue — le dropdown n'est plus écrit ici.
                             ⚠ COMPORTEMENT PRÉSERVÉ, PAS CORRIGÉ : ce bloc est tout entier sous
-                            `{% templatetag openblock %} if t.status == 'SUCCESS' {% templatetag closeblock %}`, donc hors succès la card n'affiche AUCUN
+                            `{% templatetag openblock %} if elem.status == 'SUCCESS' {% templatetag closeblock %}`, donc hors succès la card n'affiche AUCUN
                             bouton ⬇, là où §6.3 prescrit un `<button disabled>`. Le rendre ici
                             ferait apparaître un bouton de plus sur toutes les cards en attente —
                             un changement visible qui n'appartient pas à un portage de brique.
                             Consigné, à trancher séparément.{% endcomment %}
-                            {% url 'transcriber:download' t.id as url_dl %}
+                            {% url 'transcriber:download' elem.id as url_dl %}
                             {% bouton_telecharger 'transcriber' url_dl True %}
                             {% endif %}
 
                             <button class="btn btn-sm btn-outline-warning duplicate-btn"
-                                    data-duplicate-url="{% url 'transcriber:duplicate' t.id %}"
+                                    data-duplicate-url="{% url 'transcriber:duplicate' elem.id %}"
                                     title="Dupliquer{% if in_batch %} dans le batch{% endif %} (tester un autre modèle)">
                                 <i class="fas fa-copy"></i>
                             </button>
@@ -163,8 +163,8 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                             La SUITE (retrait de card sans reload, inspecteur, polling) reste
                             déclarée côté app via `WamaQueueActions.onDeleted`.{% endcomment %}
                             <button class="btn btn-sm btn-outline-danger delete-btn"
-                                    data-id="{{ t.id }}"
-                                    data-delete-url="{% url 'transcriber:delete' t.id %}"
+                                    data-id="{{ elem.id }}"
+                                    data-delete-url="{% url 'transcriber:delete' elem.id %}"
                                     data-confirm="Supprimer cette transcription ?"
                                     title="Supprimer">
                                 <i class="fas fa-trash"></i>
@@ -176,7 +176,7 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                     COUPE la première ligne : État restait en haut et les Actions basculaient sur une
                     rangée suivante. La position dans le DOM compte autant que le CSS.{% endcomment %}
                     <div class="wcv3-bar-cell">
-                        {% include 'common/_card_progress.html' with status=t.status progress=t.progress elapsed=t.processing_display bar_only=True %}
+                        {% include 'common/_card_progress.html' with status=elem.status progress=elem.progress elapsed=elem.processing_display bar_only=True %}
                     </div>
                 </div>
                 {% comment %}Preview compacte (niveau 1) sous la barre ; double-clic → overlay
@@ -189,14 +189,14 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                 Le rendu commun n'écrit que le contenu de l'hôte : le geste, `data-id` et les
                 classes survivent intacts. Le span interne disparaît, ses propriétés visuelles
                 (text-light, 48px, overflow) passent sur l'hôte — aucune CSS ne le ciblait.
-                ⚠ Garde `SUCCESS and t.text` conservée À L'IDENTIQUE : `?side=output` replie
+                ⚠ Garde `SUCCESS and elem.text` conservée À L'IDENTIQUE : `?side=output` replie
                 silencieusement sur l'ENTRÉE quand il n'y a pas de sortie (mesuré 22/08), et un
                 transcript FAILURE peut porter du texte partiel — l'app avait déjà tranché.{% endcomment %}
-                {% if t.status == 'SUCCESS' and t.text %}
-                {% url 'common:unified_preview' 'transcriber' t.id as pv_out %}
+                {% if elem.status == 'SUCCESS' and elem.text %}
+                {% url 'common:unified_preview' 'transcriber' elem.id as pv_out %}
                 <div class="wama-card-preview mt-2 p-2 rounded bg-black bg-opacity-50 small text-light"
                      style="max-height:48px; overflow:hidden;"
-                     data-id="{{ t.id }}" title="Double-cliquez pour voir le résultat"
+                     data-id="{{ elem.id }}" title="Double-cliquez pour voir le résultat"
                      data-card-preview="{{ pv_out }}?side=output"
                      data-preview-mode="excerpt" data-preview-max-chars="160"></div>
                 {% endif %}

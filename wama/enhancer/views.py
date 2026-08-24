@@ -1797,7 +1797,7 @@ def card_html(request, pk):
     e = get_object_or_404(Enhancement, pk=pk, user=_req_user(request))
     _decorate_media_card(e)  # chips du schéma — même décoration que l'IndexView
     in_batch = BatchEnhancementItem.objects.filter(enhancement=e).exists()
-    return render(request, 'enhancer/_enhancement_card.html', {'e': e, 'in_batch': in_batch})
+    return render(request, 'enhancer/_enhancement_card.html', {'elem': e, 'in_batch': in_batch})
 
 
 def audio_card_html(request, pk):
@@ -1805,7 +1805,7 @@ def audio_card_html(request, pk):
     ae = get_object_or_404(AudioEnhancement, pk=pk, user=_req_user(request))
     _decorate_audio_card(ae)  # chips du schéma — même décoration que l'IndexView
     in_batch = BatchAudioEnhancementItem.objects.filter(audio_enhancement=ae).exists()
-    return render(request, 'enhancer/_audio_card.html', {'ae': ae, 'in_batch': in_batch})
+    return render(request, 'enhancer/_audio_card.html', {'elem': ae, 'in_batch': in_batch})
 
 
 
