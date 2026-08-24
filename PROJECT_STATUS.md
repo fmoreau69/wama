@@ -6583,9 +6583,8 @@ grep trop large (`splitext.*lower`, `rsplit('.')`) qui attrapait tout découpage
 Resserré au motif réel (qui redéfinit ou re-mappe un jeu d'extensions), hors venvs tiers :
 **l'enhancer, et lui seul**, avec 4 sites.
 
-**Défaut RÉEL trouvé et corrigé** — `views.py:1087` redéfinissait `_AUDIO_EXTENSIONS` en dur, en
-**omettant `.aif` et `.aiff`**. Les deux portes d'entrée audio (dépôt depuis la médiathèque
-`:1113`, upload direct `:1142`) rendaient donc **400 « Format audio non supporté »** sur un
+**Défaut RÉEL trouvé et corrigé** — `enhancer/views.py` redéfinissait `_AUDIO_EXTENSIONS` en dur, en
+**omettant `.aif` et `.aiff`**. Les deux portes d'entrée audio (dépôt depuis la médiathèque et upload direct) rendaient donc **400 « Format audio non supporté »** sur un
 fichier que la dropzone (`accept="audio/*"`) laisse choisir et que le commun classe en audio.
 ⚠ **Un sous-ensemble ne lève rien — il refuse.** Décodage vérifié AVANT d'élargir : soundfile
 (vers qui torchaudio est patché) écrit et relit l'AIFF (aller-retour réel de 16 000 échantillons).
