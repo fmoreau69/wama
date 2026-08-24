@@ -36,8 +36,21 @@ DOSSIERS_EXCLUS = {
     'musetalk', 'codeformer',   # vendored upstream
 }
 
-#: Racines de NOTRE code.
-RACINES = ('wama', 'wama_lab')
+#: Racines de NOTRE code — **les TROIS mondes** (`docs/VISION_STATUS.md §Architecture en MONDES`).
+#:
+#: ⚠ `wama_data` MANQUAIT, et le défaut était SILENCIEUX au pire endroit possible (corrigé le
+#: 2026-08-24). Le monde Data est sorti du substrat le 22/08 (`wama/common/data/` → `wama_data/`)
+#: et cette liste n'a pas suivi : **57 fichiers étaient invisibles au balayage**. Conséquence, un
+#: mécanisme du monde Data ne pouvait avoir QUE zéro consommateur — ses appelants vivent chez lui.
+#: `WAMA_MECANISMES.md` affichait donc `temporal_referential`, `data_frames_bridge`, `data_vue` et
+#: `data_noms` dans la liste « ⚠ sans consommateur (brique morte ou pas encore adoptée) », alors
+#: que `frames.py` consomme le référentiel et que `vue.py` consomme `frames.py`.
+#:
+#: ⚠⚠ Et c'est le cas le plus coûteux d'instrument faux : il ne se trompait pas au hasard, il
+#: accusait **précisément le monde qu'il ne regardait pas**. Un zéro produit par une absence de
+#: mesure est indiscernable d'un zéro mesuré — c'est ce qui l'a rendu crédible pendant deux jours.
+#: Ajouter un monde à WAMA = ajouter sa racine ici, dans le même commit que le déport.
+RACINES = ('wama', 'wama_lab', 'wama_data')
 
 
 def modules_python(base: Path):
