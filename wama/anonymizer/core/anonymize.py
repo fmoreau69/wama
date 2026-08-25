@@ -295,9 +295,13 @@ class Anonymize(DetectionBackend):
             for media in os.listdir(self.input_path):
                 media_path = os.path.join(self.input_path, media)
                 self.input_path = media_path
-                name, ext = os.path.splitext(media)
+                # Brique COMMUNE de nommage (2026-08-25) : `<stem>_<process>_<modèle><ext>`.
+                # Rendu IDENTIQUE à la graphie historique — le mot `blurred` est désormais
+                # DÉCLARÉ (`output_tag`) au lieu d'être écrit ici, donc changeable en un point.
+                from wama.common.utils.output_naming import compose_output_name
                 self.output_path = os.path.join(
-                    self.destination, f"{name}_blurred_{model_suffix}{ext}"
+                    self.destination,
+                    compose_output_name(app='anonymizer', model=model_suffix, source_name=media),
                 )
 
                 if is_image(media_path):
@@ -308,8 +312,12 @@ class Anonymize(DetectionBackend):
         # TODO: File list
         # File
         else:
-            name, ext = os.path.splitext(os.path.basename(self.input_path))
-            self.output_path = os.path.join(self.destination, f"{name}_blurred_{model_suffix}{ext}")
+            from wama.common.utils.output_naming import compose_output_name
+            self.output_path = os.path.join(
+                self.destination,
+                compose_output_name(app='anonymizer', model=model_suffix,
+                                    source_name=self.input_path),
+            )
 
             if is_image(self.input_path):
                 self.process_image(self.input_path, self.output_path, **kwargs)
