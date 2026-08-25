@@ -2841,6 +2841,99 @@ codage vidéo, filtrage, segmentation conditionnelle, segmentation temporelle).
 avant de conclure**. La cartographie de §9ter s'est faite depuis des schémas, et c'est là que les
 trois affirmations fausses sont nées.
 
+### 11.8 L'UI DU MONDE DATA — le Data Analyzer HÉRITE de la file du monde Médias (2026-08-25)
+
+> Décisions de la discussion du 2026-08-25. Le point de départ de Fabien était « une UI différente,
+> sur la base de BIND_GUI » ; la conclusion est l'inverse : **le monde Data adopte la file du monde
+> Médias** — un `.wdat` est une **card**, les modules s'appliquent à la card ou au batch, et tout le
+> travail déjà payé (densités, pile, volets, inspecteur, tri/filtrage à venir) est **hérité** au
+> lieu d'être refait. ⚠ Ces décisions fixent la STRUCTURE ; le détail des écrans reste soumis à la
+> méthode de §11.7 (rattacher chaque écran au code de `BIND_GUI` avant de conclure).
+
+**① Le Data Analyzer = l'app-file du monde Data**, à l'image de Describer/Anonymizer/Transcriber.
+Les modules de §7 ne sont **ni des apps, ni un onglet chacun** : ce sont des **surfaces ouvertes
+depuis les boutons d'action de card** (l'équivalent des actions de card du monde Médias), et la
+surface est **DÉCLARÉE par module**, pas codée en dur :
+
+| surface | pour | exemples |
+|---|---|---|
+| **modale** | modules légers (paramétrer, lancer) | paramètres d'import, export |
+| **page dédiée** | modules lourds et interactifs — précédent : la page de correction du Transcriber, déjà doctrine (`capabilities.edit_page`, `MODES_QUEUE_UX §7`) | Explorer, Segmenter en codage vidéo, Visualizer |
+
+⭐ **Réconciliation moteur/UI** — « l'Explorer est l'interface du Calculator » (§9quater) et « les
+modules sont des modales/pages depuis la card » (Fabien, 25/08) **ne se contredisent pas** : la
+première parle des **MOTEURS** (pas de moteur Explorer séparé), la seconde de l'**UI**. La surface
+Explorer ouverte depuis une card reste **motorisée par** le Calculator. Ce que §9quater interdit,
+c'est un moteur Explorer distinct, pas un bouton Explorer.
+
+**② La correspondance BIND ↔ WAMA — corrigée par Fabien.** La première version (Liste→file) était
+**fausse** : la file WAMA est **CURATÉE**, on n'y verse pas un dossier entier hors batch.
+
+| BIND_GUI (`catalogue.png`) | WAMA |
+|---|---|
+| **Liste** (dossier chargé) | **l'explorateur** (volet gauche global) — on y CONNECTE un dossier de données |
+| **Sélection** | **la file** — chaque envoi crée un **batch** |
+| trip **`(réf)`** | pas de card marquée — remplacé par la **promotion fille↔mère** (③) |
+
+Le flux : connecter un dossier → **trier/filtrer** → « envoyer vers » / drag&drop → un batch
+(ex. « les `.wdat` du scénario S3 »). ⭐ **Le tri/filtrage de l'explorateur, pour le monde Data,
+est un filtrage par AXES (§13)** : les `.wdat` portent leurs coordonnées en méta (`WamaMeta`, D21),
+donc « créer le batch du scénario S3 » n'est pas un multi-select manuel, c'est un **group-by sur un
+axe du plan d'expérience**. Le rangement déclaré au §13 devient directement le moteur du
+tri/filtrage/groupement — rien à inventer, un câblage.
+
+⭐ **Le garde-fou batch est calculable depuis l'existant** : un traitement ne se propose au batch
+que si `entrées typées de la FunctionSpec ⊆ ∩ des catalogues de flux des filles` — les deux côtés
+existent (le `FUNCTION_CATALOG` type les E/S ; le lecteur `.wdat` expose le catalogue, §9terdecies).
+⚠ Ne jamais griser en silence : le refus **dit quelle fille manque de quoi**.
+
+**③ La promotion fille↔mère REMPLACE la « card de référence ».** Proposition de Fabien, meilleure
+qu'un marqueur `(réf)` : elle **réutilise** l'héritage existant (les paramètres de la mère
+s'appliquent aux filles sauf override individuel) et y ajoute **deux gestes symétriques** —
+**↑ promouvoir** les réglages d'une fille vers la mère (qui les applique au batch) et
+**↓ réaligner** les filles sur la mère. Conséquences : **n'importe quelle card peut être la
+référence**, et on peut régler **plusieurs filles en parallèle** (comparaison A/B) avant de
+promouvoir la gagnante. Le mécanisme **bénéficie aux deux mondes** → consigné au domaine file :
+**`MODES_QUEUE_UX.md §5ter`**. ⚠ **La charge utile diffère et se DÉCLARE** : monde Médias = le dict
+de paramètres ; monde Data = le **protocole** (§9undecies) accumulé sur la card, qui subsume les
+paramètres. Le garde-fou de ② s'applique **au moment de la promotion**. Complète §11.4 (item vs
+lot) sans le recouvrir : §11.4 dit **sur quoi** on applique ; la promotion dit **comment** le
+réglage de la référence devient celui du lot.
+
+**④ Le studio = second éditeur du MÊME protocole.** Deux chemins de construction du pipeline
+coexistent (promotion depuis une card ; canvas du studio) — règle : **UNE représentation** (le
+manifeste `pipeline` étendu, D13), **DEUX éditeurs**. Sinon deux formats de pipeline divergent.
+Cf. `MODES_QUEUE_UX §6` (« la file = une méta-app à une app »).
+
+**⑤ Afficher le contenu d'un `.wdat` — trois niveaux, et l'inspecteur NE CHANGE PAS de rôle.**
+L'inspecteur reste infos/pipeline/actions de la card, comme au monde Médias — pas d'arbre de
+contenu dedans.
+
+| niveau | surface | contenu |
+|---|---|---|
+| coup d'œil | **preview dans la card** (équivalent de la miniature média) | mini-tableur + sparklines des flux principaux |
+| consultation | **preview développée** (le « clic pour développer » existe déjà) | tables data/events/situations feuilletables |
+| travail | **page Explorer dédiée par card** (la surface « page dédiée » de ①) | arbre local (Datas/Events & Situations/Metas, comme BIND) + tableur + graphes + fenêtres du Visualizer |
+
+⚠ **L'arborescence INTRA-fichier ne va PAS dans le volet gauche GLOBAL** (qui reste un explorateur
+de FICHIERS). La référence BIND est respectée un cran plus bas : l'arbre de `BIND_GUI` vivait *dans
+la fenêtre de l'app* — son équivalent est le volet gauche **de la page Explorer de la card**.
+
+**⑥ Le Visualizer — fenêtres flottantes synchronisées dans la page.** Les plugins graphiques se
+lancent **à chaud** et se déplacent/redimensionnent dans le navigateur, comme des fenêtres à
+l'intérieur de la page (layout persisté par utilisateur). Le **magnéto (§5) est le BUS de
+synchronisation** : chaque fenêtre s'abonne au temps courant. ⚠ Le point de conception à fixer EN
+PREMIER n'est pas le fenêtrage, c'est le **contrat de synchronisation** (quel événement, quelle
+granularité temporelle, qui est maître) — c'est lui qui décide si un plugin s'écrit en 50 lignes ou
+en 500. Le bornage des plugins reste celui de §4 (déjà figé).
+
+**⑦ Évolutions du volet gauche global** (substrat, pas monde Data) : regrouper les apps Médias sous
+une catégorie `media` à côté de `lab` / `data` quand leurs UI existeront, et **changer d'app en
+cliquant son dossier** dans l'explorateur. → consignées au domaine : **`WAMA_VOLETS.md §8`**.
+
+**⑧ Le bundle corpus `.wds`** s'exporte **depuis la card mère du batch** et se réimporte **en
+batch** — voir **D26** (§10).
+
 ---
 
 ## 9bis.6 Ce que la cartographie n'a pas couvert — à traiter avant l'Importer v2
@@ -2943,15 +3036,52 @@ universel, testé ici — pas conçu ici.**
 
 ### 13.3 LE MODÈLE — `axes[]` : vocabulaire de RÔLES fermé, clés et libellés OUVERTS
 
-Quatre rôles suffisent, et ils ne sont pas arbitraires : ce sont ceux qui **changent ce qu'on a le
-droit de calculer**.
+**TROIS rôles**, et chacun énonce un **fait structurel sur le corpus** — jamais un choix d'analyse.
 
-| rôle | ce qu'il est | ce qu'il change |
+| rôle | ce que c'est (fait structurel) | exemples, tous domaines |
 |---|---|---|
-| `observation` | l'**unité d'observation** | porte l'**indépendance** — le découpage, les degrés de liberté |
-| `block` | un **regroupement** dont on compare les niveaux | comparaison **inter-sujets** (between) |
-| `factor` | un niveau **manipulé**, croisé avec l'unité | comparaison **intra-sujet** (within), mesures répétées |
-| `covariate` | **mesuré**, jamais manipulé | décrit, ne structure pas |
+| `observation` | l'**unité d'observation** — le grain du corpus | participant · éprouvette · site de comptage |
+| `factor` | ce qui **IDENTIFIE** une observation — sa suppression rend deux observations indiscernables | groupe d'âge · scénario · journée de passation · véhicule · expérimentateur · série d'essais |
+| `attribute` | ce qui **QUALIFIE** une observation **sans l'identifier** | âge en années · kilométrage annuel · sexe simplement relevé · lot matière |
+
+> ⚠ **Définition corrigée le 2026-08-25 (objection de Fabien).** La première rédaction disait
+> *« une valeur **mesurée sur** une unité »* — mauvaise sur deux points, et il en a vu un :
+> ① *« mesurée »* exclut à tort les attributs **discrets et non mesurés** (sexe, main dominante,
+> catégorie de permis) ; ② *« unité »* rejouait la collision qu'on venait d'écarter.
+> Le bon critère ne parle **ni de mesure, ni d'unité, ni de continu vs discret** — il parle
+> d'**identification**, et il vient de SDMX (§13.3ter).
+
+Attributs portés, en plus du rôle :
+
+| attribut | sur | ce qu'il dit |
+|---|---|---|
+| `contains` / `crosses` | `factor` | **niché** ou **croisé** avec l'unité d'observation |
+| `manipulated: true\|false` | `factor` | le protocole a-t-il **assigné** ce niveau, ou seulement **constaté** ? |
+| `counterbalanced: true` | `factor` | l'ordre a été contrebalancé (effets d'apprentissage contrôlés) |
+| `derived_from` | `factor` | ce facteur est un **découpage d'un attribut** — `groupe_age` ← `age` |
+
+> ⭐ **`derived_from` décrit exactement la pratique du laboratoire** : « des catégories d'âge
+> **définies par les chercheurs** ». L'attribut est le fait brut, le facteur est la partition que le
+> chercheur en tire. Les deux coexistent, et le lien est déclaré au lieu d'être perdu.
+
+#### ⚠⚠ Ce qui a été RETIRÉ, et pourquoi — `block` et `covariate`
+
+La première rédaction (2026-08-25, matin) proposait quatre rôles dont `block` et `covariate`.
+**Retirés le jour même après confrontation aux sources statistiques**, à la demande de Fabien
+(*« je ne comprends pas le terme… vérifie ce que tu trouves »* — il avait raison sur les deux).
+
+| terme | ce qu'il désigne réellement | pourquoi il ne peut pas être un rôle déclaré |
+|---|---|---|
+| **`block`** | un facteur de **NUISANCE** : « pas d'intérêt pour la question de recherche », dont on absorbe la variance pour dégager le signal | « sans intérêt » est un **jugement d'analyse**, pas un fait de corpus. Le groupe d'âge est un bloc dans une étude et **la question de recherche** dans la suivante |
+| **`covariate`** | un prédicteur (généralement continu) **inclus pour contrôler** son effet | même défaut : c'est un **rôle dans un modèle donné**. Les sources le disent — la distinction facteur/covariable « reflète le rôle de la variable dans le modèle autant que son échelle de mesure », et une covariable **peut** être catégorielle |
+
+> **La règle qui en découle, et qui vaut au-delà de ce fil :**
+> **le manifeste déclare ce que le CORPUS est, jamais ce qu'une ANALYSE en fera.**
+> Figer `block`/`covariate` dans la déclaration reviendrait à graver un choix d'analyse dans la
+> description du corpus — et à le rendre faux dès la deuxième question de recherche.
+
+Rien n'est perdu : `block` et `covariate` restent des **rôles d'analyse**, choisis au moment de
+l'analyse, à partir des faits déclarés ici.
 
 > ⚠⚠ **`unit` était le nom naturel — il est INTERDIT, et le mot est pris DEUX FOIS, pas une.**
 > Vérifié le 2026-08-25 sur la question de Fabien.
@@ -2965,8 +3095,21 @@ droit de calculer**.
 > le souligne déjà comme un acquis (*« `unit` est déclarée par variable »*). Un `role: unit` aurait
 > mis trois sens du même mot dans un rayon de deux tables.
 >
-> Retenu : **`observation`**, **0 occurrence** dans le dépôt (mesuré). `block`, `factor`,
-> `covariate` : **0 collision** également.
+> Retenu : **`observation`**, **0 occurrence** dans le dépôt (mesuré). `factor` et `attribute` :
+> **0 collision** également.
+>
+> #### Faut-il spécialiser les DEUX autres ? (proposition de Fabien : `org_unit` / `mes_unit`)
+>
+> **Non — et c'est mesuré, pas une préférence.** Le mot n'était ambigu que **dans le nom qu'on
+> s'apprêtait à ajouter** ; les deux usages en place sont chacun désambiguïsés par leur contexte.
+>
+> | usage | renommer ? | pourquoi |
+> |---|---|---|
+> | `visibility: 'unit'` → `org_unit` | ❌ **non** | c'est une **valeur stockée en base** (`Manifest.visibility` + `ScopedVisibility.VIS_UNIT` sur les modèles d'app) : migration de données + ~15 sites d'appel, pour un mot **déjà désambiguïsé par son champ** (`visibility`) et son compagnon (`scope_org_unit`) |
+> | `unit` (unité de mesure) → `mes_unit` | ❌ **non, et surtout pas** | c'est la **convention universelle** (netCDF/CF, UCUM, pint, HDF5) **et** le nom de colonne réel de `.trip` (`MetaDataVariables.unit`) : le renommer casserait la lecture du format qu'on importe, pour un mot qui, dans une table `variables`, ne peut rien signifier d'autre |
+>
+> ⇒ **Zéro renommage.** Une fois le nouveau rôle nommé `observation`, les trois sens cessent de se
+> croiser : `visibility: unit` (enveloppe), `role: observation` (axes), `unit: m/s` (variables).
 
 Et la relation, **qui est le morceau qui manque partout** :
 
@@ -2976,10 +3119,16 @@ Et la relation, **qui est le morceau qui manque partout** :
 ```yaml
 axes:
   - key: participant   role: observation
-  - key: groupe        role: block       contains: participant   levels: ref:groupes_age
-  - key: scenario      role: factor      crosses:  participant   counterbalanced: true
-  - key: age           role: covariate   attached_to: participant
+  - key: groupe_age    role: factor      contains: participant   manipulated: false
+                       levels: ref:groupes_age   derived_from: age
+  - key: scenario      role: factor      crosses:  participant   manipulated: true
+                       counterbalanced: true
+  - key: age           role: attribute   attached_to: participant   unit: year
 ```
+
+**Les deux `factor` ne diffèrent que par deux attributs déclarés** — et ces deux attributs sont
+exactement ce qui change les conclusions : `contains` vs `crosses` donne inter- ou intra-sujets ;
+`manipulated` donne le droit (ou non) de parler d'effet plutôt que d'association.
 
 > ⭐ **C'est `contains` vs `crosses` qui distingue les deux pratiques du laboratoire** — comparer des
 > groupes, et comparer des scénarios chez un même participant. À profondeur de dossier identique,
@@ -2990,14 +3139,182 @@ axes:
 **L'universalité vient de là** : le vocabulaire de **rôles** est fermé (4 valeurs), les **clés et
 libellés** sont ouverts. « Participant / groupe / scénario » sont des **libellés**, pas des rôles.
 
-| domaine | `observation` | `block` | `factor` | `covariate` |
+| domaine | `observation` | `factor` (niché) | `factor` (croisé) | `attribute` |
 |---|---|---|---|---|
-| conduite | participant | groupe d'âge | scénario | âge, expérience |
-| essais mécaniques | éprouvette | **série** d'essais | température, machine | lot matière |
-| flux de trafic | site | axe routier | période, météo | trafic moyen |
+| conduite | participant | groupe d'âge, journée de passation | scénario, condition de trafic | âge, kilométrage annuel |
+| essais mécaniques | éprouvette | **série** d'essais, machine | température, vitesse de charge | lot matière, épaisseur |
+| flux de trafic | site de comptage | axe routier | période, météo | trafic moyen journalier |
 
 Rien à redéfinir par domaine : on **déclare des axes**, on ne choisit pas dans une liste fermée de
 niveaux métier.
+
+### 13.3bis CONFRONTATION AUX TERMES STATISTIQUES — sourcée, et elle m'a donné tort (2026-08-25)
+
+> Demandée par Fabien parce que la taxonomie doit tenir pour la future couche statistique :
+> *« autant qu'on trouve la bonne taxonomie pour ne pas risquer des confusions plus tard »*.
+> Quatre points vérifiés, dont **trois corrigent ce que j'avais écrit le matin même**.
+
+**① Un scénario EST un facteur — et un groupe d'âge aussi.** J'avais opposé « `block` = groupe
+d'âge » à « `factor` = scénario ». C'est faux. En plan d'expérience, **tout prédicteur catégoriel
+est un facteur** : « les manipulations expérimentales *et* les prédicteurs catégoriels
+observationnels (sexe, moment, statut) comptent tous deux comme des facteurs ». Le doute de Fabien
+(*« un scénario n'est pas un facteur »*) venait du sens courant de « facteur explicatif », qui est
+un **troisième** usage du mot — et une source note que `factor` est de toute façon ambigu, puisqu'il
+désigne « quelque chose d'entièrement différent en analyse factorielle, où il est continu ».
+
+**② Ce qui sépare les deux n'est PAS le mot, c'est un attribut — et il gouverne les conclusions.**
+Toujours d'après la même source : *« qu'un facteur soit observationnel ou manipulé n'affecte pas
+l'analyse, mais affecte les conclusions qu'on peut en tirer »*. ⭐ **C'est la justification exacte
+de `manipulated: true|false`** : la propriété est trop décisive pour rester implicite dans un nom
+de rôle, où personne ne la déclarerait.
+
+**③ `contains` / `crosses` encode DÉJÀ inter- vs intra-sujets — confirmé mot pour mot.**
+*« Dans un facteur inter-sujets, les sujets sont **nichés dans** les niveaux du facteur ; dans un
+facteur intra-sujets (mesures répétées), les sujets sont **croisés avec** le facteur. »* Deux rôles
+séparés `block`/`factor` pour porter cette information étaient donc **redondants** avec la relation.
+Et le critère formel de croisement est vérifiable mécaniquement — « au moins une observation dans
+chaque combinaison » — ce qui rejoint la réfutation arithmétique du §13.6.
+
+**④ `block` est un facteur de NUISANCE, pas un regroupement d'intérêt.** *« Un facteur de nuisance
+a probablement un effet sur la réponse, mais n'est pas un facteur qui vous intéresse. »* Le tableau
+canonique oppose « intérêt : question de recherche principale » à « nuisance : sans intérêt ».
+⇒ Appeler `block` le groupe d'âge — qui **est** la question de recherche au laboratoire — était un
+contresens. Et « sans intérêt » n'étant pas un fait de corpus, `block` ne peut pas être un rôle
+déclaré (voir §13.3).
+
+**⑤ `covariate` est un rôle de modèle, pas une nature.** La convention dominante (facteur =
+catégoriel, covariable = continu) est *« une convention, pas une règle stricte »* : une covariable
+**peut** être catégorielle, et la distinction *« reflète le rôle de la variable dans le modèle
+autant que son échelle de mesure »*. Fabien l'avait dit autrement — *« covariate est un facteur à
+mon sens, l'âge peut expliquer les difficultés »* — et c'est le même constat.
+
+> **Bilan de la confrontation.** La taxonomie retenue ne renomme pas le vocabulaire statistique :
+> elle le **coupe au bon endroit**. Ce qui est stable (le grain, ce qui indexe, ce qui décrit, ce
+> qui a été assigné, ce qui est niché ou croisé) est **déclaré dans le corpus** ; ce qui dépend de
+> la question posée (intérêt vs nuisance, facteur vs covariable) reste **au moment de l'analyse**.
+
+**Sources** (consultées le 2026-08-25) — Penn State STAT 502/503 (blocs et facteurs de nuisance) ·
+NC3RS Experimental Design Assistant (variables indépendantes) · The Analysis Factor, K. Grace-Martin
+(croisé vs niché ; « Confusing Statistical Terms : Covariate ») · Laerd Statistics et Wikipédia
+(ANCOVA, covariable catégorielle) · « Teaching Design of Experiments using Hasse diagrams »
+(arXiv:1912.08567, structure d'unités vs structure de traitements).
+
+### 13.3ter CONFRONTATION AUX STANDARDS DE MÉTADONNÉES — cinq, et ils convergent (2026-08-25)
+
+> Demandée par Fabien : *« j'avais regardé s'il n'existait pas déjà des taxonomies existantes pour
+> ne pas réinventer »*, et *« vois si BORIS ne gère pas aussi cette taxonomie catégorielle »*.
+> Résultat : **le modèle n'est pas inventé — il est réinventé, et mal nommé jusqu'ici**.
+
+#### ⚠ D'ABORD, SÉPARER DEUX COUCHES QU'ON CONFOND (le filtre demandé)
+
+Une discussion antérieure (EDAM, bio.tools, Galaxy, ToolShed/ToolDog, AgentCard A2A, registre MCP,
+échec d'OWL-S/UDDI) portait sur une **autre question** que celle-ci. Les deux comptent pour WAMA,
+mais elles ne se répondent pas :
+
+| couche | la question | prior art pertinent | où dans WAMA |
+|---|---|---|---|
+| **CAPACITÉS** | « que sait faire cet outil, sur quoi, sous quel encodage » | **EDAM** (4 axes orthogonaux `operation`/`data`/`format`/`topic`), bio.tools, Galaxy tool XML, AgentCard, registre MCP · et l'**échec d'OWL-S** comme avertissement | `FunctionSpec`, `data_types.py`, kinds `function`/`app`/`model` |
+| **PLAN D'EXPÉRIENCE** | « comment CE corpus est organisé » | **SDMX · DDI · BIDS · Psych-DS · BORIS** | kind `dataset` + `axes[]` (ce §13) |
+
+⇒ **Le conseil « les 4 axes d'EDAM corrigent ton dict `capabilities` libre » vise la PREMIÈRE
+couche**, pas celle-ci. Il reste juste — et à traiter dans `WAMA_APP_GENERATION_ROUTE.md` /
+`WAMA_MANIFEST_SPEC.md`, pas ici. **Aucune** des sources de cette discussion ne traite le plan
+d'expérience, sauf BIDS au passage. Appliquer EDAM aux axes serait une erreur de couche.
+
+#### ⭐⭐ SDMX (ISO 17369) donne LE critère — et il ne parle ni de mesure ni d'unité
+
+La *Data Structure Definition* de SDMX — le standard d'échange statistique des instituts nationaux —
+n'a que **trois constructions**, et leur définition est exactement la nôtre :
+
+| SDMX | définition officielle | notre rôle |
+|---|---|---|
+| **Dimension** | *composante **identifiante*** — « les dimensions forment ensemble la **clé primaire** » d'une observation | **`factor`** (dont `observation` = la plus fine) |
+| **Measure** | le phénomène observé, la valeur | ⭐ **`signals[]`** — déjà présent dans le kind `dataset` |
+| **Attribute** | *« n'aide pas à identifier les observations, mais y **ajoute une information utile** »*, rattaché à un **niveau déclaré** (dataset / groupe / série / observation) | **`attribute`** |
+
+> **LE TEST, mécanique** : *retire la composante — deux observations deviennent-elles
+> indiscernables ?* **Oui → `factor`. Non → `attribute`.**
+> Rien sur « mesuré », rien sur l'unité, rien sur continu vs discret. Le `sexe` peut être l'un ou
+> l'autre, et c'est le protocole qui tranche : recrutement par quotas et comparaison → il identifie
+> ; simplement relevé → il qualifie.
+
+⭐ **Conséquence forte : le kind `dataset` portait DÉJÀ deux des quatre constructions SDMX** —
+`signals[]` (measures) et `reference_tables` (codelists). Il ne lui manquait que les dimensions et
+les attributs. Le modèle n'est donc pas plaqué : il **complète** une structure déjà à moitié là.
+
+⚠ **Limite honnête de l'alignement** : l'exemple canonique d'attribut en SDMX est… **l'unité de
+mesure**. Leur `attribute` est donc plus large que le nôtre (il qualifie aussi une *variable*, pas
+seulement une *observation*). Alignement fort, pas identité — ne pas le sur-vendre.
+
+#### ⭐ BORIS confirme le lieu, et ajoute un SECOND critère (temporel)
+
+BORIS — l'outil de codage vidéo comportemental de la communauté — a exactement ce mécanisme, sous le
+nom d'**Independent variables** : *« ajouter de l'information sur l'observation […] des facteurs
+susceptibles d'influencer les comportements (composition du groupe, température, conditions météo)
+**qui ne changeront pas pendant une observation donnée** »*. Chaque variable porte un `Label`, une
+`Description` et un **`Type` ∈ {text, numeric, value from set, timestamp}**, avec un « Set of
+values » pour le dernier. Les valeurs sont **demandées à la création de l'observation**.
+
+Deux enseignements :
+
+1. ⭐ **« ne change pas pendant une observation » est le second critère, et il est temporel** — c'est
+   la ligne exacte entre une **coordonnée d'axe** (méta du `.wdat`) et un **signal** (une table de
+   flux). On avait le critère d'identification ; voilà celui de constance.
+2. **`value from set` vs `text`/`numeric` EST notre distinction `factor`/`attribute`**, implémentée,
+   dans l'outil que la communauté du codage vidéo utilise. Un ensemble de valeurs **fermé et
+   déclaré** fait l'axe ; une valeur libre fait l'attribut.
+
+⚠ **Ce que BORIS n'a pas** : ni nidification, ni croisement, ni `manipulated`. Sa liste est **plate**
+— même forme de trou que `TripSet` (§13.5bis), qui agrégeait sans déclarer. C'est précisément le
+delta que WAMA apporte, et il est maintenant attesté sur **deux** outils indépendants du domaine.
+
+#### BIDS / Psych-DS — la forme de fichier, et le mot `Levels`
+
+BIDS pose `participants.tsv` (**une ligne par sujet** ; colonnes `age`, `sex`, `handedness`,
+`group`…) accompagné d'un **sidecar `participants.json`** qui décrit chaque colonne via `Description`
+et ⭐ **`Levels`** — l'énumération des valeurs catégorielles. Les unités y sont déclarées à part
+(`age` en années, ou en semaines si on le dit). **Psych-DS** généralise BIDS au tabulaire
+comportemental (schéma LinkML, dictionnaires de données avec définitions catégorielles).
+
+⇒ **`Levels` est le mot consacré pour ce que nous appelons les valeurs possibles d'un facteur** — et
+chez nous il a déjà un domicile : `reference_tables`. Alignement lexical à faire, mécanisme déjà là.
+
+#### DDI — le standard SHS qu'EDAM ne couvre pas
+
+Constat de Fabien : EDAM n'a rien pour les SHS. Exact — et le standard qui manquait s'appelle **DDI**
+(Data Documentation Initiative, alliance issue de l'ICPSR), *« largement utilisé pour décrire les
+données des sciences sociales, comportementales et économiques »*. Il porte nommément :
+
+- ⭐ l'**unité d'analyse** — *« les unités d'analyse peuvent être des personnes, des ménages, des
+  familles, des établissements, des transactions, des pays »* : c'est notre `observation`, avec le
+  même besoin d'universalité inter-domaines ;
+- **`universe`** / `population` — ce que le corpus est censé couvrir. **Nous n'avons pas d'équivalent**
+  (⇒ D25) ;
+- ⭐ le principe de **réutilisation** : *« catégories de réponse, concepts et univers définis une fois
+  puis utilisés plusieurs fois »*, les séries de vagues héritant des variables communes. C'est la
+  réponse à la question « redéclare-t-on le plan à chaque expérimentation ? » : **non, on référence**.
+
+#### Bilan — ce qu'on garde, ce qu'on aligne, ce qu'on n'importe pas
+
+1. **On n'importe aucune ontologie.** Le dimensionnement l'interdit : ces standards portent des
+   milliers de concepts pour des dizaines de milliers d'entrées ; nous avons une expérimentation à
+   décrire. Le mode d'échec documenté d'OWL-S est **le vocabulaire trop large que personne
+   n'annote** — pas la couverture insuffisante.
+2. **On aligne, on ne forke pas** — c'est le patron d'EDAM-Bioimaging : espace de noms propre,
+   correspondances déclarées (`exactMatch` / `broadMatch`) là où le terme existe. Alignements
+   immédiats : `factor` ↔ SDMX *dimension* · `attribute` ↔ SDMX *attribute* · `signals` ↔ SDMX
+   *measure* · `reference_tables` ↔ BIDS `Levels` / SDMX *codelist* · `observation` ↔ DDI *unité
+   d'analyse*.
+3. **On garde nos deux ajouts, qu'aucun des cinq ne porte** : les relations `contains`/`crosses` et
+   la propriété `manipulated`. C'est là qu'est la valeur, et elle est mesurée : BORIS et TripSet
+   déclarent des valeurs sans relations, SDMX déclare des clés sans plan d'expérience.
+
+**Sources** (consultées le 2026-08-25) — SDMX Information Model 2.1 §2 et FMR Knowledge Base
+(Data Structure Definition) · BORIS user guide v9.12 (Independent variables, Ethogram, Subjects) et
+Friard & Gamba 2016, *Methods in Ecology and Evolution* · BIDS Specification (modality-agnostic
+files, `participants.tsv`/`.json`, `Levels`) · Psych-DS (psychds-docs, schéma LinkML) ·
+DDI Alliance (product overview) et IHSN (DDI metadata standard) · EDAM (edamontology.org) et
+EDAM-Bioimaging pour le patron d'extension.
 
 ### 13.4 ⭐ ALIGNEMENT MESURÉ avec le kind `dataset` — verdict : **aligné, rien à revoir, deux ajouts**
 
@@ -3158,9 +3475,137 @@ La réponse est **déjà à moitié dans le dépôt** :
 > **relever les noms réels de tables et de colonnes**, pas les deviner. C'est la même méthode qui a
 > payé sur `.rec` et sur la base `.trip` réelle.
 
-### 13.9 Décisions ouvertes
+### 13.9 INTÉGRATION DANS L'ÉCOSYSTÈME WAMA — où chaque pièce se branche
 
-Voir **D20 à D23** au §10.
+| pièce WAMA | ce que les axes y changent | état |
+|---|---|---|
+| kind `dataset` | **+ `axes[]`, + `source.layout`** | ⏳ deux champs à ajouter |
+| `reference_tables` | domicile des **niveaux** d'un facteur (= `Levels` BIDS, *codelist* SDMX) | ✅ existe |
+| `signals[]` | = les ***measures*** SDMX — inchangés, orthogonaux aux axes | ✅ existe |
+| `Ecart` / `charger()` | la **réfutation arithmétique** du patron et du croisement | ✅ existe, à étendre |
+| `WamaMeta` du `.wdat` | les **coordonnées**, préfixées `axe.` | ✅ existe (D21) |
+| `.wds` — bundle corpus (D26) | transporte **manifeste + coordonnées ensemble** quand le corpus se déplace | ✅ tranché le 25/08 |
+| explorateur & file Data (§11.8) | ⭐ **filtrage et group-by par axe → création de batch** | ✅ déjà relié |
+| volet gauche — tri/filtrage (`WAMA_VOLETS §8`) | ⭐ **une SEULE brique de filtre pour les deux mondes** : facettes plates côté Médias (app, statut), facettes d'axes côté Data — pas deux tris | ✅ déjà relié |
+| promotion mère↔fille (`MODES_QUEUE_UX §5ter`) | la card mère d'un batch = un niveau d'axe | ✅ |
+| `FunctionSpec` / `data_types` | **rien** — les axes ne touchent pas la couche capacités (§13.3ter) | ✅ |
+| couche statistique (`WAMA_APPRENTISSAGE §5`) | `contains`/`crosses`/`manipulated` ⇒ **le test licite** | ⏳ |
+| `WAMA_APPRENTISSAGE §3` A1/A5 | **absorbés** par les axes | ✅ |
+| kind `project` | rien — c'est l'unité de **droits** | ✅ D20 |
+
+> ⭐ **Le point d'intégration le plus fort n'était pas prévu par ce §13 : c'est la FILE.**
+> §11.8, écrit le même jour par une autre instance, le note déjà — *« le tri/filtrage de
+> l'explorateur, pour le monde Data, est un filtrage par AXES : créer un batch = un group-by sur un
+> axe »*. Les axes ne servent donc pas qu'à l'analyse : **ils sont ce qui rend la file du monde Data
+> filtrable comme celle des Médias l'est par app et par statut.** Sans eux, l'explorateur Data n'a
+> que des noms de fichiers à offrir. Deux fils indépendants ont convergé sur le même besoin — c'est
+> le meilleur indice qu'il est réel.
+
+#### ⚠ `manipulated` sur DEUX axes — oui, mais pas pour la raison proposée
+
+Question de Fabien : *« on peut utiliser `groupe_age` comme `manipulated` si on veut comparer des
+groupes d'âges »*. **Non — et la correction est la même règle pour la troisième fois.**
+
+`manipulated` **n'est pas un choix d'analyse**. Il ne dit pas ce qu'on compare (on peut **toujours**
+comparer), il dit **ce que le protocole a ASSIGNÉ**. On n'assigne personne à son âge ⇒
+`groupe_age: manipulated: false`, **toujours**, quelle que soit la question posée ensuite.
+
+**Mais oui, les deux peuvent être `true` — quand les deux sont assignés.** Exemple réel : `groupe` =
+expérimental / contrôle **tiré au sort** × `scenario` contrebalancé. Plan factoriel mixte classique,
+deux facteurs manipulés.
+
+| | conclusion permise |
+|---|---|
+| `manipulated: false` | une différence est une **association** |
+| `manipulated: true` | une différence peut être un **effet** |
+
+⇒ Le mot ne borne pas l'**analyse**, il borne la **conclusion**. C'est exactement pourquoi il doit
+être déclaré au corpus et pas choisi au moment du test.
+
+#### Oui, les `key` sont ce sur quoi on trie, filtre et crée des batchs
+
+Confirmé, et **déjà écrit ailleurs** : `§11.8 ⑧` fait du group-by sur axe le geste de création de
+batch. Une `key` d'axe est donc simultanément : une **facette de filtre** dans l'explorateur, un
+**critère de group-by** pour fabriquer un batch, une **colonne** dans un export, et une **clé de
+jointure** entre `.wdat` d'un même corpus.
+
+---
+
+### 13.10 LES QUESTIONNAIRES — oui, et c'est le cas le plus NATUREL du modèle
+
+Six méthodologies du laboratoire, confrontées au modèle :
+
+| méthodologie | unité d'observation | axes typiques | axe temporel ? | verdict |
+|---|---|---|---|---|
+| questionnaire **en ligne** (panel à grande échelle) | répondant | vague, canal de recrutement | ❌ **aucun** | ⚠ **bloqué**, voir ci-dessous |
+| questionnaire **participant** (psychotechnique, disque des émotions, avis) | participant | — il **produit** des attributs et des facteurs | ❌ | ✅ **le cas le plus naturel** |
+| expérimentation **sur table** | participant | tâche, condition | ✅ | ✅ déjà compatible |
+| **véhicule instrumenté** | participant | trajet, section | ✅ | ✅ + §13.8 (GPS) |
+| **simulateur** | participant | scénario | ✅ | ✅ + §13.8 (x, y, z) |
+| **naturalistic driving** | ⚠ conducteur **ou véhicule** | période, contexte | ✅ | ⚠ voir §13.11 |
+
+**Trois rôles distincts pour un questionnaire**, qu'il ne faut pas confondre :
+
+1. **producteur d'axes** — c'est l'usage principal. Un test psychotechnique, un disque des émotions,
+   une échelle de Likert produisent des **`attribute`s** (valeur libre) et des **`factor`s** (niveaux
+   fermés → `reference_tables`). ⭐ Un questionnaire participant **ne devient jamais un signal** : il
+   ne varie pas pendant l'observation — c'est le critère BORIS (§13.3ter) qui le dit ;
+2. **corpus à part entière** — un panel en ligne est un corpus dont l'unité est le répondant et qui
+   **n'a aucun axe temporel** ;
+3. **mesure répétée** — le même questionnaire avant/après ou par scénario devient un facteur
+   **croisé** avec le participant (`crosses`), et il rentre dans le cas général.
+
+> ⚠⚠ **BLOCAGE MESURÉ (2026-08-25).** `validate_dataset_body` exige
+> *« signals doit être une liste non vide »*. **Un corpus purement questionnaire, sans aucun flux
+> temporel, est REFUSÉ par le kind aujourd'hui.** C'est le premier trou d'universalité réel — et il
+> est petit : rendre `signals` facultatif dès lors que `axes` est présent. Voir §13.12 ③.
+
+**Prior art à reprendre pour nommer l'instrument** : BIDS a des fichiers `phenotype/` accompagnés
+d'un `MeasurementToolMetadata` — `Description` (texte libre) + `TermURL` (vers une ontologie
+d'instrument). C'est exactement la déclaration « ce questionnaire est l'échelle X v1.2 », et ça
+manque à notre modèle, qui décrit les variables produites sans nommer l'outil qui les produit.
+
+---
+
+### 13.11 POINTS D'OMBRE — honnêtes, et deux ne sont pas des détails
+
+| # | angle mort | gravité |
+|---|---|---|
+| ① | **corpus sans axe temporel** (questionnaire en ligne) — `signals` obligatoire | ⚠ mesuré, bloquant, **petit à corriger** |
+| ② | **plusieurs unités d'observation dans un même corpus** — dyade conducteur+passager ; mesures par participant ET par trajet ; BORIS code plusieurs *subjects* dans une même observation. SDMX le traite par **niveaux de rattachement** ; nous n'avons qu'un `grain` | ⚠⚠ **structurel** — lié à D24 |
+| ③ | **plan déséquilibré déclaré** — un participant qui n'a fait que 3 scénarios sur 4. L'`Ecart` le **signale**, mais on ne peut pas le **déclarer comme attendu** ; tout écart légitime sonnera donc comme un défaut | ⚠ un contrôle qui sonne toujours n'est plus lu (leçon `Ecart.lecteur`) |
+| ④ | **vagues / longitudinal** — DDI a l'héritage de série entre vagues, nous non | ⚠ |
+| ⑤ | **`universe`** — ce que le corpus vise, pas seulement ce qu'il contient (D25) | ⏳ |
+| ⑥ | ⭐ **facteur DÉRIVÉ D'UN MODÈLE** — un profil de conducteur issu du clustering **est un nouveau facteur**, dont les niveaux ne viennent pas du protocole mais d'un modèle appris. `derived_from` doit-il pouvoir pointer un **`model`** ? Cela referme la boucle avec `WAMA_APPRENTISSAGE` — et **ce n'est pas traité** | ⚠⚠ **structurel** |
+| ⑦ | **naturalistic driving** — pas de scénario assigné, l'unité peut être le **véhicule** (plusieurs conducteurs), et sur des mois **la « passation » n'existe pas** : aucune frontière naturelle d'observation, donc aucune évidence sur ce que `.wdat` découpe | ⚠⚠ c'est le cas qui exercera le plus le modèle |
+
+**Niveau de confiance, sans complaisance** : **élevé** sur l'universalité du triplet (cinq standards
+convergents, trois domaines hors conduite vérifiés) ; **moyen** sur la modularité — ② et ⑥ ne sont
+pas des raffinements ; **faible** sur ce qu'on n'a pas encore essayé, et le seul juge est le quick
+win ② ci-dessous.
+
+---
+
+### 13.12 QUICK WINS — dans cet ordre
+
+| # | quoi | coût | pourquoi celui-là d'abord |
+|---|---|---|---|
+| ① | `axes[]` + `source.layout` dans `validate_dataset_body` | **un validateur** (~50 l. + tests) | zéro UI, zéro migration, zéro dépendance ; rien d'autre ne peut s'écrire avant |
+| ② | ⭐ **écrire À LA MAIN le manifeste `dataset` du `.trip` réel** qu'on a déjà | une heure | **c'est le juge de tout le reste.** Le risque documenté n'est pas la couverture insuffisante, c'est **le vocabulaire trop large que personne n'annote** (mode d'échec d'OWL-S). Un manifeste réel, volontairement pauvre, dira où ça casse |
+| ③ | `signals` facultatif si `axes` présent | **3 lignes** | débloque les **questionnaires** — la méthodologie la plus fréquente au laboratoire (§13.10) |
+| ④ | écrire les coordonnées en `axe.<clé>` dans `WamaMeta` à l'import | petit | ferme **D21**, rend les `.wdat` **autoportants** (survivent au déplacement) |
+| ⑤ | étendre `Ecart` aux axes (taux d'appariement, complétude du croisement, contradiction dure) | moyen | c'est **toute** la confiance accordée à une proposition LLM (§13.6) |
+| ⑥ | exposer les axes en **facettes de filtre** de l'explorateur Data (§11.8) | dépend de l'UI en cours | premier bénéfice **visible**, et il sert le fil parallèle |
+
+> ⚠ **L'ordre ① → ② n'est pas négociable — et il est peut-être même inversé.** Écrire le validateur
+> avant d'avoir écrit un manifeste réel, c'est spécifier à l'aveugle. Si ② se fait d'abord, ① sort
+> juste ensuite, corrigé par le réel.
+
+---
+
+### 13.13 Décisions ouvertes
+
+Voir **D21 à D25** au §10 (D20 close).
 
 ---
 
@@ -3184,17 +3629,44 @@ Voir **D20 à D23** au §10.
 | ~~D15~~ | ✅ **TRANCHÉE 2026-08-24 par la MESURE** — `Signal.ends` accepte `None`, mais un seul état non refermé rendait le flux **entier ininterrogeable** (`TypeError` dans `containing`/`overlapping`), et `frames.signal_depuis_frame` en produisait. Corrigé : `Signal._fin()` vaut `+∞` **pour les comparaisons**, `end_at()`/`duration_at()` rendent toujours `None`. ⚠ La convention existait déjà dans `segmentation.py` sans avoir été portée | mesure |
 | D14 | granularité du **script généré** : un fichier plat rejouable, ou un module par fonction + un orchestrateur ? (impacte la lisibilité pour un relecteur académique) — ⚠ **le CADRE est posé (§9undecies.3)** : Python est **exact** (le script appelle `FunctionSpec.fn`), et la couverture des autres langages est **par fonction et mesurable** par contre-épreuve, pas « squelette par principe ». Reste la seule question de forme | avant l'Exporter de pipeline |
 | D16 | **conflit d'ingest inter-instances** (§9undecies.4) : `ingest()` écrase `body` en silence sur `kind+key` existant. Comparer et montrer — mais **où** ? garde dans `ingest()` (protège tous les appelants, change un contrat existant) ou dans l'import depuis copie projetée seul ? | avant le 1ᵉʳ échange dev↔prod |
-| ~~D17~~ | ✅ **TRANCHÉE 2026-08-24 (§9quater.2)** — le conteneur natif s'appelle **`.wdat`**, et non `.wrec` comme D3 l'avait proposé. ⚠⚠ **Le critère qui a tué `.trip` tue aussi `.wrec`** : « rec » présuppose une session d'ENREGISTREMENT là où le monde doit tenir des données temporelles sans aucune acquisition. Retenir le critère pour l'un et l'écarter pour l'autre aurait été défendre un choix parce qu'il était le nôtre. Second motif : `.wrec` était à **une lettre de `.rec`**, qu'on lit. Écartés aussi — `.wds` (écrase deux étages : le kind `dataset` est l'EXPÉRIMENTATION, le fichier est un ESSAI) et `.wdb` (nomme la base Postgres de WAMA — un nom faux par COLLISION est pire qu'un nom faux par connotation). ⭐ Coût réel : **le schéma n'a pas bougé d'un octet**, les tables du catalogue s'appelaient déjà `Wama*` | Fabien |
+| ~~D17~~ | ✅ **TRANCHÉE 2026-08-24 (§9quater.2)** — le conteneur natif s'appelle **`.wdat`**, et non `.wrec` comme D3 l'avait proposé. ⚠⚠ **Le critère qui a tué `.trip` tue aussi `.wrec`** : « rec » présuppose une session d'ENREGISTREMENT là où le monde doit tenir des données temporelles sans aucune acquisition. Retenir le critère pour l'un et l'écarter pour l'autre aurait été défendre un choix parce qu'il était le nôtre. Second motif : `.wrec` était à **une lettre de `.rec`**, qu'on lit. Écartés aussi — `.wds` (écrase deux étages : le kind `dataset` est l'EXPÉRIMENTATION, le fichier est un ESSAI) et `.wdb` (nomme la base Postgres de WAMA — un nom faux par COLLISION est pire qu'un nom faux par connotation). ⭐ Coût réel : **le schéma n'a pas bougé d'un octet**, les tables du catalogue s'appelaient déjà `Wama*`. ⭐ **Suite 2026-08-25** : `.wds` a depuis reçu un domicile légitime **un étage AU-DESSUS** — le bundle corpus (**D26**) | Fabien |
 | D18 | **routes du Converter** (§11) : par le PIVOT par défaut (2N adaptateurs au lieu de N(N−1)), ou route DIRECTE déclarée par paire ? ⚠ Le pivot est **prouvé lossy** pour `.rec` — il porte DEUX temps (émission + horodatage) et un index d'échantillon, `Signal.times` n'en garde qu'un. Et `trip2rec` de BIND l'atteste : il écrit le **même timecode aux deux places** parce que `.trip` avait déjà perdu l'autre. Quelle que soit la route, la PERTE doit être annoncée (`Rapport.pertes` existe) | avant le 1ᵉʳ Converter |
 | D19 | **nom du « Cataloger »** (§11) : le mot est **déjà pris deux fois** — `wama/common/catalog/` (glu inter-mondes) et le « catalogue de fonctions » que son propre écran affiche en bas. Et si le schéma se lit bien, **le Cataloger est l'INTERFACE du Connector** (même motif que « l'Explorer est l'interface du Calculator ») — auquel cas ce n'est pas un module de plus | avant l'UI |
 | ~~D20~~ | ✅ **CLOSE le 2026-08-25 PAR LA LECTURE DU CODE — les `axes[]` vont dans le `dataset`, et la question n'aurait pas dû être posée.** ⚠ Je l'avais formulée en ayant lu `builtin/dataset.py` **mais pas `builtin/project.py`** ; ce dernier y répond en toutes lettres : *« Ce qui décrit les DONNÉES d'une expérimentation, c'est le kind `dataset` — objet distinct »*, le kind `project` ne portant que `owner_org`, `lead`, `members` + rôles, c'est-à-dire **l'unité de DROITS** (« les permissions étaient posées à plusieurs niveaux […] et AUCUN ne couvrait un projet de recherche transversalement »). Second motif, dirimant : `project` est **`extract`** (généré depuis le modèle `Project` en base) — y ajouter des axes exigerait d'étendre le modèle Django, là où `dataset` est **autoré**. Et la prémisse « redéclarer le plan à chaque passation » était fausse : **un manifeste `dataset` = une expérimentation entière** (§13.0), pas une passation | ✅ close |
 | D21 | **les coordonnées dans le `.wdat`** — ⚠ **REFORMULÉE le 2026-08-25 après relecture (§13.5bis)** : « quelle table ? » n'est plus la question, **c'est `WamaMeta (key, value)`**, qui existe déjà et reprend `MetaTripDatas`+`MetaParticipantDatas` de `.trip` fusionnées. La question restante est le **NOMMAGE DES CLÉS** : `WamaMeta` porte déjà des méta techniques (`schema_version`), donc une clé `participant` à plat y côtoierait une clé de format. Préfixe d'espace de noms (`axe.participant`) — **rendu nécessaire par la fusion**, pas optionnel. Reste à ratifier la forme exacte du préfixe | avec l'Importer v2 |
 | D22 | **forme du patron** (§13.5 mode 1) : glob nommé `{groupe}/{participant}/…` ou expression régulière ? Arbitrage **lisibilité pour un chercheur** contre **pouvoir d'expression** sur des arbres sales | avant l'UI d'import |
 | D23 | **les dossiers `Data` / `Raw data`** à côté des datasets (§13.1) : exclusion déclarée dans `source.layout`, ou rattachement au kind `project` ? ⚠ Ils peuvent contenir **malgré tout** le fichier de travail `.trip`/`.wdat` — donc « exclure par nom de dossier » est faux | avant le 1ᵉʳ manifeste `dataset` réel |
+| D24 | **DEUX rôles ou TROIS ?** (§13.3ter) — SDMX n'en a pas pour « l'unité d'observation » : chez lui **toutes** les dimensions sont des dimensions, et l'unité est simplement **la plus fine**. D'où une simplification possible : `factor` / `attribute` seulement, + un marqueur **`grain: true`** sur le facteur qui porte l'unité d'observation. ⚠ Contre-argument : l'unité d'observation porte l'**indépendance statistique**, ce qui n'est pas une propriété comme une autre — la marquer par un rôle la rend impossible à oublier, un booléen se néglige. ⭐ Le vrai départage est empirique : **regarder si une fonction d'analyse a besoin de la distinguer par son RÔLE ou par une PROPRIÉTÉ** | avant la 1ʳᵉ fonction qui lit les axes |
+| D25 | **`universe` / population** (DDI, §13.3ter) — le corpus déclare ce qu'il **contient** ; il ne déclare pas ce qu'il est censé **couvrir** (« conducteurs de 65-75 ans titulaires du permis depuis plus de 10 ans »). DDI porte les deux. ⚠ Sans lui, l'écart mesurable est « déclaré vs trouvé » ; avec lui il devient aussi « **visé** vs trouvé » — c'est-à-dire la couverture réelle d'une étude, qui est une question de relecture d'article. À arbitrer : champ du kind `dataset`, ou hors périmètre WAMA | après le 1ᵉʳ manifeste réel |
+| ~~D26~~ | ✅ **TRANCHÉE 2026-08-25 — `.wds` est RÉSERVÉ au bundle CORPUS-niveau.** L'objet qui EST un « WAMA Data Set » vit **un étage AU-DESSUS** du `.wdat` : D17 avait écarté `.wds` pour la FEUILLE (un essai), pas pour l'ARBRE. Contenu = **un batch de `.wdat`** + métas du corpus + manifeste `dataset` + protocoles ; **encodage pressenti : HDF5** (hiérarchique — un groupe par essai ; interop MATLAB/h5py/R ; Fabien a prototypé `.trip`→HDF5, faisabilité attestée) ; **exportable depuis la card mère du batch, réimportable EN BATCH** (§11.8 ⑧). ⚠ Deux conditions avant d'écrire une ligne : ① la projection SQLite→HDF5 **s'audite** (`Rapport.pertes`, §9duodecies.5 — raw + protocole + gestes doivent survivre à l'aller-retour, sinon le réimport ment) ; ② **une seule NATURE** — « batch de `.wdat` » décrit le CONTENU, HDF5 l'ENCODAGE ; pas une archive zip d'un côté et un export HDF5 de l'autre. Enrichit **Exporter** (geste corpus, card mère) et **Converter** (route fichier-à-fichier `.trip`/`.wdat`→HDF5) — deux modules, deux granularités, pas de doublon | Fabien |
 
 ---
 
 ## Journal
+
+- **2026-08-25** — **l'UI du monde Data (§11.8) : le Data Analyzer HÉRITE de la file Médias — et `.wds` trouve son étage (D26).**
+  - Le point de départ de Fabien était « une UI différente, sur la base de BIND_GUI » ; la
+    conclusion est l'inverse : un `.wdat` = une **card**, les modules = des **surfaces**
+    (modale légère | page dédiée lourde — précédent Transcriber) ouvertes depuis les actions de
+    card, et tout l'existant Médias (densités, pile, volets, inspecteur) est hérité. Détail §11.8.
+  - ⚠ **Ma première correspondance BIND↔WAMA était FAUSSE** (Liste→file) : la file WAMA est
+    **CURATÉE** — Liste = l'explorateur (dossier connecté), Sélection = la file/le batch. Corrigée
+    par Fabien. ⭐ Et le tri/filtrage de l'explorateur, pour le monde Data, est un **filtrage par
+    AXES** (§13) : créer un batch = un group-by sur un axe — le rangement du §13 paie ici.
+  - ⭐ **La promotion fille↔mère (proposition de Fabien) REMPLACE la « card de référence »** :
+    elle réutilise l'héritage mère→filles existant, rend n'importe quelle card promouvable (A/B
+    en parallèle), et bénéficie aux DEUX mondes → `MODES_QUEUE_UX §5ter`. Charge utile déclarée :
+    params (Médias) / **protocole** §9undecies (Data) — et le studio est le **2ᵉ éditeur du même
+    objet** (une représentation, deux éditeurs).
+  - **Deux affirmations vraies à des étages différents ne se contredisent pas** : « l'Explorer est
+    l'interface du Calculator » parle des MOTEURS, « les modules sont des modales/pages depuis la
+    card » parle de l'UI — la surface Explorer d'une card reste motorisée par le Calculator.
+    (Même famille que « deux granularités sous un mot » : avant de voir une contradiction, vérifier
+    que les deux phrases parlent du même étage.)
+  - **D26 close** : `.wds` réservé au **bundle corpus** (batch de `.wdat`, card mère → export,
+    réimport en batch), encodage pressenti **HDF5** (prototype `.trip`→HDF5 de Fabien). L'extension
+    que D17 avait écartée pour la FEUILLE reçoit l'ARBRE. Conditions : projection **auditée**
+    (`Rapport.pertes`), une seule nature (contenu ≠ encodage).
 
 - **2026-08-24** — **le point d'entrée, le lecteur `.rec`, et le PROTOCOLE.**
   - §9octies (le manifeste `dataset` devient exécutable), §9nonies (la famille d'un flux portée

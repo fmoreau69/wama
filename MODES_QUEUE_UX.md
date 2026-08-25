@@ -205,6 +205,27 @@ sur briques communes)* ; tout le reste se génère.
 (via tool_api) = le **workflow méta-app**, à NE PAS modéliser en domaine. → valide les **3 axes distincts**
 (domaine / mode / workflow).
 
+## 5ter. Promotion fille ↔ mère des réglages (décidé 2026-08-25 — venu du monde Data, bénéfice COMMUN) ⏳
+
+> Origine : l'UI du monde Data (`WAMA_DATA_WORLD.md §11.8 ③`) — transposer le « trip de référence »
+> de BIND_GUI **sans créer de card marquée**. Le mécanisme vaut pour TOUTES les files, Médias compris
+> (régler une card, puis appliquer au batch).
+
+- **Existant (rappel)** : les paramètres de la card mère s'appliquent à toutes les filles, SAUF si
+  un paramètre a été modifié individuellement sur une fille (l'override la détache).
+- **À ajouter — deux gestes symétriques** :
+  - **↑ promouvoir** : depuis une card fille, faire remonter SES réglages à la mère, qui les
+    applique à tout le batch ;
+  - **↓ réaligner** : depuis la mère, réaligner toutes les filles (effacer les overrides).
+- **Conséquences** : n'importe quelle card peut servir de référence ; on peut régler PLUSIEURS
+  filles en parallèle (comparaison A/B) puis promouvoir la gagnante.
+- ⚠ **Charge utile DÉCLARÉE, pas codée en dur** : monde Médias = le dict de paramètres ; monde
+  Data = le **protocole** accumulé sur la card (`WAMA_DATA_WORLD §9undecies`), qui subsume les
+  paramètres. Même geste, deux payloads — une capacité d'app, pas deux mécanismes.
+- ⚠ **Garde-fou à la promotion (Data)** : promouvoir exige que chaque fille porte les données
+  requises (entrées typées de la fonction ⊆ ∩ des catalogues des filles) — et le refus **dit
+  quelle fille manque de quoi**, jamais un grisage muet.
+
 ## 6. Unification avec la MÉTA-APP (chaînage graphique) — anticiper dès maintenant
 
 > **Insight magique** : **la card est un composant universel ; la FILE = une méta-app à UNE app, rendue

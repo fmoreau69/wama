@@ -304,6 +304,8 @@ prioritaire.
 | 4 | **Portage depuis `model_manager`** vers la brique | Bandeau paramétrable · restauration du hint · `detailSchema`/`actionsSchema` · `ids.actionButtons` |
 | 5 | **Assistant dans le volet** (conteneur en `base.html`, préférence au profil) | Rend l'avatar réellement persistant ; ne pas engager avant 2 |
 | 6 | Hygiène : CSS du volet vers `common/`, retrait du code mort (§6) | Mécanique, sans risque, mais sans valeur d'usage |
+| 7 | **Explorateur : regrouper les apps par MONDE** (`media` / `lab` / `data`) + **changer d'app en cliquant son dossier** | Décidé 2026-08-25 avec l'UI du monde Data (`WAMA_DATA_WORLD.md §11.8 ⑦`) ; la catégorie `media` attend que les UI lab/data existent |
+| 8 | **Tri / filtrage / recherche dans l'explorateur** | Inexistant aujourd'hui ; ⭐ pour le monde Data c'est un filtrage par **AXES du plan d'expérience** (`WAMA_DATA_WORLD.md §13`) — une seule brique pour les deux mondes, pas deux tris |
 
 ⚠ **NE PAS réécrire `wama-inspector.js`.** `PROJECT_STATUS.md:1320-1349` documente deux
 correctifs de ce fichier **entièrement revertés** — c'est la brique la plus consommée du
@@ -324,6 +326,8 @@ dépôt (14 pages), toute modification y est transverse par construction.
    contexte prime / jamais) — évite de choisir entre « perdu partout » et « encombrant ».
 
 ## Voir aussi
+- `WAMA_DATA_WORLD.md §11.8` — l'UI du monde Data hérite de la file Médias ; les évolutions ⑦ du
+  volet gauche (regroupement par monde, clic-pour-changer-d'app) sont décidées là et tracées §8.
 - `INSPECTOR_DETAIL_FIELDS.md` — schéma canonique des champs de détail (contenu, pas structure).
 - `WAMA_LLM.md §1` — contrat de surface de l'assistant (le tour ne porte jamais d'audio).
 - `CARD_DESIGN.md` — anatomie des cards, source de la sélection qui nourrit l'inspecteur.
