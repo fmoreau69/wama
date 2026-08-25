@@ -141,24 +141,22 @@ est CONTEXTUEL (inspecteur) — les actions de FILE vivent dans la toolbar commu
         <div id="jobs-container" class="wama-queue-{{ card_layout|default:'list' }}">
             {% if batches_list %}
                 {% for b in batches_list %}
-                {% if b.obj.total > 1 %}
                 {% comment %}
-                  En-tête de lot : card COMMUNE (_batch_card.html). L'avatarizer en avait une
-                  écrite à la main, visuellement proche mais divergente — compteurs, ETA et
-                  actions y étaient re-câblés à part. Elle lit le contrat de `build_batches_list`.
+                  Entrée de file (card seule OU lot) — brique COMMUNE `_queue_entry.html`
+                  (adoptée le 2026-08-25, dernière des 9 files portées).
+
+                  L'avatarizer avait un idiome à lui, que l'extracteur du 25/08 n'a pas reconnu :
+                  un test qui OUVRAIT le lot, une boucle unique partagée, un second test qui le
+                  FERMAIT — plus économe que le `if/else` à boucle dupliquée des 8 autres, mais
+                  illisible pour tout relevé, et surtout non centralisé.
+
+                  ⚠ Le `url … as batch_dl_url` est REMONTÉ ICI, hors du bloc supprimé où il
+                  vivait. Une variable de gabarit inexistante ne lève RIEN côté Django : c'est
+                  par ce piège exact qu'anonymizer, composer et synthesizer ont perdu leur
+                  bouton de téléchargement de lot le 25/08, sans qu'aucun test le voie.
                 {% endcomment %}
-                <div class="batch-group mb-2" data-batch-id="{{ b.obj.id }}">
-                    {% url 'avatarizer:batch_download' b.obj.id as batch_dl_url %}
-                    {% include 'common/_batch_card.html' with batch_info=b download_url=batch_dl_url app='avatarizer' %}
-                    <div class="collapse show ps-2 pt-1" id="batchItems{{ b.obj.id }}" data-wama-batch-key="avatarizer_{{ b.obj.id }}" style="border-left:2px solid #0dcaf0; margin-left:.5rem;">
-                {% endif %}
-                {% for it in b.items %}{% with job=it.job %}
-                {% include 'avatarizer/_avatar_card.html' %}
-                {% endwith %}{% endfor %}{# it in b.items #}
-                {% if b.obj.total > 1 %}
-                    </div><!-- /collapse -->
-                </div><!-- /batch-group -->
-                {% endif %}
+                {% url 'avatarizer:batch_download' b.obj.id as batch_dl_url %}
+                {% include 'common/_queue_entry.html' with batch_info=b card_template='avatarizer/_avatar_card.html' download_url=batch_dl_url app='avatarizer' %}
                 {% endfor %}{# b in batches_list #}
             {% else %}
             <div id="no-jobs-msg" class="text-center text-muted py-4">

@@ -424,8 +424,12 @@ def card_html(request, pk):
     user = _get_user(request)
     job = visible_or_404(AvatarJob, user, pk=pk)
     from django.conf import settings as dj_settings
+    # `elem` = nom COMMUN de l'élément d'entrée de file (2026-08-25), celui que pose
+    # `build_batches_list` et qu'attend `common/_queue_entry.html`. ⚠ Cette vue ne passe PAS
+    # par l'index : une card rendue avec une variable inexistante ne lève AUCUNE erreur côté
+    # Django — elle sortirait simplement vide, et seul le polling s'en apercevrait.
     html = render_to_string('avatarizer/_avatar_card.html',
-                            {'job': job, 'media_url': dj_settings.MEDIA_URL}, request=request)
+                            {'elem': job, 'media_url': dj_settings.MEDIA_URL}, request=request)
     return HttpResponse(html)
 
 

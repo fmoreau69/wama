@@ -3,20 +3,26 @@
 Card AvatarJob — CARD v3 « sections × chips » (CARD_DESIGN §11, portée le 2026-08-13 ;
 remplace la card en 5 colonnes). Partial serveur UNIQUE : rendue au chargement (boucle
 b.items d'index.html) ET par card_html (refreshCard sur transition — index.js:445).
-Contexte : job (chips = propriété du modèle), media_url, in_batch.
+Contexte : elem (chips = propriété du modèle), media_url, in_batch.
+⚠ `elem` et non `job` depuis le 2026-08-25 : c'est le nom COMMUN de l'élément d'une entrée de
+file, posé par `build_batches_list` (alias de `work_attr`) et attendu par le partial commun
+`common/_queue_entry.html`. Les 8 autres apps l'avaient adopté la veille ; l'avatarizer avait
+été manqué parce que son gabarit employait un idiome de lot à lui. Les contrats JS gardent
+leur graphie historique (`#job-<id>`, `data-job-id`, `btn-settings-job`) — ils nomment le DOM,
+pas la variable de gabarit.
 
 ⚠ Contrats JS (index.js) : #job-{{ id }} + [data-id][data-job-id][data-status][data-mode] ;
   .settings-btn[data-id] + data-* (masqué en RUNNING) ; .delete-btn[data-delete-url] ;
   .duplicate-btn[data-duplicate-url] (brique globale) ; .step-desc (étape live :462) ;
   .wama-progress-fill ; .progress-text ; .wama-eta ; #preview-row-{{ id }}.
 {% endcomment %}
-<div class="wama-card synthesis-card card bg-dark border-secondary {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if job.status == 'RUNNING' %}processing{% elif job.status == 'SUCCESS' %}success{% elif job.status == 'FAILURE' %}error{% endif %}"
-     id="job-{{ job.id }}" data-id="{{ job.id }}" data-job-id="{{ job.id }}"
-     data-status="{{ job.status }}" data-mode="standalone"
-     data-preview-url="{% url 'common:unified_preview' 'avatarizer' job.id %}">
+<div class="wama-card synthesis-card card bg-dark border-secondary {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if elem.status == 'RUNNING' %}processing{% elif elem.status == 'SUCCESS' %}success{% elif elem.status == 'FAILURE' %}error{% endif %}"
+     id="job-{{ elem.id }}" data-id="{{ elem.id }}" data-job-id="{{ elem.id }}"
+     data-status="{{ elem.status }}" data-mode="standalone"
+     data-preview-url="{% url 'common:unified_preview' 'avatarizer' elem.id %}">
 <div class="card-body py-2">
 
-  <div class="wcv3-head">#{{ job.id }}<span class="sep">·</span>{{ job.created_at|date:"d/m H:i" }}</div>
+  <div class="wcv3-head">#{{ elem.id }}<span class="sep">·</span>{{ elem.created_at|date:"d/m H:i" }}</div>
 
   <div class="wcv3">
 
@@ -25,12 +31,12 @@ Contexte : job (chips = propriété du modèle), media_url, in_batch.
       <span class="wcv3-lbl">Entrée</span>
       <div class="wcv3-in">
         <span class="wcv3-thumb">
-          {% if job.avatar_source == 'gallery' and job.avatar_gallery_name %}
-          <img src="{{ media_url }}avatarizer/gallery/{{ job.avatar_gallery_name }}"
+          {% if elem.avatar_source == 'gallery' and elem.avatar_gallery_name %}
+          <img src="{{ media_url }}avatarizer/gallery/{{ elem.avatar_gallery_name }}"
                style="width:100%;height:100%;object-fit:cover;border-radius:4px;"
-               alt="{{ job.avatar_gallery_name }}">
-          {% elif job.avatar_upload %}
-          <img src="{{ job.avatar_upload.url }}"
+               alt="{{ elem.avatar_gallery_name }}">
+          {% elif elem.avatar_upload %}
+          <img src="{{ elem.avatar_upload.url }}"
                style="width:100%;height:100%;object-fit:cover;border-radius:4px;" alt="Avatar">
           {% else %}
           <i class="fas fa-user text-muted"></i>
@@ -38,33 +44,33 @@ Contexte : job (chips = propriété du modèle), media_url, in_batch.
         </span>
         <div class="wcv3-in-lines">
           <span class="wcv3-in-name">
-            {% if job.avatar_source == 'gallery' %}{{ job.avatar_gallery_name|default:"—"|truncatechars:24 }}{% else %}Photo importée{% endif %}
+            {% if elem.avatar_source == 'gallery' %}{{ elem.avatar_gallery_name|default:"—"|truncatechars:24 }}{% else %}Photo importée{% endif %}
           </span>
           <span class="wcv3-in-props">avatar animé</span>
         </div>
       </div>
     </div>
 
-    {# ── RÉGLAGES : chips (propriété du modèle — job.chips) ────────────────────────── #}
+    {# ── RÉGLAGES : chips (propriété du modèle — elem.chips) ────────────────────────── #}
     <div class="wcv3-sec wcv3-sec--settings">
       <span class="wcv3-lbl">Réglages</span>
       <div class="wcv3-out">
-        {% include 'common/_card_chips.html' with chips=job.chips %}
+        {% include 'common/_card_chips.html' with chips=elem.chips %}
       </div>
     </div>
 
     {# ── SORTIE : étape live (.step-desc, contrat JS) ; l'erreur la remplace ────────── #}
     <div class="wcv3-sec wcv3-sec--output">
       <span class="wcv3-lbl">Sortie</span>
-      {% if job.status == 'FAILURE' and job.error_message %}
-        <span class="wcv3-out-error" title="{{ job.error_message|escape }}">
-          <i class="fas fa-triangle-exclamation"></i> {{ job.error_message|truncatechars:120|escape }}
+      {% if elem.status == 'FAILURE' and elem.error_message %}
+        <span class="wcv3-out-error" title="{{ elem.error_message|escape }}">
+          <i class="fas fa-triangle-exclamation"></i> {{ elem.error_message|truncatechars:120|escape }}
         </span>
       {% else %}
         <div class="wcv3-out">
           <span class="wcv3-out-step step-desc">
-            {% if job.status == 'SUCCESS' %}Vidéo générée ✓
-            {% elif job.status == 'RUNNING' %}<span class="pct progress-text">{{ job.progress }}%</span> — en cours…
+            {% if elem.status == 'SUCCESS' %}Vidéo générée ✓
+            {% elif elem.status == 'RUNNING' %}<span class="pct progress-text">{{ elem.progress }}%</span> — en cours…
             {% else %}En attente{% endif %}
           </span>
         </div>
@@ -76,11 +82,11 @@ Contexte : job (chips = propriété du modèle), media_url, in_batch.
       <span class="wcv3-lbl">État</span>
       <div class="wcv3-state">
         <span class="wcv3-state-line">
-          <span class="wama-status-dot" data-s="{{ job.status }}"></span>
-          <span>{% if job.status == 'PENDING' %}En attente{% elif job.status == 'RUNNING' %}En cours{% elif job.status == 'SUCCESS' %}Terminé{% elif job.status == 'FAILURE' %}Échec{% else %}{{ job.status }}{% endif %}</span>
+          <span class="wama-status-dot" data-s="{{ elem.status }}"></span>
+          <span>{% if elem.status == 'PENDING' %}En attente{% elif elem.status == 'RUNNING' %}En cours{% elif elem.status == 'SUCCESS' %}Terminé{% elif elem.status == 'FAILURE' %}Échec{% else %}{{ elem.status }}{% endif %}</span>
         </span>
-        {% if job.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ job.id }}"></span>{% endif %}
-        {% if job.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=job.processing_display %}{% endif %}
+        {% if elem.status == 'RUNNING' %}<span class="wama-eta" data-eta-ids="{{ elem.id }}"></span>{% endif %}
+        {% if elem.status == 'SUCCESS' %}{% include 'common/_processing_time.html' with elapsed=elem.processing_display %}{% endif %}
       </div>
     </div>
 
@@ -88,7 +94,7 @@ Contexte : job (chips = propriété du modèle), media_url, in_batch.
     <div class="wcv3-sec wcv3-sec--actions">
       <span class="wcv3-lbl">Actions</span>
       <div class="btn-group-actions wcv3-actions">
-        {% if job.status != 'RUNNING' %}
+        {% if elem.status != 'RUNNING' %}
         {% comment %}data-* DÉRIVÉS du schéma (brique commune card_gear, 18/08).{% endcomment %}
         {% comment %}`settings-btn` + `data-id` = contrat de la brique commune queue-actions.js
         (2026-08-23). Remplace `btn-settings-job`/`data-job-id` — graphie propre à l'avatarizer,
@@ -96,22 +102,22 @@ Contexte : job (chips = propriété du modèle), media_url, in_batch.
         ce qui la rendait invisible à tout relevé cherchant un suffixe. `data-job-id` RESTE en
         plus : les data-* du gear sont relus par le rafraîchissement de card.{% endcomment %}
         <button class="btn btn-sm btn-outline-secondary settings-btn"
-                data-id="{{ job.id }}" data-job-id="{{ job.id }}"
-                {% for k, v in job.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}
+                data-id="{{ elem.id }}" data-job-id="{{ elem.id }}"
+                {% for k, v in elem.gear_data.items %}data-{{ k }}="{{ v }}" {% endfor %}
                 title="Paramètres">
           <i class="fas fa-cog"></i>
         </button>
         {% endif %}
-        {% include 'common/_cycle_button.html' with id=job.id status=job.status %}
-        {% url 'avatarizer:download' job.id as url_dl %}
-        {% if job.status == 'SUCCESS' and job.output_video %}
+        {% include 'common/_cycle_button.html' with id=elem.id status=elem.status %}
+        {% url 'avatarizer:download' elem.id as url_dl %}
+        {% if elem.status == 'SUCCESS' and elem.output_video %}
           {% bouton_telecharger 'avatarizer' url_dl True %}
         {% else %}
           {% bouton_telecharger 'avatarizer' url_dl False %}
         {% endif %}
         <button class="btn btn-sm btn-outline-warning duplicate-btn"
-                data-job-id="{{ job.id }}"
-                data-duplicate-url="{% url 'avatarizer:duplicate' job.id %}"
+                data-job-id="{{ elem.id }}"
+                data-duplicate-url="{% url 'avatarizer:duplicate' elem.id %}"
                 title="Dupliquer">
           <i class="fas fa-copy"></i>
         </button>
@@ -120,8 +126,8 @@ Contexte : job (chips = propriété du modèle), media_url, in_batch.
         c'était l'ordre des mots inversé qui la rendait invisible aux relevés par suffixe.
         `data-job-id` RESTE : le polling et le rafraîchissement de card s'en servent.{% endcomment %}
         <button class="btn btn-sm btn-outline-danger delete-btn"
-                data-id="{{ job.id }}" data-job-id="{{ job.id }}"
-                data-delete-url="{% url 'avatarizer:delete' job.id %}"
+                data-id="{{ elem.id }}" data-job-id="{{ elem.id }}"
+                data-delete-url="{% url 'avatarizer:delete' elem.id %}"
                 data-confirm="Supprimer cette vidéo ?" title="Supprimer">
           <i class="fas fa-trash"></i>
         </button>
@@ -129,11 +135,11 @@ Contexte : job (chips = propriété du modèle), media_url, in_batch.
     </div>
 
     {% comment %}Barre pleine largeur — ligne 2 de la grille (§11), FIGÉE au % en échec.{% endcomment %}
-    {% if job.status != 'PENDING' %}
+    {% if elem.status != 'PENDING' %}
     <div class="wcv3-bar" style="grid-column:1/-1;">
       <div class="wama-progress-track">
-        <div class="wama-progress-fill{% if job.status == 'RUNNING' %} active{% elif job.status == 'FAILURE' %} is-frozen{% endif %}"
-             style="width:{% if job.status == 'SUCCESS' %}100{% else %}{{ job.progress }}{% endif %}%"></div>
+        <div class="wama-progress-fill{% if elem.status == 'RUNNING' %} active{% elif elem.status == 'FAILURE' %} is-frozen{% endif %}"
+             style="width:{% if elem.status == 'SUCCESS' %}100{% else %}{{ elem.progress }}{% endif %}%"></div>
       </div>
     </div>
     {% endif %}
@@ -142,15 +148,15 @@ Contexte : job (chips = propriété du modèle), media_url, in_batch.
 
   {% comment %}Preview PERMANENTE (§11) — vidéo en SUCCESS ; le placeholder #preview-row
   reste dans tous les cas (contrat JS historique).{% endcomment %}
-  {% if job.status == 'SUCCESS' and job.output_video %}
+  {% if elem.status == 'SUCCESS' and elem.output_video %}
   {% comment %}MÉCANISME COMMUN « Preview unifiée » (route n°30) : placeholder seul, hydraté
   par WamaInspector.hydrateCardPreviews (unified_preview ?side=output, rendu mime-driven
   commun). Le <video> à la main était hors-route (18/08).{% endcomment %}
-  {% url 'common:unified_preview' 'avatarizer' job.id as pv_out %}
-  <div class="wcv3-preview" id="preview-row-{{ job.id }}"
-       data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ job.id }}"></div>
+  {% url 'common:unified_preview' 'avatarizer' elem.id as pv_out %}
+  <div class="wcv3-preview" id="preview-row-{{ elem.id }}"
+       data-card-preview="{{ pv_out }}?side=output" data-player-id="{{ elem.id }}"></div>
   {% else %}
-  <div id="preview-row-{{ job.id }}"></div>
+  <div id="preview-row-{{ elem.id }}"></div>
   {% endif %}
 
 </div>
