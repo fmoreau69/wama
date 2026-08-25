@@ -60,14 +60,31 @@ def _image_to_b64(image_path: str) -> str:
         return base64.b64encode(fh.read()).decode('utf-8')
 
 
-def _pdf_to_images(pdf_path: str, dpi: int = 200) -> list[str]:
-    """
-    Convert a PDF to a list of temporary image paths (one per page).
-    Tries PyMuPDF first, then pdf2image as fallback.
-    Returns list of temp file paths — caller must delete them.
+def _pdf_to_images(pdf_path: str, dpi: int = 200, dest_dir: str = None) -> list[str]:
+    """Convertit un PDF en images (une par page) écrites dans `dest_dir`.
+
+    PyMuPDF d'abord, `pdf2image` en repli.
+
+    ⚠ `dest_dir` est FOURNI PAR L'APPELANT depuis le 2026-08-25, et ce n'est pas cosmétique.
+    Cette fonction créait son propre `mkdtemp` et déléguait le nettoyage par un commentaire
+    (« caller must delete them ») — l'appelant l'honorait, mais le contrat FUYAIT dans trois
+    situations, toutes muettes :
+
+      1. échec de conversion → on rendait `[]` alors que le dossier existait déjà (et que
+         `convert_from_path` avait pu y écrire) : la boucle de nettoyage de l'appelant, qui
+         itère sur la liste RENDUE, n'avait plus rien à parcourir ;
+      2. `pix.save()` qui lève en cours de route → rien ne rattrapait, il n'y avait pas de
+         `finally` ici ;
+      3. repli `pdf2image` : `convert_from_path(output_folder=…)` écrit SES propres
+         temporaires en plus des `page_XXXX.png`. L'appelant ne supprimant que ceux qu'il a
+         reçus, le dossier n'était jamais vide — et son `rmdir` conditionné à « si vide » ne
+         se produisait donc JAMAIS, y compris quand tout s'était bien passé.
+
+    Rendre la propriété explicite règle les trois d'un coup : le dossier appartient au `with`
+    de l'appelant, qui le supprime quoi qu'il advienne et sans se soucier de son contenu.
     """
     import os
-    tmp_dir = tempfile.mkdtemp(prefix='glmocr_')
+    tmp_dir = dest_dir or tempfile.mkdtemp(prefix='glmocr_')
     image_paths = []
 
     try:
@@ -86,8 +103,14 @@ def _pdf_to_images(pdf_path: str, dpi: int = 200) -> list[str]:
             image_paths.append(img_path)
         doc.close()
         return image_paths
-    except ImportError:
-        pass
+    except Exception as e:
+        # ⚠ C'était `except ImportError` — donc le repli ne servait QUE si PyMuPDF était
+        # absent, jamais s'il ÉCHOUAIT. Un PDF corrompu, protégé par mot de passe ou
+        # simplement introuvable faisait remonter l'exception au lieu de basculer sur
+        # `pdf2image` : la voie de secours existait sans jamais pouvoir se déclencher.
+        # Trouvé le 2026-08-25 par un test, pas à la lecture.
+        logger.warning(f"[GlmOcr] PyMuPDF indisponible ou en échec ({e}) — repli pdf2image.")
+        image_paths = []
 
     try:
         from pdf2image import convert_from_path
@@ -185,11 +208,14 @@ class GlmOcrBackend:
         ext  = path.suffix.lower()
         tmp_images: list[str] = []
 
-        try:
+        # Le dossier de travail appartient DÉSORMAIS à cette fonction (brique commune) : il
+        # est supprimé quoi qu'il advienne — succès, exception, ou conversion qui rend [].
+        from wama.common.utils.work_dir import work_dir
+        with work_dir('glmocr') as travail:
             if ext == '.pdf':
                 if progress_cb:
                     progress_cb(10, "Conversion PDF → images…")
-                tmp_images = _pdf_to_images(file_path, dpi=200)
+                tmp_images = _pdf_to_images(file_path, dpi=200, dest_dir=str(travail))
                 if not tmp_images:
                     raise RuntimeError("Impossible de convertir le PDF en images")
             else:
@@ -223,20 +249,8 @@ class GlmOcrBackend:
             full_text = '\n\n---\n\n'.join(t for t in texts if t).strip()
             logger.info(f"[GlmOcr] Extracted {len(full_text)} chars from {path.name} ({n_pages} page(s))")
             return full_text
-
-        finally:
-            # Cleanup temp images (not the original file)
-            if ext == '.pdf':
-                for p in tmp_images:
-                    try:
-                        os.unlink(p)
-                    except Exception:
-                        pass
-                # Remove temp dir if empty
-                try:
-                    if tmp_images:
-                        parent = Path(tmp_images[0]).parent
-                        if parent.exists() and not any(parent.iterdir()):
-                            parent.rmdir()
-                except Exception:
-                    pass
+            # ⚠ Plus de bloc de nettoyage ici : il est porté par le `with work_dir(...)`.
+            # L'ancien retirait les images une à une puis le dossier « s'il est vide » —
+            # deux conditions qui le faisaient échouer précisément quand il restait quelque
+            # chose à nettoyer. Le fichier d'origine n'a jamais été concerné : il vit dans
+            # `media/`, pas dans le dossier de travail.
