@@ -24,6 +24,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# Les TESTS n'écrivent JAMAIS dans `media/` : le runner redirige `MEDIA_ROOT` vers un
+# dossier jetable de `media_tests/`. Sans cela la suite déposait ses fichiers dans le média
+# de production — 1069 relevés le 2026-08-25, jusque dans les dossiers d'utilisateurs réels
+# — et les collisions de noms rendaient `test_filename_property` INSTABLE (cf. runners.py).
+TEST_RUNNER = 'wama.common.runners.WamaTestRunner'
+
 # =============================================================================
 # CENTRALIZED AI MODELS CONFIGURATION
 # =============================================================================

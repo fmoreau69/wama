@@ -7,6 +7,8 @@
 !.claude/settings.json
 !.claude/hooks/
 media/
+media_tests/              # médias écrits par la suite de tests (cf. wama/common/runners.py)
+media_tests_quarantaine/  # fichiers de test extraits de media/ le 2026-08-25, en attente de purge
 logs/
 wama-analysis/results
 wama-analysis/ui_screenshots

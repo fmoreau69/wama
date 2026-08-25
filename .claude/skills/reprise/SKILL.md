@@ -45,18 +45,28 @@ python manage.py test                       # SUITE COMPLÈTE (~4 min) — ajout
 > Un compte d'échecs ne dit pas COMBIEN de causes il y a — les relever toutes :
 > `manage.py test 2>&1 | grep -E "^(FAIL|ERROR):|AssertionError"`.
 
-**État attendu au 2026-08-25** : **852 tests, ~216 s**, `FAILED (failures=8 ou 9, errors=2)`.
-Ces 10-11 sont **connus, préexistants et de TROIS causes seulement** — toute autre est une dérive :
+**État attendu au 2026-08-25** : **852 tests, ~214 s**, `FAILED (failures=8, errors=2)` —
+**STABLE** (vérifié sur 3 exécutions, mêmes noms). Ces 10 ont **DEUX causes connues** ;
+toute autre est une dérive :
 
 | # | ce que c'est | cause |
 |---|---|---|
 | **8** | `wama.synthesizer.tests.ViewsTest` + `IntegrationTest` — tous `302 != 200` | les tests créent un user **sans droit sur l'app** ; `AppAccessMiddleware` redirige vers `/`. Les tests précèdent le gating d'apps. Correctif : `is_superuser=True` (tier `admin` ∈ `BYPASS_TIERS`) ou accorder le rôle |
 | **2** | `ERROR: wama-dev-ai.core` / `wama-dev-ai.ui` (`ModuleNotFoundError`) | la découverte de tests entre dans `wama-dev-ai/`, dossier **tiret-case volontairement non importable** (règle de nommage, CLAUDE.md). Rien à « corriger » côté nommage |
-| **0 ou 1** | `synthesizer…test_filename_property` — **INSTABLE** | ⚠⚠ **la suite écrit dans le `MEDIA_ROOT` RÉEL** (`media/`, pas de `override_settings`) : **716 `test*.txt`** s'y sont accumulés. Quand le user de test hérite d'un id dont le dossier existe déjà, Django renomme `test.txt` → `test_XXXX.txt` et l'assertion `assertIn('test.txt', …)` tombe. Le compte oscille donc **8↔9 sans qu'aucun code ne change** |
 
-⚠ Corollaire du 3ᵉ point : **ne jamais conclure d'un écart de ±1 sur synthesizer**. Pour une
-vraie référence, comparer les **noms** des tests en échec, pas leur nombre :
+⚠ **Comparer les NOMS des tests en échec, jamais leur nombre** — un compte identique peut
+recouvrir un échec qui remplace un autre :
 `manage.py test wama.synthesizer 2>&1 | grep '^FAIL:' | sed 's/^FAIL: //;s/ (.*//' | sort`.
+
+> **Une 3ᵉ cause a existé jusqu'au 2026-08-25 et a été SUPPRIMÉE** — la garder en tête, car
+> elle explique les références plus anciennes qui annoncent « 9 échecs ».
+> `test_filename_property` était **INSTABLE** : la suite écrivait dans le `MEDIA_ROOT` RÉEL
+> (**1069 fichiers** relevés, jusque dans les dossiers d'utilisateurs réels — les ids d'une
+> base de test entrent en collision avec les vrais), et Django renommait `test.txt` en
+> `test_c5e24b5d.txt` sur collision, faisant tomber `assertIn('test.txt', …)`. Le compte
+> oscillait **8↔9 sans qu'une ligne de code ne change**. Réglé par
+> `wama/common/runners.py` (`TEST_RUNNER`) : chaque exécution reçoit son propre dossier
+> jetable sous `media_tests/`. **Ne jamais rétablir de test qui écrit dans `media/`.**
 - ⚠ `check_docs` : lancer depuis **Windows** (`./venv_win/Scripts/python.exe`) — il parcourt
   l'arborescence, et `/mnt/d` depuis WSL2 met plusieurs minutes.
 - ⚠ `manifest_export --check` : lancer depuis **WSL2** (`venv_linux`) — les manifestes `library`
