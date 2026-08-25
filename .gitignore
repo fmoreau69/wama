@@ -7,8 +7,11 @@
 !.claude/settings.json
 !.claude/hooks/
 media/
-media_tests/              # médias écrits par la suite de tests (cf. wama/common/runners.py)
-media_tests_quarantaine/  # fichiers de test extraits de media/ le 2026-08-25, en attente de purge
+# Médias écrits par la suite de tests (cf. wama/common/runners.py).
+# ⚠ Pas de commentaire en FIN de ligne dans un .gitignore : le `#` ferait partie du motif.
+media_tests/
+# Fichiers de test extraits de media/ le 2026-08-25, en attente de purge.
+media_tests_quarantaine/
 logs/
 wama-analysis/results
 wama-analysis/ui_screenshots
