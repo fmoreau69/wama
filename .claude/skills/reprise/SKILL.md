@@ -18,7 +18,7 @@ Objectif : repartir de l'état RÉEL du projet, pas d'un souvenir. À dérouler 
 
 ## 3. Confrontation au réel (obligatoire)
 
-### 3a. Contrôles MÉCANIQUES — lancer les 5, ne pas les paraphraser
+### 3a. Contrôles MÉCANIQUES — lancer les 6, ne pas les paraphraser
 > Un statut lu dans un `.md` est une intention ; seules ces commandes disent le réel. Elles sont
 > rapides et ne modifient rien. **Reporter leurs chiffres tels quels, ne jamais les déduire.**
 
@@ -28,7 +28,35 @@ python manage.py manifest_export --check    # corpus de manifestes périmé ? (�
 python manage.py manifest_roundtrip --all   # régénération : facettes projetables, fidélité
 python manage.py check_app_conformity       # grille 77 critères par app (mesuré 22/08)
 python manage.py doc_facts --check          # blocs GÉNÉRÉS des .md (dont la carte WAMA_MECANISMES)
+python manage.py test                       # SUITE COMPLÈTE (~4 min) — ajoutée le 2026-08-25
 ```
+
+#### ⚠ Pourquoi la suite de tests est entrée dans ce rituel (2026-08-25)
+
+> Les 5 contrôles ci-dessus ne lancent **aucun test Django**. Résultat mesuré ce jour :
+> `test_conventions_completes_et_typees` était **rouge depuis le 23/08 14:03** — deux jours —
+> et aucun `/reprise` ne pouvait le voir. Il n'a été découvert que parce qu'un portage d'app
+> a fait lancer la suite pour d'autres raisons.
+>
+> 🔴 **ET NE PAS LIRE LE SEUL NOMBRE D'ÉCHECS — LIRE LES MESSAGES, TOUS.** Le même jour, en
+> ne lisant que le DERNIER message imprimé, j'ai rapporté « un défaut dans les 11 apps »
+> là où il y avait **un seul défaut, dans le test** : il exemptait `export_binding` en dur
+> et ignorait `export_formats`, sa clé jumelle ajoutée après lui. Les apps étaient justes.
+> Un compte d'échecs ne dit pas COMBIEN de causes il y a — les relever toutes :
+> `manage.py test 2>&1 | grep -E "^(FAIL|ERROR):|AssertionError"`.
+
+**État attendu au 2026-08-25** : **852 tests, ~216 s**, `FAILED (failures=8 ou 9, errors=2)`.
+Ces 10-11 sont **connus, préexistants et de TROIS causes seulement** — toute autre est une dérive :
+
+| # | ce que c'est | cause |
+|---|---|---|
+| **8** | `wama.synthesizer.tests.ViewsTest` + `IntegrationTest` — tous `302 != 200` | les tests créent un user **sans droit sur l'app** ; `AppAccessMiddleware` redirige vers `/`. Les tests précèdent le gating d'apps. Correctif : `is_superuser=True` (tier `admin` ∈ `BYPASS_TIERS`) ou accorder le rôle |
+| **2** | `ERROR: wama-dev-ai.core` / `wama-dev-ai.ui` (`ModuleNotFoundError`) | la découverte de tests entre dans `wama-dev-ai/`, dossier **tiret-case volontairement non importable** (règle de nommage, CLAUDE.md). Rien à « corriger » côté nommage |
+| **0 ou 1** | `synthesizer…test_filename_property` — **INSTABLE** | ⚠⚠ **la suite écrit dans le `MEDIA_ROOT` RÉEL** (`media/`, pas de `override_settings`) : **716 `test*.txt`** s'y sont accumulés. Quand le user de test hérite d'un id dont le dossier existe déjà, Django renomme `test.txt` → `test_XXXX.txt` et l'assertion `assertIn('test.txt', …)` tombe. Le compte oscille donc **8↔9 sans qu'aucun code ne change** |
+
+⚠ Corollaire du 3ᵉ point : **ne jamais conclure d'un écart de ±1 sur synthesizer**. Pour une
+vraie référence, comparer les **noms** des tests en échec, pas leur nombre :
+`manage.py test wama.synthesizer 2>&1 | grep '^FAIL:' | sed 's/^FAIL: //;s/ (.*//' | sort`.
 - ⚠ `check_docs` : lancer depuis **Windows** (`./venv_win/Scripts/python.exe`) — il parcourt
   l'arborescence, et `/mnt/d` depuis WSL2 met plusieurs minutes.
 - ⚠ `manifest_export --check` : lancer depuis **WSL2** (`venv_linux`) — les manifestes `library`
