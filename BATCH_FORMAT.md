@@ -20,6 +20,32 @@ les autres. Ajouter un champ ne casse pas les fichiers existants.
 -x valeur         option courte → options['x']
 ```
 
+### ⚠ `-o / --output` : le NOM est honoré, la DESTINATION ne l'est pas encore (mesuré 2026-08-25)
+
+La ligne ci-dessus annonce « nom/**chemin** de sortie ». Le parseur range bien la valeur dans
+`output_filename` (`batch_parsers.py:563`), mais **aucune app n'en dérive un dossier** : la sortie
+retombe dans le `upload_to` de l'app (`media/<app>/<user>/output/`). Le champ est donc, à ce jour,
+un nom — pas une destination. **La doc promettait plus que le code ne fait** ; le noter ici plutôt
+que de laisser le prochain le découvrir en le testant.
+
+**Besoin exprimé (Fabien, 2026-08-25), deux cas d'usage qui ne se recouvrent pas :**
+
+| cas | attendu | ce que ça exige |
+|---|---|---|
+| **À côté de la source** — scanner des dossiers de médias à anonymiser, écrire `<source>_anonymized.<ext>` **dans le dossier d'origine** | destination **relative à l'entrée**, sans écraser l'original | résoudre `-o` par rapport au dossier de `-i`, + un motif de suffixe |
+| **Regroupement** — un lot de prompts pour le synthesizer, toutes les voix dans **un dossier dédié** | destination **absolue et commune** au lot | un `-o` de niveau LOT (en-tête de fichier batch), pas seulement par ligne |
+
+⚠ Points à trancher avant d'implémenter, aucun n'est cosmétique :
+- **écrire hors de `MEDIA_ROOT`** sort du modèle de sécurité actuel (`upload_to`, `safe_delete_file`,
+  la rétention et le tiering supposent tous que le fichier vit sous `media/`) — voir
+  `MEDIA_STORAGE_TIERING.md` ;
+- **la traversée de chemin** (`../`) devient une surface d'attaque dès qu'un `-o` utilisateur désigne
+  un dossier ;
+- un fichier de sortie hors `media/` **n'est plus sauvegardé** par le miroir (qui n'itère que sur
+  `media/`), ni soumis à la rétention.
+→ Piste la moins risquée : une **liste blanche de racines de sortie** déclarée côté serveur (comme
+les dossiers montés de l'Explorateur), `-o` ne pouvant désigner qu'un chemin sous l'une d'elles.
+
 - **Guillemets** autour des valeurs contenant des espaces : `-p "upbeat jazz piano"`.
 - **Commentaires** : ligne commençant par `#`. Encodage **UTF-8**. Formats acceptés :
   `.txt .md .csv .pdf .docx`.

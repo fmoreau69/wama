@@ -103,6 +103,85 @@ faut décider lequel gouverne. Ce qui se combine bien, et ce qui entre en confli
   sauvegarde tourne à 02:30 — donc **avant**, volontairement, pour archiver ce qui va disparaître.
   Le tiering doit s'insérer dans cette fenêtre sans la casser.
 
+## Ce que `media/` a le droit de contenir — doctrine + état MESURÉ au 2026-08-25
+
+> Question de Fabien : « `media/` ne devrait contenir que les input/output d'applications et les
+> fichiers utilisateurs ». Adopté comme **règle**, et confronté au réel le jour même. Le dossier
+> pesait 21 Go pour 3779 fichiers ; **trois natures étrangères** y vivaient.
+
+**Règle.** `media/` contient trois choses, et rien d'autre :
+`<app>/<user>/input/`, `<app>/<user>/output/`, `users/`.
+Tout le reste — fichiers de travail d'un pipeline, médias de test, résidus — est **hors périmètre**
+et doit vivre ailleurs : `media_tests/` pour les tests (cf. `wama/common/runners.py`), un dossier
+**temporaire** pour les intermédiaires de traitement.
+
+### ① Médias de TEST — soldé le 2026-08-25
+
+**1069 fichiers** écrits par la suite de tests, dispersés dans les dossiers d'app et **jusque dans
+les dossiers d'utilisateurs réels** (les ids d'une base de test entrent en collision avec les
+vrais : `regis.blanchet` en avait 100). Cause : aucun `override_settings(MEDIA_ROOT=…)`.
+→ Corrigé par `TEST_RUNNER` (`wama/common/runners.py`) ; les 1069 sont en quarantaine dans
+`media_tests_quarantaine/` avec leur journal de déplacement. Détail : `PROJECT_STATUS §REPRISE 25/08`.
+
+### ② Fichiers de TRAVAIL de l'avatarizer — 🔴 OUVERT, le plus gros poste
+
+Mesuré : `media/avatarizer/` = **1,69 Go / 2101 fichiers**, dont **99,6 % de PNG** (1724 Mo).
+Ce ne sont pas des sorties : ce sont les images **intermédiaires de CodeFormer**
+(`cropped_faces/`, `restored_faces/`, `final_results/`, 687 chacune).
+
+**Deux défauts distincts, qui se composent :**
+
+| # | défaut | preuve |
+|---|---|---|
+| **A** | `workers.py:221` passe `job_output_dir` comme dossier de sortie à CodeFormer, qui y déverse toutes ses frames. **Aucun nettoyage.** Le livrable (la vidéo) est dans `job_<id>/v15/*.mp4` | `job_11` : **2063 fichiers, 1715,7 Mo** pour une vidéo de **0,70 Mo** |
+| **B** | `views.delete()` ne retire que les 3 `FileField` (`safe_delete_file`) — le dossier `job_<id>/` n'est **jamais** supprimé | **13 dossiers `job_*` orphelins** (card supprimée) contre 4 rattachés ; les 1715,7 Mo appartiennent à une card **qui n'existe plus** |
+
+⚠ La fuite n'a joué qu'une fois parce que CodeFormer n'a tourné qu'une fois. **À usage courant de
+l'amélioration faciale, c'est ~1,7 Go par génération.**
+
+**Correctifs à faire (non engagés) :**
+1. les intermédiaires vont dans un dossier **temporaire** supprimé en `finally` — le patron existe
+   déjà dans le dépôt (`common/utils/source_ingest.py:86-118`, `mkdtemp` + `rmtree`), mais **n'est
+   pas une brique commune** : c'est l'occasion de l'extraire (`common/utils/work_dir.py`) plutôt
+   que de le recopier une 4ᵉ fois ;
+2. la suppression d'une card doit emporter son dossier de job — et ce n'est PAS propre à
+   l'avatarizer : toute app qui crée un dossier par job a le même trou. À traiter dans la brique
+   commune de suppression (`queue_duplication.safe_delete_file` en est le point d'entrée naturel).
+
+### ③ Conséquence DIRECTE sur la sauvegarde `\\vrlescot\SAVES\DEEP_LEARNING\MEDIAS`
+
+> **Le ménage local NE se propage PAS.** C'est écrit plus haut et c'est voulu : « le miroir n'itère
+> que sur les fichiers LOCAUX et ne supprime jamais rien à distance ».
+
+Donc, en l'état : les **1069 fichiers de test** déjà sauvegardés et les **1,7 Go d'intermédiaires**
+restent sur le share, et y resteront. Un miroir qui ne supprime jamais est le bon défaut (il protège
+d'un `rm` accidentel), mais il implique que **toute purge locale doit être décidée une seconde fois
+pour le distant**. À faire APRÈS la purge locale, jamais avant, et jamais automatiquement.
+
+### ④ `check_media_integrity` — à écrire (accord Fabien du 25/08, après ②)
+
+Un *kind* de manifeste `media` a été ÉCARTÉ : un manifeste décrit ce qui se **reconstruit** depuis
+une déclaration, `manifests/` est **versionné** (or `media/` porte des données personnelles de labo
+SHS), et `manifest_export --check` serait périmé au moindre dépôt — un contrôle toujours rouge ne
+protège plus rien. Un corpus curé, lui, relève du *kind* **`dataset`** qui existe déjà.
+
+Ce qu'il faut est un **audit MESURÉ**, dans la famille de `check_docs` / `license_audit` /
+`check_app_conformity`, à déclarer dans `mecanismes.py`. Les quatre états à rendre :
+
+| état | définition | relevé 25/08 |
+|---|---|---|
+| **référencé** | une ligne de base pointe dessus | 332 |
+| **orphelin** | aucune ligne ne le référence | 2378 |
+| **résidu de test** | nom issu d'un producteur de test **identifié dans le code** ET non référencé | 0 (déplacés) |
+| 🔴 **référencé mais ABSENT** | la base pointe vers un fichier qui n'existe pas | **33** — jamais signalé jusqu'ici |
+
+⚠⚠ **Méthode obligatoire : DEUX signaux indépendants, jamais le nom seul.** Mesuré le 25/08 :
+« orphelin » seul désigne 2378 fichiers dont l'immense majorité sont de vraies sorties de workers
+(elles ne passent pas par un `FileField`) ; et le nom seul aurait emporté
+`synthesizer/5/input/test_synthesizer.txt`, un dépôt manuel de **Sophie**.
+⚠ Et le motif doit être exact : le suffixe de dé-collision de Django existe ici sous **deux** formes
+(7 alphanum `_6P3kGCJ`, 8 hex `_c5e24b5d`) — n'en reconnaître qu'une laissait 476 fichiers sur place.
+
 ## Décision
 - **Architecture validée** : buffer local + archive distante + tiering (PAS de MEDIA_ROOT sur le share).
 - **Réglages profil** : rétention (input/output, défaut indéfiniment, archive>suppression) + notification
