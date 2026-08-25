@@ -348,6 +348,23 @@ MECANISMES = (
               'wama/common/templates/common/_queue_entry.html', 'CARD_DESIGN.md §11.2',
               annexes=('wama/common/utils/batch_common.py',
                        'wama/common/models.py')),
+    Mecanisme('work_dir', 'Dossier de travail jetable',
+              "Les fichiers INTERMÉDIAIRES d'un traitement ne vivent pas dans `media/`. Mesuré le "
+              "2026-08-25 : `media/avatarizer/` pesait 1,69 Go pour 2101 fichiers dont 99,6 % de "
+              "PNG — les frames de CodeFormer, écrites dans le dossier de sortie du job et jamais "
+              "nettoyées ; `job_11` portait 1715,7 Mo pour une vidéo de 0,70 Mo. `media/` ne "
+              "contient que `<app>/<user>/input|output/` et `users/` (MEDIA_STORAGE_TIERING.md) : "
+              "un fichier de travail y est sauvegardé par le miroir, compté par le tiering et "
+              "servi par Apache pour rien. Le `with` rend le nettoyage STRUCTUREL au lieu d'être "
+              "une convention qu'on oublie — le patron `mkdtemp`+`rmtree` est recopié sur 11 "
+              "sites, garanti par un `finally` sur 5 seulement. ⚠ Les 6 autres n'ont PAS été "
+              "audités un par un (au moins un délègue son nettoyage par contrat documenté) : leur "
+              "portage est un chantier d'adoption site par site, jamais une conversion en masse. "
+              "Porte aussi `purge_job_dir` : la suppression d'une card doit emporter le dossier du "
+              "job — 13 dossiers `job_*` orphelins relevés contre 4 rattachés",
+              'wama/common/utils/work_dir.py', 'MEDIA_STORAGE_TIERING.md',
+              annexes=('wama/avatarizer/backends/codeformer_backend.py',
+                       'wama/avatarizer/views.py')),
     Mecanisme('console', 'Console utilisateur',
               "Lignes de journal structurées par utilisateur et par app. ⚠ Annoncé « via Redis », "
               "mais le chemin Redis exige `django_redis` — ABSENT des deux venvs et des "

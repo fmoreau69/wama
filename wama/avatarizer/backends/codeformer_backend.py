@@ -84,7 +84,31 @@ def _run_codeformer(video_path: str, output_dir: str) -> str:
 
     _ensure_codeformer_weights_in_ai_models()
 
-    cf_out = Path(output_dir) / 'codeformer_out'
+    # ⚠ Les intermédiaires NE VONT PLUS dans `output_dir` (2026-08-25). CodeFormer y déversait
+    # `cropped_faces/`, `restored_faces/` et `final_results/` — 687 PNG chacune, jamais
+    # nettoyées : `job_11` pesait 1715,7 Mo pour une vidéo de 0,70 Mo, soit 99,6 % du média de
+    # l'app. Ils vivent désormais dans un dossier de travail jetable (brique commune), et SEUL
+    # le livrable est remonté dans `output_dir`.
+    from wama.common.utils.work_dir import work_dir
+
+    with work_dir('avatarizer_codeformer') as travail:
+        produit = _codeformer_dans(video_path, travail)
+        if produit is None:
+            return video_path
+        # Sortir le livrable AVANT la fin du bloc — après, le dossier n'existe plus.
+        final = Path(output_dir) / Path(produit).name
+        final.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(produit), str(final))
+        return str(final)
+
+
+def _codeformer_dans(video_path: str, travail: Path):
+    """Lance CodeFormer dans `travail`. Rend le chemin de la vidéo produite, ou None si échec.
+
+    Séparé de `_run_codeformer` pour que la gestion du dossier jetable reste lisible : ici on ne
+    s'occupe QUE du sous-processus et de la localisation de son résultat.
+    """
+    cf_out = travail / 'codeformer_out'
     cf_out.mkdir(parents=True, exist_ok=True)
 
     try:
@@ -106,11 +130,11 @@ def _run_codeformer(video_path: str, output_dir: str) -> str:
             )
     except subprocess.TimeoutExpired:
         logger.warning("[avatarizer] CodeFormer timeout (30 min) — on garde la vidéo MuseTalk.")
-        return video_path
+        return None
 
     if result.returncode != 0:
         logger.warning(f"[avatarizer] CodeFormer échoué — on garde la vidéo MuseTalk.\n{result.stderr[-300:]}")
-        return video_path
+        return None
 
     # CodeFormer écrit dans results/final_results/ ou directement dans -o
     video_name = Path(video_path).name
@@ -119,10 +143,10 @@ def _run_codeformer(video_path: str, output_dir: str) -> str:
         cf_out / video_name,
     ]:
         if candidate.exists():
-            return str(candidate)
+            return candidate
 
     mp4_files = sorted(cf_out.rglob('*.mp4'), key=lambda p: p.stat().st_mtime, reverse=True)
-    return str(mp4_files[0]) if mp4_files else video_path
+    return mp4_files[0] if mp4_files else None
 
 
 class CodeFormerBackend(BaseModelBackend):

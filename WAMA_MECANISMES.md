@@ -157,11 +157,12 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Grille de conformité** | Mesure les 8 facettes F1–F8 des apps par analyse du code réel | `wama/common/services/conformity_checker.py` | `WAMA_APP_CONVENTIONS.md` | 4 |
 | **Manifestes** | Extraction/validation/projection des 7 kinds vers les registres | `wama/common/manifests/ingest.py` | `WAMA_MANIFEST_ARCHITECTURE.md` | 23 |
 
-#### File d'attente & lots (8)
+#### File d'attente & lots (9)
 
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
 | **Console utilisateur** | Lignes de journal structurées par utilisateur et par app. ⚠ Annoncé « via Redis », mais le chemin Redis exige `django_redis` — ABSENT des deux venvs et des `requirements` (vérifié 2026-08-22) : la console tourne DEPUIS TOUJOURS sur son repli cache, qui fonctionne mais n'est pas atomique (lire/insérer/réécrire, donc des lignes perdues quand gunicorn et les workers Celery poussent en même temps). Le correctif n'est PAS d'ajouter la dépendance : le client `redis` brut est déjà installé et la brique d'accès existe (`resource_governor._redis`, via `CELERY_BROKER_URL`) | `wama/common/utils/console_utils.py` | — | 31 |
+| **Dossier de travail jetable** | Les fichiers INTERMÉDIAIRES d'un traitement ne vivent pas dans `media/`. Mesuré le 2026-08-25 : `media/avatarizer/` pesait 1,69 Go pour 2101 fichiers dont 99,6 % de PNG — les frames de CodeFormer, écrites dans le dossier de sortie du job et jamais nettoyées ; `job_11` portait 1715,7 Mo pour une vidéo de 0,70 Mo. `media/` ne contient que `<app>/<user>/input|output/` et `users/` (MEDIA_STORAGE_TIERING.md) : un fichier de travail y est sauvegardé par le miroir, compté par le tiering et servi par Apache pour rien. Le `with` rend le nettoyage STRUCTUREL au lieu d'être une convention qu'on oublie — le patron `mkdtemp`+`rmtree` est recopié sur 11 sites, garanti par un `finally` sur 5 seulement. ⚠ Les 6 autres n'ont PAS été audités un par un (au moins un délègue son nettoyage par contrat documenté) : leur portage est un chantier d'adoption site par site, jamais une conversion en masse. Porte aussi `purge_job_dir` : la suppression d'une card doit emporter le dossier du job — 13 dossiers `job_*` orphelins relevés contre 4 rattachés | `wama/common/utils/work_dir.py` | `MEDIA_STORAGE_TIERING.md` | 37 |
 | **Duplication et suppression sûres** | duplicate_instance() et safe_delete_file() — fichiers partagés entre items | `wama/common/utils/queue_duplication.py` | `WAMA_APP_CONVENTIONS.md` | 15 |
 | **Entrée de file (card seule OU lot)** | Décide, pour une entrée de file, si elle s'affiche en card unique ou en card MÈRE avec ses filles repliables — et rend l'un ou l'autre. Le bloc vivait recopié À L'IDENTIQUE dans 9 gabarits ; il n'a pu être centralisé (2026-08-25) qu'une fois deux verrous levés : `is_unitary` adopté (la décision se lit sur le modèle) et `elem` (les 9 cards filles reçoivent leur élément sous le MÊME nom — avant, 8 graphies). Signature à 3 paramètres : `card_template`, plus `collapse_prefix` et `batch_key` pour la seule app à deux files sur une page (enhancer audio). ⚠ Tout le reste TRAVERSE PAR LE CONTEXTE — les ~9 paramètres de `_batch_card.html` sont fournis par l'app et passent au travers, sinon la signature atteindrait la quinzaine. Apparence uniformisée sur le TRANSCRIBER (référence), conforme à `CARD_DESIGN §11.2` (famille de lot = cyan #0dcaf0) : les 3 couleurs et 2 habillages qui coexistaient étaient des séquelles d'implémentations successives | `wama/common/templates/common/_queue_entry.html` | `CARD_DESIGN.md §11.2` | 182 |
 | **File d'attente (front)** | Comportements communs des files : collapse de batch persisté, focus card, data-wama-* | `wama/common/static/common/js/wama-queue.js` | `CARD_DESIGN.md` | 63 |
@@ -226,16 +227,17 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Runner générique du studio** | Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app | `wama/studio/services/generic_runner.py` | `STUDIO_VISION.md` | 7 |
 | **Surface d'outils** | Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas | `wama/tool_api.py` | `WAMA_APP_GENERATION_ROUTE.md` | 9 |
 
-**Mécanismes déclarés : 93** · domiciles absents : 0 · sans consommateur : 2 · assumés locaux : 18 · modules balayés non rattachés : 4 · **de niveau app sans critère de grille : 20**
+**Mécanismes déclarés : 94** · domiciles absents : 0 · sans consommateur : 2 · assumés locaux : 18 · modules balayés non rattachés : 4 · **de niveau app sans critère de grille : 21**
 - ⚠ **Sans consommateur** (brique morte ou pas encore adoptée) : `benchmark_sync` (wama/model_manager/services/benchmark_sync.py), `qc` (wama/common/utils/qc.py)
 
-<details><summary>⚠ <b>20 mécanisme(s) de niveau app SANS critère de grille</b> — adoptés par des apps, vérifiés par aucun critère (<code>Criterion.mecanisme</code>) : une app peut sortir à 100 % sans les avoir adoptés</summary>
+<details><summary>⚠ <b>21 mécanisme(s) de niveau app SANS critère de grille</b> — adoptés par des apps, vérifiés par aucun critère (<code>Criterion.mecanisme</code>) : une app peut sortir à 100 % sans les avoir adoptés</summary>
 
 | Mécanisme | Adopté par | Domicile |
 |---|---|---|
 | `gateway_identity` — Appariement d'identité de canal | **10** app(s) : anonymizer, avatarizer, composer, converter, describer, enhancer, imager, reader, synthesizer, transcriber | `wama/gateway/services.py` |
 | `media_paths` — Chemins média | **10** app(s) : anonymizer, avatarizer, composer, converter, describer, enhancer, imager, reader, synthesizer, transcriber | `wama/common/utils/media_paths.py` |
 | `rag_geste` — Ajout au RAG (geste explicite) | **10** app(s) : anonymizer, avatarizer, composer, converter, describer, enhancer, imager, reader, synthesizer, transcriber | `wama/common/static/common/js/wama-inspector.js` |
+| `work_dir` — Dossier de travail jetable | **10** app(s) : anonymizer, avatarizer, composer, converter, describer, enhancer, imager, reader, synthesizer, transcriber | `wama/common/utils/work_dir.py` |
 | `manifests` — Manifestes | **8** app(s) : anonymizer, avatarizer, composer, describer, enhancer, imager, synthesizer, transcriber | `wama/common/manifests/ingest.py` |
 | `notifications` — Notifications de tâche | **8** app(s) : anonymizer, avatarizer, composer, describer, enhancer, imager, synthesizer, transcriber | `wama/common/utils/notifications.py` |
 | `ffmpeg` — Accès ffmpeg | **5** app(s) : anonymizer, converter, describer, enhancer, transcriber | `wama/common/utils/ffmpeg_utils.py` |
