@@ -27,6 +27,26 @@ CE QUE ÇA FAIT
 
 ⚠ Ne supprime QUE le dossier qu'il a lui-même créé — jamais un chemin fourni de l'extérieur,
   jamais `MEDIA_ROOT`.
+
+⚠⚠ UN HARNAIS QUI INSTANCIE `DiscoverRunner` DIRECTEMENT CONTOURNE CETTE PROTECTION.
+    `TEST_RUNNER` n'est honoré que par `manage.py test`. Un script qui fait
+    `DiscoverRunner(...).setup_databases()` obtient bien une base de test — mais garde le
+    `MEDIA_ROOT` de PRODUCTION.
+
+    Vécu le 2026-08-25, une heure après l'écriture de ce fichier : un script de vérification
+    monté ainsi a créé un utilisateur et un job de pk 1 dans sa base de test, puis appelé la
+    suppression — qui a visé le VRAI `media/avatarizer/1/output/job_1` et l'a effacé. Les
+    identifiants d'une base de test recommencent à 1 et entrent donc en collision avec les
+    vrais : c'est la MÊME cause que celle qui avait dispersé 1069 fichiers dans `media/`.
+    (Aucune perte ce jour-là : le dossier était un orphelin de 0 Mo déjà voué à la purge.)
+
+    → Dans un script hors `manage.py test`, prendre le runner CONFIGURÉ, jamais la classe :
+
+        from django.conf import settings
+        from django.test.utils import get_runner
+        runner = get_runner(settings)(verbosity=0, interactive=False)   # ← WamaTestRunner
+        runner.setup_test_environment()      # ← indispensable : c'est LUI qui redirige
+        vieux = runner.setup_databases()
 """
 import os
 import shutil

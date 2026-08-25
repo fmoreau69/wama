@@ -189,11 +189,17 @@ def generate_avatar(self, job_id: int):
 
         _set_progress(job, 30)
 
-        # Répertoire de sortie pour ce job
-        job_output_dir = (
-            Path(settings.MEDIA_ROOT) / 'avatarizer' / str(job.user_id) / 'output' / f"job_{job_id}"
-        )
-        job_output_dir.mkdir(parents=True, exist_ok=True)
+        # Sortie de l'app : le livrable, et RIEN d'autre (règle `MEDIA_STORAGE_TIERING.md` —
+        # `media/` ne contient que `<app>/<user>/input|output/` et `users/`).
+        sortie_app = Path(settings.MEDIA_ROOT) / 'avatarizer' / str(job.user_id) / 'output'
+        sortie_app.mkdir(parents=True, exist_ok=True)
+
+        # Le travail se fait HORS de `media/` (2026-08-25). Avant, MuseTalk et CodeFormer
+        # écrivaient dans `output/job_<id>/` : la vidéo finissait dans un sous-dossier `v15/`
+        # (ou pire, DANS `codeformer_out/final_results/`), et les frames intermédiaires
+        # restaient — 1715,7 Mo pour un job, 99,6 % du média de l'app.
+        from wama.common.utils.work_dir import work_dir
+        import shutil as _shutil
 
         # ------------------------------------------------------------------
         # Étape 3 : MuseTalk — synchronisation labiale
@@ -201,32 +207,40 @@ def generate_avatar(self, job_id: int):
         _console(job.user_id, "MuseTalk : synchronisation labiale en cours…", 'info')
         _set_progress(job, 40)
 
-        musetalk_video = _musetalk_backend.process(
-            image_path=image_path,
-            audio_path=audio_path,
-            output_dir=str(job_output_dir),
-            bbox_shift=job.bbox_shift,
-        )
+        with work_dir(f'avatarizer_job{job_id}') as travail:
+            musetalk_video = _musetalk_backend.process(
+                image_path=image_path,
+                audio_path=audio_path,
+                output_dir=str(travail),
+                bbox_shift=job.bbox_shift,
+            )
 
-        _set_progress(job, 80)
-        _console(job.user_id, "MuseTalk terminé.", 'info')
+            _set_progress(job, 80)
+            _console(job.user_id, "MuseTalk terminé.", 'info')
 
-        # ------------------------------------------------------------------
-        # Étape 4 (optionnelle) : CodeFormer — amélioration faciale
-        # ------------------------------------------------------------------
-        final_video = musetalk_video
-        if job.use_enhancer:
-            _console(job.user_id, "CodeFormer : amélioration faciale en cours…", 'info')
-            _set_progress(job, 85)
-            final_video = _codeformer_backend.process(musetalk_video, str(job_output_dir))
-            _console(job.user_id, "CodeFormer terminé.", 'info')
+            # --------------------------------------------------------------
+            # Étape 4 (optionnelle) : CodeFormer — amélioration faciale
+            # --------------------------------------------------------------
+            final_video = musetalk_video
+            if job.use_enhancer:
+                _console(job.user_id, "CodeFormer : amélioration faciale en cours…", 'info')
+                _set_progress(job, 85)
+                final_video = _codeformer_backend.process(musetalk_video, str(travail))
+                _console(job.user_id, "CodeFormer terminé.", 'info')
+
+            # ⚠ SORTIR le livrable AVANT la fin du bloc — après, `travail` n'existe plus.
+            # Le nom est préfixé par le job : `output/` est PLAT, et deux jobs partant du même
+            # avatar et du même audio produiraient sinon le même nom de fichier — Django
+            # renommerait l'un des deux et le lien affiché deviendrait faux.
+            cible = sortie_app / f"job{job_id}_{Path(final_video).name}"
+            _shutil.move(str(final_video), str(cible))
 
         _set_progress(job, 95)
 
         # ------------------------------------------------------------------
         # Étape 5 : sauvegarder le résultat
         # ------------------------------------------------------------------
-        rel_path = os.path.relpath(final_video, settings.MEDIA_ROOT)
+        rel_path = os.path.relpath(cible, settings.MEDIA_ROOT)
         job.output_video.name = rel_path
         job.status = 'SUCCESS'
 
