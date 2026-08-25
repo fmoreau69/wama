@@ -211,6 +211,40 @@ GPU en WSL2 déclenchée par l'assistant, ni de job GPU nocturne** (crashs hôte
 2. **Traitement-jouet** pour les autres (entrée minuscule, modèle le plus léger), à n'activer que
    sur décision explicite de Fabien.
 
+### 4bis. La pyramide des niveaux est DÉSÉQUILIBRÉE — et c'est une DÉCISION, pas un trou
+
+> Relevé mesuré le 2026-08-25 (`nightly_tests.REGISTRY`, 89 scénarios, 0 désactivé). Écrit ici
+> **parce qu'un prochain relevé lirait ces chiffres comme un défaut** et « corrigerait » une
+> priorité que Fabien a délibérément posée ailleurs.
+
+Les niveaux prévus existent tous — `STAGES = ("wired", "ui", "consistency", "model_loaded", "output")`,
+soit exactement la gradation « sans GPU → chargement de modèle → génération ». Leur occupation :
+
+| niveau | scénarios | qui |
+|---|---|---|
+| `ui` | **72** (81 %) | les 15 apps |
+| `consistency` | 9 | `common` seul |
+| `wired` | 5 | common, synthesizer, transcriber |
+| `model_loaded` | **2** | enhancer, transcriber |
+| `output` | **1** | studio |
+
+**Pourquoi c'est ainsi (Fabien, 2026-08-25) — deux raisons, aucune n'est un oubli :**
+1. **Les crashs hôte interdisent de laisser tourner une charge GPU** (1 à 2 arrêts non prévus par
+   jour, cf. §4 ci-dessus). Les étages `model_loaded` et `output` sont donc *bloqués par l'infra*,
+   pas par un manque d'écriture de tests.
+2. **Les tests servent aujourd'hui à TERMINER LE PORTAGE des apps** — éprouver la chaîne
+   d'auto-génération et clore cette marche est la priorité en cours. Or c'est précisément ce que
+   le niveau `ui` mesure. Le déséquilibre est donc l'image fidèle de l'objectif du moment.
+
+**Ce qui est acté** : alimenter les étages hauts se fera **progressivement, sans priorité**, une
+fois le portage clos et l'infra stabilisée. ⚠ Ne pas en faire un critère ni une alerte : un
+indicateur qu'on « corrige » par réflexe déplacerait l'effort hors de la priorité réelle.
+
+⚠ Et l'idée de scénarios pilotés par des **tâches types données à l'AI-Assistant** n'est pas à
+créer : elle existe déjà partiellement — `common/nightly_scenarios.py` exerce `tool_api`
+(`_run_tool_api_inventaire`, `_run_tool_api_lectures`). C'est le point d'accroche à réutiliser le
+jour où on montera d'un étage, pas un chantier neuf.
+
 ---
 
 ## 5. Le second chantier : la grille d'adoption ne couvre pas tous les mécanismes

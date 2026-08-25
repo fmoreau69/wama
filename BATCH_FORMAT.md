@@ -35,16 +35,51 @@ que de laisser le prochain le découvrir en le testant.
 | **À côté de la source** — scanner des dossiers de médias à anonymiser, écrire `<source>_anonymized.<ext>` **dans le dossier d'origine** | destination **relative à l'entrée**, sans écraser l'original | résoudre `-o` par rapport au dossier de `-i`, + un motif de suffixe |
 | **Regroupement** — un lot de prompts pour le synthesizer, toutes les voix dans **un dossier dédié** | destination **absolue et commune** au lot | un `-o` de niveau LOT (en-tête de fichier batch), pas seulement par ligne |
 
-⚠ Points à trancher avant d'implémenter, aucun n'est cosmétique :
-- **écrire hors de `MEDIA_ROOT`** sort du modèle de sécurité actuel (`upload_to`, `safe_delete_file`,
-  la rétention et le tiering supposent tous que le fichier vit sous `media/`) — voir
-  `MEDIA_STORAGE_TIERING.md` ;
-- **la traversée de chemin** (`../`) devient une surface d'attaque dès qu'un `-o` utilisateur désigne
-  un dossier ;
-- un fichier de sortie hors `media/` **n'est plus sauvegardé** par le miroir (qui n'itère que sur
-  `media/`), ni soumis à la rétention.
-→ Piste la moins risquée : une **liste blanche de racines de sortie** déclarée côté serveur (comme
-les dossiers montés de l'Explorateur), `-o` ne pouvant désigner qu'un chemin sous l'une d'elles.
+### ✅ DÉCISION (Fabien, 2026-08-25) — une COPIE, jamais un déplacement
+
+> Le fichier canonique **reste** dans `media/<app>/<user>/output/`. La destination `-o` reçoit une
+> **copie**. C'est la décision, et elle est meilleure que le déplacement que j'avais envisagé
+> d'abord — pour une raison qui n'est pas de confort : **elle ne casse aucun invariant.**
+
+`output_video.name`, `safe_delete_file`, la rétention, le miroir de sauvegarde, le tiering et les
+previews continuent tous d'opérer sur le fichier canonique, **sans une ligne de changement**. La
+copie est une *projection*, jamais une source de vérité.
+
+**Ce que ça règle, point par point :**
+
+| risque du déplacement | ce que la copie en fait |
+|---|---|
+| sortir de `MEDIA_ROOT` casse rétention/tiering/sauvegarde | ne se pose plus : le canonique n'a pas bougé |
+| **previews de card** (question de Fabien) | ne se pose plus : `unified_preview` lit le canonique — **les copies lui sont invisibles**. Avec un déplacement il aurait fallu servir des fichiers hors `MEDIA_ROOT` à travers Django, c'est-à-dire ouvrir une vraie surface de sécurité |
+| traversée de chemin | subsiste, mais ne menace plus que la *cible de copie* — le rayon d'action est réduit à une écriture, pas à l'intégrité du modèle média |
+
+**La liste blanche reste nécessaire** — une copie est encore une écriture arbitraire par le
+processus serveur. Mais elle **existe déjà** et n'est pas à inventer :
+`filemanager.MountedFolder.local_path`, **par utilisateur**, avec sa config SMB. Règle :
+*une destination `-o` doit se résoudre sous l'un des `MountedFolder` de l'utilisateur demandeur*
+(ou sous son propre `media/<app>/<user>/`).
+Deux bénéfices gratuits : ce sont **les mêmes dossiers que l'Explorateur affiche** (l'utilisateur
+choisit une destination qu'il voit, aucun concept ni UI en plus), et le cas « à côté de la source »
+est automatiquement couvert — un dossier qu'on a scanné pour construire le lot est nécessairement
+monté. ⚠ Inventer une seconde notion de « où le serveur a le droit d'écrire » serait la faute :
+elle divergerait de celle-ci.
+
+**Quatre règles à acter avant d'implémenter** (non couvertes par la décision, chacune muette si on
+l'oublie) :
+
+1. **La copie n'est JAMAIS supprimée automatiquement.** La rétention et la suppression de lot
+   n'opèrent que **sous `media/`**. Un fichier déposé dans le dossier de l'utilisateur est *son*
+   fichier ; l'effacer de notre propre initiative serait dangereux et surprenant.
+2. **Une copie qui échoue ne fait PAS échouer le job.** Partage réseau indisponible, droits
+   refusés → le job reste `SUCCESS` avec un avertissement. Sinon un à-coup de montage coûte une
+   heure de GPU déjà dépensée.
+3. **Relance** : une seconde exécution écrase la copie précédente (destination déclarée = intention
+   stable). À défaut, chaque relance sédimenterait des variantes suffixées chez l'utilisateur.
+4. Les copies vivant hors `media/`, **`check_media_integrity` ne les voit pas** — c'est cohérent,
+   et c'est écrit ici pour que personne ne « corrige » plus tard cette absence.
+
+**Sans `-o`** : rien ne change — le résultat reste dans `media/` et l'utilisateur télécharge la card,
+le lot ou la file entière. La destination sert à **redispatcher**, pas à stocker.
 
 - **Guillemets** autour des valeurs contenant des espaces : `-p "upbeat jazz piano"`.
 - **Commentaires** : ligne commençant par `#`. Encodage **UTF-8**. Formats acceptés :
