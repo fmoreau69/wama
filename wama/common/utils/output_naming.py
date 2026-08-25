@@ -59,7 +59,7 @@ _MAX = 120
 
 
 def _nettoyer(valeur: str, *, defaut: str = 'x') -> str:
-    """Réduit un fragment à ce qui traverse sans dommage un système de fichiers ET une URL."""
+    """Assainit un fragment TECHNIQUE (modèle, tag) : ASCII strict, rien qui casse un chemin."""
     if not valeur:
         return defaut
     # Un identifiant de modèle est souvent un chemin HF (`Shakker-Labs/FLUX.1-dev-LoRA`) :
@@ -67,6 +67,25 @@ def _nettoyer(valeur: str, *, defaut: str = 'x') -> str:
     valeur = str(valeur).replace('\\', '/').split('/')[-1]
     valeur = unicodedata.normalize('NFKD', valeur).encode('ascii', 'ignore').decode('ascii')
     valeur = re.sub(r'[^A-Za-z0-9._-]+', '-', valeur).strip('-._')
+    return valeur or defaut
+
+
+def _souche_utilisateur(valeur: str, *, defaut: str = 'fichier') -> str:
+    """Souche du nom D'ORIGINE — PRÉSERVÉE, accents et espaces compris.
+
+    ⚠ Décision du 2026-08-25, après une première version qui l'assainissait comme un fragment
+    technique : « Réunion équipe.mp4 » y devenait « Reunion-equipe… ». La règle de la famille
+    FICHIER est que **l'utilisateur retrouve SON nom** ; le normaliser le lui reprend, et sur
+    un labo francophone ce n'est pas un cas limite mais le cas courant. L'ancien code le
+    préservait depuis toujours sans incident, et le stockage Django assainit déjà à l'écriture.
+
+    On ne retire donc que ce qui casserait un chemin : séparateurs, caractères de contrôle,
+    et les caractères interdits par Windows.
+    """
+    if not valeur:
+        return defaut
+    valeur = str(valeur).replace('\\', '/').split('/')[-1]
+    valeur = re.sub(r'[\x00-\x1f<>:"|?*]+', '', valeur).strip(' .')
     return valeur or defaut
 
 
@@ -98,7 +117,7 @@ def compose_output_name(*, app: str, model: str = '', ext: str = '',
 
     if source_name:
         souche, ext_source = os.path.splitext(os.path.basename(str(source_name)))
-        souche = _nettoyer(souche, defaut='fichier')
+        souche = _souche_utilisateur(souche)
         ext = ext or ext_source
         morceaux = [souche, tag] + ([modele] if modele else [])
     else:

@@ -62,11 +62,22 @@ class NommageDeSortieTests(SimpleTestCase):
         self.assertNotIn('/', nom, "le `/` d'un id HuggingFace créerait un dossier fantôme")
         self.assertEqual(nom, 'gen1_FLUX.1-dev-LoRA.png')
 
-    def test_les_accents_et_espaces_ne_traversent_pas(self):
-        nom = compose_output_name(app='anonymizer', model='m',
-                                  source_name='Réunion équipe (2026).mp4')
-        self.assertEqual(nom, 'Reunion-equipe-2026_blurred_m.mp4')
-        self.assertNotIn(' ', nom)
+    def test_le_nom_D_ORIGINE_est_PRESERVE_accents_et_espaces_compris(self):
+        """⚠ Décision du 2026-08-25. Une 1ʳᵉ version normalisait la souche : « Réunion équipe »
+        devenait « Reunion-equipe ». La règle de la famille FICHIER est que l'utilisateur
+        retrouve SON nom — et sur un labo francophone les accents sont le cas COURANT, pas
+        un cas limite. L'ancien code les préservait depuis toujours sans incident.
+        """
+        self.assertEqual(
+            compose_output_name(app='anonymizer', model='m',
+                                source_name='Réunion équipe (2026).mp4'),
+            'Réunion équipe (2026)_blurred_m.mp4')
+
+    def test_mais_ce_qui_casserait_un_chemin_est_retire(self):
+        nom = compose_output_name(app='anonymizer', model='m', source_name='a<b>c:d|e?f*g.mp4')
+        for interdit in '<>:"|?*':
+            self.assertNotIn(interdit, nom, f"{interdit!r} casse un chemin Windows")
+        self.assertEqual(nom, 'abcdefg_blurred_m.mp4')
 
     def test_un_nom_tres_long_est_borne(self):
         nom = compose_output_name(app='anonymizer', model='m', source_name='a' * 400 + '.mp4')

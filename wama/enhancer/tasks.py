@@ -268,8 +268,11 @@ def enhance_audio(self, audio_enhancement_id: int):
         from django.core.files.storage import default_storage
 
         input_path = ae.input_file.path
-        base_name = os.path.splitext(os.path.basename(input_path))[0]
-        output_filename = f"{base_name}_enhanced_{ae.engine}.wav"
+        # Brique COMMUNE de nommage (2026-08-25) — rendu IDENTIQUE à la graphie historique
+        # `{base}_enhanced_{moteur}.wav` ; le mot « enhanced » est désormais DÉCLARÉ.
+        from wama.common.utils.output_naming import compose_output_name
+        output_filename = compose_output_name(app='enhancer', model=ae.engine,
+                                              source_name=input_path, ext='.wav')
 
         # Temporary output file
         temp_fd, temp_output = tempfile.mkstemp(suffix='.wav', prefix='audio_enhanced_')
@@ -397,7 +400,9 @@ def _enhance_image(enhancement: Enhancement, user_id: int) -> dict:
 
     # Get the base name from the input file (which already has unique name from Django upload)
     base_name, ext = os.path.splitext(os.path.basename(input_path))
-    output_filename = f"{base_name}_enhanced_{enhancement.ai_model}{ext}"
+    from wama.common.utils.output_naming import compose_output_name
+    output_filename = compose_output_name(app='enhancer', model=enhancement.ai_model,
+                                          source_name=input_path)
     logger.info(f"Output filename will be: {output_filename}")
 
     # Create temporary file for processing (not in media/ to avoid permission issues)
@@ -528,8 +533,15 @@ def _enhance_video(enhancement: Enhancement, user_id: int) -> dict:
     input_path = enhancement.input_file.path
     # Get the base name from the input file (which already has unique name from Django upload)
     base_name, ext = os.path.splitext(os.path.basename(input_path))
-    output_filename = f"{base_name}_enhanced_{enhancement.ai_model}{ext}"
+    from wama.common.utils.output_naming import compose_output_name
+    output_filename = compose_output_name(app='enhancer', model=enhancement.ai_model,
+                                          source_name=input_path)
 
+    # ⚠ Ce dossier de travail EST nettoyé sur les deux chemins (rmtree en succès ET dans le
+    # `except`) — vérifié le 2026-08-25, mon relevé automatique l'avait signalé à tort. Son
+    # passage à la brique `work_dir` (nettoyage porté par un `with`, donc couvrant aussi un
+    # retour anticipé et les BaseException) reste à faire : c'est une restructuration de la
+    # fonction entière, pas une substitution de deux lignes.
     # Create temporary directories
     temp_dir = tempfile.mkdtemp(prefix='enhancer_')
     frames_dir = os.path.join(temp_dir, 'frames')
