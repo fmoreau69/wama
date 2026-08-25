@@ -49,22 +49,20 @@ def describe_video(description, set_progress, set_partial, console):
         set_partial(description, "Extracting video frames...")
         set_progress(description, 20)
 
-        frames = extract_frames(file_path, frame_interval, max_frames)
-        console(user_id, f"Extracted {len(frames)} frames")
+        # Brique COMMUNE `work_dir` : les images extraites ne survivent pas au bloc, et le
+        # dossier part avec elles — y compris si l'analyse lève. L'ancien nettoyage retirait
+        # les fichiers un à un et laissait le dossier derrière lui à CHAQUE vidéo décrite.
+        from wama.common.utils.work_dir import work_dir
+        with work_dir('describer_frames') as travail:
+            frames = extract_frames(file_path, frame_interval, max_frames, dest_dir=str(travail))
+            console(user_id, f"Extracted {len(frames)} frames")
 
-        # Describe frames with BLIP
-        set_progress(description, 30)
-        console(user_id, "Analyzing frames with AI...")
-        set_partial(description, "Analyzing visual content...")
+            # Describe frames with BLIP
+            set_progress(description, 30)
+            console(user_id, "Analyzing frames with AI...")
+            set_partial(description, "Analyzing visual content...")
 
-        frame_descriptions = describe_frames(frames, set_progress, console, user_id)
-
-        # Cleanup temp frames
-        for frame_path in frames:
-            try:
-                os.remove(frame_path)
-            except:
-                pass
+            frame_descriptions = describe_frames(frames, set_progress, console, user_id)
 
         set_progress(description, 60)
 
@@ -140,10 +138,20 @@ def get_video_duration(file_path: str) -> float:
     return 60.0  # Default to 1 minute
 
 
-def extract_frames(file_path: str, interval: int, max_frames: int) -> list:
-    """Extract frames from video at specified interval."""
+def extract_frames(file_path: str, interval: int, max_frames: int, dest_dir: str = None) -> list:
+    """Extrait des images du film, une toutes les `interval` secondes, dans `dest_dir`.
+
+    ⚠ `dest_dir` est FOURNI PAR L'APPELANT depuis le 2026-08-25. Auparavant la fonction
+    créait son propre `mkdtemp` et ne le nettoyait pas — sans même annoncer de contrat.
+    L'appelant retirait les FICHIERS un à un mais JAMAIS le dossier : chaque description de
+    vidéo laissait un `describer_frames_*` vide dans le temporaire du système, définitivement.
+    Et si l'analyse des images levait, rien n'était nettoyé du tout — ni fichiers, ni dossier.
+    ⚠ Autre fuite du même bloc : quand ffmpeg sortait en erreur, les images DÉJÀ écrites
+    n'étaient pas collectées (la boucle ne tourne que sur `returncode == 0`) — donc jamais
+    supprimées non plus.
+    """
     frames = []
-    temp_dir = tempfile.mkdtemp(prefix="describer_frames_")
+    temp_dir = dest_dir or tempfile.mkdtemp(prefix="describer_frames_")
 
     try:
         # Use ffmpeg to extract frames

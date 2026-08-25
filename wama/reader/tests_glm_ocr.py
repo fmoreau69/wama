@@ -52,6 +52,21 @@ class DossierDeTravailGlmOcrTests(SimpleTestCase):
             import shutil
             shutil.rmtree(fourni, ignore_errors=True)
 
+    def test_describer_extrait_ses_images_dans_le_dossier_FOURNI(self):
+        """Même défaut, autre app : `extract_frames` créait son dossier sans le nettoyer, et
+        l'appelant retirait les FICHIERS mais jamais le DOSSIER — un `describer_frames_*`
+        vide restait dans le temporaire à chaque vidéo décrite."""
+        from wama.describer.utils.video_describer import extract_frames
+
+        avant = {p for p in Path(tempfile.gettempdir()).glob('describer_frames_*') if p.is_dir()}
+        with tempfile.TemporaryDirectory() as fourni:
+            # Fichier inexistant : ffmpeg échoue, la fonction rend [] sans lever.
+            self.assertEqual(extract_frames('/introuvable/absent.mp4', 10, 2, dest_dir=fourni), [])
+        apres = {p for p in Path(tempfile.gettempdir()).glob('describer_frames_*') if p.is_dir()}
+        self.assertEqual(apres - avant, set(),
+                         "un dossier `describer_frames_*` a été créé alors qu'un dossier "
+                         "était FOURNI")
+
     def test_la_brique_work_dir_efface_meme_un_dossier_NON_vide(self):
         """Le 3ᵉ défaut : l'ancien nettoyage retirait le dossier « s'il est vide », or le
         repli `pdf2image` y laisse ses propres temporaires — la condition n'était donc
