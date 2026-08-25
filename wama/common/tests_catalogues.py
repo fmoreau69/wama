@@ -301,7 +301,36 @@ class AppCatalogConformiteTest(TestCase):
         que dans cette entrée, et le rapport de conformité l'ignorerait en silence.
         """
         from wama.common.app_registry import _conv
-        attendues = set(_conv())
+        defauts = _conv()
+        attendues = set(defauts)
+
+        # Les conventions NON booléennes se DÉRIVENT du défaut de `_conv()` ; elles ne sont
+        # plus reconnues par leur nom écrit ici. `export_binding` l'était en dur — si bien que
+        # `export_formats`, ajouté le 2026-08-23 (`af0bb92b`), n'a jamais été exempté et a mis
+        # les 11 apps au rouge pendant deux jours pour une faute qui n'était PAS la leur.
+        # Une liste tenue à la main dans un test reproduit ce défaut à la clé suivante.
+        CONTRATS = {
+            'export_binding': (lambda v: v in ('early', 'late'), "'early' ou 'late'"),
+            'export_formats': (lambda v: isinstance(v, tuple) and all(isinstance(x, str) for x in v),
+                               "tuple de chaînes"),
+        }
+        # ⚠ `d not in (True, False, None)` et non `isinstance(d, bool)` : le tuple VIDE `()`
+        # doit sortir comme non booléen, et c'est bien le cas (`() == False` est faux).
+        non_bool = {c for c, d in defauts.items() if d not in (True, False, None)}
+        # ⚠ `assertFalse` et non `assertEqual(…, set())` : le diff d'ensembles d'assertEqual
+        # s'affiche AVANT le message, et c'est le message qui dit quoi faire. Le nom de la
+        # clé fautive doit être la première chose lue.
+        sans_contrat = sorted(non_bool - set(CONTRATS))
+        self.assertFalse(
+            sans_contrat,
+            f"convention(s) non booléenne(s) sans contrat dans ce test : {sans_contrat} — "
+            f"déclarer ce qu'elles acceptent dans CONTRATS, sinon elles échoueront comme un "
+            f"mauvais typage d'app alors que les apps n'y sont pour rien")
+        contrat_perime = sorted(set(CONTRATS) - non_bool)
+        self.assertFalse(
+            contrat_perime,
+            f"contrat déclaré pour une convention redevenue booléenne : {contrat_perime} — le retirer")
+
         for nom, spec in self._chaque():
             with self.subTest(app=nom):
                 conventions = spec.get('conventions')
@@ -309,11 +338,39 @@ class AppCatalogConformiteTest(TestCase):
                 self.assertEqual(set(conventions), attendues,
                                  "les conventions doivent être produites par _conv()")
                 for critere, valeur in conventions.items():
-                    if critere == 'export_binding':
-                        self.assertIn(valeur, ('early', 'late'))
+                    if critere in CONTRATS:
+                        accepte, libelle = CONTRATS[critere]
+                        self.assertTrue(accepte(valeur),
+                                        f"{critere}={valeur!r} — attendu {libelle}")
                     else:
                         self.assertIn(valeur, (True, False, None),
                                       f"{critere}={valeur!r} — attendu True/False/None (N/A)")
+
+    def test_export_binding_et_formats_se_repondent(self):
+        """`late` ⟺ des formats déclarés. Règle vraie 11 fois sur 11, que RIEN n'imposait.
+
+        `_conv()` documente les deux clés séparément, alors qu'elles décrivent un seul
+        mécanisme : la liaison TARDIVE veut dire « le format se choisit au téléchargement »,
+        donc un split-button, donc des formats à lui donner. Les deux incohérences possibles
+        sont muettes, chacune à sa manière :
+          - `late` avec `()`      → un split-button sans rien à proposer ;
+          - `early` avec des formats → des formats que le bouton n'offre pas (lien simple),
+            déclarés pour personne.
+        Mesuré le 2026-08-25 : les 3 apps `late` (describer, reader, transcriber) portent des
+        formats, les 8 `early` portent `()`.
+        """
+        for nom, spec in self._chaque():
+            conventions = spec.get('conventions') or {}
+            if 'export_binding' not in conventions:
+                continue
+            with self.subTest(app=nom):
+                tardif = conventions.get('export_binding') == 'late'
+                formats = conventions.get('export_formats') or ()
+                self.assertEqual(
+                    tardif, bool(formats),
+                    f"export_binding={conventions.get('export_binding')!r} mais "
+                    f"export_formats={formats!r} — la liaison tardive exige des formats, "
+                    f"la liaison précoce n'en propose aucun")
 
     def test_extra_links_des_categories_resolvent(self):
         """Le trou que `PagesSmokeTests` ne bouche pas : il boucle sur les APPS, pas sur les liens.
