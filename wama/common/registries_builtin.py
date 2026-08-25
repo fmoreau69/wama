@@ -206,7 +206,7 @@ enregistrer(Registre(
     source="Fichiers `wama/common/prompt_skills/*.md`",
     rafraichir=_rafraichir_skills, compter=_compter_skills,
     permission='auth', au_demarrage=False,
-    doc='WAMA_IA_TRANSVERSE.md',
+    doc='WAMA_LLM.md',
     description="Vide le cache de lecture des skills : un `.md` modifié à chaud est repris sans "
                 "redémarrage. Sans effet de bord partagé, donc ouvert à tout compte connecté.",
 ))

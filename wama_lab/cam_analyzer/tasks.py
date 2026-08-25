@@ -2774,7 +2774,7 @@ def analyze_sam3_only_task(self, session_id: str):
         # Enrichissement par le PIPELINE COMMUN (skill `cam_analyzer-transport`) :
         # traduit + met en forme « concept » anglophone attendu par SAM3, au lieu
         # de passer le prompt brut (fin de la particularité cam_analyzer). Fallback
-        # = prompt d'origine si le LLM local est injoignable. Voir WAMA_IA_TRANSVERSE.md.
+        # = prompt d'origine si le LLM local est injoignable. Voir WAMA_LLM.md.
         try:
             from wama.common.utils.prompt_enrichment import enrich_on_demand
             _enriched = []

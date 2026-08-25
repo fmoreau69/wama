@@ -13,7 +13,7 @@
  *     que le formulaire poste pour que le serveur sache DANS QUEL CHAMP écrire l'édition.
  *
  * Transparence : la barre d'état n'apparaît QUE s'il y a quelque chose à dire (règle
- * WAMA_IA_TRANSVERSE.md — silence si le prompt est parti tel quel).
+ * WAMA_LLM.md — silence si le prompt est parti tel quel).
  *
  * Usage :
  *   WamaPromptEnrich.attach('#id_prompt', {

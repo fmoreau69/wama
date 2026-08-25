@@ -1,4 +1,16 @@
-# WAMA_IA_TRANSVERSE.md — IA transverse : prompts, skills, RAG & chaîne complète (§10.B / §16.6)
+# WAMA_LLM.md — la couche LLM : prompts, skills, RAG, mémoire & routage (§10.B / §16.6)
+
+> **Renommé le 2026-08-25** — `PROMPT_PIPELINE.md` → `WAMA_IA_TRANSVERSE.md` → **`WAMA_LLM.md`**.
+> Deux raisons, et la seconde est un critère déjà en vigueur dans le dépôt :
+> ① « IA transverse » est devenu **ambigu** — les modèles APPRIS (`WAMA_APPRENTISSAGE.md`) sont
+> eux aussi transverses aux trois mondes ; ② `PIPELINE` était **déjà pris deux fois** (le kind de
+> manifeste `pipeline`, et « pipeline de prompts »), et *« un nom faux par COLLISION est pire qu'un
+> nom faux par connotation »* (critère de D17, `WAMA_DATA_WORLD`).
+>
+> **Périmètre** : tout ce qui entoure un traitement côté **langage** — comprendre la demande,
+> enrichir/traduire le prompt, rappeler du RAG et de la mémoire, choisir le modèle, exposer les
+> skills, servir l'assistant sur ses N surfaces. **N'y entre PAS** : les modèles appris sur les
+> données (→ `WAMA_APPRENTISSAGE.md`).
 
 > **Renommé depuis `PROMPT_PIPELINE.md` le 2026-08-22** (décision Fabien : le nom ne couvrait
 > plus le contenu — le fichier porte désormais les prompts, les SKILLS et la vue de CHAÎNE

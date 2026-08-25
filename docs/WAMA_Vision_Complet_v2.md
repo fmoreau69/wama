@@ -116,6 +116,7 @@ Juillet 2026
   - 31. Recherche intelligente dans les données
   - 32. Vision « DeepMind » adaptée aux laboratoires
   - 33. La boucle de découverte scientifique
+  - 33bis. Modèles appris, plan d'expérience et boucle de simulation *(ajouté 2026-08-25)*
 
 **Partie VIII — Médiathèque universitaire et système d'information**
 
@@ -550,6 +551,67 @@ Les laboratoires accumulent vidéos, expériences, signaux, mesures, simulations
 Une étape essentielle consiste à transformer des données différentes — vidéo, signal EEG, trajectoire, événement comportemental — en représentations comparables (embeddings, signatures temporelles, graphes de relations) reliées dans un même espace de connaissance.
 
 Au-delà de répondre aux questions posées, WAMA peut rechercher anomalies, comportements rares, corrélations inattendues, groupes inconnus et phénomènes émergents, assistant ainsi le chercheur dans l'exploration.
+
+## 33bis. Modèles appris, plan d'expérience et boucle de simulation
+
+> 🧭 **Ajouté le 2026-08-25.** Horizon **moyen terme**, entre le socle Data (H2-parallèle) et la
+> boucle de découverte (§32-33). Cadre détaillé : **`WAMA_APPRENTISSAGE.md`** ; modèle de données :
+> **`WAMA_DATA_WORLD.md §13`**. Les garde-fous méthodologiques de §28 s'appliquent intégralement.
+
+### Ce que WAMA apprend — et ce qu'il n'apprend pas
+
+Les §27-31 décrivent la compréhension et l'exploitation des données. Il y manquait le maillon qui
+transforme des données en **modèle** : reconnaissance de **motifs** récurrents, identification de
+**situations** à partir de ces motifs, et construction de **profils** — par exemple des profils de
+conduite regroupant les participants par manière de conduire, puis croisés avec l'âge ou
+l'expérience.
+
+Trois précisions qui bornent l'ambition :
+
+- **la détection des traces n'est pas de l'apprentissage.** Un clignotant, une rotation de volant,
+  un enfoncement de pédale se calculent ; y mettre un réseau de neurones serait une erreur de niveau ;
+- **WAMA n'entraîne pas.** Il **déclare, déclenche et réingère**. Le calcul lourd vit sur une
+  infrastructure dédiée ; ce qui revient dans WAMA est la **provenance** du modèle — le jeu de
+  données, la chaîne, les métriques — parce que dans un contexte de recherche, **c'est la
+  provenance qui est l'objet scientifique**, pas le fichier de poids ;
+- **l'outillage du cycle de vie ML existe déjà ailleurs** et ne sera pas réécrit. WAMA s'y **relie**
+  sans l'absorber.
+
+### Le plan d'expérience comme donnée de première classe
+
+Un corpus de recherche n'est pas un tas de fichiers : il porte un **plan** — des unités
+d'observation, des regroupements comparés entre eux, des conditions manipulées et croisées avec les
+unités, des covariables mesurées. Cette structure est aujourd'hui encodée dans une **arborescence de
+dossiers** qui change d'une expérimentation à l'autre et d'un laboratoire à l'autre.
+
+WAMA modélise **le plan, pas l'arborescence** : un vocabulaire de **rôles fermé** — unité,
+regroupement, facteur, covariable — avec des **libellés ouverts**, et les relations de nidification
+et de croisement déclarées. C'est ce qui rend la taxonomie universelle : les mêmes quatre rôles
+décrivent une passation de conduite, une série d'essais mécaniques ou une campagne de comptage de
+trafic. C'est aussi ce qui permet à la couche statistique de **proposer le traitement licite** au
+lieu de le demander.
+
+L'exploration assistée par IA d'une arborescence mal rangée reste un **accélérateur, jamais un
+passage obligé** : le plan peut toujours être déclaré à la main, ou porté par les fichiers
+eux-mêmes. Et lorsqu'une IA le propose, elle propose une **structure vérifiable mécaniquement** —
+la contre-épreuve est le corpus lui-même, pas un second avis.
+
+### La boucle de simulation — de l'analyse à la génération
+
+Un profil de conduite n'est pas seulement une description : c'est un **modèle comportemental
+exécutable**. Rejoué dans un simulateur à la place d'un conducteur humain, il permet d'abord
+d'**évaluer le réalisme** de la reproduction des comportements, puis — le réalisme confirmé — de
+**générer des données** là où l'expérimentation coûte cher ou expose des personnes.
+
+La boucle se referme donc : données réelles → modèle → simulation → données synthétiques → corpus.
+Deux exigences en découlent, non négociables :
+
+1. **la nature synthétique d'une donnée est une propriété déclarée et propagée**, jamais devinée ;
+2. **on n'entraîne jamais un modèle sur des données produites par le modèle qu'on évalue** — sans
+   quoi la boucle ne mesure plus que sa propre cohérence.
+
+Le réalisme, enfin, ne se juge pas à l'œil : il se mesure en comparant les **distributions** des
+indicateurs, et en vérifiant qu'un classifieur **ne distingue plus** le réel du simulé.
 
 # Partie VIII — Médiathèque universitaire et système d'information
 

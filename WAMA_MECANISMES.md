@@ -143,7 +143,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Garde des URL sortantes** | Valide toute cible de téléchargement pilotée par une saisie : schéma, identifiants, et adresses privées/bouclage/lien-local — anti-SSRF | `wama/common/utils/url_guard.py` | `PROFILES_PERMISSIONS.md` | 2 |
 | **Ingest de source** | Télécharge une source distante vers le FileField, déclaré par WAMA_INGEST | `wama/common/utils/source_ingest.py` | `WAMA_APP_GENERATION_ROUTE.md` | 11 |
 | **Moteur de l'assistant IA** | Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — la vue web et /api/v1/assistant/chat/ en sont des clients | `wama/common/services/assistant_engine.py` | — | 7 |
-| **Pipeline de prompts** | Traduction/enrichissement centralisés, déclarés par PROMPT_TARGETS | `wama/common/utils/prompt_enrichment.py` | `WAMA_IA_TRANSVERSE.md` | 18 |
+| **Pipeline de prompts** | Traduction/enrichissement centralisés, déclarés par PROMPT_TARGETS | `wama/common/utils/prompt_enrichment.py` | `WAMA_LLM.md` | 18 |
 | **Skills de rôle de l'assistant** | Posture et domaine de l'assistant (science, design, dev) + rappel du contexte de laboratoire, déclarés par domaine — distinct de l'enrichissement | `wama/common/utils/assistant_skills.py` | `ROADMAP.md §19.7` | 3 |
 
 #### Manifestes & registres (6)
@@ -157,7 +157,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Grille de conformité** | Mesure les 8 facettes F1–F8 des apps par analyse du code réel | `wama/common/services/conformity_checker.py` | `WAMA_APP_CONVENTIONS.md` | 4 |
 | **Manifestes** | Extraction/validation/projection des 7 kinds vers les registres | `wama/common/manifests/ingest.py` | `WAMA_MANIFEST_ARCHITECTURE.md` | 23 |
 
-#### File d'attente & lots (10)
+#### File d'attente & lots (11)
 
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
@@ -169,6 +169,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Import par lot** | Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot | `wama/common/utils/batch_parsers.py` | `BATCH_FORMAT.md` | 50 |
 | **Intégrité des médias** | Audit MESURÉ de `media/` en 4 états : RÉFÉRENCÉ (une ligne de base pointe dessus), orphelin, RÉSIDU DE TEST, et RÉFÉRENCÉ MAIS ABSENT — ce dernier étant celui que personne ne voyait : au 2026-08-25, **33 lignes de base pointent vers des fichiers inexistants**, et un téléchargement ou un aperçu y échoue sans rien dire. Signale aussi les fichiers ÉGARÉS hors des emplacements légitimes. ⚠⚠ La méthode exige DEUX signaux indépendants, jamais le nom seul : « orphelin » seul désignait 3447 fichiers sur 3779 (les sorties de workers ne passent pas par un FileField), et le nom seul aurait emporté le dépôt manuel d'une utilisatrice. ⚠ Un kind de manifeste `media` a été ÉCARTÉ : `manifests/` est versionné alors que `media/` porte des données personnelles, et un export serait périmé au moindre dépôt — un contrôle toujours rouge ne protège plus rien | `wama/common/management/commands/check_media_integrity.py` | `MEDIA_STORAGE_TIERING.md` | ⚠ **0** |
 | **Manipulation directe de la file** | Endpoints génériques : sortir une card d'un batch, réordonner, déplacer, consolider | `wama/common/utils/queue_manipulation.py` | `CARD_DESIGN.md §3bis` | 11 |
+| **Nom du fichier de sortie** | Une règle unique pour les 8 apps à liaison PRÉCOCE, en deux familles : entrée FICHIER → `<stem>_<process>_<modèle>[_<i>]<ext>` (l'utilisateur retrouve SON nom, augmenté de ce qu'on lui a fait et avec quoi) ; entrée PROMPT → `<process><id>_<modèle>[_<i>]<ext>` (l'identifiant de card remplace le nom absent et garantit l'unicité dans un `output/` PLAT). Le suffixe `_<i>` n'apparaît QUE si la card produit plusieurs fichiers — cas réel : `imager.num_images` va de 1 à 4. ⚠ Le mot de process est DÉCLARÉ (`APP_CATALOG['output_tag']`), plus écrit en dur dans chaque tâche (`blurred`, `enhanced`, `gen`… étaient invisibles à tout relevé et impossibles à changer sans toucher chaque app). ⚠ `output/` reste PLAT : c'est le NOM qui porte l'unicité, pas un sous-dossier par card — ce dernier est précisément ce qui a été démonté le 2026-08-25 (`job_<id>/`, 1,7 Go) | `wama/common/utils/output_naming.py` | `MEDIA_STORAGE_TIERING.md` | 1 |
 | **Notifications de tâche** | notify_job() — fin de traitement, succès comme échec | `wama/common/utils/notifications.py` | `PROFILES_PERMISSIONS.md` | 12 |
 | **Tri/filtrage de la file** | Tri + filtrage communs de la file unifiée, préférence persistée et PARTAGÉE entre apps | `wama/common/utils/queue_view.py` | `CARD_DESIGN.md` | 12 |
 
@@ -228,7 +229,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Runner générique du studio** | Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app | `wama/studio/services/generic_runner.py` | `STUDIO_VISION.md` | 7 |
 | **Surface d'outils** | Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas | `wama/tool_api.py` | `WAMA_APP_GENERATION_ROUTE.md` | 9 |
 
-**Mécanismes déclarés : 95** · domiciles absents : 0 · sans consommateur : 3 · assumés locaux : 18 · modules balayés non rattachés : 4 · **de niveau app sans critère de grille : 21**
+**Mécanismes déclarés : 96** · domiciles absents : 0 · sans consommateur : 3 · assumés locaux : 18 · modules balayés non rattachés : 4 · **de niveau app sans critère de grille : 21**
 - ⚠ **Sans consommateur** (brique morte ou pas encore adoptée) : `benchmark_sync` (wama/model_manager/services/benchmark_sync.py), `qc` (wama/common/utils/qc.py), `media_integrity` (wama/common/management/commands/check_media_integrity.py)
 
 <details><summary>⚠ <b>21 mécanisme(s) de niveau app SANS critère de grille</b> — adoptés par des apps, vérifiés par aucun critère (<code>Criterion.mecanisme</code>) : une app peut sortir à 100 % sans les avoir adoptés</summary>
@@ -305,7 +306,8 @@ Rappel des domiciles de l'**intention** — la carte pointe vers eux, elle ne le
 | Route d'auto-génération des apps (F1–F8) | `WAMA_APP_GENERATION_ROUTE.md` |
 | Manifestes — formalisme / flux | `WAMA_MANIFEST_SPEC.md` · `WAMA_MANIFEST_ARCHITECTURE.md` |
 | Conventions d'application | `WAMA_APP_CONVENTIONS.md` |
-| IA transverse — prompts, skills, chaîne complète | `WAMA_IA_TRANSVERSE.md` |
+| Couche LLM — prompts, skills, RAG, mémoire, routage | `WAMA_LLM.md` |
+| Apprentissage — modèles APPRIS, statistiques, boucle de simulation | `WAMA_APPRENTISSAGE.md` |
 | Appariement entrée ↔ modèle | `INPUT_MODEL_MATCHING.md` |
 | Profils, permissions, portée | `PROFILES_PERMISSIONS.md` |
 | Prospection de modèles | `wama/model_manager/PROSPECTION_PIPELINE.md` |

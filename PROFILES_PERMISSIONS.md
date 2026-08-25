@@ -125,6 +125,47 @@ Contrôle : `wama_nightly_test` 14/16 et un admin 16/16 restent inchangés.
 - **Aucun contrôle de contenu à l'upload** : pas d'antivirus, pas de vérification du type réel,
   pas de borne de taille dans `settings.py`.
 
+## 1.6 ⭐ ACCÈS AUX MANIFESTES — déclaré, stocké, JAMAIS appliqué (mesuré le 2026-08-25)
+
+> Question de Fabien, jamais traitée jusqu'ici : *« les médias sont gérés à plusieurs niveaux
+> utilisateur + partage labo ; qu'en est-il des manifestes ? »* Réponse mesurée, pas supposée.
+
+**Ce qui EXISTE et fonctionne :**
+
+- l'enveloppe commune (`manifests/envelope.py:21`) valide
+  `VISIBILITIES = ('private', 'project', 'unit', 'public')` — **le même vocabulaire que
+  `ScopedVisibility`** — plus `scope_project` et `scope_org_unit` ;
+- `Manifest` (`common/models.py:318`) **stocke** ces trois champs ; `promote()` fait passer de
+  `private` (bac à sable) au commun.
+
+**Ce qui N'EST PAS appliqué :**
+
+| constat | mesure |
+|---|---|
+| `Manifest` **n'hérite pas** de `ScopedVisibility` et n'a **pas** de `ScopedManager` | `class Manifest(models.Model)`, `objects` par défaut |
+| **aucun site de requête ne filtre** par visibilité | `Manifest.objects` n'apparaît qu'**à 2 endroits**, tous deux dans `manifests/ingest.py` (écritures) |
+| `scoped_visible_q` / `ScopedQuerySet.visible_to` **existent et servent ailleurs** | ~15 appels dans anonymizer / composer / batch_common / memory |
+| ⚠ mais ils ne sont **pas réutilisables tels quels** | `scoped_visible_q` filtre sur `scope_project_id__in` (**FK**) ; `Manifest.scope_project` est un **CODE (CharField)**. Le câblage n'est donc **pas une ligne** — c'est le vrai motif du retard, déjà noté dans `builtin/project.py` |
+
+**Ce qui limite le risque aujourd'hui, et qui n'est pas une garantie :**
+
+- ⭐ **aucune URL n'expose les manifestes** — 0 route dans les `urls.py` de `wama/`. La seule
+  surface est le **Django admin** (`common/admin.py:37`, `ManifestAdmin`), donc `is_staff` ;
+- les pages de gestion des **modèles** sont bien gardées : `@login_required` +
+  `@user_passes_test(is_admin_or_dev)`, **50 occurrences** dans `model_manager/views.py`
+  (`is_admin_or_dev` défini dans `accounts/views.py` : `is_superuser or is_staff`). ✅ le « à
+  vérifier » de Fabien est **vérifié** de ce côté.
+
+> **Conclusion.** La confidentialité des manifestes est **déclarée et stockée, jamais appliquée** —
+> la note du 2026-08-05 dans `builtin/project.py` est **encore exacte 20 jours plus tard**
+> (revérifiée). Ce n'est pas urgent tant qu'il n'y a **aucune surface HTTP**, mais ça le devient
+> **le jour où une page liste les manifestes** — et le kind `dataset` est justement celui qui
+> portera des données d'expérimentation. **À traiter AVANT la première UI de manifestes**, pas
+> après.
+>
+> ⚠ Et le vrai piège n'est pas l'oubli, c'est le **CharField vs FK** : brancher `ScopedManager` sur
+> `Manifest` sans convertir `scope_project`/`scope_org_unit` donnerait un filtre qui ne filtre rien.
+
 ## 2. Notifications email (axe indépendant)
 Préférences **par utilisateur** sur `UserProfile` :
 - `notify_email` (bool, défaut on), `notify_on` ∈ {`completion`, `failure`, `both`, `none`}, option

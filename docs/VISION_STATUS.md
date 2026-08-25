@@ -226,9 +226,10 @@ la visibilité 'project' (gate = membre du projet). Admin Project + inline membr
 ### Partie VII — Data Comprehender
 | § | Sujet | État | Réalité code / renvoi |
 |---|---|---|---|
-| 27 | Couche Data | ⏳ **rien** | Aucune app data, **zéro import pandas** dans `wama/` et `wama_lab/` (vérifié 2026-07-17) |
+| 27 | Couche Data | 🔄 **socle réel** — ⚠ **ligne périmée corrigée le 2026-08-25** (elle disait « ⏳ rien », mesure du 2026-07-17) | Le **monde `wama_data/`** existe : `core/` (référentiel temporel, segmentation, conditions, codage, calcul, export), `sources/` (lecteurs `.trip`, `.rec` RTMaps, tabulaire, `.wdat` natif), `functions/`, `dataset.py` (manifeste `dataset` **exécutable**), `frames.py`, `vue.py` — 534+ tests. Restent **Calculator** et l'UI des modules (`WAMA_DATA_WORLD §7`, §11) |
 | 28-31 | Data Comprehender, indexation, auto-label, recherche | ⏳ | Non démarré ; dépend couche Data + RAG §11 |
 | 32-33 | « DeepMind labo », boucle de découverte | ⏳ | Vision long terme |
+| 33bis | Modèles appris, plan d'expérience, boucle de simulation | ⏳ **cadre écrit, zéro code** | Ajouté à la vision le 2026-08-25. Références : `WAMA_APPRENTISSAGE.md` (règle « WAMA n'entraîne pas », connecteur de suivi ML, boucle de simulation) + `WAMA_DATA_WORLD §13` (plan d'expérience : `axes[]`, rôles `unit`/`block`/`factor`/`covariate`, `contains`/`crosses`). ⚠ **Ne PAS ouvrir** — seul le modèle d'axes est à traiter, **avec** le monde Data (D20-D23) |
 
 ### Partie VIII — Médiathèque universitaire et SI
 | § | Sujet | État | Réalité code / renvoi |

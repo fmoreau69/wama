@@ -14,7 +14,7 @@
 > ChromaDB, voir §7).
 >
 > **La vue de CHAÎNE COMPLÈTE** (prompt + RAG + mémoire, par surface, confrontée au code — et la
-> distinction des TROIS axes de « niveaux ») vit dans **`WAMA_IA_TRANSVERSE.md`**, en un seul
+> distinction des TROIS axes de « niveaux ») vit dans **`WAMA_LLM.md`**, en un seul
 > exemplaire. Ce document-ci reste la référence du SUBSTRAT (modèles, opérations, gouvernance).
 
 ---

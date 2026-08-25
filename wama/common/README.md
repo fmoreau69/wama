@@ -106,7 +106,7 @@ elle lit le **catalogue**.
 ### Pilier prompts (JAMAIS par app)
 `PROMPT_TARGETS` (déclaration) → `prompt_pipeline.py` (orchestre) → `lang_routing.py` (décide via
 `capabilities['languages']`) → `translator.py` / `prompt_enrichment.py` / `reference_comprehension.py`
-(+ point de branchement RAG). Voir `WAMA_IA_TRANSVERSE.md`.
+(+ point de branchement RAG). Voir `WAMA_LLM.md`.
 
 ### Briques historiques (toujours valides)
 `app_base.html` — blocs : `title`, `extra_scripts`, `app_scripts`, `console_content_id`,
@@ -159,5 +159,5 @@ elle lit le **catalogue**.
 `UI_MECHANISMS_CONSOLIDATION.md` (sources de vérité + état par app) · `MODEL_META_UNIFICATION_KICKOFF.md`
 (méta-modèles) · `REMOVAL_LEDGER.md` (résidus/corrections tracés R*/F*) · `WAMA_APP_CONVENTIONS.md §6.5` (pied de modale)
 (conventions boutons) · `WAMA_APP_CONVENTIONS.md` (checklist app) · `COMMON_REFACTORING.md` ·
-`MODES_QUEUE_UX.md` (doctrine modes/file/cards) · `CARD_DESIGN.md` · `WAMA_IA_TRANSVERSE.md` ·
+`MODES_QUEUE_UX.md` (doctrine modes/file/cards) · `CARD_DESIGN.md` · `WAMA_LLM.md` ·
 `GENERALIZATION_PLAN.md` (trajectoire manifeste).

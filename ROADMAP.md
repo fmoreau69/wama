@@ -57,6 +57,11 @@
 ### H3 — Lointain (vision ; NE PAS ouvrir — cf. non-objectifs v2)
 - Data Comprehender + boucle de découverte (partie VII aval) — après couche Data (H2-parallèle),
   RAG et garde-fous méthodologiques.
+- **Modèles APPRIS (ML/DL sur les données elles-mêmes), couche statistique, boucle de simulation
+  Unreal** → cadre écrit dans **`WAMA_APPRENTISSAGE.md`** (2026-08-25). ⚠ **Ne PAS ouvrir** — mais
+  son **§3** (cinq déclarations : unité d'indépendance, réel/synthétique, `trained_from`, régime
+  d'exécution, axe d'agrégation) est à traiter **avec le monde Data**, pas ici : gratuit maintenant,
+  non rattrapable ensuite.
 - Médiathèque universitaire, SI labo, assistant réunions (partie VIII) — conditionné au chapitre
   conformité (RGPD/consentement/SSO) et à l'adoption interne de la médiathèque.
 - Story Director / storyboard / apps montage & mixage (partie V) — après Studio complet, avec cas
@@ -1365,7 +1370,7 @@ Mode visé = **C (hybride chat ↔ UI synchronisés)**.
 
 - ✅ **Adoptés/alignés** : LiteLLM (§8d, routeur LLM), pgvector (RAG dans Postgres existant), Headroom (dev).
 - 🟡 **À évaluer (gaps réels)** : Presidio (PII **texte** avant cloud — complète l'Anonymizer média) ; Docling (parsing PDF layout pour ingestion RAG) ; Langfuse (observabilité LLM, quand l'orchestrateur grossit) ; Kilo Code / Claude Code Router (économie de quota dev : router le routinier vers Codex-UGE/Ollama ; Kilo = plugin JetBrains/PyCharm).
-- ❌ **Rejetés (dupliquent/fragmentent ou sur-ingénierie)** : Bifrost (LiteLLM couvre) ; LocalAI/BentoML/Triton (les apps WAMA + microservice TTS + Celery SONT la couche de service) ; Open WebUI/LibreChat (WAMA a déjà son assistant tool_api — adoption = perte d'intégration) ; MLflow (AIModel=registre, pas d'entraînement) ; LM Studio (Ollama couvre) ; MemPalace (Headroom fait la mémoire agents) ; Label Studio (pas d'annotation) ; OpenClaw/ollama-mcp (niche).
+- ❌ **Rejetés (dupliquent/fragmentent ou sur-ingénierie)** : Bifrost (LiteLLM couvre) ; LocalAI/BentoML/Triton (les apps WAMA + microservice TTS + Celery SONT la couche de service) ; Open WebUI/LibreChat (WAMA a déjà son assistant tool_api — adoption = perte d'intégration) ; MLflow — ⚠ **PRÉCISÉ le 2026-08-25 (Fabien), voir `WAMA_APPRENTISSAGE.md §4`. Le rejet TIENT et n'est pas amendé** : c'est un rejet **d'intégration / de réutilisation dans WAMA** (`AIModel` reste le registre unique de ce que WAMA sait exécuter ; **MLflow Projects** duplique les manifestes `pipeline` + le chaînage studio). Ce qu'il ne disait pas, faute d'objet à l'époque, c'est la **complémentarité** : le monde Data introduit des modèles **appris**, donc des runs d'entraînement à tracer — hors WAMA. D'où un **connecteur unidirectionnel en un seul point** (run MLflow terminé → manifeste `model` avec `trained_from` + `mlflow_run_uri` → `ingest()`). Complémentarité ≠ adoption ; LM Studio (Ollama couvre) ; MemPalace (Headroom fait la mémoire agents) ; Label Studio (pas d'annotation) ; OpenClaw/ollama-mcp (niche).
 - **3 vrais gains** : pgvector (RAG), Presidio (privacy texte), CCR/Kilo (quota dev).
 
 #### Précisions vérifiées (2026-06-18)

@@ -325,5 +325,5 @@ dépôt (14 pages), toute modification y est transverse par construction.
 
 ## Voir aussi
 - `INSPECTOR_DETAIL_FIELDS.md` — schéma canonique des champs de détail (contenu, pas structure).
-- `WAMA_IA_TRANSVERSE.md §1` — contrat de surface de l'assistant (le tour ne porte jamais d'audio).
+- `WAMA_LLM.md §1` — contrat de surface de l'assistant (le tour ne porte jamais d'audio).
 - `CARD_DESIGN.md` — anatomie des cards, source de la sélection qui nourrit l'inspecteur.

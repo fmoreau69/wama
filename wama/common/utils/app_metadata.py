@@ -181,7 +181,7 @@ def apply_prompt_state(instance, field, value, state):
     Écrit une édition de prompt DANS LE BON CHAMP, selon l'état à deux faces de l'UI.
 
     Contrat unique pour toutes les apps (avant : réimplémenté dans chaque vue de sauvegarde) —
-    cf. [[wama-prompt-enrich]] et WAMA_IA_TRANSVERSE.md :
+    cf. [[wama-prompt-enrich]] et WAMA_LLM.md :
     - `state == 'processed'` : l'utilisateur édite l'ENRICHI → n'écrase surtout pas son original ;
     - sinon : il a repris ou modifié SON prompt → l'enrichi devient périmé et est **vidé**.
 

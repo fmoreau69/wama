@@ -25,7 +25,7 @@ from django.core.management.base import BaseCommand
 # Docs de référence (CLAUDE.md : « un domaine = un fichier »).
 DOCS = [
     'WAMA_APP_GENERATION_ROUTE.md', 'WAMA_APP_CONVENTIONS.md', 'WAMA_MANIFEST_SPEC.md',
-    'WAMA_MANIFEST_ARCHITECTURE.md', 'PROJECT_STATUS.md', 'ROADMAP.md', 'WAMA_IA_TRANSVERSE.md',
+    'WAMA_MANIFEST_ARCHITECTURE.md', 'PROJECT_STATUS.md', 'ROADMAP.md', 'WAMA_LLM.md',
     'CLAUDE.md', 'STUDIO_VISION.md', 'TRANSCRIBER_REFERENCE_AUDIT.md',
     # Carte des mécanismes transversaux : sa TABLE est générée (doc_facts, fait `mecanismes`)
     # et donc ingénérable, mais ses chemins écrits à la main — l'intro, les documents de

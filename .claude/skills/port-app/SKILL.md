@@ -36,7 +36,7 @@ travail est de CONSOMMER, pas de créer. Route d'ensemble : `WAMA_APP_GENERATION
   |---|---|
   | modèles, capacités, tirage, entrées acceptées | **`INPUT_MODEL_MATCHING.md`** + `common/utils/model_capabilities.py::CANONICAL_CAPABILITIES` |
   | chargement/déchargement d'un modèle, VRAM | `ROADMAP.md` §Gouvernance des ressources + `common/backends/base.py` |
-  | prompts (traduction, enrichissement) | `WAMA_IA_TRANSVERSE.md` |
+  | prompts (traduction, enrichissement) | `WAMA_LLM.md` |
   | manifestes | `WAMA_MANIFEST_SPEC.md` + `WAMA_MANIFEST_ARCHITECTURE.md` |
   | conventions UI / boutons / file | `WAMA_APP_CONVENTIONS.md` |
 
@@ -94,7 +94,7 @@ travail est de CONSOMMER, pas de créer. Route d'ensemble : `WAMA_APP_GENERATION
     file mais qui 404 au clic est pire que pas de partage.
 12. **Prompt (si l'app en a un)** : hériter de `PromptScoped` + déclarer
     `'model': '<app>.<Modèle>'` dans `PROMPT_TARGETS` + `apply_prompt_state()` dans la vue de
-    sauvegarde = 3 lignes, le reste est générique (`WAMA_IA_TRANSVERSE.md`).
+    sauvegarde = 3 lignes, le reste est générique (`WAMA_LLM.md`).
 13. **Triade tool_api (`start_<app>`/`get_<app>_status`)** : entrée déclarative **`TRIAD_SPECS`**
     dans `tool_api.py` (A4, 2026-08-12 — fonctions CONSTRUITES à l'import par
     `_register_triads()`), pas de squelette recopié ; `add_to_<app>` reste de la glu. Une triade

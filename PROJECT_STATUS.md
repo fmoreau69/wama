@@ -181,7 +181,7 @@
    l'imager (`python manage.py check_app_conformity`, skill `/conformite`).
 
 ## 1. PromptPipeline (prompts centralisés §16.6 / §10.B) — bien avancé
-Doc : [`WAMA_IA_TRANSVERSE.md`](WAMA_IA_TRANSVERSE.md).
+Doc : [`WAMA_LLM.md`](WAMA_LLM.md).
 - ✅ A Enrichissement génératif (`prompt_enrichment.py`, OFF par défaut `WAMA_PROMPT_ENRICH`)
 - ✅ B Assistant (kind `intent`, résource-safe)
 - ✅ C Transparence console (🌐 traduit / ✨ enrichi / 📎 référence ; silence si direct)
@@ -1104,7 +1104,7 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 
 ## 22. Skills de prompt par application (2026-07-08) — FAIT, validé Fabien
 
-> Doc de référence : **`WAMA_IA_TRANSVERSE.md` §Skills** + `wama/common/prompt_skills/README.md`.
+> Doc de référence : **`WAMA_LLM.md` §Skills** + `wama/common/prompt_skills/README.md`.
 > Mémoire : `project_prompt_skills.md`.
 
 - ✅ Brique `common/utils/prompt_skills.py` (résolution `<app>-<domain>` → `<app>` →
@@ -1174,7 +1174,7 @@ check_app_conformity exécutable → introspection Django→schéma → scaffold
 | MODES_QUEUE_UX.md | 178 | boussole produit vivante | ✅ **corrigé ce jour** : P1 marqué fait (était en retard sur le code) |
 | ~~NEXT_SESSION_KICKOFF.md~~ | 55 | brief de session | 🗄️ **ARCHIVÉ** → `docs/archive/` (2026-07-09 ; livrable produit = `UI_MECHANISMS_CONSOLIDATION.md`) |
 | PROFILES_PERMISSIONS.md | 166 | référence vivante | ✅ sain, vérifié |
-| WAMA_IA_TRANSVERSE.md | 98 | référence vivante | ✅ **exemplaire** — le plus frais (skills du jour même) |
+| WAMA_LLM.md | 98 | référence vivante | ✅ **exemplaire** — le plus frais (skills du jour même) |
 | README.md | 269 | point d'entrée | 🔧 table doc ne référence que 8/26 fichiers — désynchronisée |
 | REMOVAL_LEDGER.md | 105 | registre actif | 🔧 table §1 désync de son propre journal (R1/R2 dits soldés, table dit encore ⛔) |
 | ROADMAP.md | 1219 | **hétérogène** | 🔨 RESTRUCTURER — ~55-60% de doublon avec PROJECT_STATUS (voir 23.2) |
@@ -5826,11 +5826,11 @@ wama.common.tests_capabilities_languages` **19/19**.
 | 2 | **RAG = GESTE à NIVEAUX** (refonte sur objection Fabien : isolation ≠ consentement) — balayage PURGÉ (939→0), `ajouter_au_rag(niveau='user'|'unit')`, multi-affiliations, sélecteur de lecture `rag_niveaux` | héritage équipe→labo prouvé par test |
 | 3 | **Journal utilisateur `/common/journal/`** 2 couches (agrégat dérivé de `detail_registry`, 12 sources, zéro ligne par app) + **`RunOutcomeCaptureMiddleware`** (capte telecharge/supprime/relance par `url_name`) | smokes page 18/18, captation 8/8 |
 | 4 | **Barre de filtres commune** (`wama-filter-bar.js`, apparence Model Manager) portée sur 6 pages (R21 SOLDÉE) + **inspecteur global** (`wama-inspector.js` dans `base.html`) | Playwright avant/après ×6 |
-| 5 | **`WAMA_IA_TRANSVERSE.md`** (ex-PROMPT_PIPELINE.md, renommé + 24 réfs) — chaîne complète MESURÉE : 3 axes de niveaux, assistant/apps/traduction E-S/routage modèle/RAG/mémoire, **pivot API `tool_api.py` + 8 outils transverses**, tableau §5 = **12 manques** confrontés au code | chaque ✅ par grep d'appelants |
+| 5 | **`WAMA_LLM.md`** (ex-PROMPT_PIPELINE.md, renommé + 24 réfs) — chaîne complète MESURÉE : 3 axes de niveaux, assistant/apps/traduction E-S/routage modèle/RAG/mémoire, **pivot API `tool_api.py` + 8 outils transverses**, tableau §5 = **12 manques** confrontés au code | chaque ✅ par grep d'appelants |
 | 6 | Correctifs au passage : 3 modèles d'embedding typés `llm` (sélectionnables en chat) → typage par capacités ; `check_js` étendu à la parité staticfiles (54 paires) ; `assistant_engine` `OLLAMA_HOST` sous WSL2 | prouvés en session |
 
 ### 🔚 POINT D'ENTRÉE SESSION SUIVANTE — SESSION DÉDIÉE « IA TRANSVERSE »
-**Le backlog COMPLET du domaine est regroupé en UN endroit : `WAMA_IA_TRANSVERSE.md §5`**
+**Le backlog COMPLET du domaine est regroupé en UN endroit : `WAMA_LLM.md §5`**
 (12 lignes, chacune mesurée). Ordre suggéré :
 1. ~~Jalon 14 — SURFACES du geste RAG~~ **✅ LIVRÉ le 22/08** (placement tranché : l'INSPECTEUR
    + page `/common/rag/` — `WAMA_MEMORY.md §9quater`). **Ce qu'il en reste** : sélecteur de
@@ -5855,7 +5855,7 @@ touche pas `PROMPT_TARGETS` d'une app en cours de portage.
   jamais installé → `common/models.py:17` cassait TOUT `manage.py` depuis Windows
   (`doc_facts`, `check_docs`…), silencieusement depuis le 20/08. **Réparé (pip install via
   proxy UGE)**. Leçon : un ajout à `requirements.txt` s'installe dans LES DEUX venvs le jour même.
-- Le TTS n'a aucun doc de référence dédié (constat consigné dans `WAMA_IA_TRANSVERSE.md`,
+- Le TTS n'a aucun doc de référence dédié (constat consigné dans `WAMA_LLM.md`,
   bloc hors-scope) — à créer seulement le jour où le sujet grossit.
 
 ### ⏳ PENDINGS SYSTÈME (hors code)

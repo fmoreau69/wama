@@ -228,7 +228,7 @@ MECANISMES = (
     *_domaine('Contenu & prompts', (
     Mecanisme('prompt_pipeline', 'Pipeline de prompts',
               "Traduction/enrichissement centralisés, déclarés par PROMPT_TARGETS",
-              'wama/common/utils/prompt_enrichment.py', 'WAMA_IA_TRANSVERSE.md',
+              'wama/common/utils/prompt_enrichment.py', 'WAMA_LLM.md',
               annexes=('wama/common/utils/app_metadata.py',
                        'wama/common/utils/prompt_pipeline.py',
                        'wama/common/utils/prompt_skills.py',
@@ -348,6 +348,20 @@ MECANISMES = (
               'wama/common/templates/common/_queue_entry.html', 'CARD_DESIGN.md §11.2',
               annexes=('wama/common/utils/batch_common.py',
                        'wama/common/models.py')),
+    Mecanisme('output_naming', 'Nom du fichier de sortie',
+              "Une règle unique pour les 8 apps à liaison PRÉCOCE, en deux familles : entrée "
+              "FICHIER → `<stem>_<process>_<modèle>[_<i>]<ext>` (l'utilisateur retrouve SON nom, "
+              "augmenté de ce qu'on lui a fait et avec quoi) ; entrée PROMPT → "
+              "`<process><id>_<modèle>[_<i>]<ext>` (l'identifiant de card remplace le nom absent "
+              "et garantit l'unicité dans un `output/` PLAT). Le suffixe `_<i>` n'apparaît QUE "
+              "si la card produit plusieurs fichiers — cas réel : `imager.num_images` va de 1 à "
+              "4. ⚠ Le mot de process est DÉCLARÉ (`APP_CATALOG['output_tag']`), plus écrit en "
+              "dur dans chaque tâche (`blurred`, `enhanced`, `gen`… étaient invisibles à tout "
+              "relevé et impossibles à changer sans toucher chaque app). ⚠ `output/` reste PLAT : "
+              "c'est le NOM qui porte l'unicité, pas un sous-dossier par card — ce dernier est "
+              "précisément ce qui a été démonté le 2026-08-25 (`job_<id>/`, 1,7 Go)",
+              'wama/common/utils/output_naming.py', 'MEDIA_STORAGE_TIERING.md',
+              annexes=('wama/anonymizer/core/anonymize.py',)),
     Mecanisme('media_integrity', 'Intégrité des médias',
               "Audit MESURÉ de `media/` en 4 états : RÉFÉRENCÉ (une ligne de base pointe "
               "dessus), orphelin, RÉSIDU DE TEST, et RÉFÉRENCÉ MAIS ABSENT — ce dernier étant "

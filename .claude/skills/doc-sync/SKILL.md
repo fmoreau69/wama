@@ -18,7 +18,7 @@ Lancer des agents Explore en parallèle (1 par groupe de docs) avec pour chacun 
 - confronter les affirmations d'état aux commits récents, preuve obligatoire ;
 - sortie normalisée : LIGNE / ACTUEL / PROBLÈME / PREUVE / CORRECTION PROPOSÉE, classée [CASSÉ]/[PÉRIMÉ]/[MINEUR], INCERTAIN si pas de preuve.
 
-Groupes habituels : ① PROJECT_STATUS.md ② WAMA_APP_GENERATION_ROUTE.md + WAMA_APP_CONVENTIONS.md ③ WAMA_MANIFEST_SPEC/ARCHITECTURE + WAMA_DATA_FUNCTION_CARDS + WAMA_IA_TRANSVERSE ④ ROADMAP + REPRISE_* + CLAUDE.md.
+Groupes habituels : ① PROJECT_STATUS.md ② WAMA_APP_GENERATION_ROUTE.md + WAMA_APP_CONVENTIONS.md ③ WAMA_MANIFEST_SPEC/ARCHITECTURE + WAMA_DATA_FUNCTION_CARDS + WAMA_LLM ④ ROADMAP + REPRISE_* + CLAUDE.md.
 
 ## 3. Contre-vérification (obligatoire avant édition)
 - Les agents hallucinent parfois, surtout les affirmations d'ABSENCE : re-vérifier soi-même (Grep/test -f) chaque finding [CASSÉ] et [PÉRIMÉ] AVANT de l'appliquer. Ignorer les INCERTAIN non confirmés.

@@ -2856,6 +2856,314 @@ qui ne sait lire que des acquisitions déjà synchronisées, c'est-à-dire le ca
 
 ---
 
+## 12. APPRENTISSAGE, STATISTIQUES, SIMULATION — renvoi (2026-08-25)
+
+Le monde Data n'intègre pour l'instant que des méthodes de **traitement**. Trois extensions sont
+cadrées ailleurs, et **aucune n'est un chantier ouvert** :
+
+- **modèles APPRIS** (motifs, situations, **profils conducteurs**) — le ML/DL n'est PAS demandé pour
+  la détection des **traces**, qui reste déterministe (Calculator + `functions/driving/`) ;
+- **couche statistique** — extension par `FunctionSpec`, sans blocage ; le coût est le garde-fou
+  méthodologique (vision §28), pas le développement ;
+- **boucle de simulation Unreal** — rejouer un profil à la place d'un conducteur pour évaluer le
+  réalisme, puis générer des données.
+
+> 📄 **Document de référence : [`WAMA_APPRENTISSAGE.md`](WAMA_APPRENTISSAGE.md)**
+
+**Ce qui touche CE document et doit être traité avec lui** — son §3 : cinq déclarations gratuites
+aujourd'hui et non rattrapables ensuite, dont trois portent sur des kinds que le monde Data
+manipule déjà : `dataset` gagne l'**unité d'indépendance** (participant/session/véhicule) et la
+provenance **réel/synthétique** ; le référentiel temporel gagne un **axe d'agrégation**
+`fenêtre → participant → groupe`, car un profil n'est **pas** un objet temporel.
+
+⚠ Deux garde-fous déjà écrits s'y appliquent : **pas de nouveau kind** (`§9quinquies.3` a tranché —
+un entraînement est un `pipeline` produisant un `model`), et le **4ᵉ mode du Segmenter** (« appris »)
+s'ajoute sans nouveau concept, puisqu'il produit les mêmes plages `(start, end)` étiquetées.
+
+---
+
+## 13. LE PLAN D'EXPÉRIENCE — axes déclarés, arborescence variable, taxonomie universelle (2026-08-25)
+
+> Fait apporté par Fabien et **absent de tout ce document jusqu'ici** : la **comparaison par groupes
+> de population** est une pratique **quasi systématique** au laboratoire, au même titre que la
+> comparaison par scénarios pour un même participant. Ex. : comparer jeunes / âgés, avec des
+> **catégories d'âge définies par les chercheurs** et **contrebalancement des scénarios** pour
+> limiter les effets d'apprentissage. *« La laisser de côté aurait été une grave erreur de
+> conception. »*
+
+### 13.0 VOCABULAIRE — trois mots qu'il faut fixer avant d'aller plus loin
+
+Écrit parce que la première rédaction les employait sans les définir, et que la question s'est posée
+mot pour mot : *« qu'appelles-tu les axes ? qu'appelles-tu dataset — le manifeste ou le `.wdat` ? »*
+
+| mot | ce que ça désigne ICI | ce que ça ne désigne PAS |
+|---|---|---|
+| **axe** | une **dimension du plan d'expérience** : participant, groupe, scénario, âge — ce qu'on appelle aussi regroupement ou catégorie | pas un axe temporel, pas un axe de graphe |
+| **dataset** | le **manifeste** de kind `dataset` — la déclaration | ❌ **jamais** le fichier `.wdat` |
+| **`.wdat`** | le **conteneur** de données, un essai / une passation | pas une déclaration |
+
+**Et une réponse mesurée à la question « n'y a-t-il qu'un seul dataset pour une expérimentation
+dans son ensemble ? » : oui.** Le kind le dit lui-même — `source.ref` = *« chemin/dossier/URI du jeu
+brut »*, et *« un dataset est un **ACCÈS** (source.ref = arborescence serveur), pas un objet à
+instancier »*. **Un manifeste `dataset` = une expérimentation = un arbre.** Les `.wdat` sont ses
+feuilles.
+
+> ⭐ **D'où le partage, en une phrase (formulation de Fabien, meilleure que ma première rédaction) :**
+> **le manifeste `dataset` DÉCLARE les axes et leurs valeurs possibles ; le `.wdat` porte SON
+> RANGEMENT en méta-info.** La déclaration est unique et vaut pour l'expérimentation ; les
+> coordonnées sont par fichier.
+
+### 13.1 ⚠⚠ L'ARBORESCENCE N'EST PAS LA TAXONOMIE — c'est un ENCODAGE de la taxonomie
+
+L'arborescence varie d'une expérimentation à l'autre, et d'un laboratoire à l'autre :
+
+```
+Projets → Expérimentations → Groupes → Participants → Scénarios → Datasets   (le plus fréquent ici)
+Projets → Expérimentations → Participants → Datasets                        (ni groupe ni scénario)
+```
+…plus des cas étrangers au domaine : **essais mécaniques** (série d'essais, éprouvette, machine),
+**flux de trafic** (site, période, capteur). Et parfois, à côté des datasets, des dossiers `Data` /
+`Raw data` qui contiennent malgré tout le fichier de travail `.trip`/`.wdat`.
+
+> **Si WAMA modélise l'ARBRE, il hérite des habitudes de rangement de chaque laboratoire.**
+> S'il modélise le **PLAN D'EXPÉRIENCE**, l'arbre n'est plus qu'un des moyens de le peupler.
+
+C'est exactement le reproche que Fabien fait à la toolbox tierce : *« elle avait des préjugés et des
+prérequis liés au monde de l'automobile, des expérimentations et des usages d'un laboratoire ; même
+si c'était potentiellement dérivable, la taxonomie était trop spécialisée. »* **WAMA se veut
+universel, testé ici — pas conçu ici.**
+
+### 13.2 Trois choses distinctes, que le dossier confond
+
+| | quoi | pourquoi ça compte |
+|---|---|---|
+| ① | **structure du plan** — ce qui est **niché** dans quoi, ce qui est **croisé** avec quoi | détermine ce qui est indépendant, ce qui est en mesures répétées |
+| ② | **rôle** d'un niveau — manipulé, regroupant, mesuré | détermine **quel test** est licite |
+| ③ | **arborescence de fichiers** | une **sérialisation** de ① et ②, mutable et accidentelle |
+
+### 13.3 LE MODÈLE — `axes[]` : vocabulaire de RÔLES fermé, clés et libellés OUVERTS
+
+Quatre rôles suffisent, et ils ne sont pas arbitraires : ce sont ceux qui **changent ce qu'on a le
+droit de calculer**.
+
+| rôle | ce qu'il est | ce qu'il change |
+|---|---|---|
+| `observation` | l'**unité d'observation** | porte l'**indépendance** — le découpage, les degrés de liberté |
+| `block` | un **regroupement** dont on compare les niveaux | comparaison **inter-sujets** (between) |
+| `factor` | un niveau **manipulé**, croisé avec l'unité | comparaison **intra-sujet** (within), mesures répétées |
+| `covariate` | **mesuré**, jamais manipulé | décrit, ne structure pas |
+
+> ⚠⚠ **`unit` était le nom naturel — il est INTERDIT, et le mot est pris DEUX FOIS, pas une.**
+> Vérifié le 2026-08-25 sur la question de Fabien.
+>
+> | sens déjà en service | où | portée |
+> |---|---|---|
+> | **OrgUnit** — unité d'organisation, niveau de partage | `manifests/envelope.py:21` : `VISIBILITIES = ('private','project','unit','public')` + `scope_org_unit` | la **même enveloppe** que le `body` où vivraient les axes |
+> | ⭐ **unité de MESURE** (m/s, bpm, °) | `MetaDataVariables.unit` (`.trip`, §6.2) et **`WamaVariables.unit`** (`.wdat`, §9duodecies.3) | la **même couche de données** que les axes, à quelques tables d'écart |
+>
+> Le second est le plus dangereux des deux : il vit exactement là où les axes vont vivre, et §6.2
+> le souligne déjà comme un acquis (*« `unit` est déclarée par variable »*). Un `role: unit` aurait
+> mis trois sens du même mot dans un rayon de deux tables.
+>
+> Retenu : **`observation`**, **0 occurrence** dans le dépôt (mesuré). `block`, `factor`,
+> `covariate` : **0 collision** également.
+
+Et la relation, **qui est le morceau qui manque partout** :
+
+- `contains:` → **nidification** (un groupe *contient* des participants) ;
+- `crosses:` → **croisement** (un scénario est *croisé* avec le participant — chacun les fait tous).
+
+```yaml
+axes:
+  - key: participant   role: observation
+  - key: groupe        role: block       contains: participant   levels: ref:groupes_age
+  - key: scenario      role: factor      crosses:  participant   counterbalanced: true
+  - key: age           role: covariate   attached_to: participant
+```
+
+> ⭐ **C'est `contains` vs `crosses` qui distingue les deux pratiques du laboratoire** — comparer des
+> groupes, et comparer des scénarios chez un même participant. À profondeur de dossier identique,
+> ce ne sont **pas le même test**. Porter la relation, c'est permettre à la couche statistique
+> (`WAMA_APPRENTISSAGE.md §5`) de **proposer le test juste** au lieu de le demander : le principe
+> métadonnée-driven appliqué à la statistique.
+
+**L'universalité vient de là** : le vocabulaire de **rôles** est fermé (4 valeurs), les **clés et
+libellés** sont ouverts. « Participant / groupe / scénario » sont des **libellés**, pas des rôles.
+
+| domaine | `observation` | `block` | `factor` | `covariate` |
+|---|---|---|---|---|
+| conduite | participant | groupe d'âge | scénario | âge, expérience |
+| essais mécaniques | éprouvette | **série** d'essais | température, machine | lot matière |
+| flux de trafic | site | axe routier | période, météo | trafic moyen |
+
+Rien à redéfinir par domaine : on **déclare des axes**, on ne choisit pas dans une liste fermée de
+niveaux métier.
+
+### 13.4 ⭐ ALIGNEMENT MESURÉ avec le kind `dataset` — verdict : **aligné, rien à revoir, deux ajouts**
+
+Mesuré le 2026-08-25 dans `wama/common/manifests/builtin/dataset.py` — le kind déclare aujourd'hui :
+`source {type, ref}`, `signals[]` typés sur `data_types`, `reference_tables{}`, `records[]`.
+
+| constat | conséquence |
+|---|---|
+| **rien** ne décrit la position du jeu dans un plan d'expérience | c'est **le** trou — mais un trou d'**ajout**, pas de refonte |
+| la docstring dit déjà « `source.ref` = **arborescence serveur** » et « un dataset est un **ACCÈS**, pas un objet à instancier » | ⭐ **un dataset est DÉJÀ un ARBRE, pas un fichier.** Il lui manque seulement de dire **comment** cet arbre est organisé |
+| `reference_tables{values\|mapping}` existe déjà (enums) | ⭐ c'est **déjà le domicile des NIVEAUX** d'un axe (`groupes_age: {values: [jeunes, âgés]}`) — rien à créer |
+| la couche au-dessus est déjà prévue : *« propriété/projet/visibilité → portée par l'ENVELOPPE commune (world/visibility/scope) »* + kind `project` | le niveau **Projet** a son kind ; les niveaux intermédiaires n'en veulent pas |
+
+> **Donc : deux ajouts au kind `dataset` — `axes[]` (§13.3) et `source.layout` (§13.5).** Et
+> **PAS de kind par niveau** : Expérimentation / Groupe / Participant / Scénario feraient quatre
+> kinds pour un seul laboratoire, et autant d'inventés au suivant. `§9quinquies.3` a déjà tranché
+> ce motif — pas un kind par famille. Même réponse à l'idée d'une « union de plusieurs kinds
+> (catégorie, groupe, tag) » : **un seul kind, une liste d'axes, et des tags à côté** (§13.6).
+
+### 13.5 DEUX LIEUX, pas trois modes — le manifeste déclare, le conteneur situe
+
+> ⚠ **Rédaction corrigée le 2026-08-25.** La première version listait « trois modes de peuplement »
+> en mettant sur le même plan **le patron**, **les méta du `.wdat`** et **le LLM**. C'était une
+> erreur de catégorie : le patron et le LLM sont des **moyens de REMPLIR**, les méta du `.wdat` sont
+> le **LIEU où le résultat se dépose**. Ils ne sont pas alternatifs.
+
+| lieu | ce qu'il porte | cardinalité |
+|---|---|---|
+| **manifeste `dataset`** | les **axes** et leurs **valeurs possibles** (`reference_tables`) — le vocabulaire et la structure | **un**, pour l'expérimentation entière |
+| **`.wdat`** (méta-info) | **le rangement** — les coordonnées de CE fichier sur ces axes (`groupe=âgés, participant=P12, scenario=S3`) | **un par essai / passation** |
+
+⭐ **Pourquoi le rangement va dans le conteneur, et pas dans le chemin** : il **survit au
+déplacement du fichier**. C'est déjà ce que faisaient les méta-infos `groupe`/`participant`/
+`scénario` de l'outillage précédent — la reprendre n'est pas une régression, c'est la bonne idée
+qu'on garde.
+
+**Comment les méta se remplissent** — deux moyens, jamais bloquants :
+
+| moyen | forme | note |
+|---|---|---|
+| **patron déclaré** — *le défaut et le repli* | `layout: "{groupe}/{participant}/{scenario}/*.wdat"` dans le manifeste | déterministe, auditable, **zéro GPU, zéro LLM** ; c'est un **aide-import**, pas une source de vérité |
+| **proposé par le LLM** | exploration d'un arbre non rangé | ⚠ il propose **un PATRON**, jamais le manifeste ni les méta directement |
+
+**Réponse au cas explicite** — *« comment fait-on si un chercheur ne veut pas de cette exploration
+LLM et que les dossiers ne sont pas agencés logiquement ? »* : le patron se **déclare à la main**, ou
+les `.wdat` **portent déjà** leurs coordonnées et le chemin n'est plus consulté du tout. Le LLM est
+un **accélérateur, jamais un passage obligé**.
+
+### 13.5bis ⭐ CE QUE `.trip` ET `.wdat` DISENT DÉJÀ — relevé, pas supposé (2026-08-25)
+
+> Écrit après relecture de §6.2, §6.4, §9duodecies et §9terdecies à la demande de Fabien
+> (*« ça manque d'approfondissement sur ce qu'on avait déjà acté »* — il avait raison, et la
+> lecture ferme la moitié de D21).
+
+**Le LIEU du rangement existe déjà dans les deux formats. Il n'y a rien à créer.**
+
+| format | table | contenu |
+|---|---|---|
+| `.trip` | `MetaTripDatas (key, value)` | attributs libres **du trip** |
+| `.trip` | `MetaParticipantDatas (key, value)` | attributs **du participant** |
+| **`.wdat`** | **`WamaMeta (key TEXT PRIMARY KEY, value TEXT)`** | les **deux fusionnées en une** (`containers/wdat.py:102`) |
+
+⇒ Le « rangement en méta-info » dont Fabien se souvenait est **exactement** `MetaTripDatas` /
+`MetaParticipantDatas`. `.wdat` en a gardé le mécanisme et **retiré la distinction de table**.
+
+#### ⭐ Et `TripSet` est le côté LECTURE — il montre précisément ce que WAMA ajoute
+
+§6.4 le décrit sans le nommer ainsi : `TripSet` **agrège les métadonnées sur N trips** — *«
+propriétés communes vs possibles, valeurs d'attributs pour tous les trips »*, c'est-à-dire *« quelles
+données ai-je en commun sur l'ensemble de mes sujets ? »*. Le rattachement pressenti y était déjà
+écrit : *« c'est le niveau `dataset` / `project` des kinds existants »*. **Confirmé — et voici la
+différence exacte.**
+
+> **BIND DÉRIVE le vocabulaire par agrégation. WAMA le DÉCLARE.**
+
+Trois choses que la dérivation ne peut pas faire, et qui ne sont pas des raffinements :
+
+1. **connaître un niveau à zéro occurrence** — un groupe dont aucune passation n'est encore
+   importée n'existe pas pour l'agrégation ; il existe pour le protocole ;
+2. **dire si un axe est niché ou croisé** — l'agrégation voit des **valeurs**, jamais des
+   **relations**. C'est `contains`/`crosses`, donc le test licite, qui lui échappe entièrement ;
+3. ⭐ **signaler un MANQUE** — si un `.wdat` ne porte pas son `participant`, l'agrégation ne
+   proteste pas : elle rend simplement un ensemble plus petit. C'est précisément l'**`Ecart`** que
+   la déclaration rend possible (§13.6), et la raison pour laquelle « déclarer puis mesurer »
+   n'est pas une redite de ce qui existe.
+
+#### ⚠ Ce que la fusion de `.wdat` rend NÉCESSAIRE (et qui reformule D21)
+
+`.trip` séparait deux espaces (trip / participant) ; `WamaMeta` n'en a qu'un, et il porte **déjà**
+des méta techniques — `schema_version` y est écrit (`containers/wdat.py:65`). Une clé `participant`
+posée à plat y côtoierait donc une clé de format.
+
+⇒ **La question ouverte n'est plus « quelle table » — elle est « comment nomme-t-on les clés ».**
+Un préfixe d'espace de noms (`axe.participant = P12`) paraît forcé par la fusion, pas optionnel.
+D21 est reformulée en ce sens.
+
+### 13.6 ⭐ La confiance dans un LLM local : la contre-épreuve est le CORPUS, pas un second modèle
+
+La question de Fabien — *« comment s'assurer de la bonne cartographie via un LLM local, sachant
+qu'on ne donnera pas accès à un modèle cloud sur des données expérimentales ? Confrontation
+LLM ? »* — **a déjà sa réponse écrite ET implémentée** dans `wama_data/dataset.py` :
+
+> *« Le LLM propose, la machine dispose. Un manifeste généré par LLM qui VALIDE ensuite l'import est
+> CIRCULAIRE. Le manifeste déclare des attentes **vérifiables mécaniquement** et l'importer
+> **MESURE L'ÉCART**. »* — et `charger()` rend le couple `(référentiel, écart)`, jamais le
+> référentiel seul, pour qu'ignorer l'écart soit un **geste délibéré**.
+
+Appliqué aux axes, la réfutation est **arithmétique** :
+
+| contrôle | ce qu'il donne |
+|---|---|
+| taux d'appariement du patron | 340/347 fichiers → **montrer les 7** |
+| complétude du croisement | 12 participants × 4 scénarios = 48 attendus, 47 trouvés → **nommer le manquant** |
+| contradiction dure | le même participant sous **deux** groupes → **erreur**, pas un écart |
+
+> ⚠ **La confrontation LLM × LLM est plus faible et coûte du GPU** : deux modèles peuvent se tromper
+> *d'accord*. Le système de fichiers, non. La contre-épreuve n'est pas un second avis, c'est **le
+> corpus lui-même**.
+
+**Le résidu que l'arithmétique n'attrape pas : l'étiquette sémantique.** Un patron parfaitement
+apparié peut nommer `groupe` ce qui est en réalité `session`. Aucun compte ne le voit. → la
+proposition est **montrée remplie, avec les effectifs** (`groupe : {jeunes: 12, âgés: 11}`) ; un
+humain valide en cinq secondes. C'est la règle **« propose-cite-tu-valides »** déjà en vigueur pour
+la prospection (`ROADMAP §16.1`) — **jamais d'auto-application**.
+
+Même doctrine pour l'autre usage envisagé — *un protocole de traitement écrit en langage naturel,
+traduit en manifeste `pipeline`* : c'est **§9undecies**, déjà cadré, et la borne y est la même.
+
+### 13.7 Les tags — oui, mais à côté, et sans rôle
+
+Un axe porte un **rôle** et une **relation** ; un tag n'a ni l'un ni l'autre. Les tags restent
+utiles et infinis pour ce qui n'est pas une dimension de plan (`pilote`, `à refaire`, `séance du
+matin`). **Ne pas leur faire porter la structure** — c'est précisément ce qui les rendrait
+« simplistes » au sens de la question.
+
+### 13.8 ⚠ NE PAS CONFONDRE — le nommage divergent entre sources (route réelle vs simulateur)
+
+Autre fait apporté par Fabien : véhicule instrumenté sur route et conduite sur simulateur sont
+**historiquement enregistrés tous deux en `.trip`** ; les **données sont en partie identiques**,
+mais **le nommage des tables et des colonnes diverge** — et certaines grandeurs changent de nature :
+**coordonnées GPS** d'un côté, **x, y, z dans le monde simulé** de l'autre.
+
+Ce n'est **pas** le sujet des axes : les axes disent comment le **corpus** est organisé, ceci dit
+comment un **flux** est identifié d'une source à l'autre. Deux mécanismes, deux endroits.
+
+La réponse est **déjà à moitié dans le dépôt** :
+
+1. **le sous-typage de `data_types.py` + `is_compatible`** — `position(wgs84)` et `position(world)`
+   comme sous-types d'un `position` commun. Une fonction qui veut « une position » marche avec les
+   deux ; une fonction qui **exige** du WGS84 (map-matching, fond de carte) refuse la simulée **par
+   le type**, pas par convention ni par commentaire ;
+2. **une table d'alias PAR SOURCE** — le mécanisme existe **en germe** et **codé en dur pour une
+   seule clé** (`timecode` comme alias d'entrée, `sources/tabular.py`). À généraliser en **carte
+   déclarée par source**, pas à réinventer.
+
+> 🔚 **À MESURER avant de concevoir.** Fabien fournit deux jeux : un de l'**ancien** simulateur
+> (rétrocompatibilité d'import uniquement — remplacé) et un du simulateur **actuel**. Premier geste :
+> **relever les noms réels de tables et de colonnes**, pas les deviner. C'est la même méthode qui a
+> payé sur `.rec` et sur la base `.trip` réelle.
+
+### 13.9 Décisions ouvertes
+
+Voir **D20 à D23** au §10.
+
+---
+
 ## 10. Décisions en attente
 
 | # | question | qui tranche |
@@ -2879,6 +3187,10 @@ qui ne sait lire que des acquisitions déjà synchronisées, c'est-à-dire le ca
 | ~~D17~~ | ✅ **TRANCHÉE 2026-08-24 (§9quater.2)** — le conteneur natif s'appelle **`.wdat`**, et non `.wrec` comme D3 l'avait proposé. ⚠⚠ **Le critère qui a tué `.trip` tue aussi `.wrec`** : « rec » présuppose une session d'ENREGISTREMENT là où le monde doit tenir des données temporelles sans aucune acquisition. Retenir le critère pour l'un et l'écarter pour l'autre aurait été défendre un choix parce qu'il était le nôtre. Second motif : `.wrec` était à **une lettre de `.rec`**, qu'on lit. Écartés aussi — `.wds` (écrase deux étages : le kind `dataset` est l'EXPÉRIMENTATION, le fichier est un ESSAI) et `.wdb` (nomme la base Postgres de WAMA — un nom faux par COLLISION est pire qu'un nom faux par connotation). ⭐ Coût réel : **le schéma n'a pas bougé d'un octet**, les tables du catalogue s'appelaient déjà `Wama*` | Fabien |
 | D18 | **routes du Converter** (§11) : par le PIVOT par défaut (2N adaptateurs au lieu de N(N−1)), ou route DIRECTE déclarée par paire ? ⚠ Le pivot est **prouvé lossy** pour `.rec` — il porte DEUX temps (émission + horodatage) et un index d'échantillon, `Signal.times` n'en garde qu'un. Et `trip2rec` de BIND l'atteste : il écrit le **même timecode aux deux places** parce que `.trip` avait déjà perdu l'autre. Quelle que soit la route, la PERTE doit être annoncée (`Rapport.pertes` existe) | avant le 1ᵉʳ Converter |
 | D19 | **nom du « Cataloger »** (§11) : le mot est **déjà pris deux fois** — `wama/common/catalog/` (glu inter-mondes) et le « catalogue de fonctions » que son propre écran affiche en bas. Et si le schéma se lit bien, **le Cataloger est l'INTERFACE du Connector** (même motif que « l'Explorer est l'interface du Calculator ») — auquel cas ce n'est pas un module de plus | avant l'UI |
+| ~~D20~~ | ✅ **CLOSE le 2026-08-25 PAR LA LECTURE DU CODE — les `axes[]` vont dans le `dataset`, et la question n'aurait pas dû être posée.** ⚠ Je l'avais formulée en ayant lu `builtin/dataset.py` **mais pas `builtin/project.py`** ; ce dernier y répond en toutes lettres : *« Ce qui décrit les DONNÉES d'une expérimentation, c'est le kind `dataset` — objet distinct »*, le kind `project` ne portant que `owner_org`, `lead`, `members` + rôles, c'est-à-dire **l'unité de DROITS** (« les permissions étaient posées à plusieurs niveaux […] et AUCUN ne couvrait un projet de recherche transversalement »). Second motif, dirimant : `project` est **`extract`** (généré depuis le modèle `Project` en base) — y ajouter des axes exigerait d'étendre le modèle Django, là où `dataset` est **autoré**. Et la prémisse « redéclarer le plan à chaque passation » était fausse : **un manifeste `dataset` = une expérimentation entière** (§13.0), pas une passation | ✅ close |
+| D21 | **les coordonnées dans le `.wdat`** — ⚠ **REFORMULÉE le 2026-08-25 après relecture (§13.5bis)** : « quelle table ? » n'est plus la question, **c'est `WamaMeta (key, value)`**, qui existe déjà et reprend `MetaTripDatas`+`MetaParticipantDatas` de `.trip` fusionnées. La question restante est le **NOMMAGE DES CLÉS** : `WamaMeta` porte déjà des méta techniques (`schema_version`), donc une clé `participant` à plat y côtoierait une clé de format. Préfixe d'espace de noms (`axe.participant`) — **rendu nécessaire par la fusion**, pas optionnel. Reste à ratifier la forme exacte du préfixe | avec l'Importer v2 |
+| D22 | **forme du patron** (§13.5 mode 1) : glob nommé `{groupe}/{participant}/…` ou expression régulière ? Arbitrage **lisibilité pour un chercheur** contre **pouvoir d'expression** sur des arbres sales | avant l'UI d'import |
+| D23 | **les dossiers `Data` / `Raw data`** à côté des datasets (§13.1) : exclusion déclarée dans `source.layout`, ou rattachement au kind `project` ? ⚠ Ils peuvent contenir **malgré tout** le fichier de travail `.trip`/`.wdat` — donc « exclure par nom de dossier » est faux | avant le 1ᵉʳ manifeste `dataset` réel |
 
 ---
 
