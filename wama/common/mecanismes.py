@@ -348,6 +348,20 @@ MECANISMES = (
               'wama/common/templates/common/_queue_entry.html', 'CARD_DESIGN.md §11.2',
               annexes=('wama/common/utils/batch_common.py',
                        'wama/common/models.py')),
+    Mecanisme('media_integrity', 'Intégrité des médias',
+              "Audit MESURÉ de `media/` en 4 états : RÉFÉRENCÉ (une ligne de base pointe "
+              "dessus), orphelin, RÉSIDU DE TEST, et RÉFÉRENCÉ MAIS ABSENT — ce dernier étant "
+              "celui que personne ne voyait : au 2026-08-25, **33 lignes de base pointent vers "
+              "des fichiers inexistants**, et un téléchargement ou un aperçu y échoue sans rien "
+              "dire. Signale aussi les fichiers ÉGARÉS hors des emplacements légitimes. "
+              "⚠⚠ La méthode exige DEUX signaux indépendants, jamais le nom seul : « orphelin » "
+              "seul désignait 3447 fichiers sur 3779 (les sorties de workers ne passent pas par "
+              "un FileField), et le nom seul aurait emporté le dépôt manuel d'une utilisatrice. "
+              "⚠ Un kind de manifeste `media` a été ÉCARTÉ : `manifests/` est versionné alors "
+              "que `media/` porte des données personnelles, et un export serait périmé au "
+              "moindre dépôt — un contrôle toujours rouge ne protège plus rien",
+              'wama/common/management/commands/check_media_integrity.py',
+              'MEDIA_STORAGE_TIERING.md'),
     Mecanisme('work_dir', 'Dossier de travail jetable',
               "Les fichiers INTERMÉDIAIRES d'un traitement ne vivent pas dans `media/`. Mesuré le "
               "2026-08-25 : `media/avatarizer/` pesait 1,69 Go pour 2101 fichiers dont 99,6 % de "
