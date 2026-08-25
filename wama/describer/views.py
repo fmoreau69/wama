@@ -258,43 +258,42 @@ def upload(request):
             # For plain HTML pages, extract readable text instead of saving raw markup.
             # Media platform URLs (YouTube, Vimeo, …) serve text/html on HEAD but
             # must go through upload_media_from_url (yt_dlp), so we skip the check for them.
-            temp_dir = tempfile.mkdtemp()
-            # Ingestion URL (page web -> texte / media -> download) centralisee.
-            from wama.common.utils.url_ingest import fetch_url_content
-            downloaded_path = fetch_url_content(media_url, temp_dir)
-            filename = os.path.basename(downloaded_path)
+            # Brique COMMUNE `work_dir` (2026-08-25) : le nettoyage est porté par le `with`,
+            # donc garanti même si l'ingestion lève. L'ancien couple `os.remove` + `os.rmdir`
+            # ne tenait que sur le chemin heureux ET à un seul fichier près : `rmdir` refuse
+            # un dossier NON VIDE, et un `.part` laissé par yt_dlp suffisait à le faire
+            # échouer — l'`except OSError: pass` avalant l'erreur, le dossier restait.
+            from wama.common.utils.work_dir import work_dir
+            with work_dir('describer_url') as temp_dir:
+                # Ingestion URL (page web -> texte / media -> download) centralisee.
+                from wama.common.utils.url_ingest import fetch_url_content
+                downloaded_path = fetch_url_content(media_url, str(temp_dir))
+                filename = os.path.basename(downloaded_path)
 
-            logger.info(f"[Describer] Downloaded to: {downloaded_path}")
+                logger.info(f"[Describer] Downloaded to: {downloaded_path}")
 
-            # Create the model with the downloaded file
-            ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
-            detected_type = detect_type_from_extension(ext)
+                # Create the model with the downloaded file
+                ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+                detected_type = detect_type_from_extension(ext)
 
-            # Get options from request
-            output_style, output_language, max_length = _read_creation_options(request, user)
+                # Get options from request
+                output_style, output_language, max_length = _read_creation_options(request, user)
 
-            # Create description with the downloaded file
-            with open(downloaded_path, 'rb') as f:
-                django_file = File(f, name=filename)
-                file_size = os.path.getsize(downloaded_path)
+                # Create description with the downloaded file
+                with open(downloaded_path, 'rb') as f:
+                    django_file = File(f, name=filename)
+                    file_size = os.path.getsize(downloaded_path)
 
-                description = Description.objects.create(
-                    user=user,
-                    input_file=django_file,
-                    filename=filename,
-                    file_size=file_size,
-                    detected_type=detected_type,
-                    output_style=output_style,
-                    output_language=output_language,
-                    max_length=max_length,
-                )
-
-            # Cleanup temp file
-            try:
-                os.remove(downloaded_path)
-                os.rmdir(temp_dir)
-            except OSError:
-                pass
+                    description = Description.objects.create(
+                        user=user,
+                        input_file=django_file,
+                        filename=filename,
+                        file_size=file_size,
+                        detected_type=detected_type,
+                        output_style=output_style,
+                        output_language=output_language,
+                        max_length=max_length,
+                    )
 
             # Get file properties
             properties = get_file_properties(description)

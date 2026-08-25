@@ -282,56 +282,48 @@ def upload(request):
 
             logger.info(f"[Enhancer] Downloading media from URL: {media_url}")
 
-            # Download to temp directory
-            temp_dir = tempfile.mkdtemp()
-            downloaded_path = upload_media_from_url(media_url, temp_dir)
-            filename = os.path.basename(downloaded_path)
+            # Brique COMMUNE `work_dir` (2026-08-25) : le nettoyage est porté par le `with`.
+            # Il était ici recopié DEUX fois (format refusé, puis chemin nominal) et manquait
+            # au troisième cas — celui où l'ingestion lève. `os.rmdir` refusait de plus un
+            # dossier NON VIDE : un `.part` laissé par yt_dlp suffisait à faire échouer le
+            # nettoyage, et l'`except OSError: pass` avalait l'erreur.
+            from wama.common.utils.work_dir import work_dir
+            with work_dir('enhancer_url') as temp_dir:
+                downloaded_path = upload_media_from_url(media_url, str(temp_dir))
+                filename = os.path.basename(downloaded_path)
 
-            logger.info(f"[Enhancer] Downloaded to: {downloaded_path}")
+                logger.info(f"[Enhancer] Downloaded to: {downloaded_path}")
 
-            # Detect media type
-            file_ext = os.path.splitext(filename)[1].lower()
-            if file_ext in image_extensions:
-                media_type = 'image'
-            elif file_ext in video_extensions:
-                media_type = 'video'
-            else:
-                logger.error(f"Unsupported format: {file_ext}")
-                # Cleanup
-                try:
-                    os.remove(downloaded_path)
-                    os.rmdir(temp_dir)
-                except OSError:
-                    pass
-                return JsonResponse({'error': 'Format non supporté'}, status=400)
+                # Detect media type
+                file_ext = os.path.splitext(filename)[1].lower()
+                if file_ext in image_extensions:
+                    media_type = 'image'
+                elif file_ext in video_extensions:
+                    media_type = 'video'
+                else:
+                    logger.error(f"Unsupported format: {file_ext}")
+                    return JsonResponse({'error': 'Format non supporté'}, status=400)
 
-            logger.info(f"Detected media type: {media_type}")
+                logger.info(f"Detected media type: {media_type}")
 
-            # Get user settings for defaults
-            user_settings, _ = UserSettings.objects.get_or_create(user=user)
-            logger.info(f"User settings: model={user_settings.default_ai_model}, denoise={user_settings.default_denoise}, blend={user_settings.default_blend_factor}")
+                # Get user settings for defaults
+                user_settings, _ = UserSettings.objects.get_or_create(user=user)
+                logger.info(f"User settings: model={user_settings.default_ai_model}, denoise={user_settings.default_denoise}, blend={user_settings.default_blend_factor}")
 
-            # Create enhancement with the downloaded file
-            with open(downloaded_path, 'rb') as f:
-                django_file = File(f, name=filename)
+                # Create enhancement with the downloaded file
+                with open(downloaded_path, 'rb') as f:
+                    django_file = File(f, name=filename)
 
-                enhancement = Enhancement.objects.create(
-                    user=user,
-                    media_type=media_type,
-                    input_file=django_file,
-                    ai_model=user_settings.default_ai_model,
-                    denoise=user_settings.default_denoise,
-                    blend_factor=user_settings.default_blend_factor,
-                    output_format=request.POST.get('output_format', 'original'),
-                    output_quality=request.POST.get('output_quality', 'balanced'),
-                )
-
-            # Cleanup temp file
-            try:
-                os.remove(downloaded_path)
-                os.rmdir(temp_dir)
-            except OSError:
-                pass
+                    enhancement = Enhancement.objects.create(
+                        user=user,
+                        media_type=media_type,
+                        input_file=django_file,
+                        ai_model=user_settings.default_ai_model,
+                        denoise=user_settings.default_denoise,
+                        blend_factor=user_settings.default_blend_factor,
+                        output_format=request.POST.get('output_format', 'original'),
+                        output_quality=request.POST.get('output_quality', 'balanced'),
+                    )
 
             logger.info(f"Created Enhancement ID: {enhancement.id}")
 
