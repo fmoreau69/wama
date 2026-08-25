@@ -331,6 +331,37 @@ Ils n'étaient **jamais** tournés : `wama-access.log` avait atteint **614 Mo**.
 convention que `rotate_logs`). Les deux fichiers accumulés ont été **vidés** le 24/08 sans archive :
 la cause était identifiée et corrigée, les erreurs restantes se re-signaleront d'elles-mêmes.
 
+## ⚠ Chaque crash hôte FUITE jusqu'à 8 Go dans `%TEMP%` (mesuré le 2026-08-25)
+
+**Mécanisme** : `.wslconfig` déclare `swap=8GB`. À chaque démarrage, WSL2 crée un `swap.vhdx` dans
+un dossier à nom GUID sous `%TEMP%`. Un `wsl --shutdown` **propre** le supprime ; un **crash hôte le
+laisse derrière**. Les crashs de la série d'août avaient ainsi accumulé **26,10 Go** en 6 fichiers
+orphelins — un par mort, datés à la minute des Kernel-Power 41 (23/08 21:49, 24/08 16:46,
+24/08 18:10 = le crash de 18:09…).
+
+- **Identifier le vivant AVANT de supprimer** : le seul critère fiable est le **verrou**, pas la date
+  ni la taille (le swap vivant faisait 36 Mo, un orphelin 8 Go). Ouvrir le fichier en
+  `ReadWrite`/`None` : s'il lève, il est en service.
+  Script rejouable : `<scratchpad>/swap_live.ps1` puis `cleanup.ps1` (session du 25/08).
+- **Ne PAS purger `%TEMP%` en bloc** : le swap vivant, des DLL en cours d'usage et le scratchpad de
+  l'agent y sont. Le nettoyage doit être ciblé et revérifier le verrou juste avant chaque `Remove-Item`.
+- Compacter `ext4.vhdx` ne sert à rien ici : **48 Go réellement utilisés dans WSL2 pour 49,62 Go
+  alloués** (mesuré) — aucun gain à attendre.
+
+### Inventaire disque du 2026-08-25 (pour décisions ultérieures)
+
+| Poste | Taille | Statut |
+|---|---|---|
+| `swap.vhdx` orphelins + cache installeur VS + DLL fuitées | **29,39 Go** | ✅ **libérés le 25/08** |
+| `hiberfil.sys` | **38,37 Go** | ✅ **libérés le 25/08** (`powercfg /h off`, décision de Fabien ; désactive aussi le Démarrage rapide, qui cohabite mal avec WSL2 — S3 reste disponible) |
+| Clichés VSS sur **D:** | 40,8 Go utilisés / plafond 69,3 Go | ⏳ **non traité** — créés toutes les 4 h + un par redémarrage. Piste : `vssadmin resize shadowstorage /for=D: /on=D: /maxsize=10GB` purge les plus anciens en gardant les récents |
+| `hunyuan-image-2.1` (`AI-models/models/diffusion/hunyuan/`) | **49,48 Go** | ⏳ **non traité** — déjà en attente de retrait depuis la revue de licences du 21/08 (**interdit UE**) ; ⚠ encore déclaré ACTIF dans `CLAUDE.md` et le catalogue → le retrait doit toucher le CODE aussi, pas seulement le disque |
+| Ollama (`D:\.ollama`) | **107,65 Go** | ⏳ **non traité** — plus gros poste isolé de D:. ⚠ `AI-models/models/llm/ollama` en est un **SymbolicLink**, pas une copie : compté deux fois dans les scans, occupé une seule fois |
+| ~112 Go sur D: | — | ⚠ **non expliqués** par l'inventaire des dossiers ; probablement des répertoires aux ACL restrictives, à remesurer en session élevée |
+
+**État après nettoyage** : C: **92,23 Go libres (26,3 %)** ; D: **22,77 Go (4,2 %) — toujours critique**,
+aucun poste lié aux crashs n'y pesant : les leviers de D: sont tous des arbitrages (tableau ci-dessus).
+
 ## Voir aussi
 - `C:\Apache24\conf\httpd.conf` (vhost `wama.local`) — sauvegarde `httpd.conf.bak-20260824`.
 - `start_wama_dev.sh`, `start_wama_prod.sh`, `gunicorn_conf.py`, `.env` / `.env.example`.
