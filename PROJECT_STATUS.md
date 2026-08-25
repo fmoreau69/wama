@@ -6969,6 +6969,53 @@ idiome tout autre**, et je les ai annoncées portées à tort avant de les mesur
   pour 12 lignes de token CSRF : **une comparaison incapable de dire « rien n'a changé » ne
   prouve rien**.
 
+### C bis. Chantiers de la même session, non couverts par les §REPRISE précédents
+
+Relevé en vérifiant l'exhaustivité du handoff (question de Fabien) : trois chantiers étaient
+commités mais **dans aucun §REPRISE**. Consignés ici.
+
+**1. Accesseur du modèle de LOT — `batch_common.batch_model_for()` (`e3964572`).**
+Le nettoyage des scénarios ne retirait que les ÉLÉMENTS : `PreviewRegistry` ne connaît que
+ceux-là. L'accesseur est **DÉRIVÉ, pas déclaré** (arbitrage Fabien) — rien à maintenir, toute
+app future couverte. **12 surfaces / 12, 0 écart** contre les `batch_model=` réellement passés
+par les vues ; contre-épreuve `User → None`.
+⚠ **La convention sur laquelle il s'appuie est LUE, pas inventée** : la FK de rattachement
+s'appelle `batch`, `related_name='items'` — déjà consommée par `build_batches_list`. Deux
+fausses pistes écartées par la mesure : deviner sur le NOM DE CLASSE (`ComposerBatch`,
+`BatchAnonymizer`, `GenerationBatch` ne suivent pas la même graphie — faux dès la 4ᵉ app), et
+« une FK vers un modèle de la même app » (`ConversionJob` en a DEUX).
+**converter est rentré dans le rang** : `BatchMixin` ajouté — il était le seul lot du dépôt sans,
+alors qu'il porte un `batch_file`. Dette LATENTE et non fuite : **0 lot sur 53** n'a de
+`batch_file` non vide. Aucun champ, aucune migration.
+⚠ **Le nettoyage ne nettoyait RIEN et rien ne le disait** : le bloc vivait DANS le
+`with sync_playwright()`, où l'ORM lève `SynchronousOnlyOperation` — et un `except Exception:
+pass` avalait l'erreur. Corrigé (bloc externe, exception imprimée) : **0 résidu** après une passe
+sur 14 apps, contre 39 accumulés.
+
+**2. « Batchs d'abord » survivait dans 2 apps ET dans la doc (`c9408354`).**
+Signalé par Fabien : la règle a changé quand le tri/filtrage est passé dans la barre du haut.
+Vérifié — `queue_view.py:30` le dit : « Défaut = CHRONOLOGIQUE récent (**plus de batchs
+d'abord** — décision 2026-06-29) ». **Trois tris morts retirés** (enhancer ×2, synthesizer ×1),
+chacun exécuté juste AVANT `apply_queue_sort_filter` qui l'écrasait aussitôt. Doc §9.7 corrigée
+— elle prescrivait encore la règle abandonnée, **deux mois après**, avec le code à recopier.
+⚠⚠ **UNE DOC PÉRIMÉE NE SE CONTENTE PAS D'ÊTRE INUTILE : ELLE FAIT DIAGNOSTIQUER À L'ENVERS.**
+Je m'en étais servi comme PREUVE pour me disculper d'un diagnostic précédent. Vérifier la DATE
+d'une règle avant de s'en servir, et la confronter au code qui l'implémente.
+
+**3. `REMOVAL_LEDGER` R25 — fiche corrigée TROIS fois (`708e6721`, `ffaf5b80`).**
+① « `is_unitary` sans consommateur → retirer » : constat juste, conclusion fausse.
+② « brique ignorée, 28 recopies » : **alarmiste et faux** — j'avais compté comme désordre
+l'application d'une règle écrite dans la doc, qui donne littéralement le code.
+③ RÉEL : le mécanisme batch **est porté partout** (`_batch_card` 11/11, `batch_common` 11/11,
+`BatchMixin` 12/12) ; `is_unitary` était une commodité née le 30/06, trois mois après que les
+gabarits eurent écrit `total == 1`, une semaine avant que le portage se fasse AUTREMENT.
+**Soldée par ADOPTION** le 25/08.
+⚠⚠ **« 0 consommateur » ne veut pas dire « inutile »** — ça peut vouloir dire « tout le monde
+refait ce qu'elle fait ». Chercher le CONCURRENT avant de conclure à la mort.
+⚠⚠ **UN CHIFFRE SURVIT À SA LÉGENDE** : « 8 apps ont la card commune » (SUPPORT) est devenu
+« 8 apps l'ont déjà » (ADOPTION) — une phrase qui mettait en garde contre cette confusion
+précise a fini par l'alimenter.
+
 ### E. Contrôles attendus au prochain /reprise
 
 `check_docs` **5 CASSÉ / 0 périmée** — ⚠ critère = **1 CIBLE distincte** (`_result_tabs.html`,
