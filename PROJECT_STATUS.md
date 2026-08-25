@@ -6903,8 +6903,14 @@ l'a établi** ; sinon on ne distingue pas « corrigé » de « pas de charge pen
 ## §REPRISE — 2026-08-25 (ENTRÉE DE FILE COMMUNE) — 🔚 POINT D'ENTRÉE
 
 > **🔚 POINT D'ENTRÉE : `wama/common/templates/common/_queue_entry.html` — son en-tête porte la
-> doctrine. Premier geste : porter **avatarizer** (seul ❌ `queue_entry` de la grille), puis
-> décider du sort du **converter** (cf. §C).**
+> doctrine. Puis `§G` de ce handoff : l'état MESURÉ des derniers manques, CLASSÉS PAR NATURE
+> (3 gestes portables · 1 trou fonctionnel à discuter · 1 faux rouge à ne pas porter · 1 chantier
+> réel que la grille ne voit pas), et l'étape d'après — régénération app par app avec Playwright
+> de comparaison.**
+>
+> **Premier geste : `queue_entry` sur avatarizer** — dernier de son chantier. ⚠ Cela le mène à
+> **98 %, pas à 100 %** : il lui restera `during_preview`, qui appartient au trou fonctionnel
+> §G② et que Fabien a demandé de discuter avant d'agir.
 
 Chantier né d'une question de Fabien — « pourquoi dans 10 gabarits ? Ce n'est pas centralisé
 dans common ? ». Ça ne l'était pas. **6 commits**, `cf52c766` → `321d63d3`.
@@ -7033,3 +7039,65 @@ handoff du 24/08 en faisait le premier geste : trois crashs de plus, aucun mesur
 sonde ne tourne pas, l'hypothèse alimentation reste intestable.
 ⚠ Corollaire de travail : **commiter souvent**. Le commit `321d63d3` a été fait avant Playwright
 précisément pour que le crash suivant ne coûte rien.
+
+### G. 🔚 TERMINER LE PORTAGE — état MESURÉ au 2026-08-25, classé par NATURE
+
+> Reprendre ici. Les manques ne sont pas tous de même nature : trois sont de vrais gestes, trois
+> sont un faux rouge, un est un chantier réel que la grille ne voit PAS. Les traiter à
+> l'identique ferait perdre du temps sur les uns et manquer l'autre.
+
+**État : 3 apps à 100 %** (converter, describer, transcriber) · enhancer 99 · anonymizer,
+composer, reader, synthesizer 98 · avatarizer, imager 97.
+
+#### ① À FAIRE — gestes portables, sans décision préalable
+
+| geste | app(s) | quoi |
+|---|---|---|
+| **`queue_entry`** | **avatarizer** | **DERNIER geste du chantier « entrée de file »**. Son bloc reste écrit dans le gabarit, avec un idiome à lui : `{% if b.obj.total > 1 %}` qui OUVRE, **une boucle unique partagée**, un second `{% if %}` qui FERME (pas de `if/else`, pas de boucle dupliquée — plus économe que les 8 autres). Variable `job`, `collapse show` (déplié par défaut). **Portable** : il passe par `build_batches_list`. → 97 → 98 % |
+| 🔶 `user_settings` | anonymizer, enhancer | modèle local au lieu de la brique commune |
+| 🔶 `queue_manipulation` | anonymizer | fabrique 4 vues au lieu d'utiliser la brique |
+
+#### ② À DISCUTER AVANT D'AGIR — vrai trou fonctionnel
+
+**`during_preview` — avatarizer, imager, synthesizer.** Aucune émission d'aperçu « pendant »
+(`during_preview`/`emit_streaming_peaks`/`publish_partial`/`side=during` : zéro occurrence), alors
+que **7 apps sur 10** l'ont et que le consommateur front est COMMUN
+(`wama-inspector.js::_startDuring`). Forte valeur : image intermédiaire de diffusion (imager),
+forme d'onde au fil de la synthèse (synthesizer), frame intermédiaire (avatarizer).
+⚠ **Fabien a demandé d'en discuter avant d'agir** — rien n'a été engagé.
+
+#### ③ FAUX ROUGE — ne PAS porter en l'état
+
+**`model_caps_ui` — composer, imager, reader.** Mesuré : **il n'y a rien à filtrer**. Les
+capacités du catalogue ne portent aucun axe différenciant pour ces apps (composer =
+`languages:['en']` **identique sur ses 4 modèles**, reader = 3 modèles **tous `task:ocr`**,
+imager = `task`/`category` **déjà matérialisés par ses domaines**). La clé canonique qui servirait
+(`capabilities.params`) est portée par **1 modèle sur 157**. Aucun `show_if` ni masquage JS par
+moteur à remplacer. **Le manque est à la SOURCE (déclaration), pas dans l'UI** — y brancher
+`WamaModelCaps` produirait un filtre qui ne filtre rien.
+→ Deux issues, toutes deux des DÉCISIONS : enrichir `capabilities.params`, ou **gater le critère**
+sur « les modèles de cette app portent-ils une capacité différenciante ? » comme `input_match_ui`
+l'est déjà par `_has_engine_select`. ⚠ `conformity_checker.py` est un instrument PARTAGÉ : un
+ajout rejoue tous les dénominateurs.
+
+#### ④ CHANTIER RÉEL QUE LA GRILLE NE VOIT PAS — le piège de ce tableau
+
+**converter est à 100 %, et il lui reste pourtant le plus gros geste de la liste.**
+Il **ne passe pas par `build_batches_list`** (`views.py:150` — « FK directe job→batch, pas de
+modèle de liaison ») : il construit sa file à la main. `item.elem` n'existe donc pas chez lui, et
+`queue_entry` le **gate en N/A** — à raison, puisque lui reprocher le partial désignerait le
+mauvais défaut. Mais **aucun critère ne mesure l'adoption de `build_batches_list`**, donc son vrai
+reste-à-faire est invisible.
+⚠⚠ **Un 100 % ne dit pas « rien à faire » — il dit « rien à faire PARMI CE QUI EST REGARDÉ ».**
+C'est la même leçon que le §E du 24/08, appliquée à une app entière.
+
+#### ⑤ ENSUITE — régénération app par app + Playwright de comparaison
+
+Une fois ① fait et ②/③ tranchés : **régénérer chaque app** depuis son manifeste
+(`app_sandbox`, cf. `WAMA_APP_GENERATION_ROUTE.md`) et **comparer le rendu avec Playwright**.
+⚠ L'instrument de comparaison existe et a été éprouvé ce jour — il compare la **STRUCTURE**
+(balises + attributs + texte), pas les octets : une régénération change indentation et
+commentaires sans toucher au DOM, exactement comme une extraction vers un partial. Et il
+neutralise le CSRF, sans quoi tout diffère pour 12 lignes de token.
+⚠ Couvrir **index ET `card_html`** : cette vue AJAX est celle que le polling appelle, elle ne
+passe pas par l'index, et une card rendue avec une variable inexistante **ne lève aucune erreur**.
