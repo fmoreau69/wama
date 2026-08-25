@@ -3555,10 +3555,16 @@ Six méthodologies du laboratoire, confrontées au modèle :
 3. **mesure répétée** — le même questionnaire avant/après ou par scénario devient un facteur
    **croisé** avec le participant (`crosses`), et il rentre dans le cas général.
 
-> ⚠⚠ **BLOCAGE MESURÉ (2026-08-25).** `validate_dataset_body` exige
-> *« signals doit être une liste non vide »*. **Un corpus purement questionnaire, sans aucun flux
-> temporel, est REFUSÉ par le kind aujourd'hui.** C'est le premier trou d'universalité réel — et il
-> est petit : rendre `signals` facultatif dès lors que `axes` est présent. Voir §13.12 ③.
+> ✅ **BLOCAGE LEVÉ le 2026-08-26** (§13.14). `validate_dataset_body` exigeait *« signals doit être
+> une liste non vide »* et refusait donc tout corpus purement questionnaire. La règle est désormais
+> **« au moins l'un des deux »** : un dataset décrit des flux, un plan d'expérience, ou les deux.
+
+⭐ **Et l'intérêt va plus loin que « ne pas bloquer » (précision de Fabien, 2026-08-26).** En
+pratique les questionnaires sont traités **à part** des passations, et l'union se fait **au moment
+des statistiques** — donc sur des sorties déjà agrégées. Les tenir dans le **même monde** permet de
+croiser en gardant **la granularité fine des réponses**, et surtout de **rattacher le QUALITATIF à
+l'exploitation QUANTITATIVE** : une citation, un verbatim, restent liés à l'item et au participant
+au lieu d'être traités dans une chaîne séparée. C'est un gain de méthode, pas seulement de format.
 
 **Prior art à reprendre pour nommer l'instrument** : BIDS a des fichiers `phenotype/` accompagnés
 d'un `MeasurementToolMetadata` — `Description` (texte libre) + `TermURL` (vers une ontologie
@@ -3571,18 +3577,21 @@ manque à notre modèle, qui décrit les variables produites sans nommer l'outil
 
 | # | angle mort | gravité |
 |---|---|---|
-| ① | **corpus sans axe temporel** (questionnaire en ligne) — `signals` obligatoire | ⚠ mesuré, bloquant, **petit à corriger** |
-| ② | **plusieurs unités d'observation dans un même corpus** — dyade conducteur+passager ; mesures par participant ET par trajet ; BORIS code plusieurs *subjects* dans une même observation. SDMX le traite par **niveaux de rattachement** ; nous n'avons qu'un `grain` | ⚠⚠ **structurel** — lié à D24 |
+| ① | ~~corpus sans axe temporel~~ | ✅ **LEVÉ le 2026-08-26** (§13.14) |
+| ② | ~~plusieurs unités d'observation dans un même corpus~~ | ✅ **LEVÉ le 2026-08-26** — plusieurs `observation` sont acceptées, et **dès qu'il y en a deux le rattachement devient obligatoire** (§13.14) |
+| ②bis | ⚠ **ET J'AVAIS SURESTIMÉ CE TROU.** « mesures par participant **et** par trajet » — question de Fabien : *« en quoi on ne peut pas le faire avec l'existant ? »* — **était DÉJÀ exprimable** : le trajet est le grain, le participant le contient (`contains`), et chaque attribut nomme son niveau de rattachement (`attached_to`). Le cas réellement manquant était **deux grains NON emboîtés** (dyade conducteur+passager, plusieurs *subjects* BORIS). J'ai décrit comme structurel un besoin dont une moitié était déjà couverte | ✅ corrigé |
 | ③ | **plan déséquilibré déclaré** — un participant qui n'a fait que 3 scénarios sur 4. L'`Ecart` le **signale**, mais on ne peut pas le **déclarer comme attendu** ; tout écart légitime sonnera donc comme un défaut | ⚠ un contrôle qui sonne toujours n'est plus lu (leçon `Ecart.lecteur`) |
 | ④ | **vagues / longitudinal** — DDI a l'héritage de série entre vagues, nous non | ⚠ |
 | ⑤ | **`universe`** — ce que le corpus vise, pas seulement ce qu'il contient (D25) | ⏳ |
-| ⑥ | ⭐ **facteur DÉRIVÉ D'UN MODÈLE** — un profil de conducteur issu du clustering **est un nouveau facteur**, dont les niveaux ne viennent pas du protocole mais d'un modèle appris. `derived_from` doit-il pouvoir pointer un **`model`** ? Cela referme la boucle avec `WAMA_APPRENTISSAGE` — et **ce n'est pas traité** | ⚠⚠ **structurel** |
-| ⑦ | **naturalistic driving** — pas de scénario assigné, l'unité peut être le **véhicule** (plusieurs conducteurs), et sur des mois **la « passation » n'existe pas** : aucune frontière naturelle d'observation, donc aucune évidence sur ce que `.wdat` découpe | ⚠⚠ c'est le cas qui exercera le plus le modèle |
+| ⑥ | ⭐ ~~facteur DÉRIVÉ D'UN MODÈLE~~ | ✅ **LEVÉ le 2026-08-26** — `derived_from` accepte une référence de manifeste `{kind, key}`. Un profil de conducteur issu d'un clustering **est un facteur** dont la provenance est déclarée. ⭐ Fabien : *« si on peut ajouter un profil comme nouveau facteur, on peut alors relier un conducteur à un profil par comparaison »* — c'est exactement ce que la boucle avec `WAMA_APPRENTISSAGE` permet |
+| ⑦ | **naturalistic driving** — ⚠ **ÉNONCÉ CORRIGÉ par Fabien (2026-08-26)** : j'avais écrit « la passation n'existe pas ». **Faux — chaque trajet EST une passation**, l'acquisition ne se déclenche qu'en roulage. Le vrai cas limite est l'enregistrement **continu** (une expérimentation de 2 mois de vidéo, déjà réalisée) : voir §13.14 « les deux découpages » | ⚠ requalifié, plus petit qu'annoncé |
 
-**Niveau de confiance, sans complaisance** : **élevé** sur l'universalité du triplet (cinq standards
-convergents, trois domaines hors conduite vérifiés) ; **moyen** sur la modularité — ② et ⑥ ne sont
-pas des raffinements ; **faible** sur ce qu'on n'a pas encore essayé, et le seul juge est le quick
-win ② ci-dessous.
+**Niveau de confiance, RÉÉVALUÉ après les déblocages du 2026-08-26** : **élevé** sur l'universalité
+du triplet (cinq standards convergents, trois domaines hors conduite vérifiés) ; **relevé de moyen
+à bon** sur la modularité — les deux angles morts qualifiés de structurels (② et ⑥) sont levés et
+couverts par des tests, et ②bis était en partie une erreur d'analyse de ma part ; **faible**, et
+inchangé, sur ce qu'on n'a pas encore essayé : le seul juge reste le manifeste écrit à la main sur
+un corpus réel.
 
 ---
 
@@ -3590,16 +3599,82 @@ win ② ci-dessous.
 
 | # | quoi | coût | pourquoi celui-là d'abord |
 |---|---|---|---|
-| ① | `axes[]` + `source.layout` dans `validate_dataset_body` | **un validateur** (~50 l. + tests) | zéro UI, zéro migration, zéro dépendance ; rien d'autre ne peut s'écrire avant |
+| ① | ✅ **FAIT 2026-08-26** — `axes[]` dans `validate_dataset_body` (+ 20 tests) ; `source.layout` reste à faire (D22) | un validateur | zéro UI, zéro migration, zéro dépendance |
 | ② | ⭐ **écrire À LA MAIN le manifeste `dataset` du `.trip` réel** qu'on a déjà | une heure | **c'est le juge de tout le reste.** Le risque documenté n'est pas la couverture insuffisante, c'est **le vocabulaire trop large que personne n'annote** (mode d'échec d'OWL-S). Un manifeste réel, volontairement pauvre, dira où ça casse |
-| ③ | `signals` facultatif si `axes` présent | **3 lignes** | débloque les **questionnaires** — la méthodologie la plus fréquente au laboratoire (§13.10) |
+| ③ | ✅ **FAIT 2026-08-26** — `signals` facultatif si `axes` présent | 3 lignes | débloque les **questionnaires** (§13.10) |
 | ④ | écrire les coordonnées en `axe.<clé>` dans `WamaMeta` à l'import | petit | ferme **D21**, rend les `.wdat` **autoportants** (survivent au déplacement) |
 | ⑤ | étendre `Ecart` aux axes (taux d'appariement, complétude du croisement, contradiction dure) | moyen | c'est **toute** la confiance accordée à une proposition LLM (§13.6) |
 | ⑥ | exposer les axes en **facettes de filtre** de l'explorateur Data (§11.8) | dépend de l'UI en cours | premier bénéfice **visible**, et il sert le fil parallèle |
 
-> ⚠ **L'ordre ① → ② n'est pas négociable — et il est peut-être même inversé.** Écrire le validateur
-> avant d'avoir écrit un manifeste réel, c'est spécifier à l'aveugle. Si ② se fait d'abord, ① sort
-> juste ensuite, corrigé par le réel.
+> ⚠ **J'avais écrit « l'ordre ① → ② n'est pas négociable ». Formulation à retirer — Fabien a
+> proposé l'inverse et il a raison** : *« ne faut-il pas ajuster d'abord le code pour voir si ça
+> reste compatible avec un trip réel avant de créer ce manifeste ? »* Un manifeste écrit contre un
+> validateur qui refuse encore les questionnaires et les grains multiples aurait décrit un modèle
+> qu'on venait de corriger. **①③ d'abord (ils LÈVENT des refus), ② ensuite** — et ② reste le juge
+> de tout le reste, ce qui n'a pas changé.
+
+---
+
+### 13.14 ✅ LIVRÉ le 2026-08-26 — les déblocages, et trois corrections d'énoncé
+
+> Décision de Fabien : *« il faut lever les blocages avant d'aller plus loin pour ne pas s'empêtrer
+> plus tard »*. Fait dans `wama/common/manifests/builtin/dataset.py` +
+> `wama/common/tests_manifest_axes.py` (**20 tests**, et **649 tests** `wama_data` + catalogues au
+> vert — aucune régression).
+
+⚠ **Le kind `dataset` n'avait AUCUN test** avant ce jour (mesuré : `validate_dataset_body` n'était
+cité que par son propre module). Ses deux défauts étaient donc invisibles par construction — même
+motif que le lecteur `.trip` sans couverture (§9nonies.2).
+
+**Ce qui est livré :**
+
+| # | déblocage | forme |
+|---|---|---|
+| ① | **corpus sans flux temporel** | `signals` et `axes` : « au moins l'un des deux ». Un panel en ligne se déclare sans aucun signal |
+| ② | **plan d'expérience** `axes[]` | rôles `observation`/`factor`/`attribute` (vocabulaire **fermé**), `contains`/`crosses`, `attached_to`, `manipulated`, `counterbalanced`, `levels: ref:<table>`, `derived_from` |
+| ③ | **plusieurs unités d'observation** | acceptées ; ⭐ **dès qu'il y en a deux, `contains`/`crosses`/`attached_to` devient OBLIGATOIRE** — un rattachement deviné est le genre d'erreur qu'on découvre à l'analyse |
+| ④ | **facteur dérivé d'un modèle** | `derived_from: {kind: model, key: …}` — le profil de conducteur appris est un facteur à provenance déclarée |
+| ⑤ | **nidification récursive** | `contains` s'enchaîne sans limite de profondeur ; seule la **boucle** est refusée |
+
+#### ⭐ `present_dans` était DÉJÀ récursif — et son défaut est ailleurs
+
+Précision de Fabien : *« `present_dans` peut être récursif — une situation de suivi de véhicule
+avec des sous-situations à l'intérieur, ça a déjà été fait au laboratoire »*. **Vérifié dans le
+code** : `present_dans(segments, reference)` est une **opération ensembliste fermée** (elle prend
+des segments, elle rend des segments) — la réappliquer sur son propre résultat EST la récursion.
+**Rien à ajouter.**
+
+> ⚠ **Mais un défaut réel apparaît en le lisant** : le défaut est `strict=True`, qui exige des
+> bornes **strictement intérieures**. Une sous-situation qui **partage une borne** avec sa
+> situation mère est donc **silencieusement écartée** — or c'est le cas normal quand le
+> sous-découpage vient du même geste. La docstring le dit déjà (*« `False` … quand la référence a
+> été produite par le même découpage »*), mais **le défaut ne suit pas la docstring**. À trancher
+> avant le premier découpage hiérarchique réel (⇒ **D27**).
+
+#### ⭐ Naturalistic driving — LES DEUX DÉCOUPAGES, et ils ne coïncident pas
+
+Correction de Fabien : *« en naturalistic driving il y a bien des passations — chaque trajet est
+une passation, l'acquisition ne se déclenche qu'en roulage »*. Mon « la passation n'existe pas »
+était faux. Le cas limite est ailleurs, et il l'a nommé lui-même : une expérimentation **déjà
+réalisée** de **2 mois de vidéo continue**, découpée « tous les x temps ».
+
+D'où une distinction que le modèle doit tenir, et qu'il tient :
+
+| découpage | qui le produit | pourquoi | dans WAMA |
+|---|---|---|---|
+| **d'ACQUISITION** | automatique, technique — toutes les X minutes / X Go | éviter la perte de données ; on ne stocke pas 2 mois continus | la **frontière d'un `.wdat`** |
+| **d'ANALYSE** | le Segmenter, **par situations** | c'est l'unité sur laquelle on calcule et on compare | l'axe `observation` |
+
+> ⭐ **Ils ne coïncident pas, et c'est très bien** — c'est même la question que Fabien pose : *« le
+> découpage automatique correspond-il au découpage qu'on souhaite ? »* Réponse : **non, et il n'a
+> pas à le faire.** Le conteneur est une commodité de stockage, le grain est une décision
+> d'analyse. Le §13 les sépare déjà (§13.0 : « un manifeste `dataset` = une expérimentation ; les
+> `.wdat` sont ses feuilles »).
+>
+> ⚠ **Conséquence à ne pas perdre** : une situation peut **traverser une frontière de conteneur**
+> (un dépassement à cheval sur deux tranches de 10 minutes). Le Segmenter doit donc pouvoir lire
+> **par-dessus** le découpage d'acquisition — ce qu'il ne sait pas faire aujourd'hui, chaque lecteur
+> ouvrant **un** fichier (⇒ **D28**).
 
 ---
 
@@ -3637,6 +3712,8 @@ Voir **D21 à D25** au §10 (D20 close).
 | D22 | **forme du patron** (§13.5 mode 1) : glob nommé `{groupe}/{participant}/…` ou expression régulière ? Arbitrage **lisibilité pour un chercheur** contre **pouvoir d'expression** sur des arbres sales | avant l'UI d'import |
 | D23 | **les dossiers `Data` / `Raw data`** à côté des datasets (§13.1) : exclusion déclarée dans `source.layout`, ou rattachement au kind `project` ? ⚠ Ils peuvent contenir **malgré tout** le fichier de travail `.trip`/`.wdat` — donc « exclure par nom de dossier » est faux | avant le 1ᵉʳ manifeste `dataset` réel |
 | D24 | **DEUX rôles ou TROIS ?** (§13.3ter) — SDMX n'en a pas pour « l'unité d'observation » : chez lui **toutes** les dimensions sont des dimensions, et l'unité est simplement **la plus fine**. D'où une simplification possible : `factor` / `attribute` seulement, + un marqueur **`grain: true`** sur le facteur qui porte l'unité d'observation. ⚠ Contre-argument : l'unité d'observation porte l'**indépendance statistique**, ce qui n'est pas une propriété comme une autre — la marquer par un rôle la rend impossible à oublier, un booléen se néglige. ⭐ Le vrai départage est empirique : **regarder si une fonction d'analyse a besoin de la distinguer par son RÔLE ou par une PROPRIÉTÉ** | avant la 1ʳᵉ fonction qui lit les axes |
+| D27 | **défaut de `present_dans`** (§13.14) : `strict=True` exige des bornes **strictement intérieures**, donc **écarte silencieusement** une sous-situation qui partage une borne avec sa mère — le cas normal d'un sous-découpage issu du même geste. Basculer le défaut à `strict=False`, ou l'imposer explicitement côté découpage hiérarchique ? ⚠ Le défaut actuel **contredit sa propre docstring** | avant le 1ᵉʳ découpage hiérarchique |
+| D28 | **une situation à cheval sur deux conteneurs** (§13.14) : le découpage d'ACQUISITION (technique, toutes les X min) ne coïncide pas avec celui d'ANALYSE (par situations) — un dépassement peut chevaucher deux `.wdat`. Chaque lecteur ouvre **un** fichier aujourd'hui. Où vit la couture : un référentiel multi-fichiers, ou une concaténation à l'import ? ⚠ Sans réponse, l'enregistrement continu long (2 mois de vidéo, déjà réalisé) perd toute situation traversant une frontière | avant le 1ᵉʳ corpus continu |
 | D25 | **`universe` / population** (DDI, §13.3ter) — le corpus déclare ce qu'il **contient** ; il ne déclare pas ce qu'il est censé **couvrir** (« conducteurs de 65-75 ans titulaires du permis depuis plus de 10 ans »). DDI porte les deux. ⚠ Sans lui, l'écart mesurable est « déclaré vs trouvé » ; avec lui il devient aussi « **visé** vs trouvé » — c'est-à-dire la couverture réelle d'une étude, qui est une question de relecture d'article. À arbitrer : champ du kind `dataset`, ou hors périmètre WAMA | après le 1ᵉʳ manifeste réel |
 | ~~D26~~ | ✅ **TRANCHÉE 2026-08-25 — `.wds` est RÉSERVÉ au bundle CORPUS-niveau.** L'objet qui EST un « WAMA Data Set » vit **un étage AU-DESSUS** du `.wdat` : D17 avait écarté `.wds` pour la FEUILLE (un essai), pas pour l'ARBRE. Contenu = **un batch de `.wdat`** + métas du corpus + manifeste `dataset` + protocoles ; **encodage pressenti : HDF5** (hiérarchique — un groupe par essai ; interop MATLAB/h5py/R ; Fabien a prototypé `.trip`→HDF5, faisabilité attestée) ; **exportable depuis la card mère du batch, réimportable EN BATCH** (§11.8 ⑧). ⚠ Deux conditions avant d'écrire une ligne : ① la projection SQLite→HDF5 **s'audite** (`Rapport.pertes`, §9duodecies.5 — raw + protocole + gestes doivent survivre à l'aller-retour, sinon le réimport ment) ; ② **une seule NATURE** — « batch de `.wdat` » décrit le CONTENU, HDF5 l'ENCODAGE ; pas une archive zip d'un côté et un export HDF5 de l'autre. Enrichit **Exporter** (geste corpus, card mère) et **Converter** (route fichier-à-fichier `.trip`/`.wdat`→HDF5) — deux modules, deux granularités, pas de doublon | Fabien |
 
