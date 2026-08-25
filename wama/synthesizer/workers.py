@@ -367,12 +367,19 @@ def synthesize_voice(self, synthesis_id: int):
         _set_progress(synthesis, 90)
 
         with open(final_output, 'rb') as f:
-            # Build output filename from input name + model name (sanitize special chars)
-            raw_name = os.path.splitext(os.path.basename(synthesis.text_file.name))[0]
-            # Normalize unicode (é → e, etc.) then keep only safe chars
-            normalized = unicodedata.normalize('NFKD', raw_name).encode('ascii', 'ignore').decode('ascii')
-            input_name = re.sub(r'[^\w\-]', '_', normalized).strip('_') or 'synthesis'
-            audio_filename = f"{input_name}_{synthesis.tts_model}.wav"
+            # Brique COMMUNE de nommage (2026-08-25). Le synthesizer est de la famille
+            # FICHIER — il dérive du texte d'entrée — mais il lui manquait le mot de process :
+            # `{stem}_{modèle}.wav` devient `{stem}_voice_{modèle}.wav`.
+            # ⚠ Il NORMALISAIT les accents (« Réunion » → « Reunion ») ; la règle de la
+            # famille FICHIER est que l'utilisateur retrouve SON nom, et le stockage Django
+            # assainit déjà à l'écriture. Les accents sont donc préservés désormais.
+            # ⚠ `item_id` est passé en repli : sans fichier texte (synthèse directe), la
+            # brique bascule d'elle-même sur la famille PROMPT au lieu de produire un nom vide.
+            from wama.common.utils.output_naming import compose_output_name
+            audio_filename = compose_output_name(
+                app='synthesizer', model=synthesis.tts_model,
+                source_name=(synthesis.text_file.name or ''),
+                item_id=synthesis.id, ext='.wav')
             synthesis.audio_output.save(audio_filename, ContentFile(f.read()))
 
         # Conversion de format inline (Phase 3) — si l'utilisateur a choisi un
