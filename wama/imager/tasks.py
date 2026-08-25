@@ -298,11 +298,17 @@ def generate_image_task(self, generation_id):
 
         # Save generated images
         # Include model name in filename for easy identification
-        model_short = generation.model.replace('-', '_').replace('/', '_')  # Clean model name
+        # Brique COMMUNE de nommage (2026-08-25). L'imager était la SEULE app à gérer déjà
+        # l'index multi-sorties (`num_images` va de 1 à 4) : le portage aligne la FORME, il
+        # n'ajoute aucune capacité. ⚠ L'index disparaît quand il n'y a qu'une image — un `_1`
+        # sur une sortie unique n'apprend rien et fait croire à une suite.
+        from wama.common.utils.output_naming import compose_output_name
         generated_paths = []
         for i, img in enumerate(result.images):
             try:
-                filename = f"gen_{generation.id}_{i+1}_{model_short}.png"
+                filename = compose_output_name(
+                    app='imager', model=generation.model, item_id=generation.id, ext='.png',
+                    index=i + 1, total=len(result.images))
                 output_path = os.path.join(output_dir, filename)
                 img.save(output_path)
                 generated_paths.append(output_path)
@@ -896,8 +902,9 @@ def generate_video_task(self, generation_id):
 
         # Export video to MP4
         # Include model name in filename for easy identification
-        model_short = generation.model.replace('-', '_')  # e.g., wan_t2v_1.3b
-        video_filename = f"video_{generation.id}_{model_short}.mp4"
+        from wama.common.utils.output_naming import compose_output_name
+        video_filename = compose_output_name(app='imager', model=generation.model,
+                                             item_id=generation.id, ext='.mp4')
         video_path = os.path.join(output_dir, video_filename)
 
         export_start = time.time()

@@ -92,7 +92,14 @@ def compose_task(self, generation_id: int):
             'composer', str(gen.user_id), 'output',
         )
         os.makedirs(output_dir, exist_ok=True)
-        output_filename = f"{gen.model}_{uuid.uuid4().hex[:8]}.wav"
+        # Brique COMMUNE de nommage (2026-08-25). ⚠ Le rendu CHANGE ici, volontairement
+        # (arbitrage Fabien : l'homogénéité prime sur le portage à l'identique) :
+        # `{modèle}_{uuid8}.wav` → `audio{id}_{modèle}.wav`. L'uuid était unique mais MUET —
+        # il ne rattachait le fichier à aucune card, alors que le composer était la seule app
+        # à prompt sans identifiant ni index dans son nom.
+        from wama.common.utils.output_naming import compose_output_name
+        output_filename = compose_output_name(app='composer', model=gen.model,
+                                              item_id=gen.id, ext='.wav')
         output_abs_path = os.path.join(output_dir, output_filename)
         output_rel_path = os.path.relpath(output_abs_path, settings.MEDIA_ROOT)
 

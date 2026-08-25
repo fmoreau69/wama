@@ -29,6 +29,21 @@ class NommageDeSortieTests(SimpleTestCase):
             compose_output_name(app='anonymizer', model='m', source_name='/a/b/c/photo.JPG'),
             'photo_blurred_m.JPG')
 
+    def test_famille_fichier_sans_identifiant_reste_la_forme_historique(self):
+        """L'identifiant est FACULTATIF ici : le plus souvent la souche suffit, le stockage
+        Django ayant déjà rendu le nom d'entrée unique à l'upload."""
+        self.assertEqual(
+            compose_output_name(app='enhancer', model='m', source_name='a.mp4'),
+            'a_enhanced_m.mp4')
+
+    def test_famille_fichier_avec_identifiant_pour_les_entrees_NON_uniques(self):
+        """Cas du converter : l'entrée peut venir d'un dossier MONTÉ, où deux jobs sur le même
+        fichier produiraient le même nom. Remplace l'horodatage, unique mais muet."""
+        self.assertEqual(
+            compose_output_name(app='converter', source_name='rapport.docx',
+                                item_id=42, ext='pdf'),
+            'rapport_converted_42.pdf')
+
     # ── Famille PROMPT : l'identifiant de card remplace le nom d'origine ─────────
     def test_famille_prompt_porte_l_identifiant_de_card(self):
         self.assertEqual(

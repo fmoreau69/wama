@@ -65,7 +65,7 @@ def _convert(job, ctx):
         output_rel_dir = f"converter/{job.user_id}/output/"
         output_dir = settings.MEDIA_ROOT / output_rel_dir
         output_dir.mkdir(parents=True, exist_ok=True)
-        output_name = _build_output_name(job.input_filename, job.output_format)
+        output_name = _build_output_name(job.input_filename, job.output_format, item_id=job.id)
 
     final_output_path = str(output_dir / output_name)
 
@@ -198,12 +198,19 @@ def _clear_during(job):
         pass
 
 
-def _build_output_name(input_filename: str, output_format: str) -> str:
-    """Replace extension with output format, ensuring uniqueness via timestamp."""
-    import time
-    stem = Path(input_filename).stem
-    ts = int(time.time())
-    return f"{stem}_{ts}.{output_format.lower()}"
+def _build_output_name(input_filename: str, output_format: str, item_id=None) -> str:
+    """`<stem>_converted[_<id>].<format>` — brique COMMUNE de nommage (2026-08-25).
+
+    ⚠ L'HORODATAGE a disparu. Il assurait l'unicité, mais muettement : deux conversions du
+    même fichier donnaient `rapport_1756134012.pdf` et `rapport_1756134139.pdf`, deux noms
+    que rien ne rattachait à leur card. L'identifiant de card dit la même chose en la
+    désignant — et c'est la même règle que les autres apps.
+    ⚠ Il le faut ICI et pas ailleurs : l'entrée du converter peut venir d'un dossier MONTÉ,
+    où la souche n'est pas rendue unique par le stockage Django.
+    """
+    from wama.common.utils.output_naming import compose_output_name
+    return compose_output_name(app='converter', source_name=input_filename,
+                               item_id=item_id, ext=output_format.lower())
 
 
 def _build_inplace_name(output_dir, input_filename: str, output_format: str) -> str:

@@ -229,10 +229,15 @@ def generate_avatar(self, job_id: int):
                 _console(job.user_id, "CodeFormer terminé.", 'info')
 
             # ⚠ SORTIR le livrable AVANT la fin du bloc — après, `travail` n'existe plus.
-            # Le nom est préfixé par le job : `output/` est PLAT, et deux jobs partant du même
-            # avatar et du même audio produiraient sinon le même nom de fichier — Django
-            # renommerait l'un des deux et le lien affiché deviendrait faux.
-            cible = sortie_app / f"job{job_id}_{Path(final_video).name}"
+            # Brique COMMUNE de nommage : famille FICHIER, la source étant l'AUDIO (c'est lui
+            # que l'utilisateur reconnaît ; l'avatar n'est qu'un paramètre de rendu).
+            # L'identifiant de job reste porté : `output/` est PLAT, et deux jobs partant du
+            # même audio produiraient sinon le même nom — Django en renommerait un et le lien
+            # affiché deviendrait faux.
+            from wama.common.utils.output_naming import compose_output_name
+            cible = sortie_app / compose_output_name(
+                app='avatarizer', model=('codeformer' if job.use_enhancer else 'musetalk'),
+                source_name=audio_path, item_id=job_id, ext='.mp4')
             _shutil.move(str(final_video), str(cible))
 
         _set_progress(job, 95)

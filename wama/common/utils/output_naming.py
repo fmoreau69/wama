@@ -119,7 +119,16 @@ def compose_output_name(*, app: str, model: str = '', ext: str = '',
         souche, ext_source = os.path.splitext(os.path.basename(str(source_name)))
         souche = _souche_utilisateur(souche)
         ext = ext or ext_source
+        # ⚠ L'identifiant est FACULTATIF dans cette famille, et c'est délibéré. Le plus souvent
+        # la souche suffit à l'unicité : le fichier d'entrée porte déjà un nom unique donné par
+        # le stockage Django à l'upload (constat écrit dans `enhancer/tasks.py:398`). Mais ce
+        # n'est PAS vrai quand l'entrée vient d'un dossier MONTÉ (converter), où deux jobs sur
+        # le même fichier produiraient le même nom — le converter s'en protégeait avec un
+        # HORODATAGE, unique mais muet. L'identifiant de card dit la même chose en désignant
+        # la card, et c'est le même mécanisme que la famille PROMPT : une seule règle.
         morceaux = [souche, tag] + ([modele] if modele else [])
+        if item_id is not None:
+            morceaux.append(str(item_id))
     else:
         # ⚠ Sans identifiant, deux cards du même modèle produiraient le MÊME nom : Django en
         # renommerait une (`_c5e24b5d`) et le lien affiché deviendrait faux. C'est le défaut
