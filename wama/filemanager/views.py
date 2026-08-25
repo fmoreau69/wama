@@ -12,6 +12,7 @@ from django.conf import settings
 from django.http import JsonResponse, FileResponse, HttpResponseBadRequest
 from django.views.decorators.http import require_POST, require_GET, require_http_methods
 from django.core.files.storage import default_storage
+from django.utils.http import content_disposition_header
 
 from .models import UserFile, MountedFolder
 from wama.accounts.views import get_or_create_anonymous_user
@@ -2267,7 +2268,7 @@ def api_mount_serve(request, pk, path):
     try:
         mime_type = mimetypes.guess_type(target.name)[0] or 'application/octet-stream'
         response = FileResponse(open(target, 'rb'), content_type=mime_type)
-        response['Content-Disposition'] = f'inline; filename="{target.name}"'
+        response['Content-Disposition'] = content_disposition_header(False, f"{target.name}")
         return response
     except Exception as e:
         logger.error(f"Error serving mount file {target}: {e}")

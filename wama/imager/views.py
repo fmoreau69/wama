@@ -18,6 +18,7 @@ from django.core.cache import cache
 from django.utils import timezone
 from django.conf import settings
 from django.db.models import Q
+from django.utils.http import content_disposition_header
 import os
 import json
 import logging
@@ -1197,7 +1198,7 @@ def download(request, generation_id):
 
         zip_buffer.seek(0)
         response = HttpResponse(zip_buffer.getvalue(), content_type='application/zip')
-        response['Content-Disposition'] = f'attachment; filename="generation_{generation.id}.zip"'
+        response['Content-Disposition'] = content_disposition_header(True, f"generation_{generation.id}.zip")
         return response
 
     except Http404:

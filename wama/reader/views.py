@@ -16,6 +16,7 @@ from django.http import JsonResponse, FileResponse, HttpResponse, HttpResponseBa
 from django.core.cache import cache
 from django.views.decorators.http import require_POST
 from django.db import transaction
+from django.utils.http import content_disposition_header
 
 import re
 
@@ -461,7 +462,7 @@ def download(request, pk: int):
             from wama.common.utils.document_export import generate_reader_pdf
             pdf_bytes = generate_reader_pdf(item)
             response = HttpResponse(pdf_bytes, content_type='application/pdf')
-            response['Content-Disposition'] = f'attachment; filename="{base}_ocr.pdf"'
+            response['Content-Disposition'] = content_disposition_header(True, f"{base}_ocr.pdf")
             return response
         except ImportError as e:
             return HttpResponseBadRequest(str(e))
@@ -477,7 +478,7 @@ def download(request, pk: int):
                 docx_bytes,
                 content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             )
-            response['Content-Disposition'] = f'attachment; filename="{base}_ocr.docx"'
+            response['Content-Disposition'] = content_disposition_header(True, f"{base}_ocr.docx")
             return response
         except ImportError as e:
             return HttpResponseBadRequest(str(e))

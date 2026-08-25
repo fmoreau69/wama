@@ -35,7 +35,21 @@
 }
 .wai-row:last-child { border-bottom: 0; }
 .wai-row .wai-k { color: #adb5bd; white-space: nowrap; }
-.wai-row .wai-v { color: #e9ecef; text-align: right; word-break: break-word; }
+/* ⚠ `min-width: 0` est INDISPENSABLE, pas décoratif (2026-08-25, symptôme signalé par
+   Fabien : « le nom de fichier dépassait la largeur de l'inspecteur, le rendant
+   scrollable »). `.wai-row` est un conteneur FLEX, et un élément flex a `min-width: auto`
+   par défaut : il refuse de se réduire en deçà de la largeur de son contenu. Un nom de
+   fichier long débordait donc le volet — et `word-break` n'y pouvait rien, puisque la
+   coupure n'est jamais tentée tant que l'élément ne rétrécit pas.
+   `overflow-wrap: anywhere` complète : `break-word` ne coupe pas les suites sans espace
+   (`Reunion_equipe_2026_enhanced_realesrgan.mp4`), qui sont justement la forme de nos
+   noms de sortie. */
+.wai-row .wai-v {
+    color: #e9ecef; text-align: right;
+    min-width: 0;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+}
 
 .wai-code {
     display: block;

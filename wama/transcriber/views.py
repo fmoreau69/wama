@@ -16,6 +16,7 @@ from django.core.cache import cache
 from django.contrib.auth.models import User
 from django.views.decorators.http import require_POST
 from django.utils.encoding import smart_str
+from django.utils.http import content_disposition_header
 
 import datetime
 from .models import Transcript, BatchTranscript, BatchTranscriptItem
@@ -1062,7 +1063,7 @@ def download(request, pk: int):
             from wama.common.utils.document_export import generate_transcript_pdf
             pdf_bytes = generate_transcript_pdf(t)
             response = HttpResponse(pdf_bytes, content_type='application/pdf')
-            response['Content-Disposition'] = f'attachment; filename="{stem}.pdf"'
+            response['Content-Disposition'] = content_disposition_header(True, f"{stem}.pdf")
             return response
         except ImportError as e:
             return HttpResponseBadRequest(str(e))
@@ -1078,7 +1079,7 @@ def download(request, pk: int):
                 docx_bytes,
                 content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
             )
-            response['Content-Disposition'] = f'attachment; filename="{stem}.docx"'
+            response['Content-Disposition'] = content_disposition_header(True, f"{stem}.docx")
             return response
         except ImportError as e:
             return HttpResponseBadRequest(str(e))

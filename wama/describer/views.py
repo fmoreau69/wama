@@ -22,6 +22,7 @@ from django.views.decorators.http import require_POST, require_GET
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.cache import cache
 from django.conf import settings
+from django.utils.http import content_disposition_header
 
 from .models import Description, BatchDescription, BatchDescriptionItem
 from wama.common.utils.queue_duplication import duplicate_instance, safe_delete_file
@@ -562,7 +563,7 @@ def download(request, pk):
             from wama.common.utils.document_export import generate_description_pdf
             pdf_bytes = generate_description_pdf(description)
             response = HttpResponse(pdf_bytes, content_type='application/pdf')
-            response['Content-Disposition'] = f'attachment; filename="{base_name}_description.pdf"'
+            response['Content-Disposition'] = content_disposition_header(True, f"{base_name}_description.pdf")
             return response
         except ImportError as e:
             return JsonResponse({'error': str(e)}, status=501)
@@ -578,7 +579,7 @@ def download(request, pk):
                 docx_bytes,
                 content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
             )
-            response['Content-Disposition'] = f'attachment; filename="{base_name}_description.docx"'
+            response['Content-Disposition'] = content_disposition_header(True, f"{base_name}_description.docx")
             return response
         except ImportError as e:
             return JsonResponse({'error': str(e)}, status=501)
@@ -596,7 +597,7 @@ def download(request, pk):
     if description.result_text:
         content = description.result_text.encode('utf-8')
         response = HttpResponse(content, content_type='text/plain; charset=utf-8')
-        response['Content-Disposition'] = f'attachment; filename="{base_name}_description.txt"'
+        response['Content-Disposition'] = content_disposition_header(True, f"{base_name}_description.txt")
         return response
 
     return JsonResponse({'error': 'No result available'}, status=400)

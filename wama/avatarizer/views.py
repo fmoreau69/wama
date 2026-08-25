@@ -16,6 +16,7 @@ from django.core.cache import cache
 from django.views.decorators.http import require_POST
 from django.core.validators import FileExtensionValidator
 from django.core.exceptions import ValidationError
+from django.utils.http import content_disposition_header
 
 import json
 from .models import AvatarJob, BatchAvatarJob, BatchAvatarJobItem
@@ -464,7 +465,7 @@ def download(request, pk):
             content_type='video/mp4',
         )
         filename = os.path.basename(job.output_video.name)
-        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response['Content-Disposition'] = content_disposition_header(True, f"{filename}")
         return response
     except FileNotFoundError:
         raise Http404("Fichier vidéo introuvable.")
@@ -969,7 +970,7 @@ def batch_download(request, pk):
                     continue
     buffer.seek(0)
     response = HttpResponse(buffer.read(), content_type='application/zip')
-    response['Content-Disposition'] = f'attachment; filename="batch_avatarizer_{pk}.zip"'
+    response['Content-Disposition'] = content_disposition_header(True, f"batch_avatarizer_{pk}.zip")
     return response
 
 

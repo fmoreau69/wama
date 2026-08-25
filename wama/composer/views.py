@@ -12,6 +12,7 @@ from django.http import FileResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.views import View
 from django.views.decorators.http import require_POST, require_GET
+from django.utils.http import content_disposition_header
 
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.console_utils import get_console_lines
@@ -587,7 +588,7 @@ def download(request, pk):
 
     filename = os.path.basename(gen.audio_output.name)
     response = FileResponse(gen.audio_output.open('rb'), content_type='audio/wav')
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    response['Content-Disposition'] = content_disposition_header(True, f"{filename}")
     return response
 
 
@@ -833,7 +834,7 @@ def batch_download(request, pk):
 
     buffer.seek(0)
     response = HttpResponse(buffer.read(), content_type='application/zip')
-    response['Content-Disposition'] = f'attachment; filename="batch_composer_{pk}.zip"'
+    response['Content-Disposition'] = content_disposition_header(True, f"batch_composer_{pk}.zip")
     return response
 
 
