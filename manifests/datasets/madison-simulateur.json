@@ -1,0 +1,95 @@
+{
+  "manifest_kind": "dataset",
+  "key": "madison-simulateur",
+  "schema_version": "1.0",
+  "name": "Madison - driving simulator study (sample passation)",
+  "description": "Driving simulator experiment on a DR2 simulator, with synchronised physiology (BIOPAC ECG/EDA), eye tracking (Pupil glasses), two IDSCAM cameras and vehicle dynamics. FIRST hand-written dataset manifest of the repository, transcribed field by field from a real .trip catalogue - deliberately poor vocabulary. See WAMA_DATA_WORLD.md 13.15.",
+  "world": "data",
+  "visibility": "private",
+  "projects": [],
+  "source": {
+    "type": "folder",
+    "ref": "claude/WAMA-Data/Exemple_trip/"
+  },
+  "body": {
+    "source": {
+      "type": "rtmaps",
+      "ref": "claude/WAMA-Data/Exemple_trip/"
+    },
+    "axes": [
+      {
+        "key": "passation",
+        "role": "observation",
+        "label": "Passation (one recording session)"
+      },
+      {
+        "key": "scenario",
+        "role": "factor",
+        "label": "Driving scenario",
+        "crosses": "passation",
+        "manipulated": true,
+        "levels": "ref:scenarios"
+      },
+      {
+        "key": "fenetre_analyse",
+        "role": "factor",
+        "label": "Analysis window, in seconds around the event anchor",
+        "crosses": "passation",
+        "manipulated": false,
+        "levels": "ref:fenetres"
+      }
+    ],
+    "reference_tables": {
+      "scenarios": {
+        "values": ["Test"]
+      },
+      "fenetres": {
+        "values": ["0_15", "0_30", "0_60", "0_120", "15_45", "30_60",
+                   "30_90", "45_75", "60_90", "60_120", "75_105", "90_120"]
+      },
+      "situation_kind": {
+        "values": ["TAG", "DEP"]
+      }
+    },
+    "signals": [
+      {"id": "BIOPAC_MP150", "data_type": "timeseries", "acquired": true,
+       "description": "ECG + EDA, 2037207 samples"},
+      {"id": "DR2_Simulateur", "data_type": "timeseries", "acquired": true,
+       "description": "Simulator step, time, GMT clock, trial index"},
+      {"id": "DR2_Vehicule_VHS_vp", "data_type": "timeseries", "acquired": true,
+       "description": "Vehicle dynamics: road, lane, heading, speed, accel, TIV, TTC, steering, brake, clutch, indicators"},
+      {"id": "IDSCAM_MASTER", "data_type": "timeseries", "acquired": true,
+       "description": "Camera timestamps, master"},
+      {"id": "IDSCAM_SLAVE", "data_type": "timeseries", "acquired": true,
+       "description": "Camera timestamps, slave"},
+      {"id": "PUPIL_GLASSES_gaze", "data_type": "timeseries", "acquired": true,
+       "description": "Gaze position and 3D gaze vectors"},
+      {"id": "PUPIL_GLASSES_pupil", "data_type": "timeseries", "acquired": true,
+       "description": "Pupil diameter and ellipse fit"},
+      {"id": "PUPIL_GLASSES_fixations", "data_type": "timeseries", "acquired": true,
+       "description": "Fixations detected by the eye tracker"},
+      {"id": "ECG_processed", "data_type": "timeseries", "acquired": false,
+       "description": "DERIVED: RR intervals, corrected RR, interpolated HR"},
+      {"id": "PUPIL_GLASSES_processed", "data_type": "timeseries", "acquired": false,
+       "description": "DERIVED: gaze delta and fixation flag"},
+
+      {"id": "DR2_Commentaires", "data_type": "events", "acquired": true,
+       "description": "Free-text experimenter comments"},
+      {"id": "CADISP", "data_type": "events", "acquired": true,
+       "description": "Discomfort scale actions and levels"},
+      {"id": "debScn-finVirage", "data_type": "events", "acquired": false,
+       "description": "DERIVED: scenario start to bend end"},
+      {"id": "debVirage-finScn", "data_type": "events", "acquired": false,
+       "description": "DERIVED: bend start to scenario end"},
+      {"id": "finTag_finDep_pieton_voiture", "data_type": "events", "acquired": false,
+       "description": "DERIVED: end of pedestrian/car tag or overtaking"}
+    ],
+    "records": [
+      {
+        "id": "situations",
+        "description": "Twelve nested sliding analysis windows anchored on events. One row is one (passation x event x window) with its computed indicators: heart-rate variability (SDNN, RMSSD, RR), driving (SDLP, SDWA, SRR) and oculometry (fixation and saccade counts, durations, amplitudes).",
+        "signals": []
+      }
+    ]
+  }
+}

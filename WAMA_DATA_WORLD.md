@@ -3678,6 +3678,107 @@ D'où une distinction que le modèle doit tenir, et qu'il tient :
 
 ---
 
+### 13.15 ⭐ LE PREMIER MANIFESTE `dataset` ÉCRIT À LA MAIN — et ce qu'il a mordu (2026-08-26)
+
+> `manifests/datasets/madison-simulateur.json`, transcrit **champ par champ depuis le catalogue
+> d'un `.trip` réel** (`RecFile_REC_20190502_144710.trip` : 37 tables, 10 flux, 6 événements,
+> 12 situations, 2 vidéos). Vocabulaire **volontairement pauvre**. Enveloppe **OK**, corps **OK**.
+> C'était le quick win ② — « le juge de tout le reste ». Il a jugé.
+
+#### ⭐ Ce que le fichier RÉEL contient déjà, et qu'on n'aurait pas deviné
+
+**`MetaTripDatas` porte `('scenario', 'Test')` et `('participant_id', 'Passation_01')`.** Les
+coordonnées d'axes **sont déjà là**, en **clés plates**, dans le fichier de 2019. §13.5 (« le
+`.wdat` porte son rangement en méta-info ») n'était donc pas une proposition : c'est un **relevé**.
+
+⚠ **Conséquence directe sur D21** : l'outil d'origine n'utilisait **aucun préfixe**. Notre `axe.`
+n'est pas un ajout neutre, c'est un **changement de convention** — il faut donc lire les deux
+formes (alias d'entrée, exactement comme `timecode` l'est déjà pour `time`), sinon on cesse de
+reconnaître les coordonnées des corpus existants.
+
+#### ⚠ Trois pièges que seule l'écriture du manifeste a exposés
+
+| # | constat mesuré | conséquence |
+|---|---|---|
+| ① | **`participant_id` vaut `Passation_01`** — la clé dit « participant », la valeur nomme une **PASSATION** | le manifeste déclare donc `passation` comme unité d'observation, **pas** `participant`. Sur un corpus de N trips, les deux doivent être distingués : sinon deux passations d'une même personne comptent pour deux individus indépendants — exactement la fuite que l'axe `observation` doit empêcher |
+| ② | **`MetaParticipantDatas` : 0 ligne** | la table des attributs participant **existe et n'a jamais été remplie**. Aucun `attribute` n'est déclarable depuis ce corpus : ni âge, ni groupe. **Le lieu existait, la pratique non** — et c'est précisément ce qu'une déclaration rend visible |
+| ③ | `MetaEvents` déclare **`debScn-finVirage_0_0`** (tiret) alors que la table s'appelle **`event_debScn_finVirage_0_0`** (souligné) | **le nom du catalogue et le nom de la table divergent.** Un lecteur qui joint sur le nom rate cet événement en silence. Vaut pour tout import de `.trip` tiers |
+
+Deux constats mineurs, notés pour ne pas être redécouverts : **`MetaDatas.frequency` vaut `0`** pour
+les 8 flux acquis — ni une cadence réelle, ni le `-1` que §6.2 documente comme « non régulier » ;
+et les 12 situations portent toutes `isBase=0`, donc **tout le contenu d'analyse est dérivé**,
+cohérent avec §6.2.
+
+#### ⚠⚠ Et un défaut de conception trouvé PAR l'écriture — `source` existe à DEUX étages
+
+Le premier jet a échoué sur `source manquant ou non-dict`. Cause immédiate : j'avais écrit le
+manifeste **à plat** au lieu de `{"body": {…}}`. Mais la correction a révélé le vrai problème :
+
+| étage | vocabulaire de `source.type` | ce qu'il désigne |
+|---|---|---|
+| **enveloppe** (`envelope.py`) | `builtin` \| `library` \| `folder` \| `extract` | d'où vient **le MANIFESTE** |
+| **corps** (`builtin/dataset.py`) | `rtmaps` \| `lsl` \| `rosbag` \| `csv` \| `parquet` \| `db` \| `docs` \| `other` | d'où viennent **les DONNÉES** |
+
+**Le même nom, deux vocabulaires disjoints, dans un seul fichier.** C'est la même famille de défaut
+que §9decies.3 (`source.type` provenance vs capacité de lecteur), qui avait déjà coûté une fausse
+piste — et cette fois il est structurel, pas conjoncturel. ⇒ **D29**.
+
+⚠ Et le **message d'erreur induit en erreur** : il annonce « source manquant » quand le vrai défaut
+est que **tout le corps est au mauvais étage**. Le premier auteur d'un manifeste écrit à la main est
+exactement celui qui n'a pas le contexte pour traduire ce message.
+
+#### Ce que le manifeste ne déclare PAS, et pourquoi c'est le bon résultat
+
+Pas d'`attribute` (rien à déclarer, ②), un seul niveau de `scenario` (`Test`), et `fenetre_analyse`
+déclaré en facteur avec ses 12 niveaux — ce qui **applique D11** : les paramètres de fenêtre
+cessent d'être enfouis dans un nom de table (`situation_0_15`) pour devenir **interrogeables**.
+
+> **Bilan du quick win ②.** Le vocabulaire des axes n'a eu besoin d'**aucun ajout** pour décrire un
+> corpus réel — c'est le point positif. Tout ce qui a cassé était **ailleurs** : la forme du
+> corpus, l'ambiguïté de `source`, la qualité du message d'erreur, et les divergences du fichier
+> source. C'est exactement ce qu'on attendait d'un manifeste écrit à la main plutôt que d'une
+> spécification écrite à l'aveugle.
+
+---
+
+### 13.16 RGPD et SI de laboratoire — non bloquant, mais UNE chose est gratuite maintenant
+
+> Question de Fabien (2026-08-26) : un **registre RGPD** (cycle et traitement des données) est à
+> remplir **pour chaque expérimentation** ; les documents (administratif, littérature, livrables)
+> vivent sur le serveur distant dans le dossier du projet et sont suivis dans le SI du laboratoire.
+
+**Verdict : rien de bloquant, et il ne faut PAS l'ouvrir maintenant.** Deux raisons de fond :
+
+- le SI est un **système d'enregistrement** externe. Même doctrine que pour le suivi
+  d'entraînement (`WAMA_APPRENTISSAGE §4`) : **on référence, on n'absorbe pas.** Dupliquer un
+  registre RGPD dans WAMA créerait une seconde vérité qui divergerait ;
+- l'ancrage naturel existe déjà et c'est le kind **`project`** — l'unité de droits cross-org, qui
+  porte déjà `owner_org`, `lead`, `members`. Un identifiant de dossier SI y est un champ, pas une
+  architecture.
+
+#### ⭐ Ce qui est gratuit maintenant, et cher plus tard
+
+Les axes rendent une partie de l'inventaire RGPD **dérivable au lieu d'être ressaisie** — et c'est
+un effet de bord qu'on n'avait pas cherché :
+
+| ce que le plan d'expérience dit déjà | ce que le registre RGPD demande |
+|---|---|
+| l'unité d'observation est une **personne** (`participant`) ou non (`véhicule`, `site`, `éprouvette`) | *le traitement porte-t-il sur des personnes physiques ?* |
+| les `attribute` rattachés à cette unité | *quelles catégories de données ?* (âge, sexe, santé…) |
+| un `factor` `derived_from` un `model` | *y a-t-il profilage ?* — question explicite du RGPD |
+
+⇒ **Une seule déclaration mérite d'être posée tôt**, parce qu'elle est irrattrapable en aval :
+`observation` doit pouvoir dire **si son unité est une personne**, et un axe **s'il est
+identifiant direct, pseudonyme ou anonyme**. Sur le corpus mesuré au §13.15, `participant_id`
+vaut `Passation_01` — un **pseudonyme**, la table de ré-identification vivant ailleurs : c'est
+exactement le fait qu'un registre RGPD veut voir écrit. ⇒ **D30**.
+
+Le reste — base légale, durée de conservation, DPIA, mesures de sécurité — est du **texte de
+registre**, il n'a rien à faire dans un manifeste technique. La rétention, elle, a déjà son
+mécanisme (`PROFILES_PERMISSIONS §3`).
+
+---
+
 ### 13.13 Décisions ouvertes
 
 Voir **D21 à D25** au §10 (D20 close).
@@ -3712,8 +3813,10 @@ Voir **D21 à D25** au §10 (D20 close).
 | D22 | **forme du patron** (§13.5 mode 1) : glob nommé `{groupe}/{participant}/…` ou expression régulière ? Arbitrage **lisibilité pour un chercheur** contre **pouvoir d'expression** sur des arbres sales | avant l'UI d'import |
 | D23 | **les dossiers `Data` / `Raw data`** à côté des datasets (§13.1) : exclusion déclarée dans `source.layout`, ou rattachement au kind `project` ? ⚠ Ils peuvent contenir **malgré tout** le fichier de travail `.trip`/`.wdat` — donc « exclure par nom de dossier » est faux | avant le 1ᵉʳ manifeste `dataset` réel |
 | D24 | **DEUX rôles ou TROIS ?** (§13.3ter) — SDMX n'en a pas pour « l'unité d'observation » : chez lui **toutes** les dimensions sont des dimensions, et l'unité est simplement **la plus fine**. D'où une simplification possible : `factor` / `attribute` seulement, + un marqueur **`grain: true`** sur le facteur qui porte l'unité d'observation. ⚠ Contre-argument : l'unité d'observation porte l'**indépendance statistique**, ce qui n'est pas une propriété comme une autre — la marquer par un rôle la rend impossible à oublier, un booléen se néglige. ⭐ Le vrai départage est empirique : **regarder si une fonction d'analyse a besoin de la distinguer par son RÔLE ou par une PROPRIÉTÉ** | avant la 1ʳᵉ fonction qui lit les axes |
-| D27 | **défaut de `present_dans`** (§13.14) : `strict=True` exige des bornes **strictement intérieures**, donc **écarte silencieusement** une sous-situation qui partage une borne avec sa mère — le cas normal d'un sous-découpage issu du même geste. Basculer le défaut à `strict=False`, ou l'imposer explicitement côté découpage hiérarchique ? ⚠ Le défaut actuel **contredit sa propre docstring** | avant le 1ᵉʳ découpage hiérarchique |
-| D28 | **une situation à cheval sur deux conteneurs** (§13.14) : le découpage d'ACQUISITION (technique, toutes les X min) ne coïncide pas avec celui d'ANALYSE (par situations) — un dépassement peut chevaucher deux `.wdat`. Chaque lecteur ouvre **un** fichier aujourd'hui. Où vit la couture : un référentiel multi-fichiers, ou une concaténation à l'import ? ⚠ Sans réponse, l'enregistrement continu long (2 mois de vidéo, déjà réalisé) perd toute situation traversant une frontière | avant le 1ᵉʳ corpus continu |
+| D27 | **`present_dans` et l'ÉGALITÉ des bornes** — ⚠ **ÉNONCÉ RESSERRÉ le 2026-08-26 (objection de Fabien).** J'avais écrit « le défaut contredit sa docstring » : trop fort, et à côté. Fabien : *« c'est normal que `strict=True`, on sous-segmente un segment, on ne peut pas avoir une borne du sous-segment qui sort du segment qui le contient »* — **exact, et ce n'est pas ce que `strict` arbitre**. `strict=True` teste `s['start'] > d and fin < f`, c'est-à-dire des bornes **strictement intérieures** : il rejette donc l'**ÉGALITÉ**, pas le débordement. Une sous-situation qui commence *exactement* quand sa mère commence (« les 10 premières secondes du suivi ») est **INCLUSE** et pourtant écartée. Démonstration limite : `present_dans(X, X)` rend **∅**. La docstring prévoit déjà le cas (`False` = « quand la référence a été produite par le même découpage ») — reste à décider **qui** le passe : le défaut, ou l'appelant hiérarchique | avant le 1ᵉʳ découpage hiérarchique |
+| ~~D28~~ | ✅ **TRANCHÉE 2026-08-26 par Fabien** — la couture est un **AGRÉGATEUR `.wdat` → `.wdat`**, pas un lecteur multi-fichiers ni `.wds`. Plusieurs conteneurs sont **fusionnés en un seul** (ex. des tranches de 30 min en fichiers de 6 h), et le résultat est un `.wdat` ordinaire que tout le reste sait déjà lire. ⭐ Décisif : **`.wds` est un ENGLOBEUR de `.wdat` (D26), pas un fusionneur** — les deux répondent à des besoins différents et les confondre aurait donné un format à deux natures, ce que D26 interdit explicitement. Le moteur d'écriture existe déjà (§9duodecies, un moteur/deux schémas) ; restent la granularité de fusion (paramètre) et l'**audit de la fusion** (`Rapport.pertes`, comme toute projection) | ✅ close |
+| D30 | **nature personnelle d'une unité d'observation** (§13.16) : `observation` doit-il déclarer si son unité est une **personne physique**, et un axe s'il est **identifiant direct / pseudonyme / anonyme** ? ⚠ Mesuré au §13.15 : `participant_id = 'Passation_01'` est un **pseudonyme**, fait qu'un registre RGPD veut voir écrit et qu'aucune relecture ultérieure ne pourra reconstituer. Gratuit maintenant, irrattrapable en aval. Le reste du registre (base légale, DPIA, conservation) reste **hors manifeste** | avec le 1ᵉʳ corpus à données personnelles |
+| D29 | ⚠⚠ **`source` existe à DEUX étages avec DEUX vocabulaires** (§13.15) : enveloppe = `builtin\|library\|folder\|extract` (d'où vient le MANIFESTE), corps `dataset` = `rtmaps\|lsl\|csv\|…` (d'où viennent les DONNÉES). Même nom, sens disjoints, un seul fichier — même famille que §9decies.3, mais structurelle cette fois. Renommer le champ du corps (`data_source` ?), ou documenter la superposition et s'y tenir ? ⚠ Trouvé **en écrivant le premier manifeste**, pas en relisant le code | avant le 2ᵉ manifeste `dataset` |
 | D25 | **`universe` / population** (DDI, §13.3ter) — le corpus déclare ce qu'il **contient** ; il ne déclare pas ce qu'il est censé **couvrir** (« conducteurs de 65-75 ans titulaires du permis depuis plus de 10 ans »). DDI porte les deux. ⚠ Sans lui, l'écart mesurable est « déclaré vs trouvé » ; avec lui il devient aussi « **visé** vs trouvé » — c'est-à-dire la couverture réelle d'une étude, qui est une question de relecture d'article. À arbitrer : champ du kind `dataset`, ou hors périmètre WAMA | après le 1ᵉʳ manifeste réel |
 | ~~D26~~ | ✅ **TRANCHÉE 2026-08-25 — `.wds` est RÉSERVÉ au bundle CORPUS-niveau.** L'objet qui EST un « WAMA Data Set » vit **un étage AU-DESSUS** du `.wdat` : D17 avait écarté `.wds` pour la FEUILLE (un essai), pas pour l'ARBRE. Contenu = **un batch de `.wdat`** + métas du corpus + manifeste `dataset` + protocoles ; **encodage pressenti : HDF5** (hiérarchique — un groupe par essai ; interop MATLAB/h5py/R ; Fabien a prototypé `.trip`→HDF5, faisabilité attestée) ; **exportable depuis la card mère du batch, réimportable EN BATCH** (§11.8 ⑧). ⚠ Deux conditions avant d'écrire une ligne : ① la projection SQLite→HDF5 **s'audite** (`Rapport.pertes`, §9duodecies.5 — raw + protocole + gestes doivent survivre à l'aller-retour, sinon le réimport ment) ; ② **une seule NATURE** — « batch de `.wdat` » décrit le CONTENU, HDF5 l'ENCODAGE ; pas une archive zip d'un côté et un export HDF5 de l'autre. Enrichit **Exporter** (geste corpus, card mère) et **Converter** (route fichier-à-fichier `.trip`/`.wdat`→HDF5) — deux modules, deux granularités, pas de doublon | Fabien |
 
