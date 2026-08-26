@@ -7112,6 +7112,9 @@ passe pas par l'index, et une card rendue avec une variable inexistante **ne lè
 >
 > **Premier geste : trancher les 32 « pointeurs seuls »** (§D①) — ce sont des cards de la file,
 > leur suppression est une décision de Fabien, pas un ménage.
+>
+> ⚠ Le défaut §D④ (`renderBatchActions`) est **CORRIGÉ** depuis le 26/08 — il ne reste que son
+> chantier d'adoption par les 5 apps déjà saines.
 
 Session née d'un portage d'app (`queue_entry` avatarizer) qui a fait lancer la suite de tests,
 laquelle a révélé qu'elle **écrivait dans le média de production**. De fil en aiguille, 20 commits.
@@ -7168,10 +7171,20 @@ laquelle a révélé qu'elle **écrivait dans le média de production**. De fil 
    partie vient de fichiers placés par commodité.
 3. **`enhancer/tasks.py:534`** — seul site `work_dir` non porté. Déjà nettoyé sur les deux chemins ;
    le porter est une restructuration d'une fonction GPU de 200 lignes.
-4. 🔴 **`renderBatchActions` : contrat INVERSÉ dans 4 apps** (anonymizer, avatarizer, enhancer ×2,
-   synthesizer) — **À TRAITER EN PREMIER**. `wama-inspector.js:807` passe un **identifiant** ; ces
-   apps écrivent `function (host, group)` puis `group.querySelector(...)` → **`TypeError` au clic
-   sur une card mère**, volet Actions vide. Préexistant, prouvé sur HEAD~1.
+4. ✅ **`renderBatchActions` : contrat INVERSÉ — CORRIGÉ le 26/08** (`204ffe85`). Les 5 sites
+   (anonymizer, avatarizer, enhancer ×2, synthesizer) passent par la brique commune
+   **`WamaInspector.cloneBatchActions(host, batchId)`**, qui résout la card mère depuis son
+   identifiant. Prouvé par un clic RÉEL en navigateur : le `pageerror` a disparu, et le volet
+   affiche INFOS + PARAMÈTRES + les 5 boutons d'action clonés.
+   🔚 **Reste à porter** : les 5 apps au contrat correct (transcriber, converter, describer,
+   reader, imager) recopient les mêmes 3 lignes — elles fonctionnent, mais le geste est commun.
+   ✅ Corrigé aussi : « Réglages de **le** batch #2 » → la contraction `de`+`le` → `du` est traitée
+   dans `showBanner` (règle de LANGUE, une fois au point d'assemblage) plutôt que dans les
+   9 libellés d'app, qui l'auraient recopiée.
+
+   *Contexte conservé* : `wama-inspector.js` passe un **identifiant** ; ces apps écrivaient
+   `function (host, group)` puis `group.querySelector(...)` → **`TypeError` au clic sur une card
+   mère**, volet Actions vide. Préexistant, prouvé sur HEAD~1.
 
    ⚠⚠ **ATTEIGNABLE AUJOURD'HUI, SUR LE COMPTE DE FABIEN** — correction du 26/08 : j'avais écrit
    « la base réelle n'a aucun lot multi-éléments », en n'ayant mesuré que `BatchAvatarJob`.
@@ -7192,6 +7205,10 @@ consignée dans `WAMA_VERIFICATION §4bis` — **ne pas en faire une alerte**.
 
 ### E. Système & pendings
 
+- ⚠ **`manifest_export --check` dit « corpus PÉRIMÉ, 91 à régénérer » — CE N'EST PAS CE PÉRIMÈTRE.**
+  Il vient du chantier `wama_data` de l'AUTRE instance (`711af645` + son travail en cours dans
+  l'arbre : `wama_data/functions/`, `core/`). **Ne pas régénérer depuis cette session** : ça
+  figerait son travail non commité dans le corpus. À elle de le faire au moment où elle clôt.
 - **`~Archives` distant = 85 fichiers / 14,6 Go, VOULU** (Fabien) et déjà exclu du tirage. Ne pas le
   prendre pour de la dérive : 44 % du volume distant, c'est lui.
 - ✅ **La sauvegarde planifiée FONCTIONNE** — vérifié le 26/08 dans les journaux beat : `backup_media`
@@ -7216,7 +7233,7 @@ consignée dans `WAMA_VERIFICATION §4bis` — **ne pas en faire une alerte**.
 `check_docs` **5 CASSÉ / 0 périmée** (⚠ critère = **1 CIBLE distincte**, `_result_tabs.html`) ·
 `manifest_export` **110 manifestes à jour** · `doc_facts` **5/5** · roundtrip **10 apps OK** ·
 grille : converter/describer/transcriber **100 %**, enhancer 99, anonymizer/avatarizer/composer/
-reader/synthesizer 98, imager 97 · **`manage.py test` : 892 tests, failures=8 errors=2** (les 8 =
+reader/synthesizer 98, imager 97 · **`manage.py test` : 911 tests, failures=8 errors=2** (les 8 =
 gating d'apps sur synthesizer, les 2 = découverte dans `wama-dev-ai/`, dossier tiret-case
 volontairement non importable) · `check_media_integrity` : **332 référencés, 0 résidu de test,
 30 absents, 5 égarés**.
