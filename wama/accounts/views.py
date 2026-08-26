@@ -337,6 +337,26 @@ def language_update(request):
 
 @login_required
 @require_POST
+def units_update(request):
+    """AJAX: enregistre le système d'unités d'AFFICHAGE (D27) — la donnée reste dans SON unité."""
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+
+    system = data.get('unit_system', 'metric')
+    valid = {c[0] for c in UserProfile._meta.get_field('unit_system').choices}
+    if system not in valid:
+        return JsonResponse({'error': f"Système d'unités invalide : '{system}'"}, status=400)
+
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    profile.unit_system = system
+    profile.save(update_fields=['unit_system'])
+    return JsonResponse({'success': True, 'unit_system': system})
+
+
+@login_required
+@require_POST
 def notifications_update(request):
     """AJAX: enregistre les préférences de notification email."""
     try:

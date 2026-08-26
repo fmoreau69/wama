@@ -4012,6 +4012,109 @@ Voir **D21 à D25** au §10 (D20 close).
 
 ---
 
+## 14. LA MIGRATION DE NOMMAGE (D28) — cartographie MESURÉE et coût (2026-08-26)
+
+> Demande de Fabien : *« Peux-tu faire la cartographie du renommage et évaluer le coût de
+> remettre tout ça en ordre ? Je stoppe les autres instances quand on s'en occupe. »* Règle
+> cible = celle du dépôt (CLAUDE.md, 22/08) : **identifiant importé = anglais ; tests = français ;
+> prose/docstrings = français**.
+
+### 14.1 La mesure — cinq faits qui dimensionnent le chantier
+
+1. **~124 symboles publics français**, ~760 occurrences dans le code de `wama_data` (124 fichiers
+   scannés) + ~970 dans ses tests. Par foyer : export 171+218 · segmentation 110+125 ·
+   conditions 89+110 · frames/vue/dataset 89+203 · sources/containers 99+91 · valeurs/noms/geo
+   93+67 · coding 55+65 · calculation 34+59 · enveloppes 19+33.
+2. ⭐ **Les consommateurs EXTERNES sont déjà anglais.** 6 fichiers seulement importent
+   `wama_data` hors du monde (5 × cam_analyzer, 1 × doc_facts) et tous consomment la famille
+   anglaise (`trajectory_offset`, `sky_mask_at`, `parse_rec`, `depth_geometry`,
+   `track_position_spread`, kinematics…) — **UNE exception** : `doc_facts` importe `mesurer`
+   (1 site). La migration est donc quasi intégralement INTERNE.
+3. ⭐⭐ **Zéro clé française sérialisée** : `manifests/` ne contient AUCUN `segment_*`/`calcul_*`/
+   `codage_*`. Les 17 clés de catalogue françaises et les ~16 clés `ParamSpec` françaises ne
+   vivent encore que dans le code — **la fenêtre se referme au premier protocole réel écrit**.
+4. ⚠⚠ **Le vrai coût n'est PAS le volume, c'est l'HOMONYMIE code/prose.** Les docstrings français
+   (qui RESTENT français) emploient les mêmes mots que les identifiants — « la *jonction* de deux
+   flux », « les *marges* » : un sed aveugle corromprait la prose. → renommage **outillé AST**
+   (rope/libcst) ou revue hunk par hunk ; jamais un remplacement textuel global.
+5. Les valeurs de trace **écrites dans les données** (`origin='autour'|'jonction'|'marges'…`,
+   colonnes `origin` des conteneurs) migrent avec les écrivains ; les fichiers déjà écrits
+   gardent les anciennes valeurs → **tolérance de lecture**, pas de réécriture de données.
+
+### 14.2 La table de correspondance proposée (à valider avant la passe)
+
+**Clés de catalogue (17 — contrat sérialisable, priorité absolue)** :
+`segment_autour_event→segment_around_events` · `segment_jonction→segment_join` ·
+`segment_conditionnel→segment_conditional` · `segment_etats→segment_states` ·
+`segment_present_dans→segment_within` · `segment_marges→segment_margins` ·
+`segment_marges_spatiales→segment_spatial_margins` ·
+`segment_chaine_conditionnelle→segment_condition_chain` ·
+`event_chaine_conditionnelle→event_condition_chain` · `distance_a_point→distance_to_point` ·
+`calcul_glissant→calc_rolling` · `calcul_derivee→calc_derivative` · `calcul_cumul→calc_cumulative` ·
+`calcul_par_segment→calc_per_segment` · `codage_segments→coding_segments` ·
+`codage_evenements→coding_events` · `codage_accord→coding_agreement`
+
+**Clés `ParamSpec` (sérialisées dans les protocoles)** : `colonne→column` · `operateur→operator` ·
+`seuil→threshold` · `duree_min→min_duration` · `trou_tolere→gap_tolerance` · `ignorer→ignore` ·
+`connecteurs→connectors` · `avant/apres→before/after` (+`_m`) · `depuis_debut/depuis_fin→
+skip_starts/skip_ends` · `repeter→repeat` · `fermer_dernier→drop_last_open` · `montantes/
+descendantes→rising/falling` · `nom→name`
+
+**Cœur, par module** (modules renommés : `valeurs.py→values.py`, `noms.py→naming.py`,
+`vue.py→view.py`) :
+- `segmentation` : `autour→around` · `jonction→join` · `conditionnelle→conditional` ·
+  `masque_hysteresis→hysteresis_mask` · `bascules→edges` · `etats→states` ·
+  `present_dans→within` · `chevauche→overlapping` · `ouverts→open_ones` · `fermer→close` ·
+  `marges→margins` · `marges_spatiales→spatial_margins`
+- `calculation` : `appliquer→apply` · `glissant→rolling` · `derivee→derivative` ·
+  `cumul→cumulative` · `par_segment→per_segment` · `echantillons_du_segment→segment_samples`
+- `conditions` : `Operateur→Operator` · `Connecteur→Connector` · `valider→validate` ·
+  `evaluer→evaluate` · `rendre→render` · `analyser→parse` · `condition_depuis_dict→
+  condition_from_dict` · `nom_chaine→chain_name` · `operateurs_pour→operators_for`
+- `coding` : `Protocole→Protocol` · `SessionCodage→CodingSession` · `Modificateur→Modifier` ·
+  `Comportement→Behavior` · `rejouer→replay` · `accord→agreement` · exceptions idem EN
+- `export` : `Colonne→Column` · `Identite→Identity` · `Regroupement→Grouping` · `Fichier→
+  ExportFile` · `exporter→export` · `apercu→preview` · `lignes→rows` · `rendre→render` ·
+  `enregistrer_format→register_format` · `formats_disponibles/ecrivables→available/
+  writable_formats` (`Declaration` : déjà anglais)
+- `values`/`naming`/`geo` : `manquant→missing` · `presentes→present` · `normaliser→normalize` ·
+  `abreger→abbreviate` · `nom_produit→derived_name` · `nom_jonction→join_name` ·
+  `nom_annexe→annex_name` · `distances_a_point→distances_to_point` ·
+  `abscisse_curviligne→arc_length`
+- `frames`/`view`/`dataset` : `frame_depuis_signal→frame_from_signal` (et symétriques) ·
+  `adjoindre→adjoin` · `type_par_defaut→default_type` · `Vue→View` · `Piste→Track` ·
+  `Fenetre→Window` · `ColonneDerivee→DerivedColumn` · `Resultat→Result` · `serie→series` ·
+  `Ecart→Discrepancy` · `charger→load` · `verifier→verify` · `situer→locate` ·
+  `signaux/axes_declares→declared_signals/axes` · `chemin→path`
+- `sources`/`containers`/`modules` : `ecrire→write` · `Rapport→Report` (champ `pertes→losses`) ·
+  `Contexte→Context` · `Entree→Entry` · `Schema*→*Schema` · `enregistrer_schema→register_schema` ·
+  `valeur_sql→sql_value` · `modules_lecteurs→reader_modules` · `temps_en_secondes→seconds_from` ·
+  `mesurer→measure` (+ le site `doc_facts`)
+
+**Ce qui ne bouge PAS** : les tests (méthodes françaises = la règle), la prose/docstrings
+(français), les champs canoniques (`time`/`start`/`end` — déjà anglais, glu inter-mondes), la
+famille driving/geometry/kinematics/io (déjà anglaise), les données déjà écrites.
+
+### 14.3 Le plan — quatre passes commitées séparément, instances STOPPÉES
+
+| passe | contenu | pourquoi cet ordre |
+|---|---|---|
+| **A** | les 17 clés de catalogue + ~16 clés ParamSpec + noms d'enveloppes | c'est le **contrat sérialisable** — le seul dont le coût CROÎT avec le temps |
+| **B** | cœur (`core/*`) : ~50 fonctions + 3 renommages de module | le plus gros volume, purement interne |
+| **C** | classes + `sources`/`containers`/`dataset`/`vue`/`frames` + `origin` (tolérance de lecture) | dépend de B |
+| **D** | `doc_facts.mesurer`, références VIVES des `.md` (le Journal reste tel quel — c'est de l'histoire), garde `NomAbandonneTest` étendue aux anciens noms + clés | referme la porte |
+
+**Garde-fous** (tous éprouvés) : renommage AST, jamais textuel (14.1.4) · *« un renommage ne
+casse rien, il rend FAUX »* → grep des **COMPARAISONS** de chaînes (clés, `origin`) · garde de
+renommage datée type D17 · **645 tests comme filet** + `manage.py check` + vérification **sur
+HEAD en worktree isolé** après chaque passe.
+
+**Coût estimé : une journée dédiée** (A ≈ 1-2 h · B ≈ une demi-journée · C ≈ 2-3 h · D ≈ 1-2 h),
+instances stoppées (accord de Fabien acquis). Le report, lui, coûte : chaque protocole réel écrit
+avant la passe A devra être migré ou aliasé.
+
+---
+
 ## 10. Décisions en attente
 
 | # | question | qui tranche |
@@ -4048,7 +4151,7 @@ Voir **D21 à D25** au §10 (D20 close).
 | D29 | ⚠⚠ **`source` existe à DEUX étages avec DEUX vocabulaires** (§13.15) : enveloppe = `builtin\|library\|folder\|extract` (d'où vient le MANIFESTE), corps `dataset` = `rtmaps\|lsl\|csv\|…` (d'où viennent les DONNÉES). Même nom, sens disjoints, un seul fichier — même famille que §9decies.3, mais structurelle cette fois. Renommer le champ du corps (`data_source` ?), ou documenter la superposition et s'y tenir ? ⚠ Trouvé **en écrivant le premier manifeste**, pas en relisant le code | avant le 2ᵉ manifeste `dataset` |
 | D25 | **`universe` / population** (DDI, §13.3ter) — le corpus déclare ce qu'il **contient** ; il ne déclare pas ce qu'il est censé **couvrir** (« conducteurs de 65-75 ans titulaires du permis depuis plus de 10 ans »). DDI porte les deux. ⚠ Sans lui, l'écart mesurable est « déclaré vs trouvé » ; avec lui il devient aussi « **visé** vs trouvé » — c'est-à-dire la couverture réelle d'une étude, qui est une question de relecture d'article. À arbitrer : champ du kind `dataset`, ou hors périmètre WAMA | après le 1ᵉʳ manifeste réel |
 | ~~D27~~ | ✅ **TRANCHÉE ET LIVRÉE le 2026-08-26** (validation de Fabien : « on peut déjà s'occuper de la conversion des unités avec pint ») — **la donnée reste dans SON unité** (`WamaVariables.unit`, `ParamSpec.unit`) ; la conversion vit à la **PRÉSENTATION seule**, pilotée par une préférence utilisateur (métrique/impérial) ; l'**export** reste par défaut dans l'unité de la donnée, conversion possible mais **TRACÉE**. **Brique livrée** : `wama/common/utils/units.py` (**pint 0.25.3**, installé les 2 venvs + `requirements.txt` le même jour — règle maison), au registre des mécanismes (`units_display`), 13 tests. ⭐ Résolution par **DIMENSION** (toute unité de vitesse → mph en impérial), unité inconnue **reste affichable**, unité inconnue en conversion **refusée** (une valeur sous une étiquette fausse est pire qu'une erreur), un trou traverse en trou. Le test-clé est l'**OFFSET** °C→°F — ce qu'une table de facteurs maison rendrait faux en silence. ⏳ Reste au moment des surfaces : le champ de **préférence au profil**, le câblage preview/graphes/inspecteur, l'en-tête d'export converti | ✅ close |
-| D28 | **Normalisation du nommage de l'API du monde Data** (relevé de Fabien 26/08 : « du français mélangé à de l'anglais — seuls les tests acceptent le français »). **Mesuré** : le cœur de `wama_data` est français de bout en bout (~50 fonctions publiques — `autour`, `jonction`, `etats`, `exporter`, `rejouer`…) et le **CATALOGUE est SPLITTÉ** — famille temporal/geo/coding **française** (`segment_*`, `calcul_*`, `codage_*`, `distance_a_point`) contre famille driving/geometry **anglaise** (`trajectory_offset`, `brake_detection`, `gps_map_match`, `depth_*`, `ign_*`). La règle du dépôt (CLAUDE.md, 22/08 : **identifiant importé = anglais**) n'a pas été appliquée au monde Data, construit les mêmes jours. **Recommandation : migrer vers l'anglais en PASSE DÉDIÉE, maintenant que c'est bon marché** — `externe: 0` (0 views, 0 tool_api), et ⚠ **les clés de catalogue se SÉRIALISENT dans les protocoles** : chaque protocole rejouable écrit d'ici là renchérit la migration. Garde-fous obligatoires : ⚠ **coordination multi-instances** (l'autre instance travaille dans `wama_data` — partitionner), garde de renommage type `NomAbandonneTest` (D17), et « *un renommage ne casse rien, il rend FAUX* » → grepper les COMPARAISONS | Fabien (timing) |
+| D28 | **Normalisation du nommage de l'API du monde Data** (relevé de Fabien 26/08 : « du français mélangé à de l'anglais — seuls les tests acceptent le français »). **Mesuré** : le cœur de `wama_data` est français de bout en bout (~50 fonctions publiques — `autour`, `jonction`, `etats`, `exporter`, `rejouer`…) et le **CATALOGUE est SPLITTÉ** — famille temporal/geo/coding **française** (`segment_*`, `calcul_*`, `codage_*`, `distance_a_point`) contre famille driving/geometry **anglaise** (`trajectory_offset`, `brake_detection`, `gps_map_match`, `depth_*`, `ign_*`). La règle du dépôt (CLAUDE.md, 22/08 : **identifiant importé = anglais**) n'a pas été appliquée au monde Data, construit les mêmes jours. **Recommandation : migrer vers l'anglais en PASSE DÉDIÉE, maintenant que c'est bon marché** — `externe: 0` (0 views, 0 tool_api), et ⚠ **les clés de catalogue se SÉRIALISENT dans les protocoles** : chaque protocole rejouable écrit d'ici là renchérit la migration. Garde-fous obligatoires : ⚠ **coordination multi-instances** (l'autre instance travaille dans `wama_data` — partitionner), garde de renommage type `NomAbandonneTest` (D17), et « *un renommage ne casse rien, il rend FAUX* » → grepper les COMPARAISONS. ⭐ **Cartographie + coût MESURÉS le 26/08 → §14** (~124 symboles, ~1 730 occ py, consommateurs externes DÉJÀ anglais sauf `mesurer`, 0 clé sérialisée — table de correspondance à valider, 4 passes, ~1 journée, Fabien stoppe les autres instances pendant la passe) | Fabien (GO + table §14.2) |
 | ~~D26~~ | ✅ **TRANCHÉE 2026-08-25 — `.wds` est RÉSERVÉ au bundle CORPUS-niveau.** L'objet qui EST un « WAMA Data Set » vit **un étage AU-DESSUS** du `.wdat` : D17 avait écarté `.wds` pour la FEUILLE (un essai), pas pour l'ARBRE. Contenu = **un batch de `.wdat`** + métas du corpus + manifeste `dataset` + protocoles ; **encodage pressenti : HDF5** (hiérarchique — un groupe par essai ; interop MATLAB/h5py/R ; Fabien a prototypé `.trip`→HDF5, faisabilité attestée) ; **exportable depuis la card mère du batch, réimportable EN BATCH** (§11.8 ⑧). ⚠ Deux conditions avant d'écrire une ligne : ① la projection SQLite→HDF5 **s'audite** (`Rapport.pertes`, §9duodecies.5 — raw + protocole + gestes doivent survivre à l'aller-retour, sinon le réimport ment) ; ② **une seule NATURE** — « batch de `.wdat` » décrit le CONTENU, HDF5 l'ENCODAGE ; pas une archive zip d'un côté et un export HDF5 de l'autre. Enrichit **Exporter** (geste corpus, card mère) et **Converter** (route fichier-à-fichier `.trip`/`.wdat`→HDF5) — deux modules, deux granularités, pas de doublon | Fabien |
 
 ---

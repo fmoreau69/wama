@@ -152,6 +152,31 @@
                 </div>
             </div>
 
+            <!-- ── Système d'unités (D27) ───────────────────────────────── -->
+            <div class="card bg-dark border-secondary mb-4">
+                <div class="card-header border-secondary">
+                    <h5 class="mb-0"><i class="fas fa-ruler-combined me-2"></i>Système d'unités</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        Ne change que l'affichage (aperçus, graphes, inspecteur) : les données restent
+                        stockées dans leur unité d'origine.
+                    </p>
+                    <div class="d-flex gap-2 align-items-center">
+                        <select id="unitSystemSelect"
+                                class="form-select form-select-sm bg-dark text-white border-secondary"
+                                style="max-width: 220px;">
+                            <option value="metric" {% if profile.unit_system != 'imperial' %}selected{% endif %}>Métrique (km, °C)</option>
+                            <option value="imperial" {% if profile.unit_system == 'imperial' %}selected{% endif %}>Impérial (miles, °F)</option>
+                        </select>
+                        <button id="saveUnitSystemBtn" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-save me-1"></i> Enregistrer
+                        </button>
+                    </div>
+                    <div id="unitSystemMsg" class="mt-2" style="display:none;"></div>
+                </div>
+            </div>
+
             <!-- ── Aperçu inspecteur ──────────────────────────────────── -->
             <div class="card bg-dark border-secondary mb-4">
                 <div class="card-header border-secondary">
@@ -429,6 +454,7 @@
 {% block extra_js %}
 <script>
 const LANGUAGE_URL       = "{% url 'accounts:profile-language' %}";
+const UNITS_URL          = "{% url 'accounts:profile-units' %}";
 const NOTIFICATIONS_URL  = "{% url 'accounts:profile-notifications' %}";
 const RETENTION_URL      = "{% url 'accounts:profile-retention' %}";
     const AUTOPLAY_URL       = "{% url 'accounts:profile-inspector-autoplay' %}";
@@ -515,6 +541,19 @@ document.getElementById('saveLanguageBtn').addEventListener('click', async () =>
     try {
         const data = await postJson(LANGUAGE_URL, { language: lang });
         if (data.success) showMsg(msg, '✓ Langue enregistrée');
+        else showMsg(msg, data.error || 'Erreur', true);
+    } catch(e) {
+        showMsg(msg, 'Erreur réseau', true);
+    }
+});
+
+// ── Système d'unités (D27 — affichage seul) ─────────────────────────────────
+document.getElementById('saveUnitSystemBtn').addEventListener('click', async () => {
+    const system = document.getElementById('unitSystemSelect').value;
+    const msg    = document.getElementById('unitSystemMsg');
+    try {
+        const data = await postJson(UNITS_URL, { unit_system: system });
+        if (data.success) showMsg(msg, '✓ Système d\'unités enregistré');
         else showMsg(msg, data.error || 'Erreur', true);
     } catch(e) {
         showMsg(msg, 'Erreur réseau', true);

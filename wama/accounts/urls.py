@@ -18,6 +18,7 @@ urlpatterns = [
     # Profile
     path('profile/', views.profile_view, name='profile'),
     path('profile/language/', views.language_update, name='profile-language'),
+    path('profile/units/', views.units_update, name='profile-units'),
     path('profile/notifications/', views.notifications_update, name='profile-notifications'),
     path('profile/retention/', views.retention_update, name='profile-retention'),
     path('profile/layout/', views.layout_update, name='profile-layout'),

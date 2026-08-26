@@ -22,6 +22,15 @@ class UserProfile(models.Model):
         default='fr',
         verbose_name='Langue préférée',
     )
+    # Système d'unités d'AFFICHAGE (D27, WAMA_DATA_WORLD §10) — la donnée reste dans SON unité ;
+    # cette préférence ne pilote que la conversion à la PRÉSENTATION (common/utils/units.py :
+    # `display_unit(unit, profile.unit_system)`), jamais le stockage ni l'export par défaut.
+    unit_system = models.CharField(
+        max_length=10,
+        choices=[('metric', 'Métrique (km, °C)'), ('imperial', 'Impérial (miles, °F)')],
+        default='metric',
+        verbose_name="Système d'unités",
+    )
     ui_mode = models.CharField(
         max_length=16,
         choices=[('advanced', 'Mode Avancé'), ('simple', 'Mode Simplifié')],
