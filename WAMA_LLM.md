@@ -94,6 +94,15 @@ ex. imager `output_type` image|video), repli sur le `model_type` du modèle cibl
 
 Règles DANS LE CODE (mécanisme, pas skills) : clause de langue d'émission + préservation
 verbatim des mots-clés forcés (`glossary`). Contrat : `wama/common/prompt_skills/README.md`.
+
+**Doctrine 2026-08-26 (validée Fabien) — le CONTRAT DE SORTIE appartient au MODÈLE, pas à
+l'app** : MusicGen attend 30-80 mots, MiniMax-Music3 attend 250-450 mots sectionnés avec tags
+de paroles — même app, contrats opposés, que la résolution `<app>-<domain>` ne voit pas.
+Cible : le manifeste `model` déclare `body.prompts.contract` (fait DÉCLARÉ, même route que
+`license`/`platform_ref` — JAMAIS `AIModel.capabilities`, réécrit en entier par la découverte),
+projeté par `write_back_model` puis injecté par le résolveur : skill d'app = la méthode,
+modèle = son contrat. Méthode de construction en 4 étages (brief → précédence → contrat →
+auto-validation) : `prompt_skills/README.md`. Chantier ouvert, à câbler.
 Comblé au passage : `generate_video_task` (imager) n'appelait PAS la pipeline (variables
 locales `_prompt`/`_negative`, la base garde l'original) ; composer `enrich=True` (le blocage
 « consignes visuelles » est levé par `composer-music.md`).

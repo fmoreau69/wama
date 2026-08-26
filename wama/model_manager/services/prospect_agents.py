@@ -25,11 +25,27 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-_AGENT_SYSTEM = (
-    "Tu es un expert en modèles d'IA qui évalue l'adoption d'un modèle pour la plateforme WAMA "
-    "(automatisation média, GPU RTX 4090 24GB, usage recherche). Sois prudent et factuel. "
-    "Réponds en JSON valide UNIQUEMENT, rien d'autre."
-)
+def _vram_totale_gb() -> float:
+    """VRAM TOTALE du GPU en Go (mesurée via torch), repli 24.0 sans CUDA.
+    Le critère du juge suit l'infrastructure RÉELLE, pas une constante (remarque Fabien
+    2026-08-26 : « le rejet des gros modèles dépend de l'infrastructure derrière ») — le
+    passage à un autre hôte changera le budget sans retoucher les prompts."""
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return round(torch.cuda.mem_get_info()[1] / 1024 ** 3, 1)
+    except Exception:
+        pass
+    return 24.0
+
+
+def _system_agent() -> str:
+    """Prompt système du juge — budget VRAM injecté depuis la détection, jamais en dur."""
+    return (
+        "Tu es un expert en modèles d'IA qui évalue l'adoption d'un modèle pour la plateforme "
+        f"WAMA (automatisation média, GPU {_vram_totale_gb():.0f} Go de VRAM, usage recherche). "
+        "Sois prudent et factuel. Réponds en JSON valide UNIQUEMENT, rien d'autre."
+    )
 
 #: Réglage par défaut des agents de la chaîne UI (surchargable : `settings.PROSPECT_ASSESS_AGENTS`).
 #: `'ollama'` SANS nom de modèle : `llm_chat(model=None)` résout via `modele_par_defaut()`
@@ -56,13 +72,15 @@ def _juger(contexte: str, provider, model, timeout=120):
     etiquette = f"{provider}:{model}" if model else f"{provider} (catalogue)"
     prompt = (
         contexte + "\n\n"
-        "Évalue l'adoption pour WAMA. Critères : tient sur 24GB de préférence, qualité, "
-        "maturité/éprouvé, licence, effort d'intégration.\n"
+        f"Évalue l'adoption pour WAMA. Critères : faisabilité VRAM ({_vram_totale_gb():.0f} Go — "
+        "juge sur la variante quantisée la plus légère quand des variantes sont listées, et la "
+        "plateforme sait décharger les composants inactifs d'une pipeline en RAM système au prix "
+        "de la vitesse), qualité, maturité/éprouvé, licence, effort d'intégration.\n"
         'Réponds JSON STRICT : {"recommend": true/false, "confidence": 0.0-1.0, '
         '"vram_fit": "ok|tight|no|unknown", "rationale": "1-2 phrases", "concerns": "risques/efforts"}.'
     )
     text, err = llm_chat(
-        messages=[{"role": "system", "content": _AGENT_SYSTEM},
+        messages=[{"role": "system", "content": _system_agent()},
                   {"role": "user", "content": prompt}],
         provider=provider, model=model, num_predict=500, think=False, timeout=timeout,
     )
@@ -221,7 +239,8 @@ def _vram_agents(agents) -> float:
 def _contexte_hf(cand) -> str:
     """
     Contexte d'un candidat HuggingFace (prospection génération) : la CARTE de modèle HF
-    (même source factuelle que la voie CLI `assess_models`) + popularité + référentiel.
+    (même source factuelle que la voie CLI `assess_models`) + popularité + référentiel
+    + variantes quantisées si `_attacher_variantes_quantisees` les a relevées.
     """
     p = (cand.extra_info or {}).get('prospect', {})
     carte = _hf_card_excerpt(cand.hf_id)
@@ -230,11 +249,43 @@ def _contexte_hf(cand) -> str:
         f"Rôle WAMA visé : {p.get('role') or cand.model_type} — {p.get('reason', '')}\n"
         f"Téléchargements : {p.get('downloads')} | Likes : {p.get('likes')} | "
         f"Poids : {cand.disk_gb or '?'} Go\n"
+        + _ligne_variantes(p)
         + _ligne_benchmark(cand)
         + f"Modèles déjà installés pour ce type (référentiel à surpasser) :\n"
           f"{_referentiel(cand.model_type)}\n"
         f"Carte (extrait) :\n{carte or '(non disponible)'}"
     )
+
+
+def _ligne_variantes(p: dict) -> str:
+    """Bloc « variantes quantisées » du contexte du juge, '' si aucune n'est relevée.
+    C'est LA ligne qui corrige le biais mesuré le 2026-08-26 : le poids affiché est celui
+    des poids PLEINS, et le juge rejetait tout gros modèle pourtant bien repackagé."""
+    variantes = p.get('quant_variants') or []
+    if not variantes:
+        return ""
+    lignes = "\n".join(f"  - {v['hf_id']} ({v['downloads']} téléchargements)"
+                       for v in variantes)
+    return ("⚠ Le poids ci-dessus est celui des poids PLEINS. Variantes quantisées "
+            f"disponibles (la faisabilité VRAM se juge sur elles) :\n{lignes}\n")
+
+
+def _attacher_variantes_quantisees(cand) -> None:
+    """
+    Relève UNE fois les variantes quantisées d'un candidat HF et les persiste dans
+    `extra_info['prospect']['quant_variants']` (card/inspecteur + contexte du juge).
+    Idempotent : une liste déjà relevée (même vide) n'est pas re-cherchée — 2 requêtes
+    réseau par candidat, au moment de l'évaluation seulement, jamais au seeding.
+    """
+    info = dict(cand.extra_info or {})
+    prospect = dict(info.get('prospect') or {})
+    if 'quant_variants' in prospect:
+        return
+    from .prospector import variantes_quantisees
+    prospect['quant_variants'] = variantes_quantisees(cand.hf_id)
+    info['prospect'] = prospect
+    cand.extra_info = info
+    cand.save(update_fields=['extra_info'])
 
 
 def assess_proposed(max_assess: int = 10, agents=None, timeout: int = 120,
@@ -304,6 +355,8 @@ def assess_proposed(max_assess: int = 10, agents=None, timeout: int = 120,
         for i, cand in enumerate(cands):
             if progress:
                 progress({'current': cand.name, 'done': i, 'total': len(cands)})
+            if cand.source == 'huggingface':
+                _attacher_variantes_quantisees(cand)
             contexte = (_contexte_hf(cand) if cand.source == 'huggingface'
                         else _contexte_ollama(cand))
             opinions = [_juger(contexte, p, m, timeout=timeout)

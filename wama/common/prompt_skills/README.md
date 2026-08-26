@@ -68,3 +68,43 @@ repli sur le `model_type` du modèle cible.
 1. Déclarer le champ-prompt dans `common/utils/app_metadata.py::PROMPT_TARGETS`
    (`enrich=True` + `domain`/`domain_field` si plusieurs domaines).
 2. Créer `<app>[-<domain>].md` ici. C'est tout — aucune app ne code ses consignes en dur.
+
+## Construire un skill : la MÉTHODE en 4 étages (2026-08-26)
+
+> Transposée du skill `music-caption-rewriter` publié avec MiniMax-Music3 — le premier cas
+> observé d'un ÉDITEUR de modèle livrant le skill d'enrichissement avec ses poids. La méthode
+> vaut pour TOUTES les apps ; l'adapter à la taille du LLM local (garder le skill court).
+
+1. **Brief** — extraire l'intention en qualifiant chaque dimension : *énoncée* par
+   l'utilisateur, *impliquée* par le contexte, ou *non spécifiée*. Ne JAMAIS fabriquer une
+   valeur précise (BPM exact, focale, durée) qui n'est ni énoncée ni impliquée — préférer
+   une plage ou un qualificatif.
+2. **Précédence des contraintes** — l'énoncé utilisateur est intouchable (genre, mood,
+   « instrumental », sujet) ; le skill ne complète QUE les dimensions non spécifiées, en
+   cohérence avec le genre.
+3. **Contrat de sortie** — longueur, structure, format attendus par le MODÈLE cible
+   (voir doctrine ci-dessous : cet étage n'appartient pas à l'app).
+4. **Auto-validation** — checklist finale avant émission : sujet préservé ? rien de
+   fabriqué ? contrat respecté ? sortie = le prompt seul ?
+
+## ⚠ Doctrine : le CONTRAT DE SORTIE appartient au MODÈLE, pas à l'app (2026-08-26)
+
+MusicGen attend 30-80 mots descriptifs d'un seul tenant ; MiniMax-Music3 attend 250-450 mots
+en 3 sections (métadonnées globales / voix / arrangement séquencé) avec tags de paroles.
+Même app (composer), contrats OPPOSÉS — la résolution `<app>-<domain>` ne voit pas le modèle
+cible, donc le skill d'app porte aujourd'hui le contrat de sa famille DOMINANTE (celui de
+MusicGen vit dans `composer-music.md`).
+
+**Où déclarer le contrat — réponse mesurée (2026-08-26) :**
+- ❌ PAS dans `AIModel.capabilities` : la découverte le réécrit EN ENTIER à chaque sync —
+  toute valeur posée à la main est effacée (frontière du kind `model`,
+  `WAMA_MANIFEST_SPEC.md §7.1 bis`, constaté le 2026-08-05 : 11 capacités → 0).
+- ✅ Le contrat est un fait **DÉCLARÉ**, comme `license`/`platform_ref` : même route — le
+  manifeste `model` le déclare (`body.prompts.contract` : longueur, structure, sections,
+  tags supportés, paroles oui/non, prompt négatif oui/non), `write_back_model` le projette
+  vers un champ préservé du sync, et le résolveur ajoute ce contrat AU system prompt
+  (skill d'app = la méthode, modèle = son contrat).
+
+**Chantier ouvert** (validé Fabien 2026-08-26, à câbler) : champ de projection + injection
+dans `prompt_skills.py`/`prompt_enrichment`. Premier bénéficiaire attendu : l'adoption de
+MiniMax-Music3 (chansons) aux côtés de MusicGen (instrumental) dans le composer.

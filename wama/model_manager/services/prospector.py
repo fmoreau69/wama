@@ -203,6 +203,64 @@ def _poids_depot_go(hf_id: str):
         return None
 
 
+#: Marqueurs de QUANTISATION/repack dans l'id d'un dépôt dérivé. Sous-ensemble de
+#: `_MOTIFS_BRUIT` (moins `lora` — un adaptateur n'est pas une variante du modèle — et moins
+#: `coreml`/`mlx`, inchargeables sur l'hôte CUDA), plus les schémas absents du bruit
+#: (`awq`, `gptq`…). `comfy` couvre les repacks Comfy-Org/ComfyUI : single-file + variantes
+#: fp8 SANS marqueur dans l'id du dépôt (mesuré 2026-08-26 : le repack le plus téléchargé
+#: de MiniMax-Music3, 551 k, était invisible sans lui).
+_MOTIFS_QUANT = ('gguf', 'fp8', 'bnb', 'int4', 'int8', 'fp4', 'nvfp4',
+                 '4bit', '8bit', 'awq', 'gptq', 'quant', 'comfy')
+
+
+def variantes_quantisees(hf_id: str, limit: int = 5) -> list[dict]:
+    """
+    Dépôts HF dérivés QUANTISÉS d'un modèle (GGUF/FP8/4-8bit/AWQ…), triés par téléchargements.
+
+    Ce qui est du BRUIT pour le listing des canoniques (`_MOTIFS_BRUIT` les écarte du seeding)
+    est l'INFORMATION du juge de confiance : un gros modèle se juge sur sa meilleure variante,
+    pas sur ses poids pleins. Vécu 2026-08-26 : MiniMax-Music3 rejeté à 10 % « 53 Go > 24 Go »
+    alors que son repack single-file dominait les téléchargements de la famille.
+
+    Recherche LARGE (radical sans le numéro de version final — « MiniMax-Music » retrouve
+    « MiniMax-Music-3 », tiret inséré par le repackageur), filtre STRICT (le nom complet
+    normalisé alphanumérique
+    doit apparaître dans l'id candidat + un marqueur de quantisation). Réseau : 2 requêtes.
+    """
+    import re
+    try:
+        from huggingface_hub import HfApi
+    except ImportError:
+        return []
+
+    nom_court = hf_id.split('/')[-1]
+    normaliser = lambda s: re.sub(r'[^a-z0-9]', '', s.lower())  # noqa: E731
+    cible = normaliser(nom_court)
+    radical = re.sub(r'[-_ ]?\d+(\.\d+)?$', '', nom_court) or nom_court
+
+    vus, variantes = {hf_id.lower()}, []
+    api = HfApi()
+    for terme in dict.fromkeys((nom_court, radical)):        # dédupliqué, ordre stable
+        try:
+            depots = api.list_models(search=terme, sort='downloads', limit=100,
+                                     expand=['downloads', 'likes'])
+        except Exception as e:
+            logger.debug("[variantes_quantisees] recherche « %s » en échec : %s", terme, e)
+            continue
+        for d in depots:
+            did = d.id.lower()
+            if did in vus or cible not in normaliser(d.id):
+                continue
+            if not any(m in did for m in _MOTIFS_QUANT):
+                continue
+            vus.add(did)
+            variantes.append({'hf_id': d.id,
+                              'downloads': getattr(d, 'downloads', 0) or 0,
+                              'likes': getattr(d, 'likes', 0) or 0})
+    variantes.sort(key=lambda v: v['downloads'], reverse=True)
+    return variantes[:limit]
+
+
 def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -> dict:
     """
     Candidats `is_proposed` depuis la bibliothèque HuggingFace — pendant HF de la découverte

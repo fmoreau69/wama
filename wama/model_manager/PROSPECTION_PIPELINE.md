@@ -526,3 +526,44 @@ REPORTÉE par le gouverneur (GPU occupé). L'état publié reste `RUNNING` penda
 Vérifié sans GPU (agent cloud sans clé → échec immédiat) : aucun verdict ⇒ **pas de
 ré-enfilement**, et les 4 combinaisons d'arrêt/poursuite se comportent comme spécifié.
 SUITE possible (Fabien) : supprimer complètement les lots si le chaînage donne satisfaction.
+
+## Session du 2026-08-26 : le juge voit les VARIANTES QUANTISÉES + budget VRAM dynamique
+
+**Biais mesuré** (question Fabien sur MiniMax-Music3 à 10 %) : le contexte du juge
+(`_contexte_hf`) ne portait que le poids des **poids pleins** (`disk_gb`, 53,4 Go) et le
+prompt gravait « tient sur 24GB » en dur. Verdict inévitable : *recommend=false, confiance
+0.9* → score 0.10 — et il l'aurait été pour **tout** gros modèle, même dominé par ses
+repacks : le repack single-file de la famille pesait 551 k téléchargements, invisible du
+juge. Le seeding, lui, **écarte exprès** ces dépôts (`_MOTIFS_BRUIT`) : ce qui est du bruit
+pour la liste des canoniques est l'information du juge de confiance.
+
+**Livré :**
+- `prospector.variantes_quantisees(hf_id)` — dépôts dérivés quantisés (GGUF/FP8/4-8bit/AWQ/
+  GPTQ + repacks Comfy), recherche LARGE (radical sans numéro de version : « MiniMax-Music »
+  retrouve « MiniMax-Music-3 » du repackageur) / filtre STRICT (nom complet normalisé +
+  marqueur), tri téléchargements, 2 requêtes réseau. `_MOTIFS_QUANT` inclut `comfy` : le
+  repack le plus téléchargé n'a AUCUN marqueur de quantisation dans son id (mesuré).
+- `_attacher_variantes_quantisees(cand)` — relève et PERSISTE une fois
+  (`extra_info['prospect']['quant_variants']`, idempotent, à l'évaluation seulement, jamais
+  au seeding) ; `_contexte_hf` ajoute le bloc « ⚠ le poids ci-dessus est celui des poids
+  PLEINS… la faisabilité VRAM se juge sur les variantes ».
+- **Budget VRAM DYNAMIQUE** (remarque Fabien : « le rejet dépend de l'infrastructure
+  derrière ») : `_vram_totale_gb()` (torch, repli 24.0) injecté dans le prompt système
+  (`_system_agent()` remplace la constante `_AGENT_SYSTEM`) ET dans les critères de
+  `_juger` — le passage à un autre hôte (R760xa) changera le budget sans retoucher les
+  prompts. Le critère dit aussi au juge que la plateforme sait décharger les composants
+  inactifs d'une pipeline en RAM système (offload, prix = vitesse).
+
+**Re-jugement** : la passe ne traite que `confidence IS NULL` (idempotence) — pour re-juger
+un candidat après enrichissement du signal, remettre sa confiance à NULL. Fait pour
+MiniMax-Music3 (ancien verdict conservé dans `assess`, écrasé à la prochaine passe).
+Testé réel (réseau, sans GPU ni passe LLM) : 6 variantes relevées pour MiniMax-Music3,
+contre-épreuve vide sur un dépôt obscur, contexte du juge complet, `manage.py check` propre.
+
+**Couverture par catégories (état au 26/08)** : la table du § « ÉTAT DES LIEUX » reste
+juste — 9 tâches HF + rôles Ollama ; absents par CHOIX : VLM HF (doublon rôle Ollama),
+lipsync/avatars (chantier séparé). **Trou à venir : 2D→3D** (chantier annoncé) — HF a les
+pipeline_tags `image-to-3d`/`text-to-3d`, l'extension est déclarative (2 entrées `HF_TASKS`)
+MAIS demande d'abord de trancher la catégorie d'installation (`ModelType` n'a pas de valeur
+3D ; l'enum mélange déjà famille/modalité/tâche, cf. son commentaire — ne pas aggraver sans
+décision).
