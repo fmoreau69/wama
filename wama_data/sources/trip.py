@@ -59,12 +59,56 @@ class TripReader(SqliteSourceReader):
     table_temoin = 'MetaDatas'
     description = "Base SQLite d'expérimentation (flux, événements, segments, médias liés)"
 
+    # ── Index des flux ────────────────────────────────────────────────────────────────────────
+    def _index_des_flux(self, con) -> Dict[str, List[str]]:
+        """`{nom de CATALOGUE: [tables qui le portent]}`.
+
+        ⚠ CORRIGE UN DÉFAUT RÉEL (D31, mesuré le 2026-08-26 en confrontant le premier manifeste
+        écrit à la main à une base réelle) : `probe()` listait des noms de TABLE
+        (`data_BIOPAC_MP150`) alors que `read()` rend des signaux au nom du CATALOGUE
+        (`BIOPAC_MP150`). **L'identifiant pour DEMANDER un flux et celui pour le RETROUVER
+        n'étaient pas le même** — et un auteur de manifeste, qui lit `MetaDatas`, écrivait donc
+        toujours la forme rejetée.
+
+        Le préfixe n'a plus rien à porter : la famille est **déjà une donnée**
+        (`SignalMeta.data_type`, via `_TYPE_DE_FAMILLE`). La garder dans l'identité rejouait dans
+        WAMA le défaut que `.wdat` a été créé pour retirer (§9duodecies.3, « la famille n'est plus
+        dans le NOM »).
+
+        La liste par nom est conservée — pas réduite à une table — parce que deux familles
+        POURRAIENT porter le même nom. Mesuré sur la base réelle : **28 flux, 28 noms distincts,
+        aucune collision**. On ne suppose donc pas qu'elle est impossible, on la rend DÉTECTABLE.
+        """
+        tables = [r[0] for r in con.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")]
+        index: Dict[str, List[str]] = {}
+        for t in tables:
+            if any(t.startswith(p) for p in _PREFIXES):
+                index.setdefault(t.split('_', 1)[1], []).append(t)
+        return index
+
+    def _table_pour(self, index: Dict[str, List[str]], demande: str) -> str:
+        """Résout un identifiant demandé vers un nom de table. **Les DEUX formes sont acceptées.**
+
+        La forme préfixée reste valide : des appelants l'emploient déjà, et un correctif qui casse
+        ses propres consommateurs n'en est pas un. Le nom de catalogue devient la forme canonique.
+        """
+        for tables in index.values():
+            if demande in tables:
+                return demande                      # nom de table — forme historique
+        tables = index.get(demande)
+        if not tables:
+            raise ValueError(f"'{demande}' n'est pas un flux reconnu de cette source")
+        if len(tables) > 1:
+            raise ValueError(
+                f"'{demande}' est ambigu — porté par {len(tables)} familles ({', '.join(tables)}) ; "
+                f"désigner la table voulue")
+        return tables[0]
+
     # ── Inventaire ────────────────────────────────────────────────────────────────────────────
     def probe(self, path: Path) -> SourceInfo:
         with self._open(path) as con:
-            tables = [r[0] for r in con.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")]
-            flux = [t for t in tables if any(t.startswith(p) for p in _PREFIXES)]
+            flux = sorted(self._index_des_flux(con))
 
             attributs: Dict[str, Any] = {}
             try:
@@ -103,14 +147,16 @@ class TripReader(SqliteSourceReader):
         info = self.probe(path)
         voulus = list(streams) if streams is not None else info.streams
 
+        with self._open(path) as con:
+            index = self._index_des_flux(con)
+
         declares = self._declarations(path)
         offsets = self._media_offsets(info)
         out: List[StreamSpec] = []
 
-        for table in voulus:
+        for demande in voulus:
+            table = self._table_pour(index, demande)
             famille = next((f for p, f in _PREFIXES.items() if table.startswith(p)), None)
-            if famille is None:
-                raise ValueError(f"'{table}' n'est pas un flux reconnu de cette source")
             nom = table.split('_', 1)[1]
             cols = self._columns(path, table)
             tcol = 'startTimecode' if famille == 'situation' else 'timecode'

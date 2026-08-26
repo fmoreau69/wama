@@ -328,9 +328,27 @@ class TripSynthetiqueTest(unittest.TestCase):
         sqlite3.connect(faux).close()
         self.assertIsNone(sources.reader_for(faux))
 
-    def test_probe_liste_les_trois_familles(self):
-        self.assertEqual(sorted(sources.probe(self.trip).streams),
-                         ['data_vitesse', 'event_freinage', 'situation_0_15'])
+    def test_probe_nomme_les_flux_COMME_read_les_rend(self):
+        """⚠ Ce test attestait l'ancien contrat : `probe()` rendait `data_vitesse` là où `read()`
+        rend un signal nommé `vitesse`. **L'identifiant pour DEMANDER et celui pour RETROUVER
+        n'étaient pas le même** (D31, trouvé le 2026-08-26 en écrivant le premier manifeste à la
+        main). Le préfixe n'avait plus rien à porter : la famille est déjà une donnée, cf. le test
+        suivant. On atteste désormais la CONCORDANCE des deux bouts."""
+        noms = sorted(sources.probe(self.trip).streams)
+        self.assertEqual(noms, ['0_15', 'freinage', 'vitesse'])
+        ref = sources.load(self.trip)
+        self.assertEqual(sorted(ref.names), noms)
+
+    def test_la_forme_PREFIXEE_reste_acceptee_en_lecture(self):
+        """Un correctif qui casse ses propres appelants n'en est pas un : le nom de table reste
+        une graphie valide, le nom de catalogue devient la forme canonique."""
+        for graphie in ('vitesse', 'data_vitesse'):
+            ref = sources.load(self.trip, streams=[graphie])
+            self.assertEqual(list(ref.names), ['vitesse'], graphie)
+
+    def test_un_flux_inconnu_est_toujours_refuse(self):
+        with self.assertRaises(ValueError):
+            sources.load(self.trip, streams=['jamais_vu'])
 
     def test_la_FAMILLE_est_portee_comme_DONNEE_pas_comme_commentaire(self):
         """⚠ Le test de la correction du 2026-08-24 : la famille vivait dans `comments`."""

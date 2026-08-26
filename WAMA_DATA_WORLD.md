@@ -2750,8 +2750,9 @@ les OCCURRENCES retenues, ou les deux ? par déclaration ou globalement ?
 > lignes sur le panneau. **Le champ `filtre` envisagé ci-dessus n'a donc pas lieu d'être** — le
 > câblage requis est `present_dans` seul.
 >
-> ⭐ **Recommandation (26/08, en attente du retour de Fabien) : NE PAS ajouter d'option « sélection
-> de lignes » à l'Exporter.** ① Dans le modèle §11.8, un pipeline promu à la card mère doit se
+> ⭐ **TRANCHÉ (recommandation du 26/08, VALIDÉE par Fabien le jour même — « d'où l'intérêt du
+> Segmenter qui, lui, s'adapte à chaque `.wdat` ») : PAS d'option « sélection de lignes » à
+> l'Exporter.** ① Dans le modèle §11.8, un pipeline promu à la card mère doit se
 > **REJOUER sur chaque fille** : `present_dans(segment déclaré)` se rejoue ; une liste de lignes
 > cochées est une coordonnée **par fichier**, qui ne veut rien dire chez les sœurs — l'option
 > créerait des exports non promouvables. ② *On persiste la DÉCLARATION, pas les valeurs* : le
@@ -3819,6 +3820,56 @@ perte **silencieuse**. ⇒ **D31** tranche le fond.
 
 ---
 
+### 13.18 ✅ D31 CLOSE — `probe()` et `read()` nomment enfin la même chose (2026-08-26)
+
+**La mesure d'abord, la décision ensuite.** Le fond de D31 opposait deux options ; c'est le risque
+de **collision de noms entre familles** qui devait trancher, et il a été mesuré sur la base réelle :
+
+```
+flux : 28 · noms distincts : 28 · COLLISIONS : aucune
+noms nus ressemblant à une table préfixée : aucun
+```
+
+**Option A retenue** — `probe()` expose le **nom de catalogue**, la famille restant portée comme
+donnée (`SignalMeta.data_type`, déjà le cas depuis §9nonies). Trois précautions :
+
+1. ⭐ **la forme préfixée reste acceptée en lecture** — `load(streams=['data_vitesse'])` marche
+   toujours. *Un correctif qui casse ses propres appelants n'en est pas un* ;
+2. l'index reste `{nom: [tables]}` et non `{nom: table}` : la collision n'est pas déclarée
+   impossible, elle est rendue **détectable** — un nom porté par deux familles lève une erreur qui
+   **nomme les candidates** ;
+3. le contrat de `read()` est inchangé.
+
+#### ⚠ Et une surestimation de ma part, corrigée par la mesure
+
+J'avais écrit que l'option A « touche 73 tests `sources` ». **Faux** : 73 est le total du module.
+Le changement a fait tomber **UN seul test** — celui qui attestait précisément l'ancien contrat
+(`probe` rendant `data_vitesse`). Il est réécrit pour attester la **concordance** des deux bouts,
+et deux tests l'accompagnent (graphie préfixée toujours acceptée, flux inconnu toujours refusé).
+**642 tests au vert.** Annoncer un coût sans le mesurer, c'est ce qui fait renoncer à un correctif
+juste — la borne héritée qu'on défend au lieu de la vérifier.
+
+#### Le résultat sur le fichier réel, manifeste INCHANGÉ
+
+```
+conforme : True    ·    signaux manquants : ()
+```
+
+Le manifeste du §13.15, écrit depuis le catalogue, **décrit maintenant exactement le fichier**.
+Restent 13 flux « présents non déclarés », et ils sont tous légitimes : les **12 tables de
+situation** (décrites en `records`, pas en signaux — une source peut contenir plus que ce qu'on a
+choisi d'en décrire) et `debScn_finVirage_0_0`.
+
+> ⚠ **Ce dernier est le constat ③ du §13.15, et il SURVIT au correctif** — c'est important. Ce que
+> `probe()` expose est le **nom de table moins son préfixe**, qui coïncide avec le nom de catalogue
+> *sauf* là où l'outil d'origine a réécrit des caractères en créant la table (`debScn-finVirage_0_0`
+> devenu `event_debScn_finVirage_0_0`, tiret → souligné). La divergence appartient au **fichier
+> source**, pas au lecteur ; elle est désormais **visible** comme un flux non déclaré au lieu de
+> passer inaperçue. On ne la corrige pas en silence : réécrire un nom de flux à l'import inventerait
+> une donnée.
+
+---
+
 ### 13.16 RGPD et SI de laboratoire — non bloquant, mais UNE chose est gratuite maintenant
 
 > Question de Fabien (2026-08-26) : un **registre RGPD** (cycle et traitement des données) est à
@@ -3893,7 +3944,7 @@ Voir **D21 à D25** au §10 (D20 close).
 | D24 | **DEUX rôles ou TROIS ?** (§13.3ter) — SDMX n'en a pas pour « l'unité d'observation » : chez lui **toutes** les dimensions sont des dimensions, et l'unité est simplement **la plus fine**. D'où une simplification possible : `factor` / `attribute` seulement, + un marqueur **`grain: true`** sur le facteur qui porte l'unité d'observation. ⚠ Contre-argument : l'unité d'observation porte l'**indépendance statistique**, ce qui n'est pas une propriété comme une autre — la marquer par un rôle la rend impossible à oublier, un booléen se néglige. ⭐ Le vrai départage est empirique : **regarder si une fonction d'analyse a besoin de la distinguer par son RÔLE ou par une PROPRIÉTÉ** | avant la 1ʳᵉ fonction qui lit les axes |
 | D27 | **`present_dans` et l'ÉGALITÉ des bornes** — ⚠ **ÉNONCÉ RESSERRÉ le 2026-08-26 (objection de Fabien).** J'avais écrit « le défaut contredit sa docstring » : trop fort, et à côté. Fabien : *« c'est normal que `strict=True`, on sous-segmente un segment, on ne peut pas avoir une borne du sous-segment qui sort du segment qui le contient »* — **exact, et ce n'est pas ce que `strict` arbitre**. `strict=True` teste `s['start'] > d and fin < f`, c'est-à-dire des bornes **strictement intérieures** : il rejette donc l'**ÉGALITÉ**, pas le débordement. Une sous-situation qui commence *exactement* quand sa mère commence (« les 10 premières secondes du suivi ») est **INCLUSE** et pourtant écartée. Démonstration limite : `present_dans(X, X)` rend **∅**. La docstring prévoit déjà le cas (`False` = « quand la référence a été produite par le même découpage ») — reste à décider **qui** le passe : le défaut, ou l'appelant hiérarchique | avant le 1ᵉʳ découpage hiérarchique |
 | ~~D28~~ | ✅ **TRANCHÉE 2026-08-26 par Fabien** — la couture est un **AGRÉGATEUR `.wdat` → `.wdat`**, pas un lecteur multi-fichiers ni `.wds`. Plusieurs conteneurs sont **fusionnés en un seul** (ex. des tranches de 30 min en fichiers de 6 h), et le résultat est un `.wdat` ordinaire que tout le reste sait déjà lire. ⭐ Décisif : **`.wds` est un ENGLOBEUR de `.wdat` (D26), pas un fusionneur** — les deux répondent à des besoins différents et les confondre aurait donné un format à deux natures, ce que D26 interdit explicitement. Le moteur d'écriture existe déjà (§9duodecies, un moteur/deux schémas) ; restent la granularité de fusion (paramètre) et l'**audit de la fusion** (`Rapport.pertes`, comme toute projection) | ✅ close |
-| D31 | ⚠⚠ **le lecteur `.trip` n'emploie pas le même identifiant pour DEMANDER un flux et pour le RENDRE** (§13.17, mesuré) : `probe().streams` liste des noms de **table** (`data_BIOPAC_MP150`), `read()` rend des signaux au nom du **catalogue** (`BIOPAC_MP150`), et `load(streams=['CADISP'])` lève `n'est pas un flux reconnu` là où `['event_CADISP']` passe. **Les deux chemins sont cassés** pour un auteur de manifeste. Option A — `probe()` expose le nom de catalogue et la famille passe en donnée (**conforme à §9nonies / §9duodecies.3**, mais change un contrat public et touche 73 tests `sources`) ; option B — le manifeste emploie les noms de table (simple, mais **reconduit dans WAMA le défaut que `.wdat` a été créé pour retirer**). ⚠ Risque à mesurer avant A : une **collision de noms entre familles** (`data_X` et `event_X`). En attendant, l'écart **nomme la cause** au lieu d'annoncer un manque total | avant le 2ᵉ manifeste `dataset` |
+| ~~D31~~ | ✅ **CLOSE le 2026-08-26 (§13.18), option A** — `probe()` expose le **nom de catalogue**, la famille restant portée comme donnée (`SignalMeta.data_type`, déjà le cas). Le défaut : `probe()` listait `data_BIOPAC_MP150` là où `read()` rend `BIOPAC_MP150`, et `load(streams=['CADISP'])` levait quand `['event_CADISP']` passait — **l'identifiant pour DEMANDER et celui pour RETROUVER n'étaient pas le même**. Tranché **par la mesure** : 28 flux, 28 noms distincts, **aucune collision**. Trois précautions — la forme préfixée **reste acceptée** (un correctif qui casse ses appelants n'en est pas un), l'index reste `{nom: [tables]}` pour rendre une collision **détectable** plutôt que supposée impossible, et `read()` est inchangé. ⚠ **Et j'avais surestimé le coût** (« 73 tests ») : **un seul** est tombé, celui qui attestait l'ancien contrat. Manifeste inchangé ⇒ `conforme: True` sur le fichier réel | ✅ close |
 | D30 | **nature personnelle d'une unité d'observation** (§13.16) : `observation` doit-il déclarer si son unité est une **personne physique**, et un axe s'il est **identifiant direct / pseudonyme / anonyme** ? ⚠ Mesuré au §13.15 : `participant_id = 'Passation_01'` est un **pseudonyme**, fait qu'un registre RGPD veut voir écrit et qu'aucune relecture ultérieure ne pourra reconstituer. Gratuit maintenant, irrattrapable en aval. Le reste du registre (base légale, DPIA, conservation) reste **hors manifeste** | avec le 1ᵉʳ corpus à données personnelles |
 | D29 | ⚠⚠ **`source` existe à DEUX étages avec DEUX vocabulaires** (§13.15) : enveloppe = `builtin\|library\|folder\|extract` (d'où vient le MANIFESTE), corps `dataset` = `rtmaps\|lsl\|csv\|…` (d'où viennent les DONNÉES). Même nom, sens disjoints, un seul fichier — même famille que §9decies.3, mais structurelle cette fois. Renommer le champ du corps (`data_source` ?), ou documenter la superposition et s'y tenir ? ⚠ Trouvé **en écrivant le premier manifeste**, pas en relisant le code | avant le 2ᵉ manifeste `dataset` |
 | D25 | **`universe` / population** (DDI, §13.3ter) — le corpus déclare ce qu'il **contient** ; il ne déclare pas ce qu'il est censé **couvrir** (« conducteurs de 65-75 ans titulaires du permis depuis plus de 10 ans »). DDI porte les deux. ⚠ Sans lui, l'écart mesurable est « déclaré vs trouvé » ; avec lui il devient aussi « **visé** vs trouvé » — c'est-à-dire la couverture réelle d'une étude, qui est une question de relecture d'article. À arbitrer : champ du kind `dataset`, ou hors périmètre WAMA | après le 1ᵉʳ manifeste réel |
