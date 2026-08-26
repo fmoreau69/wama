@@ -22,14 +22,18 @@ La recherche web de benchmarks (au-delà des cartes) est une extension (besoin c
 from __future__ import annotations
 
 import logging
+from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 
+@lru_cache(maxsize=1)
 def _vram_totale_gb() -> float:
     """VRAM TOTALE du GPU en Go (mesurée via torch), repli 24.0 sans CUDA.
     Le critère du juge suit l'infrastructure RÉELLE, pas une constante (remarque Fabien
     2026-08-26 : « le rejet des gros modèles dépend de l'infrastructure derrière ») — le
-    passage à un autre hôte changera le budget sans retoucher les prompts."""
+    passage à un autre hôte changera le budget sans retoucher les prompts.
+    `lru_cache` : UNE lecture par process — la valeur ne varie pas, et chaque appel
+    toucherait le driver GPU (2× par jugement sinon), un geste à minimiser sur cet hôte."""
     try:
         import torch
         if torch.cuda.is_available():
@@ -350,15 +354,26 @@ def assess_proposed(max_assess: int = 10, agents=None, timeout: int = 120,
     ).order_by('name')
     cands = list(file_attente[:max_assess])
 
+    # ── PRÉPARER LES CONTEXTES HORS FENÊTRE GPU (2026-08-26) ────────────────────
+    # Variantes quantisées + carte HF = du RÉSEAU (proxy UGE, plusieurs secondes par
+    # candidat). Les faire dans la réservation allongeait d'autant la fenêtre où le
+    # juge Ollama est résident — sur cet hôte fragile, la fenêtre GPU ne doit contenir
+    # QUE les appels au juge. Préparé ici, AVANT de réserver : la réservation ne couvre
+    # plus que les `llm_chat`.
+    contextes = []
+    for cand in cands:
+        if progress:
+            progress({'current': f"préparation {cand.name}", 'done': 0, 'total': len(cands)})
+        if cand.source == 'huggingface':
+            _attacher_variantes_quantisees(cand)
+        contextes.append(_contexte_hf(cand) if cand.source == 'huggingface'
+                         else _contexte_ollama(cand))
+
     evalues, sans_avis = 0, 0
     with vram_reservation(f"model_manager.assess:{_os.getpid()}", besoin_gb):
-        for i, cand in enumerate(cands):
+        for i, (cand, contexte) in enumerate(zip(cands, contextes)):
             if progress:
                 progress({'current': cand.name, 'done': i, 'total': len(cands)})
-            if cand.source == 'huggingface':
-                _attacher_variantes_quantisees(cand)
-            contexte = (_contexte_hf(cand) if cand.source == 'huggingface'
-                        else _contexte_ollama(cand))
             opinions = [_juger(contexte, p, m, timeout=timeout)
                         for (p, m) in agents]
             consensus = _consolider(opinions)

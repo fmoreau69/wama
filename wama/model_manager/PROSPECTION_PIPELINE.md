@@ -567,3 +567,32 @@ pipeline_tags `image-to-3d`/`text-to-3d`, l'extension est déclarative (2 entré
 MAIS demande d'abord de trancher la catégorie d'installation (`ModelType` n'a pas de valeur
 3D ; l'enum mélange déjà famille/modalité/tâche, cf. son commentaire — ne pas aggraver sans
 décision).
+
+### Passe relancée par Fabien (26/08 après-midi) : verdict Music3 INVERSÉ, crash hôte au 3ᵉ, audit
+
+**Le signal a fait son travail** : MiniMax-Music3 est passé de 0.10 (« 53 Go > 24 Go ») à
+**0.90, recommend=true, vram_fit=ok** — le juge cite explicitement les GGUF (« exécution
+fluide sur 24 Go »). Wan2.1-T2V-1.3B jugé 3 s après (0.90), puis **crash hôte pendant le 3ᵉ
+candidat** (Z-Image-Turbo) : verdict 13:35:08, plus aucune ligne applicative, gouverneur
+réinitialisé au reboot 13:40 — signature « panne SOUS l'OS » identique au 19/08 et aux morts
+au repos ; AUCUNE trace d'un problème applicatif.
+
+**Audit du câblage à la demande de Fabien (« pas d'empilement ? bien branché au
+gouverneur ? ») — VÉRIFIÉ SAIN, aucun empilement possible** :
+garde `effective_free_gb` avant chaque lot (driver − réservations déclarées) → réservation
+dimensionnée sur l'empreinte RÉELLE de l'agent (7.6 Go lus au catalogue, repli 8) → jugements
+STRICTEMENT séquentiels (worker `gpu --pool=solo`, agents en boucle, Ollama NUM_PARALLEL=1)
+→ décharge RÉELLE en fin de lot (`MemoryManager.unload_model` → `keep_alive: 0`, plus un
+mensonge depuis le 19/08) + `refresh_ollama_residency` ; réservations orphelines d'un crash
+purgées par TTL (constaté 12:45 le jour même). Le cycle décharge/recharge PAR LOT du
+chaînage est le compromis DÉJÀ arbitré (garder le modèle résident entre deux lots serait de
+la VRAM invisible du gouverneur — le trou des kernel panics du 29/07).
+
+**Durcissements appliqués au passage (mes ajouts de la veille élargissaient la fenêtre)** :
+- `_vram_totale_gb()` → `lru_cache` : UNE lecture driver par process (c'était 2 par
+  jugement — geste GPU à minimiser sur cet hôte) ;
+- **préparation des contextes HORS fenêtre GPU** : variantes quantisées + carte HF = du
+  réseau (proxy, plusieurs secondes par candidat) qui se faisait DANS la réservation, juge
+  résident. Désormais préparé AVANT `vram_reservation` : la fenêtre ne contient plus que
+  les `llm_chat`. (Honnêteté : rien ne prouve un lien avec le crash — le pattern précède
+  ces ajouts — mais raccourcir la fenêtre résidente est sain quoi qu'il en soit.)
