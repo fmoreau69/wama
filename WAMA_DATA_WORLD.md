@@ -42,7 +42,7 @@
 | **Référentiel temporel** | Aligne des flux à cadences incommensurables | référentiel → échantillons, `segments`, vue décimée, cadres typés | 🔶 | 2/2 | 2 | 2/0 | §2, §3, §9quater.7 |
 | **Connector** | Branche une base existante comme source | base SQLite (`.trip` externe, `.wdat` natif) → référentiel | 🔶 | 3/3 | 0 | 3/0 | §6.2, §9quater.2, §9terdecies |
 | **Explorer** | Explore un dataset en table et en graphe — c'est aussi l'INTERFACE du Calculator : la vue tableur est le lieu où l'on ajoute une colonne calculée et où l'on voit le résultat | référentiel → vues table/graphe + colonnes calculées | 🔶 | 2/2 | 2 | 1/0 | §7, §9quater.6, §9quater.7 |
-| **Segmenter** | Produit des segments : autour d'un événement, par jonction de deux flux, par CHAÎNE de conditions (ET/OU/XOR/NON) avec hystérésis, par plages constantes d'un catégoriel, ou par CODAGE (humain ou IA) — la chaîne sort en segments OU en événements, au choix du PORT | `events` ou signal + conditions → `segments` \| `events` | 🔶 | 6/6 | 4 | 16/0 | §9ter (spécification), §9ter.6 A-B (portage), §6.7 |
+| **Segmenter** | Produit des segments : autour d'un événement, par jonction de deux flux, par CHAÎNE de conditions (ET/OU/XOR/NON) avec hystérésis, par plages constantes d'un catégoriel, ou par CODAGE (humain ou IA) — la chaîne sort en segments OU en événements, au choix du PORT | `events` ou signal + conditions → `segments` \| `events` | 🔶 | 6/6 | 5 | 16/0 | §9ter (spécification), §9ter.6 A-B (portage), §6.7 |
 | **Calculator** | Calcule des COLONNES DÉRIVÉES (moyenne glissante, dérivée, cumul) et des INDICATEURS PAR SEGMENT qu'il adjoint aux segments | signal → signal enrichi · `segments` + signal → colonnes d'indicateurs | 🔶 | 3/3 | 2 | 5/0 | §6.7 |
 | **Visualizer** | Vues synchronisées sur l'axe partagé (plugins) | référentiel → plugins co-chargés | ⏳ | — | — | — | §4, §8.2 |
 | **Exporter** | Exporte TOUT le contenu d'un trip de façon configurable — données, méta-infos, événements, situations et leurs indicateurs : sélection ordonnée de colonnes, identité, contexte, regroupement | données/méta/`events`/`segments` + sélection → fichiers (concaténation, jamais pivot) | 🔶 | 2/2 | 2 | 4/0 | §9ter.5, §9ter.6 C |
@@ -3692,7 +3692,7 @@ un corpus réel.
 | ① | ✅ **FAIT 2026-08-26** — `axes[]` dans `validate_dataset_body` (+ 20 tests) ; `source.layout` reste à faire (D22) | un validateur | zéro UI, zéro migration, zéro dépendance |
 | ② | ⭐ **écrire À LA MAIN le manifeste `dataset` du `.trip` réel** qu'on a déjà | une heure | **c'est le juge de tout le reste.** Le risque documenté n'est pas la couverture insuffisante, c'est **le vocabulaire trop large que personne n'annote** (mode d'échec d'OWL-S). Un manifeste réel, volontairement pauvre, dira où ça casse |
 | ③ | ✅ **FAIT 2026-08-26** — `signals` facultatif si `axes` présent | 3 lignes | débloque les **questionnaires** (§13.10) |
-| ④ | écrire les coordonnées en `axe.<clé>` dans `WamaMeta` à l'import | petit | ferme **D21**, rend les `.wdat` **autoportants** (survivent au déplacement) |
+| ④ | ✅ **FAIT 2026-08-26** — `attributs_de_coordonnees()` + aller-retour prouvé (§13.19) | petit | ferme **D21**, rend les `.wdat` **autoportants** |
 | ⑤ | étendre `Ecart` aux axes (taux d'appariement, complétude du croisement, contradiction dure) | moyen | c'est **toute** la confiance accordée à une proposition LLM (§13.6) |
 | ⑥ | exposer les axes en **facettes de filtre** de l'explorateur Data (§11.8) | dépend de l'UI en cours | premier bénéfice **visible**, et il sert le fil parallèle |
 
@@ -3739,7 +3739,7 @@ des segments, elle rend des segments) — la réappliquer sur son propre résult
 > situation mère est donc **silencieusement écartée** — or c'est le cas normal quand le
 > sous-découpage vient du même geste. La docstring le dit déjà (*« `False` … quand la référence a
 > été produite par le même découpage »*), mais **le défaut ne suit pas la docstring**. À trancher
-> avant le premier découpage hiérarchique réel (⇒ **D27**).
+> avant le premier découpage hiérarchique réel (⇒ **D32**, ex-D27 — voir la note de collision).
 
 #### ⭐ Naturalistic driving — LES DEUX DÉCOUPAGES, et ils ne coïncident pas
 
@@ -3764,7 +3764,7 @@ D'où une distinction que le modèle doit tenir, et qu'il tient :
 > ⚠ **Conséquence à ne pas perdre** : une situation peut **traverser une frontière de conteneur**
 > (un dépassement à cheval sur deux tranches de 10 minutes). Le Segmenter doit donc pouvoir lire
 > **par-dessus** le découpage d'acquisition — ce qu'il ne sait pas faire aujourd'hui, chaque lecteur
-> ouvrant **un** fichier (⇒ **D28**).
+> ouvrant **un** fichier (⇒ **D33**, ex-D28 — voir la note de collision).
 
 ---
 
@@ -3937,6 +3937,37 @@ choisi d'en décrire) et `debScn_finVirage_0_0`.
 
 ---
 
+### 13.19 ✅ L'ALLER-RETOUR DES COORDONNÉES EST PROUVÉ — D21 close (2026-08-26)
+
+Quick win ④. `attributs_de_coordonnees()` rend la forme **canonique d'écriture** `axe.<clé>`,
+destinée à `Contexte.attributs` ; `situer()` la relit par sa première graphie. **649 tests au vert.**
+
+⭐ **Aucun changement de schéma n'a été nécessaire** — et c'est le résultat intéressant :
+`Contexte.attributs` alimentait déjà `WamaMeta`, et **les quatre lecteurs** (`trip`, `wdat`,
+`rtmaps`, `tabular`) exposent déjà `SourceInfo.attributes`. La pièce manquante n'était pas un
+mécanisme, c'était **une convention de nommage et sa preuve**.
+
+Le test qui porte le tout écrit un `.wdat` avec deux coordonnées, le rouvre par `sources.probe()`
+et les retrouve toutes les deux — écriture et lecture appariées de bout en bout.
+
+#### D21 — pourquoi le préfixe est NÉCESSAIRE, et pas un confort
+
+`WamaMeta` est un espace **partagé** : il porte déjà `format`, `schema_version`, `created_at`,
+`created_by`, `streams`. Une clé `participant` posée à plat y côtoierait une clé de format — et un
+axe qu'on appellerait `format` capterait la méta technique. Un test le fixe :
+`situer([{key: 'format'}], {'format': 'wdat', 'axe.format': 'A4'})` rend **`A4`**.
+
+C'est la fusion des deux tables de `.trip` en une seule (`§9duodecies.3`) qui rend le préfixe
+obligatoire : là où l'outil d'origine séparait `MetaTripDatas` et `MetaParticipantDatas`, nous
+n'avons qu'un espace, donc il faut le nommer.
+
+> ⚠ **Et la compatibilité descendante n'est pas négociable** : les corpus existants n'ont **pas**
+> le préfixe (§13.15 : `scenario`, `participant_id` depuis 2019). `situer()` lit donc les trois
+> graphies — `axe.<clé>`, `<clé>`, `source_key`. Écrire la forme canonique n'oblige personne à
+> réécrire ses fichiers.
+
+---
+
 ### 13.16 RGPD et SI de laboratoire — non bloquant, mais UNE chose est gratuite maintenant
 
 > Question de Fabien (2026-08-26) : un **registre RGPD** (cycle et traitement des données) est à
@@ -4009,16 +4040,38 @@ Voir **D21 à D25** au §10 (D20 close).
 | D22 | **forme du patron** (§13.5 mode 1) : glob nommé `{groupe}/{participant}/…` ou expression régulière ? Arbitrage **lisibilité pour un chercheur** contre **pouvoir d'expression** sur des arbres sales | avant l'UI d'import |
 | D23 | **les dossiers `Data` / `Raw data`** à côté des datasets (§13.1) : exclusion déclarée dans `source.layout`, ou rattachement au kind `project` ? ⚠ Ils peuvent contenir **malgré tout** le fichier de travail `.trip`/`.wdat` — donc « exclure par nom de dossier » est faux | avant le 1ᵉʳ manifeste `dataset` réel |
 | D24 | **DEUX rôles ou TROIS ?** (§13.3ter) — SDMX n'en a pas pour « l'unité d'observation » : chez lui **toutes** les dimensions sont des dimensions, et l'unité est simplement **la plus fine**. D'où une simplification possible : `factor` / `attribute` seulement, + un marqueur **`grain: true`** sur le facteur qui porte l'unité d'observation. ⚠ Contre-argument : l'unité d'observation porte l'**indépendance statistique**, ce qui n'est pas une propriété comme une autre — la marquer par un rôle la rend impossible à oublier, un booléen se néglige. ⭐ Le vrai départage est empirique : **regarder si une fonction d'analyse a besoin de la distinguer par son RÔLE ou par une PROPRIÉTÉ** | avant la 1ʳᵉ fonction qui lit les axes |
-| D27 | **`present_dans` et l'ÉGALITÉ des bornes** — ⚠ **ÉNONCÉ RESSERRÉ le 2026-08-26 (objection de Fabien).** J'avais écrit « le défaut contredit sa docstring » : trop fort, et à côté. Fabien : *« c'est normal que `strict=True`, on sous-segmente un segment, on ne peut pas avoir une borne du sous-segment qui sort du segment qui le contient »* — **exact, et ce n'est pas ce que `strict` arbitre**. `strict=True` teste `s['start'] > d and fin < f`, c'est-à-dire des bornes **strictement intérieures** : il rejette donc l'**ÉGALITÉ**, pas le débordement. Une sous-situation qui commence *exactement* quand sa mère commence (« les 10 premières secondes du suivi ») est **INCLUSE** et pourtant écartée. Démonstration limite : `present_dans(X, X)` rend **∅**. La docstring prévoit déjà le cas (`False` = « quand la référence a été produite par le même découpage ») — reste à décider **qui** le passe : le défaut, ou l'appelant hiérarchique | avant le 1ᵉʳ découpage hiérarchique |
-| ~~D28~~ | ✅ **TRANCHÉE 2026-08-26 par Fabien** — la couture est un **AGRÉGATEUR `.wdat` → `.wdat`**, pas un lecteur multi-fichiers ni `.wds`. Plusieurs conteneurs sont **fusionnés en un seul** (ex. des tranches de 30 min en fichiers de 6 h), et le résultat est un `.wdat` ordinaire que tout le reste sait déjà lire. ⭐ Décisif : **`.wds` est un ENGLOBEUR de `.wdat` (D26), pas un fusionneur** — les deux répondent à des besoins différents et les confondre aurait donné un format à deux natures, ce que D26 interdit explicitement. Le moteur d'écriture existe déjà (§9duodecies, un moteur/deux schémas) ; restent la granularité de fusion (paramètre) et l'**audit de la fusion** (`Rapport.pertes`, comme toute projection) | ✅ close |
+| D32 | *(ex-D27 — voir la note de collision sous la table)* **`present_dans` et l'ÉGALITÉ des bornes** — ⚠ **ÉNONCÉ RESSERRÉ le 2026-08-26 (objection de Fabien).** J'avais écrit « le défaut contredit sa docstring » : trop fort, et à côté. Fabien : *« c'est normal que `strict=True`, on sous-segmente un segment, on ne peut pas avoir une borne du sous-segment qui sort du segment qui le contient »* — **exact, et ce n'est pas ce que `strict` arbitre**. `strict=True` teste `s['start'] > d and fin < f`, c'est-à-dire des bornes **strictement intérieures** : il rejette donc l'**ÉGALITÉ**, pas le débordement. Une sous-situation qui commence *exactement* quand sa mère commence (« les 10 premières secondes du suivi ») est **INCLUSE** et pourtant écartée. Démonstration limite : `present_dans(X, X)` rend **∅**. La docstring prévoit déjà le cas (`False` = « quand la référence a été produite par le même découpage ») — reste à décider **qui** le passe : le défaut, ou l'appelant hiérarchique | avant le 1ᵉʳ découpage hiérarchique |
+| ~~D33~~ | *(ex-D28 — voir la note de collision sous la table)* ✅ **TRANCHÉE 2026-08-26 par Fabien** — la couture est un **AGRÉGATEUR `.wdat` → `.wdat`**, pas un lecteur multi-fichiers ni `.wds`. Plusieurs conteneurs sont **fusionnés en un seul** (ex. des tranches de 30 min en fichiers de 6 h), et le résultat est un `.wdat` ordinaire que tout le reste sait déjà lire. ⭐ Décisif : **`.wds` est un ENGLOBEUR de `.wdat` (D26), pas un fusionneur** — les deux répondent à des besoins différents et les confondre aurait donné un format à deux natures, ce que D26 interdit explicitement. Le moteur d'écriture existe déjà (§9duodecies, un moteur/deux schémas) ; restent la granularité de fusion (paramètre) et l'**audit de la fusion** (`Rapport.pertes`, comme toute projection) | ✅ close |
 | ~~D31~~ | ✅ **CLOSE le 2026-08-26 (§13.18), option A** — `probe()` expose le **nom de catalogue**, la famille restant portée comme donnée (`SignalMeta.data_type`, déjà le cas). Le défaut : `probe()` listait `data_BIOPAC_MP150` là où `read()` rend `BIOPAC_MP150`, et `load(streams=['CADISP'])` levait quand `['event_CADISP']` passait — **l'identifiant pour DEMANDER et celui pour RETROUVER n'étaient pas le même**. Tranché **par la mesure** : 28 flux, 28 noms distincts, **aucune collision**. Trois précautions — la forme préfixée **reste acceptée** (un correctif qui casse ses appelants n'en est pas un), l'index reste `{nom: [tables]}` pour rendre une collision **détectable** plutôt que supposée impossible, et `read()` est inchangé. ⚠ **Et j'avais surestimé le coût** (« 73 tests ») : **un seul** est tombé, celui qui attestait l'ancien contrat. Manifeste inchangé ⇒ `conforme: True` sur le fichier réel | ✅ close |
+| D34 | **garde mécanique contre les numéros de décision dupliqués** (note de collision ci-dessous) : deux instances ont ouvert D27 et D28 le même jour sur des sujets différents, et **rien n'a sonné** — ni `check_docs` ni `doc_facts` ne regardent l'unicité d'une clé dans un tableau. Quelques lignes dans `check_docs` (relever `^\| ~*D\d+`, échouer sur un doublon) suffiraient. ⚠ À généraliser aux autres registres numérotés du dépôt avant qu'ils n'aient le même problème | avant la prochaine session parallèle |
 | D30 | **nature personnelle d'une unité d'observation** (§13.16) : `observation` doit-il déclarer si son unité est une **personne physique**, et un axe s'il est **identifiant direct / pseudonyme / anonyme** ? ⚠ Mesuré au §13.15 : `participant_id = 'Passation_01'` est un **pseudonyme**, fait qu'un registre RGPD veut voir écrit et qu'aucune relecture ultérieure ne pourra reconstituer. Gratuit maintenant, irrattrapable en aval. Le reste du registre (base légale, DPIA, conservation) reste **hors manifeste** | avec le 1ᵉʳ corpus à données personnelles |
 | D29 | ⚠⚠ **`source` existe à DEUX étages avec DEUX vocabulaires** (§13.15) : enveloppe = `builtin\|library\|folder\|extract` (d'où vient le MANIFESTE), corps `dataset` = `rtmaps\|lsl\|csv\|…` (d'où viennent les DONNÉES). Même nom, sens disjoints, un seul fichier — même famille que §9decies.3, mais structurelle cette fois. Renommer le champ du corps (`data_source` ?), ou documenter la superposition et s'y tenir ? ⚠ Trouvé **en écrivant le premier manifeste**, pas en relisant le code | avant le 2ᵉ manifeste `dataset` |
 | D25 | **`universe` / population** (DDI, §13.3ter) — le corpus déclare ce qu'il **contient** ; il ne déclare pas ce qu'il est censé **couvrir** (« conducteurs de 65-75 ans titulaires du permis depuis plus de 10 ans »). DDI porte les deux. ⚠ Sans lui, l'écart mesurable est « déclaré vs trouvé » ; avec lui il devient aussi « **visé** vs trouvé » — c'est-à-dire la couverture réelle d'une étude, qui est une question de relecture d'article. À arbitrer : champ du kind `dataset`, ou hors périmètre WAMA | après le 1ᵉʳ manifeste réel |
-| D27 | **Unités d'AFFICHAGE par préférence utilisateur** (question de Fabien 26/08 : km/miles, °C/°F/K…). Position recommandée : la donnée reste dans **SON unité** (`unit` est déjà écrit/relu — `WamaVariables.unit`, `ParamSpec.unit`) ; la conversion vit à la **PRÉSENTATION seule** (preview, graphes, inspecteur), pilotée par une préférence de **profil** (métrique/impérial…) ; l'**export** reste par défaut dans l'unité de la donnée, conversion possible mais **TRACÉE** (en-tête + rapport) — un fichier en miles qui ne le dit pas est une perte silencieuse. Outillage pressenti : **pint** (BSD, standard de facto Python — la famille de conventions que §13.3 cite déjà : netCDF/CF, UCUM) ; brique **substrat** (`wama/common/`), les mondes Médias et Lab ont les mêmes besoins. ⚠ Si pint entre : les DEUX venvs + `requirements.txt` le même jour | Fabien |
+| ~~D27~~ | ✅ **TRANCHÉE ET LIVRÉE le 2026-08-26** (validation de Fabien : « on peut déjà s'occuper de la conversion des unités avec pint ») — **la donnée reste dans SON unité** (`WamaVariables.unit`, `ParamSpec.unit`) ; la conversion vit à la **PRÉSENTATION seule**, pilotée par une préférence utilisateur (métrique/impérial) ; l'**export** reste par défaut dans l'unité de la donnée, conversion possible mais **TRACÉE**. **Brique livrée** : `wama/common/utils/units.py` (**pint 0.25.3**, installé les 2 venvs + `requirements.txt` le même jour — règle maison), au registre des mécanismes (`units_display`), 13 tests. ⭐ Résolution par **DIMENSION** (toute unité de vitesse → mph en impérial), unité inconnue **reste affichable**, unité inconnue en conversion **refusée** (une valeur sous une étiquette fausse est pire qu'une erreur), un trou traverse en trou. Le test-clé est l'**OFFSET** °C→°F — ce qu'une table de facteurs maison rendrait faux en silence. ⏳ Reste au moment des surfaces : le champ de **préférence au profil**, le câblage preview/graphes/inspecteur, l'en-tête d'export converti | ✅ close |
+| D28 | **Normalisation du nommage de l'API du monde Data** (relevé de Fabien 26/08 : « du français mélangé à de l'anglais — seuls les tests acceptent le français »). **Mesuré** : le cœur de `wama_data` est français de bout en bout (~50 fonctions publiques — `autour`, `jonction`, `etats`, `exporter`, `rejouer`…) et le **CATALOGUE est SPLITTÉ** — famille temporal/geo/coding **française** (`segment_*`, `calcul_*`, `codage_*`, `distance_a_point`) contre famille driving/geometry **anglaise** (`trajectory_offset`, `brake_detection`, `gps_map_match`, `depth_*`, `ign_*`). La règle du dépôt (CLAUDE.md, 22/08 : **identifiant importé = anglais**) n'a pas été appliquée au monde Data, construit les mêmes jours. **Recommandation : migrer vers l'anglais en PASSE DÉDIÉE, maintenant que c'est bon marché** — `externe: 0` (0 views, 0 tool_api), et ⚠ **les clés de catalogue se SÉRIALISENT dans les protocoles** : chaque protocole rejouable écrit d'ici là renchérit la migration. Garde-fous obligatoires : ⚠ **coordination multi-instances** (l'autre instance travaille dans `wama_data` — partitionner), garde de renommage type `NomAbandonneTest` (D17), et « *un renommage ne casse rien, il rend FAUX* » → grepper les COMPARAISONS | Fabien (timing) |
 | ~~D26~~ | ✅ **TRANCHÉE 2026-08-25 — `.wds` est RÉSERVÉ au bundle CORPUS-niveau.** L'objet qui EST un « WAMA Data Set » vit **un étage AU-DESSUS** du `.wdat` : D17 avait écarté `.wds` pour la FEUILLE (un essai), pas pour l'ARBRE. Contenu = **un batch de `.wdat`** + métas du corpus + manifeste `dataset` + protocoles ; **encodage pressenti : HDF5** (hiérarchique — un groupe par essai ; interop MATLAB/h5py/R ; Fabien a prototypé `.trip`→HDF5, faisabilité attestée) ; **exportable depuis la card mère du batch, réimportable EN BATCH** (§11.8 ⑧). ⚠ Deux conditions avant d'écrire une ligne : ① la projection SQLite→HDF5 **s'audite** (`Rapport.pertes`, §9duodecies.5 — raw + protocole + gestes doivent survivre à l'aller-retour, sinon le réimport ment) ; ② **une seule NATURE** — « batch de `.wdat` » décrit le CONTENU, HDF5 l'ENCODAGE ; pas une archive zip d'un côté et un export HDF5 de l'autre. Enrichit **Exporter** (geste corpus, card mère) et **Converter** (route fichier-à-fichier `.trip`/`.wdat`→HDF5) — deux modules, deux granularités, pas de doublon | Fabien |
 
 ---
+
+> ### ⚠⚠ COLLISION DE NUMÉROTATION — D27 et D28 ont désigné DEUX décisions chacun (2026-08-26)
+>
+> Deux instances ont ouvert des décisions **le même jour, dans le même tableau**, sans se voir :
+>
+> | numéro | décision A (ouverte en premier) | décision B (écrite ensuite) |
+> |---|---|---|
+> | **D27** | `present_dans` et l'égalité des bornes → **renumérotée D32** | unités & conversion (pint) — **gardée** |
+> | **D28** | agrégateur `.wdat` → `.wdat` → **renumérotée D33** | nommage de l'API du monde Data — **gardée** |
+>
+> **Ce sont les décisions A qui bougent**, bien qu'écrites en premier : les B sont référencées par
+> du travail encore dans l'arbre, et déplacer un numéro sous les pieds de quelqu'un coûte plus cher
+> que d'en déplacer un déjà commité. Les messages de commit `a3bebd9a` et `8b9a8ea9` citent encore
+> D27/D28 au sens A — **cette table est la carte de renvoi**, un historique ne se réécrit pas.
+>
+> ⚠ **La leçon vaut au-delà de ce cas** : un registre à numérotation manuelle et à écriture
+> concurrente **perd silencieusement une entrée** — la seconde écrase la première sans qu'aucun
+> contrôle ne sonne. Ni `check_docs` ni `doc_facts` ne voient un doublon de clé dans un tableau.
+> C'est exactement le motif « une brique sans consommateur » appliqué à la documentation. Un garde
+> mécanique (numéro dupliqué = échec) coûterait quelques lignes ; **⇒ D34**.
 
 ## Journal
 

@@ -21,6 +21,7 @@ ollama>=0.4.0
 litellm>=1.0.0
 opencv_python>=4.11.0.86
 pillow>=11.2.1
+pint>=0.25  # conversion d'unités à l'AFFICHAGE seul (D27, WAMA_DATA_WORLD §10) — la donnée reste dans SON unité
 psutil>=5.9.0
 setuptools<81  # pkg_resources retiré en setuptools 81+ ; requis par mmengine/mmpose (MuseTalk) — 2026-07-16
 python-ldap>=3.4.4

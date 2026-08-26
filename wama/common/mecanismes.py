@@ -521,6 +521,13 @@ MECANISMES = (
     )),
 
     *_domaine('Données & infrastructure', (
+    Mecanisme('units_display', "Unités d'affichage",
+              "Moteur UNIQUE de conversion d'unités pour la PRÉSENTATION (pint) : la donnée "
+              "reste dans SON unité (`WamaVariables.unit`, `ParamSpec.unit`), la préférence "
+              "utilisateur (métrique/impérial) ne convertit qu'à l'écran — résolution par "
+              "DIMENSION, une unité inconnue reste affichable — et un export qui convertit "
+              "doit le DIRE. Un trou de donnée traverse en trou (None), jamais en valeur",
+              'wama/common/utils/units.py', 'WAMA_DATA_WORLD.md §10 D27'),
     Mecanisme('temporal_referential', 'Référentiel temporel (WAMA Data)',
               "Aligne des flux à cadences INCOMMENSURABLES et répond aux questions temporelles : "
               "quel échantillon à t, quels segments le contiennent, quel événement suit, et la vue "
