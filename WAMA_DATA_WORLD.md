@@ -4113,6 +4113,36 @@ HEAD en worktree isolé** après chaque passe.
 instances stoppées (accord de Fabien acquis). Le report, lui, coûte : chaque protocole réel écrit
 avant la passe A devra être migré ou aliasé.
 
+### 14.4 REVÉRIFICATION wama_lab — demandée par Fabien avant le GO (2026-08-26)
+
+> *« Il ne faut surtout pas casser wama_lab avec face_analyzer et cam_analyzer. »* Passe de
+> revérification sur **TOUS les canaux de couplage**, pas seulement les imports.
+
+| canal vérifié | résultat |
+|---|---|
+| `face_analyzer` → `wama_data` (tous types de fichiers) | **ZÉRO occurrence** — l'app ne touche pas le monde Data |
+| `cam_analyzer` imports Python | 6 sites, **14 symboles, TOUS de la famille anglaise** (`parse_rec`, `sky_mask_at`, `deproject_depth`, `fit_plane_ransac`, `collision_detection`, `extrapolate_*`, `track_position_spread`, `point_traj_to_shape`, `trajectory_offset`…) — **aucun n'est dans la table §14.2** |
+| ⚠ **kwargs des sites d'appel** (le canal subtil : un paramètre français renommé casserait un appel par mot-clé) | tous anglais — `mask`, `max_points`, `z_min/z_max`, `min_inliers`, `radius_m`, `max_pet_steps`, `min_obs` |
+| clés de catalogue françaises dans `wama_lab` (py, js, html) | **zéro** |
+| JS / templates / `.md` du Lab | 1 commentaire JS + prose de doc — non cassants |
+| `function_specs.py` (déclaration au catalogue commun) | ne référence pas `wama_data` |
+| sens inverse `wama_data` → `wama_lab` | prose seulement (docstrings, un test générique des mondes) |
+| outillage hors mondes (`tools/`, `patches/`, `scripts/`, hooks) | zéro référence |
+
+**Verdict : la passe ne touche formellement PAS `wama_lab`.** Le monde Lab consomme exclusivement
+la famille anglaise — qui ne bouge pas — et jusque dans ses kwargs.
+
+⚠ **Trois points de contact SUBSTRAT trouvés par cette même passe** (à intégrer, sinon ils
+casseraient en silence… sauf le premier, que l'instrument attraperait) :
+
+1. `mecanismes.py` — les **domiciles** `data_vue → wama_data/vue.py` et `data_noms →
+   wama_data/core/noms.py` : à mettre à jour AVEC les renommages de modules (passes B/C) +
+   régénérer `WAMA_MECANISMES.md`. Filet : `doc_facts --check` signale un domicile disparu.
+2. `tests_nightly.py:60-61` — trois chemins de modules de test **en dur** (dont
+   `wama_data.tests_vue`) : à mettre à jour avec `tests_vue.py → tests_view.py`.
+3. `doc_facts.py:314` — `from wama_data.modules import mesurer` (déjà au plan, passe D).
+   Le runner nocturne, lui, **découvre** les suites dynamiquement — sûr par construction.
+
 ---
 
 ## 10. Décisions en attente
