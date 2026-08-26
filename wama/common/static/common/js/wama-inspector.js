@@ -58,6 +58,28 @@
     });
   }
 
+  // Actions d'un LOT : résout la card mère depuis son IDENTIFIANT, puis clone ses boutons.
+  //
+  // ⚠⚠ Existe parce que le contrat était INVERSÉ dans 4 apps (2026-08-26). `fillActions` passe
+  // un IDENTIFIANT (`renderBatchActions(host, batchId)`, cf. l'en-tête de ce fichier) ; or
+  // anonymizer, avatarizer, enhancer (×2) et synthesizer écrivaient `function (host, group)`
+  // puis `group.querySelector(...)` — c'est-à-dire qu'elles attendaient un ÉLÉMENT DOM. Un
+  // clic sur une card mère y levait `TypeError: group.querySelector is not a function`, et le
+  // volet Actions restait vide.
+  //
+  // ⚠ Ce n'était PAS théorique : mesuré le 26/08, `anonymizer` (2 lots, jusqu'à 8 éléments) et
+  // `synthesizer` (3 lots, jusqu'à 39) portaient de vrais lots multi-éléments sur le compte de
+  // Fabien. Le nocturne ne le voyait pas — `batch_actions` clique les boutons de la card sans
+  // passer par la SÉLECTION, qui est le chemin qui lève.
+  //
+  // Les 5 apps au contrat correct recopiaient ces 3 lignes à l'identique : le geste est commun,
+  // il vit donc ici. Leur portage vers ce helper reste à faire (elles fonctionnent).
+  function cloneBatchActions(host, batchId, label) {
+    var groupe = document.querySelector('.batch-group[data-batch-id="' + batchId + '"]');
+    cloneActions(host, groupe ? groupe.querySelector('.btn-group-actions') : null,
+      label || '<i class="fas fa-layer-group text-info"></i> Actions — batch #' + batchId);
+  }
+
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -482,8 +504,30 @@
       }
     }
 
+    // Contraction française du préfixe : « de » + « le/les … » → « du/des … ».
+    // ⚠ Les 9 apps écrivent leur libellé de lot « le batch #N » et le bandeau préfixe
+    // « Réglages de » → on lisait « Réglages de le batch #2 » (relevé par Fabien le
+    // 2026-08-26). Corriger les 9 libellés aurait recopié la rustine et laissé la 10ᵉ app
+    // refaire la faute : une règle de LANGUE se traite une fois, au point d'assemblage.
+    // Les libellés d'ÉLÉMENT (« l'élément #N ») s'élident déjà seuls et ne sont pas touchés.
+    function _contracter(prefixe, libelle) {
+      if (!/\bde$/i.test(prefixe)) return null;               // préfixe personnalisé : on ne touche à rien
+      var m = /^(le|les)\s+(.+)$/i.exec(libelle);
+      if (!m) return null;
+      return { prefixe: prefixe.replace(/de$/i, m[1].toLowerCase() === 'le' ? 'du' : 'des'),
+               libelle: m[2] };
+    }
+
     function showBanner(text) {
       const b = $(ids.banner), l = $(ids.label);
+      const p = document.getElementById('inspectorPrefix');
+      if (p && text) {
+        // Le préfixe d'origine est mémorisé : sans ça, une 2ᵉ sélection contracterait « du » → « dudu ».
+        if (!p.dataset.prefixeOrigine) p.dataset.prefixeOrigine = p.textContent.trim();
+        const c = _contracter(p.dataset.prefixeOrigine, text);
+        p.textContent = c ? c.prefixe : p.dataset.prefixeOrigine;
+        if (c) text = c.libelle;
+      }
       if (l) l.textContent = text;
       if (b) { b.classList.remove('d-none'); b.classList.add('d-flex'); }
     }
@@ -1063,6 +1107,7 @@
   });
 
   global.WamaInspector = { init: init, initFromSchema: initFromSchema, cloneActions: cloneActions,
+                           cloneBatchActions: cloneBatchActions,
                            renderInlinePreview: renderInlinePreview,
                            hydrateCardPreviews: hydrateCardPreviews };
 })(window);

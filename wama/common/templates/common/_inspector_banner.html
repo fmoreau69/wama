@@ -32,7 +32,11 @@ celle des apps serait un choix d'UI distinct, pas un effet de bord de la factori
 {% endcomment %}
 <div id="inspectorBanner" class="d-none align-items-center gap-2 mb-2{% if not sans_cadre %} p-2 rounded small{% endif %}">
     <i class="{{ icone|default:'fas fa-crosshairs text-info' }}"></i>
-    <span class="text-light flex-grow-1 text-truncate">{% if not sans_prefixe %}{{ prefixe|default:'Réglages de' }} {% endif %}<strong id="inspectorLabel">{% if not sans_prefixe %}{{ defaut|default:"l'élément" }}{% endif %}</strong></span>
+    {% comment %}⚠ Le préfixe porte un id : `showBanner` doit pouvoir le CONTRACTER. Le libellé
+    d'un lot commence par « le » dans les 9 apps (« le batch #2 »), ce qui donnait « Réglages de
+    le batch #2 ». Corriger les 9 sites aurait recopié la rustine ; la contraction est une règle
+    de LANGUE, elle vit donc ici, une fois.{% endcomment %}
+    <span class="text-light flex-grow-1 text-truncate">{% if not sans_prefixe %}<span id="inspectorPrefix">{{ prefixe|default:'Réglages de' }}</span> {% endif %}<strong id="inspectorLabel">{% if not sans_prefixe %}{{ defaut|default:"l'élément" }}{% endif %}</strong></span>
     <button type="button" id="inspectorDeselect" class="btn btn-sm btn-outline-light py-0 px-2"
             title="{{ bouton_titre|default:"Quitter l'inspecteur de cet élément (revenir aux réglages par défaut)" }}">
         <i class="{{ bouton_icone|default:'fas fa-rotate-left' }}"></i>

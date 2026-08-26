@@ -297,9 +297,12 @@
         WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
           '<i class="fas fa-crosshairs text-info"></i> Actions — média #' + card.dataset.id);
       },
-      renderBatchActions: (host, group) => {
-        WamaInspector.cloneActions(host, group.querySelector('.btn-group-actions'),
-          '<i class="fas fa-layer-group text-info"></i> Actions — batch #' + group.dataset.batchId);
+      // ⚠ `fillActions` passe un IDENTIFIANT, jamais un élément DOM (contrat wama-inspector.js).
+      // Cette fonction attendait un `group` et faisait `group.querySelector(...)` → TypeError au
+      // clic sur une card mère, volet Actions vide. Corrigé le 2026-08-26 — et ce n'était pas
+      // théorique : l'anonymizer porte de VRAIS lots multi-éléments (jusqu'à 8).
+      renderBatchActions: (host, batchId) => {
+        WamaInspector.cloneBatchActions(host, batchId);
       },
     });
   }
