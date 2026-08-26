@@ -7168,11 +7168,19 @@ laquelle a révélé qu'elle **écrivait dans le média de production**. De fil 
    partie vient de fichiers placés par commodité.
 3. **`enhancer/tasks.py:534`** — seul site `work_dir` non porté. Déjà nettoyé sur les deux chemins ;
    le porter est une restructuration d'une fonction GPU de 200 lignes.
-4. **`renderBatchActions` : contrat INVERSÉ dans 4 apps** (anonymizer, avatarizer, enhancer ×2,
-   synthesizer). `wama-inspector.js:807` passe un **identifiant** ; ces apps écrivent
-   `function (host, group)` puis `group.querySelector(...)` → **`TypeError` au clic sur une card
-   mère**, volet Actions vide. Préexistant, prouvé sur HEAD~1. **Invisible du nocturne** : la base
-   réelle n'a aucun lot multi-éléments, donc `batch_actions` se met en skip.
+4. 🔴 **`renderBatchActions` : contrat INVERSÉ dans 4 apps** (anonymizer, avatarizer, enhancer ×2,
+   synthesizer) — **À TRAITER EN PREMIER**. `wama-inspector.js:807` passe un **identifiant** ; ces
+   apps écrivent `function (host, group)` puis `group.querySelector(...)` → **`TypeError` au clic
+   sur une card mère**, volet Actions vide. Préexistant, prouvé sur HEAD~1.
+
+   ⚠⚠ **ATTEIGNABLE AUJOURD'HUI, SUR LE COMPTE DE FABIEN** — correction du 26/08 : j'avais écrit
+   « la base réelle n'a aucun lot multi-éléments », en n'ayant mesuré que `BatchAvatarJob`.
+   Mesure sur TOUS les modèles de lot : **17 lots multi-éléments dans 7 apps**, dont
+   **anonymizer 2 (jusqu'à 8 éléments)** et **synthesizer 3 (jusqu'à 39)**, tous deux sur le compte
+   `fabien.moreau` — et tous deux dans la liste des 4 apps cassées. Le défaut n'est donc PAS latent.
+   (avatarizer et enhancer, eux, n'ont aucun lot multi : chez eux il reste théorique.)
+   Les apps au contrat CORRECT (`batchId`) — transcriber, converter, describer, reader, imager —
+   ont elles aussi des lots multi et ne posent aucun problème : c'est la contre-épreuve.
 5. **`avatarizer/views.py:662`** — le tri « batchs d'abord » y survit, écrasé aussitôt par
    `apply_queue_sort_filter`. 4ᵉ exemplaire de ce que `c9408354` a retiré ailleurs.
 
