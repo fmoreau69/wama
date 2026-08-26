@@ -14,7 +14,7 @@ import pandas as pd
 from wama.common.catalog.data_types import DataType, TypedFrame
 from wama.common.catalog.function_catalog import get
 
-from .segmentation import segments_jonction, segments_marges
+from .segmentation import segments_join, segments_margins
 
 
 def _events(times):
@@ -24,20 +24,20 @@ def _events(times):
 class JonctionEnveloppeTest(unittest.TestCase):
 
     def test_curseurs_offsets_et_repeter_traversent_l_enveloppe(self):
-        s = segments_jonction(_events([10.0, 50.0, 90.0]), _events([30.0, 70.0, 110.0]),
-                              depuis_debut=1, offset_debut=-2.0, offset_fin=5.0)
+        s = segments_join(_events([10.0, 50.0, 90.0]), _events([30.0, 70.0, 110.0]),
+                              skip_starts=1, offset_start=-2.0, offset_end=5.0)
         self.assertEqual([(r['start'], r['end']) for r in s.df.to_dict('records')],
                          [(48.0, 75.0), (88.0, 115.0)])
 
     def test_repeter_decoche_ne_produit_que_le_segment_des_curseurs(self):
-        s = segments_jonction(_events([10.0, 50.0, 90.0]), _events([30.0, 70.0, 110.0]),
-                              repeter=False)
+        s = segments_join(_events([10.0, 50.0, 90.0]), _events([30.0, 70.0, 110.0]),
+                              repeat=False)
         self.assertEqual(len(s.df), 1)
 
     def test_les_cinq_parametres_du_coeur_sont_DECLARES(self):
         # ⚠ LE test du trou ② : c'est la déclaration qui génère l'écran « Double ».
-        cles = {p.key for p in get('segment_jonction').params}
-        for attendu in ('offset_debut', 'offset_fin', 'depuis_debut', 'depuis_fin', 'repeter'):
+        cles = {p.key for p in get('segment_join').params}
+        for attendu in ('offset_start', 'offset_end', 'skip_starts', 'skip_ends', 'repeat'):
             self.assertIn(attendu, cles)
 
 
@@ -46,7 +46,7 @@ class MargesEnveloppeTest(unittest.TestCase):
     def test_les_marges_traversent_et_une_fin_ouverte_SURVIT_au_cadre(self):
         zone = TypedFrame(pd.DataFrame([{'start': 10.0, 'end': 20.0},
                                         {'start': 30.0, 'end': None}]), DataType.SEGMENTS)
-        s = segments_marges(zone, avant=1.0, apres=2.0)
+        s = segments_margins(zone, before=1.0, after=2.0)
         rows = s.df.to_dict('records')
         self.assertEqual((rows[0]['start'], rows[0]['end']), (9.0, 22.0))
         self.assertEqual(rows[1]['start'], 29.0)

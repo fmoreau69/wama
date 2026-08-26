@@ -78,10 +78,10 @@ class RafraichissementLecteursTest(unittest.TestCase):
         # ⚠ LE test de ce fichier. Un `importlib.reload(sources)` naïf rendrait 0 lecteur, et le
         # compte-rendu annoncerait fièrement « ok ».
         from .sources import READERS
-        avant = set(READERS)
+        before = set(READERS)
         res = REGISTRES['lecteurs_data'].rafraichir()
         self.assertTrue(res.ok, res.messages)
-        self.assertEqual(set(READERS), avant, "des lecteurs ont disparu au rechargement")
+        self.assertEqual(set(READERS), before, "des lecteurs ont disparu au rechargement")
         self.assertGreaterEqual(res.total, 2)
 
     def test_deux_passages_donnent_le_MEME_etat(self):
@@ -109,10 +109,10 @@ class RafraichissementFormatsTest(unittest.TestCase):
         # Purger ici perdrait les formats du cœur, que rien ne réenregistrerait — d'où l'absence
         # volontaire de purge (`enregistrer_format` est idempotent, `register_reader` non).
         from .core.export import FORMATS
-        avant = set(FORMATS)
+        before = set(FORMATS)
         res = REGISTRES['formats_export_data'].rafraichir()
         self.assertTrue(res.ok, res.messages)
-        self.assertEqual(set(FORMATS), avant)
+        self.assertEqual(set(FORMATS), before)
 
     def test_le_compte_rendu_dit_la_DETTE(self):
         res = REGISTRES['formats_export_data'].rafraichir()
@@ -131,11 +131,11 @@ class RafraichissementConteneursTest(unittest.TestCase):
     def test_le_rafraichissement_ne_VIDE_pas_le_registre(self):
         """Le piège ① : un `reload` du paquet vide le registre au lieu de le recharger."""
         from wama_data.containers import SCHEMAS
-        avant = dict(SCHEMAS)
+        before = dict(SCHEMAS)
         resultat = REGISTRES['conteneurs_data'].rafraichir()
         self.assertTrue(resultat.ok, resultat.messages)
-        self.assertEqual(set(SCHEMAS), set(avant))
-        self.assertEqual(resultat.total, len(avant))
+        self.assertEqual(set(SCHEMAS), set(before))
+        self.assertEqual(resultat.total, len(before))
 
     def test_deux_passages_donnent_le_MEME_etat(self):
         """Le piège ② : `enregistrer_schema()` lève sur doublon — sans purge, le 2ᵉ passage casse."""
@@ -156,9 +156,9 @@ class RafraichissementConteneursTest(unittest.TestCase):
         """La garantie qui compte : un registre à moitié rechargé serait pire que pas de
         rechargement du tout."""
         from wama_data import apps, containers
-        avant = dict(containers.SCHEMAS)
+        before = dict(containers.SCHEMAS)
         resultat = apps._recharger_greffons(
             containers, containers.SCHEMAS, ['schema_qui_n_existe_pas'], 'schéma')
         self.assertFalse(resultat.ok)
-        self.assertEqual(containers.SCHEMAS, avant,
+        self.assertEqual(containers.SCHEMAS, before,
                          "le registre n'a pas été restauré après un rechargement raté")

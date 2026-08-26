@@ -14,7 +14,7 @@ from .noms import abreger, entier, nom_annexe, nom_jonction, nom_produit, normal
 class RegleTest(unittest.TestCase):
 
     def test_nom_produit(self):
-        self.assertEqual(nom_produit('vitesse', 'moyenne'), 'vitesse_moyenne')
+        self.assertEqual(nom_produit('vitesse', 'mean'), 'vitesse_mean')
 
     def test_nom_de_jonction_reproduit_la_graphie_d_origine(self):
         # `app.tddTable1.Value(1:3) '_' app.tddTable2.Value(1:3) '_' inf2 '_' sup2`
@@ -24,8 +24,8 @@ class RegleTest(unittest.TestCase):
         self.assertEqual(nom_jonction('debut', 'fin', -2.5, 10), 'deb_fin_-2.5_10')
 
     def test_nom_annexe(self):
-        self.assertEqual(nom_annexe('vitesse', 'calcul_par_segment'),
-                         'vitesse_calcul_par_segment')
+        self.assertEqual(nom_annexe('vitesse', 'calc_per_segment'),
+                         'vitesse_calc_per_segment')
 
     def test_deux_reglages_differents_ne_peuvent_pas_partager_un_nom(self):
         self.assertNotEqual(nom_jonction('debut', 'fin', 0, 15),

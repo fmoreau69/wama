@@ -55,9 +55,9 @@ AXES_TEMPORELS = frozenset(c.lower() for c in COLONNES_TEMPS) | {
     'starttimecode', 'endtimecode', 'start', 'end'}
 
 
-def abreger(nom: str) -> str:
+def abreger(name: str) -> str:
     """Préfixe minuscule d'un nom de table — `debut_bloc` → `deb`."""
-    return (nom or '')[:PREFIXE_TABLE].lower()
+    return (name or '')[:PREFIXE_TABLE].lower()
 
 
 def entier(x: float) -> str:
@@ -78,20 +78,20 @@ def normaliser(texte: str) -> str:
     return out.strip('_')
 
 
-def nom_produit(colonne: str, suffixe: str) -> str:
+def nom_produit(column: str, suffixe: str) -> str:
     """Colonne dérivée — `vitesse` + `moyenne` → `vitesse_moyenne`.
 
     Déterministe et sans paramètre de renommage : le nom se lit dans le tableau final sans avoir
     à retrouver quel réglage l'a produit. C'est ce qui rend deux exports comparables.
     """
-    return f"{colonne}_{suffixe}"
+    return f"{column}_{suffixe}"
 
 
 def nom_jonction(table_debut: str, table_fin: str,
-                 offset_debut: float, offset_fin: float) -> str:
+                 offset_start: float, offset_end: float) -> str:
     """Segmentation temporelle double — `deb_fin_0_0`, la graphie de l'outil d'origine."""
     return (f"{abreger(table_debut)}_{abreger(table_fin)}"
-            f"_{entier(offset_debut)}_{entier(offset_fin)}")
+            f"_{entier(offset_start)}_{entier(offset_end)}")
 
 
 def nom_annexe(flux: str, fonction: str) -> str:

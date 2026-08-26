@@ -36,7 +36,7 @@ LOT_B = {
 META_B = {'trip_id': 'REC_20190503', 'participant': 'P08', 'scenario': 'urbain'}
 
 DECL_SIT = Declaration(
-    nom='situations',
+    name='situations',
     colonnes=(Colonne('sit_0_15', 'startTimecode'),
               Colonne('sit_0_15', 'endTimecode'),
               Colonne('indicateurs', 'vitesse_moyenne')),
@@ -61,7 +61,7 @@ class DeclarationTest(unittest.TestCase):
              'sit_0_15.startTimecode', 'sit_0_15.endTimecode', 'indicateurs.vitesse_moyenne'])
 
     def test_l_ordre_declare_est_une_DONNEE_pas_un_tri(self):
-        inverse = Declaration(nom='x', colonnes=tuple(reversed(DECL_SIT.colonnes)),
+        inverse = Declaration(name='x', colonnes=tuple(reversed(DECL_SIT.colonnes)),
                               identite=Identite(('trip_id',)))
         self.assertEqual(inverse.entetes()[1:],
                          ['indicateurs.vitesse_moyenne', 'sit_0_15.endTimecode',
@@ -70,21 +70,21 @@ class DeclarationTest(unittest.TestCase):
     def test_entetes_en_double_refuses(self):
         # L'outil d'origine ne le voit pas : ses en-têtes sont reconstruits par chemin.
         with self.assertRaises(ValueError) as ctx:
-            Declaration(nom='x', colonnes=(Colonne('t', 'v'), Colonne('t', 'v')))
+            Declaration(name='x', colonnes=(Colonne('t', 'v'), Colonne('t', 'v')))
         self.assertIn('double', str(ctx.exception))
 
     def test_declaration_sans_colonne_refusee(self):
         with self.assertRaises(ValueError):
-            Declaration(nom='x', colonnes=())
+            Declaration(name='x', colonnes=())
 
     def test_decimation_est_un_PAS_donc_au_moins_1(self):
         with self.assertRaises(ValueError) as ctx:
-            Declaration(nom='x', colonnes=(Colonne('t', 'v'),), decimation=0)
+            Declaration(name='x', colonnes=(Colonne('t', 'v'),), decimation=0)
         self.assertIn('PAS', str(ctx.exception))
 
     def test_format_inconnu_refuse(self):
         with self.assertRaises(ValueError):
-            Declaration(nom='x', colonnes=(Colonne('t', 'v'),), format='parquet')
+            Declaration(name='x', colonnes=(Colonne('t', 'v'),), format='parquet')
 
     def test_flux_dans_l_ordre_de_premiere_apparition(self):
         self.assertEqual(DECL_SIT.flux, ['sit_0_15', 'indicateurs'])
@@ -114,12 +114,12 @@ class SerialisationTest(unittest.TestCase):
         # Une déclaration venue d'un manifeste ne mérite pas moins de contrôles qu'une déclaration
         # écrite en code — sinon le manifeste devient la porte d'entrée des états impossibles.
         brut = DECL_SIT.to_dict()
-        brut['colonnes'] = [{'flux': 't', 'champ': 'v'}, {'flux': 't', 'champ': 'v'}]
+        brut['colonnes'] = [{'stream': 't', 'field': 'v'}, {'stream': 't', 'field': 'v'}]
         with self.assertRaises(ValueError):
             declaration_depuis_dict(brut)
 
     def test_decimation_et_format_survivent(self):
-        d = Declaration(nom='x', colonnes=(Colonne('t', 'v'),), identite=Identite(()),
+        d = Declaration(name='x', colonnes=(Colonne('t', 'v'),), identite=Identite(()),
                         decimation=1000, format='tsv')
         relu = declaration_depuis_dict(d.to_dict())
         self.assertEqual((relu.decimation, relu.format), (1000, 'tsv'))
@@ -164,14 +164,14 @@ class LignesTest(unittest.TestCase):
         self.assertIn('indicateurs', str(ctx.exception))
 
     def test_champ_absent_rend_None_et_non_une_erreur(self):
-        d = Declaration(nom='x', colonnes=(Colonne('sit_0_15', 'inexistant'),),
+        d = Declaration(name='x', colonnes=(Colonne('sit_0_15', 'inexistant'),),
                         identite=Identite(()))
         self.assertEqual(lignes(d, LOT_A, META_A), [[None], [None]])
 
     def test_decimation_garde_une_ligne_sur_N(self):
         # Sémantique de l'outil d'origine : `for i = 1:sub_sampling:length` — un PAS.
         lot = {'t': [{'v': i} for i in range(10)]}
-        d = Declaration(nom='x', colonnes=(Colonne('t', 'v'),), identite=Identite(()),
+        d = Declaration(name='x', colonnes=(Colonne('t', 'v'),), identite=Identite(()),
                         decimation=3)
         self.assertEqual(lignes(d, lot, {}), [[0], [3], [6], [9]])
 
@@ -179,7 +179,7 @@ class LignesTest(unittest.TestCase):
         # Montrer les 2 premières lignes brutes d'un export décimé au 3ᵉ ne montrerait pas
         # l'export.
         lot = {'t': [{'v': i} for i in range(10)]}
-        d = Declaration(nom='x', colonnes=(Colonne('t', 'v'),), identite=Identite(()),
+        d = Declaration(name='x', colonnes=(Colonne('t', 'v'),), identite=Identite(()),
                         decimation=3)
         self.assertEqual(lignes(d, lot, {}, limite=2), [[0], [3]])
 
@@ -190,7 +190,7 @@ class RegroupementTest(unittest.TestCase):
     LOTS = {'A': LOT_A, 'B': LOT_B}
     METAS = {'A': META_A, 'B': META_B}
     DECL_2 = Declaration(
-        nom='autre',
+        name='autre',
         colonnes=(Colonne('sit_0_15', 'startTimecode'),
                   Colonne('sit_0_15', 'endTimecode'),
                   Colonne('indicateurs', 'vitesse_moyenne')),
@@ -202,21 +202,21 @@ class RegroupementTest(unittest.TestCase):
 
     def test_normal_un_fichier_par_declaration_et_par_lot(self):
         f = self._exporter()
-        self.assertEqual(sorted(x.nom for x in f),
+        self.assertEqual(sorted(x.name for x in f),
                          ['autre_A', 'autre_B', 'situations_A', 'situations_B'])
 
     def test_concat_trip_un_fichier_par_declaration(self):
         f = self._exporter(lots=True)
-        self.assertEqual(sorted(x.nom for x in f), ['autre', 'situations'])
+        self.assertEqual(sorted(x.name for x in f), ['autre', 'situations'])
         self.assertEqual({x.nb_lignes for x in f}, {3})     # 2 lignes de A + 1 de B
 
     def test_concat_event_situation_un_fichier_par_lot(self):
         f = self._exporter(declarations=True)
-        self.assertEqual(sorted(x.nom for x in f), ['A', 'B'])
+        self.assertEqual(sorted(x.name for x in f), ['A', 'B'])
 
     def test_concat_all_un_seul_fichier(self):
         f = self._exporter(lots=True, declarations=True)
-        self.assertEqual([x.nom for x in f], ['export'])
+        self.assertEqual([x.name for x in f], ['export'])
         self.assertEqual(f[0].nb_lignes, 6)                 # 2 déclarations × (2 + 1) lignes
 
     def test_les_quatre_modes_d_origine_sont_les_quatre_combinaisons(self):
@@ -234,11 +234,11 @@ class RegroupementTest(unittest.TestCase):
         # ② `concat_all` et `concat_trip` lisent `i_trip`/`i_fic` après la fin de leur boucle.
         un_lot = exporter([DECL_SIT], {'A': LOT_A}, self.METAS, Regroupement(lots=True))
         deux_lots = exporter([DECL_SIT], self.LOTS, self.METAS, Regroupement(lots=True))
-        self.assertEqual([x.nom for x in un_lot], [x.nom for x in deux_lots])
+        self.assertEqual([x.name for x in un_lot], [x.name for x in deux_lots])
 
     def test_concatener_des_declarations_aux_COLONNES_DIFFERENTES_est_refuse(self):
         # ② L'outil d'origine garde l'en-tête de la dernière et empile les données de toutes.
-        autre = Declaration(nom='z', colonnes=(Colonne('sit_0_15', 'label'),),
+        autre = Declaration(name='z', colonnes=(Colonne('sit_0_15', 'label'),),
                             identite=Identite(('trip_id',)))
         with self.assertRaises(ValueError) as ctx:
             exporter([DECL_SIT, autre], self.LOTS, self.METAS, Regroupement(declarations=True))
@@ -282,26 +282,26 @@ class RenduTest(unittest.TestCase):
     def test_une_absence_rend_une_cellule_VIDE_jamais_None(self):
         # Écrire « None » ferait relire la colonne comme du texte par le tableur : les moyennes
         # du chercheur deviennent fausses sans qu'aucune ligne ne paraisse anormale.
-        f = Fichier(nom='x', entetes=['a', 'b'], lignes=[[1, None]])
+        f = Fichier(name='x', entetes=['a', 'b'], lignes=[[1, None]])
         self.assertEqual(rendre(f), 'a;b\n1;\n')
 
     def test_un_separateur_dans_une_valeur_est_protege(self):
-        f = Fichier(nom='x', entetes=['a'], lignes=[['gauche;droite']])
+        f = Fichier(name='x', entetes=['a'], lignes=[['gauche;droite']])
         self.assertEqual(rendre(f), 'a\n"gauche;droite"\n')
 
     def test_un_guillemet_est_double(self):
-        f = Fichier(nom='x', entetes=['a'], lignes=[['dit "oui"']])
+        f = Fichier(name='x', entetes=['a'], lignes=[['dit "oui"']])
         self.assertIn('"dit ""oui"""', rendre(f))
 
     def test_tsv_separe_par_tabulation(self):
-        f = Fichier(nom='x', entetes=['a', 'b'], lignes=[[1, 2]], format='tsv')
+        f = Fichier(name='x', entetes=['a', 'b'], lignes=[[1, 2]], format='tsv')
         self.assertEqual(rendre(f), 'a\tb\n1\t2\n')
 
     def test_xlsx_et_mat_refuses_par_le_coeur(self):
         # Rendre un CSV sous une extension `.xlsx` serait pire que refuser.
         for fmt in ('xlsx', 'mat'):
             with self.assertRaises(ValueError):
-                rendre(Fichier(nom='x', entetes=['a'], lignes=[[1]], format=fmt))
+                rendre(Fichier(name='x', entetes=['a'], lignes=[[1]], format=fmt))
 
     def test_les_formats_declares_couvrent_ceux_du_livrable(self):
         # §9ter.5 : « formats : .csv, .txt, .xlsx, .mat » (+ .tsv du chemin script).
@@ -332,28 +332,28 @@ class RegistreDeFormatsTest(unittest.TestCase):
 
     def test_ajouter_un_format_ne_touche_PAS_le_moteur(self):
         enregistrer_format('zzz', separateur='|', description='essai')
-        f = Fichier(nom='x', entetes=['a', 'b'], lignes=[[1, 2]], format='zzz')
+        f = Fichier(name='x', entetes=['a', 'b'], lignes=[[1, 2]], format='zzz')
         self.assertEqual(rendre(f), 'a|b\n1|2\n')
 
     def test_un_adaptateur_peut_FOURNIR_l_ecrivain_d_un_format_declare(self):
         # C'est le geste attendu : l'extension existe déjà, l'adaptateur apporte le comportement.
-        enregistrer_format('zzz', ecrivain=lambda fic: f"<{fic.nom}>")
-        self.assertEqual(rendre(Fichier(nom='ok', entetes=[], lignes=[], format='zzz')), '<ok>')
+        enregistrer_format('zzz', ecrivain=lambda fic: f"<{fic.name}>")
+        self.assertEqual(rendre(Fichier(name='ok', entetes=[], lignes=[], format='zzz')), '<ok>')
         self.assertIn('zzz', formats_ecrivables())
 
     def test_un_format_JAMAIS_enregistre_est_refuse_en_nommant_les_declares(self):
         with self.assertRaises(ValueError) as ctx:
-            rendre(Fichier(nom='x', entetes=[], lignes=[], format='parquet'))
+            rendre(Fichier(name='x', entetes=[], lignes=[], format='parquet'))
         self.assertIn('csv', str(ctx.exception))
 
     def test_un_format_declare_SANS_ecrivain_le_dit_explicitement(self):
         with self.assertRaises(ValueError) as ctx:
-            rendre(Fichier(nom='x', entetes=['a'], lignes=[[1]], format='mat'))
+            rendre(Fichier(name='x', entetes=['a'], lignes=[[1]], format='mat'))
         self.assertIn('aucun écrivain', str(ctx.exception))
 
     def test_la_declaration_accepte_tout_format_DECLARE(self):
         # Refuser `xlsx` à la déclaration interdirait de décrire un export du livrable.
-        Declaration(nom='x', colonnes=(Colonne('t', 'v'),), format='xlsx')
+        Declaration(name='x', colonnes=(Colonne('t', 'v'),), format='xlsx')
 
 
 if __name__ == '__main__':

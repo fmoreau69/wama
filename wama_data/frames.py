@@ -73,14 +73,14 @@ from .core.noms import AXES_TEMPORELS as _AXES_BRUTS  # noqa: F401 — nom local
 from .core.temporal import NEAREST, PREVIOUS, Signal, SignalMeta, TemporalReferential
 
 
-def _verifier_lignes(lignes: Any, nom: str) -> List[Dict[str, Any]]:
+def _verifier_lignes(lignes: Any, name: str) -> List[Dict[str, Any]]:
     """Piège ③ — le contrat `rows` est vérifié, pas espéré."""
     if lignes is None:
         return []
     lignes = list(lignes)
     if lignes and not isinstance(lignes[0], Mapping):
         raise TypeError(
-            f"flux '{nom}' : l'accesseur `rows` doit rendre une liste de dicts "
+            f"flux '{name}' : l'accesseur `rows` doit rendre une liste de dicts "
             f"(champ → valeur), reçu {type(lignes[0]).__name__}. C'est le contrat que "
             "respectent les lecteurs existants ; `StreamSpec.rows` le type `Any` par commodité, "
             "ce qui ne l'annule pas.")
@@ -129,13 +129,13 @@ def frame_depuis_signal(signal: Signal, *, t0: Optional[float] = None,
     """
     import pandas as pd
 
-    nom = signal.meta.name
+    name = signal.meta.name
     if t0 is None or t1 is None:
         i0, i1 = 0, len(signal)
     else:
         i0, i1 = signal.range_indices(t0 - offset, t1 - offset)
 
-    lignes = _verifier_lignes(signal.rows(i0, i1), nom)
+    lignes = _verifier_lignes(signal.rows(i0, i1), name)
     garde = set(champs) if champs is not None else None
 
     dt = data_type or type_par_defaut(signal)
@@ -168,7 +168,7 @@ def frame_depuis_signal(signal: Signal, *, t0: Optional[float] = None,
     if segments and out and any(r.get('end') is None for r in out):
         df['end'] = pd.Series([r.get('end') for r in out], dtype=object)
 
-    infos: Dict[str, Any] = {'source_signal': nom, 'is_base': signal.meta.is_base}
+    infos: Dict[str, Any] = {'source_signal': name, 'is_base': signal.meta.is_base}
     if signal.meta.units:
         infos['units'] = dict(signal.meta.units)
     if t0 is not None and t1 is not None:
@@ -177,7 +177,7 @@ def frame_depuis_signal(signal: Signal, *, t0: Optional[float] = None,
     return TypedFrame(df, dt, meta=infos)
 
 
-def frame_depuis_referentiel(ref: TemporalReferential, nom: str, *,
+def frame_depuis_referentiel(ref: TemporalReferential, name: str, *,
                              t0: Optional[float] = None, t1: Optional[float] = None,
                              data_type: Optional[str] = None,
                              champs: Optional[Iterable[str]] = None) -> TypedFrame:
@@ -186,8 +186,8 @@ def frame_depuis_referentiel(ref: TemporalReferential, nom: str, *,
     C'est la porte d'entrée normale. `frame_depuis_signal()` reste utile pour un flux isolé, mais
     l'employer sur un flux qui appartient à un référentiel perdrait son décalage.
     """
-    signal = ref.get(nom)
-    return frame_depuis_signal(signal, t0=t0, t1=t1, offset=ref.offset(nom),
+    signal = ref.get(name)
+    return frame_depuis_signal(signal, t0=t0, t1=t1, offset=ref.offset(name),
                                data_type=data_type, champs=champs,
                                meta={'referentiel': ref.name})
 
@@ -196,7 +196,7 @@ def frame_depuis_referentiel(ref: TemporalReferential, nom: str, *,
 # 2. TypedFrame → Signal (le retour d'un calcul dans le référentiel)
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 
-def signal_depuis_frame(frame: TypedFrame, nom: str, *, fs: Optional[float] = None,
+def signal_depuis_frame(frame: TypedFrame, name: str, *, fs: Optional[float] = None,
                         units: Optional[Mapping[str, str]] = None,
                         comments: str = '') -> Signal:
     """Un cadre typé redevient un flux — **toujours DÉRIVÉ, jamais acquis** (piège ④).
@@ -221,11 +221,11 @@ def signal_depuis_frame(frame: TypedFrame, nom: str, *, fs: Optional[float] = No
     lignes: List[Dict[str, Any]] = frame.df.to_dict('records')
     times = [r[cle] for r in lignes]
     if any(t is None or manquant(t) for t in times):
-        raise ValueError(f"flux '{nom}' : un instant manquant rend le flux inindexable — "
+        raise ValueError(f"flux '{name}' : un instant manquant rend le flux inindexable — "
                          "les temps sont la clé, pas une colonne comme les autres")
     if any(times[i] < times[i - 1] for i in range(1, len(times))):
         raise ValueError(
-            f"flux '{nom}' : instants non croissants — trier avant de construire le flux "
+            f"flux '{name}' : instants non croissants — trier avant de construire le flux "
             "(l'indexation par dichotomie donnerait des réponses fausses SANS erreur)")
 
     ends = None
@@ -234,7 +234,7 @@ def signal_depuis_frame(frame: TypedFrame, nom: str, *, fs: Optional[float] = No
         ends = [None if manquant(r.get('end')) else r.get('end') for r in lignes]
 
     meta = SignalMeta(
-        name=nom, fs=fs, units=dict(units or {}),
+        name=name, fs=fs, units=dict(units or {}),
         is_base=False,                                   # ④ non négociable
         default_lookup=PREVIOUS if segments else NEAREST,
         comments=comments or f"dérivé · {len(frame.fields)} colonne(s)",
@@ -242,7 +242,7 @@ def signal_depuis_frame(frame: TypedFrame, nom: str, *, fs: Optional[float] = No
     return Signal(meta, times, rows=lambda i0, i1: lignes[i0:i1], ends=ends)
 
 
-def adjoindre(ref: TemporalReferential, nom: str, frame: TypedFrame, *,
+def adjoindre(ref: TemporalReferential, name: str, frame: TypedFrame, *,
               offset: float = 0.0, **kwargs) -> Signal:
     """Ajoute au référentiel un flux issu d'un calcul, et le rend.
 
@@ -250,4 +250,4 @@ def adjoindre(ref: TemporalReferential, nom: str, frame: TypedFrame, *,
     écraser un flux en place rendrait irrécupérable ce qui l'a produit. Un recalcul se range sous
     un nom dérivé, comme une colonne calculée (`nom_produit()`, `nom_chaine()`).
     """
-    return ref.add(signal_depuis_frame(frame, nom, **kwargs), offset=offset)
+    return ref.add(signal_depuis_frame(frame, name, **kwargs), offset=offset)

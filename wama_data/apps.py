@@ -127,20 +127,20 @@ def _recharger_greffons(paquet, registre: dict, noms, quoi: str):
     from wama.common.registries import Resultat
 
     importlib.invalidate_caches()
-    avant = dict(registre)
+    before = dict(registre)
     registre.clear()
     try:
-        for nom in noms:
-            importlib.reload(importlib.import_module(f'{paquet.__name__}.{nom}'))
+        for name in noms:
+            importlib.reload(importlib.import_module(f'{paquet.__name__}.{name}'))
     except Exception as e:
         registre.clear()
-        registre.update(avant)
-        return Resultat(ok=False, total=len(avant),
+        registre.update(before)
+        return Resultat(ok=False, total=len(before),
                         messages=(f"rechargement abandonné, registre restauré : {e}",))
-    apres = set(registre)
-    return Resultat(ok=True, ajoutes=len(apres - set(avant)),
-                    retires=len(set(avant) - apres), modifies=len(apres & set(avant)),
-                    total=len(apres), messages=(f"{len(noms)} module(s) de {quoi} rechargé(s)",))
+    after = set(registre)
+    return Resultat(ok=True, ajoutes=len(after - set(before)),
+                    retires=len(set(before) - after), modifies=len(after & set(before)),
+                    total=len(after), messages=(f"{len(noms)} module(s) de {quoi} rechargé(s)",))
 
 
 def _rafraichir_formats():

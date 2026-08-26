@@ -137,7 +137,7 @@ class Protocole:
     prendra. Un protocole est le SEUL endroit où l'on décrit un codage : l'interface s'en génère et
     l'exécution s'y contraint, donc changer le protocole change les deux d'un coup.
     """
-    nom: str
+    name: str
     comportements: Tuple[Comportement, ...] = ()
     #: Sujets observés (conducteur, piéton, véhicule…). Vide = un seul sujet implicite. Un codage
     #: multi-sujets suit les états SÉPARÉMENT par sujet : deux personnes peuvent tenir le même état.
@@ -169,7 +169,7 @@ class Protocole:
             if c.code == code:
                 return c
         raise CodageRefuse(
-            f"comportement '{code}' absent du protocole '{self.nom}' "
+            f"comportement '{code}' absent du protocole '{self.name}' "
             f"(déclarés : {', '.join(c.code for c in self.comportements) or '—'})")
 
     def groupe(self, code: str) -> str:
@@ -177,7 +177,7 @@ class Protocole:
 
     def en_dict(self) -> dict:
         return {
-            'name': self.nom, 'version': self.version, 'description': self.description,
+            'name': self.name, 'version': self.version, 'description': self.description,
             'subjects': list(self.sujets),
             'behaviors': [
                 {'code': c.code, 'label': c.label, 'nature': c.nature, 'exclusive': c.exclusif,
@@ -191,7 +191,7 @@ class Protocole:
     @classmethod
     def depuis_dict(cls, d: dict) -> "Protocole":
         return cls(
-            nom=d.get('name', ''), version=str(d.get('version', '1')),
+            name=d.get('name', ''), version=str(d.get('version', '1')),
             description=d.get('description', ''),
             sujets=tuple(d.get('subjects') or ()),
             comportements=tuple(
@@ -226,7 +226,7 @@ class SessionCodage:
     """
     protocole: Protocole
     media: str
-    codeur: str = ''
+    coder: str = ''
     #: États ouverts, indexés par (sujet, code). Un état par sujet : deux sujets peuvent tenir le
     #: même comportement simultanément sans se fermer l'un l'autre.
     _ouverts: Dict[Tuple[str, str], Segment] = field(default_factory=dict, repr=False)
@@ -259,7 +259,7 @@ class SessionCodage:
         if not comp.est_etat:
             seg = _tracer({'start': t, 'end': t, 'value': code, 'label': comp.label or code,
                            'subject': sujet or None, 'nature': PONCTUEL},
-                          'codage', coder=self.codeur or None, protocol=self.protocole.nom,
+                          'codage', coder=self.coder or None, protocol=self.protocole.name,
                           media=self.media, comment=commentaire or None)
             seg.update(mods)
             self._ponctuels.append(seg)
@@ -276,7 +276,7 @@ class SessionCodage:
 
         seg = _tracer({'start': t, 'end': OUVERT, 'value': code, 'label': comp.label or code,
                        'subject': sujet or None, 'nature': ETAT, 'open': True},
-                      'codage', coder=self.codeur or None, protocol=self.protocole.nom,
+                      'codage', coder=self.coder or None, protocol=self.protocole.name,
                       media=self.media, comment=commentaire or None)
         seg.update(mods)
         self._ouverts[cle] = seg
@@ -291,7 +291,7 @@ class SessionCodage:
         comp = self.protocole.get(code)
         if not comp.est_etat:
             raise CodageRefuse(f"'{code}' est PONCTUEL — il n'a pas d'ouverture, utiliser `marquer`")
-        if (self._sujet(kw.get('sujet', '')), code) in self._ouverts:
+        if (self._sujet(kw.get('subject', '')), code) in self._ouverts:
             raise CodageRefuse(f"'{code}' est déjà ouvert pour ce sujet")
         return self.marquer(t, code, **kw)
 
@@ -330,7 +330,7 @@ class SessionCodage:
 
     # ── sorties ───────────────────────────────────────────────────────────────────────────────
 
-    def segments(self, *, fin_de_session: Optional[float] = None) -> List[Segment]:
+    def segments(self, *, session_end: Optional[float] = None) -> List[Segment]:
         """Tous les états, y compris ceux restés OUVERTS.
 
         `fin_de_session` ferme d'office les états en cours et TRACE cette fermeture (`closed_at`) :
@@ -338,9 +338,9 @@ class SessionCodage:
         confondre les deux fausse toute statistique de durée.
         """
         out = list(self._clos) + list(self._ouverts.values())
-        if fin_de_session is not None:
+        if session_end is not None:
             from .segmentation import fermer as _fermer_seg
-            out = _fermer_seg(out, fin_de_session)
+            out = _fermer_seg(out, session_end)
         return _tri(out)
 
     def evenements(self) -> List[Segment]:
@@ -352,7 +352,7 @@ class SessionCodage:
 
     def resume(self) -> dict:
         """De quoi alimenter un bandeau d'interface sans que celle-ci connaisse le modèle."""
-        return {'protocol': self.protocole.nom, 'media': self.media, 'coder': self.codeur,
+        return {'protocol': self.protocole.name, 'media': self.media, 'coder': self.coder,
                 'states': len(self._clos) + len(self._ouverts), 'open': len(self._ouverts),
                 'events': len(self._ponctuels), 'last_time': self._dernier_t}
 
@@ -407,8 +407,8 @@ class SessionCodage:
 # 3. REJOUER un codage — la même session, alimentée par une liste de gestes
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
-def rejouer(protocole: Protocole, media: str, gestes: Iterable[dict], *, codeur: str = '',
-            fin_de_session: Optional[float] = None) -> Tuple[List[Segment], List[Segment]]:
+def rejouer(protocole: Protocole, media: str, gestes: Iterable[dict], *, coder: str = '',
+            session_end: Optional[float] = None) -> Tuple[List[Segment], List[Segment]]:
     """Rejoue une liste de gestes `{t, code, sujet?, modificateurs?, commentaire?}`.
 
     C'est le point d'entrée du codage AUTOMATIQUE : un modèle de vision produit une liste de gestes,
@@ -417,11 +417,11 @@ def rejouer(protocole: Protocole, media: str, gestes: Iterable[dict], *, codeur:
 
     Renvoie `(segments, événements)`.
     """
-    s = SessionCodage(protocole=protocole, media=media, codeur=codeur)
+    s = SessionCodage(protocole=protocole, media=media, coder=coder)
     for g in gestes:
-        s.marquer(g['t'], g['code'], sujet=g.get('sujet', ''),
-                  modificateurs=g.get('modificateurs'), commentaire=g.get('commentaire', ''))
-    return s.segments(fin_de_session=fin_de_session), s.evenements()
+        s.marquer(g['t'], g['code'], sujet=g.get('subject', ''),
+                  modificateurs=g.get('modifiers'), commentaire=g.get('comment', ''))
+    return s.segments(session_end=session_end), s.evenements()
 
 
 def accord(a: Sequence[Segment], b: Sequence[Segment], *, tolerance: float = 1.0) -> dict:

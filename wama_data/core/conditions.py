@@ -134,25 +134,25 @@ OPERATEURS: Dict[str, Operateur] = {
     '!=': Operateur(lambda v, r: (not manquant(v)) and v != r, _TOUTES, "n'est pas égal à"),
 
     # ── TEXTE.
-    'contient': Operateur(
+    'contains': Operateur(
         lambda v, r: _texte(r) in _texte(v), frozenset({TEXTE}), 'contient'),
-    'ne_contient_pas': Operateur(
+    'not_contains': Operateur(
         lambda v, r: _texte(r) not in _texte(v), frozenset({TEXTE}), 'ne contient pas'),
-    'commence_par': Operateur(
+    'startswith': Operateur(
         lambda v, r: _texte(v).startswith(_texte(r)), frozenset({TEXTE}), 'commence par'),
-    'ne_commence_pas_par': Operateur(
+    'not_startswith': Operateur(
         lambda v, r: not _texte(v).startswith(_texte(r)), frozenset({TEXTE}),
         'ne commence pas par'),
-    'finit_par': Operateur(
+    'endswith': Operateur(
         lambda v, r: _texte(v).endswith(_texte(r)), frozenset({TEXTE}), 'finit par'),
-    'ne_finit_pas_par': Operateur(
+    'not_endswith': Operateur(
         lambda v, r: not _texte(v).endswith(_texte(r)), frozenset({TEXTE}), 'ne finit pas par'),
 
     # ── PRÉSENCE — sans opérande, et applicables à toutes les sortes. Ce sont les seuls
     #    opérateurs qui interrogent l'ABSENCE ; tous les autres la traitent comme un `False`.
-    'vide': Operateur(
+    'empty': Operateur(
         lambda v, r=None: manquant(v) or _texte(v) == '', _TOUTES, 'est vide', operande=False),
-    'non_vide': Operateur(
+    'not_empty': Operateur(
         lambda v, r=None: (not manquant(v)) and _texte(v) != '', _TOUTES, "n'est pas vide",
         operande=False),
 }
@@ -167,7 +167,7 @@ def operateurs_pour(sorte: str) -> List[str]:
     """
     if sorte not in _TOUTES:
         raise ValueError(f"sorte '{sorte}' inconnue (attendu : {', '.join(SORTES)})")
-    return [nom for nom, op in OPERATEURS.items() if sorte in op.sortes]
+    return [name for name, op in OPERATEURS.items() if sorte in op.sortes]
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════
@@ -191,7 +191,7 @@ class Condition:
     """
     cle: str
     champ: str
-    operateur: str
+    operator: str
     valeur: Any = None
     flux: str = ''
     sorte: str = NUMERIQUE
@@ -199,10 +199,10 @@ class Condition:
     def __post_init__(self) -> None:
         if not self.cle:
             raise ValueError("une condition doit porter une clé (« C1 », « C2 »…)")
-        op = OPERATEURS.get(self.operateur)
+        op = OPERATEURS.get(self.operator)
         if op is None:
             raise ValueError(
-                f"{self.cle} : opérateur '{self.operateur}' inconnu "
+                f"{self.cle} : opérateur '{self.operator}' inconnu "
                 f"(disponibles : {', '.join(OPERATEURS)})")
         if self.sorte not in _TOUTES:
             raise ValueError(f"{self.cle} : sorte '{self.sorte}' inconnue "
@@ -211,26 +211,26 @@ class Condition:
         # sorte de la colonne. Sans lui, `<` sur du texte rend un masque plausible et faux.
         if self.sorte not in op.sortes:
             raise ValueError(
-                f"{self.cle} : l'opérateur '{self.operateur}' ne s'applique pas à une colonne "
+                f"{self.cle} : l'opérateur '{self.operator}' ne s'applique pas à une colonne "
                 f"{self.sorte} (admis : {', '.join(sorted(op.sortes))}) — "
                 f"pour cette colonne : {', '.join(operateurs_pour(self.sorte))}")
         # Une valeur fournie à un opérateur qui n'en prend pas est une faute de déclaration, pas
         # un détail à ignorer : elle signale que l'auteur croyait comparer à quelque chose.
         if not op.operande and self.valeur is not None:
             raise ValueError(
-                f"{self.cle} : l'opérateur '{self.operateur}' ne prend pas de valeur de référence")
+                f"{self.cle} : l'opérateur '{self.operator}' ne prend pas de valeur de référence")
         if op.operande and self.valeur is None:
             raise ValueError(
-                f"{self.cle} : l'opérateur '{self.operateur}' exige une valeur de référence")
+                f"{self.cle} : l'opérateur '{self.operator}' exige une valeur de référence")
 
     def evaluer(self, valeurs: Sequence[Any]) -> List[bool]:
         """Masque booléen de la condition sur une colonne, ligne à ligne."""
-        test = OPERATEURS[self.operateur].test
+        test = OPERATEURS[self.operator].test
         return [bool(test(v, self.valeur)) for v in valeurs]
 
     def rendre(self) -> str:
         """Phrase lisible — `vitesse contient « FIN »`. Sert aux libellés et aux messages."""
-        op = OPERATEURS[self.operateur]
+        op = OPERATEURS[self.operator]
         cible = f"{self.flux}.{self.champ}" if self.flux else self.champ
         return f"{cible} {op.libelle}" + (f" « {self.valeur} »" if op.operande else "")
 
@@ -241,8 +241,8 @@ class Condition:
         jamais déclarée. La sérialiser inviterait à la relire, donc à laisser une déclaration
         contredire la colonne qu'elle décrit — le défaut même que le filtrage par sorte corrige.
         """
-        return {'cle': self.cle, 'flux': self.flux, 'champ': self.champ,
-                'operateur': self.operateur, 'valeur': self.valeur}
+        return {'key': self.cle, 'stream': self.flux, 'field': self.champ,
+                'operator': self.operator, 'value': self.valeur}
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════
@@ -441,9 +441,9 @@ def condition_depuis_dict(brut: Mapping[str, Any], sorte: str = NUMERIQUE) -> Co
     """
     if not isinstance(brut, Mapping):
         raise ValueError(f"condition attendue sous forme d'objet, reçu {type(brut).__name__}")
-    return Condition(cle=brut.get('cle', ''), champ=brut.get('champ', ''),
-                     operateur=brut.get('operateur', ''), valeur=brut.get('valeur'),
-                     flux=brut.get('flux', ''), sorte=sorte)
+    return Condition(cle=brut.get('key', ''), champ=brut.get('field', ''),
+                     operator=brut.get('operator', ''), valeur=brut.get('value'),
+                     flux=brut.get('stream', ''), sorte=sorte)
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════

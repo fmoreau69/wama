@@ -161,16 +161,16 @@ class RecReader(SourceReader):
             m = _RECORD.match(ligne)
             if not m:
                 continue
-            nom = _nom_flux(m.group('composant'), m.group('sortie'))
-            if nom in encodages:
+            name = _nom_flux(m.group('composant'), m.group('sortie'))
+            if name in encodages:
                 continue
-            encodages[nom] = m.group('encodage')
-            flux.append(nom)
+            encodages[name] = m.group('encodage')
+            flux.append(name)
             ext = ENCODAGES_EXTERNES.get(m.group('encodage'))
             if ext:
                 compagnon = _compagnon(path, m.group('composant'), m.group('sortie'), ext)
                 medias.append({'file': str(compagnon) if compagnon else '',
-                               'offset': 0.0, 'description': f"{nom} ({m.group('encodage')})"})
+                               'offset': 0.0, 'description': f"{name} ({m.group('encodage')})"})
 
         attributs['encodages'] = encodages
         attributs['inventaire'] = 'idy' if depuis_idy else 'rec (balayage d\'en-tête)'
@@ -237,42 +237,42 @@ class RecReader(SourceReader):
                 m = _DONNEE.match(ligne)
                 if not m:
                     continue
-                nom = _nom_flux(m.group('composant'), m.group('sortie'))
-                if nom not in voulus:
+                name = _nom_flux(m.group('composant'), m.group('sortie'))
+                if name not in voulus:
                     continue
 
                 idx = int(m.group('idx'))
-                precedent = dernier_idx.get(nom)
+                precedent = dernier_idx.get(name)
                 if precedent is not None and idx != precedent + 1:
                     # ④ Un index non consécutif = échantillon(s) perdu(s) à l'acquisition.
-                    pertes[nom] += max(0, idx - precedent - 1)
-                dernier_idx[nom] = idx
+                    pertes[name] += max(0, idx - precedent - 1)
+                dernier_idx[name] = idx
 
                 toi = temps_en_secondes(m.group('toi'))
                 ts = temps_en_secondes(m.group('ts'))
-                horodateur = timestampers.get(nom)
+                horodateur = timestampers.get(name)
                 if horodateur is not None:
                     t = horodateur.timestamp(toi, idx, ts)
                 else:
                     t = ts if ts is not None else toi
                 if t is None:
                     continue
-                temps[nom].append(t)
+                temps[name].append(t)
                 # ③ Charge rendue TELLE QUELLE : le transport est générique, la sémantique non.
                 charge = m.group('charge')
-                charges[nom].append(idx if charge is None else charge)
+                charges[name].append(idx if charge is None else charge)
 
         out: List[StreamSpec] = []
-        for nom in sorted(voulus):
-            lignes = [{'valeur': v} for v in charges[nom]]
+        for name in sorted(voulus):
+            lignes = [{'value': v} for v in charges[name]]
             meta = SignalMeta(
-                name=nom,
+                name=name,
                 data_type=DataType.TIMESERIES,
                 default_lookup=NEAREST,
-                pertes=pertes[nom],
-                comments=f"rtmaps · {encodages.get(nom, '?')}",
+                pertes=pertes[name],
+                comments=f"rtmaps · {encodages.get(name, '?')}",
             )
-            out.append(StreamSpec(meta=meta, times=list(temps[nom]),
+            out.append(StreamSpec(meta=meta, times=list(temps[name]),
                                   rows=(lambda l: (lambda i0, i1: l[i0:i1]))(lignes)))
         return out
 

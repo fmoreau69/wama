@@ -137,7 +137,7 @@ class ColonneDerivee:
     fonction: str
     flux: str
     params: Mapping[str, Any] = field(default_factory=dict)
-    nom: str = ''
+    name: str = ''
 
     def __post_init__(self) -> None:
         if not self.fonction or not self.flux:
@@ -151,20 +151,20 @@ class ColonneDerivee:
 @dataclass(frozen=True)
 class Vue:
     """CE QU'ON REGARDE — sérialisable, donc rejouable, diffable, et entrant dans un manifeste."""
-    nom: str
+    name: str
     pistes: Tuple[Piste, ...]
     fenetre: Fenetre = field(default_factory=Fenetre)
     derivees: Tuple[ColonneDerivee, ...] = ()
 
     def __post_init__(self) -> None:
-        if not self.nom:
+        if not self.name:
             raise ValueError("une vue doit porter un nom")
         if not self.pistes:
-            raise ValueError(f"« {self.nom} » : aucune piste — il n'y a rien à regarder")
+            raise ValueError(f"« {self.name} » : aucune piste — il n'y a rien à regarder")
         flux = [p.flux for p in self.pistes]
         doublons = sorted({f for f in flux if flux.count(f) > 1})
         if doublons:
-            raise ValueError(f"« {self.nom} » : flux en double ({', '.join(doublons)}) — "
+            raise ValueError(f"« {self.name} » : flux en double ({', '.join(doublons)}) — "
                              "une piste par flux, les colonnes se déclarent dans la piste")
 
     @property
@@ -174,12 +174,12 @@ class Vue:
     # ── Sérialisation : c'est une DÉCLARATION, elle doit faire l'aller-retour ─────────────────
     def to_dict(self) -> Dict[str, Any]:
         return {
-            'nom': self.nom,
-            'pistes': [{'flux': p.flux, 'champs': list(p.champs)} for p in self.pistes],
+            'name': self.name,
+            'pistes': [{'stream': p.flux, 'champs': list(p.champs)} for p in self.pistes],
             'fenetre': {'t0': self.fenetre.t0, 't1': self.fenetre.t1,
                         'buckets': self.fenetre.buckets},
-            'derivees': [{'fonction': d.fonction, 'flux': d.flux,
-                          'params': dict(d.params), 'nom': d.nom} for d in self.derivees],
+            'derivees': [{'fonction': d.fonction, 'stream': d.flux,
+                          'params': dict(d.params), 'name': d.name} for d in self.derivees],
         }
 
 
@@ -189,12 +189,12 @@ def depuis_dict(brut: Mapping[str, Any]) -> Vue:
         raise ValueError(f"déclaration de vue attendue sous forme d'objet, reçu {type(brut).__name__}")
     f = brut.get('fenetre') or {}
     return Vue(
-        nom=brut.get('nom', ''),
-        pistes=tuple(Piste(flux=p.get('flux', ''), champs=tuple(p.get('champs') or ()))
+        name=brut.get('name', ''),
+        pistes=tuple(Piste(flux=p.get('stream', ''), champs=tuple(p.get('champs') or ()))
                      for p in (brut.get('pistes') or ())),
         fenetre=Fenetre(t0=f.get('t0'), t1=f.get('t1'), buckets=int(f.get('buckets') or 0)),
-        derivees=tuple(ColonneDerivee(fonction=d.get('fonction', ''), flux=d.get('flux', ''),
-                                      params=dict(d.get('params') or {}), nom=d.get('nom', ''))
+        derivees=tuple(ColonneDerivee(fonction=d.get('fonction', ''), flux=d.get('stream', ''),
+                                      params=dict(d.get('params') or {}), name=d.get('name', ''))
                        for d in (brut.get('derivees') or ())),
     )
 
@@ -213,11 +213,11 @@ def valider(vue: Vue, ref: TemporalReferential) -> None:
     connus = set(ref.names)
     for p in vue.pistes:
         if p.flux not in connus:
-            raise ValueError(f"« {vue.nom} » : flux '{p.flux}' inconnu du référentiel "
+            raise ValueError(f"« {vue.name} » : flux '{p.flux}' inconnu du référentiel "
                              f"(présents : {', '.join(sorted(connus)) or '—'})")
     for d in vue.derivees:
         if d.flux not in connus:
-            raise ValueError(f"« {vue.nom} » : la colonne dérivée '{d.fonction}' porte sur un flux "
+            raise ValueError(f"« {vue.name} » : la colonne dérivée '{d.fonction}' porte sur un flux "
                              f"inconnu '{d.flux}'")
         d.sort_de_la_table          # lève si la fonction ou sa catégorie est inconnue
 
@@ -257,7 +257,7 @@ def appliquer(vue: Vue, ref: TemporalReferential) -> Resultat:
             entree = frame_depuis_referentiel(ref, d.flux, t0=vue.fenetre.t0, t1=vue.fenetre.t1)
         produit = spec.fn(entree, **dict(d.params))
         if d.sort_de_la_table:
-            out.annexes[d.nom or nom_annexe(d.flux, d.fonction)] = produit
+            out.annexes[d.name or nom_annexe(d.flux, d.fonction)] = produit
         else:
             out.tables[d.flux] = produit      # la fonction a adjoint sa colonne à l'entrée
     return out
@@ -274,9 +274,9 @@ def serie(vue: Vue, ref: TemporalReferential, flux: str, champ: str) -> List[dic
     et laisser un défaut implicite ferait tracer autre chose que ce que la vue déclare.
     """
     if not vue.fenetre.bornee:
-        raise ValueError(f"« {vue.nom} » : un tracé demande une fenêtre bornée (t0 et t1)")
+        raise ValueError(f"« {vue.name} » : un tracé demande une fenêtre bornée (t0 et t1)")
     if vue.fenetre.buckets <= 0:
-        raise ValueError(f"« {vue.nom} » : buckets doit être > 0 pour un tracé "
+        raise ValueError(f"« {vue.name} » : buckets doit être > 0 pour un tracé "
                          "(0 signifie « table, échantillons réels »)")
     valider(vue, ref)
     return ref.decimate_values(flux, vue.fenetre.t0, vue.fenetre.t1,

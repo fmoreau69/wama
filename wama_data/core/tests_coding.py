@@ -14,7 +14,7 @@ from .coding import (ETAT, MOD_NOMBRE, MOD_PLUSIEURS_PARMI, MOD_UN_PARMI, PONCTU
 
 def _protocole() -> Protocole:
     return Protocole(
-        nom='conduite',
+        name='conduite',
         comportements=(
             Comportement('AUTO', 'Conduite automatisée', ETAT, exclusif='mode', touche='a'),
             Comportement('MANUEL', 'Conduite manuelle', ETAT, exclusif='mode', touche='m'),
@@ -56,7 +56,7 @@ class ProtocoleTest(unittest.TestCase):
 class SessionTest(unittest.TestCase):
 
     def setUp(self):
-        self.s = SessionCodage(_protocole(), media='passation.mp4', codeur='humain')
+        self.s = SessionCodage(_protocole(), media='passation.mp4', coder='humain')
 
     def test_session_sans_media_refusee(self):
         with self.assertRaises(CodageRefuse):
@@ -155,7 +155,7 @@ class EtatOuvertTest(unittest.TestCase):
 
     def test_fermeture_de_fin_de_session_est_TRACEE(self):
         self.s.marquer(100.0, 'AUTO')
-        seg = self.s.segments(fin_de_session=180.0)[0]
+        seg = self.s.segments(session_end=180.0)[0]
         self.assertEqual(seg['end'], 180.0)
         self.assertEqual(seg['closed_at'], 180.0,
                          "une durée refermée d'office n'est pas une durée observée")
@@ -231,9 +231,9 @@ class CodageAUTOMATIQUETest(unittest.TestCase):
     def test_le_chemin_est_le_MEME(self):
         p = _protocole()
         gestes = [{'t': 0.0, 'code': 'MANUEL'}, {'t': 30.0, 'code': 'AUTO'},
-                  {'t': 45.0, 'code': 'FREINAGE', 'modificateurs': {'gravite': 'fort'}}]
-        humain, ev_h = rejouer(p, 'm.mp4', gestes, codeur='fabien', fin_de_session=60.0)
-        machine, ev_m = rejouer(p, 'm.mp4', gestes, codeur='qwen3-vl', fin_de_session=60.0)
+                  {'t': 45.0, 'code': 'FREINAGE', 'modifiers': {'gravite': 'fort'}}]
+        humain, ev_h = rejouer(p, 'm.mp4', gestes, coder='fabien', session_end=60.0)
+        machine, ev_m = rejouer(p, 'm.mp4', gestes, coder='qwen3-vl', session_end=60.0)
 
         self.assertEqual([(x['value'], x['start'], x['end']) for x in humain],
                          [(x['value'], x['start'], x['end']) for x in machine],
@@ -246,14 +246,14 @@ class CodageAUTOMATIQUETest(unittest.TestCase):
     def test_le_protocole_contraint_AUSSI_la_machine(self):
         # Une proposition de modèle hors éthogramme est refusée exactement comme un doigt qui glisse.
         with self.assertRaises(CodageRefuse):
-            rejouer(_protocole(), 'm.mp4', [{'t': 0.0, 'code': 'HALLUCINATION'}], codeur='llm')
+            rejouer(_protocole(), 'm.mp4', [{'t': 0.0, 'code': 'HALLUCINATION'}], coder='llm')
 
     def test_accord_entre_deux_codages(self):
         p = _protocole()
         a, _ = rejouer(p, 'm.mp4', [{'t': 0.0, 'code': 'MANUEL'}, {'t': 30.0, 'code': 'AUTO'}],
-                       codeur='humain', fin_de_session=60.0)
+                       coder='humain', session_end=60.0)
         b, _ = rejouer(p, 'm.mp4', [{'t': 0.5, 'code': 'MANUEL'}, {'t': 34.0, 'code': 'AUTO'}],
-                       codeur='modele', fin_de_session=60.0)
+                       coder='modele', session_end=60.0)
         r = accord(a, b, tolerance=1.0)
         self.assertEqual((r['matched'], r['only_a'], r['only_b']), (1, 1, 1),
                          "MANUEL apparié à 0,5 s près ; AUTO décalé de 4 s reste non apparié")
@@ -262,9 +262,9 @@ class CodageAUTOMATIQUETest(unittest.TestCase):
     def test_accord_tolerance_plus_large(self):
         p = _protocole()
         a, _ = rejouer(p, 'm.mp4', [{'t': 0.0, 'code': 'MANUEL'}, {'t': 30.0, 'code': 'AUTO'}],
-                       fin_de_session=60.0)
+                       session_end=60.0)
         b, _ = rejouer(p, 'm.mp4', [{'t': 0.5, 'code': 'MANUEL'}, {'t': 34.0, 'code': 'AUTO'}],
-                       fin_de_session=60.0)
+                       session_end=60.0)
         self.assertEqual(accord(a, b, tolerance=5.0)['matched'], 2)
 
 
@@ -278,11 +278,11 @@ class AdaptateurDePortsTest(unittest.TestCase):
     """
 
     def setUp(self):
-        from ..functions.temporal.coding import codage_rejouer
+        from ..functions.temporal.coding import coding_replay
         from wama.common.catalog.data_types import DataType, TypedFrame
         import pandas as pd
-        self.codage_rejouer, self.DataType, self.TypedFrame, self.pd = (
-            codage_rejouer, DataType, TypedFrame, pd)
+        self.coding_replay, self.DataType, self.TypedFrame, self.pd = (
+            coding_replay, DataType, TypedFrame, pd)
         self.proto = _protocole().en_dict()
 
     def _frame(self, rows):
@@ -291,21 +291,21 @@ class AdaptateurDePortsTest(unittest.TestCase):
 
     def test_colonne_de_modificateur_vide_sur_les_autres_lignes(self):
         # `gravite` ne concerne que FREINAGE ; pandas la remplit de NaN pour AUTO.
-        out = self.codage_rejouer(
+        out = self.coding_replay(
             self._frame([{'time': 0.0, 'value': 'AUTO'},
                          {'time': 5.0, 'value': 'FREINAGE', 'gravite': 'fort'}]),
-            protocole=self.proto, fin_de_session=10.0)
+            protocole=self.proto, session_end=10.0)
         self.assertEqual(len(out.df), 1, "AUTO ne doit pas etre refuse a cause d'un NaN")
 
     def test_un_modificateur_REELLEMENT_hors_protocole_reste_refuse(self):
         # Le garde-fou qui arrete une hallucination de modele ne doit pas tomber avec le correctif.
         with self.assertRaises(CodageRefuse):
-            self.codage_rejouer(
+            self.coding_replay(
                 self._frame([{'time': 0.0, 'value': 'AUTO', 'meteo': 'pluie'}]),
                 protocole=self.proto)
 
     def test_la_fin_inconnue_survit_a_l_aller_retour_pandas(self):
-        out = self.codage_rejouer(self._frame([{'time': 0.0, 'value': 'AUTO'}]),
+        out = self.coding_replay(self._frame([{'time': 0.0, 'value': 'AUTO'}]),
                                   protocole=self.proto)
         self.assertIsNone(out.df.iloc[0]['end'],
                           "un etat ouvert doit rester None, jamais devenir NaN")

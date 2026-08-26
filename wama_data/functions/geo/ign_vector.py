@@ -112,7 +112,7 @@ def fetch_buildings(lat: float, lon: float, radius_m: float = 300.0):
 def fetch_roads(lat: float, lon: float, radius_m: float = 300.0):
     """Tronçons de route BD TOPO autour d'un point.
 
-    Retourne [{'coords': [(lon, lat), …], 'nature': str|None, 'nom': str|None,
+    Retourne [{'coords': [(lon, lat), …], 'nature': str|None, 'name': str|None,
                'sens': str|None, 'largeur': m|None}].
     """
     out = []
@@ -204,7 +204,7 @@ def road_branches_at(lat: float, lon: float, axis_bearing_deg: float,
     180° : au-delà de `cross_min_deg` d'écart, la branche est dite CROISANTE.
 
     Retourne [{'coords', 'bearing_deg', 'delta_deg', 'is_crossing', 'dist_m',
-               'largeur', 'nature', 'nom'}], trié du plus proche au plus lointain.
+               'largeur', 'nature', 'name'}], trié du plus proche au plus lointain.
 
     Remplace avantageusement une bande perpendiculaire symétrique « aveugle » : la géométrie
     et la largeur viennent du référentiel, et restent justes même sans trafic observé.
@@ -229,7 +229,7 @@ def road_branches_at(lat: float, lon: float, axis_bearing_deg: float,
             'dist_m': round(dist, 1),
             'largeur': r.get('largeur'),
             'nature': r.get('nature'),
-            'nom': r.get('nom'),
+            'name': r.get('name'),
         })
     out.sort(key=lambda x: x['dist_m'])
     return out
@@ -312,7 +312,7 @@ SPEC_ROADS = register(FunctionSpec(
     tags=['geo', 'ign', 'reference', 'network', 'france'],
     inputs=[],
     outputs=[PortSpec('road_map', DataType.ROAD_MAP,
-                      produced_fields=['coords', 'nature', 'nom', 'sens', 'largeur'],
+                      produced_fields=['coords', 'nature', 'name', 'sens', 'largeur'],
                       cardinality='many',
                       description='Polylignes routières lon/lat + attributs.')],
     params=_LOC_PARAMS,
@@ -333,7 +333,7 @@ SPEC_BRANCHES = register(FunctionSpec(
     inputs=[],
     outputs=[PortSpec('branches', DataType.ROAD_MAP,
                       produced_fields=['coords', 'bearing_deg', 'delta_deg', 'is_crossing',
-                                       'dist_m', 'largeur', 'nature', 'nom'],
+                                       'dist_m', 'largeur', 'nature', 'name'],
                       cardinality='many')],
     params=_LOC_PARAMS + [
         ParamSpec('axis_bearing_deg', 'float', None, 0.0, 360.0, unit='°',

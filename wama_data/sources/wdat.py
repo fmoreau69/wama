@@ -100,11 +100,11 @@ class WdatReader(SqliteSourceReader):
         voulus = list(streams) if streams is not None else sorted(declares)
         out: List[StreamSpec] = []
 
-        for nom in voulus:
-            d = declares.get(nom)
+        for name in voulus:
+            d = declares.get(name)
             if d is None:
                 raise ValueError(
-                    f"'{nom}' n'est pas un flux de cette source "
+                    f"'{name}' n'est pas un flux de cette source "
                     f"(déclarés : {', '.join(sorted(declares)) or '—'})")
             table = d['table']
             cols = self._columns(path, table)
@@ -115,18 +115,18 @@ class WdatReader(SqliteSourceReader):
                 continue   # table sans axe temporel : hors périmètre du référentiel
 
             times = self._values(path, table, tcol, tcol)
-            ts = timestampers.get(nom) or timestampers.get(table)
+            ts = timestampers.get(name) or timestampers.get(table)
             if ts is not None:
                 # Ré-horodatage À LA DEMANDE — tous les échantillons conservés, seules leurs
                 # étiquettes recalculées. Jamais appliqué d'office.
                 times = [ts.timestamp(t, i, t) for i, t in enumerate(times)]
 
             meta = SignalMeta(
-                name=nom,
+                name=name,
                 data_type=d['data_type'],
                 fs=self._frequence(d['fs']),
                 pertes=int(d['losses'] or 0),
-                units=unites.get(nom, {}),
+                units=unites.get(name, {}),
                 is_base=d['is_base'],
                 default_lookup=d['default_lookup'] or NEAREST,
                 comments=d['comments'] or '',
@@ -162,10 +162,10 @@ class WdatReader(SqliteSourceReader):
         """
         out: Dict[str, Dict[str, str]] = {}
         with self._open(path) as con:
-            for flux, colonne, unite in con.execute(
+            for flux, column, unite in con.execute(
                     'SELECT stream, name, unit FROM "WamaVariables"'):
                 if unite:
-                    out.setdefault(flux, {})[colonne] = unite
+                    out.setdefault(flux, {})[column] = unite
         return out
 
 

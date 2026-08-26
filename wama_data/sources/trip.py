@@ -119,17 +119,17 @@ class TripReader(SqliteSourceReader):
 
             medias: List[Dict[str, Any]] = []
             try:
-                for nom, offset, desc in con.execute(
+                for name, offset, desc in con.execute(
                         'SELECT filename, offset, description FROM "MetaTripVideos"'):
-                    medias.append({'file': nom, 'offset': offset, 'description': desc})
+                    medias.append({'file': name, 'offset': offset, 'description': desc})
             except sqlite3.Error:
                 pass
 
             declares = {}
             try:
-                for nom, typ, freq, base in con.execute(
+                for name, typ, freq, base in con.execute(
                         'SELECT name, type, frequency, isBase FROM "MetaDatas"'):
-                    declares[nom] = {'type': typ, 'frequency': freq, 'is_base': bool(base)}
+                    declares[name] = {'type': typ, 'frequency': freq, 'is_base': bool(base)}
             except sqlite3.Error:
                 pass
 
@@ -157,22 +157,22 @@ class TripReader(SqliteSourceReader):
         for demande in voulus:
             table = self._table_pour(index, demande)
             famille = next((f for p, f in _PREFIXES.items() if table.startswith(p)), None)
-            nom = table.split('_', 1)[1]
+            name = table.split('_', 1)[1]
             cols = self._columns(path, table)
             tcol = 'startTimecode' if famille == 'situation' else 'timecode'
             if tcol not in cols:
                 continue   # table sans colonne temporelle : hors périmètre du référentiel
 
             times = self._values(path, table, tcol, tcol)
-            ts = timestampers.get(table) or timestampers.get(nom)
+            ts = timestampers.get(table) or timestampers.get(name)
             if ts is not None:
                 # Ré-horodatage À LA DEMANDE : on conserve tous les échantillons, on recalcule
                 # seulement leurs étiquettes. Jamais appliqué d'office.
                 times = [ts.timestamp(t, i, t) for i, t in enumerate(times)]
 
-            d = declares.get(nom, {})
+            d = declares.get(name, {})
             meta = SignalMeta(
-                name=nom,
+                name=name,
                 data_type=_TYPE_DE_FAMILLE.get(famille, ''),
                 fs=self._frequence(d.get('frequency')),
                 is_base=d.get('is_base', True),
@@ -193,7 +193,7 @@ class TripReader(SqliteSourceReader):
                 rows=self._row_accessor(path, table, tcol),
                 extent=self._extent_accessor(path, table, tcol),
                 extents=self._extents_accessor(path, table, tcol),
-                offset=offsets.get(nom, 0.0),
+                offset=offsets.get(name, 0.0),
             ))
         return out
 

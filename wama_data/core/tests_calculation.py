@@ -19,33 +19,33 @@ class VocabulaireCommunTest(unittest.TestCase):
         times = [0.0, 1.0, 2.0, 3.0, 4.0]
         valeurs = [10.0, 20.0, 30.0, 40.0, 50.0]
         # Mode ② sur un segment couvrant tout, et mode ① sur une fenêtre couvrant tout.
-        segment = par_segment([{'start': 0.0, 'end': 4.0}], times, valeurs, ['moyenne'])[0]
-        fenetre = glissant(times, valeurs, 100.0, 'moyenne')[2]
-        self.assertEqual(segment['moyenne'], fenetre)
-        self.assertEqual(segment['moyenne'], 30.0)
+        segment = par_segment([{'start': 0.0, 'end': 4.0}], times, valeurs, ['mean'])[0]
+        fenetre = glissant(times, valeurs, 100.0, 'mean')[2]
+        self.assertEqual(segment['mean'], fenetre)
+        self.assertEqual(segment['mean'], 30.0)
 
     def test_une_statistique_inconnue_NOMME_les_disponibles(self):
         # Un message qui dit seulement « inconnue » oblige à ouvrir le code pour écrire la suite.
         with self.assertRaises(ValueError) as e:
             appliquer('moyenne_geometrique', [1.0])
-        self.assertIn('moyenne', str(e.exception))
+        self.assertIn('mean', str(e.exception))
 
     def test_le_minimum_de_points_est_DECLARE_pas_decide_par_l_appelant(self):
         # `delta` sur un seul point vaudrait 0 — « pas de variation » alors qu'on n'a rien observé.
         self.assertIsNone(appliquer('delta', [5.0]))
         self.assertEqual(appliquer('delta', [5.0, 8.0]), 3.0)
-        self.assertIsNone(appliquer('ecart_type', [5.0]))
+        self.assertIsNone(appliquer('stddev', [5.0]))
         # `nombre` est le seul défini sur l'ensemble vide : compter zéro mesure est une réponse.
-        self.assertEqual(appliquer('nombre', []), 0)
-        self.assertIsNone(appliquer('moyenne', []))
+        self.assertEqual(appliquer('count', []), 0)
+        self.assertIsNone(appliquer('mean', []))
 
     def test_toute_statistique_declaree_est_calculable(self):
         # Garde anti-« vert sur du vide » : le jour où l'on en ajoute une, elle est éprouvée ici
         # sans qu'on ait à y penser.
         self.assertGreaterEqual(len(STATISTIQUES), 10)
-        for nom in STATISTIQUES:
-            with self.subTest(statistique=nom):
-                self.assertIsNotNone(appliquer(nom, [1.0, 2.0, 3.0]))
+        for name in STATISTIQUES:
+            with self.subTest(statistic=name):
+                self.assertIsNotNone(appliquer(name, [1.0, 2.0, 3.0]))
 
 
 class GlissantTest(unittest.TestCase):
@@ -56,42 +56,42 @@ class GlissantTest(unittest.TestCase):
         Une fenêtre en nombre d'échantillons donnerait ici deux résultats différents pour la même
         question — et c'est précisément ce que WAMA Data existe pour éviter.
         """
-        lent = glissant([0.0, 1.0, 2.0], [0.0, 10.0, 20.0], 2.0, 'moyenne')
-        rapide = glissant([0.0, 0.5, 1.0, 1.5, 2.0], [0.0, 5.0, 10.0, 15.0, 20.0], 2.0, 'moyenne')
+        lent = glissant([0.0, 1.0, 2.0], [0.0, 10.0, 20.0], 2.0, 'mean')
+        rapide = glissant([0.0, 0.5, 1.0, 1.5, 2.0], [0.0, 5.0, 10.0, 15.0, 20.0], 2.0, 'mean')
         self.assertEqual(lent[1], 10.0)
         self.assertEqual(rapide[2], 10.0)
 
     def test_la_fenetre_causale_ne_lit_PAS_l_avenir(self):
         times = [0.0, 1.0, 2.0, 3.0]
         valeurs = [0.0, 0.0, 100.0, 100.0]
-        causale = glissant(times, valeurs, 1.0, 'moyenne', centre=False)
+        causale = glissant(times, valeurs, 1.0, 'mean', centered=False)
         # À t=1 le saut n'a pas encore eu lieu : une fenêtre causale l'ignore.
         self.assertEqual(causale[1], 0.0)
-        centree = glissant(times, valeurs, 2.0, 'moyenne', centre=True)
+        centree = glissant(times, valeurs, 2.0, 'mean', centered=True)
         self.assertGreater(centree[1], 0.0, "une fenêtre centrée voit l'échantillon suivant")
 
     def test_un_trou_ne_produit_pas_une_valeur_calculee_sur_un_point(self):
         times = [0.0, 1.0, 2.0, 10.0]
         valeurs = [1.0, 2.0, 3.0, 99.0]
-        sortie = glissant(times, valeurs, 2.0, 'moyenne', min_points=2)
+        sortie = glissant(times, valeurs, 2.0, 'mean', min_points=2)
         self.assertIsNone(sortie[3], "isolé dans sa fenêtre — donc pas de statistique")
         self.assertIsNotNone(sortie[1])
 
     def test_une_valeur_absente_est_ignoree_et_non_comptee_pour_zero(self):
         times = [0.0, 1.0, 2.0]
-        sortie = glissant(times, [10.0, None, 20.0], 10.0, 'moyenne')
+        sortie = glissant(times, [10.0, None, 20.0], 10.0, 'mean')
         self.assertEqual(sortie[0], 15.0, "la moyenne porte sur les valeurs PRÉSENTES")
-        sortie_nan = glissant(times, [10.0, float('nan'), 20.0], 10.0, 'moyenne')
+        sortie_nan = glissant(times, [10.0, float('nan'), 20.0], 10.0, 'mean')
         self.assertEqual(sortie_nan[0], 15.0, "NaN est une absence, pas une valeur")
 
     def test_une_fenetre_entierement_absente_rend_absent_et_non_zero(self):
-        sortie = glissant([0.0, 1.0], [None, None], 10.0, 'moyenne')
+        sortie = glissant([0.0, 1.0], [None, None], 10.0, 'mean')
         self.assertEqual(sortie, [None, None])
 
     def test_la_colonne_produite_reste_alignee_sur_le_signal(self):
         # Condition pour pouvoir l'adjoindre : une longueur différente serait inexploitable.
         times = [0.0, 1.0, 2.0, 3.0, 4.0]
-        self.assertEqual(len(glissant(times, [1.0] * 5, 2.0, 'moyenne')), len(times))
+        self.assertEqual(len(glissant(times, [1.0] * 5, 2.0, 'mean')), len(times))
 
     def test_des_temps_non_croissants_sont_REFUSES(self):
         # Le résultat serait faux sans erreur — la dichotomie suppose l'ordre.
@@ -157,57 +157,57 @@ class ParSegmentTest(unittest.TestCase):
 
     def test_un_jeu_d_indicateurs_par_segment_dans_l_ordre_recu(self):
         jeux = par_segment([{'start': 0.0, 'end': 1.0}, {'start': 3.0, 'end': 4.0}],
-                           self.TIMES, self.VALEURS, ['moyenne'])
-        self.assertEqual([j['moyenne'] for j in jeux], [15.0, 45.0])
+                           self.TIMES, self.VALEURS, ['mean'])
+        self.assertEqual([j['mean'] for j in jeux], [15.0, 45.0])
 
     def test_les_bornes_sont_INCLUSIVES_des_deux_cotes(self):
         # Même convention que `chevauche` du Segmenter — deux conventions se contrediraient.
-        jeu = par_segment([{'start': 1.0, 'end': 2.0}], self.TIMES, self.VALEURS, ['nombre'])[0]
-        self.assertEqual(jeu['nombre'], 2)
+        jeu = par_segment([{'start': 1.0, 'end': 2.0}], self.TIMES, self.VALEURS, ['count'])[0]
+        self.assertEqual(jeu['count'], 2)
 
     def test_un_segment_SANS_echantillon_rend_absent_et_non_zero(self):
         """La faute qui remplit une colonne de zéros crédibles là où il n'y a pas eu de mesure."""
         jeu = par_segment([{'start': 100.0, 'end': 200.0}], self.TIMES, self.VALEURS,
-                          ['moyenne', 'somme'])[0]
-        self.assertIsNone(jeu['moyenne'])
-        self.assertIsNone(jeu['somme'], "la somme de rien n'est pas 0")
+                          ['mean', 'sum'])[0]
+        self.assertIsNone(jeu['mean'])
+        self.assertIsNone(jeu['sum'], "la somme de rien n'est pas 0")
         self.assertEqual(jeu['n'], 0, "`n` dit POURQUOI l'indicateur est absent")
 
     def test_un_segment_OUVERT_n_a_pas_de_duree_observee(self):
         """Doctrine héritée du codage : une durée refermée par la fin de l'enregistrement n'est
         pas une durée mesurée. Les confondre fausse toute statistique de durée."""
-        jeu = par_segment([{'start': 2.0, 'end': None}], self.TIMES, self.VALEURS, ['moyenne'])[0]
-        self.assertIsNone(jeu['duree'])
-        self.assertTrue(jeu['tronque'])
-        self.assertEqual(jeu['moyenne'], 40.0, "il agrège tout de même jusqu'au dernier échantillon")
+        jeu = par_segment([{'start': 2.0, 'end': None}], self.TIMES, self.VALEURS, ['mean'])[0]
+        self.assertIsNone(jeu['duration'])
+        self.assertTrue(jeu['truncated'])
+        self.assertEqual(jeu['mean'], 40.0, "il agrège tout de même jusqu'au dernier échantillon")
 
     def test_un_segment_ferme_porte_sa_duree_et_n_est_pas_tronque(self):
-        jeu = par_segment([{'start': 1.0, 'end': 3.0}], self.TIMES, self.VALEURS, ['moyenne'])[0]
-        self.assertEqual(jeu['duree'], 2.0)
-        self.assertFalse(jeu['tronque'])
+        jeu = par_segment([{'start': 1.0, 'end': 3.0}], self.TIMES, self.VALEURS, ['mean'])[0]
+        self.assertEqual(jeu['duration'], 2.0)
+        self.assertFalse(jeu['truncated'])
 
     def test_une_fin_en_NaN_est_lue_comme_OUVERTE(self):
         # Le piège pandas : `None` mêlé à des flottants devient `NaN` à l'aller-retour.
         jeu = par_segment([{'start': 2.0, 'end': float('nan')}], self.TIMES, self.VALEURS)[0]
-        self.assertTrue(jeu['tronque'])
-        self.assertIsNone(jeu['duree'])
+        self.assertTrue(jeu['truncated'])
+        self.assertIsNone(jeu['duration'])
 
     def test_plusieurs_statistiques_en_une_passe(self):
         jeu = par_segment([{'start': 0.0, 'end': 4.0}], self.TIMES, self.VALEURS,
-                          ['moyenne', 'min', 'max', 'nombre'])[0]
-        self.assertEqual((jeu['moyenne'], jeu['min'], jeu['max'], jeu['nombre']),
+                          ['mean', 'min', 'max', 'count'])[0]
+        self.assertEqual((jeu['mean'], jeu['min'], jeu['max'], jeu['count']),
                          (30.0, 10.0, 50.0, 5))
 
     def test_les_champs_de_service_accompagnent_TOUJOURS_le_resultat(self):
         jeu = par_segment([{'start': 0.0, 'end': 1.0}], self.TIMES, self.VALEURS)[0]
-        for champ in ('n', 'duree', 'tronque'):
+        for champ in ('n', 'duration', 'truncated'):
             self.assertIn(champ, jeu)
 
     def test_les_valeurs_absentes_ne_comptent_pas_dans_n(self):
         jeu = par_segment([{'start': 0.0, 'end': 2.0}], [0.0, 1.0, 2.0], [10.0, None, 30.0],
-                          ['moyenne'])[0]
+                          ['mean'])[0]
         self.assertEqual(jeu['n'], 2)
-        self.assertEqual(jeu['moyenne'], 20.0)
+        self.assertEqual(jeu['mean'], 20.0)
 
     def test_aucun_segment_rend_aucun_jeu(self):
         self.assertEqual(par_segment([], self.TIMES, self.VALEURS), [])

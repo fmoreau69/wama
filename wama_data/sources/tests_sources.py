@@ -135,10 +135,10 @@ class GardeFouG1Test(unittest.TestCase):
             with self.assertRaises(ImportError):
                 importlib.import_module('wama_data.sources.zz_casse_g1')
 
-            avant = dict(sources.READERS)
+            before = dict(sources.READERS)
             with self.assertLogs('wama_data.sources', level='WARNING'):
                 sources._register_builtins()          # ne doit PAS lever
-            self.assertEqual(dict(sources.READERS), avant,
+            self.assertEqual(dict(sources.READERS), before,
                              "les lecteurs sains doivent être intacts")
         finally:
             casse.unlink(missing_ok=True)

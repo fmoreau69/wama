@@ -20,9 +20,9 @@ class OperateursTest(unittest.TestCase):
         # L'outil d'origine en déclare 16 (relevé ligne 5030 de son source) : 6 d'ordre, 8 de
         # texte, 2 de présence. Les deux égalités dédoublées (numérique / texte) fusionnent.
         self.assertEqual(len(OPERATEURS), 14)
-        for attendu in ('<', '<=', '>', '>=', '==', '!=', 'contient', 'ne_contient_pas',
-                        'commence_par', 'ne_commence_pas_par', 'finit_par', 'ne_finit_pas_par',
-                        'vide', 'non_vide'):
+        for attendu in ('<', '<=', '>', '>=', '==', '!=', 'contains', 'not_contains',
+                        'startswith', 'not_startswith', 'endswith', 'not_endswith',
+                        'empty', 'not_empty'):
             self.assertIn(attendu, OPERATEURS)
 
     def test_une_colonne_texte_ne_propose_PAS_les_comparaisons_d_ordre(self):
@@ -30,16 +30,16 @@ class OperateursTest(unittest.TestCase):
         proposes = operateurs_pour(TEXTE)
         for interdit in ('<', '<=', '>', '>='):
             self.assertNotIn(interdit, proposes)
-        self.assertIn('contient', proposes)
+        self.assertIn('contains', proposes)
 
     def test_une_colonne_numerique_ne_propose_PAS_les_operateurs_de_texte(self):
         proposes = operateurs_pour(NUMERIQUE)
-        self.assertNotIn('contient', proposes)
+        self.assertNotIn('contains', proposes)
         self.assertIn('>=', proposes)
 
     def test_l_egalite_et_la_presence_valent_pour_toutes_les_sortes(self):
         for sorte in (NUMERIQUE, TEXTE, BOOLEEN):
-            for partout in ('==', '!=', 'vide', 'non_vide'):
+            for partout in ('==', '!=', 'empty', 'not_empty'):
                 self.assertIn(partout, operateurs_pour(sorte))
 
     def test_sorte_inconnue_refusee(self):
@@ -52,53 +52,53 @@ class ConditionTest(unittest.TestCase):
 
     def test_condition_texte_contient(self):
         c = Condition(cle='C1', flux='commentaires_simu', champ='texte',
-                      operateur='contient', valeur='FIN', sorte=TEXTE)
+                      operator='contains', valeur='FIN', sorte=TEXTE)
         self.assertEqual(c.evaluer(['DEBUT', 'la FIN', '', None]), [False, True, False, False])
 
     def test_condition_numerique_seuil(self):
-        c = Condition(cle='C1', champ='vitesse', operateur='>=', valeur=30.0)
+        c = Condition(cle='C1', champ='vitesse', operator='>=', valeur=30.0)
         self.assertEqual(c.evaluer([10.0, 30.0, 50.0]), [False, True, True])
 
     def test_operateur_d_ordre_sur_colonne_texte_REFUSE(self):
         # LE défaut central : l'outil d'origine l'accepte et MATLAB compare alors les codes des
         # caractères, produisant un masque plausible et faux.
         with self.assertRaises(ValueError) as ctx:
-            Condition(cle='C1', champ='commentaire', operateur='<', valeur='M', sorte=TEXTE)
+            Condition(cle='C1', champ='comment', operator='<', valeur='M', sorte=TEXTE)
         # Le message doit ORIENTER, pas seulement refuser.
-        self.assertIn('contient', str(ctx.exception))
+        self.assertIn('contains', str(ctx.exception))
 
     def test_une_valeur_absente_ne_satisfait_jamais_une_comparaison(self):
-        c = Condition(cle='C1', champ='vitesse', operateur='<', valeur=10.0)
+        c = Condition(cle='C1', champ='vitesse', operator='<', valeur=10.0)
         self.assertEqual(c.evaluer([None, float('nan'), 5.0]), [False, False, True])
 
     def test_une_valeur_absente_ne_CONTIENT_rien(self):
         # `str(None)` vaudrait 'None' et contiendrait « on » : une absence se mettrait à
         # satisfaire des conditions.
-        c = Condition(cle='C1', champ='txt', operateur='contient', valeur='on', sorte=TEXTE)
+        c = Condition(cle='C1', champ='txt', operator='contains', valeur='on', sorte=TEXTE)
         self.assertEqual(c.evaluer([None, 'bonjour']), [False, True])
 
     def test_operateur_sans_operande_refuse_une_valeur(self):
         with self.assertRaises(ValueError):
-            Condition(cle='C1', champ='txt', operateur='vide', valeur='x', sorte=TEXTE)
+            Condition(cle='C1', champ='txt', operator='empty', valeur='x', sorte=TEXTE)
 
     def test_operateur_avec_operande_exige_une_valeur(self):
         with self.assertRaises(ValueError):
-            Condition(cle='C1', champ='vitesse', operateur='>=')
+            Condition(cle='C1', champ='vitesse', operator='>=')
 
     def test_vide_et_non_vide_sont_complementaires(self):
         vals = [None, '', 'x', 0, float('nan')]
-        v = Condition(cle='C1', champ='c', operateur='vide', sorte=TEXTE).evaluer(vals)
-        nv = Condition(cle='C2', champ='c', operateur='non_vide', sorte=TEXTE).evaluer(vals)
+        v = Condition(cle='C1', champ='c', operator='empty', sorte=TEXTE).evaluer(vals)
+        nv = Condition(cle='C2', champ='c', operator='not_empty', sorte=TEXTE).evaluer(vals)
         self.assertEqual(v, [not b for b in nv])
 
     def test_operateur_inconnu_refuse_en_nommant_les_disponibles(self):
         with self.assertRaises(ValueError) as ctx:
-            Condition(cle='C1', champ='v', operateur='≥', valeur=1)
+            Condition(cle='C1', champ='v', operator='≥', valeur=1)
         self.assertIn('>=', str(ctx.exception))
 
     def test_rendu_lisible(self):
         c = Condition(cle='C1', flux='commentaires_simu', champ='texte',
-                      operateur='contient', valeur='FIN', sorte=TEXTE)
+                      operator='contains', valeur='FIN', sorte=TEXTE)
         self.assertEqual(c.rendre(), 'commentaires_simu.texte contient « FIN »')
 
 
@@ -111,7 +111,7 @@ class SerialisationTest(unittest.TestCase):
 
     def _c(self):
         return Condition(cle='C1', flux='commentaires_simu', champ='texte',
-                         operateur='contient', valeur='FIN', sorte=TEXTE)
+                         operator='contains', valeur='FIN', sorte=TEXTE)
 
     def test_aller_retour_fidele(self):
         c = self._c()
@@ -130,7 +130,7 @@ class SerialisationTest(unittest.TestCase):
 
     def test_une_condition_relue_est_VALIDEE(self):
         # `<` sur une colonne texte doit être refusé à la relecture comme à la construction.
-        brut = {'cle': 'C1', 'flux': 't', 'champ': 'c', 'operateur': '<', 'valeur': 'M'}
+        brut = {'key': 'C1', 'stream': 't', 'field': 'c', 'operator': '<', 'value': 'M'}
         with self.assertRaises(ValueError):
             condition_depuis_dict(brut, sorte=TEXTE)
 
@@ -174,7 +174,7 @@ class ArbreTest(unittest.TestCase):
 
     def test_noeud_malforme_refuse(self):
         with self.assertRaises(ValueError):
-            valider({'operateur': 'ET'}, self.CLES)
+            valider({'operator': 'ET'}, self.CLES)
         with self.assertRaises(ValueError):
             valider({'op': 'ET', 'args': []}, self.CLES)
 

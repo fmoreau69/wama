@@ -89,7 +89,7 @@ def load_road_map_csv(path):
         geom = _parse_linestring(str(r.get('WKT', '')))
         if len(geom) < 2:
             continue
-        rows.append({'id': r.get('nom'), 'type': (r.get('description') or None),
+        rows.append({'id': r.get('name'), 'type': (r.get('description') or None),
                      'geometry': geom})
     df = pd.DataFrame(rows)
     return TypedFrame(df, DataType.ROAD_MAP, meta={'source': str(path)})

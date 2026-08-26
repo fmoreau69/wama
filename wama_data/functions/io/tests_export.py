@@ -33,7 +33,7 @@ FRAMES = {
 META = {'trip_id': 'REC_20190502', 'participant': 'P07'}
 
 DECL = Declaration(
-    nom='situations',
+    name='situations',
     colonnes=(Colonne('sit_0_15', 'start'),
               Colonne('sit_0_15', 'label'),
               Colonne('indicateurs', 'vitesse_moyenne')),
@@ -101,7 +101,7 @@ class EcritureTest(unittest.TestCase):
 
     def test_un_format_non_separe_par_un_caractere_est_REFUSE_explicitement(self):
         # Rendre un CSV sous une extension `.xlsx` serait pire que refuser.
-        decl = Declaration(nom='x', colonnes=(Colonne('sit_0_15', 'start'),),
+        decl = Declaration(name='x', colonnes=(Colonne('sit_0_15', 'start'),),
                            identite=Identite(()), format='xlsx')
         f = exporter_frames([decl], {'A': FRAMES}, {'A': META})
         with tempfile.TemporaryDirectory() as d:

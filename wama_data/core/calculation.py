@@ -55,41 +55,41 @@ def _ecart_type(vals: List[float]) -> float:
 #: Le minimum est déclaré et non codé dans les appelants — c'est lui qui décide `None` vs valeur,
 #: et le laisser à chaque appelant produirait deux réponses différentes pour la même question.
 STATISTIQUES: Dict[str, Tuple[Callable[[List[float]], Any], int]] = {
-    'moyenne':    (lambda v: _stats.fmean(v), 1),
-    'mediane':    (lambda v: _stats.median(v), 1),
+    'mean':    (lambda v: _stats.fmean(v), 1),
+    'median':    (lambda v: _stats.median(v), 1),
     'min':        (min, 1),
     'max':        (max, 1),
-    'somme':      (lambda v: float(sum(v)), 1),
-    'etendue':    (lambda v: max(v) - min(v), 1),
-    'premier':    (lambda v: v[0], 1),
-    'dernier':    (lambda v: v[-1], 1),
+    'sum':      (lambda v: float(sum(v)), 1),
+    'range':    (lambda v: max(v) - min(v), 1),
+    'first':    (lambda v: v[0], 1),
+    'last':    (lambda v: v[-1], 1),
     # `delta` a besoin de deux points : avec un seul il vaudrait 0, ce qui se lirait « pas de
     # variation » alors qu'on n'a rien pu observer.
     'delta':      (lambda v: v[-1] - v[0], 2),
-    'ecart_type': (_ecart_type, 2),
+    'stddev': (_ecart_type, 2),
     # `nombre` est le seul défini sur l'ensemble vide : compter zéro mesure est une réponse.
-    'nombre':     (len, 0),
+    'count':     (len, 0),
 }
 
 #: Statistique par défaut — celle que l'on veut dans l'immense majorité des cas.
-DEFAUT = 'moyenne'
+DEFAUT = 'mean'
 
 
-def _verifier(nom: str) -> Tuple[Callable, int]:
+def _verifier(name: str) -> Tuple[Callable, int]:
     try:
-        return STATISTIQUES[nom]
+        return STATISTIQUES[name]
     except KeyError:
         raise ValueError(
-            f"statistique '{nom}' inconnue (disponibles : {', '.join(sorted(STATISTIQUES))})")
+            f"statistique '{name}' inconnue (disponibles : {', '.join(sorted(STATISTIQUES))})")
 
 
-def appliquer(nom: str, valeurs: Sequence[Any]) -> Optional[float]:
+def appliquer(name: str, valeurs: Sequence[Any]) -> Optional[float]:
     """UNE statistique sur des valeurs éventuellement absentes. `None` si le minimum n'est pas tenu.
 
     Point de passage unique des deux modes : c'est ce qui garantit que « moyenne » signifie la
     même chose dans une fenêtre glissante et dans un segment.
     """
-    calcul, minimum = _verifier(nom)
+    calcul, minimum = _verifier(name)
     vals = presentes(valeurs)
     if len(vals) < minimum:
         return None
@@ -114,8 +114,8 @@ def _croissants(times: Sequence[float]) -> None:
 # ① COLONNES DÉRIVÉES — signal → signal, même longueur, mêmes temps
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 
-def glissant(times: Sequence[float], valeurs: Sequence[Any], fenetre_s: float,
-             statistique: str = DEFAUT, *, centre: bool = True,
+def glissant(times: Sequence[float], valeurs: Sequence[Any], window_s: float,
+             statistic: str = DEFAUT, *, centered: bool = True,
              min_points: int = 1) -> List[Optional[float]]:
     """Statistique sur une fenêtre GLISSANTE exprimée en secondes.
 
@@ -132,25 +132,25 @@ def glissant(times: Sequence[float], valeurs: Sequence[Any], fenetre_s: float,
     Rend une liste de la longueur de `times` : la colonne reste alignée sur le signal d'origine,
     ce qui est la condition pour l'y adjoindre.
     """
-    if fenetre_s <= 0:
+    if window_s <= 0:
         raise ValueError("la fenêtre doit être une durée strictement positive (en secondes)")
-    _verifier(statistique)
+    _verifier(statistic)
     _croissants(times)
     if len(times) != len(valeurs):
         raise ValueError(f"temps et valeurs de longueurs différentes ({len(times)} ≠ {len(valeurs)})")
 
-    avant, apres = (fenetre_s / 2.0, fenetre_s / 2.0) if centre else (fenetre_s, 0.0)
+    before, after = (window_s / 2.0, window_s / 2.0) if centered else (window_s, 0.0)
     ts = list(times)
     sortie: List[Optional[float]] = []
     for i, t in enumerate(ts):
         # Bornes INCLUSIVES des deux côtés — même convention que `chevauche` du Segmenter.
-        lo = bisect_left(ts, t - avant)
-        hi = bisect_right(ts, t + apres)
+        lo = bisect_left(ts, t - before)
+        hi = bisect_right(ts, t + after)
         fenetre = presentes(valeurs[lo:hi])
         if len(fenetre) < max(1, min_points):
             sortie.append(None)
             continue
-        sortie.append(appliquer(statistique, fenetre))
+        sortie.append(appliquer(statistic, fenetre))
     return sortie
 
 
@@ -216,7 +216,7 @@ def cumul(times: Sequence[float], valeurs: Sequence[Any]) -> List[Optional[float
 #: Champs de service ajoutés à CHAQUE jeu d'indicateurs, en plus des statistiques demandées.
 #: Ils ne sont pas optionnels : sans eux un `None` est indéchiffrable — pas de mesure dans la
 #: fenêtre, ou fenêtre jamais refermée ? Les deux se corrigent différemment.
-CHAMPS_DE_SERVICE = ('n', 'duree', 'tronque')
+CHAMPS_DE_SERVICE = ('n', 'duration', 'truncated')
 
 
 def echantillons_du_segment(segment: Dict[str, Any], times: Sequence[float],
@@ -235,7 +235,7 @@ def echantillons_du_segment(segment: Dict[str, Any], times: Sequence[float],
 
 
 def par_segment(segments: Sequence[Dict[str, Any]], times: Sequence[float], valeurs: Sequence[Any],
-                statistiques: Sequence[str] = (DEFAUT,)) -> List[Dict[str, Any]]:
+                statistics: Sequence[str] = (DEFAUT,)) -> List[Dict[str, Any]]:
     """Un jeu d'indicateurs PAR SEGMENT, dans l'ordre reçu.
 
     Rend une liste de dicts — les indicateurs SEULS, sans recopier le segment. L'adjonction aux
@@ -250,8 +250,8 @@ def par_segment(segments: Sequence[Dict[str, Any]], times: Sequence[float], vale
     `n` vaut 0. C'est un résultat légitime (la mesure n'a pas couvert cette plage) et le taire
     obligerait l'appelant à réaligner deux listes de longueurs différentes.
     """
-    for nom in statistiques:
-        _verifier(nom)
+    for name in statistics:
+        _verifier(name)
     _croissants(times)
     if len(times) != len(valeurs):
         raise ValueError(f"temps et valeurs de longueurs différentes ({len(times)} ≠ {len(valeurs)})")
@@ -263,10 +263,10 @@ def par_segment(segments: Sequence[Dict[str, Any]], times: Sequence[float], vale
         ouvert = manquant(segment.get('end'))
         jeu: Dict[str, Any] = {
             'n': len(vals),
-            'duree': None if ouvert else segment['end'] - segment['start'],
-            'tronque': ouvert,
+            'duration': None if ouvert else segment['end'] - segment['start'],
+            'truncated': ouvert,
         }
-        for nom in statistiques:
-            jeu[nom] = appliquer(nom, vals)
+        for name in statistics:
+            jeu[name] = appliquer(name, vals)
         sortie.append(jeu)
     return sortie

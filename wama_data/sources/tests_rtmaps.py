@@ -38,12 +38,12 @@ _RECORD_2019 = ("00:00.558436 @ Record DR2.message(DR2_message,python_v2.output[
                 "as txt\n")
 
 
-def _ecrire(dossier: Path, nom='essai', records=_RECORD_2022, donnees='', idy=True) -> Path:
-    rec = dossier / f"{nom}.rec"
+def _ecrire(dossier: Path, name='essai', records=_RECORD_2022, donnees='', idy=True) -> Path:
+    rec = dossier / f"{name}.rec"
     rec.write_text(_ENTETE + "[STDB v2.0]\nOffset (sec) : 0\n[Data]\n" + records + donnees,
                    encoding='latin-1')
     if idy:
-        (dossier / f"{nom}.idy").write_text(_ENTETE + records, encoding='latin-1')
+        (dossier / f"{name}.idy").write_text(_ENTETE + records, encoding='latin-1')
     return rec
 
 
@@ -157,7 +157,7 @@ class LectureTest(unittest.TestCase):
         s = ref.get('Accel.X_axis')
         self.assertEqual(len(s), 3)
         self.assertAlmostEqual(s.span[0], 0.669604)
-        self.assertEqual(s.rows(0, 1)[0]['valeur'], '-0.0390625')
+        self.assertEqual(s.rows(0, 1)[0]['value'], '-0.0390625')
 
     def test_le_timestamp_de_CAPTURE_prime_sur_le_temps_d_EMISSION(self):
         # `@ts` est le moment de capture ; c'est LUI qui synchronise les flux entre eux.
@@ -173,7 +173,7 @@ class LectureTest(unittest.TestCase):
         # Règle reprise de `rec2trip` : `data = idx` quand il n'y a pas de `=`.
         d = "00:01.000000 / Accel.X_axis#7@00:01.000000\n"
         ref = sources.load(_ecrire(self.dossier, donnees=d), streams=['Accel.X_axis'])
-        self.assertEqual(ref.get('Accel.X_axis').rows(0, 1)[0]['valeur'], 7)
+        self.assertEqual(ref.get('Accel.X_axis').rows(0, 1)[0]['value'], 7)
 
     def test_LES_PERTES_SONT_COMPTEES_comme_une_DONNEE(self):
         """⚠ `pynd` les détecte et se contente d'un `log.error` — son `TODO` l'admet."""
@@ -221,7 +221,7 @@ class LectureTest(unittest.TestCase):
         # serait deviner.
         d = "00:01.000000 / Accel.X_axis#0@00:01.000000=Pas=1776;V_vp:Vitesse=0,000;\n"
         ref = sources.load(_ecrire(self.dossier, donnees=d), streams=['Accel.X_axis'])
-        self.assertEqual(ref.get('Accel.X_axis').rows(0, 1)[0]['valeur'],
+        self.assertEqual(ref.get('Accel.X_axis').rows(0, 1)[0]['value'],
                          'Pas=1776;V_vp:Vitesse=0,000;')
 
 
@@ -250,7 +250,7 @@ class CorpusReelTest(unittest.TestCase):
         ref = sources.load(REC_2022, streams=['GPS_NMEA0183_3.oPosition'])
         s = ref.get('GPS_NMEA0183_3.oPosition')
         self.assertAlmostEqual(s.span[0], t_csv, places=6)
-        champs = s.rows(0, 1)[0]['valeur'].split('\t')
+        champs = s.rows(0, 1)[0]['value'].split('\t')
         self.assertEqual((champs[0], champs[1]), (lat_csv, lon_csv))
 
     def test_cadences_mesurees_plausibles(self):

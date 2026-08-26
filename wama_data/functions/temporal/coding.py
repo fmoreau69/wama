@@ -43,7 +43,7 @@ def _protocole(source) -> Protocole:
     raise ValueError("protocole requis (objet, dictionnaire ou chemin JSON)")
 
 
-def _gestes(frame: TypedFrame, colonne_code: str) -> list:
+def _gestes(frame: TypedFrame, code_column: str) -> list:
     """Un flux d'événements → la liste de gestes attendue par `rejouer`.
 
     Tout champ hors (temps, code, sujet, commentaire) est passé en MODIFICATEUR : c'est ainsi qu'un
@@ -57,20 +57,20 @@ def _gestes(frame: TypedFrame, colonne_code: str) -> list:
     déclaré. Un modificateur RÉELLEMENT hors protocole, lui, reste refusé — c'est le garde-fou qui
     arrête une hallucination de modèle.
     """
-    reserves = {'time', colonne_code, 'subject', 'comment'}
+    reserves = {'time', code_column, 'subject', 'comment'}
     gestes = []
     for r in frame.df.to_dict('records'):
         mods = {k: v for k, v in r.items() if k not in reserves and not manquant(v)}
-        gestes.append({'t': float(r['time']), 'code': r[colonne_code],
-                       'sujet': '' if manquant(r.get('subject')) else (r.get('subject') or ''),
-                       'commentaire': '' if manquant(r.get('comment')) else (r.get('comment') or ''),
-                       'modificateurs': mods or None})
+        gestes.append({'t': float(r['time']), 'code': r[code_column],
+                       'subject': '' if manquant(r.get('subject')) else (r.get('subject') or ''),
+                       'comment': '' if manquant(r.get('comment')) else (r.get('comment') or ''),
+                       'modifiers': mods or None})
     return gestes
 
 
-def codage_rejouer(gestes: TypedFrame, protocole=None, codeur: str = '', media: str = '',
-                   colonne_code: str = 'value',
-                   fin_de_session: float = None) -> TypedFrame:
+def coding_replay(gestes: TypedFrame, protocole=None, coder: str = '', media: str = '',
+                   code_column: str = 'value',
+                   session_end: float = None) -> TypedFrame:
     """Rejoue une liste de gestes contre un protocole → segments.
 
     Le `codeur` distingue un codage humain d'un codage automatique. C'est le SEUL point de
@@ -80,13 +80,13 @@ def codage_rejouer(gestes: TypedFrame, protocole=None, codeur: str = '', media: 
     """
     proto = _protocole(protocole)
     media = media or (gestes.meta or {}).get('media') or (gestes.meta or {}).get('source') or ''
-    segs, _ev = rejouer(proto, media, _gestes(gestes, colonne_code), codeur=codeur,
-                        fin_de_session=fin_de_session)
+    segs, _ev = rejouer(proto, media, _gestes(gestes, code_column), coder=coder,
+                        session_end=session_end)
     return _segments(segs, meta=gestes.meta)
 
 
-def codage_evenements(gestes: TypedFrame, protocole=None, codeur: str = '', media: str = '',
-                      colonne_code: str = 'value') -> TypedFrame:
+def coding_events(gestes: TypedFrame, protocole=None, coder: str = '', media: str = '',
+                      code_column: str = 'value') -> TypedFrame:
     """Même exécution, sortie ÉVÉNEMENTS : les comportements ponctuels du protocole.
 
     Séparé de `codage_rejouer` parce qu'un port a UN type : mélanger états et ponctuels dans un
@@ -95,13 +95,13 @@ def codage_evenements(gestes: TypedFrame, protocole=None, codeur: str = '', medi
     import pandas as pd
     proto = _protocole(protocole)
     media = media or (gestes.meta or {}).get('media') or (gestes.meta or {}).get('source') or ''
-    _segs, ev = rejouer(proto, media, _gestes(gestes, colonne_code), codeur=codeur)
+    _segs, ev = rejouer(proto, media, _gestes(gestes, code_column), coder=coder)
     rows = [dict(e, time=e['start']) for e in ev]
     df = pd.DataFrame(rows) if rows else pd.DataFrame(columns=CHAMPS_EVENT)
     return TypedFrame(df, DataType.EVENTS, meta=gestes.meta)
 
 
-def codage_accord(reference: TypedFrame, compare: TypedFrame,
+def coding_agreement(reference: TypedFrame, compare: TypedFrame,
                   tolerance: float = 1.0) -> TypedFrame:
     """Compare deux codages du même média → une ligne de mesure.
 
@@ -133,13 +133,13 @@ _ENTREE_GESTES = PortSpec(
                 "c'est le but.")
 
 _PARAM_PROTOCOLE = ParamSpec(
-    'protocole', 'str', '',
+    'protocol', 'str', '',
     description="Protocole (éthogramme) : chemin JSON ou dictionnaire. Déclare CE QUI EST CODABLE — "
                 "comportements, nature ponctuel/état, groupes d'exclusion mutuelle, sujets, "
                 "modificateurs typés. C'est lui qui pilote l'interface ET contraint l'exécution.")
 
 _PARAM_CODEUR = ParamSpec(
-    'codeur', 'str', '',
+    'coder', 'str', '',
     description="Qui code : « fabien », « qwen3-vl », « detector:locate-anything ». Seul champ "
                 "distinguant un codage humain d'un codage automatique.")
 
@@ -149,7 +149,7 @@ _PARAM_MEDIA = ParamSpec(
                 "les bornes produites ne sont plus vérifiables par personne.")
 
 register(FunctionSpec(
-    key='codage_segments',
+    key='coding_segments',
     name="Codage → segments",
     description="Rejoue des gestes de codage contre un protocole et produit les états observés. "
                 "Un comportement se bascule (ouvrir/fermer), l'exclusion mutuelle ferme le "
@@ -164,17 +164,17 @@ register(FunctionSpec(
         description="États codés — origine, codeur et protocole tracés sur chaque ligne.")],
     params=[
         _PARAM_PROTOCOLE, _PARAM_CODEUR, _PARAM_MEDIA,
-        ParamSpec('colonne_code', 'str', 'value',
+        ParamSpec('code_column', 'str', 'value',
                   description="Colonne portant le code du comportement."),
-        ParamSpec('fin_de_session', 'float', None, unit='s',
+        ParamSpec('session_end', 'float', None, unit='s',
                   description="Ferme d'office les états restés ouverts, en TRAÇANT la fermeture."),
     ],
     cost={'cpu_bound': True},
-    fn=codage_rejouer,
+    fn=coding_replay,
 ))
 
 register(FunctionSpec(
-    key='codage_evenements',
+    key='coding_events',
     name="Codage → événements ponctuels",
     description="Même exécution que `codage_segments`, sortie ÉVÉNEMENTS : les comportements "
                 "déclarés PONCTUELS dans le protocole, qui n'ont pas de durée. Séparé parce qu'un "
@@ -186,13 +186,13 @@ register(FunctionSpec(
     outputs=[PortSpec('events', DataType.EVENTS, produced_fields=CHAMPS_EVENT,
                       description="Comportements ponctuels codés.")],
     params=[_PARAM_PROTOCOLE, _PARAM_CODEUR, _PARAM_MEDIA,
-            ParamSpec('colonne_code', 'str', 'value')],
+            ParamSpec('code_column', 'str', 'value')],
     cost={'cpu_bound': True},
-    fn=codage_evenements,
+    fn=coding_events,
 ))
 
 register(FunctionSpec(
-    key='codage_accord',
+    key='coding_agreement',
     name="Accord entre deux codages",
     description="Apparie deux codages du même média par code, sujet et proximité des débuts, dans "
                 "une tolérance. Répond à la question posée quand on valide un codage assisté : "
@@ -212,5 +212,5 @@ register(FunctionSpec(
     params=[ParamSpec('tolerance', 'float', 1.0, unit='s', min=0.0,
                       description="Écart maximal entre deux débuts pour les considérer appariés.")],
     cost={'cpu_bound': True},
-    fn=codage_accord,
+    fn=coding_agreement,
 ))

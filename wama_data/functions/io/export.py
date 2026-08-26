@@ -50,7 +50,7 @@ def lot_depuis_frames(frames: Mapping[str, TypedFrame]) -> Dict[str, List[Dict[s
     numérique des colonnes que l'appelant pourrait vouloir relire. Le rendu texte, lui, écrit une
     cellule vide dans les deux cas (`_cellule` dans le cœur).
     """
-    return {nom: frame.df.to_dict('records') for nom, frame in frames.items()}
+    return {name: frame.df.to_dict('records') for name, frame in frames.items()}
 
 
 def exporter_frames(declarations: Sequence[Declaration],
@@ -83,7 +83,7 @@ def ecrire(fichiers: Sequence[Fichier], dossier) -> List[Path]:
     dossier.mkdir(parents=True, exist_ok=True)
     ecrits: List[Path] = []
     for f in fichiers:
-        chemin = dossier / f"{f.nom}.{f.format}"
+        chemin = dossier / f"{f.name}.{f.format}"
         chemin.write_text(rendre(f), encoding='utf-8')
         ecrits.append(chemin)
     return ecrits

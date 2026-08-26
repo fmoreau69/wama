@@ -23,8 +23,8 @@ from .temporal import (EXACT, NEAREST, PREVIOUS, Signal, SignalMeta, TemporalRef
 from ..corpus import BASE_REELLE, raison_absence
 
 
-def signal(nom, times, ends=None, rows=None, **kw):
-    return Signal(SignalMeta(name=nom, **kw), times, rows, ends=ends)
+def signal(name, times, ends=None, rows=None, **kw):
+    return Signal(SignalMeta(name=name, **kw), times, rows, ends=ends)
 
 
 class ResolutionTest(unittest.TestCase):
@@ -260,10 +260,10 @@ class ReferentielTest(unittest.TestCase):
 
     def test_l_ecart_suit_la_cadence(self):
         # La preuve qu'on n'interpole pas : l'écart au plus proche est borné par le demi-pas.
-        for nom, demi_pas in (("rapide", 0.005), ("lent", 0.5)):
-            s = self.ref.get(nom)
-            i = self.ref.at(nom, 2.4321)
-            self.assertLessEqual(abs(s.time_at(i) - 2.4321), demi_pas * 1.001, nom)
+        for name, demi_pas in (("rapide", 0.005), ("lent", 0.5)):
+            s = self.ref.get(name)
+            i = self.ref.at(name, 2.4321)
+            self.assertLessEqual(abs(s.time_at(i) - 2.4321), demi_pas * 1.001, name)
 
     def test_offset_media(self):
         ref = TemporalReferential("m")

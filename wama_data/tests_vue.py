@@ -30,18 +30,18 @@ class RegleTest(unittest.TestCase):
     """§9quater.4 rendue exécutable — et DÉRIVÉE du catalogue."""
 
     def test_enricher_reste_dans_la_table(self):
-        self.assertFalse(change_la_cle_temporelle('calcul_glissant'))
+        self.assertFalse(change_la_cle_temporelle('calc_rolling'))
 
     def test_aggregate_sort_dans_une_table_a_part(self):
-        self.assertTrue(change_la_cle_temporelle('calcul_par_segment'))
+        self.assertTrue(change_la_cle_temporelle('calc_per_segment'))
 
     def test_detector_sort_aussi(self):
         # `masque → events` change bien la nature de ce qu'on regarde.
-        self.assertTrue(change_la_cle_temporelle('event_chaine_conditionnelle'))
+        self.assertTrue(change_la_cle_temporelle('event_condition_chain'))
 
     def test_transform_reste(self):
-        self.assertFalse(change_la_cle_temporelle('segment_present_dans')
-                         if get('segment_present_dans') else True)
+        self.assertFalse(change_la_cle_temporelle('segment_within')
+                         if get('segment_within') else True)
 
     def test_la_regle_est_LUE_dans_la_categorie_pas_dans_une_liste_de_noms(self):
         # LE test du fichier : pour CHAQUE fonction du catalogue, le verdict doit coïncider avec
@@ -82,15 +82,15 @@ class DeclarationTest(unittest.TestCase):
 
     def test_vue_sans_piste_refusee(self):
         with self.assertRaises(ValueError):
-            Vue(nom='v', pistes=())
+            Vue(name='v', pistes=())
 
     def test_vue_sans_nom_refusee(self):
         with self.assertRaises(ValueError):
-            Vue(nom='', pistes=(Piste('a'),))
+            Vue(name='', pistes=(Piste('a'),))
 
     def test_flux_en_double_refuse(self):
         with self.assertRaises(ValueError) as ctx:
-            Vue(nom='v', pistes=(Piste('a'), Piste('a')))
+            Vue(name='v', pistes=(Piste('a'), Piste('a')))
         self.assertIn('double', str(ctx.exception))
 
     def test_fenetre_inversee_refusee(self):
@@ -103,18 +103,18 @@ class DeclarationTest(unittest.TestCase):
 
     def test_colonne_derivee_incomplete_refusee(self):
         with self.assertRaises(ValueError):
-            ColonneDerivee(fonction='calcul_glissant', flux='')
+            ColonneDerivee(fonction='calc_rolling', flux='')
 
 
 class SerialisationTest(unittest.TestCase):
     """Une vue est une DÉCLARATION : elle doit faire l'aller-retour sans perte."""
 
     def _vue(self):
-        return Vue(nom='exploration',
+        return Vue(name='exploration',
                    pistes=(Piste('vitesse', ('value',)), Piste('distance')),
                    fenetre=Fenetre(t0=0.0, t1=10.0, buckets=200),
-                   derivees=(ColonneDerivee('calcul_glissant', 'vitesse',
-                                            {'fenetre_s': 2.0, 'colonne': 'value'}),))
+                   derivees=(ColonneDerivee('calc_rolling', 'vitesse',
+                                            {'window_s': 2.0, 'column': 'value'}),))
 
     def test_aller_retour_fidele(self):
         v = self._vue()
@@ -135,17 +135,17 @@ class ValidationTest(unittest.TestCase):
 
     def test_flux_inconnu_refuse_en_nommant_les_presents(self):
         with self.assertRaises(ValueError) as ctx:
-            valider(Vue(nom='v', pistes=(Piste('absent'),)), _referentiel())
+            valider(Vue(name='v', pistes=(Piste('absent'),)), _referentiel())
         self.assertIn('vitesse', str(ctx.exception))
 
     def test_derivee_sur_flux_inconnu_refusee(self):
-        v = Vue(nom='v', pistes=(Piste('vitesse'),),
-                derivees=(ColonneDerivee('calcul_glissant', 'absent'),))
+        v = Vue(name='v', pistes=(Piste('vitesse'),),
+                derivees=(ColonneDerivee('calc_rolling', 'absent'),))
         with self.assertRaises(ValueError):
             valider(v, _referentiel())
 
     def test_derivee_sur_fonction_inconnue_refusee(self):
-        v = Vue(nom='v', pistes=(Piste('vitesse'),),
+        v = Vue(name='v', pistes=(Piste('vitesse'),),
                 derivees=(ColonneDerivee('inexistante', 'vitesse'),))
         with self.assertRaises(ValueError):
             valider(v, _referentiel())
@@ -154,30 +154,30 @@ class ValidationTest(unittest.TestCase):
 class ApplicationTest(unittest.TestCase):
 
     def test_les_pistes_deviennent_des_tables(self):
-        r = appliquer(Vue(nom='v', pistes=(Piste('vitesse'), Piste('distance'))), _referentiel())
+        r = appliquer(Vue(name='v', pistes=(Piste('vitesse'), Piste('distance'))), _referentiel())
         self.assertEqual(sorted(r.tables), ['distance', 'vitesse'])
         self.assertEqual(r.annexes, {})
 
     def test_la_fenetre_restreint(self):
-        v = Vue(nom='v', pistes=(Piste('vitesse'),), fenetre=Fenetre(t0=2.0, t1=5.0))
+        v = Vue(name='v', pistes=(Piste('vitesse'),), fenetre=Fenetre(t0=2.0, t1=5.0))
         r = appliquer(v, _referentiel())
         self.assertEqual(list(r.tables['vitesse'].df['time']), [2.0, 3.0, 4.0, 5.0])
 
     def test_une_derivee_ENRICHER_reste_dans_la_table(self):
-        v = Vue(nom='v', pistes=(Piste('vitesse'),),
-                derivees=(ColonneDerivee('calcul_glissant', 'vitesse',
-                                         {'fenetre_s': 2.0, 'colonne': 'value'}),))
+        v = Vue(name='v', pistes=(Piste('vitesse'),),
+                derivees=(ColonneDerivee('calc_rolling', 'vitesse',
+                                         {'window_s': 2.0, 'column': 'value'}),))
         r = appliquer(v, _referentiel())
-        self.assertIn('value_moyenne', r.tables['vitesse'].df.columns)
+        self.assertIn('value_mean', r.tables['vitesse'].df.columns)
         self.assertEqual(r.annexes, {}, "une ENRICHER ne doit produire aucune annexe")
 
     def test_une_derivee_DETECTOR_ouvre_une_annexe(self):
-        v = Vue(nom='v', pistes=(Piste('vitesse'),),
+        v = Vue(name='v', pistes=(Piste('vitesse'),),
                 derivees=(ColonneDerivee(
-                    'event_chaine_conditionnelle', 'vitesse',
-                    {'conditions': [{'cle': 'C1', 'champ': 'value',
-                                     'operateur': '>=', 'valeur': 30.0}]},
-                    nom='bascules'),))
+                    'event_condition_chain', 'vitesse',
+                    {'conditions': [{'key': 'C1', 'field': 'value',
+                                     'operator': '>=', 'value': 30.0}]},
+                    name='bascules'),))
         r = appliquer(v, _referentiel())
         self.assertIn('bascules', r.annexes)
         self.assertEqual(r.annexes['bascules'].data_type, DataType.EVENTS)
@@ -188,47 +188,47 @@ class ApplicationTest(unittest.TestCase):
         # ⚠ Chemin non couvert avant l'audit A : tous les tests d'annexe passaient un `nom=`
         # explicite, donc la f-string écrite en dur n'était jamais exercée.
         from .core.noms import nom_annexe
-        v = Vue(nom='v', pistes=(Piste('vitesse'),),
+        v = Vue(name='v', pistes=(Piste('vitesse'),),
                 derivees=(ColonneDerivee(
-                    'event_chaine_conditionnelle', 'vitesse',
-                    {'conditions': [{'cle': 'C1', 'champ': 'value',
-                                     'operateur': '>=', 'valeur': 30.0}]}),))
+                    'event_condition_chain', 'vitesse',
+                    {'conditions': [{'key': 'C1', 'field': 'value',
+                                     'operator': '>=', 'value': 30.0}]}),))
         r = appliquer(v, _referentiel())
-        attendu = nom_annexe('vitesse', 'event_chaine_conditionnelle')
+        attendu = nom_annexe('vitesse', 'event_condition_chain')
         self.assertEqual(list(r.annexes), [attendu])
 
     def test_les_derivees_s_enchainent_dans_l_ordre_declare(self):
         # Geste ordinaire d'un tableur : une colonne calculée sur une colonne calculée.
-        v = Vue(nom='v', pistes=(Piste('vitesse'),),
-                derivees=(ColonneDerivee('calcul_glissant', 'vitesse',
-                                         {'fenetre_s': 2.0, 'colonne': 'value'}),
-                          ColonneDerivee('calcul_derivee', 'vitesse',
-                                         {'colonne': 'value_moyenne'})))
+        v = Vue(name='v', pistes=(Piste('vitesse'),),
+                derivees=(ColonneDerivee('calc_rolling', 'vitesse',
+                                         {'window_s': 2.0, 'column': 'value'}),
+                          ColonneDerivee('calc_derivative', 'vitesse',
+                                         {'column': 'value_mean'})))
         r = appliquer(v, _referentiel())
-        self.assertIn('value_moyenne_derivee', r.tables['vitesse'].df.columns)
+        self.assertIn('value_mean_derivative', r.tables['vitesse'].df.columns)
 
     def test_une_derivee_sur_un_flux_NON_regarde_est_quand_meme_honoree(self):
-        v = Vue(nom='v', pistes=(Piste('vitesse'),),
-                derivees=(ColonneDerivee('calcul_glissant', 'distance',
-                                         {'fenetre_s': 2.0, 'colonne': 'value'}),))
+        v = Vue(name='v', pistes=(Piste('vitesse'),),
+                derivees=(ColonneDerivee('calc_rolling', 'distance',
+                                         {'window_s': 2.0, 'column': 'value'}),))
         r = appliquer(v, _referentiel())
-        self.assertIn('value_moyenne', r.tables['distance'].df.columns)
+        self.assertIn('value_mean', r.tables['distance'].df.columns)
 
     def test_appliquer_ne_PERSISTE_rien(self):
         # §9quater.5 : le référentiel ne doit pas gagner de flux au passage.
         ref = _referentiel()
-        avant = set(ref.names)
-        appliquer(Vue(nom='v', pistes=(Piste('vitesse'),),
-                      derivees=(ColonneDerivee('calcul_glissant', 'vitesse',
-                                               {'fenetre_s': 2.0, 'colonne': 'value'}),)), ref)
-        self.assertEqual(set(ref.names), avant)
+        before = set(ref.names)
+        appliquer(Vue(name='v', pistes=(Piste('vitesse'),),
+                      derivees=(ColonneDerivee('calc_rolling', 'vitesse',
+                                               {'window_s': 2.0, 'column': 'value'}),)), ref)
+        self.assertEqual(set(ref.names), before)
 
 
 class SerieTest(unittest.TestCase):
     """Le tracé — décimé, et sans matérialiser les points."""
 
     def test_serie_decimee(self):
-        v = Vue(nom='v', pistes=(Piste('vitesse'),), fenetre=Fenetre(t0=0.0, t1=11.0, buckets=4))
+        v = Vue(name='v', pistes=(Piste('vitesse'),), fenetre=Fenetre(t0=0.0, t1=11.0, buckets=4))
         s = serie(v, _referentiel(), 'vitesse', 'value')
         self.assertEqual(len(s), 4)
         self.assertTrue(all('t_start' in b for b in s))
@@ -236,19 +236,19 @@ class SerieTest(unittest.TestCase):
     def test_la_decimation_preserve_les_EXTREMA(self):
         # Premier+dernier de tranche perdrait la pointe : c'est la raison d'être de
         # `decimate_values`, et la vue ne doit pas la contourner.
-        v = Vue(nom='v', pistes=(Piste('vitesse'),), fenetre=Fenetre(t0=0.0, t1=11.0, buckets=2))
+        v = Vue(name='v', pistes=(Piste('vitesse'),), fenetre=Fenetre(t0=0.0, t1=11.0, buckets=2))
         s = serie(v, _referentiel(), 'vitesse', 'value')
         self.assertEqual(max(b['max'] for b in s), 40.0)
 
     def test_un_trace_sans_fenetre_bornee_est_refuse(self):
-        v = Vue(nom='v', pistes=(Piste('vitesse'),), fenetre=Fenetre(buckets=100))
+        v = Vue(name='v', pistes=(Piste('vitesse'),), fenetre=Fenetre(buckets=100))
         with self.assertRaises(ValueError) as ctx:
             serie(v, _referentiel(), 'vitesse', 'value')
         self.assertIn('bornée', str(ctx.exception))
 
     def test_un_trace_sans_buckets_est_refuse(self):
         # 0 signifie « table, échantillons réels » — pas « choisis pour moi ».
-        v = Vue(nom='v', pistes=(Piste('vitesse'),), fenetre=Fenetre(t0=0.0, t1=5.0))
+        v = Vue(name='v', pistes=(Piste('vitesse'),), fenetre=Fenetre(t0=0.0, t1=5.0))
         with self.assertRaises(ValueError):
             serie(v, _referentiel(), 'vitesse', 'value')
 

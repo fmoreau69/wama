@@ -97,7 +97,7 @@ class Entree:
     chose que les deux étages ont à se dire.
     """
 
-    nom: str
+    name: str
     signal: Signal
     table: str
     colonnes_temps: Tuple[str, ...]
@@ -233,23 +233,23 @@ def _enregistrer_livres():
     """Enregistre les schémas livrés, **chacun isolé des autres** — un schéma qui échoue à
     s'importer ne doit pas emporter les autres, ni le monde Data avec eux."""
     import importlib
-    for nom in modules_schemas():
+    for name in modules_schemas():
         try:
-            importlib.import_module(f'{__name__}.{nom}')
+            importlib.import_module(f'{__name__}.{name}')
         except Exception:
             logging.getLogger(__name__).warning(
                 "schéma de conteneur '%s' non enregistré — les autres restent disponibles",
-                nom, exc_info=True)
+                name, exc_info=True)
 
 
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 # Utilitaires d'écriture — communs aux deux schémas, à dessein
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
-def ident(nom: str) -> str:
+def ident(name: str) -> str:
     """Identifiant SQL cité. Un nom de colonne vient de la DONNÉE : il ne doit jamais atterrir tel
     quel dans une requête. Même précaution que `TripReader._extent_accessor`, côté écriture."""
-    return '"' + str(nom).replace('"', '""') + '"'
+    return '"' + str(name).replace('"', '""') + '"'
 
 
 def _sqlite_type(valeur: Any) -> str:
@@ -345,9 +345,9 @@ def ecrire(referentiel: TemporalReferential, chemin, *,
     try:
         con.execute('PRAGMA journal_mode=MEMORY')
         with con:                                  # une seule transaction : tout ou rien
-            for nom in noms:
-                signal = referentiel.get(nom)
-                entree = _preparer(signal, nom, schema, referentiel.offset(nom), tranche)
+            for name in noms:
+                signal = referentiel.get(name)
+                entree = _preparer(signal, name, schema, referentiel.offset(name), tranche)
                 _ecrire_flux(con, entree, tranche, rapport)
                 entrees.append(entree)
                 rapport.tables[entree.table] = entree.lignes
@@ -365,10 +365,10 @@ def ecrire(referentiel: TemporalReferential, chemin, *,
     return rapport
 
 
-def _preparer(signal: Signal, nom: str, schema: SchemaConteneur,
+def _preparer(signal: Signal, name: str, schema: SchemaConteneur,
               offset: float, tranche: int) -> Entree:
     """Décide table, colonnes et types en lisant la PREMIÈRE tranche — jamais tout le flux."""
-    entree = Entree(nom=nom, signal=signal, table=schema.nom_table(signal),
+    entree = Entree(name=name, signal=signal, table=schema.nom_table(signal),
                     colonnes_temps=schema.colonnes_temps(signal), offset=offset)
     premieres = signal.rows(0, min(tranche, len(signal))) or []
     ordre: List[str] = []
@@ -422,7 +422,7 @@ def _ecrire_flux(con: sqlite3.Connection, entree: Entree, tranche: int, rapport:
         # Une colonne apparue APRÈS la première tranche n'a pas de place dans la table : la taire
         # ferait disparaître une variable entière sans trace.
         rapport.pertes.append(
-            f"flux '{entree.nom}' : {len(inconnues)} colonne(s) apparue(s) au-delà de la première "
+            f"flux '{entree.name}' : {len(inconnues)} colonne(s) apparue(s) au-delà de la première "
             f"tranche, absentes de la table ({', '.join(sorted(map(str, inconnues))[:5])})")
 
     con.execute(f'CREATE INDEX {ident("idx_" + entree.table)} '

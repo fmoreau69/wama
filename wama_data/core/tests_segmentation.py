@@ -37,7 +37,7 @@ class AutourTest(unittest.TestCase):
         self.assertEqual(produits['15_45']['start'], 115.0)
 
     def test_nommage_et_attributs(self):
-        s = autour([10.0, 20.0], 0, 5, nom='TAG',
+        s = autour([10.0, 20.0], 0, 5, name='TAG',
                    attributs=[{'level': 1}, {'level': 3}])
         self.assertEqual([x['name'] for x in s], ['TAG_01', 'TAG_02'])
         self.assertEqual(s[1]['level'], 3)
@@ -68,11 +68,11 @@ class JonctionTest(unittest.TestCase):
         self.assertTrue(s[1]['open'])
 
     def test_fermer_dernier_ecarte_le_segment_ouvert(self):
-        s = jonction([10.0, 90.0], [30.0], fermer_dernier=True)
+        s = jonction([10.0, 90.0], [30.0], drop_last_open=True)
         self.assertEqual(len(s), 1)
 
     def test_curseurs_de_depart(self):
-        s = jonction([10.0, 50.0, 90.0], [30.0, 70.0, 110.0], depuis_debut=1)
+        s = jonction([10.0, 50.0, 90.0], [30.0, 70.0, 110.0], skip_starts=1)
         self.assertEqual(s[0]['start'], 50.0)
 
     def test_fins_anterieures_ignorees(self):
@@ -84,32 +84,32 @@ class JonctionTest(unittest.TestCase):
 
     def test_offsets_independants_sur_les_deux_bornes(self):
         # « du début du bloc moins 2 s jusqu'à la pause suivante plus 5 s » — inexprimable avant.
-        s = jonction([10.0], [30.0], offset_debut=-2.0, offset_fin=5.0)
+        s = jonction([10.0], [30.0], offset_start=-2.0, offset_end=5.0)
         self.assertEqual((s[0]['start'], s[0]['end']), (8.0, 35.0))
 
     def test_les_offsets_ne_changent_PAS_l_appariement(self):
         # Un décalage de bornes ne doit pas modifier quelle fin suit quel début : appliqué avant
         # l'appariement, un offset de -25 s ferait passer le début de 50 sous la fin de 30.
         sans = jonction([10.0, 50.0], [30.0, 70.0])
-        avec = jonction([10.0, 50.0], [30.0, 70.0], offset_debut=-25.0)
+        avec = jonction([10.0, 50.0], [30.0, 70.0], offset_start=-25.0)
         self.assertEqual([x['end'] for x in sans], [x['end'] for x in avec])
         self.assertEqual([x['start'] for x in avec], [-15.0, 25.0])
 
     def test_un_segment_ouvert_ne_recoit_pas_l_offset_de_fin(self):
         # `None + 5.0` lèverait ; pire, une sentinelle numérique s'y ferait décaler en silence.
-        s = jonction([10.0, 90.0], [30.0], offset_fin=5.0)
+        s = jonction([10.0, 90.0], [30.0], offset_end=5.0)
         self.assertEqual(s[0]['end'], 35.0)
         self.assertIsNone(s[1]['end'])
 
     def test_repeter_faux_ne_produit_qu_UN_segment(self):
         # Mode par défaut de l'outil d'origine, où « Répéter sur les prochains segments » est une
         # case à cocher. Ici c'est l'inverse qui est le défaut — le cas courant n'a pas à se cocher.
-        s = jonction([10.0, 50.0, 90.0], [30.0, 70.0, 110.0], repeter=False)
+        s = jonction([10.0, 50.0, 90.0], [30.0, 70.0, 110.0], repeat=False)
         self.assertEqual(len(s), 1)
         self.assertEqual((s[0]['start'], s[0]['end']), (10.0, 30.0))
 
     def test_repeter_faux_part_du_curseur(self):
-        s = jonction([10.0, 50.0, 90.0], [30.0, 70.0, 110.0], depuis_debut=1, repeter=False)
+        s = jonction([10.0, 50.0, 90.0], [30.0, 70.0, 110.0], skip_starts=1, repeat=False)
         self.assertEqual([(x['start'], x['end']) for x in s], [(50.0, 70.0)])
 
     def test_repeter_vrai_est_le_comportement_historique(self):
@@ -117,7 +117,7 @@ class JonctionTest(unittest.TestCase):
 
     def test_la_fenetre_n_est_tracee_que_si_un_offset_est_pose(self):
         self.assertNotIn('window', jonction([10.0], [30.0])[0])
-        self.assertEqual(jonction([10.0], [30.0], offset_fin=5.0)[0]['window'], '0_5')
+        self.assertEqual(jonction([10.0], [30.0], offset_end=5.0)[0]['window'], '0_5')
 
 
 class HysteresisDeValeurTest(unittest.TestCase):
@@ -149,7 +149,7 @@ class HysteresisDeValeurTest(unittest.TestCase):
     def test_sens_inverse_pour_une_grandeur_qui_MONTE(self):
         # Une vitesse : on entre à 30, on ne sort qu'en dessous de 20.
         vals = [10.0, 32.0, 25.0, 15.0]
-        self.assertEqual(masque_hysteresis(vals, 30.0, 20.0, operateur='>='),
+        self.assertEqual(masque_hysteresis(vals, 30.0, 20.0, operator='>='),
                          [False, True, True, False])
 
     def test_une_valeur_ABSENTE_maintient_l_etat(self):
@@ -166,18 +166,18 @@ class HysteresisDeValeurTest(unittest.TestCase):
             masque_hysteresis([1.0], 40.0, 20.0)
         self.assertIn('seuil_sortie', str(ctx.exception))
         with self.assertRaises(ValueError):
-            masque_hysteresis([1.0], 30.0, 40.0, operateur='>=')
+            masque_hysteresis([1.0], 30.0, 40.0, operator='>=')
 
     def test_operateur_inconnu_refuse(self):
         with self.assertRaises(ValueError):
-            masque_hysteresis([1.0], 1.0, 1.0, operateur='!=')
+            masque_hysteresis([1.0], 1.0, 1.0, operator='!=')
 
     def test_il_se_compose_avec_conditionnelle(self):
         # Les deux hystérésis sont complémentaires : valeur d'abord, temps ensuite.
         times = [float(i) for i in range(7)]
         vals = [80.0, 38.0, 42.0, 39.0, 43.0, 37.0, 90.0]
         m = masque_hysteresis(vals, 40.0, 60.0)
-        segs = conditionnelle(times, m, duree_min=2.0)
+        segs = conditionnelle(times, m, min_duration=2.0)
         self.assertEqual(len(segs), 1)
         self.assertEqual((segs[0]['start'], segs[0]['end']), (1.0, 5.0))
 
@@ -194,21 +194,21 @@ class BasculesTest(unittest.TestCase):
         self.assertEqual([(e['time'], e['edge']) for e in ev], [(2.0, 'montante')])
 
     def test_descendantes_sur_demande(self):
-        ev = bascules(self.times, self.masque, montantes=False, descendantes=True)
+        ev = bascules(self.times, self.masque, rising=False, falling=True)
         self.assertEqual([(e['time'], e['edge']) for e in ev], [(4.0, 'descendante')])
 
     def test_les_deux_sens_ensemble(self):
-        ev = bascules(self.times, self.masque, descendantes=True)
+        ev = bascules(self.times, self.masque, falling=True)
         self.assertEqual([e['edge'] for e in ev], ['montante', 'descendante'])
 
     def test_un_masque_vrai_des_le_debut_ne_produit_PAS_de_montante(self):
         # On n'a pas observé la transition : la dater reviendrait à la placer à un instant choisi
         # par l'acquisition, pas par le phénomène.
-        ev = bascules([0.0, 1.0, 2.0], [True, True, False], descendantes=True)
+        ev = bascules([0.0, 1.0, 2.0], [True, True, False], falling=True)
         self.assertEqual([e['edge'] for e in ev], ['descendante'])
 
     def test_un_masque_constant_ne_produit_rien(self):
-        self.assertEqual(bascules([0.0, 1.0], [True, True], descendantes=True), [])
+        self.assertEqual(bascules([0.0, 1.0], [True, True], falling=True), [])
 
     def test_les_bascules_ne_sont_PAS_des_segments(self):
         # Un événement n'a pas de durée — c'est ce qui distingue les deux ports.
@@ -248,16 +248,16 @@ class ConditionnelleTest(unittest.TestCase):
         self.assertEqual(len(s), 3, "trou et parasite produisent 3 plages")
 
     def test_trou_tolere_recolle(self):
-        s = conditionnelle(self.times, self.masque, trou_tolere=0.25)
+        s = conditionnelle(self.times, self.masque, gap_tolerance=0.25)
         self.assertEqual(len(s), 2)
 
     def test_duree_min_ecarte_le_parasite(self):
-        s = conditionnelle(self.times, self.masque, trou_tolere=0.25, duree_min=1.0)
+        s = conditionnelle(self.times, self.masque, gap_tolerance=0.25, min_duration=1.0)
         self.assertEqual(len(s), 1)
         self.assertAlmostEqual(s[0]['start'], 1.0, places=6)
 
     def test_parametres_traces(self):
-        s = conditionnelle(self.times, self.masque, trou_tolere=0.25, duree_min=1.0)[0]
+        s = conditionnelle(self.times, self.masque, gap_tolerance=0.25, min_duration=1.0)[0]
         self.assertEqual(s['max_gap'], 0.25)
         self.assertEqual(s['min_duration'], 1.0)
 
@@ -279,7 +279,7 @@ class EtatsTest(unittest.TestCase):
     def test_valeur_ignoree(self):
         t = [0.0, 1.0, 2.0, 3.0]
         v = [-1, 'ROULE', 'ROULE', -1]      # -1 = « aucune section », comme dans les vraies données
-        s = etats(t, v, ignorer=[-1])
+        s = etats(t, v, ignore=[-1])
         self.assertEqual(len(s), 1)
         self.assertEqual(s[0]['value'], 'ROULE')
 
@@ -342,49 +342,49 @@ class BaseReelleTest(unittest.TestCase):
         ancres = [ref.get("finTag_finDep_pieton_voiture").time_at(i)
                   for i in range(len(ref.get("finTag_finDep_pieton_voiture")))]
 
-        for nom, o1, o2 in (("0_15", 0, 15), ("15_45", 15, 45)):
-            attendu = ref.get(nom)
+        for name, o1, o2 in (("0_15", 0, 15), ("15_45", 15, 45)):
+            attendu = ref.get(name)
             produit = autour(ancres, o1, o2)
             self.assertEqual(len(produit), len(ancres))
             # Chaque segment réel doit se retrouver parmi les segments produits.
             starts = {round(p['start'], 3) for p in produit}
             for i in range(len(attendu)):
                 self.assertIn(round(attendu.time_at(i), 3), starts,
-                              f"{nom} : segment réel non reproduit")
+                              f"{name} : segment réel non reproduit")
 
 
 class MargesTest(unittest.TestCase):
     """Le mode « Simple » appliqué à une SITUATION — deux bornes à décaler, pas une ancre."""
 
     def test_elargit_les_deux_bornes_independamment(self):
-        s = marges([{'start': 100.0, 'end': 160.0}], avant=5.0, apres=10.0)
+        s = marges([{'start': 100.0, 'end': 160.0}], before=5.0, after=10.0)
         self.assertEqual((s[0]['start'], s[0]['end']), (95.0, 170.0))
 
     def test_retrecir_est_une_marge_negative(self):
-        s = marges([{'start': 100.0, 'end': 160.0}], avant=-10.0, apres=-10.0)
+        s = marges([{'start': 100.0, 'end': 160.0}], before=-10.0, after=-10.0)
         self.assertEqual((s[0]['start'], s[0]['end']), (110.0, 150.0))
 
     def test_un_segment_qui_s_inverse_en_retrecissant_est_ecarte(self):
         # Même geste que duree_min : la contrainte déclarée vaut filtre. Le second segment
         # (60 s) survit, le premier (10 s) s'inverse et disparaît.
         s = marges([{'start': 100.0, 'end': 110.0}, {'start': 200.0, 'end': 260.0}],
-                   avant=-10.0, apres=-10.0)
+                   before=-10.0, after=-10.0)
         self.assertEqual(len(s), 1)
         self.assertEqual(s[0]['start'], 210.0)
 
     def test_une_fin_OUVERTE_le_reste(self):
-        s = marges([{'start': 100.0, 'end': None}], avant=5.0, apres=10.0)
+        s = marges([{'start': 100.0, 'end': None}], before=5.0, after=10.0)
         self.assertEqual(s[0]['start'], 95.0)
         self.assertIsNone(s[0]['end'])
 
     def test_l_origine_d_avant_la_marge_survit_dans_source(self):
         seg = autour([100.0], 0.0, 15.0)[0]
-        s = marges([seg], avant=5.0)[0]
+        s = marges([seg], before=5.0)[0]
         self.assertEqual(s['origin'], 'marges')
         self.assertEqual(s['source'], 'autour')
 
     def test_les_attributs_du_segment_sont_preserves(self):
-        s = marges([{'start': 10.0, 'end': 20.0, 'name': 'S_01', 'level': 3}], apres=1.0)[0]
+        s = marges([{'start': 10.0, 'end': 20.0, 'name': 'S_01', 'level': 3}], after=1.0)[0]
         self.assertEqual((s['name'], s['level']), ('S_01', 3))
 
 
@@ -397,42 +397,42 @@ class MargesSpatialesTest(unittest.TestCase):
 
     def test_la_marge_rendue_vaut_AU_MOINS_la_marge_demandee(self):
         s = marges_spatiales([{'start': 5.0, 'end': 7.0}], self.TIMES, self.ABS,
-                             avant_m=25.0, apres_m=15.0)[0]
+                             before_m=25.0, after_m=15.0)[0]
         # 25 m avant l'abscisse 50 → cible 25 → dernier échantillon ≤ 25 = t=2 (20 m) : 30 m rendus.
         # 15 m après l'abscisse 70 → cible 85 → premier échantillon ≥ 85 = t=9 (90 m) : 20 m rendus.
         self.assertEqual((s['start'], s['end']), (2.0, 9.0))
 
     def test_les_bornes_rendues_sont_des_echantillons_EXISTANTS(self):
         s = marges_spatiales([{'start': 5.0, 'end': 7.0}], self.TIMES, self.ABS,
-                             avant_m=1.0, apres_m=1.0)[0]
+                             before_m=1.0, after_m=1.0)[0]
         self.assertIn(s['start'], self.TIMES)
         self.assertIn(s['end'], self.TIMES)
 
     def test_une_cible_au_dela_de_la_trace_est_bornee_a_la_donnee(self):
         # La marge s'arrête où la donnée s'arrête — pas d'instant inventé au-delà de la trace.
         s = marges_spatiales([{'start': 5.0, 'end': 7.0}], self.TIMES, self.ABS,
-                             avant_m=1000.0, apres_m=1000.0)[0]
+                             before_m=1000.0, after_m=1000.0)[0]
         self.assertEqual((s['start'], s['end']), (0.0, 10.0))
 
     def test_un_trou_gps_est_ignore_par_la_recherche(self):
         abscisses = list(self.ABS)
         abscisses[2] = None                          # t=2 sans fix
         s = marges_spatiales([{'start': 5.0, 'end': 7.0}], self.TIMES, abscisses,
-                             avant_m=25.0, apres_m=15.0)[0]
+                             before_m=25.0, after_m=15.0)[0]
         # Le dernier échantillon VALIDE ≤ 25 m n'est plus t=2 mais t=1 (10 m) : 40 m rendus.
         self.assertEqual((s['start'], s['end']), (1.0, 9.0))
 
     def test_une_fin_OUVERTE_le_reste(self):
-        s = marges_spatiales([{'start': 5.0, 'end': None}], self.TIMES, self.ABS, avant_m=25.0)[0]
+        s = marges_spatiales([{'start': 5.0, 'end': None}], self.TIMES, self.ABS, before_m=25.0)[0]
         self.assertEqual(s['start'], 2.0)
         self.assertIsNone(s['end'])
 
     def test_une_trace_sans_position_valide_est_refusee(self):
         with self.assertRaises(ValueError):
-            marges_spatiales([{'start': 0.0, 'end': 1.0}], [0.0, 1.0], [None, None], avant_m=1.0)
+            marges_spatiales([{'start': 0.0, 'end': 1.0}], [0.0, 1.0], [None, None], before_m=1.0)
 
     def test_l_origine_est_tracee_avec_la_fenetre_en_metres(self):
-        s = marges_spatiales([{'start': 5.0, 'end': 7.0}], self.TIMES, self.ABS, apres_m=10.0)[0]
+        s = marges_spatiales([{'start': 5.0, 'end': 7.0}], self.TIMES, self.ABS, after_m=10.0)[0]
         self.assertEqual(s['origin'], 'marges_spatiales')
         self.assertEqual(s['window'], '0_10_m')
 

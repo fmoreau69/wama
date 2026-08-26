@@ -33,7 +33,7 @@ class ModuleData:
     """Un module du monde DATA : ce qu'il fait, et ce qu'il DEVRA contenir."""
 
     cle: str
-    nom: str
+    name: str
     #: Une ligne. Ce que le module fait, pas comment.
     role: str
     #: Ce qu'il consomme → ce qu'il produit, en vocabulaire de `data_types`.
@@ -136,10 +136,10 @@ MODULES: Tuple[ModuleData, ...] = (
                  'wama_data/functions/temporal/segmentation.py',
                  'wama_data/functions/temporal/conditions.py',
                  'wama_data/functions/temporal/coding.py'),
-        fonctions=('segment_autour_event', 'segment_jonction', 'segment_conditionnel',
-                   'segment_chaine_conditionnelle', 'event_chaine_conditionnelle',
-                   'segment_etats', 'segment_present_dans',
-                   'codage_segments', 'codage_evenements', 'codage_accord'),
+        fonctions=('segment_around_events', 'segment_join', 'segment_conditional',
+                   'segment_condition_chain', 'event_condition_chain',
+                   'segment_states', 'segment_within',
+                   'coding_segments', 'coding_events', 'coding_agreement'),
         doc='§9ter (spécification), §9ter.6 A-B (portage), §6.7',
         bloque_par="MOTEUR complet — le portage schéma-driven de §9ter.6 A-B est LIVRÉ le "
                    "2026-08-23 (chaîne de conditions en ARBRE, 14 opérateurs filtrés par la SORTE "
@@ -163,7 +163,7 @@ MODULES: Tuple[ModuleData, ...] = (
         briques=('wama_data/core/calculation.py',
                  'wama_data/core/valeurs.py',
                  'wama_data/functions/temporal/calculation.py'),
-        fonctions=('calcul_glissant', 'calcul_derivee', 'calcul_cumul', 'calcul_par_segment'),
+        fonctions=('calc_rolling', 'calc_derivative', 'calc_cumulative', 'calc_per_segment'),
         doc='§6.7',
         bloque_par="MOTEUR écrit et éprouvé (49 tests — 32 sur le cœur pur, 17 sur la frontière "
                    "pandas) : reste son emploi sur un corpus RÉEL, qui dépend de l'Importer — "
@@ -269,8 +269,8 @@ def _consommateurs(brique: str) -> Tuple[int, int]:
         f = f.strip()
         if not f or f == brique:
             continue
-        nom = Path(f).name
-        if 'test' in nom or nom in ('mecanismes.py', 'modules.py'):
+        name = Path(f).name
+        if 'test' in name or name in ('mecanismes.py', 'modules.py'):
             continue
         if f.startswith('wama_data/'):
             interne += 1
@@ -315,7 +315,7 @@ def mesurer() -> List[dict]:
         else:
             etat = '✅'
         out.append({
-            'cle': m.cle, 'nom': m.nom, 'role': m.role, 'flux': m.flux, 'doc': m.doc,
+            'key': m.cle, 'name': m.name, 'role': m.role, 'stream': m.flux, 'doc': m.doc,
             'etat': etat, 'briques': (len(presentes), len(m.briques)),
             'testees': len(testees), 'fonctions': (len(fonctions), len(m.fonctions)),
             'interne': interne, 'externe': externe, 'bloque_par': m.bloque_par,

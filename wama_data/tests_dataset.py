@@ -19,8 +19,8 @@ from .dataset import (Ecart, _indice_de_prefixe, attributs_de_coordonnees, axes_
                       charger, chemin, signaux_declares, situer, verifier)
 
 
-def _csv(dossier: Path, nom: str, lignes) -> Path:
-    p = dossier / f"{nom}.csv"
+def _csv(dossier: Path, name: str, lignes) -> Path:
+    p = dossier / f"{name}.csv"
     with p.open('w', newline='', encoding='utf-8') as fh:
         w = csv.writer(fh)
         w.writerow(['time', 'value'])
@@ -187,23 +187,23 @@ class ChaineDeclarativeTest(unittest.TestCase):
         self.assertTrue(ecart.conforme, ecart.rendre())
 
         # ② ce qu'on regarde — une déclaration
-        vue = Vue(nom='exploration', pistes=(Piste('vitesse'),),
-                  derivees=(ColonneDerivee('calcul_glissant', 'vitesse',
-                                           {'fenetre_s': 2.0, 'colonne': 'value'}),))
+        vue = Vue(name='exploration', pistes=(Piste('vitesse'),),
+                  derivees=(ColonneDerivee('calc_rolling', 'vitesse',
+                                           {'window_s': 2.0, 'column': 'value'}),))
         resultat = appliquer(vue, ref)
-        self.assertIn('value_moyenne', resultat.tables['vitesse'].df.columns)
+        self.assertIn('value_mean', resultat.tables['vitesse'].df.columns)
 
         # ③ ce qu'on livre — une déclaration
         decl = Declaration(
-            nom='livrable',
+            name='livrable',
             colonnes=(Colonne('vitesse', 'time'), Colonne('vitesse', 'value'),
-                      Colonne('vitesse', 'value_moyenne')),
+                      Colonne('vitesse', 'value_mean')),
             identite=Identite(('trip_id',)))
         fichiers = exporter_frames([decl], {'A': resultat.tables}, {'A': {'trip_id': 'ESSAI'}})
 
         texte = rendre(fichiers[0])
         self.assertTrue(texte.startswith(
-            'trip_id;vitesse.time;vitesse.value;vitesse.value_moyenne'))
+            'trip_id;vitesse.time;vitesse.value;vitesse.value_mean'))
         self.assertEqual(len(texte.strip().split('\n')), 13)   # en-tête + 12 lignes
 
     def test_les_TROIS_declarations_font_l_aller_retour_JSON(self):
@@ -215,8 +215,8 @@ class ChaineDeclarativeTest(unittest.TestCase):
         from .vue import Piste, Vue, depuis_dict
 
         manifeste = _manifeste('vitesse.csv', ['vitesse'])
-        vue = Vue(nom='v', pistes=(Piste('vitesse'),))
-        decl = Declaration(nom='d', colonnes=(Colonne('vitesse', 'time'),),
+        vue = Vue(name='v', pistes=(Piste('vitesse'),))
+        decl = Declaration(name='d', colonnes=(Colonne('vitesse', 'time'),),
                            identite=Identite(()))
 
         self.assertEqual(json.loads(json.dumps(manifeste)), manifeste)

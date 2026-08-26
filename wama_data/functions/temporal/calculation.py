@@ -79,54 +79,54 @@ from .segmentation import _colonne, _fin, _segments
 from ...core.noms import nom_produit  # noqa: F401
 
 
-def _avec_colonne(signal: TypedFrame, nom: str, valeurs: list) -> TypedFrame:
+def _avec_colonne(signal: TypedFrame, name: str, valeurs: list) -> TypedFrame:
     """Le cadre d'entrée, augmenté d'une colonne. L'entrée n'est jamais modifiée en place —
     une fonction de chaîne qui mute son entrée casse tout rejeu de la chaîne."""
     df = signal.df.copy()
-    df[nom] = valeurs
+    df[name] = valeurs
     return TypedFrame(df, signal.data_type, meta=signal.meta)
 
 
 # ── ① COLONNES DÉRIVÉES ───────────────────────────────────────────────────────────────────────
 
-def calcul_glissant(signal: TypedFrame, fenetre_s: float = 5.0, statistique: str = DEFAUT,
-                    colonne: str = 'value', centre: bool = True,
+def calc_rolling(signal: TypedFrame, window_s: float = 5.0, statistic: str = DEFAUT,
+                    column: str = 'value', centered: bool = True,
                     min_points: int = 1) -> TypedFrame:
     """Statistique sur fenêtre glissante (en SECONDES) → nouvelle colonne."""
-    valeurs = glissant(_colonne(signal, 'time'), _colonne(signal, colonne), fenetre_s,
-                       statistique, centre=centre, min_points=min_points)
-    return _avec_colonne(signal, nom_produit(colonne, statistique), valeurs)
+    valeurs = glissant(_colonne(signal, 'time'), _colonne(signal, column), window_s,
+                       statistic, centered=centered, min_points=min_points)
+    return _avec_colonne(signal, nom_produit(column, statistic), valeurs)
 
 
-def calcul_derivee(signal: TypedFrame, colonne: str = 'value') -> TypedFrame:
+def calc_derivative(signal: TypedFrame, column: str = 'value') -> TypedFrame:
     """Taux de variation instantané (unité/seconde) → nouvelle colonne."""
-    return _avec_colonne(signal, nom_produit(colonne, 'derivee'),
-                         derivee(_colonne(signal, 'time'), _colonne(signal, colonne)))
+    return _avec_colonne(signal, nom_produit(column, 'derivative'),
+                         derivee(_colonne(signal, 'time'), _colonne(signal, column)))
 
 
-def calcul_cumul(signal: TypedFrame, colonne: str = 'value') -> TypedFrame:
+def calc_cumulative(signal: TypedFrame, column: str = 'value') -> TypedFrame:
     """Intégrale cumulée (unité × seconde) → nouvelle colonne."""
-    return _avec_colonne(signal, nom_produit(colonne, 'cumul'),
-                         cumul(_colonne(signal, 'time'), _colonne(signal, colonne)))
+    return _avec_colonne(signal, nom_produit(column, 'cumulative'),
+                         cumul(_colonne(signal, 'time'), _colonne(signal, column)))
 
 
 # ── ② INDICATEURS PAR SEGMENT ─────────────────────────────────────────────────────────────────
 
-def calcul_par_segment(segments: TypedFrame, signal: TypedFrame, statistiques: str = DEFAUT,
-                       colonne: str = 'value') -> TypedFrame:
+def calc_per_segment(segments: TypedFrame, signal: TypedFrame, statistics: str = DEFAUT,
+                       column: str = 'value') -> TypedFrame:
     """Indicateurs par segment, ADJOINTS aux segments reçus (une ligne par segment).
 
     `statistiques` est une liste séparée par des virgules — la forme qui reste sérialisable dans
     un manifeste et éditable dans une modale générée, contrairement à une liste Python.
     """
-    noms = [s.strip() for s in statistiques.split(',') if s.strip()] or [DEFAUT]
+    noms = [s.strip() for s in statistics.split(',') if s.strip()] or [DEFAUT]
     lignes = [dict(r, end=_fin(r.get('end'))) for r in segments.df.to_dict('records')]
-    jeux = par_segment(lignes, _colonne(signal, 'time'), _colonne(signal, colonne), noms)
+    jeux = par_segment(lignes, _colonne(signal, 'time'), _colonne(signal, column), noms)
     # Les indicateurs sont PRÉFIXÉS du nom de la colonne mesurée : sans cela, calculer sur deux
     # signaux successifs écraserait la première série par la seconde, en silence.
     fusion = []
     for ligne, jeu in zip(lignes, jeux):
-        indicateurs = {(k if k in CHAMPS_DE_SERVICE else nom_produit(colonne, k)): v
+        indicateurs = {(k if k in CHAMPS_DE_SERVICE else nom_produit(column, k)): v
                        for k, v in jeu.items()}
         fusion.append({**ligne, **indicateurs})
     return _segments(fusion, meta=segments.meta)
@@ -145,11 +145,11 @@ _ENTREE_SIGNAL = PortSpec('signal', DataType.TIMESERIES,
                           description="Flux échantillonné à enrichir. La colonne mesurée est "
                                       "choisie par le paramètre `colonne`.")
 
-_PARAM_COLONNE = ParamSpec('colonne', 'str', 'value',
+_PARAM_COLONNE = ParamSpec('column', 'str', 'value',
                            description="Colonne du signal sur laquelle porte le calcul.")
 
 register(FunctionSpec(
-    key='calcul_glissant',
+    key='calc_rolling',
     name='Moyenne (ou autre statistique) glissante',
     description="Statistique calculée sur une fenêtre glissante déclarée EN SECONDES — jamais en "
                 "nombre d'échantillons : WAMA Data aligne des flux à cadences incommensurables, "
@@ -162,23 +162,23 @@ register(FunctionSpec(
     outputs=[PortSpec('signal', DataType.TIMESERIES,
                       description="Le signal, augmenté de la colonne « <colonne>_<statistique> ».")],
     params=[
-        ParamSpec('fenetre_s', 'float', 5.0, min=0.0, unit='s',
+        ParamSpec('window_s', 'float', 5.0, min=0.0, unit='s',
                   description="Largeur de la fenêtre, en secondes."),
-        ParamSpec('statistique', 'enum', DEFAUT, choices=_CHOIX_STATS,
+        ParamSpec('statistic', 'enum', DEFAUT, choices=_CHOIX_STATS,
                   description="Statistique appliquée dans la fenêtre."),
         _PARAM_COLONNE,
-        ParamSpec('centre', 'bool', True,
+        ParamSpec('centered', 'bool', True,
                   description="Fenêtre centrée (analyse) plutôt que causale (temps réel)."),
         ParamSpec('min_points', 'int', 1, min=1,
                   description="Minimum d'échantillons présents, sinon la sortie vaut « absent » — "
                               "évite une valeur calculée sur un seul point au milieu d'un trou."),
     ],
     cost={'cpu_bound': True},
-    fn=calcul_glissant,
+    fn=calc_rolling,
 ))
 
 register(FunctionSpec(
-    key='calcul_derivee',
+    key='calc_derivative',
     name='Dérivée temporelle',
     description="Taux de variation instantané (unité/seconde), par différence centrée à "
                 "l'intérieur et décentrée aux bords. Rend « absent » là où le calcul n'a pas de "
@@ -192,11 +192,11 @@ register(FunctionSpec(
                       description="Le signal, augmenté de la colonne « <colonne>_derivee ».")],
     params=[_PARAM_COLONNE],
     cost={'cpu_bound': True},
-    fn=calcul_derivee,
+    fn=calc_derivative,
 ))
 
 register(FunctionSpec(
-    key='calcul_cumul',
+    key='calc_cumulative',
     name='Intégrale cumulée',
     description="Aire sous le signal (unité × seconde) par la méthode des trapèzes. Un intervalle "
                 "dont une borne manque n'apporte rien et le cumul se maintient : interpoler "
@@ -208,11 +208,11 @@ register(FunctionSpec(
                       description="Le signal, augmenté de la colonne « <colonne>_cumul ».")],
     params=[_PARAM_COLONNE],
     cost={'cpu_bound': True},
-    fn=calcul_cumul,
+    fn=calc_cumulative,
 ))
 
 register(FunctionSpec(
-    key='calcul_par_segment',
+    key='calc_per_segment',
     name='Indicateurs par segment',
     description="Agrège un signal sur chaque segment et adjoint les indicateurs à celui-ci — une "
                 "ligne par segment. Trois champs de service accompagnent toujours le résultat : "
@@ -235,11 +235,11 @@ register(FunctionSpec(
                       description="Les segments reçus, augmentés d'une colonne "
                                   "« <colonne>_<statistique> » par statistique demandée.")],
     params=[
-        ParamSpec('statistiques', 'str', DEFAUT,
+        ParamSpec('statistics', 'str', DEFAUT,
                   description="Statistiques à calculer, séparées par des virgules "
                               f"(disponibles : {', '.join(_CHOIX_STATS)})."),
         _PARAM_COLONNE,
     ],
     cost={'cpu_bound': True},
-    fn=calcul_par_segment,
+    fn=calc_per_segment,
 ))

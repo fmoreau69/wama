@@ -81,17 +81,17 @@ def _conditions(frame: TypedFrame, declaration: str) -> List[Condition]:
         raise ValueError(f"déclaration de conditions illisible (JSON attendu) : {e}")
     if not isinstance(brut, list) or not brut:
         raise ValueError("déclarer au moins une condition, sous forme de liste JSON — "
-                         '[{"cle": "C1", "champ": "vitesse", "operateur": ">=", "valeur": 30}]')
+                         '[{"key": "C1", "field": "vitesse", "operator": ">=", "value": 30}]')
 
     out: List[Condition] = []
     for i, item in enumerate(brut):
         if not isinstance(item, dict):
             raise ValueError(f"condition n°{i + 1} : objet attendu, reçu {item!r}")
-        champ = item.get('champ', '')
-        cle = item.get('cle') or f"C{i + 1}"
+        champ = item.get('field', '')
+        cle = item.get('key') or f"C{i + 1}"
         sorte = sorte_de_colonne(frame, champ)
-        out.append(Condition(cle=cle, champ=champ, operateur=item.get('operateur', ''),
-                             valeur=item.get('valeur'), flux=item.get('flux', ''),
+        out.append(Condition(cle=cle, champ=champ, operator=item.get('operator', ''),
+                             valeur=item.get('value'), flux=item.get('stream', ''),
                              sorte=sorte))
     cles = [c.cle for c in out]
     doublons = sorted({c for c in cles if cles.count(c) > 1})
@@ -101,7 +101,7 @@ def _conditions(frame: TypedFrame, declaration: str) -> List[Condition]:
     return out
 
 
-def _masque(signal: TypedFrame, conditions: str, connecteurs: str) -> tuple:
+def _masque(signal: TypedFrame, conditions: str, connectors: str) -> tuple:
     """Le masque booléen d'une chaîne, et le nom dérivé qui va avec.
 
     C'est LE point de passage commun aux deux ports de sortie (§9ter.6 B4) : segments et
@@ -109,7 +109,7 @@ def _masque(signal: TypedFrame, conditions: str, connecteurs: str) -> tuple:
     """
     decl = _conditions(signal, conditions)
     masques = {c.cle: c.evaluer(_colonne(signal, c.champ)) for c in decl}
-    texte = (connecteurs or '').strip()
+    texte = (connectors or '').strip()
     if not texte:
         # Une seule condition n'a pas besoin d'arbre ; plusieurs, si — sans quoi on choisirait
         # un connecteur implicite à leur place, et « ET » n'est pas plus évident que « OU ».
@@ -127,24 +127,24 @@ def _masque(signal: TypedFrame, conditions: str, connecteurs: str) -> tuple:
 # Les DEUX ports de sortie du même masque
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 
-def chaine_vers_segments(signal: TypedFrame, conditions: str = '', connecteurs: str = '',
-                         duree_min: float = 0.0, trou_tolere: float = 0.0,
-                         nom: str = '') -> TypedFrame:
+def chain_to_segments(signal: TypedFrame, conditions: str = '', connectors: str = '',
+                         min_duration: float = 0.0, gap_tolerance: float = 0.0,
+                         name: str = '') -> TypedFrame:
     """Plages où la chaîne conditionnelle est vraie, avec hystérésis."""
-    masque, derive = _masque(signal, conditions, connecteurs)
-    return _segments(conditionnelle(_colonne(signal, 'time'), masque, duree_min=duree_min,
-                                    trou_tolere=trou_tolere, nom=nom or derive),
+    masque, derive = _masque(signal, conditions, connectors)
+    return _segments(conditionnelle(_colonne(signal, 'time'), masque, min_duration=min_duration,
+                                    gap_tolerance=gap_tolerance, name=name or derive),
                      meta=signal.meta)
 
 
-def chaine_vers_events(signal: TypedFrame, conditions: str = '', connecteurs: str = '',
-                       montantes: bool = True, descendantes: bool = False,
-                       nom: str = '') -> TypedFrame:
+def chain_to_events(signal: TypedFrame, conditions: str = '', connectors: str = '',
+                       rising: bool = True, falling: bool = False,
+                       name: str = '') -> TypedFrame:
     """Instants où la chaîne conditionnelle BASCULE."""
     import pandas as pd
-    masque, derive = _masque(signal, conditions, connecteurs)
-    rows = bascules(_colonne(signal, 'time'), masque, montantes=montantes,
-                    descendantes=descendantes, nom=nom or derive)
+    masque, derive = _masque(signal, conditions, connectors)
+    rows = bascules(_colonne(signal, 'time'), masque, rising=rising,
+                    falling=falling, name=name or derive)
     df = pd.DataFrame(rows) if rows else pd.DataFrame(columns=CHAMPS_BASCULE)
     return TypedFrame(df, DataType.EVENTS, meta=signal.meta)
 
@@ -157,8 +157,8 @@ _ENTREE = PortSpec('signal', DataType.TIMESERIES, required_fields=['time'],
                    description="Signal portant les colonnes testées par les conditions.")
 
 _AIDE_CONDITIONS = (
-    'Liste JSON de conditions — [{"cle": "C1", "champ": "vitesse", "operateur": ">=", '
-    '"valeur": 30}]. La SORTE de la colonne (numérique / texte / booléen) est LUE dans la donnée, '
+    'Liste JSON de conditions — [{"key": "C1", "field": "vitesse", "operator": ">=", '
+    '"value": 30}]. La SORTE de la colonne (numérique / texte / booléen) est LUE dans la donnée, '
     'jamais déclarée : un opérateur qui ne lui convient pas est refusé à la déclaration. '
     'Opérateurs numériques : ' + ', '.join(operateurs_pour(NUMERIQUE)) + '. '
     'Opérateurs texte : ' + ', '.join(operateurs_pour(TEXTE)) + '.')
@@ -170,7 +170,7 @@ _AIDE_CONNECTEURS = (
     "et c'est l'arbre qui est conservé, si bien que deux saisies équivalentes se comparent.")
 
 register(FunctionSpec(
-    key='segment_chaine_conditionnelle',
+    key='segment_condition_chain',
     name="Segments par chaîne de conditions",
     description="Plages où PLUSIEURS conditions assemblées par ET / OU / XOR / NON sont "
                 "satisfaites, avec hystérésis. Généralise « Segments par condition », qui n'en "
@@ -185,20 +185,20 @@ register(FunctionSpec(
                       description="Plages satisfaisant la chaîne — origine tracée.")],
     params=[
         ParamSpec('conditions', 'json', '', description=_AIDE_CONDITIONS),
-        ParamSpec('connecteurs', 'str', '', description=_AIDE_CONNECTEURS),
-        ParamSpec('duree_min', 'float', 0.0, 0.0, unit='s',
+        ParamSpec('connectors', 'str', '', description=_AIDE_CONNECTEURS),
+        ParamSpec('min_duration', 'float', 0.0, 0.0, unit='s',
                   description="Durée minimale d'une plage retenue."),
-        ParamSpec('trou_tolere', 'float', 0.0, 0.0, unit='s',
+        ParamSpec('gap_tolerance', 'float', 0.0, 0.0, unit='s',
                   description="Interruption recollée au lieu de couper la plage."),
-        ParamSpec('nom', 'str', '',
+        ParamSpec('name', 'str', '',
                   description="Préfixe des segments. Vide : dérivé de l'arbre (« et_c1_c2 »)."),
     ],
     cost={'cpu_bound': True},
-    fn=chaine_vers_segments,
+    fn=chain_to_segments,
 ))
 
 register(FunctionSpec(
-    key='event_chaine_conditionnelle',
+    key='event_condition_chain',
     name="Événements aux bascules d'une chaîne de conditions",
     description="Instants où la chaîne change d'état, montantes et/ou descendantes. C'est le "
                 "SECOND port de sortie du même masque : « que créer, un événement ou une "
@@ -213,13 +213,13 @@ register(FunctionSpec(
                       description="Instants de bascule — `edge` dit le sens.")],
     params=[
         ParamSpec('conditions', 'json', '', description=_AIDE_CONDITIONS),
-        ParamSpec('connecteurs', 'str', '', description=_AIDE_CONNECTEURS),
-        ParamSpec('montantes', 'bool', True,
+        ParamSpec('connectors', 'str', '', description=_AIDE_CONNECTEURS),
+        ParamSpec('rising', 'bool', True,
                   description="Retenir les passages faux → vrai."),
-        ParamSpec('descendantes', 'bool', False,
+        ParamSpec('falling', 'bool', False,
                   description="Retenir les passages vrai → faux."),
-        ParamSpec('nom', 'str', ''),
+        ParamSpec('name', 'str', ''),
     ],
     cost={'cpu_bound': True},
-    fn=chaine_vers_events,
+    fn=chain_to_events,
 ))

@@ -19,11 +19,11 @@ from .frames import (adjoindre, frame_depuis_referentiel, frame_depuis_signal,
                      signal_depuis_frame, type_par_defaut)
 
 
-def _signal(nom='vitesse', times=(0.0, 1.0, 2.0, 3.0), lignes=None, ends=None, **kw):
+def _signal(name='vitesse', times=(0.0, 1.0, 2.0, 3.0), lignes=None, ends=None, **kw):
     """Un flux à la forme RÉELLE des lecteurs : `rows` rend une liste de dicts."""
     lignes = lignes if lignes is not None else [
         {'timecode': t, 'value': 10.0 * i} for i, t in enumerate(times)]
-    meta = SignalMeta(name=nom, **kw)
+    meta = SignalMeta(name=name, **kw)
     return Signal(meta, list(times), rows=lambda i0, i1: lignes[i0:i1], ends=ends)
 
 
@@ -229,7 +229,7 @@ class FenetreTest(unittest.TestCase):
         self.assertIn('time', f.df.columns)
 
     def test_flux_vide_rend_un_cadre_bien_forme(self):
-        s = Signal(SignalMeta(name='vide'), [])
+        s = Signal(SignalMeta(name='empty'), [])
         f = frame_depuis_signal(s)
         self.assertEqual(len(f.df), 0)
         self.assertIn('time', f.df.columns)
@@ -243,15 +243,15 @@ class PontCompletTest(unittest.TestCase):
     """
 
     def test_referentiel_vers_fonction_vers_referentiel(self):
-        from .functions.temporal.calculation import calcul_glissant
+        from .functions.temporal.calculation import calc_rolling
 
         ref = TemporalReferential('session')
         lignes = [{'timecode': i * 0.5, 'value': float(i % 3)} for i in range(12)]
         ref.add(_signal('capteur', tuple(i * 0.5 for i in range(12)), lignes=lignes))
 
         cadre = frame_depuis_referentiel(ref, 'capteur')
-        lisse = calcul_glissant(cadre, fenetre_s=1.0, colonne='value')
-        self.assertIn('value_moyenne', lisse.df.columns)
+        lisse = calc_rolling(cadre, window_s=1.0, column='value')
+        self.assertIn('value_mean', lisse.df.columns)
 
         adjoindre(ref, 'capteur_lisse', lisse)
         self.assertIn('capteur_lisse', ref.names)
@@ -260,7 +260,7 @@ class PontCompletTest(unittest.TestCase):
         self.assertFalse(ref.get('capteur_lisse').meta.is_base)
 
     def test_referentiel_vers_SEGMENTATION_vers_referentiel(self):
-        from .functions.temporal.conditions import chaine_vers_segments
+        from .functions.temporal.conditions import chain_to_segments
 
         ref = TemporalReferential('session')
         lignes = [{'timecode': float(i), 'value': 40.0 if 2 <= i <= 5 else 5.0}
@@ -268,9 +268,9 @@ class PontCompletTest(unittest.TestCase):
         ref.add(_signal('vitesse', tuple(float(i) for i in range(10)), lignes=lignes))
 
         cadre = frame_depuis_referentiel(ref, 'vitesse')
-        segs = chaine_vers_segments(
-            cadre, conditions=[{'cle': 'C1', 'champ': 'value',
-                                'operateur': '>=', 'valeur': 30.0}])
+        segs = chain_to_segments(
+            cadre, conditions=[{'key': 'C1', 'field': 'value',
+                                'operator': '>=', 'value': 30.0}])
         self.assertEqual(len(segs.df), 1)
 
         adjoindre(ref, 'survitesse', segs)
@@ -278,7 +278,7 @@ class PontCompletTest(unittest.TestCase):
         self.assertEqual(ref.containing('survitesse', 3.0), [0])
 
     def test_l_offset_survit_a_l_aller_retour(self):
-        from .functions.temporal.calculation import calcul_derivee
+        from .functions.temporal.calculation import calc_derivative
 
         ref = TemporalReferential()
         lignes = [{'timecode': float(i), 'value': float(i)} for i in range(5)]
@@ -287,7 +287,7 @@ class PontCompletTest(unittest.TestCase):
 
         cadre = frame_depuis_referentiel(ref, 'decale')
         self.assertEqual(cadre.df['time'].iloc[0], 1000.0)
-        derive = calcul_derivee(cadre, colonne='value')
+        derive = calc_derivative(cadre, column='value')
         # Le flux dérivé est DÉJÀ en temps de session : on l'ajoute donc SANS offset, sinon on
         # décalerait deux fois.
         adjoindre(ref, 'decale_derivee', derive)

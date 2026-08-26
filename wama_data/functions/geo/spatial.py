@@ -38,7 +38,7 @@ from ..temporal.segmentation import _colonne, _fin, _segments
 
 
 def distance_a_point(track: TypedFrame, lat: float = 0.0, lon: float = 0.0,
-                     nom: str = '', champ_lat: str = 'lat',
+                     name: str = '', champ_lat: str = 'lat',
                      champ_lon: str = 'lon') -> TypedFrame:
     """Distance de chaque position à un point de référence → colonne `distance_<nom>` (mètres).
 
@@ -46,12 +46,12 @@ def distance_a_point(track: TypedFrame, lat: float = 0.0, lon: float = 0.0,
     comme partout ailleurs (`core/noms.py`). Sans lui, deux distances à deux points différents
     écraseraient la même colonne — et rien ne le signalerait.
     """
-    if not nom:
+    if not name:
         raise ValueError("nommer le point de référence : la colonne produite s'en dérive, et "
                          "deux points sans nom écraseraient la même colonne")
     valeurs = distances_a_point(_colonne(track, champ_lat), _colonne(track, champ_lon), lat, lon)
     df = track.df.copy()
-    df[f"distance_{normaliser(nom)}"] = valeurs
+    df[f"distance_{normaliser(name)}"] = valeurs
     return TypedFrame(df, track.data_type, meta=track.meta)
 
 
@@ -73,7 +73,7 @@ register(FunctionSpec(
     outputs=[PortSpec('track', DataType.GEO_TRACK,
                       description="La trace, augmentée de `distance_<nom>` en mètres.")],
     params=[
-        ParamSpec('nom', 'str', '', description="Nom du point de référence — la colonne produite "
+        ParamSpec('name', 'str', '', description="Nom du point de référence — la colonne produite "
                                                 "s'en dérive (`distance_carrefour_nord`)."),
         ParamSpec('lat', 'float', 0.0, description='Latitude du point (degrés).'),
         ParamSpec('lon', 'float', 0.0, description='Longitude du point (degrés).'),
@@ -85,8 +85,8 @@ register(FunctionSpec(
 ))
 
 
-def segments_marges_spatiales(segments: TypedFrame, track: TypedFrame,
-                              avant_m: float = 0.0, apres_m: float = 0.0,
+def segments_spatial_margins(segments: TypedFrame, track: TypedFrame,
+                              before_m: float = 0.0, after_m: float = 0.0,
                               champ_lat: str = 'lat', champ_lon: str = 'lon') -> TypedFrame:
     """Marges en MÈTRES le long de la trace — l'abscisse curviligne convertit la distance en bornes.
 
@@ -97,12 +97,12 @@ def segments_marges_spatiales(segments: TypedFrame, track: TypedFrame,
     abscisses = abscisse_curviligne(_colonne(track, champ_lat), _colonne(track, champ_lon))
     rows = [dict(r, end=_fin(r.get('end'))) for r in segments.df.to_dict('records')]
     return _segments(marges_spatiales(rows, _colonne(track, 'time'), abscisses,
-                                      avant_m=avant_m, apres_m=apres_m),
+                                      before_m=before_m, after_m=after_m),
                      meta=segments.meta)
 
 
 register(FunctionSpec(
-    key='segment_marges_spatiales',
+    key='segment_spatial_margins',
     name="Marges spatiales autour de segments (mètres le long de la trace)",
     description="Décale les bornes d'une DISTANCE PARCOURUE (« 50 m avant l'entrée de zone »), "
                 "convertie en instants par l'abscisse curviligne de la trace. Les bornes rendues "
@@ -121,13 +121,13 @@ register(FunctionSpec(
                       description="Segments aux bornes décalées — origine tracée, "
                                   "`source` garde l'origine d'avant la marge.")],
     params=[
-        ParamSpec('avant_m', 'float', 0.0, unit='m',
+        ParamSpec('before_m', 'float', 0.0, unit='m',
                   description="Marge AVANT chaque segment, en mètres parcourus."),
-        ParamSpec('apres_m', 'float', 0.0, unit='m',
+        ParamSpec('after_m', 'float', 0.0, unit='m',
                   description="Marge APRÈS chaque segment, en mètres parcourus."),
         ParamSpec('champ_lat', 'str', 'lat'),
         ParamSpec('champ_lon', 'str', 'lon'),
     ],
     cost={'cpu_bound': True},
-    fn=segments_marges_spatiales,
+    fn=segments_spatial_margins,
 ))

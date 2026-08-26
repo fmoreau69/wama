@@ -272,7 +272,7 @@ def _indice_de_prefixe(manquants: Sequence[str], presents: set) -> Tuple[str, ..
 
 
 def charger(body: Mapping[str, Any], racine: Optional[Any] = None, *,
-            strict: bool = False, nom: str = '',
+            strict: bool = False, name: str = '',
             timestampers: Optional[Dict[str, Any]] = None
             ) -> Tuple[TemporalReferential, Ecart]:
     """Ouvre le jeu déclaré et rend **le référentiel ET l'écart**.
@@ -303,5 +303,5 @@ def charger(body: Mapping[str, Any], racine: Optional[Any] = None, *,
 
     p = chemin(body, racine)
     demandes = [s for s in signaux_declares(body) if s not in ecart.manquants]
-    ref = load(p, streams=demandes, timestampers=timestampers, name=nom or p.stem)
+    ref = load(p, streams=demandes, timestampers=timestampers, name=name or p.stem)
     return ref, ecart

@@ -149,8 +149,8 @@ class TabularReader(SourceReader):
                 f"'{path.name}' n'a pas de colonne temporelle reconnue "
                 f"(attendu l'un de : {', '.join(COLONNES_TEMPS)})")
 
-        nom = path.stem
-        if streams is not None and nom not in list(streams):
+        name = path.stem
+        if streams is not None and name not in list(streams):
             return []
 
         paires = []
@@ -165,14 +165,14 @@ class TabularReader(SourceReader):
         # calcul (voir `_numerise`). Fait ici, une seule fois, et non à chaque lecture de tranche.
         donnees = _numerise(entetes, [p[1] for p in paires])
 
-        ts = timestampers.get(nom)
+        ts = timestampers.get(name)
         if ts is not None:
             times = [ts.timestamp(t, i, t) for i, t in enumerate(times)]
 
         def rows(i0: int, i1: int):
             return [dict(zip(entetes, r)) for r in donnees[i0:i1]]
 
-        meta = SignalMeta(name=nom, data_type=DataType.TIMESERIES, fs=None,
+        meta = SignalMeta(name=name, data_type=DataType.TIMESERIES, fs=None,
                           default_lookup=NEAREST,
                           comments=f"tabulaire · {len(entetes)} colonne(s)")
         return [StreamSpec(meta=meta, times=times, rows=rows)]

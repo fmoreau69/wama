@@ -260,13 +260,13 @@ def _register_builtins():
     seulement écrite.
     """
     import importlib
-    for nom in modules_lecteurs():
+    for name in modules_lecteurs():
         try:
-            importlib.import_module(f'{__name__}.{nom}')
+            importlib.import_module(f'{__name__}.{name}')
         except Exception:
             logging.getLogger(__name__).warning(
                 "lecteur '%s' non enregistré — les autres formats restent disponibles",
-                nom, exc_info=True)
+                name, exc_info=True)
 
 
 _register_builtins()

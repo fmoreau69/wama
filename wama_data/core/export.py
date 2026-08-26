@@ -91,7 +91,7 @@ class Colonne:
         return self.entete or f"{self.flux}.{self.champ}"
 
     def to_dict(self) -> Dict[str, Any]:
-        return {'flux': self.flux, 'champ': self.champ, 'entete': self.entete}
+        return {'stream': self.flux, 'field': self.champ, 'entete': self.entete}
 
 
 @dataclass(frozen=True)
@@ -204,30 +204,30 @@ class Declaration:
     Ses `save_env_export` / `load_export` viennent alors gratuitement : sauver la déclaration,
     c'est sauver un objet déjà sérialisable, pas un état d'interface.
     """
-    nom: str
+    name: str
     colonnes: Tuple[Colonne, ...]
     identite: Identite = field(default_factory=Identite)
     decimation: int = 1
     format: str = 'csv'
 
     def __post_init__(self) -> None:
-        if not self.nom:
+        if not self.name:
             raise ValueError("une déclaration d'export doit porter un nom")
         if not self.colonnes:
-            raise ValueError(f"« {self.nom} » : aucune colonne sélectionnée")
+            raise ValueError(f"« {self.name} » : aucune colonne sélectionnée")
         if self.decimation < 1:
             raise ValueError(
-                f"« {self.nom} » : la décimation est un PAS (garder une ligne sur N), "
+                f"« {self.name} » : la décimation est un PAS (garder une ligne sur N), "
                 f"donc ≥ 1 — reçu {self.decimation}")
         if self.format not in FORMATS:
-            raise ValueError(f"« {self.nom} » : format '{self.format}' inconnu "
+            raise ValueError(f"« {self.name} » : format '{self.format}' inconnu "
                              f"(disponibles : {', '.join(FORMATS)})")
         titres = [c.titre for c in self.colonnes]
         doublons = sorted({t for t in titres if titres.count(t) > 1})
         # Deux colonnes de même en-tête produiraient un fichier que rien ne permet de relire :
         # l'outil d'origine ne le voit pas, parce que ses en-têtes sont reconstruits par chemin.
         if doublons:
-            raise ValueError(f"« {self.nom} » : en-têtes en double ({', '.join(doublons)}) — "
+            raise ValueError(f"« {self.name} » : en-têtes en double ({', '.join(doublons)}) — "
                              "préciser `entete` sur l'une des colonnes")
 
     @property
@@ -251,7 +251,7 @@ class Declaration:
     # ── Sérialisation — §9quater C1 l'affirmait (« c'est un manifeste ») sans l'écrire (§9sexies)
     def to_dict(self) -> Dict[str, Any]:
         return {
-            'nom': self.nom,
+            'name': self.name,
             'colonnes': [c.to_dict() for c in self.colonnes],
             'identite': list(self.identite.champs),
             'decimation': self.decimation,
@@ -265,8 +265,8 @@ def declaration_depuis_dict(brut: Mapping[str, Any]) -> Declaration:
     if not isinstance(brut, Mapping):
         raise ValueError(f"déclaration attendue sous forme d'objet, reçu {type(brut).__name__}")
     return Declaration(
-        nom=brut.get('nom', ''),
-        colonnes=tuple(Colonne(flux=c.get('flux', ''), champ=c.get('champ', ''),
+        name=brut.get('name', ''),
+        colonnes=tuple(Colonne(flux=c.get('stream', ''), champ=c.get('field', ''),
                                entete=c.get('entete', ''))
                        for c in (brut.get('colonnes') or ())),
         identite=Identite(tuple(brut.get('identite') or ())),
@@ -279,12 +279,12 @@ def declaration_depuis_dict(brut: Mapping[str, Any]) -> Declaration:
 # 2. Extraction — une déclaration appliquée à UN lot
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 
-def _table(lot: Lot, nom: str, declaration: str) -> Table:
+def _table(lot: Lot, name: str, declaration: str) -> Table:
     try:
-        return lot[nom]
+        return lot[name]
     except KeyError:
         raise ValueError(
-            f"« {declaration} » : table '{nom}' absente du lot "
+            f"« {declaration} » : table '{name}' absente du lot "
             f"(présentes : {', '.join(sorted(lot)) or '— aucune'})")
 
 
@@ -303,11 +303,11 @@ def lignes(declaration: Declaration, lot: Lot, meta: Optional[Mapping[str, Any]]
     peuvent diverger, donc un aperçu qui finit par mentir.
     """
     meta = meta or {}
-    hauteurs = {nom: len(_table(lot, nom, declaration.nom)) for nom in declaration.flux}
+    hauteurs = {name: len(_table(lot, name, declaration.name)) for name in declaration.flux}
     if len(set(hauteurs.values())) > 1:
         detail = ', '.join(f"{n}={h}" for n, h in hauteurs.items())
         raise ValueError(
-            f"« {declaration.nom} » : tables de hauteurs différentes ({detail}) — une ligne "
+            f"« {declaration.name} » : tables de hauteurs différentes ({detail}) — une ligne "
             "d'export ne peut pas mêler des tables sans correspondance ligne à ligne ; "
             "exporter séparément, ou restreindre à un contexte commun")
 
@@ -317,7 +317,7 @@ def lignes(declaration: Declaration, lot: Lot, meta: Optional[Mapping[str, Any]]
     # Décimation = un PAS, pas une troncature (④). L'aperçu s'applique APRÈS elle : montrer les
     # N premières lignes brutes d'un export décimé au 1000ᵉ ne montrerait pas l'export.
     for i in range(0, hauteur, declaration.decimation):
-        out.append(list(identite) + [_table(lot, c.flux, declaration.nom)[i].get(c.champ)
+        out.append(list(identite) + [_table(lot, c.flux, declaration.name)[i].get(c.champ)
                                      for c in declaration.colonnes])
         if limite is not None and len(out) >= limite:
             break
@@ -331,7 +331,7 @@ def lignes(declaration: Declaration, lot: Lot, meta: Optional[Mapping[str, Any]]
 @dataclass
 class Fichier:
     """Un fichier d'export produit : son nom, ses en-têtes, ses lignes."""
-    nom: str
+    name: str
     entetes: List[str]
     lignes: List[List[Any]]
     format: str = 'csv'
@@ -365,9 +365,9 @@ def exporter(declarations: Sequence[Declaration], lots: Mapping[str, Lot],
     matrice: Dict[Tuple[str, str], List[List[Any]]] = {}
     for d in declarations:
         for nom_lot, lot in lots.items():
-            matrice[(d.nom, nom_lot)] = lignes(d, lot, metas.get(nom_lot), limite=limite)
+            matrice[(d.name, nom_lot)] = lignes(d, lot, metas.get(nom_lot), limite=limite)
 
-    par_nom = {d.nom: d for d in declarations}
+    par_nom = {d.name: d for d in declarations}
 
     def _entetes(noms: Sequence[str]) -> List[str]:
         """En-têtes d'un groupe de déclarations — identiques ou refus."""
@@ -379,7 +379,7 @@ def exporter(declarations: Sequence[Declaration], lots: Mapping[str, Lot],
                 "pas les lignes")
         return list(next(iter(formes)))
 
-    noms_decl = [d.nom for d in declarations]
+    noms_decl = [d.name for d in declarations]
     noms_lots = list(lots)
 
     # Étape 2 — LE groupement. Les deux axes décident seulement ce qu'on met dans une même clé.
@@ -395,7 +395,7 @@ def exporter(declarations: Sequence[Declaration], lots: Mapping[str, Lot],
             groupes[nom_fichier][1].extend(matrice[(nom_d, nom_l)])
 
     fmt = declarations[0].format if declarations else 'csv'
-    return [Fichier(nom=n, entetes=e, lignes=l, format=fmt) for n, (e, l) in groupes.items()]
+    return [Fichier(name=n, entetes=e, lignes=l, format=fmt) for n, (e, l) in groupes.items()]
 
 
 def apercu(declarations: Sequence[Declaration], lots: Mapping[str, Lot],

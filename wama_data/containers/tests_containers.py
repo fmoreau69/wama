@@ -28,8 +28,8 @@ from . import (Contexte, Rapport, SCHEMAS, ecrire, extensions_ecrivables, module
                schema_pour, schemas_disponibles)
 
 
-def _signal(nom, temps, lignes=None, *, data_type=DataType.TIMESERIES, ends=None, **kw):
-    meta = SignalMeta(name=nom, data_type=data_type, **kw)
+def _signal(name, temps, lignes=None, *, data_type=DataType.TIMESERIES, ends=None, **kw):
+    meta = SignalMeta(name=name, data_type=data_type, **kw)
     acces = (lambda i0, i1: lignes[i0:i1]) if lignes is not None else None
     return Signal(meta, temps, acces, ends=ends)
 
@@ -62,9 +62,9 @@ class RegistreTest(unittest.TestCase):
 
     def test_les_schemas_sont_DECOUVERTS_pas_cites(self):
         moteur = (Path(__file__).parent / '__init__.py').read_text(encoding='utf-8')
-        for nom in modules_schemas():
+        for name in modules_schemas():
             self.assertNotIn(
-                f'from . import {nom}', moteur,
+                f'from . import {name}', moteur,
                 "le moteur cite un schéma : ajouter un format obligerait à l'éditer (G1)")
 
     def test_un_schema_se_trouve_par_son_nom_ou_par_une_extension(self):
@@ -121,13 +121,13 @@ class EcritureTest(unittest.TestCase):
     def test_un_echec_ne_detruit_pas_la_version_precedente(self):
         cible = self.dossier / 'a.wdat'
         ecrire(self.ref, cible)
-        avant = cible.read_bytes()
+        before = cible.read_bytes()
         casse = TemporalReferential(name='casse')
         casse.add(_signal('boum', [0.0], None))
         casse.get('boum')._rows = lambda i0, i1: (_ for _ in ()).throw(RuntimeError('disque'))
         with self.assertRaises(RuntimeError):
             ecrire(casse, cible, ecraser=True)
-        self.assertEqual(cible.read_bytes(), avant,
+        self.assertEqual(cible.read_bytes(), before,
                          "un échec a remplacé un conteneur valide par rien")
 
     def test_on_peut_n_ecrire_qu_une_partie_des_flux(self):

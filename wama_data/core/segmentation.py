@@ -50,25 +50,25 @@ def _tracer(seg: Segment, origine: str, **details) -> Segment:
 # 1. Autour d'une ANCRE — deux offsets indépendants
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
-def autour(ancres: Sequence[float], offset_debut: float, offset_fin: float,
-           *, nom: str = '', attributs: Optional[Sequence[dict]] = None) -> List[Segment]:
+def autour(ancres: Sequence[float], offset_start: float, offset_end: float,
+           *, name: str = '', attributs: Optional[Sequence[dict]] = None) -> List[Segment]:
     """`start = ancre + offset_debut`, `end = ancre + offset_fin`.
 
     Les deux offsets sont INDÉPENDANTS et peuvent être tous deux positifs : « de +15 s à +45 s
     après l'événement » est un cas normal, pas une bizarrerie. C'est la forme qui engendre des
     familles de fenêtres emboîtées ou glissantes sur la même ancre.
     """
-    if offset_fin < offset_debut:
+    if offset_end < offset_start:
         raise ValueError("offset_fin doit être ≥ offset_debut")
     out: List[Segment] = []
     for i, a in enumerate(ancres):
-        seg = {'start': a + offset_debut, 'end': a + offset_fin}
-        if nom:
-            seg['name'] = f"{nom}_{i + 1:02d}"
+        seg = {'start': a + offset_start, 'end': a + offset_end}
+        if name:
+            seg['name'] = f"{name}_{i + 1:02d}"
         if attributs and i < len(attributs):
             seg.update(attributs[i])
         out.append(_tracer(seg, 'autour', anchor=a,
-                           window=f"{offset_debut:g}_{offset_fin:g}"))
+                           window=f"{offset_start:g}_{offset_end:g}"))
     return out
 
 
@@ -76,11 +76,11 @@ def autour(ancres: Sequence[float], offset_debut: float, offset_fin: float,
 # 2. JONCTION de deux flux — le mode que j'avais manqué
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
-def jonction(debuts: Sequence[float], fins: Sequence[float], *, nom: str = '',
-             depuis_debut: int = 0, depuis_fin: int = 0,
-             offset_debut: float = 0.0, offset_fin: float = 0.0,
-             repeter: bool = True,
-             fermer_dernier: bool = False) -> List[Segment]:
+def jonction(debuts: Sequence[float], fins: Sequence[float], *, name: str = '',
+             skip_starts: int = 0, skip_ends: int = 0,
+             offset_start: float = 0.0, offset_end: float = 0.0,
+             repeat: bool = True,
+             drop_last_open: bool = False) -> List[Segment]:
     """Apparie le i-ème début avec la première fin qui le SUIT.
 
     ⚠ L'appariement se fait par l'ordre temporel, pas par index : deux flux indépendants n'ont
@@ -112,26 +112,26 @@ def jonction(debuts: Sequence[float], fins: Sequence[float], *, nom: str = '',
     qu'un segment jeté. Perdre le dernier état d'une session est une perte de donnée, pas une
     simplification.
     """
-    d = sorted(debuts)[depuis_debut:]
-    f = sorted(fins)[depuis_fin:]
-    if not repeter:
+    d = sorted(debuts)[skip_starts:]
+    f = sorted(fins)[skip_ends:]
+    if not repeat:
         d = d[:1]
     out: List[Segment] = []
     for i, t0 in enumerate(d):
         j = bisect_right(f, t0)
         t1 = f[j] if j < len(f) else OUVERT
-        if t1 is OUVERT and fermer_dernier:
+        if t1 is OUVERT and drop_last_open:
             continue
         # Les offsets s'appliquent APRÈS l'appariement : les décaler avant changerait quelle fin
         # suit quel début, donc l'appariement lui-même. Un décalage de bornes ne doit pas modifier
         # la structure de ce qui a été apparié.
-        seg = {'start': t0 + offset_debut,
-               'end': OUVERT if t1 is OUVERT else t1 + offset_fin}
-        if nom:
-            seg['name'] = f"{nom}_{i + 1:02d}"
+        seg = {'start': t0 + offset_start,
+               'end': OUVERT if t1 is OUVERT else t1 + offset_end}
+        if name:
+            seg['name'] = f"{name}_{i + 1:02d}"
         out.append(_tracer(seg, 'jonction', open=(t1 is OUVERT),
-                           window=(f"{offset_debut:g}_{offset_fin:g}"
-                                   if (offset_debut or offset_fin) else None)))
+                           window=(f"{offset_start:g}_{offset_end:g}"
+                                   if (offset_start or offset_end) else None)))
     return out
 
 
@@ -140,8 +140,8 @@ def jonction(debuts: Sequence[float], fins: Sequence[float], *, nom: str = '',
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
 def conditionnelle(times: Sequence[float], masque: Sequence[bool], *,
-                   duree_min: float = 0.0, trou_tolere: float = 0.0,
-                   nom: str = '') -> List[Segment]:
+                   min_duration: float = 0.0, gap_tolerance: float = 0.0,
+                   name: str = '') -> List[Segment]:
     """Plages où le masque est vrai, avec DURÉE MINIMALE et TROU TOLÉRÉ.
 
     L'hystérésis n'est pas un raffinement : sans elle, un seuil sur un signal réel produit du
@@ -165,24 +165,24 @@ def conditionnelle(times: Sequence[float], masque: Sequence[bool], *,
     # Recollage des plages séparées par un trou plus court que toléré.
     fusionnees: List[List[float]] = []
     for plage in brutes:
-        if fusionnees and (plage[0] - fusionnees[-1][1]) <= trou_tolere:
+        if fusionnees and (plage[0] - fusionnees[-1][1]) <= gap_tolerance:
             fusionnees[-1][1] = plage[1]
         else:
             fusionnees.append(plage)
 
     out: List[Segment] = []
-    for i, (t0, t1) in enumerate([p for p in fusionnees if (p[1] - p[0]) >= duree_min]):
+    for i, (t0, t1) in enumerate([p for p in fusionnees if (p[1] - p[0]) >= min_duration]):
         seg = {'start': t0, 'end': t1}
-        if nom:
-            seg['name'] = f"{nom}_{i + 1:02d}"
+        if name:
+            seg['name'] = f"{name}_{i + 1:02d}"
         out.append(_tracer(seg, 'conditionnelle',
-                           min_duration=duree_min or None,
-                           max_gap=trou_tolere or None))
+                           min_duration=min_duration or None,
+                           max_gap=gap_tolerance or None))
     return out
 
 
 def masque_hysteresis(valeurs: Sequence[Any], seuil_entree: float, seuil_sortie: float,
-                      *, operateur: str = '<=') -> List[bool]:
+                      *, operator: str = '<=') -> List[bool]:
     """Masque à DEUX SEUILS — on entre à `seuil_entree`, on ne sort qu'à `seuil_sortie`.
 
     C'est le déclencheur de Schmitt, et c'est la réponse classique au tremblement d'une mesure
@@ -210,14 +210,14 @@ def masque_hysteresis(valeurs: Sequence[Any], seuil_entree: float, seuil_sortie:
     honnête — un trou GPS n'est ni une entrée ni une sortie, et le traiter comme « dehors »
     couperait un passage à chaque perte de fix.
     """
-    if operateur not in ('<=', '>='):
-        raise ValueError(f"opérateur '{operateur}' : attendu '<=' (dedans = petit) "
+    if operator not in ('<=', '>='):
+        raise ValueError(f"opérateur '{operator}' : attendu '<=' (dedans = petit) "
                          "ou '>=' (dedans = grand)")
-    if operateur == '<=' and seuil_sortie < seuil_entree:
+    if operator == '<=' and seuil_sortie < seuil_entree:
         raise ValueError(
             f"hystérésis incohérente : avec '<=', on sort PLUS LOIN qu'on entre, donc "
             f"seuil_sortie ({seuil_sortie}) doit être ≥ seuil_entree ({seuil_entree})")
-    if operateur == '>=' and seuil_sortie > seuil_entree:
+    if operator == '>=' and seuil_sortie > seuil_entree:
         raise ValueError(
             f"hystérésis incohérente : avec '>=', on sort PLUS BAS qu'on entre, donc "
             f"seuil_sortie ({seuil_sortie}) doit être ≤ seuil_entree ({seuil_entree})")
@@ -228,7 +228,7 @@ def masque_hysteresis(valeurs: Sequence[Any], seuil_entree: float, seuil_sortie:
         if v is None or isinstance(v, bool) or not isinstance(v, (int, float)) or v != v:
             out.append(dedans)          # absence : on maintient l'état
             continue
-        if operateur == '<=':
+        if operator == '<=':
             dedans = (v <= seuil_entree) if not dedans else (v <= seuil_sortie)
         else:
             dedans = (v >= seuil_entree) if not dedans else (v >= seuil_sortie)
@@ -237,8 +237,8 @@ def masque_hysteresis(valeurs: Sequence[Any], seuil_entree: float, seuil_sortie:
 
 
 def bascules(times: Sequence[float], masque: Sequence[bool], *,
-             montantes: bool = True, descendantes: bool = False,
-             nom: str = '') -> List[Dict[str, Any]]:
+             rising: bool = True, falling: bool = False,
+             name: str = '') -> List[Dict[str, Any]]:
     """Instants où le masque CHANGE d'état — le second port de sortie d'une condition.
 
     C'est la traduction du choix « Que créer ? Event | Situation » de l'outil d'origine, où il est
@@ -260,15 +260,15 @@ def bascules(times: Sequence[float], masque: Sequence[bool], *,
         raise ValueError("times et masque doivent avoir la même longueur")
     out: List[Dict[str, Any]] = []
     for i in range(1, len(masque)):
-        avant, apres = bool(masque[i - 1]), bool(masque[i])
-        if avant == apres:
+        before, after = bool(masque[i - 1]), bool(masque[i])
+        if before == after:
             continue
-        sens = 'montante' if apres else 'descendante'
-        if (sens == 'montante' and not montantes) or (sens == 'descendante' and not descendantes):
+        sens = 'montante' if after else 'descendante'
+        if (sens == 'montante' and not rising) or (sens == 'descendante' and not falling):
             continue
         ev: Dict[str, Any] = {'time': times[i], 'edge': sens}
-        if nom:
-            ev['name'] = f"{nom}_{len(out) + 1:02d}"
+        if name:
+            ev['name'] = f"{name}_{len(out) + 1:02d}"
         ev['origin'] = 'bascule'
         out.append(ev)
     return out
@@ -279,7 +279,7 @@ def bascules(times: Sequence[float], masque: Sequence[bool], *,
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
 def etats(times: Sequence[float], valeurs: Sequence[Any], *,
-          ignorer: Iterable[Any] = (), nom: str = '') -> List[Segment]:
+          ignore: Iterable[Any] = (), name: str = '') -> List[Segment]:
     """Découpe un signal catégoriel en segments de valeur constante (run-length).
 
     C'est la forme IMPLICITE d'un segment : l'utilisateur voit « un état », la donnée n'est qu'une
@@ -289,7 +289,7 @@ def etats(times: Sequence[float], valeurs: Sequence[Any], *,
     """
     if len(times) != len(valeurs):
         raise ValueError("times et valeurs doivent avoir la même longueur")
-    a_ignorer = set(ignorer)
+    a_ignorer = set(ignore)
     out: List[Segment] = []
     i, n = 0, len(valeurs)
     while i < n:
@@ -299,8 +299,8 @@ def etats(times: Sequence[float], valeurs: Sequence[Any], *,
             j += 1
         if v not in a_ignorer:
             seg = {'start': times[i], 'end': times[j], 'value': v}
-            if nom:
-                seg['name'] = f"{nom}_{len(out) + 1:02d}"
+            if name:
+                seg['name'] = f"{name}_{len(out) + 1:02d}"
             out.append(_tracer(seg, 'etat', samples=j - i + 1))
         i = j + 1
     return out
@@ -379,7 +379,7 @@ def fermer(segments: Sequence[Segment], fin: float) -> List[Segment]:
 # 6. MARGES — ajuster les bornes d'un segment EXISTANT (temporelles, ou spatiales par colonne)
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
-def marges(segments: Sequence[Segment], avant: float = 0.0, apres: float = 0.0) -> List[Segment]:
+def marges(segments: Sequence[Segment], before: float = 0.0, after: float = 0.0) -> List[Segment]:
     """Décale les bornes de chaque segment : `start − avant`, `end + apres`.
 
     C'est le mode « Simple » de l'outil d'origine appliqué à une SITUATION (bascule
@@ -395,19 +395,19 @@ def marges(segments: Sequence[Segment], avant: float = 0.0, apres: float = 0.0) 
     out: List[Segment] = []
     for s in segments:
         seg = dict(s)
-        seg['start'] = s['start'] - avant
+        seg['start'] = s['start'] - before
         fin = s.get('end')
-        seg['end'] = OUVERT if fin is OUVERT else fin + apres
+        seg['end'] = OUVERT if fin is OUVERT else fin + after
         if seg['end'] is not OUVERT and seg['end'] <= seg['start']:
             continue
         out.append(_tracer(seg, 'marges', source=s.get('origin'),
-                           window=f"{avant:g}_{apres:g}"))
+                           window=f"{before:g}_{after:g}"))
     return out
 
 
 def marges_spatiales(segments: Sequence[Segment], times: Sequence[float],
                      abscisses: Sequence[Optional[float]],
-                     avant_m: float = 0.0, apres_m: float = 0.0) -> List[Segment]:
+                     before_m: float = 0.0, after_m: float = 0.0) -> List[Segment]:
     """Décale les bornes d'une DISTANCE PARCOURUE le long de la trace, pas d'une durée.
 
     Même généralisation que la segmentation spatiale (§9septies) : « 50 m avant l'entrée de
@@ -440,14 +440,14 @@ def marges_spatiales(segments: Sequence[Segment], times: Sequence[float],
     out: List[Segment] = []
     for s in segments:
         seg = dict(s)
-        i = bisect_right(ab, _abscisse_a(s['start']) - avant_m) - 1
+        i = bisect_right(ab, _abscisse_a(s['start']) - before_m) - 1
         seg['start'] = ts[max(i, 0)]
         fin = s.get('end')
         if fin is not OUVERT:
-            j = bisect_left(ab, _abscisse_a(fin) + apres_m)
+            j = bisect_left(ab, _abscisse_a(fin) + after_m)
             seg['end'] = ts[min(j, len(ts) - 1)]
             if seg['end'] <= seg['start']:
                 continue
         out.append(_tracer(seg, 'marges_spatiales', source=s.get('origin'),
-                           window=f"{avant_m:g}_{apres_m:g}_m"))
+                           window=f"{before_m:g}_{after_m:g}_m"))
     return out
