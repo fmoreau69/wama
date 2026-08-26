@@ -7186,11 +7186,20 @@ consignée dans `WAMA_VERIFICATION §4bis` — **ne pas en faire une alerte**.
 
 - **`~Archives` distant = 85 fichiers / 14,6 Go, VOULU** (Fabien) et déjà exclu du tirage. Ne pas le
   prendre pour de la dérive : 44 % du volume distant, c'est lui.
-- ⚠ **30 chemins référencés absents des DEUX côtés**, dont `enhancer/1/input/biovam.mp4` et
-  `objects_01.webp` — deux entrées RÉELLES que le miroir n'a jamais eues. Constat de **couverture**
-  de la sauvegarde, à vérifier un jour sur un échantillon plus large.
-- ⚠ **La sauvegarde est lancée À LA MAIN** alors que `MEDIA_STORAGE_TIERING.md` la donne planifiée à
-  02:30 (avant la purge de rétention de 04:00). Écart intention/réel non élucidé.
+- ✅ **La sauvegarde planifiée FONCTIONNE** — vérifié le 26/08 dans les journaux beat : `backup_media`
+  a tourné à **02:30 les 24, 25 ET 26/08**, 0 échec, celle de cette nuit traitant l'état d'après la
+  purge (`627 présents + 8 copiés = 635`). Le lancement manuel de Fabien s'y AJOUTE.
+  ⚠ **J'avais annoncé un « écart intention/réel » : il n'existe pas.** Conclusion tirée d'une phrase
+  de Fabien (« je dois la lancer manuellement ») sans avoir ouvert le journal.
+- ✅ **Couverture complète : 635 / 635 fichiers locaux sauvegardés, 0 absent.** Et sur les 30 chemins
+  référencés manquants **en local**, **19 SONT dans la sauvegarde sous d'autres chemins** —
+  `biovam.mp4` y est en **5 exemplaires** de taille identique, `objects_01.webp` aussi (dans
+  `~Archives`, et dans d'autres dossiers d'app).
+  ⚠⚠ **J'avais annoncé ces deux entrées « perdues » : elles ne l'étaient pas.** Ma recherche
+  comparait le **chemin exact** ; une recherche par **nom** les trouve. C'est la même erreur que
+  partout ailleurs ce jour-là — critère trop étroit, conclusion trop large.
+  Restent **11 introuvables même par nom**, dont **8 artefacts de test** (`pw/`, `tmp*`) et
+  3 temporaires d'explorateur. → **Une restauration ciblée est possible** si l'un des 19 compte.
 - ⚠ Le ménage distant est **irréversible** (pas de corbeille sur le partage). Les deux garde-fous
   employés — rien de référencé en base, rien dans un `job_*` vivant — sont à reprendre tels quels.
 
