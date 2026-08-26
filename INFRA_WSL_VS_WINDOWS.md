@@ -362,6 +362,110 @@ orphelins — un par mort, datés à la minute des Kernel-Power 41 (23/08 21:49,
 **État après nettoyage** : C: **92,23 Go libres (26,3 %)** ; D: **22,77 Go (4,2 %) — toujours critique**,
 aucun poste lié aux crashs n'y pesant : les leviers de D: sont tous des arbitrages (tableau ci-dessus).
 
+## ⚠⚠ Les crashs hôte ne sont PAS « au repos » — le déclencheur est une passe LLM de WAMA (2026-08-26)
+
+> Six crashs en 48 h. La prémisse de travail était « au repos, sans raison apparente ». **Elle est
+> fausse**, et c'est l'instrumentation croisée `rails.csv` × `hwlog` × `celery-gpu.log` qui l'a montré.
+
+### Ce que le crash du 26/08 13:35 a donné
+
+`logs/hwlog/rails_20260826_1335_crash.csv` — 42 883 échantillons, 24 h, arrêt à **13:35:08**.
+
+⚠ **Le Kernel-Power 41 horodate le REDÉMARRAGE, pas la mort** (ici 13:35:50, soit 42 s après le
+dernier échantillon). Ne pas lire l'écart comme une fenêtre perdue : le dernier échantillon **est**
+l'instant de la coupure. Vérifiable sur les 3 fichiers de crash — l'écart y est toujours de 40-70 s.
+
+**Les rails n'incriminent rien** : tous dans la tolérance ATX de bout en bout.
+
+⚠ **Piège évité de justesse** : les minima globaux des trois rails 12 V tombent tous sur les
+**2 derniers échantillons** (0,002 % du run) — signal spectaculaire, et faux. La contre-épreuve sur
+les fichiers antérieurs le démolit : le 23/08 et le 24/08 sont descendus **plus bas**
+(12VHPWR 12,011 et 12,005 V contre 12,034 le 26/08) **en pleine journée, sans crash**. Un creux de
+cette profondeur ne suffit donc pas à tuer la machine. **Toujours chercher si le motif "remarquable"
+s'est déjà produit sans conséquence** — c'est ce test-là qui tranche, pas la rareté dans le run courant.
+À 2 s d'échantillonnage la sonde n'innocente pas l'alimentation pour autant : un transitoire
+microseconde lui est invisible.
+
+### Ce que le `hwlog` dit, lui
+
+| | avant-dernier | **dernier** | repos médian |
+|---|---|---|---|
+| `gpu_w` | 75,1 W | **293,4 W** | 21,1 W |
+| `gpu_util_pct` | 9 % | **90 %** | ~2 % |
+| `gpu_clock_mhz` | 2595 | **2730** | 210 |
+| `gpu_mem_mb` | 12 205 | **15 382** | ~4 900 |
+
+Et `logs/celery-gpu.log.1` nomme la charge à la seconde près :
+
+```
+13:34:45  Task model_manager.assess_proposed reçue
+13:34:46  [model_selector] ollama → ollama:gemma4:12b (vram_gb=7.6, budget=16.0)
+13:35:05  POST http://172.21.96.1:11434/api/chat  200 OK
+13:35:08  POST http://172.21.96.1:11434/api/chat  200 OK   ← dernière ligne, = dernier échantillon rails
+```
+
+C'est la **passe d'évaluation LLM de la prospection**, qui tape l'**Ollama hôte** (`172.21.96.1:11434`)
+— même GPU physique. Elle **s'auto-réenfile** (`model_manager/tasks.py:273`, `countdown=5`) tant qu'il
+reste des candidats. **Personne ne la lance** : d'où l'impression de crash « au repos ».
+
+### Le motif se répète (6 derniers crashs)
+
+| crash | dernier échantillon avant la mort | verdict |
+|---|---|---|
+| 24/08 18:09 | 28,1 W / 210 MHz / 4 837 Mo | plat — **exception** |
+| 25/08 00:30 | 29,1 W / 210 MHz / **15 740 Mo** | modèle résident mais GPU au repos |
+| 25/08 01:17 | 73,2 W / **2595 MHz** / 5 173 → **12 537 Mo** | ✅ montée |
+| 25/08 10:36 | 60,1 W / **2595 MHz** | ✅ montée |
+| 25/08 12:57 | 74,7 → 49,0 W / **2595 MHz** | ✅ montée |
+| 26/08 13:35 | **293,4 W** / **2730 MHz** / 15 382 Mo | ✅ montée |
+
+Signature à reconnaître : **horloge 210 → 2595 MHz + VRAM qui grimpe**, à watts encore modestes
+(60-75 W) — c'est Ollama qui charge un modèle. Les 293 W du 26/08 sont l'inférence soutenue qui suit.
+
+⚠ **Lire les lignes post-redémarrage comme telles** : le `hwlog` reprend ~1 min après (le watchdog
+`WAMA-HwWatchdog` est persistant, lui). Une ligne à VRAM ~140 Mo juste après une ligne à 15 Go
+n'est pas un effondrement, c'est un GPU qui vient de démarrer.
+
+### ⚠⚠ Le garde-fou du 19/08 est ACTIF — et il n'a pas suffi
+
+`common/services/resource_governor.py:444` documentait déjà ce mode de panne :
+
+> « Leçon du 2026-08-19 : enchaînée hors gouverneur, elle a fait tomber l'hôte (pattern *Ollama hôte
+> enchaîné*, instabilité sous l'OS). »
+
+La parade posée alors **fonctionne comme spécifié** — vérifié : `settings.py:553` route
+`model_manager.assess_proposed` sur la file `gpu` au palier `_prospect_assess` = **basse**, et le
+worker `gpu@` l'a bien reçue le 26/08. **L'hôte est tombé quand même.**
+
+> **La parade traitait la mauvaise variable.** Sérialiser supprime la *concurrence*, pas la *charge* :
+> un gemma4:12b seul sur le GPU suffit à tuer l'hôte. **Une priorité ordonne, elle n'allège pas.**
+> Généralisable : un palier de gouverneur protège d'un conflit entre tâches, jamais du coût d'une
+> tâche prise isolément.
+
+### Ce qui reste ouvert
+
+- **Quel composant lâche** — inconnu. La charge est le **déclencheur**, pas le fautif : alimentation,
+  RAM asymétrique (3 barrettes depuis le 24/08 16:35, `BANK 2` vide) et VRM restent tous compatibles
+  avec les mesures. 0 BSOD / 0 WHEA sur la période → panne **sous l'OS**, comme depuis le début.
+- **Expérience à mener, une variable à la fois** : désarmer l'enchaînement de la passe et observer si
+  la série s'arrête. C'est gratuit, réversible, et ça teste une hypothèse **par elle-même** —
+  contrairement au retour aux 2 barrettes Samsung (valable, mais à ne pas changer en même temps).
+- **L'exception du 24/08 18:09** (plat à 28 W) n'est pas expliquée par ce mécanisme.
+
+### Rejouer l'analyse
+
+```bash
+wsl.exe -e bash -lc 'cd /mnt/d/WAMA/web-app-for-media-automation && \
+  ./venv_linux/bin/python scripts/analyze_rails.py logs/hwlog/rails_<AAAAMMJJ>_<HHMM>_crash.csv'
+```
+Puis recouper avec `logs/hwlog/hwlog_<AAAAMMJJ>.csv` (colonnes `gpu_w`, `gpu_clock_mhz`, `gpu_mem_mb`)
+et `logs/celery-gpu.log.1` (les journaux sont **décalés au démarrage**, le pré-crash est donc en `.1`).
+
+⚠ **HWiNFO Free n'a aucun autostart** : après chaque crash, relancer la journalisation à la main vers
+`logs/hwlog/rails.csv`, **après** avoir archivé la précédente en `rails_<AAAAMMJJ>_<HHMM>_crash.csv`
+(heure de la coupure, pas du Kernel-Power 41). Vérifier que le fichier GROSSIT — HWiNFO peut tourner
+sans journaliser. Seule la licence Pro (~25-30 €, paramètre `-l`) rendrait la sonde persistante.
+
 ## Voir aussi
 - `C:\Apache24\conf\httpd.conf` (vhost `wama.local`) — sauvegarde `httpd.conf.bak-20260824`.
 - `start_wama_dev.sh`, `start_wama_prod.sh`, `gunicorn_conf.py`, `.env` / `.env.example`.

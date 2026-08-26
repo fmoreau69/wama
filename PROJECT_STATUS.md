@@ -7419,3 +7419,77 @@ d'onglets de résultat jamais créé (chemin volontairement non réécrit, cf. `
 
 - **Rien à redémarrer.** 4 commits de plus non poussés (total session : **13**).
 - **Aucune validation navigateur** : aucune surface UI produite.
+
+---
+
+## §REPRISE — 2026-08-26 (CRASHS HÔTE : le déclencheur est IDENTIFIÉ) — 🔚 POINT D'ENTRÉE
+
+> Session courte, déclenchée par le **6ᵉ crash en 48 h** (26/08 13:35). Objectif initial : vérifier la
+> sonde de tension et archiver son journal. Résultat : **la prémisse de travail de toute l'enquête
+> était fausse.**
+
+**Référence complète : `INFRA_WSL_VS_WINDOWS.md §⚠⚠ Les crashs hôte ne sont PAS « au repos »`.**
+Ne pas recopier le détail ici.
+
+### Le résultat en une ligne
+
+Les crashs ne surviennent **pas au repos**. Le dernier échantillon avant la mort du 26/08 mesure
+**293,4 W au GPU (13,9 × le repos), 90 % d'utilisation, 15,4 Go de VRAM** — et `celery-gpu.log.1`
+nomme la charge : `model_manager.assess_proposed` pilotant l'**Ollama hôte** (`gemma4:12b`), tâche
+qui **s'auto-réenfile** et que personne ne lance. Sur les 6 derniers crashs, **4 finissent sur la
+même signature** (horloge 210 → 2595 MHz + VRAM qui grimpe).
+
+### ⚠⚠ Le garde-fou du 19/08 est ACTIF et n'a PAS suffi
+
+`resource_governor.py:444` documentait déjà ce mode de panne ; `settings.py:553` route bien la tâche
+sur la file `gpu` au palier **basse**, et le worker `gpu@` l'a bien reçue. L'hôte est tombé quand même.
+
+> **Sérialiser supprime la concurrence, pas la charge.** Un palier de gouverneur protège d'un conflit
+> **entre** tâches, jamais du coût d'une tâche **prise isolément**. Une priorité ordonne, elle n'allège pas.
+
+⚠ La note mémoire « prospection : passe LLM auto → **GOUVERNÉE** » laissait croire le sujet clos.
+Corrigée : gouvernée ≠ inoffensive.
+
+### ⚠⚠ Le piège méthodologique du jour (2ᵉ occurrence de la même famille)
+
+Les minima globaux des trois rails 12 V tombaient tous sur les **2 derniers échantillons** d'un run
+de 42 883 — 0,002 %. J'ai failli conclure. **La contre-épreuve l'a démoli** : les fichiers du 23/08 et
+du 24/08 étaient descendus **plus bas**, en pleine journée, **sans crash**.
+
+> **Un motif remarquable ne vaut que s'il ne s'est jamais produit sans conséquence.** Chercher
+> l'occurrence bénigne AVANT de conclure — c'est ce test qui tranche, pas la rareté dans le run courant.
+> Même famille que le démenti `disablereuse` du 24/08 : *une mesure impressionnante n'est pas une preuve.*
+
+### Deux pièges de lecture consignés (ils m'ont coûté du temps)
+
+1. **Le Kernel-Power 41 horodate le REDÉMARRAGE, pas la mort** (écart constant de 40-70 s sur les
+   3 fichiers de crash). Ne pas lire cet écart comme une fenêtre de mesure perdue.
+2. **Le `hwlog` reprend ~1 min après le reboot** (`WAMA-HwWatchdog` est persistant). Une ligne à
+   VRAM ~140 Mo suivant une ligne à 15 Go n'est pas un effondrement, c'est un GPU qui démarre.
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+
+**Désarmer l'enchaînement de `assess_proposed` (`model_manager/tasks.py:273`) et observer si la série
+de crashs s'arrête.** Gratuit, réversible, et ça teste **une** hypothèse par elle-même.
+
+⚠ **Une variable à la fois.** Le retour aux 2 barrettes Samsung symétriques reste une piste valable
+(config qui avait tenu 8 jours avant le 18/08) mais **ne pas la changer en même temps** — sinon
+l'expérience ne conclura sur rien, comme la corrélation « onduleur » déjà confondue.
+
+### État de l'instrumentation (VÉRIFIÉ ce jour, pas supposé)
+
+- `logs/hwlog/rails_20260826_1335_crash.csv` — 75,5 Mo, 24 h, archivé.
+- Sonde relancée par Fabien : **+24 309 octets en 25 s**, `analyze_rails.py` reconnaît **5/5 rails**.
+- ⚠ **HWiNFO Free n'a aucun autostart** — relance MANUELLE après chaque crash, archivage d'abord.
+  Seule la licence Pro (~25-30 €, paramètre `-l`) rendrait la sonde persistante.
+
+### Ce qui reste ouvert
+
+- **Quel composant lâche** : inconnu. La charge est le déclencheur, pas le fautif. 0 BSOD / 0 WHEA →
+  panne **sous l'OS**. Alimentation, RAM asymétrique et VRM restent tous compatibles.
+- **Le crash du 24/08 18:09** (plat à 28 W) n'est pas expliqué par ce mécanisme.
+
+### Pendings système
+
+- **Rien à redémarrer.** Instrumentation en service.
+- **Aucune validation navigateur** : aucune surface UI produite.
