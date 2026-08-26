@@ -15,8 +15,8 @@ from pathlib import Path
 
 from wama.common.manifests.builtin.dataset import validate_dataset_body
 
-from .dataset import (Ecart, _indice_de_prefixe, axes_declares, charger, chemin,
-                      signaux_declares, situer, verifier)
+from .dataset import (Ecart, _indice_de_prefixe, attributs_de_coordonnees, axes_declares,
+                      charger, chemin, signaux_declares, situer, verifier)
 
 
 def _csv(dossier: Path, nom: str, lignes) -> Path:
@@ -265,6 +265,55 @@ class SituerLesAxesTest(unittest.TestCase):
     def test_un_axe_sans_cle_est_ignore_pas_planté(self):
         self.assertEqual([a['key'] for a in axes_declares({'axes': [{'role': 'factor'},
                                                                    {'key': 'p'}]})], ['p'])
+
+
+class AllerRetourDesCoordonneesTest(unittest.TestCase):
+    """⭐ L'aller-retour COMPLET des coordonnées d'axes : écrites dans le conteneur, relues par
+    `situer()`. Sans lui, « le `.wdat` porte son rangement » resterait une affirmation.
+
+    C'est le quick win ④ (`WAMA_DATA_WORLD §13.12`), et il ne demandait **aucun changement de
+    schéma** : `Contexte.attributs` alimente déjà `WamaMeta`, et les quatre lecteurs exposent déjà
+    `SourceInfo.attributes`.
+    """
+
+    AXES = [{'key': 'passation', 'role': 'observation'},
+            {'key': 'scenario', 'role': 'factor', 'crosses': 'passation'}]
+
+    def test_la_forme_canonique_est_prefixee(self):
+        self.assertEqual(attributs_de_coordonnees({'passation': 'P01'}),
+                         {'axe.passation': 'P01'})
+
+    def test_une_valeur_absente_devient_une_chaine_vide_pas_None(self):
+        # `WamaMeta.value` est du TEXT : y écrire None donnerait 'None' à la relecture.
+        self.assertEqual(attributs_de_coordonnees({'groupe': None}), {'axe.groupe': ''})
+
+    def test_ecrites_dans_un_wdat_elles_sont_RELUES(self):
+        from .containers import Contexte, ecrire
+        from .core.temporal import Signal, SignalMeta, TemporalReferential
+        from . import sources
+
+        ref = TemporalReferential(name='essai')
+        ref.add(Signal(SignalMeta(name='vitesse'), [0.0, 0.1],
+                       lambda i0, i1: [{'time': 0.0, 'v': 1.0}, {'time': 0.1, 'v': 2.0}][i0:i1]))
+
+        coords = {'passation': 'Passation_01', 'scenario': 'nuit'}
+        with tempfile.TemporaryDirectory() as d:
+            cible = Path(d) / 'essai.wdat'
+            ecrire(ref, cible, contexte=Contexte(
+                auteur='test', attributs=attributs_de_coordonnees(coords)))
+
+            trouvees, absents = situer(self.AXES, sources.probe(cible).attributes)
+
+        self.assertEqual(trouvees, coords)
+        self.assertEqual(absents, [])
+
+    def test_les_metas_TECHNIQUES_ne_sont_jamais_prises_pour_des_axes(self):
+        # `WamaMeta` est un espace PARTAGÉ : `format`, `schema_version`, `created_at` y vivent.
+        # C'est la raison d'être du préfixe (D21) — sans lui, un axe nommé `format` les capterait.
+        axes = [{'key': 'format', 'role': 'observation'}]
+        trouvees, absents = situer(axes, {'format': 'wdat', 'axe.format': 'A4'})
+        self.assertEqual(trouvees, {'format': 'A4'})
+        self.assertEqual(absents, [])
 
 
 class EcartDesAxesTest(unittest.TestCase):

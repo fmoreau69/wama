@@ -156,6 +156,31 @@ def axes_declares(body: Mapping[str, Any]) -> List[Mapping[str, Any]]:
     return [a for a in (body.get('axes') or []) if isinstance(a, Mapping) and a.get('key')]
 
 
+#: Préfixe CANONIQUE d'une coordonnée d'axe dans le catalogue d'un conteneur (`WamaMeta`,
+#: `MetaTripDatas`). Il existe parce que `WamaMeta` est un espace PARTAGÉ : il porte déjà des métas
+#: techniques (`format`, `schema_version`, `created_at`), et une clé `participant` posée à plat y
+#: côtoierait une clé de format. La fusion des deux tables de `.trip` en une seule (`§9duodecies.3`)
+#: rend donc le préfixe **nécessaire**, pas optionnel — c'est la réponse à D21.
+PREFIXE_AXE = 'axe.'
+
+
+def attributs_de_coordonnees(coordonnees: Mapping[str, Any]) -> Dict[str, str]:
+    """Coordonnées d'axes → attributs de conteneur, sous la forme canonique `axe.<clé>`.
+
+    Destiné à `Contexte.attributs` (`containers/`), qui les écrit telles quelles dans `WamaMeta`.
+    C'est le pendant **écriture** de `situer()`, et le couple ferme l'aller-retour : ce que WAMA
+    écrit, `situer()` le retrouve par sa première graphie.
+
+    ⭐ Pourquoi écrire les coordonnées DANS le conteneur plutôt que de les déduire du chemin : elles
+    **survivent au déplacement du fichier**. Un `.wdat` sorti de son arborescence continue de dire
+    de quelle passation et de quel scénario il vient. C'est déjà ce que faisait l'outil d'origine
+    (§13.15 : `MetaTripDatas` porte `scenario` et `participant_id` depuis 2019) — on ne l'invente
+    pas, on le rend systématique.
+    """
+    return {f'{PREFIXE_AXE}{k}': ('' if v is None else str(v))
+            for k, v in coordonnees.items()}
+
+
 def situer(axes: Sequence[Mapping[str, Any]],
            attributs: Mapping[str, Any]) -> Tuple[Dict[str, str], List[str]]:
     """Retrouve, pour chaque axe déclaré, sa coordonnée dans les attributs de la source.
@@ -178,7 +203,7 @@ def situer(axes: Sequence[Mapping[str, Any]],
     absents: List[str] = []
     for a in axes:
         cle = str(a['key'])
-        for candidate in (f'axe.{cle}', cle, a.get('source_key')):
+        for candidate in (f'{PREFIXE_AXE}{cle}', cle, a.get('source_key')):
             if candidate and candidate in attributs:
                 trouvees[cle] = str(attributs[candidate])
                 break
