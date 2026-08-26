@@ -87,11 +87,31 @@ def enrichment_enabled(user=None) -> bool:
     return True if pref is None else bool(pref)
 
 
+def build_system(skill_text: str = None, *, language: str = 'en', contract: str = None) -> str:
+    """
+    System prompt d'enrichissement : skill d'app (ou `_SYSTEM` générique) + clause de langue
+    (règle du MÉCANISME, jamais dans les fichiers de skill) + contrat de sortie du modèle cible.
+
+    Factorisé hors de `enrich_generative` pour être PROUVABLE sans appel LLM (l'assemblage est
+    la seule logique ; le reste est du transport). Le contrat PRIME sur le skill : MusicGen veut
+    30-80 mots là où MiniMax-Music3 veut 250-450 sectionnés — même app, contrats opposés.
+    """
+    lang_clause = f" in {language}" if language and language != 'en' else ""
+    if skill_text:
+        system = skill_text + (f"\n- Emit the enriched prompt{lang_clause}." if lang_clause else "")
+    else:
+        system = _SYSTEM.format(lang_clause=lang_clause)
+    if contract:
+        system += ("\n\nOutput contract of the TARGET model — it OVERRIDES any conflicting "
+                   "length, structure or format rule above:\n" + contract.strip())
+    return system
+
+
 def enrich_generative(prompt: str, *, language: str = 'en', model: str = None,
                       provider: str = 'ollama', glossary=None, console=None,
                       timeout: int = 60, skill_name: str = None, skill_text: str = None,
                       max_input_chars: int = _MAX_INPUT_CHARS,
-                      keep_alive: str = _KEEP_ALIVE) -> str:
+                      keep_alive: str = _KEEP_ALIVE, contract: str = None) -> str:
     """
     Étoffe un prompt génératif. Retourne l'enrichi, ou `prompt` inchangé si rien à faire / erreur.
 
@@ -99,6 +119,9 @@ def enrich_generative(prompt: str, *, language: str = 'en', model: str = None,
     pivot si traduit, sinon langue d'entrée). `glossary` : termes à préserver tels quels
     (mots-clés forcés par l'utilisateur). `skill_name`/`skill_text` : consignes du skill d'app
     ([[prompt_skills]]) — repli sur `_SYSTEM` générique si absents.
+    `contract` : contrat de SORTIE du modèle CIBLE (`AIModel.prompt_contract`, déclaré par son
+    manifeste) — ajouté au system prompt, il PRIME sur les règles de longueur/format du skill
+    (doctrine 2026-08-26 : skill d'app = la méthode, modèle = son contrat).
     """
     text = (prompt or '').strip()
     if not text or len(text) > max_input_chars:
@@ -112,19 +135,17 @@ def enrich_generative(prompt: str, *, language: str = 'en', model: str = None,
             model = None
 
     gloss = list(glossary or [])
-    ckey = _cache_key(text, language, gloss, f"{model or 'default'}|{skill_name or 'builtin'}")
+    # Le contrat entre dans la clé : deux modèles cibles aux contrats différents ne doivent
+    # jamais se servir mutuellement leur enrichi en cache (la clé est hachée, la longueur importe peu).
+    ckey = _cache_key(text, language, gloss,
+                      f"{model or 'default'}|{skill_name or 'builtin'}|{contract or ''}")
     cached = _cache_get(ckey)
     if cached is not None:
         if console:
             console(f"✨ Prompt enrichi ({len(text)}→{len(cached)} caractères, depuis le cache).")
         return cached
 
-    lang_clause = f" in {language}" if language and language != 'en' else ""
-    if skill_text:
-        # Skill d'app = system prompt ; la clause de langue est une règle du MÉCANISME (ajoutée ici).
-        system = skill_text + (f"\n- Emit the enriched prompt{lang_clause}." if lang_clause else "")
-    else:
-        system = _SYSTEM.format(lang_clause=lang_clause)
+    system = build_system(skill_text, language=language, contract=contract)
     user = text
     if gloss:
         user += ("\n\n(Keep these terms verbatim, do not alter: " + ", ".join(gloss) + ".)")
@@ -156,18 +177,21 @@ def enrich_generative(prompt: str, *, language: str = 'en', model: str = None,
 
 def enrich_on_demand(prompt: str, *, app: str = None, domain: str = None,
                      language: str = 'en', model: str = None, glossary=None,
-                     timeout: int = 60, keep_alive: str = _KEEP_ALIVE) -> str:
+                     timeout: int = 60, keep_alive: str = _KEEP_ALIVE,
+                     contract: str = None) -> str:
     """
     Enrichissement EXPLICITE (bouton ✨) : le clic vaut demande → pas d'interrupteur maître.
     Résout le skill de l'app ([[prompt_skills]]) puis passe par le même chemin (cache compris).
     Plafond d'entrée relevé (l'utilisateur peut vouloir étoffer un prompt déjà long).
     Lève RuntimeError si l'enrichissement n'a rien produit (l'appelant informe l'utilisateur).
+    `contract` : contrat de sortie du modèle cible si la vue le connaît (cf. `enrich_generative`).
     """
     from .prompt_skills import resolve_skill
     name, text = resolve_skill(app=app, domain=domain, kind='generative')
     enriched = enrich_generative(prompt, language=language, model=model, glossary=glossary,
                                  timeout=timeout, skill_name=name, skill_text=text,
-                                 max_input_chars=2000, keep_alive=keep_alive)
+                                 max_input_chars=2000, keep_alive=keep_alive,
+                                 contract=contract)
     if not enriched or enriched == (prompt or '').strip() or enriched == prompt:
         raise RuntimeError("Enrichissement indisponible (LLM local injoignable ou réponse vide)")
     return enriched

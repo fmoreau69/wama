@@ -66,6 +66,14 @@ def validate_model_body(body: dict) -> list[str]:
     caps = body.get('capabilities')
     if caps is not None and not isinstance(caps, dict):
         errs.append("capabilities doit être un dict (JSON de capacités)")
+
+    prompts = body.get('prompts')
+    if prompts is not None and not isinstance(prompts, dict):
+        errs.append("prompts doit être un dict")
+    elif isinstance(prompts, dict):
+        contract = prompts.get('contract')
+        if contract is not None and not isinstance(contract, str):
+            errs.append("prompts.contract doit être une chaîne (markdown, anglais)")
     return errs
 
 
@@ -108,6 +116,11 @@ def extract_model(key: str) -> Optional[dict]:
         },
         # capacités fonctionnelles = source unique (filtrage UI, sélection par tâche, compat I/O)
         'capabilities': m.capabilities or {},
+        # contrat de sortie du prompt (fait DÉCLARÉ comme license — le skill d'app porte la
+        # méthode, le modèle porte son contrat ; cf. prompt_skills/README.md, 2026-08-26)
+        'prompts': {
+            'contract': m.prompt_contract or None,
+        },
         # provenance / proposition (méta déclarative, pas de l'état de charge)
         'provenance': {
             'backend_ref': getattr(m, 'backend_ref', '') or None,
@@ -145,6 +158,10 @@ _CHAMPS_PROJETES = [
     # modèles trouvés par scan disque. Il n'était pas projetable tant que `model_sync` le
     # remettait à vide à chaque passe — ce n'est plus le cas.
     ('hf_id', lambda m, b: (b.get('identity') or {}).get('hf_id') or ''),
+    # Contrat de sortie du prompt (2026-08-26) : fait déclaré de même nature que `license` —
+    # la découverte ne peut pas le produire, et `capabilities` (réécrit par le sync) ne peut
+    # pas le porter. Injecté au system prompt d'enrichissement (prompt_enrichment).
+    ('prompt_contract', lambda m, b: (b.get('prompts') or {}).get('contract') or ''),
 ]
 
 

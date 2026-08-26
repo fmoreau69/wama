@@ -102,7 +102,11 @@ Cible : le manifeste `model` déclare `body.prompts.contract` (fait DÉCLARÉ, m
 `license`/`platform_ref` — JAMAIS `AIModel.capabilities`, réécrit en entier par la découverte),
 projeté par `write_back_model` puis injecté par le résolveur : skill d'app = la méthode,
 modèle = son contrat. Méthode de construction en 4 étages (brief → précédence → contrat →
-auto-validation) : `prompt_skills/README.md`. Chantier ouvert, à câbler.
+auto-validation) : `prompt_skills/README.md`. **CÂBLÉ le même jour** : colonne
+`AIModel.prompt_contract` (migration 0014), projection manifeste, `_resolve_model` →
+`process_prompt(prompt_contract=)` → `build_system` (le contrat PRIME sur le skill, cache
+keyé par contrat). Data-gated : sans contrat déclaré, comportement d'avant à l'octet
+(prouvé). Reste : déclarer les contrats dans les manifestes des modèles, au fil des adoptions.
 Comblé au passage : `generate_video_task` (imager) n'appelait PAS la pipeline (variables
 locales `_prompt`/`_negative`, la base garde l'original) ; composer `enrich=True` (le blocage
 « consignes visuelles » est levé par `composer-music.md`).

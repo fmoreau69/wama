@@ -91,26 +91,33 @@ def _target(app: str, field: str):
 
 def _resolve_model(app: str, instance, tgt, model_id=None):
     """
-    Capacités + type du modèle cible (AIModel) pour ce target, ou (None, default_type).
+    Capacités + type + contrat de prompt du modèle cible (AIModel) pour ce target,
+    ou (None, default_type, None).
 
     `model_id` (optionnel) court-circuite la lecture du `model_field` de l'instance : utile quand
     le modèle est résolu dynamiquement (ex. assistant : modèle Ollama choisi à l'exécution).
+
+    Le CONTRAT (`prompt_contract`, déclaré par le manifeste du modèle) rejoint les capacités
+    (2026-08-26) : même lecture, même modèle cible — le skill d'app porte la méthode
+    d'enrichissement, le modèle porte son contrat de sortie (prompt_skills/README.md).
     """
     mid = model_id
     if mid is None:
         mfield = tgt.get('model_field')
         if not mfield or instance is None:
-            return None, tgt.get('default_model_type')
+            return None, tgt.get('default_model_type'), None
         mid = getattr(instance, mfield, None)
     if not mid:
-        return None, tgt.get('default_model_type')
+        return None, tgt.get('default_model_type'), None
     try:
         from wama.model_manager.models import AIModel
         source = tgt.get('source', app)
         m = AIModel.objects.filter(model_key=f"{source}:{mid}").first()
-        return (m.capabilities if m else None), (m.model_type if m else tgt.get('default_model_type'))
+        return ((m.capabilities if m else None),
+                (m.model_type if m else tgt.get('default_model_type')),
+                (m.prompt_contract or None) if m else None)
     except Exception:
-        return None, tgt.get('default_model_type')
+        return None, tgt.get('default_model_type'), None
 
 
 def process_prompt_for(app: str, field: str, value, instance=None, user=None, console=None,
@@ -138,14 +145,14 @@ def process_prompt_for(app: str, field: str, value, instance=None, user=None, co
                     'reference_context': False, 'routing': None, 'reason': 'no-target'}
         return value
     from .prompt_pipeline import process_prompt
-    caps, mtype = _resolve_model(app, instance, tgt, model_id=model_id)
+    caps, mtype, contract = _resolve_model(app, instance, tgt, model_id=model_id)
     domain = _domain_for(instance, tgt)
     res = process_prompt(value, kind=tgt.get('kind', 'text'),
                          model_capabilities=caps, model_type=mtype,
                          enrich=tgt.get('enrich', False) if enrich is None else enrich,
                          reference_files=_resolve_reference_files(instance, tgt),
                          user=user, console=console, glossary=glossary,
-                         app=app, domain=domain)
+                         app=app, domain=domain, prompt_contract=contract)
     return res if full else res['prompt']
 
 

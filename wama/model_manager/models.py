@@ -426,6 +426,16 @@ class AIModel(models.Model):
     # stockees qu'il y a de modeles.
     platform_ref = models.CharField(max_length=255, blank=True, default='', db_index=True)
 
+    # Contrat de SORTIE du prompt attendu par CE modele (markdown, anglais) : longueur,
+    # structure, sections, tags de paroles, prompt negatif… Fait DECLARE comme `license` --
+    # porte par le manifeste `model` (body.prompts.contract), JAMAIS par la decouverte
+    # (`capabilities` est reecrit en entier a chaque sync, ce champ est preserve). Injecte
+    # au system prompt d'enrichissement APRES le skill d'app : le skill porte la methode,
+    # le modele porte son contrat (doctrine 2026-08-26, prompt_skills/README.md).
+    prompt_contract = models.TextField(blank=True, default='',
+                                       help_text="Contrat de sortie du prompt pour ce modele "
+                                                 "(markdown), declare par son manifeste.")
+
     @property
     def platform_url(self):
         """

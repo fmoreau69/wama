@@ -339,6 +339,16 @@ corriger le jour où une plateforme change son schéma d'adresse.
 > passage** : une valeur posée en dehors d'elle est effacée au sync suivant (constaté le
 > 2026-08-05 — 11 capacités renseignées par une commande de rattrapage, puis 0 après un sync).
 
+**2026-08-26 — `body.prompts.contract` rejoint les champs déclaratifs projetés** (avec
+`license`/`author`/`platform_ref`/`hf_id`) : le contrat de SORTIE du prompt attendu par le
+modèle (markdown, anglais — longueur, structure, sections, tags de paroles…), projeté vers
+`AIModel.prompt_contract` (colonne préservée par le sync — c'est PRÉCISÉMENT parce que
+`capabilities` est réécrit qu'il fallait une colonne). Consommé par l'enrichissement de
+prompts : le skill d'app porte la méthode, le modèle son contrat, qui prime sur les règles
+de longueur/format du skill (doctrine et chaîne complète : `prompt_skills/README.md`,
+`WAMA_LLM.md §Skills`). Motif : MusicGen attend 30-80 mots, MiniMax-Music3 attend 250-450
+mots sectionnés — même app, contrats opposés.
+
 #### 7.1 ter — hooks par kind, MESURÉ le 2026-08-05
 
 > Les hooks s'appellent `write_back`/`un_write_back` depuis le 2026-08-05 (`kinds.py:35-38` —

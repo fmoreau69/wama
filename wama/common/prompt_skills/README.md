@@ -105,6 +105,17 @@ MusicGen vit dans `composer-music.md`).
   vers un champ préservé du sync, et le résolveur ajoute ce contrat AU system prompt
   (skill d'app = la méthode, modèle = son contrat).
 
-**Chantier ouvert** (validé Fabien 2026-08-26, à câbler) : champ de projection + injection
-dans `prompt_skills.py`/`prompt_enrichment`. Premier bénéficiaire attendu : l'adoption de
-MiniMax-Music3 (chansons) aux côtés de MusicGen (instrumental) dans le composer.
+**CÂBLÉ le 2026-08-26** (même session que la doctrine, validé Fabien) — la chaîne complète :
+- `AIModel.prompt_contract` (migration 0014) : colonne DÉCLARATIVE, préservée par le sync ;
+- manifeste `model` : `body.prompts.contract` validé, extrait et projeté (`write_back_model`,
+  aux côtés de `license`/`author`/`platform_ref`/`hf_id`) ;
+- `app_metadata._resolve_model` rapporte le contrat AVEC les capacités (même lecture du même
+  modèle cible) → `process_prompt(prompt_contract=)` → `prompt_enrichment.build_system` l'ajoute
+  APRÈS le skill, avec la clause « il PRIME sur toute règle de longueur/format du skill » ;
+- le cache d'enrichissement est keyé par contrat (deux modèles cibles ne se servent jamais
+  mutuellement leur enrichi) ; `enrich_on_demand(contract=)` pour le bouton ✨.
+
+Data-gated : aucun modèle ne déclare de contrat → comportement d'avant À L'OCTET (prouvé :
+`build_system(skill, contract=None) == skill`). Reste : écrire le contrat dans le manifeste
+de chaque modèle au fil des adoptions — premier attendu : MiniMax-Music3 (chansons) aux côtés
+de MusicGen (instrumental) dans le composer.

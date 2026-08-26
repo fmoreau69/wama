@@ -72,7 +72,8 @@ def _rappel_rag(prompt, user, *, k=3, semantic=False):
 def process_prompt(prompt, *, kind='generative', model_capabilities=None, model_type=None,
                    user=None, input_lang=None, glossary=None, enrich=False,
                    reference_files=None, console=None, timeout=120,
-                   app=None, domain=None, rag=False, rag_k=3, rag_semantic=False):
+                   app=None, domain=None, rag=False, rag_k=3, rag_semantic=False,
+                   prompt_contract=None):
     """
     Traite un prompt selon les métadonnées (KIND + capacités du modèle cible).
 
@@ -82,6 +83,11 @@ def process_prompt(prompt, *, kind='generative', model_capabilities=None, model_
 
     `app`/`domain` : sélection du SKILL de consignes d'enrichissement ([[prompt_skills]],
     résolution `<app>-<domain>` → `<app>` → défaut). `domain` replie sur `model_type`.
+
+    `prompt_contract` : contrat de SORTIE déclaré par le modèle CIBLE (`AIModel.prompt_contract`,
+    porté par son manifeste — doctrine 2026-08-26 : le skill d'app = la méthode, le modèle = son
+    contrat). Ajouté au system prompt d'enrichissement, il PRIME sur les règles de longueur/format
+    du skill. Data-gated : None (aucun modèle ne déclare) = comportement d'avant, à l'octet.
 
     `reference_files` : chemin(s) de fichier(s) de référence fournis par l'utilisateur. S'ils
     existent, ils sont compris (image/doc/texte) et repliés dans le prompt comme contexte de
@@ -146,7 +152,8 @@ def process_prompt(prompt, *, kind='generative', model_capabilities=None, model_
                 enr_lang = routing.get('input_pivot') if result['translated'] else lang
                 enriched = enrich_generative(result['prompt'], language=enr_lang or 'en',
                                              glossary=glossary, console=console, timeout=timeout,
-                                             skill_name=sk_name, skill_text=sk_text)
+                                             skill_name=sk_name, skill_text=sk_text,
+                                             contract=prompt_contract)
                 if enriched and enriched != result['prompt']:
                     result['prompt'] = enriched
                     result['enriched'] = True
