@@ -453,12 +453,13 @@ ne plus recopier de listes figées ici (elles dérivent — la ligne « Composer
 manquants » était périmée, les deux existent, vérifié 2026-07-03).**
 
 > ⚠ Depuis 2026-07-25 la grille est **MESURÉE** : `python manage.py check_app_conformity`
-> (**72 critères** couvrant les 8 facettes — F1:4 F2:9 F3:13 F4:9 F5:27 F6:5 F7:3 F8:2, élargie
-> le 2026-07-30 depuis 40 qui ne voyaient que F1–F5 — par analyse du code réel,
+> (**82 critères** couvrant les 8 facettes — F1:4 F2:11 F3:17 F4:9 F5:29 F6:5 F7:5 F8:2, **relevé
+> le 2026-08-26 depuis `logs/conformity_report.json`** ; elle valait 40 critères le 2026-07-30 —
+> F1–F5 seules — puis 72 — par analyse du code réel,
 > `common/services/conformity_checker.py`) écrit `logs/conformity_report.json` qui **écrase les
 > booléens déclarés** de `_conv(...)`. Ne plus éditer ces booléens à la main pour les critères
 > mesurés ; re-lancer la commande après un palier de portage (skill `/conformite`).
-> Le dénominateur varie par app (60–72) : un critère peut être **non applicable** (état `None`)
+> Le dénominateur varie par app (**67–82**, mesuré 2026-08-26) : un critère peut être **non applicable** (état `None`)
 > et sortir du calcul — ex. tout F4 pour le converter (ffmpeg/pandoc, aucun modèle IA).
 - Toutes les apps : import dossier récursif non implémenté (mesuré : `recursive_import` 0/10)
 - Checklist de fin d'app (18 points) : `TRANSCRIBER_REFERENCE_AUDIT.md §6`

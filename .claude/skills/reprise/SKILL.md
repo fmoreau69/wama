@@ -26,7 +26,7 @@ Objectif : repartir de l'état RÉEL du projet, pas d'un souvenir. À dérouler 
 python manage.py check_docs                 # références doc→code
 python manage.py manifest_export --check    # corpus de manifestes périmé ? (⚠ depuis WSL2)
 python manage.py manifest_roundtrip --all   # régénération : facettes projetables, fidélité
-python manage.py check_app_conformity       # grille 77 critères par app (mesuré 22/08)
+python manage.py check_app_conformity       # grille 82 critères déclarés (mesuré 26/08)
 python manage.py doc_facts --check          # blocs GÉNÉRÉS des .md (dont la carte WAMA_MECANISMES)
 python manage.py test                       # SUITE COMPLÈTE (~4 min) — ajoutée le 2026-08-25
 ```
@@ -45,7 +45,9 @@ python manage.py test                       # SUITE COMPLÈTE (~4 min) — ajout
 > Un compte d'échecs ne dit pas COMBIEN de causes il y a — les relever toutes :
 > `manage.py test 2>&1 | grep -E "^(FAIL|ERROR):|AssertionError"`.
 
-**État attendu au 2026-08-25** : **852 tests, ~214 s**, `FAILED (failures=8, errors=2)` —
+**État attendu au 2026-08-26** (mesure reportée du §REPRISE du jour ; c'était **852** le 25/08 —
+le total grossit à chaque test ajouté, **ne pas en faire un critère**) : **911 tests**,
+`FAILED (failures=8, errors=2)` —
 **STABLE** (vérifié sur 3 exécutions, mêmes noms). Ces 10 ont **DEUX causes connues** ;
 toute autre est une dérive :
 
@@ -77,11 +79,20 @@ recouvrir un échec qui remplace un autre :
 - Comparer les chiffres au bloc « Contrôles attendus au prochain /reprise » du **dernier
   §REPRISE** de `PROJECT_STATUS.md` (corpus N manifestes, roundtrip, scores de grille) — c'est
   lui qui porte les valeurs à jour, pas ce skill.
-- **État attendu au 2026-08-23** : `check_docs` = **4 CASSÉ / 0 périmée** (~489 réfs — ce TOTAL
-  grossit à chaque doc écrite, ne pas en faire un critère). Les 4 sont **UNE SEULE cible**,
-  `common/_result_tabs.html`, citée **quatre fois** par `PROJECT_STATUS.md` — pas des liens morts :
-  cible de `REMOVAL_LEDGER` R18, duplication vérifiée présente (`transcriber/index.html:307` et
+- 🔴 **LE CRITÈRE EST LE NOMBRE DE CIBLES DISTINCTES — attendu = 1.** (Détail et raison plus bas.)
+  Comparer les **fichiers cités**, jamais le nombre de références.
+
+- **État MESURÉ au 2026-08-26** : `check_docs` = **5 références cassées / 0 périmée sur 540**,
+  pour **1 SEULE cible distincte** — le **partial d'onglets de résultat jamais créé** (cible de
+  `REMOVAL_LEDGER` R18 ; duplication vérifiée présente, `transcriber/index.html:307` et
   `describer/index.html:109` portent le même `#resultTabs`).
+  ⚠ **Le chemin n'est volontairement pas réécrit ici** — l'écrire ferait de cette ligne une
+  référence cassée de plus. C'est exactement ainsi que le compte est passé de 4 à 5 le 24/08 :
+  le bloc « Contrôles attendus » l'a recité pour en rendre compte.
+  ⚠⚠ **Ne pas lire « 4 » ni « 5 » comme un seuil** — voir le 🔴 ci-dessus. Le 26/08, j'ai lu la
+  ligne d'état périmée (« 4 / 518 ») et conclu à tort que le seuil du skill avait dérivé, alors
+  que le critère juste était deux lignes plus bas et **tenait**. *Un chiffre périmé posé à côté
+  de la bonne règle se fait lire à sa place.*
   - ⚠ `wama/common/middleware.py` a QUITTÉ cette liste le 20/08 : le fichier EXISTE désormais
     (`RunOutcomeCaptureMiddleware`, chantier mémoire) — mais `UserLanguageMiddleware` (tableau
     i18n du `ROADMAP`) n'y est toujours PAS écrit : la référence résout, l'intention i18n reste due.
@@ -134,3 +145,13 @@ recouvrir un échec qui remplace un autre :
 - **`manage.py check` ne voit PAS les imports paresseux** : il est passé au vert sur un
   `ImportError` introduit dans un import local. Relancer la suite complète après tout déplacement
   de symbole.
+- ⚠⚠ **`rtk` compresse une SORTIE, il ne MESURE pas.** Mesuré le 26/08 : `rtk grep "attributes"`
+  a rendu **1 correspondance sur 4** réelles (vérifié à l'outil natif) — et j'avais commencé à
+  conclure sur ce relevé. Il reste bon pour ce qu'il vise (`git status`, `git diff`, logs,
+  builds). **Dès qu'une recherche sert à AFFIRMER** (« il n'y a qu'un consommateur », « ce nom
+  n'est pris nulle part », « N occurrences ») → **outil natif `Grep`**, qui ne filtre rien.
+  Même famille que le biais de `consommateurs()` dans `WAMA_MECANISMES` : un instrument qui rate
+  des correspondances est **pire qu'aucun instrument**, parce qu'il rend un chiffre.
+- ⚠ **Un diagnostic reçu d'une autre instance se vérifie comme n'importe quelle affirmation**
+  (26/08 : « les 91 manifestes périmés viennent du monde Data » — c'étaient des manifestes
+  `model` issus d'un autre chantier). Un pending mal attribué est un pending que personne ne prend.
