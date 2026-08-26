@@ -241,9 +241,18 @@ def process_audio_track(
     file_path: str, max_words: int, console, user_id: int,
     skip_summarize: bool = False,
     output_language: str = 'fr',
-    llm_model: str = 'qwen3.5:9b',
+    llm_model: str = '',
 ) -> str:
-    """Extract and transcribe audio from video."""
+    """Extract and transcribe audio from video.
+
+    `llm_model` : l'appelant réel passe toujours le modèle résolu par le catalogue
+    (`get_describer_model`, cf. `describe_video` ligne ~71). Vide → résolution
+    `modele_par_defaut()` — plus JAMAIS de nom en dur ici (l'ancien défaut
+    `qwen3.5:9b` a survécu au refactor du 04/08 puis désigné un modèle retiré le 26/08).
+    """
+    if not llm_model:
+        from wama.common.utils.llm_utils import modele_par_defaut
+        llm_model = modele_par_defaut()
     temp_audio = None
 
     try:

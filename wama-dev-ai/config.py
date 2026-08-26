@@ -98,13 +98,15 @@ MODELS = {
     ),
 
     "prompt_enricher_premium": ModelConfig(
-        name="Gemma 4 26B",
-        ollama_id="gemma4:26b",
-        description="Advanced prompt enrichment for complex or creative prompts (MoE, 3.8B actifs)",
-        context_length=256000,
+        name="Qwen3.8 27B (premium)",
+        # gemma4:26b RETIRÉ le 2026-08-26 (dominé : qualité 33.9 < gemma4:12b 42.7 pour 2×
+        # la VRAM, banc codegen 1 SyntaxError/2 runs) — qwen3.8 = meilleur généraliste mesuré.
+        ollama_id="qwen3.8:latest",
+        description="Advanced prompt enrichment for complex or creative prompts (dense 27.3B)",
+        context_length=262144,
         temperature=0.25,
         role="prompt",
-        ram_required_gb=18.0,
+        ram_required_gb=19.0,
         priority=80,
     ),
 
@@ -173,13 +175,16 @@ MODELS = {
     ),
 
     "debug": ModelConfig(
-        name="Qwen3-Coder 30B",
-        ollama_id="qwen3-coder:30b",
-        description="Code reviewer, debugger and patch generator — MoE 30B/3.3B actifs, 256K ctx",
+        name="Qwen3.6 35B (Debug)",
+        # qwen3-coder:30b RETIRÉ le 2026-08-26 (banc 13/08 : INVENTE des briques plausibles —
+        # rédhibitoire pour un reviewer ; bench tiers 13.6, le pire du parc). qwen3.6:35b est
+        # le seul modèle mesuré à ne JAMAIS inventer d'import : exactement le profil debug.
+        ollama_id="qwen3.6:35b",
+        description="Code reviewer, debugger and patch generator — MoE 36B, zéro import inventé",
         context_length=262144,
         temperature=0.2,
         role="debug",
-        ram_required_gb=19.0,
+        ram_required_gb=22.0,
         priority=50,
     ),
 
@@ -198,9 +203,11 @@ MODELS = {
     # Fast Models (for quick tasks)
     # -------------------------------------------------------------------------
     "fast": ModelConfig(
-        name="Qwen3.5 9B",
-        ollama_id="qwen3.5:9b",
-        description="Fast model for quick tasks and small refactors (native vision)",
+        name="Gemma 4 12B (Fast)",
+        # qwen3.5:9b RETIRÉ le 2026-08-26 (dominé par gemma4:12b : qualité 39.8 < 42.7 à
+        # VRAM voisine — c'était l'ex-défaut historique d'avant la résolution catalogue).
+        ollama_id="gemma4:12b",
+        description="Fast model for quick tasks and small refactors (native vision+audio)",
         context_length=262144,
         temperature=0.7,
         role="dev",
@@ -245,13 +252,15 @@ MODELS = {
     ),
 
     "vision_lite": ModelConfig(
-        name="Qwen3.5 9B (Vision)",
-        ollama_id="qwen3.5:9b",
-        description="Unified vision+text model, native multimodal (early fusion)",
+        name="Qwen3.5 4B (Vision)",
+        # qwen3.5:9b RETIRÉ le 2026-08-26 — le rôle « vision au plus petit coût RAM » revient
+        # au 4B (vision native aussi), sous gemma4:12b (vision, prio 100) et e4b (prio 70).
+        ollama_id="qwen3.5:4b",
+        description="Smallest vision+text model, native multimodal (early fusion)",
         context_length=262144,
         temperature=0.7,
         role="vision",
-        ram_required_gb=9.0,
+        ram_required_gb=4.0,
         priority=40,
     ),
 
@@ -299,11 +308,15 @@ MODELS = {
         priority=100,
     ),
 
-    "gemma4_26b": ModelConfig(
-        name="Gemma 4 26B",
-        ollama_id="gemma4:26b",
-        description="Challenger codegen non-thinking (banc marche B)",
-        context_length=128000,
+    # gemma4:26b RETIRÉ le 2026-08-26 (1 SyntaxError/2 runs au banc du 13/08). Le rôle de
+    # challenger revient à qwen3.8, ce que le commentaire du câblage 19/08 annonçait déjà
+    # (« qwen3.8 y entrera comme challenger au prochain banc »). Clé RENOMMÉE avec le modèle :
+    # une clé qui nomme un modèle qu'elle ne désigne plus rendrait les chaînes FAUSSES.
+    "qwen38_codegen": ModelConfig(
+        name="Qwen3.8 27B (Codegen challenger)",
+        ollama_id="qwen3.8:latest",
+        description="Challenger codegen (banc marche B) — à confronter à qwen3.6:35b au prochain banc",
+        context_length=262144,
         temperature=0.2,
         role="codegen",
         ram_required_gb=19.0,
@@ -314,9 +327,12 @@ MODELS = {
     # Embeddings
     # -------------------------------------------------------------------------
     "embed": ModelConfig(
-        name="Nomic Embed Text",
-        ollama_id="nomic-embed-text:latest",
-        description="Text embeddings for semantic search and RAG",
+        name="BGE-M3",
+        # nomic-embed-text RETIRÉ le 2026-08-26 — anglo-centré (raison documentée dans
+        # wama/common/memory/embed.py) ; bge-m3 est LE substrat d'embeddings de WAMA
+        # (mémoire/RAG pgvector) : un seul embedder pour les deux mondes.
+        ollama_id="bge-m3:latest",
+        description="Multilingual text embeddings for semantic search and RAG (aligned with WAMA memory)",
         context_length=8192,
         temperature=0.0,
         role="embed",
@@ -500,7 +516,7 @@ MODEL_FALLBACK_CHAINS = {
     "dev": ["qwen38", "dev", "coder", "fast", "ultra_fast"],
     # codegen (marche B) : candidat principal + challengers du banc — one-shot, pas
     # d'agentique. ⚠ Ne lancer le banc qu'ACCOMPAGNÉ (charge GPU, règle crashs hôte).
-    "codegen": ["codegen", "debug", "gemma4_26b", "gemma4_e4b", "fast"],
+    "codegen": ["codegen", "debug", "qwen38_codegen", "gemma4_e4b", "fast"],
     "debug": ["debug", "fast", "ultra_fast"],
     "architect": ["qwen38", "architect", "orchestrator", "fast", "ultra_fast"],
     # audit role: prefers non-thinking models (qwen3.5 crashes on complex prompts)
@@ -518,7 +534,12 @@ MODEL_FALLBACK_CHAINS = {
     # notait déjà pour qwen3.5, et qui vaut en fait pour toute la famille.
     # Le sélecteur ne sait PAS distinguer « ne tient pas en VRAM » de « plante » : il n'aurait
     # jamais basculé tout seul, l'audit échouait simplement. D'où le réordonnancement.
-    "audit": ["gemma4_26b", "gemma4_e4b", "debug", "fast", "ultra_fast"],
+    #
+    # ⚠ MAJ 2026-08-26 : gemma4:26b (tête mesurée) RETIRÉ du parc — e4b (2ᵉ mesuré OK, 17,6 s)
+    # prend la tête. `fast` désigne désormais gemma4:12b (famille Gemma, NON mesuré sur ce
+    # profil tool-use — à confirmer au prochain run d'audit). Les Qwen restent EXCLUS de cette
+    # chaîne : 4 testés, 4 échecs (mesure ci-dessus).
+    "audit": ["gemma4_e4b", "fast"],
     "vision": ["vision", "vision_fast", "vision_lite"],
     "prompt": ["prompt_enricher_premium", "prompt_enricher"],
     "translate": ["translator", "prompt_enricher"],

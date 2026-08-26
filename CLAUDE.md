@@ -511,7 +511,8 @@ au codebase WAMA. Il travaille en complément de Claude (Anthropic).
 - la tâche est **read-only** ET **volumineuse** (audit multi-fichiers, exploration sémantique large) ;
 - l'offload **préserve le contexte/quota** de la session principale (le vrai gain) ;
 - un modèle stable est disponible (sur cet hôte 24 Go partagé : **`gemma4:e4b` non-thinking** est le
-  choix fiable ; `qwen3-coder:30b` trop lourd pour l'agentique ; voir `wama-dev-ai/run_audit.py`).
+  choix fiable ; `qwen3-coder:30b` — jugé trop lourd pour l'agentique — a été RETIRÉ du parc le
+  2026-08-26 avec 4 autres, cf. `REMOVAL_LEDGER.md` ; voir `wama-dev-ai/run_audit.py`).
 
 **Toujours :** tâches **étroites et ciblées** (les tâches larges le font dériver) ; **valider** la
 sortie (hallucination possible) ; **jamais d'auto-application**. Règle **suggérée, pas obligatoire**

@@ -32,7 +32,9 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('--provider', default='ollama',
                             help="ollama (défaut, LOCAL) ou un cloud : xai, gemini, openai, mistral, groq, deepseek, openrouter.")
-        parser.add_argument('--model', default='qwen3.5:9b', help="Nom du modèle (défaut qwen3.5:9b).")
+        parser.add_argument('--model', default='',
+                            help="Nom du modèle (défaut : résolu par le catalogue, "
+                                 "modele_par_defaut — plus de nom en dur, retrait qwen3.5:9b 26/08).")
         parser.add_argument('--timeout', type=int, default=30)
 
     def handle(self, *args, **options):
@@ -44,6 +46,10 @@ class Command(BaseCommand):
             return
 
         provider, model = options['provider'], options['model']
+        if provider == 'ollama' and not model:
+            from wama.common.utils.llm_utils import modele_par_defaut
+            model = modele_par_defaut()
+            self.stdout.write(f"Modèle résolu par le catalogue : {model or '(aucun)'}")
 
         # 1) Détection des clés cloud configurées (AUCUN appel réseau).
         configured = [p for p, env in _PROVIDER_ENV.items() if os.environ.get(env)]

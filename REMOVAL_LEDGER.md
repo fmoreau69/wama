@@ -125,3 +125,20 @@
   imager. `get_conformity_summary()` reflète désormais l'uniformisation réelle (le tracker ne sous-déclare
   plus l'inspecteur). ETA laissé False (non implémenté). Découvertes annexes → **F6** (transcriber modes
   ≠ WamaModes) + **R8** (résidus ETA par-app à auditer, signalés par Fabien).
+- **2026-08-26** — **PARC OLLAMA : 5 retraits (~42,5 Go), décision Fabien sur inventaire mesuré**
+  (catalogue qualité/benchmark + points de sélection réels + banc wama-dev-ai) : **qwen3-coder:30b**
+  (18 G — bench tiers 13,6 le pire du parc, « invente des briques » au banc codegen, aucun sélecteur),
+  **gemma4:26b** (17 G — dominé par gemma4:12b à 2× la VRAM, 1 SyntaxError/2 runs au banc),
+  **qwen3.5:9b** (6,6 G — ex-défaut historique d'avant la résolution catalogue, dominé par gemma4:12b),
+  **nomic-embed-text** (anglo-centré, rejeté pour la mémoire — raison documentée `embed.py`),
+  **mxbai-embed-large** (aucun consommateur ; bge-m3 = LE substrat d'embeddings). **Gardés** :
+  gemma4:12b (pivot `modele_par_defaut`), qwen3.8 (meilleur mesuré), translategemma:12b (Translator),
+  bge-m3 (mémoire/RAG), qwen3.5:4b (seul LLM sous ~7 Go VRAM libre — assurance du sélecteur VRAM-aware),
+  gemma4:e4b + qwen3.6:35b (wama-dev-ai : agent fiable + champion codegen, sursis jusqu'au prochain banc).
+  **3 surfaces traitées le même jour** : ① `ollama rm` ×5 + réconciliation catalogue
+  (`full_sync(delete_missing=True)`, removed=5, candidats `is_proposed` épargnés par construction) ;
+  ② `wama-dev-ai/config.py` : 6 entrées re-pointées (debug→qwen3.6:35b, fast→gemma4:12b,
+  vision_lite→qwen3.5:4b, premium→qwen3.8, embed→bge-m3, clé `gemma4_26b` RENOMMÉE `qwen38_codegen`)
+  + chaîne `audit` re-tirée **Gemma seulement** (mesure du 20/08 : famille Qwen 4/4 en échec tool-use) ;
+  ③ derniers noms en dur côté WAMA branchés sur la résolution catalogue (`video_describer.py`
+  défaut de signature survivant du refactor 04/08, `llm_gateway_check.py --model` → `modele_par_defaut`).

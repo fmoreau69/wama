@@ -19,7 +19,7 @@ d'auto-application) :
 Usage (racine du repo) :
     python wama-dev-ai/run_codegen.py --app converter --task convert_media_task \
         --truth wama.converter.tasks:_convert          # banc : vérité terrain jointe
-    python wama-dev-ai/run_codegen.py --app reader --task read_document_task --model gemma4:26b
+    python wama-dev-ai/run_codegen.py --app reader --task read_document_task --model qwen3.8:latest
 """
 import argparse
 import ast
