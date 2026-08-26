@@ -72,8 +72,14 @@
   // Fabien. Le nocturne ne le voyait pas — `batch_actions` clique les boutons de la card sans
   // passer par la SÉLECTION, qui est le chemin qui lève.
   //
-  // Les 5 apps au contrat correct recopiaient ces 3 lignes à l'identique : le geste est commun,
-  // il vit donc ici. Leur portage vers ce helper reste à faire (elles fonctionnent).
+  // Les apps au contrat correct recopiaient ces 3 lignes à l'identique : le geste est commun,
+  // il vit donc ici. ✅ PORTAGE TERMINÉ le 2026-08-26 — 10 apps sur 10 passent par ce helper.
+  //
+  // ⚠ Le relevé du 26/08 nommait « transcriber, converter, describer, reader, imager » ; la
+  // mesure site par site en a corrigé DEUX : `composer` était un 6ᵉ site (il résolvait la card
+  // mère par un BOUTON portant data-batch-id puis `.closest()` — survivance d'avant
+  // `_queue_entry.html`), et `imager` ne déclarait AUCUN callback d'actions, ni item ni batch :
+  // son volet Actions était VIDE, en silence. Une liste par motif oriente ; elle ne conclut pas.
   function cloneBatchActions(host, batchId, label) {
     var groupe = document.querySelector('.batch-group[data-batch-id="' + batchId + '"]');
     cloneActions(host, groupe ? groupe.querySelector('.btn-group-actions') : null,

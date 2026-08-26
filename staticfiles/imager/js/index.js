@@ -87,6 +87,18 @@
                 schema: d.schema || [],
                 itemLabel: function (id) { return "la génération #" + id; },
                 batchLabel: function (id) { return "le batch #" + id + " (tous les éléments)"; },
+                // ── Volet ACTIONS (2026-08-26) ───────────────────────────────────────
+                // ⚠ L'imager ne déclarait AUCUN des deux callbacks : `fillActions` fait
+                // `if (renderFn)`, donc `#inspectorActions` restait VIDE — sans erreur, sans
+                // journal. Les boutons existaient pourtant des deux côtés (`.btn-group-actions`
+                // dans `_generation_card.html:94`, hôte `_inspector_actions.html`) : il ne
+                // manquait que le geste, qui est commun. Cf. « ce qui ne plante pas ne se
+                // signale pas ».
+                renderItemActions: function (host, card) {
+                    WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
+                        '<i class="fas fa-crosshairs text-info"></i> Actions — génération #' + card.dataset.id);
+                },
+                renderBatchActions: function (host, batchId) { WamaInspector.cloneBatchActions(host, batchId); },
                 // Les deux endpoints lisent `request.POST` (coerce_schema_values) — donc
                 // FormData, PAS du JSON comme reader.
                 saveItem: function (id) {

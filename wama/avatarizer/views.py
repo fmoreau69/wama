@@ -669,8 +669,11 @@ def _get_batches_list(user):
         order_by='-created_at',
         has_output=lambda job: bool(job.output_video),
     )
-    # Lots multi-éléments en premier (un lot d'un seul job se lit comme une card simple).
-    batches.sort(key=lambda b: 0 if len(b['items']) > 1 else 1)
+    # (« batchs d'abord » RETIRÉ le 2026-08-26 : règle abandonnée le 2026-06-29 au profit du tri
+    # de la barre commune — `apply_queue_sort_filter` (seul appelant, views.py:99) trie TOUJOURS,
+    # défaut `recent`, donc ce tri était écrasé juste après. 4ᵉ exemplaire de ce que `c9408354`
+    # a retiré d'enhancer ×2 et de synthesizer ; « batchs d'abord » n'est plus qu'une OPTION de la
+    # barre (`batches_first`). Ne pas trier en dur avant l'appel.)
     return batches
 
 

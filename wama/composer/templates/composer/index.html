@@ -281,11 +281,11 @@ document.addEventListener('DOMContentLoaded', function () {
             WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
                 '<i class="fas fa-crosshairs text-info"></i> Actions — élément #' + card.dataset.id);
         },
-        renderBatchActions: function (host, bid) {
-            var anyBtn = document.querySelector('.btn-group-actions [data-batch-id="' + bid + '"]');
-            WamaInspector.cloneActions(host, anyBtn ? anyBtn.closest('.btn-group-actions') : null,
-                '<i class="fas fa-layer-group text-info"></i> Actions — batch #' + bid);
-        },
+        {% comment %}Actions d'un LOT : brique commune. Composer résolvait la card mère par un
+        BOUTON portant data-batch-id puis `.closest()` — survivance d'avant `_queue_entry.html`,
+        qui pose désormais `.batch-group[data-batch-id]` autour du même `.btn-group-actions`.
+        Même noeud résolu, un seul geste.{% endcomment %}
+        renderBatchActions: function (host, bid) { WamaInspector.cloneBatchActions(host, bid); },
         // Point 6 : masque les options de création (reset) pendant l'inspection d'une card.
         // (saveGlobal et settingsTitle* = N/A pour Composer : pas de réglages globaux persistés
         //  ni d'élément de titre dédié dans le volet.)

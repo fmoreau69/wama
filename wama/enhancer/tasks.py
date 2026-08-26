@@ -521,8 +521,8 @@ def _enhance_video(enhancement: Enhancement, user_id: int) -> dict:
         Result dictionary
     """
     import subprocess
-    import tempfile
-    import shutil
+    # (`tempfile` et `shutil` retires le 2026-08-26 : leurs SEULS usages ici etaient le mkdtemp
+    #  et les deux rmtree, tous trois absorbes par la brique `work_dir`.)
     from .utils.ai_upscaler import AIUpscaler
     import cv2
     from django.core.files.base import ContentFile
@@ -537,225 +537,225 @@ def _enhance_video(enhancement: Enhancement, user_id: int) -> dict:
     output_filename = compose_output_name(app='enhancer', model=enhancement.ai_model,
                                           source_name=input_path)
 
-    # ⚠ Ce dossier de travail EST nettoyé sur les deux chemins (rmtree en succès ET dans le
-    # `except`) — vérifié le 2026-08-25, mon relevé automatique l'avait signalé à tort. Son
-    # passage à la brique `work_dir` (nettoyage porté par un `with`, donc couvrant aussi un
-    # retour anticipé et les BaseException) reste à faire : c'est une restructuration de la
-    # fonction entière, pas une substitution de deux lignes.
-    # Create temporary directories
-    temp_dir = tempfile.mkdtemp(prefix='enhancer_')
-    frames_dir = os.path.join(temp_dir, 'frames')
-    enhanced_dir = os.path.join(temp_dir, 'enhanced')
-    os.makedirs(frames_dir, exist_ok=True)
-    os.makedirs(enhanced_dir, exist_ok=True)
+    # Dossier de travail JETABLE — brique commune `work_dir` (2026-08-26).
+    # ⚠ Le nettoyage etait DEJA correct sur les deux chemins (rmtree en succes ET dans le
+    # `except`) — ce port ne corrige donc pas un bug, il rend la garantie STRUCTURELLE.
+    # Le `with` couvre en plus ce que deux appels ne couvraient pas : un `return` anticipe et
+    # les BaseException — dont la `SoftTimeLimitExceeded` de Celery, qui est precisement ce
+    # qui arrive a une tache GPU trop longue, et qui laissait donc le dossier derriere elle.
+    # Il apporte aussi le domicile hors `media/` et l'echappatoire WAMA_GARDER_WORK_DIR.
+    from wama.common.utils.work_dir import work_dir
+    with work_dir('enhancer') as _travail:
+        temp_dir = str(_travail)
+        frames_dir = os.path.join(temp_dir, 'frames')
+        enhanced_dir = os.path.join(temp_dir, 'enhanced')
+        os.makedirs(frames_dir, exist_ok=True)
+        os.makedirs(enhanced_dir, exist_ok=True)
 
-    try:
-        # Step 1: Extract frames with ffmpeg (10%)
-        _console(user_id, "Extracting frames...")
-        _set_progress(enhancement.id, 10)
+        try:
+            # Step 1: Extract frames with ffmpeg (10%)
+            _console(user_id, "Extracting frames...")
+            _set_progress(enhancement.id, 10)
 
-        frame_pattern = os.path.join(frames_dir, 'frame_%05d.png')
-        logger.info(f"Extracting frames from {input_path} to {frame_pattern}")
-        from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe, adapt_path_for_ffmpeg
-        _ff = get_ffmpeg_exe()
-        extract_result = subprocess.run([
-            _ff,
-            '-y',  # Overwrite output files without asking
-            '-i', adapt_path_for_ffmpeg(input_path, _ff),
-            '-qscale:v', '1',
-            adapt_path_for_ffmpeg(frame_pattern, _ff)
-        ], capture_output=True, text=True)
+            frame_pattern = os.path.join(frames_dir, 'frame_%05d.png')
+            logger.info(f"Extracting frames from {input_path} to {frame_pattern}")
+            from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe, adapt_path_for_ffmpeg
+            _ff = get_ffmpeg_exe()
+            extract_result = subprocess.run([
+                _ff,
+                '-y',  # Overwrite output files without asking
+                '-i', adapt_path_for_ffmpeg(input_path, _ff),
+                '-qscale:v', '1',
+                adapt_path_for_ffmpeg(frame_pattern, _ff)
+            ], capture_output=True, text=True)
 
-        if extract_result.returncode != 0:
-            logger.error(f"ffmpeg frame extraction failed with return code {extract_result.returncode}")
-            logger.error(f"ffmpeg stderr: {extract_result.stderr}")
-            raise RuntimeError(f"ffmpeg frame extraction failed: {extract_result.stderr}")
+            if extract_result.returncode != 0:
+                logger.error(f"ffmpeg frame extraction failed with return code {extract_result.returncode}")
+                logger.error(f"ffmpeg stderr: {extract_result.stderr}")
+                raise RuntimeError(f"ffmpeg frame extraction failed: {extract_result.stderr}")
 
-        # Count frames
-        frame_files = sorted([f for f in os.listdir(frames_dir) if f.endswith('.png')])
-        total_frames = len(frame_files)
-        _console(user_id, f"Extracted {total_frames} frames")
+            # Count frames
+            frame_files = sorted([f for f in os.listdir(frames_dir) if f.endswith('.png')])
+            total_frames = len(frame_files)
+            _console(user_id, f"Extracted {total_frames} frames")
 
-        # Step 2: Upscale frames (10-80%)
-        _console(user_id, f"Upscaling frames with {enhancement.ai_model}...")
+            # Step 2: Upscale frames (10-80%)
+            _console(user_id, f"Upscaling frames with {enhancement.ai_model}...")
 
-        upscaler = AIUpscaler(
-            model_name=enhancement.ai_model,
-            tile_size=enhancement.tile_size if enhancement.tile_size > 0 else 512
-        )
-
-        output_width = 0
-        output_height = 0
-
-        # Aperçu « PENDANT » (brique COMMUNE preview_utils, `?side=during`) : la frame
-        # AMÉLIORÉE courante publiée ~toutes les 2 s — les frames temporaires vivent hors
-        # MEDIA, on copie donc un JPEG partiel sous l'output utilisateur (même patron que
-        # l'anonymizer, corrigé en famille 18/08).
-        from django.conf import settings
-        from wama.common.utils.media_paths import get_app_media_path
-        from wama.common.utils.preview_utils import clear_partial, publish_partial
-        _pdir = os.path.join(str(get_app_media_path('enhancer', user_id, 'output')), 'partials')
-        os.makedirs(_pdir, exist_ok=True)
-        _partial_abs = os.path.join(_pdir, f'during_{enhancement.id}.jpg')
-        _partial_url = (settings.MEDIA_URL
-                        + os.path.relpath(_partial_abs, settings.MEDIA_ROOT).replace('\\', '/'))
-        _last_emit = [0.0]
-
-        for i, frame_file in enumerate(frame_files):
-            # Update progress
-            progress = 10 + int((i / total_frames) * 70)
-            _set_progress(enhancement.id, progress)
-
-            # Read frame
-            frame_path = os.path.join(frames_dir, frame_file)
-            frame = cv2.imread(frame_path)
-
-            # Upscale
-            enhanced_frame = upscaler.upscale_image(
-                frame,
-                blend_factor=enhancement.blend_factor
+            upscaler = AIUpscaler(
+                model_name=enhancement.ai_model,
+                tile_size=enhancement.tile_size if enhancement.tile_size > 0 else 512
             )
 
-            # Save enhanced frame
-            enhanced_path = os.path.join(enhanced_dir, frame_file)
-            cv2.imwrite(enhanced_path, enhanced_frame)
+            output_width = 0
+            output_height = 0
 
-            # Store dimensions from first frame
-            if i == 0:
-                output_height, output_width = enhanced_frame.shape[:2]
+            # Aperçu « PENDANT » (brique COMMUNE preview_utils, `?side=during`) : la frame
+            # AMÉLIORÉE courante publiée ~toutes les 2 s — les frames temporaires vivent hors
+            # MEDIA, on copie donc un JPEG partiel sous l'output utilisateur (même patron que
+            # l'anonymizer, corrigé en famille 18/08).
+            from django.conf import settings
+            from wama.common.utils.media_paths import get_app_media_path
+            from wama.common.utils.preview_utils import clear_partial, publish_partial
+            _pdir = os.path.join(str(get_app_media_path('enhancer', user_id, 'output')), 'partials')
+            os.makedirs(_pdir, exist_ok=True)
+            _partial_abs = os.path.join(_pdir, f'during_{enhancement.id}.jpg')
+            _partial_url = (settings.MEDIA_URL
+                            + os.path.relpath(_partial_abs, settings.MEDIA_ROOT).replace('\\', '/'))
+            _last_emit = [0.0]
 
-            _now = time.time()
-            if _now - _last_emit[0] >= 2.0:
-                _last_emit[0] = _now
+            for i, frame_file in enumerate(frame_files):
+                # Update progress
+                progress = 10 + int((i / total_frames) * 70)
+                _set_progress(enhancement.id, progress)
+
+                # Read frame
+                frame_path = os.path.join(frames_dir, frame_file)
+                frame = cv2.imread(frame_path)
+
+                # Upscale
+                enhanced_frame = upscaler.upscale_image(
+                    frame,
+                    blend_factor=enhancement.blend_factor
+                )
+
+                # Save enhanced frame
+                enhanced_path = os.path.join(enhanced_dir, frame_file)
+                cv2.imwrite(enhanced_path, enhanced_frame)
+
+                # Store dimensions from first frame
+                if i == 0:
+                    output_height, output_width = enhanced_frame.shape[:2]
+
+                _now = time.time()
+                if _now - _last_emit[0] >= 2.0:
+                    _last_emit[0] = _now
+                    try:
+                        cv2.imwrite(_partial_abs, enhanced_frame)
+                        publish_partial('enhancer', enhancement.id, f'{_partial_url}?v={i}')
+                    except Exception:
+                        pass  # best-effort
+
+            upscaler.close()
+            clear_partial('enhancer', enhancement.id)   # la face SORTIE prend le relais
+            try:
+                os.remove(_partial_abs)
+            except OSError:
+                pass
+            _console(user_id, f"Upscaled all frames")
+
+            # Step 3: Encode video (80-95%)
+            _console(user_id, "Encoding video...")
+            _set_progress(enhancement.id, 80)
+
+            # Use temp file for ffmpeg output (not in media/ to avoid conflict with storage deletion)
+            output_path = os.path.join(temp_dir, output_filename)
+
+            enhanced_pattern = os.path.join(enhanced_dir, 'frame_%05d.png')
+
+            # Get original video FPS
+            from wama.common.utils.ffmpeg_utils import get_ffprobe_exe, adapt_path_for_ffmpeg
+            _fp = get_ffprobe_exe()
+            probe_result = subprocess.run([
+                _fp,
+                '-v', 'error',
+                '-select_streams', 'v:0',
+                '-show_entries', 'stream=r_frame_rate',
+                '-of', 'default=noprint_wrappers=1:nokey=1',
+                adapt_path_for_ffmpeg(input_path, _fp)
+            ], capture_output=True, text=True)
+
+            fps = eval(probe_result.stdout.strip()) if probe_result.stdout.strip() else 30
+
+            # Encode video
+            logger.info(f"Running ffmpeg to encode video to: {output_path}")
+            from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe
+            _ffe = get_ffmpeg_exe()
+            encode_result = subprocess.run([
+                _ffe,
+                '-y',  # Overwrite output file without asking
+                '-framerate', str(fps),
+                '-i', adapt_path_for_ffmpeg(enhanced_pattern, _ffe),
+                '-c:v', 'libx264',
+                '-preset', 'medium',
+                '-crf', '18',
+                '-pix_fmt', 'yuv420p',
+                adapt_path_for_ffmpeg(output_path, _ffe)
+            ], capture_output=True, text=True)
+
+            if encode_result.returncode != 0:
+                logger.error(f"ffmpeg encoding failed with return code {encode_result.returncode}")
+                logger.error(f"ffmpeg stderr: {encode_result.stderr}")
+                raise RuntimeError(f"ffmpeg encoding failed: {encode_result.stderr}")
+
+            # Verify output file was created
+            if not os.path.exists(output_path):
+                logger.error(f"ffmpeg did not create output file at {output_path}")
+                logger.error(f"ffmpeg stdout: {encode_result.stdout}")
+                logger.error(f"ffmpeg stderr: {encode_result.stderr}")
+                raise FileNotFoundError(f"ffmpeg did not create output file at {output_path}")
+
+            logger.info(f"Video encoded successfully, file size: {os.path.getsize(output_path)} bytes")
+            _set_progress(enhancement.id, 95)
+
+            # Delete old output file if it exists
+            if enhancement.output_file:
                 try:
-                    cv2.imwrite(_partial_abs, enhanced_frame)
-                    publish_partial('enhancer', enhancement.id, f'{_partial_url}?v={i}')
-                except Exception:
-                    pass  # best-effort
+                    logger.info(f"Deleting old output file: {enhancement.output_file.name}")
+                    enhancement.output_file.delete(save=False)
+                except Exception as e:
+                    logger.warning(f"Could not delete old output file: {e}")
 
-        upscaler.close()
-        clear_partial('enhancer', enhancement.id)   # la face SORTIE prend le relais
-        try:
-            os.remove(_partial_abs)
-        except OSError:
-            pass
-        _console(user_id, f"Upscaled all frames")
+            # Save output file directly to storage to force overwrite without Django's uniqueness check
+            from django.core.files.storage import default_storage
+            output_storage_path = f'enhancer/{enhancement.user_id}/output/media/{output_filename}'
 
-        # Step 3: Encode video (80-95%)
-        _console(user_id, "Encoding video...")
-        _set_progress(enhancement.id, 80)
+            # Force delete if exists (handles orphaned files)
+            if default_storage.exists(output_storage_path):
+                try:
+                    logger.info(f"Deleting existing file in storage: {output_storage_path}")
+                    default_storage.delete(output_storage_path)
+                except Exception as e:
+                    logger.warning(f"Could not delete existing storage file: {e}")
 
-        # Use temp file for ffmpeg output (not in media/ to avoid conflict with storage deletion)
-        output_path = os.path.join(temp_dir, output_filename)
+            # Write file directly to storage, then update the FileField with the known path
+            logger.info(f"Saving output file to storage: {output_storage_path}")
+            with open(output_path, 'rb') as f:
+                saved_path = default_storage.save(output_storage_path, ContentFile(f.read()))
 
-        enhanced_pattern = os.path.join(enhanced_dir, 'frame_%05d.png')
+            logger.info(f"File saved to storage at: {saved_path}")
 
-        # Get original video FPS
-        from wama.common.utils.ffmpeg_utils import get_ffprobe_exe, adapt_path_for_ffmpeg
-        _fp = get_ffprobe_exe()
-        probe_result = subprocess.run([
-            _fp,
-            '-v', 'error',
-            '-select_streams', 'v:0',
-            '-show_entries', 'stream=r_frame_rate',
-            '-of', 'default=noprint_wrappers=1:nokey=1',
-            adapt_path_for_ffmpeg(input_path, _fp)
-        ], capture_output=True, text=True)
+            # Verify the file exists in storage
+            if default_storage.exists(saved_path):
+                logger.info(f"Verified: File exists in storage at {saved_path}")
+                storage_size = default_storage.size(saved_path)
+                logger.info(f"Storage file size: {storage_size} bytes")
+            else:
+                logger.error(f"ERROR: File was NOT saved to storage at {saved_path}")
 
-        fps = eval(probe_result.stdout.strip()) if probe_result.stdout.strip() else 30
-
-        # Encode video
-        logger.info(f"Running ffmpeg to encode video to: {output_path}")
-        from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe
-        _ffe = get_ffmpeg_exe()
-        encode_result = subprocess.run([
-            _ffe,
-            '-y',  # Overwrite output file without asking
-            '-framerate', str(fps),
-            '-i', adapt_path_for_ffmpeg(enhanced_pattern, _ffe),
-            '-c:v', 'libx264',
-            '-preset', 'medium',
-            '-crf', '18',
-            '-pix_fmt', 'yuv420p',
-            adapt_path_for_ffmpeg(output_path, _ffe)
-        ], capture_output=True, text=True)
-
-        if encode_result.returncode != 0:
-            logger.error(f"ffmpeg encoding failed with return code {encode_result.returncode}")
-            logger.error(f"ffmpeg stderr: {encode_result.stderr}")
-            raise RuntimeError(f"ffmpeg encoding failed: {encode_result.stderr}")
-
-        # Verify output file was created
-        if not os.path.exists(output_path):
-            logger.error(f"ffmpeg did not create output file at {output_path}")
-            logger.error(f"ffmpeg stdout: {encode_result.stdout}")
-            logger.error(f"ffmpeg stderr: {encode_result.stderr}")
-            raise FileNotFoundError(f"ffmpeg did not create output file at {output_path}")
-
-        logger.info(f"Video encoded successfully, file size: {os.path.getsize(output_path)} bytes")
-        _set_progress(enhancement.id, 95)
-
-        # Delete old output file if it exists
-        if enhancement.output_file:
+            # Update the FileField to point to the saved file
             try:
-                logger.info(f"Deleting old output file: {enhancement.output_file.name}")
-                enhancement.output_file.delete(save=False)
-            except Exception as e:
-                logger.warning(f"Could not delete old output file: {e}")
+                enhancement.refresh_from_db()
+                enhancement.output_file.name = saved_path
+                logger.info(f"Output file field updated: {enhancement.output_file.name}")
+                enhancement.output_width = output_width
+                enhancement.output_height = output_height
+                enhancement.output_file_size = os.path.getsize(output_path)
+                enhancement.save(update_fields=['output_file', 'output_width', 'output_height', 'output_file_size'])
+            except Enhancement.DoesNotExist:
+                logger.warning(f"Enhancement {enhancement.id} was deleted during processing")
+                raise Exception("Enhancement was deleted during processing")
 
-        # Save output file directly to storage to force overwrite without Django's uniqueness check
-        from django.core.files.storage import default_storage
-        output_storage_path = f'enhancer/{enhancement.user_id}/output/media/{output_filename}'
+            _console(user_id, f"Video encoding complete")
 
-        # Force delete if exists (handles orphaned files)
-        if default_storage.exists(output_storage_path):
+            # (plus de `rmtree` ici ni dans l'`except` : le `with work_dir` les porte tous deux.)
+            return {'ok': True, 'output_width': output_width, 'output_height': output_height, 'frames': total_frames}
+
+        except Exception as e:
+            # Clean up on error (aperçu partiel compris — pas de « pendant » obsolète)
             try:
-                logger.info(f"Deleting existing file in storage: {output_storage_path}")
-                default_storage.delete(output_storage_path)
-            except Exception as e:
-                logger.warning(f"Could not delete existing storage file: {e}")
-
-        # Write file directly to storage, then update the FileField with the known path
-        logger.info(f"Saving output file to storage: {output_storage_path}")
-        with open(output_path, 'rb') as f:
-            saved_path = default_storage.save(output_storage_path, ContentFile(f.read()))
-
-        logger.info(f"File saved to storage at: {saved_path}")
-
-        # Verify the file exists in storage
-        if default_storage.exists(saved_path):
-            logger.info(f"Verified: File exists in storage at {saved_path}")
-            storage_size = default_storage.size(saved_path)
-            logger.info(f"Storage file size: {storage_size} bytes")
-        else:
-            logger.error(f"ERROR: File was NOT saved to storage at {saved_path}")
-
-        # Update the FileField to point to the saved file
-        try:
-            enhancement.refresh_from_db()
-            enhancement.output_file.name = saved_path
-            logger.info(f"Output file field updated: {enhancement.output_file.name}")
-            enhancement.output_width = output_width
-            enhancement.output_height = output_height
-            enhancement.output_file_size = os.path.getsize(output_path)
-            enhancement.save(update_fields=['output_file', 'output_width', 'output_height', 'output_file_size'])
-        except Enhancement.DoesNotExist:
-            logger.warning(f"Enhancement {enhancement.id} was deleted during processing")
-            raise Exception("Enhancement was deleted during processing")
-
-        _console(user_id, f"Video encoding complete")
-
-        # Clean up temp directory (includes encoded video and all frames)
-        shutil.rmtree(temp_dir)
-
-        return {'ok': True, 'output_width': output_width, 'output_height': output_height, 'frames': total_frames}
-
-    except Exception as e:
-        # Clean up on error (aperçu partiel compris — pas de « pendant » obsolète)
-        try:
-            from wama.common.utils.preview_utils import clear_partial
-            clear_partial('enhancer', enhancement.id)
-        except Exception:
-            pass
-        shutil.rmtree(temp_dir, ignore_errors=True)
-        raise
+                from wama.common.utils.preview_utils import clear_partial
+                clear_partial('enhancer', enhancement.id)
+            except Exception:
+                pass
+            raise

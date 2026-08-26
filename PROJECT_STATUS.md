@@ -7113,8 +7113,9 @@ passe pas par l'index, et une card rendue avec une variable inexistante **ne lè
 > **Premier geste : trancher les 32 « pointeurs seuls »** (§D①) — ce sont des cards de la file,
 > leur suppression est une décision de Fabien, pas un ménage.
 >
-> ⚠ Le défaut §D④ (`renderBatchActions`) est **CORRIGÉ** depuis le 26/08 — il ne reste que son
-> chantier d'adoption par les 5 apps déjà saines.
+> ⚠ Le défaut §D④ (`renderBatchActions`) est **CORRIGÉ** depuis le 26/08, et son **portage est
+> TERMINÉ** le même jour (11 sites / 11). ✅ §D③ (`work_dir` enhancer) et §D⑤ (tri mort avatarizer)
+> sont soldés aussi — **il ne reste de cette section que ① et ②, qui demandent une décision.**
 
 Session née d'un portage d'app (`queue_entry` avatarizer) qui a fait lancer la suite de tests,
 laquelle a révélé qu'elle **écrivait dans le média de production**. De fil en aiguille, 20 commits.
@@ -7169,15 +7170,43 @@ laquelle a révélé qu'elle **écrivait dans le média de production**. De fil 
    ont disparu). Les supprimer retire des cards de la file → **décision de Fabien**.
 2. **5 égarés** locaux (2 fichiers à la racine de `media/`, 3 sondes `_t.*`) — Fabien indique qu'une
    partie vient de fichiers placés par commodité.
-3. **`enhancer/tasks.py:534`** — seul site `work_dir` non porté. Déjà nettoyé sur les deux chemins ;
-   le porter est une restructuration d'une fonction GPU de 200 lignes.
+3. ✅ **`enhancer/tasks.py` — PORTÉ le 2026-08-26** (6ᵉ site `work_dir`). `_enhance_video` est
+   désormais entièrement sous `with work_dir('enhancer')` ; les DEUX `rmtree` et le `mkdtemp` ont
+   disparu, avec eux les imports `tempfile`/`shutil` devenus morts dans la fonction.
+   ⭐ **Le gain n'est PAS un bug corrigé** — le nettoyage était déjà bon sur les deux chemins, comme
+   mesuré le 25/08. Ce que le `with` ajoute est ce que deux appels ne pouvaient pas couvrir : le
+   `return` anticipé et les **BaseException** — dont la `SoftTimeLimitExceeded` de Celery, qui est
+   le mode d'échec NORMAL d'une tâche GPU trop longue et laissait donc le dossier derrière elle.
+   S'y ajoutent le domicile hors `media/` et l'échappatoire `WAMA_GARDER_WORK_DIR`.
+   **Comment le port a été rendu vérifiable** (la restructuration touche ~215 lignes) : geste
+   mécanique par script, puis **`git diff -w`** — en ignorant les blancs, le diff ne montre QUE
+   l'ouverture du `with` et les deux `rmtree` retirés, ce qui prouve que le reste n'est que de
+   l'indentation. À réemployer pour les ports de ce genre.
 4. ✅ **`renderBatchActions` : contrat INVERSÉ — CORRIGÉ le 26/08** (`204ffe85`). Les 5 sites
    (anonymizer, avatarizer, enhancer ×2, synthesizer) passent par la brique commune
    **`WamaInspector.cloneBatchActions(host, batchId)`**, qui résout la card mère depuis son
    identifiant. Prouvé par un clic RÉEL en navigateur : le `pageerror` a disparu, et le volet
    affiche INFOS + PARAMÈTRES + les 5 boutons d'action clonés.
-   🔚 **Reste à porter** : les 5 apps au contrat correct (transcriber, converter, describer,
-   reader, imager) recopient les mêmes 3 lignes — elles fonctionnent, mais le geste est commun.
+   ✅ **PORTAGE TERMINÉ le 2026-08-26 — 11 sites / 11, 10 apps / 10** passent par la brique.
+   ⚠⚠ **Et le relevé ci-dessous s'est trompé sur 2 des 5 apps qu'il nommait** — la mesure site par
+   site (lire les 5 configs, pas grepper un nom) a corrigé :
+   - **`composer` était un 6ᵉ site, non listé** : il résolvait la card mère par un **BOUTON**
+     portant `data-batch-id` puis `.closest('.btn-group-actions')` — survivance d'avant
+     `_queue_entry.html`, qui pose désormais `.batch-group[data-batch-id]` autour du même nœud.
+     Même nœud résolu, donc port sûr ; mais aucun grep de `.batch-group` ne l'aurait trouvé.
+   - **`imager` ne déclarait AUCUN callback d'actions — ni item, ni batch.** Son volet Actions
+     était **VIDE en silence** : `fillActions` fait `if (renderFn)`, donc pas d'erreur, pas de
+     journal, alors que les boutons existaient des deux côtés (`_generation_card.html:94` et
+     l'hôte `_inspector_actions.html`). Ce n'était pas un port, c'était un **trou**.
+     Les deux callbacks y sont désormais déclarés.
+   🔬 **Prouvé au navigateur par le chemin de SÉLECTION** (sonde dédiée, comptes de test) :
+   imager item **5 boutons** / lot **4**, converter 5/4, describer 5/4, reader 5, transcriber 4 —
+   **0 erreur JS**. Capture lue à l'écran : « Actions — génération #59 » et « Actions — batch #2 »,
+   dans l'ordre canonique ⚙ ▶ ⬇ ⧉ 🗑.
+   ⚠ **Le nocturne ne peut PAS attester ceci** : `batch_actions` clique les boutons de la card
+   **sans passer par la sélection**, or c'est la sélection qui appelle `renderBatchActions`. C'est
+   exactement l'angle mort qui avait laissé passer le contrat inversé → **pending : un scénario
+   `<app>.inspector_actions`** qui sélectionne et vérifie que `#inspectorActions` n'est pas vide.
    ✅ Corrigé aussi : « Réglages de **le** batch #2 » → la contraction `de`+`le` → `du` est traitée
    dans `showBanner` (règle de LANGUE, une fois au point d'assemblage) plutôt que dans les
    9 libellés d'app, qui l'auraient recopiée.
@@ -7194,8 +7223,11 @@ laquelle a révélé qu'elle **écrivait dans le média de production**. De fil 
    (avatarizer et enhancer, eux, n'ont aucun lot multi : chez eux il reste théorique.)
    Les apps au contrat CORRECT (`batchId`) — transcriber, converter, describer, reader, imager —
    ont elles aussi des lots multi et ne posent aucun problème : c'est la contre-épreuve.
-5. **`avatarizer/views.py:662`** — le tri « batchs d'abord » y survit, écrasé aussitôt par
-   `apply_queue_sort_filter`. 4ᵉ exemplaire de ce que `c9408354` a retiré ailleurs.
+5. ✅ **`avatarizer/views.py` — RETIRÉ le 2026-08-26.** 4ᵉ et **dernier** exemplaire de ce que
+   `c9408354` avait retiré d'enhancer ×2 et de synthesizer. Vérifié empiriquement avant de couper :
+   `queue_view.py:31` donne toujours une valeur à `q_sort` (défaut `recent`) et `:59` trie
+   **inconditionnellement** — le tri local était donc écrasé sur tous les chemins.
+   `grep "sort(key=lambda b"` sur `wama/` rend désormais **0** : la série est soldée.
 
 **Décisions prises, à ne pas rouvrir :** `-o/--output` = une **COPIE** (le canonique reste dans
 `media/`, aucun invariant cassé, les previews ne voient pas les copies), avec
@@ -7329,3 +7361,61 @@ Scripts de mesure dans le scratchpad — `dump_trip.py` (relevé du catalogue `.
 qui a tranché D31), `incoherence.py` (probe vs read). **Aucun n'est nécessaire à la reprise** : les
 chiffres qu'ils ont produits sont cités dans `§13.15`, `§13.17` et `§13.18`. Aucun compte ni item
 de test semé, aucune sortie `PENDING_HUMAN_VALIDATION`.
+
+---
+
+## §REPRISE — 2026-08-26 (SUITE, même session : RITUELS `/reprise` et `/cloture`)
+
+> Bloc APPEND-ONLY distinct : le travail ci-dessous a suivi la clôture du bloc précédent, sur un
+> périmètre entièrement différent (outillage de session, pas monde Data).
+
+### Ce qui a été corrigé, et pourquoi ça comptait
+
+**`/cloture` ne lançait AUCUN test.** C'est le défaut grave : `/reprise` a dû ajouter la suite
+complète le 25/08 après qu'un test soit resté **rouge deux jours** sans qu'aucun rituel ne puisse
+le voir — une clôture muette referme le même trou par l'autre bout, en léguant le rouge. Un
+**§2a inconditionnel** a été ajouté, avec l'exigence que le chiffre reporté soit **mesuré dans la
+session**, jamais recopié.
+
+Cinq autres manques comblés : la règle des chemins explicites **ne protège pas d'un fichier
+co-édité** (relire `git diff <fichier>` avant de commiter) · le balayage « chercher, pas se
+souvenir » demandait de **grepper la conversation**, ce qui n'est pas mécanisable → remplacé par
+des commandes sur les commits et diffs de session, plus une passe sur les **promesses tenues à
+moitié** · vérifier **QUOI** est périmé avant de régénérer un corpus · **unicité des numéros**
+dans un registre partagé · taille bornée de `MEMORY.md` · et « dire nommément ce qu'on a laissé
+de côté », l'arbitrage bloquant signalé à part.
+
+**Trois chiffres de référence étaient périmés**, tous remesurés : `check_app_conformity`
+**77 → 82 critères** (F1:4 F2:11 F3:17 F4:9 F5:29 F6:5 F7:5 F8:2) — et `CLAUDE.md` disait **72**,
+avec « 60–72 par app » là où le réel est **67–82** · suite de tests **852 → 911** · `check_docs`
+« 4 / 518 » → **5 références / 542, une seule cible distincte**.
+
+### ⚠ Deux erreurs de ma part, corrigées dans le même geste
+
+1. **J'avais annoncé « le seuil de `/reprise` est périmé ». FAUX.** Le critère juste — compter les
+   **cibles distinctes**, attendu = 1 — y était déjà et **tenait**. Ce qui était périmé, c'est la
+   ligne d'état illustrative posée **au-dessus**, et je l'ai lue à la place de la règle. La leçon
+   est maintenant dans le skill : *un chiffre périmé posé à côté de la bonne règle se fait lire à
+   sa place.*
+2. **Le commit qui corrigeait les rituels a été passé en `-m`** → le shell a interprété les
+   backticks et **deux fragments ont disparu en silence**. La règle « message long → fichier + `-F` »
+   est en mémoire depuis le 23/08 : **récidive**. Message amendé, déclencheur rendu mécanique
+   (> 3 lignes **ou** un backtick → fichier).
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE — inchangé
+
+**Refaire le manifeste `dataset` sur un 2ᵉ `.trip`, puis le convertir en `.wdat`.** Le premier a
+trouvé quatre défauts réels en une heure.
+
+### Contrôles attendus au prochain /reprise (MESURÉS ce jour)
+
+`check_docs` : **5 références cassées / 0 périmée sur 542**, pour **1 cible distincte** — le partial
+d'onglets de résultat jamais créé (chemin volontairement non réécrit, cf. `/cloture §2c`) ·
+`manage.py test wama_data wama.common.tests_manifest_axes` : **669 OK** ·
+`check_app_conformity` : **82 critères**, dénominateurs 67–82 selon l'app ·
+`grep` d'unicité des numéros de décision dans `WAMA_DATA_WORLD` : **aucun doublon**.
+
+### Pendings système
+
+- **Rien à redémarrer.** 4 commits de plus non poussés (total session : **13**).
+- **Aucune validation navigateur** : aucune surface UI produite.

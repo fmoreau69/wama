@@ -402,9 +402,9 @@ document.addEventListener('DOMContentLoaded', function () {
         },
         renderBatchActions: function (host, batchId) {
             showPanelParams(false);   // batch : réglages via la modale batch (quality_preset)
-            var grp = q.querySelector('.batch-group[data-batch-id="' + batchId + '"] .btn-group-actions');
-            WamaInspector.cloneActions(host, grp,
-                '<i class="fas fa-layer-group text-info"></i> Actions — batch #' + batchId);
+            {% comment %}Résolution de la card mère : brique commune. Le `showPanelParams(false)`
+            reste ici — c'est une spécificité de converter, pas le geste commun.{% endcomment %}
+            WamaInspector.cloneBatchActions(host, batchId);
         },
         onDeselect: function () { showPanelParams(false); },
         saveItem: function (id) {

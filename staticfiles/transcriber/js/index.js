@@ -1020,12 +1020,6 @@ document.addEventListener('DOMContentLoaded', function () {
       '<i class="fas fa-crosshairs text-info"></i> Actions — élément #' + card.dataset.id);
   }
 
-  function _renderBatchActions(host, batchId) {
-    const grp = document.querySelector('.batch-group[data-batch-id="' + batchId + '"] .btn-group-actions');
-    WamaInspector.cloneActions(host, grp,
-      '<i class="fas fa-layer-group text-info"></i> Actions — batch #' + batchId);
-  }
-
   // Sauvegarde des réglages de l'élément inspecté (callback WamaInspector).
   function saveInspectorItem(id) {
     if (!id || !config.settingsUrlTemplate) return;
@@ -1110,7 +1104,8 @@ document.addEventListener('DOMContentLoaded', function () {
       settingsTitleSelector: '#settings-section .right-panel-section-title',
       settingsTitleInspect: '<i class="fas fa-cog me-1"></i> Paramètres de l\'élément',
       renderItemActions: _renderItemActions,
-      renderBatchActions: _renderBatchActions,
+      // Actions d'un LOT : brique commune (résout la card mère depuis son IDENTIFIANT).
+      renderBatchActions: function (host, batchId) { WamaInspector.cloneBatchActions(host, batchId); },
       saveItem: saveInspectorItem,
       saveBatch: saveInspectorBatch,
       saveGlobal: saveGlobalSettings,

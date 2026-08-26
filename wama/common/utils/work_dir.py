@@ -15,10 +15,15 @@ CE QUE ÇA REMPLACE
     garanti (par un `finally`) que sur 5 d'entre eux. Ici il n'est plus une convention qu'on peut
     oublier : il est **structurel**, porté par le `with`.
 
-    ⚠ Les 6 autres sites n'ont PAS été audités un par un — au moins un délègue son nettoyage à
+    ⚠ Les autres sites n'ont PAS été audités un par un — au moins un délègue son nettoyage à
     l'appelant par contrat documenté (`reader/backends/glm_ocr_backend.py:67`). Les porter est un
     chantier d'adoption à part, à mener site par site : ne pas les convertir en masse sur la foi
     d'un relevé automatique.
+
+    ✅ `enhancer/tasks.py::_enhance_video` porté le 2026-08-26 (6ᵉ site). Son nettoyage était déjà
+    correct sur les deux chemins : le gain n'est pas un bug corrigé mais la couverture du `return`
+    anticipé et des BaseException — dont la `SoftTimeLimitExceeded` de Celery, qui est le mode
+    d'échec NORMAL d'une tâche GPU trop longue et laissait jusque-là le dossier derrière elle.
 
 USAGE
     from wama.common.utils.work_dir import work_dir

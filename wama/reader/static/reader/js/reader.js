@@ -607,11 +607,6 @@
         WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
             '<i class="fas fa-crosshairs text-info"></i> Actions — élément #' + card.dataset.id);
     }
-    function _renderBatchActions(host, batchId) {
-        const grp = document.querySelector('.batch-group[data-batch-id="' + batchId + '"] .btn-group-actions');
-        WamaInspector.cloneActions(host, grp,
-            '<i class="fas fa-layer-group text-info"></i> Actions — batch #' + batchId);
-    }
 
     function initInspector() {
         const q  = document.getElementById('queueContainer');
@@ -641,7 +636,8 @@
                 if (r && r.ok) window.location.reload();
             },
             renderItemActions: _renderItemActions,
-            renderBatchActions: _renderBatchActions,
+            // Actions d'un LOT : brique commune (résout la card mère depuis son IDENTIFIANT).
+            renderBatchActions: function (host, batchId) { WamaInspector.cloneBatchActions(host, batchId); },
         });
     }
 

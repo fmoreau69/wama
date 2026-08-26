@@ -308,17 +308,13 @@ document.addEventListener('DOMContentLoaded', function () {
         WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
             '<i class="fas fa-crosshairs text-info"></i> Actions — élément #' + card.dataset.id);
     }
-    function _renderBatchActions(host, batchId) {
-        var grp = document.querySelector('.batch-group[data-batch-id="' + batchId + '"] .btn-group-actions');
-        WamaInspector.cloneActions(host, grp,
-            '<i class="fas fa-layer-group text-info"></i> Actions — batch #' + batchId);
-    }
     window._describerInspector = WamaInspector.initFromSchema({
         queueContainer: q,
         cardSelector:   '.synthesis-card',
         batchSelector:  '.batch-group',
         renderItemActions:  _renderItemActions,
-        renderBatchActions: _renderBatchActions,
+        {% comment %}Actions d'un LOT : brique commune (résout la card mère depuis son IDENTIFIANT).{% endcomment %}
+        renderBatchActions: function (host, batchId) { WamaInspector.cloneBatchActions(host, batchId); },
         panelContainer: ph,
         schema:         window.WAMA_DESCRIBER_SCHEMA || [],
         itemLabel:  function (id) { return "l'élément #" + id; },
