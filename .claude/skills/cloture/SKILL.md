@@ -45,6 +45,11 @@ python manage.py test <tes modules>      # ciblé, quelques secondes
 > **le chiffre reporté au §4 soit MESURÉ dans cette session**, pas recopié du handoff précédent.
 > ⚠ Et lire les **NOMS** des rouges, jamais le seul compte — un total identique peut recouvrir
 > un échec qui en remplace un autre.
+>
+> 🔴 **Un rouge ne se clôt PAS en silence.** Deux issues, jamais une troisième : il est **corrigé**,
+> ou il est **DÉCLARÉ dans le handoff par son NOM**, avec ce qu'on en sait et à qui il appartient.
+> Une clôture qui reporte « N tests OK » en ayant écarté les rouges du décompte est pire qu'une
+> clôture sans tests : elle produit une preuve fausse.
 
 ### 2b. Les autres — seulement ceux que la session a rendus nécessaires
 - Un REGISTRE a bougé (APP_CATALOG, params, capacités, tool_api, mecanismes.py…) →
