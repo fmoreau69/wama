@@ -7101,3 +7101,105 @@ commentaires sans toucher au DOM, exactement comme une extraction vers un partia
 neutralise le CSRF, sans quoi tout diffère pour 12 lignes de token.
 ⚠ Couvrir **index ET `card_html`** : cette vue AJAX est celle que le polling appelle, elle ne
 passe pas par l'index, et une card rendue avec une variable inexistante **ne lève aucune erreur**.
+
+---
+
+## §REPRISE — 2026-08-25→26 (session « MÉDIAS : où vivent les fichiers ») — 🔚 POINT D'ENTRÉE
+
+> **🔚 POINT D'ENTRÉE : `python manage.py check_media_integrity --details`.** Il rend en une
+> commande l'état des chantiers ouverts ci-dessous, et c'est le seul instrument du dépôt qui
+> voyait les **références cassées** — 33 le 25/08, dont personne ne savait rien.
+>
+> **Premier geste : trancher les 32 « pointeurs seuls »** (§D①) — ce sont des cards de la file,
+> leur suppression est une décision de Fabien, pas un ménage.
+
+Session née d'un portage d'app (`queue_entry` avatarizer) qui a fait lancer la suite de tests,
+laquelle a révélé qu'elle **écrivait dans le média de production**. De fil en aiguille, 20 commits.
+
+### A. Le fil — chaque défaut en a découvert un autre
+
+| # | trouvé en cherchant… | défaut RÉEL |
+|---|---|---|
+| 1 | pourquoi 11 tests étaient rouges | **UN** défaut, dans le TEST — il exemptait `export_binding` en dur et ignorait `export_formats`, sa clé jumelle ajoutée après lui. Les apps étaient justes |
+| 2 | pourquoi `test_filename_property` était instable | **la suite écrivait dans `media/`** — 1069 fichiers, **jusque dans les dossiers d'utilisateurs réels** (regis.blanchet en avait 100) : les ids d'une base de test entrent en collision avec les vrais |
+| 3 | ce que pesait `media/avatarizer/` | **1,69 Go dont 99,6 % de PNG** — les frames de CodeFormer ; `job_11` : 2063 fichiers / 1715,7 Mo pour une vidéo de **0,70 Mo**, et sa card était **supprimée** |
+| 4 | si la suppression d'une card nettoyait | **non** — 13 dossiers `job_*` orphelins contre 4 rattachés |
+| 5 | si le patron `mkdtemp` était sûr ailleurs | 2 fuites réelles (describer, enhancer) + **le reader fuyait de QUATRE façons**, dont un `except ImportError` qui empêchait un repli d'exister |
+| 6 | pourquoi les noms de fichiers s'affichaient mal | **13 en-têtes `Content-Disposition` écrits à la main** (7 fichiers de vues) → nom abîmé sans erreur serveur ; **plus un défaut CSS distinct** (`min-width:0` manquant sur un élément flex) |
+
+### B. Ce qui a été livré
+
+- **`TEST_RUNNER` → `wama/common/runners.py`** : chaque campagne écrit dans un dossier jetable de
+  `media_tests/`. `find media` avant/après : **delta 0**. L'instabilité 8↔9 est guérie (3 exécutions,
+  mêmes noms).
+- **`work_dir`** (`common/utils/work_dir.py`) — nettoyage porté par un `with`. **5 sites adoptés.**
+- **`output_naming`** (`common/utils/output_naming.py`) — deux familles :
+  `<stem>_<process>_<modèle>` pour l'entrée FICHIER, `<process><id>_<modèle>` pour l'entrée PROMPT ;
+  index seulement s'il y a plusieurs sorties. **7 apps sur 8.** Le mot de process est DÉCLARÉ.
+- **`check_media_integrity`** — 4 états + les égarés. Un *kind* de manifeste `media` a été ÉCARTÉ
+  (raison consignée dans `MEDIA_STORAGE_TIERING.md`).
+- **`--reparer`** : coupe les pointeurs morts SANS supprimer de ligne. 3 travaux réels sauvés d'un
+  nettoyage naïf (2 descriptions dont le texte a survécu, 1 synthèse dont le texte source existe).
+- **Purge locale** : 1069 fichiers de test + 12 dossiers `job_*` = **1716 Mo**. `media/` 3779 → 635.
+- **Ménage distant** (`\\vrlescot\SAVES\DEEP_LEARNING\MEDIAS`) : **1,7 Go**, 3155 → 733 fichiers.
+
+### C. Les leçons de MÉTHODE — c'est ce qui doit survivre
+
+1. **UN RELEVÉ PAR MOTIF ORIENTE ; IL NE CONCLUT PAS.** L'audit automatique des `mkdtemp` a mal
+   classé **2 sites sur 6** — et la lecture site par site a trouvé l'INVERSE : des fuites qu'aucun
+   motif ne voyait (`rmdir` conditionné à « si vide » donc jamais déclenché, nettoyage placé APRÈS
+   l'appel donc sauté sur exception, `except ImportError` bloquant un repli).
+2. **DEUX SIGNAUX INDÉPENDANTS, JAMAIS LE NOM SEUL.** « Orphelin » seul désignait 3447 fichiers sur
+   3779 (les sorties de workers ne passent pas par un `FileField`) ; le nom seul aurait emporté
+   `test_synthesizer.txt`, dépôt manuel d'une utilisatrice, et 10 `tmp*` réels côté sauvegarde.
+3. **NE PAS GÉNÉRALISER D'UN SEUL CAS OBSERVÉ.** « Un défaut dans les 11 apps » venait d'avoir lu
+   **un** message sur 11. « Aucune card multi-fichiers » venait d'avoir compté des CHAMPS, pas des
+   FICHIERS (`imager.num_images` va de 1 à 4). « 60 égarés » → **5** après vérification.
+4. **UN HARNAIS QUI INSTANCIE `DiscoverRunner` CONTOURNE `TEST_RUNNER`** — le mien a supprimé un vrai
+   dossier de `media/`. Hors `manage.py test` : `get_runner(settings)`, jamais la classe.
+5. **CE QUI EST « CORRIGÉ LOCALEMENT » NE PROTÈGE PERSONNE.** `gateway/tests.py` avait le bon
+   correctif ET le bon commentaire depuis des semaines ; ça n'a pas empêché les 1069 fichiers.
+
+### D. Chantiers OUVERTS — dans l'ordre
+
+1. **32 « pointeurs seuls »** en base (20 fantômes de l'explorateur + 12 cards dont entrée ET sortie
+   ont disparu). Les supprimer retire des cards de la file → **décision de Fabien**.
+2. **5 égarés** locaux (2 fichiers à la racine de `media/`, 3 sondes `_t.*`) — Fabien indique qu'une
+   partie vient de fichiers placés par commodité.
+3. **`enhancer/tasks.py:534`** — seul site `work_dir` non porté. Déjà nettoyé sur les deux chemins ;
+   le porter est une restructuration d'une fonction GPU de 200 lignes.
+4. **`renderBatchActions` : contrat INVERSÉ dans 4 apps** (anonymizer, avatarizer, enhancer ×2,
+   synthesizer). `wama-inspector.js:807` passe un **identifiant** ; ces apps écrivent
+   `function (host, group)` puis `group.querySelector(...)` → **`TypeError` au clic sur une card
+   mère**, volet Actions vide. Préexistant, prouvé sur HEAD~1. **Invisible du nocturne** : la base
+   réelle n'a aucun lot multi-éléments, donc `batch_actions` se met en skip.
+5. **`avatarizer/views.py:662`** — le tri « batchs d'abord » y survit, écrasé aussitôt par
+   `apply_queue_sort_filter`. 4ᵉ exemplaire de ce que `c9408354` a retiré ailleurs.
+
+**Décisions prises, à ne pas rouvrir :** `-o/--output` = une **COPIE** (le canonique reste dans
+`media/`, aucun invariant cassé, les previews ne voient pas les copies), avec
+`filemanager.MountedFolder` comme liste blanche · le déséquilibre des niveaux de test
+(`ui` 72 / `model_loaded` 2 / `output` 1) est une **DÉCISION** (crashs hôte + priorité au portage),
+consignée dans `WAMA_VERIFICATION §4bis` — **ne pas en faire une alerte**.
+
+### E. Système & pendings
+
+- **`~Archives` distant = 85 fichiers / 14,6 Go, VOULU** (Fabien) et déjà exclu du tirage. Ne pas le
+  prendre pour de la dérive : 44 % du volume distant, c'est lui.
+- ⚠ **30 chemins référencés absents des DEUX côtés**, dont `enhancer/1/input/biovam.mp4` et
+  `objects_01.webp` — deux entrées RÉELLES que le miroir n'a jamais eues. Constat de **couverture**
+  de la sauvegarde, à vérifier un jour sur un échantillon plus large.
+- ⚠ **La sauvegarde est lancée À LA MAIN** alors que `MEDIA_STORAGE_TIERING.md` la donne planifiée à
+  02:30 (avant la purge de rétention de 04:00). Écart intention/réel non élucidé.
+- ⚠ Le ménage distant est **irréversible** (pas de corbeille sur le partage). Les deux garde-fous
+  employés — rien de référencé en base, rien dans un `job_*` vivant — sont à reprendre tels quels.
+
+### F. Contrôles attendus au prochain /reprise
+
+`check_docs` **5 CASSÉ / 0 périmée** (⚠ critère = **1 CIBLE distincte**, `_result_tabs.html`) ·
+`manifest_export` **110 manifestes à jour** · `doc_facts` **5/5** · roundtrip **10 apps OK** ·
+grille : converter/describer/transcriber **100 %**, enhancer 99, anonymizer/avatarizer/composer/
+reader/synthesizer 98, imager 97 · **`manage.py test` : 892 tests, failures=8 errors=2** (les 8 =
+gating d'apps sur synthesizer, les 2 = découverte dans `wama-dev-ai/`, dossier tiret-case
+volontairement non importable) · `check_media_integrity` : **332 référencés, 0 résidu de test,
+30 absents, 5 égarés**.
