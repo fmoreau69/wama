@@ -338,8 +338,8 @@ def _fait_wama_data() -> str:
         c = f"{e['interne']}/{e['externe']}" if e['briques'][0] else "—"
         # Une barre verticale dans une cellule casse la colonne, et un `flux` porte déjà ses
         # propres backticks : on échappe la barre et on n'en rajoute pas.
-        flux = e['flux'].replace('|', '\\|')
-        lignes.append(f"| **{e['nom']}** | {e['role']} | {flux} | {e['etat']} | "
+        flux = e['stream'].replace('|', '\\|')
+        lignes.append(f"| **{e['name']}** | {e['role']} | {flux} | {e['etat']} | "
                       f"{b} | {t} | {c} | {e['doc'] or '—'} |")
 
     bloques = [e for e in etats if e['bloque_par']]
@@ -347,7 +347,7 @@ def _fait_wama_data() -> str:
         lignes.append(f"\n<details><summary>⚠ <b>{len(bloques)} module(s) avec un blocage "
                       f"déclaré</b> — ce qui empêche d'avancer, en une ligne</summary>\n")
         for e in bloques:
-            lignes.append(f"- **{e['nom']}** — {e['bloque_par']}")
+            lignes.append(f"- **{e['name']}** — {e['bloque_par']}")
         lignes.append("\n</details>")
     return '\n'.join(lignes)
 
