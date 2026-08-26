@@ -100,6 +100,11 @@ class Command(BaseCommand):
                             help="Liste les fichiers de chaque catégorie (pas seulement les compteurs)")
         parser.add_argument('--strict', action='store_true',
                             help="Sortie en code 1 si un résidu de test ou une référence absente subsiste")
+        parser.add_argument('--reparer', action='store_true',
+                            help="VIDE les pointeurs de fichier ABSENT sur les lignes qui portent "
+                                 "encore du contenu. Ne supprime AUCUNE ligne, ne touche à aucun "
+                                 "fichier — il s'agit d'arrêter de proposer un téléchargement qui "
+                                 "échouera. Simulation sans le drapeau.")
 
     def handle(self, *args, **opts):
         racine = Path(settings.MEDIA_ROOT)
@@ -169,6 +174,62 @@ class Command(BaseCommand):
                 for rel in sorted(egares)[:40]:
                     self.stdout.write(f"               {rel}")
 
+        if absents:
+            self._reparer(racine, opts.get('reparer', False))
+
         self.stdout.write("=" * largeur)
         if opts['strict'] and (nb_residus or absents):
             raise SystemExit(1)
+
+    #: Champs porteurs d'un RÉSULTAT exploitable même si le fichier d'entrée a disparu.
+    CHAMPS_RESULTAT = ('result_text', 'description_text', 'text', 'transcript',
+                       'output_text', 'content', 'result', 'summary', 'extracted_text')
+
+    def _reparer(self, racine, executer):
+        """Vide les pointeurs morts sur les lignes qui ont encore quelque chose à montrer.
+
+        ⚠ La question n'est PAS « le fichier manque-t-il » (c'est acquis) mais « la ligne
+        porte-t-elle encore de la valeur ». Mesuré le 2026-08-25 : sur 35 références cassées,
+        **3 lignes portaient encore leur travail** — deux descriptions dont le texte a survécu
+        à son image, et une synthèse dont le TEXTE SOURCE existe toujours. Les supprimer en
+        bloc, comme un « nettoyage d'orphelins » naïf l'aurait fait, aurait détruit ce travail.
+        On se contente donc de couper le pointeur mort : la card reste, son contenu reste, et
+        l'UI cesse d'offrir un téléchargement qui échoue en silence.
+        """
+        soignables, pointeurs_seuls = [], 0
+        for modele in dj_apps.get_models():
+            champs = [f for f in modele._meta.get_fields() if isinstance(f, dj_models.FileField)]
+            if not champs:
+                continue
+            try:
+                lignes = list(modele.objects.all())
+            except Exception:
+                continue
+            for ligne in lignes:
+                for f in champs:
+                    nom = getattr(getattr(ligne, f.name, None), 'name', None)
+                    if not nom or (racine / nom).exists():
+                        continue
+                    porte = any(getattr(ligne, c, None) for c in self.CHAMPS_RESULTAT) or any(
+                        (racine / n2).exists()
+                        for g in champs if g.name != f.name
+                        for n2 in [getattr(getattr(ligne, g.name, None), 'name', None)] if n2)
+                    if porte:
+                        soignables.append((modele, ligne, f.name))
+                    else:
+                        pointeurs_seuls += 1
+
+        self.stdout.write(f"  🩹 réparables SANS RIEN PERDRE      : {len(soignables)}"
+                          f"   (pointeurs seuls, non touchés : {pointeurs_seuls})")
+        for modele, ligne, champ in soignables:
+            self.stdout.write(f"        {modele._meta.label} #{ligne.pk}.{champ}")
+        if not soignables:
+            return
+        if not executer:
+            self.stdout.write("        (simulation — relancer avec --reparer)")
+            return
+        for modele, ligne, champ in soignables:
+            setattr(ligne, champ, '')
+            ligne.save(update_fields=[champ])
+        self.stdout.write(self.style.SUCCESS(
+            f"        {len(soignables)} pointeur(s) mort(s) coupé(s) — aucune ligne supprimée"))
