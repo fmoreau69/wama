@@ -7312,8 +7312,13 @@ second sur un corpus de nature différente est le meilleur rapport trouvailles/e
 
 ### Contrôles attendus au prochain `/reprise`
 
-`check_docs` : **537 références, 5 CASSÉ, 0 périmée** (les 5 = `common/_result_tabs.html` dans
-PROJECT_STATUS, préexistantes et hors de ce périmètre) · `manage.py test wama_data` : **649 OK** ·
+`check_docs` : **537 références, 5 CASSÉ, 0 périmée**. Les 5 pointent toutes sur le **partial
+d'onglets de résultat jamais créé**, depuis PROJECT_STATUS — préexistantes, hors de ce périmètre.
+⚠⚠ **Le chemin n'est PAS réécrit ici, à dessein** : le skill `/cloture §2` avertit qu'un chemin
+cassé recopié dans un §REPRISE *devient une référence cassée de plus*. Piège déjà rencontré les
+14/08 et 22/08 — et **une TROISIÈME fois le 24/08** : le bloc « Contrôles attendus » de ce jour a
+fait passer le compte de **4 à 5** en décrivant les 4. Le seuil de `/reprise` (« 4 CASSÉ sur 518 »)
+est donc **périmé par sa propre consignation** · `manage.py test wama_data` : **649 OK** ·
 `wama.common.tests_manifest_axes` : **20 OK** · `manifests/datasets/` : **1 manifeste**, valide
 enveloppe + corps.
 
