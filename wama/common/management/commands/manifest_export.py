@@ -26,6 +26,12 @@ Windows → nom assaini `transcriber__whisper.json` (réversible au glob).
 Le corpus est un artefact DÉRIVÉ mais VERSIONNÉ : le `git diff` du corpus est la revue de ce
 qui change dans la surface déclarée d'une app. `--check` permet de refuser un commit qui
 modifie un registre sans régénérer le corpus.
+
+⚠ ENVIRONNEMENT (vécu 2026-08-26) : les manifestes LIBRARY s'extraient des métadonnées pip
+du venv COURANT — les régénérer depuis venv_win a écrit transformers 5.12.1 (la dérive
+connue de venv_win) et un torch amputé de ses paquets nvidia (wheel Windows). La référence
+des libraries est venv_linux (WSL2) : ne les régénérer QUE depuis là. Les manifestes MODEL
+(extraits du catalogue en base) et APP (registres) sont insensibles au venv.
 """
 import json
 from pathlib import Path
