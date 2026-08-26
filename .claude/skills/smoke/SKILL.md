@@ -28,17 +28,22 @@ le RENDU RÉEL, pas la structure du code.
 - Navigateurs installés **côté WSL2** (`~/.cache/ms-playwright`, chromium-1228), `playwright`
   importable dans `venv_linux` **et** `venv_win` → lancer le script sous WSL2, là où tourne aussi
   le serveur.
-- **AVANT d'écrire un script : réutiliser la brique.** `common/services/ui_smoke.py` fait déjà
-  chargement + erreurs console + parcours des onglets + capture + diff + triage VLM, et
-  `python manage.py run_nightly_tests --stage ui` l'exécute sur les 13 apps en ~45 s. Commencer
-  par là ; n'écrire un script ad hoc que pour ce qu'elle ne couvre pas.
-- **DEUX familles de scénarios, et elles ne disent pas la même chose** (22/08) :
-  `<app>.ui` mesure la SANTÉ (HTTP 200, zéro erreur console) — `converter_01` la satisfaisait tout
-  en étant totalement INERTE, aucun script chargé donc rien à planter ; `<app>.import` mesure le
-  COMPORTEMENT (un dépôt crée-t-il un élément ?). Sélection : `--id <id>`, préfixe
-  `--id converter_01.`, suffixe `--id .import`, ou `--list`. **Une sonde ad hoc de plus dans
-  `logs/ui_smoke/` est presque toujours la mauvaise réponse : la faire entrer ici la rend
-  rejouable et nocturne.**
+- **AVANT d'écrire un script : réutiliser la brique.** `wama/common/services/ui_smoke.py` fait
+  déjà chargement + erreurs console + parcours des onglets + capture + diff + triage VLM, et
+  `python manage.py run_nightly_tests --stage ui` l'exécute sur toutes les apps. 🔴 **Le nombre
+  de scénarios ne se recopie PAS** — ce skill a annoncé « 13 apps, 2 familles » jusqu'au
+  2026-08-26 alors qu'il y en avait **72 scénarios sur 14 apps, en 7 familles**. Toujours
+  commencer par `--list`.
+- **PLUSIEURS familles de scénarios, et elles ne disent pas la même chose.** Au 2026-08-26 :
+  `.ui` (SANTÉ : HTTP 200, zéro erreur console) · `.settings` (le ⚙ ouvre une modale) ·
+  `.import` (un dépôt crée-t-il un élément ?) · `.duplicate_delete` · `.batch_actions` (⧉ puis 🗑
+  sur la card MÈRE) · plus les scénarios transverses `common.volet.*`.
+  ⚠ **La SANTÉ ne prouve aucun COMPORTEMENT** : `converter_01` satisfaisait `.ui` en étant
+  totalement INERTE — aucun script chargé, donc rien à planter. C'est la raison d'être des
+  familles qui CLIQUENT ; une app verte sur `.ui` seule n'est pas une app vérifiée.
+  Sélection : `--id <id>`, préfixe `--id converter_01.`, suffixe `--id .import`, ou `--list`.
+  **Une sonde ad hoc de plus dans `logs/ui_smoke/` (17 au 26/08) est presque toujours la mauvaise
+  réponse : la faire entrer ici la rend rejouable et nocturne.**
 - ⚠ **Aucune lecture ORM À L'INTÉRIEUR de `sync_playwright()`** — Django lève
   `SynchronousOnlyOperation`. Préparer sessions, ids et comptes AVANT d'ouvrir le contexte, et
   faire les comptages/nettoyages APRÈS l'avoir refermé. Piège rencontré deux fois le 22/08.

@@ -1,6 +1,6 @@
 ---
 name: conformite
-description: Mesurer la conformité RÉELLE des apps WAMA (check_app_conformity, 77 critères couvrant les 8 facettes F1-F8) et trier les écarts en plan d'action. Utiliser après un palier de portage, quand l'utilisateur demande « où en est la conformité », « re-mesure », ou pour choisir la prochaine app/critère à porter. Le score n'est PAS l'avancement du portage : voir l'avertissement en tête du skill.
+description: Mesurer la conformité RÉELLE des apps WAMA (check_app_conformity, 82 critères couvrant les 8 facettes F1-F8) et trier les écarts en plan d'action. Utiliser après un palier de portage, quand l'utilisateur demande « où en est la conformité », « re-mesure », ou pour choisir la prochaine app/critère à porter. Le score n'est PAS l'avancement du portage : voir l'avertissement en tête du skill.
 ---
 
 # /conformite — Mesure réelle + triage
@@ -8,18 +8,25 @@ description: Mesurer la conformité RÉELLE des apps WAMA (check_app_conformity,
 La grille `/apps/` est MESURÉE, plus déclarée : ne JAMAIS éditer à la main les booléens
 `_conv(...)` d'`app_registry.py` pour les critères mesurés (le rapport les écrase).
 
-> 🔴 **CE QUE LE SCORE DIT — ET NE DIT PAS.** Répartition des critères (élargie 2026-07-30,
-> **40 → 72** ; **74** le 2026-07-31 (2 critères de partage) ; **77** le 2026-08-22
-> (card_gear, card_preview_hydratee, inspector_detail_wired — jonction du 19/08) :
-> **F1:4 · F2:9 · F3:13 · F4:9 · F5:27 · F6:5 · F7:5 · F8:2.** Les 8 facettes de
-> `WAMA_APP_GENERATION_ROUTE.md` sont désormais **toutes** couvertes — avant cet élargissement la
-> grille ne voyait que F1–F5 (dont 25 critères de F5 à eux seuls) et était donc **aveugle** au
-> contrat `BaseModelBackend`, à la déclaration VRAM, au tirage `select_model`, aux capacités
-> canoniques, à l'appariement entrée↔modèle, aux prompts, aux permissions et au nœud studio.
+> 🔴 **CE QUE LE SCORE DIT — ET NE DIT PAS.** La grille GRANDIT (40 le 2026-07-30 → 74 → 77 →
+> **82** le 2026-08-26). **Ne PAS recopier sa répartition ici** : elle a été fausse trois fois,
+> et le 26/08 le total annoncé (77) ne correspondait même plus à la somme de sa propre liste
+> (74). La mesurer prend deux secondes :
 >
-> Le dénominateur **varie par app** (63 à 77, mesuré 22/08) : un critère peut être **non applicable** et sortir
-> du calcul — F4 entier pour le converter (ffmpeg/pandoc, aucun modèle IA), les 4 critères prompt
-> pour une app sans champ prompt. C'est voulu : on ne pénalise pas une absence légitime.
+> ```bash
+> python -c "import json;c=json.load(open('logs/conformity_report.json'))['criteria'];import collections;f=collections.Counter(v['facette'] for v in c.values());print(len(c),'critères :',dict(sorted(f.items())))"
+> ```
+>
+> Relevé du 2026-08-26 pour ordre de grandeur : **82** — F1:4 F2:11 F3:17 F4:9 F5:29 F6:5 F7:5 F8:2.
+> Les 8 facettes de `WAMA_APP_GENERATION_ROUTE.md` sont **toutes** couvertes depuis le 30/07 —
+> avant cet élargissement la grille ne voyait que F1–F5 et était **aveugle** au contrat
+> `BaseModelBackend`, à la déclaration VRAM, au tirage `select_model`, aux capacités canoniques,
+> à l'appariement entrée↔modèle, aux prompts, aux permissions et au nœud studio.
+>
+> Le dénominateur **varie par app** (67 à 82 le 26/08 — se lit dans `total` du rapport) : un
+> critère peut être **non applicable** et sortir du calcul — F4 entier pour le converter
+> (ffmpeg/pandoc, aucun modèle IA), les 4 critères prompt pour une app sans champ prompt. C'est
+> voulu : on ne pénalise pas une absence légitime.
 >
 > Conséquences pratiques, à dire à l'utilisateur quand on annonce un score :
 > - le score compte des **mécanismes détectés dans le code**, pas des « fonctionnalités finies » ;

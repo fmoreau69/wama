@@ -55,8 +55,12 @@ code-gen : `models` (model_config) ; corps de backends et champs de résultat = 
 (rôle codegen wama-dev-ai + banc de modèles — GPU : avec Fabien seulement). `dataset` n'a
 pas d'`extract` : pour lui le manifeste EST l'origine.
 Composition mesurée : **91 liens `app → model`** + jambes `app → library` SEMÉES (corpus
-**110 manifestes** — 10 apps + 9 libraries + 91 models dérivés des requires ; transcriber =
-4 modèles + 9 libraries, 13/13 résolus) ; strates actées (SPEC §7.4-5) : socle plateforme
+**111 manifestes** au 2026-08-26 — 10 apps + 9 libraries + 91 models dérivés des requires +
+**1 dataset écrit À LA MAIN** ; transcriber = 4 modèles + 9 libraries, 13/13 résolus).
+⚠ Le dataset est le SEUL manifeste du corpus sans origine mécanique — normal, `dataset` n'a pas
+d'`extract` — et l'écrire à la main a trouvé **4 défauts réels en une heure** (dont D31, un
+identifiant de flux divergent entre `probe()` et `read()`). **Écrire un manifeste à la main est
+un instrument de mesure**, pas une corvée. Strates actées (SPEC §7.4-5) : socle plateforme
 (`library_index.SOCLE_PLATEFORME`, jamais cité) / libraries métier / outils système (trou #15).
 
 ## 3. Contrôles à relancer après toute modification
@@ -66,7 +70,10 @@ python manage.py manifest_export --check          # corpus à jour ? ⚠ depuis 
                                                   # venv-dépendantes : venv_win = faux périmés)
 python manage.py manifest_roundtrip --all         # extract -> ingest -> extract est-il fidèle ?
 python manage.py doc_facts --check                # les blocs WAMA:FAITS des .md sont-ils à jour ?
-python manage.py check_docs                       # liens/chemins des docs (2 CASSÉ connus au 10/08)
+python manage.py check_docs                       # liens/chemins des docs — le compte de CASSÉ
+                                                  # est VIVANT (5 sur 547 au 26/08, 1 seule cible
+                                                  # distincte) : compter les CIBLES distinctes,
+                                                  # jamais les occurrences (cf. /reprise)
 python manage.py app_regen_check <app>            # le JUGE profond (strip→apply→3 axes) —
                                                   # WORKTREE UNIQUEMENT (refuse dev/main),
                                                   # après tout palier de write-back/gabarit

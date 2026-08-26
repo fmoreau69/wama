@@ -21,9 +21,14 @@ grep -nE "^#{2,3} " WAMA_APP_GENERATION_ROUTE.md        # repérer la facette F 
 
 > ⚠ Le `ls -d wama/common/*/` n'est pas décoratif : les briques ne vivent PAS toutes dans
 > `utils/`+`services/`. Une brique cohésive multi-fichiers devient un **PACKAGE** — au
-> 2026-08-22 : `memory/` (mémoire+RAG), `tts/` (voix), `backends/`, `manifests/`, `assets/`,
-> `data/`, `prompt_skills/`. L'ancienne version de ce skill n'affichait que 3 dossiers et
-> rendait ces 7 packages **invisibles à sa propre étape de découverte**.
+> 2026-08-26 : `memory/` (mémoire+RAG), `tts/` (voix), `catalog/` (taxonomie + registre de
+> fonctions, glu INTER-mondes), `backends/`, `manifests/`, `assets/`, `prompt_skills/`.
+>
+> 🔴 **C'est la commande qui fait foi, PAS cette liste** — elle a déjà menti dans les deux sens
+> le 2026-08-26 : elle citait `common/data/`, **déporté vers `wama_data/` le 22/08** (doctrine
+> des mondes, CLAUDE.md « un monde n'est pas un sous-dossier du substrat »), et omettait
+> `catalog/`, présent. Une étape de découverte qui envoie chercher dans un dossier disparu
+> rejoue exactement l'erreur que ce déport a corrigée. Lire la sortie, pas le souvenir.
 
 - **Lire d'abord la carte des mécanismes `WAMA_MECANISMES.md`** (table GÉNÉRÉE depuis le
   registre `wama/common/mecanismes.py`) : elle dit quels mécanismes existent, où ils habitent,
@@ -57,8 +62,9 @@ grep -nE "^#{2,3} " WAMA_APP_GENERATION_ROUTE.md        # repérer la facette F 
 > Vécu 2026-07-31 : ~20 lignes par app, généralisées ensuite en mixin + récepteur + helper.
 
 - Regarder **comment les autres apps consomment** une brique voisine (déclaration ? schéma ?)
-  avant de choisir le mode de branchement. 8 apps sur 10 passent par `WamaParams` — s'en écarter
-  doit être un choix motivé, pas un défaut.
+  avant de choisir le mode de branchement. **Les 10 apps passent par `WamaParams`** (mesuré
+  2026-08-26 ; c'était 8/10) — s'en écarter n'est plus « un choix motivé » mais une RUPTURE de
+  l'uniformité, à justifier explicitement auprès de Fabien.
 - Recâbler l'app source + au moins un 2e consommateur dans la même passe si possible.
 - Supprimer le code local remplacé (pas de double chemin) ; si la suppression doit attendre une
   validation navigateur → l'inscrire dans `REMOVAL_LEDGER.md` (R*).

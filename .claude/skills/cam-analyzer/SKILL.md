@@ -6,7 +6,9 @@ description: Travailler sur WAMA Lab Cam Analyzer — tracking 360°, projection
 # /cam-analyzer — Chaîne d'analyse vidéo embarquée
 
 ## 1. Avant de toucher au code
-- Lire `CAM_ANALYZER_CHAINE_TRAITEMENT.md` (chaîne + conception) et le dernier `REPRISE_*.md`.
+- Lire `CAM_ANALYZER_CHAINE_TRAITEMENT.md` (chaîne + conception) et le handoff le plus récent —
+  ⚠ **`PROJECT_STATUS.md §REPRISE <date>`**, PAS un `REPRISE_*.md` : il n'en existe aucun dans
+  `wama_lab/cam_analyzer/` (vérifié 2026-08-26), le seul du dépôt est à la racine et date du 06/08.
 - L'état vivant est le **CHANGELOG**, pas la doc de chaîne (qui décrit la cible).
 - Vérifier la partition multi-instances : l'infra GPU/ressources est souvent tenue par une autre instance.
 

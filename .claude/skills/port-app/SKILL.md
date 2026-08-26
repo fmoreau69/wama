@@ -19,17 +19,22 @@ travail est de CONSOMMER, pas de créer. Route d'ensemble : `WAMA_APP_GENERATION
 - 🔴 **`wama/common/README.md` = L'INVENTAIRE DES BRIQUES + LA RECETTE + LES PIÈGES.** À lire en
   premier, avant même la route : c'est le seul document qui liste les briques réellement
   disponibles avec leur API. Ne pas écrire une ligne avant d'y avoir cherché la brique.
-- 🔴 **LE SCORE /40 NE MESURE PAS TOUT LE PORTAGE.** La grille `check_app_conformity` couvre
-  **F1:3 · F2:5 · F3:6 · F4:1 · F5:25 — et F6/F7/F8 : ZÉRO critère** (mesuré 2026-07-30). Sont
-  donc **invisibles au score** : contrat `BaseModelBackend`, déclaration VRAM, tirage
-  `select_model`, capacités canoniques, `WamaInputMatch`, `WamaModelCaps`, enrichissement de
-  prompt, navette, ETA… Une app peut gagner beaucoup sans bouger d'un point, et inversement.
-  **Le score sert à repérer les régressions F1–F5, pas à déclarer un portage terminé** — pour ça,
-  c'est l'inventaire de `common/README.md` qui fait foi.
+- 🔴 **LE SCORE NE MESURE PAS TOUT LE PORTAGE — mais il en mesure plus qu'on ne croit.**
+  ⚠ Ce paragraphe a affirmé jusqu'au 2026-08-26 que « F6/F7/F8 : ZÉRO critère » et parlait d'un
+  score « /40 ». **C'était faux depuis le 2026-07-30** : les 8 facettes sont couvertes (82
+  critères le 26/08, dont F6:5 F7:5 F8:2), donc le contrat `BaseModelBackend`, la VRAM, le tirage
+  `select_model`, les capacités canoniques, l'appariement entrée↔modèle, les prompts, les
+  permissions et le nœud studio **sont mesurés**. Un skill qui déclare un mécanisme invisible
+  invite la session suivante à le porter en aveugle — et à ne pas voir sa régression.
+  Ce qui RESTE vrai : le score compte des **mécanismes détectés dans le code**, jamais des
+  fonctionnalités finies. **Ne jamais déclarer un portage terminé sur le score seul** — pour ça,
+  c'est l'inventaire de `common/README.md` qui fait foi. Chiffres à jour : `/conformite`.
 - Lire la section de l'app dans `PROJECT_STATUS.md` (§20bis/§21/§31…) + l'état live `/apps/`
   (`get_conformity_summary`) — ne PAS se fier aux tables figées.
 - Relire `WAMA_APP_GENERATION_ROUTE.md` pour la facette qu'on touche, et la recette des ports
-  précédents (Transcriber/Composer/Describer/Reader/Converter = 5 apps déjà portées).
+  précédents. ⚠ **Les 10 apps sont portées** (97–100 % au 2026-08-26) : un « port » aujourd'hui
+  est presque toujours un COMPLÉMENT sur une facette, pas une reprise à zéro. Vérifier ce qui
+  manque RÉELLEMENT (`--app <nom> --verbose-ok`) avant d'ouvrir le chantier.
 - **Documents de domaine — lire celui qui correspond au chantier :**
 
   | Tu touches… | Lire AVANT de coder |
@@ -40,14 +45,14 @@ travail est de CONSOMMER, pas de créer. Route d'ensemble : `WAMA_APP_GENERATION
   | manifestes | `WAMA_MANIFEST_SPEC.md` + `WAMA_MANIFEST_ARCHITECTURE.md` |
   | conventions UI / boutons / file | `WAMA_APP_CONVENTIONS.md` |
 
-- **Briques JS communes — les chercher, pas les réécrire** (`common/static/common/js/`, 24 à ce
-  jour) : `wama-app-base` · `wama-params` · `wama-inspector` (+`-autofill`) · `wama-modes` ·
-  `wama-model-help` · `wama-model-caps` · `wama-input-match` · `wama-new-item-card` ·
-  `wama-cycle-button` · `wama-eta` · `wama-global-progress` · `wama-queue` · `queue-actions` ·
-  `batch-import` · `wama-prompt-enrich` · `wama-prompt-chips` · `wama-shuttle` · `media-picker` ·
-  `media-preview` · `wama-audio-player` · `wama-fm-notify` · `console` · `system-stats`.
-  ⚠️ Avoir la card commune ne suffit pas : mesuré le 30/07, **8 apps incluent
-  `_new_item_card.html` mais une seule charge `wama-input-match.js`**. Support ≠ adoption.
+- **Briques JS communes — les chercher, pas les réécrire.** ⚠ **Ne pas se fier à une liste
+  recopiée** : celle qui figurait ici annonçait « 24 » en n'en nommant que 23, et il y en avait
+  30 au 2026-08-26. La lister prend une seconde — `ls wama/common/static/common/js/` — et
+  `WAMA_MECANISMES.md` dit lesquelles sont MORTES (`⚠ 0` consommateur), ce qu'aucune liste de
+  noms ne dit.
+  ⚠️ Avoir la brique ne suffit pas — **support ≠ adoption** : mesuré le 2026-08-26, **12 apps
+  incluent `_new_item_card.html` et 8 chargent `wama-input-match.js`** (c'était 8 / 1 le 30/07 —
+  l'écart se comble, il ne disparaît pas). Mesurer les DEUX côtés avant de conclure.
 
 - **Le tirage « auto » se résout AU LANCEMENT, jamais au dépôt.** Il lit la VRAM libre ; entre la
   mise en file et l'exécution, plusieurs minutes peuvent passer. La vue ENREGISTRE `'auto'`, la
