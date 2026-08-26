@@ -59,7 +59,7 @@ class WdatReader(SqliteSourceReader):
     # ── Inventaire ────────────────────────────────────────────────────────────────────────────
     def probe(self, path: Path) -> SourceInfo:
         with self._open(path) as con:
-            flux = [r[0] for r in con.execute(
+            stream = [r[0] for r in con.execute(
                 'SELECT name FROM "WamaStreams" ORDER BY name')]
             attributs = dict(con.execute('SELECT key, value FROM "WamaMeta"'))
             medias = [{'file': f, 'offset': o, 'description': d} for f, o, d in con.execute(
@@ -68,9 +68,9 @@ class WdatReader(SqliteSourceReader):
                 'SELECT manifest_kind, key FROM "WamaManifests" ORDER BY manifest_kind, key')]
 
         return SourceInfo(
-            format=self.format, path=str(path), streams=flux,
+            format=self.format, path=str(path), streams=stream,
             attributes=attributs, media=medias,
-            notes=(f"{len(flux)} flux ; {len(medias)} média(s) lié(s) ; "
+            notes=(f"{len(stream)} flux ; {len(medias)} média(s) lié(s) ; "
                    f"{len(protocoles)} protocole(s) embarqué(s)"
                    + (f" ({', '.join(protocoles[:3])})" if protocoles else '')
                    + f" ; schéma v{attributs.get('schema_version', '?')}"),
@@ -125,7 +125,7 @@ class WdatReader(SqliteSourceReader):
                 name=name,
                 data_type=d['data_type'],
                 fs=self._frequence(d['fs']),
-                pertes=int(d['losses'] or 0),
+                losses=int(d['losses'] or 0),
                 units=unites.get(name, {}),
                 is_base=d['is_base'],
                 default_lookup=d['default_lookup'] or NEAREST,
@@ -162,10 +162,10 @@ class WdatReader(SqliteSourceReader):
         """
         out: Dict[str, Dict[str, str]] = {}
         with self._open(path) as con:
-            for flux, column, unite in con.execute(
+            for stream, column, unite in con.execute(
                     'SELECT stream, name, unit FROM "WamaVariables"'):
                 if unite:
-                    out.setdefault(flux, {})[column] = unite
+                    out.setdefault(stream, {})[column] = unite
         return out
 
 

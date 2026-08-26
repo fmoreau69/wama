@@ -48,9 +48,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
-from ..core.noms import AXES_TEMPORELS
+from ..core.naming import AXES_TEMPORELS
 from ..core.temporal import Signal, SignalMeta, TemporalReferential
-from ..core.valeurs import manquant
+from ..core.values import missing
 
 #: Lignes lues (et insérées) par tranche. Une base réelle dépasse le gigaoctet : ni la lecture ni
 #: l'insertion ne peuvent tenir en mémoire d'un bloc.
@@ -62,7 +62,7 @@ TRANCHE = 5000
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
 @dataclass
-class Contexte:
+class Context:
     """Ce qui accompagne les flux dans le conteneur — le catalogue non temporel.
 
     `manifestes` porte les **copies projetées** (`WAMA_DATA_WORLD §9undecies.4`) : le protocole
@@ -90,7 +90,7 @@ class Contexte:
 
 
 @dataclass
-class Entree:
+class Entry:
     """Un flux PRÊT à écrire : sa table, ses colonnes de temps, ses colonnes de données.
 
     Construite par le moteur, consommée par le schéma pour rédiger le catalogue. C'est la seule
@@ -101,10 +101,10 @@ class Entree:
     signal: Signal
     table: str
     colonnes_temps: Tuple[str, ...]
-    colonnes: List[str] = field(default_factory=list)
+    columns: List[str] = field(default_factory=list)
     types: Dict[str, str] = field(default_factory=dict)
     offset: float = 0.0
-    lignes: int = 0
+    rows: int = 0
 
     @property
     def meta(self) -> SignalMeta:
@@ -116,36 +116,36 @@ class Entree:
 
 
 @dataclass
-class Rapport:
+class Report:
     """Ce que l'écriture a produit — et ce qu'elle a **perdu**."""
 
-    chemin: str
+    path: str
     format: str
     tables: Dict[str, int] = field(default_factory=dict)
-    pertes: List[str] = field(default_factory=list)
+    losses: List[str] = field(default_factory=list)
     notes: str = ''
 
     @property
-    def lignes(self) -> int:
+    def rows(self) -> int:
         return sum(self.tables.values())
 
     @property
     def fidele(self) -> bool:
         """Vrai si le schéma cible a tout porté. Faux n'est pas une erreur — c'est un fait à lire."""
-        return not self.pertes
+        return not self.losses
 
     def __repr__(self) -> str:
-        return (f"<Rapport {self.format} {Path(self.chemin).name} "
-                f"{len(self.tables)} table(s) {self.lignes} ligne(s) "
-                f"{len(self.pertes)} perte(s)>")
+        return (f"<Rapport {self.format} {Path(self.path).name} "
+                f"{len(self.tables)} table(s) {self.rows} ligne(s) "
+                f"{len(self.losses)} perte(s)>")
 
 
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 # Contrat d'un schéma
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
-class SchemaConteneur:
-    """Un format de conteneur. À sous-classer, puis à enregistrer via `enregistrer_schema`.
+class ContainerSchema:
+    """Un format de conteneur. À sous-classer, puis à enregistrer via `register_schema`.
 
     Un schéma décide **des noms et du catalogue**. Il ne décide ni de la transaction, ni du
     découpage en tranches, ni de l'indexation, ni de la conversion des valeurs : tout cela est du
@@ -158,7 +158,7 @@ class SchemaConteneur:
     extension = ''
     description = ''
 
-    def nom_table(self, signal: Signal) -> str:
+    def table_name(self, signal: Signal) -> str:
         """Nom de la table portant ce flux.
 
         ⚠ Reçoit le SIGNAL, pas seulement sa `SignalMeta`. Un schéma peut avoir besoin de la
@@ -174,12 +174,12 @@ class SchemaConteneur:
         """`(début,)` pour un flux ponctuel, `(début, fin)` pour une collection de segments."""
         raise NotImplementedError
 
-    def pertes(self, entrees: Sequence[Entree], contexte: Contexte) -> List[str]:
+    def losses(self, entrees: Sequence[Entry], contexte: Context) -> List[str]:
         """Ce que ce schéma ne sait PAS porter, énoncé fait par fait. Vide = conversion fidèle."""
         return []
 
     def ecrire_catalogue(self, con: sqlite3.Connection,
-                         entrees: Sequence[Entree], contexte: Contexte) -> None:
+                         entrees: Sequence[Entry], contexte: Context) -> None:
         """Écrit les tables de métadonnées. Appelé dans la transaction, après les flux."""
         raise NotImplementedError
 
@@ -188,10 +188,10 @@ class SchemaConteneur:
 # Registre — même geste que `sources.READERS`, même raison (G1)
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
-SCHEMAS: Dict[str, SchemaConteneur] = {}
+SCHEMAS: Dict[str, ContainerSchema] = {}
 
 
-def enregistrer_schema(schema: SchemaConteneur) -> SchemaConteneur:
+def register_schema(schema: ContainerSchema) -> ContainerSchema:
     if not schema.format:
         raise ValueError("un schéma de conteneur doit déclarer un `format`")
     if not schema.extension.startswith('.'):
@@ -202,27 +202,27 @@ def enregistrer_schema(schema: SchemaConteneur) -> SchemaConteneur:
     return schema
 
 
-def schemas_disponibles() -> List[str]:
+def available_schemas() -> List[str]:
     return sorted(SCHEMAS)
 
 
-def extensions_ecrivables() -> List[str]:
+def writable_extensions() -> List[str]:
     return sorted({s.extension for s in SCHEMAS.values()})
 
 
-def schema_pour(cible) -> Optional[SchemaConteneur]:
+def schema_for(cible) -> Optional[ContainerSchema]:
     """Le schéma désigné par un nom de format **ou** par l'extension d'un chemin."""
-    texte = str(cible)
-    if texte in SCHEMAS:
-        return SCHEMAS[texte]
-    suffixe = Path(texte).suffix.lower()
+    text = str(cible)
+    if text in SCHEMAS:
+        return SCHEMAS[text]
+    suffixe = Path(text).suffix.lower()
     for s in SCHEMAS.values():
         if s.extension == suffixe:
             return s
     return None
 
 
-def modules_schemas() -> List[str]:
+def schema_modules() -> List[str]:
     """Modules de schéma du paquet — **DÉCOUVERTS, jamais cités** (G1, cf. `sources.modules_lecteurs`)."""
     import pkgutil
     return sorted(m.name for m in pkgutil.iter_modules(__path__)
@@ -233,7 +233,7 @@ def _enregistrer_livres():
     """Enregistre les schémas livrés, **chacun isolé des autres** — un schéma qui échoue à
     s'importer ne doit pas emporter les autres, ni le monde Data avec eux."""
     import importlib
-    for name in modules_schemas():
+    for name in schema_modules():
         try:
             importlib.import_module(f'{__name__}.{name}')
         except Exception:
@@ -252,7 +252,7 @@ def ident(name: str) -> str:
     return '"' + str(name).replace('"', '""') + '"'
 
 
-def _sqlite_type(valeur: Any) -> str:
+def _sqlite_type(value: Any) -> str:
     """Type déclaré d'une colonne, déduit de sa première valeur PRÉSENTE.
 
     ⚠ SQLite type par valeur, pas par colonne : la déclaration est une **indication**, pas une
@@ -262,11 +262,11 @@ def _sqlite_type(valeur: Any) -> str:
     ⚠ `bool` est une sous-classe de `int` en Python : un booléen est donc stocké en `INTEGER` (0/1).
     C'est le comportement de SQLite lui-même, qui n'a pas de type booléen.
     """
-    if isinstance(valeur, bool) or isinstance(valeur, int):
+    if isinstance(value, bool) or isinstance(value, int):
         return 'INTEGER'
-    if isinstance(valeur, float):
+    if isinstance(value, float):
         return 'REAL'
-    if isinstance(valeur, (bytes, bytearray)):
+    if isinstance(value, (bytes, bytearray)):
         return 'BLOB'
     return 'TEXT'
 
@@ -277,14 +277,14 @@ def _sans_nan(v: Any) -> Any:
         return {k: _sans_nan(x) for k, x in v.items()}
     if isinstance(v, (list, tuple)):
         return [_sans_nan(x) for x in v]
-    return None if manquant(v) else v
+    return None if missing(v) else v
 
 
-def valeur_sql(v: Any) -> Any:
+def sql_value(v: Any) -> Any:
     """Valeur Python → valeur SQLite.
 
     ⚠ CE QUE LA MORSURE A CORRIGÉ DANS MON PROPRE RÉCIT (2026-08-24). J'avais écrit ici que
-    `manquant()` protégeait du piège pandas au niveau scalaire. **Neutraliser l'appel n'a fait
+    `missing()` protégeait du piège pandas au niveau scalaire. **Neutraliser l'appel n'a fait
     échouer aucun test**, et la mesure dit pourquoi : **SQLite coerce lui-même `NaN` en `NULL`**
     (`typeof` rend `'null'`). Le garde-fou n'était donc pas porteur, et mon test prouvait le
     RÉSULTAT sans rien prouver du mécanisme. L'appel reste — ne pas dépendre d'une coercion qu'on
@@ -294,9 +294,9 @@ def valeur_sql(v: Any) -> Any:
     littéral `[NaN]`, que **la spécification JSON n'accepte pas** — donc une valeur composite
     contenant une absence était écrite dans le conteneur sous une forme qu'aucun analyseur
     standard ne relit. C'est le vrai 5ᵉ passage du piège pandas ici, et il n'était couvert ni par
-    `manquant()` ni par SQLite. D'où `_sans_nan`, appliqué **récursivement** avant sérialisation.
+    `missing()` ni par SQLite. D'où `_sans_nan`, appliqué **récursivement** avant sérialisation.
     """
-    if manquant(v):
+    if missing(v):
         return None
     if isinstance(v, (int, float, str, bytes, bytearray)):
         return v
@@ -307,11 +307,11 @@ def valeur_sql(v: Any) -> Any:
 # Le moteur
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
-def ecrire(referentiel: TemporalReferential, chemin, *,
-           format: str = '', contexte: Optional[Contexte] = None,
-           flux: Optional[Iterable[str]] = None,
-           tranche: int = TRANCHE, ecraser: bool = False) -> Rapport:
-    """Écrit un référentiel dans un conteneur. Rend un `Rapport` — **y compris ce qui a été perdu**.
+def write(referentiel: TemporalReferential, path, *,
+           format: str = '', contexte: Optional[Context] = None,
+           stream: Optional[Iterable[str]] = None,
+           tranche: int = TRANCHE, ecraser: bool = False) -> Report:
+    """Écrit un référentiel dans un conteneur. Rend un `Report` — **y compris ce qui a été perdu**.
 
     `format` est facultatif : l'extension du chemin suffit à désigner le schéma.
 
@@ -321,13 +321,13 @@ def ecrire(referentiel: TemporalReferential, chemin, *,
     dataset. Le renommage final est atomique sur les deux systèmes de fichiers visés, et une
     version existante n'est remplacée qu'une fois la nouvelle complète.
     """
-    contexte = contexte or Contexte()
-    cible = Path(chemin)
-    schema = schema_pour(format or cible)
+    contexte = contexte or Context()
+    cible = Path(path)
+    schema = schema_for(format or cible)
     if schema is None:
         raise ValueError(
             f"aucun schéma de conteneur pour '{format or cible.name}' "
-            f"(formats connus : {', '.join(schemas_disponibles()) or '—'})")
+            f"(formats connus : {', '.join(available_schemas()) or '—'})")
 
     if cible.exists() and not ecraser:
         raise FileExistsError(
@@ -335,22 +335,22 @@ def ecrire(referentiel: TemporalReferential, chemin, *,
             "Un conteneur est un fichier de travail : l'écraser sans le dire perdrait "
             "les traitements qu'il porte.")
 
-    noms = list(flux) if flux is not None else referentiel.names   # `names` est une PROPRIÉTÉ
+    naming = list(stream) if stream is not None else referentiel.names   # `names` est une PROPRIÉTÉ
     partiel = cible.with_name(cible.name + '.partiel')
     partiel.unlink(missing_ok=True)
 
-    rapport = Rapport(chemin=str(cible), format=schema.format)
-    entrees: List[Entree] = []
+    rapport = Report(path=str(cible), format=schema.format)
+    entrees: List[Entry] = []
     con = sqlite3.connect(str(partiel))
     try:
         con.execute('PRAGMA journal_mode=MEMORY')
         with con:                                  # une seule transaction : tout ou rien
-            for name in noms:
+            for name in naming:
                 signal = referentiel.get(name)
                 entree = _preparer(signal, name, schema, referentiel.offset(name), tranche)
                 _ecrire_flux(con, entree, tranche, rapport)
                 entrees.append(entree)
-                rapport.tables[entree.table] = entree.lignes
+                rapport.tables[entree.table] = entree.rows
             schema.ecrire_catalogue(con, entrees, contexte)
     except BaseException:
         con.close()
@@ -359,39 +359,39 @@ def ecrire(referentiel: TemporalReferential, chemin, *,
     con.close()
 
     os.replace(partiel, cible)
-    rapport.pertes.extend(schema.pertes(entrees, contexte))
-    rapport.notes = (f"{len(entrees)} flux, {rapport.lignes} ligne(s), "
-                     f"{'aucune perte' if rapport.fidele else str(len(rapport.pertes)) + ' perte(s)'}")
+    rapport.losses.extend(schema.losses(entrees, contexte))
+    rapport.notes = (f"{len(entrees)} flux, {rapport.rows} ligne(s), "
+                     f"{'aucune perte' if rapport.fidele else str(len(rapport.losses)) + ' perte(s)'}")
     return rapport
 
 
-def _preparer(signal: Signal, name: str, schema: SchemaConteneur,
-              offset: float, tranche: int) -> Entree:
+def _preparer(signal: Signal, name: str, schema: ContainerSchema,
+              offset: float, tranche: int) -> Entry:
     """Décide table, colonnes et types en lisant la PREMIÈRE tranche — jamais tout le flux."""
-    entree = Entree(name=name, signal=signal, table=schema.nom_table(signal),
+    entree = Entry(name=name, signal=signal, table=schema.table_name(signal),
                     colonnes_temps=schema.colonnes_temps(signal), offset=offset)
     premieres = signal.rows(0, min(tranche, len(signal))) or []
     ordre: List[str] = []
     for ligne in premieres:
-        for cle in ligne:
-            if cle not in ordre and str(cle).lower() not in AXES_TEMPORELS:
-                ordre.append(cle)
-    entree.colonnes = ordre
+        for key in ligne:
+            if key not in ordre and str(key).lower() not in AXES_TEMPORELS:
+                ordre.append(key)
+    entree.columns = ordre
     for col in ordre:
         echantillon = next((l[col] for l in premieres
-                            if col in l and not manquant(l[col])), None)
+                            if col in l and not missing(l[col])), None)
         entree.types[col] = _sqlite_type(echantillon) if echantillon is not None else 'TEXT'
     return entree
 
 
-def _ecrire_flux(con: sqlite3.Connection, entree: Entree, tranche: int, rapport: Rapport) -> None:
+def _ecrire_flux(con: sqlite3.Connection, entree: Entry, tranche: int, rapport: Report) -> None:
     """Crée la table du flux, y verse les lignes par tranches, puis indexe l'axe du temps."""
     temps = entree.colonnes_temps
-    colonnes = [f'{ident(c)} REAL' for c in temps]
-    colonnes += [f'{ident(c)} {entree.types[c]}' for c in entree.colonnes]
-    con.execute(f'CREATE TABLE {ident(entree.table)} ({", ".join(colonnes)})')
+    columns = [f'{ident(c)} REAL' for c in temps]
+    columns += [f'{ident(c)} {entree.types[c]}' for c in entree.columns]
+    con.execute(f'CREATE TABLE {ident(entree.table)} ({", ".join(columns)})')
 
-    toutes = list(temps) + entree.colonnes
+    toutes = list(temps) + entree.columns
     insert = (f'INSERT INTO {ident(entree.table)} '
               f'({", ".join(ident(c) for c in toutes)}) '
               f'VALUES ({", ".join("?" * len(toutes))})')
@@ -400,28 +400,28 @@ def _ecrire_flux(con: sqlite3.Connection, entree: Entree, tranche: int, rapport:
     inconnues: set = set()
     for i0 in range(0, n, tranche):
         i1 = min(i0 + tranche, n)
-        lignes = signal.rows(i0, i1)
+        rows = signal.rows(i0, i1)
         paquet = []
         for k in range(i0, i1):
-            valeurs: List[Any] = [signal.time_at(k)]
+            values: List[Any] = [signal.time_at(k)]
             if len(temps) > 1:
                 # ⚠ `end_at` rend `None` sur un segment OUVERT, et c'est ce qu'on écrit : NULL dit
                 # « fin non observée », là où recopier la fin du média donnerait une durée MESURÉE
                 # sur ce que personne n'a mesuré (D15, tranchée le 2026-08-24).
-                valeurs.append(signal.end_at(k))
-            ligne = lignes[k - i0] if lignes and (k - i0) < len(lignes) else {}
+                values.append(signal.end_at(k))
+            ligne = rows[k - i0] if rows and (k - i0) < len(rows) else {}
             inconnues |= {c for c in ligne
                           if c not in entree.types and str(c).lower() not in AXES_TEMPORELS}
-            valeurs += [valeur_sql(ligne.get(c)) for c in entree.colonnes]
-            paquet.append(valeurs)
+            values += [sql_value(ligne.get(c)) for c in entree.columns]
+            paquet.append(values)
         if paquet:
             con.executemany(insert, paquet)
-    entree.lignes = n
+    entree.rows = n
 
     if inconnues:
         # Une colonne apparue APRÈS la première tranche n'a pas de place dans la table : la taire
         # ferait disparaître une variable entière sans trace.
-        rapport.pertes.append(
+        rapport.losses.append(
             f"flux '{entree.name}' : {len(inconnues)} colonne(s) apparue(s) au-delà de la première "
             f"tranche, absentes de la table ({', '.join(sorted(map(str, inconnues))[:5])})")
 

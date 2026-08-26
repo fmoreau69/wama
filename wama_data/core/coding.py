@@ -50,11 +50,11 @@ MOD_LIBRE = 'free'
 TYPES_MODIFICATEUR = (MOD_UN_PARMI, MOD_PLUSIEURS_PARMI, MOD_NOMBRE, MOD_LIBRE)
 
 
-class ProtocoleInvalide(ValueError):
+class InvalidProtocol(ValueError):
     """Le protocole lui-même est incohérent — détecté à la déclaration, jamais en cours de codage."""
 
 
-class CodageRefuse(ValueError):
+class CodingRefused(ValueError):
     """Un geste de codage viole le protocole. Refusé À LA SOURCE.
 
     Un codage qu'on laisse partir faux se découvre à l'analyse, quand la campagne est finie et que
@@ -67,48 +67,48 @@ class CodageRefuse(ValueError):
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
 @dataclass(frozen=True)
-class Modificateur:
+class Modifier:
     """Une précision attachée à un comportement (gravité, direction, nombre d'occupants…).
 
     TYPÉ, et c'est le point : un modificateur libre partout redonne un champ texte, donc des
     variantes d'orthographe, donc des données inexploitables au regroupement.
     """
-    cle: str
+    key: str
     label: str = ''
     type: str = MOD_UN_PARMI
-    valeurs: Tuple[Any, ...] = ()
-    requis: bool = False
+    values: Tuple[Any, ...] = ()
+    required: bool = False
 
-    def valider(self, valeur: Any) -> Any:
-        """Renvoie la valeur normalisée, ou lève `CodageRefuse`."""
-        if valeur is None or valeur == '' or valeur == []:
-            if self.requis:
-                raise CodageRefuse(f"modificateur '{self.cle}' requis")
+    def validate(self, value: Any) -> Any:
+        """Renvoie la valeur normalisée, ou lève `CodingRefused`."""
+        if value is None or value == '' or value == []:
+            if self.required:
+                raise CodingRefused(f"modificateur '{self.key}' requis")
             return None
         if self.type == MOD_NOMBRE:
             try:
-                return float(valeur)
+                return float(value)
             except (TypeError, ValueError):
-                raise CodageRefuse(f"modificateur '{self.cle}' : nombre attendu, reçu {valeur!r}")
+                raise CodingRefused(f"modificateur '{self.key}' : nombre attendu, reçu {value!r}")
         if self.type == MOD_LIBRE:
-            return valeur
+            return value
         if self.type == MOD_UN_PARMI:
-            if self.valeurs and valeur not in self.valeurs:
-                raise CodageRefuse(
-                    f"modificateur '{self.cle}' : {valeur!r} hors des valeurs déclarées "
-                    f"({', '.join(map(str, self.valeurs))})")
-            return valeur
+            if self.values and value not in self.values:
+                raise CodingRefused(
+                    f"modificateur '{self.key}' : {value!r} hors des valeurs déclarées "
+                    f"({', '.join(map(str, self.values))})")
+            return value
         # MOD_PLUSIEURS_PARMI
-        recu = list(valeur) if isinstance(valeur, (list, tuple, set)) else [valeur]
-        if self.valeurs:
-            hors = [v for v in recu if v not in self.valeurs]
+        recu = list(value) if isinstance(value, (list, tuple, set)) else [value]
+        if self.values:
+            hors = [v for v in recu if v not in self.values]
             if hors:
-                raise CodageRefuse(f"modificateur '{self.cle}' : {hors!r} hors des valeurs déclarées")
+                raise CodingRefused(f"modificateur '{self.key}' : {hors!r} hors des valeurs déclarées")
         return recu
 
 
 @dataclass(frozen=True)
-class Comportement:
+class Behavior:
     """Une entrée de l'éthogramme : ce qu'on peut coder, et sous quelle forme."""
     code: str
     label: str = ''
@@ -116,94 +116,94 @@ class Comportement:
     #: Groupe d'exclusion mutuelle. Deux comportements du même groupe ne peuvent pas être ouverts
     #: ensemble : ouvrir l'un FERME l'autre. C'est ce qui modélise un mode de conduite, une phase,
     #: une posture — tout ce dont il n'existe qu'une valeur à la fois.
-    exclusif: str = ''
-    modificateurs: Tuple[Modificateur, ...] = ()
+    exclusive: str = ''
+    modificateurs: Tuple[Modifier, ...] = ()
     #: Touche de l'interface générée. Déclarée ici parce que c'est une propriété du PROTOCOLE
     #: (le codeur l'apprend par cœur pour la campagne), pas un réglage d'écran.
-    touche: str = ''
-    couleur: str = ''
+    hotkey: str = ''
+    color: str = ''
     description: str = ''
 
     @property
-    def est_etat(self) -> bool:
+    def is_state(self) -> bool:
         return self.nature == ETAT
 
 
 @dataclass(frozen=True)
-class Protocole:
+class Protocol:
     """L'éthogramme : la liste de ce qui est codable, plus les sujets observés.
 
-    Sérialisable dans les deux sens (`en_dict` / `depuis_dict`) — c'est la forme qu'un manifeste
+    Sérialisable dans les deux sens (`to_dict` / `from_dict`) — c'est la forme qu'un manifeste
     prendra. Un protocole est le SEUL endroit où l'on décrit un codage : l'interface s'en génère et
     l'exécution s'y contraint, donc changer le protocole change les deux d'un coup.
     """
     name: str
-    comportements: Tuple[Comportement, ...] = ()
+    behaviors: Tuple[Behavior, ...] = ()
     #: Sujets observés (conducteur, piéton, véhicule…). Vide = un seul sujet implicite. Un codage
     #: multi-sujets suit les états SÉPARÉMENT par sujet : deux personnes peuvent tenir le même état.
-    sujets: Tuple[str, ...] = ()
+    subjects: Tuple[str, ...] = ()
     version: str = '1'
     description: str = ''
 
     def __post_init__(self):
         vus = set()
-        for c in self.comportements:
+        for c in self.behaviors:
             if not c.code:
-                raise ProtocoleInvalide("un comportement sans code")
+                raise InvalidProtocol("un comportement sans code")
             if c.code in vus:
-                raise ProtocoleInvalide(f"code de comportement en double : '{c.code}'")
+                raise InvalidProtocol(f"code de comportement en double : '{c.code}'")
             vus.add(c.code)
             if c.nature not in NATURES:
-                raise ProtocoleInvalide(
+                raise InvalidProtocol(
                     f"'{c.code}' : nature '{c.nature}' inconnue (attendu {' ou '.join(NATURES)})")
-            if c.exclusif and not c.est_etat:
-                raise ProtocoleInvalide(
+            if c.exclusive and not c.is_state:
+                raise InvalidProtocol(
                     f"'{c.code}' : un comportement PONCTUEL ne peut pas être exclusif — il n'a pas "
                     f"de durée, donc rien à fermer")
             for m in c.modificateurs:
                 if m.type not in TYPES_MODIFICATEUR:
-                    raise ProtocoleInvalide(f"'{c.code}.{m.cle}' : type '{m.type}' inconnu")
+                    raise InvalidProtocol(f"'{c.code}.{m.key}' : type '{m.type}' inconnu")
 
-    def get(self, code: str) -> Comportement:
-        for c in self.comportements:
+    def get(self, code: str) -> Behavior:
+        for c in self.behaviors:
             if c.code == code:
                 return c
-        raise CodageRefuse(
+        raise CodingRefused(
             f"comportement '{code}' absent du protocole '{self.name}' "
-            f"(déclarés : {', '.join(c.code for c in self.comportements) or '—'})")
+            f"(déclarés : {', '.join(c.code for c in self.behaviors) or '—'})")
 
-    def groupe(self, code: str) -> str:
-        return self.get(code).exclusif
+    def group(self, code: str) -> str:
+        return self.get(code).exclusive
 
-    def en_dict(self) -> dict:
+    def to_dict(self) -> dict:
         return {
             'name': self.name, 'version': self.version, 'description': self.description,
-            'subjects': list(self.sujets),
+            'subjects': list(self.subjects),
             'behaviors': [
-                {'code': c.code, 'label': c.label, 'nature': c.nature, 'exclusive': c.exclusif,
-                 'key': c.touche, 'color': c.couleur, 'description': c.description,
-                 'modifiers': [{'key': m.cle, 'label': m.label, 'type': m.type,
-                                'values': list(m.valeurs), 'required': m.requis}
+                {'code': c.code, 'label': c.label, 'nature': c.nature, 'exclusive': c.exclusive,
+                 'key': c.hotkey, 'color': c.color, 'description': c.description,
+                 'modifiers': [{'key': m.key, 'label': m.label, 'type': m.type,
+                                'values': list(m.values), 'required': m.required}
                                for m in c.modificateurs]}
-                for c in self.comportements],
+                for c in self.behaviors],
         }
 
     @classmethod
-    def depuis_dict(cls, d: dict) -> "Protocole":
+    def from_dict(cls, d: dict) -> "Protocole":
         return cls(
             name=d.get('name', ''), version=str(d.get('version', '1')),
             description=d.get('description', ''),
-            sujets=tuple(d.get('subjects') or ()),
-            comportements=tuple(
-                Comportement(
+            subjects=tuple(d.get('subjects') or ()),
+            behaviors=tuple(
+                Behavior(
                     code=b['code'], label=b.get('label', ''), nature=b.get('nature', ETAT),
-                    exclusif=b.get('exclusive', ''), touche=b.get('key', ''),
-                    couleur=b.get('color', ''), description=b.get('description', ''),
+                    exclusive=b.get('exclusive', ''), hotkey=b.get('key', ''),
+                    color=b.get('color', ''), description=b.get('description', ''),
                     modificateurs=tuple(
-                        Modificateur(cle=m['key'], label=m.get('label', ''),
+                        Modifier(key=m['key'], label=m.get('label', ''),
                                      type=m.get('type', MOD_UN_PARMI),
-                                     valeurs=tuple(m.get('values') or ()),
-                                     requis=bool(m.get('required')))
+                                     values=tuple(m.get('values') or ()),
+                                     required=bool(m.get('required')))
                         for m in (b.get('modifiers') or ())))
                 for b in (d.get('behaviors') or ())))
 
@@ -213,7 +213,7 @@ class Protocole:
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
 @dataclass
-class SessionCodage:
+class CodingSession:
     """Un codage en cours. Chaque geste est validé contre le protocole AU MOMENT du geste.
 
     ⚠ La session refuse de démarrer sans média (`media`), et ce n'est pas une formalité recopiée
@@ -224,7 +224,7 @@ class SessionCodage:
     et lui seul, qui distingue un codage humain d'un codage automatique : le reste du chemin est
     identique, ce qui est exactement le but.
     """
-    protocole: Protocole
+    protocole: Protocol
     media: str
     coder: str = ''
     #: États ouverts, indexés par (sujet, code). Un état par sujet : deux sujets peuvent tenir le
@@ -236,7 +236,7 @@ class SessionCodage:
 
     def __post_init__(self):
         if not self.media:
-            raise CodageRefuse(
+            raise CodingRefused(
                 "codage sans média : une session exige le support qu'elle décrit (règle héritée du "
                 "mécanisme d'origine — sans vidéo, les bornes ne sont plus vérifiables)")
 
@@ -247,7 +247,7 @@ class SessionCodage:
         """LE geste unique du codage. Ponctuel → un segment de durée nulle. État → il OUVRE, ou il
         FERME s'il est déjà ouvert (bascule), en fermant au passage l'état exclusif concurrent.
 
-        Une seule fonction plutôt que `ouvrir`/`fermer`/`evenement` : c'est ce que fait le codeur —
+        Une seule fonction plutôt que `ouvrir`/`close`/`evenement` : c'est ce que fait le codeur —
         il appuie sur une touche. La nature du comportement est déclarée dans le protocole, donc
         l'exécution n'a pas à être commandée deux fois.
         """
@@ -256,7 +256,7 @@ class SessionCodage:
         mods = self._valider_modificateurs(comp, modificateurs)
         self._verifier_monotone(t)
 
-        if not comp.est_etat:
+        if not comp.is_state:
             seg = _tracer({'start': t, 'end': t, 'value': code, 'label': comp.label or code,
                            'subject': sujet or None, 'nature': PONCTUEL},
                           'codage', coder=self.coder or None, protocol=self.protocole.name,
@@ -265,13 +265,13 @@ class SessionCodage:
             self._ponctuels.append(seg)
             return seg
 
-        cle = (sujet, code)
-        if cle in self._ouverts:                       # bascule : le même geste referme
-            return self._fermer_cle(cle, t)
+        key = (sujet, code)
+        if key in self._ouverts:                       # bascule : le même geste referme
+            return self._fermer_cle(key, t)
 
-        if comp.exclusif:                              # ouvrir ferme le concurrent du groupe
+        if comp.exclusive:                              # ouvrir ferme le concurrent du groupe
             for (s, c) in list(self._ouverts):
-                if s == sujet and self.protocole.groupe(c) == comp.exclusif:
+                if s == sujet and self.protocole.group(c) == comp.exclusive:
                     self._fermer_cle((s, c), t, cause='exclusive')
 
         seg = _tracer({'start': t, 'end': OUVERT, 'value': code, 'label': comp.label or code,
@@ -279,7 +279,7 @@ class SessionCodage:
                       'codage', coder=self.coder or None, protocol=self.protocole.name,
                       media=self.media, comment=commentaire or None)
         seg.update(mods)
-        self._ouverts[cle] = seg
+        self._ouverts[key] = seg
         return seg
 
     def ouvrir(self, t: float, code: str, **kw) -> Segment:
@@ -289,20 +289,20 @@ class SessionCodage:
         déjà : la bascule silencieuse y refermerait un état au lieu de signaler l'incohérence.
         """
         comp = self.protocole.get(code)
-        if not comp.est_etat:
-            raise CodageRefuse(f"'{code}' est PONCTUEL — il n'a pas d'ouverture, utiliser `marquer`")
+        if not comp.is_state:
+            raise CodingRefused(f"'{code}' est PONCTUEL — il n'a pas d'ouverture, utiliser `marquer`")
         if (self._sujet(kw.get('subject', '')), code) in self._ouverts:
-            raise CodageRefuse(f"'{code}' est déjà ouvert pour ce sujet")
+            raise CodingRefused(f"'{code}' est déjà ouvert pour ce sujet")
         return self.marquer(t, code, **kw)
 
-    def fermer(self, t: float, code: str, *, sujet: str = '') -> Segment:
+    def close(self, t: float, code: str, *, sujet: str = '') -> Segment:
         """Fermeture EXPLICITE — refuse si rien n'est ouvert, plutôt que d'ouvrir par surprise."""
-        cle = (self._sujet(sujet), code)
+        key = (self._sujet(sujet), code)
         self.protocole.get(code)
-        if cle not in self._ouverts:
-            raise CodageRefuse(f"'{code}' n'est pas ouvert pour ce sujet — rien à fermer")
+        if key not in self._ouverts:
+            raise CodingRefused(f"'{code}' n'est pas ouvert pour ce sujet — rien à fermer")
         self._verifier_monotone(t)
-        return self._fermer_cle(cle, t)
+        return self._fermer_cle(key, t)
 
     def annuler_dernier(self) -> Optional[Segment]:
         """Retire la dernière production. Le codage en temps réel produit des erreurs de doigt : ne
@@ -312,11 +312,11 @@ class SessionCodage:
             candidats.append((self._ponctuels[-1]['start'], 'ponctuel', None))
         if self._clos:
             candidats.append((self._clos[-1]['end'], 'clos', None))
-        for cle, seg in self._ouverts.items():
-            candidats.append((seg['start'], 'ouvert', cle))
+        for key, seg in self._ouverts.items():
+            candidats.append((seg['start'], 'ouvert', key))
         if not candidats:
             return None
-        t, quoi, cle = max(candidats, key=lambda x: x[0])
+        t, quoi, key = max(candidats, key=lambda x: x[0])
         if quoi == 'ponctuel':
             return self._ponctuels.pop()
         if quoi == 'clos':                             # un segment refermé redevient OUVERT
@@ -326,7 +326,7 @@ class SessionCodage:
             seg.pop('closed_by', None)
             self._ouverts[(seg.get('subject') or '', seg['value'])] = seg
             return seg
-        return self._ouverts.pop(cle)
+        return self._ouverts.pop(key)
 
     # ── sorties ───────────────────────────────────────────────────────────────────────────────
 
@@ -339,7 +339,7 @@ class SessionCodage:
         """
         out = list(self._clos) + list(self._ouverts.values())
         if session_end is not None:
-            from .segmentation import fermer as _fermer_seg
+            from .segmentation import close as _fermer_seg
             out = _fermer_seg(out, session_end)
         return _tri(out)
 
@@ -347,7 +347,7 @@ class SessionCodage:
         """Les comportements ponctuels — même forme, durée nulle. Ils rejoignent le flux `events`."""
         return sorted(self._ponctuels, key=lambda s: s['start'])
 
-    def ouverts(self) -> List[Segment]:
+    def open_ones(self) -> List[Segment]:
         return sorted(self._ouverts.values(), key=lambda s: s['start'])
 
     def resume(self) -> dict:
@@ -359,28 +359,28 @@ class SessionCodage:
     # ── interne ───────────────────────────────────────────────────────────────────────────────
 
     def _sujet(self, sujet: str) -> str:
-        if self.protocole.sujets:
+        if self.protocole.subjects:
             if not sujet:
-                if len(self.protocole.sujets) == 1:
-                    return self.protocole.sujets[0]
-                raise CodageRefuse(
-                    f"sujet requis (déclarés : {', '.join(self.protocole.sujets)})")
-            if sujet not in self.protocole.sujets:
-                raise CodageRefuse(f"sujet '{sujet}' absent du protocole")
+                if len(self.protocole.subjects) == 1:
+                    return self.protocole.subjects[0]
+                raise CodingRefused(
+                    f"sujet requis (déclarés : {', '.join(self.protocole.subjects)})")
+            if sujet not in self.protocole.subjects:
+                raise CodingRefused(f"sujet '{sujet}' absent du protocole")
         return sujet
 
-    def _valider_modificateurs(self, comp: Comportement, recus: Optional[dict]) -> dict:
+    def _valider_modificateurs(self, comp: Behavior, recus: Optional[dict]) -> dict:
         recus = dict(recus or {})
-        connus = {m.cle for m in comp.modificateurs}
+        connus = {m.key for m in comp.modificateurs}
         inconnus = set(recus) - connus
         if inconnus:
-            raise CodageRefuse(
+            raise CodingRefused(
                 f"'{comp.code}' : modificateur(s) non déclaré(s) {sorted(inconnus)}")
         out = {}
         for m in comp.modificateurs:
-            v = m.valider(recus.get(m.cle))
+            v = m.validate(recus.get(m.key))
             if v is not None:
-                out[m.cle] = v
+                out[m.key] = v
         return out
 
     def _verifier_monotone(self, t: float) -> None:
@@ -388,13 +388,13 @@ class SessionCodage:
         qui a sauté en arrière sans que la session le sache — mieux vaut le dire que produire un
         segment à durée négative."""
         if self._dernier_t is not None and t < self._dernier_t:
-            raise CodageRefuse(
+            raise CodingRefused(
                 f"geste à t={t:g} antérieur au précédent (t={self._dernier_t:g}) — reprendre le "
                 f"codage après un retour arrière du transport exige de rouvrir la session")
         self._dernier_t = t
 
-    def _fermer_cle(self, cle: Tuple[str, str], t: float, *, cause: str = '') -> Segment:
-        seg = self._ouverts.pop(cle)
+    def _fermer_cle(self, key: Tuple[str, str], t: float, *, cause: str = '') -> Segment:
+        seg = self._ouverts.pop(key)
         seg['end'] = t
         seg.pop('open', None)
         if cause:
@@ -407,7 +407,7 @@ class SessionCodage:
 # 3. REJOUER un codage — la même session, alimentée par une liste de gestes
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
-def rejouer(protocole: Protocole, media: str, gestes: Iterable[dict], *, coder: str = '',
+def replay(protocole: Protocol, media: str, gestures: Iterable[dict], *, coder: str = '',
             session_end: Optional[float] = None) -> Tuple[List[Segment], List[Segment]]:
     """Rejoue une liste de gestes `{t, code, sujet?, modificateurs?, commentaire?}`.
 
@@ -417,14 +417,14 @@ def rejouer(protocole: Protocole, media: str, gestes: Iterable[dict], *, coder: 
 
     Renvoie `(segments, événements)`.
     """
-    s = SessionCodage(protocole=protocole, media=media, coder=coder)
-    for g in gestes:
+    s = CodingSession(protocole=protocole, media=media, coder=coder)
+    for g in gestures:
         s.marquer(g['t'], g['code'], sujet=g.get('subject', ''),
                   modificateurs=g.get('modifiers'), commentaire=g.get('comment', ''))
     return s.segments(session_end=session_end), s.evenements()
 
 
-def accord(a: Sequence[Segment], b: Sequence[Segment], *, tolerance: float = 1.0) -> dict:
+def agreement(a: Sequence[Segment], b: Sequence[Segment], *, tolerance: float = 1.0) -> dict:
     """Compare DEUX codages du même média (deux humains, ou un humain et un modèle).
 
     Mesure volontairement simple — appariement par code et par proximité des débuts, dans une

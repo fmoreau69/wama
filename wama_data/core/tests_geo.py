@@ -7,7 +7,7 @@ donc de la géodésie, pas d'une de ces copies — sinon on ne testerait que la 
 import math
 import unittest
 
-from .geo import RAYON_TERRE_M, abscisse_curviligne, distances_a_point, haversine
+from .geo import RAYON_TERRE_M, arc_length, distances_to_point, haversine
 
 
 class HaversineTest(unittest.TestCase):
@@ -43,28 +43,28 @@ class HaversineTest(unittest.TestCase):
 class DistancesAPointTest(unittest.TestCase):
 
     def test_serie_de_distances(self):
-        d = distances_a_point([45.0, 46.0], [5.0, 5.0], 45.0, 5.0)
+        d = distances_to_point([45.0, 46.0], [5.0, 5.0], 45.0, 5.0)
         self.assertEqual(d[0], 0.0)
         self.assertAlmostEqual(d[1], 111194.9, delta=1.0)
 
     def test_une_position_ABSENTE_rend_None_pas_une_distance(self):
         # ⚠ Le point du module : remplacer un trou GPS par 0.0 placerait le sujet au large de
         # l'Afrique — une distance énorme, plausible, et fausse.
-        d = distances_a_point([45.0, None, float('nan')], [5.0, 5.0, 5.0], 45.0, 5.0)
+        d = distances_to_point([45.0, None, float('nan')], [5.0, 5.0, 5.0], 45.0, 5.0)
         self.assertEqual(d[0], 0.0)
         self.assertIsNone(d[1])
         self.assertIsNone(d[2])
 
     def test_une_longitude_absente_suffit_a_invalider(self):
-        d = distances_a_point([45.0], [None], 45.0, 5.0)
+        d = distances_to_point([45.0], [None], 45.0, 5.0)
         self.assertIsNone(d[0])
 
     def test_longueurs_incoherentes_refusees(self):
         with self.assertRaises(ValueError):
-            distances_a_point([45.0, 46.0], [5.0], 45.0, 5.0)
+            distances_to_point([45.0, 46.0], [5.0], 45.0, 5.0)
 
     def test_serie_vide(self):
-        self.assertEqual(distances_a_point([], [], 45.0, 5.0), [])
+        self.assertEqual(distances_to_point([], [], 45.0, 5.0), [])
 
 
 class AbscisseCurviligneTest(unittest.TestCase):
@@ -75,7 +75,7 @@ class AbscisseCurviligneTest(unittest.TestCase):
     LONS = [4.85000] * 4
 
     def test_cumul_monotone_depuis_zero(self):
-        a = abscisse_curviligne(self.LATS, self.LONS)
+        a = arc_length(self.LATS, self.LONS)
         self.assertEqual(a[0], 0.0)
         self.assertAlmostEqual(a[1], 40.0, delta=0.5)
         self.assertAlmostEqual(a[3], 120.0, delta=1.5)
@@ -84,19 +84,19 @@ class AbscisseCurviligneTest(unittest.TestCase):
     def test_un_trou_rend_None_et_REPORTE_la_distance_sans_l_inventer(self):
         # ⚠ Le point de la fonction : le trou n'avance pas l'abscisse, la position valide
         # suivante cumule depuis la DERNIÈRE valide — 80 m d'un bloc, pas 40 + 40 inventés.
-        a = abscisse_curviligne([self.LATS[0], None, self.LATS[2]],
+        a = arc_length([self.LATS[0], None, self.LATS[2]],
                                 [4.85000, 4.85000, 4.85000])
         self.assertEqual(a[0], 0.0)
         self.assertIsNone(a[1])
         self.assertAlmostEqual(a[2], 80.0, delta=1.0)
 
     def test_immobile_n_accumule_rien(self):
-        a = abscisse_curviligne([45.0, 45.0, 45.0], [5.0, 5.0, 5.0])
+        a = arc_length([45.0, 45.0, 45.0], [5.0, 5.0, 5.0])
         self.assertEqual(a, [0.0, 0.0, 0.0])
 
     def test_longueurs_incoherentes_refusees(self):
         with self.assertRaises(ValueError):
-            abscisse_curviligne([45.0], [])
+            arc_length([45.0], [])
 
 
 if __name__ == '__main__':

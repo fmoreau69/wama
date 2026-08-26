@@ -17,18 +17,18 @@ from typing import Any, Dict, Iterable, List, Optional
 
 from wama.common.catalog.data_types import DataType
 
-from ..core.noms import COLONNES_TEMPS  # noqa: F401 — réexporté : consommateurs historiques
+from ..core.naming import COLONNES_TEMPS  # noqa: F401 — réexporté : consommateurs historiques
 from ..core.temporal import NEAREST, SignalMeta
 from . import SourceInfo, SourceReader, StreamSpec, register_reader
 
 
-def _numerise(entetes: List[str], lignes: List[list]) -> List[list]:
+def _numerise(entetes: List[str], rows: List[list]) -> List[list]:
     """Convertit en flottants les colonnes ENTIÈREMENT numériques. Les autres restent telles quelles.
 
     ⚠ POURQUOI, ET POURQUOI PAR COLONNE (défaut trouvé le 2026-08-24 par le test de chaîne
     complète). Un CSV ne porte aucun type : `csv.reader` rend des chaînes. Le lecteur ne
     convertissait que l'axe du temps, si bien qu'un jeu importé depuis un CSV traversait le
-    référentiel, le pont et la `Vue` sans broncher, **puis levait dans le Calculator**
+    référentiel, le pont et la `View` sans broncher, **puis levait dans le Calculator**
     (`fmean` : « must be real number, not str »). Un point d'entrée qui produit des données
     inexploitables n'en est pas un.
 
@@ -37,13 +37,13 @@ def _numerise(entetes: List[str], lignes: List[list]) -> List[list]:
     lignes — c'est exactement le défaut que `_num()` refuse dans `core/conditions.py`, et celui
     que la notion de SORTE suppose absent (une colonne a UNE sorte). On exige donc que **toutes**
     les valeurs présentes de la colonne soient numériques ; une seule ne l'est pas, la colonne
-    reste du texte, et `sorte_de_colonne` la verra comme telle.
+    reste du texte, et `column_kind` la verra comme telle.
 
     Une cellule VIDE ne disqualifie pas la colonne et devient `None` : un trou est un trou, pas
     une valeur textuelle. `.xlsx` arrive déjà typé (openpyxl) — la fonction est idempotente.
     """
-    if not lignes:
-        return lignes
+    if not rows:
+        return rows
 
     def _vide(v) -> bool:
         return v is None or (isinstance(v, str) and not v.strip())
@@ -51,7 +51,7 @@ def _numerise(entetes: List[str], lignes: List[list]) -> List[list]:
     numeriques = []
     for j in range(len(entetes)):
         vues = 0
-        for r in lignes:
+        for r in rows:
             v = r[j] if j < len(r) else None
             if _vide(v):
                 continue
@@ -65,10 +65,10 @@ def _numerise(entetes: List[str], lignes: List[list]) -> List[list]:
             numeriques.append(j if vues else -1)   # colonne vide : rien à convertir
     a_convertir = {j for j in numeriques if j >= 0}
     if not a_convertir:
-        return lignes
+        return rows
 
     out = []
-    for r in lignes:
+    for r in rows:
         ligne = list(r)
         for j in a_convertir:
             if j < len(ligne):
@@ -102,9 +102,9 @@ class TabularReader(SourceReader):
             ws = wb[wb.sheetnames[0]]
             it = ws.iter_rows(values_only=True)
             entetes = [str(h) if h is not None else '' for h in (next(it, ()) or ())]
-            lignes = [list(r) for r in it]
+            rows = [list(r) for r in it]
             wb.close()
-            return entetes, lignes
+            return entetes, rows
 
         with path.open('r', encoding='utf-8-sig', errors='replace', newline='') as fh:
             echantillon = fh.read(8192)
@@ -115,8 +115,8 @@ class TabularReader(SourceReader):
                 dialecte = csv.excel        # repli : virgule, cas le plus courant
             lecteur = csv.reader(fh, dialecte)
             entetes = next(lecteur, [])
-            lignes = [r for r in lecteur if r]
-        return [str(h).strip() for h in entetes], lignes
+            rows = [r for r in lecteur if r]
+        return [str(h).strip() for h in entetes], rows
 
     @staticmethod
     def _colonne_temps(entetes: List[str]) -> Optional[int]:
@@ -128,21 +128,21 @@ class TabularReader(SourceReader):
 
     # ── Inventaire ────────────────────────────────────────────────────────────────────────────
     def probe(self, path: Path) -> SourceInfo:
-        entetes, lignes = self._read_rows(path)
+        entetes, rows = self._read_rows(path)
         idx = self._colonne_temps(entetes)
-        note = (f"{len(lignes)} ligne(s), {len(entetes)} colonne(s) ; "
+        note = (f"{len(rows)} ligne(s), {len(entetes)} colonne(s) ; "
                 + (f"axe du temps = '{entetes[idx]}'" if idx is not None
                    else f"AUCUNE colonne temporelle (attendu l'un de : {', '.join(COLONNES_TEMPS)})"))
         # Un fichier plat = un seul flux, nommé d'après le fichier.
         return SourceInfo(format=self.format, path=str(path),
                           streams=[path.stem] if idx is not None else [],
-                          attributes={'columns': entetes, 'rows': len(lignes)},
+                          attributes={'columns': entetes, 'rows': len(rows)},
                           notes=note)
 
     def read(self, path: Path, streams: Optional[Iterable[str]] = None,
              timestampers: Optional[Dict[str, Any]] = None) -> List[StreamSpec]:
         timestampers = timestampers or {}
-        entetes, lignes = self._read_rows(path)
+        entetes, rows = self._read_rows(path)
         idx = self._colonne_temps(entetes)
         if idx is None:
             raise ValueError(
@@ -154,7 +154,7 @@ class TabularReader(SourceReader):
             return []
 
         paires = []
-        for r in lignes:
+        for r in rows:
             try:
                 paires.append((float(r[idx]), r))
             except (TypeError, ValueError, IndexError):

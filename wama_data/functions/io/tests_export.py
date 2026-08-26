@@ -15,9 +15,9 @@ from pathlib import Path
 import pandas as pd
 
 from wama.common.catalog.data_types import DataType, TypedFrame
-from ...core.export import Colonne, Declaration, Identite, Regroupement, rendre
-from ...core.valeurs import manquant
-from .export import apercu_frames, ecrire, exporter_frames, lot_depuis_frames
+from ...core.export import Column, Declaration, Identity, Grouping, render
+from ...core.values import missing
+from .export import apercu_frames, write, exporter_frames, lot_depuis_frames
 
 FRAMES = {
     'sit_0_15': TypedFrame(pd.DataFrame({
@@ -34,10 +34,10 @@ META = {'trip_id': 'REC_20190502', 'participant': 'P07'}
 
 DECL = Declaration(
     name='situations',
-    colonnes=(Colonne('sit_0_15', 'start'),
-              Colonne('sit_0_15', 'label'),
-              Colonne('indicateurs', 'vitesse_moyenne')),
-    identite=Identite(('trip_id', 'participant')),
+    columns=(Column('sit_0_15', 'start'),
+              Column('sit_0_15', 'label'),
+              Column('indicateurs', 'vitesse_moyenne')),
+    identite=Identity(('trip_id', 'participant')),
 )
 
 
@@ -50,9 +50,9 @@ class ConversionTest(unittest.TestCase):
 
     def test_un_NaN_est_CONSERVE_en_dicts_et_non_force_a_None(self):
         # Forcer `None` ici casserait le typage numérique que l'appelant peut vouloir relire ;
-        # `manquant()` reconnaît les deux, comme partout à cette frontière.
+        # `missing()` reconnaît les deux, comme partout à cette frontière.
         lot = lot_depuis_frames(FRAMES)
-        self.assertTrue(manquant(lot['indicateurs'][1]['vitesse_moyenne']))
+        self.assertTrue(missing(lot['indicateurs'][1]['vitesse_moyenne']))
 
     def test_export_complet_depuis_des_frames(self):
         f = exporter_frames([DECL], {'A': FRAMES}, {'A': META})[0]
@@ -60,16 +60,16 @@ class ConversionTest(unittest.TestCase):
                          ['trip_id', 'participant', 'sit_0_15.start', 'sit_0_15.label',
                           'indicateurs.vitesse_moyenne'])
         self.assertEqual(f.nb_lignes, 2)
-        self.assertEqual(f.lignes[0][:4], ['REC_20190502', 'P07', 10.0, 'approche'])
+        self.assertEqual(f.rows[0][:4], ['REC_20190502', 'P07', 10.0, 'approche'])
 
     def test_apercu_est_un_prefixe_exact_de_l_export(self):
         complet = exporter_frames([DECL], {'A': FRAMES}, {'A': META})[0]
         vu = apercu_frames([DECL], {'A': FRAMES}, {'A': META}, lignes_max=1)[0]
-        self.assertEqual(vu.lignes, complet.lignes[:1])
+        self.assertEqual(vu.rows, complet.rows[:1])
 
     def test_regroupement_entre_lots(self):
         f = exporter_frames([DECL], {'A': FRAMES, 'B': FRAMES}, {'A': META, 'B': META},
-                            Regroupement(lots=True))
+                            Grouping(lots=True))
         self.assertEqual(len(f), 1)
         self.assertEqual(f[0].nb_lignes, 4)
 
@@ -80,33 +80,33 @@ class EcritureTest(unittest.TestCase):
         # Écrire « nan » ferait relire la colonne comme du texte par le tableur : les moyennes
         # du chercheur deviendraient fausses sans qu'aucune ligne ne paraisse anormale.
         f = exporter_frames([DECL], {'A': FRAMES}, {'A': META})[0]
-        derniere = rendre(f).strip().split('\n')[-1]
+        derniere = render(f).strip().split('\n')[-1]
         self.assertTrue(derniere.endswith(';'), f"attendu une cellule vide en fin : {derniere!r}")
 
     def test_ecrire_produit_un_fichier_par_export(self):
         f = exporter_frames([DECL], {'A': FRAMES}, {'A': META})
         with tempfile.TemporaryDirectory() as d:
-            chemins = ecrire(f, d)
+            chemins = write(f, d)
             self.assertEqual([c.name for c in chemins], ['situations_A.csv'])
-            texte = chemins[0].read_text(encoding='utf-8')
-            self.assertIn('trip_id;participant;sit_0_15.start', texte)
-            self.assertIn('REC_20190502;P07;10.0;approche;12.5', texte)
+            text = chemins[0].read_text(encoding='utf-8')
+            self.assertIn('trip_id;participant;sit_0_15.start', text)
+            self.assertIn('REC_20190502;P07;10.0;approche;12.5', text)
 
     def test_le_dossier_est_cree_s_il_manque(self):
         f = exporter_frames([DECL], {'A': FRAMES}, {'A': META})
         with tempfile.TemporaryDirectory() as d:
             cible = Path(d) / 'sous' / 'dossier'
-            self.assertEqual(len(ecrire(f, cible)), 1)
+            self.assertEqual(len(write(f, cible)), 1)
             self.assertTrue(cible.is_dir())
 
     def test_un_format_non_separe_par_un_caractere_est_REFUSE_explicitement(self):
         # Rendre un CSV sous une extension `.xlsx` serait pire que refuser.
-        decl = Declaration(name='x', colonnes=(Colonne('sit_0_15', 'start'),),
-                           identite=Identite(()), format='xlsx')
+        decl = Declaration(name='x', columns=(Column('sit_0_15', 'start'),),
+                           identite=Identity(()), format='xlsx')
         f = exporter_frames([decl], {'A': FRAMES}, {'A': META})
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(ValueError):
-                ecrire(f, d)
+                write(f, d)
 
 
 class PasDeDeclarationAuCatalogueTest(unittest.TestCase):

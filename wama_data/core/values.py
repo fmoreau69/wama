@@ -3,7 +3,7 @@ Absence de valeur — la primitive partagée par tout le cœur de WAMA Data.
 
 POURQUOI UN MODULE POUR SIX LIGNES
 
-    `manquant()` vivait dans la couche d'adaptation (`functions/temporal/segmentation.py`), parce
+    `missing()` vivait dans la couche d'adaptation (`functions/temporal/segmentation.py`), parce
     que c'est là que le piège s'était présenté trois fois. Le Calculator en fait le QUATRIÈME
     consommateur — et lui est dans `core/`, qui ne doit pas dépendre de `functions/` (le cœur est
     pur et testable sans pandas ; l'inversion aurait rendu `core` dépendant de sa propre façade).
@@ -21,7 +21,7 @@ from __future__ import annotations
 import math
 
 
-def manquant(valeur) -> bool:
+def missing(value) -> bool:
     """Une valeur ABSENTE au sens d'un cadre pandas — `None` **ou** `NaN`.
 
     ⚠ Le piège est systématique à la frontière avec pandas, et il s'est présenté TROIS fois dans
@@ -33,15 +33,15 @@ def manquant(valeur) -> bool:
     ⚠ `0` et `''` sont des VALEURS. Les confondre avec une absence est l'erreur symétrique, et
     elle est pire : elle fait disparaître des mesures légitimes.
     """
-    if valeur is None:
+    if value is None:
         return True
-    return isinstance(valeur, float) and math.isnan(valeur)
+    return isinstance(value, float) and math.isnan(value)
 
 
-def presentes(valeurs) -> list:
-    """Les valeurs réellement mesurées, dans l'ordre. Le complément naturel de `manquant`.
+def present(values) -> list:
+    """Les valeurs réellement mesurées, dans l'ordre. Le complément naturel de `missing`.
 
-    Rendre la liste filtrée plutôt que de tester au cas par cas évite l'oubli d'un `manquant()`
+    Rendre la liste filtrée plutôt que de tester au cas par cas évite l'oubli d'un `missing()`
     dans une agrégation — c'est exactement ce que le Calculator fait à chaque statistique.
     """
-    return [v for v in valeurs if not manquant(v)]
+    return [v for v in values if not missing(v)]

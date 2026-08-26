@@ -11,27 +11,27 @@ import unittest
 
 from wama.common.catalog.data_types import DataType, TypedFrame
 from wama.common.catalog.function_catalog import can_connect, get
-from ...core.valeurs import manquant
+from ...core.values import missing
 
 
-def _signal(times=(0.0, 1.0, 2.0, 3.0, 4.0), valeurs=(10.0, 20.0, 30.0, 40.0, 50.0)):
+def _signal(times=(0.0, 1.0, 2.0, 3.0, 4.0), values=(10.0, 20.0, 30.0, 40.0, 50.0)):
     import pandas as pd
-    return TypedFrame(pd.DataFrame({'time': list(times), 'value': list(valeurs)}), DataType.SIGNAL)
+    return TypedFrame(pd.DataFrame({'time': list(times), 'value': list(values)}), DataType.SIGNAL)
 
 
-def _segments(lignes):
+def _segments(rows):
     import pandas as pd
-    df = pd.DataFrame(lignes)
-    if 'end' in df.columns and any(l.get('end') is None for l in lignes):
-        df['end'] = pd.Series([l.get('end') for l in lignes], dtype=object)
+    df = pd.DataFrame(rows)
+    if 'end' in df.columns and any(l.get('end') is None for l in rows):
+        df['end'] = pd.Series([l.get('end') for l in rows], dtype=object)
     return TypedFrame(df, DataType.SEGMENTS)
 
 
 class NommageTest(unittest.TestCase):
 
     def test_la_colonne_produite_se_deduit_des_parametres(self):
-        from .calculation import calc_rolling, nom_produit
-        self.assertEqual(nom_produit('vitesse', 'mean'), 'vitesse_mean')
+        from .calculation import calc_rolling, derived_name
+        self.assertEqual(derived_name('vitesse', 'mean'), 'vitesse_mean')
         sortie = calc_rolling(_signal(), window_s=2.0, statistic='max')
         self.assertIn('value_max', sortie.df.columns)
 
@@ -97,8 +97,8 @@ class IndicateursParSegmentTest(unittest.TestCase):
         # `n`, `duree`, `tronque` décrivent le SEGMENT, pas la colonne mesurée.
         from .calculation import calc_per_segment
         sortie = calc_per_segment(_segments([{'start': 0.0, 'end': 1.0}]), _signal())
-        for champ in ('n', 'duration', 'truncated'):
-            self.assertIn(champ, sortie.df.columns)
+        for field in ('n', 'duration', 'truncated'):
+            self.assertIn(field, sortie.df.columns)
 
     def test_un_segment_OUVERT_traverse_l_aller_retour_sans_se_refermer(self):
         """LE piège de cette couche : `None` mêlé à des flottants devient `NaN`, et un segment
@@ -106,16 +106,16 @@ class IndicateursParSegmentTest(unittest.TestCase):
         from .calculation import calc_per_segment
         segments = _segments([{'start': 0.0, 'end': 1.0}, {'start': 2.0, 'end': None}])
         sortie = calc_per_segment(segments, _signal(), statistics='mean')
-        lignes = sortie.df.to_dict('records')
-        self.assertIs(lignes[1]['end'], None, "la fin inconnue survit au cadre")
-        self.assertTrue(lignes[1]['truncated'])
-        # ⚠ On teste avec `manquant()` et non `is None` : la FORME de l'absence n'est pas stable.
+        rows = sortie.df.to_dict('records')
+        self.assertIs(rows[1]['end'], None, "la fin inconnue survit au cadre")
+        self.assertTrue(rows[1]['truncated'])
+        # ⚠ On teste avec `missing()` et non `is None` : la FORME de l'absence n'est pas stable.
         # Colonne mixte (des durées et une absence) → pandas la type en flottants et l'absence
         # devient `NaN` ; colonne entièrement absente → elle reste `object` et `None` survit.
         # Les deux sont licites, aucune n'est prévisible depuis le code appelant — d'où la
         # primitive commune, seule manière de relire un cadre sans se tromper une fois sur deux.
-        self.assertTrue(manquant(lignes[1]['duration']))
-        self.assertEqual(lignes[0]['duration'], 1.0)
+        self.assertTrue(missing(rows[1]['duration']))
+        self.assertEqual(rows[0]['duration'], 1.0)
 
     def test_un_segment_sans_mesure_donne_une_absence_et_non_un_zero(self):
         from .calculation import calc_per_segment
@@ -123,7 +123,7 @@ class IndicateursParSegmentTest(unittest.TestCase):
                                     statistics='mean')
         ligne = sortie.df.to_dict('records')[0]
         self.assertEqual(ligne['n'], 0)
-        self.assertTrue(manquant(ligne['value_mean']), "pas de mesure ≠ mesure nulle")
+        self.assertTrue(missing(ligne['value_mean']), "pas de mesure ≠ mesure nulle")
         self.assertNotEqual(ligne['value_mean'], 0, "surtout pas un zéro crédible")
 
     def test_la_liste_de_statistiques_se_lit_separee_par_des_virgules(self):
@@ -141,9 +141,9 @@ class CatalogueTest(unittest.TestCase):
     CLES = ('calc_rolling', 'calc_derivative', 'calc_cumulative', 'calc_per_segment')
 
     def test_les_quatre_fonctions_sont_au_catalogue_et_decrites(self):
-        for cle in self.CLES:
-            with self.subTest(fonction=cle):
-                spec = get(cle)
+        for key in self.CLES:
+            with self.subTest(fonction=key):
+                spec = get(key)
                 self.assertIsNotNone(spec, "absente du FUNCTION_CATALOG — donc invisible du canvas")
                 self.assertTrue(spec.description.strip())
                 self.assertTrue(spec.inputs and spec.outputs)

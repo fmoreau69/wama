@@ -19,8 +19,8 @@ from pathlib import Path
 from wama.common.catalog.data_types import DataType
 
 from .. import sources
-from ..corpus import CSV_GPS_2022, REC_2019, REC_2022, raison_absence
-from .rtmaps import ENCODAGES_EXTERNES, RecReader, temps_en_secondes
+from ..corpus import CSV_GPS_2022, REC_2019, REC_2022, absence_reason
+from .rtmaps import ENCODAGES_EXTERNES, RecReader, to_seconds
 
 _ENTETE = ("RTMaps Remote Runtime Release v4.8.0 (build 264192) for Win32\n"
            "Copyright (c) 2000-2020 INTEMPORA S.A.\n"
@@ -51,14 +51,14 @@ class TempsTest(unittest.TestCase):
     """Le format d'heure est VARIABLE — les heures n'apparaissent qu'au-delà de la première."""
 
     def test_minutes_secondes(self):
-        self.assertAlmostEqual(temps_en_secondes('00:12.500000'), 12.5)
+        self.assertAlmostEqual(to_seconds('00:12.500000'), 12.5)
 
     def test_avec_heures(self):
-        self.assertAlmostEqual(temps_en_secondes('1:02:03.000000'), 3723.0)
+        self.assertAlmostEqual(to_seconds('1:02:03.000000'), 3723.0)
 
     def test_illisible_rend_None_sans_lever(self):
-        self.assertIsNone(temps_en_secondes('n/a'))
-        self.assertIsNone(temps_en_secondes(''))
+        self.assertIsNone(to_seconds('n/a'))
+        self.assertIsNone(to_seconds(''))
 
 
 class ReconnaissanceTest(unittest.TestCase):
@@ -180,11 +180,11 @@ class LectureTest(unittest.TestCase):
         d = ("00:00.100000 / Accel.X_axis#0@00:00.100000=1\n"
              "00:00.200000 / Accel.X_axis#4@00:00.200000=2\n")     # 1,2,3 perdus
         ref = sources.load(_ecrire(self.dossier, donnees=d), streams=['Accel.X_axis'])
-        self.assertEqual(ref.get('Accel.X_axis').meta.pertes, 3)
+        self.assertEqual(ref.get('Accel.X_axis').meta.losses, 3)
 
     def test_aucune_perte_quand_les_index_se_suivent(self):
         ref = sources.load(_ecrire(self.dossier, donnees=self.DONNEES), streams=['Accel.X_axis'])
-        self.assertEqual(ref.get('Accel.X_axis').meta.pertes, 0)
+        self.assertEqual(ref.get('Accel.X_axis').meta.losses, 0)
 
     def test_seuls_les_flux_DEMANDES_sont_materialises(self):
         # Le coût est borné par la demande, pas par le fichier : un `.rec` réel fait 1,54 Go.
@@ -225,7 +225,7 @@ class LectureTest(unittest.TestCase):
                          'Pas=1776;V_vp:Vitesse=0,000;')
 
 
-@unittest.skipUnless(REC_2022.exists(), raison_absence(REC_2022))
+@unittest.skipUnless(REC_2022.exists(), absence_reason(REC_2022))
 class CorpusReelTest(unittest.TestCase):
     """Le corpus 2022 (40 Mo) — et une contre-épreuve que le lecteur ne peut pas se donner."""
 
@@ -243,7 +243,7 @@ class CorpusReelTest(unittest.TestCase):
         lecteur qu'à lui-même ne prouverait que sa cohérence interne.
         """
         if not CSV_GPS_2022.exists():
-            self.skipTest(raison_absence(CSV_GPS_2022))
+            self.skipTest(absence_reason(CSV_GPS_2022))
         premiere = CSV_GPS_2022.read_text(encoding='latin-1').splitlines()[0].split(';')
         t_csv, lat_csv, lon_csv = int(premiere[0]) / 1e6, premiere[1], premiere[2]
 
@@ -260,14 +260,14 @@ class CorpusReelTest(unittest.TestCase):
         self.assertAlmostEqual(ref.get('GPS_NMEA0183_3.oPosition').measured_fs(), 3.0, delta=0.5)
 
     def test_le_pont_accepte_un_flux_rtmaps(self):
-        from ..frames import frame_depuis_referentiel
+        from ..frames import frame_from_referential
         ref = sources.load(REC_2022, streams=['Accel_Sensor.X_axis'])
-        cadre = frame_depuis_referentiel(ref, 'Accel_Sensor.X_axis', t0=0.0, t1=5.0)
+        cadre = frame_from_referential(ref, 'Accel_Sensor.X_axis', t0=0.0, t1=5.0)
         self.assertEqual(cadre.data_type, DataType.TIMESERIES)
         self.assertIn('time', cadre.df.columns)
 
 
-@unittest.skipUnless(REC_2019.exists(), raison_absence(REC_2019))
+@unittest.skipUnless(REC_2019.exists(), absence_reason(REC_2019))
 class Corpus2019Test(unittest.TestCase):
     """Le corpus 2019 (1,54 Go, RTMaps v4.5.3) — **inventaire seulement**.
 

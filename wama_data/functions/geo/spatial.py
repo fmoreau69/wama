@@ -10,7 +10,7 @@ exactement ça — montre que ce n'est ni l'un ni l'autre :
 
     dist = haversine(gps, carrefour)      →  une VALEUR, calculée par échantillon
     dist <= radius                        →  un MASQUE
-    fusion des trous / rejet des courtes  →  `conditionnelle()`, déjà écrite
+    fusion des trous / rejet des courtes  →  `conditional()`, déjà écrite
 
 **La segmentation spatiale n'est donc pas un mode : c'est une COLONNE DÉRIVÉE suivie de la chaîne
 conditionnelle existante.** La distance a la même clé temporelle que la trace dont elle vient —
@@ -31,13 +31,13 @@ from __future__ import annotations
 from wama.common.catalog.data_types import DataType, TypedFrame
 from wama.common.catalog.function_catalog import (FunctionCategory, FunctionSpec, ParamSpec,
                                                   PortSpec, register)
-from ...core.geo import abscisse_curviligne, distances_a_point
-from ...core.noms import normaliser
-from ...core.segmentation import marges_spatiales
+from ...core.geo import arc_length, distances_to_point
+from ...core.naming import normalize
+from ...core.segmentation import spatial_margins
 from ..temporal.segmentation import _colonne, _fin, _segments
 
 
-def distance_a_point(track: TypedFrame, lat: float = 0.0, lon: float = 0.0,
+def distance_to_point(track: TypedFrame, lat: float = 0.0, lon: float = 0.0,
                      name: str = '', champ_lat: str = 'lat',
                      champ_lon: str = 'lon') -> TypedFrame:
     """Distance de chaque position à un point de référence → colonne `distance_<nom>` (mètres).
@@ -49,14 +49,14 @@ def distance_a_point(track: TypedFrame, lat: float = 0.0, lon: float = 0.0,
     if not name:
         raise ValueError("nommer le point de référence : la colonne produite s'en dérive, et "
                          "deux points sans nom écraseraient la même colonne")
-    valeurs = distances_a_point(_colonne(track, champ_lat), _colonne(track, champ_lon), lat, lon)
+    values = distances_to_point(_colonne(track, champ_lat), _colonne(track, champ_lon), lat, lon)
     df = track.df.copy()
-    df[f"distance_{normaliser(name)}"] = valeurs
+    df[f"distance_{normalize(name)}"] = values
     return TypedFrame(df, track.data_type, meta=track.meta)
 
 
 register(FunctionSpec(
-    key='distance_a_point',
+    key='distance_to_point',
     name='Distance à un point de référence',
     description="Adjoint à une trace la distance (mètres, haversine) de chaque position à un "
                 "point géographique — carrefour, arrêt, borne. C'est la brique qui rend la "
@@ -81,7 +81,7 @@ register(FunctionSpec(
         ParamSpec('champ_lon', 'str', 'lon'),
     ],
     cost={'cpu_bound': True},
-    fn=distance_a_point,
+    fn=distance_to_point,
 ))
 
 
@@ -94,9 +94,9 @@ def segments_spatial_margins(segments: TypedFrame, track: TypedFrame,
     mode, c'est une marge exprimée sur une COLONNE monotone (la distance parcourue) au lieu de
     `time`. Les bornes rendues sont des échantillons EXISTANTS de la trace.
     """
-    abscisses = abscisse_curviligne(_colonne(track, champ_lat), _colonne(track, champ_lon))
+    abscisses = arc_length(_colonne(track, champ_lat), _colonne(track, champ_lon))
     rows = [dict(r, end=_fin(r.get('end'))) for r in segments.df.to_dict('records')]
-    return _segments(marges_spatiales(rows, _colonne(track, 'time'), abscisses,
+    return _segments(spatial_margins(rows, _colonne(track, 'time'), abscisses,
                                       before_m=before_m, after_m=after_m),
                      meta=segments.meta)
 

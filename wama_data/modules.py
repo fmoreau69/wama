@@ -32,12 +32,12 @@ from typing import Dict, List, Tuple
 class ModuleData:
     """Un module du monde DATA : ce qu'il fait, et ce qu'il DEVRA contenir."""
 
-    cle: str
+    key: str
     name: str
     #: Une ligne. Ce que le module fait, pas comment.
     role: str
     #: Ce qu'il consomme → ce qu'il produit, en vocabulaire de `data_types`.
-    flux: str
+    stream: str
     #: Briques attendues (chemins relatifs à BASE_DIR). Vide = rien n'est encore spécifié.
     briques: Tuple[str, ...] = ()
     #: Clés attendues au `FUNCTION_CATALOG`.
@@ -115,7 +115,7 @@ MODULES: Tuple[ModuleData, ...] = (
                  'wama_data/vue.py'),
         doc='§7, §9quater.6, §9quater.7',
         bloque_par="CŒUR LIVRÉ le 2026-08-23 — le PONT (`frames.py`, 34 tests) et le VIEW-MODEL "
-                   "(`vue.py`, 31 tests) : une `Vue` déclare flux/fenêtre/résolution/colonnes "
+                   "(`vue.py`, 31 tests) : une `View` déclare flux/fenêtre/résolution/colonnes "
                    "dérivées, est sérialisable en JSON, et rend la règle de §9quater.4 EXÉCUTABLE "
                    "en la dérivant de la `FunctionCategory`. Reste l'UI, et elle seule : "
                    "`wama_data` n'a encore AUCUNE surface Django (ni views, ni urls, ni "
@@ -279,14 +279,14 @@ def _consommateurs(brique: str) -> Tuple[int, int]:
     return interne, externe
 
 
-def mesurer() -> List[dict]:
+def measure() -> List[dict]:
     """État RÉEL de chaque module, calculé depuis le code. Aucune valeur écrite à la main."""
     racine, catalogue = _racine(), _catalogue()
     out: List[dict] = []
     for m in MODULES:
-        presentes = [b for b in m.briques if (racine / b).exists()]
+        present = [b for b in m.briques if (racine / b).exists()]
         fonctions = [f for f in m.fonctions if f in catalogue]
-        paires = [_consommateurs(b) for b in presentes]
+        paires = [_consommateurs(b) for b in present]
         interne = sum(p[0] for p in paires)
         externe = sum(p[1] for p in paires)
 
@@ -296,17 +296,17 @@ def mesurer() -> List[dict]:
         # la commande ne rendait plus la main. Même classe de défaut que l'agrégation par OFFSET
         # corrigée le 21/08 : une opération qui paraît anodine et qui parcourt tout.
         testees = []
-        for b in presentes:
-            chemin = racine / b
-            sujet = chemin.stem if chemin.stem != '__init__' else chemin.parent.name
-            dossiers = {chemin.parent, chemin.parent.parent}
+        for b in present:
+            path = racine / b
+            sujet = path.stem if path.stem != '__init__' else path.parent.name
+            dossiers = {path.parent, path.parent.parent}
             if any((d / f'{prefixe}_{sujet}.py').exists()
                    for d in dossiers for prefixe in ('tests', 'test')):
                 testees.append(b)
 
         if not m.briques:
             etat = '⏳'          # rien de spécifié : le module n'est pas commencé
-        elif len(presentes) < len(m.briques):
+        elif len(present) < len(m.briques):
             etat = '🔄'
         elif not externe:
             # Livré, éventuellement consommé DANS WAMA Data, mais personne au-dehors ne s'en
@@ -315,8 +315,8 @@ def mesurer() -> List[dict]:
         else:
             etat = '✅'
         out.append({
-            'key': m.cle, 'name': m.name, 'role': m.role, 'stream': m.flux, 'doc': m.doc,
-            'etat': etat, 'briques': (len(presentes), len(m.briques)),
+            'key': m.key, 'name': m.name, 'role': m.role, 'stream': m.stream, 'doc': m.doc,
+            'etat': etat, 'briques': (len(present), len(m.briques)),
             'testees': len(testees), 'fonctions': (len(fonctions), len(m.fonctions)),
             'interne': interne, 'externe': externe, 'bloque_par': m.bloque_par,
         })

@@ -49,7 +49,7 @@ class WamaDataConfig(AppConfig):
 
         def _rafraichir_lecteurs() -> Resultat:
             from . import sources
-            return _recharger_greffons(sources, sources.READERS, sources.modules_lecteurs(),
+            return _recharger_greffons(sources, sources.READERS, sources.reader_modules(),
                                        'lecture')
 
         enregistrer(Registre(
@@ -69,7 +69,7 @@ class WamaDataConfig(AppConfig):
 
         enregistrer(Registre(
             cle='formats_export_data', nom='Formats de sortie (WAMA Data)', nature=REDECLARATION,
-            source="`wama_data/core/export.py` — `enregistrer_format()`, plus les écrivains "
+            source="`wama_data/core/export.py` — `register_format()`, plus les écrivains "
                    "fournis par les adaptateurs",
             compter=_compter_formats,
             rafraichir=lambda: _rafraichir_formats(),
@@ -86,7 +86,7 @@ class WamaDataConfig(AppConfig):
         def _rafraichir_conteneurs() -> Resultat:
             from . import containers
             return _recharger_greffons(containers, containers.SCHEMAS,
-                                       containers.modules_schemas(), 'schéma')
+                                       containers.schema_modules(), 'schéma')
 
         enregistrer(Registre(
             cle='conteneurs_data', nom='Schémas de conteneur (WAMA Data)', nature=REDECLARATION,
@@ -99,7 +99,7 @@ class WamaDataConfig(AppConfig):
         ))
 
 
-def _recharger_greffons(paquet, registre: dict, noms, quoi: str):
+def _recharger_greffons(paquet, registre: dict, naming, quoi: str):
     """Re-déclare les greffons d'un paquet en RECHARGEANT ses modules. Purge, ou restauration.
 
     ⚠ TROIS PIÈGES, tous rencontrés d'abord par le rafraîchisseur de fonctions — on reprend sa
@@ -108,7 +108,7 @@ def _recharger_greffons(paquet, registre: dict, noms, quoi: str):
       ① `importlib.reload(paquet)` NE SUFFIT PAS et vide même le registre : l'amorçage du paquet
          ré-importe des modules DÉJÀ en cache, donc un no-op. On rechargerait un registre neuf que
          personne ne remplirait.
-      ② `register_reader()` / `enregistrer_schema()` LÈVENT sur doublon — recharger sans purger
+      ② `register_reader()` / `register_schema()` LÈVENT sur doublon — recharger sans purger
          échouerait au premier module.
       ③ Sans `invalidate_caches()`, un fichier CRÉÉ pendant que le serveur tourne reste invisible :
          le chercheur de modules garde en cache le listing du répertoire.
@@ -124,23 +124,23 @@ def _recharger_greffons(paquet, registre: dict, noms, quoi: str):
     """
     import importlib
 
-    from wama.common.registries import Resultat
+    from wama.common.registries import Resultat as Result
 
     importlib.invalidate_caches()
     before = dict(registre)
     registre.clear()
     try:
-        for name in noms:
+        for name in naming:
             importlib.reload(importlib.import_module(f'{paquet.__name__}.{name}'))
     except Exception as e:
         registre.clear()
         registre.update(before)
-        return Resultat(ok=False, total=len(before),
+        return Result(ok=False, total=len(before),
                         messages=(f"rechargement abandonné, registre restauré : {e}",))
     after = set(registre)
-    return Resultat(ok=True, ajoutes=len(after - set(before)),
+    return Result(ok=True, ajoutes=len(after - set(before)),
                     retires=len(set(before) - after), modifies=len(after & set(before)),
-                    total=len(after), messages=(f"{len(noms)} module(s) de {quoi} rechargé(s)",))
+                    total=len(after), messages=(f"{len(naming)} module(s) de {quoi} rechargé(s)",))
 
 
 def _rafraichir_formats():
@@ -148,26 +148,26 @@ def _rafraichir_formats():
     déclarés sans écrivain (`xlsx`, `mat`).
 
     ⚠ On ne purge PAS `FORMATS` ici, contrairement aux lecteurs — et la différence n'est pas une
-    inattention. `enregistrer_format()` est IDEMPOTENT par extension (le dernier inscrit gagne,
+    inattention. `register_format()` est IDEMPOTENT par extension (le dernier inscrit gagne,
     précisément pour qu'un adaptateur puisse compléter un format déclaré sans écrivain), là où
     `register_reader()` lève sur doublon. La purge n'est nécessaire que quand le ré-enregistrement
     échouerait ; l'appliquer ici perdrait les formats natifs du cœur, que rien ne réenregistrerait.
     """
     import importlib
 
-    from wama.common.registries import Resultat
+    from wama.common.registries import Resultat as Result
 
-    from .core.export import FORMATS, formats_ecrivables
-    avant_total, avant_ecrivables = len(FORMATS), set(formats_ecrivables())
+    from .core.export import FORMATS, writable_formats
+    avant_total, avant_ecrivables = len(FORMATS), set(writable_formats())
     importlib.invalidate_caches()
     try:
         from .functions.io import export as adaptateur
         importlib.reload(adaptateur)
     except Exception as e:
-        return Resultat(ok=False, total=len(FORMATS),
+        return Result(ok=False, total=len(FORMATS),
                         messages=(f"adaptateur d'export non rechargé : {e}",))
-    apres_ecrivables = set(formats_ecrivables())
-    return Resultat(
+    apres_ecrivables = set(writable_formats())
+    return Result(
         ok=True, ajoutes=len(FORMATS) - avant_total,
         retires=0, modifies=len(apres_ecrivables - avant_ecrivables), total=len(FORMATS),
         messages=(f"{len(apres_ecrivables)}/{len(FORMATS)} format(s) réellement écrivable(s)",))

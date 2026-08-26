@@ -12,7 +12,7 @@ from pathlib import Path
 from wama_data import sources
 from wama_data.sources import ResamplingTS, TimeOfIssueTS, TimestampTS
 
-from ..corpus import BASE_REELLE, raison_absence
+from ..corpus import REAL_BASE, absence_reason
 
 
 class RegistreTest(unittest.TestCase):
@@ -90,11 +90,11 @@ class GardeFouG1Test(unittest.TestCase):
         for n in ast.walk(arbre):
             if isinstance(n, ast.ImportFrom) and n.level:      # `from . import X`
                 importes.update(a.name for a in n.names)
-        self.assertEqual(importes & set(sources.modules_lecteurs()), set(),
+        self.assertEqual(importes & set(sources.reader_modules()), set(),
                          "ajouter un lecteur obligerait à éditer le moteur")
 
     def test_la_decouverte_trouve_les_lecteurs_livres(self):
-        self.assertEqual(set(sources.modules_lecteurs()), set(sources.READERS))
+        self.assertEqual(set(sources.reader_modules()), set(sources.READERS))
 
     def test_un_lecteur_DEPOSE_est_enregistre_sans_toucher_au_moteur(self):
         """La formulation exacte de G1 : « ajouter un lecteur ne le modifie pas »."""
@@ -108,7 +108,7 @@ class GardeFouG1Test(unittest.TestCase):
             "register_reader(_E())\n", encoding='utf-8')
         try:
             importlib.invalidate_caches()
-            self.assertIn('zz_essai_g1', sources.modules_lecteurs())
+            self.assertIn('zz_essai_g1', sources.reader_modules())
             importlib.import_module('wama_data.sources.zz_essai_g1')
             self.assertIn('essai_g1', sources.READERS)
             self.assertIn('.essai_g1', sources.supported_extensions())
@@ -130,7 +130,7 @@ class GardeFouG1Test(unittest.TestCase):
         casse.write_text("raise ImportError('dependance absente')\n", encoding='utf-8')
         try:
             importlib.invalidate_caches()
-            self.assertIn('zz_casse_g1', sources.modules_lecteurs())
+            self.assertIn('zz_casse_g1', sources.reader_modules())
             # Le module est RÉELLEMENT cassé — sinon le test ne prouverait rien.
             with self.assertRaises(ImportError):
                 importlib.import_module('wama_data.sources.zz_casse_g1')
@@ -235,8 +235,8 @@ class TabulaireTest(unittest.TestCase):
         # Un trou est un trou, pas une valeur textuelle — il devient `None`.
         f = Path(self.dir.name) / "trou.csv"
         f.write_text("time,v\n0,1\n1,\n2,3\n", encoding="utf-8")
-        lignes = sources.load(f).get("trou").rows(0, 3)
-        self.assertEqual([l["v"] for l in lignes], [1.0, None, 3.0])
+        rows = sources.load(f).get("trou").rows(0, 3)
+        self.assertEqual([l["v"] for l in rows], [1.0, None, 3.0])
 
     def test_separateur_point_virgule(self):
         f = Path(self.dir.name) / "fr.csv"
@@ -270,7 +270,7 @@ class TabulaireTest(unittest.TestCase):
         self.assertNotAlmostEqual(sans.measured_fs(), 10.0, places=3)
 
 
-def _trip_synthetique(chemin: Path) -> Path:
+def _trip_synthetique(path: Path) -> Path:
     """Construit un `.trip` MINIMAL — les trois familles de table, quelques lignes.
 
     ⚠ POURQUOI CE FIXTURE EXISTE (2026-08-24). Jusqu'ici, **les seuls tests du `TripReader`
@@ -284,7 +284,7 @@ def _trip_synthetique(chemin: Path) -> Path:
     Le schéma reproduit ici est celui relevé sur la base réelle (§6.2-6.3), pas un schéma inventé.
     """
     import sqlite3
-    con = sqlite3.connect(chemin)
+    con = sqlite3.connect(path)
     try:
         con.execute('CREATE TABLE "MetaDatas" (name TEXT, type TEXT, frequency TEXT, isBase INT)')
         con.executemany('INSERT INTO "MetaDatas" VALUES (?,?,?,?)', [
@@ -303,7 +303,7 @@ def _trip_synthetique(chemin: Path) -> Path:
         con.commit()
     finally:
         con.close()
-    return chemin
+    return path
 
 
 class TripSynthetiqueTest(unittest.TestCase):
@@ -334,10 +334,10 @@ class TripSynthetiqueTest(unittest.TestCase):
         n'étaient pas le même** (D31, trouvé le 2026-08-26 en écrivant le premier manifeste à la
         main). Le préfixe n'avait plus rien à porter : la famille est déjà une donnée, cf. le test
         suivant. On atteste désormais la CONCORDANCE des deux bouts."""
-        noms = sorted(sources.probe(self.trip).streams)
-        self.assertEqual(noms, ['0_15', 'freinage', 'vitesse'])
+        naming = sorted(sources.probe(self.trip).streams)
+        self.assertEqual(naming, ['0_15', 'freinage', 'vitesse'])
         ref = sources.load(self.trip)
-        self.assertEqual(sorted(ref.names), noms)
+        self.assertEqual(sorted(ref.names), naming)
 
     def test_la_forme_PREFIXEE_reste_acceptee_en_lecture(self):
         """Un correctif qui casse ses propres appelants n'en est pas un : le nom de table reste
@@ -363,10 +363,10 @@ class TripSynthetiqueTest(unittest.TestCase):
         # les sépare. C'est exactement ce que le pont ne savait pas faire.
         from wama.common.catalog.data_types import DataType
 
-        from wama_data.frames import frame_depuis_referentiel
+        from wama_data.frames import frame_from_referential
         ref = sources.load(self.trip)
-        self.assertEqual(frame_depuis_referentiel(ref, 'vitesse').data_type, DataType.TIMESERIES)
-        self.assertEqual(frame_depuis_referentiel(ref, 'freinage').data_type, DataType.EVENTS)
+        self.assertEqual(frame_from_referential(ref, 'vitesse').data_type, DataType.TIMESERIES)
+        self.assertEqual(frame_from_referential(ref, 'freinage').data_type, DataType.EVENTS)
 
     def test_une_situation_porte_ses_DEUX_bornes(self):
         ref = sources.load(self.trip)
@@ -393,20 +393,20 @@ class TripSynthetiqueTest(unittest.TestCase):
         self.assertEqual(ref.get('vitesse').meta.fs, 10.0)
 
 
-@unittest.skipUnless(BASE_REELLE.exists(), raison_absence())
+@unittest.skipUnless(REAL_BASE.exists(), absence_reason())
 class BaseReelleTest(unittest.TestCase):
     def test_reconnaissance_par_le_CONTENU(self):
-        r = sources.reader_for(BASE_REELLE)
+        r = sources.reader_for(REAL_BASE)
         self.assertEqual(r.format, "trip")
 
     def test_probe_n_ouvre_pas_les_donnees(self):
-        info = sources.probe(BASE_REELLE)
+        info = sources.probe(REAL_BASE)
         self.assertGreater(len(info.streams), 20)
         self.assertTrue(info.media, "les médias liés et leur offset doivent être inventoriés")
         self.assertIn("recording_start_time", info.attributes)
 
     def test_semantique_derivee_de_la_famille(self):
-        ref = sources.load(BASE_REELLE,
+        ref = sources.load(REAL_BASE,
                            streams=["data_BIOPAC_MP150", "event_CADISP", "situation_0_15"])
         self.assertEqual(ref.get("BIOPAC_MP150").meta.default_lookup, "nearest")
         # Un événement et un segment valent jusqu'au suivant.
@@ -414,19 +414,19 @@ class BaseReelleTest(unittest.TestCase):
         self.assertEqual(ref.get("0_15").meta.default_lookup, "previous")
 
     def test_is_base_distingue_acquis_et_derive(self):
-        ref = sources.load(BASE_REELLE,
+        ref = sources.load(REAL_BASE,
                            streams=["data_BIOPAC_MP150", "data_ECG_processed"])
         self.assertTrue(ref.get("BIOPAC_MP150").meta.is_base)
         self.assertFalse(ref.get("ECG_processed").meta.is_base)
 
     def test_lecture_paresseuse(self):
-        ref = sources.load(BASE_REELLE, streams=["data_BIOPAC_MP150"])
+        ref = sources.load(REAL_BASE, streams=["data_BIOPAC_MP150"])
         s = ref.get("BIOPAC_MP150")
         self.assertGreater(len(s), 1_000_000)
         self.assertEqual(len(s.rows(1000, 1005)), 5)   # 5 lignes, pas 2 millions
 
     def test_segments_portent_leurs_deux_bornes(self):
-        ref = sources.load(BASE_REELLE, streams=["situation_0_15"])
+        ref = sources.load(REAL_BASE, streams=["situation_0_15"])
         s = ref.get("0_15")
         self.assertTrue(s.is_segments)
         self.assertAlmostEqual(s.duration_at(0), 15.0, places=3)

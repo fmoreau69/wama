@@ -42,9 +42,9 @@ from typing import Dict, List, Sequence, Tuple
 
 from wama.common.catalog.data_types import DataType
 
-from ..core.noms import normaliser
+from ..core.naming import normalize
 from ..core.temporal import Signal
-from . import Contexte, Entree, SchemaConteneur, enregistrer_schema, ident
+from . import Context, Entry, ContainerSchema, register_schema, ident
 
 #: Famille de la taxonomie partagée → préfixe de table. Inverse exact de `_TYPE_DE_FAMILLE`
 #: (`sources/trip.py`) : le vocabulaire vient de `DataType`, il n'est recopié ni ici ni là-bas.
@@ -74,13 +74,13 @@ def _prefixe(signal: Signal) -> Tuple[str, bool]:
     return ('situation_' if signal.is_segments else 'data_'), True
 
 
-class SchemaTrip(SchemaConteneur):
+class TripSchema(ContainerSchema):
     format = 'trip'
     extension = '.trip'
     description = "Base SQLite au format BIND — compatibilité avec l'outil MATLAB du laboratoire"
 
-    def nom_table(self, signal: Signal) -> str:
-        return _prefixe(signal)[0] + normaliser(signal.meta.name)
+    def table_name(self, signal: Signal) -> str:
+        return _prefixe(signal)[0] + normalize(signal.meta.name)
 
     def colonnes_temps(self, signal: Signal) -> Tuple[str, ...]:
         return (('startTimecode', 'endTimecode') if _prefixe(signal)[0] == 'situation_'
@@ -88,7 +88,7 @@ class SchemaTrip(SchemaConteneur):
 
     # ── Catalogue ─────────────────────────────────────────────────────────────────────────────
     def ecrire_catalogue(self, con: sqlite3.Connection,
-                         entrees: Sequence[Entree], contexte: Contexte) -> None:
+                         entrees: Sequence[Entry], contexte: Context) -> None:
         con.execute('CREATE TABLE "MetaDatas" (name TEXT PRIMARY KEY, type TEXT, '
                     'frequency INT, comments TEXT, isBase BOOL)')
         con.execute('CREATE TABLE "MetaEvents" (name TEXT PRIMARY KEY, comments TEXT, isBase BOOL)')
@@ -117,11 +117,11 @@ class SchemaTrip(SchemaConteneur):
                     f'INSERT OR REPLACE INTO {ident(declaration)} VALUES (?, ?, ?)',
                     (e.meta.name, COMMENTAIRE, base))
             # ⚠ La colonne de temps figure parmi les variables — conforme au relevé.
-            lignes = [(e.meta.name, col, 'REAL', '', '') for col in e.colonnes_temps]
-            lignes += [(e.meta.name, col, e.types.get(col, 'TEXT'),
-                        e.meta.units.get(col, ''), COMMENTAIRE) for col in e.colonnes]
+            rows = [(e.meta.name, col, 'REAL', '', '') for col in e.colonnes_temps]
+            rows += [(e.meta.name, col, e.types.get(col, 'TEXT'),
+                        e.meta.units.get(col, ''), COMMENTAIRE) for col in e.columns]
             con.executemany(
-                f'INSERT OR REPLACE INTO {ident(variables)} VALUES (?, ?, ?, ?, ?)', lignes)
+                f'INSERT OR REPLACE INTO {ident(variables)} VALUES (?, ?, ?, ?, ?)', rows)
 
         entetes = [('export_time', contexte.date()), ('exported_by', contexte.auteur or 'WAMA')]
         entetes += [(str(k), '' if v is None else str(v)) for k, v in contexte.attributs.items()]
@@ -132,7 +132,7 @@ class SchemaTrip(SchemaConteneur):
               str(m.get('description', ''))) for m in contexte.medias])
 
     @staticmethod
-    def _type_dominant(entree: Entree) -> str:
+    def _type_dominant(entree: Entry) -> str:
         """Type déclaré du flux, au sens de `MetaDatas.type` — `REAL` dans toute la base relevée.
 
         On rend le type le plus fréquent parmi les colonnes plutôt qu'une constante : un flux
@@ -146,7 +146,7 @@ class SchemaTrip(SchemaConteneur):
         return max(comptes.items(), key=lambda kv: kv[1])[0]
 
     # ── Ce que la langue de l'autre ne sait pas dire ──────────────────────────────────────────
-    def pertes(self, entrees: Sequence[Entree], contexte: Contexte) -> List[str]:
+    def losses(self, entrees: Sequence[Entry], contexte: Context) -> List[str]:
         out: List[str] = []
         devines = [e.meta.name for e in entrees if _prefixe(e.signal)[1]]
         if devines:
@@ -155,9 +155,9 @@ class SchemaTrip(SchemaConteneur):
                 f"{', '.join(devines[:5])} — la table de catalogue a été choisie sur la "
                 f"structure, pas sur une déclaration")
 
-        pertes = [e.meta.name for e in entrees if e.meta.pertes]
-        if pertes:
-            out.append(f"pertes d'acquisition non portées ({', '.join(pertes[:5])}) : le schéma "
+        losses = [e.meta.name for e in entrees if e.meta.losses]
+        if losses:
+            out.append(f"pertes d'acquisition non portées ({', '.join(losses[:5])}) : le schéma "
                        f"BIND n'a aucun champ pour un compte d'échantillons manquants")
 
         lookups = [e.meta.name for e in entrees if e.meta.default_lookup]
@@ -182,10 +182,10 @@ class SchemaTrip(SchemaConteneur):
             out.append(f"cadence PERDUE pour {', '.join(sans_frequence[:5])} : `MetaEvents` et "
                        f"`MetaSituations` n'ont pas de colonne `frequency`")
 
-        ouverts = self._segments_ouverts(entrees)
-        if ouverts:
+        open_ones = self._segments_ouverts(entrees)
+        if open_ones:
             out.append(
-                f"{ouverts} segment(s) OUVERT(s) écrits avec une fin NULL : BIND n'a pas de "
+                f"{open_ones} segment(s) OUVERT(s) écrits avec une fin NULL : BIND n'a pas de "
                 f"représentation pour « fin non observée » (D15) et lira une borne absente. "
                 f"Mesuré sur la base réelle : 0 fin NULL sur 84 situations — le cas ne s'y "
                 f"présente jamais, donc son traitement par l'outil n'est pas connu")
@@ -198,7 +198,7 @@ class SchemaTrip(SchemaConteneur):
         return out
 
     @staticmethod
-    def _segments_ouverts(entrees: Sequence[Entree]) -> int:
+    def _segments_ouverts(entrees: Sequence[Entry]) -> int:
         total = 0
         for e in entrees:
             if not e.a_des_fins:
@@ -207,4 +207,4 @@ class SchemaTrip(SchemaConteneur):
         return total
 
 
-enregistrer_schema(SchemaTrip())
+register_schema(TripSchema())

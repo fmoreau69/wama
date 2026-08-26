@@ -108,7 +108,7 @@ class TripReader(SqliteSourceReader):
     # ── Inventaire ────────────────────────────────────────────────────────────────────────────
     def probe(self, path: Path) -> SourceInfo:
         with self._open(path) as con:
-            flux = sorted(self._index_des_flux(con))
+            stream = sorted(self._index_des_flux(con))
 
             attributs: Dict[str, Any] = {}
             try:
@@ -134,9 +134,9 @@ class TripReader(SqliteSourceReader):
                 pass
 
         return SourceInfo(
-            format=self.format, path=str(path), streams=flux,
+            format=self.format, path=str(path), streams=stream,
             attributes=attributs, media=medias,
-            notes=(f"{len(flux)} flux ; {len(medias)} média(s) lié(s) ; "
+            notes=(f"{len(stream)} flux ; {len(medias)} média(s) lié(s) ; "
                    f"{len(declares)} déclaration(s) MetaDatas"),
         )
 

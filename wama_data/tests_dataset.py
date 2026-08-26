@@ -1,7 +1,7 @@
 """Tests du manifeste `dataset` rendu exécutable (`wama_data/dataset.py`).
 
 ⚠ Le test qui porte ce fichier est `ChaineDeclarativeTest` : il fait le parcours COMPLET depuis
-des déclarations — manifeste `dataset` → référentiel → `Vue` → fonction du catalogue →
+des déclarations — manifeste `dataset` → référentiel → `View` → fonction du catalogue →
 `Declaration` d'export → fichier. C'est le premier chemin de bout en bout entièrement déclaratif
 du monde Data ; sans lui, « la chaîne est exécutable » resterait une affirmation.
 
@@ -15,16 +15,16 @@ from pathlib import Path
 
 from wama.common.manifests.builtin.dataset import validate_dataset_body
 
-from .dataset import (Ecart, _indice_de_prefixe, attributs_de_coordonnees, axes_declares,
-                      charger, chemin, signaux_declares, situer, verifier)
+from .dataset import (Discrepancy, _indice_de_prefixe, coordinate_attributes, declared_axes,
+                      load, path, declared_signals, locate, verify)
 
 
-def _csv(dossier: Path, name: str, lignes) -> Path:
+def _csv(dossier: Path, name: str, rows) -> Path:
     p = dossier / f"{name}.csv"
     with p.open('w', newline='', encoding='utf-8') as fh:
         w = csv.writer(fh)
         w.writerow(['time', 'value'])
-        w.writerows(lignes)
+        w.writerows(rows)
     return p
 
 
@@ -36,21 +36,21 @@ def _manifeste(ref: str, ids, type_source='csv'):
 class LectureDuManifesteTest(unittest.TestCase):
 
     def test_chemin_absolu_inchange(self):
-        p = chemin({'source': {'ref': str(Path('/tmp/x.csv').resolve())}})
+        p = path({'source': {'ref': str(Path('/tmp/x.csv').resolve())}})
         self.assertTrue(p.is_absolute())
 
     def test_chemin_relatif_resolu_sous_la_RACINE_jamais_le_cwd(self):
         # Un manifeste doit être rejouable ailleurs : dépendre du cwd le rendrait valide sur une
         # machine et faux sur une autre, sans que rien ne le dise.
-        p = chemin({'source': {'ref': 'sous/x.csv'}}, racine='/base')
+        p = path({'source': {'ref': 'sous/x.csv'}}, racine='/base')
         self.assertEqual(p, Path('/base') / 'sous' / 'x.csv')
 
     def test_source_sans_ref_refusee(self):
         with self.assertRaises(ValueError):
-            chemin({'source': {'type': 'csv'}})
+            path({'source': {'type': 'csv'}})
 
     def test_signaux_declares_dans_l_ordre(self):
-        self.assertEqual(signaux_declares(_manifeste('x', ['b', 'a'])), ['b', 'a'])
+        self.assertEqual(declared_signals(_manifeste('x', ['b', 'a'])), ['b', 'a'])
 
 
 class EcartTest(unittest.TestCase):
@@ -65,31 +65,31 @@ class EcartTest(unittest.TestCase):
         self._d.cleanup()
 
     def test_conforme_quand_tout_est_la(self):
-        e = verifier(_manifeste('capteur.csv', ['capteur']), self.dossier)
-        self.assertTrue(e.conforme, e.rendre())
+        e = verify(_manifeste('capteur.csv', ['capteur']), self.dossier)
+        self.assertTrue(e.conforme, e.render())
         self.assertEqual(e.manquants, ())
 
     def test_un_signal_DECLARE_et_absent_est_un_MANQUANT(self):
-        e = verifier(_manifeste('capteur.csv', ['capteur', 'gps']), self.dossier)
+        e = verify(_manifeste('capteur.csv', ['capteur', 'gps']), self.dossier)
         self.assertFalse(e.conforme)
         self.assertEqual(e.manquants, ('gps',))
-        self.assertIn('gps', e.rendre())
+        self.assertIn('gps', e.render())
 
     def test_un_flux_present_NON_declare_ne_rend_PAS_non_conforme(self):
         # Asymétrie voulue : une source peut contenir plus qu'on n'en décrit. Seule la promesse
         # non tenue compte.
-        e = verifier(_manifeste('capteur.csv', []), self.dossier)
+        e = verify(_manifeste('capteur.csv', []), self.dossier)
         self.assertTrue(e.conforme)
         self.assertEqual(e.non_declares, ('capteur',))
 
     def test_source_introuvable_le_DIT(self):
-        e = verifier(_manifeste('absent.csv', ['x']), self.dossier)
+        e = verify(_manifeste('absent.csv', ['x']), self.dossier)
         self.assertFalse(e.conforme)
         self.assertTrue(any('introuvable' in n for n in e.notes), e.notes)
 
     def test_aucun_lecteur_pour_le_format_le_DIT(self):
         (self.dossier / 'x.inconnu').write_text('rien', encoding='utf-8')
-        e = verifier(_manifeste('x.inconnu', ['x']), self.dossier)
+        e = verify(_manifeste('x.inconnu', ['x']), self.dossier)
         self.assertTrue(any('aucun lecteur' in n for n in e.notes), e.notes)
 
     def test_PROVENANCE_et_CAPACITE_sont_deux_axes_et_ne_se_comparent_PAS(self):
@@ -104,14 +104,14 @@ class EcartTest(unittest.TestCase):
         elle se déclenchait donc sur TOUT manifeste valide. **Un contrôle qui sonne toujours
         apprend à ignorer le compte-rendu.**
         """
-        e = verifier(_manifeste('capteur.csv', ['capteur'], type_source='rtmaps'), self.dossier)
+        e = verify(_manifeste('capteur.csv', ['capteur'], type_source='rtmaps'), self.dossier)
         self.assertTrue(e.conforme)
         self.assertEqual(e.lecteur, 'tabular')      # informatif : qui a lu
-        self.assertIn('conforme', e.rendre())       # et surtout : PAS un écart
+        self.assertIn('conforme', e.render())       # et surtout : PAS un écart
 
     def test_le_rendu_dit_QUI_a_lu(self):
-        e = verifier(_manifeste('capteur.csv', ['capteur']), self.dossier)
-        self.assertIn('tabular', e.rendre())
+        e = verify(_manifeste('capteur.csv', ['capteur']), self.dossier)
+        self.assertIn('tabular', e.render())
 
 
 class ChargementTest(unittest.TestCase):
@@ -126,36 +126,36 @@ class ChargementTest(unittest.TestCase):
 
     def test_on_ne_rend_JAMAIS_le_referentiel_seul(self):
         # ① : ignorer l'écart doit être un geste délibéré, pas une distraction.
-        resultat = charger(_manifeste('capteur.csv', ['capteur']), self.dossier)
+        resultat = load(_manifeste('capteur.csv', ['capteur']), self.dossier)
         self.assertEqual(len(resultat), 2)
         ref, ecart = resultat
         self.assertEqual(ref.names, ['capteur'])
-        self.assertIsInstance(ecart, Ecart)
+        self.assertIsInstance(ecart, Discrepancy)
 
     def test_un_ecart_n_est_PAS_une_erreur_par_defaut(self):
         # Un corpus réel est hétérogène : refuser une passation partielle rendrait le manifeste
         # inutilisable. On charge ce qui est là, on RAPPORTE le reste.
-        ref, ecart = charger(_manifeste('capteur.csv', ['capteur', 'gps']), self.dossier)
+        ref, ecart = load(_manifeste('capteur.csv', ['capteur', 'gps']), self.dossier)
         self.assertEqual(ref.names, ['capteur'])
         self.assertEqual(ecart.manquants, ('gps',))
 
     def test_strict_refuse_une_promesse_non_tenue(self):
         with self.assertRaises(ValueError) as ctx:
-            charger(_manifeste('capteur.csv', ['capteur', 'gps']), self.dossier, strict=True)
+            load(_manifeste('capteur.csv', ['capteur', 'gps']), self.dossier, strict=True)
         self.assertIn('gps', str(ctx.exception))
 
     def test_source_introuvable_leve_meme_sans_strict(self):
         # Distinguer « il manque un signal » (on continue) de « il n'y a rien à ouvrir » (on lève).
         with self.assertRaises(ValueError):
-            charger(_manifeste('absent.csv', ['x']), self.dossier)
+            load(_manifeste('absent.csv', ['x']), self.dossier)
 
     def test_seuls_les_signaux_DECLARES_sont_charges(self):
         _csv(self.dossier, 'autre', [(0.0, 9.0)])
-        ref, _ = charger(_manifeste('capteur.csv', ['capteur']), self.dossier)
+        ref, _ = load(_manifeste('capteur.csv', ['capteur']), self.dossier)
         self.assertNotIn('autre', ref.names)
 
     def test_le_referentiel_est_reellement_interrogeable(self):
-        ref, _ = charger(_manifeste('capteur.csv', ['capteur']), self.dossier)
+        ref, _ = load(_manifeste('capteur.csv', ['capteur']), self.dossier)
         self.assertEqual(ref.span(), (0.0, 2.0))
         self.assertIsNotNone(ref.at('capteur', 1.0))
 
@@ -178,50 +178,50 @@ class ChaineDeclarativeTest(unittest.TestCase):
         self.assertEqual(validate_dataset_body(_manifeste('vitesse.csv', ['vitesse'])), [])
 
     def test_de_la_DECLARATION_au_FICHIER(self):
-        from .core.export import Colonne, Declaration, Identite, rendre
+        from .core.export import Column, Declaration, Identity, render
         from .functions.io.export import exporter_frames
-        from .vue import ColonneDerivee, Piste, Vue, appliquer
+        from .view import DerivedColumn, Track, View, apply
 
         # ① le jeu — une déclaration
-        ref, ecart = charger(_manifeste('vitesse.csv', ['vitesse']), self.dossier)
-        self.assertTrue(ecart.conforme, ecart.rendre())
+        ref, ecart = load(_manifeste('vitesse.csv', ['vitesse']), self.dossier)
+        self.assertTrue(ecart.conforme, ecart.render())
 
         # ② ce qu'on regarde — une déclaration
-        vue = Vue(name='exploration', pistes=(Piste('vitesse'),),
-                  derivees=(ColonneDerivee('calc_rolling', 'vitesse',
+        view = View(name='exploration', pistes=(Track('vitesse'),),
+                  derivees=(DerivedColumn('calc_rolling', 'vitesse',
                                            {'window_s': 2.0, 'column': 'value'}),))
-        resultat = appliquer(vue, ref)
+        resultat = apply(view, ref)
         self.assertIn('value_mean', resultat.tables['vitesse'].df.columns)
 
         # ③ ce qu'on livre — une déclaration
         decl = Declaration(
             name='livrable',
-            colonnes=(Colonne('vitesse', 'time'), Colonne('vitesse', 'value'),
-                      Colonne('vitesse', 'value_mean')),
-            identite=Identite(('trip_id',)))
+            columns=(Column('vitesse', 'time'), Column('vitesse', 'value'),
+                      Column('vitesse', 'value_mean')),
+            identite=Identity(('trip_id',)))
         fichiers = exporter_frames([decl], {'A': resultat.tables}, {'A': {'trip_id': 'ESSAI'}})
 
-        texte = rendre(fichiers[0])
-        self.assertTrue(texte.startswith(
+        text = render(fichiers[0])
+        self.assertTrue(text.startswith(
             'trip_id;vitesse.time;vitesse.value;vitesse.value_mean'))
-        self.assertEqual(len(texte.strip().split('\n')), 13)   # en-tête + 12 lignes
+        self.assertEqual(len(text.strip().split('\n')), 13)   # en-tête + 12 lignes
 
     def test_les_TROIS_declarations_font_l_aller_retour_JSON(self):
         # Le corollaire de §9quater.5 : ce qu'on persiste, c'est la déclaration. Si l'une des
         # trois ne survivait pas à un aller-retour, la chaîne ne serait pas rejouable.
         import json
 
-        from .core.export import Colonne, Declaration, Identite, declaration_depuis_dict
-        from .vue import Piste, Vue, depuis_dict
+        from .core.export import Column, Declaration, Identity, declaration_from_dict
+        from .view import Track, View, from_dict
 
         manifeste = _manifeste('vitesse.csv', ['vitesse'])
-        vue = Vue(name='v', pistes=(Piste('vitesse'),))
-        decl = Declaration(name='d', colonnes=(Colonne('vitesse', 'time'),),
-                           identite=Identite(()))
+        view = View(name='v', pistes=(Track('vitesse'),))
+        decl = Declaration(name='d', columns=(Column('vitesse', 'time'),),
+                           identite=Identity(()))
 
         self.assertEqual(json.loads(json.dumps(manifeste)), manifeste)
-        self.assertEqual(depuis_dict(json.loads(json.dumps(vue.to_dict()))), vue)
-        self.assertEqual(declaration_depuis_dict(json.loads(json.dumps(decl.to_dict()))), decl)
+        self.assertEqual(from_dict(json.loads(json.dumps(view.to_dict()))), view)
+        self.assertEqual(declaration_from_dict(json.loads(json.dumps(decl.to_dict()))), decl)
 
 
 class SituerLesAxesTest(unittest.TestCase):
@@ -238,38 +238,38 @@ class SituerLesAxesTest(unittest.TestCase):
             {'key': 'groupe', 'role': 'factor', 'contains': 'passation'}]
 
     def test_la_convention_wama_prefixee_est_lue(self):
-        trouvees, absents = situer(self.AXES, {'axe.scenario': 'nuit'})
+        trouvees, absents = locate(self.AXES, {'axe.scenario': 'nuit'})
         self.assertEqual(trouvees['scenario'], 'nuit')
 
     def test_la_convention_SANS_prefixe_de_l_outil_d_origine_est_lue_aussi(self):
-        trouvees, _ = situer(self.AXES, {'scenario': 'Test'})
+        trouvees, _ = locate(self.AXES, {'scenario': 'Test'})
         self.assertEqual(trouvees['scenario'], 'Test')
 
     def test_un_alias_declare_rattrape_un_nom_divergent(self):
         # Mesuré : l'unité d'observation se range sous `participant_id`, dont la VALEUR nomme
         # pourtant une passation (`Passation_01`).
-        trouvees, _ = situer(self.AXES, {'participant_id': 'Passation_01'})
+        trouvees, _ = locate(self.AXES, {'participant_id': 'Passation_01'})
         self.assertEqual(trouvees['passation'], 'Passation_01')
 
     def test_le_prefixe_wama_prime_sur_la_forme_nue(self):
-        trouvees, _ = situer(self.AXES, {'axe.scenario': 'nuit', 'scenario': 'jour'})
+        trouvees, _ = locate(self.AXES, {'axe.scenario': 'nuit', 'scenario': 'jour'})
         self.assertEqual(trouvees['scenario'], 'nuit')
 
     def test_un_axe_sans_coordonnee_est_NOMME_pas_devine(self):
-        _, absents = situer(self.AXES, {'scenario': 'Test'})
+        _, absents = locate(self.AXES, {'scenario': 'Test'})
         self.assertEqual(absents, ['passation', 'groupe'])
 
     def test_aucun_axe_declare_ne_produit_aucun_manque(self):
-        self.assertEqual(situer([], {'scenario': 'Test'}), ({}, []))
+        self.assertEqual(locate([], {'scenario': 'Test'}), ({}, []))
 
     def test_un_axe_sans_cle_est_ignore_pas_planté(self):
-        self.assertEqual([a['key'] for a in axes_declares({'axes': [{'role': 'factor'},
+        self.assertEqual([a['key'] for a in declared_axes({'axes': [{'role': 'factor'},
                                                                    {'key': 'p'}]})], ['p'])
 
 
 class AllerRetourDesCoordonneesTest(unittest.TestCase):
     """⭐ L'aller-retour COMPLET des coordonnées d'axes : écrites dans le conteneur, relues par
-    `situer()`. Sans lui, « le `.wdat` porte son rangement » resterait une affirmation.
+    `locate()`. Sans lui, « le `.wdat` porte son rangement » resterait une affirmation.
 
     C'est le quick win ④ (`WAMA_DATA_WORLD §13.12`), et il ne demandait **aucun changement de
     schéma** : `Contexte.attributs` alimente déjà `WamaMeta`, et les quatre lecteurs exposent déjà
@@ -280,15 +280,15 @@ class AllerRetourDesCoordonneesTest(unittest.TestCase):
             {'key': 'scenario', 'role': 'factor', 'crosses': 'passation'}]
 
     def test_la_forme_canonique_est_prefixee(self):
-        self.assertEqual(attributs_de_coordonnees({'passation': 'P01'}),
+        self.assertEqual(coordinate_attributes({'passation': 'P01'}),
                          {'axe.passation': 'P01'})
 
     def test_une_valeur_absente_devient_une_chaine_vide_pas_None(self):
         # `WamaMeta.value` est du TEXT : y écrire None donnerait 'None' à la relecture.
-        self.assertEqual(attributs_de_coordonnees({'groupe': None}), {'axe.groupe': ''})
+        self.assertEqual(coordinate_attributes({'groupe': None}), {'axe.groupe': ''})
 
     def test_ecrites_dans_un_wdat_elles_sont_RELUES(self):
-        from .containers import Contexte, ecrire
+        from .containers import Context, write
         from .core.temporal import Signal, SignalMeta, TemporalReferential
         from . import sources
 
@@ -299,10 +299,10 @@ class AllerRetourDesCoordonneesTest(unittest.TestCase):
         coords = {'passation': 'Passation_01', 'scenario': 'nuit'}
         with tempfile.TemporaryDirectory() as d:
             cible = Path(d) / 'essai.wdat'
-            ecrire(ref, cible, contexte=Contexte(
-                auteur='test', attributs=attributs_de_coordonnees(coords)))
+            write(ref, cible, contexte=Context(
+                auteur='test', attributs=coordinate_attributes(coords)))
 
-            trouvees, absents = situer(self.AXES, sources.probe(cible).attributes)
+            trouvees, absents = locate(self.AXES, sources.probe(cible).attributes)
 
         self.assertEqual(trouvees, coords)
         self.assertEqual(absents, [])
@@ -311,7 +311,7 @@ class AllerRetourDesCoordonneesTest(unittest.TestCase):
         # `WamaMeta` est un espace PARTAGÉ : `format`, `schema_version`, `created_at` y vivent.
         # C'est la raison d'être du préfixe (D21) — sans lui, un axe nommé `format` les capterait.
         axes = [{'key': 'format', 'role': 'observation'}]
-        trouvees, absents = situer(axes, {'format': 'wdat', 'axe.format': 'A4'})
+        trouvees, absents = locate(axes, {'format': 'wdat', 'axe.format': 'A4'})
         self.assertEqual(trouvees, {'format': 'A4'})
         self.assertEqual(absents, [])
 
@@ -322,16 +322,16 @@ class EcartDesAxesTest(unittest.TestCase):
     def test_un_axe_sans_coordonnee_ne_rend_PAS_l_ecart_non_conforme(self):
         # Tous les axes ne sont pas des coordonnées de conteneur : une fenêtre d'analyse indexe
         # des LIGNES. Sonner dessus ferait sonner le contrôle sur tout manifeste correct.
-        e = Ecart(axes_sans_coordonnee=('fenetre',))
+        e = Discrepancy(axes_sans_coordonnee=('fenetre',))
         self.assertTrue(e.conforme)
 
     def test_le_rendu_montre_les_coordonnees_situees(self):
-        e = Ecart(coordonnees=(('scenario', 'Test'),))
-        self.assertIn('scenario=Test', e.rendre())
+        e = Discrepancy(coordonnees=(('scenario', 'Test'),))
+        self.assertIn('scenario=Test', e.render())
 
     def test_le_rendu_nomme_les_axes_sans_coordonnee(self):
-        e = Ecart(axes_sans_coordonnee=('groupe',))
-        self.assertIn('groupe', e.rendre())
+        e = Discrepancy(axes_sans_coordonnee=('groupe',))
+        self.assertIn('groupe', e.render())
 
 
 class IndiceDePrefixeTest(unittest.TestCase):

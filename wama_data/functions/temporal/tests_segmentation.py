@@ -1,7 +1,7 @@
 """Tests des ENVELOPPES de segmentation — ce que le catalogue déclare et fait circuler.
 
 ⚠ POURQUOI CE FICHIER (trou ② de `WAMA_DATA_WORLD.md §11.9`, mesuré le 2026-08-26). Le cœur de
-`jonction()` portait curseurs, offsets et « répéter » depuis le début — mais l'enveloppe ne les
+`join()` portait curseurs, offsets et « répéter » depuis le début — mais l'enveloppe ne les
 DÉCLARAIT pas, et l'UI se génère des `ParamSpec` : l'écran « Double » n'aurait eu ni offsets, ni
 curseurs, ni case « Répéter ». Ces tests gardent la DÉCLARATION, pas la logique (elle est testée
 dans `core/tests_segmentation.py`) — une capacité non déclarée est une capacité invisible, et

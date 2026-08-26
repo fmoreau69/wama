@@ -19,7 +19,7 @@ tête de `core/conditions.py`). Lue dans la colonne, elle ne peut pas mentir sur
 `TypedFrame` n'expose que `.fields`, une liste de NOMS. La phrase de `WAMA_DATA_WORLD §9ter.6 B3`
 — « WAMA a déjà `data_types.py` pour savoir de quel type est une colonne : la vérification est
 gratuite, il suffit de la brancher » — est donc fausse. Elle n'est pas gratuite : elle coûte
-exactement `sorte_de_colonne()` ci-dessous, et il fallait l'écrire.
+exactement `column_kind()` ci-dessous, et il fallait l'écrire.
 
 FORME DE LA DÉCLARATION. Les conditions circulent en JSON parce qu'un `ParamSpec` ne porte que des
 scalaires (`float|int|bool|enum|str`). Ce n'est pas un contournement : la déclaration EST un objet
@@ -36,16 +36,16 @@ from typing import Any, Dict, List, Sequence
 from wama.common.catalog.data_types import CANONICAL_FIELDS, DataType, TypedFrame
 from wama.common.catalog.function_catalog import (FunctionCategory, FunctionSpec, ParamSpec,
                                                   PortSpec, register)
-from ...core.conditions import (BOOLEEN, NUMERIQUE, TEXTE, Condition, analyser, evaluer,
-                                nom_chaine, operateurs_pour)
-from ...core.segmentation import bascules, conditionnelle
+from ...core.conditions import (BOOLEAN, NUMERIC, TEXT, Condition, parse, evaluate,
+                                chain_name, operators_for)
+from ...core.segmentation import edges, conditional
 from .segmentation import CHAMPS_SEGMENT, _colonne, _segments
 
 #: Champs produits par une bascule — `time` vient de la taxonomie, le reste est la traçabilité.
 CHAMPS_BASCULE = CANONICAL_FIELDS[DataType.EVENTS] + ['edge', 'name', 'origin']
 
 
-def sorte_de_colonne(frame: TypedFrame, champ: str) -> str:
+def column_kind(frame: TypedFrame, field: str) -> str:
     """Sorte d'une colonne, LUE dans la donnée — numérique, texte ou booléen.
 
     L'ordre des tests n'est pas indifférent : en pandas, `bool` est un sous-type de `number`, donc
@@ -58,21 +58,21 @@ def sorte_de_colonne(frame: TypedFrame, champ: str) -> str:
     """
     import pandas as pd
     try:
-        serie = frame.df[champ]
+        series = frame.df[field]
     except Exception:
         raise ValueError(
-            f"colonne '{champ}' absente (disponibles : {', '.join(frame.fields) or '—'})")
-    if pd.api.types.is_bool_dtype(serie):
-        return BOOLEEN
-    if pd.api.types.is_numeric_dtype(serie):
-        return NUMERIQUE
-    return TEXTE
+            f"colonne '{field}' absente (disponibles : {', '.join(frame.fields) or '—'})")
+    if pd.api.types.is_bool_dtype(series):
+        return BOOLEAN
+    if pd.api.types.is_numeric_dtype(series):
+        return NUMERIC
+    return TEXT
 
 
 def _conditions(frame: TypedFrame, declaration: str) -> List[Condition]:
     """Construit les `Condition` déclarées, en LEUR IMPOSANT la sorte lue dans le cadre.
 
-    Une `sorte` présente dans le JSON est IGNORÉE — délibérément. L'accepter permettrait à une
+    Une `kind` présente dans le JSON est IGNORÉE — délibérément. L'accepter permettrait à une
     déclaration de se contredire avec la donnée qu'elle décrit, et c'est la donnée qui a raison.
     """
     try:
@@ -87,13 +87,13 @@ def _conditions(frame: TypedFrame, declaration: str) -> List[Condition]:
     for i, item in enumerate(brut):
         if not isinstance(item, dict):
             raise ValueError(f"condition n°{i + 1} : objet attendu, reçu {item!r}")
-        champ = item.get('field', '')
-        cle = item.get('key') or f"C{i + 1}"
-        sorte = sorte_de_colonne(frame, champ)
-        out.append(Condition(cle=cle, champ=champ, operator=item.get('operator', ''),
-                             valeur=item.get('value'), flux=item.get('stream', ''),
-                             sorte=sorte))
-    cles = [c.cle for c in out]
+        field = item.get('field', '')
+        key = item.get('key') or f"C{i + 1}"
+        kind = column_kind(frame, field)
+        out.append(Condition(key=key, field=field, operator=item.get('operator', ''),
+                             value=item.get('value'), stream=item.get('stream', ''),
+                             kind=kind))
+    cles = [c.key for c in out]
     doublons = sorted({c for c in cles if cles.count(c) > 1})
     if doublons:
         raise ValueError(f"clés de condition en double ({', '.join(doublons)}) — l'arbre logique "
@@ -108,19 +108,19 @@ def _masque(signal: TypedFrame, conditions: str, connectors: str) -> tuple:
     événements consomment le même masque, calculé une fois ici.
     """
     decl = _conditions(signal, conditions)
-    masques = {c.cle: c.evaluer(_colonne(signal, c.champ)) for c in decl}
-    texte = (connectors or '').strip()
-    if not texte:
+    masques = {c.key: c.evaluate(_colonne(signal, c.field)) for c in decl}
+    text = (connectors or '').strip()
+    if not text:
         # Une seule condition n'a pas besoin d'arbre ; plusieurs, si — sans quoi on choisirait
         # un connecteur implicite à leur place, et « ET » n'est pas plus évident que « OU ».
         if len(decl) > 1:
             raise ValueError(
                 f"{len(decl)} conditions déclarées mais aucun connecteur — préciser leur "
-                f"assemblage, par exemple ET({', '.join(c.cle for c in decl)})")
-        arbre = decl[0].cle
+                f"assemblage, par exemple ET({', '.join(c.key for c in decl)})")
+        arbre = decl[0].key
     else:
-        arbre = analyser(texte, list(masques))
-    return evaluer(arbre, masques), nom_chaine(arbre)
+        arbre = parse(text, list(masques))
+    return evaluate(arbre, masques), chain_name(arbre)
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════
@@ -132,7 +132,7 @@ def chain_to_segments(signal: TypedFrame, conditions: str = '', connectors: str 
                          name: str = '') -> TypedFrame:
     """Plages où la chaîne conditionnelle est vraie, avec hystérésis."""
     masque, derive = _masque(signal, conditions, connectors)
-    return _segments(conditionnelle(_colonne(signal, 'time'), masque, min_duration=min_duration,
+    return _segments(conditional(_colonne(signal, 'time'), masque, min_duration=min_duration,
                                     gap_tolerance=gap_tolerance, name=name or derive),
                      meta=signal.meta)
 
@@ -143,7 +143,7 @@ def chain_to_events(signal: TypedFrame, conditions: str = '', connectors: str = 
     """Instants où la chaîne conditionnelle BASCULE."""
     import pandas as pd
     masque, derive = _masque(signal, conditions, connectors)
-    rows = bascules(_colonne(signal, 'time'), masque, rising=rising,
+    rows = edges(_colonne(signal, 'time'), masque, rising=rising,
                     falling=falling, name=name or derive)
     df = pd.DataFrame(rows) if rows else pd.DataFrame(columns=CHAMPS_BASCULE)
     return TypedFrame(df, DataType.EVENTS, meta=signal.meta)
@@ -160,8 +160,8 @@ _AIDE_CONDITIONS = (
     'Liste JSON de conditions — [{"key": "C1", "field": "vitesse", "operator": ">=", '
     '"value": 30}]. La SORTE de la colonne (numérique / texte / booléen) est LUE dans la donnée, '
     'jamais déclarée : un opérateur qui ne lui convient pas est refusé à la déclaration. '
-    'Opérateurs numériques : ' + ', '.join(operateurs_pour(NUMERIQUE)) + '. '
-    'Opérateurs texte : ' + ', '.join(operateurs_pour(TEXTE)) + '.')
+    'Opérateurs numériques : ' + ', '.join(operators_for(NUMERIC)) + '. '
+    'Opérateurs texte : ' + ', '.join(operators_for(TEXT)) + '.')
 
 _AIDE_CONNECTEURS = (
     "Assemblage logique en forme préfixe — ET(C1, C2), NON(C1), OU(C1, ET(C2, C3)). "

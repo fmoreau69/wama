@@ -18,8 +18,8 @@ class DeclarationTest(unittest.TestCase):
     """Le monde POUSSE ses registres vers le substrat ; le substrat ne tire jamais."""
 
     def test_les_trois_registres_du_monde_sont_declares(self):
-        for cle in ('lecteurs_data', 'formats_export_data', 'conteneurs_data'):
-            self.assertIn(cle, REGISTRES, f"{cle} absent du registre des registres")
+        for key in ('lecteurs_data', 'formats_export_data', 'conteneurs_data'):
+            self.assertIn(key, REGISTRES, f"{key} absent du registre des registres")
 
     def test_le_substrat_n_IMPORTE_aucun_monde(self):
         """Les inscrire dans `common/registries_builtin.py` ferait dépendre le substrat du monde —
@@ -107,7 +107,7 @@ class RafraichissementFormatsTest(unittest.TestCase):
 
     def test_le_rafraichissement_ne_perd_PAS_les_formats_natifs(self):
         # Purger ici perdrait les formats du cœur, que rien ne réenregistrerait — d'où l'absence
-        # volontaire de purge (`enregistrer_format` est idempotent, `register_reader` non).
+        # volontaire de purge (`register_format` est idempotent, `register_reader` non).
         from .core.export import FORMATS
         before = set(FORMATS)
         res = REGISTRES['formats_export_data'].rafraichir()
@@ -138,7 +138,7 @@ class RafraichissementConteneursTest(unittest.TestCase):
         self.assertEqual(resultat.total, len(before))
 
     def test_deux_passages_donnent_le_MEME_etat(self):
-        """Le piège ② : `enregistrer_schema()` lève sur doublon — sans purge, le 2ᵉ passage casse."""
+        """Le piège ② : `register_schema()` lève sur doublon — sans purge, le 2ᵉ passage casse."""
         premier = REGISTRES['conteneurs_data'].rafraichir()
         second = REGISTRES['conteneurs_data'].rafraichir()
         self.assertTrue(second.ok, second.messages)
@@ -147,10 +147,10 @@ class RafraichissementConteneursTest(unittest.TestCase):
 
     def test_les_schemas_restent_FONCTIONNELS_apres_rechargement(self):
         """Un registre repeuplé d'objets inertes passerait les comptages sans rien savoir écrire."""
-        from wama_data.containers import schema_pour
+        from wama_data.containers import schema_for
         REGISTRES['conteneurs_data'].rafraichir()
-        self.assertIsNotNone(schema_pour('essai.wdat'))
-        self.assertIsNotNone(schema_pour('essai.trip'))
+        self.assertIsNotNone(schema_for('essai.wdat'))
+        self.assertIsNotNone(schema_for('essai.trip'))
 
     def test_un_rechargement_qui_ECHOUE_restaure_le_registre(self):
         """La garantie qui compte : un registre à moitié rechargé serait pire que pas de

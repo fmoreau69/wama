@@ -32,7 +32,7 @@ _EXEMPLE = RACINE / 'claude' / 'WAMA-Data' / 'Exemple_trip'
 #: Base d'expérimentation réelle — HORS DÉPÔT, donc absente sur une installation neuve.
 #: ⚠ Déplacée sous `claude/WAMA-Data/` le 2026-08-24 ; les tests qui la citaient en dur ont
 #: silencieusement commencé à sauter. Un seul domicile désormais.
-BASE_REELLE = _EXEMPLE / 'RecFile_REC_20190502_144710.trip'
+REAL_BASE = _EXEMPLE / 'RecFile_REC_20190502_144710.trip'
 
 #: Le `.rec` dont ce `.trip` a été TIRÉ — 1,54 Go, RTMaps v4.5.3 (2019).
 #: ⚠ Avoir l'ENTRÉE et la SORTIE du même enregistrement fait de ce couple le banc d'essai du
@@ -52,10 +52,10 @@ REC_2022 = (RACINE / 'media' / 'cam_analyzer' / '1' / 'input' / 'ENA_CASA'
 CSV_GPS_2022 = REC_2022.with_name(REC_2022.stem + '_GPS_NMEA0183_3_oPosition.csv')
 
 
-def raison_absence(chemin=None) -> str:
+def absence_reason(path=None) -> str:
     """Message de `skipUnless` — il doit dire OÙ on a cherché, pas seulement « absente ».
 
     Un skip qui annonce « base absente » sans le chemin fait passer un DÉPLACEMENT pour une
     absence légitime. C'est précisément ce qui s'est produit le 2026-08-24.
     """
-    return f"corpus absent ({chemin or BASE_REELLE}) — hors dépôt, ou déplacé"
+    return f"corpus absent ({path or REAL_BASE}) — hors dépôt, ou déplacé"

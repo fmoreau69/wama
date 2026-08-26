@@ -29,7 +29,7 @@ from typing import List, Optional
 from . import SourceReader
 
 
-def texte(octets: bytes) -> str:
+def text(octets: bytes) -> str:
     """Décodeur du texte SQLite — UTF-8, repli **cp1252**.
 
     ⚠ DÉFAUT MESURÉ LE 2026-08-24 en relevant le schéma d'un `.trip` réel : quatre tables de la
@@ -65,9 +65,9 @@ class SqliteSourceReader(SourceReader):
             return False
         try:
             with self._open(path) as con:
-                noms = {r[0] for r in con.execute(
+                naming = {r[0] for r in con.execute(
                     "SELECT name FROM sqlite_master WHERE type='table'")}
-            return self.table_temoin in noms
+            return self.table_temoin in naming
         except Exception:
             return False
 
@@ -91,7 +91,7 @@ class SqliteSourceReader(SourceReader):
         impossible à oublier au lieu d'être à répéter.
         """
         con = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
-        con.text_factory = texte
+        con.text_factory = text
         try:
             yield con
         finally:
@@ -131,10 +131,10 @@ class SqliteSourceReader(SourceReader):
         La colonne est validée contre le schéma réel avant d'être interpolée dans la requête : un
         nom venant de l'appelant ne doit jamais atterrir tel quel dans du SQL.
         """
-        colonnes = set(self._columns(path, table))
+        columns = set(self._columns(path, table))
 
         def extent(t0: float, t1: float, column: str):
-            if column not in colonnes or t1 <= t0:
+            if column not in columns or t1 <= t0:
                 return (None, None)
             with self._open(path) as con:
                 row = con.execute(
@@ -155,10 +155,10 @@ class SqliteSourceReader(SourceReader):
         qui ne sait pas grouper retombe sur l'agrégation tranche par tranche, puis sur la lecture
         des lignes — trois niveaux, du plus efficace au plus universel.
         """
-        colonnes = set(self._columns(path, table))
+        columns = set(self._columns(path, table))
 
         def extents(t0: float, t1: float, buckets: int, column: str):
-            if column not in colonnes or buckets <= 0 or t1 <= t0:
+            if column not in columns or buckets <= 0 or t1 <= t0:
                 return {}
             pas = (t1 - t0) / buckets
             with self._open(path) as con:
@@ -182,12 +182,12 @@ class SqliteSourceReader(SourceReader):
                 cur = con.execute(
                     f'SELECT * FROM "{table}" ORDER BY "{tcol}" LIMIT ? OFFSET ?',
                     (i1 - i0, i0))
-                noms = [c[0] for c in cur.description]
-                return [dict(zip(noms, r)) for r in cur.fetchall()]
+                naming = [c[0] for c in cur.description]
+                return [dict(zip(naming, r)) for r in cur.fetchall()]
         return rows
 
     @staticmethod
-    def _frequence(valeur) -> Optional[float]:
+    def _frequence(value) -> Optional[float]:
         """Cadence déclarée, ou None si le champ ne dit rien d'exploitable.
 
         ⚠ Le champ n'est PAS fiable dans les bases réelles. Mesuré : il valait `0` pour les dix
@@ -197,7 +197,7 @@ class SqliteSourceReader(SourceReader):
         cadence, puisque `measured_fs()` sait la déduire de la donnée elle-même.
         """
         try:
-            f = float(valeur)
+            f = float(value)
         except (TypeError, ValueError):
             return None
         return f if f > 0 else None

@@ -29,7 +29,7 @@ n'est pas rejouable : rouvrir « la même vue » sur un autre corpus doit montre
 `buckets` y est parce que la RÉSOLUTION fait partie de ce qu'on regarde — sur 5 M points, le tracé
 à 2000 tranches et le tracé à 200 ne disent pas la même chose du signal.
 
-⚠ CE MODULE NE MATÉRIALISE RIEN DE DURABLE. `appliquer()` calcule à la demande et rend des cadres ;
+⚠ CE MODULE NE MATÉRIALISE RIEN DE DURABLE. `apply()` calcule à la demande et rend des cadres ;
 il n'écrit pas. C'est la conséquence directe de §9quater.5 — une colonne matérialisée devient
 périmée vis-à-vis de sa source sans que rien ne le signale, et l'enregistrement réel fait 1,28 Go.
 
@@ -46,9 +46,9 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 from wama.common.catalog.data_types import DataType, TypedFrame
 from wama.common.catalog.function_catalog import FUNCTION_CATALOG, FunctionCategory, get
 
-from .core.noms import nom_annexe
+from .core.naming import annex_name
 from .core.temporal import TemporalReferential
-from .frames import frame_depuis_referentiel
+from .frames import frame_from_referential
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 # 1. LA RÈGLE, dérivée du catalogue
@@ -66,7 +66,7 @@ CATEGORIES_NOUVELLE_TABLE = frozenset({
 })
 
 
-def change_la_cle_temporelle(cle_fonction: str) -> bool:
+def changes_time_key(cle_fonction: str) -> bool:
     """La fonction change-t-elle la clé temporelle — donc faut-il une nouvelle table ?
 
     Lu dans la `FunctionCategory` DÉCLARÉE, jamais dans une liste de noms de fonctions. C'est ce
@@ -92,18 +92,18 @@ def change_la_cle_temporelle(cle_fonction: str) -> bool:
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 
 @dataclass(frozen=True)
-class Piste:
+class Track:
     """Un flux regardé, et les CHAMPS qu'on en montre. `champs` vide = tous."""
-    flux: str
+    stream: str
     champs: Tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        if not self.flux:
+        if not self.stream:
             raise ValueError("une piste doit nommer son flux")
 
 
 @dataclass(frozen=True)
-class Fenetre:
+class Window:
     """Ce qu'on regarde du temps, ET à quelle résolution.
 
     `buckets = 0` : pas de décimation — c'est la TABLE, qui montre les échantillons réels.
@@ -126,74 +126,74 @@ class Fenetre:
 
 
 @dataclass(frozen=True)
-class ColonneDerivee:
+class DerivedColumn:
     """Un calcul DÉCLARÉ sur un flux — pas son résultat.
 
     C'est le cœur de « on persiste la déclaration, pas les valeurs » (§9quater.5) : cet objet est
     ce qu'on garde, et les valeurs se recalculent. `nom` vide laisse la fonction nommer sa sortie
-    par sa propre règle (`nom_produit()`, `nom_chaine()`) — une saisie libre ferait perdre le lien
+    par sa propre règle (`derived_name()`, `chain_name()`) — une saisie libre ferait perdre le lien
     entre le nom lu dans le tableau et le réglage qui l'a produit.
     """
     fonction: str
-    flux: str
+    stream: str
     params: Mapping[str, Any] = field(default_factory=dict)
     name: str = ''
 
     def __post_init__(self) -> None:
-        if not self.fonction or not self.flux:
+        if not self.fonction or not self.stream:
             raise ValueError("une colonne dérivée doit nommer sa fonction ET son flux d'entrée")
 
     @property
     def sort_de_la_table(self) -> bool:
-        return change_la_cle_temporelle(self.fonction)
+        return changes_time_key(self.fonction)
 
 
 @dataclass(frozen=True)
-class Vue:
+class View:
     """CE QU'ON REGARDE — sérialisable, donc rejouable, diffable, et entrant dans un manifeste."""
     name: str
-    pistes: Tuple[Piste, ...]
-    fenetre: Fenetre = field(default_factory=Fenetre)
-    derivees: Tuple[ColonneDerivee, ...] = ()
+    pistes: Tuple[Track, ...]
+    fenetre: Window = field(default_factory=Window)
+    derivees: Tuple[DerivedColumn, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.name:
             raise ValueError("une vue doit porter un nom")
         if not self.pistes:
             raise ValueError(f"« {self.name} » : aucune piste — il n'y a rien à regarder")
-        flux = [p.flux for p in self.pistes]
-        doublons = sorted({f for f in flux if flux.count(f) > 1})
+        stream = [p.stream for p in self.pistes]
+        doublons = sorted({f for f in stream if stream.count(f) > 1})
         if doublons:
             raise ValueError(f"« {self.name} » : flux en double ({', '.join(doublons)}) — "
                              "une piste par flux, les colonnes se déclarent dans la piste")
 
     @property
-    def flux(self) -> List[str]:
-        return [p.flux for p in self.pistes]
+    def stream(self) -> List[str]:
+        return [p.stream for p in self.pistes]
 
     # ── Sérialisation : c'est une DÉCLARATION, elle doit faire l'aller-retour ─────────────────
     def to_dict(self) -> Dict[str, Any]:
         return {
             'name': self.name,
-            'pistes': [{'stream': p.flux, 'champs': list(p.champs)} for p in self.pistes],
+            'pistes': [{'stream': p.stream, 'champs': list(p.champs)} for p in self.pistes],
             'fenetre': {'t0': self.fenetre.t0, 't1': self.fenetre.t1,
                         'buckets': self.fenetre.buckets},
-            'derivees': [{'fonction': d.fonction, 'stream': d.flux,
+            'derivees': [{'fonction': d.fonction, 'stream': d.stream,
                           'params': dict(d.params), 'name': d.name} for d in self.derivees],
         }
 
 
-def depuis_dict(brut: Mapping[str, Any]) -> Vue:
+def from_dict(brut: Mapping[str, Any]) -> View:
     """Reconstruit une vue depuis sa forme sérialisée. Valide comme à la construction."""
     if not isinstance(brut, Mapping):
         raise ValueError(f"déclaration de vue attendue sous forme d'objet, reçu {type(brut).__name__}")
     f = brut.get('fenetre') or {}
-    return Vue(
+    return View(
         name=brut.get('name', ''),
-        pistes=tuple(Piste(flux=p.get('stream', ''), champs=tuple(p.get('champs') or ()))
+        pistes=tuple(Track(stream=p.get('stream', ''), champs=tuple(p.get('champs') or ()))
                      for p in (brut.get('pistes') or ())),
-        fenetre=Fenetre(t0=f.get('t0'), t1=f.get('t1'), buckets=int(f.get('buckets') or 0)),
-        derivees=tuple(ColonneDerivee(fonction=d.get('fonction', ''), flux=d.get('stream', ''),
+        fenetre=Window(t0=f.get('t0'), t1=f.get('t1'), buckets=int(f.get('buckets') or 0)),
+        derivees=tuple(DerivedColumn(fonction=d.get('fonction', ''), stream=d.get('stream', ''),
                                       params=dict(d.get('params') or {}), name=d.get('name', ''))
                        for d in (brut.get('derivees') or ())),
     )
@@ -203,7 +203,7 @@ def depuis_dict(brut: Mapping[str, Any]) -> Vue:
 # 3. Application à un référentiel
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 
-def valider(vue: Vue, ref: TemporalReferential) -> None:
+def validate(view: View, ref: TemporalReferential) -> None:
     """Refuse une vue qui ne s'appliquera pas, EN LE DISANT — avant tout calcul.
 
     Une vue est une déclaration : ses fautes doivent se voir à la déclaration, comme celles de
@@ -211,19 +211,19 @@ def valider(vue: Vue, ref: TemporalReferential) -> None:
     serait la même faute de conception que le `uialert` unique de l'outil d'origine.
     """
     connus = set(ref.names)
-    for p in vue.pistes:
-        if p.flux not in connus:
-            raise ValueError(f"« {vue.name} » : flux '{p.flux}' inconnu du référentiel "
+    for p in view.pistes:
+        if p.stream not in connus:
+            raise ValueError(f"« {view.name} » : flux '{p.stream}' inconnu du référentiel "
                              f"(présents : {', '.join(sorted(connus)) or '—'})")
-    for d in vue.derivees:
-        if d.flux not in connus:
-            raise ValueError(f"« {vue.name} » : la colonne dérivée '{d.fonction}' porte sur un flux "
-                             f"inconnu '{d.flux}'")
+    for d in view.derivees:
+        if d.stream not in connus:
+            raise ValueError(f"« {view.name} » : la colonne dérivée '{d.fonction}' porte sur un flux "
+                             f"inconnu '{d.stream}'")
         d.sort_de_la_table          # lève si la fonction ou sa catégorie est inconnue
 
 
 @dataclass
-class Resultat:
+class Result:
     """Ce qu'une vue produit : les tables regardées, et celles que les calculs ont fait naître.
 
     ⚠ LES DEUX SONT SÉPARÉES À DESSEIN, et c'est la règle de §9quater.4 rendue VISIBLE : ce qui
@@ -235,49 +235,49 @@ class Resultat:
     annexes: Dict[str, TypedFrame] = field(default_factory=dict)
 
 
-def appliquer(vue: Vue, ref: TemporalReferential) -> Resultat:
+def apply(view: View, ref: TemporalReferential) -> Result:
     """Calcule ce que la vue déclare. **Ne persiste RIEN** (§9quater.5).
 
     Les colonnes dérivées sont appliquées dans l'ordre déclaré : une dérivée peut donc s'appuyer
     sur une colonne produite par la précédente, ce qui est le geste ordinaire d'un tableur.
     """
-    valider(vue, ref)
-    out = Resultat()
-    for p in vue.pistes:
-        out.tables[p.flux] = frame_depuis_referentiel(
-            ref, p.flux, t0=vue.fenetre.t0, t1=vue.fenetre.t1,
+    validate(view, ref)
+    out = Result()
+    for p in view.pistes:
+        out.tables[p.stream] = frame_from_referential(
+            ref, p.stream, t0=view.fenetre.t0, t1=view.fenetre.t1,
             champs=p.champs or None)
 
-    for d in vue.derivees:
+    for d in view.derivees:
         spec = get(d.fonction)
-        entree = out.tables.get(d.flux)
+        entree = out.tables.get(d.stream)
         if entree is None:
             # Le flux porte une dérivée sans être regardé : on le charge quand même, sinon la
             # déclaration serait à moitié honorée sans que rien ne le dise.
-            entree = frame_depuis_referentiel(ref, d.flux, t0=vue.fenetre.t0, t1=vue.fenetre.t1)
+            entree = frame_from_referential(ref, d.stream, t0=view.fenetre.t0, t1=view.fenetre.t1)
         produit = spec.fn(entree, **dict(d.params))
         if d.sort_de_la_table:
-            out.annexes[d.name or nom_annexe(d.flux, d.fonction)] = produit
+            out.annexes[d.name or annex_name(d.stream, d.fonction)] = produit
         else:
-            out.tables[d.flux] = produit      # la fonction a adjoint sa colonne à l'entrée
+            out.tables[d.stream] = produit      # la fonction a adjoint sa colonne à l'entrée
     return out
 
 
-def serie(vue: Vue, ref: TemporalReferential, flux: str, champ: str) -> List[dict]:
+def series(view: View, ref: TemporalReferential, stream: str, field: str) -> List[dict]:
     """La série DÉCIMÉE d'une colonne, pour un tracé — min/max RÉELS par tranche.
 
-    ⚠ N'utilise pas `appliquer()` : passer par un cadre pandas matérialiserait les 5 M points que
+    ⚠ N'utilise pas `apply()` : passer par un cadre pandas matérialiserait les 5 M points que
     la décimation existe précisément pour éviter. On appelle donc `decimate_values` du référentiel,
     qui agrège dans la source quand elle sait le faire (une base SQL le fait en SQL).
 
     Exige une fenêtre bornée et `buckets > 0` : décimer « tout, en zéro tranche » n'a pas de sens,
     et laisser un défaut implicite ferait tracer autre chose que ce que la vue déclare.
     """
-    if not vue.fenetre.bornee:
-        raise ValueError(f"« {vue.name} » : un tracé demande une fenêtre bornée (t0 et t1)")
-    if vue.fenetre.buckets <= 0:
-        raise ValueError(f"« {vue.name} » : buckets doit être > 0 pour un tracé "
+    if not view.fenetre.bornee:
+        raise ValueError(f"« {view.name} » : un tracé demande une fenêtre bornée (t0 et t1)")
+    if view.fenetre.buckets <= 0:
+        raise ValueError(f"« {view.name} » : buckets doit être > 0 pour un tracé "
                          "(0 signifie « table, échantillons réels »)")
-    valider(vue, ref)
-    return ref.decimate_values(flux, vue.fenetre.t0, vue.fenetre.t1,
-                               vue.fenetre.buckets, champ)
+    validate(view, ref)
+    return ref.decimate_values(stream, view.fenetre.t0, view.fenetre.t1,
+                               view.fenetre.buckets, field)

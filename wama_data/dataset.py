@@ -13,7 +13,7 @@ déclarée, complète, et débranchée.
 
 Avec ce module, la chaîne devient exécutable **de bout en bout depuis des déclarations** :
 
-    manifeste `dataset` → référentiel → `Vue` → fonctions du catalogue → `Declaration` d'export
+    manifeste `dataset` → référentiel → `View` → fonctions du catalogue → `Declaration` d'export
 
 ⚠ LA DOCTRINE QUI COMMANDE TOUT CE FICHIER (§9bis, avis critique consigné) :
 
@@ -23,7 +23,7 @@ Avec ce module, la chaîne devient exécutable **de bout en bout depuis des déc
 
 D'où deux conséquences qui ne sont pas des détails :
 
-  ① **On ne rend jamais un référentiel seul.** `charger()` rend le couple `(référentiel, écart)`.
+  ① **On ne rend jamais un référentiel seul.** `load()` rend le couple `(référentiel, écart)`.
      Ignorer l'écart devient alors un geste délibéré — on ne peut pas l'oublier par distraction,
      ce qui serait le cas s'il fallait penser à appeler une seconde fonction.
 
@@ -45,7 +45,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from .core.temporal import TemporalReferential
-from .sources import READERS, load, probe, reader_for
+# ⚠ `load` de sources est ALIASÉ : ce module expose SA PROPRE `load()` (charger un dataset
+# déclaré), qui délègue à celle des sources (charger UN fichier) — deux étages, deux fonctions.
+from .sources import READERS, load as load_source, probe, reader_for
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════
@@ -53,7 +55,7 @@ from .sources import READERS, load, probe, reader_for
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 
 @dataclass(frozen=True)
-class Ecart:
+class Discrepancy:
     """Le compte-rendu de confrontation. `conforme` ne veut PAS dire « rien à signaler » —
     il veut dire « aucun signal déclaré ne manque ». Les autres constats restent lisibles."""
 
@@ -101,7 +103,7 @@ class Ecart:
         """
         return not self.manquants
 
-    def rendre(self) -> str:
+    def render(self) -> str:
         """Compte-rendu lisible — destiné à être MONTRÉ, pas seulement testé."""
         bouts: List[str] = []
         if self.manquants:
@@ -127,7 +129,7 @@ class Ecart:
 # 2. Lecture du manifeste
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 
-def chemin(body: Mapping[str, Any], racine: Optional[Any] = None) -> Path:
+def path(body: Mapping[str, Any], racine: Optional[Any] = None) -> Path:
     """`source.ref` résolu. Relatif, il se résout sous `racine` — jamais sous le cwd.
 
     Un manifeste doit être rejouable ailleurs : le faire dépendre du répertoire courant le rendrait
@@ -142,7 +144,7 @@ def chemin(body: Mapping[str, Any], racine: Optional[Any] = None) -> Path:
     return p
 
 
-def signaux_declares(body: Mapping[str, Any]) -> List[str]:
+def declared_signals(body: Mapping[str, Any]) -> List[str]:
     """Identifiants des signaux déclarés, dans l'ordre du manifeste."""
     out: List[str] = []
     for s in (body.get('signals') or []):
@@ -151,7 +153,7 @@ def signaux_declares(body: Mapping[str, Any]) -> List[str]:
     return out
 
 
-def axes_declares(body: Mapping[str, Any]) -> List[Mapping[str, Any]]:
+def declared_axes(body: Mapping[str, Any]) -> List[Mapping[str, Any]]:
     """Les axes du plan d'expérience déclarés, dans l'ordre du manifeste (`WAMA_DATA_WORLD §13`)."""
     return [a for a in (body.get('axes') or []) if isinstance(a, Mapping) and a.get('key')]
 
@@ -164,12 +166,12 @@ def axes_declares(body: Mapping[str, Any]) -> List[Mapping[str, Any]]:
 PREFIXE_AXE = 'axe.'
 
 
-def attributs_de_coordonnees(coordonnees: Mapping[str, Any]) -> Dict[str, str]:
+def coordinate_attributes(coordonnees: Mapping[str, Any]) -> Dict[str, str]:
     """Coordonnées d'axes → attributs de conteneur, sous la forme canonique `axe.<clé>`.
 
     Destiné à `Contexte.attributs` (`containers/`), qui les écrit telles quelles dans `WamaMeta`.
-    C'est le pendant **écriture** de `situer()`, et le couple ferme l'aller-retour : ce que WAMA
-    écrit, `situer()` le retrouve par sa première graphie.
+    C'est le pendant **écriture** de `locate()`, et le couple ferme l'aller-retour : ce que WAMA
+    écrit, `locate()` le retrouve par sa première graphie.
 
     ⭐ Pourquoi écrire les coordonnées DANS le conteneur plutôt que de les déduire du chemin : elles
     **survivent au déplacement du fichier**. Un `.wdat` sorti de son arborescence continue de dire
@@ -181,7 +183,7 @@ def attributs_de_coordonnees(coordonnees: Mapping[str, Any]) -> Dict[str, str]:
             for k, v in coordonnees.items()}
 
 
-def situer(axes: Sequence[Mapping[str, Any]],
+def locate(axes: Sequence[Mapping[str, Any]],
            attributs: Mapping[str, Any]) -> Tuple[Dict[str, str], List[str]]:
     """Retrouve, pour chaque axe déclaré, sa coordonnée dans les attributs de la source.
 
@@ -202,40 +204,40 @@ def situer(axes: Sequence[Mapping[str, Any]],
     trouvees: Dict[str, str] = {}
     absents: List[str] = []
     for a in axes:
-        cle = str(a['key'])
-        for candidate in (f'{PREFIXE_AXE}{cle}', cle, a.get('source_key')):
+        key = str(a['key'])
+        for candidate in (f'{PREFIXE_AXE}{key}', key, a.get('source_key')):
             if candidate and candidate in attributs:
-                trouvees[cle] = str(attributs[candidate])
+                trouvees[key] = str(attributs[candidate])
                 break
         else:
-            absents.append(cle)
+            absents.append(key)
     return trouvees, absents
 
 
-def verifier(body: Mapping[str, Any], racine: Optional[Any] = None) -> Ecart:
+def verify(body: Mapping[str, Any], racine: Optional[Any] = None) -> Discrepancy:
     """Confronte le manifeste à la source **SANS la charger** (`probe` seul).
 
     C'est le contrat `verify` du §9bis : on peut dire ce qui cloche avant de payer la lecture —
     et sur une base de 1,28 Go, cette différence-là compte.
     """
-    p = chemin(body, racine)
+    p = path(body, racine)
     if not p.exists():
-        return Ecart(manquants=tuple(signaux_declares(body)),
+        return Discrepancy(manquants=tuple(declared_signals(body)),
                      notes=(f"source introuvable : {p}",))
 
     lecteur = reader_for(p)
     if lecteur is None:
-        return Ecart(manquants=tuple(signaux_declares(body)),
+        return Discrepancy(manquants=tuple(declared_signals(body)),
                      notes=(f"aucun lecteur pour '{p.name}' "
                             f"(formats enregistrés : {', '.join(sorted(READERS)) or '—'})",))
 
     info = probe(p)
     presents = set(info.streams)
-    declares = signaux_declares(body)
-    coords, sans = situer(axes_declares(body), info.attributes or {})
+    declares = declared_signals(body)
+    coords, sans = locate(declared_axes(body), info.attributes or {})
     manquants = tuple(s for s in declares if s not in presents)
 
-    return Ecart(
+    return Discrepancy(
         manquants=manquants,
         non_declares=tuple(sorted(presents - set(declares))),
         coordonnees=tuple(sorted(coords.items())),
@@ -271,10 +273,10 @@ def _indice_de_prefixe(manquants: Sequence[str], presents: set) -> Tuple[str, ..
             + " ») — nom de catalogue vs nom de table, voir D31",)
 
 
-def charger(body: Mapping[str, Any], racine: Optional[Any] = None, *,
+def load(body: Mapping[str, Any], racine: Optional[Any] = None, *,
             strict: bool = False, name: str = '',
             timestampers: Optional[Dict[str, Any]] = None
-            ) -> Tuple[TemporalReferential, Ecart]:
+            ) -> Tuple[TemporalReferential, Discrepancy]:
     """Ouvre le jeu déclaré et rend **le référentiel ET l'écart**.
 
     ⚠ LE COUPLE EST VOULU (① en tête) : on ne peut pas obtenir le référentiel sans recevoir aussi
@@ -295,13 +297,13 @@ def charger(body: Mapping[str, Any], racine: Optional[Any] = None, *,
     `strict=True` refuse dès qu'une promesse n'est pas tenue. Le défaut est `False` : un corpus
     réel est hétérogène, et refuser une passation partielle rendrait le manifeste inutilisable.
     """
-    ecart = verifier(body, racine)
+    ecart = verify(body, racine)
     if strict and not ecart.conforme:
-        raise ValueError(f"manifeste `dataset` non tenu par la source — {ecart.rendre()}")
+        raise ValueError(f"manifeste `dataset` non tenu par la source — {ecart.render()}")
     if ecart.notes:                      # source introuvable / aucun lecteur : rien à charger
-        raise ValueError(f"impossible d'ouvrir le jeu déclaré — {ecart.rendre()}")
+        raise ValueError(f"impossible d'ouvrir le jeu déclaré — {ecart.render()}")
 
-    p = chemin(body, racine)
-    demandes = [s for s in signaux_declares(body) if s not in ecart.manquants]
-    ref = load(p, streams=demandes, timestampers=timestampers, name=name or p.stem)
+    p = path(body, racine)
+    demandes = [s for s in declared_signals(body) if s not in ecart.manquants]
+    ref = load_source(p, streams=demandes, timestampers=timestampers, name=name or p.stem)
     return ref, ecart

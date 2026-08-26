@@ -13,8 +13,8 @@ import pandas as pd
 
 from wama.common.catalog.data_types import DataType, TypedFrame
 from wama.common.catalog.function_catalog import get as get_function
-from ...core.conditions import BOOLEEN, NUMERIQUE, TEXTE
-from .conditions import chain_to_events, chain_to_segments, sorte_de_colonne
+from ...core.conditions import BOOLEAN, NUMERIC, TEXT
+from .conditions import chain_to_events, chain_to_segments, column_kind
 
 SIGNAL = TypedFrame(pd.DataFrame({
     'time':    [0.0, 1.0, 2.0, 3.0, 4.0, 5.0],
@@ -24,10 +24,10 @@ SIGNAL = TypedFrame(pd.DataFrame({
 }), DataType.TIMESERIES)
 
 
-def _c(cle, champ, operator, valeur=None):
-    d = {'key': cle, 'field': champ, 'operator': operator}
-    if valeur is not None:
-        d['value'] = valeur
+def _c(key, field, operator, value=None):
+    d = {'key': key, 'field': field, 'operator': operator}
+    if value is not None:
+        d['value'] = value
     return d
 
 
@@ -35,25 +35,25 @@ class SorteTest(unittest.TestCase):
     """La seule responsabilité propre de l'adaptateur."""
 
     def test_colonne_numerique(self):
-        self.assertEqual(sorte_de_colonne(SIGNAL, 'vitesse'), NUMERIQUE)
+        self.assertEqual(column_kind(SIGNAL, 'vitesse'), NUMERIC)
 
     def test_colonne_texte(self):
-        self.assertEqual(sorte_de_colonne(SIGNAL, 'phase'), TEXTE)
+        self.assertEqual(column_kind(SIGNAL, 'phase'), TEXT)
 
     def test_un_booleen_n_est_PAS_vu_comme_numerique(self):
         # En pandas, `bool` est un sous-type de `number` : tester le booléen d'abord est la seule
         # façon de ne pas proposer `>=` sur une colonne de vrai/faux.
-        self.assertEqual(sorte_de_colonne(SIGNAL, 'actif'), BOOLEEN)
+        self.assertEqual(column_kind(SIGNAL, 'actif'), BOOLEAN)
 
     def test_colonne_mixte_repliee_sur_TEXTE_pas_sur_numerique(self):
         # Le repli qui refuse le plus : `contient` plutôt qu'une comparaison silencieusement fausse.
         mixte = TypedFrame(pd.DataFrame({'time': [0.0, 1.0], 'c': [1, 'deux']}),
                            DataType.TIMESERIES)
-        self.assertEqual(sorte_de_colonne(mixte, 'c'), TEXTE)
+        self.assertEqual(column_kind(mixte, 'c'), TEXT)
 
     def test_colonne_absente_nomme_les_disponibles(self):
         with self.assertRaises(ValueError) as ctx:
-            sorte_de_colonne(SIGNAL, 'inexistante')
+            column_kind(SIGNAL, 'inexistante')
         self.assertIn('vitesse', str(ctx.exception))
 
 
@@ -87,7 +87,7 @@ class ChaineVersSegmentsTest(unittest.TestCase):
 
     def test_une_sorte_DECLAREE_dans_le_JSON_est_IGNOREE(self):
         # Mentir sur la sorte rétablirait le défaut qu'on corrige.
-        menteuse = dict(_c('C1', 'phase', '<', 'M'), sorte=NUMERIQUE)
+        menteuse = dict(_c('C1', 'phase', '<', 'M'), kind=NUMERIC)
         with self.assertRaises(ValueError):
             chain_to_segments(SIGNAL, conditions=[menteuse])
 
@@ -179,8 +179,8 @@ class DeclarationsTest(unittest.TestCase):
     """Les deux fonctions sont bien AU CATALOGUE — sans quoi elles sont inchaînables (G1/G3)."""
 
     def test_les_deux_fonctions_sont_enregistrees(self):
-        for cle in ('segment_condition_chain', 'event_condition_chain'):
-            self.assertIsNotNone(get_function(cle), f"{cle} absente du catalogue")
+        for key in ('segment_condition_chain', 'event_condition_chain'):
+            self.assertIsNotNone(get_function(key), f"{key} absente du catalogue")
 
     def test_les_ports_de_sortie_different(self):
         self.assertEqual(get_function('segment_condition_chain').outputs[0].data_type,

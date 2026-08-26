@@ -39,7 +39,7 @@ import statistics as _stats
 from bisect import bisect_left, bisect_right
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
-from .valeurs import manquant, presentes
+from .values import missing, present
 
 #: Fin inconnue — importé du Segmenter plutôt que redéfini : c'est le MÊME `None`.
 from .segmentation import OUVERT  # noqa: F401  (réexporté : un calcul sur segments en parle)
@@ -83,14 +83,14 @@ def _verifier(name: str) -> Tuple[Callable, int]:
             f"statistique '{name}' inconnue (disponibles : {', '.join(sorted(STATISTIQUES))})")
 
 
-def appliquer(name: str, valeurs: Sequence[Any]) -> Optional[float]:
+def apply(name: str, values: Sequence[Any]) -> Optional[float]:
     """UNE statistique sur des valeurs éventuellement absentes. `None` si le minimum n'est pas tenu.
 
     Point de passage unique des deux modes : c'est ce qui garantit que « moyenne » signifie la
     même chose dans une fenêtre glissante et dans un segment.
     """
     calcul, minimum = _verifier(name)
-    vals = presentes(valeurs)
+    vals = present(values)
     if len(vals) < minimum:
         return None
     return calcul(vals)
@@ -114,7 +114,7 @@ def _croissants(times: Sequence[float]) -> None:
 # ① COLONNES DÉRIVÉES — signal → signal, même longueur, mêmes temps
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 
-def glissant(times: Sequence[float], valeurs: Sequence[Any], window_s: float,
+def rolling(times: Sequence[float], values: Sequence[Any], window_s: float,
              statistic: str = DEFAUT, *, centered: bool = True,
              min_points: int = 1) -> List[Optional[float]]:
     """Statistique sur une fenêtre GLISSANTE exprimée en secondes.
@@ -136,25 +136,25 @@ def glissant(times: Sequence[float], valeurs: Sequence[Any], window_s: float,
         raise ValueError("la fenêtre doit être une durée strictement positive (en secondes)")
     _verifier(statistic)
     _croissants(times)
-    if len(times) != len(valeurs):
-        raise ValueError(f"temps et valeurs de longueurs différentes ({len(times)} ≠ {len(valeurs)})")
+    if len(times) != len(values):
+        raise ValueError(f"temps et valeurs de longueurs différentes ({len(times)} ≠ {len(values)})")
 
     before, after = (window_s / 2.0, window_s / 2.0) if centered else (window_s, 0.0)
     ts = list(times)
     sortie: List[Optional[float]] = []
     for i, t in enumerate(ts):
-        # Bornes INCLUSIVES des deux côtés — même convention que `chevauche` du Segmenter.
+        # Bornes INCLUSIVES des deux côtés — même convention que `overlapping` du Segmenter.
         lo = bisect_left(ts, t - before)
         hi = bisect_right(ts, t + after)
-        fenetre = presentes(valeurs[lo:hi])
+        fenetre = present(values[lo:hi])
         if len(fenetre) < max(1, min_points):
             sortie.append(None)
             continue
-        sortie.append(appliquer(statistic, fenetre))
+        sortie.append(apply(statistic, fenetre))
     return sortie
 
 
-def derivee(times: Sequence[float], valeurs: Sequence[Any]) -> List[Optional[float]]:
+def derivative(times: Sequence[float], values: Sequence[Any]) -> List[Optional[float]]:
     """Taux de variation instantané (unité/seconde), par différence CENTRÉE quand c'est possible.
 
     Différence centrée à l'intérieur `(v[i+1] − v[i−1]) / (t[i+1] − t[i−1])`, décentrée aux bords.
@@ -166,8 +166,8 @@ def derivee(times: Sequence[float], valeurs: Sequence[Any]) -> List[Optional[flo
     des `inf` qui contaminent toute statistique en aval.
     """
     _croissants(times)
-    if len(times) != len(valeurs):
-        raise ValueError(f"temps et valeurs de longueurs différentes ({len(times)} ≠ {len(valeurs)})")
+    if len(times) != len(values):
+        raise ValueError(f"temps et valeurs de longueurs différentes ({len(times)} ≠ {len(values)})")
     n = len(times)
     if n < 2:
         return [None] * n
@@ -176,14 +176,14 @@ def derivee(times: Sequence[float], valeurs: Sequence[Any]) -> List[Optional[flo
     for i in range(n):
         g, d = (i - 1, i + 1) if 0 < i < n - 1 else ((i, i + 1) if i == 0 else (i - 1, i))
         dt = times[d] - times[g]
-        if dt <= 0 or manquant(valeurs[g]) or manquant(valeurs[d]):
+        if dt <= 0 or missing(values[g]) or missing(values[d]):
             sortie.append(None)
             continue
-        sortie.append((valeurs[d] - valeurs[g]) / dt)
+        sortie.append((values[d] - values[g]) / dt)
     return sortie
 
 
-def cumul(times: Sequence[float], valeurs: Sequence[Any]) -> List[Optional[float]]:
+def cumulative(times: Sequence[float], values: Sequence[Any]) -> List[Optional[float]]:
     """Intégrale cumulée par la méthode des trapèzes (aire sous le signal, unité × seconde).
 
     À l'indice `i` : l'aire accumulée de `times[0]` à `times[i]`. Le premier point vaut donc `0.0`
@@ -194,8 +194,8 @@ def cumul(times: Sequence[float], valeurs: Sequence[Any]) -> List[Optional[float
     dans la sortie ne dirait qu'elle a été inventée.
     """
     _croissants(times)
-    if len(times) != len(valeurs):
-        raise ValueError(f"temps et valeurs de longueurs différentes ({len(times)} ≠ {len(valeurs)})")
+    if len(times) != len(values):
+        raise ValueError(f"temps et valeurs de longueurs différentes ({len(times)} ≠ {len(values)})")
     if not times:
         return []
 
@@ -203,8 +203,8 @@ def cumul(times: Sequence[float], valeurs: Sequence[Any]) -> List[Optional[float
     sortie: List[Optional[float]] = [0.0]
     for i in range(1, len(times)):
         dt = times[i] - times[i - 1]
-        if dt > 0 and not manquant(valeurs[i - 1]) and not manquant(valeurs[i]):
-            aire += (valeurs[i - 1] + valeurs[i]) / 2.0 * dt
+        if dt > 0 and not missing(values[i - 1]) and not missing(values[i]):
+            aire += (values[i - 1] + values[i]) / 2.0 * dt
         sortie.append(aire)
     return sortie
 
@@ -219,22 +219,22 @@ def cumul(times: Sequence[float], valeurs: Sequence[Any]) -> List[Optional[float
 CHAMPS_DE_SERVICE = ('n', 'duration', 'truncated')
 
 
-def echantillons_du_segment(segment: Dict[str, Any], times: Sequence[float],
-                            valeurs: Sequence[Any]) -> List[Any]:
+def segment_samples(segment: Dict[str, Any], times: Sequence[float],
+                            values: Sequence[Any]) -> List[Any]:
     """Valeurs (présentes ou non) dont le temps tombe dans `[start, end]`, bornes INCLUSES.
 
     Une fin inconnue (`end is None`) vaut `+∞` — exactement la convention du Segmenter
-    (`present_dans`, `chevauche`). Un état encore ouvert agrège donc jusqu'au dernier échantillon
+    (`within`, `overlapping`). Un état encore ouvert agrège donc jusqu'au dernier échantillon
     disponible ; c'est `tronque` qui dit que le résultat est partiel.
     """
     debut = segment['start']
     fin = segment.get('end')
-    fin = float('inf') if manquant(fin) else fin
+    fin = float('inf') if missing(fin) else fin
     ts = list(times)
-    return list(valeurs[bisect_left(ts, debut):bisect_right(ts, fin)])
+    return list(values[bisect_left(ts, debut):bisect_right(ts, fin)])
 
 
-def par_segment(segments: Sequence[Dict[str, Any]], times: Sequence[float], valeurs: Sequence[Any],
+def per_segment(segments: Sequence[Dict[str, Any]], times: Sequence[float], values: Sequence[Any],
                 statistics: Sequence[str] = (DEFAUT,)) -> List[Dict[str, Any]]:
     """Un jeu d'indicateurs PAR SEGMENT, dans l'ordre reçu.
 
@@ -253,20 +253,20 @@ def par_segment(segments: Sequence[Dict[str, Any]], times: Sequence[float], vale
     for name in statistics:
         _verifier(name)
     _croissants(times)
-    if len(times) != len(valeurs):
-        raise ValueError(f"temps et valeurs de longueurs différentes ({len(times)} ≠ {len(valeurs)})")
+    if len(times) != len(values):
+        raise ValueError(f"temps et valeurs de longueurs différentes ({len(times)} ≠ {len(values)})")
 
     sortie: List[Dict[str, Any]] = []
     for segment in segments:
-        dans = echantillons_du_segment(segment, times, valeurs)
-        vals = presentes(dans)
-        ouvert = manquant(segment.get('end'))
+        dans = segment_samples(segment, times, values)
+        vals = present(dans)
+        ouvert = missing(segment.get('end'))
         jeu: Dict[str, Any] = {
             'n': len(vals),
             'duration': None if ouvert else segment['end'] - segment['start'],
             'truncated': ouvert,
         }
         for name in statistics:
-            jeu[name] = appliquer(name, vals)
+            jeu[name] = apply(name, vals)
         sortie.append(jeu)
     return sortie

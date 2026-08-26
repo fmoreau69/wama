@@ -25,12 +25,12 @@ Cette règle était DÉJÀ APPLIQUÉE ici, mais n'existait nulle part comme doct
 qu'une propriété émergente de ces deux catégories, donc contredisible par le prochain module sans
 que personne ne s'en aperçoive. Ses trois conséquences, pour qui écrit une fonction de calcul :
 
-  • deux colonnes de la MÊME table  → `ENRICHER`, colonne adjointe, nom dérivé (`nom_produit()`) ;
+  • deux colonnes de la MÊME table  → `ENRICHER`, colonne adjointe, nom dérivé (`derived_name()`) ;
   • deux colonnes à PAS DIFFÉRENTS  → surtout PAS d'interpolation (D6). Le défaut recommandé est
     l'AGRÉGATION du flux rapide sur les intervalles du lent — c'est `calcul_par_segment`, et elle
     n'invente aucune valeur. Le rééchantillonnage vers une table annexe reste possible, mais
     EXPLICITE et tracé (D10) : la grille change, donc c'est une nouvelle table ;
-  • calcul sur une PORTION (`present_dans`) → la clé temporelle ne change pas : mêmes instants, en
+  • calcul sur une PORTION (`within`) → la clé temporelle ne change pas : mêmes instants, en
     moins. La colonne revient donc dans la table d'origine AVEC DES TROUS (`None` hors contexte),
     ce qui est plus informatif qu'une table à part. ⚠ Calculer SUR la restriction, jamais masquer
     après : aux bords du contexte, masquer laisserait fuir des échantillons extérieurs dans la
@@ -48,7 +48,7 @@ l'export, où elles sont le produit demandé.
 NUMÉRIQUES — on en calcule des moyennes en aval. Y forcer `object` pour préserver `None` casserait
 toute arithmétique, et `NaN` est justement la marque d'absence des flottants. La distinction qui
 compte (« pas de durée observée » ≠ « durée nulle ») survit intacte, puisque `NaN` n'est pas `0`.
-La relecture se fait avec `manquant()`, comme partout ailleurs à cette frontière.
+La relecture se fait avec `missing()`, comme partout ailleurs à cette frontière.
 
 ⚠ `n` ET la statistique `nombre` font double emploi au mode ② — assumé. `nombre` existe pour le
 mode ①, où une fenêtre glissante n'a pas de champ de service pour dire combien de points elle a
@@ -68,22 +68,22 @@ from __future__ import annotations
 from wama.common.catalog.data_types import CANONICAL_FIELDS, DataType, TypedFrame
 from wama.common.catalog.function_catalog import (FunctionCategory, FunctionSpec, ParamSpec,
                                                   PortSpec, register)
-from ...core.calculation import (CHAMPS_DE_SERVICE, DEFAUT, STATISTIQUES, cumul, derivee,
-                                 glissant, par_segment)
+from ...core.calculation import (CHAMPS_DE_SERVICE, DEFAUT, STATISTIQUES, cumulative, derivative,
+                                 rolling, per_segment)
 from .segmentation import _colonne, _fin, _segments
 
 
-#: ⚠ `nom_produit` VIVAIT ICI, dans l'adaptateur, alors que `nom_jonction`/`nom_chaine` vivaient
+#: ⚠ `derived_name` VIVAIT ICI, dans l'adaptateur, alors que `join_name`/`chain_name` vivaient
 #: dans le cœur — même famille de règle, deux étages (audit A, §9sexies). Elle a rejoint la brique
 #: unique `core/noms.py` ; on la garde importable d'ici, les appelants n'ont pas à savoir.
-from ...core.noms import nom_produit  # noqa: F401
+from ...core.naming import derived_name  # noqa: F401
 
 
-def _avec_colonne(signal: TypedFrame, name: str, valeurs: list) -> TypedFrame:
+def _avec_colonne(signal: TypedFrame, name: str, values: list) -> TypedFrame:
     """Le cadre d'entrée, augmenté d'une colonne. L'entrée n'est jamais modifiée en place —
     une fonction de chaîne qui mute son entrée casse tout rejeu de la chaîne."""
     df = signal.df.copy()
-    df[name] = valeurs
+    df[name] = values
     return TypedFrame(df, signal.data_type, meta=signal.meta)
 
 
@@ -93,21 +93,21 @@ def calc_rolling(signal: TypedFrame, window_s: float = 5.0, statistic: str = DEF
                     column: str = 'value', centered: bool = True,
                     min_points: int = 1) -> TypedFrame:
     """Statistique sur fenêtre glissante (en SECONDES) → nouvelle colonne."""
-    valeurs = glissant(_colonne(signal, 'time'), _colonne(signal, column), window_s,
+    values = rolling(_colonne(signal, 'time'), _colonne(signal, column), window_s,
                        statistic, centered=centered, min_points=min_points)
-    return _avec_colonne(signal, nom_produit(column, statistic), valeurs)
+    return _avec_colonne(signal, derived_name(column, statistic), values)
 
 
 def calc_derivative(signal: TypedFrame, column: str = 'value') -> TypedFrame:
     """Taux de variation instantané (unité/seconde) → nouvelle colonne."""
-    return _avec_colonne(signal, nom_produit(column, 'derivative'),
-                         derivee(_colonne(signal, 'time'), _colonne(signal, column)))
+    return _avec_colonne(signal, derived_name(column, 'derivative'),
+                         derivative(_colonne(signal, 'time'), _colonne(signal, column)))
 
 
 def calc_cumulative(signal: TypedFrame, column: str = 'value') -> TypedFrame:
     """Intégrale cumulée (unité × seconde) → nouvelle colonne."""
-    return _avec_colonne(signal, nom_produit(column, 'cumulative'),
-                         cumul(_colonne(signal, 'time'), _colonne(signal, column)))
+    return _avec_colonne(signal, derived_name(column, 'cumulative'),
+                         cumulative(_colonne(signal, 'time'), _colonne(signal, column)))
 
 
 # ── ② INDICATEURS PAR SEGMENT ─────────────────────────────────────────────────────────────────
@@ -119,14 +119,14 @@ def calc_per_segment(segments: TypedFrame, signal: TypedFrame, statistics: str =
     `statistiques` est une liste séparée par des virgules — la forme qui reste sérialisable dans
     un manifeste et éditable dans une modale générée, contrairement à une liste Python.
     """
-    noms = [s.strip() for s in statistics.split(',') if s.strip()] or [DEFAUT]
-    lignes = [dict(r, end=_fin(r.get('end'))) for r in segments.df.to_dict('records')]
-    jeux = par_segment(lignes, _colonne(signal, 'time'), _colonne(signal, column), noms)
+    naming = [s.strip() for s in statistics.split(',') if s.strip()] or [DEFAUT]
+    rows = [dict(r, end=_fin(r.get('end'))) for r in segments.df.to_dict('records')]
+    jeux = per_segment(rows, _colonne(signal, 'time'), _colonne(signal, column), naming)
     # Les indicateurs sont PRÉFIXÉS du nom de la colonne mesurée : sans cela, calculer sur deux
     # signaux successifs écraserait la première série par la seconde, en silence.
     fusion = []
-    for ligne, jeu in zip(lignes, jeux):
-        indicateurs = {(k if k in CHAMPS_DE_SERVICE else nom_produit(column, k)): v
+    for ligne, jeu in zip(rows, jeux):
+        indicateurs = {(k if k in CHAMPS_DE_SERVICE else derived_name(column, k)): v
                        for k, v in jeu.items()}
         fusion.append({**ligne, **indicateurs})
     return _segments(fusion, meta=segments.meta)

@@ -566,7 +566,7 @@ MECANISMES = (
               "DÉRIVANT de la `FunctionCategory` : ajouter une fonction au catalogue la range du "
               "bon côté sans toucher le view-model. La séparation tables/annexes rend la règle "
               "visible à l'écran au lieu d'avoir à l'expliquer",
-              'wama_data/vue.py', 'WAMA_DATA_WORLD.md §9quater.4, §9quater.7'),
+              'wama_data/view.py', 'WAMA_DATA_WORLD.md §9quater.4, §9quater.7'),
     Mecanisme('data_noms', 'Noms dérivés (WAMA Data)',
               "DOMICILE UNIQUE de la règle « le nom se DÉRIVE des paramètres, il ne se saisit "
               "pas » : deux productions de mêmes réglages portent le même nom, deux réglages "
@@ -575,7 +575,7 @@ MECANISMES = (
               "emplacements réexportent ; un test vérifie l'IDENTITÉ des fonctions, donc une "
               "redéfinition locale même à l'identique échoue. Sans dépendance, par nécessité : "
               "c'est ce qui permet à `conditions.py` de l'importer sans cycle",
-              'wama_data/core/noms.py', 'WAMA_DATA_WORLD.md §9ter.6 B7, §9sexies.4'),
+              'wama_data/core/naming.py', 'WAMA_DATA_WORLD.md §9ter.6 B7, §9sexies.4'),
     Mecanisme('data_containers', 'Écrivain de conteneur (WAMA Data)',
               "UN MOTEUR, N SCHÉMAS — le pendant exact du registre de lecteurs, et le premier "
               "code du monde Data qui ÉCRIVE du SQLite (0 `INSERT` dans tout le monde avant lui). "

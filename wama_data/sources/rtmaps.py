@@ -91,7 +91,7 @@ ENCODAGES_EXTERNES = {'video_file': '.avi', 'audio_file': '.wav', 'raw': '.raw'}
 ENCODAGES_TEXTE = {'txt', 'tabbed_text'}
 
 
-def temps_en_secondes(brut: str) -> Optional[float]:
+def to_seconds(brut: str) -> Optional[float]:
     """`MM:SS.ffffff` ou `H:MM:SS.ffffff` → secondes. `None` si illisible.
 
     Les heures n'apparaissent qu'au-delà de la première — d'où le format variable, qui est une
@@ -146,14 +146,14 @@ class RecReader(SourceReader):
     def probe(self, path: Path) -> SourceInfo:
         idy = path.with_suffix('.idy')
         depuis_idy = idy.exists()
-        lignes = self._entete(idy if depuis_idy else path)
+        rows = self._entete(idy if depuis_idy else path)
 
-        flux: List[str] = []
+        stream: List[str] = []
         encodages: Dict[str, str] = {}
         medias: List[Dict[str, Any]] = []
         attributs: Dict[str, Any] = {}
 
-        for ligne in lignes:
+        for ligne in rows:
             m = _LANCEMENT.match(ligne)
             if m:
                 attributs['recording_start_time'] = m.group('quand').strip()
@@ -165,7 +165,7 @@ class RecReader(SourceReader):
             if name in encodages:
                 continue
             encodages[name] = m.group('encodage')
-            flux.append(name)
+            stream.append(name)
             ext = ENCODAGES_EXTERNES.get(m.group('encodage'))
             if ext:
                 compagnon = _compagnon(path, m.group('composant'), m.group('sortie'), ext)
@@ -174,21 +174,21 @@ class RecReader(SourceReader):
 
         attributs['encodages'] = encodages
         attributs['inventaire'] = 'idy' if depuis_idy else 'rec (balayage d\'en-tête)'
-        lisibles = [f for f in flux if encodages[f] in ENCODAGES_TEXTE]
+        lisibles = [f for f in stream if encodages[f] in ENCODAGES_TEXTE]
         return SourceInfo(
-            format=self.format, path=str(path), streams=flux,
+            format=self.format, path=str(path), streams=stream,
             attributes=attributs, media=medias,
-            notes=(f"{len(flux)} flux déclaré(s), dont {len(lisibles)} en texte inline ; "
+            notes=(f"{len(stream)} flux déclaré(s), dont {len(lisibles)} en texte inline ; "
                    f"{len(medias)} fichier(s) externe(s) ; inventaire lu dans "
                    f"« {idy.name if depuis_idy else path.name} »"),
         )
 
     @staticmethod
-    def _entete(chemin: Path, max_lignes: int = 20000) -> List[str]:
+    def _entete(path: Path, max_lignes: int = 20000) -> List[str]:
         """Lignes d'inventaire. Sur un `.idy` c'est tout le fichier (quelques kilo-octets) ;
         sur un `.rec`, on se borne — les déclarations `@ Record` sont en tête."""
         out: List[str] = []
-        with chemin.open('r', encoding='latin-1', errors='replace') as fh:
+        with path.open('r', encoding='latin-1', errors='replace') as fh:
             for i, ligne in enumerate(fh):
                 if i >= max_lignes:
                     break
@@ -230,7 +230,7 @@ class RecReader(SourceReader):
         temps: Dict[str, array] = {f: array('d') for f in voulus}
         charges: Dict[str, List[Any]] = {f: [] for f in voulus}
         dernier_idx: Dict[str, int] = {}
-        pertes: Dict[str, int] = {f: 0 for f in voulus}
+        losses: Dict[str, int] = {f: 0 for f in voulus}
 
         with path.open('r', encoding='latin-1', errors='replace') as fh:
             for ligne in fh:
@@ -245,11 +245,11 @@ class RecReader(SourceReader):
                 precedent = dernier_idx.get(name)
                 if precedent is not None and idx != precedent + 1:
                     # ④ Un index non consécutif = échantillon(s) perdu(s) à l'acquisition.
-                    pertes[name] += max(0, idx - precedent - 1)
+                    losses[name] += max(0, idx - precedent - 1)
                 dernier_idx[name] = idx
 
-                toi = temps_en_secondes(m.group('toi'))
-                ts = temps_en_secondes(m.group('ts'))
+                toi = to_seconds(m.group('toi'))
+                ts = to_seconds(m.group('ts'))
                 horodateur = timestampers.get(name)
                 if horodateur is not None:
                     t = horodateur.timestamp(toi, idx, ts)
@@ -264,16 +264,16 @@ class RecReader(SourceReader):
 
         out: List[StreamSpec] = []
         for name in sorted(voulus):
-            lignes = [{'value': v} for v in charges[name]]
+            rows = [{'value': v} for v in charges[name]]
             meta = SignalMeta(
                 name=name,
                 data_type=DataType.TIMESERIES,
                 default_lookup=NEAREST,
-                pertes=pertes[name],
+                losses=losses[name],
                 comments=f"rtmaps · {encodages.get(name, '?')}",
             )
             out.append(StreamSpec(meta=meta, times=list(temps[name]),
-                                  rows=(lambda l: (lambda i0, i1: l[i0:i1]))(lignes)))
+                                  rows=(lambda l: (lambda i0, i1: l[i0:i1]))(rows)))
         return out
 
 

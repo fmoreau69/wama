@@ -311,7 +311,7 @@ def _fait_wama_data() -> str:
     Une brique sans consommateur est inerte — l'afficher évite de confondre écrire du code et
     avancer, ce qui est arrivé au référentiel temporel (440 lignes, 0 appelant).
     """
-    from wama_data.modules import mesurer
+    from wama_data.modules import measure as mesurer
 
     etats = mesurer()
     legende = {'✅': 'livré et consommé', '🔶': 'livré mais INERTE',

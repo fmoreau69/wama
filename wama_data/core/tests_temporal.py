@@ -20,7 +20,7 @@ from pathlib import Path
 from .temporal import (EXACT, NEAREST, PREVIOUS, Signal, SignalMeta, TemporalReferential)
 
 #: Base d'expérimentation réelle, hors dépôt (dossier gitignoré). Absente = contrôles sautés.
-from ..corpus import BASE_REELLE, raison_absence
+from ..corpus import REAL_BASE, absence_reason
 
 
 def signal(name, times, ends=None, rows=None, **kw):
@@ -124,7 +124,7 @@ class SegmentOuvertTest(unittest.TestCase):
     Et `frames.signal_depuis_frame()` en produit — le test d'aller-retour existant vérifiait que la
     valeur SURVIT, jamais qu'on puisse l'INTERROGER.
 
-    La convention existait déjà dans `core/segmentation.py` (`present_dans`, `chevauche` traitent
+    La convention existait déjà dans `core/segmentation.py` (`within`, `overlapping` traitent
     une fin absente comme `+∞`) ; elle n'avait pas été portée ici.
     """
 
@@ -164,11 +164,11 @@ class SegmentOuvertTest(unittest.TestCase):
 
         from wama.common.catalog.data_types import DataType, TypedFrame
 
-        from ..frames import signal_depuis_frame
+        from ..frames import signal_from_frame
         f = TypedFrame(pd.DataFrame({'start': [0.0, 10.0],
                                      'end': pd.Series([5.0, None], dtype=object)}),
                        DataType.SEGMENTS)
-        s = signal_depuis_frame(f, 'sit')
+        s = signal_from_frame(f, 'sit')
         self.assertEqual(s.overlapping(0.0, 20.0), [0, 1])
         self.assertEqual(s.containing(12.0), [1])
 
@@ -196,10 +196,10 @@ class DecimationTest(unittest.TestCase):
     def setUp(self):
         # Signal plat avec UNE pointe isolée : le cas qu'un « 1 point sur N » perdrait.
         self.times = [i * 0.1 for i in range(1000)]
-        self.valeurs = [0.0] * 1000
-        self.valeurs[437] = 99.0          # pointe au milieu d'une tranche
-        self.valeurs[438] = -42.0
-        rows = lambda i0, i1: [{"v": self.valeurs[i]} for i in range(i0, i1)]
+        self.values = [0.0] * 1000
+        self.values[437] = 99.0          # pointe au milieu d'une tranche
+        self.values[438] = -42.0
+        rows = lambda i0, i1: [{"v": self.values[i]} for i in range(i0, i1)]
         self.s = signal("s", self.times, rows=rows)
 
     def test_tranches_bornees_et_ordinal_porte(self):
@@ -282,14 +282,14 @@ class ReferentielTest(unittest.TestCase):
             self.ref.add(signal("rapide", [0.0]))
 
 
-@unittest.skipUnless(BASE_REELLE.exists(), raison_absence())
+@unittest.skipUnless(REAL_BASE.exists(), absence_reason())
 class BaseReelleTest(unittest.TestCase):
     """Ce que le synthétique ne peut pas prouver : volumes, cadences incommensurables, SQL."""
 
     @classmethod
     def setUpClass(cls):
         from .. import sources
-        cls.ref = sources.load(BASE_REELLE,
+        cls.ref = sources.load(REAL_BASE,
                                streams=["data_BIOPAC_MP150", "data_PUPIL_GLASSES_gaze",
                                         "situation_0_15", "situation_0_60"])
 

@@ -7,44 +7,44 @@ chaînable après une détection et avant un export, sans une ligne de code stud
 déclaration, le codage IA resterait un script à part — exactement la fracture que le monde Data
 existe pour éviter.
 
-La SESSION interactive (`SessionCodage`) n'a volontairement pas d'entrée ici : elle est
+La SESSION interactive (`CodingSession`) n'a volontairement pas d'entrée ici : elle est
 événementielle et pilotée par le transport, donc elle relève de l'interface, pas du pipeline. Ce
 qu'on déclare est sa forme REJOUABLE — une liste de gestes en entrée, des segments en sortie. C'est
-la même exécution : `rejouer` construit une vraie session et lui envoie les gestes un à un.
+la même exécution : `replay` construit une vraie session et lui envoie les gestes un à un.
 
 ⚠ ADAPTATEURS DE PORTS uniquement, comme pour `segmentation.py` : aucune logique ici.
 """
 from __future__ import annotations
 
-from ...core.coding import Protocole, accord, rejouer
+from ...core.coding import Protocol, agreement, replay
 from wama.common.catalog.data_types import CANONICAL_FIELDS, DataType, TypedFrame
 from wama.common.catalog.function_catalog import FunctionCategory, FunctionSpec, ParamSpec, PortSpec, register
-from .segmentation import CHAMPS_SEGMENT, _colonne, _fin, _segments, manquant
+from .segmentation import CHAMPS_SEGMENT, _colonne, _fin, _segments, missing
 
 #: Champs d'un événement produit par le codage — un ponctuel garde la même forme qu'un état.
 CHAMPS_EVENT = CANONICAL_FIELDS[DataType.EVENTS] + ['value', 'label', 'origin']
 
 
-def _protocole(source) -> Protocole:
-    """Accepte un `Protocole`, son dictionnaire, ou un chemin de fichier JSON.
+def _protocole(source) -> Protocol:
+    """Accepte un `Protocol`, son dictionnaire, ou un chemin de fichier JSON.
 
     Les trois formes sont la MÊME déclaration : c'est la propriété qui fait du protocole un
     manifeste. Un paramètre de nœud est sérialisé, donc arrive en dict ou en chemin ; du code
     Python passe l'objet.
     """
-    if isinstance(source, Protocole):
+    if isinstance(source, Protocol):
         return source
     if isinstance(source, dict):
-        return Protocole.depuis_dict(source)
+        return Protocol.from_dict(source)
     if isinstance(source, (str,)) and source:
         import json
         from pathlib import Path
-        return Protocole.depuis_dict(json.loads(Path(source).read_text(encoding='utf-8')))
+        return Protocol.from_dict(json.loads(Path(source).read_text(encoding='utf-8')))
     raise ValueError("protocole requis (objet, dictionnaire ou chemin JSON)")
 
 
 def _gestes(frame: TypedFrame, code_column: str) -> list:
-    """Un flux d'événements → la liste de gestes attendue par `rejouer`.
+    """Un flux d'événements → la liste de gestes attendue par `replay`.
 
     Tout champ hors (temps, code, sujet, commentaire) est passé en MODIFICATEUR : c'est ainsi qu'un
     détecteur transmet ce qu'il a mesuré (confiance, classe, vitesse) sans que le catalogue ait à
@@ -58,17 +58,17 @@ def _gestes(frame: TypedFrame, code_column: str) -> list:
     arrête une hallucination de modèle.
     """
     reserves = {'time', code_column, 'subject', 'comment'}
-    gestes = []
+    gestures = []
     for r in frame.df.to_dict('records'):
-        mods = {k: v for k, v in r.items() if k not in reserves and not manquant(v)}
-        gestes.append({'t': float(r['time']), 'code': r[code_column],
-                       'subject': '' if manquant(r.get('subject')) else (r.get('subject') or ''),
-                       'comment': '' if manquant(r.get('comment')) else (r.get('comment') or ''),
+        mods = {k: v for k, v in r.items() if k not in reserves and not missing(v)}
+        gestures.append({'t': float(r['time']), 'code': r[code_column],
+                       'subject': '' if missing(r.get('subject')) else (r.get('subject') or ''),
+                       'comment': '' if missing(r.get('comment')) else (r.get('comment') or ''),
                        'modifiers': mods or None})
-    return gestes
+    return gestures
 
 
-def coding_replay(gestes: TypedFrame, protocole=None, coder: str = '', media: str = '',
+def coding_replay(gestures: TypedFrame, protocole=None, coder: str = '', media: str = '',
                    code_column: str = 'value',
                    session_end: float = None) -> TypedFrame:
     """Rejoue une liste de gestes contre un protocole → segments.
@@ -79,13 +79,13 @@ def coding_replay(gestes: TypedFrame, protocole=None, coder: str = '', media: st
     humain, avec `codage_accord`.
     """
     proto = _protocole(protocole)
-    media = media or (gestes.meta or {}).get('media') or (gestes.meta or {}).get('source') or ''
-    segs, _ev = rejouer(proto, media, _gestes(gestes, code_column), coder=coder,
+    media = media or (gestures.meta or {}).get('media') or (gestures.meta or {}).get('source') or ''
+    segs, _ev = replay(proto, media, _gestes(gestures, code_column), coder=coder,
                         session_end=session_end)
-    return _segments(segs, meta=gestes.meta)
+    return _segments(segs, meta=gestures.meta)
 
 
-def coding_events(gestes: TypedFrame, protocole=None, coder: str = '', media: str = '',
+def coding_events(gestures: TypedFrame, protocole=None, coder: str = '', media: str = '',
                       code_column: str = 'value') -> TypedFrame:
     """Même exécution, sortie ÉVÉNEMENTS : les comportements ponctuels du protocole.
 
@@ -94,11 +94,11 @@ def coding_events(gestes: TypedFrame, protocole=None, coder: str = '', media: st
     """
     import pandas as pd
     proto = _protocole(protocole)
-    media = media or (gestes.meta or {}).get('media') or (gestes.meta or {}).get('source') or ''
-    _segs, ev = rejouer(proto, media, _gestes(gestes, code_column), coder=coder)
+    media = media or (gestures.meta or {}).get('media') or (gestures.meta or {}).get('source') or ''
+    _segs, ev = replay(proto, media, _gestes(gestures, code_column), coder=coder)
     rows = [dict(e, time=e['start']) for e in ev]
     df = pd.DataFrame(rows) if rows else pd.DataFrame(columns=CHAMPS_EVENT)
-    return TypedFrame(df, DataType.EVENTS, meta=gestes.meta)
+    return TypedFrame(df, DataType.EVENTS, meta=gestures.meta)
 
 
 def coding_agreement(reference: TypedFrame, compare: TypedFrame,
@@ -118,7 +118,7 @@ def coding_agreement(reference: TypedFrame, compare: TypedFrame,
                                        _colonne(f, 'value'),
                                        list(f.df['subject']) if 'subject' in f.df.columns
                                        else [None] * len(f.df))]
-    r = accord(_lire(reference), _lire(compare), tolerance=tolerance)
+    r = agreement(_lire(reference), _lire(compare), tolerance=tolerance)
     return TypedFrame(pd.DataFrame([r]), DataType.TABLE, meta=reference.meta)
 
 
@@ -127,7 +127,7 @@ def coding_agreement(reference: TypedFrame, compare: TypedFrame,
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
 _ENTREE_GESTES = PortSpec(
-    'gestes', DataType.EVENTS, required_fields=['time'],
+    'gestures', DataType.EVENTS, required_fields=['time'],
     description="Gestes de codage : un instant + un code du protocole. Produits par un humain à "
                 "l'interface OU par un modèle de vision — le port ne fait pas la différence, et "
                 "c'est le but.")

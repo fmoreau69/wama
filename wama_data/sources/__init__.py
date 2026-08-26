@@ -232,7 +232,7 @@ def load(path, streams=None, timestampers=None, name: str = '') -> TemporalRefer
     return ref
 
 
-def modules_lecteurs() -> List[str]:
+def reader_modules() -> List[str]:
     """Modules de lecture du paquet — **DÉCOUVERTS, jamais cités**.
 
     ⚠ C'EST LE GARDE-FOU **G1** LUI-MÊME : « aucun format privilégié — le moteur ne cite aucun
@@ -260,7 +260,7 @@ def _register_builtins():
     seulement écrite.
     """
     import importlib
-    for name in modules_lecteurs():
+    for name in reader_modules():
         try:
             importlib.import_module(f'{__name__}.{name}')
         except Exception:

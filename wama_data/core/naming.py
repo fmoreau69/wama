@@ -19,7 +19,7 @@ Même famille de règle, moitié dans le cœur, moitié dans l'adaptateur, et un
 C'est le patron que le dépôt nomme déjà « la divergence est la trace d'une brique absente ».
 
 ⚠ CE MODULE N'A AUCUNE DÉPENDANCE — pas même aux autres modules du cœur. C'est la condition pour
-que `conditions.py` puisse l'importer sans cycle, alors que `nom_chaine()` a besoin du rendu de
+que `conditions.py` puisse l'importer sans cycle, alors que `chain_name()` a besoin du rendu de
 l'arbre : la brique fournit la **normalisation**, l'appelant fournit le **texte**.
 
 ⚠ `Colonne.titre` (export) reste chez lui À DESSEIN : ce n'est pas un nom dérivé de paramètres,
@@ -55,30 +55,30 @@ AXES_TEMPORELS = frozenset(c.lower() for c in COLONNES_TEMPS) | {
     'starttimecode', 'endtimecode', 'start', 'end'}
 
 
-def abreger(name: str) -> str:
+def abbreviate(name: str) -> str:
     """Préfixe minuscule d'un nom de table — `debut_bloc` → `deb`."""
     return (name or '')[:PREFIXE_TABLE].lower()
 
 
-def entier(x: float) -> str:
+def as_int(x: float) -> str:
     """`0` plutôt que `0.0`, `-2.5` conservé — un nom ne porte pas de décimale inutile."""
     return f"{int(x)}" if float(x).is_integer() else f"{x:g}"
 
 
-def normaliser(texte: str) -> str:
+def normalize(text: str) -> str:
     """Texte quelconque → fragment de nom : minuscules, alphanumérique, `_` unique, sans bords.
 
     ⚠ POINT DE PASSAGE UNIQUE de la mise en forme des noms. La règle est ici et nulle part
     ailleurs : deux normalisations légèrement différentes produiraient deux noms pour le même
     réglage, ce qui est exactement ce que la doctrine interdit.
     """
-    out = ''.join(c if c.isalnum() else '_' for c in (texte or '').lower())
+    out = ''.join(c if c.isalnum() else '_' for c in (text or '').lower())
     while '__' in out:
         out = out.replace('__', '_')
     return out.strip('_')
 
 
-def nom_produit(column: str, suffixe: str) -> str:
+def derived_name(column: str, suffixe: str) -> str:
     """Colonne dérivée — `vitesse` + `moyenne` → `vitesse_moyenne`.
 
     Déterministe et sans paramètre de renommage : le nom se lit dans le tableau final sans avoir
@@ -87,18 +87,18 @@ def nom_produit(column: str, suffixe: str) -> str:
     return f"{column}_{suffixe}"
 
 
-def nom_jonction(table_debut: str, table_fin: str,
+def join_name(table_debut: str, table_fin: str,
                  offset_start: float, offset_end: float) -> str:
     """Segmentation temporelle double — `deb_fin_0_0`, la graphie de l'outil d'origine."""
-    return (f"{abreger(table_debut)}_{abreger(table_fin)}"
-            f"_{entier(offset_start)}_{entier(offset_end)}")
+    return (f"{abbreviate(table_debut)}_{abbreviate(table_fin)}"
+            f"_{as_int(offset_start)}_{as_int(offset_end)}")
 
 
-def nom_annexe(flux: str, fonction: str) -> str:
+def annex_name(stream: str, fonction: str) -> str:
     """Table ANNEXE née d'un calcul qui change la clé temporelle — `vitesse_calcul_par_segment`.
 
     ⚠ Remplace une f-string écrite en dur dans `vue.py` (audit A). Le nom d'une annexe est une
     production comme une autre : il doit dire de quel flux et de quelle fonction elle vient, sinon
     deux annexes du même flux deviennent indiscernables dès qu'on en produit une seconde.
     """
-    return normaliser(f"{flux}_{fonction}")
+    return normalize(f"{stream}_{fonction}")

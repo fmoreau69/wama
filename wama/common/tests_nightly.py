@@ -57,7 +57,7 @@ class DecouverteTest(unittest.TestCase):
         # `wama_data/`, pas sous `core/` ni `functions/`. C'est exactement le cas qu'une liste
         # écrite pour `core.*` et `sources.*` avait manqué.
         decouverts = set(_modules_de_test('wama_data'))
-        for attendu in ('wama_data.tests_frames', 'wama_data.tests_vue',
+        for attendu in ('wama_data.tests_frames', 'wama_data.tests_view',
                         'wama_data.tests_registres'):
             self.assertIn(attendu, decouverts)
 

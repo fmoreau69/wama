@@ -50,7 +50,7 @@ def _tracer(seg: Segment, origine: str, **details) -> Segment:
 # 1. Autour d'une ANCRE — deux offsets indépendants
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
-def autour(ancres: Sequence[float], offset_start: float, offset_end: float,
+def around(ancres: Sequence[float], offset_start: float, offset_end: float,
            *, name: str = '', attributs: Optional[Sequence[dict]] = None) -> List[Segment]:
     """`start = ancre + offset_debut`, `end = ancre + offset_fin`.
 
@@ -67,7 +67,7 @@ def autour(ancres: Sequence[float], offset_start: float, offset_end: float,
             seg['name'] = f"{name}_{i + 1:02d}"
         if attributs and i < len(attributs):
             seg.update(attributs[i])
-        out.append(_tracer(seg, 'autour', anchor=a,
+        out.append(_tracer(seg, 'around', anchor=a,
                            window=f"{offset_start:g}_{offset_end:g}"))
     return out
 
@@ -76,7 +76,7 @@ def autour(ancres: Sequence[float], offset_start: float, offset_end: float,
 # 2. JONCTION de deux flux — le mode que j'avais manqué
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
-def jonction(debuts: Sequence[float], fins: Sequence[float], *, name: str = '',
+def join(starts: Sequence[float], ends: Sequence[float], *, name: str = '',
              skip_starts: int = 0, skip_ends: int = 0,
              offset_start: float = 0.0, offset_end: float = 0.0,
              repeat: bool = True,
@@ -112,8 +112,8 @@ def jonction(debuts: Sequence[float], fins: Sequence[float], *, name: str = '',
     qu'un segment jeté. Perdre le dernier état d'une session est une perte de donnée, pas une
     simplification.
     """
-    d = sorted(debuts)[skip_starts:]
-    f = sorted(fins)[skip_ends:]
+    d = sorted(starts)[skip_starts:]
+    f = sorted(ends)[skip_ends:]
     if not repeat:
         d = d[:1]
     out: List[Segment] = []
@@ -129,7 +129,7 @@ def jonction(debuts: Sequence[float], fins: Sequence[float], *, name: str = '',
                'end': OUVERT if t1 is OUVERT else t1 + offset_end}
         if name:
             seg['name'] = f"{name}_{i + 1:02d}"
-        out.append(_tracer(seg, 'jonction', open=(t1 is OUVERT),
+        out.append(_tracer(seg, 'join', open=(t1 is OUVERT),
                            window=(f"{offset_start:g}_{offset_end:g}"
                                    if (offset_start or offset_end) else None)))
     return out
@@ -139,7 +139,7 @@ def jonction(debuts: Sequence[float], fins: Sequence[float], *, name: str = '',
 # 3. CONDITIONNELLE — prédicat + hystérésis
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
-def conditionnelle(times: Sequence[float], masque: Sequence[bool], *,
+def conditional(times: Sequence[float], masque: Sequence[bool], *,
                    min_duration: float = 0.0, gap_tolerance: float = 0.0,
                    name: str = '') -> List[Segment]:
     """Plages où le masque est vrai, avec DURÉE MINIMALE et TROU TOLÉRÉ.
@@ -175,18 +175,18 @@ def conditionnelle(times: Sequence[float], masque: Sequence[bool], *,
         seg = {'start': t0, 'end': t1}
         if name:
             seg['name'] = f"{name}_{i + 1:02d}"
-        out.append(_tracer(seg, 'conditionnelle',
+        out.append(_tracer(seg, 'conditional',
                            min_duration=min_duration or None,
                            max_gap=gap_tolerance or None))
     return out
 
 
-def masque_hysteresis(valeurs: Sequence[Any], seuil_entree: float, seuil_sortie: float,
+def hysteresis_mask(values: Sequence[Any], seuil_entree: float, seuil_sortie: float,
                       *, operator: str = '<=') -> List[bool]:
     """Masque à DEUX SEUILS — on entre à `seuil_entree`, on ne sort qu'à `seuil_sortie`.
 
     C'est le déclencheur de Schmitt, et c'est la réponse classique au tremblement d'une mesure
-    autour d'une frontière. `conditionnelle()` porte déjà une hystérésis **de TEMPS**
+    autour d'une frontière. `conditional()` porte déjà une hystérésis **de TEMPS**
     (`duree_min`, `trou_tolere`) ; celle-ci est l'hystérésis **de VALEUR**, qui lui manquait.
 
     ⚠ ELLE VIENT D'UNE MESURE, PAS D'UNE INTUITION (2026-08-23). `cam_analyzer` calcule des
@@ -224,7 +224,7 @@ def masque_hysteresis(valeurs: Sequence[Any], seuil_entree: float, seuil_sortie:
 
     dedans = False
     out: List[bool] = []
-    for v in valeurs:
+    for v in values:
         if v is None or isinstance(v, bool) or not isinstance(v, (int, float)) or v != v:
             out.append(dedans)          # absence : on maintient l'état
             continue
@@ -236,14 +236,14 @@ def masque_hysteresis(valeurs: Sequence[Any], seuil_entree: float, seuil_sortie:
     return out
 
 
-def bascules(times: Sequence[float], masque: Sequence[bool], *,
+def edges(times: Sequence[float], masque: Sequence[bool], *,
              rising: bool = True, falling: bool = False,
              name: str = '') -> List[Dict[str, Any]]:
     """Instants où le masque CHANGE d'état — le second port de sortie d'une condition.
 
     C'est la traduction du choix « Que créer ? Event | Situation » de l'outil d'origine, où il est
     un bouton radio au milieu du geste de segmentation. Ici les deux sorties sont deux fonctions
-    qui consomment le MÊME masque (`conditionnelle()` pour les plages, celle-ci pour les instants) :
+    qui consomment le MÊME masque (`conditional()` pour les plages, celle-ci pour les instants) :
     le mode de production ne décide plus de la nature du produit. C'est ce que veut dire « la
     sortie est un PORT, pas un mode » (§9ter.6 B4).
 
@@ -278,7 +278,7 @@ def bascules(times: Sequence[float], masque: Sequence[bool], *,
 # 4. ÉTATS — plages de valeur constante d'un signal catégoriel
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
-def etats(times: Sequence[float], valeurs: Sequence[Any], *,
+def states(times: Sequence[float], values: Sequence[Any], *,
           ignore: Iterable[Any] = (), name: str = '') -> List[Segment]:
     """Découpe un signal catégoriel en segments de valeur constante (run-length).
 
@@ -287,15 +287,15 @@ def etats(times: Sequence[float], valeurs: Sequence[Any], *,
     qui fait la conversion — sans elle, un état déclaré dans un signal reste inexploitable comme
     segment (pas de calcul par segment, pas d'export par segment).
     """
-    if len(times) != len(valeurs):
+    if len(times) != len(values):
         raise ValueError("times et valeurs doivent avoir la même longueur")
     a_ignorer = set(ignore)
     out: List[Segment] = []
-    i, n = 0, len(valeurs)
+    i, n = 0, len(values)
     while i < n:
-        v = valeurs[i]
+        v = values[i]
         j = i
-        while j + 1 < n and valeurs[j + 1] == v:
+        while j + 1 < n and values[j + 1] == v:
             j += 1
         if v not in a_ignorer:
             seg = {'start': times[i], 'end': times[j], 'value': v}
@@ -310,7 +310,7 @@ def etats(times: Sequence[float], valeurs: Sequence[Any], *,
 # 5. Opérations ENSEMBLISTES — « présent dans » et compagnie
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
-def present_dans(segments: Sequence[Segment], reference: Sequence[Segment], *,
+def within(segments: Sequence[Segment], reference: Sequence[Segment], *,
                  strict: bool = True) -> List[Segment]:
     """Ne garde que les segments INCLUS dans l'un des segments de référence.
 
@@ -322,12 +322,12 @@ def present_dans(segments: Sequence[Segment], reference: Sequence[Segment], *,
     `strict` reproduit le comportement d'origine (bornes strictement intérieures) ; `False` accepte
     l'égalité des bornes, ce qu'on veut quand la référence a été produite par le même découpage.
     """
-    debuts = [r['start'] for r in reference]
-    fins = [r['end'] if r['end'] is not None else float('inf') for r in reference]
+    starts = [r['start'] for r in reference]
+    ends = [r['end'] if r['end'] is not None else float('inf') for r in reference]
     out: List[Segment] = []
     for s in segments:
         fin = s['end'] if s['end'] is not None else float('inf')
-        for d, f in zip(debuts, fins):
+        for d, f in zip(starts, ends):
             dedans = (s['start'] > d and fin < f) if strict else (s['start'] >= d and fin <= f)
             if dedans:
                 out.append(s)
@@ -335,7 +335,7 @@ def present_dans(segments: Sequence[Segment], reference: Sequence[Segment], *,
     return out
 
 
-def chevauche(segments: Sequence[Segment], reference: Sequence[Segment]) -> List[Segment]:
+def overlapping(segments: Sequence[Segment], reference: Sequence[Segment]) -> List[Segment]:
     """Segments qui INTERSECTENT au moins un segment de référence (inclusion non exigée)."""
     out: List[Segment] = []
     for s in segments:
@@ -348,7 +348,7 @@ def chevauche(segments: Sequence[Segment], reference: Sequence[Segment]) -> List
     return out
 
 
-def ouverts(segments: Sequence[Segment]) -> List[Segment]:
+def open_ones(segments: Sequence[Segment]) -> List[Segment]:
     """Segments dont la fin est inconnue — un état commencé et non refermé.
 
     Les compter est une VÉRIFICATION, pas une curiosité : à la fin d'un codage, des états encore
@@ -358,7 +358,7 @@ def ouverts(segments: Sequence[Segment]) -> List[Segment]:
     return [s for s in segments if s.get('end') is None]
 
 
-def fermer(segments: Sequence[Segment], fin: float) -> List[Segment]:
+def close(segments: Sequence[Segment], fin: float) -> List[Segment]:
     """Ferme les segments ouverts à un instant donné (fin de média, fin d'observation).
 
     La fermeture est un ACTE EXPLICITE et tracé (`closed_at`) : une durée obtenue en refermant
@@ -379,15 +379,15 @@ def fermer(segments: Sequence[Segment], fin: float) -> List[Segment]:
 # 6. MARGES — ajuster les bornes d'un segment EXISTANT (temporelles, ou spatiales par colonne)
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
-def marges(segments: Sequence[Segment], before: float = 0.0, after: float = 0.0) -> List[Segment]:
+def margins(segments: Sequence[Segment], before: float = 0.0, after: float = 0.0) -> List[Segment]:
     """Décale les bornes de chaque segment : `start − avant`, `end + apres`.
 
     C'est le mode « Simple » de l'outil d'origine appliqué à une SITUATION (bascule
-    [Event|Situation] de l'écran, marges inf/sup) : `autour()` ne sait le faire que pour une ancre
+    [Event|Situation] de l'écran, marges inf/sup) : `around()` ne sait le faire que pour une ancre
     PONCTUELLE — une situation a DEUX bornes à décaler indépendamment. Négatif = rétrécir.
 
     ⚠ Un segment qui s'INVERSE en rétrécissant (`start ≥ end`) est ÉCARTÉ — même geste que
-    `duree_min` dans `conditionnelle()` : la contrainte déclarée vaut filtre, pas une bizarrerie.
+    `duree_min` dans `conditional()` : la contrainte déclarée vaut filtre, pas une bizarrerie.
     ⚠ Une fin OUVERTE le reste : on ne décale pas une borne inconnue.
     L'origine d'AVANT la marge survit dans `source` — décaler des bornes ne doit pas effacer
     d'où le segment vient.
@@ -400,12 +400,12 @@ def marges(segments: Sequence[Segment], before: float = 0.0, after: float = 0.0)
         seg['end'] = OUVERT if fin is OUVERT else fin + after
         if seg['end'] is not OUVERT and seg['end'] <= seg['start']:
             continue
-        out.append(_tracer(seg, 'marges', source=s.get('origin'),
+        out.append(_tracer(seg, 'margins', source=s.get('origin'),
                            window=f"{before:g}_{after:g}"))
     return out
 
 
-def marges_spatiales(segments: Sequence[Segment], times: Sequence[float],
+def spatial_margins(segments: Sequence[Segment], times: Sequence[float],
                      abscisses: Sequence[Optional[float]],
                      before_m: float = 0.0, after_m: float = 0.0) -> List[Segment]:
     """Décale les bornes d'une DISTANCE PARCOURUE le long de la trace, pas d'une durée.
@@ -422,7 +422,7 @@ def marges_spatiales(segments: Sequence[Segment], times: Sequence[float],
     valide : la marge s'arrête où la donnée s'arrête.
 
     ⚠ Fin OUVERTE : inchangée (on ne mesure pas une distance jusqu'à un instant inconnu).
-    ⚠ Segment inversé après rétrécissement : écarté (cf. `marges`).
+    ⚠ Segment inversé après rétrécissement : écarté (cf. `margins`).
     ⚠ Les positions invalides (abscisse `None` — trou GPS) sont ignorées par la recherche.
     """
     if len(times) != len(abscisses):
@@ -448,6 +448,6 @@ def marges_spatiales(segments: Sequence[Segment], times: Sequence[float],
             seg['end'] = ts[min(j, len(ts) - 1)]
             if seg['end'] <= seg['start']:
                 continue
-        out.append(_tracer(seg, 'marges_spatiales', source=s.get('origin'),
+        out.append(_tracer(seg, 'spatial_margins', source=s.get('origin'),
                            window=f"{before_m:g}_{after_m:g}_m"))
     return out

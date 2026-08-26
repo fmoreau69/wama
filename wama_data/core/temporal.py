@@ -75,10 +75,10 @@ class SignalMeta:
     #: échantillons ; un index qui saute signale une perte réelle. `pynd` la détecte
     #: (`DataParser.check_idx`) et se contente d'un `log.error` — son propre `TODO` reconnaît que
     #: ce n'est pas suffisant. Une perte écrite dans un journal n'est pas exploitable : elle ne
-    #: remonte ni au compte-rendu d'import, ni à l'`Ecart` du manifeste, ni à l'utilisateur.
+    #: remonte ni au compte-rendu d'import, ni à l'`Discrepancy` du manifeste, ni à l'utilisateur.
     #: `0` signifie « aucune perte détectée », jamais « non mesuré » — un lecteur qui ne sait pas
     #: compter laisse le champ à 0 et le dit dans `comments`.
-    pertes: int = 0
+    losses: int = 0
     #: Unité par variable, ex. {'speed': 'm/s'}. Porte le vocabulaire qu'un manifeste doit exposer.
     units: Dict[str, str] = field(default_factory=dict)
     #: Acquis (True) vs dérivé d'un calcul (False). C'est la PROVENANCE : sans elle, impossible de
@@ -239,15 +239,15 @@ class Signal:
         `containing()` et `overlapping()` comparaient `None >= float` et levaient un `TypeError`.
         Un segment encore OUVERT rendait donc le flux entier ininterrogeable.
 
-        ⚠ Et la convention existait DÉJÀ, deux fichiers plus loin : `present_dans()` et
-        `chevauche()` (`core/segmentation.py`) écrivent depuis toujours
+        ⚠ Et la convention existait DÉJÀ, deux fichiers plus loin : `within()` et
+        `overlapping()` (`core/segmentation.py`) écrivent depuis toujours
         `fin = s['end'] if s['end'] is not None else float('inf')`. Elle n'avait simplement pas été
         portée ici. Sixième occurrence du même motif — le fait est établi ailleurs dans le dépôt et
         n'est pas relié à sa conséquence.
 
         `+∞` est la sémantique juste : un état commencé et non refermé **court encore**, donc il
         contient tout instant postérieur à son début. Le refermer d'office à la fin du média
-        donnerait une durée mesurée là où rien n'a été mesuré (cf. `fermer()`, qui exige un acte
+        donnerait une durée mesurée là où rien n'a été mesuré (cf. `close()`, qui exige un acte
         explicite et le trace).
         """
         f = self._ends[index] if self._ends is not None else None

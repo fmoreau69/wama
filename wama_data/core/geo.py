@@ -47,7 +47,7 @@ def _invalide(a: Any, b: Any) -> bool:
             or a != a or b != b)
 
 
-def distances_a_point(lats: Sequence[Any], lons: Sequence[Any],
+def distances_to_point(lats: Sequence[Any], lons: Sequence[Any],
                       lat: float, lon: float) -> List[Optional[float]]:
     """Distance de chaque position à un point de référence, en mètres.
 
@@ -66,27 +66,27 @@ def distances_a_point(lats: Sequence[Any], lons: Sequence[Any],
     return out
 
 
-def abscisse_curviligne(lats: Sequence[Any], lons: Sequence[Any]) -> List[Optional[float]]:
+def arc_length(lats: Sequence[Any], lons: Sequence[Any]) -> List[Optional[float]]:
     """Distance CUMULÉE le long de la trace, en mètres — l'abscisse curviligne de chaque position.
 
     C'est la colonne qui rend les MARGES SPATIALES exprimables (« 50 m avant l'entrée de zone ») :
     une distance parcourue se lit dessus par soustraction, comme un temps sur `time`.
 
-    ⚠ Une position invalide rend `None` (mêmes règles que `distances_a_point`) et ne fait PAS
+    ⚠ Une position invalide rend `None` (mêmes règles que `distances_to_point`) et ne fait PAS
     avancer l'abscisse ; la position valide suivante cumule la distance depuis la DERNIÈRE valide.
     Le trou ne fabrique pas de distance — il la reporte d'un bloc, et l'abscisse reste MONOTONE.
     """
     if len(lats) != len(lons):
         raise ValueError(f"lats et lons de longueurs différentes ({len(lats)} ≠ {len(lons)})")
     out: List[Optional[float]] = []
-    cumul = 0.0
+    cumulative = 0.0
     derniere: Optional[tuple] = None
     for a, b in zip(lats, lons):
         if _invalide(a, b):
             out.append(None)
             continue
         if derniere is not None:
-            cumul += haversine(derniere[0], derniere[1], a, b)
-        out.append(cumul)
+            cumulative += haversine(derniere[0], derniere[1], a, b)
+        out.append(cumulative)
         derniere = (a, b)
     return out

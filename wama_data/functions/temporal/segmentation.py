@@ -15,11 +15,11 @@ from __future__ import annotations
 
 from wama.common.catalog.data_types import CANONICAL_FIELDS, DataType, TypedFrame
 from wama.common.catalog.function_catalog import (FunctionCategory, FunctionSpec, ParamSpec, PortSpec, register)
-from ...core.segmentation import autour, conditionnelle, etats, jonction, marges, present_dans
-#: RÉEXPORT délibéré — `manquant` a été remonté au cœur (`core/valeurs.py`) quand le Calculator
+from ...core.segmentation import around, conditional, states, join, margins, within
+#: RÉEXPORT délibéré — `missing` a été remonté au cœur (`core/valeurs.py`) quand le Calculator
 #: en est devenu le 4ᵉ consommateur : `core/` ne peut pas dépendre de `functions/`. Le garder
 #: importable d'ici évite de toucher les 3 importateurs existants pour un simple déménagement.
-from ...core.valeurs import manquant  # noqa: F401  (réexporté pour `coding.py` et les tests)
+from ...core.values import missing  # noqa: F401  (réexporté pour `coding.py` et les tests)
 
 #: Champs canoniques d'un segment produit — `start`/`end` viennent de la taxonomie, le reste est
 #: la traçabilité systématique (voir `_tracer` dans l'implémentation).
@@ -54,9 +54,9 @@ def _segments(rows: list, meta=None) -> TypedFrame:
     return TypedFrame(df, DataType.SEGMENTS, meta=meta)
 
 
-def _fin(valeur):
+def _fin(value):
     """Fin d'un segment lue depuis un cadre : `NaN` (venu d'ailleurs) est traité comme inconnu."""
-    return None if manquant(valeur) else valeur
+    return None if missing(value) else value
 
 
 # ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -64,11 +64,11 @@ def _fin(valeur):
 def segments_around(events: TypedFrame, offset_start: float = 0.0, offset_end: float = 15.0,
                     name: str = '') -> TypedFrame:
     """Fenêtre `[ancre+o₁, ancre+o₂]` autour de chaque événement."""
-    return _segments(autour(_colonne(events, 'time'), offset_start, offset_end, name=name),
+    return _segments(around(_colonne(events, 'time'), offset_start, offset_end, name=name),
                      meta=events.meta)
 
 
-def segments_join(debuts: TypedFrame, fins: TypedFrame, name: str = '',
+def segments_join(starts: TypedFrame, ends: TypedFrame, name: str = '',
                       skip_starts: int = 0, skip_ends: int = 0,
                       offset_start: float = 0.0, offset_end: float = 0.0,
                       repeat: bool = True, drop_last_open: bool = False) -> TypedFrame:
@@ -78,17 +78,17 @@ def segments_join(debuts: TypedFrame, fins: TypedFrame, name: str = '',
     l'UI se générant des `ParamSpec`, l'écran « Double » n'aurait eu ni offsets, ni curseurs
     d'occurrence, ni « Répéter ». Une capacité non déclarée est une capacité invisible.
     """
-    return _segments(jonction(_colonne(debuts, 'time'), _colonne(fins, 'time'), name=name,
+    return _segments(join(_colonne(starts, 'time'), _colonne(ends, 'time'), name=name,
                               skip_starts=skip_starts, skip_ends=skip_ends,
                               offset_start=offset_start, offset_end=offset_end,
                               repeat=repeat, drop_last_open=drop_last_open),
-                     meta=debuts.meta)
+                     meta=starts.meta)
 
 
 def segments_margins(segments: TypedFrame, before: float = 0.0, after: float = 0.0) -> TypedFrame:
     """Élargit (ou rétrécit) chaque segment : `start − avant`, `end + apres`."""
     rows = [dict(r, end=_fin(r.get('end'))) for r in segments.df.to_dict('records')]
-    return _segments(marges(rows, before=before, after=after), meta=segments.meta)
+    return _segments(margins(rows, before=before, after=after), meta=segments.meta)
 
 
 def segments_conditional(signal: TypedFrame, column: str = 'value', threshold: float = 0.0,
@@ -100,15 +100,15 @@ def segments_conditional(signal: TypedFrame, column: str = 'value', threshold: f
     et la seule qui reste sérialisable dans un manifeste. Un prédicat en code arbitraire ne serait
     ni déclarable, ni rejouable, ni exportable en script.
     """
-    valeurs = _colonne(signal, column)
+    values = _colonne(signal, column)
     tests = {'>=': lambda v: v >= threshold, '>': lambda v: v > threshold,
              '<=': lambda v: v <= threshold, '<': lambda v: v < threshold,
              '==': lambda v: v == threshold, '!=': lambda v: v != threshold}
     if operator not in tests:
         raise ValueError(f"opérateur '{operator}' inconnu (attendu : {', '.join(tests)})")
     predicat = tests[operator]
-    masque = [bool(predicat(v)) if isinstance(v, (int, float)) else False for v in valeurs]
-    return _segments(conditionnelle(_colonne(signal, 'time'), masque, min_duration=min_duration,
+    masque = [bool(predicat(v)) if isinstance(v, (int, float)) else False for v in values]
+    return _segments(conditional(_colonne(signal, 'time'), masque, min_duration=min_duration,
                                     gap_tolerance=gap_tolerance, name=name), meta=signal.meta)
 
 
@@ -116,7 +116,7 @@ def segments_states(signal: TypedFrame, column: str = 'value', ignore: str = '',
                    name: str = '') -> TypedFrame:
     """Plages de valeur constante d'un signal catégoriel — les « états »."""
     a_ignorer = [x.strip() for x in ignore.split(',') if x.strip()] if ignore else []
-    return _segments(etats(_colonne(signal, 'time'), _colonne(signal, column),
+    return _segments(states(_colonne(signal, 'time'), _colonne(signal, column),
                            ignore=a_ignorer, name=name), meta=signal.meta)
 
 
@@ -126,11 +126,11 @@ def segments_within(segments: TypedFrame, reference: TypedFrame,
     def _lire(f):
         return [{'start': s, 'end': _fin(e)}
                 for s, e in zip(_colonne(f, 'start'), _colonne(f, 'end'))]
-    gardes = present_dans(_lire(segments), _lire(reference), strict=strict)
+    gardes = within(_lire(segments), _lire(reference), strict=strict)
     bornes = {(g['start'], g['end']) for g in gardes}
-    lignes = [dict(r, end=_fin(r.get('end'))) for r in segments.df.to_dict('records')
+    rows = [dict(r, end=_fin(r.get('end'))) for r in segments.df.to_dict('records')
               if (r.get('start'), _fin(r.get('end'))) in bornes]
-    return _segments(lignes, meta=segments.meta)
+    return _segments(rows, meta=segments.meta)
 
 
 # ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -172,9 +172,9 @@ register(FunctionSpec(
     category=FunctionCategory.JOIN,
     tags=['temporel', 'segmentation'],
     inputs=[
-        PortSpec('debuts', DataType.EVENTS, required_fields=['time'],
+        PortSpec('starts', DataType.EVENTS, required_fields=['time'],
                  description="Flux fournissant les DÉBUTS."),
-        PortSpec('fins', DataType.EVENTS, required_fields=['time'],
+        PortSpec('ends', DataType.EVENTS, required_fields=['time'],
                  description="Flux fournissant les FINS."),
     ],
     outputs=[_SORTIE],
@@ -205,7 +205,7 @@ register(FunctionSpec(
     key='segment_margins',
     name="Marges autour de segments existants",
     description="Décale les deux bornes de chaque segment : start − avant, end + apres. C'est le "
-                "mode « Simple » appliqué à une SITUATION (marges inf/sup), qu'`autour` ne couvre "
+                "mode « Simple » appliqué à une SITUATION (marges inf/sup), qu'`around` ne couvre "
                 "pas — une situation a deux bornes, pas une ancre. Négatif = rétrécir ; un segment "
                 "qui s'inverse est ÉCARTÉ ; une fin ouverte le reste. L'origine d'avant la marge "
                 "survit dans `source`.",

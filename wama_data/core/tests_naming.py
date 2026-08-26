@@ -8,93 +8,93 @@ sur une fonction : c'est `UniciteTest`, qui vérifie qu'il n'en reste **qu'un se
 """
 import unittest
 
-from .noms import abreger, entier, nom_annexe, nom_jonction, nom_produit, normaliser
+from .naming import abbreviate, as_int, annex_name, join_name, derived_name, normalize
 
 
 class RegleTest(unittest.TestCase):
 
     def test_nom_produit(self):
-        self.assertEqual(nom_produit('vitesse', 'mean'), 'vitesse_mean')
+        self.assertEqual(derived_name('vitesse', 'mean'), 'vitesse_mean')
 
     def test_nom_de_jonction_reproduit_la_graphie_d_origine(self):
         # `app.tddTable1.Value(1:3) '_' app.tddTable2.Value(1:3) '_' inf2 '_' sup2`
-        self.assertEqual(nom_jonction('debut_bloc', 'fin_bloc', 0, 0), 'deb_fin_0_0')
+        self.assertEqual(join_name('debut_bloc', 'fin_bloc', 0, 0), 'deb_fin_0_0')
 
     def test_les_offsets_non_entiers_sont_conserves(self):
-        self.assertEqual(nom_jonction('debut', 'fin', -2.5, 10), 'deb_fin_-2.5_10')
+        self.assertEqual(join_name('debut', 'fin', -2.5, 10), 'deb_fin_-2.5_10')
 
     def test_nom_annexe(self):
-        self.assertEqual(nom_annexe('vitesse', 'calc_per_segment'),
+        self.assertEqual(annex_name('vitesse', 'calc_per_segment'),
                          'vitesse_calc_per_segment')
 
     def test_deux_reglages_differents_ne_peuvent_pas_partager_un_nom(self):
-        self.assertNotEqual(nom_jonction('debut', 'fin', 0, 15),
-                            nom_jonction('debut', 'fin', 0, 45))
-        self.assertNotEqual(nom_annexe('a', 'f'), nom_annexe('b', 'f'))
+        self.assertNotEqual(join_name('debut', 'fin', 0, 15),
+                            join_name('debut', 'fin', 0, 45))
+        self.assertNotEqual(annex_name('a', 'f'), annex_name('b', 'f'))
 
     def test_memes_reglages_meme_nom(self):
-        self.assertEqual(nom_jonction('debut', 'fin', 0, 15),
-                         nom_jonction('debut', 'fin', 0, 15))
+        self.assertEqual(join_name('debut', 'fin', 0, 15),
+                         join_name('debut', 'fin', 0, 15))
 
 
 class NormaliserTest(unittest.TestCase):
     """Point de passage UNIQUE de la mise en forme — deux variantes produiraient deux noms."""
 
     def test_minuscules_et_separateurs(self):
-        self.assertEqual(normaliser('ET(C1, OU(C2, C3))'), 'et_c1_ou_c2_c3')
+        self.assertEqual(normalize('ET(C1, OU(C2, C3))'), 'et_c1_ou_c2_c3')
 
     def test_pas_de_soulignes_doubles_ni_de_bords(self):
-        self.assertEqual(normaliser('  (a)  ,  (b)  '), 'a_b')
+        self.assertEqual(normalize('  (a)  ,  (b)  '), 'a_b')
 
     def test_idempotent(self):
-        once = normaliser('ET(C1, C2)')
-        self.assertEqual(normaliser(once), once)
+        once = normalize('ET(C1, C2)')
+        self.assertEqual(normalize(once), once)
 
     def test_texte_vide(self):
-        self.assertEqual(normaliser(''), '')
-        self.assertEqual(normaliser(None), '')
+        self.assertEqual(normalize(''), '')
+        self.assertEqual(normalize(None), '')
 
 
 class HelpersTest(unittest.TestCase):
 
     def test_abreger_prend_trois_caracteres_en_minuscules(self):
-        self.assertEqual(abreger('DEBUT_bloc'), 'deb')
-        self.assertEqual(abreger('ab'), 'ab')
-        self.assertEqual(abreger(''), '')
+        self.assertEqual(abbreviate('DEBUT_bloc'), 'deb')
+        self.assertEqual(abbreviate('ab'), 'ab')
+        self.assertEqual(abbreviate(''), '')
 
     def test_entier_supprime_la_decimale_inutile(self):
-        self.assertEqual(entier(0.0), '0')
-        self.assertEqual(entier(15), '15')
-        self.assertEqual(entier(-2.5), '-2.5')
+        self.assertEqual(as_int(0.0), '0')
+        self.assertEqual(as_int(15), '15')
+        self.assertEqual(as_int(-2.5), '-2.5')
 
 
 class UniciteTest(unittest.TestCase):
     """⚠ LE test de ce fichier : un seul domicile pour la règle de nommage.
 
-    L'audit A a trouvé `nom_produit` dans l'adaptateur, `nom_jonction`/`nom_chaine` dans le cœur,
+    L'audit A a trouvé `derived_name` dans l'adaptateur, `join_name`/`chain_name` dans le cœur,
     et une f-string en dur dans `vue.py`. Ces contrôles empêchent la dispersion de recommencer.
     """
 
     def test_les_reexports_pointent_LA_MEME_fonction(self):
         # `conditions.py` et l'adaptateur du Calculator réexportent — ils ne redéfinissent pas.
-        from .conditions import nom_jonction as depuis_conditions
-        from ..functions.temporal.calculation import nom_produit as depuis_adaptateur
-        self.assertIs(depuis_conditions, nom_jonction)
-        self.assertIs(depuis_adaptateur, nom_produit)
+        from .conditions import join_name as depuis_conditions
+        from ..functions.temporal.calculation import derived_name as depuis_adaptateur
+        self.assertIs(depuis_conditions, join_name)
+        self.assertIs(depuis_adaptateur, derived_name)
 
     def test_nom_chaine_delegue_la_normalisation(self):
-        from .conditions import analyser, nom_chaine, rendre
-        arbre = analyser('ET(C1, C2)', ['C1', 'C2'])
-        self.assertEqual(nom_chaine(arbre), normaliser(rendre(arbre)))
+        from .conditions import parse, chain_name, render
+        arbre = parse('ET(C1, C2)', ['C1', 'C2'])
+        self.assertEqual(chain_name(arbre), normalize(render(arbre)))
 
     def test_la_brique_n_a_AUCUNE_dependance(self):
         # C'est la condition pour que `conditions.py` l'importe sans cycle. Un import de plus ici
-        # et `nom_chaine` ne pourrait plus déléguer.
+        # et `chain_name` ne pourrait plus déléguer.
         import ast
         import inspect
 
-        from . import noms
-        arbre = ast.parse(inspect.getsource(noms))
+        from . import naming
+        arbre = ast.parse(inspect.getsource(naming))
         importes = [n for n in ast.walk(arbre) if isinstance(n, (ast.Import, ast.ImportFrom))]
         noms_importes = [getattr(n, 'module', None) or '' for n in importes]
         self.assertEqual([m for m in noms_importes if m != '__future__'], [],
