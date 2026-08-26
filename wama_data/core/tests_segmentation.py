@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 from .segmentation import (autour, bascules, chevauche, conditionnelle, etats, fermer, jonction,
-                           masque_hysteresis, ouverts, present_dans)
+                           marges, marges_spatiales, masque_hysteresis, ouverts, present_dans)
 
 from ..corpus import BASE_REELLE, raison_absence
 
@@ -351,6 +351,90 @@ class BaseReelleTest(unittest.TestCase):
             for i in range(len(attendu)):
                 self.assertIn(round(attendu.time_at(i), 3), starts,
                               f"{nom} : segment réel non reproduit")
+
+
+class MargesTest(unittest.TestCase):
+    """Le mode « Simple » appliqué à une SITUATION — deux bornes à décaler, pas une ancre."""
+
+    def test_elargit_les_deux_bornes_independamment(self):
+        s = marges([{'start': 100.0, 'end': 160.0}], avant=5.0, apres=10.0)
+        self.assertEqual((s[0]['start'], s[0]['end']), (95.0, 170.0))
+
+    def test_retrecir_est_une_marge_negative(self):
+        s = marges([{'start': 100.0, 'end': 160.0}], avant=-10.0, apres=-10.0)
+        self.assertEqual((s[0]['start'], s[0]['end']), (110.0, 150.0))
+
+    def test_un_segment_qui_s_inverse_en_retrecissant_est_ecarte(self):
+        # Même geste que duree_min : la contrainte déclarée vaut filtre. Le second segment
+        # (60 s) survit, le premier (10 s) s'inverse et disparaît.
+        s = marges([{'start': 100.0, 'end': 110.0}, {'start': 200.0, 'end': 260.0}],
+                   avant=-10.0, apres=-10.0)
+        self.assertEqual(len(s), 1)
+        self.assertEqual(s[0]['start'], 210.0)
+
+    def test_une_fin_OUVERTE_le_reste(self):
+        s = marges([{'start': 100.0, 'end': None}], avant=5.0, apres=10.0)
+        self.assertEqual(s[0]['start'], 95.0)
+        self.assertIsNone(s[0]['end'])
+
+    def test_l_origine_d_avant_la_marge_survit_dans_source(self):
+        seg = autour([100.0], 0.0, 15.0)[0]
+        s = marges([seg], avant=5.0)[0]
+        self.assertEqual(s['origin'], 'marges')
+        self.assertEqual(s['source'], 'autour')
+
+    def test_les_attributs_du_segment_sont_preserves(self):
+        s = marges([{'start': 10.0, 'end': 20.0, 'name': 'S_01', 'level': 3}], apres=1.0)[0]
+        self.assertEqual((s['name'], s['level']), ('S_01', 3))
+
+
+class MargesSpatialesTest(unittest.TestCase):
+    """« 50 m avant l'entrée de zone » — la marge lue sur l'abscisse curviligne, pas sur l'horloge."""
+
+    # Trace régulière : un échantillon par seconde, 10 m parcourus par échantillon.
+    TIMES = [float(t) for t in range(11)]           # 0 … 10 s
+    ABS = [10.0 * t for t in range(11)]             # 0 … 100 m
+
+    def test_la_marge_rendue_vaut_AU_MOINS_la_marge_demandee(self):
+        s = marges_spatiales([{'start': 5.0, 'end': 7.0}], self.TIMES, self.ABS,
+                             avant_m=25.0, apres_m=15.0)[0]
+        # 25 m avant l'abscisse 50 → cible 25 → dernier échantillon ≤ 25 = t=2 (20 m) : 30 m rendus.
+        # 15 m après l'abscisse 70 → cible 85 → premier échantillon ≥ 85 = t=9 (90 m) : 20 m rendus.
+        self.assertEqual((s['start'], s['end']), (2.0, 9.0))
+
+    def test_les_bornes_rendues_sont_des_echantillons_EXISTANTS(self):
+        s = marges_spatiales([{'start': 5.0, 'end': 7.0}], self.TIMES, self.ABS,
+                             avant_m=1.0, apres_m=1.0)[0]
+        self.assertIn(s['start'], self.TIMES)
+        self.assertIn(s['end'], self.TIMES)
+
+    def test_une_cible_au_dela_de_la_trace_est_bornee_a_la_donnee(self):
+        # La marge s'arrête où la donnée s'arrête — pas d'instant inventé au-delà de la trace.
+        s = marges_spatiales([{'start': 5.0, 'end': 7.0}], self.TIMES, self.ABS,
+                             avant_m=1000.0, apres_m=1000.0)[0]
+        self.assertEqual((s['start'], s['end']), (0.0, 10.0))
+
+    def test_un_trou_gps_est_ignore_par_la_recherche(self):
+        abscisses = list(self.ABS)
+        abscisses[2] = None                          # t=2 sans fix
+        s = marges_spatiales([{'start': 5.0, 'end': 7.0}], self.TIMES, abscisses,
+                             avant_m=25.0, apres_m=15.0)[0]
+        # Le dernier échantillon VALIDE ≤ 25 m n'est plus t=2 mais t=1 (10 m) : 40 m rendus.
+        self.assertEqual((s['start'], s['end']), (1.0, 9.0))
+
+    def test_une_fin_OUVERTE_le_reste(self):
+        s = marges_spatiales([{'start': 5.0, 'end': None}], self.TIMES, self.ABS, avant_m=25.0)[0]
+        self.assertEqual(s['start'], 2.0)
+        self.assertIsNone(s['end'])
+
+    def test_une_trace_sans_position_valide_est_refusee(self):
+        with self.assertRaises(ValueError):
+            marges_spatiales([{'start': 0.0, 'end': 1.0}], [0.0, 1.0], [None, None], avant_m=1.0)
+
+    def test_l_origine_est_tracee_avec_la_fenetre_en_metres(self):
+        s = marges_spatiales([{'start': 5.0, 'end': 7.0}], self.TIMES, self.ABS, apres_m=10.0)[0]
+        self.assertEqual(s['origin'], 'marges_spatiales')
+        self.assertEqual(s['window'], '0_10_m')
 
 
 if __name__ == "__main__":

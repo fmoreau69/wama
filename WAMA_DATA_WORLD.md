@@ -2857,8 +2857,8 @@ doit pouvoir désigner sans présupposer de déplacement.
 
 ### 11.7 Ce que cette cartographie ne couvre pas encore
 
-⏳ Modules déposés mais non confrontés : **Importer**, **Explorer**, **Segmenter** (4 captures :
-codage vidéo, filtrage, segmentation conditionnelle, segmentation temporelle).
+⏳ Modules déposés mais non confrontés : **Importer**, **Explorer**. ✅ Le **Segmenter** est
+confronté depuis le 2026-08-26 (§11.9 — ses 4 captures, écran par écran, contre le code).
 
 ⚠ Et la méthode vaut d'être répétée telle quelle : **rattacher chaque écran au code de `BIND_GUI`
 avant de conclure**. La cartographie de §9ter s'est faite depuis des schémas, et c'est là que les
@@ -2956,6 +2956,73 @@ cliquant son dossier** dans l'explorateur. → consignées au domaine : **`WAMA_
 
 **⑧ Le bundle corpus `.wds`** s'exporte **depuis la card mère du batch** et se réimporte **en
 batch** — voir **D26** (§10).
+
+### 11.9 SEGMENTER — les 4 écrans confrontés au code (2026-08-26)
+
+Sources : `Modules/Segmenter/` (Schéma de principe, Codage_vidéo, Segmentation_temporelle,
+Segmentation conditionnelle, Filtrage_segmentation) — confrontés fonction par fonction, à la
+demande de Fabien (« être sûr qu'on est aligné »). Le schéma de principe : trois chaînes (codage
+vidéo / temporelle Simple‑Double / conditionnelle), sous-segmentation « présent dans » optionnelle,
+filtrage manuel events/situations optionnel en bout de toutes les chaînes.
+
+| écran d'origine | notre code | |
+|---|---|---|
+| Temporelle **Simple** — Event + marges inf/sup (s) | `autour()` → `segment_autour_event` — 2 offsets **indépendants** | ✅ |
+| Temporelle **Double** — 2 tables, occurrence de départ, offsets, « Répéter » | `jonction()` — `depuis_debut`/`depuis_fin` (= les curseurs `tddAvant`/`tddApres` d'origine), `offset_debut`/`offset_fin`, `repeter`, segments **ouverts** au lieu de jetés | ✅ ⭐ et l'appariement est **TEMPOREL**, pas par index : le cas d'échec de l'original (« Veuillez filtrer les tables ») **n'existe plus** |
+| Sous-segmentation « Présent dans » | `present_dans()` (strict) → `segment_present_dans`, + `chevauche()` | ✅ |
+| **Conditionnelle** — conditions, saisie `ET(C1, C2)`, `NON/OU/XOR`, texte « contient » | `segment_chaine_conditionnelle` — 14 opérateurs typés par SORTE (refus AVANT exécution), et la saisie préfixe de l'écran est littéralement `analyser()` | ✅ |
+| « fusion des trous / rejet des courtes » + hystérésis | `duree_min`, `trou_tolere`, `masque_hysteresis` | ✅ |
+| « **Que créer ?** Event / Situation » | `segment_` / `event_chaine_conditionnelle` — un choix de **SORTIE**, deux fonctions chaînables | ✅ |
+| **Codage vidéo** — Créer/Charger/Éditer protocole, Lancer | `Protocole`, `SessionCodage`, `rejouer()`, `accord()` + `codage_segments`/`codage_evenements`/`codage_accord` | ✅ (l'interface se GÉNÈRE du protocole — délibérément non écrite, dépend du Visualizer) |
+| **Spatiale** (question de Fabien 26/08 : « ajoutée mais câblée ? ») | ✅ **câblée PAR CONSTRUCTION, pas comme un mode** (§9septies) : `distance_a_point` → colonne dérivée → chaîne conditionnelle. **Prouvé par test** : `test_spatial_ET_temporel_dans_la_MEME_chaine` mêle `distance ≤ 40 ET vitesse > 30`. + `ign_buildings`/`ign_roads`/`road_branches`/`sky_mask` au catalogue | ✅ |
+
+**Les QUATRE trous mesurés :**
+
+~~**① Marges sur une SITUATION**~~ — ✅ **SOLDÉ le 2026-08-26, ÉLARGI AU SPATIAL à la demande de
+Fabien** (« il faut aussi gérer les ajustements de bornes temporelles/**spatiales** »). Deux
+fonctions au catalogue : **`segment_marges`** (`start − avant`, `end + apres` ; négatif = rétrécir,
+segment inversé **écarté** — même geste que `duree_min` —, fin ouverte inchangée, origine d'avant
+la marge gardée dans `source`) et **`segment_marges_spatiales`** (marges en **MÈTRES PARCOURUS**,
+converties en bornes par l'**abscisse curviligne** — `core/geo.py::abscisse_curviligne`, nouvelle
+primitive : cumul monotone, trou GPS → `None` reporté, jamais inventé). ⭐ Même généralisation que
+§9septies : la marge spatiale n'est pas un mode, c'est une marge sur une **COLONNE** monotone au
+lieu de `time`. Les bornes rendues sont des **échantillons existants** (comme `at()`) : marge
+rendue ≥ marge demandée, bornée là où la donnée s'arrête.
+
+~~**② Le `FunctionSpec` de `segment_jonction` n'expose que `nom` + `fermer_dernier`**~~ — ✅
+**SOLDÉ le 2026-08-26** : les 5 `ParamSpec` déclarés (`offset_debut`/`offset_fin`,
+`depuis_debut`/`depuis_fin`, `repeter`), traversée testée, et un test qui garde la **DÉCLARATION**
+elle-même (`functions/temporal/tests_segmentation.py` — *une capacité non déclarée est une
+capacité invisible de l'UI générée*). `wama_data` : **645 tests** au vert.
+
+**③ Conditionnelle sur table d'ÉVÉNEMENTS (la bascule [Data|Event] de l'écran).** `_ENTREE` est
+`TIMESERIES` seulement ; « les occurrences de `commentaires_simu` dont `var_commentaires` contient
+FIN » — filtrer des occurrences par prédicat — n'a pas de fonction. Une `event_filtre_conditionnel`
+(EVENTS/SEGMENTS en entrée, **même** chaîne de conditions) comblerait le trou — ⭐ et couvrirait du
+même coup l'essentiel du filtrage manuel **de façon déclarative**.
+
+> ⭐ **Étendu aux SITUATIONS (question de Fabien, 26/08 : « durée > 1 min ? vitesse moyenne >
+> 30 km/h ? ») — oui, et par COMPOSITION, pas par concept neuf.** La même fonction de filtre
+> accepte EVENTS **et** SEGMENTS et teste leurs **colonnes**. « Durée > 1 min » : la durée se
+> dérive (`end − start` ; un segment **ouvert** n'a pas de durée — à écarter explicitement, jamais
+> en silence). « Vitesse moyenne > 30 » : l'indicateur par segment est **déjà le Calculator**
+> (`calcul_par_segment` adjoint `moyenne_vitesse` à la table de segments), puis le même filtre
+> s'applique. Deux fonctions chaînées — exactement le motif « un choix de sortie, pas un mode »
+> déjà acté pour `segment_`/`event_chaine_conditionnelle`.
+
+**④ Le filtrage MANUEL par occurrence (les cases « Ignore » de `Filtrage_segmentation.png`).**
+Rien de dédié (`etats(ignorer=…)` ignore des **valeurs** d'un catégoriel, pas des occurrences ;
+`depuis_*` ne saute que les N premières). ⭐ **Mais la moitié de sa raison d'être a DISPARU** :
+l'outil d'origine appariait par index et **renvoyait l'utilisateur au filtrage manuel** dès que les
+comptes différaient — l'appariement temporel de `jonction()` n'a pas ce cas d'échec. Le résiduel
+légitime (écarter de fausses détections) est une **CURATION** : un geste **par fichier**, tracé
+comme les gestes de codage, **non promouvable au batch** — cohérent avec « on persiste la
+déclaration, pas les valeurs » et avec la décision export (§11.2 ② : le déclaratif se promeut, le
+manuel reste local). À déclarer comme geste, pas comme fonction du catalogue.
+
+(Mineur, à vérifier au câblage : la restriction « Situation : … » appliquée à la **sortie
+événements** de la conditionnelle — `present_dans` opère sur des segments ; pour des events, soit
+restreindre le signal d'entrée, soit un petit `events_present_dans`.)
 
 ---
 
@@ -3948,6 +4015,7 @@ Voir **D21 à D25** au §10 (D20 close).
 | D30 | **nature personnelle d'une unité d'observation** (§13.16) : `observation` doit-il déclarer si son unité est une **personne physique**, et un axe s'il est **identifiant direct / pseudonyme / anonyme** ? ⚠ Mesuré au §13.15 : `participant_id = 'Passation_01'` est un **pseudonyme**, fait qu'un registre RGPD veut voir écrit et qu'aucune relecture ultérieure ne pourra reconstituer. Gratuit maintenant, irrattrapable en aval. Le reste du registre (base légale, DPIA, conservation) reste **hors manifeste** | avec le 1ᵉʳ corpus à données personnelles |
 | D29 | ⚠⚠ **`source` existe à DEUX étages avec DEUX vocabulaires** (§13.15) : enveloppe = `builtin\|library\|folder\|extract` (d'où vient le MANIFESTE), corps `dataset` = `rtmaps\|lsl\|csv\|…` (d'où viennent les DONNÉES). Même nom, sens disjoints, un seul fichier — même famille que §9decies.3, mais structurelle cette fois. Renommer le champ du corps (`data_source` ?), ou documenter la superposition et s'y tenir ? ⚠ Trouvé **en écrivant le premier manifeste**, pas en relisant le code | avant le 2ᵉ manifeste `dataset` |
 | D25 | **`universe` / population** (DDI, §13.3ter) — le corpus déclare ce qu'il **contient** ; il ne déclare pas ce qu'il est censé **couvrir** (« conducteurs de 65-75 ans titulaires du permis depuis plus de 10 ans »). DDI porte les deux. ⚠ Sans lui, l'écart mesurable est « déclaré vs trouvé » ; avec lui il devient aussi « **visé** vs trouvé » — c'est-à-dire la couverture réelle d'une étude, qui est une question de relecture d'article. À arbitrer : champ du kind `dataset`, ou hors périmètre WAMA | après le 1ᵉʳ manifeste réel |
+| D27 | **Unités d'AFFICHAGE par préférence utilisateur** (question de Fabien 26/08 : km/miles, °C/°F/K…). Position recommandée : la donnée reste dans **SON unité** (`unit` est déjà écrit/relu — `WamaVariables.unit`, `ParamSpec.unit`) ; la conversion vit à la **PRÉSENTATION seule** (preview, graphes, inspecteur), pilotée par une préférence de **profil** (métrique/impérial…) ; l'**export** reste par défaut dans l'unité de la donnée, conversion possible mais **TRACÉE** (en-tête + rapport) — un fichier en miles qui ne le dit pas est une perte silencieuse. Outillage pressenti : **pint** (BSD, standard de facto Python — la famille de conventions que §13.3 cite déjà : netCDF/CF, UCUM) ; brique **substrat** (`wama/common/`), les mondes Médias et Lab ont les mêmes besoins. ⚠ Si pint entre : les DEUX venvs + `requirements.txt` le même jour | Fabien |
 | ~~D26~~ | ✅ **TRANCHÉE 2026-08-25 — `.wds` est RÉSERVÉ au bundle CORPUS-niveau.** L'objet qui EST un « WAMA Data Set » vit **un étage AU-DESSUS** du `.wdat` : D17 avait écarté `.wds` pour la FEUILLE (un essai), pas pour l'ARBRE. Contenu = **un batch de `.wdat`** + métas du corpus + manifeste `dataset` + protocoles ; **encodage pressenti : HDF5** (hiérarchique — un groupe par essai ; interop MATLAB/h5py/R ; Fabien a prototypé `.trip`→HDF5, faisabilité attestée) ; **exportable depuis la card mère du batch, réimportable EN BATCH** (§11.8 ⑧). ⚠ Deux conditions avant d'écrire une ligne : ① la projection SQLite→HDF5 **s'audite** (`Rapport.pertes`, §9duodecies.5 — raw + protocole + gestes doivent survivre à l'aller-retour, sinon le réimport ment) ; ② **une seule NATURE** — « batch de `.wdat` » décrit le CONTENU, HDF5 l'ENCODAGE ; pas une archive zip d'un côté et un export HDF5 de l'autre. Enrichit **Exporter** (geste corpus, card mère) et **Converter** (route fichier-à-fichier `.trip`/`.wdat`→HDF5) — deux modules, deux granularités, pas de doublon | Fabien |
 
 ---

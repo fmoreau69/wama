@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from wama.common.catalog.data_types import CANONICAL_FIELDS, DataType, TypedFrame
 from wama.common.catalog.function_catalog import (FunctionCategory, FunctionSpec, ParamSpec, PortSpec, register)
-from ...core.segmentation import autour, conditionnelle, etats, jonction, present_dans
+from ...core.segmentation import autour, conditionnelle, etats, jonction, marges, present_dans
 #: RÉEXPORT délibéré — `manquant` a été remonté au cœur (`core/valeurs.py`) quand le Calculator
 #: en est devenu le 4ᵉ consommateur : `core/` ne peut pas dépendre de `functions/`. Le garder
 #: importable d'ici évite de toucher les 3 importateurs existants pour un simple déménagement.
@@ -69,10 +69,26 @@ def segments_autour(events: TypedFrame, offset_debut: float = 0.0, offset_fin: f
 
 
 def segments_jonction(debuts: TypedFrame, fins: TypedFrame, nom: str = '',
-                      fermer_dernier: bool = False) -> TypedFrame:
-    """Début pris dans un flux, fin dans l'autre — appariement par le temps."""
-    return _segments(jonction(_colonne(debuts, 'time'), _colonne(fins, 'time'),
-                              nom=nom, fermer_dernier=fermer_dernier), meta=debuts.meta)
+                      depuis_debut: int = 0, depuis_fin: int = 0,
+                      offset_debut: float = 0.0, offset_fin: float = 0.0,
+                      repeter: bool = True, fermer_dernier: bool = False) -> TypedFrame:
+    """Début pris dans un flux, fin dans l'autre — appariement par le temps.
+
+    ⚠ Les curseurs et offsets existaient dans le CŒUR sans être DÉCLARÉS ici (trou ② de §11.9) :
+    l'UI se générant des `ParamSpec`, l'écran « Double » n'aurait eu ni offsets, ni curseurs
+    d'occurrence, ni « Répéter ». Une capacité non déclarée est une capacité invisible.
+    """
+    return _segments(jonction(_colonne(debuts, 'time'), _colonne(fins, 'time'), nom=nom,
+                              depuis_debut=depuis_debut, depuis_fin=depuis_fin,
+                              offset_debut=offset_debut, offset_fin=offset_fin,
+                              repeter=repeter, fermer_dernier=fermer_dernier),
+                     meta=debuts.meta)
+
+
+def segments_marges(segments: TypedFrame, avant: float = 0.0, apres: float = 0.0) -> TypedFrame:
+    """Élargit (ou rétrécit) chaque segment : `start − avant`, `end + apres`."""
+    rows = [dict(r, end=_fin(r.get('end'))) for r in segments.df.to_dict('records')]
+    return _segments(marges(rows, avant=avant, apres=apres), meta=segments.meta)
 
 
 def segments_conditionnels(signal: TypedFrame, colonne: str = 'value', seuil: float = 0.0,
@@ -163,12 +179,48 @@ register(FunctionSpec(
     ],
     outputs=[_SORTIE],
     params=[
+        ParamSpec('offset_debut', 'float', 0.0, unit='s',
+                  description="Décalage du DÉBUT après appariement (« le début du bloc moins "
+                              "2 s »). Appliqué APRÈS : décaler avant changerait l'appariement."),
+        ParamSpec('offset_fin', 'float', 0.0, unit='s',
+                  description="Décalage de la FIN après appariement (« la pause suivante plus 5 s »)."),
+        ParamSpec('depuis_debut', 'int', 0, 0,
+                  description="Occurrences de DÉBUT sautées avant d'apparier — le curseur "
+                              "« Table 1 » de l'écran d'origine."),
+        ParamSpec('depuis_fin', 'int', 0, 0,
+                  description="Occurrences de FIN sautées avant d'apparier — le curseur "
+                              "« Table 2 » de l'écran d'origine."),
+        ParamSpec('repeter', 'bool', True,
+                  description="Un segment par début (défaut) ; décoché : un seul, celui des "
+                              "curseurs — la case « Répéter sur les prochains segments »."),
         ParamSpec('nom', 'str', ''),
         ParamSpec('fermer_dernier', 'bool', False,
                   description="Écarter le dernier segment s'il reste ouvert (défaut : le garder)."),
     ],
     cost={'cpu_bound': True},
     fn=segments_jonction,
+))
+
+register(FunctionSpec(
+    key='segment_marges',
+    name="Marges autour de segments existants",
+    description="Décale les deux bornes de chaque segment : start − avant, end + apres. C'est le "
+                "mode « Simple » appliqué à une SITUATION (marges inf/sup), qu'`autour` ne couvre "
+                "pas — une situation a deux bornes, pas une ancre. Négatif = rétrécir ; un segment "
+                "qui s'inverse est ÉCARTÉ ; une fin ouverte le reste. L'origine d'avant la marge "
+                "survit dans `source`.",
+    category=FunctionCategory.TRANSFORM,
+    tags=['temporel', 'segmentation'],
+    inputs=[PortSpec('segments', DataType.SEGMENTS, required_fields=['start', 'end'])],
+    outputs=[_SORTIE],
+    params=[
+        ParamSpec('avant', 'float', 0.0, unit='s',
+                  description="Marge ajoutée AVANT chaque segment (start − avant)."),
+        ParamSpec('apres', 'float', 0.0, unit='s',
+                  description="Marge ajoutée APRÈS chaque segment (end + apres)."),
+    ],
+    cost={'cpu_bound': True},
+    fn=segments_marges,
 ))
 
 register(FunctionSpec(

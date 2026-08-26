@@ -130,5 +130,27 @@ class CasCamAnalyzerTest(unittest.TestCase):
         self.assertEqual((segs.df.iloc[0]['start'], segs.df.iloc[0]['end']), (2.0, 3.0))
 
 
+class MargesSpatialesWrapperTest(unittest.TestCase):
+    """« 50 m avant l'entrée de zone » — la marge en mètres, câblée aux cadres typés."""
+
+    def test_la_marge_en_metres_recule_la_borne_le_long_de_la_trace(self):
+        from .spatial import segments_marges_spatiales
+
+        # Trace régulière plein nord : 1 point/s, ~40 m par pas (a(t) ≈ 40·t).
+        trace = _trace([i * FRONTIERE for i in range(8)])
+        zone = TypedFrame(pd.DataFrame({'start': [5.0], 'end': [6.0]}), DataType.SEGMENTS)
+
+        s = segments_marges_spatiales(zone, trace, avant_m=60.0)
+        # 60 m avant a(5) ≈ 200 → cible ≈ 140 → dernier échantillon ≤ cible : t=3 (~120 m).
+        self.assertEqual((s.df.iloc[0]['start'], s.df.iloc[0]['end']), (3.0, 6.0))
+        self.assertEqual(s.df.iloc[0]['origin'], 'marges_spatiales')
+
+    def test_les_deux_marges_sont_DECLAREES_au_catalogue(self):
+        # ⚠ La leçon du trou ② de §11.9 : une capacité non déclarée est invisible de l'UI générée.
+        for cle in ('segment_marges', 'segment_marges_spatiales'):
+            spec = get(cle)
+            self.assertIsNotNone(spec, f"{cle} absent du catalogue")
+
+
 if __name__ == '__main__':
     unittest.main()

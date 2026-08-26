@@ -31,9 +31,10 @@ from __future__ import annotations
 from wama.common.catalog.data_types import DataType, TypedFrame
 from wama.common.catalog.function_catalog import (FunctionCategory, FunctionSpec, ParamSpec,
                                                   PortSpec, register)
-from ...core.geo import distances_a_point
+from ...core.geo import abscisse_curviligne, distances_a_point
 from ...core.noms import normaliser
-from ..temporal.segmentation import _colonne
+from ...core.segmentation import marges_spatiales
+from ..temporal.segmentation import _colonne, _fin, _segments
 
 
 def distance_a_point(track: TypedFrame, lat: float = 0.0, lon: float = 0.0,
@@ -81,4 +82,52 @@ register(FunctionSpec(
     ],
     cost={'cpu_bound': True},
     fn=distance_a_point,
+))
+
+
+def segments_marges_spatiales(segments: TypedFrame, track: TypedFrame,
+                              avant_m: float = 0.0, apres_m: float = 0.0,
+                              champ_lat: str = 'lat', champ_lon: str = 'lon') -> TypedFrame:
+    """Marges en MÈTRES le long de la trace — l'abscisse curviligne convertit la distance en bornes.
+
+    Même généralisation que la segmentation spatiale ci-dessus : la marge spatiale n'est pas un
+    mode, c'est une marge exprimée sur une COLONNE monotone (la distance parcourue) au lieu de
+    `time`. Les bornes rendues sont des échantillons EXISTANTS de la trace.
+    """
+    abscisses = abscisse_curviligne(_colonne(track, champ_lat), _colonne(track, champ_lon))
+    rows = [dict(r, end=_fin(r.get('end'))) for r in segments.df.to_dict('records')]
+    return _segments(marges_spatiales(rows, _colonne(track, 'time'), abscisses,
+                                      avant_m=avant_m, apres_m=apres_m),
+                     meta=segments.meta)
+
+
+register(FunctionSpec(
+    key='segment_marges_spatiales',
+    name="Marges spatiales autour de segments (mètres le long de la trace)",
+    description="Décale les bornes d'une DISTANCE PARCOURUE (« 50 m avant l'entrée de zone »), "
+                "convertie en instants par l'abscisse curviligne de la trace. Les bornes rendues "
+                "sont des échantillons EXISTANTS (aucune valeur inventée) : la marge rendue vaut "
+                "AU MOINS la marge demandée, et s'arrête où la donnée s'arrête. Un trou GPS ne "
+                "fabrique pas de distance ; une fin ouverte reste ouverte ; un segment qui "
+                "s'inverse est écarté.",
+    category=FunctionCategory.TRANSFORM,
+    tags=['geo', 'spatial', 'segmentation'],
+    inputs=[
+        PortSpec('segments', DataType.SEGMENTS, required_fields=['start', 'end']),
+        PortSpec('track', DataType.GEO_TRACK, required_fields=['time', 'lat', 'lon'],
+                 description="Trace géolocalisée qui porte la distance parcourue."),
+    ],
+    outputs=[PortSpec('segments', DataType.SEGMENTS,
+                      description="Segments aux bornes décalées — origine tracée, "
+                                  "`source` garde l'origine d'avant la marge.")],
+    params=[
+        ParamSpec('avant_m', 'float', 0.0, unit='m',
+                  description="Marge AVANT chaque segment, en mètres parcourus."),
+        ParamSpec('apres_m', 'float', 0.0, unit='m',
+                  description="Marge APRÈS chaque segment, en mètres parcourus."),
+        ParamSpec('champ_lat', 'str', 'lat'),
+        ParamSpec('champ_lon', 'str', 'lon'),
+    ],
+    cost={'cpu_bound': True},
+    fn=segments_marges_spatiales,
 ))

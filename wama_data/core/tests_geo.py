@@ -7,7 +7,7 @@ donc de la géodésie, pas d'une de ces copies — sinon on ne testerait que la 
 import math
 import unittest
 
-from .geo import RAYON_TERRE_M, distances_a_point, haversine
+from .geo import RAYON_TERRE_M, abscisse_curviligne, distances_a_point, haversine
 
 
 class HaversineTest(unittest.TestCase):
@@ -65,6 +65,38 @@ class DistancesAPointTest(unittest.TestCase):
 
     def test_serie_vide(self):
         self.assertEqual(distances_a_point([], [], 45.0, 5.0), [])
+
+
+class AbscisseCurviligneTest(unittest.TestCase):
+    """La colonne qui rend les marges spatiales exprimables — distance CUMULÉE le long de la trace."""
+
+    # 4 points plein nord espacés d'~40 m chacun (cf. test_courte_distance_realiste).
+    LATS = [45.75000, 45.75036, 45.75072, 45.75108]
+    LONS = [4.85000] * 4
+
+    def test_cumul_monotone_depuis_zero(self):
+        a = abscisse_curviligne(self.LATS, self.LONS)
+        self.assertEqual(a[0], 0.0)
+        self.assertAlmostEqual(a[1], 40.0, delta=0.5)
+        self.assertAlmostEqual(a[3], 120.0, delta=1.5)
+        self.assertEqual(a, sorted(x for x in a if x is not None))
+
+    def test_un_trou_rend_None_et_REPORTE_la_distance_sans_l_inventer(self):
+        # ⚠ Le point de la fonction : le trou n'avance pas l'abscisse, la position valide
+        # suivante cumule depuis la DERNIÈRE valide — 80 m d'un bloc, pas 40 + 40 inventés.
+        a = abscisse_curviligne([self.LATS[0], None, self.LATS[2]],
+                                [4.85000, 4.85000, 4.85000])
+        self.assertEqual(a[0], 0.0)
+        self.assertIsNone(a[1])
+        self.assertAlmostEqual(a[2], 80.0, delta=1.0)
+
+    def test_immobile_n_accumule_rien(self):
+        a = abscisse_curviligne([45.0, 45.0, 45.0], [5.0, 5.0, 5.0])
+        self.assertEqual(a, [0.0, 0.0, 0.0])
+
+    def test_longueurs_incoherentes_refusees(self):
+        with self.assertRaises(ValueError):
+            abscisse_curviligne([45.0], [])
 
 
 if __name__ == '__main__':

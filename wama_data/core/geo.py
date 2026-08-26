@@ -40,6 +40,13 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * RAYON_TERRE_M * math.asin(math.sqrt(a))
 
 
+def _invalide(a: Any, b: Any) -> bool:
+    """Position inexploitable : absente, non numérique, booléenne ou NaN (`x != x`)."""
+    return (isinstance(a, bool) or isinstance(b, bool)
+            or not isinstance(a, (int, float)) or not isinstance(b, (int, float))
+            or a != a or b != b)
+
+
 def distances_a_point(lats: Sequence[Any], lons: Sequence[Any],
                       lat: float, lon: float) -> List[Optional[float]]:
     """Distance de chaque position à un point de référence, en mètres.
@@ -52,10 +59,34 @@ def distances_a_point(lats: Sequence[Any], lons: Sequence[Any],
         raise ValueError(f"lats et lons de longueurs différentes ({len(lats)} ≠ {len(lons)})")
     out: List[Optional[float]] = []
     for a, b in zip(lats, lons):
-        if isinstance(a, bool) or isinstance(b, bool) \
-                or not isinstance(a, (int, float)) or not isinstance(b, (int, float)) \
-                or a != a or b != b:          # `x != x` : NaN
+        if _invalide(a, b):
             out.append(None)
             continue
         out.append(haversine(a, b, lat, lon))
+    return out
+
+
+def abscisse_curviligne(lats: Sequence[Any], lons: Sequence[Any]) -> List[Optional[float]]:
+    """Distance CUMULÉE le long de la trace, en mètres — l'abscisse curviligne de chaque position.
+
+    C'est la colonne qui rend les MARGES SPATIALES exprimables (« 50 m avant l'entrée de zone ») :
+    une distance parcourue se lit dessus par soustraction, comme un temps sur `time`.
+
+    ⚠ Une position invalide rend `None` (mêmes règles que `distances_a_point`) et ne fait PAS
+    avancer l'abscisse ; la position valide suivante cumule la distance depuis la DERNIÈRE valide.
+    Le trou ne fabrique pas de distance — il la reporte d'un bloc, et l'abscisse reste MONOTONE.
+    """
+    if len(lats) != len(lons):
+        raise ValueError(f"lats et lons de longueurs différentes ({len(lats)} ≠ {len(lons)})")
+    out: List[Optional[float]] = []
+    cumul = 0.0
+    derniere: Optional[tuple] = None
+    for a, b in zip(lats, lons):
+        if _invalide(a, b):
+            out.append(None)
+            continue
+        if derniere is not None:
+            cumul += haversine(derniere[0], derniere[1], a, b)
+        out.append(cumul)
+        derniere = (a, b)
     return out

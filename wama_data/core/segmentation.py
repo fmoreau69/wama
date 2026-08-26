@@ -373,3 +373,81 @@ def fermer(segments: Sequence[Segment], fin: float) -> List[Segment]:
             s['closed_at'] = fin
         out.append(s)
     return out
+
+
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+# 6. MARGES — ajuster les bornes d'un segment EXISTANT (temporelles, ou spatiales par colonne)
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+
+def marges(segments: Sequence[Segment], avant: float = 0.0, apres: float = 0.0) -> List[Segment]:
+    """Décale les bornes de chaque segment : `start − avant`, `end + apres`.
+
+    C'est le mode « Simple » de l'outil d'origine appliqué à une SITUATION (bascule
+    [Event|Situation] de l'écran, marges inf/sup) : `autour()` ne sait le faire que pour une ancre
+    PONCTUELLE — une situation a DEUX bornes à décaler indépendamment. Négatif = rétrécir.
+
+    ⚠ Un segment qui s'INVERSE en rétrécissant (`start ≥ end`) est ÉCARTÉ — même geste que
+    `duree_min` dans `conditionnelle()` : la contrainte déclarée vaut filtre, pas une bizarrerie.
+    ⚠ Une fin OUVERTE le reste : on ne décale pas une borne inconnue.
+    L'origine d'AVANT la marge survit dans `source` — décaler des bornes ne doit pas effacer
+    d'où le segment vient.
+    """
+    out: List[Segment] = []
+    for s in segments:
+        seg = dict(s)
+        seg['start'] = s['start'] - avant
+        fin = s.get('end')
+        seg['end'] = OUVERT if fin is OUVERT else fin + apres
+        if seg['end'] is not OUVERT and seg['end'] <= seg['start']:
+            continue
+        out.append(_tracer(seg, 'marges', source=s.get('origin'),
+                           window=f"{avant:g}_{apres:g}"))
+    return out
+
+
+def marges_spatiales(segments: Sequence[Segment], times: Sequence[float],
+                     abscisses: Sequence[Optional[float]],
+                     avant_m: float = 0.0, apres_m: float = 0.0) -> List[Segment]:
+    """Décale les bornes d'une DISTANCE PARCOURUE le long de la trace, pas d'une durée.
+
+    Même généralisation que la segmentation spatiale (§9septies) : « 50 m avant l'entrée de
+    zone » n'est pas un mode nouveau, c'est une marge exprimée sur l'ABSCISSE CURVILIGNE — une
+    colonne (`core/geo.py::abscisse_curviligne`), passée ici en séquence pour que ce module reste
+    pur (ni pandas, ni géodésie).
+
+    Les bornes rendues sont des ÉCHANTILLONS EXISTANTS de la trace — aucune valeur inventée, comme
+    `at()` : pour la marge amont on prend le DERNIER échantillon dont l'abscisse est ≤ cible, pour
+    la marge aval le PREMIER dont l'abscisse est ≥ cible, donc la marge rendue vaut AU MOINS la
+    marge demandée. Une cible au-delà de la trace est bornée au premier/dernier échantillon
+    valide : la marge s'arrête où la donnée s'arrête.
+
+    ⚠ Fin OUVERTE : inchangée (on ne mesure pas une distance jusqu'à un instant inconnu).
+    ⚠ Segment inversé après rétrécissement : écarté (cf. `marges`).
+    ⚠ Les positions invalides (abscisse `None` — trou GPS) sont ignorées par la recherche.
+    """
+    if len(times) != len(abscisses):
+        raise ValueError(f"times et abscisses de longueurs différentes "
+                         f"({len(times)} ≠ {len(abscisses)})")
+    ts = [t for t, a in zip(times, abscisses) if a is not None]
+    ab = [a for a in abscisses if a is not None]
+    if not ts:
+        raise ValueError("trace sans aucune position valide : marge spatiale incalculable")
+
+    def _abscisse_a(t: float) -> float:
+        i = bisect_right(ts, t) - 1
+        return ab[max(i, 0)]
+
+    out: List[Segment] = []
+    for s in segments:
+        seg = dict(s)
+        i = bisect_right(ab, _abscisse_a(s['start']) - avant_m) - 1
+        seg['start'] = ts[max(i, 0)]
+        fin = s.get('end')
+        if fin is not OUVERT:
+            j = bisect_left(ab, _abscisse_a(fin) + apres_m)
+            seg['end'] = ts[min(j, len(ts) - 1)]
+            if seg['end'] <= seg['start']:
+                continue
+        out.append(_tracer(seg, 'marges_spatiales', source=s.get('origin'),
+                           window=f"{avant_m:g}_{apres_m:g}_m"))
+    return out
