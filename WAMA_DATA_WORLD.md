@@ -2741,6 +2741,28 @@ sous-estimait d'un facteur 5**, toutes dans le sens optimiste. Avant d'ajouter u
 `Declaration`, **lire le panneau d'export de `BIND_GUI.mlapp`** : filtre-t-il les LIGNES d'une table,
 les OCCURRENCES retenues, ou les deux ? par déclaration ou globalement ?
 
+> ✅ **RÉSOLU le 2026-08-26 — par le témoignage de l'AUTEUR, corroboré par l'écran.** Fabien
+> précise : le « filtre » du panneau d'export porte sur les **COLONNES** (choisir ce qui entre dans
+> « Votre fichier » — couvert 1:1 par `Declaration.colonnes`, §11.1) ; le filtrage des **LIGNES**
+> n'a jamais été une option d'export — il passe par **`present_dans`** (« Sélectionnez vos
+> situations » sur l'écran), et une sélection de lignes particulière se **PRÉPARE dans le
+> Segmenter** puis s'applique par `present_dans`. Le screenshot le confirme : aucun widget de
+> lignes sur le panneau. **Le champ `filtre` envisagé ci-dessus n'a donc pas lieu d'être** — le
+> câblage requis est `present_dans` seul.
+>
+> ⭐ **Recommandation (26/08, en attente du retour de Fabien) : NE PAS ajouter d'option « sélection
+> de lignes » à l'Exporter.** ① Dans le modèle §11.8, un pipeline promu à la card mère doit se
+> **REJOUER sur chaque fille** : `present_dans(segment déclaré)` se rejoue ; une liste de lignes
+> cochées est une coordonnée **par fichier**, qui ne veut rien dire chez les sœurs — l'option
+> créerait des exports non promouvables. ② *On persiste la DÉCLARATION, pas les valeurs* : le
+> segment dit **POURQUOI** ces lignes (condition, plage), la liste ne dit que **LESQUELLES** — et
+> c'est le pourquoi qu'un relecteur d'article doit lire dans le protocole. ③ Sélectionner des
+> lignes **EST** une segmentation : une option d'Exporter serait un second moteur de segmentation,
+> le « troisième vocabulaire » que §11.4 interdit. La friction UX se règle **en surface** : un
+> raccourci « définir une sélection… » dans l'Exporter ouvre le Segmenter, crée un segment **nommé
+> réel**, qui revient présélectionné dans « présent dans » — le geste vit dans l'Exporter, l'objet
+> reste un segment (même motif qu'Explorer/Calculator, §11.8 ①).
+
 **③ Les cadences différentes — le point dur, et Fabien le pose à part avec raison.** Deux tables
 `data` à 1000 Hz et 10 Hz n'ont pas les mêmes instants ; les mettre en colonnes côte à côte exige de
 décider quelle ligne va avec quelle ligne. ⚠ Et **D6/D10 interdisent l'interpolation**. Trois issues
@@ -3741,6 +3763,62 @@ cessent d'être enfouis dans un nom de table (`situation_0_15`) pour devenir **i
 
 ---
 
+### 13.17 ✅ L'ÉCART PORTE LES AXES — et il a trouvé un défaut du lecteur `.trip` (2026-08-26)
+
+> Quick win ⑤. `wama_data/dataset.py` + 12 tests (`tests_dataset.py`), **640 au vert**.
+> Confronté au `.trip` réel, pas à une fixture.
+
+**Ce qui est livré** — `Ecart` gagne `coordonnees` (axes situés) et `axes_sans_coordonnee`, et
+`situer()` résout **trois graphies**, dans cet ordre : `axe.<clé>` (convention WAMA) · `<clé>`
+(convention de l'outil d'origine, **relevée** au §13.15) · `source_key` (alias déclaré par l'axe).
+
+> ⚠ **`axes_sans_coordonnee` est INFORMATIF, jamais un verdict.** Tous les axes ne sont pas des
+> coordonnées de conteneur : `participant` et `scenario` valent pour tout le fichier, une fenêtre
+> d'analyse indexe des **lignes**. Faire échouer la conformité dessus ferait sonner le contrôle sur
+> tout manifeste correct — le défaut déjà corrigé une fois sur `Ecart.lecteur`.
+
+**Résultat sur le fichier réel**, et il est exactement celui qu'on espérait :
+
+```
+axes situés          : scenario=Test
+axes sans coordonnée : passation, fenetre_analyse
+```
+
+`scenario` est retrouvé **sans préfixe**, par la seconde graphie. `passation` ne l'est pas — parce
+que sa clé source est `participant_id` et que le manifeste ne déclarait pas encore l'alias. **La
+mesure a nommé le manque au lieu de le deviner** : c'est le geste que §13.6 promettait.
+
+#### ⚠⚠ ET UN DÉFAUT RÉEL DU LECTEUR `.trip`, que seul ce parcours pouvait exposer
+
+L'écart annonçait **15 signaux absents sur 15**, d'un fichier qui les contient tous. Mesuré :
+
+| appel | identifiant employé |
+|---|---|
+| `probe().streams` | le nom de **TABLE** — `data_BIOPAC_MP150`, `event_CADISP` |
+| `read()` → signal dans le référentiel | le nom du **CATALOGUE** — `BIOPAC_MP150`, `CADISP` |
+| `load(streams=['CADISP'])` | ❌ `ValueError: 'CADISP' n'est pas un flux reconnu` |
+| `load(streams=['event_CADISP'])` | ✅ … et rend un signal nommé **`CADISP`** |
+
+> **L'identifiant pour DEMANDER un flux et celui pour le RETROUVER ne sont pas le même.** Un auteur
+> de manifeste lit `MetaDatas` — il écrira donc systématiquement la forme que `probe()` rejette ;
+> et s'il écrit la forme préfixée, le référentiel lui rendra des signaux qu'il ne saura plus
+> adresser. **Les deux chemins sont cassés**, dans les deux sens.
+>
+> ⭐ Et c'est le **retour du défaut que `.wdat` avait été créé pour retirer** : §9duodecies.3 pose
+> « la famille n'est plus dans le NOM », §9nonies « la famille portée comme DONNÉE ». Le lecteur
+> `.trip`, lui, garde le préfixe de famille **dans l'identité du flux** côté `probe`, et le retire
+> côté `read`. Le fait était établi ailleurs dans le dépôt et n'était pas relié à sa conséquence —
+> **septième occurrence** du motif.
+
+**Ce qui a été fait, et ce qui ne l'a pas été.** Le contrat de `probe()` n'est pas modifié : il
+touche 73 tests `sources` et le travail en cours d'une autre instance. Ce qui est livré est un
+**indice** : quand *tous* les signaux déclarés sont absents mais recouverts par un préfixe de
+famille, l'écart **nomme la cause** (`⚠ les 15 signaux déclarés existent sous un nom PRÉFIXÉ (ex.
+« BIOPAC_MP150 » → « data_BIOPAC_MP150 ») — voir D31`). Le pire cas n'est pas la perte, c'est la
+perte **silencieuse**. ⇒ **D31** tranche le fond.
+
+---
+
 ### 13.16 RGPD et SI de laboratoire — non bloquant, mais UNE chose est gratuite maintenant
 
 > Question de Fabien (2026-08-26) : un **registre RGPD** (cycle et traitement des données) est à
@@ -3815,6 +3893,7 @@ Voir **D21 à D25** au §10 (D20 close).
 | D24 | **DEUX rôles ou TROIS ?** (§13.3ter) — SDMX n'en a pas pour « l'unité d'observation » : chez lui **toutes** les dimensions sont des dimensions, et l'unité est simplement **la plus fine**. D'où une simplification possible : `factor` / `attribute` seulement, + un marqueur **`grain: true`** sur le facteur qui porte l'unité d'observation. ⚠ Contre-argument : l'unité d'observation porte l'**indépendance statistique**, ce qui n'est pas une propriété comme une autre — la marquer par un rôle la rend impossible à oublier, un booléen se néglige. ⭐ Le vrai départage est empirique : **regarder si une fonction d'analyse a besoin de la distinguer par son RÔLE ou par une PROPRIÉTÉ** | avant la 1ʳᵉ fonction qui lit les axes |
 | D27 | **`present_dans` et l'ÉGALITÉ des bornes** — ⚠ **ÉNONCÉ RESSERRÉ le 2026-08-26 (objection de Fabien).** J'avais écrit « le défaut contredit sa docstring » : trop fort, et à côté. Fabien : *« c'est normal que `strict=True`, on sous-segmente un segment, on ne peut pas avoir une borne du sous-segment qui sort du segment qui le contient »* — **exact, et ce n'est pas ce que `strict` arbitre**. `strict=True` teste `s['start'] > d and fin < f`, c'est-à-dire des bornes **strictement intérieures** : il rejette donc l'**ÉGALITÉ**, pas le débordement. Une sous-situation qui commence *exactement* quand sa mère commence (« les 10 premières secondes du suivi ») est **INCLUSE** et pourtant écartée. Démonstration limite : `present_dans(X, X)` rend **∅**. La docstring prévoit déjà le cas (`False` = « quand la référence a été produite par le même découpage ») — reste à décider **qui** le passe : le défaut, ou l'appelant hiérarchique | avant le 1ᵉʳ découpage hiérarchique |
 | ~~D28~~ | ✅ **TRANCHÉE 2026-08-26 par Fabien** — la couture est un **AGRÉGATEUR `.wdat` → `.wdat`**, pas un lecteur multi-fichiers ni `.wds`. Plusieurs conteneurs sont **fusionnés en un seul** (ex. des tranches de 30 min en fichiers de 6 h), et le résultat est un `.wdat` ordinaire que tout le reste sait déjà lire. ⭐ Décisif : **`.wds` est un ENGLOBEUR de `.wdat` (D26), pas un fusionneur** — les deux répondent à des besoins différents et les confondre aurait donné un format à deux natures, ce que D26 interdit explicitement. Le moteur d'écriture existe déjà (§9duodecies, un moteur/deux schémas) ; restent la granularité de fusion (paramètre) et l'**audit de la fusion** (`Rapport.pertes`, comme toute projection) | ✅ close |
+| D31 | ⚠⚠ **le lecteur `.trip` n'emploie pas le même identifiant pour DEMANDER un flux et pour le RENDRE** (§13.17, mesuré) : `probe().streams` liste des noms de **table** (`data_BIOPAC_MP150`), `read()` rend des signaux au nom du **catalogue** (`BIOPAC_MP150`), et `load(streams=['CADISP'])` lève `n'est pas un flux reconnu` là où `['event_CADISP']` passe. **Les deux chemins sont cassés** pour un auteur de manifeste. Option A — `probe()` expose le nom de catalogue et la famille passe en donnée (**conforme à §9nonies / §9duodecies.3**, mais change un contrat public et touche 73 tests `sources`) ; option B — le manifeste emploie les noms de table (simple, mais **reconduit dans WAMA le défaut que `.wdat` a été créé pour retirer**). ⚠ Risque à mesurer avant A : une **collision de noms entre familles** (`data_X` et `event_X`). En attendant, l'écart **nomme la cause** au lieu d'annoncer un manque total | avant le 2ᵉ manifeste `dataset` |
 | D30 | **nature personnelle d'une unité d'observation** (§13.16) : `observation` doit-il déclarer si son unité est une **personne physique**, et un axe s'il est **identifiant direct / pseudonyme / anonyme** ? ⚠ Mesuré au §13.15 : `participant_id = 'Passation_01'` est un **pseudonyme**, fait qu'un registre RGPD veut voir écrit et qu'aucune relecture ultérieure ne pourra reconstituer. Gratuit maintenant, irrattrapable en aval. Le reste du registre (base légale, DPIA, conservation) reste **hors manifeste** | avec le 1ᵉʳ corpus à données personnelles |
 | D29 | ⚠⚠ **`source` existe à DEUX étages avec DEUX vocabulaires** (§13.15) : enveloppe = `builtin\|library\|folder\|extract` (d'où vient le MANIFESTE), corps `dataset` = `rtmaps\|lsl\|csv\|…` (d'où viennent les DONNÉES). Même nom, sens disjoints, un seul fichier — même famille que §9decies.3, mais structurelle cette fois. Renommer le champ du corps (`data_source` ?), ou documenter la superposition et s'y tenir ? ⚠ Trouvé **en écrivant le premier manifeste**, pas en relisant le code | avant le 2ᵉ manifeste `dataset` |
 | D25 | **`universe` / population** (DDI, §13.3ter) — le corpus déclare ce qu'il **contient** ; il ne déclare pas ce qu'il est censé **couvrir** (« conducteurs de 65-75 ans titulaires du permis depuis plus de 10 ans »). DDI porte les deux. ⚠ Sans lui, l'écart mesurable est « déclaré vs trouvé » ; avec lui il devient aussi « **visé** vs trouvé » — c'est-à-dire la couverture réelle d'une étude, qui est une question de relecture d'article. À arbitrer : champ du kind `dataset`, ou hors périmètre WAMA | après le 1ᵉʳ manifeste réel |

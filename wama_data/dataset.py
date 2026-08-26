@@ -75,6 +75,22 @@ class Ecart:
     lecteur: str = ''
     notes: Tuple[str, ...] = ()
 
+    #: Coordonnées d'AXES retrouvées dans la source, en paires `(clé d'axe, valeur)`.
+    #:
+    #: ⭐ Mesuré le 2026-08-26 sur un `.trip` réel (§13.15) : le fichier de 2019 portait déjà
+    #: `('scenario', 'Test')` et `('participant_id', 'Passation_01')` dans `MetaTripDatas`. Le
+    #: rangement n'est donc pas une convention à instaurer — c'est une pratique à RECONNAÎTRE.
+    coordonnees: Tuple[Tuple[str, str], ...] = ()
+
+    #: Axes déclarés dont aucune coordonnée n'a été trouvée dans la source.
+    #:
+    #: ⚠ **INFORMATIF, jamais un verdict** — et c'est délibéré. Tous les axes ne sont pas des
+    #: coordonnées de conteneur : `participant` ou `scenario` valent pour tout le fichier, mais une
+    #: fenêtre d'analyse indexe des LIGNES à l'intérieur. Faire échouer la conformité sur son
+    #: absence ferait sonner le contrôle sur tout manifeste correct — le défaut déjà corrigé sur
+    #: `lecteur` ci-dessus, et « un contrôle qui sonne toujours n'est pas un contrôle ».
+    axes_sans_coordonnee: Tuple[str, ...] = ()
+
     @property
     def conforme(self) -> bool:
         """Vrai quand tout ce que le manifeste PROMET est présent.
@@ -94,6 +110,12 @@ class Ecart:
         if self.non_declares:
             bouts.append(f"{len(self.non_declares)} flux présent(s) non déclaré(s) : "
                          + ', '.join(self.non_declares))
+        if self.coordonnees:
+            bouts.append("axes situés : "
+                         + ', '.join(f"{k}={v}" for k, v in self.coordonnees))
+        if self.axes_sans_coordonnee:
+            bouts.append(f"{len(self.axes_sans_coordonnee)} axe(s) sans coordonnée dans la "
+                         f"source : " + ', '.join(self.axes_sans_coordonnee))
         bouts.extend(self.notes)
         if not bouts:
             lu = f" (lue par « {self.lecteur} »)" if self.lecteur else ''
@@ -129,6 +151,42 @@ def signaux_declares(body: Mapping[str, Any]) -> List[str]:
     return out
 
 
+def axes_declares(body: Mapping[str, Any]) -> List[Mapping[str, Any]]:
+    """Les axes du plan d'expérience déclarés, dans l'ordre du manifeste (`WAMA_DATA_WORLD §13`)."""
+    return [a for a in (body.get('axes') or []) if isinstance(a, Mapping) and a.get('key')]
+
+
+def situer(axes: Sequence[Mapping[str, Any]],
+           attributs: Mapping[str, Any]) -> Tuple[Dict[str, str], List[str]]:
+    """Retrouve, pour chaque axe déclaré, sa coordonnée dans les attributs de la source.
+
+    ⭐ **TROIS graphies sont acceptées, et ce n'est pas de la complaisance** — c'est le relevé du
+    §13.15 : un `.trip` de 2019 range déjà ses coordonnées dans `MetaTripDatas`, **sans préfixe**
+    (`scenario`, `participant_id`). Notre `axe.<clé>` est donc un CHANGEMENT de convention ; ne
+    lire que lui reviendrait à cesser de reconnaître les corpus existants. Même geste que
+    `timecode`, alias d'entrée de `time` depuis toujours.
+
+    Ordre de résolution :
+      1. `axe.<clé>`      — convention WAMA ;
+      2. `<clé>`          — convention de l'outil d'origine ;
+      3. `source_key`     — alias déclaré par l'axe, quand le nom diverge franchement
+                            (mesuré : l'axe `passation` se range sous `participant_id`).
+
+    Rend `(coordonnées trouvées, clés d'axes sans coordonnée)`.
+    """
+    trouvees: Dict[str, str] = {}
+    absents: List[str] = []
+    for a in axes:
+        cle = str(a['key'])
+        for candidate in (f'axe.{cle}', cle, a.get('source_key')):
+            if candidate and candidate in attributs:
+                trouvees[cle] = str(attributs[candidate])
+                break
+        else:
+            absents.append(cle)
+    return trouvees, absents
+
+
 def verifier(body: Mapping[str, Any], racine: Optional[Any] = None) -> Ecart:
     """Confronte le manifeste à la source **SANS la charger** (`probe` seul).
 
@@ -149,12 +207,43 @@ def verifier(body: Mapping[str, Any], racine: Optional[Any] = None) -> Ecart:
     info = probe(p)
     presents = set(info.streams)
     declares = signaux_declares(body)
+    coords, sans = situer(axes_declares(body), info.attributes or {})
+    manquants = tuple(s for s in declares if s not in presents)
 
     return Ecart(
-        manquants=tuple(s for s in declares if s not in presents),
+        manquants=manquants,
         non_declares=tuple(sorted(presents - set(declares))),
+        coordonnees=tuple(sorted(coords.items())),
+        axes_sans_coordonnee=tuple(sans),
         lecteur=lecteur.format,
+        notes=_indice_de_prefixe(manquants, presents),
     )
+
+
+def _indice_de_prefixe(manquants: Sequence[str], presents: set) -> Tuple[str, ...]:
+    """Quand TOUT est déclaré absent, dire POURQUOI plutôt que laisser deviner.
+
+    ⚠ DÉFAUT RÉEL, mesuré le 2026-08-26 en confrontant le premier manifeste écrit à la main à un
+    `.trip` réel (`WAMA_DATA_WORLD §13.15`) : le lecteur `.trip` **n'emploie pas le même
+    identifiant pour DEMANDER un flux et pour le RENDRE**. `probe()` liste des noms de TABLE
+    (`data_BIOPAC_MP150`), `read()` rend des signaux au nom du CATALOGUE (`BIOPAC_MP150`), et
+    `load(streams=['CADISP'])` lève `n'est pas un flux reconnu` là où `['event_CADISP']` passe.
+
+    Un auteur de manifeste lit le catalogue — il écrira donc systématiquement la mauvaise forme, et
+    l'écart annoncerait « 15 signaux absents » sur un fichier qui les contient tous. Le pire cas
+    n'est pas la perte, c'est la perte SILENCIEUSE : on nomme la cause. Le fond est ouvert (D31) ;
+    ceci ne le tranche pas, il rend le symptôme lisible.
+    """
+    if not manquants or not presents:
+        return ()
+    familles = ('data_', 'event_', 'situation_')
+    recouvres = [m for m in manquants if any(f + m in presents for f in familles)]
+    if len(recouvres) != len(manquants):
+        return ()
+    return (f"⚠ les {len(manquants)} signaux déclarés existent dans la source SOUS UN NOM PRÉFIXÉ "
+            f"(ex. « {recouvres[0]} » → « "
+            + next(f + recouvres[0] for f in familles if f + recouvres[0] in presents)
+            + " ») — nom de catalogue vs nom de table, voir D31",)
 
 
 def charger(body: Mapping[str, Any], racine: Optional[Any] = None, *,
@@ -167,8 +256,16 @@ def charger(body: Mapping[str, Any], racine: Optional[Any] = None, *,
     la confrontation. Ignorer l'écart devient un geste délibéré.
 
     Seuls les signaux DÉCLARÉS sont chargés — un manifeste qui n'en décrit que trois n'a pas à
-    payer la lecture des dix autres. Aucun signal déclaré (`signals` vide) est refusé par la
-    validation du kind, donc ne peut pas arriver ici.
+    payer la lecture des dix autres.
+
+    ⚠ **Cette docstring affirmait « `signals` vide est refusé par la validation du kind, donc ne
+    peut pas arriver ici ». C'est devenu FAUX le 2026-08-26** : `signals` est désormais facultatif
+    dès que `axes` est présent, pour admettre un corpus de questionnaires sans aucun flux temporel
+    (`WAMA_DATA_WORLD §13.10`). Le cas arrive donc, et il est **sûr** — vérifié, pas supposé :
+    `streams=[]` fait lire **zéro** flux (`trip.py` : `voulus = list(streams) if streams is not
+    None else info.streams`), là où `None` les lirait tous. Un corpus sans signal rend un
+    référentiel vide, ce qui est exactement ce qu'il décrit.
+    *(Rappel de la leçon : un assouplissement ne casse rien — il rend FAUX ce qui le documentait.)*
 
     `strict=True` refuse dès qu'une promesse n'est pas tenue. Le défaut est `False` : un corpus
     réel est hétérogène, et refuser une passation partielle rendrait le manifeste inutilisable.

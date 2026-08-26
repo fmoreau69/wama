@@ -15,7 +15,8 @@ from pathlib import Path
 
 from wama.common.manifests.builtin.dataset import validate_dataset_body
 
-from .dataset import Ecart, charger, chemin, signaux_declares, verifier
+from .dataset import (Ecart, _indice_de_prefixe, axes_declares, charger, chemin,
+                      signaux_declares, situer, verifier)
 
 
 def _csv(dossier: Path, nom: str, lignes) -> Path:
@@ -221,6 +222,93 @@ class ChaineDeclarativeTest(unittest.TestCase):
         self.assertEqual(json.loads(json.dumps(manifeste)), manifeste)
         self.assertEqual(depuis_dict(json.loads(json.dumps(vue.to_dict()))), vue)
         self.assertEqual(declaration_depuis_dict(json.loads(json.dumps(decl.to_dict()))), decl)
+
+
+class SituerLesAxesTest(unittest.TestCase):
+    """Le plan d'expérience confronté à la source — `WAMA_DATA_WORLD §13`.
+
+    ⭐ Ces tests encodent un RELEVÉ, pas une convention : un `.trip` de 2019 range déjà ses
+    coordonnées dans `MetaTripDatas`, **sans préfixe** (`scenario`, `participant_id`). Les trois
+    graphies acceptées ne sont donc pas une commodité, elles sont la condition pour que WAMA
+    reconnaisse les corpus qui existaient avant lui.
+    """
+
+    AXES = [{'key': 'passation', 'role': 'observation', 'source_key': 'participant_id'},
+            {'key': 'scenario', 'role': 'factor', 'crosses': 'passation'},
+            {'key': 'groupe', 'role': 'factor', 'contains': 'passation'}]
+
+    def test_la_convention_wama_prefixee_est_lue(self):
+        trouvees, absents = situer(self.AXES, {'axe.scenario': 'nuit'})
+        self.assertEqual(trouvees['scenario'], 'nuit')
+
+    def test_la_convention_SANS_prefixe_de_l_outil_d_origine_est_lue_aussi(self):
+        trouvees, _ = situer(self.AXES, {'scenario': 'Test'})
+        self.assertEqual(trouvees['scenario'], 'Test')
+
+    def test_un_alias_declare_rattrape_un_nom_divergent(self):
+        # Mesuré : l'unité d'observation se range sous `participant_id`, dont la VALEUR nomme
+        # pourtant une passation (`Passation_01`).
+        trouvees, _ = situer(self.AXES, {'participant_id': 'Passation_01'})
+        self.assertEqual(trouvees['passation'], 'Passation_01')
+
+    def test_le_prefixe_wama_prime_sur_la_forme_nue(self):
+        trouvees, _ = situer(self.AXES, {'axe.scenario': 'nuit', 'scenario': 'jour'})
+        self.assertEqual(trouvees['scenario'], 'nuit')
+
+    def test_un_axe_sans_coordonnee_est_NOMME_pas_devine(self):
+        _, absents = situer(self.AXES, {'scenario': 'Test'})
+        self.assertEqual(absents, ['passation', 'groupe'])
+
+    def test_aucun_axe_declare_ne_produit_aucun_manque(self):
+        self.assertEqual(situer([], {'scenario': 'Test'}), ({}, []))
+
+    def test_un_axe_sans_cle_est_ignore_pas_planté(self):
+        self.assertEqual([a['key'] for a in axes_declares({'axes': [{'role': 'factor'},
+                                                                   {'key': 'p'}]})], ['p'])
+
+
+class EcartDesAxesTest(unittest.TestCase):
+    """L'écart PORTE les axes — et un axe sans coordonnée n'est jamais un verdict."""
+
+    def test_un_axe_sans_coordonnee_ne_rend_PAS_l_ecart_non_conforme(self):
+        # Tous les axes ne sont pas des coordonnées de conteneur : une fenêtre d'analyse indexe
+        # des LIGNES. Sonner dessus ferait sonner le contrôle sur tout manifeste correct.
+        e = Ecart(axes_sans_coordonnee=('fenetre',))
+        self.assertTrue(e.conforme)
+
+    def test_le_rendu_montre_les_coordonnees_situees(self):
+        e = Ecart(coordonnees=(('scenario', 'Test'),))
+        self.assertIn('scenario=Test', e.rendre())
+
+    def test_le_rendu_nomme_les_axes_sans_coordonnee(self):
+        e = Ecart(axes_sans_coordonnee=('groupe',))
+        self.assertIn('groupe', e.rendre())
+
+
+class IndiceDePrefixeTest(unittest.TestCase):
+    """⚠ Défaut RÉEL du lecteur `.trip`, mesuré le 2026-08-26 (D31) : `probe()` liste des noms de
+    TABLE (`data_X`), `read()` rend des signaux au nom du CATALOGUE (`X`). Un auteur de manifeste
+    lit le catalogue — il écrira donc toujours la mauvaise forme. On NOMME la cause au lieu
+    d'annoncer « tout est absent » sur un fichier qui contient tout."""
+
+    def test_un_ecart_total_recouvert_par_un_prefixe_est_EXPLIQUE(self):
+        notes = _indice_de_prefixe(('CADISP', 'BIOPAC_MP150'),
+                                   {'event_CADISP', 'data_BIOPAC_MP150'})
+        self.assertEqual(len(notes), 1)
+        self.assertIn('PRÉFIXÉ', notes[0])
+        # L'exemple montré est le PREMIER manquant, dans l'ordre du manifeste.
+        self.assertIn('event_CADISP', notes[0])
+
+    def test_l_exemple_traverse_les_familles(self):
+        notes = _indice_de_prefixe(('BIOPAC_MP150',), {'data_BIOPAC_MP150'})
+        self.assertIn('data_BIOPAC_MP150', notes[0])
+
+    def test_un_manque_REEL_ne_declenche_aucun_indice(self):
+        # Si un seul des manquants n'est pas recouvert, l'explication serait fausse : on se tait.
+        self.assertEqual(_indice_de_prefixe(('CADISP', 'ABSENT_PARTOUT'), {'event_CADISP'}), ())
+
+    def test_aucun_manquant_aucun_indice(self):
+        self.assertEqual(_indice_de_prefixe((), {'data_X'}), ())
 
 
 if __name__ == '__main__':
