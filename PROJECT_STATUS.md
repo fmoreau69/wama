@@ -7237,3 +7237,90 @@ reader/synthesizer 98, imager 97 · **`manage.py test` : 911 tests, failures=8 e
 gating d'apps sur synthesizer, les 2 = découverte dans `wama-dev-ai/`, dossier tiret-case
 volontairement non importable) · `check_media_integrity` : **332 référencés, 0 résidu de test,
 30 absents, 5 égarés**.
+
+---
+
+## §REPRISE — 2026-08-25→26 (session « PLAN D'EXPÉRIENCE + APPRENTISSAGE ») — 🔚 POINT D'ENTRÉE
+
+> Périmètre : `WAMA_DATA_WORLD §13` (0→19), `WAMA_APPRENTISSAGE.md` (nouveau), `WAMA_LLM.md`
+> (renommage), `builtin/dataset.py`, `wama_data/dataset.py`, `sources/trip.py`,
+> `manifests/datasets/`. **Aucun fichier d'app touché** — les autres instances travaillaient sur
+> les médias, les unités et les prompts.
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+
+**Refaire l'exercice du manifeste sur un SECOND `.trip`, puis le convertir en `.wdat`** — c'est
+Fabien qui l'a demandé (« on pourra refaire l'exercice sur d'autres `.trip` et les convertir au
+passage pour tester nos modules importer et converter »). Le premier manifeste
+(`manifests/datasets/madison-simulateur.json`) a trouvé **quatre défauts réels en une heure** ; un
+second sur un corpus de nature différente est le meilleur rapport trouvailles/effort disponible.
+
+### Livré
+
+| # | quoi | preuve |
+|---|---|---|
+| 1 | **`WAMA_APPRENTISSAGE.md`** — cadre ML/DL, statistiques, boucle de simulation | doc + ligne CLAUDE.md |
+| 2 | **`§13` plan d'expérience** — 20 sous-sections, confronté à 5 standards (SDMX, DDI, BIDS, Psych-DS, BORIS) | doc |
+| 3 | **kind `dataset` étendu** — `axes[]`, `signals` facultatif | 20 tests (`tests_manifest_axes.py`) |
+| 4 | **1ᵉʳ manifeste écrit à la main** depuis un `.trip` réel | `conforme: True` |
+| 5 | **`Ecart` porte les axes** + aller-retour des coordonnées prouvé | 649 tests `wama_data` |
+| 6 | **`WAMA_IA_TRANSVERSE` → `WAMA_LLM`** | 22 fichiers, `check_docs` 0 périmée |
+
+### Chantiers ouverts, dans l'ordre
+
+1. **Second manifeste + conversion `.wdat`** (le point d'entrée ci-dessus) — non bloquant.
+2. **`A2`/`A3`/`A4` de `WAMA_APPRENTISSAGE §3`** — ⚠ **annoncés « gratuits maintenant » et NON
+   faits** : provenance réel/synthétique, `trained_from` sur le kind `model`, régime d'exécution
+   (exécuté par WAMA vs exporté). Seuls A1/A5 le sont (absorbés par les axes).
+3. **D22** — forme du patron `source.layout` : glob nommé ou expression régulière ? **bloquant
+   pour ①**, arbitrage Fabien (lisibilité chercheur vs pouvoir sur des arbres sales).
+4. **D24** — 2 rôles (`factor`/`attribute` + `grain: true`) ou 3 ? Départage **empirique** : voir
+   si une fonction d'analyse a besoin du rôle ou d'une propriété.
+5. **D29** — `source` à deux étages (enveloppe `folder|extract` vs corps `rtmaps|csv`).
+6. **D32** (ex-D27) — `present_dans` : qui passe `strict=False` pour le découpage hiérarchique ?
+7. **D34** — garde mécanique contre les numéros de décision dupliqués (voir ci-dessous).
+8. **D23, D25, D30** — dossiers `Data`/`Raw data` · `universe` (DDI) · nature personnelle d'une
+   unité d'observation (RGPD).
+9. **A-Q1..A-Q5** (`WAMA_APPRENTISSAGE §10`) — dont A-Q1 partiellement répondue (le simulateur
+   reçoit un **jeu de paramètres**, à confirmer).
+
+### En attente de Fabien
+
+- **deux jeux de données de simulation** (ancien simulateur = rétrocompat import seulement ;
+  simulateur actuel) → servent `§13.8` (nommage divergent route réelle / simulateur) et **A-Q1**
+  (contrat d'export vers Unreal). **Rien d'autre n'en dépend.**
+- **D22** (glob vs regex) — le seul arbitrage qui bloque un chantier.
+
+### ⚠ Pendings système
+
+- **Rien à redémarrer** : aucune migration, aucun worker touché, aucun fichier d'app modifié.
+- **7 commits non poussés** de cette session (`82bc6cbc` → `a5ac0144`) — push = décision Fabien.
+- **Aucune validation navigateur en attente** : la session n'a produit aucune surface UI.
+
+### ⚠⚠ Ce que cette session a appris et qui vaut au-delà d'elle
+
+1. **Collision de numérotation dans le registre des décisions** — D27 et D28 ont désigné **deux
+   décisions chacun**, écrites le même jour par deux instances. Les miennes renumérotées D32/D33,
+   table de renvoi sous le registre de `WAMA_DATA_WORLD`. **Rien n'a sonné** : ni `check_docs` ni
+   `doc_facts` ne regardent l'unicité d'une clé dans un tableau ⇒ **D34**.
+2. **Un manifeste écrit à la main trouve ce qu'aucune relecture ne trouve** — quatre défauts en une
+   heure, dont un bug réel du lecteur `.trip` (D31) et une ambiguïté structurelle (D29).
+3. **`rtk grep` a rendu 1 correspondance sur 4** (`attributes` dans `sources/`). Pour toute
+   vérification qui porte une conclusion : **outil natif**.
+4. **Annoncer un coût sans le mesurer fait renoncer à un correctif juste** — « ça touche 73 tests »
+   était faux, un seul est tombé.
+
+### Contrôles attendus au prochain `/reprise`
+
+`check_docs` : **537 références, 5 CASSÉ, 0 périmée** (les 5 = `common/_result_tabs.html` dans
+PROJECT_STATUS, préexistantes et hors de ce périmètre) · `manage.py test wama_data` : **649 OK** ·
+`wama.common.tests_manifest_axes` : **20 OK** · `manifests/datasets/` : **1 manifeste**, valide
+enveloppe + corps.
+
+### Artefacts de session (hors git, jetables)
+
+Scripts de mesure dans le scratchpad — `dump_trip.py` (relevé du catalogue `.trip`),
+`ecart_reel.py` (confrontation manifeste ↔ fichier), `collision.py` (28 flux / 28 noms, la mesure
+qui a tranché D31), `incoherence.py` (probe vs read). **Aucun n'est nécessaire à la reprise** : les
+chiffres qu'ils ont produits sont cités dans `§13.15`, `§13.17` et `§13.18`. Aucun compte ni item
+de test semé, aucune sortie `PENDING_HUMAN_VALIDATION`.
