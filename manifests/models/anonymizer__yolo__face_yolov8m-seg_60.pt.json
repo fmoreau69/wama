@@ -47,6 +47,9 @@
       "platform_ref": "huggingface:jags/yolov8_model_segmentation-set",
       "source": "anonymizer"
     },
+    "prompts": {
+      "contract": null
+    },
     "provenance": {
       "backend_ref": "anonymizer",
       "confidence": null,

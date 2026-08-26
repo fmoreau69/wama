@@ -25,6 +25,9 @@
       "platform_ref": "huggingface:genmo/mochi-1-preview",
       "source": "imager"
     },
+    "prompts": {
+      "contract": null
+    },
     "provenance": {
       "backend_ref": "imager",
       "confidence": null,

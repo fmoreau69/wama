@@ -26,6 +26,9 @@
       "platform_ref": "huggingface:Shakker-Labs/FLUX.1-dev-LoRA-Logo-Design",
       "source": "imager"
     },
+    "prompts": {
+      "contract": null
+    },
     "provenance": {
       "backend_ref": "imager",
       "confidence": null,

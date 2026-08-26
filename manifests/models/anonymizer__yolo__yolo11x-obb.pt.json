@@ -68,6 +68,9 @@
       "platform_ref": null,
       "source": "anonymizer"
     },
+    "prompts": {
+      "contract": null
+    },
     "provenance": {
       "backend_ref": "anonymizer",
       "confidence": null,

@@ -33,6 +33,9 @@
       "platform_ref": "huggingface:microsoft/VibeVoice-ASR",
       "source": "transcriber"
     },
+    "prompts": {
+      "contract": null
+    },
     "provenance": {
       "backend_ref": "transcriber",
       "confidence": null,

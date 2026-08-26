@@ -44,6 +44,9 @@
       "platform_ref": "huggingface:Panoramax/detect_face_plate_sign",
       "source": "anonymizer"
     },
+    "prompts": {
+      "contract": null
+    },
     "provenance": {
       "backend_ref": "anonymizer",
       "confidence": null,

@@ -198,6 +198,9 @@
       "platform_ref": "github:sunsmarterjie/yolov12",
       "source": "anonymizer"
     },
+    "prompts": {
+      "contract": null
+    },
     "provenance": {
       "backend_ref": "anonymizer",
       "confidence": null,

@@ -24,6 +24,9 @@
       "platform_ref": "huggingface:Salesforce/blip-image-captioning-large",
       "source": "describer"
     },
+    "prompts": {
+      "contract": null
+    },
     "provenance": {
       "backend_ref": "describer",
       "confidence": null,

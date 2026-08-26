@@ -42,6 +42,9 @@
       "platform_ref": "huggingface:bosonai/higgs-audio-v2-generation-3B-base",
       "source": "synthesizer"
     },
+    "prompts": {
+      "contract": null
+    },
     "provenance": {
       "backend_ref": "synthesizer",
       "confidence": null,

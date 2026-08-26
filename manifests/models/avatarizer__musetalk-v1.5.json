@@ -30,6 +30,9 @@
       "platform_ref": "huggingface:TMElyralab/MuseTalk",
       "source": "avatarizer"
     },
+    "prompts": {
+      "contract": null
+    },
     "provenance": {
       "backend_ref": "avatarizer",
       "confidence": null,

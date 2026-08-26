@@ -27,6 +27,9 @@
       "platform_ref": "huggingface:openai/whisper-base",
       "source": "describer"
     },
+    "prompts": {
+      "contract": null
+    },
     "provenance": {
       "backend_ref": "describer",
       "confidence": null,

@@ -37,6 +37,9 @@
       "platform_ref": "huggingface:morsetechlab/yolov11-license-plate-detection",
       "source": "anonymizer"
     },
+    "prompts": {
+      "contract": null
+    },
     "provenance": {
       "backend_ref": "anonymizer",
       "confidence": null,

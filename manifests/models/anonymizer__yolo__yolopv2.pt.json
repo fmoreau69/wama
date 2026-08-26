@@ -35,6 +35,9 @@
       "platform_ref": "github:CAIC-AD/YOLOPv2",
       "source": "anonymizer"
     },
+    "prompts": {
+      "contract": null
+    },
     "provenance": {
       "backend_ref": "anonymizer",
       "confidence": null,

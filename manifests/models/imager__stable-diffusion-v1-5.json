@@ -27,6 +27,9 @@
       "platform_ref": "huggingface:stable-diffusion-v1-5/stable-diffusion-v1-5",
       "source": "imager"
     },
+    "prompts": {
+      "contract": null
+    },
     "provenance": {
       "backend_ref": "imager",
       "confidence": null,

@@ -49,6 +49,9 @@
       "platform_ref": "huggingface:hexgrad/Kokoro-82M",
       "source": "synthesizer"
     },
+    "prompts": {
+      "contract": null
+    },
     "provenance": {
       "backend_ref": "synthesizer",
       "confidence": null,

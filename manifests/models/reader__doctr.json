@@ -27,6 +27,9 @@
       "platform_ref": "github:mindee/doctr",
       "source": "reader"
     },
+    "prompts": {
+      "contract": null
+    },
     "provenance": {
       "backend_ref": null,
       "confidence": null,

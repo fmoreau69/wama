@@ -34,6 +34,9 @@
       "platform_ref": "huggingface:facebook/musicgen-melody",
       "source": "composer"
     },
+    "prompts": {
+      "contract": null
+    },
     "provenance": {
       "backend_ref": null,
       "confidence": null,

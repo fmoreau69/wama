@@ -28,6 +28,9 @@
       "platform_ref": "github:cszn/KAIR",
       "source": "enhancer"
     },
+    "prompts": {
+      "contract": null
+    },
     "provenance": {
       "backend_ref": "enhancer",
       "confidence": null,

@@ -25,6 +25,9 @@
       "platform_ref": "github:Rikorose/DeepFilterNet",
       "source": "enhancer"
     },
+    "prompts": {
+      "contract": null
+    },
     "provenance": {
       "backend_ref": "enhancer",
       "confidence": null,

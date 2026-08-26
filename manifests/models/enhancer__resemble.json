@@ -29,6 +29,9 @@
       "platform_ref": "github:resemble-ai/resemble-enhance",
       "source": "enhancer"
     },
+    "prompts": {
+      "contract": null
+    },
     "provenance": {
       "backend_ref": "enhancer",
       "confidence": null,
