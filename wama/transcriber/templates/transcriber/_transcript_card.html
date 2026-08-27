@@ -10,6 +10,16 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
 {% endcomment %}
             <div class="synthesis-card wama-card {% if elem.status == 'RUNNING' %}processing{% elif elem.status == 'SUCCESS' %}success{% elif elem.status == 'FAILURE' %}error{% endif %}"
                  data-id="{{ elem.id }}" data-status="{{ elem.status }}"
+                 {% comment %}L'URL d'aperçu est portée par la CARD, pas seulement par le bouton de
+                 nom de fichier : la brique commune en DÉRIVE l'URL de détail (`fillDetail`,
+                 `/preview/` → `/detail/`), et sans elle le volet Infos ET son ✕ n'existent pas.
+                 Or un élément créé par FICHIER DE LOT naît `audio=''` (views.py:1339 — le fichier
+                 n'est téléchargé qu'au lancement) : le bouton, conditionné à `elem.audio`, n'était
+                 alors pas rendu. Ces éléments étaient donc sélectionnables et NON inspectables,
+                 sans ✕ pour refermer — mesuré le 2026-08-28. `media-preview.js` se lie à la CLASSE
+                 `.preview-media-link`, jamais à cet attribut : le porter ici n'ouvre aucun aperçu
+                 supplémentaire.{% endcomment %}
+                 data-preview-url="{% url 'common:unified_preview' 'transcriber' elem.id %}"
                  {% if elem.is_realtime %}data-cycle-restart-title="Re-transcrire via le pipeline complet (diarisation, résumé…)" data-cycle-restart-icon="fa-rotate"{% endif %}>
                 <div class="wcv3">
                     <!-- File Info -->

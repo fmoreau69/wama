@@ -62,7 +62,7 @@ Le catalogue n'est **pas à inventer** : c'est la table des composants obligatoi
 | 4 | Supprimer un **élément** (`.delete-btn`) | ✅ `<app>.duplicate_delete` | non |
 | 4b | Supprimer un **lot** (`.batch-delete-btn`) | ✅ `<app>.batch_actions` (23-24/08) | non |
 | 5 | Tout effacer | ❌ | non |
-| 6 | Sélectionner une card → l'inspecteur se remplit | ⚠️ **MOITIÉ** — `<app>.inspector_actions` (27/08) prouve le REMPLISSAGE du volet Actions sur les deux portées (card **et** card mère de lot) ; la **dé**sélection reste due | non |
+| 6 | Sélectionner une card → l'inspecteur se remplit | ✅ **ENTIER** — `<app>.inspector_actions` (28/08) : remplissage du volet Actions **et** refermeture par le ✕, sur les deux portées (card **et** card mère de lot), **20 chemins / 20** sur 10 apps | non |
 | 7 | **Créer par le bouton primaire** (apps `data-wama-depot=attache` : avatarizer, imager) | ❌ | **oui sauf imager** — mesuré 27/08 : composer expédie la tâche DANS sa vue de création (`composer/views.py:235`) et avatarizer enchaîne `createJob()` puis `startJob()` (`avatarizer/js/index.js:253-254`) |
 | 8 | Démarrer un item → RUNNING → SUCCESS | ❌ | **oui** |
 | 9 | Arrêter / relancer (bouton de cycle) | ❌ | **oui** |
@@ -200,6 +200,38 @@ et les handlers locaux disparaissent dans le MÊME geste, faute de quoi chaque c
 > d'abord et, à défaut, un **clic DOM** qui bouillonne jusqu'à la délégation — en le **disant dans
 > son détail** (`[clic DOM — …]`). Une mesure faible qui se présente comme forte serait pire que
 > pas de mesure.
+
+**La seconde moitié du geste 6 — la DÉSÉLECTION — est mesurée depuis le 2026-08-28** :
+**10 OK / 0 échec / 4 skips**, **20 chemins sur 20** (10 apps × card + card mère),
+`nightly_20260828_010227.json`. Elle est **greffée** sur `<app>.inspector_actions` et non écrite en
+scénario jumeau : le coût d'un scénario de file est le **montage du lot** (10–25 s), jamais les
+clics. Ce qui est exigé après le ✕ : volet Actions **vidé** ET surbrillance **retirée** — les deux,
+car un seul des deux nettoyages suffit à laisser une **sélection fantôme** (défaut du 22/08), où les
+actions du volet désignent un élément que l'utilisateur ne voit plus sélectionné.
+
+> ⚠⚠ **Deux défauts d'instrument de plus — 7 en tout dans cette famille, et toujours avant
+> d'accuser une app.**
+> - **6ᵉ — un clic réel atterrit au CENTRE de l'élément marqué, pas sur l'élément marqué.** La
+>   cible « lot » pouvait être un **conteneur** dont le centre est occupé par un enfant que la
+>   délégation IGNORE (bouton, aperçu) : le clic part, rien ne se passe, et l'instrument écrivait
+>   « le volet reste VIDE — callback absent » sur le **converter**, seule app à écrire son propre
+>   emballage `.batch-group` autour de l'en-tête ET du repli des filles (partout ailleurs,
+>   `.batch-group` **est** la card mère). L'app n'avait rien : un clic sur son en-tête remplissait
+>   le volet, console vide. `CIBLE` vérifie désormais par `elementFromPoint` que le point de clic
+>   résout bien l'hôte visé — on mesure le contrat au lieu de le supposer.
+> - **7ᵉ — chercher le ✕ juste après le clic mesure la LATENCE de la requête de détail.** Le ✕ de
+>   l'item n'est pas rendu par le clic mais par `fillDetail`, à l'arrivée de
+>   `/common/detail/<app>/<pk>/`. On attend son apparition, bornée à 4 s ; l'absence reste un vrai
+>   constat.
+>
+> **Et un vrai défaut d'app, que ces deux-là masquaient** : sur le **transcriber**, un élément créé
+> par **fichier de lot** naît `audio=''` (`views.py:1339` — le fichier n'est téléchargé qu'au
+> lancement), or sa card ne portait `data-preview-url` que `{% if elem.audio %}`. Sans cette URL,
+> `fillDetail` abandonne **avant même d'émettre la requête** : ni volet Infos, ni ✕. Ces éléments
+> étaient **sélectionnables et non inspectables**, dans l'app de référence. L'URL est désormais
+> portée par la card elle-même. ⚠ **Indexer le DÉTAIL sur une affordance d'APERÇU le rend absent
+> partout où il n'y a pas encore de fichier** — c'est la brique commune qui le décide
+> (`wama-inspector.js:571`), donc le piège attend chaque app qui diffère son téléchargement.
 
 ### Geste 14 (fichier de lot) — il a pris la place du geste 7, qui s'est révélé être un geste GPU
 
@@ -476,7 +508,7 @@ pas de sens. Le scan signale un manque de couverture, il ne dicte pas la répons
 
 | Phase | Contenu | GPU | État |
 |---|---|---|---|
-| **1** | Gestes **2 à 6** + geste 14 — paramètres, dupliquer, supprimer, tout effacer, inspecteur, fichier de lot. Purement UI + base. ⚠ Le geste 7 (création par le bouton primaire) a été **requalifié geste GPU** le 27/08 (§3) : hors session, remplacé en phase 1 par le geste 14 | non | 🔄 **geste 2 à moitié (23/08)**, gestes 3-4 faits (22/08), **geste 6 mesuré (27/08, `inspector_actions`)**, geste 14 mesuré (27/08) ; **reste 5** (+ 7 côté Fabien, GPU) |
+| **1** | Gestes **2 à 6** + geste 14 — paramètres, dupliquer, supprimer, tout effacer, inspecteur, fichier de lot. Purement UI + base. ⚠ Le geste 7 (création par le bouton primaire) a été **requalifié geste GPU** le 27/08 (§3) : hors session, remplacé en phase 1 par le geste 14 | non | 🔄 **geste 2 à moitié (23/08)**, gestes 3-4 faits (22/08), **geste 6 ENTIER (28/08, `inspector_actions` — sélection *et* désélection, 20/20)**, geste 14 mesuré (27/08) ; **reste 5** (+ 7 côté Fabien, GPU) |
 | **2** | Câbler les résultats nocturnes en **grille fonctionnelle** : `nightly_*.json` → agrégat geste × app, rendu comme `/apps/` le fait pour l'adoption | non | ⏳ |
 | **3** | Gestes **8 à 13** sur le **converter** (CPU) comme patron, puis extension | CPU d'abord | ⏳ |
 | **4** | Critères pour les **20 mécanismes non couverts**, par cardinalité décroissante | non | ⏳ |

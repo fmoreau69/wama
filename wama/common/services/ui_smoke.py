@@ -1737,8 +1737,84 @@ def _clic_de_selection(page, portee: str, ident: str) -> str:
         return 'clic DOM — file en re-rendu continu, élément jamais « stable »'
 
 
+# ── Désélection : la MOITIÉ due du geste 6 ─────────────────────────────────────────────
+#
+# `common.volet.deselection` mesure déjà la désélection, mais sur une file SYNTHÉTIQUE et sur
+# UNE page (transcriber) : c'est une non-régression de BRIQUE pour le défaut du 2026-08-22.
+# Elle ne dit rien de ce que fait chaque app avec ses propres cards — or c'est exactement ce
+# que `WAMA_VERIFICATION` compte comme la moitié due du geste 6.
+#
+# On la greffe donc ici plutôt que dans un scénario à part : le coût de ces scénarios est le
+# MONTAGE DE FIXTURE (un lot multi-éléments, 10 à 25 s par app), pas les clics. Un scénario
+# jumeau paierait ce montage une deuxième fois pour trois clics de plus.
+
+_MARQUE_CROIX = """() => {
+    const visible = (e) => { const r = e.getBoundingClientRect();
+                             return r.width > 2 && r.height > 2; };
+    document.querySelectorAll('[data-wama-nightly-croix]')
+            .forEach(e => e.removeAttribute('data-wama-nightly-croix'));
+    // On ne présume PAS de l'hôte (#inspectorInfo vs bandeau) : la brique rend le ✕ sur deux
+    // chemins distincts (`fillDetail` pour l'item, l'en-tête de lot pour la mère). On cherche
+    // le CONTRAT — la classe — où qu'il soit rendu.
+    const croix = Array.from(document.querySelectorAll('.wama-info-deselect')).filter(visible);
+    if (!croix.length) return {ok: false, raison: "aucun ✕ `.wama-info-deselect` visible dans "
+                                                  + "le volet après sélection"};
+    croix[0].setAttribute('data-wama-nightly-croix', '1');
+    return {ok: true};
+}"""
+
+_CLIC_DOM_CROIX = """() => {
+    const c = document.querySelector('[data-wama-nightly-croix]');
+    if (!c) return {ok: false, raison: 'le ✕ a disparu avant le clic DOM'};
+    c.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}));
+    return {ok: true};
+}"""
+
+# Ce qui doit AVOIR DISPARU. Deux surfaces, car un seul des deux nettoyages suffit à laisser
+# l'UI dans un état faux : un volet vidé mais une card encore surlignée, c'est la sélection
+# fantôme du 2026-08-22 ; une card dé-surlignée mais un volet encore peuplé, ce sont des
+# actions qui s'appliqueraient à un élément que l'utilisateur ne voit plus désigné.
+_RESTE_SELECTION = """() => {
+    const h = document.getElementById('inspectorActions');
+    return {boutons: h ? h.querySelectorAll('button, a.btn').length : 0,
+            surlignees: document.querySelectorAll('.inspector-selected').length};
+}"""
+
+
+def _clic_de_deselection(page):
+    """Ferme la sélection par le ✕ ; renvoie (mode employé, raison de non-mesure).
+
+    Même doctrine à deux étages que `_clic_de_selection`, et pour la même raison mesurée :
+    clic RÉEL d'abord (preuve forte), clic DOM en secours quand la file se re-rend sous
+    l'outil. Le mode est REMONTÉ dans le détail — on ne fait pas passer la mesure faible
+    pour la forte.
+    """
+    # Le ✕ de l'item n'est PAS rendu par le clic : il l'est par `fillDetail`, à l'arrivée
+    # de `/common/detail/<app>/<pk>/`. Le chercher juste après le clic mesure donc la
+    # LATENCE de cette requête, pas la présence du ✕ — et transcriber, dont l'adaptateur
+    # de détail est le plus lourd, a été le seul déclaré « désélection NON MESURÉE » le
+    # 2026-08-28 alors que son ✕ arrive bien (mesuré à 1,8 s). 7ᵉ défaut d'instrument de
+    # cette famille. On ATTEND l'apparition, bornée ; l'absence reste un vrai constat.
+    try:
+        page.wait_for_selector('.wama-info-deselect', state='visible', timeout=4000)
+    except Exception:
+        pass
+    marque = page.evaluate(_MARQUE_CROIX)
+    if not marque.get('ok'):
+        return None, marque.get('raison')
+    try:
+        page.locator('[data-wama-nightly-croix]').first.click(timeout=4000)
+        return 'clic réel', None
+    except Exception as exc:
+        secours = page.evaluate(_CLIC_DOM_CROIX)
+        if not secours.get('ok'):
+            return None, (f"ni clic réel ni clic DOM sur le ✕ : {type(exc).__name__} "
+                          f"puis {secours.get('raison')}")
+        return 'clic DOM — ✕ jamais « stable »', None
+
+
 def check_app_inspector_actions(app: str, url_path: str):
-    """SÉLECTIONNER une card (puis un lot) remplit-il le volet ACTIONS ? (ok, detail).
+    """SÉLECTIONNER une card (puis un lot) remplit-il le volet ACTIONS — et le ✕ le vide-t-il ?
 
     ANGLE MORT DU NOCTURNE JUSQU'AU 2026-08-27, et il a coûté deux défauts MUETS.
     `<app>.batch_actions` clique les boutons DE LA CARD — il n'emprunte jamais la
@@ -1803,6 +1879,25 @@ def check_app_inspector_actions(app: str, url_path: str):
             hotes = Array.from(document.querySelectorAll('.batch-group[data-batch-id]'))
                 .filter(e => e.dataset.batchId);
         }
+        // Un clic RÉEL atterrit au CENTRE de l'élément marqué — pas sur l'élément
+        // marqué. Un conteneur peut donc être « cliquable » et voir son centre occupé
+        // par un enfant que la délégation IGNORE : le clic part, rien ne se passe, et
+        // l'instrument accuse l'app. C'est ce qui est arrivé au converter, seule app à
+        // écrire son propre emballage `.batch-group` autour de l'en-tête ET du repli
+        // des filles (les autres : `.batch-group` EST la card mère) — 6ᵉ défaut
+        // d'instrument de cette famille, mesuré le 2026-08-28. On vérifie donc ce que
+        // la délégation verra VRAIMENT : `elementFromPoint` au point de clic.
+        const atterrit_bien = (c, hote) => {
+            const r = c.getBoundingClientRect();
+            const x = r.left + r.width / 2, y = r.top + r.height / 2;
+            if (x < 0 || y < 0 || x >= innerWidth || y >= innerHeight) return null;  // hors écran
+            const dessus = document.elementFromPoint(x, y);
+            if (!dessus || dessus.closest(IGNORE)) return false;
+            if (portee === 'lot') return !dessus.closest('[data-id]')
+                                          && dessus.closest('.batch-group[data-batch-id]') === hote;
+            const carte = dessus.closest('[data-id]');
+            return !!carte && carte.dataset.id === hote.dataset.id;
+        };
         for (const hote of hotes) {
             if (!visible(hote)) continue;
             const candidats = [hote, ...hote.querySelectorAll('*')];
@@ -1811,6 +1906,7 @@ def check_app_inspector_actions(app: str, url_path: str):
                 if (portee === 'lot' && c.closest('[data-id]')) continue;
                 if (!visible(c)) continue;
                 if (c.children.length && c !== hote) continue;   // feuille de préférence
+                if (atterrit_bien(c, hote) === false) continue;  // null = hors écran, on tente
                 c.setAttribute('data-wama-nightly-cible', '1');
                 return {ok: true, id: hote.dataset.id || hote.dataset.batchId,
                         tag: c.tagName.toLowerCase()};
@@ -1876,7 +1972,7 @@ def check_app_inspector_actions(app: str, url_path: str):
                 except SkipScenario as _exc:
                     raison_lot = str(_exc)
 
-            constats, mesures = [], 0
+            constats, mesures, deselections = [], 0, 0
             for portee, libelle in (('item', 'card'), ('lot', 'card MÈRE de lot')):
                 cible = page.evaluate(CIBLE, portee)
                 if not cible.get('ok'):
@@ -1889,21 +1985,52 @@ def check_app_inspector_actions(app: str, url_path: str):
                 page.wait_for_timeout(700)
                 etat = page.evaluate(CONTENU)
                 if etat.get('boutons', 0) < 1:
+                    # ⚠ Le détail d'échec REMONTE ce qui a déjà été mesuré. Sans ça, un échec sur
+                    # le 2ᵉ chemin efface le verdict du 1ᵉʳ et impose une re-mesure de 20 s pour
+                    # savoir ce qui marchait — défaut d'instrument constaté le 2026-08-28.
                     return False, (
                         f"sélection d'une {libelle} (#{cible['id']}) : le volet Actions reste "
                         f"VIDE — {'callback absent' if not erreurs_js else 'JS en erreur'} "
                         f"(rappel : `fillActions` fait `if (renderFn)`, un rappel manquant ne "
-                        f"lève RIEN){' ; ' + ' | '.join(erreurs_js) if erreurs_js else ''}")
-                constats.append(f"{libelle} #{cible['id']} → {etat['boutons']} bouton(s)"
-                                + ('' if mode == 'clic réel' else f" [{mode}]"))
+                        f"lève RIEN ; mode de clic : {mode})"
+                        + (f" ; déjà mesuré : {' ; '.join(constats)}" if constats else "")
+                        + (f" ; {' | '.join(erreurs_js)}" if erreurs_js else ""))
+                trace = (f"{libelle} #{cible['id']} → {etat['boutons']} bouton(s)"
+                         + ('' if mode == 'clic réel' else f" [{mode}]"))
                 mesures += 1
+
+                # ── seconde moitié du geste 6 : le ✕ referme-t-il la sélection ? ──
+                mode_des, pourquoi = _clic_de_deselection(page)
+                if mode_des is None:
+                    trace += f", désélection NON MESURÉE ({pourquoi})"
+                else:
+                    page.wait_for_timeout(500)
+                    reste = page.evaluate(_RESTE_SELECTION)
+                    if reste.get('boutons', 0) or reste.get('surlignees', 0):
+                        return False, (
+                            f"sélection d'une {libelle} (#{cible['id']}) : le ✕ ne referme pas "
+                            f"— {reste.get('boutons')} bouton(s) encore dans le volet Actions et "
+                            f"{reste.get('surlignees')} card(s) encore surlignée(s). Une "
+                            f"sélection FANTÔME : les actions du volet désignent un élément que "
+                            f"l'utilisateur ne voit plus sélectionné (défaut du 2026-08-22)"
+                            + (f" ; {' | '.join(erreurs_js)}" if erreurs_js else ""))
+                    trace += (", ✕ → volet vidé et surbrillance retirée"
+                              + ('' if mode_des == 'clic réel' else f" [{mode_des}]"))
+                    deselections += 1
+                constats.append(trace)
 
             if erreurs_js:
                 return False, f"volet rempli mais JS en erreur : {' | '.join(erreurs_js)}"
             if not mesures:
                 raise SkipScenario("aucun chemin mesurable — " + " ; ".join(constats))
-            detail = ("sélection → volet Actions : " + " ; ".join(constats)
+            detail = ("sélection → volet Actions" + (" → ✕" if deselections else "") + " : "
+                      + " ; ".join(constats)
                       + (" (lot monté pour l'occasion)" if monte else ""))
+            if not deselections:
+                # ⚠ Le geste 6 ne vaut PAS couvert si seule sa première moitié a été exercée.
+                # Le dire dans le détail, sinon un vert se lira comme le geste entier — c'est
+                # exactement le faux vert que `WAMA_VERIFICATION` traque.
+                detail += " ⚠ MOITIÉ — désélection non mesurée sur cette app"
         finally:
             navigateur.close()
     if _nettoyes:
@@ -1918,8 +2045,9 @@ def register_inspector_actions_scenarios():
     for label, path in discoverable_apps():
         register(
             id=f"{label}.inspector_actions", app=label, stage="ui",
-            description=(f"File {label} : SÉLECTIONNER une card puis un lot remplit "
-                         f"le volet Actions (chemin que `batch_actions` n'emprunte pas)"),
+            description=(f"File {label} : SÉLECTIONNER une card puis un lot remplit le volet "
+                         f"Actions, et le ✕ le referme (geste 6 entier ; chemin que "
+                         f"`batch_actions` n'emprunte pas)"),
             run=(lambda p=path, a=label: (lambda ctx: check_app_inspector_actions(a, p)))(),
             timeout_s=180, vram_gb=0.0,
         )
