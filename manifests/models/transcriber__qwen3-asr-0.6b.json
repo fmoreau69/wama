@@ -15,6 +15,7 @@
       "supports_timestamps": true,
       "task": "transcription"
     },
+    "composition": {},
     "extra_info": {
       "hf_id": "Qwen/Qwen3-ASR-0.6B",
       "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/qwen_asr"

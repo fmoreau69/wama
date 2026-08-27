@@ -15,6 +15,7 @@
       ],
       "task": "detect"
     },
+    "composition": {},
     "extra_info": {
       "class_list": [
         "sign",

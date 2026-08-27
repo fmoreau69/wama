@@ -15,6 +15,7 @@
       ],
       "task": "text-to-music"
     },
+    "composition": {},
     "extra_info": {
       "max_duration": 30,
       "sample_rate": 32000,

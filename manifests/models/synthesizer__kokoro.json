@@ -31,6 +31,7 @@
         "tr"
       ]
     },
+    "composition": {},
     "extra_info": {
       "hf_id": "hexgrad/Kokoro-82M",
       "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/kokoro"

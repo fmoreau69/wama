@@ -12,6 +12,7 @@
       "task": "segment",
       "text_promptable": true
     },
+    "composition": {},
     "extra_info": {
       "error": null,
       "hf_authenticated": true,

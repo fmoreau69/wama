@@ -10,6 +10,7 @@
       ],
       "task": "ocr"
     },
+    "composition": {},
     "extra_info": {
       "type": "ocr-pipeline"
     },

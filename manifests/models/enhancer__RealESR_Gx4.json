@@ -11,6 +11,7 @@
       "scale": 4,
       "task": "upscale"
     },
+    "composition": {},
     "extra_info": {
       "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/upscaling/onnx/RealESR_Gx4_fp16.onnx",
       "size_mb": 2.3317737579345703

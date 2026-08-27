@@ -6,6 +6,7 @@
       ],
       "task": "text-to-speech"
     },
+    "composition": {},
     "extra_info": {
       "recommended": {
         "installer": "coqui-tts (auto au 1er usage)",

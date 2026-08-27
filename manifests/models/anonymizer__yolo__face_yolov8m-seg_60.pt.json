@@ -13,6 +13,7 @@
       ],
       "task": "segment"
     },
+    "composition": {},
     "extra_info": {
       "class_list": [
         "face"

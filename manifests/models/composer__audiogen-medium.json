@@ -12,6 +12,7 @@
       ],
       "task": "text-to-audio"
     },
+    "composition": {},
     "extra_info": {
       "max_duration": 30,
       "sample_rate": 16000,

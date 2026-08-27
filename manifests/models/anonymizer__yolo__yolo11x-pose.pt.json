@@ -13,6 +13,7 @@
       ],
       "task": "pose"
     },
+    "composition": {},
     "extra_info": {
       "class_list": [
         "person"

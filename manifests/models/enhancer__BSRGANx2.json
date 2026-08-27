@@ -11,6 +11,7 @@
       "scale": 2,
       "task": "upscale"
     },
+    "composition": {},
     "extra_info": {
       "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/upscaling/onnx/BSRGANx2_fp16.onnx",
       "size_mb": 32.18426036834717

@@ -665,6 +665,7 @@
     "models": {
       "catalog_keys": [
         "composer:audiogen-medium",
+        "composer:minimax-music3",
         "composer:musicgen-medium",
         "composer:musicgen-melody",
         "composer:musicgen-small"
@@ -774,6 +775,10 @@
                   [
                     "musicgen-melody",
                     "MusicGen Melody — conditionné par mélodie de référence"
+                  ],
+                  [
+                    "minimax-music3",
+                    "MiniMax-Music3 — chansons complètes avec paroles chantées (Q8)"
                   ]
                 ]
               ],
@@ -1192,6 +1197,10 @@
   "requires": [
     {
       "key": "composer:audiogen-medium",
+      "kind": "model"
+    },
+    {
+      "key": "composer:minimax-music3",
       "kind": "model"
     },
     {

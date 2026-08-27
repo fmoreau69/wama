@@ -92,6 +92,7 @@
       ],
       "task": "segment"
     },
+    "composition": {},
     "extra_info": {
       "class_list": [
         "0",

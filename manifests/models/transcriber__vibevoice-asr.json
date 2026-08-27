@@ -15,6 +15,7 @@
       "supports_timestamps": true,
       "task": "transcription"
     },
+    "composition": {},
     "extra_info": {
       "hf_id": "microsoft/VibeVoice-ASR",
       "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/vibevoice"

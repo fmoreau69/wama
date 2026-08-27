@@ -12,6 +12,7 @@
       ],
       "task": "text-to-image"
     },
+    "composition": {},
     "extra_info": {},
     "formats": {
       "can_convert_to": [],

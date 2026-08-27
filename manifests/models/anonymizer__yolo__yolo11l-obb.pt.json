@@ -27,6 +27,7 @@
       ],
       "task": "obb"
     },
+    "composition": {},
     "extra_info": {
       "class_list": [
         "plane",

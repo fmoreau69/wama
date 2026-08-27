@@ -25,6 +25,7 @@
       "supports_cloning": false,
       "task": "text-to-speech"
     },
+    "composition": {},
     "extra_info": {
       "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/speech/bark/suno/bark_v0"
     },

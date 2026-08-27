@@ -14,6 +14,7 @@
       ],
       "task": "audio-enhance"
     },
+    "composition": {},
     "extra_info": {},
     "formats": {
       "can_convert_to": [],
