@@ -182,6 +182,41 @@ def user_scope_org_ids(user):
     return ids
 
 
+class ElementPreference(models.Model):
+    """ABONNEMENT d'un utilisateur à un élément de catalogue (app, modèle, fonction, skill…).
+
+    🔴 C'est une PRÉFÉRENCE, PAS UN DROIT (PROFILES_PERMISSIONS §8.1). Elle ne peut que
+    RESTREINDRE ce que l'utilisateur voit à l'intérieur de ce à quoi il a DÉJÀ droit, jamais
+    l'élargir. Aucune décision d'accès ne consulte cette table — c'est ce qui la rend sûre par
+    construction, et livrable avant la couche de droits (`AccessGrant`, §8.2, pas encore écrite).
+
+    ⚠ SEULES LES EXCEPTIONS SONT STOCKÉES. Le défaut est « abonné à tout ce que mon rôle
+    autorise » : un compte neuf n'a aucune ligne ici et voit tout ce à quoi il a droit. Se
+    désabonner écrit une ligne, se réabonner l'EFFACE. Stocker l'état complet aurait exigé de
+    semer une ligne par (utilisateur × élément) à la création du compte, puis à chaque nouvel
+    élément installé — un invariant à maintenir, donc un invariant qui dérive.
+
+    `element_id` est une CLÉ TEXTUELLE, pas une FK : les éléments ne sont pas tous des lignes en
+    base (un skill est un fichier `.md`). Un élément qui disparaît laisse une ligne orpheline
+    inoffensive — elle ne masque plus rien puisque l'élément n'est plus listé.
+    """
+    user = models.ForeignKey('auth.User', on_delete=models.CASCADE,
+                             related_name='element_preferences')
+    kind = models.CharField(max_length=16, db_index=True)      # cf. services/subscriptions.KINDS
+    element_id = models.CharField(max_length=128)
+    subscribed = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [('user', 'kind', 'element_id')]
+        verbose_name = "Préférence d'abonnement"
+        verbose_name_plural = "Préférences d'abonnement"
+
+    def __str__(self):
+        etat = 'abonné' if self.subscribed else 'masqué'
+        return f'{self.user} · {self.kind}:{self.element_id} ({etat})'
+
+
 class ScopedVisibility(models.Model):
     """Mixin ABSTRAIT : visibilité par scope (privé / PROJET / unité org / public).
     - `unit` + `scope_org_unit` : partagé avec l'unité ET ses sous-unités (labo→équipes) ;

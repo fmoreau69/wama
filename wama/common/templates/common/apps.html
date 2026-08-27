@@ -93,10 +93,37 @@
 {% endblock %}
 
 {% block content %}
-<div class="apps-page">
+{% comment %}`data-abo` : conteneur d'ABONNEMENT (PROFILES_PERMISSIONS §8), brique
+`wama-abonnement.js`. La NATURE (`app`) et l'URL sont les seules choses déclarées ici — la page
+n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux mêmes attributs.{% endcomment %}
+<div class="apps-page" data-abo="app" data-abo-url="{% url 'common:api_subscription' %}">
 
     <h1><i class="fas fa-cubes me-2 text-primary"></i>Catalogue des applications WAMA</h1>
     <p class="subtitle">Vue d'ensemble de toutes les applications — extensions, capacités et état de conformité aux conventions UI.</p>
+
+    {% comment %}ABONNEMENT — le catalogue est le SEUL endroit qui montre tout : ce qu'on s'est
+    masqué comme ce à quoi on n'a pas droit. Le bandeau dit l'état d'un coup d'œil et porte le
+    sélecteur tout/rien ; la bascule fine est sur chaque card.
+
+    ⚠ Ces boutons ne peuvent RIEN OUVRIR (§8.1) : ils n'agissent que sur des apps déjà
+    autorisées. « Sans accès » n'est pas une case décochée, c'est une card sans bascule.{% endcomment %}
+    {% if user.is_authenticated and user.username != 'anonymous' %}
+    <div class="d-flex align-items-center flex-wrap gap-2 mb-3 p-2 rounded" style="background:#1a1a2e;border:1px solid #2d2d4e;">
+        <span class="small text-white-50">
+            <i class="fas fa-sliders me-1"></i>Mes applications&nbsp;:
+            <strong class="text-light" data-abo-compte>{{ abo.abonnes }} sur {{ abo.total }}</strong>
+        </span>
+        <span class="small text-muted">— celles qui apparaissent dans le menu <em>Applications</em>.</span>
+        <div class="ms-auto d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-abo-all="true">
+                <i class="fas fa-check-double me-1"></i>Tout afficher
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-abo-all="false">
+                <i class="fas fa-eye-slash me-1"></i>Tout masquer
+            </button>
+        </div>
+    </div>
+    {% endif %}
 
     {% comment %}Barre de filtrage COMMUNE, mode client (les 16 cards sont toutes dans le DOM).
     Cette page n'en avait AUCUNE : c'est un ajout net, rien à préserver. Les options de la
@@ -120,8 +147,12 @@
         {% comment %}Contrat de la barre commune : `data-f-<facette>` + `data-f-text`. Le texte
         cherchable est CONSTRUIT ici plutôt que laissé au texte rendu — la card affiche aussi des
         extensions et des badges de conformité, qui feraient remonter n'importe quoi.{% endcomment %}
+        {% comment %}`data-f-abonnement` : la facette DÉCLARÉE par la vue (mes / masquees /
+        fermees). Elle est réécrite en place par la brique après chaque bascule — sinon masquer
+        une app depuis « Mes applications » l'y laisserait affichée jusqu'au rechargement.{% endcomment %}
         <div class="col-12 col-md-6 col-xl-4 app-item" data-id="{{ item.name }}"
              data-f-categorie="{{ group.meta.label }}"
+             data-f-abonnement="{% if not item.autorisee %}fermees{% elif item.abonne %}mes{% else %}masquees{% endif %}"
              data-f-text="{{ item.name|lower }} {{ spec.label|lower }} {{ spec.description|lower }}">
             <div class="app-card">
 
@@ -130,6 +161,24 @@
                         <i class="{{ spec.icon }}"></i>
                     </div>
                     <h3>{{ spec.label }}</h3>
+                    {% comment %}Bascule d'ABONNEMENT — présente UNIQUEMENT si l'app est
+                    autorisée. Sur une app fermée, une case décochée laisserait croire qu'un clic
+                    ouvre le droit ; on affiche donc un état, pas un geste (§8.1).{% endcomment %}
+                    {% if user.is_authenticated and user.username != 'anonymous' %}
+                    <div class="ms-auto">
+                        {% if item.autorisee %}
+                        <div class="form-check form-switch m-0" title="Afficher cette application dans le menu">
+                            <input class="form-check-input" type="checkbox" role="switch"
+                                   id="abo-{{ item.name }}" data-abo-toggle data-abo-id="{{ item.name }}"
+                                   {% if item.abonne %}checked{% endif %}>
+                        </div>
+                        {% else %}
+                        <span class="badge bg-secondary" title="Votre profil ne donne pas accès à cette application">
+                            <i class="fas fa-lock me-1"></i>Sans accès
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
                 </div>
 
                 <p class="app-description">{{ spec.description }}</p>
@@ -342,6 +391,8 @@ fond/bordure viennent de la règle #inspectorBanner), libellé seul sans « Rég
 {% block javascript %}
 {{ block.super }}
 {# wama-inspector.js + wama-inspector-autofill.js : GLOBAUX (base.html) — ne PAS les ré-inclure ici (double inclusion, cf. REMOVAL_LEDGER R7). #}
+{# Abonnement : brique COMMUNE, montage automatique sur `[data-abo]` (PROFILES_PERMISSIONS §8). #}
+<script src="{% static_v 'common/js/wama-abonnement.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const dataEl = document.getElementById('apps-data');

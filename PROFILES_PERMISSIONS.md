@@ -357,3 +357,186 @@ partageable et à quelle granularité — pas chaque app qui le code. Le partage
 chantier manifestes. **Hermes n'apporte rien ici** : son runtime a été écarté (second ordonnanceur
 GPU en production), seule l'idée des skills avait été retenue ; il n'a pas de modèle de permissions
 à emprunter.
+
+---
+
+## 8. ⭐ ABONNEMENT + SURCHARGE — le modèle décidé (2026-08-27, arbitré par Fabien)
+
+> **Point de départ mesuré, et il faut le dire clairement : l'abonnement N'EXISTE PAS.** Ce qui
+> existe aujourd'hui est une association de **droit d'utilisation** (§1). Les apps non autorisées
+> ne sont pas masquées : elles sont **visibles et inutilisables**. C'est un gating, pas un
+> abonnement — et l'utilisateur n'a aucun moyen de dire ce qu'il *veut* voir.
+
+### 8.1 La distinction fondatrice : **droit** ≠ **préférence**
+
+Deux notions que l'énoncé initial fusionnait, et dont la fusion tuerait l'UX :
+
+| | **Préférence** (abonnement) | **Droit** (accès) |
+|---|---|---|
+| Question | « est-ce que je veux m'en servir ? » | « est-ce que j'ai le droit de m'en servir ? » |
+| Réversible | oui, en un clic | non, décision tracée |
+| Modération | **jamais** | selon la **criticité de l'élément** |
+| Effet | filtre l'affichage | ouvre ou ferme l'exécution |
+
+🔴 **RÈGLE GRAVÉE : une préférence ne peut que RESTREINDRE, jamais élargir.** Elle s'applique
+*à l'intérieur* du sous-ensemble déjà autorisé. Là où le droit manque, l'UI ne montre pas une case
+à cocher mais un bouton **« Demander »**.
+
+Conséquence pratique : la couche préférence **ne participe à aucune décision d'accès**. Elle est
+donc sûre par construction, livrable en premier, et sans risque de régression de sécurité.
+
+### 8.2 La surcharge est une FONCTION, pas un axe de plus
+
+L'atout du dépôt est d'avoir **un seul point de décision** (`accessible()`, `permissions.py:187`,
+plus `tool_accessible()` pour la surface outils). On ne l'abandonne pas : on **généralise sa
+signature**.
+
+```
+accessible(user, kind, element_id)      # kind ∈ app | model | library | function | skill | rag_scope
+```
+
+Une seule table de décisions, dont la **précédence est l'ordre de spécificité du sujet** —
+c'est ainsi que « utilisateur surcharge métier surcharge rôle » se code, en quelques lignes, sans
+schéma dédié :
+
+```
+AccessGrant(subject_type, subject_id, kind, element_id, effect, state,
+            granted_by, expires_at, reason)
+    subject_type ∈ role | orgunit | project | user     (du moins au plus spécifique)
+    effect       ∈ allow | deny
+    state        ∈ requested | granted | refused        (la demande ET le droit = UNE ligne)
+```
+
+**Et c'est ainsi que le laboratoire obtient ses droits sans nouvel axe** : un droit de labo est un
+grant `subject_type=orgunit` ; un droit de projet, `subject_type=project`.
+
+> ⚠ **Décision : le projet est un SUJET qui porte des droits, jamais un CONTEXTE qui les module.**
+> Rendre les droits dépendants du « projet courant » multiplierait la grille par le nombre de
+> projets et la rendrait intestable. Écarté explicitement.
+
+**Rapport avec `ObjectGrant` (§7.3) — deux tables, un seul vocabulaire.** `ObjectGrant` porte les
+droits sur une **instance** (cette card, cette session) ; `AccessGrant` porte les droits sur un
+**élément de catalogue** (l'app imager, un modèle de diffusion, un skill). On ne les fusionne pas :
+les éléments ne sont pas tous des lignes en base (un skill est un fichier). On partage en revanche
+`subject / effect / state / granted_by / expires_at`, pour que le geste de modération soit le même
+des deux côtés.
+
+### 8.3 La criticité se DÉCLARE sur l'élément
+
+Ce qui rend une demande modérable est une **propriété de l'élément**, pas de la demande : VRAM,
+licence restrictive, app lab métier, génération d'images/vidéos. Ces propriétés existent déjà
+(`vram_gb`, licence dans `AIModel`, catégorie d'app).
+
+🔴 **La nécessité d'une modération se DÉRIVE de ces métadonnées — elle ne s'écrit jamais élément
+par élément.** C'est la seule version qui survivra au 40ᵉ modèle, et c'est la doctrine
+métadonnée-driven appliquée aux droits.
+
+**Modérateur déclaré par FAMILLE d'élément** (arbitré : un modérateur global ne tiendrait pas) :
+modèles → admin ; apps lab métier → responsable d'OrgUnit ; RAG → personne, c'est le propriétaire.
+Toute demande sans réponse **expire visiblement** au lieu de pourrir en silence.
+
+> ⚠ Leçon du compte `anonymous` (27/08) : ces politiques se **sèment déclarativement** (migration /
+> `ready()` / commande). **Un invariant posé à la main en base ne survit pas à une réinstallation.**
+
+### 8.4 Fluidité — quatre gestes, aucun panneau de configuration
+
+1. **L'abonnement se prend sur la CARD** (bascule sur la card d'app, de modèle, de fonction, de
+   skill), pas dans un écran de réglages — doctrine card-centric.
+2. **Une facette d'abonnement STANDARD** dans `_filter_bar.html` (`mes / tous / sur demande`) :
+   les catalogues en héritent d'un coup. L'homogénéité par construction, pas par discipline.
+3. **Ne jamais masquer un élément demandable** : grisé + « Demander ». Masqué → ticket au support ;
+   grisé → file de modération mesurable. Ne restent invisibles que les éléments qu'aucune demande
+   ne peut ouvrir.
+4. **Défaut d'un compte neuf : abonné à tout ce que son rôle autorise.** Pas d'écran de bienvenue
+   à quarante cases. En base, **seules les EXCEPTIONS sont stockées** — se désabonner écrit une
+   ligne, se réabonner l'efface.
+
+### 8.5 Vérification — la grille est une MESURE, pas un document
+
+Puisque tout passe par une fonction unique, la grille `rôle × métier × utilisateur × élément` est
+**calculable** : commande `access_matrix` → `logs/access_matrix.json`, même pattern que
+`conformity_report.json` (page dérivée, bouton d'actualisation, gate nocturne).
+
+🔴 **Chaque persona du nocturne affirme les DEUX moitiés : ce qu'il voit ET ce qu'il ne voit pas**
+(403, absent du menu, absent du catalogue). Un persona qui obtient 200 partout ne prouve rien —
+c'est le harnais qui annonce « 0 échec » parce qu'il ne voit rien. Un droit non prouvé par une
+**fermeture** n'est pas prouvé.
+
+### 8.6 Évolutivité du modèle — audit du 2026-08-27 (question de Fabien)
+
+Question posée : *ajouter un tier, un rôle métier, un autre organisme — y a-t-il un point bloquant,
+notamment au niveau du rattachement ?* Réponse **mesurée dans le code**, pas supposée.
+
+| Ajout | Verdict | Détail |
+|---|---|---|
+| **Un tier** | ✅ évolutif | `TIER_ORDER` est une liste, le rang est son **index** : insérer un tier entre deux existants suffit. Frictions mineures : `TIER_CHOICES` **duplique** `TIER_ORDER`, et `BYPASS_TIERS` est un ensemble en dur — deux endroits à tenir. |
+| **Un rôle métier** | ✅ évolutif | une entrée dans `ROLES` + le `Group` `role:<clé>`. ⚠ **Point de dérive réel** : la liste vit dans le CODE, les groupes en BASE. Un rôle ajouté en code sans son Group n'ouvre rien ; un Group ajouté sans l'entrée code fonctionne mais reste **sans nom** dans l'UI. À refermer en semant les Groups depuis `ROLES` au `ready()`. |
+| **Le rattachement (arbre org)** | ✅ ouvert | `OrgUnit.parent` est une auto-FK, **aucune profondeur imposée** (garde anti-cycle à 20), `unit_type` n'est qu'un libellé d'affichage avec une sortie `autre` : institut → université → département → labo/service → équipe s'y logent sans changement de schéma. Le **rattachement multiple est déjà la norme** (`profile.org_affiliations`, liste de codes, + `org_entity_code`). |
+| **Un autre organisme** | ⚠️ **UN point non évolutif, et un seul** | `OrgUnit.code` est **`unique=True` GLOBALEMENT** et provient de `supannCodeEntite` — or ce code est unique **par établissement**, pas entre établissements. Deux universités peuvent chacune avoir un « DSI » ou une UMR homonyme : la seconde ne pourra pas être créée. |
+
+**Le correctif du seul point bloquant, et pourquoi maintenant.** Soit un préfixe d'autorité dans le
+code (`<autorité>:<code>`), soit un champ `authority` avec `unique_together('authority', 'code')`.
+Le faire plus tard coûte une migration de données sur **toutes** les FK *et* sur
+`Manifest.scope_org_unit`, qui stocke un **code en clair** (str, pas une FK) et **voyage dans les
+manifestes exportés** : le code y est un identifiant public, donc le renommer casse la portabilité.
+👉 **À traiter dans S2, avant qu'il n'y ait des manifestes en circulation** — c'est quasi gratuit
+aujourd'hui.
+
+Le multi-organisme *utile à court terme* passe d'ailleurs par `Project`, qui **traverse déjà l'arbre**
+(partenaires hors établissement) — cf. §7.1.
+
+### 8.7 Ordre de mise en place (validé)
+
+| | Chantier | Risque | État |
+|---|---|---|---|
+| **S1** | Couche **préférence** (abonnement) + facette standard dans les catalogues + filtrage du menu | **nul** (aucune décision d'accès touchée) | ✅ livré 27/08 (§8.8) |
+| **S2** | Généraliser `accessible()` en `(user, kind, id)`, **mesurer qui la contourne**, + refermer `OrgUnit.code` (§8.6) | faible | ⏳ |
+| **S3** | `AccessGrant` + précédence + `criticality` dérivée | moyen | ⏳ |
+| **S4** | File de modération (une page, formalisme de file) | faible | ⏳ |
+| **S5** | `access_matrix` + personas nocturnes affirmant les deux moitiés | faible | ⏳ |
+
+S1 précède volontairement S2 : bénéfice visible immédiat, ergonomie validée **avant** qu'elle ne
+devienne coûteuse à changer, et zéro exposition sécurité.
+
+**Chantiers voisins, explicitement PARALLÈLES** (ne pas les absorber ici) : le partage de cards et de
+résultats de process (**§7**, déjà cadré et mesuré) ; l'ajout direct de document depuis « Mon RAG »
+(réemploi de la zone de dépôt de l'accueil simplifié — pas un développement).
+
+> **À confronter au réel une fois implémenté** (décision Fabien) : la grille §8.5 est la forme que
+> prend cette confrontation.
+
+### 8.8 S1 livré — ce qui existe, et ce qui le PROUVE (2026-08-27)
+
+**Le mécanisme** est déclaré au registre (`common/mecanismes.py`, clé `abonnement`) : il apparaît
+donc sur `WAMA_MECANISMES.md` **à côté de `app_access`**, ce qui est le point — les deux se lisent
+ensemble, et leur différence est la première chose que la carte montre.
+
+| Pièce | Où | Rôle |
+|---|---|---|
+| Table | `ElementPreference` (`common/models.py`, migration `common/0009`) | `(user, kind, element_id, subscribed)`, unicité sur le triplet. **Seules les exceptions y sont stockées.** |
+| Service | `common/services/subscriptions.py` | `masques` / `est_abonne` / `filtrer` / `definir` / `definir_lot` / `resume`. `KINDS` déclare les natures ; `app` est la seule câblée. |
+| Endpoint | `common:api_subscription` (`/common/api/abonnement/`) | UNE route pour toutes les natures (`kind` dans le corps) — un futur catalogue n'en ajoute pas. |
+| Front | `common/static/common/js/wama-abonnement.js` | Montage AUTOMATIQUE sur `[data-abo]` : une page déclare deux attributs, elle n'écrit pas de JS. |
+| Menu | `accounts/context_processors.py` | `masques ∩ accessible_apps` — la préférence s'applique **après** le droit, et seulement à l'affichage. |
+| Catalogue | `common/apps.html` + `apps_catalog_view` | Montre TOUT : abonnées, masquées, **et sans accès** (badge, pas de bascule). Facette `abonnement` déclarée. |
+
+**Ce qui a été mesuré** (`wama/common/tests_subscriptions.py`, 19 tests, verts le 27/08 ; suites
+`wama.common` + `wama.accounts` : 349 tests verts) :
+
+- l'invariant du §8.1 — `filtrer()` rend toujours un **sous-ensemble** de son entrée, et l'ensemble
+  des apps autorisées est **inchangé** quoi qu'on poste sur l'endpoint ;
+- les **deux moitiés** du geste — l'app masquée quitte le menu **et** reste dans le catalogue, avec
+  sa bascule. N'éprouver que la première laisserait passer le pire défaut possible : une app qu'on
+  ne peut plus retrouver nulle part, donc plus jamais réafficher ;
+- le compte de masquées est **rendu** dans le menu — un filtrage silencieux se lirait « c'est
+  cassé » au lieu de « c'est mon choix » ;
+- le compte de service `anonymous` n'écrit aucune préférence (elle vaudrait pour tous ses visiteurs).
+
+⚠ **Écart mesuré au passage, à ne pas confondre avec un défaut** : `all_gated_apps()` (dérivé de
+`DEFAULT_APP_ACCESS`) **n'est pas** l'ensemble des cards du catalogue — `media_library` y est
+soumise à l'accès sans avoir d'entrée dans `APP_CATALOG`. Le bandeau « N sur M » compte donc les
+CARDS autorisées, pas les app_ids gardés. Les deux dérivations sont vérifiées identiques *sur leur
+intersection* par un test, plutôt que relues.
+
+**Ce que S1 ne fait PAS**, et ne doit pas faire : aucune demande d'accès, aucune modération, aucune
+nature d'élément autre qu'`app`. Déclarer une nature sans page produirait un mécanisme muet.

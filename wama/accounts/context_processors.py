@@ -68,6 +68,16 @@ def user_role(request):
     except Exception:
         account_tier, roles_set, accessible_apps = 'utilisateur', [], set()
 
+    # ABONNEMENT (PROFILES_PERMISSIONS §8) — la PRÉFÉRENCE, appliquée APRÈS le droit et
+    # seulement à l'affichage. Elle ne peut qu'enlever : `masques` est un ensemble d'apps que
+    # l'utilisateur a lui-même masquées parmi celles auxquelles il a DÉJÀ droit. Le menu montre
+    # « mes applications » ; le catalogue `/apps/` continue de montrer TOUT, avec la bascule.
+    try:
+        from wama.common.services.subscriptions import masques as _masques
+        apps_masquees = _masques(user, 'app') & accessible_apps
+    except Exception:
+        apps_masquees = set()
+
     # Menu « Applications » GROUPÉ par catégorie (APP_CATEGORIES) — GÉNÉRÉ du catalogue,
     # filtré par accessible_apps ; les extra_links portent gate/nav_hide (décision 2026-07-05).
     try:
@@ -77,7 +87,7 @@ def user_role(request):
         for _cid, _meta, _apps in get_apps_by_category():
             _entries = []
             for _name, _spec in _apps:
-                if _name not in accessible_apps:
+                if _name not in accessible_apps or _name in apps_masquees:
                     continue
                 try:
                     _entries.append({'name': _name, 'label': _spec['label'], 'icon': _spec['icon'],
@@ -143,4 +153,8 @@ def user_role(request):
         'account_tier': account_tier,
         'user_roles_set': roles_set,
         'accessible_apps': accessible_apps,
+        # Nombre d'apps que l'utilisateur s'est lui-même masquées : le menu l'affiche pour que
+        # « il en manque » ne devienne jamais « c'est cassé » — un filtrage silencieux serait
+        # exactement la panne muette que le dépôt traque.
+        'apps_masquees_count': len(apps_masquees),
     }

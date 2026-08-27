@@ -276,12 +276,21 @@ def apps_catalog_view(request):
 
     from django.urls import reverse, NoReverseMatch
 
+    # ── ABONNEMENT (PROFILES_PERMISSIONS §8) : DROIT d'abord, PRÉFÉRENCE ensuite.
+    # Le catalogue montre TOUT — c'est sa raison d'être : masquer ici priverait l'utilisateur du
+    # seul endroit où retrouver ce qu'il a lui-même masqué (et, plus tard, où DEMANDER un accès
+    # qu'il n'a pas). Chaque card porte donc son état, jamais son absence.
+    from wama.accounts.permissions import accessible
+    from .services.subscriptions import masques as _masques, resume as _resume_abo
+    apps_masquees = _masques(request.user, 'app')
+
     apps_list = []
     for name, spec in APP_CATALOG.items():
         try:
             url = reverse(spec['url_name']) if spec.get('url_name') else ''
         except NoReverseMatch:
             url = ''
+        autorisee = accessible(request.user, name)
         apps_list.append({
             'name':       name,
             'spec':       spec,
@@ -289,6 +298,11 @@ def apps_catalog_view(request):
             # template affiche alors le tampon sandbox à la place de la barre.
             'conformity': conformity.get(name),
             'url':        url,
+            'autorisee':  autorisee,
+            # `abonne` n'a de sens QUE si l'app est autorisée : sur une app fermée, la bascule
+            # n'est pas « décochée », elle est absente — sinon elle laisserait croire qu'un clic
+            # ouvre un droit (§8.1 : une préférence ne peut jamais élargir).
+            'abonne':     autorisee and name not in apps_masquees,
         })
 
     # ── Groupage par CATÉGORIE (APP_CATEGORIES, déclaratif + dérivable — décision 2026-07-05).
@@ -320,10 +334,57 @@ def apps_catalog_view(request):
     # puisse diverger des catégories réellement présentes.
     facettes = [{'cle': 'categorie', 'label': 'Catégorie', 'tous': 'Toutes les catégories'}]
 
+    # Facette d'ABONNEMENT — DÉCLARÉE (et non dérivée du DOM) : ses valeurs sont des clés
+    # techniques derrière des libellés français, et surtout l'ordre compte (« mes applications »
+    # d'abord, c'est la vue par défaut promise à l'utilisateur). Même motif que /licences/.
+    facettes.append({'cle': 'abonnement', 'label': 'Abonnement', 'tous': 'Toutes',
+                     'options': {'mes': 'Mes applications', 'masquees': 'Masquées',
+                                 'fermees': 'Sans accès'}})
+
+    autorisees = [a['name'] for a in apps_list if a['autorisee']]
+
     return render(request, 'common/apps.html',
                   {'apps_list': apps_list, 'apps_grouped': apps_grouped,
                    'conformity_measured_at': measured_at,
-                   'facettes_apps': facettes})
+                   'facettes_apps': facettes,
+                   'abo': _resume_abo(request.user, 'app', autorisees),
+                   'abo_ids': autorisees})
+
+
+@require_POST
+@login_required
+def api_subscription(request):
+    """Bascule d'ABONNEMENT — la couche PRÉFÉRENCE (PROFILES_PERMISSIONS §8).
+
+    `{kind, element_id, subscribed}` pour un élément, ou `{kind, all: true|false, ids: [...]}`
+    pour le sélecteur tout/rien.
+
+    ⚠ Cet endpoint ne peut RIEN OUVRIR : le service ne sait qu'écrire ou effacer un masquage, et
+    aucune décision d'accès ne lit cette table. C'est ce qui autorise un simple `@login_required`
+    là où un endpoint de DROITS exigerait la modération (§8.1). `@login_required` reste requis :
+    sans utilisateur, il n'y a pas de préférence à écrire.
+    """
+    import json
+    from .services.subscriptions import KINDS, definir, definir_lot, masques
+    try:
+        data = json.loads(request.body or '{}')
+    except ValueError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+
+    kind = data.get('kind') or ''
+    if kind not in KINDS:
+        return JsonResponse({'error': f'nature inconnue : {kind}'}, status=400)
+
+    if 'all' in data:
+        n = definir_lot(request.user, kind, data.get('ids') or [], bool(data['all']))
+        return JsonResponse({'ok': True, 'kind': kind, 'changed': n,
+                             'masques': sorted(masques(request.user, kind))})
+
+    element_id = data.get('element_id') or ''
+    if not element_id:
+        return JsonResponse({'error': 'element_id manquant'}, status=400)
+    etat = definir(request.user, kind, element_id, bool(data.get('subscribed')))
+    return JsonResponse({'ok': True, 'kind': kind, 'element_id': element_id, 'subscribed': etat})
 
 
 def registres_view(request):

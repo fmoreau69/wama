@@ -49,6 +49,12 @@ urlpatterns = [
     # aucun ne la contient.
     path('licences/', views.licenses_catalog_view, name='licenses_catalog'),
 
+    # ABONNEMENT aux éléments de catalogue — la couche PRÉFÉRENCE (PROFILES_PERMISSIONS §8).
+    # UNE route pour toutes les natures (`kind` dans le corps) : c'est ce qui fera hériter les
+    # autres catalogues sans nouvel endpoint. Elle ne peut RIEN ouvrir — un droit passe par
+    # une modération, pas par ce bouton.
+    path('api/abonnement/', views.api_subscription, name='api_subscription'),
+
     # Skills de prompt : la PAGE du registre `skills`, qui existait sans elle (seul registre
     # de la carte sans `url_name`). Elle DÉRIVE des fichiers + PROMPT_TARGETS + DOMAINES, et
     # dit surtout QUI consomme quoi — un skill que rien ne résout est un fichier inerte.

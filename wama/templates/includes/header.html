@@ -26,6 +26,19 @@
                         </a>
                     </li>{% endfor %}
                     {% endfor %}
+                    {% comment %}
+                      ABONNEMENT (PROFILES_PERMISSIONS §8.4) : le menu montre « mes applications ».
+                      Ce pied dit COMBIEN l'utilisateur s'est lui-même masqué et où les retrouver —
+                      un filtrage silencieux se lirait « c'est cassé » au lieu de « c'est mon
+                      choix ». Le catalogue, lui, montre toujours tout.
+                    {% endcomment %}
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <a class="dropdown-item d-flex align-items-center small text-white-50" href="{% url 'common:apps_catalog' %}">
+                            <i class="fas fa-sliders me-2"></i>
+                            {% if apps_masquees_count %}Toutes les applications ({{ apps_masquees_count }} masquée{{ apps_masquees_count|pluralize }}){% else %}Toutes les applications{% endif %}
+                        </a>
+                    </li>
                 </ul>
             </div>
         </div>

@@ -699,6 +699,20 @@ MECANISMES = (
               'wama/accounts/permissions.py', 'PROFILES_PERMISSIONS.md',
               annexes=('wama/accounts/tests.py',),
               symbole='accessible'),
+    # Ajouté le 2026-08-27 avec le jalon S1 (PROFILES_PERMISSIONS §8). Il est le VOISIN de
+    # `app_access` et son exact complément — d'où sa place ici, collé à lui : `app_access` répond
+    # « ai-je le DROIT ? », celui-ci « est-ce que je VEUX m'en servir ? ». Les confondre est le
+    # défaut que ce mécanisme existe pour empêcher : une préférence ne décide JAMAIS d'un accès,
+    # et aucune décision d'accès ne lit sa table.
+    Mecanisme('abonnement', "Abonnement aux éléments de catalogue",
+              "PRÉFÉRENCE d'affichage, appliquée APRÈS le droit et seulement à l'affichage : elle "
+              "ne peut que RESTREINDRE ce à quoi l'utilisateur a déjà accès. Seules les EXCEPTIONS "
+              "sont stockées (se réabonner efface la ligne) ; une nature d'élément s'ajoute par "
+              "une entrée dans KINDS, et la page de catalogue hérite du mécanisme par deux "
+              "attributs (`data-abo`, `data-abo-toggle`)",
+              'wama/common/services/subscriptions.py', 'PROFILES_PERMISSIONS.md',
+              annexes=('wama/common/static/common/js/wama-abonnement.js',
+                       'wama/common/tests_subscriptions.py')),
     Mecanisme('scoping', 'Accès scopé aux objets',
               "Deux chemins NOMMÉS pour lire un objet partageable depuis une vue (possédé / visible)",
               'wama/common/utils/scoping.py', 'PROFILES_PERMISSIONS.md'),
