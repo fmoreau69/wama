@@ -58,7 +58,7 @@ class Command(BaseCommand):
         from django.conf import settings
 
         from wama.accounts.models import UserProfile
-        from wama.common.models import OrgUnit
+        from wama.common.models import LOCAL_AUTHORITY, OrgUnit
 
         base = getattr(settings, 'LDAP_STRUCTURES_BASE_DN', None)
         if not base:
@@ -128,8 +128,12 @@ class Command(BaseCommand):
         # d'avoir à trier topologiquement (et de boucler sur un cycle d'annuaire).
         crees = maj = 0
         for f in fiches.values():
+            # `authority=LOCAL_AUTHORITY` : cette synchro lit l'annuaire de CET établissement,
+            # donc elle n'a le droit de créer et de mettre à jour que SES unités (§8.6). Sans ce
+            # filtre, un `code` partagé avec un autre établissement ferait écraser une unité
+            # étrangère par un nom venu d'ici — en silence.
             unite, cree = OrgUnit.objects.get_or_create(
-                code=f['code'],
+                code=f['code'], authority=LOCAL_AUTHORITY,
                 defaults={'name': f['nom'], 'unit_type': deviner_type(f['type'], f['code']),
                           'source': 'ldap'})
             if cree:
@@ -151,8 +155,8 @@ class Command(BaseCommand):
         for f in fiches.values():
             if not f['parent']:
                 continue
-            unite = OrgUnit.objects.filter(code=f['code']).first()
-            parent = OrgUnit.objects.filter(code=f['parent']).first()
+            unite = OrgUnit.local().filter(code=f['code']).first()
+            parent = OrgUnit.local().filter(code=f['parent']).first()
             # `unite != parent` : une fiche d'annuaire qui se déclare son propre parent
             # produirait une boucle infinie dans `ancestors()` (garde à 20, mais autant ne pas
             # l'écrire du tout).
@@ -172,7 +176,7 @@ class Command(BaseCommand):
             code = prof.org_entity_code
             if not code:
                 continue
-            unite = OrgUnit.objects.filter(code=code).first()
+            unite = OrgUnit.local().filter(code=code).first()
             if not unite:
                 continue
             hier = [{'code': u.code, 'name': u.name, 'type': u.unit_type}

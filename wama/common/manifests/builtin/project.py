@@ -83,7 +83,7 @@ def extract_project(key: str) -> Optional[dict]:
         'description': p.description or '',
         'world': 'transverse',
         'visibility': 'unit',
-        'scope_org_unit': p.owner_org.code if p.owner_org_id else None,
+        'scope_org_unit': p.owner_org.qualified_code if p.owner_org_id else None,   # forme EXPORTÉE (§8.6)
         'projects': [p.code],
         'source': {'type': 'extract', 'ref': f'Project:{p.code}'},
         'body': body,

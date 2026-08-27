@@ -490,7 +490,7 @@ Le multi-organisme *utile à court terme* passe d'ailleurs par `Project`, qui **
 | | Chantier | Risque | État |
 |---|---|---|---|
 | **S1** | Couche **préférence** (abonnement) + facette standard dans les catalogues + filtrage du menu | **nul** (aucune décision d'accès touchée) | ✅ livré 27/08 (§8.8) |
-| **S2** | Généraliser `accessible()` en `(user, kind, id)`, **mesurer qui la contourne**, + refermer `OrgUnit.code` (§8.6) | faible | ⏳ |
+| **S2** | Généraliser `accessible()` en `(user, kind, id)`, **mesurer qui la contourne**, + refermer `OrgUnit.code` (§8.6) | faible | ✅ livré 27/08 (§8.9) — ⚠ **un arbitrage à rendre**, §8.9.3 |
 | **S3** | `AccessGrant` + précédence + `criticality` dérivée | moyen | ⏳ |
 | **S4** | File de modération (une page, formalisme de file) | faible | ⏳ |
 | **S5** | `access_matrix` + personas nocturnes affirmant les deux moitiés | faible | ⏳ |
@@ -571,3 +571,101 @@ effet serait exactement le mécanisme muet que le dépôt traque. Il reste soumi
 `all_gated_apps() − surfaces_du_catalogue == ∅`. Toute app ajoutée à `DEFAULT_APP_ACCESS` sans card
 ni `extra_link` fait tomber ce test le jour où elle est ajoutée — au lieu d'être invisible et
 immasquable jusqu'à ce que quelqu'un le remarque.
+
+---
+
+### 8.9 S2 livré — **une décision unique ne garde rien tant qu'elle n'est pas APPLIQUÉE** (2026-08-27)
+
+S1 avait prouvé que la **décision** est unique (`accessible()`). S2 devait mesurer autre chose, et
+c'est la leçon du palier : **qui la contourne**. Recensement des gardes du dépôt — 112 occurrences
+sur 20 fichiers — puis classement. Deux défauts réels en sont sortis, **tous deux muets**, et tous
+deux de la même famille : une politique existait, aucun point d'application ne la lisait.
+
+#### 8.9.1 Défaut 1 — une politique que le middleware ne voyait pas (le piège du tiret)
+
+`model_manager` était déclaré dans `DEFAULT_APP_ACCESS` (rôle `ingenierie`, `min_tier='developpeur'`)
+mais monté sur `/model-manager/`. Le middleware résout l'app_id par le **1ᵉʳ segment d'URL**, et
+« model-manager » (tiret) n'est pas « model_manager » (souligné) : la politique n'a **jamais** été
+appliquée. Rien ne le signalait — une politique jamais lue ne lève aucune exception, elle donne
+seulement l'apparence d'un contrôle.
+
+⚠ Le piège **était connu** : documenté à `wama/urls.py:57` par l'audit P2 du 17/08. Il avait été
+*documenté, pas refermé* — le même motif que la ligne « à corriger » d'un `.md` qu'on relit deux
+mois plus tard. Ce qui le referme n'est donc pas l'entrée ajoutée à `PATH_APP_MAP`, c'est la
+**propriété** qui la rend obligatoire :
+
+> `test_chaque_app_gardee_est_resolue_depuis_son_url_montee` — pour **toute** app gardée,
+> `app_id_for_path(reverse(url_name)) == app_id`.
+
+Contre-épreuve exécutée : la ligne retirée, le test tombe avec
+`{'model_manager': ('/model-manager/', None)} != {}` — puis restaurée.
+
+#### 8.9.2 Défaut 2 — un SECOND barème, hérité, qui disait « oui » plus souvent
+
+Les **52 vues** du model_manager étaient gardées par `is_admin_or_dev` :
+`is_superuser | is_staff | Groups 'admin'/'dev'`. Ces Groups viennent de la migration
+`accounts/0002_create_user_groups`, **antérieure aux tiers** : le barème ignorait purement et
+simplement `UserProfile.account_tier`. Deux échelles pour une même question ne restent d'accord que
+par chance — et elles ne l'étaient pas : un compte au tier **développeur**, que la politique déclarée
+autorise explicitement, était **refusé** ici.
+
+`is_admin_or_dev` **délègue** désormais à `accessible(user, 'app', 'model_manager')`. La forme est
+conservée (52 décorateurs inchangés) ; seule la **décision** change de domicile.
+
+> Conséquence : les Groups `admin` / `dev` / `user` de `accounts/0002` **ne sont plus un axe d'accès**.
+> Les rôles métier (`role:*`) et les tiers le sont. Dette voisine relevée au passage :
+> `accounts/models.py:293 group_required()` n'a **aucun consommateur** dans le dépôt (code mort).
+
+#### 8.9.3 ⚠ L'arbitrage qui reste à rendre (mesuré sur la base vive, lecture seule)
+
+Le correctif ferme un droit à **un compte réel**. Mesure sur les 10 comptes : ancien barème → 3
+comptes ouverts ; politique déclarée → 2. **1 perdant, 0 gagnant.** Le perdant est au tier
+`utilisateur`, ni `staff` ni `superuser` : il n'avait le model_manager **que** par le Group hérité
+`dev`.
+
+| Option | Effet | Coût |
+|---|---|---|
+| **Accepter** | le compte perd le model_manager | le plus honnête vis-à-vis de la politique déclarée |
+| Passer le compte au tier `developpeur` | rouvre le model_manager… **et toutes les apps** (`BYPASS_TIERS`) | une escalade, pas un correctif ciblé |
+| Baisser `min_tier` du model_manager | rouvre pour ce compte **et pour tous les autres** | affaiblit la politique pour régler un cas |
+
+**Aucun droit n'a été modifié** — c'est un arbitrage, pas un effet de bord à absorber en silence.
+La 4ᵉ voie propre est **S3** (`AccessGrant` : une dérogation nominative, tracée, sans toucher au
+barème). C'est exactement ce pour quoi S3 existe.
+
+#### 8.9.4 La signature généralisée — pourquoi maintenant et pas à S3
+
+`accessible(user, kind, element_id)` (§8.2). Une seule famille est réellement gardée aujourd'hui
+(`app`) ; les autres se **déclarent** dans `KIND_DECISION` avec le mécanisme qui en décide
+(`model`/`library`/`function`/`skill` → S3 ; `rag_scope` → `ScopedVisibility`, gardé **ailleurs**,
+à ne pas dupliquer). Ce n'est pas de l'anticipation gratuite : c'est la signature des ~14 sites
+d'appel qu'on ne veut pas réécrire une seconde fois quand S3 branchera `AccessGrant` derrière elle.
+
+🔴 Un `kind` **absent** de la table **lève**. Un `accessible(u, 'aap', x)` mal orthographié qui
+renverrait `True` serait exactement la panne muette que le dépôt traque — et une faute de frappe qui
+**autorise** est la pire des deux directions.
+
+#### 8.9.5 Troisième jambe — `OrgUnit.code` refermé (§8.6)
+
+Le seul point non évolutif de tout le modèle d'accès. `code` portait un `supannCodeEntite` — unique
+**par annuaire** — sous un `unique=True` **global** : la « DSI » d'un second établissement était
+littéralement impossible à créer.
+
+| Pièce | Choix retenu | Pourquoi pas l'autre option du §8.6 |
+|---|---|---|
+| `authority` (champ, défaut `''`) + `UniqueConstraint('authority','code')` | le `code` reste **le code de l'annuaire tel quel** | un préfixe **dans** `code` ferait de chaque synchro LDAP de la chirurgie de chaîne, et rendrait illisible une donnée déjà en base (`{IFSTTAR}LESCOT`) |
+| `qualified_code` (`autorité:code`) | forme **exportée** — là où le code sort de WAMA | `Manifest.scope_org_unit` est un **CharField qui voyage**, pas une FK : c'est le seul endroit où le code est un identifiant public |
+| `OrgUnit.local()` | toute résolution **interne** est scopée à l'établissement | sans ça on aurait remplacé un défaut d'unicité par une panne muette : `filter(code=…).first()` choisirait une unité **au hasard** (`ordering = ['name']`) le jour où une homonyme étrangère existe |
+| `OrgUnit.resolve_qualified()` | accepte la forme **qualifiée ET nue** | les manifestes écrits avant le 27/08 portent le code nu — les rejeter casserait la portabilité qu'on protège |
+
+Défaut `''` = « l'établissement de cette instance » : **toutes** les lignes existantes le portent
+déjà, donc la migration (`common/0010`) est neutre et sans collision possible.
+
+**Ce qui le verrouille** (`wama/common/tests_org_identity.py`) : la coexistence de deux « DSI »,
+**et** son inverse (le doublon dans la même autorité reste interdit — sans quoi « j'ai retiré
+`unique=True` » suffirait à passer) ; la résolution locale sur les chemins réels (périmètre de
+partage, résolution RAG), avec l'homonyme étrangère nommée pour **remonter en premier** dans
+l'`ordering` — le test échoue vraiment si le scope saute ; l'aller-retour export → import ; et une
+**propriété de source** interdisant tout `OrgUnit.objects.filter(code=…)` non scopé ailleurs que
+dans `models.py`. Cette dernière est délibérément statique : un site ajouté demain resterait muet à
+l'exécution tant qu'aucune unité étrangère n'existe, et le jour où elle existe il est trop tard.

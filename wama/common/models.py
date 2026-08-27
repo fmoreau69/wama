@@ -72,6 +72,12 @@ class BatchMixin:
 # Voir docs/WAMA_VISION_COMPLET.md §Les quatre mondes, memory/project_wama_mondes.md.
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Autorité « maison » — celle de l'établissement qui héberge cette instance. Volontairement la
+# chaîne VIDE : c'est la valeur qu'ont déjà toutes les lignes en base, donc la migration ne
+# renomme rien et ne peut pas entrer en collision.
+LOCAL_AUTHORITY = ''
+
+
 class OrgUnit(models.Model):
     """Unité organisationnelle = nœud de l'arbre institut/université → département →
     labo/service → équipe. COLONNE VERTÉBRALE unique : sert l'héritage RAG, les scopes
@@ -82,8 +88,25 @@ class OrgUnit(models.Model):
         ('departement', 'Département'), ('labo', 'Laboratoire'), ('service', 'Service'),
         ('equipe', 'Équipe'), ('autre', 'Autre'),
     ]
-    code = models.CharField(max_length=64, unique=True, db_index=True,
+    # ⚠ `code` N'EST PAS unique globalement (correctif S2 du 27/08, §8.6). `supannCodeEntite` est
+    # unique PAR ÉTABLISSEMENT, pas entre établissements : deux universités ont chacune leur
+    # « DSI », et avec `unique=True` la seconde était simplement impossible à créer. C'était le
+    # SEUL point non évolutif de tout le modèle d'accès — audité comme tel, et refermé ici plutôt
+    # que plus tard, parce que le code voyage (cf. `authority` ci-dessous).
+    code = models.CharField(max_length=64, db_index=True,
                             help_text='supannCodeEntite (identifiant annuaire).')
+    # L'AUTORITÉ qui émet ce code — l'établissement / l'annuaire d'origine (ex. un domaine).
+    # Vide = « l'établissement de cette instance », ce qui préserve exactement l'unicité d'avant
+    # pour toutes les lignes existantes : la migration est donc sans risque de collision.
+    #
+    # Pourquoi un CHAMP plutôt qu'un préfixe dans `code` (les deux options du §8.6) : le code doit
+    # rester le code de l'annuaire TEL QUEL, sinon chaque synchro LDAP devient de la chirurgie de
+    # chaîne (`OrgUnit.objects.filter(code=supannCodeEntite)` cesserait de fonctionner) et une
+    # donnée déjà en base — `{IFSTTAR}LESCOT` — deviendrait illisible. La forme préfixée existe,
+    # mais comme forme EXPORTÉE (`qualified_code`), là où le code cesse d'être interne.
+    authority = models.CharField(max_length=64, blank=True, default='', db_index=True,
+                                 help_text="Établissement/annuaire émetteur du code "
+                                           "(vide = celui de cette instance).")
     name = models.CharField(max_length=192)
     unit_type = models.CharField(max_length=16, choices=TYPE_CHOICES, default='autre')
     parent = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL,
@@ -93,9 +116,52 @@ class OrgUnit(models.Model):
     class Meta:
         ordering = ['name']
         verbose_name = 'Unité organisationnelle'
+        constraints = [
+            models.UniqueConstraint(fields=['authority', 'code'],
+                                    name='orgunit_authority_code_unique'),
+        ]
 
     def __str__(self):
         return f'{self.name} ({self.get_unit_type_display()})'
+
+    @classmethod
+    def local(cls):
+        """Les unités de l'établissement de CETTE instance (`authority=''`).
+
+        🔴 Tout `filter(code=…)` interne passe par ici. Rendre `code` non unique sans refermer les
+        résolutions internes déplacerait simplement le défaut : le jour où une unité étrangère
+        porterait le même code, `filter(code=…).first()` en choisirait une AU HASARD (ordering par
+        `name`), sans rien signaler. C'est exactement la panne muette de `/model-manager/` —
+        connue, documentée, jamais refermée. On la referme ici en même temps qu'on l'ouvre."""
+        return cls.objects.filter(authority=LOCAL_AUTHORITY)
+
+    @property
+    def qualified_code(self):
+        """Identifiant **globalement** unique — la forme sous laquelle le code SORT de WAMA.
+
+        Un manifeste porte `scope_org_unit` en clair (str, pas une FK) et voyage : c'est le seul
+        endroit où le code devient un identifiant PUBLIC, donc le seul qui doive être qualifié.
+        Sans autorité, la forme est le code nu — les manifestes déjà écrits restent lisibles."""
+        return f'{self.authority}:{self.code}' if self.authority else self.code
+
+    @classmethod
+    def split_qualified(cls, value):
+        """`'univ:DSI'` → `('univ', 'DSI')` ; `'DSI'` → `('', 'DSI')`.
+
+        Accepte les DEUX formes exprès : les manifestes antérieurs au 27/08 portent le code nu, et
+        les rejeter reviendrait à casser la portabilité qu'on cherche justement à protéger."""
+        value = (value or '').strip()
+        autorite, sep, code = value.partition(':')
+        return (autorite, code) if sep else ('', value)
+
+    @classmethod
+    def resolve_qualified(cls, value):
+        """L'unité désignée par un code qualifié OU nu, ou None. Point d'entrée UNIQUE : c'est
+        ici qu'on saura quoi faire le jour où un manifeste arrivera d'un autre établissement."""
+        autorite, code = cls.split_qualified(value)
+        if not code:
+            return None
+        return cls.objects.filter(authority=autorite, code=code).first()
 
     def ancestors(self, include_self=True):
         """Chaîne racine→…→self (liste d'OrgUnit), garde anti-cycle."""
@@ -177,7 +243,7 @@ def user_scope_org_ids(user):
     if prof.org_entity_code:
         codes.append(prof.org_entity_code)
     ids = set()
-    for u in OrgUnit.objects.filter(code__in=set(codes)):
+    for u in OrgUnit.local().filter(code__in=set(codes)):
         ids.update(u.self_and_ancestor_ids())
     return ids
 

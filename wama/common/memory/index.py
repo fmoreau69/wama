@@ -216,7 +216,7 @@ def _resoudre_unite(user, org_unit):
         if isinstance(org_unit, OrgUnit):
             unite = org_unit
         else:
-            unite = OrgUnit.objects.filter(code=org_unit).first()
+            unite = OrgUnit.local().filter(code=org_unit).first()
             if unite is None:
                 return None, f"unité inconnue : {org_unit!r}"
         if unite.code not in codes:
@@ -225,7 +225,7 @@ def _resoudre_unite(user, org_unit):
         return unite, ''
 
     if len(codes) == 1:
-        unite = OrgUnit.objects.filter(code=codes[0]).first()
+        unite = OrgUnit.local().filter(code=codes[0]).first()
         if unite is None:
             return None, f"l'affiliation « {codes[0]} » n'a pas d'OrgUnit correspondante"
         return unite, ''

@@ -830,7 +830,7 @@ def unites_partageables(profile):
     codes = list(profile.org_affiliations or [])
     if profile.org_entity_code:
         codes.append(profile.org_entity_code)
-    unites = OrgUnit.objects.filter(code__in=set(codes))
+    unites = OrgUnit.local().filter(code__in=set(codes))
     return [{'code': u.code, 'nom': u.name, 'type': u.get_unit_type_display()} for u in unites]
 
 

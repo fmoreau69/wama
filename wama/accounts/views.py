@@ -257,7 +257,7 @@ def rattachement_institutionnel(profile):
     codes = list(profile.org_affiliations or [])
     if profile.org_entity_code and profile.org_entity_code not in codes:
         codes.insert(0, profile.org_entity_code)
-    connues = {u.code: u for u in OrgUnit.objects.filter(code__in=codes)}
+    connues = {u.code: u for u in OrgUnit.local().filter(code__in=codes)}
 
     rattachements = []
     for code in codes:

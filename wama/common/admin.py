@@ -20,8 +20,10 @@ class ProjectAdmin(admin.ModelAdmin):
 
 @admin.register(OrgUnit)
 class OrgUnitAdmin(admin.ModelAdmin):
-    list_display = ('name', 'code', 'unit_type', 'parent', 'source')
-    list_filter = ('unit_type', 'source')
+    # `authority` visible ET filtrable : deux unités homonymes ne se distinguent QUE par elle
+    # (§8.6). Une colonne « code » seule redeviendrait ambiguë à l'œil dès le 2ᵉ établissement.
+    list_display = ('name', 'code', 'authority', 'unit_type', 'parent', 'source')
+    list_filter = ('unit_type', 'source', 'authority')
     search_fields = ('name', 'code')
     autocomplete_fields = ('parent',)
 

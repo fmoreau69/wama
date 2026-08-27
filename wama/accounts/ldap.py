@@ -84,7 +84,8 @@ def _apply_ldap_org(sender, instance, **kwargs):
         if code:
             try:
                 from wama.common.models import OrgUnit
-                unit = OrgUnit.objects.filter(code=code).first()
+                # `.local()` : le code vient de l'annuaire de CET établissement (§8.6).
+                unit = OrgUnit.local().filter(code=code).first()
                 if unit:
                     prof.org_entity_name = unit.name
                     prof.org_hierarchy = [{'code': u.code, 'name': u.name, 'type': u.unit_type}

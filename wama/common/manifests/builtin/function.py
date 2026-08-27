@@ -77,7 +77,11 @@ def extract_function(key: str) -> Optional[dict]:
             key, d,
             owner=uf.owner.get_username() if getattr(uf, 'owner_id', None) else None,
             visibility=uf.visibility,
-            scope_org_unit=uf.scope_org_unit.code if getattr(uf, 'scope_org_unit_id', None) else None,
+            # `qualified_code`, pas `code` : un manifeste VOYAGE (§8.6). Le code nu n'est unique
+            # que dans son établissement — c'est ici, au moment où il sort de WAMA, qu'il doit
+            # porter son autorité. Sans autorité déclarée, la forme reste le code nu.
+            scope_org_unit=(uf.scope_org_unit.qualified_code
+                            if getattr(uf, 'scope_org_unit_id', None) else None),
             scope_project=uf.scope_project.code if getattr(uf, 'scope_project_id', None) else None,
         )
         env['source'] = {'type': 'extract', 'ref': f'UserFunction:{key}'}
@@ -133,7 +137,9 @@ def write_back_function(manifest: dict, *, apply: bool = False) -> dict:
     voulu['description'] = manifest.get('description') or ''
     voulu['visibility'] = manifest.get('visibility') or 'private'
     unit_code = manifest.get('scope_org_unit') or ''
-    unit = OrgUnit.objects.filter(code=unit_code).first() if unit_code else None
+    # Accepte les DEUX formes (qualifiée « autorité:code » et code nu) : les manifestes
+    # écrits avant le 27/08 portent le code nu, et les casser irait contre le but.
+    unit = OrgUnit.resolve_qualified(unit_code) if unit_code else None
 
     existant = UserFunction.objects.filter(key=key).first()
     actuel = None

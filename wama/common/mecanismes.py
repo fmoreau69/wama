@@ -691,13 +691,16 @@ MECANISMES = (
     # rôles), et il n'était sur aucune carte. Son absence s'est payée — la fermeture du compte de
     # service `anonymous` avait été faite à la main sur la base vivante, donc défaite par toute
     # réinstallation, faute d'un endroit où l'invariant soit déclaré.
-    Mecanisme('app_access', "Accès aux applications",
-              "Décide seul qui voit quelle app, sur DEUX axes qui se cumulent : le TIER du compte "
+    Mecanisme('app_access', "Accès aux éléments (apps aujourd'hui)",
+              "Décide seul qui voit quel élément, sur DEUX axes qui se cumulent : le TIER du compte "
               "(anonymous < utilisateur < developpeur < admin, tranche en premier) et les RÔLES "
               "métier (groupes `role:*`, intersection avec la politique de l'app). Le compte de "
-              "service `anonymous` y est FERMÉ par code, pas par état de base",
+              "service `anonymous` y est FERMÉ par code, pas par état de base. Signature GÉNÉRALE "
+              "depuis S2 — accessible(user, kind, element_id) : chaque FAMILLE d'élément déclare "
+              "dans KIND_DECISION qui décide pour elle, un kind inconnu LÈVE, et une décision "
+              "unique ne garde que ce que ses POINTS D'APPLICATION lisent réellement (§8.9)",
               'wama/accounts/permissions.py', 'PROFILES_PERMISSIONS.md',
-              annexes=('wama/accounts/tests.py',),
+              annexes=('wama/accounts/tests.py', 'wama/accounts/tests_access_points.py'),
               symbole='accessible'),
     # Ajouté le 2026-08-27 avec le jalon S1 (PROFILES_PERMISSIONS §8). Il est le VOISIN de
     # `app_access` et son exact complément — d'où sa place ici, collé à lui : `app_access` répond
