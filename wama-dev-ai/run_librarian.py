@@ -16,9 +16,7 @@ Usage (depuis la racine du repo, venv_linux) :
 """
 import argparse
 import json
-import re
 import sys
-import urllib.request
 from datetime import datetime
 from pathlib import Path
 
@@ -31,38 +29,14 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'wama.settings')
 import django
 django.setup()
 
-from config import OLLAMA_HOST, select_model_for_role  # noqa: E402 (wama-dev-ai/config.py)
-
-
-def _ollama_host():
-    """Sous WSL2, 127.0.0.1 n'atteint PAS l'Ollama de l'hôte Windows : gateway obligatoire."""
-    host = OLLAMA_HOST
-    if '127.0.0.1' in host or 'localhost' in host:
-        try:
-            if 'microsoft' in Path('/proc/version').read_text().lower():
-                import subprocess
-                gw = subprocess.run(['sh', '-c', "ip route | awk '/default/ {print $3; exit}'"],
-                                    capture_output=True, text=True).stdout.strip()
-                if gw:
-                    host = re.sub(r'127\.0\.0\.1|localhost', gw, host)
-        except OSError:
-            pass
-    return host
-
-
-# Ollama (gateway) SANS proxy — le proxy UGE avalerait 172.x ; GitHub AVEC proxy (défaut env).
-_OPENER_DIRECT = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+from config import select_model_for_role  # noqa: E402 (wama-dev-ai/config.py)
+# Helpers COMMUNS aux rôles (extraits d'ici le 2026-08-27 à la naissance de scout/integrator).
+from role_utils import call_ollama, extract_json, fetch as _fetch  # noqa: E402
 
 PROMPT = (Path(__file__).parent / 'prompts' / 'librarian.txt').read_text(encoding='utf-8')
 EXEMPLES_DIR = REPO_ROOT / 'manifests' / 'libraries'
 OUTPUTS = Path(__file__).parent / 'outputs'
 MAX_SOURCE_CHARS = 20000   # tâche étroite : on tronque plutôt que de faire dériver
-
-
-def _fetch(url):
-    req = urllib.request.Request(url, headers={'User-Agent': 'wama-dev-ai/librarian'})
-    with urllib.request.urlopen(req, timeout=30) as r:   # proxy: env http(s)_proxy
-        return r.read().decode('utf-8', 'replace')
 
 
 def sources_repo(repo):
@@ -103,35 +77,6 @@ def sources_dist(dist_name):
     return (f'importlib.metadata:{d.name}=={d.version}',
             f'===== PKG-INFO =====\n{meta}\n\n===== entry_points =====\n{eps}'
             f'\n\n===== requires =====\n{deps}')
-
-
-def call_ollama(model, system, user_msg):
-    payload = {
-        'model': model,
-        'messages': [{'role': 'system', 'content': system},
-                     {'role': 'user', 'content': user_msg}],
-        'stream': False,
-        'options': {'temperature': 0.1, 'num_ctx': 16384},
-    }
-    req = urllib.request.Request(
-        f'{_ollama_host()}/api/chat', data=json.dumps(payload).encode('utf-8'),
-        headers={'Content-Type': 'application/json'})
-    with _OPENER_DIRECT.open(req, timeout=600) as r:
-        return json.loads(r.read())['message']['content']
-
-
-def extract_json(text):
-    """Premier objet JSON équilibré du texte (les modèles emballent parfois en ```json)."""
-    text = re.sub(r'^```(?:json)?|```$', '', text.strip(), flags=re.M)
-    start = text.find('{')
-    if start < 0:
-        raise ValueError('aucun JSON dans la réponse')
-    depth = 0
-    for i, c in enumerate(text[start:], start):
-        depth += (c == '{') - (c == '}')
-        if depth == 0:
-            return json.loads(text[start:i + 1])
-    raise ValueError('JSON non équilibré')
 
 
 def main():

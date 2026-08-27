@@ -724,6 +724,44 @@ transposition assumée : la MÉTHODE dans `composer-music.md`, la SORTIE dans le
 `prompt_contract` du manifeste (le skill complet est taillé pour un agent code, pas pour
 l'enrichissement LLM local). Réf. croisée : `prompt_skills/README.md`.
 
+### Rôles SCOUT et INTEGRATOR livrés (même session, plan validé Fabien) — étapes 2-4 de la route
+
+Les deux frères du librarian existent (`wama-dev-ai/`), même discipline BORNÉE (squelette
+mécanique → UN appel LLM → contrôles mécaniques → `outputs/` PENDING_HUMAN_VALIDATION,
+jamais d'auto-application) :
+
+- **`run_scout.py`** (+ `prompts/scout.txt`) — dépôt HF → manifeste `model` : identité/
+  licence/tailles/inventaire des poids relevés MÉCANIQUEMENT (API HF, les faits re-priment
+  sur la réponse LLM), le LLM juge `model_type` (taxonomie fermée), `capabilities`,
+  `composition` (multi-composants : un fichier par rôle, q8 préféré ; runtime SEULEMENT si
+  la carte le nomme) — et signale les dépôts de quantisation NON autoportants (leçon
+  Serveurperso : un dépôt quantisé se choisit aussi par son runtime cible).
+- **`run_integrator.py`** (+ `prompts/integrator.txt`) — manifeste `model` (+ besoin) →
+  décision **app existante vs génération d'app** : contexte mécanique = `APP_CATALOG` réel
+  (descriptions longues + entrées/sorties) + référentiel des modèles installés du type ;
+  verdict JSON {decision, app, confidence, integration.needs, alternatives, concerns} ;
+  contrôles : l'app recommandée doit exister au catalogue, `new_app` renvoie à
+  `WAMA_APP_GENERATION_ROUTE.md` (validation humaine, jamais exécutée). ⚠ Le prompt
+  `architect.txt` préexistant est un AUTRE rôle (conseil d'architecture de code) — d'où le
+  nom `integrator`.
+- **`role_utils.py`** — helpers communs extraits du librarian (ollama gateway, fetch,
+  extract_json, write_output) ; le librarian les adopte (zéro duplication).
+- **`--dry-run` sur les deux** : squelette/contexte SANS appel LLM — c'est le mode de test
+  des sessions Claude (la passe LLM tourne sur l'Ollama HÔTE, le déclencheur de crash
+  identifié : elle se lance sur décision humaine, comme la passe de confiance). Dry-runs
+  VALIDÉS réels : scout sur `audio-cpp/MiniMax-Music3-GGUF` (squelette complet, licence
+  `other` relevée, 54,1 Go, inventaire trié), integrator sur le manifeste corpus de
+  minimax-music3 (catalogue d'apps complet — et l'exercice a révélé une description
+  composer PÉRIMÉE, corrigée : elle ignorait Music3).
+
+**Restes de la route après cette session** : ① brancher scout/integrator sur la prospection
+(un candidat retenu → scout → integrator → recommandation sur la card) ; ② outils
+model_manager du `tool_api` (`search_models`/`prepare_install_spec`/`install_model`) pour
+que l'AI-Assistant WAMA porte le workflow ; ③ le MARCHEUR `project`→`requires`→drivers
+(« installer un projet ») ; ④ `hf_id` à DÉCLARER dans les model_config
+transcriber/synthesizer/anonymizer (zéro occurrence mesurée — puis les faire suivre par
+les découvertes ; nourrit provenance/licences).
+
 **Validation restante (HUMAINE — jamais de charge GPU lancée par une session sur cet
 hôte)** : redémarrer les services puis générer depuis le composer avec `minimax-music3`,
 ou en CLI :
