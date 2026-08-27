@@ -206,6 +206,24 @@ ollama serve
 - Ensure GPU is being used (check `nvidia-smi`)
 - Reduce context with targeted file selection
 
+## Format des sorties des rôles (remplace l'ex-`AUDIT_FORMAT.md`, archivé 2026-08-27)
+
+> ⚠ L'ancien `AUDIT_FORMAT.md` décrivait une enveloppe `wama_report` et une nomenclature
+> (`audit_YYYY-MM-DD.json`, `model_watch_*`…) que **le code n'a jamais émises** — archivé
+> (`docs/archive/WAMA_DEV_AI_AUDIT_FORMAT.md`). Le réel, produit par `role_utils.py::write_output` :
+
+- **Nommage** : `outputs/{role}_{slug}_{AAAA-MM-JJ_HH-MM}.json` (rôles émetteurs : audit,
+  codegen, librarian/library, scout, integrator) ; les autosaves d'audit sont en `.md`.
+- **Schéma** : objet **plat** `{"status": "PENDING_HUMAN_VALIDATION", "role": "...", **payload}` —
+  pas d'enveloppe.
+- **La seule règle non négociable survit** : le statut est **toujours** `PENDING_HUMAN_VALIDATION` —
+  wama-dev-ai propose, l'humain valide, **jamais d'auto-application** (mécanisé dans
+  `role_utils.py`).
+
+⚠ Ce README date pour le reste de janvier 2026 (modèles cités retirés du parc, arborescence
+incomplète — les rôles scout/integrator/librarian n'y sont pas décrits) : **la source des rôles et
+modèles est `config.py`**, ne rien recopier d'ici. Réécriture complète en attente.
+
 ## License
 
 Part of the WAMA project.

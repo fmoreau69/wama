@@ -26,6 +26,13 @@ Elle exploite la librairie **[QualityScaler](https://github.com/Djdefrag/Quality
 - ✅ **Préservation FPS** original
 - ✅ **Encodage H.264** haute qualité
 
+### Audio (branche dédiée)
+
+L'app porte aussi une **amélioration audio** complète (modèle `AudioEnhancement`,
+`utils/audio_enhancer.py`, ~20 routes `audio/*` dans `urls.py`) : débruitage DeepFilterNet et
+resemble-enhance, avec sa propre file. Les batchs (import multi-fichiers, actions de lot) sont
+câblés sur les deux branches.
+
 ### Formats Supportés
 
 **Images** : `.jpg`, `.jpeg`, `.png`, `.bmp`, `.tif`, `.tiff`, `.webp`, `.heic`
@@ -56,26 +63,25 @@ pip install Pillow
 
 Les modèles ONNX ne sont **pas inclus** dans le repository (trop volumineux).
 
-#### Option A : Téléchargement Manuel
+#### Option A : Téléchargement automatique (par défaut)
 
-1. **Créer le répertoire des modèles** :
-   ```bash
-   mkdir -p AI-models/enhancer/onnx
-   ```
+Les modèles essentiels se téléchargent **tout seuls au démarrage de l'app**
+(`apps.py::ready()` → `check_and_download_essential_models()`, gardé par `RUN_MAIN` pour ne pas
+doubler sous l'autoreloader). Source : **Hugging Face `svjack/AI-onnx`**
+(`utils/model_downloader.py`), destination `AI-models/enhancer/onnx/`.
 
-2. **Télécharger depuis QualityScaler** :
-   - Aller sur [QualityScaler Releases](https://github.com/Djdefrag/QualityScaler/releases)
-   - Télécharger la dernière version
-   - Extraire le dossier `AI-onnx`
+Commande manuelle (état, ou tout tirer) :
 
-3. **Copier les modèles** :
-   ```bash
-   cp /path/to/QualityScaler/AI-onnx/*.onnx AI-models/enhancer/onnx/
-   ```
+```bash
+python manage.py download_enhancer_models --status   # état des modèles
+python manage.py download_enhancer_models --all      # tout télécharger
+```
 
-#### Option B : Script Automatique (À venir)
+#### Option B : Téléchargement manuel (repli)
 
-Un script de téléchargement automatique sera fourni prochainement.
+Récupérer les `.onnx` depuis https://huggingface.co/svjack/AI-onnx/tree/main et les poser dans
+`AI-models/enhancer/onnx/` (le downloader renomme certains fichiers — voir
+`utils/model_downloader.py` pour la correspondance exacte).
 
 #### Modèles Requis
 
@@ -334,7 +340,7 @@ GET  /enhancer/download_all/        # Télécharger tout (ZIP)
 ```bash
 # Test du worker
 python manage.py shell
->>> from wama.enhancer.workers import enhance_media
+>>> from wama.enhancer.tasks import enhance_media
 >>> enhance_media.delay(1)  # Enhancement ID 1
 
 # Test de l'upscaler
@@ -345,7 +351,6 @@ python manage.py shell
 
 ## 📝 TODO / Améliorations Futures
 
-- [ ] Script de téléchargement automatique des modèles
 - [ ] Support CUDA natif pour Linux
 - [ ] Batch processing optimisé
 - [ ] Aperçu avant/après

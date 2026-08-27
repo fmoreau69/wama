@@ -221,7 +221,7 @@ Possible improvements:
 ## Code Example
 
 ```python
-from anonymizer import anonymize
+from wama.anonymizer.core import anonymize
 
 # Load segmentation model
 model = anonymize.Anonymize()
@@ -236,11 +236,25 @@ model.process(
 )
 ```
 
+## Output encoding quality (merged from QUALITY_IMPROVEMENTS.md, 2026-08-27)
+
+Blurred outputs are re-encoded with quality-first settings (verified in code):
+
+| Output | Setting | Where |
+|---|---|---|
+| Video | `libx264`, `-crf 18` (visually lossless) | `wama/anonymizer/core/ffmpeg_utils.py:152-154` |
+| Audio track | AAC `-b:a 192k` | `ffmpeg_utils.py:158` |
+| JPEG images | quality 95 | `wama/anonymizer/core/anonymize.py:850` |
+
+Rationale: the intermediate MJPEG stream is transcoded once to H.264; CRF 18 keeps the blur
+boundaries clean without inflating file size. Change these constants in `ffmpeg_utils.py` /
+`anonymize.py` — not per-call.
+
 ## Testing
 
 ### Unit Tests
 ```bash
-python -c "from anonymizer.blur_utils import blur_segmentation; print('✅ Import OK')"
+python -c "from wama.anonymizer.core.blur_utils import blur_segmentation; print('✅ Import OK')"
 ```
 
 ### Integration Test

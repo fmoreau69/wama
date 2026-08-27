@@ -246,6 +246,7 @@ le défaut qui a rendu ce déport risqué — ne pas le réintroduire.
 | **Apprentissage** — modèles APPRIS (ML/DL), couche statistique, connecteur MLflow, boucle de simulation, complémentarité DAR | **`WAMA_APPRENTISSAGE.md`** — ⚠ **cadre, PAS un chantier ouvert** ; de son §3, A1/A5 sont LIVRÉES (plan d'expérience `axes[]` au kind `dataset`, 26/08), restent A2/A3/A4. Règle : **WAMA n'entraîne pas, il DÉCLARE / DÉCLENCHE / RÉINGÈRE** |
 | **Mémoire & RAG** + **journal utilisateur** (mémoire agent + mémoire de travail + RAG = UN mécanisme) | **`WAMA_MEMORY.md`** — jalons 1-11 et 13-14 LIVRÉS (brique `wama/common/memory/` sur **Postgres + pgvector**, scoping **hérité** de `ScopedVisibility`, journal `/common/journal/`, surfaces RAG par GESTE), reste le seul jalon 12 (outillage assistant list/detail). Le plan ChromaDB est MORT ; `docs/WAMA_VISION_COMPLET.md §5.5` reflète le substrat réel. |
 | Transcriber — correction assistée | `wama/transcriber/TRANSCRIBER_CORRECTION.md` |
+| Enhancer (upscaling image/vidéo + branche audio) | `wama/enhancer/README.md` — promu référence du domaine le 2026-08-27 (a absorbé les ex-docs/ENHANCER_APP et ENHANCER_AUTO_DOWNLOAD, archivés — l'Enhancer était le seul domaine sans ligne ici, et 4 docs divergents avaient poussé dans le trou) |
 | Formalisme de card (anatomie, 3 densités v1/v2/v3, batchs) | `CARD_DESIGN.md` |
 | UX de la file / modes applicatifs | `MODES_QUEUE_UX.md` |
 | Inspecteur — champs de détail (schéma canonique) | `INSPECTOR_DETAIL_FIELDS.md` |
@@ -546,7 +547,8 @@ tant que la fiabilité n'est pas éprouvée sur plus de runs.
 - Appliquer des changements sans validation humaine
 
 ### Format des rapports
-Voir `wama-dev-ai/AUDIT_FORMAT.md` — JSON canonique avec `PENDING_HUMAN_VALIDATION`.
+Voir `wama-dev-ai/README.md` §Format des sorties — objet plat `{status, role, **payload}`, statut
+toujours `PENDING_HUMAN_VALIDATION` (l'ex-`AUDIT_FORMAT.md`, jamais conforme au code, est archivé).
 
 ### Lecture des rapports par Claude
 Au début de chaque session collaborative, lire les rapports récents dans `wama-dev-ai/outputs/`.

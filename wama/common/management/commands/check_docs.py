@@ -75,6 +75,8 @@ DOCS = [
     'MEDIA_STORAGE_TIERING.md', 'REMOVAL_LEDGER.md',
     'wama/transcriber/TRANSCRIBER_CORRECTION.md', 'wama/model_manager/PROSPECTION_PIPELINE.md',
     'wama/common/README.md', 'wama_lab/cam_analyzer/CAM_ANALYZER_CHAINE_TRAITEMENT.md',
+    # Promu référence du domaine Enhancer le 2026-08-27 (fusion des ex-docs/ENHANCER_*).
+    'wama/enhancer/README.md',
 ]
 
 #: Les skills sont DÉCOUVERTES, jamais énumérées ici. Une liste figée est exactement le défaut
