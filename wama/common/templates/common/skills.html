@@ -1,0 +1,164 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load wama_catalog %}
+{% block title %}Skills — WAMA{% endblock %}
+{% block console_app_name %}common{% endblock %}
+
+{% comment %}
+  Vue DÉRIVÉE des fichiers `common/prompt_skills/*.md`, de `PROMPT_TARGETS` et de `DOMAINES` :
+  aucune donnée propre, donc aucune divergence possible. Déposer un `.md` l'y fait apparaître.
+
+  Même charte que les catalogues existants (licences / registres / librairies) : bandeau de
+  stats, barre de filtrage COMMUNE, puis cartes — l'homogénéité est un objectif de design.
+
+  ⚠ Ce que la page montre EN PREMIER est le CONSOMMATEUR, pas le contenu. Un skill que rien ne
+  résout ne lève aucune erreur : le LLM reçoit simplement une consigne générique. C'est
+  exactement « ce qui ne plante pas ne se signale pas » — d'où l'alerte explicite.
+{% endcomment %}
+
+{% block extra_css %}
+<style>
+  .sk-wrap { padding: 16px 20px; }
+  .sk-stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .sk-stat { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+             border-radius: 8px; padding: 6px 12px; font-size: .85rem; }
+  .sk-stat b { color: #ffb300; }
+
+  .sk-hero { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.10);
+             border-left: 3px solid #ffb300; border-radius: 10px; padding: 12px 16px;
+             margin-bottom: 16px; }
+  .sk-hero h3 { font-size: 1rem; margin: 0 0 4px; }
+  .sk-hero p { margin: 0 0 6px; font-size: .82rem; color: #c3ccd6; line-height: 1.45; }
+  .sk-hero p:last-child { margin-bottom: 0; }
+
+  .sk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
+  .sk-card { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.10);
+             border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .sk-card h4 { font-size: .95rem; margin: 0; display: flex; align-items: center;
+                gap: 8px; flex-wrap: wrap; }
+  .sk-card h4 code { color: #ffd54f; font-size: .95rem; }
+  .sk-resume { font-size: .8rem; color: #c3ccd6; line-height: 1.4; }
+
+  .sk-badge { font-size: .62rem; font-weight: 700; text-transform: uppercase;
+              letter-spacing: .03em; padding: 2px 7px; border-radius: 5px; white-space: nowrap; }
+  .sk-enrichissement { background: #0d47a1; color: #bbdefb; }
+  .sk-role           { background: #4a148c; color: #e1bee7; }
+  .sk-repli          { background: #37474f; color: #cfd8dc; }
+
+  .sk-conso { font-size: .74rem; color: #a7c7e7; margin-top: auto; padding-top: 6px;
+              border-top: 1px solid rgba(255,255,255,.07); }
+  .sk-conso ul { margin: 4px 0 0; padding-left: 18px; }
+  .sk-conso code { color: #c8d6e5; }
+  .sk-orphelin { color: #ffcc80; }
+
+  .sk-texte { margin-top: 4px; }
+  .sk-texte summary { cursor: pointer; font-size: .74rem; color: #90a4ae; }
+  .sk-texte pre { white-space: pre-wrap; font-size: .74rem; color: #cfd8dc; margin: 6px 0 0;
+                  background: rgba(0,0,0,.25); border-radius: 6px; padding: 8px 10px;
+                  max-height: 320px; overflow: auto; }
+
+  .sk-manque { background: rgba(255,179,0,.08); border: 1px solid rgba(255,179,0,.25);
+               border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; font-size: .8rem;
+               color: #ffe0b2; }
+  .sk-manque ul { margin: 6px 0 0; padding-left: 18px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sk-wrap">
+
+  <h2 class="text-light mb-1"><i class="fas fa-wand-magic-sparkles me-2"></i>Skills</h2>
+
+  <div class="sk-hero">
+    <h3>Les consignes données aux modèles de langage</h3>
+    <p>
+      Un skill est un fichier de consignes envoyé au LLM comme prompt système. Il est
+      <strong>centralisé</strong> : la même consigne sert le pipeline de prompts, le bouton ✨
+      des apps, l'assistant et l'agent de développement — aucune app n'en écrit.
+    </p>
+    <p>
+      <strong>Deux familles, à ne pas confondre.</strong> Un skill
+      d'<em>enrichissement</em> transforme un prompt <em>dans l'app</em>, au lancement de la
+      tâche. Un skill de <em>rôle</em> définit la posture de l'assistant lui-même — il ne
+      transforme aucun prompt. Appliquer l'un à la place de l'autre coûte une passe LLM pour rien.
+    </p>
+    <p>
+      Cette page dérive des fichiers et des déclarations qui les résolvent : elle dit surtout
+      <strong>qui consomme quoi</strong>. Un skill que rien ne résout est un fichier inerte — et
+      il ne provoque aucune erreur, d'où son signalement ici.
+    </p>
+  </div>
+
+  <div class="sk-stats">
+    <div class="sk-stat"><b>{{ cat.total }}</b> skill{{ cat.total|pluralize }}</div>
+    {% for cle, n in cat.par_famille.items %}
+    <div class="sk-stat"><b>{{ n }}</b> {{ cle }}</div>
+    {% endfor %}
+    {% if cat.orphelins %}
+    <div class="sk-stat"><b>{{ cat.orphelins }}</b> sans consommateur</div>
+    {% endif %}
+  </div>
+
+  {% comment %}
+    L'écart INVERSE — une déclaration de prompt qu'aucun skill ne sert. Il est encore plus muet
+    que le skill orphelin : le pipeline garde son repli intégré et personne ne voit passer
+    l'absence. Le nommer ici est la seule surface où il existe.
+  {% endcomment %}
+  {% if cat.targets_orphelins %}
+  <div class="sk-manque">
+    <i class="fas fa-triangle-exclamation me-1"></i>
+    <strong>{{ cat.targets_orphelins|length }} prompt déclaré{{ cat.targets_orphelins|length|pluralize }}
+    sans skill dédié</strong> — le LLM travaille avec le repli intégré de l'appelant, sans consigne
+    spécifique. Ce n'est pas forcément un défaut : c'est une décision à prendre, pas un silence.
+    <ul>
+      {% for t in cat.targets_orphelins %}
+      <li>{{ t.app }} · <code>{{ t.champ }}</code> — aucun <code>{{ t.app }}.md</code> ni
+          <code>default-{{ t.kind }}.md</code></li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% include 'common/_filter_bar.html' with facettes=facettes_skills cible='.sk-card' mode='client' placeholder='Filtrer (nom, app, consigne…)' %}
+
+  <div class="sk-grid mt-3">
+    {% for s in cat.skills %}
+    <div class="sk-card" data-f-famille="{{ s.famille }}" data-nom="{{ s.nom }}">
+      <h4>
+        <code>{{ s.nom }}</code>
+        <span class="sk-badge sk-{{ s.famille }}">{{ s.famille_label }}</span>
+      </h4>
+
+      <div class="sk-resume">{{ s.resume }}</div>
+
+      <div class="sk-conso">
+        {% if s.consommateurs %}
+          <i class="fas fa-plug me-1"></i>Résolu par :
+          <ul>{% for c in s.consommateurs %}<li>{{ c|safe }}</li>{% endfor %}</ul>
+        {% elif s.famille == 'repli' %}
+          <i class="fas fa-life-ring me-1"></i>Repli générique — atteint quand aucun skill
+          spécifique n'existe. L'absence de lien nommé est normale ici.
+        {% else %}
+          <span class="sk-orphelin"><i class="fas fa-unlink me-1"></i>Aucun consommateur —
+          rien ne résout ce fichier, il n'est jamais envoyé au modèle.</span>
+        {% endif %}
+      </div>
+
+      <details class="sk-texte">
+        <summary>Voir la consigne ({{ s.lignes }} ligne{{ s.lignes|pluralize }})</summary>
+        <pre>{{ s.texte }}</pre>
+      </details>
+    </div>
+    {% empty %}
+    <p class="text-white-50">Aucun skill déclaré.</p>
+    {% endfor %}
+  </div>
+
+  {% comment %}
+    Le bouton vient de la BRIQUE COMMUNE — jamais réécrit. Le registre `skills` est de nature
+    REDECLARATION : « actualiser » vide le cache de lecture, un `.md` modifié à chaud est repris
+    sans redémarrage. C'est un geste utile ici, contrairement à une page purement dérivée.
+  {% endcomment %}
+  <div class="mt-3">{% bouton_actualiser 'skills' %}</div>
+</div>
+{% endblock %}

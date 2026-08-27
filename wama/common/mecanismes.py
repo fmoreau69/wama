@@ -754,6 +754,10 @@ ASSUMES_LOCAUX = {
     'wama/common/utils/intervals.py': "algèbre d'intervalles — cam_analyzer (coverage) seul consommateur",
     'wama/common/utils/video_compat.py': "compat lecteur navigateur (ensure_h264) — cam_analyzer seul ; promouvoir si adoption",
     'wama/common/utils/whisper_utils.py': "adaptateur describer → backend Whisper du transcriber (UNIFIÉ 13/08 : plus de double chemin de chargement) ; consommé par le describer seul",
+    # 2026-08-27 : la page du registre `skills`. Le service ne porte AUCUN mécanisme propre — il
+    # dérive `prompt_skills/*.md` × PROMPT_TARGETS × DOMAINES pour un seul gabarit. Les mécanismes
+    # qu'il donne à VOIR sont déjà déclarés (`prompt_pipeline`, `assistant_skills`, `registres`).
+    'wama/common/services/skills_catalog.py': "dérivation d'affichage du catalogue de skills — consommée par la vue `skills_catalog` seule",
 }
 
 

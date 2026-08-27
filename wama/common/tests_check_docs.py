@@ -82,6 +82,80 @@ class ChecksDocsSkillsTests(SimpleTestCase):
         self.assertIn('Aucune référence cassée', r)
 
 
+class ChiffreSansSourceTests(SimpleTestCase):
+    """3ᵉ famille (27/08) : un chiffre en position de CONSTAT doit dire d'où il vient.
+
+    Le défaut qui l'a motivée ne cassait aucune référence : `/port-app` annonçait « F6/F7/F8 :
+    ZÉRO critère » alors que les critères couvrent les 8 facettes. Le chemin existait, le chiffre
+    mentait — angle mort total du contrôle de références.
+
+    Un skill est de la doctrine EXÉCUTABLE : on lui OBÉIT. Un chiffre faux y coûte plus cher que
+    dans un doc, et un chiffre périmé posé à côté de la bonne règle se fait lire à sa place.
+    """
+
+    def _lancer(self, corps):
+        tmp = _depot_temporaire('essai', corps)
+        self.addCleanup(tmp.cleanup)
+        with override_settings(BASE_DIR=tmp.name):
+            return _rapport(tmp)
+
+    def test_un_chiffre_nu_en_position_de_constat_est_signale(self):
+        r = self._lancer("La grille couvre 82 critères aujourd'hui.")
+        self.assertIn('CHIFFRE SANS SOURCE', r)
+        self.assertIn('82 critères', r)
+
+    def test_zero_en_toutes_lettres_compte_comme_un_chiffre(self):
+        # C'est la graphie EXACTE du défaut du 26/08. Sans elle, la famille aurait raté le seul
+        # cas qui l'a fait naître — un contrôle qui ne détecte pas son propre motif fondateur.
+        r = self._lancer("F6/F7/F8 : ZÉRO critère, et 12 apps portées.")
+        self.assertIn('CHIFFRE SANS SOURCE', r)
+
+    def test_le_chiffre_apres_deux_points_est_vu_aussi(self):
+        r = self._lancer("Bilan : critères : 82, et rien d'autre à dire.")
+        self.assertIn('CHIFFRE SANS SOURCE', r)
+
+    def test_la_commande_qui_produit_le_chiffre_l_acquitte(self):
+        r = self._lancer("La grille couvre 82 critères — mesurer avec\n"
+                         "`python manage.py check_app_conformity`.")
+        self.assertNotIn('CHIFFRE SANS SOURCE', r)
+
+    def test_une_date_de_releve_acquitte_le_chiffre(self):
+        # La date ne rend pas le chiffre vrai : elle le rend DATÉ, donc relisible comme un constat
+        # d'époque plutôt que comme une règle. C'est exactement ce qu'on demande.
+        r = self._lancer("Relevé du 2026-08-26 : 82 critères couvrant les 8 facettes.")
+        self.assertNotIn('CHIFFRE SANS SOURCE', r)
+
+    def test_un_bloc_genere_doc_facts_est_hors_perimetre(self):
+        # Le contenu d'un bloc généré n'est pas écrit à la main : le signaler demanderait de
+        # corriger une sortie de commande, c'est-à-dire de mentir à la source.
+        r = self._lancer("<!-- WAMA:FAITS(mecanismes) -->\n"
+                         "La grille couvre 82 critères.\n"
+                         "<!-- /WAMA:FAITS(mecanismes) -->")
+        self.assertNotIn('CHIFFRE SANS SOURCE', r)
+
+    def test_un_bloc_de_code_est_hors_perimetre(self):
+        r = self._lancer("```bash\npython -c \"print(82)\"  # 82 critères\n```")
+        self.assertNotIn('CHIFFRE SANS SOURCE', r)
+
+    def test_une_erreur_passee_citee_entre_guillemets_n_est_pas_reprochee(self):
+        # Faux positif réel : `/reprise` cite « un défaut dans les 11 apps » pour dire que c'était
+        # FAUX. Reprocher sa propre citation d'erreur apprendrait à ne plus consigner les erreurs.
+        r = self._lancer("Ce skill a longtemps annoncé « un défaut dans les 11 apps » — c'était faux.")
+        self.assertNotIn('CHIFFRE SANS SOURCE', r)
+
+    def test_un_chiffre_qui_ne_compte_rien_ne_declenche_pas(self):
+        # Le filtrage se fait par NOM COMPTABLE, pas par exclusion de faux positifs : la liste des
+        # choses que WAMA compte est courte et stable, celle des nombres qui ne comptent rien est
+        # infinie. Versions, ports et dates ne doivent donc jamais entrer dans la famille.
+        r = self._lancer("Django 5.2 écoute sur le port 8000 depuis le 2026-01-01.")
+        self.assertNotIn('CHIFFRE SANS SOURCE', r)
+
+    def test_un_chiffre_non_source_n_est_pas_excuse_par_supprime(self):
+        # Deux familles distinctes : « supprimé » excuse une RÉFÉRENCE morte, jamais un chiffre.
+        r = self._lancer("- 12 apps portées — SUPPRIMÉ.")
+        self.assertIn('CHIFFRE SANS SOURCE', r)
+
+
 class HorsDepotTests(SimpleTestCase):
     """La mémoire Claude vit hors du dépôt : la citer n'est pas une référence morte."""
 
@@ -104,9 +178,13 @@ class ContratNocturneTests(SimpleTestCase):
     commande affichait 1 cible, le scénario en voyait 2 et restait rouge.
     """
 
-    def _verdict(self, sortie):
+    #: Toute sortie conforme porte la ligne de la 3ᵉ famille (27/08). Les fixtures la posent donc
+    #: par défaut : son ABSENCE est elle-même un échec (contrôle muet), éprouvée à part plus bas.
+    CHIFFRES_ZERO = "Chiffres sans source : 0 (skills)\n"
+
+    def _verdict(self, sortie, chiffres=CHIFFRES_ZERO):
         from wama.common import nightly_scenarios as ns
-        with patch.object(ns, '_capture', return_value=(1, sortie)):
+        with patch.object(ns, '_capture', return_value=(1, sortie + chiffres)):
             return ns._run_check_docs(None)
 
     def test_une_meme_cible_citee_cinq_fois_ne_compte_que_pour_une(self):
@@ -150,6 +228,23 @@ class ContratNocturneTests(SimpleTestCase):
                                    "Bilan : 0 cassée(s), 1 périmée(s)\n")
         self.assertFalse(ok, detail)          # une périmée reste un échec…
         self.assertNotIn('défaut(s) franc(s)', detail)   # …mais pas un « défaut franc »
+
+    def test_un_chiffre_sans_source_fait_echouer_le_contrat(self):
+        ok, detail = self._verdict("INTÉGRITÉ DOCS+SKILLS → CODE\n"
+                                   "Bilan : 0 cassée(s), 0 périmée(s)\n",
+                                   chiffres="Chiffres sans source : 1 (skills)\n")
+        self.assertFalse(ok, detail)
+        self.assertIn('chiffre(s) sans source', detail)
+
+    def test_la_ligne_absente_n_est_PAS_lue_comme_un_zero(self):
+        # ⚠ Le défaut que j'ai écrit en premier, et qui est le défaut RÉCURRENT du dépôt : une
+        # ligne manquante lue comme 0 rend le scénario VERT sur un contrôle MUET — exactement le
+        # harnais qui annonce « 0 échec » sur du vide. Ligne absente = pas conforme, et on le dit.
+        ok, detail = self._verdict("INTÉGRITÉ DOCS+SKILLS → CODE\n"
+                                   "Bilan : 0 cassée(s), 0 périmée(s)\n",
+                                   chiffres="")
+        self.assertFalse(ok, detail)
+        self.assertIn('ABSENTE', detail)
 
 
 class JournauxTests(SimpleTestCase):

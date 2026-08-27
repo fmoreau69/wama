@@ -12,7 +12,8 @@ Règle CLAUDE.md : tout code utilisé par plus d'une app va dans `wama/common/`.
 
 > ⛔ **Étape non négociable, elle prend 2 minutes.** Sautée le 2026-07-31 : j'ai raisonné pendant
 > trois apps avant de découvrir que la file est construite par `batch_common.build_batches_list()`
-> + `queue_view.py` — donc UN seul domicile pour les 10 apps, pas dix. Lire la facette F d'abord.
+> + `queue_view.py` — donc UN seul domicile pour toutes les apps, pas un par app. Lire la facette F
+> d'abord.
 
 ```bash
 ls -d wama/common/*/ ; ls wama/common/utils/ wama/common/services/ wama/common/static/common/js/

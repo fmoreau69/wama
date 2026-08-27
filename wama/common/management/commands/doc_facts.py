@@ -352,13 +352,54 @@ def _fait_wama_data() -> str:
     return '\n'.join(lignes)
 
 
+def _fait_conformite():
+    """Taille et répartition de la grille de conformité, lues dans le rapport MESURÉ.
+
+    POURQUOI CE FAIT VIT DANS UN SKILL (2026-08-27). C'est le chiffre le plus recopié et le plus
+    faux du dépôt : le skill `/conformite` a annoncé 40, puis 74, puis 77 — et le 26/08 le total
+    affiché ne correspondait même plus à la somme de sa propre liste. Un skill est de la doctrine
+    EXÉCUTABLE : on lui obéit, donc un chiffre périmé s'y fait suivre.
+
+    Le bloc ne remplace pas la commande de mesure que le skill donne juste au-dessus : il donne
+    l'ordre de grandeur sans exiger de l'exécuter, et il devient ROUGE dès que la grille bouge.
+    """
+    import json
+    from collections import Counter
+    from django.conf import settings
+
+    p = Path(settings.BASE_DIR) / 'logs' / 'conformity_report.json'
+    if not p.is_file():
+        # Fail-safe qui le DIT. Rendre un bloc vide laisserait croire à une grille vide —
+        # « une mesure faible qui se présente comme forte est pire que pas de mesure ».
+        return ("- ⚠ Aucun rapport mesuré (`logs/conformity_report.json` absent) — lancer "
+                "`python manage.py check_app_conformity`.")
+
+    d = json.loads(p.read_text(encoding='utf-8'))
+    criteres, apps = d.get('criteria') or {}, d.get('apps') or {}
+    par_facette = Counter(v.get('facette', '?') for v in criteres.values())
+    reparti = ' '.join(f"{f}:{n}" for f, n in sorted(par_facette.items()))
+    jour = (d.get('generated_at') or '')[:10] or 'date inconnue'
+    totaux = sorted({a.get('total') for a in apps.values() if a.get('total')})
+    borne = (f"{totaux[0]} à {totaux[-1]}" if len(totaux) > 1
+             else (str(totaux[0]) if totaux else '—'))
+    return (
+        f"- Critères de la grille : **{len(criteres)}** — {reparti} *(relevé du {jour})*\n"
+        f"- Apps mesurées : **{len(apps)}** ; dénominateur par app : **{borne}** "
+        f"(un critère **non applicable** sort du calcul)"
+    )
+
+
 # fait → (fichier de référence, fonction). Un fait vit dans UN doc (un domaine = un fichier).
+# ⚠ Un skill EST un fichier de référence recevable : le chemin est relatif à BASE_DIR, rien
+# d'autre n'est requis. Ouvert aux skills le 2026-08-27 — c'est là que les chiffres périmés
+# coûtent le plus cher, puisqu'on leur OBÉIT au lieu de les lire.
 FAITS = {
     'outils': ('WAMA_APP_GENERATION_ROUTE.md', _fait_outils),
     'modeles': ('WAMA_MANIFEST_SPEC.md', _fait_modeles),
     'roundtrip': ('WAMA_MANIFEST_ARCHITECTURE.md', _fait_roundtrip),
     'mecanismes': ('WAMA_MECANISMES.md', _fait_mecanismes),
     'wama_data': ('WAMA_DATA_WORLD.md', _fait_wama_data),
+    'conformite': ('.claude/skills/conformite/SKILL.md', _fait_conformite),
 }
 
 OUVRANT = "<!-- WAMA:FAITS({fid}) — généré par « python manage.py doc_facts », ne pas éditer -->"

@@ -99,5 +99,6 @@ le RENDU RÉEL, pas la structure du code.
   l'accueil — et une page « chargée » peut être L'ACCUEIL après redirect : vérifier un marqueur de
   la page visée, pas le seul code 200 (piège vécu sur `/converter_01/`).
 - **Le contrôle « zéro erreur console » est le plus rentable** : il a trouvé une double inclusion
-  de brique globale (`MediaPicker`) sur 2 apps dès la 1re exécution, sur des pages utilisées tous
+  de brique globale (`MediaPicker`) sur 2 apps dès la 1re exécution (relevé du 19/08), sur des
+  pages utilisées tous
   les jours. `node --check` ne voit que la syntaxe, jamais une erreur au chargement.

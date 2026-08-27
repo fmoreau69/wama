@@ -206,6 +206,9 @@ enregistrer(Registre(
     source="Fichiers `wama/common/prompt_skills/*.md`",
     rafraichir=_rafraichir_skills, compter=_compter_skills,
     permission='auth', au_demarrage=False,
+    # Sa page, enfin (27/08). Il était le seul registre de la carte à n'en désigner aucune :
+    # le catalogue n'était lisible que par l'assistant et wama-dev-ai.
+    url_name='common:skills_catalog',
     doc='WAMA_LLM.md',
     description="Vide le cache de lecture des skills : un `.md` modifié à chaud est repris sans "
                 "redémarrage. Sans effet de bord partagé, donc ouvert à tout compte connecté.",

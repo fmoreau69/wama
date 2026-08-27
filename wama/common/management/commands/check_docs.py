@@ -24,11 +24,25 @@ couverte par un contrôle — cette commande s'arrêtait aux `.md` de référenc
 de la doctrine EXÉCUTABLE** : un chemin mort dans un `.md` se discute, dans un skill il se fait
 obéir, et la session suivante va chercher dans un dossier disparu.
 
-⚠ CE QUE CE CONTRÔLE NE VOIT PAS, et il faut le savoir : il vérifie que les RÉFÉRENCES existent,
-pas que les CHIFFRES disent vrai. Le pire défaut du 26/08 — `/port-app` annonçant « F6/F7/F8 :
-ZÉRO critère » alors que les 82 critères couvrent les 8 facettes — serait passé au travers. Le
-remède à celui-là est doctrinal, pas mécanique : dans un skill, un chiffre mesurable est remplacé
-par LA COMMANDE qui le mesure, la valeur ne subsistant que datée (cf. `/conformite`, `/smoke`).
+CHIFFRE SANS SOURCE (2026-08-27) — la troisième famille, et la raison d'être de la deuxième
+extension. Le contrôle des références ne voyait PAS le pire défaut du 26/08 : `/port-app`
+annonçait « F6/F7/F8 : ZÉRO critère » alors que les 82 critères couvrent les 8 facettes. Aucune
+référence n'était cassée — le chemin existait, le chiffre mentait.
+
+Ce contrôle ne vérifie PAS la valeur (il faudrait lancer toutes les commandes, donc faire
+dépendre un contrôle de tous les autres et confondre « la doc est périmée » avec « la commande
+est cassée »). Il rend EXÉCUTABLE la doctrine déjà écrite : **un chiffre dans un skill, c'est LA
+COMMANDE, pas la valeur**. Un nombre en position de constat (« 82 critères », « 10 apps », « 40 % »)
+doit donc être accompagné, dans le MÊME énoncé, de l'une de ces trois sources :
+  - la commande qui le produit, en backticks (`python manage.py …`, `pytest …`) ;
+  - une DATE de relevé (« mesuré le 2026-08-26 ») — la valeur devient un fait d'histoire, pas
+    une affirmation sur aujourd'hui ;
+  - un bloc généré `WAMA:FAITS(...)` (`doc_facts`), où le chiffre est vrai par construction.
+    ⚠ Rien à coder pour l'ouvrir aux skills : `FAITS` mappe un id vers un chemin relatif à
+    BASE_DIR, et `.claude/skills/<nom>/SKILL.md` en est un.
+
+Le verdict est un CLIQUET, pas un contrat dur (`CHIFFRES_SANS_SOURCE_ASSUMES`, nightly_scenarios) :
+la dette existe au jour 1, et un rouge permanent est un rouge que plus personne ne lit.
 """
 import re
 from pathlib import Path
@@ -71,6 +85,35 @@ REF_MD = re.compile(r'`([\w/\\.\-]+\.md)`')
 #: est un fait d'histoire, un CHEMIN DE CODE qui n'existe plus est une affirmation sur le code
 #: d'aujourd'hui. Les références de code de ces mêmes journaux restent donc contrôlées.
 JOURNAUX = {'PROJECT_STATUS.md'}
+
+#: ── Famille « chiffre sans source » (skills seulement) ────────────────────────────────────
+#: Noms COMPTABLES : un nombre ne devient un constat qu'accolé à ce qu'il compte. C'est ce qui
+#: sépare « 82 critères » (une affirmation sur le code d'aujourd'hui, donc vérifiable, donc à
+#: sourcer) de « §16.9 », « v2 », « F1–F8 » ou « 3 minutes » (aucune affirmation mesurable).
+#: Restreindre par le NOM plutôt que d'exclure les faux positifs un à un : la liste des choses
+#: que WAMA compte est courte et stable, celle des nombres qui ne comptent rien est infinie.
+NOMS_COMPTABLES = (r"(?:crit[eè]res?|apps?|applications?|m[ée]canismes?|gabarits?|skills?|"
+                   r"tests?|sc[ée]narios?|fonctions?|mod[eè]les?|fichiers?|endpoints?|outils?|"
+                   r"pages?|documents?|r[ée]f[ée]rences?|commandes?|registres?|manifestes?|"
+                   r"facettes?|briques?|adopteurs?|occurrences?)")
+#: `zéro` compte comme un chiffre : LE défaut du 26/08 s'écrivait en toutes lettres (`/port-app`
+#: annonçait « F6/F7/F8 : ZÉRO critère »). Un contrôle qui n'attrape pas le cas qui l'a motivé
+#: n'aurait servi qu'à rassurer. `aucun` reste dehors — c'est une négation ordinaire, pas un
+#: décompte, et l'inclure noierait la famille dans la prose.
+CHIFFRE_AVANT = re.compile(r"\b(\d+|z[ée]ro)\s*(%|" + NOMS_COMPTABLES + r")\b", re.I)
+CHIFFRE_APRES = re.compile(NOMS_COMPTABLES + r"\s*:\s*(\d+)\b", re.I)
+#: Une SOURCE dans le même énoncé. `manage.py`/`pytest` en backticks = la commande qui produit
+#: le chiffre ; une date = un relevé assumé (la valeur n'est plus présentée comme actuelle).
+SOURCE_COMMANDE = re.compile(r"`[^`]*(?:manage\.py|pytest|python -m|rtk |git )[^`]*`")
+SOURCE_DATEE = re.compile(r"20\d\d-\d\d-\d\d|\b\d\d/\d\d\b|mesur|relev|constat|au jour")
+#: Un nombre écrit DANS du code (inline ou bloc) n'est pas un constat : c'est un argument, un
+#: index, une valeur d'exemple. On dépouille avant de chercher — sinon la commande citée en
+#: SOURCE se dénoncerait elle-même dès qu'elle porte un chiffre.
+CODE_INLINE = re.compile(r"`[^`]*`")
+#: Idem pour une CITATION : « j'ai rapporté un défaut dans les 11 apps » rapporte une parole —
+#: souvent, dans ces skills, une erreur passée qu'on cite POUR l'avoir commise. Exiger sa source
+#: reviendrait à demander de prouver un propos qu'on désavoue.
+CITATION = re.compile(r"«[^»]*»")
 
 #: Convention de nommage de la mémoire Claude. Vérifié le 2026-08-27 : 134 fichiers mémoire la
 #: suivent, et AUCUN `.md` du dépôt — l'exclusion ne peut donc pas masquer une vraie référence.
@@ -157,7 +200,7 @@ class Command(BaseCommand):
             cibles += [(str(p.relative_to(base)).replace('\\', '/'), p)
                        for p in sorted(base.glob(SKILLS_GLOB))]
 
-        casses, perimes, ambigus, verifies = [], [], [], 0
+        casses, perimes, ambigus, chiffres, verifies = [], [], [], [], 0
 
         for nom, f in cibles:
             if not f.exists():
@@ -165,6 +208,25 @@ class Command(BaseCommand):
                 continue
             texte = f.read_text(encoding='utf-8', errors='replace')
             lignes = texte.splitlines()
+
+            # Lignes NEUTRALISÉES pour la famille « chiffre » : un bloc de code montre une
+            # commande (ses chiffres sont des arguments), un bloc `WAMA:FAITS` est généré donc
+            # vrai par construction. Calculé d'un coup : l'état est séquentiel, pas local.
+            neutres = set()
+            if f.name == 'SKILL.md':
+                fence = faits = False
+                for j, l in enumerate(lignes, 1):
+                    ouvre_fence = l.lstrip().startswith('```')
+                    if '/WAMA:FAITS(' in l:
+                        faits, marque = False, True
+                    elif 'WAMA:FAITS(' in l:
+                        faits, marque = True, True
+                    else:
+                        marque = False
+                    if fence or faits or ouvre_fence or marque:
+                        neutres.add(j)
+                    if ouvre_fence:
+                        fence = not fence
 
             # Invariant propre aux skills : le `name:` du frontmatter DOIT valoir le nom du
             # dossier, sinon le skill ne s'invoque pas sous le nom qu'on croit. Vérifié à la
@@ -207,6 +269,19 @@ class Command(BaseCommand):
                     'cible :', 'cible:', 'à faire', 'archivé', 'archive', 'n\'existe',
                     'site-packages', 'venv_', 'ancien plan', '~~',
                     'renommé', 'renomme', 'ex-`'))
+                # ── chiffre sans source (skills seulement) ────────────────
+                # Placé AVANT le filtre `intentionnel` : « supprimé »/« archivé » excusent une
+                # RÉFÉRENCE morte, jamais un chiffre non sourcé — ce sont deux familles.
+                if f.name == 'SKILL.md' and i not in neutres:
+                    nu = CITATION.sub(' ', CODE_INLINE.sub(' ', ligne))
+                    trouves = [f"{n} {u}" for n, u in CHIFFRE_AVANT.findall(nu)]
+                    trouves += [f"{n} (après nom)" for n in CHIFFRE_APRES.findall(nu)]
+                    if trouves:
+                        verifies += len(trouves)
+                        if not (SOURCE_COMMANDE.search(voisinage)
+                                or SOURCE_DATEE.search(voisinage)):
+                            chiffres.append((nom, i, ', '.join(dict.fromkeys(trouves))[:96]))
+
                 if intentionnel:
                     continue
                 # ── liens vers d'autres .md ────────────────────────────────
@@ -272,10 +347,21 @@ class Command(BaseCommand):
             w(warn(f"\nPÉRIMÉ ({len(perimes)}) — le fichier existe, la ligne n'existe plus :"))
             for doc, i, msg in perimes:
                 w(warn(f"  {doc}:{i}  {msg}"))
+        if chiffres:
+            w(warn(f"\nCHIFFRE SANS SOURCE ({len(chiffres)}) — un skill est de la doctrine "
+                   f"EXÉCUTABLE : accompagner de la COMMANDE, ou dater le relevé :"))
+            for doc, i, msg in chiffres:
+                w(warn(f"  {doc}:{i}  {msg}"))
         if not casses and not perimes:
             w(s("\nAucune référence cassée ni périmée."))
 
         w("")
         w(f"Bilan : {len(casses)} cassée(s), {len(perimes)} périmée(s) sur {verifies} vérifiée(s).")
+        # Ligne SÉPARÉE, et non un 3ᵉ terme du Bilan : le scénario nocturne parse le Bilan par
+        # motif depuis le 18/08, et lui ajouter un terme aurait cassé une garde en en posant une.
+        w(f"Chiffres sans source : {len(chiffres)} (skills).")
+        # `--strict` ne tombe QUE sur les cassées : la famille « chiffre » est un cliquet porté
+        # par le scénario nocturne (`CHIFFRES_SANS_SOURCE_ASSUMES`), pas un contrat dur — sinon
+        # la commande naîtrait rouge et cesserait d'être lue.
         if o['strict'] and casses:
             raise SystemExit(1)

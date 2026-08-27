@@ -49,6 +49,11 @@ urlpatterns = [
     # aucun ne la contient.
     path('licences/', views.licenses_catalog_view, name='licenses_catalog'),
 
+    # Skills de prompt : la PAGE du registre `skills`, qui existait sans elle (seul registre
+    # de la carte sans `url_name`). Elle DÉRIVE des fichiers + PROMPT_TARGETS + DOMAINES, et
+    # dit surtout QUI consomme quoi — un skill que rien ne résout est un fichier inerte.
+    path('skills/', views.skills_catalog_view, name='skills_catalog'),
+
     # Journal transversal de l'utilisateur (WAMA_MEMORY.md §9bis) — dérive de detail_registry,
     # aucune ligne dans les apps.
     path('journal/', views.journal_view, name='journal'),

@@ -400,6 +400,29 @@ def licenses_catalog_view(request):
                    'volet': VOLET_AUCUN})
 
 
+def skills_catalog_view(request):
+    """
+    Catalogue des SKILLS de prompt — la page qui manquait au registre `skills`.
+
+    Le registre existait depuis le 22/08 avec son compteur et son rafraîchisseur, mais sans
+    `url_name` : seul registre de la carte à ne désigner aucune page. Les skills étaient donc
+    lisibles par l'assistant et par wama-dev-ai, et par personne d'autre.
+
+    DÉRIVÉE, comme les licences : rien n'est stocké, la synthèse recalcule à chaque affichage
+    depuis les fichiers, `PROMPT_TARGETS` et `DOMAINES`. Le bouton d'actualisation reste
+    pertinent ici (nature REDECLARATION) — il vide le cache de lecture, pas la page.
+    """
+    from .services.skills_catalog import FAMILLES, synthese
+
+    # Options DÉCLARÉES : les valeurs brutes sont des clés techniques (`role`, `repli`) et la
+    # page affiche des libellés français — même arbitrage que /licences/ et /registres/.
+    facettes = [{'cle': 'famille', 'label': 'Famille', 'tous': 'Toutes les familles',
+                 'options': dict(FAMILLES)}]
+
+    return render(request, 'common/skills.html',
+                  {'cat': synthese(), 'facettes_skills': facettes, 'volet': VOLET_AUCUN})
+
+
 @login_required
 def journal_view(request):
     """

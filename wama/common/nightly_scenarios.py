@@ -43,6 +43,14 @@ from wama.common.services.nightly_tests import SkipScenario, register
 CIBLES_ASSUMEES = 1      # contrat REPRISE §3a — CIBLES distinctes, jamais des références
 REDONDANCES_ASSUMEES = 0  # dette anonymizer résorbée au palier 1 du port (03/08) — toute trouvaille = nouvelle recopie
 
+# Famille « chiffre sans source » (check_docs, 2026-08-27). Contrat à 0 dès le premier jour :
+# les 11 skills en portaient 3 à l'ouverture du contrôle, toutes soldées en trois mots (un
+# décompte retiré, un autre daté). Le seuil n'est donc pas une dette héritée mais une exigence
+# atteinte — et il n'y a aucune raison légitime qu'un chiffre mesurable réapparaisse dans un
+# skill sans la commande qui le produit. Un ZÉRO tenu se relit ; un cliquet qu'on desserre à
+# chaque écriture ne protège plus rien.
+CHIFFRES_SANS_SOURCE_ASSUMES = 0
+
 
 def _capture(cmd, *args, **opts):
     """(code, sortie) d'une management command — SystemExit(1) = verdict, pas un crash."""
@@ -72,9 +80,23 @@ def _run_check_docs(ctx):
                 if re.match(r"^\s{2}\S+:\d+\s", l)]
     cibles = {m.group(1) for m in (re.search(r"→ (\S+)", l) for l in constats) if m}
     francs = len([l for l in constats if '→' not in l])
-    ok = len(cibles) <= CIBLES_ASSUMEES and francs == 0 and perime == 0
+    # Troisième famille (27/08) : un chiffre en position de constat dans un skill sans la
+    # COMMANDE qui le produit ni date de relevé. Lue sur sa PROPRE ligne et non dans le Bilan —
+    # le motif ci-dessus est une garde en place depuis le 18/08, et on ne pose pas une garde
+    # neuve en cassant une ancienne.
+    #
+    # ⚠ Ligne ABSENTE ≠ zéro chiffre : c'est le contrôle qui ne s'est pas exprimé (commande
+    # revenue en arrière, sortie tronquée). Le lire comme un 0 rendrait ce scénario VERT sur du
+    # vide — le défaut d'instrument déjà payé deux fois ici. On échoue donc, en le disant.
+    mc = re.search(r"Chiffres sans source : (\d+)", out)
+    sans_source = int(mc.group(1)) if mc else None
+    ok = (len(cibles) <= CIBLES_ASSUMEES and francs == 0 and perime == 0
+          and sans_source is not None and sans_source <= CHIFFRES_SANS_SOURCE_ASSUMES)
     detail = (f"{len(cibles)} cible(s) distincte(s) (contrat : ≤{CIBLES_ASSUMEES}) "
               f"sur {casse} référence(s), {perime} périmée(s)")
+    detail += (f", {sans_source} chiffre(s) sans source (contrat : ≤{CHIFFRES_SANS_SOURCE_ASSUMES})"
+               if sans_source is not None
+               else " ⚠ ligne « Chiffres sans source » ABSENTE — contrôle muet, pas conforme")
     if francs:
         detail += f", {francs} défaut(s) franc(s)"
     return ok, detail

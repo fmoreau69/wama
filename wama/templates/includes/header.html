@@ -94,6 +94,17 @@
                         </li>
                         <li>
                             {% comment %}
+                              Skills : les consignes envoyées aux LLM. Placée après Fonctions et
+                              Librairies parce qu'elle relève du même geste — voir de quoi WAMA
+                              est fait. La page dit surtout QUI consomme quel skill : un fichier
+                              que rien ne résout est inerte, et silencieux.
+                            {% endcomment %}
+                            <a class="dropdown-item d-flex align-items-center" href="{% url 'common:skills_catalog' %}">
+                                <i class="fas fa-wand-magic-sparkles me-2 text-info"></i> Skills
+                            </a>
+                        </li>
+                        <li>
+                            {% comment %}
                               Licences : vue TRANSVERSALE, pas un catalogue de plus — elle recoupe
                               modèles + librairies + médias + la traversée déclarée par app.
                             {% endcomment %}
