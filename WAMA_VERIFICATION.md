@@ -134,6 +134,18 @@ file vide pour le compte de test **et** l'app ne sait pas grouper : c'est le ges
 là aussi) ; **4 hors périmètre** (converter_01, media_library, model_manager, studio — pas de volet
 `#inspectorActions`, apps non portées ou non-files).
 
+**Contre-mesure APRÈS commit** (`--id .inspector_actions,.batch_actions`, 28 scénarios →
+**12 OK / 0 échec / 16 skips**, rapport `logs/nightly_tests/nightly_20260827_171014.json`) :
+`batch_actions` est mesuré sur **5** apps (anonymizer, converter, describer, reader, synthesizer),
+**non mesurable** sur **6** (les 3 ci-dessus + enhancer, transcriber, converter_01) et **hors
+périmètre** sur 3.
+
+> ⚠ **Zéro échec ne veut pas dire couvert : 16 des 28 scénarios SAUTENT.** C'est précisément ce
+> que ce document appelle prendre une adoption pour un fonctionnement — sauf qu'ici le skip est
+> **explicite** : il nomme le maillon manquant (« deux dépôts n'ont créé aucun LOT », « aucune en
+> file ») et renvoie à `<app>.import`. Un skip qui dit pourquoi est une **liste de travail** ;
+> un skip muet serait un faux vert.
+
 > ⚠ **Le chemin « card mère » n'existe pas sans lot multi-éléments**, et le compte de test n'en
 > possédait presque aucun (relevé : **4 lots multi sur 10 apps, tous comptes confondus**). Premier
 > passage : 3 OK / 7 « file vide » — le chemin qui portait le contrat inversé restait **non mesuré

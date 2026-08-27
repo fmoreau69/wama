@@ -66,6 +66,23 @@
 ---
 
 ## Journal
+- **2026-08-27** — **Trois retraits IMMÉDIATS (rien de différé), tous « du code qui s'exécute sans
+  rien produire »** — commits `8cc68bfe` / `ec279bea` :
+  ① **tri mort** — 4 vues triaient leur `batches_list` juste avant d'appeler
+  `apply_queue_sort_filter`, qui re-trie **inconditionnellement** ; `c9408354` en avait retiré 3,
+  `a318b7f3` le 4ᵉ, **et rien n'empêchait le 5ᵉ** → garde **textuelle** posée
+  (`wama/common/tests_queue_sort.py`, 17 tests). ⚠ Un tri mort ne se détecte **pas** à l'exécution :
+  par définition son effet est écrasé — seule une garde sur le SOURCE le voit.
+  ② **`try/except` avatarizer** autour d'`apply_queue_sort_filter` (`wama/avatarizer/views.py`),
+  retombant sur `q_sort, q_filter = '', ''` avec un journal en `debug` seul : **seul des 12 sites**
+  à étouffer la brique commune. Appel nu désormais. Une brique COMMUNE doit casser **visiblement
+  partout de la même façon**.
+  ③ **deux ERREURS permanentes de découverte** (`wama-dev-ai.core`, `wama-dev-ai.ui`) retirées au
+  **harnais** (`WamaTestRunner.build_suite` + `RACINES_HORS_DECOUVERTE`), pas dans l'outil : son
+  `config.py` vit **au-dessus** du paquet, aucun import relatif ne l'atteint (essayé, MESURÉ,
+  l'erreur se déplace d'un cran ; essai annulé). Deux garde-fous contre l'élagage silencieux :
+  seuls les `_FailedTest` de la découverte sont reconnus, et un `test*.py` apparaissant dans une
+  racine exclue **refuse** l'élagage. Suite : **997/9/2 → 1029/0/0**.
 - **2026-08-19** — **Audit fraîcheur PARTIEL (question Fabien « le ledger n'est peut-être plus à
   jour »)** : 2 entrées sondées, 2 PÉRIMÉES rattrapées — R4 et R7 étaient soldées dans le code
   (commentaires anti-régression en place) avec statut ⛔ resté figé. **Les 21 autres entrées ⛔/🟡

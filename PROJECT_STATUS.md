@@ -7546,3 +7546,161 @@ l'expérience ne conclura sur rien, comme la corrélation « onduleur » déjà 
 
 - **Rien à redémarrer.** Instrumentation en service.
 - **Aucune validation navigateur** : aucune surface UI produite.
+
+---
+
+## §REPRISE — 2026-08-27, instance « VÉRIFICATION » (SÉLECTION MESURÉE + SUITE AU VERT) — 🔚 POINT D'ENTRÉE
+
+> ⚠ **Deuxième handoff du 27/08** — l'autre est `§REPRISE — 2026-08-27, instance « GARDES »`
+> (ligne ~2473, commit `d5a57507`). Périmètres **disjoints**, aucun fichier commun.
+>
+> **Partition tenue ici** : `wama/synthesizer/tests.py`, `wama/common/runners.py`,
+> `wama/common/tests_queue_sort.py`, `wama/avatarizer/views.py`, `wama/common/services/ui_smoke.py`,
+> `WAMA_VERIFICATION.md`, `REMOVAL_LEDGER.md`, `CLAUDE.md`. **Non touchés, laissés à l'instance
+> GARDES** : `wama/accounts/*`, `wama/common/mecanismes.py`, `wama/common/nightly_scenarios.py`,
+> `WAMA_MECANISMES.md`, `check_templates`.
+>
+> Deux commits : **`8cc68bfe`** (le nocturne mesure enfin la SÉLECTION) et **`ec279bea`**
+> (la suite repasse au vert : **997 tests / 9 échecs / 2 erreurs → 1029 / 0 / 0**).
+> Référence de couverture : **`WAMA_VERIFICATION.md §3`** — ne pas recopier le détail ici.
+
+### A. Le nocturne ne mesurait PAS la sélection (commit `8cc68bfe`)
+
+Six scénarios UI coexistaient sans qu'aucun n'emprunte ce chemin. `<app>.batch_actions` clique
+les **boutons** de la card ; or ce sont `selectItem`/`selectBatch` qui remplissent le volet
+Actions. **Deux défauts MUETS** étaient donc passés au travers : le contrat inversé de
+`renderBatchActions` (TypeError, 4 apps) et l'imager sans aucun rappel — `fillActions` fait
+`if (renderFn)`, donc volet vide, **sans erreur, sans journal, sans page rouge**.
+
+> **Un volet vide ne plante pas. Seule une assertion peut le voir.**
+
+**Couverture RE-MESURÉE le 27/08 après commit** (`--id .inspector_actions,.batch_actions`,
+28 scénarios, **12 OK / 0 échec / 16 skips**, rapport `logs/nightly_tests/nightly_20260827_171014.json`) :
+
+| scénario | mesurés | non mesurables | hors périmètre |
+|---|---|---|---|
+| `inspector_actions` | **7** (anonymizer, converter, describer, enhancer, reader, synthesizer, transcriber) | **3** — avatarizer, composer, imager (file vide) | **4** — pas de volet `#inspectorActions` (converter_01, media_library, model_manager, studio) |
+| `batch_actions` | **5** (anonymizer, converter, describer, reader, synthesizer) | **6** — + enhancer, transcriber (deux dépôts, aucun LOT) | **3** — aucun champ d'import au contrat |
+
+⚠ **Zéro échec ne veut pas dire couvert** : 16 des 28 scénarios **sautent**. Le skip est
+explicite (il nomme le maillon manquant et renvoie à `<app>.import`) — c'est ce qui le rend
+utilisable comme liste de travail, et non comme un vert trompeur.
+
+**CINQ défauts d'INSTRUMENT trouvés avant d'avoir accusé une seule app** — dont le 5ᵉ, sur le
+reader : la file **se re-rend seule** (~1 requête/s tant qu'un élément est PENDING), ce qui
+efface le marqueur de cible, et le nœud reparaît en pleine animation `wama-fan-in` — Playwright
+exige un élément « stable » et tournait jusqu'à expiration. D'où deux étages : **clic réel
+d'abord**, à défaut **clic DOM** — en le DISANT dans le détail (`[clic DOM …]`).
+
+> **Une mesure faible qui se présente comme forte est pire que pas de mesure.**
+
+**Tri MORT** — `wama/common/tests_queue_sort.py` (17 tests) ajoute une **garde textuelle** :
+quatre vues triaient leur `batches_list` juste avant d'appeler la brique commune, qui re-trie
+**inconditionnellement**. Ce code s'exécutait, coûtait, et n'avait aucun effet. `c9408354` en a
+retiré 3, `a318b7f3` le 4ᵉ ; rien n'empêchait le 5ᵉ. **Un tri mort ne se détecte pas à
+l'exécution — par définition, son effet est écrasé.**
+
+### B. La suite repasse au vert (commit `ec279bea`)
+
+**Synthesizer, 8 × `302 != 200` — et ce message ne désigne PAS le coupable.** Ni l'URL, ni
+l'authentification : `AppAccessMiddleware` interroge `accessible(user, 'synthesizer')` **avant**
+la vue et redirige vers `home`. La politique exige le rôle `communication`, qu'un `create_user`
+nu n'a pas. Rôle accordé dans la fixture, comme `nightly_tests.get_test_user()` — **un test de
+vues doit FRANCHIR le portier, pas le contourner** (le neutraliser rendrait ces 8 tests aveugles
+à une régression du gating).
+
+⚠ **Première hypothèse FAUSSE, consignée parce qu'elle coûte à chaque fois** : j'ai attribué le
+302 au backend LDAP en tête d'`AUTHENTICATION_BACKENDS`. Mesure : `force_login` ne change rien,
+les 8 échecs restent — `ModelBackend` suit le LDAP dans la chaîne, `client.login` aboutissait de
+toute façon. *Une chaîne de responsabilité plausible n'est pas une cause tant qu'on ne l'a pas
+coupée pour voir.*
+
+> ⚠⚠ **Lever une cause en découvre une plus vieille.** Le 302 masquait deux défauts antérieurs :
+> `test_index_view` cherchait « WAMA Synthesizer », chaîne qui **n'a jamais existé** dans ce
+> gabarit ; et `test_full_workflow` écrivait la progression dans la **seule** colonne en base
+> alors qu'elle a **deux canaux** et que `views.progress` lit le **cache en premier**. Le test
+> passe désormais par `workers._set_progress`, l'écrivain qui tient les deux — *une clé de cache
+> recopiée dans un test est une clé qui divergera.*
+
+**Découverte de tests — 2 erreurs permanentes sur un outil sans aucun test.** `wama-dev-ai` est
+en tiret-case précisément parce que Python ne l'importe jamais ; `unittest`, lui, parcourt le
+dépôt entier, y descendait et échouait. Corrigé au **harnais** (`WamaTestRunner.build_suite` +
+`RACINES_HORS_DECOUVERTE`), pas là-bas : rendre ces modules importables demanderait de
+restructurer un outil hors périmètre Django — son `config.py` vit **au-dessus** du paquet, donc
+aucun import relatif ne l'atteint (essayé, MESURÉ, l'erreur se déplace d'un cran ; essai annulé).
+Deux garde-fous : seuls les `_FailedTest` de la découverte sont reconnus, et un `test*.py`
+apparaissant dans une racine exclue **refuse** l'élagage avec un message qui dit quoi faire.
+
+> **Deux rouges permanents dans une suite, c'est deux rouges que plus personne ne lit.**
+
+**Avatarizer — le seul des 12 sites à étouffer la brique commune.** `apply_queue_sort_filter` y
+était enveloppé d'un `try/except` retombant sur `q_sort, q_filter = '', ''` avec un journal en
+`debug` seulement. Appel nu désormais. **Une brique COMMUNE qui casse doit casser VISIBLEMENT
+partout de la même façon** — l'étouffer dans une seule app la rend muette là où personne ne la
+couvre.
+
+### C. Les « 5 références cassées » de `check_docs` n'étaient PAS une erreur
+
+Elles pointent toutes **une cible unique** (`common/_result_tabs.html`, dette `REMOVAL_LEDGER R18`)
+et le contrat compte désormais des **cibles distinctes** (`CIBLES_ASSUMEES = 1`, corrigé le 27/08).
+`common.consistency.docs` est **vert**. C'est exactement le piège que cette correction d'unité a
+fermé : *compter des références au lieu de cibles fait monter un seuil tout seul.*
+
+### D. ⚠⚠ À TRANCHER — le rituel « vérifier sur HEAD » ne marche pas tel qu'écrit
+
+`.gitignore:18` exclut `**/migrations/0*.py` : **212 migrations sur disque, 2 suivies** (dont
+`describer/0006`, glissée seule — elle rend le graphe **incohérent** sur HEAD, qui ne contient pas
+le `0005` dont elle dépend). Un `git worktree add /tmp/verif HEAD` ne monte donc **pas** sa base :
+il faut y recopier `.env` (non versionné) **et** les migrations. Fait ce jour — vérification sur
+HEAD réellement obtenue (23 tests OK).
+
+⚠ **`manage.py check` passe sans rien de tout cela** : un « check vert sur HEAD » ne prouve RIEN
+sur la capacité de HEAD à construire sa base. C'est l'angle mort même que le rituel visait
+(leçon `wama_data` du 22/08).
+
+**Conséquence non tranchée : un clone frais de ce dépôt ne peut pas construire sa base.**
+Versionner les migrations est une décision de Fabien (elle interagit avec la discipline
+multi-instances) — **signalée, pas décidée.**
+
+### E. Passe de re-vérification complète (27/08, après commits)
+
+| contrôle | résultat |
+|---|---|
+| `manage.py check` | **0 problème** |
+| `makemigrations --check --dry-run` | **No changes detected** |
+| suite complète (`manage.py test --noinput`) | **1029 tests, OK, exit 0** — + la ligne d'élagage : `Découverte : 2 module(s) ignoré(s) hors périmètre` |
+| `common.consistency.docs` | ✅ (21,8 s) — les « 5 références cassées » = **1 cible**, contrat tenu |
+| `common.consistency.templates` | ✅ (119,1 s) |
+| `common.consistency.doc_facts` | ❌ — `mecanismes` PÉRIMÉ (voir signalement ci-dessous) |
+| `.inspector_actions` + `.batch_actions` | **12/28 OK, 0 échec, 16 skips explicites** |
+
+**Deux signalements, TOUS DEUX hors de la partition tenue ici — non touchés, à traiter par
+l'instance « GARDES » :**
+
+1. **`doc_facts : mecanismes PÉRIMÉ`.** Vérifié que ce n'est **pas** une retombée du travail
+   d'ici : `WAMA_MECANISMES.md` et `wama/common/mecanismes.py` ont tous deux pour dernier commit
+   `d5a57507` (instance GARDES), et le balayage ne prend aucun module de test — `tests_queue_sort.py`
+   n'y figure donc pour rien. Régénération = `python manage.py doc_facts --only mecanismes`.
+2. **Deux littéraux périmés dans `wama/common/nightly_scenarios.py`** (l. **15** et **399**) :
+   ils annoncent encore « **2 CASSÉ assumés** » alors que le contrat vaut `CIBLES_ASSUMEES = 1`
+   depuis la correction d'unité du 27/08 (l. 43). Le code, lui, est juste — c'est la **prose lue
+   par l'humain** qui ment, et c'est la ligne affichée par `--list`. Exactement le défaut consigné
+   le même jour côté skills : *un chiffre périmé posé à côté de la bonne règle se fait lire à sa
+   place.*
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+
+**Le geste n°7 — « créer par le bouton primaire ».** C'est lui qui bloque la couverture de
+`inspector_actions` **et** de `batch_actions` sur **avatarizer, composer, imager** : leur file est
+vide et l'app ne sait pas grouper, donc les deux scénarios sautent. Le mesurer débloque trois apps
+d'un coup sur deux familles de scénarios — meilleur rapport couverture/effort de la liste.
+
+Ensuite, dans l'ordre : geste 5 (tout effacer) · la **dé**sélection (2ᵉ moitié du geste 6) ·
+geste 14 (import récursif / URL / fichier batch). Les gestes 8-13 exigent un traitement réel
+(GPU) : **jamais lancés par une session** (cf. crashs hôte).
+
+### Pendings système
+
+- **Rien à redémarrer.** Aucune migration, aucun service touché.
+- **Validation navigateur** : les scénarios `inspector_actions`/`batch_actions` ont tourné sous
+  Playwright headless — c'est la validation. Aucune surface UI nouvelle à valider à la main.

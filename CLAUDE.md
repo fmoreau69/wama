@@ -87,6 +87,20 @@
 - **Après un commit structurel, VÉRIFIER SUR HEAD, pas sur l'arbre de travail** :
   `git worktree add /tmp/verif HEAD` puis `manage.py check` + tests dedans. C'est le seul contrôle
   qui distingue « mon disque marche » de « ce que j'ai commité marche ».
+  ⚠ **Le worktree ne démarre PAS tel quel** (mesuré le 2026-08-27) : `.env` n'est pas versionné
+  (→ `OperationalError: no password supplied`) et `.gitignore:18` exclut `**/migrations/0*.py`
+  (**212 sur disque, 2 suivies** — dont `describer/0006` glissée seule, d'où un graphe
+  INCOHÉRENT sur HEAD : `NodeNotFoundError`). Recopier les deux dans le worktree jetable :
+  ```
+  cp .env /tmp/verif/.env
+  for d in $(find wama wama_lab wama_data -type d -name migrations); do
+      mkdir -p /tmp/verif/$d && cp $d/*.py /tmp/verif/$d/; done
+  ```
+  ⚠⚠ **`manage.py check` passe sans rien de tout cela** — il ne touche pas la base. Un « check
+  vert sur HEAD » ne prouve donc RIEN sur la capacité de HEAD à monter sa base : c'est
+  exactement l'angle mort que ce rituel visait. Seuls des TESTS l'attestent.
+  *(Conséquence non tranchée : un clone frais ne peut pas construire sa base. Versionner les
+  migrations est une décision de Fabien — signalée, pas décidée.)*
 - `git status` avant de commiter ; ne commiter que ce que TU as touché.
 - **Partitionner** le travail par sous-système (deux instances ne touchent jamais le même fichier) ;
   la partition se déclare dans le handoff (`PROJECT_STATUS` §REPRISE).
