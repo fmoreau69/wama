@@ -34,7 +34,10 @@ class DataType:
     # habituelle : le vocabulaire métier vit dans la déclaration, pas dans le type.
     # ⚠ Corollaire (note PROJECT_STATUS du 2026-08-05, vérifiée le 22/08) : ne JAMAIS nommer un
     # modèle Django `Segment` — « segment » est déjà pris par l'anonymizer au sens SPATIAL (tâche
-    # YOLO de segmentation d'image), sens sans rapport avec celui-ci.
+    # YOLO de segmentation d'image), sens sans rapport avec celui-ci. L'avertissement miroir vit
+    # sur la clé `task` de `common/utils/model_capabilities.py` (2026-08-28) : les deux
+    # vocabulaires ne se comparent jamais par égalité de nom — un port parle en DataType, un
+    # modèle en task, la traduction se DÉCLARE dans le binding.
     # Aucune valeur n'était persistée : renommage sans migration.
     SEGMENTS = 'segments'        # portions de temps bornées (start, end[, type, id, …attributs])
     ROAD_MAP = 'road_map'        # polylignes routières de référence (geometry, id[, type])

@@ -30,6 +30,12 @@ ANY_LANGUAGE = "*"
 CANONICAL_CAPABILITIES: Dict[str, str] = {
     # Communes / structurelles
     "modalities":          "list[str] ⊂ {image,video,audio,document,text} — média(s) traité(s)",
+    # ⚠ Homonyme inter-mondes (question de Fabien, 2026-08-28) : `task='segment'` est la
+    # segmentation SPATIALE (masques de pixels, taxonomie YOLO/SAM) — sans rapport avec le
+    # type `DataType.SEGMENTS` du monde Data (portions de TEMPS bornées, cf.
+    # `common/catalog/data_types.py`, type SEGMENTS, qui porte l'avertissement miroir). Les deux
+    # vocabulaires ne se comparent JAMAIS par égalité de nom : un port parle en DataType,
+    # un modèle parle en task, et la traduction se DÉCLARE dans le binding.
     "task":                "str — identifiant de tâche façon HF (ex. 'text-to-image', 'segment')",
     "languages":           "list[str] — codes ISO gérés ; ['*'] = agnostique/toutes langues",
     "context_length":      "int — fenêtre de contexte (llm/vlm)",
