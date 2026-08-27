@@ -202,9 +202,12 @@ class SnapshotsInstallesTest(TestCase):
         self.assertTrue(m.extra_info.get('incomplete'))
 
     def test_une_famille_declaree_dans_MODEL_PATHS_appartient_a_son_app(self):
-        """Transcriber/synthesizer/anonymizer ne posent pas de hf_id dans leur découverte :
-        sans ce critère, leurs snapshots ressortaient en doublon (16 mesurés le 2026-08-27).
-        MODEL_PATHS est LA déclaration « ce dossier appartient à une app » (checklist étape 1)."""
+        """Le critère famille reste nécessaire même depuis que transcriber/synthesizer/
+        anonymizer posent leur hf_id (2026-08-27) : le dépôt DÉCLARÉ n'est pas toujours celui
+        du SNAPSHOT sur disque (déclaré `openai/whisper-large-v3`, disque
+        `Systran/faster-whisper-large-v3` — la dédup par hf_id ne les relie pas ; 16 doublons
+        mesurés sans ce critère). MODEL_PATHS est LA déclaration « ce dossier appartient à
+        une app » (checklist étape 1)."""
         import tempfile
 
         from django.test import override_settings
@@ -227,6 +230,60 @@ class SnapshotsInstallesTest(TestCase):
             _faux_snapshot(racine, 'pas-une-categorie', 'Foo', 'Org', 'Foo')
             modeles = self._balayer(racine)
         self.assertEqual(modeles, {})
+
+
+class ProvenanceDeclareeTest(TestCase):
+    """La provenance HF est DÉCLARÉE par l'app et POSÉE par sa découverte (2026-08-27).
+
+    Avant cela, transcriber/synthesizer/anonymizer n'alimentaient jamais `ModelInfo.hf_id` :
+    le catalogue (AIModel.hf_id) restait vide pour leurs modèles, la chaîne
+    provenance/licences n'avait rien à lire, et le balayage snapshots ne pouvait pas les
+    dédupliquer par dépôt (d'où le critère famille, qui reste).
+    """
+
+    def _decouvrir(self, methode):
+        registre = ModelRegistry()
+        registre._models = {}
+        getattr(registre, methode)()
+        return registre._models
+
+    def test_la_decouverte_transcriber_pose_le_hf_id_declare_par_l_app(self):
+        modeles = self._decouvrir('_discover_transcriber_models')
+        self.assertEqual(modeles['transcriber:whisper'].hf_id, 'openai/whisper-large-v3')
+        self.assertEqual(modeles['transcriber:qwen3-asr-0.6b'].hf_id, 'Qwen/Qwen3-ASR-0.6B')
+
+    def test_la_decouverte_synthesizer_pose_le_hf_id_declare_par_l_app(self):
+        from wama.synthesizer.utils.model_config import SYNTHESIZER_MODELS
+        modeles = self._decouvrir('_discover_synthesizer_models')
+        for cle in ('coqui-xtts', 'bark', 'higgs-audio', 'kokoro'):
+            self.assertEqual(modeles[f'synthesizer:{cle}'].hf_id,
+                             SYNTHESIZER_MODELS[cle]['hf_id'], cle)
+
+    def test_un_poids_yolo_sans_provenance_etablie_reste_sans_hf_id(self):
+        # La provenance se DÉCLARE (YOLO_WEIGHTS_HF_ID), elle ne s'infère pas d'un nom de
+        # fichier : un poids hors mapping rend '' — y compris les finetunes maison.
+        from wama.anonymizer.utils.model_config import hf_id_for_yolo_weight
+        self.assertEqual(hf_id_for_yolo_weight('license-plate-finetune-v1n.onnx'),
+                         'morsetechlab/yolov11-license-plate-detection')
+        self.assertEqual(hf_id_for_yolo_weight('face_yolov8m-seg_60.pt'),
+                         'jags/yolov8_model_segmentation-set')
+        self.assertEqual(hf_id_for_yolo_weight('yolo11n.pt'), '')
+        self.assertEqual(hf_id_for_yolo_weight('yolov8n_face_plate_720p.pt'), '')
+
+    def test_la_decouverte_anonymizer_pose_la_provenance_declaree(self):
+        fausse_liste = {'detect': [
+            {'name': 'license-plate-finetune-v1n.onnx', 'specialty': 'plates',
+             'size': 1024, 'path': ''},
+            {'name': 'yolo11n.pt', 'specialty': '', 'size': 1024, 'path': ''},
+        ]}
+        with patch('wama.anonymizer.utils.model_config.list_available_yolo_models',
+                   return_value=fausse_liste):
+            modeles = self._decouvrir('_discover_anonymizer_models')
+        self.assertEqual(modeles['anonymizer:yolo:license-plate-finetune-v1n.onnx'].hf_id,
+                         'morsetechlab/yolov11-license-plate-detection')
+        self.assertIsNone(modeles['anonymizer:yolo:yolo11n.pt'].hf_id)
+        # SAM3 : dépôt lu sur sam3_manager (SAM3_HF_REPO), source unique.
+        self.assertEqual(modeles['anonymizer:sam3'].hf_id, 'facebook/sam3')
 
 
 class DesinstallationTest(TestCase):

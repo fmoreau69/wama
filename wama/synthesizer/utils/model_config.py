@@ -89,9 +89,16 @@ from wama.synthesizer.backends.base import CATALOG_KEYS as ENGINE_CATALOG_KEYS  
 # MODEL DEFINITIONS
 # =============================================================================
 
+# `hf_id` = provenance HuggingFace DÉCLARÉE (dépôt d'origine des poids) — consommée par la
+# découverte (model_registry) qui la pose sur ModelInfo.hf_id, d'où elle nourrit le catalogue
+# AIModel puis provenance/licences (backfill_platform_refs). Distincte de `model_id`, qui est
+# ce que le MOTEUR charge (chemin hub Coqui pour l'engine coqui, dépôt HF pour bark/higgs/
+# kokoro — la coïncidence des deux valeurs n'en fait pas un seul fait). Les modèles servis par
+# le hub Coqui seul (vits, tacotron2, speedy-speech) n'ont pas de dépôt HF : pas de clé.
 SYNTHESIZER_MODELS = {
     'coqui-xtts': {
         'model_id': 'tts_models/multilingual/multi-dataset/xtts_v2',
+        'hf_id': 'coqui/XTTS-v2',
         'type': 'tts',
         'engine': 'coqui',
         'multilingual': True,
@@ -128,6 +135,7 @@ SYNTHESIZER_MODELS = {
     },
     'bark': {
         'model_id': 'suno/bark',
+        'hf_id': 'suno/bark',
         'type': 'tts',
         'engine': 'bark',
         'multilingual': True,
@@ -137,6 +145,7 @@ SYNTHESIZER_MODELS = {
     },
     'higgs-audio': {
         'model_id': 'bosonai/higgs-audio-v2-generation-3B-base',
+        'hf_id': 'bosonai/higgs-audio-v2-generation-3B-base',
         'tokenizer_id': 'bosonai/higgs-audio-v2-tokenizer',
         'type': 'tts',
         'engine': 'higgs',
@@ -148,6 +157,7 @@ SYNTHESIZER_MODELS = {
     },
     'kokoro': {
         'model_id': 'hexgrad/Kokoro-82M',
+        'hf_id': 'hexgrad/Kokoro-82M',
         'type': 'tts',
         'engine': 'kokoro',
         'multilingual': True,

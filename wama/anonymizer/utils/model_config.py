@@ -103,6 +103,33 @@ YOLO_TYPES = {
 }
 
 # =============================================================================
+# PROVENANCE HF DES POIDS TIERS (déclarée, jamais inférée d'un nom de fichier)
+# =============================================================================
+
+# Clé = préfixe du nom de fichier du poids ; valeur = dépôt HuggingFace d'ORIGINE, vérifié
+# dépôt par dépôt (passe provenance/licences du 2026-08-12, `backfill_platform_refs`). La
+# découverte (model_registry) la pose sur ModelInfo.hf_id → catalogue AIModel →
+# provenance/licences. Les poids ultralytics standard (yolo11*, yolov8n…) viennent des
+# releases GitHub, et la série yolov8*_face_plate_* n'a pas de dépôt établi : ils restent
+# SANS hf_id, à dessein — un vide ici est une provenance non établie, pas un oubli.
+# (yolopv2 / yolov12 ont une provenance GitHub, portée par AIModel.platform_ref, pas ici.)
+YOLO_WEIGHTS_HF_ID = {
+    'license-plate-finetune-v1': 'morsetechlab/yolov11-license-plate-detection',
+    'face_yolov8m-seg_60': 'jags/yolov8_model_segmentation-set',
+    'yolo11l_face_plate_signs': 'Panoramax/detect_face_plate_sign',
+}
+
+
+def hf_id_for_yolo_weight(filename: str) -> str:
+    """Dépôt HF d'origine d'un poids YOLO, ou '' si la provenance n'est pas établie."""
+    stem = Path(filename).stem
+    for prefix, hf_id in YOLO_WEIGHTS_HF_ID.items():
+        if stem.startswith(prefix):
+            return hf_id
+    return ''
+
+
+# =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
 

@@ -574,7 +574,9 @@ class ModelRegistry:
     def _discover_anonymizer_models(self):
         """Discover Anonymizer app models (YOLO, SAM3)."""
         try:
-            from wama.anonymizer.utils.model_config import list_available_yolo_models
+            from wama.anonymizer.utils.model_config import (
+                hf_id_for_yolo_weight, list_available_yolo_models,
+            )
 
             yolo_models = list_available_yolo_models()
             for model_type, models in yolo_models.items():
@@ -628,6 +630,9 @@ class ModelRegistry:
                         model_type=ModelType.VISION,
                         source=ModelSource.WAMA_ANONYMIZER,
                         description=desc,
+                        # Provenance DÉCLARÉE (YOLO_WEIGHTS_HF_ID) — '' pour un poids dont
+                        # l'origine n'est pas établie, et None vaut mieux qu'une inférence.
+                        hf_id=hf_id_for_yolo_weight(model_name) or None,
                         vram_gb=round(size_gb * 2, 1),  # Estimate VRAM as 2x model size
                         is_downloaded=True,
                         extra_info=extra_info,
@@ -646,7 +651,7 @@ class ModelRegistry:
 
             # Add SAM3 if available
             try:
-                from wama.anonymizer.utils.sam3_manager import get_sam3_status
+                from wama.anonymizer.utils.sam3_manager import SAM3_HF_REPO, get_sam3_status
                 # Description = source unique dans le model_config de l'app (R9) — plus de hardcode.
                 from wama.anonymizer.utils.model_config import REGISTRY_MODEL_DESCRIPTIONS as _ANON_DESC
                 status = get_sam3_status()
@@ -661,6 +666,9 @@ class ModelRegistry:
                     source=ModelSource.WAMA_ANONYMIZER,
                     description=_ANON_DESC.get('sam3', {}).get('long', ''),
                     description_short=_ANON_DESC.get('sam3', {}).get('short', ''),
+                    # Le dépôt d'origine est déclaré par sam3_manager (SAM3_HF_REPO) —
+                    # on le LIT, on ne le redéclare pas.
+                    hf_id=SAM3_HF_REPO,
                     vram_gb=3.0,
                     is_downloaded=status.get('models_cached', False),
                     extra_info=status,
@@ -838,6 +846,7 @@ class ModelRegistry:
                     source=ModelSource.WAMA_TRANSCRIBER,
                     description=description_long,
                     description_short=description_short,
+                    hf_id=hf_id or None,
                     vram_gb=vram_gb,
                     is_downloaded=is_downloaded,
                     backend_ref='transcriber',
@@ -857,7 +866,15 @@ class ModelRegistry:
         try:
             from django.conf import settings
             # Descriptions = source unique dans le model_config de l'app (R9) — plus de hardcode ici.
-            from wama.synthesizer.utils.model_config import REGISTRY_MODEL_DESCRIPTIONS as _SYNTH_DESC
+            # Même règle pour la provenance HF : `hf_id` est DÉCLARÉ par SYNTHESIZER_MODELS,
+            # plus aucun dépôt écrit en dur dans cette découverte.
+            from wama.synthesizer.utils.model_config import (
+                REGISTRY_MODEL_DESCRIPTIONS as _SYNTH_DESC,
+                SYNTHESIZER_MODELS as _SYNTH_MODELS,
+            )
+
+            def _synth_hf_id(key):
+                return _SYNTH_MODELS.get(key, {}).get('hf_id') or None
 
             # Les FLAGS de capacité viennent du MOTEUR (lot 4, 2026-08-20) : c'est lui qui sait
             # ce qu'il sait faire. Ils étaient écrits ici À SA PLACE, en dur, alors qu'aucun
@@ -939,6 +956,7 @@ class ModelRegistry:
                 source=ModelSource.WAMA_SYNTHESIZER,
                 description=_SYNTH_DESC.get('coqui-xtts', {}).get('long', ''),
                 description_short=_SYNTH_DESC.get('coqui-xtts', {}).get('short', ''),
+                hf_id=_synth_hf_id('coqui-xtts'),
                 vram_gb=2.0,
                 ram_gb=4.0,
                 is_downloaded=coqui_downloaded,
@@ -978,6 +996,7 @@ class ModelRegistry:
                 source=ModelSource.WAMA_SYNTHESIZER,
                 description=_SYNTH_DESC.get('bark', {}).get('long', ''),
                 description_short=_SYNTH_DESC.get('bark', {}).get('short', ''),
+                hf_id=_synth_hf_id('bark'),
                 vram_gb=4.0,
                 ram_gb=8.0,
                 is_downloaded=bark_downloaded,
@@ -997,7 +1016,7 @@ class ModelRegistry:
             higgs_dir = settings.MODEL_PATHS.get('speech', {}).get('higgs', speech_dir / 'higgs')
             higgs_dir = Path(higgs_dir)
             higgs_downloaded = _check_hf_model_downloaded(
-                higgs_dir, 'bosonai/higgs-audio-v2-generation-3B-base')
+                higgs_dir, _synth_hf_id('higgs-audio') or '')
 
             self._models["synthesizer:higgs-audio"] = ModelInfo(
                 id="synthesizer:higgs-audio",
@@ -1006,6 +1025,7 @@ class ModelRegistry:
                 source=ModelSource.WAMA_SYNTHESIZER,
                 description=_SYNTH_DESC.get('higgs-audio', {}).get('long', ''),
                 description_short=_SYNTH_DESC.get('higgs-audio', {}).get('short', ''),
+                hf_id=_synth_hf_id('higgs-audio'),
                 vram_gb=24.0,
                 ram_gb=8.0,
                 is_downloaded=higgs_downloaded,
@@ -1013,7 +1033,7 @@ class ModelRegistry:
                 format='safetensors',
                 preferred_format=preferred,
                 can_convert_to=[],
-                extra_info={'hf_id': 'bosonai/higgs-audio-v2-generation-3B-base',
+                extra_info={'hf_id': _synth_hf_id('higgs-audio'),
                             'path': str(higgs_dir)},
                 capabilities=_tts_caps(
                     engine_key='higgs-audio',  # clonage LU sur HiggsAudioBackend
@@ -1024,7 +1044,8 @@ class ModelRegistry:
             # Check for Kokoro 82M
             kokoro_dir = settings.MODEL_PATHS.get('speech', {}).get('kokoro', speech_dir / 'kokoro')
             kokoro_dir = Path(kokoro_dir)
-            kokoro_downloaded = _check_hf_model_downloaded(kokoro_dir, 'hexgrad/Kokoro-82M')
+            kokoro_downloaded = _check_hf_model_downloaded(
+                kokoro_dir, _synth_hf_id('kokoro') or '')
 
             self._models["synthesizer:kokoro"] = ModelInfo(
                 id="synthesizer:kokoro",
@@ -1033,6 +1054,7 @@ class ModelRegistry:
                 source=ModelSource.WAMA_SYNTHESIZER,
                 description=_SYNTH_DESC.get('kokoro', {}).get('long', ''),
                 description_short=_SYNTH_DESC.get('kokoro', {}).get('short', ''),
+                hf_id=_synth_hf_id('kokoro'),
                 vram_gb=0.5,
                 ram_gb=1.0,
                 is_downloaded=kokoro_downloaded,
@@ -1040,7 +1062,7 @@ class ModelRegistry:
                 format='pt',
                 preferred_format=preferred,
                 can_convert_to=[],
-                extra_info={'hf_id': 'hexgrad/Kokoro-82M', 'path': str(kokoro_dir)},
+                extra_info={'hf_id': _synth_hf_id('kokoro'), 'path': str(kokoro_dir)},
                 capabilities=_tts_caps(
                     engine_key='kokoro',       # clonage + HORODATAGE lus sur KokoroBackend
                     languages=['fr', 'en', 'es', 'it', 'pt', 'ja', 'zh-cn'],
@@ -1235,10 +1257,13 @@ class ModelRegistry:
             Le balayage tourne donc EN DERNIER dans `discover_all_models`.
           • DÉDUP par FAMILLE : un snapshot dont le dossier de famille figure dans
             `settings.MODEL_PATHS` appartient déjà à une app (c'est l'étape 1 de la checklist
-            d'ajout de modèle) — ses entrées de catalogue viennent de la découverte d'app,
-            même quand celle-ci ne pose pas de `hf_id` (transcriber, synthesizer, anonymizer :
-            mesuré 2026-08-27, 16 doublons de fait sans ce critère). Le balayage ne couvre
-            que les familles qu'AUCUNE déclaration ne revendique.
+            d'ajout de modèle) — ses entrées de catalogue viennent de la découverte d'app.
+            Ce critère reste NÉCESSAIRE même depuis que transcriber/synthesizer/anonymizer
+            posent leur `hf_id` (2026-08-27) : le dépôt déclaré n'est pas toujours celui du
+            snapshot sur disque (transcriber déclare `openai/whisper-large-v3`, le disque
+            porte `Systran/faster-whisper-large-v3` — la dédup par hf_id ne les relie pas ;
+            16 doublons de fait mesurés le 2026-08-27 avant ce critère). Le balayage ne
+            couvre que les familles qu'AUCUNE déclaration ne revendique.
           • La catégorie du dossier doit être un `ModelType` valide, sinon le dossier est
             ignoré (un dossier inconnu n'invente pas de taxonomie).
           • Un snapshot avec blobs `*.incomplete` n'est PAS « téléchargé » : il est catalogué

@@ -651,9 +651,16 @@ pour les dépôts mono-modèle (cas LLM typique), partiel pour les dépôts mult
 généraliser si le cas se représente — pas avant (YAGNI).
 
 **Restes connus** : ① ~~backend composer pour MiniMax-Music3~~ **LIVRÉ le jour même, voir
-ci-dessous** ; ② les découvertes transcriber/synthesizer/anonymizer ne posent pas `hf_id`
-(c'est le trou qui a imposé le critère famille — les poser nourrirait aussi
-provenance/licences) ; ③ après une désinstallation, la prospection peut re-proposer le
+ci-dessous** ; ② ~~les découvertes transcriber/synthesizer/anonymizer ne posent pas `hf_id`~~
+**SOLDÉ le 2026-08-27 (session suivante)** : la provenance est DÉCLARÉE à la source
+(`SYNTHESIZER_MODELS.hf_id`, `YOLO_WEIGHTS_HF_ID` + `SAM3_HF_REPO` côté anonymizer,
+`hf_model_id` déjà déclaré côté transcriber) et les trois découvertes la posent sur
+`ModelInfo.hf_id` — les valeurs coïncident avec celles posées en base par le `--poser` du
+12/08 (vérifié ligne à ligne), qui deviennent ainsi STRUCTURELLES (elles survivent à une
+réinstallation). ⚠ Le critère FAMILLE du balayage snapshots reste NÉCESSAIRE : le dépôt
+déclaré n'est pas toujours celui du snapshot sur disque (déclaré `openai/whisper-large-v3`,
+disque `Systran/faster-whisper-large-v3` — la dédup par hf_id ne les relie pas) ;
+③ après une désinstallation, la prospection peut re-proposer le
 modèle à sa prochaine passe (la ligne marquée `is_downloaded=False` n'est plus « have ») —
 comportement à trancher si gênant.
 
@@ -758,9 +765,10 @@ jamais d'auto-application) :
 (un candidat retenu → scout → integrator → recommandation sur la card) ; ② outils
 model_manager du `tool_api` (`search_models`/`prepare_install_spec`/`install_model`) pour
 que l'AI-Assistant WAMA porte le workflow ; ③ le MARCHEUR `project`→`requires`→drivers
-(« installer un projet ») ; ④ `hf_id` à DÉCLARER dans les model_config
-transcriber/synthesizer/anonymizer (zéro occurrence mesurée — puis les faire suivre par
-les découvertes ; nourrit provenance/licences).
+(« installer un projet ») ; ④ ~~`hf_id` à DÉCLARER dans les model_config
+transcriber/synthesizer/anonymizer~~ **SOLDÉ le 2026-08-27, session suivante** (voir
+« Restes connus » ② ci-dessus : déclaration à la source + 3 découvertes qui posent
+`ModelInfo.hf_id`, critère famille conservé, 4 tests `ProvenanceDeclareeTest`).
 
 **Validation restante (HUMAINE — jamais de charge GPU lancée par une session sur cet
 hôte)** : redémarrer les services puis générer depuis le composer avec `minimax-music3`,

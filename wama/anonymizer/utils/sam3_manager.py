@@ -12,6 +12,11 @@ from wama.settings import AI_MODELS_DIR
 
 logger = logging.getLogger(__name__)
 
+# Dépôt HuggingFace d'ORIGINE des poids SAM3 — source unique : consommé par
+# get_sam3_requirements() ET par la découverte (model_registry → ModelInfo.hf_id →
+# provenance/licences).
+SAM3_HF_REPO = 'facebook/sam3'
+
 # Import centralized model configuration
 try:
     from .model_config import get_sam3_dir
@@ -243,8 +248,8 @@ def get_sam3_requirements() -> Dict:
             '4. Installer SAM3: pip install sam3',
             '5. Configurer HuggingFace: hf auth login',
         ],
-        'hf_model_repo': 'facebook/sam3',
-        'hf_access_request_url': 'https://huggingface.co/facebook/sam3',
+        'hf_model_repo': SAM3_HF_REPO,
+        'hf_access_request_url': f'https://huggingface.co/{SAM3_HF_REPO}',
     }
 
 
