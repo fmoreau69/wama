@@ -7704,3 +7704,60 @@ geste 14 (import récursif / URL / fichier batch). Les gestes 8-13 exigent un tr
 - **Rien à redémarrer.** Aucune migration, aucun service touché.
 - **Validation navigateur** : les scénarios `inspector_actions`/`batch_actions` ont tourné sous
   Playwright headless — c'est la validation. Aucune surface UI nouvelle à valider à la main.
+
+---
+
+## §REPRISE — 2026-08-27, instance « MUSIC3 / CHAÎNE D'INSTALLATION » (SUITE, session parallèle) — 🔚 POINT D'ENTRÉE
+
+> Journée complète consignée dans **`wama/model_manager/PROSPECTION_PIPELINE.md §Session du
+> 2026-08-27`** (5 sections, dont les restes) + `WAMA_MANIFEST_SPEC.md §7.1 (composition)` +
+> `LICENSING.md` (audio.cpp, MiniMax Community). Mémoire : `project_model_prospection.md`.
+> 8 commits (2 chaîne, 1 backend composé, 1 contrat, 1 install catalogue, 1 rôles, 1 doc/exec,
+> 1 corpus). Ouverture de journée : incident SentinelOne du 26/08 CLOS (zéro perte —
+> `project_sentinelone_quarantaine_2026-08-26.md`), dev/main alignés.
+
+**LIVRÉ (chaîne modèle de bout en bout, Music3 = cas d'école)** : ① balayage générique des
+snapshots HF installés (dédup hf_id + famille MODEL_PATHS) ; ② désinstallation (poids seuls,
+ligne marquée, rm borné) ; ③ choix poids pleins/quantisés AVANT install (persisté au spec) ;
+④ `body.composition` au kind `model` (anatomie déclarée → `AIModel.composition`, migration
+0015 **locale, non versionnée**) consommée par l'install (`patterns_from_composition`) ET par
+le backend ; ⑤ `AudioCppBackend` générique (moteur audio.cpp Apache 2.0 compilé
+`~/tools/audio.cpp` WSL2, env `AUDIOCPP_BINARY`) — composer:minimax-music3 = autorité unique
+(licence, contrat de prompt 250-450 mots déclaré, corpus) ; ⑥ install EXPLICITE des modèles
+du catalogue (`install_dir` déclaré par la découverte + bouton Installer + tâche Celery —
+cas musicgen-melody) ; ⑦ rôles **scout** (dépôt HF → manifeste model) et **integrator**
+(app existante vs génération — `architect.txt` préexistant = AUTRE rôle) + `role_utils.py`
+commun, dry-runs validés.
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+
+**Brancher scout/integrator sur la prospection** (un candidat retenu → scout → integrator →
+recommandation sur la card) — c'est le chaînon qui rend la route visible dans l'UI. Puis,
+dans l'ordre : **hf_id à DÉCLARER** dans les model_config transcriber/synthesizer/anonymizer
+(zéro occurrence mesurée — nourrit provenance/licences, retire le besoin du critère famille) ·
+outils model_manager du `tool_api` (`search_models`/`prepare_install_spec`/`install_model`) ·
+le MARCHEUR `project`→`requires`→drivers (« installer un projet ») · généraliser
+`install_dir` aux autres découvertes (1 ligne/app) · trancher la re-proposition d'un modèle
+désinstallé (si gênant).
+
+### Pendings système (cette instance)
+
+- **REDÉMARRER les services** (Celery + gunicorn) : tâche `install_catalog_task`, bouton
+  « Installer », contrat de prompt Music3 à l'enrichissement, description composer — le
+  restart de Fabien de la mi-journée PRÉCÈDE ces commits.
+- **Push** : 3 commits d'avance sur origin/dev au moment de la clôture.
+- **Validations HUMAINES en attente** (jamais par une session — crashs hôte) :
+  ① 1ʳᵉ génération Music3 réelle depuis le composer (ETA provisoire gen_factor=6.0) ;
+  ② 1ʳᵉ passe LLM réelle de `run_scout.py` / `run_integrator.py` (Ollama hôte).
+- Poids : D: à 84 % (88 Go libres) après remplacement 54 Go → 12,6 Go (package officiel
+  audio-cpp ; set Serveurperso désinstallé — GGUF nus pour un autre runtime).
+
+### Contrôles attendus au prochain /reprise (MESURÉS cette session)
+
+- Tests : **suite complète 1060 OK** (dont 24 model_manager + 7 composer nouveaux/du jour).
+- Corpus manifestes : régénéré ce jour (92 fichiers — facette `composition`) ; `--check`
+  relancé en fin de session (résultat attendu : 0 périmé kind model).
+- `check_docs` : 6 références cassées / **1 cible distincte** (le partial d'onglets de
+  résultat jamais créé — préexistant, pas de cette session) ; 0 chiffre sans source.
+- Catalogue : 97 modèles (sync stable ×3) ; `composer:minimax-music3` dl=True, 5 composants,
+  licence `minimax-music3-community`, prompt_contract 919 caractères.
