@@ -1,130 +1,84 @@
-# WAMA
+# WAMA — Web App for Multimodal Automation
 
-### Vision, architecture et trajectoire d'évolution
+*Vision, architecture et trajectoire — document de référence unique*
 
-*Plateforme IA multimodale pour la recherche, l'industrie, l'enseignement et la création*
+**Août 2026**
 
-**Document de vision stratégique — version complète**
-
-Juillet 2026
+> ---
+> ### 🧭 À propos de ce document
+>
+> Ce document **remplace** la vision v1 (juillet 2026), sa v2 annotée, l'analyse critique et
+> l'état des lieux vision ↔ code — tous archivés : `docs/archive/WAMA_Vision_Complet.md`,
+> `docs/archive/WAMA_Vision_Complet_v2.md`, `docs/archive/VISION_CRITIQUE.md`,
+> `docs/archive/VISION_STATUS.md`. Les 13 correctifs de l'analyse critique, tissés en annotations
+> dans la v2, sont ici fondus dans le texte de premier rang. La confrontation au réel, qui vivait
+> dans l'ex-VISION_STATUS, vit désormais **dans le corps du document** sous forme de marquage par
+> section.
+>
+> **Convention de lecture (discipline verbale)** : le **présent de l'indicatif décrit ce qui
+> existe** ; le futur et le conditionnel décrivent ce qui est visé. Chaque partie porte un
+> marquage d'état — **✅ acquis** · **🔄 en chantier** · **⏳ visé** · **📜 doctrine** (acté, pas du
+> code) — daté de la dernière confrontation au code (2026-08-27 pour cette édition). Le marquage
+> de maturité `[ÉTAGÈRE]` (intégration d'outils existants) / `[INGÉNIERIE]` (construction
+> maîtrisée) / `[RECHERCHE]` (problème ouvert, axe de collaboration scientifique) qualifie les
+> ambitions.
+>
+> **Ce que ce document n'est pas** : le suivi opérationnel des chantiers (→ `PROJECT_STATUS.md` +
+> `ROADMAP.md`), ni la spécification des mécanismes (→ les docs de référence par domaine listés
+> dans `CLAUDE.md`). Il donne le POURQUOI et le VERS QUOI ; les docs de domaine donnent le COMMENT.
+> ---
 
 ---
 
 # Sommaire
 
-**Résumé exécutif**
+- **Résumé exécutif**
+- **Partie 1 — Philosophie** : capitaliser plutôt que reproduire · métadonnée-driven ·
+  sobriété numérique · reproductibilité et provenance
+- **Partie 2 — Les quatre mondes** : Médias, Data, Lab, Transversal · la glu inter-mondes ·
+  accès et appartenance organisationnelle · question ouverte : traçabilité des mondes
+- **Partie 3 — Architecture fondatrice : les manifestes** : le manifeste comme contrat ·
+  les 7 kinds · composition et anatomie · prospection et rôles LLM · auto-instanciation gatée
+- **Partie 4 — Le Studio et l'orchestration**
+- **Partie 5 — IA transverse** : rôle et skills · pipeline de prompts · traduction ·
+  mémoire et RAG · adaptateurs de format · l'assistant comme interface
+- **Partie 6 — Création multimédia** : apps génératives · médiathèque créative ·
+  chaîne narrative (gatée)
+- **Partie 7 — Le monde Lab** : Cam Analyzer, Face Analyzer, décomposition en capacités
+- **Partie 8 — Le monde Data et l'apprentissage** : socle temporel · plan d'expérience ·
+  Data Comprehender · garde-fous méthodologiques · modèles appris et boucle de simulation
+- **Partie 9 — Médiathèque institutionnelle et système d'information** : conformité et confiance
+- **Partie 10 — Opérations** : batch · auto-maintenance et vérification · veille et
+  évaluation continue
+- **Partie 11 — Infrastructure et modèle de réalisation**
+- **Partie 12 — Interconnexion conversationnelle et routage des modèles**
+- **Partie 13 — Non-objectifs, séquencement et parcours d'adoption**
+- **Conclusion**
 
-**Partie I — Vision et philosophie**
-
-  - 1. Vision générale
-  - 2. Une philosophie différente de la génération automatique de code
-
-**Partie II — Architecture fondatrice : les manifestes**
-
-  - 3. Le manifeste comme contrat
-  - 4. Auto-instanciation d'applications
-  - 5. Gestion intelligente des modèles IA
-
-**Partie III — Le Studio et l'orchestration**
-
-  - 6. Le Studio WAMA
-  - 7. Le graphe de capacités
-  - 8. Typage des données
-
-**Partie IV — IA transverse : rôle, skills, RAG, traduction et routage**
-
-  - 9. Rôle et Skills : deux niveaux d'enrichissement distincts
-  - 10. Enrichissement hiérarchique des prompts
-  - 11. RAG hiérarchique
-  - 12. Traduction linguistique native entrée/sortie
-  - 13. Traduction consciente de la structure documentaire
-  - 14. Adaptateurs de modèle : traduction technique de format
-  - 15. Chaîne unifiée : du prompt utilisateur au modèle
-  - 16. L'assistant IA comme interface de l'écosystème
-
-**Partie V — Création multimédia**
-
-  - 17. L'Imager : génération visuelle contrôlée
-  - 18. Médiathèque créative et gestion d'actifs
-  - 19. Inspiration et différence avec ComfyUI
-  - 20. Vers un moteur de génération multimédia avancé
-  - 21. Story Director : chaîne complète de création audiovisuelle
-  - 22. Storyboard intelligent
-  - 23. Génération vidéo, audio et personnages
-
-**Partie VI — Applications scientifiques métiers : le cas CAM Analyzer**
-
-  - 24. CAM Analyzer : exemple d'application métier augmentée
-  - 25. Du CAM Analyzer vers le Studio WAMA
-  - 26. Face Analyzer et analyse comportementale
-
-**Partie VII — Comprendre les données : le Data Comprehender**
-
-  - 27. La couche Data WAMA
-  - 28. Data Comprehender : comprendre avant d'exploiter
-  - 29. Compréhension multimodale des données scientifiques
-  - 30. Fonctionnement du Data Comprehender
-  - 31. Recherche intelligente dans les données
-  - 32. Vision « DeepMind » adaptée aux laboratoires
-  - 33. La boucle de découverte scientifique
-
-**Partie VIII — Médiathèque universitaire et système d'information**
-
-  - 34. Médiathèque universitaire intelligente
-  - 35. Fonctionnement de la médiathèque WAMA
-  - 36. Une médiathèque augmentée par IA
-  - 37. Connexion aux applications créatives
-  - 38. Système d'information laboratoire augmenté
-  - 39. Assistant laboratoire et réunions basées sur les faits
-
-**Partie IX — Opérations : batch, auto-maintenance et veille**
-
-  - 40. Batch processing généralisé
-  - 41. Auto-maintenance de WAMA
-  - 42. Auto-amélioration, veille et prospection de modèles
-
-**Partie X — Infrastructure et trajectoire**
-
-  - 43. Infrastructure matérielle et montée en puissance
-  - 44. Évolution matérielle progressive
-  - 45. Trajectoire d'évolution globale
-  - 46. Positionnement stratégique
-  - 47. Vision finale : une infrastructure cognitive pour les laboratoires
-
-**Partie XI — Interconnexion conversationnelle et routage intelligent des modèles**
-
-  - 48. WAMA comme assistant intégré aux environnements de travail
-  - 49. Priorité aux solutions ouvertes et maîtrisées
-  - 50. Assistant IA omniprésent
-  - 51. LiteLLM : couche d'abstraction et de routage des modèles
-  - 52. Politique intelligente de sélection des modèles
-  - 53. Vers une gouvernance intelligente des IA
-
-**Conclusion**
+---
 
 # Résumé exécutif
 
-WAMA est une plateforme IA multimodale conçue pour transformer la manière dont les modèles d'intelligence artificielle, les données et les applications métiers sont développés, intégrés et exploités.
+WAMA (**Web App for Multimodal Automation**) est une plateforme web d'intelligence artificielle
+développée dans un laboratoire de recherche en sciences cognitives appliquées aux mobilités
+(Université Gustave Eiffel). Née de besoins concrets — anonymisation RGPD de corpus vidéo,
+transcription d'entretiens, préparation de stimuli expérimentaux, analyse de comportements — elle
+est aujourd'hui **opérationnelle** : une douzaine d'applications en service (dix génériques, deux
+métier), accessibles depuis un navigateur, exécutées sur GPU en interne, sans qu'aucune donnée de
+recherche ne quitte l'établissement.
 
-L'objectif de WAMA n'est pas de remplacer les développeurs ou les chercheurs par une génération massive de code réalisée par des LLM. Cette approche montre rapidement ses limites lorsqu'il s'agit de construire des systèmes complexes, maintenables et cohérents.
-
-> **Développer une fois les briques complexes, les transformer en capacités réutilisables, puis permettre leur composition intelligente dans un écosystème cohérent.**
-
-L'arrivée massive de nouveaux modèles IA crée un paradoxe : les capacités progressent extrêmement rapidement, mais leur intégration opérationnelle reste longue et répétitive. Chaque équipe recommence souvent les mêmes tâches : installation de modèles, création d'interfaces, gestion des paramètres, préparation des données, développement de pipelines, adaptation aux formats, création d'outils spécifiques.
-
-WAMA vise à résoudre ce problème en créant une couche d'abstraction entre les modèles IA, les applications, les données, les utilisateurs et les ressources matérielles.
+WAMA n'est pas un catalogue d'outils juxtaposés : c'est un environnement unifié où chaque
+application déclare ses capacités (entrées, sorties, paramètres, modèles) dans un format commun —
+le **manifeste** — qui permet de les enchaîner en pipelines reproductibles, de les piloter par un
+assistant IA et de partager entre elles les ressources GPU et les modèles. Cette conception fait
+de WAMA un **cadre d'accueil** : chaque nouveau modèle IA, chaque nouvelle application devient une
+capacité supplémentaire de l'écosystème, immédiatement combinable avec les autres.
 
 > **Une donnée brute → une analyse → une application → une connaissance exploitable.**
 
-# Partie I — Vision et philosophie
-
-## 1. Vision générale
-
-Les plateformes IA actuelles sont souvent organisées autour d'un modèle particulier : un LLM, un générateur d'image, un modèle de vision, un outil d'analyse.
-
-WAMA adopte une approche différente. La valeur ne vient pas uniquement du modèle utilisé, mais de la capacité à orchestrer plusieurs modèles, plusieurs applications, plusieurs sources de données, plusieurs niveaux de connaissances et plusieurs contextes utilisateurs.
-
-> **La vision WAMA est celle d'un écosystème cognitif local et évolutif.**
+L'objectif n'est pas de remplacer les développeurs ou les chercheurs par une génération massive de
+code : cette approche montre vite ses limites dès qu'il s'agit de systèmes complexes, maintenables
+et cohérents. L'objectif est une **capitalisation** :
 
 - les modèles deviennent des composants ;
 - les applications deviennent des capacités ;
@@ -132,475 +86,720 @@ WAMA adopte une approche différente. La valeur ne vient pas uniquement du modè
 - les données deviennent intelligibles ;
 - les connaissances deviennent accessibles.
 
-## 2. Une philosophie différente de la génération automatique de code
+---
 
-L'arrivée des assistants de programmation avancés permet aujourd'hui de générer rapidement du code. Cependant, une grande partie du temps humain reste consacrée à des tâches répétitives : recréer des interfaces similaires, connecter des bibliothèques, adapter des formats, écrire des wrappers, construire des pipelines classiques.
+# Partie 1 — Philosophie
 
-WAMA considère que l'avenir n'est pas une génération permanente de code, mais une capitalisation intelligente du développement existant.
+## 1.1 Capitaliser plutôt que reproduire 📜
 
-1. Développer une capacité complexe.
-2. La documenter par un manifeste.
-3. L'exposer dans l'écosystème WAMA.
-4. La réutiliser dans de nouvelles applications.
+L'arrivée massive de nouveaux modèles d'IA crée un paradoxe bien connu des laboratoires : les
+capacités progressent très vite, mais leur intégration opérationnelle reste longue et répétitive.
+Chaque équipe recommence les mêmes tâches — installation de modèles, création d'interfaces,
+gestion des paramètres, adaptation des formats, scripts jetables — et ce travail est rarement
+mutualisé.
 
-Ainsi, le code devient une infrastructure stable et les applications deviennent des assemblages de capacités.
+WAMA prend le contre-pied de cette dispersion. Sa philosophie tient en quatre temps :
 
-# Partie II — Architecture fondatrice : les manifestes
+1. **développer une fois** une capacité complexe ;
+2. **la documenter** par un manifeste ;
+3. **l'exposer** dans l'écosystème ;
+4. **la réutiliser** dans de nouveaux contextes.
+
+Le code devient une infrastructure stable, les applications des assemblages de capacités, les
+workflows des objets reproductibles. Cette philosophie est appliquée dans le dépôt lui-même
+(règle « zéro duplication, tout ce qui sert deux apps vit dans `common/` », briques communes
+réutilisées par 4 à 12 applications) : la thèse n'est pas un vœu, elle est validée par la
+pratique quotidienne du projet.
+
+## 1.2 Métadonnée-driven : l'UI s'auto-génère ✅
+
+L'interface ne s'écrit pas à la main application par application : elle **se génère à partir des
+descriptions** des éléments (application, modèle, paramètre, item). Le volet de détail se remplit
+depuis les métadonnées ; les modales de paramètres se rendent depuis un schéma déclaré ; le
+descriptif d'un moteur vient de son catalogue ; les champs-prompt déclarent leur pipeline de
+traitement. **Soigner les métadonnées à la source est ce qui remplit l'UI** — et c'est la même
+source qui nourrit les manifestes, l'assistant et le Studio.
+
+Corollaire : l'homogénéité est un objectif de design, pas un effet de bord. L'utilisateur
+retrouve partout les mêmes gestes (mêmes boutons, même volet droit, même file d'attente) ; les
+spécificités légitimes d'une application se **déclarent** (capacités, schémas) au lieu de se
+coder en dur.
+
+## 1.3 L'IA est dans la chaîne, pas à côté 📜
+
+Traduction et enrichissement de prompts, correction assistée, sélection de modèle consciente de
+la VRAM, auto-maintenance, prospection de modèles : l'IA n'est pas une application parmi
+d'autres, elle est une **couche transverse** que toutes les applications traversent. Chaque
+application expose en retour ses actions à l'assistant (API d'outils) : l'écosystème est
+pilotable en langage naturel parce que chaque brique se décrit.
+
+## 1.4 Sobriété numérique : le juste dimensionnement comme principe d'architecture 📜→🔄
+
+L'usage courant de l'IA générative s'est installé sur un réflexe coûteux : adresser chaque
+requête, même triviale, à de très grands modèles généralistes hébergés dans le cloud. Or une
+grande partie des tâches réelles d'un laboratoire — transcrire un entretien, flouter une vidéo,
+décrire une image, extraire un tableau — est accomplie aussi bien, et parfois mieux, par des
+modèles spécialisés de taille dix à cent fois inférieure.
+
+WAMA fait de ce constat un principe d'architecture, porté par des mécanismes concrets :
+
+- **le juste dimensionnement par routage** — la couche de sélection oriente chaque requête vers
+  le plus petit modèle capable de la traiter correctement (sélection VRAM-aware et par tiers,
+  ✅ en place). Le recours à un modèle cloud reste possible mais devient un **choix explicite**,
+  réservé aux tâches qui le justifient et aux données qui l'autorisent — jamais un défaut ;
+- **des modèles résidents plutôt que rechargés** — maintien en mémoire GPU et partage entre
+  applications (`keep_loaded`, ✅), au lieu de cycles de chargement/déchargement qui consomment
+  sans produire ;
+- **la mutualisation du matériel** — une infrastructure commune à bon taux de charge plutôt que
+  des stations individuelles sous-utilisées ; les traitements massifs regroupés en lots et
+  planifiés hors des pics (🔄 files batch en place, planification heures creuses ⏳) ;
+- **la mesure comme condition du pilotage** — suivi de la consommation par utilisateur et par
+  application (🔄 statistiques d'exécution par modèle en place ; rapport de sobriété ⏳) ;
+- **la proximité des données** — les corpus volumineux sont traités sur le réseau local : aucun
+  aller-retour massif vers des infrastructures distantes.
+
+Ce positionnement se veut rigoureux plutôt que militant : l'argument porte sur ce qui dépend
+réellement de la plateforme — dimensionner le modèle à la tâche, éviter le gaspillage de cycles,
+mutualiser, mesurer — et il converge avec les arguments de souveraineté et de coût.
+
+## 1.5 Reproductibilité et provenance : garantie de premier rang 📜→🔄
+
+Une tension traversait les premières versions de cette vision : « l'utilisateur n'a pas à savoir
+quel modèle tourne » contre « les workflows sont reproductibles ». Elle est tranchée : le confort
+d'abstraction vaut pour l'USAGE, jamais pour la PREUVE. **L'orchestration choisit librement le
+modèle, mais chaque exécution journalise modèle, version, paramètres et données d'entrée**, et
+tout résultat doit pouvoir être restitué en « fiche de méthode » citable — un matériel et
+méthodes prêt pour publication. Les germes existent (états de run du Studio, statistiques
+d'exécution par modèle, `extra_info` des items) ; l'érection en garantie exportable de premier
+rang est en chantier. Pour une plateforme de recherche, c'est la provenance qui est l'objet
+scientifique — l'abstraction devient un argument au lieu d'une contradiction.
+
+---
+
+# Partie 2 — Les quatre mondes
+
+> 📜 Doctrine actée le 2026-07-20, traduite en arborescence le 2026-08-22 (trois racines de code).
+> C'est l'ossature de la plateforme : **WAMA s'organise en mondes qui communiquent** et
+> convergent en deux lieux de rencontre — le **Studio** (chaînage) et la **médiathèque**
+> (partage).
+
+## 2.1 Les mondes et leur nature
+
+| Monde | Contenu | Entrées/sorties | État (2026-08-27) |
+|---|---|---|---|
+| **Médias** | les applications génériques de traitement de médias | média → média | ✅ dix apps en service |
+| **Data** | le moteur de données scientifiques (`wama_data/`) : référentiel temporel, lecteurs, fonctions typées, sessions | données → tri/traitement → données | 🔄 socle réel (moteur sans UI) |
+| **Lab** | les applications métier de recherche (`wama_lab/`) | domaine-spécifique | 🔄 Cam Analyzer avancé, Face Analyzer embryon |
+| **Transversal** | le substrat commun : assistant IA, model manager, mémoire/RAG, pipeline de prompts, Studio, médiathèque, comptes | services partagés | 🔄 riche et vivant |
+
+**Monde Médias — les dix applications génériques ✅** : Anonymizer (floutage visages/plaques,
+conformité RGPD), Transcriber (transcription multi-moteurs, diarisation, éditeur de correction
+assisté), Synthesizer (synthèse vocale, clonage de voix), Describer (description IA de médias par
+LLM multimodaux locaux), Reader (OCR typographié et manuscrit), Imager (génération d'images et de
+vidéos), Composer (génération musicale et effets sonores), Avatarizer (avatars parlants,
+synchronisation labiale), Enhancer (super-résolution, débruitage), Converter (conversion
+universelle de formats).
+
+**Monde Data 🔄** : il porte l'exploitation des données expérimentales hétérogènes — signaux
+physiologiques, oculométrie, comportement, trajectoires, données véhicule. Son socle est réel
+(voir Partie 8) : couche temporelle universelle, lecteurs de formats d'acquisition, catalogue de
+fonctions typées, manifeste de dataset exécutable. Son UI et son application généraliste
+(Data Analyzer) restent à construire.
+
+**Monde Lab 🔄** : les applications scientifiques spécifiques, là où se concentre l'expertise
+difficilement automatisable (voir Partie 7). Sa trajectoire est la décomposition progressive en
+capacités réutilisables.
+
+**Monde Transversal 🔄** : le substrat — il est en réalité plus un substrat qu'un monde-pair,
+mais le traiter comme un monde reste cohérent pour l'UX (une porte d'entrée par monde).
+
+## 2.2 La glu inter-mondes : capacités et ports typés 📜✅
+
+Un monde est un **regroupement et un palier d'accès, pas un silo**. Le sens de l'architecture est
+que les mondes **communiquent** : le Studio chaîne une app Médias → une fonction Data → une
+analyse Lab. Ce qui rend l'inter-mondes sûr et guidé, c'est le **système de capacités et de ports
+typés** (catalogue d'applications + catalogue de fonctions + taxonomie de types de données) : la
+glu vit dans le substrat (`wama/common/catalog/`), jamais dans un monde — et le registre ne
+connaît jamais ses producteurs (chaque monde déclare ses fonctions dans son propre démarrage
+d'application). La réutilisation inter-mondes existe et se mesure : le monde Lab consomme
+aujourd'hui les briques communes du substrat (console, utilitaires vidéo, socle JS, pipeline de
+prompts…).
+
+Le monde classe la **finalité** d'une brique ; sa capacité vit dans ses ports et ses kinds. Une
+classification de monde discutable est cosmétique, jamais structurelle.
+
+## 2.3 Accès : tier × rôles × appartenance organisationnelle ✅ (socle) 🔄 (gating par monde)
+
+L'accès réutilise le modèle de profils et permissions existant, sur trois axes :
+
+1. **tier** (niveau de compte) ;
+2. **rôles métier cumulatifs** (déclarés par application) ;
+3. **appartenance organisationnelle** — chaque utilisateur appartient à un arbre d'unités
+   *université → département → labo/service → équipe → utilisateur*.
+
+Cet arbre (`OrgUnit`, ✅ livré, alimenté par LDAP/SUPANN au login) est **la colonne vertébrale
+partagée de trois usages — un seul modèle, ne jamais dupliquer** : (a) l'héritage de la mémoire
+et du RAG ; (b) les **scopes de partage** (« avec mon équipe / mon labo / mon université », mixin
+`ScopedVisibility` appliqué à la médiathèque, aux fonctions utilisateur et à la mémoire) ; (c) le
+gating d'accès. S'y ajoute la couche **Projet** (✅), transverse à l'arbre : un projet traverse
+les organisations (partenaires d'autres laboratoires ou universités) et constitue un quatrième
+scope de visibilité. L'accès à un MONDE est un gate grossier au-dessus des rôles par app
+(ex. *chercheur* → Lab + Data + Transversal ; *utilisateur* de base → Médias) — ce gate reste ⏳,
+verrouillé par la question ci-dessous.
+
+## 2.4 Question ouverte : la traçabilité des mondes ⏳
+
+Fait mesuré : `world` n'est aujourd'hui **ni déclaré ni fiable** — il est dérivé du groupe de
+navigation de l'UI, ce qui contredit la doctrine (un renommage d'étiquette déplacerait une app de
+monde en silence). **Préalable n°1 : déclarer le monde (catalogue/manifeste) au lieu de
+l'inférer.** Piste proposée (non actée) : deux champs — `origine` (le monde où la brique est née,
+fait immuable) et `portee` (les mondes où sa réutilisation est reconnue, déclaratif) ; l'écart
+entre les deux est le seul signal utile, et il est mécaniquement mesurable. Sans cette
+traçabilité, rien ne plante — le coût est en réponses fausses silencieuses : collision de
+vocabulaire (déjà survenue autour de « librairie »), taxonomies de types qui divergent,
+hypothèses média cachées réutilisées en data, gate d'accès par monde impossible, grille de
+conformité média appliquée à tort à une app data. ⚠ Ne jamais faire du monde une **frontière**
+de réutilisation : il manque une traçabilité, pas une autorisation.
+
+---
+
+# Partie 3 — Architecture fondatrice : les manifestes
 
 ![Vue d'ensemble de l'architecture WAMA — de l'interface utilisateur aux données et connaissances](arch.png)
 
-*Vue d'ensemble de l'architecture WAMA — de l'interface utilisateur aux données et connaissances*
+## 3.1 Le manifeste comme contrat ✅ (formalisme) 🔄 (write-back)
+
+Le manifeste est le concept fondamental de WAMA. **Il ne génère pas de code : il décrit une
+capacité existante.** Il constitue un contrat entre une application, des modèles, des données,
+un utilisateur et des ressources matérielles : capacités (verbe, modalités), entrées/sorties
+typées, paramètres (schéma), contraintes (VRAM, dépendances, licences).
+
+Le formalisme est **livré** (2026-07 → 2026-08) : enveloppe commune, registre de **7 kinds**
+(`app`, `model`, `function`, `library`, `dataset`, `pipeline`, `project`), ingestion
+*validate → sandbox → promote* idempotente, transactionnelle et réversible, composition par
+`requires`, corpus versionné dans `manifests/`. Le manifeste est la **source unique** ; les
+registres en sont des projections — jamais l'inverse. Ce qui reste en chantier est le
+**write-back code-gen** des facettes d'application (le manifeste régénérant l'app), gaté par
+l'uniformisation des dix apps génériques.
 
-## 3. Le manifeste comme contrat
+Réf. : `WAMA_MANIFEST_SPEC.md` (formalisme) · `WAMA_MANIFEST_ARCHITECTURE.md` (flux).
 
-Le manifeste est l'un des concepts fondamentaux de WAMA. Il ne génère pas de code : il décrit une capacité existante.
+## 3.2 Composition et anatomie des modèles ✅
 
-Il constitue un contrat entre une application, un modèle, des données, un utilisateur et des ressources matérielles.
+Deux mécanismes récents (2026-08) étendent le contrat au **corps des modèles** :
 
-### Ce que décrit un manifeste
+- la **composition** (`requires`) relie une app à ses modèles et librairies : le manifeste d'une
+  app déclare ce qu'elle consomme, l'ingestion résout la chaîne ;
+- l'**anatomie déclarée** (`body.composition`) décrit une fois les constituants d'un modèle
+  composite (tokenizer, encodeurs, poids par rôle) — et cette déclaration unique est consommée
+  **à la fois** par l'installation (quels fichiers tirer) et par le backend générique qui le
+  charge. Premier cas réel : le backend audio composé du Composer. La leçon est générale :
+  *l'anatomie d'un modèle se déclare une fois ; l'install et l'exécution la lisent.*
 
-- **Capacités** — Analyse d'image, génération vidéo, traitement audio, analyse dataframe, transcription, détection d'objets…
-- **Entrées** — Image, vidéo, audio, texte, dataframe, signal, document…
-- **Sorties** — Fichier, annotation, tableau, rapport, embedding, visualisation…
-- **Contraintes** — Mémoire GPU nécessaire, modèles requis, dépendances, temps d'exécution…
+## 3.3 Gestion intelligente des modèles ✅ (le pan le plus mûr)
 
-## 4. Auto-instanciation d'applications
+WAMA traite les modèles comme des ressources dynamiques : catalogue unique (`AIModel`),
+découverte, installation depuis spec (variantes quantisées choisies AVANT install et persistées),
+désinstallation, sélection VRAM-aware et par tiers, singleton `keep_loaded`, statistiques
+d'exécution, ETA auto-apprenant, sauvegarde miroir. L'objectif n'est pas d'exécuter un modèle,
+mais de **gérer un écosystème de modèles actifs** sur un budget de VRAM contraint.
 
-Le manifeste permet l'instanciation automatique d'applications généralistes. Lorsqu'un nouveau modèle de vision apparaît, WAMA peut analyser ses capacités, créer ou compléter son manifeste, l'intégrer comme nouvelle capacité, puis permettre sa combinaison avec les autres briques.
+## 3.4 Veille et prospection : des rôles LLM gouvernés 🔄
 
-Les applications métiers complexes restent aujourd'hui développées spécifiquement. La trajectoire de WAMA est de permettre progressivement à ces applications d'exposer leurs capacités internes.
+La chaîne de prospection est opérationnelle : découverte de modèles candidats → fiches
+d'évaluation → jugement (VRAM, licence, intérêt par application) → installation ou rejet motivé.
+Elle est **gouvernée** : passes LLM déclenchées explicitement, jamais en tâche de fond
+silencieuse ; l'humain valide. Elle se structure en **rôles** spécialisés (bibliothécaire pour
+les manifestes de librairies ; éclaireur et intégrateur pour la prospection — premiers runs en
+cours au 2026-08-27). Deux issues par candidat : **intégration directe** (le modèle améliore une
+capacité existante — manifeste, configuration, tests) ou **nouvelle capacité** (le modèle ouvre
+un domaine — proposition d'application, gatée comme ci-dessous).
 
-Aujourd'hui :
+Réf. : `wama/model_manager/PROSPECTION_PIPELINE.md`.
 
-`CAM Analyzer  →  application complète développée en dur`
+## 3.5 Auto-instanciation d'applications ⏳ `[RECHERCHE→INGÉNIERIE]` — gatée
 
-Demain :
+Le manifeste permet à terme l'instanciation automatique d'applications généralistes : un nouveau
+modèle apparaît, WAMA analyse ses capacités, crée ou complète son manifeste, l'intègre comme
+capacité combinable. Cette perspective est l'**aboutissement** de la route manifeste, pas son
+point de départ. Séquence verrouillée : uniformisation des apps → manifeste formel → conformité
+exécutable → scaffold EN DERNIER, toujours avec revue humaine. L'écart mesuré entre « une IA
+analyse un dépôt » et un résultat fiable (campagnes d'audit locales : affirmations d'absence
+fausses dans 4 rapports sur 6) justifie ce gating : on ne promet pas une trajectoire naturelle,
+on décrit un pari dont chaque maillon doit être validé.
 
-`CAM Analyzer  →  extraction vidéo  →  détection objets  →  tracking  →  fusion capteurs  →  reconstruction 3D  →  analyse trajectoire`
+---
 
-Ces capacités deviennent alors utilisables par le Studio et l'assistant IA.
+# Partie 4 — Le Studio et l'orchestration
 
-## 5. Gestion intelligente des modèles IA
+## 4.1 Le Studio ✅ (V1 réelle) 🔄 (couverture)
 
-WAMA considère les modèles comme des ressources dynamiques. La plateforme doit pouvoir gérer plusieurs modèles en parallèle, avec chargement dynamique, déchargement automatique, optimisation mémoire et choix automatique du matériel.
+Le Studio est l'environnement central d'orchestration : construction de chaînes de traitement
+par programmation graphique — graphes, nœuds, connexions, paramètres, workflows sauvegardés.
+L'inspiration ComfyUI s'arrête au principe : là où ComfyUI orchestre des pipelines de génération
+visuelle, WAMA orchestre **l'IA, les données, les applications métier, les médias et les
+workflows scientifiques**.
 
-Ceci est particulièrement important pour un serveur de production où plusieurs applications doivent fonctionner simultanément, où les modèles peuvent être volumineux et où certaines applications nécessitent beaucoup de VRAM.
+État réel : canvas, persistance et **exécution réelle** (moteur d'exécution topologique via l'API
+d'outils, suivi par nœud, cards d'entrée/sortie reliées à la médiathèque) sont livrés ; la
+couverture des runners par application est partielle, le batch orchestré et le fan-out parallèle
+restent à faire.
 
-> **L'objectif n'est pas uniquement d'exécuter un modèle, mais de gérer un écosystème de modèles actifs.**
+## 4.2 Le graphe de capacités ✅🔄
 
-# Partie III — Le Studio et l'orchestration
+Un nœud n'est pas seulement un appel de modèle : il peut représenter une application complète,
+une analyse scientifique, un traitement data, une source de données. Les **ports typés** sont
+dérivés des déclarations du catalogue (pas d'adaptateurs écrits à la main côté Studio — c'est le
+**contrat uniforme** : quand une app ne s'y conforme pas, on finit le port de l'app, on n'écrit
+pas d'adaptateur). Les types scientifiques (DataFrame, signaux, embeddings) rejoindront le typage
+avec la connexion du monde Data — la règle de compatibilité entre un port `audio` (média) et un
+port `signal` (data) est une décision à trancher explicitement, pas en silence (cf. §2.4).
 
-## 6. Le Studio WAMA
+---
 
-Le Studio est l'environnement central d'orchestration. Il permet de construire des chaînes de traitement par programmation graphique, en s'inspirant de certains principes d'outils comme ComfyUI : graphes, nœuds, connexions, paramètres, workflows sauvegardables.
+# Partie 5 — IA transverse
 
-Mais son objectif est beaucoup plus large : là où ComfyUI orchestre principalement des pipelines de génération visuelle, WAMA orchestre l'IA, les données, les applications métiers, les traitements scientifiques, les médias et les workflows industriels.
+Un modèle n'a de valeur opérationnelle que dans un environnement qui lui fournit le bon contexte,
+les bonnes connaissances et les bonnes interfaces. WAMA intègre ces couches une fois, pour toutes
+les applications.
 
-## 7. Le graphe de capacités
+## 5.1 Rôle et skills : deux niveaux d'enrichissement ✅ (skills) ⏳ (rôles organisationnels)
 
-Dans WAMA, un nœud n'est pas seulement un appel modèle. Il peut représenter une application complète, une analyse scientifique, un traitement data, une source de données ou une capacité multimédia.
+- **Rôle** — identité macro, stable : définit *qui répond* (assistant recherche, assistant
+  développement…). Un seul rôle actif à la fois.
+- **Skill** — procédure micro, dynamique et composable : définit *comment traiter* la tâche
+  précise. Plusieurs skills se cumulent, déclenchés selon l'intention.
 
-`Vidéo caméra  →  Extraction frames  →  YOLO  →  Tracking  →  DataFrame  →  Analyse statistique  →  Rapport`
+Les skills de prompt par application sont livrés (résolution par app et domaine, endpoint commun
+✨). Les familles visées restent : skills spécialisés modèle, skills domaine, skills développeur,
+skills institutionnels (couplés au RAG organisationnel, ⏳), skills utilisateur.
 
-Chaque élément est un composant réutilisable.
+## 5.2 La chaîne unifiée du prompt au modèle ✅ (socle) 🔄 (RAG branché, QC)
 
-## 8. Typage des données
+`Prompt utilisateur → rôle → skills → mémoire/RAG → sélection du modèle → traduction linguistique → adaptateur de format → dispatch`
 
-WAMA possède un système de typage des entrées/sorties, incluant notamment :
+Le socle est opérationnel (`process_prompt` : traduction → skill → enrichissement → émission,
+transparence en console). Les champs-prompt se **déclarent** dans les métadonnées d'application ;
+la traduction et l'enrichissement ne se patchent jamais par app. Restent à câbler le branchement
+mémoire/RAG dans l'étape d'enrichissement et le contrôle qualité post-génération.
 
-- images, vidéos, audio, textes, documents ;
-- DataFrames, séries temporelles ;
-- signaux physiologiques, trajectoires, GPS, données capteurs ;
-- embeddings.
+Réf. : `WAMA_LLM.md` (document de référence de toute la couche LLM).
 
-Ce typage permet d'éviter des connexions incohérentes, de proposer automatiquement des workflows et de faciliter l'auto-composition.
+## 5.3 Traduction linguistique entrée/sortie ✅ (entrée) ⏳ (sortie, i18n)
 
-# Partie IV — IA transverse : rôle, skills, RAG, traduction et routage
+La traduction décorrèle la langue de l'utilisateur, celle des données et celle du modèle. En
+**entrée** : identification de la langue, estimation de la capacité du modèle cible, pivot
+anglais si nécessaire — livré, transparent (🌐 en console). En **sortie** : la brique existe mais
+n'est pas câblée au dernier relevé ; l'i18n statique de l'interface reste à faire. Règle : on
+câble la **langue**, jamais la **traduction** en dur.
 
-Une des spécificités de WAMA est de ne pas considérer un modèle IA comme un composant isolé. Un modèle n'a de valeur opérationnelle que lorsqu'il est intégré dans un environnement capable de lui fournir le bon contexte, les bonnes connaissances, les bonnes contraintes et les bonnes interfaces.
+## 5.4 Traduction consciente de la structure documentaire ⏳ `[INGÉNIERIE]`
 
-WAMA intègre donc plusieurs couches transverses destinées à rendre les modèles réellement utilisables dans un contexte professionnel ou scientifique.
+La difficulté d'une traduction ou d'une analyse de document n'est pas linguistique mais
+structurelle : texte courant, figures, images contenant du texte. WAMA vise une brique commune —
+un **parseur structurel de document** partagé (Describer, futur Translator, toute app manipulant
+des documents composites) : `document → parseur (texte / figures / images-texte) → traitement
+ciblé → réassemblage, mise en page conservée`. Le texte intégré aux images suit OCR → traduction
+→ réinsertion.
 
-## 9. Rôle et Skills : deux niveaux d'enrichissement distincts
+## 5.5 Mémoire et RAG : livrés sur Postgres + pgvector, extension par l'usage ✅🔄
 
-WAMA distingue deux niveaux d'enrichissement du prompt, qui répondent à des questions différentes et ne doivent pas être confondus.
+> ⚠ Cette section remplace le plan antérieur (« ChromaDB, zéro code ») : la brique a été
+> construite ailleurs et autrement. `WAMA_MEMORY.md` fait foi.
 
-- **Rôle** — Identité macro, relativement stable. Définit qui répond : le cadre est fixé par l'instance ou le point d'entrée (assistant recherche, assistant développement, assistant laboratoire...). Un seul rôle actif à la fois.
-- **Skill** — Procédure micro, dynamique et composable. Définit comment traiter la tâche précise à l'intérieur du rôle. Plusieurs skills peuvent se cumuler sur une même requête, déclenchés automatiquement selon l'intention détectée.
+La brique **mémoire + RAG + journal utilisateur** est livrée (2026-08) : un seul mécanisme sur
+**Postgres + pgvector**, dont le scoping **hérite** de la visibilité par unités
+(`ScopedVisibility` — le même arbre organisationnel que l'accès, cf. §2.3), avec un journal
+utilisateur consultable. Principe structurant : **l'entrée au RAG est un GESTE** (un dépôt
+explicite), pas une aspiration silencieuse.
 
-Cette distinction structure la hiérarchie des skills WAMA en plusieurs familles complémentaires :
+La trajectoire reste incrémentale, dans l'ordre imposé par l'ex-critique : (1) niveau utilisateur
+utile — livré ; (2) **mesure d'usage réelle** ; (3) extension aux niveaux équipe/labo/université
+**si et seulement si** la valeur du niveau de base est démontrée. La hiérarchie de gouvernance
+est une conséquence de l'usage, pas un préalable d'architecture.
 
-- skills spécialisés modèle : adaptation au format exact requis par un modèle particulier (ex. liste d'objets pour un modèle de détection plutôt qu'une phrase libre) ;
-- skills domaine : spécialisation par application et par métier (recherche, création audiovisuelle, analyse scientifique...) ;
-- skills développeur / workflow : intégrés directement dans l'environnement de développement WAMA pour le développement, l'auto-maintenance, le debug, la veille technologique ;
-- skills institutionnels : connaissance de l'université et des instances internes, souvent couplés au RAG organisationnel ;
-- skills utilisateur : préférences et habitudes individuelles, qui s'ajoutent aux skills domaine déclenchés automatiquement.
+## 5.6 Adaptateurs de modèle : compilation de format ✅🔄
 
-## 10. Enrichissement hiérarchique des prompts
+À ne pas confondre avec la traduction linguistique : certains modèles imposent un schéma de
+requête strict (une liste d'objets pour un modèle de segmentation, pas des phrases). Cette
+adaptation est une **compilation déterministe** exécutée juste avant l'appel — la séparer du
+raisonnement du LLM évite de polluer son contexte avec du formatage.
 
-Au-delà de la distinction rôle / skill, WAMA organise l'enrichissement du prompt selon quatre niveaux hiérarchiques, qui peuvent se combiner :
+## 5.7 L'assistant IA comme interface de l'écosystème ✅ (socle) ⏳ (boucle agentique riche)
 
-- **Niveau global** — Règles d'utilisation, style, bonnes pratiques, contraintes communes à toute la plateforme.
-- **Niveau métier / skills** — Vocabulaire métier, méthodes, objectifs, critères de qualité propres à une application ou un domaine.
-- **Niveau organisationnel** — Contexte université, laboratoire, service — règles et conventions propres à l'entité.
-- **Niveau utilisateur** — Préférences individuelles : habitudes, formats favoris, méthodes de travail.
+L'assistant n'est pas le cœur du système : c'est une **interface naturelle** vers les capacités
+existantes. Chaque application expose ses actions via l'API d'outils commune (une cinquantaine
+d'outils au 2026-08-27 — source : `wama/tool_api.py`) : comprendre une demande, trouver
+l'application, construire le traitement, le lancer, synthétiser. C'est le même pivot que le
+Studio utilise pour exécuter ses nœuds — **un cerveau, N surfaces**.
 
-Ainsi, un même modèle peut être utilisé différemment selon son contexte d'appel.
+---
 
-## 11. RAG hiérarchique
+# Partie 6 — Création multimédia
 
-WAMA intègre un système de RAG à plusieurs niveaux. Contrairement à un RAG classique connecté à une seule base documentaire, WAMA organise les connaissances selon une hiérarchie de gouvernance : chaque niveau a son propriétaire et ses propres règles de mise à jour.
+> 📜 Ancrage : les capacités créatives se justifient par des cas d'usage laboratoire nommés —
+> vidéos de restitution d'expérimentations, supports pédagogiques et MOOC, capsules de
+> vulgarisation, illustrations de publications et de réponses à appels à projets, consignes
+> expérimentales standardisées (voix clonée), stimuli contrôlés. Chaque brique de cette partie
+> doit pouvoir citer son client interne ; à défaut, elle relève de l'exploration opportuniste et
+> passe après les non-objectifs (Partie 13).
 
-`Connaissances globales  →  Université  →  Laboratoire / Service  →  Utilisateur`
+## 6.1 Les applications génératives ✅
 
-Cette organisation permet la personnalisation, le respect du contexte institutionnel, le partage contrôlé et la capitalisation progressive. Le RAG devient une mémoire structurée de l'organisation.
+L'Imager (génération d'images et vidéos : fichiers de référence, mots-clés imposés, enrichissement
+de prompts, catalogue de modèles actifs), le Composer (génération musicale — dont le premier
+**backend composé** générique chargeant un modèle par son anatomie déclarée, cf. §3.2), le
+Synthesizer (TTS multi-moteurs, clonage), l'Avatarizer (synchronisation labiale) constituent la
+chaîne générative. La chaîne `texte → TTS → avatar` **est** déjà une composition Studio.
 
-Le déclenchement du RAG n'est pas strictement subordonné à celui des skills : les deux résultent d'une même étape de classification de l'intention, menée en amont. Un skill peut orienter la sélection du niveau de RAG le plus pertinent (par exemple, un skill « méthodologie de recherche » privilégiera le RAG université), mais un besoin d'information peut aussi être détecté indépendamment de tout skill métier — une simple question factuelle sur l'organisation, par exemple.
+L'objectif n'est jamais « générer une image » mais une **création contrôlée et reproductible** :
+références, contraintes, provenance conservée. Cohérence de personnages inter-scènes et direction
+artistique persistante : entre `[INGÉNIERIE]` et `[RECHERCHE]` — prototyper avant de promettre.
 
-## 12. Traduction linguistique native entrée/sortie
+## 6.2 Médiathèque créative ✅ (socle) ⏳ (sémantique)
 
-WAMA intègre une gestion native de la traduction afin de décorréler la langue de l'utilisateur, la langue des données et la langue du modèle. Cette approche permet l'utilisation de modèles principalement anglophones par des utilisateurs francophones, l'exploitation de documents multilingues, la collaboration internationale et l'utilisation homogène des applications.
+La médiathèque gère les actifs partagés (voix, images, documents), l'apport Creative Commons
+(fournisseurs libres intégrés), licence et origine portées par chaque média, la promotion par
+scope (privé / unité / projet / public). Un média n'est pas un fichier : c'est un objet porteur
+de son auteur, sa licence, son origine, ses tags — et à terme son embedding et ses relations
+(recherche sémantique : avec l'extension du RAG).
 
-`Utilisateur  →  Langue utilisateur  →  Traduction entrée  →  Traitement IA  →  Traduction sortie  →  Utilisateur`
+## 6.3 La chaîne narrative : Story Director, storyboard, montage ⏳ — gatée
 
-Concrètement, la vérification linguistique se déroule en deux points de la chaîne, une fois le modèle cible sélectionné :
+L'horizon reste une chaîne complète `idée → scénario → storyboard → plans → vidéo → son →
+montage` où le storyboard est un objet structuré (durée, cadrage, personnages, références) envoyé
+aux moteurs. **Gatée** par un Studio complet (runners pour toutes les apps, sorties gérées,
+batch orchestré) et par un cas d'usage laboratoire nommé — voir non-objectifs.
 
-- en entrée : identification de la langue du prompt, estimation de la capacité du modèle cible à l'accepter, traduction si nécessaire, avant l'appel du modèle ;
-- en sortie : identification de la langue du document produit, comparaison à la langue demandée par l'utilisateur, traduction si nécessaire, avant livraison du résultat.
+---
 
-La traduction devient ainsi une capacité transverse de la plateforme, et non une fonctionnalité isolée d'une seule application.
+# Partie 7 — Le monde Lab
 
-## 13. Traduction consciente de la structure documentaire
+Une force de WAMA est de ne pas opposer applications généralistes et spécialisées : les
+applications métier concentrent une expertise scientifique difficilement automatisable, et leur
+trajectoire est la **décomposition progressive en capacités réutilisables**.
 
-La difficulté principale d'une traduction ou d'une analyse de document n'est pas linguistique : elle est structurelle. Un document mêle du texte courant, des figures, des schémas et des images contenant elles-mêmes du texte. Traiter ce document comme un flux de texte brut fait perdre l'essentiel de sa pertinence.
+`Application métier (aujourd'hui) → code spécifique`
+`Application métier (demain) → import → prétraitement → extraction → modèles → analyse → visualisation → export`
 
-Cette exigence traverse plusieurs applications WAMA. Le Describer, par exemple, doit pouvoir décrire n'importe quel support ; sa description perd en pertinence s'il n'analyse pas conjointement les figures, schémas et images du document plutôt que le seul texte. Le futur Translator devra, de la même manière, conserver toute la construction du document et ne traduire que le texte — voire vectoriser le texte intégré aux images pour le traduire également, sans casser la mise en page.
+## 7.1 Cam Analyzer 🔄 avancé
 
-Plutôt que de dupliquer cette logique dans chaque application, WAMA s'appuie sur une brique d'infrastructure partagée : un parseur structurel de document, commun au Describer, au futur Translator et à toute application manipulant des documents composites.
+Analyse des enregistrements caméra de navettes autonomes : détection des insertions de véhicules
+en intersection par suivi (détection + tracking) croisé avec le GPS ; projection au sol, vue de
+dessus, map-matching, indicateurs d'interaction. Pipeline quasi complet ; restent la calibration
+des vitesses et les mesures absolues. Application adossée à un projet de recherche déposé.
 
-`Document source  →  Parseur structurel (texte / figures / images-texte)  →  Traitement ciblé (traduction ou analyse)  →  Réassemblage — mise en page conservée`
+Réf. : `wama_lab/cam_analyzer/CAM_ANALYZER_CHAINE_TRAITEMENT.md`.
 
-Le texte intégré à une image (légende dans un schéma, texte dans une capture) suit un traitement spécifique : extraction par OCR, traduction, puis réinsertion — par vectorisation lorsque la fidélité visuelle doit être préservée — plutôt qu'un simple écrasement du pixel d'origine.
+## 7.2 Face Analyzer 🔄 embryon
 
-## 14. Adaptateurs de modèle : traduction technique de format
+Analyse faciale en vidéo expérimentale : expressions, indicateurs physiologiques et
+oculométriques, variables comportementales croisables avec les autres données. L'application
+existe hors catalogue ; son intégration UI/file suit le standard des apps génériques.
 
-À ne pas confondre avec la traduction linguistique : certains modèles imposent un format de requête strict, très différent d'un prompt en langage naturel. Un modèle de segmentation comme SAM3, par exemple, nécessite une liste d'objets à détecter — pas des phrases ni des verbes. L'Imager, à l'inverse, reste beaucoup plus libre dans la construction de son prompt.
+## 7.3 Vers le Studio ⏳
 
-Cette adaptation n'est pas un enrichissement au sens skill ou rôle : c'est une compilation déterministe, exécutée juste avant l'appel du modèle, qui traduit une intention déjà validée par le LLM en un schéma technique précis. La séparer du raisonnement du LLM évite de polluer son contexte avec des contraintes de formatage qui n'ont pas leur place dans l'enrichissement sémantique de la requête.
+L'objectif n'est pas de posséder une application spécialisée mais de rendre ses capacités
+accessibles : `nouvelle campagne vidéo → Cam Analyzer → extraction d'événements → analyse Data →
+rapport automatique`, pipeline reproductible. Règle actée : **contrat uniforme** — jamais
+d'adaptateurs côté Studio ; on finit le port de l'app.
 
-## 15. Chaîne unifiée : du prompt utilisateur au modèle
+---
 
-L'ensemble de ces couches transverses s'articule dans une chaîne de traitement unique, du message de l'utilisateur jusqu'à l'appel du modèle :
+# Partie 8 — Le monde Data et l'apprentissage
 
-`Prompt utilisateur  →  Rôle (contexte fixe)  →  Sélection des skills`
+## 8.1 Le socle Data : réel et testé ✅🔄
 
-`Sélection des skills  →  RAG hiérarchique  →  Sélection du modèle`
+> ⚠ L'état « rien, zéro pandas » des premières confrontations (2026-07) est périmé : le monde
+> Data a une racine de code dédiée et un socle mesuré (plusieurs centaines de tests au
+> 2026-08-25). `WAMA_DATA_WORLD.md` fait foi.
 
-`Sélection du modèle  →  Vérification / traduction linguistique  →  Adaptateur de format  →  Dispatch au modèle`
+Le moteur (`wama_data/core/`, sans dépendance au framework web) fournit : **référentiel temporel
+universel** (synchronisation de flux multi-fréquences par horodatage — héritée des outils
+existants du laboratoire), segmentation, conditions, codage, calcul, export ; des **lecteurs**
+par format d'acquisition (fichiers de campagne, enregistrements RTMaps, tabulaire, format natif
+`.wdat`) ; un **catalogue de fonctions typées** (déclarées par capacités d'entrée/sortie, glu
+commune cf. §2.2) ; et le **manifeste de dataset exécutable** — un corpus se décrit, et cette
+description s'exécute. Restent le Calculator, l'UI des modules et l'application généraliste
+(Data Analyzer : exploration, DataFrames, statistiques, visualisations, rapports).
 
-Le rôle fixe le cadre général de la conversation. Les skills s'y ajoutent dynamiquement selon l'intention détectée, en s'appuyant en parallèle sur le niveau de RAG pertinent. Une fois le contexte enrichi, la sélection du modèle s'effectue en croisant les fichiers d'entrée, l'intention et les résultats du RAG. La traduction linguistique et l'adaptateur de format n'interviennent qu'en toute fin de chaîne, juste avant l'appel technique du modèle — l'un gère la langue, l'autre le schéma de requête imposé par le modèle cible.
+Principe de manifeste : **il déclare ce que le corpus EST, jamais ce qu'une analyse en fera.**
 
-## 16. L'assistant IA comme interface de l'écosystème
+## 8.2 Le plan d'expérience comme donnée de première classe 📜
 
-L'assistant IA n'est pas le cœur du système : c'est une interface naturelle permettant d'exploiter les capacités existantes. Il peut comprendre une demande, rechercher les capacités disponibles, construire un workflow, sélectionner les données, lancer une analyse et interpréter les résultats.
+Un corpus de recherche n'est pas un tas de fichiers : il porte un **plan** — unités
+d'observation, regroupements comparés, conditions manipulées et croisées, covariables. Cette
+structure est aujourd'hui encodée dans des arborescences de dossiers qui changent d'une
+expérimentation à l'autre. WAMA modélise **le plan, pas l'arborescence** : un vocabulaire de
+rôles fermé (unité, regroupement, facteur, covariable) à libellés ouverts, avec nidification et
+croisement déclarés. C'est ce qui rend la taxonomie universelle — les mêmes quatre rôles
+décrivent une passation de conduite, une série d'essais mécaniques ou une campagne de comptage —
+et ce qui permet à la couche statistique de **proposer le traitement licite** au lieu de le
+demander. L'exploration assistée par IA d'une arborescence mal rangée reste un accélérateur,
+jamais un passage obligé — et quand une IA propose un plan, elle propose une **structure
+vérifiable mécaniquement** : la contre-épreuve est le corpus lui-même, pas un second avis.
 
-> **« Analyse les vidéos de cette expérimentation et compare les comportements selon les conditions. »**
+## 8.3 Data Comprehender : comprendre avant d'exploiter ⏳
 
-1. Identifier les données nécessaires.
-2. Trouver l'application adaptée.
-3. Construire le pipeline.
-4. Lancer le traitement.
-5. Produire une synthèse.
+L'évolution visée n'est pas un outil d'analyse de plus, mais un système capable de répondre à :
+*« Qu'est-ce que cette donnée ? Comment peut-elle être exploitée ? Quelles autres données sont
+pertinentes ? »* — sur les modalités du laboratoire : signaux physiologiques (EEG, fNIRS, ECG,
+EDA), comportement, oculométrie, trajectoires, capteurs. Trois niveaux : identification
+automatique (formats, structures, fréquences), indexation intelligente (métadonnées, embeddings,
+relations, provenance), auto-labellisation par les modèles existants
+(`vidéos brutes → objets → situations → événements → dataset exploitable`). La recherche devient
+une intention : *« trouve les situations où la charge cognitive semble augmenter lors d'une
+interaction complexe »*. Dépend du socle Data et de l'extension du RAG.
 
-# Partie V — Création multimédia
+## 8.4 Garde-fous méthodologiques 📜 (s'appliquent à toute la partie)
 
-## 17. L'Imager : génération visuelle contrôlée
+Une exploration automatisée de données scientifiques sans cadre statistique est une machine à
+artefacts (comparaisons multiples, corrélations fortuites, HARKing à l'échelle). Exigences :
+**(1)** distinction explicite exploratoire vs confirmatoire — toute « découverte » du système est
+étiquetée exploratoire tant qu'elle n'a pas été testée sur données indépendantes ; **(2)**
+correction des comparaisons multiples et tailles d'effet systématiques ; **(3)** l'hypothèse
+proposée par l'IA est validée par un chercheur AVANT d'entrer dans un pipeline confirmatoire ;
+**(4)** journal des analyses lancées, y compris infructueuses, pour rendre le taux de fausses
+découvertes estimable. C'est la condition de crédibilité de la « boucle de découverte » (§8.6)
+auprès du public visé. `[RECHERCHE]` pour la boucle ; `[INGÉNIERIE]` pour l'indexation.
 
-L'Imager constitue une première brique majeure de génération multimédia. Il intègre déjà plusieurs concepts importants : fichiers de référence, modèles de contrôle, enrichissement automatique des prompts, mots-clés imposés par l'utilisateur, accès à une médiathèque.
+## 8.5 Modèles appris : WAMA déclare, déclenche, réingère 📜
 
-L'objectif n'est pas simplement de générer une image, mais de permettre une création contrôlée et reproductible.
+Le maillon qui transforme des données en **modèle** — motifs récurrents, situations, profils
+(p. ex. des profils de conduite croisés avec l'âge ou l'expérience) — obéit à trois bornes :
 
-## 18. Médiathèque créative et gestion d'actifs
+- **la détection des traces n'est pas de l'apprentissage** — un clignotant, une rotation de
+  volant se calculent ; y mettre un réseau de neurones serait une erreur de niveau ;
+- **WAMA n'entraîne pas.** Il **déclare, déclenche et réingère**. Le calcul lourd vit sur une
+  infrastructure dédiée ; ce qui revient dans WAMA est la **provenance** du modèle (jeu de
+  données, chaîne, métriques) — dans un contexte de recherche, c'est la provenance qui est
+  l'objet scientifique, pas le fichier de poids ;
+- **l'outillage du cycle de vie ML existe ailleurs** et ne sera pas réécrit : WAMA s'y relie.
 
-La médiathèque intégrée à l'Imager permet l'accès à des médias Creative Commons, l'ajout de médias personnels, le partage entre utilisateurs et l'enrichissement par métadonnées. Un média n'est pas seulement un fichier : il devient un objet intelligent porteur de son auteur, sa licence, son origine, ses tags, son contexte, son embedding et ses relations.
+Réf. : `WAMA_APPRENTISSAGE.md` (cadre — pas un chantier ouvert).
 
-## 19. Inspiration et différence avec ComfyUI
+## 8.6 La boucle de simulation et la boucle de découverte ⏳ `[RECHERCHE]`
 
-ComfyUI est une source d'inspiration importante, principalement pour son approche en graphes : composition de pipelines complexes, connexions entre étapes, contrôles fins de génération, reproductibilité des workflows.
+Un profil de conduite n'est pas qu'une description : c'est un **modèle comportemental
+exécutable**. Rejoué en simulateur, il permet d'évaluer le réalisme de la reproduction, puis —
+réalisme confirmé — de générer des données là où l'expérimentation coûte cher ou expose des
+personnes. La boucle se referme : `données réelles → modèle → simulation → données synthétiques →
+corpus`. Deux exigences non négociables : la nature synthétique d'une donnée est une **propriété
+déclarée et propagée**, jamais devinée ; et on n'entraîne jamais un modèle sur des données
+produites par le modèle qu'on évalue. Le réalisme se mesure (distributions comparées, classifieur
+qui ne distingue plus le réel du simulé), il ne se juge pas à l'œil.
 
-WAMA poursuit cependant un objectif différent. Là où ComfyUI répond à « comment contrôler finement une génération d'image ou vidéo ? », WAMA cherche à répondre à « comment orchestrer une chaîne complète allant des données jusqu'à une production ou une connaissance exploitable ? ».
+À plus long terme, la « boucle de découverte » (recherche de motifs, anomalies, hypothèses)
+reste un horizon `[RECHERCHE]`, subordonné aux garde-fous de §8.4 — une étape essentielle en est
+le problème ouvert de l'alignement multimodal : relier vidéo, EEG, trajectoires et événements
+dans un même espace de représentations est un sujet de recherche, pas une brique planifiée — à
+traiter comme axe de collaboration scientifique (thèse, projet).
 
-## 20. Vers un moteur de génération multimédia avancé
+---
 
-`Prompt  →  Enrichissement  →  Références image  →  Contrôle profondeur  →  Pose  →  Modèle diffusion  →  Post-traitement`
+# Partie 9 — Médiathèque institutionnelle et système d'information
 
-Cette chaîne s'appuie sur des types spécifiques (image référence, masque, embedding, personnage, décor, storyboard, plan vidéo) et sur un contrôle de cohérence des personnages, du style, de l'environnement et de la continuité temporelle.
-
-## 21. Story Director : chaîne complète de création audiovisuelle
-
-Une évolution majeure de WAMA est la création d'un environnement de production audiovisuelle assisté par IA, qui dépasse le simple « prompt → vidéo » pour construire une véritable chaîne de production :
-
-`Idée  →  Scénario  →  Découpage  →  Storyboard  →  Plans  →  Vidéo  →  Son  →  Montage final`
-
-## 22. Storyboard intelligent
-
-Le storyboard devient un objet structuré. Chaque plan contient une durée, un cadrage, un mouvement caméra, un personnage, un décor, des références visuelles et des contraintes — des éléments ensuite envoyés aux moteurs de génération.
-
-## 23. Génération vidéo, audio et personnages
-
-Le générateur vidéo exploite le storyboard, les images de référence, les personnages et les contraintes narratives, avec image vers vidéo, animation, génération de séquences, cohérence temporelle et traitements batch.
-
-Le Composer permet la génération musicale, la création d'ambiances, la génération d'effets sonores et l'adaptation à une scène. Une application dédiée au mixage et au mastering IA automatisera l'analyse multipistes, l'équilibrage, la correction fréquentielle, la compression, la spatialisation et le mastering.
-
-L'Avatarizer et le Synthétiseur complètent la chaîne avec la création de personnages animés, la synchronisation labiale, la génération de voix, l'animation faciale et l'interaction.
-
-`Scénario  →  Storyboard  →  Image  →  Vidéo  →  Personnage animé  →  Voix  →  Son  →  Film final`
-
-# Partie VI — Applications scientifiques métiers : le cas CAM Analyzer
-
-Une des forces de WAMA est de ne pas opposer applications généralistes et applications spécialisées. Les applications métiers constituent au contraire des briques à forte valeur ajoutée, car elles concentrent une expertise scientifique difficilement automatisable. La trajectoire de WAMA consiste à transformer progressivement ces applications en ensembles de capacités réutilisables.
-
-`Application métier (aujourd'hui)  →  code spécifique`
-
-`Application métier (demain)  →  import données  →  prétraitement  →  extraction caractéristiques  →  modèles IA  →  analyse  →  visualisation  →  export résultats`
-
-## 24. CAM Analyzer : exemple d'application métier augmentée
-
-Le CAM Analyzer illustre cette philosophie. L'objectif est de reconstruire automatiquement l'environnement d'une navette autonome à partir de données multimodales : caméras embarquées, GPS, accélérations X/Y/Z, données véhicule, radar, lidar.
-
-`Vidéo caméra  →  Extraction images  →  Détection objets  →  Segmentation  →  Suivi temporel  →  Fusion capteurs  →  Reconstruction environnement  →  Analyse`
-
-Les modèles existants peuvent être réutilisés : anonymisation, détection d'objets, segmentation, modèles spécialisés.
-
-## 25. Du CAM Analyzer vers le Studio WAMA
-
-L'objectif n'est pas simplement de posséder une application spécialisée, mais de rendre ses capacités accessibles. Un chercheur pourrait ainsi construire dans le Studio :
-
-`Nouvelle campagne vidéo  →  CAM Analyzer  →  Extraction événements  →  Data Analyzer  →  Visualisation  →  Rapport automatique`
-
-Le pipeline devient reproductible : les paramètres, données et résultats sont conservés.
-
-## 26. Face Analyzer et analyse comportementale
-
-Le Face Analyzer suit la même logique, avec comme capacités possibles la détection de visage, le suivi, l'extraction de caractéristiques, l'analyse d'expressions, les statistiques et les corrélations comportementales.
-
-`Vidéo expérimentale  →  Analyse visage  →  Variables comportementales  →  Croisement données physiologiques  →  Analyse scientifique`
-
-# Partie VII — Comprendre les données : le Data Comprehender
-
-## 27. La couche Data WAMA
-
-L'un des axes majeurs d'évolution est la construction d'un écosystème Data intégré. WAMA ne doit pas seulement exploiter des modèles IA : il doit permettre de transformer les données en connaissances, via l'ingestion, la transformation, l'exploration, la visualisation, l'analyse statistique et la génération de rapports — en s'appuyant notamment sur les briques existantes développées en MATLAB et Python.
-
-Le Data Analyzer constitue l'application généraliste correspondante : exploration de datasets, manipulation de DataFrames, statistiques, analyses temporelles, visualisations, comparaison de groupes, génération automatique de rapports — utilisable seul, dans un workflow Studio, ou depuis l'assistant IA.
-
-## 28. Data Comprehender : comprendre avant d'exploiter
-
-Le Data Comprehender constitue une évolution majeure de WAMA. Il ne s'agit pas simplement d'un outil d'analyse, mais d'un système capable de répondre à :
-
-> **« Qu'est-ce que cette donnée ? Comment peut-elle être exploitée ? Quelles autres données sont pertinentes ? »**
-
-## 29. Compréhension multimodale des données scientifiques
-
-- **Signaux physiologiques** — EEG, fNIRS, ECG, EDA/GSR, activité musculaire, biomécanique.
-- **Données comportementales** — Événements, interactions, performances, questionnaires, annotations.
-- **Oculométrie** — Positions du regard, fixations, saccades, zones d'intérêt.
-- **Données physiques** — Capteurs, trajectoires, GPS, inertiel, environnement.
-
-## 30. Fonctionnement du Data Comprehender
-
-### Identification automatique
-
-Analyse des formats, structures, fréquences, dimensions, métadonnées et relations temporelles, pour déterminer le type probable de donnée, son organisation et les traitements pertinents.
-
-### Indexation intelligente
-
-Chaque donnée est enrichie de métadonnées techniques, de concepts associés, d'embeddings, de relations et de sa provenance — elle devient recherchable par son contenu et non seulement par son nom.
-
-### Auto-labellisation
-
-WAMA peut utiliser des modèles existants pour produire automatiquement catégories, événements, segments et annotations :
-
-`Vidéos brutes  →  Objets détectés  →  Situations  →  Événements  →  Dataset exploitable`
-
-## 31. Recherche intelligente dans les données
-
-L'utilisateur ne cherche plus uniquement un fichier : il exprime une intention.
-
-> **« Trouve les situations où la charge cognitive semble augmenter lors d'une interaction complexe. »**
-
-1. Comprendre la question.
-2. Identifier les données nécessaires.
-3. Sélectionner les sources pertinentes.
-4. Construire un workflow.
-5. Réaliser l'analyse.
-
-## 32. Vision « DeepMind » adaptée aux laboratoires
-
-Une évolution long terme majeure de WAMA est d'appliquer une philosophie proche de celle des grandes plateformes de recherche IA, mais à l'échelle des laboratoires — non pas en reproduisant les milliers de GPU ou les budgets industriels, mais en reprenant la méthode : exploiter massivement les données disponibles pour faire émerger des connaissances nouvelles.
-
-Les laboratoires accumulent vidéos, expériences, signaux, mesures, simulations, résultats intermédiaires et documents — mais une grande partie de cette richesse reste inutilisée, freinée par des formats hétérogènes, un manque d'annotation, une absence d'indexation et une difficulté de croisement.
-
-## 33. La boucle de découverte scientifique
-
-`Données brutes  →  Compréhension automatique  →  Structuration  →  Représentations intelligentes  →  Recherche de motifs  →  Hypothèses  →  Validation scientifique  →  Nouvelles expériences`
-
-Une étape essentielle consiste à transformer des données différentes — vidéo, signal EEG, trajectoire, événement comportemental — en représentations comparables (embeddings, signatures temporelles, graphes de relations) reliées dans un même espace de connaissance.
-
-Au-delà de répondre aux questions posées, WAMA peut rechercher anomalies, comportements rares, corrélations inattendues, groupes inconnus et phénomènes émergents, assistant ainsi le chercheur dans l'exploration.
-
-# Partie VIII — Médiathèque universitaire et système d'information
-
-## 34. Médiathèque universitaire intelligente
-
-Une autre évolution majeure de WAMA est son interconnexion avec une médiathèque universitaire intelligente. L'objectif est double : reconstruire une infrastructure interne permettant de maîtriser totalement la gestion des ressources numériques, et transformer cette médiathèque en une base de connaissances multimédia exploitable par l'IA.
-
-Universités et laboratoires disposent souvent de grandes quantités de ressources — photographies, vidéos, supports pédagogiques, documents scientifiques, illustrations, captations expérimentales, médias de communication — mais celles-ci restent dispersées, peu documentées, difficilement recherchables et sous-exploitées.
-
-## 35. Fonctionnement de la médiathèque WAMA
-
-Le laboratoire ou service dépose simplement ses ressources ; WAMA réalise ensuite automatiquement l'analyse du contenu, l'extraction des métadonnées, la génération de tags, la classification, la création d'embeddings et l'indexation sémantique.
-
-`Dépôt fichier  →  Analyse IA  →  Métadonnées automatiques  →  Indexation  →  Recherche intelligente`
-
-## 36. Une médiathèque augmentée par IA
-
-Contrairement à une médiathèque classique basée sur des dossiers et des noms de fichiers, la médiathèque WAMA comprend le contenu : un utilisateur peut rechercher « toutes les vidéos montrant une interaction humain-véhicule en environnement urbain » sans connaître le nom du fichier, son emplacement ou son auteur exact. La recherche devient basée sur le sens.
-
-## 37. Connexion aux applications créatives
-
-La médiathèque devient également une source de création, alimentant l'Imager, le Story Director, le générateur vidéo, le Composer et l'Avatarizer — retrouvant automatiquement logos, images d'archives, vidéos existantes, musiques adaptées et éléments graphiques.
-
-## 38. Système d'information laboratoire augmenté
-
-En complément de la médiathèque, WAMA vise à intégrer un système d'information unifié du laboratoire, dépassant les outils traditionnels de suivi de tâches, tickets et planning, qui capturent rarement la connaissance réelle du laboratoire.
-
-Ce système d'information rassemble projets, expérimentations, documents, résultats, compétences, historiques, décisions et comptes rendus — pour créer une mémoire collective exploitable.
-
-## 39. Assistant laboratoire et réunions basées sur les faits
-
-Grâce au croisement du RAG institutionnel, du Data Comprehender, de la médiathèque et du système d'information, l'assistant IA devient capable d'aider concrètement les équipes :
-
-- « Quels projets ont déjà travaillé sur cette problématique ? »
-- « Retrouve les données associées à cette expérimentation. »
-- « Quels résultats avons-nous obtenus sur ce sujet ? »
-- « Prépare les éléments factuels pour la réunion. »
-
-Un problème fréquent dans les organisations scientifiques est que les réunions reposent parfois sur des souvenirs partiels, des informations dispersées ou des documents difficiles à retrouver. WAMA vise à changer cette logique : avant ou pendant une réunion, l'assistant peut fournir historique, données disponibles, résultats, décisions précédentes et documents associés.
-
-> **La discussion devient moins basée sur la reconstruction du passé, plus basée sur l'analyse des éléments disponibles.**
-
-# Partie IX — Opérations : batch, auto-maintenance et veille
-
-## 40. Batch processing généralisé
-
-Le Studio WAMA permet d'orchestrer des traitements massifs : sélection des données, choix des applications, définition des paramètres et des sorties, lancement automatique.
-
-`1000 vidéos expérimentales  →  CAM Analyzer  →  Extraction événements  →  Data Analyzer  →  Rapport automatique`
-
-## 41. Auto-maintenance de WAMA
-
-Une évolution importante est la capacité de WAMA à participer à sa propre maintenance, avec tests nocturnes, validation de fonctionnalités, tests de non-régression et comparaison de performances.
-
-`Tâche type  →  Exécution automatique  →  Analyse résultat  →  Comparaison référence  →  Rapport anomalie`
-
-## 42. Auto-amélioration, veille et prospection de modèles
-
-L'écosystème IA évolue extrêmement rapidement. Une plateforme durable doit pouvoir surveiller son environnement : nouveaux modèles, nouvelles bibliothèques, nouvelles architectures, nouvelles capacités.
-
-Lorsqu'un nouveau modèle apparaît, WAMA peut analyser ses capacités, ses performances, ses besoins matériels et son intérêt pour les applications existantes. Deux cas sont alors possibles.
-
-- **Cas 1 — Intégration directe** — Le modèle apporte une amélioration compatible. WAMA crée manifeste, configuration, tests et intégration.
-- **Cas 2 — Nouvelle capacité** — Le modèle ouvre un nouveau domaine. WAMA peut proposer la création d'une nouvelle application, la définition du manifeste et son exposition dans le Studio.
-
-# Partie X — Infrastructure et trajectoire
-
-## 43. Infrastructure matérielle et montée en puissance
-
-La vision WAMA nécessite une infrastructure adaptée. La priorité initiale est l'inférence en production, avec pour besoins principaux beaucoup de VRAM, la stabilité, un fonctionnement continu et la capacité à charger plusieurs modèles.
-
-## 44. Évolution matérielle progressive
-
-### Étape 1 : serveur production polyvalent
-
-Applications WAMA, modèles spécialisés, génération multimédia, traitement batch.
-
-### Étape 2 : plusieurs serveurs spécialisés
-
-Répartition par domaine : IA générative, vision, data, stockage.
-
-### Étape 3 : cluster
-
-Pour les gros volumes de données, l'entraînement spécialisé et l'apprentissage continu.
-
-## 45. Trajectoire d'évolution globale
+## 9.1 Conformité et confiance : condition d'existence 📜
+
+Passer d'un outil de laboratoire à une infrastructure institutionnelle change la nature du
+projet ; la barrière d'adoption sera **réglementaire avant d'être technique**. Prérequis non
+négociables : **RGPD** (base légale par traitement, registre, DPO associé dès la conception, DPIA
+pour les médias impliquant des personnes) ; **droit à l'image et consentement** — en particulier
+pour tout enregistrement ou transcription de réunions (information préalable, droits des
+instances représentatives) ; **anonymisation** non plus comme app optionnelle mais comme porte
+obligatoire avant tout partage élargi ou tout envoi cloud ; **authentification institutionnelle**
+et traçabilité des accès (✅ LDAP, journal d'accès, modération de première connexion) ;
+**rétention** paramétrée par profil (✅ implémentée — à ériger en garantie affichée). Cette
+partie se présente comme une **offre de service** avec coût d'exploitation et engagements, pas
+comme une extension logicielle.
+
+## 9.2 Médiathèque institutionnelle intelligente ⏳ (socle ✅)
+
+L'objectif est double : une infrastructure interne maîtrisant la gestion des ressources
+numériques (photographies, vidéos, supports pédagogiques, captations, médias de communication —
+souvent dispersés et sous-exploités), et sa transformation en base de connaissances multimédia :
+`dépôt → analyse IA → métadonnées automatiques → indexation → recherche par le sens`. Le socle
+existe (médiathèque, scopes, providers) ; l'analyse automatique à l'ingestion et l'indexation
+sémantique suivent l'extension du RAG.
+
+## 9.3 Système d'information laboratoire et réunions basées sur les faits ⏳
+
+Au-delà de la médiathèque : rassembler projets, expérimentations, résultats, décisions et comptes
+rendus en une mémoire organisationnelle interrogeable. L'assistant devient capable d'aider
+concrètement : *« quels projets ont travaillé sur cette problématique ? »*, *« retrouve les
+données de cette expérimentation »*, *« prépare les éléments factuels pour la réunion »*. La
+discussion devient moins basée sur la reconstruction du passé, davantage sur l'analyse des
+éléments disponibles. Non démarré ; matière première déjà solide (transcription + diarisation).
+
+---
+
+# Partie 10 — Opérations
+
+## 10.1 Batch généralisé ✅🔄
+
+Import batch unifié multi-formats, file d'attente commune, suivi par lot (total auto-réparé,
+progression, ETA). Visé : le batch **orchestré** depuis le Studio
+(`1000 vidéos → Cam Analyzer → extraction d'événements → analyse → rapport`).
+
+## 10.2 Auto-maintenance et vérification 🔄
+
+WAMA participe à sa propre maintenance : tests nocturnes gouvernés par un registre (runner
+VRAM-aware), patches de compatibilité systématisés et rejouables, contrôles mécaniques des docs
+et des gabarits, grille de conformité **mesurée** (82 critères sur 8 facettes au 2026-08-26,
+rapport écrit par la commande — les booléens déclarés sont écrasés par la mesure).
+
+Doctrine de vérification (`WAMA_VERIFICATION.md`) : **un critère de grille atteste une ADOPTION,
+jamais un FONCTIONNEMENT** — seuls des gestes utilisateur exercés (clics réels, fichiers déposés)
+prouvent qu'une chaîne marche. Le catalogue des gestes et leur couverture sont mesurés, et la
+couverture progresse geste par geste. Corollaire pour les audits assistés par LLM : les
+affirmations d'absence se revérifient toujours mécaniquement.
+
+## 10.3 Veille, prospection et évaluation continue 🔄 (chaîne) ⏳ (évaluation)
+
+La chaîne de veille est décrite en §3.4. Son maillon manquant est l'**évaluation continue** en
+couche de premier rang : « modèles interchangeables » n'est vrai que si l'on sait **mesurer** un
+remplacement. Exigences : chaque capacité déclarée référence son jeu de test interne (fixtures du
+laboratoire) et ses métriques ; la veille ne propose un remplacement qu'avec un **delta mesuré**
+sur ces jeux — jamais sur la seule réputation du modèle ; les tests nocturnes tirent ces jeux.
+Sans cette couche, l'interchangeabilité est un slogan.
+
+---
+
+# Partie 11 — Infrastructure et modèle de réalisation
+
+## 11.1 État actuel et trajectoire matérielle 🔄
+
+Aujourd'hui : un hôte unique (station de développement, GPU 24 Go, exécution WSL2), qui sert
+développement ET production — avec les limites mesurées : chargements/déchargements faute de
+VRAM, pas de parallélisme multi-modèles, pas d'isolation d'utilisateurs externes.
+
+La trajectoire visée n'est plus une suite d'« étapes » abstraites : c'est une **infrastructure de
+production à paliers emboîtés** (socle mono-serveur → plateforme bi-serveur → plateforme
+mutualisée multi-laboratoires), chaque palier étant un sous-ensemble strict du suivant, avec
+serving multi-modèles résident, files GPU-aware interactif/batch, partitionnement matériel par
+laboratoire et monitoring de la consommation. La spécification détaillée (paliers, allocation
+GPU, gouvernance de la mutualisation en trois cercles) vit dans les documents d'infrastructure
+tenus hors dépôt ; la migration du serving applicatif (Windows/Apache → Linux/Nginx) reste un
+préalable consigné.
+
+## 11.2 Modèle de réalisation et pérennité 📜
+
+Cette vision est dimensionnée pour plusieurs équipes-années ; elle est portée par un
+développement assisté par IA autour d'un développeur principal (bus factor ≈ 1). Conséquences
+assumées : **(1)** la capitalisation par briques communes n'est pas une élégance d'architecture,
+c'est LA stratégie de survie (moins de surface à maintenir) ; **(2)** chaque phase a un périmètre
+dimensionné à l'équipe réelle et des critères d'arrêt ; **(3)** la documentation vivante
+(conventions, manifestes, mémoire de projet, registres générés) est ce qui rend le système
+reprenable par un tiers — elle fait partie du produit ; **(4)** toute dépendance opérationnelle
+critique (serveur, sauvegardes, modèles) doit être actionnable par au moins une seconde personne
+du laboratoire.
+
+## 11.3 Positionnement 📜
+
+Le positionnement se distingue de trois familles : les services IA cloud génériques (dépendance,
+données hors périmètre, coûts récurrents), les outils de pipeline visuel type ComfyUI (puissants
+mais cantonnés à la génération), les développements ad hoc de laboratoire (internes mais
+jetables). La combinaison portée par WAMA — registre de capacités structuré + gestion partagée
+des ressources GPU + applications métier exécutables dans le même environnement — n'existe, à
+notre connaissance, dans aucun système disponible. S'y ajoutent trois garanties
+institutionnelles : souveraineté (hébergement interne intégral), ouverture (open source,
+auditabilité), gouvernance des accès (profils, quotas, journalisation).
+
+`Modèles IA → capacités → applications → Studio → données → connaissances → découverte scientifique`
 
 ![Trajectoire WAMA en quatre phases cumulatives](traj.png)
 
-*Trajectoire WAMA en quatre phases cumulatives*
+---
 
-## 46. Positionnement stratégique
+# Partie 12 — Interconnexion conversationnelle et routage des modèles
 
-WAMA ne se positionne pas comme un simple catalogue d'applications IA. Sa valeur principale réside dans l'intégration cohérente de plusieurs couches :
+## 12.1 Routage des modèles ✅ (socle) ⏳ (politique complète)
 
-`Modèles IA  →  Capacités  →  Applications  →  Studio  →  Données  →  Connaissances  →  Découverte scientifique`
+Une couche d'abstraction (LiteLLM, ✅ câblée, routage local-d'abord vers Ollama) unifie modèles
+locaux et cloud. La politique de sélection croise besoin, confidentialité, coût et ressources :
+données sensibles → local uniquement ; tâche complexe ponctuelle → cloud si le contexte
+l'autorise ; traitement massif → local optimisé. La **porte de confidentialité avant-cloud**
+(détection et masquage d'informations personnelles avant tout envoi externe) est décidée et non
+construite — elle est le prérequis du routage cloud sûr.
 
-## 47. Vision finale : une infrastructure cognitive pour les laboratoires
+## 12.2 Priorité aux solutions ouvertes ✅
 
-À long terme, WAMA ambitionne de devenir une infrastructure cognitive permettant aux organisations de mieux exploiter leur patrimoine numérique — une plateforme où les modèles deviennent interchangeables, les applications composables, les données compréhensibles, les connaissances accessibles, et où l'IA devient un partenaire d'exploration.
+Appliqué de fait : modèles locaux d'abord, actifs front vendorés (pas de CDN), hébergement
+interne. Les plateformes externes restent utilisables lorsque c'est pertinent — un choix
+contrôlé, pas une dépendance.
 
-> **La finalité n'est pas uniquement d'automatiser des tâches ; elle est de permettre une nouvelle manière de travailler : plus rapide, plus collaborative, plus reproductible, davantage guidée par les données.**
+## 12.3 L'assistant dans les environnements de travail ⏳ — gaté par le modèle de menace 📜
 
-# Partie XI — Interconnexion conversationnelle et routage intelligent des modèles
+L'objectif : interagir avec WAMA depuis les canaux existants (messageries collaboratives,
+institutionnelles — Tchap/Matrix, Discord…) plutôt que d'exiger une nouvelle habitude. Aucun
+connecteur n'existe. **Prérequis avant tout connecteur** : identité forte par canal (liaison
+compte WAMA ↔ compte messagerie, pas de commande anonyme) ; allowlist d'actions par rôle — le
+canal n'obtient jamais plus de droits que l'utilisateur authentifié ; confirmation explicite pour
+toute action destructive, coûteuse en GPU ou touchant aux données d'autrui ; résistance à
+l'injection — tout contenu tiers est traité comme donnée, jamais comme instruction ; journal
+d'audit des actions déclenchées par conversation ; quotas par utilisateur et par canal.
 
-## 48. WAMA comme assistant intégré aux environnements de travail
+## 12.4 Gouvernance des IA ⏳
 
-L'objectif de WAMA n'est pas de créer un nouvel outil isolé nécessitant une adoption supplémentaire. Une plateforme IA réellement efficace doit pouvoir s'intégrer dans les environnements de travail existants, via des connecteurs vers différents canaux conversationnels : messageries collaboratives, outils institutionnels, plateformes de discussion, interfaces mobiles, assistants intégrés — par exemple Discord, Tchap, Mattermost, Matrix, ou toute autre plateforme compatible API.
+À terme, chaque application déclare ses besoins, son niveau de confidentialité et ses préférences
+de modèle ; l'utilisateur exprime un besoin, WAMA orchestre contexte, données, applications,
+modèles et ressources. L'abstraction reste bornée par la garantie de provenance (§1.5) : le
+confort d'ignorer le modèle ne s'étend jamais à la preuve.
 
-## 49. Priorité aux solutions ouvertes et maîtrisées
+---
 
-Dans un contexte scientifique, institutionnel ou industriel, la circulation des informations est un enjeu majeur. L'utilisation systématique de services cloud externes peut poser des problèmes de confidentialité, de souveraineté numérique, de contraintes réglementaires, de dépendance fournisseur et de transfert d'informations sensibles.
+# Partie 13 — Non-objectifs, séquencement et parcours d'adoption
 
-La philosophie WAMA privilégie donc une architecture permettant l'hébergement local, le déploiement sur infrastructure maîtrisée, le contrôle des données et le choix du niveau de confidentialité.
+## 13.1 Non-objectifs et séquencement 📜
 
-`Utilisateur  →  Canal conversationnel  →  Serveur WAMA local  →  Assistant IA  →  Données / modèles / applications`
+Ce que WAMA **ne fait pas (ou pas encore)** protège la vision contre son risque n°1, documenté
+par l'histoire du projet : la dispersion. Règles d'engagement :
 
-Les plateformes externes peuvent rester utilisables lorsque cela est pertinent, mais elles deviennent un choix contrôlé et non une dépendance.
+1. **Pas de nouveau chantier tant que le socle n'est pas fini** : uniformisation schéma-driven
+   des dix apps génériques d'abord (le goulot qui gate manifestes, génération d'apps et
+   prospection de nouvelles capacités).
+2. **Pas d'extension hiérarchique du RAG avant la démonstration d'usage du niveau livré** (§5.5).
+3. **Pas de Story Director / storyboard / montage-mixage avant un Studio complet** et sans cas
+   d'usage laboratoire nommé.
+4. **Pas de SI laboratoire ni de médiathèque institutionnelle avant l'adoption interne** de la
+   médiathèque par l'équipe — et jamais sans le chapitre conformité (§9.1).
+5. **Pas de connecteurs conversationnels externes avant un assistant interne robuste** doté d'un
+   modèle de menace (§12.3).
+6. **Pas d'auto-instanciation d'apps sans revue humaine**, et seulement en dernier maillon de la
+   route manifeste (§3.5).
+7. **Le Data Comprehender attend le socle Data et l'extension du RAG** ; la boucle de découverte
+   attend en plus ses garde-fous méthodologiques (§8.4).
 
-## 50. Assistant IA omniprésent
+Toute exception à ces règles est une décision explicite, consignée — pas une dérive.
 
-Grâce aux connecteurs conversationnels, l'utilisateur peut interagir avec WAMA depuis son environnement habituel :
+## 13.2 Parcours d'adoption : le point de vue du chercheur 📜
 
-- **Depuis une réunion** — « Retrouve les résultats de cette expérimentation. » — WAMA interroge le SI laboratoire, les documents, les données et les rapports précédents.
-- **Depuis une discussion d'équipe** — « Lance l'analyse sur les nouvelles vidéos CAM Analyzer. » — WAMA identifie les données, propose le workflow, lance le batch et notifie le résultat.
-- **Depuis un canal scientifique** — « Compare ces deux jeux de données EEG. » — WAMA sélectionne le Data Analyzer, applique les traitements et génère une synthèse.
+La vision est écrite du point de vue du système ; l'adoption se joue du point de vue d'un
+chercheur non-technicien. Engagements de conception :
 
-## 51. LiteLLM : couche d'abstraction et de routage des modèles
+- **5 minutes, zéro formation** : déposer un fichier → obtenir un résultat utile (transcription,
+  description, anonymisation). C'est le contrat du mode simplifié, au cœur de l'UX.
+- **Pente douce** : du dépôt simple → aux paramètres → aux batchs → au Studio. Chaque marche est
+  optionnelle ; personne n'a besoin du canvas pour bénéficier de WAMA.
+- **Rencontrer les usagers là où ils sont** plutôt que d'exiger une nouvelle habitude.
+- Chaque capacité livrée doit répondre : *« qu'est-ce que ça change pour un collègue qui
+  n'ouvrira jamais le Studio ? »*
 
-WAMA doit pouvoir exploiter différents types de modèles selon les besoins, les contraintes, les performances attendues, la confidentialité et les ressources disponibles. Une couche de routage telle que LiteLLM constitue une brique intéressante, créant une interface homogène entre modèles locaux, modèles cloud et modèles spécialisés.
-
-`Application WAMA  →  Routeur IA  →  Modèles locaux (GPU serveur) / Modèles cloud (API externes)`
-
-L'utilisateur ou l'administrateur peut définir une priorité au local, à la performance, au coût ou à la confidentialité.
-
-## 52. Politique intelligente de sélection des modèles
-
-- **Données sensibles** — Données laboratoire confidentielles → modèle local uniquement.
-- **Tâche complexe ponctuelle** — Demande complexe → modèle cloud haut niveau, si le contexte l'autorise.
-- **Traitement massif** — Batch important → modèle local optimisé pour le volume.
-
-## 53. Vers une gouvernance intelligente des IA
-
-Cette couche permet de dépasser la simple utilisation d'un modèle unique : WAMA devient capable de gérer un véritable écosystème IA (plusieurs LLM, modèles vision, audio, scientifiques, spécialisés métier), chaque application pouvant déclarer ses besoins, son niveau de confidentialité, ses contraintes et ses préférences de modèle.
-
-> **Les utilisateurs ne doivent pas avoir à savoir quel modèle est utilisé, où il tourne, ni comment il est appelé. Ils expriment un besoin ; WAMA orchestre le contexte, les données, les applications, les modèles et les ressources.**
+---
 
 # Conclusion
 
-WAMA propose une vision d'un environnement IA complet, local, ouvert et évolutif. Son ambition est de construire un pont entre l'intelligence artificielle, les données scientifiques, la création multimédia, les systèmes d'information et les connaissances humaines.
+WAMA propose un environnement IA complet, local, ouvert et évolutif : un pont entre
+l'intelligence artificielle, les données scientifiques, la création multimédia, les systèmes
+d'information et les connaissances humaines. En s'appuyant sur les manifestes, les quatre mondes,
+le Studio, la mémoire organisationnelle et l'assistant, WAMA transforme des masses de données
+difficiles à exploiter en ressources actives — au service des chercheurs, des ingénieurs, des
+créateurs et des institutions.
 
-En s'appuyant sur les manifestes, le Studio, les applications métiers, le Data Comprehender, la mémoire organisationnelle et l'assistant IA, WAMA vise à transformer des masses de données aujourd'hui difficiles à exploiter en ressources actives capables d'assister les chercheurs, les ingénieurs, les créateurs et les institutions.
+La plateforme existe et fonctionne ; la vision n'est pas un projet à créer mais une trajectoire à
+poursuivre, bornée par ses non-objectifs, mesurée par ses grilles et ses gestes, et gouvernée par
+une exigence simple :
 
-À l'échelle d'un laboratoire ou d'une université, WAMA cherche à appliquer une philosophie proche des grands centres de recherche IA :
-
-> **Organiser les données, comprendre les informations, découvrir des connaissances et accélérer l'innovation.**
+> **Organiser les données, comprendre les informations, découvrir des connaissances et accélérer
+> l'innovation — à l'échelle d'un laboratoire ou d'une université, sans que les données quittent
+> la maison.**
