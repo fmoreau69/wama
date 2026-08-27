@@ -1,0 +1,53 @@
+{
+  "body": {
+    "capabilities": {},
+    "extra_info": {
+      "category": "music",
+      "family": "MiniMax-Music3",
+      "hf_snapshot": true,
+      "path": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/music/MiniMax-Music3/models--Serveurperso--MiniMax-Music3-GGUF",
+      "size_bytes": 12822947200
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "gguf",
+      "preferred_format": null
+    },
+    "identity": {
+      "author": "Serveurperso",
+      "description_short": "Snapshot HF MiniMax-Music3-GGUF — installé, en attente d'intégration",
+      "hf_id": "Serveurperso/MiniMax-Music3-GGUF",
+      "license": null,
+      "model_type": "music",
+      "platform_ref": "huggingface:Serveurperso/MiniMax-Music3-GGUF",
+      "source": "huggingface"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 11.942300200462341,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Snapshot HuggingFace installé (music/MiniMax-Music3) — catalogué par le balayage générique ; aucune app ne le déclare encore : poids présents, backend à intégrer.",
+  "key": "huggingface:Serveurperso/MiniMax-Music3-GGUF",
+  "manifest_kind": "model",
+  "name": "MiniMax-Music3-GGUF",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:huggingface:Serveurperso/MiniMax-Music3-GGUF",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

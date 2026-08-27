@@ -43,15 +43,20 @@ DOSSIERS = {'app': 'manifests/apps', 'library': 'manifests/libraries',
 
 
 def _nom_fichier(cle: str) -> str:
-    """Nom de fichier assaini (les clés modèle portent `:` — interdit sous Windows)."""
-    if '__' in cle:      # collision avec l'assainissement → le glob inverse rendrait une
-        raise ValueError(  # autre clé ; refuser vaut mieux que corrompre en silence.
-            f"clé {cle!r} : '__' entre en collision avec l'assainissement de ':'")
-    return cle.replace(':', '__')
+    """Nom de fichier assaini : les clés modèle portent `:` (interdit sous Windows) et les
+    snapshots HF un `/` d'organisation (`huggingface:Org/Nom`, 2026-08-27) qui créerait un
+    SOUS-DOSSIER au corpus — vécu : export en échec FileNotFoundError sur le premier modèle
+    installé par la chaîne générique. `~` n'appartient pas à l'alphabet des ids HF ni des
+    clés WAMA : la réversibilité du glob inverse est exacte."""
+    if '__' in cle or '~' in cle:   # collision avec l'assainissement → le glob inverse
+        raise ValueError(           # rendrait une autre clé ; refuser vaut mieux que
+            f"clé {cle!r} : '__' ou '~' entre en collision "  # corrompre en silence.
+            "avec l'assainissement de ':' et '/'")
+    return cle.replace(':', '__').replace('/', '~')
 
 
 def _cle_du_stem(stem: str) -> str:
-    return stem.replace('__', ':')
+    return stem.replace('__', ':').replace('~', '/')
 
 
 class Command(BaseCommand):

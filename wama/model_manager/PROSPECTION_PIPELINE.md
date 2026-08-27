@@ -596,3 +596,63 @@ la VRAM invisible du gouverneur — le trou des kernel panics du 29/07).
   résident. Désormais préparé AVANT `vram_reservation` : la fenêtre ne contient plus que
   les `llm_chat`. (Honnêteté : rien ne prouve un lien avec le crash — le pattern précède
   ces ajouts — mais raccourcir la fenêtre résidente est sain quoi qu'il en soit.)
+
+## Session du 2026-08-27 : la chaîne d'installation se REFERME — catalogue, désinstallation, choix de variante
+
+**Le cas d'école qui a tout révélé** : l'installation de MiniMax-Music3 lancée le 26/08 a
+ABOUTI (54 Go téléchargés, tâche Celery en succès à 15:43 — le worker WSL2 a même survécu au
+kill SentinelOne de 15:32 côté Windows)… et le modèle était INVISIBLE partout : plus en
+prospection (candidat supprimé après succès — comportement normal), absent du catalogue
+(la découverte est déclarative par app, aucune app ne le déclarait), donc invisible du
+composer. `pull_hf_model` l'assumait déjà : « téléchargé + catalogué ≠ utilisable ». Trois
+trous refermés (ordre décidé par Fabien) :
+
+**1. Balayage générique des snapshots installés** (`_discover_installed_hf_snapshots`,
+model_registry) — tout `models--org--nom` sous `AI-models/models/<cat>/<famille>/` est
+catalogué (`huggingface:<hf_id>`, taille mesurée sur blobs, format, `.incomplete` ⇒ NON
+téléchargé). Double dédup : par `hf_id` (l'entrée d'app fait autorité) ET par **famille
+`MODEL_PATHS`** — transcriber/synthesizer/anonymizer ne posent pas de `hf_id` dans leur
+découverte, sans ce 2ᵉ critère 16 doublons de fait apparaissaient (mesuré, purgés).
+`MODEL_PATHS` est LA déclaration « ce dossier appartient à une app » (checklist étape 1) :
+le balayage ne couvre que les familles qu'aucune déclaration ne revendique. Un échec du
+balayage alimente `discovery_errors` (règle SAM3 : découverte incomplète = réconciliation
+suspendue). ⚠ Catalogué ≠ utilisable : `backend_ref` reste vide, l'usage par une app reste
+conditionné à sa déclaration + un backend.
+
+**2. Désinstallation** (`uninstall_model` + `api_model_uninstall` + action « Désinstaller »
+de l'inspecteur) — retrait des POIDS seuls (Ollama via `/api/delete`, snapshot HF via
+suppression du dossier + verrous `.locks`), **jamais du backend** (léger, réutilisable) ;
+la ligne de catalogue est MARQUÉE (`is_downloaded=False`, `uninstalled_at`), jamais
+supprimée — elle porte l'historique (stats runtime, ETA, identité/licence). Gardes :
+modèle chargé → refus (décharger d'abord) ; candidat → refus (ça se rejette) ; chemin hors
+de `models_root()` → refus (le rm -rf est BORNÉ, quoi que dise la base).
+
+**3. Choix de variante AVANT installation** (`options_installation`/`spec_pour_choix` +
+`api_prospect_install_options` + dialogue radio à la place du `confirm()`) — poids pleins
+ET variantes quantisées, chacune avec Go disque / note VRAM / téléchargements. Le vice de
+forme corrigé : le juge évalue la faisabilité VRAM sur les VARIANTES (verdict 0.90), mais
+l'installation tirait TOUJOURS le dépôt canonique — 54 Go inexploitables sur 24 Go de VRAM.
+Un dépôt GGUF descend AU FICHIER (`allow_patterns` — jamais le dépôt entier et ses N
+niveaux de quantisation). Le choix validé est PERSISTÉ dans le spec du candidat (la tâche
+Celery relit la base ⇒ la sélection est respectée de bout en bout) ; la garde d'espace se
+calcule sur le poids du CHOIX.
+
+**Remplacement réel exécuté dans la foulée** (test réel de la chaîne) : poids pleins
+désinstallés (53,4 Go rendus), jeu GGUF **Q8_0 complet** installé depuis
+`Serveurperso/MiniMax-Music3-GGUF` (~11,9 Go — language_model + transformer +
+rvq_depth_decoder + vocoder + condition_encoder, regroupés sous la famille canonique
+`music/MiniMax-Music3/`).
+
+**Enseignement pour la suite (limite ASSUMÉE du choix par fichier)** : MiniMax-Music3 est
+MULTI-COMPOSANTS — « un fichier GGUF » n'est pas un modèle complet, il en faut un JEU
+cohérent (5 fichiers ici). Le dialogue propose aujourd'hui une ligne par fichier : correct
+pour les dépôts mono-modèle (cas LLM typique), partiel pour les dépôts multi-composants
+(installer les autres composants = repasser par l'installation, ou spec manuel). À
+généraliser si le cas se représente — pas avant (YAGNI).
+
+**Restes connus** : ① backend composer pour MiniMax-Music3 (étape SÉPARÉE, dernière de la
+chaîne — quel runtime charge ces GGUF audio ? `audio-cpp`/ComfyUI à évaluer) ; ② les
+découvertes transcriber/synthesizer/anonymizer ne posent pas `hf_id` (c'est le trou qui a
+imposé le critère famille — les poser nourrirait aussi provenance/licences) ; ③ après une
+désinstallation, la prospection peut re-proposer le modèle à sa prochaine passe (la ligne
+marquée `is_downloaded=False` n'est plus « have ») — comportement à trancher si gênant.
