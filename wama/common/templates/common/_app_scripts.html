@@ -38,9 +38,11 @@ Usage, dans le gabarit d'une app :
 <script src="{% static_v 'common/js/wama-eta.js' %}"></script>
 <script src="{% static_v 'common/js/batch-import.js' %}"></script>
 
-{# Card d'entrée : le repli/dépli (new-item-card) et LA VOIE D'IMPORT (wama-import).
+{% comment %}
+   Card d'entrée : le repli/dépli (new-item-card) et LA VOIE D'IMPORT (wama-import).
    wama-import.js est la brique qui manquait : batch-import ne traite que les fichiers de
-   LOT et laisse le fichier ordinaire à l'app — ce que ne fait aucune app générée. #}
+   LOT et laisse le fichier ordinaire à l'app — ce que ne fait aucune app générée.
+{% endcomment %}
 <script src="{% static_v 'common/js/wama-new-item-card.js' %}"></script>
 <script src="{% static_v 'common/js/wama-import.js' %}"></script>
 

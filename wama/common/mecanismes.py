@@ -231,6 +231,29 @@ MECANISMES = (
               'wama/common/management/commands/check_docs.py', 'CLAUDE.md §Fichiers de référence',
               annexes=('wama/common/tests_check_docs.py',),
               symbole='check_docs'),      # nommée par une CHAÎNE, jamais importée — cf. plus bas
+    Mecanisme('templates_integrity', 'Intégrité des gabarits',
+              "Attrape la famille de fautes qui a récidivé SEPT fois : le commentaire `{# … #}` "
+              "MULTI-LIGNE, que le lexer de Django (pas de re.DOTALL) rend en TEXTE littéral — "
+              "et le nom de balise avaleuse écrit dans un commentaire. Un scan de 5 s contre des "
+              "diagnostics qui ont coûté des sessions",
+              'wama/common/management/commands/check_templates.py', 'CLAUDE.md',
+              annexes=('wama/common/tests_check_templates.py',),
+              symbole='check_templates'),
+    # Ces deux-là TOURNENT CHAQUE NUIT (`nightly_scenarios.py:137,145`) et étaient pourtant hors
+    # carte — le pire cas : pas une brique morte, une garde active que personne ne trouve en
+    # cherchant « qu'est-ce qui contrôle la sécurité ? ». Rattachées le 2026-08-27.
+    Mecanisme('dep_vulns', 'Vulnérabilités des dépendances',
+              "CVE des paquets INSTALLÉS du venv courant via l'API OSV.dev (pas les requirements, "
+              "qui sont des bornes basses). Contrat-cliquet : la dette connue vit dans une "
+              "baseline versionnée par venv, toute vulnérabilité nouvelle est rouge",
+              'wama/common/management/commands/check_dep_vulns.py', 'ROADMAP.md §16.10',
+              symbole='check_dep_vulns'),
+    Mecanisme('secret_leaks', 'Fuites de secrets',
+              "gitleaks sur l'historique git COMPLET + vérifie que le hook pre-commit est en "
+              "place et non dérivé : un hook mort est une garde silencieusement absente, donc "
+              "rouge et pas warning",
+              'wama/common/management/commands/check_secret_leaks.py', 'ROADMAP.md §16.10',
+              symbole='check_secret_leaks'),
 
     )),
 
@@ -664,6 +687,18 @@ MECANISMES = (
               # `annexes` : la remontée d'attributs au PROFIL est l'autre moitié — elle marchait
               # déjà (signaux au login) ; c'est l'ARBRE qui manquait, d'où le domicile ici.
               annexes=('wama/accounts/ldap.py',)),
+    # Rattaché le 2026-08-27 : c'est le POINT UNIQUE DE DÉCISION de l'accès aux apps (tier ×
+    # rôles), et il n'était sur aucune carte. Son absence s'est payée — la fermeture du compte de
+    # service `anonymous` avait été faite à la main sur la base vivante, donc défaite par toute
+    # réinstallation, faute d'un endroit où l'invariant soit déclaré.
+    Mecanisme('app_access', "Accès aux applications",
+              "Décide seul qui voit quelle app, sur DEUX axes qui se cumulent : le TIER du compte "
+              "(anonymous < utilisateur < developpeur < admin, tranche en premier) et les RÔLES "
+              "métier (groupes `role:*`, intersection avec la politique de l'app). Le compte de "
+              "service `anonymous` y est FERMÉ par code, pas par état de base",
+              'wama/accounts/permissions.py', 'PROFILES_PERMISSIONS.md',
+              annexes=('wama/accounts/tests.py',),
+              symbole='accessible'),
     Mecanisme('scoping', 'Accès scopé aux objets',
               "Deux chemins NOMMÉS pour lire un objet partageable depuis une vue (possédé / visible)",
               'wama/common/utils/scoping.py', 'PROFILES_PERMISSIONS.md'),

@@ -120,6 +120,14 @@ def _run_doc_facts(ctx):
                        else (out.strip().splitlines() or ["?"])[-1])
 
 
+def _run_templates(ctx):
+    # Contrat DUR, sans cliquet : contrairement à `redundancy` (dette héritée) ou aux CIBLES
+    # assumées de check_docs, il n'y a aucune raison légitime de laisser un commentaire de
+    # gabarit multi-ligne dans le dépôt — le remède est mécanique (`{% comment %}`).
+    code, out = _capture('check_templates', '--strict')
+    return code == 0, (out.strip().splitlines() or ["?"])[-1]
+
+
 def _run_redundancy(ctx):
     _, out = _capture('check_redundancy')
     if 'Aucune recopie' in out:
@@ -406,6 +414,10 @@ def register_scenarios():
              description='Monde WAMA Data : TOUTES ses suites, découvertes à chaque passage '
                          '(CPU pur ; contrôles sur base réelle sautés si le corpus est absent)',
              run=_run_wama_data, timeout_s=600)
+    register(id='common.consistency.templates', app='common', stage='consistency',
+             description='Commentaires de gabarit `{# … #}` multi-lignes, rendus en TEXTE par '
+                         'Django (contrat : 0 — sept récidives depuis le 27/06)',
+             run=_run_templates, timeout_s=120)
     register(id='common.consistency.redundancy', app='common', stage='consistency',
              description='Recopies locales d\'un domicile unique (contrat : ≤5, dette anonymizer)',
              run=_run_redundancy, timeout_s=300)

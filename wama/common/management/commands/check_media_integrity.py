@@ -1,5 +1,7 @@
 """Audit MESURÉ de `media/` — les fichiers sont-ils à leur place, et rien n'a-t-il survécu ?
 
+    python manage.py check_media_integrity
+
 POURQUOI CE N'EST PAS UN MANIFESTE (décision 2026-08-25)
     Un manifeste décrit ce qui se RECONSTRUIT depuis une déclaration, et `manifests/` est
     versionné — or `media/` porte des données personnelles de labo SHS. Un `manifest_export

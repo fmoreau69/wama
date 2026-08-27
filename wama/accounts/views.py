@@ -536,12 +536,58 @@ def add_user(username, first_name, last_name, email):
         print(f"The user {username} already exists.")
 
 
+#: Nom du compte de service qui porte les requêtes non authentifiées. Une constante parce que
+#: trois endroits doivent désigner LE MÊME compte : cette fabrique, la garde de
+#: `grant_default_roles` et le test qui verrouille l'invariant.
+ANONYMOUS_USERNAME = 'anonymous'
+
+#: Mémo de process : l'invariant n'a besoin d'être reposé qu'une fois par worker (cf. docstring).
+_CLOSURE_VERIFIEE = False
+
+
+def enforce_anonymous_closure(user):
+    """Repose l'invariant du compte anonyme : tier `anonymous`, AUCUN rôle métier.
+
+    Pourquoi ça vit dans le CODE et plus en base seulement (mesuré le 2026-08-27) : la fermeture
+    du 2026-08-22 avait été faite à la main sur la base vivante. Or `UserProfile.account_tier`
+    a pour défaut `utilisateur` — donc tout compte anonyme RECRÉÉ (installation neuve via
+    `init_wama`, restauration d'une sauvegarde antérieure) revenait ouvert, et
+    `grant_default_roles` lui rendait les 4 rôles puisqu'il vise les comptes SANS rôle.
+
+    Mesuré sur les 11 apps du catalogue : tier `utilisateur` + 0 rôle → 1 app ouverte
+    (converter, seule app commune) ; tier `utilisateur` + tous les rôles → **10 apps sur 11**,
+    c'est-à-dire l'état d'avant le correctif. Les deux axes doivent donc être reposés, pas un.
+
+    Idempotent, et sans coût sur le chemin chaud : `get_or_create_anonymous_user()` est appelée
+    à chaque requête non authentifiée (une vingtaine de sites rien que dans anonymizer), donc la
+    vérification est faite UNE fois par process (`_CLOSURE_VERIFIEE`) au lieu de deux requêtes
+    par requête HTTP. Une dérive introduite à la main pendant qu'un worker tourne est rattrapée
+    au redémarrage et par le test qui verrouille l'invariant.
+    """
+    from wama.accounts.permissions import GROUP_PREFIX
+    # On passe par l'ACCESSEUR `user.profile`, pas par un `get_or_create` qui rendrait une AUTRE
+    # instance Python : le signal `post_save` a déjà rempli le cache de relation du user, et
+    # `user_tier()` lit ce cache. Corriger la copie en base sans corriger la copie en mémoire
+    # laissait le tier à `utilisateur` pour toute la requête qui vient de créer le compte —
+    # défaut trouvé par les tests, pas par la relecture (le premier jet faisait exactement ça).
+    profil = getattr(user, 'profile', None)     # RelatedObjectDoesNotExist hérite d'AttributeError
+    if profil is None:
+        profil, _ = UserProfile.objects.get_or_create(user=user)
+    if profil.account_tier != 'anonymous':
+        profil.account_tier = 'anonymous'
+        profil.save(update_fields=['account_tier'])
+    roles = user.groups.filter(name__startswith=GROUP_PREFIX)
+    if roles.exists():
+        user.groups.remove(*roles)
+    return user
+
+
 def get_or_create_anonymous_user():
     """
-    Récupère ou crée un utilisateur anonyme désactivé.
+    Récupère ou crée un utilisateur anonyme désactivé, FERMÉ (voir `enforce_anonymous_closure`).
     """
     user, created = User.objects.get_or_create(
-        username='anonymous',
+        username=ANONYMOUS_USERNAME,
         defaults={
             'first_name': 'Anonymous',
             'last_name': 'User',
@@ -549,10 +595,14 @@ def get_or_create_anonymous_user():
             'is_active': False,
         }
     )
+    global _CLOSURE_VERIFIEE
     if created:
         user.set_unusable_password()
         user.save()
         print("Anonymous user created.")
+    if created or not _CLOSURE_VERIFIEE:
+        enforce_anonymous_closure(user)
+        _CLOSURE_VERIFIEE = True
     return user
 
 
