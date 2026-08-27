@@ -1,8 +1,13 @@
 # WAMA — Web App for Multimodal Automation
 
+> ⚠️ **Under active development** — the platform evolves daily, the **Data world is under
+> construction**, and APIs are **not stabilized** (breaking changes happen without notice).
+> The media apps are operational and used in production at the lab; everything else should be
+> read as work in progress.
+
 WAMA is a Django-based web application developed at **Lescot** (Université Gustave Eiffel) that provides AI-powered tools for media processing. It runs as a self-hosted platform with GPU acceleration, exposing each tool as a queue-based interface accessible from a browser.
 
-The platform is **metadata-driven**: each app declares its identity, ports (typed I/O), capabilities, parameters and models, and the common UI bricks (queues, cards, inspector, settings modals) are generated from those declarations. The same declarations feed the **Studio** (apps chained as pipeline nodes), the **AI assistant tool API** (46 tools), and a **manifest layer** that can extract every app as a portable JSON manifest — and regenerate a growing share of it back into the registries.
+The platform is **metadata-driven**: each app declares its identity, ports (typed I/O), capabilities, parameters and models, and the common UI bricks (queues, cards, inspector, settings modals) are generated from those declarations. The same declarations feed the **Studio** (apps chained as pipeline nodes), the **AI assistant tool API**, and a **manifest layer** that can extract every app as a portable JSON manifest — and regenerate a growing share of it back into the registries.
 
 ---
 
