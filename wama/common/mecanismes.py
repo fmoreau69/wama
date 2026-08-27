@@ -222,6 +222,15 @@ MECANISMES = (
               "Désaccord entre deux sorties du même travail — signal objectif, sans avis de modèle",
               'wama/common/services/divergence.py',
               'wama/transcriber/TRANSCRIBER_CORRECTION.md §8.3'),
+    # Rattaché le 2026-08-27, en même temps que son extension aux skills : la brique existait
+    # depuis longtemps sans figurer sur la carte — donc invisible à qui cherche « qu'est-ce qui
+    # contrôle la doc ? ». C'est précisément le trou que ce mécanisme sert à fermer ailleurs.
+    Mecanisme('docs_integrity', 'Intégrité doc → code',
+              "Vérifie que chaque chemin, ligne et renvoi .md cité par la doc ET par les skills "
+              "existe encore ; gate nocturne sur les CIBLES distinctes, pas sur les références",
+              'wama/common/management/commands/check_docs.py', 'CLAUDE.md §Fichiers de référence',
+              annexes=('wama/common/tests_check_docs.py',),
+              symbole='check_docs'),      # nommée par une CHAÎNE, jamais importée — cf. plus bas
 
     )),
 
@@ -375,7 +384,12 @@ MECANISMES = (
               "que `media/` porte des données personnelles, et un export serait périmé au "
               "moindre dépôt — un contrôle toujours rouge ne protège plus rien",
               'wama/common/management/commands/check_media_integrity.py',
-              'MEDIA_STORAGE_TIERING.md'),
+              # `symbole` OBLIGATOIRE pour une management command, MÊME RAISON que le middleware
+              # plus haut : elle n'est jamais IMPORTÉE, elle est nommée par une CHAÎNE
+              # (`call_command('check_media_integrity')`, ligne de commande, cron). Le scanner
+              # compte les imports, donc il l'annonçait « sans consommateur » — faux positif
+              # corrigé le 2026-08-27, en même temps que celui de `docs_integrity`.
+              'MEDIA_STORAGE_TIERING.md', symbole='check_media_integrity'),
     Mecanisme('work_dir', 'Dossier de travail jetable',
               "Les fichiers INTERMÉDIAIRES d'un traitement ne vivent pas dans `media/`. Mesuré le "
               "2026-08-25 : `media/avatarizer/` pesait 1,69 Go pour 2101 fichiers dont 99,6 % de "

@@ -71,6 +71,10 @@ recouvrir un échec qui remplace un autre :
 > jetable sous `media_tests/`. **Ne jamais rétablir de test qui écrit dans `media/`.**
 - ⚠ `check_docs` : lancer depuis **Windows** (`./venv_win/Scripts/python.exe`) — il parcourt
   l'arborescence, et `/mnt/d` depuis WSL2 met plusieurs minutes.
+  Depuis le **2026-08-27** il couvre AUSSI **les 11 skills** (`.claude/skills/*/SKILL.md`) et les
+  renvois `.md` entre docs — d'où le corpus passé de 540 à 741 références. `--skills` les isole.
+  ⚠ **Il vérifie que les RÉFÉRENCES existent, pas que les CHIFFRES disent vrai** : le pire défaut
+  de l'audit du 26/08 (`/port-app` annonçant « F6/F7/F8 : ZÉRO critère ») serait passé au travers.
 - ⚠ `manifest_export --check` : lancer depuis **WSL2** (`venv_linux`) — les manifestes `library`
   sont extraits par `importlib.metadata`, donc VENV-DÉPENDANTS ; depuis venv_win le contrôle
   déclare de faux « périmés » (mesuré 13/08 : torch/transformers/vibevoice, les wheels Windows
@@ -82,7 +86,7 @@ recouvrir un échec qui remplace un autre :
 - 🔴 **LE CRITÈRE EST LE NOMBRE DE CIBLES DISTINCTES — attendu = 1.** (Détail et raison plus bas.)
   Comparer les **fichiers cités**, jamais le nombre de références.
 
-- **État MESURÉ au 2026-08-26** : `check_docs` = **5 références cassées / 0 périmée sur 540**,
+- **État MESURÉ au 2026-08-27** : `check_docs` = **5 références cassées / 0 périmée sur 741**,
   pour **1 SEULE cible distincte** — le **partial d'onglets de résultat jamais créé** (cible de
   `REMOVAL_LEDGER` R18 ; duplication vérifiée présente, `transcriber/index.html:307` et
   `describer/index.html:109` portent le même `#resultTabs`).
@@ -97,14 +101,18 @@ recouvrir un échec qui remplace un autre :
     (`RunOutcomeCaptureMiddleware`, chantier mémoire) — mais `UserLanguageMiddleware` (tableau
     i18n du `ROADMAP`) n'y est toujours PAS écrit : la référence résout, l'intention i18n reste due.
 
-  🔴 **NE PAS LIRE CE NOMBRE COMME UN SEUIL — c'est le défaut de conception du contrat**
-  (relevé le 23/08, pending ouvert). `check_docs` et `nightly_scenarios.CASSE_ASSUMES` comptent
-  des **RÉFÉRENCES**, pas des **cibles manquantes**. Le compte monte donc **tout seul** dès qu'un
-  §REPRISE recite la même cible — c'est exactement ce qui l'a fait passer de 2 à 4 en une journée,
-  **sans aucune dérive réelle**. Un seuil qui bouge sans raison finit par être relevé
-  machinalement, donc à ne plus protéger.
-  **Le critère à appliquer : compter les CIBLES DISTINCTES — attendu = 1** (`_result_tabs.html`).
-  Une **2ᵉ cible distincte** = vraie dérive. Comparer les fichiers cités, jamais le seul nombre.
+  🔴 **NE PAS LIRE CE NOMBRE COMME UN SEUIL.** Le contrat automatique, lui, compte désormais juste :
+  `nightly_scenarios.CIBLES_ASSUMEES = 1` compare des **CIBLES DISTINCTES** (✅ **corrigé le
+  2026-08-27** ; le pending du 23/08 est SOLDÉ — il s'appelait `CASSE_ASSUMES` et comparait des
+  **RÉFÉRENCES**, un nombre qui monte **tout seul** dès qu'un §REPRISE recite la même cible :
+  c'est ce qui l'avait fait passer de 2 à 4 en une journée **sans aucune dérive réelle**, et le
+  scénario nocturne `common.consistency.docs` était **rouge pour cette seule raison**, vérifié en
+  le lançant). Un seuil qui bouge sans raison finit par être relevé machinalement, donc à ne plus
+  protéger.
+  **Le critère à appliquer reste le même à la main : compter les CIBLES DISTINCTES — attendu = 1**
+  (`_result_tabs.html`). Une **2ᵉ cible distincte** = vraie dérive. Comparer les fichiers cités,
+  jamais le seul nombre. Le gate ajoute une **tolérance zéro aux défauts francs** (frontmatter de
+  skill), qui ne sont jamais « assumés ».
 
   > ⚠ Ce seuil était à « 3 attendus / une 4ᵉ = dérive » jusqu'au 10/08 et **il était devenu faux** :
   > `_settings_modal.html` a été **livré autrement** le 06/08 (la modale est GÉNÉRÉE par

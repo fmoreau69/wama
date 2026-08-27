@@ -30,7 +30,17 @@ from wama.common.services.nightly_tests import SkipScenario, register
 # (i18n, ROADMAP). Le test compare en `<=` : laisser 3 ne cassait rien mais rendait le contrat
 # AVEUGLE à une vraie 3ᵉ dérive. Conformément à l'en-tête de ce module, le seuil DÉCROÎT dès
 # qu'une cible est créée ou abandonnée — sinon il cesse silencieusement de protéger.
-CASSE_ASSUMES = 2        # contrat REPRISE §3a (cibles à créer)
+#
+# 🔴 UNITÉ CORRIGÉE le 2026-08-27 — `CASSE_ASSUMES` (RÉFÉRENCES) → `CIBLES_ASSUMEES` (cibles
+# DISTINCTES). C'était un défaut de conception du contrat, relevé le 23/08 et resté pending :
+# le seuil comparait un nombre de RÉFÉRENCES, qui monte TOUT SEUL dès qu'un §REPRISE recite la
+# même cible manquante — « c'est exactement ce qui l'a fait passer de 2 à 4 en une journée, sans
+# aucune dérive réelle » (skill `/reprise`). Conséquence mesurée le 27/08 : le scénario
+# `common.consistency.docs` était ROUGE (5 références pour UNE seule cible), donc un contrôle
+# nocturne échouait sans rien signaler de vrai — un rouge permanent ne se lit plus.
+# `wama/common/middleware.py` a quitté la liste le 20/08 (le fichier existe) : la seule cible
+# encore due est le partial d'onglets de résultat, d'où 1.
+CIBLES_ASSUMEES = 1      # contrat REPRISE §3a — CIBLES distinctes, jamais des références
 REDONDANCES_ASSUMEES = 0  # dette anonymizer résorbée au palier 1 du port (03/08) — toute trouvaille = nouvelle recopie
 
 
@@ -51,8 +61,23 @@ def _run_check_docs(ctx):
     if not m:
         return False, "sortie de check_docs illisible (pas de Bilan)"
     casse, perime = int(m.group(1)), int(m.group(2))
-    ok = casse <= CASSE_ASSUMES and perime == 0
-    return ok, f"{casse} cassée(s) (contrat : ≤{CASSE_ASSUMES}), {perime} périmée(s)"
+    # Le verdict porte sur les CIBLES distinctes : cinq §REPRISE citant le même fichier absent
+    # décrivent UN manque, pas cinq. Les lignes sans « → » (frontmatter de skill invalide) ne
+    # désignent pas une cible à créer : elles sont des défauts francs, tolérance zéro.
+    # ⚠ N'extraire QUE des lignes de constat (« <doc>:<n>  <message> ») : l'en-tête du rapport
+    # porte lui aussi une flèche (« INTÉGRITÉ DOCS+SKILLS → CODE ») et comptait pour une cible —
+    # relevé en LANÇANT le scénario, qui restait rouge à 2 cibles pendant que la commande en
+    # affichait 1. Le bloc PÉRIMÉ est écarté à part : même forme, mais pas de « → ».
+    constats = [l for l in out.split('\nPÉRIMÉ (')[0].splitlines()
+                if re.match(r"^\s{2}\S+:\d+\s", l)]
+    cibles = {m.group(1) for m in (re.search(r"→ (\S+)", l) for l in constats) if m}
+    francs = len([l for l in constats if '→' not in l])
+    ok = len(cibles) <= CIBLES_ASSUMEES and francs == 0 and perime == 0
+    detail = (f"{len(cibles)} cible(s) distincte(s) (contrat : ≤{CIBLES_ASSUMEES}) "
+              f"sur {casse} référence(s), {perime} périmée(s)")
+    if francs:
+        detail += f", {francs} défaut(s) franc(s)"
+    return ok, detail
 
 
 def _run_conformity(ctx):

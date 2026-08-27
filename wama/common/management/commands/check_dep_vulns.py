@@ -8,7 +8,7 @@ qui exécute cette commande — venv_linux quand la nocturne tourne sous WSL2 (l
 venv_win depuis Windows. Zéro dépendance nouvelle : `requests` est déjà dans le socle,
 l'inventaire vient d'`importlib.metadata`.
 
-Contrat (même philosophie de cliquet que CASSE_ASSUMES, nightly_scenarios.py, mais à
+Contrat (même philosophie de cliquet que CIBLES_ASSUMEES, nightly_scenarios.py, mais à
 l'échelle : ~170 avis sur la pile ML épinglée+patchée au triage initial du 2026-08-13,
 inéditables à la main) : la dette CONNUE vit dans un fichier versionné,
 `tools/security/osv_baseline.json`, une section par venv. Toute vulnérabilité ABSENTE

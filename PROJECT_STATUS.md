@@ -4848,7 +4848,8 @@ n'a pas produite. Voie envisagée : la médiathèque. **Non tranché, repoussé 
   trancher au cas par cas.
 - `docs/SEGMENTATION_BLUR.md` : **conservé volontairement** (la fonction décrite existe toujours),
   mais son chemin d'import est faux (`anonymizer.blur_utils` → `wama/anonymizer/core/blur_utils.py`).
-- `check_docs` : toujours **2 cassés assumés** (seuil dans `nightly_scenarios.CASSE_ASSUMES`).
+- `check_docs` : toujours **2 cassés assumés** (seuil dans `nightly_scenarios.CASSE_ASSUMES` —
+  ⚠ renommé `CIBLES_ASSUMEES` le 27/08, et l'unité comparée a changé : cibles distinctes).
 
 ### E. Dettes ponctuelles
 
@@ -5202,7 +5203,8 @@ sur les transcripts, jamais en lisant l'allowlist** — c'est ce qui a fait rate
 >   appel, source et destination inversées. **3 doubles routes supprimées** — ne pas en réintroduire.
 > - **3 points ouverts** : `restore_db` jamais exécuté pour de vrai (fermable sans risque sur le
 >   Postgres Windows:5433), tirage des modèles non joué sur les ~325 Go, création du rôle non testable.
-> - **Seuil `check_docs` resserré 3 → 2** (`nightly_scenarios.CASSE_ASSUMES`) : le contrat était
+> - **Seuil `check_docs` resserré 3 → 2** (`nightly_scenarios.CASSE_ASSUMES`, renommé
+>   `CIBLES_ASSUMEES` le 27/08) : le contrat était
 >   devenu **aveugle** à une vraie 3ᵉ dérive. Les 2 restantes sont des références EN AVANT légitimes.
 > - ⚠ **Ne pas rajouter `pg_dump --create`** (mesuré sans effet) ; ⚠ `mirror_tree` refuse une
 >   destination inexistante, par garde volontaire.
@@ -6028,7 +6030,7 @@ segmentation parmi plusieurs.
 |---|---|---|
 | 1 | **`find_spec` pour SAM3** | le 🔚 ci-dessus — 1 ligne, cause racine journalisée |
 | 2 | **14 des 16 modules de tests ne tournent JAMAIS la nuit** | `nightly_scenarios.py:306` nomme **2 modules en dur** (`tests_temporal`, `tests_sources`). Même défaut de mutisme que `ConformiteTest` a tué, un étage plus haut. ⚠ **instance sœur active dans ce fichier** — coordonner |
-| 3 | **Contrat `docs` des nocturnes mal compté** | `CASSE_ASSUMES` compte des **références**, pas des **cibles manquantes** : les 4 « cassées » sont **le même fichier cité 4×**, et le seuil s'érode seul à chaque §REPRISE qui le recite |
+| 3 | ~~**Contrat `docs` des nocturnes mal compté**~~ ✅ **SOLDÉ le 27/08** | `CASSE_ASSUMES` comptait des **références**, pas des **cibles manquantes** : les 4 « cassées » étaient **le même fichier cité 4×**, et le seuil s'érodait seul à chaque §REPRISE qui le recitait. → renommé `CIBLES_ASSUMEES = 1` et comparé sur les cibles DISTINCTES (+ tolérance zéro aux défauts francs). Le scénario `common.consistency.docs` était **rouge pour cette seule raison** |
 | 4 | `redundancy` **14 trouvailles** contre un contrat de **0** | non diagnostiqué — mesurer avant de décider si c'est une correction ou un contrat à réviser |
 | 5 | `dep_vulns` **11 nouvelles CVE** sur 577 paquets | idem |
 | 6 | Cousin du bug SAM3 : `model_registry.py:1556` | `except: pass` sur un répertoire Ollama de repli — même famille, **non couvert** par ma garde (il ne remonte rien) |
