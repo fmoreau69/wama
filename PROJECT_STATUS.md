@@ -7937,3 +7937,61 @@ model_manager du `tool_api` · MARCHEUR `project`→`requires`→drivers · gén
   ménage docs 46→32 de l'autre instance) ; 0 chiffre sans source.
 - Catalogue : 97 modèles ; **16 hf_id posés** sur les 3 apps du chantier (le seul neuf en
   base est sam3 — les 15 autres coïncidaient déjà, c'est le point) ; `doc_facts` tout à jour.
+
+---
+
+## §REPRISE — 2026-08-28, instance « VISION + RENOMMAGE + MÉNAGE DOCS » (SUITE, session parallèle, CLOSE) — 🔚 POINT D'ENTRÉE
+
+**Périmètre** : documentation + 2 fichiers de code (`check_docs.py`, `license_audit.py`). Zéro GPU.
+
+### Livré (validé Fabien à chaque étape)
+
+1. **Intitulé** : WAMA = Web App for **MULTIMODAL** Automation ; dépôt github renommé `wama`
+   (remote local basculé, redirection OK) — `ffa3702d` ; bandeau franc en tête du README public
+   (« under active development, Data world en construction, API non stabilisée ») — `7d1fde61`.
+2. **Vision** : `docs/WAMA_VISION_COMPLET.md` = document UNIQUE (absorbe Vision_Complet v1/v2,
+   VISION_CRITIQUE, VISION_STATUS → `docs/archive/`) ; 4 mondes en partie de premier rang,
+   sobriété numérique + provenance en piliers (fiche CPER hors dépôt comme guide de ton),
+   mémoire/RAG au réel pgvector ; **15 fichiers référents réécrits** dont 8 commentaires de code
+   (ancre `§Les quatre mondes`) — `a5bd90a6`+`61d122c7`+`6d687c48`. ⚠ Leçon NTFS (renommage de
+   casse impossible par pathspec) → mémoire `reference_reprise_handoff`.
+3. **Audit /doc-sync des 46 .md vivants** (4 agents + contre-vérification mécanique de chaque
+   finding appliqué) : 3 [CASSÉ] réparés (entrée licence `minimax-music3-community` manquante au
+   `_CATALOGUE`, 4 doublons R20-R23 du ledger → R27-R30 + mode d'emploi d'en-tête, README patches
+   qui niait le patch venv deepfilternet) + ~30 péremptions retournées preuve à l'appui —
+   `63e6b4e7`. **`check_docs` étendu de 12 à 34 documents** (l'écart avec la table CLAUDE.md
+   était la définition même du « périmé non détecté »).
+4. **Ménage** : 14 `.md` archivés (9 orphelins purs + 5 fusionnés — Enhancer promu doc de
+   référence avec sa ligne CLAUDE.md) — `e68cfabb` ; README imager et wama-dev-ai **réécrits sur
+   le réel**, 3 tables figées → sources vivantes (geste B12), tricolore unifié sur CARD_DESIGN
+   §8.5, STUDIO_VISION purgé de ses états — `32938e8f`. **46 → 32 documents vivants.**
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+
+**Deux décisions attendues de Fabien, puis 10 min d'exécution chacune :**
+- **(a) Tension `realtime`** (tracée MODES_QUEUE_UX §5bis) : `app_modes.py` déclare un mode
+  `realtime` (synthesizer, transcriber → l'UI rend un switch) alors que la doctrine §5 le
+  requalifie en affordance `show_live` de la card d'entrée. Trancher : mode assumé (corriger §5)
+  OU purge des 2 déclarations (le switch disparaît). Ne rien coder dessus avant.
+- **(b) R31 validé ?** → supprimer l'API morte `WAMA_RIGHT_PANEL` (bloc script `base.html` +
+  template orphelin `filemanager/right_panel.html`, 0 appelant mesuré) + vérifier si les hôtes
+  `#preview-placeholder`/`#preview-media` ne servaient qu'à elle ; smoke navigateur ensuite.
+
+### Pendings (cette instance)
+
+- Résidus **ChromaDB dans ROADMAP** (:33, :848, :856, :872 — relevé d'audit, non corrigés) ;
+- re-mesures qui exigent la BASE : « 95 modèles » (PROSPECTION_PIPELINE §état), compteur
+  `RunOutcome` (WAMA_MEMORY §7bis), « 20 mécanismes sans critère » (WAMA_VERIFICATION §5) ;
+- chemins DISQUE du futur renommage du dossier local (~80 occurrences des graphies
+  `web-app-for-media-automation` Windows+WSL) — dormant jusqu'au renommage effectif ;
+- push (~12 commits de cette instance + ceux des sœurs) = geste Fabien.
+
+### Contrôles attendus au prochain /reprise (MESURÉS cette session)
+
+- `check_docs` : **34 documents**, 1071 références, **0 périmée**, 6 cassées = **1 cible
+  distincte** (le partial d'onglets de résultat jamais créé, dette R18 — préexistant) ;
+  l'instance HF_ID a re-mesuré 1074 réfs après ses propres ajouts, cohérent.
+- Registre R : **0 doublon** (`grep -oE "^\| R[0-9]+" | uniq -d` vide) ; plus grand = R31 (🟡).
+- ⚠ Aucun module de test ne couvre `check_docs.py` ni `license_audit.py` — validation
+  empirique : 5 runs réels de la commande + sonde
+  `_CATALOGUE['minimax-music3-community'] → PERMISSIVE` (mesurée en clôture).
