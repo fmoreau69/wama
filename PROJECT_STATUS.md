@@ -2470,6 +2470,57 @@ travail**. La base LIVE est celle de **WSL2 (Postgres 16)**, conforme à
 exécute WAMA nativement sous Windows (`venv_win runserver`) ; sinon c'est une taxe d'entretien
 supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 
+## §REPRISE — 2026-08-27, instance « GARDES » — ✅ PALIER LIVRÉ (commit `d5a57507`)
+
+> **Partition** : `wama/accounts/` (views, tests, `grant_default_roles`), `wama/common/`
+> (`check_templates` + ses tests, `mecanismes.py`, `nightly_scenarios.py`, `_app_scripts.html`,
+> `check_media_integrity` docstring), `WAMA_MECANISMES.md` (régénéré). Rien d'autre.
+
+**La leçon commune aux deux gestes : une règle qui demande de se souvenir n'est pas un contrôle.**
+Dans les deux cas la règle était écrite, et elle a quand même été violée.
+
+**① `manage.py check_templates`** — le `{# … #}` MULTI-LIGNE, que le lexer de Django (pas de
+`re.DOTALL`) rend en nœud TEXTE. **Sept récidives depuis le 27/06**, dont trois documentées et
+toutes diagnostiquées à un coût sans rapport avec la faute (barre de progression hors d'une piste
+`overflow:hidden` → 8 apps ; `<template>` dans un commentaire qui avale les ~30 `<script>` du
+document, console VIDE ; boîte anonyme de grille = +168 px par card). **Mesuré : 127 gabarits, UN
+défaut vivant — `common/_app_scripts.html`, la brique commune des 10 apps.** Corrigé. Scénario
+nocturne `common.consistency.templates`, contrat DUR sans cliquet (le remède est mécanique).
+**Prouvé dans les DEUX sens** : 13 tests à régression injectée + 4 contre-épreuves, et le scénario
+lancé avec un gabarit fautif injecté passe bien au rouge.
+
+**② Fermeture du compte de service `anonymous`** (vérification demandée par Fabien — le doute
+était fondé). État réel aujourd'hui : **0 rôle, 0 permission, 0/11 apps** — les deux gestes du
+22/08 tiennent. **Mais ils avaient été faits à la main sur la base vivante et rien ne les
+portait** : `UserProfile.account_tier` a pour défaut `utilisateur`, donc tout compte anonyme
+RECRÉÉ (installation neuve, restauration) revenait ouvert ; et `grant_default_roles` vise les
+comptes SANS aucun rôle — c'est-à-dire exactement l'anonyme depuis qu'on l'a fermé.
+
+| scénario simulé sur les 11 apps | apps ouvertes |
+|---|---|
+| réel aujourd'hui | 0/11 |
+| rôles rendus seuls (tier `anonymous`) | 0/11 — inerte, le tier tranche avant |
+| tier `utilisateur` seul, 0 rôle | 1/11 (converter, seule app commune) |
+| **les deux (recréé + `grant_default_roles`)** | **10/11** — l'état d'avant le correctif |
+
+D'où `enforce_anonymous_closure()` : **les DEUX axes** reposés, plus l'exclusion sans échappatoire
+dans `grant_default_roles`. ⚠⚠ **Défaut trouvé PAR LES TESTS, pas par la relecture** : le premier
+jet corrigeait le profil via un `get_or_create` — donc une AUTRE instance Python — pendant que
+`user_tier()` lisait le cache de relation rempli par le signal `post_save`. Le tier restait
+`utilisateur` pour toute la requête qui venait de créer le compte.
+
+**③ Carte des mécanismes — 4 briques rattachées** : `templates_integrity` (neuf), `app_access`
+(`wama/accounts/permissions.py`, le POINT UNIQUE de décision — son absence de la carte s'est payée
+en ②), `dep_vulns` et `secret_leaks` qui **tournent chaque nuit** et étaient pourtant hors carte.
+⚠ **Le pire cas n'est pas la brique morte, c'est la garde ACTIVE que personne ne trouve.**
+102 mécanismes, 0 domicile absent. Au passage : `check_media_integrity` ne contenait nulle part son
+propre nom → `test_symbole_appartient_au_mecanisme` était ROUGE **avant** cette session.
+
+🔚 **Reste ouvert** : le trou de `check_docs` — il vérifie que les RÉFÉRENCES existent, jamais que
+les CHIFFRES disent vrai (les 8 skills fausses du 26/08). Proposition faite à Fabien, non
+implémentée : une famille « chiffre sans source » (un nombre en position de constat doit être
+accompagné de la COMMANDE qui le produit, ou vivre dans un bloc `doc_facts`), avec baseline-cliquet.
+
 ## §REPRISE — 2026-08-21, instance « LICENCES & DÉPÔT OFFICIEL » — ✅ PALIER LIVRÉ
 
 > **Partition** : cette instance n'a touché QUE le domaine licences — `LICENSE`, `LICENSING.md`
