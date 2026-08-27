@@ -9,7 +9,8 @@
 > ⚠ Le RAG reste **vide tant que personne n'a cliqué** — c'est l'état **voulu** : le balayage
 > initial a été purgé (939 → 0) et il n'existe aucune autre porte d'écriture.
 > Il remplace, pour ce domaine, les intentions
-> dispersées dans `PROJECT_STATUS §6`, `ROADMAP §16.2/§16.7` et `docs/WAMA_Vision_Complet_v2 §11`
+> dispersées dans `PROJECT_STATUS §6`, `ROADMAP §16.2/§16.7` et `docs/archive/WAMA_Vision_Complet_v2.md §11`
+> (le doc de vision actuel, `docs/WAMA_VISION_COMPLET.md §5.5`, reflète le substrat réel)
 > — qui restent valables sur le *pourquoi* mais sont **périmés sur le substrat** (ils disent
 > ChromaDB, voir §7).
 >

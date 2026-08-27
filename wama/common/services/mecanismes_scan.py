@@ -36,7 +36,7 @@ DOSSIERS_EXCLUS = {
     'musetalk', 'codeformer',   # vendored upstream
 }
 
-#: Racines de NOTRE code — **les TROIS mondes** (`docs/VISION_STATUS.md §Architecture en MONDES`).
+#: Racines de NOTRE code — **les TROIS mondes** (`docs/WAMA_VISION_COMPLET.md §Les quatre mondes`).
 #:
 #: ⚠ `wama_data` MANQUAIT, et le défaut était SILENCIEUX au pire endroit possible (corrigé le
 #: 2026-08-24). Le monde Data est sorti du substrat le 22/08 (`wama/common/data/` → `wama_data/`)

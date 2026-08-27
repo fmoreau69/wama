@@ -20,7 +20,7 @@
 | MLflow | **rejeté** par `ROADMAP §16.2` sur la prémisse « pas d'entraînement » → **amendée le 2026-08-25**, voir §4 |
 | `RunOutcome` / `ModelRuntimeStat` | existent, tracent l'**exécution** et l'**inférence** — jamais un entraînement |
 | kind `model` | existe, décrit un modèle **pré-entraîné ailleurs** (`hf_id`, `vram_gb`, backend) — **aucune provenance** |
-| la vision le prévoit | `docs/WAMA_Vision_Complet_v2.md` Partie VII §27-33 (Data Comprehender, « DeepMind labo », boucle de découverte) — classé **H3**, `VISION_STATUS` : « rien » |
+| la vision le prévoit | `docs/WAMA_VISION_COMPLET.md` Partie 8 (Data Comprehender, « DeepMind labo », boucle de découverte) — classé **H3** |
 
 ---
 
@@ -342,8 +342,8 @@ travail (VM + forge institutionnelle + IDE distant).
 > pour en extraire une connaissance plus généraliste serait impossible sans une approche
 > automatisée, qui est la raison d'être de WAMA. »*
 
-C'est le **« DeepMind labo » low cost** — déjà nommé par la vision (`WAMA_Vision_Complet_v2.md`
-§32-33, boucle de découverte) et classé H3. Et c'est la raison d'être du schéma-driven : que WAMA ne
+C'est le **« DeepMind labo » low cost** — déjà nommé par la vision (`docs/WAMA_VISION_COMPLET.md`
+§8.6, boucle de découverte) et classé H3. Et c'est la raison d'être du schéma-driven : que WAMA ne
 se retrouve pas limité par des capacités qu'il ne pourrait plus ingérer dans les mondes existants.
 
 ---
@@ -374,8 +374,8 @@ se retrouve pas limité par des capacités qu'il ne pourrait plus ingérer dans 
 ## Voir aussi
 
 - `WAMA_DATA_WORLD.md` — le monde Data : chaîne, Segmenter, Calculator, conteneur `.wdat`, décisions D1-D19
-- `docs/WAMA_Vision_Complet_v2.md` §27-33 — Data Comprehender, « DeepMind labo », garde-fous méthodologiques §28
-- `docs/VISION_STATUS.md` §Partie VII — confrontation au réel
+- `docs/WAMA_VISION_COMPLET.md` Partie 8 — Data Comprehender, « DeepMind labo », garde-fous
+  méthodologiques (§8.4) ; état par section intégré au document
 - `ROADMAP.md` §16.2 — outils tiers évalués (**entrée MLflow amendée le 2026-08-25**, voir §4)
 - `WAMA_MANIFEST_SPEC.md` — formalisme des kinds `dataset`, `model`, `pipeline`
 - `project_model_meta_unification` (mémoire) — `AIModel` = source unique du catalogue

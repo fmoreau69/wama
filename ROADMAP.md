@@ -7,17 +7,17 @@
 
 ## Horizons — boussole de priorités (2026-07-20)
 
-> Hiérarchise TOUT le document par horizon pour ne pas s'éparpiller. Détail statut vision ↔ code :
-> `docs/VISION_STATUS.md` ; règles d'engagement (« non-objectifs ») : `docs/WAMA_Vision_Complet_v2.md`
-> (docs/ versionné depuis 2026-07-21). En cas de conflit avec une priorité plus ancienne citée ailleurs dans ce
+> Hiérarchise TOUT le document par horizon pour ne pas s'éparpiller. Vision + statut vision ↔ code :
+> `docs/WAMA_VISION_COMPLET.md` (document unique depuis 2026-08-27 ; marquage ✅/🔄/⏳ par section,
+> non-objectifs en Partie 13). En cas de conflit avec une priorité plus ancienne citée ailleurs dans ce
 > fichier, CETTE section fait foi.
 >
-> **Rôles des documents de suivi (contrat 2026-07-20)** — chaque info vit à UN seul niveau, les
-> autres pointent : **Vision** (docs/) = le cap, horizon années, jamais de statut ; **ROADMAP** (ce
-> fichier) = les chantiers macro et leur ordre, horizon trimestres ; **PROJECT_STATUS** = l'état
-> d'avancement au jour le jour (fait/en cours/détails) ; **VISION_STATUS** (docs/) = pont
-> périodique vision ↔ code. Le dédoublonnage à venir = redescendre au bon niveau ce qui a dérivé
-> (statuts et checklists détaillées présents ici → PROJECT_STATUS), pas fusionner les fichiers.
+> **Rôles des documents de suivi (contrat 2026-07-20, amendé 2026-08-27)** — chaque info vit à UN
+> seul niveau, les autres pointent : **Vision** (`docs/WAMA_VISION_COMPLET.md`) = le cap, horizon
+> années, avec un marquage d'état GROSSIER par section (l'ex-VISION_STATUS, fusionné) ; **ROADMAP**
+> (ce fichier) = les chantiers macro et leur ordre, horizon trimestres ; **PROJECT_STATUS** = l'état
+> d'avancement au jour le jour (fait/en cours/détails). Le dédoublonnage à venir = redescendre au
+> bon niveau ce qui a dérivé (statuts et checklists détaillées présents ici → PROJECT_STATUS).
 
 ### H1 — Maintenant (finir avant d'ouvrir quoi que ce soit)
 1. Consolidation des mécanismes d'UI + port schéma-driven des 5 apps restantes
@@ -545,7 +545,7 @@ dépendants au `change` du modèle. Lié à [[project-assistant-vision]] (TTS au
 - [x] Premier audit complet avec `write_report` appelé — **FAIT 2026-07-17** : campagne « état des
   lieux vision », 6 audits ciblés avec rapports écrits + contre-vérification Claude (fiabilité
   mesurée : positifs cités ~100 % exacts, affirmations d'absence fausses 4/6 → protocole consigné
-  dans `docs/VISION_STATUS.md` annexe + mémoire projet)
+  dans `docs/archive/VISION_STATUS.md` annexe + mémoire projet)
 - [ ] Cron nightly : `0 2 * * *`
 
 ### Phase 1b — Schémas d'architecture WAMA (read-only, tâche de fond) ⏳

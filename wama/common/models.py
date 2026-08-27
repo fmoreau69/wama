@@ -69,7 +69,7 @@ class BatchMixin:
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Appartenance organisationnelle + visibilité par scope (MONDES / partage / RAG)
-# Voir docs/VISION_STATUS.md §MONDES, memory/project_wama_mondes.md.
+# Voir docs/WAMA_VISION_COMPLET.md §Les quatre mondes, memory/project_wama_mondes.md.
 # ─────────────────────────────────────────────────────────────────────────────
 
 class OrgUnit(models.Model):

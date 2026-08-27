@@ -58,6 +58,11 @@ DOCS = [
     # et donc ingénérable, mais ses chemins écrits à la main — l'intro, les documents de
     # référence — méritent le même contrôle que les autres. Ajoutée le 2026-08-13.
     'WAMA_MECANISMES.md',
+    # Vision produit d'ensemble — document UNIQUE depuis le 2026-08-27 (il a absorbé
+    # VISION_STATUS, dont 8 commentaires de code citaient l'ancre §MONDES) : ses renvois
+    # doivent rester vivants. ⚠ `docs/` est exclu de l'index : y citer un .md exige le
+    # chemin complet (`docs/archive/…`), jamais le nom nu.
+    'docs/WAMA_VISION_COMPLET.md',
 ]
 
 #: Les skills sont DÉCOUVERTES, jamais énumérées ici. Une liste figée est exactement le défaut

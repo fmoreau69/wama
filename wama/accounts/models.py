@@ -122,7 +122,7 @@ class UserProfile(models.Model):
     )
     # Axe C — APPARTENANCE ORGANISATIONNELLE (remontée du LDAP/SUPANN au login).
     # Colonne vertébrale : mêmes unités que l'héritage RAG + les scopes de partage
-    # médiathèque (labo/service/département/université). Voir docs/VISION_STATUS.md §MONDES.
+    # médiathèque (labo/service/département/université). Voir docs/WAMA_VISION_COMPLET.md §Les quatre mondes.
     establishment = models.CharField(
         max_length=128, blank=True, default='',
         verbose_name='Établissement', help_text='supannEtablissement (université).')

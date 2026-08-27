@@ -3,7 +3,7 @@ WAMA Data — le monde des DONNÉES.
 
 Troisième racine du dépôt, à côté de `wama/` (Médias + substrat transversal) et `wama_lab/`
 (applications métier de recherche). Cette structure traduit en arborescence la doctrine des MONDES
-actée le 2026-07-20 (`docs/VISION_STATUS.md §Architecture en MONDES`) : **un monde n'est pas un
+actée le 2026-07-20 (`docs/WAMA_VISION_COMPLET.md §Les quatre mondes`) : **un monde n'est pas un
 sous-dossier du substrat**. Le sous-système a vécu sous `wama/common/data/` jusqu'au 2026-08-22 ;
 il en est sorti dès qu'il a cessé d'être quelques fonctions pour devenir une chaîne de traitement.
 

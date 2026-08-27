@@ -4,7 +4,7 @@ le `UserProfile`, à la connexion.
 
 Le LDAP est déjà branché au login (django_auth_ldap). Ici on lit les attributs SUPANN
 de la fiche personne (aucune requête supplémentaire : ils arrivent avec le bind) et on
-les écrit sur le profil (axe C — voir docs/VISION_STATUS.md §MONDES,
+les écrit sur le profil (axe C — voir docs/WAMA_VISION_COMPLET.md §Les quatre mondes,
 memory/reference_ldap_supann_orgunit.md).
 
 Flux :

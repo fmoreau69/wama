@@ -190,7 +190,7 @@ apply_patch(
 
 ## 🔴 RÈGLE OBLIGATOIRE : UN MONDE N'EST PAS UN SOUS-DOSSIER DU SUBSTRAT
 
-> Doctrine des MONDES actée le 2026-07-20 (`docs/VISION_STATUS.md §Architecture en MONDES`), traduite
+> Doctrine des MONDES actée le 2026-07-20 (`docs/WAMA_VISION_COMPLET.md §Les quatre mondes`), traduite
 > en arborescence le 2026-08-22. WAMA Data avait grandi sous `wama/common/data/` jusqu'à devenir une
 > chaîne de traitement de 10 modules — c'est-à-dire un monde logé dans le substrat.
 
@@ -253,7 +253,7 @@ le défaut qui a rendu ce déport risqué — ne pas le réintroduire.
 | **Vérification — « comment sait-on que ça marche »** (grille d'ADOPTION vs grille FONCTIONNELLE, catalogue des gestes, couverture) | `WAMA_VERIFICATION.md` — **un critère de grille atteste une ADOPTION, jamais un FONCTIONNEMENT** ; couverture mesurée 2026-08-22 : **1 geste utilisateur sur 14** prouvé par un clic, **20 mécanismes** sans aucun critère |
 | Studio & production AV | `STUDIO_VISION.md` |
 | Monde Data (périmètre, cartographie de corpus) | `WAMA_DATA_WORLD.md` + `WAMA_DATA_FUNCTION_CARDS.md` (catalogue) |
-| Vision produit d'ensemble | `docs/WAMA_Vision_Complet_v2.md` (+ `docs/VISION_STATUS.md` = confrontation au réel) |
+| Vision produit d'ensemble | `docs/WAMA_VISION_COMPLET.md` — document UNIQUE depuis le 2026-08-27 (remplace Vision_Complet v1/v2, VISION_CRITIQUE et VISION_STATUS, archivés `docs/archive/`) ; la confrontation au réel vit DANS le doc (marquage ✅/🔄/⏳ daté par section) |
 | Prospection & veille de modèles | `wama/model_manager/PROSPECTION_PIPELINE.md` |
 | Profils, permissions, notifications, rétention | `PROFILES_PERMISSIONS.md` |
 | Infra WSL2 ↔ Windows | `INFRA_WSL_VS_WINDOWS.md` |

@@ -3,7 +3,7 @@ Le CONTRAT inter-mondes : la taxonomie de types et le registre de fonctions.
 
 POURQUOI CE PAQUET EST DANS `common/` ET NON DANS `wama_data/` (décision Fabien, 2026-08-22)
 
-    La doctrine des MONDES (`docs/VISION_STATUS.md §Architecture en MONDES`, actée le 2026-07-20)
+    La doctrine des MONDES (`docs/WAMA_VISION_COMPLET.md §Les quatre mondes`, actée le 2026-07-20)
     dit que **la glu entre les mondes est le système de capacités/ports typés**. Ce paquet EST
     cette glu — il n'appartient donc à aucun monde en particulier.
 

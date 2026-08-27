@@ -2157,7 +2157,7 @@ Demande Fabien : montrer la donnée qui transite entre 2 cards pendant un run.
   (style.setProperty, document.cookie/querySelector/createElementNS, fetch headers).
 
 ## 🌍 Architecture en MONDES (doctrine 2026-07-20)
-WAMA = 4 mondes (Médias / Data / Lab / Transversal) qui communiquent via le système de capacités/ports typés, peuplent studio + médiathèque. **Accès sur 3 axes** : tier + rôles métier + **appartenance organisationnelle** (arbre institut/université→département→labo/service→équipe→utilisateur). Cet arbre = **le même que les niveaux d'héritage RAG** → un seul modèle `OrgUnit`, 3 usages (héritage RAG, scopes de partage, gating d'accès), à ne pas dupliquer. ✅ **Points 1-3 faits (35073dd)** : `OrgUnit` (arbre common), médiathèque `UserAsset(ScopedVisibility)` + API promote, `UserFunction` (confidentialité). LDAP/SUPANN remonté au login (6ebeffe). Détail : `docs/VISION_STATUS.md` §MONDES (⚠ docs/ non versionné). Catalogue : `/model-manager/functions/`.
+WAMA = 4 mondes (Médias / Data / Lab / Transversal) qui communiquent via le système de capacités/ports typés, peuplent studio + médiathèque. **Accès sur 3 axes** : tier + rôles métier + **appartenance organisationnelle** (arbre institut/université→département→labo/service→équipe→utilisateur). Cet arbre = **le même que les niveaux d'héritage RAG** → un seul modèle `OrgUnit`, 3 usages (héritage RAG, scopes de partage, gating d'accès), à ne pas dupliquer. ✅ **Points 1-3 faits (35073dd)** : `OrgUnit` (arbre common), médiathèque `UserAsset(ScopedVisibility)` + API promote, `UserFunction` (confidentialité). LDAP/SUPANN remonté au login (6ebeffe). Détail : `docs/WAMA_VISION_COMPLET.md` §Les quatre mondes (docs/ versionné depuis 2026-07-21). Catalogue : `/model-manager/functions/`.
 
 ## 23. Entrée URL unifiée + ingest média commun + Converter HTML→PDF (session 2026-07-22/23)
 
@@ -2960,7 +2960,7 @@ désormais **une seule fonction** (`manquant()`), avec régression versionnée.
 ### ✅ LIVRÉ — ② LE MONDE DATA SORT DU SUBSTRAT
 
 `wama/common/data/` → **`wama_data/`**, racine sœur de `wama/` et `wama_lab/`. Réalise la cible de
-`ROADMAP §18`, écrite le 27/07 et jamais exécutée. `docs/VISION_STATUS.md` notait même
+`ROADMAP §18`, écrite le 27/07 et jamais exécutée. `docs/archive/VISION_STATUS.md` notait même
 « socle posé (`common/data/`) » comme un état normal — la doctrine était actée, sa traduction en
 arborescence ne l'avait jamais été.
 
@@ -4083,7 +4083,7 @@ c'est la carte de profondeur du **cam_analyzer** (`wama_lab/cam_analyzer/utils/d
 `wama_data/functions/geometry/depth_geometry.py`). Il n'était cité que comme **précédent** : la
 taxonomie accepte déjà un type raster non tabulaire, donc y déclarer `image`/`mask` ne serait pas
 un corps étranger. Rien de plus. ⚠ Et c'est exactement le point média↔data signalé comme NON
-TRANCHÉ (cf. `docs/VISION_STATUS.md`) : ce chantier en est le **premier cas concret**, et le
+TRANCHÉ (cf. `docs/WAMA_VISION_COMPLET.md §2.4`) : ce chantier en est le **premier cas concret**, et le
 trancher sur un cas réel vaut mieux que sur une spéc abstraite.
 
 ### Addendum 19/08 (soir) — ARBITRAGES D'ARCHITECTURE : mécanisme ≠ plugin, bornage fonction/librairie/plugin, mondes
@@ -4123,8 +4123,8 @@ trancher sur un cas réel vaut mieux que sur une spéc abstraite.
   (`WamaAudioPlayer` — ni vitesse, ni volume, ni skip) ; **rien pour la vidéo**. ⚠ Fait vérifié :
   `wama-shuttle.js` n'est chargé QUE par `cam_analyzer/base.html:924` — le transcriber ne PEUT pas
   l'utiliser et l'a réimplémenté (`edit.js:291-328`), alors que la brique le nomme dans son en-tête.
-- **Mondes — question ouverte, rien d'implémenté** → `docs/VISION_STATUS.md §Traçabilité des
-  mondes`. Fait mesuré bloquant : `world` est **dérivé du groupe d'UI** (`app.py:202`) →
+- **Mondes — question ouverte, rien d'implémenté** → `docs/WAMA_VISION_COMPLET.md §2.4 (traçabilité
+  des mondes)`. Fait mesuré bloquant : `world` est **dérivé du groupe d'UI** (`app.py:202`) →
   describer/reader/transcriber sortent en *data*, converter en *transverse*. Préalable : le
   DÉCLARER. Piste : `origine` (immuable) + `portee` (déclarative), l'écart étant le seul signal
   utile ; **jamais un gate de réutilisation**. Mesuré : le Lab consomme déjà 6 briques communes —
