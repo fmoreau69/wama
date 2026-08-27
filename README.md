@@ -1,4 +1,4 @@
-# WAMA — Web App for Media Automation
+# WAMA — Web App for Multimodal Automation
 
 WAMA is a Django-based web application developed at **Lescot** (Université Gustave Eiffel) that provides AI-powered tools for media processing. It runs as a self-hosted platform with GPU acceleration, exposing each tool as a queue-based interface accessible from a browser.
 
@@ -131,8 +131,8 @@ Uses `python manage.py runserver` instead of Gunicorn. No daemon mode — logs p
 > (`update_vendors.sh`, `apply_patches.py`, `setup_avatarizer.sh`).
 >
 > ```bash
-> git clone https://github.com/fmoreau69/web-app-for-media-automation.git
-> cd web-app-for-media-automation
+> git clone https://github.com/fmoreau69/wama.git
+> cd wama
 > bash tools/install_wama.sh --dry-run     # voir le plan sans rien exécuter
 > bash tools/install_wama.sh               # installer
 > ```
@@ -148,8 +148,8 @@ Uses `python manage.py runserver` instead of Gunicorn. No daemon mode — logs p
 ### 1. Clone
 
 ```bash
-git clone https://github.com/fmoreau69/web-app-for-media-automation.git
-cd web-app-for-media-automation
+git clone https://github.com/fmoreau69/wama.git
+cd wama
 ```
 
 ### 2. Python environment (WSL2 — production)

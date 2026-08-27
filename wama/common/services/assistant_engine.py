@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 #: par le synthesizer et la pipeline de prompts — n'avait aucun effet ici. Le durcissement
 #: devenait structurant depuis l'extraction « UN cerveau, N surfaces » : la consigne vaut pour
 #: TOUTES les surfaces (web, API, futurs bots), pas seulement la page d'accueil.
-WAMA_SYSTEM_PROMPT = """You are a helpful assistant for WAMA (Web App for Media Automation), a Django-based web application for media processing including video anonymization, audio transcription, voice synthesis, image generation, and image/video enhancement. Answer questions concisely and helpfully in {LANGUE}."""
+WAMA_SYSTEM_PROMPT = """You are a helpful assistant for WAMA (Web App for Multimodal Automation), a Django-based web application for media processing including video anonymization, audio transcription, voice synthesis, image generation, and image/video enhancement. Answer questions concisely and helpfully in {LANGUE}."""
 
 
 def _consigne_langue(user) -> str:

@@ -355,7 +355,7 @@ common/app_modern_base.html   ← base de toutes les apps
 | `app_icon` | Icône FontAwesome dans le header |
 | `app_title` | Titre de l'application |
 | `app_description` | Sous-titre |
-| `footer_text` | **Obligatoire** — pied de page. Format : `AppName - Description | WAMA` (ex. `Converter - Media Format Conversion | WAMA`). Sans override, l'app affiche le défaut générique « WAMA - Web App for Media Automation ». |
+| `footer_text` | **Obligatoire** — pied de page. Format : `AppName - Description | WAMA` (ex. `Converter - Media Format Conversion | WAMA`). Sans override, l'app affiche le défaut générique « WAMA - Web App for Multimodal Automation ». |
 | `queue_content` | Contenu de l'onglet File d'attente |
 | `console_content_id` | ID du div console (défaut : `console-content`) |
 | `console_app_name` | Nom de l'app pour les logs (défaut : `system`) |

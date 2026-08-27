@@ -239,8 +239,8 @@ wama/enhancer/AI-onnx/
 
 ```bash
 # Clone du projet
-git clone https://github.com/fmoreau69/web-app-for-media-automation.git
-cd web-app-for-media-automation
+git clone https://github.com/fmoreau69/wama.git
+cd wama
 
 # Installation des dépendances
 pip install -r requirements.txt
