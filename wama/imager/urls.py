@@ -55,7 +55,13 @@ urlpatterns = [
     path('batch/import/', views.import_batch, name='import_batch'),
     path('batch/template/', views.batch_template, name='batch_template'),
     path('batch/<int:batch_id>/children/', views.get_batch_children, name='batch_children'),
-    path('batch/<int:batch_id>/start/', views.start_batch, name='start_batch'),
+    # ⚠ Nommée `batch_start` depuis le 2026-08-27 (elle s'appelait `start_batch`, seule des 10
+    # apps). Ce n'est pas de la cosmétique : la card mère de lot COMMUNE dérive ses URLs du nom
+    # `<app>:[<préfixe>]batch_start`, et un nom hors convention rendait une chaîne vide — donc
+    # un bouton ▶ sans URL, silencieux. Le chemin, lui, n'a pas bougé.
+    path('batch/<int:batch_id>/start/', views.start_batch, name='batch_start'),
+    path('batch/<int:batch_id>/delete/', views.batch_delete, name='batch_delete'),
+    path('batch/<int:batch_id>/duplicate/', views.batch_duplicate, name='batch_duplicate'),
 
     # Prompt enhancement (Ollama)
 

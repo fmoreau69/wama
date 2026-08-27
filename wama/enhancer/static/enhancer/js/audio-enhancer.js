@@ -698,56 +698,34 @@ document.addEventListener('DOMContentLoaded', function () {
       });
     }
 
-    // Audio batch start
-    document.addEventListener('click', function(e) {
-      const btn = e.target.closest('.batch-start-btn');
-      if (btn && !btn.closest('#audio-enhancer-queue')) return;
-      if (!btn) return;
-      const batchId = btn.dataset.batchId;
-      const url = cfg.audioBatchStartUrlTemplate.replace('/0/', `/${batchId}/`);
-      const engine   = document.getElementById('audioEngine')?.value || 'resemble';
-      const mode     = document.getElementById('audioMode')?.value || 'both';
-      const strength = document.getElementById('audioDenoisingStrength')?.value || '0.5';
-      const quality  = document.getElementById('audioQuality')?.value || '64';
-      btn.disabled = true;
-      fetch(url, {
-        method: 'POST',
-        headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ engine, mode, denoising_strength: parseFloat(strength), quality: parseInt(quality) }),
-      }).then(r => r.json()).then(data => {
-        data.started?.forEach(id => { updateRow(id, { status: 'RUNNING', progress: 0 }); pollAudioProgress(id); });
-        btn.disabled = false;
-      }).catch(() => { btn.disabled = false; });
-    });
+    // ── ▶ ⧉ 🗑 du LOT AUDIO : brique commune `queue-actions.js` (2026-08-27) ──────────────
+    // Retrait des trois handlers locaux ET pose de `actions_communes=True domain='audio'` sur
+    // l'include : un seul geste (sinon double POST). Les URLs `audio_batch_*` sont résolues par
+    // la card mère via `prefixe_routes` — plus aucun `cfg.audioBatch*UrlTemplate` recollé ici.
+    //
+    // DEUX spécificités déclarées, parce qu'elles ne sont PAS décoratives :
+    //  • le CORPS — le volet gauche audio est la surface de réglage vivante de cette file, et
+    //    elle est appliquée à CHAQUE lancement, item (`startAudio`) comme lot. Lancer avec un
+    //    corps vide aurait relancé le lot avec les valeurs stockées à la création : régression
+    //    muette, et incohérente avec le ▶ de la card fille juste à côté ;
+    //  • la SUITE — l'audio insère et POLLE (comme la file média), il ne recharge pas.
+    if (window.WamaQueueActions) {
+      WamaQueueActions.onBatchStartBody(function () {
+        return {
+          engine: document.getElementById('audioEngine')?.value || 'resemble',
+          mode: document.getElementById('audioMode')?.value || 'both',
+          denoising_strength: parseFloat(document.getElementById('audioDenoisingStrength')?.value || '0.5'),
+          quality: parseInt(document.getElementById('audioQuality')?.value || '64'),
+        };
+      }, { domain: 'audio' });
 
-    // Audio batch delete
-    document.addEventListener('click', function(e) {
-      const btn = e.target.closest('.batch-delete-btn');
-      if (btn && !btn.closest('#audio-enhancer-queue')) return;
-      if (!btn) return;
-      const batchId = btn.dataset.batchId;
-      if (!confirm('Supprimer ce batch audio et toutes ses améliorations ?')) return;
-      const url = cfg.audioBatchDeleteUrlTemplate.replace('/0/', `/${batchId}/`);
-      fetch(url, { method: 'POST', headers: csrfHeaders() })
-        .then(r => r.json())
-        .then(() => {
-          const el = btn.closest('.batch-group');
-          if (el) el.remove(); else location.reload();
-          updateAudioGlobalProgress();
+      WamaQueueActions.onBatchStarted(function (data) {
+        (data.started || []).forEach(id => {
+          updateRow(id, { status: 'RUNNING', progress: 0 });
+          pollAudioProgress(id);
         });
-    });
-
-    // Audio batch duplicate
-    document.addEventListener('click', function(e) {
-      const btn = e.target.closest('.batch-duplicate-btn');
-      if (btn && !btn.closest('#audio-enhancer-queue')) return;
-      if (!btn) return;
-      const batchId = btn.dataset.batchId;
-      const url = cfg.audioBatchDuplicateUrlTemplate.replace('/0/', `/${batchId}/`);
-      fetch(url, { method: 'POST', headers: csrfHeaders() })
-        .then(r => r.json())
-        .then(() => setTimeout(() => location.reload(), 500));
-    });
+      }, { domain: 'audio' });
+    }
   }
 
   initAudioUpload();

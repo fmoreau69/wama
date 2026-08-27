@@ -41,6 +41,19 @@ def _qm_user(request):
     return request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
 
+# Champs remis à zéro par TOUTE duplication de génération — élément (`duplicate_generation`)
+# comme lot (`batch_duplicate`). Une seule liste : deux copies auraient divergé au premier
+# champ de sortie ajouté, et le doublon d'un lot serait reparti avec les images de l'original.
+_RESET_DUPLICATION = {
+    'status': 'PENDING',
+    'progress': 0,
+    'task_id': '',
+    'error_message': '',
+    'generated_images': [],
+    'completed_at': None,
+}
+
+
 def _batch_domain(gen):
     """Champs du BATCH dérivés de la génération — l'imager scope sa file par onglet.
     Passé en `batch_extra` aux briques communes (auto_wrap_orphans, fabrique de
@@ -905,6 +918,62 @@ def start_batch(request, batch_id):
 
 
 @require_http_methods(["POST"])
+def batch_delete(request, batch_id):
+    """Supprime un lot ENTIER : ses générations (fichiers compris) puis le lot.
+
+    ⚠ Ouverte le 2026-08-27, avec `batch_duplicate` : la card mère de lot COMMUNE rendait
+    déjà ▶ ⧉ 🗑 sur l'imager, mais l'app n'avait ni route ni handler pour ⧉ et 🗑 — trois
+    boutons dont deux INERTES, sans une erreur console. Défaut muet typique : ce qui ne
+    plante pas ne se signale pas. La mesure `batch_actions` (scénarios de geste UI) l'a sorti.
+    """
+    from wama.imager.models import GenerationBatch
+
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = owned_or_404(GenerationBatch, user, id=batch_id)   # MUTATION
+
+    generations = [it.generation for it in batch.items.select_related('generation')
+                   if it.generation]
+
+    from wama.common.utils.queue_duplication import safe_delete_file
+    safe_delete_file(batch, 'batch_file')
+    batch.delete()   # CASCADE sur GenerationBatchItem, PAS sur ImageGeneration
+
+    for gen in generations:
+        _purger_generation(gen)
+
+    logger.info(f"Deleted generation batch #{batch_id} ({len(generations)} item(s))")
+    return JsonResponse({'success': True, 'batch_id': batch_id, 'count': len(generations)})
+
+
+@require_http_methods(["POST"])
+def batch_duplicate(request, batch_id):
+    """Duplique un lot entier (fichiers d'entrée PARTAGÉS, sorties vidées) — patron describer.
+
+    Les champs remis à zéro sont ceux de `duplicate_generation` : une seule liste pour
+    l'élément et pour le lot, sinon un doublon de lot repartirait avec les sorties de l'original.
+    """
+    from wama.imager.models import GenerationBatch, GenerationBatchItem
+    from wama.common.utils.queue_duplication import duplicate_instance
+
+    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    batch = owned_or_404(GenerationBatch, user, id=batch_id)   # MUTATION (crée depuis)
+
+    nouveau = GenerationBatch.objects.create(user=user, total=batch.total,
+                                             domain=batch.domain)
+    for item in batch.items.select_related('generation').order_by('row_index'):
+        gen = item.generation
+        if not gen:
+            continue
+        copie = duplicate_instance(gen, reset_fields=_RESET_DUPLICATION,
+                                   clear_fields=['output_video'])
+        GenerationBatchItem.objects.create(batch=nouveau, generation=copie,
+                                           row_index=item.row_index)
+
+    logger.info(f"Duplicated generation batch #{batch_id} → #{nouveau.id}")
+    return JsonResponse({'success': True, 'batch_id': nouveau.id})
+
+
+@require_http_methods(["POST"])
 def start_generation(request, generation_id):
     """Start a specific generation task"""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -1208,6 +1277,50 @@ def download(request, generation_id):
         return HttpResponse(f"Error: {str(e)}", status=500)
 
 
+def _purger_generation(generation):
+    """Sorties, fichiers d'entrée et tâche Celery d'UNE génération, puis la ligne.
+
+    Extrait de `delete_generation` le 2026-08-27 en ouvrant `batch_delete` : la suppression
+    d'un lot est la MÊME suppression, N fois. La recopier aurait fait diverger les deux au
+    premier champ ajouté à `clear_fields` — exactement ce que le commentaire ci-dessous
+    reproche déjà à un `os.remove` brut.
+    """
+    # Sorties : `generated_images` est une LISTE de chemins (pas un FileField), donc
+    # suppression directe — elle n'est jamais partagée (vidée à la duplication).
+    for image_path in generation.generated_images:
+        if os.path.exists(image_path):
+            try:
+                os.remove(image_path)
+            except Exception as e:
+                logger.warning(f"Failed to delete image {image_path}: {str(e)}")
+
+    # FileFields → `safe_delete_file` : `duplicate_instance` PARTAGE les fichiers (il ne
+    # les copie pas), donc supprimer le fichier d'une ligne casserait ses doublons. La
+    # brique ne l'efface que si plus aucune autre ligne ne le référence.
+    #   • reference_image / prompt_file : PARTAGÉS (non listés dans `clear_fields`) — ils
+    #     n'étaient tout simplement JAMAIS supprimés, donc laissés à fuir sur le disque ;
+    #   • output_video : vidé à la duplication aujourd'hui, mais on passe quand même par
+    #     la brique — un `os.remove` brut redeviendrait faux au premier changement de
+    #     `clear_fields`, sans que rien ne le signale.
+    from wama.common.utils.queue_duplication import safe_delete_file
+    for _champ in ('output_video', 'reference_image', 'prompt_file'):
+        try:
+            safe_delete_file(generation, _champ)
+        except Exception as e:
+            logger.warning(f"safe_delete_file({_champ}) a échoué : {e}")
+
+    # Revoke Celery task if still queued/running
+    if generation.task_id:
+        try:
+            from celery.result import AsyncResult
+            AsyncResult(generation.task_id).revoke(terminate=False)
+        except Exception:
+            pass
+
+    cache.delete(f"imager_progress_{generation.id}")
+    generation.delete()
+
+
 @require_http_methods(["POST"])
 def delete_generation(request, generation_id):
     """Delete a specific generation"""
@@ -1215,40 +1328,7 @@ def delete_generation(request, generation_id):
 
     try:
         generation = owned_or_404(ImageGeneration, user, id=generation_id)   # MUTATION
-
-        # Sorties : `generated_images` est une LISTE de chemins (pas un FileField), donc
-        # suppression directe — elle n'est jamais partagée (vidée à la duplication).
-        for image_path in generation.generated_images:
-            if os.path.exists(image_path):
-                try:
-                    os.remove(image_path)
-                except Exception as e:
-                    logger.warning(f"Failed to delete image {image_path}: {str(e)}")
-
-        # FileFields → `safe_delete_file` : `duplicate_instance` PARTAGE les fichiers (il ne
-        # les copie pas), donc supprimer le fichier d'une ligne casserait ses doublons. La
-        # brique ne l'efface que si plus aucune autre ligne ne le référence.
-        #   • reference_image / prompt_file : PARTAGÉS (non listés dans `clear_fields`) — ils
-        #     n'étaient tout simplement JAMAIS supprimés, donc laissés à fuir sur le disque ;
-        #   • output_video : vidé à la duplication aujourd'hui, mais on passe quand même par
-        #     la brique — un `os.remove` brut redeviendrait faux au premier changement de
-        #     `clear_fields`, sans que rien ne le signale.
-        from wama.common.utils.queue_duplication import safe_delete_file
-        for _champ in ('output_video', 'reference_image', 'prompt_file'):
-            try:
-                safe_delete_file(generation, _champ)
-            except Exception as e:
-                logger.warning(f"safe_delete_file({_champ}) a échoué : {e}")
-
-        # Revoke Celery task if still queued/running
-        if generation.task_id:
-            try:
-                from celery.result import AsyncResult
-                AsyncResult(generation.task_id).revoke(terminate=False)
-            except Exception:
-                pass
-
-        generation.delete()
+        _purger_generation(generation)
         logger.info(f"Deleted generation #{generation_id}")
 
         return JsonResponse({'success': True, 'message': 'Generation deleted'})
@@ -1328,18 +1408,8 @@ def duplicate_generation(request, generation_id):
     # on s'en tient à la règle simple — le partage donne à VOIR, rien d'autre.
     generation = owned_or_404(ImageGeneration, user, id=generation_id)
     from wama.common.utils.queue_duplication import duplicate_instance
-    new_gen = duplicate_instance(
-        generation,
-        reset_fields={
-            'status': 'PENDING',
-            'progress': 0,
-            'task_id': '',
-            'error_message': '',
-            'generated_images': [],
-            'completed_at': None,
-        },
-        clear_fields=['output_video'],
-    )
+    new_gen = duplicate_instance(generation, reset_fields=_RESET_DUPLICATION,
+                                 clear_fields=['output_video'])
     return JsonResponse({'duplicated': new_gen.id})
 
 

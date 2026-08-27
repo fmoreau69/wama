@@ -153,6 +153,29 @@ pas `['del','dup','start']` sur leur card mère — `actions_communes=True` n'y 
 C'était déjà vrai ; c'était seulement **invisible**, caché derrière un skip. Un skip qui devient
 un échec est la mesure qui progresse, pas l'app qui recule.
 
+**Les 3 échecs sont SOLDÉS le 2026-08-27 (nuit)** — `actions_communes=True` adopté sur les trois :
+`.batch_actions` **10 OK / 0 échec / 4 skips** (`nightly_20260827_235842.json`) et `.batch_import`
+inchangé à **9 / 0 / 5** (`nightly_20260827_235409.json`). Les 4 skips restants sont **structurels**
+(converter_01, media_library, model_manager, studio — aucune surface de lot), pas des trous d'app.
+Le portage a été atomique par app : la card mère émet `data-batch-{delete,duplicate,start}-url`
+et les handlers locaux disparaissent dans le MÊME geste, faute de quoi chaque clic postait deux fois.
+
+> ⚠⚠ **Une correction de portage a produit un message d'erreur qui désignait le mauvais maillon.**
+> `enhancer.batch_import`, vert une heure plus tôt, est tombé sur
+> « *Unexpected token '<', "<!DOCTYPE "... is not valid JSON* ». Le message accuse un **endpoint**
+> qui rendrait du HTML — 302 de login, page 500. La cause était **trois lignes de commentaire** :
+> `{# … #}` posé sur **deux lignes**. Le lexer de Django n'est pas en DOTALL, donc ce n'est pas un
+> commentaire : le texte est **émis littéralement**, ici au milieu de `window.ENHANCER_APP = {…}`
+> → `SyntaxError` → l'objet de config n'existe jamais → `fetch(undefined)` retombe sur la page
+> courante, qui répond du HTML. Aucun endpoint n'était en cause. **Un message d'erreur nomme le
+> lieu où le symptôme SORT, jamais le lieu où la cause ENTRE** — et un défaut de gabarit peut
+> ressortir en erreur réseau.
+>
+> C'est la **8ᵉ récidive** du commentaire multi-ligne. La contre-mesure du jour a fonctionné :
+> `manage.py check_templates` a nommé les 3 défauts, fichier et ligne, en une commande — là où les
+> sept précédentes se sont payées en heures de diagnostic. Une règle qui demande de se souvenir
+> n'est pas un contrôle ; celle-ci l'est devenue.
+
 > ⚠ **Zéro échec ne veut pas dire couvert : 16 des 28 scénarios SAUTENT.** C'est précisément ce
 > que ce document appelle prendre une adoption pour un fonctionnement — sauf qu'ici le skip est
 > **explicite** : il nomme le maillon manquant (« deux dépôts n'ont créé aucun LOT », « aucune en

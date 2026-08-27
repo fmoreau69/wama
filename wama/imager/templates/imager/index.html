@@ -153,7 +153,7 @@ Tout telecharger. {% endcomment %}
 {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='imager-image-start-all' clear_id='imager-image-clear-all' download_id='imager-image-download-all' show_download=True %}
 
 {% for batch_info in image_batches %}
-    {% include 'common/_queue_entry.html' with card_template='imager/_generation_card.html' card_class='imager-card' app='imager' domain='image' %}
+    {% include 'common/_queue_entry.html' with card_template='imager/_generation_card.html' card_class='imager-card' app='imager' domain='image' actions_communes=True %}
 {% empty %}
     <div class="card bg-dark border-secondary">
         <div class="card-body text-center text-white-50 py-4">
@@ -200,7 +200,7 @@ Tout telecharger. {% endcomment %}
 {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='imager-video-start-all' clear_id='imager-video-clear-all' download_id='imager-video-download-all' show_download=True %}
 
 {% for batch_info in video_batches %}
-    {% include 'common/_queue_entry.html' with card_template='imager/_generation_card.html' card_class='imager-card' app='imager' domain='video' %}
+    {% include 'common/_queue_entry.html' with card_template='imager/_generation_card.html' card_class='imager-card' app='imager' domain='video' actions_communes=True %}
 {% empty %}
     <div class="card bg-dark border-secondary">
         <div class="card-body text-center text-white-50 py-4">
@@ -382,7 +382,7 @@ function _mpInjectImage(file, inputId, previewId) {
             saveSettings: "{% url 'imager:save_settings' 0 %}",
             autoPrompt: "{% url 'imager:auto_prompt' %}",
             batchChildren: "{% url 'imager:batch_children' 0 %}",
-            startBatch: "{% url 'imager:start_batch' 0 %}",
+            startBatch: "{% url 'imager:batch_start' 0 %}",
             modelResolutions: "{% url 'imager:api_model_resolutions' %}",
             forceReset: "{% url 'imager:force_reset' 0 %}",
             enhancePrompt: "{% url 'common:enrich_prompt' %}"
@@ -404,7 +404,7 @@ window.IMAGER_CARD = {
     urls: { create: "{% url 'imager:create' %}",
             cardHtml: "{% url 'imager:card_html' 0 %}",
             batchUpdate: "{% url 'imager:batch_update' 0 %}",
-            batchStart: "{% url 'imager:start_batch' 0 %}" },
+            batchStart: "{% url 'imager:batch_start' 0 %}" },
     modelGroups: {{ model_groups_json|safe }},
     csrf: "{{ csrf_token }}",
     enhanceUrl: "{% url 'common:enrich_prompt' %}",
@@ -467,7 +467,7 @@ document.addEventListener('DOMContentLoaded', function () {
         },
         afterCreate: function (data, autoStart) {
             if (autoStart && data.batch_id) {
-                fetch('{% url "imager:start_batch" 0 %}'.replace('/0/', '/' + data.batch_id + '/'),
+                fetch('{% url "imager:batch_start" 0 %}'.replace('/0/', '/' + data.batch_id + '/'),
                       { method: 'POST', headers: { 'X-CSRFToken': '{{ csrf_token }}' } })
                     .finally(function () { location.reload(); });
             } else {

@@ -718,54 +718,17 @@
      * ============================================================ */
 
     /* ============================================================
-     * Duplication (item) + actions de lot (start / duplicate / delete)
-     * ============================================================ */
-    function postJson(url) {
-        return fetch(url, { method: 'POST', headers: { 'X-CSRFToken': csrf } });
-    }
-
-    document.addEventListener('click', async (e) => {
-        // ── Dupliquer un job : brique COMMUNE `queue-actions.js` ──────────────────
-        // Ce handler local a été retiré (2026-07-31). Le bouton porte maintenant la
-        // classe et data-attribut de duplication communs, sur lesquels la brique
-        // globale se branche. Le garder EN PLUS aurait duplique deux fois par clic :
-        // la brique exige la classe ET l'attribut, poser l'un sans retirer l'autre
-        // produit soit un doublon, soit un mécanisme présent mais inerte.
-
-        // ── Démarrer un lot ──
-        const startBtn = e.target.closest('.batch-start-btn');
-        if (startBtn) {
-            e.preventDefault();
-            try {
-                const r = await postJson(`${cfg.urls.batchStart}${startBtn.dataset.batchId}/start/`);
-                if (r.ok) window.location.reload(); else WamaApp.toast('Erreur au démarrage du lot.', 'error');
-            } catch (_) { WamaApp.toast('Erreur réseau.', 'error'); }
-            return;
-        }
-        // ── Dupliquer un lot ──
-        const bDup = e.target.closest('.batch-duplicate-btn');
-        if (bDup) {
-            e.preventDefault();
-            try {
-                const r = await postJson(`${cfg.urls.batchDuplicate}${bDup.dataset.batchId}/duplicate/`);
-                if (r.ok) { if (window.WamaFM) WamaFM.uploaded(); window.location.reload(); }
-                else WamaApp.toast('Erreur lors de la duplication du lot.', 'error');
-            } catch (_) { WamaApp.toast('Erreur réseau.', 'error'); }
-            return;
-        }
-        // ── Supprimer un lot ──
-        const bDel = e.target.closest('.batch-delete-btn');
-        if (bDel) {
-            e.preventDefault();
-            if (!confirm('Supprimer ce lot et tous ses jobs ?')) return;
-            try {
-                const r = await postJson(`${cfg.urls.batchDelete}${bDel.dataset.batchId}/delete/`);
-                if (r.ok) { if (window.WamaFM) WamaFM.deleted(); window.location.reload(); }
-                else WamaApp.toast('Erreur lors de la suppression du lot.', 'error');
-            } catch (_) { WamaApp.toast('Erreur réseau.', 'error'); }
-            return;
-        }
-    });
+     * Actions d'ÉLÉMENT et de LOT : toutes à la brique commune
+     * ============================================================
+     * ⧉ d'un job → brique commune depuis le 2026-07-31.
+     * ▶ ⧉ 🗑 d'un LOT → brique commune depuis le 2026-08-27 (`actions_communes=True` sur
+     * l'include `_queue_entry.html`). Les trois handlers qui vivaient ici POSTaient vers des
+     * URLs RECONSTRUITES à la main (`cfg.urls.batchStart + id + '/start/'`, un chemin littéral
+     * dans le gabarit) : la card mère porte désormais `data-batch-*-url` résolue par `{% url %}`.
+     * Le retrait et l'opt-in sont le MÊME geste — garder les deux aurait POSTé deux fois par clic.
+     * Aucune suite à déclarer : l'avatarizer rechargeait après lancement, ce que fait le défaut
+     * de la brique.
+     */
 
 
     // ── Parametres de LOT : la ⚙ des cards batch communes ouvre la modale WamaParams

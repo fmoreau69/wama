@@ -61,14 +61,19 @@
         return m ? m[1] : '';
     }
 
-    function poster(url) {
+    // `corps` — corps JSON de la requête. Le défaut `{}` couvre 9 apps sur 10 ; l'enhancer AUDIO
+    // est le seul cas mesuré (2026-08-27) où le lancement PORTE des réglages : son volet gauche
+    // est la surface de réglage vivante, appliquée à CHAQUE lancement (item comme lot). Le porter
+    // en laissant le corps vide aurait lancé le lot avec les valeurs stockées à la création —
+    // une régression MUETTE, et incohérente avec le ▶ de la card fille juste à côté.
+    function poster(url, corps) {
         return fetch(url, {
             method: 'POST',
             headers: {
                 'X-CSRFToken': getCsrf(),
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({}),
+            body: JSON.stringify(corps || {}),
         });
     }
 
@@ -342,7 +347,7 @@
             const iconeInitiale = icon ? icon.className : '';
             if (icon) { icon.className = 'fas fa-spinner fa-spin'; }
 
-            poster(url)
+            poster(url, options.corps ? options.corps(btn) : null)
             .then(lireReponse)
             .then(function (data) {
                 if (data.error) {
@@ -394,16 +399,37 @@
     // algorithme pour neuf spécificités. Ici la divergence est réelle, et c'est la MÊME
     // méthode qui l'établit : lire ce que le code FAIT après le POST, pas comment il s'appelle.
     // La règle qui en sort : mesurer d'abord, et n'ouvrir un hook que quand la mesure le montre.
-    let apresLancementLot = null;
+    // ⚠ 2026-08-27 — la suite était une variable UNIQUE : la deuxième app à la déclarer écrasait
+    // la première, et une app à DEUX files (l'enhancer : média + audio) ne pouvait pas en avoir
+    // deux. Même liste scopée que `onBatchSettings`, donc même `choisir` — le domaine décide.
+    const suitesLot = [];
 
-    function onBatchStarted(handler) {
-        if (typeof handler === 'function') apresLancementLot = handler;
+    function onBatchStarted(handler, options) {
+        if (typeof handler !== 'function') return;
+        const o = options || {};
+        suitesLot.push({ handler: handler, domain: o.domain || null, within: o.within || null });
     }
 
-    actionDeLot('batch-start-btn', 'data-batch-start-url', { suite: function (data, id, btn) {
-        if (apresLancementLot) { apresLancementLot(data, id, btn); return true; }
-        return false;   // pas de suite déclarée → rechargement (défaut sûr)
-    } });
+    // Corps déclaré du ▶ de lot — voir le commentaire de `poster`. Scopé comme le reste.
+    const corpsLot = [];
+
+    function onBatchStartBody(handler, options) {
+        if (typeof handler !== 'function') return;
+        const o = options || {};
+        corpsLot.push({ handler: handler, domain: o.domain || null, within: o.within || null });
+    }
+
+    actionDeLot('batch-start-btn', 'data-batch-start-url', {
+        corps: function (btn) {
+            const fabrique = choisir(corpsLot, btn);
+            return fabrique ? fabrique(btn) : null;
+        },
+        suite: function (data, id, btn) {
+            const suite = choisir(suitesLot, btn);
+            if (suite) { suite(data, id, btn); return true; }
+            return false;   // pas de suite déclarée → rechargement (défaut sûr)
+        },
+    });
 
     // ⚙ du lot : comme pour l'élément, la brique tient le clic et l'app déclare son ouvreur —
     // la modale de lot reste propre à l'app (schéma, contexte 'batch').
@@ -428,5 +454,6 @@
 
     window.WamaQueueActions = { onSettings: onSettings, onDeleted: onDeleted,
                                 onBatchSettings: onBatchSettings,
-                                onBatchStarted: onBatchStarted };
+                                onBatchStarted: onBatchStarted,
+                                onBatchStartBody: onBatchStartBody };
 })();

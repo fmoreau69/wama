@@ -156,7 +156,7 @@ est CONTEXTUEL (inspecteur) — les actions de FILE vivent dans la toolbar commu
                   bouton de téléchargement de lot le 25/08, sans qu'aucun test le voie.
                 {% endcomment %}
                 {% url 'avatarizer:batch_download' b.obj.id as batch_dl_url %}
-                {% include 'common/_queue_entry.html' with batch_info=b card_template='avatarizer/_avatar_card.html' download_url=batch_dl_url app='avatarizer' %}
+                {% include 'common/_queue_entry.html' with batch_info=b card_template='avatarizer/_avatar_card.html' download_url=batch_dl_url app='avatarizer' actions_communes=True %}
                 {% endfor %}{# b in batches_list #}
             {% else %}
             <div id="no-jobs-msg" class="text-center text-muted py-4">
@@ -310,9 +310,10 @@ window.AVATARIZER_CONFIG = {
         batchTemplate: "{% url 'avatarizer:batch_template' %}",
         batchPreview:  "{% url 'avatarizer:batch_preview' %}",
         batchCreate:   "{% url 'avatarizer:batch_create' %}",
-        batchStart:    "/avatarizer/batch/",
-        batchDuplicate:"/avatarizer/batch/",
-        batchDelete:   "/avatarizer/batch/",
+        {% comment %}batchStart / batchDuplicate / batchDelete RETIRÉS le 2026-08-27 : c'étaient
+        des chemins LITTÉRAUX ("/avatarizer/batch/") recollés côté JS. La card mère de lot porte
+        désormais ses URLs résolues côté gabarit (`actions_communes=True`) et la brique commune
+        `queue-actions.js` les lit — plus aucun chemin d'avatarizer écrit à la main.{% endcomment %}
     },
     mediaUrl:  "{{ MEDIA_URL }}",
     csrfToken: "{{ csrf_token }}",

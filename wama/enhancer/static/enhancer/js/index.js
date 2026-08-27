@@ -770,40 +770,20 @@ document.addEventListener('DOMContentLoaded', function () {
   // ── Batch detect bar — delegated to WamaBatchImport (common/js/batch-import.js)
   // Initialisation dans le template via window._batchImport = WamaBatchImport({...})
 
-  // ── Batch start ────────────────────────────────────────────────────────
-  document.addEventListener('click', function(e) {
-    const btn = e.target.closest('.batch-start-btn');
-    if (!btn || !btn.closest('#enhancer-queue')) return;   // file MÉDIA seulement (l'audio a les mêmes classes brique)
-    const batchId = btn.dataset.batchId;
-    const url = config.batchStartUrlTemplate.replace('/0/', `/${batchId}/`);
-    btn.disabled = true;
-    fetch(url, { method: 'POST', headers: { 'X-CSRFToken': csrfToken } })
-      .then(r => r.json())
-      .then(d => {
-        if (d.started && d.started.length > 0) {
-          d.started.forEach(id => startPolling(id));
-        }
-        btn.disabled = false;
-      })
-      .catch(() => { btn.disabled = false; });
-  });
-
-  // ── Batch delete ───────────────────────────────────────────────────────
-  document.addEventListener('click', function(e) {
-    const btn = e.target.closest('.batch-delete-btn');
-    if (!btn || !btn.closest('#enhancer-queue')) return;
-    const batchId = btn.dataset.batchId;
-    if (!confirm('Supprimer ce batch et toutes ses améliorations ?')) return;
-    const url = config.batchDeleteUrlTemplate.replace('/0/', `/${batchId}/`);
-    fetch(url, { method: 'POST', headers: { 'X-CSRFToken': csrfToken } })
-      .then(r => r.json())
-      .then(() => {
-        const el = btn.closest('.batch-group');
-        if (el) el.remove();
-        else location.reload();
-      })
-      .catch(() => WamaApp.toast('Erreur lors de la suppression', 'error'));
-  });
+  // ── ▶ ⧉ 🗑 de LOT : brique commune `queue-actions.js` (2026-08-27) ─────
+  // Les trois handlers qui vivaient ici ont été retirés AVEC la pose de `actions_communes=True`
+  // sur l'include de la file média (geste ATOMIQUE : l'un sans l'autre = double POST ou bouton
+  // inerte). Ils se scopaient sur `#enhancer-queue`, un id CSS d'app ; la brique se scope sur le
+  // DOMAINE déclaré (`data-domain="image_video"`, porté par l'onglet et par la card mère).
+  //
+  // Seule spécificité à PRÉSERVER : l'enhancer n'a jamais rechargé après un lancement de lot, il
+  // insère et POLLE (famille composer/describer). C'est ce que déclare cette suite — le défaut de
+  // la brique (rechargement) aurait fait perdre le suivi en direct du lot qu'on vient de lancer.
+  if (window.WamaQueueActions) {
+    WamaQueueActions.onBatchStarted(function (d) {
+      (d.started || []).forEach(id => startPolling(id));
+    }, { domain: 'image_video' });
+  }
 
   // Duplication d'item : gérée par la brique commune queue-actions.js (chargée
   // globalement par base.html) — le handler local dupliquait la requête.
@@ -852,19 +832,4 @@ document.addEventListener('DOMContentLoaded', function () {
     if (e.target.closest('#saveBatchSettingsAndStartBtn')) saveBatchSettings(true);
   });
 
-  // ── Batch duplicate ────────────────────────────────────────────────────
-  document.addEventListener('click', function(e) {
-    const btn = e.target.closest('.batch-duplicate-btn');
-    if (!btn || !btn.closest('#enhancer-queue')) return;
-    const batchId = btn.dataset.batchId;
-    const url = config.batchDuplicateUrlTemplate.replace('/0/', `/${batchId}/`);
-    fetch(url, { method: 'POST', headers: { 'X-CSRFToken': csrfToken } })
-      .then(r => r.json())
-      .then(d => {
-        if (d.success) {
-          setTimeout(() => location.reload(), 400);
-        }
-      })
-      .catch(() => WamaApp.toast('Erreur lors de la duplication', 'error'));
-  });
 });
