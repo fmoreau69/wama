@@ -1554,6 +1554,42 @@ def api_prospect_install(request):
                 return JsonResponse({'success': False, 'error': res.get('error', 'échec')}, status=500)
             return JsonResponse({'success': True, 'installed': data['spec'].get('ref'),
                                  'path': res.get('path')})
+        # ── Install d'un modèle DU CATALOGUE (non proposé, non téléchargé — 2026-08-27) ──
+        # L'app déclare l'emplacement (extra_info.install_dir, posé par sa découverte) ; le
+        # spec se dérive côté serveur, la séquence longue part en Celery (même suivi que les
+        # candidats). Cas d'origine : musicgen-melody « Not downloaded » sans aucun geste.
+        if data.get('catalog_key'):
+            from wama.common.utils.task_progress import progression_en_cours
+
+            from .services.model_installer import spec_for_catalog_row
+            from .services.prospector import _poids_depot_go
+            from .tasks import INSTALL_CACHE_PREFIX, install_catalog_task
+            model = AIModel.objects.filter(model_key=data['catalog_key'],
+                                           is_proposed=False).first()
+            if model is None:
+                return JsonResponse({'success': False, 'error': 'Modèle introuvable'}, status=404)
+            if model.is_downloaded:
+                return JsonResponse({'success': False, 'error': 'Déjà téléchargé'}, status=400)
+            spec = spec_for_catalog_row(model)
+            if spec is None:
+                return JsonResponse(
+                    {'success': False,
+                     'error': "Ce modèle ne déclare pas d'emplacement d'installation "
+                              "(hf_id/install_dir) — il se téléchargera au premier usage."},
+                    status=400)
+            besoin = model.disk_gb or _poids_depot_go(model.hf_id)
+            garde = _garde_espace_disque(model.hf_id, force=bool(data.get('force')),
+                                         besoin_gb=besoin)
+            if garde is not None:
+                return JsonResponse(garde, status=507)
+            en_cours = progression_en_cours(INSTALL_CACHE_PREFIX + model.model_key)
+            if en_cours:
+                return JsonResponse({'success': True, 'already_running': True,
+                                     'model_id': model.model_key, 'progress': en_cours})
+            started = install_catalog_task.delay(model.model_key)
+            return JsonResponse({'success': True, 'started': True,
+                                 'model_id': model.model_key, 'task_id': started.id})
+
         # ── Raccourci YOLO conservé (équivaut à spec={'kind':'yolo','ref':name}) ──
         if data.get('source') == 'yolo':
             res = pull_yolo_weights(data.get('name') or '')

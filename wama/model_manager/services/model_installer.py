@@ -394,6 +394,42 @@ def uninstall_model(model_key: str) -> dict:
     return {'ok': True, 'freed_gb': round(freed_gb, 1), 'kind': kind, 'name': model.name}
 
 
+def spec_for_catalog_row(model) -> dict | None:
+    """
+    Spec d'installation DÉRIVÉ d'une ligne de catalogue non téléchargée — le geste « Installer »
+    des modèles d'app (2026-08-27, cas musicgen-melody : affiché « Not downloaded » sans aucun
+    bouton ; l'affichage est voulu — découvrabilité —, le geste manquait).
+
+    Conditions : un `hf_id` (la référence à tirer) ET un `extra_info['install_dir']` déclaré
+    par la DÉCOUVERTE de l'app (le registre ne connaît pas ses producteurs : c'est l'app qui
+    dit où ses poids vivent). `category`/`family` se dérivent du chemin relatif à la racine
+    canonique. La `composition` déclarée voyage dans le spec (jeu cohérent). None si la ligne
+    n'est pas installable ainsi — l'appelant le DIT, il n'invente pas d'emplacement.
+    """
+    from wama.common.utils.model_locations import models_root
+
+    hf_id = (model.hf_id or '').strip()
+    install_dir = ((model.extra_info or {}).get('install_dir') or '').strip()
+    if not hf_id or not install_dir:
+        return None
+    try:
+        rel = Path(install_dir).resolve().relative_to(models_root().resolve())
+    except (ValueError, OSError):
+        return None                      # hors racine canonique : pas installable d'ici
+    parts = rel.parts
+    if not parts:
+        return None
+    spec = {
+        'kind': 'hf', 'ref': hf_id,
+        'category': parts[0],
+        **({'family': parts[1]} if len(parts) > 1 else {}),
+        'note': f"installation explicite depuis le catalogue ({model.model_key})",
+    }
+    if getattr(model, 'composition', None):
+        spec['composition'] = model.composition
+    return spec
+
+
 #: Fichiers de bord tirés avec tout jeu de composants (config/tokenizer/licence — légers).
 _PATTERNS_DE_BORD = ['*.json', '*.txt', 'tokenizer*', '*.md']
 

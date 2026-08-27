@@ -222,6 +222,49 @@ def install_proposed_task(self, model_key: str):
     return res
 
 
+@shared_task(bind=True, name='model_manager.install_catalog')
+def install_catalog_task(self, model_key: str):
+    """
+    Installe un modèle DU CATALOGUE (non téléchargé, hf_id + install_dir déclarés) — le
+    pendant de `install_proposed_task` pour les modèles d'app (2026-08-27, cas
+    musicgen-melody). Spec dérivé côté serveur (`spec_for_catalog_row`), même cache de
+    progression que les candidats → l'UI réutilise le même suivi.
+    """
+    from wama.common.utils.task_progress import publier_progression
+
+    from .models import AIModel
+    from .services.model_installer import install_from_spec, spec_for_catalog_row
+
+    cache_key = INSTALL_CACHE_PREFIX + model_key
+
+    def publier(state: str, payload: dict):
+        publier_progression(cache_key, self.request.id, state, payload, INSTALL_TTL)
+
+    model = AIModel.objects.filter(model_key=model_key, is_proposed=False).first()
+    if model is None:
+        publier('FAILURE', {'error': 'Modèle introuvable au catalogue'})
+        return {'ok': False, 'error': 'Modèle introuvable'}
+    spec = spec_for_catalog_row(model)
+    if spec is None:
+        publier('FAILURE', {'error': "Ce modèle ne déclare pas d'emplacement d'installation "
+                                     "(hf_id/install_dir) — installation au premier usage "
+                                     "seulement.", 'name': model.name})
+        return {'ok': False, 'error': 'spec non dérivable'}
+
+    publier('RUNNING', {'status': f"téléchargement {spec['ref']}…", 'name': model.name})
+    try:
+        res = install_from_spec(spec)
+    except Exception as exc:
+        logger.exception("[install_catalog] échec inattendu pour %s", model_key)
+        publier('FAILURE', {'error': f"{type(exc).__name__}: {exc}", 'name': model.name})
+        raise
+    publier('SUCCESS' if res.get('ok') else 'FAILURE', dict(
+        {k: v for k, v in res.items() if k != 'provenance'}, name=model.name))
+    logger.info("[install_catalog] %s → %s", model_key,
+                'installé' if res.get('ok') else res.get('error'))
+    return {k: v for k, v in res.items() if k != 'provenance'}
+
+
 @shared_task(bind=True, name='model_manager.assess_proposed')
 def assess_proposed_task(self, max_assess: int = 10, chainer: bool = True):
     """

@@ -72,8 +72,12 @@ repli sur le `model_type` du modèle cible.
 ## Construire un skill : la MÉTHODE en 4 étages (2026-08-26)
 
 > Transposée du skill `music-caption-rewriter` publié avec MiniMax-Music3 — le premier cas
-> observé d'un ÉDITEUR de modèle livrant le skill d'enrichissement avec ses poids. La méthode
-> vaut pour TOUTES les apps ; l'adapter à la taille du LLM local (garder le skill court).
+> observé d'un ÉDITEUR de modèle livrant le skill d'enrichissement avec ses poids
+> (`github.com/MiniMax-AI/MiniMax-Music3/tree/main/skills` : SKILL.md + routeur de 18
+> familles de styles + 1000 templates de captions). La méthode vaut pour TOUTES les apps ;
+> l'adapter à la taille du LLM local (garder le skill court — le skill officiel complet est
+> taillé pour un agent code, pas pour l'enrichissement local ; sa sortie, elle, est captée
+> par le `prompt_contract` déclaré au manifeste de minimax-music3, 2026-08-27).
 
 1. **Brief** — extraire l'intention en qualifiant chaque dimension : *énoncée* par
    l'utilisateur, *impliquée* par le contexte, ou *non spécifiée*. Ne JAMAIS fabriquer une

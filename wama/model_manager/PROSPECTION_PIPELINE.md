@@ -701,6 +701,29 @@ MiniMax-Music3 Community License — pas d'exclusion UE, commercial libre < 20 M
 obligations : afficher « MiniMax-Music3 » dans l'UI (fait — le nom du modèle est affiché)
 et divulguer le caractère généré du contenu diffusé. Détail : `LICENSING.md`.
 
+### Install EXPLICITE des modèles du catalogue (même session, question Fabien sur musicgen-melody)
+
+**Le trou** : un modèle d'app « Not downloaded » (musicgen-melody) s'affichait sans AUCUN
+geste — l'affichage est VOULU (découvrabilité : un utilisateur sans accès au model_manager
+doit savoir que le modèle existe ; le téléchargement au 1er usage reste le filet), mais
+l'installation explicite n'existait que pour les candidats de prospection.
+
+**Refermé** : la DÉCOUVERTE d'app déclare l'emplacement (`extra_info['install_dir']` —
+posé par `_discover_composer_models`, généralisable aux autres apps en une ligne chacune) →
+`spec_for_catalog_row` dérive le spec (category/family du chemin relatif à `models_root`,
+`composition` embarquée si déclarée — un modèle composé tire son jeu cohérent) →
+`install_catalog_task` (Celery, même cache de progression que les candidats → même suivi
+UI) → bouton « Installer » à l'inspecteur pour tout modèle non téléchargé porteur de
+`hf_id` + `install_dir`. Garde d'espace : poids du catalogue, sinon relevé HF, sinon refus
+prudent forçable. Le registre n'invente JAMAIS d'emplacement : sans déclaration d'app, pas
+de bouton — premier usage seulement.
+
+**Skills officiels MiniMax** : `github.com/MiniMax-AI/MiniMax-Music3/tree/main/skills`
+(`music-caption-rewriter` : SKILL.md + 18 familles de styles + 1000 templates) — notre
+transposition assumée : la MÉTHODE dans `composer-music.md`, la SORTIE dans le
+`prompt_contract` du manifeste (le skill complet est taillé pour un agent code, pas pour
+l'enrichissement LLM local). Réf. croisée : `prompt_skills/README.md`.
+
 **Validation restante (HUMAINE — jamais de charge GPU lancée par une session sur cet
 hôte)** : redémarrer les services puis générer depuis le composer avec `minimax-music3`,
 ou en CLI :

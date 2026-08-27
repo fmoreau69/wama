@@ -1398,6 +1398,14 @@ document.addEventListener('DOMContentLoaded', function() {
         { label: 'Désinstaller', icon: 'fas fa-trash-can', cls: 'btn btn-sm btn-outline-danger',
           when: function (m) { return !m.is_proposed && !!m.is_downloaded && !m.is_loaded; },
           onClick: function (m) { mmUninstallModel(m); } },
+        {% comment %} Install EXPLICITE d'un modèle d'app non téléchargé (2026-08-27, cas
+        musicgen-melody) : spec dérivé serveur (hf_id + install_dir déclaré par la découverte),
+        tâche Celery, même suivi que les candidats. Le téléchargement au 1er usage reste le
+        filet pour les modèles sans install_dir. {% endcomment %}
+        { label: 'Installer', icon: 'fas fa-download', cls: 'btn btn-sm btn-primary',
+          when: function (m) { return !m.is_proposed && !m.is_downloaded && !!m.hf_id
+                                      && !!((m.extra_info || {}).install_dir); },
+          onClick: function (m) { mmCatalogInstall(m); } },
         { expand: function (m) {
             return (Array.isArray(m.can_convert_to) ? m.can_convert_to : []).map(function (fmt) {
                 return {
@@ -1407,6 +1415,40 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         } },
     ];
+
+    async function mmCatalogInstall(m) {
+        if (!confirm(`Télécharger « ${m.name} » maintenant ?\n\n`
+            + 'Le modèle sera installé dans le dossier déclaré par son app '
+            + '(téléchargement en tâche de fond).')) return;
+        showLoading('Installation…');
+        try {
+            const key = m.model_key || m.id;
+            const r = await fetch('{% url "model_manager:api_prospect_install" %}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify({ catalog_key: key })
+            });
+            const data = await r.json();
+            if (data.success) { mmProspectPoll(key); return; }
+            if (r.status === 507 && data.force_possible) {
+                if (confirm((data.error || 'Espace insuffisant.')
+                    + '\n\nInstaller quand même ? Le disque risque la saturation.')) {
+                    const r2 = await fetch('{% url "model_manager:api_prospect_install" %}', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                        body: JSON.stringify({ catalog_key: key, force: true })
+                    });
+                    const d2 = await r2.json();
+                    if (d2.success) { mmProspectPoll(key); return; }
+                    alert('Échec : ' + (d2.error || 'inconnu'));
+                }
+                hideLoading();
+                return;
+            }
+            hideLoading();
+            alert('Échec : ' + (data.error || 'inconnu'));
+        } catch (err) { hideLoading(); alert('Erreur : ' + err.message); }
+    }
 
     async function mmUninstallModel(m) {
         const poids = m.disk_gb ? ` (${Number(m.disk_gb).toFixed(1)} Go rendus au disque)` : '';

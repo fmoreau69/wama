@@ -1187,6 +1187,12 @@ class ModelRegistry:
                         'type': config['type'],
                         'max_duration': config['max_duration'],
                         'sample_rate': config['sample_rate'],
+                        # Emplacement d'installation DÉCLARÉ par l'app (2026-08-27) : c'est
+                        # lui qui rend un modèle du catalogue INSTALLABLE explicitement
+                        # (spec_for_catalog_row) — sans lui, seul le téléchargement au
+                        # premier usage existe (musicgen-melody « Not downloaded » sans
+                        # bouton, constaté par Fabien).
+                        'install_dir': str(config['cache_dir']),
                     },
                     # Capacités CANONIQUES (tronc commun, cf. common/utils/model_capabilities.py) :
                     #   modalities = sortie audio ; task dérivé du type (music vs sfx) ;

@@ -361,6 +361,80 @@ class CompositionTest(TestCase):
         self.assertIsNone(patterns_from_composition(None))
 
 
+class InstallDepuisLeCatalogueTest(TestCase):
+    """Un modèle d'app « Not downloaded » doit s'installer EXPLICITEMENT (2026-08-27, cas
+    musicgen-melody : affiché sans aucun geste — l'affichage est voulu, le geste manquait).
+    Le spec se dérive de ce que l'APP déclare (hf_id + extra_info.install_dir) — le registre
+    n'invente jamais d'emplacement."""
+
+    def test_le_spec_se_derive_de_l_emplacement_declare_par_l_app(self):
+        import tempfile
+
+        from django.test import override_settings
+
+        from .services.model_installer import spec_for_catalog_row
+        with tempfile.TemporaryDirectory() as tmp:
+            racine = Path(tmp)
+            (racine / 'models' / 'music' / 'musicgen').mkdir(parents=True)
+            m = AIModel.objects.create(
+                model_key='composer:musicgen-melody', name='MusicGen Melody',
+                model_type='music', source='composer', hf_id='facebook/musicgen-melody',
+                extra_info={'install_dir': str(racine / 'models' / 'music' / 'musicgen')})
+            with override_settings(AI_MODELS_DIR=racine):
+                spec = spec_for_catalog_row(m)
+        self.assertEqual(spec['kind'], 'hf')
+        self.assertEqual(spec['ref'], 'facebook/musicgen-melody')
+        self.assertEqual(spec['category'], 'music')
+        self.assertEqual(spec['family'], 'musicgen',
+                         "les poids doivent rejoindre le dossier DÉCLARÉ par l'app — sinon "
+                         "sa découverte (_check_hf_model_downloaded) ne les verra jamais")
+
+    def test_sans_declaration_d_emplacement_pas_de_spec_invente(self):
+        from .services.model_installer import spec_for_catalog_row
+        sans_dir = AIModel.objects.create(
+            model_key='composer:x', name='X', model_type='music', source='composer',
+            hf_id='org/x')
+        sans_hf = AIModel.objects.create(
+            model_key='composer:y', name='Y', model_type='music', source='composer',
+            extra_info={'install_dir': '/quelque/part'})
+        self.assertIsNone(spec_for_catalog_row(sans_dir))
+        self.assertIsNone(spec_for_catalog_row(sans_hf))
+
+    def test_un_emplacement_hors_racine_canonique_est_refuse(self):
+        import tempfile
+
+        from django.test import override_settings
+
+        from .services.model_installer import spec_for_catalog_row
+        with tempfile.TemporaryDirectory() as tmp:
+            racine = Path(tmp)
+            (racine / 'models').mkdir()
+            m = AIModel.objects.create(
+                model_key='composer:z', name='Z', model_type='music', source='composer',
+                hf_id='org/z', extra_info={'install_dir': str(racine / 'ailleurs')})
+            with override_settings(AI_MODELS_DIR=racine):
+                self.assertIsNone(spec_for_catalog_row(m))
+
+    def test_la_composition_declaree_voyage_dans_le_spec(self):
+        # Un modèle composé installé depuis le catalogue tire son JEU COHÉRENT, pas le dépôt.
+        import tempfile
+
+        from django.test import override_settings
+
+        from .services.model_installer import spec_for_catalog_row
+        compo = {'components': [{'role': 'lm', 'pattern': 'lm_q8.gguf'}]}
+        with tempfile.TemporaryDirectory() as tmp:
+            racine = Path(tmp)
+            (racine / 'models' / 'music' / 'Fam').mkdir(parents=True)
+            m = AIModel.objects.create(
+                model_key='composer:c', name='C', model_type='music', source='composer',
+                hf_id='org/c', composition=compo,
+                extra_info={'install_dir': str(racine / 'models' / 'music' / 'Fam')})
+            with override_settings(AI_MODELS_DIR=racine):
+                spec = spec_for_catalog_row(m)
+        self.assertEqual(spec['composition'], compo)
+
+
 class ChoixDeVarianteTest(TestCase):
     """Le spec d'installation doit respecter le choix VALIDÉ par l'utilisateur — rien d'autre."""
 
