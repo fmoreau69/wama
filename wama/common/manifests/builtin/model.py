@@ -74,6 +74,63 @@ def validate_model_body(body: dict) -> list[str]:
         contract = prompts.get('contract')
         if contract is not None and not isinstance(contract, str):
             errs.append("prompts.contract doit être une chaîne (markdown, anglais)")
+
+    errs += _validate_composition(body.get('composition'))
+    return errs
+
+
+def _validate_composition(compo) -> list[str]:
+    """
+    Anatomie d'un modèle COMPOSÉ (2026-08-27, cas d'école MiniMax-Music3 : 5 GGUF = 1 modèle).
+
+    `composition.components` = [{role, pattern[, format]}] — le rôle nomme la fonction du
+    composant dans la chaîne (language_model, transformer, vocoder…), le pattern désigne son
+    fichier (motif glob HF `allow_patterns`). `composition.runtime` = {engine[, …]} — le
+    moteur d'exécution que le backend composé invoquera. Vocabulaire des rôles OUVERT (chaque
+    architecture a le sien) ; la forme, elle, est fermée. Absent/vide = modèle mono-fichier,
+    cas général.
+    """
+    if compo is None or compo == {}:
+        return []
+    if not isinstance(compo, dict):
+        return ["composition doit être un dict {components, runtime}"]
+    errs: list[str] = []
+
+    comps = compo.get('components')
+    if comps is not None:
+        if not isinstance(comps, list) or not comps:
+            errs.append("composition.components doit être une liste non vide")
+        else:
+            roles: set = set()
+            for i, c in enumerate(comps):
+                if not isinstance(c, dict):
+                    errs.append(f"composition.components[{i}] doit être un dict")
+                    continue
+                role, pattern = c.get('role'), c.get('pattern')
+                if not role or not isinstance(role, str):
+                    errs.append(f"composition.components[{i}] : 'role' requis (chaîne)")
+                elif role in roles:
+                    errs.append(f"composition.components : role '{role}' dupliqué")
+                else:
+                    roles.add(role)
+                if not pattern or not isinstance(pattern, str):
+                    errs.append(f"composition.components[{role or i}] : 'pattern' requis "
+                                "(motif de fichier, style allow_patterns)")
+                fmt = c.get('format')
+                if fmt is not None and not isinstance(fmt, str):
+                    errs.append(f"composition.components[{role or i}] : 'format' doit être une chaîne")
+
+    runtime = compo.get('runtime')
+    if runtime is not None:
+        if not isinstance(runtime, dict):
+            errs.append("composition.runtime doit être un dict")
+        elif not runtime.get('engine') or not isinstance(runtime.get('engine'), str):
+            errs.append("composition.runtime : 'engine' requis (chaîne — le moteur que le "
+                        "backend composé invoque)")
+
+    inconnues = set(compo) - {'components', 'runtime'}
+    if inconnues:
+        errs.append(f"composition : clés inconnues {sorted(inconnues)} (components|runtime)")
     return errs
 
 
@@ -121,6 +178,9 @@ def extract_model(key: str) -> Optional[dict]:
         'prompts': {
             'contract': m.prompt_contract or None,
         },
+        # anatomie d'un modèle composé + moteur d'exécution (fait DÉCLARÉ, 2026-08-27) —
+        # {} pour un modèle mono-fichier, le cas général.
+        'composition': getattr(m, 'composition', None) or {},
         # provenance / proposition (méta déclarative, pas de l'état de charge)
         'provenance': {
             'backend_ref': getattr(m, 'backend_ref', '') or None,
@@ -162,6 +222,10 @@ _CHAMPS_PROJETES = [
     # la découverte ne peut pas le produire, et `capabilities` (réécrit par le sync) ne peut
     # pas le porter. Injecté au system prompt d'enrichissement (prompt_enrichment).
     ('prompt_contract', lambda m, b: (b.get('prompts') or {}).get('contract') or ''),
+    # Anatomie d'un modèle composé (2026-08-27) : même nature déclarée. Consommée par
+    # l'installation (allow_patterns dérivés) et par le backend composé (quoi charger, avec
+    # quel moteur). Vide = modèle mono-fichier.
+    ('composition', lambda m, b: b.get('composition') or {}),
 ]
 
 
@@ -224,7 +288,8 @@ def un_write_back_model(manifest: dict, *, apply: bool = False) -> dict:
     if cible is None:
         return {'model': key, 'absent': True}
 
-    vides = {champ: '' for champ, _ in _CHAMPS_PROJETES}
+    # Le « vide » respecte le type du champ : '' pour les textes, {} pour composition (JSON).
+    vides = {champ: ({} if champ == 'composition' else '') for champ, _ in _CHAMPS_PROJETES}
     portes = sorted(c for c in vides if getattr(cible, c))
     if not apply:
         return {'model': key, 'would_clear': portes, 'preserved': ['la ligne AIModel elle-même']}

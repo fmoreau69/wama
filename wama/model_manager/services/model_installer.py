@@ -394,6 +394,23 @@ def uninstall_model(model_key: str) -> dict:
     return {'ok': True, 'freed_gb': round(freed_gb, 1), 'kind': kind, 'name': model.name}
 
 
+#: Fichiers de bord tirés avec tout jeu de composants (config/tokenizer/licence — légers).
+_PATTERNS_DE_BORD = ['*.json', '*.txt', 'tokenizer*', '*.md']
+
+
+def patterns_from_composition(composition) -> list | None:
+    """
+    `allow_patterns` DÉRIVÉS d'une `composition` déclarée (manifeste `model`,
+    `body.composition.components`), ou None si rien n'est déclaré (→ dépôt entier, cas
+    général mono-modèle). C'est la moitié « installation » du contrat : le manifeste déclare
+    l'anatomie UNE fois, l'installation tire le jeu COHÉRENT — jamais le dépôt entier d'un
+    repack multi-quantisations, jamais un composant isolé qui ne serait pas un modèle.
+    """
+    comps = (composition or {}).get('components') or []
+    patterns = [c['pattern'] for c in comps if isinstance(c, dict) and c.get('pattern')]
+    return patterns + _PATTERNS_DE_BORD if patterns else None
+
+
 def install_from_spec(spec: dict) -> dict:
     """
     Point d'entrée UNIQUE d'installation — DESCRIPTEUR déclaratif au lieu de mécanismes
@@ -408,6 +425,9 @@ def install_from_spec(spec: dict) -> dict:
       'category': 'diffusion' | 'speech' | …,  # hf : catégorie de dossier (model_locations)
       'family': 'qwen-image',                  # hf : sous-dossier famille (optionnel)
       'allow_patterns': ['*.safetensors'],     # hf : restreindre les fichiers (optionnel)
+      'composition': {'components': […]},      # hf : anatomie déclarée (manifeste model) —
+                                               #   allow_patterns DÉRIVÉS des patterns de
+                                               #   composants si non fournis explicitement
       'pip_dependencies': ['lib>=x'],          # optionnel — VALIDATION HUMAINE OBLIGATOIRE
       'human_validated': True,                 # requis si pip_dependencies non vide
       'note': 'pourquoi ce modèle',            # traçabilité (journalisée)
@@ -437,7 +457,8 @@ def install_from_spec(spec: dict) -> dict:
         if not spec.get('category'):
             return {'ok': False, 'error': "spec.category requis pour kind='hf'"}
         res = pull_hf_model(ref, spec['category'], spec.get('family'),
-                            allow_patterns=spec.get('allow_patterns'))
+                            allow_patterns=(spec.get('allow_patterns')
+                                            or patterns_from_composition(spec.get('composition'))))
     else:
         return {'ok': False, 'error': f"spec.kind inconnu: {kind!r} (ollama|hf|yolo)"}
 

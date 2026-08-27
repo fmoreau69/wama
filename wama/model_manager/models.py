@@ -436,6 +436,20 @@ class AIModel(models.Model):
                                        help_text="Contrat de sortie du prompt pour ce modele "
                                                  "(markdown), declare par son manifeste.")
 
+    # ANATOMIE d'un modele multi-composants + son contrat d'execution. Fait DECLARE comme
+    # `license`/`prompt_contract` -- porte par le manifeste `model` (body.composition), JAMAIS
+    # par la decouverte. Ne le declarer que si le modele est REELLEMENT compose (2026-08-27,
+    # cas d'ecole MiniMax-Music3 : 5 GGUF = 1 modele -- un fichier seul n'est pas un modele).
+    #   {'components': [{'role': 'language_model', 'pattern': '*-language_model-Q8_0.gguf',
+    #                    'format': 'gguf'}, ...],
+    #    'runtime': {'engine': 'audio-cpp', ...}}
+    # Consommateurs : l'INSTALLATION derive ses allow_patterns des components (jeu coherent,
+    # jamais le depot entier) ; le BACKEND compose derive quoi charger et comment (engine).
+    # Un modele mono-fichier n'en a pas besoin : composition vide = cas general inchange.
+    composition = models.JSONField(default=dict, blank=True,
+                                   help_text="Composants + runtime d'un modele compose "
+                                             "(declare par son manifeste, vide sinon).")
+
     @property
     def platform_url(self):
         """

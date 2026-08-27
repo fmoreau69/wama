@@ -650,9 +650,63 @@ pour les dépôts mono-modèle (cas LLM typique), partiel pour les dépôts mult
 (installer les autres composants = repasser par l'installation, ou spec manuel). À
 généraliser si le cas se représente — pas avant (YAGNI).
 
-**Restes connus** : ① backend composer pour MiniMax-Music3 (étape SÉPARÉE, dernière de la
-chaîne — quel runtime charge ces GGUF audio ? `audio-cpp`/ComfyUI à évaluer) ; ② les
-découvertes transcriber/synthesizer/anonymizer ne posent pas `hf_id` (c'est le trou qui a
-imposé le critère famille — les poser nourrirait aussi provenance/licences) ; ③ après une
-désinstallation, la prospection peut re-proposer le modèle à sa prochaine passe (la ligne
-marquée `is_downloaded=False` n'est plus « have ») — comportement à trancher si gênant.
+**Restes connus** : ① ~~backend composer pour MiniMax-Music3~~ **LIVRÉ le jour même, voir
+ci-dessous** ; ② les découvertes transcriber/synthesizer/anonymizer ne posent pas `hf_id`
+(c'est le trou qui a imposé le critère famille — les poser nourrirait aussi
+provenance/licences) ; ③ après une désinstallation, la prospection peut re-proposer le
+modèle à sa prochaine passe (la ligne marquée `is_downloaded=False` n'est plus « have ») —
+comportement à trancher si gênant.
+
+### Suite du même jour : le BACKEND COMPOSÉ — l'anatomie se déclare, le moteur l'exécute
+
+**Doctrine actée avec Fabien (design à 3 étages — « deux affirmations vraies à des étages
+différents ne se contredisent pas »)** : ① l'anatomie d'UN modèle multi-composants vit dans
+son manifeste `model` (`body.composition` : components + runtime, cf.
+`WAMA_MANIFEST_SPEC.md §7.1`) — l'installation en dérive ses `allow_patterns`
+(`patterns_from_composition`), le backend en dérive quoi charger ; ② la liaison
+app ← modèle ← librairie = `requires` (existant) ; ③ le kind `pipeline` (canvas studio)
+reste l'étage INTER-APPS — pas celui d'un backend. La porte « projet GitHub → app + libs +
+modèles » = manifeste `project` + `requires`, chaque kind dispatché vers son driver
+existant : rien de ce qui précède ne la bloque, Music3 en a éprouvé chaque maillon sauf la
+génération d'app.
+
+**Livré (Music3 = premier modèle intégré SANS backend spécifique)** :
+- `AIModel.composition` (migration 0015) — fait DÉCLARÉ projeté par le manifeste, même
+  nature que `license`/`prompt_contract` ; validation du kind (`_validate_composition`) ;
+- `install_from_spec` accepte `spec.composition` → `allow_patterns` dérivés (testé réel :
+  **14 fichiers** tirés du package officiel `audio-cpp/MiniMax-Music3-GGUF` — 5 GGUF Q8
+  déclarés + `config/` + `tokenizer/`, ~12,6 Go — jamais le dépôt entier) ;
+- **moteur audio.cpp** (Apache 2.0, github.com/0xShug0/audio.cpp) compilé CUDA sur l'hôte
+  WSL2 (`~/tools/audio.cpp`, HORS dépôt — un moteur n'est pas du code WAMA ; binaire 330 Mo,
+  RTX 4090 vue). Override par env `AUDIOCPP_BINARY` (motif FFMPEG_BINARY) ;
+- `AudioCppBackend` (composer) — GÉNÉRIQUE : lit `composition` de la ligne d'app
+  (`composer:<id>`), traduit rôle→`--session-option <famille>.<rôle>_gguf=<fichier>`,
+  sous-processus sous `vram_reservation` (motif MuseTalk — charge hors process) ; paroles :
+  le prompt se coupe au premier tag `[verse]`/`[chorus]` (sans tag → `[instrumental]`),
+  contrat annoncé dans la description du modèle ;
+- dispatch `tasks.py` par le discriminateur `backend: 'audiocpp'` de `COMPOSER_MODELS`
+  (défaut AudioCraft inchangé) ; entrée `minimax-music3` déclarée (checklist complète :
+  MODEL_PATHS + model_config + backend + découverte via COMPOSER_MODELS).
+
+**⚠ Piège documenté au passage** : les GGUF de `Serveurperso/MiniMax-Music3-GGUF` (266 k
+téléchargements) sont des fichiers NUS pour le port `minimaxmusic.cpp` de leur auteur —
+audio.cpp exige un RÉPERTOIRE-package (`config/` + `tokenizer/` + composants). Un dépôt
+quantisé se choisit donc AUSSI par son runtime cible, pas seulement par ses téléchargements.
+Le set Serveurperso a été désinstallé via la chaîne (11,9 Go rendus) ; les lignes de
+stockage `huggingface:*` redondantes purgées — **l'entrée d'app `composer:minimax-music3`
+est l'autorité unique** (composition, licence `minimax-music3-community`, provenance).
+
+**Licences vérifiées** : audio.cpp = Apache 2.0 (compatible AGPL-3.0) ; poids =
+MiniMax-Music3 Community License — pas d'exclusion UE, commercial libre < 20 M$/an,
+obligations : afficher « MiniMax-Music3 » dans l'UI (fait — le nom du modèle est affiché)
+et divulguer le caractère généré du contenu diffusé. Détail : `LICENSING.md`.
+
+**Validation restante (HUMAINE — jamais de charge GPU lancée par une session sur cet
+hôte)** : redémarrer les services puis générer depuis le composer avec `minimax-music3`,
+ou en CLI :
+`~/tools/audio.cpp/build/linux-cuda-release/bin/audiocpp_cli --task gen --family
+minimax_music3 --model <snapshot> --backend cuda --text "..." --request-option
+"lyrics=[verse] ..." --request-option duration_sec=20 --out /tmp/music3.wav`
+(+ `--session-option minimax_music3.language_model_gguf=language_model_q8_0.gguf` etc. —
+le backend WAMA construit exactement cette commande depuis la composition). L'ETA
+(`gen_factor=6.0`, `overhead_s=120`) est PROVISOIRE, l'estimateur auto-apprenant affinera.

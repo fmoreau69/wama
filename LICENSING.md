@@ -56,7 +56,7 @@ depuis les `requires` des manifestes). État au 2026-08-21 :
 | **Interdite en UE** | `hunyuan-image-2.1` (Tencent Hunyuan Community License : « excluding the territory of the European Union ») | **Aucun droit, même en recherche.** Décision à prendre : retirer/désactiver le modèle (§6). |
 | **Non commercial** | MusicGen/AudioGen ×4 (cc-by-nc-4.0), FLUX.1-dev + LoRA logo (les **sorties** restent libres), XTTS v2 (CPML — Coqui dissoute : aucune licence commerciale achetable), CogVideoX (recherche libre ; commercial = enregistrement), depthpro (apple-amlr) | Résultats : recherche/enseignement seulement. |
 | **Copyleft fort** | 36 poids ultralytics/YOLOv12 (agpl-3.0) | Couvert par le choix AGPL du §1. |
-| **Communautaires qualifiées** (classées permissives, précédent OpenRAIL) | SAM3 (SAM License), Higgs Audio v2 (< 100 k utilisateurs/an, attribution « Built with Higgs Materials… »), LTXV (< 10 M$ CA), translategemma (Gemma Terms of Use) | OK à l'échelle du labo ; attribution à tenir. |
+| **Communautaires qualifiées** (classées permissives, précédent OpenRAIL) | SAM3 (SAM License), Higgs Audio v2 (< 100 k utilisateurs/an, attribution « Built with Higgs Materials… »), LTXV (< 10 M$ CA), translategemma (Gemma Terms of Use), **MiniMax-Music3** (`minimax-music3-community`, ajouté 2026-08-27 : PAS d'exclusion UE, commercial libre < 20 M$ CA/an ; obligations = afficher « MiniMax-Music3 » dans l'UI — fait, le nom du modèle est affiché — et divulguer le caractère machine-généré du contenu diffusé publiquement) | OK à l'échelle du labo ; attribution à tenir. |
 
 Les identifiants qualifiés (`hunyuan-community`, `cpml-1.0`, `flux-1-dev-non-commercial`,
 `ltxv-open-weights`, `sam-license`, `higgs-community`, `gemma-terms`, `cogvideox-license`)
@@ -81,6 +81,11 @@ Le code **copié dans le repo** a été inventorié à part :
   MIT).
 - **`brunette.glb`** (avatar de test TalkingHead, gitignoré) : CC BY-NC 4.0.
 - Reste non établi : binaires gitleaks (amont MIT).
+- **Moteur EXTERNE (hors dépôt, 2026-08-27)** : `audio.cpp` (github.com/0xShug0/audio.cpp,
+  **Apache 2.0** — compatible AGPL-3.0), compilé sur l'hôte dans `~/tools/audio.cpp` (WSL2)
+  et invoqué en sous-processus par `composer/backends/audiocpp_backend.py` (override env
+  `AUDIOCPP_BINARY`, même motif que `FFMPEG_BINARY`/ffmpeg). Rien de son code n'est copié
+  dans le dépôt.
 
 ## 4. État mesuré de l'inventaire (photo 2026-08-21, après complétion)
 

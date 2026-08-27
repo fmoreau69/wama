@@ -298,6 +298,69 @@ class DesinstallationTest(TestCase):
         self.assertFalse(res['ok'])
 
 
+class CompositionTest(TestCase):
+    """Un modèle MULTI-COMPOSANTS déclare son anatomie UNE fois (manifeste `model`,
+    body.composition) ; l'installation en dérive son jeu cohérent, le backend composé son
+    chargement. Cas d'école : MiniMax-Music3, 5 GGUF = 1 modèle (2026-08-27)."""
+
+    COMPO = {
+        'components': [
+            {'role': 'language_model', 'pattern': '*-language_model-Q8_0.gguf', 'format': 'gguf'},
+            {'role': 'vocoder', 'pattern': '*-vocoder-F32.gguf', 'format': 'gguf'},
+        ],
+        'runtime': {'engine': 'audio-cpp'},
+    }
+
+    def test_une_composition_bien_formee_est_acceptee_et_vide_aussi(self):
+        from wama.common.manifests.builtin.model import validate_model_body
+        self.assertEqual(validate_model_body({'composition': self.COMPO}), [])
+        self.assertEqual(validate_model_body({'composition': {}}), [])
+        self.assertEqual(validate_model_body({}), [])
+
+    def test_un_role_duplique_ou_un_pattern_manquant_est_refuse(self):
+        from wama.common.manifests.builtin.model import validate_model_body
+        deux_fois = {'components': [{'role': 'x', 'pattern': 'a'}, {'role': 'x', 'pattern': 'b'}]}
+        self.assertTrue(any('dupliqué' in e for e in
+                            validate_model_body({'composition': deux_fois})))
+        sans_pattern = {'components': [{'role': 'x'}]}
+        self.assertTrue(any('pattern' in e for e in
+                            validate_model_body({'composition': sans_pattern})))
+
+    def test_un_runtime_sans_engine_ou_une_cle_inconnue_est_refuse(self):
+        from wama.common.manifests.builtin.model import validate_model_body
+        self.assertTrue(any('engine' in e for e in
+                            validate_model_body({'composition': {'runtime': {}}})))
+        self.assertTrue(any('inconnues' in e for e in
+                            validate_model_body({'composition': {'pipeline': []}})))
+
+    def test_le_write_back_projette_la_composition_et_la_revocation_rend_un_dict_vide(self):
+        """Même nature déclarée que license/prompt_contract : le manifeste a autorité,
+        la découverte jamais — et la révocation doit rendre le VIDE DU TYPE ({}), pas ''."""
+        from wama.common.manifests.builtin.model import un_write_back_model, write_back_model
+        AIModel.objects.create(model_key='huggingface:Org/Compose', name='Composé',
+                               model_type='music', source='huggingface')
+        manifeste = {'manifest_kind': 'model', 'key': 'huggingface:Org/Compose',
+                     'body': {'composition': self.COMPO}}
+        write_back_model(manifeste, apply=True)
+        m = AIModel.objects.get(model_key='huggingface:Org/Compose')
+        self.assertEqual(m.composition, self.COMPO)
+        un_write_back_model(manifeste, apply=True)
+        m.refresh_from_db()
+        self.assertEqual(m.composition, {})
+
+    def test_l_installation_derive_ses_allow_patterns_de_la_composition(self):
+        """La moitié « installation » du contrat : jeu COHÉRENT dérivé de l'anatomie —
+        jamais le dépôt entier d'un repack multi-quantisations."""
+        from .services.model_installer import patterns_from_composition
+        patterns = patterns_from_composition(self.COMPO)
+        self.assertIn('*-language_model-Q8_0.gguf', patterns)
+        self.assertIn('*-vocoder-F32.gguf', patterns)
+        self.assertIn('*.json', patterns, "les fichiers de bord (config) font partie du jeu")
+        self.assertIsNone(patterns_from_composition({}),
+                          "sans composition déclarée : dépôt entier, cas général inchangé")
+        self.assertIsNone(patterns_from_composition(None))
+
+
 class ChoixDeVarianteTest(TestCase):
     """Le spec d'installation doit respecter le choix VALIDÉ par l'utilisateur — rien d'autre."""
 

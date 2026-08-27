@@ -349,6 +349,30 @@ de longueur/format du skill (doctrine et chaîne complète : `prompt_skills/READ
 `WAMA_LLM.md §Skills`). Motif : MusicGen attend 30-80 mots, MiniMax-Music3 attend 250-450
 mots sectionnés — même app, contrats opposés.
 
+**2026-08-27 — `body.composition` rejoint les champs déclaratifs projetés** : l'ANATOMIE d'un
+modèle multi-composants + son moteur d'exécution, projetée vers `AIModel.composition`
+(JSONField préservé par le sync, même motif de colonne que `prompt_contract`). Forme :
+
+```json
+"composition": {
+  "components": [
+    {"role": "language_model", "pattern": "MiniMax-Music3-language_model-Q8_0.gguf", "format": "gguf"},
+    {"role": "vocoder",        "pattern": "MiniMax-Music3-vocoder-F32.gguf",         "format": "gguf"}
+  ],
+  "runtime": {"engine": "audio-cpp"}
+}
+```
+
+Rôles OUVERTS (chaque architecture a les siens), forme FERMÉE (`role` unique + `pattern`
+requis ; `runtime.engine` requis si `runtime` présent). **Deux consommateurs, une
+déclaration** : l'installation dérive ses `allow_patterns` des patterns
+(`model_installer.patterns_from_composition` — le jeu COHÉRENT, jamais le dépôt entier d'un
+repack multi-quantisations, jamais un composant isolé) ; le backend composé (à venir, étape 4
+du plan Music3) dérive quoi charger et avec quel moteur. Vide = modèle mono-fichier, cas
+général inchangé. Motif : MiniMax-Music3, 5 GGUF = 1 modèle — l'anatomie était passée à la
+main en `allow_patterns` le 27/08, désormais elle est DÉCLARÉE (premier manifeste porteur :
+`manifests/models/huggingface__Serveurperso~MiniMax-Music3-GGUF.json`).
+
 #### 7.1 ter — hooks par kind, MESURÉ le 2026-08-05
 
 > Les hooks s'appellent `write_back`/`un_write_back` depuis le 2026-08-05 (`kinds.py:35-38` —

@@ -116,7 +116,15 @@ def compose_task(self, generation_id: int):
             instance=gen, user=gen.user, console=lambda m: _console(user_id, m),
         )
 
-        backend = AudioCraftBackend()
+        # Dispatch par le discriminateur `backend` du modèle (2026-08-27) : 'audiocpp' =
+        # moteur composé audio.cpp (sous-processus, composants déclarés au manifeste) ;
+        # défaut = AudioCraft, inchangé pour toutes les entrées historiques.
+        from wama.composer.utils.model_config import COMPOSER_MODELS
+        if (COMPOSER_MODELS.get(gen.model) or {}).get('backend') == 'audiocpp':
+            from wama.composer.backends.audiocpp_backend import AudioCppBackend
+            backend = AudioCppBackend()
+        else:
+            backend = AudioCraftBackend()
         from wama.common.utils.preview_utils import emit_streaming_peaks, clear_partial
         backend.generate(
             model_id=gen.model,

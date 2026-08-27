@@ -23,9 +23,13 @@ MUSICGEN_DIR = MODEL_PATHS.get('music', {}).get(
 AUDIOGEN_DIR = MODEL_PATHS.get('music', {}).get(
     'audiogen', settings.AI_MODELS_DIR / 'models' / 'music' / 'audiogen'
 )
+MINIMAX_MUSIC3_DIR = MODEL_PATHS.get('music', {}).get(
+    'minimax_music3', settings.AI_MODELS_DIR / 'models' / 'music' / 'MiniMax-Music3'
+)
 
 Path(MUSICGEN_DIR).mkdir(parents=True, exist_ok=True)
 Path(AUDIOGEN_DIR).mkdir(parents=True, exist_ok=True)
+Path(MINIMAX_MUSIC3_DIR).mkdir(parents=True, exist_ok=True)
 
 # ---------------------------------------------------------------------------
 # Model catalogue
@@ -81,6 +85,30 @@ COMPOSER_MODELS = {
         'cache_dir': MUSICGEN_DIR,
         'gen_factor': 2.2,
         'overhead_s': 22,
+    },
+    'minimax-music3': {
+        'hf_id': 'audio-cpp/MiniMax-Music3-GGUF',
+        # Discriminateur de MOTEUR (2026-08-27) : 'audiocpp' = binaire audio.cpp en
+        # sous-processus (composants GGUF déclarés par le manifeste, AIModel.composition).
+        # Les entrées sans 'backend' restent sur AudioCraft — défaut historique.
+        'backend': 'audiocpp',
+        'type': 'music',
+        'vram_gb': 13,
+        'description': 'MiniMax-Music3 — chansons complètes avec paroles chantées (Q8)',
+        'description_long': "MiniMax-Music3 (MiniMax, package GGUF Q8 via audio.cpp) : "
+                            "génération de CHANSONS complètes — voix chantées, paroles avec "
+                            "tags [verse]/[chorus], structure longue (jusqu'à 5 min). "
+                            "Complémentaire de MusicGen (instrumental court). Le prompt "
+                            "attendu est riche : description globale + voix + arrangement, "
+                            "et les paroles dans des sections taguées ; sans tag de paroles, "
+                            "la génération part en instrumental.",
+        'max_duration': 300,
+        'sample_rate': 32000,
+        'cache_dir': MINIMAX_MUSIC3_DIR,
+        # Estimations PROVISOIRES (aucune mesure locale encore — l'ETA auto-apprenant
+        # affinera dès les premières générations, cf. eta_estimator).
+        'gen_factor': 6.0,
+        'overhead_s': 120,
     },
     'audiogen-medium': {
         'hf_id': 'facebook/audiogen-medium',

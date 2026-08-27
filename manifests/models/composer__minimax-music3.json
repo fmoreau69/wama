@@ -1,0 +1,95 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "prompt"
+      ],
+      "languages": [
+        "en"
+      ],
+      "modalities": [
+        "audio"
+      ],
+      "task": "text-to-music"
+    },
+    "composition": {
+      "components": [
+        {
+          "format": "gguf",
+          "pattern": "language_model_q8_0.gguf",
+          "role": "language_model"
+        },
+        {
+          "format": "gguf",
+          "pattern": "transformer_q8_0.gguf",
+          "role": "flow_transformer"
+        },
+        {
+          "format": "gguf",
+          "pattern": "rvq_depth_decoder_q8_0.gguf",
+          "role": "rvq_depth_decoder"
+        },
+        {
+          "format": "gguf",
+          "pattern": "vocoder.gguf",
+          "role": "vocoder"
+        },
+        {
+          "format": "gguf",
+          "pattern": "condition_encoder.gguf",
+          "role": "condition_encoder"
+        }
+      ],
+      "runtime": {
+        "engine": "audio-cpp",
+        "family": "minimax_music3"
+      }
+    },
+    "extra_info": {
+      "max_duration": 300,
+      "sample_rate": 32000,
+      "type": "music"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": null,
+      "preferred_format": null
+    },
+    "identity": {
+      "author": "MiniMaxAI (poids) / audio-cpp (package GGUF)",
+      "description_short": "MiniMax-Music3 — chansons complètes avec paroles chantées (Q8)",
+      "hf_id": "audio-cpp/MiniMax-Music3-GGUF",
+      "license": "minimax-music3-community",
+      "model_type": "music",
+      "platform_ref": "huggingface:audio-cpp/MiniMax-Music3-GGUF",
+      "source": "composer"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.0,
+      "ram_gb": 0.0,
+      "vram_gb": 13.0
+    }
+  },
+  "description": "MiniMax-Music3 (MiniMax, package GGUF Q8 via audio.cpp) : génération de CHANSONS complètes — voix chantées, paroles avec tags [verse]/[chorus], structure longue (jusqu'à 5 min). Complémentaire de MusicGen (instrumental court). Le prompt attendu est riche : description globale + voix + arrangement, et les paroles dans des sections taguées ; sans tag de paroles, la génération part en instrumental.",
+  "key": "composer:minimax-music3",
+  "manifest_kind": "model",
+  "name": "MiniMax-Music3 — chansons complètes avec paroles chantées (Q8)",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:composer:minimax-music3",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

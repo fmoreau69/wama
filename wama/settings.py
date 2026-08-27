@@ -111,6 +111,10 @@ MODEL_PATHS = {
         'root': AI_MODELS_DIR / "models" / "music",
         'musicgen': AI_MODELS_DIR / "models" / "music" / "musicgen",
         'audiogen': AI_MODELS_DIR / "models" / "music" / "audiogen",
+        # MiniMax-Music3 (package GGUF audio.cpp, modele MULTI-COMPOSANTS — 2026-08-27).
+        # Declarer la famille ici fait aussi sortir ses snapshots du balayage generique
+        # du catalogue : l'app composer en devient l'autorite.
+        'minimax_music3': AI_MODELS_DIR / "models" / "music" / "MiniMax-Music3",
     },
     # LLM models (reference to Ollama)
     'llm': {
