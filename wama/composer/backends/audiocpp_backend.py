@@ -156,6 +156,14 @@ class AudioCppBackend(BaseModelBackend):
                 f"package {config['hf_id']} absent de {config['cache_dir']} — installer le "
                 "modèle (model manager) d'abord.")
 
+        if melody_path:
+            # MiniMax-Music3 est TEXTE-SEUL (paroles + description) : aucune entrée audio de
+            # référence — les workflows à référence mélodique sont d'autres produits MiniMax
+            # (Music Cover / 2.6). L'UI ne propose la mélodie qu'à musicgen-melody
+            # (inputs_optional) ; si un batch en passe une quand même, on le DIT.
+            logger.warning("[Composer/audio.cpp] mélodie de référence ignorée — %s est "
+                           "conditionné par le texte seul", model_id)
+
         caption, lyrics = split_caption_lyrics(prompt)
         cmd = [
             binaire, '--task', 'gen', '--family', famille,

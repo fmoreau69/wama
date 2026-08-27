@@ -65,7 +65,7 @@
       "source": "composer"
     },
     "prompts": {
-      "contract": null
+      "contract": "Structured caption + tagged lyrics (MiniMax-Music3 — full songs WITH vocals, unlike MusicGen):\n- Total 250-450 words. Write the CAPTION first (no tags): Global Metadata (genre, mood,\n  tempo, era, production), then Vocal Details (voice type, timbre, delivery — breathiness,\n  falsetto, harmonies), then Arrangement (instrumentation and how it evolves per section).\n- Then the LYRICS, each section on its own lines under a tag: [intro], [verse],\n  [pre-chorus], [chorus], [bridge], [instrumental break], [outro]. Musical instructions may\n  be attached next to a section tag; the sung text stays plain.\n- The first tagged line marks where lyrics begin — never mix caption text below it.\n- For an instrumental piece: caption only, then a single [instrumental] tag, no lyrics.\n- Section tags and descriptions are generative guidance, not guarantees: do not promise\n  exact keys, BPM or structure beyond what the user asked."
     },
     "provenance": {
       "backend_ref": null,
