@@ -2470,6 +2470,42 @@ travail**. La base LIVE est celle de **WSL2 (Postgres 16)**, conforme à
 exécute WAMA nativement sous Windows (`venv_win runserver`) ; sinon c'est une taxe d'entretien
 supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 
+## §REPRISE — 2026-08-27, instance « DROITS S2 » — ✅ PALIER LIVRÉ (`6aa1b556`, `d601baa5`) — ⚠ **UN ARBITRAGE ATTEND FABIEN**
+
+> **Partition** : `wama/accounts/` (`permissions.py`, `middleware.py`, `context_processors.py`,
+> `ldap.py`, `views.py`, `sync_org_units.py`, tests), `wama/common/` (`models.py`, `admin.py`,
+> `views.py`, `memory/index.py`, `manifests/builtin/{function,project}.py`, `mecanismes.py`,
+> `services/subscriptions.py`, tests), `wama/model_manager/views.py`, `wama/studio/views.py`,
+> `PROFILES_PERMISSIONS.md`, `WAMA_MECANISMES.md`. Rien d'autre.
+> **Référence du palier : `PROFILES_PERMISSIONS.md §8.9`** (ne pas dupliquer la prose ici).
+
+**La leçon : une décision unique ne garde RIEN tant qu'elle n'est pas APPLIQUÉE.** Distincte de
+celle de S1 (« la décision est unique »), et les **deux** défauts trouvés en étaient — **muets tous
+les deux** : ① `/model-manager/` ne se résolvait pas en `model_manager` (le tiret ; défaut connu,
+**documenté à `wama/urls.py:57` depuis l'audit du 17/08**, jamais refermé) ; ② une **seconde échelle
+d'accès** — les Groups Django `admin`/`dev`/`user` de `accounts/migrations/0002`, antérieurs aux
+tiers — décidait en parallèle des tiers, les deux ne concordant que **par hasard**.
+
+🔴 **ARBITRAGE À RENDRE (§8.9.3) — ne pas absorber en silence.** Refermer ① ferme model_manager à
+**un compte réel** (tier `utilisateur`, ni staff ni superuser, ouvert par le seul Group hérité `dev`).
+Mesure lecture seule sur les 10 comptes : ancien barème → 3 comptes ouverts ; politique déclarée → 2.
+**1 perdant, 0 gagnant. Aucun droit n'a été modifié par la session.** Trois options au §8.9.3, plus
+la 4ᵉ voie propre : **S3 `AccessGrant`** (dérogation nominative tracée, sans toucher au barème).
+
+**3ᵉ jambe — `OrgUnit.code`** (§8.6/§8.9.5, refermé « quasi gratuitement » comme prévu) :
+`supannCodeEntite` est unique **par annuaire**, pas globalement — la « DSI » d'un 2ᵉ établissement
+était impossible à créer. Champ `authority` + `UniqueConstraint('authority','code')`, défaut `''` →
+migration neutre. ⚠⚠ **Ouvrir une unicité sans refermer les résolutions internes ne corrige rien, ça
+DÉPLACE le défaut** : `filter(code=…).first()` aurait choisi au hasard (`ordering=['name']`) — le
+motif `/model-manager/` à nouveau. D'où `OrgUnit.local()` sur les 8 sites internes,
+`resolve_qualified()` sur le seul chemin entrant (ingest de manifeste) et `qualified_code` sur les
+sorties. ⚠ migration `common/0010` **non versionnée** (`.gitignore:18`).
+
+**Divers relevés, non traités** : `group_required()` (`accounts/models.py:293`) est du **code mort** ;
+6 références cassées **préexistantes** dans ce fichier pointent `common/_result_tabs.html`
+(territoire instance sœur). **Suite** : S3 `AccessGrant` + préséance, S4 file de modération,
+S5 `access_matrix` → `logs/access_matrix.json` + personas nocturnes.
+
 ## §REPRISE — 2026-08-27, instance « GARDES » — ✅ PALIER LIVRÉ (commit `d5a57507`)
 
 > **Partition** : `wama/accounts/` (views, tests, `grant_default_roles`), `wama/common/`
