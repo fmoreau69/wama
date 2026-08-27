@@ -22,7 +22,7 @@ class AppAccessMiddleware:
         if user is not None and user.is_authenticated:
             from wama.accounts.permissions import app_id_for_path, accessible
             app_id = app_id_for_path(request.path)
-            if app_id and not accessible(user, app_id):
+            if app_id and not accessible(user, 'app', app_id):
                 return self._deny(request, app_id)
         return self.get_response(request)
 

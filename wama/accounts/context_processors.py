@@ -64,7 +64,7 @@ def user_role(request):
         from wama.accounts.permissions import user_tier, user_roles as _roles, accessible, all_gated_apps
         account_tier = user_tier(user)
         roles_set = sorted(_roles(user))
-        accessible_apps = {a for a in all_gated_apps() if accessible(user, a)}
+        accessible_apps = {a for a in all_gated_apps() if accessible(user, 'app', a)}
     except Exception:
         account_tier, roles_set, accessible_apps = 'utilisateur', [], set()
 

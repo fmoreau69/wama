@@ -7,6 +7,12 @@ Le mapping app→rôles est **DB-backed et éditable** (modèle AppAccessPolicy,
 utilisateurs). DEFAULT_APP_ACCESS ne sert que de **valeurs de seed**. Toute la résolution passe par
 `accessible()` — point unique appliqué dans la nav, les vues et le studio.
 
+Depuis S2 (2026-08-27) sa signature est GÉNÉRALE : `accessible(user, kind, element_id)`, où
+`kind` désigne la FAMILLE d'élément (§8.2). Une seule famille est réellement gardée aujourd'hui
+(`app`) ; les autres sont déclarées dans `KIND_DECISION` avec le mécanisme qui en décide. C'est
+l'appelant qu'on ne veut pas réécrire deux fois : S3 branchera `AccessGrant` derrière cette même
+signature sans toucher un seul site d'appel.
+
 ⚠️ Ce module ne doit PAS importer accounts.models au niveau module (cycle) — imports paresseux.
 """
 
@@ -69,6 +75,24 @@ DEFAULT_APP_ACCESS = {
     'cam_analyzer':  {'roles': ['recherche', 'ingenierie']},
 }
 
+# ── Familles d'éléments gardés (§8.2) ──────────────────────────────────────
+# `accessible()` prend un `kind` dès maintenant, alors qu'une seule famille est gardée. Ce n'est
+# pas de l'anticipation gratuite : c'est la SIGNATURE des ~14 sites d'appel qu'on ne veut pas
+# réécrire une seconde fois quand S3 ouvrira les autres familles.
+#
+# 🔴 Chaque famille déclare QUI décide pour elle. Une famille qu'aucun mécanisme ne garde le dit
+# ('S3'), au lieu de renvoyer True par accident. Et un `kind` ABSENT de cette table LÈVE : un
+# `accessible(u, 'aap', x)` mal orthographié qui autoriserait silencieusement serait exactement
+# la panne muette que le dépôt traque (cf. feedback « ce qui ne plante pas ne se signale pas »).
+KIND_DECISION = {
+    'app':       'ici',                # DEFAULT_APP_ACCESS / AppAccessPolicy — `_app_accessible()`
+    'model':     'S3',                 # criticité DÉRIVÉE (vram_gb, licence) + AccessGrant (§8.3)
+    'library':   'S3',
+    'function':  'S3',
+    'skill':     'S3',
+    'rag_scope': 'ScopedVisibility',   # gardé AILLEURS (portée héritée) — ne PAS dupliquer ici
+}
+
 # Regroupement des apps pour l'affichage (matrice d'accès). Ordre = ordre des sections.
 APP_GROUP_ORDER = ['Production', 'Recherche / Analyse', 'Utilitaires', 'Orchestration',
                    'Technique', 'WAMA Lab']
@@ -101,6 +125,13 @@ PATH_APP_MAP = [
     ('lab/face-analyzer', 'face_analyzer'),
     ('lab/cam-analyzer',  'cam_analyzer'),
     ('media-library',     'media_library'),
+    # ⚠ Ajouté le 27/08 (S2, mesure « qui contourne `accessible()` »). `model_manager` était
+    # déclaré dans DEFAULT_APP_ACCESS (rôle ingenierie, min_tier developpeur) mais monté sur
+    # `/model-manager/` : le 1er segment ne résolvait AUCUN app_id, donc le middleware ne lui
+    # appliquait JAMAIS sa propre politique. Une politique déclarée qu'aucun point d'application
+    # ne lit ne garde rien — elle donne juste l'apparence d'un contrôle. Le piège du tiret était
+    # connu (`wama/urls.py:57`, audit P2 du 17/08) : il avait été documenté, pas refermé.
+    ('model-manager',     'model_manager'),
     # 'studio' est désormais une vraie app montée sur /studio/ → résolu par le 1er segment.
 ]
 
@@ -132,7 +163,7 @@ def tool_accessible(user, tool_name):
     """
     from wama.tool_api import app_id_for_tool
     app_id = app_id_for_tool(tool_name)
-    return True if app_id is None else accessible(user, app_id)
+    return True if app_id is None else accessible(user, 'app', app_id)
 
 
 def all_gated_apps():
@@ -184,9 +215,29 @@ def _policy_for(app_id):
     return {'roles': set(d.get('roles', [])), 'public': d.get('public', False), 'min_tier': d.get('min_tier')}
 
 
-def accessible(user, app_id):
+def accessible(user, kind, element_id):
     """
-    Un user peut-il accéder à l'app ? Point UNIQUE de décision (nav, vues, studio).
+    Un user peut-il accéder à cet élément ? Point UNIQUE de décision (nav, vues, studio, outils).
+
+    `kind` ∈ `KIND_DECISION` (app | model | library | function | skill | rag_scope). Seule la
+    famille `app` est gardée ici aujourd'hui ; les autres déclarent leur mécanisme et renvoient
+    True. Un `kind` inconnu LÈVE — cf. le commentaire de `KIND_DECISION`.
+    """
+    decideur = KIND_DECISION.get(kind)
+    if decideur is None:
+        raise ValueError(
+            f"accessible() : famille d'élément inconnue « {kind} ». "
+            f"Familles déclarées : {', '.join(sorted(KIND_DECISION))}. "
+            f"(Signature depuis S2 : accessible(user, kind, element_id).)"
+        )
+    if decideur != 'ici':
+        return True
+    return _app_accessible(user, element_id)
+
+
+def _app_accessible(user, app_id):
+    """
+    Décision pour la famille `app` :
       min_tier → bypass dev/admin → anonymous(public) → app commune → intersection rôles.
     """
     pol = _policy_for(app_id)
@@ -204,7 +255,7 @@ def accessible(user, app_id):
 
 def accessible_apps(user, app_ids):
     """Sous-ensemble d'app_ids accessibles à user (préserve l'ordre)."""
-    return [a for a in app_ids if accessible(user, a)]
+    return [a for a in app_ids if accessible(user, 'app', a)]
 
 
 def app_access(app_id):
@@ -224,7 +275,7 @@ def app_access(app_id):
         def wrapped(request, *args, **kwargs):
             user = getattr(request, 'user', None)
             if (user is not None and getattr(user, 'is_authenticated', False)
-                    and not accessible(user, app_id)):
+                    and not accessible(user, 'app', app_id)):
                 from django.core.exceptions import PermissionDenied
                 raise PermissionDenied(f"Accès non autorisé à l'app '{app_id}'.")
             return view(request, *args, **kwargs)

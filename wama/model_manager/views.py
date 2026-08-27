@@ -23,14 +23,21 @@ logger = logging.getLogger(__name__)
 
 
 def is_admin_or_dev(user):
-    """Check if user is admin or developer."""
-    if not user.is_authenticated:
-        return False
-    if user.is_superuser or user.is_staff:
-        return True
-    if user.groups.filter(name__in=['admin', 'dev']).exists():
-        return True
-    return False
+    """
+    Garde des 52 vues du model_manager — DÉLÈGUE au point unique de décision.
+
+    ⚠ Elle décidait seule jusqu'au 27/08 (S2, mesure « qui contourne `accessible()` ») :
+    `is_superuser or is_staff or groups in ('admin','dev')`. C'était un SECOND barème, hérité des
+    Groups de la migration `accounts/0002`, antérieur aux tiers — et il ignorait
+    `UserProfile.account_tier`. Conséquence mesurable : un compte au tier **développeur**, que la
+    politique déclarée autorise explicitement (`min_tier='developpeur'`), était refusé ici. Deux
+    barèmes pour une même question ne restent d'accord que par chance.
+
+    La forme est conservée (52 décorateurs inchangés) ; seule la DÉCISION change de domicile.
+    """
+    from wama.accounts.permissions import accessible
+    return bool(getattr(user, 'is_authenticated', False)
+                and accessible(user, 'app', 'model_manager'))
 
 
 @login_required

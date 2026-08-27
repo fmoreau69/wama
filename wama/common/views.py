@@ -290,7 +290,7 @@ def apps_catalog_view(request):
             url = reverse(spec['url_name']) if spec.get('url_name') else ''
         except NoReverseMatch:
             url = ''
-        autorisee = accessible(request.user, name)
+        autorisee = accessible(request.user, 'app', name)
         apps_list.append({
             'name':       name,
             'spec':       spec,
@@ -331,7 +331,7 @@ def apps_catalog_view(request):
             # rien nulle part — donc pas de bascule : une bascule sans effet est exactement le
             # mécanisme muet que le dépôt traque. Le contrôle d'ACCÈS, lui, s'affiche quand même.
             gate = link.get('gate')
-            autorisee = accessible(request.user, gate) if gate else True
+            autorisee = accessible(request.user, 'app', gate) if gate else True
             abonnable = bool(gate) and not link.get('nav_hide')
             links.append({**link, 'url': url, 'gate': gate,
                           'autorisee': autorisee,

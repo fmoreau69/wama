@@ -31,7 +31,7 @@ def api_nodes(request):
         ports = studio_node_ports(app_id)
         if not ports:
             continue
-        if accessible and not accessible(request.user, app_id):
+        if accessible and not accessible(request.user, 'app', app_id):
             continue
         nodes[app_id] = {
             'label': meta.get('label', app_id),

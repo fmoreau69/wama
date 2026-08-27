@@ -36,7 +36,7 @@ class FermetureDuCompteAnonymeTests(TestCase):
 
     def test_un_compte_anonyme_neuf_n_ouvre_aucune_app(self):
         u = get_or_create_anonymous_user()
-        ouvertes = [a for a in APP_CATALOG if accessible(u, a)]
+        ouvertes = [a for a in APP_CATALOG if accessible(u, 'app', a)]
         self.assertEqual(ouvertes, [], f"apps ouvertes à l'anonyme : {ouvertes}")
 
     def test_le_tier_pose_a_la_main_est_repose_au_prochain_appel(self):
@@ -83,7 +83,7 @@ class DeuxAxesDuModeleDAccesTests(TestCase):
 
     def test_le_tier_seul_ferme_deja_tout_meme_avec_tous_les_roles(self):
         self.u.groups.add(*_tous_les_groupes_de_role())
-        ouvertes = [a for a in APP_CATALOG if accessible(self.u, a)]
+        ouvertes = [a for a in APP_CATALOG if accessible(self.u, 'app', a)]
         self.assertEqual(ouvertes, [], "le tier `anonymous` doit trancher avant les rôles")
 
     def test_le_tier_seul_perdu_rouvre_deja_une_app(self):
@@ -91,9 +91,9 @@ class DeuxAxesDuModeleDAccesTests(TestCase):
         # branche « app commune » laisse passer converter — et avec les rôles, 10 apps sur 11.
         UserProfile.objects.filter(user=self.u).update(account_tier='utilisateur')
         u = User.objects.get(username=ANONYMOUS_USERNAME)
-        sans_roles = {a for a in APP_CATALOG if accessible(u, a)}
+        sans_roles = {a for a in APP_CATALOG if accessible(u, 'app', a)}
         u.groups.add(*_tous_les_groupes_de_role())
         u = User.objects.get(username=ANONYMOUS_USERNAME)
-        avec_roles = {a for a in APP_CATALOG if accessible(u, a)}
+        avec_roles = {a for a in APP_CATALOG if accessible(u, 'app', a)}
         self.assertLess(len(sans_roles), len(avec_roles),
                         "les rôles doivent élargir l'accès une fois le tier perdu")

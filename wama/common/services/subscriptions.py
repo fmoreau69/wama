@@ -10,8 +10,8 @@ pas.
 🔴 **INVARIANT : une préférence ne peut que RESTREINDRE.** Elle s'applique à l'intérieur du
 sous-ensemble déjà autorisé. Concrètement, tout appelant compose dans cet ordre :
 
-    ids_autorises = [i for i in ids if accessible(user, i)]      # LE DROIT — ailleurs
-    ids_affiches  = filtrer(user, 'app', ids_autorises)          # LA PRÉFÉRENCE — ici
+    ids_autorises = [i for i in ids if accessible(user, 'app', i)]   # LE DROIT — ailleurs
+    ids_affiches  = filtrer(user, 'app', ids_autorises)              # LA PRÉFÉRENCE — ici
 
 Inverser cet ordre, ou n'appliquer que le second, n'ouvrirait rien de plus : ce module ne sait
 qu'enlever. Mais l'ordre reste écrit pour que l'intention se lise à la relecture.

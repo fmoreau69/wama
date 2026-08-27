@@ -29,7 +29,7 @@ from wama.common.services import subscriptions as abo
 def _apps_autorisees(user):
     """Tout ce qui est SOUS CONTRÔLE d'accès et autorisé — la mesure du DROIT, telle quelle."""
     from wama.accounts.permissions import accessible, all_gated_apps
-    return sorted(a for a in all_gated_apps() if accessible(user, a))
+    return sorted(a for a in all_gated_apps() if accessible(user, 'app', a))
 
 
 def _surfaces_catalogue():
@@ -239,7 +239,7 @@ class MenuEtCatalogueTests(TestCase):
         # Une préférence n'est pas un droit : l'app masquée reste ACCESSIBLE si on y va.
         from wama.accounts.permissions import accessible
         abo.definir(self.user, 'app', self.cible, False)
-        self.assertTrue(accessible(self.user, self.cible))
+        self.assertTrue(accessible(self.user, 'app', self.cible))
         self.assertIn(self.cible, _apps_autorisees(self.user))
 
     def test_le_catalogue_declare_la_facette_abonnement(self):
@@ -335,6 +335,6 @@ class SurfacesTransversalesTests(TestCase):
         fermes = [l for l in self._liens(r) if l.get('gate') and not l['autorisee']]
         self.assertTrue(fermes, "aucun lien fermé : le test ne mesurerait rien")
         for lien in fermes:
-            self.assertFalse(accessible(self.user, lien['gate']))
+            self.assertFalse(accessible(self.user, 'app', lien['gate']))
             self.assertFalse(lien['abonne'])
             self.assertNotContains(r, 'data-abo-id="%s"' % lien['gate'])
