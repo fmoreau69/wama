@@ -212,7 +212,12 @@ class Command(BaseCommand):
                 self.stderr.write(f"  {m.hf_id} : depot injoignable")
                 continue
             lic, auteur = ident.get('license') or '', ident.get('author') or ''
-            if auteur and auteur[:200] != m.author:
+            # L'auteur de la carte est un SLUG d'organisation (« black-forest-labs »,
+            # voire l'org MIROIR : « hunyuanvideo-community » pour Tencent Hunyuan) : il
+            # COMPLÈTE un champ vide, il n'écrase JAMAIS une valeur posée — même règle que
+            # le placeholder `other` pour la licence, apprise deux fois (2026-08-12 licence,
+            # 2026-08-27 : cette boucle a écrasé 6 auteurs curés, restaurés depuis le corpus).
+            if auteur and not m.author:
                 m.author = auteur[:200]
                 if ecrire:
                     m.save(update_fields=['author'])

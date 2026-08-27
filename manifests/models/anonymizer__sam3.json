@@ -31,12 +31,12 @@
       "preferred_format": "onnx"
     },
     "identity": {
-      "author": null,
+      "author": "facebook",
       "description_short": "SAM3 (Meta) — segmentation par prompt texte.",
-      "hf_id": null,
-      "license": null,
+      "hf_id": "facebook/sam3",
+      "license": "sam-license",
       "model_type": "vision",
-      "platform_ref": null,
+      "platform_ref": "huggingface:facebook/sam3",
       "source": "anonymizer"
     },
     "prompts": {

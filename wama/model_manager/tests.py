@@ -286,6 +286,44 @@ class ProvenanceDeclareeTest(TestCase):
         self.assertEqual(modeles['anonymizer:sam3'].hf_id, 'facebook/sam3')
 
 
+class GardeAuteurTest(TestCase):
+    """Un auteur curé SURVIT aux rafraîchissements automatiques (défaut vécu le 2026-08-27 :
+    la boucle --licences du backfill a écrasé 6 auteurs curés par le slug d'organisation de
+    la carte HF — « Tencent Hunyuan » devenait « hunyuanvideo-community », l'org MIROIR).
+    Même doctrine que le placeholder `other` pour la licence : la carte COMPLÈTE un champ
+    vide, elle n'écrase jamais une valeur posée."""
+
+    def _modele(self, cle, **champs):
+        return AIModel.objects.create(model_key=cle, name=cle, model_type='music',
+                                      source='composer', hf_id='org/depot', **champs)
+
+    def test_le_backfill_complete_un_auteur_vide_mais_n_ecrase_jamais_un_auteur_pose(self):
+        from django.core.management import call_command
+        cure = self._modele('composer:cure', author='Auteur Curé')
+        vide = self._modele('composer:vide', author='')
+        ident = {'license': 'mit', 'author': 'slug-org',
+                 'platform_ref': 'huggingface:org/depot', 'hf_id': 'org/depot'}
+        with patch('wama.model_manager.services.provenance.identite_huggingface',
+                   return_value=ident):
+            call_command('backfill_platform_refs', '--licences', '--ecrire')
+        cure.refresh_from_db()
+        vide.refresh_from_db()
+        self.assertEqual(cure.author, 'Auteur Curé', "l'auteur posé ne doit pas être écrasé")
+        self.assertEqual(vide.author, 'slug-org', "l'auteur vide doit être complété")
+        self.assertEqual(cure.license, 'mit', "la licence, elle, se remplit normalement")
+
+    def test_poser_identite_ne_touche_pas_un_auteur_deja_etabli(self):
+        from wama.model_manager.services.provenance import poser_identite
+        self._modele('composer:cure2', author='Auteur Curé', license='mit')
+        resultat = poser_identite(
+            'composer:cure2',
+            {'author': 'slug-org', 'hf_id': 'org/depot',
+             'platform_ref': 'huggingface:org/depot'},
+            apply=False, exporter=False)
+        self.assertNotIn('author', resultat.get('poses', ()),
+                         "poser_identite ne doit compléter l'auteur que s'il est vide")
+
+
 class DesinstallationTest(TestCase):
     """Désinstaller = retirer les POIDS, marquer le catalogue — jamais supprimer la ligne."""
 

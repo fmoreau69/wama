@@ -125,10 +125,15 @@ def poser_identite(model_key: str, identite: dict, *, apply: bool = True,
 
     # Superposition : l'identité de l'éditeur COMPLÈTE l'extraction, elle ne l'écrase pas quand
     # elle n'a rien à dire (une valeur vide ne doit pas effacer une valeur déjà établie).
+    # `author` va plus loin : il ne s'écrase JAMAIS — la carte HF rend un slug d'organisation
+    # (parfois l'org miroir), toujours plus pauvre qu'un auteur curé. Il ne fait que remplir
+    # un champ vide (défaut vécu le 2026-08-27 : 6 auteurs curés écrasés par un backfill).
     ident = manifeste.setdefault('body', {}).setdefault('identity', {})
     poses = []
     for champ in ('license', 'author', 'platform_ref', 'hf_id'):
         valeur = (identite.get(champ) or '').strip()
+        if champ == 'author' and ident.get('author'):
+            continue
         if valeur and ident.get(champ) != valeur:
             ident[champ] = valeur
             poses.append(champ)
