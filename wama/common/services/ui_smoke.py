@@ -33,6 +33,7 @@ recréent au passage suivant (sinon le triage se déclenche chaque nuit et le si
 from __future__ import annotations
 
 import os
+from contextlib import contextmanager
 from pathlib import Path
 
 from django.conf import settings
@@ -280,6 +281,23 @@ def register_ui_scenarios():
 # La santé ne dit rien du COMPORTEMENT ; il fallait un scénario qui exerce un geste et
 # vérifie qu'il PRODUIT quelque chose.
 
+def _wav_silence(secondes: float = 0.2, taux: int = 8000) -> bytes:
+    """Un WAV PCM VALIDE (mono 16 bits, silence), écrit sans aucune dépendance.
+
+    ⚠ Pourquoi ça compte. Le témoin `.wav` était `b'temoin import WAMA\\n'` — 19 octets de
+    TEXTE portant une extension audio. Les apps qui lisent l'en-tête (durée, canaux) le
+    rejettent, donc le montage ne créait aucun élément et les scénarios de LOT concluaient
+    « l'app ne groupe pas » sur des apps AUDIO qui groupent très bien. Un instrument qui
+    dépose un faux fichier ne mesure pas l'app, il mesure son propre témoin.
+    """
+    import struct
+    n = int(taux * secondes)
+    donnees = b'\x00\x00' * n                       # silence 16 bits mono
+    return (b'RIFF' + struct.pack('<I', 36 + len(donnees)) + b'WAVE'
+            + b'fmt ' + struct.pack('<IHHIIHH', 16, 1, 1, taux, taux * 2, 2, 16)
+            + b'data' + struct.pack('<I', len(donnees)) + donnees)
+
+
 def _fichier_temoin(extensions: str) -> Path:
     """Un fichier minuscule d'une extension que l'app ACCEPTE (déduite de sa zone de dépôt)."""
     import tempfile
@@ -294,7 +312,12 @@ def _fichier_temoin(extensions: str) -> Path:
     png = bytes.fromhex('89504e470d0a1a0a0000000d494844520000000100000001080600000'
                         '01f15c4890000000a49444154789c6360000002000100' '05fe02fea7'
                         'dc9a730000000049454e44ae426082'.replace(' ', ''))
-    contenu = png if ext in ('.png', '.jpg', '.jpeg', '.webp') else b'temoin import WAMA\n'
+    if ext in ('.png', '.jpg', '.jpeg', '.webp'):
+        contenu = png
+    elif ext in ('.wav',):
+        contenu = _wav_silence()
+    else:
+        contenu = b'temoin import WAMA\n'
     f = tempfile.NamedTemporaryFile('wb', suffix=ext, delete=False)
     f.write(contenu); f.close()
     return Path(f.name)
@@ -993,6 +1016,123 @@ def check_app_settings(app: str, url_path: str):
     return True, detail
 
 
+# ── Montage d'un LOT : brique commune aux scénarios qui portent sur la card MÈRE ────────
+# Extrait de `check_app_batch_actions` le 2026-08-27, quand `inspector_actions` en a eu besoin
+# à son tour. Le recopier aurait dupliqué QUATRE avertissements chèrement acquis (deux fichiers
+# et non un, l'id sur les boutons et non sur la mère, l'ORM hors `sync_playwright`, le nettoyage
+# qui ne doit rien avaler) — exactement ce que la règle « zéro duplication » protège.
+
+# Ids des cards MÈRES de lot (contrat `_batch_card.html` : `.wama-card.is-batch`).
+# ⚠ La card MÈRE ne porte PAS `data-batch-id` — seuls ses BOUTONS le portent (la mère a
+# `data-batch-total`, les boutons `data-batch-id`). Première version de `batch_actions` :
+# 14 skips sur 14, l'id étant cherché sur la mère. Défaut d'INSTRUMENT, corrigé avant
+# d'accuser une seule app.
+_LOTS_EN_FILE = """(() => Array.from(document.querySelectorAll('.wama-card.is-batch'))
+    .map(e => { const b = e.querySelector('[data-batch-id]');
+                return b ? b.getAttribute('data-batch-id') : ''; })
+    .filter(Boolean))()"""
+
+
+def _monter_un_lot(page):
+    """Dépose deux fichiers témoins pour obtenir un LOT en file ; renvoie ses ids.
+
+    ⚠ DEUX fichiers, pas un. Mesuré le 2026-08-24 sur converter : un dépôt simple crée une
+    card ORDINAIRE, sans card mère (`is-batch` absent du DOM) — `_queue_entry.html` ne pose
+    `.batch-group` que si le lot n'est PAS unitaire. Le lot n'apparaît qu'à partir de
+    plusieurs fichiers de même nature. Première version de `batch_actions` : 14 skips sur 14
+    pour cette seule raison.
+
+    Lève `SkipScenario` si l'app n'offre pas de quoi monter — jamais un échec : ne pas
+    pouvoir mesurer n'est pas la même chose que mesurer un défaut.
+    """
+    from wama.common.services.nightly_tests import SkipScenario
+
+    exclus = '[id*="atch"], [id*="elody"], [id*="eference"], [id*="voice"], [id*="avatar"]'
+    champ = page.query_selector(f'[data-wama-nic] input[type=file]:not({exclus})')
+    if not champ:
+        raise SkipScenario("aucun lot en file et aucun champ d'import au contrat de la card "
+                           "commune — rien a monter (cf. `<app>.import`)")
+    accept = champ.get_attribute('accept') or ''
+    t1, t2 = _fichier_temoin(accept), _fichier_temoin(accept)
+    try:
+        if champ.get_attribute('multiple') is not None:
+            champ.set_input_files([str(t1), str(t2)])
+            page.wait_for_timeout(6000)
+        else:
+            champ.set_input_files(str(t1))
+            page.wait_for_timeout(4000)
+            champ = page.query_selector(
+                f'[data-wama-nic] input[type=file]:not({exclus})') or champ
+            champ.set_input_files(str(t2))
+            page.wait_for_timeout(4000)
+        lots = page.evaluate(_LOTS_EN_FILE)
+    finally:
+        for _t in (t1, t2):
+            try:
+                _t.unlink()
+            except OSError:
+                pass
+    if not lots:
+        raise SkipScenario("deux depots de montage n'ont cree aucun LOT (card mere `is-batch` "
+                           "absente) — l'app ne groupe pas, ou l'import echoue "
+                           "(cf. `<app>.import`)")
+    return lots
+
+
+@contextmanager
+def _garde_de_montage(app: str, etiquette: str):
+    """Recense les objets de l'app AVANT, puis supprime EN SORTIE ceux que le passage a créés.
+
+    ⚠ DOIT ENVELOPPER le bloc `sync_playwright()`, jamais vivre dedans : l'ORM y lève
+    `SynchronousOnlyOperation`, et un `except Exception: pass` AVALE cette erreur — le
+    nettoyage semblait donc tourner alors qu'il ne faisait rien (mesuré : 39 objets accumulés
+    en une session). D'où aussi le `print` explicite en cas d'échec : un nettoyage muet est
+    pire qu'un nettoyage absent, puisqu'on croit l'avoir.
+
+    ÉLÉMENTS d'abord, LOTS ensuite : dans la forme à FK directe (converter), supprimer le lot
+    CASCADE sur ses éléments — l'inverse les ferait disparaître avant d'être comptés.
+    On ne touche QUE ce que ce passage a créé (différence d'ids).
+    """
+    from wama.common.utils.batch_common import batch_model_for
+    try:
+        from wama.common.utils.preview_registry import PreviewRegistry
+        modele = PreviewRegistry.get_model(app)
+    except Exception:
+        modele = None
+    ids_avant = set()
+    if modele is not None:
+        try:
+            ids_avant = set(modele.objects.values_list('id', flat=True))
+        except Exception:
+            modele = None
+    # Le montage cree aussi des LOTS : `PreviewRegistry` ne connait que le modele d'ELEMENT,
+    # d'ou l'accesseur DERIVE. Sans lui, des lots vides survivaient a chaque passage (9 chez
+    # converter).
+    modele_lot = batch_model_for(modele) if modele is not None else None
+    lots_avant = set()
+    if modele_lot is not None:
+        try:
+            lots_avant = set(modele_lot.objects.values_list('id', flat=True))
+        except Exception:
+            modele_lot = None
+
+    bilan = []
+    try:
+        yield bilan
+    finally:
+        for _modele, _avant in ((modele, ids_avant), (modele_lot, lots_avant)):
+            if _modele is None:
+                continue
+            try:
+                restes = set(_modele.objects.values_list('id', flat=True)) - _avant
+                if restes:
+                    _modele.objects.filter(id__in=restes).delete()
+                    bilan.append(len(restes))
+            except Exception as _exc:            # ne JAMAIS avaler en silence
+                bilan.append(0)
+                print(f"[{etiquette}] nettoyage {app} impossible : {type(_exc).__name__}")
+
+
 def check_app_batch_actions(app: str, url_path: str):
     """Les actions de LOT (⧉ puis 🗑) agissent-elles vraiment ? (ok, detail).
 
@@ -1015,15 +1155,7 @@ def check_app_batch_actions(app: str, url_path: str):
     from playwright.sync_api import sync_playwright
 
     url = f"{BASE_URL.rstrip('/')}{url_path}"
-    # Ids des cards MÈRES de lot (contrat `_batch_card.html` : `.wama-card.is-batch`).
-    # ⚠ La card MÈRE ne porte PAS `data-batch-id` — seuls ses BOUTONS le portent
-    # (`_batch_card.html`: la mère a `data-batch-total`, les boutons `data-batch-id`).
-    # Première version de ce scénario : 14 skips sur 14, l'id étant cherché sur la mère.
-    # Défaut d'INSTRUMENT, corrigé avant d'accuser une seule app.
-    LOTS = """(() => Array.from(document.querySelectorAll('.wama-card.is-batch'))
-        .map(e => { const b = e.querySelector('[data-batch-id]');
-                    return b ? b.getAttribute('data-batch-id') : ''; })
-        .filter(Boolean))()"""
+    LOTS = _LOTS_EN_FILE
     # ⚠ Les URLs sont sur les BOUTONS, pas sur la card mère — c'est ce que lit la brique
     # (`actionDeLot` fait `closest('.batch-delete-btn[data-batch-delete-url]')`), et c'est là
     # que le partial les pose (`_batch_card.html:141/147`). Les chercher sur la mère faisait
@@ -1037,39 +1169,12 @@ def check_app_batch_actions(app: str, url_path: str):
                 start: q('batch-start-btn',     'data-batch-start-url')};
     })()"""
 
-    # ⚠ Lecture ORM AVANT `sync_playwright` (SynchronousOnlyOperation) — et NETTOYAGE après :
-    # ce scénario MONTE deux éléments pour obtenir un lot. Sans cette reprise, chaque passage
-    # laissait deux résidus par app — mesuré le 2026-08-24 : 39 objets accumulés en une session
-    # (tous dans le compte de TEST, aucun chez un utilisateur réel, mais c'est de la dette).
-    try:
-        from wama.common.utils.preview_registry import PreviewRegistry
-        modele = PreviewRegistry.get_model(app)
-    except Exception:
-        modele = None
-    ids_avant_orm = set()
-    if modele is not None:
-        try:
-            ids_avant_orm = set(modele.objects.values_list('id', flat=True))
-        except Exception:
-            modele = None
-    # Le montage cree aussi des LOTS : `PreviewRegistry` ne connait que le modele d'ELEMENT,
-    # d'ou l'accesseur DERIVE (`batch_common.batch_model_for`). Sans lui, des lots vides
-    # survivaient a chaque passage (mesure : 9 chez converter).
-    from wama.common.utils.batch_common import batch_model_for
-    modele_lot = batch_model_for(modele) if modele is not None else None
-    lots_avant_orm = set()
-    if modele_lot is not None:
-        try:
-            lots_avant_orm = set(modele_lot.objects.values_list('id', flat=True))
-        except Exception:
-            modele_lot = None
-    _nettoyes = []
-
     jeton = _session_compte_de_test()
     if not jeton:
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
 
-    try:
+    # Le montage crée deux éléments pour obtenir un lot ; la garde les retire en sortie.
+    with _garde_de_montage(app, 'batch_actions') as _nettoyes:
       with sync_playwright() as p:
         navigateur = p.chromium.launch()
         try:
@@ -1088,43 +1193,7 @@ def check_app_batch_actions(app: str, url_path: str):
                 return False, f"page HTTP {resp.status if resp else '?'}"
             page.wait_for_timeout(1200)
 
-            lots0 = page.evaluate(LOTS)
-            if not lots0:
-                # Un dépôt suffit : les apps auto-enveloppent l'élément isolé dans un batch-of-1.
-                exclus = '[id*="atch"], [id*="elody"], [id*="eference"], [id*="voice"], [id*="avatar"]'
-                champ = page.query_selector(f'[data-wama-nic] input[type=file]:not({exclus})')
-                if not champ:
-                    raise SkipScenario("aucun lot en file et aucun champ d'import au contrat "
-                                       "de la card commune — rien a monter (cf. `<app>.import`)")
-                # ⚠ DEUX fichiers, pas un. Mesuré le 2026-08-24 sur converter : un dépôt
-                # simple crée une card ORDINAIRE, sans card mère (`is-batch` absent du DOM).
-                # Le lot n'apparaît qu'à partir de plusieurs fichiers de même nature — c'est
-                # ce que dit le gabarit (« Groupe batch (multi-fichiers même nature) »).
-                # Première version de ce scénario : 14 skips sur 14 pour cette seule raison.
-                accept = champ.get_attribute('accept') or ''
-                t1, t2 = _fichier_temoin(accept), _fichier_temoin(accept)
-                try:
-                    if champ.get_attribute('multiple') is not None:
-                        champ.set_input_files([str(t1), str(t2)])
-                        page.wait_for_timeout(6000)
-                    else:
-                        champ.set_input_files(str(t1))
-                        page.wait_for_timeout(4000)
-                        champ = page.query_selector(
-                            f'[data-wama-nic] input[type=file]:not({exclus})') or champ
-                        champ.set_input_files(str(t2))
-                        page.wait_for_timeout(4000)
-                    lots0 = page.evaluate(LOTS)
-                finally:
-                    for _t in (t1, t2):
-                        try:
-                            _t.unlink()
-                        except OSError:
-                            pass
-                if not lots0:
-                    raise SkipScenario("deux depots de montage n'ont cree aucun LOT (card mere "
-                                       "`is-batch` absente) — l'app ne groupe pas, ou l'import "
-                                       "echoue (cf. `<app>.import`)")
+            lots0 = page.evaluate(LOTS) or _monter_un_lot(page)
 
             # 1. L'app est-elle PORTEE ? (l'opt-in `actions_communes` emet les URLs)
             urls = page.evaluate(URLS) or {}
@@ -1178,25 +1247,6 @@ def check_app_batch_actions(app: str, url_path: str):
                       f"{len(lots2)} lot(s) ; doublon #{cible} créé puis retiré")
         finally:
             navigateur.close()
-    finally:
-        # ⚠ HORS du `with sync_playwright()` : l'ORM y lève `SynchronousOnlyOperation`, et un
-        # `except Exception: pass` AVALE cette erreur — le nettoyage semblait donc tourner alors
-        # qu'il ne faisait rien (constaté : le détail n'annonçait jamais d'objet nettoyé).
-        # Le fichier documente cette contrainte en tête ; je l'ai quand même réintroduite.
-        # ÉLÉMENTS d'abord, LOTS ensuite : dans la forme à FK directe (converter), supprimer le
-        # lot CASCADE sur ses éléments — l'inverse les ferait disparaître avant d'être comptés.
-        # On ne touche QUE ce que ce passage a créé.
-        for _modele, _avant in ((modele, ids_avant_orm), (modele_lot, lots_avant_orm)):
-            if _modele is None:
-                continue
-            try:
-                restes = set(_modele.objects.values_list('id', flat=True)) - _avant
-                if restes:
-                    _modele.objects.filter(id__in=restes).delete()
-                    _nettoyes.append(len(restes))
-            except Exception as _exc:            # ne JAMAIS avaler en silence
-                _nettoyes.append(0)
-                print(f"[batch_actions] nettoyage {app} impossible : {type(_exc).__name__}")
     if _nettoyes:
         detail += f" ; {sum(_nettoyes)} objet(s) de montage nettoyé(s)"
     return True, detail
@@ -1212,6 +1262,246 @@ def register_batch_actions_scenarios():
             description=f"File {label} : ⧉ puis 🗑 sur la card MÈRE d'un lot (brique commune)",
             run=(lambda p=path, a=label: (lambda ctx: check_app_batch_actions(a, p)))(),
             timeout_s=240, vram_gb=0.0,
+        )
+
+
+_CLIC_DOM = """(a) => {
+    const sel = a.portee === 'item' ? '[data-id="' + a.id + '"]'
+                                    : '.batch-group[data-batch-id="' + a.id + '"]';
+    const hote = document.querySelector(sel);
+    if (!hote) return {ok: false, raison: 'hôte introuvable après re-rendu (' + sel + ')'};
+    hote.dispatchEvent(new MouseEvent('click',
+                                      {bubbles: true, cancelable: true, view: window}));
+    return {ok: true};
+}"""
+
+
+def _clic_de_selection(page, portee: str, ident: str) -> str:
+    """Sélectionne la cible marquée ; renvoie le MODE de clic réellement employé.
+
+    ⚠ 5ᵉ défaut d'instrument de cette famille, mesuré le 2026-08-27 sur `reader` (échec
+    reproductible 2 passages sur 2, `TimeoutError: Locator.click`). Deux causes se
+    cumulent, et AUCUNE n'est un défaut de l'app :
+
+      1. la file se RE-REND toute seule. Le reader sonde `/<app>/<id>/html/` environ une
+         fois par seconde tant qu'un élément est PENDING — 19 requêtes en 4 s au relevé.
+         Chaque re-rendu remplace le nœud, donc EFFACE l'attribut `data-wama-nightly-cible`
+         posé par `CIBLE` : la cible mesurée à t=0,9 s avait disparu à t=1,2 s ;
+      2. le nœud reparaît en pleine animation `wama-fan-in` (`wama-inspector.css:116`,
+         .42 s) : boîte qui glisse de 547 à 558 px, opacité 0,11 → 1. Playwright exige
+         qu'un élément soit « stable » (boîte inchangée sur deux trames) avant de cliquer.
+
+    Le locator re-résout donc en boucle sur un nœud neuf, toujours en mouvement, jusqu'à
+    expiration. Un humain, lui, clique sans difficulté : c'est la STRICTESSE de l'outil de
+    mesure qui bute, pas la card.
+
+    D'où deux étages, dans cet ordre et jamais l'inverse :
+      * clic RÉEL d'abord (preuve la plus forte : l'élément est visible, stable, et reçoit
+        bien les événements) ;
+      * à défaut, clic DOM `dispatchEvent` sur l'hôte, retrouvé par son `data-id` /
+        `data-batch-id` — qui, eux, survivent au re-rendu. Il remonte par bouillonnement
+        jusqu'à la délégation de `wama-inspector.js`, donc il mesure exactement le contrat
+        visé (délégation → `selectItem`/`selectBatch` → remplissage du volet). Il ne prouve
+        PAS l'atteignabilité au pointeur — le détail le DIT (`[clic DOM …]`), on ne fait pas
+        passer la mesure faible pour la forte.
+    """
+    try:
+        page.locator('[data-wama-nightly-cible]').first.click(timeout=6000)
+        return 'clic réel'
+    except Exception as exc:
+        secours = page.evaluate(_CLIC_DOM, {'portee': portee, 'id': str(ident)})
+        if not secours.get('ok'):
+            raise RuntimeError(
+                f"ni clic réel ni clic DOM : {type(exc).__name__} puis "
+                f"{secours.get('raison')}") from exc
+        return 'clic DOM — file en re-rendu continu, élément jamais « stable »'
+
+
+def check_app_inspector_actions(app: str, url_path: str):
+    """SÉLECTIONNER une card (puis un lot) remplit-il le volet ACTIONS ? (ok, detail).
+
+    ANGLE MORT DU NOCTURNE JUSQU'AU 2026-08-27, et il a coûté deux défauts MUETS.
+    `<app>.batch_actions` clique les boutons DE LA CARD — il n'emprunte jamais la
+    SÉLECTION, or c'est elle seule qui appelle `renderItemActions`/`renderBatchActions`
+    (`wama-inspector.js`, `selectItem`/`selectBatch` → `fillActions`). Sont donc passés
+    sous les radars :
+      * le contrat INVERSÉ de `renderBatchActions` — TypeError au clic sur une card
+        mère, dans 4 apps, atteint sur le compte de Fabien (2026-08-26) ;
+      * l'imager qui ne déclarait AUCUN des deux rappels : `fillActions` fait
+        `if (renderFn)`, donc le volet restait VIDE — sans erreur, sans journal.
+    Un volet vide NE PLANTE PAS. Seule une assertion sur son CONTENU le voit :
+    c'est tout l'objet de ce scénario. Cf. « ce qui ne plante pas ne se signale pas ».
+
+    PORTÉE DES ÉCRITURES. La mesure elle-même n'est QUE des clics de sélection —
+    aucun POST, rien de modifié. Mais le chemin « card MÈRE » n'existe pas sans un
+    lot multi-éléments (cf. plus bas), que le compte de test n'a presque jamais :
+    ce scénario en monte donc un quand il manque, sous `_garde_de_montage` qui
+    retire en sortie CE QU'IL A CRÉÉ et rien d'autre (différence d'ids). Il ne
+    touche jamais un objet préexistant, ni le moindre compte réel.
+
+    ⚠ INSTRUMENT — on ne code EN DUR aucun sélecteur de card. Ils diffèrent par app
+    (`.anon-card`, `.job-card`, `.imager-card[data-id]`, `.synthesis-card`,
+    `.generation-card`, `.wama-card`…) et une union figée dériverait au premier
+    portage. On s'appuie sur ce que fait la délégation elle-même : elle remonte par
+    `e.target.closest(CARD_SEL)`. Il suffit donc de cliquer N'IMPORTE OÙ dans la
+    card, sur un descendant qui n'est ni bouton, ni lien, ni champ, ni aperçu, ni
+    zone d'actions — la liste EXACTE que la délégation ignore (`wama-inspector.js`).
+    C'est la leçon des 3 défauts d'instrument de `batch_actions` : mesurer le
+    contrat, jamais une recopie du contrat.
+    """
+    from wama.common.services.nightly_tests import SkipScenario
+    from playwright.sync_api import sync_playwright
+
+    url = f"{BASE_URL.rstrip('/')}{url_path}"
+
+    # Marque une cible cliquable et la renvoie. `portee` vaut 'item' ou 'lot'.
+    #   item : un descendant sûr d'un élément portant `data-id` (une card) ;
+    #   lot  : un descendant sûr d'un `.batch-group[data-batch-id]` qui n'est DANS
+    #          aucune card — sinon la délégation sélectionne l'item et jamais le lot
+    #          (elle teste la card AVANT le lot : `wama-inspector.js`).
+    CIBLE = """(portee) => {
+        const IGNORE = 'button, a, input, select, textarea, .wama-card-preview, .btn-group-actions';
+        const visible = (e) => { const r = e.getBoundingClientRect();
+                                 return r.width > 4 && r.height > 4; };
+        document.querySelectorAll('[data-wama-nightly-cible]')
+                .forEach(e => e.removeAttribute('data-wama-nightly-cible'));
+        // Les cards FILLES d'un lot vivent dans un `.collapse` REPLIÉ (`_queue_entry.html`) :
+        // taille nulle, donc injouables, et l'instrument concluait « aucune card en file »
+        // sur des apps qui en avaient — 4ᵉ défaut d'instrument de cette famille (mesuré le
+        // 2026-08-27 sur converter et describer, juste après le montage du lot). On déplie,
+        // ce que fait le chevron de la card mère : on rend la cible atteignable, on ne
+        // truque pas ce qui est mesuré (le remplissage du volet reste intact).
+        if (portee === 'item') {
+            document.querySelectorAll('.batch-group .collapse')
+                    .forEach(c => c.classList.add('show'));
+        }
+        let hotes;
+        if (portee === 'item') {
+            hotes = Array.from(document.querySelectorAll('[data-id]'))
+                .filter(e => e.dataset.id && !e.closest(IGNORE) && !e.matches(IGNORE));
+        } else {
+            hotes = Array.from(document.querySelectorAll('.batch-group[data-batch-id]'))
+                .filter(e => e.dataset.batchId);
+        }
+        for (const hote of hotes) {
+            if (!visible(hote)) continue;
+            const candidats = [hote, ...hote.querySelectorAll('*')];
+            for (const c of candidats) {
+                if (c.closest(IGNORE) || c.matches(IGNORE)) continue;
+                if (portee === 'lot' && c.closest('[data-id]')) continue;
+                if (!visible(c)) continue;
+                if (c.children.length && c !== hote) continue;   // feuille de préférence
+                c.setAttribute('data-wama-nightly-cible', '1');
+                return {ok: true, id: hote.dataset.id || hote.dataset.batchId,
+                        tag: c.tagName.toLowerCase()};
+            }
+        }
+        return {ok: false, hotes: hotes.length};
+    }"""
+
+    # Ce que le volet contient APRÈS sélection. On compte des boutons, pas des octets :
+    # un volet peut porter un titre sans une seule action, et c'est un échec.
+    CONTENU = """() => {
+        const h = document.getElementById('inspectorActions');
+        if (!h) return {absent: true};
+        return {absent: false,
+                boutons: h.querySelectorAll('button, a.btn').length,
+                texte: (h.innerText || '').trim().slice(0, 120)};
+    }"""
+
+    jeton = _session_compte_de_test()
+    if not jeton:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
+
+    # ⚠ Le chemin « card MÈRE » EXIGE un lot multi-éléments : `_queue_entry.html` ne pose
+    # `.batch-group` QUE si le lot n'est pas unitaire. Or le compte de test n'en possède
+    # quasiment aucun (mesuré le 2026-08-27 : 4 lots multi sur les 10 apps, tous comptes
+    # confondus). Premier passage sans montage : 3 OK / 7 « file vide » — le chemin qui
+    # portait le contrat inversé de `renderBatchActions` restait DONC non mesuré, dans un
+    # scénario écrit pour lui. On monte le lot, comme `batch_actions`, et la garde le retire.
+    with _garde_de_montage(app, 'inspector_actions') as _nettoyes:
+      with sync_playwright() as p:
+        navigateur = p.chromium.launch()
+        try:
+            contexte = navigateur.new_context(viewport={'width': 1500, 'height': 1000})
+            contexte.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': jeton,
+                                   'domain': '127.0.0.1', 'path': '/'}])
+            page = contexte.new_page()
+            erreurs_js = []
+            page.on('pageerror', lambda e: erreurs_js.append(str(e)[:160]))
+
+            resp = page.goto(url, wait_until='networkidle', timeout=45000)
+            if not resp or resp.status != 200:
+                return False, f"page HTTP {resp.status if resp else '?'}"
+            page.wait_for_timeout(1200)
+
+            if page.evaluate(CONTENU).get('absent'):
+                raise SkipScenario("pas de volet #inspectorActions sur cette page "
+                                   "(app non portée à `_inspector_actions.html`)")
+
+            # ⚠ Un montage qui échoue ne doit PAS emporter la mesure de l'autre chemin :
+            # 4 apps ne savent pas grouper (avatarizer, enhancer, imager, transcriber —
+            # cf. leurs skips de `batch_actions`), or leur chemin « item » est mesurable et
+            # transcriber l'avait déjà validé (card #237 → 4 boutons). On note donc la raison
+            # et on continue : deux chemins, deux verdicts.
+            monte, raison_lot = False, None
+            if not page.evaluate(CIBLE, 'lot').get('ok'):
+                try:
+                    _monter_un_lot(page)
+                    # Rechargement : on mesure la file telle que le SERVEUR la rend, pas
+                    # l'état laissé par le script d'import.
+                    page.goto(url, wait_until='networkidle', timeout=45000)
+                    page.wait_for_timeout(1500)
+                    monte = True
+                except SkipScenario as _exc:
+                    raison_lot = str(_exc)
+
+            constats, mesures = [], 0
+            for portee, libelle in (('item', 'card'), ('lot', 'card MÈRE de lot')):
+                cible = page.evaluate(CIBLE, portee)
+                if not cible.get('ok'):
+                    constats.append(
+                        f"{libelle} : NON MESURÉ — "
+                        + (raison_lot if portee == 'lot' and raison_lot
+                           else "aucune en file (rien à sélectionner)"))
+                    continue
+                mode = _clic_de_selection(page, portee, cible['id'])
+                page.wait_for_timeout(700)
+                etat = page.evaluate(CONTENU)
+                if etat.get('boutons', 0) < 1:
+                    return False, (
+                        f"sélection d'une {libelle} (#{cible['id']}) : le volet Actions reste "
+                        f"VIDE — {'callback absent' if not erreurs_js else 'JS en erreur'} "
+                        f"(rappel : `fillActions` fait `if (renderFn)`, un rappel manquant ne "
+                        f"lève RIEN){' ; ' + ' | '.join(erreurs_js) if erreurs_js else ''}")
+                constats.append(f"{libelle} #{cible['id']} → {etat['boutons']} bouton(s)"
+                                + ('' if mode == 'clic réel' else f" [{mode}]"))
+                mesures += 1
+
+            if erreurs_js:
+                return False, f"volet rempli mais JS en erreur : {' | '.join(erreurs_js)}"
+            if not mesures:
+                raise SkipScenario("aucun chemin mesurable — " + " ; ".join(constats))
+            detail = ("sélection → volet Actions : " + " ; ".join(constats)
+                      + (" (lot monté pour l'occasion)" if monte else ""))
+        finally:
+            navigateur.close()
+    if _nettoyes:
+        detail += f" ; {sum(_nettoyes)} objet(s) de montage nettoyé(s)"
+    return True, detail
+
+
+def register_inspector_actions_scenarios():
+    """Enregistre un scénario `<app>.inspector_actions` par app disposant d'un index."""
+    from wama.common.services.nightly_tests import register
+
+    for label, path in discoverable_apps():
+        register(
+            id=f"{label}.inspector_actions", app=label, stage="ui",
+            description=(f"File {label} : SÉLECTIONNER une card puis un lot remplit "
+                         f"le volet Actions (chemin que `batch_actions` n'emprunte pas)"),
+            run=(lambda p=path, a=label: (lambda ctx: check_app_inspector_actions(a, p)))(),
+            timeout_s=180, vram_gb=0.0,
         )
 
 

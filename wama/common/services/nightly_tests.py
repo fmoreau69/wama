@@ -238,6 +238,7 @@ try:
     from wama.common.services.ui_smoke import (register_batch_actions_scenarios,
                                                register_duplicate_delete_scenarios,
                                                register_import_scenarios,
+                                               register_inspector_actions_scenarios,
                                                register_settings_scenarios,
                                                register_ui_scenarios,
                                                register_volet_scenarios)
@@ -265,5 +266,14 @@ try:
     # Le VOLET DROIT est une troisième surface : ni la santé de la page ni la création d'un
     # élément ne voient un ✕ qui ne désélectionne pas (aucune erreur console — cf. WAMA_VOLETS §4).
     register_volet_scenarios()
+    # 2026-08-27 — le chemin que AUCUN des six précédents n'emprunte : la SÉLECTION.
+    # `batch_actions` clique les boutons DE la card ; c'est `selectItem`/`selectBatch` qui
+    # peuplent le volet Actions. D'où deux défauts MUETS passés au travers du nocturne :
+    # le contrat inversé de `renderBatchActions` (TypeError, 4 apps, atteint sur un compte
+    # réel) et l'imager sans aucun rappel (`fillActions` fait `if (renderFn)` → volet vide,
+    # zéro erreur). La mesure n'est que des clics ; le chemin « card mère » exige en revanche
+    # un lot multi-éléments, que le scénario MONTE quand il manque, sous une garde qui retire
+    # en sortie ce qu'il a créé et rien d'autre (différence d'ids) — jamais un objet existant.
+    register_inspector_actions_scenarios()
 except Exception as _e:                                   # pragma: no cover
     logger.debug(f"[nightly] scénarios UI non enregistrés ({_e})")

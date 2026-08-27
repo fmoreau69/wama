@@ -57,12 +57,12 @@ Le catalogue n'est **pas à inventer** : c'est la table des composants obligatoi
 |---|---|---|---|
 | 1 | Déposer un fichier → une card apparaît | ✅ `<app>.import` | non |
 | 2 | Ouvrir les paramètres d'un item, modifier, enregistrer, relire | ⚠️ **MOITIÉ** — `<app>.settings` (23/08) prouve l'OUVERTURE ; modifier/enregistrer/relire reste dû | non |
-| 3 | Dupliquer un **élément** (`.duplicate-btn`) | ❌ | non |
-| 3b | Dupliquer un **lot** (`.batch-duplicate-btn`) | ❌ | non |
-| 4 | Supprimer un **élément** (`.delete-btn`) | ❌ | non |
-| 4b | Supprimer un **lot** (`.batch-delete-btn`) | ❌ | non |
+| 3 | Dupliquer un **élément** (`.duplicate-btn`) | ✅ `<app>.duplicate_delete` | non |
+| 3b | Dupliquer un **lot** (`.batch-duplicate-btn`) | ✅ `<app>.batch_actions` (23-24/08) | non |
+| 4 | Supprimer un **élément** (`.delete-btn`) | ✅ `<app>.duplicate_delete` | non |
+| 4b | Supprimer un **lot** (`.batch-delete-btn`) | ✅ `<app>.batch_actions` (23-24/08) | non |
 | 5 | Tout effacer | ❌ | non |
-| 6 | Sélectionner une card → l'inspecteur se remplit ; désélectionner | ❌ | non |
+| 6 | Sélectionner une card → l'inspecteur se remplit | ⚠️ **MOITIÉ** — `<app>.inspector_actions` (27/08) prouve le REMPLISSAGE du volet Actions sur les deux portées (card **et** card mère de lot) ; la **dé**sélection reste due | non |
 | 7 | **Créer par le bouton primaire** (apps `data-wama-depot=attache` : avatarizer, imager) | ❌ | non |
 | 8 | Démarrer un item → RUNNING → SUCCESS | ❌ | **oui** |
 | 9 | Arrêter / relancer (bouton de cycle) | ❌ | **oui** |
@@ -77,6 +77,10 @@ Le catalogue n'est **pas à inventer** : c'est la table des composants obligatoi
 **Au 2026-08-23 : 3 gestes et demi sur 16** (import ; dupliquer + supprimer ; ouverture des
 paramètres). Chaque ajout se paie en minutes de passage nocturne, pas en lignes de code par app :
 les trois scénarios partagent le même montage de fixture et le même filet ORM de nettoyage.
+**Au 2026-08-27 : 6 gestes et demi sur 16** — les actions de LOT (3b/4b, `<app>.batch_actions`)
+et la SÉLECTION (6, `<app>.inspector_actions`) s'y ajoutent. La table ci-dessus portait encore
+❌ sur 3/3b/4/4b alors que le paragraphe juste en dessous les comptait : une table et sa prose
+qui divergent dans le MÊME fichier, c'est le mode de dérive que ce document est censé traquer.
 
 > ⚠ **`<app>.settings` mesure la MOITIÉ du geste 2, et le dit dans son propre détail** (« MOITIÉ
 > DU GESTE — modifier/enregistrer/relire n'est PAS mesuré ici »). Ce n'est pas de la modestie :
@@ -104,6 +108,50 @@ les trois scénarios partagent le même montage de fixture et le même filet ORM
 > n'a **pas pu être prouvée**, parce que `avatarizer.import` SKIPPE (son dépôt joint le fichier,
 > c'est le bouton primaire qui crée — geste n°7) et que `avatarizer.ui` n'atteste que la page.
 > Le correctif est sûr, il n'est pas *mesuré*. C'est le geste n°7 qui manque, pas le correctif.
+
+### Geste 6 — la SÉLECTION, angle mort du nocturne jusqu'au 2026-08-27
+
+> **Six scénarios coexistaient sans qu'aucun n'emprunte le chemin de la sélection.** `batch_actions`
+> clique les **boutons** de la card ; or ce sont `selectItem` / `selectBatch` qui appellent
+> `renderItemActions` / `renderBatchActions` et remplissent le volet. Deux défauts sont donc passés
+> au travers, **tous deux MUETS** :
+> - le contrat **inversé** de `renderBatchActions` — `TypeError` au clic sur une card mère, dans
+>   4 apps, **atteint sur le compte de Fabien** (26/08) ;
+> - l'**imager** ne déclarait AUCUN des deux rappels : `fillActions` fait `if (renderFn)`, donc le
+>   volet restait **vide sans erreur ni journal**.
+>
+> **Un volet vide ne plante pas** — ce qui ne plante pas ne se signale pas : ni erreur, ni journal,
+> ni page rouge. Seule une assertion peut le voir.
+
+**Ce que `<app>.inspector_actions` mesure** — sélectionner une card, puis une card **mère de lot**,
+et exiger que `#inspectorActions` porte **au moins un bouton**. Les deux portées sont mesurées
+séparément et rapportées séparément : un chemin non mesurable est écrit « NON MESURÉ — *raison* »
+et n'emporte jamais l'autre.
+
+**Couverture mesurée le 2026-08-27** (14 apps) : **7 mesurées** (anonymizer, converter, describer,
+enhancer, reader, synthesizer, transcriber) ; **3 non mesurables** (avatarizer, composer, imager —
+file vide pour le compte de test **et** l'app ne sait pas grouper : c'est le geste n°7 qui manque
+là aussi) ; **4 hors périmètre** (converter_01, media_library, model_manager, studio — pas de volet
+`#inspectorActions`, apps non portées ou non-files).
+
+> ⚠ **Le chemin « card mère » n'existe pas sans lot multi-éléments**, et le compte de test n'en
+> possédait presque aucun (relevé : **4 lots multi sur 10 apps, tous comptes confondus**). Premier
+> passage : 3 OK / 7 « file vide » — le chemin qui portait le contrat inversé restait **non mesuré
+> dans un scénario écrit pour lui**. Le scénario monte donc son lot quand il manque, sous une garde
+> qui retire en sortie **ce qu'il a créé et rien d'autre** (différence d'ids). Un scénario vert sur
+> un chemin non emprunté est exactement ce que ce document appelle une adoption prise pour un
+> fonctionnement.
+
+> ⚠ **Cinq défauts d'INSTRUMENT ont été trouvés avant d'accuser une seule app** — trois sur
+> `batch_actions` (URLs cherchées sur la mère et non sur les boutons…), deux sur celui-ci :
+> les cards filles vivent dans un `.collapse` **replié** (taille nulle → « aucune card en file »
+> sur des apps qui en avaient) ; et sur le **reader**, la file **se re-rend seule** (~1 requête/s
+> tant qu'un élément est PENDING — 19 requêtes en 4 s au relevé), ce qui **efface le marqueur** posé
+> sur la cible et fait reparaître le nœud en pleine animation `wama-fan-in` : Playwright, qui exige
+> un élément « stable », tournait jusqu'à expiration. Le scénario tente donc le **clic réel**
+> d'abord et, à défaut, un **clic DOM** qui bouillonne jusqu'à la délégation — en le **disant dans
+> son détail** (`[clic DOM — …]`). Une mesure faible qui se présente comme forte serait pire que
+> pas de mesure.
 
 ---
 
