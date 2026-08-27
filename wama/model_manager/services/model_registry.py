@@ -170,6 +170,11 @@ class ModelRegistry:
         self._discover_reader_models()
         self._discover_depth_models()
 
+        # EN DERNIER, après toutes les découvertes d'app : le balayage générique ne
+        # couvre que ce qu'AUCUNE app ne déclare (dédup par hf_id) — l'entrée déclarée
+        # reste toujours l'autorité.
+        self._discover_installed_hf_snapshots()
+
         self._overlay_residency()
 
         # Log summary
@@ -1209,6 +1214,130 @@ class ModelRegistry:
 
         except Exception as e:
             logger.debug(f"Could not discover Composer models: {e}")
+
+    def _discover_installed_hf_snapshots(self):
+        """
+        Balayage GÉNÉRIQUE des snapshots HuggingFace installés dans l'arborescence canonique
+        (`AI-models/models/<categorie>/<famille>/models--org--nom/`) — le filet qui referme le
+        trou « téléchargé mais jamais catalogué » (vécu 2026-08-26 : MiniMax-Music3, 54 Go
+        installés par `install_from_spec`, invisibles au catalogue parce que la découverte est
+        déclarative par app et qu'aucune app ne le déclarait).
+
+        Règles :
+          • DÉDUP par `hf_id` : un dépôt déjà déclaré par une app (composer, imager…) est
+            IGNORÉ ici — l'entrée d'app porte backend, VRAM et capacités, elle fait autorité.
+            Le balayage tourne donc EN DERNIER dans `discover_all_models`.
+          • DÉDUP par FAMILLE : un snapshot dont le dossier de famille figure dans
+            `settings.MODEL_PATHS` appartient déjà à une app (c'est l'étape 1 de la checklist
+            d'ajout de modèle) — ses entrées de catalogue viennent de la découverte d'app,
+            même quand celle-ci ne pose pas de `hf_id` (transcriber, synthesizer, anonymizer :
+            mesuré 2026-08-27, 16 doublons de fait sans ce critère). Le balayage ne couvre
+            que les familles qu'AUCUNE déclaration ne revendique.
+          • La catégorie du dossier doit être un `ModelType` valide, sinon le dossier est
+            ignoré (un dossier inconnu n'invente pas de taxonomie).
+          • Un snapshot avec blobs `*.incomplete` n'est PAS « téléchargé » : il est catalogué
+            `is_downloaded=False` avec `extra_info['incomplete']=True` — c'est précisément
+            l'état qu'un téléchargement interrompu laisse derrière lui.
+          • `backend_ref` reste vide : catalogué ≠ utilisable. L'entrée dit au model_manager
+            que les poids existent (désinstallables, pesables) ; l'usage par une app reste
+            conditionné à sa déclaration + un backend (chaîne d'intégration, étape séparée).
+        """
+        try:
+            from wama.common.utils.model_locations import models_root
+            root = models_root()
+            if not root.exists():
+                return
+            deja_declares = {m.hf_id for m in self._models.values() if m.hf_id}
+            familles_declarees = self._familles_model_paths()
+            for cat_dir in sorted(root.iterdir()):
+                if not cat_dir.is_dir():
+                    continue
+                try:
+                    mtype = ModelType(cat_dir.name)
+                except ValueError:
+                    continue
+                for fam_dir in sorted(cat_dir.iterdir()):
+                    if not fam_dir.is_dir() or fam_dir.resolve() in familles_declarees:
+                        continue
+                    for snap in sorted(fam_dir.glob('models--*')):
+                        if not snap.is_dir():
+                            continue
+                        try:
+                            self._snapshot_to_model(snap, mtype, fam_dir, deja_declares)
+                        except Exception as e:
+                            logger.debug(f"[hf_snapshots] {snap.name} illisible : {e}")
+        except Exception as e:
+            # Un balayage entier en échec = découverte INCOMPLÈTE : la réconciliation doit
+            # le savoir (même règle que SAM3, cf. `discovery_errors`).
+            self.discovery_errors.append(f"hf_snapshots : {type(e).__name__}: {e}")
+            logger.warning(f"[hf_snapshots] balayage en échec : {e}")
+
+    @staticmethod
+    def _familles_model_paths() -> set:
+        """Dossiers (résolus) déclarés dans `settings.MODEL_PATHS`, à toute profondeur."""
+        from django.conf import settings
+        declares = set()
+
+        def _walk(valeur):
+            if isinstance(valeur, dict):
+                for v in valeur.values():
+                    _walk(v)
+            else:
+                try:
+                    declares.add(Path(valeur).resolve())
+                except (TypeError, OSError):
+                    pass
+
+        _walk(getattr(settings, 'MODEL_PATHS', {}))
+        return declares
+
+    def _snapshot_to_model(self, snap, mtype, fam_dir, deja_declares):
+        """Fabrique l'entrée `ModelInfo` d'UN snapshot HF (sous-fonction du balayage générique)."""
+        # `models--org--nom` : le séparateur est le DOUBLE tiret (convention huggingface_hub,
+        # `repo_id.replace('/', '--')`) — les tirets simples des noms restent intacts.
+        parts = snap.name[len('models--'):].split('--')
+        if len(parts) < 2:
+            return
+        hf_id = f"{parts[0]}/{'--'.join(parts[1:])}"
+        if hf_id in deja_declares:
+            return
+
+        blobs, snapshots = snap / 'blobs', snap / 'snapshots'
+        if not snapshots.is_dir():
+            return
+        incomplets = any(blobs.glob('*.incomplete')) if blobs.is_dir() else False
+        taille = sum(f.stat().st_size for f in blobs.iterdir() if f.is_file()) \
+            if blobs.is_dir() else 0
+
+        # Format dominant, lu sur les fichiers du snapshot (liens symboliques compris).
+        extensions = {f.suffix.lstrip('.').lower()
+                      for rev in snapshots.iterdir() if rev.is_dir()
+                      for f in rev.rglob('*') if f.suffix}
+        fmt = next((f for f in ('gguf', 'safetensors', 'pt', 'pth', 'bin', 'onnx')
+                    if f in extensions), '')
+
+        nom_court = hf_id.split('/')[-1]
+        self._models[f"huggingface:{hf_id}"] = ModelInfo(
+            id=hf_id,
+            name=nom_court,
+            model_type=mtype,
+            source=ModelSource.HUGGINGFACE,
+            description=(f"Snapshot HuggingFace installé ({mtype.value}/{fam_dir.name}) — "
+                         "catalogué par le balayage générique ; aucune app ne le déclare "
+                         "encore : poids présents, backend à intégrer."),
+            description_short=f"Snapshot HF {nom_court} — installé, en attente d'intégration",
+            hf_id=hf_id,
+            is_downloaded=not incomplets,
+            format=fmt,
+            extra_info={
+                'path': str(snap),
+                'size_bytes': taille,
+                'hf_snapshot': True,
+                'category': mtype.value,
+                'family': fam_dir.name,
+                **({'incomplete': True} if incomplets else {}),
+            },
+        )
 
     def _discover_reader_models(self):
         """Discover Reader app OCR models (olmOCR-2 + docTR)."""

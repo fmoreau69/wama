@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -305,6 +306,92 @@ def installer_candidat(cand, progress=None) -> dict:
     installed_name = cand.name
     cand.delete()
     return {'ok': True, 'installed': installed_name}
+
+
+def uninstall_model(model_key: str) -> dict:
+    """
+    DÉSINSTALLE un modèle du catalogue : retrait des POIDS uniquement, jamais du backend
+    (léger et réutilisable — décision Fabien 2026-08-27), et recalage du catalogue dans le
+    même geste. Miroir de `install_from_spec` : dispatch par nature du stockage.
+
+      • ollama       → `DELETE /api/delete` (driver existant `delete_ollama_model`) ;
+      • snapshot HF  → suppression du dossier `models--org--nom` + ses verrous `.locks` ;
+      • autre        → refus explicite (un fichier de poids d'app déclarée se retire par
+                       l'app, pas par un rm générique).
+
+    La ligne de catalogue est MARQUÉE (`is_downloaded=False`), jamais supprimée : elle porte
+    l'historique (statistiques de runtime, ETA appris, identité/licence) — même doctrine que
+    le remplacement de `installer_candidat`. Un modèle déclaré par une app revient d'ailleurs
+    au prochain sync (non téléchargé) ; un snapshot générique reste en mémoire de catalogue.
+
+    Retourne {'ok': True, 'freed_gb': X, 'kind': …} ou {'ok': False, 'error': …}.
+    """
+    import shutil
+
+    from django.utils import timezone
+
+    from ..models import AIModel
+
+    model = AIModel.objects.filter(model_key=model_key).first()
+    if model is None:
+        return {'ok': False, 'error': f"modèle inconnu du catalogue : {model_key!r}"}
+    if model.is_proposed:
+        return {'ok': False, 'error': "un candidat de prospection ne se désinstalle pas — "
+                                      "il se rejette (bouton Rejeter)."}
+    if model.is_loaded:
+        return {'ok': False, 'error': f"« {model.name} » est chargé en mémoire — "
+                                      "le décharger avant de le désinstaller."}
+    if not model.is_downloaded:
+        return {'ok': False, 'error': f"« {model.name} » n'a pas de poids sur cette machine."}
+
+    freed_gb = float(model.disk_gb or 0)
+
+    if model.source == 'ollama':
+        nom = model.model_key.split(':', 1)[1] if ':' in model.model_key else model.name
+        res = delete_ollama_model(nom)
+        if not res.get('ok'):
+            return {'ok': False, 'error': f"retrait Ollama impossible : {res.get('error')}"}
+        kind = 'ollama'
+    else:
+        # Snapshot HF : le chemin vient du catalogue (posé par la découverte). GARDE-FOUS
+        # avant tout rm -rf : le dossier doit être un `models--*` SOUS la racine canonique —
+        # jamais de suppression hors de `AI-models/models/`, quoi que dise la base.
+        from wama.common.utils.model_locations import models_root
+        chemin = Path(model.local_path or (model.extra_info or {}).get('path') or '')
+        if not chemin.name.startswith('models--'):
+            return {'ok': False,
+                    'error': f"stockage non pris en charge ({model.source}) : seuls les "
+                             "snapshots HuggingFace et les modèles Ollama se désinstallent "
+                             "d'ici — retrait manuel pour le reste."}
+        try:
+            racine = models_root().resolve()
+            cible = chemin.resolve()
+            cible.relative_to(racine)          # ValueError si hors racine
+        except (ValueError, OSError):
+            return {'ok': False, 'error': f"chemin hors de la racine des modèles : {chemin}"}
+        if not cible.is_dir():
+            return {'ok': False, 'error': f"dossier de poids introuvable : {cible}"}
+
+        if not freed_gb:
+            try:
+                freed_gb = sum(f.stat().st_size for f in cible.rglob('*')
+                               if f.is_file()) / (1024 ** 3)
+            except OSError:
+                freed_gb = 0.0
+        shutil.rmtree(cible)
+        verrous = cible.parent / '.locks' / cible.name
+        if verrous.is_dir():
+            shutil.rmtree(verrous, ignore_errors=True)
+        kind = 'hf_snapshot'
+
+    # Recalage IMMÉDIAT du catalogue (le sync ne re-mesure ces lignes qu'à sa prochaine
+    # passe, et un snapshot générique disparu n'est simplement plus re-découvert).
+    info = dict(model.extra_info or {})
+    info['uninstalled_at'] = timezone.now().isoformat()
+    AIModel.objects.filter(pk=model.pk).update(
+        is_downloaded=False, is_loaded=False, extra_info=info)
+    logger.info("[uninstall] %s (%s) — %.1f Go rendus", model_key, kind, freed_gb)
+    return {'ok': True, 'freed_gb': round(freed_gb, 1), 'kind': kind, 'name': model.name}
 
 
 def install_from_spec(spec: dict) -> dict:

@@ -78,10 +78,13 @@ urlpatterns = [
     path('api/prospect/install/', views.api_prospect_install, name='api_prospect_install'),
     path('api/prospect/install/progress/', views.api_prospect_install_progress,
          name='api_prospect_install_progress'),
+    path('api/prospect/install/options/', views.api_prospect_install_options,
+         name='api_prospect_install_options'),
     path('api/prospect/assess/', views.api_prospect_assess, name='api_prospect_assess'),
     path('api/prospect/assess/progress/', views.api_prospect_assess_progress,
          name='api_prospect_assess_progress'),
     path('api/prospect/reject/', views.api_prospect_reject, name='api_prospect_reject'),
+    path('api/model/uninstall/', views.api_model_uninstall, name='api_model_uninstall'),
     path('functions/', views.function_catalog, name='function_catalog'),
     path('libraries/', views.library_catalog, name='library_catalog'),
 ]

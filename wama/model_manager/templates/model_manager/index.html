@@ -1115,14 +1115,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         poller.start(id);
     }
-    async function mmProspectInstall(id) {
-        if (!confirm('Installer ce modèle proposé ? Le téléchargement se fait en tâche de fond.')) return;
+    // POST d'installation (avec le choix de variante éventuel), 507-forçage et suivi compris.
+    async function mmProspectInstallPost(id, extra) {
         showLoading('Installation…');
         try {
             const r = await fetch('{% url "model_manager:api_prospect_install" %}', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-                body: JSON.stringify({ model_id: id })
+                body: JSON.stringify(Object.assign({ model_id: id }, extra || {}))
             });
             const data = await r.json();
             if (data.success) { mmProspectPoll(id); return; }   // l'overlay vit avec le poller
@@ -1136,7 +1136,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const r2 = await fetch('{% url "model_manager:api_prospect_install" %}', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-                        body: JSON.stringify({ model_id: id, force: true })
+                        body: JSON.stringify(Object.assign({ model_id: id, force: true }, extra || {}))
                     });
                     const d2 = await r2.json();
                     if (d2.success) { mmProspectPoll(id); return; }
@@ -1148,6 +1148,83 @@ document.addEventListener('DOMContentLoaded', function() {
             hideLoading();
             alert('Échec : ' + (data.error || 'inconnu'));
         } catch (err) { hideLoading(); alert('Erreur : ' + err.message); }
+    }
+
+    // Choix EXPLICITE poids pleins / variante quantisée AVANT installation (2026-08-27).
+    // Le juge de confiance évalue la faisabilité VRAM sur les variantes ; l'utilisateur doit
+    // donc voir les mêmes options — tailles disque et note VRAM — au moment de décider.
+    async function mmProspectInstall(id) {
+        showLoading("Relevé des options d'installation…");
+        let opts = null;
+        try {
+            const r = await fetch('{% url "model_manager:api_prospect_install_options" %}?model_id='
+                + encodeURIComponent(id));
+            opts = await r.json();
+        } catch (err) { /* réseau HF indisponible : installation simple ci-dessous */ }
+        hideLoading();
+        if (!opts || !opts.success || !opts.choice || !(opts.options || []).length) {
+            if (!confirm('Installer ce modèle proposé ? Le téléchargement se fait en tâche de fond.')) return;
+            mmProspectInstallPost(id, {});
+            return;
+        }
+        mmVariantDialog(id, opts.options);
+    }
+
+    function mmVariantDialog(id, options) {
+        const old = document.getElementById('mmVariantModal');
+        if (old) old.remove();
+        // Présélection : la première variante quantisée qui tient confortablement en VRAM
+        // (≤ 20 Go) — le choix que le juge de confiance a réellement évalué ; sinon la 1ʳᵉ option.
+        let preselect = options.findIndex(o => o.kind !== 'full' && o.disk_gb && o.disk_gb <= 20);
+        if (preselect < 0) preselect = 0;
+        const rows = options.map((o, i) => `
+            <label class="list-group-item d-flex align-items-start gap-2 bg-transparent text-light">
+                <input class="form-check-input mt-1" type="radio" name="mmVariantChoice" value="${i}"
+                       ${i === preselect ? 'checked' : ''}>
+                <span class="flex-grow-1">
+                    <span class="d-block">${o.label}</span>
+                    <span class="small text-muted">
+                        ${o.disk_gb != null ? `${Number(o.disk_gb).toFixed(1)} Go disque` : 'taille inconnue'}
+                        ${o.vram_note ? ' · ' + o.vram_note : ''}
+                        ${o.downloads != null ? ` · ${o.downloads.toLocaleString()} téléchargements` : ''}
+                    </span>
+                </span>
+                ${o.kind === 'full' ? '<span class="badge bg-secondary">canonique</span>'
+                                    : '<span class="badge bg-success">quantisé</span>'}
+            </label>`).join('');
+        const el = document.createElement('div');
+        el.id = 'mmVariantModal';
+        el.className = 'modal fade';
+        el.innerHTML = `
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+              <div class="modal-content bg-dark text-light">
+                <div class="modal-header">
+                  <h5 class="modal-title"><i class="fas fa-scale-balanced me-2"></i>Quels poids installer ?</h5>
+                  <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                  <p class="small text-muted mb-2">La faisabilité VRAM (24 Go) se juge sur les variantes
+                  quantisées ; les poids pleins servent de référence ou d'archive. Le téléchargement se
+                  fait en tâche de fond, dans le dossier canonique du modèle.</p>
+                  <div class="list-group">${rows}</div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                  <button type="button" class="btn btn-primary" id="mmVariantGo">
+                    <i class="fas fa-download me-1"></i>Installer la sélection</button>
+                </div>
+              </div>
+            </div>`;
+        document.body.appendChild(el);
+        const modal = new bootstrap.Modal(el);
+        el.querySelector('#mmVariantGo').addEventListener('click', function () {
+            const checked = el.querySelector('input[name="mmVariantChoice"]:checked');
+            const o = options[parseInt((checked || {}).value || '0', 10)] || options[0];
+            modal.hide();
+            mmProspectInstallPost(id, { variant_ref: o.ref, variant_file: o.file || undefined });
+        });
+        el.addEventListener('hidden.bs.modal', function () { el.remove(); });
+        modal.show();
     }
     async function mmProspectReject(id) {
         if (!confirm('Rejeter cette proposition ?')) return;
@@ -1315,6 +1392,12 @@ document.addEventListener('DOMContentLoaded', function() {
         { label: 'Décharger', icon: 'fas fa-eject', cls: 'btn btn-sm btn-outline-danger',
           when: function (m) { return !m.is_proposed && !!m.is_loaded; },
           onClick: function (m) { mmUnloadModel(m); } },
+        {% comment %} Désinstallation = retrait des POIDS seulement (Ollama ou snapshot HF),
+        jamais du backend ; le catalogue est recalé dans le même geste (2026-08-27).
+        Un modèle chargé se décharge d'abord — la garde serveur refuse de toute façon. {% endcomment %}
+        { label: 'Désinstaller', icon: 'fas fa-trash-can', cls: 'btn btn-sm btn-outline-danger',
+          when: function (m) { return !m.is_proposed && !!m.is_downloaded && !m.is_loaded; },
+          onClick: function (m) { mmUninstallModel(m); } },
         { expand: function (m) {
             return (Array.isArray(m.can_convert_to) ? m.can_convert_to : []).map(function (fmt) {
                 return {
@@ -1324,6 +1407,31 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         } },
     ];
+
+    async function mmUninstallModel(m) {
+        const poids = m.disk_gb ? ` (${Number(m.disk_gb).toFixed(1)} Go rendus au disque)` : '';
+        if (!confirm(`Désinstaller « ${m.name} »${poids} ?\n\n`
+            + 'Seuls les POIDS sont retirés — le backend et la fiche de catalogue restent '
+            + '(historique, statistiques). Une réinstallation reste possible à tout moment.')) return;
+        showLoading('Désinstallation…');
+        try {
+            const r = await fetch('{% url "model_manager:api_model_uninstall" %}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: JSON.stringify({ model_id: m.model_key || m.id })
+            });
+            const data = await r.json();
+            if (data.success) {
+                loadModels();
+                if (data.freed_gb) showToastOrAlert(`« ${data.name} » désinstallé — ${data.freed_gb} Go rendus.`);
+            } else { alert('Échec : ' + (data.error || 'inconnu')); }
+        } catch (err) { alert('Erreur : ' + err.message); }
+        finally { hideLoading(); }
+    }
+    // Toast si la brique commune est là, alert sinon (page chargée sans wama-app-base).
+    function showToastOrAlert(msg) {
+        if (window.WamaApp && WamaApp.toast) WamaApp.toast(msg); else alert(msg);
+    }
 
     async function mmUnloadModel(m) {
         if (!confirm(`Décharger « ${m.name} » de la mémoire ?`)) return;

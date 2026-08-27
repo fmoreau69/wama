@@ -1576,6 +1576,39 @@ def api_prospect_install(request):
                                  'error': "Candidat sans spec d'installation (source "
                                           f"{cand.source}) — non installable."}, status=400)
 
+        # ── CHOIX DE VARIANTE (2026-08-27) : le juge évalue la faisabilité VRAM sur les
+        # variantes quantisées, mais l'installation tirait TOUJOURS les poids pleins du
+        # dépôt canonique (vécu MiniMax-Music3 : 54 Go inexploitables sur 24 Go de VRAM).
+        # L'UI propose désormais les options (api_prospect_install_options) ; le choix
+        # validé est PERSISTÉ dans le spec du candidat — la tâche Celery relit le candidat
+        # en base, donc la sélection de l'utilisateur est respectée de bout en bout.
+        besoin_hf = cand.disk_gb or None
+        variant_ref = data.get('variant_ref')
+        variant_file = data.get('variant_file')
+        if variant_ref and cand.source != 'ollama':
+            from .services.prospector import spec_pour_choix
+            spec_choisi = spec_pour_choix(cand, variant_ref, variant_file)
+            if spec_choisi is None:
+                return JsonResponse({'success': False,
+                                     'error': f"Choix inconnu ({variant_ref}"
+                                              f"{' / ' + variant_file if variant_file else ''}) "
+                                              "— recharger les options."}, status=400)
+            info = dict(cand.extra_info or {})
+            pr = dict(info.get('prospect') or {})
+            pr['spec'] = spec_choisi
+            pr['chosen_variant'] = {'ref': variant_ref, 'file': variant_file}
+            info['prospect'] = pr
+            cand.extra_info = info
+            cand.save(update_fields=['extra_info'])
+            # La garde d'espace se calcule sur le POIDS DU CHOIX, pas sur les poids pleins.
+            variantes = {v['hf_id']: v for v in (pr.get('quant_variants') or [])}
+            if variant_file:
+                tailles = {f['file']: f['gb']
+                           for f in (variantes.get(variant_ref, {}).get('files') or [])}
+                besoin_hf = tailles.get(variant_file) or None
+            elif variant_ref != cand.hf_id:
+                besoin_hf = (variantes.get(variant_ref) or {}).get('disk_gb') or None
+
         # ── GARDE D'ESPACE DISQUE (SYNCHRONE : le 507/forçage est un dialogue) ──
         # `ollama pull` n'a AUCUN garde-fou : il télécharge jusqu'à saturer le volume. Mesuré le
         # 2026-08-04, D: était à 96 % (23,7 Go libres) alors que `qwen3.6:35b` pèse 22,3 Go —
@@ -1590,9 +1623,10 @@ def api_prospect_install(request):
 
         garde = _garde_espace_disque(cand.name, reclaim_gb=reclaim_gb,
                                      force=bool(data.get('force')),
-                                     # HF : poids relevé à la prospection (usedStorage) ;
-                                     # 0.0 = inconnu → refus prudent avec forçage possible.
-                                     besoin_gb=(cand.disk_gb or None)
+                                     # HF : poids du CHOIX validé (variante quantisée : son
+                                     # dépôt/fichier), sinon poids pleins relevés à la
+                                     # prospection ; None = inconnu → refus prudent forçable.
+                                     besoin_gb=besoin_hf
                                                if cand.source != 'ollama' else None)
         if garde is not None:
             garde['replaces'] = remplace
@@ -1619,6 +1653,25 @@ def api_prospect_install(request):
         return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
     except Exception as e:
         logger.exception("api_prospect_install failed")
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_admin_or_dev)
+def api_prospect_install_options(request):
+    """Options d'installation d'un candidat HF (poids pleins + variantes quantisées, tailles
+    disque/VRAM) — à montrer AVANT d'installer. `?model_id=<model_key>`. Relevés réseau payés
+    une fois (persistés au candidat). Candidat Ollama → {'choice': false} (pas de variantes)."""
+    from .models import AIModel
+    from .services.prospector import options_installation
+    model_id = request.GET.get('model_id') or ''
+    cand = AIModel.objects.filter(model_key=model_id, is_proposed=True).first()
+    if not cand:
+        return JsonResponse({'success': False, 'error': 'Candidat introuvable'}, status=404)
+    try:
+        return JsonResponse({'success': True, **options_installation(cand)})
+    except Exception as e:
+        logger.exception("api_prospect_install_options failed")
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
@@ -1682,6 +1735,31 @@ def api_prospect_reject(request):
         return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
     except Exception as e:
         logger.exception("api_prospect_reject failed")
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_admin_or_dev)
+@require_POST
+def api_model_uninstall(request):
+    """Désinstalle un modèle INSTALLÉ : retrait des poids (Ollama ou snapshot HF), catalogue
+    recalé, backend jamais touché. Miroir de l'installation — corps dans
+    `model_installer.uninstall_model` (gardes : chargé → refus, candidat → refus)."""
+    from .services.model_installer import uninstall_model
+    try:
+        data = json.loads(request.body or '{}')
+        model_id = data.get('model_id')
+        if not model_id:
+            return JsonResponse({'success': False, 'error': 'model_id required'}, status=400)
+        res = uninstall_model(model_id)
+        if not res.get('ok'):
+            return JsonResponse({'success': False, 'error': res.get('error')}, status=400)
+        return JsonResponse({'success': True, 'freed_gb': res.get('freed_gb'),
+                             'name': res.get('name'), 'kind': res.get('kind')})
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.exception("api_model_uninstall failed")
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 

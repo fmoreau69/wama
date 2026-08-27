@@ -261,6 +261,128 @@ def variantes_quantisees(hf_id: str, limit: int = 5) -> list[dict]:
     return variantes[:limit]
 
 
+#: Extensions de fichiers de POIDS (pour le détail par fichier des dépôts quantisés).
+_EXT_POIDS = ('.gguf', '.safetensors', '.bin', '.pt', '.pth')
+
+
+def _fichiers_poids(hf_id: str) -> list[tuple[str, int]]:
+    """`[(nom, taille_octets)]` des fichiers de poids d'un dépôt (metadata, 1 requête)."""
+    try:
+        from huggingface_hub import HfApi
+        info = HfApi().model_info(hf_id, files_metadata=True)
+        return [(s.rfilename, s.size or 0) for s in (info.siblings or [])
+                if s.rfilename.lower().endswith(_EXT_POIDS)]
+    except Exception as e:
+        logger.debug("[options_install] fichiers de %s indéterminables : %s", hf_id, e)
+        return []
+
+
+def options_installation(cand) -> dict:
+    """
+    Options d'installation EXPLICITES d'un candidat HF : poids pleins + variantes quantisées,
+    chacune avec son poids disque — l'information à montrer AVANT d'installer, pour que
+    l'utilisateur choisisse en connaissance de cause (demande Fabien 2026-08-27 : le juge
+    évaluait la faisabilité sur les variantes quantisées, mais l'installation tirait les
+    poids pleins du dépôt canonique — 54 Go inexploitables sur 24 Go de VRAM).
+
+    Un dépôt GGUF porte souvent PLUSIEURS niveaux de quantisation : l'option descend alors au
+    FICHIER (une ligne par .gguf, la taille du fichier ≈ la VRAM nécessaire), et l'installation
+    se fera par `allow_patterns` — jamais le dépôt entier. Les relevés (1 requête réseau par
+    variante) sont PERSISTÉS dans `extra_info['prospect']['quant_variants']` : payés une fois.
+
+    Retourne {'choice': bool, 'options': [{ref, file, label, disk_gb, vram_note, downloads,
+    kind}]} — liste plate, prête pour l'UI.
+    """
+    prospect = dict((cand.extra_info or {}).get('prospect') or {})
+    if (prospect.get('spec') or {}).get('kind') != 'hf':
+        return {'choice': False, 'options': []}
+
+    variants = prospect.get('quant_variants')
+    a_persister = variants is None
+    if variants is None:
+        variants = variantes_quantisees(cand.hf_id)
+    enrichies = []
+    for v in variants:
+        v = dict(v)
+        if v.get('disk_gb') is None:
+            v['disk_gb'] = _poids_depot_go(v['hf_id'])
+            a_persister = True
+        if 'files' not in v:
+            v['files'] = [{'file': nom, 'gb': round(taille / 1024 ** 3, 1)}
+                          for nom, taille in _fichiers_poids(v['hf_id'])]
+            a_persister = True
+        enrichies.append(v)
+    if a_persister:
+        prospect['quant_variants'] = enrichies
+        info = dict(cand.extra_info or {})
+        info['prospect'] = prospect
+        cand.extra_info = info
+        cand.save(update_fields=['extra_info'])
+
+    options = [{
+        'ref': cand.hf_id, 'file': None,
+        'label': f"Poids pleins — {cand.hf_id}",
+        'disk_gb': cand.disk_gb or None,
+        'vram_note': "ne tient pas en VRAM sans quantisation/offload"
+                     if (cand.disk_gb or 0) > 24 else "",
+        'downloads': None, 'kind': 'full',
+    }]
+    for v in enrichies:
+        ggufs = [f for f in (v.get('files') or []) if f['file'].lower().endswith('.gguf')]
+        if ggufs:
+            # Une ligne PAR fichier gguf : c'est le fichier qu'on installe, pas le dépôt.
+            for f in sorted(ggufs, key=lambda x: x['gb'], reverse=True):
+                options.append({
+                    'ref': v['hf_id'], 'file': f['file'],
+                    'label': f"{v['hf_id']} — {f['file']}",
+                    'disk_gb': f['gb'],
+                    'vram_note': f"VRAM ≈ {f['gb']:.1f} Go (+ marge de contexte)",
+                    'downloads': v.get('downloads'), 'kind': 'variant_file',
+                })
+        else:
+            options.append({
+                'ref': v['hf_id'], 'file': None,
+                'label': v['hf_id'],
+                'disk_gb': v.get('disk_gb'),
+                'vram_note': "",
+                'downloads': v.get('downloads'), 'kind': 'variant',
+            })
+    return {'choice': len(options) > 1, 'options': options}
+
+
+def spec_pour_choix(cand, variant_ref: str, variant_file: str | None) -> dict | None:
+    """
+    Le SPEC d'installation qui respecte le choix validé par l'utilisateur, ou None si le choix
+    ne correspond à aucune option connue (on n'installe jamais un dépôt non proposé).
+
+    La famille de dossier reste celle du modèle CANONIQUE (`cand.name`) : les poids d'une
+    variante vivent sous `models/<cat>/<famille>/models--org--variante/` — regroupés avec les
+    poids pleins qu'ils remplacent, désinstallables l'un comme l'autre.
+    """
+    prospect = (cand.extra_info or {}).get('prospect') or {}
+    base = prospect.get('spec') or {}
+    if base.get('kind') != 'hf' or not variant_ref:
+        return None
+    if variant_ref == cand.hf_id and not variant_file:
+        return dict(base)                      # poids pleins : le spec d'origine, inchangé
+    variantes = {v['hf_id']: v for v in (prospect.get('quant_variants') or [])}
+    v = variantes.get(variant_ref)
+    if v is None:
+        return None
+    if variant_file and variant_file not in {f['file'] for f in (v.get('files') or [])}:
+        return None
+    spec = dict(base)
+    spec['ref'] = variant_ref
+    spec['family'] = cand.name
+    if variant_file:
+        # Le fichier choisi + les petits fichiers de bord (config/tokenizer) — jamais les
+        # autres niveaux de quantisation du dépôt.
+        spec['allow_patterns'] = [variant_file, '*.json', '*.txt', 'tokenizer*']
+    spec['note'] = (f"variante quantisée choisie par l'utilisateur : {variant_ref}"
+                    + (f" / {variant_file}" if variant_file else ""))
+    return spec
+
+
 def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -> dict:
     """
     Candidats `is_proposed` depuis la bibliothèque HuggingFace — pendant HF de la découverte
