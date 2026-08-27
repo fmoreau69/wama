@@ -1,214 +1,61 @@
 # WAMA Dev AI
 
-AI-powered development assistant for WAMA, inspired by Claude Code.
+Agent de développement **local** (Ollama, `localhost:11434`) au service de WAMA : audits
+read-only, génération de code bornée, et rôles producteurs de manifestes. Doctrine
+(`CLAUDE.md §Collaboration wama-dev-ai`) : **Claude réfléchit, wama-dev-ai exécute, l'humain
+valide** — jamais d'auto-application.
 
-Uses local LLMs via Ollama for privacy-first AI-assisted development.
+> ⚠ Réécrit le 2026-08-27 — l'ancien README décrivait l'outil de janvier 2026 : il faisait
+> télécharger ~100 Go de modèles retirés du parc (`qwen2.5-coder`, `deepseek-coder-v2`,
+> `llama3.1:70b`, `nomic-embed-text`…) et ignorait les rôles. **Règle : le parc de modèles, les
+> rôles et les workflows se lisent dans `config.py` (source unique) — ne jamais les recopier ici.**
 
-## Features
+## Démarrage
 
-- **Smart File Discovery**: Semantic search to find relevant files instead of scanning everything
-- **Beautiful Console Output**: Colored diffs, progress bars, and formatted output using Rich
-- **Multi-Model Workflow**: Chain multiple AI models for different tasks (Dev → Debug → Architect)
-- **Tool-Based Architecture**: AI can read, search, and edit files using tools
-- **Git-Aware**: Automatic backups and change tracking
-
-## Quick Start
-
-### Prerequisites
-
-1. **Install Ollama**: https://ollama.ai
-2. **Pull required models**:
-```bash
-# Essential
-ollama pull qwen2.5-coder:7b     # Fast development
-ollama pull qwen2.5-coder:32b    # Quality development
-ollama pull deepseek-coder-v2:16b # Code review
-
-# Optional
-ollama pull llama3.1:70b         # Architecture analysis
-ollama pull llava:34b            # Vision/image analysis
-ollama pull nomic-embed-text     # Semantic search
-```
-
-3. **Install Python dependencies**:
-```bash
-pip install -r wama-dev-ai/requirements.txt
-```
-
-### Run
+1. **Ollama** installé et servi (sur cet hôte : voir `OLLAMA_HOST` — passerelle, pas 127.0.0.1) ;
+2. les modèles du parc se lisent dans `config.py::MODELS` (sélection RAM-aware avec chaînes de
+   repli via `select_model_for_role()`) — au 2026-08-27, l'agent fiable du parc 24 Go partagé est
+   `gemma4:e4b` (non-thinking) et les embeddings sont `bge-m3` ;
+3. `pip install -r wama-dev-ai/requirements.txt` ;
+4. lancer **par chemin de script** (pas de `python -m` : le dossier a un tiret et `config.py` vit
+   au-dessus du paquet) :
 
 ```bash
-# Interactive mode
-python wama-dev-ai/run.py
-
-# Or as a module
-python -m wama-dev-ai
-
-# Non-interactive (single task)
-python wama-dev-ai/run.py -t "Fix the bug in views.py"
+python wama-dev-ai/run.py                 # mode interactif (commandes : voir cli.py)
+python wama-dev-ai/run.py -t "…"          # tâche unique
+python wama-dev-ai/run_audit.py …         # rôle audit (read-only)
+python wama-dev-ai/run_codegen.py …       # rôle codegen (code proposé, jamais appliqué)
+python wama-dev-ai/run_librarian.py …     # manifestes de librairies
+python wama-dev-ai/run_scout.py …         # prospection de modèles (fiches candidates)
+python wama-dev-ai/run_integrator.py …    # propositions d'intégration
 ```
 
-## Usage
+## Les rôles (le cœur actuel de l'outil)
 
-### Interactive Mode
+Chaque rôle est un **pilote borné** construit sur `role_utils.py` : un squelette mécanique
+prépare le contexte, **un seul appel Ollama** produit la proposition, des contrôles la valident,
+et la sortie atterrit dans `outputs/` en `PENDING_HUMAN_VALIDATION`. Les prompts vivent dans
+`prompts/*.txt` (un par rôle). Détail de la chaîne prospection (scout/integrator) :
+`wama/model_manager/PROSPECTION_PIPELINE.md §rôles`.
 
-```
-You: /help                  # Show commands
-You: /search views.py       # Search for files
-You: /read wama/imager/views.py  # Read a file
-You: /workflow              # Run a full workflow
+**Ce que wama-dev-ai ne fait JAMAIS** : écrire dans les fichiers de production, commiter,
+appliquer quoi que ce soit sans validation humaine.
 
-You: Fix the error handling in the transcriber
-     # Natural language request - AI will find files and help
-```
+## Workflows et commandes
 
-### Workflows
-
-| Workflow | Models | Description |
-|----------|--------|-------------|
-| `quick` | Fast Qwen 7B | Quick single-model fix |
-| `standard` | Dev + Debug | Development with code review |
-| `full` | Dev + Debug + Architect | Full analysis with architecture review |
-| `vision` | All + Vision | Includes image/screenshot analysis |
-
-### Commands
-
-| Command | Description |
-|---------|-------------|
-| `/help` | Show help |
-| `/search <query>` | Search for files by content or name |
-| `/read <path>` | Read and display a file |
-| `/workflow` | Run a development workflow |
-| `/models` | Show available models |
-| `/clear` | Clear screen |
-| `/exit` | Exit |
-
-## Architecture
-
-```
-wama-dev-ai/
-├── cli.py              # Main CLI entry point
-├── config.py           # Configuration (models, paths, themes)
-├── run.py              # Quick runner script
-├── requirements.txt    # Python dependencies
-├── core/
-│   ├── llm.py          # LLM client (Ollama interface)
-│   ├── files.py        # Smart file discovery
-│   └── tools.py        # Tool system for AI
-├── ui/
-│   ├── console.py      # Rich console wrapper
-│   └── diff.py         # Colored diff renderer
-├── prompts/
-│   ├── system.txt      # System prompt
-│   ├── dev.txt         # Developer prompt
-│   ├── debug.txt       # Code review prompt
-│   └── architect.txt   # Architecture prompt
-└── outputs/            # Generated outputs and backups
-```
-
-## Key Features Explained
-
-### 1. Smart File Discovery
-
-Instead of scanning all files, the AI:
-- Extracts keywords from your request
-- Searches by content and file names
-- Uses semantic embeddings (if available) for intelligent matching
-- Prioritizes important files (views.py, models.py, etc.)
-
-### 2. Colored Diffs
-
-Changes are displayed with:
-- Green for additions
-- Red for deletions
-- Line numbers and context
-- Syntax highlighting
-
-### 3. Tool-Based Architecture
-
-The AI can call tools to:
-- `read_file`: Read file contents
-- `edit_file`: Make changes to files
-- `search_files`: Find files by pattern
-- `search_content`: Search text in files
-- `run_command`: Execute shell commands
-
-### 4. Streaming Responses
-
-Responses are streamed in real-time, so you see the AI thinking as it works.
-
-## Configuration
-
-Edit `config.py` to customize:
-- Model assignments for each role
-- Excluded directories
-- Code file extensions
-- Console theme colors
+Les workflows (13 au 2026-08-27) sont déclarés dans `config.py::WORKFLOWS` ; les commandes
+interactives dans `cli.py`. Ces deux listes ont déjà divergé du README par le passé — elles ne
+sont plus recopiées ici.
 
 ## Prompt skills WAMA (source partagée)
 
-Les **skills de prompt par application** (consignes d'enrichissement : `imager-image`,
-`imager-video`, `composer-music`, …) vivent dans `wama/common/prompt_skills/` — source UNIQUE
-partagée entre la pipeline Django, l'enrichissement à la demande (bouton ✨ des apps) et les
-agents. Le module de résolution est **importable sans Django** :
-
-```python
-from wama.common.utils.prompt_skills import resolve_skill, skills_catalog
-name, text = resolve_skill(app="imager", domain="video")  # -> ("imager-video", <system prompt>)
-```
-
-Règle : si une tâche d'agent touche une app (enrichir/composer un prompt pour elle), charger le
-skill de l'app et l'utiliser comme system prompt — ne PAS ré-écrire de consignes locales.
-Chemin exposé dans `config.py` (`PROMPT_SKILLS_DIR`). Contrat : `wama/common/prompt_skills/README.md`.
-
-## Tips
-
-1. **Be specific**: "Fix the null pointer in transcriber/views.py line 42" works better than "fix bugs"
-2. **Use workflows**: For significant changes, use `/workflow` to get Dev + Review
-3. **Check diffs**: Always review the colored diff before applying changes
-4. **Use search**: When unsure where code is, use `/search` first
-
-## Comparison with Claude Code
-
-| Feature | WAMA Dev AI | Claude Code |
-|---------|-------------|-------------|
-| LLM | Local (Ollama) | Claude API |
-| Privacy | 100% local | Cloud-based |
-| Cost | Free | API costs |
-| Speed | Depends on hardware | Fast |
-| Quality | Good (with good models) | Excellent |
-| Features | Core features | Full features |
-
-## Future Plans
-
-- [ ] Integration with WAMA web interface
-- [ ] Persistent conversation memory
-- [ ] Git commit generation
-- [ ] Test generation
-- [ ] Documentation generation
-- [ ] Multi-file refactoring
-
-## Troubleshooting
-
-### "Model not found"
-```bash
-ollama pull <model-name>
-```
-
-### "Connection refused"
-Start Ollama:
-```bash
-ollama serve
-```
-
-### Slow performance
-- Use smaller models (`qwen2.5-coder:7b` instead of `:32b`)
-- Ensure GPU is being used (check `nvidia-smi`)
-- Reduce context with targeted file selection
+Les skills de prompt de WAMA (`wama/common/prompt_skills/*.md`) sont lisibles par wama-dev-ai via
+`config.py::PROMPT_SKILLS_DIR` ; accesseurs côté WAMA : `wama/common/utils/prompt_skills.py`
+(`resolve_skill`, `skills_catalog`). Voir `wama/common/prompt_skills/README.md`.
 
 ## Format des sorties des rôles (remplace l'ex-`AUDIT_FORMAT.md`, archivé 2026-08-27)
 
-> ⚠ L'ancien `AUDIT_FORMAT.md` décrivait une enveloppe `wama_report` et une nomenclature
+> L'ancien `AUDIT_FORMAT.md` décrivait une enveloppe `wama_report` et une nomenclature
 > (`audit_YYYY-MM-DD.json`, `model_watch_*`…) que **le code n'a jamais émises** — archivé
 > (`docs/archive/WAMA_DEV_AI_AUDIT_FORMAT.md`). Le réel, produit par `role_utils.py::write_output` :
 
@@ -216,13 +63,17 @@ ollama serve
   codegen, librarian/library, scout, integrator) ; les autosaves d'audit sont en `.md`.
 - **Schéma** : objet **plat** `{"status": "PENDING_HUMAN_VALIDATION", "role": "...", **payload}` —
   pas d'enveloppe.
-- **La seule règle non négociable survit** : le statut est **toujours** `PENDING_HUMAN_VALIDATION` —
-  wama-dev-ai propose, l'humain valide, **jamais d'auto-application** (mécanisé dans
-  `role_utils.py`).
+- **La seule règle non négociable** : le statut est **toujours** `PENDING_HUMAN_VALIDATION`
+  (mécanisé dans `role_utils.py`).
 
-⚠ Ce README date pour le reste de janvier 2026 (modèles cités retirés du parc, arborescence
-incomplète — les rôles scout/integrator/librarian n'y sont pas décrits) : **la source des rôles et
-modèles est `config.py`**, ne rien recopier d'ici. Réécriture complète en attente.
+## Dépannage
+
+- **« Connection refused »** : Ollama n'est pas servi, ou `OLLAMA_HOST` pointe 127.0.0.1 au lieu
+  de la passerelle (mémoire `reference_ollama_host_windows`).
+- **Modèle absent** : `ollama pull <nom lu dans config.py>` — jamais un nom lu dans un doc.
+- **Lenteur** : préférer les petits modèles du parc ; vérifier `nvidia-smi` ; ⚠ ne pas lancer de
+  passe LLM lourde sans gouvernance (les passes auto ont déjà déclenché des crashs hôte —
+  `INFRA_WSL_VS_WINDOWS.md`).
 
 ## License
 

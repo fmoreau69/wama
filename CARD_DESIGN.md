@@ -40,9 +40,14 @@ Problème observé (converter) : la barre n'apparaît qu'en `RUNNING`/`PENDING` 
 | État | Badge | Barre / ligne |
 |------|-------|---------------|
 | En attente (`PENDING`) | gris « En attente » | barre 0 % atténuée (ou absente + badge) |
-| En cours (`RUNNING`) | jaune « En cours » | barre qui se remplit + **% + ETA** |
+| En cours (`RUNNING`) | orange/`warning` « En cours » | barre qui se remplit + **% + ETA** |
 | **Terminé** (`DONE`) | vert « Terminé » | **barre PLEINE verte persistante** ou ligne « ✓ Terminé · durée · taille » — **jamais absente** |
 | Échec (`ERROR`) | rouge « Échec » | barre/ligne rouge + message |
+
+> ⚠ **Le tricolore a UNE source : §8.5** (gris=brouillon · orange=en cours · vert=fini ·
+> rouge=échec, pas d'état « config » distinct). Trois copies de ce code couleur avaient divergé
+> (jaune/orange/gris selon la section lue — unifiées le 2026-08-27) ; ici ne vit que la règle
+> badge+barre, pas la palette.
 
 ### 1ter. Card à DEUX ÉTATS (concis ↔ étendu) — universel, mêmes règles partout
 
@@ -170,23 +175,15 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
   (comme `ui_mode`/`preferred_language`).
 - Orthogonal aux 2 états §1ter (concis/étendu) : on peut étendre une card en pile comme en mosaïque.
 
-## 5. Cartographie des cards existantes (conformité au formalisme)
+## 5. Cartographie des cards existantes → SOURCE VIVANTE, plus de table ici
 
-> Re-mesurée à l'audit empirique **2026-07-11** (PROJECT_STATUS §31) — l'ancienne table
-> (converter/transcriber/reader/enhancer + « 6 à cartographier ») datait d'avant les ports.
-
-| App | Rendu | Ordre boutons | Couleurs boutons | Écarts card |
-|-----|-------|---------------|------------------|-------------|
-| **converter** (RÉF) | partial server | ✅ | ✅ outline canonique | — |
-| reader (pilote v2) | partial server + chips | ✅ | ✅ outline canonique | — |
-| transcriber | partial server | ✅ (+1 bouton édition légitime) | ✅ outline | — |
-| describer | partial server | ✅ (+👁 hors réf.) | ❌ ⚙ plein, ⧉ info, 🗑 plein | couleurs à aligner |
-| composer | partial server | ✅ (+export intercalé) | ❌ pleins (secondary/info/danger) | couleurs ; ⚙ masqué si RUNNING |
-| synthesizer | partial server (`_synthesis_card`) | ✅ | ❌ ⚙/⬇/🗑 pleins, ⧉ info | couleurs |
-| anonymizer | partial server (`_media_card`) | ✅ | ❌ ⚙ warning, ⧉ secondary | couleurs ; pas de `_cycle_button` |
-| imager | markup inline ×2 (image/vidéo dupliqué) | ✅ | ❌ tous non conformes | dédupliquer + couleurs |
-| enhancer | hand-built (`.synthesis-card` manuel) | ✅ | ❌ mélange | porter sur cards communes |
-| avatarizer | markup inline | ❌ ↻ avant ⚙ | ❌ aucune conforme | ordre + couleurs + `_cycle_button` |
+> **Table supprimée le 2026-08-27** (geste déjà appliqué avec succès dans
+> `INSPECTOR_DETAIL_FIELDS.md §État de rollout`, 2026-07-25 : *les tables figées par app
+> dérivent*). La table du 2026-07-11 était intégralement périmée — les 6 boutons de card sont
+> passés en briques communes en août (`_cycle_button.html` inclus par 11 gabarits, avatarizer
+> dans l'ordre et les couleurs canoniques, imager sur UN partial serveur unique — vérifié au
+> code le 27/08). **État mesuré = `/apps/` et `python manage.py check_app_conformity`**
+> (critères F5 par app).
 
 ## 6. Plan d'adoption
 1. **Extraire la brique commune** `_card.html` (+ helper update-en-place) **du converter** (référence).
@@ -399,20 +396,14 @@ schéma-driven des apps n'est pas fini (priorité Fabien : fonctionnel d'abord, 
    de catégorie + liseré d'app (§9), nav clavier. **AUCUNE information supprimée** : tout ce que
    la grille montrait passe en chips (concis) ou en étendu.
 
-### 10.4 Universalité — mapping par app (vérifié sur les capacités)
+### 10.4 Universalité — le mapping par app vit dans les DÉCLARATIONS
 
-| App | Identité ligne 1 | Chips typiques | Aperçu ligne 3 |
-|---|---|---|---|
-| transcriber | icône audio/vidéo + nom | moteur, langue, diarisation, résumé | texte + badge correction |
-| describer | icône type détecté + nom/URL | style, langue, longueur | texte |
-| reader (PILOTE) | vignette page/PDF + nom | moteur OCR, langue, « X pages » | texte |
-| composer | 💬 extrait prompt | modèle, durée, → wav/mp3 | player waveform |
-| synthesizer | 💬 extrait texte | moteur, voix, langue | player |
-| converter | icône type + nom | → format cible, préréglage | fichier (nom+poids) |
-| enhancer | vignette avant | modèle, ×upscale, domaine | vignette après (slider A/B à venir) |
-| anonymizer | vignette | modèles détection, classes, flou | vignette floutée |
-| imager | 💬 extrait prompt | modèle, résolution, seed, mode | vignette image/vidéo |
-| avatarizer | vignette visage | pipeline, qualité | vignette vidéo |
+> **Table supprimée le 2026-08-27** (même remède que §5 : une table par app recopie ce que le
+> code déclare, et dérive). Le contenu de card par app se lit à la source : **chips** =
+> `params.py` de l'app (`chip=True`, `section=`) rendus par `_card_chips.html` ; **identité et
+> aperçu** = le partial `_<item>_card.html` de l'app + le mécanisme de préview unifiée (n°30,
+> placeholder `data-card-preview`). Le principe qui reste vrai : chaque app exprime identité /
+> réglages / sortie avec SES types (texte, vignette, player), dans la MÊME anatomie.
 
 ### 10.5 Plan (Reader = pilote)
 

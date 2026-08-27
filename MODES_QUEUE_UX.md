@@ -17,15 +17,13 @@
 - « File d'attente » + **compteur d'éléments** → **à côté du titre d'onglet** (visible même en
   console/à-propos/aide). Zéro répétition du label.
 
-## 2. Code couleur « feux tricolores » (contour + opacité)
-| État | Contour | Opacité |
-|------|---------|---------|
-| Card « nouveau » (vide) | **gris pointillés** | — |
-| Config / en attente de lancement / **en cours** | **orange** | pulse pendant le process (comme Transcriber) |
-| Terminé | **vert** | plein |
-| Échoué | **rouge** | plein |
+## 2. Code couleur « feux tricolores » → source unique : `CARD_DESIGN.md §8.5`
 
-(À affiner : distinguer *config* de *running* par l'opacité/pulse plutôt qu'une 4ᵉ couleur → lisibilité.)
+> **Table supprimée le 2026-08-27** — trois copies du tricolore avaient divergé entre les deux
+> docs. La source unique est **`CARD_DESIGN.md §8.5`** : gris=brouillon · orange=en cours ·
+> vert=fini · rouge=échec, **pas d'état « config » distinct** (ce qui tranche aussi le « à
+> affiner » qui vivait ici). Spécificité conservée d'ici : la card « nouveau » vide se dessine en
+> **gris pointillés**, et le pulse d'opacité marque le process.
 
 ## 2bis. DEUX niveaux : Domaine (onglet) → Mode (switch) — ne pas confondre les axes
 
@@ -185,20 +183,20 @@ Certaines apps ont une **surface de « deep work »** app-spécifique, qui s'ajo
 → **Modèle affiné** : *code app-spécifique = `process()` + pages d'édition dédiées (déclarées en capacité,
 sur briques communes)* ; tout le reste se génère.
 
-## 5bis. Cartographie domaines → modes (toutes les apps généralistes)
+## 5bis. Cartographie domaines → modes → SOURCE VIVANTE : `wama/common/utils/app_modes.py`
 
-| App | Domaine(s) → onglets ? | Modes (dans le domaine) | Temps réel | Workflow → méta-app |
-|-----|------------------------|-------------------------|------------|---------------------|
-| **Imager** (RÉF) | image · vidéo → **2 onglets** | image:[prompt, edit/img2img] · vidéo:[t2v, i2v] · batch (fichier prompts) | non | — |
-| Enhancer | image-vidéo · audio → **2 onglets** | restore/upscale (par domaine) | non | — |
-| Anonymizer | image-vidéo (+audio/doc futurs) | **yolo, sam3** (prompt) | non | — |
-| Synthesizer | audio (mono) | normal, **temps réel** (Speak) + voix de référence | **oui** | pipeline-ready |
-| Transcriber | audio→texte (mono) | normal, **temps réel** (Speak) | **oui** | pipeline-ready |
-| Reader | document→texte (mono) | OCR (DocTR / GLM-OCR / OlmOCR) | non | — |
-| Describer | multi-entrée→texte | par type d'entrée | non | — |
-| Composer | audio/musique (mono) | prompt → musique / SFX | non | — |
-| Avatarizer | vidéo (mono) | normal, **temps réel** | **oui** | **pipeline = méta-app** ⚠️ |
-| Converter | tous formats (cas spécial) | conversion (in→out) | non | — |
+> **Table supprimée le 2026-08-27** — elle contredisait le §2bis du même document : les modes
+> qu'elle prêtait à imager/avatarizer/reader/composer ont été **purgés** le 2026-08-23
+> (`app_modes.py` les déclare `'modes': []`, avec le pourquoi commenté ligne à ligne — « quatre
+> ancres qui n'existent plus dans le DOM », « backend/langue sont des PARAMS, pas des modes »).
+> **Lire la déclaration, pas une copie.** Seule information sans source machine, conservée :
+> l'axe *Workflow → méta-app* — synthesizer/transcriber sont pipeline-ready ; le pipeline de
+> l'avatarizer (TTS→lip-sync) **est** la méta-app (studio), pas un mode.
+>
+> ⚠ Tension ouverte (relevée 27/08, non tranchée) : `app_modes.py` déclare encore un mode
+> `realtime` pour synthesizer/transcriber alors que §5 le requalifie en **affordance
+> `show_live`** de la card d'entrée — deux sections ne peuvent pas avoir raison ensemble ;
+> à trancher avec Fabien avant tout code qui s'appuierait sur l'un ou l'autre.
 
 **Lecture** : axe **domaine (onglet)** = Imager/Enhancer/Anonymizer (multi-domaine) uniquement ; axe
 **temps réel** (mode) = Synthesizer/Transcriber/Avatarizer ; axe **pipeline/standalone** = transversal

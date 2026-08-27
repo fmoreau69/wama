@@ -121,11 +121,12 @@ Clavier-first (Whispurge). Sauvegarde → texte/segments corrigés → ré-expor
 
 ### 8.1 Constat (ancré dans le code, pas une hypothèse)
 
-`analyze_segments_coherence` (`wama/common/utils/llm_utils.py:441`) demande au LLM de signaler :
+`analyze_segments_coherence` (`wama/common/utils/llm_utils.py` — ancre symbolique, les numéros de
+ligne de ce module dérivent) demande au LLM de signaler :
 « répétitions, phrases tronquées/incomplètes, hallucinations, **incohérences sémantiques**, mots
 douteux ». Sur un **entretien**, répétitions + phrases tronquées + incohérences sémantiques sont la
 définition même de la parole réelle : le guidage signale donc systématiquement ce qu'il faut
-**préserver**. `verify_text_coherence` (`llm_utils.py:332`) va plus loin — son champ `suggestion`
+**préserver**. `verify_text_coherence` (même module) va plus loin — son champ `suggestion`
 renvoie une « version corrigée » : elle ne signale pas, elle **réécrit**.
 
 ### 8.2 Le défaut est STRUCTUREL, pas un défaut de prompt

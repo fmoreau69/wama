@@ -120,10 +120,11 @@ et doit vivre ailleurs : `media_tests/` pour les tests (cf. `wama/common/runners
 **1069 fichiers** écrits par la suite de tests, dispersés dans les dossiers d'app et **jusque dans
 les dossiers d'utilisateurs réels** (les ids d'une base de test entrent en collision avec les
 vrais : `regis.blanchet` en avait 100). Cause : aucun `override_settings(MEDIA_ROOT=…)`.
-→ Corrigé par `TEST_RUNNER` (`wama/common/runners.py`) ; les 1069 sont en quarantaine dans
-`media_tests_quarantaine/` avec leur journal de déplacement. Détail : `PROJECT_STATUS §REPRISE 25/08`.
+→ Corrigé par `TEST_RUNNER` (`wama/common/runners.py`) ; les 1069 étaient partis en quarantaine
+(`media_tests_quarantaine/` — dossier depuis résorbé, absent du disque au relevé du 27/08 ; le
+journal de déplacement est parti avec lui). Détail : `PROJECT_STATUS §REPRISE 25/08`.
 
-### ② Fichiers de TRAVAIL de l'avatarizer — 🔴 OUVERT, le plus gros poste
+### ② Fichiers de TRAVAIL de l'avatarizer — ✅ SOLDÉ (les 2 correctifs livrés, relevé 2026-08-27)
 
 Mesuré : `media/avatarizer/` = **1,69 Go / 2101 fichiers**, dont **99,6 % de PNG** (1724 Mo).
 Ce ne sont pas des sorties : ce sont les images **intermédiaires de CodeFormer**
@@ -139,14 +140,11 @@ Ce ne sont pas des sorties : ce sont les images **intermédiaires de CodeFormer*
 ⚠ La fuite n'a joué qu'une fois parce que CodeFormer n'a tourné qu'une fois. **À usage courant de
 l'amélioration faciale, c'est ~1,7 Go par génération.**
 
-**Correctifs à faire (non engagés) :**
-1. les intermédiaires vont dans un dossier **temporaire** supprimé en `finally` — le patron existe
-   déjà dans le dépôt (`common/utils/source_ingest.py:86-118`, `mkdtemp` + `rmtree`), mais **n'est
-   pas une brique commune** : c'est l'occasion de l'extraire (`common/utils/work_dir.py`) plutôt
-   que de le recopier une 4ᵉ fois ;
-2. la suppression d'une card doit emporter son dossier de job — et ce n'est PAS propre à
-   l'avatarizer : toute app qui crée un dossier par job a le même trou. À traiter dans la brique
-   commune de suppression (`queue_duplication.safe_delete_file` en est le point d'entrée naturel).
+**Correctifs — LIVRÉS (constat du 25/08 ci-dessus conservé comme mesure d'époque) :**
+1. ✅ la brique commune **`wama/common/utils/work_dir.py`** est extraite et adoptée par 7 modules
+   (describer, enhancer, reader/glm_ocr…) ;
+2. ✅ la suppression de card **purge le dossier de job** (`avatarizer/views.py` →
+   `work_dir.purge_job_dir`).
 
 ### ③ Conséquence DIRECTE sur la sauvegarde `\\vrlescot\SAVES\DEEP_LEARNING\MEDIAS`
 
@@ -158,7 +156,7 @@ restent sur le share, et y resteront. Un miroir qui ne supprime jamais est le bo
 d'un `rm` accidentel), mais il implique que **toute purge locale doit être décidée une seconde fois
 pour le distant**. À faire APRÈS la purge locale, jamais avant, et jamais automatiquement.
 
-### ④ `check_media_integrity` — à écrire (accord Fabien du 25/08, après ②)
+### ④ `check_media_integrity` — ✅ LIVRÉ (commande en place, déclarée au registre des mécanismes qui pointe ce doc comme domicile ; conception d'origine ci-dessous)
 
 Un *kind* de manifeste `media` a été ÉCARTÉ : un manifeste décrit ce qui se **reconstruit** depuis
 une déclaration, `manifests/` est **versionné** (or `media/` porte des données personnelles de labo

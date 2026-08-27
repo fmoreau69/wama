@@ -172,20 +172,19 @@ Une app est orchestrable quand ces 4 éléments viennent du CONTRAT COMMUN :
 | # | Élément | Source unique | État |
 |---|---|---|---|
 | 1 | **Entrées typées** (ports du nœud) | `APP_CATALOG` / `studio_node_ports()` | ✅ en place |
-| 2 | **Création** depuis les entrées | triade `wama/tool_api.py` **normalisée** : `add_to_<app>(user, <entrées typées>, **params)` → clé UNIFORME `item_id` (params filtrés par introspection de signature) | 🔄 1/10 normalisée (enhancer, 2026-07-13) — suivantes : transcriber, describer, reader (déjà proches) |
-| 3 | **Suivi + résultat** | clés CANONIQUES de `unified_detail(app, pk)` : `status`/`progress`/`result_file` (+ `result_text` à ajouter au schéma pour transcriber/describer/reader) | ✅ 8/10 (manquent imager résultat multi-images, avatarizer detail ✅ fait) |
+| 2 | **Création** depuis les entrées | triade `wama/tool_api.py` **normalisée** : `add_to_<app>(user, <entrées typées>, **params)` → clé UNIFORME `item_id` (params filtrés par introspection de signature) | ✅ **10/10** (re-mesuré 2026-08-27 : `item_id` natif ou via wrappers `@wraps` sur toutes les triades) |
+| 3 | **Suivi + résultat** | clés CANONIQUES de `unified_detail(app, pk)` : `status`/`progress`/`result_file`/`result_text` | ✅ **10/10** (la sortie multi-images de l'imager est entrée au mécanisme préview n°30) |
 | 4 | **Params de nœud** | `params.py` (PARAMS_JSON, filtrable par contexte `pipeline`) — JAMAIS de spec locale | ✅ runner générique (2026-07-13) : pointeur `params_module`/`params_attr`, mapping de FORME |
 
-### État courant (à résorber)
-`wama/studio/services/runners.py` = **SHIM V1 GELÉ** : 10 adapters manuels écrits avant ce
-recadrage (signatures encodées, params dupliqués, champs de sortie par modèle). Interdiction de
-l'étendre — chaque manque = item de portage de l'app concernée (exemple du bon geste :
-`start_composer` manquait à la triade → ajouté au registre central, pas contourné). Le fichier
-disparaît app par app au profit du runner GÉNÉRIQUE piloté par le contrat.
+### État courant — ✅ RÉSORBÉ (mis à jour 2026-08-27 ; le suivi fin vit dans PROJECT_STATUS)
+Le shim V1 (`runners.py`, 10 adapters manuels) a été **vidé app par app, 10/10 le 2026-07-13** :
+il ne reste que la façade `runner_for()` déléguant au runner **GÉNÉRIQUE**
+(`generic_runner.py::GENERIC_APPS`, 10 entrées). Ajouter une app au studio = remplir son contrat
++ quelques lignes de `GENERIC_APPS` — jamais un adapter. ⚠ Ce document est une VISION : les états
+d'avancement n'y ont plus leur place, ils pourrissaient (les 4 lignes ci-dessus sont restées
+fausses 6 semaines) — l'avancement se lit dans `PROJECT_STATUS.md` et la grille.
 
-### Preview entrée/sortie (décision 2026-07-12)
-L'inspecteur (toutes apps, pas seulement studio) doit permettre de basculer la preview
-**[Entrée | Sortie]** — clés canoniques `source_file`/`result_file` déjà normalisées — avec un
-mode **slider comparatif** offert automatiquement quand entrée et sortie sont de nature
-comparable (image/image, vidéo/vidéo : anonymizer, enhancer, converter…). Capacité DÉRIVÉE des
-types I/O du manifeste, zéro flag par app.
+### Preview entrée/sortie — ✅ LIVRÉ
+Le toggle **[Entrée | Comparer | Sortie]** est dans l'inspecteur commun
+(`wama-inspector.js`, clés canoniques `source_file`/`result_file`), toutes apps — la décision du
+2026-07-12 est exécutée.

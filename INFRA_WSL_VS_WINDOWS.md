@@ -153,7 +153,8 @@ Get-NetTCPConnection -LocalPort 5432,5433 -State Listen |
 - Le repli `127.0.0.1` de `_resolve_db_host()` (`wama/settings.py`), qualifié de « trompeur » quand
   la garde a été écrite, désigne **maintenant la bonne base**. La garde reste utile — elle évite de
   dépendre du relais — mais son échec n'est plus silencieusement faux.
-- **Prérequis** : postgres WSL2 doit tourner (`start_wama_prod.sh:87-89`), sinon *rien* n'écoute sur
+- **Prérequis** : postgres WSL2 doit tourner (bloc `service postgresql start` de
+  `start_wama_prod.sh`), sinon *rien* n'écoute sur
   5432. Un « connection refused » signifie donc « WSL2 dort », jamais « mauvaise base » — l'échec
   est enfin franc au lieu d'être trompeur.
 
@@ -405,7 +406,8 @@ Et `logs/celery-gpu.log.1` nomme la charge à la seconde près :
 ```
 
 C'est la **passe d'évaluation LLM de la prospection**, qui tape l'**Ollama hôte** (`172.21.96.1:11434`)
-— même GPU physique. Elle **s'auto-réenfile** (`model_manager/tasks.py:273`, `countdown=5`) tant qu'il
+— même GPU physique. Elle **s'auto-réenfile** (`model_manager/tasks.py`, `apply_async(countdown=5)` —
+recalé 27/08 : l'ancre `273` a dérivé vers `~316`) tant qu'il
 reste des candidats. **Personne ne la lance** : d'où l'impression de crash « au repos ».
 
 ### Le motif se répète (6 derniers crashs)
@@ -433,7 +435,8 @@ n'est pas un effondrement, c'est un GPU qui vient de démarrer.
 > « Leçon du 2026-08-19 : enchaînée hors gouverneur, elle a fait tomber l'hôte (pattern *Ollama hôte
 > enchaîné*, instabilité sous l'OS). »
 
-La parade posée alors **fonctionne comme spécifié** — vérifié : `settings.py:553` route
+La parade posée alors **fonctionne comme spécifié** — vérifié : `settings.py` (route
+`CELERY_TASK_ROUTES`, ~l.557 au 27/08) route
 `model_manager.assess_proposed` sur la file `gpu` au palier `_prospect_assess` = **basse**, et le
 worker `gpu@` l'a bien reçue le 26/08. **L'hôte est tombé quand même.**
 
