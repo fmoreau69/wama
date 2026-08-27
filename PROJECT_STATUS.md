@@ -7688,22 +7688,92 @@ l'instance « GARDES » :**
    le même jour côté skills : *un chiffre périmé posé à côté de la bonne règle se fait lire à sa
    place.*
 
+### F. SUITE (soir) — le geste n°7 était un geste GPU ; le FICHIER DE LOT a pris sa place
+
+> ⚠⚠ **Le point d'entrée ci-dessus annonçait le geste n°7. Sa préparation l'a démenti.** Le
+> composer expédie la tâche **DANS sa vue de création** (`composer/views.py:235`) et l'avatarizer
+> enchaîne `createJob()` puis `startJob()` (`avatarizer/js/index.js:253-254`). Seul l'imager crée
+> sans lancer. Le geste 7 rejoint donc la famille **8-13**, jamais exécutée par une session.
+> *Un plan de vérification se vérifie lui-même avant d'être exécuté.*
+
+**Substitut retenu : le FICHIER DE LOT (quart du geste 14).** C'est la seule voie de création dont
+le **contrat** sépare créer et démarrer — `#batchCreateOnlyBtn` crée des éléments PENDING,
+`#batchCreateAndStartBtn` est un autre bouton, jamais cliqué. ⚠ **Un substitut ne vaut que si son
+CONTRAT, et pas seulement son effet observé, exclut le traitement.**
+
+**Nouveau scénario `<app>.batch_import`** (14 apps) : **9 OK / 0 échec / 5 skips**
+(`nightly_20260827_190038.json`). Il télécharge le gabarit que l'app **publie** — jamais un fichier
+inventé, qui mesurerait notre lecture du formalisme (trois syntaxes coexistent) au lieu de ce que
+l'app propose. Les 5 skips nomment l'absence de surface (`show_batch_bar`, `batch_template_url`).
+
+**Le déblocage prédit a bien eu lieu, par cette voie** (`--id .inspector_actions,.batch_actions`,
+mêmes 28 scénarios) : **12 OK / 0 échec / 16 skips → 17 OK / 3 échecs / 8 skips**.
+`.inspector_actions` **10/0/4** (`…_190935.json`), `.batch_actions` **7/3/4** (`…_190507.json`).
+⚠ **Les 3 échecs sont un GAIN** : avatarizer, enhancer et imager n'émettent pas
+`['del','dup','start']` sur leur card mère — `actions_communes=True` n'y est pas adopté. C'était
+déjà vrai, c'était **invisible derrière un skip**. *Un skip qui devient un échec, c'est la mesure
+qui progresse, pas l'app qui recule.*
+
+**SIX défauts trouvés en exerçant ce seul geste — tous MUETS à l'écran** (détail :
+`WAMA_VERIFICATION.md §3`, sous-section « Geste 14 »). Les deux qui touchent la **brique commune**,
+donc les 9 apps :
+1. `WamaBatchImport` s'abonnait à `DOMContentLoaded` alors qu'elle est le plus souvent instanciée
+   **depuis** cet événement : « Ajouter » et « Démarrer » étaient **morts sans une seule erreur
+   console**. Garde `readyState` — corrigé dans la brique, pas dans les apps.
+2. Elle **jetait le diagnostic du serveur** : un lot refusé ligne à ligne répond `success: true,
+   count: 0, warnings[]`, et la page se rechargeait à l'identique, sans un mot.
+
+Les quatre autres sont des apps : avatarizer (`/avatarizer/undefinedpreview/` 404 + `batchExts` là
+où la brique lit `batchExtensions`), anonymizer (le `.txt` de lot partait au téléverseur de médias,
+erreur par ligne dans un `console.warn`), converter (gabarit dont les 5 lignes d'exemple étaient
+**commentées** — inerte par construction), `build_batch_template` (ligne d'en-têtes même à un seul
+champ, or `_parse_media_lines` abandonne le fichier entier à la première ligne non conforme).
+
+> ⭐ **Une source d'exemple est un PLACEHOLDER, et un placeholder ne mesure qu'à moitié.**
+> `https://example.com/photo.png` n'existe pas : les apps qui **stockent** la source créent quand
+> même l'élément, celles qui la **résolvent à la création** n'en créent aucun. Le maillon « un lot
+> apparaît en file » n'y était donc pas mesuré, et le verdict aveugle « aucun lot nouveau » ne
+> distinguait pas une chaîne **saine** d'une chaîne cassée. Le montage dépose donc de vrais médias,
+> et **des sources DISTINCTES** — deux lignes identiques ne rendent qu'un élément, donc un lot
+> unitaire, donc pas de card mère, donc l'app accusée à tort.
+
+⚠ **Trois défauts de l'INSTRUMENT, chacun accusant une app à tort** : card d'entrée servie
+**repliée** par 6 apps sur 9 ; `get_test_user()` sous `sync_playwright` lève
+`SynchronousOnlyOperation` (ORM lu depuis un thread ordinaire désormais) ; la garde « source nue »
+prenait la syntaxe **à balises** de l'avatarizer pour une colonne unique et détruisait sa ligne
+d'exemple. Et le nettoyage retire désormais les **FICHIERS avant les lignes** — `QuerySet.delete()`
+ne touche aucun `FileField`, 6 `.wav` étaient restés dans `media/converter/…`.
+
+⚠ **Le serveur est `gunicorn`, sans autoreload, avec recyclage `max_requests`** : après une
+modification de gabarit ou de statique, le parc sert un **mélange** d'ancien et de neuf, et deux
+apps ont été accusées à tort avant que `kill -HUP <master>` ne le règle. *Ce n'est pas un détail
+d'exploitation : c'est une source de faux échecs dans toute mesure UI.*
+
 ### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
 
-**Le geste n°7 — « créer par le bouton primaire ».** C'est lui qui bloque la couverture de
-`inspector_actions` **et** de `batch_actions` sur **avatarizer, composer, imager** : leur file est
-vide et l'app ne sait pas grouper, donc les deux scénarios sautent. Le mesurer débloque trois apps
-d'un coup sur deux familles de scénarios — meilleur rapport couverture/effort de la liste.
+**Dans l'ordre décidé (les erreurs d'abord, les tests ensuite, le portage en dernier) :**
 
-Ensuite, dans l'ordre : geste 5 (tout effacer) · la **dé**sélection (2ᵉ moitié du geste 6) ·
-geste 14 (import récursif / URL / fichier batch). Les gestes 8-13 exigent un traitement réel
-(GPU) : **jamais lancés par une session** (cf. crashs hôte).
+1. **Les 3 échecs `batch_actions`** — `actions_communes=True` à adopter sur **avatarizer, enhancer,
+   imager**. Ce sont des trous de PORTAGE, désormais mesurés : les corriger fait passer la famille
+   à 10/0/4 comme sa sœur.
+2. **Geste 5** (tout effacer) · la **dé**sélection (2ᵉ moitié du geste 6).
+3. **Le reste du geste 14** : import **récursif de dossier**, **URL**, « **Envoyer vers** ». Le
+   quart « fichier de lot » est fait ; les trois autres voies restent dues, et les annoncer
+   couvertes serait le faux vert que `WAMA_VERIFICATION.md` traque.
+4. Puis reprise du **portage**.
+
+⚠ **Ne PAS reprendre le geste n°7 tel quel** : il exige un traitement réel sur composer et
+avatarizer (§F). Il ne peut être mesuré que sur l'**imager** (qui crée sans lancer), ou par Fabien.
+Les gestes 8-13 restent **jamais lancés par une session** (cf. crashs hôte).
 
 ### Pendings système
 
-- **Rien à redémarrer.** Aucune migration, aucun service touché.
-- **Validation navigateur** : les scénarios `inspector_actions`/`batch_actions` ont tourné sous
-  Playwright headless — c'est la validation. Aucune surface UI nouvelle à valider à la main.
+- **Rien à redémarrer côté services.** Aucune migration.
+- ⚠ **`kill -HUP <master gunicorn>` requis après ce palier** : `batch-import.js` a changé côté
+  `wama/common/static/` **et** `staticfiles/common/js/` — sans rechargement, une partie du parc
+  sert encore l'ancienne brique (celle dont « Ajouter » est mort).
+- **Validation navigateur** : `batch_import` / `inspector_actions` / `batch_actions` ont tourné
+  sous Playwright headless — c'est la validation. Aucune surface UI nouvelle à valider à la main.
 
 ---
 

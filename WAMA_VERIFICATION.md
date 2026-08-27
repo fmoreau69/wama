@@ -63,14 +63,14 @@ Le catalogue n'est **pas à inventer** : c'est la table des composants obligatoi
 | 4b | Supprimer un **lot** (`.batch-delete-btn`) | ✅ `<app>.batch_actions` (23-24/08) | non |
 | 5 | Tout effacer | ❌ | non |
 | 6 | Sélectionner une card → l'inspecteur se remplit | ⚠️ **MOITIÉ** — `<app>.inspector_actions` (27/08) prouve le REMPLISSAGE du volet Actions sur les deux portées (card **et** card mère de lot) ; la **dé**sélection reste due | non |
-| 7 | **Créer par le bouton primaire** (apps `data-wama-depot=attache` : avatarizer, imager) | ❌ | non |
+| 7 | **Créer par le bouton primaire** (apps `data-wama-depot=attache` : avatarizer, imager) | ❌ | **oui sauf imager** — mesuré 27/08 : composer expédie la tâche DANS sa vue de création (`composer/views.py:235`) et avatarizer enchaîne `createJob()` puis `startJob()` (`avatarizer/js/index.js:253-254`) |
 | 8 | Démarrer un item → RUNNING → SUCCESS | ❌ | **oui** |
 | 9 | Arrêter / relancer (bouton de cycle) | ❌ | **oui** |
 | 10 | Progression : % et ETA visibles et qui avancent | ❌ | **oui** |
 | 11 | Aperçu du résultat (clic → visionneuse) | ❌ | **oui** |
 | 12 | Télécharger le résultat | ❌ — ⚠ le MARKUP est prouvé (critère `download_wiring` 12/12 + pages 200), le TRANSFERT non : le compte de test ne possède aucun élément traité, donc `download/<pk>/` lui répond 404 — **le scoping qui fonctionne**, pas une panne | **oui** |
 | 13 | Démarrer tout / télécharger tout (lot) | ❌ | **oui** |
-| 14 | Import dossier récursif · URL · fichier de lot · « Envoyer vers » | ❌ | non |
+| 14 | Import dossier récursif · URL · **fichier de lot** · « Envoyer vers » | ⚠️ **QUART** — `<app>.batch_import` (27/08) prouve le **fichier de lot** ; récursif, URL et « Envoyer vers » restent dus | non |
 
 **Couverture mesurée le 2026-08-22 : 1 geste sur 16.** Les deux seuls scénarios par app sont
 `<app>.ui` (santé de la page : 200 + zéro erreur console — aucun geste) et `<app>.import`.
@@ -81,6 +81,9 @@ les trois scénarios partagent le même montage de fixture et le même filet ORM
 et la SÉLECTION (6, `<app>.inspector_actions`) s'y ajoutent. La table ci-dessus portait encore
 ❌ sur 3/3b/4/4b alors que le paragraphe juste en dessous les comptait : une table et sa prose
 qui divergent dans le MÊME fichier, c'est le mode de dérive que ce document est censé traquer.
+**Au 2026-08-27 (soir) : 6 gestes trois quarts sur 16** — le FICHIER DE LOT (quart du geste 14,
+`<app>.batch_import`) s'ajoute. Fraction assumée : trois des quatre voies d'import du geste 14
+restent dues, et les annoncer couvertes serait le faux vert que ce document traque.
 
 > ⚠ **`<app>.settings` mesure la MOITIÉ du geste 2, et le dit dans son propre détail** (« MOITIÉ
 > DU GESTE — modifier/enregistrer/relire n'est PAS mesuré ici »). Ce n'est pas de la modestie :
@@ -140,6 +143,16 @@ là aussi) ; **4 hors périmètre** (converter_01, media_library, model_manager,
 **non mesurable** sur **6** (les 3 ci-dessus + enhancer, transcriber, converter_01) et **hors
 périmètre** sur 3.
 
+**Reprise du même relevé le 2026-08-27 au soir, une fois le montage de fixture passé par la voie
+de LOT** (§ geste 14 ci-dessous) : **17 OK / 3 échecs / 8 skips** sur les mêmes 28 scénarios —
+`.inspector_actions` **10 OK / 0 échec / 4 skips** (`nightly_20260827_190935.json`),
+`.batch_actions` **7 OK / 3 échecs / 4 skips** (`nightly_20260827_190507.json`). Les skips sont
+**divisés par deux** (16 → 8) et les 8 restants ne disent plus que « surface absente ».
+⚠ **Les 3 échecs sont un GAIN, pas une régression** : avatarizer, enhancer et imager n'émettent
+pas `['del','dup','start']` sur leur card mère — `actions_communes=True` n'y est pas adopté.
+C'était déjà vrai ; c'était seulement **invisible**, caché derrière un skip. Un skip qui devient
+un échec est la mesure qui progresse, pas l'app qui recule.
+
 > ⚠ **Zéro échec ne veut pas dire couvert : 16 des 28 scénarios SAUTENT.** C'est précisément ce
 > que ce document appelle prendre une adoption pour un fonctionnement — sauf qu'ici le skip est
 > **explicite** : il nomme le maillon manquant (« deux dépôts n'ont créé aucun LOT », « aucune en
@@ -164,6 +177,74 @@ périmètre** sur 3.
 > d'abord et, à défaut, un **clic DOM** qui bouillonne jusqu'à la délégation — en le **disant dans
 > son détail** (`[clic DOM — …]`). Une mesure faible qui se présente comme forte serait pire que
 > pas de mesure.
+
+### Geste 14 (fichier de lot) — il a pris la place du geste 7, qui s'est révélé être un geste GPU
+
+> **Le plan annonçait le geste n°7.** Il devait débloquer d'un coup `batch_actions` et
+> `inspector_actions` sur les trois apps à file vide (avatarizer, composer, imager). En le
+> préparant, on a mesuré qu'il **déclenche un traitement** : le composer expédie la tâche DANS sa
+> vue de création (`composer/views.py:235`) et l'avatarizer enchaîne `createJob()` puis
+> `startJob()` (`avatarizer/js/index.js:253-254`). Seul l'imager crée sans lancer. Le geste 7
+> rejoint donc la famille 8-13 — **jamais exécutée par une session** (§4) — et c'est le **fichier
+> de lot** qui atteint le même but par la seule voie dont le CONTRAT sépare créer et démarrer :
+> `#batchCreateOnlyBtn` crée des éléments PENDING, `#batchCreateAndStartBtn` est l'autre bouton et
+> n'est jamais cliqué. ⚠ **Un substitut ne vaut que si son CONTRAT, et pas seulement son effet
+> observé, exclut le traitement.**
+
+**Ce que `<app>.batch_import` mesure** — télécharger le gabarit que l'app **publie**, le déposer,
+cliquer « Ajouter », et exiger qu'un lot apparaisse en file sans qu'aucun démarrage soit émis. Le
+gabarit n'est jamais fabriqué par le scénario : un fichier inventé mesurerait *notre* lecture du
+formalisme — trois syntaxes coexistent (balises CLI, tableur à en-têtes, positionnel `|`) — au lieu
+de ce que l'app propose réellement à ses utilisateurs.
+
+**Couverture mesurée le 2026-08-27** (14 apps, `nightly_20260827_190038.json`) : **9 OK / 0 échec /
+5 skips**. Les 9 apps qui exposent la surface passent (anonymizer, avatarizer, composer, converter,
+describer, enhancer, imager, reader, transcriber) ; les 5 skips nomment l'absence de surface —
+`show_batch_bar` non déclaré (converter_01, media_library, model_manager, studio), pas de
+`batch_template_url` publié (synthesizer).
+
+> ⚠ **Six défauts ont été trouvés en exerçant ce SEUL geste, et aucun n'était visible par lecture :
+> tous étaient MUETS à l'écran.**
+> 1. **La brique commune ne s'initialisait pas** quand une app l'instancie depuis son propre
+>    `DOMContentLoaded` — l'événement était déjà émis et ne repasse jamais. « Ajouter » et
+>    « Démarrer » étaient **morts sans une seule erreur console**, sur toutes les apps de cette
+>    forme. Corrigé dans la brique (garde `readyState`), jamais dans les apps.
+> 2. **La brique jetait le diagnostic du serveur** : un lot refusé ligne à ligne répond
+>    `success: true, count: 0, warnings[]` — la page se rechargeait à l'identique, sans un mot.
+> 3. **avatarizer** appelait `/avatarizer/undefinedpreview/` (404) et déclarait `batchExts` là où
+>    la brique lit `batchExtensions`.
+> 4. **anonymizer** routait le `.txt` de lot vers son téléverseur de médias, qui répondait 200 avec
+>    une erreur par ligne — dans un `console.warn`.
+> 5. **converter** publiait un gabarit dont les cinq lignes d'exemple étaient **commentées** :
+>    inerte par construction.
+> 6. **`build_batch_template`** posait une ligne d'en-têtes même à UN seul champ — or
+>    `_parse_media_lines` ABANDONNE le fichier entier à la première ligne non conforme, et
+>    l'en-tête est la première.
+
+> ⚠ **Et trois défauts de l'INSTRUMENT, chacun accusant une app à tort** — les compter à part n'est
+> pas une coquetterie : c'est ce qui sépare « l'app est cassée » de « ma mesure est cassée ».
+> - La card d'entrée est servie **repliée** par 6 apps sur 9 (`[data-nic-toggle]`) : bouton
+>   invisible → lu comme « l'app refuse le lot ».
+> - `get_test_user()` appelé sous `sync_playwright` lève `SynchronousOnlyOperation` (la boucle
+>   d'événements est installée dans le thread courant) : le montage retombait **en silence** sur le
+>   placeholder du gabarit. L'ORM est donc lu depuis un thread ordinaire.
+> - La garde « source nue » prenait la syntaxe **à balises** de l'avatarizer pour une colonne unique
+>   et détruisait sa ligne d'exemple. Tester les seuls délimiteurs ne suffit pas ; un chemin ne
+>   porte jamais de jeton commençant par `-`.
+
+> ⭐ **Une source d'exemple est un PLACEHOLDER, et un placeholder ne mesure qu'à moitié.**
+> `https://example.com/photo.png` n'existe pas : les apps qui se contentent de **stocker** la source
+> créent quand même l'élément, celles qui la **résolvent à la création** n'en créent aucun (le
+> converter télécharge et récolte un 404). Le maillon « un lot apparaît en file » n'y était donc pas
+> mesuré — et le verdict aveugle « aucun lot nouveau » ne distinguait pas cette chaîne **saine**
+> d'une chaîne cassée. Le montage dépose donc de vrais médias dans le domicile déclaré des entrées
+> de l'app, et **des sources DISTINCTES** : deux lignes identiques ne rendent qu'un élément
+> (l'aperçu déduplique) — donc un lot unitaire, donc **pas de card mère**, donc l'app accusée à tort.
+
+> ⚠ **Le nettoyage doit retirer les FICHIERS avant les lignes.** `QuerySet.delete()` ne touche aucun
+> `FileField` : l'app copie la source dans son dossier d'entrée et cette copie **survit à l'objet**
+> — 6 `.wav` retrouvés dans `media/converter/…` avant correction. Un harnais qui laisse des déchets
+> dans `media/` finit par mesurer ses propres résidus.
 
 ---
 

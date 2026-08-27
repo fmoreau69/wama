@@ -782,15 +782,24 @@ def build_batch_template(fields, example, *, app_label=''):
 
     Une seule source pour le fichier téléchargeable : documente les 3 syntaxes
     auto-détectées et fournit la ligne d'en-têtes + une ligne d'exemple.
-    `fields` = noms de colonnes (alias FR acceptés), `example` = {champ: valeur}."""
+    `fields` = noms de colonnes (alias FR acceptés), `example` = {champ: valeur}.
+
+    ⚠ UN SEUL CHAMP → PAS de ligne d'en-têtes. L'en-tête n'a qu'un rôle, déclarer l'ORDRE des
+    colonnes ; avec une colonne il n'y a pas d'ordre, et il devient nuisible : les apps à liste
+    de médias lisent le fichier avec `_parse_media_lines`, qui n'accepte QUE des URL/chemins,
+    ABANDONNE le fichier entier à la première ligne qui n'en est pas une… et l'en-tête est la
+    première. Le gabarit du transcriber rendait donc 0 élément dans son PROPRE aperçu (mesuré
+    le 2026-08-27 en exerçant le geste : `« fichier »` + 1 URL → 0 item ; la même URL seule → 1).
+    """
+    lignes_de_donnees = ([] if len(fields) <= 1 else ['|'.join(fields)])
+    lignes_de_donnees.append('|'.join(str(example.get(f, '')) for f in fields))
     lines = [
         f"# Template batch {app_label} — 3 syntaxes acceptées (détection automatique) :",
         "#  1) TABLEUR à ligne d'en-têtes — délimiteur , ; | ou tabulation ; ordre des colonnes LIBRE",
         "#  2) BALISES style CLI : -i entrée · -p \"prompt\" · -r référence · -o sortie · --option valeur",
         "#  3) POSITIONNEL hérité : valeurs séparées par | dans l'ordre ci-dessous, SANS en-tête",
         "# Les lignes commençant par # sont des commentaires.",
-        '|'.join(fields),
-        '|'.join(str(example.get(f, '')) for f in fields),
+        *lignes_de_donnees,
     ]
     return '\n'.join(lines) + '\n'
 

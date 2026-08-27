@@ -192,6 +192,27 @@ function WamaBatchImport(cfg) {
       return;
     }
 
+    // ⚠ Un lot REFUSÉ LIGNE À LIGNE répond `success: true` — pas `error`. Les vues renvoient
+    // alors `count: 0` et un `warnings[]` qui dit POURQUOI chaque ligne a été écartée
+    // (« Échec téléchargement : … », « Introuvable : … », « Type non supporté : … »). Jusqu'ici
+    // on refermait la barre et on rechargeait : l'utilisateur voyait la page revenir IDENTIQUE,
+    // sans élément et sans un mot — le diagnostic que le serveur venait d'écrire était jeté.
+    // Mesuré le 2026-08-27 sur le converter, qui résout la source À LA CRÉATION
+    // (`upload_media_from_url`) : toute URL injoignable donnait ce silence. Défaut de la BRIQUE,
+    // donc corrigé ici pour les 9 apps et pas dans le converter.
+    const motifs = (data.warnings || []).join(' · ');
+    if (typeof data.count === 'number' && data.count === 0) {
+      const msg = motifs
+        ? 'Aucun élément créé — ' + motifs
+        : "Aucun élément créé : l'app n'a retenu aucune ligne du fichier.";
+      if (window.WamaApp && WamaApp.toast) WamaApp.toast(msg, 'error'); else alert(msg);
+      return;  // on LAISSE la barre ouverte : l'utilisateur corrige son fichier et rejoue.
+    }
+    if (motifs) {
+      const msg = 'Créés : ' + data.count + ' — lignes écartées : ' + motifs;
+      if (window.WamaApp && WamaApp.toast) WamaApp.toast(msg, 'warning'); else alert(msg);
+    }
+
     hideBar();
 
     if (typeof cfg.afterCreate === 'function') {
@@ -278,10 +299,23 @@ function WamaBatchImport(cfg) {
 
   // ── Init ───────────────────────────────────────────────────────────────────
 
-  document.addEventListener('DOMContentLoaded', function () {
+  function init() {
     hookBarButtons();
     if (cfg.dropZoneId || cfg.fileInputId) hookDropZone();
-  });
+  }
+
+  // ⚠ La brique est le plus souvent INSTANCIÉE DEPUIS un écouteur `DOMContentLoaded` d'app
+  // (composer, imager, converter_01…). S'abonner alors à cet événement ne branche RIEN : il a
+  // déjà été émis et ne repassera jamais. Défaut MUET — l'aperçu s'ouvrait normalement (il part
+  // de `detectAndHandle()`, appelé par l'app), puis « Ajouter » et « Démarrer » ne faisaient
+  // rien : aucune requête, aucune erreur console, aucun message. Mesuré sur l'imager le
+  // 2026-08-27 en exerçant le geste ; corrigé ICI et pas dans les apps, car c'est la brique qui
+  // doit être instanciable à tout moment (le contraire ferait une consigne à répéter 12 fois).
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
 
   return { detectAndHandle, ingestText };
 }

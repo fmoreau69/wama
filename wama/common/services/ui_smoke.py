@@ -323,6 +323,44 @@ def _fichier_temoin(extensions: str) -> Path:
     return Path(f.name)
 
 
+def _deplier_autour(page, selecteur: str) -> bool:
+    """Déplie le `.collapse` qui CONTIENT `selecteur`, par le vrai geste. Rend True si déplié.
+
+    Un élément dans un repli a des dimensions NULLES : Playwright le voit invisible et attend
+    30 s avant d'abandonner — abandon que le scénario lisait comme « navigateur indisponible »,
+    un skip qui accusait l'environnement alors que la page allait très bien (2026-08-23).
+    On passe par le TOGGLE de la card (contrat commun `[data-bs-toggle=collapse]
+    [data-bs-target=#…]`), jamais par un `style.display` forcé : fabriquer un état que
+    l'utilisateur ne peut pas atteindre lui-même ferait mesurer autre chose que son geste.
+
+    Deux replis distincts au dépôt : le lot en file (`_batch_card.html`) et la CARD D'ENTRÉE
+    elle-même (`_new_item_card.html collapsible=True` sans `deployed`) — 6 apps sur 9 la
+    servent repliée, et sa barre de lot y est donc invisible tant qu'on ne l'ouvre pas.
+    """
+    replie = page.evaluate(
+        "(sel) => {const e = document.querySelector(sel);"
+        " const col = e && e.closest('.collapse');"
+        " return col && !col.classList.contains('show') ? col.id : null;}", selecteur)
+    if not replie:
+        return False
+    # DEUX bascules au dépôt, parce que les deux replis n'ont pas la même origine : le lot en
+    # file est du Bootstrap (`data-bs-target`), la card d'entrée porte son propre JS depuis
+    # 2026-08-03 (`data-nic-toggle`, `_new_item_card.html:70`) — describer et avatarizer
+    # passaient `collapsible=True` sans que rien ne déplie. Chercher la seconde APRÈS la
+    # première, et seulement dans la card qui contient le repli.
+    bascule = (page.query_selector(f'[data-bs-toggle="collapse"][data-bs-target="#{replie}"]')
+               or page.query_selector(f'[data-wama-nic]:has(#{replie}) [data-nic-toggle]'))
+    if not bascule:
+        return False
+    bascule.click()
+    try:
+        page.wait_for_selector(f'#{replie}.show', timeout=5000)   # l'ouverture est ANIMÉE :
+    except Exception:                                             # attendre l'ÉTAT, pas une durée
+        pass
+    page.wait_for_timeout(400)   # fin de transition Bootstrap
+    return True
+
+
 def _session_compte_de_test():
     """Clé de session d'un compte de TEST existant, ou None.
 
@@ -739,23 +777,8 @@ def check_app_duplicate_delete(app: str, url_path: str):
                 # n'est jamais actionnable : `click()` attendait 30 s puis abandonnait.
                 # Le scénario lisait cet abandon comme « navigateur indisponible » — un skip qui
                 # accusait l'environnement alors que la page allait parfaitement bien.
-                # On déplie par le VRAI geste (le toggle de la card mère, contrat commun
-                # `_batch_card.html` : `[data-bs-toggle=collapse][data-bs-target=#…]`), pour ne
-                # pas fabriquer un état que l'utilisateur ne pourrait pas atteindre lui-même.
-                replie = page.evaluate(
-                    "(d) => {const c = document.querySelector('.wama-card[data-id=\"'+d+'\"]');"
-                    " const col = c && c.closest('.collapse');"
-                    " return col && !col.classList.contains('show') ? col.id : null;}", doublon)
-                if replie:
-                    bascule = page.query_selector(f'[data-bs-toggle="collapse"][data-bs-target="#{replie}"]')
-                    if bascule:
-                        bascule.click()
-                        # L'ouverture est ANIMÉE : attendre l'état, pas une durée.
-                        try:
-                            page.wait_for_selector(f'#{replie}.show', timeout=5000)
-                        except Exception:
-                            pass
-                        page.wait_for_timeout(400)   # fin de transition Bootstrap
+                # On déplie par le VRAI geste — mécanique commune `_deplier_autour()`.
+                _deplier_autour(page, f'.wama-card[data-id="{doublon}"]')
 
                 sel_del = f'.wama-card[data-id="{doublon}"] :is({DEL})'
                 if not page.query_selector(sel_del):
@@ -934,20 +957,7 @@ def check_app_settings(app: str, url_path: str):
                 # éléments se consolident. Refuser de déplier reviendrait à déclarer le geste
                 # impossible alors que l'utilisateur l'atteint en un clic.
                 if not page.query_selector(f'{SEL_GEAR}:visible'):
-                    replie = page.evaluate(
-                        "(sel) => {const b = document.querySelector(sel);"
-                        " const col = b && b.closest('.collapse');"
-                        " return col && !col.classList.contains('show') ? col.id : null;}", SEL_GEAR)
-                    if replie:
-                        bascule = page.query_selector(
-                            f'[data-bs-toggle="collapse"][data-bs-target="#{replie}"]')
-                        if bascule:
-                            bascule.click()
-                            try:
-                                page.wait_for_selector(f'#{replie}.show', timeout=5000)
-                            except Exception:
-                                pass
-                            page.wait_for_timeout(400)
+                    _deplier_autour(page, SEL_GEAR)
                 if not page.query_selector(f'{SEL_GEAR}:visible'):
                     return False, (f"{len(ids0)} élément(s) en file : le ⚙ existe au contrat "
                                    "commun mais AUCUN n'est visible (card dans un lot replié, "
@@ -1033,7 +1043,264 @@ _LOTS_EN_FILE = """(() => Array.from(document.querySelectorAll('.wama-card.is-ba
     .filter(Boolean))()"""
 
 
-def _monter_un_lot(page):
+# ── La voie de LOT : la seule création qui ne DÉMARRE rien ─────────────────────────────────
+#
+# POURQUOI ELLE EXISTE À CÔTÉ DU DÉPÔT ORDINAIRE. `_monter_un_lot` dépose deux fichiers de
+# travail : cela ne marche QUE là où le dépôt CRÉE (`data-wama-depot=cree`). Sur avatarizer,
+# composer et imager le dépôt ATTACHE — c'est le bouton primaire qui crée, et il DÉMARRE dans
+# la foulée : composer expédie la tâche DANS sa vue de création (`composer/views.py:235`,
+# `compose_task.apply_async`) et avatarizer enchaîne côté client (`avatarizer/js/index.js:253`,
+# `createJob()` puis `startJob()`). Le geste n°7 de la grille est donc un geste GPU — et une
+# session n'en lance jamais (crashs hôte).
+#
+# Le fichier de LOT est la seule voie de création dont le CONTRAT garantit qu'elle ne démarre
+# rien : la barre commune sépare « Ajouter » (`#batchCreateOnlyBtn`) de « Démarrer »
+# (`#batchCreateAndStartBtn`), et aucune des trois vues de création de lot ne porte de
+# `.delay`/`apply_async` (relevé le 2026-08-27 : premier envoi à `imager/views.py:887`,
+# `avatarizer/views.py:932`, `composer` dans `batch_start`). C'est donc elle qui ouvre la file
+# de ces trois apps — et avec elle `batch_actions` ET `inspector_actions`.
+
+# Les champs de RÉFÉRENCE ne créent rien (mélodie, avatar, voix de clonage, image de style).
+# ⚠ Le champ de LOT, lui, n'est PAS exclu ici — contrairement à `_monter_un_lot` : c'est
+# précisément celui qu'on vise.
+_CHAMPS_DE_REFERENCE = '[id*="elody"], [id*="eference"], [id*="voice"], [id*="avatar"]'
+
+
+class _LotRefuse(Exception):
+    """Le geste du fichier de lot a été exercé, mais l'app n'a rien créé.
+
+    Distinct d'un `SkipScenario` (surface absente : il n'y a rien à mesurer). Pour le scénario
+    DÉDIÉ c'est un ÉCHEC — l'app publie un gabarit que sa propre chaîne refuse ; pour les
+    scénarios qui ne font qu'EMPRUNTER cette voie afin de remplir une file, c'est une
+    impossibilité de montage, donc un skip. Une seule mécanique, deux lectures.
+    """
+
+
+_GABARIT_DE_LOT = """(async () => {
+    // Le gabarit est DÉCLARÉ par l'app (`batch_template_url` de la card commune) et rendu en
+    // lien de téléchargement. On n'en fabrique donc aucun ici : un fichier de lot inventé
+    // mesurerait NOTRE idée du format, pas celui que l'app publie à ses utilisateurs.
+    const carte = document.querySelector('[data-wama-nic]');
+    const lien = document.getElementById('batchTemplateLink')
+              || (carte && carte.querySelector('a[download][href]'))
+              || document.querySelector('a[download][href*="template"]');
+    if (!lien) return null;
+    try {
+        const r = await fetch(lien.getAttribute('href'), {credentials: 'same-origin'});
+        return r.ok ? await r.text() : null;
+    } catch (e) { return null; }
+})()"""
+
+
+def _id_du_compte_de_test():
+    """L'id du compte de test, lu DEPUIS UN THREAD ORDINAIRE.
+
+    ⚠ `sync_playwright` installe une boucle d'événements dans le thread courant : tout accès
+    ORM y lève `SynchronousOnlyOperation`. Mesuré le 2026-08-27 — le montage retombait alors
+    sur le placeholder du gabarit, et l'app se voyait accusée de refuser son propre lot.
+    Django ne l'interdit que dans le thread PORTEUR de la boucle : un thread nu suffit.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    def _lire():
+        from django.db import connections
+        try:
+            from wama.common.services.nightly_tests import get_test_user
+            return getattr(get_test_user(), 'id', None)
+        finally:
+            connections.close_all()   # connexion propre au thread : à refermer avec lui
+
+    with ThreadPoolExecutor(max_workers=1) as ex:
+        return ex.submit(_lire).result(timeout=20)
+
+
+def _source_resolvable(app: str, combien: int = 2):
+    """`combien` médias RÉELS du compte de test ; (chemins relatifs à MEDIA_ROOT, Paths).
+
+    POURQUOI. La source d'exemple d'un gabarit est un PLACEHOLDER (`https://example.com/…`).
+    Les apps qui se contentent de STOCKER la source créent quand même l'élément ; celles qui la
+    RÉSOLVENT à la création n'en créent aucun — le converter télécharge via
+    `upload_media_from_url` et récolte un 404. Le maillon « un lot apparaît en file » n'y était
+    donc pas mesuré, et un placeholder ne mesure de toute façon la chaîne qu'à moitié PARTOUT.
+    On dépose un vrai fichier dans le domicile DÉCLARÉ des entrées d'app (`get_app_media_path`,
+    le même helper que les vues) et on donne son chemin relatif, que les deux familles savent
+    résoudre. L'appelant le supprime : voir `_monter_un_lot_par_gabarit`.
+
+    `.wav` de silence : la seule extension acceptée à la fois par les apps média généralistes
+    (converter : audio) et par les apps de parole (transcriber), sans dépendance d'encodage.
+
+    ⚠ DES SOURCES DISTINCTES, jamais la même deux fois. Mesuré le 2026-08-27 sur l'avatarizer :
+    deux lignes portant le MÊME chemin ne rendent qu'un élément à l'aperçu — l'app déduplique.
+    Un élément = lot unitaire = pas de card mère (`_queue_entry.html`), donc « aucun lot créé »
+    alors que la chaîne fonctionne. Doubler une URL d'exemple ne posait pas le problème ; un
+    chemin réel, si. Un vrai lot porte de toute façon des sources différentes.
+    """
+    try:
+        from wama.common.utils.media_paths import get_app_media_path
+        uid = _id_du_compte_de_test()
+        if not uid:
+            return [], []
+        dossier = get_app_media_path(app, uid, 'input')
+        dossier.mkdir(parents=True, exist_ok=True)
+        racine = Path(settings.MEDIA_ROOT).resolve()
+        rels, cibles = [], []
+        for i in range(1, combien + 1):
+            cible = dossier / f'temoin_lot_nocturne_{i}.wav'
+            cible.write_bytes(_wav_silence())
+            cibles.append(cible)
+            rels.append(str(cible.resolve().relative_to(racine)).replace('\\', '/'))
+        return rels, cibles
+    except Exception as exc:
+        # ⚠ Best-effort, mais JAMAIS muet : sans média réel le témoin retombe sur le
+        # placeholder du gabarit, et le scénario conclurait « l'app refuse son propre lot »
+        # alors que c'est NOTRE montage qui a manqué. Le motif remonte dans le verdict.
+        _source_resolvable.dernier_echec = f'{type(exc).__name__}: {exc}'
+        return [], []
+
+
+_source_resolvable.dernier_echec = ''
+
+
+def _temoin_de_lot(texte: str, sources=()) -> Path:
+    """Le gabarit de l'app, sa dernière ligne utile DOUBLÉE → au moins deux éléments.
+
+    ⚠ DOUBLER, jamais inventer. Trois syntaxes de lot coexistent (`batch_parsers` : balises
+    CLI, tableur à en-têtes, positionnel hérité) et l'app choisit la sienne : fabriquer une
+    ligne ici mesurerait notre lecture du formalisme au lieu du gabarit réellement publié.
+    Doubler la ligne d'exemple reste dans sa syntaxe, quelle qu'elle soit.
+
+    ⚠ DEUX éléments au moins : un lot unitaire ne rend pas de card mère (`_queue_entry.html`
+    ne pose `.batch-group` que si le lot n'est pas unitaire — leçon de `_monter_un_lot`).
+
+    `sources` — remplace la VALEUR de l'exemple par des médias réels (un par ligne produite),
+    et SEULEMENT si la ligne porte un champ unique (aucun délimiteur de colonnes). Substituer
+    une valeur n'est pas inventer une ligne : la syntaxe reste celle du gabarit. On s'interdit
+    en revanche de toucher aux lignes multi-colonnes, où l'on devrait deviner LAQUELLE est la
+    source — c'est précisément la devinette que « doubler, jamais inventer » proscrit.
+    """
+    import tempfile
+    lignes = (texte or '').splitlines()
+    utiles = [l for l in lignes if l.strip() and not l.lstrip().startswith('#')]
+    if not utiles:
+        raise _LotRefuse("le gabarit publié par l'app ne contient que des commentaires — "
+                         "aucune ligne d'exemple à déposer")
+    exemple = utiles[-1]
+    # « Source nue » = ni colonnes, ni BALISES. Le test des seuls délimiteurs ne suffit pas :
+    # la ligne à balises de l'avatarizer (`-p "…" -r avatar1.png --language fr`) n'en contient
+    # aucun, et la substituer par un chemin a détruit sa syntaxe — l'aperçu ne rendait plus
+    # qu'un élément, donc plus de lot mère, donc « l'app refuse son lot » (mesuré 2026-08-27).
+    # Un chemin ou une URL ne porte jamais de jeton commençant par « - ».
+    nue = (not any(d in exemple for d in ('|', ',', ';', '\t'))
+           and not any(t.startswith('-') for t in exemple.split()))
+    if sources and nue:
+        # L'exemple disparaît au profit des sources réelles, UNE PAR LIGNE (elles sont
+        # distinctes : voir `_source_resolvable`, l'aperçu déduplique les identiques).
+        avant = lignes[:lignes.index(exemple)]
+        lignes = avant + list(sources)
+        finales = lignes
+    else:
+        finales = lignes + [exemple]
+    f = tempfile.NamedTemporaryFile('w', suffix='.txt', delete=False, encoding='utf-8')
+    f.write('\n'.join(finales) + '\n')
+    f.close()
+    return Path(f.name)
+
+
+def _monter_un_lot_par_gabarit(page, app: str = ''):
+    """Dépose le FICHIER DE LOT publié par l'app, clique « Ajouter » ; rend (ids neufs, détail).
+
+    NE DÉMARRE RIEN, par contrat de la barre commune : « Ajouter » (`#batchCreateOnlyBtn`)
+    crée des éléments PENDING ; « Démarrer » (`#batchCreateAndStartBtn`) est l'AUTRE bouton,
+    jamais cliqué ici. C'est ce qui rend ce geste exécutable de jour sur un GPU partagé.
+    """
+    from wama.common.services.nightly_tests import SkipScenario
+
+    if not page.query_selector('#batchDetectBar'):
+        raise SkipScenario("aucune barre de détection de lot dans la page (`show_batch_bar` "
+                           "non déclaré) — le fichier de lot n'a pas de surface ici")
+    # La card d'entrée est servie REPLIÉE par 6 apps sur 9 (mesuré le 2026-08-27) : sa barre de
+    # lot existe alors au DOM avec des dimensions nulles, et « Ajouter » n'est jamais
+    # actionnable. L'utilisateur l'ouvre d'un clic avant de déposer quoi que ce soit ; on fait
+    # le même geste, sinon on mesurerait un repli et on l'écrirait « l'app refuse le lot ».
+    _deplier_autour(page, '#batchDetectBar')
+    texte = page.evaluate(_GABARIT_DE_LOT)
+    if not texte:
+        raise SkipScenario("l'app ne publie aucun gabarit de lot téléchargeable "
+                           "(`batch_template_url` absent de sa card d'entrée)")
+    # Deux formes coexistent, toutes deux DÉCLARÉES : un champ DÉDIÉ (`fileInputId` passé à
+    # WamaBatchImport — composer : #batchFileInput), ou le champ ORDINAIRE de la card, l'app
+    # routant elle-même les .txt/.csv vers la brique (imager : `routeFile` → `detectAndHandle` ;
+    # avatarizer : même geste sur la zone audio). Au-delà, on ne devine pas.
+    champ = (page.query_selector('input[type=file][id*="atch"]')
+             or page.query_selector(
+                 f'[data-wama-nic] input[type=file]:not({_CHAMPS_DE_REFERENCE})'))
+    if not champ:
+        raise SkipScenario("ni champ de lot dédié ni champ de fichier dans la card d'entrée — "
+                           "nulle part où déposer le fichier de lot")
+
+    lots0 = page.evaluate(_LOTS_EN_FILE) or []
+    sources, medias = (_source_resolvable(app) if app else ([], []))
+    if app and not sources:
+        raise _LotRefuse("montage impossible : aucun média réel n'a pu être déposé pour le "
+                         f"compte de test ({_source_resolvable.dernier_echec or 'raison inconnue'})")
+    temoin = _temoin_de_lot(texte, sources)
+    try:
+        champ.set_input_files(str(temoin))
+        # La barre ne s'ouvre qu'APRÈS l'aperçu SERVEUR : c'est lui qui compte les éléments, et
+        # un fichier dont il tire 0 élément laisse la barre fermée SANS message
+        # (`batch-import.js:140` — repli silencieux vers l'upload direct).
+        try:
+            page.wait_for_selector('#batchCreateOnlyBtn', state='visible', timeout=25000)
+        except Exception:
+            raise _LotRefuse(
+                "le gabarit publié par l'app a bien été déposé, mais son propre aperçu de lot "
+                "n'en tire aucun élément : la barre reste fermée, sans erreur ni message")
+        compte = page.evaluate(
+            "(document.getElementById('batchCreateCount') || {}).textContent || '?'")
+        try:
+            with page.expect_navigation(wait_until='load', timeout=30000):
+                page.click('#batchCreateOnlyBtn', timeout=15000)
+        except Exception:
+            # Pas de navigation (une app peut rafraîchir sa file sans recharger) : le clic a
+            # eu lieu, on ne le REJOUE PAS — un second « Ajouter » créerait un second lot.
+            pass
+        try:
+            page.wait_for_load_state('networkidle', timeout=30000)
+        except Exception:
+            pass
+        page.wait_for_timeout(1500)
+    finally:
+        for _f in [temoin, *medias]:
+            try:
+                if _f:
+                    _f.unlink()
+            except OSError:
+                pass
+
+    lots = page.evaluate(_LOTS_EN_FILE) or []
+    nouveaux = [i for i in lots if i not in lots0]
+    if not nouveaux:
+        raise _LotRefuse(
+            f"« Ajouter » cliqué sur un aperçu de {compte} élément(s), mais AUCUN lot nouveau "
+            f"en file ({len(lots0)} → {len(lots)}) — création refusée, ou file non rafraîchie")
+    return nouveaux, (f"fichier de lot déposé : {compte} élément(s) annoncés, "
+                      f"{len(nouveaux)} lot(s) créé(s) sans démarrage")
+
+
+def _monter_par_la_voie_de_lot(page, pourquoi: str, app: str = ''):
+    """Emprunte la voie de lot pour REMPLIR une file ; tout refus y devient un SKIP.
+
+    Ici on ne MESURE pas le geste — on s'en sert. Un refus ne dit donc rien de l'app qu'on
+    voulait mesurer : le scénario dédié `<app>.batch_import`, lui, le compte comme un échec.
+    """
+    from wama.common.services.nightly_tests import SkipScenario
+    try:
+        return _monter_un_lot_par_gabarit(page, app)[0]
+    except (_LotRefuse, SkipScenario) as exc:
+        raise SkipScenario(f"{pourquoi} ; repli par le FICHIER DE LOT : {exc}")
+
+
+def _monter_un_lot(page, app: str = ''):
     """Dépose deux fichiers témoins pour obtenir un LOT en file ; renvoie ses ids.
 
     ⚠ DEUX fichiers, pas un. Mesuré le 2026-08-24 sur converter : un dépôt simple crée une
@@ -1044,14 +1311,24 @@ def _monter_un_lot(page):
 
     Lève `SkipScenario` si l'app n'offre pas de quoi monter — jamais un échec : ne pas
     pouvoir mesurer n'est pas la même chose que mesurer un défaut.
-    """
-    from wama.common.services.nightly_tests import SkipScenario
 
+    DEUX VOIES, dans cet ordre : le dépôt ordinaire quand la card déclare qu'il CRÉE, sinon —
+    et en repli quand il ne groupe pas — le FICHIER DE LOT publié par l'app.
+    """
     exclus = '[id*="atch"], [id*="elody"], [id*="eference"], [id*="voice"], [id*="avatar"]'
     champ = page.query_selector(f'[data-wama-nic] input[type=file]:not({exclus})')
-    if not champ:
-        raise SkipScenario("aucun lot en file et aucun champ d'import au contrat de la card "
-                           "commune — rien a monter (cf. `<app>.import`)")
+    # Ce que FAIT un dépôt ici est DÉCLARÉ, pas deviné (`_new_item_card.html`). `attache` =
+    # le fichier se joint au formulaire et rien n'est créé : déposer y perdrait 8 s pour
+    # conclure « l'app ne groupe pas », ce qui serait FAUX. On passe donc directement par la
+    # voie de lot, qui est la voie de création de ces apps-là.
+    depot = page.evaluate("""(() => {
+        const c = document.querySelector('[data-wama-depot]');
+        return c ? c.getAttribute('data-wama-depot') : 'cree'; })()""")
+    if not champ or depot == 'attache':
+        raison = ("la card DÉCLARE `data-wama-depot=attache` (le dépôt n'y crée rien)"
+                  if depot == 'attache' else
+                  "aucun champ d'import au contrat de la card commune")
+        return _monter_par_la_voie_de_lot(page, raison, app)
     accept = champ.get_attribute('accept') or ''
     t1, t2 = _fichier_temoin(accept), _fichier_temoin(accept)
     try:
@@ -1073,9 +1350,9 @@ def _monter_un_lot(page):
             except OSError:
                 pass
     if not lots:
-        raise SkipScenario("deux depots de montage n'ont cree aucun LOT (card mere `is-batch` "
-                           "absente) — l'app ne groupe pas, ou l'import echoue "
-                           "(cf. `<app>.import`)")
+        return _monter_par_la_voie_de_lot(
+            page, "deux dépôts de montage n'ont créé aucun LOT (card mère `is-batch` absente) "
+                  "— l'app ne groupe pas, ou l'import échoue (cf. `<app>.import`)", app)
     return lots
 
 
@@ -1126,6 +1403,25 @@ def _garde_de_montage(app: str, etiquette: str):
             try:
                 restes = set(_modele.objects.values_list('id', flat=True)) - _avant
                 if restes:
+                    # Les FICHIERS avant les lignes. `QuerySet.delete()` ne touche AUCUN
+                    # FileField : l'app copie la source dans son dossier d'entrée
+                    # (`copy_into_app_input`) et cette copie survivait à l'objet — 6 `.wav`
+                    # retrouvés dans `media/converter/…` le 2026-08-27. Un harnais ne laisse
+                    # rien dans `media/`, qui est le domicile des entrées/sorties RÉELLES.
+                    _racine = str(Path(settings.MEDIA_ROOT).resolve())
+                    _champs = [f.name for f in _modele._meta.get_fields()
+                               if getattr(f, 'get_internal_type', lambda: '')() in
+                               ('FileField', 'ImageField')]
+                    if _champs:
+                        for _obj in _modele.objects.filter(id__in=restes).only(*_champs):
+                            for _nom in _champs:
+                                _fic = getattr(_obj, _nom, None)
+                                try:
+                                    _chemin = Path(_fic.path).resolve() if _fic else None
+                                except Exception:
+                                    _chemin = None
+                                if _chemin and str(_chemin).startswith(_racine):
+                                    _chemin.unlink(missing_ok=True)
                     _modele.objects.filter(id__in=restes).delete()
                     bilan.append(len(restes))
             except Exception as _exc:            # ne JAMAIS avaler en silence
@@ -1193,7 +1489,7 @@ def check_app_batch_actions(app: str, url_path: str):
                 return False, f"page HTTP {resp.status if resp else '?'}"
             page.wait_for_timeout(1200)
 
-            lots0 = page.evaluate(LOTS) or _monter_un_lot(page)
+            lots0 = page.evaluate(LOTS) or _monter_un_lot(page, app)
 
             # 1. L'app est-elle PORTEE ? (l'opt-in `actions_communes` emet les URLs)
             urls = page.evaluate(URLS) or {}
@@ -1250,6 +1546,130 @@ def check_app_batch_actions(app: str, url_path: str):
     if _nettoyes:
         detail += f" ; {sum(_nettoyes)} objet(s) de montage nettoyé(s)"
     return True, detail
+
+
+def check_app_batch_import(app: str, url_path: str):
+    """Un FICHIER DE LOT crée-t-il N éléments SANS en démarrer aucun ? (ok, detail).
+
+    Geste 14 de la grille FONCTIONNELLE, moitié « fichier de lot » — les autres moitiés
+    (import récursif de dossier, URL, « Envoyer vers ») restent à couvrir.
+
+    POURQUOI CELUI-CI D'ABORD, ALORS QUE LE PLAN ANNONÇAIT LE GESTE N°7. Le geste n°7
+    (« créer par le bouton primaire ») devait débloquer d'un coup `inspector_actions` et
+    `batch_actions` sur avatarizer, composer et imager — les trois apps dont la file reste
+    vide. Mesuré le 2026-08-27, il s'est révélé être un geste **GPU** : composer expédie la
+    tâche DANS sa vue de création (`composer/views.py:235`) et avatarizer enchaîne
+    `createJob()` puis `startJob()` côté client (`avatarizer/js/index.js:253-254`). Seul
+    l'imager crée sans lancer. Une session ne déclenche jamais de traitement (crashs hôte) :
+    le geste n°7 rejoint donc la famille 8-13, et c'est le fichier de lot qui atteint le même
+    but par la seule voie dont le contrat garantit qu'elle ne démarre rien.
+
+    Trois constats, du plus structurel au plus concret — le premier qui manque explique les
+    suivants :
+      1. l'app PUBLIE-t-elle un gabarit de lot et une barre de détection ?
+      2. déposer CE gabarit ouvre-t-il un aperçu, et « Ajouter » crée-t-il un LOT ?
+      3. le contrat « créer ≠ démarrer » est-il TENU — aucun appel de démarrage émis ?
+
+    ⚠ Le point 3 n'est pas décoratif : c'est lui qui autorise ce scénario à tourner de jour
+    sur un GPU partagé. S'il tombe, ce n'est pas seulement l'app qui est en défaut — c'est ce
+    scénario qui doit CESSER d'être exécuté tant que ce n'est pas corrigé.
+    """
+    from wama.common.services.nightly_tests import SkipScenario
+    from playwright.sync_api import sync_playwright
+
+    url = f"{BASE_URL.rstrip('/')}{url_path}"
+    jeton = _session_compte_de_test()
+    if not jeton:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
+
+    # Le geste CRÉE des éléments et un lot : la garde retire en sortie ceux de ce passage,
+    # et rien d'autre (différence d'ids) — jamais un objet du travail réel de l'utilisateur.
+    with _garde_de_montage(app, 'batch_import') as _nettoyes:
+      with sync_playwright() as p:
+        navigateur = p.chromium.launch()
+        try:
+            contexte = navigateur.new_context(viewport={'width': 1500, 'height': 1000})
+            contexte.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': jeton,
+                                   'domain': '127.0.0.1', 'path': '/'}])
+            page = contexte.new_page()
+            posts = []
+            page.on('response', lambda r: (posts.append((r.status, r.url.split('?')[0]))
+                                           if r.request.method == 'POST' else None))
+            # Un refus LIGNE À LIGNE ne passe par aucun code HTTP : la vue répond 200 avec
+            # `count: 0` et ses `warnings`, et la brique les affiche (toast, ou `alert` si
+            # `WamaApp` manque). On collecte les DEUX surfaces — sans elles, un refus expliqué
+            # et une chaîne cassée rendent le même verdict aveugle « aucun lot nouveau ».
+            dialogues = []
+            page.on('dialog', lambda d: (dialogues.append(d.message), d.dismiss()))
+            resp = page.goto(url, wait_until='networkidle', timeout=45000)
+            if not resp or resp.status != 200:
+                return False, f"page HTTP {resp.status if resp else '?'}"
+            page.wait_for_timeout(1200)
+            # Le toast s'efface seul au bout de 3,5 s (`wama-app-base.js:128`) : le lire APRÈS
+            # le geste serait une course. On l'observe donc à la volée.
+            page.evaluate("""() => {
+                window.__wamaToasts = [];
+                new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => {
+                    if (n.nodeType === 1 && n.classList && n.classList.contains('wama-toast'))
+                        window.__wamaToasts.push(n.textContent);
+                }))).observe(document.body, {childList: true});
+            }""")
+
+            try:
+                _nouveaux, detail = _monter_un_lot_par_gabarit(page, app)
+            except _LotRefuse as exc:
+                rates = [f"{s} {u}" for s, u in posts if s >= 400]
+                try:
+                    dits = list(dialogues) + (page.evaluate("window.__wamaToasts || []") or [])
+                except Exception:
+                    dits = list(dialogues)
+                # L'app a-t-elle DIT pourquoi ? Si oui, la chaîne n'est pas muette : elle a
+                # tourné jusqu'au bout et a rendu son motif à l'utilisateur. Le cas connu est
+                # la SOURCE D'EXEMPLE : le converter résout la source à la création
+                # (`upload_media_from_url`) et l'URL du gabarit est un placeholder injoignable,
+                # là où les apps qui stockent la source sans la résoudre créent l'élément.
+                # ⚠ Le maillon « un lot apparaît en file » reste alors NON MESURÉ pour cette
+                # app — trou NOMMÉ, à fermer avec un média réel, pas un skip qui l'enterre.
+                if dits:
+                    raise SkipScenario(
+                        f"{exc} — mais l'app a rendu son motif : « {dits[0][:220]} ». Chaîne "
+                        f"exercée jusqu'au refus ; le maillon « lot créé » reste non mesuré "
+                        f"tant que le gabarit porte une source d'exemple non résolvable.")
+                return False, (f"{exc}"
+                               + (f" — POST en échec : {' | '.join(rates[:2])}" if rates else ""))
+            rates = [f"{s} {u}" for s, u in posts if s >= 400]
+            if rates:
+                return False, f"{detail}, MAIS requête(s) en échec : {' | '.join(rates[:2])}"
+
+            # Contrat « créer ≠ démarrer ». Relevé PAR MOTIF sur l'URL : il ORIENTE, il ne
+            # prouverait pas l'absence de démarrage par une autre voie. Il suffit ici, où les
+            # trois routes de démarrage de lot finissent toutes par `/start/` — et l'absence
+            # de tout `.delay` dans les vues de création a été vérifiée à la lecture.
+            demarrages = [u for s, u in posts if u.rstrip('/').endswith('/start')]
+            if demarrages:
+                return False, (f"{detail} — MAIS le contrat « créer ≠ démarrer » est ROMPU : "
+                               f"{demarrages[0]} appelé. Un traitement a été lancé : ce "
+                               f"scénario ne peut plus tourner de jour en l'état.")
+            detail += f" ; aucun appel de démarrage ({len(posts)} POST observé(s))"
+        finally:
+            navigateur.close()
+    if _nettoyes:
+        detail += f" ; {sum(_nettoyes)} objet(s) de test nettoyé(s)"
+    return True, detail
+
+
+def register_batch_import_scenarios():
+    """Enregistre un scénario `<app>.batch_import` par app disposant d'une page d'index."""
+    from wama.common.services.nightly_tests import register
+
+    for label, path in discoverable_apps():
+        register(
+            id=f"{label}.batch_import", app=label, stage="ui",
+            description=f"Card d'entrée {label} : un FICHIER DE LOT crée N éléments sans "
+                        f"rien démarrer",
+            run=(lambda p=path, a=label: (lambda ctx: check_app_batch_import(a, p)))(),
+            timeout_s=240, vram_gb=0.0,
+        )
 
 
 def register_batch_actions_scenarios():
@@ -1447,7 +1867,7 @@ def check_app_inspector_actions(app: str, url_path: str):
             monte, raison_lot = False, None
             if not page.evaluate(CIBLE, 'lot').get('ok'):
                 try:
-                    _monter_un_lot(page)
+                    _monter_un_lot(page, app)
                     # Rechargement : on mesure la file telle que le SERVEUR la rend, pas
                     # l'état laissé par le script d'import.
                     page.goto(url, wait_until='networkidle', timeout=45000)

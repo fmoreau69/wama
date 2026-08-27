@@ -1021,20 +1021,20 @@ def console_content(request):
 
 
 def batch_template(request):
-    """Gabarit de fichier batch téléchargeable (une source par ligne)."""
+    """Gabarit de fichier batch téléchargeable (une source par ligne).
+
+    GÉNÉRÉ depuis la déclaration du champ (brique commune `build_batch_template`, A5-23),
+    comme transcriber/imager/composer. Le gabarit écrit à la main qu'il remplace n'avait
+    AUCUNE ligne vive : ses cinq exemples étaient tous commentés. Téléchargé puis redéposé
+    tel quel — le geste le plus naturel — il ne produisait donc rien, et le repli silencieux
+    de la barre (`batch-import.js`, aperçu à 0 élément) ne le disait pas. Mesuré 2026-08-27.
+    """
     from django.http import HttpResponse
-    template_content = (
-        "# WAMA Converter - Import batch\n"
-        "# Format : une URL ou un chemin de fichier par ligne (images, vidéos, audio, documents).\n"
-        "# Les lignes commençant par # sont ignorées.\n"
-        "#\n"
-        "# Exemples :\n"
-        "# https://example.com/photo.png\n"
-        "# https://example.com/clip.mov\n"
-        "# https://www.youtube.com/watch?v=XXXXXXXXXXX\n"
-        "# D:/medias/enregistrement.wav\n"
-        "# D:/documents/rapport.docx\n"
-    )
+    from wama.common.utils.batch_parsers import build_batch_template
+    template_content = build_batch_template(
+        ['source'],
+        {'source': 'https://example.com/photo.png'},
+        app_label='Converter (une URL ou un chemin par ligne — image, vidéo, audio, document)')
     response = HttpResponse(template_content, content_type='text/plain; charset=utf-8')
     response['Content-Disposition'] = 'attachment; filename="batch_converter_template.txt"'
     return response

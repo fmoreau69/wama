@@ -285,11 +285,19 @@
     // -----------------------------------------------------------------------
     // Import de LOT (brique commune batch-import.js) : détection des fichiers batch
     // (txt/csv/pdf/docx → parseur serveur commun parse_unified_batch) + barre de détection.
+    // ⚠ `cfg.urls.batch` N'EXISTE PAS (le gabarit déclare `batchPreview`/`batchCreate`,
+    // index.html:311-312) : l'interpolation rendait `/avatarizer/undefinedpreview/`, soit un
+    // 404 servi en HTML que la brique tentait de lire en JSON. Défaut MUET côté page — la
+    // console seule le disait ; le geste, lui, ne créait jamais rien. Mesuré le 2026-08-27.
+    // De même `batchExts` n'était lu par personne : la brique lit `batchExtensions`
+    // (`batch-import.js:46`). Les deux extensions binaires restent une INTENTION — la garde
+    // MIME de `isBatch()` (l.64) écarte tout ce qui n'est pas `text/*`, donc pdf/docx ne
+    // passent pas encore, même déclarés ici.
     const batchImport = window.WamaBatchImport ? WamaBatchImport({
-        batchPreviewUrl: `${cfg.urls.batch}preview/`,
-        batchCreateUrl: `${cfg.urls.batch}create/`,
+        batchPreviewUrl: cfg.urls.batchPreview,
+        batchCreateUrl: cfg.urls.batchCreate,
         csrfToken: csrf,
-        batchExts: ['txt', 'csv', 'pdf', 'docx'],
+        batchExtensions: ['txt', 'csv', 'pdf', 'docx'],
         afterCreate: () => window.location.reload(),
     }) : null;
 

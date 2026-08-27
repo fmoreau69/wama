@@ -236,6 +236,7 @@ register_examples()
 # ou le serveur peuvent manquer sur une machine de dev, ça ne doit pas casser le registre.
 try:
     from wama.common.services.ui_smoke import (register_batch_actions_scenarios,
+                                               register_batch_import_scenarios,
                                                register_duplicate_delete_scenarios,
                                                register_import_scenarios,
                                                register_inspector_actions_scenarios,
@@ -275,5 +276,15 @@ try:
     # un lot multi-éléments, que le scénario MONTE quand il manque, sous une garde qui retire
     # en sortie ce qu'il a créé et rien d'autre (différence d'ids) — jamais un objet existant.
     register_inspector_actions_scenarios()
+    # 2026-08-27 — geste 14 (moitié « fichier de lot »), enregistré À LA PLACE du geste 7 qui
+    # devait suivre. Le geste 7 (« créer par le bouton primaire ») débloquait d'un coup
+    # `inspector_actions` et `batch_actions` sur les trois apps dont la file reste vide — mais
+    # il s'est révélé être un geste GPU sur deux d'entre elles : composer expédie la tâche DANS
+    # sa vue de création (`composer/views.py:235`), avatarizer enchaîne `createJob()` puis
+    # `startJob()` (`avatarizer/js/index.js:253-254`). Une session ne lance jamais de traitement.
+    # Le fichier de lot atteint le même but par la seule voie dont le CONTRAT sépare « Ajouter »
+    # de « Démarrer » — et le scénario vérifie que ce contrat est tenu, car c'est lui qui
+    # l'autorise à tourner de jour sur un GPU partagé.
+    register_batch_import_scenarios()
 except Exception as _e:                                   # pragma: no cover
     logger.debug(f"[nightly] scénarios UI non enregistrés ({_e})")

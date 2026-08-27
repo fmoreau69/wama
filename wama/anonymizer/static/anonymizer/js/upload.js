@@ -116,6 +116,25 @@ $(function () {
     // le CORPS de la réponse capturé — jusque-là on soupçonnait la route.
     paramName: 'file',
 
+    // ── Un FICHIER DE LOT n'est pas un média : il part à la brique, pas à l'upload ──────
+    // jQuery-file-upload s'abonne lui-même au `change` de l'input et téléverse TOUT ce qui
+    // y arrive. Un `.txt` de lot partait donc vers `/anonymizer/upload/`, qui répondait
+    // 200 avec `added: []` et une erreur PAR LIGNE (« Local path not found ») — y compris
+    // pour les lignes de commentaire du gabarit. Rien à l'écran : la barre de lot ne
+    // s'ouvrait jamais, et l'échec ne vivait que dans un `console.warn`. Mesuré 2026-08-27.
+    // On demande à la BRIQUE si c'est un lot (elle seule connaît la liste d'extensions et
+    // la garde MIME) ; si non, on reprend le comportement par défaut du plugin.
+    add: function (e, data) {
+      const fichier = data.files && data.files[0];
+      if (fichier && window._batchImport) {
+        Promise.resolve(window._batchImport.detectAndHandle(fichier))
+          .then(function (pris) { if (!pris) data.submit(); })
+          .catch(function () { data.submit(); });
+        return;
+      }
+      data.submit();
+    },
+
     // Inclut le format/qualité de sortie choisis dans le panneau (Phase 3 élargie)
     formData: function () {
       const fmt = (document.getElementById('output_format') || {}).value || 'original';
