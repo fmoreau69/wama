@@ -62,9 +62,35 @@ DOSSIER_MEDIAS_DE_TEST = 'media_tests'
 
 _GARDER = os.environ.get('WAMA_GARDER_MEDIA_TESTS', '').strip() not in ('', '0', 'false', 'False')
 
+#: Racines du dépôt que la DÉCOUVERTE de tests ne doit pas visiter.
+#:
+#: ⚠ Ce ne sont PAS des tests exclus : ce sont des dossiers qui n'en contiennent aucun et
+#: que Python n'importe jamais — la règle de nommage du dépôt (CLAUDE.md, « le critère est
+#: *Python l'importe-t-il ?* ») les écrit justement en tiret-case pour le dire. Un tiret
+#: rend le paquet inimportable (`import wama-dev-ai` = « wama moins data »), et leurs
+#: modules internes s'importent en absolu (`from config import …`) parce que leur lanceur
+#: pose leur dossier sur `sys.path`. La découverte de `unittest`, elle, parcourt le dépôt
+#: entier : elle y descendait, tentait l'import, et chaque campagne portait DEUX ERREURS
+#: permanentes (`wama-dev-ai.core`, `wama-dev-ai.ui` — `No module named 'core'`/'ui'`).
+#:
+#: Corrigé ici et pas là-bas : rendre ces modules importables demanderait de restructurer
+#: un outil hors périmètre Django (son `config.py` vit au-dessus du paquet, donc aucun
+#: import relatif ne l'atteint — essayé et MESURÉ le 2026-08-27, l'erreur se déplace
+#: simplement d'un cran). Deux rouges permanents dans une suite, c'est deux rouges que
+#: plus personne ne lit.
+RACINES_HORS_DECOUVERTE = ('wama-dev-ai',)
+
 
 class WamaTestRunner(DiscoverRunner):
     """`DiscoverRunner` + `MEDIA_ROOT` redirigé vers un dossier jetable."""
+
+    def build_suite(self, *args, **kwargs):
+        suite = super().build_suite(*args, **kwargs)
+        elagues = _elaguer_racines_hors_decouverte(suite)
+        if elagues and self.verbosity >= 1:
+            print(f"Découverte : {len(elagues)} module(s) ignoré(s) hors périmètre "
+                  f"({', '.join(sorted(elagues))}).")
+        return suite
 
     def setup_test_environment(self, **kwargs):
         super().setup_test_environment(**kwargs)
@@ -86,6 +112,54 @@ class WamaTestRunner(DiscoverRunner):
             else:
                 _supprimer_sans_risque(dossier)
         super().teardown_test_environment(**kwargs)
+
+
+def _racine_exclue(test) -> str:
+    """Racine de `RACINES_HORS_DECOUVERTE` dont provient cet échec d'IMPORT, sinon ''.
+
+    Ne reconnaît QUE les `_FailedTest` fabriqués par la découverte : un vrai test qui
+    échoue n'en est pas un, donc rien de réel ne peut être élagué par erreur.
+    """
+    from unittest.loader import _FailedTest
+    if not isinstance(test, _FailedTest):
+        return ''
+    nom = getattr(test, '_testMethodName', '')
+    for racine in RACINES_HORS_DECOUVERTE:
+        if nom == racine or nom.startswith(racine + '.'):
+            return racine
+    return ''
+
+
+def _elaguer_racines_hors_decouverte(suite) -> set:
+    """Retire de `suite` (en place, récursivement) les échecs d'import des racines exclues.
+
+    ⚠ Garde-fou : si l'une de ces racines vient à contenir un vrai fichier de test, on
+    REFUSE d'élaguer et on le dit. Sans cela, déposer un test dans un dossier exclu
+    reviendrait à ne jamais l'exécuter — sans le moindre signal.
+    """
+    from unittest import TestSuite
+    elagues = set()
+    for i, item in enumerate(list(suite._tests)):
+        if isinstance(item, TestSuite):
+            elagues |= _elaguer_racines_hors_decouverte(item)
+        else:
+            racine = _racine_exclue(item)
+            if racine:
+                _refuser_si_tests_reels(racine)
+                elagues.add(getattr(item, '_testMethodName', racine))
+    suite._tests = [t for t in suite._tests
+                    if isinstance(t, TestSuite) or not _racine_exclue(t)]
+    return elagues
+
+
+def _refuser_si_tests_reels(racine: str) -> None:
+    dossier = Path(settings.BASE_DIR) / racine
+    trouves = [p for p in dossier.rglob('test*.py')] if dossier.is_dir() else []
+    if trouves:
+        raise RuntimeError(
+            f"`{racine}` est listé dans RACINES_HORS_DECOUVERTE mais contient "
+            f"{len(trouves)} fichier(s) de test ({trouves[0]}). Retirer la racine de la "
+            f"liste (et rendre ses modules importables), ou déplacer ces tests.")
 
 
 def _supprimer_sans_risque(dossier: Path) -> None:

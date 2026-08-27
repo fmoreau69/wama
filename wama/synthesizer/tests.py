@@ -25,6 +25,29 @@ from .utils.audio_processor import (
 User = get_user_model()
 
 
+def _utilisateur_autorise(username='testuser'):
+    """User de test AYANT le droit d'ouvrir le synthesizer.
+
+    ⚠ Sans le rôle, les 8 tests de vues échouaient sur `302 != 200` — et ce message ne
+    désigne PAS le coupable : ni l'URL, ni l'authentification. C'est
+    `AppAccessMiddleware` (`wama/accounts/middleware.py`) qui, AVANT toute vue, interroge
+    `accessible(user, 'synthesizer')` et redirige vers `home` quand c'est faux. La
+    politique (`permissions.py`, `DEFAULT_APP_ACCESS`) exige le rôle `communication` pour
+    cette app, et un `create_user` nu n'appartient à aucun groupe.
+
+    Le rôle est donc accordé ICI, comme le fait `nightly_tests.get_test_user()` : un test
+    de VUES doit FRANCHIR le portier, pas le contourner. Le neutraliser (superuser,
+    `@override_settings` sans le middleware) rendrait ces tests aveugles à une régression
+    du gating, qui est précisément un mécanisme transverse à surveiller.
+    """
+    from django.contrib.auth.models import Group
+    from wama.accounts.permissions import GROUP_PREFIX
+    user = User.objects.create_user(username=username, password='testpass123')
+    group, _ = Group.objects.get_or_create(name=f'{GROUP_PREFIX}communication')
+    user.groups.add(group)
+    return user
+
+
 class VoiceSynthesisModelTest(TestCase):
     """Tests pour le modèle VoiceSynthesis."""
 
@@ -144,14 +167,15 @@ class TextExtractorTest(TestCase):
 
     def test_extract_from_txt(self):
         """Test d'extraction depuis TXT."""
+        # ⚠ lecture et suppression APRÈS le `with` : sous Windows un fichier encore ouvert
+        # n'est ni relisible par un autre descripteur ni supprimable (PermissionError).
         with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
             f.write("Test text content")
-            f.flush()
-
-            text = extract_text_from_file(f.name)
-            self.assertEqual(text, "Test text content")
-
-            os.unlink(f.name)
+            chemin = f.name
+        try:
+            self.assertEqual(extract_text_from_file(chemin), "Test text content")
+        finally:
+            os.unlink(chemin)
 
     def test_clean_text_for_tts(self):
         """Test du nettoyage de texte."""
@@ -183,11 +207,11 @@ class ViewsTest(TestCase):
 
     def setUp(self):
         self.client = Client()
-        self.user = User.objects.create_user(
-            username='testuser',
-            password='testpass123'
-        )
-        self.client.login(username='testuser', password='testpass123')
+        self.user = _utilisateur_autorise()     # cf. _utilisateur_autorise : le 302 venait du gating
+        # `force_login` plutôt que `client.login` : convention du dépôt (tests_volet,
+        # tests_memory, tests_codegen_lot) et évite de traverser le backend LDAP en tête
+        # d'`AUTHENTICATION_BACKENDS` pour rien — ces tests portent sur les VUES.
+        self.client.force_login(self.user)
 
         self.text_file = SimpleUploadedFile(
             "test.txt",
@@ -200,7 +224,15 @@ class ViewsTest(TestCase):
         response = self.client.get(reverse('synthesizer:index'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "WAMA Synthesizer")
+        # ⚠ l'assertion précédente cherchait « WAMA Synthesizer » — chaîne qui n'a JAMAIS
+        # existé dans ce gabarit (elle ne vit que dans des docstrings et les libellés
+        # `AIModel.source`). Elle était donc fausse depuis toujours, mais le 302 du gating
+        # échouait AVANT elle et la masquait : lever une cause en découvre une plus vieille.
+        # On ancre désormais sur le titre réel ET sur un élément propre à CETTE app —
+        # le volet de paramètres — pour que le test distingue « la page a rendu » de
+        # « seul le gabarit de base a rendu ».
+        self.assertContains(response, "Synthesizer - Text To Speech")
+        self.assertContains(response, 'id="synthPanelParams"')
 
     def test_upload_view(self):
         """Test de l'upload."""
@@ -309,11 +341,8 @@ class IntegrationTest(TestCase):
 
     def setUp(self):
         self.client = Client()
-        self.user = User.objects.create_user(
-            username='testuser',
-            password='testpass123'
-        )
-        self.client.login(username='testuser', password='testpass123')
+        self.user = _utilisateur_autorise()     # cf. ViewsTest.setUp
+        self.client.force_login(self.user)
 
     def test_full_workflow(self):
         """Test du workflow complet."""
@@ -353,9 +382,17 @@ class IntegrationTest(TestCase):
         self.assertEqual(synthesis.status, 'RUNNING')
 
         # 5. Simuler la complétion
+        # ⚠ la progression a DEUX canaux : le cache (fil temps réel, lu EN PREMIER par
+        # `views.progress`) et la colonne en base (repli). Écrire la seule colonne, comme
+        # le faisait ce test, laissait le cache à 0 posé par `start` — la vue répondait
+        # donc 0 alors que la base disait 100. Ce n'est pas un défaut de l'app : son
+        # écrivain, `workers._set_progress`, tient les deux canaux ensemble. Le test
+        # passe donc par LUI plutôt que de recopier la clé de cache ici (une clé recopiée
+        # est une clé qui divergera).
+        from wama.synthesizer.workers import _set_progress
+        _set_progress(synthesis, 100)
         synthesis.status = 'SUCCESS'
-        synthesis.progress = 100
-        synthesis.save()
+        synthesis.save(update_fields=['status'])
 
         # 6. Vérifier la progression
         response = self.client.get(

@@ -92,15 +92,18 @@ class IndexView(View):
         # Tri / filtre de la file (brique COMMUNE) — porte sur la liste de LOTS, qui est
         # l'unité affichée par la toolbar partagée.
         batches_list = _get_batches_list(user)
-        try:
-            from wama.common.utils.queue_view import apply_queue_sort_filter
-            # `name_of` reçoit l'ENTRÉE de lot. Un AvatarJob n'a pas de champ de nom :
-            # son identité lisible est l'avatar utilisé (galerie ou fichier téléversé).
-            batches_list, q_sort, q_filter = apply_queue_sort_filter(
-                request, batches_list, name_of=_batch_display_name)
-        except Exception:
-            q_sort, q_filter = '', ''
-            logger.debug("[avatarizer] tri/filtre de file ignoré", exc_info=True)
+        from wama.common.utils.queue_view import apply_queue_sort_filter
+        # `name_of` reçoit l'ENTRÉE de lot. Un AvatarJob n'a pas de champ de nom :
+        # son identité lisible est l'avatar utilisé (galerie ou fichier téléversé).
+        #
+        # ⚠ Appel NU, comme les 11 autres sites (mesuré le 2026-08-27 : l'avatarizer était le
+        # seul des 12 à l'envelopper). Le `try/except` qui l'entourait retombait sur
+        # `q_sort, q_filter = '', ''` en ne journalisant qu'en `debug` : la file serait alors
+        # apparue non triée, la toolbar sans sélection, et RIEN ne l'aurait dit. Une brique
+        # COMMUNE qui casse doit casser VISIBLEMENT partout de la même façon — l'étouffer
+        # ici la rendrait muette dans la seule app où elle n'est pas couverte par les autres.
+        batches_list, q_sort, q_filter = apply_queue_sort_filter(
+            request, batches_list, name_of=_batch_display_name)
 
         context = {
             'jobs': jobs,
