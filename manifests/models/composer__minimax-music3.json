@@ -46,6 +46,7 @@
       }
     },
     "extra_info": {
+      "install_dir": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/music/MiniMax-Music3",
       "max_duration": 300,
       "sample_rate": 32000,
       "type": "music"

@@ -14,6 +14,7 @@
     },
     "composition": {},
     "extra_info": {
+      "install_dir": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/music/audiogen",
       "max_duration": 30,
       "sample_rate": 16000,
       "type": "sfx"

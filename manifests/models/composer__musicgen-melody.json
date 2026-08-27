@@ -17,6 +17,7 @@
     },
     "composition": {},
     "extra_info": {
+      "install_dir": "/mnt/d/WAMA/web-app-for-media-automation/AI-models/models/music/musicgen",
       "max_duration": 30,
       "sample_rate": 32000,
       "type": "music"
