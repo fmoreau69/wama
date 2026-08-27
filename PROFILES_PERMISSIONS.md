@@ -518,10 +518,10 @@ ensemble, et leur différence est la première chose que la carte montre.
 | Endpoint | `common:api_subscription` (`/common/api/abonnement/`) | UNE route pour toutes les natures (`kind` dans le corps) — un futur catalogue n'en ajoute pas. |
 | Front | `common/static/common/js/wama-abonnement.js` | Montage AUTOMATIQUE sur `[data-abo]` : une page déclare deux attributs, elle n'écrit pas de JS. |
 | Menu | `accounts/context_processors.py` | `masques ∩ accessible_apps` — la préférence s'applique **après** le droit, et seulement à l'affichage. |
-| Catalogue | `common/apps.html` + `apps_catalog_view` | Montre TOUT : abonnées, masquées, **et sans accès** (badge, pas de bascule). Facette `abonnement` déclarée. |
+| Catalogue | `common/apps.html` + `apps_catalog_view` | Montre TOUT : abonnées, masquées, **et sans accès** (badge, pas de bascule). Facette `abonnement` déclarée. Cards d'`APP_CATALOG` **et** surfaces transversales/Lab (`extra_links`, clé `gate` — cf. §8.8.1). |
 
-**Ce qui a été mesuré** (`wama/common/tests_subscriptions.py`, 19 tests, verts le 27/08 ; suites
-`wama.common` + `wama.accounts` : 349 tests verts) :
+**Ce qui a été mesuré** (`wama/common/tests_subscriptions.py`, 24 tests, verts le 27/08 ; suites
+`wama.common` + `wama.accounts` vertes) :
 
 - l'invariant du §8.1 — `filtrer()` rend toujours un **sous-ensemble** de son entrée, et l'ensemble
   des apps autorisées est **inchangé** quoi qu'on poste sur l'endpoint ;
@@ -532,11 +532,42 @@ ensemble, et leur différence est la première chose que la carte montre.
   cassé » au lieu de « c'est mon choix » ;
 - le compte de service `anonymous` n'écrit aucune préférence (elle vaudrait pour tous ses visiteurs).
 
-⚠ **Écart mesuré au passage, à ne pas confondre avec un défaut** : `all_gated_apps()` (dérivé de
-`DEFAULT_APP_ACCESS`) **n'est pas** l'ensemble des cards du catalogue — `media_library` y est
-soumise à l'accès sans avoir d'entrée dans `APP_CATALOG`. Le bandeau « N sur M » compte donc les
-CARDS autorisées, pas les app_ids gardés. Les deux dérivations sont vérifiées identiques *sur leur
-intersection* par un test, plutôt que relues.
-
 **Ce que S1 ne fait PAS**, et ne doit pas faire : aucune demande d'accès, aucune modération, aucune
 nature d'élément autre qu'`app`. Déclarer une nature sans page produirait un mécanisme muet.
+
+---
+
+#### 8.8.1 Le périmètre du mécanisme est celui du DROIT, pas celui d'`APP_CATALOG` (correctif 27/08)
+
+La première livraison dérivait le périmètre de l'abonnement d'`APP_CATALOG`. Un écart s'était
+mesuré au passage — `all_gated_apps()` ⊋ `APP_CATALOG` — et il avait été **consigné comme une
+particularité**. C'en était une de moins : **5 surfaces gardées** (`studio`, `media_library`,
+`model_manager`, `face_analyzer`, `cam_analyzer`) n'étaient masquables par **rien**.
+
+**Pourquoi la réponse n'est PAS « ajouter ces surfaces à `APP_CATALOG` ».** `APP_CATALOG` n'est pas
+« la liste des apps » : c'est le **contrat d'une app générique de traitement de fichiers** —
+`input_types`, `input_extensions`, `batch_type`, `output_types`, et la grille `conventions`
+**mesurée** par `check_app_conformity`. Y faire entrer une brique transversale la ferait entrer dans
+le **dénominateur de conformité** avec un contrat presque entièrement N/A : on diluerait une mesure
+qui est la source vivante de `/apps/` pour régler un problème d'affichage. Le studio et la
+médiathèque ne sont pas des apps mal déclarées, ce sont des natures différentes.
+
+**La bonne clé existait déjà** : `extra_links[].gate` **est** l'app_id, celui-là même dont
+`accessible()` décide. L'abonnement suit donc `gate` — une seule déclaration pour le droit **et**
+pour la préférence, au lieu de deux qui divergeraient.
+
+| Ce qui change | Effet |
+|---|---|
+| `apps_catalog_view` enrichit chaque `extra_link` (`gate`, `autorisee`, `abonnable`, `abonne`) | le périmètre du bandeau devient *cards + liens gardés*, donc ce que le sélecteur tout/rien touche réellement |
+| `apps.html` rend la bascule sur les cards-lien | même geste, même coin de card — la brique JS n'a pas bougé d'une ligne (c'est le test du caractère déclaratif) |
+| `context_processors` filtre aussi les `extra_links` par les masquages | masquer le studio le retire du menu comme n'importe quelle app |
+| `model_manager` reçoit un `gate` | son lien s'affichait au catalogue **pour tout le monde**, alors que le middleware refuse ensuite la page : un lien gardé ailleurs et pas ici est la promesse d'un 403 |
+
+⚠ **Trois états, pas deux.** Un lien `nav_hide` (le model_manager) n'apparaît dans aucun menu :
+le masquer ne changerait rien nulle part. Il ne porte donc **pas** de bascule — une bascule sans
+effet serait exactement le mécanisme muet que le dépôt traque. Il reste soumis au contrôle d'accès.
+
+**La propriété qui empêche l'écart de se rouvrir** (`test_toute_app_gardee_a_une_surface_au_catalogue`) :
+`all_gated_apps() − surfaces_du_catalogue == ∅`. Toute app ajoutée à `DEFAULT_APP_ACCESS` sans card
+ni `extra_link` fait tomber ce test le jour où elle est ajoutée — au lieu d'être invisible et
+immasquable jusqu'à ce que quelqu'un le remarque.

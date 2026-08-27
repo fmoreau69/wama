@@ -11,6 +11,11 @@ dise pourquoi. Deux propriétés doivent donc être PROUVÉES, jamais relues :
 
 ⚠ Aucun test ne fige la liste des apps ni un compte d'apps : l'ensemble autorisé se MESURE au
 moment du test (`accessible`), sinon ajouter une app au catalogue rendrait ces tests faux.
+
+⚠ Le PÉRIMÈTRE du mécanisme est celui du DROIT, pas celui d'`APP_CATALOG` (27/08) : les surfaces
+transversales (studio, médiathèque, model_manager) et Lab sont gardées par le même `accessible()`
+tout en étant déclarées en `extra_links`. `test_toute_app_gardee_a_une_surface_au_catalogue` fixe
+la propriété qui empêche l'écart de se rouvrir.
 """
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
@@ -27,14 +32,38 @@ def _apps_autorisees(user):
     return sorted(a for a in all_gated_apps() if accessible(user, a))
 
 
-def _apps_catalogue_autorisees(user):
-    """…restreint aux apps qui ont une CARD dans le catalogue.
+def _surfaces_catalogue():
+    """Tout ce que la page `/apps/` MONTRE et qui porte un app_id : les cards d'`APP_CATALOG`
+    **et** les `extra_links` gardés (surfaces transversales — studio, médiathèque, model_manager —
+    et Lab).
 
-    ⚠ Les deux ensembles diffèrent RÉELLEMENT (mesuré) : `all_gated_apps()` dérive de
-    `DEFAULT_APP_ACCESS`, qui garde des surfaces sans entrée dans `APP_CATALOG` (`media_library`).
-    Confondre les deux ferait échouer le bandeau sur un écart qui n'est pas le sien."""
-    from wama.common.app_registry import APP_CATALOG
-    return [a for a in _apps_autorisees(user) if a in APP_CATALOG]
+    ⚠ `APP_CATALOG` n'est PAS « la liste des apps » : c'est le contrat d'une app générique de
+    traitement de fichiers (types d'entrée, batch, grille `conventions`). Les briques
+    transversales sont déclarées en `extra_links`, avec la MÊME clé `gate` = app_id. Dériver le
+    périmètre de l'abonnement du seul `APP_CATALOG` laissait 5 surfaces masquables par rien."""
+    from wama.common.app_registry import APP_CATALOG, APP_CATEGORIES
+    ids = set(APP_CATALOG)
+    for meta in APP_CATEGORIES.values():
+        for lien in meta.get('extra_links', []):
+            if lien.get('gate'):
+                ids.add(lien['gate'])
+    return ids
+
+
+def _surfaces_abonnables():
+    """…moins celles qu'aucun menu n'affiche (`nav_hide`) : les masquer ne changerait rien."""
+    from wama.common.app_registry import APP_CATALOG, APP_CATEGORIES
+    ids = set(APP_CATALOG)
+    for meta in APP_CATEGORIES.values():
+        for lien in meta.get('extra_links', []):
+            if lien.get('gate') and not lien.get('nav_hide'):
+                ids.add(lien['gate'])
+    return ids
+
+
+def _abonnables_autorisees(user):
+    """Le périmètre exact du bandeau « N sur M » : gardé, autorisé, et masquable."""
+    return [a for a in _apps_autorisees(user) if a in _surfaces_abonnables()]
 
 
 class ServiceAbonnementTests(TestCase):
@@ -171,7 +200,7 @@ class MenuEtCatalogueTests(TestCase):
 
     def setUp(self):
         self.client.force_login(self.user)
-        autorisees = _apps_catalogue_autorisees(self.user)
+        autorisees = _abonnables_autorisees(self.user)
         # Garde d'INSTRUMENT : sans app autorisée ET présente au catalogue, tout ce qui suit
         # passerait sur du vide — le harnais qui annonce « 0 échec » parce qu'il ne voit rien.
         self.assertTrue(autorisees, "aucune app autorisée au catalogue : le test ne mesurerait rien")
@@ -226,13 +255,86 @@ class MenuEtCatalogueTests(TestCase):
 
     def test_le_resume_du_bandeau_ne_compte_que_les_apps_autorisees(self):
         r = self.client.get(reverse('common:apps_catalog'))
-        # Le bandeau compte les CARDS autorisées — et cet ensemble est bien celui du droit,
-        # restreint au catalogue (cf. `_apps_catalogue_autorisees`). La double dérivation est
-        # vérifiée ici plutôt que relue : c'est le seul endroit où elles doivent coïncider.
-        self.assertEqual(r.context['abo']['total'], len(_apps_catalogue_autorisees(self.user)))
-        self.assertEqual({a['name'] for a in r.context['apps_list'] if a['autorisee']},
-                         set(_apps_catalogue_autorisees(self.user)))
+        # Le bandeau compte les surfaces autorisées ET masquables — cards du catalogue *plus*
+        # liens transversaux/Lab. La double dérivation est vérifiée ici plutôt que relue : c'est
+        # le seul endroit où elles doivent coïncider.
+        self.assertEqual(r.context['abo']['total'], len(_abonnables_autorisees(self.user)))
+        self.assertEqual(set(r.context['abo_ids']), set(_abonnables_autorisees(self.user)))
         self.assertEqual(r.context['abo']['masques'], 0)
         abo.definir(self.user, 'app', self.cible, False)
         r = self.client.get(reverse('common:apps_catalog'))
         self.assertEqual(r.context['abo']['masques'], 1)
+
+
+class SurfacesTransversalesTests(TestCase):
+    """Les surfaces qui ne sont PAS des cards de catalogue (studio, médiathèque, Lab).
+
+    Elles sont gardées par le même `accessible()` : elles doivent être masquables par le même
+    abonnement, sinon le mécanisme s'arrête à une frontière (`APP_CATALOG`) qui n'est pas celle
+    du droit — c'est l'écart mesuré au jalon S1, refermé ici."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = get_user_model().objects.create_user('abo_transverse_test', password='x')
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def _liens(self, reponse):
+        return [l for g in reponse.context['apps_grouped'] for l in g['links']]
+
+    def test_toute_app_gardee_a_une_surface_au_catalogue(self):
+        # 🔴 LA propriété qui referme l'écart : rien ne peut être soumis au contrôle d'accès sans
+        # être montré quelque part. Une app ajoutée à DEFAULT_APP_ACCESS sans card ni extra_link
+        # serait invisible ET immasquable — ce test la fait tomber le jour où elle est ajoutée.
+        from wama.accounts.permissions import all_gated_apps
+        self.assertEqual(all_gated_apps() - _surfaces_catalogue(), set())
+
+    def test_une_surface_transversale_porte_la_meme_bascule(self):
+        r = self.client.get(reverse('common:apps_catalog'))
+        gates = {l['gate'] for l in self._liens(r) if l.get('abonnable') and l['autorisee']}
+        # Garde d'INSTRUMENT : sans surface transversale autorisée, le test ne mesure rien.
+        self.assertTrue(gates, "aucune surface transversale autorisée : rien à mesurer")
+        for gate in gates:
+            self.assertContains(r, 'data-abo-id="%s"' % gate)
+
+    def test_masquer_une_surface_transversale_la_retire_du_menu(self):
+        r = self.client.get(reverse('common:apps_catalog'))
+        cible = next(l['gate'] for l in self._liens(r) if l.get('abonnable') and l['autorisee'])
+
+        def liens_du_menu(rep):
+            return {l.get('gate') for g in rep.context['nav_apps_grouped'] for l in g['links']}
+
+        self.assertIn(cible, liens_du_menu(r))
+        abo.definir(self.user, 'app', cible, False)
+        r2 = self.client.get(reverse('common:apps_catalog'))
+        self.assertNotIn(cible, liens_du_menu(r2))
+        # …et elle reste au catalogue, avec sa bascule : le seul endroit pour la réafficher.
+        self.assertContains(r2, 'data-abo-id="%s"' % cible)
+        lien = next(l for l in self._liens(r2) if l['gate'] == cible)
+        self.assertTrue(lien['autorisee'])
+        self.assertFalse(lien['abonne'])
+        self.assertEqual(r2.context['apps_masquees_count'], 1)
+
+    def test_une_surface_hors_menu_ne_porte_pas_de_bascule_sans_effet(self):
+        # `nav_hide` (model_manager) : aucun menu ne l'affiche, donc la masquer ne changerait
+        # rien — une bascule y serait un geste sans conséquence, exactement le mécanisme muet
+        # que le dépôt traque. Le contrôle d'ACCÈS, lui, s'applique quand même.
+        r = self.client.get(reverse('common:apps_catalog'))
+        caches = [l for l in self._liens(r) if l.get('nav_hide')]
+        self.assertTrue(caches, "aucun lien nav_hide : le test ne mesurerait rien")
+        for lien in caches:
+            self.assertFalse(lien['abonnable'])
+            self.assertNotIn(lien['gate'], r.context['abo_ids'])
+
+    def test_un_lien_garde_non_autorise_s_affiche_sans_bascule(self):
+        # Le catalogue montre TOUT, y compris ce à quoi on n'a pas droit — mais un lien gardé
+        # sans droit annonçait jusqu'ici une page que le middleware refuse ensuite.
+        from wama.accounts.permissions import accessible
+        r = self.client.get(reverse('common:apps_catalog'))
+        fermes = [l for l in self._liens(r) if l.get('gate') and not l['autorisee']]
+        self.assertTrue(fermes, "aucun lien fermé : le test ne mesurerait rien")
+        for lien in fermes:
+            self.assertFalse(accessible(self.user, lien['gate']))
+            self.assertFalse(lien['abonne'])
+            self.assertNotContains(r, 'data-abo-id="%s"' % lien['gate'])

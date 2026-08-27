@@ -316,9 +316,27 @@ def apps_catalog_view(request):
         links = []
         for link in meta.get('extra_links', []):
             try:
-                links.append({**link, 'url': reverse(link['url_name'])})
+                url = reverse(link['url_name'])
             except NoReverseMatch:
                 continue  # surface pas encore installée → lien omis, pas d'erreur
+            # Les surfaces TRANSVERSALES (studio, médiathèque, model_manager) et Lab sont des
+            # extra_links, pas des cards de catalogue — mais elles sont gardées par le MÊME
+            # `accessible()` et doivent donc être masquables par le MÊME abonnement. La clé est
+            # `gate` (= l'app_id) : c'est déjà celle du droit, en réutiliser une autre ferait
+            # deux déclarations pour une seule chose. Sans `gate` → surface publique, ni gardée
+            # ni masquable (et le template n'affiche alors ni bascule ni badge).
+            #
+            # ⚠ `nav_hide` : le lien n'est PAS dans le menu Applications (le model_manager a son
+            # entrée dans la section Administration). Masquer une telle surface ne changerait
+            # rien nulle part — donc pas de bascule : une bascule sans effet est exactement le
+            # mécanisme muet que le dépôt traque. Le contrôle d'ACCÈS, lui, s'affiche quand même.
+            gate = link.get('gate')
+            autorisee = accessible(request.user, gate) if gate else True
+            abonnable = bool(gate) and not link.get('nav_hide')
+            links.append({**link, 'url': url, 'gate': gate,
+                          'autorisee': autorisee,
+                          'abonnable': abonnable,
+                          'abonne': abonnable and autorisee and gate not in apps_masquees})
         if items or links:
             apps_grouped.append({'id': cid, 'meta': meta, 'apps': items, 'links': links})
 
@@ -341,7 +359,15 @@ def apps_catalog_view(request):
                      'options': {'mes': 'Mes applications', 'masquees': 'Masquées',
                                  'fermees': 'Sans accès'}})
 
+    # Périmètre de l'abonnement = TOUT ce qui est gardé ET autorisé ET a une surface sur cette
+    # page — cards du catalogue *plus* liens transversaux/Lab. Avant le 27/08 ce périmètre était
+    # les seules cards : le bandeau « N sur M » comptait donc autre chose que ce que le sélecteur
+    # tout/rien touchait, et les 5 surfaces à extra_links n'étaient masquables par rien.
     autorisees = [a['name'] for a in apps_list if a['autorisee']]
+    for groupe in apps_grouped:
+        for lien in groupe['links']:
+            if lien['abonnable'] and lien['autorisee'] and lien['gate'] not in autorisees:
+                autorisees.append(lien['gate'])
 
     return render(request, 'common/apps.html',
                   {'apps_list': apps_list, 'apps_grouped': apps_grouped,

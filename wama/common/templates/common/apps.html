@@ -9,7 +9,12 @@
 <link rel="stylesheet" href="{% static_v 'common/css/wama-inspector-autofill.css' %}">
 <style>
     .apps-page { padding: 2rem 0; }
-    .app-item { cursor: pointer; }
+    .app-item { cursor: pointer; position: relative; }
+    /* Bascule d'abonnement des cards-LIEN (surfaces transversales / Lab) : la card est un <a>
+       plein, on ne peut pas y imbriquer un contrôle (clic capturé par le lien, et HTML invalide).
+       Elle est donc posée en surimpression, à la place EXACTE qu'elle occupe sur les cards d'app
+       (coin haut-droit) — même geste, même endroit. */
+    .app-abo-coin { position: absolute; top: 0.9rem; right: 1.1rem; z-index: 2; }
     .app-item.app-active .app-card { border-color: #0d6efd !important; box-shadow: 0 0 0 1px #0d6efd; }
     .apps-page h1 { font-size: 1.6rem; font-weight: 600; color: #e9ecef; margin-bottom: 0.25rem; }
     .apps-page .subtitle { color: #6c757d; font-size: 0.9rem; margin-bottom: 2rem; }
@@ -269,10 +274,36 @@ n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux m
         </div>
         {% endwith %}
         {% endfor %}
+        {% comment %}Cards-LIEN : les surfaces TRANSVERSALES (studio, médiathèque, model_manager)
+        et Lab. Elles ne sont pas dans APP_CATALOG — qui est le contrat d'une app générique de
+        traitement de fichiers, pas « la liste des apps » — mais elles sont gardées par le MÊME
+        `accessible()`, donc elles portent la MÊME bascule d'abonnement, sur la même clé (`gate`).
+        Un lien sans `gate` est une surface publique : ni facette, ni bascule.{% endcomment %}
         {% for link in group.links %}
         <div class="col-12 col-md-6 col-xl-4 app-item"
              data-f-categorie="{{ group.meta.label }}"
+             {% if link.gate %}data-f-abonnement="{% if not link.autorisee %}fermees{% elif not link.abonnable or link.abonne %}mes{% else %}masquees{% endif %}"{% endif %}
              data-f-text="{{ link.label|lower }}">
+            {% comment %}TROIS états, pas deux : autorisée-et-masquable (bascule), fermée (badge),
+            et autorisée-mais-pas-masquable (`nav_hide` : rien — la masquer ne changerait rien
+            nulle part, et une bascule sans effet serait un mécanisme muet).{% endcomment %}
+            {% if link.gate and user.is_authenticated and user.username != 'anonymous' %}
+                {% if not link.autorisee %}
+                <div class="app-abo-coin">
+                    <span class="badge bg-secondary" title="Votre profil ne donne pas accès à cette surface">
+                        <i class="fas fa-lock me-1"></i>Sans accès
+                    </span>
+                </div>
+                {% elif link.abonnable %}
+                <div class="app-abo-coin">
+                    <div class="form-check form-switch m-0" title="Afficher cette surface dans le menu">
+                        <input class="form-check-input" type="checkbox" role="switch"
+                               id="abo-{{ link.gate }}" data-abo-toggle data-abo-id="{{ link.gate }}"
+                               {% if link.abonne %}checked{% endif %}>
+                    </div>
+                </div>
+                {% endif %}
+            {% endif %}
             <a href="{{ link.url }}" class="app-card d-flex align-items-center gap-3 text-decoration-none">
                 <div class="app-icon" style="background:#6c757d22;color:#9aa5b4;"><i class="fas {{ link.icon }}"></i></div>
                 <h3 class="mb-0">{{ link.label }}</h3>

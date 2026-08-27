@@ -709,7 +709,9 @@ MECANISMES = (
               "ne peut que RESTREINDRE ce à quoi l'utilisateur a déjà accès. Seules les EXCEPTIONS "
               "sont stockées (se réabonner efface la ligne) ; une nature d'élément s'ajoute par "
               "une entrée dans KINDS, et la page de catalogue hérite du mécanisme par deux "
-              "attributs (`data-abo`, `data-abo-toggle`)",
+              "attributs (`data-abo`, `data-abo-toggle`). Son PÉRIMÈTRE est celui du DROIT, pas "
+              "d'APP_CATALOG : les surfaces transversales et Lab (extra_links) se masquent par la "
+              "même clé `gate` que celle dont accessible() décide (§8.8.1)",
               'wama/common/services/subscriptions.py', 'PROFILES_PERMISSIONS.md',
               annexes=('wama/common/static/common/js/wama-abonnement.js',
                        'wama/common/tests_subscriptions.py')),

@@ -292,6 +292,16 @@ def _conv(
 # groupe — piège de l'Enhancer coupé en deux). Les 3 premières catégories sont DÉRIVABLES des
 # types déclarés (derive_category) ; les suivantes accueillent les surfaces hors-catalogue via
 # extra_links en attendant leur entrée au catalogue (Data = apps à venir : LSL, segmentation…).
+#
+# ⚠ `gate` N'EST PAS un détail de menu : c'est l'app_id de la surface, donc LA clé unique par
+# laquelle `accessible()` décide du droit ET par laquelle l'abonnement (PROFILES_PERMISSIONS §8)
+# décide de l'affichage. Une surface transversale (studio, médiathèque, model_manager) ou Lab est
+# déclarée ICI et pas dans APP_CATALOG parce qu'APP_CATALOG n'est pas « la liste des apps » mais le
+# CONTRAT d'une app générique de traitement de fichiers (input_types, batch_type, grille
+# `conventions` mesurée par check_app_conformity). Y faire entrer une brique transversale la ferait
+# entrer dans le dénominateur de conformité avec un contrat presque entièrement N/A.
+# Corollaire : tout ce qui est gardé porte un `gate` — un extra_link sans `gate` n'est ni gardable
+# ni masquable, et se lit comme « surface publique ».
 APP_CATEGORIES = {
     'understand': {
         'label': 'Comprendre', 'icon': '🧠', 'order': 1,
@@ -328,7 +338,11 @@ APP_CATEGORIES = {
             # (le model_manager a déjà son entrée dans la section Administration du header).
             {'label': 'Studio', 'url_name': 'studio:index', 'icon': 'fa-diagram-project', 'color': '#fb923c', 'gate': 'studio'},
             {'label': 'Médiathèque', 'url_name': 'media_library:index', 'icon': 'fa-photo-film', 'color': '#a78bfa', 'gate': 'media_library'},
-            {'label': 'Gestion des modèles', 'url_name': 'model_manager:index', 'icon': 'fa-microchip', 'nav_hide': True},
+            # `gate` ajouté le 27/08 : le model_manager EST sous contrôle d'accès
+            # (DEFAULT_APP_ACCESS, min_tier développeur) mais son lien s'affichait au catalogue
+            # pour tout le monde — le middleware refusait ensuite la page. Un lien gardé ailleurs
+            # et pas ici, c'est la promesse d'un 403.
+            {'label': 'Gestion des modèles', 'url_name': 'model_manager:index', 'icon': 'fa-microchip', 'nav_hide': True, 'gate': 'model_manager'},
         ],
     },
 }

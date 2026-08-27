@@ -102,6 +102,11 @@ def user_role(request):
                 _gate = _link.get('gate')
                 if _gate and _gate not in accessible_apps:
                     continue
+                # …puis la PRÉFÉRENCE, dans le même ordre que pour les cards : une surface
+                # transversale (studio, médiathèque) ou Lab se masque comme une app, par la même
+                # clé `gate`. Elle reste retrouvable au catalogue, avec sa bascule.
+                if _gate and _gate in apps_masquees:
+                    continue
                 try:
                     _links.append({**_link, 'url': _reverse(_link['url_name'])})
                 except Exception:
