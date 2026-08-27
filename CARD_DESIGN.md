@@ -132,7 +132,7 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
   moderne, accès indirect au contenu/preview, diverge du modèle concis↔étendu.
 - **Héritage des réglages batch→item** : règle « override + héritage » (conventions **§9.9**) — un item
   hérite des réglages du batch SAUF ceux modifiés au niveau item (y compris fichier de référence).
-  Implémenté dans le Transcriber (`views.py:1767`) — **À CENTRALISER dans `common/`** (aujourd'hui per-app).
+  Implémenté dans le Transcriber (`transcriber/views.py:1768`) — **À CENTRALISER dans `common/`** (aujourd'hui per-app).
 
 ## 3bis. Manipulation directe de la file : réorganiser, batcher, filtrer/trier
 
@@ -203,7 +203,7 @@ Solitaire §3ter), le **dé** comme symbole de lancement (déjà utilisé dans l
 **clins d'œil ludiques** disséminés — **purement esthétiques**, jamais au détriment de la lisibilité ni
 de la fonction. Donne une identité fraîche et cohérente à l'UI.
 
-Lié : `WAMA_APP_CONVENTIONS.md` (§boutons, §22 inspecteur), `GENERALIZATION_PLAN.md` (axe B), `COMMON_REFACTORING.md`, `MODES_QUEUE_UX.md`.
+Lié : `WAMA_APP_CONVENTIONS.md` (§boutons, §22 inspecteur), `WAMA_APP_GENERATION_ROUTE.md` (consolide les ex-GENERALIZATION_PLAN et COMMON_REFACTORING, archivés `docs/archive/`), `MODES_QUEUE_UX.md`.
 
 ---
 
@@ -292,7 +292,7 @@ Lié : `WAMA_APP_CONVENTIONS.md` (§boutons, §22 inspecteur), `GENERALIZATION_P
 ### 8.4 Lien Axe 3 (hors card, noté ici pour cohérence)
 Prospection LLM → router un modèle vers une app existante (capacités vs `APP_CATALOG`) ou faire
 **émerger** une app depuis un manifeste. Détail dans `PROJECT_STATUS.md §2`/`§18` et
-`GENERALIZATION_PLAN.md` (horizon manifeste). **Phase B gatée** sur la maturité du runtime manifeste.
+`WAMA_APP_GENERATION_ROUTE.md` (horizon manifeste). **Phase B gatée** sur la maturité du runtime manifeste.
 
 ## 9. Couleurs par CATÉGORIE + homogénéisation des tuiles (consigné 2026-07-05 — §9.1 + surfaces 1 et 3 IMPLÉMENTÉS le jour même ; filemanager (§9.2-2) et tuiles (§9.3) différés)
 
@@ -435,10 +435,10 @@ tranchent une fois sur les briques communes et se propagent. Consignés au fil d
   classe commune `.wama-card` (wama-inspector.css) avec une **opacité choisie pour le contraste des
   boutons** ; retirer les fonds par app. (Signalé Fabien 2026-07-07.)
 - **~~Temps de traitement affiché seulement par transcriber~~ ✅ **RÉSOLU pour les 5 apps portées**
-  (audit 2026-07-11) : `ProcessingTimeMixin` (`wama/common/models.py`) adopté par transcriber/
-  describer/composer/reader/converter, affichage via `_processing_time.html`/`_card_progress.html`.
-  Restent SANS le mixin : enhancer (2 modèles), synthesizer, anonymizer, imager, avatarizer —
-  à poser lors de leur port (grille `processing_time` dans `/apps/`).
+  `ProcessingTimeMixin` (`wama/common/models.py`) : ✅ **10/10** (re-mesuré 2026-08-27 — les 6
+  classes des 5 apps restantes de l'audit du 07/11 le portent : `Enhancement`+`AudioEnhancement`,
+  `VoiceSynthesis`, `Media`, `ImageGeneration`, `AvatarJob`), affichage via
+  `_processing_time.html`/`_card_progress.html` ; critère vivant = `processing_time` dans `/apps/`.
 
 ---
 
@@ -456,16 +456,20 @@ tranchent une fois sur les briques communes et se propagent. Consignés au fil d
 > pas le Transcriber), puis composer.
 
 ### Décisions ACTÉES
-- **Grille à pistes FIXES partagées** par toutes les cards (232px · 1fr · 1,15fr · 118px · 188px
-  indicatif) → les 5 sections (Entrée · Réglages · Sortie · État · Actions) s'alignent
-  verticalement dans la pile. Micro-étiquettes 0,55rem uppercase par section.
+- **Grille à pistes alignées** — ⚠ depuis le 2026-08-23, les pistes sont **MESURÉES par
+  `wama-card-v3.js` et PROPRES à chaque app** (recalculées quand le contenu change) ; les valeurs
+  CSS (232px · 1fr · 1,15fr · 118px · 186px) ne sont que des **replis avant le premier passage du
+  JS** — les lire comme des largeurs est un piège vécu (`wama-card-v3.css:158-166`). Les 5 sections
+  (Entrée · Réglages · Sortie · État · Actions) s'alignent verticalement dans la pile.
+  Micro-étiquettes 0,55rem uppercase par section.
 - **Entrée sur sous-lignes** : nom → propriétés réelles du média (mp3 · 44,1 kHz · stéréo ·
   durée) → #id · date. Miniature 48px pour les apps à entrée visuelle.
 - **Section SORTIE temporelle** : chips « blueprint » (pointillés, ~estimations, dérivées des
   réglages + ETA apprise) AVANT → étape live + % PENDANT → chips solides (propriétés réelles,
   détail par étape façon Transcriber : « 8 742 mots · 3 locuteurs · cohérence 85/100 ») APRÈS ;
-  l'erreur remplace la sortie au même endroit en échec. Chips = brique card_chips, futur attribut
-  `section=` (input/settings/output) sur les Param `chip=True` + hook `predicted_output()` par app.
+  l'erreur remplace la sortie au même endroit en échec. Chips = brique card_chips, attribut
+  `section=` (input/settings/output) sur les Param `chip=True` — ✅ **livré** (converter/reader,
+  `_card_chips.html`) ; reste le hook `predicted_output()` par app (prototype reader).
 - **Zone de PREVIEW PERMANENTE** (jamais retirée) : récapitulatif de sortie dès l'ajout (fond
   légèrement distinct, ex. « Transcription (texte) + diarisation · formats après traitement :
   TXT · SRT · PDF · DOCX ») → PENDANT : préviz de process si disponible → APRÈS : préviz réelle.
@@ -518,8 +522,8 @@ solides), preview permanente, barre verte sur tout le cycle, échec figé au % a
 cyan (mère `wcv3--batch-parent`, filles fond `#0d1a1a`).
 
 **Où vit quoi** — CSS = brique commune `common/static/common/css/wama-card-v3.css` (chargée par
-`base.html`) ; markup = `reader/_item_card.html` (pilote). Remontée du markup en
-`common/_card_v3.html` **après** validation d'usage, comme le prévoyait déjà §10.4 pour la v2 : on ne
+`base.html`) ; markup = `reader/_item_card.html` (pilote). Remontée du markup en gabarit commun
+(cible : _card_v3 dans `common/templates/common/`, à créer) **après** validation d'usage, comme le prévoyait déjà §10.4 pour la v2 : on ne
 fige pas une anatomie avant de l'avoir vue tourner. La brique `_card_chips.html` n'a PAS été touchée
 (elle sert aussi l'avatarizer) — l'attribut `section=` du §11 reste à faire.
 
@@ -530,9 +534,11 @@ fige pas une anatomie avant de l'avoir vue tourner. La brique `_card_chips.html`
    `@media (max-width:1400px)` ne se déclenche donc JAMAIS alors que les pistes débordent déjà. La
    card se déclare `container-type: inline-size` et se mesure à elle-même. **Les volets sont la
    norme dans WAMA, pas l'exception** — toute future brique de card doit partir de là.
-2. **La piste ACTIONS a un plancher incompressible** (~176 px = 5 boutons + gaps). La resserrer avec
-   les autres faisait passer la corbeille à la ligne — le débordement que §11 interdit. Ce sont les
-   pistes de CONTENU qui absorbent la contrainte, jamais celle des actions.
+2. **La piste ACTIONS est MESURÉE, jamais devinée** (`actionsWidth()` de `wama-card-v3.js` ; le
+   `186px` du CSS est un repli, pas un plancher — piège vécu le 2026-08-23, les **six** boutons
+   tiennent). La resserrer avec les autres faisait passer la corbeille à la ligne — le débordement
+   que §11 interdit. Ce sont les pistes de CONTENU qui absorbent la contrainte, jamais celle des
+   actions.
 3. **Les seuils de repli se mesurent, ils ne se devinent pas.** Premier jet à 980 px : la file réelle
    (888 px) tombait toujours dans le repli, donc le formalisme canonique n'était JAMAIS visible dans
    la configuration la plus courante. Seuil ramené à 760 px après mesure.
@@ -550,9 +556,10 @@ fige pas une anatomie avant de l'avoir vue tourner. La brique `_card_chips.html`
 **Exemple d'échec** — le cas manquant de la maquette est désormais couvert et testé (barre figée à
 43 %, verte, non animée ; erreur en piste SORTIE remplaçant le blueprint).
 
-**Reste ouvert** : attribut `section=` sur les `Param chip=True` + hook commun `predicted_output()`
-(prototypé dans `reader/views.py::_output_chips`) ; miniature réelle au lieu de l'icône typée ;
-pile × mosaïque (toujours non tranché) ; remontée du markup en brique commune.
+**Reste ouvert** : hook commun `predicted_output()` (prototypé dans `reader/views.py::_output_chips`) ;
+miniature réelle au lieu de l'icône typée ; pile × mosaïque (toujours non tranché) ; remontée du
+markup en brique commune. *(L'attribut `section=` sur les `Param chip=True` est LIVRÉ —
+converter/reader, re-mesuré 2026-08-27.)*
 
 ### 11.4 TROIS DESIGNS COEXISTANTS — v1 · v2 · v3 (décision 2026-08-01, précisée le même jour)
 

@@ -1,8 +1,12 @@
 # TRANSCRIBER_REFERENCE_AUDIT.md — l'app de référence décortiquée
 
 > **But** : Transcriber « a presque tout » (Fabien). Ce document inventorie EXHAUSTIVEMENT ses
-> mécanismes (audit empirique 2026-07-02 : 46 endpoints, 1646 lignes JS, 3 templates) pour que
-> tout portage soit **complet par construction** — la §6 est LA checklist de fin d'app.
+> mécanismes pour que tout portage soit **complet par construction** — la §6 est LA checklist de
+> fin d'app (19 lignes — le compte vit ICI, ne pas le recopier ailleurs).
+> ⚠ **Les §1-5 sont la PHOTO de l'audit empirique du 2026-07-02** (46 endpoints, 1646 l. JS,
+> 3 templates À CETTE DATE) ; re-mesuré le 2026-08-27 : **45 endpoints** (`urls.py`), **~2 400 l.
+> JS** (`index.js` + `edit.js`), **6 templates**. Lire les §1-5 comme un relevé daté, pas comme
+> l'état courant.
 > Compagnon de `wama/common/README.md` (le workflow) — ici : l'INSTANCE de référence.
 
 ---
@@ -71,13 +75,15 @@
 Éditeur de correction (page dédiée) · préprocessing audio · Speak temps réel · diarisation/locuteurs.
 → le reste (~90 %) est du PATTERN à répliquer.
 
-## 5. Trous de généralisation détectés par cet audit (à tracer)
-- **Manipulation directe** (`reorder`/`move_to_batch`/`remove_from_batch`/`consolidate`) : implémentée
-  transcriber-only → brique commune à extraire (déjà noté CARD_DESIGN §3bis).
-- **Héritage batch→item** : logique transcriber-only (l.1869) → à centraliser (mémoire §9.9).
-- **Batch unifié** (`_wrap_*`/`_auto_wrap_orphans`) : pattern dupliqué synthesizer — à briquer.
-- **Câblage drop/clic de `_new_item_card`** : chaque app réécrit ~14 lignes → candidat
-  `wama-new-item-card.js` commun.
+## 5. Trous de généralisation détectés par cet audit — 3 des 4 REFERMÉS (relevé 2026-08-27)
+- ✅ **Manipulation directe** (`reorder`/`move_to_batch`…) : `reorder` est nommé dans **10**
+  `urls.py` d'apps — généralisé.
+- ⏳ **Héritage batch→item** : logique transcriber-only (`transcriber/views.py::batch_update_settings`)
+  → toujours à centraliser (mémoire §9.9). **Seul trou restant.**
+- ✅ **Batch unifié** : brique livrée — `wama/common/utils/batch_common.py::auto_wrap_orphans`,
+  consommée (anonymizer) et enseignée à la codegen.
+- ✅ **Câblage drop/clic de `_new_item_card`** : `wama/common/static/common/js/wama-new-item-card.js`
+  existe.
 
 ## 6. CHECKLIST DE FIN D'APP (une app est « finie » quand chaque ligne est ✓ ou N/A justifié)
 

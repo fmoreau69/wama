@@ -498,9 +498,9 @@ sujets ? »*
 
 | | MATLAB | pynd |
 |---|---|---|
-| API données | `Trip` : ~76 méthodes abstraites | **`sqlite_trip.py` : 106 méthodes**, API portée fidèlement (`get_data_occurences_in_time_interval`, `..._near_time`, `..._at_time`, min/max, `add_*`…) |
-| contrat abstrait | `Trip.m` (1240 l.) | **`trip.py` : 9 lignes** — `__init__` = `pass`, tout le reste `NotImplementedError` |
-| couche temporelle | `TimerTrip.m` | **absente** — `# TODO Uncomment when timer is implement` (`sqlite_trip.py:114`) |
+| API données | `Trip` : ~76 méthodes abstraites | **sqlite_trip (pynd) : 106 méthodes**, API portée fidèlement (`get_data_occurences_in_time_interval`, `..._near_time`, `..._at_time`, min/max, `add_*`…) |
+| contrat abstrait | `Trip.m` (1240 l.) | **trip (pynd) : 9 lignes** — `__init__` = `pass`, tout le reste `NotImplementedError` |
+| couche temporelle | `TimerTrip.m` | **absente** — `# TODO Uncomment when timer is implement` (pynd, sqlite_trip ligne 114) |
 | observers / messages | `Observable`/`Observer`, `TripMessage`, `TimerMessage` | **absents** |
 | plugins / configurateurs / widgets | 4 packages | **absents** |
 
@@ -1680,7 +1680,7 @@ alimenter). C'est une frontière à part entière, au même niveau que `modules.
 > déjà, et on ne contourne pas : écraser en place rendrait irrécupérable ce qui l'a produit. Un
 > recalcul se range sous un nom dérivé, comme une colonne calculée.
 
-#### ✅ LE VIEW-MODEL est livré — `wama_data/vue.py` (2026-08-23, 31 tests)
+#### ✅ LE VIEW-MODEL est livré — `wama_data/view.py` (ex-vue, anglicisé par D28 ; 2026-08-23, 31 tests)
 
 Seconde moitié du cœur. Une `Vue` déclare **quels flux (`Piste`), quelle fenêtre et quelle
 résolution (`Fenetre`), quelles colonnes dérivées (`ColonneDerivee`)** — et elle est
@@ -1962,11 +1962,11 @@ règles éparpillées**, et l'une n'était pas une règle :
 nom_produit()                functions/temporal/calculation.py   ← dans l'ADAPTATEUR
 nom_jonction(), nom_chaine() core/conditions.py                  ← dans le CŒUR
 Colonne.titre                core/export.py
-f"{d.flux}_{d.fonction}"     vue.py:259, EN DUR                  ← pas une règle du tout
+f"{d.flux}_{d.fonction}"     view.py (alors vue, l.259), EN DUR  ← pas une règle du tout
 ```
 
-**Corrigé** : brique unique `wama_data/core/noms.py` — `normaliser()` (point de passage unique),
-`nom_produit`, `nom_jonction`, `nom_annexe`. Les anciens emplacements **réexportent** au lieu de
+**Corrigé** : brique unique `wama_data/core/naming.py` (ex-noms, D28) — `normalize()` (point de
+passage unique), `derived_name`, `join_name`, `annex_name`. Les anciens emplacements **réexportent** au lieu de
 redéfinir, et un test vérifie **l'identité des fonctions** (`assertIs`) : une redéfinition locale,
 même à l'identique, échoue. La brique **n'a aucune dépendance** — condition pour que
 `conditions.py` l'importe sans cycle, ce qu'un test garde par AST.
@@ -2803,7 +2803,7 @@ référence (exploratoire/test), soit sur la sélection (production sur la pile 
 donc un **mode du monde Data entier**, pas un bouton de l'Exporter.
 
 ⭐ **Et WAMA a déjà ce geste** : c'est **item vs lot** du monde Médias (traiter cette card / traiter
-le lot), avec sa doctrine écrite dans `wama/common/app_modes.py`. Le recoder par module créerait un
+le lot), avec sa doctrine écrite dans `wama/common/utils/app_modes.py`. Le recoder par module créerait un
 **troisième vocabulaire** pour une notion qui en a déjà un.
 
 ### 11.5 CATALOGER — et pourquoi son nom pose problème

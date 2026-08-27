@@ -126,7 +126,7 @@ c'est ce qui rend `source_text` / `result_text` structurants et non décoratifs 
 |---|---|---|
 | **Aperçu d'entrée** (texte) | `source_text` | `preview_utils.py:113-123` |
 | **Geste « Ajouter au RAG »** | `result_text`, sinon `source_text` — **data-gated** : pas de texte ⇒ pas de bouton | `wama-inspector.js` (`_ragChip`) |
-| **Ingestion RAG** | `result_text` (sortie) puis `source_text` (entrée) | `common/views.py:495-498` |
+| **Ingestion RAG** | `result_text` (sortie) puis `source_text` (entrée) | `common/views.py` — boucle `('result_text','sortie'),('source_text','entrée')` (ancre symbolique : les numéros de ligne de ce fichier dérivent) |
 | **Runner du studio** | `result_text` (chaînage texte → synthesizer) | cf. §Ajout 2026-07-13 |
 
 > Le geste RAG vit dans l'inspecteur **parce que** le schéma canonique y est déjà : les 10 apps

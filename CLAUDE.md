@@ -243,14 +243,14 @@ le défaut qui a rendu ce déport risqué — ne pas le réintroduire.
 | Conventions d'app | `WAMA_APP_CONVENTIONS.md` |
 | Cam Analyzer | `wama_lab/cam_analyzer/CAM_ANALYZER_CHAINE_TRAITEMENT.md` (chaîne+conception) + `CAM_ANALYZER_CHANGELOG.md` (historique) + `README.md` (carte) — l'ancien `CAM_ANALYZER_TOPDOWN_STATUS.md` est archivé (`wama_lab/cam_analyzer/archive/`) |
 | **Couche LLM** — prompts, skills, traduction/enrichissement, RAG, mémoire, routage de modèle, surfaces de l'assistant | **`WAMA_LLM.md`** — ⚠ renommé le 2026-08-25 (ex-`WAMA_IA_TRANSVERSE.md`, ex-`PROMPT_PIPELINE.md`) : « IA transverse » était devenu ambigu, les modèles APPRIS l'étant aussi. **Ne couvre PAS** l'apprentissage → `WAMA_APPRENTISSAGE.md` |
-| **Apprentissage** — modèles APPRIS (ML/DL), couche statistique, connecteur MLflow, boucle de simulation, complémentarité DAR | **`WAMA_APPRENTISSAGE.md`** — ⚠ **cadre, PAS un chantier ouvert** ; la seule chose à faire à court terme est son §3 (5 déclarations gratuites maintenant, non rattrapables ensuite). Règle : **WAMA n'entraîne pas, il DÉCLARE / DÉCLENCHE / RÉINGÈRE** |
-| **Mémoire & RAG** + **journal utilisateur** (mémoire agent + mémoire de travail + RAG = UN mécanisme) | **`WAMA_MEMORY.md`** — jalons 1-4 et 11 LIVRÉS le 2026-08-20 (brique `wama/common/memory/` sur **Postgres + pgvector**, scoping **hérité** de `ScopedVisibility`, journal `/common/journal/`), reste 5-10 et 12. ⚠ **Périme le plan ChromaDB** (vision §11, `prompt_pipeline.py:116`). |
+| **Apprentissage** — modèles APPRIS (ML/DL), couche statistique, connecteur MLflow, boucle de simulation, complémentarité DAR | **`WAMA_APPRENTISSAGE.md`** — ⚠ **cadre, PAS un chantier ouvert** ; de son §3, A1/A5 sont LIVRÉES (plan d'expérience `axes[]` au kind `dataset`, 26/08), restent A2/A3/A4. Règle : **WAMA n'entraîne pas, il DÉCLARE / DÉCLENCHE / RÉINGÈRE** |
+| **Mémoire & RAG** + **journal utilisateur** (mémoire agent + mémoire de travail + RAG = UN mécanisme) | **`WAMA_MEMORY.md`** — jalons 1-11 et 13-14 LIVRÉS (brique `wama/common/memory/` sur **Postgres + pgvector**, scoping **hérité** de `ScopedVisibility`, journal `/common/journal/`, surfaces RAG par GESTE), reste le seul jalon 12 (outillage assistant list/detail). Le plan ChromaDB est MORT ; `docs/WAMA_VISION_COMPLET.md §5.5` reflète le substrat réel. |
 | Transcriber — correction assistée | `wama/transcriber/TRANSCRIBER_CORRECTION.md` |
 | Formalisme de card (anatomie, 3 densités v1/v2/v3, batchs) | `CARD_DESIGN.md` |
 | UX de la file / modes applicatifs | `MODES_QUEUE_UX.md` |
 | Inspecteur — champs de détail (schéma canonique) | `INSPECTOR_DETAIL_FIELDS.md` |
 | **Volets gauche et droit** (ossature, états contextuels, mode simplifié, repli) | `WAMA_VOLETS.md` — état des lieux MESURÉ des 35 pages ; `INSPECTOR_DETAIL_FIELDS.md` reste le schéma des CHAMPS, pas la structure |
-| **Vérification — « comment sait-on que ça marche »** (grille d'ADOPTION vs grille FONCTIONNELLE, catalogue des gestes, couverture) | `WAMA_VERIFICATION.md` — **un critère de grille atteste une ADOPTION, jamais un FONCTIONNEMENT** ; couverture mesurée 2026-08-22 : **1 geste utilisateur sur 14** prouvé par un clic, **20 mécanismes** sans aucun critère |
+| **Vérification — « comment sait-on que ça marche »** (grille d'ADOPTION vs grille FONCTIONNELLE, catalogue des gestes, couverture) | `WAMA_VERIFICATION.md` — **un critère de grille atteste une ADOPTION, jamais un FONCTIONNEMENT** ; les compteurs de couverture vivent dans son §3 (la copie du 22/08 ici avait déjà divergé au 27/08 — un chiffre ne vit qu'à UN endroit) |
 | Studio & production AV | `STUDIO_VISION.md` |
 | Monde Data (périmètre, cartographie de corpus) | `WAMA_DATA_WORLD.md` + `WAMA_DATA_FUNCTION_CARDS.md` (catalogue) |
 | Vision produit d'ensemble | `docs/WAMA_VISION_COMPLET.md` — document UNIQUE depuis le 2026-08-27 (remplace Vision_Complet v1/v2, VISION_CRITIQUE et VISION_STATUS, archivés `docs/archive/`) ; la confrontation au réel vit DANS le doc (marquage ✅/🔄/⏳ daté par section) |
@@ -476,7 +476,7 @@ manquants » était périmée, les deux existent, vérifié 2026-07-03).**
 > Le dénominateur varie par app (**67–82**, mesuré 2026-08-26) : un critère peut être **non applicable** (état `None`)
 > et sortir du calcul — ex. tout F4 pour le converter (ffmpeg/pandoc, aucun modèle IA).
 - Toutes les apps : import dossier récursif non implémenté (mesuré : `recursive_import` 0/10)
-- Checklist de fin d'app (18 points) : `TRANSCRIBER_REFERENCE_AUDIT.md §6`
+- Checklist de fin d'app : `TRANSCRIBER_REFERENCE_AUDIT.md §6` (le compte vit là-bas — « 18 points » recopié ici était devenu faux, 19 lignes mesurées le 27/08)
 
 **✅ Vérifier systématiquement** à chaque création d'une nouvelle application.
 

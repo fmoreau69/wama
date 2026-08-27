@@ -1,6 +1,7 @@
 # WAMA_MEMORY.md — Mémoire & RAG : référence unique du domaine
 
-> **Statut : CONSTRUIT ET OUVERT AUX UTILISATEURS** (mis à jour 2026-08-22). Jalons 1-14 livrés —
+> **Statut : CONSTRUIT ET OUVERT AUX UTILISATEURS** (mis à jour 2026-08-22). Jalons 1-11 et
+> 13-14 livrés (le 12 — outillage assistant list/detail — reste dû, cf. tableau §10) —
 > brique `wama/common/memory/`, journal `/common/journal/`, `memory_recall` **hybride** (résidence
 > `bge-m3` arbitrée par le gouverneur), 25 souvenirs dev-ai en file de revue, **entrée au RAG
 > par GESTE avec niveaux user/labo** (§7ter) et, depuis le 2026-08-22, **ses SURFACES** :
@@ -324,7 +325,8 @@ casserait à la première app ajoutée, exactement ce qu'on veut éviter. ⚠ Le
 
 ## 9ter. tool_api — la lecture est générique, l'écriture ne l'est pas (proposition, non construit)
 
-**Constat.** `wama/tool_api.py` (2746 l., ~46 outils) suit une **triade par app** :
+**Constat.** `wama/tool_api.py` (le compte d'outils vit dans `WAMA_LLM.md`, domicile du pivot —
+recopié ici il avait divergé) suit une **triade par app** :
 `add_to_<app>` · `start_<app>` · `get_<app>_status`. Les deux premiers sont irréductiblement
 spécifiques — les paramètres d'une transcription ne sont pas ceux d'une génération d'image. Le
 troisième, non : `get_transcriber_status` (l.1459) est une projection maison des 10 derniers items
@@ -676,8 +678,9 @@ sans mot commun** (« quel traitement pour du son Apple ? » → « pour un fich
 Whisper ») — ce dernier prouve que le vectoriel apporte ce que le lexical ne peut pas trouver, et
 que la fusion RRF classe bien les deux (`{'vecteur/memory': 1, 'lexical/memory': 1}`).
 
-⚠ **Rien n'appelle la brique.** Elle est complète et testée, mais aucun code WAMA ne l'invoque :
-le Hook B de `prompt_pipeline` reste un no-op. Rien ne change pour un utilisateur avant le jalon 6.
+*(Le paragraphe « Rien n'appelle la brique » de la version du 20/08 est retiré — il contredisait
+les jalons 6/8/14 livrés depuis : appelants réels dans `assistant_engine.py`, `common/views.py`,
+`prompt_pipeline.py::_rappel_rag`, `sync_memory.py`.)*
 
 ## 11. Hors périmètre (tracé ailleurs)
 

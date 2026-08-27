@@ -453,7 +453,7 @@ pas de sens. Le scan signale un manque de couverture, il ne dicte pas la répons
 
 | Phase | Contenu | GPU | État |
 |---|---|---|---|
-| **1** | Gestes **2 à 7** — paramètres, dupliquer, supprimer, tout effacer, inspecteur, bouton primaire. Purement UI + base. Premier item : **création de l'avatarizer** (geste 7), justement celui qui manquait ce soir | non | 🔄 **geste 2 à moitié (23/08)**, gestes 3-4 faits (22/08) ; restent 5, 6, 7 |
+| **1** | Gestes **2 à 6** + geste 14 — paramètres, dupliquer, supprimer, tout effacer, inspecteur, fichier de lot. Purement UI + base. ⚠ Le geste 7 (création par le bouton primaire) a été **requalifié geste GPU** le 27/08 (§3) : hors session, remplacé en phase 1 par le geste 14 | non | 🔄 **geste 2 à moitié (23/08)**, gestes 3-4 faits (22/08), **geste 6 mesuré (27/08, `inspector_actions`)**, geste 14 mesuré (27/08) ; **reste 5** (+ 7 côté Fabien, GPU) |
 | **2** | Câbler les résultats nocturnes en **grille fonctionnelle** : `nightly_*.json` → agrégat geste × app, rendu comme `/apps/` le fait pour l'adoption | non | ⏳ |
 | **3** | Gestes **8 à 13** sur le **converter** (CPU) comme patron, puis extension | CPU d'abord | ⏳ |
 | **4** | Critères pour les **20 mécanismes non couverts**, par cardinalité décroissante | non | ⏳ |

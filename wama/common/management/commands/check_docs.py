@@ -63,6 +63,18 @@ DOCS = [
     # doivent rester vivants. ⚠ `docs/` est exclu de l'index : y citer un .md exige le
     # chemin complet (`docs/archive/…`), jamais le nom nu.
     'docs/WAMA_VISION_COMPLET.md',
+    # Extension 2026-08-27 (audit /doc-sync) : la table de CLAUDE.md déclare ~25 docs de
+    # référence, la liste ci-dessus n'en couvrait que 11 — l'écart était exactement la
+    # définition du « périmé non détecté » (5 renvois morts et 1 ligne fantôme dormaient
+    # dans 4 de ces docs, dont des renommages D28 vieux de 5 jours). Un doc de référence
+    # ajouté à la table de CLAUDE.md s'ajoute ICI dans le même commit.
+    'CARD_DESIGN.md', 'MODES_QUEUE_UX.md', 'INSPECTOR_DETAIL_FIELDS.md', 'WAMA_VOLETS.md',
+    'BATCH_FORMAT.md', 'INFRA_WSL_VS_WINDOWS.md', 'LICENSING.md', 'PROFILES_PERMISSIONS.md',
+    'STUDIO_VISION.md', 'WAMA_VERIFICATION.md', 'WAMA_DATA_WORLD.md', 'WAMA_MEMORY.md',
+    'WAMA_APPRENTISSAGE.md', 'WAMA_DATA_FUNCTION_CARDS.md', 'INPUT_MODEL_MATCHING.md',
+    'MEDIA_STORAGE_TIERING.md', 'REMOVAL_LEDGER.md',
+    'wama/transcriber/TRANSCRIBER_CORRECTION.md', 'wama/model_manager/PROSPECTION_PIPELINE.md',
+    'wama/common/README.md', 'wama_lab/cam_analyzer/CAM_ANALYZER_CHAINE_TRAITEMENT.md',
 ]
 
 #: Les skills sont DÉCOUVERTES, jamais énumérées ici. Une liste figée est exactement le défaut

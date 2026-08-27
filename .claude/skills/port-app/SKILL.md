@@ -114,7 +114,7 @@ travail est de CONSOMMER, pas de créer. Route d'ensemble : `WAMA_APP_GENERATION
 - Ne PAS adapter le studio à l'app : finir le port, pas écrire de colle (contrat uniforme).
 
 ## 3. Clôture
-- Checklist 18 points : `TRANSCRIBER_REFERENCE_AUDIT.md §6` + vérif `/apps/`.
+- Checklist de fin d'app : `TRANSCRIBER_REFERENCE_AUDIT.md §6` (le compte vit là-bas) + vérif `/apps/`.
 - Validation empirique : `manage.py check` (venv WSL), page 200, endpoints unifiés ; si Playwright
   MCP disponible → `/smoke` sur les parcours de l'app.
 - Consigner via `/palier` (PROJECT_STATUS + ROUTE si une facette a bougé).

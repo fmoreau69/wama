@@ -79,6 +79,7 @@ _CATALOGUE = {
     'sam-license':            (PERMISSIVE, True),      # SAM License (Meta, SAM3) — pas de clause NC
     'higgs-community':        (PERMISSIVE, True),      # Boson Higgs Audio 2 — commercial < 100k utilisateurs/an
     'ltxv-open-weights':      (PERMISSIVE, True),      # LTXV Open Weights — gratuit < 10 M$ de CA annuel
+    'minimax-music3-community': (PERMISSIVE, True),    # MiniMax-Music3 — PAS d'exclusion UE ; commercial < 20 M$ CA/an ; attribution UI + divulgation contenu machine-généré (LICENSING §2)
     'cpml-1.0':               (NON_COMMERCIAL, True),  # Coqui Public Model License — NC strict (Coqui dissoute)
     'flux-1-dev-non-commercial': (NON_COMMERCIAL, True),  # FLUX.1 [dev] NC — les SORTIES restent libres
     'cogvideox-license':      (NON_COMMERCIAL, True),  # CogVideoX — recherche libre ; commercial = enregistrement

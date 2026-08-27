@@ -324,7 +324,8 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
   aujourd'hui seule l'escalade par **contexte** est vécue. C'est la ligne 5 du tableau §5.
 - **Post-génération — QC** : la vision §15 s'arrête au dispatch, mais la chaîne réelle a un
   maillon prévu APRÈS le modèle : `qc.py::assess_output_quality` (validateur LLM indépendant,
-  ROADMAP §16.5). **0 consommateur hors bench** (vérifié par grep — la carte des mécanismes le
+  ROADMAP §16.5). **0 consommateur, bench compris** (re-vérifié 2026-08-27 : `bench.py` n'appelle
+  ni `qc` ni `assess_output_quality` — la carte des mécanismes le
   signale comme brique morte). Ligne 12 du tableau §5.
 
 ### 3. RAG — alimentation par GESTE, rappel par NIVEAUX (`WAMA_MEMORY.md §7ter`)
@@ -374,7 +375,7 @@ de rencontre entre les deux chantiers).
 | 9 | Surfaces du geste RAG + page de gestion (défaut de niveaux, retrait) | ✅ 2026-08-22 | **placement tranché : l'INSPECTEUR** (global, déjà nourri par `detail_registry` qui porte le texte ⇒ 10 apps sans une ligne par app, data-gaté) + page « Mon RAG » `/common/rag/` ; défauts sur le profil (`accounts.0015`), lus par `contexte_laboratoire`. Reste : sélecteur **par requête** + entrée depuis la médiathèque — `WAMA_MEMORY.md §9quater` |
 | 10 | **Traduction de SORTIE** (§12 : `Traitement IA → Traduction sortie → Utilisateur`) | ❌ non branchée | décideur (`output_translate`) + acteur (`translate_output`) livrés, **zéro appelant** ; candidats = textes GÉNÉRÉS uniquement — jamais transcription/OCR (fidélité verbatim) |
 | 11 | **Parseur STRUCTUREL de document** (§13 : texte / figures / images-texte → traitement → réassemblage, mise en page conservée) | partiel — **la moitié RENDU existe** | le RÉASSEMBLAGE/mise en forme est VIVANT (rappel de Fabien, vérifié 22/08) : `common/utils/html_render.py` — brique commune HTML→PDF à **2 moteurs** (Chromium headless/Playwright PRÉFÉRÉ : CSS complet + JS ; WeasyPrint en repli sans dépendance navigateur), consommée par le converter — + `common/utils/document_export.py` (PDF/DOCX stylés : describer, reader). Ce qui MANQUE : le **PARSING** structurel (document → texte/figures/images-texte — `batch_parsers`/`comprehend_files` aplatissent tout) et l'aller-retour complet ; Docling (§16.2) reste le candidat du parsing |
-| 12 | **QC post-génération** (§16.5 : validateur LLM indépendant après le modèle) | ❌ brique morte | `qc.py` : 0 consommateur hors bench (grep 22/08) — le maillon APRÈS le dispatch manque à toute la chaîne |
+| 12 | **QC post-génération** (§16.5 : validateur LLM indépendant après le modèle) | ❌ brique morte | `qc.py` : 0 consommateur, **bench compris** (re-vérifié 27/08) — le maillon APRÈS le dispatch manque à toute la chaîne |
 
 **Hors du scope de ce document (et où ça vit)** : i18n **statique** de l'UI (fichiers `.po`,
 ROADMAP §10.A — traduction d'interface, pas de contenu) · boucle qualité `RunOutcome`

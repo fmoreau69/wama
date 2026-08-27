@@ -6,7 +6,7 @@
 > description des modes**. **On ne réinvente rien** : on réutilise tout l'existant + on ajoute la couche MODE.
 >
 > Complète : `CARD_DESIGN.md` (formalisme de card), `WAMA_APP_CONVENTIONS.md §22` (inspecteur volet droit
-> GLOBAL), `GENERALIZATION_PLAN.md` (axes). Philosophie : `CLAUDE.md §Philosophie` (métadonnée-driven).
+> GLOBAL), `WAMA_APP_GENERATION_ROUTE.md` (axes — ex-GENERALIZATION_PLAN, archivé). Philosophie : `CLAUDE.md §Philosophie` (métadonnée-driven).
 
 ## 1. Une seule surface : la file + card « nouveau » persistante
 - Plus de 3 surfaces (temps-réel + import-card + card-orange-config). **UNE file**, terminée par une
@@ -144,7 +144,7 @@ déclaratif + générateur d'UI `WamaModes`).
 |-------|------|------------------|------------|
 | **0** ✅ | Fondations (CARD_DESIGN, inspecteur global, WamaDetails, capacités, contrat backend) | posées | — |
 | **P1** ✅ | Schéma `app_metadata.modes` (`common/utils/app_modes.py`) + générateur commun `WamaModes` (`wama-modes.js`, étend WamaDetails) — **fait et câblé** (imager, composer, studio, endpoint `/common/api/app-modes/<app>/`) ; vérifié 2026-07-09, corrige le retard de ce doc sur le code | **débloque P2-P6** ; déclaratif | moyenne, risque faible |
-| **P2 — le + visible** | File unique + card « nouveau » persistante + code couleur + compteur sur l'onglet (1 app réf) | gain UX immédiat | moyenne |
+| **P2** ✅ | File unique + card « nouveau » persistante + code couleur — **fait et généralisé** : briques `common/_new_item_card.html` + `common/_queue_entry.html`, **9 files sur 9** (relevé 2026-08-27, cf. commit « l'entrée de file adoptée par l'avatarizer »). Reste le **compteur sur l'onglet** | gain UX immédiat | — |
 | **P3 — cœur** | Config générée par mode (modale ↔ inspecteur en sync, sections distinctes, simple/avancé) | file pilotée par description | moyenne-haute |
 | **P4** | Temps réel = mode (migrer Speak transcriber/synthesizer) | homogénéise, -1 surface | moyenne |
 | **P5** | Détails card (concis↔étendu, drag/batch, filtre/tri, mosaïque) — cf. CARD_DESIGN | confort, incrémental | variable |

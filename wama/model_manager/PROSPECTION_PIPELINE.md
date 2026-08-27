@@ -56,18 +56,23 @@
 - **Le « spec attaché » n'a pas de domicile.** `model.body` expose `identity` / `resources` /
   `formats` / `capabilities` / `provenance` / `extra_info` — **aucun bloc `install`**, alors que
   `library.body.install.pip` existe ET est validé (`install.pip manquant` = erreur de validation).
-  → **Décision : le descripteur `install_from_spec` devient `model.body.install`**
+  → ~~**Décision : le descripteur `install_from_spec` devient `model.body.install`**
   (`{'kind': 'ollama'|'hf'|'yolo', 'ref': …, 'category'/'family'/'allow_patterns'}`), symétrique de
   `library.body.install`. PAS dans `extra_info['prospect']['spec']` : ce serait un champ surchargé,
-  invisible du validateur et du round-trip.
+  invisible du validateur et du round-trip.~~
+  ⚠ **Décision REMPLACÉE le 2026-08-27, jamais appliquée entre-temps** : le besoin (quels fichiers
+  tirer) est couvert autrement — l'anatomie vit dans **`body.composition`** (validée par le kind,
+  consommée par l'install via `patterns_from_composition`), et le spec d'install reste porté par le
+  candidat (`prospector.py` écrit `extra_info['prospect']['spec']` — le chemin que la décision
+  refusait est celui que le code a pris ; assumé, le validateur couvre désormais `composition`).
 - **Le kind `model` est « store+verify only »** (pas de `project`, cf. `kinds.py`) : un candidat
   validé ne s'écrit pas en base par la couche manifeste — l'installation reste
   `api_prospect_install` → `install_from_spec`. Le manifeste DÉCRIT, l'endpoint EXÉCUTE.
-- **Trous ouverts par cette confrontation** : (a) `manifests/` ne contient que `apps/` et
-  `libraries/` — **pas de `models/`**, donc aucun corpus d'exemples pour un rôle LLM ; (b) SPEC §7.4
-  s'arrête à l'étape 4 (rôle « librarian ») — **aucun rôle « scout modèles »**, qui en est pourtant
-  le pendant exact pour les modèles ; (c) `api_prospect_install` refuse tout ce qui n'est pas Ollama
-  (`views.py`, « phase 1 ») alors que les drivers `hf`/`yolo` existent depuis l'étape 5.
+- **Trous ouverts par cette confrontation — TOUS REFERMÉS depuis** (relevé 2026-08-27) :
+  (a) ~~pas de `manifests/models/`~~ → **92 manifestes de modèles** dans `manifests/models/` ;
+  (b) ~~aucun rôle « scout modèles »~~ → `wama-dev-ai/run_scout.py` + `run_integrator.py` livrés
+  le 27/08 (§rôles plus bas) ; (c) ~~`api_prospect_install` refuse le non-Ollama~~ →
+  `install_from_spec` est branché sur l'endpoint (`views.py::api_prospect_install`, `spec` accepté).
 
 ## Décision — pas de sauvegarde des modèles Ollama (2026-08-04, Fabien)
 

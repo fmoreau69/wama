@@ -4,10 +4,12 @@
 > des analyses statistiques et des modèles comportementaux entrent dans WAMA — et surtout **ce
 > qu'il faut déclarer maintenant pour ne pas se fermer la porte**.
 >
-> ⚠ **Ce n'est PAS un chantier ouvert.** Rien n'est implémenté, rien ne doit l'être à court terme.
-> C'est un **cadre**, écrit le 2026-08-25 à la demande de Fabien, dont la finalité explicite est :
-> *« je construis d'abord, mais sans bloquer ce genre d'idées »*. La seule chose à faire à court
-> terme est la liste du **§3** — cinq déclarations gratuites aujourd'hui, non rattrapables ensuite.
+> ⚠ **Ce n'est PAS un chantier ouvert.** C'est un **cadre**, écrit le 2026-08-25 à la demande de
+> Fabien, dont la finalité explicite est : *« je construis d'abord, mais sans bloquer ce genre
+> d'idées »*. La seule chose à faire à court terme est la liste du **§3** — des déclarations
+> gratuites aujourd'hui, non rattrapables ensuite. **Mise à jour 2026-08-27 : A1 et A5 sont
+> LIVRÉES** (le plan d'expérience `axes[]` est entré dans le kind `dataset` le 26/08 —
+> `wama/common/manifests/builtin/dataset.py::_validate_axes`) ; **restent A2/A3/A4**.
 
 ---
 
@@ -127,6 +129,8 @@ trafic).
 > **Conséquence : A1 et A5 sont absorbés par un modèle unique — le PLAN D'EXPÉRIENCE déclaré**
 > (`axes[]` : rôles `unit` / `block` / `factor` / `covariate`, relations `contains` / `crosses`).
 > Spécifié dans **`WAMA_DATA_WORLD.md §13`**, qui est désormais **la** référence de ce point.
+> ✅ **LIVRÉ le 2026-08-26** : `wama/common/manifests/builtin/dataset.py::_validate_axes`
+> (aller-retour des coordonnées d'axes prouvé).
 
 Implémenter A1 comme un champ scalaire puis le remplacer par des axes serait à refaire deux fois.
 **A2, A3 et A4 sont inchangés.**
@@ -302,7 +306,7 @@ travail (VM + forge institutionnelle + IDE distant).
 | MLflow **Tracking** | `RunOutcome`, `ModelRuntimeStat` (exécution/inférence, pas entraînement) | **faible, complémentaire** → §4 |
 | MLflow **Models** + **Registry** | `AIModel`, `model_manager`, kind `model`, `select_model()` | **fort — danger de duplication** |
 | MLflow **Projects** (Docker/conda + CLI) | manifestes `pipeline`, chaînage studio à ports typés | **fort — à ne PAS adopter** |
-| pratiques dev (gitflow, venv, tests, lint, RGPD/licences) | 369 tests, conformité mesurée sur 72 critères, tests nocturnes, `LICENSING.md`, audit secrets + vulnérabilités | **fort — WAMA est en avance** |
+| pratiques dev (gitflow, venv, tests, lint, RGPD/licences) | 1029 tests (relevé 27/08), conformité mesurée sur 82 critères (relevé 26/08), tests nocturnes, `LICENSING.md`, audit secrets + vulnérabilités | **fort — WAMA est en avance** |
 | **VM + GPU institutionnel, forge institutionnelle** | une RTX 4090, **crashs hôte non résolus** | **nul — et c'est l'apport le plus concret** |
 
 ### Ce qu'il faut demander (et pas « faites-nous du ML »)
