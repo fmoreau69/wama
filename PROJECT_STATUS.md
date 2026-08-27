@@ -7831,3 +7831,73 @@ désinstallé (si gênant).
   résultat jamais créé — préexistant, pas de cette session) ; 0 chiffre sans source.
 - Catalogue : 97 modèles (sync stable ×3) ; `composer:minimax-music3` dl=True, 5 composants,
   licence `minimax-music3-community`, prompt_contract 919 caractères.
+
+---
+
+## §REPRISE — 2026-08-28, instance « HF_ID / PROVENANCE » (reste ④ MUSIC3 soldé) — 🔚 POINT D'ENTRÉE
+
+> Session tracée dans `wama/model_manager/PROSPECTION_PIPELINE.md` (« Restes connus » ② et
+> « Restes de la route » ④, barrés avec le détail). Mémoire :
+> `feedback_une_garde_se_pose_avec_ses_jumeaux` (leçon neuve) + `project_model_prospection`.
+> 4 commits (feat provenance, chore corpus, fix garde auteur, docs homonymie) — **poussés,
+> services redémarrés** (Fabien, en session).
+
+**LIVRÉ** : ① la provenance HF est DÉCLARÉE à la source et POSÉE par les découvertes
+transcriber/synthesizer/anonymizer (`SYNTHESIZER_MODELS` clé `hf_id`, `YOLO_WEIGHTS_HF_ID` +
+`SAM3_HF_REPO` côté anonymizer, `hf_model_id` déjà déclaré côté transcriber) — valeurs
+vérifiées LIGNE À LIGNE contre la base : le `--poser` du 12/08 devient STRUCTUREL, il
+survit désormais à une réinstallation. Le critère FAMILLE du balayage snapshots est
+CONSERVÉ (le dépôt déclaré n'est pas toujours celui du snapshot : whisper déclaré
+`openai/…`, disque `Systran/faster-whisper-…`) ; 4 tests `ProvenanceDeclareeTest`.
+② `anonymizer:sam3` reçoit son identité complète au catalogue (hf_id, platform_ref,
+licence `sam-license` — la qualification HUMAINE déjà actée dans `LICENSING.md` remplace
+le placeholder `other` du backfill). ③ **GARDE AUTEUR** : mon propre
+`backfill_platform_refs --licences --ecrire` a écrasé 6 auteurs curés (la carte HF rend un
+slug d'org, parfois l'org MIROIR : « Tencent Hunyuan » → « hunyuanvideo-community ») —
+attrapé par le diff du corpus régénéré, restauré depuis les manifestes VERSIONNÉS, garde
+« compléter un vide, jamais écraser » posée aux DEUX points d'écriture (backfill +
+`poser_identite`), 2 tests `GardeAuteurTest`. La garde licence du 12/08 n'avait jamais été
+posée sur son champ JUMEAU, écrit trois lignes au-dessus dans la même boucle.
+④ Homonymie `task='segment'` (spatial, modèles) / `DataType.SEGMENTS` (temporel, monde
+Data) : question de Fabien, PAS de risque structurel (un port parle en DataType, un modèle
+en task, aucune comparaison par nom) — avertissements MIROIR posés des deux côtés
+(`model_capabilities.py` ↔ `data_types.py`).
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+
+**Brancher scout/integrator sur la prospection** (① de la route MUSIC3 : candidat retenu →
+scout → integrator → recommandation sur la card). Puis, dans l'ordre de la route : outils
+model_manager du `tool_api` · MARCHEUR `project`→`requires`→drivers · généraliser
+`install_dir` · trancher la re-proposition d'un modèle désinstallé.
+
+### Dettes vues, non traitées (volontairement)
+
+- **Deux graphies pour le même fait déclaré** : `hf_id` (imager/composer/avatarizer/
+  synthesizer/anonymizer) vs `hf_model_id` (transcriber, reader). Renommage RENONCÉ ce jour
+  (consommateur backend côté reader + coordination multi-instances requise) — à unifier un
+  jour, JAMAIS sans coordonner.
+- `vits`/`tacotron2`/`speedy-speech` déclarés dans `SYNTHESIZER_MODELS` mais JAMAIS
+  catalogués — la découverte synthesizer est écrite à la main pour 4 moteurs (préexistant).
+- `nvidia/LocateAnything-3B` : licence `other` (placeholder « carte lue, licence maison ») —
+  à qualifier à l'installation.
+
+### Pendings système
+
+- **Aucun** : push + restart FAITS en session. Le rouge
+  `test_chaque_app_gardee_est_resolue_depuis_son_url_montee` (autre instance, préfixe
+  `model_manager` absent de `PATH_APP_MAP`) observé sur l'arbre partagé en fin de session a
+  été **corrigé par l'autre instance** (commit « une decision unique ne garde rien tant
+  qu'elle n'est pas APPLIQUEE ») — re-vérifié ici : 8 OK.
+
+### Contrôles attendus au prochain /reprise (MESURÉS cette session)
+
+- Tests : model_manager **34 OK** ; suite complète **1098 dont 1 échec** au moment de la
+  mesure — c'était le rouge ci-dessus, corrigé depuis : la suite doit être VERTE (le total
+  grossit avec les tests des deux instances, ne pas en faire un critère).
+- Corpus : **111 manifestes, à jour** (`--check` vert après régénérations : traîne
+  `install_dir` MUSIC3 + identité sam3).
+- `check_docs` : 6 références cassées / **1 cible distincte** (le partial d'onglets de
+  résultat jamais créé — préexistant) sur **1074 vérifiées** (re-mesuré en clôture APRÈS le
+  ménage docs 46→32 de l'autre instance) ; 0 chiffre sans source.
+- Catalogue : 97 modèles ; **16 hf_id posés** sur les 3 apps du chantier (le seul neuf en
+  base est sam3 — les 15 autres coïncidaient déjà, c'est le point) ; `doc_facts` tout à jour.
