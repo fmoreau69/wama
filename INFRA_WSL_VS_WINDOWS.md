@@ -502,6 +502,21 @@ réduit la **superposition**, pas la **charge** d'un moteur pris seul — le 7�
 précisément que ça ne suffira pas ; c'est une mise en conditions pour le diagnostic,
 pas un correctif.
 
+**Suite du même jour — 2ᵉ crash à ~12:19:51, AU REPOS, puis pilote 616.56.** Dernier
+échantillon hwlog : 24,4 W, 210 MHz, VRAM 5,2 Go, stack au repos (un unique pic de
+transition 210→2595 MHz à 74 W, 20 s avant la mort) ; reboot 12:25:12 ; le 6008 annonçait
+« 11:49:54 » (30 min d'erreur). Signature « repos » des 07/08 et 22/08 — les DEUX régimes
+tuent toujours le même jour : 11:09 en montée VRAM, 12:19 au repos. ⚠ NON instrumenté :
+HWiNFO était mort avec le crash de 11:09 (aucun autostart). Ensuite Fabien a installé le
+**pilote NVIDIA 616.56 à 12:40** (DriverStore `nvmdsi…` 12:40:16 ; l'ancien 610.88 datait
+du 31/07) → l'appariement pilote > noyau GPU (dxgkrnl/dxgmms2 du 13/08, inchangés) est
+rétabli dans le bon sens. **Nouvelle variable d'expérience posée — compter la série à
+partir d'ici.** ⚠ L'instance WSL courante a démarré à 12:28, AVANT l'installation :
+`nvidia-smi` y échoue (`libnvidia-ml.so` introuvable alors que la projection
+`/usr/lib/wsl/lib` porte bien les fichiers 616.56) — même symptôme qu'au 25/07, même
+remède OBLIGATOIRE : `wsl --shutdown` puis relance de la stack, sans quoi TOUTE tâche
+CUDA côté WAMA échoue.
+
 ### Ce qui reste ouvert
 
 - **Quel composant lâche** — inconnu. La charge est le **déclencheur**, pas le fautif : alimentation,
