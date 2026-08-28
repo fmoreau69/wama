@@ -101,6 +101,11 @@ python manage.py test <tes modules>      # ciblé, quelques secondes
   document écrit LE JOUR MÊME, et non faits — invisible sans cette passe.
 - **Les décisions ouvertes** du périmètre : les compter et les lister dans le handoff, une par
   ligne. Une décision ouverte qui n'apparaît pas dans le handoff est une décision perdue.
+- **Le geste répétable de la session** — la session a-t-elle résolu un geste qui se
+  REPRODUIRA (rituel, diagnostic, nettoyage, recette) non couvert par `.claude/skills/` ?
+  → dérouler `/skill-forge` (distiller à la clôture est LE moment-écrivain ; à n=1 le skill
+  naît CANDIDAT, une 2ᵉ demande proche le promeut). Si un skill EXISTANT a été déroulé et
+  qu'une étape n'a pas tenu → le corriger maintenant, pas le consigner ailleurs.
 - Données/artefacts de session à tracer : comptes et items de test semés (compte smoke,
   jobs), scripts utilitaires laissés hors git (scratchpad, logs/), sorties
   PENDING_HUMAN_VALIDATION (wama-dev-ai/outputs). Les CONSIGNER (où, pourquoi, jetable ?).
