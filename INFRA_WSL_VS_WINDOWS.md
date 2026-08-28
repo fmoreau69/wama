@@ -378,6 +378,15 @@ leviers) : `NVIDIA App\UpdateFramework` **11,00 Go** (modif 2025-05) · `C:\Wind
 (66,59 Go comptés à tort « sur C: » en le scannant directement) — même famille que le lien
 `AI-models/models/llm/ollama` du tableau ci-dessus.
 
+**Le replafonnement VSS de C: est BLOQUÉ par SentinelOne** (mesuré 29/08 : `vssadmin resize
+shadowstorage /for=C: /on=C: /maxsize=10GB` en console admin → « Erreur détectée dans le
+fournisseur », journal Application **VSS 12289, DeviceIoControl 0x80070005 Accès refusé** —
+la protection anti-ransomware des clichés intercepte le geste sous l'OS ; le resize de **D:**
+était passé, lui, le 28/08). Voie de sortie = **le service info** (console S1 : mode maintenance
+ou purge par eux), même canal que la quarantaine du 26/08. En attendant : le poste est **BORNÉ
+au plafond (~35 Go = 10 % du volume)** — il ne grossira pas au-delà, chaque cliché nouveau
+purge un ancien ; ce n'est pas une fuite, c'est un plafond qu'on ne peut pas baisser nous-mêmes.
+
 ## ⚠⚠ Les crashs hôte ne sont PAS « au repos » — le déclencheur est une passe LLM de WAMA (2026-08-26)
 
 > Six crashs en 48 h. La prémisse de travail était « au repos, sans raison apparente ». **Elle est

@@ -60,11 +60,13 @@ de conclure) ; et le swap VIVANT regrossit vers ses 8 Go configurés — ce n'es
 ## 4. Ce qui demande une session ÉLEVÉE ou un arbitrage (ne pas forcer)
 
 - **VSS C: et D:** — mesurer : `vssadmin list shadowstorage` (admin ; `/for=C:` ou `/for=D:`).
-  D: est plafonné à 10 Go depuis le 28/08 ; C: est resté au défaut (~10 % du volume) et chaque
-  reboot de crash y ajoute un cliché. La piste, même geste que D: : `vssadmin resize
-  shadowstorage /for=C: /on=C: /maxsize=10GB` purge les plus anciens. **Décision Fabien** —
-  c'est lui qui perd des points de restauration ; rappel : les points C: sont éphémères de
-  toute façon (volsnap purge ~1/jour ; le point utile se crée MANUELLEMENT avant un geste risqué).
+  D: est plafonné à 10 Go depuis le 28/08. ⚠ **Sur C:, le resize est BLOQUÉ par SentinelOne**
+  (vécu 29/08 en console admin : VSS 12289, `DeviceIoControl 0x80070005 Accès refusé` — la
+  protection anti-ransomware des clichés ; détail : `INFRA_WSL_VS_WINDOWS.md §2026-08-29`).
+  Ne pas s'acharner ni tenter de contourner l'EDR : la voie de sortie est **le service info**
+  (console S1). En attendant, le poste est BORNÉ à ~10 % du volume — pas une fuite.
+  Rappel : les points C: sont éphémères de toute façon (volsnap purge ~1/jour ; le point utile
+  se crée MANUELLEMENT avant un geste risqué).
 - **Dumps volumineux** — signaler taille et date, laisser trancher.
 
 ## 5. Contrôles post-crash connexes (même moment, pas du disque)
