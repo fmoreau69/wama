@@ -400,6 +400,29 @@
         }, 120);
     }
 
+    // ── Vider la file À L'ÉCRAN ──────────────────────────────────────────────
+    //
+    // Après un « Tout effacer », le serveur a tout supprimé ; l'app, elle, retire les cards
+    // à la main. Or une file contient DEUX natures d'éléments — les cards d'élément
+    // (`[data-id]`) et les cards MÈRES de lot (`[data-batch-id]`, partial commun
+    // `_batch_card.html`) — et un sélecteur qui n'en vise qu'une laisse l'autre à l'écran :
+    // le lot survivait à l'enhancer jusqu'au rechargement (mesuré le 2026-08-28 par
+    // `enhancer.clear_all`, qui compare l'écran juste après le clic ET après rechargement).
+    // Ce n'est pas cosmétique : un lot affiché sans membre est une file qui MENT.
+    // Rendu commun parce que chaque app en écrivait sa variante — reload complet (describer),
+    // sélecteur d'app (transcriber `.synthesis-card`), `[data-id]` (enhancer) : trois façons
+    // d'avoir raison à moitié.
+    function clearCards(root) {
+        var scope = root || document;
+        var n = 0;
+        ['[data-id]', '[data-batch-id]', '.wama-card.is-batch'].forEach(function (sel) {
+            Array.prototype.slice.call(scope.querySelectorAll(sel)).forEach(function (el) {
+                if (el.isConnected) { el.remove(); n++; }
+            });
+        });
+        return n;
+    }
+
     // ── Init ─────────────────────────────────────────────────────────────────
 
     function init() { injectStyle(); initBatchCollapse(); initOnePileOpen(); initLayoutToggle(); initDesignSelect(); initStackToggle(); focusFromSession(); }
@@ -407,6 +430,7 @@
     // API publique
     window.WamaQueue = window.WamaQueue || {};
     window.WamaQueue.focusCard = focusCard;
+    window.WamaQueue.clearCards = clearCards;
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);

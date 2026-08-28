@@ -566,7 +566,11 @@ document.addEventListener('DOMContentLoaded', function () {
     })
       .then((response) => response.json())
       .then(() => {
-        queueTable.querySelectorAll('[data-id]').forEach((card) => card.remove());
+        // Cards d'élément ET cards mères de lot : `[data-id]` seul laissait le lot à l'écran
+        // jusqu'au rechargement. Brique commune (`wama-queue.js`), chargée par `base.html`
+        // sur TOUTES les pages : appel direct, sans garde `if (window.…)` — une garde
+        // rendrait muette la seule chose qu'on veut voir si elle casse.
+        WamaQueue.clearCards(queueTable);
         pollers.forEach((_, id) => stopPolling(id));
         if (window.WamaFM) WamaFM.deleted();  // fichiers supprimés → refresh filemanager
         insertEmptyRowIfNeeded(true);

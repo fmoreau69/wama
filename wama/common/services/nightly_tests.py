@@ -237,6 +237,7 @@ register_examples()
 try:
     from wama.common.services.ui_smoke import (register_batch_actions_scenarios,
                                                register_batch_import_scenarios,
+                                               register_clear_all_scenarios,
                                                register_duplicate_delete_scenarios,
                                                register_import_scenarios,
                                                register_inspector_actions_scenarios,
@@ -286,5 +287,13 @@ try:
     # de « Démarrer » — et le scénario vérifie que ce contrat est tenu, car c'est lui qui
     # l'autorise à tourner de jour sur un GPU partagé.
     register_batch_import_scenarios()
+    # 2026-08-28 — geste 5, le seul du catalogue dont l'effet VOULU est destructeur. Il ne
+    # s'exerce donc que sous le compte de TEST, et la borne n'est pas la prudence de
+    # l'instrument : les dix vues `clear_all` filtrent sur `user=` (10/10). Il mesure TROIS
+    # vérités que rien n'obligeait à coïncider — la file vue par l'utilisateur juste après son
+    # clic (les gestionnaires d'app retirent les cards à la main : ce que leur sélecteur ne vise
+    # pas reste à l'écran), celle que le serveur a réellement vidée, et **la BASE, que nul écran
+    # ne montre** : un lot vidé ne rend aucune card, donc rien ne le trahirait.
+    register_clear_all_scenarios()
 except Exception as _e:                                   # pragma: no cover
     logger.debug(f"[nightly] scénarios UI non enregistrés ({_e})")

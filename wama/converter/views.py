@@ -589,7 +589,7 @@ def clear_all(request):
                 pass
         if _is_app_owned(job.input_file, job.user_id):
             safe_delete_file(job, 'input_file')
-    jobs.delete()
+    jobs.delete()  # signal batch_sync (apps.py) : recale total / supprime le lot vidé
     return JsonResponse({'success': True})
 
 

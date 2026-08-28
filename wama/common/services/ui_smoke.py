@@ -1356,6 +1356,11 @@ def _monter_un_lot(page, app: str = ''):
     return lots
 
 
+def _total_nettoye(bilan) -> int:
+    """Somme d'un bilan de `_garde_de_montage`, dont les entrées sont des (compte, modèle)."""
+    return sum(n for n, _ in bilan)
+
+
 @contextmanager
 def _garde_de_montage(app: str, etiquette: str):
     """Recense les objets de l'app AVANT, puis supprime EN SORTIE ceux que le passage a créés.
@@ -1423,9 +1428,12 @@ def _garde_de_montage(app: str, etiquette: str):
                                 if _chemin and str(_chemin).startswith(_racine):
                                     _chemin.unlink(missing_ok=True)
                     _modele.objects.filter(id__in=restes).delete()
-                    bilan.append(len(restes))
+                    # (compte, modèle) et non un entier nu : un survivant ne veut pas dire la
+                    # même chose selon qu'il s'agit d'un ÉLÉMENT ou d'un LOT — le second ne
+                    # rend aucune card, donc aucun écran ne le trahit (cf. `check_app_clear_all`).
+                    bilan.append((len(restes), _modele._meta.model_name))
             except Exception as _exc:            # ne JAMAIS avaler en silence
-                bilan.append(0)
+                bilan.append((0, getattr(getattr(_modele, '_meta', None), 'model_name', '?')))
                 print(f"[{etiquette}] nettoyage {app} impossible : {type(_exc).__name__}")
 
 
@@ -1544,7 +1552,7 @@ def check_app_batch_actions(app: str, url_path: str):
         finally:
             navigateur.close()
     if _nettoyes:
-        detail += f" ; {sum(_nettoyes)} objet(s) de montage nettoyé(s)"
+        detail += f" ; {_total_nettoye(_nettoyes)} objet(s) de montage nettoyé(s)"
     return True, detail
 
 
@@ -1654,7 +1662,7 @@ def check_app_batch_import(app: str, url_path: str):
         finally:
             navigateur.close()
     if _nettoyes:
-        detail += f" ; {sum(_nettoyes)} objet(s) de test nettoyé(s)"
+        detail += f" ; {_total_nettoye(_nettoyes)} objet(s) de test nettoyé(s)"
     return True, detail
 
 
@@ -1681,6 +1689,177 @@ def register_batch_actions_scenarios():
             id=f"{label}.batch_actions", app=label, stage="ui",
             description=f"File {label} : ⧉ puis 🗑 sur la card MÈRE d'un lot (brique commune)",
             run=(lambda p=path, a=label: (lambda ctx: check_app_batch_actions(a, p)))(),
+            timeout_s=240, vram_gb=0.0,
+        )
+
+
+# ── Geste 5 : TOUT EFFACER ─────────────────────────────────────────────────────────────
+#
+# Le seul geste du catalogue dont l'effet VOULU est destructeur : il n'y a pas de version
+# « qui ne touche que ce que le passage a créé ». On ne peut donc pas l'exercer comme les
+# autres, et ce n'est pas une raison de ne pas le mesurer — c'est une raison de BORNER :
+#   • il ne s'exerce que sous le COMPTE DE TEST (`_session_compte_de_test`, qui ne forge
+#     jamais de compte) — sans lui, skip, jamais de repli sur un compte réel ;
+#   • les dix vues `clear_all` filtrent toutes sur `user=` (relevé le 2026-08-28, 10/10) :
+#     la portée du geste est donc close par le code, pas par la prudence de l'instrument.
+# La garde de montage reste posée : après l'effacement, la différence d'ids est vide, elle
+# n'a plus rien à retirer — ce qui est exactement l'aveu que le geste a fait son travail.
+_FILE_EN_ETAT = """(() => {
+    const cartes = Array.from(document.querySelectorAll('[data-id]'))
+        .filter(e => /card/.test(String(e.className || '')) && e.dataset.id)
+        .map(e => e.dataset.id);
+    const lots = Array.from(document.querySelectorAll('.wama-card.is-batch'))
+        .map(e => { const b = e.querySelector('[data-batch-id]');
+                    return b ? b.getAttribute('data-batch-id') : ''; })
+        .filter(Boolean);
+    const enCours = document.querySelectorAll('[data-status="RUNNING"]').length;
+    return {cartes: Array.from(new Set(cartes)), lots: Array.from(new Set(lots)),
+            en_cours: enCours};
+})()"""
+
+
+def check_app_clear_all(app: str, url_path: str):
+    """« Tout effacer » vide-t-il la file — TOUT DE SUITE et POUR DE BON ? (ok, detail).
+
+    Geste 5 de la grille FONCTIONNELLE. Deux vérités sont mesurées, et elles ne sont pas la
+    même : ce que l'utilisateur VOIT juste après son clic, et ce que le serveur a réellement
+    supprimé. Les séparer n'est pas du zèle — les gestionnaires d'app retirent les cards à la
+    main après le POST (`queryContainer.querySelectorAll('.synthesis-card').forEach(remove)`,
+    transcriber), donc tout ce qui n'est pas visé par ce sélecteur SURVIT à l'écran jusqu'au
+    rechargement. Une file qui garde une card mère de lot après « Tout effacer » tient une
+    promesse à moitié, et aucune erreur console ne le dit.
+
+    Ce qui est mesuré, dans cet ordre — le premier manquant explique les suivants :
+      1. le bouton commun existe-t-il (`_queue_actions.html` → `.btn-outline-danger`) ?
+      2. le POST d'effacement répond-il sans erreur ?
+      3. la file est-elle vide À L'ÉCRAN, sans rechargement ?
+      4. l'est-elle encore APRÈS rechargement — c'est-à-dire côté serveur ?
+
+    ⚠ Un élément RUNNING fait SKIPPER, jamais échouer : deux apps refusent alors le geste par
+    contrat (avatarizer répond 400 « stoppez-le avant de tout effacer », composer et le codegen
+    font `.exclude(status='RUNNING')`). Un reste zombie du compte de test — ils existent, cf.
+    `reference_orphan_task_reconcile` — accuserait donc une app pour l'état d'une fixture.
+    """
+    from wama.common.services.nightly_tests import SkipScenario
+    from playwright.sync_api import sync_playwright
+
+    url = f"{BASE_URL.rstrip('/')}{url_path}"
+    jeton = _session_compte_de_test()
+    if not jeton:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
+
+    with _garde_de_montage(app, 'clear_all') as _nettoyes:
+      with sync_playwright() as p:
+        navigateur = p.chromium.launch()
+        try:
+            contexte = navigateur.new_context(viewport={'width': 1500, 'height': 1000})
+            contexte.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': jeton,
+                                   'domain': '127.0.0.1', 'path': '/'}])
+            page = contexte.new_page()
+            page.on('dialog', lambda d: d.accept())   # `confirm('Supprimer tout ?')`
+            posts = []
+            page.on('response', lambda r: (
+                posts.append((r.status, r.url.split('?')[0]))
+                if r.request.method == 'POST' and 'clear' in r.url else None))
+
+            resp = page.goto(url, wait_until='networkidle', timeout=45000)
+            if not resp or resp.status != 200:
+                return False, f"page HTTP {resp.status if resp else '?'}"
+            page.wait_for_timeout(1200)
+
+            etat0 = page.evaluate(_FILE_EN_ETAT)
+            if not etat0['cartes'] and not etat0['lots']:
+                _monter_un_lot(page, app)             # lève SkipScenario si l'app n'offre rien
+                page.goto(url, wait_until='networkidle', timeout=45000)
+                page.wait_for_timeout(1500)
+                etat0 = page.evaluate(_FILE_EN_ETAT)
+            if not etat0['cartes'] and not etat0['lots']:
+                raise SkipScenario("file vide après montage — il n'y a rien à effacer")
+            if etat0['en_cours']:
+                raise SkipScenario(
+                    f"{etat0['en_cours']} élément(s) RUNNING en file : deux apps refusent alors "
+                    f"le geste par contrat (400 avatarizer, exclusion composer) — mesurer ici "
+                    f"accuserait l'app pour l'état de la fixture")
+
+            # 1. Le bouton COMMUN. Les dix index passent par `_queue_toolbar.html`, qui inclut
+            #    `_queue_actions.html` : le « Tout effacer » y est le seul `.btn-outline-danger`
+            #    de `.wama-queue-actions`. On ne cherche donc AUCUN id d'app — ils diffèrent tous
+            #    (`clearAllBtn`, `transcriber-clear-btn`, `anon-clear-all-btn`…) et les lister
+            #    referait par recopie ce que le partial commun a justement centralisé.
+            bouton = page.locator('.wama-queue-actions button.btn-outline-danger:visible').first
+            if not bouton.count():
+                return False, ("aucun « Tout effacer » au contrat commun "
+                               "(`.wama-queue-actions .btn-outline-danger`) — l'index de l'app "
+                               "n'inclut pas `_queue_actions.html`")
+
+            # 2. Le POST. Certaines apps rechargent dans la foulée : on tolère la navigation.
+            try:
+                with page.expect_response(
+                        lambda r: r.request.method == 'POST' and 'clear' in r.url,
+                        timeout=30000) as attendu:
+                    bouton.click(timeout=15000)
+                reponse = attendu.value
+                statut = reponse.status
+            except Exception:
+                statut = None
+            page.wait_for_timeout(1500)
+            if statut is not None and statut >= 400:
+                if statut == 400:
+                    raise SkipScenario(f"l'app REFUSE l'effacement (HTTP 400) — {posts}")
+                return False, f"le POST d'effacement répond HTTP {statut} ({posts})"
+            if statut is None and not posts:
+                return False, ("« Tout effacer » cliqué mais AUCUN POST d'effacement émis — "
+                               "le bouton commun est rendu, son handler ne l'est pas")
+
+            # 3. Ce que l'utilisateur VOIT, sans rechargement.
+            try:
+                etat1 = page.evaluate(_FILE_EN_ETAT)
+            except Exception:
+                etat1 = None                          # l'app a rechargé : rien à reprocher
+
+            # 4. Ce que le SERVEUR a vraiment supprimé.
+            page.goto(url, wait_until='networkidle', timeout=45000)
+            page.wait_for_timeout(1200)
+            etat2 = page.evaluate(_FILE_EN_ETAT)
+            if etat2['cartes'] or etat2['lots']:
+                return False, (f"effacement demandé (POST {statut or 'ok'}) mais après "
+                               f"rechargement il reste {len(etat2['cartes'])} card(s) et "
+                               f"{len(etat2['lots'])} lot(s) — la file n'est PAS vidée")
+            if etat1 is not None and (etat1['cartes'] or etat1['lots']):
+                return False, (f"la file n'est vidée qu'au RECHARGEMENT : juste après le clic il "
+                               f"reste à l'écran {len(etat1['cartes'])} card(s) et "
+                               f"{len(etat1['lots'])} lot(s) — le retrait client ne vise pas "
+                               f"tout ce que le serveur a supprimé")
+
+            detail = (f"« Tout effacer » exercé : {len(etat0['cartes'])} card(s) + "
+                      f"{len(etat0['lots'])} lot(s) → 0/0 à l'écran ET après rechargement "
+                      f"(POST {statut or 'ok'})")
+        finally:
+            navigateur.close()
+    # 5. Ce qu'aucun écran ne montre. La garde retire en sortie ce que le passage a créé et qui
+    #    existe ENCORE : après « Tout effacer », ce compte doit être NUL. Il ne l'est pas
+    #    partout — un LOT vidé de ses éléments ne rend aucune card, donc il survit en base sans
+    #    que rien ne le signale (mesuré le 2026-08-28 sur converter : `jobs.delete()` ne touche
+    #    pas `ConversionBatch`, là où reader et composer purgent explicitement leurs lots et où
+    #    transcriber s'en remet au signal `post_delete`). C'est le même défaut que les 9 lots
+    #    vides que cette garde a dû balayer le 2026-08-24 — sauf qu'ici il est DEMANDÉ à l'app.
+    if _nettoyes:
+        _restes = ", ".join(f"{n} {nom}" for n, nom in _nettoyes if n)
+        return False, (f"{detail} — mais {_total_nettoye(_nettoyes)} objet(s) du montage "
+                       f"SURVIVENT en base ({_restes}) : « Tout effacer » laisse derrière lui "
+                       f"ce qui ne rend aucune card")
+    return True, detail
+
+
+def register_clear_all_scenarios():
+    """Enregistre un scénario `<app>.clear_all` par app disposant d'une page d'index."""
+    from wama.common.services.nightly_tests import register
+
+    for label, path in discoverable_apps():
+        register(
+            id=f"{label}.clear_all", app=label, stage="ui",
+            description=f"File {label} : « Tout effacer » vide la file à l'écran ET au serveur",
+            run=(lambda p=path, a=label: (lambda ctx: check_app_clear_all(a, p)))(),
             timeout_s=240, vram_gb=0.0,
         )
 
@@ -2034,7 +2213,7 @@ def check_app_inspector_actions(app: str, url_path: str):
         finally:
             navigateur.close()
     if _nettoyes:
-        detail += f" ; {sum(_nettoyes)} objet(s) de montage nettoyé(s)"
+        detail += f" ; {_total_nettoye(_nettoyes)} objet(s) de montage nettoyé(s)"
     return True, detail
 
 

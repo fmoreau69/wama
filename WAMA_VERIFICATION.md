@@ -61,7 +61,7 @@ Le catalogue n'est **pas à inventer** : c'est la table des composants obligatoi
 | 3b | Dupliquer un **lot** (`.batch-duplicate-btn`) | ✅ `<app>.batch_actions` (23-24/08) | non |
 | 4 | Supprimer un **élément** (`.delete-btn`) | ✅ `<app>.duplicate_delete` | non |
 | 4b | Supprimer un **lot** (`.batch-delete-btn`) | ✅ `<app>.batch_actions` (23-24/08) | non |
-| 5 | Tout effacer | ❌ | non |
+| 5 | Tout effacer | ✅ `<app>.clear_all` (28/08) — **10 OK / 4 skips**, borné au compte de TEST ; mesure l'écran juste après le clic **et** le serveur après rechargement, **plus la base** (le lot vidé ne rend aucune card) | non |
 | 6 | Sélectionner une card → l'inspecteur se remplit | ✅ **ENTIER** — `<app>.inspector_actions` (28/08) : remplissage du volet Actions **et** refermeture par le ✕, sur les deux portées (card **et** card mère de lot), **20 chemins / 20** sur 10 apps | non |
 | 7 | **Créer par le bouton primaire** (apps `data-wama-depot=attache` : avatarizer, imager) | ❌ | **oui sauf imager** — mesuré 27/08 : composer expédie la tâche DANS sa vue de création (`composer/views.py:235`) et avatarizer enchaîne `createJob()` puis `startJob()` (`avatarizer/js/index.js:253-254`) |
 | 8 | Démarrer un item → RUNNING → SUCCESS | ❌ | **oui** |
@@ -84,6 +84,8 @@ qui divergent dans le MÊME fichier, c'est le mode de dérive que ce document es
 **Au 2026-08-27 (soir) : 6 gestes trois quarts sur 16** — le FICHIER DE LOT (quart du geste 14,
 `<app>.batch_import`) s'ajoute. Fraction assumée : trois des quatre voies d'import du geste 14
 restent dues, et les annoncer couvertes serait le faux vert que ce document traque.
+**Au 2026-08-28 : 7 gestes trois quarts sur 16** — TOUT EFFACER (5, `<app>.clear_all`), détaillé
+plus bas : le seul geste destructeur du catalogue, et le seul dont la mesure regarde la BASE.
 
 > ⚠ **`<app>.settings` mesure la MOITIÉ du geste 2, et le dit dans son propre détail** (« MOITIÉ
 > DU GESTE — modifier/enregistrer/relire n'est PAS mesuré ici »). Ce n'est pas de la modestie :
@@ -300,6 +302,61 @@ describer, enhancer, imager, reader, transcriber) ; les 5 skips nomment l'absenc
 > `FileField` : l'app copie la source dans son dossier d'entrée et cette copie **survit à l'objet**
 > — 6 `.wav` retrouvés dans `media/converter/…` avant correction. Un harnais qui laisse des déchets
 > dans `media/` finit par mesurer ses propres résidus.
+
+---
+
+### Geste 5 (tout effacer) — le seul geste DESTRUCTEUR, et la seule mesure qui regarde la BASE
+
+**Couverture mesurée le 2026-08-28** (14 apps) : `nightly_20260828_013057.json` donne **8 OK /
+2 échecs / 4 skips**, `nightly_20260828_014813.json` après correctifs **10 OK / 0 échec /
+4 skips**. Les skips nomment l'absence de surface de file (converter_01, media_library,
+model_manager, studio) ; les 2 échecs étaient deux VRAIS défauts d'app, tous deux corrigés
+**dans le commun** (voir plus bas).
+
+> ⚠⚠ **Il n'existe pas de version « qui ne touche que ce que le passage a créé ».** Ce n'est pas
+> une raison de ne pas mesurer le geste, c'en est une de le BORNER. Deux bornes, et la seconde
+> compte plus que la première : il ne s'exerce que sous le **compte de test**
+> (`_session_compte_de_test` ne forge jamais de compte — sans lui, **skip**, jamais de repli sur
+> un compte réel) ; et **les dix vues `clear_all` filtrent sur `user=`, relevé AVANT le premier
+> clic** (10/10). La portée du geste est close par le CODE, pas par la prudence de l'instrument —
+> une prudence d'instrument se contourne au premier scénario pressé.
+
+> ⚠⚠ **Il mesure TROIS vérités que rien n'obligeait à coïncider**, et deux d'entre elles ont pris
+> une app en défaut :
+> 1. **l'écran juste après le clic** — les apps retirent les cards à la main, avec leur propre
+>    sélecteur : *l'enhancer ne visait que `[data-id]`, donc la card MÈRE du lot restait affichée
+>    jusqu'au rechargement.* Une file qui affiche un lot sans membre MENT ;
+> 2. **l'écran après rechargement** — ce que le serveur a réellement supprimé ;
+> 3. **la BASE, que nul écran ne montre** — *le converter y laissait son lot vidé.* Sans cette
+>    troisième mesure le défaut serait resté vert pour toujours : **un lot sans membre ne rend
+>    aucune card, donc rien ne le trahit.** Et ce n'est pas une assertion qui l'a vu d'abord,
+>    c'est la **garde de nettoyage** du harnais — celle qui retire en sortie ce que le passage a
+>    créé. Après « Tout effacer », elle ne devrait avoir plus rien à retirer : ce compte EST
+>    l'assertion, il suffisait de le lire.
+
+> ⭐ **Les deux correctifs sont remontés d'un cran ; aucun n'est resté dans l'app.**
+> - Le retrait client est devenu **`WamaQueue.clearCards`** : trois apps avaient trois façons
+>   d'avoir raison à moitié — rechargement complet (describer), sélecteur d'app (transcriber,
+>   `.synthesis-card`), `[data-id]` (enhancer). Une file contient DEUX natures de cards, celle de
+>   l'élément et celle du lot ; un sélecteur qui n'en vise qu'une en laisse une à l'écran.
+> - Le lot survivant n'était pas un oubli du converter. **`register_batch_sync` porte l'invariant
+>   « un lot sans membre n'existe pas »** pour les dix apps — mais les dix appels ne citaient que
+>   des modèles de **LIAISON**, si bien que la forme à **FK DIRECTE** (converter, seul de son
+>   espèce) restait *structurellement* hors de portée. Rien dans la fonction ne l'exigeait :
+>   **seul l'USAGE s'était restreint.** Le signe était là depuis longtemps — sa jumelle GÉNÉRÉE
+>   (`converter_01`) avait reçu la rustine à la main dans sa propre vue. ⚠⚠ **Une app générée qui
+>   corrige localement ce que le substrat devrait porter est un aveu de trou dans le substrat.**
+
+> ⚠ **Et généraliser une brique a son propre effet de bord : `register_batch_sync` alimente
+> `SYNCED`, un registre de MESURE que le manifeste publie tel quel** (`processing.batch_link_model`,
+> relu par le gabarit `apps_gen`). Y faire entrer un modèle d'ÉLÉMENT n'aurait rien cassé à
+> l'exécution — ça aurait rendu FAUX ce que l'app déclare d'elle-même, et régénéré un appel erroné.
+> D'où `direct_fk=True` : la forme est **déclarée**, pas devinée, et elle en tire ses deux
+> conséquences (hors registre de liaison, `post_delete` seul — un élément est ré-enregistré à chaque
+> tick de progression, or seule une suppression peut vider un lot).
+> ⏳ **Reste dû** : le manifeste ne sait pas encore déclarer la forme directe, donc une app générée
+> sur ce patron ne rebranchera pas l'invariant toute seule — le trou de `converter_01` est comblé
+> pour l'app existante, pas pour la prochaine.
 
 ---
 

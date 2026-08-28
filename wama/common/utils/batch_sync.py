@@ -11,8 +11,10 @@ il ne peut plus diverger.
 
 Usage — une fois, dans AppConfig.ready() de chaque app :
     from wama.common.utils.batch_sync import register_batch_sync
-    register_batch_sync(BatchTranscriptItem)
-    register_batch_sync(BatchSynthesisItem, batch_file_field='batch_file')  # nettoie le fichier batch partagé
+    register_batch_sync(BatchTranscriptItem)              # membre = modèle de LIAISON (10 surfaces)
+    register_batch_sync(ConversionJob, direct_fk=True)    # membre = l'ÉLÉMENT lui-même (FK directe)
+Le nettoyage du fichier batch partagé est porté par `BatchMixin.delete()`, pas ici (un ancien
+`batch_file_field=` documenté à cette place n'a jamais existé dans la signature).
 """
 import logging
 
@@ -60,11 +62,33 @@ def resync_batches(batch_model):
 SYNCED: list = []
 
 
-def register_batch_sync(item_model, batch_attr='batch'):
-    """Branche post_save + post_delete d'un modèle `BatchItem` pour maintenir l'invariant
+def register_batch_sync(item_model, batch_attr='batch', direct_fk=False):
+    """Branche post_save + post_delete d'un MEMBRE de lot pour maintenir l'invariant
     (total = items.count(), batch vidé supprimé). À appeler UNE fois (AppConfig.ready).
-    dispatch_uid garantit l'idempotence du branchement."""
-    if item_model not in SYNCED:
+    dispatch_uid garantit l'idempotence du branchement.
+
+    ⚠ « MEMBRE d'un lot », pas « modèle de liaison » — la nuance a coûté un défaut MUET.
+    Le rattachement prend DEUX formes dans le dépôt (`batch_common.batch_model_for`) : par
+    modèle de LIAISON (10 surfaces) et par FK DIRECTE, où l'élément EST le membre
+    (converter). Les dix appels d'origine ne citaient que des liaisons : la forme directe
+    restait donc hors de portée de l'invariant, et son lot vidé survivait — invisible,
+    puisqu'un lot sans membre ne rend aucune card. Mesuré le 2026-08-28 par
+    `converter.clear_all`, sur l'app dont la jumelle GÉNÉRÉE (`converter_01`) avait, elle,
+    reçu la rustine à la main dans sa vue. Rien dans cette fonction n'exigeait une liaison :
+    seul l'USAGE s'était restreint.
+
+    ``direct_fk=True`` déclare cette seconde forme, et en tire les deux conséquences :
+      • **hors de `SYNCED`** — ce registre de MESURE signifie « modèle de liaison de l'app »
+        et le manifeste le publie tel quel (`processing.batch_link_model`, lu par `apps_gen`).
+        Y inscrire un modèle d'ÉLÉMENT ne casserait rien à l'exécution : ça rendrait FAUX ce
+        que l'app déclare d'elle-même, et le gabarit régénérerait un appel erroné.
+      • **pas de `post_save`** — l'élément est ré-enregistré à chaque tick de progression ; un
+        COUNT par tick pour un invariant que seule une SUPPRESSION peut rompre (aucun chemin
+        ne re-parente un élément d'un lot vers un autre).
+    ⏳ Reste dû : le manifeste ne sait pas encore DÉCLARER la forme directe, donc une app
+    générée sur ce patron ne rebranchera pas l'invariant toute seule.
+    """
+    if not direct_fk and item_model not in SYNCED:
         SYNCED.append(item_model)
     name = item_model.__name__
 
@@ -75,7 +99,8 @@ def register_batch_sync(item_model, batch_attr='batch'):
             batch = None  # parent déjà supprimé (cascade) → rien à recaler
         sync_batch_total(batch)
 
-    post_save.connect(_on_change, sender=item_model, weak=False,
-                      dispatch_uid=f'batchsync_save_{name}')
+    if not direct_fk:
+        post_save.connect(_on_change, sender=item_model, weak=False,
+                          dispatch_uid=f'batchsync_save_{name}')
     post_delete.connect(_on_change, sender=item_model, weak=False,
                         dispatch_uid=f'batchsync_delete_{name}')
