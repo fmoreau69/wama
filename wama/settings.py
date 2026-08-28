@@ -711,6 +711,19 @@ LITELLM_PROVIDER = os.environ.get('LITELLM_PROVIDER', 'ollama')
 WAMA_PROMPT_ENRICH = os.environ.get('WAMA_PROMPT_ENRICH', '1') in ('1', 'true', 'True')
 WAMA_PROMPT_ENRICH_MODEL = os.environ.get('WAMA_PROMPT_ENRICH_MODEL') or None
 
+# Mode « dépannage GPU » (2026-08-28) — réduit la SUPERPOSITION de charges sur le GPU partagé
+# hôte/WSL, le temps de diagnostiquer les crashs hôte pendant les montées en charge
+# (INFRA_WSL_VS_WINDOWS §2026-08-28 : coupure franche Kernel-Power 41, facteur commun
+# mesuré = la MONTÉE VRAM, côté hôte comme côté WSL2). Effets quand actif — et SEULEMENT quand actif :
+#   ① les passes LLM de la pipeline de prompts (traduction, enrichissement) demandent à
+#     Ollama de décharger son modèle aussitôt la réponse rendue (keep_alive=0) — sinon il
+#     reste résident ~5 min pendant que la génération GPU monte en charge ;
+#   ② les backends à sous-processus GPU (audio.cpp…) ATTENDENT que la VRAM mesurée suffise
+#     avant de lancer, et échouent EN LE DISANT à l'épuisement du délai.
+# Interrupteur de CONDITIONS, pas de fonctionnalité : =0 restitue le comportement nominal à
+# l'octet. Posé dans .env de cet hôte (machine fragile), pas un défaut de la plateforme.
+WAMA_GPU_SAFE_MODE = os.environ.get('WAMA_GPU_SAFE_MODE', '0') in ('1', 'true', 'True')
+
 # Anthropic API Configuration (for AI Chat feature)
 # Set your API key here or use ANTHROPIC_API_KEY environment variable
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', None)

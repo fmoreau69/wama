@@ -13,7 +13,8 @@ from django.test import TestCase
 
 from wama.model_manager.models import AIModel
 
-from .backends.audiocpp_backend import AudioCppBackend, _snapshot_root, split_caption_lyrics
+from .backends.audiocpp_backend import (AudioCppBackend, _snapshot_root,
+                                        ensure_engine_default_aliases, split_caption_lyrics)
 
 
 class DecoupageCaptionParolesTest(TestCase):
@@ -58,6 +59,99 @@ class ResolutionPackageTest(TestCase):
         import tempfile
         with tempfile.TemporaryDirectory() as tmp:
             self.assertIsNone(_snapshot_root(tmp, 'audio-cpp/Absent'))
+
+
+class AliasDefautsMoteurTest(TestCase):
+    """
+    audio.cpp ouvre ses composants PAR DÉFAUT avant d'appliquer les session options
+    (défaut moteur, vécu 2026-08-28 : « missing …language_model_q4_0.gguf » alors que la
+    Q8 déclarée était installée et l'override passé). Le backend pose donc des alias.
+    """
+
+    def setUp(self):
+        import tempfile
+        self.tmp = tempfile.TemporaryDirectory()
+        self.racine = Path(self.tmp.name)
+        self.addCleanup(self.tmp.cleanup)
+        try:
+            (self.racine / '_probe').symlink_to('_cible')
+        except OSError:
+            self.skipTest("liens symboliques indisponibles sur cet hôte")
+        self.compo = {'components': [
+            {'role': 'language_model', 'pattern': 'language_model_q8_0.gguf'},
+            {'role': 'flow_transformer', 'pattern': 'transformer_q8_0.gguf'},
+            {'role': 'rvq_depth_decoder', 'pattern': 'rvq_depth_decoder_q8_0.gguf'},
+            {'role': 'vocoder', 'pattern': 'vocoder.gguf'},
+        ]}
+
+    def test_l_alias_du_defaut_moteur_pointe_vers_la_variante_declaree(self):
+        (self.racine / 'language_model_q8_0.gguf').write_bytes(b'q8')
+        (self.racine / 'transformer_q8_0.gguf').write_bytes(b'q8')
+        ensure_engine_default_aliases(self.racine, 'minimax_music3', self.compo)
+        alias = self.racine / 'language_model_q4_0.gguf'
+        self.assertTrue(alias.is_symlink())
+        self.assertEqual(alias.read_bytes(), b'q8')
+        self.assertTrue((self.racine / 'transformer_q4_0.gguf').is_symlink())
+
+    def test_relancer_ne_change_rien_et_un_defaut_deja_present_est_respecte(self):
+        (self.racine / 'language_model_q8_0.gguf').write_bytes(b'q8')
+        (self.racine / 'language_model_q4_0.gguf').write_bytes(b'vraie q4')
+        ensure_engine_default_aliases(self.racine, 'minimax_music3', self.compo)
+        ensure_engine_default_aliases(self.racine, 'minimax_music3', self.compo)
+        # Une VRAIE q4 installée n'est jamais écrasée par un alias.
+        self.assertEqual((self.racine / 'language_model_q4_0.gguf').read_bytes(), b'vraie q4')
+
+    def test_une_variante_declaree_absente_ne_pose_pas_d_alias_mort(self):
+        ensure_engine_default_aliases(self.racine, 'minimax_music3', self.compo)
+        self.assertFalse((self.racine / 'language_model_q4_0.gguf').exists())
+
+    def test_une_famille_inconnue_du_contournement_est_un_no_op(self):
+        (self.racine / 'language_model_q8_0.gguf').write_bytes(b'q8')
+        ensure_engine_default_aliases(self.racine, 'autre_famille', self.compo)
+        self.assertFalse((self.racine / 'language_model_q4_0.gguf').exists())
+
+
+class GateVramModeDepannageTest(TestCase):
+    """
+    Mode dépannage GPU (WAMA_GPU_SAFE_MODE, crash hôte du 28/08 pendant la montée en
+    charge Music3) : le sous-processus ne se lance que si la VRAM MESURÉE suffit —
+    sinon erreur DITE, jamais une superposition silencieuse.
+    """
+
+    def _prepare(self, tmp):
+        AIModel.objects.create(
+            model_key='composer:minimax-music3', name='MiniMax-Music3',
+            model_type='music', source='composer',
+            composition={'components': [{'role': 'language_model',
+                                         'pattern': 'language_model_q8_0.gguf'}],
+                         'runtime': {'engine': 'audio-cpp', 'family': 'minimax_music3'}})
+        depot = Path(tmp) / 'models--audio-cpp--MiniMax-Music3-GGUF'
+        (depot / 'snapshots' / 'rev1').mkdir(parents=True)
+        (depot / 'refs').mkdir()
+        (depot / 'refs' / 'main').write_text('rev1')
+
+    def test_sans_vram_mesuree_la_generation_est_refusee_en_le_disant(self):
+        import tempfile
+        from unittest import mock
+        from django.test import override_settings
+        with tempfile.TemporaryDirectory() as tmp:
+            self._prepare(tmp)
+            config = {'cache_dir': tmp, 'hf_id': 'audio-cpp/MiniMax-Music3-GGUF',
+                      'backend': 'audiocpp', 'vram_gb': 13.0}
+            with override_settings(WAMA_GPU_SAFE_MODE=True), \
+                 mock.patch.dict('wama.composer.utils.model_config.COMPOSER_MODELS',
+                                 {'minimax-music3': config}), \
+                 mock.patch.dict('os.environ', {'AUDIOCPP_BINARY': __file__}), \
+                 mock.patch('wama.common.services.resource_governor.wait_for_free_vram',
+                            return_value=(False, 0.7)), \
+                 mock.patch('subprocess.run') as run:
+                with self.assertRaises(RuntimeError) as cm:
+                    AudioCppBackend().generate(
+                        model_id='minimax-music3', prompt='x', duration=10,
+                        output_path=str(Path(tmp) / 'out.wav'))
+            self.assertIn('mode dépannage GPU', str(cm.exception))
+            self.assertIn('0.7', str(cm.exception))
+            run.assert_not_called()
 
 
 class CompositionRequiseTest(TestCase):

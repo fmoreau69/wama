@@ -29,6 +29,44 @@ logger = logging.getLogger(__name__)
 #: package — leur pattern déclaré doit donc ÊTRE ce nom par défaut.
 _SELECTABLE_ROLES = ('language_model', 'flow_transformer', 'rvq_depth_decoder')
 
+#: Fichiers que le moteur ouvre EN DUR au chargement de base (assets.cpp,
+#: `load_minimax_music3_assets`), AVANT d'appliquer les session options qui les remplacent
+#: (session.cpp, `select_component_assets`). Conséquence vécue (1ʳᵉ génération, 2026-08-28) :
+#: un package n'embarquant qu'une autre variante (le nôtre est Q8) échoue « missing MiniMax
+#: Music 3 component GGUF: …language_model_q4_0.gguf » sans que l'override soit jamais lu.
+_ENGINE_EAGER_DEFAULTS = {
+    'minimax_music3': {
+        'language_model': 'language_model_q4_0.gguf',
+        'flow_transformer': 'transformer_q4_0.gguf',
+        'rvq_depth_decoder': 'rvq_depth_decoder_q8_0.gguf',
+    },
+}
+
+
+def ensure_engine_default_aliases(racine: Path, famille: str, compo: dict) -> None:
+    """
+    Pose un ALIAS (lien symbolique relatif, idempotent) du nom par défaut du moteur vers la
+    variante DÉCLARÉE quand seul celle-ci est installée — le moteur ouvre l'alias au
+    chargement de base puis charge de toute façon la variante déclarée via la session
+    option. Contournement du défaut moteur ci-dessus (`_ENGINE_EAGER_DEFAULTS`), à retirer
+    si audio.cpp applique un jour ses overrides avant d'ouvrir ses défauts.
+    """
+    defauts = _ENGINE_EAGER_DEFAULTS.get(famille, {})
+    for c in compo.get('components', []):
+        defaut, pattern = defauts.get(c.get('role') or ''), c.get('pattern')
+        if not defaut or not pattern or defaut == pattern:
+            continue
+        alias, cible = racine / defaut, racine / pattern
+        if alias.exists() or not cible.is_file():
+            continue
+        try:
+            alias.symlink_to(pattern)
+            logger.info("[Composer/audio.cpp] alias %s → %s (défaut moteur absent du "
+                        "package)", defaut, pattern)
+        except OSError as e:
+            # Sans alias le moteur redira « missing component GGUF » — on aura dit pourquoi.
+            logger.warning("[Composer/audio.cpp] alias %s impossible : %s", defaut, e)
+
 
 def get_audiocpp_binary() -> str:
     """
@@ -155,6 +193,7 @@ class AudioCppBackend(BaseModelBackend):
             raise RuntimeError(
                 f"package {config['hf_id']} absent de {config['cache_dir']} — installer le "
                 "modèle (model manager) d'abord.")
+        ensure_engine_default_aliases(racine, famille, compo)
 
         if melody_path:
             # MiniMax-Music3 est TEXTE-SEUL (paroles + description) : aucune entrée audio de
@@ -185,6 +224,17 @@ class AudioCppBackend(BaseModelBackend):
         # Réservation VRAM le temps du sous-processus (motif MuseTalk : charge hors process,
         # invisible des mesures torch — sans elle, le gouverneur croirait le GPU libre).
         besoin = float(config.get('vram_gb') or self.recommended_vram_gb)
+        # Mode dépannage GPU (WAMA_GPU_SAFE_MODE, crashs hôte) : ne lancer la montée en
+        # charge que si la VRAM MESURÉE suffit — un résident (Ollama hôte, modèle torch d'un
+        # autre worker) expirera pendant l'attente ; sinon on refuse EN LE DISANT.
+        from wama.common.services.resource_governor import gpu_safe_mode, wait_for_free_vram
+        if gpu_safe_mode():
+            ok, libre = wait_for_free_vram(besoin, timeout_s=180)
+            if not ok:
+                raise RuntimeError(
+                    f"mode dépannage GPU : {libre:.1f} Go libres mesurés < {besoin:.1f} Go "
+                    "requis après 180 s d'attente — génération refusée plutôt que superposée. "
+                    "Libérer la VRAM (Ollama hôte, autres tâches) ou WAMA_GPU_SAFE_MODE=0.")
         timeout = 1800 + int(duration) * 30
         with vram_reservation(f"composer.audiocpp:{os.getpid()}", besoin):
             if progress_callback:

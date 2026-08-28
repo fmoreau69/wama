@@ -445,6 +445,63 @@ worker `gpu@` l'a bien reçue le 26/08. **L'hôte est tombé quand même.**
 > Généralisable : un palier de gouverneur protège d'un conflit entre tâches, jamais du coût d'une
 > tâche prise isolément.
 
+### 2026-08-28 ~11:09:16 — crash pendant la 1ʳᵉ génération Music3 : LA PREMIÈRE RAMPE
+### FATALE INSTRUMENTÉE CÔTÉ RAILS — et les rails sont PROPRES
+
+Coupure pendant la **1ʳᵉ génération MiniMax-Music3** (13 Go GGUF via audio.cpp, la plus
+grosse charge WSL2 jamais tentée sur cet hôte). **Aucune passe LLM dans la séquence** : la
+console WAMA montre `Démarrage` à 11:08:29 puis traduction **et** enrichissement servis
+**depuis le cache dans la même seconde** (prompt identique à l'essai de 00:44) → aucun
+appel Ollama. Le déclencheur est la charge GPU **WSL2 elle-même** — première de cette
+taille depuis la série de juillet (les crashs d'août étaient des chargements Ollama HÔTE).
+
+**Chronologie mesurée** (hwlog 10 s + rails 2 s ; le 6008 annonçait « 10:55:50 », soit
+**14 min d'erreur, son record** — toujours dater sur les logs) :
+
+| instant | GPU W | clock | VRAM | RAM libre | quoi |
+|---|---|---|---|---|---|
+| 11:08:22 | 26,7 | 210 | 5,1 Go | 64,7 Go | repos |
+| 11:08:33 | **83,7** | **2760** | **14,8 Go** | 64,8 Go | allocation audio.cpp (+9,7 Go en 1 échantillon) |
+| 11:08:43 | 28,2 | 210 | 14,8 Go | 62,7 Go | retour horloge idle, streaming GGUF |
+| 11:08:53 | 27,7 | 210 | 14,8 Go | 60,7 Go | RAM libre **-2 Go/10 s** |
+| 11:09:04 | 27,9 | 210 | 14,8 Go | 57,8 Go | dernier hwlog |
+| **11:09:16** | — | — | — | — | dernier échantillon rails = mort |
+
+**La machine est morte à ~28 W, horloge au PLANCHER, ~40 s APRÈS le pic** — pendant la
+phase de *staging* disque→RAM→VRAM (mem_saver), pas au pic de puissance. Et **rails.csv
+couvrait tout** (79 473 échantillons sur la session, analysés par `analyze_rails.py`,
+archivé `rails_20260828_1109_crash.csv`) : **zéro violation ATX sur les 5 rails, 12VHPWR
+stable 12,22-12,29 V jusqu'à la dernière ligne** — aucun creux, aucune dérive dans la
+minute fatale.
+
+**Ce que ce point change** : ① la mesure attendue depuis le 10/08 (« une rampe
+instrumentée ») est FAITE — elle ne montre **rien** à 2 s d'échantillonnage, exactement la
+signature « rails nominaux puis plus rien » (l'asymétrie du test reste : les transitoires
+µs sont invisibles, l'alim n'est pas disculpée — mais l'hypothèse d'un rail qui s'effondre
+sous charge en prend un 2ᵉ coup après le 23/08) ; ② la mort à basse puissance pendant une
+**allocation/pression VRAM massive côté WSL2** recolle au pattern des 18-20/08 (« la VRAM
+monte en flèche, mort en 10-40 s », quel que soit le côté hôte/invité, puissance
+indifférente) et à la classe **WSL #40732** notée le 27/07 ; ③ une passe LLM hôte n'est
+donc PAS nécessaire au crash — le facteur commun est la montée VRAM, pas Ollama.
+
+**Séquelle applicative** : la card composer est restée **zombie RUNNING 20 %** — l'état
+Celery était `PENDING` (méta STARTED perdue avec Redis dans le crash), donc la
+réconciliation « preuve positive de mort » (`reconcile_orphaned_running`) **ne peut pas
+mordre** : angle mort du mécanisme propre au cas « l'hôte entier a redémarré ».
+Normalisée à la main via `stop_instance()` ; le trou est consigné, pas encore corrigé
+(une bascule sur PENDING+absent réintroduirait le signal inversé de 2026-07-25 — il
+faudrait une preuve « nulle part » incluant le contenu des files broker).
+
+**Parade code posée — `WAMA_GPU_SAFE_MODE`** (settings.py, activé dans `.env` de cet
+hôte ; 2026-08-28) : ① les passes LLM de la pipeline demandent `keep_alive=0` (la
+traduction laissait son modèle résident ~5 min — l'enrichissement le faisait déjà,
+choix mesuré du 29/07) ; ② les backends à sous-processus GPU attendent que
+`effective_free_gb()` suffise avant de lancer (`wait_for_free_vram`, gouverneur), et
+refusent EN LE DISANT sinon. `=0` restitue le comportement nominal à l'octet. ⚠ Elle
+réduit la **superposition**, pas la **charge** d'un moteur pris seul — le 7ᵉ crash dit
+précisément que ça ne suffira pas ; c'est une mise en conditions pour le diagnostic,
+pas un correctif.
+
 ### Ce qui reste ouvert
 
 - **Quel composant lâche** — inconnu. La charge est le **déclencheur**, pas le fautif : alimentation,

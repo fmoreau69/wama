@@ -784,3 +784,15 @@ minimax_music3 --model <snapshot> --backend cuda --text "..." --request-option
 (+ `--session-option minimax_music3.language_model_gguf=language_model_q8_0.gguf` etc. —
 le backend WAMA construit exactement cette commande depuis la composition). L'ETA
 (`gen_factor=6.0`, `overhead_s=120`) est PROVISOIRE, l'estimateur auto-apprenant affinera.
+
+**2026-08-28 — 1ʳᵉ génération (Fabien) : défaut MOTEUR trouvé et contourné.** audio.cpp
+ouvre ses composants PAR DÉFAUT en dur (`assets.cpp` : `language_model_q4_0.gguf`,
+`transformer_q4_0.gguf`) AVANT d'appliquer les `--session-option` qui les remplacent
+(`session.cpp`) → notre package Q8 échouait « missing MiniMax Music 3 component GGUF:
+…language_model_q4_0.gguf » sans que l'override soit jamais lu. Contournement :
+`audiocpp_backend.ensure_engine_default_aliases()` pose des liens symboliques
+défaut→variante déclarée dans le snapshot (idempotent, jamais par-dessus un vrai fichier ;
+`_ENGINE_EAGER_DEFAULTS`). À retirer si audio.cpp applique un jour ses overrides avant
+d'ouvrir ses défauts. Leçon (sœur du « juge sur VARIANTES / installeur CANONIQUE ») : **la
+composition déclarée ne suffit pas si le moteur a ses PROPRES noms câblés** — vérifier les
+défauts du moteur au moment de choisir la variante à installer.

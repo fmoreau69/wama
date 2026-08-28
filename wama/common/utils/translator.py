@@ -84,9 +84,14 @@ class TranslatorService:
             f"Rends UNIQUEMENT la traduction, sans commentaire ni guillemets.{gloss_line}\n\n"
             f"{text}"
         )
+        # keep_alive piloté par le gouverneur : '0' en mode dépannage GPU (décharge Ollama
+        # sitôt la réponse — la traduction précède souvent une génération GPU lourde), None
+        # sinon (défaut Ollama, comportement nominal).
+        from wama.common.services.resource_governor import pipeline_keep_alive
         out, err = llm_chat(messages=[{"role": "user", "content": prompt}],
                             provider='ollama', model=self.model,
-                            num_predict=1500, think=False, timeout=timeout)
+                            num_predict=1500, think=False, timeout=timeout,
+                            keep_alive=pipeline_keep_alive())
         if err or not out:
             return {'ok': False, 'error': err or 'réponse vide', 'cached': False}
         return {'ok': True, 'text': out.strip(), 'cached': False}

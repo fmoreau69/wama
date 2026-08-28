@@ -129,6 +129,12 @@ locales `_prompt`/`_negative`, la base garde l'original) ; composer `enrich=True
   `qwen3.5:9b`). **Choix mesuré** (bench 2026-07-29) : `qwen3.5:4b` est plus léger/rapide mais viole
   la clause de langue 3/3 sur prompt court et dérive le sujet → ne pas basculer. Détail dans le
   docstring de `prompt_enrichment.py`.
+- `WAMA_GPU_SAFE_MODE` (env, défaut OFF — activé dans `.env` de l'hôte fragile, 2026-08-28) —
+  mode « dépannage GPU » (domicile : `resource_governor` 2 bis, contexte :
+  `INFRA_WSL_VS_WINDOWS §crashs`). Effet côté pipeline : traduction et enrichissement passent
+  `keep_alive=pipeline_keep_alive()` → `'0'` (Ollama décharge sitôt la réponse) au lieu du défaut
+  (~5 min de résidence pendant que la génération GPU monte en charge). L'enrichissement portait
+  déjà `keep_alive='0'` en dur (choix mesuré 29/07) — la **traduction** était le trou.
 
 ## Quand l'enrichissement a lieu (2026-07-30)
 

@@ -396,6 +396,58 @@ def effective_free_gb(exclude: str | None = None) -> float:
 
 
 # ---------------------------------------------------------------------------
+# 2 bis. Mode « dépannage GPU » (WAMA_GPU_SAFE_MODE) — réduction de la superposition
+# de charges sur le GPU partagé hôte/WSL, le temps de diagnostiquer les crashs hôte
+# (INFRA_WSL_VS_WINDOWS §crashs). Interrupteur de CONDITIONS : OFF = comportement
+# nominal à l'octet. Le gouverneur est le DOMICILE de cette politique — les
+# consommateurs (pipeline de prompts, backends sous-processus) l'interrogent ici.
+# ---------------------------------------------------------------------------
+
+def gpu_safe_mode() -> bool:
+    """Vrai si le mode dépannage GPU est actif (settings/env `WAMA_GPU_SAFE_MODE`)."""
+    from django.conf import settings
+    return bool(getattr(settings, 'WAMA_GPU_SAFE_MODE', False))
+
+
+def pipeline_keep_alive() -> str | None:
+    """
+    `keep_alive` à passer aux appels Ollama de la pipeline de prompts : '0' en mode
+    dépannage (le modèle LLM est déchargé sitôt la réponse rendue, au lieu de rester
+    résident ~5 min pendant que la génération GPU monte en charge), None sinon
+    (= défaut Ollama, comportement nominal).
+    """
+    return '0' if gpu_safe_mode() else None
+
+
+def wait_for_free_vram(needed_gb: float, *, timeout_s: float = 180.0,
+                       poll_s: float = 5.0, exclude: str | None = None,
+                       console=None) -> tuple[bool, float]:
+    """
+    Attend que `effective_free_gb()` atteigne `needed_gb`, puis rend (True, mesure).
+    À l'épuisement du délai : (False, dernière mesure) — au CALLER de refuser EN LE
+    DISANT (jamais un défaut silencieux). Ne décharge rien : l'attente laisse les
+    résidences expirer d'elles-mêmes (keep_alive Ollama, TTL des réservations).
+    """
+    import time
+    fin = time.monotonic() + max(0.0, timeout_s)
+    libre = effective_free_gb(exclude=exclude)
+    while libre < needed_gb:
+        if time.monotonic() >= fin:
+            return False, libre
+        msg = (f"[ResourceGovernor] VRAM mesurée {libre:.1f} Go < {needed_gb:.1f} Go requis "
+               f"— attente (mode dépannage GPU)")
+        logger.info(msg)
+        if console:
+            try:
+                console(msg)
+            except Exception:
+                pass
+        time.sleep(poll_s)
+        libre = effective_free_gb(exclude=exclude)
+    return True, libre
+
+
+# ---------------------------------------------------------------------------
 # 3. Priorités — DÉCLARATIF, pas codé en dur dans les apps
 # ---------------------------------------------------------------------------
 
