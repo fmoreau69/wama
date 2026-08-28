@@ -28,6 +28,7 @@ from __future__ import annotations
 import importlib
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
@@ -118,6 +119,62 @@ def get_test_user():
     return user
 
 
+# Un fichier témoin se RECONNAÎT à son nom : `wama_temoin_*` depuis le 28/08 (`_fichier_temoin`),
+# `tmp` + 8 caractères pour tout ce que `tempfile` a produit AVANT ce nommage — c'est la forme
+# exacte de `NamedTemporaryFile`, pas un `tmp` au sens large : un fichier que quelqu'un aurait
+# nommé `tmp_export.csv` n'est pas à nous et ne doit pas disparaître.
+_MOTIF_TEMOIN = re.compile(r'^(wama_temoin_|tmp[A-Za-z0-9_]{8})')
+# Les comptes de test connus (même liste que `_session_compte_de_test` dans ui_smoke).
+TEST_USERNAMES = (TEST_USERNAME, 'ui_smoke_v3', 'pw_smoke', 'wama_rights_commun',
+                  'wama_rights_communication', 'wama_rights_recherche', 'wama_rights_developpeur')
+
+
+def sweep_test_witnesses() -> int:
+    """Efface les FICHIERS témoins restés dans les dossiers média des comptes de TEST.
+
+    ⚠ Les scénarios ont un filet ORM (la garde de montage retire ce qu'ils ont créé, en
+    différence d'ids), et il est bon. Mais un filet ORM ne voit que ce qui a une LIGNE : un
+    fichier que l'app a copié dans `media/<app>/<uid>/input/` sans qu'un élément survive — import
+    refusé, scénario interrompu, `delete()` d'une vue qui ne débranche pas le FileField — ne lui
+    apparaît jamais. Mesuré le 2026-08-28 : **146 témoins** accumulés sur 7 apps, tous sous le
+    compte de test, invisibles de toute mesure. D'où ce second filet, qui travaille sur le
+    DISQUE et non sur la base.
+
+    Trois bornes, cumulatives — c'est ce qui rend un balayage automatique acceptable :
+      1. uniquement les dossiers média des comptes de TEST (`TEST_USERNAMES`) ;
+      2. uniquement des fichiers dont le NOM est celui d'un témoin (`_MOTIF_TEMOIN`) ;
+      3. jamais de dossier supprimé, et la récursion ne sort JAMAIS de `media/<app>/<uid>/`.
+    Un fichier du compte réel de Fabien ne peut donc pas être atteint, même par accident.
+
+    ⚠ La récursion n'est pas du zèle : une profondeur FIXE (`*/<uid>/*/*`) laissait 16 témoins
+    sur place — l'enhancer range les siens dans `input/media/`, un niveau plus bas. Supposer
+    l'arborescence des apps identique, c'est laisser le balayage mentir sur ce qu'il balaie.
+    """
+    from pathlib import Path
+    from django.conf import settings
+    from django.contrib.auth import get_user_model
+
+    ids = list(get_user_model().objects.filter(username__in=TEST_USERNAMES)
+               .values_list('pk', flat=True))
+    if not ids:
+        return 0
+    racine = Path(settings.MEDIA_ROOT)
+    n = 0
+    for uid in ids:
+        for dossier in racine.glob(f'*/{uid}'):
+            if not dossier.is_dir():
+                continue
+            for chemin in dossier.rglob('*'):
+                if not (chemin.is_file() and _MOTIF_TEMOIN.match(chemin.name)):
+                    continue
+                try:
+                    chemin.unlink()
+                    n += 1
+                except OSError as exc:                       # pragma: no cover
+                    logger.debug("[nightly] témoin non effacé %s (%s)", chemin, exc)
+    return n
+
+
 def free_vram() -> None:
     """Téardown VRAM best-effort entre scénarios (réutilise le cleaner du model_manager)."""
     try:
@@ -177,7 +234,13 @@ def run_all(scenarios: Optional[List[Scenario]] = None, write: bool = True) -> d
         results.append(run_one(sc, ctx))
         free_vram()                       # libère la VRAM APRÈS (pour le suivant)
 
+    # Filet de SORTIE — le pendant fichiers du filet ORM des scénarios. Voir `sweep_test_witnesses`.
+    balayes = sweep_test_witnesses()
+    if balayes:
+        logger.info("[nightly] %d fichier(s) témoin balayé(s) des comptes de test", balayes)
+
     report = build_report(results)
+    report["witness_files_swept"] = balayes
     if write:
         path = write_report(report)
         report["report_path"] = str(path)

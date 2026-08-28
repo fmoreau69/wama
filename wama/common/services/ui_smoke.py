@@ -401,7 +401,12 @@ def _fichier_temoin(extensions: str) -> Path:
         contenu = _wav_silence()
     else:
         contenu = b'temoin import WAMA\n'
-    f = tempfile.NamedTemporaryFile('wb', suffix=ext, delete=False)
+    # ⚠ Préfixe EXPLICITE (28/08) : un témoin doit se reconnaître à son NOM. Avec le `tmp` par
+    # défaut de `tempfile`, un fichier resté dans `media/<app>/<uid>/input/` était indistinguable
+    # de n'importe quel temporaire — donc impossible à balayer sans risque. 146 s'y étaient
+    # accumulés, invisibles du filet ORM (qui ne voit que ce qui a une ligne en base).
+    # Le balayage vit dans `nightly_tests.sweep_test_witnesses`.
+    f = tempfile.NamedTemporaryFile('wb', prefix='wama_temoin_', suffix=ext, delete=False)
     f.write(contenu); f.close()
     return Path(f.name)
 
