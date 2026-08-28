@@ -2470,6 +2470,44 @@ travail**. La base LIVE est celle de **WSL2 (Postgres 16)**, conforme à
 exécute WAMA nativement sous Windows (`venv_win runserver`) ; sinon c'est une taxe d'entretien
 supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 
+## §REPRISE — 2026-08-28, instance « GESTE 14 + DROITS AU NOCTURNE » — ✅ CLÔTURE (contexte épuisé)
+
+> **Partition tenue** : `wama/common/services/{nightly_tests,ui_smoke,rights_matrix}.py`,
+> `WAMA_VERIFICATION.md`, `wama/filemanager/*`. **Rien touché** dans `wama/accounts/*`,
+> `PROFILES_PERMISSIONS.md`, `wama/common/mecanismes.py`, `nightly_scenarios.py`, `settings.py`,
+> `composer/*`, `model_manager/PROSPECTION_PIPELINE.md`, `wama_data/*` — périmètres d'autres
+> instances, modifiés en parallèle pendant toute la session.
+
+**Commits** : `132b1160` `5c80ef9e` (gestes 5 et 6) · `c1e49f52` `92de4705` `8ce2efeb` (geste 14 :
+« Envoyer vers », URL, dossier → **le geste 14 est ENTIER**) · `13af966c` (droits).
+**Couverture : 8 gestes et demi sur 16** (`WAMA_VERIFICATION §3`, le compteur vit là-bas).
+
+**Livré ce jour, côté droits** (demande de Fabien, arbitrage « je prends tout, y compris les
+fixtures ») : `wama/common/services/rights_matrix.py` — **troisième grille**, orthogonale à
+l'adoption et au fonctionnel : *ce qui est OCTROYÉ est-il APPLIQUÉ ?* Détail complet et leçons →
+**`WAMA_VERIFICATION §3ter`** (point d'entrée unique ; ne pas recopier ses chiffres ici).
+- `common.rights_matrix` ✅ **68 couples, accord complet** décision↔serveur, **14/16 apps
+  discriminantes** — le travail S2 tient pour les comptes authentifiés ;
+- `common.rights_anonymous` ❌ **12 surfaces gardées sur 17 s'ouvrent à un visiteur sans session**.
+
+🔚 **DEUX ARBITRAGES ATTENDENT FABIEN** (aucun n'est dans mon périmètre) :
+1. **Le trou anonyme.** `AppAccessMiddleware` ne garde que les authentifiés et renvoie l'anonyme
+   au `login_required` des vues — hypothèse d'architecture vraie sur **2 vues / 14**. Deux voies :
+   servir l'anonyme comme un **tier** (c'est ce que suppose le décorateur `app_access`), ou poser
+   `login_required` sur les vues. ⚠ Corollaire déjà mesuré : **`converter_01` s'ouvre en anonyme
+   et se FERME une fois connecté** — se connecter y fait *perdre* l'accès.
+2. Celui du 27/08 (§REPRISE « DROITS S2 », `PROFILES_PERMISSIONS §8.9`), toujours ouvert.
+
+⏳ **SUITE PRÉVUE, NON COMMENCÉE — reprendre là** : l'étape 4 du plan validé par Fabien
+(« les erreurs d'abord, les tests ensuite, **le portage en dernier** »). Les étapes 1-3 sont
+soldées ; le portage schéma-driven reprend à `project_schema_driven_ports` /
+`WAMA_APP_GENERATION_ROUTE.md`. Rien n'est en cours, l'arbre de travail est propre de mon côté.
+
+⚠ **Résidu connu, non traité** : des passages antérieurs ont laissé des copies `tmp*.wav`/`tmp*.txt`
+dans les dossiers d'entrée du compte de test (lignes en base supprimées, **fichiers non**).
+
+---
+
 ## §REPRISE — 2026-08-27, instance « DROITS S2 » — ✅ PALIER LIVRÉ (`6aa1b556`, `d601baa5`) — ⚠ **UN ARBITRAGE ATTEND FABIEN**
 
 > **Partition** : `wama/accounts/` (`permissions.py`, `middleware.py`, `context_processors.py`,
