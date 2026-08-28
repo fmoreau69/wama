@@ -2479,7 +2479,8 @@ supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 > instances, modifiés en parallèle pendant toute la session.
 
 **Commits** : `132b1160` `5c80ef9e` (gestes 5 et 6) · `c1e49f52` `92de4705` `8ce2efeb` (geste 14 :
-« Envoyer vers », URL, dossier → **le geste 14 est ENTIER**) · `13af966c` (droits).
+« Envoyer vers », URL, dossier → **le geste 14 est ENTIER**) · `13af966c` (droits) ·
+`a6250b47` `e6d9b5de` (balayage des témoins + consignation) · `c1010bc3` (faux rouge d'instrument).
 **Couverture : 8 gestes et demi sur 16** (`WAMA_VERIFICATION §3`, le compteur vit là-bas).
 
 **Livré ce jour, côté droits** (demande de Fabien, arbitrage « je prends tout, y compris les
@@ -2513,6 +2514,23 @@ le rapport). Deux conditions ont dû être créées pour qu'un effacement automa
 un témoin **se reconnaît à son nom** (`wama_temoin_`, sinon indistinguable d'un temporaire
 quelconque) et le balayage tient **trois bornes cumulatives** (comptes de test / nom de témoin /
 jamais un dossier, récursion bornée à `media/<app>/<uid>/`). **0 résiduel** sur tout `media/`.
+
+**Dernier acte — la 1ʳᵉ PASSE COMPLÈTE du nocturne** (WAMA relancé par Fabien) : `--stage ui`,
+**158 scénarios, ~35 min** (à lancer en tâche de fond, ça dépasse le délai d'un appel d'outil), plafonné
+à `ui` **délibérément** — `model_loaded`/`output` chargeraient des modèles, et la charge GPU est à Fabien.
+**Résultat : 92/158 OK, 1 échec, 65 skips motivés, `witness_files_swept: 20`.** L'unique échec est le
+trou anonyme ci-dessus. Les 65 skips ne sont pas des trous : ils nomment leur raison (11 sur
+`converter_01` + 10 sur `model_manager`, fermés au compte de test ; `show_url` non déclaré ;
+`url_submit_id`/`folder_input_id` absents ; pas de volet `#inspectorActions`…).
+
+⭐ **Et cette passe a trouvé un défaut d'instrument QUE LE RUN ISOLÉ NE PEUT PAS VOIR** (`c1010bc3`,
+détail → `WAMA_VERIFICATION §3 « Geste 14 (URL) »`) : `anonymizer.url_import` accusait l'app d'un
+« défaut muet » inexistant, parce que `networkidle` dit que le **réseau** s'est tu, pas que le **JS** a
+fini de câbler. Sous 158 scénarios sérialisés, le clic tombait avant l'écouteur. Corrigé **sans
+rallonger le délai** (ça déplace la panne vers une machine plus chargée) : on lit le signal
+déterministe de `initUrlImport` (bouton désactivé + spinner **avant** tout POST), avec une seconde
+tentative espacée. ⚠ **Toute passe complète est donc aussi une mesure de l'instrument** — les runs
+isolés ne suffisent pas à valider un scénario.
 
 🔚 **Consigne pour l'instance qui régénère les mécanismes** : `rights_matrix.py` **manque** aux
 `annexes` du `Mecanisme('nightly_tests')` (`wama/common/mecanismes.py:121-125` — n'y figurent que

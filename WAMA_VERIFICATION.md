@@ -559,6 +559,45 @@ constatent au clic :
 > reste un défaut (la brique commune l'a rendu, rien ne l'écoute) ; un bouton qui explique est un
 > skip. C'était l'instrument qui confondait « rien ne se passe » et « on m'a expliqué pourquoi ».
 
+#### ⚠⚠ Le défaut d'instrument qui ne se voit QU'EN CHARGE : ce scénario a accusé l'anonymizer d'un « défaut muet » qui n'existe pas
+
+Trouvé le 2026-08-28 à la **première passe COMPLÈTE** depuis la livraison du geste 14
+(`nightly_20260828_17…`) : `anonymizer.url_import` rendait **ÉCHEC** — « le bouton est offert, le
+clic n'émet AUCUNE requête, l'app ne dit RIEN : rien ne les écoute ». Le **même scénario joué seul**
+trouve l'app parfaitement câblée (le POST part, la garde SSRF le refuse). Le dépôt n'avait pas
+bougé entre les deux : c'est la **mesure** qui mentait — et elle mentait en **nommant un défaut
+précis dans une app précise**, ce qui aurait envoyé quelqu'un chercher un bug inexistant.
+
+> ⚠⚠ **`networkidle` dit que le RÉSEAU s'est tu, pas que le JS a fini.** Le scénario cliquait après
+> `wait_until='networkidle'` + un délai **fixe** de 1,2 s. Sous la passe complète — 158 scénarios
+> sérialisés, Chromium relancé à chaque fois — le clic tombait **avant** que l'app n'ait lié son
+> écouteur : l'élément existe, le clic réussit, rien ne part. C'est le pendant exact du « une
+> mesure faible qui se dit forte est pire que pas de mesure » (27/08), à ceci près qu'ici la
+> faiblesse ne se voyait qu'**en charge**.
+
+> ⭐ **On ne rallonge pas le délai — on prend un signal DÉTERMINISTE.** Allonger un délai fixe ne
+> corrige rien, ça **déplace** la panne vers une machine plus chargée. La brique commune
+> (`initUrlImport`, `wama-app-base.js`) désactive le bouton et y met un spinner **dès l'entrée dans
+> `submit()`**, avant tout POST : un bouton qui **bouge** a une chaîne, un bouton **inerte** n'a
+> rien qui l'écoute. Le verdict négatif s'appuie désormais là-dessus, plus une **seconde tentative
+> espacée** — c'est la deuxième absence de réaction qui accuse, jamais la première.
+
+> ⚠ **L'erreur faite en chemin, gardée parce qu'elle EST la leçon.** Le premier correctif ne
+> regardait que les mutations d'un `MutationObserver`. Il a manqué la réaction et a voulu
+> recliquer : Playwright a **expiré** parce que le bouton était **désactivé** — c'est-à-dire en
+> pleine réaction. L'instrument prenait la preuve du succès pour une preuve d'échec. D'où une
+> détection **non exclusive** (mutation **ou** `disabled` **ou** spinner **ou** bouton disparu) et
+> une reprise **conditionnée** à un bouton encore actif.
+
+Troisième issue, qui n'existait pas avant : « le bouton **réagit** mais rien n'est observable »
+devient un **skip motivé**, pas un échec. Confondre « rien ne se passe » et « la chaîne est partie
+sans laisser de trace mesurable ici » était la faute d'origine — la même que le cas avatarizer
+ci-dessus, un cran plus bas.
+
+**Ce que la preuve exige** : le run isolé n'a jamais échoué, il n'aurait donc rien prouvé. Seule la
+**repasse complète** l'atteste — **92/158 OK, 2 échecs → 92/158 OK, 1 échec** (`rights_anonymous`
+seul), `anonymizer.url_import` revenu à son skip de garde SSRF.
+
 #### ⚠⚠ Le défaut d'instrument le plus large trouvé jusqu'ici : le harnais mesurait la page où il ATTERRISSAIT
 
 `page.goto` **suit les redirections** et rapporte le statut de la page d'**arrivée**. Le contrôle
