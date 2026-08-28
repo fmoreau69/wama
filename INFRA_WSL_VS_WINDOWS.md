@@ -355,7 +355,7 @@ orphelins — un par mort, datés à la minute des Kernel-Power 41 (23/08 21:49,
 |---|---|---|
 | `swap.vhdx` orphelins + cache installeur VS + DLL fuitées | **29,39 Go** | ✅ **libérés le 25/08** |
 | `hiberfil.sys` | **38,37 Go** | ✅ **libérés le 25/08** (`powercfg /h off`, décision de Fabien ; désactive aussi le Démarrage rapide, qui cohabite mal avec WSL2 — S3 reste disponible) |
-| Clichés VSS sur **D:** | 40,8 Go utilisés / plafond 69,3 Go | ⏳ **non traité** — créés toutes les 4 h + un par redémarrage. Piste : `vssadmin resize shadowstorage /for=D: /on=D: /maxsize=10GB` purge les plus anciens en gardant les récents |
+| Clichés VSS sur **D:** | plafond ramené à **10 Go** (était 69,3, dont 40,8 utilisés au 25/08) | ✅ **réglé — plafond confirmé à 10 Go par Fabien le 28/08** (`vssadmin resize shadowstorage /for=D: /on=D: /maxsize=10GB`) ; les clichés (1/4 h + 1 par redémarrage) tournent désormais sous ce plafond |
 | `hunyuan-image-2.1` (`AI-models/models/diffusion/hunyuan/`) | **49,48 Go** | ⏳ **non traité** — déjà en attente de retrait depuis la revue de licences du 21/08 (**interdit UE**) ; ⚠ encore déclaré ACTIF dans `CLAUDE.md` et le catalogue → le retrait doit toucher le CODE aussi, pas seulement le disque |
 | Ollama (`D:\.ollama`) | **107,65 Go** | ⏳ **non traité** — plus gros poste isolé de D:. ⚠ `AI-models/models/llm/ollama` en est un **SymbolicLink**, pas une copie : compté deux fois dans les scans, occupé une seule fois |
 | ~112 Go sur D: | — | ⚠ **non expliqués** par l'inventaire des dossiers ; probablement des répertoires aux ACL restrictives, à remesurer en session élevée |
