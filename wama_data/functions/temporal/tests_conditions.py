@@ -196,5 +196,111 @@ class DeclarationsTest(unittest.TestCase):
         self.assertIn('>=', aide)
 
 
+
+
+class FiltreOccurrencesTest(unittest.TestCase):
+    """Trou ③ de §11.9 — la même chaîne appliquée à des lignes qui EXISTENT déjà."""
+
+    def _events(self, rows):
+        import pandas as pd
+        return TypedFrame(pd.DataFrame(rows), DataType.EVENTS)
+
+    def _segments(self, rows):
+        import pandas as pd
+        df = pd.DataFrame(rows)
+        if 'end' in df.columns and any(r.get('end') is None for r in rows):
+            df['end'] = pd.Series([r.get('end') for r in rows], dtype=object)
+        return TypedFrame(df, DataType.SEGMENTS)
+
+    def test_filtrer_des_occurrences_par_texte(self):
+        # La bascule [Data|Event] de l'écran d'origine : « le commentaire contient FIN ».
+        from .conditions import filter_events
+        ev = self._events([{'time': 1.0, 'comment': 'debut bloc'},
+                           {'time': 2.0, 'comment': 'FIN de bloc'},
+                           {'time': 3.0, 'comment': 'pause'}])
+        out = filter_events(ev, conditions=[{'key': 'C1', 'field': 'comment',
+                                             'operator': 'contains', 'value': 'FIN'}])
+        self.assertEqual(list(out.df['time']), [2.0])
+        self.assertEqual(out.data_type, DataType.EVENTS)
+
+    def test_garder_les_situations_de_plus_d_une_minute(self):
+        # Le cas posé par Fabien, mot pour mot — et `duration` n'est PAS une colonne du cadre.
+        from .conditions import filter_segments
+        segs = self._segments([{'start': 0.0, 'end': 30.0, 'name': 'courte'},
+                               {'start': 100.0, 'end': 180.0, 'name': 'longue'}])
+        out = filter_segments(segs, conditions=[{'key': 'C1', 'field': 'duration',
+                                                 'operator': '>=', 'value': 60.0}])
+        self.assertEqual(list(out.df['name']), ['longue'])
+        self.assertNotIn('duration', out.df.columns, "un filtre sélectionne, il n'enrichit pas")
+
+    def test_un_segment_OUVERT_est_rejete_par_une_condition_numerique_sur_la_duree(self):
+        # Une durée inconnue ne satisfait pas « > 60 » — et ne satisfait pas « < 60 » non plus.
+        from .conditions import filter_segments
+        segs = self._segments([{'start': 0.0, 'end': 90.0}, {'start': 100.0, 'end': None}])
+        garde = filter_segments(segs, conditions=[{'key': 'C1', 'field': 'duration',
+                                                   'operator': '>=', 'value': 60.0}])
+        self.assertEqual(list(garde.df['start']), [0.0])
+
+    def test_un_segment_OUVERT_se_selectionne_par_l_operateur_empty(self):
+        from .conditions import filter_segments
+        segs = self._segments([{'start': 0.0, 'end': 90.0}, {'start': 100.0, 'end': None}])
+        les_ouverts = filter_segments(segs, conditions=[{'key': 'C1', 'field': 'duration',
+                                                     'operator': 'empty'}])
+        self.assertEqual(list(les_ouverts.df['start']), [100.0])
+
+    def test_vitesse_moyenne_par_COMPOSITION_avec_le_calculator(self):
+        # « Garder les situations à vitesse moyenne > 30 » = calc_per_segment PUIS le filtre.
+        import pandas as pd
+        from .calculation import calc_per_segment
+        from .conditions import filter_segments
+        signal = TypedFrame(pd.DataFrame({'time': [0.0, 1.0, 2.0, 10.0, 11.0, 12.0],
+                                          'value': [50.0, 40.0, 45.0, 10.0, 12.0, 8.0]}),
+                            DataType.SIGNAL)
+        segs = self._segments([{'start': 0.0, 'end': 2.0}, {'start': 10.0, 'end': 12.0}])
+        avec = calc_per_segment(segs, signal, statistics='mean')
+        out = filter_segments(avec, conditions=[{'key': 'C1', 'field': 'value_mean',
+                                                 'operator': '>', 'value': 30.0}])
+        self.assertEqual(list(out.df['start']), [0.0])
+
+    def test_l_entree_n_est_pas_mutee_et_l_arbre_logique_s_applique(self):
+        from .conditions import filter_events
+        ev = self._events([{'time': 1.0, 'v': 10.0, 'txt': 'a'},
+                           {'time': 2.0, 'v': 50.0, 'txt': 'FIN'},
+                           {'time': 3.0, 'v': 50.0, 'txt': 'b'}])
+        out = filter_events(ev,
+                            conditions=[{'key': 'C1', 'field': 'v', 'operator': '>=', 'value': 30},
+                                        {'key': 'C2', 'field': 'txt', 'operator': 'contains',
+                                         'value': 'FIN'}],
+                            connectors='ET(C1, C2)')
+        self.assertEqual(list(out.df['time']), [2.0])
+        self.assertEqual(len(ev.df), 3)
+
+    def test_les_filtres_sont_DECLARES_au_catalogue(self):
+        # ⚠ La leçon du trou ② : une capacité non déclarée est invisible de l'UI générée.
+        from wama.common.catalog.function_catalog import get
+        for key in ('event_filter', 'segment_filter', 'event_within'):
+            self.assertIsNotNone(get(key), f"{key} absent du catalogue")
+
+
+class EvenementsDansContexteTest(unittest.TestCase):
+    """Le point « mineur » de §11.9, câblé : la restriction Situation sur une sortie ÉVÉNEMENTS."""
+
+    def test_seuls_les_instants_DANS_la_situation_survivent(self):
+        import pandas as pd
+        from .segmentation import events_within
+        ev = TypedFrame(pd.DataFrame({'time': [5.0, 15.0, 25.0]}), DataType.EVENTS)
+        ref = TypedFrame(pd.DataFrame({'start': [10.0], 'end': [20.0]}), DataType.SEGMENTS)
+        out = events_within(ev, ref)
+        self.assertEqual(list(out.df['time']), [15.0])
+
+    def test_une_fin_OUVERTE_contient_tout_instant_posterieur(self):
+        import pandas as pd
+        from .segmentation import events_within
+        ev = TypedFrame(pd.DataFrame({'time': [5.0, 500.0]}), DataType.EVENTS)
+        ref = TypedFrame(pd.DataFrame([{'start': 10.0, 'end': None}]), DataType.SEGMENTS)
+        out = events_within(ev, ref)
+        self.assertEqual(list(out.df['time']), [500.0])
+
+
 if __name__ == '__main__':
     unittest.main()

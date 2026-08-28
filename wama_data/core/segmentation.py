@@ -335,6 +335,28 @@ def within(segments: Sequence[Segment], reference: Sequence[Segment], *,
     return out
 
 
+def times_within(times: Sequence[float], reference: Sequence[Segment], *,
+                 strict: bool = True) -> List[bool]:
+    """Masque : chaque INSTANT tombe-t-il dans l'un des segments de référence ?
+
+    Le pendant ÉVÉNEMENT de `within()` — « les événements présents dans une situation » (le
+    point laissé « à vérifier au câblage » par §11.9 : `within` opère sur des segments, un
+    événement n'a qu'une borne). Rend un MASQUE et non une sélection : c'est l'appelant qui
+    filtre son cadre, la fonction pure ne connaît pas les colonnes qui l'accompagnent.
+
+    `strict` garde la convention de `within()` : bornes strictement intérieures par défaut.
+    Une fin OUVERTE de la référence contient tout instant postérieur à son début.
+    """
+    starts = [r['start'] for r in reference]
+    ends = [r['end'] if r['end'] is not None else float('inf') for r in reference]
+    out: List[bool] = []
+    for t in times:
+        dedans = any((d < t < f) if strict else (d <= t <= f)
+                     for d, f in zip(starts, ends))
+        out.append(dedans)
+    return out
+
+
 def overlapping(segments: Sequence[Segment], reference: Sequence[Segment]) -> List[Segment]:
     """Segments qui INTERSECTENT au moins un segment de référence (inclusion non exigée)."""
     out: List[Segment] = []

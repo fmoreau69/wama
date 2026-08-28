@@ -39,7 +39,7 @@ from wama.common.catalog.function_catalog import (FunctionCategory, FunctionSpec
 from ...core.conditions import (BOOLEAN, NUMERIC, TEXT, Condition, parse, evaluate,
                                 chain_name, operators_for)
 from ...core.segmentation import edges, conditional
-from .segmentation import CHAMPS_SEGMENT, _colonne, _segments
+from .segmentation import CHAMPS_SEGMENT, _colonne, _fin, _segments
 
 #: Champs produits par une bascule — `time` vient de la taxonomie, le reste est la traçabilité.
 CHAMPS_BASCULE = CANONICAL_FIELDS[DataType.EVENTS] + ['edge', 'name', 'origin']
@@ -150,6 +150,50 @@ def chain_to_events(signal: TypedFrame, conditions: str = '', connectors: str = 
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════════════
+# Le FILTRE D'OCCURRENCES — la même chaîne, appliquée à des lignes qui EXISTENT déjà
+# (trou ③ de §11.9, étendu aux situations sur question de Fabien : « durée > 1 min ?
+# vitesse moyenne > 30 km/h ? » — par COMPOSITION, pas par concept neuf)
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+
+def _garder(frame: TypedFrame, mask, eval_frame: TypedFrame = None) -> TypedFrame:
+    """Les lignes du cadre D'ORIGINE où le masque est vrai — jamais celles du cadre d'évaluation :
+    une colonne dérivée pour ÉVALUER (la durée) n'a pas à entrer dans la sortie d'un FILTRE."""
+    keep = [i for i, m in enumerate(mask) if m]
+    return TypedFrame(frame.df.iloc[keep].copy(), frame.data_type, meta=frame.meta)
+
+
+def filter_events(events: TypedFrame, conditions: str = '', connectors: str = '') -> TypedFrame:
+    """Occurrences d'événements satisfaisant une chaîne de conditions — la bascule [Data|Event]
+    de l'écran d'origine (« les occurrences dont `var_commentaires` contient FIN »).
+
+    Même chaîne, mêmes opérateurs, même arbre que `chain_to_segments` : un filtre n'est pas un
+    mode, c'est le même masque appliqué à des lignes qui existent déjà.
+    """
+    mask, _ = _masque(events, conditions, connectors)
+    return _garder(events, mask)
+
+
+def filter_segments(segments: TypedFrame, conditions: str = '', connectors: str = '') -> TypedFrame:
+    """Situations satisfaisant une chaîne de conditions — durée comprise.
+
+    ⭐ La colonne `duration` (end − start) est DISPONIBLE À L'ÉVALUATION même si le cadre ne la
+    porte pas — dérivée en flottant, jamais écrite dans la sortie (un filtre sélectionne, il
+    n'enrichit pas). Un segment OUVERT a une durée ABSENTE : une condition numérique le REJETTE
+    (une durée inconnue ne satisfait pas « > 60 »), et l'opérateur `empty` sur `duration` permet
+    de le SÉLECTIONNER explicitement. « Vitesse moyenne > 30 » se compose : `calc_per_segment`
+    adjoint l'indicateur, puis ce filtre s'applique — deux fonctions chaînées, zéro concept neuf.
+    """
+    eval_frame = segments
+    if 'duration' not in segments.df.columns:
+        df = segments.df.copy()
+        df['duration'] = [float('nan') if _fin(e) is None else float(_fin(e)) - float(s)
+                          for s, e in zip(df['start'], df['end'])]
+        eval_frame = TypedFrame(df, segments.data_type, meta=segments.meta)
+    mask, _ = _masque(eval_frame, conditions, connectors)
+    return _garder(segments, mask)
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════
 # Déclarations
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 
@@ -222,4 +266,51 @@ register(FunctionSpec(
     ],
     cost={'cpu_bound': True},
     fn=chain_to_events,
+))
+
+register(FunctionSpec(
+    key='event_filter',
+    name="Filtrer des événements par conditions",
+    description="Ne garde que les OCCURRENCES satisfaisant la chaîne de conditions — la bascule "
+                "[Data|Event] de l'écran d'origine (« les occurrences dont le commentaire "
+                "contient FIN »). Même chaîne, mêmes opérateurs que « Segments par chaîne de "
+                "conditions » : un filtre n'est pas un mode, c'est le même masque appliqué à des "
+                "lignes qui existent déjà. Couvre en DÉCLARATIF l'essentiel du filtrage manuel "
+                "de l'outil d'origine (§11.9 ④).",
+    category=FunctionCategory.TRANSFORM,
+    tags=['temporel', 'conditionnel', 'ensembliste', 'evenement'],
+    inputs=[PortSpec('events', DataType.EVENTS, required_fields=['time'],
+                     description="Occurrences à trier — leurs colonnes portent les conditions.")],
+    outputs=[PortSpec('events', DataType.EVENTS,
+                      description="Les occurrences retenues, colonnes inchangées.")],
+    params=[
+        ParamSpec('conditions', 'json', '', description=_AIDE_CONDITIONS),
+        ParamSpec('connectors', 'str', '', description=_AIDE_CONNECTEURS),
+    ],
+    cost={'cpu_bound': True},
+    fn=filter_events,
+))
+
+register(FunctionSpec(
+    key='segment_filter',
+    name="Filtrer des situations par conditions",
+    description="Ne garde que les situations satisfaisant la chaîne — DURÉE comprise : la "
+                "colonne `duration` (end − start) est disponible à l'évaluation même si le cadre "
+                "ne la porte pas, sans entrer dans la sortie. Un segment OUVERT a une durée "
+                "ABSENTE : rejeté par toute condition numérique, sélectionnable par `empty`. "
+                "« Vitesse moyenne > 30 » se COMPOSE : `calc_per_segment` adjoint l'indicateur, "
+                "puis ce filtre s'applique — deux fonctions chaînées, zéro concept neuf.",
+    category=FunctionCategory.TRANSFORM,
+    tags=['temporel', 'conditionnel', 'ensembliste', 'segmentation'],
+    inputs=[PortSpec('segments', DataType.SEGMENTS, required_fields=['start', 'end'],
+                     description="Situations à trier — leurs colonnes (et `duration` dérivée) "
+                                 "portent les conditions.")],
+    outputs=[PortSpec('segments', DataType.SEGMENTS,
+                      description="Les situations retenues, colonnes inchangées.")],
+    params=[
+        ParamSpec('conditions', 'json', '', description=_AIDE_CONDITIONS),
+        ParamSpec('connectors', 'str', '', description=_AIDE_CONNECTEURS),
+    ],
+    cost={'cpu_bound': True},
+    fn=filter_segments,
 ))

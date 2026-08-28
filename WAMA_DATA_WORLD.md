@@ -2995,11 +2995,15 @@ rendue ≥ marge demandée, bornée là où la donnée s'arrête.
 elle-même (`functions/temporal/tests_segmentation.py` — *une capacité non déclarée est une
 capacité invisible de l'UI générée*). `wama_data` : **645 tests** au vert.
 
-**③ Conditionnelle sur table d'ÉVÉNEMENTS (la bascule [Data|Event] de l'écran).** `_ENTREE` est
-`TIMESERIES` seulement ; « les occurrences de `commentaires_simu` dont `var_commentaires` contient
-FIN » — filtrer des occurrences par prédicat — n'a pas de fonction. Une `event_filtre_conditionnel`
-(EVENTS/SEGMENTS en entrée, **même** chaîne de conditions) comblerait le trou — ⭐ et couvrirait du
-même coup l'essentiel du filtrage manuel **de façon déclarative**.
+~~**③ Conditionnelle sur table d'ÉVÉNEMENTS (la bascule [Data|Event] de l'écran).**~~ — ✅
+**SOLDÉ le 2026-08-28** (quick win pendant la préparation des données) : **`event_filter`** et
+**`segment_filter`** au catalogue — la **même** chaîne de conditions (`_masque` réutilisé tel
+quel, zéro moteur neuf), appliquée à des lignes qui EXISTENT déjà. ⭐ Étendu aux **situations**
+comme demandé : `duration` (end − start) est **disponible à l'évaluation** même si le cadre ne la
+porte pas — et n'entre pas dans la sortie (*un filtre sélectionne, il n'enrichit pas*) ; un
+segment **ouvert** a une durée absente — rejeté par toute condition numérique, sélectionnable par
+`empty` ; « vitesse moyenne > 30 » se **compose** (`calc_per_segment` → `segment_filter`, testé
+mot pour mot). Couvre en **déclaratif** l'essentiel du filtrage manuel de ④.
 
 > ⭐ **Étendu aux SITUATIONS (question de Fabien, 26/08 : « durée > 1 min ? vitesse moyenne >
 > 30 km/h ? ») — oui, et par COMPOSITION, pas par concept neuf.** La même fonction de filtre
@@ -3020,9 +3024,10 @@ comme les gestes de codage, **non promouvable au batch** — cohérent avec « o
 déclaration, pas les valeurs » et avec la décision export (§11.2 ② : le déclaratif se promeut, le
 manuel reste local). À déclarer comme geste, pas comme fonction du catalogue.
 
-(Mineur, à vérifier au câblage : la restriction « Situation : … » appliquée à la **sortie
-événements** de la conditionnelle — `present_dans` opère sur des segments ; pour des events, soit
-restreindre le signal d'entrée, soit un petit `events_present_dans`.)
+~~(Mineur, à vérifier au câblage : la restriction « Situation : … » appliquée à la **sortie
+événements** de la conditionnelle.)~~ — ✅ **CÂBLÉ le 2026-08-28** : **`event_within`** au
+catalogue (`core/times_within` — le pendant événement de `within`, un instant n'ayant qu'une
+borne ; fin ouverte de la référence = contient tout instant postérieur).
 
 ---
 

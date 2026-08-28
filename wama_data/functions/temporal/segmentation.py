@@ -15,7 +15,8 @@ from __future__ import annotations
 
 from wama.common.catalog.data_types import CANONICAL_FIELDS, DataType, TypedFrame
 from wama.common.catalog.function_catalog import (FunctionCategory, FunctionSpec, ParamSpec, PortSpec, register)
-from ...core.segmentation import around, conditional, states, join, margins, within
+from ...core.segmentation import (around, conditional, states, join, margins, times_within,
+                                  within)
 #: RÉEXPORT délibéré — `missing` a été remonté au cœur (`core/valeurs.py`) quand le Calculator
 #: en est devenu le 4ᵉ consommateur : `core/` ne peut pas dépendre de `functions/`. Le garder
 #: importable d'ici évite de toucher les 3 importateurs existants pour un simple déménagement.
@@ -289,4 +290,41 @@ register(FunctionSpec(
                       description="Bornes strictement intérieures (défaut) ou égalité admise.")],
     cost={'cpu_bound': True},
     fn=segments_within,
+))
+
+
+def events_within(events: TypedFrame, reference: TypedFrame, strict: bool = True) -> TypedFrame:
+    """Ne garde que les événements dont l'INSTANT tombe dans un segment de référence.
+
+    Le pendant événement de `segments_within` — la restriction « Situation : … » que l'écran
+    conditionnel d'origine applique à sa sortie ÉVÉNEMENTS (le point « mineur, à vérifier au
+    câblage » de §11.9, désormais câblé).
+    """
+    ref = [{'start': s, 'end': _fin(e)}
+           for s, e in zip(_colonne(reference, 'start'), _colonne(reference, 'end'))]
+    mask = times_within(_colonne(events, 'time'), ref, strict=strict)
+    keep = [i for i, m in enumerate(mask) if m]
+    return TypedFrame(events.df.iloc[keep].copy(), events.data_type, meta=events.meta)
+
+
+register(FunctionSpec(
+    key='event_within',
+    name="Restreindre des événements à un contexte",
+    description="Ne garde que les événements dont l'instant tombe dans l'un des segments de "
+                "référence — la restriction « Situation : … » appliquée à une sortie ÉVÉNEMENTS. "
+                "Opération ensembliste, comme « Restreindre des segments à un contexte » ; une "
+                "fin OUVERTE de la référence contient tout instant postérieur à son début.",
+    category=FunctionCategory.TRANSFORM,
+    tags=['temporel', 'segmentation', 'ensembliste', 'evenement'],
+    inputs=[
+        PortSpec('events', DataType.EVENTS, required_fields=['time']),
+        PortSpec('reference', DataType.SEGMENTS, required_fields=['start', 'end'],
+                 description="Contexte auquel on restreint."),
+    ],
+    outputs=[PortSpec('events', DataType.EVENTS,
+                      description="Les événements retenus, colonnes inchangées.")],
+    params=[ParamSpec('strict', 'bool', True,
+                      description="Bornes strictement intérieures (défaut) ou égalité admise.")],
+    cost={'cpu_bound': True},
+    fn=events_within,
 ))
