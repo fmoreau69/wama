@@ -1,4 +1,4 @@
-# WAMA — Vérification : grille d'ADOPTION et grille FONCTIONNELLE
+# WAMA — Vérification : grilles d'ADOPTION, FONCTIONNELLE et des DROITS
 
 > **Référence unique du domaine « comment on sait que ça marche ».** Décidé avec Fabien le
 > 2026-08-22. Ne PAS créer de document concurrent : la grille de conformité est décrite dans
@@ -30,21 +30,25 @@ lire « vert » là où l'utilisateur voit un écran mort.
 
 ---
 
-## 2. Deux grilles, deux prétentions — à ne jamais confondre
+## 2. TROIS grilles, trois prétentions — à ne jamais confondre
 
-| | **Grille d'ADOPTION** (existante) | **Grille FONCTIONNELLE** (à bâtir) |
-|---|---|---|
-| Question | « cette app utilise-t-elle la brique commune ? » | « ce geste utilisateur produit-il l'effet attendu ? » |
-| Instrument | `check_app_conformity` — analyse statique du code | scénarios nocturnes — Playwright, clics réels |
-| Coût | secondes, aucun service requis | minutes, exige serveur + base (+ parfois GPU) |
-| Source | `common/services/conformity_checker.py` | `common/services/nightly_tests.py` + `ui_smoke.py` |
-| Sortie | `logs/conformity_report.json` → `/apps/` | `logs/nightly_tests/nightly_*.json` → **à câbler** |
-| Prouve | l'homogénéité | le fonctionnement |
-| Ne prouve PAS | que ça marche | que le code est homogène |
+| | **Grille d'ADOPTION** (existante) | **Grille FONCTIONNELLE** (à bâtir) | **Grille des DROITS** (28/08) |
+|---|---|---|---|
+| Question | « cette app utilise-t-elle la brique commune ? » | « ce geste utilisateur produit-il l'effet attendu ? » | « ce qui est OCTROYÉ est-il ce qui est APPLIQUÉ ? » |
+| Instrument | `check_app_conformity` — analyse statique du code | scénarios nocturnes — Playwright, clics réels | `rights_matrix` — décision calculée **vs** requêtes HTTP réelles |
+| Coût | secondes, aucun service requis | minutes, exige serveur + base (+ parfois GPU) | ~20 s, exige serveur + base, **aucun navigateur** |
+| Source | `common/services/conformity_checker.py` | `common/services/nightly_tests.py` + `ui_smoke.py` | `common/services/rights_matrix.py` |
+| Sortie | `logs/conformity_report.json` → `/apps/` | `logs/nightly_tests/nightly_*.json` → **à câbler** | idem nocturne |
+| Prouve | l'homogénéité | le fonctionnement | l'**application** de la politique |
+| Ne prouve PAS | que ça marche | que le code est homogène | que la politique soit la bonne |
 
 **Règle de lecture, à appliquer partout :** *un critère de grille atteste une ADOPTION, jamais un
 FONCTIONNEMENT ; seul un scénario qui exécute le geste le prouve.* Quand on annonce un résultat,
-préciser lequel des deux on cite.
+préciser laquelle des trois on cite.
+
+> ⚠ La troisième est **orthogonale aux deux autres**, pas un sous-cas : un geste peut marcher
+> parfaitement **pour quelqu'un qui n'aurait pas dû l'atteindre**, et aucune des deux premières
+> grilles ne le verrait. Détail en **§3ter**.
 
 ---
 
@@ -100,6 +104,11 @@ du harnais** — le contrôle `status != 200` ne voyait pas les redirections, et
 l'écrivant qu'a été trouvé le **second défaut d'instrument le plus large** : `<app>.ui`, le plus
 ANCIEN scénario du harnais, naviguait **en visiteur ANONYME** — donc mesurait de chaque app sa
 variante la plus VIDE. Détail au geste 14 (« URL »), encadré « second défaut ».
+
+> ⚠ **Ce compteur ne bouge PAS avec les scénarios de DROITS** (28/08, `common.rights_matrix` et
+> `common.rights_anonymous`, §3ter). Les droits ne sont pas un 17ᵉ geste : ils traversent les 16.
+> Les ajouter ici gonflerait un chiffre qui ne mesure qu'une chose — combien de gestes du
+> catalogue sont exécutables. Un chiffre vit à UN endroit et ne mesure qu'UNE prétention.
 
 > ⚠ **`<app>.settings` mesure la MOITIÉ du geste 2, et le dit dans son propre détail** (« MOITIÉ
 > DU GESTE — modifier/enregistrer/relire n'est PAS mesuré ici »). Ce n'est pas de la modestie :
@@ -663,6 +672,128 @@ fermés au compte de test.)
 > huit jumeaux du fichier. Il a coûté un diagnostic : un run a rapporté **14 serveurs
 > indisponibles** alors que le serveur tournait et que la faute était l'appel Playwright.
 > Un skip nomme ce qu'on a **vu**, pas ce qu'on suppose.
+
+---
+
+## 3ter. Les DROITS — une TROISIÈME grille, qui ne mesure ni une adoption ni un geste
+
+> Demande de Fabien (2026-08-28) : *« que les tests nocturnes fassent des tests utilisateurs avec
+> des droits variés pour détecter si les accès et restrictions sont bien appliqués en fonction de
+> ce qui est octroyé à chaque utilisateur »*. Le modèle d'accès à deux axes venait d'être refait
+> (S2, `PROFILES_PERMISSIONS.md §8`) : **il était déclaré, il n'était pas mesuré.**
+> Livré le 2026-08-28 — `wama/common/services/rights_matrix.py`, deux scénarios.
+
+Ce n'est ni la grille d'ADOPTION (le code contient-il la brique ?) ni la grille FONCTIONNELLE
+(le geste marche-t-il ?). C'est une troisième prétention : **ce qui est OCTROYÉ est-il ce qui est
+APPLIQUÉ ?** Un geste peut marcher parfaitement pour quelqu'un qui n'aurait pas dû l'atteindre.
+
+### ⚠⚠ Ce qu'on ne mesure surtout pas : une matrice d'attendus écrite à la main
+
+Recopier « imager → communication » dans le test ne ferait que **redire `DEFAULT_APP_ACCESS` dans
+un second fichier**. Vert par construction, faux le jour où la politique change en base (elle est
+DB-backed, `AppAccessPolicy`), et n'apprenant rien entre-temps. C'est la faute déjà payée deux fois
+ce mois-ci — une grille qui atteste une ADOPTION en se croyant fonctionnelle (05→25/08), un menu et
+un serveur bâtis sur deux sources qui finissent par diverger (geste 14, 28/08).
+
+On confronte donc **deux moitiés que rien n'oblige à coïncider**, et **le défaut vit dans leur
+DÉSACCORD**, jamais dans l'une des deux :
+
+| moitié | source |
+|---|---|
+| **ATTENDU** | `accessible(user, 'app', app_id)` — la décision telle qu'elle est **calculée**, politique de base comprise |
+| **OBSERVÉ** | une **vraie requête HTTP** sur le serveur vivant, cookie de session du compte, **redirections NON suivies** (200 = accès ; 302/403 = refus) |
+
+Un désaccord dit soit qu'un **point d'application manque** (on entre là où la décision refuse),
+soit qu'il **en fait trop** (fermé à qui y a droit).
+
+> ⚠ « Redirections non suivies » n'est pas un détail d'implémentation : c'est exactement la faute
+> qui a rendu `<app>.ui` faux pendant des mois (`page.goto` rapporte le statut de la page
+> d'**arrivée** — le harnais mesurait la page de login en la comptant OK). Ici la redirection **est**
+> le résultat.
+
+### Les comptes sont des FIXTURES déclaratives — jamais un coup de base à la main
+
+Quatre profils, créés/alignés à chaque passage (`ensure_rights_profiles`), sans mot de passe
+utilisable (leur session est forgée côté serveur ; personne ne peut s'y connecter). Même principe
+que `get_test_user()` : reproductible sur n'importe quelle base — poste neuf, worktree de
+vérification, réinstallation.
+
+| profil | tier | rôles | ce qu'il éprouve |
+|---|---|---|---|
+| `commun` | utilisateur | — | le **plancher** : n'ouvre que les apps à `roles` vide. C'est lui qui prouve qu'une garde ferme vraiment quelque chose |
+| `communication` | utilisateur | communication | la production (imager, composer, synthesizer, avatarizer, enhancer) |
+| `recherche` | utilisateur | recherche | l'analyse (transcriber, describer, reader) + le Lab |
+| `developpeur` | developpeur | — | le **BYPASS** : doit tout ouvrir, `model_manager` et jumelles de bac à sable comprises (`min_tier: developpeur`) |
+
+Pas de compte `admin` : `_app_accessible` traite `admin` et `developpeur` par le **même** bypass
+(`BYPASS_TIERS`) — un second compte mesurerait la même branche.
+
+`groups.set()` est volontaire : un rôle **retiré** de la déclaration doit disparaître du compte,
+sinon la fixture dérive et le compte « recherche » finit par tout ouvrir.
+
+### ⭐ La mesure dit sa propre FORCE, au lieu de la supposer
+
+Trois garde-fous, tous nés de la leçon du 27/08 (*une mesure faible qui se dit forte est pire que
+pas de mesure*) :
+
+- **Discrimination.** Une colonne où tous les profils sont attendus passants serait verte *même si
+  la garde était débranchée*. Le scénario compte les apps qui portent **les deux** verdicts, et
+  **skippe** s'il n'y en a aucune. Mesuré : **14/16 discriminantes** — les deux autres
+  (`converter`, `media_library`) sont des apps **communes** (`roles` vide), donc uniformes **par
+  politique**, et elles sont **nommées** pour que le ratio ne se lise pas comme un défaut.
+- **Branche JSON exercée.** `_deny` a deux sorties : 403 JSON pour `/api/` et XHR, redirection pour
+  le reste. Une surface d'API que tous les profils traverseraient laisserait la première non
+  mesurée : le détail dit **combien de refus d'API ont bien été des 403-JSON** (mesuré : 3/3).
+- **Cellules qui n'arbitrent rien.** Un 404 ou un 500 n'est **pas** un refus. Les compter comme
+  tels donnerait un vert obtenu par une panne : ils sortent du calcul et sont nommés.
+
+### Résultat du 2026-08-28
+
+| scénario | verdict | ce qu'il dit |
+|---|---|---|
+| `common.rights_matrix` | ✅ **68 couples** (4 comptes × 17 surfaces), **accord complet** décision↔serveur | le travail S2 tient pour les comptes **authentifiés** |
+| `common.rights_anonymous` | ❌ **12 surfaces gardées sur 17 s'ouvrent à un visiteur sans session** | un trou réel, désormais assertion permanente |
+
+### ⚠⚠ L'anonyme n'est pas une ligne de plus de la matrice — c'est une AUTRE COUCHE
+
+`AppAccessMiddleware` ne confronte à `accessible()` **que les requêtes authentifiées** ; sa propre
+docstring renvoie l'anonyme au *« `login_required` des vues »*. C'est une **hypothèse
+d'architecture, pas un fait** — et rien ne la vérifiait. Mesuré : elle tient sur **2 vues sur 14**.
+`/anonymizer/ /avatarizer/ /composer/ /converter/ /converter_01/ /describer/ /enhancer/ /imager/
+/media-library/ /reader/ /synthesizer/ /transcriber/` rendent **200** à un visiteur.
+
+Deux conséquences qu'aucune des deux moitiés ne montrait seule :
+
+- `PROFILES_PERMISSIONS §8` écrit que *« le compte anonyme ne doit rien pouvoir faire »*. Le
+  serveur dit l'inverse sur 12 surfaces. **Une décision écrite ne garde rien tant qu'elle n'est pas
+  APPLIQUÉE** — même leçon que les deux défauts de droits du 27/08.
+- ⚠⚠ **`converter_01` s'ouvre en ANONYME et se FERME une fois connecté** : se connecter y fait
+  **perdre** l'accès à une page que le visiteur voit. Le renversement exact de ce qu'une garde
+  produit.
+
+> Les deux scénarios se **valident l'un l'autre** : `rights_anonymous` échoue par le chemin
+> « accès non dû » (observé=oui, attendu=non), c'est-à-dire **le détecteur même** dont
+> `rights_matrix` a besoin pour être crédible quand il est vert. Un harnais vert dont on n'a jamais
+> vu la sortie rouge ne prouve rien — deux harnais ont déjà annoncé « 0 FAIL » sur du **vide**.
+
+> 🔚 **Arbitrage attendu (Fabien).** Le trou anonyme se referme dans `wama/accounts/` — périmètre
+> d'une autre instance, et surtout **décision produit** : soit l'anonyme est un tier servi par un
+> **compte anonyme** (c'est ce que suppose le code du décorateur `app_access`), soit les vues
+> reçoivent leur `login_required`. Rien n'a été modifié dans `accounts/` ici : le scénario
+> **mesure et nomme**, il ne tranche pas.
+
+> ⚠ **Défaut d'instrument, attrapé avant d'accuser le code mesuré.** Le premier passage a rapporté
+> **19 « REFUS INDUS »** sur des apps parfaitement ouvertes : `urllib` lit `http_proxy` dans
+> l'environnement et envoyait la requête de **bouclage** au proxy de l'établissement, qui répond
+> 403 (page « HAVP - Unknown Request »). D'où `ProxyHandler({})` — un proxy n'a rien à faire sur
+> `127.0.0.1`, et le même aveuglement produirait aussi bien des **faux verts** le jour où il
+> répondrait 200. (Sixième défaut d'instrument trouvé avant d'accuser une app.)
+
+> ⚠ Second, plus discret : `reverse('cam_analyzer:index')` **ne résout pas** — les apps du Lab sont
+> montées sous un namespace parent (`wama_lab:cam_analyzer:index`). Le premier passage les rangeait
+> donc en « app gardée sans index joignable », un constat de l'**instrument** présenté comme un
+> constat sur le dépôt. Écrire `wama_lab:` en dur aurait refait la faute à l'envers (le substrat
+> citant un monde) : l'arborescence est demandée au **resolver**.
 
 ---
 

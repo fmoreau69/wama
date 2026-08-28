@@ -321,3 +321,14 @@ try:
     register_folder_import_scenarios()
 except Exception as _e:                                   # pragma: no cover
     logger.debug(f"[nightly] scénarios UI non enregistrés ({_e})")
+
+# Scénarios de DROITS — bloc SÉPARÉ, et pas par goût de la symétrie : ils ne dépendent pas de
+# Playwright (HTTP nu). Les loger dans le `try` ci-dessus les ferait disparaître du registre sur
+# toute machine sans navigateur, sans que rien ne le dise — exactement la panne muette que le
+# dépôt traque. Demande de Fabien (28/08) : mesurer que les accès et restrictions appliqués
+# correspondent à ce qui est octroyé à chaque utilisateur.
+try:
+    from wama.common.services.rights_matrix import register_rights_scenarios
+    register_rights_scenarios()
+except Exception as _e:                                   # pragma: no cover
+    logger.debug(f"[nightly] scénarios de droits non enregistrés ({_e})")
