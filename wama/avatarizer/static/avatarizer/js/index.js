@@ -24,12 +24,9 @@
     const $  = (sel, ctx = document) => ctx.querySelector(sel);
     const $$ = (sel, ctx = document) => ctx.querySelectorAll(sel);
 
-    function getMode() {
-        // STANDALONE-ONLY depuis 2026-07-11 (décision : le pipeline texte→TTS→avatar devient
-        // une composition STUDIO synthesizer→avatarizer). Le backend garde le champ mode
-        // (jobs historiques, batch, tool_api) — seule la création UI est standalone.
-        return 'standalone';
-    }
+    // Le mode n'existe plus côté client (2026-08-28) : le serveur le DÉRIVE des entrées
+    // (audio/URL → standalone, sinon texte → pipeline TTS→avatar — précédent imager,
+    // MODES_QUEUE_UX §2bis). La card poste ce qu'elle a, le moteur décide.
 
     // -----------------------------------------------------------------------
     // Word counter
@@ -195,10 +192,34 @@
     }
 
     // -----------------------------------------------------------------------
-    // Text drop zone (Pipeline) — filemanager drag + Windows Explorer drag
+    // Zone prompt : drop d'un fichier texte → extraction serveur (TXT/MD/PDF/DOCX/CSV)
     // -----------------------------------------------------------------------
-    // Drop de fichier texte (.txt/.pdf/.docx) : RETIRÉ avec le workflow pipeline
-    // (standalone-only 2026-07-11 — le pipeline texte→TTS→avatar = composition studio).
+    // Réintroduit le 2026-08-28 avec le pipeline dérivé (retiré 2026-07-11) : la vue
+    // `extract_text` était restée vivante et orpheline — on la re-câble, on ne la récrit pas.
+    const promptZone = $('#text-prompt-zone');
+    if (promptZone && textArea) {
+        ['dragover', 'dragenter'].forEach(ev =>
+            promptZone.addEventListener(ev, e => { e.preventDefault(); }));
+        promptZone.addEventListener('drop', async (e) => {
+            const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+            if (!file) return;   // drop interne (filemanager…) : laisser les handlers globaux
+            e.preventDefault();
+            e.stopPropagation();
+            const fd = new FormData();
+            fd.append('file', file);
+            try {
+                const resp = await fetch(cfg.urls.extractText, {
+                    method: 'POST', headers: { 'X-CSRFToken': csrf }, body: fd,
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || 'Extraction impossible');
+                textArea.value = (data.text || '').trim();
+                textArea.dispatchEvent(new Event('input'));   // compteur + bouton Générer
+            } catch (err) {
+                WamaApp.toast('Extraction du texte : ' + err.message, 'error');
+            }
+        });
+    }
 
     async function handleAudioFile(file) {
         // Fichier batch déposé sur la zone audio → flux d'import de lot commun.
@@ -219,10 +240,11 @@
         const btn = $('#btn-generate');
         if (!btn) return;
 
-        // Standalone-only (2026-07-11) : audio (fichier OU URL) + avatar requis
+        // Une ENTRÉE (audio, URL ou texte à dire) + un avatar : le serveur dérive le mode.
         const urlInputEl = $('#avatarizerUrlInput');
         const hasUrl = !!(urlInputEl && urlInputEl.value.trim());
-        btn.disabled = !((audioFile || hasUrl) && selectedAvatarSource);
+        const hasText = !!(textArea && textArea.value.trim());
+        btn.disabled = !((audioFile || hasUrl || hasText) && selectedAvatarSource);
     }
 
     if (textArea) {
@@ -303,7 +325,9 @@
 
     async function createJob() {
         const fd = new FormData();
-        fd.append('mode', getMode());          // standalone (pipeline = studio, 2026-07-11)
+        // Pas de `mode` posté : le serveur le dérive (audio/URL priment, sinon texte).
+        const promptText = textArea ? textArea.value.trim() : '';
+        if (promptText) fd.append('text_content', promptText);
         if (audioFile) {
             fd.append('audio_input', audioFile);
         } else if (avatarizerUrlInput && avatarizerUrlInput.value.trim()) {
@@ -526,11 +550,22 @@
         const jobIdInput = $('#settingsJobId');
         if (jobIdInput) jobIdInput.value = jobId;
 
-        // Standalone-only (2026-07-15) : plus de TTS (relève du synthesizer). Réglages MuseTalk.
         // Le mode rapide/qualité est MORT (2026-08-03) : CodeFormer = seul contrôle de qualité.
         // Enhancer
         const enhancerCb = $('#settingsUseEnhancer');
         if (enhancerCb) enhancerCb.checked = enhancer;
+
+        // Champs pipeline GÉNÉRÉS (2026-08-28) : préremplis depuis les data-* dérivés du
+        // schéma (brique card_gear) ; le 'change' déclenche le show_if de WamaParams —
+        // sur un job standalone (texte vide) les 4 champs restent masqués.
+        [['settingsTextContent', 'textContent'], ['settingsTtsModel', 'ttsModel'],
+         ['settingsLanguage', 'language'], ['settingsVoicePreset', 'voicePreset']]
+            .forEach(([id, key]) => {
+                const el = $('#' + id);
+                if (!el) return;
+                el.value = btn.dataset[key] || '';
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+            });
 
         // Bbox
         if (settingsBboxSlider) {
@@ -566,6 +601,18 @@
         fd.append('use_enhancer', newEnhancer ? 'true' : 'false');
         fd.append('bbox_shift',   newBbox);
 
+        // Champs pipeline (2026-08-28) — postés seulement si un texte est présent ;
+        // `update_options` ne les applique de toute façon qu'aux jobs pipeline.
+        const textEl = $('#settingsTextContent');
+        if (textEl && textEl.value.trim()) {
+            fd.append('text_content', textEl.value.trim());
+            [['settingsTtsModel', 'tts_model'], ['settingsLanguage', 'language'],
+             ['settingsVoicePreset', 'voice_preset']].forEach(([id, name]) => {
+                const el = $('#' + id);
+                if (el && el.value) fd.append(name, el.value);
+            });
+        }
+
         try {
             const resp = await fetch(`${cfg.urls.updateOptions}${jobId}/`, {
                 method: 'POST',
@@ -591,6 +638,14 @@
                 if (settBtn) {
                     settBtn.dataset.useEnhancer = newEnhancer ? 'true' : 'false';
                     settBtn.dataset.bboxShift   = newBbox;
+                    if (textEl && textEl.value.trim()) {
+                        settBtn.dataset.textContent = textEl.value.trim();
+                        [['settingsTtsModel', 'ttsModel'], ['settingsLanguage', 'language'],
+                         ['settingsVoicePreset', 'voicePreset']].forEach(([id, key]) => {
+                            const el = $('#' + id);
+                            if (el && el.value) settBtn.dataset[key] = el.value;
+                        });
+                    }
                 }
             }
 

@@ -76,7 +76,9 @@ GENERIC_APPS = {
         'io_scope': "nœud V1 = audio seul ; l'avatar vient de la galerie (fixed_kwargs), "
                     "pas du port image de la card",
         'input_kwarg': 'audio_path',                    # signature historique (déclaré)
-        'fixed_kwargs': {'mode': 'standalone', 'avatar_source': 'gallery'},
+        # `mode` n'est plus figé (2026-08-28) : il se DÉRIVE des entrées dans tool_api —
+        # un nœud alimenté en audio sort standalone tout seul.
+        'fixed_kwargs': {'avatar_source': 'gallery'},
         'params_module': 'wama.avatarizer.params',
         'params_attr': 'PARAMS_JSON',
         # L'avatar n'est PAS (encore) dans le params.py de l'app → spec additionnelle

@@ -35,11 +35,14 @@ class AvatarizerConfig(AppConfig):
             from .params import PARAMS
             extra = {p.label: getattr(job, p.name, None) for p in PARAMS
                      if p.label and getattr(job, p.name, None) not in (None, '', False)}
+            # Moteur = celui qui fabrique la vidéo (MuseTalk), pas le TTS : `engine=tts_model`
+            # affichait un modèle de VOIX pour un job d'ANIMATION (incohérence relevée
+            # 2026-08-28). Le TTS d'un job pipeline apparaît via PARAMS (chip « Modèle TTS »).
             return build_detail(
                 job,
                 source_file=job.avatar_upload or job.audio_input or None,
                 source_type='video',
-                engine=job.tts_model,
+                engine='musetalk',
                 result_file=job.output_video or None,
                 extra=extra,
             )

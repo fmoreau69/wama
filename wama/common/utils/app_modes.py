@@ -154,14 +154,15 @@ APP_MODES = {
 
     # ── AVATARIZER (mono-domaine, mono-mode → AUCUN onglet/switch rendu ; décision route F2 :
     # rapide/qualité = simple paramètre (quality_mode/use_enhancer), PAS un mode. L'entrée vaut
-    # surtout pour les PORTS : seul cas double-entrée du catalogue, image + audio requis.) ──
+    # surtout pour les PORTS : cas double-entrée du catalogue, image + (audio OU texte).) ──
     'avatarizer': {
         'domains': [
-            # `modes: []` — le mode `standalone` était un RÉSIDU de l'époque à deux modes
-            # (TTS→audio→avatar / audio→avatar) ; le TTS relève du synthesizer depuis 2026-07-15.
-            # Un mode unique ne rendait aucun switch : sa purge ne change pas un pixel.
+            # `modes: []` TOUJOURS — le pipeline texte→TTS→avatar est REVENU le 2026-08-28,
+            # mais comme WORKFLOW DE BACKEND dérivé des entrées (audio/URL → animation seule,
+            # texte → TTS puis animation), pas comme switch : précédent imager txt2img/img2vid,
+            # §2bis. `text` dans accepts = le prompt est une entrée de plein droit.
             {'id': 'avatar', 'label': 'Avatar parlant', 'icon': 'fa-user-astronaut',
-             'accepts': ('image', 'audio'), 'modes': []},
+             'accepts': ('image', 'audio', 'text'), 'modes': []},
         ],
     },
 

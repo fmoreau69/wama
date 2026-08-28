@@ -18,11 +18,8 @@ Prérequis (voir setup_avatarizer.sh) :
 import os
 import sys
 import logging
-import tempfile
-import subprocess
 from pathlib import Path
 
-import requests
 from celery import shared_task
 from django.conf import settings
 from django.core.cache import cache
@@ -41,9 +38,10 @@ from wama.common.utils.console_utils import push_console_line
 logger = logging.getLogger(__name__)
 
 
-# TTS microservice
-TTS_SERVICE_URL = getattr(settings, 'TTS_SERVICE_URL', 'http://localhost:8001')
-TTS_TIMEOUT = 300
+# Client du microservice TTS : brique COMMUNE (`common/tts/service_client.py`, 2026-08-28 —
+# ce fichier portait le 2ᵉ des 4 exemplaires du même POST /tts, sans détection du 503
+# « loading » : un service en démarrage sortait en RuntimeError au lieu d'un retry).
+from wama.common.tts.service_client import TTSServiceLoadingError, tts_via_service
 
 
 # ---------------------------------------------------------------------------
@@ -63,58 +61,25 @@ def _console(user_id: int, message: str, level: str = 'info') -> None:
 
 
 def _call_tts_service(job: AvatarJob) -> str:
-    """Appelle le microservice TTS et renvoie le chemin d'un WAV temporaire."""
-    # Résolution du fichier WAV pour le clonage vocal (voix personnalisées cv_*)
-    speaker_wav = None
-    if job.voice_preset.startswith('cv_'):
-        try:
-            from wama.synthesizer.models import CustomVoice
-            cv = CustomVoice.objects.get(pk=int(job.voice_preset[3:]))
-            speaker_wav = cv.audio.path
-        except Exception:
-            pass  # Fallback : le service TTS utilisera sa voix par défaut
+    """Synthétise `job.text_content` via la brique commune, renvoie un WAV temporaire.
 
-    payload = {
-        'text': job.text_content,
-        'model': job.tts_model,
-        'language': job.language,
-        'voice_preset': job.voice_preset,
-        'speaker_wav': speaker_wav,
-        'multi_speaker': False,
-        'scene_description': '',
-        'options': {},
-    }
-    try:
-        resp = requests.post(
-            f"{TTS_SERVICE_URL}/tts",
-            json=payload,
-            timeout=(5, TTS_TIMEOUT),
-        )
-        resp.raise_for_status()
-    except requests.ConnectionError:
-        raise RuntimeError(f"Service TTS inaccessible à {TTS_SERVICE_URL}")
-    except requests.Timeout:
-        raise RuntimeError(f"Service TTS : délai dépassé après {TTS_TIMEOUT}s")
-    except requests.HTTPError as e:
-        detail = ""
-        try:
-            detail_raw = e.response.json().get("detail", "")
-            detail = str(detail_raw)
-        except Exception:
-            detail = e.response.text[:200] if e.response else ""
-        raise RuntimeError(f"Erreur service TTS : {detail or str(e)}")
-
-    tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
-    tmp.write(resp.content)
-    tmp.close()
-    return tmp.name
+    La voix est résolue par la brique CENTRALISÉE du synthesizer (`resolve_speaker_wav` :
+    ua_ médiathèque / cv_ legacy / presets) — le bloc manuel qui vivait ici ne couvrait
+    que `cv_*` : les voix de la médiathèque étaient silencieusement ignorées."""
+    from wama.synthesizer.utils.voice_utils import resolve_speaker_wav
+    speaker_wav = resolve_speaker_wav(job.voice_preset, user=job.user)
+    return tts_via_service(
+        job.text_content, job.tts_model,
+        language=job.language, voice_preset=job.voice_preset,
+        speaker_wav=speaker_wav,
+    )
 
 
 # ---------------------------------------------------------------------------
 # Celery task
 # ---------------------------------------------------------------------------
 
-@shared_task(bind=True)
+@shared_task(bind=True, max_retries=60, default_retry_delay=10)
 def generate_avatar(self, job_id: int):
     """
     Tâche Celery (queue gpu) : génère une vidéo avatar animée.
@@ -159,7 +124,17 @@ def generate_avatar(self, job_id: int):
             _set_progress(job, 10)
             _console(job.user_id, "Synthèse audio via service TTS…", 'info')
             tmp_audio_path = _call_tts_service(job)
-            audio_path = tmp_audio_path
+            # L'audio généré est un ARTEFACT du job (l'entrée de l'étage animation), pas un
+            # temporaire : persisté dans `audio_input`, il se vérifie, s'écoute et se rejoue.
+            # Un re-run REGÉNÈRE (texte/voix ont pu changer) — l'ancien fichier est retiré
+            # d'abord, via la garde de partage (un job dupliqué partage son fichier).
+            from django.core.files import File
+            from wama.common.utils.queue_duplication import safe_delete_file
+            if job.audio_input:
+                safe_delete_file(job, 'audio_input')
+            with open(tmp_audio_path, 'rb') as fh:
+                job.audio_input.save(f"tts_job{job_id}.wav", File(fh), save=True)
+            audio_path = job.audio_input.path
             _console(job.user_id, "Audio TTS généré.", 'info')
         else:
             # Import par URL : télécharger l'audio si pas encore de fichier local
@@ -279,6 +254,24 @@ def generate_avatar(self, job_id: int):
                        getattr(job, 'name', '') or f"avatar #{job_id}", True)
         except Exception:
             pass
+
+    except TTSServiceLoadingError as e:
+        # Service TTS en démarrage — libérer le worker GPU et réessayer (même politique
+        # que synthesize_voice : 60 × 10 s, puis échec franc).
+        retry_num = self.request.retries + 1
+        wait_msg = f"Service TTS en chargement, nouvelle tentative dans 10s ({retry_num}/60)..."
+        logger.info(f"[avatarizer] Job #{job_id}: {wait_msg}")
+        AvatarJob.objects.filter(pk=job_id).update(error_message=wait_msg)
+        _console(job.user_id, wait_msg, 'warning')
+        try:
+            raise self.retry(exc=e, countdown=10)
+        except self.MaxRetriesExceededError:
+            AvatarJob.objects.filter(pk=job_id).update(
+                status='FAILURE',
+                error_message="Service TTS non disponible après 10 minutes d'attente (60 tentatives)",
+            )
+            _set_progress(job, 0)
+            _console(job.user_id, "Erreur : service TTS non disponible après 10 minutes", 'error')
 
     except Exception as e:
         logger.error(f"[avatarizer] Job #{job_id} échoué : {e}", exc_info=True)

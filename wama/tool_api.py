@@ -1784,8 +1784,10 @@ def add_to_avatarizer(
     Crée un job de génération d'avatar parlant (vidéo) en attente.
 
     Args:
-        mode:                'pipeline' (texte → TTS → avatar) | 'standalone' (audio fourni)
-        text_content:        Texte à synthétiser (requis si mode='pipeline')
+        mode:                DÉPRÉCIÉ (accepté, ignoré) — le mode se dérive des entrées :
+                             audio_path → standalone (l'audio prime), sinon text_content →
+                             pipeline (TTS→avatar)
+        text_content:        Texte à synthétiser (déclenche le pipeline TTS→avatar)
         tts_model:           Modèle TTS (ex: 'coqui-xtts') — mode pipeline
         language:            Langue TTS (ex: 'fr') — mode pipeline
         voice_preset:        Voix TTS (ex: 'default') — mode pipeline
@@ -1803,19 +1805,20 @@ def add_to_avatarizer(
     from django.core.files import File
     from wama.avatarizer.models import AvatarJob
 
-    mode = mode if mode in ('pipeline', 'standalone') else 'pipeline'
+    # Le mode se DÉRIVE des entrées (2026-08-28) — règle UNIQUE partagée avec la vue
+    # `create` et la ligne de batch : l'AUDIO (matériau explicite) prime, sinon le texte
+    # déclenche le pipeline TTS. `mode` reste accepté pour compatibilité, sans autorité.
+    mode = 'standalone' if audio_path else 'pipeline'
     job = AvatarJob(user=user, mode=mode)
 
     if mode == 'pipeline':
         if not (text_content or '').strip():
-            return {'error': "Le texte (text_content) est obligatoire en mode pipeline."}
+            return {'error': "Fournissez un texte (text_content) ou un audio (audio_path)."}
         job.text_content = text_content.strip()
         job.tts_model = tts_model or 'coqui-xtts'
         job.language = language or 'fr'
         job.voice_preset = voice_preset or 'default'
-    else:  # standalone
-        if not audio_path:
-            return {'error': "Un audio (audio_path) est obligatoire en mode standalone."}
+    else:  # standalone (audio_path fourni — c'est lui qui a dérivé le mode)
         src = (Path(settings.MEDIA_ROOT) / audio_path).resolve()
         if not str(src).startswith(str(Path(settings.MEDIA_ROOT).resolve())):
             return {'error': 'Accès refusé : chemin hors de MEDIA_ROOT.'}

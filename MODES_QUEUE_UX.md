@@ -90,6 +90,14 @@ distinct.** Il y a **deux axes** à ne pas mélanger :
   Ces 7 « modes » sont restés déclarés longtemps après le retrait des switches, et le JS qui les rendait
   visait **quatre ancres DOM supprimées** — 36 lignes mortes, sans erreur ni trace. Leçon :
   **ce qui ne plante pas ne se signale pas.**
+  **2ᵉ application (2026-08-28, validation Fabien) : le pipeline TTS→avatar de l'avatarizer.**
+  Rejeté comme MODE en 2026-07-11 (« le pipeline = composition studio »), il revient en WORKFLOW
+  DÉRIVÉ : la card accepte audio, URL ou texte à dire, et le serveur dérive — règle UNIQUE aux
+  trois points d'écriture (`create`, ligne de batch, tool_api) : **l'audio (matériau explicite)
+  prime, sinon le texte déclenche TTS→animation**. Zéro switch ; l'étape TTS est EMPRUNTÉE
+  (brique `common/tts/service_client.py` + voix `resolve_speaker_wav` du synthesizer), l'audio
+  généré est PERSISTÉ dans `audio_input` (artefact vérifiable, ré-exécutable) ; la composition
+  studio Synthesizer→Avatarizer reste valable pour l'orchestration visible.
 
 - **État au 2026-08-23** : seules **3 apps ont de vrais modes** — anonymizer (yolo/sam3), synthesizer et
   transcriber (normal/temps réel) — et toutes trois les rendent **depuis la déclaration**. Anonymizer a

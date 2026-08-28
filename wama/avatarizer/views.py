@@ -139,25 +139,36 @@ def create(request):
         return JsonResponse({'error': 'POST requis'}, status=405)
 
     user = _get_user(request)
-    mode = request.POST.get('mode', 'standalone')  # standalone-only côté UI (2026-07-11) ; pipeline accepté si explicite (batch/tool_api/studio)
+    # Le mode n'est PLUS un choix d'UI : il se DÉRIVE des entrées fournies (2026-08-28,
+    # précédent imager txt2img/img2vid — décision de MOTEUR, pas de switch ; doctrine
+    # MODES_QUEUE_UX §2bis). Règle UNIQUE, partagée avec la ligne de batch et tool_api :
+    # une entrée AUDIO (fichier/URL — matériau explicite) prime, sinon le texte déclenche
+    # le pipeline TTS→animation. Un `mode` encore posté n'est plus l'autorité.
+    text_content = request.POST.get('text_content', '').strip()
+    audio_file = request.FILES.get('audio_input')
+    source_url = request.POST.get('source_url', '').strip()
+    mode = 'standalone' if (audio_file or source_url) else 'pipeline'
     job = AvatarJob(user=user, mode=mode)
 
-    # --- Pipeline : champs TTS ---
+    # Réglages user (brique commune) : les derniers réglages employés servent de défauts
+    # quand le POST ne les précise pas (dépôt rapide drag & drop sans passer par la modale).
+    prefs = get_user_app_settings(user, 'avatarizer', {  # wama:redondance-ok — défauts du contrat de réglages utilisateur (décision d'app)
+        'use_enhancer': False, 'bbox_shift': 0,
+        'tts_model': 'coqui-xtts', 'language': 'fr', 'voice_preset': 'default'})
+
+    # --- Pipeline : texte + réglages TTS (l'audio sera GÉNÉRÉ, service TTS commun) ---
     if mode == 'pipeline':
-        text_content = request.POST.get('text_content', '').strip()
         if not text_content:
-            return JsonResponse({'error': 'Le texte est obligatoire en mode Pipeline.'}, status=400)
+            return JsonResponse(
+                {'error': "Fournissez un texte à dire, un fichier audio ou une URL."},
+                status=400)
         job.text_content = text_content
-        job.tts_model = request.POST.get('tts_model', 'coqui-xtts')
-        job.language = request.POST.get('language', 'fr')
-        job.voice_preset = request.POST.get('voice_preset', 'default')
+        job.tts_model = request.POST.get('tts_model', prefs['tts_model'])
+        job.language = request.POST.get('language', prefs['language'])
+        job.voice_preset = request.POST.get('voice_preset', prefs['voice_preset'])
 
     # --- Standalone : fichier audio OU URL (WAMA_INGEST → téléchargé par le worker) ---
     if mode == 'standalone':
-        audio_file = request.FILES.get('audio_input')
-        source_url = request.POST.get('source_url', '').strip()
-        if not audio_file and not source_url:
-            return JsonResponse({'error': 'Un fichier audio (ou une URL) est obligatoire en mode Standalone.'}, status=400)
         if audio_file:
             from wama.common.app_registry import VOICE_SAMPLE_EXTENSIONS
             validator = FileExtensionValidator(allowed_extensions=VOICE_SAMPLE_EXTENSIONS)
@@ -190,10 +201,6 @@ def create(request):
         job.avatar_upload = avatar_file
 
     # --- Paramètres pipeline MuseTalk ---
-    # Réglages user (brique commune) : les derniers réglages employés servent de défauts
-    # quand le POST ne les précise pas (dépôt rapide drag & drop sans passer par la modale).
-    prefs = get_user_app_settings(user, 'avatarizer', {  # wama:redondance-ok — défauts du contrat de réglages utilisateur (décision d'app)
-        'use_enhancer': False, 'bbox_shift': 0})
     job.use_enhancer = request.POST.get('use_enhancer', str(prefs['use_enhancer']).lower()) == 'true'
     # quality_mode DÉRIVÉ (2026-08-03) : le backend ne lit que use_enhancer, le champ ne
     # sert plus qu'aux clés ETA et aux données existantes.
@@ -204,10 +211,12 @@ def create(request):
         job.bbox_shift = 0
 
     job.save()
-    save_user_app_settings(user, 'avatarizer', {
-        'use_enhancer': job.use_enhancer,
-        'bbox_shift': job.bbox_shift,
-    })
+    derniers = {'use_enhancer': job.use_enhancer, 'bbox_shift': job.bbox_shift}
+    if mode == 'pipeline':
+        # Les réglages TTS ne se mémorisent que lorsqu'ils ont réellement servi.
+        derniers.update({'tts_model': job.tts_model, 'language': job.language,
+                         'voice_preset': job.voice_preset})
+    save_user_app_settings(user, 'avatarizer', derniers)
     # Clé `id` — contrat COMMUN des vues qui créent un élément (trou #24 de la route). Cette vue
     # et `duplicate` étaient les DEUX seules de l'app à écrire `job_id` : `start`/`stop` (l. 218,
     # 221) émettaient déjà `id`. L'app était donc incohérente avec elle-même, et la normalisation
@@ -343,8 +352,12 @@ def update_options(request, pk):
     if job.status == 'RUNNING':
         return JsonResponse({'error': 'Impossible de modifier un job en cours.'}, status=400)
 
-    # TTS (pipeline seulement)
+    # TTS (pipeline seulement — un job standalone a un audio, le texte n'y a pas de sens)
     if job.mode == 'pipeline':
+        text_content = (request.POST.get('text_content') or '').strip()
+        if text_content:
+            # Éditable avant relance : la ré-exécution REGÉNÈRE l'audio depuis ce texte.
+            job.text_content = text_content
         tts_model = request.POST.get('tts_model')
         if tts_model:
             job.tts_model = tts_model
@@ -364,7 +377,8 @@ def update_options(request, pk):
     except (ValueError, TypeError):
         pass
 
-    job.save(update_fields=['tts_model', 'language', 'voice_preset', 'quality_mode', 'use_enhancer', 'bbox_shift'])
+    job.save(update_fields=['text_content', 'tts_model', 'language', 'voice_preset',
+                            'quality_mode', 'use_enhancer', 'bbox_shift'])
     return JsonResponse({'status': 'updated'})
 
 
@@ -752,10 +766,12 @@ def _unified_item_to_avatar_row(it: dict) -> dict:
 
     prompt = it.get('prompt')
     audio = it.get('input')
-    if prompt:
-        mode = 'pipeline'
-    elif audio:
+    # Règle UNIQUE de dérivation du mode (2026-08-28), partagée avec `create` et
+    # tool_api : l'AUDIO (matériau explicite) prime, sinon le texte → pipeline TTS.
+    if audio:
         mode = 'standalone'
+    elif prompt:
+        mode = 'pipeline'
     else:
         return {'error': 'ni texte (-p) ni audio (-i) fourni'}
 

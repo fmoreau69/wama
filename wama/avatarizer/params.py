@@ -16,14 +16,30 @@ PANEL_ITEM_BATCH = ("panel", "item", "batch")   # + modale de LOT (context='batc
 
 PARAMS = derive_from_model(
     AvatarJob,
-    # STANDALONE-ONLY (2026-07-15) : l'audio vient d'AMONT (synthesizer, ou fichier),
-    # PAS d'un TTS interne. Le TTS relève du synthesizer ; en pipeline studio, c'est la
-    # composition synthesizer -> avatarizer. Donc AUCUN paramètre TTS ici (source unique).
+    # PIPELINE DÉRIVÉ (2026-08-28, fin du standalone-only du 2026-07-15) : l'entrée peut
+    # être un TEXTE — l'app enchaîne alors TTS (brique commune service_client + voix du
+    # synthesizer) puis animation. Le mode n'est pas un réglage : il se DÉRIVE des entrées
+    # (MODES_QUEUE_UX §2bis, précédent imager). Les champs TTS ne s'affichent que sur un
+    # job porteur de texte (`show_if='text_content'` — un job standalone n'en a jamais).
     # Le couple de modes rapide/qualité est MORT (2026-08-03, décision route F2 enfin
     # appliquée à l'UI) : la « qualité » n'a jamais été qu'un alias du toggle CodeFormer —
     # le backend ne lit QUE use_enhancer. quality_mode survit en champ DÉRIVÉ (ETA/data).
-    include=["use_enhancer", "bbox_shift"],
+    include=["text_content", "tts_model", "language", "voice_preset",
+             "use_enhancer", "bbox_shift"],
     overrides={
+        "text_content": dict(type="textarea", label="Texte à dire", icon="fa-quote-left",
+                             show_if="text_content",   # auto-porté : vide (standalone) = masqué
+                             dom_id={"item": "settingsTextContent"}, contexts=("item",),
+                             help="La relance régénère la voix depuis ce texte."),
+        "tts_model":    dict(type="select", label="Modèle TTS", icon="fa-microchip", chip=True,
+                             show_if="text_content", help_source="synthesizer",
+                             dom_id={"item": "settingsTtsModel"}, contexts=("item",)),
+        "language":     dict(type="select", label="Langue", icon="fa-language",
+                             show_if="text_content",
+                             dom_id={"item": "settingsLanguage"}, contexts=("item",)),
+        "voice_preset": dict(type="select", label="Voix", icon="fa-user", chip=True,
+                             show_if="text_content", options_source="voices",
+                             dom_id={"item": "settingsVoicePreset"}, contexts=("item",)),
         "use_enhancer": dict(type="toggle", label="Amélioration CodeFormer", chip=True,
                              icon="fa-wand-magic-sparkles",
                              help="Restauration faciale haute qualité — légèrement plus lent.",

@@ -435,10 +435,13 @@ APP_CATALOG = {
         'url_name':    'avatarizer:index',
         'description': 'Génération de vidéos d\'avatars lip-sync animés par IA (MuseTalk + CodeFormer).',
         'input_extensions': AUDIO_EXTENSIONS + IMAGE_EXTENSIONS,  # audio (standalone) + image (avatar)
-        'input_types': ('audio', 'image', 'text'),  # text en mode pipeline TTS
-        'batch_type':  None,
-        'has_batch':   False,
-        'has_url_import': False,
+        'input_types': ('audio', 'image', 'text'),  # texte → pipeline TTS→avatar (dérivé, 2026-08-28)
+        # Corrigé 2026-08-28 (flags mesurés FAUX — le batch unifié `-p "texte" -r avatar.png` /
+        # `-i audio.wav` existe depuis parse_unified_batch, et l'URL passe par WAMA_INGEST
+        # (source_url, show_url sur la card commune)) :
+        'batch_type':  'pipe',   # Type B : lignes structurées (drapeaux -p/-i/-r, BATCH_FORMAT.md)
+        'has_batch':   True,
+        'has_url_import': True,
         'has_youtube': False,
         'output_types': ('video',),
         'conventions': _conv(
@@ -466,12 +469,12 @@ APP_CATALOG = {
             anti_race=True,      # begin_processing sur start + start_all (verrou + revoke)
             toast=True,          # 21 alert() → WamaApp.toast typés ; ordre boutons card corrigé
                                  # (⚙ avant ↻) + couleurs outline (template + buildCard JS)
-            new_item_card=True,  # _new_item_card COMMUNE en tête de file (2026-07-11) : dropzone=
-                                 # audio (voix de l'avatar) + galerie avatars via slot déclaré
-                                 # extra_zone_template. STANDALONE-ONLY depuis 2026-07-11 (décision
-                                 # Fabien) : le pipeline texte→TTS→avatar = composition STUDIO
-                                 # synthesizer→avatarizer ; backend mode/tts intact (historique,
-                                 # batch, tool_api), seule la création UI est standalone.
+            new_item_card=True,  # _new_item_card COMMUNE en tête de file (2026-07-11) : prompt
+                                 # (texte à dire) + dropzone audio + galerie avatars via slot
+                                 # extra_zone_template. Le pipeline texte→TTS→avatar est REVENU
+                                 # dans l'app le 2026-08-28 (validation Fabien), en WORKFLOW
+                                 # DÉRIVÉ des entrées (audio prime, sinon texte) — pas un mode ;
+                                 # la composition STUDIO synthesizer→avatarizer reste possible.
             # KO restants : _batch_card mère (inline)/_queue_toolbar/_cycle_button/layout/
             # ProcessingTimeMixin absents ; absent d'APP_MODES ; filemanager_import partiel
             # (quick-drop filemanager:filedrop OK, listener wama:fileimported absent).
