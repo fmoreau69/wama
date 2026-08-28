@@ -239,6 +239,7 @@ try:
                                                register_batch_import_scenarios,
                                                register_clear_all_scenarios,
                                                register_duplicate_delete_scenarios,
+                                               register_folder_import_scenarios,
                                                register_import_scenarios,
                                                register_inspector_actions_scenarios,
                                                register_send_to_scenarios,
@@ -311,5 +312,12 @@ try:
     # l'app en fait. Une app qui le TÉLÉCHARGE quand même n'appelle pas la garde — c'est un
     # échec de sécurité, pas un succès du geste, et aucune autre mesure ne le verrait.
     register_url_import_scenarios()
+    # 2026-08-28 — geste 14, dernier quart : l'IMPORT DE DOSSIER. Le seul geste du catalogue
+    # dont une partie est INATTEIGNABLE par un harnais — le sélecteur de dossier est une boîte
+    # de dialogue du SYSTÈME. Il se mesure donc en deux moitiés SÉPARÉES, parce qu'elles
+    # cassent séparément : la traversée récursive de la brique commune (exercée sur un arbre
+    # synthétique — c'est le code de production qui tourne), puis le câblage de l'app (N
+    # fichiers posés → N éléments EN BASE, car une app qui groupe rendrait UNE card pour deux).
+    register_folder_import_scenarios()
 except Exception as _e:                                   # pragma: no cover
     logger.debug(f"[nightly] scénarios UI non enregistrés ({_e})")

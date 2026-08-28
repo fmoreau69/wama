@@ -33,6 +33,7 @@ recréent au passage suivant (sinon le triage se déclenche chaque nuit et le si
 from __future__ import annotations
 
 import os
+import shutil
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -88,13 +89,27 @@ def _drop_new_sessions(before: set):
         return 0
 
 
-def _exercise_page(url, png_path, selector=None, timeout_ms=45000):
+def _exercise_page(url, png_path, jeton=None, selector=None, timeout_ms=45000):
     """
-    Charge `url`, PARCOURT LES ONGLETS, écrit la capture.
+    Charge `url` EN TANT QUE COMPTE DE TEST, PARCOURT LES ONGLETS, écrit la capture.
 
     Pourquoi interagir : charger une page ne teste que le rendu initial, or la majorité des
     erreurs JS vivent dans les GESTIONNAIRES d'événements — elles n'apparaissent qu'au clic.
     Les onglets sont le seul geste réellement commun (mesuré : présents sur 10 des 13 apps).
+
+    ⚠⚠ POURQUOI `jeton` EXISTE (2026-08-28). Ce scénario — le plus ancien du harnais — ouvrait
+    `browser.new_page()` : aucun contexte, aucun cookie, donc **une visite ANONYME**. Tous les
+    autres scénarios se connectent ; celui-ci, non, et personne ne l'avait remarqué parce que
+    **11 apps sur 14 rendent exactement la même page à un visiteur anonyme** (mesuré : mêmes
+    onglets, même card d'entrée, mêmes scripts). Il « marchait » donc — en mesurant la variante
+    la plus VIDE de chaque app : ni file, ni données d'utilisateur, ni session.
+
+    Les trois autres disent ce que ça coûtait, et l'une des trois est un résultat INVERSÉ :
+      · `studio` exige une connexion → le scénario mesurait la page de login ;
+      · `model_manager` de même ;
+      · `converter_01` s'ouvre en ANONYME et **se ferme une fois connecté** — `AppAccessMiddleware`
+        ne garde que les utilisateurs authentifiés. Se connecter y fait donc PERDRE l'accès à une
+        page que le visiteur voit. Aucune mesure anonyme ne pouvait rencontrer ça.
 
     Retourne (status, erreurs_js, sélecteur_trouvé, nb_onglets_parcourus, session_supprimée,
     atterrissage) — ce dernier étant le couple (url réellement atteinte, messages à l'écran),
@@ -103,15 +118,27 @@ def _exercise_page(url, png_path, selector=None, timeout_ms=45000):
     from playwright.sync_api import sync_playwright
 
     errors, status, found, tabs_done, atterri = [], None, None, 0, ('', '')
+    refus = []
     png_path.parent.mkdir(parents=True, exist_ok=True)
     sessions_before = _session_keys()
     with sync_playwright() as p:
         browser = p.chromium.launch()
         try:
-            page = browser.new_page(viewport={'width': 1500, 'height': 1000})
+            contexte = browser.new_context(viewport={'width': 1500, 'height': 1000})
+            if jeton:
+                contexte.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': jeton,
+                                       'domain': '127.0.0.1', 'path': '/'}])
+            page = contexte.new_page()
             page.on('console', lambda m: errors.append(f"console.{m.type}: {m.text}")
                     if m.type == 'error' else None)
             page.on('pageerror', lambda e: errors.append(f"pageerror: {e}"))
+            # ⚠ La console dit « Failed to load resource: … 403 » et NE NOMME PAS L'URL. Sept
+            # apps ont échoué sur ce message le 2026-08-28 sans qu'on puisse savoir sur quoi ;
+            # il a fallu une sonde séparée pour découvrir que c'était SEPT FOIS LA MÊME
+            # ressource. Un message d'échec qui n'identifie pas sa cible coûte une enquête à
+            # chaque lecture — on relève donc l'URL nous-mêmes.
+            page.on('response', lambda r: refus.append((r.status, r.url))
+                    if r.status >= 400 else None)
             resp = page.goto(url, wait_until='networkidle', timeout=timeout_ms)
             status = resp.status if resp else None
             atterri = (page.url, _messages_a_l_ecran(page))
@@ -152,7 +179,7 @@ def _exercise_page(url, png_path, selector=None, timeout_ms=45000):
             browser.close()
     dropped = _drop_new_sessions(sessions_before)
     keep = [e for e in errors if not any(tok in e for tok in IGNORED_CONSOLE)]
-    return status, keep, found, tabs_done, dropped, atterri
+    return status, keep, found, tabs_done, dropped, atterri, refus
 
 
 def _diff_ratio(current: Path, reference: Path):
@@ -199,9 +226,17 @@ def check_app_page(app: str, url_path: str, selector: str | None = None):
     from wama.common.services.nightly_tests import SkipScenario
 
     url = f"{BASE_URL.rstrip('/')}{url_path}"
+    # ⚠ Lecture ORM AVANT `sync_playwright()` (SynchronousOnlyOperation à l'intérieur), et
+    # SKIP plutôt que repli anonyme : mesurer une page en visiteur est précisément ce que ce
+    # scénario faisait depuis toujours sans le dire (cf. `_exercise_page`). Un repli muet
+    # ramènerait le défaut le jour où le compte de test manque.
+    jeton = _session_compte_de_test()
+    if not jeton:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3) "
+                           "— une page mesurée en VISITEUR n'est pas la page de l'app")
     try:
-        status, errors, found, tabs, dropped, atterri = _exercise_page(
-            url, CUR_DIR / f"{app}.png", selector)
+        status, errors, found, tabs, dropped, atterri, refus = _exercise_page(
+            url, CUR_DIR / f"{app}.png", jeton, selector)
     except Exception as e:
         # Serveur éteint ou navigateur absent = dépendance manquante, pas une régression.
         raise SkipScenario(f"page injoignable ({type(e).__name__}: {str(e)[:120]})")
@@ -214,6 +249,34 @@ def check_app_page(app: str, url_path: str, selector: str | None = None):
     if mauvaise_page:
         return mauvaise_page
 
+    # ⚠⚠ UN REFUS DE DROITS SUR UNE AUTRE APP N'EST PAS UN DÉFAUT DE CELLE-CI. Mesuré le
+    # 2026-08-28, dès que ce scénario s'est mis à se connecter : SEPT apps sur quatorze
+    # échouaient, et c'était SEPT FOIS `/model-manager/api/models/db/` en 403 — le compte de
+    # test n'a pas accès à `model_manager`, et `AppAccessMiddleware` garde aussi ses API.
+    # Compter ça comme une erreur JS de l'anonymizer serait la confusion même que
+    # `_verdict_d_arrivee` a été écrit pour empêcher : une propriété de la FIXTURE portée au
+    # débit de l'app. On le NOMME dans le détail (c'est une vraie question produit : sans
+    # droit sur model_manager, le sélecteur de modèles de sept apps se remplit-il ?) et on ne
+    # le fait pas peser sur le verdict. Un refus sur les URL de l'app MESURÉE, lui, reste un
+    # défaut : c'est le sens du partage par `app_id_for_path`.
+    from urllib.parse import urlparse
+    try:
+        from wama.accounts.permissions import app_id_for_path
+    except Exception:                                          # pragma: no cover
+        app_id_for_path = lambda _p: None                      # noqa: E731
+    ailleurs, ici = [], []
+    for _s, _u in refus:
+        chemin = urlparse(_u).path
+        (ici if (app_id_for_path(chemin) or app) == app else ailleurs).append((_s, chemin))
+    droits_ailleurs = sorted({(s, c) for s, c in ailleurs if s in (401, 403)})
+    # La console ne nomme pas l'URL : on retire les messages génériques dont le CODE est celui
+    # d'un refus déjà attribué à une autre app — sinon le même fait compterait deux fois, et
+    # une fois du mauvais côté.
+    codes_ailleurs = {s for s, _ in droits_ailleurs}
+    errors = [e for e in errors
+              if not ('Failed to load resource' in e
+                      and any(f"status of {s}" in e for s in codes_ailleurs))]
+
     # ── Couche 1 : la barrière ────────────────────────────────────────────────
     problems = []
     if status != 200:
@@ -222,6 +285,10 @@ def check_app_page(app: str, url_path: str, selector: str | None = None):
         problems.append(f"{len(errors)} erreur(s) JS : " + " | ".join(errors[:3]))
     if selector and not found:
         problems.append(f"sélecteur absent : {selector}")
+    autres_refus = sorted({(s, c) for s, c in ici if s >= 400})
+    if autres_refus:
+        problems.append("refus sur les URL de l'app : "
+                        + " | ".join(f"HTTP {s} {c}" for s, c in autres_refus[:3]))
 
     # ── Couches 2 et 3 : où, puis quoi ────────────────────────────────────────
     extra = ""
@@ -239,9 +306,14 @@ def check_app_page(app: str, url_path: str, selector: str | None = None):
 
     gestes = f"{tabs} onglet(s) parcouru(s)" if tabs else "aucun onglet"
     trace = f" ; {dropped} session(s) nettoyée(s)" if dropped else ""
+    # Nommé, jamais tu : la page fonctionne, mais une partie de son contenu est refusée au
+    # compte qui la regarde — et c'est le genre de dégradation qu'aucun écran ne signale.
+    hors = (" ; ⚠ " + ", ".join(f"HTTP {s} {c}" for s, c in droits_ailleurs[:3])
+            + " — refusé au compte de test par les droits d'UNE AUTRE app, pas un défaut de "
+              f"{app} (mais la surface est DÉGRADÉE pour un tel compte)") if droits_ailleurs else ""
     if problems:
-        return False, "; ".join(problems) + f" [{gestes}]" + extra + trace
-    return True, f"page OK (HTTP 200, 0 erreur JS, {gestes}){extra}{trace}"
+        return False, "; ".join(problems) + f" [{gestes}]" + extra + trace + hors
+    return True, f"page OK (HTTP 200, 0 erreur JS, {gestes}){extra}{trace}{hors}"
 
 
 def discoverable_apps():
@@ -1217,6 +1289,316 @@ def register_url_import_scenarios():
             id=f"{label}.url_import", app=label, stage="ui",
             description=f"Card d'entrée {label} : une URL collée crée un élément",
             run=(lambda p=path, a=label: (lambda ctx: check_app_url_import(a, p)))(),
+            timeout_s=240, vram_gb=0.0,
+        )
+
+
+# ── Geste 14, dernier quart : IMPORTER UN DOSSIER (récursif) ───────────────────────────
+#
+# POURQUOI CELUI-CI N'EST PAS BÂTI COMME LES TROIS AUTRES QUARTS. « Fichier de lot », « URL »
+# et « Envoyer vers » tiennent entièrement entre le navigateur et le serveur : un clic, une
+# requête, un élément. Celui-ci, non. Le geste RÉEL — cliquer « importer un dossier », choisir
+# un dossier dans le sélecteur du SYSTÈME, laisser le navigateur l'aplatir — traverse une
+# surface qu'aucun harnais ne pilote : la boîte de dialogue native. Ce qui reste mesurable se
+# scinde donc en deux, et les deux moitiés sont mesurées SÉPARÉMENT parce qu'elles cassent
+# séparément :
+#   A. la TRAVERSÉE récursive elle-même (`WamaFolderImport.collect`), exercée sur un arbre
+#      synthétique conforme à l'interface `FileSystemEntry` que la brique duck-type. C'est le
+#      code de PRODUCTION qui tourne, sur une arborescence dont on connaît la réponse ;
+#   B. le CÂBLAGE de l'app : poser N fichiers sur son `<input webkitdirectory>` doit créer
+#      N éléments — et c'est la BASE qui le dit, pas le nombre de cards.
+#
+# ⚠⚠ CE QUE L'INSTRUMENT SAIT FAIRE — MESURÉ, APRÈS AVOIR ÉCRIT ICI LE CONTRAIRE (28/08).
+# Ce commentaire affirmait que `set_input_files` « NE PEUPLE PAS `webkitRelativePath` », donc
+# que la moitié B ne verrait jamais d'arborescence. C'était FAUX, et personne ne l'aurait su
+# sans lancer : le premier run a échoué en disant l'inverse — « [webkitdirectory] input
+# requires passing a path to a directory ». Sur un input `webkitdirectory`, Playwright ne veut
+# PAS une liste de fichiers : il veut UN DOSSIER, qu'il traverse lui-même. Vérifié sur un
+# arbre à 3 niveaux : les 3 fichiers arrivent, avec `webkitRelativePath` = `racine/a.txt`,
+# `racine/sous/b.txt`, `racine/sous/profond/c.txt`. On pose donc un VRAI dossier imbriqué, et
+# la moitié B mesure ce qu'elle prétend : des fichiers venus de la PROFONDEUR créent des
+# éléments. Seule la boîte de dialogue native reste hors d'atteinte — et elle seule.
+# (Leçon coûtée : une limite d'instrument s'ÉPROUVE. Écrite de tête, elle avait affaibli le
+# scénario par avance — exactement la faute du 27/08, à l'envers.)
+
+_DOSSIER_EN_ETAT = """() => {
+    const inp = document.querySelector('input[type=file][webkitdirectory]');
+    const B = window.WamaFolderImport;
+    const brique = !!(B && typeof B.collect === 'function'
+                      && typeof B.fromInput === 'function' && typeof B.files === 'function');
+    if (!inp) return {input_id: '', brique: brique,
+                      total: document.querySelectorAll('input[type=file]').length,
+                      cards: document.querySelectorAll('.wama-card').length};
+    // L'`accept` ne vit PAS sur l'input de dossier (`_new_item_card.html:98` ne lui en pose
+    // aucun : un dossier se choisit en entier, le filtrage est l'affaire de l'app). On le lit
+    // sur son JUMEAU de la même card — sinon le témoin part en `.txt` sur une app audio et
+    // c'est le témoin qu'on mesure, pas l'app (leçon du `.wav` de 19 octets).
+    const carte = inp.closest('[data-wama-nic]');
+    const jumeau = (carte || document).querySelector('input[type=file]:not([webkitdirectory])');
+    const lien = document.getElementById(inp.id + 'Btn');
+    return {
+        input_id: inp.id || '', multiple: !!inp.multiple, brique: brique,
+        lien: !!lien,
+        lien_cable: !!(lien && (lien.getAttribute('onclick') || '').indexOf(inp.id) >= 0),
+        accept: jumeau ? (jumeau.getAttribute('accept') || '') : '',
+        cards: document.querySelectorAll('.wama-card').length,
+        total: document.querySelectorAll('input[type=file]').length,
+    };
+}"""
+
+# L'arbre est SYNTHÉTIQUE, et c'est la seule façon d'exercer la vraie traversée : un
+# `DataTransfer` porteur d'entrées de dossier ne se fabrique pas depuis le disque
+# (`webkitGetAsEntry` n'existe qu'au drop d'un utilisateur RÉEL). Mais `collect` ne connaît
+# de ces entrées que quatre propriétés — `isFile`, `isDirectory`, `name`, et l'une de
+# `file(cb)` / `createReader()`. On les rend, et le reste est du code de production.
+# ⚠ Les enfants sont servis en DEUX lots : `readEntries` rend par paquets (100 max sur
+# Chromium) et la brique boucle jusqu'au lot vide. Un faux lecteur qui rendrait tout d'un
+# coup laisserait cette boucle — la seule partie non triviale de la brique — NON MESURÉE.
+_TRAVERSEE_RECURSIVE = """async () => {
+    const F = (nom) => ({isFile: true, isDirectory: false, name: nom,
+                         file: (ok) => ok(new File(['x'], nom))});
+    const D = (nom, enfants) => ({
+        isFile: false, isDirectory: true, name: nom,
+        createReader: () => {
+            let etape = 0;
+            return {readEntries: (ok) => {
+                if (etape === 0) { etape = 1; ok(enfants.slice(0, 1)); }
+                else if (etape === 1) { etape = 2; ok(enfants.slice(1)); }
+                else { ok([]); }
+            }};
+        }});
+    const racine = D('racine', [F('a.txt'),
+                                D('sous', [F('b.txt'), D('profond', [F('c.txt')])])]);
+    const arbre = await window.WamaFolderImport.collect({
+        items: [{webkitGetAsEntry: () => racine}, {webkitGetAsEntry: () => F('libre.txt')}]});
+    // Repli : un navigateur sans `webkitGetAsEntry` doit rendre la liste PLATE, pas rien.
+    const repli = await window.WamaFolderImport.collect(
+        {files: [new File(['x'], 'plat1.txt'), new File(['x'], 'plat2.txt')]});
+    return {chemins: arbre.map(x => x.relativePath).sort(),
+            fichiers: window.WamaFolderImport.files(arbre).length,
+            repli: repli.map(x => x.relativePath).sort()};
+}"""
+
+_ARBRE_ATTENDU = ['libre.txt', 'racine/a.txt', 'racine/sous/b.txt', 'racine/sous/profond/c.txt']
+
+
+def check_app_folder_import(app: str, url_path: str):
+    """Importer un DOSSIER crée-t-il un élément par fichier ? (ok, detail).
+
+    Geste 14, dernier quart. Deux moitiés, dans cet ordre — la première explique la seconde :
+      A. la brique commune traverse-t-elle vraiment une arborescence (récursion, lots, repli) ?
+      B. l'app écoute-t-elle son `<input webkitdirectory>` et crée-t-elle N éléments pour N
+         fichiers ?
+
+    Ne démarre AUCUN traitement : on pose des fichiers, on lit la BASE, on nettoie.
+    """
+    import tempfile
+
+    from wama.common.services.nightly_tests import SkipScenario
+    from playwright.sync_api import sync_playwright
+
+    jeton = _session_compte_de_test()
+    if not jeton:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3) "
+                           "— les droits ne sont pas simulables, on ne mesure pas à l'aveugle")
+
+    # ⚠ Toute lecture ORM AVANT `sync_playwright()` (SynchronousOnlyOperation à l'intérieur).
+    # Le compte des éléments est la VRAIE mesure de la moitié B : une app peut grouper N
+    # fichiers en UNE card de lot, et compter les cards dirait alors « 1 sur 2 » d'un
+    # comportement parfaitement correct. La base, elle, ne présente rien — elle compte.
+    try:
+        from wama.common.utils.preview_registry import PreviewRegistry
+        modele = PreviewRegistry.get_model(app)
+    except Exception:
+        modele = None
+    ids_avant = set()
+    if modele is not None:
+        try:
+            ids_avant = set(modele.objects.values_list('id', flat=True))
+        except Exception:
+            modele = None
+
+    temoins, crees, detail_a, dossier = [], None, '', None
+    sessions_before = _session_keys()
+    try:
+        with _garde_de_montage(app, 'folder_import') as _nettoyes:
+            with sync_playwright() as p:
+                navigateur = p.chromium.launch()
+                try:
+                    contexte = navigateur.new_context(viewport={'width': 1500, 'height': 1000})
+                    contexte.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': jeton,
+                                           'domain': '127.0.0.1', 'path': '/'}])
+                    page = contexte.new_page()
+                    posts = []
+
+                    def _voir(r):
+                        if r.request.method != 'POST':
+                            return
+                        corps = ''
+                        if r.status >= 400:
+                            try:
+                                corps = (r.text() or '')[:250].replace('\n', ' ')
+                            except Exception:
+                                corps = '(corps illisible)'
+                        posts.append((r.status, r.url.split('?')[0], corps))
+                    page.on('response', _voir)
+
+                    resp = page.goto(f"{BASE_URL.rstrip('/')}{url_path}",
+                                     wait_until='networkidle', timeout=45000)
+                    mauvaise_page = _exiger_la_page(page, resp, url_path)
+                    if mauvaise_page:
+                        return mauvaise_page
+                    page.wait_for_timeout(1200)
+                    etat = page.evaluate(_DOSSIER_EN_ETAT)
+
+                    if not etat['input_id']:
+                        # DETTE NOMMÉE, pas non-applicabilité : la brique existe et est montée
+                        # globalement ; il manque une ligne (`folder_input_id=`) sur la card
+                        # d'entrée. C'est exactement ce que la grille appelle `recursive_import`.
+                        raise SkipScenario(
+                            f"aucun `<input webkitdirectory>` sur cette surface "
+                            f"({etat['total']} champ(s) fichier) : l'affordance « importer un "
+                            f"dossier » n'est pas offerte — `folder_input_id` non déclaré sur "
+                            f"la card d'entrée commune. Dette d'adoption, pas de conception")
+                    if not etat['brique']:
+                        # La brique est montée dans `base.html` AVANT filemanager.js : son
+                        # absence sur une page qui déclare l'affordance signifie que le lien
+                        # lèverait une ReferenceError au premier clic. Défaut, pas skip.
+                        return False, ("l'affordance « importer un dossier » est offerte "
+                                       f"(#{etat['input_id']}) mais `window.WamaFolderImport` "
+                                       "est ABSENT de la page — le handler de l'app lèverait "
+                                       "une ReferenceError au premier dossier choisi")
+
+                    # ── Moitié A : la traversée récursive, sur le code de production ────────
+                    vu = page.evaluate(_TRAVERSEE_RECURSIVE)
+                    if vu['chemins'] != _ARBRE_ATTENDU:
+                        return False, (f"traversée récursive FAUSSE : arbre de 4 fichiers sur "
+                                       f"3 niveaux → {vu['chemins']} (attendu {_ARBRE_ATTENDU})")
+                    if vu['fichiers'] != 4:
+                        return False, (f"traversée correcte mais `files()` rend "
+                                       f"{vu['fichiers']} fichier(s) pour 4 entrées")
+                    if vu['repli'] != ['plat1.txt', 'plat2.txt']:
+                        return False, ("traversée correcte, mais le REPLI plat (navigateur sans "
+                                       f"`webkitGetAsEntry`) rend {vu['repli']} au lieu de "
+                                       "['plat1.txt', 'plat2.txt'] — les fichiers d'un drop "
+                                       "seraient PERDUS sur ces navigateurs")
+                    detail_a = "récursion 3 niveaux + lots + repli plat OK"
+                    if not etat['lien_cable']:
+                        # L'input est `display:none` : sans le lien, l'affordance existe dans le
+                        # DOM et n'est atteignable par AUCUN geste humain. Le scénario, lui, la
+                        # pilote très bien — c'est le cas type du vert qui ment.
+                        return False, (f"{detail_a} ; mais le lien « importer un dossier » "
+                                       f"(#{etat['input_id']}Btn) est "
+                                       + ("absent" if not etat['lien'] else
+                                          "présent sans ouvrir l'input") +
+                                       f" : l'`<input webkitdirectory>` est `display:none`, "
+                                       "donc inatteignable au clic")
+
+                    # ── Moitié B : l'app écoute-t-elle son input ? ─────────────────────────
+                    source = _fichier_temoin(etat['accept'] or _accept_declare(app))
+                    dossier = Path(tempfile.mkdtemp(prefix='wama_dossier_'))
+                    # Le second témoin est posé DANS un sous-dossier : c'est ce qui sépare
+                    # « l'app lit un input multiple » de « l'app reçoit un DOSSIER ». Un
+                    # câblage qui ne prendrait que le premier niveau rendrait 1 au lieu de 2.
+                    (dossier / 'sous').mkdir()
+                    for i, ou in ((1, dossier), (2, dossier / 'sous')):
+                        cible = ou / f"temoin_dossier_{i}{source.suffix}"
+                        cible.write_bytes(source.read_bytes())
+                        temoins.append(cible)
+                    source.unlink(missing_ok=True)
+
+                    avant_cards = etat['cards']
+                    # UN chemin de dossier, pas une liste : voir l'encadré ⚠⚠ ci-dessus.
+                    page.set_input_files(f"#{etat['input_id']}", str(dossier))
+                    # Certaines apps font passer un dépôt multiple par l'APERÇU DE LOT (même
+                    # chaîne que le fichier de lot et l'URL) : on ne présume pas, on regarde.
+                    try:
+                        page.wait_for_selector('#batchCreateOnlyBtn', state='visible',
+                                               timeout=8000)
+                        try:
+                            with page.expect_navigation(wait_until='load', timeout=30000):
+                                page.click('#batchCreateOnlyBtn', timeout=15000)
+                        except Exception:
+                            pass
+                    except Exception:
+                        pass
+                    page.wait_for_timeout(5000)
+                    try:
+                        page.wait_for_load_state('networkidle', timeout=15000)
+                    except Exception:
+                        pass
+                    apres_cards = page.evaluate("document.querySelectorAll('.wama-card').length")
+                finally:
+                    navigateur.close()
+
+            # ORM de nouveau accessible, garde pas encore passée : la fenêtre pour compter.
+            if modele is not None:
+                try:
+                    crees = len(set(modele.objects.values_list('id', flat=True)) - ids_avant)
+                except Exception:
+                    crees = None
+    except SkipScenario:
+        raise
+    except Exception as e:
+        # ⚠ Ce message disait « navigateur/serveur indisponible » comme ses huit jumeaux. Il a
+        # coûté un diagnostic : le premier run a rapporté 14 serveurs indisponibles alors que
+        # le serveur tournait et que la faute était MON appel Playwright. Un skip nomme ce
+        # qu'on a vu, pas ce qu'on suppose.
+        raise SkipScenario(f"non mesuré — le pilotage a échoué ici, pas l'app "
+                           f"({type(e).__name__}: {str(e)[:140]})")
+    finally:
+        # ⚠ `rmtree` sur un chemin DÉRIVÉ (`temoins[0].parent.parent`) viserait le parent du
+        # dossier temporaire, c'est-à-dire /tmp. On efface la racine qu'on a créée, elle seule.
+        if dossier is not None:
+            shutil.rmtree(dossier, ignore_errors=True)
+        _drop_new_sessions(sessions_before)
+
+    trace = (f" ; {_total_nettoye(_nettoyes)} objet(s) de test nettoyé(s)" if _nettoyes else "")
+    echecs = [f"HTTP {s} {u}" + (f" → {c}" if c else '') for s, u, c in posts if s >= 400]
+    if crees is None:
+        # Sans modèle d'élément on ne peut PAS conclure sur la moitié B : les cards ne
+        # distinguent pas « 2 éléments » de « 1 lot de 2 ». On le dit au lieu de trancher.
+        raise SkipScenario(f"{detail_a} ; mais le modèle d'élément de {app} est inconnu du "
+                           f"PreviewRegistry : le nombre d'éléments créés n'est pas lisible, "
+                           f"et les cards ({avant_cards} → {apres_cards}) ne le disent pas"
+                           + trace)
+    if crees == 0:
+        if not posts:
+            return False, (f"{detail_a} ; mais poser 2 fichiers sur #{etat['input_id']} n'émet "
+                           "AUCUNE requête et l'app ne dit rien — l'affordance est rendue par "
+                           "la card commune, RIEN NE L'ÉCOUTE. Défaut muet" + trace)
+        if echecs:
+            return False, (f"{detail_a} ; les 2 fichiers sont refusés — "
+                           f"{' | '.join(echecs[:2])}" + trace)
+        return False, (f"{detail_a} ; requête(s) acceptée(s) ({len(posts)} POST) mais AUCUN "
+                       f"élément en base ({avant_cards} → {apres_cards} cards)" + trace)
+    if crees != len(temoins):
+        return False, (f"{detail_a} ; mais {len(temoins)} fichiers posés → {crees} élément(s) "
+                       f"en base ({avant_cards} → {apres_cards} cards) : l'app en PERD ou en "
+                       f"DOUBLE" + trace)
+    return True, (f"{detail_a} ; {len(temoins)} fichiers posés sur #{etat['input_id']} → "
+                  f"{crees} éléments en base ({avant_cards} → {apres_cards} cards)" + trace)
+
+
+def _accept_declare(app: str) -> str:
+    """Les extensions que l'app DÉCLARE au catalogue — repli quand la card n'en porte pas."""
+    try:
+        from wama.common.app_registry import APP_CATALOG
+        exts = list((APP_CATALOG.get(app) or {}).get('input_extensions') or ())
+    except Exception:
+        exts = []
+    return ','.join(e if e.startswith('.') else f'.{e}' for e in exts)
+
+
+def register_folder_import_scenarios():
+    """Enregistre un scénario `<app>.folder_import` par app d'index — geste 14, part dossier."""
+    from wama.common.services.nightly_tests import register
+
+    for label, path in discoverable_apps():
+        register(
+            id=f"{label}.folder_import", app=label, stage="ui",
+            description=f"Card d'entrée {label} : importer un dossier crée un élément par fichier",
+            run=(lambda p=path, a=label: (lambda ctx: check_app_folder_import(a, p)))(),
             timeout_s=240, vram_gb=0.0,
         )
 

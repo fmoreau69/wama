@@ -70,7 +70,7 @@ Le catalogue n'est **pas à inventer** : c'est la table des composants obligatoi
 | 11 | Aperçu du résultat (clic → visionneuse) | ❌ | **oui** |
 | 12 | Télécharger le résultat | ❌ — ⚠ le MARKUP est prouvé (critère `download_wiring` 12/12 + pages 200), le TRANSFERT non : le compte de test ne possède aucun élément traité, donc `download/<pk>/` lui répond 404 — **le scoping qui fonctionne**, pas une panne | **oui** |
 | 13 | Démarrer tout / télécharger tout (lot) | ❌ | **oui** |
-| 14 | Import dossier récursif · URL · **fichier de lot** · **« Envoyer vers »** | ⚠️ **TROIS QUARTS** — `<app>.batch_import` (27/08) prouve le **fichier de lot** ; `<app>.send_to` (28/08) prouve **« Envoyer vers »** (**8 OK / 6 skips**, dont 3 skips qui NOMMENT une dette : pas d'importeur) ; `<app>.url_import` (28/08) prouve l'**URL** (**2 OK / 12 skips** — la garde SSRF rend « témoin local » et « l'app télécharge » exclusifs par construction) ; **le récursif reste dû** | non |
+| 14 | Import dossier récursif · URL · **fichier de lot** · **« Envoyer vers »** | ✅ **ENTIER** (28/08) — `<app>.batch_import` (27/08) le **fichier de lot** ; `<app>.send_to` **« Envoyer vers »** (**8 OK / 6 skips**, dont 3 qui NOMMENT une dette : pas d'importeur) ; `<app>.url_import` l'**URL** (**2 OK / 12 skips** — la garde SSRF rend « témoin local » et « l'app télécharge » exclusifs par construction) ; `<app>.folder_import` le **DOSSIER récursif** (**7 OK / 7 skips** — traversée sur le code de production + vrai dossier imbriqué, la BASE comptant les éléments) | non |
 
 **Couverture mesurée le 2026-08-22 : 1 geste sur 16.** Les deux seuls scénarios par app sont
 `<app>.ui` (santé de la page : 200 + zéro erreur console — aucun geste) et `<app>.import`.
@@ -95,6 +95,11 @@ que **2 OK**, et ce chiffre est le bon : les 12 skips nomment chacun leur famill
 gonfler un vert. ⚠⚠ C'est en l'écrivant qu'a été trouvé le **défaut d'instrument le plus large
 du harnais** — le contrôle `status != 200` ne voyait pas les redirections, et une app entière
 (`converter_01`) était mesurée **sur l'accueil** depuis le début. Détail au geste 14 (« URL »).
+**Au 2026-08-28 (clôture du geste 14) : 8 gestes et demi sur 16** — l'import de DOSSIER
+(`<app>.folder_import`) ferme le quatrième quart : **le geste 14 est ENTIER**. Et c'est en
+l'écrivant qu'a été trouvé le **second défaut d'instrument le plus large** : `<app>.ui`, le plus
+ANCIEN scénario du harnais, naviguait **en visiteur ANONYME** — donc mesurait de chaque app sa
+variante la plus VIDE. Détail au geste 14 (« URL »), encadré « second défaut ».
 
 > ⚠ **`<app>.settings` mesure la MOITIÉ du geste 2, et le dit dans son propre détail** (« MOITIÉ
 > DU GESTE — modifier/enregistrer/relire n'est PAS mesuré ici »). Ce n'est pas de la modestie :
@@ -568,9 +573,96 @@ vivante). Il distingue deux natures que rien n'obligeait à se ressembler : un r
 est un **skip nommé** (le compte de test n'a pas accès à l'app — ce n'est pas un défaut de l'app),
 une redirection **sans motif de droits** est un **ÉCHEC** (la page devrait s'ouvrir).
 
-⏳ **Reste dû sur le geste 14** : l'**import de dossier récursif**. Réserve d'instrument connue —
-Playwright `set_input_files` ne renseigne pas `webkitRelativePath`, que `wama-folder-import.js`
-lit pour reconstruire l'arborescence.
+#### ⚠⚠ Le second défaut d'instrument le plus large : `<app>.ui` naviguait en VISITEUR ANONYME
+
+Le scénario le plus ANCIEN du harnais — celui qui ouvre chaque app, compte ses erreurs JS et
+parcourt ses onglets — appelait `browser.new_page()` : aucun contexte, aucun cookie, donc **aucune
+session**. Il mesurait 14 apps **sans être connecté**, depuis toujours.
+
+Personne ne l'avait remarqué, et la raison est instructive : **11 apps sur 14 rendent exactement
+la même page à un visiteur anonyme**. Le scénario « marchait » — en mesurant de chaque app la
+variante la plus VIDE : ni file, ni données d'utilisateur, ni session. Les trois autres disent ce
+que la mesure anonyme coûtait :
+
+| app | ce que voyait le harnais anonyme | ce qu'il voit connecté |
+|---|---|---|
+| `studio` | la page de **login** (comptée « page OK ») | la page de l'app |
+| `model_manager` | la page de **login** | ⊘ skip : l'app n'est pas dans les droits du compte de test |
+| `converter_01` | la page de l'app, **ouverte** | ⊘ skip : **fermée** une fois connecté |
+
+> ⚠⚠ **`converter_01` s'ouvre en ANONYME et se ferme une fois CONNECTÉ.**
+> `AppAccessMiddleware` ne garde **que les utilisateurs authentifiés** : un visiteur sans session
+> n'est jamais confronté à `accessible(user, …)`. **Se connecter y fait donc PERDRE l'accès à une
+> page que le visiteur voit.** Aucune mesure anonyme ne pouvait rencontrer ça — c'est le
+> renversement exact de ce qu'une garde de droits est censée produire.
+
+Correctif : `_exercise_page` prend un `jeton` de session et navigue en `new_context()` + cookie,
+comme les scénarios récents. Sans compte de test disponible, il **skippe** — une page mesurée en
+visiteur n'est pas la page de l'app.
+
+**Second effet, invisible avant la connexion** : la console du navigateur dit
+« Failed to load resource: … 403 » et **ne nomme jamais l'URL**. Sept apps échouaient sur ce
+message opaque. En enregistrant nous-mêmes les `response`, la cause est unique et nommable :
+**`/model-manager/api/models/db/` refusé 403 SEPT FOIS** — le compte de test n'a pas
+`model_manager`, et sept pages d'app appellent cette API. Le harnais distingue donc désormais
+deux natures que rien n'obligeait à se ressembler : un refus sur les URLs **d'une autre app** est
+une propriété du COMPTE (caveat nommé dans le détail, pas un échec), un refus sur les URLs de
+**l'app mesurée** est un défaut.
+
+> ⭐ **La surface d'une app dépend des droits qu'on a sur une AUTRE.** Sept apps sont
+> silencieusement DÉGRADÉES pour tout compte sans `model_manager`, et rien à l'écran ne le dit.
+
+État après correctif (`nightly_20260828_130723.json`) : **12/14 OK, 0 échec, 2 skips** — les deux
+skips étant `converter_01` et `model_manager`, chacun nommant sa raison de droits.
+
+---
+
+### Geste 14 (import de DOSSIER) — le dernier quart, et le seul geste dont une part est hors d'atteinte de TOUT harnais
+
+**Couverture mesurée le 2026-08-28** (14 apps) : `nightly_20260828_132522.json` donne **7 OK /
+0 échec / 7 skips**. Avec lui, **le geste 14 est ENTIER** : fichier de lot, URL, « Envoyer vers »,
+dossier.
+
+Le geste réel — cliquer « importer un dossier », choisir un dossier dans le sélecteur du
+**système**, laisser le navigateur l'aplatir — traverse une surface qu'aucun harnais ne pilote :
+la **boîte de dialogue native**. Ce qui reste se scinde en deux moitiés, mesurées **séparément
+parce qu'elles cassent séparément** :
+
+| moitié | ce qui est exercé | verdict |
+|---|---|---|
+| **A. la traversée** | `WamaFolderImport.collect` — le code de PRODUCTION — sur un arbre synthétique de 4 fichiers sur 3 niveaux, servi en **deux lots** (`readEntries` rend par paquets, et la boucle jusqu'au lot vide est la seule partie non triviale de la brique) + le **repli plat** d'un navigateur sans `webkitGetAsEntry` | 7/7 |
+| **B. le câblage de l'app** | un **vrai dossier imbriqué** posé sur l'`<input webkitdirectory>` — un témoin à la racine, un dans un sous-dossier — et c'est la **BASE** qui compte les éléments, jamais les cards | 7/7 : **2 fichiers → 2 éléments** partout |
+
+> ⚠⚠ **Une limite d'instrument s'ÉPROUVE — écrite de tête, elle affaiblit le scénario par
+> avance.** Ce document et le code portaient tous deux la réserve « Playwright ne renseigne pas
+> `webkitRelativePath` », qui condamnait la moitié B à ne jamais voir d'arborescence. **Elle est
+> FAUSSE.** Le premier run l'a dit en une ligne, et l'inverse : sur un input `webkitdirectory`,
+> `set_input_files` **refuse une liste de fichiers et exige UN DOSSIER**, qu'il traverse lui-même
+> — `webkitRelativePath` compris (vérifié : `racine/a.txt`, `racine/sous/b.txt`,
+> `racine/sous/profond/c.txt`). C'est la faute du 27/08 prise à l'envers : au lieu d'une mesure
+> faible qui se dit forte, une mesure forte qu'on s'était interdite.
+
+> ⭐ **Le témoin du fond du dossier est ce qui sépare deux gestes différents.** Poser deux
+> fichiers côte à côte ne distingue pas « l'app lit un input multiple » de « l'app reçoit un
+> DOSSIER ». Un des deux témoins vit donc dans un **sous-dossier** : un câblage qui ne prendrait
+> que le premier niveau rendrait `1 élément pour 2 fichiers`, et c'est un ÉCHEC.
+
+**Les 7 skips nomment la dette, ils ne l'excusent pas** — la brique est montée globalement dans
+`base.html` ; il manque **une ligne** (`folder_input_id=`) sur la card d'entrée commune de
+`avatarizer`, `composer`, `imager`, `media_library`, `studio`. C'est exactement ce que la grille
+appelle `recursive_import`. (Les deux derniers skips sont `converter_01` et `model_manager`,
+fermés au compte de test.)
+
+> ⭐ **Le vert qui aurait menti, et la ligne qui l'empêche.** L'`<input webkitdirectory>` est
+> `display:none` : le scénario le pilote très bien même si **aucun geste humain** ne peut
+> l'atteindre. Avant de mesurer quoi que ce soit, le scénario exige donc que le lien
+> `#<id>Btn` existe **et** ouvre cet input — sans quoi c'est un ÉCHEC, affordance présente dans
+> le DOM et inatteignable au clic.
+
+> ⚠ Un skip « non mesuré » disait auparavant **« navigateur/serveur indisponible »**, comme ses
+> huit jumeaux du fichier. Il a coûté un diagnostic : un run a rapporté **14 serveurs
+> indisponibles** alors que le serveur tournait et que la faute était l'appel Playwright.
+> Un skip nomme ce qu'on a **vu**, pas ce qu'on suppose.
 
 ---
 
