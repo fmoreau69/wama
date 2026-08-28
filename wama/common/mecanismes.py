@@ -15,12 +15,16 @@ CE QU'ON DÉCLARE, ET CE QU'ON NE DÉCLARE PAS
 
 CE QUE LE CONTRÔLE SAIT DIRE (cf. `doc_facts --check`, fait `mecanismes`) :
   1. un mécanisme dont le DOMICILE a disparu — la carte pointe dans le vide ;
-  2. un module de `common/services/`, `common/utils/`, `common/backends/`,
-     `model_manager/services/` ou `studio/services/` **non déclaré** — « tu as oublié de le
-     tracer », la question posée par Fabien le 2026-08-13 (balayage étendu aux 3 derniers
-     dossiers le même jour ; `common/backends/` en dernier, après que Fabien ait demandé où
-     vivait le suivi des modèles : le dossier hors balayage ne produisait AUCUN signal, donc
-     `BaseModelBackend` — qui alimente tout le suivi — était invisible sans que rien ne l'indique) ;
+  2. un module d'un dossier BALAYÉ **non déclaré** — « tu as oublié de le tracer », la question
+     posée par Fabien le 2026-08-13. ⚠ **La liste des dossiers n'est PAS recopiée ici** : elle vit
+     dans `doc_facts.py` (`dossiers_balayes`), et la version qui était écrite à cette place avait
+     déjà divergé — elle citait 5 dossiers quand le code en balayait 7, ignorant `common/memory/`
+     et `common/static/common/js/` ajoutés depuis. *Une liste blanche recopiée à côté de la vraie
+     ne se met jamais à jour deux fois.* Ce que ce point doit retenir, lui, est la LEÇON : un
+     dossier hors balayage ne produit AUCUN signal — ni « non rattaché », ni rien — et elle s'est
+     rejouée QUATRE fois (`common/backends/` 13/08, le front 19/08, `common/memory/` 21/08,
+     `common/tts/` 28/08). D'où le geste : **ajouter le dossier au balayage dans le même commit
+     que son premier fichier**, jamais après coup ;
   3. un mécanisme **sans consommateur** — brique morte. C'est exactement l'état où sont restés
      `model_coverage.couvrir_classes` (0 consommateur pendant 8 jours, alors qu'il avait été
      extrait pour ça) et `qc.py` (0 aujourd'hui). Ces deux-là ont été trouvés à la main ;
@@ -134,6 +138,18 @@ MECANISMES = (
               "(retry Celery, chunking, replis) restent aux appelants — extrait 2026-08-28 : "
               "4 exemplaires vivaient dans le dépôt, un seul détectait le 503",
               'wama/common/tts/service_client.py', 'MODES_QUEUE_UX.md §2bis'),
+    Mecanisme('tts_vocabulaire', 'Vocabulaire TTS partagé',
+              "Le JEU DE CHOIX unique de la parole synthétique — moteurs, langues, presets de "
+              "voix, cartes moteur↔langue — et sa résolution (voix pour une langue, langue "
+              "d'une voix). Distinct du client de service : celui-ci TRANSPORTE, celui-là "
+              "NOMME. Les deux apps TTS, `accounts` (langue de profil) et l'assistant y "
+              "puisent les mêmes libellés",
+              'wama/common/tts/constants.py', '',
+              annexes=('wama/common/tts/voices.py',)),
+    # ⚠ Pas de `symbole` : le repli « feuille » du compteur capturerait tout `from …constants
+    # import` du dépôt — vérifié le 2026-08-28, il n'en existe AUCUN autre (`voices.py` est
+    # une annexe, donc exclu). Le chiffre est donc honnête tel quel. À reconsidérer le jour où
+    # un second `constants.py` apparaît : c'est exactement le piège documenté pour `base.py`.
 
     )),
 
@@ -476,6 +492,10 @@ MECANISMES = (
                        # Côté SERVEUR de wama-input-match (meta catalogue + labels INPUT_TYPES),
                        # extrait de composer/imager le 2026-08-17 (adoption ×7).
                        'wama/common/utils/input_match.py',
+                       # Spécialisation TTS du côté serveur : les DEUX apps à select de moteur
+                       # TTS (synthesizer, avatarizer) lisent le même catalogue. Extrait de
+                       # synthesizer/views.py au 2ᵉ consommateur, 2026-08-28.
+                       'wama/common/tts/ui_meta.py',
                        'wama/common/static/common/js/wama-model-help.js')),
     Mecanisme('detail_registry', 'Inspecteur — champs de détail',
               "Schéma canonique des infos d'item affichées au volet droit",

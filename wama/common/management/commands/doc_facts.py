@@ -217,9 +217,16 @@ def _fait_mecanismes():
     # donc « modules non rattachés : 0 » alors que 4 d'entre eux n'étaient déclarés nulle part.
     # Une liste blanche ne voit jamais le trou qui est hors de sa liste : tout nouveau dossier
     # de briques communes doit être ajouté ICI le jour où il est créé, sinon il naît invisible.
+    # `wama/common/tts/` ajouté le 2026-08-28 — QUATRIÈME occurrence, trouvée en y DÉPOSANT une
+    # brique (`ui_meta.py`, extraite de synthesizer au 2ᵉ consommateur) : le dossier existait
+    # depuis le service TTS et portait déjà `constants.py`/`voices.py`/`client.py`, tous hors
+    # balayage. La leçon ne s'apprend donc pas une fois pour toutes — elle se REJOUE à chaque
+    # dossier créé. Le geste juste n'est pas « se souvenir d'ajouter », c'est **ajouter la ligne
+    # dans le même commit que le premier fichier du dossier**.
     dossiers_balayes = ('wama/common/services/', 'wama/common/utils/',
                         'wama/common/backends/',
                         'wama/common/memory/',
+                        'wama/common/tts/',
                         'wama/common/static/common/js/',
                         'wama/model_manager/services/', 'wama/studio/services/')
     # `modules` ne contient que du .py : le front est balayé à part (mêmes exclusions).

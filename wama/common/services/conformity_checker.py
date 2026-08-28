@@ -426,13 +426,57 @@ def _has_engine_select(f: _AppFiles) -> bool:
         r'AiModel|audioEngine)'))
 
 
+_MODELHELP_TYPES: tuple[str, ...] | None = None
+
+
+def _modelhelp_capable_types() -> tuple[str, ...]:
+    """Types de champ que `WamaParams._bindModelHelp` auto-câble — **LUS dans le JS**, jamais
+    recopiés ici : le jour où la brique gagne un type, le critère suit tout seul. Repli sur
+    `('select',)` si la lecture échoue — mieux vaut le type historique qu'un ensemble vide,
+    qui ferait rougir en silence toutes les apps câblées de façon centralisée."""
+    global _MODELHELP_TYPES
+    if _MODELHELP_TYPES is None:
+        try:
+            js = (WAMA_ROOT / 'common/static/common/js/wama-params.js').read_text(
+                encoding='utf-8', errors='replace')
+            found = tuple(re.findall(
+                r"registerRenderer\(\s*'([^']+)'[\s\S]{0,400}?modelHelp:\s*true", js))
+        except OSError:
+            found = ()
+        _MODELHELP_TYPES = found or ('select',)
+    return _MODELHELP_TYPES
+
+
 def _model_help(f: _AppFiles):
     """Descriptif moteur — N/A quand l'UI n'offre AUCUN sélecteur de moteur (gate commun
     `_has_engine_select`, cas nommé 14/08 : le describer choisit son modèle vision
-    AUTOMATIQUEMENT — exiger la brique revenait à exiger un composant sans hôte)."""
+    AUTOMATIQUEMENT — exiger la brique revenait à exiger un composant sans hôte).
+
+    DEUX câblages valent adoption (durci le 2026-08-28) :
+      1. **explicite** — l'app cite `WamaModelHelp` / `wama-model-help` dans ses gabarits ou son JS ;
+      2. **centralisé** — son schéma déclare `help_source`/`help_fallback` sur un type que
+         `WamaParams._bindModelHelp` auto-câble, ET l'app rend ce schéma via `WamaParams`.
+
+    Le (2) manquait : le critère ne grep que `wama/<app>/**`, il déclarait donc ROUGE une app
+    dont la brique est **vivante**. Même leçon que `_queue_entry` — *un critère qui mesure du
+    MARKUP doit SUIVRE ce markup quand il se centralise*, et un gate cherche un APPEL, pas une
+    MENTION. Portée MESURÉE avant durcissement (28/08, les 10 apps) : **une seule bascule**
+    (avatarizer) ; 8 étaient déjà vertes en explicite, describer reste N/A."""
     ev = f.find(TEMPLATES + JS, r'wama-model-help|WamaModelHelp')
     if ev:
         return True, ev
+    rend = f.find(TEMPLATES + JS, r'WamaParams\s*\.\s*(?:render|settingsModal)\s*\(')
+    if rend:
+        try:
+            import importlib
+            schema = getattr(importlib.import_module(f'wama.{f.app}.params'), 'PARAMS_JSON', [])
+        except Exception:
+            schema = []
+        types = _modelhelp_capable_types()
+        champs = [p['name'] for p in schema
+                  if p.get('type') in types and (p.get('help_source') or p.get('help_fallback'))]
+        if champs:
+            return True, f"{rend} (auto-câblé par WamaParams sur {', '.join(champs)})"
     if not _has_engine_select(f):
         return None, None
     return False, None

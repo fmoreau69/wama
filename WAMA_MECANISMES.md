@@ -72,13 +72,20 @@ du nom de fichier** (balise `<script>`, include) dans les gabarits et le front (
 > l'eau**. Corollaire immédiat : bien commenter une brique AUGMENTE son score d'adoption, ce qui
 > est précisément l'incitation qu'un instrument ne doit pas créer.
 
-Et sous la table, la liste des modules **non rattachés au registre** parmi les dossiers balayés
-(`common/services/`, `common/utils/`, `common/backends/`, `model_manager/services/`,
-`studio/services/` — étendu aux trois derniers le 2026-08-13) — la réponse mécanique à « qu'ai-je
-oublié de tracer ». ⚠ Un dossier **hors balayage** ne produit **aucun** signal : c'est ainsi que
+Et sous la table, la liste des modules **non rattachés au registre** parmi les dossiers balayés —
+la réponse mécanique à « qu'ai-je oublié de tracer ». La liste des dossiers **n'est pas recopiée
+ici** : elle vit dans `doc_facts.py` (`dossiers_balayes`), et la version qui occupait cette place
+en citait **5** quand le code en balayait **7** (mesuré le 28/08) — elle avait raté les deux
+élargissements de la semaine. *Une liste blanche recopiée à côté de la vraie ne se met jamais à
+jour deux fois ; le rendu ci-dessous, lui, en vient.*
+
+⚠ Un dossier **hors balayage** ne produit **aucun** signal : c'est ainsi que
 `common/backends/base.py`, qui alimente tout le suivi des modèles, est resté invisible de la carte
 jusqu'au 13/08 sans que rien ne l'indique. Élargir la liste est donc un acte à faire dès qu'un
-dossier prend une fonction transversale. Un utilitaire strictement
+dossier prend une fonction transversale — et la leçon s'est **rejouée quatre fois** (le front le
+19/08, `common/memory/` le 21/08, `common/tts/` le 28/08, ce dernier découvert en y DÉPOSANT une
+brique). Se souvenir n'est donc pas le geste : **ajouter le dossier au balayage dans le commit qui
+crée son premier fichier**. Un utilitaire strictement
 local ne se déclare pas : il s'**assume**, et assumer est un acte déclaré lui aussi —
 `ASSUMES_LOCAUX` (wama/common/mecanismes.py), une raison datée par entrée, soustrait du backlog
 (ajouté au triage du 2026-08-13 : sans lui la liste plafonnait à 45 noms et ne convergeait
@@ -88,7 +95,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 ---
 
 <!-- WAMA:FAITS(mecanismes) — généré par « python manage.py doc_facts », ne pas éditer -->
-#### Ressources & exécution (10)
+#### Ressources & exécution (11)
 
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
@@ -102,6 +109,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Progression de tâche longue** | Avancement d'une tâche Celery HORS file d'items publié dans le cache (F5-proof) + garde « déjà en cours » vérifiée auprès de Celery ; pendant navigateur = WamaApp.Poller | `wama/common/utils/task_progress.py` | `wama/model_manager/PROSPECTION_PIPELINE.md` | 3 |
 | **Squelette de tâche** | Enchaînement commun des tâches Celery d'item : gardes, progress, statuts, ETA | `wama/common/utils/task_skeleton.py` | `WAMA_APP_GENERATION_ROUTE.md` | 4 |
 | **Tests nocturnes** | Registre déclaratif de scénarios + runner sérialisé VRAM-aware (wired/ui/consistency/…) | `wama/common/services/nightly_tests.py` | `PROJECT_STATUS.md §Tests fonctionnels nocturnes` | 11 |
+| **Vocabulaire TTS partagé** | Le JEU DE CHOIX unique de la parole synthétique — moteurs, langues, presets de voix, cartes moteur↔langue — et sa résolution (voix pour une langue, langue d'une voix). Distinct du client de service : celui-ci TRANSPORTE, celui-là NOMME. Les deux apps TTS, `accounts` (langue de profil) et l'assistant y puisent les mêmes libellés | `wama/common/tts/constants.py` | — | 13 |
 
 #### Modèles (11)
 
@@ -142,7 +150,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
 | **Accès LLM** | Route unique vers les LLM (tiers déclaratifs, sélection catalogue, Ollama local) | `wama/common/utils/llm_utils.py` | — | 14 |
-| **Appariement d'identité de canal** | Relie une identité Matrix/Discord à un compte WAMA par code prouvé hors canal — la garde que tout adaptateur appelle avant d'agir | `wama/gateway/services.py` | `ROADMAP.md §19` | 183 |
+| **Appariement d'identité de canal** | Relie une identité Matrix/Discord à un compte WAMA par code prouvé hors canal — la garde que tout adaptateur appelle avant d'agir | `wama/gateway/services.py` | `ROADMAP.md §19` | 184 |
 | **Claude Code sur abonnement** | Délègue une tâche de développement au CLI Claude Code en headless — lecture seule par défaut, environnement construit sans la clé API | `wama/common/services/claude_code.py` | `ROADMAP.md §19.3` | 1 |
 | **Export document** | Génère PDF (fpdf2) / DOCX (python-docx) depuis les résultats d'app | `wama/common/utils/document_export.py` | — | 3 |
 | **Garde des URL sortantes** | Valide toute cible de téléchargement pilotée par une saisie : schéma, identifiants, et adresses privées/bouclage/lien-local — anti-SSRF | `wama/common/utils/url_guard.py` | `PROFILES_PERMISSIONS.md` | 2 |
@@ -169,7 +177,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Console utilisateur** | Lignes de journal structurées par utilisateur et par app. ⚠ Annoncé « via Redis », mais le chemin Redis exige `django_redis` — ABSENT des deux venvs et des `requirements` (vérifié 2026-08-22) : la console tourne DEPUIS TOUJOURS sur son repli cache, qui fonctionne mais n'est pas atomique (lire/insérer/réécrire, donc des lignes perdues quand gunicorn et les workers Celery poussent en même temps). Le correctif n'est PAS d'ajouter la dépendance : le client `redis` brut est déjà installé et la brique d'accès existe (`resource_governor._redis`, via `CELERY_BROKER_URL`) | `wama/common/utils/console_utils.py` | — | 31 |
 | **Dossier de travail jetable** | Les fichiers INTERMÉDIAIRES d'un traitement ne vivent pas dans `media/`. Mesuré le 2026-08-25 : `media/avatarizer/` pesait 1,69 Go pour 2101 fichiers dont 99,6 % de PNG — les frames de CodeFormer, écrites dans le dossier de sortie du job et jamais nettoyées ; `job_11` portait 1715,7 Mo pour une vidéo de 0,70 Mo. `media/` ne contient que `<app>/<user>/input|output/` et `users/` (MEDIA_STORAGE_TIERING.md) : un fichier de travail y est sauvegardé par le miroir, compté par le tiering et servi par Apache pour rien. Le `with` rend le nettoyage STRUCTUREL au lieu d'être une convention qu'on oublie. ADOPTÉ par 5 sites (avatarizer/codeformer, describer/views, enhancer/views, reader/glm_ocr, describer/video_describer) ; reste `enhancer/tasks.py:534`, déjà nettoyé sur les deux chemins, dont le portage est une restructuration d'une fonction GPU de 200 lignes. ⚠⚠ L'audit AUTOMATIQUE des `mkdtemp` a mal classé 2 sites sur 6 — `glm_ocr` déléguait par contrat DOCUMENTÉ, `enhancer/tasks` nettoyait déjà — mais la lecture site par site a trouvé l'inverse, des fuites qu'aucun motif ne voyait : un `rmdir` conditionné à « si le dossier est vide » qui ne se déclenchait donc jamais, un nettoyage placé APRÈS l'appel qui sautait sur exception, et un `except ImportError` qui empêchait un repli d'exister. Un relevé par motif oriente ; il ne conclut pas. Porte aussi `purge_job_dir` : la suppression d'une card doit emporter le dossier du job — 13 dossiers `job_*` orphelins relevés contre 4 rattachés | `wama/common/utils/work_dir.py` | `MEDIA_STORAGE_TIERING.md` | 46 |
 | **Duplication et suppression sûres** | duplicate_instance() et safe_delete_file() — fichiers partagés entre items | `wama/common/utils/queue_duplication.py` | `WAMA_APP_CONVENTIONS.md` | 16 |
-| **Entrée de file (card seule OU lot)** | Décide, pour une entrée de file, si elle s'affiche en card unique ou en card MÈRE avec ses filles repliables — et rend l'un ou l'autre. Le bloc vivait recopié À L'IDENTIQUE dans 9 gabarits ; il n'a pu être centralisé (2026-08-25) qu'une fois deux verrous levés : `is_unitary` adopté (la décision se lit sur le modèle) et `elem` (les 9 cards filles reçoivent leur élément sous le MÊME nom — avant, 8 graphies). Signature à 3 paramètres : `card_template`, plus `collapse_prefix` et `batch_key` pour la seule app à deux files sur une page (enhancer audio). ⚠ Tout le reste TRAVERSE PAR LE CONTEXTE — les ~9 paramètres de `_batch_card.html` sont fournis par l'app et passent au travers, sinon la signature atteindrait la quinzaine. Apparence uniformisée sur le TRANSCRIBER (référence), conforme à `CARD_DESIGN §11.2` (famille de lot = cyan #0dcaf0) : les 3 couleurs et 2 habillages qui coexistaient étaient des séquelles d'implémentations successives | `wama/common/templates/common/_queue_entry.html` | `CARD_DESIGN.md §11.2` | 192 |
+| **Entrée de file (card seule OU lot)** | Décide, pour une entrée de file, si elle s'affiche en card unique ou en card MÈRE avec ses filles repliables — et rend l'un ou l'autre. Le bloc vivait recopié À L'IDENTIQUE dans 9 gabarits ; il n'a pu être centralisé (2026-08-25) qu'une fois deux verrous levés : `is_unitary` adopté (la décision se lit sur le modèle) et `elem` (les 9 cards filles reçoivent leur élément sous le MÊME nom — avant, 8 graphies). Signature à 3 paramètres : `card_template`, plus `collapse_prefix` et `batch_key` pour la seule app à deux files sur une page (enhancer audio). ⚠ Tout le reste TRAVERSE PAR LE CONTEXTE — les ~9 paramètres de `_batch_card.html` sont fournis par l'app et passent au travers, sinon la signature atteindrait la quinzaine. Apparence uniformisée sur le TRANSCRIBER (référence), conforme à `CARD_DESIGN §11.2` (famille de lot = cyan #0dcaf0) : les 3 couleurs et 2 habillages qui coexistaient étaient des séquelles d'implémentations successives | `wama/common/templates/common/_queue_entry.html` | `CARD_DESIGN.md §11.2` | 193 |
 | **File d'attente (front)** | Comportements communs des files : collapse de batch persisté, focus card, data-wama-* | `wama/common/static/common/js/wama-queue.js` | `CARD_DESIGN.md` | 64 |
 | **Import par lot** | Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot | `wama/common/utils/batch_parsers.py` | `BATCH_FORMAT.md` | 51 |
 | **Intégrité des médias** | Audit MESURÉ de `media/` en 4 états : RÉFÉRENCÉ (une ligne de base pointe dessus), orphelin, RÉSIDU DE TEST, et RÉFÉRENCÉ MAIS ABSENT — ce dernier étant celui que personne ne voyait : au 2026-08-25, **33 lignes de base pointent vers des fichiers inexistants**, et un téléchargement ou un aperçu y échoue sans rien dire. Signale aussi les fichiers ÉGARÉS hors des emplacements légitimes. ⚠⚠ La méthode exige DEUX signaux indépendants, jamais le nom seul : « orphelin » seul désignait 3447 fichiers sur 3779 (les sorties de workers ne passent pas par un FileField), et le nom seul aurait emporté le dépôt manuel d'une utilisatrice. ⚠ Un kind de manifeste `media` a été ÉCARTÉ : `manifests/` est versionné alors que `media/` porte des données personnelles, et un export serait périmé au moindre dépôt — un contrôle toujours rouge ne protège plus rien | `wama/common/management/commands/check_media_integrity.py` | `MEDIA_STORAGE_TIERING.md` | 1 |
@@ -192,12 +200,12 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Lecteur audio (onde + transport)** | Widget autonome : onde canvas (pics serveur ou décodés), play/pause, exclusivité inter-lecteurs et inter-onglets ; monté par la preview dans le volet ET les cards | `wama/common/static/common/js/wama-audio-player.js` | — | 5 |
 | **Preview unifiée** | Registre d'adaptateurs par modèle : la preview des cards vient du commun, pas des apps | `wama/common/utils/preview_registry.py` | — | 35 |
 | **Progression & ETA (front)** | Moteur ETA par débit observé + barres aux 3 niveaux : card, batch, globale | `wama/common/static/common/js/wama-eta.js` | `PROJECT_STATUS.md §10` | 41 |
-| **Schéma de paramètres** | Source unique des réglages d'app : volet droit et modale sont RENDUS depuis lui | `wama/common/utils/param_schema.py` | `WAMA_APP_GENERATION_ROUTE.md` | 39 |
+| **Schéma de paramètres** | Source unique des réglages d'app : volet droit et modale sont RENDUS depuis lui | `wama/common/utils/param_schema.py` | `WAMA_APP_GENERATION_ROUTE.md` | 40 |
 | **Shuttle J/K/L** | État de vitesse/direction de lecture (paliers éditeur) + binding clavier ; l'app fournit apply(speed) — la commande est commune, l'application au lecteur reste locale | `wama/common/static/common/js/wama-shuttle.js` | — | 3 |
 | **Signalement au gestionnaire de fichiers** | Noms d'événements centralisés (media:uploaded/processed/deleted) — l'arborescence du filemanager se rafraîchit sans que chaque app invente son event | `wama/common/static/common/js/wama-fm-notify.js` | — | 2 |
 | **Socle JS des apps** | Plomberie commune file/cards : csrfFetch, urls, Poller de progression, états vides | `wama/common/static/common/js/wama-app-base.js` | `WAMA_APP_GENERATION_ROUTE.md` | 18 |
 | **Sélecteur de médiathèque** | Modale commune de choix d'un asset de la médiathèque (filtrée par type), rendue à l'appelant sous forme de File + méta | `wama/common/static/common/js/media-picker.js` | — | 4 |
-| **Vocabulaire des capacités** | Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage UI | `wama/common/utils/model_capabilities.py` | `INPUT_MODEL_MATCHING.md` | 22 |
+| **Vocabulaire des capacités** | Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage UI | `wama/common/utils/model_capabilities.py` | `INPUT_MODEL_MATCHING.md` | 23 |
 | **Voie d'import (front)** | Envoi d'un fichier vers l'endpoint upload de l'app depuis toutes les sources (dépôt, clic, médiathèque), délégation du LOT à batch_import, consolidation et rafraîchissement — agnostique du monde (ni MIME ni extension) | `wama/common/static/common/js/wama-import.js` | `WAMA_APP_GENERATION_ROUTE.md` | 4 |
 | **data-* du gear ⚙ des cards** | data-* du bouton ⚙ DÉRIVÉS du schéma (contrat cardSettings de l'inspecteur : le volet reflète la card sélectionnée) — remplace les attributs écrits à la main par app ; booléens 'true'/'false', tous les params item émis (anti-résidus) | `wama/common/utils/card_gear.py` | — | 10 |
 
@@ -237,10 +245,10 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Runner générique du studio** | Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app | `wama/studio/services/generic_runner.py` | `STUDIO_VISION.md` | 7 |
 | **Surface d'outils** | Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas | `wama/tool_api.py` | `WAMA_APP_GENERATION_ROUTE.md` | 9 |
 
-**Mécanismes déclarés : 104** · domiciles absents : 0 · sans consommateur : 2 · assumés locaux : 19 · modules balayés non rattachés : 4 · **de niveau app sans critère de grille : 26**
+**Mécanismes déclarés : 105** · domiciles absents : 0 · sans consommateur : 2 · assumés locaux : 19 · modules balayés non rattachés : 4 · **de niveau app sans critère de grille : 27**
 - ⚠ **Sans consommateur** (brique morte ou pas encore adoptée) : `benchmark_sync` (wama/model_manager/services/benchmark_sync.py), `qc` (wama/common/utils/qc.py)
 
-<details><summary>⚠ <b>26 mécanisme(s) de niveau app SANS critère de grille</b> — adoptés par des apps, vérifiés par aucun critère (<code>Criterion.mecanisme</code>) : une app peut sortir à 100 % sans les avoir adoptés</summary>
+<details><summary>⚠ <b>27 mécanisme(s) de niveau app SANS critère de grille</b> — adoptés par des apps, vérifiés par aucun critère (<code>Criterion.mecanisme</code>) : une app peut sortir à 100 % sans les avoir adoptés</summary>
 
 | Mécanisme | Adopté par | Domicile |
 |---|---|---|
@@ -267,6 +275,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | `resource_governor` — Gouverneur de ressources | **2** app(s) : avatarizer, composer | `wama/common/services/resource_governor.py` |
 | `task_skeleton` — Squelette de tâche | **2** app(s) : converter, reader | `wama/common/utils/task_skeleton.py` |
 | `tts_service_client` — Client du service TTS | **2** app(s) : avatarizer, synthesizer | `wama/common/tts/service_client.py` |
+| `tts_vocabulaire` — Vocabulaire TTS partagé | **2** app(s) : avatarizer, synthesizer | `wama/common/tts/constants.py` |
 | `model_coverage` — Couverture multi-modèles | **1** app(s) : anonymizer | `wama/common/services/model_coverage.py` |
 | `provenance` — Provenance de modèle | **1** app(s) : anonymizer | `wama/model_manager/services/provenance.py` |
 | `run_outcome` — Signaux d'exécution | **1** app(s) : transcriber | `wama/common/services/run_outcome.py` |

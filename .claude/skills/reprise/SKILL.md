@@ -46,16 +46,25 @@ python manage.py test                       # SUITE COMPLÈTE (~4 min) — ajout
 > `manage.py test 2>&1 | grep -E "^(FAIL|ERROR):|AssertionError"`.
 
 **État attendu au 2026-08-28** (mesuré ce jour ; c'était **852** le 25/08 et **911** le 26/08 —
-le total grossit à chaque test ajouté, **ne pas en faire un critère**) : **1147 tests**, **`OK`**,
+le total grossit à chaque test ajouté, **ne pas en faire un critère**) : **1145 tests**, **`OK`**,
 plus la ligne `Découverte : 2 module(s) ignoré(s) hors périmètre (wama-dev-ai.core, wama-dev-ai.ui)`.
-**La suite est VERTE : tout échec est désormais une dérive**, il n'y a plus de cause « connue » à
-excuser.
+**Le SEUL attendu est `OK`.** La suite est verte : tout échec est désormais une dérive, il n'y a
+plus de cause « connue » à excuser.
 
 > ⚠ **Cet attendu a été FAUX du 27/08 au 28/08** et c'est la leçon à retenir de lui : il annonçait
 > `FAILED (failures=8, errors=2)` « STABLE, deux causes connues » alors que les deux étaient
 > **soldées**. Un attendu rouge qui décrit du vert est aussi nocif qu'un seuil périmé (cf. le 🔴
 > plus haut) : il fait accueillir une vraie régression comme « la normale ». **Réécrire ce bloc
 > dans le commit qui change l'état de la suite**, jamais plus tard.
+>
+> ⚠⚠ **Et le total lui-même a été faux le jour même où je l'ai réécrit** : j'ai inscrit « 1147 »
+> le matin du 28/08, puis **deux exécutions du même arbre** (venv_win 127 s, venv_linux 506 s —
+> aucun fichier de test modifié entretemps, vérifié au `git show --name-only`) ont rendu **1145**
+> l'une comme l'autre. La découverte de tests n'a rien de dynamique (aucun `load_tests`, aucun
+> `setattr(… test_…)` dans le dépôt) : c'était une **erreur de recopie**, pas une dérive.
+> *Recopier un nombre d'une sortie longue est un geste faillible — c'est exactement pourquoi ce
+> total n'est pas un critère.* Ne jamais s'alarmer d'un écart de ±quelques unités ; ne jamais
+> tolérer autre chose que `OK`.
 
 Les deux ex-causes, pour lire les références antérieures qui annoncent « 10 échecs » :
 

@@ -79,8 +79,14 @@ REGISTRY_MODEL_DESCRIPTIONS = {
 }
 
 # Pont valeur d'option UI (select #tts_model, cf. TTS_MODEL_CHOICES) → clé catalogue
-# (`AIModel.model_key` sans le préfixe `synthesizer:`). Les moteurs Coqui légers
-# (vits/tacotron2/speedy_speech) n'ont pas d'entrée catalogue dédiée → pas d'aide affichée.
+# (`AIModel.model_key` sans le préfixe `synthesizer:`). Table d'EXCEPTIONS, PAS l'inventaire
+# des moteurs : elle est vide de sens depuis l'alignement du 18/08 (identité) et ne garde que
+# les 4 moteurs qui avaient un id divergent.
+# ⚠ Le commentaire qui vivait ici — « les moteurs Coqui légers (vits/tacotron2/speedy_speech)
+# n'ont pas d'entrée catalogue dédiée → pas d'aide affichée » — était FAUX au 2026-08-28 :
+# les 7 moteurs de TTS_MODEL_CHOICES répondent à `synthesizer:<valeur>` (mesuré). C'est le
+# CODE qui les privait d'aide, en dérivant sa liste de cette table de 4 au lieu du select.
+# Corrigé dans `common/tts/ui_meta.py`, qui part des choix et n'applique ceci qu'en override.
 # Source UNIQUE = backends/base.py (Django-free : la même table sert de clé d'owner
 # publiée au gouverneur par les backends du service TTS).
 from wama.synthesizer.backends.base import CATALOG_KEYS as ENGINE_CATALOG_KEYS  # noqa: E402

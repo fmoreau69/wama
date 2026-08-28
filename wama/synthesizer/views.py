@@ -228,38 +228,24 @@ class IndexView(View):
         }))
         return render(request, 'synthesizer/index.html', context)
 
+    #: Les deux metas d'UI des moteurs TTS ont DÉMÉNAGÉ dans `common/tts/ui_meta.py` au 2ᵉ
+    #: consommateur (avatarizer, pipeline dérivé du 2026-08-28) — remplacées ici par un appel,
+    #: jamais recopiées là-bas. `ENGINE_CATALOG_KEYS` reste PASSÉ : c'est le point d'accroche
+    #: déclaré d'un futur id divergent (`backends/base.py`), et le substrat ne doit pas le
+    #: connaître. ⚠ Il y est traité comme un jeu d'EXCEPTIONS, plus comme l'inventaire des
+    #: moteurs : ses 4 entrées privaient vits/tacotron2/speedy-speech de descriptif alors que
+    #: le select en propose 7 et que les 7 sont au catalogue (mesuré 28/08).
     @staticmethod
     def _input_match_meta():
-        """Meta de la brique COMMUNE, re-clée sur les valeurs d'option LEGACY du select
-        (xtts_v2, higgs_audio…) via l'accesseur ENGINE_CATALOG_KEYS — même table que le
-        `resolveKey` de WamaModelCaps, direction inverse."""
-        from wama.common.utils.input_match import input_match_meta
+        from wama.common.tts.ui_meta import tts_input_match_meta
         from .utils.model_config import ENGINE_CATALOG_KEYS
-        inv = {v: k for k, v in ENGINE_CATALOG_KEYS.items()}
-        return input_match_meta(
-            'synthesizer',
-            key=lambda mk: inv.get(mk.split(':', 1)[-1], mk.split(':', 1)[-1]))
+        return tts_input_match_meta(ENGINE_CATALOG_KEYS)
 
     @staticmethod
     def _tts_model_help_meta():
-        """Meta {valeur_option: {description, description_long, vram_gb}} pour WamaModelHelp,
-        lue depuis le CATALOGUE `AIModel` (source unique — les descriptions sont déclarées dans
-        `model_config.REGISTRY_MODEL_DESCRIPTIONS` et synchronisées au catalogue). Fail-safe :
-        {} si catalogue indisponible (l'aide reste simplement vide)."""
-        try:
-            from wama.model_manager.models import AIModel
-            from .utils.model_config import ENGINE_CATALOG_KEYS
-            keys = {f"synthesizer:{k}": engine for engine, k in ENGINE_CATALOG_KEYS.items()}
-            meta = {}
-            for m in AIModel.objects.filter(model_key__in=keys):
-                meta[keys[m.model_key]] = {
-                    'description': m.description_short or '',
-                    'description_long': m.description or '',
-                    'vram_gb': m.vram_gb,
-                }
-            return meta
-        except Exception:
-            return {}
+        from wama.common.tts.ui_meta import tts_model_help_meta
+        from .utils.model_config import ENGINE_CATALOG_KEYS
+        return tts_model_help_meta(ENGINE_CATALOG_KEYS)
 
 
 @require_POST

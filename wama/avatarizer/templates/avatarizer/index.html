@@ -63,11 +63,17 @@
 {% include 'common/_inspector_banner.html' %}{# bandeau « Réglages de l'élément #N » (inspecteur contextuel) #}
 <div id="avatarPanelParams">
 
-{% comment %}Avatarizer = STANDALONE (2026-07-15) : audio (fourni, ou produit en amont par
-le Synthesizer via le Studio) + avatar → MuseTalk. Le TTS ne fait plus partie de l'app
-(relève du Synthesizer) : params.py ne déclare plus mode/tts_model/language/voice_preset ;
-le TTS a été retiré de l'UI (card, modale, aide). Le pipeline texte→voix→avatar se compose
-dans le Studio (runner avatarizer : mode=standalone fixe).{% endcomment %}
+{% comment %}Avatarizer : audio (fourni, ou produit en amont par le Synthesizer via le Studio)
++ avatar → MuseTalk. Ce VOLET reste celui des réglages MuseTalk — les champs TTS vivent dans
+la MODALE générée par WamaParams (contexte 'item'), sous `show_if="text_content"`.
+
+⚠ Ce bloc a affirmé de 2026-07-15 au 2026-08-28 que « le TTS ne fait plus partie de l'app :
+params.py ne déclare plus mode/tts_model/language/voice_preset ». C'est FAUX depuis le retour
+du pipeline DÉRIVÉ (commit 4c7d0900) : params.py déclare les quatre. Et ce commentaire a fait
+un dégât MESURABLE — le critère `_has_engine_select` cherchait un nom de moteur dans les
+gabarits, l'a trouvé ICI, dans une phrase qui NIAIT son existence, et a rendu un faux positif
+le 17/08 (gate durci depuis : un nom doit être en position d'ATTRIBUT, pas dans de la prose).
+*Un commentaire périmé n'est pas neutre : il se fait lire par les instruments.*{% endcomment %}
 <!-- Paramètres MuseTalk -->
 <div class="mb-2">
     <label class="form-label small fw-bold text-light"><i class="fas fa-sliders-h"></i> Paramètres MuseTalk</label>
@@ -359,6 +365,59 @@ window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'avatarizer:global_progress' %}";
     if (hostMt) WamaParams.render(hostMt, schema, { context: 'item', optionsResolver: resolver });
     var bhost = document.getElementById('avatarizerBatchParams');
     if (bhost) WamaParams.render(bhost, schema, { context: 'batch', values: {} });
+
+    // ── Briques d'appariement du volet TTS (2026-08-28) ────────────────────────────────
+    // APRÈS le render : les selects n'existent qu'une fois la modale générée. Les ids sont
+    // ceux du contexte 'item' (params.py → dom_id), pas des ids écrits à la main.
+    // ⚠ WamaModelHelp n'est PAS câblé ici : `WamaParams._bindModelHelp` l'a déjà fait tout
+    // seul à partir de `help_source="synthesizer"` déclaré au schéma. L'ajouter donnerait
+    // DEUX descriptifs sur le même select — le doublon silencieux que la doctrine vise.
+    if (!hostMt) return;
+
+    // Modèle → entrées : moteur sans clonage ⇒ voix ua_/cv_ masquées ; langues restreintes
+    // à celles du moteur. Capacités lues par la brique elle-même (api/models/db/) : rien à
+    // passer depuis la vue. Dégradation douce si le catalogue est indisponible.
+    if (window.WamaModelCaps) {
+        WamaModelCaps.init({
+            source: 'synthesizer',   // domaine des moteurs TTS ; l'avatarizer les LIT, ne les possède pas
+            modelSelectId: 'settingsTtsModel',
+            resolveKey: function (v) { return 'synthesizer:' + v; },  // identité, mesurée 7/7 le 28/08
+            filters: [
+                { selectId: 'settingsVoicePreset',
+                  hideOption: function (caps, opt) {
+                      return caps.supports_cloning === false && /^(ua_|cv_)/.test(opt.value);
+                  } },
+                { selectId: 'settingsLanguage',
+                  hideOption: function (caps, opt) {
+                      return Array.isArray(caps.languages) && caps.languages.length > 0
+                             && caps.languages.indexOf(opt.value) === -1;
+                  } },
+            ],
+        });
+    }
+
+    // Entrée → modèle (INPUT_MODEL_MATCHING) : une voix CLONÉE choisie DÉSACTIVE les moteurs
+    // sans clonage — grisés avec la raison, jamais cachés. Même prédicat ua_/cv_ que ci-dessus,
+    // direction inverse. Slot NON-fichier : crochets isProvided/describe/clear.
+    if (window.WamaInputMatch) {
+        WamaInputMatch.init({
+            selectId: 'settingsTtsModel',
+            meta: {{ input_match_meta|default:"{}"|safe }},
+            inputLabels: {{ input_labels|default:"{}"|safe }},
+            slots: { reference_voice: {
+                inputId: 'settingsVoicePreset',
+                isProvided: function (el) { return /^(ua_|cv_)/.test(el.value || ''); },
+                describe: function (el) {
+                    var o = el.selectedOptions && el.selectedOptions[0];
+                    return o ? o.textContent.trim() : 'voix clonée';
+                },
+                clear: function (el) {
+                    el.value = 'default';
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                },
+            } },
+        });
+    }
 })();
 </script>
 <script src="{% static_v 'common/js/batch-import.js' %}"></script>

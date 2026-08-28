@@ -27,7 +27,9 @@ from wama.accounts.permissions import app_access
 from wama.common.utils.queue_duplication import duplicate_instance, safe_delete_file
 from wama.common.utils.batch_common import group_into_batches_by_nature
 from wama.common.utils.console_utils import get_console_lines
+from wama.common.utils.input_match import input_labels
 from wama.common.utils.queue_manipulation import make_queue_manipulation_views
+from wama.common.tts.ui_meta import tts_input_match_meta
 from wama.common.utils.scoping import visible_or_404
 from wama.common.utils.user_settings import get_user_app_settings, save_user_app_settings
 
@@ -119,6 +121,13 @@ class IndexView(View):
             # Groupes de voix (brique commune, per-user) pour le select GÉNÉRÉ de la modale
             # (options_source='voices') — remplace les optgroups hardcodés du template.
             'voice_groups_json': json.dumps(_voice_groups_safe(user)),
+            # Appariement ENTRÉE↔MODÈLE du volet TTS (brique commune WamaInputMatch) : une voix
+            # CLONÉE désactive les moteurs sans clonage. Meta lue du catalogue par la brique TTS
+            # COMMUNE — l'avatarizer ne possède aucun de ces modèles, il lit ceux du domaine.
+            # Aucune table d'exceptions à passer : les valeurs d'option répondent en IDENTITÉ
+            # aux clés `synthesizer:<valeur>` (mesuré 2026-08-28, 7/7).
+            'input_match_meta': json.dumps(tts_input_match_meta()),
+            'input_labels': json.dumps(input_labels()),
         }
         return render(request, 'avatarizer/index.html', context)
 
