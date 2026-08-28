@@ -49,12 +49,22 @@ pwsh -NoProfile -Command "& { $f='<chemin\swap.vhdx du scan>'; try { $s=[IO.File
 
 Puis supprimer le dossier GUID parent s'il est vide, et re-lancer le scan pour constater le gain.
 
+⚠ **L'espace libéré peut NE PAS apparaître** (vécu 29/08 : 11,5 Go supprimés, +0,3 Go visibles) :
+les clichés VSS de C: **retiennent les blocs supprimés** jusqu'à leur purge. Le vérifier par
+l'arithmétique : somme des dossiers racine mesurables vs utilisé réel du volume — l'écart EST
+le stockage VSS + inaccessibles (mesuré ~34,8 Go le 29/08, ≈ le plafond par défaut de 10 %).
+Deux pièges de mesure : `C:\Users\fmoreau\.ollama` est un **SymbolicLink → `D:\.ollama`**
+(66 Go comptés à tort sur C: si on le scanne directement — toujours vérifier `LinkType` avant
+de conclure) ; et le swap VIVANT regrossit vers ses 8 Go configurés — ce n'est pas une fuite.
+
 ## 4. Ce qui demande une session ÉLEVÉE ou un arbitrage (ne pas forcer)
 
-- **VSS D:** — mesurer : `vssadmin list shadowstorage /for=D:` (admin). La piste documentée
-  (`INFRA_WSL_VS_WINDOWS.md §Inventaire`) : `vssadmin resize shadowstorage /for=D: /on=D:
-  /maxsize=10GB` purge les plus anciens. **Décision Fabien** — c'est lui qui perd des points de
-  restauration ; rappel : les points C: sont éphémères de toute façon (volsnap purge ~1/jour).
+- **VSS C: et D:** — mesurer : `vssadmin list shadowstorage` (admin ; `/for=C:` ou `/for=D:`).
+  D: est plafonné à 10 Go depuis le 28/08 ; C: est resté au défaut (~10 % du volume) et chaque
+  reboot de crash y ajoute un cliché. La piste, même geste que D: : `vssadmin resize
+  shadowstorage /for=C: /on=C: /maxsize=10GB` purge les plus anciens. **Décision Fabien** —
+  c'est lui qui perd des points de restauration ; rappel : les points C: sont éphémères de
+  toute façon (volsnap purge ~1/jour ; le point utile se crée MANUELLEMENT avant un geste risqué).
 - **Dumps volumineux** — signaler taille et date, laisser trancher.
 
 ## 5. Contrôles post-crash connexes (même moment, pas du disque)

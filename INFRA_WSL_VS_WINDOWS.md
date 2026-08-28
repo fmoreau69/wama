@@ -363,6 +363,21 @@ orphelins — un par mort, datés à la minute des Kernel-Power 41 (23/08 21:49,
 **État après nettoyage** : C: **92,23 Go libres (26,3 %)** ; D: **22,77 Go (4,2 %) — toujours critique**,
 aucun poste lié aux crashs n'y pesant : les leviers de D: sont tous des arbitrages (tableau ci-dessus).
 
+### 2026-08-29 — où étaient passés ~19 Go de C: (92,2 → 73,2 libres), et pourquoi une suppression « ne rend rien »
+
+Arithmétique mesurée (somme des dossiers racine accessibles **243,90 Go** vs utilisé réel
+**278,69 Go**) : **34,79 Go invisibles aux fichiers** = stockage **VSS de C:** + inaccessibles —
+≈ le plafond VSS par défaut (10 % de 350 Go). C: n'a jamais été plafonné, contrairement à D:
+(10 Go, 28/08) ; chaque reboot de crash ajoute un cliché, et les clichés **retiennent les blocs
+des fichiers supprimés** : les 11,5 Go de swap orphelins purgés le 28/08 n'ont rendu que
++0,3 Go visibles. Le reste du delta : swap vivant regonflé à ses 8 Go configurés (36 Mo au
+25/08) + `ext4.vhdx` 49,62 → 51,93 Go. Postes anciens notables (pas le delta, mais des
+leviers) : `NVIDIA App\UpdateFramework` **11,00 Go** (modif 2025-05) · `C:\Windows\Installer`
+9,20 Go · pagefile.sys 14 Go.
+⚠ Piège de scan récidivant : `C:\Users\fmoreau\.ollama` est un **SymbolicLink → `D:\.ollama`**
+(66,59 Go comptés à tort « sur C: » en le scannant directement) — même famille que le lien
+`AI-models/models/llm/ollama` du tableau ci-dessus.
+
 ## ⚠⚠ Les crashs hôte ne sont PAS « au repos » — le déclencheur est une passe LLM de WAMA (2026-08-26)
 
 > Six crashs en 48 h. La prémisse de travail était « au repos, sans raison apparente ». **Elle est
