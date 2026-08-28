@@ -197,7 +197,11 @@ _MOTIFS_BRUIT = ('lora', 'gguf', 'comfyui', 'repackaged', 'fp8', 'bnb',
                  'coreml', 'mlx',   # formats Apple : non chargeables sur l'hôte CUDA
                  # marqueurs déjà dans _MOTIFS_QUANT mais absents d'ici : mesuré 2026-08-28,
                  # « Hippotes/LTX-2.3-quants » passait le seeding comme canonique
-                 'quant', 'awq', 'gptq')
+                 'quant', 'awq', 'gptq',
+                 # add-ons non autonomes (même famille que `lora`) : mesuré 2026-08-29,
+                 # « MiniMax-H3-Fun-Controlnet-Union » et « MiniMax-H3-Motion-Adapter »
+                 # proposés comme canoniques alors qu'ils exigent le modèle de base
+                 'controlnet', 'adapter')
 
 
 def _poids_depot_go(hf_id: str):

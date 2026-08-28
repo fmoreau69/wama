@@ -341,8 +341,14 @@ Catalogue réel : 95 modèles installés (49 vision, 12 llm, 10 speech, 9 diffus
 3. **Beat hebdo** : aucune prospection périodique — tout est au clic.
 4. **lipsync/avatars** : hors périmètre HF (pas de pipeline_tag) — chantier séparé
    (docs/PROSPECTION_AVATARS_2026-08-17.md, pilote TalkingHead).
-5. Candidats legacy `synthesizer:*` (SpeedySpeech/Tacotron2/VITS, seed 2026-06, conf 0.9
-   figée) : obsolètes depuis le balayage TTS réel — à rejeter/purger.
+5. ~~Candidats legacy `synthesizer:*` (SpeedySpeech/Tacotron2/VITS, seed 2026-06, conf 0.9
+   figée)~~ — **SOLDÉ le 2026-08-28** (`REMOVAL_LEDGER` R32). Ils n'ont pas été « rejetés »
+   comme candidats mais RETIRÉS de bout en bout (vocabulaire, catalogue, moteur, front, corpus)
+   sur mesure : **0 usage sur 103 travaux**, jamais mis à jour depuis le seed, aucune capacité
+   déclarée. ⚠ Ce qui les rendait invisibles n'était pas leur ancienneté mais leur STATUT :
+   `is_proposed=True` les sortait de toutes les vues d'inventaire alors que le select de l'app
+   les proposait comme moteurs exécutables — *un candidat de prospection ne doit jamais être
+   simultanément une option d'exécution.*
 6. `image-text-to-text` (VLM HF) : volontairement absent (doublon rôle Ollama `vlm`) —
    à rouvrir seulement si un backend VLM transformers existe côté describer.
 
@@ -832,3 +838,26 @@ vidéo 4,9 Go, VAE audio 0,6 Go). ⚠ Avant install : H3 est MULTI-COMPOSANTS
 (`body.composition` à déclarer) et *un dépôt quantisé se choisit AUSSI par son runtime
 cible* (single-files écosystème Comfy vs canonique `library: minimax-h3` format
 diffusers) — même leçon que Music3/audio.cpp.
+
+### Suite 2026-08-29 — la relance de Fabien fait SORTIR le canonique… et sa licence l'ÉLIMINE
+
+Le seeding corrigé fonctionne : MiniMax-H3 (4,8 M dl) sort en card `image-text-to-video`.
+Mais la vérification AU TEXTE (réflexe Hunyuan, `LICENSING.md`) tranche : **la
+« MiniMax H3 Community License » EXCLUT l'Union européenne** (« Excluded Territories
+means the European Union, the United Kingdom, the Republic of Korea and the United
+States of America » — l'accord se limite expressément à l'« Applicable Territory »).
+**Toute la famille H3 est donc inutilisable au labo**, dérivés compris : les tags
+`apache-2.0` (lightx2v/Minimax-h3-Turbo) et `mit` (Motion-Adapter) des repackageurs
+sont des relicensings sans valeur — un « Model Derivative » reste soumis à l'accord
+amont (licence à DOUBLE ÉTAGE, le piège déjà consigné sur LivePortrait/Hallo2).
+NB : Music3 (audio) n'est PAS concerné — sa MiniMax Community License, vérifiée le
+27/08, n'a pas de clause territoriale.
+
+- Alternative vidéo du créneau, licence saine : **famille Wan (Apache 2.0)** —
+  Wan2.2-TI2V-5B jugé 0.90 avec variantes int4/8bit relevées, format Diffusers natif.
+- Trou de filtre refermé au passage (mesuré sur les cards du jour) : `controlnet` +
+  `adapter` ajoutés à `_MOTIFS_BRUIT` (add-ons non autonomes, même famille que `lora`).
+- **Trou durable à combler (proposé, pas fait)** : la card affiche `license: other`
+  — OPAQUE. Le seeding relève l'identifiant de licence mais personne ne lit le TEXTE ;
+  une garde « Excluded Territories » (scout ou contexte du juge : chercher les clauses
+  territoriales dans LICENSE et le dire sur la card) aurait éliminé H3 sans geste humain.
