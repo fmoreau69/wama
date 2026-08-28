@@ -10,8 +10,6 @@ import os
 import re
 import unicodedata
 import logging
-import tempfile
-import requests
 from celery import shared_task
 from pathlib import Path
 
@@ -27,91 +25,11 @@ from .utils.audio_processor import process_audio_output
 
 logger = logging.getLogger(__name__)
 
-# TTS microservice URL
-TTS_SERVICE_URL = getattr(settings, 'TTS_SERVICE_URL', 'http://localhost:8001')
-
-# Request timeout for TTS service (seconds).
-# 600s allows for long texts (75+ words) even under RAM pressure.
-# The reduced max_tokens formula prevents runaway generation for short texts.
-TTS_TIMEOUT = 600
-
-# Raised when the TTS service responds 503 "loading" — triggers a Celery retry
-class TTSServiceLoadingError(Exception):
-    pass
-
-
-def _tts_via_service(text, model, language='fr', voice_preset='default',
-                     speaker_wav=None, multi_speaker=False,
-                     scene_description='', options=None):
-    """
-    Call the TTS microservice to generate audio.
-
-    Args:
-        text: Text to synthesize
-        model: Model name (xtts_v2, bark, higgs_audio, etc.)
-        language: Language code
-        voice_preset: Voice preset name
-        speaker_wav: Path to speaker reference WAV (for voice cloning)
-        multi_speaker: Enable multi-speaker mode (Higgs)
-        scene_description: Scene description for multi-speaker (Higgs)
-        options: Additional options dict
-
-    Returns:
-        str: Path to temporary WAV file with generated audio
-
-    Raises:
-        RuntimeError: If the TTS service is unavailable or returns an error
-    """
-    payload = {
-        'text': text,
-        'model': model,
-        'language': language,
-        'voice_preset': voice_preset,
-        'speaker_wav': speaker_wav,
-        'multi_speaker': multi_speaker,
-        'scene_description': scene_description,
-        'options': options or {},
-    }
-
-    try:
-        resp = requests.post(
-            f"{TTS_SERVICE_URL}/tts",
-            json=payload,
-            timeout=(5, TTS_TIMEOUT),  # (connect_timeout, read_timeout)
-        )
-        resp.raise_for_status()
-    except requests.ConnectionError:
-        raise RuntimeError(
-            f"TTS service unavailable at {TTS_SERVICE_URL}. "
-            "Start it with: python -m uvicorn tts_service:app --port 8001"
-        )
-    except requests.Timeout:
-        raise RuntimeError(f"TTS service timed out after {TTS_TIMEOUT}s")
-    except requests.HTTPError as e:
-        if e.response is not None and e.response.status_code == 503:
-            try:
-                # FastAPI wraps detail: {"detail": {"status": "loading", ...}}
-                body = e.response.json()
-                detail_obj = body.get("detail", {}) if isinstance(body, dict) else {}
-                if isinstance(detail_obj, dict) and detail_obj.get("status") == "loading":
-                    raise TTSServiceLoadingError(detail_obj.get("message", "TTS service is still loading"))
-            except TTSServiceLoadingError:
-                raise
-            except Exception:
-                pass
-        detail = ""
-        try:
-            detail_raw = e.response.json().get("detail") or ""
-            detail = str(detail_raw)
-        except Exception:
-            detail = e.response.text[:200] if e.response else ""
-        raise RuntimeError(f"TTS service error: {detail or str(e)}")
-
-    # Save WAV bytes to a temp file
-    tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
-    tmp.write(resp.content)
-    tmp.close()
-    return tmp.name
+# Client du microservice TTS : brique COMMUNE (`common/tts/service_client.py`, extraite
+# 2026-08-28 — cette implémentation en était la souche ; 4 exemplaires du même POST /tts
+# vivaient dans le dépôt). La POLITIQUE de retry sur 503 « loading » reste ici (Celery).
+from wama.common.tts.service_client import (TTSServiceLoadingError,
+                                            tts_via_service as _tts_via_service)
 
 
 def _get_default_speaker_wav(voice_preset: str) -> str:

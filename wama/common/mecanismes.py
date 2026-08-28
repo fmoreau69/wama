@@ -127,6 +127,12 @@ MECANISMES = (
               "Mesure unifiée CPU/RAM/GPU/disque (WSL + hôte Windows) — barre de ressources, model manager",
               'wama/common/services/system_monitor.py', '',
               annexes=('wama/common/static/common/js/system-stats.js',)),
+    Mecanisme('tts_service_client', 'Client du service TTS',
+              "L'appel POST /tts UNIQUE vers le microservice TTS (payload contractuel, 503 "
+              "« loading » → TTSServiceLoadingError, WAV temporaire ou bytes) ; les POLITIQUES "
+              "(retry Celery, chunking, replis) restent aux appelants — extrait 2026-08-28 : "
+              "4 exemplaires vivaient dans le dépôt, un seul détectait le 503",
+              'wama/common/tts/service_client.py', 'MODES_QUEUE_UX.md §2bis'),
 
     )),
 

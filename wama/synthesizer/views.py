@@ -23,7 +23,6 @@ from django.core.validators import FileExtensionValidator
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 
-import requests as http_requests
 
 import json
 from .models import VoiceSynthesis, VoicePreset, CustomVoice, BatchSynthesis, BatchSynthesisItem
@@ -34,9 +33,6 @@ from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.queue_duplication import safe_delete_file, duplicate_instance
 
 logger = logging.getLogger(__name__)
-
-# TTS microservice URL
-TTS_SERVICE_URL = getattr(settings, 'TTS_SERVICE_URL', 'http://localhost:8001')
 
 # Lazy import for Celery task (avoids importing heavy TTS libs at Gunicorn startup)
 synthesize_voice = None
@@ -1770,20 +1766,14 @@ def voice_preview_stream(request, preview_id):
                 yield f"data: {json.dumps({'event': 'progress', 'progress': progress, 'sentence': sentence[:80]})}\n\n"
 
                 try:
-                    # Call TTS microservice
-                    resp = http_requests.post(
-                        f"{TTS_SERVICE_URL}/tts",
-                        json={
-                            'text': sentence,
-                            'model': tts_model_name,
-                            'language': language,
-                            'voice_preset': voice_preset,
-                            'speaker_wav': speaker_wav,  # clonage XTTS : voix résolue (ua_/cv_)
-                        },
-                        timeout=60,
-                    )
-                    resp.raise_for_status()
-                    wav_bytes = resp.content
+                    # Client COMMUN du microservice TTS (2026-08-28 — 4ᵉ exemplaire du
+                    # même POST /tts résorbé) ; bytes bruts, aucun fichier intermédiaire.
+                    from wama.common.tts.service_client import tts_via_service
+                    wav_bytes = tts_via_service(
+                        sentence, tts_model_name, language=language,
+                        voice_preset=voice_preset,
+                        speaker_wav=speaker_wav,  # clonage XTTS : voix résolue (ua_/cv_)
+                        read_timeout=60, raw=True)
 
                     # Apply speed/pitch post-processing if needed
                     if speed != 1.0 or pitch != 1.0:
@@ -1805,16 +1795,11 @@ def voice_preview_stream(request, preview_id):
                     audio_base64 = base64.b64encode(wav_bytes).decode('utf-8')
                     yield f"data: {json.dumps({'event': 'audio', 'data': audio_base64, 'format': 'wav', 'index': i})}\n\n"
 
-                except http_requests.ConnectionError:
-                    yield f"data: {json.dumps({'event': 'error', 'message': f'Service TTS indisponible ({TTS_SERVICE_URL}). Vérifiez que le service est démarré.'})}\n\n"
-                    return
-                except http_requests.HTTPError as e:
-                    detail = ""
-                    try:
-                        detail = e.response.json().get("detail", "")
-                    except Exception:
-                        detail = str(e)
-                    yield f"data: {json.dumps({'event': 'error', 'message': f'Erreur TTS: {detail}'})}\n\n"
+                except RuntimeError as e:
+                    # La brique commune uniformise connexion/HTTP/délai en RuntimeError
+                    # (et 503 « loading » en TTSServiceLoadingError, couvert par le
+                    # except générique : une preview ne réessaie pas, elle échoue vite).
+                    yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
                     return
                 except Exception as tts_error:
                     yield f"data: {json.dumps({'event': 'error', 'message': f'Erreur génération phrase {i+1}: {str(tts_error)}'})}\n\n"

@@ -248,8 +248,8 @@ def _tts_via_service(text: str, voice: str):
     (elle était dépliée ici, en miroir du calcul aller du backend).
     """
     try:
-        import requests
         import base64
+        from wama.common.tts.service_client import tts_via_service
         from wama.common.tts.voices import langue_de_voix
 
         # Sens RETOUR (voix → langue) : brique COMMUNE. Le calcul était écrit ici en miroir
@@ -257,15 +257,11 @@ def _tts_via_service(text: str, voice: str):
         language, is_male = langue_de_voix(voice)
         voice_preset = 'male_1' if is_male else 'default'
 
-        resp = requests.post(
-            f"{settings.TTS_SERVICE_URL}/tts",
-            json={'text': text, 'model': 'kokoro', 'language': language, 'voice_preset': voice_preset},
-            timeout=30,
-        )
-        ctype = resp.headers.get('content-type', '')
-        if resp.status_code == 200 and ctype.startswith('audio'):
-            return base64.b64encode(resp.content).decode('utf-8')
-        logger.info(f"[kokoro_tts] TTS service non prêt ({resp.status_code}) → repli en-process")
+        # Client COMMUN du service (2026-08-28) ; ici TOUTE indisponibilité — 503
+        # « loading » compris — vaut repli en-process, d'où le except large.
+        wav = tts_via_service(text, 'kokoro', language=language,
+                              voice_preset=voice_preset, read_timeout=30, raw=True)
+        return base64.b64encode(wav).decode('utf-8')
     except Exception as e:
         logger.info(f"[kokoro_tts] TTS service indisponible ({e}) → repli en-process")
     return None
