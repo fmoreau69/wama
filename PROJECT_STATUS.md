@@ -2503,8 +2503,22 @@ l'adoption et au fonctionnel : *ce qui est OCTROYÉ est-il APPLIQUÉ ?* Détail 
 soldées ; le portage schéma-driven reprend à `project_schema_driven_ports` /
 `WAMA_APP_GENERATION_ROUTE.md`. Rien n'est en cours, l'arbre de travail est propre de mon côté.
 
-⚠ **Résidu connu, non traité** : des passages antérieurs ont laissé des copies `tmp*.wav`/`tmp*.txt`
-dans les dossiers d'entrée du compte de test (lignes en base supprimées, **fichiers non**).
+**Livré en clôture — le balayage des témoins** (`a6250b47`, demande de Fabien « gérer la suppression
+automatique des fichiers tmp générés durant les tests »). Détail → **`WAMA_VERIFICATION §3quater`**.
+Le résidu signalé plus haut n'était pas un détail d'hygiène : **un filet ORM ne rattrape que ce qui a
+une LIGNE en base**, or la garde de montage des scénarios raisonne sur des objets. **146 fichiers
+sous 7 apps** que *rien* ne voyait — ni la garde, ni le rapport nocturne, ni la grille de conformité.
+D'où un second filet **sur le disque** (`sweep_test_witnesses`, en sortie de `run_all`, compté dans
+le rapport). Deux conditions ont dû être créées pour qu'un effacement automatique soit acceptable :
+un témoin **se reconnaît à son nom** (`wama_temoin_`, sinon indistinguable d'un temporaire
+quelconque) et le balayage tient **trois bornes cumulatives** (comptes de test / nom de témoin /
+jamais un dossier, récursion bornée à `media/<app>/<uid>/`). **0 résiduel** sur tout `media/`.
+
+🔚 **Consigne pour l'instance qui régénère les mécanismes** : `rights_matrix.py` **manque** aux
+`annexes` du `Mecanisme('nightly_tests')` (`wama/common/mecanismes.py:121-125` — n'y figurent que
+`ui_smoke.py` et `nightly_scenarios.py`). **Non ajouté ici volontairement** : le fichier était en
+cours de régénération par une autre instance (6 lignes en vol) et y toucher aurait emporté son
+travail. Une ligne, puis régénérer `WAMA_MECANISMES.md`.
 
 ---
 
@@ -8096,3 +8110,58 @@ aussi LE test le plus instrumenté possible du nouveau pilote.
   `WAMA_VERIFICATION.md:244` — appartient à l'instance gestes, son fichier était en cours d'édition ;
 - stack relancée par Fabien post-pilote : gunicorn+TTS+celery×3+beat+gateway Discord UP,
   `nvidia-smi` WSL = 616.56, `WAMA_GPU_SAFE_MODE=1` chargé.
+
+## §REPRISE — 2026-08-28, instance « MONDE DATA : UI + SEGMENTER + D28 NOMMAGE » (SUITE, session parallèle, CLOSE) — 🔚 POINT D'ENTRÉE
+
+> Session longue (25→28/08), périmètre `wama_data` + docs du monde Data. Détail complet et
+> leçons : `WAMA_DATA_WORLD §11.8` (UI), `§11.9` (Segmenter confronté, trous ①→④ TOUS soldés),
+> `§14` (migration de nommage D28 exécutée), fiche mémoire `project_wama_data_chantier`.
+
+### Livré (commits `refactor(data)` e7b2e8ce→e225e282, `feat(segmenter)` ×4, `feat(unites)`, `feat(profil)`)
+
+1. **UI du monde Data DÉCIDÉE ET CONSIGNÉE** (§11.8) : Data Analyzer hérite de la file Médias,
+   `.wdat` = card, modules = surfaces déclarées (modale|page), promotion fille↔mère
+   (`MODES_QUEUE_UX §5ter`), explorateur par AXES, volet gauche (`WAMA_VOLETS §8.7-8`).
+   D26 close (`.wds` = bundle corpus HDF5), décision export close (pas d'option lignes).
+2. **Segmenter COMPLET face à ses 4 écrans BIND** (§11.9) : marges temporelles ET spatiales
+   (`arc_length`), ParamSpec de `segment_join` déclarés, `event_filter`/`segment_filter`
+   (durée + composition `calc_per_segment`), `event_within`, **`event_pairing`** (cas piéton→
+   détection : 1-à-1 borné, `matched=False` = donnée, orphelines en méta) + **`by_key`**
+   (consistance = différence d'ensembles ; ⚠ stratégie DÉCLARÉE, jamais devinée).
+3. **D27 close** : brique unités `common/utils/units.py` (pint 0.25.3, 2 venvs) + préférence
+   `UserProfile.unit_system` (page profil). ⏳ câblage présentation + en-tête export = quand
+   les surfaces Data existeront.
+4. **D28 EXÉCUTÉE** (§14.5) : l'API `wama_data` intégralement anglaise — ~2 870 renommages
+   tokenisés (la prose française n'a pas bougé), 5 modules `git mv`, garde
+   `NomsAbandonnesD28Test` (tokenisée, 2 prises réelles déjà), Lab intact (kwargs vérifiés §14.4).
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+
+**Les données de Fabien arrivent** (2ᵉ manifeste `.trip`→`.wdat`) : dérouler dessus la chaîne
+réelle `event_pairing → calc_per_segment → segment_filter` + trancher l'audit SQLite→HDF5 (D26 ①)
+avant tout écrivain `.wds`. Lire `WAMA_DATA_WORLD §11.8-§11.9` avant tout code UI.
+
+### Décisions ouvertes / arbitrages (cette instance)
+
+- 🔴 **BLOQUANT pour l'écrivain `.wds`** : audit de fidélité SQLite→HDF5 (D26 condition ①) — attend le corpus ;
+- **D18** (routes du Converter) — pressant depuis `.wds`/HDF5, arbitrage Fabien ;
+- retour de fond de Fabien sur §11.8 (formellement ouvert depuis le 25/08) ;
+- renommage du SUBSTRAT `registries.py` (dette jumelle de D28, même méthode outillée) — coordination multi-instances requise, GO Fabien ;
+- écrans **Importer/Explorer** non confrontés (§11.7) ; **contrat de synchronisation du Visualizer** à fixer AVANT le fenêtrage ;
+- `event_pairing_orphans` (flux des détections orphelines) — si l'usage corpus le demande.
+
+### Pendings système (cette instance)
+
+- **WAMA_MECANISMES.md laissé NON COMMITÉ délibérément** : ma régénération a figé le mécanisme
+  `service_client` (TTS) dont le fichier est ENCORE non commité chez l'instance avatarizer —
+  il part avec LEUR clôture, pas la mienne ;
+- corpus manifestes : 2 PÉRIMÉS (`avatarizer`, `imager`) — chantier avatarizer en vol, PAS à moi, non régénérés ;
+- push : mes commits de session (~12) dans le lot ahead — geste Fabien.
+
+### Contrôles attendus au prochain /reprise (MESURÉS cette session)
+
+- tests périmètre : `wama_data` + `wama.common.tests_units` = **689 OK** (676 + 13) ;
+- `check_docs` : **1 cible distincte** (le partial d'onglets préexistant), 7 références = bruit ;
+- unicité `D<n>` de `WAMA_DATA_WORLD` : **0 doublon** (grep uniq -d vide) ;
+- garde D28 : `wama_data.core.tests_naming` passe (et attrape réellement — 2 prises vécues).
+

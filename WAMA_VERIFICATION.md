@@ -250,7 +250,7 @@ actions du volet désignent un élément que l'utilisateur ne voit plus sélecti
 >   constat.
 >
 > **Et un vrai défaut d'app, que ces deux-là masquaient** : sur le **transcriber**, un élément créé
-> par **fichier de lot** naît `audio=''` (`views.py:1339` — le fichier n'est téléchargé qu'au
+> par **fichier de lot** naît `audio=''` (`transcriber/views.py:1340` — le fichier n'est téléchargé qu'au
 > lancement), or sa card ne portait `data-preview-url` que `{% if elem.audio %}`. Sans cette URL,
 > `fillDetail` abandonne **avant même d'émettre la requête** : ni volet Infos, ni ✕. Ces éléments
 > étaient **sélectionnables et non inspectables**, dans l'app de référence. L'URL est désormais
@@ -794,6 +794,48 @@ Deux conséquences qu'aucune des deux moitiés ne montrait seule :
 > donc en « app gardée sans index joignable », un constat de l'**instrument** présenté comme un
 > constat sur le dépôt. Écrire `wama_lab:` en dur aurait refait la faute à l'envers (le substrat
 > citant un monde) : l'arborescence est demandée au **resolver**.
+
+---
+
+## 3quater. L'instrument LAISSE DES TRACES — et le filet qui les rattrapait ne les voyait pas
+
+> Demande de Fabien (28/08) : « gérer la suppression automatique des fichiers tmp générés durant les
+> tests ». Ce qu'on trouve en la traitant vaut plus que la demande.
+
+Les scénarios ont **déjà** un filet : la garde de montage retire ce qu'ils ont créé, mesurée en
+**différence d'ids** (c'est le geste 5 qui l'a durcie). Elle est bonne — et elle est **aveugle à la
+moitié du problème**, parce qu'elle raisonne sur des **objets**.
+
+> ⚠⚠ **Un filet ORM ne rattrape que ce qui a une LIGNE en base.** Un fichier que l'app a copié dans
+> `media/<app>/<uid>/input/` sans qu'un élément survive — import refusé, scénario interrompu,
+> `delete()` d'une vue qui ne débranche pas le `FileField` — ne lui apparaît **jamais**. Mesuré le
+> 2026-08-28 : **146 fichiers témoins** accumulés sous **7 apps**, tous sur le compte de test,
+> invisibles de **toute** mesure existante (ni la garde ORM, ni le rapport nocturne, ni la grille de
+> conformité). D'où un **second filet, qui travaille sur le DISQUE** :
+> `nightly_tests.sweep_test_witnesses()`, appelé en **sortie** de `run_all`, qui rend son compte
+> dans le rapport (`witness_files_swept`).
+
+> ⭐ **Un témoin doit se reconnaître à son NOM** — c'est la condition qui rendait le balayage
+> possible, et elle manquait. Avec le `tmp` par défaut de `tempfile`, un témoin était
+> **indistinguable de n'importe quel temporaire**, donc impossible à effacer sans risquer d'effacer
+> autre chose. `_fichier_temoin` préfixe désormais `wama_temoin_`. Le motif accepte aussi
+> l'ancienne forme **exacte** de `NamedTemporaryFile` (`tmp` + 8 caractères) pour résorber
+> l'arriéré — **pas** un `tmp` au sens large : un `tmp_export.csv` nommé par quelqu'un n'est pas à
+> nous et survit (vérifié sur échantillon avant le premier passage).
+
+**Trois bornes cumulatives** — c'est ce qui rend un effacement *automatique* acceptable :
+1. uniquement les dossiers média des **comptes de test** (liste explicite, les 4 comptes de droits compris) ;
+2. uniquement des fichiers dont le **nom** est celui d'un témoin ;
+3. **jamais un dossier supprimé**, et la récursion ne sort **jamais** de `media/<app>/<uid>/`.
+
+Un fichier du compte réel ne peut donc pas être atteint, même par accident.
+
+> ⚠ **La récursion n'est pas du zèle — elle vient d'une erreur mesurée.** Premier passage à
+> profondeur **fixe** (`*/<uid>/*/*`) : 130 effacés, **16 restés**. L'enhancer range les siens dans
+> `input/media/`, un niveau plus bas. **Supposer l'arborescence des apps identique, c'est laisser le
+> balayage mentir sur ce qu'il balaie** : il aurait annoncé un travail complet en laissant un
+> dossier entier. Corrigé en `rglob` borné au dossier de l'utilisateur → 16/16, puis **0 résiduel**
+> sur tout `media/`.
 
 ---
 
