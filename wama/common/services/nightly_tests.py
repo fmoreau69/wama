@@ -241,6 +241,7 @@ try:
                                                register_duplicate_delete_scenarios,
                                                register_import_scenarios,
                                                register_inspector_actions_scenarios,
+                                               register_send_to_scenarios,
                                                register_settings_scenarios,
                                                register_ui_scenarios,
                                                register_volet_scenarios)
@@ -295,5 +296,13 @@ try:
     # pas reste à l'écran), celle que le serveur a réellement vidée, et **la BASE, que nul écran
     # ne montre** : un lot vidé ne rend aucune card, donc rien ne le trahirait.
     register_clear_all_scenarios()
+    # 2026-08-28 — geste 14, moitié « ENVOYER VERS » : le seul import qui ne PART PAS de l'app.
+    # Il traverse deux moitiés bâties sur des sources DIFFÉRENTES — le menu se construit chez le
+    # client depuis `WAMA_APP_CATALOG.input_extensions` (la déclaration de l'app), la réception
+    # se valide chez le serveur contre une liste écrite à la main dans `api_import_to_app`. Rien
+    # n'oblige les deux à coïncider, et rien ne le signalait : une app OFFERTE puis REFUSÉE ne
+    # produit qu'un toast d'erreur. Un test qui posterait sur l'endpoint ne le verrait jamais —
+    # il faut passer par le menu, c'est-à-dire par le geste.
+    register_send_to_scenarios()
 except Exception as _e:                                   # pragma: no cover
     logger.debug(f"[nightly] scénarios UI non enregistrés ({_e})")

@@ -1218,11 +1218,10 @@ def api_import_to_app(request):
     if not target_app:
         return HttpResponseBadRequest('Missing app parameter')
 
-    # Validate app name
-    # All apps accept file imports:
-    # - Imager: accepts prompt files (.txt/.json/.yaml) and reference images
-    valid_apps = ['anonymizer', 'converter', 'describer', 'enhancer', 'imager', 'reader', 'synthesizer', 'transcriber', 'face_analyzer', 'cam_analyzer']
-    if target_app not in valid_apps:
+    # Validate app name — contre le REGISTRE `IMPORTERS` (bas de ce fichier), qui est aussi
+    # le dispatch et aussi ce que le menu client reçoit. Une seule source : plus d'app
+    # offerte-puis-refusée (l'ancienne liste écrite à la main en oubliait trois).
+    if target_app not in IMPORTERS:
         return JsonResponse({'error': f'Invalid app: {target_app}'}, status=400)
 
     if file_paths is None:
@@ -1271,28 +1270,7 @@ def api_import_to_app(request):
             return {'error': 'Source file not found'}
 
         try:
-            if target_app == 'anonymizer':
-                return import_to_anonymizer(source_path, user)
-            elif target_app == 'describer':
-                return import_to_describer(source_path, user)
-            elif target_app == 'enhancer':
-                return import_to_enhancer(source_path, user)
-            elif target_app == 'imager':
-                return import_to_imager(source_path, user)
-            elif target_app == 'synthesizer':
-                return import_to_synthesizer(source_path, user)
-            elif target_app == 'converter':
-                return import_to_converter(source_path, user)
-            elif target_app == 'reader':
-                return import_to_reader(source_path, user)
-            elif target_app == 'transcriber':
-                return import_to_transcriber(source_path, user)
-            elif target_app == 'face_analyzer':
-                return import_to_face_analyzer(source_path, user)
-            elif target_app == 'cam_analyzer':
-                return import_to_cam_analyzer(source_path, user)
-            else:
-                return {'error': 'App not supported'}
+            return IMPORTERS[target_app](source_path, user)
         except Exception as e:
             logger.error(f"Error importing {fp} to {target_app}: {e}")
             return {'error': str(e)}
@@ -1742,6 +1720,47 @@ def import_to_cam_analyzer(source_path, user):
         'filename': dest_path.name,
         'path': relative_path,
     }
+
+
+# ── Registre des apps RECEVABLES — la seule source du geste « Envoyer vers… » ──────────
+#
+# Le geste a deux moitiés, et elles étaient bâties sur des sources DIFFÉRENTES :
+#   • le MENU, chez le client, listait toutes les entrées de `WAMA_APP_CATALOG` dont les
+#     extensions correspondaient (13 apps) ;
+#   • la RÉCEPTION, ici, validait contre un `valid_apps = [...]` écrit à la main (10 apps),
+#     puis dispatchait par une chaîne if/elif — une SECONDE liste, à tenir en accord avec la
+#     première.
+# Rien n'obligeait les trois à coïncider, et l'écart ne produisait qu'un toast rouge :
+# avatarizer, composer et converter_01 étaient OFFERTS puis REFUSÉS (« Invalid app »).
+# Mesuré le 2026-08-28 par `<app>.send_to` — 8 OK / 3 échecs / 3 skips.
+#
+# Le registre ci-dessous EST le dispatch : on ne peut plus déclarer une app recevable sans
+# lui donner sa fonction, ni écrire une fonction qui ne soit pas atteinte. Et `receivable_apps()`
+# alimente le menu (`sidebar.html` → `window.WAMA_FILEMANAGER_IMPORTERS`), donc le menu ne peut
+# plus proposer ce que le serveur refuse : une app sans importeur n'apparaît tout simplement pas.
+#
+# ⏳ Reste dû : les trois apps ci-dessus n'ont toujours PAS d'importeur — elles ne mentent
+# plus, c'est tout. Deux sont prompt-primaires (le fichier y est une RÉFÉRENCE : voix à
+# cloner, mélodie), la troisième est une app GÉNÉRÉE dont l'importeur devrait venir du
+# gabarit, pas d'une ligne écrite à la main ici — même trou de substrat que la rustine
+# `clear_all` de converter_01 (geste 5).
+IMPORTERS = {
+    'anonymizer':    import_to_anonymizer,
+    'cam_analyzer':  import_to_cam_analyzer,
+    'converter':     import_to_converter,
+    'describer':     import_to_describer,
+    'enhancer':      import_to_enhancer,
+    'face_analyzer': import_to_face_analyzer,
+    'imager':        import_to_imager,
+    'reader':        import_to_reader,
+    'synthesizer':   import_to_synthesizer,
+    'transcriber':   import_to_transcriber,
+}
+
+
+def receivable_apps():
+    """Les apps que le gestionnaire de fichiers sait REMPLIR, dans l'ordre alphabétique."""
+    return sorted(IMPORTERS)
 
 
 # ── Mounted Folders API ────────────────────────────────────────────────────────

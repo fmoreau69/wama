@@ -476,7 +476,13 @@ manquants » était périmée, les deux existent, vérifié 2026-07-03).**
 > mesurés ; re-lancer la commande après un palier de portage (skill `/conformite`).
 > Le dénominateur varie par app (**67–82**, mesuré 2026-08-26) : un critère peut être **non applicable** (état `None`)
 > et sortir du calcul — ex. tout F4 pour le converter (ffmpeg/pandoc, aucun modèle IA).
-- Toutes les apps : import dossier récursif non implémenté (mesuré : `recursive_import` 0/10)
+- ⚠ **Les chiffres d'adoption ne se recopient PAS ici** — la ligne qui vivait à cette place
+  (« import dossier récursif non implémenté : `recursive_import` 0/10 ») était FAUSSE au 28/08 :
+  le rapport mesuré dit **9/10** (composer non applicable), `url_ingest` **10/10**,
+  `filemanager_import` **10/10**. Elle datait d'avant la brique commune et n'a jamais suivi.
+  La source vivante est `logs/conformity_report.json` / `/apps/` — et un vert d'ADOPTION ne dit
+  toujours rien du FONCTIONNEMENT : `filemanager_import` était vert **10/10** pendant que le menu
+  « Envoyer vers… » proposait trois apps que le serveur refusait (`WAMA_VERIFICATION §Geste 14`).
 - Checklist de fin d'app : `TRANSCRIBER_REFERENCE_AUDIT.md §6` (le compte vit là-bas — « 18 points » recopié ici était devenu faux, 19 lignes mesurées le 27/08)
 
 **✅ Vérifier systématiquement** à chaque création d'une nouvelle application.

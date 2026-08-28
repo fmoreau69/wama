@@ -613,6 +613,227 @@ def register_import_scenarios():
         )
 
 
+# ── Geste 14, part « ENVOYER VERS » : importer depuis le gestionnaire de fichiers ───────
+#
+# Le seul chemin d'import qui ne PART PAS de l'app : on est dans le gestionnaire de fichiers,
+# on fait un clic droit sur un fichier, et le sous-menu « Envoyer vers… » propose les apps
+# capables de le recevoir. Deux moitiés que rien n'oblige à coïncider, et c'est tout l'objet
+# du scénario :
+#   • le MENU est bâti côté client depuis `WAMA_APP_CATALOG.input_extensions` — la déclaration
+#     de l'app, injectée pour TOUTES les entrées du catalogue ;
+#   • la RÉCEPTION est côté serveur (`filemanager.views.api_import_to_app`), qui dispatche vers
+#     un `import_to_<app>` écrit à la main.
+# Une app peut donc être OFFERTE sans être RECEVABLE. Un test qui posterait sur l'endpoint ne
+# le verrait jamais : il faut passer par le menu, c'est-à-dire par le geste.
+def check_app_send_to(app: str, url_path: str):
+    """« Envoyer vers <app> » depuis le gestionnaire de fichiers crée-t-il un élément ? (ok, detail)."""
+    from wama.common.services.nightly_tests import SkipScenario
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.app_registry import APP_CATALOG
+    spec = APP_CATALOG.get(app) or {}
+    exts = list(spec.get('input_extensions') or ())
+    libelle = spec.get('label') or app
+    if not exts:
+        raise SkipScenario("l'app ne déclare aucune extension d'entrée : elle ne peut pas "
+                           "apparaître au menu « Envoyer vers… » — geste non applicable")
+
+    # Deux conditions, pas une : accepter des extensions ne suffit pas, encore faut-il que le
+    # gestionnaire de fichiers sache REMPLIR l'app (`filemanager.views.IMPORTERS`). Depuis le
+    # 2026-08-28 le menu est bâti sur les DEUX. On lit ici la seconde — mais on ne SORT PAS
+    # tout de suite : une app sans importeur doit être ABSENTE du menu, et c'est justement ce
+    # qu'il faut aller vérifier à l'écran. Sortir avant le clic droit rendrait le scénario
+    # aveugle à la réapparition du défaut qu'il vient de faire fermer.
+    try:
+        from wama.filemanager.views import receivable_apps
+        recevable = app in receivable_apps()
+    except Exception:
+        recevable = True   # registre illisible : on mesure comme avant, sans rien présumer
+    DETTE = (f"aucun importeur `import_to_{app}` au registre du gestionnaire de fichiers : "
+             f"l'app ACCEPTE {', '.join(exts[:4])} mais rien ne sait la remplir depuis "
+             "l'explorateur, et le menu ne la propose donc pas (VÉRIFIÉ à l'écran) — "
+             "geste non câblé, dette ouverte")
+
+    jeton = _session_compte_de_test()
+    if not jeton:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3) "
+                           "— les droits ne sont pas simulables, on ne mesure pas à l'aveugle")
+    uid = _id_du_compte_de_test()
+    if not uid:
+        raise SkipScenario("id du compte de test illisible — sans lui, aucun dossier à peupler")
+
+    # Le témoin est déposé dans le dossier TEMPORAIRE du compte de test — le seul emplacement
+    # que `is_path_allowed` ouvre hors dossiers d'app, donc celui d'un vrai fichier utilisateur.
+    modele = None
+    ids_avant = set()
+    try:
+        from wama.common.utils.preview_registry import PreviewRegistry
+        modele = PreviewRegistry.get_model(app)
+        ids_avant = set(modele.objects.values_list('id', flat=True))
+    except Exception:
+        modele = None
+
+    source = _fichier_temoin(','.join(e if e.startswith('.') else f'.{e}' for e in exts))
+    dossier = Path(settings.MEDIA_ROOT) / f'users/{uid}/temp'
+    dossier.mkdir(parents=True, exist_ok=True)
+    temoin = dossier / f'envoyer_vers_{app}{source.suffix}'
+    temoin.write_bytes(source.read_bytes())
+    source.unlink(missing_ok=True)
+
+    ARBRE = "#filemanager-tree"
+    detail_menu, poste, cree_ailleurs = '', [], []
+    sessions_before = _session_keys()
+    try:
+        with sync_playwright() as p:
+            navigateur = p.chromium.launch()
+            try:
+                contexte = navigateur.new_context(viewport={'width': 1500, 'height': 1000})
+                contexte.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': jeton,
+                                       'domain': '127.0.0.1', 'path': '/'}])
+                page = contexte.new_page()
+
+                def _voir(r):
+                    if r.request.method == 'POST' and '/filemanager/api/import' in r.url:
+                        corps = ''
+                        try:
+                            corps = (r.text() or '')[:200]
+                        except Exception:
+                            corps = '(corps illisible)'
+                        poste.append((r.status, corps))
+                page.on('response', _voir)
+
+                # Le gestionnaire de fichiers N'A PAS de page à lui : c'est un volet gauche
+                # inclus par `base.html` sur TOUTES les pages (`filemanager/sidebar.html`).
+                # On l'atteint donc depuis la page de l'app elle-même — ce qui est aussi le
+                # geste réel : on est dans l'app, on va chercher un fichier dans l'explorateur.
+                resp = page.goto(f"{BASE_URL.rstrip('/')}{url_path}",
+                                 wait_until='networkidle', timeout=45000)
+                if not resp or resp.status != 200:
+                    return False, f"page {url_path} HTTP {resp.status if resp else '?'}"
+                page.wait_for_selector(f'{ARBRE} .jstree-anchor', timeout=20000)
+
+                # DÉPLIER le dossier « Temporaires » par l'API de l'arbre. C'est de
+                # l'ÉCHAFAUDAGE, pas le geste : le geste mesuré est le clic droit et le
+                # sous-menu. Ouvrir un dossier par l'API évite de dépendre du rang du nœud
+                # dans un arbre dont le contenu varie d'une nuit à l'autre.
+                page.evaluate("() => { const t = window.jQuery && jQuery('#filemanager-tree');"
+                              " if (t && t.jstree) t.jstree(true).open_node('temp'); }")
+                cible = f'{ARBRE} .jstree-anchor:text-is("{temoin.name}")'
+                try:
+                    page.wait_for_selector(cible, timeout=15000)
+                except Exception:
+                    return False, (f"le témoin déposé dans users/{uid}/temp n'apparaît pas dans "
+                                   f"l'arbre ({temoin.name}) — l'arbre ne montre pas les fichiers "
+                                   "du dossier temporaire, ou ne s'est pas rafraîchi")
+
+                page.click(cible, button='right')
+                try:
+                    page.wait_for_selector('.vakata-context:visible', timeout=8000)
+                except Exception:
+                    return False, "le clic droit sur un fichier n'ouvre aucun menu contextuel"
+
+                entree = page.query_selector('.vakata-context a:has-text("Envoyer vers")')
+                if not entree:
+                    if not recevable:
+                        raise SkipScenario(DETTE)
+                    libelles = page.evaluate(
+                        "() => [...document.querySelectorAll('.vakata-context a')]"
+                        ".map(a => a.textContent.trim()).filter(Boolean).slice(0, 12)")
+                    return False, ("le menu contextuel n'offre pas « Envoyer vers… » sur un "
+                                   f"fichier {temoin.suffix} que l'app DÉCLARE accepter "
+                                   f"({', '.join(exts[:4])}…) — entrées vues : {libelles}")
+                entree.hover()
+                page.wait_for_timeout(600)
+
+                # Le sous-menu porte le LIBELLÉ de l'app (APP_CATALOG.label), pas son id.
+                choix = page.query_selector(f'.vakata-context a:text-is("{libelle}")')
+                if not recevable:
+                    # Le contrôle INVERSE, et c'est lui qui garde la porte fermée : une app que
+                    # le serveur ne sait pas remplir ne doit PAS être proposée. Le mesurer ici
+                    # coûte le même clic droit ; ne pas le mesurer laisserait le défaut revenir
+                    # au premier ajout d'app sans que rien ne le dise.
+                    if choix:
+                        return False, (f"« Envoyer vers… » propose {libelle}, mais AUCUN "
+                                       f"`import_to_{app}` n'existe côté serveur : l'envoi sera "
+                                       "refusé (400) après avoir été offert — les deux moitiés "
+                                       "du geste ont recommencé à diverger")
+                    raise SkipScenario(DETTE)
+                if not choix:
+                    offerts = page.evaluate(
+                        "() => [...document.querySelectorAll('.vakata-context ul a')]"
+                        ".map(a => a.textContent.trim()).filter(Boolean)")
+                    return False, (f"« Envoyer vers… » n'offre pas {libelle} alors que l'app "
+                                   f"DÉCLARE accepter {temoin.suffix} — offert : {offerts}")
+                choix.click()
+                page.wait_for_timeout(3500)
+                detail_menu = f"menu → {libelle}"
+            finally:
+                navigateur.close()
+    except SkipScenario:
+        raise
+    except Exception as e:
+        raise SkipScenario(f"navigateur/serveur indisponible ({type(e).__name__}: {str(e)[:100]})")
+    finally:
+        _drop_new_sessions(sessions_before)
+        temoin.unlink(missing_ok=True)
+        if modele is not None:
+            try:
+                crees = set(modele.objects.values_list('id', flat=True)) - ids_avant
+                if crees:
+                    # L'import COPIE le fichier dans le dossier d'entrée de l'app : supprimer
+                    # la ligne ne suffit pas, la copie resterait sur disque nuit après nuit.
+                    # On relève les chemins AVANT la suppression, tant que les objets existent.
+                    copies = []
+                    for objet in modele.objects.filter(id__in=crees):
+                        for champ in objet._meta.get_fields():
+                            if not getattr(champ, 'attname', None) or not hasattr(champ, 'storage'):
+                                continue
+                            valeur = getattr(objet, champ.attname, None)
+                            if valeur:
+                                copies.append(Path(settings.MEDIA_ROOT) / str(valeur))
+                    modele.objects.filter(id__in=crees).delete()
+                    cree_ailleurs.append(len(crees))
+                    for chemin in copies:
+                        try:
+                            if chemin.is_file():
+                                chemin.unlink()
+                        except OSError:
+                            pass
+            except Exception:
+                pass
+
+    if not poste:
+        return False, (f"{detail_menu} : AUCUNE requête d'import émise — le menu propose "
+                       "l'envoi, mais le clic ne poste rien")
+    refus = [f"HTTP {s} → {c}" for s, c in poste if s >= 400]
+    if refus:
+        return False, (f"le menu OFFRE « Envoyer vers {libelle} », le serveur REFUSE : "
+                       f"{' | '.join(refus[:2])} — les deux moitiés du geste ne sont pas "
+                       "bâties sur la même source (menu : catalogue d'apps ; serveur : liste "
+                       "écrite à la main dans `api_import_to_app`)")
+    if modele is None:
+        return True, (f"{detail_menu} : requête acceptée ({poste[0][0]}) ; ⚠ modèle inconnu du "
+                      "PreviewRegistry — création non vérifiée, rien nettoyé")
+    if not cree_ailleurs:
+        return False, (f"{detail_menu} : requête acceptée ({poste[0][0]}) mais AUCUN élément "
+                       f"n'apparaît dans {app} — l'import répond bien et ne crée rien")
+    return True, (f"{detail_menu} : {sum(cree_ailleurs)} élément(s) créé(s) depuis le "
+                  f"gestionnaire de fichiers, puis nettoyé(s)")
+
+
+def register_send_to_scenarios():
+    """Enregistre un scénario `<app>.send_to` par app d'index — geste 14, part « Envoyer vers »."""
+    from wama.common.services.nightly_tests import register
+
+    for label, path in discoverable_apps():
+        register(
+            id=f"{label}.send_to", app=label, stage="ui",
+            description=f"« Envoyer vers {label} » depuis le gestionnaire de fichiers",
+            run=(lambda p=path, a=label: (lambda ctx: check_app_send_to(a, p)))(),
+            timeout_s=180, vram_gb=0.0,
+        )
+
+
 # ── Gestes 3 et 4 : DUPLIQUER puis SUPPRIMER un élément ────────────────────────────────
 #
 # POURQUOI CE SCÉNARIO EXISTE (WAMA_VERIFICATION.md §3, phase 1). Sur les ~16 gestes que la

@@ -343,10 +343,19 @@
 
     // Extension → compatible app list — built from server-injected WAMA_APP_CATALOG
     // Falls back to empty (no "send to" menu) if catalog unavailable
+    //
+    // DEUX conditions, pas une. Le catalogue dit ce qu'une app ACCEPTE ; il ne dit RIEN de la
+    // capacité du gestionnaire de fichiers à la REMPLIR — celle-là vit dans le registre serveur
+    // `filemanager.views.IMPORTERS`, publié ici par `sidebar.html`. Bâtir le menu sur le seul
+    // catalogue le faisait proposer 13 apps quand le serveur n'en recevait que 10 : avatarizer,
+    // composer et converter_01 étaient offerts puis refusés (400 « Invalid app »), sans autre
+    // trace qu'un toast rouge (mesuré le 2026-08-28 par le scénario `<app>.send_to`).
     const _catalog = window.WAMA_APP_CATALOG || {};
+    const _receivable = new Set(window.WAMA_FILEMANAGER_IMPORTERS || []);
     const APP_EXTENSIONS = {};
     const APP_LABELS = {};
     Object.keys(_catalog).forEach(app => {
+        if (!_receivable.has(app)) return;   // offerte sans être recevable = menu menteur
         const spec = _catalog[app];
         APP_EXTENSIONS[app] = new Set(spec.input_extensions || []);
         APP_LABELS[app] = { icon: spec.icon || 'fa fa-cube', label: spec.label || app };

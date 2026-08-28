@@ -70,7 +70,7 @@ Le catalogue n'est **pas à inventer** : c'est la table des composants obligatoi
 | 11 | Aperçu du résultat (clic → visionneuse) | ❌ | **oui** |
 | 12 | Télécharger le résultat | ❌ — ⚠ le MARKUP est prouvé (critère `download_wiring` 12/12 + pages 200), le TRANSFERT non : le compte de test ne possède aucun élément traité, donc `download/<pk>/` lui répond 404 — **le scoping qui fonctionne**, pas une panne | **oui** |
 | 13 | Démarrer tout / télécharger tout (lot) | ❌ | **oui** |
-| 14 | Import dossier récursif · URL · **fichier de lot** · « Envoyer vers » | ⚠️ **QUART** — `<app>.batch_import` (27/08) prouve le **fichier de lot** ; récursif, URL et « Envoyer vers » restent dus | non |
+| 14 | Import dossier récursif · URL · **fichier de lot** · **« Envoyer vers »** | ⚠️ **MOITIÉ** — `<app>.batch_import` (27/08) prouve le **fichier de lot** ; `<app>.send_to` (28/08) prouve **« Envoyer vers »** (**8 OK / 6 skips**, dont 3 skips qui NOMMENT une dette : pas d'importeur) ; récursif et URL restent dus | non |
 
 **Couverture mesurée le 2026-08-22 : 1 geste sur 16.** Les deux seuls scénarios par app sont
 `<app>.ui` (santé de la page : 200 + zéro erreur console — aucun geste) et `<app>.import`.
@@ -86,6 +86,9 @@ qui divergent dans le MÊME fichier, c'est le mode de dérive que ce document es
 restent dues, et les annoncer couvertes serait le faux vert que ce document traque.
 **Au 2026-08-28 : 7 gestes trois quarts sur 16** — TOUT EFFACER (5, `<app>.clear_all`), détaillé
 plus bas : le seul geste destructeur du catalogue, et le seul dont la mesure regarde la BASE.
+**Au 2026-08-28 (suite) : 8 gestes sur 16** — « ENVOYER VERS » (seconde moitié du geste 14,
+`<app>.send_to`) : le seul import qui ne PART PAS de l'app, et le premier scénario dont la
+mesure a fait bouger du code de PRODUCTION le jour même — voir plus bas.
 
 > ⚠ **`<app>.settings` mesure la MOITIÉ du geste 2, et le dit dans son propre détail** (« MOITIÉ
 > DU GESTE — modifier/enregistrer/relire n'est PAS mesuré ici »). Ce n'est pas de la modestie :
@@ -453,6 +456,53 @@ laisser dériver par défaut.
 
 ---
 
+### Geste 14 (« Envoyer vers ») — le seul import qui ne PART PAS de l'app
+
+**Couverture mesurée le 2026-08-28** (14 apps) : `nightly_20260828_113239.json` donne **8 OK /
+3 échecs / 3 skips** ; après correctif, `nightly_20260828_114102.json` donne **8 OK / 0 échec /
+6 skips**. Les 3 skips nouveaux ne sont PAS une disparition du problème — ils le **nomment** :
+trois apps n'ont pas d'importeur, et le scénario le dit en toutes lettres après l'avoir vérifié
+à l'écran.
+
+**Ce que le scénario mesure** — le geste complet, et pas son point d'arrivée : déposer un témoin
+dans le dossier temporaire du compte de test, ouvrir la page de l'app (le gestionnaire de fichiers
+**n'a pas de page à lui**, c'est un volet gauche que `base.html` inclut partout), déplier l'arbre,
+**clic droit** sur le témoin, survoler « Envoyer vers… », cliquer le libellé de l'app — puis exiger
+qu'un élément apparaisse. Le fichier copié dans le dossier d'entrée est retiré avec la ligne.
+
+> ⚠⚠ **Le geste a DEUX moitiés, et elles étaient bâties sur des sources différentes.** Le MENU se
+> construit chez le client depuis `WAMA_APP_CATALOG.input_extensions` — la déclaration de l'app,
+> injectée pour les **13** entrées du catalogue. La RÉCEPTION se validait chez le serveur contre un
+> `valid_apps = [...]` **écrit à la main** dans `api_import_to_app` (**10** apps), puis dispatchait
+> par une chaîne `if/elif` — une TROISIÈME liste. Rien n'obligeait les trois à coïncider, et
+> l'écart ne produisait qu'un **toast rouge** : `avatarizer`, `composer` et `converter_01` étaient
+> **offerts puis refusés** (`400 {"error": "Invalid app: …"}`). Aucune erreur console, aucun log,
+> aucune trace dans la grille d'adoption — le critère `filemanager_import` est vert **10/10**.
+
+> ⚠⚠ **Un test qui aurait posté sur l'endpoint ne l'aurait JAMAIS vu.** Il faut passer par le
+> menu, c'est-à-dire par le geste : le défaut ne vit dans aucune des deux moitiés, il vit dans
+> leur **désaccord**. C'est la forme de défaut qu'aucune lecture de code app par app ne trouve.
+
+**Le correctif est remonté d'un cran, comme au geste 5** — `filemanager.views.IMPORTERS` est
+désormais **le dispatch lui-même** (app → fonction) : on ne peut plus déclarer une app recevable
+sans lui donner son importeur, ni écrire un importeur qui ne soit pas atteint. Et
+`receivable_apps()` alimente le menu (`sidebar.html` → `window.WAMA_FILEMANAGER_IMPORTERS`), que
+`filemanager.js` croise avec le catalogue : **le menu ne peut plus proposer ce que le serveur
+refuse.** Les trois listes n'en font plus qu'une.
+
+> ⭐ **Fermer une divergence, c'est aussi la garder fermée.** Le scénario ne se contente pas de
+> sauter les apps sans importeur : il ouvre quand même le menu et vérifie qu'elles en sont
+> **ABSENTES** — un échec si l'une réapparaît. Sans ce contrôle inverse, le correctif tenait
+> jusqu'au prochain ajout d'app, et rien ne l'aurait dit.
+
+⏳ **Dette ouverte, nommée par les 3 skips** : `avatarizer`, `composer` et `converter_01` ne
+mentent plus, mais n'ont toujours pas d'importeur. Les deux premières sont **prompt-primaires**
+(le fichier y est une RÉFÉRENCE — voix à cloner, mélodie), et la troisième est une app **GÉNÉRÉE**
+dont l'importeur devrait venir du gabarit, pas d'une ligne écrite à la main — **même trou de
+substrat que la rustine `clear_all` de `converter_01`** (geste 5).
+
+---
+
 ## 4. Contrainte qui dicte l'ordre : le GPU
 
 Les gestes 8–13 exigent un **traitement réel**. Or la règle est absolue ici : **jamais de charge
@@ -565,11 +615,11 @@ pas de sens. Le scan signale un manque de couverture, il ne dicte pas la répons
 
 | Phase | Contenu | GPU | État |
 |---|---|---|---|
-| **1** | Gestes **2 à 6** + geste 14 — paramètres, dupliquer, supprimer, tout effacer, inspecteur, fichier de lot. Purement UI + base. ⚠ Le geste 7 (création par le bouton primaire) a été **requalifié geste GPU** le 27/08 (§3) : hors session, remplacé en phase 1 par le geste 14 | non | 🔄 **geste 2 à moitié (23/08)**, gestes 3-4 faits (22/08), **geste 6 ENTIER (28/08, `inspector_actions` — sélection *et* désélection, 20/20)**, geste 14 mesuré (27/08) ; **reste 5** (+ 7 côté Fabien, GPU) |
+| **1** | Gestes **2 à 6** + geste 14 — paramètres, dupliquer, supprimer, tout effacer, inspecteur, fichier de lot. Purement UI + base. ⚠ Le geste 7 (création par le bouton primaire) a été **requalifié geste GPU** le 27/08 (§3) : hors session, remplacé en phase 1 par le geste 14 | non | 🔄 **geste 2 à moitié (23/08)**, gestes 3-4 faits (22/08), **geste 6 ENTIER (28/08, `inspector_actions` — sélection *et* désélection, 20/20)**, **geste 5 fait (28/08)**, geste 14 à MOITIÉ (fichier de lot 27/08, « Envoyer vers » 28/08) ; **reste la 2ᵉ moitié du geste 2 et les 2 voies d'import** (+ 7 côté Fabien, GPU) |
 | **2** | Câbler les résultats nocturnes en **grille fonctionnelle** : `nightly_*.json` → agrégat geste × app, rendu comme `/apps/` le fait pour l'adoption | non | ⏳ |
 | **3** | Gestes **8 à 13** sur le **converter** (CPU) comme patron, puis extension | CPU d'abord | ⏳ |
 | **4** | Critères pour les **20 mécanismes non couverts**, par cardinalité décroissante | non | ⏳ |
-| **5** | Voies d'import restantes (geste 14) | non | ⏳ |
+| **5** | Voies d'import restantes (geste 14) : **récursif** et **URL** — « Envoyer vers » livré le 28/08 (`<app>.send_to`), fichier de lot le 27/08 | non | 🔄 **2 sur 4** |
 
 ---
 
