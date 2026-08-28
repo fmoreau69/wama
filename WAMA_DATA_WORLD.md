@@ -3032,9 +3032,17 @@ un déchet** : un départ sans fin produit une ligne `matched=False` (le piéton
 souvent ce qu'on CHERCHE), filtrable par `segment_filter` ; les fins orphelines (faux positifs
 oculométriques) sont rendues dans les méta `pairing` — comptées, jamais avalées. La suite du cas
 existe déjà : durée = `duration` au filtre, indicateurs = `calc_per_segment` (max, delta,
-range…), `brake_detection` au catalogue. Extension déclarable si les deux tables partagent une
-colonne d'identité (`pieton_2`…) : appariement **par clé** — différence d'ensembles exacte
-(non implémenté, à déclarer le jour où un corpus le porte).
+range…), `brake_detection` au catalogue. ✅ **Extension par CLÉ livrée le jour même** (`pair_by_key`, paramètre `by_key`) : si les deux
+tables partagent une colonne d'identité (`pieton_2`…), l'appariement suit la **clé** — la
+consistance devient une **différence d'ensembles exacte** (clés orphelines rendues en méta), une
+détection antérieure à son apparition est une anomalie **rendue**, et l'ordre temporel des
+détections n'importe plus. ⚠ **La stratégie se DÉCLARE, elle ne se devine pas** (question de
+Fabien « un diff pour savoir si c'est utilisable, sinon temporel » — le diff est le bon
+*diagnostic*, mais un repli **silencieux** apparierait différemment deux fichiers du même batch
+sans le dire) : clé absente d'une table = **refus qui nomme les colonnes disponibles**, jamais
+une bascule muette. Et l'inverse du segment ouvert n'existe pas : une situation **sans début**
+n'a pas de convention dans le modèle (seule la FIN inconnue en a une, D15) — une fin sans début
+reste un **événement**, rendu orphelin.
 
 Le résiduel vraiment manuel (écarter une occurrence à l'œil, sans règle exprimable) reste une
 **CURATION** : un geste par fichier, tracé, non promouvable au batch — cohérent avec §11.2 ②.

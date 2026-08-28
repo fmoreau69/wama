@@ -7,7 +7,7 @@ qui produirait du confetti sans hystérésis, état non refermé en fin de sessi
 import unittest
 from pathlib import Path
 
-from .segmentation import (around, edges, overlapping, conditional, states, close, join, pair,
+from .segmentation import (around, edges, overlapping, conditional, states, close, join, pair, pair_by_key,
                            margins, spatial_margins, hysteresis_mask, open_ones, within)
 
 from ..corpus import REAL_BASE, absence_reason
@@ -396,6 +396,38 @@ class AppariementTest(unittest.TestCase):
         segs, _ = pair([0.0], [1.0], max_delay=5.0)
         self.assertEqual(segs[0]['origin'], 'pair')
         self.assertEqual(segs[0]['window'], '5s')
+
+
+class AppariementParCleTest(unittest.TestCase):
+    """`pair_by_key()` — quand les deux flux NOMMENT l'objet : la consistance devient exacte."""
+
+    def test_l_appariement_suit_la_cle_pas_l_ordre(self):
+        # Détections dans le désordre : p2 détecté APRÈS p3 — le temporel se tromperait.
+        segs, orphelins = pair_by_key([0.0, 10.0], ['p1', 'p2'],
+                                      [15.0, 2.0], ['p2', 'p1'])
+        self.assertEqual([(s['key'], s['end']) for s in segs], [('p1', 2.0), ('p2', 15.0)])
+        self.assertEqual(orphelins, [])
+
+    def test_le_pieton_non_detecte_est_celui_dont_la_cle_n_a_pas_de_fin(self):
+        segs, orphelins = pair_by_key([0.0, 10.0, 20.0], ['p1', 'p2', 'p3'],
+                                      [2.0, 22.0], ['p1', 'p3'])
+        self.assertEqual([s['matched'] for s in segs], [True, False, True])
+        self.assertEqual(segs[1]['key'], 'p2')
+        self.assertEqual(orphelins, [])
+
+    def test_une_detection_AVANT_l_apparition_est_une_anomalie_rendue(self):
+        # Même clé, mais la fin précède le début : début non apparié, fin ORPHELINE (indice).
+        segs, orphelins = pair_by_key([10.0], ['p1'], [2.0], ['p1'])
+        self.assertFalse(segs[0]['matched'])
+        self.assertEqual(orphelins, [0])
+
+    def test_les_indices_orphelins_permettent_de_retrouver_les_LIGNES(self):
+        segs, orphelins = pair_by_key([0.0], ['p1'], [1.0, 5.0], ['p1', 'fantome'])
+        self.assertEqual(orphelins, [1])
+
+    def test_la_strategie_est_tracee(self):
+        segs, _ = pair_by_key([0.0], ['p1'], [1.0], ['p1'])
+        self.assertEqual((segs[0]['origin'], segs[0]['by']), ('pair', 'key'))
 
 
 class MargesTest(unittest.TestCase):

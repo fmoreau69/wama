@@ -16,7 +16,7 @@ from __future__ import annotations
 from wama.common.catalog.data_types import CANONICAL_FIELDS, DataType, TypedFrame
 from wama.common.catalog.function_catalog import (FunctionCategory, FunctionSpec, ParamSpec, PortSpec, register)
 from ...core.segmentation import (around, conditional, states, join, margins, pair,
-                                  times_within, within)
+                                  pair_by_key, times_within, within)
 #: RÉEXPORT délibéré — `missing` a été remonté au cœur (`core/valeurs.py`) quand le Calculator
 #: en est devenu le 4ᵉ consommateur : `core/` ne peut pas dépendre de `functions/`. Le garder
 #: importable d'ici évite de toucher les 3 importateurs existants pour un simple déménagement.
@@ -330,18 +330,43 @@ register(FunctionSpec(
 ))
 
 
-def events_pairing(starts: TypedFrame, ends: TypedFrame, next_start_bound: bool = True,
-                   max_delay: float = None, name: str = '') -> TypedFrame:
+def events_pairing(starts: TypedFrame, ends: TypedFrame, by_key: str = '',
+                   next_start_bound: bool = True, max_delay: float = None,
+                   name: str = '') -> TypedFrame:
     """Apparie 1-à-1 deux flux d'événements en situations, défaut de consistance COMPRIS.
 
     Une ligne par événement de départ : appariée (`matched=True`, durée = temps de détection) ou
     non (`matched=False`, fin absente — le piéton jamais détecté est une DONNÉE, pas un déchet).
     Les fins orphelines sont rendues dans les méta (`pairing`), jamais avalées.
+
+    `by_key` (DÉCLARÉ, jamais deviné — un repli silencieux apparierait différemment deux fichiers
+    du même batch sans le dire) : colonne d'identité partagée par les deux tables (`name` = les
+    `pieton_2`…) → appariement EXACT par clé, consistance = différence d'ensembles. Colonne
+    absente d'une des deux tables : REFUS qui nomme les colonnes disponibles.
     """
+    meta = dict(starts.meta or {})
+    if by_key:
+        for frame, cote in ((starts, 'starts'), (ends, 'ends')):
+            if by_key not in frame.df.columns:
+                raise ValueError(
+                    f"by_key '{by_key}' absent de la table {cote} "
+                    f"(disponibles : {', '.join(frame.fields) or '—'}) — l'appariement par clé "
+                    f"se déclare quand les DEUX tables portent l'identité")
+        segs, orphan_idx = pair_by_key(_colonne(starts, 'time'), _colonne(starts, by_key),
+                                       _colonne(ends, 'time'), _colonne(ends, by_key), name=name)
+        orphelines = ends.df.iloc[orphan_idx]
+        meta['pairing'] = {
+            'strategy': f'key:{by_key}',
+            'starts': len(segs),
+            'unmatched_starts': sum(1 for s in segs if not s['matched']),
+            'unpaired_ends': list(orphelines['time']),
+            'unpaired_keys': list(orphelines[by_key]),
+        }
+        return _segments(segs, meta=meta)
     segs, orphelines = pair(_colonne(starts, 'time'), _colonne(ends, 'time'),
                             next_start_bound=next_start_bound, max_delay=max_delay, name=name)
-    meta = dict(starts.meta or {})
     meta['pairing'] = {
+        'strategy': 'time',
         'starts': len(segs),
         'unmatched_starts': sum(1 for s in segs if not s['matched']),
         'unpaired_ends': orphelines,
@@ -373,12 +398,18 @@ register(FunctionSpec(
                       description="Une situation par départ — `matched` dit si la fin existe ; "
                                   "méta `pairing` = le compte rendu de consistance.")],
     params=[
+        ParamSpec('by_key', 'str', '',
+                  description="Colonne d'IDENTITÉ partagée par les deux tables (ex. `name` — les "
+                              "pieton_2…) → appariement EXACT par clé, consistance = différence "
+                              "d'ensembles. DÉCLARÉ, jamais deviné : un repli silencieux "
+                              "apparierait différemment deux fichiers du même batch. Vide = "
+                              "appariement temporel borné."),
         ParamSpec('next_start_bound', 'bool', True,
-                  description="La fin candidate doit précéder le start suivant — la scène se "
-                              "réinitialise à l'apparition suivante."),
+                  description="(temporel) La fin candidate doit précéder le start suivant — la "
+                              "scène se réinitialise à l'apparition suivante."),
         ParamSpec('max_delay', 'float', None, unit='s',
-                  description="Délai maximal d'appariement (au-delà : non détecté). Vide = sans "
-                              "limite autre que le start suivant."),
+                  description="(temporel) Délai maximal d'appariement (au-delà : non détecté). "
+                              "Vide = sans limite autre que le start suivant."),
         ParamSpec('name', 'str', ''),
     ],
     cost={'cpu_bound': True},

@@ -79,6 +79,27 @@ class AppariementEnveloppeTest(unittest.TestCase):
                                                    'operator': '>=', 'value': 2.0}])
         self.assertEqual(list(lentes.df['start']), [10.0])
 
+    def test_par_CLE_le_diff_des_identites_est_rendu_en_meta(self):
+        import pandas as pd
+        from .segmentation import events_pairing
+        apparitions = TypedFrame(pd.DataFrame({'time': [0.0, 10.0],
+                                               'name': ['p1', 'p2']}), DataType.EVENTS)
+        detections = TypedFrame(pd.DataFrame({'time': [2.0, 5.0],
+                                              'name': ['p1', 'fantome']}), DataType.EVENTS)
+        out = events_pairing(apparitions, detections, by_key='name')
+        rows = out.df.to_dict('records')
+        self.assertEqual([r['matched'] for r in rows], [True, False])
+        self.assertEqual(out.meta['pairing']['strategy'], 'key:name')
+        self.assertEqual(out.meta['pairing']['unpaired_keys'], ['fantome'])
+
+    def test_une_cle_absente_d_une_table_est_REFUSEE_en_nommant_les_colonnes(self):
+        # La stratégie se DÉCLARE — jamais de repli silencieux vers le temporel.
+        from .segmentation import events_pairing
+        with self.assertRaises(ValueError) as ctx:
+            events_pairing(_events([0.0]), _events([1.0]), by_key='name')
+        self.assertIn('name', str(ctx.exception))
+        self.assertIn('time', str(ctx.exception))
+
     def test_declare_au_catalogue(self):
         self.assertIsNotNone(get('event_pairing'), "event_pairing absent du catalogue")
 

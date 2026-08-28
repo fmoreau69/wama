@@ -183,6 +183,49 @@ def pair(starts: Sequence[float], ends: Sequence[float], *,
     return out, orphelines
 
 
+def pair_by_key(start_times: Sequence[float], start_keys: Sequence[Any],
+                end_times: Sequence[float], end_keys: Sequence[Any], *,
+                name: str = '') -> Tuple[List[Segment], List[int]]:
+    """Appariement par IDENTITÉ — quand les deux flux NOMMENT le même objet (`pieton_2`…).
+
+    Plus fort que le temporel : la consistance devient une DIFFÉRENCE D'ENSEMBLES exacte — un
+    piéton non détecté est celui dont la clé n'a pas de fin, sans heuristique de fenêtre.
+
+    ⚠ La stratégie se DÉCLARE, elle ne se devine jamais depuis la donnée : un repli silencieux
+    vers le temporel ferait qu'un même protocole, rejoué sur deux fichiers d'un batch, apparierait
+    différemment sans le dire. Le « diff des clés » que la déclaration rend possible est RENDU
+    (fins orphelines par indice), pas utilisé pour basculer de stratégie.
+
+    Règles : une fin s'apparie AU PLUS UNE FOIS, à un début de MÊME clé qu'elle SUIT dans le
+    temps (une détection antérieure à l'apparition est une anomalie de données → le début reste
+    non apparié, la fin devient orpheline). Doublons de clé : appariés dans l'ordre temporel.
+
+    Rend `(segments — une ligne par DÉBUT, avec sa clé —, indices des fins orphelines)` : les
+    indices permettent à l'appelant de retrouver les LIGNES orphelines avec toutes leurs colonnes.
+    """
+    if len(start_times) != len(start_keys) or len(end_times) != len(end_keys):
+        raise ValueError("temps et clés de longueurs différentes")
+    fins_par_cle: Dict[Any, List[Tuple[float, int]]] = {}
+    for i, (t, k) in enumerate(zip(end_times, end_keys)):
+        fins_par_cle.setdefault(k, []).append((t, i))
+    for candidats in fins_par_cle.values():
+        candidats.sort()
+    consommees: set = set()
+    out: List[Segment] = []
+    for n, (t0, k) in enumerate(sorted(zip(start_times, start_keys))):
+        trouvee = next(((t1, i) for t1, i in fins_par_cle.get(k, ())
+                        if i not in consommees and t1 > t0), None)
+        if trouvee is not None:
+            consommees.add(trouvee[1])
+        seg = {'start': t0, 'end': trouvee[0] if trouvee else OUVERT,
+               'matched': trouvee is not None, 'key': k}
+        if name:
+            seg['name'] = f"{name}_{n + 1:02d}"
+        out.append(_tracer(seg, 'pair', by='key'))
+    orphelines = [i for i in range(len(end_times)) if i not in consommees]
+    return out, orphelines
+
+
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 # 3. CONDITIONNELLE — prédicat + hystérésis
 # ──────────────────────────────────────────────────────────────────────────────────────────────
