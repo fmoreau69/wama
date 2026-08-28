@@ -15,8 +15,8 @@ from __future__ import annotations
 
 from wama.common.catalog.data_types import CANONICAL_FIELDS, DataType, TypedFrame
 from wama.common.catalog.function_catalog import (FunctionCategory, FunctionSpec, ParamSpec, PortSpec, register)
-from ...core.segmentation import (around, conditional, states, join, margins, times_within,
-                                  within)
+from ...core.segmentation import (around, conditional, states, join, margins, pair,
+                                  times_within, within)
 #: RÉEXPORT délibéré — `missing` a été remonté au cœur (`core/valeurs.py`) quand le Calculator
 #: en est devenu le 4ᵉ consommateur : `core/` ne peut pas dépendre de `functions/`. Le garder
 #: importable d'ici évite de toucher les 3 importateurs existants pour un simple déménagement.
@@ -327,4 +327,60 @@ register(FunctionSpec(
                       description="Bornes strictement intérieures (défaut) ou égalité admise.")],
     cost={'cpu_bound': True},
     fn=events_within,
+))
+
+
+def events_pairing(starts: TypedFrame, ends: TypedFrame, next_start_bound: bool = True,
+                   max_delay: float = None, name: str = '') -> TypedFrame:
+    """Apparie 1-à-1 deux flux d'événements en situations, défaut de consistance COMPRIS.
+
+    Une ligne par événement de départ : appariée (`matched=True`, durée = temps de détection) ou
+    non (`matched=False`, fin absente — le piéton jamais détecté est une DONNÉE, pas un déchet).
+    Les fins orphelines sont rendues dans les méta (`pairing`), jamais avalées.
+    """
+    segs, orphelines = pair(_colonne(starts, 'time'), _colonne(ends, 'time'),
+                            next_start_bound=next_start_bound, max_delay=max_delay, name=name)
+    meta = dict(starts.meta or {})
+    meta['pairing'] = {
+        'starts': len(segs),
+        'unmatched_starts': sum(1 for s in segs if not s['matched']),
+        'unpaired_ends': orphelines,
+    }
+    return _segments(segs, meta=meta)
+
+
+register(FunctionSpec(
+    key='event_pairing',
+    name="Situations par appariement 1-à-1 de deux flux d'événements",
+    description="Apparie chaque événement de départ (apparition d'un piéton) avec AU PLUS UNE "
+                "fin (sa détection), bornée par le start suivant et un délai optionnel — la durée "
+                "produite est le TEMPS DE DÉTECTION. ⚠ Diffère de la jonction : une fin est "
+                "CONSOMMÉE (un piéton non détecté ne vole pas la détection du suivant), et le "
+                "défaut de consistance est RENDU au lieu d'être filtré à la main — lignes "
+                "`matched=False` pour les départs sans fin (filtrables par conditions), fins "
+                "orphelines dans les méta `pairing`. Les indicateurs s'ajoutent ensuite par "
+                "« Indicateurs par segment » (freinage, volant…).",
+    category=FunctionCategory.JOIN,
+    tags=['temporel', 'segmentation', 'appariement', 'consistance'],
+    inputs=[
+        PortSpec('starts', DataType.EVENTS, required_fields=['time'],
+                 description="Événements de DÉPART (ex. apparitions de piétons)."),
+        PortSpec('ends', DataType.EVENTS, required_fields=['time'],
+                 description="Événements de FIN (ex. détections oculométriques)."),
+    ],
+    outputs=[PortSpec('segments', DataType.SEGMENTS,
+                      produced_fields=CHAMPS_SEGMENT + ['matched'],
+                      description="Une situation par départ — `matched` dit si la fin existe ; "
+                                  "méta `pairing` = le compte rendu de consistance.")],
+    params=[
+        ParamSpec('next_start_bound', 'bool', True,
+                  description="La fin candidate doit précéder le start suivant — la scène se "
+                              "réinitialise à l'apparition suivante."),
+        ParamSpec('max_delay', 'float', None, unit='s',
+                  description="Délai maximal d'appariement (au-delà : non détecté). Vide = sans "
+                              "limite autre que le start suivant."),
+        ParamSpec('name', 'str', ''),
+    ],
+    cost={'cpu_bound': True},
+    fn=events_pairing,
 ))

@@ -53,5 +53,35 @@ class MargesEnveloppeTest(unittest.TestCase):
         self.assertIsNone(rows[1]['end'])
 
 
+
+
+class AppariementEnveloppeTest(unittest.TestCase):
+    """`event_pairing` — le compte rendu de consistance voyage avec le cadre."""
+
+    def test_le_defaut_de_consistance_est_RENDU_lignes_et_meta(self):
+        from .segmentation import events_pairing
+        apparitions = _events([0.0, 10.0, 20.0])
+        detections = _events([2.0, 22.0])
+        out = events_pairing(apparitions, detections)
+        rows = out.df.to_dict('records')
+        self.assertEqual([r['matched'] for r in rows], [True, False, True])
+        self.assertIsNone(rows[1]['end'])
+        self.assertEqual(out.meta['pairing']['unmatched_starts'], 1)
+        self.assertEqual(out.meta['pairing']['unpaired_ends'], [])
+        self.assertEqual(out.data_type, DataType.SEGMENTS)
+
+    def test_la_duree_est_le_temps_de_detection_et_se_filtre(self):
+        # La chaîne complète du cas : appariement → filtre sur la durée de détection.
+        from .conditions import filter_segments
+        from .segmentation import events_pairing
+        out = events_pairing(_events([0.0, 10.0]), _events([0.5, 13.0]))
+        lentes = filter_segments(out, conditions=[{'key': 'C1', 'field': 'duration',
+                                                   'operator': '>=', 'value': 2.0}])
+        self.assertEqual(list(lentes.df['start']), [10.0])
+
+    def test_declare_au_catalogue(self):
+        self.assertIsNotNone(get('event_pairing'), "event_pairing absent du catalogue")
+
+
 if __name__ == '__main__':
     unittest.main()

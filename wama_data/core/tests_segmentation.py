@@ -7,7 +7,7 @@ qui produirait du confetti sans hystérésis, état non refermé en fin de sessi
 import unittest
 from pathlib import Path
 
-from .segmentation import (around, edges, overlapping, conditional, states, close, join,
+from .segmentation import (around, edges, overlapping, conditional, states, close, join, pair,
                            margins, spatial_margins, hysteresis_mask, open_ones, within)
 
 from ..corpus import REAL_BASE, absence_reason
@@ -351,6 +351,51 @@ class BaseReelleTest(unittest.TestCase):
             for i in range(len(attendu)):
                 self.assertIn(round(attendu.time_at(i), 3), starts,
                               f"{name} : segment réel non reproduit")
+
+
+class AppariementTest(unittest.TestCase):
+    """`pair()` — le cas piéton/détection (2026-08-28), là où `join()` appariait FAUX en silence."""
+
+    def test_le_cas_nominal_donne_le_temps_de_detection(self):
+        segs, orphelines = pair([0.0, 10.0, 20.0], [2.0, 12.5, 21.0])
+        self.assertEqual([(s['start'], s['end']) for s in segs],
+                         [(0.0, 2.0), (10.0, 12.5), (20.0, 21.0)])
+        self.assertTrue(all(s['matched'] for s in segs))
+        self.assertEqual(orphelines, [])
+
+    def test_un_pieton_JAMAIS_detecte_ne_vole_pas_la_detection_du_suivant(self):
+        # ⚠ LE cas : apparitions à 0/10/20, détections à 2 et 22 seulement (le 2ᵉ piéton
+        # n'est jamais détecté). `join()` apparierait 10 → 22 : durée fausse, silencieuse.
+        segs, orphelines = pair([0.0, 10.0, 20.0], [2.0, 22.0])
+        self.assertEqual([s['matched'] for s in segs], [True, False, True])
+        self.assertIsNone(segs[1]['end'], "le non-détecté est une DONNÉE, pas un segment volé")
+        self.assertEqual(segs[2]['end'], 22.0)
+        self.assertEqual(orphelines, [])
+        # Contre-épreuve : c'est bien le comportement de join() qui ne convenait pas ici.
+        vole = join([0.0, 10.0, 20.0], [2.0, 22.0])
+        self.assertEqual(vole[1]['end'], 22.0, "join() réutilise les fins — le défaut du cas")
+
+    def test_une_detection_SANS_apparition_est_rendue_orpheline(self):
+        # Faux positif oculométrique avant toute apparition : rendu, jamais avalé.
+        segs, orphelines = pair([10.0], [2.0, 12.0])
+        self.assertEqual((segs[0]['end'], segs[0]['matched']), (12.0, True))
+        self.assertEqual(orphelines, [2.0])
+
+    def test_max_delay_transforme_une_detection_tardive_en_non_detection(self):
+        segs, orphelines = pair([0.0], [8.0], max_delay=5.0)
+        self.assertFalse(segs[0]['matched'])
+        self.assertEqual(orphelines, [8.0])
+
+    def test_sans_borne_au_start_suivant_le_comportement_redevient_glouton(self):
+        # Déclaré, pas subi : on PEUT désactiver la borne — mais chaque fin reste consommée.
+        segs, _ = pair([0.0, 10.0, 20.0], [2.0, 22.0], next_start_bound=False)
+        self.assertEqual([s['matched'] for s in segs], [True, True, False])
+        self.assertEqual(segs[1]['end'], 22.0)
+
+    def test_l_origine_est_tracee(self):
+        segs, _ = pair([0.0], [1.0], max_delay=5.0)
+        self.assertEqual(segs[0]['origin'], 'pair')
+        self.assertEqual(segs[0]['window'], '5s')
 
 
 class MargesTest(unittest.TestCase):

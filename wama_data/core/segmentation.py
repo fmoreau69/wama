@@ -135,6 +135,54 @@ def join(starts: Sequence[float], ends: Sequence[float], *, name: str = '',
     return out
 
 
+def pair(starts: Sequence[float], ends: Sequence[float], *,
+         next_start_bound: bool = True, max_delay: Optional[float] = None,
+         name: str = '') -> Tuple[List[Segment], List[float]]:
+    """Apparie 1-À-1 deux flux d'événements en situations — et COMPTE ce qui ne s'apparie pas.
+
+    Le cas qui a fondé la demande (Fabien, 2026-08-28) : apparition d'un piéton (simulation) →
+    détection par le participant (oculométrie), la durée de la situation étant le TEMPS DE
+    DÉTECTION. ⚠ `join()` ne convient PAS à ce cas : sa règle « première fin qui suit »
+    RÉUTILISE les fins — un piéton jamais détecté volerait la détection du piéton suivant, et
+    la durée serait fausse SANS ERREUR. C'est précisément ce que le filtrage manuel de l'outil
+    d'origine compensait à la main ; ici la règle d'appariement le rend déclaratif.
+
+    Règles :
+      • une fin s'apparie AU PLUS UNE FOIS (consommée) ;
+      • la fin candidate doit tomber AVANT le start suivant (`next_start_bound=True`, défaut) —
+        la scène se réinitialise à l'apparition suivante ;
+      • `max_delay` (option) : au-delà de ce délai, ce n'est plus une détection ;
+      • ⚠ un start SANS fin produit une ligne `matched=False, end=None` — JAMAIS supprimée en
+        silence : le défaut de consistance est une DONNÉE (le piéton non détecté est souvent ce
+        qu'on cherche), filtrable en aval (`segment_filter`, opérateur `empty` sur `duration`) ;
+      • les fins ORPHELINES (jamais consommées — détection sans apparition, faux positif
+        oculométrique) sont RENDUES à part, pas avalées.
+
+    Rend `(segments, fins_orphelines)`. Une ligne par START, dans l'ordre temporel.
+    """
+    d = sorted(starts)
+    f = sorted(ends)
+    consommees = [False] * len(f)
+    out: List[Segment] = []
+    for i, t0 in enumerate(d):
+        borne = d[i + 1] if (next_start_bound and i + 1 < len(d)) else float('inf')
+        if max_delay is not None:
+            borne = min(borne, t0 + max_delay)
+        j = bisect_right(f, t0)
+        while j < len(f) and consommees[j]:
+            j += 1
+        apparie = j < len(f) and f[j] < borne
+        if apparie:
+            consommees[j] = True
+        seg = {'start': t0, 'end': f[j] if apparie else OUVERT, 'matched': apparie}
+        if name:
+            seg['name'] = f"{name}_{i + 1:02d}"
+        out.append(_tracer(seg, 'pair',
+                           window=(f"{max_delay:g}s" if max_delay is not None else None)))
+    orphelines = [t for t, usee in zip(f, consommees) if not usee]
+    return out, orphelines
+
+
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 # 3. CONDITIONNELLE — prédicat + hystérésis
 # ──────────────────────────────────────────────────────────────────────────────────────────────

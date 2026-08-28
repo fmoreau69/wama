@@ -3014,15 +3014,30 @@ mot pour mot). Couvre en **déclaratif** l'essentiel du filtrage manuel de ④.
 > s'applique. Deux fonctions chaînées — exactement le motif « un choix de sortie, pas un mode »
 > déjà acté pour `segment_`/`event_chaine_conditionnelle`.
 
-**④ Le filtrage MANUEL par occurrence (les cases « Ignore » de `Filtrage_segmentation.png`).**
-Rien de dédié (`etats(ignorer=…)` ignore des **valeurs** d'un catégoriel, pas des occurrences ;
-`depuis_*` ne saute que les N premières). ⭐ **Mais la moitié de sa raison d'être a DISPARU** :
-l'outil d'origine appariait par index et **renvoyait l'utilisateur au filtrage manuel** dès que les
-comptes différaient — l'appariement temporel de `jonction()` n'a pas ce cas d'échec. Le résiduel
-légitime (écarter de fausses détections) est une **CURATION** : un geste **par fichier**, tracé
-comme les gestes de codage, **non promouvable au batch** — cohérent avec « on persiste la
-déclaration, pas les valeurs » et avec la décision export (§11.2 ② : le déclaratif se promeut, le
-manuel reste local). À déclarer comme geste, pas comme fonction du catalogue.
+**④ Le filtrage MANUEL par occurrence** — ✅ **le CAS RÉEL, précisé par Fabien le 2026-08-28,
+est SOLDÉ en déclaratif** ; le résiduel manuel devient marginal.
+
+> ⚠ **Ce que la première analyse avait raté** (et §14.9 avait même SURESTIMÉ : « la moitié de sa
+> raison d'être a disparu ») : le filtrage manuel de BIND compensait aussi le **MÉSAPPARIEMENT**.
+> Le cas fondateur — *apparition d'un piéton (simulation) → détection par le participant
+> (oculométrie), la durée = TEMPS DE DÉTECTION, puis indicateurs (freinage, volant…)* — casse
+> `join()` : sa règle « première fin qui suit » **réutilise les fins**, donc un piéton jamais
+> détecté **vole la détection du suivant** — durée fausse, silencieuse. C'est CE défaut que
+> l'utilisateur corrigeait à la main en écartant l'apparition non détectée.
+
+**Réponse : `event_pairing`** (`core/pair()`) — appariement **1-à-1** : une fin se **consomme**,
+bornée par le **start suivant** (la scène se réinitialise à l'apparition suivante) et un
+`max_delay` optionnel (au-delà : non détecté). ⭐ **Le défaut de consistance est une DONNÉE, pas
+un déchet** : un départ sans fin produit une ligne `matched=False` (le piéton non détecté est
+souvent ce qu'on CHERCHE), filtrable par `segment_filter` ; les fins orphelines (faux positifs
+oculométriques) sont rendues dans les méta `pairing` — comptées, jamais avalées. La suite du cas
+existe déjà : durée = `duration` au filtre, indicateurs = `calc_per_segment` (max, delta,
+range…), `brake_detection` au catalogue. Extension déclarable si les deux tables partagent une
+colonne d'identité (`pieton_2`…) : appariement **par clé** — différence d'ensembles exacte
+(non implémenté, à déclarer le jour où un corpus le porte).
+
+Le résiduel vraiment manuel (écarter une occurrence à l'œil, sans règle exprimable) reste une
+**CURATION** : un geste par fichier, tracé, non promouvable au batch — cohérent avec §11.2 ②.
 
 ~~(Mineur, à vérifier au câblage : la restriction « Situation : … » appliquée à la **sortie
 événements** de la conditionnelle.)~~ — ✅ **CÂBLÉ le 2026-08-28** : **`event_within`** au
