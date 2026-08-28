@@ -45,8 +45,9 @@ python manage.py test                       # SUITE COMPLÈTE (~4 min) — ajout
 > Un compte d'échecs ne dit pas COMBIEN de causes il y a — les relever toutes :
 > `manage.py test 2>&1 | grep -E "^(FAIL|ERROR):|AssertionError"`.
 
-**État attendu au 2026-08-28** (mesuré ce jour ; c'était **852** le 25/08 et **911** le 26/08 —
-le total grossit à chaque test ajouté, **ne pas en faire un critère**) : **1145 tests**, **`OK`**,
+**État attendu au 2026-08-29** (mesuré ce jour ; c'était **852** le 25/08, **911** le 26/08 et
+**1145** le 28/08 — le total grossit à chaque test ajouté, **ne pas en faire un critère** : les
+**+9** du 29/08 sont les invariants de langue TTS de `dacf8f7d`) : **1154 tests**, **`OK`**,
 plus la ligne `Découverte : 2 module(s) ignoré(s) hors périmètre (wama-dev-ai.core, wama-dev-ai.ui)`.
 **Le SEUL attendu est `OK`.** La suite est verte : tout échec est désormais une dérive, il n'y a
 plus de cause « connue » à excuser.

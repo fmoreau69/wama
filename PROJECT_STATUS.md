@@ -8416,3 +8416,10 @@ recopie un défaut du converter. Reste à trouver pourquoi la création de `Conv
 `ConversionJob.objects.create` (l.240 / 689 / 977), `batch_duplicate` (l.486).
 
 **Autres suites** : 8+ commits non poussés (push = accord de Fabien).
+
+> ⚠ **Croisement de clôtures (29/08, consigné pour que l'attribution ne mente pas)** : le bloc ci-dessus
+> a été absorbé par `2bfddd8d` (instance « LANGUES TTS », commit intercalé entre mon append et mon commit),
+> et mon `f8771a5f` a emporté en retour 9 lignes de SON §REPRISE (la réécriture « corrigé après coup » du
+> paragraphe 1154 tests). Contenus des DEUX côtés vérifiés intacts dans HEAD. Leçon pour `/cloture §0` :
+> le `git diff` de contrôle et le `git commit` ne doivent JAMAIS être enchaînés par `&&` — le diff doit
+> être LU avant de committer, et la fenêtre entre les deux reste une course.
