@@ -2538,6 +2538,40 @@ isolés ne suffisent pas à valider un scénario.
 cours de régénération par une autre instance (6 lignes en vol) et y toucher aurait emporté son
 travail. Une ligne, puis régénérer `WAMA_MECANISMES.md`.
 
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+
+**Reprendre à l'étape 4 du plan validé par Fabien : LE PORTAGE.** Les étapes 1-3 (erreurs, puis
+tests) sont soldées ; le portage schéma-driven redémarre à `project_schema_driven_ports` /
+`WAMA_APP_GENERATION_ROUTE.md`. Rien n'est en vol dans ce périmètre.
+
+**File des chantiers ouverts, dans l'ordre :**
+1. 🔴 **BLOQUANT — le trou anonyme** (ci-dessus). Ce n'est pas un chantier qu'on commence sans
+   réponse : les deux voies (servir l'anonyme comme un **tier** vs poser `login_required`)
+   n'écrivent pas le même code, et l'une touche `wama/accounts/` — périmètre d'une autre instance.
+2. Le portage (étape 4), non commencé, sans bloquant connu.
+3. Non bloquant, une ligne : `rights_matrix.py` aux `annexes` du `Mecanisme('nightly_tests')`
+   (consigne ci-dessus, laissée à l'instance qui régénère les mécanismes).
+
+**Pendings système :** **2 commits non poussés** (`c1010bc3`, `4ffce563`) — `origin/dev` en retard
+d'autant ; aucun redémarrage de worker/gunicorn requis (rien de servi n'a changé) ; aucune
+validation navigateur en attente — la passe complète du nocturne EST la validation.
+
+**Candidat skill non forgé** (annoncé ici pour ne pas le perdre) : « lancer la passe COMPLÈTE du
+nocturne » est devenu un geste répétable à conditions non évidentes — `--stage ui` obligatoire
+(au-delà on charge des modèles), tâche de fond obligatoire (~35 min > le délai d'un appel d'outil),
+`--id` répété n'accumule PAS, et le rapport se lit par `witness_files_swept` autant que par les OK.
+Non forgé faute de contexte, et parce que `.claude/skills/skill-forge/` était en cours de création
+par une autre instance pendant cette session.
+
+### Contrôles attendus au prochain `/reprise` — tous MESURÉS le 2026-08-28 en clôture
+
+| contrôle | valeur mesurée |
+|---|---|
+| `check_docs` | 34 docs, 13 skills, **1102 références** — **7 cassées, 0 périmée**, mais **1 SEULE cible distincte** (`common/_result_tabs.html`, partial jamais créé). ⚠ C'est la cible distincte qui est le critère, pas le 7 : il monte dès qu'un `.md` recite la même cible. |
+| tests du périmètre | `wama.common.tests_volet` → **13/13 OK** (6,3 s). `wama.filemanager` → **0 test** (l'app n'en a aucun — dette nommée, pas un vert). |
+| nocturne complet | `--stage ui` → **92/158 OK, 1 échec, 65 skips**, `witness_files_swept: 20`. L'échec attendu est `common.rights_anonymous` **tant que l'arbitrage n'est pas rendu** — un second échec = vraie dérive. |
+| balayage disque | **0 témoin résiduel** sous `media/` après passe. |
+
 ---
 
 ## §REPRISE — 2026-08-27, instance « DROITS S2 » — ✅ PALIER LIVRÉ (`6aa1b556`, `d601baa5`) — ⚠ **UN ARBITRAGE ATTEND FABIEN**
