@@ -1005,6 +1005,18 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                         return '';
                     })()}
+                    ${(() => {
+                        // Verdict de licence relevé AU TEXTE par la prospection (2026-08-29,
+                        // cas MiniMax-H3 : « license: other » opaque, le texte excluait l'UE).
+                        // Décision Fabien : on AFFICHE, on ne rejette pas — le choix reste
+                        // à l'utilisateur.
+                        const lf = ((model.extra_info || {}).prospect || {}).license_flag;
+                        if (!lf) return '';
+                        if (lf.verdict === 'exclusion_ue' || lf.verdict === 'restriction_territoriale') {
+                            return `<div class="small text-danger mb-2" title="${(lf.detail || '').replace(/"/g, '&quot;')}"><i class="fas fa-ban me-1"></i>⚠ ${lf.label} — installation déconseillée, le choix vous appartient</div>`;
+                        }
+                        return `<div class="small text-muted mb-2" title="${(lf.detail || '').replace(/"/g, '&quot;')}"><i class="fas fa-file-contract me-1"></i>${lf.label} (${model.license || 'non standard'})</div>`;
+                    })()}
                     <div class="d-flex gap-2">
                         <button class="btn btn-sm btn-primary flex-grow-1 btn-prospect-install" data-model-id="${model.id}" title="Installer ce modèle (téléchargement en tâche de fond)">
                             <i class="fas fa-download me-1"></i>Installer
@@ -1313,6 +1325,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 const pr = (m.extra_info || {}).prospect || {};
                 return (m.is_proposed && pr.concurrence && pr.concurrence.length)
                     ? pr.concurrence.join(', ') : '';
+            } },
+            { k: 'Compatibilité de licence', get: function (m) {
+                // Verdict relevé AU TEXTE (2026-08-29) — affiché, jamais éliminatoire.
+                const lf = ((m.extra_info || {}).prospect || {}).license_flag;
+                if (!lf) return '';
+                const detail = lf.detail ? ' — ' + lf.detail : '';
+                return (lf.verdict === 'a_verifier' ? '⚠ ' : '⛔ ') + lf.label + detail;
             } },
         ] },
         {% comment %} Section QUALITÉ — visible pour TOUS les modèles (installés comme

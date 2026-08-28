@@ -857,7 +857,18 @@ NB : Music3 (audio) n'est PAS concerné — sa MiniMax Community License, vérif
   Wan2.2-TI2V-5B jugé 0.90 avec variantes int4/8bit relevées, format Diffusers natif.
 - Trou de filtre refermé au passage (mesuré sur les cards du jour) : `controlnet` +
   `adapter` ajoutés à `_MOTIFS_BRUIT` (add-ons non autonomes, même famille que `lora`).
-- **Trou durable à combler (proposé, pas fait)** : la card affiche `license: other`
-  — OPAQUE. Le seeding relève l'identifiant de licence mais personne ne lit le TEXTE ;
-  une garde « Excluded Territories » (scout ou contexte du juge : chercher les clauses
-  territoriales dans LICENSE et le dire sur la card) aurait éliminé H3 sans geste humain.
+- **Garde « Excluded Territories » LIVRÉE le jour même** (arbitrage Fabien : on AFFICHE
+  l'incompatibilité, on ne rejette JAMAIS — le choix reste à l'utilisateur) :
+  `prospector.analyse_licence(hf_id, license_id)` — un SPDX permissif (`_LICENCES_SURES`)
+  rend None ; sinon le TEXTE du LICENSE est lu (endpoint `raw`, zéro passage par le cache
+  HF) et scanné (« excluded/restricted territories », « european union » en contexte
+  d'exclusion). Verdict persisté au seeding (`prospect.license_flag`, mémoïsé par process),
+  affiché sur la card (rouge « UE EXCLUE … le choix vous appartient » / discret « licence à
+  vérifier ») et à l'inspecteur (ligne « Compatibilité de licence », section Prospection).
+  Testé réel : H3 → `exclusion_ue` avec l'extrait exact de la clause ; Wan (apache-2.0) →
+  rien ; LTX-2.5 (`other` sans fichier LICENSE) et stable-audio (`stabilityai-ai-community`)
+  → « à vérifier » motivé. ⚠ Les candidats DÉJÀ en base ne portent le verdict qu'au
+  prochain sweep (le seeding recrée les lignes) — et le restart est requis d'abord.
+- **Wan3.0 (question Fabien 29/08) : sorti le 24/08, mais poids FERMÉS** — API payante
+  Alibaba Cloud seulement ($0.05–0.20/s), « the open Wan line stops at Wan 2.2 ». La
+  prospection HF ne peut pas le proposer ; le trending le sortira si des poids paraissent.

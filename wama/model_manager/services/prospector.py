@@ -11,6 +11,7 @@ Mapping app WAMA → tâche HF dans `APP_TASKS`.
 from __future__ import annotations
 
 import logging
+from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 
@@ -275,6 +276,75 @@ def variantes_quantisees(hf_id: str, limit: int = 5) -> list[dict]:
     return variantes[:limit]
 
 
+#: Licences SPDX standard SANS restriction territoriale : le texte n'est pas relu.
+_LICENCES_SURES = {'apache-2.0', 'mit', 'bsd-2-clause', 'bsd-3-clause', 'cc0-1.0',
+                   'cc-by-4.0', 'openrail', 'openrail++', 'bigscience-openrail-m'}
+
+
+def analyse_licence(hf_id: str, license_id: str = ''):
+    """
+    Verdict de COMPATIBILITÉ de licence d'un candidat, pour AFFICHAGE sur la card —
+    JAMAIS pour éliminer (décision Fabien 2026-08-29 : le choix reste à l'utilisateur).
+
+    Né du cas MiniMax-H3 : la card disait `license: other` — opaque — alors que le TEXTE
+    excluait l'Union européenne (« Excluded Territories »), le piège Hunyuan à l'identique.
+    Un identifiant SPDX permissif (`_LICENCES_SURES`) rend None (rien à afficher) ; sinon
+    le texte du fichier LICENSE est lu (endpoint `raw` — AUCUN passage par le cache HF,
+    zéro résidu disque) et scanné pour les clauses territoriales.
+
+    Retour : None | {'verdict': 'exclusion_ue'|'restriction_territoriale'|'a_verifier',
+    'label': str, 'detail': str}. Mémoïsé par process (lru_cache) — le tri tendance
+    renouvelle la liste à chaque clic, le texte d'une licence ne change pas.
+    """
+    lid = (license_id or '').strip().lower()
+    if lid in _LICENCES_SURES:
+        return None
+    return _analyse_licence_texte(hf_id, lid)
+
+
+@lru_cache(maxsize=256)
+def _analyse_licence_texte(hf_id: str, lid: str):
+    import re
+
+    import requests
+    try:
+        from huggingface_hub import HfApi, hf_hub_url
+        siblings = HfApi().model_info(hf_id).siblings or []
+        fichiers = [s.rfilename for s in siblings
+                    if 'licen' in s.rfilename.lower() and '/' not in s.rfilename]
+        if not fichiers:
+            return {'verdict': 'a_verifier', 'label': 'licence à vérifier',
+                    'detail': f"licence « {lid or '?'} » sans fichier LICENSE lisible "
+                              "dans le dépôt — lire la card avant d'installer"}
+        texte = requests.get(hf_hub_url(hf_id, fichiers[0]),
+                             timeout=(5, 20)).text.lower()
+        m = re.search(r'excluded\s+territor|restricted\s+territor', texte)
+        if not m:
+            # Filet plus large : « european union » cité dans un contexte d'exclusion.
+            for hit in re.finditer(r'european union', texte):
+                fenetre = texte[max(0, hit.start() - 300):hit.start() + 300]
+                if 'exclud' in fenetre or 'prohibit' in fenetre or 'not apply' in fenetre:
+                    m = hit
+                    break
+        if m:
+            i = m.start()
+            fenetre = texte[max(0, i - 400):i + 600]
+            extrait = ' '.join(texte[max(0, i - 120):i + 240].split())
+            ue = 'european union' in fenetre
+            return {
+                'verdict': 'exclusion_ue' if ue else 'restriction_territoriale',
+                'label': 'UE EXCLUE par la licence' if ue else 'restriction territoriale',
+                'detail': f'« …{extrait}… »',
+            }
+        return {'verdict': 'a_verifier', 'label': 'licence à vérifier',
+                'detail': f"licence non standard ({lid or '?'}) — aucun marqueur "
+                          "territorial détecté ; lire le texte avant d'installer"}
+    except Exception as e:
+        logger.debug("[analyse_licence] %s illisible : %s", hf_id, e)
+        return {'verdict': 'a_verifier', 'label': 'licence à vérifier',
+                'detail': f"texte de licence illisible ({lid or '?'})"}
+
+
 #: Extensions de fichiers de POIDS (pour le détail par fichier des dépôts quantisés).
 _EXT_POIDS = ('.gguf', '.safetensors', '.bin', '.pt', '.pth')
 
@@ -471,6 +541,9 @@ def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -
                        'concurrence': refs_type[model_type],
                        'downloads': c['downloads'], 'likes': c['likes'],
                        'metrique': c.get('metrique'),
+                       # Verdict de licence AFFICHÉ, jamais éliminatoire (Fabien 29/08) —
+                       # None pour un SPDX permissif ; mémoïsé, licences non standard seules.
+                       'license_flag': analyse_licence(hf_id, str(c.get('license') or '')),
                        'spec': {'kind': 'hf', 'ref': hf_id, 'category': regle['category'],
                                 'note': f"prospection HF {tache}"}},
                 hf_id=hf_id, license=str(c.get('license') or '')[:64],
