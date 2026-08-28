@@ -51,8 +51,10 @@ Puis supprimer le dossier GUID parent s'il est vide, et re-lancer le scan pour c
 
 ⚠ **L'espace libéré peut NE PAS apparaître** (vécu 29/08 : 11,5 Go supprimés, +0,3 Go visibles) :
 les clichés VSS de C: **retiennent les blocs supprimés** jusqu'à leur purge. Le vérifier par
-l'arithmétique : somme des dossiers racine mesurables vs utilisé réel du volume — l'écart EST
-le stockage VSS + inaccessibles (mesuré ~34,8 Go le 29/08, ≈ le plafond par défaut de 10 %).
+l'arithmétique — script rejouable :
+`pwsh -NoProfile -File .claude/skills/crash-residus/scan_ecart_volume.ps1 -Drive C` —
+somme des dossiers racine mesurables vs utilisé réel du volume : l'écart EST le stockage VSS
++ inaccessibles (mesuré ~34,8 Go le 29/08, ≈ le plafond par défaut de 10 %).
 Deux pièges de mesure : `C:\Users\fmoreau\.ollama` est un **SymbolicLink → `D:\.ollama`**
 (66 Go comptés à tort sur C: si on le scanne directement — toujours vérifier `LinkType` avant
 de conclure) ; et le swap VIVANT regrossit vers ses 8 Go configurés — ce n'est pas une fuite.

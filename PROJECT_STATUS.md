@@ -8387,11 +8387,14 @@ un chemin Windows dans `anonymizer:sam3` (triton absent du venv Windows), que `m
 a ensuite gravé au corpus. Le corpus reflète **venv_linux = le runtime réel**.
 
 **Contrôles attendus au prochain /reprise (tous MESURÉS cette session)**
-- `manage.py test` : **1154 tests, OK (skipped=4)** — 🔴 **le bloc du skill `/reprise` est PÉRIMÉ**
-  (il attend « 911 tests, failures=8, errors=2 ») : les 8 échecs `ViewsTest`/`IntegrationTest`
-  sont RÉSOLUS et la découverte n'entre plus dans `wama-dev-ai/`. **À corriger dans
-  `.claude/skills/reprise/SKILL.md` avant de s'en resservir comme référence** — *un état attendu
-  périmé fait passer une vraie dérive pour du normal* (la leçon y est déjà écrite pour `check_docs`).
+- `manage.py test` : **1154 tests, OK (skipped=4)**, soit **+9** sur les 1145 du 28/08 — exactement
+  les invariants de langue ajoutés ici. Attendu du skill `/reprise` **réécrit dans le même commit**,
+  comme sa propre consigne l'exige (« réécrire ce bloc dans le commit qui change l'état de la suite »).
+  ⚠ **Corrigé après coup dans ce même §REPRISE** : j'y avais d'abord écrit que le skill était périmé
+  et attendait « 911 tests, failures=8, errors=2 ». **FAUX** — le fichier sur disque portait déjà
+  l'attendu du 28/08 (« 1145, OK »). Je lisais une **capture ancienne du corps du skill**, pas le
+  fichier. *Le texte d'un skill reçu en contexte est une PHOTO ; l'accuser de dérive sans rouvrir
+  le fichier, c'est le défaut même que ce bloc dénonce, un cran plus haut.*
 - `check_docs` (Windows) : **1 cible distincte** — critère TENU (8 références, 1110 vérifiées) ;
 - `manifest_export --check` (WSL2) : corpus à jour, **108 manifestes** ;
 - `manifest_roundtrip --all` (WSL2) : 10 apps OK, 1-2 codegen chacune ;

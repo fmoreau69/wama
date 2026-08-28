@@ -5,6 +5,9 @@ description: Distiller un geste RÉSOLU en skill versionné (.claude/skills/) ou
 
 # /skill-forge — Distiller une résolution en skill
 
+> ⚠ CANDIDAT (n=1, 2026-08-28) — écrit depuis la doctrine et UNE naissance vécue (`/crash-residus`) ;
+> sera promu à la première distillation qu'il aura lui-même guidée de bout en bout.
+
 Doctrine d'origine : décision Hermes (`ROADMAP.md` §16.7) — le runtime est écarté, la
 **mémoire procédurale** est retenue : « ce qui manque n'est pas le dossier mais l'écrivain ».
 Ce skill EST cet écrivain, pour la partie dev (`.claude/skills/`) uniquement — voir §6.
