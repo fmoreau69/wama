@@ -7995,3 +7995,66 @@ model_manager du `tool_api` · MARCHEUR `project`→`requires`→drivers · gén
 - ⚠ Aucun module de test ne couvre `check_docs.py` ni `license_audit.py` — validation
   empirique : 5 runs réels de la commande + sonde
   `_CATALOGUE['minimax-music3-community'] → PERMISSIVE` (mesurée en clôture).
+
+---
+
+## §REPRISE — 2026-08-28, instance « MUSIC3 GÉNÉRATION + CRASHS » (SUITE, session parallèle, CLOSE) — 🔚 POINT D'ENTRÉE
+
+**Périmètre** : la 1ʳᵉ génération Music3 tentée par Fabien (pending du handoff MUSIC3 27/08) —
+deux échecs instructifs, deux crashs hôte le même jour, parade code posée. Commits `89ddd22a`
+(fix composer + mode dépannage GPU) et `4ec0983a` (docs infra). Partition tenue : ZÉRO fichier
+commun avec l'instance « gestes/vérif » (WAMA_VERIFICATION, ui_smoke, nightly_tests restés à elle).
+
+### Livré
+
+1. **Défaut moteur audio.cpp trouvé et contourné** (échec n°1, « missing …language_model_q4_0.gguf ») :
+   le moteur ouvre ses composants PAR DÉFAUT en dur AVANT d'appliquer les `--session-option` —
+   notre package Q8, pourtant déclaré partout, ne pouvait pas démarrer. Alias posés
+   (`ensure_engine_default_aliases()`, `_ENGINE_EAGER_DEFAULTS`, idempotent) + consigné
+   `PROSPECTION_PIPELINE §2026-08-28`. ⚠ Leçon sœur du « juge sur VARIANTES » : **la composition
+   déclarée ne suffit pas si le moteur a ses propres noms câblés** — vérifier les défauts du
+   moteur au moment de choisir la variante à installer.
+2. **Crash n°1 ~11:09:16 = LA PREMIÈRE RAMPE FATALE INSTRUMENTÉE CÔTÉ RAILS** (échec n°2) :
+   zéro violation ATX sur 79 473 échantillons, mort à ~28 W / 210 MHz ~40 s APRÈS le pic
+   d'allocation (VRAM 5→14,8 Go en 10 s) — **la puissance n'est pas le facteur, la montée VRAM
+   l'est** ; aucune passe LLM dans la séquence (cache). Crash n°2 ~12:19:51 AU REPOS (non
+   instrumenté). Pilote NVIDIA **616.56** posé par Fabien à 12:40 = nouvelle variable, la série
+   se compte à partir de là. Tout dans `INFRA_WSL_VS_WINDOWS §2026-08-28`.
+3. **Mode « dépannage GPU » switchable** (`WAMA_GPU_SAFE_MODE`, défaut OFF, `.env=1` sur cet
+   hôte) : keep_alive=0 sur traduction+enrichissement (la traduction était le trou — modèle
+   résident ~5 min) + gate `wait_for_free_vram()` (gouverneur) avant le sous-processus audiocpp.
+   Tests 17/17 (12 composer + 5 `tests_gpu_safe_mode`).
+4. Card 50 zombie (RUNNING 20 %) normalisée via `stop_instance` ; **angle mort documenté** :
+   après reboot hôte, l'état Celery retombe PENDING → `reconcile_orphaned_running` (preuve
+   positive) ne peut PAS mordre.
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+
+**La 1ʳᵉ génération Music3 reste À FAIRE (geste Fabien, jamais une session)** — card 50 en
+FAILURE relançable. Conditions désormais réunies : alias posés, pilote 616.56 neuf, safe mode
+actif, rails journalisés. ⚠ Retenter = retenter la charge qui a tué l'hôte deux fois — c'est
+aussi LE test le plus instrumenté possible du nouveau pilote.
+
+### Pendings (cette instance)
+
+- **Génération Music3** (ci-dessus, arbitrage Fabien) ;
+- angle mort `reconcile_orphaned_running` post-reboot (PENDING) — piste : preuve « nulle part »
+  incluant le contenu des files broker ; ne PAS basculer sur PENDING+absent seul (signal
+  inversé du 25/07) ;
+- adoption de `wait_for_free_vram` par les AUTRES consommateurs sous-processus/service
+  (MuseTalk, CodeFormer, TTS) — brique posée, 1 seul adopteur (audiocpp) ;
+- alias moteur « à retirer si audio.cpp applique un jour ses overrides avant ses défauts »
+  (suivre upstream) ;
+- contre-test affichage model_manager : au prochain modèle résident, **F5 sur la page** —
+  si le résident n'apparaît toujours pas, défaut d'appariement `ollama:<nom>` à corriger
+  (vu une fois le 28/08 sans rechargement de page, non conclu) ;
+- push : branche ahead 4 (2 commits à moi + 2 à l'instance gestes) = geste Fabien.
+
+### Contrôles attendus au prochain /reprise (MESURÉS cette session, clôture ~13:30)
+
+- tests périmètre : `wama.composer` + `wama.common.tests_gpu_safe_mode` = **17/17 OK** ;
+- `check_docs` : **7 cassées = toujours 1 cible distincte** (le partial d'onglets, préexistant ;
+  7ᵉ référence ajoutée par le chantier verif en cours, pas par cette instance) + 1 PÉRIMÉ
+  `WAMA_VERIFICATION.md:244` — appartient à l'instance gestes, son fichier était en cours d'édition ;
+- stack relancée par Fabien post-pilote : gunicorn+TTS+celery×3+beat+gateway Discord UP,
+  `nvidia-smi` WSL = 616.56, `WAMA_GPU_SAFE_MODE=1` chargé.
