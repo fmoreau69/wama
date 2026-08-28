@@ -8296,3 +8296,120 @@ avant tout écrivain `.wds`. Lire `WAMA_DATA_WORLD §11.8-§11.9` avant tout cod
 - unicité `D<n>` de `WAMA_DATA_WORLD` : **0 doublon** (grep uniq -d vide) ;
 - garde D28 : `wama_data.core.tests_naming` passe (et attrape réellement — 2 prises vécues).
 
+
+## §REPRISE — 2026-08-29, instance « SKILLS AUTO + RÉSIDUS DE CRASH » (CLOSE) — 🔚 POINT D'ENTRÉE
+
+> Session Fabien+Claude sur 2 jours (28-29/08). Périmètre : `.claude/skills/`, `INFRA_WSL_VS_WINDOWS.md`,
+> nettoyage disques. AUCUN code applicatif touché.
+
+**LIVRÉ** (commits `f805c3ff`, `3153ec2e`, `f08c5cf8` + 2 docs) :
+- **`/skill-forge`** — l'écrivain de mémoire procédurale (la moitié d'Hermes RETENUE le 29/07, `ROADMAP §16.7`) :
+  distiller à la CLÔTURE d'une résolution, jamais à l'ouverture ; **n=1 → skill CANDIDAT, n=2 → promotion**.
+  Crochet de détection ajouté à `/cloture §3` (le moment-écrivain). Phases 2 (compilation depuis manifestes)
+  et 3 (Data/Lab + runtime `prompt_skills` gouverné, préalable `RunOutcome`) : NON commencées, déclarées §6.
+- **`/crash-residus`** (CANDIDAT n=1) + 2 scripts rejouables (`scan_residus.ps1`, `scan_ecart_volume.ps1`).
+  Nettoyé : 11,5 Go swap orphelins + 10,3 Go cache NVIDIA (par Fabien).
+- **C: élucidé** (`INFRA §2026-08-29`) : l'espace « disparu » = VSS jamais plafonné (~35 Go, retient les blocs
+  supprimés) ; **le resize C: est BLOQUÉ par SentinelOne** (VSS 12289, accès refusé) — voie = service info ;
+  D: plafonné 10 Go ✅. Piège consigné : `~\.ollama` C: = SymbolicLink → D:.
+
+**🔚 POINT D'ENTRÉE session suivante** : au prochain crash → dérouler `/crash-residus` et le PROMOUVOIR (n=2) ;
+toute session qui résout un geste répétable → `/skill-forge` via le balayage `/cloture`.
+
+**Décisions ouvertes (Fabien, non bloquantes)** : ① demande service info pour replafonner VSS C: (défaut
+assumé = ne rien faire, poste borné) ; ② désactiver l'auto-download NVIDIA App si `ota-artifacts` regonfle.
+
+**Contrôles attendus au prochain /reprise (tous MESURÉS cette session)** :
+- `check_docs` : **1 cible distincte** (le partial d'onglets assumé) — 8 références (bruit), 1110 vérifiées,
+  0 périmée, 0 chiffre sans source, **13 skills** ;
+- HWiNFO64 : tourne (pid vivant depuis 28/08 13:18) ;
+- C: ~80 Go libres après nettoyages (le solde VSS ne revient qu'via service info).
+
+
+## §REPRISE — 2026-08-29, instance « LANGUES TTS = CAPACITÉ DÉCLARÉE » (CLOSE) — 🔚 POINT D'ENTRÉE
+
+> Suite directe de la session « DETTES + AVATARIZER » (28/08). Périmètre : `common/tts/`,
+> `common/backends/`, `model_manager/services/model_registry.py`, `synthesizer/`, `avatarizer/`,
+> la brique JS `wama-model-caps.js`. Commit unique `dacf8f7d`.
+> ⚠ Partition respectée : l'autre instance du jour (skills + résidus de crash) n'a touché aucun
+> de ces fichiers ; son §REPRISE ci-dessus a été commité par elle.
+
+**Point de départ** — Fabien : « les modèles vits, tacotron2 et speedy-speech sont des modèles
+historiques […] vérifier leur pertinence », puis « ok pour les purger proprement », puis deux
+recadrages qui ont fait tout le travail : « tu as retiré beaucoup de lignes liées aux langues,
+est-ce que le fonctionnement de traduction automatique est toujours en place ? » et surtout
+« **kokoro n'est qu'un modèle parmi tant d'autres qui peuvent ne pas gérer toutes les langues
+en entrée** ».
+
+**LIVRÉ**
+1. **R32** (`REMOVAL_LEDGER`) — les 3 moteurs retirés sur **8 surfaces** + 3 lignes `AIModel` +
+   3 manifestes. Instruit sur **mesure**, jamais sur l'ancienneté : 0 usage sur 103 travaux,
+   cascade DB vide (collector Django). R14 (2026-07-02, « les labéliser proposés ») est
+   **ANNULÉE** — elle a produit le défaut qu'elle croyait éviter.
+2. **Une seule déclaration des langues.** `SYNTHESIZER_MODELS[*]['languages']` est la source ;
+   `_discover_synthesizer_models()` **LIT** (`_synth_languages()`) au lieu de réécrire en dur.
+   Corrections tirées des moteurs : coqui-xtts 17 (+`hi`), bark 13 (aligné sur
+   `BARK_LANG_DEFAULTS`, sans `nl`/`cs` qu'il n'a pas), higgs-audio 9, kokoro 7.
+3. **`fallback_languages`** — 3ᵉ état, clé canonique du contrat commun (`backends/base.py`,
+   `CANONICAL_CAPABILITIES`). Résorbe à sa racine l'écart signalé en R32 (`KOKORO_LANG_MAP`
+   15 clés vs 7 langues déclarées) : 7 propres + 8 de repli, **dérivées** du mapping.
+4. **Côté apps — la brique existait déjà.** `WamaModelCaps` va chercher `capabilities` lui-même
+   et filtre le select dans les DEUX apps. Elle gagne `annotateOption()` (option **gardée
+   sélectionnable**, libellé marqué ⚠, raison en `title` — doctrine `INPUT_MODEL_MATCHING` :
+   on informe, on ne cache pas) et `langFilter(selectId)`, qui **résorbe un prédicat recopié**
+   dans les deux gabarits. Aucun bandeau ne renaît : le champ dit lui-même ce qu'il accepte.
+5. **+9 invariants** (`common/tests_capabilities_languages.py`, 28 dans le module).
+
+**⚠⚠ Deux leçons, et la seconde n'est pas dans le code**
+- **Un prédicat BOOLÉEN ne peut pas dire une COUVERTURE, qui est un ENSEMBLE.**
+  `ENGLISH_ONLY_MODELS` se trompait deux fois : il nommait 3 moteurs et en **ignorait 3 autres
+  réellement lacunaires** (bark 3 trous, higgs-audio 6, kokoro 8 sur les 15 langues du select ;
+  seul coqui-xtts les couvre toutes). *Un exemple pris pour la règle rétrécit le problème à sa
+  propre taille* — c'est le recadrage de Fabien, et il valait pour ma propre consignation.
+- **J'ai failli poser un SECOND chemin vers le même fait** (`tts_language_meta()` + les 2 vues),
+  dans l'heure où je soldais exactement ce défaut côté registre. Retiré avant d'avoir un
+  consommateur ; un commentaire garde la place dans `common/tts/ui_meta.py` pour qu'il ne
+  renaisse pas. *Avant d'ouvrir un chemin serveur vers une donnée, vérifier si le CLIENT ne va
+  pas déjà la chercher.*
+
+**🔴 ACTION REQUISE — REDÉMARRER LES SERVICES WSL2 (décision de Fabien : des travaux peuvent tourner)**
+`fallback_languages` **n'atteint ni le catalogue ni le corpus de manifestes** tant que gunicorn
+et les 4 workers celery tournent avec les modules d'AVANT le changement (**~26 932 s ≈ 7 h 30**
+d'uptime mesurés par `ps`, donc antérieurs au code). Leur `full_sync` périodique — **toutes les
+2 à 6 minutes**, mesuré dans `ModelSyncLog` (22:31→22:49) — **RÉÉCRIT le catalogue avec l'ancienne
+vérité**. C'est ce qui a fait « disparaître » la capacité trois fois de suite entre deux commandes.
+⚠⚠ **Extension mesurée de la leçon du 27/08** (« gunicorn sans autoreload sert un parc MIXTE ») :
+**un worker périmé ne sert pas seulement du vieux code — il EFFACE de la donnée fraîche.** Un
+processus de longue vie est un ÉCRIVAIN, pas seulement un lecteur.
+→ Après redémarrage : `sync_models` **depuis WSL2/venv_linux** puis `manifest_export`.
+⚠ Rappel vécu ce jour : lancé depuis venv_win, `sync_models` a écrit `installed: false` +
+un chemin Windows dans `anonymizer:sam3` (triton absent du venv Windows), que `manifest_export`
+a ensuite gravé au corpus. Le corpus reflète **venv_linux = le runtime réel**.
+
+**Contrôles attendus au prochain /reprise (tous MESURÉS cette session)**
+- `manage.py test` : **1154 tests, OK (skipped=4)** — 🔴 **le bloc du skill `/reprise` est PÉRIMÉ**
+  (il attend « 911 tests, failures=8, errors=2 ») : les 8 échecs `ViewsTest`/`IntegrationTest`
+  sont RÉSOLUS et la découverte n'entre plus dans `wama-dev-ai/`. **À corriger dans
+  `.claude/skills/reprise/SKILL.md` avant de s'en resservir comme référence** — *un état attendu
+  périmé fait passer une vraie dérive pour du normal* (la leçon y est déjà écrite pour `check_docs`).
+- `check_docs` (Windows) : **1 cible distincte** — critère TENU (8 références, 1110 vérifiées) ;
+- `manifest_export --check` (WSL2) : corpus à jour, **108 manifestes** ;
+- `manifest_roundtrip --all` (WSL2) : 10 apps OK, 1-2 codegen chacune ;
+- `doc_facts --check` : 2 blocs périmés (`mecanismes`, `modeles`) → **régénérés** dans `dacf8f7d` ;
+- `check_templates` : 0 défaut / 128 gabarits ; `manage.py check` : 0 issue ;
+- `check_app_conformity` : anonymizer 98 · avatarizer 98 · composer 98 · converter 100 ·
+  describer 100 · enhancer 99 · imager 97 · reader 98 · synthesizer 98 · transcriber 100
+  (`converter_01` = bac à sable, jamais noté).
+
+**🔚 EN SUSPENS — chantier converter, ouvert et MESURÉ, non résolu**
+Fabien : « les cards du converter bac à sable ne sont pas cliquables, n'affichent rien, pas
+d'action possible ». Mesure : **25/30 batchs vides dans `converter_01` ET 51/71 dans le
+converter RÉEL** — un batch vide porte `total=1` ou `2` pour **0 job**, d'où une card sans
+contenu ni action. Les 4 jobs créés le 28/08 ont un `input_file` **vide**.
+⚠ **Ce n'est donc PAS un résidu du bac à sable** : le bac à sable est une copie fidèle, et il
+recopie un défaut du converter. Reste à trouver pourquoi la création de `ConversionJob` échoue
+**après** que la ligne `ConversionBatch` soit écrite — sites de création à instruire :
+`_wrap_job_in_batch` (l.61-68), `group_into_batches_by_nature` (l.99-105),
+`ConversionJob.objects.create` (l.240 / 689 / 977), `batch_duplicate` (l.486).
+
+**Autres suites** : 8+ commits non poussés (push = accord de Fabien).
