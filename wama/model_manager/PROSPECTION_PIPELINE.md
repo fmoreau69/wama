@@ -796,3 +796,39 @@ défaut→variante déclarée dans le snapshot (idempotent, jamais par-dessus un
 d'ouvrir ses défauts. Leçon (sœur du « juge sur VARIANTES / installeur CANONIQUE ») : **la
 composition déclarée ne suffit pas si le moteur a ses PROPRES noms câblés** — vérifier les
 défauts du moteur au moment de choisir la variante à installer.
+
+## Session du 2026-08-28 : le cas MiniMax-H3 — un canonique INVISIBLE de ses propres tâches
+
+**Question Fabien** : les modèles vidéo sortent avec une confiance très basse — la détection
+des variantes quantisées marche-t-elle, et rien n'est jouable sur 24 Go pour H3 ?
+
+**Diagnostic (tout mesuré)** :
+1. **Le mécanisme des variantes (26/08) est sain** — testé live : `variantes_quantisees`
+   sur le canonique relève les bons dépôts (repack Comfy-Org 19 M dl, jeux GGUF/nvfp4
+   descendant à ~11 Go). Les Wan jugés le 26/08 portent leurs variantes et sont à 0.90.
+2. **Mais 12 verdicts dataient d'AVANT le correctif** (jugés 19/08, `quant_variants`
+   absent, figés par l'idempotence `confidence IS NULL`) — dont les deux « H3 » de l'UI,
+   qui étaient de surcroît des MERGES de particuliers (0 dl / NSFW 354 Go), pas le modèle.
+   → Actions (validées Fabien) : les 2 merges REJETÉS ; les 12 verdicts remis à NULL,
+   re-jugement à la prochaine passe MANUELLE (le déclenchement reste humain — historique
+   de crashs hôte). ⚠ Un rejet = delete sans pierre tombale : le merge à 0 dl peut
+   revenir par le tri tendance (limitation connue, sœur de « re-proposition après
+   désinstallation »).
+3. **Le vrai trou : le canonique `MiniMaxAI/MiniMax-H3` n'entrait JAMAIS au seeding** —
+   son `pipeline_tag` HF est `image-text-to-video`, absent de `HF_TASKS` (qui balayait
+   text-to-video / image-to-video). Seuls ses dérivés taggés text-to-video remontaient :
+   filtrés comme bruit pour l'essentiel, et les deux merges passants récoltaient les 10 %.
+   **Une famille de tags multimodaux grossit sur HF** (`text-to-audio-video`,
+   `image-to-audio-video`…) — le balayage par pipeline_tag ne voit que ce qu'il nomme.
+
+**Livré** : entrées `image-text-to-video` + `text-to-audio-video` dans `HF_TASKS` et
+`_TASK_MODEL_TYPE` (sondé : le canonique sort en tête, dérivés écartés) ; `_MOTIFS_BRUIT`
+complété de `quant`/`awq`/`gptq` (mesuré le jour même : « Hippotes/LTX-2.3-quants »
+passait comme canonique).
+
+**Jouable sur 24 Go pour H3 : OUI** — unet pruned nvfp4 11,7 Go / GGUF Q4_K 10,6 Go /
+fp8 19,5 Go (+ text encoder qwen3vl-32B Q4 13,6 Go déchargeable après encodage, VAE
+vidéo 4,9 Go, VAE audio 0,6 Go). ⚠ Avant install : H3 est MULTI-COMPOSANTS
+(`body.composition` à déclarer) et *un dépôt quantisé se choisit AUSSI par son runtime
+cible* (single-files écosystème Comfy vs canonique `library: minimax-h3` format
+diffusers) — même leçon que Music3/audio.cpp.

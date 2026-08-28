@@ -30,6 +30,8 @@ _TASK_MODEL_TYPE = {
     'text-to-image':                 'diffusion',
     'text-to-video':                 'diffusion',
     'image-to-video':                'diffusion',
+    'image-text-to-video':           'diffusion',
+    'text-to-audio-video':           'diffusion',
     'image-to-image':                'upscaling',
     'automatic-speech-recognition':  'speech',
     'text-to-speech':                'speech',
@@ -165,6 +167,11 @@ HF_TASKS = {
     'text-to-image':  {'category': 'diffusion', 'poids_min_go': 1.0,   'max': 5},
     'text-to-video':  {'category': 'diffusion', 'poids_min_go': 1.0,   'max': 5},
     'image-to-video': {'category': 'diffusion', 'poids_min_go': 1.0,   'max': 5},
+    # Vidéo multimodale — MiniMax-H3 est taggé `image-text-to-video` : invisible des deux
+    # tâches ci-dessus alors que ses dérivés text-to-video saturaient le trending
+    # (mesuré 2026-08-28). `text-to-audio-video` = vidéo + audio synchronisés, même famille.
+    'image-text-to-video': {'category': 'diffusion', 'poids_min_go': 1.0, 'max': 5},
+    'text-to-audio-video': {'category': 'diffusion', 'poids_min_go': 1.0, 'max': 5},
     # Parole (transcriber / synthesizer) — ⚠ TTS : vérifier la LICENCE sur la card (souvent NC)
     'automatic-speech-recognition': {'category': 'speech', 'poids_min_go': 0.05, 'max': 3},
     'text-to-speech':               {'category': 'speech', 'poids_min_go': 0.05, 'max': 3},
@@ -187,7 +194,10 @@ _POIDS_MIN_GO = 1.0
 #: text-to-video était aux 3/4 des LoRA MiniMax-H3 de particuliers.
 _MOTIFS_BRUIT = ('lora', 'gguf', 'comfyui', 'repackaged', 'fp8', 'bnb',
                  'int4', 'int8', 'fp4', 'nvfp4', '4bit',
-                 'coreml', 'mlx')   # formats Apple : non chargeables sur l'hôte CUDA
+                 'coreml', 'mlx',   # formats Apple : non chargeables sur l'hôte CUDA
+                 # marqueurs déjà dans _MOTIFS_QUANT mais absents d'ici : mesuré 2026-08-28,
+                 # « Hippotes/LTX-2.3-quants » passait le seeding comme canonique
+                 'quant', 'awq', 'gptq')
 
 
 def _poids_depot_go(hf_id: str):
