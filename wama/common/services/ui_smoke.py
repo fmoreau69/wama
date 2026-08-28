@@ -1045,6 +1045,49 @@ _MOTIFS_DE_GARDE = ('cible interdite', 'bouclage', 'adresse privée', 'adresse r
                     'lien-local', 'hôte introuvable')
 
 
+def _observer_le_bouton(page, selecteur: str) -> bool:
+    """Arme un observateur sur le bouton AVANT le clic. Vrai si le bouton existe.
+
+    Pourquoi observer plutôt que relire l'état après coup : la brique commune restaure le
+    bouton (`disabled = false`, innerHTML d'origine) dès que sa promesse retombe. Sur un
+    serveur local, ce cycle peut durer moins de 100 ms — une relecture le manquerait et
+    conclurait « le bouton n'a pas bougé » sur une chaîne qui a parfaitement tourné.
+    """
+    return bool(page.evaluate("""(sel) => {
+        window.__wamaBtnReact = 0;
+        const b = document.querySelector(sel);
+        if (!b) return false;
+        new MutationObserver(ms => { window.__wamaBtnReact += ms.length; })
+            .observe(b, {attributes: true, childList: true, subtree: true});
+        return true;
+    }""", selecteur))
+
+
+def _bouton_a_reagi(page, selecteur: str) -> bool:
+    """Le bouton a-t-il bougé depuis l'armement ?
+
+    DEUX signaux, et il en suffit d'un — c'est délibéré. L'observateur attrape le cycle
+    complet même très bref ; l'état courant (`disabled`, spinner) attrape le cas où
+    l'observateur a manqué son coup (armement perdu par un remplacement de DOM, app qui
+    câble son propre gestionnaire au lieu de `initUrlImport`). Mesuré le 2026-08-28 :
+    l'observateur seul rendait « n'a pas bougé » sur un bouton que Playwright refusait
+    ensuite de recliquer PARCE QU'IL ÉTAIT DÉSACTIVÉ — c'est-à-dire en pleine réaction.
+
+    Le court délai laisse retomber les microtâches : les rappels d'un MutationObserver ne
+    sont pas synchrones du clic, et lire trop tôt rendrait un faux « n'a pas bougé ».
+    """
+    try:
+        page.wait_for_timeout(300)
+        return bool(page.evaluate("""(sel) => {
+            if (window.__wamaBtnReact) return true;
+            const b = document.querySelector(sel);
+            if (!b) return true;              // le bouton a disparu : la page a réagi
+            return !!(b.disabled || b.querySelector('.spinner-border'));
+        }""", selecteur))
+    except Exception:
+        return False
+
+
 def check_app_url_import(app: str, url_path: str):
     """Coller une URL dans la card d'entrée crée-t-il un élément ? (ok, detail).
 
@@ -1083,7 +1126,7 @@ def check_app_url_import(app: str, url_path: str):
     lien = (f"{BASE_URL.rstrip('/')}/{str(settings.MEDIA_URL).strip('/')}"
             f"/users/{uid}/temp/{temoin.name}")
 
-    detail, familles, garde_dite, dits = '', [], [], []
+    detail, familles, garde_dite, dits, reagi = '', [], [], [], False
     sessions_before = _session_keys()
     try:
         with _garde_de_montage(app, 'url_import') as _nettoyes:
@@ -1155,8 +1198,34 @@ def check_app_url_import(app: str, url_path: str):
                                  else '.input-group:has(button[title$="URL"]) input[type=text]')
                     sel_bouton = (f'#{etat["bouton_id"]}' if etat['bouton_id']
                                   else 'button[title$="URL"]')
+                    _observer_le_bouton(page, sel_bouton)
                     page.fill(sel_champ, lien)
                     page.click(sel_bouton, timeout=10000)
+                    reagi = _bouton_a_reagi(page, sel_bouton)
+                    if not reagi:
+                        # ⚠⚠ Un clic sans réaction ne prouve PAS un bouton mort. Mesuré le
+                        # 2026-08-28 : dans la passe complète (158 scénarios sérialisés,
+                        # Chromium relancé à chaque fois), ce scénario a déclaré « défaut
+                        # muet » sur l'anonymizer — que le MÊME scénario joué seul trouve
+                        # parfaitement câblé. Le clic était tombé avant que l'app n'ait lié
+                        # son écouteur : `networkidle` dit que le RÉSEAU s'est tu, pas que le
+                        # JS a fini. Allonger le délai fixe ne corrige pas ça, ça le déplace
+                        # (il retombera sur une machine plus chargée). On REJOUE le geste, et
+                        # c'est la seconde absence de réaction qui accuse.
+                        page.wait_for_timeout(3000)
+                        reagi = _bouton_a_reagi(page, sel_bouton)
+                    if not reagi:
+                        # Le bouton est resté inerte ET disponible : on rejoue le geste. La
+                        # reprise est CONDITIONNÉE à un bouton encore actif — un bouton
+                        # désactivé est déjà une réaction, et le recliquer ne ferait
+                        # qu'expirer sur l'actionnabilité (constaté avant cette garde).
+                        _observer_le_bouton(page, sel_bouton)
+                        try:
+                            page.fill(sel_champ, lien)
+                            page.click(sel_bouton, timeout=10000)
+                        except Exception:
+                            pass
+                        reagi = _bouton_a_reagi(page, sel_bouton)
 
                     # DEUX chaînes possibles, et on ne présume pas laquelle : soit l'aperçu de
                     # lot s'ouvre (famille DIFFÉRÉE — l'URL est une ligne de lot), soit la vue
@@ -1232,10 +1301,19 @@ def check_app_url_import(app: str, url_path: str):
                 f"le clic ne poste rien, mais l'app a rendu son motif : « {dits[0][:200]} » — "
                 f"sa voie URL dépend d'un autre champ et passe par le bouton primaire, qui "
                 f"crée ET démarre. Geste GPU : non mesurable en session" + trace)
-        return False, (f"le bouton d'import URL ({sel_bouton}) est offert, le clic n'émet "
-                       "AUCUNE requête et l'app ne dit RIEN — champ et bouton rendus par la "
-                       "brique commune, mais rien ne les écoute. Défaut muet : ni erreur "
-                       "console, ni message" + trace)
+        if reagi:
+            # Le bouton a BOUGÉ (disabled + spinner de `initUrlImport`) : quelque chose
+            # l'écoute, la chaîne est partie — mais rien n'en est ressorti d'observable.
+            # Accuser un « bouton mort » ici serait faux ; on nomme ce qu'on a vu.
+            raise SkipScenario(
+                f"le bouton d'import URL ({sel_bouton}) RÉAGIT au clic (il se désactive) "
+                f"mais aucune requête n'est observée et aucun motif n'est rendu : la voie "
+                f"URL de cette app ne passe pas par un POST mesurable ici" + trace)
+        return False, (f"le bouton d'import URL ({sel_bouton}) est offert, DEUX clics "
+                       "espacés n'émettent aucune requête, ne font pas bouger le bouton et "
+                       "l'app ne dit RIEN — champ et bouton rendus par la brique commune, "
+                       "mais rien ne les écoute. Défaut muet : ni erreur console, ni "
+                       "message" + trace)
     if garde_dite or refus_garde:
         motif = (garde_dite[0] if garde_dite else refus_garde[0])[:200]
         raise SkipScenario(
