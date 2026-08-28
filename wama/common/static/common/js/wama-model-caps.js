@@ -34,6 +34,14 @@
  *   sections: [{selector, showWhen(caps)}] — affiche/masque un BLOC de réglages selon les
  *             capacités (remplace les toggles hardcodés par moteur, ex. .resemble-only).
  *             caps null → état laissé tel quel (dégradation douce).
+ *
+ * 3ᵉ état d'une option (2026-08-29) : `annotateOption(caps, opt) -> raison|null` sur un filtre.
+ *   `hideOption` ne connaît que « géré / pas géré ». Or une capacité peut être RENDUE par un
+ *   chemin d'emprunt : Kokoro rabat 8 des 15 langues du select sur son pipeline anglais — il
+ *   sort un fichier, avec une voix anglaise. La cacher ferait dire « impossible » là où un son
+ *   sort ; la laisser nue ferait croire à un support natif. `annotateOption` la garde
+ *   SÉLECTIONNABLE en marquant son libellé (⚠) et en portant la raison en `title`.
+ *   Même doctrine qu'`INPUT_MODEL_MATCHING` : on informe, on ne cache pas.
  */
 (function (global) {
   'use strict';
@@ -64,6 +72,13 @@
         const hide = !!caps && f.hideOption(caps, opt);
         opt.hidden = hide;
         opt.disabled = hide;
+        // Libellé d'origine mémorisé au 1er passage : `render()` rejoue à chaque changement de
+        // modèle, et un marqueur réappliqué sur un libellé déjà marqué s'empilerait.
+        if (opt.dataset.capsLabel === undefined) opt.dataset.capsLabel = opt.textContent;
+        const raison = (!hide && !!caps && typeof f.annotateOption === 'function')
+                       ? f.annotateOption(caps, opt) : null;
+        opt.textContent = raison ? '⚠ ' + opt.dataset.capsLabel : opt.dataset.capsLabel;
+        opt.title = raison || '';
         if (!hide && firstVisible === null) firstVisible = opt;
         if (hide && opt.selected) selectedHidden = true;
       });
@@ -122,5 +137,44 @@
     return { render: render, caps: function () { return capsByKey; } };
   }
 
-  global.WamaModelCaps = { init: init };
+  /*
+   * Filtre LANGUE prêt à l'emploi — la couverture linguistique d'un modèle est un fait
+   * CANONIQUE (`capabilities.languages` + `capabilities.fallback_languages`, cf.
+   * `common/utils/model_capabilities.py`), pas une règle d'app. Le prédicat vivait recopié
+   * mot pour mot dans le synthesizer ET l'avatarizer ; deux copies d'un même prédicat sont
+   * deux occasions de le corriger à moitié. Il est donc DÉFINI ICI, une fois.
+   *
+   *   filters: [ WamaModelCaps.langFilter('language') ]
+   *
+   * Trois états, dans cet ordre de lecture :
+   *   • dans `languages`          → option normale ;
+   *   • dans `fallback_languages` → option gardée, marquée ⚠ + raison en title ;
+   *   • ni l'un ni l'autre        → masquée/désactivée.
+   * `languages` vide ou absent ⇒ AUCUNE restriction affirmée (catalogue muet ≠ « rien n'est
+   * supporté » : cette confusion fermerait le select entier sur une simple panne de fetch).
+   */
+  function langFilter(selectId, opts) {
+    opts = opts || {};
+    const raison = opts.reason
+      || 'Le moteur ne parle pas cette langue nativement : il la prononcera avec une voix '
+         + 'd\'une autre langue. Un fichier sera produit, mais l\'accent ne sera pas natif.';
+    function connues(caps) {
+      return Array.isArray(caps.languages) && caps.languages.length > 0
+             && caps.languages.indexOf('*') === -1;
+    }
+    return {
+      selectId: selectId,
+      hideOption: function (caps, opt) {
+        if (!connues(caps)) return false;
+        if (caps.languages.indexOf(opt.value) !== -1) return false;
+        return (caps.fallback_languages || []).indexOf(opt.value) === -1;
+      },
+      annotateOption: function (caps, opt) {
+        if (!connues(caps) || caps.languages.indexOf(opt.value) !== -1) return null;
+        return (caps.fallback_languages || []).indexOf(opt.value) !== -1 ? raison : null;
+      },
+    };
+  }
+
+  global.WamaModelCaps = { init: init, langFilter: langFilter };
 })(window);

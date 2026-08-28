@@ -67,6 +67,12 @@ CANONICAL_CAPABILITIES: Dict[str, str] = {
     #: anglaise ; le mettre à True mentirait en français. D'où cette borne.
     #: ABSENTE = la capacité vaut pour toutes les langues du modèle (cas général).
     "timestamp_languages":  "list[str] — langues où `supports_timestamps` s'applique ; absent = toutes",
+    #: Le PENDANT de `languages`, ajouté le 2026-08-29 : une langue peut n'être ni gérée ni
+    #: refusée. Kokoro rabat 8 langues sur son pipeline anglais — il rend du son, avec une voix
+    #: anglaise. Les mettre dans `languages` mentirait (le catalogue les annoncerait servies) ;
+    #: les taire ferait dire à l'UI « impossible » là où un fichier sort. D'où cette 3ᵉ valeur.
+    #: ABSENT = le moteur n'a pas de repli — cas général, et le défaut à préférer.
+    "fallback_languages":   "list[str] — langues ACCEPTÉES par un pipeline d'emprunt, hors `languages` ; absent = aucune",
     "supports_hotwords":    "bool — biais lexical / hotwords",
     "supports_streaming":   "bool — inférence en flux (temps réel)",
     "supports_cloning":     "bool — clonage de voix (TTS)",

@@ -387,11 +387,9 @@ window.WAMA_GLOBAL_PROGRESS_URL = "{% url 'avatarizer:global_progress' %}";
                   hideOption: function (caps, opt) {
                       return caps.supports_cloning === false && /^(ua_|cv_)/.test(opt.value);
                   } },
-                { selectId: 'settingsLanguage',
-                  hideOption: function (caps, opt) {
-                      return Array.isArray(caps.languages) && caps.languages.length > 0
-                             && caps.languages.indexOf(opt.value) === -1;
-                  } },
+                // Langues : même filtre COMMUN que le synthesizer (29/08) — le prédicat était
+                // recopié des deux côtés. 3 états : géré / rendu par emprunt (⚠, gardé) / non.
+                WamaModelCaps.langFilter('settingsLanguage'),
             ],
         });
     }

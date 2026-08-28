@@ -15,10 +15,12 @@ inverserait la dépendance et rendrait la brique non réutilisable.
 ⚠⚠ `catalog_keys` est un jeu d'EXCEPTIONS, pas la liste des moteurs. La liste vient de
 `TTS_MODEL_CHOICES` — c'est ce que le select propose RÉELLEMENT à l'utilisateur. La version
 d'origine dérivait ses clés de `CATALOG_KEYS` (4 entrées) tout en peuplant le select depuis
-`TTS_MODEL_CHOICES` (7) : `vits`, `tacotron2` et `speedy-speech` n'ont jamais reçu de
-descriptif, et le commentaire qui l'expliquait (« pas d'entrée catalogue dédiée ») était
-FAUX — mesuré le 2026-08-28, les 7 moteurs répondent en identité à `synthesizer:<valeur>`.
+`TTS_MODEL_CHOICES` (7 à l'époque) : `vits`, `tacotron2` et `speedy-speech` n'ont jamais reçu
+de descriptif, et le commentaire qui l'expliquait (« pas d'entrée catalogue dédiée ») était
+FAUX — mesuré le 2026-08-28, les 7 moteurs répondaient en identité à `synthesizer:<valeur>`.
 *Une table de correspondance prise pour un inventaire perd tout ce qui n'a pas d'exception.*
+(Ces trois moteurs ont été RETIRÉS le jour même — `REMOVAL_LEDGER` R32 — mais la règle vaut
+indépendamment d'eux : c'est le raisonnement qui était faux, pas seulement son résultat.)
 
 Django est importé PARESSEUSEMENT (dans les fonctions) : `common/tts/` est aussi consommé par
 `tts_service.py`, service FastAPI qui n'a pas Django.
@@ -58,6 +60,17 @@ def tts_input_match_meta(catalog_keys: Optional[Mapping[str, str]] = None
     return input_match_meta(
         TTS_CATALOG_SOURCE,
         key=lambda mk: inv.get(mk.split(':', 1)[-1], mk.split(':', 1)[-1]))
+
+
+# ⚠ PAS de `tts_language_meta()` ici — une telle fonction a été écrite le 2026-08-29 puis
+# RETIRÉE le jour même, avant d'avoir un consommateur. Elle projetait la couverture de langue
+# de chaque moteur dans le contexte de gabarit… alors que `WamaModelCaps` (JS commun) va DÉJÀ
+# chercher `AIModel.capabilities` par lui-même (`api/models/db/?source=synthesizer`) et filtre
+# le select de langue sur `caps.languages` dans les DEUX apps. Le besoin réel — le 3ᵉ état
+# `fallback_languages` — se règle donc DANS cette brique-là (`WamaModelCaps.langFilter`), pas
+# par un second chemin vers le même fait. *Deux chemins vers un même fait finissent par en dire
+# deux choses* : c'est précisément le défaut qu'on venait de solder côté registre (les
+# `languages` déclarées en double, divergentes, dont une seule atteignait le catalogue).
 
 
 def tts_model_help_meta(catalog_keys: Optional[Mapping[str, str]] = None

@@ -13,13 +13,19 @@ Pour ajouter un modèle, une langue ou un preset, modifiez uniquement ce fichier
 # Modèles TTS
 # ---------------------------------------------------------------------------
 
+# ⚠ RETRAIT du 2026-08-28 — `vits`, `tacotron2`, `speedy-speech` ont quitté cette liste
+# (registre : `REMOVAL_LEDGER.md` R32). Mesuré avant de retirer : **0 usage sur 103 travaux**
+# (98 VoiceSynthesis + 5 AvatarJob), `is_proposed=True` au catalogue depuis le 2026-07-02 sans
+# une seule mise à jour, aucun descriptif, aucune capacité déclarée. Les 4 survivants sont tous
+# multilingues — c'est ce qui a vidé `ENGLISH_ONLY_MODELS` côté front, retiré du même geste.
+# ⚠ « Multilingue » ne veut PAS dire « couvre les 15 langues de `LANGUAGE_CHOICES` » : mesuré le
+# 28/08, 3 des 4 ont des trous (bark 3, higgs-audio 6, kokoro 8 ; seul coqui-xtts n'en a aucun).
+# La couverture est un ENSEMBLE par moteur — elle se lit dans les `languages` déclarées au
+# catalogue, jamais dans un booléen ni dans une liste de noms écrite en dur (R32).
 TTS_MODEL_CHOICES = [
     ('coqui-xtts',       'XTTS v2 (Clonage vocal, 16 langues)'),
     ('bark',          'Bark (Naturel, Expressif, Effets sonores, 14 langues)'),
     ('kokoro',        'Kokoro 82M (Léger, FR/EN/ES/IT/PT/JA/ZH)'),
-    ('vits',          'VITS (Rapide, EN uniquement)'),
-    ('tacotron2',     'Tacotron2 (Classique, EN uniquement)'),
-    ('speedy-speech', 'SpeedySpeech (Très rapide, EN uniquement)'),
     ('higgs-audio',   'Higgs Audio v2 (Multilocuteur, Clonage vocal, 9 langues, 24 Go VRAM)'),
 ]
 
@@ -73,17 +79,23 @@ VOICE_PRESET_CHOICES = [
 # Coqui TTS — mapping modèle → chemin HuggingFace (utilisé par tts_service.py)
 # ---------------------------------------------------------------------------
 
+# La table ne porte plus qu'une entrée depuis le retrait des trois moteurs EN-only (R32) :
+# elle est CONSERVÉE parce qu'elle est le point d'accroche d'un id Coqui — un second modèle
+# Coqui se déclarerait ICI, et nulle part ailleurs (`tts_service.py` et `coqui_backend.py`
+# la lisent tous deux, aucun ne connaît d'id en dur).
 COQUI_MODEL_MAPPING = {  # wama:redondance-ok — mapping keyé par le vocabulaire, porte les ids Coqui (info nouvelle)
     "coqui-xtts":       "tts_models/multilingual/multi-dataset/xtts_v2",
-    "vits":          "tts_models/en/vctk/vits",
-    "tacotron2":     "tts_models/en/ljspeech/tacotron2-DDC",
-    "speedy-speech": "tts_models/en/ljspeech/speedy-speech",
 }
 
 # ---------------------------------------------------------------------------
 # Bark — speaker par défaut par langue (utilisé par tts_service.py)
 # ---------------------------------------------------------------------------
 
+# ⚠ `nl` et `cs` RETIRÉS le 2026-08-29 : ils pointaient sur `v2/nl_speaker_0` et
+# `v2/cs_speaker_0`, prompts que **Suno Bark ne publie pas** — deux langues offertes menant à un
+# fichier inexistant. La table est désormais l'exacte contrepartie des 13 langues déclarées par
+# `SYNTHESIZER_MODELS['bark']['languages']` (invariant tenu par un test), `hi` compris.
+# *Une voix par défaut ne se déclare que pour une langue que le moteur parle vraiment.*
 BARK_LANG_DEFAULTS = {  # wama:redondance-ok — voix Bark par langue (info nouvelle)
     "en":    "v2/en_speaker_0",
     "fr":    "v2/fr_speaker_0",
@@ -94,8 +106,7 @@ BARK_LANG_DEFAULTS = {  # wama:redondance-ok — voix Bark par langue (info nouv
     "pl":    "v2/pl_speaker_0",
     "tr":    "v2/tr_speaker_0",
     "ru":    "v2/ru_speaker_0",
-    "nl":    "v2/nl_speaker_0",
-    "cs":    "v2/cs_speaker_0",
+    "hi":    "v2/hi_speaker_0",
     "zh-cn": "v2/zh_speaker_0",
     "ja":    "v2/ja_speaker_0",
     "ko":    "v2/ko_speaker_0",

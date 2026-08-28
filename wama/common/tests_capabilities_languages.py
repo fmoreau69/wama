@@ -95,6 +95,96 @@ class BorneLangueTest(TestCase):
         self.assertFalse(supports_timestamps_for({}, 'fr'))
 
 
+class DeclarationLanguesTest(TestCase):
+    """Les langues d'un moteur TTS se déclarent à UN seul endroit (réalignement 2026-08-29).
+
+    Avant : la liste vivait dans `synthesizer/utils/model_config.py` **et** en dur dans
+    `model_registry._discover_synthesizer_models`. Les deux avaient divergé sur 2 moteurs, et
+    seule la copie du registre atteignait le catalogue — l'autre était donc fausse SANS
+    CONSOMMATEUR pour s'en apercevoir. *Un doublon inerte vieillit en silence.* Ces invariants
+    existent pour que la prochaine divergence soit ROUGE, pas invisible.
+    """
+
+    def _config(self):
+        from wama.synthesizer.utils.model_config import SYNTHESIZER_MODELS
+        return SYNTHESIZER_MODELS
+
+    def test_tous_les_moteurs_declarent_leurs_langues(self):
+        for key, spec in self._config().items():
+            langues = spec.get('languages')
+            self.assertTrue(langues, f"{key} ne déclare aucune langue")
+            self.assertEqual(len(langues), len(set(langues)), f"{key} : doublon de langue")
+
+    def test_la_decouverte_LIT_la_declaration_au_lieu_de_la_reecrire(self):
+        """Le registre DÉCOUVRE, il ne redéclare pas — même geste que `hf_id`.
+
+        Contrôle par le TEXTE de la découverte : une liste de codes ISO réécrite en dur y
+        serait le retour de la divergence. On vérifie qu'aucun `languages=[...]` littéral n'y
+        subsiste et que les 4 moteurs passent par `_synth_languages`.
+        """
+        import inspect
+
+        from wama.model_manager.services.model_registry import ModelRegistry
+        source = inspect.getsource(ModelRegistry._discover_synthesizer_models)
+        for key in self._config():
+            self.assertIn(f"_synth_languages('{key}')", source,
+                          f"{key} : la découverte doit LIRE model_config, pas redéclarer")
+        self.assertNotIn("languages=['en'", source)
+        self.assertNotIn("'en', 'es', 'fr'", source)
+
+    def test_bark_a_un_prompt_de_voix_pour_CHAQUE_langue_offerte(self):
+        """Défaut mesuré le 29/08 : `nl`/`cs` étaient offertes et pointaient sur
+        `v2/nl_speaker_0`/`v2/cs_speaker_0`, qui n'existent pas chez Suno. Une langue proposée
+        sans prompt mène à un fichier absent — l'utilisateur essuie l'écart, pas le registre.
+        """
+        from wama.common.tts.constants import BARK_LANG_DEFAULTS
+        declarees = set(self._config()['bark']['languages'])
+        self.assertEqual(declarees, set(BARK_LANG_DEFAULTS),
+                         'langues bark et prompts de voix désalignés')
+
+    def test_kokoro_declare_ses_langues_PROPRES_pas_ses_replis(self):
+        """`_LANGUES_PROPRES` (voices.py) et le catalogue disent le même ensemble."""
+        from wama.common.tts.voices import _LANGUES_PROPRES
+        self.assertEqual(set(self._config()['kokoro']['languages']),
+                         set(_LANGUES_PROPRES))
+
+
+class ReplideLangueTest(TestCase):
+    """`fallback_languages` : la 3ᵉ valeur — ni gérée, ni refusée."""
+
+    def test_cle_canonique(self):
+        self.assertTrue(is_canonical_key('fallback_languages'))
+        self.assertIn('fallback_languages', CANONICAL_CAPABILITIES)
+
+    def test_defaut_du_contrat_commun_est_ABSENT(self):
+        """Le repli est l'exception : un moteur qui n'en a pas ne déclare rien."""
+        self.assertIsNone(BaseModelBackend.fallback_languages)
+
+    def test_kokoro_derive_son_repli_du_mapping(self):
+        from wama.synthesizer.backends.kokoro_backend import KokoroBackend
+        attendu = sorted(l for l, c in KOKORO_LANG_MAP.items()
+                         if c in ('a', 'b') and l != 'en')
+        self.assertEqual(sorted(KokoroBackend.fallback_languages), attendu)
+        self.assertIn('de', KokoroBackend.fallback_languages)
+        self.assertNotIn('en', KokoroBackend.fallback_languages)  # l'anglais est PROPRE
+
+    def test_repli_et_langues_gerees_sont_DISJOINTS(self):
+        """Sans quoi le catalogue dirait d'une même langue qu'elle est servie ET empruntée —
+        et l'UI la marquerait ⚠ tout en la déclarant native."""
+        from wama.synthesizer.backends.kokoro_backend import KokoroBackend
+        from wama.synthesizer.utils.model_config import SYNTHESIZER_MODELS
+        gerees = set(SYNTHESIZER_MODELS['kokoro']['languages'])
+        self.assertEqual(gerees & set(KokoroBackend.fallback_languages), set())
+
+    def test_le_repli_couvre_ce_que_est_repli_annonce(self):
+        """`est_repli()` existait pour « que l'UI puisse le DIRE » sans avoir de lecteur.
+        Le lecteur est désormais `WamaModelCaps.langFilter` via cette capacité : les deux
+        doivent parler du même ensemble."""
+        from wama.synthesizer.backends.kokoro_backend import KokoroBackend
+        for langue in KokoroBackend.fallback_languages:
+            self.assertTrue(est_repli(langue), f"{langue} déclarée en repli mais non vue ainsi")
+
+
 class ResolutionVoixTest(TestCase):
     """`common/tts/voices.py` remplace deux calculs qui vivaient en miroir."""
 

@@ -51,24 +51,16 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // === Language compatibility warning ===
-    const ENGLISH_ONLY_MODELS = new Set(['tacotron2', 'speedy-speech', 'vits']);
-
-    function checkLangCompat(modelValue, langValue, warningEl) {
-        if (!warningEl) return;
-        warningEl.style.display =
-            (ENGLISH_ONLY_MODELS.has(modelValue) && langValue !== 'en') ? 'block' : 'none';
-    }
-
-    const langSelect      = document.getElementById('language');
-    const langWarning     = document.getElementById('lang-compat-warning');
-
-    function updateMainLangWarning() {
-        if (ttsModelSelect && langSelect)
-            checkLangCompat(ttsModelSelect.value, langSelect.value, langWarning);
-    }
-
-    if (langSelect) langSelect.addEventListener('change', updateMainLangWarning);
+    // Le bandeau « ce modèle ne supporte que l'anglais » a été retiré le 2026-08-28 avec les
+    // trois moteurs qu'il visait (REMOVAL_LEDGER R32) : son jeu déclencheur était devenu VIDE,
+    // donc les trois bandeaux étaient devenus inatteignables.
+    // ⚠ Le BESOIN reste entier et il est GÉNÉRAL — tout moteur peut ne pas couvrir une langue
+    // du select, ce n'est le cas particulier d'aucun. Mesuré le 28/08 : bark ne gère pas 3 des
+    // 15 langues proposées, higgs-audio 6, kokoro 8, coqui-xtts 0. La liste écrite en dur se
+    // trompait donc DEUX fois (3 moteurs cités, 3 autres lacunaires ignorés).
+    // ✅ REMPLACÉE le 29/08, et pas par un bandeau : `WamaModelCaps.langFilter` agit SUR le
+    // select de langue (init dans index.html), dérivé des `languages`/`fallback_languages`
+    // déclarées au catalogue. Le champ dit lui-même ce qu'il accepte.
 
     // === Higgs Audio model toggle ===
     function toggleHiggsOptions(modelValue) {
@@ -87,11 +79,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (ttsModelSelect) {
         ttsModelSelect.addEventListener('change', (e) => {
             toggleHiggsOptions(e.target.value);
-            updateMainLangWarning();
         });
         // Initialize on page load
         toggleHiggsOptions(ttsModelSelect.value);
-        updateMainLangWarning();
     }
 
     const multiSpeakerCheckbox = document.getElementById('multi_speaker');
@@ -195,20 +185,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Settings modal instance + live warning (used by delegation handler below)
+    // Settings modal instance (used by delegation handler below)
     const settingsModal = document.getElementById('settingsModal');
     const settingsModalInstance = settingsModal ? new bootstrap.Modal(settingsModal) : null;
-
-    // Live warning update inside item settings modal
-    const settingsTtsModelEl = document.getElementById('settingsTtsModel');
-    const settingsLanguageEl = document.getElementById('settingsLanguage');
-    const settingsLangWarning = document.getElementById('settings-lang-compat-warning');
-    function updateSettingsLangWarning() {
-        if (settingsTtsModelEl && settingsLanguageEl)
-            checkLangCompat(settingsTtsModelEl.value, settingsLanguageEl.value, settingsLangWarning);
-    }
-    if (settingsTtsModelEl) settingsTtsModelEl.addEventListener('change', updateSettingsLangWarning);
-    if (settingsLanguageEl) settingsLanguageEl.addEventListener('change', updateSettingsLangWarning);
 
     // Save settings button
     const saveSettingsBtn = document.getElementById('saveSettingsBtn');
@@ -363,16 +342,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
                 },
             });
-            // Warning de compatibilité langue : re-bindé sur les champs fraîchement rendus.
-            const mSel = document.getElementById('settingsTtsModel');
-            const lSel = document.getElementById('settingsLanguage');
-            const warn = document.getElementById('settings-lang-compat-warning');
-            const _check = function () {
-                if (mSel && lSel) checkLangCompat(mSel.value, lSel.value, warn);
-            };
-            if (mSel) mSel.addEventListener('change', _check);
-            if (lSel) lSel.addEventListener('change', _check);
-            _check();
         }
         settingsModalInstance.show();
     });

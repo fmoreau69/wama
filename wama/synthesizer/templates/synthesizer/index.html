@@ -60,10 +60,17 @@
         <option value="{{ value }}" {% if value == preferred_language %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
     </select>
-    <div id="lang-compat-warning" class="alert alert-warning py-1 px-2 mt-1 mb-0 small" style="display:none;">
-        <i class="fas fa-exclamation-triangle"></i>
-        Ce modèle ne supporte que l'anglais. Le texte sera prononcé avec une phonologie anglaise.
-    </div>
+    {% comment %}Le bandeau « ce modèle ne supporte que l'anglais » a été retiré le 2026-08-28
+    avec les trois moteurs EN-only qu'il visait (REMOVAL_LEDGER R32) : son jeu déclencheur,
+    écrit en dur, était devenu VIDE. ⚠ Le BESOIN, lui, reste entier et il est GÉNÉRAL : tout
+    moteur peut ne pas couvrir une langue du select. Mesuré le 28/08 sur les 4 survivants —
+    bark ne gère pas 3 des 15 langues proposées, higgs-audio 6, kokoro 8 ; seul coqui-xtts les
+    couvre toutes. La précédente se trompait donc deux fois : elle citait 3 moteurs et en
+    ignorait 3 autres réellement lacunaires. ✅ REPRIS le 29/08 — mais PAS en bandeau : le
+    besoin est porté par le select lui-même, via `WamaModelCaps.langFilter` (options non
+    gérées désactivées, options d'emprunt marquées ⚠ avec leur raison), DÉRIVÉ des
+    `languages`/`fallback_languages` déclarées au catalogue. Un bandeau aurait redit à côté du
+    champ ce que le champ peut dire lui-même. Cf. `REMOVAL_LEDGER` R32 / §REPRISE.{% endcomment %}
 </div>
 
 <!-- Voice Preset -->
@@ -290,10 +297,6 @@ startAllBtn/downloadAllBtn/clearAllBtn migrent ici depuis le volet droit.{% endc
 par WamaParams.render à l'ouverture — options des selects clonées
 depuis le volet compose (source serveur unique, optgroups aplatis).{% endcomment %}
                     <div id="settingsParamsBody"></div>
-                    <div id="settings-lang-compat-warning" class="alert alert-warning py-1 px-2 mt-2 mb-0 small" style="display:none;">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        Ce modèle ne supporte que l'anglais — le texte sera prononcé avec une phonologie anglaise.
-                    </div>
                     <button type="button" class="btn btn-outline-secondary btn-sm w-100 mt-2 add-custom-voice-btn">
                         <i class="fas fa-plus"></i> Ajouter une voix personnalisée
                     </button>
@@ -329,10 +332,6 @@ depuis le volet compose (source serveur unique, optgroups aplatis).{% endcomment
                 de voix (dynamiques, server-rendered) sont CLONÉS depuis le select canonique du volet
                 après rendu — même mécanique que cloneVoiceOptions (cf. script plus bas).{% endcomment %}
                 <div id="synthBatchParams"></div>
-                <div id="batch-lang-compat-warning" class="alert alert-warning py-1 px-2 mt-1 mb-0 small" style="display:none;">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    Ce modèle ne supporte que l'anglais. Le texte sera prononcé avec une phonologie anglaise.
-                </div>
             </div>
             {# Pied de modale COMMUN — ids conservés pour le script batch #}
             {% include 'common/_settings_modal_footer.html' with save_id='saveBatchSettingsBtn' save_label='Sauvegarder' save_start_id='saveBatchSettingsAndStartBtn' save_start_label='Sauvegarder et relancer' save_start_icon='fa-rotate-right' %}
@@ -493,11 +492,11 @@ document.addEventListener('DOMContentLoaded', function () {
                   hideOption: function (caps, opt) {
                       return caps.supports_cloning === false && /^(ua_|cv_)/.test(opt.value);
                   } },
-                { selectId: 'language',
-                  hideOption: function (caps, opt) {
-                      return Array.isArray(caps.languages) && caps.languages.length > 0
-                             && caps.languages.indexOf(opt.value) === -1;
-                  } },
+                // Langues : prédicat DÉFINI DANS LA BRIQUE (29/08) — il était recopié ici et
+                // dans l'avatarizer, et il ne connaissait que deux états. Il en compte trois
+                // depuis que les moteurs déclarent `fallback_languages` : une langue rendue
+                // par un pipeline d'emprunt reste OFFERTE, marquée ⚠ avec sa raison.
+                WamaModelCaps.langFilter('language'),
             ],
         });
     }
@@ -528,17 +527,6 @@ document.addEventListener('DOMContentLoaded', function () {
             } },
             statusId: 'inputMatchStatus',
         });
-    }
-
-    // Language compatibility warning for batch settings modal — les champs étant GÉNÉRÉS à
-    // l'ouverture (WamaParams), le re-bind se fait après chaque rendu (cf. ouverture ci-dessous).
-    const ENGLISH_ONLY_MODELS = new Set(['tacotron2', 'speedy-speech', 'vits']);
-    function _updateBatchLangWarning() {
-        const model = document.getElementById('batchSettingsTtsModel');
-        const lang  = document.getElementById('batchSettingsLanguage');
-        const warn  = document.getElementById('batch-lang-compat-warning');
-        if (model && lang && warn)
-            warn.style.display = (ENGLISH_ONLY_MODELS.has(model.value) && lang.value !== 'en') ? 'block' : 'none';
     }
 
     // Chevron rotation on collapse
@@ -594,13 +582,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     });
                 },
             });
-            // Warning de compatibilité langue : re-bindé sur les champs fraîchement rendus.
-            const m = document.getElementById('batchSettingsTtsModel');
-            const l = document.getElementById('batchSettingsLanguage');
-            if (m) m.addEventListener('change', _updateBatchLangWarning);
-            if (l) l.addEventListener('change', _updateBatchLangWarning);
         }
-        _updateBatchLangWarning();
         batchSettingsModal.show();
     });
 

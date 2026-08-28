@@ -240,7 +240,7 @@ class ViewsTest(TestCase):
             reverse('synthesizer:upload'),
             {
                 'file': self.text_file,
-                'tts_model': 'vits',
+                'tts_model': 'kokoro',
                 'language': 'fr',
                 'speed': 1.0,
                 'pitch': 1.0
@@ -357,7 +357,7 @@ class IntegrationTest(TestCase):
             reverse('synthesizer:upload'),
             {
                 'file': text_file,
-                'tts_model': 'vits',
+                'tts_model': 'kokoro',
                 'language': 'fr',
                 'speed': 1.0,
                 'pitch': 1.0

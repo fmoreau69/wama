@@ -365,6 +365,14 @@ class BaseModelBackend(ABC):
     #: capacité vaut pour toutes les langues du moteur. Lire via `supports_timestamps_for()`,
     #: jamais le booléen seul — sinon la borne se perd au premier appelant qui l'ignore.
     timestamp_languages: Optional[List[str]] = None
+    #: Langues que le moteur ACCEPTE sans les servir proprement — il produit un résultat, mais
+    #: par un pipeline d'emprunt (cas mesuré : Kokoro rabat 8 langues sur le pipeline anglais,
+    #: donc une voix anglaise lit de l'allemand). Elles ne sont PAS dans `languages` : le
+    #: catalogue ne doit jamais les annoncer comme gérées. Déclarées ici pour que l'UI puisse
+    #: les DISTINGUER d'un refus pur et le dire à l'utilisateur — sans quoi l'app choisit entre
+    #: mentir (« supportée ») et mentir autrement (« impossible »), alors qu'un son sort.
+    #: Vide/None = le moteur n'a pas de repli, ce qui est le cas général.
+    fallback_languages: Optional[List[str]] = None
 
     # ── Disponibilité / dépendances (hook prospection) ───────────────────────
     @classmethod

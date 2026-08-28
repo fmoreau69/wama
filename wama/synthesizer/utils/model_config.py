@@ -81,12 +81,13 @@ REGISTRY_MODEL_DESCRIPTIONS = {
 # Pont valeur d'option UI (select #tts_model, cf. TTS_MODEL_CHOICES) → clé catalogue
 # (`AIModel.model_key` sans le préfixe `synthesizer:`). Table d'EXCEPTIONS, PAS l'inventaire
 # des moteurs : elle est vide de sens depuis l'alignement du 18/08 (identité) et ne garde que
-# les 4 moteurs qui avaient un id divergent.
+# les moteurs qui avaient un id divergent.
 # ⚠ Le commentaire qui vivait ici — « les moteurs Coqui légers (vits/tacotron2/speedy_speech)
 # n'ont pas d'entrée catalogue dédiée → pas d'aide affichée » — était FAUX au 2026-08-28 :
-# les 7 moteurs de TTS_MODEL_CHOICES répondent à `synthesizer:<valeur>` (mesuré). C'est le
-# CODE qui les privait d'aide, en dérivant sa liste de cette table de 4 au lieu du select.
-# Corrigé dans `common/tts/ui_meta.py`, qui part des choix et n'applique ceci qu'en override.
+# les 7 moteurs d'alors répondaient TOUS à `synthesizer:<valeur>` (mesuré). C'est le CODE qui
+# les privait d'aide, en dérivant sa liste de cette table au lieu du select. Corrigé dans
+# `common/tts/ui_meta.py`, qui part des choix et n'applique ceci qu'en override. La leçon
+# survit au retrait des trois moteurs (R32) : une table d'exceptions n'est pas un inventaire.
 # Source UNIQUE = backends/base.py (Django-free : la même table sert de clé d'owner
 # publiée au gouverneur par les backends du service TTS).
 from wama.synthesizer.backends.base import CATALOG_KEYS as ENGINE_CATALOG_KEYS  # noqa: E402
@@ -99,8 +100,16 @@ from wama.synthesizer.backends.base import CATALOG_KEYS as ENGINE_CATALOG_KEYS  
 # découverte (model_registry) qui la pose sur ModelInfo.hf_id, d'où elle nourrit le catalogue
 # AIModel puis provenance/licences (backfill_platform_refs). Distincte de `model_id`, qui est
 # ce que le MOTEUR charge (chemin hub Coqui pour l'engine coqui, dépôt HF pour bark/higgs/
-# kokoro — la coïncidence des deux valeurs n'en fait pas un seul fait). Les modèles servis par
-# le hub Coqui seul (vits, tacotron2, speedy-speech) n'ont pas de dépôt HF : pas de clé.
+# kokoro — la coïncidence des deux valeurs n'en fait pas un seul fait). Un modèle servi par le
+# hub Coqui seul, sans dépôt HF d'origine, se déclare sans clé `hf_id`.
+# ⚠ `languages` est la DÉCLARATION UNIQUE des langues d'un moteur TTS depuis le 2026-08-29
+# (demande de Fabien : « réaligner le registre en fonction des capacités des modèles »).
+# Avant : la même liste vivait ICI **et** en dur dans `model_registry._discover_synthesizer_models`,
+# et les deux avaient DIVERGÉ — mesuré : `bark` déclarait ici `nl`+`cs` (que Bark ne parle pas) et
+# omettait `hi` ; `coqui-xtts` omettait `hi`. Seule la copie du registre alimentait le catalogue,
+# donc **celle d'ici n'avait AUCUN consommateur** : elle était fausse sans que rien ne le dise.
+# *Un doublon inerte ne se contente pas de vieillir — il vieillit en silence.* La découverte lit
+# désormais cette table (`_synth_languages`), comme elle le fait déjà pour `hf_id`.
 SYNTHESIZER_MODELS = {
     'coqui-xtts': {
         'model_id': 'tts_models/multilingual/multi-dataset/xtts_v2',
@@ -110,34 +119,9 @@ SYNTHESIZER_MODELS = {
         'multilingual': True,
         'voice_cloning': True,
         'description': 'XTTS v2 - Voice cloning multilingual',
-        'languages': ['en', 'es', 'fr', 'de', 'it', 'pt', 'pl', 'tr', 'ru', 'nl', 'cs', 'ar', 'zh-cn', 'ja', 'hu', 'ko'],
-    },
-    'vits': {
-        'model_id': 'tts_models/en/vctk/vits',
-        'type': 'tts',
-        'engine': 'coqui',
-        'multilingual': False,
-        'voice_cloning': False,
-        'description': 'VITS - Fast English TTS',
-        'languages': ['en'],
-    },
-    'tacotron2': {
-        'model_id': 'tts_models/en/ljspeech/tacotron2-DDC',
-        'type': 'tts',
-        'engine': 'coqui',
-        'multilingual': False,
-        'voice_cloning': False,
-        'description': 'Tacotron2 - High quality English TTS',
-        'languages': ['en'],
-    },
-    'speedy-speech': {
-        'model_id': 'tts_models/en/ljspeech/speedy-speech',
-        'type': 'tts',
-        'engine': 'coqui',
-        'multilingual': False,
-        'voice_cloning': False,
-        'description': 'Speedy Speech - Very fast English TTS',
-        'languages': ['en'],
+        # 17 langues XTTS v2 (`hi` AJOUTÉ le 29/08 — il manquait ici, présent côté registre).
+        'languages': ['en', 'es', 'fr', 'de', 'it', 'pt', 'pl', 'tr', 'ru', 'nl', 'cs', 'ar',
+                      'zh-cn', 'ja', 'hu', 'ko', 'hi'],
     },
     'bark': {
         'model_id': 'suno/bark',
@@ -147,7 +131,12 @@ SYNTHESIZER_MODELS = {
         'multilingual': True,
         'voice_cloning': False,
         'description': 'Bark - Natural, emotional TTS with sound effects',
-        'languages': ['en', 'fr', 'es', 'de', 'it', 'pt', 'pl', 'tr', 'ru', 'nl', 'cs', 'zh-cn', 'ja', 'ko'],
+        # 13 langues Bark. ⚠ `nl` et `cs` RETIRÉS le 29/08 : Suno Bark ne les publie pas, et
+        # `BARK_LANG_DEFAULTS` pointait sur des prompts `v2/nl_speaker_0`/`v2/cs_speaker_0`
+        # INEXISTANTS — deux langues offertes à l'utilisateur menaient à un fichier absent.
+        # `hi` AJOUTÉ (Bark le gère, il manquait ici).
+        'languages': ['en', 'de', 'es', 'fr', 'hi', 'it', 'ja', 'ko', 'pl', 'pt', 'ru', 'tr',
+                      'zh-cn'],
     },
     'higgs-audio': {
         'model_id': 'bosonai/higgs-audio-v2-generation-3B-base',

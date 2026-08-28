@@ -233,8 +233,10 @@ class IndexView(View):
     #: jamais recopiées là-bas. `ENGINE_CATALOG_KEYS` reste PASSÉ : c'est le point d'accroche
     #: déclaré d'un futur id divergent (`backends/base.py`), et le substrat ne doit pas le
     #: connaître. ⚠ Il y est traité comme un jeu d'EXCEPTIONS, plus comme l'inventaire des
-    #: moteurs : ses 4 entrées privaient vits/tacotron2/speedy-speech de descriptif alors que
-    #: le select en propose 7 et que les 7 sont au catalogue (mesuré 28/08).
+    #: moteurs : ses entrées privaient de descriptif tout moteur qui n'y figurait pas, alors
+    #: que le select en proposait 7 et que les 7 étaient au catalogue (mesuré 28/08 ; trois
+    #: d'entre eux ont été retirés le même jour — `REMOVAL_LEDGER` R32 — mais la règle tient
+    #: sans eux : une table d'exceptions ne remplace jamais l'inventaire).
     @staticmethod
     def _input_match_meta():
         from wama.common.tts.ui_meta import tts_input_match_meta

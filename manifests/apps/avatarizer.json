@@ -265,7 +265,7 @@
               "class": "django.db.models.CharField",
               "kwargs": {
                 "choices": {
-                  "expr": "[('coqui-xtts', 'XTTS v2 (Clonage vocal, 16 langues)'), ('bark', 'Bark (Naturel, Expressif, Effets sonores, 14 langues)'), ('kokoro', 'Kokoro 82M (Léger, FR/EN/ES/IT/PT/JA/ZH)'), ('vits', 'VITS (Rapide, EN uniquement)'), ('tacotron2', 'Tacotron2 (Classique, EN uniquement)'), ('speedy-speech', 'SpeedySpeech (Très rapide, EN uniquement)'), ('higgs-audio', 'Higgs Audio v2 (Multilocuteur, Clonage vocal, 9 langues, 24 Go VRAM)')]",
+                  "expr": "[('coqui-xtts', 'XTTS v2 (Clonage vocal, 16 langues)'), ('bark', 'Bark (Naturel, Expressif, Effets sonores, 14 langues)'), ('kokoro', 'Kokoro 82M (Léger, FR/EN/ES/IT/PT/JA/ZH)'), ('higgs-audio', 'Higgs Audio v2 (Multilocuteur, Clonage vocal, 9 langues, 24 Go VRAM)')]",
                   "imports": []
                 },
                 "default": {
@@ -875,18 +875,6 @@
                 "Kokoro 82M (Léger, FR/EN/ES/IT/PT/JA/ZH)"
               ],
               [
-                "vits",
-                "VITS (Rapide, EN uniquement)"
-              ],
-              [
-                "tacotron2",
-                "Tacotron2 (Classique, EN uniquement)"
-              ],
-              [
-                "speedy-speech",
-                "SpeedySpeech (Très rapide, EN uniquement)"
-              ],
-              [
                 "higgs-audio",
                 "Higgs Audio v2 (Multilocuteur, Clonage vocal, 9 langues, 24 Go VRAM)"
               ]
@@ -1407,7 +1395,7 @@
             "mode": "str (défaut : 'pipeline')",
             "quality_mode": "str (défaut : 'fast')",
             "text_content": "textarea — La relance régénère la voix depuis ce texte.",
-            "tts_model": "select — Modèle TTS (choix : coqui-xtts | bark | kokoro | vits | tacotron2 | speedy-speech | higgs-audio) (défaut : 'coqui-xtts')",
+            "tts_model": "select — Modèle TTS (choix : coqui-xtts | bark | kokoro | higgs-audio) (défaut : 'coqui-xtts')",
             "use_enhancer": "toggle — Restauration faciale haute qualité — légèrement plus lent. (défaut : False)",
             "voice_preset": "select — Voix (choix : default | male_1 | male_2 | female_1 | female_2 | custom | bark_v2_en_0 | bark_v2_en_1 …) (défaut : 'default')"
           },

@@ -1,9 +1,10 @@
 """
-Backend Coqui TTS (XTTS v2, VITS, Tacotron2, SpeedySpeech).
+Backend Coqui TTS (XTTS v2).
 
-Un seul backend pour les quatre entrées Coqui de `TTS_MODEL_CHOICES` : même
-librairie, même cycle de vie — seul l'identifiant `tts_models/...` change
-(`COQUI_MODEL_MAPPING`). XTTS v2 exige un audio de référence (clonage).
+Le backend reste keyé par `COQUI_MODEL_MAPPING` — il ne connaît aucun identifiant
+`tts_models/...` en dur — bien que la table n'ait plus qu'une entrée depuis le retrait
+des trois moteurs EN-only (R32) : un second modèle Coqui se brancherait sans y toucher.
+XTTS v2 exige un audio de référence (clonage).
 """
 from __future__ import annotations
 
@@ -18,8 +19,7 @@ from .base import CATALOG_KEYS, TTSBackend, _device, project_root, speech_dir
 logger = logging.getLogger(__name__)
 
 #: VRAM a-priori par modèle UI (repli si la mesure du contrat est non concluante).
-#: XTTS v2 est le seul moteur Coqui lourd ; les EN-only sont légers.
-_VRAM_GB = {'coqui-xtts': 2.5, 'vits': 0.5, 'tacotron2': 0.5, 'speedy-speech': 0.5}
+_VRAM_GB = {'coqui-xtts': 2.5}
 
 
 class CoquiBackend(TTSBackend):

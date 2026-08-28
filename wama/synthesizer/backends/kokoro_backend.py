@@ -42,6 +42,13 @@ class KokoroBackend(TTSBackend):
     #: changement du mapping. (La QUALITÉ de ces replis est un autre sujet, déjà connu :
     #: la capacité « horodatage » est orthogonale à la justesse de la voix.)
     timestamp_languages = sorted(l for l, c in KOKORO_LANG_MAP.items() if c in ('a', 'b'))
+    #: Ces mêmes 8 langues, vues sous l'autre angle : Kokoro les PRONONCE (par le pipeline
+    #: anglais) sans les PARLER. Elles restent hors de `languages` au catalogue — le moteur ne
+    #: les gère pas — mais l'UI a besoin de les distinguer d'un refus sec, sinon elle annonce
+    #: « impossible » pour un cas qui rend du son. Dérivée du mapping comme sa jumelle
+    #: ci-dessus : `'en'` retiré, c'est la langue du pipeline, pas un repli.
+    fallback_languages = sorted(l for l, c in KOKORO_LANG_MAP.items()
+                                if c in ('a', 'b') and l != 'en')
 
     REQUIRED_PACKAGES = ['kokoro', 'soundfile']
 

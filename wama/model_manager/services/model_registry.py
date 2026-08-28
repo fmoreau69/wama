@@ -876,6 +876,18 @@ class ModelRegistry:
             def _synth_hf_id(key):
                 return _SYNTH_MODELS.get(key, {}).get('hf_id') or None
 
+            def _synth_languages(key):
+                """Langues DÉCLARÉES par l'app, plus jamais réécrites ici (2026-08-29).
+
+                Les 4 listes vivaient en dur dans cette découverte alors que
+                `SYNTHESIZER_MODELS[*]['languages']` en portait déjà une copie — et les deux
+                avaient divergé sur 2 moteurs (bark : `nl`/`cs` ici absents, `hi` là-bas absent ;
+                coqui-xtts : `hi`). Seule celle d'ici atteignait le catalogue : l'autre était
+                fausse SANS CONSOMMATEUR pour s'en apercevoir. Même geste que `hf_id` — le
+                registre DÉCOUVRE, il ne redéclare pas.
+                """
+                return list(_SYNTH_MODELS.get(key, {}).get('languages') or [])
+
             # Les FLAGS de capacité viennent du MOTEUR (lot 4, 2026-08-20) : c'est lui qui sait
             # ce qu'il sait faire. Ils étaient écrits ici À SA PLACE, en dur, alors qu'aucun
             # backend TTS ne pouvait les déclarer (le contrat commun ne portait pas de
@@ -916,6 +928,9 @@ class ModelRegistry:
                         caps.setdefault('supports_timestamps', True)
                         if cls.timestamp_languages:
                             caps.setdefault('timestamp_languages', list(cls.timestamp_languages))
+                    # Repli de langue : posé seulement s'il existe (cf. vocabulaire commun).
+                    if getattr(cls, 'fallback_languages', None):
+                        caps.setdefault('fallback_languages', list(cls.fallback_languages))
                 caps.setdefault('task', 'text-to-speech')
                 caps.setdefault('modalities', ['audio'])
                 caps.setdefault('inputs_required', ['prompt'])
@@ -967,8 +982,7 @@ class ModelRegistry:
                 extra_info={'path': str(coqui_model_path) if coqui_model_path else ''},
                 capabilities=_tts_caps(
                     engine_key='coqui-xtts',   # clonage LU sur CoquiBackend
-                    languages=['fr', 'en', 'es', 'it', 'pt', 'de', 'nl', 'pl', 'ru',
-                               'cs', 'ar', 'zh-cn', 'ja', 'ko', 'tr', 'hu', 'hi'],
+                    languages=_synth_languages('coqui-xtts'),
                 ),
             )
 
@@ -1007,8 +1021,7 @@ class ModelRegistry:
                 extra_info={'path': str(bark_model_path) if bark_model_path else ''},
                 capabilities=_tts_caps(
                     engine_key='bark',         # clonage LU sur BarkBackend
-                    languages=['en', 'de', 'es', 'fr', 'hi', 'it', 'ja', 'ko',
-                               'pl', 'pt', 'ru', 'tr', 'zh-cn'],
+                    languages=_synth_languages('bark'),
                 ),
             )
 
@@ -1037,7 +1050,7 @@ class ModelRegistry:
                             'path': str(higgs_dir)},
                 capabilities=_tts_caps(
                     engine_key='higgs-audio',  # clonage LU sur HiggsAudioBackend
-                    languages=['en', 'fr', 'de', 'es', 'it', 'pt', 'zh-cn', 'ja', 'ko'],
+                    languages=_synth_languages('higgs-audio'),
                 ),
             )
 
@@ -1065,7 +1078,7 @@ class ModelRegistry:
                 extra_info={'hf_id': _synth_hf_id('kokoro'), 'path': str(kokoro_dir)},
                 capabilities=_tts_caps(
                     engine_key='kokoro',       # clonage + HORODATAGE lus sur KokoroBackend
-                    languages=['fr', 'en', 'es', 'it', 'pt', 'ja', 'zh-cn'],
+                    languages=_synth_languages('kokoro'),
                 ),
             )
 
