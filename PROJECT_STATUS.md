@@ -2470,6 +2470,85 @@ travail**. La base LIVE est celle de **WSL2 (Postgres 16)**, conforme à
 exécute WAMA nativement sous Windows (`venv_win runserver`) ; sinon c'est une taxe d'entretien
 supprimable (à confirmer : aucun worker/service Windows ne pointe dessus).
 
+## §REPRISE — 2026-08-28, instance « DETTES MESURÉES + PORTAGE AVATARIZER » — ✅ PALIER LIVRÉ (`d3f16e5f`, `a2554117`)
+
+> **Partition tenue** : `wama/avatarizer/*`, `wama/synthesizer/{views,utils/model_config}.py`,
+> `wama/common/tts/`, `wama/common/services/conformity_checker.py`,
+> `wama/common/management/commands/doc_facts.py`, `wama/common/mecanismes.py`,
+> `WAMA_MECANISMES.md`, `.claude/skills/reprise/SKILL.md`. **Rien touché** dans
+> `wama/accounts/*`, `PROFILES_PERMISSIONS.md`, `nightly_scenarios.py`, `wama_data/*`,
+> `WAMA_VERIFICATION.md` — périmètres d'autres instances (deux commits des leurs sont d'ailleurs
+> passés sous le mien pendant la session : `f805c3ff`, `e3c1fccf`).
+
+**Avatarizer : 94 % → 98 %** (76✅/1❌ sur 77). Trois rouges tombés, **et le premier n'a rien coûté
+à l'app — il fallait réparer la MESURE**.
+
+- **`model_help` était un FAUX ROUGE.** Le critère ne cherchait la brique que dans `wama/<app>/**`,
+  donc il déclarait rouge toute app dont l'aide-moteur vit par le **câblage centralisé** de
+  `WamaParams._bindModelHelp`. L'avatarizer déclare `help_source="synthesizer"` sur `tts_model` et
+  rend son schéma par `WamaParams` : **le descriptif s'affichait réellement pendant que la grille
+  disait le contraire**. Durci — et la liste des types auto-câblés est **lue dans le JS**, jamais
+  recopiée : le jour où la brique gagne un type, le critère suit seul.
+  ⚠⚠ **Portée mesurée AVANT le durcissement, sur les 10 apps : une seule bascule, aucune
+  régression.** *Durcir un instrument sans mesurer son rayon, c'est changer tous les scores en
+  croyant en corriger un.*
+- `model_caps_ui` + `input_match_ui` câblés dans l'IIFE existante, **après** `WamaParams.render`.
+  `WamaModelHelp` n'y est volontairement **pas** recâblé (`_bindModelHelp` s'en charge) : ce serait
+  le **doublon silencieux** que la doctrine de portage vise.
+- Reste **`during_preview`** — trou de plateforme (×6 apps), pas une dette de l'avatarizer.
+
+**Brique commune extraite au 2ᵉ consommateur** : `wama/common/tts/ui_meta.py` (meta d'UI des
+moteurs TTS). Les deux méthodes locales du synthesizer sont **REMPLACÉES par un appel**, jamais
+juxtaposées ; le module ne connaît aucune de ses apps (`ENGINE_CATALOG_KEYS` lui est **passé**).
+Synthesizer inchangé à 98 %, aucune autre app déplacée.
+
+**⚠ DÉFAUT RÉEL trouvé EN EXTRAYANT — il ne se voyait pas dans une app seule.** La meta d'aide
+était keyée sur `CATALOG_KEYS` (**4** entrées) alors que le select est peuplé par
+`TTS_MODEL_CHOICES` (**7**) : `vits`, `tacotron2` et `speedy-speech` n'ont **jamais** eu de
+descriptif — et le commentaire qui l'expliquait était **faux** (mesuré : 7/7 sont au catalogue).
+Corrigé par l'extraction (**4 → 7/7**, aucune description vide).
+*Une table de correspondance prise pour un inventaire perd tout ce qui n'a pas d'exception.*
+
+**🔚 CONSIGNÉ, NON CORRIGÉ (terrain `model_manager`, hors périmètre du jour)** :
+`input_match_meta` ne rend que **4 entrées sur 7** parce que `vits`/`tacotron2`/`speedy-speech`
+sont `is_proposed=True` avec `capabilities` **vide**. Le résultat d'UI est juste (ils ne clonent
+pas, donc ils se désactivent sur voix clonée) **mais pour une raison ACCIDENTELLE** — une
+métadonnée absente, pas une capacité déclarée. Le jour où l'un d'eux sortira de `is_proposed`, le
+comportement changera sans qu'aucune ligne d'UI n'ait bougé.
+
+**Balayage des mécanismes élargi à `wama/common/tts/`** — **QUATRIÈME** occurrence de la même
+leçon (`common/backends/` 13/08, le front 19/08, `common/memory/` 21/08), et celle-ci trouvée en
+**déposant** une brique dans le dossier : `constants.py`, `voices.py`, `service_client.py` y
+vivaient hors balayage, donc sans le moindre signal. **Effet mesuré, pas supposé** : 4 → 6 non
+rattachés, les deux nouveaux réellement transverses (**13 consommateurs** mesurés : `accounts`,
+`wama/views`, les 2 apps TTS, l'assistant) → déclarés en un mécanisme **`tts_vocabulaire`**
+(celui-ci **nomme**, `service_client` **transporte**). Retour à **4**. Mécanismes : 104 → **105**.
+> ⚠⚠ **La leçon ne s'apprend donc pas une fois pour toutes.** Le geste juste n'est pas de s'en
+> souvenir, c'est **d'ajouter le dossier au balayage dans le commit qui crée son premier fichier**.
+> Et les **DEUX** listes de dossiers recopiées à côté de la vraie avaient divergé de la même façon
+> (5 citées pour 7 balayées, dans `mecanismes.py` **comme** dans `WAMA_MECANISMES.md`) : remplacées
+> par un renvoi à `dossiers_balayes`. *Une liste blanche recopiée à côté de la vraie ne se met
+> jamais à jour deux fois.*
+
+**Skill `/reprise` : attendu de tests corrigé 1147 → 1145.** Les deux venvs rendent 1145 sur le
+même arbre (aucun fichier de test modifié — vérifié au `git show --name-only` ; aucun `load_tests`
+ni génération dynamique dans le dépôt) : c'était **ma propre erreur de recopie**, le matin même.
+*Recopier un nombre d'une sortie longue est un geste faillible — c'est exactement pourquoi ce
+total n'est pas un critère. Le seul attendu est `OK`.*
+
+### Contrôles attendus au prochain `/reprise` — tous MESURÉS le 2026-08-28 en clôture
+
+| contrôle | valeur mesurée |
+|---|---|
+| `manage.py test` | **1145 tests, `OK` (skipped=4)** — venv_win 127 s, venv_linux 506 s. ⚠ Le total n'est **pas** un critère (±quelques unités = recopie ou test ajouté) ; `OK` l'est. |
+| `check` / `check_templates` | **0 issue** · **0 défaut sur 128 gabarits** |
+| `doc_facts --check` | **6/6 à jour** |
+| `check_docs` | 34 docs, 13 skills, **1106 références** — **8 cassées, 0 périmée**, pour **1 SEULE cible distincte** (`_result_tabs.html`). ⚠ Le critère est la cible distincte, jamais le 8 : il monte dès qu'un `.md` recite la même cible — ce §REPRISE-ci s'en garde en ne réécrivant pas le chemin complet. |
+| grille | **avatarizer 98 %** (76✅/1❌ sur 77, reste `during_preview`) · **synthesizer 98 %** · aucune autre app déplacée |
+| carte des mécanismes | **105** déclarés · domiciles absents **0** · sans consommateur **2** (`benchmark_sync`, `qc`) · **4** modules balayés non rattachés (`conversation_store.py`, `export_formats.py`, `volet.py`, `wama-avatar.js`) |
+
+---
+
 ## §REPRISE — 2026-08-28, instance « GESTE 14 + DROITS AU NOCTURNE » — ✅ CLÔTURE (contexte épuisé)
 
 > **Partition tenue** : `wama/common/services/{nightly_tests,ui_smoke,rights_matrix}.py`,
