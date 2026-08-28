@@ -10,10 +10,10 @@
     "capabilities": {
       "accepts_url": true,
       "anti_race": true,
-      "batch_type": null,
+      "batch_type": "pipe",
       "during_preview": false,
-      "has_batch": false,
-      "has_url_import": false,
+      "has_batch": true,
+      "has_url_import": true,
       "has_youtube": false,
       "inspector": true,
       "layout": false,
@@ -808,7 +808,8 @@
         {
           "accepts": [
             "image",
-            "audio"
+            "audio",
+            "text"
           ],
           "icon": "fa-user-astronaut",
           "id": "avatar",
@@ -821,6 +822,301 @@
       "primary": "PARAMS_JSON",
       "schemas": {
         "PARAMS_JSON": [
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item"
+            ],
+            "default": null,
+            "dom_id": {
+              "item": "settingsTextContent"
+            },
+            "group": "",
+            "help": "La relance régénère la voix depuis ce texte.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-quote-left",
+            "inline": false,
+            "label": "Texte à dire",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "text_content",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": "text_content",
+            "step": null,
+            "type": "textarea",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": true,
+            "chip_label": "",
+            "choices": [
+              [
+                "coqui-xtts",
+                "XTTS v2 (Clonage vocal, 16 langues)"
+              ],
+              [
+                "bark",
+                "Bark (Naturel, Expressif, Effets sonores, 14 langues)"
+              ],
+              [
+                "kokoro",
+                "Kokoro 82M (Léger, FR/EN/ES/IT/PT/JA/ZH)"
+              ],
+              [
+                "vits",
+                "VITS (Rapide, EN uniquement)"
+              ],
+              [
+                "tacotron2",
+                "Tacotron2 (Classique, EN uniquement)"
+              ],
+              [
+                "speedy-speech",
+                "SpeedySpeech (Très rapide, EN uniquement)"
+              ],
+              [
+                "higgs-audio",
+                "Higgs Audio v2 (Multilocuteur, Clonage vocal, 9 langues, 24 Go VRAM)"
+              ]
+            ],
+            "contexts": [
+              "item"
+            ],
+            "default": "coqui-xtts",
+            "dom_id": {
+              "item": "settingsTtsModel"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": "synthesizer",
+            "icon": "fa-microchip",
+            "inline": false,
+            "label": "Modèle TTS",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "tts_model",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": "text_content",
+            "step": null,
+            "type": "select",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": false,
+            "chip_label": "",
+            "choices": [
+              [
+                "fr",
+                "Français"
+              ],
+              [
+                "en",
+                "English"
+              ],
+              [
+                "es",
+                "Español"
+              ],
+              [
+                "de",
+                "Deutsch"
+              ],
+              [
+                "it",
+                "Italiano"
+              ],
+              [
+                "pt",
+                "Português"
+              ],
+              [
+                "pl",
+                "Polski"
+              ],
+              [
+                "tr",
+                "Türkçe"
+              ],
+              [
+                "ru",
+                "Русский"
+              ],
+              [
+                "nl",
+                "Nederlands"
+              ],
+              [
+                "cs",
+                "Čeština"
+              ],
+              [
+                "ar",
+                "العربية"
+              ],
+              [
+                "zh-cn",
+                "中文"
+              ],
+              [
+                "ja",
+                "日本語"
+              ],
+              [
+                "ko",
+                "한국어"
+              ]
+            ],
+            "contexts": [
+              "item"
+            ],
+            "default": "fr",
+            "dom_id": {
+              "item": "settingsLanguage"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-language",
+            "inline": false,
+            "label": "Langue",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "language",
+            "option_groups": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": "text_content",
+            "step": null,
+            "type": "select",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "chip": true,
+            "chip_label": "",
+            "choices": [
+              [
+                "default",
+                "Voix par défaut"
+              ],
+              [
+                "male_1",
+                "Voix masculine 1"
+              ],
+              [
+                "male_2",
+                "Voix masculine 2"
+              ],
+              [
+                "female_1",
+                "Voix féminine 1"
+              ],
+              [
+                "female_2",
+                "Voix féminine 2"
+              ],
+              [
+                "custom",
+                "Voix personnalisée (clonage)"
+              ],
+              [
+                "bark_v2_en_0",
+                "Bark EN Speaker 0"
+              ],
+              [
+                "bark_v2_en_1",
+                "Bark EN Speaker 1"
+              ],
+              [
+                "bark_v2_en_2",
+                "Bark EN Speaker 2"
+              ],
+              [
+                "bark_v2_en_3",
+                "Bark EN Speaker 3"
+              ],
+              [
+                "bark_v2_en_4",
+                "Bark EN Speaker 4"
+              ],
+              [
+                "bark_v2_en_5",
+                "Bark EN Speaker 5"
+              ],
+              [
+                "bark_v2_fr_0",
+                "Bark FR Speaker 0"
+              ],
+              [
+                "bark_v2_fr_1",
+                "Bark FR Speaker 1"
+              ],
+              [
+                "bark_v2_es_0",
+                "Bark ES Speaker 0"
+              ],
+              [
+                "bark_v2_de_0",
+                "Bark DE Speaker 0"
+              ]
+            ],
+            "contexts": [
+              "item"
+            ],
+            "default": "default",
+            "dom_id": {
+              "item": "settingsVoicePreset"
+            },
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-user",
+            "inline": false,
+            "label": "Voix",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "voice_preset",
+            "option_groups": null,
+            "options_source": "voices",
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": "text_content",
+            "step": null,
+            "type": "select",
+            "unit": ""
+          },
           {
             "advanced": false,
             "chip": true,
@@ -1050,6 +1346,10 @@
             "-created_at"
           ],
           "params_fields": [
+            "text_content",
+            "tts_model",
+            "language",
+            "voice_preset",
             "use_enhancer",
             "bbox_shift"
           ],
@@ -1082,8 +1382,7 @@
         }
       ],
       "fixed_kwargs": {
-        "avatar_source": "gallery",
-        "mode": "standalone"
+        "avatar_source": "gallery"
       },
       "input_kinds": [
         "audio"
@@ -1104,13 +1403,13 @@
             "avatar_image_path": "str",
             "avatar_source": "str (défaut : 'gallery')",
             "bbox_shift": "range — Décalage vertical de la zone bouche (px). 0 = auto. [-9–9] (défaut : 0)",
-            "language": "str (défaut : 'fr')",
+            "language": "select — Langue (choix : fr | en | es | de | it | pt | pl | tr …) (défaut : 'fr')",
             "mode": "str (défaut : 'pipeline')",
             "quality_mode": "str (défaut : 'fast')",
-            "text_content": "str",
-            "tts_model": "str (défaut : 'coqui-xtts')",
+            "text_content": "textarea — La relance régénère la voix depuis ce texte.",
+            "tts_model": "select — Modèle TTS (choix : coqui-xtts | bark | kokoro | vits | tacotron2 | speedy-speech | higgs-audio) (défaut : 'coqui-xtts')",
             "use_enhancer": "toggle — Restauration faciale haute qualité — légèrement plus lent. (défaut : False)",
-            "voice_preset": "str (défaut : 'default')"
+            "voice_preset": "select — Voix (choix : default | male_1 | male_2 | female_1 | female_2 | custom | bark_v2_en_0 | bark_v2_en_1 …) (défaut : 'default')"
           },
           "description": "Ajoute un élément à la file d'attente de Avatarizer (Génération de vidéos d'avatars lip-sync animés par IA (MuseTalk + CodeFormer)) et renvoie son item_id."
         },

@@ -2076,7 +2076,10 @@
         "api_model_resolutions",
         "auto_prompt",
         "batch_children",
+        "batch_delete",
+        "batch_duplicate",
         "batch_preview",
+        "batch_start",
         "batch_template",
         "batch_update",
         "card_html",
@@ -2102,8 +2105,7 @@
         "restart",
         "save_settings",
         "start",
-        "start_all",
-        "start_batch"
+        "start_all"
       ],
       "extra_routes": [
         {
@@ -2227,9 +2229,19 @@
           "view": "views.get_batch_children"
         },
         {
-          "name": "start_batch",
+          "name": "batch_start",
           "pattern": "batch/<int:batch_id>/start/",
           "view": "views.start_batch"
+        },
+        {
+          "name": "batch_delete",
+          "pattern": "batch/<int:batch_id>/delete/",
+          "view": "views.batch_delete"
+        },
+        {
+          "name": "batch_duplicate",
+          "pattern": "batch/<int:batch_id>/duplicate/",
+          "view": "views.batch_duplicate"
         },
         {
           "name": "api_model_resolutions",

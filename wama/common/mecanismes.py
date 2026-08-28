@@ -122,6 +122,7 @@ MECANISMES = (
               "Registre déclaratif de scénarios + runner sérialisé VRAM-aware (wired/ui/consistency/…)",
               'wama/common/services/nightly_tests.py', 'PROJECT_STATUS.md §Tests fonctionnels nocturnes',
               annexes=('wama/common/services/ui_smoke.py',
+                       'wama/common/services/rights_matrix.py',
                        'wama/common/nightly_scenarios.py')),
     Mecanisme('system_monitor', 'Moniteur système',
               "Mesure unifiée CPU/RAM/GPU/disque (WSL + hôte Windows) — barre de ressources, model manager",

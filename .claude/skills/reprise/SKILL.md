@@ -45,16 +45,24 @@ python manage.py test                       # SUITE COMPLÈTE (~4 min) — ajout
 > Un compte d'échecs ne dit pas COMBIEN de causes il y a — les relever toutes :
 > `manage.py test 2>&1 | grep -E "^(FAIL|ERROR):|AssertionError"`.
 
-**État attendu au 2026-08-26** (mesure reportée du §REPRISE du jour ; c'était **852** le 25/08 —
-le total grossit à chaque test ajouté, **ne pas en faire un critère**) : **911 tests**,
-`FAILED (failures=8, errors=2)` —
-**STABLE** (vérifié sur 3 exécutions, mêmes noms). Ces 10 ont **DEUX causes connues** ;
-toute autre est une dérive :
+**État attendu au 2026-08-28** (mesuré ce jour ; c'était **852** le 25/08 et **911** le 26/08 —
+le total grossit à chaque test ajouté, **ne pas en faire un critère**) : **1147 tests**, **`OK`**,
+plus la ligne `Découverte : 2 module(s) ignoré(s) hors périmètre (wama-dev-ai.core, wama-dev-ai.ui)`.
+**La suite est VERTE : tout échec est désormais une dérive**, il n'y a plus de cause « connue » à
+excuser.
 
-| # | ce que c'est | cause |
+> ⚠ **Cet attendu a été FAUX du 27/08 au 28/08** et c'est la leçon à retenir de lui : il annonçait
+> `FAILED (failures=8, errors=2)` « STABLE, deux causes connues » alors que les deux étaient
+> **soldées**. Un attendu rouge qui décrit du vert est aussi nocif qu'un seuil périmé (cf. le 🔴
+> plus haut) : il fait accueillir une vraie régression comme « la normale ». **Réécrire ce bloc
+> dans le commit qui change l'état de la suite**, jamais plus tard.
+
+Les deux ex-causes, pour lire les références antérieures qui annoncent « 10 échecs » :
+
+| # | ce que c'était | comment c'est SOLDÉ |
 |---|---|---|
-| **8** | `wama.synthesizer.tests.ViewsTest` + `IntegrationTest` — tous `302 != 200` | les tests créent un user **sans droit sur l'app** ; `AppAccessMiddleware` redirige vers `/`. Les tests précèdent le gating d'apps. Correctif : `is_superuser=True` (tier `admin` ∈ `BYPASS_TIERS`) ou accorder le rôle |
-| **2** | `ERROR: wama-dev-ai.core` / `wama-dev-ai.ui` (`ModuleNotFoundError`) | la découverte de tests entre dans `wama-dev-ai/`, dossier **tiret-case volontairement non importable** (règle de nommage, CLAUDE.md). Rien à « corriger » côté nommage |
+| **8** | `wama.synthesizer.tests.ViewsTest` + `IntegrationTest` — tous `302 != 200` : user créé **sans droit sur l'app**, `AppAccessMiddleware` redirigeait vers `/` | une fabrique locale (`wama/synthesizer/tests.py:43-48`) **accorde le rôle `communication`**, comme `nightly_tests.get_test_user()`. ⚠ La voie `is_superuser=True` a été **explicitement écartée** : neutraliser le portier rend les tests aveugles à une régression du gating. Un test de vues doit **franchir** le portier, pas le contourner |
+| **2** | `ERROR: wama-dev-ai.core` / `.ui` (`ModuleNotFoundError`) : la découverte entrait dans un dossier **tiret-case volontairement non importable** | `wama/common/runners.py:81` — `RACINES_HORS_DECOUVERTE = ('wama-dev-ai',)`, élagage annoncé à l'écran (donc jamais silencieux) |
 
 ⚠ **Comparer les NOMS des tests en échec, jamais leur nombre** — un compte identique peut
 recouvrir un échec qui remplace un autre :
@@ -71,8 +79,10 @@ recouvrir un échec qui remplace un autre :
 > jetable sous `media_tests/`. **Ne jamais rétablir de test qui écrit dans `media/`.**
 - ⚠ `check_docs` : lancer depuis **Windows** (`./venv_win/Scripts/python.exe`) — il parcourt
   l'arborescence, et `/mnt/d` depuis WSL2 met plusieurs minutes.
-  Depuis le **2026-08-27** il couvre AUSSI **les 11 skills** (`.claude/skills/*/SKILL.md`) et les
-  renvois `.md` entre docs — d'où le corpus passé de 540 à 741 références. `--skills` les isole.
+  Depuis le **2026-08-27** il couvre AUSSI **les skills** (`.claude/skills/*/SKILL.md`) et les
+  renvois `.md` entre docs — d'où un corpus qui a bondi (540 → 741 → **1103** au 28/08, 34 docs
+  et 13 skills). `--skills` les isole. ⚠ **Ce total n'est PAS un critère** : il monte avec chaque
+  doc et chaque skill ajouté. Le seul critère est le nombre de CIBLES distinctes (🔴 ci-dessous).
   ⚠ **Il vérifie que les RÉFÉRENCES existent, pas que les CHIFFRES disent vrai** : le pire défaut
   de l'audit du 26/08 (`/port-app` annonçant « F6/F7/F8 : ZÉRO critère ») serait passé au travers.
 - ⚠ `manifest_export --check` : lancer depuis **WSL2** (`venv_linux`) — les manifestes `library`
@@ -86,14 +96,14 @@ recouvrir un échec qui remplace un autre :
 - 🔴 **LE CRITÈRE EST LE NOMBRE DE CIBLES DISTINCTES — attendu = 1.** (Détail et raison plus bas.)
   Comparer les **fichiers cités**, jamais le nombre de références.
 
-- **État MESURÉ au 2026-08-27** : `check_docs` = **5 références cassées / 0 périmée sur 741**,
+- **État MESURÉ au 2026-08-28** : `check_docs` = **8 références cassées / 0 périmée sur 1103**,
   pour **1 SEULE cible distincte** — le **partial d'onglets de résultat jamais créé** (cible de
   `REMOVAL_LEDGER` R18 ; duplication vérifiée présente, `transcriber/index.html:307` et
   `describer/index.html:109` portent le même `#resultTabs`).
   ⚠ **Le chemin n'est volontairement pas réécrit ici** — l'écrire ferait de cette ligne une
   référence cassée de plus. C'est exactement ainsi que le compte est passé de 4 à 5 le 24/08 :
   le bloc « Contrôles attendus » l'a recité pour en rendre compte.
-  ⚠⚠ **Ne pas lire « 4 » ni « 5 » comme un seuil** — voir le 🔴 ci-dessus. Le 26/08, j'ai lu la
+  ⚠⚠ **Ne pas lire « 4 », « 5 » ni « 8 » comme un seuil** — voir le 🔴 ci-dessus. Le 26/08, j'ai lu la
   ligne d'état périmée (« 4 / 518 ») et conclu à tort que le seuil du skill avait dérivé, alors
   que le critère juste était deux lignes plus bas et **tenait**. *Un chiffre périmé posé à côté
   de la bonne règle se fait lire à sa place.*

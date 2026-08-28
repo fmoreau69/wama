@@ -101,7 +101,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Mémoire GPU** | Garantit la VRAM avant un chargement, la reprend sur les autres modèles, et réessaie après libération sur erreur CUDA | `wama/model_manager/services/memory_manager.py` | `PROJECT_STATUS.md §0` | 16 |
 | **Progression de tâche longue** | Avancement d'une tâche Celery HORS file d'items publié dans le cache (F5-proof) + garde « déjà en cours » vérifiée auprès de Celery ; pendant navigateur = WamaApp.Poller | `wama/common/utils/task_progress.py` | `wama/model_manager/PROSPECTION_PIPELINE.md` | 3 |
 | **Squelette de tâche** | Enchaînement commun des tâches Celery d'item : gardes, progress, statuts, ETA | `wama/common/utils/task_skeleton.py` | `WAMA_APP_GENERATION_ROUTE.md` | 4 |
-| **Tests nocturnes** | Registre déclaratif de scénarios + runner sérialisé VRAM-aware (wired/ui/consistency/…) | `wama/common/services/nightly_tests.py` | `PROJECT_STATUS.md §Tests fonctionnels nocturnes` | 12 |
+| **Tests nocturnes** | Registre déclaratif de scénarios + runner sérialisé VRAM-aware (wired/ui/consistency/…) | `wama/common/services/nightly_tests.py` | `PROJECT_STATUS.md §Tests fonctionnels nocturnes` | 11 |
 
 #### Modèles (11)
 
@@ -237,7 +237,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Runner générique du studio** | Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app | `wama/studio/services/generic_runner.py` | `STUDIO_VISION.md` | 7 |
 | **Surface d'outils** | Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas | `wama/tool_api.py` | `WAMA_APP_GENERATION_ROUTE.md` | 9 |
 
-**Mécanismes déclarés : 104** · domiciles absents : 0 · sans consommateur : 2 · assumés locaux : 19 · modules balayés non rattachés : 5 · **de niveau app sans critère de grille : 26**
+**Mécanismes déclarés : 104** · domiciles absents : 0 · sans consommateur : 2 · assumés locaux : 19 · modules balayés non rattachés : 4 · **de niveau app sans critère de grille : 26**
 - ⚠ **Sans consommateur** (brique morte ou pas encore adoptée) : `benchmark_sync` (wama/model_manager/services/benchmark_sync.py), `qc` (wama/common/utils/qc.py)
 
 <details><summary>⚠ <b>26 mécanisme(s) de niveau app SANS critère de grille</b> — adoptés par des apps, vérifiés par aucun critère (<code>Criterion.mecanisme</code>) : une app peut sortir à 100 % sans les avoir adoptés</summary>
@@ -273,10 +273,10 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 
 </details>
 
-<details><summary>⚠ <b>5 module(s) balayé(s) non rattachés au registre</b> — à déclarer dans <code>wama/common/mecanismes.py</code>, ou à assumer comme utilitaires locaux (tout n'est pas un mécanisme transversal)</summary>
+<details><summary>⚠ <b>4 module(s) balayé(s) non rattachés au registre</b> — à déclarer dans <code>wama/common/mecanismes.py</code>, ou à assumer comme utilitaires locaux (tout n'est pas un mécanisme transversal)</summary>
 
 
-`wama/common/services/` (2) — `conversation_store.py` · `rights_matrix.py`
+`wama/common/services/` (1) — `conversation_store.py`
 
 `wama/common/utils/` (2) — `export_formats.py` · `volet.py`
 
