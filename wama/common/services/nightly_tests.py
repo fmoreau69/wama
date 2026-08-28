@@ -244,6 +244,7 @@ try:
                                                register_send_to_scenarios,
                                                register_settings_scenarios,
                                                register_ui_scenarios,
+                                               register_url_import_scenarios,
                                                register_volet_scenarios)
     register_ui_scenarios()
     # `<app>.ui` mesure la SANTÉ de la page (200, 0 erreur console) ; `<app>.import` mesure
@@ -304,5 +305,11 @@ try:
     # produit qu'un toast d'erreur. Un test qui posterait sur l'endpoint ne le verrait jamais —
     # il faut passer par le menu, c'est-à-dire par le geste.
     register_send_to_scenarios()
+    # 2026-08-28 — geste 14, moitié « URL ». Le seul geste du catalogue qui fait SORTIR le
+    # serveur, donc le seul dont la mesure rencontre la garde SSRF (`url_guard`). Le scénario
+    # ne la contourne pas : il publie son témoin sous MEDIA_URL (bouclage), et lit ce que
+    # l'app en fait. Une app qui le TÉLÉCHARGE quand même n'appelle pas la garde — c'est un
+    # échec de sécurité, pas un succès du geste, et aucune autre mesure ne le verrait.
+    register_url_import_scenarios()
 except Exception as _e:                                   # pragma: no cover
     logger.debug(f"[nightly] scénarios UI non enregistrés ({_e})")

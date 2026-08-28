@@ -96,11 +96,13 @@ def _exercise_page(url, png_path, selector=None, timeout_ms=45000):
     erreurs JS vivent dans les GESTIONNAIRES d'événements — elles n'apparaissent qu'au clic.
     Les onglets sont le seul geste réellement commun (mesuré : présents sur 10 des 13 apps).
 
-    Retourne (status, erreurs_js, sélecteur_trouvé, nb_onglets_parcourus, session_supprimée).
+    Retourne (status, erreurs_js, sélecteur_trouvé, nb_onglets_parcourus, session_supprimée,
+    atterrissage) — ce dernier étant le couple (url réellement atteinte, messages à l'écran),
+    sans lequel un 302 vers l'accueil se lit « HTTP 200 » (cf. `_verdict_d_arrivee`).
     """
     from playwright.sync_api import sync_playwright
 
-    errors, status, found, tabs_done = [], None, None, 0
+    errors, status, found, tabs_done, atterri = [], None, None, 0, ('', '')
     png_path.parent.mkdir(parents=True, exist_ok=True)
     sessions_before = _session_keys()
     with sync_playwright() as p:
@@ -112,6 +114,7 @@ def _exercise_page(url, png_path, selector=None, timeout_ms=45000):
             page.on('pageerror', lambda e: errors.append(f"pageerror: {e}"))
             resp = page.goto(url, wait_until='networkidle', timeout=timeout_ms)
             status = resp.status if resp else None
+            atterri = (page.url, _messages_a_l_ecran(page))
             if selector:
                 found = page.locator(selector).count() > 0
 
@@ -149,7 +152,7 @@ def _exercise_page(url, png_path, selector=None, timeout_ms=45000):
             browser.close()
     dropped = _drop_new_sessions(sessions_before)
     keep = [e for e in errors if not any(tok in e for tok in IGNORED_CONSOLE)]
-    return status, keep, found, tabs_done, dropped
+    return status, keep, found, tabs_done, dropped, atterri
 
 
 def _diff_ratio(current: Path, reference: Path):
@@ -197,11 +200,19 @@ def check_app_page(app: str, url_path: str, selector: str | None = None):
 
     url = f"{BASE_URL.rstrip('/')}{url_path}"
     try:
-        status, errors, found, tabs, dropped = _exercise_page(
+        status, errors, found, tabs, dropped, atterri = _exercise_page(
             url, CUR_DIR / f"{app}.png", selector)
     except Exception as e:
         # Serveur éteint ou navigateur absent = dépendance manquante, pas une régression.
         raise SkipScenario(f"page injoignable ({type(e).__name__}: {str(e)[:120]})")
+
+    # ⚠ AVANT tout le reste : sommes-nous seulement sur la page de l'app ? Un 302 vers
+    # l'accueil rend « HTTP 200 », et ce scénario a déclaré « page OK » pour une app qu'il
+    # n'avait jamais ouverte (converter_01, 2026-08-28). Les erreurs JS, le sélecteur, la
+    # capture de référence : tout ce qui suit porterait sur l'ACCUEIL.
+    mauvaise_page = _verdict_d_arrivee(atterri[0], atterri[1], status, url_path)
+    if mauvaise_page:
+        return mauvaise_page
 
     # ── Couche 1 : la barrière ────────────────────────────────────────────────
     problems = []
@@ -321,6 +332,79 @@ def _fichier_temoin(extensions: str) -> Path:
     f = tempfile.NamedTemporaryFile('wb', suffix=ext, delete=False)
     f.write(contenu); f.close()
     return Path(f.name)
+
+
+def _exiger_la_page(page, resp, cible: str):
+    """Vérifie qu'on est SUR la page demandée — pas seulement qu'UNE page a répondu 200.
+
+    `cible` est un chemin (`/converter/`) ou une URL complète. Rend `None` si tout va bien,
+    le couple `(False, motif)` que le scénario n'a plus qu'à retourner sinon, et LÈVE
+    `SkipScenario` quand la redirection est un refus de droits — les trois seules issues.
+
+    ⚠⚠ `page.goto` SUIT les redirections et rapporte le statut de la page d'ARRIVÉE. Un 302
+    vers l'accueil rend donc `resp.status == 200`, et le contrôle `if resp.status != 200`
+    — écrit onze fois dans ce fichier — laisse passer une page qu'on n'a jamais vue. Le
+    scénario mesure alors l'ACCUEIL en croyant mesurer l'app, et TOUT ce qu'il en dit porte
+    sur la mauvaise page.
+
+    Mesuré le 2026-08-28, et le relevé est le vrai argument : `converter_01` est refusé au
+    compte de test par `accounts.middleware.AppAccessMiddleware` (l'app n'est pas dans ses
+    droits — `redirect('home')`, l.45). Ses SEPT scénarios ont rendu SEPT raisons fausses,
+    toutes affirmatives sur une surface jamais atteinte — « `show_url` non déclaré »,
+    « aucune card d'entrée sur cette surface », « pas de volet #inspectorActions », « aucune
+    barre de détection de lot »… — et `converter_01.ui` a conclu « page OK (HTTP 200, 0
+    erreur JS) ». Une app entière était invisible au nocturne, qui la déclarait saine.
+
+    D'où la distinction que fait `_verdict_d_arrivee` : un refus de DROITS n'est pas un
+    défaut de l'app (le compte de test n'y a simplement pas accès → skip nommé), tandis
+    qu'une redirection SANS motif de droits est un vrai défaut — la page devrait s'ouvrir.
+    """
+    return _verdict_d_arrivee(page.url, _messages_a_l_ecran(page),
+                              resp.status if resp else None, cible)
+
+
+def _messages_a_l_ecran(page) -> str:
+    """Les messages Django affichés — c'est là que le middleware NOMME son refus."""
+    try:
+        return (page.evaluate(
+            "() => Array.from(document.querySelectorAll('.alert, .messages li, .toast'))"
+            "        .map(e => (e.innerText || '').trim()).filter(Boolean).join(' | ')")
+                or '')[:300]
+    except Exception:
+        return ''
+
+
+def _verdict_d_arrivee(url_arrivee: str, dit: str, status, cible: str):
+    """Le verdict de `_exiger_la_page`, séparé de la page vivante.
+
+    Le scénario `ui` passe par `_exercise_page`, qui referme son navigateur avant de rendre
+    la main : il n'a plus d'objet `page` à interroger, seulement ce qu'il en a rapporté.
+    Deux chemins vers un même jugement seraient deux chemins à corriger le jour où l'un
+    d'eux se trompe — la leçon coûte assez cher comme ça.
+    """
+    from urllib.parse import urlparse
+
+    from wama.common.services.nightly_tests import SkipScenario
+
+    url_path = urlparse(cible).path if '://' in (cible or '') else (cible or '/')
+    if status is None:
+        return False, f"page {url_path} : aucune réponse"
+    if status != 200:
+        return False, f"page {url_path} HTTP {status}"
+
+    arrivee = urlparse(url_arrivee or '').path.rstrip('/')
+    demande = (url_path or '/').rstrip('/')
+    if arrivee == demande or (demande and arrivee.startswith(demande + '/')):
+        return None                                   # on est bien où on voulait
+
+    dit, ou = (dit or '')[:300], (arrivee or '/')
+    if 'autoris' in dit.lower() or 'interdit' in dit.lower() or 'permission' in dit.lower():
+        raise SkipScenario(
+            f"l'app n'est pas ouverte au compte de test : {url_path} a redirigé vers {ou} "
+            f"et l'écran dit « {dit} ». Rien n'est mesurable ici, et rien ne doit être "
+            f"AFFIRMÉ sur la surface de l'app — on ne l'a pas vue")
+    return False, (f"page {url_path} : le serveur a redirigé vers {ou} sans motif de droits"
+                   + (f" — écran : « {dit} »" if dit else " et sans rien afficher"))
 
 
 def _deplier_autour(page, selecteur: str) -> bool:
@@ -505,8 +589,9 @@ def check_app_import(app: str, url_path: str):
                     posts.append((r.status, r.url.split('?')[0], corps))
                 page.on('response', _voir)
                 resp = page.goto(url, wait_until='networkidle', timeout=45000)
-                if not resp or resp.status != 200:
-                    return False, f"page HTTP {resp.status if resp else '?'}"
+                mauvaise_page = _exiger_la_page(page, resp, url)
+                if mauvaise_page:
+                    return mauvaise_page
                 page.wait_for_timeout(1200)
                 etat = page.evaluate(ETAT)
 
@@ -708,8 +793,9 @@ def check_app_send_to(app: str, url_path: str):
                 # geste réel : on est dans l'app, on va chercher un fichier dans l'explorateur.
                 resp = page.goto(f"{BASE_URL.rstrip('/')}{url_path}",
                                  wait_until='networkidle', timeout=45000)
-                if not resp or resp.status != 200:
-                    return False, f"page {url_path} HTTP {resp.status if resp else '?'}"
+                mauvaise_page = _exiger_la_page(page, resp, url_path)
+                if mauvaise_page:
+                    return mauvaise_page
                 page.wait_for_selector(f'{ARBRE} .jstree-anchor', timeout=20000)
 
                 # DÉPLIER le dossier « Temporaires » par l'API de l'arbre. C'est de
@@ -834,6 +920,307 @@ def register_send_to_scenarios():
         )
 
 
+# ── Geste 14, part « URL » : coller un lien au lieu de déposer un fichier ──────────────
+#
+# ⚠ CE GESTE FAIT SORTIR LE SERVEUR, ET LA SORTIE EST GARDÉE. `common/utils/url_guard.py`
+# refuse toute cible de bouclage ou privée — garde SSRF posée le 2026-08-22, précisément
+# parce que ce champ de saisie faisait interroger l'intérieur du réseau UGE PAR le serveur,
+# avec ses droits réseau à lui. Un nocturne n'a donc pas le choix entre « témoin local » et
+# « app qui télécharge » : les deux s'excluent PAR CONSTRUCTION. Et c'est très bien ainsi —
+# la seule alternative serait de dépendre d'Internet toutes les nuits, ou de lever la garde,
+# c'est-à-dire de mesurer une configuration que personne n'exécute.
+#
+# Le scénario en fait donc sa mesure au lieu de la contourner. Il distingue trois familles
+# PAR LEUR COMPORTEMENT — jamais par une liste d'apps, qui dériverait dès la suivante :
+#   • URL DIFFÉRÉE (transcriber, converter, describer…) : l'URL entre par le pipeline de LOT
+#     commun (`WamaApp.initUrlImport` → `ingestText`), l'élément est créé avec sa source, et
+#     le téléchargement attend le démarrage de la tâche (`ensure_local_input`). Aucun octet
+#     ne sort à l'import : le geste est mesurable ENTIER, et il l'est.
+#   • URL RÉSOLUE À L'IMPORT (anonymizer, enhancer, avatarizer — chacune son propre handler) :
+#     la vue télécharge tout de suite. La garde refuse le témoin local, l'app rend son motif,
+#     le scénario le RECONNAÎT et skippe EN LE NOMMANT. Le maillon « un élément apparaît »
+#     reste alors NON MESURÉ pour ces apps : trou nommé, pas trou enterré.
+#   • ⚠⚠ ET LE CAS QUI JUSTIFIE LE SCÉNARIO À LUI SEUL : une app qui RÉUSSIT à se remplir
+#     depuis `127.0.0.1`. Réussir veut dire qu'elle a téléchargé une cible de BOUCLAGE, donc
+#     qu'elle n'appelle pas la garde commune. C'est une SSRF, et c'est un ÉCHEC — pas un
+#     succès du geste. On ne le déduit pas du code : on regarde si un FICHIER a été rempli.
+_URL_EN_ETAT = """(() => {
+    // Le bouton d'import URL est identifié par son TITRE, posé par la brique commune
+    // (`_new_item_card.html`) — pas par un id d'app, qui varie (youtubeSubmitBtn,
+    // converterUrlSubmit, anonUrlSubmit…). Le champ est son voisin dans le même groupe.
+    // ⚠ `title^="Importer depuis l"` viserait AUSSI « Importer depuis la médiathèque ».
+    const btn = document.querySelector('button[title$="URL"]');
+    const grp = btn ? btn.closest('.input-group') : null;
+    const nic = document.querySelector('[data-wama-nic]');
+    const inp = grp ? grp.querySelector('input[type=text], input[type=url]')
+                    : (nic ? nic.querySelector('input[placeholder*="http"]') : null);
+    return {bouton: !!btn, bouton_id: btn ? (btn.id || '') : '',
+            champ: !!inp, champ_id: inp ? (inp.id || '') : '',
+            cards: document.querySelectorAll('.wama-card').length};
+})()"""
+
+# Motifs rendus par la garde de sortie (`url_guard.UrlRefusee`). On les reconnaît au TEXTE
+# parce que c'est tout ce qui traverse jusqu'à l'écran : la garde lève une `ValueError` que
+# chaque vue transforme en son propre message. Reconnaître la garde par son motif, et non par
+# le code HTTP, évite de confondre « le témoin est refusé pour ce qu'il est » (attendu) avec
+# « l'import est cassé » (à corriger).
+_MOTIFS_DE_GARDE = ('cible interdite', 'bouclage', 'adresse privée', 'adresse réservée',
+                    'lien-local', 'hôte introuvable')
+
+
+def check_app_url_import(app: str, url_path: str):
+    """Coller une URL dans la card d'entrée crée-t-il un élément ? (ok, detail).
+
+    Geste 14 de la grille FONCTIONNELLE, moitié « URL ». Ce qui est mesuré, dans cet ordre —
+    le premier manquant explique les suivants :
+      1. la voie URL est-elle OFFERTE (champ + bouton de la brique commune) ?
+      2. le clic ÉMET-il quelque chose — ou le bouton est-il mort ?
+      3. un élément apparaît-il, et l'app a-t-elle respecté la garde de sortie ?
+
+    Ne démarre AUCUN traitement : le pipeline de lot crée par « Ajouter », jamais par
+    « Démarrer », et les apps à URL résolue sont refusées avant tout traitement.
+    """
+    from wama.common.services.nightly_tests import SkipScenario
+    from playwright.sync_api import sync_playwright
+
+    jeton = _session_compte_de_test()
+    if not jeton:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3) "
+                           "— les droits ne sont pas simulables, on ne mesure pas à l'aveugle")
+    uid = _id_du_compte_de_test()
+    if not uid:
+        raise SkipScenario("id du compte de test illisible — sans lui, aucun témoin à publier")
+
+    # Le témoin est un VRAI fichier, publié par le serveur lui-même sous `MEDIA_URL` (servi
+    # sans authentification, vérifié le 2026-08-28) : l'URL collée est donc joignable, d'une
+    # extension que l'app DÉCLARE accepter, et rien ne sort de la machine. C'est la seule
+    # façon d'exercer le geste sans dépendre d'Internet toutes les nuits.
+    from wama.common.app_registry import APP_CATALOG
+    exts = list((APP_CATALOG.get(app) or {}).get('input_extensions') or ())
+    source = _fichier_temoin(','.join(e if e.startswith('.') else f'.{e}' for e in exts))
+    dossier = Path(settings.MEDIA_ROOT) / f'users/{uid}/temp'
+    dossier.mkdir(parents=True, exist_ok=True)
+    temoin = dossier / f'url_temoin_{app}{source.suffix}'
+    temoin.write_bytes(source.read_bytes())
+    source.unlink(missing_ok=True)
+    lien = (f"{BASE_URL.rstrip('/')}/{str(settings.MEDIA_URL).strip('/')}"
+            f"/users/{uid}/temp/{temoin.name}")
+
+    detail, familles, garde_dite, dits = '', [], [], []
+    sessions_before = _session_keys()
+    try:
+        with _garde_de_montage(app, 'url_import') as _nettoyes:
+            with sync_playwright() as p:
+                navigateur = p.chromium.launch()
+                try:
+                    contexte = navigateur.new_context(viewport={'width': 1500, 'height': 1000})
+                    contexte.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': jeton,
+                                           'domain': '127.0.0.1', 'path': '/'}])
+                    page = contexte.new_page()
+                    posts = []
+
+                    def _voir(r):
+                        if r.request.method != 'POST':
+                            return
+                        corps = ''
+                        if r.status >= 400:
+                            try:
+                                corps = (r.text() or '')[:300].replace('\n', ' ')
+                            except Exception:
+                                corps = '(corps illisible)'
+                        posts.append((r.status, r.url.split('?')[0], corps))
+                    page.on('response', _voir)
+                    # Un refus de la garde ne passe pas toujours par un code HTTP : plusieurs
+                    # vues répondent 200 avec `{success: false, error: …}`. Le motif n'existe
+                    # alors QUE dans le toast — et il s'efface au bout de 3,5 s. On l'observe
+                    # à la volée, comme le scénario de lot.
+                    dialogues = []
+                    page.on('dialog', lambda d: (dialogues.append(d.message), d.dismiss()))
+
+                    resp = page.goto(f"{BASE_URL.rstrip('/')}{url_path}",
+                                     wait_until='networkidle', timeout=45000)
+                    mauvaise_page = _exiger_la_page(page, resp, url_path)
+                    if mauvaise_page:
+                        return mauvaise_page
+                    page.wait_for_timeout(1200)
+                    page.evaluate("""() => {
+                        window.__wamaToasts = [];
+                        new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => {
+                            if (n.nodeType === 1 && n.classList &&
+                                n.classList.contains('wama-toast'))
+                                window.__wamaToasts.push(n.textContent);
+                        }))).observe(document.body, {childList: true});
+                    }""")
+
+                    etat = page.evaluate(_URL_EN_ETAT)
+                    if not etat['champ'] and not etat['bouton']:
+                        raise SkipScenario(
+                            "aucune voie d'import par URL sur cette surface "
+                            "(`show_url` non déclaré) — geste non applicable")
+                    if etat['champ'] and not etat['bouton']:
+                        # DÉCLARÉ, et légitime : `_new_item_card.html:134` ne rend le bouton
+                        # que si `url_submit_id` est fourni. Une app dont l'URL fait partie du
+                        # payload de CRÉATION (composer : la mélodie ; imager : l'image de
+                        # référence) offre le champ SANS bouton — l'URL part avec le bouton
+                        # primaire, donc avec un traitement. C'est un geste GPU, pas celui-ci.
+                        raise SkipScenario(
+                            "le champ URL est offert SANS bouton d'import (`url_submit_id` "
+                            "absent) : l'URL fait partie du payload de création, elle part "
+                            "avec le bouton primaire — geste GPU, mesuré ailleurs")
+
+                    # La card d'entrée est servie REPLIÉE par 6 apps sur 9 : dans un repli, le
+                    # champ a des dimensions nulles et Playwright attend 30 s avant de rendre
+                    # un « navigateur indisponible » parfaitement faux (leçon du 23/08).
+                    _deplier_autour(page, f'#{etat["champ_id"]}' if etat['champ_id']
+                                    else 'button[title$="URL"]')
+                    avant = page.evaluate("document.querySelectorAll('.wama-card').length")
+                    sel_champ = (f'#{etat["champ_id"]}' if etat['champ_id']
+                                 else '.input-group:has(button[title$="URL"]) input[type=text]')
+                    sel_bouton = (f'#{etat["bouton_id"]}' if etat['bouton_id']
+                                  else 'button[title$="URL"]')
+                    page.fill(sel_champ, lien)
+                    page.click(sel_bouton, timeout=10000)
+
+                    # DEUX chaînes possibles, et on ne présume pas laquelle : soit l'aperçu de
+                    # lot s'ouvre (famille DIFFÉRÉE — l'URL est une ligne de lot), soit la vue
+                    # répond directement (famille RÉSOLUE). On attend la première ; son absence
+                    # n'est pas un échec, c'est l'autre branche.
+                    try:
+                        page.wait_for_selector('#batchCreateOnlyBtn', state='visible',
+                                               timeout=15000)
+                        familles.append('différée (pipeline de lot)')
+                        try:
+                            with page.expect_navigation(wait_until='load', timeout=30000):
+                                page.click('#batchCreateOnlyBtn', timeout=15000)
+                        except Exception:
+                            pass          # une app peut rafraîchir sa file sans recharger
+                        try:
+                            page.wait_for_load_state('networkidle', timeout=30000)
+                        except Exception:
+                            pass
+                    except Exception:
+                        familles.append('résolue à l’import')
+                    page.wait_for_timeout(2500)
+                    try:
+                        page.wait_for_load_state('networkidle', timeout=15000)
+                    except Exception:
+                        pass
+                    apres = page.evaluate("document.querySelectorAll('.wama-card').length")
+                    try:
+                        dits = list(dialogues) + (page.evaluate("window.__wamaToasts || []") or [])
+                    except Exception:
+                        dits = list(dialogues)
+                    dits = [t for t in dits if (t or '').strip()]
+                    garde_dite = [t for t in dits
+                                  if any(m in (t or '').lower() for m in _MOTIFS_DE_GARDE)]
+                    refus = [f"HTTP {s} {u} → {c}" for s, u, c in posts if s >= 400]
+                    refus_garde = [r for r in refus
+                                   if any(m in r.lower() for m in _MOTIFS_DE_GARDE)]
+                finally:
+                    navigateur.close()
+
+            # ── ORM de nouveau accessible (la boucle Playwright est refermée), et la garde
+            # n'a pas encore nettoyé : c'est LA fenêtre pour regarder ce qui a été créé.
+            # Un FileField rempli veut dire que le serveur est ALLÉ CHERCHER le témoin —
+            # donc qu'il a suivi une URL de bouclage, donc que la garde n'est pas sur ce
+            # chemin. On ne le déduit pas du code : on le constate sur le disque.
+            telecharges = _fichiers_des_objets_neufs(app, temoin.stat().st_size)
+    except SkipScenario:
+        raise
+    except Exception as e:
+        raise SkipScenario(f"navigateur/serveur indisponible ({type(e).__name__}: {str(e)[:120]})")
+    finally:
+        temoin.unlink(missing_ok=True)
+        _drop_new_sessions(sessions_before)
+
+    voie = familles[0] if familles else 'inconnue'
+    trace = (f" ; {_total_nettoye(_nettoyes)} objet(s) de test nettoyé(s)"
+             if _nettoyes else "")
+    if telecharges:
+        return False, (f"⚠ SSRF : l'app a TÉLÉCHARGÉ le témoin depuis {lien} — une cible de "
+                       f"BOUCLAGE — et rempli {telecharges[0]}. La garde de sortie commune "
+                       "(`url_guard.verifier_url`) n'est donc pas appelée sur ce chemin "
+                       "d'import" + trace)
+    if not posts:
+        # ⚠ MUET ou MOTIVÉ : ce n'est pas la même chose, et l'écart est tout le verdict.
+        # Sans message, le bouton est MORT — la brique commune l'a rendu, rien ne l'écoute,
+        # et l'utilisateur clique dans le vide sans que rien ne le lui dise. Avec un message,
+        # la chaîne a tourné jusqu'à un refus DÉLIBÉRÉ : l'avatarizer proxie son bouton URL
+        # vers le bouton primaire, qui exige aussi un avatar (`avatarizer/js/index.js:236`) —
+        # et ce bouton primaire CRÉE ET DÉMARRE (`createJob` puis `startJob`), donc un geste
+        # GPU, hors session. Le premier jet appelait ça un défaut : c'était l'instrument qui
+        # confondait « rien ne se passe » et « on m'a expliqué pourquoi ».
+        if dits:
+            raise SkipScenario(
+                f"le clic ne poste rien, mais l'app a rendu son motif : « {dits[0][:200]} » — "
+                f"sa voie URL dépend d'un autre champ et passe par le bouton primaire, qui "
+                f"crée ET démarre. Geste GPU : non mesurable en session" + trace)
+        return False, (f"le bouton d'import URL ({sel_bouton}) est offert, le clic n'émet "
+                       "AUCUNE requête et l'app ne dit RIEN — champ et bouton rendus par la "
+                       "brique commune, mais rien ne les écoute. Défaut muet : ni erreur "
+                       "console, ni message" + trace)
+    if garde_dite or refus_garde:
+        motif = (garde_dite[0] if garde_dite else refus_garde[0])[:200]
+        raise SkipScenario(
+            f"l'app RÉSOUT l'URL à l'import et la garde de sortie a refusé le témoin local : "
+            f"« {motif} ». La garde est donc ARMÉE sur ce chemin (c'est le bon comportement), "
+            f"mais le maillon « un élément apparaît » reste NON MESURÉ ici : le mesurer "
+            f"exigerait une cible publique, donc un nocturne dépendant d'Internet" + trace)
+    if refus:
+        return False, (f"voie {voie} : l'URL est refusée pour un motif qui n'est PAS la garde "
+                       f"de sortie — {' | '.join(refus[:2])}" + trace)
+    if apres <= avant:
+        return False, (f"voie {voie} : requête(s) acceptée(s) ({len(posts)} POST) mais aucun "
+                       f"élément n'apparaît ({avant} → {apres} cards)" + trace)
+    return True, (f"élément créé depuis une URL ({avant} → {apres} cards ; voie : {voie} ; "
+                  f"témoin publié sous MEDIA_URL, aucune sortie réseau){trace}")
+
+
+def _fichiers_des_objets_neufs(app: str, taille: int):
+    """Les FileField REMPLIS des objets d'app créés à l'instant, dont la taille correspond.
+
+    Sert à une seule question, et elle est de sécurité : le serveur est-il ALLÉ CHERCHER le
+    témoin publié en bouclage ? Un fichier de la bonne taille dans le dossier de l'app est la
+    seule preuve positive ; l'absence de garde ne se lit pas dans le code des 10 apps, elle se
+    constate ici. Appelée APRÈS `sync_playwright` (l'ORM y est interdit) et AVANT le nettoyage.
+    """
+    trouves = []
+    try:
+        from wama.common.utils.preview_registry import PreviewRegistry
+        modele = PreviewRegistry.get_model(app)
+        if modele is None:
+            return trouves
+        champs = [f.name for f in modele._meta.get_fields()
+                  if getattr(f, 'get_internal_type', lambda: '')() in ('FileField', 'ImageField')]
+        if not champs:
+            return trouves
+        for obj in modele.objects.order_by('-id')[:10]:
+            for nom in champs:
+                fic = getattr(obj, nom, None)
+                try:
+                    chemin = Path(fic.path) if fic else None
+                except Exception:
+                    chemin = None
+                if chemin and chemin.is_file() and chemin.stat().st_size == taille:
+                    trouves.append(f"{modele._meta.model_name}.{nom} → {chemin.name}")
+    except Exception:
+        return trouves
+    return trouves
+
+
+def register_url_import_scenarios():
+    """Enregistre un scénario `<app>.url_import` par app d'index — geste 14, part « URL »."""
+    from wama.common.services.nightly_tests import register
+
+    for label, path in discoverable_apps():
+        register(
+            id=f"{label}.url_import", app=label, stage="ui",
+            description=f"Card d'entrée {label} : une URL collée crée un élément",
+            run=(lambda p=path, a=label: (lambda ctx: check_app_url_import(a, p)))(),
+            timeout_s=240, vram_gb=0.0,
+        )
+
+
 # ── Gestes 3 et 4 : DUPLIQUER puis SUPPRIMER un élément ────────────────────────────────
 #
 # POURQUOI CE SCÉNARIO EXISTE (WAMA_VERIFICATION.md §3, phase 1). Sur les ~16 gestes que la
@@ -903,8 +1290,9 @@ def check_app_duplicate_delete(app: str, url_path: str):
                     if r.request.method == 'POST' and r.status >= 400 else None))
 
                 resp = page.goto(url, wait_until='networkidle', timeout=45000)
-                if not resp or resp.status != 200:
-                    return False, f"page HTTP {resp.status if resp else '?'}"
+                mauvaise_page = _exiger_la_page(page, resp, url)
+                if mauvaise_page:
+                    return mauvaise_page
                 page.wait_for_timeout(1200)
 
                 ids0 = page.evaluate(IDS)
@@ -1124,8 +1512,9 @@ def check_app_settings(app: str, url_path: str):
                     if r.status >= 400 and r.request.resource_type in ('xhr', 'fetch') else None))
 
                 resp = page.goto(url, wait_until='networkidle', timeout=45000)
-                if not resp or resp.status != 200:
-                    return False, f"page HTTP {resp.status if resp else '?'}"
+                mauvaise_page = _exiger_la_page(page, resp, url)
+                if mauvaise_page:
+                    return mauvaise_page
                 page.wait_for_timeout(1200)
 
                 ids0 = page.evaluate(IDS)
@@ -1714,8 +2103,9 @@ def check_app_batch_actions(app: str, url_path: str):
                 if r.request.method == 'POST' and r.status >= 400 else None))
 
             resp = page.goto(url, wait_until='networkidle', timeout=45000)
-            if not resp or resp.status != 200:
-                return False, f"page HTTP {resp.status if resp else '?'}"
+            mauvaise_page = _exiger_la_page(page, resp, url)
+            if mauvaise_page:
+                return mauvaise_page
             page.wait_for_timeout(1200)
 
             lots0 = page.evaluate(LOTS) or _monter_un_lot(page, app)
@@ -1831,8 +2221,9 @@ def check_app_batch_import(app: str, url_path: str):
             dialogues = []
             page.on('dialog', lambda d: (dialogues.append(d.message), d.dismiss()))
             resp = page.goto(url, wait_until='networkidle', timeout=45000)
-            if not resp or resp.status != 200:
-                return False, f"page HTTP {resp.status if resp else '?'}"
+            mauvaise_page = _exiger_la_page(page, resp, url)
+            if mauvaise_page:
+                return mauvaise_page
             page.wait_for_timeout(1200)
             # Le toast s'efface seul au bout de 3,5 s (`wama-app-base.js:128`) : le lire APRÈS
             # le geste serait une course. On l'observe donc à la volée.
@@ -1984,8 +2375,9 @@ def check_app_clear_all(app: str, url_path: str):
                 if r.request.method == 'POST' and 'clear' in r.url else None))
 
             resp = page.goto(url, wait_until='networkidle', timeout=45000)
-            if not resp or resp.status != 200:
-                return False, f"page HTTP {resp.status if resp else '?'}"
+            mauvaise_page = _exiger_la_page(page, resp, url)
+            if mauvaise_page:
+                return mauvaise_page
             page.wait_for_timeout(1200)
 
             etat0 = page.evaluate(_FILE_EN_ETAT)
@@ -2347,8 +2739,9 @@ def check_app_inspector_actions(app: str, url_path: str):
             page.on('pageerror', lambda e: erreurs_js.append(str(e)[:160]))
 
             resp = page.goto(url, wait_until='networkidle', timeout=45000)
-            if not resp or resp.status != 200:
-                return False, f"page HTTP {resp.status if resp else '?'}"
+            mauvaise_page = _exiger_la_page(page, resp, url)
+            if mauvaise_page:
+                return mauvaise_page
             page.wait_for_timeout(1200)
 
             if page.evaluate(CONTENU).get('absent'):
@@ -2547,8 +2940,9 @@ def check_volet_deselection(app: str, url_path: str):
                                        'domain': '127.0.0.1', 'path': '/'}])
                 page = contexte.new_page()
                 resp = page.goto(url, wait_until='networkidle', timeout=45000)
-                if not resp or resp.status != 200:
-                    return False, f"page HTTP {resp.status if resp else '?'}"
+                mauvaise_page = _exiger_la_page(page, resp, url)
+                if mauvaise_page:
+                    return mauvaise_page
                 page.wait_for_timeout(800)
                 r = page.evaluate(VOLET_GESTE)
             finally:
@@ -2643,8 +3037,9 @@ def check_volet_instances(app: str, url_path: str):
                                        'domain': '127.0.0.1', 'path': '/'}])
                 page = contexte.new_page()
                 resp = page.goto(url, wait_until='networkidle', timeout=45000)
-                if not resp or resp.status != 200:
-                    return False, f"page HTTP {resp.status if resp else '?'}"
+                mauvaise_page = _exiger_la_page(page, resp, url)
+                if mauvaise_page:
+                    return mauvaise_page
                 page.wait_for_timeout(800)
                 r = page.evaluate(VOLET_DEUX_INSTANCES)
             finally:

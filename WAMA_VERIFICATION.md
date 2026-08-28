@@ -70,7 +70,7 @@ Le catalogue n'est **pas à inventer** : c'est la table des composants obligatoi
 | 11 | Aperçu du résultat (clic → visionneuse) | ❌ | **oui** |
 | 12 | Télécharger le résultat | ❌ — ⚠ le MARKUP est prouvé (critère `download_wiring` 12/12 + pages 200), le TRANSFERT non : le compte de test ne possède aucun élément traité, donc `download/<pk>/` lui répond 404 — **le scoping qui fonctionne**, pas une panne | **oui** |
 | 13 | Démarrer tout / télécharger tout (lot) | ❌ | **oui** |
-| 14 | Import dossier récursif · URL · **fichier de lot** · **« Envoyer vers »** | ⚠️ **MOITIÉ** — `<app>.batch_import` (27/08) prouve le **fichier de lot** ; `<app>.send_to` (28/08) prouve **« Envoyer vers »** (**8 OK / 6 skips**, dont 3 skips qui NOMMENT une dette : pas d'importeur) ; récursif et URL restent dus | non |
+| 14 | Import dossier récursif · URL · **fichier de lot** · **« Envoyer vers »** | ⚠️ **TROIS QUARTS** — `<app>.batch_import` (27/08) prouve le **fichier de lot** ; `<app>.send_to` (28/08) prouve **« Envoyer vers »** (**8 OK / 6 skips**, dont 3 skips qui NOMMENT une dette : pas d'importeur) ; `<app>.url_import` (28/08) prouve l'**URL** (**2 OK / 12 skips** — la garde SSRF rend « témoin local » et « l'app télécharge » exclusifs par construction) ; **le récursif reste dû** | non |
 
 **Couverture mesurée le 2026-08-22 : 1 geste sur 16.** Les deux seuls scénarios par app sont
 `<app>.ui` (santé de la page : 200 + zéro erreur console — aucun geste) et `<app>.import`.
@@ -89,6 +89,12 @@ plus bas : le seul geste destructeur du catalogue, et le seul dont la mesure reg
 **Au 2026-08-28 (suite) : 8 gestes sur 16** — « ENVOYER VERS » (seconde moitié du geste 14,
 `<app>.send_to`) : le seul import qui ne PART PAS de l'app, et le premier scénario dont la
 mesure a fait bouger du code de PRODUCTION le jour même — voir plus bas.
+**Au 2026-08-28 (fin) : 8 gestes un quart sur 16** — l'URL (`<app>.url_import`) : le seul geste
+qui fait SORTIR le serveur, donc le seul dont la mesure rencontre la garde SSRF. Il n'a rapporté
+que **2 OK**, et ce chiffre est le bon : les 12 skips nomment chacun leur famille au lieu de
+gonfler un vert. ⚠⚠ C'est en l'écrivant qu'a été trouvé le **défaut d'instrument le plus large
+du harnais** — le contrôle `status != 200` ne voyait pas les redirections, et une app entière
+(`converter_01`) était mesurée **sur l'accueil** depuis le début. Détail au geste 14 (« URL »).
 
 > ⚠ **`<app>.settings` mesure la MOITIÉ du geste 2, et le dit dans son propre détail** (« MOITIÉ
 > DU GESTE — modifier/enregistrer/relire n'est PAS mesuré ici »). Ce n'est pas de la modestie :
@@ -503,6 +509,71 @@ substrat que la rustine `clear_all` de `converter_01`** (geste 5).
 
 ---
 
+### Geste 14 (« URL ») — le seul geste qui fait SORTIR le serveur, et la sortie est GARDÉE
+
+**Couverture mesurée le 2026-08-28** (14 apps) : `nightly_20260828_122226.json` donne **2 OK /
+0 échec / 12 skips**. Le chiffre est maigre et il est **honnête** : la contrainte n'est pas
+contournable, et c'est elle qui fait tout l'intérêt du scénario.
+
+> ⚠⚠ **« Témoin local » et « l'app télécharge » s'excluent PAR CONSTRUCTION.** `url_guard`
+> (posé le 2026-08-22) refuse toute cible de bouclage, privée, lien-locale ou réservée. Un
+> nocturne ne peut donc pas à la fois rester hors réseau et voir une app remplir un élément
+> depuis une URL. Le scénario **ne contourne pas** la garde — `WAMA_URL_GUARD_ALLOW_PRIVATE`
+> reste non posé, et cet hôte EST le serveur vivant. Il publie son témoin sous `MEDIA_URL`
+> (`/media/users/<id>/temp/…`, servi sans authentification, mesuré) et **lit ce que chaque app
+> en fait**. La garde cesse d'être une gêne : elle devient la propriété mesurée.
+
+**Trois familles, lisibles dans les résultats** — et elles ne se déduisent pas du code, elles se
+constatent au clic :
+
+| famille | apps | ce que le scénario voit |
+|---|---|---|
+| **URL différée** (l'URL entre au pipeline de lot, le téléchargement a lieu au démarrage) | `transcriber`, `describer` | ✅ un élément apparaît, **sans aucune sortie réseau** |
+| **URL résolue à l'import** (le serveur télécharge tout de suite) | `anonymizer`, `converter`, `enhancer` | ⊘ la garde REFUSE le témoin de bouclage — **skip qui atteste que la garde est ARMÉE sur ce chemin** |
+| **champ sans bouton** (l'URL part avec le bouton primaire, geste GPU) | `composer`, `imager`, `avatarizer` | ⊘ skip nommé — hors session |
+
+> ⚠⚠ **Le cas qui justifie le scénario à lui seul : une app qui RÉUSSIT.** Si un `FileField` se
+> remplit depuis `127.0.0.1`, l'app n'appelle pas la garde commune — c'est une **SSRF**, et c'est
+> un **ÉCHEC**, pas un succès du geste. Le scénario ne le déduit pas du code : après fermeture du
+> navigateur et avant le nettoyage, il compare la **taille sur disque** des fichiers des objets
+> neufs à celle du témoin. Aucune app ne l'a fait ce jour-là — mais rien d'autre ne le verrait.
+
+> ⭐ **MUET et MOTIVÉ ne sont pas la même chose, et l'écart est tout le verdict.** Premier jet :
+> l'avatarizer était compté en ÉCHEC parce que son clic n'émet aucune requête. Lecture faite, son
+> bouton URL **proxie** vers le bouton primaire et affiche « URL prise en compte — choisissez
+> aussi l'avatar » : la chaîne a tourné jusqu'à un refus **délibéré**. Un bouton qui ne dit RIEN
+> reste un défaut (la brique commune l'a rendu, rien ne l'écoute) ; un bouton qui explique est un
+> skip. C'était l'instrument qui confondait « rien ne se passe » et « on m'a expliqué pourquoi ».
+
+#### ⚠⚠ Le défaut d'instrument le plus large trouvé jusqu'ici : le harnais mesurait la page où il ATTERRISSAIT
+
+`page.goto` **suit les redirections** et rapporte le statut de la page d'**arrivée**. Le contrôle
+`if resp.status != 200` — écrit **onze fois** dans `ui_smoke.py` — laissait donc passer un `302`
+vers l'accueil en le lisant « HTTP 200 ». Or `accounts.middleware.AppAccessMiddleware` redirige
+vers l'accueil toute app hors des droits du compte, et **`converter_01` n'est pas dans les droits
+du compte de test** (`model_manager` non plus).
+
+Conséquence mesurée : **les 7 scénarios de `converter_01` ont rendu 7 raisons FAUSSES**, toutes
+affirmatives sur une surface jamais atteinte — « `show_url` non déclaré », « aucune card d'entrée
+sur cette surface », « pas de volet `#inspectorActions` », « aucune barre de détection de lot »…
+— et `converter_01.ui` concluait **« page OK (HTTP 200, 0 erreur JS, 4 onglets parcourus) »**.
+
+> ⭐ **Une app entière était invisible au nocturne, qui la déclarait saine.** C'est pire qu'un
+> trou de couverture : un trou se voit dans un compteur, celui-ci se **déguisait en mesure**.
+
+Correctif : `_verdict_d_arrivee()` compare le chemin **atteint** au chemin **demandé**, une seule
+fois, pour les douze points d'entrée (les onze `page.goto` de scénario **et** `_exercise_page`, qui
+referme son navigateur avant de rendre la main — d'où la séparation du verdict et de la page
+vivante). Il distingue deux natures que rien n'obligeait à se ressembler : un refus de **DROITS**
+est un **skip nommé** (le compte de test n'a pas accès à l'app — ce n'est pas un défaut de l'app),
+une redirection **sans motif de droits** est un **ÉCHEC** (la page devrait s'ouvrir).
+
+⏳ **Reste dû sur le geste 14** : l'**import de dossier récursif**. Réserve d'instrument connue —
+Playwright `set_input_files` ne renseigne pas `webkitRelativePath`, que `wama-folder-import.js`
+lit pour reconstruire l'arborescence.
+
+---
+
 ## 4. Contrainte qui dicte l'ordre : le GPU
 
 Les gestes 8–13 exigent un **traitement réel**. Or la règle est absolue ici : **jamais de charge
@@ -615,11 +686,11 @@ pas de sens. Le scan signale un manque de couverture, il ne dicte pas la répons
 
 | Phase | Contenu | GPU | État |
 |---|---|---|---|
-| **1** | Gestes **2 à 6** + geste 14 — paramètres, dupliquer, supprimer, tout effacer, inspecteur, fichier de lot. Purement UI + base. ⚠ Le geste 7 (création par le bouton primaire) a été **requalifié geste GPU** le 27/08 (§3) : hors session, remplacé en phase 1 par le geste 14 | non | 🔄 **geste 2 à moitié (23/08)**, gestes 3-4 faits (22/08), **geste 6 ENTIER (28/08, `inspector_actions` — sélection *et* désélection, 20/20)**, **geste 5 fait (28/08)**, geste 14 à MOITIÉ (fichier de lot 27/08, « Envoyer vers » 28/08) ; **reste la 2ᵉ moitié du geste 2 et les 2 voies d'import** (+ 7 côté Fabien, GPU) |
+| **1** | Gestes **2 à 6** + geste 14 — paramètres, dupliquer, supprimer, tout effacer, inspecteur, fichier de lot. Purement UI + base. ⚠ Le geste 7 (création par le bouton primaire) a été **requalifié geste GPU** le 27/08 (§3) : hors session, remplacé en phase 1 par le geste 14 | non | 🔄 **geste 2 à moitié (23/08)**, gestes 3-4 faits (22/08), **geste 6 ENTIER (28/08, `inspector_actions` — sélection *et* désélection, 20/20)**, **geste 5 fait (28/08)**, geste 14 aux TROIS QUARTS (fichier de lot 27/08, « Envoyer vers » et URL 28/08) ; **reste la 2ᵉ moitié du geste 2 et la voie d'import récursive** (+ 7 côté Fabien, GPU) |
 | **2** | Câbler les résultats nocturnes en **grille fonctionnelle** : `nightly_*.json` → agrégat geste × app, rendu comme `/apps/` le fait pour l'adoption | non | ⏳ |
 | **3** | Gestes **8 à 13** sur le **converter** (CPU) comme patron, puis extension | CPU d'abord | ⏳ |
 | **4** | Critères pour les **20 mécanismes non couverts**, par cardinalité décroissante | non | ⏳ |
-| **5** | Voies d'import restantes (geste 14) : **récursif** et **URL** — « Envoyer vers » livré le 28/08 (`<app>.send_to`), fichier de lot le 27/08 | non | 🔄 **2 sur 4** |
+| **5** | Voie d'import restante (geste 14) : le **récursif** — URL livrée le 28/08 (`<app>.url_import`), « Envoyer vers » le 28/08 (`<app>.send_to`), fichier de lot le 27/08 | non | 🔄 **3 sur 4** |
 
 ---
 
