@@ -551,7 +551,7 @@ if ENABLE_CELERY:
         # Elle tomberait déjà sur `default` par défaut — on la déclare parce qu'une tâche
         # générique, appelable pour n'importe quel registre présent ou futur, ne doit pas
         # dépendre d'un défaut pour rester hors de la file GPU.
-        'common.rafraichir_registre': {'queue': 'default'},
+        'common.refresh_registry': {'queue': 'default'},
         # Passe LLM de la prospection : GPU (Ollama hôte = même carte) en --pool=solo →
         # SÉRIALISÉE derrière tout traitement utilisateur, jamais en concurrence (2026-08-19).
         'model_manager.assess_proposed': {'queue': 'gpu', 'priority': _prio('_prospect_assess')},

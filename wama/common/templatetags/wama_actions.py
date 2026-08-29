@@ -1,7 +1,7 @@
 """
 Tags d'inclusion des ACTIONS DE CARD — l'héritage du mécanisme, côté gabarit.
 
-Calqué sur `wama_catalog.bouton_actualiser` : la card nomme son app, et reçoit le rendu que la
+Calqué sur `wama_catalog.refresh_button` : la card nomme son app, et reçoit le rendu que la
 DÉCLARATION impose. C'est ce qui empêche la treizième card de recopier le bouton de la douzième.
 
 Pourquoi seul ⬇ y figure : les cinq autres actions de card (⚙ ▶ ⧉ 🗑 ✏) sont des BOUTONS à

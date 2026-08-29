@@ -82,8 +82,8 @@ class CommonConfig(AppConfig):
         # C'est ce qui donne aux pages catalogue leur bouton sans une ligne d'UI par page.
         try:
             from . import registries_builtin  # noqa: F401
-            from .registries import au_demarrage
-            au_demarrage()
+            from .registries import run_startup
+            run_startup()
         except Exception:
             import logging
             logging.getLogger(__name__).warning(

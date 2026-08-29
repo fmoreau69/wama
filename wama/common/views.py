@@ -216,28 +216,28 @@ def registre_refresh(request, cle):
     un endpoint par catalogue était la dérive à arrêter — il y en avait déjà deux, avec des
     réponses de formes différentes.
     """
-    from .registries import execution_de, get, lancer
+    from .registries import execution_of, get, launch
     try:
         registre = get(cle)
     except KeyError as e:
         return JsonResponse({'ok': False, 'error': str(e)}, status=404)
-    charge = lancer(cle, user=request.user)
+    charge = launch(cle, user=request.user)
     if not charge.get('ok') and 'réservé' in (charge.get('error') or ''):
         return JsonResponse(charge, status=403)
-    charge['registre'] = {'cle': registre.cle, 'nom': registre.nom, 'nature': registre.nature,
-                          'execution': execution_de(registre)}
+    charge['registre'] = {'key': registre.key, 'label': registre.label,
+                          'nature': registre.nature, 'execution': execution_of(registre)}
     # ⚠ Une actualisation MISE EN FILE est un succès de mise en file, pas un succès d'exécution :
     # elle rend 202, et le client interroge `registre_tache`. Rendre 200 laisserait croire que le
     # travail est fait — or il commence à peine.
-    if charge.get('asynchrone') and charge.get('ok'):
+    if charge.get('async') and charge.get('ok'):
         return JsonResponse(charge, status=202)
     return JsonResponse(charge, status=200 if charge.get('ok') else 500)
 
 
 def registre_tache(request, task_id):
     """État d'une actualisation lancée en arrière-plan. Générique, comme le reste."""
-    from .registries import etat_tache
-    return JsonResponse(etat_tache(task_id))
+    from .registries import task_state
+    return JsonResponse(task_state(task_id))
 
 
 def registres_etat(request):
@@ -246,8 +246,8 @@ def registres_etat(request):
     Sert la page de supervision et rend le mécanisme LISIBLE : sans cette vue, savoir quels
     catalogues se tiennent à jour tout seuls exigeait de lire `CELERY_BEAT_SCHEDULE`.
     """
-    from .registries import etat
-    return JsonResponse({'registres': etat()})
+    from .registries import overview
+    return JsonResponse({'registres': overview()})
 
 
 @require_POST
@@ -423,7 +423,7 @@ def registres_view(request):
     rendait. Résultat : savoir quels catalogues se rafraîchissent seuls exigeait de lire
     `CELERY_BEAT_SCHEDULE`, et le mécanisme restait invisible à qui ne lit pas le code.
 
-    Elle DÉRIVE entièrement de `registries.etat()` : aucune donnée propre, donc aucune
+    Elle DÉRIVE entièrement de `registries.overview()` : aucune donnée propre, donc aucune
     divergence possible avec le registre. Ajouter un registre l'y fait apparaître seul.
 
     ⚠ La NATURE est ce que la page montre en premier, parce que c'est elle qui dit si un
@@ -431,11 +431,11 @@ def registres_view(request):
     requête) serait un mensonge — il ne ferait rien et laisserait croire que le reste est
     périmé. Les dérivés affichent donc « toujours à jour », pas un bouton inerte.
     """
-    from .registries import etat
+    from .registries import overview
 
-    # `avec_couverture` : la page dit AUSSI ce qui est eprouve. La couverture est MESUREE
+    # `with_coverage` : la page dit AUSSI ce qui est eprouve. La couverture est MESUREE
     # (lecture des fichiers de test), jamais declaree -- un champ a tenir a jour aurait menti.
-    registres = etat(avec_couverture=True)
+    registres = overview(with_coverage=True)
 
     # Facettes DÉCLARÉES (et non dérivées du DOM) : les valeurs brutes sont des clés
     # techniques (`scan`, `derive`…) alors que la page affiche des libellés français —
@@ -449,8 +449,8 @@ def registres_view(request):
     return render(request, 'common/registres.html', {
         'registres': registres,
         'total_entrees': sum(r['total'] for r in registres),
-        'nb_actualisables': sum(1 for r in registres if r['actualisable']),
-        'nb_periodiques': sum(1 for r in registres if r['periodique']),
+        'nb_actualisables': sum(1 for r in registres if r['refreshable']),
+        'nb_periodiques': sum(1 for r in registres if r['periodic']),
         'facettes_registres': facettes,
         'peut_actualiser': request.user.is_authenticated,
         'est_staff': request.user.is_authenticated and request.user.is_staff,

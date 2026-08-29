@@ -38,12 +38,12 @@
             await attendre(SONDE_MS);
             var r = await fetch(URL_TACHE.replace('__ID__', encodeURIComponent(taskId)));
             var d = await r.json();
-            if (d.termine) { return d; }
+            if (d.done) { return d; }
             if (btn) {
                 label(btn, 'Actualisation… ' + ((i + 1) * SONDE_MS / 1000 | 0) + ' s', true);
             }
         }
-        return { ok: false, termine: false,
+        return { ok: false, done: false,
                  error: 'toujours en cours après 5 min — voir les journaux Celery' };
     }
 
@@ -83,7 +83,7 @@
             // 202 = mise en FILE réussie, exécution pas commencée. Traiter ce cas comme un succès
             // afficherait « aucun changement » alors que le travail démarre à peine.
             if (reponse.status === 202 && d.task_id) {
-                toast((d.registre ? d.registre.nom + ' : ' : '') +
+                toast((d.registre ? d.registre.label + ' : ' : '') +
                       'actualisation lancée en arrière-plan', 'info');
                 d = await suivre(d.task_id, btn);
             }
@@ -92,11 +92,11 @@
                 toast(d.error || (d.messages || []).join(' · ') || 'Actualisation impossible',
                       'error');
             } else {
-                toast((d.registre ? d.registre.nom + ' : ' : '') + d.resume, 'success');
+                toast((d.registre ? d.registre.label + ' : ' : '') + d.summary, 'success');
                 var cible = btn.getAttribute('data-refresh-target');
                 if (cible) {
                     var el = document.querySelector(cible);
-                    if (el) { el.textContent = d.resume; }
+                    if (el) { el.textContent = d.summary; }
                 }
                 // Un rechargement n'est utile que si la page rend l'état côté serveur ; on le
                 // laisse donc DÉCLARER par la page plutôt que de l'imposer.

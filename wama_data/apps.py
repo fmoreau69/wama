@@ -26,13 +26,13 @@ class WamaDataConfig(AppConfig):
         except Exception:
             log.warning('wama_data functions non enregistrées', exc_info=True)
         try:
-            self._enregistrer_registres()
+            self._register_registries()
         except Exception:
             log.warning('wama_data registres non déclarés', exc_info=True)
 
     # ──────────────────────────────────────────────────────────────────────────────────────────
     @staticmethod
-    def _enregistrer_registres():
+    def _register_registries():
         """Les deux CAPACITÉS AGRÉGATIVES du monde Data rejoignent le registre des registres.
 
         Doctrine : `WAMA_DATA_WORLD.md §9quinquies` — la MÉTHODE (importer, exporter) est
@@ -40,22 +40,22 @@ class WamaDataConfig(AppConfig):
         s'AGRÈGE, comme on ajoute un modèle IA. Une capacité qui s'agrège doit être visible et
         comptable, donc elle entre ici.
         """
-        from wama.common.registries import REDECLARATION, Registre, Resultat, enregistrer
+        from wama.common.registries import REDECLARATION, RefreshResult, Registry, register
 
         # ── Lecteurs d'entrée (Importer + Connector : ils partagent le même registre) ─────────
-        def _compter_lecteurs() -> int:
+        def _count_readers() -> int:
             from .sources import READERS
             return len(READERS)
 
-        def _rafraichir_lecteurs() -> Resultat:
+        def _refresh_readers() -> RefreshResult:
             from . import sources
             return _recharger_greffons(sources, sources.READERS, sources.reader_modules(),
                                        'lecture')
 
-        enregistrer(Registre(
-            cle='lecteurs_data', nom="Formats d'entrée (WAMA Data)", nature=REDECLARATION,
+        register(Registry(
+            key='lecteurs_data', label="Formats d'entrée (WAMA Data)", nature=REDECLARATION,
             source="`wama_data/sources/` — un lecteur par format, inscrit à l'import",
-            rafraichir=_rafraichir_lecteurs, compter=_compter_lecteurs,
+            refresh=_refresh_readers, count=_count_readers,
             manifest_kind='dataset', doc='WAMA_DATA_WORLD.md §6.6, §9quinquies',
             description="Recharge les lecteurs de sources. Ajouter un format d'import ou de "
                         "connexion = déposer un lecteur, jamais éditer le moteur — l'Importer et "
@@ -63,35 +63,35 @@ class WamaDataConfig(AppConfig):
         ))
 
         # ── Formats de sortie (Exporter) ─────────────────────────────────────────────────────
-        def _compter_formats() -> int:
+        def _count_formats() -> int:
             from .core.export import FORMATS
             return len(FORMATS)
 
-        enregistrer(Registre(
-            cle='formats_export_data', nom='Formats de sortie (WAMA Data)', nature=REDECLARATION,
+        register(Registry(
+            key='formats_export_data', label='Formats de sortie (WAMA Data)', nature=REDECLARATION,
             source="`wama_data/core/export.py` — `register_format()`, plus les écrivains "
                    "fournis par les adaptateurs",
-            compter=_compter_formats,
-            rafraichir=lambda: _rafraichir_formats(),
+            count=_count_formats,
+            refresh=lambda: _refresh_formats(),
             doc='WAMA_DATA_WORLD.md §9ter.6 C, §9quinquies',
             description="Formats que l'Exporter sait NOMMER, et parmi eux ceux qu'il sait "
                         "ÉCRIRE — l'écart entre les deux est la dette, et elle est mesurée.",
         ))
 
         # ── Schémas de CONTENEUR (l'écrivain) ────────────────────────────────────────────────
-        def _compter_conteneurs() -> int:
+        def _count_containers() -> int:
             from .containers import SCHEMAS
             return len(SCHEMAS)
 
-        def _rafraichir_conteneurs() -> Resultat:
+        def _refresh_containers() -> RefreshResult:
             from . import containers
             return _recharger_greffons(containers, containers.SCHEMAS,
                                        containers.schema_modules(), 'schéma')
 
-        enregistrer(Registre(
-            cle='conteneurs_data', nom='Schémas de conteneur (WAMA Data)', nature=REDECLARATION,
+        register(Registry(
+            key='conteneurs_data', label='Schémas de conteneur (WAMA Data)', nature=REDECLARATION,
             source="`wama_data/containers/` — un schéma par format de sortie, inscrit à l'import",
-            rafraichir=_rafraichir_conteneurs, compter=_compter_conteneurs,
+            refresh=_refresh_containers, count=_count_containers,
             doc='WAMA_DATA_WORLD.md §9quater.2 (D3), §9quinquies',
             description="Conteneurs que WAMA Data sait ÉCRIRE : `.wdat` natif et `.trip` pour la "
                         "compatibilité BIND. Un moteur, N schémas — ajouter un format = déposer "
@@ -124,7 +124,7 @@ def _recharger_greffons(paquet, registre: dict, naming, quoi: str):
     """
     import importlib
 
-    from wama.common.registries import Resultat as Result
+    from wama.common.registries import RefreshResult as Result
 
     importlib.invalidate_caches()
     before = dict(registre)
@@ -138,12 +138,12 @@ def _recharger_greffons(paquet, registre: dict, naming, quoi: str):
         return Result(ok=False, total=len(before),
                         messages=(f"rechargement abandonné, registre restauré : {e}",))
     after = set(registre)
-    return Result(ok=True, ajoutes=len(after - set(before)),
-                    retires=len(set(before) - after), modifies=len(after & set(before)),
+    return Result(ok=True, added=len(after - set(before)),
+                    removed=len(set(before) - after), updated=len(after & set(before)),
                     total=len(after), messages=(f"{len(naming)} module(s) de {quoi} rechargé(s)",))
 
 
-def _rafraichir_formats():
+def _refresh_formats():
     """Ré-importe l'adaptateur d'export : c'est lui qui peut FOURNIR les écrivains des formats
     déclarés sans écrivain (`xlsx`, `mat`).
 
@@ -155,7 +155,7 @@ def _rafraichir_formats():
     """
     import importlib
 
-    from wama.common.registries import Resultat as Result
+    from wama.common.registries import RefreshResult as Result
 
     from .core.export import FORMATS, writable_formats
     avant_total, avant_ecrivables = len(FORMATS), set(writable_formats())
@@ -168,6 +168,6 @@ def _rafraichir_formats():
                         messages=(f"adaptateur d'export non rechargé : {e}",))
     apres_ecrivables = set(writable_formats())
     return Result(
-        ok=True, ajoutes=len(FORMATS) - avant_total,
-        retires=0, modifies=len(apres_ecrivables - avant_ecrivables), total=len(FORMATS),
+        ok=True, added=len(FORMATS) - avant_total,
+        removed=0, updated=len(apres_ecrivables - avant_ecrivables), total=len(FORMATS),
         messages=(f"{len(apres_ecrivables)}/{len(FORMATS)} format(s) réellement écrivable(s)",))

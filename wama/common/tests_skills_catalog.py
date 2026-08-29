@@ -123,8 +123,8 @@ class PageSkillsTests(TestCase):
     def test_le_registre_designe_bien_cette_page(self):
         # C'est le défaut d'origine : un registre sans `url_name` n'a aucune page, et rien ne
         # le disait. Le lien se vérifie donc, il ne se relit pas.
-        from wama.common.registries import etat
-        skills = next(r for r in etat() if r['cle'] == 'skills')
+        from wama.common.registries import overview
+        skills = next(r for r in overview() if r['key'] == 'skills')
         self.assertEqual(skills['url_name'], 'common:skills_catalog')
         # Et le nom se résout — un `url_name` qui ne pointe nulle part serait la même panne
         # silencieuse, déplacée d'un cran.

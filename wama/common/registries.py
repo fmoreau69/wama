@@ -28,6 +28,10 @@ POURQUOI CE FICHIER EXISTE (demande de Fabien, 2026-08-22)
     Un bouton « Actualiser » sur une page qui recalcule déjà à chaque requête est un mensonge :
     il ne fait rien et laisse croire que le reste est périmé. La nature est donc DÉCLARÉE, et l'UI
     s'en sert pour montrer un bouton ou une mention « toujours à jour ».
+
+⚠ IDENTIFIANTS RENOMMÉS EN ANGLAIS le 2026-08-29 (dette de nommage, plan validé Fabien —
+    `PROJECT_STATUS §PENDING 2026-08-29`) : l'API s'importait en français (`rafraichir`, `lancer`,
+    `etat`…) contre le critère de CLAUDE.md §nommage. Prose et docstrings restent françaises.
 """
 from __future__ import annotations
 
@@ -42,18 +46,21 @@ logger = logging.getLogger(__name__)
 #: Coûteux, potentiellement destructif (une entrée disparue du disque disparaît du registre).
 SCAN = 'scan'
 #: Un calcul dérive un rapport ÉCRIT (grille de conformité, redondances, faits de doc).
-MESURE = 'mesure'
+MEASURE = 'mesure'
 #: Un registre en MÉMOIRE peuplé par import au démarrage. Actualiser = re-déclarer.
 REDECLARATION = 'redeclaration'
 #: Rien n'est stocké : la page recalcule à chaque requête. **Il n'y a rien à actualiser**, et c'est
 #: une qualité — « une page qui DÉRIVE ne peut pas diverger de ses sources » (`licenses_catalog_view`).
-DERIVE = 'derive'
+DERIVED = 'derive'
 
+#: ⚠ Les VALEURS ('mesure', 'derive'…) sont un VOCABULAIRE DE DONNÉE (déclarations, doc générée,
+#: tests) — elles ne se renomment pas avec les identifiants (frontière du 2026-08-29 : ce qui est
+#: stocké/déclaré reste, ce qui s'importe se renomme).
 NATURES = {
     SCAN: "Scan d'une source externe vers un registre persistant",
-    MESURE: "Calcul qui produit un rapport écrit",
+    MEASURE: "Calcul qui produit un rapport écrit",
     REDECLARATION: "Registre en mémoire, peuplé par import",
-    DERIVE: "Dérivé à chaque affichage — toujours à jour",
+    DERIVED: "Dérivé à chaque affichage — toujours à jour",
 }
 
 # ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -69,121 +76,121 @@ CELERY = 'celery'
 #: Dans le processus web qui reçoit la requête. OBLIGATOIRE pour un registre en MÉMOIRE : le faire
 #: en Celery rechargerait les modules du worker Celery, pas ceux des processus qui servent les
 #: pages — l'actualisation n'aurait littéralement aucun effet visible.
-PROCESSUS = 'processus'
-EXECUTIONS = {CELERY: "Tâche Celery (non bloquante)", PROCESSUS: "Dans le processus web"}
+PROCESS = 'processus'
+EXECUTIONS = {CELERY: "Tâche Celery (non bloquante)", PROCESS: "Dans le processus web"}
 
 
 @dataclass
-class Resultat:
+class RefreshResult:
     """Compte-rendu UNIFORME d'une actualisation, quelle que soit sa nature.
 
     Chaque rafraîchisseur natif rend ce qu'il veut (`SyncResult`, un dict de scores, un entier) ;
     l'adaptateur traduit ici. Sans ce contrat, l'UI devrait connaître sept formats.
     """
     ok: bool = True
-    ajoutes: int = 0
-    modifies: int = 0
-    retires: int = 0
+    added: int = 0
+    updated: int = 0
+    removed: int = 0
     total: int = 0
     messages: Tuple[str, ...] = ()
-    duree_s: float = 0.0
+    duration_s: float = 0.0
 
-    def resume(self) -> str:
+    def summary(self) -> str:
         """Phrase courte pour un toast. Le cas « rien n'a bougé » est DIT, pas laissé vide :
         un compte-rendu muet se lit comme un échec."""
         bouts = []
-        if self.ajoutes:
-            bouts.append(f"{self.ajoutes} ajouté{'s' if self.ajoutes > 1 else ''}")
-        if self.modifies:
-            bouts.append(f"{self.modifies} mis à jour")
-        if self.retires:
-            bouts.append(f"{self.retires} retiré{'s' if self.retires > 1 else ''}")
+        if self.added:
+            bouts.append(f"{self.added} ajouté{'s' if self.added > 1 else ''}")
+        if self.updated:
+            bouts.append(f"{self.updated} mis à jour")
+        if self.removed:
+            bouts.append(f"{self.removed} retiré{'s' if self.removed > 1 else ''}")
         if not bouts:
             bouts.append("aucun changement")
         if self.total:
             bouts.append(f"{self.total} au total")
         return ' · '.join(bouts)
 
-    def en_dict(self) -> dict:
-        return {'ok': self.ok, 'ajoutes': self.ajoutes, 'modifies': self.modifies,
-                'retires': self.retires, 'total': self.total, 'messages': list(self.messages),
-                'duree_s': round(self.duree_s, 3), 'resume': self.resume()}
+    def as_dict(self) -> dict:
+        return {'ok': self.ok, 'added': self.added, 'updated': self.updated,
+                'removed': self.removed, 'total': self.total, 'messages': list(self.messages),
+                'duration_s': round(self.duration_s, 3), 'summary': self.summary()}
 
 
 @dataclass(frozen=True)
-class Registre:
+class Registry:
     """Ce qu'une page catalogue déclare pour hériter de l'actualisation."""
-    cle: str
-    nom: str
+    key: str
+    label: str
     nature: str
     #: D'où vient l'état — phrase courte affichée à l'utilisateur, qui répond à « actualiser quoi ? »
     source: str
     #: Le rafraîchisseur. `None` pour un registre DÉRIVÉ : il n'y a rien à actualiser.
-    rafraichir: Optional[Callable[[], Resultat]] = None
+    refresh: Optional[Callable[[], RefreshResult]] = None
     #: Où il tourne. Laissé vide, il est DÉDUIT de la nature — c'est le bon défaut, parce que la
     #: nature contraint réellement le lieu (état partagé → Celery ; mémoire du process → sur place).
     execution: str = ''
     #: Comptage courant, pour afficher un total sans lancer d'actualisation.
-    compter: Optional[Callable[[], int]] = None
+    count: Optional[Callable[[], int]] = None
     url_name: str = ''
     #: 'staff' (une actualisation qui ÉCRIT) ou 'auth' (sans effet de bord partagé).
     permission: str = 'staff'
     #: Passé au démarrage du serveur. RÉSERVÉ aux rafraîchisseurs en mémoire et bon marché :
     #: un scan disque à chaque boot de worker gunicorn se paie ×4 et court après lui-même.
-    au_demarrage: bool = False
+    on_startup: bool = False
     #: Nom de la tâche Celery Beat qui l'actualise périodiquement, s'il y en a une. Déclaratif :
     #: sert à MONTRER dans l'UI qu'un catalogue se tient à jour tout seul.
-    periodique: str = ''
+    periodic: str = ''
     #: Lien FACULTATIF vers le kind de manifeste correspondant (4 des 7 en ont un).
     manifest_kind: str = ''
     doc: str = ''
     description: str = ''
 
 
-REGISTRES: Dict[str, Registre] = {}
+REGISTRIES: Dict[str, Registry] = {}
 
 #: Lieu d'exécution IMPOSÉ par la nature. Ce n'est pas une préférence : un état partagé mis à jour
 #: dans le worker web bloque le serveur, et un registre en mémoire actualisé en Celery n'a aucun
 #: effet sur les processus qui servent les pages.
-EXECUTION_PAR_NATURE = {SCAN: CELERY, MESURE: CELERY, REDECLARATION: PROCESSUS}
+EXECUTION_BY_NATURE = {SCAN: CELERY, MEASURE: CELERY, REDECLARATION: PROCESS}
 
 
-def execution_de(r: Registre) -> str:
-    return r.execution or EXECUTION_PAR_NATURE.get(r.nature, PROCESSUS)
+def execution_of(r: Registry) -> str:
+    return r.execution or EXECUTION_BY_NATURE.get(r.nature, PROCESS)
 
 
-def enregistrer(r: Registre) -> Registre:
-    if r.cle in REGISTRES:
-        raise ValueError(f"registre '{r.cle}' déjà enregistré")
+def register(r: Registry) -> Registry:
+    if r.key in REGISTRIES:
+        raise ValueError(f"registre '{r.key}' déjà enregistré")
     if r.nature not in NATURES:
         raise ValueError(f"nature '{r.nature}' inconnue (attendu : {', '.join(NATURES)})")
     if r.execution and r.execution not in EXECUTIONS:
         raise ValueError(f"exécution '{r.execution}' inconnue (attendu : {', '.join(EXECUTIONS)})")
     if r.nature == REDECLARATION and r.execution == CELERY:
         raise ValueError(
-            f"'{r.cle}' : un registre en MÉMOIRE ne peut pas s'actualiser en Celery — le worker "
+            f"'{r.key}' : un registre en MÉMOIRE ne peut pas s'actualiser en Celery — le worker "
             f"rechargerait ses propres modules, pas ceux des processus qui servent les pages")
-    if r.nature == DERIVE and r.rafraichir is not None:
+    if r.nature == DERIVED and r.refresh is not None:
         raise ValueError(
-            f"'{r.cle}' : un registre DÉRIVÉ ne peut pas avoir de rafraîchisseur — s'il en a un, "
+            f"'{r.key}' : un registre DÉRIVÉ ne peut pas avoir de rafraîchisseur — s'il en a un, "
             f"c'est qu'il stocke quelque chose, donc sa nature est mal déclarée")
-    if r.nature != DERIVE and r.rafraichir is None:
+    if r.nature != DERIVED and r.refresh is None:
         raise ValueError(
-            f"'{r.cle}' : nature '{r.nature}' sans rafraîchisseur — déclarer DERIVE si la page "
+            f"'{r.key}' : nature '{r.nature}' sans rafraîchisseur — déclarer DERIVED si la page "
             f"recalcule à chaque affichage")
-    REGISTRES[r.cle] = r
+    REGISTRIES[r.key] = r
     return r
 
 
-def get(cle: str) -> Registre:
+def get(key: str) -> Registry:
     try:
-        return REGISTRES[cle]
+        return REGISTRIES[key]
     except KeyError:
         raise KeyError(
-            f"registre '{cle}' inconnu (enregistrés : {', '.join(sorted(REGISTRES)) or '—'})")
+            f"registre '{key}' inconnu (enregistrés : {', '.join(sorted(REGISTRIES)) or '—'})")
 
 
-def autorise(r: Registre, user) -> bool:
+def is_authorized(r: Registry, user) -> bool:
     if r.permission == 'staff':
         return bool(user and user.is_authenticated and user.is_staff)
     return bool(user and user.is_authenticated)
@@ -194,11 +201,11 @@ def autorise(r: Registre, user) -> bool:
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
 #: Version vue par CE processus, par clé. Comparée à un compteur partagé dans Redis.
-_VERSIONS_VUES: Dict[str, int] = {}
+_SEEN_VERSIONS: Dict[str, int] = {}
 
 
-def _cle_version(cle: str) -> str:
-    return f"wama:registre:{cle}:version"
+def _version_key(key: str) -> str:
+    return f"wama:registre:{key}:version"
 
 
 def _cache():
@@ -217,17 +224,17 @@ def _cache():
         return None
 
 
-def _version_partagee(cle: str) -> Optional[int]:
+def _shared_version(key: str) -> Optional[int]:
     c = _cache()
     if c is None:
         return None
     try:
-        return int(c.get(_cle_version(cle)) or 0)
+        return int(c.get(_version_key(key)) or 0)
     except Exception:
         return None
 
 
-def marquer_actualise(cle: str) -> None:
+def mark_refreshed(key: str) -> None:
     """Signale aux AUTRES processus qu'ils sont périmés.
 
     ⚠ Sans cela, un registre en mémoire actualisé n'est à jour que dans le worker qui a reçu le
@@ -241,172 +248,173 @@ def marquer_actualise(cle: str) -> None:
     try:
         # `incr` lève si la clé n'existe pas — `add` ne l'écrase pas si un autre processus l'a
         # déjà posée entre-temps, ce qui rend l'amorçage sûr à plusieurs.
-        c.add(_cle_version(cle), 0, timeout=None)
-        _VERSIONS_VUES[cle] = int(c.incr(_cle_version(cle)))
+        c.add(_version_key(key), 0, timeout=None)
+        _SEEN_VERSIONS[key] = int(c.incr(_version_key(key)))
     except Exception:
-        logger.debug("propagation de '%s' impossible", cle, exc_info=True)
+        logger.debug("propagation de '%s' impossible", key, exc_info=True)
 
 
-def synchroniser(cle: str) -> bool:
+def synchronize(key: str) -> bool:
     """Recharge SI un autre processus a actualisé depuis notre dernier passage. Rend True s'il a
     fallu recharger.
 
-    Appelé au rendu de chaque page catalogue (via le tag `bouton_actualiser`) : une lecture Redis,
+    Appelé au rendu de chaque page catalogue (via le tag `refresh_button`) : une lecture Redis,
     et un rechargement seulement quand quelqu'un a réellement actualisé. C'est le prix minimal pour
     que la même déclaration donne le bouton ET la cohérence entre workers.
     """
-    r = REGISTRES.get(cle)
+    r = REGISTRIES.get(key)
     if r is None or r.nature != REDECLARATION:
         return False           # les autres écrivent dans un état partagé : rien à propager
-    partagee = _version_partagee(cle)
-    if partagee is None or partagee <= _VERSIONS_VUES.get(cle, 0):
+    shared = _shared_version(key)
+    if shared is None or shared <= _SEEN_VERSIONS.get(key, 0):
         return False
     try:
-        r.rafraichir()
-        _VERSIONS_VUES[cle] = partagee
-        logger.info("registre '%s' resynchronisé depuis un autre processus (v%s)", cle, partagee)
+        r.refresh()
+        _SEEN_VERSIONS[key] = shared
+        logger.info("registre '%s' resynchronisé depuis un autre processus (v%s)", key, shared)
         return True
     except Exception:
-        logger.warning("resynchronisation de '%s' en échec", cle, exc_info=True)
+        logger.warning("resynchronisation de '%s' en échec", key, exc_info=True)
         return False
 
 
-def rafraichir(cle: str, *, user=None) -> Resultat:
+def refresh(key: str, *, user=None) -> RefreshResult:
     """Exécute l'actualisation ICI, en synchrone. Chronomètre et uniformise le compte-rendu.
 
     ⚠ Ce n'est PAS le point d'entrée des vues : pour un registre en Celery, la vue doit passer par
-    `lancer()`, sinon elle bloque un worker web (31 s mesurées pour `apps`). Cette fonction est
+    `launch()`, sinon elle bloque un worker web (31 s mesurées pour `apps`). Cette fonction est
     ce que la tâche Celery appelle, et ce que les registres en mémoire utilisent directement.
 
-    Une exception du rafraîchisseur devient un `Resultat` en échec plutôt qu'une 500 : une
+    Une exception du rafraîchisseur devient un `RefreshResult` en échec plutôt qu'une 500 : une
     actualisation qui plante ne doit pas emporter la page qu'elle sert.
     """
-    r = get(cle)
-    if user is not None and not autorise(r, user):
-        return Resultat(ok=False, messages=(f"réservé au {r.permission}",))
-    if r.nature == DERIVE:
-        return Resultat(ok=True, total=_compter(r),
-                        messages=("dérivé à chaque affichage — rien à actualiser",))
+    r = get(key)
+    if user is not None and not is_authorized(r, user):
+        return RefreshResult(ok=False, messages=(f"réservé au {r.permission}",))
+    if r.nature == DERIVED:
+        return RefreshResult(ok=True, total=_count(r),
+                             messages=("dérivé à chaque affichage — rien à actualiser",))
     t0 = time.monotonic()
     try:
-        res = r.rafraichir()
+        res = r.refresh()
     except Exception as e:                       # noqa: BLE001 — on RAPPORTE, on ne propage pas
-        logger.warning("actualisation de '%s' en échec", cle, exc_info=True)
-        return Resultat(ok=False, duree_s=time.monotonic() - t0, messages=(str(e)[:300],))
-    if not isinstance(res, Resultat):
-        res = Resultat(ok=True, messages=(str(res)[:300],) if res else ())
-    res.duree_s = time.monotonic() - t0
+        logger.warning("actualisation de '%s' en échec", key, exc_info=True)
+        return RefreshResult(ok=False, duration_s=time.monotonic() - t0,
+                             messages=(str(e)[:300],))
+    if not isinstance(res, RefreshResult):
+        res = RefreshResult(ok=True, messages=(str(res)[:300],) if res else ())
+    res.duration_s = time.monotonic() - t0
     if not res.total:
-        res.total = _compter(r)
+        res.total = _count(r)
     if res.ok and r.nature == REDECLARATION:
-        marquer_actualise(cle)
+        mark_refreshed(key)
     return res
 
 
-def lancer(cle: str, *, user=None) -> dict:
+def launch(key: str, *, user=None) -> dict:
     """LE point d'entrée des vues. Décide où l'actualisation tourne et rend une réponse immédiate.
 
-    - registre en Celery  → met la tâche en file, rend `{'asynchrone': True, 'task_id': …}` ;
+    - registre en Celery  → met la tâche en file, rend `{'async': True, 'task_id': …}` ;
     - registre en mémoire → exécute sur place (mesuré < 0,4 s) et rend le compte-rendu complet.
 
     Si le courtier Celery est injoignable, on le DIT au lieu de basculer en synchrone : un repli
     silencieux rendrait la page muette 31 secondes, ce qui ressemble à une panne réseau.
     """
-    r = get(cle)
-    if user is not None and not autorise(r, user):
+    r = get(key)
+    if user is not None and not is_authorized(r, user):
         return {'ok': False, 'error': f"réservé au {r.permission}"}
-    if r.nature == DERIVE:
-        return dict(rafraichir(cle).en_dict(), asynchrone=False)
+    if r.nature == DERIVED:
+        return dict(refresh(key).as_dict(), **{'async': False})
 
-    if execution_de(r) == PROCESSUS:
-        return dict(rafraichir(cle).en_dict(), asynchrone=False)
+    if execution_of(r) == PROCESS:
+        return dict(refresh(key).as_dict(), **{'async': False})
 
     try:
-        from .tasks import rafraichir_registre
-        tache = rafraichir_registre.delay(cle)
+        from .tasks import refresh_registry
+        tache = refresh_registry.delay(key)
     except Exception as e:                       # noqa: BLE001
-        logger.warning("mise en file de '%s' impossible", cle, exc_info=True)
-        return {'ok': False, 'asynchrone': True,
+        logger.warning("mise en file de '%s' impossible", key, exc_info=True)
+        return {'ok': False, 'async': True,
                 'error': f"file de tâches injoignable — actualisation non lancée ({str(e)[:120]})"}
-    return {'ok': True, 'asynchrone': True, 'task_id': tache.id,
-            'resume': f"{r.nom} : actualisation lancée en arrière-plan"}
+    return {'ok': True, 'async': True, 'task_id': tache.id,
+            'summary': f"{r.label} : actualisation lancée en arrière-plan"}
 
 
-def etat_tache(task_id: str) -> dict:
+def task_state(task_id: str) -> dict:
     """État d'une actualisation lancée en Celery — de quoi faire patienter l'utilisateur."""
     try:
         from celery.result import AsyncResult
         res = AsyncResult(task_id)
     except Exception as e:                       # noqa: BLE001
-        return {'ok': False, 'termine': True, 'error': str(e)[:200]}
+        return {'ok': False, 'done': True, 'error': str(e)[:200]}
     if not res.ready():
-        return {'ok': True, 'termine': False, 'etat': res.state}
+        return {'ok': True, 'done': False, 'state': res.state}
     if res.failed():
-        return {'ok': False, 'termine': True, 'etat': res.state,
+        return {'ok': False, 'done': True, 'state': res.state,
                 'error': str(res.result)[:300]}
     charge = res.result if isinstance(res.result, dict) else {}
-    return dict({'ok': True, 'termine': True, 'etat': res.state}, **charge)
+    return dict({'ok': True, 'done': True, 'state': res.state}, **charge)
 
 
-def _compter(r: Registre) -> int:
-    if not r.compter:
+def _count(r: Registry) -> int:
+    if not r.count:
         return 0
     try:
-        return int(r.compter())
+        return int(r.count())
     except Exception:
         return 0
 
 
-def etat(avec_couverture: bool = False) -> List[dict]:
+def overview(with_coverage: bool = False) -> List[dict]:
     """Photo de tous les registres, pour l'UI et pour la documentation générée.
 
-    `avec_couverture` ajoute la couverture de test MESURÉE (`registries_coverage`). Optionnel et
+    `with_coverage` ajoute la couverture de test MESURÉE (`registries_coverage`). Optionnel et
     désactivé par défaut à dessein : le calcul lit et analyse les fichiers de test, ce qui n'a rien
     à faire dans un appel qui ne veut que l'inventaire. La page de supervision, elle, l'active.
     """
     couvertures = {}
-    if avec_couverture:
+    if with_coverage:
         try:
-            from .registries_coverage import couverture
-            couvertures = {c['cle']: c for c in couverture()}
+            from .registries_coverage import coverage
+            couvertures = {c['key']: c for c in coverage()}
         except Exception:
             logger.debug("couverture de test indisponible", exc_info=True)
 
     out = []
-    for r in sorted(REGISTRES.values(), key=lambda x: x.nom):
-        c = couvertures.get(r.cle) or {}
+    for r in sorted(REGISTRIES.values(), key=lambda x: x.label):
+        c = couvertures.get(r.key) or {}
         out.append({
             # Couverture : présente uniquement si demandée. `tests_specifiques` vaut None quand la
             # mesure n'a pas tourné — à distinguer de 0, qui affirmerait « aucun test » à tort.
             'tests_specifiques': c.get('nb_specifiques') if c else None,
             'tests_noms': c.get('specifiques') or [],
             'tests_manquants': bool(c.get('manquant')),
-            'cle': r.cle, 'nom': r.nom, 'nature': r.nature,
+            'key': r.key, 'label': r.label, 'nature': r.nature,
             'nature_label': NATURES[r.nature], 'source': r.source,
-            'actualisable': r.nature != DERIVE, 'permission': r.permission,
-            'url_name': r.url_name, 'au_demarrage': r.au_demarrage,
-            'periodique': r.periodique, 'manifest_kind': r.manifest_kind,
-            'total': _compter(r), 'doc': r.doc, 'description': r.description,
+            'refreshable': r.nature != DERIVED, 'permission': r.permission,
+            'url_name': r.url_name, 'on_startup': r.on_startup,
+            'periodic': r.periodic, 'manifest_kind': r.manifest_kind,
+            'total': _count(r), 'doc': r.doc, 'description': r.description,
         })
     return out
 
 
-def au_demarrage() -> Dict[str, Resultat]:
-    """Passe les registres marqués `au_demarrage`. Appelé une fois par processus.
+def run_startup() -> Dict[str, RefreshResult]:
+    """Passe les registres marqués `on_startup`. Appelé une fois par processus.
 
     ⚠ N'y mettre QUE des rafraîchisseurs en mémoire. Gunicorn lance plusieurs workers : un scan
     disque ici se paierait autant de fois, et deux scans concurrents sur le même registre
     persistant se marchent dessus. Le bon domicile d'un SCAN périodique est Celery Beat, déclaré
-    dans le champ `periodique` — pas le démarrage.
+    dans le champ `periodic` — pas le démarrage.
     """
     out = {}
-    for r in REGISTRES.values():
-        if not r.au_demarrage or r.nature == DERIVE:
+    for r in REGISTRIES.values():
+        if not r.on_startup or r.nature == DERIVED:
             continue
         if r.nature == SCAN:
             logger.warning(
-                "registre '%s' : au_demarrage ignoré — un SCAN ne se lance pas au boot "
-                "(voir `periodique`)", r.cle)
+                "registre '%s' : on_startup ignoré — un SCAN ne se lance pas au boot "
+                "(voir `periodic`)", r.key)
             continue
-        out[r.cle] = rafraichir(r.cle)
+        out[r.key] = refresh(r.key)
     return out

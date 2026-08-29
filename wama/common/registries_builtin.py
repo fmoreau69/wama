@@ -12,31 +12,31 @@ Relevé du 2026-08-22 avant écriture :
 """
 from __future__ import annotations
 
-from .registries import (DERIVE, MESURE, REDECLARATION, SCAN, Registre, Resultat, enregistrer)
+from .registries import (DERIVED, MEASURE, REDECLARATION, SCAN, Registry, RefreshResult, register)
 
 
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 # MODÈLES — scan du disque vers le catalogue `AIModel`
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
-def _rafraichir_modeles() -> Resultat:
+def _refresh_models() -> RefreshResult:
     from wama.model_manager.services.model_sync import get_sync_service
     r = get_sync_service().full_sync(remove_missing=False, delete_missing=True)
-    return Resultat(ok=bool(r.success), ajoutes=r.added, modifies=r.updated, retires=r.removed,
+    return RefreshResult(ok=bool(r.success), added=r.added, updated=r.updated, removed=r.removed,
                     messages=tuple((r.errors or [])[:5]))
 
 
-def _compter_modeles() -> int:
+def _count_models() -> int:
     from wama.model_manager.models import AIModel
     return AIModel.objects.count()
 
 
-enregistrer(Registre(
-    cle='modeles', nom='Modèles IA', nature=SCAN,
+register(Registry(
+    key='modeles', label='Modèles IA', nature=SCAN,
     source="Fichiers de `AI-models/` + déclarations `model_config` des apps",
-    rafraichir=_rafraichir_modeles, compter=_compter_modeles,
+    refresh=_refresh_models, count=_count_models,
     url_name='model_manager:index', manifest_kind='model',
-    periodique='model-manager-reconcile',
+    periodic='model-manager-reconcile',
     description="Réconcilie le catalogue avec ce qui est réellement présent sur le disque. "
                 "Une entrée dont les fichiers ont disparu est supprimée — d'où la réserve staff.",
 ))
@@ -46,25 +46,25 @@ enregistrer(Registre(
 # APPLICATIONS — la grille de conformité est la partie MESURÉE de la page
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
-def _rafraichir_apps() -> Resultat:
+def _refresh_apps() -> RefreshResult:
     from .app_registry import measure_and_write_conformity
     rapport = measure_and_write_conformity()
     apps = rapport.get('apps', {})
-    return Resultat(ok=True, modifies=len(apps), total=len(apps),
+    return RefreshResult(ok=True, updated=len(apps), total=len(apps),
                     messages=(f"mesurée le {rapport.get('generated_at', '?')}",))
 
 
-def _compter_apps() -> int:
+def _count_apps() -> int:
     from .app_registry import APP_CATALOG
     return len(APP_CATALOG)
 
 
-enregistrer(Registre(
-    cle='apps', nom='Applications', nature=MESURE,
+register(Registry(
+    key='apps', label='Applications', nature=MEASURE,
     source="`APP_CATALOG` (déclaré en code) + grille de conformité MESURÉE depuis le code réel",
-    rafraichir=_rafraichir_apps, compter=_compter_apps,
+    refresh=_refresh_apps, count=_count_apps,
     url_name='common:apps_catalog', manifest_kind='app',
-    periodique='nightly-consistency',
+    periodic='nightly-consistency',
     doc='WAMA_APP_CONVENTIONS.md',
     description="Le catalogue lui-même est déclaré en code — rien à y actualiser. Ce qui "
                 "s'actualise est la GRILLE : 72 critères re-mesurés par analyse du code.",
@@ -75,7 +75,7 @@ enregistrer(Registre(
 # FONCTIONS — registre en mémoire, peuplé par import au `ready()` de chaque monde
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
-def _oublier(nom: str) -> None:
+def _forget_module(module_name: str) -> None:
     """Désimporte VRAIMENT un module — `sys.modules` **et** l'attribut du paquet parent.
 
     ⚠ Retirer de `sys.modules` seul ne suffit pas, et l'oublier produit un bug qui ne se voit qu'à
@@ -85,8 +85,8 @@ def _oublier(nom: str) -> None:
     seul et échouait après le test « supprimée à chaud ».
     """
     import sys
-    sys.modules.pop(nom, None)
-    parent, _, feuille = nom.rpartition('.')
+    sys.modules.pop(module_name, None)
+    parent, _, feuille = module_name.rpartition('.')
     mod_parent = sys.modules.get(parent) if parent else None
     if mod_parent is not None and hasattr(mod_parent, feuille):
         try:
@@ -95,7 +95,7 @@ def _oublier(nom: str) -> None:
             pass
 
 
-def _rafraichir_fonctions() -> Resultat:
+def _refresh_functions() -> RefreshResult:
     """Re-déclare le catalogue de fonctions en RECHARGEANT les modules déclarants.
 
     ⚠ `load_all()` ne suffit pas et c'est le piège : `importlib.import_module` rend le module
@@ -124,11 +124,11 @@ def _rafraichir_fonctions() -> Resultat:
     FUNCTION_CATALOG.clear()
     disparus = 0
     try:
-        for nom in modules:
+        for module_name in modules:
             # Recharger le paquet déclarant ne recharge pas ses sous-modules : ce sont eux qui
             # portent les `register()`. On les recharge donc en profondeur, parents d'abord.
             for sous in sorted(m for m in list(sys.modules)
-                               if m == nom or m.startswith(nom + '.')):
+                               if m == module_name or m.startswith(module_name + '.')):
                 mod = sys.modules.get(sous)
                 if mod is None:
                     continue
@@ -137,7 +137,7 @@ def _rafraichir_fonctions() -> Resultat:
                     # ⚠ Fichier SUPPRIMÉ pendant que le serveur tourne. Le recharger lève, et une
                     # levée ici restaurerait l'instantané — donc les fonctions du fichier effacé
                     # survivraient à leur propre suppression.
-                    _oublier(sous)
+                    _forget_module(sous)
                     disparus += 1
                     continue
                 importlib.reload(mod)
@@ -148,25 +148,25 @@ def _rafraichir_fonctions() -> Resultat:
         raise
 
     apres = dict(FUNCTION_CATALOG)
-    ajoutes = len(set(apres) - set(avant))
-    retires = len(set(avant) - set(apres))
+    added = len(set(apres) - set(avant))
+    removed = len(set(avant) - set(apres))
     messages = [f"{len(modules)} module(s) déclarant(s) rechargé(s)"]
     if disparus:
         messages.append(f"{disparus} module(s) dont le fichier a disparu, retiré(s)")
-    return Resultat(ok=True, ajoutes=ajoutes, retires=retires,
-                    modifies=len(set(apres) & set(avant)), total=len(apres),
+    return RefreshResult(ok=True, added=added, removed=removed,
+                    updated=len(set(apres) & set(avant)), total=len(apres),
                     messages=tuple(messages))
 
 
-def _compter_fonctions() -> int:
+def _count_functions() -> int:
     from .catalog.function_catalog import FUNCTION_CATALOG
     return len(FUNCTION_CATALOG)
 
 
-enregistrer(Registre(
-    cle='fonctions', nom='Fonctions de traitement', nature=REDECLARATION,
+register(Registry(
+    key='fonctions', label='Fonctions de traitement', nature=REDECLARATION,
     source="`apps.py:ready()` de chaque monde — `wama_data`, `wama_lab.cam_analyzer`…",
-    rafraichir=_rafraichir_fonctions, compter=_compter_fonctions,
+    refresh=_refresh_functions, count=_count_functions,
     url_name='model_manager:function_catalog', manifest_kind='function',
     doc='WAMA_DATA_FUNCTION_CARDS.md',
     description="Recharge les modules qui déclarent des `FunctionSpec`. Rend visibles les "
@@ -178,10 +178,10 @@ enregistrer(Registre(
 # SKILLS DE PROMPT — fichiers `.md` sur disque, lus avec cache
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
-def _rafraichir_skills() -> Resultat:
-    """⚠ `retires` compte les entrées perdues par le REGISTRE, jamais les lignes de cache vidées.
+def _refresh_skills() -> RefreshResult:
+    """⚠ `removed` compte les entrées perdues par le REGISTRE, jamais les lignes de cache vidées.
 
-    Première version : elle rendait `retires = len(cache)`, donc « 10 retirés » à chaque passage
+    Première version : elle rendait `removed = len(cache)`, donc « 10 retirés » à chaque passage
     alors qu'aucun skill ne disparaissait — un compte-rendu qui alarme sans raison. Trouvé par le
     contrôle générique d'idempotence, pas à la lecture : les deux passages rendaient le même
     chiffre, ce qui ressemblait à un résultat stable.
@@ -191,21 +191,21 @@ def _rafraichir_skills() -> Resultat:
     vidées = len(prompt_skills._cache)
     prompt_skills._cache.clear()
     apres = set(prompt_skills.skills_catalog())
-    return Resultat(ok=True, ajoutes=len(apres - avant), retires=len(avant - apres),
-                    modifies=len(apres & avant), total=len(apres),
+    return RefreshResult(ok=True, added=len(apres - avant), removed=len(avant - apres),
+                    updated=len(apres & avant), total=len(apres),
                     messages=(f"cache vidé ({vidées} entrée(s)) — fichiers relus à la demande",))
 
 
-def _compter_skills() -> int:
+def _count_skills() -> int:
     from .utils import prompt_skills
     return len(prompt_skills.skills_catalog())
 
 
-enregistrer(Registre(
-    cle='skills', nom='Skills de prompt', nature=REDECLARATION,
+register(Registry(
+    key='skills', label='Skills de prompt', nature=REDECLARATION,
     source="Fichiers `wama/common/prompt_skills/*.md`",
-    rafraichir=_rafraichir_skills, compter=_compter_skills,
-    permission='auth', au_demarrage=False,
+    refresh=_refresh_skills, count=_count_skills,
+    permission='auth', on_startup=False,
     # Sa page, enfin (27/08). Il était le seul registre de la carte à n'en désigner aucune :
     # le catalogue n'était lisible que par l'assistant et wama-dev-ai.
     url_name='common:skills_catalog',
@@ -219,15 +219,15 @@ enregistrer(Registre(
 # Les DÉRIVÉS — rien à actualiser, et c'est une PROPRIÉTÉ, pas un manque
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 
-def _compter_librairies() -> int:
+def _count_libraries() -> int:
     from .models import Library
     return Library.objects.count()
 
 
-enregistrer(Registre(
-    cle='librairies', nom='Librairies externes', nature=DERIVE,
-    source="Registre `Library` (projeté par les manifestes) + mesure live `importlib.metadata`",
-    compter=_compter_librairies,
+register(Registry(
+    key='librairies', label='Librairies externes', nature=DERIVED,
+    source="Registry `Library` (projeté par les manifestes) + mesure live `importlib.metadata`",
+    count=_count_libraries,
     url_name='model_manager:library_catalog', manifest_kind='library',
     doc='LICENSING.md',
     description="La page mesure l'installation réelle à CHAQUE affichage et compare au déclaré : "
@@ -236,8 +236,8 @@ enregistrer(Registre(
 ))
 
 
-enregistrer(Registre(
-    cle='licences', nom='Licences', nature=DERIVE,
+register(Registry(
+    key='licences', label='Licences', nature=DERIVED,
     source="Agrégation de `AIModel`, `Library`, médias et des `requires` des manifestes d'app",
     url_name='common:licenses_catalog',
     doc='LICENSING.md',
@@ -247,8 +247,8 @@ enregistrer(Registre(
 ))
 
 
-enregistrer(Registre(
-    cle='rag', nom='Mon RAG', nature=DERIVE,
+register(Registry(
+    key='rag', label='Mon RAG', nature=DERIVED,
     source="Ce que l'utilisateur a confié au RAG (`common/memory/`, Postgres + pgvector)",
     url_name='common:rag', permission='auth',
     doc='WAMA_MEMORY.md',

@@ -11,7 +11,7 @@ Le test `test_le_rafraichissement_ne_VIDE_pas_le_registre` est là pour ça, et 
 """
 import unittest
 
-from wama.common.registries import REGISTRES, etat
+from wama.common.registries import REGISTRIES, overview
 
 
 class DeclarationTest(unittest.TestCase):
@@ -19,7 +19,7 @@ class DeclarationTest(unittest.TestCase):
 
     def test_les_trois_registres_du_monde_sont_declares(self):
         for key in ('lecteurs_data', 'formats_export_data', 'conteneurs_data'):
-            self.assertIn(key, REGISTRES, f"{key} absent du registre des registres")
+            self.assertIn(key, REGISTRIES, f"{key} absent du registre des registres")
 
     def test_le_substrat_n_IMPORTE_aucun_monde(self):
         """Les inscrire dans `common/registries_builtin.py` ferait dépendre le substrat du monde —
@@ -46,27 +46,27 @@ class DeclarationTest(unittest.TestCase):
         self.assertEqual(mondes, [], f"le substrat importe un monde : {mondes}")
 
     def test_le_registre_des_lecteurs_pointe_le_kind_dataset(self):
-        self.assertEqual(REGISTRES['lecteurs_data'].manifest_kind, 'dataset')
+        self.assertEqual(REGISTRIES['lecteurs_data'].manifest_kind, 'dataset')
 
     def test_les_formats_de_sortie_ne_pointent_AUCUN_kind(self):
         # Et c'est juste : 3 des 7 pages catalogue ne correspondent à aucun kind (relevé du
         # 22/08 en tête de `registries.py`). `manifest_kind` est un LIEN facultatif, pas la clé.
-        self.assertEqual(REGISTRES['formats_export_data'].manifest_kind, '')
+        self.assertEqual(REGISTRIES['formats_export_data'].manifest_kind, '')
 
 
 class ComptageTest(unittest.TestCase):
 
     def test_les_lecteurs_sont_comptes(self):
         from .sources import READERS
-        self.assertEqual(REGISTRES['lecteurs_data'].compter(), len(READERS))
+        self.assertEqual(REGISTRIES['lecteurs_data'].count(), len(READERS))
         self.assertGreaterEqual(len(READERS), 2)      # trip + tabular
 
     def test_les_formats_sont_comptes(self):
         from .core.export import FORMATS
-        self.assertEqual(REGISTRES['formats_export_data'].compter(), len(FORMATS))
+        self.assertEqual(REGISTRIES['formats_export_data'].count(), len(FORMATS))
 
     def test_l_etat_general_les_expose(self):
-        cles = {e['cle'] for e in etat()}
+        cles = {e['key'] for e in overview()}
         self.assertIn('lecteurs_data', cles)
         self.assertIn('formats_export_data', cles)
 
@@ -79,7 +79,7 @@ class RafraichissementLecteursTest(unittest.TestCase):
         # compte-rendu annoncerait fièrement « ok ».
         from .sources import READERS
         before = set(READERS)
-        res = REGISTRES['lecteurs_data'].rafraichir()
+        res = REGISTRIES['lecteurs_data'].refresh()
         self.assertTrue(res.ok, res.messages)
         self.assertEqual(set(READERS), before, "des lecteurs ont disparu au rechargement")
         self.assertGreaterEqual(res.total, 2)
@@ -88,17 +88,17 @@ class RafraichissementLecteursTest(unittest.TestCase):
         # Idempotence : c'est le contrôle générique des catalogues, et il a déjà attrapé un
         # rafraîchisseur qui annonçait « 10 retirés » à chaque passage sans que rien ne disparaisse.
         from .sources import READERS
-        REGISTRES['lecteurs_data'].rafraichir()
+        REGISTRIES['lecteurs_data'].refresh()
         premier = set(READERS)
-        deuxieme = REGISTRES['lecteurs_data'].rafraichir()
+        deuxieme = REGISTRIES['lecteurs_data'].refresh()
         self.assertEqual(set(READERS), premier)
-        self.assertEqual(deuxieme.ajoutes, 0)
-        self.assertEqual(deuxieme.retires, 0)
+        self.assertEqual(deuxieme.added, 0)
+        self.assertEqual(deuxieme.removed, 0)
 
     def test_les_lecteurs_restent_FONCTIONNELS_apres_rechargement(self):
         # Recharger des modules recrée les classes : un registre repeuplé d'objets cassés
         # passerait le comptage et échouerait au premier import réel.
-        REGISTRES['lecteurs_data'].rafraichir()
+        REGISTRIES['lecteurs_data'].refresh()
         from .sources import supported_extensions
         self.assertIn('.trip', supported_extensions())
 
@@ -110,12 +110,12 @@ class RafraichissementFormatsTest(unittest.TestCase):
         # volontaire de purge (`register_format` est idempotent, `register_reader` non).
         from .core.export import FORMATS
         before = set(FORMATS)
-        res = REGISTRES['formats_export_data'].rafraichir()
+        res = REGISTRIES['formats_export_data'].refresh()
         self.assertTrue(res.ok, res.messages)
         self.assertEqual(set(FORMATS), before)
 
     def test_le_compte_rendu_dit_la_DETTE(self):
-        res = REGISTRES['formats_export_data'].rafraichir()
+        res = REGISTRIES['formats_export_data'].refresh()
         # « n/m format(s) réellement écrivable(s) » — l'écart déclaré/écrivable est la dette.
         self.assertTrue(any('écrivable' in m for m in res.messages), res.messages)
 
@@ -132,23 +132,23 @@ class RafraichissementConteneursTest(unittest.TestCase):
         """Le piège ① : un `reload` du paquet vide le registre au lieu de le recharger."""
         from wama_data.containers import SCHEMAS
         before = dict(SCHEMAS)
-        resultat = REGISTRES['conteneurs_data'].rafraichir()
+        resultat = REGISTRIES['conteneurs_data'].refresh()
         self.assertTrue(resultat.ok, resultat.messages)
         self.assertEqual(set(SCHEMAS), set(before))
         self.assertEqual(resultat.total, len(before))
 
     def test_deux_passages_donnent_le_MEME_etat(self):
         """Le piège ② : `register_schema()` lève sur doublon — sans purge, le 2ᵉ passage casse."""
-        premier = REGISTRES['conteneurs_data'].rafraichir()
-        second = REGISTRES['conteneurs_data'].rafraichir()
+        premier = REGISTRIES['conteneurs_data'].refresh()
+        second = REGISTRIES['conteneurs_data'].refresh()
         self.assertTrue(second.ok, second.messages)
-        self.assertEqual((premier.total, premier.ajoutes, premier.retires),
-                         (second.total, second.ajoutes, second.retires))
+        self.assertEqual((premier.total, premier.added, premier.removed),
+                         (second.total, second.added, second.removed))
 
     def test_les_schemas_restent_FONCTIONNELS_apres_rechargement(self):
         """Un registre repeuplé d'objets inertes passerait les comptages sans rien savoir écrire."""
         from wama_data.containers import schema_for
-        REGISTRES['conteneurs_data'].rafraichir()
+        REGISTRIES['conteneurs_data'].refresh()
         self.assertIsNotNone(schema_for('essai.wdat'))
         self.assertIsNotNone(schema_for('essai.trip'))
 

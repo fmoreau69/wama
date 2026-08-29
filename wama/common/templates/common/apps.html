@@ -326,10 +326,10 @@ n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux m
               Le script inline qui vivait ici (30 lignes) est remplacé par le tag commun.
               ⚠ Écrire le bouton À LA MAIN — même avec le bon attribut — perdait deux choses que
               le tag apporte : la mention de l'exécution en arrière-plan, et surtout l'appel de
-              resynchronisation entre workers gunicorn. Passer par `{% templatetag openblock %} bouton_actualiser {% templatetag closeblock %}` n'est
+              resynchronisation entre workers gunicorn. Passer par `{% templatetag openblock %} refresh_button {% templatetag closeblock %}` n'est
               donc pas cosmétique.
             {% endcomment %}
-            {% bouton_actualiser "apps" %}
+            {% refresh_button "apps" %}
         </div>
     </div>
     <div class="table-responsive">

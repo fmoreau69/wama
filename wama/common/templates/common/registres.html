@@ -5,7 +5,7 @@
 {% block console_app_name %}common{% endblock %}
 
 {% comment %}
-  Vue DÉRIVÉE de `registries.etat()` — aucune donnée propre, donc aucune divergence possible
+  Vue DÉRIVÉE de `registries.overview()` — aucune donnée propre, donc aucune divergence possible
   avec le registre : ajouter un registre le fait apparaître ici tout seul.
 
   Même charte que les catalogues existants (licences / librairies / fonctions) : bandeau de
@@ -82,9 +82,9 @@
 
   <div class="rg-grid mt-3">
     {% for r in registres %}
-    <div class="rg-card" data-f-nature="{{ r.nature }}" data-cle="{{ r.cle }}">
+    <div class="rg-card" data-f-nature="{{ r.nature }}" data-cle="{{ r.key }}">
       <h4>
-        {{ r.nom }}
+        {{ r.label }}
         <span class="rg-badge rg-{{ r.nature|slice:':6' }}">{{ r.nature_label }}</span>
         {% if r.total %}<span class="rg-badge rg-total">{{ r.total }}</span>{% endif %}
       </h4>
@@ -93,13 +93,13 @@
       <div class="rg-meta">Source : {{ r.source|safe }}</div>
 
       <div class="rg-meta">
-        <code>{{ r.cle }}</code>
+        <code>{{ r.key }}</code>
         {% if r.manifest_kind %} · manifeste <code>{{ r.manifest_kind }}</code>{% endif %}
         {% if r.doc %} · <span title="Document de référence">{{ r.doc }}</span>{% endif %}
       </div>
 
-      {% if r.periodique %}
-      <div class="rg-auto"><i class="fas fa-clock me-1"></i>Automatique — {{ r.periodique }}</div>
+      {% if r.periodic %}
+      <div class="rg-auto"><i class="fas fa-clock me-1"></i>Automatique — {{ r.periodic }}</div>
       {% endif %}
 
       {% comment %}
@@ -122,13 +122,13 @@
       {% endif %}
 
       {% comment %}
-        Le contrôle vient de la BRIQUE COMMUNE `{% bouton_actualiser %}` — jamais réécrit ici.
+        Le contrôle vient de la BRIQUE COMMUNE `{% refresh_button %}` — jamais réécrit ici.
         Elle décide seule des trois rendus depuis la nature déclarée (bouton / « toujours à
         jour » / « réservé »), applique la permission, gère le mode arrière-plan et le
         rechargement. Une page qui recopierait ce bouton serait la dérive que le registre des
         registres a précisément arrêtée — il y en avait déjà deux, aux réponses différentes.
       {% endcomment %}
-      <div class="rg-actions">{% bouton_actualiser r.cle %}</div>
+      <div class="rg-actions">{% refresh_button r.key %}</div>
     </div>
     {% empty %}
     <p class="text-white-50">Aucun registre déclaré.</p>

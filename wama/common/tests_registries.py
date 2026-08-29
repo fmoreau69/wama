@@ -11,10 +11,10 @@ from django.conf import settings
 from django.test import TestCase
 from django.urls import NoReverseMatch, reverse
 
-from .registries import (CELERY, DERIVE, EXECUTION_PAR_NATURE, MESURE, NATURES, PROCESSUS,
-                         REDECLARATION, REGISTRES, Registre, Resultat, _cache, _cle_version,
-                         _VERSIONS_VUES, autorise, enregistrer, etat, execution_de, get, lancer,
-                         marquer_actualise, rafraichir, synchroniser)
+from .registries import (CELERY, DERIVED, EXECUTION_BY_NATURE, MEASURE, NATURES, PROCESS,
+                         REDECLARATION, REGISTRIES, Registry, RefreshResult, _cache, _version_key,
+                         _SEEN_VERSIONS, is_authorized, register, overview, execution_of, get, launch,
+                         mark_refreshed, refresh, synchronize)
 
 
 class _Anon:
@@ -36,28 +36,28 @@ class ContratTest(TestCase):
     """Le registre refuse les déclarations incohérentes AU MOMENT de la déclaration."""
 
     def tearDown(self):
-        for cle in ('_t_derive', '_t_scan', '_t_nature', '_t_dup', '_t_casse'):
-            REGISTRES.pop(cle, None)
+        for key in ('_t_derive', '_t_scan', '_t_nature', '_t_dup', '_t_casse'):
+            REGISTRIES.pop(key, None)
 
     def test_derive_avec_rafraichisseur_refuse(self):
         # S'il a un rafraîchisseur, c'est qu'il stocke : sa nature est mal déclarée.
         with self.assertRaises(ValueError):
-            enregistrer(Registre(cle='_t_derive', nom='x', nature=DERIVE, source='s',
-                                 rafraichir=lambda: Resultat()))
+            register(Registry(key='_t_derive', label='x', nature=DERIVED, source='s',
+                                 refresh=lambda: RefreshResult()))
 
     def test_non_derive_sans_rafraichisseur_refuse(self):
         with self.assertRaises(ValueError):
-            enregistrer(Registre(cle='_t_scan', nom='x', nature='scan', source='s'))
+            register(Registry(key='_t_scan', label='x', nature='scan', source='s'))
 
     def test_nature_inconnue_refusee(self):
         with self.assertRaises(ValueError):
-            enregistrer(Registre(cle='_t_nature', nom='x', nature='inventee', source='s',
-                                 rafraichir=lambda: Resultat()))
+            register(Registry(key='_t_nature', label='x', nature='inventee', source='s',
+                                 refresh=lambda: RefreshResult()))
 
     def test_cle_en_double_refusee(self):
-        enregistrer(Registre(cle='_t_dup', nom='x', nature=DERIVE, source='s'))
+        register(Registry(key='_t_dup', label='x', nature=DERIVED, source='s'))
         with self.assertRaises(ValueError):
-            enregistrer(Registre(cle='_t_dup', nom='y', nature=DERIVE, source='s'))
+            register(Registry(key='_t_dup', label='y', nature=DERIVED, source='s'))
 
     def test_cle_inconnue_nomme_les_cles_connues(self):
         with self.assertRaises(KeyError) as ctx:
@@ -68,9 +68,9 @@ class ContratTest(TestCase):
         # Une actualisation qui plante ne doit pas emporter la page qu'elle sert.
         def _boum():
             raise RuntimeError('boum')
-        enregistrer(Registre(cle='_t_casse', nom='x', nature=MESURE, source='s',
-                             rafraichir=_boum))
-        res = rafraichir('_t_casse')
+        register(Registry(key='_t_casse', label='x', nature=MEASURE, source='s',
+                             refresh=_boum))
+        res = refresh('_t_casse')
         self.assertFalse(res.ok)
         self.assertIn('boum', ' '.join(res.messages))
 
@@ -81,41 +81,41 @@ class DeclarationsTest(TestCase):
     def test_les_registres_attendus_sont_declares(self):
         # Un PLANCHER, pas un inventaire : le nom ne fige plus de compte (« les sept » mentait
         # dès le huitième), et la couverture des nouveaux est le travail de `ConformiteTest`.
-        for cle in ('modeles', 'apps', 'fonctions', 'skills', 'librairies', 'licences', 'rag'):
-            self.assertIn(cle, REGISTRES)
+        for key in ('modeles', 'apps', 'fonctions', 'skills', 'librairies', 'licences', 'rag'):
+            self.assertIn(key, REGISTRIES)
 
     def test_un_derive_n_a_pas_de_rafraichisseur(self):
-        derives = [r for r in REGISTRES.values() if r.nature == DERIVE]
+        derives = [r for r in REGISTRIES.values() if r.nature == DERIVED]
         self.assertTrue(derives)
         for r in derives:
-            self.assertIsNone(r.rafraichir, f"{r.cle} : un dérivé n'a rien à actualiser")
+            self.assertIsNone(r.refresh, f"{r.key} : un dérivé n'a rien à actualiser")
 
     def test_un_derive_le_DIT_au_lieu_de_faire_semblant(self):
-        res = rafraichir('licences')
+        res = refresh('licences')
         self.assertTrue(res.ok)
         self.assertIn('rien à actualiser', ' '.join(res.messages))
 
     def test_l_etat_expose_ce_qui_est_actualisable(self):
-        par_cle = {e['cle']: e for e in etat()}
-        self.assertTrue(par_cle['fonctions']['actualisable'])
-        self.assertFalse(par_cle['licences']['actualisable'])
-        self.assertEqual(par_cle['modeles']['periodique'], 'model-manager-reconcile')
+        par_cle = {e['key']: e for e in overview()}
+        self.assertTrue(par_cle['fonctions']['refreshable'])
+        self.assertFalse(par_cle['licences']['refreshable'])
+        self.assertEqual(par_cle['modeles']['periodic'], 'model-manager-reconcile')
 
     def test_tous_les_kinds_declares_existent(self):
         # ⚠ Cette assertion affirmait l'ensemble EXACT {modeles, apps, fonctions, librairies}.
         # Mesuré : un 8ᵉ registre déclarant un `manifest_kind` la faisait échouer — un ajout
         # légitime cassait un test. On vérifie donc la PROPRIÉTÉ (le kind existe), pas l'inventaire.
         from .manifests import MANIFEST_KINDS
-        avec_kind = {r.cle for r in REGISTRES.values() if r.manifest_kind}
+        avec_kind = {r.key for r in REGISTRIES.values() if r.manifest_kind}
         self.assertTrue(avec_kind, "au moins un registre doit porter le lien vers son kind")
-        for cle in avec_kind:
-            self.assertIn(REGISTRES[cle].manifest_kind, MANIFEST_KINDS)
+        for key in avec_kind:
+            self.assertIn(REGISTRIES[key].manifest_kind, MANIFEST_KINDS)
 
     def test_aucun_registre_sans_source_declaree(self):
         # « Actualiser quoi ? » doit avoir une réponse affichable, sinon le bouton est opaque.
-        for r in REGISTRES.values():
-            self.assertTrue(r.source, f"{r.cle} : source non déclarée")
-            self.assertTrue(r.description, f"{r.cle} : description non déclarée")
+        for r in REGISTRIES.values():
+            self.assertTrue(r.source, f"{r.key} : source non déclarée")
+            self.assertTrue(r.description, f"{r.key} : description non déclarée")
 
 
 class ConformiteTest(TestCase):
@@ -139,40 +139,40 @@ class ConformiteTest(TestCase):
 
     def _chaque(self):
         """Tous les registres. Un sous-test par clé : un échec NOMME le registre fautif."""
-        return sorted(REGISTRES.values(), key=lambda r: r.cle)
+        return sorted(REGISTRIES.values(), key=lambda r: r.key)
 
     def test_nature_et_execution_coherentes(self):
         for r in self._chaque():
-            with self.subTest(registre=r.cle):
+            with self.subTest(registre=r.key):
                 self.assertIn(r.nature, NATURES)
-                if r.nature == DERIVE:
-                    self.assertIsNone(r.rafraichir, "un dérivé n'a rien à actualiser")
+                if r.nature == DERIVED:
+                    self.assertIsNone(r.refresh, "un dérivé n'a rien à actualiser")
                     continue
-                self.assertIsNotNone(r.rafraichir)
+                self.assertIsNotNone(r.refresh)
                 self.assertEqual(
-                    execution_de(r), EXECUTION_PAR_NATURE[r.nature],
-                    "l'exécution déclarée contredit la nature — voir EXECUTION_PAR_NATURE")
+                    execution_of(r), EXECUTION_BY_NATURE[r.nature],
+                    "l'exécution déclarée contredit la nature — voir EXECUTION_BY_NATURE")
 
     def test_chaque_registre_dit_d_ou_vient_son_etat(self):
         # « Actualiser quoi ? » doit avoir une réponse affichable : sans elle le bouton est opaque.
         for r in self._chaque():
-            with self.subTest(registre=r.cle):
-                self.assertTrue(r.nom)
+            with self.subTest(registre=r.key):
+                self.assertTrue(r.label)
                 self.assertTrue(r.source, "source non déclarée")
                 self.assertTrue(r.description, "description non déclarée")
 
     def test_permission_connue_et_anonyme_toujours_refuse(self):
         for r in self._chaque():
-            with self.subTest(registre=r.cle):
+            with self.subTest(registre=r.key):
                 self.assertIn(r.permission, ('staff', 'auth'))
-                self.assertFalse(autorise(r, _Anon()), "un anonyme n'actualise jamais")
+                self.assertFalse(is_authorized(r, _Anon()), "un anonyme n'actualise jamais")
 
     def test_url_name_resolvable(self):
         # Un `url_name` qui ne se résout pas casserait la page centrale des registres.
         for r in self._chaque():
             if not r.url_name:
                 continue
-            with self.subTest(registre=r.cle):
+            with self.subTest(registre=r.key):
                 try:
                     reverse(r.url_name)
                 except NoReverseMatch:
@@ -183,10 +183,10 @@ class ConformiteTest(TestCase):
         # entrée de Beat supprimée depuis. Une promesse d'actualisation automatique doit être vraie.
         beat = set(getattr(settings, 'CELERY_BEAT_SCHEDULE', {}) or {})
         for r in self._chaque():
-            if not r.periodique:
+            if not r.periodic:
                 continue
-            with self.subTest(registre=r.cle):
-                self.assertIn(r.periodique, beat,
+            with self.subTest(registre=r.key):
+                self.assertIn(r.periodic, beat,
                               "ne correspond à aucune entrée de CELERY_BEAT_SCHEDULE")
 
     def test_manifest_kind_existe_quand_il_est_declare(self):
@@ -194,38 +194,38 @@ class ConformiteTest(TestCase):
         for r in self._chaque():
             if not r.manifest_kind:
                 continue
-            with self.subTest(registre=r.cle):
+            with self.subTest(registre=r.key):
                 self.assertIn(r.manifest_kind, MANIFEST_KINDS)
 
     def test_compter_ne_leve_jamais(self):
-        # `etat()` avale les exceptions de `compter()` : sans ce test, un compteur cassé
+        # `overview()` avale les exceptions de `count()` : sans ce test, un compteur cassé
         # afficherait 0 pour toujours sans que personne ne le sache.
         for r in self._chaque():
-            if not r.compter:
+            if not r.count:
                 continue
-            with self.subTest(registre=r.cle):
-                self.assertIsInstance(int(r.compter()), int)
+            with self.subTest(registre=r.key):
+                self.assertIsInstance(int(r.count()), int)
 
     def test_etat_expose_chaque_registre_completement(self):
-        champs = {'cle', 'nom', 'nature', 'nature_label', 'source', 'actualisable', 'permission',
-                  'url_name', 'au_demarrage', 'periodique', 'manifest_kind', 'total'}
-        self.assertEqual({e['cle'] for e in etat()}, set(REGISTRES),
+        champs = {'key', 'label', 'nature', 'nature_label', 'source', 'refreshable', 'permission',
+                  'url_name', 'on_startup', 'periodic', 'manifest_kind', 'total'}
+        self.assertEqual({e['key'] for e in overview()}, set(REGISTRIES),
                          "un registre déclaré doit apparaître dans l'état")
-        for e in etat():
-            with self.subTest(registre=e['cle']):
+        for e in overview():
+            with self.subTest(registre=e['key']):
                 self.assertTrue(champs.issubset(e), f"champs manquants : {champs - set(e)}")
-                self.assertEqual(e['actualisable'], REGISTRES[e['cle']].nature != DERIVE)
+                self.assertEqual(e['refreshable'], REGISTRIES[e['key']].nature != DERIVED)
 
     def test_lancer_repond_a_TOUT_registre_sans_lever(self):
         # ⚠ On n'EXÉCUTE pas les registres `celery` : `modeles` coûte 20 s et `apps` 31 s, la suite
-        # passerait de 3 s à plus d'une minute. `lancer()` se contente de les mettre en file —
+        # passerait de 3 s à plus d'une minute. `launch()` se contente de les mettre en file —
         # c'est justement ce qu'on vérifie.
         for r in self._chaque():
-            with self.subTest(registre=r.cle):
-                d = lancer(r.cle)
+            with self.subTest(registre=r.key):
+                d = launch(r.key)
                 self.assertIn('ok', d)
-                attendu = execution_de(r) == CELERY and r.nature != DERIVE
-                self.assertEqual(d.get('asynchrone', False), attendu)
+                attendu = execution_of(r) == CELERY and r.nature != DERIVED
+                self.assertEqual(d.get('async', False), attendu)
 
     def test_budget_de_duree_des_registres_en_PROCESSUS(self):
         """LE contrôle qui aurait attrapé les 31 s tout seul.
@@ -234,11 +234,11 @@ class ConformiteTest(TestCase):
         en `celery` — et ce test le dit AVANT qu'un utilisateur ne le découvre en attendant.
         """
         for r in self._chaque():
-            if r.nature == DERIVE or execution_de(r) != PROCESSUS:
+            if r.nature == DERIVED or execution_of(r) != PROCESS:
                 continue
-            with self.subTest(registre=r.cle):
+            with self.subTest(registre=r.key):
                 debut = time.monotonic()
-                res = rafraichir(r.cle)
+                res = refresh(r.key)
                 duree = time.monotonic() - debut
                 self.assertTrue(res.ok, f"actualisation en échec : {res.messages}")
                 self.assertLess(duree, self.BUDGET_PROCESSUS_S,
@@ -248,13 +248,13 @@ class ConformiteTest(TestCase):
         # L'idempotence n'est pas un raffinement : un rafraîchisseur qui ajoute à chaque passage
         # gonfle son registre en silence, et le compte-rendu ment à chaque clic.
         for r in self._chaque():
-            if r.nature == DERIVE or execution_de(r) != PROCESSUS:
+            if r.nature == DERIVED or execution_of(r) != PROCESS:
                 continue
-            with self.subTest(registre=r.cle):
-                rafraichir(r.cle)
-                second = rafraichir(r.cle)
+            with self.subTest(registre=r.key):
+                refresh(r.key)
+                second = refresh(r.key)
                 self.assertTrue(second.ok)
-                self.assertEqual((second.ajoutes, second.retires), (0, 0),
+                self.assertEqual((second.added, second.removed), (0, 0),
                                  "une seconde passe ne doit rien ajouter ni retirer")
 
     def test_propagation_pour_tout_registre_en_MEMOIRE(self):
@@ -265,26 +265,26 @@ class ConformiteTest(TestCase):
         for r in self._chaque():
             if r.nature != REDECLARATION:
                 continue
-            with self.subTest(registre=r.cle):
-                marquer_actualise(r.cle)
-                vue = _VERSIONS_VUES.get(r.cle)
+            with self.subTest(registre=r.key):
+                mark_refreshed(r.key)
+                vue = _SEEN_VERSIONS.get(r.key)
                 self.assertIsNotNone(vue, "l'actualisation doit incrémenter la version partagée")
-                _VERSIONS_VUES[r.cle] = vue - 1
-                self.assertTrue(synchroniser(r.cle), "un processus en retard se resynchronise")
+                _SEEN_VERSIONS[r.key] = vue - 1
+                self.assertTrue(synchronize(r.key), "un processus en retard se resynchronise")
 
 
 class PermissionTest(TestCase):
 
     def test_staff_exige_pour_un_registre_qui_ecrit(self):
-        self.assertFalse(autorise(get('apps'), _Anon()))
-        self.assertFalse(autorise(get('apps'), _Compte()))
-        self.assertTrue(autorise(get('apps'), _Staff()))
+        self.assertFalse(is_authorized(get('apps'), _Anon()))
+        self.assertFalse(is_authorized(get('apps'), _Compte()))
+        self.assertTrue(is_authorized(get('apps'), _Staff()))
 
     def test_un_registre_sans_effet_de_bord_partage_est_ouvert(self):
-        self.assertTrue(autorise(get('skills'), _Compte()))
+        self.assertTrue(is_authorized(get('skills'), _Compte()))
 
     def test_rafraichir_refuse_et_le_DIT(self):
-        res = rafraichir('apps', user=_Compte())
+        res = refresh('apps', user=_Compte())
         self.assertFalse(res.ok)
         self.assertIn('réservé', ' '.join(res.messages))
 
@@ -315,7 +315,7 @@ register(FunctionSpec(key='_sonde_test', name='Sonde', description='test',
     def tearDown(self):
         self.SONDE.unlink(missing_ok=True)
         self.INIT.write_bytes(self.init_orig)
-        rafraichir('fonctions')
+        refresh('fonctions')
 
     def _ajouter_import(self):
         self.INIT.write_bytes(self.init_orig + b'\nfrom . import _sonde_test  # noqa\n')
@@ -326,7 +326,7 @@ register(FunctionSpec(key='_sonde_test', name='Sonde', description='test',
 
     def test_actualisation_a_vide_laisse_le_catalogue_INTACT(self):
         avant = len(self._catalogue())
-        res = rafraichir('fonctions')
+        res = refresh('fonctions')
         self.assertTrue(res.ok)
         self.assertEqual(len(self._catalogue()), avant)
         self.assertEqual(res.total, avant)
@@ -341,9 +341,9 @@ register(FunctionSpec(key='_sonde_test', name='Sonde', description='test',
         self.assertNotIn('_sonde_test', self._catalogue(),
                          "load_all() ne peut PAS voir la nouveauté — c'est le défaut corrigé")
 
-        res = rafraichir('fonctions')
+        res = refresh('fonctions')
         self.assertIn('_sonde_test', self._catalogue())
-        self.assertEqual(res.ajoutes, 1)
+        self.assertEqual(res.added, 1)
         self.assertEqual(res.total, avant + 1)
 
     def test_fonction_SUPPRIMEE_a_chaud(self):
@@ -353,12 +353,12 @@ register(FunctionSpec(key='_sonde_test', name='Sonde', description='test',
         avant = len(self._catalogue())
         self.SONDE.write_text(self.SOURCE, encoding='utf-8')
         self._ajouter_import()
-        rafraichir('fonctions')
+        refresh('fonctions')
         self.assertIn('_sonde_test', self._catalogue())
 
         self.SONDE.unlink()
         self.INIT.write_bytes(self.init_orig)
-        res = rafraichir('fonctions')
+        res = refresh('fonctions')
         self.assertTrue(res.ok, f"l'actualisation ne doit pas échouer : {res.messages}")
         self.assertNotIn('_sonde_test', self._catalogue())
         self.assertEqual(len(self._catalogue()), avant)
@@ -373,34 +373,34 @@ class ExecutionTest(TestCase):
     """
 
     def tearDown(self):
-        REGISTRES.pop('_t_exec', None)
+        REGISTRIES.pop('_t_exec', None)
 
     def test_un_etat_PARTAGE_part_en_celery(self):
-        self.assertEqual(execution_de(get('modeles')), CELERY)
-        self.assertEqual(execution_de(get('apps')), CELERY)
+        self.assertEqual(execution_of(get('modeles')), CELERY)
+        self.assertEqual(execution_of(get('apps')), CELERY)
 
     def test_un_registre_en_MEMOIRE_reste_dans_le_process(self):
         # Le faire en Celery rechargerait les modules du worker Celery, pas ceux des processus
         # qui servent les pages : l'actualisation n'aurait aucun effet visible.
-        self.assertEqual(execution_de(get('fonctions')), PROCESSUS)
-        self.assertEqual(execution_de(get('skills')), PROCESSUS)
+        self.assertEqual(execution_of(get('fonctions')), PROCESS)
+        self.assertEqual(execution_of(get('skills')), PROCESS)
 
     def test_memoire_plus_celery_est_REFUSE(self):
         with self.assertRaises(ValueError) as ctx:
-            enregistrer(Registre(cle='_t_exec', nom='x', nature=REDECLARATION, source='s',
-                                 rafraichir=lambda: Resultat(), execution=CELERY))
+            register(Registry(key='_t_exec', label='x', nature=REDECLARATION, source='s',
+                                 refresh=lambda: RefreshResult(), execution=CELERY))
         self.assertIn('MÉMOIRE', str(ctx.exception))
 
     def test_execution_inconnue_refusee(self):
         with self.assertRaises(ValueError):
-            enregistrer(Registre(cle='_t_exec', nom='x', nature=MESURE, source='s',
-                                 rafraichir=lambda: Resultat(), execution='ailleurs'))
+            register(Registry(key='_t_exec', label='x', nature=MEASURE, source='s',
+                                 refresh=lambda: RefreshResult(), execution='ailleurs'))
 
     def test_lancer_rend_la_main_pour_un_registre_en_memoire(self):
-        d = lancer('skills')
+        d = launch('skills')
         self.assertTrue(d['ok'])
-        self.assertFalse(d['asynchrone'], "un registre en mémoire s'exécute sur place")
-        self.assertIn('resume', d)
+        self.assertFalse(d['async'], "un registre en mémoire s'exécute sur place")
+        self.assertIn('summary', d)
 
 
 class PropagationTest(TestCase):
@@ -415,56 +415,56 @@ class PropagationTest(TestCase):
         cache = _cache()
         if cache is None:
             self.skipTest("cache indisponible — la propagation est facultative")
-        avant = int(cache.get(_cle_version('fonctions')) or 0)
-        marquer_actualise('fonctions')
-        self.assertEqual(int(cache.get(_cle_version('fonctions')) or 0), avant + 1)
+        avant = int(cache.get(_version_key('fonctions')) or 0)
+        mark_refreshed('fonctions')
+        self.assertEqual(int(cache.get(_version_key('fonctions')) or 0), avant + 1)
 
     def test_un_processus_en_retard_se_resynchronise(self):
         if _cache() is None:
             self.skipTest("cache indisponible")
-        marquer_actualise('fonctions')
-        vue = _VERSIONS_VUES['fonctions']
-        _VERSIONS_VUES['fonctions'] = vue - 1          # simule un AUTRE worker
-        self.assertTrue(synchroniser('fonctions'))
-        self.assertEqual(_VERSIONS_VUES['fonctions'], vue)
+        mark_refreshed('fonctions')
+        vue = _SEEN_VERSIONS['fonctions']
+        _SEEN_VERSIONS['fonctions'] = vue - 1          # simule un AUTRE worker
+        self.assertTrue(synchronize('fonctions'))
+        self.assertEqual(_SEEN_VERSIONS['fonctions'], vue)
 
     def test_a_jour_il_ne_recharge_PAS(self):
         if _cache() is None:
             self.skipTest("cache indisponible")
-        marquer_actualise('fonctions')
-        self.assertFalse(synchroniser('fonctions'), "le coût d'un passage doit être une lecture")
+        mark_refreshed('fonctions')
+        self.assertFalse(synchronize('fonctions'), "le coût d'un passage doit être une lecture")
 
     def test_rien_a_propager_pour_les_autres_natures(self):
         # Un état partagé (base, rapport) est déjà commun à tous les processus.
-        self.assertFalse(synchroniser('modeles'))
-        self.assertFalse(synchroniser('licences'))
+        self.assertFalse(synchronize('modeles'))
+        self.assertFalse(synchronize('licences'))
 
 
 class CouvertureTest(TestCase):
     """La couverture est MESURÉE — elle doit donc être juste, sinon elle rassure à tort."""
 
     def _resume(self):
-        from .registries_coverage import resume
-        return resume()
+        from .registries_coverage import summary
+        return summary()
 
     def test_chaque_registre_apparait(self):
         r = self._resume()
-        self.assertEqual(r['registres'], len(REGISTRES))
-        self.assertEqual({d['cle'] for d in r['detail']}, set(REGISTRES))
+        self.assertEqual(r['registres'], len(REGISTRIES))
+        self.assertEqual({d['key'] for d in r['detail']}, set(REGISTRIES))
 
     def test_un_derive_n_est_jamais_signale_comme_manquant(self):
         # Il n'a pas de rafraîchisseur, donc aucune sémantique à éprouver. Le signaler
         # produirait une alerte permanente que tout le monde apprendrait à ignorer.
         for d in self._resume()['detail']:
-            if REGISTRES[d['cle']].nature == DERIVE:
-                with self.subTest(registre=d['cle']):
+            if REGISTRIES[d['key']].nature == DERIVED:
+                with self.subTest(registre=d['key']):
                     self.assertFalse(d['attendu'])
                     self.assertFalse(d['manquant'])
 
     def test_le_rattachement_trouve_les_tests_qui_nomment_la_cle(self):
         # `fonctions` est le registre le plus éprouvé du lot (rechargement à chaud, propagation) :
         # si la mesure ne le voyait pas, c'est le rattachement qui serait cassé.
-        detail = {d['cle']: d for d in self._resume()['detail']}
+        detail = {d['key']: d for d in self._resume()['detail']}
         self.assertGreater(detail['fonctions']['nb_specifiques'], 2)
         self.assertIn('test_fonction_ajoutee_a_chaud', detail['fonctions']['specifiques'])
 
@@ -472,13 +472,13 @@ class CouvertureTest(TestCase):
         # Le calcul lit et analyse des fichiers : il n'a rien à faire dans un appel qui ne veut
         # que l'inventaire. `None` (non mesuré) doit rester distinct de 0 (mesuré, aucun test) —
         # les confondre affirmerait « aucun test » là où l'on n'a simplement pas regardé.
-        for e in etat():
+        for e in overview():
             self.assertIsNone(e['tests_specifiques'])
-        for e in etat(avec_couverture=True):
-            with self.subTest(registre=e['cle']):
+        for e in overview(with_coverage=True):
+            with self.subTest(registre=e['key']):
                 self.assertIsInstance(e['tests_specifiques'], int)
                 self.assertEqual(e['tests_manquants'],
-                                 REGISTRES[e['cle']].nature != DERIVE
+                                 REGISTRIES[e['key']].nature != DERIVED
                                  and e['tests_specifiques'] == 0)
 
     def test_la_couverture_generique_vaut_pour_TOUS(self):
@@ -492,10 +492,10 @@ class ResumeTest(TestCase):
 
     def test_aucun_changement_est_DIT(self):
         # Un compte-rendu muet se lit comme un échec.
-        self.assertIn('aucun changement', Resultat(total=12).resume())
+        self.assertIn('aucun changement', RefreshResult(total=12).summary())
 
     def test_le_resume_compte(self):
-        r = Resultat(ajoutes=2, modifies=1, retires=3, total=40)
-        self.assertIn('2 ajoutés', r.resume())
-        self.assertIn('3 retirés', r.resume())
-        self.assertIn('40 au total', r.resume())
+        r = RefreshResult(added=2, updated=1, removed=3, total=40)
+        self.assertIn('2 ajoutés', r.summary())
+        self.assertIn('3 retirés', r.summary())
+        self.assertIn('40 au total', r.summary())
