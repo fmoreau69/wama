@@ -8685,3 +8685,28 @@ explicite possible, **uniquement là où retraduire n'altère pas le résultat**
   a grossi : 1140 → 1168) ;
 - `check_templates` : 0/128 ; `manage.py check` : propre ;
 - `doc_facts --check` : **1 bloc périmé — `mecanismes`, et il ne m'appartient pas** (voir Pendings).
+
+## §REPRISE — 2026-08-30, instance « NOMMAGE : COUCHES ASSISTANT/GATEWAY/MÉMOIRE » (CLOSE) — 🔚 POINT D'ENTRÉE
+
+> Suite du `§PENDING 2026-08-29 « DETTE DE NOMMAGE »`, périmètre Python restant, déroulé au
+> skill `/renommage-api` (3ᵉ occurrence — la méthode a attrapé le jumeau de MIGRATION, les
+> dégâts de PROSE et les restes de mots nus, exactement comme écrite).
+
+**SOLDÉ** (commit `43074f57`, ~470 remplacements / 31 fichiers) : gateway ENTIÈRE
+(`handle_message`, `IncomingMessage`/`Attachment`/`Reply` + champs, `account_for`/
+`request_link`/`confirm_link`/`unlink`) · `run_outcome` (`record`/`count_signals`/`by_model`) ·
+assistant (`resolve_domain`/`role_instructions`/`laboratory_context`/`greeting`,
+`conversation_turn`, store `thread`/`history`/`record_exchange`/`clear`) · mémoire
+(`add_to_rag` & co, `split_text`, embed `unload`/`release`/`reserve`).
+Vérifié : suite COMPLÈTE exit 0 · `check` + `check_templates` 0 défaut · **HEAD en worktree
+110/110** (.env + migrations recopiées).
+
+**RESTES ASSUMÉS, nommés** : ① variables LOCALES et PARAMÈTRES français (hors critère
+« importé », au fil de l'eau) ; ② commandes utilisateur `!lier`/`!delier` CONSERVÉES
+(surface opérateur, même arbitrage que les drapeaux CLI) ; ③ alias de transition
+`_generer_code = _generate_code` (la migration 0001 le sérialise par chemin — à retirer au
+prochain squash de migrations) ; ④ clé de payload `domaine` de `charger_competence`
+conservée (LLM-facing, cohérente avec son paramètre).
+
+**🔚 pendings** : smoke navigateur des pages touchées (assistant, /common/rag/,
+conversations) APRÈS restart gunicorn — le parc sert l'ancien code d'ici là.
