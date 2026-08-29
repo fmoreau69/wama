@@ -145,7 +145,7 @@ def fetch_url_content(url: str, dest_dir: str) -> str:
     upload_media_from_url (YouTube/HTTP) + sniff HTML post-download.
     """
     from wama.common.utils.video_utils import upload_media_from_url
-    from wama.common.utils.url_guard import verifier_url
+    from wama.common.utils.url_guard import UrlRefusee, verifier_url, verifier_redirections
 
     # Validée ICI aussi, et pas seulement dans les appelés : le `requests.head` ci-dessous est
     # une sortie réseau à part entière — c'est déjà une sonde exploitable.
@@ -160,7 +160,12 @@ def fetch_url_content(url: str, dest_dir: str) -> str:
             import requests
             head = requests.head(url, timeout=10, allow_redirects=True,
                                  headers={'User-Agent': 'Mozilla/5.0'})
+            # Ce HEAD suit les redirections : chaque saut est une sortie réseau à re-valider,
+            # comme dans fetch_html_as_text — et le refus doit SORTIR du try, pas être avalé.
+            verifier_redirections(head)
             is_html_page = 'text/html' in head.headers.get('Content-Type', '')
+        except UrlRefusee:
+            raise
         except Exception:
             pass
 
