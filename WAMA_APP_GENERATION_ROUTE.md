@@ -685,13 +685,71 @@ outillé avant d'ouvrir cette marche.
      *Un trou de formalisme s'annonce APRÈS avoir cherché la déclaration, jamais avant : poser un
      formalisme neuf par-dessus une déclaration existante en crée une seconde, qui divergera.*
      Cause racine traitée : la taxonomie n'était **sur aucune carte** → `Mecanisme('media_taxonomy')`
-     (`WAMA_MECANISMES.md`). ⏳ **Écart de DONNÉES restant, non tranché** : les catégories dérivées
-     d'`input_extensions` divergent des `input_types` déclarés sur **7/11 apps**, en deux familles
-     intelligibles — `.md/.markdown/.txt/.csv` donnent `text` là où l'app déclare `document`
-     (converter, describer), et `.docx/.pdf` donnent `document` là où l'app ne déclare que `text`
-     (composer, imager, synthesizer — leurs extensions sont celles d'un FICHIER DE PROMPT, pas
-     d'une entrée de travail). Mesurer le rayon (ports studio, menus filemanager, critère
-     `recursive_import`) avant d'y toucher.
+     (`WAMA_MECANISMES.md`).
+  5. **L'« écart de DONNÉES sur 7/11 apps » annoncé le matin ÉTAIT MON CADRAGE, pas une donnée
+     fausse** (mesure du soir, même jour — cette ligne REMPLACE la précédente, qui restait à lire
+     comme un arbitrage dû). Il n'y a pas d'écart : **je comparais deux AXES différents comme s'ils
+     n'en faisaient qu'un.** Les entrées d'une app se déclarent sur **trois** axes —
+     **NATURE** (`input_types` / `input_extensions`, tous deux PLATS), **RÔLE**
+     (`app_modes.INPUT_TYPES` → `studio_node_ports` → `body.ports.inputs[].group` :
+     travail / référence / prompt) et **UX** (`APP_MODES[app].domains[].accepts` + slots
+     `inputs[]` des modes). Chacune des deux « familles intelligibles » se résorbe par un axe :
+     - `.pdf/.docx` chez composer/imager/synthesizer ne sont pas des entrées de travail :
+       `TEXT_EXTENSIONS` (`common/app_registry.py:41`) **EST** la liste des formats de FICHIER
+       BATCH (identique à `batch_parsers.py`, commentaire à l'appui) — rôle `prompt_file`. Le
+       défaut est la **platitude** d'`input_extensions`, jamais sa valeur.
+     - `.md/.txt/.csv` → `text` vs `document` : c'est l'**HOMONYME `text`** (sens « texte brut,
+       le prompt » dans `input_types`/`accepts`/`INPUT_TYPES['prompt'].kind` ; sens « FICHIER
+       texte » dans `category_of_path`). **Le code le savait déjà** : `studio_node_ports`
+       (`app_registry.py:153`) doit écrire `c != 'text'` pour le sortir du port travail, et donne
+       au port prompt le jeton `'prompt'` — **hors `MEDIA_CATEGORIES` (`:67`)**. Il a fallu
+       inventer un mot pour ce que `text` ne pouvait plus dire.
+     *Deux déclarations qui « divergent » sur des axes différents ne divergent pas : elles ne
+     répondent pas à la même question. Avant d'appeler un écart une faute, vérifier que les deux
+     mesures interrogent la MÊME chose.*
+  6. **Défaut de la même passe, introduit et corrigé par moi** (`65a24354`) : `_TYPES_ENTREE`
+     unissait TOUS les `ports.inputs[].types` sans regarder le `group` — le port de PROMPT entrait
+     donc dans un vocabulaire de FICHIERS. Inoffensif sur le converter (aucun port prompt),
+     **faux dès la 2ᵉ app portée** : imager `('image','prompt')→('image',)`, composer
+     `('prompt',)→()`, synthesizer `('audio','prompt')→('audio',)`, avatarizer
+     `('audio','image','prompt')→('audio','image')`. Correction : on saute `group == 'prompt'` et
+     on ne retient qu'un jeton de `MEDIA_CATEGORIES` (repli `accepts` : même filtre + exclusion
+     explicite de `text`). 2 tests (12→14 dans `common/tests_codegen_lot.py`), **vérifiés
+     DISCRIMINANTS** en rejouant l'ancienne logique sur les mêmes manifestes mutés.
+     ⏳ **Ce qui reste réellement ouvert** (reformulé depuis la fausse alerte) : (a) `inputs[]`
+     n'existe qu'au niveau MODE, jamais au niveau DOMAINE ; (b) `input_extensions` reste plat →
+     le dériver PAR SLOT depuis `INPUT_TYPES[slot].accept` ; (c) **l'homonyme lui-même**, seul
+     vrai arbitrage — rayon mesuré : `MEDIA_CATEGORIES`, `normalize_types`, ports studio (entrées
+     ET sorties), `media_library.TYPE_GROUPS`, `derive_category`/`_TEXT_OUTPUTS`, et le
+     `detected_type` **stocké en base** par reader. Ne pas le trancher au fil d'un autre chantier.
+  7. **Compatibilité avec l'« intake universel »** (chantier d'une autre instance,
+     `WAMA_LLM §Intake universel`) — **mesurée, pas supposée.** Le plan est bon dans sa structure
+     (sas `temp/`, rôle = ROUTAGE et non colonne en base, outil de ciblage read-only, dialogue
+     porté par le skill) mais ses étapes ⓪/① composent sur **exactement les deux déclarations
+     PLATES** ci-dessus. Mesure (composition proposée vs composition par RÔLE) :
+     `notes.txt`/`protocole.md`/`liste.csv` → par nature : avatarizer, composer, imager,
+     synthesizer = **100 % de faux positifs** (par extension jusqu'à 6 apps) ; **par rôle :
+     aucune**. `rapport.pdf`/`memo.docx` → l'extension ajoute composer/imager/synthesizer (leurs
+     `input_extensions` SONT `TEXT_EXTENSIONS`) ; par rôle : converter, describer, reader (port
+     travail). `prise.wav` → le rôle **GAGNE** une réponse vraie que la nature rate : synthesizer,
+     port `reference_voice`, groupe **référence** — le « fichier de référence » de l'énoncé.
+     `donnees.trip` → invisible par extension (monde Data). D'où 4 amendements proposés :
+     ⓪ ne pas dériver une allowlist de plus — ne rien filtrer DANS `temp/` ; ① `capabilities_for_path`
+     compose sur `studio_node_ports` et rend **quel PORT de quelle app**, pas quelle app ;
+     ③ réutiliser `INPUT_TYPES` comme LE vocabulaire de rôles (sa projection texte existe déjà :
+     `-i/-p/-r/-o` de `BATCH_FORMAT`) au lieu d'un 3ᵉ enum ; ④ exclure les jumelles de bac à sable
+     (`converter_01` est dans `APP_CATALOG`) des cibles de capacité.
+  8. **La jumelle `converter_01` rendait 500 sur 🗑 — c'était le PARC, pas l'app.** Symptôme :
+     « Suppression impossible », modale et inspecteur vides. `django-errors.log` : `TypeError:
+     safe_delete_file() missing 1 required positional argument` à `converter_01/views.py, line
+     276` — or sur disque `delete` est en **316** et l'appel est correct : le process servait un
+     module PÉRIMÉ. `gunicorn_conf.py` n'a **pas** de `preload_app`, `workers=4`,
+     `max_requests=1000` + jitter → après une régénération les workers se recyclent **un par un**
+     et le parc est **MIXTE**. L'item avait de surcroît été créé par l'ancienne vue d'upload
+     (`media_type`/`output_format` vides en base, jamais rétro-remplis) : d'où la card muette.
+     *Corollaire de vérification : un smoke navigateur mesuré sur un parc non redémarré ne mesure
+     pas le code qu'on vient d'écrire.* Redémarrer (`pkill -HUP -f "gunicorn wama.wsgi"`, sans
+     danger faute de `preload_app`) **AVANT** la mesure, puis re-déposer un fichier.
 
 **Cadrage A0 — la convention RÉELLE, mesurée (2026-08-11, balayage 6 cibles × 10 apps) :**
 - **urls.py** : AUCUNE app ne colle à `STANDARD_ENDPOINTS` — cette liste était une CIBLE que le
