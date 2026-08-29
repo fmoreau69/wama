@@ -8506,3 +8506,38 @@ et le pending #2 du 22/08.
 
 **🔚 pendings de cette instance** : valider/amender le plan intake · essai conversationnel de
 l'investigation (passes GPU = Fabien) · étapes ③ (entrée image) et ④ (RAG distillats) du design.
+
+### §PENDING « DETTE DE NOMMAGE » — ✅ SOLDÉ le 2026-08-29 (même jour, session dédiée post-GO)
+
+**Livré en 2 phases commitées séparément** (méthode ①-⑤ déroulée telle qu'écrite) :
+- **Phase A `registries.py`** : API entière (classes, fonctions, champs de dataclass, payloads
+  ÉPHÉMÈRES, tag de gabarit `bouton_actualiser`→`refresh_button` sur 7 pages, JS
+  `wama-catalog-refresh`, tâche Celery `common.rafraichir_registre`→`common.refresh_registry`).
+  Le grep exhaustif a attrapé le JUMEAU PAR CHAÎNE : la route `CELERY_TASK_ROUTES` de
+  `settings.py:554`, qu'aucun test n'aurait signalée. `registries_coverage` inclus.
+- **Phase B model_manager** : ~45 identifiants (prospection/provenance/install/bench/registry
+  ollama) + consommateurs hors app (`divergence`, `model_coverage`, `anonymizer/model_selector`).
+  Le balayage final a rattrapé 3 trous de l'inventaire : le DOMICILE de `_cle_de_rang`
+  (consommateurs renommés, définition oubliée — `py_compile` ne voit PAS un import cassé,
+  seul le grep du nom l'a vu), le `lancer` de `bench.py`, `_racine`.
+
+**Vérifié** : 422 tests ciblés + suite COMPLÈTE du dépôt (exit 0) + `manage.py check` +
+`check_templates` 0/128 + **111 tests du périmètre SUR HEAD en worktree** (rituel .env +
+migrations recopiées). Un FAUX POSITIF détecté et annulé à la relecture du diff :
+`tests_skills_catalog` (les clés `s['nom']` du catalogue de skills ne sont pas des
+identifiants registries) ; une seule prose française abîmée, restaurée.
+
+**Restes ASSUMÉS (hors périmètre du pending, consignés pour ne pas les redécouvrir)** :
+- noms de PARAMÈTRES français sur des fonctions désormais anglaises (`search(requete=,
+  capacite=)`, `run_bench(tache=…)`) — signature à angliciser à la prochaine retouche de
+  chaque fonction, jamais en masse ;
+- JS : fonctions internes/exportées françaises (`WamaCatalogRefresh.brancher/actualiser`) —
+  le critère du dépôt vise Python ; à trancher si on étend la convention au JS ;
+- variables locales et clés de contexte de gabarit françaises (`nb_periodiques`…) — hors
+  critère (rien ne s'importe) ;
+- autres couches à API française hors périmètre (ex. `license_audit.synthese`,
+  `prompt_skills`…) — même traitement au fil de l'eau, règle « anglais pour tout NOUVEL
+  identifiant » (CLAUDE.md §nommage) en vigueur partout.
+
+⚠ **Redémarrage gunicorn + celery REQUIS** avant tout usage : le parc sert l'ancien code
+(imports renommés) et la tâche Celery renommée doit prendre sa route.

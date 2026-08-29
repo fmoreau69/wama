@@ -182,18 +182,22 @@ apply_patch(
   cible (`test_create_synthesis`, `test_filename_property`), les françaises disent ce qui doit
   arriver (`test_actualiser_deux_fois_ne_change_rien_la_seconde`). Le second style est celui qu'on
   garde — traduire la phrase ne l'améliore pas, et aucun appelant n'en dépend.
-- **Dette ouverte, elle, RÉELLE** : `common/registries.py` expose `rafraichir`, `lancer`, `etat`…
-  en français alors qu'ils s'importent (`registres_view` importe `etat`). À renommer — mais
-  **jamais sans coordonner** avec les instances qui les importent (pending #2 du §REPRISE 22/08).
-  ⚠ **Dette ÉLARGIE le 2026-08-29 (relevé Fabien)** : la couche prospection/provenance du
-  model_manager a dérivé pareil — ~30 identifiants français importables (`poser_identite`,
-  `identite_pour_spec`, `ecrire_candidat`, `variantes_quantisees`…), chaque session ayant imité
-  l'idiome LOCAL du fichier au lieu de ce critère. Plan validé : **anglais OBLIGATOIRE dès
-  maintenant pour tout NOUVEL identifiant, même dans ces couches** (la convention prime sur
-  l'idiome environnant) ; renommage complet coordonné = `PROJECT_STATUS §PENDING 2026-08-29
-  « DETTE DE NOMMAGE »`. Arbitrage complémentaire : **drapeaux/sous-commandes CLI = surface
-  opérateur → français toléré** (`--poser`, `--ecrire` : tapés, jamais importés — même logique
-  que les noms de tests).
+- **Dette SOLDÉE le 2026-08-29 (session coordonnée, GO Fabien)** : `registries.py` (ex-pending #2
+  du 22/08 — `rafraichir`/`lancer`/`etat` → `refresh`/`launch`/`overview`…) ET la couche
+  prospection/provenance du model_manager (~45 identifiants — `poser_identite`→`set_identity`,
+  `variantes_quantisees`→`quantized_variants`…) sont renommés, tests complets + vérif sur HEAD
+  en worktree ; bilan = `PROJECT_STATUS §PENDING 2026-08-29 « DETTE DE NOMMAGE »` (soldé, restes
+  assumés listés). **Règles pérennes issues de la session** :
+  1. **anglais OBLIGATOIRE pour tout identifiant importé, MÊME dans une couche encore française**
+     — l'idiome local ne prime jamais sur ce critère (c'est l'imitation de l'idiome local qui a
+     créé la dette) ;
+  2. **drapeaux/sous-commandes CLI = surface opérateur → français toléré** (`--poser`,
+     `--ecrire` : tapés au terminal, jamais importés — même logique que les noms de tests) ;
+  3. frontière des DONNÉES : **ce qui est stocké/déclaré reste** (clés `extra_info`, valeurs de
+     vocabulaire), **ce qui est calculé se renomme** (payloads éphémères) ;
+  4. un renommage se fait TOKENISÉ avec grep exhaustif des consommateurs — y compris les
+     jumeaux PAR CHAÎNE (routes Celery de `settings.py`, noms de tâches) et le DOMICILE
+     lui-même (`py_compile` ne voit pas un import cassé).
 
 ---
 
