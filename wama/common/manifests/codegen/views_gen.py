@@ -33,6 +33,7 @@ déclaré de ce gabarit (raison explicite, jamais de fichier partiel faux).
 """
 from __future__ import annotations
 
+from wama.common.app_registry import MEDIA_CATEGORIES
 from wama.common.manifests.codegen.urls_gen import route_variants
 
 
@@ -88,15 +89,29 @@ def _donnees(manifest: dict) -> dict:
     #   • `body.ports.inputs[].types`   ← APP_CATALOG['<app>']['input_types'] (PORTS_FIELDS) ;
     #   • `body.modes.domains[].accepts` ← app_modes.APP_MODES (l'axe UX).
     # On lit les ports en premier (c'est la facette de TYPAGE) et les domaines en repli.
+    #
+    # ⚠ On ne retient que les ports qui portent des FICHIERS — `group` travail/référence — et
+    # jamais le port `prompt`. La raison est mesurable et vaut aussi pour le repli : `text` est un
+    # HOMONYME dans ce dépôt. Dans `input_types`/`accepts` il désigne du **texte brut** (le
+    # prompt) — c'est pourquoi `studio_node_ports` doit écrire `c != 'text'` pour le sortir du
+    # port travail, et pourquoi le port prompt reçoit le type `'prompt'`, qui n'est PAS une
+    # catégorie média. Dans `category_of_path`, `text` désigne un **fichier texte**
+    # (.txt/.md/.csv/.srt…). Confondre les deux ici ferait écrire `media_type='text'` (sens
+    # fichier) au nom d'une déclaration qui parlait du prompt (sens texte brut) — une valeur
+    # plausible et fausse, exactement ce que `_nature` refuse d'écrire.
+    # ⏳ L'homonyme lui-même est un arbitrage OUVERT (rayon : ports studio, médiathèque,
+    # `normalize_types`) — cf. `WAMA_APP_GENERATION_ROUTE §S2bis.4`. Ici on s'en protège.
     types = []
     for port in ((body.get('ports') or {}).get('inputs') or []):
+        if (port.get('group') or 'travail') == 'prompt':
+            continue
         for t in (port.get('types') or []):
-            if t not in types:
+            if t not in types and t in MEDIA_CATEGORIES:
                 types.append(t)
     if not types:
         for dom in ((body.get('modes') or {}).get('domains') or []):
             for t in (dom.get('accepts') or []):
-                if t not in types:
+                if t not in types and t in MEDIA_CATEGORIES and t != 'text':
                     types.append(t)
     d['types_entree'] = tuple(sorted(types))
     return d

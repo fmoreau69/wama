@@ -42,6 +42,15 @@ def _fonction(src, nom):
     return None
 
 
+def _types_entree(src):
+    """La valeur ÉVALUÉE de `_TYPES_ENTREE` — pas une sous-chaîne de la source."""
+    for noeud in ast.parse(src).body:
+        if (isinstance(noeud, ast.Assign) and noeud.targets
+                and getattr(noeud.targets[0], 'id', '') == '_TYPES_ENTREE'):
+            return ast.literal_eval(noeud.value)
+    return None
+
+
 class CheminDeLotTest(SimpleTestCase):
 
     @classmethod
@@ -104,6 +113,54 @@ class CheminDeLotTest(SimpleTestCase):
         self.assertIsNotNone(src, f'génération impossible : {raison}')
         self.assertIn("_TYPES_ENTREE = ('audio',)", src,
                       'le vocabulaire ne suit pas le manifeste (valeur figée dans le gabarit)')
+
+    def test_le_port_de_prompt_n_entre_pas_dans_le_vocabulaire_de_FICHIERS(self):
+        """`_TYPES_ENTREE` sert à nommer la nature d'un FICHIER — le prompt n'en est pas un.
+
+        Le manifeste déclare les entrées par RÔLE (`body.ports.inputs[].group` : travail /
+        référence / prompt). Sur imager, composer, synthesizer et avatarizer, un port
+        `group: 'prompt'` porte le type `'prompt'` — un jeton que `category_of_path` ne peut
+        JAMAIS rendre. L'unir aux autres reviendrait à écrire un vocabulaire dont un membre
+        n'est comparable à rien : inoffensif sur le converter (qui n'a pas ce port), faux dès
+        la 2ᵉ app portée. C'est le défaut que ce test empêche de revenir avec le portage.
+        """
+        from copy import deepcopy
+
+        from wama.common.manifests.ingest import extract
+        manifest = deepcopy(extract('app', SOURCE))
+        ports = (manifest.get('body') or {}).get('ports') or {}
+        if not (ports.get('inputs') or []):
+            self.skipTest(f'{SOURCE} sans ports.inputs')
+        ports['inputs'][0]['types'] = ['image']
+        ports['inputs'].append({'id': 'prompt', 'label': 'Prompt', 'group': 'prompt',
+                                'types': ['prompt'], 'multi': False})
+        src, raison = render_views(manifest)
+        self.assertIsNotNone(src, f'génération impossible : {raison}')
+        self.assertEqual(_types_entree(src), ('image',),
+                         "le port `prompt` est entré dans le vocabulaire de fichiers")
+
+    def test_le_repli_sur_accepts_ecarte_l_homonyme_text(self):
+        """En repli sur `modes.domains[].accepts`, `text` désigne le PROMPT, pas un fichier.
+
+        `text` est un homonyme dans ce dépôt, et les deux sens se croisent ici : dans
+        `input_types`/`accepts` il veut dire **texte brut** (c'est pourquoi
+        `studio_node_ports` écrit `c != 'text'` pour le sortir du port travail) ; dans
+        `category_of_path` il veut dire **fichier texte** (.txt/.md/.csv/.srt). Le retenir au
+        repli ferait écrire `media_type='text'` (sens fichier) au nom d'une déclaration qui
+        parlait du prompt — une valeur plausible et fausse, exactement ce que `_nature` refuse
+        d'écrire pour une extension hors vocabulaire.
+        """
+        from copy import deepcopy
+
+        from wama.common.manifests.ingest import extract
+        manifest = deepcopy(extract('app', SOURCE))
+        body = manifest.get('body') or {}
+        body['ports'] = {'inputs': [], 'outputs': ((body.get('ports') or {}).get('outputs') or [])}
+        body['modes'] = {'domains': [{'id': 'x', 'accepts': ['text', 'image', 'inconnu']}]}
+        src, raison = render_views(manifest)
+        self.assertIsNotNone(src, f'génération impossible : {raison}')
+        self.assertEqual(_types_entree(src), ('image',),
+                         "le repli retient `text` (sens prompt) ou un jeton hors taxonomie")
 
     def test_la_nature_est_renseignee_dans_LES_DEUX_chemins_de_creation(self):
         """`upload` et `batch_create` doivent doter l'élément de la même façon.
