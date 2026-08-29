@@ -21,6 +21,10 @@ python_ldap
 PySide6
 pytube
 requests
+# bs4+lxml : utilisés depuis longtemps (url_ingest, web_search) mais jamais déclarés —
+# dépendance implicite régularisée le 2026-08-29 (déjà présents dans les deux venvs).
+beautifulsoup4
+lxml
 # torch/torchvision/torchaudio : voir requirements_torch.txt, à installer EN PREMIER
 # (ce fichier doit passer APRÈS pour que le pin `setuptools<81` ci-dessus reprenne la main).
 tqdm

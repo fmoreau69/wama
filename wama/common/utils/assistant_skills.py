@@ -56,6 +56,10 @@ DOMAINES = (
                      aide="Logos, illustrations, visuels — cadrés par l'identité du labo."),
     DomaineAssistant('dev', 'Développement', 'assistant-dev',
                      aide="Code, architecture et conventions de WAMA."),
+    # rag=False à dessein : le substrat de ce domaine est EXTERNE (le web), pas le corpus du
+    # labo — la fraîcheur vient de la récupération (WAMA_LLM.md §Investigation web).
+    DomaineAssistant('investigation', 'Investigation web', 'assistant-investigation',
+                     aide="Identifier, chercher sur le web, recouper, répondre avec sources."),
 )
 
 DOMAINE_DEFAUT = 'general'

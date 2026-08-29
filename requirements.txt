@@ -28,6 +28,10 @@ python-ldap>=3.4.4
 PySide6>=6.9
 pytube>=15.0.0
 requests>=2.32.3
+# bs4+lxml : utilisés depuis longtemps (url_ingest, web_search) mais jamais déclarés —
+# dépendance implicite régularisée le 2026-08-29 (déjà présents dans les deux venvs).
+beautifulsoup4>=4.12
+lxml>=5.0
 safetensors>=0.4.0
 # torch/torchvision/torchaudio : voir requirements_torch.txt, à installer EN PREMIER.
 # (L'ancienne ligne `torch>=2.8.0+cu128` ne pouvait pas marcher — PyPI n'a aucune roue avec

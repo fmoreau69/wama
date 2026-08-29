@@ -322,6 +322,13 @@ MECANISMES = (
               "Valide toute cible de téléchargement pilotée par une saisie : schéma, "
               "identifiants, et adresses privées/bouclage/lien-local — anti-SSRF",
               'wama/common/utils/url_guard.py', 'PROFILES_PERMISSIONS.md'),
+    # Distincte d'url_ingest : l'ingest livre un FICHIER aux apps ; celle-ci livre du TEXTE
+    # borné à un prompt (recherche sans clé + lecture plafonnée, chaque lecture via url_guard).
+    Mecanisme('web_search', 'Recherche & lecture web',
+              "Recherche internet + page → texte plafonné (octets ET caractères) pour "
+              "l'investigation de l'assistant (outils search_web/read_web_page)",
+              'wama/common/utils/web_search.py', 'WAMA_LLM.md',
+              symbole='search_web'),
     Mecanisme('document_export', 'Export document',
               "Génère PDF (fpdf2) / DOCX (python-docx) depuis les résultats d'app",
               'wama/common/utils/document_export.py', ''),

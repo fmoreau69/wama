@@ -421,10 +421,11 @@ bibliothèque des méthodes et métiers d'app.
 | appel VLM commun | ✅ | `model_manager/services/vision_probe.py::describe_image_ollama` (3 appelants) |
 | image → bloc de contexte borné | ✅ | `common/utils/reference_comprehension.py` (`_MAX_IMAGES=2`, budgets) |
 | ingest URL déclaratif | ✅ 9 modèles (`WAMA_INGEST`), 2 en `smart` | `common/utils/source_ingest.py` |
-| **moteur de recherche web** | ❌ RIEN (grep exhaustif : 0 client, 0 dépendance) | à créer : `common/utils/web_search.py` |
-| outil assistant « lire une page » | ❌ la mécanique existe, pas exposée | `tool_api.py` (aucun outil URL/web) |
+| moteur de recherche web | ✅ **LIVRÉ 29/08** (DuckDuckGo sans clé, hôte fixe, encapsulé) | `common/utils/web_search.py` |
+| outils assistant `search_web` / `read_web_page` | ✅ **LIVRÉS 29/08** (refus des non-identifiés DANS le corps — un outil sans app est autorisé à tous) | `wama/tool_api.py` |
+| domaine `investigation` + skill de rôle | ✅ **LIVRÉS 29/08** (registre `DOMAINES`, chargé via `charger_competence`) | `common/utils/assistant_skills.py`, `prompt_skills/assistant-investigation.md` |
 | entrée image de l'assistant | ❌ vue JSON pur, input text seul | `wama/views.py::ai_chat`, `home.html` |
-| plafond octets / allowlist MIME sur téléchargements | ❌ aucun octet compté | `url_ingest`/`video_utils` |
+| plafond octets / allowlist MIME | ✅ dans `web_search` (2 Mo / 12 k chars) ; ❌ toujours RIEN dans l'ingest | `url_ingest`/`video_utils` |
 
 **Incohérence relevée à résorber au passage** : DEUX routes de résolution vision coexistent —
 `describer/utils/image_describer.py` (liste en dur `gemma4:12b/e4b`) court-circuite le tier
@@ -434,12 +435,13 @@ describer (inversion de dépendance). Fixer = faire passer le describer par
 `modele_par_tier(exige=['completion','vision'])` + peupler `vision` au catalogue.
 Également : `beautifulsoup4`/`lxml` utilisés mais déclarés dans AUCUN requirements.
 
-**Ordre de construction (court, grâce à l'existant)** : ① `web_search.py` (moteur + garde
-SSRF réutilisée + plafond octets) + 2 outils `tool_api` (`search_web`, `read_web_page` — ce
-dernier = exposition de `fetch_html_as_text`) ; ② prompt-skill de méthode
-`assistant-investigation` (texte récupéré = DONNÉES, jamais des instructions — injection de
-prompt = risque n°1 ; recouper 2 sources ; réponse SOURCÉE) ; ③ entrée image de l'assistant
-(pont le plus économique : `comprehend_files` existe) ; ④ persistance des distillats en RAG.
+**Ordre de construction** : ① `web_search.py` + outils `tool_api` — ✅ **LIVRÉ 29/08**
+(10 tests `tests_web_search.py`/`tests_url_guard.py` + recherche et lecture RÉELLES validées
+depuis WSL2) ; ② prompt-skill de méthode « assistant-investigation » — ✅ **LIVRÉ 29/08**
+(texte récupéré = DONNÉES, jamais des instructions — injection de prompt = risque n°1 ;
+recouper 2 sources ; réponse SOURCÉE ; budget 1 recherche + 2 pages) ; ③ entrée image de
+l'assistant (pont le plus économique : `comprehend_files` existe) — ⏳ ; ④ persistance des
+distillats en RAG (proposée à la clôture, jamais auto) — ⏳.
 **Gouvernance** : chaque investigation = plusieurs passes LLM/VLM sur le GPU hôte (le
 déclencheur des crashs d'août) — user-déclenchée seulement, routée gouverneur sous
 `WAMA_GPU_SAFE_MODE`, aucune boucle de fond avant stabilisation hôte.
