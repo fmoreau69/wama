@@ -8372,16 +8372,20 @@ en entrée** ».
   renaisse pas. *Avant d'ouvrir un chemin serveur vers une donnée, vérifier si le CLIENT ne va
   pas déjà la chercher.*
 
-**🔴 ACTION REQUISE — REDÉMARRER LES SERVICES WSL2 (décision de Fabien : des travaux peuvent tourner)**
-`fallback_languages` **n'atteint ni le catalogue ni le corpus de manifestes** tant que gunicorn
-et les 4 workers celery tournent avec les modules d'AVANT le changement (**~26 932 s ≈ 7 h 30**
-d'uptime mesurés par `ps`, donc antérieurs au code). Leur `full_sync` périodique — **toutes les
-2 à 6 minutes**, mesuré dans `ModelSyncLog` (22:31→22:49) — **RÉÉCRIT le catalogue avec l'ancienne
-vérité**. C'est ce qui a fait « disparaître » la capacité trois fois de suite entre deux commandes.
-⚠⚠ **Extension mesurée de la leçon du 27/08** (« gunicorn sans autoreload sert un parc MIXTE ») :
-**un worker périmé ne sert pas seulement du vieux code — il EFFACE de la donnée fraîche.** Un
-processus de longue vie est un ÉCRIVAIN, pas seulement un lecteur.
-→ Après redémarrage : `sync_models` **depuis WSL2/venv_linux** puis `manifest_export`.
+**✅ RÉSOLU DE LUI-MÊME — et ma conclusion « worker périmé » était SUR-INTERPRÉTÉE**
+J'avais écrit ici une ACTION REQUISE : « redémarrer les services WSL2, sinon `fallback_languages`
+n'atteindra jamais le catalogue, leur `full_sync` toutes les 2-6 min réécrivant l'ancienne vérité ».
+**Mesuré le lendemain matin : c'est FAUX.** Le catalogue porte les nouvelles valeurs
+(`bark` 13 · `coqui-xtts` 17 · `higgs-audio` 9 · `kokoro` 7 **+ repli 8**) alors que gunicorn et
+celery n'ont PAS redémarré (uptime `ps` : 37 017 s ≈ 10 h 20, les mêmes pid).
+⚠⚠ **Les deux moitiés de mon raisonnement étaient vraies séparément et fausses ensemble.** Le
+`full_sync` périodique est **BIHORAIRE** (`ModelSyncLog` : 05:02 · 07:02 · 09:02) — j'avais lu une
+**rafale** (22:31→22:49, des syncs que MES propres commandes déclenchaient) comme une **cadence**,
+puis attribué à cette cadence inventée des disparitions dont je n'avais jamais isolé la cause.
+*Un intervalle relevé pendant qu'on agit soi-même sur le système mesure son propre bruit.* Il
+fallait relever la période **hors de toute intervention** — ce qu'une nuit a fait gratuitement.
+→ Reste vrai et utile, sans le catastrophisme : lancer `sync_models` **depuis WSL2/venv_linux**,
+jamais depuis venv_win.
 ⚠ Rappel vécu ce jour : lancé depuis venv_win, `sync_models` a écrit `installed: false` +
 un chemin Windows dans `anonymizer:sam3` (triton absent du venv Windows), que `manifest_export`
 a ensuite gravé au corpus. Le corpus reflète **venv_linux = le runtime réel**.
@@ -8404,16 +8408,44 @@ a ensuite gravé au corpus. Le corpus reflète **venv_linux = le runtime réel**
   describer 100 · enhancer 99 · imager 97 · reader 98 · synthesizer 98 · transcriber 100
   (`converter_01` = bac à sable, jamais noté).
 
-**🔚 EN SUSPENS — chantier converter, ouvert et MESURÉ, non résolu**
+**✅ RÉSOLU — cards inertes du bac à sable (commit du générateur, 29/08)**
 Fabien : « les cards du converter bac à sable ne sont pas cliquables, n'affichent rien, pas
-d'action possible ». Mesure : **25/30 batchs vides dans `converter_01` ET 51/71 dans le
-converter RÉEL** — un batch vide porte `total=1` ou `2` pour **0 job**, d'où une card sans
-contenu ni action. Les 4 jobs créés le 28/08 ont un `input_file` **vide**.
-⚠ **Ce n'est donc PAS un résidu du bac à sable** : le bac à sable est une copie fidèle, et il
-recopie un défaut du converter. Reste à trouver pourquoi la création de `ConversionJob` échoue
-**après** que la ligne `ConversionBatch` soit écrite — sites de création à instruire :
-`_wrap_job_in_batch` (l.61-68), `group_into_batches_by_nature` (l.99-105),
-`ConversionJob.objects.create` (l.240 / 689 / 977), `batch_duplicate` (l.486).
+d'action — **alors que le converter d'origine fonctionne** et répond à l'inspecteur ».
+⚠⚠ **Ma première conclusion était fausse, et la façon dont elle l'était compte.** J'avais mesuré
+25/30 batchs vides côté jumelle ET 51/71 côté converter RÉEL, et j'en avais déduit « même défaut,
+l'app source est en cause ». Or **les deux vues groupent la file DEPUIS LES JOBS** (`for job in
+jobs: grouped.setdefault(…)`) : un batch à 0 job n'entre jamais dans le groupement, il est
+**invisible des deux côtés**. Ces lignes sont des orphelines en base, sans effet à l'écran.
+*Une anomalie de DONNÉES présente des deux côtés ne prouve pas un défaut commun quand le RENDU
+ne la lit pas.* Fabien regardait l'écran, je regardais la base — c'est lui qui avait le bon
+instrument.
+**Vraie cause : un trou de PROJECTION.** Le manifeste converter **déclare** la facette
+`inspector` (`detail_registered`, `preview_registered`, `detail_spec`, `preview`) et
+`templates_gen` ne la lisait pas, rangeant le résultat en « TROU DE GLU assumé ».
+⚠⚠ **Deuxième occurrence sur le MÊME gabarit** — la première était `accepts_url` (19/08) — et
+**les deux fois le constat vient de Fabien comparant la jumelle à sa source**, jamais d'un
+contrôle automatique. *Un trou déclaré assumé cesse d'être cherché : c'est le plus coûteux des
+classements.* Avant d'écrire « TROU DE GLU », vérifier que l'information n'est pas DÉJÀ au
+manifeste. (Le commentaire du générateur annonçait même « actions conventionnelles inertes »
+alors que la card n'en rendait **aucune** : *un trou décrit comme comblé est un trou qu'on cesse
+de chercher*.)
+**Projeté désormais**, et rien n'était propre à l'app : les 5 actions conventionnelles
+(⚙ · ▶ · ⬇ · ⧉ · 🗑) — `.settings-btn[data-id]`, `.duplicate-btn[data-duplicate-url]`,
+`.delete-btn[data-delete-url]` sont des **contrats communs à écouteur DÉLÉGUÉ**
+(`queue-actions.js`), donc actifs sans une ligne de JS d'app — plus `_cycle_button.html`, le
+wrapper **`.batch-group[data-batch-id]`** (que `_batch_card.html:32` laisse à la charge de l'app
+et qui n'était pas émis), et `WamaInspector.initFromSchema` + `WamaCycleButton.wire/autoSync`
+dérivés de la facette. `.btn-group-actions` n'est pas décoratif : c'est **la source que
+l'inspecteur clone** — sans elle le volet droit reste vide même bien initialisé.
+Mesure sur le rendu réel (HTTP 200), tout à **0 avant** : `btn-group-actions` ×8 ·
+`settings-btn` ×6 · `delete-btn` ×6 · `duplicate-btn` ×6 · `wama-cycle-btn` ×5 ·
+`batch-group` ×4 · `initFromSchema` ×2 · `cloneActions` ×2.
+🔚 **Trou restant, et il est ailleurs** : le ⚙ est le SEUL bouton inerte — il attend un ouvreur
+(`WamaQueueActions.onSettings`), **indéclarable tant que `views_gen` rend l'endpoint d'édition en
+501** (« politique d'app non conventionnelle », marche B). Le bouton reste rendu exprès : le
+retirer ferait DISPARAÎTRE le trou au lieu de le montrer. **Prochain pas du chantier codegen.**
+⚠ La jumelle est **gitignorée** (`.gitignore:136`, `wama/*_[0-9][0-9]/`) : seul le générateur se
+commite ; rejouer `manage.py app_sandbox substitute converter_01 templates` pour la reconstruire.
 
 **Autres suites** : 8+ commits non poussés (push = accord de Fabien).
 
