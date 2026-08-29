@@ -38,7 +38,7 @@
       "hf_id": null,
       "license": "agpl-3.0",
       "model_type": "vision",
-      "platform_ref": null,
+      "platform_ref": "github:lindevs/yolov9-face",
       "source": "anonymizer"
     },
     "prompts": {

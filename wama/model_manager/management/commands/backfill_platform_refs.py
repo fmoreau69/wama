@@ -42,6 +42,10 @@ class Command(BaseCommand):
                             help="Provenance VERIFIEE a enregistrer, repetable. "
                                  "Ex. --poser anonymizer:yolo:license-plate-finetune-v1m.onnx="
                                  "huggingface:morsetechlab/yolov11-license-plate-detection")
+        parser.add_argument('--ultralytics', action='store_true',
+                            help="Verifie les poids YOLO officiels contre les releases GitHub "
+                                 "ultralytics/assets (nom + taille en octets) et pose "
+                                 "github:ultralytics/assets sur les correspondances exactes.")
 
     def handle(self, *args, **options):
         ecrire = options['ecrire']
@@ -85,6 +89,9 @@ class Command(BaseCommand):
 
         if options['depuis_poids']:
             self._depuis_poids(ecrire)
+
+        if options['ultralytics']:
+            self._ultralytics(ecrire)
 
         if indetermines:
             self.stdout.write(self.style.WARNING(
@@ -138,6 +145,83 @@ class Command(BaseCommand):
                 for c, v in champs.items():
                     setattr(m, c, v)
                 m.save(update_fields=list(champs))
+
+    def _ultralytics(self, ecrire):
+        """
+        Provenance des poids YOLO OFFICIELS restes sans identite : le stock telecharge AVANT
+        le cablage `identite_pour_spec(kind='yolo')` (question Fabien 2026-08-29 — la plupart
+        des cards YOLO sans lien de page).
+
+        Rien n'est deduit du nom : la verification de la doctrine (« appariement nom de fichier
+        + TAILLE EN OCTETS contre le depot amont ») est ici AUTOMATISEE — l'API GitHub liste
+        les assets des releases `ultralytics/assets` avec leur taille exacte. Correspondance
+        exacte (nom ET octets) ⇒ `github:ultralytics/assets` (la MEME ref que la voie
+        d'installation, dont le repli par `platform_ref` continue de fonctionner), posee par
+        `poser_identite` (voie manifeste + corpus). Sinon : compte, dit, laisse vide.
+        """
+        import os
+
+        import requests
+
+        from wama.model_manager.services.provenance import poser_identite
+
+        candidats = [m for m in AIModel.objects.filter(platform_ref='', hf_id='')
+                     .exclude(local_path='')
+                     if m.model_key.startswith('anonymizer:yolo:')]
+        if not candidats:
+            self.stdout.write("ultralytics   : aucun candidat (tous references, ou sans chemin)")
+            return
+
+        # Assets {nom: {tailles possibles}} sur TOUTES les releases (un meme nom revit de
+        # release en release ; l'egalite d'octets designe la bonne, ou n'importe laquelle —
+        # peu importe : le depot d'origine est le meme).
+        tailles: dict = {}
+        try:
+            for page in range(1, 6):     # ~30 releases/page — large pour ce depot
+                r = requests.get(
+                    'https://api.github.com/repos/ultralytics/assets/releases',
+                    params={'per_page': 30, 'page': page}, timeout=(5, 30))
+                r.raise_for_status()
+                releases = r.json()
+                if not releases:
+                    break
+                for rel in releases:
+                    for asset in rel.get('assets') or []:
+                        tailles.setdefault(asset['name'], set()).add(asset['size'])
+        except Exception as e:
+            self.stderr.write(self.style.ERROR(
+                f"ultralytics   : releases GitHub injoignables ({e}) — rien pose"))
+            return
+
+        verifies, ecarts, absents = [], [], 0
+        for m in candidats:
+            nom = os.path.basename(m.local_path)
+            if not os.path.isfile(m.local_path):
+                absents += 1
+                continue
+            attendues = tailles.get(nom)
+            if not attendues:
+                continue                      # pas un asset officiel (finetune maison/tiers)
+            octets = os.path.getsize(m.local_path)
+            if octets in attendues:
+                verifies.append(m.model_key)
+            else:
+                ecarts.append((m.model_key, octets, sorted(attendues)))
+
+        for cle in verifies:
+            self.stdout.write(f"  ✓ {cle:52s} -> github:ultralytics/assets (nom+octets)")
+            if ecrire:
+                res = poser_identite(cle, {'platform_ref': 'github:ultralytics/assets'})
+                if not res.get('applique'):
+                    self.stderr.write(self.style.ERROR(f"    pose en echec : {res.get('erreur')}"))
+        for cle, octets, attendues in ecarts:
+            self.stdout.write(self.style.WARNING(
+                f"  ≠ {cle} : {octets} octets locaux, attendus {attendues} — laisse vide "
+                f"(poids modifie ou re-exporte ?)"))
+        self.stdout.write(
+            f"ultralytics   : {len(verifies)} verifie(s) nom+taille, {len(ecarts)} ecart(s), "
+            f"{absents} chemin(s) introuvables de cet hote, "
+            f"{len(candidats) - len(verifies) - len(ecarts) - absents} hors assets officiels")
 
     def _depuis_poids(self, ecrire):
         """
