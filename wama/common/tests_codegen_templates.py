@@ -155,6 +155,44 @@ class PartialActionsDeFileTest(SimpleTestCase):
                       self._rendu(download_url='/converter_01/download-all/'))
 
 
+class ParitEDesEtagesDeFileTest(SimpleTestCase):
+    """LOT et FILE partagent UN algorithme — l'étage du bas ne peut pas être le plus pauvre.
+
+    Écrit après le balayage exhaustif du 2026-08-29 : la première version de l'étage FILE était
+    une COPIE de l'étage LOT amputée de `corps` et de `suite`. Rien ne l'aurait signalé — les
+    deux fonctions marchaient — sauf le jour où le synthesizer (qui PORTE ses réglages dans le
+    POST) ou le describer (qui insère et polle au lieu de recharger) aurait dû migrer : ils
+    n'auraient pas pu, et auraient gardé leur handler. Une brique au contrat plus pauvre que le
+    code qu'elle remplace ne résorbe rien, et ça ne se voit qu'à la migration suivante.
+    """
+
+    def setUp(self):
+        self.js = _lire(_JS + 'queue-actions.js')
+
+    def test_les_deux_etages_passent_par_le_meme_algorithme(self):
+        self.assertIn('function actionGroupee(', self.js,
+                      "l'algorithme commun aux deux étages n'existe plus — la copie est revenue")
+        for etage in ('function actionDeLot(', 'function actionDeFile('):
+            i = self.js.index(etage)
+            corps = self.js[i:i + 600]
+            self.assertIn('actionGroupee(', corps,
+                          f'{etage} ré-implémente le POST au lieu de déléguer')
+
+    def test_le_demarrage_de_FILE_offre_corps_ET_suite_comme_celui_de_LOT(self):
+        # Les deux hooks du ▶ de lot, au ▶ de file. Sans eux : 4 apps sur 10 non portables
+        # (synthesizer porte des réglages ; describer/transcriber/enhancer pollent).
+        i = self.js.index("actionDeFile('data-queue-start-url'")
+        corps = self.js[i:i + 700]
+        self.assertIn('corps:', corps, 'le ▶ de file ne sait pas porter de réglages')
+        self.assertIn('suite:', corps, 'le ▶ de file impose le rechargement à toutes les apps')
+
+    def test_les_hooks_de_file_sont_EXPORTES(self):
+        # Un hook non exporté est un hook qui n'existe pas : `WamaQueueActions` est la seule
+        # surface qu'une app touche.
+        for nom in ('onQueueStarted', 'onQueueStartBody'):
+            self.assertIn(f'{nom}: {nom}', self.js, f'{nom} déclaré mais absent de WamaQueueActions')
+
+
 class SourcesDOptionsTest(SimpleTestCase):
     """`options_source` : une clé déclarée au schéma doit résoudre par un registre COMMUN."""
 

@@ -14,10 +14,19 @@
  * Actions de FILE (barre d'outils, `_queue_actions.html`) — l'app passe une URL, rien d'autre :
  *   ▶ Démarrer tout → data-queue-start-url  (start_url au partial)
  *   🗑 Tout effacer  → data-queue-clear-url  (clear_url au partial ; confirmation par défaut)
+ *   ⬇ Télécharger   → AUCUN JS : `download_url` au partial rend un <a href> (GET FileResponse)
  *
- * Hooks optionnels (une spécificité se DÉCLARE) — tous deux acceptent `{within: '<sélecteur>'}`
- * pour être scopés à une famille de cards, l'ouvreur/la suite sans `within` servant de défaut :
- *   WamaQueueActions.onDeleted((id, data, btn) => …)   suite après suppression, au lieu du reload
+ * Hooks optionnels (une spécificité se DÉCLARE) — tous acceptent `{domain: '…'}` (ou `within`)
+ * pour être scopés, la déclaration sans scope servant de défaut :
+ *   WamaQueueActions.onDeleted((id, data, btn) => …)      suite après suppression, au lieu du reload
+ *   …onBatchStarted((data, id, btn) => …)                 suite du ▶ de LOT
+ *   …onBatchStartBody((btn) => ({…}))                     corps du POST du ▶ de LOT
+ *   …onQueueStarted((data, btn) => …)                     suite du ▶ de FILE
+ *   …onQueueStartBody((btn) => ({…}))                     corps du POST du ▶ de FILE
+ *
+ * ⚠ Les quatre derniers existent parce que LOT et FILE partagent un seul algorithme
+ * (`actionGroupee`) : un étage ne peut pas offrir un contrat plus pauvre que l'autre sans
+ * rendre certaines apps INPORTABLES. Voir le bloc « ACTIONS DE FILE » plus bas.
  *
  * POURQUOI ⚙ N'EST PAS UN POST (et pourquoi la brique s'arrête au clic). Dupliquer et supprimer
  * SONT l'action : une URL, un POST, un rechargement — la brique peut tout faire. ⚙ ne fait
@@ -65,11 +74,17 @@
         return m ? m[1] : '';
     }
 
-    // `corps` — corps JSON de la requête. Le défaut `{}` couvre 9 apps sur 10 ; l'enhancer AUDIO
-    // est le seul cas mesuré (2026-08-27) où le lancement PORTE des réglages : son volet gauche
-    // est la surface de réglage vivante, appliquée à CHAQUE lancement (item comme lot). Le porter
-    // en laissant le corps vide aurait lancé le lot avec les valeurs stockées à la création —
-    // une régression MUETTE, et incohérente avec le ▶ de la card fille juste à côté.
+    // `corps` — corps JSON de la requête. Le défaut `{}` couvre la plupart des cas ; DEUX apps
+    // mesurées font PORTER des réglages au lancement, et il a fallu deux relevés pour les voir :
+    //   • enhancer AUDIO (relevé du 2026-08-27, niveau LOT) — son volet gauche est la surface de
+    //     réglage vivante, appliquée à CHAQUE lancement (item comme lot) ;
+    //   • synthesizer (relevé du 2026-08-29, niveau FILE) — `start_all` envoie un FormData et la
+    //     vue le LIT (`views.py:922-929` : tts_model, language, voice_preset, speed, pitch,
+    //     voice_reference…), donc « démarrer tout » y vaut aussi « appliquer à tout ».
+    // Le porter en laissant le corps vide lancerait avec les valeurs stockées à la création — une
+    // régression MUETTE. ⚠ Le commentaire d'avant disait « le SEUL cas mesuré » : il l'était au
+    // niveau LOT, et je l'ai récrit comme une propriété des apps. Un relevé vaut pour le PÉRIMÈTRE
+    // où il a été fait — le second étage n'avait jamais été regardé quand la phrase a été écrite.
     function poster(url, corps) {
         return fetch(url, {
             method: 'POST',
@@ -327,15 +342,25 @@
     // `batch/<pk>/<action>/`. Une app dont la route n'existe pas ne rend pas l'attribut, donc la
     // brique ignore le bouton — pas de clic mort par accident.
 
-    function actionDeLot(classe, attribut, options) {
+    // ── L'ALGORITHME, une fois ──────────────────────────────────────────────────────────
+    //
+    // LOT et FILE font la même chose : confirmer (peut-être), POSTer (avec un corps peut-être),
+    // puis rendre la main à une suite déclarée ou recharger. Les DEUX seules différences sont le
+    // sélecteur et l'arrêt de propagation. Elles ont pourtant vécu quelques heures en deux copies
+    // — et la copie du bas était la PAUVRE : elle avait perdu `corps` et `suite` en chemin, donc
+    // une app qui porte des réglages au lancement (synthesizer) ou qui insère+polle au lieu de
+    // recharger (describer) n'aurait PAS PU migrer, et aurait gardé son handler. Une brique dont
+    // le contrat est plus pauvre que le code qu'elle remplace ne remplace rien.
+    function actionGroupee(selecteur, attribut, options) {
         options = options || {};
         document.addEventListener('click', function (e) {
-            const btn = e.target.closest('.' + classe + '[' + attribut + ']');
+            const btn = e.target.closest(selecteur + '[' + attribut + ']');
             if (!btn) return;
             const url = btn.getAttribute(attribut);
             if (!url) return;
-            // La card mère est un toggle de repli : sans ça, agir sur un lot le replie aussi.
-            e.stopPropagation();
+            // LOT seulement : la card mère est un toggle de repli — sans ça, agir sur un lot le
+            // replie aussi. La barre de FILE n'est dans aucun toggle : ne pas l'y appliquer.
+            if (options.arreterPropagation) e.stopPropagation();
 
             // Confirmation : celle de l'ACTION (défaut de la brique) OU celle que le bouton
             // DÉCLARE (`data-confirm`). Le second cas existe pour une action qui ne confirme
@@ -385,6 +410,11 @@
                 if (icon) { icon.className = iconeInitiale; }
             });
         });
+    }
+
+    function actionDeLot(classe, attribut, options) {
+        const o = Object.assign({ arreterPropagation: true }, options || {});
+        actionGroupee('.' + classe, attribut, o);
     }
 
     actionDeLot('batch-delete-btn', 'data-batch-delete-url',
@@ -458,63 +488,70 @@
 
     // ══ ACTIONS DE FILE (barre d'outils) ═════════════════════════════════════════════════
     //
-    // Troisième étage, et le dernier : élément → lot → FILE. Les deux premiers sont ci-dessus ;
-    // celui-ci manquait, et son absence se voyait autrement que les autres. Ici le NOMMAGE
-    // n'était même pas la question — `_queue_actions.html` rend les trois boutons depuis un
-    // partial commun, mais leurs ids sont FOURNIS par l'app, précisément pour que l'app y
-    // accroche ses handlers. Résultat mesuré : chez l'imager, les ids étaient passés et rien
-    // ne les écoutait (« ils y étaient DÉCORATIFS », `imager/index.html:96`), et la jumelle
-    // générée du bac à sable rendait la même barre entièrement inerte — un gabarit ne peut
-    // pas écrire dix lignes de handler, il ne peut que passer une URL.
+    // Troisième étage, et le dernier : élément → lot → FILE.
     //
-    // *Un partial commun qui délègue son câblage rend un bouton mort aussi facilement qu'une
-    // divergence de nommage — et sans laisser de trace au grep.* C'est la variante la plus
-    // discrète du même défaut : support ≠ adoption.
+    // ⚠⚠ CE QUE J'AI ÉCRIT ICI LE 2026-08-29 ÉTAIT FAUX, et la correction est la vraie leçon.
+    // J'avais écrit que ces trois boutons « ont longtemps été DÉCORATIFS chez plusieurs apps »,
+    // en m'appuyant sur UN commentaire trouvé dans `imager/index.html:96`. Le balayage EXHAUSTIF
+    // des 10 apps (demandé par Fabien, fait le jour même) dit l'inverse :
+    //
+    //     12 barres incluses dans 10 apps — 10/10 câblent ▶ et 🗑 par `getElementById`,
+    //     9/10 câblent aussi ⬇ (composer excepté : il passe `download_url`, donc un vrai lien).
+    //
+    // Le commentaire de l'imager disait que les boutons y étaient décoratifs — *dans l'imager*,
+    // et la ligne d'à côté dit que `index.js` « les branche désormais ». J'ai lu un constat
+    // DATÉ et LOCAL comme l'état général du parc, exactement le défaut que ce fichier documente
+    // trois fois plus haut (neuf noms de fonctions lus comme neuf comportements).
+    //
+    // LE DÉFAUT RÉEL est donc l'autre, et c'est celui des deux étages du dessus, à l'identique :
+    // **~22 handlers écrits à la main dans 10 apps pour deux actions qui font partout la même
+    // chose** — POST, puis rechargement (12/12 des barres rechargent ou re-rendent). Le nommage
+    // ne signalait rien, puisque les ids viennent d'un partial commun : *un nommage uniforme peut
+    // cacher un comportement recopié*. Ce n'était pas « support ≠ adoption », c'était de la
+    // duplication ordinaire — et pour le GABARIT, l'effet est le même : il ne peut pas écrire dix
+    // lignes de handler, il ne peut que passer une URL. Sans cet étage, toute jumelle générée
+    // naît avec une barre inerte.
     //
     // L'app DÉCLARE l'URL (`start_url` / `clear_url` au partial) et n'écrit rien. Celle qui
     // garde son handler ne passe pas d'URL : pas d'attribut, la brique ignore le bouton, donc
     // aucun double POST — même contrat de non-collision que `data-batch-<action>-url`.
     function actionDeFile(attribut, options) {
-        options = options || {};
-        document.addEventListener('click', function (e) {
-            const btn = e.target.closest('[' + attribut + ']');
-            if (!btn) return;
-            const url = btn.getAttribute(attribut);
-            if (!url) return;
-
-            const demande = btn.dataset.confirm;
-            const texte = (demande && demande !== 'false') ? demande : options.confirmer;
-            if (texte && demande !== 'false' && !window.confirm(texte)) return;
-
-            btn.disabled = true;
-            const icon = btn.querySelector('i');
-            const iconeInitiale = icon ? icon.className : '';
-            if (icon) { icon.className = 'fas fa-spinner fa-spin'; }
-
-            poster(url)
-            .then(lireReponse)
-            .then(function (data) {
-                if (data.error) {
-                    alert(data.error);
-                    btn.disabled = false;
-                    if (icon) { icon.className = iconeInitiale; }
-                    return;
-                }
-                if (options.signalerFichiers) signalerAuGestionnaire();
-                // Une action de FILE touche toutes les cards, tous les lots et l'état vide :
-                // le rechargement est le seul rendu correct sans réécrire l'agrégat côté
-                // client — c'est déjà ce que font les apps qui câblent ces boutons à la main.
-                location.reload();
-            })
-            .catch(function () {
-                alert('Erreur réseau');
-                btn.disabled = false;
-                if (icon) { icon.className = iconeInitiale; }
-            });
-        });
+        actionGroupee('', attribut, options || {});
     }
 
-    actionDeFile('data-queue-start-url', {});
+    // Suite et corps déclarés du ▶ de FILE — mêmes hooks qu'au LOT, pour la même raison MESURÉE
+    // (relevé du 2026-08-29, `start_all` des 10 apps) : la divergence est réelle, pas stylistique.
+    //   rechargent        : converter, anonymizer, composer, avatarizer, reader, imager
+    //   toast + polling   : describer (`data.count` puis `startPolling`), transcriber, enhancer
+    //   PORTENT DES RÉGLAGES : synthesizer (FormData lu par la vue — voir `poster`)
+    // Ouvrir ces deux hooks n'est donc pas de la symétrie décorative : sans eux, les 4 apps de
+    // la 2ᵉ et 3ᵉ ligne ne peuvent pas être portées, et l'étage ne sert qu'aux jumelles générées.
+    const suitesFile = [];
+    const corpsFile = [];
+
+    function onQueueStarted(handler, options) {
+        if (typeof handler !== 'function') return;
+        const o = options || {};
+        suitesFile.push({ handler: handler, domain: o.domain || null, within: o.within || null });
+    }
+
+    function onQueueStartBody(handler, options) {
+        if (typeof handler !== 'function') return;
+        const o = options || {};
+        corpsFile.push({ handler: handler, domain: o.domain || null, within: o.within || null });
+    }
+
+    actionDeFile('data-queue-start-url', {
+        corps: function (btn) {
+            const fabrique = choisir(corpsFile, btn);
+            return fabrique ? fabrique(btn) : null;
+        },
+        suite: function (data, id, btn) {
+            const suite = choisir(suitesFile, btn);
+            if (suite) { suite(data, btn); return true; }
+            return false;   // pas de suite déclarée → rechargement (défaut sûr)
+        },
+    });
     actionDeFile('data-queue-clear-url',
                  { confirmer: 'Effacer TOUS les éléments de la file ? Cette action est définitive.',
                    signalerFichiers: true });
@@ -522,5 +559,7 @@
     window.WamaQueueActions = { onSettings: onSettings, onDeleted: onDeleted,
                                 onBatchSettings: onBatchSettings,
                                 onBatchStarted: onBatchStarted,
-                                onBatchStartBody: onBatchStartBody };
+                                onBatchStartBody: onBatchStartBody,
+                                onQueueStarted: onQueueStarted,
+                                onQueueStartBody: onQueueStartBody };
 })();

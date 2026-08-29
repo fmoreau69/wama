@@ -14,11 +14,24 @@ Variables :
                  confirmation pour l'effacement) : l'app n'écrit plus de handler.
   start_label, clear_label, download_label — libellés (défauts ci-dessous)
 
-⚠ Les trois boutons de cette barre ont longtemps été DÉCORATIFS chez plusieurs apps : les ids
-étaient passés, aucun JS ne les écoutait (constat écrit dans `imager/index.html:96`). Les
-`*_url` ci-dessus existent pour que ce cas ne puisse plus se produire — un bouton dont l'URL
-est déclarée est câblé par la brique, sans une ligne d'app. Une app qui garde son handler par
+⚠ CORRECTION du 2026-08-29 — ce paragraphe affirmait que les trois boutons « ont longtemps été
+DÉCORATIFS chez plusieurs apps ». Le balayage exhaustif des 10 apps le DÉMENT : sur les 12 barres
+incluses, 10/10 apps câblent ▶ et 🗑 par `getElementById`, et 9/10 câblent aussi ⬇. Je m'étais
+appuyé sur un commentaire de `imager/index.html:96` qui parlait de l'imager SEUL — et dont la
+ligne suivante dit que son JS « les branche désormais ». Ce qui est réellement mesuré est de la
+DUPLICATION : ~22 handlers écrits à la main pour deux actions qui font partout POST + rechargement.
+
+Les `*_url` servent donc à résorber ces 22 copies, pas à ranimer des boutons morts — et à rendre
+la barre câblable par un GABARIT, qui ne peut passer qu'une URL. Une app qui garde son handler par
 id ne passe simplement pas d'URL (sinon le POST partirait DEUX fois).
+
+⚠ Le ⬇ ci-dessous rejoue en petit les deux premières branches de `common/_download_button.html`
+(rien de prêt → `<button disabled>` ; prêt → `<a href>`). Il n'y DÉLÈGUE PAS, à dessein : cette
+brique-là rend un bouton de CARD, sans libellé ni id, et 3 apps basculent `disabled` au runtime
+sur celui-ci. Sa TROISIÈME branche (split button multi-format) est en revanche déjà recopiée à la
+main ici — `transcriber/index.js:833-859` reconstruit un dropdown txt/srt/pdf/docx en JS autour du
+bouton rendu. C'est la duplication qui forcera la fusion : elle se règle en donnant `id`/`label`
+au partial commun, PAS en ajoutant un second dropdown ici (§S2bis point 10).
 
 Usage :
   {% include 'common/_queue_actions.html' with start_id='transcriber-process-btn' download_id='transcriber-download-all-btn' clear_id='transcriber-clear-btn' show_download=True %}

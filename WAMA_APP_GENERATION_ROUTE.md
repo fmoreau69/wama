@@ -767,24 +767,63 @@ outillé avant d'ouvrir cette marche.
      qui interroge **les deux registres** avant de se plaindre — en nommant la clé absente.
      Restent 2 clés non résolues et **assumées explicitement** (`SOURCES_NON_RESOLUES` du module de
      tests) : `backends` (transcriber) et `avatar_gallery` (studio, déclarée hors schéma d'app).
-  10. **Trois boutons de file rendus, zéro câblage — et ça n'appartenait à personne.** Le partial
-     `_queue_actions.html` reçoit des **ids** et son contrat dit « handlers JS de l'app » ; or un
-     gabarit ne peut pas écrire de handler. `imager/index.html:96` portait déjà le constat écrit
-     que ces boutons « ont longtemps été DÉCORATIFS ». *Trois routes existantes, trois boutons
-     rendus, et rien entre les deux.* C'est la variante la plus discrète du défaut du point 3 :
-     **un partial commun qui délègue son câblage rend un bouton mort aussi facilement qu'une
-     divergence de nommage — et sans laisser de trace au grep.** Corrigé par le **3ᵉ étage** de
-     `queue-actions.js` (élément → lot → **FILE**) : `actionDeFile('data-queue-start-url')` /
-     `('data-queue-clear-url')`, attributs émis par le partial **seulement si une URL est passée**
-     — les 10 apps qui gardent leur handler par id ne bougent pas (sinon : POST en double). Le ⬇
-     n'a besoin d'aucun JS (`download_all` = GET `FileResponse`) : le gabarit passe `download_url`
-     et le partial rend un vrai `<a href>` au lieu du bouton `disabled` par construction.
-     Routes résolues par `resolve_route()` (point 2), jamais supposées.
-     **Vérification** : `common/tests_codegen_templates.py` (11 tests, module neuf — `templates_gen`
-     n'en avait aucun), **prouvés DISCRIMINANTS en les rejouant dans un worktree sur HEAD** :
-     6/11 rouges avant correctif. Le 7ᵉ passait **à vide** (il bouclait sur une liste d'URLs
-     vide = l'état défectueux) → assertion de cardinalité ajoutée. *Un test qui ne boucle sur rien
-     atteste le néant.*
+  10. **La barre de file n'était câblable que par une app — donc jamais par un gabarit.** Le
+     partial `_queue_actions.html` reçoit des **ids** et son contrat dit « handlers JS de l'app » ;
+     or un gabarit ne peut pas écrire de handler, il ne peut que passer une URL. La jumelle naissait
+     donc avec ses trois boutons inertes. Corrigé par le **3ᵉ étage** de `queue-actions.js`
+     (élément → lot → **FILE**) : `actionDeFile('data-queue-start-url')` / `('data-queue-clear-url')`,
+     attributs émis par le partial **seulement si une URL est passée** — les apps qui gardent leur
+     handler par id ne bougent pas (sinon : POST en double). Le ⬇ n'a besoin d'aucun JS
+     (`download_all` = GET `FileResponse`) : le gabarit passe `download_url` et le partial rend un
+     vrai `<a href>` au lieu du bouton `disabled` par construction (`composer/index.html:87` le
+     faisait déjà — la variable existait, une seule app l'utilisait). Routes résolues par
+     `resolve_route()` (point 2), jamais supposées.
+     **Vérification** : `common/tests_codegen_templates.py` (module neuf — `templates_gen` n'en avait
+     aucun), **prouvés DISCRIMINANTS en les rejouant dans un worktree sur HEAD** : 6/11 rouges avant
+     correctif. Le 7ᵉ passait **à vide** (il bouclait sur une liste d'URLs vide = l'état défectueux)
+     → assertion de cardinalité ajoutée. *Un test qui ne boucle sur rien atteste le néant.*
+  11. **⚠⚠ LE BALAYAGE EXHAUSTIF DES 10 APPS A DÉMENTI MA PROPRE JUSTIFICATION** (demandé par
+     Fabien le 29/08 : *« vérifier que je n'ai pas réinventé quelque chose du commun »*). J'avais
+     écrit — dans le partial, dans le JS **et** dans le message de commit — que ces boutons « ont
+     longtemps été DÉCORATIFS chez plusieurs apps », sur la foi d'**un** commentaire lu dans
+     `imager/index.html:96`. Mesure :
+
+     | ce qui est câblé à la main | ▶ | 🗑 | ⬇ |
+     |---|---|---|---|
+     | apps (12 barres incluses dans 10 apps) | **10/10** | **10/10** | **9/10** (composer passe `download_url`) |
+
+     Le commentaire de l'imager parlait de l'imager **seul**, et sa ligne suivante dit que son JS
+     « les branche désormais ». *J'ai lu un constat DATÉ et LOCAL comme l'état général du parc* —
+     le défaut que `queue-actions.js` documente déjà trois fois (neuf noms de fonctions lus comme
+     neuf comportements). **Le vrai constat est l'autre, et il ne change rien au correctif mais
+     tout à sa raison** : ~22 handlers recopiés dans 10 apps pour deux actions qui font partout
+     POST + rechargement. *Un nommage uniforme (les ids viennent d'un partial commun) peut cacher
+     une duplication que rien ne signale — c'est le cas le plus trompeur, déjà rencontré au niveau
+     LOT.* Il n'y avait donc pas de « bouton mort » à ranimer : il y avait 22 copies à résorber.
+  12. **Et le balayage a trouvé le vrai défaut de MA brique : l'étage du bas était le plus pauvre.**
+     `actionDeFile` était une copie de `actionDeLot` **amputée de `corps` et de `suite`**. Or le
+     relevé des 10 `start_all` montre que la divergence y est RÉELLE, comme au niveau lot :
+     6 rechargent, 3 insèrent + pollent (describer/transcriber/enhancer), et **le synthesizer
+     PORTE ses réglages dans le POST** (`wama/synthesizer/views.py:922` lit `tts_model`, `language`,
+     `voice_preset`, `speed`, `pitch`, `voice_reference` — « démarrer tout » y vaut « appliquer à
+     tout »). Sans ces deux hooks, **4 apps sur 10 étaient inportables** et auraient gardé leur
+     handler : *une brique dont le contrat est plus pauvre que le code qu'elle remplace ne résorbe
+     rien, et ça ne se voit qu'à la migration suivante.* Les deux étages passent désormais par un
+     seul `actionGroupee()` (les deux seules différences — le sélecteur et le `stopPropagation` de
+     la card mère repliable — sont des paramètres), et le ▶ de file expose `onQueueStarted` /
+     `onQueueStartBody`. 3 tests de PARITÉ, rouges 3/3 rejoués sur HEAD.
+     Effet de bord : le commentaire de `poster()` affirmait que l'enhancer audio était « le seul cas
+     mesuré » portant des réglages — il l'était **au niveau LOT**, périmètre du relevé du 27/08.
+     *Un relevé vaut pour le périmètre où il a été fait ; l'écrire comme une propriété des apps le
+     rend faux au premier étage suivant.*
+     ⏳ **PENDING mesuré, non fait** — le ⬇ de file rejoue en petit `common/_download_button.html`
+     (brique du 23/08 : rien de prêt → `<button disabled>` ; prêt → `<a>` ; multi-format → split
+     button). Les deux premières branches sont recopiées ici volontairement (la brique rend un
+     bouton de CARD, sans libellé ni id, et 3 apps basculent `disabled` au runtime dessus), **mais
+     la troisième est déjà dupliquée à la main** :
+     `wama/transcriber/static/transcriber/js/index.js:833` reconstruit en JS
+     un dropdown txt/srt/pdf/docx autour du bouton rendu. La fusion se fera en donnant `id` et
+     `label` au partial commun — **pas** en ajoutant un second dropdown dans `_queue_actions.html`.
 
 **Cadrage A0 — la convention RÉELLE, mesurée (2026-08-11, balayage 6 cibles × 10 apps) :**
 - **urls.py** : AUCUNE app ne colle à `STANDARD_ENDPOINTS` — cette liste était une CIBLE que le
