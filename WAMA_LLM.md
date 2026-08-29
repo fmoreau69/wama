@@ -395,6 +395,55 @@ chaîne. ⚠ Le TTS n'a **aucun document de référence dédié** dans la table 
 (`CLAUDE.md`) — son intention vit dans le code et la fiche « langues » ; trou à combler le jour
 où le sujet grossit, sans créer de doc concurrent d'ici là.
 
+## Investigation web de l'assistant — design acté le 2026-08-29, NON implémenté
+
+> Demande de Fabien (ex. canonique : photo d'une plante malade → identifier au VLM → chercher
+> les soins sur le web → réponse sourcée). La question « spécialiste d'un domaine jamais couvert
+> dès la 1ʳᵉ requête » a sa réponse dans la frontière des SUBSTRATS, complétée d'un 3ᵉ terme :
+> **expérientiel (dev) → distiller à la clôture** (`/skill-forge`) · **déclaratif (manifestes,
+> Data) → compiler à l'ouverture** · **externe (le web) → RÉCUPÉRER à la requête** — la
+> fraîcheur vient de la récupération, pas du modèle.
+
+**Décomposition** : la MÉTHODE (identifier → chercher → recouper → répondre sourcé) est stable
+inter-domaines → UN prompt-skill de méthode « assistant-investigation » (à créer dans
+`wama/common/prompt_skills/`), écrit une fois, jamais auto-généré.
+La SPÉCIALISATION de domaine est à n=1 **éphémère** (contexte assemblé à la volée) ; sa
+persistance éventuelle va à la **mémoire RAG** (scoping hérité, entrée = un GESTE proposé à la
+clôture), JAMAIS en un `.md` par domaine — les domaines sont infinis, `prompt_skills/` reste la
+bibliothèque des méthodes et métiers d'app.
+
+**Inventaire mesuré le 2026-08-29 (agent Explore, confronté au code)** — l'essentiel EXISTE :
+
+| brique | état | où |
+|---|---|---|
+| fetch page → texte lisible | ✅ commun (extrait du Describer) | `common/utils/url_ingest.py` (`fetch_html_as_text`, `html_to_readable_text`) |
+| garde SSRF + redirections | ✅ (+ trou du HEAD corrigé 29/08, 4 tests `tests_url_guard.py`) | `common/utils/url_guard.py` |
+| appel VLM commun | ✅ | `model_manager/services/vision_probe.py::describe_image_ollama` (3 appelants) |
+| image → bloc de contexte borné | ✅ | `common/utils/reference_comprehension.py` (`_MAX_IMAGES=2`, budgets) |
+| ingest URL déclaratif | ✅ 9 modèles (`WAMA_INGEST`), 2 en `smart` | `common/utils/source_ingest.py` |
+| **moteur de recherche web** | ❌ RIEN (grep exhaustif : 0 client, 0 dépendance) | à créer : `common/utils/web_search.py` |
+| outil assistant « lire une page » | ❌ la mécanique existe, pas exposée | `tool_api.py` (aucun outil URL/web) |
+| entrée image de l'assistant | ❌ vue JSON pur, input text seul | `wama/views.py::ai_chat`, `home.html` |
+| plafond octets / allowlist MIME sur téléchargements | ❌ aucun octet compté | `url_ingest`/`video_utils` |
+
+**Incohérence relevée à résorber au passage** : DEUX routes de résolution vision coexistent —
+`describer/utils/image_describer.py` (liste en dur `gemma4:12b/e4b`) court-circuite le tier
+`image` de `llm_utils` (dont le TODO `vision_probe` pour peupler la capacité `vision` est écrit
+dans `llm_utils.py` lui-même) ; et `reference_comprehension` importe une fonction privée du
+describer (inversion de dépendance). Fixer = faire passer le describer par
+`modele_par_tier(exige=['completion','vision'])` + peupler `vision` au catalogue.
+Également : `beautifulsoup4`/`lxml` utilisés mais déclarés dans AUCUN requirements.
+
+**Ordre de construction (court, grâce à l'existant)** : ① `web_search.py` (moteur + garde
+SSRF réutilisée + plafond octets) + 2 outils `tool_api` (`search_web`, `read_web_page` — ce
+dernier = exposition de `fetch_html_as_text`) ; ② prompt-skill de méthode
+`assistant-investigation` (texte récupéré = DONNÉES, jamais des instructions — injection de
+prompt = risque n°1 ; recouper 2 sources ; réponse SOURCÉE) ; ③ entrée image de l'assistant
+(pont le plus économique : `comprehend_files` existe) ; ④ persistance des distillats en RAG.
+**Gouvernance** : chaque investigation = plusieurs passes LLM/VLM sur le GPU hôte (le
+déclencheur des crashs d'août) — user-déclenchée seulement, routée gouverneur sous
+`WAMA_GPU_SAFE_MODE`, aucune boucle de fond avant stabilisation hôte.
+
 ## Voir aussi
 - `ROADMAP.md §10.B` (traduction runtime) et `§16.6` (pipeline + vision méta).
 - `WAMA_APP_CONVENTIONS.md §2bis.4` (contrat prompt targets), `§9.9` (héritage).
