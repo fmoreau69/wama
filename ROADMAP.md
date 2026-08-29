@@ -1162,10 +1162,40 @@ Middleware active la langue selon UserProfile.preferred_language
 | `USE_I18N` | **déjà `True`** (`wama/settings.py`) — la 1ʳᵉ ligne de la table d'étapes est PÉRIMÉE |
 | `LANGUAGE_CODE` | `'en-us'` — alors que l'UI rendue est très majoritairement française |
 | `LOCALE_PATHS` + dossier `locale/` de projet | **absents** (les milliers de `.po` du dépôt sont ceux de Django, dans le venv) |
-| `LocaleMiddleware` / `UserLanguageMiddleware` | **aucun des deux installé**. `UserProfile.preferred_language` EXISTE (`accounts/models.py`) mais **rien ne le lit pour la langue de l'interface** — c'est la définition exacte du « mélange » constaté à l'écran |
+| `LocaleMiddleware` / `UserLanguageMiddleware` | **aucun des deux installé** → le champ de profil ne pilote PAS la langue de l'**interface Django**. ⚠ Il pilote bien la langue du **contenu** : voir la ligne suivante |
+| `UserProfile.preferred_language` | **LU, et par beaucoup de monde** (mesuré à l'outil natif le 2026-08-29) : `synthesizer/views.py` (langue par défaut d'une synthèse), `wama/views.py:89` + `home.html` (voix TTS, `VOICE_LANG`, `recognition.lang`), `common/services/assistant_engine.py`, `common/utils/prompt_pipeline.py:28`, `common/utils/app_metadata.py:276`, `common/views.py:63`, et il est exposé au contexte **global** par `accounts/context_processors.py:146`. C'est la source de langue du CONTENU dans toute la chaîne LLM |
 | `{% trans %}` dans les gabarits | **16 occurrences, dans 2 fichiers sur 128** : `reader/_item_card.html` (15) et `common/_download_button.html` (1) |
 | `gettext` en Python | 3 fichiers (`anonymizer/models.py`, `common/utils/export_formats.py`, `accounts/custom_validators.py`) |
 | **gabarit GÉNÉRÉ** | `common/manifests/codegen/templates_gen.py` émet **8 libellés français EN DUR** et **zéro `{% trans %}`** — chaque app (re)générée en ajoute autant |
+
+### ⚠ TROIS choses distinctes derrière « la langue » — ne pas les confondre (rectifié 2026-08-30)
+
+> Rectification demandée par Fabien : une version antérieure de ce bloc écrivait que « rien ne lit
+> `preferred_language` », phrase qui se lit comme « le champ ne sert à rien ». **C'est faux** — et la
+> mesure ci-dessus le montre. Le champ est la **source de langue du contenu** ; ce qu'il ne pilote
+> pas, c'est la locale Django de l'interface. Trois chantiers, trois états :
+
+| # | ce que c'est | état RÉEL |
+|---|---|---|
+| 1 | **Langue de l'INTERFACE** (libellés de gabarits, boutons, en-têtes) | ⏳ **rien** — c'est le §10.A, le « mélange » visible à l'écran. Ni `.po`, ni middleware de locale |
+| 2 | **Traduction IN** (consigne utilisateur → langue du modèle) | ✅ **EN PLACE** — `prompt_pipeline.py:129` appelle `TranslatorService.translate_input()` sur la décision de `lang_routing` ; la langue source vient de `preferred_language` |
+| 3 | **Traduction OUT** (sortie du modèle → langue de l'utilisateur, avec surcharge possible) | ⏳ **MANQUANT** — `TranslatorService.translate_output()` **existe** (`common/utils/translator.py:67`) mais **aucun appelant** (vérifié : 0 consommateur hors du fichier lui-même). Voir §10.B |
+
+**Placement décidé par Fabien (2026-08-30) : la traduction OUT part avec le chantier de génération
+de l'app Translator (§10.B), qui vient APRÈS la fin du portage par auto-génération.** Elle applique
+la langue du profil par défaut, **tout en laissant l'utilisateur choisir une autre langue de sortie**
+— dans les apps qui le permettent et **où cela n'altère pas le résultat** (une transcription
+verbatim, par exemple, n'est pas une sortie qu'on retraduit sans le dire).
+
+### 🧭 Doctrine de langue (posée par Fabien, 2026-08-30)
+
+> **L'anglais est la langue de référence dans tout WAMA, a minima pour tout le CODE.**
+> **Les docs en français ne posent pas de problème tant qu'elles servent le suivi du développement.**
+
+C'est le cadre au-dessus des deux frontières : `CLAUDE.md` § « la LANGUE des identifiants » en est
+l'application au code (et son critère « qui doit le lire ? » en découle), et la question des `msgid`
+ci-dessous s'y rattache — un `msgid` est écrit **dans le code source**, ce qui penche pour l'anglais,
+mais l'arbitrage formel reste à poser quand 10.A s'ouvrira, avec son coût.
 
 ### 🔴 CE QUI BLOQUE 10.A n'est pas l'effort, c'est une DÉCISION : la langue des `msgid`
 
@@ -1257,6 +1287,25 @@ produire le prompt optimisé directement dans la langue/format du modèle cible)
 4. **Traduction trans-app des sorties textuelles** — transcriptions, descriptions, résumés, OCR…
    affichés/exportés dans la langue de l'utilisateur.
 
+#### État MESURÉ au 2026-08-30 — la moitié IN est faite, la moitié OUT ne l'est pas
+
+| pièce | état |
+|---|---|
+| `TranslatorService` (`common/utils/translator.py`) | ✅ existe — `translate()`, `translate_input()`, `translate_output()`, cache Redis 30 j, chunking, glossaire |
+| **IN** — `translate_input()` | ✅ **branché** : `common/utils/prompt_pipeline.py:129`, sur décision de `lang_routing`. C'est l'auto-traduction des consignes, en place |
+| **OUT** — `translate_output()` | ⏳ **écrit mais JAMAIS appelé** — `grep` natif : 0 consommateur hors du fichier. C'est LE trou de §10.B |
+| Exposition assistant | ✅ `tool_api.py:2130 translate_text(...)` (appel manuel, pas la chaîne automatique) |
+
+> **Ordre décidé (Fabien, 2026-08-30)** : la traduction OUT se fait **avec la génération de l'app
+> Translator**, qui vient **après la fin du portage par auto-génération**. Ne pas la brancher au
+> coup par coup app après app entre-temps : ce serait exactement le câblage dispersé que le portage
+> est en train de supprimer.
+>
+> **Contrat de la sortie** : langue du profil par **défaut**, surcharge explicite possible par
+> l'utilisateur, **uniquement dans les apps où retraduire n'altère pas le résultat** (⚠ contre-exemple :
+> une transcription verbatim — cf. `project_transcription_fidelity_profiles`, « la cohérence détruit
+> le verbatim »).
+
 #### Étapes ⏳
 | Étape | Effort | Fichier / Note |
 |-------|--------|----------------|
@@ -1265,7 +1314,8 @@ produire le prompt optimisé directement dans la langue/format du modèle cible)
 | Glossaire « do-not-translate » + masquage placeholders | 1 j | terminologie Lescot configurable |
 | Carte langue-cible par modèle + hook pré-génération (imager/composer/anonymizer SAM3…) | 1-2 j | point d'injection unique par app |
 | Cache traductions/enrichissements (Redis) | 0.5 j | clé `(hash, lang, model)` |
-| Réglage utilisateur « langue de sortie / langue d'origine » | 0.5 j | `UserProfile` (étend `preferred_language`) |
+| **Brancher `translate_output()` aux sorties textuelles** (le trou mesuré ci-dessus) | 1-2 j | point d'injection unique, comme `prompt_pipeline` l'est pour l'entrée |
+| Réglage utilisateur « langue de sortie / langue d'origine » | 0.5 j | `UserProfile` (étend `preferred_language`) — défaut = profil, surcharge par run |
 
 #### Décisions actées
 - **Pivot interne = anglais** ; l'utilisateur ne le voit jamais sauf réglage explicite.

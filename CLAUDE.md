@@ -169,6 +169,13 @@ apply_patch(
 
 ### Le même critère tranche la LANGUE des identifiants (écrit le 2026-08-22, question de Fabien)
 
+> 🧭 **Doctrine (Fabien, 2026-08-30) — le cadre au-dessus du critère ci-dessous :**
+> **l'anglais est la langue de référence dans tout WAMA, a minima pour tout le CODE.**
+> **Les docs en français ne posent pas de problème tant qu'elles servent le suivi du développement.**
+> Le critère « qui doit le lire ? » ci-dessous ne fait qu'appliquer cette doctrine cas par cas — il
+> ne l'assouplit pas. Les exceptions listées (noms de tests, drapeaux CLI) sont des surfaces de
+> LECTURE humaine, pas des dérogations au principe.
+
 > La question revenait par fichier — « ce test, je le nomme en anglais ? ». Elle a déjà sa réponse :
 > **c'est le même critère, « Python l'importe-t-il ? »**, appliqué un cran plus bas.
 
