@@ -29,6 +29,28 @@ class WamaDataConfig(AppConfig):
             self._register_registries()
         except Exception:
             log.warning('wama_data registres non déclarés', exc_info=True)
+        try:
+            self._register_intake_probe()
+        except Exception:
+            log.warning('wama_data sonde intake non déclarée', exc_info=True)
+
+    # ──────────────────────────────────────────────────────────────────────────────────────────
+    @staticmethod
+    def _register_intake_probe():
+        """Le monde Data se déclare à l'intake de l'assistant (même sens que les registres :
+        le monde POUSSE, le substrat ne cite jamais `wama_data` — `common/utils/intake.py`).
+        Sans cette sonde, un `.trip`/`.wdat` déposé serait classé `document` et rien de plus."""
+        from wama.common.utils.intake import register_intake_probe
+
+        def _probe(path):
+            from .sources import reader_for
+            reader = reader_for(path)
+            if reader is None:
+                return None
+            return {'world': 'data', 'reader': reader.format,
+                    'extensions': sorted(reader.extensions)}
+
+        register_intake_probe('data_sources', _probe)
 
     # ──────────────────────────────────────────────────────────────────────────────────────────
     @staticmethod

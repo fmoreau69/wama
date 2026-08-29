@@ -329,6 +329,13 @@ MECANISMES = (
               "l'investigation de l'assistant (outils search_web/read_web_page)",
               'wama/common/utils/web_search.py', 'WAMA_LLM.md',
               symbole='search_web'),
+    # L'index inverse « fichier → capacités » : cibles par PORT (travail/référence), jamais
+    # par input_types à plat ; les mondes s'y déclarent par SONDE (wama_data pousse la sienne).
+    Mecanisme('intake', 'Intake universel de fichiers',
+              "Que peut faire WAMA de ce fichier ? — ports d'app + lot + manifeste + "
+              "médiathèque + sondes des mondes (outil assistant inspect_user_file)",
+              'wama/common/utils/intake.py', 'WAMA_LLM.md',
+              symbole='capabilities_for_path'),
     Mecanisme('document_export', 'Export document',
               "Génère PDF (fpdf2) / DOCX (python-docx) depuis les résultats d'app",
               'wama/common/utils/document_export.py', ''),

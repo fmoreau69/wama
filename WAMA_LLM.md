@@ -505,6 +505,19 @@ flux imposé sortie→médiathèque→geste), `reference_field` (chaîne complè
 « choisir le 1er adopteur » déjà pending) ; ⑤ Data : `reader_for` sait lire `.trip`, le monde
 média le classe `document` ; « connecter un dossier » = SMB seulement (`MountedFolder`).
 
+**Étapes 0-3 : ✅ LIVRÉES le 2026-08-29** (GO Fabien) — brique `common/utils/intake.py`
+(`capabilities_for_path`, composition par PORTS, jumelles bac à sable exclues via
+`non_sandbox_apps`, mondes déclarés par SONDE — `wama_data/apps.py` pousse la sienne, le
+substrat ne cite aucun monde) ; `list_user_files` déliée de `_MEDIA_EXTS` (⓪, commentaire
+anti-régression dans le corps) ; outils `inspect_user_file` (lecture seule) +
+`add_to_media_library` (rôle FOURNI, jamais deviné) ; consigne de dialogue dans
+`assistant-general.md` (« fichiers déposés sans intention → inspecter puis DEMANDER, options
+dérivées seulement ») ; **22 tests** (`tests_intake.py` + web/url_guard) + replay réel des
+témoins à travers la brique. Découverte verrouillée en test : `trip`/`wdat` attestent le
+CONTENU (table témoin SQLite), un chemin sans fichier décline à la porte ; et le lecteur
+`tabular` fait qu'un `.txt`/`.csv` remonte AUSSI comme donnée d'expérimentation candidate.
+Restent : étape 4 (portes lourdes) + les 3 rouges de la chaîne (§Vérification).
+
 **Plan (5 étapes) — AMENDÉ par l'instance portage puis CONFRONTÉ AU RÉEL le 29/08**
 (replay indépendant : 5 fichiers-témoins × 3 voies sur les 11 apps du catalogue — les deux
 voies « à plat » sont FAUSSES à 100 % sur `.txt/.md/.csv`, l'homonyme `text`=prompt ; les

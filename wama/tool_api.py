@@ -84,7 +84,7 @@ _FOLDER_MAP = {
 
 def list_user_files(user, folder: str = 'temp') -> dict:
     """
-    List media files in one of the user's folders.
+    List ALL files in one of the user's folders (any extension).
 
     Args:
         user:   Django User instance
@@ -93,6 +93,10 @@ def list_user_files(user, folder: str = 'temp') -> dict:
     Returns:
         {"files": [{"name", "path", "size_mb", "ext"}], "folder": folder}
     """
+    # ⚠ AUCUN filtre d'extension ici (correctif 2026-08-29, plan intake ⓪) : ce filtre
+    # rendait pdf/txt/csv/wdat INVISIBLES à l'assistant alors que le sas les reçoit.
+    # Et ne PAS le remplacer par une liste dérivée d'`input_extensions` — pour 3 apps ces
+    # extensions déclarent un format de LOT, pas un fichier de travail (WAMA_LLM §Intake).
     template = _FOLDER_MAP.get(folder)
     if template is None:
         available = ', '.join(_FOLDER_MAP.keys())
@@ -104,7 +108,7 @@ def list_user_files(user, folder: str = 'temp') -> dict:
 
     files = []
     for f in sorted(abs_dir.rglob('*')):
-        if f.is_file() and f.suffix.lower() in _MEDIA_EXTS:
+        if f.is_file():
             rel_path = f.relative_to(Path(settings.MEDIA_ROOT))
             files.append({
                 'name': f.name,
@@ -1762,6 +1766,105 @@ def get_media_asset_url(user, asset_id: int) -> dict:
 
 
 # ===========================================================================
+# Intake tools (WAMA_LLM.md §Intake universel)
+# ===========================================================================
+
+def _resolve_user_path(user, file_path: str):
+    """Garde commune des outils fichier : chemin MEDIA_ROOT-relatif, existant, sans traversée."""
+    src = (Path(settings.MEDIA_ROOT) / file_path).resolve()
+    media_root = Path(settings.MEDIA_ROOT).resolve()
+    if not str(src).startswith(str(media_root)):
+        return None, {'error': 'Accès refusé : chemin hors de MEDIA_ROOT.'}
+    if not src.exists():
+        return None, {'error': f'Fichier introuvable : {file_path}'}
+    return src, None
+
+
+def inspect_user_file(user, file_path: str) -> dict:
+    """
+    Ask WAMA what it can do with one of the user's files: which app PORT can take it
+    (work or reference role), whether it looks like a BATCH list, a WAMA manifest, a
+    media-library asset, or data-world material.
+
+    Call this when the user deposited a file without saying what to do with it — then ASK
+    the user, offering the returned targets. Never invent targets beyond this answer.
+
+    Args:
+        file_path: MEDIA_ROOT-relative path (as returned by list_user_files).
+
+    Returns:
+        {"category", "ports": [{"app","port","group","label"}], "batch", "manifest",
+         "asset_types", "probes", "size_mb"}
+    """
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return {'error': "Inspection réservée aux utilisateurs identifiés."}
+    src, err = _resolve_user_path(user, file_path)
+    if err:
+        return err
+    try:
+        from wama.common.utils.intake import capabilities_for_path
+        result = capabilities_for_path(str(src))
+        result['size_mb'] = round(src.stat().st_size / 1_048_576, 2)
+        return result
+    except Exception as e:
+        return {'error': f'Inspection impossible : {e}'}
+
+
+def add_to_media_library(user, file_path: str, asset_type: str,
+                         name: str = '', description: str = '') -> dict:
+    """
+    Register one of the user's files as a media-library asset with an EXPLICIT role.
+
+    The role (`asset_type`) is always provided, never guessed — ask the user if unsure.
+    Valid roles: voice, audio_music, audio_sfx, image, video, document, avatar, object3d.
+
+    Args:
+        file_path:   MEDIA_ROOT-relative path of the file to register.
+        asset_type:  One of the valid roles above (validated against its allowed extensions).
+        name:        Asset display name (defaults to the file name).
+        description: Optional description.
+
+    Returns:
+        {"id", "name", "asset_type"} or {"error"}
+    """
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return {'error': "Médiathèque réservée aux utilisateurs identifiés."}
+    src, err = _resolve_user_path(user, file_path)
+    if err:
+        return err
+    try:
+        import mimetypes
+        from django.core.files import File
+        from wama.media_library.models import (
+            ALLOWED_EXTENSIONS, ASSET_TYPES, UserAsset,
+        )
+
+        if asset_type not in dict(ASSET_TYPES):
+            valides = ', '.join(dict(ASSET_TYPES).keys())
+            return {'error': f"Type d'asset invalide : '{asset_type}'. Valides : {valides}"}
+        ext = src.suffix.lstrip('.').lower()
+        allowed = ALLOWED_EXTENSIONS.get(asset_type, [])
+        if ext not in allowed:
+            return {'error': f"Extension .{ext} non admise pour '{asset_type}'. "
+                             f"Formats : {', '.join(allowed)}"}
+        asset_name = (name or '').strip() or src.stem
+        if UserAsset.objects.filter(user=user, name=asset_name, asset_type=asset_type).exists():
+            return {'error': f'Un asset « {asset_name} » de ce type existe déjà.'}
+
+        with open(str(src), 'rb') as fh:
+            asset = UserAsset.objects.create(
+                user=user, name=asset_name, asset_type=asset_type,
+                file=File(fh, name=src.name), description=description,
+            )
+        asset.mime_type = mimetypes.guess_type(src.name)[0] or ''
+        asset.file_size = src.stat().st_size
+        asset.save(update_fields=['mime_type', 'file_size'])
+        return {'id': asset.id, 'name': asset.name, 'asset_type': asset.asset_type}
+    except Exception as e:
+        return {'error': f'Ajout impossible : {e}'}
+
+
+# ===========================================================================
 # Web investigation tools (WAMA_LLM.md §Investigation web)
 # ===========================================================================
 
@@ -2389,6 +2492,11 @@ TOOL_REGISTRY = {
     # caractères) ; refus des non-identifiés écrit DANS les corps (cf. leur commentaire).
     'search_web':    search_web,
     'read_web_page': read_web_page,
+    # Intake (WAMA_LLM.md §Intake universel) — inspect = LECTURE SEULE (cibles par PORT,
+    # jamais à plat) ; add_to_media_library = la seule écriture, rôle FOURNI jamais deviné ;
+    # refus des non-identifiés DANS les corps (outil sans app = autorisé à tous).
+    'inspect_user_file':    inspect_user_file,
+    'add_to_media_library': add_to_media_library,
     'list_user_files':       list_user_files,
     'add_to_avatarizer':     add_to_avatarizer,
     'start_avatarizer':      start_avatarizer,
