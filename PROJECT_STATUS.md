@@ -8710,3 +8710,12 @@ conservée (LLM-facing, cohérente avec son paramètre).
 
 **🔚 pendings** : smoke navigateur des pages touchées (assistant, /common/rag/,
 conversations) APRÈS restart gunicorn — le parc sert l'ancien code d'ici là.
+
+> ✅ **Pending smoke SOLDÉ (30/08, après restart gunicorn par Fabien)** : famille `.ui`
+> complète = **12/12 apps mesurables vertes** (HTTP 200, 0 erreur JS), 2 skips légitimes
+> (converter_01/model_manager fermés au compte de test) ; sonde ciblée accueil + `/common/rag/`
+> = pages rendues et VUES à l'écran (captures lues), `greeting()` servi (branche `identifie`
+> rendue serveur), page RAG complète sur le code renommé. ⚠ instrument : le cookie de session
+> s'appelle `wama_sessionid` (jamais `sessionid` en dur) ; `#ragListe` n'existe pas à l'état
+> vide. La revérification repo-wide a par ailleurs recalé **27 citations de symboles** dans
+> ROADMAP/WAMA_LLM/WAMA_MEMORY + 4 proses de code — wama_lab : AUCUN consommateur touché.
