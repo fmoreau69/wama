@@ -8541,3 +8541,46 @@ identifiants registries) ; une seule prose française abîmée, restaurée.
 
 ⚠ **Redémarrage gunicorn + celery REQUIS** avant tout usage : le parc sert l'ancien code
 (imports renommés) et la tâche Celery renommée doit prendre sa route.
+
+## §REPRISE — 2026-08-29, instance « PROSPECTION H3 + AVATARIZER + PROVENANCE + NOMMAGE » (CLOSE) — 🔚 POINT D'ENTRÉE
+
+**Session sur 2 jours (28-29/08), 4 chantiers LIVRÉS, tous commités et vérifiés :**
+① **Avatarizer pipeline DÉRIVÉ** (texte→TTS→animation sans mode ; brique commune
+`common/tts/service_client.py` — 4 doublons POST /tts résorbés ; audio TTS persisté en
+artefact ; réf = `MODES_QUEUE_UX §2bis`) — smoke navigateur 13/14, le 14ᵉ = défaut de ma
+sonde. ② **Prospection H3** : tâches multimodales ajoutées, **licence UE-exclue vérifiée AU
+TEXTE** → garde `analyze_license` AFFICHÉE jamais éliminatoire (arbitrage Fabien) ; Wan3.0
+= poids fermés, reco installable = Wan2.2-TI2V-5B ; réf = `PROSPECTION_PIPELINE
+§2026-08-28/29`. ③ **Provenance YOLO** : 39/47 avec lien (vérif nom+octets automatisée,
+`--ultralytics`) ; les 8 `face_plate_*` vides À DESSEIN. ④ **Dette de nommage SOLDÉE**
+(§PENDING ci-dessus : bilan, restes assumés, 4 règles pérennes dans CLAUDE.md §nommage) +
+skill CANDIDAT `.claude/skills/renommage-api/` (n=1).
+
+**🔚 POINT D'ENTRÉE SESSION SUIVANTE** : les gestes en file sont tous côté Fabien (bloc
+ci-dessous) — la prochaine session code démarre sur les restes assumés du §PENDING
+« DETTE DE NOMMAGE » (paramètres français au fil de l'eau) ou le scénario nightly
+`avatarizer.import`-prompt (proposé, non fait).
+
+**File des gestes FABIEN (aucun bloquant inter-session) :**
+- `git push` (~15 commits ahead sur dev) ;
+- génération avatarizer RÉELLE (texte→TTS→MuseTalk — GPU, jamais moi) ; batch mixte `-p`/`-i` ;
+- prospection : bouton « Évaluer la confiance » (12 verdicts NULL re-jugés avec variantes ;
+  ⚠ passe LLM hôte = pattern de crash, garde en place) ; install Wan2.2-TI2V-5B via le
+  dialogue de variante ; rejeter (ou pas) les 5 cards H3 — l'incompatibilité s'AFFICHERA
+  au prochain sweep ;
+- cosmétique : la card Librairies affiche « Registry Library » jusqu'au prochain recyclage
+  gunicorn (fix commité `8400b789`).
+
+**Pendings système** : scripts de session = scratchpad (jetables, moteur de renommage
+inclus — sa méthode est distillée dans le skill) ; aucun compte/objet de test semé
+(le job avatarizer d'hier a été nettoyé) ; `WAMA_DATA_WORLD.md` modifié = instance Data,
+pas à moi.
+
+**Contrôles attendus au prochain /reprise (MESURÉS cette session, post-renommage)** :
+- tests : périmètre nommage **103 OK** (registries+catalogues+model_manager, re-mesurés
+  après le dernier fix) ; suite COMPLÈTE du dépôt exit 0 le 29/08 ; **111 OK sur HEAD en
+  worktree** ;
+- corpus manifestes : **108 à jour** ; roundtrip/wama_data/outils : à jour ;
+- `check_docs` : **8 références cassées → 1 SEULE cible distincte** (le partial d'onglets
+  de résultat jamais créé — inchangée), 0 périmée / 1140 ;
+- `check_templates` : 0/128 ; `manage.py check` : propre.
