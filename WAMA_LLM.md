@@ -505,19 +505,36 @@ flux imposé sortie→médiathèque→geste), `reference_field` (chaîne complè
 « choisir le 1er adopteur » déjà pending) ; ⑤ Data : `reader_for` sait lire `.trip`, le monde
 média le classe `document` ; « connecter un dossier » = SMB seulement (`MountedFolder`).
 
-**Plan proposé (5 étapes, non validé)** : **0** dériver les allowlists de `tool_api` du
-catalogue + délier `list_user_files` de `_MEDIA_EXTS` · **1** brique `capabilities_for_path()`
-dans `common/` — index inverse par PURE COMPOSITION de l'existant (nature + probe + détecteurs
-batch + `reader_for` à CÔTÉ sans comparer — l'homonyme `text` est l'arbitrage OUVERT de
-l'instance codegen, `WAMA_APP_GENERATION_ROUTE §S2bis.4`, ne pas le trancher ici — + sniff
-manifeste + apps + modèles + `ASSET_TYPE_CATEGORY` inversé) → cibles typées AVEC raison ·
-**2** le rôle = un ROUTAGE, pas un état (décider = faire quitter le sas ; pas de champ `role`
-qui stocke) · **3** côté assistant : l'outil exposant ①, `add_to_media_library` (asset_type
-fourni, jamais deviné), et la consigne de dialogue DANS le skill de rôle (intention absente →
-cibler puis DEMANDER avec les options dérivées) · **4** portes lourdes chacune dans son
-chantier : 1er adopteur `reference_field` (coordonner ports codegen) ; porte d'`ingest()`
-manifestes (sandbox + dry-run, jamais d'apply auto) ; RAG via assistant = **arbitrage Fabien**
-(l'entrée au RAG est un GESTE) ; URL de dossier Data (§11.8).
+**Plan (5 étapes) — AMENDÉ par l'instance portage puis CONFRONTÉ AU RÉEL le 29/08**
+(replay indépendant : 5 fichiers-témoins × 3 voies sur les 11 apps du catalogue — les deux
+voies « à plat » sont FAUSSES à 100 % sur `.txt/.md/.csv`, l'homonyme `text`=prompt ; les
+`input_extensions` de composer/imager/synthesizer sont les formats de LOT ; la voie par PORTS
+récupère `synthesizer/reference_voice/référence` sur un `.wav`, invisible par nature ;
+amendements consignés côté portage : `WAMA_APP_GENERATION_ROUTE §S2bis` point 7) :
+**0** délier `list_user_files` de `_MEDIA_EXTS` — **SUPPRIMER le filtre dans le sas, ne PAS le
+remplacer par une liste dérivée d'`input_extensions`** (elles disent « format de lot » pour 3
+apps — dériver propagerait la confusion des rôles à un consommateur de plus) ·
+**1** brique `capabilities_for_path()` dans `common/` — composition sur
+**`studio_node_ports(app)` (ports + `group`)**, JAMAIS sur `input_types`/`input_extensions` à
+plat ; sortie = « quel PORT de quelle app » (`converter/work/travail`,
+`synthesizer/reference_voice/référence`) — le fichier reçoit un RÔLE, pas seulement une cible ;
+un `.txt` sans port fichier n'est pas « aucune cible » : c'est le déclencheur des détecteurs
+BATCH (`is_*_batch`) et de la question à l'utilisateur ; + `probe_media`, `reader_for` à CÔTÉ
+sans comparer (homonyme `text` = arbitrage OUVERT côté codegen, ne pas le trancher ici), sniff
+manifeste, modèles (`matches_inputs`), `ASSET_TYPE_CATEGORY` inversé ; **exclure les jumeaux
+de bac à sable** (`converter_01` remonte dans les 3 voies — mesuré) ·
+**2** le rôle = un ROUTAGE, pas un état : l'état transitoire est porté par l'EMPLACEMENT
+(encore dans le sas = pas encore décidé), aucun champ `role` qui stocke ·
+**3** côté assistant : l'outil exposant ①, `add_to_media_library` (asset_type fourni, jamais
+deviné), consigne de dialogue DANS le skill de rôle (intention absente → cibler puis DEMANDER
+avec les options dérivées) ; **AUCUN nouveau vocabulaire de rôle** — le canonique existe :
+`INPUT_TYPES` (`app_modes.py`) avec `port ∈ {travail, référence}` + `prompt_file` « Fichier de
+prompts (batch) », dont les balises `-i/-p/-r/-o` de `BATCH_FORMAT` sont la projection texte ·
+**4** portes lourdes chacune dans son chantier : 1er adopteur `reference_field` (coordonner
+ports codegen) ; porte d'`ingest()` manifestes (sandbox + dry-run, jamais d'apply auto) ; RAG
+via assistant = **arbitrage Fabien** (l'entrée au RAG est un GESTE) ; URL de dossier Data (§11.8).
+**Couplage assumé, dans le bon sens** : l'étape 1 consomme les ports TELS QUELS ; le correctif
+de l'homonyme côté codegen l'améliorera sans la casser — composer à plat aurait fait l'inverse.
 
 ## Voir aussi
 - `ROADMAP.md §10.B` (traduction runtime) et `§16.6` (pipeline + vision méta).
