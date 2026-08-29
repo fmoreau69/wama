@@ -185,6 +185,15 @@ apply_patch(
 - **Dette ouverte, elle, RÉELLE** : `common/registries.py` expose `rafraichir`, `lancer`, `etat`…
   en français alors qu'ils s'importent (`registres_view` importe `etat`). À renommer — mais
   **jamais sans coordonner** avec les instances qui les importent (pending #2 du §REPRISE 22/08).
+  ⚠ **Dette ÉLARGIE le 2026-08-29 (relevé Fabien)** : la couche prospection/provenance du
+  model_manager a dérivé pareil — ~30 identifiants français importables (`poser_identite`,
+  `identite_pour_spec`, `ecrire_candidat`, `variantes_quantisees`…), chaque session ayant imité
+  l'idiome LOCAL du fichier au lieu de ce critère. Plan validé : **anglais OBLIGATOIRE dès
+  maintenant pour tout NOUVEL identifiant, même dans ces couches** (la convention prime sur
+  l'idiome environnant) ; renommage complet coordonné = `PROJECT_STATUS §PENDING 2026-08-29
+  « DETTE DE NOMMAGE »`. Arbitrage complémentaire : **drapeaux/sous-commandes CLI = surface
+  opérateur → français toléré** (`--poser`, `--ecrire` : tapés, jamais importés — même logique
+  que les noms de tests).
 
 ---
 

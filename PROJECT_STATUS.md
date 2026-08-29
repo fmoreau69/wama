@@ -8455,3 +8455,37 @@ commite ; rejouer `manage.py app_sandbox substitute converter_01 templates` pour
 > paragraphe 1154 tests). Contenus des DEUX côtés vérifiés intacts dans HEAD. Leçon pour `/cloture §0` :
 > le `git diff` de contrôle et le `git commit` ne doivent JAMAIS être enchaînés par `&&` — le diff doit
 > être LU avant de committer, et la fenêtre entre les deux reste une course.
+
+## §PENDING — 2026-08-29, « DETTE DE NOMMAGE : API FRANÇAISE » (plan validé Fabien, GO différé) — 🔚 POINT D'ENTRÉE
+
+**Constat (question Fabien : « pourquoi `identite_pour_spec`, `--poser` en français ? »)** —
+c'est une DÉRIVE, pas une exception : la couche prospection/provenance du model_manager
+(construite à grande vitesse les 18-19/08 puis enrichie session après session) a accumulé
+~30 identifiants français IMPORTABLES (`poser_identite`, `identite_pour_spec`,
+`ecrire_candidat`, `variantes_quantisees`, `taille_go`, `digest_distant`,
+`analyse_licence`…), chaque ajout imitant l'idiome LOCAL du fichier au lieu du critère du
+dépôt (CLAUDE.md §nommage : importé → anglais). Mesure à refaire, jamais à recopier :
+`grep -rhoE "^(def|    def) [a-z_]+" wama/model_manager/services/*.py | awk '{print $2}' | sort -u`
+puis trier à l'œil les français. Dette JUMELLE : `common/registries.py` (`rafraichir`,
+`lancer`, `etat` — pending #2 du §REPRISE 22/08, `registres_view` importe `etat`).
+
+**Arbitrages Fabien 29/08 :**
+1. **Drapeaux/sous-commandes CLI = surface OPÉRATEUR → français toléré** (`--poser`,
+   `--ecrire` : tapés au terminal, lus dans un `--help` français, jamais importés) — même
+   logique que les noms de tests. Les identifiants Python importés restent anglais.
+2. **Stop à l'hémorragie IMMÉDIAT** : tout nouvel identifiant en ANGLAIS, y compris dans
+   les couches déjà dérivées — la convention prime sur l'idiome local.
+3. **Correctif COMPLET différé** : dès que les instances parallèles ont terminé →
+   session dédiée qui renomme model_manager ET registries.py, avec revérification
+   complète « jusqu'à être sûr que rien n'est laissé au hasard » ; puis RE-CONSIGNATION.
+
+**Méthode de la session de renommage (à dérouler, pas à improviser)** :
+① inventaire mesuré (commande ci-dessus + équivalent registries) ; ② pour CHAQUE nom :
+grep exhaustif des consommateurs — imports Python, mais AUSSI gabarits/JS/urls/celery
+(⚠⚠ *un renommage ne casse rien, il rend FAUX* : un appel raté ne se signale pas
+toujours) ; ③ renommage mécanique + alias de transition si un consommateur est hors
+périmètre ; ④ revérification : suite de tests COMPLÈTE + `manage.py check` +
+`check_templates` + smoke navigateur des pages touchées (model manager, /common/registres/)
++ **vérif sur HEAD en worktree** (reference_verif_sur_head_worktree : .env + migrations à
+recopier) ; ⑤ re-consignation : solder la dette dans CLAUDE.md §nommage, ce §PENDING,
+et le pending #2 du 22/08.
