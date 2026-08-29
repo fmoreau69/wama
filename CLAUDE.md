@@ -176,6 +176,8 @@ apply_patch(
 |---|---|---|---|
 | module, classe, fonction, champ de modèle | **oui** — il se lit dans un `import`, une signature, un gabarit | **anglais** | c'est une API ; 97 % du dépôt l'est déjà |
 | méthode `test_*` | **jamais** | **français** | elle se lit dans un **rapport d'échec**, et nulle part ailleurs |
+| **fichier `.js` / global `window.Wama*`** | **oui** — il se lit dans un `<script src>` et dans les gabarits | **anglais** | même nature qu'un module importé (ajouté le 2026-08-29) |
+| **identifiant privé d'un IIFE `.js`** | non, au sens strict | **anglais quand même** | voir ci-dessous |
 
 - **Un nom de test énonce un COMPORTEMENT, pas un sujet.** C'est ce qui sépare réellement les deux
   familles mesurées le 2026-08-22 (253 méthodes sur 369 en français) : les anglaises nomment la
@@ -198,6 +200,26 @@ apply_patch(
   4. un renommage se fait TOKENISÉ avec grep exhaustif des consommateurs — y compris les
      jumeaux PAR CHAÎNE (routes Celery de `settings.py`, noms de tâches) et le DOMICILE
      lui-même (`py_compile` ne voit pas un import cassé).
+
+### Le JS aussi (ajouté le 2026-08-29 — le trou que la lettre de la règle laissait)
+
+> « Python l'importe-t-il ? » répond **non** pour un identifiant privé d'IIFE JavaScript. Deux
+> briques COMMUNES en avaient profité : `queue-actions.js` (**99** identifiants français) et
+> `wama-abonnement.js` (~20, **nom de fichier compris**). Elles étaient conformes à la LETTRE.
+> Le critère réel derrière la lettre est « **qui doit le lire ?** » — et le commun que 10 apps
+> montent se lit dans chaque revue, chaque diff, chaque erreur de console.
+
+- **Identifiants JS → anglais**, y compris privés. **Nom de fichier `.js` → anglais** : il se lit
+  dans un `<script src>`, c'est une API au même titre qu'un import.
+- **Ce qui NE se renomme PAS** : les attributs `data-*` du DOM et les clés de payload serveur —
+  c'est la frontière des DONNÉES (règle 3 ci-dessus). Un demi-vocabulaire est pire que l'ancien :
+  `data-abo-*` et `data-f-<facette>` (6 gabarits, 2 JS) se traiteront **ensemble ou pas du tout**.
+- **Un `.js` ne casse jamais à la compilation, il casse dans le navigateur.** Aucun vérificateur
+  de syntaxe JS n'est installé (ni `node` Windows, ni WSL) : après tout renommage JS, la SEULE
+  attestation est un smoke navigateur — parser le fichier servi (`new Function(texte)`) et
+  vérifier que le global attendu existe et que l'ancien a disparu.
+- **Resynchroniser `staticfiles/`** dans le même geste (copie ET suppression de l'ancien nom) :
+  c'est ce dossier qui est servi.
 
 ---
 
