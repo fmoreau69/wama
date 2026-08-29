@@ -1150,11 +1150,52 @@ compilemessages → .mo (lookup microseconde au runtime)
 Middleware active la langue selon UserProfile.preferred_language
 ```
 
+### État MESURÉ au 2026-08-29 — lire CECI avant la table d'étapes (qui a dérivé)
+
+> Relevé à l'outil natif, sur demande de Fabien (« le mélange anglais/français du front-end,
+> c'est consigné quelque part »). **C'est ici, §10.A.** Le chantier reste NON prioritaire : le
+> portage des apps passe avant. Ce bloc existe pour qu'on le rouvre sur du mesuré, pas sur la
+> table de 2026-06 dont la 1ʳᵉ ligne est déjà fausse.
+
+| pièce | mesure |
+|---|---|
+| `USE_I18N` | **déjà `True`** (`wama/settings.py`) — la 1ʳᵉ ligne de la table d'étapes est PÉRIMÉE |
+| `LANGUAGE_CODE` | `'en-us'` — alors que l'UI rendue est très majoritairement française |
+| `LOCALE_PATHS` + dossier `locale/` de projet | **absents** (les milliers de `.po` du dépôt sont ceux de Django, dans le venv) |
+| `LocaleMiddleware` / `UserLanguageMiddleware` | **aucun des deux installé**. `UserProfile.preferred_language` EXISTE (`accounts/models.py`) mais **rien ne le lit pour la langue de l'interface** — c'est la définition exacte du « mélange » constaté à l'écran |
+| `{% trans %}` dans les gabarits | **16 occurrences, dans 2 fichiers sur 128** : `reader/_item_card.html` (15) et `common/_download_button.html` (1) |
+| `gettext` en Python | 3 fichiers (`anonymizer/models.py`, `common/utils/export_formats.py`, `accounts/custom_validators.py`) |
+| **gabarit GÉNÉRÉ** | `common/manifests/codegen/templates_gen.py` émet **8 libellés français EN DUR** et **zéro `{% trans %}`** — chaque app (re)générée en ajoute autant |
+
+### 🔴 CE QUI BLOQUE 10.A n'est pas l'effort, c'est une DÉCISION : la langue des `msgid`
+
+Les 16 tags déjà posés portent des `msgid` **français** (`{% trans "Entrée" %}`). Le reste du
+dépôt déclare l'inverse : `WAMA_MANIFEST_SPEC` « Langue du manifeste = ANGLAIS canonique […] en
+anglais SOURCE », `WAMA_MANIFEST_ARCHITECTURE` « manifeste en EN canonique → registre i18n
+central », et `LANGUAGE_CODE = 'en-us'`. Le désaccord ne se voit pas aujourd'hui : **sans `.mo`,
+un `msgid` est rendu TEL QUEL** — le français passe donc *par accident*, et passera jusqu'au jour
+où on compilera des traductions.
+
+| option | coût | ce que ça heurte |
+|---|---|---|
+| **`msgid` = français** (entériner l'existant) | tagger les gabarits ; aucune traduction à écrire pour le FR | contredit le pivot EN déclaré côté manifestes ; `msgid` accentués, plus fragiles en outillage |
+| **`msgid` = anglais** (doctrine déclarée) | tagger les gabarits **ET** traduire toute l'UI FR→EN pour *fabriquer la source*, avant de la retraduire en FR | rien de déclaré, mais l'effort de la table ci-dessous est ~doublé |
+
+⚠ **Ce n'est PAS la frontière tranchée par `CLAUDE.md` § « la LANGUE des identifiants »** (« qui
+doit le lire ? »). Celle-là concerne les IDENTIFIANTS (modules, fonctions, fichiers `.js`, globals)
+→ anglais. Ici il s'agit des **CHAÎNES AFFICHÉES**, l'autre versant : un identifiant anglais
+affiche très bien un libellé français, et c'est même la cible. Les confondre ferait renommer du
+code au motif d'une question de traduction, ou l'inverse.
+
+**Assurance la moins chère tant que 10.A n'est pas ouvert** (et elle ne l'ouvre pas) : tagger
+`codegen/templates_gen.py` — **un seul fichier, 8 libellés** — pour que les apps générées naissent
+taggées. Sinon le portage en cours fabrique, gabarit après gabarit, la couche qu'il faudra reprendre.
+
 ### Étapes ⏳
 
 | Étape | Effort | Fichier / Commande |
 |-------|--------|-------------------|
-| `USE_I18N = True` + `LOCALE_PATHS` dans settings.py | 5 min | `wama/settings.py` |
+| ~~`USE_I18N = True`~~ (FAIT) + `LOCALE_PATHS` dans settings.py | 5 min | `wama/settings.py` |
 | Middleware `UserLanguageMiddleware` | 30 min | `wama/common/middleware.py` |
 | **Tagging strings templates** (`{% trans %}`) | **3-5 semaines** | ~60-80 fichiers HTML |
 | Tagging strings Python (`_()`, `gettext_lazy`) | 1 semaine | models.py, forms.py, views.py |

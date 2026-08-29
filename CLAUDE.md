@@ -201,6 +201,11 @@ apply_patch(
      jumeaux PAR CHAÎNE (routes Celery de `settings.py`, noms de tâches) et le DOMICILE
      lui-même (`py_compile` ne voit pas un import cassé).
 
+> ⚠ **Cette règle ne dit RIEN des chaînes AFFICHÉES.** Un identifiant anglais affiche un libellé
+> français — c'est la cible, pas une incohérence. La langue de l'interface est un autre chantier,
+> consigné en **`ROADMAP.md §10.A`** (état mesuré + la décision qui le bloque : la langue des
+> `msgid`). Ne pas renommer du code au motif d'une question de traduction, ni l'inverse.
+
 ### Le JS aussi (ajouté le 2026-08-29 — le trou que la lettre de la règle laissait)
 
 > « Python l'importe-t-il ? » répond **non** pour un identifiant privé d'IIFE JavaScript. Deux
