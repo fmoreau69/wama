@@ -46,6 +46,21 @@ python manage.py test <tes modules>      # ciblé, quelques secondes
 > ⚠ Et lire les **NOMS** des rouges, jamais le seul compte — un total identique peut recouvrir
 > un échec qui en remplace un autre.
 >
+> ⚠⚠ **Si la commande demande « Type 'yes' to delete » puis meurt en `EOFError` : NE PAS
+> répondre par `--noinput`.** La base de test est PARTAGÉE entre instances, et `--noinput`
+> la DÉTRUIT — y compris sous une autre instance en plein run. Vécu le 2026-08-30 : une
+> transaction ouverte (`idle in transaction`, INSERT `common_orgunit`) tenait
+> `test_wama_db` au moment même de la clôture.
+> **Le geste** : (1) constater qui l'occupe —
+> `SELECT pid, state, query_start, left(query,60) FROM pg_stat_activity WHERE datname = 'test_wama_db'`
+> (script encapsulé, cf. règle « une commande commence par un exécutable ») ; (2) s'en donner
+> une À SOI plutôt que d'attendre — un module de settings jetable dans le scratchpad qui fait
+> `from wama.settings import *` puis `DATABASES['default']['TEST']['NAME'] = 'test_…_<session>'`,
+> lancé via `PYTHONPATH=<scratchpad> manage.py test … --settings=<module> --noinput`.
+> Le `--noinput` est alors sans danger : il ne porte plus que sur SA base, qui se détruit
+> normalement en fin de run. *Une base de test ne se partage pas entre instances — c'est le
+> même principe que le worktree par instance.*
+>
 > 🔴 **Un rouge ne se clôt PAS en silence.** Deux issues, jamais une troisième : il est **corrigé**,
 > ou il est **DÉCLARÉ dans le handoff par son NOM**, avec ce qu'on en sait et à qui il appartient.
 > Une clôture qui reporte « N tests OK » en ayant écarté les rouges du décompte est pire qu'une

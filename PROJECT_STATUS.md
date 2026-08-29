@@ -8584,3 +8584,104 @@ pas à moi.
 - `check_docs` : **8 références cassées → 1 SEULE cible distincte** (le partial d'onglets
   de résultat jamais créé — inchangée), 0 périmée / 1140 ;
 - `check_templates` : 0/128 ; `manage.py check` : propre.
+
+---
+
+## §REPRISE — 2026-08-30, instance « RENOMMAGE JS COMMUN + RECTIFICATION i18n » (CLOSE) — 🔚 POINT D'ENTRÉE
+
+> Session parallèle, périmètre étroit : les 2 briques JS communes, `CLAUDE.md`, `ROADMAP §10`.
+> 4 commits (`6b9972e7`, `39ea17e3`, `9bd75699`, `ba31c4d2`). **Rien poussé.**
+
+### ① Les 2 briques JS communes passent aux identifiants ANGLAIS (`6b9972e7`, `39ea17e3`)
+
+Application n=2 du skill `/renommage-api` (désormais **PROMU**) : `queue-actions.js`
+(**99** identifiants) et `wama-abonnement.js` → **`wama-subscription.js`** (~20 + le nom de
+fichier + le global `WamaAbonnement`→`WamaSubscription`). Contrat public inchangé (les 7 clés
+de `WamaQueueActions`), donc aucun JS d'app à toucher.
+
+**Le trou par lequel elles étaient entrées** : la règle de `CLAUDE.md` demandait « Python
+l'importe-t-il ? ». Pour un identifiant privé d'IIFE la réponse est NON — ces 119 noms étaient
+donc conformes à la LETTRE. Le critère réel est **« qui doit le lire ? »** : le commun que 10
+apps montent se lit dans chaque revue, chaque diff, chaque erreur de console. Règle complétée
+(2 lignes de tableau + section « Le JS aussi »).
+
+⚠ **RESTE ASSUMÉ, écrit dans le fichier et dans `PROFILES_PERMISSIONS §8`** : les attributs
+`data-abo-*` NE bougent pas. Vocabulaire de DONNÉES, jumeau de `data-f-<facette>` (6 gabarits,
+2 JS) → **arbitrage à mener sur les DEUX briques à la fois, ou pas du tout**.
+
+### ② Le chantier « langue du front-end » retrouve son domicile — puis est RECTIFIÉ (`9bd75699`, `ba31c4d2`)
+
+Question de Fabien (« c'est consigné où ? ») → **`ROADMAP §10.A`**. Sa table d'étapes datait de
+2026-06 et sa 1ʳᵉ ligne était fausse (`USE_I18N` est déjà `True`). État mesuré ajouté.
+
+🔴 **Puis Fabien a corrigé une affirmation de MOI, et c'est la leçon de la session.** J'avais
+écrit que `preferred_language` « existe mais que rien ne le lit ». **Faux** : il est lu par le
+synthesizer, la chaîne TTS/voix, l'assistant, le pipeline de prompts, les métadonnées d'app, et
+il est exposé au contexte GLOBAL par le context processor des comptes. Ce que j'avais réellement
+mesuré est plus étroit — aucun middleware de locale n'est installé, donc il ne pilote pas la
+langue de l'**interface Django**. *J'ai généralisé une mesure étroite en affirmation large.*
+
+**Et la fausse phrase masquait le vrai trou** : `TranslatorService.translate_output()` **existe**
+et n'a **aucun appelant** (0 consommateur hors de son fichier), alors que `translate_input()` est
+branché dans le pipeline de prompts. §10.A porte désormais **TROIS** états distincts (interface :
+rien · IN : ✅ en place · OUT : ⏳ écrit jamais appelé) et §10.B l'état mesuré correspondant.
+
+**🧭 Doctrine posée par Fabien (consignée dans `CLAUDE.md` §nommage et rappelée au ROADMAP)** :
+*l'anglais est la langue de référence dans tout WAMA, a minima pour tout le CODE ; les docs en
+français ne posent pas de problème tant qu'elles servent le suivi du développement.*
+
+**Ordre décidé par Fabien** : la **traduction OUT** part avec la **génération de l'app
+Translator**, qui vient **APRÈS la fin du portage par auto-génération** — pas de branchement au
+coup par coup app après app entre-temps. Contrat : langue du profil par défaut, surcharge
+explicite possible, **uniquement là où retraduire n'altère pas le résultat** (contre-exemple
+écrit : la transcription verbatim).
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+
+**Reprendre le portage du converter** — et dans cet ordre, mesuré ce jour :
+
+1. **QUICK WIN, indépendant des 3 arbitrages ouverts** : la fusion du ⬇ de file avec la brique
+   commune de bouton de téléchargement (pending déjà écrit en `WAMA_APP_GENERATION_ROUTE §S2bis.12`).
+   Mesuré ce jour, c'est **pire que ce que le pending disait** : `transcriber/static/transcriber/js/index.js:833`
+   reconstruit à la main un dropdown Bootstrap autour du bouton rendu par le partial commun, avec
+   **la liste des 4 formats CODÉE EN DUR** et l'URL fabriquée par un `replace('start_all','download_all')`
+   — soit exactement le « chemin construit en JS » corrigé ailleurs en `§S2bis.3`. Or la brique sait
+   déjà rendre ce split-button depuis une liste DÉCLARÉE ; il lui manque `id` et `label`.
+   ⚠ « Quick » vaut pour la conception, PAS pour la vérification : le partial de barre de file est
+   monté par **12 barres dans 10 apps**, et un gabarit ne casse que dans le navigateur → smoke obligatoire.
+2. Puis les deux restes de code de `§S2bis.6` : (a) `inputs[]` n'existe qu'au niveau MODE, jamais
+   DOMAINE ; (b) `input_extensions` reste plat → le dériver PAR SLOT.
+3. (c) l'homonyme `text` — **bloqué, voir ci-dessous**.
+
+### 🔴 ARBITRAGES FABIEN — la session suivante ne peut pas les commencer sans réponse
+
+| # | arbitrage | ce qu'il bloque |
+|---|---|---|
+| A | **l'homonyme `text`** (rayon déjà mesuré en `§S2bis.6c`, dont un `detected_type` **stocké en base**) | le point 3 ci-dessus + la capacité `start_all_applique_les_reglages` qui lui est accrochée. `§S2bis.6` dit lui-même de ne pas le trancher au fil d'un autre chantier |
+| B | **la langue des `msgid`** (`ROADMAP §10.A`) | ⚠ **y compris « l'assurance la moins chère » que j'y ai proposée** — tagger le générateur de gabarits (1 fichier, 8 libellés) pour que les apps générées naissent taggées. **Annoncée, NON FAITE, et à dessein** : poser des `{% trans %}` exige de choisir la langue des `msgid`, donc l'assurance présuppose l'arbitrage qu'elle prétendait contourner. Ne pas la faire « en passant » |
+| C | `data-abo-*` / `data-f-<facette>` (§① ci-dessus) | rien en cours — mais toute nouvelle facette agrandit le vocabulaire à migrer |
+| D | `rights_anonymous` (hérité du 28/08, non traité ici) | le portage des droits |
+
+### Pendings système
+
+- **`git push`** : dev a désormais ~19 commits d'avance (les miens + ceux des instances parallèles).
+- **Ne PAS régénérer `WAMA_MECANISMES.md`** en l'état : `doc_facts --check` le dit PÉRIMÉ, mais les
+  **3** compteurs qui bougent (sonde vision 4→5, recherche web 3→4, taxonomie des natures 5→6)
+  viennent du **WIP NON COMMITÉ** d'autres instances. Régénérer figerait leur travail en cours dans
+  un doc généré sur HEAD. Régénération faite puis **annulée** ce jour, volontairement.
+- Base de test : `test_wama_db` était **occupée par une autre instance** (`idle in transaction`) au
+  moment de la clôture → mes tests ont tourné sur une base séparée via un settings jetable du
+  scratchpad. Geste ajouté à `/cloture §2a`. Rien à nettoyer (base auto-détruite).
+- Scripts de session = scratchpad, jetables. Aucun compte ni objet de test semé.
+- Arbre de travail : tout ce qui reste modifié appartient aux instances mémoire/gateway/assistant
+  et Data — **pas à moi**.
+
+### Contrôles attendus au prochain /reprise (MESURÉS cette session)
+
+- tests de mon périmètre : **39 OK** (`common.tests_codegen_templates` + `common.tests_subscriptions`),
+  base isolée ; suite COMPLÈTE **1203 OK (skipped=4)** mesurée le 29/08 après le renommage ;
+- `check_docs` : **8 références cassées → 1 SEULE cible distincte** (le partial d'onglets de résultat
+  jamais créé — INCHANGÉE), 0 périmée **/ 1168** vérifiées, handoff de ce jour inclus (le corpus
+  a grossi : 1140 → 1168) ;
+- `check_templates` : 0/128 ; `manage.py check` : propre ;
+- `doc_facts --check` : **1 bloc périmé — `mecanismes`, et il ne m'appartient pas** (voir Pendings).

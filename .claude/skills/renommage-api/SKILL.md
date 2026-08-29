@@ -1,6 +1,6 @@
 ---
 name: renommage-api
-description: Renommer une API française (ou tout renommage d'identifiants multi-fichiers) sans rien rendre FAUX — inventaire mesuré, moteur tokenisé, grep des jumeaux par chaîne, revérification jusqu'à HEAD. Utiliser quand on solde une couche de la dette de nommage (CLAUDE.md §nommage), ou pour tout renommage traversant plusieurs consommateurs. CANDIDAT (n=1, session 2026-08-29 : registries.py + ~45 noms model_manager, zéro casse).
+description: Renommer une API française (ou tout renommage d'identifiants multi-fichiers) sans rien rendre FAUX — inventaire mesuré, moteur tokenisé, grep des jumeaux par chaîne, revérification jusqu'à HEAD. Utiliser quand on solde une couche de la dette de nommage (CLAUDE.md §nommage), ou pour tout renommage traversant plusieurs consommateurs. PROMU (n=2 : 2026-08-29 registries.py + ~45 noms model_manager ; 2026-08-30 les 2 briques JS communes, 119 identifiants + 1 nom de fichier — zéro casse les deux fois).
 ---
 
 # /renommage-api — renommer sans rendre FAUX
@@ -42,6 +42,31 @@ description: Renommer une API française (ou tout renommage d'identifiants multi
 - 1 prose abîmée et 1 FAUX POSITIF de fichier entier (`tests_skills_catalog` — clés de
   DONNÉES homonymes d'identifiants) n'ont été vus qu'à la relecture. Restaurer par
   `git checkout <fichier>` puis ne rejouer que le légitime.
+
+## 4bis. Si le périmètre est du JS — trois choses changent (ajouté n=2, 2026-08-30)
+
+> Le reste du skill tient tel quel. Ce qui change est l'ATTESTATION : un `.py` mal renommé
+> casse à l'import, un `.js` mal renommé **casse dans le navigateur, en silence**.
+
+- **Aucun vérificateur de syntaxe JS n'est installé ici** (ni `node` sous Windows, ni sous
+  WSL) → la seule preuve qu'un fichier renommé est encore VALIDE est un smoke qui récupère
+  le fichier **SERVI** et le parse (`new Function(texte)`), puis vérifie que le nouveau
+  global existe, que l'ancien a disparu, et que l'ancien chemin sort en **404**.
+- **`staticfiles/` se resynchronise dans le MÊME geste**, suppression de l'ancien nom
+  comprise — c'est ce dossier qui est servi. Contrôle : les deux copies doivent partager le
+  même blob (`git hash-object`).
+- **Un nom de FICHIER `.js` est une surface** (il se lit dans un `<script src>`) : le
+  renommer oblige à grepper le CHEMIN, pas seulement les identifiants — gabarits,
+  `mecanismes.py` (annexes), docs de référence, et les tests qui cherchent des **chaînes**
+  dans le fichier (ici `tests_codegen_templates.py`, seul garde-fou automatique du lot — et
+  il ne couvrait que 5 des 99 noms).
+- **La frontière des DONNÉES vaut aussi pour le DOM** : attributs `data-*` et clés de
+  payload NE se renomment PAS avec les identifiants. S'ils forment un vocabulaire partagé
+  (`data-abo-*` et `data-f-<facette>`), c'est **ensemble ou pas du tout** — un
+  demi-vocabulaire est pire que l'ancien. L'écrire comme RESTE ASSUMÉ dans le fichier.
+- **Les gabarits Django sont relus à chaque requête** ici (`APP_DIRS`, pas de cached
+  loader) : renommer un `<script src>` prend effet sans redémarrer gunicorn — donc pas de
+  fenêtre de casse pour les autres instances. À revérifier si un cached loader apparaît.
 
 ## 5. Revérifier jusqu'à HEAD, pas jusqu'au disque
 1. tests ciblés du périmètre → 2. suite COMPLÈTE (exit 0 fait foi) → 3. `manage.py
