@@ -84,6 +84,41 @@ class CheminDeLotTest(SimpleTestCase):
         for cle in ("'success'", "'count'", "'batches'", "'warnings'"):
             self.assertIn(cle, corps, f'clé {cle} absente de la réponse')
 
+    def test_le_vocabulaire_d_entree_est_LU_au_manifeste_et_non_ecrit_en_dur(self):
+        """`_TYPES_ENTREE` doit SUIVRE `body.ports.inputs[].types`, pas le recopier une fois.
+
+        Le test mute le manifeste plutôt que de comparer à la valeur attendue : c'est la seule
+        façon de distinguer « dérivé » de « écrit en dur avec la bonne valeur ce jour-là ».
+        Même famille que la liste d'apps codée en dur du drag&drop, qui valait exactement le
+        catalogue moins la dernière app ajoutée.
+        """
+        from copy import deepcopy
+
+        from wama.common.manifests.ingest import extract
+        manifest = deepcopy(extract('app', SOURCE))
+        ports = (manifest.get('body') or {}).get('ports') or {}
+        if not (ports.get('inputs') or []):
+            self.skipTest(f'{SOURCE} sans ports.inputs')
+        ports['inputs'][0]['types'] = ['audio']
+        src, raison = render_views(manifest)
+        self.assertIsNotNone(src, f'génération impossible : {raison}')
+        self.assertIn("_TYPES_ENTREE = ('audio',)", src,
+                      'le vocabulaire ne suit pas le manifeste (valeur figée dans le gabarit)')
+
+    def test_la_nature_est_renseignee_dans_LES_DEUX_chemins_de_creation(self):
+        """`upload` et `batch_create` doivent doter l'élément de la même façon.
+
+        Doter un seul des deux chemins est ce qui a produit les trois derniers défauts de
+        codegen (WAMA_INGEST perdu par un rendu sur deux, `pk` de trop, extra_routes en
+        bouchon) : la divergence ne se voit qu'à l'usage, et seulement par l'un des deux
+        boutons.
+        """
+        for vue in ('upload', 'batch_create'):
+            corps = _fonction(self.src, vue)
+            self.assertIsNotNone(corps, f'{vue} absent du fichier généré')
+            self.assertIn('_nature(', corps,
+                          f"{vue} ne dérive pas la nature de l'entrée")
+
     def test_les_extras_preferent_un_corps_conventionnel_a_un_bouchon(self):
         """L'assemblage par `extra_routes` doit consulter les corps conventionnels.
 
@@ -191,6 +226,86 @@ class LotBoutEnBoutTest(TestCase):
             self.assertIsNotNone(getattr(obj, 'batch_id', None),
                                  'élément créé HORS LOT : apply_queue_sort_filter tombera '
                                  'sur un None (défaut déjà rencontré le 22/08)')
+
+    def test_la_nature_de_chaque_entree_est_deduite_et_le_lot_groupe_par_nature(self):
+        """Le champ DÉRIVÉ de l'entrée (`media_type`) est renseigné — et il sert.
+
+        Il est resté vide jusqu'au 2026-08-29 parce que le gabarit déclarait un « trou de
+        glu », en donnant deux raisons fausses coup sur coup : d'abord qu'aucun détecteur
+        commun nom→type n'existait (`app_registry.category_of_path` en est un, et se dit
+        source unique), puis que le vocabulaire de l'app n'était nulle part déclaré (il l'est,
+        et deux fois : `body.ports.inputs[].types` et `body.modes.domains[].accepts`).
+
+        Ce que ce test garde n'est donc PAS la valeur du champ mais sa CONSÉQUENCE :
+        `group_into_batches_by_nature` lisait un champ que personne n'écrivait, et rendait un
+        seul lot fourre-tout. Deux natures déposées ensemble doivent donner deux lots.
+        """
+        modele = self._modele_item()
+        if modele is None:
+            self.skipTest('modèle inconnu du PreviewRegistry')
+
+        import os
+        from django.conf import settings as _st
+        dossier = os.path.join(_st.MEDIA_ROOT, 'tests_lot')
+        os.makedirs(dossier, exist_ok=True)
+        relatifs = []
+        for nom in ('nature_a.mp4', 'nature_b.jpg'):
+            chemin = os.path.join(dossier, nom)
+            with open(chemin, 'wb') as fh:
+                fh.write(b'0')
+            relatifs.append(os.path.relpath(chemin, _st.MEDIA_ROOT).replace(os.sep, '/'))
+
+        def _nettoyer():
+            for rel in relatifs:
+                p = os.path.join(_st.MEDIA_ROOT, rel)
+                if os.path.exists(p):
+                    os.remove(p)
+        self.addCleanup(_nettoyer)
+
+        fichier = SimpleUploadedFile('lot.txt', ('\n'.join(relatifs) + '\n').encode('utf-8'),
+                                     content_type='text/plain')
+        data = self.client.post(self.url, {'batch_file': fichier}).json()
+        self.assertEqual(data.get('count'), 2, data)
+
+        crees = list(modele.objects.order_by('-id')[:2])
+        natures = {getattr(o, 'media_type', '') for o in crees}
+        self.assertEqual(natures, {'video', 'image'},
+                         f"nature non dérivée du nom de fichier : {natures}")
+        self.assertEqual(data.get('batches'), 2,
+                         "deux natures déposées ensemble doivent donner DEUX lots — un lot "
+                         f"unique signale un `media_type` vide : {data}")
+
+    def test_une_extension_hors_vocabulaire_le_DIT_au_lieu_de_deviner(self):
+        """Une valeur fausse et muette coûte plus cher qu'un champ vide et signalé.
+
+        Le converter accepte `.md` (il le convertit) mais ne déclare pas 'text' parmi ses
+        `input_types` — la taxonomie commune, elle, distingue 'text' de 'document'. Trois
+        extensions sur 60 sont dans ce cas (mesuré). La vue ne comble pas l'écart par un
+        rapprochement plausible : elle laisse le champ vide et l'écrit dans `warnings`.
+        """
+        modele = self._modele_item()
+        if modele is None:
+            self.skipTest('modèle inconnu du PreviewRegistry')
+
+        import os
+        from django.conf import settings as _st
+        dossier = os.path.join(_st.MEDIA_ROOT, 'tests_lot')
+        os.makedirs(dossier, exist_ok=True)
+        chemin = os.path.join(dossier, 'hors_vocab.md')
+        with open(chemin, 'wb') as fh:
+            fh.write(b'# titre\n')
+        rel = os.path.relpath(chemin, _st.MEDIA_ROOT).replace(os.sep, '/')
+        self.addCleanup(lambda: os.path.exists(chemin) and os.remove(chemin))
+
+        fichier = SimpleUploadedFile('lot.txt', (rel + '\n').encode('utf-8'),
+                                     content_type='text/plain')
+        data = self.client.post(self.url, {'batch_file': fichier}).json()
+        self.assertEqual(data.get('count'), 1, data)
+        self.assertEqual(getattr(modele.objects.order_by('-id').first(), 'media_type', ''), '',
+                         "une extension hors vocabulaire ne doit PAS recevoir une nature "
+                         "approchée — c'est le défaut qui se voit le moins")
+        self.assertTrue(any('vocabulaire' in str(w) for w in (data.get('warnings') or [])),
+                        f"l'écart doit être DIT, pas subi : {data}")
 
     def test_une_url_sans_ingest_est_signalee(self):
         """Une app SANS champ source le DIT dans `warnings` — elle n'échoue pas en silence.

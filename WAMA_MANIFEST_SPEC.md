@@ -183,24 +183,30 @@ body:                                   # (sous l'enveloppe commune)
   # lieu d'un select vide, mais la RÉSORPTION est une décision de formalisme, pas de gabarit :
   # déclarer par source son mode de résolution (endpoint commun, ou champ de contexte de page).
   #
-  # ⚠ MÊME TROU, AUTRE MOITIÉ (mesuré le 2026-08-29) — le champ DÉRIVÉ de l'entrée. Le converter
-  # déduit `media_type` du nom du fichier ; le `upload`/`batch_create` générés ne le font pas,
-  # donc l'élément arrive avec un champ vide — et comme les formats de sortie dépendent de cette
-  # valeur (le `options_source: 'formats'` ci-dessus), la card d'un fichier déposé n'offre RIEN
-  # et rien n'est lançable. Les deux moitiés sont UNE seule chose non déclarée : la taxonomie
-  # d'entrée de l'app.
-  #   • le détecteur, lui, EXISTE en commun : `app_registry.category_of_path` (source unique,
-  #     celle dont `probe_media` se sert) — mesuré d'accord avec le détecteur du converter sur
-  #     56 des 59 extensions acceptées ;
-  #   • les 3 écarts (.md/.markdown/.txt) tiennent au vocabulaire, pas au détecteur : le commun
-  #     distingue 'text' de 'document', le converter les confond. Rien ne déclare qu'un
-  #     `media_type` d'app prend ses valeurs dans image|video|audio|document|archive (CharField
-  #     nu, sans `choices`). Sans cette déclaration, câbler le commun remplacerait un champ vide
-  #     par une valeur FAUSSE sur les fichiers texte — pire, parce que moins visible.
-  # Forme candidate : `processing.derived_fields: [{field, from, rule: 'media_category',
-  # vocabulary: [...]}]`, la règle nommant une brique commune et le vocabulaire restant la
-  # SPÉCIFICITÉ déclarée de l'app.
-  # ⏳ NON TRANCHÉ (les deux moitiés) — à arbitrer avant la marche B.
+  # ⏳ NON TRANCHÉ — à arbitrer avant la marche B. Le trou est celui d'`options_source` SEUL.
+  #
+  # ⚠⚠ CE BLOC A ANNONCÉ UNE « SECONDE MOITIÉ » QUI N'EXISTAIT PAS (écrite puis RETIRÉE le
+  # 2026-08-29, dans la même journée — la trace reste, la raison plus encore que le fait).
+  # Il affirmait que le champ dérivé `media_type` était bloqué parce que « rien ne déclare qu'il
+  # prend ses valeurs dans image|video|audio|document|archive », et proposait un formalisme NEUF
+  # (`processing.derived_fields: [{field, from, rule, vocabulary}]`) pour combler ce vide.
+  # Ce vide n'existe pas. Le vocabulaire d'entrée d'une app est déclaré DEUX fois, et les deux
+  # déclarations sont d'accord sur 10/10 apps (mesuré, pas supposé) :
+  #   • `APP_CATALOG['<app>']['input_types']`        → extrait en `body.ports.inputs[].types` ;
+  #   • `APP_MODES['<app>'].domains[].accepts`       → extrait en `body.modes.domains[].accepts`.
+  # Le détecteur commun existait tout autant (`app_registry.category_of_path`, source unique du
+  # dépôt). Les deux pièces étaient là : `views_gen` ne lisait ni l'une ni l'autre.
+  # CORRIGÉ le jour même — la vue générée dérive la nature dans SES DEUX chemins (`upload` ET
+  # `batch_create`) et projette le vocabulaire du manifeste (`_TYPES_ENTREE`) ; les 3 extensions
+  # hors vocabulaire (.md /.markdown /.txt — le commun distingue 'text' de 'document' là où
+  # l'app ne déclare pas 'text') laissent le champ VIDE et le DISENT dans `warnings`, au lieu
+  # d'une valeur approchée. Gardé par `tests_codegen_lot` : un test MUTE le manifeste pour
+  # distinguer « dérivé » de « écrit en dur avec la bonne valeur ce jour-là ».
+  # *Un trou de formalisme s'annonce APRÈS avoir cherché la déclaration, jamais avant : poser un
+  # formalisme neuf par-dessus une déclaration existante en crée une seconde, qui divergera.*
+  # (4ᵉ occurrence du motif dans ce chantier, après `accepts_url`, `inspector`, sections×chips —
+  # une facette DÉCLARÉE et non projetée est un manque de GABARIT, jamais un trou de glu ; la
+  # classer « trou » la rend invisible en la déclarant normale.)
   inspector: {model, detail_adapter, preview_adapter, file_field, user_field}   # Detail/PreviewRegistry
   # (cible ; extract actuel = detail_registered/preview_registered — présence, pas contenu)
 

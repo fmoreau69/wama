@@ -667,6 +667,31 @@ outillé avant d'ouvrir cette marche.
      POSTait donc sur l'app SOURCE. *Une jumelle qui agit sur son original ne mesure plus rien.*
      Corrigé en `{% url 'app:route' 0 %}` + `urlFor`. (Le 3ᵉ défaut de la même passe était une
      ARITÉ devinée : `csrfFetch(url, csrfToken, opts)` appelé à deux arguments → GET → 405.)
+  4. **Vocabulaire d'ENTRÉE non lu** (même jour, 4ᵉ occurrence du motif — et la seule où j'ai
+     annoncé un TROU au lieu d'un manque). `views_gen` laissait `media_type` vide à la création
+     et portait un commentaire de 24 lignes affirmant qu'aucune déclaration ne dit les types
+     d'entrée d'une app, ni aucun détecteur commun la nature d'un fichier. **Les deux existaient.**
+     Mesuré : le vocabulaire est déclaré **DEUX fois et les deux sont d'accord sur 10/10 apps** —
+     `APP_CATALOG['<app>']['input_types']` (→ `body.ports.inputs[].types`, `PORTS_FIELDS`) et
+     `APP_MODES[app].domains[].accepts` (l'axe UX) ; le détecteur est `category_of_path`
+     (`common/app_registry.py`), déjà utilisé par `media_probe` ; et `templates_gen.py:46`
+     dérivait DÉJÀ le `accept=` de la dropzone d'`identity.input_extensions`. Corrigé : la vue
+     générée projette le vocabulaire (`_TYPES_ENTREE`) et dérive la nature via `category_of_path`
+     **CONTRAINTE à ce vocabulaire**, dans **LES DEUX** chemins de création (`upload` et
+     `batch_create` — n'en doter qu'un est ce qui a produit les trois défauts ci-dessus) ; une
+     extension hors vocabulaire laisse le champ VIDE et le DIT (`warning`), au lieu d'écrire une
+     valeur plausible. 4 tests dans `common/tests_codegen_lot.py` (dont un qui mute le manifeste
+     pour distinguer « dérivé » de « écrit en dur avec la bonne valeur ce jour-là »).
+     *Un trou de formalisme s'annonce APRÈS avoir cherché la déclaration, jamais avant : poser un
+     formalisme neuf par-dessus une déclaration existante en crée une seconde, qui divergera.*
+     Cause racine traitée : la taxonomie n'était **sur aucune carte** → `Mecanisme('media_taxonomy')`
+     (`WAMA_MECANISMES.md`). ⏳ **Écart de DONNÉES restant, non tranché** : les catégories dérivées
+     d'`input_extensions` divergent des `input_types` déclarés sur **7/11 apps**, en deux familles
+     intelligibles — `.md/.markdown/.txt/.csv` donnent `text` là où l'app déclare `document`
+     (converter, describer), et `.docx/.pdf` donnent `document` là où l'app ne déclare que `text`
+     (composer, imager, synthesizer — leurs extensions sont celles d'un FICHIER DE PROMPT, pas
+     d'une entrée de travail). Mesurer le rayon (ports studio, menus filemanager, critère
+     `recursive_import`) avant d'y toucher.
 
 **Cadrage A0 — la convention RÉELLE, mesurée (2026-08-11, balayage 6 cibles × 10 apps) :**
 - **urls.py** : AUCUNE app ne colle à `STANDARD_ENDPOINTS` — cette liste était une CIBLE que le

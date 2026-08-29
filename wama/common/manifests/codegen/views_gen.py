@@ -82,6 +82,23 @@ def _donnees(manifest: dict) -> dict:
                         and 'media_type' in {f['name'] for f in
                                              data_models[d['batch']].get('fields') or []})
                         else '')
+
+    # VOCABULAIRE D'ENTRÉE de l'app — LU au manifeste, jamais supposé. Il est déclaré DEUX fois
+    # et les deux déclarations sont d'accord sur 10/10 apps (mesuré le 2026-08-29) :
+    #   • `body.ports.inputs[].types`   ← APP_CATALOG['<app>']['input_types'] (PORTS_FIELDS) ;
+    #   • `body.modes.domains[].accepts` ← app_modes.APP_MODES (l'axe UX).
+    # On lit les ports en premier (c'est la facette de TYPAGE) et les domaines en repli.
+    types = []
+    for port in ((body.get('ports') or {}).get('inputs') or []):
+        for t in (port.get('types') or []):
+            if t not in types:
+                types.append(t)
+    if not types:
+        for dom in ((body.get('modes') or {}).get('domains') or []):
+            for t in (dom.get('accepts') or []):
+                if t not in types:
+                    types.append(t)
+    d['types_entree'] = tuple(sorted(types))
     return d
 
 
@@ -116,6 +133,48 @@ def render_views(manifest: dict) -> tuple:
     champs_fichiers = [d['input_field']] + (['output_file'] if d['a_output'] else [])
     name_expr = (f'j.{d["name_field"]}' if d['name_field']
                  else f'(j.{d["input_field"]}.name if j.{d["input_field"]} else "")')
+
+    # ── NATURE DE L'ENTRÉE — dérivée, plus un trou (2026-08-29) ──────────────────
+    # 4ᵉ occurrence du motif que ce fichier documente déjà deux fois (`accepts_url`, puis
+    # `inspector`) : une facette DÉCLARÉE au manifeste et non projetée n'est pas un trou de
+    # glu, c'est un manque de gabarit. Ici les DEUX pièces existaient — le détecteur commun
+    # `category_of_path` et le vocabulaire `body.ports.inputs[].types` — et le gabarit ne
+    # lisait ni l'un ni l'autre : il déclarait le trou et rouvrait un arbitrage.
+    nature_champ = d['batch_extra']          # 'media_type' si l'app la porte, sinon ''
+    types_entree = d['types_entree']
+    bloc_nature = f'''
+
+# Vocabulaire d'ENTRÉE de l'app — projection de `body.ports.inputs[].types` du manifeste
+# (lui-même extrait d'APP_CATALOG['<app>']['input_types']). Écrit ici pour que la vue ne
+# dépende pas du catalogue à l'exécution ; il se REGÉNÈRE avec la vue, donc il ne peut pas
+# dériver de sa source.
+_TYPES_ENTREE = {types_entree!r}
+
+
+def _nature(nom):
+    """Catégorie média d'un nom de fichier, CONTRAINTE au vocabulaire déclaré de l'app.
+
+    Le détecteur est `app_registry.category_of_path` — la source UNIQUE du dépôt (celle dont
+    `probe_media` se sert pour son aiguillage), pas un second détecteur écrit pour l'occasion.
+
+    Hors vocabulaire → '' plutôt qu'une valeur approchée. Mesuré le 2026-08-29 : sur les 59
+    extensions acceptées par le converter, le commun s'accorde 56 fois avec le détecteur de
+    l'app ; les 3 écarts (.md, .markdown, .txt) tiennent à ce que le commun distingue 'text'
+    de 'document' là où l'app ne déclare pas 'text'. L'appelant le SIGNALE : un champ vide et
+    dit se répare, une valeur fausse et muette se propage.
+    """
+    from wama.common.app_registry import category_of_path
+    cat = category_of_path(nom)
+    return cat if cat in _TYPES_ENTREE else ''
+
+''' if nature_champ else ''
+    up_nature = (f"""_avert = ''
+    nature = _nature(f.name)
+    if nature:
+        kwargs['{nature_champ}'] = nature
+    else:
+        _avert = f.name + " : nature hors vocabulaire d'entrée de l'app\""""
+                 if nature_champ else "_avert = ''")
 
     def stub(nom, pk=False):
         arg = ', pk' if pk else ''
@@ -180,8 +239,9 @@ def upload(request):
         return JsonResponse({{'error': 'Aucun fichier fourni'}}, status=400)
     kwargs = {{'user': user, '{d['input_field']}': f}}
     {f"kwargs['{d['name_field']}'] = f.name" if d['name_field'] else ''}
+    {up_nature}
     item = {item}.objects.create(**kwargs)
-    return JsonResponse({{'id': item.id, 'status': item.status}})'''
+    return JsonResponse({{'id': item.id, 'status': item.status, 'warning': _avert}})'''
 
     # APERÇU DE LOT — conventionnel, plus un stub (2026-08-22). Le parsing d'un fichier de lot
     # n'a jamais été une « politique d'app » : `batch_media_list_preview_response` fait tout le
@@ -210,12 +270,23 @@ def batch_preview(request):
     # dans `warnings` plutôt que d'échouer en silence.
     # Fragments PRÉCALCULÉS (pas de f-string imbriquée : elle dépendrait de PEP 701 et se
     # relit mal — le gabarit doit rester lisible par qui n'écrit pas de générateur).
-    nature_champ = d['batch_extra']          # 'media_type' si l'app la porte, sinon ''
     _nom = d['name_field']
     bc_nom_url = (f"""if nom:
                     obj.{_nom} = nom
                     obj.save(update_fields=['{_nom}'])""" if _nom else "pass")
     bc_nom_fichier = f"kwargs['{_nom}'] = _dest.name" if _nom else "pass"
+    bc_nature_url = (f"""nature = _nature(nom or src)
+                if nature:
+                    kwargs['{nature_champ}'] = nature
+                else:
+                    avertissements.append((nom or src) + ' : nature hors vocabulaire')"""
+                     if nature_champ else "pass")
+    bc_nature_fichier = (f"""nature = _nature(_dest.name)
+                if nature:
+                    kwargs['{nature_champ}'] = nature
+                else:
+                    avertissements.append(_dest.name + ' : nature hors vocabulaire')"""
+                         if nature_champ else "pass")
     bc_nature = (f"str(getattr(o, '{nature_champ}', '') or '')" if nature_champ else "''")
     bc_nature_kw = (f", **{{'{nature_champ}': nature}}" if nature_champ else "")
     vues['batch_create'] = f'''@require_POST
@@ -258,6 +329,7 @@ def batch_create(request):
                     continue
                 kwargs[champ_source] = src
                 nom = (ligne.get('filename') or '').strip()
+                {bc_nature_url}
                 obj = {item}.objects.create(**kwargs)
                 {bc_nom_url}
             else:
@@ -268,6 +340,7 @@ def batch_create(request):
                     continue
                 _dest, rel = copy_into_app_input(absolu, '{app}', user.id, 'input')
                 {bc_nom_fichier}
+                {bc_nature_fichier}
                 obj = {item}.objects.create(**kwargs)
                 obj.{d['input_field']}.name = rel
                 obj.save(update_fields=['{d['input_field']}'])
@@ -275,30 +348,11 @@ def batch_create(request):
         except Exception as e:
             avertissements.append(src + ' : ' + str(e))
 
-    # TROU DE GLU {mark} — les champs DÉRIVÉS de l'entrée (converter : `media_type`, déduit du
-    # nom du fichier) ne sont pas renseignés, et l'élément reste inexploitable : sans lui, les
-    # réglages conditionnés par sa valeur restent vides et rien n'est lançable.
-    #
-    # ⚠ La raison que ce commentaire donnait le 2026-08-29 était FAUSSE : « il n'existe pas de
-    # détecteur COMMUN nom→type ». Il en existe un, et il se dit lui-même source unique —
-    # `wama/common/app_registry.py::category_of_path` (+ `normalize_types`), celui-là même dont
-    # `probe_media` se sert pour son aiguillage. Mesuré : sur les 59 extensions acceptées par le
-    # converter, il tombe d'accord avec le détecteur de l'app 56 fois ; les 3 écarts (.md,
-    # .markdown, .txt) tiennent à UN fait de taxonomie — le commun distingue 'text' de
-    # 'document', le converter les confond.
-    #
-    # Ce qui manque n'est donc PAS le détecteur mais le VOCABULAIRE de l'app : rien ne déclare
-    # que ce champ prend ses valeurs dans image|video|audio|document|archive (le champ est un
-    # CharField nu, sans `choices`, dans le manifeste comme dans le modèle). Câbler le commun
-    # sans cette déclaration remplacerait un champ vide par une valeur FAUSSE sur les fichiers
-    # texte — un défaut plus coûteux, parce qu'il se voit moins.
-    # C'est le MÊME manque que `options_source: 'formats'` (les formats de sortie dépendent de
-    # cette même valeur) : une seule chose non déclarée, la taxonomie d'entrée de l'app.
-    # ⏳ Arbitrage ouvert — WAMA_MANIFEST_SPEC.md, bloc « TROU DE FORMALISME ».
-    #
-    # Le `upload` généré a exactement le même manque : on le laisse IDENTIQUE ici plutôt que de
-    # doter un seul des deux chemins — c'est la divergence entre chemins qui a produit les
-    # trois derniers défauts de codegen.
+    # La NATURE de l'entrée est renseignée plus haut, dans LES DEUX branches (URL et fichier),
+    # par `_nature` — et `upload` la renseigne pareillement. Doter un seul des deux chemins est
+    # ce qui a produit les trois derniers défauts de codegen ; le groupement ci-dessous en
+    # dépend directement (`nature_of` lisait un champ que personne n'écrivait, donc UN lot
+    # fourre-tout au lieu d'un lot par nature).
     def _lier(lot, obj, idx):
         setattr(obj, '{fk}', lot)
         setattr(obj, '{row}', idx)
@@ -698,6 +752,6 @@ def _auto_wrap_orphans(user):
             w.save(update_fields=['{fk}', '{row}'])
         except Exception:
             pass
-
+{bloc_nature}
 '''
     return tete + '\n\n\n'.join(blocs) + '\n', None

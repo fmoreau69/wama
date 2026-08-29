@@ -697,6 +697,31 @@ MECANISMES = (
               "torchaudio pour les libs tierces qui l'appellent en interne (Coqui, DeepFilterNet)",
               'wama/common/utils/audio_decode.py', '',
               annexes=('wama/common/utils/torchaudio_compat.py',)),
+    # Rattaché le 2026-08-29 après un défaut de MA part, pas du code : j'ai déclaré deux fois de
+    # suite qu'« aucun détecteur commun de nature ne existait » et qu'« aucune déclaration ne dit
+    # les types d'entrée d'une app » — les DEUX existaient ici depuis longtemps, et le générateur
+    # de vues rouvrait donc un arbitrage déjà tranché. Le module portait `APP_CATALOG`, dont la
+    # carte parle abondamment ; sa TAXONOMIE, elle, n'était sur aucune carte. Une brique dont la
+    # carte ne parle pas se fait réinventer — c'est précisément ce que ce registre existe pour
+    # empêcher.
+    Mecanisme('media_taxonomy', "Taxonomie des natures & vocabulaire d'entrée",
+              "Source UNIQUE des natures de média (image/video/audio/document/archive/text/3d) : "
+              "détecte la nature d'un nom de fichier (`category_of_path`, défaut 'document', "
+              "txt/srt/vtt/json/md/csv forcés en 'text') et normalise un vocabulaire "
+              "(`normalize_types`). Porte AUSSI la déclaration par app de ce qu'elle accepte — "
+              "`input_types` (les natures) et `input_extensions` (les extensions) — d'où le "
+              "manifeste tire `body.ports.inputs[].types` et `body.identity.input_extensions`, "
+              "l'axe UX ses `accepts` de domaine, le gabarit généré son `accept=` de dropzone, "
+              "et la vue générée sa dérivation de nature CONTRAINTE au vocabulaire déclaré",
+              'wama/common/app_registry.py', 'WAMA_APP_GENERATION_ROUTE.md',
+              # ⚠ `symbole` OBLIGATOIRE : le domicile est un module TRÈS partagé (APP_CATALOG s'y
+              # importe depuis des dizaines de vues). Sans lui, ce mécanisme hériterait du compte
+              # d'importateurs du catalogue d'apps — un chiffre décoratif, le défaut que le champ
+              # `symbole` a été créé pour corriger (cf. `scoped_visibility`).
+              symbole='category_of_path',
+              annexes=('wama/common/manifests/builtin/app.py',
+                       'wama/common/manifests/codegen/templates_gen.py',
+                       'wama/common/manifests/codegen/views_gen.py')),
     Mecanisme('media_probe', 'Sonde média',
               "Durée/codec/dimensions/pages d'un média pour les propriétés de card (via ffmpeg_utils)",
               'wama/common/utils/media_probe.py', ''),
