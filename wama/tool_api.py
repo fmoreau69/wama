@@ -2281,8 +2281,8 @@ def charger_competence(user, domaine: str) -> dict:
     Load one competence per topic, not one per message.
 
     Args:
-        domaine: One of the competences announced in your system prompt
-                 ('science', 'design', 'dev', 'general').
+        domaine: One of the competence keys announced in your system prompt (do not
+                 guess other values — the announcement is the authoritative list).
 
     Returns:
         {"domaine", "libelle", "consigne", "contexte"} — apply `consigne` to the rest of

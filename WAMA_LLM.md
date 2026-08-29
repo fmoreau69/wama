@@ -446,6 +446,39 @@ distillats en RAG (proposée à la clôture, jamais auto) — ⏳.
 déclencheur des crashs d'août) — user-déclenchée seulement, routée gouverneur sous
 `WAMA_GPU_SAFE_MODE`, aucune boucle de fond avant stabilisation hôte.
 
+### Vérification de la chaîne multi-surface (tracée au code le 2026-08-29, agent Explore)
+
+**Ce qui tient** : la passerelle Discord (`wama/gateway/`) est LIVRÉE et arrive au MÊME
+cerveau que le web — `core.py` → `tour_de_conversation` → `run_assistant_turn`, mêmes
+outils, même prompt système, mêmes skills annoncés (`investigation` compris, dérivé du
+registre sans câblage par surface) ; l'identité est un vrai `User` apparié et confirmé
+(`ChannelLink`), jamais de repli anonyme ; l'historique Discord est même MEILLEUR que le
+web (persisté serveur via `conversation_store`, le web restant sur `localStorage`).
+**L'enrichissement de prompt est intact par construction** : il vit dans les tâches
+(`post_save` d'ingestion déduit de `PROMPT_TARGETS` + rattrapage `process_prompt_for` au
+lancement, anti-double-passe), donc indépendant de la surface qui dépose la card.
+
+**Les défauts mesurés, par ordre de gravité** :
+1. ❌ **Image → VLM : AUCUN chemin direct, sur aucune surface** (= le ③ ci-dessus, confirmé
+   au code) : le web ne laisse pas entrer l'image (`ai_chat` JSON pur) ; Discord la dépose
+   bien (`filemanager`) mais la DÉGRADE en chemin texte avant l'appel moteur ; `_ollama_call`
+   n'émet pas de champ `images` ; `comprehend_files` est branché mais data-gated à VIDE
+   (aucun `PROMPT_TARGETS` ne déclare `reference_field`). Seule voie praticable aujourd'hui :
+   l'assistant PENSE à appeler `add_to_describer` sur le chemin déposé (indirect, asynchrone).
+2. ❌ **RAG jamais payé au tour initial** : aucune surface ne passe `domain` (web : le JS
+   n'envoie pas le champ ; Discord : `core.py` n'en a pas) → rôle figé `general` (`rag=False`).
+   C'est PARTIELLEMENT le design (le domaine est le choix de l'ASSISTANT, via
+   `charger_competence`) — mais le rappel de cet outil interroge `recall()` avec **le NOM du
+   domaine au lieu de la question de l'utilisateur** : rappel générique, vrai maillon faible.
+3. ❌ **Les fichiers produits ne repartent jamais vers Discord** : `core.py` ne remplit
+   jamais `Reponse.fichiers` (le code d'envoi de l'adaptateur est MORT) — l'utilisateur
+   reçoit un lien `/media/…` protégé par session, inutilisable hors WAMA.
+4. ⚠ `PROMPT_TARGETS['composer']` sans clé `'model'` → pas d'enrichissement à l'ingestion
+   (le lancement rattrape — asymétrie non documentée avec imager, sans effet fonctionnel).
+5. ✅ corrigé 29/08 : la docstring de `charger_competence` énumérait les domaines en dur
+   (sans `investigation`) en contredisant l'annonce du même prompt — l'énumération est
+   REMPLACÉE par un renvoi à l'annonce, qui ne peut plus dériver.
+
 ## Voir aussi
 - `ROADMAP.md §10.B` (traduction runtime) et `§16.6` (pipeline + vision méta).
 - `WAMA_APP_CONVENTIONS.md §2bis.4` (contrat prompt targets), `§9.9` (héritage).
