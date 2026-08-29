@@ -30,6 +30,8 @@ L'IDENTIQUE pour rester substituable.
 """
 from __future__ import annotations
 
+from wama.common.manifests.codegen.urls_gen import resolve_route
+
 
 def render_index(manifest: dict) -> tuple:
     """(source, raison) — templates/<app>/index.html conventionnel, jamais partiel."""
@@ -59,17 +61,33 @@ def render_index(manifest: dict) -> tuple:
     # Rien de ce qui suit n'est propre à l'app : `initFromSchema` prend des sélecteurs
     # conventionnels, et `renderItemActions` CLONE la barre d'actions de la card
     # (`cloneActions`) au lieu de la redéclarer.
+    # Noms de routes LUS au manifeste, jamais supposés (leçon du 2026-08-29, jumelle de celle
+    # de `views_gen`) : 8 apps nomment l'arrêt `stop`, le converter le nomme `cancel`, et
+    # l'édition d'un élément est `update`. Un nom deviné ici produit un POST 404 muet.
+    proc = body.get('processing') or {}
+    noms_routes = set(proc.get('endpoints') or []) | {
+        str(e.get('name') or '') for e in (proc.get('extra_routes') or [])}
+    route_stop = resolve_route('stop', noms_routes)
+    route_update = resolve_route('update', noms_routes)
+    champs_params = list(((proc.get('model_spec') or {}).get('item') or {})
+                         .get('params_fields') or [])
+
     insp = body.get('inspector') or {}
     insp_js = ''
     if insp.get('detail_registered') or insp.get('preview_registered'):
+        stop_js = (f'''
+            stop:  function (id) {{ return post(urlFor(U.stop, id)); }},'''
+                   if route_stop else '''
+            // TROU : aucune route d'arrêt déclarée au manifeste — ⏹ non câblé (plutôt qu'un POST 404 muet).''')
         insp_js = f'''
-    // Bouton de cycle ▶/⏹/↻ : contrat commun (`_cycle_button.html` rend, `wire` câble,
-    // `autoSync` suit `data-status`). Les routes sont conventionnelles (ROUTE_TABLE).
+    // Bouton de cycle ▶/⏹/↻ : contrat commun (`_cycle_button.html` rend le bouton, `wire`
+    // câble le clic, `autoSync` suit `data-status`). La brique est complète depuis le
+    // 2026-08-13 et n'est pas en cause : elle DÉLÈGUE l'appel HTTP à l'app, par construction
+    // (chaque app a ses routes). Ce qui manquait était ici, du côté appelant, et deux fois.
     var q = document.getElementById('{app}Queue');
     if (q && window.WamaCycleButton) {{
         WamaCycleButton.wire(q, {{
-            start: function (id) {{ return WamaApp.csrfFetch("/{app}/" + id + "/start/", {{ method: 'POST' }}).then(function () {{ location.reload(); }}); }},
-            stop:  function (id) {{ return WamaApp.csrfFetch("/{app}/" + id + "/cancel/", {{ method: 'POST' }}).then(function () {{ location.reload(); }}); }},
+            start: function (id) {{ return post(urlFor(U.start, id)); }},{stop_js}
         }});
         WamaCycleButton.autoSync({{ container: q, cardSelector: '.wama-card[data-id]' }});
     }}
@@ -94,6 +112,69 @@ def render_index(manifest: dict) -> tuple:
                     '<i class="fas fa-layer-group text-info"></i> Actions — batch #' + batchId);
             }},
         }});
+    }}
+'''
+
+    # ⚙ des cards — DERNIER bouton inerte de la jumelle, et son trou n'était pas au gabarit de
+    # card : `queue-actions.js` tient le clic depuis toujours et attendait qu'une app DÉCLARE
+    # son ouvreur, ce qu'on ne pouvait pas faire tant que `views_gen` bouchait l'édition en 501.
+    # Les deux se débloquent ensemble (même commit) — un bouton mort se referme des DEUX côtés
+    # ou pas du tout. Rien d'app ici : le cycle complet (rendre → lire → POST → toast) est
+    # `WamaParams.settingsModal` ; seules les VALEURS courantes et l'URL viennent du manifeste.
+    params_js = ''
+    if route_update and champs_params:
+        lect = '\n'.join(f"                v['{c}'] = card.getAttribute('data-param-{c}') || '';"
+                         for c in champs_params)
+        params_js = f'''
+    if (window.WamaQueueActions && window.WamaParams) {{
+        WamaQueueActions.onSettings(function (id, btn) {{
+            var card = btn.closest('.wama-card[data-id]');
+            // Valeurs courantes lues sur la CARD (`data-param-*`) : pas de route de lecture
+            // conventionnelle à inventer, et la card les porte déjà pour l'inspecteur.
+            var v = {{}};
+            if (card) {{
+{lect}
+            }}
+            WamaParams.settingsModal({{
+                id: id,
+                title: 'Paramètres — élément #' + id,
+                titleIcon: 'fa-gear',
+                schema: {{{{ params_json|safe }}}},
+                values: v,
+                saveUrl: urlFor(U.update, id),
+                csrf: CSRF,
+                onSaved: function () {{ location.reload(); }},
+            }});
+        }});
+    }}
+'''
+
+    # Routes d'ÉLÉMENT — par `{% url %}` avec pk 0, JAMAIS par un chemin écrit à la main.
+    # ⚠⚠ Défaut mesuré le 2026-08-29 dans ma propre génération de la veille : j'avais écrit
+    # `"/" + app + "/" + id + "/start/"`. La substitution du bac à sable renomme les LITTÉRAUX
+    # de gabarit (`{% url 'converter:…' %}` → `converter_01:…`) mais PAS une chaîne de chemin
+    # construite en JS : la jumelle POSTait donc sur l'app SOURCE. Une jumelle qui agit sur son
+    # original ne mesure plus rien — elle contamine ce qu'elle devait servir de témoin.
+    # *Un chemin écrit à la main échappe à toute machinerie de renommage ; `{% url %}` non.*
+    routes_dispo = [(nom, cle) for nom, cle in
+                    (('start', 'start'), ('stop', route_stop), ('update', route_update))
+                    if cle and cle in noms_routes]
+    routes_js = ''
+    if routes_dispo:
+        lignes = '\n'.join(f"""        {nom + ':':8} "{{% url '{app}:{cle}' 0 %}}","""
+                           for nom, cle in routes_dispo)
+        routes_js = f'''
+    var U = {{
+{lignes}
+    }};
+    function urlFor(t, id) {{ return t.replace('/0/', '/' + id + '/'); }}
+    // ⚠ `csrfFetch(url, csrfToken, opts)` — TROIS arguments. Appelé à deux (2026-08-29), le
+    // `{{method:'POST'}}` était reçu comme JETON et les options restaient vides : requête GET,
+    // 405 face à `@require_POST`, et un bouton qui « ne fait rien » sans rien dire.
+    // *Une signature de brique se LIT ; deviner un argument coûte un bouton mort.*
+    function post(u) {{
+        return WamaApp.csrfFetch(u, CSRF, {{ method: 'POST' }})
+            .then(function () {{ location.reload(); }});
     }}
 '''
 
@@ -188,11 +269,13 @@ des briques communes. On ne déclare donc ici que ce qui est propre à l'app —
 window.WAMA_GLOBAL_PROGRESS_URL = "{{% url '{app}:global_progress' %}}";
 
 document.addEventListener('DOMContentLoaded', function () {{
+    var CSRF = '{{{{ csrf_token }}}}';
+{routes_js}
     // Fichier de LOT : détection structurelle + aperçu AVANT création (brique commune).
     window._batchImport = WamaBatchImport({{
         batchPreviewUrl: "{{% url '{app}:batch_preview' %}}",
         batchCreateUrl:  "{{% url '{app}:batch_create' %}}",
-        csrfToken:       '{{{{ csrf_token }}}}',
+        csrfToken:       CSRF,
         afterCreate:     function () {{ location.reload(); }},
     }});
 
@@ -200,12 +283,12 @@ document.addEventListener('DOMContentLoaded', function () {{
     window._import = WamaImport({{
         uploadUrl:      "{{% url '{app}:upload' %}}",
         consolidateUrl: "{{% url '{app}:consolidate' %}}",
-        csrfToken:      '{{{{ csrf_token }}}}',
+        csrfToken:      CSRF,
         dropZoneId:     '{app}DropZone',
         fileInputId:    '{app}FileInput',
         batch:          window._batchImport,
     }});
-{url_js}{insp_js}}});
+{url_js}{insp_js}{params_js}}});
 </script>
 {{% endblock %}}
 '''
@@ -214,6 +297,12 @@ document.addEventListener('DOMContentLoaded', function () {{
     # module : le commentaire qui vivait ici annonçait « actions conventionnelles inertes »
     # alors que la card n'en rendait AUCUNE. Un trou décrit comme comblé est un trou qu'on
     # cesse de chercher.
+    # Valeurs courantes des `params_fields` PORTÉES par la card (`data-param-<champ>`) : la
+    # modale les lit sans route de lecture supplémentaire. C'est le même choix que
+    # `data-status` pour `autoSync` — la card est auto-suffisante (formalisme CARD_DESIGN).
+    attrs_params = ''.join(f''' data-param-{c}="{{{{ item.{c}|default:'' }}}}"'''
+                           for c in champs_params)
+
     card = f'''{{% comment %}}{mark} — _generic_card.html GÉNÉRÉ (templates_gen v1).
 TROU DE GLU RESTANT : les sections × chips et les previews de la card RÉELLE ne sont pas
 générées (elles dépendent de `card_chips`, décoration propre à la vue d'app). L'écart
@@ -222,7 +311,7 @@ Les ACTIONS, elles, ne sont plus un trou : ce sont des CONTRATS COMMUNS à écou
 (`queue-actions.js` : `.settings-btn[data-id]`, `.duplicate-btn[data-duplicate-url]`,
 `.delete-btn[data-delete-url]`) plus le partial `_cycle_button.html`. Rien ici n'est propre
 à l'app sauf les URL, et elles sont conventionnelles (ROUTE_TABLE).{{% endcomment %}}
-<div class="card bg-dark border-secondary mb-2 wama-card" data-id="{{{{ item.id }}}}" data-status="{{{{ item.status }}}}">
+<div class="card bg-dark border-secondary mb-2 wama-card" data-id="{{{{ item.id }}}}" data-status="{{{{ item.status }}}}"{attrs_params}>
   <div class="card-body py-2">
     <div class="d-flex align-items-center gap-2">
       <strong class="text-light">#{{{{ item.id }}}}</strong>
@@ -238,12 +327,11 @@ Les ACTIONS, elles, ne sont plus un trou : ce sont des CONTRATS COMMUNS à écou
     {{% comment %}}Ordre CONVENTIONNEL imposé (CLAUDE.md) : ⚙ · ▶ cycle · ⬇ · ⧉ · 🗑.
     `.btn-group-actions` est aussi la source que l'inspecteur CLONE (`cloneActions`) — la
     classe n'est donc pas décorative : sans elle le volet droit reste vide.
-    ⚠ Le ⚙ reste le SEUL bouton inerte, et son trou n'est pas ici : il attend un ouvreur
-    (`WamaQueueActions.onSettings`), qu'on ne peut pas déclarer tant que `views_gen` rend
-    l'endpoint d'édition en 501 (« politique d'app non conventionnelle », marche B). La
-    brique commune ne l'avale pas en silence — elle avertit en console. Ne pas retirer le
-    bouton pour autant : l'ordre conventionnel est un critère de grille, et son absence
-    ferait disparaître le trou au lieu de le montrer.{{% endcomment %}}
+    Le ⚙ a cessé d'être inerte le 2026-08-29 : son ouvreur est déclaré dans l'index (bloc
+    `params_js`) et l'édition d'un élément n'est plus un 501 (`views_gen`). ⚠ Il fallait les
+    DEUX — un bouton mort se referme des deux côtés ou pas du tout ; câbler le seul ouvreur
+    aurait donné un enregistrement qui échoue, et ouvrir la seule vue n'aurait rien changé
+    à l'écran. Les valeurs courantes voyagent en `data-param-*` sur la card.{{% endcomment %}}
     <div class="btn-group-actions d-flex gap-1 mt-2">
       <button type="button" class="btn btn-sm btn-outline-secondary settings-btn" data-id="{{{{ item.id }}}}" title="Paramètres"><i class="fas fa-cog"></i></button>
       {{% include 'common/_cycle_button.html' with id=item.id status=item.status %}}

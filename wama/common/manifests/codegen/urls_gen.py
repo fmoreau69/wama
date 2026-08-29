@@ -58,8 +58,35 @@ ROUTE_TABLE = {
     'batch_download':    ('batch/<int:pk>/download/',      'views.batch_download'),
 }
 
+# Variantes de NOM d'une route conventionnelle — MESURÉES sur les 9 manifestes le 2026-08-29 :
+# nom canonique → autres orthographes rencontrées (route ou fonction de vue). Le CORPS est le
+# même ; seul le nom change. Cette table n'harmonise RIEN (harmoniser reste un chantier de
+# PORTAGE, cf. docstring) : elle permet aux gabarits de RECONNAÎTRE une route déjà couverte,
+# déclarée sous un autre nom, au lieu de la boucher (501 côté views) ou de la supposer
+# (POST 404 muet côté template). Elle vit ici parce que ce module est le propriétaire du
+# vocabulaire de routes — la dupliquer dans chaque gabarit est précisément le chemin parallèle
+# qu'on veut éviter.
+ROUTE_ALIASES = {
+    'stop':   ('cancel',),        # converter : `<pk>/cancel/` → views.cancel
+    'update': ('update_job',),    # converter : route `update` → views.update_job
+}
+
 # Classes de vues COMMUNES admises dans les expressions (import connu du gabarit).
 _COMMON_VIEWS = ('AppAboutView', 'AppHelpView')
+
+
+def route_variants(canonique: str) -> tuple:
+    """Toutes les orthographes admises d'une route conventionnelle (canonique en tête)."""
+    return (canonique,) + tuple(ROUTE_ALIASES.get(canonique, ()))
+
+
+def resolve_route(canonique: str, declarees) -> str:
+    """Orthographe RÉELLEMENT déclarée par l'app pour cette route conventionnelle, '' si aucune.
+    `declarees` = noms de routes du manifeste (endpoints ∪ extra_routes)."""
+    for nom in route_variants(canonique):
+        if nom in declarees:
+            return nom
+    return ''
 
 
 def urls_file_path(app_id: str) -> Path:

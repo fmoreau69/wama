@@ -643,6 +643,31 @@ outillé avant d'ouvrir cette marche.
   La cible « Translator DE ZÉRO » (ci-dessus) devient le cas « create sans generated_from » du
   même outil : le bac à sable est l'étape commune aux deux chemins (régénérer ≈ créer).
 
+  **S2bis (2026-08-29) — trois manques de GABARIT, révélés par la lecture visuelle prévue au
+  jalon ci-dessus.** Constat Fabien : « les cards du bac à sable ne sont pas cliquables,
+  n'affichent rien, pas d'action — alors que le converter d'origine fonctionne ». Aucun des
+  trois n'était un trou de glu, et c'est LA leçon : *une facette DÉCLARÉE au manifeste et non
+  projetée est un manque de gabarit ; la marquer « TROU DE GLU » la rend invisible en la
+  déclarant normale.* Même famille que `accepts_url` (19/08), déjà traitée au cas par cas.
+  1. **Facette `inspector` non lue** (`detail_registered`, `preview_registered`, `detail_spec`)
+     → `templates_gen` rend `WamaInspector.initFromSchema` + `WamaCycleButton.wire/autoSync`.
+     La brique de cycle n'était PAS en cause : elle DÉLÈGUE l'appel HTTP à l'app par
+     construction (chaque app a ses routes) — ce qui manquait était l'appelant.
+  2. **Noms de routes SUPPOSÉS au lieu d'être lus** — 8 apps nomment l'arrêt `stop`, le
+     converter `cancel` (mesuré sur les 9 manifestes) : `views_gen` ne connaissait que `stop`,
+     donc la seule app qu'il sait générer entièrement recevait un 501 sur son ⏹. Idem pour
+     l'édition d'item (`update` → `views.update_job`), déjà écrite un cran plus bas en
+     `batch_update` sur les MÊMES `params_fields`. Table `urls_gen.ROUTE_ALIASES` +
+     `resolve_route()` : le vocabulaire de routes a UN propriétaire, les deux gabarits le
+     lisent. Le corps rendu reste la CONVENTION mesurée (`stop_instance` → FAILURE, idiome de
+     describer/avatarizer/composer) ; anonymizer et converter remettent en PENDING —
+     réconcilier ces politiques est un chantier de PORTAGE, pas l'affaire du gabarit.
+  3. **Chemins écrits à la main en JS** (`"/converter/" + id + "/start/"`) : la substitution du
+     bac à sable renomme les littéraux `{% url %}` mais PAS une chaîne construite — la jumelle
+     POSTait donc sur l'app SOURCE. *Une jumelle qui agit sur son original ne mesure plus rien.*
+     Corrigé en `{% url 'app:route' 0 %}` + `urlFor`. (Le 3ᵉ défaut de la même passe était une
+     ARITÉ devinée : `csrfFetch(url, csrfToken, opts)` appelé à deux arguments → GET → 405.)
+
 **Cadrage A0 — la convention RÉELLE, mesurée (2026-08-11, balayage 6 cibles × 10 apps) :**
 - **urls.py** : AUCUNE app ne colle à `STANDARD_ENDPOINTS` — cette liste était une CIBLE que le
   manifeste affirmait comme réalité pour les 10 apps (mensonge d'extraction, corrigé en A1).

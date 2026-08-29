@@ -16,11 +16,23 @@ module urls casse la jumelle entière. Deux régimes :
     toutes les extra_routes). La page BOOTE, la fonctionnalité manque VISIBLEMENT —
     c'est le détecteur (Playwright/diff), pas un échec silencieux.
 
+⚠ Ce qui a QUITTÉ la liste des stubs le 2026-08-29 — et pourquoi ce n'étaient pas des
+trous de glu : `cancel` et `update`/`update_job`. Le premier est le corps `stop` sous un
+autre NOM (8 manifestes disent `stop`, le converter dit `cancel` — et le converter est
+justement la seule app que ce gabarit sait générer entièrement) ; le second est
+`batch_update` un cran plus bas, sur les MÊMES `params_fields`. Dans les deux cas le
+gabarit savait déjà faire, et bouchait quand même.
+*Un gabarit qui suppose un nom au lieu de le LIRE au manifeste rend une app qui boote et
+ne marche pas* — et 501 sur ces deux-là, c'était le ⏹ qui POSTait dans le vide et le ⚙
+sans URL d'enregistrement, donc trois boutons de card morts pour deux corps déjà écrits.
+
 Formes de file : v1 ne rend l'index/fabrique QUE pour la forme FK-DIRECTE (item.batch,
 batch_row_index — converter). La forme à modèle de liaison (transcriber…) est un trou
 déclaré de ce gabarit (raison explicite, jamais de fichier partiel faux).
 """
 from __future__ import annotations
+
+from wama.common.manifests.codegen.urls_gen import route_variants
 
 
 def _donnees(manifest: dict) -> dict:
@@ -283,14 +295,33 @@ def start(request, pk):
     item.save(update_fields=['task_id'])
     return JsonResponse({{'id': item.id, 'status': item.status}})'''
 
-    vues['stop'] = f'''@require_POST
-def stop(request, pk):
+    # ARRÊT — le CORPS est conventionnel, le NOM ne l'est pas : 8 apps déclarent `stop`,
+    # le converter déclare `cancel` (mesuré sur les 9 manifestes le 2026-08-29). Le gabarit
+    # ne connaissait que `stop` : la seule app qu'il sait générer entièrement recevait donc
+    # un 501 sur son ⏹, et le bouton de cycle — brique commune, bien câblée — POSTait dans le
+    # vide. ⚠ Même famille que le `pk` de `batch_preview` : un gabarit qui suppose le nom au
+    # lieu de le LIRE au manifeste rend une app qui boote et ne marche pas.
+    # Les orthographes admises viennent de `urls_gen.ROUTE_ALIASES` (propriétaire du
+    # vocabulaire de routes) — les réécrire ici en ferait une seconde source de vérité.
+    #
+    # Le corps ci-dessous est l'idiome MESURÉ (describer, avatarizer, composer : garde
+    # `not in ('RUNNING','PENDING')` puis `stop_instance` → FAILURE, card rouge + ↻).
+    # DEUX apps s'en écartent — anonymizer et converter remettent en PENDING (et le converter
+    # supprime en plus la ligne d'un quick-convert éphémère). Le gabarit rend la CONVENTION
+    # sous le nom déclaré ; réconcilier ces deux politiques est un chantier de PORTAGE, pas
+    # l'affaire du gabarit (même doctrine que `ROUTE_TABLE`). L'écart reste mesurable au diff.
+    def corps_stop(nom):
+        return f'''@require_POST
+def {nom}(request, pk):
     user = _user(request)
     item = get_object_or_404({item}, pk=pk, user=user)
     if item.status not in ('RUNNING', 'PENDING'):
         return JsonResponse({{'id': item.id, 'status': item.status}})
     new_status = stop_instance(item, error_field='error_message')
     return JsonResponse({{'id': item.id, 'status': new_status}})'''
+
+    for _nom in route_variants('stop'):
+        vues[_nom] = corps_stop(_nom)
 
     corps_status = f'''    data = {{'id': item.id, 'status': item.status, 'progress': item.progress,
             'error_message': item.error_message}}
@@ -398,18 +429,48 @@ def batch_start(request, pk):
         started.append(item.id)
     return JsonResponse({{'started': started}})'''
 
-    maj = '\n'.join(f'''        if '{c}' in donnees:
-            setattr(item, '{c}', donnees['{c}'])
-            touches.append('{c}')''' for c in d['params_fields'])
+    def maj_champs(ind):
+        """Affectation des `params_fields` DÉCLARÉS, à l'indentation demandée."""
+        p = ' ' * ind
+        return '\n'.join(f'''{p}if '{c}' in donnees:
+{p}    setattr(item, '{c}', donnees['{c}'])
+{p}    touches.append('{c}')''' for c in d['params_fields'])
+
+    lect_donnees = '''    try:
+        donnees = json.loads(request.body) if request.body else dict(request.POST)
+    except Exception:
+        donnees = dict(request.POST)
+    donnees = {k: (v[0] if isinstance(v, list) else v) for k, v in donnees.items()}'''
+
+    # ÉDITION D'UN ÉLÉMENT — l'idiome existait déjà, un cran plus haut (`batch_update`) : mêmes
+    # `params_fields`, même lecture de corps, même garde RUNNING. Seul le niveau changeait, et
+    # l'élément était bouché en 501. C'est ce 501 qui rendait le ⚙ des cards inerte : la brique
+    # commune (`WamaQueueActions.onSettings` + `WamaParams.settingsModal`) n'avait pas d'URL
+    # d'enregistrement à viser. *Un gabarit qui sait faire N n'a aucune raison de boucher 1.*
+    # Deux noms pour une seule vue : le converter route `update/` vers `views.update_job`.
+    def corps_update(nom):
+        return f'''@require_POST
+def {nom}(request, pk):
+    user = _user(request)
+    item = get_object_or_404({item}, pk=pk, user=user)
+    if item.status == 'RUNNING':
+        return JsonResponse({{'error': 'Impossible de modifier un élément en cours'}}, status=400)
+{lect_donnees}
+    touches = []
+{maj_champs(4)}
+    if touches:
+        item.save(update_fields=touches)
+    return JsonResponse({{'success': True, 'id': item.id, 'updated': touches}})'''
+
+    for _nom in route_variants('update'):
+        vues[_nom] = corps_update(_nom)
+
+    maj = maj_champs(8)
     vues['batch_update'] = f'''@require_POST
 def batch_update(request, pk):
     user = _user(request)
     b = get_object_or_404({batch}, pk=pk, user=user)
-    try:
-        donnees = json.loads(request.body) if request.body else dict(request.POST)
-    except Exception:
-        donnees = dict(request.POST)
-    donnees = {{k: (v[0] if isinstance(v, list) else v) for k, v in donnees.items()}}
+{lect_donnees}
     updated = 0
     for item in {item}.objects.filter({fk}=b, user=user).exclude(status='RUNNING'):
         touches = []
@@ -504,8 +565,10 @@ consolidate       = _qm['consolidate']'''
         if ep in vues:
             blocs.append(vues[ep])
         else:
-            blocs.append(stub(ep, pk=ep in stubs_pk or ep.rstrip('_') in
-                              ('cancel', 'dismiss', 'update')))
+            # `cancel`/`update` ont quitté cette liste d'arité le 2026-08-29 : ils ne sont plus
+            # jamais bouchés (corps conventionnel émis sous le nom déclaré). Y laisser leur nom
+            # aurait fait croire au lecteur suivant qu'ils sont encore des trous.
+            blocs.append(stub(ep, pk=ep in stubs_pk or ep.rstrip('_') == 'dismiss'))
     # ⚠ Cette boucle consulte `vues` AVANT de boucher (2026-08-22). Elle ne le faisait pas : une
     # route déclarée en `extra_routes` plutôt qu'en `endpoints` recevait un STUB 501 alors que
     # la fabrique savait la rendre. C'est ce qui gardait `batch_create` bouché — le corps était
