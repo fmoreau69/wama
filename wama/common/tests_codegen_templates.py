@@ -108,7 +108,7 @@ class BarreDeFileGenereeTest(SimpleTestCase):
         # meurent (support ≠ adoption).
         js = _lire(_JS + 'queue-actions.js')
         for attr in ('data-queue-start-url', 'data-queue-clear-url'):
-            self.assertIn(f"actionDeFile('{attr}'", js,
+            self.assertIn(f"queueAction('{attr}'", js,
                           f'{attr} émis par le partial mais pas écouté par la brique')
 
 
@@ -159,7 +159,7 @@ class ParitEDesEtagesDeFileTest(SimpleTestCase):
     """LOT et FILE partagent UN algorithme — l'étage du bas ne peut pas être le plus pauvre.
 
     Écrit après le balayage exhaustif du 2026-08-29 : la première version de l'étage FILE était
-    une COPIE de l'étage LOT amputée de `corps` et de `suite`. Rien ne l'aurait signalé — les
+    une COPIE de l'étage LOT amputée de `body` et de `followUp`. Rien ne l'aurait signalé — les
     deux fonctions marchaient — sauf le jour où le synthesizer (qui PORTE ses réglages dans le
     POST) ou le describer (qui insère et polle au lieu de recharger) aurait dû migrer : ils
     n'auraient pas pu, et auraient gardé leur handler. Une brique au contrat plus pauvre que le
@@ -170,31 +170,31 @@ class ParitEDesEtagesDeFileTest(SimpleTestCase):
         self.js = _lire(_JS + 'queue-actions.js')
 
     def test_les_deux_etages_passent_par_le_meme_algorithme(self):
-        self.assertIn('function actionGroupee(', self.js,
+        self.assertIn('function groupAction(', self.js,
                       "l'algorithme commun aux deux étages n'existe plus — la copie est revenue")
-        for etage in ('function actionDeLot(', 'function actionDeFile('):
+        for etage in ('function batchAction(', 'function queueAction('):
             i = self.js.index(etage)
             corps = self.js[i:i + 600]
-            self.assertIn('actionGroupee(', corps,
+            self.assertIn('groupAction(', corps,
                           f'{etage} ré-implémente le POST au lieu de déléguer')
 
     def test_le_demarrage_de_FILE_offre_corps_ET_suite_comme_celui_de_LOT(self):
         # Les deux hooks du ▶ de lot, au ▶ de file. Sans eux : 4 apps sur 10 non portables
         # (synthesizer porte des réglages ; describer/transcriber/enhancer pollent).
-        i = self.js.index("actionDeFile('data-queue-start-url'")
+        i = self.js.index("queueAction('data-queue-start-url'")
         corps = self.js[i:i + 700]
-        self.assertIn('corps:', corps, 'le ▶ de file ne sait pas porter de réglages')
-        self.assertIn('suite:', corps, 'le ▶ de file impose le rechargement à toutes les apps')
+        self.assertIn('body:', corps, 'le ▶ de file ne sait pas porter de réglages')
+        self.assertIn('followUp:', corps, 'le ▶ de file impose le rechargement à toutes les apps')
 
     def test_un_corps_FormData_traverse_le_POST_sans_etre_serialise(self):
         # Le point d'extension ne vaut que si ce qu'une app y met ARRIVE. `JSON.stringify` d'un
         # FormData vaut « {} » : le synthesizer (seul à porter un FICHIER, `voice_reference`)
         # serait parti à vide, sans erreur. Et un corps JSON laisse `request.POST` vide côté
         # Django, or sa vue ne lit que `request.POST`.
-        i = self.js.index('function poster(')
+        i = self.js.index('function post(')
         corps = self.js[i:i + 700]
         self.assertIn('instanceof FormData', corps,
-                      'poster() sérialise tout — un corps multipart partirait VIDE et MUET')
+                      'post() sérialise tout — un corps multipart partirait VIDE et MUET')
         # Et le Content-Type ne doit PAS être posé à la main sur du multipart (la frontière
         # est générée par le navigateur ; l'écrire casse le parsing Django).
         avant = corps[:corps.index('instanceof FormData')]

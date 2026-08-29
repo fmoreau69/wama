@@ -771,7 +771,7 @@ outillé avant d'ouvrir cette marche.
      partial `_queue_actions.html` reçoit des **ids** et son contrat dit « handlers JS de l'app » ;
      or un gabarit ne peut pas écrire de handler, il ne peut que passer une URL. La jumelle naissait
      donc avec ses trois boutons inertes. Corrigé par le **3ᵉ étage** de `queue-actions.js`
-     (élément → lot → **FILE**) : `actionDeFile('data-queue-start-url')` / `('data-queue-clear-url')`,
+     (élément → lot → **FILE**) : `queueAction('data-queue-start-url')` / `('data-queue-clear-url')`,
      attributs émis par le partial **seulement si une URL est passée** — les apps qui gardent leur
      handler par id ne bougent pas (sinon : POST en double). Le ⬇ n'a besoin d'aucun JS
      (`download_all` = GET `FileResponse`) : le gabarit passe `download_url` et le partial rend un
@@ -801,7 +801,7 @@ outillé avant d'ouvrir cette marche.
      une duplication que rien ne signale — c'est le cas le plus trompeur, déjà rencontré au niveau
      LOT.* Il n'y avait donc pas de « bouton mort » à ranimer : il y avait 22 copies à résorber.
   12. **Et le balayage a trouvé le vrai défaut de MA brique : l'étage du bas était le plus pauvre.**
-     `actionDeFile` était une copie de `actionDeLot` **amputée de `corps` et de `suite`**. Or le
+     `queueAction` était une copie de `batchAction` **amputée de `body` et de `followUp`**. Or le
      relevé des 10 `start_all` montre que la divergence y est RÉELLE, comme au niveau lot :
      6 rechargent, 3 insèrent + pollent (describer/transcriber/enhancer), et **le synthesizer
      PORTE ses réglages dans le POST** (`wama/synthesizer/views.py:922` lit `tts_model`, `language`,
@@ -809,7 +809,7 @@ outillé avant d'ouvrir cette marche.
      tout »). Sans ces deux hooks, **4 apps sur 10 étaient inportables** et auraient gardé leur
      handler : *une brique dont le contrat est plus pauvre que le code qu'elle remplace ne résorbe
      rien, et ça ne se voit qu'à la migration suivante.* Les deux étages passent désormais par un
-     seul `actionGroupee()` (les deux seules différences — le sélecteur et le `stopPropagation` de
+     seul `groupAction()` (les deux seules différences — le sélecteur et le `stopPropagation` de
      la card mère repliable — sont des paramètres), et le ▶ de file expose `onQueueStarted` /
      `onQueueStartBody`. 3 tests de PARITÉ, rouges 3/3 rejoués sur HEAD.
      ⚠⚠ **Et le hook ne suffisait PAS** (question de Fabien le jour même : *« est-ce que le
@@ -817,7 +817,7 @@ outillé avant d'ouvrir cette marche.
      côtés** : `JSON.stringify(new FormData())` vaut `"{}"`, donc un corps multipart (le seul moyen
      de porter `voice_reference`, un **fichier**) serait parti VIDE sans erreur ; et même avec un
      objet plat, `request.POST` reste vide sur un corps JSON, or la vue ne lit **que** `request.POST`.
-     `poster()` laisse désormais passer un `FormData` tel quel, **sans** `Content-Type` (la frontière
+     `post()` laisse désormais passer un `FormData` tel quel, **sans** `Content-Type` (la frontière
      multipart est posée par le navigateur ; l'écrire à la main casse le parsing Django).
      *Ouvrir un point d'extension ne suffit pas : il faut vérifier que ce qu'une app y mettrait
      PASSE réellement.* Le hook seul rendait le synthesizer portable **sur le papier**.
@@ -828,7 +828,7 @@ outillé avant d'ouvrir cette marche.
      paramètres de l'app**, que `WamaParams` connaît déjà — d'où la piste d'une capacité
      `start_all_applique_les_reglages` lue par la brique, plutôt qu'un fournisseur par app.
      À arbitrer avec l'homonyme `text` et les amendements ⓪①③④ (§S2bis.7).
-     Effet de bord : le commentaire de `poster()` affirmait que l'enhancer audio était « le seul cas
+     Effet de bord : le commentaire de `post()` affirmait que l'enhancer audio était « le seul cas
      mesuré » portant des réglages — il l'était **au niveau LOT**, périmètre du relevé du 27/08.
      *Un relevé vaut pour le périmètre où il a été fait ; l'écrire comme une propriété des apps le
      rend faux au premier étage suivant.*

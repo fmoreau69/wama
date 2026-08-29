@@ -2536,7 +2536,7 @@ def check_app_batch_actions(app: str, url_path: str):
     url = f"{BASE_URL.rstrip('/')}{url_path}"
     LOTS = _LOTS_EN_FILE
     # ⚠ Les URLs sont sur les BOUTONS, pas sur la card mère — c'est ce que lit la brique
-    # (`actionDeLot` fait `closest('.batch-delete-btn[data-batch-delete-url]')`), et c'est là
+    # (`batchAction` fait `closest('.batch-delete-btn[data-batch-delete-url]')`), et c'est là
     # que le partial les pose (`_batch_card.html:141/147`). Les chercher sur la mère faisait
     # conclure « app non portée » sur deux apps qui l'étaient — 3ᵉ défaut d'instrument de ce
     # scénario, tous trouvés avant d'avoir accusé une seule app.

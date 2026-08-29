@@ -782,7 +782,7 @@ MECANISMES = (
               "d'APP_CATALOG : les surfaces transversales et Lab (extra_links) se masquent par la "
               "même clé `gate` que celle dont accessible() décide (§8.8.1)",
               'wama/common/services/subscriptions.py', 'PROFILES_PERMISSIONS.md',
-              annexes=('wama/common/static/common/js/wama-abonnement.js',
+              annexes=('wama/common/static/common/js/wama-subscription.js',
                        'wama/common/tests_subscriptions.py')),
     Mecanisme('scoping', 'Accès scopé aux objets',
               "Deux chemins NOMMÉS pour lire un objet partageable depuis une vue (possédé / visible)",

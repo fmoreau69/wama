@@ -99,7 +99,7 @@
 
 {% block content %}
 {% comment %}`data-abo` : conteneur d'ABONNEMENT (PROFILES_PERMISSIONS §8), brique
-`wama-abonnement.js`. La NATURE (`app`) et l'URL sont les seules choses déclarées ici — la page
+`wama-subscription.js`. La NATURE (`app`) et l'URL sont les seules choses déclarées ici — la page
 n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux mêmes attributs.{% endcomment %}
 <div class="apps-page" data-abo="app" data-abo-url="{% url 'common:api_subscription' %}">
 
@@ -423,7 +423,7 @@ fond/bordure viennent de la règle #inspectorBanner), libellé seul sans « Rég
 {{ block.super }}
 {# wama-inspector.js + wama-inspector-autofill.js : GLOBAUX (base.html) — ne PAS les ré-inclure ici (double inclusion, cf. REMOVAL_LEDGER R7). #}
 {# Abonnement : brique COMMUNE, montage automatique sur `[data-abo]` (PROFILES_PERMISSIONS §8). #}
-<script src="{% static_v 'common/js/wama-abonnement.js' %}"></script>
+<script src="{% static_v 'common/js/wama-subscription.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const dataEl = document.getElementById('apps-data');

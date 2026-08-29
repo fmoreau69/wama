@@ -516,7 +516,7 @@ ensemble, et leur différence est la première chose que la carte montre.
 | Table | `ElementPreference` (`common/models.py`, migration `common/0009`) | `(user, kind, element_id, subscribed)`, unicité sur le triplet. **Seules les exceptions y sont stockées.** |
 | Service | `common/services/subscriptions.py` | `masques` / `est_abonne` / `filtrer` / `definir` / `definir_lot` / `resume`. `KINDS` déclare les natures ; `app` est la seule câblée. |
 | Endpoint | `common:api_subscription` (`/common/api/abonnement/`) | UNE route pour toutes les natures (`kind` dans le corps) — un futur catalogue n'en ajoute pas. |
-| Front | `common/static/common/js/wama-abonnement.js` | Montage AUTOMATIQUE sur `[data-abo]` : une page déclare deux attributs, elle n'écrit pas de JS. |
+| Front | `common/static/common/js/wama-subscription.js` | Montage AUTOMATIQUE sur `[data-abo]` : une page déclare deux attributs, elle n'écrit pas de JS. Les identifiants du module sont ANGLAIS ; les attributs `data-abo-*` restent français à dessein (vocabulaire de DONNÉES, jumeau de `data-f-*` — arbitrage à mener sur les deux briques). |
 | Menu | `accounts/context_processors.py` | `masques ∩ accessible_apps` — la préférence s'applique **après** le droit, et seulement à l'affichage. |
 | Catalogue | `common/apps.html` + `apps_catalog_view` | Montre TOUT : abonnées, masquées, **et sans accès** (badge, pas de bascule). Facette `abonnement` déclarée. Cards d'`APP_CATALOG` **et** surfaces transversales/Lab (`extra_links`, clé `gate` — cf. §8.8.1). |
 

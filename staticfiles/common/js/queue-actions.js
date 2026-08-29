@@ -25,7 +25,7 @@
  *   …onQueueStartBody((btn) => ({…}))                     corps du POST du ▶ de FILE
  *
  * ⚠ Les quatre derniers existent parce que LOT et FILE partagent un seul algorithme
- * (`actionGroupee`) : un étage ne peut pas offrir un contrat plus pauvre que l'autre sans
+ * (`groupAction`) : un étage ne peut pas offrir un contrat plus pauvre que l'autre sans
  * rendre certaines apps INPORTABLES. Voir le bloc « ACTIONS DE FILE » plus bas.
  *
  * POURQUOI ⚙ N'EST PAS UN POST (et pourquoi la brique s'arrête au clic). Dupliquer et supprimer
@@ -74,7 +74,7 @@
         return m ? m[1] : '';
     }
 
-    // `corps` — corps JSON de la requête. Le défaut `{}` couvre la plupart des cas ; DEUX apps
+    // `body` — corps JSON de la requête. Le défaut `{}` couvre la plupart des cas ; DEUX apps
     // mesurées font PORTER des réglages au lancement, et il a fallu deux relevés pour les voir :
     //   • enhancer AUDIO (relevé du 2026-08-27, niveau LOT) — son volet gauche est la surface de
     //     réglage vivante, appliquée à CHAQUE lancement (item comme lot) ;
@@ -97,22 +97,22 @@
     // `multipart/form-data; boundary=…`, et l'écrire à la main casse le parsing côté Django.
     // *Ouvrir un point d'extension ne suffit pas : il faut vérifier que ce qu'une app y ferait
     // PASSE réellement.* Le hook seul aurait rendu le synthesizer « portable » sur le papier.
-    function poster(url, corps) {
-        const entetes = { 'X-CSRFToken': getCsrf() };
-        let charge;
-        if (corps instanceof FormData) {
-            charge = corps;                       // multipart : le navigateur pose la frontière
+    function post(url, body) {
+        const headers = { 'X-CSRFToken': getCsrf() };
+        let payload;
+        if (body instanceof FormData) {
+            payload = body;                        // multipart : le navigateur pose la frontière
         } else {
-            entetes['Content-Type'] = 'application/json';
-            charge = JSON.stringify(corps || {});
+            headers['Content-Type'] = 'application/json';
+            payload = JSON.stringify(body || {});
         }
-        return fetch(url, { method: 'POST', headers: entetes, body: charge });
+        return fetch(url, { method: 'POST', headers: headers, body: payload });
     }
 
     // Un 204 (No Content) est un succès sans corps : `r.json()` y lèverait. Les vues WAMA
     // répondent tantôt en JSON, tantôt en 204 — on accepte les deux plutôt que d'imposer une
     // graphie de réponse aux 10 apps (même raison que le repli `id`/`job_id`/`pk` du trou #24).
-    function lireReponse(r) {
+    function readResponse(r) {
         if (r.status === 204) return Promise.resolve({ success: true });
         return r.json().catch(function () { return { success: r.ok }; });
     }
@@ -127,26 +127,26 @@
     //
     // `within` reste accepté en ÉCHAPPATOIRE pour un cas qui ne serait pas un domaine — mais
     // aucun ne l'utilise, et en introduire un doit être un choix motivé, pas un réflexe.
-    function domaineDe(el) {
-        const hote = el && el.closest('[data-domain]');
-        return hote ? hote.dataset.domain : null;
+    function domainOf(el) {
+        const host = el && el.closest('[data-domain]');
+        return host ? host.dataset.domain : null;
     }
 
-    function correspond(btn, o) {
-        if (o.domain && domaineDe(btn) !== o.domain) return false;
+    function matches(btn, o) {
+        if (o.domain && domainOf(btn) !== o.domain) return false;
         if (o.within && !btn.closest(o.within)) return false;
         return true;
     }
 
     // Le plus SPÉCIFIQUE d'abord (domaine ou within), le défaut en dernier : sans cet ordre, une
     // déclaration sans scope masquerait une déclaration scopée écrite après elle.
-    function choisir(liste, btn) {
-        const scopes = liste.filter(function (o) { return o.domain || o.within; });
+    function pick(list, btn) {
+        const scopes = list.filter(function (o) { return o.domain || o.within; });
         for (let i = 0; i < scopes.length; i++) {
-            if (correspond(btn, scopes[i])) return scopes[i].handler;
+            if (matches(btn, scopes[i])) return scopes[i].handler;
         }
-        const defauts = liste.filter(function (o) { return !o.domain && !o.within; });
-        return defauts.length ? defauts[0].handler : null;
+        const defaults = list.filter(function (o) { return !o.domain && !o.within; });
+        return defaults.length ? defaults[0].handler : null;
     }
 
     // ── ⧉ DUPLIQUER ────────────────────────────────────────────────────────────────────
@@ -161,8 +161,8 @@
         const icon = btn.querySelector('i');
         if (icon) { icon.className = 'fas fa-spinner fa-spin'; }
 
-        poster(url)
-        .then(lireReponse)
+        post(url)
+        .then(readResponse)
         .then(function (data) {
             if (data.duplicated || data.success) {
                 // Focus la card dupliquée après rechargement (WamaQueue.focusFromSession) —
@@ -212,35 +212,35 @@
     // 2026-08-23). Ce résidu n'est donc pas une divergence légitime : c'est **la trace d'un
     // mécanisme commun non encore adopté**, et il disparaîtra à mesure de son adoption. Le noter
     // ainsi, plutôt que « spécificité de l'app », est ce qui garde le chantier visible.
-    const suites = [];
+    const followUps = [];
 
     function onDeleted(handler, options) {
         if (typeof handler !== 'function') return;
         const o = options || {};
-        suites.push({ handler: handler, domain: o.domain || null, within: o.within || null });
+        followUps.push({ handler: handler, domain: o.domain || null, within: o.within || null });
     }
 
     // Spécifique d'abord, défaut ensuite — cf. le choix d'ouvreur côté ⚙, même règle. Le registre
     // (et non un slot unique) est indispensable : l'enhancer déclare DEUX suites, dans deux
     // fichiers JS séparés — un slot aurait laissé la seconde écraser la première en silence.
-    function choisirSuite(btn) { return choisir(suites, btn); }
+    function pickFollowUp(btn) { return pick(followUps, btn); }
 
-    function signalerAuGestionnaire() {
+    function notifyFileManager() {
         if (window.WamaFM && WamaFM.deleted) WamaFM.deleted();   // l'arborescence se rafraîchit
     }
 
     // Séquence STANDARD — le DOM commun suffit à la conduire : `.wama-card[data-id]` est porté
     // par les 11 cards du dépôt (vérifié le 2026-08-23), `.batch-group` par tous les lots.
     // Retourne true si la page se recharge (l'appelant n'a alors plus rien à faire).
-    function suiteStandard(id, btn) {
+    function standardFollowUp(id, btn) {
         const card = document.querySelector('.wama-card[data-id="' + id + '"]')
                   || (btn && btn.closest('.wama-card'));
-        const groupe = card && card.closest('.batch-group');
+        const group = card && card.closest('.batch-group');
         if (card) card.remove();
         // Un lot vidé de ses enfants n'a plus d'objet : le laisser afficherait un groupe fantôme.
-        if (groupe && !groupe.querySelector('.wama-card[data-id]')) groupe.remove();
+        if (group && !group.querySelector('.wama-card[data-id]')) group.remove();
         if (window.WamaEta && WamaEta.reset) WamaEta.reset(id);
-        signalerAuGestionnaire();
+        notifyFileManager();
     }
 
     document.addEventListener('click', function (e) {
@@ -254,19 +254,19 @@
         // différents et parfois aucune. `data-confirm` permet un message propre à l'app
         // (« supprimer aussi le fichier source ? ») ; `data-confirm="false"` la supprime
         // quand la suppression est déjà gardée en amont.
-        const demande = btn.dataset.confirm;
-        if (demande !== 'false'
-            && !window.confirm(demande || 'Supprimer cet élément ? Cette action est définitive.')) {
+        const confirmAttr = btn.dataset.confirm;
+        if (confirmAttr !== 'false'
+            && !window.confirm(confirmAttr || 'Supprimer cet élément ? Cette action est définitive.')) {
             return;
         }
 
         btn.disabled = true;
         const icon = btn.querySelector('i');
-        const iconeInitiale = icon ? icon.className : '';
+        const initialIcon = icon ? icon.className : '';
         if (icon) { icon.className = 'fas fa-spinner fa-spin'; }
 
-        poster(url)
-        .then(lireReponse)
+        post(url)
+        .then(readResponse)
         .then(function (data) {
             if (data.deleted || data.success || data.status === 'deleted') {
                 const id = btn.dataset.id;
@@ -274,22 +274,22 @@
                 // côté serveur (un lot réduit à 1 redevient une card simple) — seul un
                 // rechargement rend cet état correctement. Les 9 apps faisaient déjà exactement
                 // ce test, à l'identique.
-                if (data.batch_changed) { signalerAuGestionnaire(); location.reload(); return; }
-                suiteStandard(id, btn);
+                if (data.batch_changed) { notifyFileManager(); location.reload(); return; }
+                standardFollowUp(id, btn);
                 // Résidu déclaré par l'app (arrêt du polling, compteur d'en-tête) — voir plus haut
                 // pourquoi ce n'est pas une spécificité mais un mécanisme commun non encore adopté.
-                const suite = choisirSuite(btn);
-                if (suite) suite(id, data, btn);
+                const followUp = pickFollowUp(btn);
+                if (followUp) followUp(id, data, btn);
             } else {
                 alert(data.error || 'Suppression impossible');
                 btn.disabled = false;
-                if (icon) { icon.className = iconeInitiale; }
+                if (icon) { icon.className = initialIcon; }
             }
         })
         .catch(function () {
             alert('Erreur réseau lors de la suppression');
             btn.disabled = false;
-            if (icon) { icon.className = iconeInitiale; }
+            if (icon) { icon.className = initialIcon; }
         });
     });
 
@@ -304,12 +304,12 @@
     // déclarer deux sans que la brique connaisse une seule app. Le premier ouvreur dont le
     // `within` correspond gagne ; un ouvreur sans `within` sert de défaut, et il est évalué en
     // DERNIER pour ne jamais masquer un ouvreur plus spécifique déclaré après lui.
-    const ouvreurs = [];
+    const openers = [];
 
     function onSettings(handler, options) {
         if (typeof handler !== 'function') return;
         const o = options || {};
-        ouvreurs.push({ handler: handler, domain: o.domain || null, within: o.within || null });
+        openers.push({ handler: handler, domain: o.domain || null, within: o.within || null });
     }
 
     document.addEventListener('click', function (e) {
@@ -324,8 +324,8 @@
         const id = btn.dataset.id;
         if (!id) return;
 
-        const ouvreur = choisir(ouvreurs, btn);
-        if (ouvreur) { ouvreur(id, btn); return; }
+        const opener = pick(openers, btn);
+        if (opener) { opener(id, btn); return; }
 
         // Aucun ouvreur : le bouton est rendu mais rien ne l'écoute — c'est l'« écran mort »
         // que la grille d'adoption ne voit pas (WAMA_VERIFICATION §1). On le DIT, plutôt que
@@ -360,55 +360,55 @@
     // LOT et FILE font la même chose : confirmer (peut-être), POSTer (avec un corps peut-être),
     // puis rendre la main à une suite déclarée ou recharger. Les DEUX seules différences sont le
     // sélecteur et l'arrêt de propagation. Elles ont pourtant vécu quelques heures en deux copies
-    // — et la copie du bas était la PAUVRE : elle avait perdu `corps` et `suite` en chemin, donc
+    // — et la copie du bas était la PAUVRE : elle avait perdu `body` et `followUp` en chemin, donc
     // une app qui porte des réglages au lancement (synthesizer) ou qui insère+polle au lieu de
     // recharger (describer) n'aurait PAS PU migrer, et aurait gardé son handler. Une brique dont
     // le contrat est plus pauvre que le code qu'elle remplace ne remplace rien.
-    function actionGroupee(selecteur, attribut, options) {
+    function groupAction(selector, attribute, options) {
         options = options || {};
         document.addEventListener('click', function (e) {
-            const btn = e.target.closest(selecteur + '[' + attribut + ']');
+            const btn = e.target.closest(selector + '[' + attribute + ']');
             if (!btn) return;
-            const url = btn.getAttribute(attribut);
+            const url = btn.getAttribute(attribute);
             if (!url) return;
             // LOT seulement : la card mère est un toggle de repli — sans ça, agir sur un lot le
             // replie aussi. La barre de FILE n'est dans aucun toggle : ne pas l'y appliquer.
-            if (options.arreterPropagation) e.stopPropagation();
+            if (options.stopPropagation) e.stopPropagation();
 
             // Confirmation : celle de l'ACTION (défaut de la brique) OU celle que le bouton
             // DÉCLARE (`data-confirm`). Le second cas existe pour une action qui ne confirme
             // pas par défaut mais qu'une app veut protéger — le synthesizer confirmait sa
             // duplication de lot, seul des 8 ; porter sans cela aurait RETIRÉ une garde à
             // l'utilisateur au nom de l'uniformité. `data-confirm="false"` neutralise.
-            const demande = btn.dataset.confirm;
-            const texte = (demande && demande !== 'false') ? demande : options.confirmer;
-            if (texte && demande !== 'false' && !window.confirm(texte)) return;
+            const confirmAttr = btn.dataset.confirm;
+            const text = (confirmAttr && confirmAttr !== 'false') ? confirmAttr : options.confirmText;
+            if (text && confirmAttr !== 'false' && !window.confirm(text)) return;
 
             btn.disabled = true;
             const icon = btn.querySelector('i');
-            const iconeInitiale = icon ? icon.className : '';
+            const initialIcon = icon ? icon.className : '';
             if (icon) { icon.className = 'fas fa-spinner fa-spin'; }
 
-            poster(url, options.corps ? options.corps(btn) : null)
-            .then(lireReponse)
+            post(url, options.body ? options.body(btn) : null)
+            .then(readResponse)
             .then(function (data) {
                 if (data.error) {
                     alert(data.error);
                     btn.disabled = false;
-                    if (icon) { icon.className = iconeInitiale; }
+                    if (icon) { icon.className = initialIcon; }
                     return;
                 }
                 // Suite DÉCLARÉE (▶ seulement) : si l'app la fournit, elle remplace le
                 // rechargement — voir pourquoi juste au-dessus de `onBatchStarted`.
-                if (options.suite) {
+                if (options.followUp) {
                     btn.disabled = false;
-                    if (icon) { icon.className = iconeInitiale; }
-                    if (options.suite(data, btn.dataset.batchId, btn)) return;
+                    if (icon) { icon.className = initialIcon; }
+                    if (options.followUp(data, btn.dataset.batchId, btn)) return;
                 }
                 // Des fichiers ont disparu : l'arborescence du gestionnaire doit le savoir.
                 // Repris de transcriber/describer/enhancer, qui l'appelaient chacun — un
                 // rechargement ne le remplace pas (le filemanager vit dans une autre surface).
-                if (options.signalerFichiers) signalerAuGestionnaire();
+                if (options.notifyFiles) notifyFileManager();
                 // Un lot touche N cards, leurs compteurs, sa propre card mère et parfois son
                 // existence même (lot vidé) : le recharger est ce que faisaient DÉJÀ les 8 apps,
                 // et c'est le seul rendu correct sans réécrire l'agrégat côté client. Les rares
@@ -420,20 +420,20 @@
             .catch(function () {
                 alert('Erreur réseau');
                 btn.disabled = false;
-                if (icon) { icon.className = iconeInitiale; }
+                if (icon) { icon.className = initialIcon; }
             });
         });
     }
 
-    function actionDeLot(classe, attribut, options) {
-        const o = Object.assign({ arreterPropagation: true }, options || {});
-        actionGroupee('.' + classe, attribut, o);
+    function batchAction(cssClass, attribute, options) {
+        const o = Object.assign({ stopPropagation: true }, options || {});
+        groupAction('.' + cssClass, attribute, o);
     }
 
-    actionDeLot('batch-delete-btn', 'data-batch-delete-url',
-                { confirmer: 'Supprimer ce lot et tous ses éléments ? Cette action est définitive.',
-                  signalerFichiers: true });
-    actionDeLot('batch-duplicate-btn', 'data-batch-duplicate-url', {});
+    batchAction('batch-delete-btn', 'data-batch-delete-url',
+                { confirmText: 'Supprimer ce lot et tous ses éléments ? Cette action est définitive.',
+                  notifyFiles: true });
+    batchAction('batch-duplicate-btn', 'data-batch-duplicate-url', {});
 
     // ▶ LOT — la seule des trois qui ne soit PAS uniforme, et c'est MESURÉ (2026-08-23) :
     //   rechargent      : avatarizer, converter, transcriber
@@ -448,44 +448,44 @@
     // La règle qui en sort : mesurer d'abord, et n'ouvrir un hook que quand la mesure le montre.
     // ⚠ 2026-08-27 — la suite était une variable UNIQUE : la deuxième app à la déclarer écrasait
     // la première, et une app à DEUX files (l'enhancer : média + audio) ne pouvait pas en avoir
-    // deux. Même liste scopée que `onBatchSettings`, donc même `choisir` — le domaine décide.
-    const suitesLot = [];
+    // deux. Même liste scopée que `onBatchSettings`, donc même `pick` — le domaine décide.
+    const batchFollowUps = [];
 
     function onBatchStarted(handler, options) {
         if (typeof handler !== 'function') return;
         const o = options || {};
-        suitesLot.push({ handler: handler, domain: o.domain || null, within: o.within || null });
+        batchFollowUps.push({ handler: handler, domain: o.domain || null, within: o.within || null });
     }
 
-    // Corps déclaré du ▶ de lot — voir le commentaire de `poster`. Scopé comme le reste.
-    const corpsLot = [];
+    // Corps déclaré du ▶ de lot — voir le commentaire de `post`. Scopé comme le reste.
+    const batchBodies = [];
 
     function onBatchStartBody(handler, options) {
         if (typeof handler !== 'function') return;
         const o = options || {};
-        corpsLot.push({ handler: handler, domain: o.domain || null, within: o.within || null });
+        batchBodies.push({ handler: handler, domain: o.domain || null, within: o.within || null });
     }
 
-    actionDeLot('batch-start-btn', 'data-batch-start-url', {
-        corps: function (btn) {
-            const fabrique = choisir(corpsLot, btn);
-            return fabrique ? fabrique(btn) : null;
+    batchAction('batch-start-btn', 'data-batch-start-url', {
+        body: function (btn) {
+            const factory = pick(batchBodies, btn);
+            return factory ? factory(btn) : null;
         },
-        suite: function (data, id, btn) {
-            const suite = choisir(suitesLot, btn);
-            if (suite) { suite(data, id, btn); return true; }
+        followUp: function (data, id, btn) {
+            const followUp = pick(batchFollowUps, btn);
+            if (followUp) { followUp(data, id, btn); return true; }
             return false;   // pas de suite déclarée → rechargement (défaut sûr)
         },
     });
 
     // ⚙ du lot : comme pour l'élément, la brique tient le clic et l'app déclare son ouvreur —
     // la modale de lot reste propre à l'app (schéma, contexte 'batch').
-    const ouvreursLot = [];
+    const batchOpeners = [];
 
     function onBatchSettings(handler, options) {
         if (typeof handler !== 'function') return;
         const o = options || {};
-        ouvreursLot.push({ handler: handler, domain: o.domain || null, within: o.within || null });
+        batchOpeners.push({ handler: handler, domain: o.domain || null, within: o.within || null });
     }
 
     document.addEventListener('click', function (e) {
@@ -493,8 +493,8 @@
         if (!btn) return;
         e.stopPropagation();
         const id = btn.dataset.batchId;
-        const ouvreur = choisir(ouvreursLot, btn);
-        if (ouvreur) { ouvreur(id, btn); return; }
+        const opener = pick(batchOpeners, btn);
+        if (opener) { opener(id, btn); return; }
         console.warn('[queue-actions] ⚙ de lot cliqué (#' + id + ') mais aucun ouvreur déclaré — '
                      + 'appeler WamaQueueActions.onBatchSettings(fn).');
     });
@@ -528,46 +528,46 @@
     // L'app DÉCLARE l'URL (`start_url` / `clear_url` au partial) et n'écrit rien. Celle qui
     // garde son handler ne passe pas d'URL : pas d'attribut, la brique ignore le bouton, donc
     // aucun double POST — même contrat de non-collision que `data-batch-<action>-url`.
-    function actionDeFile(attribut, options) {
-        actionGroupee('', attribut, options || {});
+    function queueAction(attribute, options) {
+        groupAction('', attribute, options || {});
     }
 
     // Suite et corps déclarés du ▶ de FILE — mêmes hooks qu'au LOT, pour la même raison MESURÉE
     // (relevé du 2026-08-29, `start_all` des 10 apps) : la divergence est réelle, pas stylistique.
     //   rechargent        : converter, anonymizer, composer, avatarizer, reader, imager
     //   toast + polling   : describer (`data.count` puis `startPolling`), transcriber, enhancer
-    //   PORTENT DES RÉGLAGES : synthesizer (FormData lu par la vue — voir `poster`)
+    //   PORTENT DES RÉGLAGES : synthesizer (FormData lu par la vue — voir `post`)
     // Ouvrir ces deux hooks n'est donc pas de la symétrie décorative : sans eux, les 4 apps de
     // la 2ᵉ et 3ᵉ ligne ne peuvent pas être portées, et l'étage ne sert qu'aux jumelles générées.
-    const suitesFile = [];
-    const corpsFile = [];
+    const queueFollowUps = [];
+    const queueBodies = [];
 
     function onQueueStarted(handler, options) {
         if (typeof handler !== 'function') return;
         const o = options || {};
-        suitesFile.push({ handler: handler, domain: o.domain || null, within: o.within || null });
+        queueFollowUps.push({ handler: handler, domain: o.domain || null, within: o.within || null });
     }
 
     function onQueueStartBody(handler, options) {
         if (typeof handler !== 'function') return;
         const o = options || {};
-        corpsFile.push({ handler: handler, domain: o.domain || null, within: o.within || null });
+        queueBodies.push({ handler: handler, domain: o.domain || null, within: o.within || null });
     }
 
-    actionDeFile('data-queue-start-url', {
-        corps: function (btn) {
-            const fabrique = choisir(corpsFile, btn);
-            return fabrique ? fabrique(btn) : null;
+    queueAction('data-queue-start-url', {
+        body: function (btn) {
+            const factory = pick(queueBodies, btn);
+            return factory ? factory(btn) : null;
         },
-        suite: function (data, id, btn) {
-            const suite = choisir(suitesFile, btn);
-            if (suite) { suite(data, btn); return true; }
+        followUp: function (data, id, btn) {
+            const followUp = pick(queueFollowUps, btn);
+            if (followUp) { followUp(data, btn); return true; }
             return false;   // pas de suite déclarée → rechargement (défaut sûr)
         },
     });
-    actionDeFile('data-queue-clear-url',
-                 { confirmer: 'Effacer TOUS les éléments de la file ? Cette action est définitive.',
-                   signalerFichiers: true });
+    queueAction('data-queue-clear-url',
+                 { confirmText: 'Effacer TOUS les éléments de la file ? Cette action est définitive.',
+                   notifyFiles: true });
 
     window.WamaQueueActions = { onSettings: onSettings, onDeleted: onDeleted,
                                 onBatchSettings: onBatchSettings,
