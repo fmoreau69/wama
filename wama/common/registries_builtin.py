@@ -226,7 +226,7 @@ def _count_libraries() -> int:
 
 register(Registry(
     key='librairies', label='Librairies externes', nature=DERIVED,
-    source="Registry `Library` (projeté par les manifestes) + mesure live `importlib.metadata`",
+    source="Registre `Library` (projeté par les manifestes) + mesure live `importlib.metadata`",
     count=_count_libraries,
     url_name='model_manager:library_catalog', manifest_kind='library',
     doc='LICENSING.md',
