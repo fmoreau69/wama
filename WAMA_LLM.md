@@ -550,6 +550,21 @@ via assistant = **arbitrage Fabien** (l'entrée au RAG est un GESTE) ; URL de do
 **Couplage assumé, dans le bon sens** : l'étape 1 consomme les ports TELS QUELS ; le correctif
 de l'homonyme côté codegen l'améliorera sans la casser — composer à plat aurait fait l'inverse.
 
+**Alignement auto-amélioration (question Fabien, 2026-08-29)** — l'intake nourrit la boucle
+`RunOutcome` PAR CONSTRUCTION, parce que « le rôle est un routage » : un fichier routé entre
+dans les files NORMALES des apps, donc ses issues sont déjà captées sans une ligne de plus
+(`task_skeleton` enregistre `produit` avec les `model_keys`, le middleware capte
+telecharge/supprime/relance, le transcriber ses corrections — `run_outcome.py`, domicile
+`ROADMAP §16.7` + `WAMA_MEMORY §7/§7bis`, projection `memory_project`). DEUX trous mesurés :
+① les outils SYNCHRONES du tour (`look_at_image`, `search_web`, `read_web_page`,
+`inspect_user_file`) ne créent pas d'item — leurs issues conversationnelles (réponse acceptée ?
+identification corrigée ?) ne sont captées nulle part ; la capture naturelle est l'étape ④
+(distillat proposé à la clôture → accepté/refusé = LE signal) ; ② le CHOIX de routage de
+l'utilisateur (la réponse à « qu'en fais-je ? ») n'est pas enregistré — un signal `route` via
+`enregistrer()` serait la donnée d'apprentissage de « proposer juste du premier coup ».
+Ni l'un ni l'autre ne se câble sans arbitrage : la doctrine reste métrique d'abord, boucle
+ensuite, autonomie en dernier.
+
 ## Voir aussi
 - `ROADMAP.md §10.B` (traduction runtime) et `§16.6` (pipeline + vision méta).
 - `WAMA_APP_CONVENTIONS.md §2bis.4` (contrat prompt targets), `§9.9` (héritage).
