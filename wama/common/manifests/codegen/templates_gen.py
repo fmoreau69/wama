@@ -8,8 +8,20 @@ boucle de lots sur `_batch_card`. Le gabarit rend CE squelette-là ; les parties
 restent des TROUS DE GLU marqués et VISIBLES (détecteur Playwright) :
   • volet droit réglages (contenu app) — hôte WamaParams minimal seulement ;
   • modales spécifiques, bloc javascript d'app ;
-  • le PARTIAL de card d'item (nom/markup app) → card GÉNÉRIQUE minimale inline
-    (id, nom, statut, barre) — l'écart visuel avec la vraie card EST la mesure.
+  • les SECTIONS × CHIPS et les previews de la card (elles dépendent de `card_chips`,
+    décoration propre à la vue d'app) — l'écart visuel résiduel EST la mesure.
+
+⚠ Ce qui a QUITTÉ cette liste le 2026-08-29, et pourquoi c'est la leçon du fichier :
+les ACTIONS de card et l'INSPECTEUR y étaient rangés comme trous de glu assumés. Ils ne
+l'étaient pas. La barre d'actions est faite de CONTRATS COMMUNS à écouteur délégué
+(`queue-actions.js`) et d'un partial commun (`_cycle_button.html`) ; l'inspecteur
+s'initialise DEPUIS UN SCHÉMA (`WamaInspector.initFromSchema`) et clone les actions de la
+card. Le manifeste déclarait déjà tout le nécessaire (facette `inspector`). C'est la
+DEUXIÈME fois que ce gabarit range en « trou de glu » une facette qu'il lui suffisait de
+lire — la première était `accepts_url` (2026-08-19), et les deux fois le constat est venu
+de Fabien comparant la jumelle à sa source, jamais d'un contrôle automatique.
+*Un trou déclaré assumé cesse d'être cherché : c'est le plus coûteux des classements.*
+Avant d'écrire « TROU DE GLU », vérifier que l'information n'est pas DÉJÀ au manifeste.
 
 Le HTML généré vise l'app SOURCE (`converter`) ; la substitution (app_sandbox) applique
 ensuite les renommages de jumelle. Le nom de bloc `<app>_content` suit le base d'app
@@ -34,6 +46,57 @@ def render_index(manifest: dict) -> tuple:
     # assumé mais un manque du gabarit — l'information était DANS le manifeste
     # (`capabilities.accepts_url` / `has_url_import`) et n'était pas lue. Constat Fabien en
     # comparant la jumelle à sa source.
+    # Inspecteur contextuel + bouton de cycle — MÊME LEÇON que l'URL ci-dessus, reprise le
+    # 2026-08-29 sur un second constat de Fabien : « les cards du bac à sable ne sont pas
+    # cliquables, n'affichent rien, pas d'action — alors que le converter d'origine fonctionne ».
+    # Ce n'était PAS un trou de glu assumé. La facette `inspector` est DÉCLARÉE au manifeste
+    # (`detail_registered`, `preview_registered`, `detail_spec`, `preview`) et n'était pas lue,
+    # exactement comme `accepts_url` ne l'était pas. ⚠ La première fois, la cause a été traitée
+    # au cas par cas ; la voici une seconde fois, sur une autre facette. *Une facette déclarée
+    # au manifeste et non projetée n'est pas un trou de glu — c'est un manque de gabarit, et le
+    # marquer « TROU DE GLU » le rend invisible en le déclarant normal.*
+    #
+    # Rien de ce qui suit n'est propre à l'app : `initFromSchema` prend des sélecteurs
+    # conventionnels, et `renderItemActions` CLONE la barre d'actions de la card
+    # (`cloneActions`) au lieu de la redéclarer.
+    insp = body.get('inspector') or {}
+    insp_js = ''
+    if insp.get('detail_registered') or insp.get('preview_registered'):
+        insp_js = f'''
+    // Bouton de cycle ▶/⏹/↻ : contrat commun (`_cycle_button.html` rend, `wire` câble,
+    // `autoSync` suit `data-status`). Les routes sont conventionnelles (ROUTE_TABLE).
+    var q = document.getElementById('{app}Queue');
+    if (q && window.WamaCycleButton) {{
+        WamaCycleButton.wire(q, {{
+            start: function (id) {{ return WamaApp.csrfFetch("/{app}/" + id + "/start/", {{ method: 'POST' }}).then(function () {{ location.reload(); }}); }},
+            stop:  function (id) {{ return WamaApp.csrfFetch("/{app}/" + id + "/cancel/", {{ method: 'POST' }}).then(function () {{ location.reload(); }}); }},
+        }});
+        WamaCycleButton.autoSync({{ container: q, cardSelector: '.wama-card[data-id]' }});
+    }}
+
+    // Inspecteur contextuel — DÉRIVÉ de la facette `inspector` du manifeste.
+    if (q && window.WamaInspector && WamaInspector.initFromSchema) {{
+        WamaInspector.initFromSchema({{
+            queueContainer: q,
+            cardSelector:  '.wama-card[data-id]',
+            batchSelector: '.batch-group',
+            schema: {{{{ params_json|safe }}}},
+            itemLabel:  function (id) {{ return "l'élément #" + id; }},
+            batchLabel: function (id) {{ return "le batch #" + id; }},
+            renderItemActions: function (host, card) {{
+                WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),
+                    '<i class="fas fa-clone text-info"></i> Actions — élément #' + card.dataset.id);
+            }},
+            renderBatchActions: function (host, batchId) {{
+                WamaInspector.cloneActions(
+                    host,
+                    q.querySelector('.batch-group[data-batch-id="' + batchId + '"] .btn-group-actions'),
+                    '<i class="fas fa-layer-group text-info"></i> Actions — batch #' + batchId);
+            }},
+        }});
+    }}
+'''
+
     caps = body.get('capabilities') or {}
     url_bits = url_js = ''
     if caps.get('accepts_url') or caps.get('has_url_import'):
@@ -90,9 +153,15 @@ document.addEventListener('DOMContentLoaded', function () {{
     <div id="{app}Queue" class="wama-queue-{{{{ card_layout|default:'list' }}}}">
         {{% for b in batches_list %}}
             {{% if b.is_group %}}
+            {{% comment %}}Wrapper `.batch-group` : `_batch_card.html:32` le déclare À LA CHARGE
+            de l'app (« l'app garde autour »). Il n'était pas émis — d'où un lot sans identité
+            dans le DOM : l'inspecteur ne pouvait pas le sélectionner et le nettoyage de lot vidé
+            de `queue-actions.js` ne le trouvait pas non plus.{{% endcomment %}}
+            <div class="batch-group" data-batch-id="{{{{ b.obj.id }}}}">
             {{% include 'common/_batch_card.html' with batch_info=b eta_ids=b.eta_ids %}}
             <div class="collapse show" id="batchItems{{{{ b.obj.id }}}}" data-wama-batch-key="{app}-{{{{ b.obj.id }}}}">
                 {{% for item in b.items %}}{{% include '{app}/_generic_card.html' %}}{{% endfor %}}
+            </div>
             </div>
             {{% else %}}
             {{% for item in b.items %}}{{% include '{app}/_generic_card.html' %}}{{% endfor %}}
@@ -136,16 +205,23 @@ document.addEventListener('DOMContentLoaded', function () {{
         fileInputId:    '{app}FileInput',
         batch:          window._batchImport,
     }});
-{url_js}}});
+{url_js}{insp_js}}});
 </script>
 {{% endblock %}}
 '''
 
-    # Card GÉNÉRIQUE minimale (partial compagnon) : le TROU DE GLU rendu VISIBLE — id,
-    # nom, statut, barre, actions conventionnelles inertes tant que le JS d'app n'existe pas.
+    # Card GÉNÉRIQUE (partial compagnon). Elle porte désormais les ACTIONS — cf. l'en-tête de
+    # module : le commentaire qui vivait ici annonçait « actions conventionnelles inertes »
+    # alors que la card n'en rendait AUCUNE. Un trou décrit comme comblé est un trou qu'on
+    # cesse de chercher.
     card = f'''{{% comment %}}{mark} — _generic_card.html GÉNÉRÉ (templates_gen v1).
-TROU DE GLU : la card RÉELLE de l'app (sections × chips, previews, actions câblées) n'est
-pas généré — cette card minimale rend l'écart MESURABLE au Playwright.{{% endcomment %}}
+TROU DE GLU RESTANT : les sections × chips et les previews de la card RÉELLE ne sont pas
+générées (elles dépendent de `card_chips`, décoration propre à la vue d'app). L'écart
+résiduel reste MESURABLE au Playwright.
+Les ACTIONS, elles, ne sont plus un trou : ce sont des CONTRATS COMMUNS à écouteur délégué
+(`queue-actions.js` : `.settings-btn[data-id]`, `.duplicate-btn[data-duplicate-url]`,
+`.delete-btn[data-delete-url]`) plus le partial `_cycle_button.html`. Rien ici n'est propre
+à l'app sauf les URL, et elles sont conventionnelles (ROUTE_TABLE).{{% endcomment %}}
 <div class="card bg-dark border-secondary mb-2 wama-card" data-id="{{{{ item.id }}}}" data-status="{{{{ item.status }}}}">
   <div class="card-body py-2">
     <div class="d-flex align-items-center gap-2">
@@ -159,6 +235,22 @@ pas généré — cette card minimale rend l'écart MESURABLE au Playwright.{{% 
     </div>
     {{% endif %}}
     {{% if item.error_message %}}<div class="small text-danger mt-1">{{{{ item.error_message|truncatechars:120 }}}}</div>{{% endif %}}
+    {{% comment %}}Ordre CONVENTIONNEL imposé (CLAUDE.md) : ⚙ · ▶ cycle · ⬇ · ⧉ · 🗑.
+    `.btn-group-actions` est aussi la source que l'inspecteur CLONE (`cloneActions`) — la
+    classe n'est donc pas décorative : sans elle le volet droit reste vide.
+    ⚠ Le ⚙ reste le SEUL bouton inerte, et son trou n'est pas ici : il attend un ouvreur
+    (`WamaQueueActions.onSettings`), qu'on ne peut pas déclarer tant que `views_gen` rend
+    l'endpoint d'édition en 501 (« politique d'app non conventionnelle », marche B). La
+    brique commune ne l'avale pas en silence — elle avertit en console. Ne pas retirer le
+    bouton pour autant : l'ordre conventionnel est un critère de grille, et son absence
+    ferait disparaître le trou au lieu de le montrer.{{% endcomment %}}
+    <div class="btn-group-actions d-flex gap-1 mt-2">
+      <button type="button" class="btn btn-sm btn-outline-secondary settings-btn" data-id="{{{{ item.id }}}}" title="Paramètres"><i class="fas fa-cog"></i></button>
+      {{% include 'common/_cycle_button.html' with id=item.id status=item.status %}}
+      {{% if item.status == 'SUCCESS' %}}<a class="btn btn-sm btn-outline-info" href="{{% url '{app}:download' item.id %}}" title="Télécharger"><i class="fas fa-download"></i></a>{{% endif %}}
+      <button type="button" class="btn btn-sm btn-outline-warning duplicate-btn" data-duplicate-url="{{% url '{app}:duplicate' item.id %}}" title="Dupliquer"><i class="fas fa-clone"></i></button>
+      <button type="button" class="btn btn-sm btn-outline-danger delete-btn" data-delete-url="{{% url '{app}:delete' item.id %}}" title="Supprimer"><i class="fas fa-trash"></i></button>
+    </div>
   </div>
 </div>
 '''
