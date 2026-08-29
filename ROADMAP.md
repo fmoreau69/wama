@@ -2357,7 +2357,7 @@ Un **cœur commun** (appariement d'identité, entrée/sortie de fichiers, format
 dans le canal → code court ; elle le saisit **déjà connectée à WAMA** → c'est cette session
 authentifiée qui apporte la preuve, et la liaison est scellée sur SON compte. Un code volé
 dans une discussion ne sert donc qu'à se lier soi-même à l'identité du voleur — aucun accès.
-`compte_pour()` est la garde que tout adaptateur appelle avant d'agir ; elle rend `None`
+`account_for()` est la garde que tout adaptateur appelle avant d'agir ; elle rend `None`
 pour un inconnu, ce qui doit se traduire par une invitation à se lier, **jamais** par un
 traitement « en anonyme » (le piège mesuré en 19.0bis). 16 assertions vertes, scénarios
 d'attaque compris (usage unique, réappropriation, pilonnage, expiration, déliaison d'autrui).
@@ -2397,7 +2397,7 @@ modèle retenu.
 le dit, on ne replie pas) ; plafond 25 Mo en entrée ; aucune réponse aux bots ; un inconnu
 obtient une invitation à se lier, **jamais** un traitement « en anonyme ».
 
-⚠ **Trois pièges d'exécution.** `traiter_message` est **bloquant** et touche l'ORM → appelé via
+⚠ **Trois pièges d'exécution.** `handle_message` est **bloquant** et touche l'ORM → appelé via
 `asyncio.to_thread`, sinon le bot fige pour tout le monde pendant qu'une personne attend.
 
 ⚠ **L'intent `message_content` est privilégié** — et la panne n'est **PAS** celle que ce
@@ -2435,7 +2435,7 @@ chantier, celle contre laquelle il faut prévenir quiconque déclare un salon pr
   utilisateurs depuis un code en cours d'édition n'est pas souhaitable, et deux process sur le
   même jeton traiteraient chaque message deux fois. La passerelle appartient à la prod.
 
-> ✅ **Périmé, retiré le 22/08.** Il était écrit ici que « `confirmer_liaison()` n'a pas encore
+> ✅ **Périmé, retiré le 22/08.** Il était écrit ici que « `confirm_link()` n'a pas encore
 > d'écran ». **Faux** : l'écran existe et a servi à l'épreuve réelle — `accounts/views.py:467`
 > (`channel_link_confirm`, route `profile/channel/link/`) + section « Canaux de discussion »
 > de `profile.html:276`. C'est précisément cet écran qui apporte la preuve d'identité.
@@ -2453,7 +2453,7 @@ chantier, celle contre laquelle il faut prévenir quiconque déclare un salon pr
 |---|---|
 | `common/models.py` — `Conversation` + `ConversationTurn` (migration `common.0008`) | ✅ |
 | `common/services/conversation_store.py` — fil, historique, enregistrement, effacement | ✅ |
-| `assistant_engine.tour_de_conversation()` — enveloppe ; le moteur reste **sans état** | ✅ |
+| `assistant_engine.conversation_turn()` — enveloppe ; le moteur reste **sans état** | ✅ |
 | La passerelle **adopte** le store — `_HISTORIQUES` (dict en mémoire) **supprimé** | ✅ |
 | 16 assertions vertes, dont **3 fils distincts** pour un même utilisateur | ✅ |
 | UI (liste des conversations dans le chat web) | ⏳ |
@@ -2508,7 +2508,7 @@ Question de Fabien (21/08) : « plusieurs conversations en parallèle, et le mul
   modèles + l'UI (liste de conversations).
 - **La passerelle le rend nécessaire, pas seulement souhaitable** : un DM Discord et un
   salon Matrix **sont** des conversations distinctes — `core.py` a déjà la notion de `fil`.
-  `_cle_fil()` donne la clé naturelle, et `_HISTORIQUES` était le seul appelant à remplacer.
+  `_thread_key()` donne la clé naturelle, et `_HISTORIQUES` était le seul appelant à remplacer.
 
 </details>
 
@@ -2540,10 +2540,10 @@ bruit injecté) ; **fail-safe** (toute panne rend `''` — le RAG est un bonus d
 une dépendance de la conversation). Chaque extrait porte sa **référence** : un contexte sans
 provenance n'est pas vérifiable.
 
-`domain` est propagé sur `run_assistant_turn`, `tour_de_conversation` et
+`domain` est propagé sur `run_assistant_turn`, `conversation_turn` et
 `/api/v1/assistant/chat/`. Rétro-compatible : sans domaine, rôle `general`, aucun rappel.
 
-**⏳ Reste** : le sélecteur de domaine dans l'UI web (`domaines_pour_ui()` est prêt et dérivé
+**⏳ Reste** : le sélecteur de domaine dans l'UI web (`domains_for_ui()` est prêt et dérivé
 du registre) et, côté passerelle, la déduction du domaine depuis le canal (un salon `#dev`
 → domaine `dev`). ⚠ L'UI touche `home.html`, fichier disputé — cf. §19.6 ②.
 
@@ -2572,7 +2572,7 @@ mécaniques et répétés.
 chantiers : conflits mécaniques, à absorber. **Mais le 2026-08-21, deux éditions ont été
 purement et simplement ÉCRASÉES** — `common/models.py` (les modèles `Conversation`
 disparus, fichier revenu à sa taille d'avant) puis `assistant_engine.py`
-(`tour_de_conversation` disparue). Cause : les instances partagent **le même arbre de
+(`conversation_turn` disparue). Cause : les instances partagent **le même arbre de
 travail**, donc il n'y a ni merge ni conflit — la dernière écriture gagne, en silence.
 
 > **Protocole à tenir tant que plusieurs instances travaillent sur l'assistant :**

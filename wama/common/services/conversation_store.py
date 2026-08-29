@@ -13,7 +13,7 @@ données, et les clients qui gèrent eux-mêmes leur historique (un script, un h
 sont pas cassés. Le store est une COUCHE AU-DESSUS, jamais une dépendance du moteur.
 
 UN FIL = `(user, surface, thread_key)`. C'est la clé que la passerelle possède déjà
-(`gateway/core.py::_cle_fil`) : un DM Discord, un salon Matrix et un onglet de navigateur
+(`gateway/core.py::_thread_key`) : un DM Discord, un salon Matrix et un onglet de navigateur
 sont trois fils distincts, sans que le moteur ait à en connaître l'existence.
 """
 from __future__ import annotations

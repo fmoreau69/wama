@@ -5,7 +5,7 @@ LE MAILLON QUI MANQUAIT. Mesuré le 2026-08-22 : l'authentification LDAP fonctio
 longtemps ET la remontée SUPANN peuple bien le profil (`org_affiliations` de Fabien portait
 ses trois codes), mais **`OrgUnit` était VIDE** — et rien dans le dépôt ne le peuplait.
 `resolve_org_hierarchy` existait sans appelant depuis sa création. Conséquence concrète : le
-niveau « RAG du labo » était refusé au clic (`_resoudre_unite` cherche un `OrgUnit` par code et
+niveau « RAG du labo » était refusé au clic (`_resolve_unit` cherche un `OrgUnit` par code et
 n'en trouvait aucun), alors que toutes les informations nécessaires étaient à portée.
 
 Ce que fait la commande, en LECTURE SEULE côté annuaire :

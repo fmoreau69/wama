@@ -363,7 +363,7 @@ l'inspecteur racontent la même chose — deux projections écrites séparément
 
 ## 9quater. Les SURFACES du geste — placement tranché (jalon 14, livré 2026-08-22)
 
-Le geste existait (§7ter) sans porte : `ajouter_au_rag` n'avait aucun appelant d'UI. Deux
+Le geste existait (§7ter) sans porte : `add_to_rag` n'avait aucun appelant d'UI. Deux
 surfaces le portent désormais, et le **placement** est la seule vraie décision de ce jalon.
 
 **① Le geste vit dans l'INSPECTEUR, pas sur les cards des apps.**
@@ -420,7 +420,7 @@ les chaînes **utiles** (celles des codes portés par les profils), pas les 612.
 ⚠ **Deux réalités d'annuaire découvertes à la mesure, qui ne s'inventent pas :**
 1. **Les rattachements multiples sont la NORME, pas l'exception.** L'annuaire UGE porte les codes
    **hérités** (`{IFSTTAR}LESCOT`) **à côté** des codes actuels (`CFR - LESCOT`) pour le **même**
-   laboratoire — conséquence de la fusion IFSTTAR → Université Gustave Eiffel. `_resoudre_unite`
+   laboratoire — conséquence de la fusion IFSTTAR → Université Gustave Eiffel. `_resolve_unit`
    refuse alors de deviner (à raison : un partage parti dans la mauvaise entité ne se voit pas),
    ce qui rendait le niveau labo **inatteignable**. D'où `rag_unite_defaut` (`accounts.0016`) et
    un sélecteur d'unité sur « Mon RAG », affiché **seulement à partir de deux** rattachements.
@@ -461,11 +461,11 @@ compte-rendu depuis une transcription de réunion. La chaîne peut aller loin ; 
 tiennent : **on n'extrait rien** (les apps l'ont déjà fait — ré-extraire produirait un second
 texte, différent de celui que l'utilisateur voit), et **rien n'entre sans geste**.
 
-**Le seul point d'entrée** : `index.ajouter_au_rag(user, texte, source_ref=…, niveau=…)` —
+**Le seul point d'entrée** : `index.add_to_rag(user, texte, source_ref=…, niveau=…)` —
 idempotent par `source_id`, `embedding=NULL` au geste (les vecteurs viennent par `reindex()`,
 §5bis), et un changement de **niveau** met à jour la visibilité **sans perdre les vecteurs**
 (changer la portée d'un document ne doit pas coûter un réindex). Ses pendants :
-`retirer_du_rag()` — ce qui entre par un geste sort par un geste — et `lister_rag()`, la matière
+`remove_from_rag()` — ce qui entre par un geste sort par un geste — et `list_rag()`, la matière
 de la future page de gestion (documents, niveau, `vectorises < fragments` ⇒ réindex à faire).
 
 **Ce qui survit de la première version** : le découpage sur frontière de phrase avec 120
@@ -508,7 +508,7 @@ partage au labo est un geste, jamais l'inertie) et `rag_niveaux_rappel` (ce que 
 `NULL` = jamais choisi ⇒ tout le visible (comportement historique) · `[]` = décoché
 volontairement ⇒ **ne rien rappeler** · `[…]` = la sélection. Un `default=list` aurait confondu
 les deux premiers et **coupé le RAG de tous les profils existants** au déploiement — le vide n'est
-significatif que s'il se distingue de l'absence. Lu par `contexte_laboratoire()` : la préférence
+significatif que s'il se distingue de l'absence. Lu par `laboratory_context()` : la préférence
 n'est donc pas décorative, elle agit sur le rappel réel de l'assistant. Le sélecteur **à chaque
 point d'usage** (par requête, en plus du défaut) reste à venir.
 
@@ -659,7 +659,7 @@ Ne rien arbitrer sur ces chiffres.
 | 2 | `bge-m3` + `embed.py` | ✅ 2026-08-20 — le modèle **était déjà tiré** dans Ollama |
 | 3 | Modèles + migration `common/0007` + `store.py` (5 opérations) | ✅ 2026-08-20 — **inerte, aucun appelant** |
 | 4 | `project.py` + `manage.py sync_memory` : projection `RunOutcome` → `MemoryItem` | ✅ 2026-08-20 — mais **rien à projeter**, cf. §7bis |
-| 5 | ~~Indexation RAG des sorties texte (balayage)~~ **REFONDU** : entrée par GESTE — `ajouter_au_rag` / `retirer_du_rag` / `lister_rag` | ✅ 2026-08-21 — balayage **retiré**, 939 fragments **purgés** (§7ter) |
+| 5 | ~~Indexation RAG des sorties texte (balayage)~~ **REFONDU** : entrée par GESTE — `add_to_rag` / `remove_from_rag` / `list_rag` | ✅ 2026-08-21 — balayage **retiré**, 939 fragments **purgés** (§7ter) |
 | 6 | Branchement `prompt_pipeline` **Hook B** (`rag=True`, opt-in) | ✅ 2026-08-21 — §7quater |
 | 7 | wama-dev-ai : `memory.json` → `MemoryItem` (`provenance='dev-ai'`) | ✅ 2026-08-21 — **25 souvenirs, 0 approuvé** |
 | 8 | Outil `memory_recall` dans `tool_api.py` | ✅ 2026-08-21 — 49 outils, scopé |

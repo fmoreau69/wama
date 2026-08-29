@@ -226,8 +226,8 @@ inutile ou un assistant sans posture.
 ```
 message utilisateur (+ domaine transmis par la surface, sinon 'general')
   │
-  ├─ prompt système : {LANGUE du profil} + RÔLE (consigne_de_role) + contexte WAMA (files)
-  ├─ CONTEXTE LABO : contexte_laboratoire(user, message, domaine)
+  ├─ prompt système : {LANGUE du profil} + RÔLE (role_instructions) + contexte WAMA (files)
+  ├─ CONTEXTE LABO : laboratory_context(user, message, domaine)
   │     = recall() hybride scopé — SEULEMENT si le domaine déclare rag=True (science, design)
   │     3 gardes : DÉCLARÉ · DATA-GATED (rien de pertinent ⇒ prompt inchangé) · FAIL-SAFE ('')
   │     chaque extrait injecté AVEC sa référence ([transcriber:134] …)
@@ -338,12 +338,12 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
 
 ```
 sortie d'app ──(si l'utilisateur veut)──▶ médiathèque ──(ACTION EXPLICITE)──▶ RAG
-                                             ajouter_au_rag(texte, niveau='user'|'unit')
+                                             add_to_rag(texte, niveau='user'|'unit')
                                                • plusieurs affiliations ⇒ NOMMER l'unité
                                                • ancêtre (dépt/univ) ⇒ REFUSÉ (niveaux 3/4 fermés)
                                                • embedding=NULL au geste → reindex par lot
 rappel  : recall(rag_niveaux={'user','unit'}) — son RAG / celui du labo / les deux / RIEN
-retrait : retirer_du_rag — ce qui entre par un geste sort par un geste
+retrait : remove_from_rag — ce qui entre par un geste sort par un geste
 ```
 
 Cas d'usage canonique (Fabien) : scan manuscrit → OCR reader → **ce texte** entre au RAG par le
@@ -352,7 +352,7 @@ geste → sert ensuite, p. ex., au compte-rendu tiré d'une transcription de ré
 **SURFACES livrées le 2026-08-22** (jalon 14) : le geste est un bouton de l'**inspecteur** — donc
 présent dans les 10 apps **sans une ligne par app**, et data-gaté sur la présence de texte — et la
 page **« Mon RAG »** (`/common/rag/`) porte les défauts de niveaux, la liste, le retrait et l'état
-des vecteurs. Les défauts vivent sur le profil et sont **lus au rappel** (`contexte_laboratoire`),
+des vecteurs. Les défauts vivent sur le profil et sont **lus au rappel** (`laboratory_context`),
 avec trois états distincts pour le sélecteur de lecture (`NULL` = tout le visible · `[]` = ne rien
 rappeler · sélection). Détail et raisons du placement : `WAMA_MEMORY.md §9quater`.
 État : le RAG reste **VIDE tant que personne n'a cliqué** (balayage initial purgé, 939 → 0) —
@@ -378,7 +378,7 @@ de rencontre entre les deux chantiers).
 | 6 | Adaptateur de FORMAT (§14 : compilation DÉTERMINISTE post-LLM, distincte de l'enrichissement) | partiel | seul cas vivant = le KIND `concept` (SAM3 : liste d'objets EN) ; pas de couche générique par modèle |
 | 7 | RAG niveaux université / global (§11) | fermés **volontairement** | trajectoire v2 : user + labo d'abord, projet ensuite — décision Fabien |
 | 8 | Peuplement : `OrgUnit` + affiliations des profils | ✅ 2026-08-22 | ⚠ mon diagnostic « sync LDAP **prévue** » était **faux** : l'auth LDAP ET la remontée SUPANN au profil marchaient déjà ; seul l'**arbre `OrgUnit`** manquait, sans commande pour le peupler. Livré : `manage.py sync_org_units` (`ou=structures`, bind anonyme, idempotent) + `rag_unite_defaut` — les rattachements MULTIPLES sont la norme (codes hérités `{IFSTTAR}` à côté des actuels). Niveau labo **opérationnel**, vérifié sur données réelles |
-| 9 | Surfaces du geste RAG + page de gestion (défaut de niveaux, retrait) | ✅ 2026-08-22 | **placement tranché : l'INSPECTEUR** (global, déjà nourri par `detail_registry` qui porte le texte ⇒ 10 apps sans une ligne par app, data-gaté) + page « Mon RAG » `/common/rag/` ; défauts sur le profil (`accounts.0015`), lus par `contexte_laboratoire`. Reste : sélecteur **par requête** + entrée depuis la médiathèque — `WAMA_MEMORY.md §9quater` |
+| 9 | Surfaces du geste RAG + page de gestion (défaut de niveaux, retrait) | ✅ 2026-08-22 | **placement tranché : l'INSPECTEUR** (global, déjà nourri par `detail_registry` qui porte le texte ⇒ 10 apps sans une ligne par app, data-gaté) + page « Mon RAG » `/common/rag/` ; défauts sur le profil (`accounts.0015`), lus par `laboratory_context`. Reste : sélecteur **par requête** + entrée depuis la médiathèque — `WAMA_MEMORY.md §9quater` |
 | 10 | **Traduction de SORTIE** (§12 : `Traitement IA → Traduction sortie → Utilisateur`) | ❌ non branchée | décideur (`output_translate`) + acteur (`translate_output`) livrés, **zéro appelant** ; candidats = textes GÉNÉRÉS uniquement — jamais transcription/OCR (fidélité verbatim) |
 | 11 | **Parseur STRUCTUREL de document** (§13 : texte / figures / images-texte → traitement → réassemblage, mise en page conservée) | partiel — **la moitié RENDU existe** | le RÉASSEMBLAGE/mise en forme est VIVANT (rappel de Fabien, vérifié 22/08) : `common/utils/html_render.py` — brique commune HTML→PDF à **2 moteurs** (Chromium headless/Playwright PRÉFÉRÉ : CSS complet + JS ; WeasyPrint en repli sans dépendance navigateur), consommée par le converter — + `common/utils/document_export.py` (PDF/DOCX stylés : describer, reader). Ce qui MANQUE : le **PARSING** structurel (document → texte/figures/images-texte — `batch_parsers`/`comprehend_files` aplatissent tout) et l'aller-retour complet ; Docling (§16.2) reste le candidat du parsing |
 | 12 | **QC post-génération** (§16.5 : validateur LLM indépendant après le modèle) | ❌ brique morte | `qc.py` : 0 consommateur, **bench compris** (re-vérifié 27/08) — le maillon APRÈS le dispatch manque à toute la chaîne |
@@ -449,7 +449,7 @@ déclencheur des crashs d'août) — user-déclenchée seulement, routée gouver
 ### Vérification de la chaîne multi-surface (tracée au code le 2026-08-29, agent Explore)
 
 **Ce qui tient** : la passerelle Discord (`wama/gateway/`) est LIVRÉE et arrive au MÊME
-cerveau que le web — `core.py` → `tour_de_conversation` → `run_assistant_turn`, mêmes
+cerveau que le web — `core.py` → `conversation_turn` → `run_assistant_turn`, mêmes
 outils, même prompt système, mêmes skills annoncés (`investigation` compris, dérivé du
 registre sans câblage par surface) ; l'identité est un vrai `User` apparié et confirmé
 (`ChannelLink`), jamais de repli anonyme ; l'historique Discord est même MEILLEUR que le

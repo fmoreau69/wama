@@ -91,7 +91,7 @@ class UserProfile(models.Model):
     # UNITÉ CIBLE du partage au labo. Nécessaire dès qu'un utilisateur a PLUSIEURS
     # rattachements reconnus — cas courant et non exotique : l'annuaire UGE porte les codes
     # hérités (« {IFSTTAR}LESCOT ») À CÔTÉ des codes actuels (« CFR - LESCOT ») pour le MÊME
-    # laboratoire. `_resoudre_unite` refuse alors de deviner (un partage parti dans la mauvaise
+    # laboratoire. `_resolve_unit` refuse alors de deviner (un partage parti dans la mauvaise
     # entité ne se voit pas) : sans ce réglage, le niveau labo est inatteignable pour eux.
     rag_unite_defaut = models.CharField(
         max_length=64, blank=True, default='',

@@ -119,7 +119,7 @@
       function clearChatHistory() {
         chatHistory = [];
         localStorage.removeItem(STORAGE_KEY);
-        {% comment %}Accueil DÉCLARÉ côté serveur (assistant_skills.accueil) et non écrit ici :
+        {% comment %}Accueil DÉCLARÉ côté serveur (assistant_skills.greeting) et non écrit ici :
         il VARIE selon l'état de connexion — un visiteur non identifié doit toujours s'entendre
         dire le parcours (s'identifier, puis attendre la modération), ce qu'un texte figé dans le
         gabarit ne pouvait pas faire. Déclaré aussi pour qu'il s'affiche même LLM indisponible,
