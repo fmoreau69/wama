@@ -1,6 +1,16 @@
 {
   "body": {
     "capabilities": {
+      "fallback_languages": [
+        "ar",
+        "cs",
+        "de",
+        "ko",
+        "nl",
+        "pl",
+        "ru",
+        "tr"
+      ],
       "inputs_required": [
         "prompt"
       ],

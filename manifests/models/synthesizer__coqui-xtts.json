@@ -8,22 +8,22 @@
         "prompt"
       ],
       "languages": [
-        "fr",
         "en",
         "es",
+        "fr",
+        "de",
         "it",
         "pt",
-        "de",
-        "nl",
         "pl",
+        "tr",
         "ru",
+        "nl",
         "cs",
         "ar",
         "zh-cn",
         "ja",
-        "ko",
-        "tr",
         "hu",
+        "ko",
         "hi"
       ],
       "modalities": [
