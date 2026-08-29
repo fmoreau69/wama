@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 CHEMIN_DEFAUT = 'wama-dev-ai/memory.json'
 
 
-def _phrases(donnees, date_source):
+def _sentences(donnees, date_source):
     """
     Transforme le JSON en souvenirs lisibles `(kind, subject, texte)`.
 
@@ -84,7 +84,7 @@ def _phrases(donnees, date_source):
     return sorties
 
 
-def importer(chemin=None, *, user=None, dry_run=False):
+def import_memory(chemin=None, *, user=None, dry_run=False):
     """
     Importe `memory.json` en souvenirs NON APPROUVÉS. Rend un résumé `{...}`.
 
@@ -115,7 +115,7 @@ def importer(chemin=None, *, user=None, dry_run=False):
     date_source = donnees.get('last_updated') or 'date inconnue'
     resume['date_source'] = date_source
 
-    for kind, subject, texte in _phrases(donnees, date_source):
+    for kind, subject, texte in _sentences(donnees, date_source):
         resume['lus'] += 1
         if dry_run:
             continue

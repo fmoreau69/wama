@@ -41,7 +41,7 @@ class StoreConversationTests(TestCase):
 
     def test_echange_persiste_avec_sa_trace(self):
         with patch.object(assistant_engine, 'run_assistant_turn', side_effect=_double_moteur()):
-            resultat = assistant_engine.tour_de_conversation(
+            resultat = assistant_engine.conversation_turn(
                 self.alice, 'bonjour', surface='web', thread_key='onglet-1')
 
         fil = Conversation.objects.get(pk=resultat['conversation_id'])
@@ -58,8 +58,8 @@ class StoreConversationTests(TestCase):
         vus = []
         with patch.object(assistant_engine, 'run_assistant_turn',
                           side_effect=_double_moteur(vus)):
-            assistant_engine.tour_de_conversation(self.alice, 'un', thread_key='t')
-            assistant_engine.tour_de_conversation(self.alice, 'deux', thread_key='t')
+            assistant_engine.conversation_turn(self.alice, 'un', thread_key='t')
+            assistant_engine.conversation_turn(self.alice, 'deux', thread_key='t')
 
         self.assertEqual(vus[0], [])                     # 1er tour : rien derrière
         self.assertEqual([h['content'] for h in vus[1]], ['un', 'reponse 1'])
@@ -67,36 +67,36 @@ class StoreConversationTests(TestCase):
     def test_trois_fils_distincts_pour_le_meme_utilisateur(self):
         """Le cœur du multi-conversations : la surface ET le fil séparent."""
         with patch.object(assistant_engine, 'run_assistant_turn', side_effect=_double_moteur()):
-            assistant_engine.tour_de_conversation(self.alice, 'a', surface='web', thread_key='onglet-1')
-            assistant_engine.tour_de_conversation(self.alice, 'b', surface='web', thread_key='onglet-2')
-            assistant_engine.tour_de_conversation(self.alice, 'c', surface='discord', thread_key='salon-42')
+            assistant_engine.conversation_turn(self.alice, 'a', surface='web', thread_key='onglet-1')
+            assistant_engine.conversation_turn(self.alice, 'b', surface='web', thread_key='onglet-2')
+            assistant_engine.conversation_turn(self.alice, 'c', surface='discord', thread_key='salon-42')
 
         self.assertEqual(Conversation.objects.filter(user=self.alice).count(), 3)
         fil_discord = Conversation.objects.get(user=self.alice, surface='discord')
-        self.assertEqual(len(store.historique(fil_discord)), 2)   # son propre historique
+        self.assertEqual(len(store.history(fil_discord)), 2)   # son propre historique
 
     def test_cloisonnement_entre_comptes(self):
         with patch.object(assistant_engine, 'run_assistant_turn', side_effect=_double_moteur()):
-            assistant_engine.tour_de_conversation(self.alice, 'a', thread_key='t')
-            assistant_engine.tour_de_conversation(self.bob, 'b', thread_key='t')
+            assistant_engine.conversation_turn(self.alice, 'a', thread_key='t')
+            assistant_engine.conversation_turn(self.bob, 'b', thread_key='t')
 
-        self.assertEqual(len(store.conversations_de(self.alice)), 1)
-        self.assertEqual(len(store.conversations_de(self.bob)), 1)
+        self.assertEqual(len(store.conversations_of(self.alice)), 1)
+        self.assertEqual(len(store.conversations_of(self.bob)), 1)
 
     def test_effacer_seulement_les_siens(self):
         with patch.object(assistant_engine, 'run_assistant_turn', side_effect=_double_moteur()):
-            resultat = assistant_engine.tour_de_conversation(self.alice, 'a', thread_key='t')
+            resultat = assistant_engine.conversation_turn(self.alice, 'a', thread_key='t')
         fil_id = resultat['conversation_id']
 
-        self.assertFalse(store.effacer(self.bob, fil_id))
+        self.assertFalse(store.clear(self.bob, fil_id))
         self.assertTrue(Conversation.objects.filter(pk=fil_id).exists())
-        self.assertTrue(store.effacer(self.alice, fil_id))
+        self.assertTrue(store.clear(self.alice, fil_id))
 
     def test_un_seul_fil_par_cle(self):
         """Deux messages du même salon ne doivent pas scinder l'historique en silence."""
         with patch.object(assistant_engine, 'run_assistant_turn', side_effect=_double_moteur()):
-            assistant_engine.tour_de_conversation(self.alice, 'a', surface='discord', thread_key='s1')
-            assistant_engine.tour_de_conversation(self.alice, 'b', surface='discord', thread_key='s1')
+            assistant_engine.conversation_turn(self.alice, 'a', surface='discord', thread_key='s1')
+            assistant_engine.conversation_turn(self.alice, 'b', surface='discord', thread_key='s1')
 
         self.assertEqual(
             Conversation.objects.filter(user=self.alice, surface='discord', thread_key='s1').count(), 1)
@@ -117,9 +117,9 @@ class StoreConversationTests(TestCase):
         Un assistant muet parce que sa trace est cassée serait bien pire que la perte de la
         trace : on répond, sans historique.
         """
-        with patch.object(store, 'fil', side_effect=RuntimeError('base indisponible')), \
+        with patch.object(store, 'thread', side_effect=RuntimeError('base indisponible')), \
              patch.object(assistant_engine, 'run_assistant_turn', side_effect=_double_moteur()):
-            resultat = assistant_engine.tour_de_conversation(self.alice, 'bonjour')
+            resultat = assistant_engine.conversation_turn(self.alice, 'bonjour')
 
         self.assertEqual(resultat['response'], 'reponse 1')
         self.assertNotIn('conversation_id', resultat)

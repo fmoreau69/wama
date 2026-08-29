@@ -56,7 +56,7 @@ _POIDS_SAILLANCE = {
 }
 
 
-def projeter_run_outcomes(*, depuis=None, limite=None, dry_run=False, user=None):
+def project_run_outcomes(*, depuis=None, limite=None, dry_run=False, user=None):
     """
     Projette les gestes de `RunOutcome` en souvenirs épisodiques. Rend un résumé `{...}`.
 
@@ -96,8 +96,8 @@ def projeter_run_outcomes(*, depuis=None, limite=None, dry_run=False, user=None)
         if not signaux:
             continue
 
-        texte = _redige(app, otype, oid, signaux)
-        saillance = _saillance(signaux)
+        texte = _compose(app, otype, oid, signaux)
+        saillance = _salience(signaux)
 
         etat = _upsert(app, otype, oid, uid, texte, saillance, dry_run=dry_run)
         resume[etat] += 1
@@ -108,7 +108,7 @@ def projeter_run_outcomes(*, depuis=None, limite=None, dry_run=False, user=None)
     return resume
 
 
-def _redige(app, otype, oid, signaux):
+def _compose(app, otype, oid, signaux):
     """
     Rédige l'histoire d'un objet à partir de ses signaux. Gabarit pur — aucun modèle appelé.
 
@@ -153,7 +153,7 @@ def _redige(app, otype, oid, signaux):
     return phrase
 
 
-def _saillance(signaux):
+def _salience(signaux):
     """
     Saillance dans [0, 1], DÉRIVÉE des gestes — jamais saisie, jamais inférée.
 
@@ -198,11 +198,11 @@ def _upsert(app, otype, oid, uid, texte, saillance, *, dry_run):
             return 'crees'
         etat = 'crees'
 
-    _ecrire(app, otype, oid, uid, texte, saillance)
+    _write(app, otype, oid, uid, texte, saillance)
     return etat
 
 
-def _ecrire(app, otype, oid, uid, texte, saillance):
+def _write(app, otype, oid, uid, texte, saillance):
     """Écriture effective — `embed=False` : la projection ne touche JAMAIS le GPU."""
     from django.contrib.auth.models import User
 

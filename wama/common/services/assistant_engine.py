@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 # Prompts système
 # ---------------------------------------------------------------------------
 
-#: `{LANGUE}` est résolu par `_consigne_langue()` depuis le profil de l'utilisateur.
+#: `{LANGUE}` est résolu par `_language_instruction()` depuis le profil de l'utilisateur.
 #: Avant le 2026-08-20 la langue était ÉCRITE EN DUR (« in French ») : un utilisateur dont le
 #: profil dit `en` recevait quand même du français, et `preferred_language` — pourtant respecté
 #: par le synthesizer et la pipeline de prompts — n'avait aucun effet ici. Le durcissement
@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 WAMA_SYSTEM_PROMPT = """You are a helpful assistant for WAMA (Web App for Multimodal Automation), a Django-based web application for media processing including video anonymization, audio transcription, voice synthesis, image generation, and image/video enhancement. Answer questions concisely and helpfully in {LANGUE}."""
 
 
-def _consigne_langue(user) -> str:
+def _language_instruction(user) -> str:
     """Nom ANGLAIS de la langue de réponse (le prompt système est rédigé en anglais).
 
     Source = `UserProfile.preferred_language`, comme `prompt_pipeline` et `app_metadata` —
@@ -115,18 +115,18 @@ _LOCAL_PROVIDERS = ('wama-dev-ai', 'ollama')
 _PROVIDER_ALIAS = {'claude': 'anthropic'}
 
 
-def resolve_chat_model(cle: str) -> str:
+def resolve_chat_model(key: str) -> str:
     """Rôle de chat ('dev', 'fast'…) → tag Ollama résolu par le catalogue (source unique) ;
     un tag complet ('gemma4:12b') passe tel quel."""
-    regle = _ROLE_TIER.get(cle)
+    regle = _ROLE_TIER.get(key)
     if regle is None:
-        return cle
+        return key
     try:
         from wama.common.utils.llm_utils import modele_par_tier
-        return modele_par_tier(**regle) or cle
+        return modele_par_tier(**regle) or key
     except Exception:
         logger.debug('[ai_chat] résolution du modèle par tier indisponible', exc_info=True)
-        return cle
+        return key
 
 
 # Safe context limits per model (chars, not tokens — ~4 chars/token estimate)
@@ -140,7 +140,7 @@ _SAFE_CHARS_DEFAUT = 120_000
 _MARGE_CONTEXTE = 0.6
 
 
-def _limite_sure_chars(nom_modele: str) -> int:
+def _safe_char_limit(nom_modele: str) -> int:
     """
     Limite de contexte, en caractères, DÉRIVÉE du catalogue.
 
@@ -205,7 +205,7 @@ def _route_model_by_context(ollama_model: str, messages: list) -> str:
     Uses a conservative char-based estimate (~4 chars per token).
     """
     total_chars = sum(len(m.get('content', '')) for m in messages)
-    if total_chars <= _limite_sure_chars(ollama_model):
+    if total_chars <= _safe_char_limit(ollama_model):
         return ollama_model
 
     # Bascule vers le modèle le plus CAPABLE du catalogue — plus vers un nom figé.
@@ -373,7 +373,7 @@ def _sanitize_history(history) -> list:
     return clean
 
 
-def tour_de_conversation(user, message: str, *, surface: str = 'web', thread_key: str = '',
+def conversation_turn(user, message: str, *, surface: str = 'web', thread_key: str = '',
                          provider: str = 'wama-dev-ai', model: str = 'fast',
                          domain: str = None) -> dict:
     """
@@ -395,8 +395,8 @@ def tour_de_conversation(user, message: str, *, surface: str = 'web', thread_key
     fil = None
     historique = []
     try:
-        fil = conversation_store.fil(user, surface=surface, thread_key=thread_key)
-        historique = conversation_store.historique(fil)
+        fil = conversation_store.thread(user, surface=surface, thread_key=thread_key)
+        historique = conversation_store.history(fil)
     except Exception:
         logger.exception("[ai_chat] store de conversation indisponible — tour sans historique")
 
@@ -405,7 +405,7 @@ def tour_de_conversation(user, message: str, *, surface: str = 'web', thread_key
 
     if fil is not None and 'error' not in resultat:
         try:
-            conversation_store.enregistrer_echange(fil, message, resultat)
+            conversation_store.record_exchange(fil, message, resultat)
             resultat['conversation_id'] = fil.pk
         except Exception:
             logger.exception("[ai_chat] échange non enregistré (fil %s)", fil.pk)
@@ -420,7 +420,7 @@ def run_assistant_turn(user, message: str, provider: str = 'wama-dev-ai',
     UN tour de conversation avec l'assistant WAMA — cœur SANS ÉTAT, commun à toutes les
     surfaces (vue web `ai_chat`, API v1 `assistant/chat/`, adaptateurs de canaux).
 
-    Pour un historique persisté côté serveur, préférer `tour_de_conversation()` ci-dessus ;
+    Pour un historique persisté côté serveur, préférer `conversation_turn()` ci-dessus ;
     cette fonction-ci reste le point d'entrée quand l'appelant apporte son propre `history`
     (harnais de test, client qui gère sa propre trace).
 
@@ -467,7 +467,7 @@ def run_assistant_turn(user, message: str, provider: str = 'wama-dev-ai',
     # portait lui aussi un « Respond in French » en dur — un profil `en` recevait donc deux
     # consignes CONTRADICTOIRES (corrigé 2026-08-21). Toujours `.replace`, jamais `.format` :
     # le prompt d'outils contient des accolades littérales (`{"tool": …}`) que `format` casserait.
-    langue = _consigne_langue(user)
+    langue = _language_instruction(user)
 
     # Skill de RÔLE + contexte du laboratoire (`ROADMAP.md` §19.7). Le prompt système était
     # jusqu'ici générique en trois lignes : l'assistant ne savait ni dans quel domaine il
@@ -479,16 +479,16 @@ def run_assistant_turn(user, message: str, provider: str = 'wama-dev-ai',
     role, contexte_labo, annonce = '', '', ''
     try:
         from wama.common.utils.assistant_skills import (
-            annonce_des_competences, consigne_de_role, contexte_laboratoire,
+            competences_announcement, role_instructions, laboratory_context,
         )
-        role = consigne_de_role(domain)
-        contexte_labo = contexte_laboratoire(user, message, domain)
+        role = role_instructions(domain)
+        contexte_labo = laboratory_context(user, message, domain)
         # ⚠ On ANNONCE les autres compétences au lieu de toutes les charger : quatre skills
         # concaténés à chaque tour coûteraient des milliers de jetons sur un modèle local à
         # fenêtre étroite, et noieraient la question. L'assistant charge celle dont il a
         # besoin via l'outil `charger_competence` — c'est LUI qui décide, pas la surface qui
         # l'appelle (un adaptateur de canal ne connaît que son protocole).
-        annonce = annonce_des_competences(sauf=domain) if user else ''
+        annonce = competences_announcement(sauf=domain) if user else ''
     except Exception:
         logger.debug("[ai_chat] skill de rôle indisponible", exc_info=True)
 

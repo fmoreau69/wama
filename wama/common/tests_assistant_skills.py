@@ -27,17 +27,17 @@ class RegistreDomainesTests(TestCase):
         """Un domaine sans fichier de skill est un domaine muet — la table mentirait."""
         from wama.common.utils.prompt_skills import load_skill
         for d in sk.DOMAINES:
-            with self.subTest(domaine=d.cle):
+            with self.subTest(domaine=d.key):
                 self.assertTrue(load_skill(d.skill), f"skill absent : {d.skill}.md")
 
     def test_domaine_inconnu_retombe_sur_le_defaut(self):
-        self.assertEqual(sk.domaine('inexistant').cle, sk.DOMAINE_DEFAUT)
-        self.assertEqual(sk.domaine(None).cle, sk.DOMAINE_DEFAUT)
-        self.assertEqual(sk.domaine('  SCIENCE  ').cle, 'science')   # tolérant
+        self.assertEqual(sk.resolve_domain('inexistant').key, sk.DEFAULT_DOMAIN)
+        self.assertEqual(sk.resolve_domain(None).key, sk.DEFAULT_DOMAIN)
+        self.assertEqual(sk.resolve_domain('  SCIENCE  ').key, 'science')   # tolérant
 
     def test_options_ui_derivees_du_registre(self):
-        options = sk.domaines_pour_ui()
-        self.assertEqual([o['value'] for o in options], [d.cle for d in sk.DOMAINES])
+        options = sk.domains_for_ui()
+        self.assertEqual([o['value'] for o in options], [d.key for d in sk.DOMAINES])
         self.assertTrue(all(o['label'] and o['help'] for o in options))
 
 
@@ -49,7 +49,7 @@ class ContexteLaboratoireTests(TestCase):
     def test_domaine_sans_rag_ne_cherche_rien(self):
         """La garde qui évite de payer une recherche vectorielle sur une question de statut."""
         with patch('wama.common.memory.store.recall') as recall:
-            texte = sk.contexte_laboratoire(self.user, 'où en est ma transcription ?', 'general')
+            texte = sk.laboratory_context(self.user, 'où en est ma transcription ?', 'general')
         self.assertEqual(texte, '')
         recall.assert_not_called()
 
@@ -60,7 +60,7 @@ class ContexteLaboratoireTests(TestCase):
         hit = type('H', (), {'obj': Faux()})()
 
         with patch('wama.common.memory.store.recall', return_value=[hit]) as recall:
-            texte = sk.contexte_laboratoire(self.user, 'propose-moi un logo', 'design')
+            texte = sk.laboratory_context(self.user, 'propose-moi un logo', 'design')
 
         recall.assert_called_once()
         self.assertIn('comportement des conducteurs', texte)
@@ -70,12 +70,12 @@ class ContexteLaboratoireTests(TestCase):
     def test_aucun_extrait_pertinent_donne_un_prompt_INCHANGE(self):
         """Data-gated : on n'injecte jamais de bruit faute de mieux."""
         with patch('wama.common.memory.store.recall', return_value=[]):
-            self.assertEqual(sk.contexte_laboratoire(self.user, 'xyz', 'science'), '')
+            self.assertEqual(sk.laboratory_context(self.user, 'xyz', 'science'), '')
 
     def test_panne_du_rappel_ne_casse_rien(self):
         """Le RAG est un bonus de contexte, jamais une dépendance de la conversation."""
         with patch('wama.common.memory.store.recall', side_effect=RuntimeError('pgvector down')):
-            self.assertEqual(sk.contexte_laboratoire(self.user, 'question', 'science'), '')
+            self.assertEqual(sk.laboratory_context(self.user, 'question', 'science'), '')
 
 
 class InjectionDansLeMoteurTests(TestCase):
@@ -158,7 +158,7 @@ class ChargementParLAssistantTests(TestCase):
     def test_domaine_inconnu_retombe_sur_le_defaut(self):
         from wama.tool_api import execute_tool
         r = execute_tool('charger_competence', {'domaine': 'nimportequoi'}, self.user)
-        self.assertEqual(r['domaine'], sk.DOMAINE_DEFAUT)
+        self.assertEqual(r['domaine'], sk.DEFAULT_DOMAIN)
 
     def test_les_competences_sont_annoncees_au_prompt_systeme(self):
         """Sans annonce, l'assistant ignore que ces compétences existent."""
@@ -188,7 +188,7 @@ class ChargementParLAssistantTests(TestCase):
 
     def test_annoncer_coute_bien_moins_que_tout_charger(self):
         """La raison d'être de l'annonce : la fenêtre des modèles locaux est étroite."""
-        annonce = len(sk.annonce_des_competences())
-        entiers = sum(len(sk.consigne_de_role(d.cle)) for d in sk.DOMAINES)
+        annonce = len(sk.competences_announcement())
+        entiers = sum(len(sk.role_instructions(d.key)) for d in sk.DOMAINES)
         self.assertLess(annonce, 600)
         self.assertLess(annonce * 5, entiers)     # au moins 5× moins cher

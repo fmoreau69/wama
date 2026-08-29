@@ -9,11 +9,11 @@ rouvrir la question de sécurité à chaque fois : un adaptateur qui n'a pas de 
 pas de faille propre.
 
 Un adaptateur n'a donc que trois obligations :
-  1. traduire un événement du protocole en `MessageEntrant` ;
-  2. appeler `traiter_message()` ;
-  3. rendre la `Reponse` dans les termes de son protocole (texte, fichiers).
+  1. traduire un événement du protocole en `IncomingMessage` ;
+  2. appeler `handle_message()` ;
+  3. rendre la `Reply` dans les termes de son protocole (text, files).
 
-⚠ `traiter_message()` est SYNCHRONE et BLOQUANTE (un tour d'assistant peut prendre des
+⚠ `handle_message()` est SYNCHRONE et BLOQUANTE (un tour d'assistant peut prendre des
 dizaines de secondes). Les bibliothèques de bots sont asynchrones : un adaptateur doit
 l'appeler dans un thread (`asyncio.to_thread`), jamais directement dans la boucle
 d'événements — sinon le bot cesse de répondre à tout le monde pendant qu'un utilisateur
@@ -24,52 +24,52 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
-from .services import ErreurAppariement, compte_pour, delier, demander_liaison
+from .services import PairingError, account_for, unlink, request_link
 
 logger = logging.getLogger(__name__)
 
 #: Longueur au-delà de laquelle une réponse est coupée par l'adaptateur. Chaque protocole a
 #: sa propre limite (Discord : 2000 caractères) — la valeur réelle est celle de l'adaptateur,
 #: celle-ci n'est qu'un repli.
-LIMITE_TEXTE = 2000
+TEXT_LIMIT = 2000
 
 # L'historique de conversation vivait ici, dans un dict EN MÉMOIRE DU PROCESS
 # (`_HISTORIQUES`) : perdu à chaque redémarrage de la passerelle, non partagé entre process,
 # et invisible depuis le web. Il est REMPLACÉ (2026-08-21) par le store commun
 # `common/services/conversation_store.py` — le même que la surface web, de sorte qu'un fil
 # ouvert dans Discord et la liste des conversations du navigateur parlent enfin de la même
-# chose. Le geste de la passerelle se résume désormais à nommer son fil (`_cle_fil`).
+# chose. Le geste de la passerelle se résume désormais à nommer son fil (`_thread_key`).
 
 
 @dataclass
-class PieceJointe:
+class Attachment:
     """Une pièce jointe entrante, déjà téléchargée par l'adaptateur."""
-    nom: str
-    contenu: bytes
+    name: str
+    content: bytes
 
 
 @dataclass
-class MessageEntrant:
+class IncomingMessage:
     """Ce qu'un adaptateur doit produire, quel que soit le protocole."""
     channel: str                    # 'discord' | 'matrix'
     external_id: str                # identifiant STABLE de la personne (jamais son pseudo)
-    texte: str
+    text: str
     external_label: str = ''        # pseudo affiché, confort de lecture seulement
-    fil: str = ''                   # identifiant du fil/salon → une conversation par fil
-    pieces_jointes: list = field(default_factory=list)
+    thread: str = ''                   # identifiant du fil/salon → une conversation par fil
+    attachments: list = field(default_factory=list)
 
 
 @dataclass
-class Reponse:
+class Reply:
     """Ce que l'adaptateur doit rendre dans son protocole."""
-    texte: str
+    text: str
     #: Chemins relatifs à MEDIA_ROOT que l'adaptateur doit joindre. Vide la plupart du temps.
-    fichiers: list = field(default_factory=list)
+    files: list = field(default_factory=list)
     #: True quand la réponse ne doit PAS être publiée dans un salon (code d'appariement…).
-    prive: bool = False
+    private: bool = False
 
 
-AIDE = (
+HELP_TEXT = (
     "**WAMA** — ce que je sais faire ici :\n"
     "• `!lier` — relier ce compte de discussion à votre compte WAMA (obligatoire)\n"
     "• `!delier` — supprimer la liaison\n"
@@ -80,7 +80,7 @@ AIDE = (
 )
 
 
-def _cle_fil(msg: MessageEntrant) -> str:
+def _thread_key(msg: IncomingMessage) -> str:
     """
     Clé du fil DANS sa surface — un salon/DM = une conversation.
 
@@ -88,10 +88,10 @@ def _cle_fil(msg: MessageEntrant) -> str:
     un canal qui n'a pas la notion de salon reste ainsi une conversation par interlocuteur,
     jamais un fil global où tout le monde se mélangerait.
     """
-    return msg.fil or msg.external_id
+    return msg.thread or msg.external_id
 
 
-def traiter_message(msg: MessageEntrant) -> Reponse:
+def handle_message(msg: IncomingMessage) -> Reply:
     """
     Traite UN message entrant et rend ce que l'adaptateur doit publier.
 
@@ -99,29 +99,29 @@ def traiter_message(msg: MessageEntrant) -> Reponse:
     cesse de servir tous les autres utilisateurs du salon.
     """
     try:
-        return _traiter(msg)
-    except ErreurAppariement as e:
-        return Reponse(texte=f"⛔ {e}", prive=True)
+        return _handle(msg)
+    except PairingError as e:
+        return Reply(text=f"⛔ {e}", private=True)
     except Exception:
         logger.exception("[gateway] échec de traitement (%s:%s)", msg.channel, msg.external_id)
-        return Reponse(texte="⚠ Une erreur interne est survenue. Elle a été journalisée.")
+        return Reply(text="⚠ Une erreur interne est survenue. Elle a été journalisée.")
 
 
-def _traiter(msg: MessageEntrant) -> Reponse:
-    texte = (msg.texte or '').strip()
+def _handle(msg: IncomingMessage) -> Reply:
+    texte = (msg.text or '').strip()
     commande = texte.split()[0].lower() if texte else ''
 
     if commande in ('!aide', '!help'):
-        return Reponse(texte=AIDE)
+        return Reply(text=HELP_TEXT)
 
-    user = compte_pour(msg.channel, msg.external_id)
+    user = account_for(msg.channel, msg.external_id)
 
     # ── Appariement ──────────────────────────────────────────────────────────────
     if commande == '!lier':
         if user is not None:
-            return Reponse(texte=f"✅ Ce compte est déjà relié à **{user.username}**.", prive=True)
-        lien = demander_liaison(msg.channel, msg.external_id, msg.external_label)
-        return Reponse(prive=True, texte=(
+            return Reply(text=f"✅ Ce compte est déjà relié à **{user.username}**.", private=True)
+        lien = request_link(msg.channel, msg.external_id, msg.external_label)
+        return Reply(private=True, text=(
             f"🔑 Code d'appariement : **{lien.code}**\n"
             "Connectez-vous à WAMA, puis saisissez ce code dans votre profil.\n"
             "_Il expire dans 15 minutes. Ne le communiquez à personne : c'est la session "
@@ -130,28 +130,28 @@ def _traiter(msg: MessageEntrant) -> Reponse:
 
     if commande == '!delier':
         if user is None:
-            return Reponse(texte="Ce compte n'est relié à aucun compte WAMA.", prive=True)
-        delier(user, msg.channel, msg.external_id)
-        return Reponse(texte="🔓 Liaison supprimée.", prive=True)
+            return Reply(text="Ce compte n'est relié à aucun compte WAMA.", private=True)
+        unlink(user, msg.channel, msg.external_id)
+        return Reply(text="🔓 Liaison supprimée.", private=True)
 
     # ── Garde : un inconnu n'obtient RIEN ────────────────────────────────────────
     # ⚠ Ne JAMAIS retomber sur un traitement « en anonyme » : c'est exactement le piège
     # mesuré sur `/filemanager/api/upload/`, dont le `get_user()` basculait silencieusement
     # sur l'utilisateur anonyme partagé. Ici, l'absence de compte est une FIN de parcours.
     if user is None:
-        return Reponse(prive=True, texte=(
+        return Reply(private=True, text=(
             "👋 Je ne sais pas encore qui vous êtes dans WAMA.\n"
             "Envoyez `!lier` pour obtenir un code d'appariement."
         ))
 
     # ── Pièces jointes → espace WAMA de l'utilisateur ────────────────────────────
-    deposes = _deposer_pieces_jointes(user, msg.pieces_jointes)
+    deposes = _store_attachments(user, msg.attachments)
 
     if not texte and not deposes:
-        return Reponse(texte=AIDE)
+        return Reply(text=HELP_TEXT)
 
     # ── Le tour d'assistant : MÊME moteur ET MÊME store que la page web ─────────
-    from wama.common.services.assistant_engine import tour_de_conversation
+    from wama.common.services.assistant_engine import conversation_turn
 
     invite = texte
     if deposes:
@@ -161,17 +161,17 @@ def _traiter(msg: MessageEntrant) -> Reponse:
 
     # L'historique est résolu et persisté SERVEUR (plus de dict en mémoire du process) :
     # la passerelle n'a qu'à nommer son fil.
-    resultat = tour_de_conversation(user, invite, surface=msg.channel,
-                                    thread_key=_cle_fil(msg))
+    resultat = conversation_turn(user, invite, surface=msg.channel,
+                                    thread_key=_thread_key(msg))
 
     if 'error' in resultat:
-        return Reponse(texte=f"⚠ {resultat['error']}")
+        return Reply(text=f"⚠ {resultat['error']}")
 
     # Les fichiers PRODUITS pendant le tour repartent avec la réponse : sans ça, le code
     # d'envoi des adaptateurs est mort et l'utilisateur reçoit un lien `/media/…` protégé
     # par session, inutilisable hors WAMA (défaut mesuré 2026-08-29, WAMA_LLM §Vérification).
-    return Reponse(texte=resultat.get('response') or '(réponse vide)',
-                   fichiers=_produced_files(resultat))
+    return Reply(text=resultat.get('response') or '(réponse vide)',
+                   files=_produced_files(resultat))
 
 
 #: Clés de résultat d'outil qui désignent une sortie fichier (contrat des triades tool_api).
@@ -225,7 +225,7 @@ def _produced_files(resultat) -> list:
     return fichiers
 
 
-def _deposer_pieces_jointes(user, pieces) -> list:
+def _store_attachments(user, pieces) -> list:
     """
     Dépose les pièces jointes dans l'espace de l'utilisateur et rend leurs descriptions.
 
@@ -243,8 +243,8 @@ def _deposer_pieces_jointes(user, pieces) -> list:
     deposes = []
     for piece in pieces:
         try:
-            fichier = SimpleUploadedFile(piece.nom, piece.contenu)
+            fichier = SimpleUploadedFile(piece.name, piece.content)
             deposes.append(enregistrer_fichier_utilisateur(user, fichier))
         except Exception:
-            logger.exception("[gateway] dépôt impossible : %s", piece.nom)
+            logger.exception("[gateway] dépôt impossible : %s", piece.name)
     return deposes

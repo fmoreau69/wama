@@ -466,7 +466,7 @@ def token_regenerate(request):
     return JsonResponse({'success': True, 'token': token.key})
 
 
-def _champ(request, nom: str) -> str:
+def _champ(request, name: str) -> str:
     """
     Lit un champ que la requête soit en JSON ou en formulaire.
 
@@ -493,11 +493,11 @@ def channel_link_confirm(request):
     code intercepté dans une discussion ne permet donc que de se lier SOI-MÊME à l'identité
     de canal de celui qui l'a demandé — ce qui ne donne aucun accès.
     """
-    from wama.gateway.services import ErreurAppariement, confirmer_liaison
+    from wama.gateway.services import PairingError, confirm_link
 
     try:
-        lien = confirmer_liaison(request.user, _champ(request, 'code'))
-    except ErreurAppariement as e:
+        lien = confirm_link(request.user, _champ(request, 'code'))
+    except PairingError as e:
         return JsonResponse({'error': str(e)}, status=400)
 
     return JsonResponse({
@@ -511,9 +511,9 @@ def channel_link_confirm(request):
 @require_POST
 def channel_unlink(request):
     """AJAX : supprime une de SES liaisons de canal (jamais celle d'autrui)."""
-    from wama.gateway.services import delier
+    from wama.gateway.services import unlink
 
-    supprime = delier(request.user, _champ(request, 'channel'),
+    supprime = unlink(request.user, _champ(request, 'channel'),
                       _champ(request, 'external_id'))
     if not supprime:
         return JsonResponse({'error': 'Liaison introuvable.'}, status=404)

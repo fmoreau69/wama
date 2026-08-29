@@ -43,13 +43,13 @@ class Command(BaseCommand):
         from wama.gateway.adapters import discord_bot
 
         try:
-            jeton = discord_bot.jeton()
+            bot_token = discord_bot.bot_token()
         except RuntimeError as e:
             raise CommandError(str(e))
 
-        salons = discord_bot._salons_autorises()
+        salons = discord_bot._allowed_channels()
         self.stdout.write(f"Canal        : discord")
-        self.stdout.write(f"Jeton        : présent ({len(jeton)} caractères)")
+        self.stdout.write(f"Jeton        : présent ({len(bot_token)} caractères)")
 
         # ⚠ Un identifiant Discord (snowflake) est un ENTIER de 17 à 20 chiffres. Une valeur
         # comme « #wama » ne correspondra JAMAIS à `message.channel.id` : le salon ne serait
@@ -78,7 +78,7 @@ class Command(BaseCommand):
                 "l'id du canal WAMA."))
 
         try:
-            client = discord_bot.construire_client()
+            client = discord_bot.build_client()
         except RuntimeError as e:
             raise CommandError(str(e))
 
@@ -89,6 +89,6 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS("Connexion à Discord…  (Ctrl+C pour arrêter)"))
         try:
-            client.run(jeton, log_handler=None)   # log_handler=None : garder les logs WAMA
+            client.run(bot_token, log_handler=None)   # log_handler=None : garder les logs WAMA
         except KeyboardInterrupt:                 # pragma: no cover
             self.stdout.write("Arrêt demandé.")

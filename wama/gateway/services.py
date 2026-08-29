@@ -6,9 +6,9 @@ suivants) : un adaptateur traduit un protocole, il ne décide jamais qui est l'u
 Cette règle est ce qui garantit qu'ajouter un canal ne rouvre pas la question de sécurité.
 
 Trois gestes, et trois seulement :
-  • `demander_liaison()`  — le canal propose ; rend un code à afficher dans la discussion.
-  • `confirmer_liaison()` — WAMA (session authentifiée) dispose ; scelle la liaison.
-  • `compte_pour()`       — à chaque message : « de quel compte s'agit-il ? » ou None.
+  • `request_link()`  — le canal propose ; rend un code à afficher dans la discussion.
+  • `confirm_link()` — WAMA (session authentifiée) dispose ; scelle la liaison.
+  • `account_for()`       — à chaque message : « de quel compte s'agit-il ? » ou None.
 """
 from __future__ import annotations
 
@@ -17,18 +17,18 @@ import logging
 from django.db import transaction
 from django.utils import timezone
 
-from .models import CHANNEL_CHOICES, MAX_TENTATIVES, ChannelLink, _generer_code
+from .models import CHANNEL_CHOICES, MAX_TENTATIVES, ChannelLink, _generate_code
 
 logger = logging.getLogger(__name__)
 
 CANAUX_CONNUS = {cle for cle, _ in CHANNEL_CHOICES}
 
 
-class ErreurAppariement(Exception):
+class PairingError(Exception):
     """Refus d'appariement — le message est destiné à l'utilisateur final."""
 
 
-def demander_liaison(channel: str, external_id: str, external_label: str = '') -> ChannelLink:
+def request_link(channel: str, external_id: str, external_label: str = '') -> ChannelLink:
     """
     Enregistre (ou renouvelle) une demande de liaison et rend la ligne portant le code.
 
@@ -40,22 +40,22 @@ def demander_liaison(channel: str, external_id: str, external_label: str = '') -
     identité de canal en redemandant simplement un code.
     """
     if channel not in CANAUX_CONNUS:
-        raise ErreurAppariement(f"Canal inconnu : {channel!r}.")
+        raise PairingError(f"Canal inconnu : {channel!r}.")
     if not (external_id or '').strip():
-        raise ErreurAppariement("Identifiant de canal manquant.")
+        raise PairingError("Identifiant de canal manquant.")
 
     with transaction.atomic():
         lien, cree = ChannelLink.objects.select_for_update().get_or_create(
             channel=channel, external_id=external_id.strip(),
             defaults={'external_label': external_label or ''},
         )
-        if lien.est_confirmee:
-            raise ErreurAppariement(
+        if lien.is_confirmed:
+            raise PairingError(
                 "Cette identité est déjà reliée à un compte WAMA. "
                 "Utilisez « délier » depuis WAMA avant d'en créer une autre."
             )
         # Demande renouvelée : code neuf, compteur remis à zéro, horloge relancée.
-        lien.code = _generer_code()
+        lien.code = _generate_code()
         lien.tentatives = 0
         lien.created_at = timezone.now()
         if external_label:
@@ -67,7 +67,7 @@ def demander_liaison(channel: str, external_id: str, external_label: str = '') -
     return lien
 
 
-def confirmer_liaison(user, code: str) -> ChannelLink:
+def confirm_link(user, code: str) -> ChannelLink:
     """
     Scelle la liaison au profit de `user` — appelé DEPUIS WAMA, session authentifiée.
 
@@ -80,21 +80,21 @@ def confirmer_liaison(user, code: str) -> ChannelLink:
     """
     code = (code or '').strip().upper()
     if not code:
-        raise ErreurAppariement("Code manquant.")
+        raise PairingError("Code manquant.")
 
     with transaction.atomic():
         lien = ChannelLink.objects.select_for_update().filter(code=code).first()
         if lien is None:
             # Aucune ligne à incrémenter : on ne révèle pas si le code a existé.
-            raise ErreurAppariement("Code invalide ou expiré.")
+            raise PairingError("Code invalide ou expiré.")
 
-        if lien.est_confirmee:
-            raise ErreurAppariement("Ce code a déjà été utilisé.")
+        if lien.is_confirmed:
+            raise PairingError("Ce code a déjà été utilisé.")
 
         lien.tentatives += 1
-        if lien.code_expire or lien.tentatives > MAX_TENTATIVES:
+        if lien.code_expired or lien.tentatives > MAX_TENTATIVES:
             lien.save(update_fields=['tentatives'])
-            raise ErreurAppariement("Code invalide ou expiré.")
+            raise PairingError("Code invalide ou expiré.")
 
         lien.user = user
         lien.confirmed_at = timezone.now()
@@ -104,7 +104,7 @@ def confirmer_liaison(user, code: str) -> ChannelLink:
     return lien
 
 
-def compte_pour(channel: str, external_id: str):
+def account_for(channel: str, external_id: str):
     """
     Compte WAMA d'une identité de canal, ou None.
 
@@ -126,7 +126,7 @@ def compte_pour(channel: str, external_id: str):
     return lien.user
 
 
-def delier(user, channel: str, external_id: str) -> bool:
+def unlink(user, channel: str, external_id: str) -> bool:
     """Supprime une liaison — uniquement une des SIENNES. Rend True si quelque chose a sauté."""
     n, _ = ChannelLink.objects.filter(
         user=user, channel=channel, external_id=(external_id or '').strip()).delete()

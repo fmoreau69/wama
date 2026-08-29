@@ -56,9 +56,14 @@ CODE_LENGTH = 8
 MAX_TENTATIVES = 5
 
 
-def _generer_code() -> str:
+def _generate_code() -> str:
     """Code d'appariement — `secrets`, jamais `random` (il s'agit d'un jeton de sécurité)."""
     return ''.join(secrets.choice(_ALPHABET) for _ in range(CODE_LENGTH))
+
+
+#: Alias de TRANSITION : la migration 0001 sérialise `wama.gateway.models._generer_code`
+#: par chemin — la retirer casserait le chargement du graphe. À retirer avec un squash.
+_generer_code = _generate_code
 
 
 class ChannelLink(models.Model):
@@ -88,7 +93,7 @@ class ChannelLink(models.Model):
                              null=True, blank=True, related_name='channel_links',
                              verbose_name='Compte WAMA')
 
-    code = models.CharField(max_length=16, default=_generer_code, db_index=True,
+    code = models.CharField(max_length=16, default=_generate_code, db_index=True,
                             verbose_name="Code d'appariement")
     tentatives = models.PositiveSmallIntegerField(default=0,
                                                   verbose_name='Tentatives de code')
@@ -117,15 +122,15 @@ class ChannelLink(models.Model):
 
     # ── État ────────────────────────────────────────────────────────────────────
     @property
-    def est_confirmee(self) -> bool:
+    def is_confirmed(self) -> bool:
         return self.user_id is not None and self.confirmed_at is not None
 
     @property
-    def code_expire(self) -> bool:
+    def code_expired(self) -> bool:
         return timezone.now() - self.created_at > CODE_TTL
 
-    def code_utilisable(self) -> bool:
+    def code_usable(self) -> bool:
         """Un code n'est utilisable que vivant, non consommé et pas encore pilonné."""
-        return (not self.est_confirmee
-                and not self.code_expire
+        return (not self.is_confirmed
+                and not self.code_expired
                 and self.tentatives < MAX_TENTATIVES)

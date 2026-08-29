@@ -65,7 +65,7 @@ def _chat_model_options():
     Remplace les libellés codés en dur du gabarit (2026-08-18) : « Qwen3.5 35B-A3B (Dev) »
     affichait un modèle REMPLACÉ depuis le 2026-08-12 (qwen3.6:35b) alors que la value
     (le rôle) était, elle, correctement résolue par `resolve_chat_model` — l'UI mentait
-    sur ce que le backend faisait. Même leçon que `_limite_sure_chars` : un nom figé
+    sur ce que le backend faisait. Même leçon que `_safe_char_limit` : un nom figé
     meurt au premier remplacement de modèle par la prospection.
     """
     options = []
@@ -89,12 +89,12 @@ def home(request):
     langue = getattr(getattr(request.user, 'profile', None), 'preferred_language', None) or 'fr'
     # Accueil DÉCLARÉ, variant selon l'état de connexion : un visiteur non identifié doit
     # toujours s'entendre dire le parcours (s'identifier, puis attendre la modération). Voir
-    # `assistant_skills.accueil()` pour le pourquoi du déclaratif plutôt que du généré.
-    from wama.common.utils.assistant_skills import accueil
+    # `assistant_skills.greeting()` pour le pourquoi du déclaratif plutôt que du généré.
+    from wama.common.utils.assistant_skills import greeting
     from wama.common.utils.volet import volet
     context = {
         'is_admin': is_admin,
-        'accueil_assistant': accueil(request.user),
+        'accueil_assistant': greeting(request.user),
         # Résolution catalogue à chaque rendu : 5 requêtes DB, uniquement pour l'admin
         # qui voit la surface chat.
         'chat_model_options': _chat_model_options() if is_admin else [],

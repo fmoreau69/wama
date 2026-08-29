@@ -15,7 +15,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 
 from wama.common.backends.base import BaseModelBackend
-from wama.common.services.assistant_engine import WAMA_SYSTEM_PROMPT, _consigne_langue
+from wama.common.services.assistant_engine import WAMA_SYSTEM_PROMPT, _language_instruction
 from wama.common.tts.constants import KOKORO_LANG_MAP, KOKORO_VOICE_MAP, LANGUAGE_NAMES_EN
 from wama.common.tts.voices import (
     choix_voix, code_langue, est_repli, langue_de_voix, voix_pour,
@@ -247,7 +247,7 @@ class LangueAssistantTest(TestCase):
         self.assertIn('{LANGUE}', WAMA_TOOLS_PROMPT)
 
     def test_sans_utilisateur_reste_le_comportement_historique(self):
-        self.assertEqual(_consigne_langue(None), 'French')
+        self.assertEqual(_language_instruction(None), 'French')
 
     def test_suit_le_profil(self):
         user = User.objects.create_user('sonde_langues', password='x')  # base de TEST
@@ -255,8 +255,8 @@ class LangueAssistantTest(TestCase):
             user.profile.preferred_language = langue
             user.profile.save(update_fields=['preferred_language'])
             user.refresh_from_db()
-            self.assertEqual(_consigne_langue(user), attendu)
-            rendu = WAMA_SYSTEM_PROMPT.replace('{LANGUE}', _consigne_langue(user))
+            self.assertEqual(_language_instruction(user), attendu)
+            rendu = WAMA_SYSTEM_PROMPT.replace('{LANGUE}', _language_instruction(user))
             self.assertNotIn('{LANGUE}', rendu)
 
     def test_zh_cn_resolu(self):

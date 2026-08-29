@@ -28,7 +28,7 @@ RRF_K = 60
 #: la fusion n'a d'intérêt que si les listes se recouvrent partiellement.
 CANDIDATS_PAR_RANKER = 50
 
-#: Rang minimal pour qu'un appariement lexical COMPTE. Voir `_par_lexique` : Postgres rend
+#: Rang minimal pour qu'un appariement lexical COMPTE. Voir `_by_lexical` : Postgres rend
 #: 1e-20 sur toutes les lignes quand la requête ne contient aucun terme connu, et `> 0` laissait
 #: donc tout passer. Sur ce corpus un vrai appariement note ≥ 0.06 : le seuil est six ordres de
 #: grandeur au-dessus du plancher et six en dessous du plus faible vrai positif.
@@ -207,23 +207,23 @@ def recall(query, *, user, kinds=None, subject=None, k=8, include_rag=True,
     # départagés par leur score réel — pas être fusionnés après coup à rang égal.
     cand_vect, cand_lex = [], []
     if include_memory:
-        base = _memoire_visible(user, kinds=kinds, subject=subject)
-        cand_vect += [(d, 'memory', o) for d, o in _par_vecteur(base, vecteur)]
-        cand_lex += [(r, 'memory', o) for r, o in _par_lexique(base, query)]
+        base = _visible_memory(user, kinds=kinds, subject=subject)
+        cand_vect += [(d, 'memory', o) for d, o in _by_vector(base, vecteur)]
+        cand_lex += [(r, 'memory', o) for r, o in _by_lexical(base, query)]
     if include_rag:
-        base = _rag_visible(user, rag_niveaux)
-        cand_vect += [(d, 'rag', o) for d, o in _par_vecteur(base, vecteur)]
-        cand_lex += [(r, 'rag', o) for r, o in _par_lexique(base, query)]
+        base = _visible_rag(user, rag_niveaux)
+        cand_vect += [(d, 'rag', o) for d, o in _by_vector(base, vecteur)]
+        cand_lex += [(r, 'rag', o) for r, o in _by_lexical(base, query)]
 
     cand_vect.sort(key=lambda t: t[0])              # distance : plus PETIT = plus proche
     cand_lex.sort(key=lambda t: -t[0])              # rang lexical : plus GRAND = meilleur
 
     listes = [('vecteur', cand_vect[:CANDIDATS_PAR_RANKER]),
               ('lexical', cand_lex[:CANDIDATS_PAR_RANKER])]
-    return _fusion_rrf(listes)[:k]
+    return _rrf_fusion(listes)[:k]
 
 
-def _memoire_visible(user, *, kinds=None, subject=None):
+def _visible_memory(user, *, kinds=None, subject=None):
     """Souvenirs ACTIFS et visibles : approuvés, non invalidés, dans le scope de `user`."""
     from django.utils import timezone
 
@@ -233,7 +233,7 @@ def _memoire_visible(user, *, kinds=None, subject=None):
     # Les trois filtres qui font la gouvernance. Les retirer « pour déboguer » exposerait des
     # sorties LLM non validées comme si c'étaient des faits — ne jamais les rendre optionnels.
     qs = qs.filter(approved_at__isnull=False)
-    qs = qs.filter(_q_valides(timezone.now()))
+    qs = qs.filter(_q_valid(timezone.now()))
     qs = qs.filter(superseded_by__isnull=True)
     if kinds:
         qs = qs.filter(kind__in=list(kinds))
@@ -242,13 +242,13 @@ def _memoire_visible(user, *, kinds=None, subject=None):
     return qs
 
 
-def _q_valides(maintenant):
+def _q_valid(maintenant):
     """`Q` des souvenirs dont la fenêtre de validité couvre `maintenant`."""
     from django.db.models import Q
     return Q(valid_to__isnull=True) | Q(valid_to__gt=maintenant)
 
 
-def _rag_visible(user, niveaux=None):
+def _visible_rag(user, niveaux=None):
     """
     Fragments RAG rappelables par `user`, restreints aux `niveaux` demandés.
 
@@ -260,10 +260,10 @@ def _rag_visible(user, niveaux=None):
 
     if niveaux is None:
         return RagChunk.objects.filter(scoped_visible_q(user))
-    return RagChunk.objects.filter(_q_niveaux(user, set(niveaux)))
+    return RagChunk.objects.filter(_q_levels(user, set(niveaux)))
 
 
-def _q_niveaux(user, niveaux):
+def _q_levels(user, niveaux):
     """`Q` des niveaux demandés. Chaque niveau reprend LA branche correspondante de
     `scoped_visible_q` — même logique, jamais une réimplémentation qui pourrait diverger."""
     from django.db.models import Q
@@ -286,7 +286,7 @@ def _q_niveaux(user, niveaux):
     return q
 
 
-def _par_vecteur(queryset, vecteur):
+def _by_vector(queryset, vecteur):
     """
     Candidats `(distance, objet)` par distance cosinus, SEUILLÉS. Vide si pas de vecteur.
 
@@ -308,7 +308,7 @@ def _par_vecteur(queryset, vecteur):
         return []
 
 
-def _par_lexique(queryset, query):
+def _by_lexical(queryset, query):
     """
     Candidats par recherche plein texte française.
 
@@ -352,7 +352,7 @@ def _par_lexique(queryset, query):
         return []
 
 
-def _fusion_rrf(listes):
+def _rrf_fusion(listes):
     """
     Reciprocal Rank Fusion : score = Σ 1/(RRF_K + rang). Puis majoration par la saillance.
 
@@ -399,8 +399,8 @@ def reindex(*, lot=64, limite=None, modeles_obsoletes=False, dry_run=False):
     vectoriels ne cohabitent que le temps du réindex, et on sait lesquels restent à refaire.
     """
     from ..models import MemoryItem, RagChunk
-    from .embed import (EMBEDDING_MODEL, decharger, embed_batch, embedder_disponible,
-                        liberer, reserver, residence_autorisee)
+    from .embed import (EMBEDDING_MODEL, unload, embed_batch, embedder_available,
+                        release, reserve, residency_allowed)
 
     #: Résidence tenue PENDANT le réindex — cf. `embed_batch`. Décharger entre chaque lot
     #: imposerait ~15 cycles charge/décharge sur 940 éléments, et c'est un enchaînement de
@@ -409,9 +409,9 @@ def reindex(*, lot=64, limite=None, modeles_obsoletes=False, dry_run=False):
     #: on retombe sur le déchargement par lot — plus lent, jamais concurrent d'un traitement.
     RESIDENCE_REINDEX = '5m'
 
-    resume = {'embedder_disponible': embedder_disponible(), 'traites': 0, 'echecs': 0,
+    resume = {'embedder_available': embedder_available(), 'traites': 0, 'echecs': 0,
               'restants': 0, 'dry_run': dry_run}
-    if not resume['embedder_disponible']:
+    if not resume['embedder_available']:
         # On ne tente rien : sans le modèle, chaque lot partirait en timeout puis en `[]`, et on
         # aurait dépensé une série d'appels réseau pour rien.
         logger.warning("[memory] reindex : embedder indisponible (modèle tiré ? Ollama démarré ?)")
@@ -422,11 +422,11 @@ def reindex(*, lot=64, limite=None, modeles_obsoletes=False, dry_run=False):
     # alloué : un job imager qui s'apprête à prendre 16 Go est donc vu AVANT qu'il n'alloue.
     # Refus ⇒ on retombe sur le déchargement par lot : plus lent, mais jamais en concurrence
     # avec un traitement utilisateur. L'incertitude ne se résout jamais en occupant.
-    autorisee, pourquoi = (False, 'dry-run') if dry_run else residence_autorisee()
+    autorisee, pourquoi = (False, 'dry-run') if dry_run else residency_allowed()
     resume['residence'] = f"{'accordée' if autorisee else 'refusée'} ({pourquoi})"
     keep_alive = RESIDENCE_REINDEX if autorisee else '0'
     if autorisee:
-        reserver()
+        reserve()
 
     from django.db.models import Q
     manquant = Q(embedding__isnull=True)
@@ -464,14 +464,14 @@ def reindex(*, lot=64, limite=None, modeles_obsoletes=False, dry_run=False):
         resume['restants'] = max(0, resume['restants'] - resume['traites'])
         # Point final OBLIGATOIRE : la résidence tenue pendant l'opération ne doit pas lui
         # survivre. Sans ce déchargement, on aurait remplacé 15 cycles par un squat de VRAM.
-        # ⚠ Les DEUX gestes, toujours ensemble : `decharger()` libère la VRAM (Ollama),
-        # `liberer()` retire la ligne du registre (comptabilité). N'en faire qu'un laisserait
+        # ⚠ Les DEUX gestes, toujours ensemble : `unload()` libère la VRAM (Ollama),
+        # `release()` retire la ligne du registre (comptabilité). N'en faire qu'un laisserait
         # soit un modèle en VRAM que personne ne sait là, soit une réservation fantôme qui
         # ferait refuser de la place à un autre process pour rien.
         if resume['traites']:
-            resume['decharge'] = decharger()
+            resume['decharge'] = unload()
         if autorisee:
-            liberer()
+            release()
     return resume
 
 
@@ -510,7 +510,7 @@ def merge(items, *, seuil=0.92):
     PROPOSE de fusionner des souvenirs proches. N'ÉCRIT RIEN.
 
     Rend une liste de propositions `{'garder': item, 'fusionner': [items], 'similarite': float}`.
-    Appliquer une fusion est un geste humain (`appliquer_fusion`) — doctrine « propose-cite-tu-
+    Appliquer une fusion est un geste humain (`apply_fusion`) — doctrine « propose-cite-tu-
     valides » : une fusion automatique qui se trompe efface un souvenir qu'on ne peut pas
     reconstruire, et personne ne s'en apercevra.
     """
@@ -524,7 +524,7 @@ def merge(items, *, seuil=0.92):
         for autre in items[i + 1:]:
             if autre.pk in vus or autre.embedding is None:
                 continue
-            sim = _cosinus(ref.embedding, autre.embedding)
+            sim = _cosine(ref.embedding, autre.embedding)
             if sim >= seuil:
                 proches.append((autre, sim))
         if proches:
@@ -538,7 +538,7 @@ def merge(items, *, seuil=0.92):
     return propositions
 
 
-def appliquer_fusion(proposition, *, par_utilisateur):
+def apply_fusion(proposition, *, par_utilisateur):
     """
     Applique UNE proposition de `merge()`. Réservé à un geste humain explicite.
 
@@ -557,7 +557,7 @@ def appliquer_fusion(proposition, *, par_utilisateur):
     return garder
 
 
-def _cosinus(a, b):
+def _cosine(a, b):
     import numpy as np
     va, vb = np.asarray(a, dtype='float32'), np.asarray(b, dtype='float32')
     na, nb = np.linalg.norm(va), np.linalg.norm(vb)

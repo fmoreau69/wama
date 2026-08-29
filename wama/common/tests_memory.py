@@ -23,8 +23,8 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 
 from wama.common.memory import expire, forget, merge, recall, remember
-from wama.common.memory.index import (ajouter_au_rag, decouper, lister_rag,
-                                      retirer_du_rag)
+from wama.common.memory.index import (add_to_rag, split_text, list_rag,
+                                      remove_from_rag)
 from wama.common.models import MemoryItem, OrgUnit, RagChunk, ScopedVisibility
 
 
@@ -156,12 +156,12 @@ class DecoupageTests(TestCase):
     """Le découpage RAG — pur, sans base ni modèle."""
 
     def test_texte_vide_et_court(self):
-        self.assertEqual(decouper(''), [])
-        self.assertEqual(decouper('Une phrase.'), ['Une phrase.'])
+        self.assertEqual(split_text(''), [])
+        self.assertEqual(split_text('Une phrase.'), ['Une phrase.'])
 
     def test_texte_long_est_decoupe_avec_recouvrement(self):
         phrase = 'Le systeme de transcription utilise un modele pour les fichiers audio. '
-        frags = decouper(phrase * 40)
+        frags = split_text(phrase * 40)
         self.assertGreater(len(frags), 1)
         self.assertTrue(all(f.strip() for f in frags))
         # Sans recouvrement, une phrase coupee en deux devient introuvable : ni l'un ni l'autre
@@ -169,7 +169,7 @@ class DecoupageTests(TestCase):
         self.assertTrue(any(mot in frags[1] for mot in frags[0][-40:].split()[:3]))
 
     def test_aucun_fragment_ne_depasse_la_taille_avec_marge(self):
-        frags = decouper('Phrase de test. ' * 200)
+        frags = split_text('Phrase de test. ' * 200)
         self.assertTrue(all(len(f) <= 900 for f in frags), [len(f) for f in frags])
 
 
@@ -208,8 +208,8 @@ class EntreeExpliciteRagTests(TestCase):
 
     La première version indexait les sorties de TOUTES les apps de TOUS les utilisateurs
     (939 fragments écrits sans qu'aucun n'ait rien demandé — purgés). Ces tests protègent le
-    remplacement : `ajouter_au_rag` est le SEUL point d'entrée, au niveau choisi par
-    l'utilisateur, et ce qui entre par un geste ressort par un geste (`retirer_du_rag`).
+    remplacement : `add_to_rag` est le SEUL point d'entrée, au niveau choisi par
+    l'utilisateur, et ce qui entre par un geste ressort par un geste (`remove_from_rag`).
     """
 
     def setUp(self):
@@ -222,7 +222,7 @@ class EntreeExpliciteRagTests(TestCase):
         _affilier(self.b, 'LAB-TEST')     # membre du LABO directement
 
     def test_niveau_user_par_defaut_prive_et_sans_gpu(self):
-        r = ajouter_au_rag(self.a, 'le protocole des essais sur les chevaux miniatures',
+        r = add_to_rag(self.a, 'le protocole des essais sur les chevaux miniatures',
                            source_ref='reader#1', source_id='reader:1')
         self.assertEqual(r['etat'], 'indexé')
         chunks = RagChunk.objects.filter(source_id='reader:1')
@@ -235,7 +235,7 @@ class EntreeExpliciteRagTests(TestCase):
 
     def test_niveau_unit_partage_au_labo_et_herite_par_l_equipe(self):
         """LE test du niveau 2 : un doc partagé au LABO est vu d'un membre d'une ÉQUIPE du labo."""
-        r = ajouter_au_rag(self.b, 'protocole du laboratoire sur le consentement',
+        r = add_to_rag(self.b, 'protocole du laboratoire sur le consentement',
                            source_ref='doc#1', source_id='doc:1', niveau='unit')
         self.assertEqual(r['niveau'], 'unit')
         chunk = RagChunk.objects.get(source_id='doc:1')
@@ -247,7 +247,7 @@ class EntreeExpliciteRagTests(TestCase):
 
     def test_niveau_unit_sans_affiliation_refuse(self):
         seul = User.objects.create_user('rag_seul', password='x')
-        r = ajouter_au_rag(seul, 'texte', source_ref='x', niveau='unit')
+        r = add_to_rag(seul, 'texte', source_ref='x', niveau='unit')
         self.assertIn('erreur', r)
         self.assertEqual(RagChunk.objects.filter(user=seul).count(), 0)
 
@@ -255,26 +255,26 @@ class EntreeExpliciteRagTests(TestCase):
         """Multi-entités (précision Fabien) : plusieurs affiliations ⇒ on ne devine JAMAIS."""
         multi = User.objects.create_user('rag_multi', password='x')
         _affilier(multi, 'LAB-TEST', 'EQ-TEST')
-        r = ajouter_au_rag(multi, 'texte partagé', source_ref='x', niveau='unit')
+        r = add_to_rag(multi, 'texte partagé', source_ref='x', niveau='unit')
         self.assertIn('erreur', r)
         self.assertIn('plusieurs affiliations', r['erreur'])
         # En nommant l'unité, le geste passe.
-        r2 = ajouter_au_rag(multi, 'texte partagé', source_ref='x', niveau='unit',
+        r2 = add_to_rag(multi, 'texte partagé', source_ref='x', niveau='unit',
                             org_unit='LAB-TEST')
         self.assertEqual(r2.get('niveau'), 'unit')
 
     def test_publier_vers_un_ancetre_est_refuse(self):
         """`a` est affilié à l'ÉQUIPE : publier au LABO (ancêtre) = niveau 3/4, pas ouvert."""
-        r = ajouter_au_rag(self.a, 'texte', source_ref='x', niveau='unit', org_unit='LAB-TEST')
+        r = add_to_rag(self.a, 'texte', source_ref='x', niveau='unit', org_unit='LAB-TEST')
         self.assertIn('erreur', r)
 
     def test_idempotence_et_changement_de_niveau_sans_perdre_les_vecteurs(self):
         texte = 'un document stable dont seul le niveau de partage change'
-        ajouter_au_rag(self.b, texte, source_ref='d', source_id='doc:2')
+        add_to_rag(self.b, texte, source_ref='d', source_id='doc:2')
         # Simule un réindex passé : le fragment a son vecteur.
         RagChunk.objects.filter(source_id='doc:2').update(embedding=[0.0] * 1024,
                                                           embedding_model='bge-m3')
-        r = ajouter_au_rag(self.b, texte, source_ref='d', source_id='doc:2', niveau='unit')
+        r = add_to_rag(self.b, texte, source_ref='d', source_id='doc:2', niveau='unit')
         self.assertEqual(r['etat'], 'inchangé')
         chunk = RagChunk.objects.get(source_id='doc:2')
         self.assertEqual(chunk.visibility, ScopedVisibility.VIS_UNIT)
@@ -282,22 +282,22 @@ class EntreeExpliciteRagTests(TestCase):
                              'changer la portée ne doit PAS coûter un réindex')
 
     def test_contenu_modifie_est_redecoupe(self):
-        ajouter_au_rag(self.a, 'premier contenu', source_ref='d', source_id='reader:9')
-        r = ajouter_au_rag(self.a, 'un contenu entièrement différent',
+        add_to_rag(self.a, 'premier contenu', source_ref='d', source_id='reader:9')
+        r = add_to_rag(self.a, 'un contenu entièrement différent',
                           source_ref='d', source_id='reader:9')
         self.assertEqual(r['etat'], 'réindexé')
         self.assertIn('entièrement différent',
                       RagChunk.objects.get(source_id='reader:9').content)
 
     def test_retirer_du_rag_ne_touche_que_le_proprietaire(self):
-        ajouter_au_rag(self.a, 'document à retirer ensuite', source_ref='d', source_id='reader:5')
-        self.assertEqual(retirer_du_rag(self.b, 'reader:5'), 0)     # pas le sien : rien
-        self.assertTrue(retirer_du_rag(self.a, 'reader:5') > 0)
+        add_to_rag(self.a, 'document à retirer ensuite', source_ref='d', source_id='reader:5')
+        self.assertEqual(remove_from_rag(self.b, 'reader:5'), 0)     # pas le sien : rien
+        self.assertTrue(remove_from_rag(self.a, 'reader:5') > 0)
         self.assertEqual(RagChunk.objects.filter(source_id='reader:5').count(), 0)
 
     def test_lister_rag_pour_la_page_de_gestion(self):
-        ajouter_au_rag(self.a, 'un premier document', source_ref='reader#7', source_id='reader:7')
-        lignes = lister_rag(self.a)
+        add_to_rag(self.a, 'un premier document', source_ref='reader#7', source_id='reader:7')
+        lignes = list_rag(self.a)
         self.assertEqual(len(lignes), 1)
         self.assertEqual(lignes[0]['niveau'], 'user')
         self.assertEqual(lignes[0]['vectorises'], 0)    # signale qu'un reindex est à faire
@@ -314,9 +314,9 @@ class NiveauxRappelTests(TestCase):
         _affilier(self.b, 'LAB-N')
         # `a` possède un doc PRIVÉ ; `b` partage un doc au LABO. Même mot « protocole » dans
         # les deux : c'est le NIVEAU qui discrimine, pas la requête.
-        ajouter_au_rag(self.a, 'mes notes personnelles sur le protocole des essais',
+        add_to_rag(self.a, 'mes notes personnelles sur le protocole des essais',
                        source_ref='n', source_id='n:1')
-        ajouter_au_rag(self.b, 'protocole du laboratoire sur les entretiens',
+        add_to_rag(self.b, 'protocole du laboratoire sur les entretiens',
                        source_ref='l', source_id='l:1', niveau='unit')
 
     def _ids(self, niveaux):
@@ -474,7 +474,7 @@ class RattachementMultipleTests(TestCase):
 
     L'annuaire UGE porte les codes HÉRITÉS (« {IFSTTAR}LESCOT ») À CÔTÉ des codes actuels
     (« CFR - LESCOT ») pour le MÊME laboratoire : l'utilisateur a donc plusieurs rattachements
-    sans être membre de plusieurs labos. `_resoudre_unite` refuse alors de deviner — à raison,
+    sans être membre de plusieurs labos. `_resolve_unit` refuse alors de deviner — à raison,
     un partage parti dans la mauvaise entité ne se voit pas — mais sans réglage d'unité cible le
     niveau labo devenait INATTEIGNABLE. Ces tests protègent la sortie de ce blocage.
     """

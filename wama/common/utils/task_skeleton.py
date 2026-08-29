@@ -91,8 +91,8 @@ def _signal(item, app_id: str, signal: str, model_keys=None, detail=None) -> Non
     """Signal d'exécution, best-effort — comme `_notify`, il ne doit jamais faire échouer une
     tâche qui a par ailleurs abouti."""
     try:
-        from wama.common.services.run_outcome import enregistrer
-        enregistrer(app_id, item, signal, model_keys=model_keys, detail=detail)
+        from wama.common.services.run_outcome import record
+        record(app_id, item, signal, model_keys=model_keys, detail=detail)
     except Exception:
         pass
 

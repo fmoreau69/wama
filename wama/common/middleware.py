@@ -104,8 +104,8 @@ class RunOutcomeCaptureMiddleware:
             if signal is None:
                 return      # 1re exécution : c'est `task_skeleton` qui écrira 'produit'
 
-        from .services.run_outcome import enregistrer
-        enregistrer(app, instance, signal, user=request.user)
+        from .services.run_outcome import record
+        record(app, instance, signal, user=request.user)
 
     @staticmethod
     def _signal_start(app, object_type, pk, user):

@@ -68,9 +68,9 @@ def embed_text(text: str, *, model: str = '', timeout: float = TIMEOUT_S, reside
     """
     keep_alive = None
     if resident:
-        autorisee, _ = residence_autorisee()
+        autorisee, _ = residency_allowed()
         if autorisee:
-            reserver()
+            reserve()
             keep_alive = RESIDENCE_RAPPEL
     vectors = embed_batch([text], model=model, timeout=timeout, keep_alive=keep_alive)
     return vectors[0] if vectors else None
@@ -140,7 +140,7 @@ VRAM_GB = 1.0
 OWNER = 'memory-embed#ollama:bge-m3:latest'
 
 
-def residence_autorisee(gb: float = VRAM_GB) -> tuple[bool, str]:
+def residency_allowed(gb: float = VRAM_GB) -> tuple[bool, str]:
     """
     Demande au GOUVERNEUR s'il y a de la place pour garder l'embedder résident.
 
@@ -168,7 +168,7 @@ def residence_autorisee(gb: float = VRAM_GB) -> tuple[bool, str]:
     return True, f'{libre:.1f} Go libres'
 
 
-def reserver(gb: float = VRAM_GB) -> bool:
+def reserve(gb: float = VRAM_GB) -> bool:
     """Déclare la résidence au gouverneur, pour que les AUTRES process la voient."""
     try:
         from ..services.resource_governor import mark_used, reserve_vram
@@ -180,9 +180,9 @@ def reserver(gb: float = VRAM_GB) -> bool:
         return False
 
 
-def liberer() -> bool:
+def release() -> bool:
     """
-    Libère la réservation. ⚠ COMPTABILITÉ SEULEMENT — le déchargement réel, c'est `decharger()`.
+    Libère la réservation. ⚠ COMPTABILITÉ SEULEMENT — le déchargement réel, c'est `unload()`.
 
     Les deux vont toujours ensemble : libérer sans décharger laisserait le modèle en VRAM sans
     que personne ne le sache, ce qui est pire qu'une résidence déclarée.
@@ -195,7 +195,7 @@ def liberer() -> bool:
         return False
 
 
-def decharger(model: str = '') -> bool:
+def unload(model: str = '') -> bool:
     """
     Décharge le modèle d'embedding de la VRAM, tout de suite. Rend True si la demande a abouti.
 
@@ -219,7 +219,7 @@ def decharger(model: str = '') -> bool:
         return False
 
 
-def embedder_disponible(model: str = '') -> bool:
+def embedder_available(model: str = '') -> bool:
     """
     Dit si le modèle d'embedding est tiré côté Ollama — SANS le charger.
 

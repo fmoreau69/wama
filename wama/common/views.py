@@ -641,7 +641,7 @@ def rag_ajouter(request):
     pas, changer de niveau ne recalcule pas les vecteurs) et la page de gestion sait remonter
     à l'item d'origine.
     """
-    from .memory.index import NIVEAUX_ECRITURE, ajouter_au_rag
+    from .memory.index import WRITE_LEVELS, add_to_rag
 
     app_name = (request.POST.get('app') or '').strip()
     try:
@@ -662,16 +662,16 @@ def rag_ajouter(request):
     prof = getattr(request.user, 'profile', None)
     niveau = (request.POST.get('niveau') or '').strip() \
         or (getattr(prof, 'rag_niveau_defaut', '') if prof else '') or 'user'
-    if niveau not in NIVEAUX_ECRITURE:
+    if niveau not in WRITE_LEVELS:
         return JsonResponse({'erreur': f"niveau non ouvert : {niveau}"}, status=400)
 
-    # L'unité cible ne se DEVINE pas quand il y en a plusieurs (`_resoudre_unite` refuse) : on
+    # L'unité cible ne se DEVINE pas quand il y en a plusieurs (`_resolve_unit` refuse) : on
     # la prend du geste, sinon du réglage de profil. Sans ce repli, un utilisateur à plusieurs
     # rattachements — cas courant à l'UGE, où les codes hérités coexistent avec les actuels —
     # ne pourrait jamais partager au labo depuis le bouton.
     unite = (request.POST.get('org_unit') or '').strip() \
         or (getattr(prof, 'rag_unite_defaut', '') if prof else '')
-    res = ajouter_au_rag(
+    res = add_to_rag(
         request.user, texte,
         # Référence CITABLE : c'est elle que le rappel affiche à côté de l'extrait ([reader:12]).
         source_ref=f'{app_name}:{pk}', source_id=f'{app_name}:{pk}',
@@ -688,12 +688,12 @@ def rag_ajouter(request):
 def rag_retirer(request):
     """Retire un document du RAG. Le pendant du geste d'ajout — condition posée dès l'objection :
     ce qui entre par un geste doit pouvoir sortir par un geste."""
-    from .memory.index import retirer_du_rag
+    from .memory.index import remove_from_rag
 
     source_id = (request.POST.get('source_id') or '').strip()
     if not source_id:
         return JsonResponse({'erreur': 'source_id requis'}, status=400)
-    return JsonResponse({'retires': retirer_du_rag(request.user, source_id)})
+    return JsonResponse({'retires': remove_from_rag(request.user, source_id)})
 
 
 @login_required
@@ -706,7 +706,7 @@ def rag_preference(request):
     VIDE — « ne rien utiliser » est un choix légitime, pas une valeur manquante (d'où le
     marqueur explicite plutôt qu'une liste absente, qu'on ne saurait pas distinguer d'un
     formulaire incomplet)."""
-    from .memory.index import NIVEAUX_ECRITURE
+    from .memory.index import WRITE_LEVELS
     from .memory.store import NIVEAUX_RAG
 
     prof = getattr(request.user, 'profile', None)
@@ -716,7 +716,7 @@ def rag_preference(request):
     champs = []
     niveau = (request.POST.get('niveau_defaut') or '').strip()
     if niveau:
-        if niveau not in NIVEAUX_ECRITURE:
+        if niveau not in WRITE_LEVELS:
             return JsonResponse({'erreur': f"niveau non ouvert : {niveau}"}, status=400)
         prof.rag_niveau_defaut = niveau
         champs.append('rag_niveau_defaut')
@@ -729,7 +729,7 @@ def rag_preference(request):
     if request.POST.get('unite_soumise'):
         # On VALIDE contre les affiliations réelles : accepter un code arbitraire laisserait
         # croire à un partage possible vers une unité dont l'utilisateur n'est pas membre —
-        # `ajouter_au_rag` le refuserait ensuite, mais seulement au moment du clic.
+        # `add_to_rag` le refuserait ensuite, mais seulement au moment du clic.
         code = (request.POST.get('unite_defaut') or '').strip()
         affiliations = list(prof.org_affiliations or [])
         if prof.org_entity_code:
@@ -757,13 +757,13 @@ def rag_view(request):
     from django.urls import reverse
 
     from .app_registry import APP_CATALOG
-    from .memory.index import NIVEAUX_ECRITURE, lister_rag
+    from .memory.index import WRITE_LEVELS, list_rag
     from .memory.store import NIVEAUX_RAG
 
     LIBELLE = {'user': 'Mon RAG (privé)', 'unit': 'RAG du labo',
                'project': 'RAG du projet', 'public': 'Public'}
 
-    docs = lister_rag(request.user)
+    docs = list_rag(request.user)
 
     niveau_actif = (request.GET.get('niveau') or '').strip()
     q = (request.GET.get('q') or '').strip()
@@ -792,7 +792,7 @@ def rag_view(request):
     brut = getattr(prof, 'rag_niveaux_rappel', None) if prof else None
     rappel = list(NIVEAUX_RAG) if brut is None else list(brut)
     facettes = [{'cle': 'niveau', 'label': 'Niveau', 'tous': 'Tous les niveaux',
-                 'options': {n: LIBELLE[n] for n in NIVEAUX_ECRITURE},
+                 'options': {n: LIBELLE[n] for n in WRITE_LEVELS},
                  'valeur': niveau_actif or 'all'}]
 
     return render(request, 'common/rag.html', {
@@ -803,7 +803,7 @@ def rag_view(request):
         'facettes': facettes,
         'q': q,
         'url_reset': reverse('common:rag'),
-        'niveaux_ecriture': [(n, LIBELLE[n]) for n in NIVEAUX_ECRITURE],
+        'niveaux_ecriture': [(n, LIBELLE[n]) for n in WRITE_LEVELS],
         'niveaux_rappel': [(n, LIBELLE[n], n in rappel) for n in NIVEAUX_RAG],
         'niveau_defaut': getattr(prof, 'rag_niveau_defaut', 'user') if prof else 'user',
         # Un profil sans affiliation RECONNUE ne peut pas publier au labo : on le DIT sur la

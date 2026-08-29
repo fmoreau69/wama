@@ -31,14 +31,14 @@ logger = logging.getLogger(__name__)
 MAX_TOURS = 20
 
 
-def fil(user, surface: str = 'web', thread_key: str = '') -> Conversation:
+def thread(user, surface: str = 'web', thread_key: str = '') -> Conversation:
     """Le fil de cet utilisateur pour cette surface — créé au besoin."""
     conversation, _ = Conversation.objects.get_or_create(
         user=user, surface=surface, thread_key=(thread_key or '')[:255])
     return conversation
 
 
-def historique(conversation, limite: int = MAX_TOURS) -> list:
+def history(conversation, limite: int = MAX_TOURS) -> list:
     """
     Les derniers tours du fil, au format attendu par `run_assistant_turn`.
 
@@ -53,7 +53,7 @@ def historique(conversation, limite: int = MAX_TOURS) -> list:
 
 
 @transaction.atomic
-def enregistrer_echange(conversation, message: str, resultat: dict) -> None:
+def record_exchange(conversation, message: str, resultat: dict) -> None:
     """
     Enregistre le tour utilisateur ET la réponse de l'assistant, en une transaction.
 
@@ -80,12 +80,12 @@ def enregistrer_echange(conversation, message: str, resultat: dict) -> None:
     conversation.save(update_fields=['updated_at'])
 
 
-def conversations_de(user, limite: int = 50) -> list:
+def conversations_of(user, limite: int = 50) -> list:
     """Fils d'un utilisateur, le plus récemment actif d'abord (liste d'UI)."""
     return list(Conversation.objects.filter(user=user)[:limite])
 
 
-def effacer(user, conversation_id: int) -> bool:
+def clear(user, conversation_id: int) -> bool:
     """
     Supprime UN fil — uniquement l'un des SIENS.
 

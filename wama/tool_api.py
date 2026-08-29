@@ -2379,7 +2379,7 @@ def memory_recall(user, query: str, k: int = 5, include_rag: bool = True,
 
     ⚠ Le vrai coût n'est pas la latence, c'est la RÉSIDENCE VRAM de l'embedder, qui concurrence
     les modèles de traitement sur la 4090. C'est précisément ce que le **gouverneur** arbitre
-    (`memory/embed.py::residence_autorisee` — 1,0 Go mesuré) : s'il refuse, chaque appel recharge
+    (`memory/embed.py::residency_allowed` — 1,0 Go mesuré) : s'il refuse, chaque appel recharge
     (~5 s) au lieu d'occuper. La dégradation est lente, jamais concurrente.
     """
     try:
@@ -2437,24 +2437,24 @@ def charger_competence(user, domaine: str, question: str = '') -> dict:
     # salon, par exemple) serait de la logique métier hors de sa place ET faux la plupart du
     # temps. D'où un OUTIL : l'assistant décide, dans la boucle agentique qui existe déjà.
     from wama.common.utils.assistant_skills import (
-        contexte_laboratoire, consigne_de_role, domaine as resoudre_domaine,
+        laboratory_context, role_instructions, resolve_domain,
     )
 
-    d = resoudre_domaine(domaine)
-    consigne = consigne_de_role(d.cle)
+    d = resolve_domain(domaine)
+    consigne = role_instructions(d.key)
     if not consigne:
-        return {"error": f"Compétence « {d.cle} » indisponible."}
+        return {"error": f"Compétence « {d.key} » indisponible."}
 
     return {
-        "domaine": d.cle,
-        "libelle": d.libelle,
+        "domaine": d.key,
+        "libelle": d.label,
         "consigne": consigne,
         # Le contexte n'est cherché que pour les domaines qui le déclarent (`rag=True`),
         # et reste vide si rien de pertinent n'est trouvé — jamais de bruit injecté.
         # ⚠ La QUESTION de l'utilisateur pilote le rappel — pas le nom du domaine : jusqu'au
         # 29/08 `recall()` recevait « science », un mot, et rendait du générique (défaut
         # mesuré, WAMA_LLM §Vérification). Le nom du domaine ne reste qu'en repli.
-        "contexte": contexte_laboratoire(user, (question or '').strip() or domaine or '', d.cle),
+        "contexte": laboratory_context(user, (question or '').strip() or domaine or '', d.key),
     }
 
 

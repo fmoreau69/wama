@@ -40,7 +40,7 @@ class Command(BaseCommand):
 
         from django.utils import timezone
 
-        from wama.common.memory.project import projeter_run_outcomes
+        from wama.common.memory.project import project_run_outcomes
         from wama.common.memory.store import reindex
 
         depuis = None
@@ -53,7 +53,7 @@ class Command(BaseCommand):
                 return
 
         self.stdout.write('── Projection RunOutcome → mémoire (aucun modèle appelé) ──')
-        r = projeter_run_outcomes(depuis=depuis, limite=opts['limite'], dry_run=opts['dry_run'])
+        r = project_run_outcomes(depuis=depuis, limite=opts['limite'], dry_run=opts['dry_run'])
         self.stdout.write(
             f"  objets traités : {r['objets']}\n"
             f"  créés          : {r['crees']}\n"
@@ -76,14 +76,14 @@ class Command(BaseCommand):
             self.stderr.write(self.style.ERROR(
                 "--rag a été RETIRÉ (2026-08-21) : le balayage global indexait les sorties de "
                 "tous les utilisateurs sans leur geste. L'entrée au RAG passe désormais par "
-                "wama.common.memory.index.ajouter_au_rag() — action explicite de l'utilisateur, "
+                "wama.common.memory.index.add_to_rag() — action explicite de l'utilisateur, "
                 "niveau choisi ('user' | 'unit'). Cf. WAMA_MEMORY.md §7ter."))
             return
 
         if opts['dev_ai']:
-            from wama.common.memory.dev_ai import importer
+            from wama.common.memory.dev_ai import import_memory
             self.stdout.write('\n── Reprise de wama-dev-ai/memory.json ──')
-            d = importer(dry_run=opts['dry_run'])
+            d = import_memory(dry_run=opts['dry_run'])
             if d.get('erreur'):
                 self.stderr.write(self.style.ERROR(f"  lecture impossible : {d['erreur']}"))
             else:
@@ -106,7 +106,7 @@ class Command(BaseCommand):
 
         self.stdout.write('\n── Réindexation vectorielle (CHARGE bge-m3) ──')
         v = reindex(modeles_obsoletes=opts['modeles_obsoletes'], dry_run=opts['dry_run'])
-        if not v['embedder_disponible']:
+        if not v['embedder_available']:
             self.stderr.write(self.style.ERROR(
                 "  embedder indisponible — Ollama démarré ? `ollama pull bge-m3` fait ?"))
             return

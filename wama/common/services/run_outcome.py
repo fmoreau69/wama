@@ -1,7 +1,7 @@
 """
 Capture des signaux d'exécution — la brique `RunOutcome` de la ROADMAP §16.7.
 
-CE QU'ELLE FAIT : enregistrer, en une ligne d'appel, un FAIT observé sur un résultat produit.
+CE QU'ELLE FAIT : record, en une ligne d'appel, un FAIT observé sur un résultat produit.
 CE QU'ELLE NE FAIT PAS : juger. Aucune note n'entre ici (cf. le docstring de `RunOutcome`).
 
 RÈGLE D'INTÉGRATION — best-effort ABSOLU. Un signal manqué est un signal manqué ; une exception
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 SIGNAUX = ('produit', 'echec', 'telecharge', 'corrige', 'relance', 'supprime')
 
 
-def enregistrer(app: str, item, signal: str, *, model_keys=None, detail=None, user=None):
+def record(app: str, item, signal: str, *, model_keys=None, detail=None, user=None):
     """
     Consigne un signal sur `item`. Retourne la ligne créée, ou None si rien n'a pu être écrit.
 
@@ -49,7 +49,7 @@ def enregistrer(app: str, item, signal: str, *, model_keys=None, detail=None, us
         return None
 
 
-def ampleur_correction(avant, apres) -> dict:
+def correction_magnitude(avant, apres) -> dict:
     """
     Mesure une correction humaine sans l'interpréter : combien de segments, quelle distance.
 
@@ -60,7 +60,7 @@ def ampleur_correction(avant, apres) -> dict:
 
     Rend `{}` si la comparaison n'a pas de sens — on préfère ne rien dire qu'estimer à faux.
     """
-    def _textes(segments):
+    def _texts(segments):
         if not isinstance(segments, (list, tuple)):
             return []
         out = []
@@ -71,7 +71,7 @@ def ampleur_correction(avant, apres) -> dict:
                 out.append(s.strip())
         return out
 
-    t_avant, t_apres = _textes(avant), _textes(apres)
+    t_avant, t_apres = _texts(avant), _texts(apres)
     if not t_avant or not t_apres:
         return {}
 
@@ -100,7 +100,7 @@ def ampleur_correction(avant, apres) -> dict:
     }
 
 
-def correction_reelle(mesure: dict) -> bool:
+def is_real_correction(mesure: dict) -> bool:
     """
     La correction a-t-elle CHANGÉ quelque chose ? Garde-fou du signal `corrige`.
 
@@ -122,7 +122,7 @@ def correction_reelle(mesure: dict) -> bool:
 # (§16.7-4) — un agent qui réécrit ses réglages sans métrique mesurée dérive au lieu de
 # s'améliorer.
 
-def compter(app: str = '', depuis=None) -> dict:
+def count_signals(app: str = '', depuis=None) -> dict:
     """Répartition brute des signaux, éventuellement filtrée. Sans interprétation."""
     from django.db.models import Count
 
@@ -137,7 +137,7 @@ def compter(app: str = '', depuis=None) -> dict:
             for r in qs.values('signal').annotate(n=Count('id')).order_by('-n')}
 
 
-def par_modele(signal: str = '', app: str = '', modele_unique: bool = True) -> dict:
+def by_model(signal: str = '', app: str = '', modele_unique: bool = True) -> dict:
     """
     `{model_key: {signal: n}}` — de quoi ORDONNER des modèles quand le volume le permettra.
 

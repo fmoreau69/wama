@@ -27,11 +27,11 @@ from django.utils import timezone
 from wama.gateway import core
 from wama.gateway.models import CODE_TTL, MAX_TENTATIVES, ChannelLink
 from wama.gateway.services import (
-    ErreurAppariement,
-    compte_pour,
-    confirmer_liaison,
-    delier,
-    demander_liaison,
+    PairingError,
+    account_for,
+    confirm_link,
+    unlink,
+    request_link,
 )
 
 CANAL, EXT_ID = 'discord', '111222333'
@@ -45,17 +45,17 @@ class AppariementTests(TestCase):
         self.mallory = User.objects.create(username='mallory')
 
     def test_sans_liaison_aucun_compte(self):
-        self.assertIsNone(compte_pour(CANAL, EXT_ID))
+        self.assertIsNone(account_for(CANAL, EXT_ID))
 
     def test_cycle_nominal(self):
-        lien = demander_liaison(CANAL, EXT_ID, 'Fabien')
+        lien = request_link(CANAL, EXT_ID, 'Fabien')
         self.assertEqual(len(lien.code), 8)
-        self.assertFalse(lien.est_confirmee)
+        self.assertFalse(lien.is_confirmed)
         # Tant que WAMA n'a pas tranché, la passerelle ne connaît personne.
-        self.assertIsNone(compte_pour(CANAL, EXT_ID))
+        self.assertIsNone(account_for(CANAL, EXT_ID))
 
-        confirmer_liaison(self.alice, lien.code)
-        self.assertEqual(compte_pour(CANAL, EXT_ID), self.alice)
+        confirm_link(self.alice, lien.code)
+        self.assertEqual(account_for(CANAL, EXT_ID), self.alice)
 
     def test_le_compte_lie_est_celui_qui_saisit_le_code(self):
         """La propriété de sécurité centrale : un code volé ne donne AUCUN accès.
@@ -63,61 +63,61 @@ class AppariementTests(TestCase):
         Celui qui saisit le code lie le canal à SON PROPRE compte — il ne prend donc rien
         à personne. C'est ce qui rend le code inoffensif s'il circule dans une discussion.
         """
-        lien = demander_liaison(CANAL, EXT_ID, 'Fabien')
-        confirmer_liaison(self.mallory, lien.code)          # Mallory intercepte le code
-        self.assertEqual(compte_pour(CANAL, EXT_ID), self.mallory)
+        lien = request_link(CANAL, EXT_ID, 'Fabien')
+        confirm_link(self.mallory, lien.code)          # Mallory intercepte le code
+        self.assertEqual(account_for(CANAL, EXT_ID), self.mallory)
         # …et n'a obtenu aucun accès au compte d'Alice.
         self.assertFalse(ChannelLink.objects.filter(user=self.alice).exists())
 
     def test_code_a_usage_unique(self):
-        lien = demander_liaison(CANAL, EXT_ID)
-        confirmer_liaison(self.alice, lien.code)
-        with self.assertRaises(ErreurAppariement):
-            confirmer_liaison(self.mallory, lien.code)
+        lien = request_link(CANAL, EXT_ID)
+        confirm_link(self.alice, lien.code)
+        with self.assertRaises(PairingError):
+            confirm_link(self.mallory, lien.code)
 
     def test_identite_deja_liee_non_reappropriable(self):
-        lien = demander_liaison(CANAL, EXT_ID)
-        confirmer_liaison(self.alice, lien.code)
-        with self.assertRaises(ErreurAppariement):
-            demander_liaison(CANAL, EXT_ID)
+        lien = request_link(CANAL, EXT_ID)
+        confirm_link(self.alice, lien.code)
+        with self.assertRaises(PairingError):
+            request_link(CANAL, EXT_ID)
 
     def test_code_inconnu_refuse(self):
-        with self.assertRaises(ErreurAppariement):
-            confirmer_liaison(self.alice, 'ZZZZZZZZ')
+        with self.assertRaises(PairingError):
+            confirm_link(self.alice, 'ZZZZZZZZ')
 
     def test_demande_pilonnee_meurt_meme_avec_le_bon_code(self):
-        lien = demander_liaison(CANAL, EXT_ID)
+        lien = request_link(CANAL, EXT_ID)
         ChannelLink.objects.filter(pk=lien.pk).update(tentatives=MAX_TENTATIVES)
-        with self.assertRaises(ErreurAppariement):
-            confirmer_liaison(self.alice, lien.code)
+        with self.assertRaises(PairingError):
+            confirm_link(self.alice, lien.code)
 
     def test_code_expire_refuse(self):
-        lien = demander_liaison(CANAL, EXT_ID)
+        lien = request_link(CANAL, EXT_ID)
         ChannelLink.objects.filter(pk=lien.pk).update(
             created_at=timezone.now() - CODE_TTL - timedelta(minutes=1))
-        with self.assertRaises(ErreurAppariement):
-            confirmer_liaison(self.alice, lien.code)
+        with self.assertRaises(PairingError):
+            confirm_link(self.alice, lien.code)
 
     def test_redemande_donne_un_code_neuf_et_remet_le_compteur(self):
-        lien = demander_liaison(CANAL, EXT_ID)
+        lien = request_link(CANAL, EXT_ID)
         ChannelLink.objects.filter(pk=lien.pk).update(tentatives=3)
-        neuf = demander_liaison(CANAL, EXT_ID)
+        neuf = request_link(CANAL, EXT_ID)
         self.assertNotEqual(neuf.code, lien.code)
         self.assertEqual(neuf.tentatives, 0)
 
     def test_canal_inconnu_refuse(self):
-        with self.assertRaises(ErreurAppariement):
-            demander_liaison('telegram', 'x')
+        with self.assertRaises(PairingError):
+            request_link('telegram', 'x')
 
     def test_delier_seulement_les_siennes(self):
-        lien = demander_liaison(CANAL, EXT_ID)
-        confirmer_liaison(self.alice, lien.code)
+        lien = request_link(CANAL, EXT_ID)
+        confirm_link(self.alice, lien.code)
 
-        self.assertFalse(delier(self.mallory, CANAL, EXT_ID))
-        self.assertEqual(compte_pour(CANAL, EXT_ID), self.alice)   # intacte
+        self.assertFalse(unlink(self.mallory, CANAL, EXT_ID))
+        self.assertEqual(account_for(CANAL, EXT_ID), self.alice)   # intacte
 
-        self.assertTrue(delier(self.alice, CANAL, EXT_ID))
-        self.assertIsNone(compte_pour(CANAL, EXT_ID))
+        self.assertTrue(unlink(self.alice, CANAL, EXT_ID))
+        self.assertIsNone(account_for(CANAL, EXT_ID))
 
 
 def _reponse_simulee(user, message, **kw):
@@ -129,7 +129,7 @@ def _reponse_simulee(user, message, **kw):
 @override_settings(MEDIA_ROOT=tempfile.mkdtemp(prefix='wama-test-gateway-'))
 class CoeurPasserelleTests(TestCase):
     """
-    `traiter_message` — ce que la passerelle décide, indépendamment du protocole.
+    `handle_message` — ce que la passerelle décide, indépendamment du protocole.
 
     ⚠ `MEDIA_ROOT` est REDIRIGÉ vers un répertoire temporaire. Sans cette redirection, le
     test de pièce jointe écrit dans le média RÉEL de l'instance : chaque exécution y laissait
@@ -142,13 +142,13 @@ class CoeurPasserelleTests(TestCase):
     def setUp(self):
         self.user = User.objects.create(username='fabien')
 
-    def _msg(self, texte='', pieces=None, fil='salon-1'):
-        return core.MessageEntrant(channel=CANAL, external_id=EXT_ID, external_label='Fabien',
-                                   texte=texte, fil=fil, pieces_jointes=pieces or [])
+    def _msg(self, text='', pieces=None, thread='salon-1'):
+        return core.IncomingMessage(channel=CANAL, external_id=EXT_ID, external_label='Fabien',
+                                   text=text, thread=thread, attachments=pieces or [])
 
     def test_aide_sans_identite(self):
-        reponse = core.traiter_message(self._msg('!aide'))
-        self.assertIn('!lier', reponse.texte)
+        reponse = core.handle_message(self._msg('!aide'))
+        self.assertIn('!lier', reponse.text)
 
     def test_inconnu_invite_a_se_lier_et_le_moteur_n_est_jamais_appele(self):
         """⚠ Un inconnu ne doit JAMAIS être servi « en anonyme ».
@@ -158,33 +158,33 @@ class CoeurPasserelleTests(TestCase):
         mauvais nom. Ici, l'absence de compte est une FIN de parcours.
         """
         with patch('wama.common.services.assistant_engine.run_assistant_turn') as moteur:
-            reponse = core.traiter_message(self._msg('transcris ce fichier'))
-        self.assertIn('!lier', reponse.texte)
-        self.assertTrue(reponse.prive)
+            reponse = core.handle_message(self._msg('transcris ce fichier'))
+        self.assertIn('!lier', reponse.text)
+        self.assertTrue(reponse.private)
         moteur.assert_not_called()
 
     def test_code_rendu_en_prive(self):
-        reponse = core.traiter_message(self._msg('!lier'))
-        self.assertTrue(reponse.prive, "le code ne doit JAMAIS être publié dans un salon")
+        reponse = core.handle_message(self._msg('!lier'))
+        self.assertTrue(reponse.private, "le code ne doit JAMAIS être publié dans un salon")
         lien = ChannelLink.objects.get(channel=CANAL, external_id=EXT_ID)
-        self.assertIn(lien.code, reponse.texte)
+        self.assertIn(lien.code, reponse.text)
 
     def test_apres_liaison_le_moteur_recoit_le_bon_compte(self):
-        lien = demander_liaison(CANAL, EXT_ID)
-        confirmer_liaison(self.user, lien.code)
+        lien = request_link(CANAL, EXT_ID)
+        confirm_link(self.user, lien.code)
         with patch('wama.common.services.assistant_engine.run_assistant_turn',
                    side_effect=_reponse_simulee) as moteur:
-            reponse = core.traiter_message(self._msg('bonjour'))
-        self.assertEqual(reponse.texte, 'reponse simulee')
+            reponse = core.handle_message(self._msg('bonjour'))
+        self.assertEqual(reponse.text, 'reponse simulee')
         self.assertEqual(moteur.call_args.args[0], self.user)
 
     def test_piece_jointe_deposee_et_annoncee(self):
-        lien = demander_liaison(CANAL, EXT_ID)
-        confirmer_liaison(self.user, lien.code)
-        piece = core.PieceJointe(nom='note.txt', contenu=b'contenu')
+        lien = request_link(CANAL, EXT_ID)
+        confirm_link(self.user, lien.code)
+        piece = core.Attachment(name='note.txt', content=b'contenu')
         with patch('wama.common.services.assistant_engine.run_assistant_turn',
                    side_effect=_reponse_simulee) as moteur:
-            core.traiter_message(self._msg('transcris', pieces=[piece]))
+            core.handle_message(self._msg('transcris', pieces=[piece]))
         invite = moteur.call_args.args[1]
         self.assertIn('Fichiers déposés', invite)
         # Le CHEMIN déposé, pas le nom d'origine : le stockage peut suffixer le fichier en
@@ -194,42 +194,42 @@ class CoeurPasserelleTests(TestCase):
         self.assertIn('.txt`]', invite)
 
     def test_erreur_moteur_ne_fait_pas_planter_le_bot(self):
-        lien = demander_liaison(CANAL, EXT_ID)
-        confirmer_liaison(self.user, lien.code)
+        lien = request_link(CANAL, EXT_ID)
+        confirm_link(self.user, lien.code)
         with patch('wama.common.services.assistant_engine.run_assistant_turn',
                    return_value={'error': 'panne simulee'}):
-            reponse = core.traiter_message(self._msg('coucou'))
-        self.assertIn('panne simulee', reponse.texte)
+            reponse = core.handle_message(self._msg('coucou'))
+        self.assertIn('panne simulee', reponse.text)
 
     def test_exception_imprevue_ne_fait_pas_planter_le_bot(self):
         """Un bot qui plante sur UN message cesse de servir TOUS les autres."""
-        lien = demander_liaison(CANAL, EXT_ID)
-        confirmer_liaison(self.user, lien.code)
+        lien = request_link(CANAL, EXT_ID)
+        confirm_link(self.user, lien.code)
         with patch('wama.common.services.assistant_engine.run_assistant_turn',
                    side_effect=RuntimeError('boum')):
-            reponse = core.traiter_message(self._msg('coucou'))
-        self.assertIn('erreur interne', reponse.texte.lower())
+            reponse = core.handle_message(self._msg('coucou'))
+        self.assertIn('erreur interne', reponse.text.lower())
 
 
 class TronconnageDiscordTests(TestCase):
     """La limite de 2000 caractères de Discord est une limite DURE : la dépasser = 400."""
 
     def test_reponse_longue_decoupee(self):
-        from wama.gateway.adapters.discord_bot import _tronconner
-        morceaux = _tronconner('x' * 5000)
+        from wama.gateway.adapters.discord_bot import _chunk_text
+        morceaux = _chunk_text('x' * 5000)
         self.assertEqual(len(morceaux), 3)
         self.assertTrue(all(len(m) <= 2000 for m in morceaux))
 
     def test_coupe_de_preference_sur_saut_de_ligne(self):
-        from wama.gateway.adapters.discord_bot import _tronconner
-        morceaux = _tronconner('ligne\n' * 500)
+        from wama.gateway.adapters.discord_bot import _chunk_text
+        morceaux = _chunk_text('ligne\n' * 500)
         self.assertTrue(all(len(m) <= 2000 for m in morceaux))
         self.assertTrue(all(not m.startswith('\n') for m in morceaux))
 
 
 class FichiersProduitsTests(TestCase):
     """`_produced_files` — le retour des sorties d'outils vers le canal (correctif 29/08 :
-    `Reponse.fichiers` n'était JAMAIS rempli, le code d'envoi de l'adaptateur était mort)."""
+    `Reply.files` n'était JAMAIS rempli, le code d'envoi de l'adaptateur était mort)."""
 
     def _creer_media(self, rel):
         from pathlib import Path

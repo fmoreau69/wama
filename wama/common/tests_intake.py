@@ -159,7 +159,7 @@ class OutilsChaineAssistantTests(TestCase):
         from wama.tool_api import TOOL_REGISTRY
 
         user = get_user_model().objects.create_user('comp_test', password='x')
-        with mock.patch('wama.common.utils.assistant_skills.contexte_laboratoire',
+        with mock.patch('wama.common.utils.assistant_skills.laboratory_context',
                         return_value='') as rappel:
             TOOL_REGISTRY['charger_competence'](user, 'science',
                                                 question='effet du bruit sur la conduite ?')

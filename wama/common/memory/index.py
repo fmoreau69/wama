@@ -41,18 +41,18 @@ logger = logging.getLogger(__name__)
 #: Taille de découpe, en caractères. ~800 tient largement dans la fenêtre de `bge-m3` tout en
 #: gardant un fragment ASSEZ GRAND pour être compréhensible seul — un fragment trop court se
 #: retrouve bien mais ne veut plus rien dire une fois sorti de son contexte.
-TAILLE_CHUNK = 800
+CHUNK_SIZE = 800
 
 #: Recouvrement entre fragments consécutifs. Sans lui, une phrase coupée en deux devient
 #: introuvable : ni l'un ni l'autre des deux fragments ne la contient en entier.
-RECOUVREMENT = 120
+CHUNK_OVERLAP = 120
 
 #: Niveaux d'ÉCRITURE ouverts aujourd'hui. Étendre = ajouter ici + le mapping de
 #: `_VISIBILITE_PAR_NIVEAU` — le rappel (`store.NIVEAUX_RAG`) sait déjà les filtrer tous.
-NIVEAUX_ECRITURE = ('user', 'unit')
+WRITE_LEVELS = ('user', 'unit')
 
 
-def decouper(texte, taille=TAILLE_CHUNK, recouvrement=RECOUVREMENT):
+def split_text(texte, taille=CHUNK_SIZE, recouvrement=CHUNK_OVERLAP):
     """
     Découpe en fragments qui se recouvrent, en préférant une frontière NATURELLE.
 
@@ -86,7 +86,7 @@ def decouper(texte, taille=TAILLE_CHUNK, recouvrement=RECOUVREMENT):
     return fragments
 
 
-def ajouter_au_rag(user, texte, *, source_ref, source_id=None, source_kind='doc',
+def add_to_rag(user, texte, *, source_ref, source_id=None, source_kind='doc',
                    niveau='user', org_unit=None):
     """
     Ajoute UN document au RAG, au niveau choisi par l'utilisateur. Rend un résumé `{...}`.
@@ -108,13 +108,13 @@ def ajouter_au_rag(user, texte, *, source_ref, source_id=None, source_kind='doc'
         return {'erreur': 'utilisateur requis', 'fragments': 0}
     if not texte:
         return {'erreur': 'texte vide', 'fragments': 0}
-    if niveau not in NIVEAUX_ECRITURE:
-        return {'erreur': f"niveau inconnu {niveau!r} — ouverts : {', '.join(NIVEAUX_ECRITURE)}",
+    if niveau not in WRITE_LEVELS:
+        return {'erreur': f"niveau inconnu {niveau!r} — ouverts : {', '.join(WRITE_LEVELS)}",
                 'fragments': 0}
 
     visibilite, unite = ScopedVisibility.VIS_PRIVATE, None
     if niveau == 'unit':
-        unite, pourquoi = _resoudre_unite(user, org_unit)
+        unite, pourquoi = _resolve_unit(user, org_unit)
         if unite is None:
             return {'erreur': pourquoi, 'fragments': 0}
         visibilite = ScopedVisibility.VIS_UNIT
@@ -123,7 +123,7 @@ def ajouter_au_rag(user, texte, *, source_ref, source_id=None, source_kind='doc'
     # ordinal) GLOBALEMENT — deux utilisateurs ajoutant le même texte collisionneraient sinon.
     source_id = source_id or f'adhoc:{user.pk}:{content_hash(texte)[:12]}'
 
-    fragments = decouper(texte)
+    fragments = split_text(texte)
     empreintes = [content_hash(f) for f in fragments]
 
     qs = RagChunk.objects.filter(user=user, source_id=source_id)
@@ -152,7 +152,7 @@ def ajouter_au_rag(user, texte, *, source_ref, source_id=None, source_kind='doc'
     return {'source_id': source_id, 'fragments': len(fragments), 'etat': etat, 'niveau': niveau}
 
 
-def retirer_du_rag(user, source_id):
+def remove_from_rag(user, source_id):
     """
     Retire un document du RAG — tous ses fragments. Rend le nombre de lignes supprimées.
 
@@ -168,7 +168,7 @@ def retirer_du_rag(user, source_id):
     return n
 
 
-def lister_rag(user):
+def list_rag(user):
     """
     Les documents de `user` au RAG — la matière de la future page de gestion.
 
@@ -193,7 +193,7 @@ def lister_rag(user):
             for l in lignes]
 
 
-def _resoudre_unite(user, org_unit):
+def _resolve_unit(user, org_unit):
     """
     Rend `(OrgUnit, '')` ou `(None, raison)`. STRICT sur deux points, délibérément :
 

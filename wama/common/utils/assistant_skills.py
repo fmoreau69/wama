@@ -29,11 +29,11 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
-class DomaineAssistant:
+class AssistantDomain:
     """Un domaine d'intervention de l'assistant."""
 
-    cle: str
-    libelle: str
+    key: str
+    label: str
     #: Nom du fichier de skill dans `common/prompt_skills/` (sans extension).
     skill: str
     #: Le domaine tire-t-il parti du contexte du laboratoire (RAG) ?
@@ -41,54 +41,54 @@ class DomaineAssistant:
     #: « quel est le statut de ma transcription ? ».
     rag: bool = False
     #: Une ligne pour l'UI.
-    aide: str = ''
+    help_text: str = ''
 
 
 #: Registre DÉCLARATIF des domaines. Ajouter un domaine = ajouter une entrée ici et un
 #: fichier `assistant-<skill>.md` — aucune app, aucune vue à modifier.
 #: ⚠ L'ORDRE fait l'ordre d'affichage ; `general` reste le défaut et le premier.
 DOMAINES = (
-    DomaineAssistant('general', 'Général', 'assistant-general',
-                     aide="Usage courant de WAMA : lancer, suivre, récupérer."),
-    DomaineAssistant('science', 'Scientifique', 'assistant-science', rag=True,
-                     aide="Questions de méthode et de résultats, avec le contexte du labo."),
-    DomaineAssistant('design', 'Graphisme', 'assistant-design', rag=True,
-                     aide="Logos, illustrations, visuels — cadrés par l'identité du labo."),
-    DomaineAssistant('dev', 'Développement', 'assistant-dev',
-                     aide="Code, architecture et conventions de WAMA."),
+    AssistantDomain('general', 'Général', 'assistant-general',
+                     help_text="Usage courant de WAMA : lancer, suivre, récupérer."),
+    AssistantDomain('science', 'Scientifique', 'assistant-science', rag=True,
+                     help_text="Questions de méthode et de résultats, avec le contexte du labo."),
+    AssistantDomain('design', 'Graphisme', 'assistant-design', rag=True,
+                     help_text="Logos, illustrations, visuels — cadrés par l'identité du labo."),
+    AssistantDomain('dev', 'Développement', 'assistant-dev',
+                     help_text="Code, architecture et conventions de WAMA."),
     # rag=False à dessein : le substrat de ce domaine est EXTERNE (le web), pas le corpus du
     # labo — la fraîcheur vient de la récupération (WAMA_LLM.md §Investigation web).
-    DomaineAssistant('investigation', 'Investigation web', 'assistant-investigation',
-                     aide="Identifier, chercher sur le web, recouper, répondre avec sources."),
+    AssistantDomain('investigation', 'Investigation web', 'assistant-investigation',
+                     help_text="Identifier, chercher sur le web, recouper, répondre avec sources."),
 )
 
-DOMAINE_DEFAUT = 'general'
+DEFAULT_DOMAIN = 'general'
 
-_PAR_CLE = {d.cle: d for d in DOMAINES}
+_BY_KEY = {d.key: d for d in DOMAINES}
 
 #: Nombre d'extraits de contexte injectés. Volontairement bas : au-delà, le contexte chasse
 #: la question du champ d'attention des petits modèles locaux, et la réponse se dégrade.
-RAPPEL_K = 3
+RECALL_K = 3
 
 
-def domaine(cle: str = None) -> DomaineAssistant:
+def resolve_domain(key: str = None) -> AssistantDomain:
     """Domaine déclaré, ou le domaine par défaut si la clé est inconnue (fail-safe)."""
-    return _PAR_CLE.get((cle or '').strip().lower(), _PAR_CLE[DOMAINE_DEFAUT])
+    return _BY_KEY.get((key or '').strip().lower(), _BY_KEY[DEFAULT_DOMAIN])
 
 
-def domaines_pour_ui() -> list:
+def domains_for_ui() -> list:
     """Options du sélecteur de domaine — dérivées du registre, jamais réécrites à la main."""
-    return [{'value': d.cle, 'label': d.libelle, 'help': d.aide} for d in DOMAINES]
+    return [{'value': d.key, 'label': d.label, 'help': d.help_text} for d in DOMAINES]
 
 
-def consigne_de_role(cle: str = None) -> str:
+def role_instructions(key: str = None) -> str:
     """
     Texte du skill de rôle pour ce domaine — '' si le fichier est absent.
 
     Fail-safe absolu : un skill manquant doit dégrader l'assistant, jamais l'empêcher de
     répondre. Le prompt système de base reste posé par l'appelant.
     """
-    d = domaine(cle)
+    d = resolve_domain(key)
     try:
         from wama.common.utils.prompt_skills import load_skill
         return load_skill(d.skill) or ''
@@ -97,7 +97,7 @@ def consigne_de_role(cle: str = None) -> str:
         return ''
 
 
-def annonce_des_competences(sauf: str = None) -> str:
+def competences_announcement(sauf: str = None) -> str:
     """
     Ligne d'annonce injectée au prompt système : quelles compétences existent, et comment
     en charger une.
@@ -112,7 +112,7 @@ def annonce_des_competences(sauf: str = None) -> str:
     le protocole. Déduire le domaine du nom d'un salon serait de surcroît faux la plupart
     du temps — un canal porte le nom d'un projet de recherche, pas d'une discipline.
     """
-    lignes = [f"- `{d.cle}` : {d.aide}" for d in DOMAINES if d.cle != (sauf or '')]
+    lignes = [f"- `{d.key}` : {d.help_text}" for d in DOMAINES if d.key != (sauf or '')]
     if not lignes:
         return ''
     return ("\n\nSpecialised competences you can load with the `charger_competence` tool "
@@ -120,7 +120,7 @@ def annonce_des_competences(sauf: str = None) -> str:
             "topic):\n" + "\n".join(lignes))
 
 
-def contexte_laboratoire(user, question: str, cle: str = None) -> str:
+def laboratory_context(user, question: str, key: str = None) -> str:
     """
     Extraits du corpus du laboratoire pertinents pour la question — '' si rien.
 
@@ -138,7 +138,7 @@ def contexte_laboratoire(user, question: str, cle: str = None) -> str:
     Le scoping est celui de `recall()` (`scoped_visible_q`) : l'utilisateur ne voit que ce
     qu'il a le droit de voir. Rien à re-garder ici.
     """
-    if not domaine(cle).rag or not (question or '').strip() or user is None:
+    if not resolve_domain(key).rag or not (question or '').strip() or user is None:
         return ''
 
     try:
@@ -150,7 +150,7 @@ def contexte_laboratoire(user, question: str, cle: str = None) -> str:
         # niveaux de partage, c'est le RAG seul que l'utilisateur dose.
         prof = getattr(user, 'profile', None)
         niveaux = getattr(prof, 'rag_niveaux_rappel', None) if prof else None
-        hits = recall(question, user=user, k=RAPPEL_K,
+        hits = recall(question, user=user, k=RECALL_K,
                       include_rag=True, include_memory=True,
                       rag_niveaux=None if niveaux is None else set(niveaux))
     except Exception:
@@ -194,7 +194,7 @@ def contexte_laboratoire(user, question: str, cle: str = None) -> str:
 
 #: Accueil d'un visiteur NON IDENTIFIÉ. Dit ce que WAMA sait faire, puis le parcours — dans
 #: cet ordre : on donne envie avant de demander un effort.
-ACCUEIL_ANONYME = (
+GREETING_ANONYMOUS = (
     "Bonjour, je suis l'assistant WAMA. Je peux répondre à vos questions, traiter vos "
     "médias — transcrire, décrire, convertir, anonymiser, générer — et enchaîner ces "
     "traitements pour vous.\n\n"
@@ -204,28 +204,28 @@ ACCUEIL_ANONYME = (
 )
 
 #: Accueil d'un utilisateur identifié. Court : il sait déjà où il est.
-ACCUEIL_IDENTIFIE = (
+GREETING_AUTHENTICATED = (
     "Bonjour, je suis votre assistant WAMA. Que puis-je faire pour vous aujourd'hui ?"
 )
 
 #: Affiché si la réponse tarde. Le modèle local peut devoir se charger (plusieurs secondes) :
 #: sans ce mot, l'attente ressemble à une panne — surtout pour un visiteur qui découvre.
-ATTENTE = "Je réfléchis — le modèle se prépare, cela peut prendre quelques secondes…"
+WAITING_TEXT = "Je réfléchis — le modèle se prépare, cela peut prendre quelques secondes…"
 
-#: Au-delà de ce délai (ms), on affiche `ATTENTE`. En deçà, la réponse arrive avant qu'un
+#: Au-delà de ce délai (ms), on affiche `WAITING_TEXT`. En deçà, la réponse arrive avant qu'un
 #: message d'attente ait le temps d'être lu : l'afficher ferait clignoter l'interface.
-ATTENTE_APRES_MS = 1500
+WAITING_AFTER_MS = 1500
 
 
-def accueil(user) -> dict:
+def greeting(user) -> dict:
     """Textes d'accueil pour cette surface : {'message', 'attente', 'attente_apres_ms'}.
 
     `user` non authentifié → accueil qui explique le parcours d'inscription.
     """
     identifie = bool(user is not None and getattr(user, 'is_authenticated', False))
     return {
-        'message': ACCUEIL_IDENTIFIE if identifie else ACCUEIL_ANONYME,
-        'attente': ATTENTE,
-        'attente_apres_ms': ATTENTE_APRES_MS,
+        'message': GREETING_AUTHENTICATED if identifie else GREETING_ANONYMOUS,
+        'attente': WAITING_TEXT,
+        'attente_apres_ms': WAITING_AFTER_MS,
         'identifie': identifie,
     }

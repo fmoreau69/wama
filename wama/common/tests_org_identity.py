@@ -77,10 +77,10 @@ class ResolutionLocaleTests(TestCase):
                          "de partage — c'est une fuite de visibilité, pas un détail")
 
     def test_la_resolution_RAG_choisit_l_unite_locale(self):
-        from wama.common.memory.index import _resoudre_unite
+        from wama.common.memory.index import _resolve_unit
         u = User.objects.create_user('org_rag', password='x')
         _affilier(u, 'LESCOT')
-        unite, err = _resoudre_unite(User.objects.get(pk=u.pk), 'LESCOT')
+        unite, err = _resolve_unit(User.objects.get(pk=u.pk), 'LESCOT')
         self.assertEqual(err, '')
         self.assertEqual(unite.id, self.mien.id)
 

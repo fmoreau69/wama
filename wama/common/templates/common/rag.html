@@ -71,7 +71,7 @@ du 2026-08-21 (le balayage a été purgé), pas une fonctionnalité oubliée.
         </select>
         {% if unites %}
           {% comment %}Le choix d'unité n'apparaît qu'à partir de DEUX : avec une seule,
-          `_resoudre_unite` la déduit et un sélecteur à une entrée serait du bruit. Avec
+          `_resolve_unit` la déduit et un sélecteur à une entrée serait du bruit. Avec
           plusieurs il est OBLIGATOIRE — on ne devine pas une cible de partage.{% endcomment %}
           {% if unites|length > 1 %}
           <p class="hint mt-3 mb-1">

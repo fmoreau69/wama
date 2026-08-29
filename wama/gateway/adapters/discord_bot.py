@@ -38,7 +38,7 @@ from pathlib import Path
 
 from django.conf import settings
 
-from ..core import MessageEntrant, PieceJointe, traiter_message
+from ..core import IncomingMessage, Attachment, handle_message
 
 logger = logging.getLogger(__name__)
 
@@ -52,21 +52,21 @@ LIMITE_DISCORD = 2000
 MAX_ENTREE_MO = 25
 
 
-def _tronconner(texte: str, limite: int = LIMITE_DISCORD):
+def _chunk_text(text: str, limite: int = LIMITE_DISCORD):
     """Découpe une réponse longue en messages, en coupant de préférence sur un saut de ligne."""
-    texte = texte or '(réponse vide)'
+    text = text or '(réponse vide)'
     morceaux = []
-    while len(texte) > limite:
-        coupe = texte.rfind('\n', 0, limite)
+    while len(text) > limite:
+        coupe = text.rfind('\n', 0, limite)
         if coupe < limite // 2:          # pas de saut de ligne exploitable
             coupe = limite
-        morceaux.append(texte[:coupe])
-        texte = texte[coupe:].lstrip('\n')
-    morceaux.append(texte)
+        morceaux.append(text[:coupe])
+        text = text[coupe:].lstrip('\n')
+    morceaux.append(text)
     return morceaux
 
 
-def construire_client():
+def build_client():
     """Construit le client Discord. Import TARDIF : sans la dépendance, WAMA tourne normalement."""
     try:
         import discord
@@ -84,7 +84,7 @@ def construire_client():
     intents.message_content = True
 
     client = discord.Client(intents=intents)
-    salons_autorises = _salons_autorises()
+    salons_autorises = _allowed_channels()
 
     @client.event
     async def on_ready():
@@ -112,27 +112,27 @@ def construire_client():
             logger.debug("[gateway/discord] salon %s non autorisé", message.channel.id)
             return
 
-        texte = message.content or ''
+        text = message.content or ''
         if mentionne:                                # retirer la mention du texte utile
-            texte = texte.replace(f'<@{client.user.id}>', '').replace(
+            text = text.replace(f'<@{client.user.id}>', '').replace(
                 f'<@!{client.user.id}>', '').strip()
 
         pieces = await _recuperer_pieces_jointes(message)
 
-        entrant = MessageEntrant(
+        entrant = IncomingMessage(
             channel=CANAL,
             external_id=str(message.author.id),      # identifiant STABLE, jamais le pseudo
             external_label=getattr(message.author, 'display_name', '') or str(message.author),
-            texte=texte,
-            fil=str(message.channel.id),             # un salon/DM = une conversation
-            pieces_jointes=pieces,
+            text=text,
+            thread=str(message.channel.id),             # un salon/DM = une conversation
+            attachments=pieces,
         )
 
         async with message.channel.typing():
             # ⚠ DANS UN THREAD : le tour d'assistant est bloquant (dizaines de secondes) et
             # touche l'ORM. L'appeler dans la boucle d'événements figerait le bot pour TOUS
             # les utilisateurs pendant qu'une seule personne attend son résultat.
-            reponse = await asyncio.to_thread(traiter_message, entrant)
+            reponse = await asyncio.to_thread(handle_message, entrant)
 
         await _publier(message, reponse)
 
@@ -148,7 +148,7 @@ async def _recuperer_pieces_jointes(message) -> list:
                         piece.size / 1024 / 1024, piece.filename)
             continue
         try:
-            pieces.append(PieceJointe(nom=piece.filename, contenu=await piece.read()))
+            pieces.append(Attachment(name=piece.filename, content=await piece.read()))
         except Exception:
             logger.exception("[gateway/discord] téléchargement impossible : %s", piece.filename)
     return pieces
@@ -159,9 +159,9 @@ async def _publier(message, reponse):
     import discord
 
     # Une réponse privée (code d'appariement) ne doit JAMAIS être publiée dans un salon.
-    cible = message.author if reponse.prive else message.channel
+    cible = message.author if reponse.private else message.channel
     try:
-        for morceau in _tronconner(reponse.texte):
+        for morceau in _chunk_text(reponse.text):
             await cible.send(morceau)
     except discord.Forbidden:
         # DM fermés : on ne re-publie pas un contenu privé dans le salon — on le dit.
@@ -171,7 +171,7 @@ async def _publier(message, reponse):
         )
         return
 
-    for chemin_relatif in reponse.fichiers:
+    for chemin_relatif in reponse.files:
         chemin = Path(settings.MEDIA_ROOT) / chemin_relatif
         if not chemin.exists():
             continue
@@ -181,20 +181,20 @@ async def _publier(message, reponse):
             logger.exception("[gateway/discord] envoi de fichier impossible : %s", chemin)
 
 
-def jeton() -> str:
+def bot_token() -> str:
     """Jeton du bot — variable d'environnement UNIQUEMENT, jamais un réglage versionné."""
     valeur = os.environ.get('WAMA_DISCORD_TOKEN') or getattr(
         settings, 'WAMA_DISCORD_TOKEN', '')
     if not valeur:
         raise RuntimeError(
             "WAMA_DISCORD_TOKEN absent. Créez une application sur "
-            "https://discord.com/developers/applications (onglet Bot), copiez le jeton, "
+            "https://discord.com/developers/applications (onglet Bot), copiez le bot_token, "
             "puis renseignez-le dans le fichier .env — jamais dans le dépôt."
         )
     return valeur
 
 
-def _salons_autorises() -> set:
+def _allowed_channels() -> set:
     """Salons servis (ids séparés par des virgules). Vide = tous les salons où le bot est."""
     brut = os.environ.get('WAMA_DISCORD_ALLOWED_CHANNELS', '') or getattr(
         settings, 'WAMA_DISCORD_ALLOWED_CHANNELS', '')

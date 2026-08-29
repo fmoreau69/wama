@@ -874,7 +874,7 @@ class Conversation(models.Model):
     L'IDENTITÉ D'UN FIL est `(user, surface, thread_key)` : c'est ce qui permet à un DM
     Discord, un salon Matrix et un onglet de navigateur d'être trois conversations
     distinctes sans que le moteur ait à le savoir. La passerelle a déjà cette clé
-    (`gateway/core.py::_cle_fil`) ; le web fournit un identifiant d'onglet.
+    (`gateway/core.py::_thread_key`) ; le web fournit un identifiant d'onglet.
     """
 
     SURFACES = [
