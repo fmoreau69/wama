@@ -225,3 +225,43 @@ class TronconnageDiscordTests(TestCase):
         morceaux = _tronconner('ligne\n' * 500)
         self.assertTrue(all(len(m) <= 2000 for m in morceaux))
         self.assertTrue(all(not m.startswith('\n') for m in morceaux))
+
+
+class FichiersProduitsTests(TestCase):
+    """`_fichiers_produits` — le retour des sorties d'outils vers le canal (correctif 29/08 :
+    `Reponse.fichiers` n'était JAMAIS rempli, le code d'envoi de l'adaptateur était mort)."""
+
+    def _creer_media(self, rel):
+        from pathlib import Path
+        from django.conf import settings
+        chemin = Path(settings.MEDIA_ROOT) / rel
+        chemin.parent.mkdir(parents=True, exist_ok=True)
+        chemin.write_bytes(b'contenu')
+        self.addCleanup(chemin.unlink)
+        return chemin
+
+    def test_les_sorties_media_du_tour_repartent_et_les_autres_urls_non(self):
+        self._creer_media('gateway_tests/sortie.png')
+        self._creer_media('gateway_tests/sortie.wav')
+        resultat = {'tool_steps': [
+            {'tool': 'get_imager_status', 'result': {
+                'output_urls': ['/media/gateway_tests/sortie.png',
+                                'https://exemple.org/ailleurs.png']}},
+            {'tool': 'get_synthesizer_status', 'result': {
+                'audio_url': '/media/gateway_tests/sortie.wav'}},
+            {'tool': 'search_web', 'result': {'results': []}},
+        ]}
+        fichiers = core._fichiers_produits(resultat)
+        self.assertEqual(fichiers, ['gateway_tests/sortie.png', 'gateway_tests/sortie.wav'])
+
+    def test_une_traversee_hors_media_root_est_ignoree(self):
+        resultat = {'tool_steps': [{'tool': 'x', 'result': {
+            'file_url': '/media/../wama/settings.py'}}]}
+        self.assertEqual(core._fichiers_produits(resultat), [])
+
+    def test_un_fichier_inexistant_ou_un_resultat_non_dict_ne_cassent_rien(self):
+        resultat = {'tool_steps': [
+            {'tool': 'x', 'result': {'file_url': '/media/gateway_tests/absent.png'}},
+            {'tool': 'y', 'result': 'erreur en chaîne'},
+        ]}
+        self.assertEqual(core._fichiers_produits(resultat), [])

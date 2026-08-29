@@ -1810,6 +1810,45 @@ def inspect_user_file(user, file_path: str) -> dict:
         return {'error': f'Inspection impossible : {e}'}
 
 
+def look_at_image(user, file_path: str, question: str = '') -> dict:
+    """
+    Look at ONE of the user's images with a vision model and return what it shows.
+
+    Synchronous: the description comes back in this same turn. Use it when the request
+    depends on an image the user deposited (identify something, read a label, describe a
+    scene) — typically BEFORE a web investigation. For long documents or videos, use
+    `add_to_describer` instead (asynchronous, full pipeline).
+
+    Args:
+        file_path: MEDIA_ROOT-relative path of the image (from list_user_files).
+        question:  What to look for, in the user's language (optional).
+
+    Returns:
+        {"description", "model"} or {"error"}
+    """
+    # Passe VLM sur le GPU hôte : USER-DÉCLENCHÉE (jamais de boucle de fond), et sous
+    # WAMA_GPU_SAFE_MODE le modèle est déchargé sitôt la réponse rendue (keep_alive='0').
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return {'error': "Analyse d'image réservée aux utilisateurs identifiés."}
+    src, err = _resolve_user_path(user, file_path)
+    if err:
+        return err
+    try:
+        from wama.common.app_registry import category_of_path
+        if category_of_path(src.name) != 'image':
+            return {'error': f"'{src.name}' n'est pas une image — pour un document ou une "
+                             f"vidéo, passer par add_to_describer."}
+        from wama.model_manager.services.vision_probe import describe_image_ollama
+        keep_alive = '0' if getattr(settings, 'WAMA_GPU_SAFE_MODE', False) else None
+        rendu = describe_image_ollama(str(src), prompt=(question or '').strip() or None,
+                                      keep_alive=keep_alive)
+        if not rendu.get('ok'):
+            return {'error': f"Analyse impossible : {rendu.get('error', 'inconnue')}"}
+        return {'description': rendu.get('description', ''), 'model': rendu.get('model', '')}
+    except Exception as e:
+        return {'error': f"Analyse impossible : {e}"}
+
+
 def add_to_media_library(user, file_path: str, asset_type: str,
                          name: str = '', description: str = '') -> dict:
     """
@@ -2375,7 +2414,7 @@ def memory_recall(user, query: str, k: int = 5, include_rag: bool = True,
     return {"results": resultats, "count": len(resultats)}
 
 
-def charger_competence(user, domaine: str) -> dict:
+def charger_competence(user, domaine: str, question: str = '') -> dict:
     """
     Load a specialised competence (role skill) and the matching laboratory context.
 
@@ -2384,8 +2423,10 @@ def charger_competence(user, domaine: str) -> dict:
     Load one competence per topic, not one per message.
 
     Args:
-        domaine: One of the competence keys announced in your system prompt (do not
-                 guess other values — the announcement is the authoritative list).
+        domaine:  One of the competence keys announced in your system prompt (do not
+                  guess other values — the announcement is the authoritative list).
+        question: The user's request, VERBATIM — it drives the retrieval of laboratory
+                  context. Always pass it: without it the retrieval has nothing to match.
 
     Returns:
         {"domaine", "libelle", "consigne", "contexte"} — apply `consigne` to the rest of
@@ -2410,7 +2451,10 @@ def charger_competence(user, domaine: str) -> dict:
         "consigne": consigne,
         # Le contexte n'est cherché que pour les domaines qui le déclarent (`rag=True`),
         # et reste vide si rien de pertinent n'est trouvé — jamais de bruit injecté.
-        "contexte": contexte_laboratoire(user, domaine or '', d.cle),
+        # ⚠ La QUESTION de l'utilisateur pilote le rappel — pas le nom du domaine : jusqu'au
+        # 29/08 `recall()` recevait « science », un mot, et rendait du générique (défaut
+        # mesuré, WAMA_LLM §Vérification). Le nom du domaine ne reste qu'en repli.
+        "contexte": contexte_laboratoire(user, (question or '').strip() or domaine or '', d.cle),
     }
 
 
@@ -2497,6 +2541,9 @@ TOOL_REGISTRY = {
     # refus des non-identifiés DANS les corps (outil sans app = autorisé à tous).
     'inspect_user_file':    inspect_user_file,
     'add_to_media_library': add_to_media_library,
+    # L'œil de l'assistant (WAMA_LLM §Investigation ③) — passe VLM SYNCHRONE dans le tour,
+    # user-déclenchée, keep_alive='0' sous WAMA_GPU_SAFE_MODE. Images seulement.
+    'look_at_image':        look_at_image,
     'list_user_files':       list_user_files,
     'add_to_avatarizer':     add_to_avatarizer,
     'start_avatarizer':      start_avatarizer,

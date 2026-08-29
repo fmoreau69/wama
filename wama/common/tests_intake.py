@@ -114,3 +114,54 @@ class OutilsIntakeTests(TestCase):
             self.assertIn('non admise', rendu['error'])
         finally:
             abs_path.unlink(missing_ok=True)
+
+
+class OutilsChaineAssistantTests(TestCase):
+    """look_at_image (l'œil synchrone) + la question réelle dans charger_competence."""
+
+    def _creer_temp(self, user, nom, contenu=b'x'):
+        from pathlib import Path
+        from django.conf import settings
+        rel = f'users/{user.id}/temp/{nom}'
+        chemin = Path(settings.MEDIA_ROOT) / rel
+        chemin.parent.mkdir(parents=True, exist_ok=True)
+        chemin.write_bytes(contenu)
+        self.addCleanup(chemin.unlink)
+        return rel
+
+    def test_l_oeil_refuse_l_anonyme_et_les_non_images(self):
+        from django.contrib.auth import get_user_model
+        from django.contrib.auth.models import AnonymousUser
+        from wama.tool_api import TOOL_REGISTRY
+
+        rendu = TOOL_REGISTRY['look_at_image'](AnonymousUser(), 'x.jpg')
+        self.assertIn('identifi', rendu['error'])
+
+        user = get_user_model().objects.create_user('oeil_test', password='x')
+        rel = self._creer_temp(user, 'note.txt')
+        rendu = TOOL_REGISTRY['look_at_image'](user, rel)
+        self.assertIn('add_to_describer', rendu['error'])
+
+    def test_l_oeil_rend_la_description_du_vlm_sans_l_inventer(self):
+        from django.contrib.auth import get_user_model
+        from wama.tool_api import TOOL_REGISTRY
+
+        user = get_user_model().objects.create_user('oeil_test2', password='x')
+        rel = self._creer_temp(user, 'plante.jpg')
+        with mock.patch('wama.model_manager.services.vision_probe.describe_image_ollama',
+                        return_value={'ok': True, 'description': 'un monstera aux feuilles jaunies'}) as vlm:
+            rendu = TOOL_REGISTRY['look_at_image'](user, rel, 'de quelle plante s agit-il ?')
+        self.assertEqual(rendu['description'], 'un monstera aux feuilles jaunies')
+        self.assertIn('de quelle plante', vlm.call_args.kwargs.get('prompt', ''))
+
+    def test_charger_competence_rappelle_sur_la_QUESTION_pas_sur_le_nom_du_domaine(self):
+        from django.contrib.auth import get_user_model
+        from wama.tool_api import TOOL_REGISTRY
+
+        user = get_user_model().objects.create_user('comp_test', password='x')
+        with mock.patch('wama.common.utils.assistant_skills.contexte_laboratoire',
+                        return_value='') as rappel:
+            TOOL_REGISTRY['charger_competence'](user, 'science',
+                                                question='effet du bruit sur la conduite ?')
+        question_recue = rappel.call_args.args[1]
+        self.assertEqual(question_recue, 'effet du bruit sur la conduite ?')

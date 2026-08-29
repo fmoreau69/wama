@@ -167,7 +167,62 @@ def _traiter(msg: MessageEntrant) -> Reponse:
     if 'error' in resultat:
         return Reponse(texte=f"⚠ {resultat['error']}")
 
-    return Reponse(texte=resultat.get('response') or '(réponse vide)')
+    # Les fichiers PRODUITS pendant le tour repartent avec la réponse : sans ça, le code
+    # d'envoi des adaptateurs est mort et l'utilisateur reçoit un lien `/media/…` protégé
+    # par session, inutilisable hors WAMA (défaut mesuré 2026-08-29, WAMA_LLM §Vérification).
+    return Reponse(texte=resultat.get('response') or '(réponse vide)',
+                   fichiers=_fichiers_produits(resultat))
+
+
+#: Clés de résultat d'outil qui désignent une sortie fichier (contrat des triades tool_api).
+_CLES_SORTIE = ('output_urls', 'output_url', 'file_url', 'video_url', 'audio_url', 'image_url')
+#: Bornes d'envoi : nombre de pièces, et octets par pièce (limite Discord la plus basse).
+_MAX_PIECES_SORTIE = 5
+_MAX_OCTETS_SORTIE = 24 * 1024 * 1024
+
+
+def _fichiers_produits(resultat) -> list:
+    """Chemins MEDIA_ROOT-relatifs des sorties produites pendant le tour (lus des tool_steps).
+
+    Seules les URLs `/media/…` résolues SOUS MEDIA_ROOT sont retenues — un résultat d'outil
+    est une donnée, pas une autorisation de lire le disque. Bornés en nombre et en taille.
+    """
+    from pathlib import Path
+
+    from django.conf import settings
+
+    media_root = Path(settings.MEDIA_ROOT).resolve()
+    media_url = getattr(settings, 'MEDIA_URL', '/media/') or '/media/'
+    vus, fichiers = set(), []
+
+    def _retenir(valeur):
+        if len(fichiers) >= _MAX_PIECES_SORTIE or not isinstance(valeur, str):
+            return
+        if not valeur.startswith(media_url):
+            return
+        rel = valeur[len(media_url):].split('?')[0]
+        if not rel or rel in vus:
+            return
+        chemin = (media_root / rel).resolve()
+        if not str(chemin).startswith(str(media_root)) or not chemin.is_file():
+            return
+        if chemin.stat().st_size > _MAX_OCTETS_SORTIE:
+            return
+        vus.add(rel)
+        fichiers.append(rel)
+
+    for etape in (resultat or {}).get('tool_steps') or []:
+        contenu = etape.get('result')
+        if not isinstance(contenu, dict):
+            continue
+        for cle in _CLES_SORTIE:
+            valeur = contenu.get(cle)
+            if isinstance(valeur, (list, tuple)):
+                for element in valeur:
+                    _retenir(element)
+            else:
+                _retenir(valeur)
+    return fichiers
 
 
 def _deposer_pieces_jointes(user, pieces) -> list:

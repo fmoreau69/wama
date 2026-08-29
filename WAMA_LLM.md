@@ -458,21 +458,22 @@ web (persisté serveur via `conversation_store`, le web restant sur `localStorag
 (`post_save` d'ingestion déduit de `PROMPT_TARGETS` + rattrapage `process_prompt_for` au
 lancement, anti-double-passe), donc indépendant de la surface qui dépose la card.
 
-**Les défauts mesurés, par ordre de gravité** :
-1. ❌ **Image → VLM : AUCUN chemin direct, sur aucune surface** (= le ③ ci-dessus, confirmé
-   au code) : le web ne laisse pas entrer l'image (`ai_chat` JSON pur) ; Discord la dépose
-   bien (`filemanager`) mais la DÉGRADE en chemin texte avant l'appel moteur ; `_ollama_call`
-   n'émet pas de champ `images` ; `comprehend_files` est branché mais data-gated à VIDE
-   (aucun `PROMPT_TARGETS` ne déclare `reference_field`). Seule voie praticable aujourd'hui :
-   l'assistant PENSE à appeler `add_to_describer` sur le chemin déposé (indirect, asynchrone).
-2. ❌ **RAG jamais payé au tour initial** : aucune surface ne passe `domain` (web : le JS
-   n'envoie pas le champ ; Discord : `core.py` n'en a pas) → rôle figé `general` (`rag=False`).
-   C'est PARTIELLEMENT le design (le domaine est le choix de l'ASSISTANT, via
-   `charger_competence`) — mais le rappel de cet outil interroge `recall()` avec **le NOM du
-   domaine au lieu de la question de l'utilisateur** : rappel générique, vrai maillon faible.
-3. ❌ **Les fichiers produits ne repartent jamais vers Discord** : `core.py` ne remplit
-   jamais `Reponse.fichiers` (le code d'envoi de l'adaptateur est MORT) — l'utilisateur
-   reçoit un lien `/media/…` protégé par session, inutilisable hors WAMA.
+**Les défauts mesurés, par ordre de gravité** (état au 2026-08-29 soir) :
+1. ⚠ **Image → VLM : l'ŒIL PAR OUTIL est LIVRÉ 29/08, l'entrée native reste à faire** :
+   outil `look_at_image` (synchrone dans le tour, via `vision_probe`, user-déclenché,
+   `keep_alive='0'` sous `WAMA_GPU_SAFE_MODE`) — depuis Discord, une photo déposée peut
+   désormais être REGARDÉE dans le tour (photo → `look_at_image` → investigation web).
+   RESTENT : le web ne laisse toujours pas entrer l'image (`ai_chat` JSON pur, champ texte) ;
+   `_ollama_call` sans champ `images` natif ; `comprehend_files` toujours data-gated à vide
+   (aucun `reference_field` déclaré).
+2. ✅ corrigé 29/08 — **le rappel de `charger_competence` reçoit la QUESTION de
+   l'utilisateur** (paramètre `question`, verbatim ; le nom du domaine n'est plus qu'un
+   repli). Reste vrai : aucune surface ne passe `domain` au tour initial → rôle `general`
+   d'abord — c'est le design (le domaine est le choix de l'ASSISTANT).
+3. ✅ corrigé 29/08 — **les fichiers produits repartent vers le canal** :
+   `core.py::_fichiers_produits` lit les `tool_steps` (URLs `/media/…` résolues SOUS
+   MEDIA_ROOT seulement, bornées en nombre et taille) et nourrit `Reponse.fichiers` — le
+   code d'envoi de l'adaptateur n'est plus mort. 3 tests `gateway/tests.py`.
 4. ⚠ `PROMPT_TARGETS['composer']` sans clé `'model'` → pas d'enrichissement à l'ingestion
    (le lancement rattrape — asymétrie non documentée avec imager, sans effet fonctionnel).
 5. ✅ corrigé 29/08 : la docstring de `charger_competence` énumérait les domaines en dur
