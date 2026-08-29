@@ -170,6 +170,19 @@ body:                                   # (sous l'enveloppe commune)
   # F3 UI / INSTANCIATION  [params.py PARAMS_JSON — déjà source unique, inchangé]
   params: [ Param{name,type,label,icon,default,choices,options_source,show_if,
                   contexts:[item|batch|panel],advanced,chip,help_source,...} ]
+  # ⚠ TROU DE FORMALISME MESURÉ le 2026-08-29 — `options_source` nomme une CLÉ de source
+  # d'options (4 clés dans le parc : voices, backends, formats, avatar_gallery) et RIEN, ni
+  # dans `Param` ni ici, ne déclare COMMENT elle se résout. Deux résolutions coexistent dans
+  # le code, aucune n'est déclarée : (1) registre commun `OPTION_SOURCES` de `wama-params.js`
+  # (`voices` → /common/api/voices/, surchargeable par window.WAMA_OPTION_SOURCES) ; (2) une
+  # donnée que l'app rend dans SA page + un `optionsResolver` synchrone écrit à la main
+  # (converter : `supported_formats_json` → FORMATS[media_type].output).
+  # Conséquence MESURÉE sur la jumelle générée `converter_01` : le select « Format de sortie »
+  # rendait ZÉRO option, donc aucun job n'était lançable — un générateur ne peut pas deviner
+  # la donnée (2). `templates_gen` rend désormais le manque VISIBLE (option nommée + warn) au
+  # lieu d'un select vide, mais la RÉSORPTION est une décision de formalisme, pas de gabarit :
+  # déclarer par source son mode de résolution (endpoint commun, ou champ de contexte de page).
+  # ⏳ NON TRANCHÉ — à arbitrer avant la marche B.
   inspector: {model, detail_adapter, preview_adapter, file_field, user_field}   # Detail/PreviewRegistry
   # (cible ; extract actuel = detail_registered/preview_registered — présence, pas contenu)
 

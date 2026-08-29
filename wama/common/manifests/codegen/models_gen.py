@@ -69,7 +69,7 @@ def _render_from_data(app_id: str, data: dict, ingest: dict = None,
     changes » sur la jumelle. La GLU (properties, __str__, méthodes) reste le trou déclaré
     des marches B — le SCHÉMA, lui, est complet.
 
-    ⚠ `WAMA_INGEST` N'EST PLUS DANS CE TROU (2026-08-22, question de Fabien sur les
+    ⚠ `WAMA_INGEST` N'EST PLUS DANS CE TROU (2026-08-22, sur question posée en session a propos des
     « sous-chemins parallèles »). Il l'était par CONSTRUCTION : ce rendu part du sérialiseur
     de migrations, qui ne voit que des CHAMPS — or `WAMA_INGEST` est un attribut de classe
     sans champ correspondant, donc structurellement invisible ici. Le rendu frère (squelette

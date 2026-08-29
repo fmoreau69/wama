@@ -11,9 +11,10 @@ module urls casse la jumelle entière. Deux régimes :
     tâche Celery (processing.tasks), statuts, briques communes (begin_processing,
     stop_instance, duplicate_instance, apply_queue_sort_filter, fabrique
     make_queue_manipulation_views_direct, get_console_lines).
-  • TROU DE GLU (stub 501) : politique d'app non conventionnelle (card_html — nom du
-    partial inconnaissable ; batch_preview/create — parsing+consolidation ; consolidate ;
-    toutes les extra_routes). La page BOOTE, la fonctionnalité manque VISIBLEMENT —
+  • TROU DE GLU (stub 501) : politique d'app non conventionnelle (batch_preview/create —
+    parsing+consolidation ; consolidate ; toutes les extra_routes). ⚠ `card_html` a quitté
+    cette liste le 2026-08-29 : sa raison — « nom du partial inconnaissable » — datait d'avant
+    `templates_gen`, qui émet ce partial. Une raison périmée ne se relit pas. La page BOOTE, la fonctionnalité manque VISIBLEMENT —
     c'est le détecteur (Playwright/diff), pas un échec silencieux.
 
 ⚠ Ce qui a QUITTÉ la liste des stubs le 2026-08-29 — et pourquoi ce n'étaient pas des
@@ -101,6 +102,18 @@ def render_views(manifest: dict) -> tuple:
     fk, row, task = d['batch_fk'], d['row_field'], d['tasks'][0]
     mark = _GEN_MARK.format(app_id=app)
     stub_msg = f'[manifest-gen app:{app}] endpoint non généré (glu — marche B)'
+    # Symbole du schéma de params — LU au manifeste (`body.params.primary`), jamais supposé.
+    # `PARAMS_JSON` reste le repli conventionnel, mais l'écrire en dur ferait de la 3ᵉ facette
+    # devinée de ce fichier en deux jours (routes, signature de brique, et celle-ci).
+    schema_symbole = (((manifest.get('body') or {}).get('params') or {}).get('primary')
+                      or 'PARAMS_JSON')
+    # Champs FICHIER de l'item — la brique commune prend (instance, NOM DE CHAMP) et non
+    # l'objet FileField : `safe_delete_file(f)` levait un TypeError sur les trois vues de
+    # suppression (delete, clear_all, batch_delete). Les 10 apps écrites à la main appellent
+    # toutes à DEUX arguments — c'est le gabarit seul qui avait deviné la signature.
+    # *Une signature de brique se lit ; devinée, elle rend une vue qui plante à l'usage,
+    # pas à la génération — donc invisible à `check` comme aux tests de codegen.*
+    champs_fichiers = [d['input_field']] + (['output_file'] if d['a_output'] else [])
     name_expr = (f'j.{d["name_field"]}' if d['name_field']
                  else f'(j.{d["input_field"]}.name if j.{d["input_field"]} else "")')
 
@@ -130,7 +143,7 @@ def render_views(manifest: dict) -> tuple:
         jobs = {item}.objects.filter(user=user).order_by('{fk}_id', '{row}')
         grouped = {{}}
         for j in jobs:
-            grouped.setdefault(j.{fk}_id or f'loose-{{j.id}}', []).append(j)
+            grouped.setdefault(j.{fk}_id or f'loose-{{j.id}}', []).append(_decorer(j))
         batches_list = []
         for items in grouped.values():
             b = items[0].{fk}
@@ -148,8 +161,8 @@ def render_views(manifest: dict) -> tuple:
             request, batches_list,
             name_of=lambda b: ({name_expr.replace('j.', 'b["items"][0].')} if b['items'] else ''))
         try:
-            from .params import PARAMS_JSON
-            params_json = json.dumps(PARAMS_JSON)
+            from .params import {schema_symbole}
+            params_json = json.dumps({schema_symbole})
         except Exception:
             params_json = '[]'
         # TROU DE GLU {mark} — contexte SPÉCIFIQUE d'app (profils, formats…) non généré :
@@ -323,6 +336,35 @@ def {nom}(request, pk):
     for _nom in route_variants('stop'):
         vues[_nom] = corps_stop(_nom)
 
+    # CARD RENDUE SERVEUR — conventionnelle, et elle ne l'a pas toujours paru. L'en-tête de
+    # ce module la rangeait en trou de glu avec pour raison « nom du partial inconnaissable ».
+    # Cette raison était vraie AVANT que `templates_gen` n'existe ; depuis, le partial est
+    # émis par le MÊME gabarit, sous un nom que lui seul choisit (`_generic_card.html`).
+    # ⚠ Troisième occurrence du même défaut, et la plus instructive : ici la facette n'était
+    # pas « non lue » — la raison écrite était juste PÉRIMÉE, et personne ne relit une raison.
+    # *Un trou justifié par une contrainte disparue survit à la contrainte.*
+    # Mesuré le 2026-08-29 : 10 apps sur 10 définissent `card_html`, toutes de la même forme
+    # (récupérer → décorer → rendre le partial de card). La décoration elle-même est une
+    # BRIQUE COMMUNE (`card_chips.chips_by_section`) appliquée au schéma déjà déclaré au
+    # manifeste (`params.primary`), donc rien ici n'est propre à l'app.
+    # Point d'attache UNIQUE (leçon describer, recopiée telle quelle dans converter) : la même
+    # décoration sert l'index ET card_html, sinon la card se vide à son premier rafraîchissement.
+    decorateur = f'''def _decorer(item):
+    """Chips de card GÉNÉRÉS du schéma (brique commune) — point d'attache unique index/card_html."""
+    try:
+        from wama.common.utils.card_chips import chips_by_section
+        from .params import {schema_symbole}
+        item.chips = chips_by_section(item, {schema_symbole})
+    except Exception:
+        item.chips = {{}}
+    return item'''
+
+    vues['card_html'] = f'''def card_html(request, pk):
+    """Card = partial serveur UNIQUE : le JS remplace la card par ce rendu."""
+    user = _user(request)
+    item = get_object_or_404({item}, pk=pk, user=user)
+    return render(request, '{app}/_generic_card.html', {{'item': _decorer(item)}})'''
+
     corps_status = f'''    data = {{'id': item.id, 'status': item.status, 'progress': item.progress,
             'error_message': item.error_message}}
     {"if item.output_file: data['output_url'] = item.output_file.url" if d['a_output'] else ''}
@@ -345,9 +387,8 @@ def {nom}(request, pk):
 def delete(request, pk):
     user = _user(request)
     item = get_object_or_404({item}, pk=pk, user=user)
-    for f in [{f"item.{d['input_field']}" + (", item.output_file" if d['a_output'] else "")}]:
-        if f:
-            safe_delete_file(f)
+    for _champ in {champs_fichiers!r}:
+        safe_delete_file(item, _champ)
     b = item.{fk}
     item.delete()
     if b is not None and not b.items.exists():
@@ -383,9 +424,8 @@ def clear_all(request):
     user = _user(request)
     n = 0
     for item in {item}.objects.filter(user=user).exclude(status='RUNNING'):
-        for f in [{f"item.{d['input_field']}" + (", item.output_file" if d['a_output'] else "")}]:
-            if f:
-                safe_delete_file(f)
+        for _champ in {champs_fichiers!r}:
+            safe_delete_file(item, _champ)
         item.delete()
         n += 1
     {batch}.objects.filter(user=user, items__isnull=True).delete()
@@ -485,9 +525,8 @@ def batch_delete(request, pk):
     user = _user(request)
     b = get_object_or_404({batch}, pk=pk, user=user)
     for item in {item}.objects.filter({fk}=b, user=user):
-        for f in [{f"item.{d['input_field']}" + (", item.output_file" if d['a_output'] else "")}]:
-            if f:
-                safe_delete_file(f)
+        for _champ in {champs_fichiers!r}:
+            safe_delete_file(item, _champ)
         item.delete()
     b.delete()
     return JsonResponse({{'deleted': True}})'''
@@ -554,7 +593,9 @@ consolidate       = _qm['consolidate']'''
     # une page d'erreur HTML au lieu de JSON (« Unexpected token '<' ») et le vrai manque
     # devenait indéchiffrable. Le second chemin d'assemblage (`extras`, plus bas) l'excluait
     # déjà correctement : les deux se contredisaient.
-    stubs_pk = {'card_html'}
+    # `card_html` a quitté cet ensemble le 2026-08-29 : il a un corps conventionnel
+    # (cf. plus haut). L'ensemble reste — d'autres routes à `pk` s'y ajouteront.
+    stubs_pk = set()
     couverts_fabrique = {'reorder', 'move_to_batch', 'remove_from_batch', 'consolidate'}
     ignores = {'about', 'help'}     # servis par common.views dans le urls généré
     blocs, deja = [], set()
@@ -585,6 +626,7 @@ consolidate       = _qm['consolidate']'''
                                                            'batch_create', 'consolidate',
                                                            'profile_list', 'profile_save')
                          else stub(nom))
+    blocs.insert(0, decorateur)
     blocs.append(fabrique)
 
     tete = f'''"""

@@ -8,8 +8,7 @@ boucle de lots sur `_batch_card`. Le gabarit rend CE squelette-là ; les parties
 restent des TROUS DE GLU marqués et VISIBLES (détecteur Playwright) :
   • volet droit réglages (contenu app) — hôte WamaParams minimal seulement ;
   • modales spécifiques, bloc javascript d'app ;
-  • les SECTIONS × CHIPS et les previews de la card (elles dépendent de `card_chips`,
-    décoration propre à la vue d'app) — l'écart visuel résiduel EST la mesure.
+  • les PREVIEWS de la card (miniature/lecteur du média) — l'écart visuel résiduel EST la mesure.
 
 ⚠ Ce qui a QUITTÉ cette liste le 2026-08-29, et pourquoi c'est la leçon du fichier :
 les ACTIONS de card et l'INSPECTEUR y étaient rangés comme trous de glu assumés. Ils ne
@@ -19,7 +18,11 @@ s'initialise DEPUIS UN SCHÉMA (`WamaInspector.initFromSchema`) et clone les act
 card. Le manifeste déclarait déjà tout le nécessaire (facette `inspector`). C'est la
 DEUXIÈME fois que ce gabarit range en « trou de glu » une facette qu'il lui suffisait de
 lire — la première était `accepts_url` (2026-08-19), et les deux fois le constat est venu
-de Fabien comparant la jumelle à sa source, jamais d'un contrôle automatique.
+d'une comparaison à l'œil entre la jumelle et sa source, jamais d'un contrôle automatique.
+Les SECTIONS × CHIPS ont suivi le même jour (3ᵉ occurrence) : leur raison écrite disait
+« décoration propre à la vue d'app » alors que `card_chips` est une brique COMMUNE nourrie
+du schéma de params, lui aussi au manifeste. *Le classement « trou de glu » n'est jamais une
+observation : c'est une hypothèse, et rien ici ne la réfute jamais.*
 *Un trou déclaré assumé cesse d'être cherché : c'est le plus coûteux des classements.*
 Avant d'écrire « TROU DE GLU », vérifier que l'information n'est pas DÉJÀ au manifeste.
 
@@ -46,10 +49,10 @@ def render_index(manifest: dict) -> tuple:
     # Import par URL — DÉRIVÉ des capacités du manifeste (2026-08-19). La jumelle converter_01
     # n'offrait pas le champ URL alors que l'app source l'a : ce n'était PAS un trou de glu
     # assumé mais un manque du gabarit — l'information était DANS le manifeste
-    # (`capabilities.accepts_url` / `has_url_import`) et n'était pas lue. Constat Fabien en
+    # (`capabilities.accepts_url` / `has_url_import`) et n'était pas lue. Constat fait à l'œil en
     # comparant la jumelle à sa source.
     # Inspecteur contextuel + bouton de cycle — MÊME LEÇON que l'URL ci-dessus, reprise le
-    # 2026-08-29 sur un second constat de Fabien : « les cards du bac à sable ne sont pas
+    # 2026-08-29 sur un second constat fait à l'œil : « les cards du bac à sable ne sont pas
     # cliquables, n'affichent rien, pas d'action — alors que le converter d'origine fonctionne ».
     # Ce n'était PAS un trou de glu assumé. La facette `inspector` est DÉCLARÉE au manifeste
     # (`detail_registered`, `preview_registered`, `detail_spec`, `preview`) et n'était pas lue,
@@ -121,10 +124,43 @@ def render_index(manifest: dict) -> tuple:
     # Les deux se débloquent ensemble (même commit) — un bouton mort se referme des DEUX côtés
     # ou pas du tout. Rien d'app ici : le cycle complet (rendre → lire → POST → toast) est
     # `WamaParams.settingsModal` ; seules les VALEURS courantes et l'URL viennent du manifeste.
+    # Sources d'options DYNAMIQUES (`options_source`) — trou STRUCTUREL du formalisme, pas du
+    # gabarit, et il fallait le mesurer avant de conclure. Le schéma déclare la CLÉ d'une source
+    # (`formats`, `backends`, `voices`, `avatar_gallery`) mais RIEN, ni dans `Param` ni au
+    # manifeste, ne dit d'où viennent ses options. Une seule clé est résoluble sans code d'app :
+    # celles inscrites au registre commun `OPTION_SOURCES` de `wama-params.js` (`voices` →
+    # `/common/api/voices/`, surchargeable par `window.WAMA_OPTION_SOURCES`). Les autres sont
+    # nourries par une donnée que l'app rend dans SA page (converter : `supported_formats_json`
+    # → resolver synchrone). Un générateur ne peut pas deviner cette donnée : il rendrait un
+    # select VIDE, en silence — c'est exactement ce qui bloquait la jumelle (aucun format de
+    # sortie proposé, donc rien de lançable).
+    # ⚠ Le choix ici est de rendre le manque VISIBLE plutôt que de l'inventer : le resolver
+    # laisse passer les clés du registre commun (le remplissage ASYNC s'en charge après rendu)
+    # et, pour les autres, affiche une option explicite + un `console.warn`. *Un select vide ne
+    # dit pas s'il est vide par absence d'options ou par défaut de câblage ; une option qui se
+    # nomme le dit.* La résorption est une décision de FORMALISME (déclarer l'endpoint de chaque
+    # source au manifeste), pas une rustine de gabarit.
+    schemas = (body.get('params') or {}).get('schemas') or {}
+    schema_primaire = schemas.get((body.get('params') or {}).get('primary') or '') or []
+    sources_dyn = sorted({str(p.get('options_source')) for p in schema_primaire
+                          if isinstance(p, dict) and p.get('options_source')})
+
     params_js = ''
     if route_update and champs_params:
         lect = '\n'.join(f"                v['{c}'] = card.getAttribute('data-param-{c}') || '';"
                          for c in champs_params)
+        resolver_js = ('' if not sources_dyn else f'''
+                optionsResolver: function (p) {{
+                    // Sources déclarées au schéma de cette app : {', '.join(sources_dyn)}
+                    // Clé connue du registre commun → ne rien renvoyer : `_bindOptionSources`
+                    // peuple le select depuis l'endpoint après le rendu (chemin existant).
+                    var SRC = window.WAMA_OPTION_SOURCES || {{ voices: '/common/api/voices/' }};
+                    if (SRC[p.options_source]) return null;
+                    // TROU DÉCLARÉ : la clé ne résout nulle part sans donnée d'app.
+                    console.warn('[manifest-gen app:{app}] options_source « ' + p.options_source +
+                                 ' » : aucune source déclarée (ni endpoint commun, ni donnée de page).');
+                    return [{{ value: '', label: '⚠ options « ' + p.options_source + ' » non déclarées' }}];
+                }},''')
         params_js = f'''
     if (window.WamaQueueActions && window.WamaParams) {{
         WamaQueueActions.onSettings(function (id, btn) {{
@@ -142,7 +178,7 @@ def render_index(manifest: dict) -> tuple:
                 schema: {{{{ params_json|safe }}}},
                 values: v,
                 saveUrl: urlFor(U.update, id),
-                csrf: CSRF,
+                csrf: CSRF,{resolver_js}
                 onSaved: function () {{ location.reload(); }},
             }});
         }});
@@ -304,9 +340,13 @@ document.addEventListener('DOMContentLoaded', function () {{
                            for c in champs_params)
 
     card = f'''{{% comment %}}{mark} — _generic_card.html GÉNÉRÉ (templates_gen v1).
-TROU DE GLU RESTANT : les sections × chips et les previews de la card RÉELLE ne sont pas
-générées (elles dépendent de `card_chips`, décoration propre à la vue d'app). L'écart
-résiduel reste MESURABLE au Playwright.
+TROU DE GLU RESTANT : les PREVIEWS de la card RÉELLE (miniature/lecteur du média) ne sont pas
+générées. L'écart résiduel reste MESURABLE au Playwright.
+⚠ Les SECTIONS × CHIPS ont quitté cette ligne le 2026-08-29 : la raison écrite — « décoration
+propre à la vue d'app » — était FAUSSE. `card_chips.chips_by_section` est une brique COMMUNE
+appliquée au schéma de params DÉJÀ déclaré au manifeste ; les 10 apps l'appellent à
+l'identique. Ce qui manquait était le point d'attache, et `views_gen` l'émet désormais
+(`_decorer`, posé sur l'index ET sur `card_html` — sinon la card se vide au 1ᵉʳ rafraîchissement).
 Les ACTIONS, elles, ne sont plus un trou : ce sont des CONTRATS COMMUNS à écouteur délégué
 (`queue-actions.js` : `.settings-btn[data-id]`, `.duplicate-btn[data-duplicate-url]`,
 `.delete-btn[data-delete-url]`) plus le partial `_cycle_button.html`. Rien ici n'est propre
@@ -324,6 +364,23 @@ Les ACTIONS, elles, ne sont plus un trou : ce sont des CONTRATS COMMUNS à écou
     </div>
     {{% endif %}}
     {{% if item.error_message %}}<div class="small text-danger mt-1">{{{{ item.error_message|truncatechars:120 }}}}</div>{{% endif %}}
+    {{% comment %}}Sections RÉGLAGES / SORTIE — chips GÉNÉRÉS du schéma de params par la brique
+    commune (`card_chips.chips_by_section`, section déclarée champ par champ au manifeste).
+    Rien n'est écrit à la main ici : une app qui ne déclare aucun `chip` ne rend aucune
+    section (le `{{% if %}}` la retire), et un champ qui change de section suit sa
+    déclaration. C'est la règle métadonnée-driven appliquée à la card.{{% endcomment %}}
+    {{% if item.chips.settings %}}
+    <div class="d-flex align-items-center gap-1 mt-1 flex-wrap">
+      <span class="small text-muted me-1">Réglages</span>
+      {{% include 'common/_card_chips.html' with chips=item.chips.settings %}}
+    </div>
+    {{% endif %}}
+    {{% if item.chips.output %}}
+    <div class="d-flex align-items-center gap-1 mt-1 flex-wrap">
+      <span class="small text-muted me-1">Sortie</span>
+      {{% include 'common/_card_chips.html' with chips=item.chips.output %}}
+    </div>
+    {{% endif %}}
     {{% comment %}}Ordre CONVENTIONNEL imposé (CLAUDE.md) : ⚙ · ▶ cycle · ⬇ · ⧉ · 🗑.
     `.btn-group-actions` est aussi la source que l'inspecteur CLONE (`cloneActions`) — la
     classe n'est donc pas décorative : sans elle le volet droit reste vide.
