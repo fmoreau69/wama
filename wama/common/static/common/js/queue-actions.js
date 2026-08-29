@@ -11,6 +11,10 @@
  *   ⚙ Paramètres → <button class="… settings-btn"  data-id="{{ o.id }}">
  *                  + côté app, UNE ligne : WamaQueueActions.onSettings((id, btn) => …)
  *
+ * Actions de FILE (barre d'outils, `_queue_actions.html`) — l'app passe une URL, rien d'autre :
+ *   ▶ Démarrer tout → data-queue-start-url  (start_url au partial)
+ *   🗑 Tout effacer  → data-queue-clear-url  (clear_url au partial ; confirmation par défaut)
+ *
  * Hooks optionnels (une spécificité se DÉCLARE) — tous deux acceptent `{within: '<sélecteur>'}`
  * pour être scopés à une famille de cards, l'ouvreur/la suite sans `within` servant de défaut :
  *   WamaQueueActions.onDeleted((id, data, btn) => …)   suite après suppression, au lieu du reload
@@ -451,6 +455,69 @@
         console.warn('[queue-actions] ⚙ de lot cliqué (#' + id + ') mais aucun ouvreur déclaré — '
                      + 'appeler WamaQueueActions.onBatchSettings(fn).');
     });
+
+    // ══ ACTIONS DE FILE (barre d'outils) ═════════════════════════════════════════════════
+    //
+    // Troisième étage, et le dernier : élément → lot → FILE. Les deux premiers sont ci-dessus ;
+    // celui-ci manquait, et son absence se voyait autrement que les autres. Ici le NOMMAGE
+    // n'était même pas la question — `_queue_actions.html` rend les trois boutons depuis un
+    // partial commun, mais leurs ids sont FOURNIS par l'app, précisément pour que l'app y
+    // accroche ses handlers. Résultat mesuré : chez l'imager, les ids étaient passés et rien
+    // ne les écoutait (« ils y étaient DÉCORATIFS », `imager/index.html:96`), et la jumelle
+    // générée du bac à sable rendait la même barre entièrement inerte — un gabarit ne peut
+    // pas écrire dix lignes de handler, il ne peut que passer une URL.
+    //
+    // *Un partial commun qui délègue son câblage rend un bouton mort aussi facilement qu'une
+    // divergence de nommage — et sans laisser de trace au grep.* C'est la variante la plus
+    // discrète du même défaut : support ≠ adoption.
+    //
+    // L'app DÉCLARE l'URL (`start_url` / `clear_url` au partial) et n'écrit rien. Celle qui
+    // garde son handler ne passe pas d'URL : pas d'attribut, la brique ignore le bouton, donc
+    // aucun double POST — même contrat de non-collision que `data-batch-<action>-url`.
+    function actionDeFile(attribut, options) {
+        options = options || {};
+        document.addEventListener('click', function (e) {
+            const btn = e.target.closest('[' + attribut + ']');
+            if (!btn) return;
+            const url = btn.getAttribute(attribut);
+            if (!url) return;
+
+            const demande = btn.dataset.confirm;
+            const texte = (demande && demande !== 'false') ? demande : options.confirmer;
+            if (texte && demande !== 'false' && !window.confirm(texte)) return;
+
+            btn.disabled = true;
+            const icon = btn.querySelector('i');
+            const iconeInitiale = icon ? icon.className : '';
+            if (icon) { icon.className = 'fas fa-spinner fa-spin'; }
+
+            poster(url)
+            .then(lireReponse)
+            .then(function (data) {
+                if (data.error) {
+                    alert(data.error);
+                    btn.disabled = false;
+                    if (icon) { icon.className = iconeInitiale; }
+                    return;
+                }
+                if (options.signalerFichiers) signalerAuGestionnaire();
+                // Une action de FILE touche toutes les cards, tous les lots et l'état vide :
+                // le rechargement est le seul rendu correct sans réécrire l'agrégat côté
+                // client — c'est déjà ce que font les apps qui câblent ces boutons à la main.
+                location.reload();
+            })
+            .catch(function () {
+                alert('Erreur réseau');
+                btn.disabled = false;
+                if (icon) { icon.className = iconeInitiale; }
+            });
+        });
+    }
+
+    actionDeFile('data-queue-start-url', {});
+    actionDeFile('data-queue-clear-url',
+                 { confirmer: 'Effacer TOUS les éléments de la file ? Cette action est définitive.',
+                   signalerFichiers: true });
 
     window.WamaQueueActions = { onSettings: onSettings, onDeleted: onDeleted,
                                 onBatchSettings: onBatchSettings,

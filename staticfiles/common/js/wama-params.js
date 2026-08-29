@@ -369,6 +369,50 @@
     });
   }
 
+  // ── Sources d'options adossées à une DONNÉE DE PAGE (résolution SYNCHRONE) ──────────────
+  //
+  // Deuxième famille de sources, à côté des endpoints ci-dessus. `options_source` déclare une
+  // CLÉ ; les clés de `OPTION_SOURCES` se résolvent par un GET, celles-ci par une donnée déjà
+  // posée sur la page. Sans ce registre, une clé de la seconde famille n'était résoluble que
+  // par un resolver écrit à la main dans l'app — donc introuvable pour un GÉNÉRATEUR, qui
+  // rendait un select vide ou un avertissement (« options « formats » non déclarées », relevé
+  // sur la jumelle converter_01 le 2026-08-29 : plus aucun format de sortie proposé, donc rien
+  // de lançable).
+  //
+  // ⚠ J'ai d'abord écrit que c'était un TROU DU FORMALISME — « rien, ni dans Param ni au
+  // manifeste, ne dit d'où viennent ces options ». C'était faux pour `formats`, et faux de la
+  // même façon que deux autres fois cette semaine : j'ai annoncé un trou avant d'avoir cherché
+  // la déclaration. `CONVERTER_OUTPUT_FORMATS` est exposé à TOUTES les pages depuis
+  // `accounts/context_processors.py` (processeur global) — la donnée était là, sur chaque
+  // rendu, depuis longtemps. *Un trou constaté sans avoir cherché l'accesseur est une
+  // hypothèse déguisée en mesure.*
+  //
+  // Une source de cette famille se DÉCLARE ici (registre commun), jamais dans une app :
+  // `values` = valeurs courantes du formulaire, car une source peut en dépendre (les formats de
+  // sortie dépendent de la nature du média de l'élément).
+  var PAGE_OPTION_SOURCES = {
+    // `formats` : formats de sortie du converter par type de média — la table de conversion de
+    // la plateforme (`CONVERTER_OUTPUT_FORMATS`), pas une donnée d'app. Même rendu que le
+    // resolver historique du converter (`converter.js`) : « — inchangé — » puis « .PNG ».
+    formats: function (values) {
+      var table = global.WAMA_OUTPUT_FORMATS || {};
+      var liste = table[(values || {}).media_type] || [];
+      return [{ value: '', label: '— inchangé —' }].concat(liste.map(function (f) {
+        return { value: f, label: '.' + String(f).toUpperCase() };
+      }));
+    },
+  };
+
+  // (param, valeurs) -> options plates, ou null si la clé n'appartient pas à cette famille.
+  // Renvoyer null (et non []) est ce qui laisse l'appelant distinguer « pas ma famille » de
+  // « ma famille, mais rien à proposer » — la distinction que le select vide effaçait.
+  function resolvePageOptions(p, values) {
+    if (!p || !p.options_source) return null;
+    var reg = global.WAMA_PAGE_OPTION_SOURCES || PAGE_OPTION_SOURCES;
+    var f = reg[p.options_source];
+    return f ? f(values || {}, p) : null;
+  }
+
   // Aide MODÈLE : pour chaque select déclarant help_source, câble WamaModelHelp (desc courte + ⓘ longue
   // + VRAM) depuis le catalogue model_manager (fetchCatalogMeta). Métadonnée-driven, zéro JS par app.
   function _bindModelHelp(container, schema, ctx) {
@@ -639,5 +683,9 @@
                         // Extension du vocabulaire de composants SANS toucher au moteur :
                         // un type absent du registry retombe sur le champ texte (jamais d'erreur).
                         registerRenderer: registerRenderer,
+                        // Sources d'options adossées à une donnée de page (cf. PAGE_OPTION_SOURCES) —
+                        // exposé pour qu'un optionsResolver (d'app ou GÉNÉRÉ) délègue au registre
+                        // commun au lieu de réécrire la même résolution.
+                        resolvePageOptions: resolvePageOptions,
                         rendererTypes: function () { return Object.keys(RENDERERS); } };
 })(window);

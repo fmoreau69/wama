@@ -750,6 +750,41 @@ outillé avant d'ouvrir cette marche.
      *Corollaire de vérification : un smoke navigateur mesuré sur un parc non redémarré ne mesure
      pas le code qu'on vient d'écrire.* Redémarrer (`pkill -HUP -f "gunicorn wama.wsgi"`, sans
      danger faute de `preload_app`) **AVANT** la mesure, puis re-déposer un fichier.
+  9. **`options_source` : DEUX familles de sources, un seul registre existait** (constat Fabien
+     après re-dépôt : « la modale s'affiche, mais je vois options "formats" non déclaré »). Le
+     resolver généré ne connaissait que les sources **ASYNCHRONES** (`OPTION_SOURCES` de
+     `wama-params.js` — un endpoint par clé, aujourd'hui `voices` seul) ; toute autre clé tombait
+     sur un `<option>` d'avertissement, donc pas de format de sortie, donc rien de lançable.
+     ⚠⚠ **Et mon premier commentaire de correctif rangeait ça en TROU DU FORMALISME** — « rien, ni
+     dans `Param` ni au manifeste, ne dit d'où viennent ces options ». **Faux** : la table
+     `CONVERTER_OUTPUT_FORMATS` est posée sur **toutes** les pages par un processeur de contexte
+     global (`accounts/context_processors.py:56`), et `converter.js` la lisait déjà. C'est la
+     **4ᵉ fois cette semaine dans ce seul fichier** (après `accepts_url`, la facette `inspector`,
+     puis le vocabulaire d'entrée du point 4) : *ce qui manque n'est pas la prudence, c'est le grep.*
+     Corrigé au niveau COMMUN, pas dans le gabarit : 2ᵉ registre `PAGE_OPTION_SOURCES`
+     (`wama-params.js`, sources **synchrones tirées des données de page**) + `resolvePageOptions()`
+     exporté, `window.WAMA_OUTPUT_FORMATS` posé une fois dans `base.html`, et le resolver généré
+     qui interroge **les deux registres** avant de se plaindre — en nommant la clé absente.
+     Restent 2 clés non résolues et **assumées explicitement** (`SOURCES_NON_RESOLUES` du module de
+     tests) : `backends` (transcriber) et `avatar_gallery` (studio, déclarée hors schéma d'app).
+  10. **Trois boutons de file rendus, zéro câblage — et ça n'appartenait à personne.** Le partial
+     `_queue_actions.html` reçoit des **ids** et son contrat dit « handlers JS de l'app » ; or un
+     gabarit ne peut pas écrire de handler. `imager/index.html:96` portait déjà le constat écrit
+     que ces boutons « ont longtemps été DÉCORATIFS ». *Trois routes existantes, trois boutons
+     rendus, et rien entre les deux.* C'est la variante la plus discrète du défaut du point 3 :
+     **un partial commun qui délègue son câblage rend un bouton mort aussi facilement qu'une
+     divergence de nommage — et sans laisser de trace au grep.** Corrigé par le **3ᵉ étage** de
+     `queue-actions.js` (élément → lot → **FILE**) : `actionDeFile('data-queue-start-url')` /
+     `('data-queue-clear-url')`, attributs émis par le partial **seulement si une URL est passée**
+     — les 10 apps qui gardent leur handler par id ne bougent pas (sinon : POST en double). Le ⬇
+     n'a besoin d'aucun JS (`download_all` = GET `FileResponse`) : le gabarit passe `download_url`
+     et le partial rend un vrai `<a href>` au lieu du bouton `disabled` par construction.
+     Routes résolues par `resolve_route()` (point 2), jamais supposées.
+     **Vérification** : `common/tests_codegen_templates.py` (11 tests, module neuf — `templates_gen`
+     n'en avait aucun), **prouvés DISCRIMINANTS en les rejouant dans un worktree sur HEAD** :
+     6/11 rouges avant correctif. Le 7ᵉ passait **à vide** (il bouclait sur une liste d'URLs
+     vide = l'état défectueux) → assertion de cardinalité ajoutée. *Un test qui ne boucle sur rien
+     atteste le néant.*
 
 **Cadrage A0 — la convention RÉELLE, mesurée (2026-08-11, balayage 6 cibles × 10 apps) :**
 - **urls.py** : AUCUNE app ne colle à `STANDARD_ENDPOINTS` — cette liste était une CIBLE que le

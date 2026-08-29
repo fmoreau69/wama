@@ -300,6 +300,12 @@
     <script>window.WAMA_APP_CATALOG = {{ app_catalog_json|safe }};</script>
     <script>window.WAMA_INSPECTOR_AUTOPLAY = {{ inspector_autoplay|yesno:'true,false' }};  // pref profil (aperçu inspecteur)</script>
     <script>window.WAMA_CURRENT_APP = "{{ current_app|escapejs }}";  // ID d'app courante (dérivé du path via APP_CATALOG)</script>
+    {% comment %}Formats de sortie par type de média (CONVERTER_OUTPUT_FORMATS) — la donnée était
+    DÉJÀ calculée pour toutes les pages par le processeur de contexte `user_role` ; seule la
+    sidebar du gestionnaire de fichiers la lisait. L'exposer ici en fait la source de
+    `options_source='formats'` (registre PAGE_OPTION_SOURCES de wama-params.js), au lieu qu'elle
+    ne soit résoluble que par un resolver écrit à la main dans chaque app.{% endcomment %}
+    <script>window.WAMA_OUTPUT_FORMATS = {{ converter_output_formats_json|safe }};</script>
     {% if current_app_color %}
     <!-- Couleur d'IDENTITÉ de l'app courante (liseré des cards — CARD_DESIGN §9, dérivée du catalogue) -->
     <style>:root { --wama-app-color: {{ current_app_color }}; }</style>

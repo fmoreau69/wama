@@ -124,22 +124,30 @@ def render_index(manifest: dict) -> tuple:
     # Les deux se débloquent ensemble (même commit) — un bouton mort se referme des DEUX côtés
     # ou pas du tout. Rien d'app ici : le cycle complet (rendre → lire → POST → toast) est
     # `WamaParams.settingsModal` ; seules les VALEURS courantes et l'URL viennent du manifeste.
-    # Sources d'options DYNAMIQUES (`options_source`) — trou STRUCTUREL du formalisme, pas du
-    # gabarit, et il fallait le mesurer avant de conclure. Le schéma déclare la CLÉ d'une source
-    # (`formats`, `backends`, `voices`, `avatar_gallery`) mais RIEN, ni dans `Param` ni au
-    # manifeste, ne dit d'où viennent ses options. Une seule clé est résoluble sans code d'app :
-    # celles inscrites au registre commun `OPTION_SOURCES` de `wama-params.js` (`voices` →
-    # `/common/api/voices/`, surchargeable par `window.WAMA_OPTION_SOURCES`). Les autres sont
-    # nourries par une donnée que l'app rend dans SA page (converter : `supported_formats_json`
-    # → resolver synchrone). Un générateur ne peut pas deviner cette donnée : il rendrait un
-    # select VIDE, en silence — c'est exactement ce qui bloquait la jumelle (aucun format de
-    # sortie proposé, donc rien de lançable).
-    # ⚠ Le choix ici est de rendre le manque VISIBLE plutôt que de l'inventer : le resolver
-    # laisse passer les clés du registre commun (le remplissage ASYNC s'en charge après rendu)
-    # et, pour les autres, affiche une option explicite + un `console.warn`. *Un select vide ne
-    # dit pas s'il est vide par absence d'options ou par défaut de câblage ; une option qui se
-    # nomme le dit.* La résorption est une décision de FORMALISME (déclarer l'endpoint de chaque
-    # source au manifeste), pas une rustine de gabarit.
+    # Sources d'options DYNAMIQUES (`options_source`) — le schéma déclare une CLÉ (`formats`,
+    # `backends`, `voices`, `avatar_gallery`) et le gabarit doit savoir la résoudre. DEUX familles
+    # de sources existent, toutes deux au COMMUN, aucune propre à une app :
+    #   • endpoints ASYNC — registre `OPTION_SOURCES` de `wama-params.js` (`voices` →
+    #     `/common/api/voices/`) : `_bindOptionSources` peuple le select après rendu ;
+    #   • données de PAGE, résolution SYNCHRONE — registre `PAGE_OPTION_SOURCES`, interrogé par
+    #     `WamaParams.resolvePageOptions(param, valeurs)`. C'est là que vit `formats`, adossé à
+    #     `window.WAMA_OUTPUT_FORMATS` (= `CONVERTER_OUTPUT_FORMATS`, posé sur toutes les pages).
+    #
+    # ⚠⚠ CE COMMENTAIRE DISAIT LE CONTRAIRE, ET C'EST LA LEÇON. Il rangeait `options_source` en
+    # « trou STRUCTUREL du formalisme » au motif que « RIEN, ni dans `Param` ni au manifeste, ne
+    # dit d'où viennent ses options », et le resolver généré affichait donc « ⚠ options
+    # « formats » non déclarées » — un select sans aucun format de sortie, donc une jumelle où
+    # rien n'était lançable. La donnée existait pourtant sur CHAQUE page, exposée par un
+    # processeur de contexte global. *Un trou annoncé sans avoir cherché l'accesseur est une
+    # hypothèse déguisée en mesure* — troisième fois cette semaine dans ce même fichier, après
+    # `accepts_url` et la facette `inspector`. Le réflexe qui manque n'est pas la prudence, c'est
+    # le grep.
+    #
+    # Ce qui reste vrai : une clé qui n'est dans AUCUN des deux registres ne résout nulle part.
+    # Le resolver le DIT alors (option nommée + `console.warn`) plutôt que de rendre un select
+    # vide — *un select vide ne dit pas s'il l'est par absence d'options ou par défaut de
+    # câblage ; une option qui se nomme le dit.* Y répondre, c'est ajouter la source au registre
+    # commun (comme `formats` ici), jamais écrire un resolver dans l'app ou dans ce gabarit.
     schemas = (body.get('params') or {}).get('schemas') or {}
     schema_primaire = schemas.get((body.get('params') or {}).get('primary') or '') or []
     sources_dyn = sorted({str(p.get('options_source')) for p in schema_primaire
@@ -152,13 +160,17 @@ def render_index(manifest: dict) -> tuple:
         resolver_js = ('' if not sources_dyn else f'''
                 optionsResolver: function (p) {{
                     // Sources déclarées au schéma de cette app : {', '.join(sources_dyn)}
-                    // Clé connue du registre commun → ne rien renvoyer : `_bindOptionSources`
-                    // peuple le select depuis l'endpoint après le rendu (chemin existant).
+                    // 1. Clé à endpoint → ne rien renvoyer : `_bindOptionSources` peuple le
+                    //    select après le rendu (chemin ASYNC existant).
                     var SRC = window.WAMA_OPTION_SOURCES || {{ voices: '/common/api/voices/' }};
                     if (SRC[p.options_source]) return null;
-                    // TROU DÉCLARÉ : la clé ne résout nulle part sans donnée d'app.
+                    // 2. Clé adossée à une donnée de page → registre commun, résolution
+                    //    synchrone, alimentée par les valeurs courantes de l'élément.
+                    var opts = WamaParams.resolvePageOptions(p, v);
+                    if (opts) return opts;
+                    // 3. Aucun des deux registres : la clé ne résout nulle part. Le DIRE.
                     console.warn('[manifest-gen app:{app}] options_source « ' + p.options_source +
-                                 ' » : aucune source déclarée (ni endpoint commun, ni donnée de page).');
+                                 ' » : absente des deux registres communs (endpoints et données de page).');
                     return [{{ value: '', label: '⚠ options « ' + p.options_source + ' » non déclarées' }}];
                 }},''')
         params_js = f'''
@@ -214,6 +226,29 @@ def render_index(manifest: dict) -> tuple:
     }}
 '''
 
+    # Actions GLOBALES de la file (▶ Démarrer tout / ⬇ Télécharger tout / 🗑 Tout effacer).
+    # 4ᵉ occurrence du motif du fichier, et la plus discrète : la barre était bien émise
+    # (`_queue_toolbar.html`), avec ses trois ids — mais le contrat du partial dit « handlers JS
+    # de l'app », et un gabarit ne peut pas écrire de handler. Les trois boutons étaient donc
+    # rendus, visibles, cliquables et INERTES. Le bouton ⬇ était même désactivé PAR
+    # CONSTRUCTION : sans `download_url`, le partial rend un `<button disabled>`.
+    # ⚠ Ici la facette n'était ni absente ni mal lue — les routes `start_all` / `clear_all` /
+    # `download_all` sont dans `ROUTE_TABLE`, générées par `views_gen`, présentes dans le urls
+    # généré. *Trois routes existantes, trois boutons rendus, et rien entre les deux* : le
+    # câblage était le seul maillon, et il n'appartenait à personne. Il appartient désormais au
+    # COMMUN (`queue-actions.js`, 3ᵉ étage : élément → lot → file) ; le gabarit n'a plus qu'à
+    # passer les URLs — même contrat que `data-batch-<action>-url` pour les lots.
+    route_start_all = resolve_route('start_all', noms_routes)
+    route_clear_all = resolve_route('clear_all', noms_routes)
+    route_dl_all = resolve_route('download_all', noms_routes)
+    urls_file = ''.join(
+        f"""    {{% url '{app}:{cle}' as {var} %}}\n"""
+        for cle, var in ((route_start_all, 'q_start_url'), (route_clear_all, 'q_clear_url'),
+                         (route_dl_all, 'q_download_url')) if cle)
+    bits_file = ''.join(bit for cle, bit in (
+        (route_start_all, ' start_url=q_start_url'), (route_clear_all, ' clear_url=q_clear_url'),
+        (route_dl_all, ' download_url=q_download_url')) if cle)
+
     caps = body.get('capabilities') or {}
     url_bits = url_js = ''
     if caps.get('accepts_url') or caps.get('has_url_import'):
@@ -265,7 +300,7 @@ document.addEventListener('DOMContentLoaded', function () {{
     {{% include 'common/_new_item_card.html' with drop_zone_id='{app}DropZone' file_input_id='{app}FileInput' file_accept='{accept}' formats_label='{label}' show_batch_bar=True show_media_library=True batch_template_url=batch_tpl_url collapsible=True{url_bits} %}}
     <hr class="border-secondary">
 
-    {{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='{app}StartAllBtn' clear_id='{app}ClearAllBtn' download_id='{app}DownloadAllBtn' show_download=True %}}
+{urls_file}    {{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='{app}StartAllBtn' clear_id='{app}ClearAllBtn' download_id='{app}DownloadAllBtn' show_download=True{bits_file} %}}
 
     <div id="{app}Queue" class="wama-queue-{{{{ card_layout|default:'list' }}}}">
         {{% for b in batches_list %}}

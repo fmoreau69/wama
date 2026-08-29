@@ -9,13 +9,22 @@ Variables :
   show_download — (bool) afficher le bouton de téléchargement global
   download_url — (option) si fourni : rend un LIEN direct (ZIP serveur) au lieu
                  d'un bouton désactivé piloté par le JS de l'app
+  start_url, clear_url — (option) URL des routes `start_all` / `clear_all`. Si fournies,
+                 `queue-actions.js` câble le bouton LUI-MÊME (POST + rechargement, avec
+                 confirmation pour l'effacement) : l'app n'écrit plus de handler.
   start_label, clear_label, download_label — libellés (défauts ci-dessous)
+
+⚠ Les trois boutons de cette barre ont longtemps été DÉCORATIFS chez plusieurs apps : les ids
+étaient passés, aucun JS ne les écoutait (constat écrit dans `imager/index.html:96`). Les
+`*_url` ci-dessus existent pour que ce cas ne puisse plus se produire — un bouton dont l'URL
+est déclarée est câblé par la brique, sans une ligne d'app. Une app qui garde son handler par
+id ne passe simplement pas d'URL (sinon le POST partirait DEUX fois).
 
 Usage :
   {% include 'common/_queue_actions.html' with start_id='transcriber-process-btn' download_id='transcriber-download-all-btn' clear_id='transcriber-clear-btn' show_download=True %}
 {% endcomment %}
 <div class="d-flex gap-2 flex-wrap wama-queue-actions">
-    <button id="{{ start_id }}" class="btn btn-success btn-sm">
+    <button id="{{ start_id }}" class="btn btn-success btn-sm"{% if start_url %} data-queue-start-url="{{ start_url }}"{% endif %}>
         <i class="fas fa-play"></i> {{ start_label|default:'Démarrer tout' }}
     </button>
     {% if show_download %}
@@ -29,7 +38,7 @@ Usage :
     </button>
     {% endif %}
     {% endif %}
-    <button id="{{ clear_id }}" class="btn btn-outline-danger btn-sm">
+    <button id="{{ clear_id }}" class="btn btn-outline-danger btn-sm"{% if clear_url %} data-queue-clear-url="{{ clear_url }}"{% endif %}>
         <i class="fas fa-trash"></i> {{ clear_label|default:'Tout effacer' }}
     </button>
 </div>
