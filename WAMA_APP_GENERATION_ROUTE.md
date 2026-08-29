@@ -346,9 +346,9 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   **Surface outils courante** (couche factuelle auto-générée, ROADMAP §16.9 ①) :
 
   <!-- WAMA:FAITS(outils) — généré par « python manage.py doc_facts », ne pas éditer -->
-- Outils au registre (`TOOL_REGISTRY`) : **53**
-- Outils décrits (`tool_descriptions()`, dérivé) : **53/53**
-- Arguments documentés (types/choix/bornes/défauts) : **199**
+- Outils au registre (`TOOL_REGISTRY`) : **55**
+- Outils décrits (`tool_descriptions()`, dérivé) : **55/55**
+- Arguments documentés (types/choix/bornes/défauts) : **204**
 <!-- /WAMA:FAITS(outils) -->
 - 🔴 **PANNE TROUVÉE ET CORRIGÉE au passage — `describer.output_format`** (signalée par Fabien) :
   `output_style` est un **STYLE de description** (résumé / détaillée / synthèse scientifique / points
@@ -812,6 +812,22 @@ outillé avant d'ouvrir cette marche.
      seul `actionGroupee()` (les deux seules différences — le sélecteur et le `stopPropagation` de
      la card mère repliable — sont des paramètres), et le ▶ de file expose `onQueueStarted` /
      `onQueueStartBody`. 3 tests de PARITÉ, rouges 3/3 rejoués sur HEAD.
+     ⚠⚠ **Et le hook ne suffisait PAS** (question de Fabien le jour même : *« est-ce que le
+     synthesizer rentre proprement dans la brique ? »*). Non — et le défaut était **muet des deux
+     côtés** : `JSON.stringify(new FormData())` vaut `"{}"`, donc un corps multipart (le seul moyen
+     de porter `voice_reference`, un **fichier**) serait parti VIDE sans erreur ; et même avec un
+     objet plat, `request.POST` reste vide sur un corps JSON, or la vue ne lit **que** `request.POST`.
+     `poster()` laisse désormais passer un `FormData` tel quel, **sans** `Content-Type` (la frontière
+     multipart est posée par le navigateur ; l'écrire à la main casse le parsing Django).
+     *Ouvrir un point d'extension ne suffit pas : il faut vérifier que ce qu'une app y mettrait
+     PASSE réellement.* Le hook seul rendait le synthesizer portable **sur le papier**.
+     ⏳ **Reste, et c'est une distinction à tenir** : la brique le rend PORTABLE, pas encore
+     RÉGÉNÉRABLE. Un `onQueueStartBody` est du JS écrit DANS l'app — donc une spécificité *codée*,
+     pas *déclarée* (CLAUDE.md §philosophie 4). Pour que le gabarit projette ce comportement, il
+     faut le déclarer : le corps du synthesizer n'est rien d'autre que **les valeurs du schéma de
+     paramètres de l'app**, que `WamaParams` connaît déjà — d'où la piste d'une capacité
+     `start_all_applique_les_reglages` lue par la brique, plutôt qu'un fournisseur par app.
+     À arbitrer avec l'homonyme `text` et les amendements ⓪①③④ (§S2bis.7).
      Effet de bord : le commentaire de `poster()` affirmait que l'enhancer audio était « le seul cas
      mesuré » portant des réglages — il l'était **au niveau LOT**, périmètre du relevé du 27/08.
      *Un relevé vaut pour le périmètre où il a été fait ; l'écrire comme une propriété des apps le

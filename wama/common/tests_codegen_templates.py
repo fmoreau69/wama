@@ -186,6 +186,21 @@ class ParitEDesEtagesDeFileTest(SimpleTestCase):
         self.assertIn('corps:', corps, 'le ▶ de file ne sait pas porter de réglages')
         self.assertIn('suite:', corps, 'le ▶ de file impose le rechargement à toutes les apps')
 
+    def test_un_corps_FormData_traverse_le_POST_sans_etre_serialise(self):
+        # Le point d'extension ne vaut que si ce qu'une app y met ARRIVE. `JSON.stringify` d'un
+        # FormData vaut « {} » : le synthesizer (seul à porter un FICHIER, `voice_reference`)
+        # serait parti à vide, sans erreur. Et un corps JSON laisse `request.POST` vide côté
+        # Django, or sa vue ne lit que `request.POST`.
+        i = self.js.index('function poster(')
+        corps = self.js[i:i + 700]
+        self.assertIn('instanceof FormData', corps,
+                      'poster() sérialise tout — un corps multipart partirait VIDE et MUET')
+        # Et le Content-Type ne doit PAS être posé à la main sur du multipart (la frontière
+        # est générée par le navigateur ; l'écrire casse le parsing Django).
+        avant = corps[:corps.index('instanceof FormData')]
+        self.assertNotIn("'Content-Type': 'application/json'", avant,
+                         'Content-Type posé avant le test FormData → multipart cassé')
+
     def test_les_hooks_de_file_sont_EXPORTES(self):
         # Un hook non exporté est un hook qui n'existe pas : `WamaQueueActions` est la seule
         # surface qu'une app touche.

@@ -85,15 +85,28 @@
     // régression MUETTE. ⚠ Le commentaire d'avant disait « le SEUL cas mesuré » : il l'était au
     // niveau LOT, et je l'ai récrit comme une propriété des apps. Un relevé vaut pour le PÉRIMÈTRE
     // où il a été fait — le second étage n'avait jamais été regardé quand la phrase a été écrite.
+    // ⚠⚠ ET LE HOOK NE SUFFISAIT PAS (2026-08-29, question de Fabien : « est-ce que le synthesizer
+    // rentre proprement dans la brique ? »). Non — et le défaut était MUET des deux côtés :
+    //   • `JSON.stringify(new FormData())` vaut `"{}"`. Un fournisseur de corps rendant un
+    //     FormData (le seul moyen de porter `voice_reference`, un FICHIER) partait donc VIDE,
+    //     sans erreur, sans warning ;
+    //   • et même avec un objet plat, `request.POST` de Django reste vide sur un corps JSON —
+    //     `synthesizer/views.py:922` ne lit QUE `request.POST`. Le lancement serait parti avec
+    //     les valeurs stockées à la création, exactement la régression que le hook devait éviter.
+    // Un FormData passe donc TEL QUEL, sans `Content-Type` : c'est le navigateur qui pose le
+    // `multipart/form-data; boundary=…`, et l'écrire à la main casse le parsing côté Django.
+    // *Ouvrir un point d'extension ne suffit pas : il faut vérifier que ce qu'une app y ferait
+    // PASSE réellement.* Le hook seul aurait rendu le synthesizer « portable » sur le papier.
     function poster(url, corps) {
-        return fetch(url, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': getCsrf(),
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(corps || {}),
-        });
+        const entetes = { 'X-CSRFToken': getCsrf() };
+        let charge;
+        if (corps instanceof FormData) {
+            charge = corps;                       // multipart : le navigateur pose la frontière
+        } else {
+            entetes['Content-Type'] = 'application/json';
+            charge = JSON.stringify(corps || {});
+        }
+        return fetch(url, { method: 'POST', headers: entetes, body: charge });
     }
 
     // Un 204 (No Content) est un succès sans corps : `r.json()` y lèverait. Les vues WAMA
