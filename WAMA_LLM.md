@@ -571,7 +571,12 @@ d'entrée et rend un verdict — un retour utilisateur SIMULÉ, dense là où le
 sont épars. Rien de tel n'existe (mesuré : `bench.py` juge des MODÈLES candidats, le triage
 `ui_smoke` juge des CAPTURES d'UI — personne ne juge une SORTIE contre sa demande).
 Architecture d'accueil évidente : les signaux RÉELS de `RunOutcome` (téléchargé/supprimé/
-corrigé) sont épars mais VRAIS — ils sont le jeu de CALIBRATION du juge, pas son concurrent ;
+corrigé) sont épars mais VRAIS — ils sont le jeu de CALIBRATION du juge, pas son concurrent.
+⚠ **Un signal isolé ne s'interprète PAS** (recadrage Fabien 29/08) : `supprimé` n'est pas un
+rejet — l'utilisateur a pu télécharger son fichier PUIS faire le ménage. C'est la SÉQUENCE
+par item qui porte le sens (`telecharge` puis `supprime` ≈ satisfait ; `supprime` sans
+`telecharge` ≈ probable rejet ; `corrige`/`relance` = négatifs francs) — et même ainsi ce
+sont des étiquettes BRUITÉES, jamais une vérité terrain ;
 le juge est une passe LLM AUTOMATIQUE → GOUVERNÉE obligatoirement (leçon prospection +
 crashs), nocturne plutôt qu'au fil de l'eau, et JAMAIS de rétroaction automatique sur les
 paramètres sans métrique validée (un juge non calibré qui pilote une boucle DÉRIVE).
