@@ -171,17 +171,17 @@ def _traiter(msg: MessageEntrant) -> Reponse:
     # d'envoi des adaptateurs est mort et l'utilisateur reçoit un lien `/media/…` protégé
     # par session, inutilisable hors WAMA (défaut mesuré 2026-08-29, WAMA_LLM §Vérification).
     return Reponse(texte=resultat.get('response') or '(réponse vide)',
-                   fichiers=_fichiers_produits(resultat))
+                   fichiers=_produced_files(resultat))
 
 
 #: Clés de résultat d'outil qui désignent une sortie fichier (contrat des triades tool_api).
-_CLES_SORTIE = ('output_urls', 'output_url', 'file_url', 'video_url', 'audio_url', 'image_url')
+_OUTPUT_KEYS = ('output_urls', 'output_url', 'file_url', 'video_url', 'audio_url', 'image_url')
 #: Bornes d'envoi : nombre de pièces, et octets par pièce (limite Discord la plus basse).
-_MAX_PIECES_SORTIE = 5
-_MAX_OCTETS_SORTIE = 24 * 1024 * 1024
+_MAX_OUTPUT_FILES = 5
+_MAX_OUTPUT_BYTES = 24 * 1024 * 1024
 
 
-def _fichiers_produits(resultat) -> list:
+def _produced_files(resultat) -> list:
     """Chemins MEDIA_ROOT-relatifs des sorties produites pendant le tour (lus des tool_steps).
 
     Seules les URLs `/media/…` résolues SOUS MEDIA_ROOT sont retenues — un résultat d'outil
@@ -195,8 +195,8 @@ def _fichiers_produits(resultat) -> list:
     media_url = getattr(settings, 'MEDIA_URL', '/media/') or '/media/'
     vus, fichiers = set(), []
 
-    def _retenir(valeur):
-        if len(fichiers) >= _MAX_PIECES_SORTIE or not isinstance(valeur, str):
+    def _keep(valeur):
+        if len(fichiers) >= _MAX_OUTPUT_FILES or not isinstance(valeur, str):
             return
         if not valeur.startswith(media_url):
             return
@@ -206,7 +206,7 @@ def _fichiers_produits(resultat) -> list:
         chemin = (media_root / rel).resolve()
         if not str(chemin).startswith(str(media_root)) or not chemin.is_file():
             return
-        if chemin.stat().st_size > _MAX_OCTETS_SORTIE:
+        if chemin.stat().st_size > _MAX_OUTPUT_BYTES:
             return
         vus.add(rel)
         fichiers.append(rel)
@@ -215,13 +215,13 @@ def _fichiers_produits(resultat) -> list:
         contenu = etape.get('result')
         if not isinstance(contenu, dict):
             continue
-        for cle in _CLES_SORTIE:
+        for cle in _OUTPUT_KEYS:
             valeur = contenu.get(cle)
             if isinstance(valeur, (list, tuple)):
                 for element in valeur:
-                    _retenir(element)
+                    _keep(element)
             else:
-                _retenir(valeur)
+                _keep(valeur)
     return fichiers
 
 

@@ -228,7 +228,7 @@ class TronconnageDiscordTests(TestCase):
 
 
 class FichiersProduitsTests(TestCase):
-    """`_fichiers_produits` — le retour des sorties d'outils vers le canal (correctif 29/08 :
+    """`_produced_files` — le retour des sorties d'outils vers le canal (correctif 29/08 :
     `Reponse.fichiers` n'était JAMAIS rempli, le code d'envoi de l'adaptateur était mort)."""
 
     def _creer_media(self, rel):
@@ -251,17 +251,17 @@ class FichiersProduitsTests(TestCase):
                 'audio_url': '/media/gateway_tests/sortie.wav'}},
             {'tool': 'search_web', 'result': {'results': []}},
         ]}
-        fichiers = core._fichiers_produits(resultat)
+        fichiers = core._produced_files(resultat)
         self.assertEqual(fichiers, ['gateway_tests/sortie.png', 'gateway_tests/sortie.wav'])
 
     def test_une_traversee_hors_media_root_est_ignoree(self):
         resultat = {'tool_steps': [{'tool': 'x', 'result': {
             'file_url': '/media/../wama/settings.py'}}]}
-        self.assertEqual(core._fichiers_produits(resultat), [])
+        self.assertEqual(core._produced_files(resultat), [])
 
     def test_un_fichier_inexistant_ou_un_resultat_non_dict_ne_cassent_rien(self):
         resultat = {'tool_steps': [
             {'tool': 'x', 'result': {'file_url': '/media/gateway_tests/absent.png'}},
             {'tool': 'y', 'result': 'erreur en chaîne'},
         ]}
-        self.assertEqual(core._fichiers_produits(resultat), [])
+        self.assertEqual(core._produced_files(resultat), [])

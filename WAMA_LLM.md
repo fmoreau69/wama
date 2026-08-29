@@ -565,6 +565,18 @@ l'utilisateur (la réponse à « qu'en fais-je ? ») n'est pas enregistré — u
 Ni l'un ni l'autre ne se câble sans arbitrage : la doctrine reste métrique d'abord, boucle
 ensuite, autonomie en dernier.
 
+**Précision de Fabien (29/08 soir) — le JUGE SYNTHÉTIQUE, un 3ᵉ étage NON construit** : un
+VLM analyse le FICHIER DE SORTIE (vidéo anonymisée, image générée…) contre la DEMANDE
+d'entrée et rend un verdict — un retour utilisateur SIMULÉ, dense là où les signaux réels
+sont épars. Rien de tel n'existe (mesuré : `bench.py` juge des MODÈLES candidats, le triage
+`ui_smoke` juge des CAPTURES d'UI — personne ne juge une SORTIE contre sa demande).
+Architecture d'accueil évidente : les signaux RÉELS de `RunOutcome` (téléchargé/supprimé/
+corrigé) sont épars mais VRAIS — ils sont le jeu de CALIBRATION du juge, pas son concurrent ;
+le juge est une passe LLM AUTOMATIQUE → GOUVERNÉE obligatoirement (leçon prospection +
+crashs), nocturne plutôt qu'au fil de l'eau, et JAMAIS de rétroaction automatique sur les
+paramètres sans métrique validée (un juge non calibré qui pilote une boucle DÉRIVE).
+Chantier à ouvrir quand Fabien le décide — pas avant la stabilisation hôte.
+
 ## Voir aussi
 - `ROADMAP.md §10.B` (traduction runtime) et `§16.6` (pipeline + vision méta).
 - `WAMA_APP_CONVENTIONS.md §2bis.4` (contrat prompt targets), `§9.9` (héritage).
