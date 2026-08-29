@@ -69,7 +69,7 @@ def _hf_card_excerpt(hf_id: str, max_chars: int = 2500) -> str:
         return ''
 
 
-def _juger(contexte: str, provider, model, timeout=120):
+def _judge(contexte: str, provider, model, timeout=120):
     """Un agent rend un verdict JSON sur `contexte` → dict d'avis (ou {'agent','error'}).
     `model=None` = résolution par le catalogue (`llm_chat` → `modele_par_defaut`)."""
     from wama.common.utils.llm_utils import llm_chat, extract_json_from_llm
@@ -129,7 +129,7 @@ def _assess_one(candidate, app, card, provider, model, timeout=120):
         f"Tâche : {candidate.get('pipeline_tag')}\n"
         f"Carte (extrait) :\n{card or '(non disponible)'}"
     )
-    return _juger(contexte, provider, model, timeout=timeout)
+    return _judge(contexte, provider, model, timeout=timeout)
 
 
 def assess_candidate(candidate, app, agents, timeout=120):
@@ -161,7 +161,7 @@ def parse_agents(spec: str):
 
 # ── Chaîne UI : candidats Ollama `new` ──────────────────────────────────────────
 
-def _contexte_ollama(cand) -> str:
+def _ollama_context(cand) -> str:
     """
     Contexte FACTUEL d'un candidat Ollama — uniquement ce que le registre et le catalogue
     savent (pas de carte HF ici). Les installés comparables donnent au juge le référentiel
@@ -172,26 +172,26 @@ def _contexte_ollama(cand) -> str:
     p = (cand.extra_info or {}).get('prospect', {})
     nom, _, tag = cand.name.partition(':')
     try:
-        taille = ollama_registry.taille_go(nom, tag or 'latest')
+        taille = ollama_registry.size_gb(nom, tag or 'latest')
     except Exception:
         taille = None
-    lignes = _referentiel(cand.model_type)
+    lignes = _installed_reference(cand.model_type)
     return (
         f"Modèle candidat de la bibliothèque Ollama : {cand.name}\n"
         f"Rôle WAMA visé : {p.get('role') or cand.model_type} — {p.get('reason', '')}\n"
         f"Taille estimée : {taille if taille is not None else '?'} Go\n"
-        + _ligne_benchmark(cand)
+        + _benchmark_line(cand)
         + f"Modèles déjà installés pour ce type (référentiel à surpasser) :\n{lignes}"
     )
 
 
-def _referentiel(model_type: str) -> str:
-    """Référentiel installé d'un type, en lignes lisibles (brique `meilleurs_installes`).
+def _installed_reference(model_type: str) -> str:
+    """Référentiel installé d'un type, en lignes lisibles (brique `best_installed`).
     Le benchmark TIERS confronté (étage 2, `sync_benchmarks`) prime sur l'a priori quand
     il existe — c'est la mesure qui a corrigé « qwen3.6 devant qwen3.8 » le 19/08."""
     from wama.model_manager.models import AIModel
     lignes = []
-    for m in AIModel.meilleurs_installes(model_type, limit=5):
+    for m in AIModel.best_installed(model_type, limit=5):
         bench = (f", benchmark tiers {m.benchmark_index}"
                  if m.benchmark_index is not None else "")
         lignes.append(f"  - {m.name} (indice a priori {m.quality_index}{bench}, "
@@ -199,7 +199,7 @@ def _referentiel(model_type: str) -> str:
     return "\n".join(lignes) or "  (aucun)"
 
 
-def _ligne_benchmark(cand) -> str:
+def _benchmark_line(cand) -> str:
     """Ligne « benchmark tiers » du candidat lui-même, si `sync_benchmarks` l'a apparié
     (les lignes `proposed:` sont incluses dans le sync — critère AVANT installation)."""
     if cand.benchmark_index is None:
@@ -209,7 +209,7 @@ def _ligne_benchmark(cand) -> str:
             f" ({meta.get('source', 'source inconnue')})\n")
 
 
-def _modele_local_resolu() -> str:
+def _resolved_local_model() -> str:
     """Nom du modèle Ollama que le CATALOGUE désigne (point unique `modele_par_defaut`),
     ou '' s'il ne rend rien. Résolu UNE fois par passe — cf. `assess_proposed`."""
     try:
@@ -232,7 +232,7 @@ def _vram_agents(agents) -> float:
     for provider, model in agents:
         if provider != 'ollama':
             continue
-        nom = model or _modele_local_resolu()
+        nom = model or _resolved_local_model()
         m = AIModel.objects.filter(model_key=f"ollama:{nom}").first() if nom else None
         besoin = max(besoin, float((m and m.vram_gb) or 8.0))   # 8 Go = repli prudent
     # 0.0 quand AUCUN agent local : une passe 100 % cloud ne consomme pas de VRAM et ne doit
@@ -240,11 +240,11 @@ def _vram_agents(agents) -> float:
     return besoin
 
 
-def _contexte_hf(cand) -> str:
+def _hf_context(cand) -> str:
     """
     Contexte d'un candidat HuggingFace (prospection génération) : la CARTE de modèle HF
     (même source factuelle que la voie CLI `assess_models`) + popularité + référentiel
-    + variantes quantisées si `_attacher_variantes_quantisees` les a relevées.
+    + variantes quantisées si `_attach_quantized_variants` les a relevées.
     """
     p = (cand.extra_info or {}).get('prospect', {})
     carte = _hf_card_excerpt(cand.hf_id)
@@ -253,15 +253,15 @@ def _contexte_hf(cand) -> str:
         f"Rôle WAMA visé : {p.get('role') or cand.model_type} — {p.get('reason', '')}\n"
         f"Téléchargements : {p.get('downloads')} | Likes : {p.get('likes')} | "
         f"Poids : {cand.disk_gb or '?'} Go\n"
-        + _ligne_variantes(p)
-        + _ligne_benchmark(cand)
+        + _variants_line(p)
+        + _benchmark_line(cand)
         + f"Modèles déjà installés pour ce type (référentiel à surpasser) :\n"
-          f"{_referentiel(cand.model_type)}\n"
+          f"{_installed_reference(cand.model_type)}\n"
         f"Carte (extrait) :\n{carte or '(non disponible)'}"
     )
 
 
-def _ligne_variantes(p: dict) -> str:
+def _variants_line(p: dict) -> str:
     """Bloc « variantes quantisées » du contexte du juge, '' si aucune n'est relevée.
     C'est LA ligne qui corrige le biais mesuré le 2026-08-26 : le poids affiché est celui
     des poids PLEINS, et le juge rejetait tout gros modèle pourtant bien repackagé."""
@@ -274,7 +274,7 @@ def _ligne_variantes(p: dict) -> str:
             f"disponibles (la faisabilité VRAM se juge sur elles) :\n{lignes}\n")
 
 
-def _attacher_variantes_quantisees(cand) -> None:
+def _attach_quantized_variants(cand) -> None:
     """
     Relève UNE fois les variantes quantisées d'un candidat HF et les persiste dans
     `extra_info['prospect']['quant_variants']` (card/inspecteur + contexte du juge).
@@ -285,8 +285,8 @@ def _attacher_variantes_quantisees(cand) -> None:
     prospect = dict(info.get('prospect') or {})
     if 'quant_variants' in prospect:
         return
-    from .prospector import variantes_quantisees
-    prospect['quant_variants'] = variantes_quantisees(cand.hf_id)
+    from .prospector import quantized_variants
+    prospect['quant_variants'] = quantized_variants(cand.hf_id)
     info['prospect'] = prospect
     cand.extra_info = info
     cand.save(update_fields=['extra_info'])
@@ -316,7 +316,7 @@ def assess_proposed(max_assess: int = 10, agents=None, timeout: int = 120,
     # le même nom sert à réserver la bonne empreinte, à juger, puis à décharger. Sans cette
     # fixation, trois résolutions indépendantes pourraient désigner trois modèles différents
     # (le catalogue bouge avec la VRAM libre).
-    agents = [(p, m or _modele_local_resolu()) if p == 'ollama' else (p, m)
+    agents = [(p, m or _resolved_local_model()) if p == 'ollama' else (p, m)
               for (p, m) in agents]
 
     # ── GOUVERNEUR DE RESSOURCES (obligatoire depuis le 2026-08-19) ──────────────
@@ -365,16 +365,16 @@ def assess_proposed(max_assess: int = 10, agents=None, timeout: int = 120,
         if progress:
             progress({'current': f"préparation {cand.name}", 'done': 0, 'total': len(cands)})
         if cand.source == 'huggingface':
-            _attacher_variantes_quantisees(cand)
-        contextes.append(_contexte_hf(cand) if cand.source == 'huggingface'
-                         else _contexte_ollama(cand))
+            _attach_quantized_variants(cand)
+        contextes.append(_hf_context(cand) if cand.source == 'huggingface'
+                         else _ollama_context(cand))
 
     evalues, sans_avis = 0, 0
     with vram_reservation(f"model_manager.assess:{_os.getpid()}", besoin_gb):
         for i, (cand, contexte) in enumerate(zip(cands, contextes)):
             if progress:
                 progress({'current': cand.name, 'done': i, 'total': len(cands)})
-            opinions = [_juger(contexte, p, m, timeout=timeout)
+            opinions = [_judge(contexte, p, m, timeout=timeout)
                         for (p, m) in agents]
             consensus = _consolider(opinions)
             if consensus is None:

@@ -60,7 +60,7 @@ def _supports(model, requires, classes) -> bool:
     return True
 
 
-def _cle_de_rang(pool, domaine=None):
+def _rank_key(pool, domaine=None):
     """
     Fabrique la clé de tri « (déjà chargé, qualité) » pour CE lot de candidats.
 
@@ -105,7 +105,7 @@ def _cle_de_rang(pool, domaine=None):
                         and all(getattr(m, 'benchmark_index', None) is not None for m in pool))
     tous_qualifies = bool(pool) and all(m.quality_index is not None for m in pool)
 
-    def cle(m):
+    def sort_key(m):
         if domaine_utilisable:
             q = _sous(m)
         elif tous_benchmarkes:
@@ -115,7 +115,7 @@ def _cle_de_rang(pool, domaine=None):
         else:
             q = m.vram_gb or 0
         return (m.is_loaded, q)
-    return cle
+    return sort_key
 
 
 def _best_by_vram(models, budget_gb: Optional[float], domaine=None):
@@ -131,13 +131,13 @@ def _best_by_vram(models, budget_gb: Optional[float], domaine=None):
     experts sur 256, donc la qualité d'un 36B pour le coût de calcul d'un 3B. La VRAM reste une
     CONTRAINTE (le budget ci-dessous), elle n'est plus le critère de choix.
     """
-    # La clé se calcule sur le lot RÉELLEMENT en compétition (cf. `_cle_de_rang`) : le lot
+    # La clé se calcule sur le lot RÉELLEMENT en compétition (cf. `_rank_key`) : le lot
     # complet si aucun budget, sinon les seuls candidats qui tiennent.
     if budget_gb is None:
-        return max(models, key=_cle_de_rang(models, domaine))
+        return max(models, key=_rank_key(models, domaine))
     fit = [m for m in models if (m.vram_gb or 0) <= budget_gb]
     if fit:
-        return max(fit, key=_cle_de_rang(fit, domaine))
+        return max(fit, key=_rank_key(fit, domaine))
     return min(models, key=lambda m: (m.vram_gb or 0))
 
 

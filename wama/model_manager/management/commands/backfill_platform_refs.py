@@ -53,7 +53,7 @@ class Command(BaseCommand):
         # La provenance verifiee s'enregistre AVANT la derivation : une fois `hf_id` pose, la
         # boucle ci-dessous en derive `platform_ref` par le chemin normal, sans cas particulier.
         if options['poser']:
-            self._poser(options['poser'], ecrire)
+            self._set_verified(options['poser'], ecrire)
 
         poses, deja, indetermines = 0, 0, []
 
@@ -85,10 +85,10 @@ class Command(BaseCommand):
         # La declaration de l'editeur fait foi ; les poids ne sont le RECOURS que pour les modeles
         # sans identite de plateforme (les 63 issus du scan disque).
         if options['licences']:
-            self._licences(ecrire)
+            self._licenses(ecrire)
 
         if options['depuis_poids']:
-            self._depuis_poids(ecrire)
+            self._from_weights(ecrire)
 
         if options['ultralytics']:
             self._ultralytics(ecrire)
@@ -102,7 +102,7 @@ class Command(BaseCommand):
         if not ecrire:
             self.stdout.write(self.style.NOTICE("\nRien ecrit (ajouter --ecrire)."))
 
-    def _poser(self, entrees, ecrire):
+    def _set_verified(self, entrees, ecrire):
         """
         Enregistre des provenances VERIFIEES (`cle=plateforme:identifiant`).
 
@@ -149,7 +149,7 @@ class Command(BaseCommand):
     def _ultralytics(self, ecrire):
         """
         Provenance des poids YOLO OFFICIELS restes sans identite : le stock telecharge AVANT
-        le cablage `identite_pour_spec(kind='yolo')` (question Fabien 2026-08-29 — la plupart
+        le cablage `identity_for_spec(kind='yolo')` (question Fabien 2026-08-29 — la plupart
         des cards YOLO sans lien de page).
 
         Rien n'est deduit du nom : la verification de la doctrine (« appariement nom de fichier
@@ -157,13 +157,13 @@ class Command(BaseCommand):
         les assets des releases `ultralytics/assets` avec leur taille exacte. Correspondance
         exacte (nom ET octets) ⇒ `github:ultralytics/assets` (la MEME ref que la voie
         d'installation, dont le repli par `platform_ref` continue de fonctionner), posee par
-        `poser_identite` (voie manifeste + corpus). Sinon : compte, dit, laisse vide.
+        `set_identity` (voie manifeste + corpus). Sinon : compte, dit, laisse vide.
         """
         import os
 
         import requests
 
-        from wama.model_manager.services.provenance import poser_identite
+        from wama.model_manager.services.provenance import set_identity
 
         candidats = [m for m in AIModel.objects.filter(platform_ref='', hf_id='')
                      .exclude(local_path='')
@@ -211,7 +211,7 @@ class Command(BaseCommand):
         for cle in verifies:
             self.stdout.write(f"  ✓ {cle:52s} -> github:ultralytics/assets (nom+octets)")
             if ecrire:
-                res = poser_identite(cle, {'platform_ref': 'github:ultralytics/assets'})
+                res = set_identity(cle, {'platform_ref': 'github:ultralytics/assets'})
                 if not res.get('applique'):
                     self.stderr.write(self.style.ERROR(f"    pose en echec : {res.get('erreur')}"))
         for cle, octets, attendues in ecarts:
@@ -223,7 +223,7 @@ class Command(BaseCommand):
             f"{absents} chemin(s) introuvables de cet hote, "
             f"{len(candidats) - len(verifies) - len(ecarts) - absents} hors assets officiels")
 
-    def _depuis_poids(self, ecrire):
+    def _from_weights(self, ecrire):
         """
         Licence lue DANS les fichiers de poids -- hors ligne, aucune requete reseau.
 
@@ -232,7 +232,7 @@ class Command(BaseCommand):
         (cf. le commentaire d'ordre dans `handle`) -- sans quoi l'AGPL du cadre d'entrainement
         ecraserait la licence sous laquelle l'auteur publie reellement.
         """
-        from wama.model_manager.services.weights_metadata import lire_metadonnees
+        from wama.model_manager.services.weights_metadata import read_metadata
 
         import os
 
@@ -245,7 +245,7 @@ class Command(BaseCommand):
             if not os.path.isfile(m.local_path):
                 absents += 1
                 continue
-            infos = lire_metadonnees(m.local_path)
+            infos = read_metadata(m.local_path)
             lic = infos.get('license')
             if not lic:
                 sans.append((m.model_key, infos.get('toolkit_version')))
@@ -273,13 +273,13 @@ class Command(BaseCommand):
                 f"ou format non lu) -- laisses VIDES, pas devines. Ex. : "
                 + ', '.join(k for k, _ in sans[:4])))
 
-    def _licences(self, ecrire):
+    def _licenses(self, ecrire):
         try:
             from huggingface_hub import HfApi
         except ImportError:
             self.stderr.write("huggingface_hub absent : licences ignorees.")
             return
-        from wama.model_manager.services.provenance import identite_huggingface
+        from wama.model_manager.services.provenance import huggingface_identity
 
         vus, corriges, echecs = 0, 0, 0
         # Plus de `filter(license='')` : la carte de l'editeur fait AUTORITE, y compris pour
@@ -290,7 +290,7 @@ class Command(BaseCommand):
         for m in AIModel.objects.exclude(hf_id='').exclude(hf_id__isnull=True):
             # Lecture de la carte MUTUALISEE avec l'installation par URL (services/provenance) :
             # c'etait le troisieme endroit du depot a interroger HuggingFace pour les memes faits.
-            ident = identite_huggingface(m.hf_id)
+            ident = huggingface_identity(m.hf_id)
             if ident is None:
                 echecs += 1
                 self.stderr.write(f"  {m.hf_id} : depot injoignable")

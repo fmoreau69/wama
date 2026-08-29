@@ -54,7 +54,7 @@ def _get(url: str, timeout: int = 20) -> str | None:
 
 
 @lru_cache(maxsize=32)
-def rechercher(requete: str = '', capacite: str = '') -> tuple[str, ...] | None:
+def search(requete: str = '', capacite: str = '') -> tuple[str, ...] | None:
     """
     Noms de modèles de la bibliothèque, par requête libre et/ou capacité.
 
@@ -106,15 +106,15 @@ def existe(nom: str, tag: str = 'latest') -> bool:
         return False
 
 
-def _manifeste_brut(nom: str, tag: str = 'latest') -> bytes | None:
+def _raw_manifest(nom: str, tag: str = 'latest') -> bytes | None:
     """
     Octets BRUTS du manifeste d'un `nom:tag` distant, ou None. Point d'accès unique :
-    `taille_go` (somme des couches) et `digest_distant` (sha256 du corps) en dérivent.
+    `size_gb` (somme des couches) et `remote_digest` (sha256 du corps) en dérivent.
 
-    ⚠ VOLONTAIREMENT SANS `lru_cache` — contrairement à `taille_go`, qui garde le sien
+    ⚠ VOLONTAIREMENT SANS `lru_cache` — contrairement à `size_gb`, qui garde le sien
     (une taille ne bouge pas). Mettre le manifeste en cache figerait le DIGEST pour la vie
     du process : un tag republié en amont ne serait alors JAMAIS détecté avant un
-    redémarrage, c'est-à-dire l'inverse exact de ce que `digest_distant` sert à voir
+    redémarrage, c'est-à-dire l'inverse exact de ce que `remote_digest` sert à voir
     (défaut introduit puis corrigé le 2026-08-19, avant toute mise en service).
     """
     import requests
@@ -129,7 +129,7 @@ def _manifeste_brut(nom: str, tag: str = 'latest') -> bytes | None:
         return None
 
 
-def digest_distant(nom: str, tag: str = 'latest') -> str | None:
+def remote_digest(nom: str, tag: str = 'latest') -> str | None:
     """
     Digest Ollama du tag DISTANT = sha256 du manifeste — l'identité de version d'un tag.
 
@@ -143,12 +143,12 @@ def digest_distant(nom: str, tag: str = 'latest') -> str | None:
     que de conclure à une égalité qu'il n'a pas mesurée.
     """
     import hashlib
-    brut = _manifeste_brut(nom, tag)
+    brut = _raw_manifest(nom, tag)
     return hashlib.sha256(brut).hexdigest() if brut else None
 
 
 @lru_cache(maxsize=256)
-def taille_go(nom: str, tag: str = 'latest') -> float | None:
+def size_gb(nom: str, tag: str = 'latest') -> float | None:
     """
     Poids sur disque d'un `nom:tag` AVANT téléchargement — somme des couches du manifeste.
 
@@ -161,7 +161,7 @@ def taille_go(nom: str, tag: str = 'latest') -> float | None:
     supposer une taille (sur un volume à 96 %, une supposition optimiste remplit le disque).
     """
     import json
-    brut = _manifeste_brut(nom, tag)
+    brut = _raw_manifest(nom, tag)
     if not brut:
         return None
     try:
@@ -178,7 +178,7 @@ def taille_go(nom: str, tag: str = 'latest') -> float | None:
 _RE_FAMILLE = re.compile(r'^([a-z][a-z\-]*?)(\d+(?:\.\d+)*)$')
 
 
-def decomposer(nom: str) -> tuple[str, tuple[int, ...]] | None:
+def decompose(nom: str) -> tuple[str, tuple[int, ...]] | None:
     """
     'qwen3.5' → ('qwen', (3, 5)) · 'gemma4' → ('gemma', (4,)) · 'translategemma' → None.
 
@@ -198,13 +198,13 @@ def successeurs(nom_installe: str, catalogue: tuple[str, ...]) -> list[str]:
     Comparaison par tuple de version — `(3, 6) > (3, 5)`, et `(3, 10) > (3, 9)` là où une
     comparaison textuelle se tromperait.
     """
-    ref = decomposer(nom_installe)
+    ref = decompose(nom_installe)
     if ref is None:
         return []
     prefixe, version = ref
     out = []
     for cand in catalogue:
-        d = decomposer(cand)
+        d = decompose(cand)
         if d and d[0] == prefixe and d[1] > version:
             out.append((d[1], cand))
     return [c for _, c in sorted(out, reverse=True)]

@@ -186,7 +186,7 @@ def couvrir_classes(classes, *, source: str = '', model_type: str = 'vision',
     # Les indices de qualité ne se comparent QUE si tout le lot en a un : l'échelle d'un
     # `quality_index` (−26,7 à 58,7) n'a rien à voir avec celle d'une VRAM (0,1 à 24 Go), et
     # les mélanger ferait gagner mécaniquement le premier modèle qualifié. Même règle que
-    # `model_selector._cle_de_rang`, pour que les deux couches classent pareil.
+    # `model_selector._rank_key`, pour que les deux couches classent pareil.
     tous_qualifies = bool(candidats) and all(m.quality_index is not None for m in candidats)
 
     def _departage(m):

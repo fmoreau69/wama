@@ -1915,9 +1915,9 @@ class ModelRegistry:
         #   • table à tenir à la main pour une information que chaque fichier porte déjà.
         # Lecture via `weights_metadata` (métadonnées ONNX / checkpoint ultralytics) : moins
         # coûteux que l'instanciation `YOLO()` du repli ci-dessous, et sans effet de bord.
-        from wama.model_manager.services.weights_metadata import classes_depuis_poids
+        from wama.model_manager.services.weights_metadata import classes_from_weights
 
-        noms = classes_depuis_poids(model_path)
+        noms = classes_from_weights(model_path)
         if noms:
             classes = [str(c).lower() for c in noms]
             self._yolo_classes_cache[model_path] = classes

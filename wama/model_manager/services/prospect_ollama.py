@@ -80,7 +80,7 @@ def _installes() -> set:
     }
 
 
-def ecrire_candidat(cand_key, *, nom, model_type, description, kind, confidence, extra,
+def write_candidate(cand_key, *, nom, model_type, description, kind, confidence, extra,
                     source='ollama', complexite='simple', **champs):
     """
     Écrit/rafraîchit UN candidat de prospection (`AIModel(is_proposed=True)`).
@@ -132,7 +132,7 @@ def prospect_ollama(age_days_threshold: int = 120, include_new: bool = True,
     catalogue: list = []
     for role in ROLES.values():
         for req in (role['requetes'] or ('',)):
-            res = reg.rechercher(requete=req, capacite=role['capacite'])
+            res = reg.search(requete=req, capacite=role['capacite'])
             if res is not None:
                 ok_registre = True
                 catalogue.extend(res)
@@ -147,8 +147,8 @@ def prospect_ollama(age_days_threshold: int = 120, include_new: bool = True,
         logger.warning("[prospect_ollama] check_updates indisponible: %s", exc)
         revue = []
 
-    from .update_checker import digests_locaux
-    digests = digests_locaux()      # {nom: digest} — vide si le démon ne répond pas
+    from .update_checker import local_digests
+    digests = local_digests()      # {nom: digest} — vide si le démon ne répond pas
     identiques = 0                  # « MAJ » écartées parce que le distant est le même
 
     for r in revue:
@@ -181,7 +181,7 @@ def prospect_ollama(age_days_threshold: int = 120, include_new: bool = True,
             distant = None
             try:
                 nom_court, _, tag_court = nom_installe.partition(':')
-                distant = reg.digest_distant(nom_court, tag_court or 'latest')
+                distant = reg.remote_digest(nom_court, tag_court or 'latest')
             except Exception:
                 distant = None
             local = digests.get(nom_installe) or ''
@@ -208,7 +208,7 @@ def prospect_ollama(age_days_threshold: int = 120, include_new: bool = True,
         else:
             desc = f"Mise à jour suggérée — {r.get('reason', 'version locale ancienne')}."
             conf = _confidence_from_age(age)
-        cree = ecrire_candidat(cand_key, nom=cible or src.name, model_type=src.model_type,
+        cree = write_candidate(cand_key, nom=cible or src.name, model_type=src.model_type,
                                description=desc, kind='update', confidence=conf,
                                extra={'kind': 'update', 'origin_key': origine,
                                       'reason': r.get('reason', ''), 'age_days': age,
@@ -237,10 +237,10 @@ def prospect_ollama(age_days_threshold: int = 120, include_new: bool = True,
         for nom_role, role in ROLES.items():
             if role['model_type'] not in _refs_type:
                 _refs_type[role['model_type']] = [
-                    m.name for m in AIModel.meilleurs_installes(role['model_type'])]
+                    m.name for m in AIModel.best_installed(role['model_type'])]
             retenus = 0
             for req in (role['requetes'] or ('',)):
-                res = reg.rechercher(requete=req, capacite=role['capacite'])
+                res = reg.search(requete=req, capacite=role['capacite'])
                 for nom in (res or ()):
                     if retenus >= max_par_role:
                         break
@@ -254,7 +254,7 @@ def prospect_ollama(age_days_threshold: int = 120, include_new: bool = True,
                     vus_new.add(cand_key)
                     deja.add(nom)
                     retenus += 1
-                    cree = ecrire_candidat(
+                    cree = write_candidate(
                         cand_key, nom=ref, model_type=role['model_type'],
                         description=f"[{role['libelle']}] Proposé par la bibliothèque Ollama.",
                         kind='new', confidence=None,
@@ -269,10 +269,10 @@ def prospect_ollama(age_days_threshold: int = 120, include_new: bool = True,
     # liste aux seuls candidats codés en dur dès qu'Ollama ou le réseau hoquetait.
     # ⚠ Un candidat porteur d'une ÉVALUATION LLM n'est jamais purgé : elle a coûté des
     # appels d'agents (et du GPU). Il reste jusqu'à ce qu'un humain le rejette — même règle
-    # que `ecrire_candidat`, qui préserve déjà l'évaluation à l'écriture (2026-08-19).
+    # que `write_candidate`, qui préserve déjà l'évaluation à l'écriture (2026-08-19).
     supprimes = preserves = 0
 
-    def _purger(qs):
+    def _purge(qs):
         nonlocal supprimes, preserves
         for m in qs:
             if ((m.extra_info or {}).get('prospect') or {}).get('assess'):
@@ -283,9 +283,9 @@ def prospect_ollama(age_days_threshold: int = 120, include_new: bool = True,
 
     base = AIModel.objects.filter(is_proposed=True, source='ollama')
     if ok_installes:
-        _purger(base.filter(proposal_kind='update').exclude(model_key__in=vus_maj))
+        _purge(base.filter(proposal_kind='update').exclude(model_key__in=vus_maj))
     if ok_registre and include_new:
-        _purger(base.filter(proposal_kind='new').exclude(model_key__in=vus_new))
+        _purge(base.filter(proposal_kind='new').exclude(model_key__in=vus_new))
 
     resume = {'created': crees, 'updated': maj, 'removed': supprimes,
               'preserved': preserves,   # évalués, hors périmètre courant : conservés

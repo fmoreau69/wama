@@ -194,7 +194,7 @@ def register_after_install():
     return ModelSyncService().full_sync()
 
 
-def modele_remplace(cand):
+def replaced_model(cand):
     """
     (nom Ollama de l'ancien modèle, espace qu'il rendra en Go) pour un candidat successeur,
     sinon (None, 0.0).
@@ -222,7 +222,7 @@ def modele_remplace(cand):
     return nom, float(ancien.disk_gb or 0)
 
 
-def installer_candidat(cand, progress=None) -> dict:
+def install_candidate(cand, progress=None) -> dict:
     """
     Séquence d'installation d'un CANDIDAT de prospection Ollama — corps unique, appelé par
     la tâche Celery (`install_proposed_task`, chemin normal depuis le 2026-08-18) et
@@ -250,7 +250,7 @@ def installer_candidat(cand, progress=None) -> dict:
         return {'ok': True, 'installed': installed_name, 'path': res.get('path')}
 
     rollback = None
-    remplace, _ = modele_remplace(cand)
+    remplace, _ = replaced_model(cand)
     origine_key = (cand.extra_info or {}).get('prospect', {}).get('origin_key')
     if remplace:
         # REMPLACEMENT : l'espace du nouveau n'est disponible qu'APRÈS retrait de l'ancien —
@@ -321,7 +321,7 @@ def uninstall_model(model_key: str) -> dict:
 
     La ligne de catalogue est MARQUÉE (`is_downloaded=False`), jamais supprimée : elle porte
     l'historique (statistiques de runtime, ETA appris, identité/licence) — même doctrine que
-    le remplacement de `installer_candidat`. Un modèle déclaré par une app revient d'ailleurs
+    le remplacement de `install_candidate`. Un modèle déclaré par une app revient d'ailleurs
     au prochain sync (non téléchargé) ; un snapshot générique reste en mémoire de catalogue.
 
     Retourne {'ok': True, 'freed_gb': X, 'kind': …} ou {'ok': False, 'error': …}.
@@ -519,8 +519,8 @@ def install_from_spec(spec: dict) -> dict:
             # Best-effort : une provenance manquée (réseau, dépôt privé) ne doit jamais faire
             # échouer une installation qui, elle, a réussi.
             try:
-                from .provenance import enregistrer_apres_installation
-                res['provenance'] = enregistrer_apres_installation(
+                from .provenance import record_after_install
+                res['provenance'] = record_after_install(
                     spec, getattr(sync, 'added_keys', None) or [])
             except Exception as e:
                 logger.warning("provenance non enregistrée après installation : %s", e,

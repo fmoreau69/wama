@@ -2,7 +2,7 @@
 Identité d'un modèle chez son éditeur — et pose de cette identité PAR LE MANIFESTE.
 
 POURQUOI CE MODULE. Trois endroits interrogeaient déjà HuggingFace pour la même chose :
-`prospector.prospect_hf` (licence des candidats), `backfill_platform_refs._licences` (licence
+`prospector.prospect_hf` (licence des candidats), `backfill_platform_refs._licenses` (licence
 des installés) et — c'était le trou — RIEN du côté installation. Un modèle ajouté par URL via
 l'assistant arrivait donc au catalogue aussi anonyme que les 70 issus du scan disque : le
 `register_after_install()` qui suit l'installation n'est qu'un `full_sync`, et la découverte ne
@@ -31,7 +31,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
-def identite_huggingface(hf_id: str) -> Optional[dict]:
+def huggingface_identity(hf_id: str) -> Optional[dict]:
     """
     `{license, author, platform_ref, hf_id}` lu sur la carte du dépôt, ou None si injoignable.
 
@@ -70,7 +70,7 @@ def identite_huggingface(hf_id: str) -> Optional[dict]:
     }
 
 
-def identite_ollama(nom: str) -> Optional[dict]:
+def ollama_identity(nom: str) -> Optional[dict]:
     """
     Identité d'un modèle Ollama. La plateforme n'expose ni licence ni auteur exploitables par
     l'API locale : on ne pose que ce qui est vrai — l'identité de plateforme.
@@ -81,16 +81,16 @@ def identite_ollama(nom: str) -> Optional[dict]:
     return {'platform_ref': f"ollama:{famille}"}
 
 
-def identite_pour_spec(spec: dict) -> Optional[dict]:
+def identity_for_spec(spec: dict) -> Optional[dict]:
     """Identité déductible du descripteur d'installation (`install_from_spec`)."""
     spec = spec or {}
     kind, ref = spec.get('kind'), (spec.get('ref') or '').strip()
     if not ref:
         return None
     if kind == 'hf':
-        return identite_huggingface(ref)
+        return huggingface_identity(ref)
     if kind == 'ollama':
-        return identite_ollama(ref)
+        return ollama_identity(ref)
     if kind == 'yolo':
         # Poids officiels ultralytics : le dépôt est connu (c'est l'URL que `pull_yolo_weights`
         # construit), et la licence sera lue DANS le fichier par `weights_metadata` — on ne la
@@ -99,7 +99,7 @@ def identite_pour_spec(spec: dict) -> Optional[dict]:
     return None
 
 
-def poser_identite(model_key: str, identite: dict, *, apply: bool = True,
+def set_identity(model_key: str, identite: dict, *, apply: bool = True,
                    exporter: bool = True) -> dict:
     """
     Pose l'identité sur un modèle DU CATALOGUE, en passant par son manifeste.
@@ -168,7 +168,7 @@ def poser_identite(model_key: str, identite: dict, *, apply: bool = True,
             'projete': plan, 'corpus': corpus}
 
 
-def enregistrer_apres_installation(spec: dict, cles_apparues) -> dict:
+def record_after_install(spec: dict, cles_apparues) -> dict:
     """
     Après installation + sync : pose l'identité sur les modèles qui viennent d'APPARAÎTRE.
 
@@ -182,7 +182,7 @@ def enregistrer_apres_installation(spec: dict, cles_apparues) -> dict:
     """
     from wama.model_manager.models import AIModel
 
-    identite = identite_pour_spec(spec)
+    identite = identity_for_spec(spec)
     if not identite:
         return {'identite': None, 'modeles': [],
                 'note': f"aucune identité déductible pour kind={spec.get('kind')!r}"}
@@ -193,4 +193,4 @@ def enregistrer_apres_installation(spec: dict, cles_apparues) -> dict:
         cibles = sorted(AIModel.objects.filter(platform_ref=ref)
                         .values_list('model_key', flat=True)) if ref else []
 
-    return {'identite': identite, 'modeles': [poser_identite(c, identite) for c in cibles]}
+    return {'identite': identite, 'modeles': [set_identity(c, identite) for c in cibles]}

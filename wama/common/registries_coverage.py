@@ -41,7 +41,7 @@ _DEF_TEST = re.compile(r'\n    def (test_\w+)\(self[^)]*\):(.*?)(?=\n    def |\n
 _CLASSE = re.compile(r'\nclass (\w+)\(')
 
 
-def _racine() -> Path:
+def _root() -> Path:
     from django.conf import settings
     return Path(settings.BASE_DIR)
 
@@ -50,7 +50,7 @@ def _tests_par_registre() -> Dict[str, List[str]]:
     """{clé de registre → noms des tests qui la nomment}."""
     trouve: Dict[str, List[str]] = {key: [] for key in REGISTRIES}
     keys = sorted(REGISTRIES, key=len, reverse=True)   # les plus longues d'abord
-    racine = _racine()
+    racine = _root()
     for rel in FICHIERS_DE_TEST:
         chemin = racine / rel
         if not chemin.exists():

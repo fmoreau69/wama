@@ -50,10 +50,10 @@ def _ollama_tags(timeout=5):
     return {m['name']: m.get('modified_at', '') for m in r.json().get('models', [])}
 
 
-def digests_locaux(timeout=5) -> dict:
+def local_digests(timeout=5) -> dict:
     """
     `{nom: digest}` des modèles Ollama INSTALLÉS (`/api/tags`). Le digest est l'identité de
-    VERSION d'un tag ; comparé à `ollama_registry.digest_distant`, il dit si un `pull`
+    VERSION d'un tag ; comparé à `ollama_registry.remote_digest`, il dit si un `pull`
     apporterait réellement quelque chose (2026-08-19 — voir `prospect_ollama`).
     Best-effort : {} si le démon ne répond pas, l'appelant garde alors son comportement.
     """

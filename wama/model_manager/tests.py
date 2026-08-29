@@ -303,7 +303,7 @@ class GardeAuteurTest(TestCase):
         vide = self._modele('composer:vide', author='')
         ident = {'license': 'mit', 'author': 'slug-org',
                  'platform_ref': 'huggingface:org/depot', 'hf_id': 'org/depot'}
-        with patch('wama.model_manager.services.provenance.identite_huggingface',
+        with patch('wama.model_manager.services.provenance.huggingface_identity',
                    return_value=ident):
             call_command('backfill_platform_refs', '--licences', '--ecrire')
         cure.refresh_from_db()
@@ -313,15 +313,15 @@ class GardeAuteurTest(TestCase):
         self.assertEqual(cure.license, 'mit', "la licence, elle, se remplit normalement")
 
     def test_poser_identite_ne_touche_pas_un_auteur_deja_etabli(self):
-        from wama.model_manager.services.provenance import poser_identite
+        from wama.model_manager.services.provenance import set_identity
         self._modele('composer:cure2', author='Auteur Curé', license='mit')
-        resultat = poser_identite(
+        resultat = set_identity(
             'composer:cure2',
             {'author': 'slug-org', 'hf_id': 'org/depot',
              'platform_ref': 'huggingface:org/depot'},
             apply=False, exporter=False)
         self.assertNotIn('author', resultat.get('poses', ()),
-                         "poser_identite ne doit compléter l'auteur que s'il est vide")
+                         "set_identity ne doit compléter l'auteur que s'il est vide")
 
 
 class DesinstallationTest(TestCase):
@@ -548,15 +548,15 @@ class ChoixDeVarianteTest(TestCase):
         )
 
     def test_le_choix_des_poids_pleins_rend_le_spec_canonique_inchange(self):
-        from .services.prospector import spec_pour_choix
-        spec = spec_pour_choix(self._candidat(), 'Org/Grand', None)
+        from .services.prospector import spec_for_choice
+        spec = spec_for_choice(self._candidat(), 'Org/Grand', None)
         self.assertEqual(spec, {'kind': 'hf', 'ref': 'Org/Grand', 'category': 'music'})
 
     def test_le_choix_d_un_fichier_gguf_restreint_le_telechargement_a_ce_fichier(self):
         """Un dépôt GGUF porte PLUSIEURS niveaux de quantisation : installer le dépôt entier
         tirerait tous les fichiers — le spec doit descendre au fichier choisi."""
-        from .services.prospector import spec_pour_choix
-        spec = spec_pour_choix(self._candidat(), 'Repack/Grand-GGUF', 'grand-q4.gguf')
+        from .services.prospector import spec_for_choice
+        spec = spec_for_choice(self._candidat(), 'Repack/Grand-GGUF', 'grand-q4.gguf')
         self.assertEqual(spec['ref'], 'Repack/Grand-GGUF')
         self.assertIn('grand-q4.gguf', spec['allow_patterns'])
         self.assertNotIn('grand-q8.gguf', spec['allow_patterns'])
@@ -565,7 +565,7 @@ class ChoixDeVarianteTest(TestCase):
 
     def test_un_choix_hors_options_est_refuse(self):
         """On n'installe JAMAIS un dépôt qui n'a pas été proposé à l'utilisateur."""
-        from .services.prospector import spec_pour_choix
+        from .services.prospector import spec_for_choice
         cand = self._candidat()
-        self.assertIsNone(spec_pour_choix(cand, 'Pirate/Autre-GGUF', None))
-        self.assertIsNone(spec_pour_choix(cand, 'Repack/Grand-GGUF', 'inexistant.gguf'))
+        self.assertIsNone(spec_for_choice(cand, 'Pirate/Autre-GGUF', None))
+        self.assertIsNone(spec_for_choice(cand, 'Repack/Grand-GGUF', 'inexistant.gguf'))

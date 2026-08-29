@@ -152,9 +152,9 @@ def _get_onnx_model_classes(model_path: str) -> Dict[str, str]:
     # elle existait ici en double, en version onnxruntime (plus coûteuse — elle construisait
     # une session d'inférence pour lire une chaîne).
     try:
-        from wama.model_manager.services.weights_metadata import classes_depuis_poids
+        from wama.model_manager.services.weights_metadata import classes_from_weights
 
-        noms = classes_depuis_poids(model_path)
+        noms = classes_from_weights(model_path)
         if noms:
             logger.info(f"[ModelSelector] Classes lues dans {os.path.basename(model_path)} : {noms}")
             return {str(i): str(n).lower() for i, n in enumerate(noms)}

@@ -190,13 +190,13 @@ def install_proposed_task(self, model_key: str):
     requête CONCURRENTE au lieu de rejoindre celle en cours.
 
     La garde d'espace disque reste dans la VUE (réponse immédiate 507/force) ; ici on
-    n'exécute que la séquence longue (`installer_candidat`), en publiant l'avancement
+    n'exécute que la séquence longue (`install_candidate`), en publiant l'avancement
     du pull (avec %) dans le cache Redis.
     """
     from wama.common.utils.task_progress import publier_progression
 
     from .models import AIModel
-    from .services.model_installer import installer_candidat
+    from .services.model_installer import install_candidate
 
     cache_key = INSTALL_CACHE_PREFIX + model_key
 
@@ -210,7 +210,7 @@ def install_proposed_task(self, model_key: str):
 
     publier('RUNNING', {'status': 'démarrage…', 'name': cand.name})
     try:
-        res = installer_candidat(
+        res = install_candidate(
             cand, progress=lambda s: publier('RUNNING', {'status': s, 'name': cand.name}))
     except Exception as exc:
         logger.exception("[install_proposed] échec inattendu pour %s", model_key)

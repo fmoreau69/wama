@@ -361,7 +361,7 @@ class AIModel(models.Model):
     # `manage.py sync_benchmarks` — champ SÉPARÉ de quality_index : la découverte (sync_models)
     # n'a PAS autorité ici et ne l'écrase jamais (leçon audio_enhance/quality_index du 18/08).
     # NULL = non apparié à une mesure ; le tri ne compare des benchmarks QUE si tout le lot
-    # en a un (même règle d'échelles que `_cle_de_rang`). Jamais une valeur inventée.
+    # en a un (même règle d'échelles que `_rank_key`). Jamais une valeur inventée.
     benchmark_index = models.FloatField(
         null=True, blank=True, db_index=True,
         help_text="Intelligence Index (Artificial Analysis) apparié. NULL = non mesuré/apparié.")
@@ -506,13 +506,13 @@ class AIModel(models.Model):
         return "Unknown"
 
     @classmethod
-    def meilleurs_installes(cls, model_type: str, limit: int = 3):
+    def best_installed(cls, model_type: str, limit: int = 3):
         """
         Les meilleurs modèles INSTALLÉS d'un type — le référentiel qu'un candidat de
         prospection devrait surpasser. Consommé par la prospection (champ `concurrence`
         des candidats, affiché sur la card) et par la confrontation LLM (`prospect_agents`).
 
-        ⚠ MÊME RÈGLE D'ÉTAGE QUE LA SÉLECTION (`model_selector._cle_de_rang`, audit du
+        ⚠ MÊME RÈGLE D'ÉTAGE QUE LA SÉLECTION (`model_selector._rank_key`, audit du
         2026-08-19) : on classe par `benchmark_index` (mesure tierce) SI TOUT le lot en a
         un, sinon par `quality_index` (a priori) pour tout le monde. Mélanger les deux
         comparerait des échelles incommensurables — le piège déjà corrigé le 2026-08-12.

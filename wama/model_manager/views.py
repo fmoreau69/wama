@@ -1432,7 +1432,7 @@ def api_check_disk_space(request):
 MARGE_DISQUE_GO = 10.0
 
 
-# `_modele_remplace` a déménagé dans `services/model_installer.py::modele_remplace`
+# `_modele_remplace` a déménagé dans `services/model_installer.py::replaced_model`
 # (2026-08-18) : la tâche Celery d'installation en a besoin autant que la garde d'espace.
 
 
@@ -1455,7 +1455,7 @@ def _garde_espace_disque(ref: str, *, reclaim_gb: float = 0.0, force: bool = Fal
     une taille optimiste revient à remplir le disque.
     """
     from wama.common.services.system_monitor import SystemMonitor
-    from .services.ollama_registry import taille_go
+    from .services.ollama_registry import size_gb
 
     # `besoin_gb` fourni (candidat HF : poids `usedStorage` relevé à la prospection) →
     # pas d'interrogation du registre Ollama, qui ne connaît pas ces modèles.
@@ -1463,7 +1463,7 @@ def _garde_espace_disque(ref: str, *, reclaim_gb: float = 0.0, force: bool = Fal
         besoin = float(besoin_gb)
     else:
         nom, _, tag = ref.partition(':')
-        besoin = taille_go(nom, tag or 'latest')
+        besoin = size_gb(nom, tag or 'latest')
     disque = SystemMonitor.get_disk_info()
     if disque is None:
         return None if force else {
@@ -1569,7 +1569,7 @@ def api_prospect_install(request):
             from wama.common.utils.task_progress import progression_en_cours
 
             from .services.model_installer import spec_for_catalog_row
-            from .services.prospector import _poids_depot_go
+            from .services.prospector import _repo_weight_gb
             from .tasks import INSTALL_CACHE_PREFIX, install_catalog_task
             model = AIModel.objects.filter(model_key=data['catalog_key'],
                                            is_proposed=False).first()
@@ -1584,7 +1584,7 @@ def api_prospect_install(request):
                      'error': "Ce modèle ne déclare pas d'emplacement d'installation "
                               "(hf_id/install_dir) — il se téléchargera au premier usage."},
                     status=400)
-            besoin = model.disk_gb or _poids_depot_go(model.hf_id)
+            besoin = model.disk_gb or _repo_weight_gb(model.hf_id)
             garde = _garde_espace_disque(model.hf_id, force=bool(data.get('force')),
                                          besoin_gb=besoin)
             if garde is not None:
@@ -1629,8 +1629,8 @@ def api_prospect_install(request):
         variant_ref = data.get('variant_ref')
         variant_file = data.get('variant_file')
         if variant_ref and cand.source != 'ollama':
-            from .services.prospector import spec_pour_choix
-            spec_choisi = spec_pour_choix(cand, variant_ref, variant_file)
+            from .services.prospector import spec_for_choice
+            spec_choisi = spec_for_choice(cand, variant_ref, variant_file)
             if spec_choisi is None:
                 return JsonResponse({'success': False,
                                      'error': f"Choix inconnu ({variant_ref}"
@@ -1660,9 +1660,9 @@ def api_prospect_install(request):
         # (décision 2026-08-04, PROSPECTION_PIPELINE.md).
         # REMPLACEMENT : un candidat « successeur » connaît le modèle qu'il remplace. L'espace
         # du nouveau n'est disponible qu'APRÈS retrait de l'ancien — on le compte donc dans le
-        # garde ; la séquence désinstallation → installation vit dans `installer_candidat`.
-        from .services.model_installer import modele_remplace
-        remplace, reclaim_gb = modele_remplace(cand)
+        # garde ; la séquence désinstallation → installation vit dans `install_candidate`.
+        from .services.model_installer import replaced_model
+        remplace, reclaim_gb = replaced_model(cand)
 
         garde = _garde_espace_disque(cand.name, reclaim_gb=reclaim_gb,
                                      force=bool(data.get('force')),
@@ -1706,13 +1706,13 @@ def api_prospect_install_options(request):
     disque/VRAM) — à montrer AVANT d'installer. `?model_id=<model_key>`. Relevés réseau payés
     une fois (persistés au candidat). Candidat Ollama → {'choice': false} (pas de variantes)."""
     from .models import AIModel
-    from .services.prospector import options_installation
+    from .services.prospector import install_options
     model_id = request.GET.get('model_id') or ''
     cand = AIModel.objects.filter(model_key=model_id, is_proposed=True).first()
     if not cand:
         return JsonResponse({'success': False, 'error': 'Candidat introuvable'}, status=404)
     try:
-        return JsonResponse({'success': True, **options_installation(cand)})
+        return JsonResponse({'success': True, **install_options(cand)})
     except Exception as e:
         logger.exception("api_prospect_install_options failed")
         return JsonResponse({'success': False, 'error': str(e)}, status=500)

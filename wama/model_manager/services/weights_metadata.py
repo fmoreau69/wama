@@ -31,7 +31,7 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-#: Clés rendues par `lire_metadonnees`. Toutes optionnelles : un poids peut n'en porter aucune.
+#: Clés rendues par `read_metadata`. Toutes optionnelles : un poids peut n'en porter aucune.
 CHAMPS = ('license', 'names', 'task', 'imgsz', 'toolkit_version', 'date',
           'train_base', 'train_data', 'description')
 
@@ -40,7 +40,7 @@ def _vide() -> dict:
     return {c: None for c in CHAMPS}
 
 
-def _normaliser_licence(brut) -> Optional[str]:
+def _normalize_license(brut) -> Optional[str]:
     """
     'AGPL-3.0 License (https://ultralytics.com/license)' → 'agpl-3.0'.
 
@@ -70,7 +70,7 @@ def _lire_onnx(chemin: str) -> dict:
         return infos
 
     meta = {kv.key: kv.value for kv in modele.metadata_props}
-    infos['license'] = _normaliser_licence(meta.get('license'))
+    infos['license'] = _normalize_license(meta.get('license'))
     infos['task'] = meta.get('task') or None
     infos['toolkit_version'] = meta.get('version') or None
     infos['date'] = meta.get('date') or None
@@ -131,7 +131,7 @@ def _lire_pt(chemin: str) -> dict:
     if not isinstance(ck, dict):
         return infos
 
-    infos['license'] = _normaliser_licence(ck.get('license'))
+    infos['license'] = _normalize_license(ck.get('license'))
     infos['toolkit_version'] = ck.get('version') or None
     infos['date'] = ck.get('date') or None
 
@@ -151,7 +151,7 @@ def _lire_pt(chemin: str) -> dict:
     return infos
 
 
-def lire_metadonnees(chemin: str) -> dict:
+def read_metadata(chemin: str) -> dict:
     """
     Faits lus dans le fichier de poids. Toujours un dict aux clés `CHAMPS` (valeurs souvent None).
 
@@ -167,7 +167,7 @@ def lire_metadonnees(chemin: str) -> dict:
     return _vide()
 
 
-def classes_depuis_poids(chemin: str) -> Optional[list]:
+def classes_from_weights(chemin: str) -> Optional[list]:
     """
     Liste ORDONNÉE des classes déclarée par le fichier, ou None.
 
@@ -177,4 +177,4 @@ def classes_depuis_poids(chemin: str) -> Optional[list]:
     déclarent ['plate','face'], et `yolo11l_face_plate_signs.pt` porte en réalité trois classes
     (['sign','plate','face']) dont une invisible au catalogue (constaté le 2026-08-12).
     """
-    return lire_metadonnees(chemin).get('names')
+    return read_metadata(chemin).get('names')

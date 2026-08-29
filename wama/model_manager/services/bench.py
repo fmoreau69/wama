@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 PLAFOND_DETECTIONS = 300
 
 
-def modeles_pour_tache(tache: str, *, installes_seulement: bool = True):
+def models_for_task(tache: str, *, installes_seulement: bool = True):
     """Modeles du catalogue qui declarent cette tache. Le catalogue est la seule source."""
     qs = AIModel.objects.filter(is_available=True)
     if installes_seulement:
@@ -153,12 +153,12 @@ PROTOCOLES: dict[str, Callable] = {
 }
 
 
-def taches_disponibles() -> list:
+def available_tasks() -> list:
     """Taches pour lesquelles un protocole existe — les autres restent a ecrire."""
     return sorted(PROTOCOLES)
 
 
-def lancer(tache: str, echantillon: str, *, modeles: Optional[list] = None, **options) -> list:
+def run_bench(tache: str, echantillon: str, *, modeles: Optional[list] = None, **options) -> list:
     """
     Passe chaque modele de `tache` sur `echantillon` et rend des mesures comparables.
 
@@ -169,9 +169,9 @@ def lancer(tache: str, echantillon: str, *, modeles: Optional[list] = None, **op
     protocole = PROTOCOLES.get(tache)
     if protocole is None:
         raise ValueError(
-            f"Aucun protocole pour la tache '{tache}'. Disponibles : {', '.join(taches_disponibles())}")
+            f"Aucun protocole pour la tache '{tache}'. Disponibles : {', '.join(available_tasks())}")
 
-    candidats = modeles_pour_tache(tache)
+    candidats = models_for_task(tache)
     if modeles:
         voulus = {m.strip() for m in modeles}
         candidats = [m for m in candidats if m.name in voulus or m.model_key in voulus]

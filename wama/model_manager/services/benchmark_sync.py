@@ -18,14 +18,14 @@ DEUX SOURCES GRATUITES, CONFRONTÉES :
     (**CC-BY-4.0** : gratuit, attribution tracée en meta), parquet `latest` par modalité.
     Valeur retenue quand AA manque ; sinon CONFRONTATION (inversion d'ordre = signalée).
 
-RÈGLE DES ÉCHELLES (héritée de `_cle_de_rang`, étendue) : Intelligence Index (~0-70) et Elo
+RÈGLE DES ÉCHELLES (héritée de `_rank_key`, étendue) : Intelligence Index (~0-70) et Elo
 (~1000-1500) sont INCOMMENSURABLES — `benchmark_meta['echelle']` nomme l'échelle de chaque
 valeur, et le tri ne compare que des lots à échelle UNIQUE. On ne normalise jamais (une
 normalisation inventerait une équivalence que personne n'a mesurée).
 
 GARDE-FOUS :
   • Null plutôt que plausible : non apparié → NULL. Appariement CONSERVATEUR (famille+version
-    par `ollama_registry.decomposer`, taille exigée égale quand les DEUX côtés la déclarent).
+    par `ollama_registry.decompose`, taille exigée égale quand les DEUX côtés la déclarent).
   • `ALIAS` déclaratif : quand un humain confirme une équivalence que l'identité stricte ne
     voit pas (ex. un nom commercial ≠ tag), il la DÉCLARE ici — jamais de fuzzy silencieux.
   • Champ SÉPARÉ de `quality_index` : `sync_models` (découverte) n'écrit jamais ici.
@@ -39,7 +39,7 @@ import logging
 import os
 import re
 
-from .ollama_registry import decomposer, _milliards
+from .ollama_registry import decompose, _milliards
 
 logger = logging.getLogger(__name__)
 
@@ -132,19 +132,19 @@ def _avec_prefixe(mot: str, segments: list, i: int) -> str:
     return ''.join(prefixe) + mot
 
 
-def _mots(texte: str) -> set:
+def _words(texte: str) -> set:
     """
     Jetons PUREMENT alphabétiques (≥ 2 lettres) d'un nom — les mots qui QUALIFIENT la variante.
 
     Volontairement générique plutôt qu'une liste fermée de qualificatifs : une liste figée
-    aurait raté « coder » (mesuré le 2026-08-19 — voir `_choisir_variante`) et aurait dérivé
+    aurait raté « coder » (mesuré le 2026-08-19 — voir `_choose_variant`) et aurait dérivé
     à chaque nouvelle série. Les jetons alphanumériques (`qwen3`, `30b`, `a3b`, `2507`) sont
     écartés : ils portent famille/taille/date, déjà traitées par l'identité.
     """
     return {j for j in re.split(r'[^a-z]+', (texte or '').lower()) if len(j) >= 2}
 
 
-def _choisir_variante(nom_local: str, candidats: list, cle):
+def _choose_variant(nom_local: str, candidats: list, cle):
     """
     LA variante qui correspond au modèle local parmi des candidats déjà compatibles.
 
@@ -166,23 +166,23 @@ def _choisir_variante(nom_local: str, candidats: list, cle):
     if len(candidats) == 1:
         return candidats[0]
     plat = re.sub(r'[^a-z0-9]+', ' ', (nom_local or '').lower())
-    mots_local = _mots(nom_local)
+    mots_local = _words(nom_local)
 
     def rang(e):
         nom = re.sub(r'[^a-z0-9]+', ' ', (e.get('nom') or '').lower())
-        mots = _mots(e.get('nom'))
+        mots = _words(e.get('nom'))
         return (len(mots_local & mots), -len(mots - mots_local),
                 SequenceMatcher(None, plat, nom).ratio(), -float(cle(e) or 0))
 
     return max(candidats, key=rang)
 
 
-def _identite(texte: str):
+def _identity(texte: str):
     """
     'qwen3.6:35b' / 'qwen3-6-35b-a3b' / 'Qwen3.6 35B A3B' / 'Gemma 4 31B' / 'veo-3.1'
         → ('qwen', (3,6), 35.0) · ('gemma', (4,), 31.0) · ('veo', (3,1), None) · … ou None.
 
-    Famille+version par `decomposer` (brique du « successeur de famille »), étendue aux formes
+    Famille+version par `decompose` (brique du « successeur de famille »), étendue aux formes
     éclatées ('gemma-4', 'qwen3-6') ; taille = premier jeton `<n>b` (via `_milliards`),
     OPTIONNELLE (les modèles média n'en publient pas). Sans famille+version : None.
     """
@@ -193,7 +193,7 @@ def _identite(texte: str):
     while i < len(segments):
         seg = segments[i]
         if fam is None:
-            d = decomposer(seg)
+            d = decompose(seg)
             # ⚠ Familles PARASITES (1er dry-run 19/08) : 'm3' → ('m',(3,)), 'v2' → ('v',(2,))
             # appariaient bge-m3 et deepseek-coder-v2 à n'importe quoi. Une famille d'une
             # lettre n'est pas une identité → rejetée.
@@ -283,7 +283,7 @@ def charger_aa():
         for m in (data.get('data') or []):
             ev = m.get('evaluations') or {}
             v = ev.get(spec['aa_champ'], m.get(spec['aa_champ']))
-            ident = _identite(m.get('slug') or m.get('name') or '')
+            ident = _identity(m.get('slug') or m.get('name') or '')
             if v is None or ident is None:
                 continue    # null plutôt que plausible
             # Sous-indices PAR DOMAINE : « le meilleur » dépend de ce qu'on demande
@@ -336,7 +336,7 @@ def charger_arena():
             df = df[df['leaderboard_publish_date'] == df['leaderboard_publish_date'].max()]
         out = []
         for _, r in df.iterrows():
-            ident = _identite(str(r.get('model_name') or ''))
+            ident = _identity(str(r.get('model_name') or ''))
             if ident is None or r.get('rating') is None:
                 continue
             out.append({'nom': str(r['model_name']), 'elo': float(r['rating']),
@@ -370,7 +370,7 @@ def _categorie_locale(m):
     return None
 
 
-def _identites_locales(m):
+def _local_identities(m):
     """Identités candidates d'une ligne AIModel : tag/nom/hf_id/platform_ref (hors ALIAS,
     traité à part par égalité de slug — cf. `_apparier_alias`)."""
     bruts = [m.model_key.split(':', 1)[1] if ':' in m.model_key else m.model_key,
@@ -378,7 +378,7 @@ def _identites_locales(m):
              (m.platform_ref or '').rpartition(':')[2].rsplit('/', 1)[-1]]
     vus, out = set(), []
     for b in bruts:
-        i = _identite(b)
+        i = _identity(b)
         if i and i not in vus:
             vus.add(i)
             out.append(i)
@@ -386,7 +386,7 @@ def _identites_locales(m):
     # PAS seulement quand out est vide : `qwen3.8:latest` donnait (qwen,(3,8),None), qui
     # matcherait `qwen3.8-max` (frontière) au lieu du vrai 27b (1er dry-run 19/08).
     if m.model_key.startswith('ollama:') and not any(i[2] is not None for i in out):
-        i = _identite(_tag_reel(m.model_key.split(':', 1)[1]) or '')
+        i = _identity(_tag_reel(m.model_key.split(':', 1)[1]) or '')
         if i and i not in out:
             out.insert(0, i)
     return out
@@ -445,7 +445,7 @@ def synchroniser(dry_run: bool = False, inclure_proposes: bool = True):
             cands_aa = _apparier_alias(alias, sources.get('aa', {}).get(cat, []))
             cands_ar = _apparier_alias(alias, sources.get('arena', {}).get(cat, []))
         else:
-            idents = _identites_locales(m)
+            idents = _local_identities(m)
             stricte = (cat == 'llm')  # cf. _compatibles : jamais une variante frontière sans taille
             for ident in idents:
                 cands_aa = _apparier(ident, sources.get('aa', {}).get(cat, []), stricte)
@@ -463,8 +463,8 @@ def synchroniser(dry_run: bool = False, inclure_proposes: bool = True):
                 'quant_locale': 'score tiers = borne haute (mesuré fp8/16, local souvent Q4)'}
         valeur = echelle = None
         if cands_aa:
-            # La variante qui CORRESPOND, pas la mieux notée (cf. `_choisir_variante`).
-            retenu = _choisir_variante(m.name or m.model_key, cands_aa,
+            # La variante qui CORRESPOND, pas la mieux notée (cf. `_choose_variant`).
+            retenu = _choose_variant(m.name or m.model_key, cands_aa,
                                        lambda e: e['valeur'])
             valeur, echelle = retenu['valeur'], retenu['echelle']
             meta.update({'source': 'artificial-analysis', 'aa_nom': retenu['nom'],
@@ -474,7 +474,7 @@ def synchroniser(dry_run: bool = False, inclure_proposes: bool = True):
                 meta['sous_indices'] = retenu['sous_indices']
         arena_elo = None
         if cands_ar:
-            best = _choisir_variante(m.name or m.model_key, cands_ar, lambda e: e['elo'])
+            best = _choose_variant(m.name or m.model_key, cands_ar, lambda e: e['elo'])
             arena_elo = best['elo']
             meta.update({'arena_nom': best['nom'], 'arena_elo': best['elo'],
                          'arena_votes': best['votes']})

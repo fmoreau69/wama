@@ -188,15 +188,15 @@ HF_TASKS = {
 }
 
 #: Un dépôt de génération sous ce poids est un LoRA/config, pas un modèle installable seul.
-_POIDS_MIN_GO = 1.0
+_MIN_WEIGHT_GB = 1.0
 
 #: Motifs de BRUIT dans l'id d'un dépôt de génération : dérivés (LoRA, quantifs, repacks
 #: d'outils tiers) qui noient les modèles canoniques — mesuré 2026-08-18 : le trending
 #: text-to-video était aux 3/4 des LoRA MiniMax-H3 de particuliers.
-_MOTIFS_BRUIT = ('lora', 'gguf', 'comfyui', 'repackaged', 'fp8', 'bnb',
+_NOISE_MARKERS = ('lora', 'gguf', 'comfyui', 'repackaged', 'fp8', 'bnb',
                  'int4', 'int8', 'fp4', 'nvfp4', '4bit',
                  'coreml', 'mlx',   # formats Apple : non chargeables sur l'hôte CUDA
-                 # marqueurs déjà dans _MOTIFS_QUANT mais absents d'ici : mesuré 2026-08-28,
+                 # marqueurs déjà dans _QUANT_MARKERS mais absents d'ici : mesuré 2026-08-28,
                  # « Hippotes/LTX-2.3-quants » passait le seeding comme canonique
                  'quant', 'awq', 'gptq',
                  # add-ons non autonomes (même famille que `lora`) : mesuré 2026-08-29,
@@ -205,7 +205,7 @@ _MOTIFS_BRUIT = ('lora', 'gguf', 'comfyui', 'repackaged', 'fp8', 'bnb',
                  'controlnet', 'adapter')
 
 
-def _poids_depot_go(hf_id: str):
+def _repo_weight_gb(hf_id: str):
     """Poids total d'un dépôt HF en Go (somme des fichiers), ou None si indéterminable.
     Un appel HTTP par dépôt : à réserver aux candidats RETENUS, pas au listing."""
     try:
@@ -219,20 +219,20 @@ def _poids_depot_go(hf_id: str):
 
 
 #: Marqueurs de QUANTISATION/repack dans l'id d'un dépôt dérivé. Sous-ensemble de
-#: `_MOTIFS_BRUIT` (moins `lora` — un adaptateur n'est pas une variante du modèle — et moins
+#: `_NOISE_MARKERS` (moins `lora` — un adaptateur n'est pas une variante du modèle — et moins
 #: `coreml`/`mlx`, inchargeables sur l'hôte CUDA), plus les schémas absents du bruit
 #: (`awq`, `gptq`…). `comfy` couvre les repacks Comfy-Org/ComfyUI : single-file + variantes
 #: fp8 SANS marqueur dans l'id du dépôt (mesuré 2026-08-26 : le repack le plus téléchargé
 #: de MiniMax-Music3, 551 k, était invisible sans lui).
-_MOTIFS_QUANT = ('gguf', 'fp8', 'bnb', 'int4', 'int8', 'fp4', 'nvfp4',
+_QUANT_MARKERS = ('gguf', 'fp8', 'bnb', 'int4', 'int8', 'fp4', 'nvfp4',
                  '4bit', '8bit', 'awq', 'gptq', 'quant', 'comfy')
 
 
-def variantes_quantisees(hf_id: str, limit: int = 5) -> list[dict]:
+def quantized_variants(hf_id: str, limit: int = 5) -> list[dict]:
     """
     Dépôts HF dérivés QUANTISÉS d'un modèle (GGUF/FP8/4-8bit/AWQ…), triés par téléchargements.
 
-    Ce qui est du BRUIT pour le listing des canoniques (`_MOTIFS_BRUIT` les écarte du seeding)
+    Ce qui est du BRUIT pour le listing des canoniques (`_NOISE_MARKERS` les écarte du seeding)
     est l'INFORMATION du juge de confiance : un gros modèle se juge sur sa meilleure variante,
     pas sur ses poids pleins. Vécu 2026-08-26 : MiniMax-Music3 rejeté à 10 % « 53 Go > 24 Go »
     alors que son repack single-file dominait les téléchargements de la famille.
@@ -260,13 +260,13 @@ def variantes_quantisees(hf_id: str, limit: int = 5) -> list[dict]:
             depots = api.list_models(search=terme, sort='downloads', limit=100,
                                      expand=['downloads', 'likes'])
         except Exception as e:
-            logger.debug("[variantes_quantisees] recherche « %s » en échec : %s", terme, e)
+            logger.debug("[quantized_variants] recherche « %s » en échec : %s", terme, e)
             continue
         for d in depots:
             did = d.id.lower()
             if did in vus or cible not in normaliser(d.id):
                 continue
-            if not any(m in did for m in _MOTIFS_QUANT):
+            if not any(m in did for m in _QUANT_MARKERS):
                 continue
             vus.add(did)
             variantes.append({'hf_id': d.id,
@@ -277,18 +277,18 @@ def variantes_quantisees(hf_id: str, limit: int = 5) -> list[dict]:
 
 
 #: Licences SPDX standard SANS restriction territoriale : le texte n'est pas relu.
-_LICENCES_SURES = {'apache-2.0', 'mit', 'bsd-2-clause', 'bsd-3-clause', 'cc0-1.0',
+_SAFE_LICENSES = {'apache-2.0', 'mit', 'bsd-2-clause', 'bsd-3-clause', 'cc0-1.0',
                    'cc-by-4.0', 'openrail', 'openrail++', 'bigscience-openrail-m'}
 
 
-def analyse_licence(hf_id: str, license_id: str = ''):
+def analyze_license(hf_id: str, license_id: str = ''):
     """
     Verdict de COMPATIBILITÉ de licence d'un candidat, pour AFFICHAGE sur la card —
     JAMAIS pour éliminer (décision Fabien 2026-08-29 : le choix reste à l'utilisateur).
 
     Né du cas MiniMax-H3 : la card disait `license: other` — opaque — alors que le TEXTE
     excluait l'Union européenne (« Excluded Territories »), le piège Hunyuan à l'identique.
-    Un identifiant SPDX permissif (`_LICENCES_SURES`) rend None (rien à afficher) ; sinon
+    Un identifiant SPDX permissif (`_SAFE_LICENSES`) rend None (rien à afficher) ; sinon
     le texte du fichier LICENSE est lu (endpoint `raw` — AUCUN passage par le cache HF,
     zéro résidu disque) et scanné pour les clauses territoriales.
 
@@ -297,13 +297,13 @@ def analyse_licence(hf_id: str, license_id: str = ''):
     renouvelle la liste à chaque clic, le texte d'une licence ne change pas.
     """
     lid = (license_id or '').strip().lower()
-    if lid in _LICENCES_SURES:
+    if lid in _SAFE_LICENSES:
         return None
-    return _analyse_licence_texte(hf_id, lid)
+    return _analyze_license_text(hf_id, lid)
 
 
 @lru_cache(maxsize=256)
-def _analyse_licence_texte(hf_id: str, lid: str):
+def _analyze_license_text(hf_id: str, lid: str):
     import re
 
     import requests
@@ -340,28 +340,28 @@ def _analyse_licence_texte(hf_id: str, lid: str):
                 'detail': f"licence non standard ({lid or '?'}) — aucun marqueur "
                           "territorial détecté ; lire le texte avant d'installer"}
     except Exception as e:
-        logger.debug("[analyse_licence] %s illisible : %s", hf_id, e)
+        logger.debug("[analyze_license] %s illisible : %s", hf_id, e)
         return {'verdict': 'a_verifier', 'label': 'licence à vérifier',
                 'detail': f"texte de licence illisible ({lid or '?'})"}
 
 
 #: Extensions de fichiers de POIDS (pour le détail par fichier des dépôts quantisés).
-_EXT_POIDS = ('.gguf', '.safetensors', '.bin', '.pt', '.pth')
+_WEIGHT_EXTS = ('.gguf', '.safetensors', '.bin', '.pt', '.pth')
 
 
-def _fichiers_poids(hf_id: str) -> list[tuple[str, int]]:
+def _weight_files(hf_id: str) -> list[tuple[str, int]]:
     """`[(nom, taille_octets)]` des fichiers de poids d'un dépôt (metadata, 1 requête)."""
     try:
         from huggingface_hub import HfApi
         info = HfApi().model_info(hf_id, files_metadata=True)
         return [(s.rfilename, s.size or 0) for s in (info.siblings or [])
-                if s.rfilename.lower().endswith(_EXT_POIDS)]
+                if s.rfilename.lower().endswith(_WEIGHT_EXTS)]
     except Exception as e:
         logger.debug("[options_install] fichiers de %s indéterminables : %s", hf_id, e)
         return []
 
 
-def options_installation(cand) -> dict:
+def install_options(cand) -> dict:
     """
     Options d'installation EXPLICITES d'un candidat HF : poids pleins + variantes quantisées,
     chacune avec son poids disque — l'information à montrer AVANT d'installer, pour que
@@ -384,16 +384,16 @@ def options_installation(cand) -> dict:
     variants = prospect.get('quant_variants')
     a_persister = variants is None
     if variants is None:
-        variants = variantes_quantisees(cand.hf_id)
+        variants = quantized_variants(cand.hf_id)
     enrichies = []
     for v in variants:
         v = dict(v)
         if v.get('disk_gb') is None:
-            v['disk_gb'] = _poids_depot_go(v['hf_id'])
+            v['disk_gb'] = _repo_weight_gb(v['hf_id'])
             a_persister = True
         if 'files' not in v:
             v['files'] = [{'file': nom, 'gb': round(taille / 1024 ** 3, 1)}
-                          for nom, taille in _fichiers_poids(v['hf_id'])]
+                          for nom, taille in _weight_files(v['hf_id'])]
             a_persister = True
         enrichies.append(v)
     if a_persister:
@@ -434,7 +434,7 @@ def options_installation(cand) -> dict:
     return {'choice': len(options) > 1, 'options': options}
 
 
-def spec_pour_choix(cand, variant_ref: str, variant_file: str | None) -> dict | None:
+def spec_for_choice(cand, variant_ref: str, variant_file: str | None) -> dict | None:
     """
     Le SPEC d'installation qui respecte le choix validé par l'utilisateur, ou None si le choix
     ne correspond à aucune option connue (on n'installe jamais un dépôt non proposé).
@@ -475,16 +475,16 @@ def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -
     (parole, détection, upscaling, musique, OCR).
 
     Réutilise : `prospect_hf` (découverte + flag « déjà chez nous » + licence),
-    `ecrire_candidat` (writer unique, garde de préservation des évaluations comprise),
-    `AIModel.meilleurs_installes` (référentiel `concurrence` affiché sur la card),
-    `_poids_depot_go` (garde d'espace). Chaque candidat porte son **spec d'installation**
+    `write_candidate` (writer unique, garde de préservation des évaluations comprise),
+    `AIModel.best_installed` (référentiel `concurrence` affiché sur la card),
+    `_repo_weight_gb` (garde d'espace). Chaque candidat porte son **spec d'installation**
     (`install_from_spec`) — c'était le RESTE (3) du pipeline (« spec attaché »).
 
     Purge CIBLÉE comme dans prospect_ollama : uniquement le périmètre des tâches dont le
     balayage a ABOUTI (une panne réseau HF ne vide pas la liste).
     """
     from wama.model_manager.models import AIModel
-    from .prospect_ollama import PROPOSED_PREFIX, ecrire_candidat
+    from .prospect_ollama import PROPOSED_PREFIX, write_candidate
 
     crees = maj = 0
     vus: set = set()
@@ -514,7 +514,7 @@ def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -
             # Identité courte : `name` du catalogue porte parfois un descriptif après « — ».
             refs_type[model_type] = [
                 (m.name or '').split('—')[0].strip()
-                for m in AIModel.meilleurs_installes(model_type)]
+                for m in AIModel.best_installed(model_type)]
         retenus = 0
         for c in candidats:
             if retenus >= regle['max']:
@@ -523,14 +523,14 @@ def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -
             cand_key = PROPOSED_PREFIX + f"hf:{hf_id}"
             if c['have'] or cand_key in vus:
                 continue
-            if any(motif in hf_id.lower() for motif in _MOTIFS_BRUIT):
+            if any(motif in hf_id.lower() for motif in _NOISE_MARKERS):
                 continue    # dérivé (LoRA/quantif/repack), pas un modèle canonique
-            poids = _poids_depot_go(hf_id)   # un appel HTTP — candidats retenus seulement
+            poids = _repo_weight_gb(hf_id)   # un appel HTTP — candidats retenus seulement
             if poids is not None and poids < regle['poids_min_go']:
                 continue    # sous le plancher de la tâche : LoRA/config, pas un modèle
             vus.add(cand_key)
             retenus += 1
-            cree = ecrire_candidat(
+            cree = write_candidate(
                 cand_key, nom=hf_id.split('/')[-1], model_type=model_type,
                 source='huggingface',
                 description=(f"[{tache}] {c['downloads']} téléchargements, "
@@ -543,7 +543,7 @@ def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -
                        'metrique': c.get('metrique'),
                        # Verdict de licence AFFICHÉ, jamais éliminatoire (Fabien 29/08) —
                        # None pour un SPDX permissif ; mémoïsé, licences non standard seules.
-                       'license_flag': analyse_licence(hf_id, str(c.get('license') or '')),
+                       'license_flag': analyze_license(hf_id, str(c.get('license') or '')),
                        'spec': {'kind': 'hf', 'ref': hf_id, 'category': regle['category'],
                                 'note': f"prospection HF {tache}"}},
                 hf_id=hf_id, license=str(c.get('license') or '')[:64],
@@ -573,7 +573,7 @@ def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -
             # entièrement (mesuré : 32 créés / 32 purgés). Sans cette garde, chaque clic
             # « Prospecter » DÉTRUISAIT les évaluations LLM déjà payées (13 perdues au test)
             # et le badge de confiance disparaissait. Un candidat évalué reste jusqu'à ce
-            # qu'un humain le rejette — c'est la même règle que `ecrire_candidat`, qui
+            # qu'un humain le rejette — c'est la même règle que `write_candidate`, qui
             # préserve déjà l'évaluation à l'écriture.
             if pr.get('assess'):
                 preserves += 1

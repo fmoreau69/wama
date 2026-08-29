@@ -47,7 +47,7 @@ RECOUVREMENT_MINIMAL = 0.30
 SEUILS = ((0.15, 'accord'), (0.40, 'attention'), (1.01, 'divergence'))
 
 
-def _mots(texte: str) -> list:
+def _words(texte: str) -> list:
     """
     Tokens comparables : minuscules, sans ponctuation, **apostrophe traitée en séparateur**.
 
@@ -70,7 +70,7 @@ def divergence_texte(a: str, b: str) -> float:
     Mesuré sur les MOTS et non les caractères : « m'appelle » vs « m appelle » est une différence
     de tokenisation, pas d'écoute, et une distance caractère la surévaluerait.
     """
-    ma, mb = _mots(a), _mots(b)
+    ma, mb = _words(a), _words(b)
     if not ma and not mb:
         return 0.0
     if not ma or not mb:

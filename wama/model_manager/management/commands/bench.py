@@ -13,7 +13,7 @@ import os
 
 from django.core.management.base import BaseCommand, CommandError
 
-from wama.model_manager.services.bench import lancer, taches_disponibles, modeles_pour_tache
+from wama.model_manager.services.bench import run_bench, available_tasks, models_for_task
 
 
 class Command(BaseCommand):
@@ -21,7 +21,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('--task', required=True,
-                            help=f"Tache a mesurer. Disponibles : {', '.join(taches_disponibles())}")
+                            help=f"Tache a mesurer. Disponibles : {', '.join(available_tasks())}")
         parser.add_argument('--media', required=True, help="Chemin de l'echantillon.")
         parser.add_argument('--models', default='',
                             help="Restreint a ces modeles (noms ou cles, separes par des virgules).")
@@ -33,7 +33,7 @@ class Command(BaseCommand):
         if not os.path.isfile(media):
             raise CommandError(f"Echantillon introuvable : {media}")
 
-        candidats = modeles_pour_tache(tache)
+        candidats = models_for_task(tache)
         if not candidats:
             raise CommandError(
                 f"Aucun modele installe ne declare la tache '{tache}'. "
@@ -46,7 +46,7 @@ class Command(BaseCommand):
             options_protocole['conf'] = options['conf']
 
         try:
-            mesures = lancer(tache, media,
+            mesures = run_bench(tache, media,
                              modeles=[m for m in options['models'].split(',') if m.strip()] or None,
                              **options_protocole)
         except ValueError as e:
