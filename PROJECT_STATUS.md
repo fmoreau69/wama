@@ -8489,3 +8489,20 @@ périmètre ; ④ revérification : suite de tests COMPLÈTE + `manage.py check`
 + **vérif sur HEAD en worktree** (reference_verif_sur_head_worktree : .env + migrations à
 recopier) ; ⑤ re-consignation : solder la dette dans CLAUDE.md §nommage, ce §PENDING,
 et le pending #2 du 22/08.
+
+### SUITE (même instance, après-midi/soir) — INVESTIGATION WEB + VÉRIF CHAÎNE + INTAKE
+
+- **Investigation web ①② LIVRÉES** (`WAMA_LLM §Investigation web`) : brique `web_search.py`
+  (DDG sans clé, plafonds octets+chars, url_guard partout) + outils `search_web`/`read_web_page`
+  + domaine `investigation` ; 10 tests + recherche/lecture RÉELLES validées. Au passage :
+  **trou SSRF corrigé** (HEAD de `fetch_url_content` sans re-validation des redirections —
+  le jumeau l'avait ; 4 tests `tests_url_guard.py`) ; bs4/lxml enfin déclarés aux requirements.
+- **Vérification chaîne multi-surface** (`WAMA_LLM §Vérification`) : Discord = MÊME cerveau ;
+  3 rouges consignés (image→VLM aucun chemin direct · RAG jamais payé au tour initial + recall
+  sur le NOM du domaine · fichiers produits jamais rendus à Discord).
+- **Inventaire intake + plan 5 étapes PROPOSÉ** (`WAMA_LLM §Intake universel`) — ⏳ **validation
+  Fabien attendue avant toute implémentation** ; coordination stricte : ne pas toucher
+  `codegen/**` ni trancher l'homonyme `text` (instance codegen, §S2bis.4).
+
+**🔚 pendings de cette instance** : valider/amender le plan intake · essai conversationnel de
+l'investigation (passes GPU = Fabien) · étapes ③ (entrée image) et ④ (RAG distillats) du design.

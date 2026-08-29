@@ -479,6 +479,46 @@ lancement, anti-double-passe), donc indépendant de la surface qui dépose la ca
    (sans `investigation`) en contredisant l'annonce du même prompt — l'énumération est
    REMPLACÉE par un renvoi à l'annonce, qui ne peut plus dériver.
 
+## Intake universel de fichiers par l'assistant — inventaire MESURÉ 2026-08-29, plan PROPOSÉ (⏳ validation Fabien)
+
+> Demande de Fabien : livrer n'importe quel fichier via l'assistant (Discord/web) en précisant
+> son RÔLE — ou que l'assistant DEMANDE l'usage sans bloquer la conversation — puis cibler les
+> capacités WAMA correspondantes SANS énumérer les usages à la main. Inventaire par 2 agents
+> Explore (rôles de fichiers + substrat de ciblage), confronté au code le 29/08.
+
+**Ce qui existe** : dépôt convergent 3 surfaces → `users/<id>/temp/` (le « sas » voulu, déjà là,
+`filemanager/services.py::enregistrer_fichier_utilisateur`) ; vocabulaire de rôle en pièces
+(`BATCH_FORMAT` `-i/-p/-r/-o` ; médiathèque = SEUL rôle typé persisté, `asset_type` obligatoire
+jamais deviné ; ports codegen `travail|référence|prompt`) ; substrat de ciblage complet mais EN
+SILOS — fichier→nature (`category_of_path`), nature→apps (`input_types`/`accepts`, concordants
+10/10), entrée→modèles (`matches_inputs`, 97/98 modèles renseignés), fichier→lecteur Data
+(`reader_for`/`probe`), référence→compréhension (`comprehend_files`). **Aucun index inverse
+type→capacités côté serveur** ; la seule composition est le menu « Envoyer vers » (client).
+
+**Trous mesurés (29/08)** : ① `list_user_files` filtre sur `_MEDIA_EXTS` recopiée → pdf/txt/
+csv/wdat INVISIBLES à l'assistant ; allowlists d'outils divergentes du catalogue (jusqu'à −16
+ext describer) ; 6 détecteurs de nature concurrents ; ② zéro outil « que peut faire WAMA avec
+ce fichier » et zéro outil d'écriture pour 6 rôles sur 7 (référence, RAG, médiathèque,
+manifeste, skill, données) ; ③ `UserFile` sans rôle ; ④ trois moteurs sans porte :
+`manifests/ingest.py` (**zéro appelant**), RAG par fichier (VOLONTAIRE — « on n'extrait rien »,
+flux imposé sortie→médiathèque→geste), `reference_field` (chaîne complète, data-gatée à vide —
+« choisir le 1er adopteur » déjà pending) ; ⑤ Data : `reader_for` sait lire `.trip`, le monde
+média le classe `document` ; « connecter un dossier » = SMB seulement (`MountedFolder`).
+
+**Plan proposé (5 étapes, non validé)** : **0** dériver les allowlists de `tool_api` du
+catalogue + délier `list_user_files` de `_MEDIA_EXTS` · **1** brique `capabilities_for_path()`
+dans `common/` — index inverse par PURE COMPOSITION de l'existant (nature + probe + détecteurs
+batch + `reader_for` à CÔTÉ sans comparer — l'homonyme `text` est l'arbitrage OUVERT de
+l'instance codegen, `WAMA_APP_GENERATION_ROUTE §S2bis.4`, ne pas le trancher ici — + sniff
+manifeste + apps + modèles + `ASSET_TYPE_CATEGORY` inversé) → cibles typées AVEC raison ·
+**2** le rôle = un ROUTAGE, pas un état (décider = faire quitter le sas ; pas de champ `role`
+qui stocke) · **3** côté assistant : l'outil exposant ①, `add_to_media_library` (asset_type
+fourni, jamais deviné), et la consigne de dialogue DANS le skill de rôle (intention absente →
+cibler puis DEMANDER avec les options dérivées) · **4** portes lourdes chacune dans son
+chantier : 1er adopteur `reference_field` (coordonner ports codegen) ; porte d'`ingest()`
+manifestes (sandbox + dry-run, jamais d'apply auto) ; RAG via assistant = **arbitrage Fabien**
+(l'entrée au RAG est un GESTE) ; URL de dossier Data (§11.8).
+
 ## Voir aussi
 - `ROADMAP.md §10.B` (traduction runtime) et `§16.6` (pipeline + vision méta).
 - `WAMA_APP_CONVENTIONS.md §2bis.4` (contrat prompt targets), `§9.9` (héritage).
