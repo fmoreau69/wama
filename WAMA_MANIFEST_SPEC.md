@@ -182,7 +182,25 @@ body:                                   # (sous l'enveloppe commune)
   # la donnée (2). `templates_gen` rend désormais le manque VISIBLE (option nommée + warn) au
   # lieu d'un select vide, mais la RÉSORPTION est une décision de formalisme, pas de gabarit :
   # déclarer par source son mode de résolution (endpoint commun, ou champ de contexte de page).
-  # ⏳ NON TRANCHÉ — à arbitrer avant la marche B.
+  #
+  # ⚠ MÊME TROU, AUTRE MOITIÉ (mesuré le 2026-08-29) — le champ DÉRIVÉ de l'entrée. Le converter
+  # déduit `media_type` du nom du fichier ; le `upload`/`batch_create` générés ne le font pas,
+  # donc l'élément arrive avec un champ vide — et comme les formats de sortie dépendent de cette
+  # valeur (le `options_source: 'formats'` ci-dessus), la card d'un fichier déposé n'offre RIEN
+  # et rien n'est lançable. Les deux moitiés sont UNE seule chose non déclarée : la taxonomie
+  # d'entrée de l'app.
+  #   • le détecteur, lui, EXISTE en commun : `app_registry.category_of_path` (source unique,
+  #     celle dont `probe_media` se sert) — mesuré d'accord avec le détecteur du converter sur
+  #     56 des 59 extensions acceptées ;
+  #   • les 3 écarts (.md/.markdown/.txt) tiennent au vocabulaire, pas au détecteur : le commun
+  #     distingue 'text' de 'document', le converter les confond. Rien ne déclare qu'un
+  #     `media_type` d'app prend ses valeurs dans image|video|audio|document|archive (CharField
+  #     nu, sans `choices`). Sans cette déclaration, câbler le commun remplacerait un champ vide
+  #     par une valeur FAUSSE sur les fichiers texte — pire, parce que moins visible.
+  # Forme candidate : `processing.derived_fields: [{field, from, rule: 'media_category',
+  # vocabulary: [...]}]`, la règle nommant une brique commune et le vocabulaire restant la
+  # SPÉCIFICITÉ déclarée de l'app.
+  # ⏳ NON TRANCHÉ (les deux moitiés) — à arbitrer avant la marche B.
   inspector: {model, detail_adapter, preview_adapter, file_field, user_field}   # Detail/PreviewRegistry
   # (cible ; extract actuel = detail_registered/preview_registered — présence, pas contenu)
 

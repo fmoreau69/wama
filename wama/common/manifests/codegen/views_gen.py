@@ -276,11 +276,29 @@ def batch_create(request):
             avertissements.append(src + ' : ' + str(e))
 
     # TROU DE GLU {mark} — les champs DÉRIVÉS de l'entrée (converter : `media_type`, déduit du
-    # nom par son `format_router`) ne sont pas renseignés : la déduction est propre à l'app, il
-    # n'existe pas de détecteur COMMUN nom→type (`probe_media` travaille sur un fichier présent
-    # et rend une fiche, pas une valeur de `choices`). Le `upload` généré a exactement le même
-    # manque : on le laisse IDENTIQUE ici plutôt que de doter un seul des deux chemins — c'est
-    # la divergence entre chemins qui a produit les trois derniers défauts de codegen.
+    # nom du fichier) ne sont pas renseignés, et l'élément reste inexploitable : sans lui, les
+    # réglages conditionnés par sa valeur restent vides et rien n'est lançable.
+    #
+    # ⚠ La raison que ce commentaire donnait le 2026-08-29 était FAUSSE : « il n'existe pas de
+    # détecteur COMMUN nom→type ». Il en existe un, et il se dit lui-même source unique —
+    # `wama/common/app_registry.py::category_of_path` (+ `normalize_types`), celui-là même dont
+    # `probe_media` se sert pour son aiguillage. Mesuré : sur les 59 extensions acceptées par le
+    # converter, il tombe d'accord avec le détecteur de l'app 56 fois ; les 3 écarts (.md,
+    # .markdown, .txt) tiennent à UN fait de taxonomie — le commun distingue 'text' de
+    # 'document', le converter les confond.
+    #
+    # Ce qui manque n'est donc PAS le détecteur mais le VOCABULAIRE de l'app : rien ne déclare
+    # que ce champ prend ses valeurs dans image|video|audio|document|archive (le champ est un
+    # CharField nu, sans `choices`, dans le manifeste comme dans le modèle). Câbler le commun
+    # sans cette déclaration remplacerait un champ vide par une valeur FAUSSE sur les fichiers
+    # texte — un défaut plus coûteux, parce qu'il se voit moins.
+    # C'est le MÊME manque que `options_source: 'formats'` (les formats de sortie dépendent de
+    # cette même valeur) : une seule chose non déclarée, la taxonomie d'entrée de l'app.
+    # ⏳ Arbitrage ouvert — WAMA_MANIFEST_SPEC.md, bloc « TROU DE FORMALISME ».
+    #
+    # Le `upload` généré a exactement le même manque : on le laisse IDENTIQUE ici plutôt que de
+    # doter un seul des deux chemins — c'est la divergence entre chemins qui a produit les
+    # trois derniers défauts de codegen.
     def _lier(lot, obj, idx):
         setattr(obj, '{fk}', lot)
         setattr(obj, '{row}', idx)

@@ -1698,14 +1698,23 @@
             // L'app de la PAGE héberge la zone — source FIABLE. Les ids sont ambigus :
             // 'dropZone' existe chez describer ET reader (un drag sur reader partait
             // vers describer, bug historique corrigé 2026-07-27).
-            const seg = (location.pathname.split('/').filter(Boolean)[0] || '').replace(/-/g, '_');
-            const KNOWN_APPS = ['describer', 'enhancer', 'transcriber', 'anonymizer',
-                                'synthesizer', 'reader', 'converter', 'imager',
-                                'composer', 'avatarizer'];
-            if (KNOWN_APPS.includes(seg)) {
+            //
+            // ⚠ Cette identité est DÉCLARÉE par le serveur (`window.WAMA_CURRENT_APP`,
+            // base.html — 1er segment du path résolu dans APP_CATALOG). Elle était ici
+            // RE-DEVINÉE contre une liste de dix noms écrite à la main : mesuré le
+            // 2026-08-29, cette liste valait exactement « APP_CATALOG moins la seule app
+            // qui n'y était pas au moment où je l'ai écrite ». Toute app ajoutée ensuite
+            // (une jumelle générée, `converter_01`) tombait donc à `null` — et un `null`
+            // ne déclenchait RIEN, sans un mot. *Une liste d'apps écrite à la main est
+            // une copie périmée d'un catalogue qui existe.*
+            const declaree = (window.WAMA_CURRENT_APP || '').trim();
+            if (declaree) {
                 // Cas particulier : la file AUDIO d'enhancer reste enhancer (même app).
-                return seg;
+                return declaree;
             }
+            // Pages SANS app courante (le catalogue ne connaît pas leur 1er segment) :
+            // WAMA Lab (`/lab/face-analyzer/…`), médiathèque, studio. Les ids restent
+            // le seul repère — vérifié le 2026-08-29 : `current_app` y rend ''.
             const id = zone.id || '';
             if (id === 'dropZone') return 'describer';
             if (id === 'dropZoneEnhancer') return 'enhancer';
@@ -1815,6 +1824,12 @@
                             showToast('Erreur d\'import: ' + error.message, 'danger');
                         });
                     }
+                } else if (!app) {
+                    // JAMAIS de dépôt muet : sans app résolue, l'utilisateur voyait la zone
+                    // s'allumer puis… rien (aucun toast, aucune requête). Le seul indice
+                    // était un console.log. Dire la cause vaut mieux que la taire.
+                    showToast("Dépôt impossible : cette page ne déclare pas d'application "
+                              + "de destination (window.WAMA_CURRENT_APP absent).", 'danger');
                 }
             }
 
