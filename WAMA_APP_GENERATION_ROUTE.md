@@ -1054,6 +1054,27 @@ décider ce qu'elles deviennent avant de toucher au code.
 qui est réparable sans lui : donner des entrées PAR SLOT au générateur ne demande pas de choisir
 le sens de `text`, seulement de ne plus mélanger les slots.
 
+**🧭 POSITION DE FABIEN (2026-08-30, session card v3.5 — une DIRECTION, pas encore le geste) :**
+1. **« Le rôle `text` doit s'appliquer au texte brut et non aux documents texte. »** Donc :
+   `text` = la SAISIE (le sens prompt) ; les fichiers `.txt/.md/.csv` sont des **documents**.
+   ⚠ C'est l'INVERSE du penchant noté au point 1 ci-dessus (le jeton `prompt` fabriqué de facto
+   par les ports semblait pousser vers « `text` = fichier ») — la position de l'arbitre prime, et
+   elle a un argument de fond que le penchant n'avait pas : voir 2.
+2. **L'origine de l'exception est identifiée** — la catégorie `text` posée sur `.txt/.md/.csv`
+   (le `prime sur document` de `_build_cat_of`, `app_registry.py:76-78`) servait à **différencier
+   fichiers de travail et fichiers BATCH**. Malgré l'auto-détection, l'unification des deux dans
+   le même encart « reste ambivalente dans certains cas » (Fabien). Or la card v3.5 **sépare les
+   rôles de fichiers en zones explicites** (travail / référence / batch…) : le rôle redevient
+   porté par LE GESTE de dépôt, et l'exception de catégorie perd sa raison d'être. *La séparation
+   des rôles à l'UI et le sens du jeton se résolvent ensemble.*
+3. **Conséquence directe si cette direction est confirmée** : `.txt/.md/.csv` redeviennent
+   `document` dans `category_of_path` → la moitié TRAVAIL de (b) (rétrécir `file_accept` par les
+   catégories du port) **se débloque** — le describer cesse d'être le contre-exemple.
+4. **Ce qui reste à trancher AVANT le geste** (inchangé) : la migration des valeurs en base
+   (`detected_type`), le sort du jeton `prompt` des ports (fusionne-t-il avec `text` ou
+   subsiste-t-il ?), et le domicile inter-mondes de la taxonomie. Le rayon mesuré plus haut
+   reste le rayon.
+
 **Cadrage A0 — la convention RÉELLE, mesurée (2026-08-11, balayage 6 cibles × 10 apps) :**
 - **urls.py** : AUCUNE app ne colle à `STANDARD_ENDPOINTS` — cette liste était une CIBLE que le
   manifeste affirmait comme réalité pour les 10 apps (mensonge d'extraction, corrigé en A1).

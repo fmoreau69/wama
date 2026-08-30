@@ -511,11 +511,11 @@ tranchent une fois sur les briques communes et se propagent. Consignés au fil d
     (`reference_accept`). La v3 n'a donc pas à réinventer les modalités : **elle change leur
     PRÉSENTATION** (une visible à la fois, hauteur constante) — cf. `docs/card_designs/
     card_v3.5_maquette.html` (état brouillon, liseré cyan pointillé, `.card3.draft`).
-  - ⚠ **Préalable mesuré côté générateur** : l'app générée reçoit aujourd'hui **un seul slot**
-    et **aucun slot de référence** (`templates_gen.py:46/300` compose sur la liste PLATE
-    `input_extensions`). Tant que ce n'est pas réparé, la jumelle est un terrain d'essai **plus
-    pauvre que les apps manuelles** — c'est le point (b) de `§S2bis.6`, à traiter **avant** d'y
-    juger la v3.
+  - ~~⚠ **Préalable mesuré côté générateur** : l'app générée reçoit un seul slot et aucun slot
+    de référence~~ ✅ **LEVÉ le 2026-08-30** : les slots se déclarent par DOMAINE
+    (`ROUTE §S2bis.6 (b)`), le générateur émet le slot de référence depuis le port. La jumelle
+    est redevenue un terrain d'essai valable pour la v3 — cartographie des charges et exigences
+    de Fabien : **§11.8 ci-dessous**.
 - Choix barre verte vs barre couleur-d'état : tranché vert, à réévaluer après usage.
 
 ### 11.3 PORTAGE PILOTE — Reader (2026-08-01, session d'implémentation)
@@ -689,3 +689,86 @@ Trois pièges, tous rencontrés :
 > ⚠ **`speaker_count` est une `@property`, pas un champ.** Interroger `_meta.get_fields()` le
 > déclare absent — faux négatif : « Diarisation (2 voix) » s'affiche bien. Vérifier une donnée de
 > modèle par `hasattr()` sur une instance, jamais par la seule liste des champs.
+
+### 11.8 CARD D'ENTRÉE v3.5 — cartographie des CHARGES + exigences (mesuré 2026-08-30)
+
+> Demandé par Fabien avant d'attaquer la v3.5 sur `converter_01` : *« bien faire l'état des lieux
+> avant d'attaquer pour ne pas se retrouver bloqué plus tard sur une des applications »*. Relevé
+> exhaustif des 12 inclusions de `wama/common/templates/common/_new_item_card.html` + tout ce qui
+> gravite (balayage dédié du 30/08, ancres vérifiées). **Ceci est LA checklist d'absorption de la
+> v3.5** : chaque ligne doit avoir une place dans la nouvelle card — ou une exclusion motivée.
+
+#### Exigences de Fabien (2026-08-30) — le cahier des charges v3.5
+
+1. **Zones distinctes PAR RÔLE de fichier** (travail / référence / batch…), chacune cible de
+   drag&drop depuis le filemanager ET l'explorateur Windows. Rôles **très explicites** — un dépôt
+   ambigu « braque l'utilisateur à la 1ʳᵉ tentative ».
+2. La séparation des rôles **résout l'ambivalence travail/batch** qui a motivé l'exception de
+   catégorie `text` — cf. la position consignée à `WAMA_APP_GENERATION_ROUTE.md` §S2bis.6bis
+   (le rôle `text` = texte brut, pas les documents).
+3. **Le prompt a besoin d'espace** quand l'utilisateur veut être précis — à résoudre sans casser
+   la règle v3.5 « les onglets de modalité ne changent jamais la hauteur de la cellule ».
+4. **⚙ + bouton de cycle sur la card d'entrée** (état « attente fichier ») : ⚙ = paramètres de
+   file par défaut. ⚠ La maquette `docs/card_designs/card_v3.5_maquette.html` ne les montre PAS
+   sur la card brouillon (:207-241 — seul `▶ Transcrire`), alors qu'elle y affiche une section
+   « Réglages » en chips que rien ne permet d'éditer sur place, et que tous les autres états ont
+   ⚙ + cycle. **Mesuré : AUCUNE app n'a aujourd'hui de ⚙ ni de bouton de cycle sur sa card
+   d'entrée** (la brique ne rend qu'un `primary_btn_id` ; `WamaCycleButton` n'est câblé que sur
+   les conteneurs de FILE, 10 câblages relevés).
+
+#### Les charges à absorber — ce que les 12 cards portent DÉJÀ
+
+| # | Charge | État mesuré | Ancres |
+|---|---|---|---|
+| 1 | **Modalités d'entrée** : dépôt/clic · dossier récursif (8/12) · URL (avec ou sans bouton) · médiathèque (`MediaPicker`) · lot · live/Speak (transcriber seul) · slot référence typé (3/12) | brique commune, la v3.5 change leur PRÉSENTATION (mini-onglets) | `wama/common/templates/common/_new_item_card.html` |
+| 2 | **Prompt** primaire (5/12 : composer, synthesizer, avatarizer, imager ×2) + compteur de mots et zone droppable (avatarizer seul) + **prompt négatif** (imager, en zone d'extension) | doctrine écrite : « dans la CARD, pas dans le volet » | `_new_item_card.html:76-77` |
+| 3 | **Réglages inline** : voix/vitesse/titre + **aperçu SSE de la voix** (synthesizer) ; **sélecteur de modèle avec Auto** + aide `WamaModelHelp` (imager ×2) | via `extra_zone_template`, sans contrat — 2 apps ont DÉJÀ des réglages dans la card, sans ⚙ | `wama/synthesizer/templates/synthesizer/_new_item_extra.html` ; `wama/imager/templates/imager/_model_zone.html` |
+| 4 | **Sélection visuelle d'actif** : galerie d'avatars (grille cliquable) | seul cas du parc | `wama/avatarizer/templates/avatarizer/_new_item_extra.html` |
+| 5 | **Enrichissement ✨** : brique 2-états complète (champ `user`/`processed`, barre « voir mon prompt / revenir / ré-enrichir », endpoint générique, pipeline langue→traduction→enrichissement→réf→RAG, kill-switch + préférence user) | ⚠ **la brique n'émet AUCUN déclencheur** : le seul vrai bouton ✨ est FABRIQUÉ par l'imager ; composer et anonymizer attachent la brique **sans pouvoir la déclencher** | `wama/common/static/common/js/wama-prompt-enrich.js` ; `wama/common/utils/prompt_pipeline.py` ; `wama/imager/static/imager/js/input_card.js` |
+| 6 | **Chips de mots-clés suggérés** : brique commune + modèle `PromptKeyword` (tronc commun `user=None` + perso, 7 catégories, accordéon, insertion/retrait dans le prompt, glossaire préservé verbatim à l'enrichissement) | **adoption 1/10** (imager) ; le point de montage est bricolé en JS par l'app — la brique card n'offre AUCUN slot chips | `wama/common/static/common/js/wama-prompt-chips.js` ; `wama/media_library/models.py` |
+| 7 | **Appariement entrée⇄modèle** : modèles incompatibles désactivés avec raison, slots requis/suggérés surlignés, gate de lancement, chips retirables, slots non-fichier déclaratifs | 7/10 adoptent, mais **3 seulement rendent l'état DANS la card** (imager ×2, composer) — 4 l'affichent au volet, 2 fabriquent l'élément en JS ; **1 seul** (imager) pilote le bouton primaire via `onState` | `wama/common/static/common/js/wama-input-match.js` |
+| 8 | **Détection batch** : extension (`txt/md/csv`) → garde MIME → **arbitrage serveur par le CONTENU** (`count=0` ⇒ fichier de travail) ; 1 seul fichier peut être descripteur ; refus ligne-à-ligne visible | ids FIXES ⇒ **une seule barre par page** (d'où le clone `_audio_batch_bar.html` de l'enhancer, hors brique) ; l'URL saisie passe par le MÊME pipeline (`ingestText`) | `wama/common/static/common/js/batch-import.js` ; `wama/common/templates/common/batch_detect_bar.html` |
+| 9 | **`data-wama-depot`** : `cree` (défaut, 9/12) vs `attache` (imager ×2, avatarizer) — ce que FAIT un dépôt | décision à re-poser par rôle en v3.5 (un dépôt en zone batch ≠ zone travail) | `_new_item_card.html:59-68` |
+| 10 | **Repli/dépli** : dépliage au clic en-tête, au focus/saisie du prompt (`data-nic-primary`), au survol drag ; `deployed=True` (imager seul) | le mécanisme qui répond à « l'espace du prompt » existe DÉJÀ ici | `wama/common/static/common/js/wama-new-item-card.js` |
+| 11 | **RAG + fichiers de référence dans la pipeline de prompt** : hook RAG data-gaté (`rag=True`, « aucune app ne l'active à ce jour ») ; hook `reference_files` → compréhension de fichiers, no-op tant qu'aucune app ne déclare `reference_field` | les DEUX points d'accroche existent, 0 app branchée — le slot référence v3.5 a son hook serveur PRÊT | `wama/common/utils/prompt_pipeline.py` ; `wama/common/utils/app_metadata.py` |
+| 12 | **Filemanager → card** : menu « Envoyer vers » (croise `input_extensions` × registre serveur des importeurs) + drag jstree (déplie la card repliée au survol) | **le payload n'a PAS de rôle** (`{path,name,mime}`) : le rôle est décidé côté serveur PAR EXTENSION (`import_to_imager` : txt⇒prompt_file, image⇒référence) ; avatarizer et composer n'ont AUCUN importeur (prompt-primaires) ; le vocabulaire de rôle EXISTE et n'est pas branché (`_ports_for_category` de `wama/common/utils/intake.py` rend « quel PORT de quelle app ») | `wama/filemanager/static/filemanager/js/filemanager.js` ; `wama/filemanager/views.py` |
+
+#### Positions de conception (Claude, 2026-08-30 — à valider avec la spec v3.5)
+
+- **Les zones par rôle se GÉNÈRENT des ports déclarés** — depuis le 30/08 les slots sont déclarés
+  (`inputs[]` de domaine, `ROUTE §S2bis.6 (b)`) : la v3.5 n'invente pas ses zones, elle rend les
+  ports (travail/référence/prompt + lot). Une zone par port, libellé du port, accept dérivé.
+- **Le D&D par rôle = ajouter le PORT au contrat d'import** : côté menu, « Envoyer vers ‹app› ›
+  ‹port› » servi par `_ports_for_category` (déjà écrit, aucun consommateur UI) ; côté événements,
+  un champ `role` dans les payloads. Ça résorbe du même geste les deux trous mesurés : avatarizer
+  et composer sans importeur (leur fichier est une RÉFÉRENCE — le contrat actuel ne sait pas le
+  dire), et le rôle deviné par extension côté serveur.
+- **L'espace du prompt** : le prompt est la cellule PRIMAIRE de la card brouillon des apps
+  génératives ; elle grandit au focus (mécanisme `data-nic-primary` DÉJÀ acquis) + autosize (déjà
+  dans `wama-prompt-enrich.js`) avec max-height. La règle « hauteur constante » vaut pour les
+  onglets de MODALITÉ, pas pour l'édition du prompt : c'est la card entière qui se déploie, comme
+  aujourd'hui. En mosaïque : tuile normale repliée, dépliage = passage temporaire pleine largeur.
+- **⚙ + cycle : OUI, et les mécanismes existent** — ⚙ ouvre `WamaParams.settingsModal` sur les
+  défauts persistés (`user_settings`) : exactement ce que les chips « Réglages » de la maquette
+  affichent sans permettre de l'éditer ; le bouton de cycle suit son contrat d'états, INACTIF
+  tant que les entrées requises manquent — le gate existe déjà (`wama-input-match.js`, gate de
+  lancement + `onState`, piloté par l'imager). ⚠ Nuance à spécifier : pour les apps
+  `depot_cree='cree'` le dépôt crée immédiatement — le ▶ de la card brouillon n'a de sens qu'en
+  mode « attache » (ou devient « créer + démarrer » ce qui est déjà dans la barre batch).
+- **Absorber les extra-zones par la DÉCLARATION, pas par un hook** : les 4 `extra_zone_template`
+  sont le symptôme (aucun contrat, 4 natures) ; la v3.5 doit offrir les cases que ces zones
+  comblaient — réglages rapides (miroir de N params déclarés), sélecteur de modèle (option de
+  card déclarée), galerie (slot « actif visuel » déclaratif) — sinon les 4 apps resteront
+  imprortables vers la v3.5.
+
+#### Défauts SILENCIEUX relevés par le balayage (à corriger indépendamment de la v3.5)
+
+1. `wama/filemanager/static/filemanager/js/filemanager.js:1780` route l'imager vers l'événement
+   `filemanager:filedrop`… **qu'aucun JS de l'imager n'écoute** (seuls avatarizer et
+   cam_analyzer ont un listener) : glisser un fichier du filemanager vers la card imager ne fait
+   RIEN, sans un mot.
+2. `WamaPromptEnrich` attaché sans déclencheur chez composer et anonymizer (le ✨ n'existe que
+   chez l'imager, fabriqué par l'app) — soit la brique gagne son bouton, soit ces attaches sont
+   décoratives.
+3. La barre batch commune est mono-instance par construction (ids fixes) — le clone audio de
+   l'enhancer en découle ; une v3.5 par rôle devra la paramétrer par instance.

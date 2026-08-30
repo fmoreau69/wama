@@ -8884,7 +8884,12 @@ ci-dessus à traiter **avant** d'aller au-delà du converter.
    `WAMA_APP_GENERATION_ROUTE §S2bis.6 (b)` ;
 3. `download_all` de **reader** et **describer** : lire `?format=` côté VUE, puis opter au ⬇
    commun (2 lignes de gabarit une fois la vue faite) ;
-4. Card d'entrée **v3** sur `converter_01` (dépend de 2).
+4. Card d'entrée **v3** sur `converter_01` — le préalable (2) est levé, et le préalable de
+   Fabien (30/08) est FAIT : **cartographie complète des charges de la card d'entrée +
+   exigences v3.5 = `CARD_DESIGN §11.8`** (12 charges mesurées, 3 défauts silencieux relevés —
+   dont le drag filemanager→imager qui ne fait RIEN, listener absent). La spec v3.5 se dessine
+   sur cette checklist ; position Fabien sur l'homonyme `text` consignée
+   (`WAMA_APP_GENERATION_ROUTE §S2bis.6bis`).
 
 **🔴 ARBITRAGES BLOQUANTS (Fabien) — la session suivante ne peut pas les commencer sans réponse** :
 - **la langue des `msgid`** (`ROADMAP §10.A`) — elle décide si le corpus se **tague** (FR) ou se
