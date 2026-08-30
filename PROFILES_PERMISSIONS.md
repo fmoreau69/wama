@@ -78,6 +78,18 @@ l'inscription est validée à la main. Le compte anonyme ne doit donc **rien** p
 aucune app n'est déclarée `public` — la ligne « converter public » un temps envisagée est
 **abandonnée**.
 
+> ⚠ **PARTIELLEMENT REMPLACÉE le 2026-08-30 (Fabien, arbitrage `rights_anonymous`)** — le
+> VISITEUR devient un parcours guidé : il **VOIT tout** (navigation ouverte sur les apps,
+> l'avatar de l'AI-Assistant se présente à l'accueil et le suit dans le volet), il ne peut
+> **rien FAIRE** (toute action → rappel « connectez-vous » par l'avatar, garde SERVEUR en
+> dessous), **sauf le converter**, app d'essai sans ressource GPU — la ligne « converter
+> public » REVIENT donc, cette fois comme décision. Ce qui reste vrai du 2026-08-22 : WAMA
+> n'est pas ouvert (LDAP + validation), et la résorption des DEUX notions d'anonyme ci-dessous
+> reste le socle — la garde doit mordre pour que l'exception converter soit une exception.
+> Détail du plan + conséquences sur le scénario nocturne : `WAMA_VERIFICATION §3quater`
+> (l'attendu du scénario passe des PAGES aux ACTIONS). Exécution : chantier avatar/accueil,
+> APRÈS le portage.
+
 ### Ce qui n'allait pas, et qui n'était écrit nulle part
 
 WAMA porte **deux** notions d'anonyme, et elles étaient opposées :

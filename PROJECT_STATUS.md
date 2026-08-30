@@ -8891,12 +8891,33 @@ ci-dessus à traiter **avant** d'aller au-delà du converter.
    sur cette checklist ; position Fabien sur l'homonyme `text` consignée
    (`WAMA_APP_GENERATION_ROUTE §S2bis.6bis`).
 
-**🔴 ARBITRAGES BLOQUANTS (Fabien) — la session suivante ne peut pas les commencer sans réponse** :
-- **la langue des `msgid`** (`ROADMAP §10.A`) — elle décide si le corpus se **tague** (FR) ou se
-  **tague ET se traduit deux fois** (EN source). C'est 3-6 semaines de travail derrière ;
-- **l'homonyme `text`** (`§S2bis.6bis`) ;
-- `rights_anonymous` (12/17 surfaces ouvertes au visiteur) et `data-abo-*`/`data-f-<facette>`
-  restent ouverts, hérités des blocs précédents.
+**🔴 ARBITRAGES BLOQUANTS (Fabien)** — ✅ **TOUS SOLDÉS le 30/08 sauf un** (session card v3.5,
+même journée — chaque décision est consignée dans son doc de domaine) :
+- ~~langue des `msgid`~~ → **ANGLAIS** (« l'anglais est la langue de WAMA, le français n'est
+  qu'une traduction ») + séquencement : la traduction ATTEND la fin du portage — `ROADMAP §10.A` ;
+- ~~l'homonyme `text`~~ → **recadrage UNIVERSEL** nature × rôle (le prompt est un RÔLE qui se
+  matérialise en document ; `text` sort des natures) — `ROUTE §S2bis.6bis` ; restent des GESTES
+  (migration `detected_type` describer, rayon), plus aucune question ouverte ;
+- ~~`rights_anonymous`~~ → **visiteur guidé** (tout VOIR, rien FAIRE sauf converter, avatar
+  AI-Assistant = messager, garde SERVEUR en dessous) — `WAMA_VERIFICATION §3quater` +
+  `PROFILES_PERMISSIONS §1.4` (supersession partielle du 22/08 consignée) ; exécution avec le
+  chantier avatar/accueil, APRÈS portage ;
+- ~~realtime (`MODES_QUEUE_UX §5bis`)~~ → **pas de mode temps réel, modalité de card via la
+  preview during** ; modes `realtime` RETIRÉS d'`app_modes.py` le jour même ;
+- reste OUVERT : `data-abo-*`/`data-f-<facette>` (traduction des attributs DOM — ensemble ou
+  pas du tout).
+
+**🧭 PRIORITÉS POSÉES PAR FABIEN (30/08)** : **1. terminer LE PORTAGE** (rien ne le bloque plus)
+→ ça débloque **2. le studio et le monde Data en parallèle** + la reprise du **cam analyzer** ;
+la **traduction** (i18n §10.A) vient APRÈS la fin du portage, jamais avant. La cible qui referme
+la boucle : un process d'app = **pipeline à 1 nœud** importable comme card dans les files des
+trois mondes, studio = application transversale (`WAMA_MANIFEST_ARCHITECTURE §8`).
+
+**⚠ Écart MESURÉ le 30/08 (à porter, non bloquant)** : la déclaration du DESCRIBER sous-vend son
+moteur — `input_extensions = TEXT_EXTENSIONS` (5 ext.) alors que `content_analyzer.py:18-19`
+lit AUSSI `doc, rtf, odt, json, xml, html` : la card et le menu « Envoyer vers » grisent des
+fichiers que l'app sait décrire (famille inverse du ①bis converter : déclaration ⊂ moteur).
+À aligner AVEC le geste taxonomie (la liste conflate travail et batch — c'est l'homonyme).
 
 **Pendings système** : **4 commits à pousser** sur `dev` (`59400ca0`, `534de393`, `c41d3263`,
 `dc5f1bf9` — MESURÉ par `git rev-list --count origin/dev..dev`, pas tenu de tête ; j'avais

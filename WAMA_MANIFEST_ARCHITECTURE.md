@@ -515,8 +515,19 @@ réglages, entrées PAR RÔLE, format de sortie. Trois usages :
 - `BATCH_FORMAT.md` (balises `-i/-p/-r/-o`) est l'ANCÊTRE TEXTUEL de cette idée — une ligne de
   fichier batch décrit déjà un process par rôles ; le manifeste en est la forme structurée ;
 - le kind `pipeline` (studio) couvre le multi-nœuds ; le process mono-app en est le cas
-  dégénéré — À TRANCHER : kind nouveau (`process` ou `run`) ou pipeline à un nœud ;
+  dégénéré — ✅ **TRANCHÉ (Fabien, 2026-08-30) : un process d'application EST un pipeline à
+  1 nœud.** Pas de kind nouveau ;
 - côté monde Data, le manifeste de pipeline joue déjà exactement ce rôle sur les datasets.
+
+**La boucle que ce choix referme (vision Fabien, même message)** : dans le studio, on compose
+une card d'entrée + une card d'application + une card de sortie → on génère un **pipeline
+importable comme CARD dans une file** de n'importe quel monde (Médias, Data, Lab). Les mondes
+gardent des fonctionnements de file identiques, tous compatibles studio — et **le studio trouve
+sa place d'application TRANSVERSALE** (cf. `STUDIO_VISION.md`). Diagnostic partagé : l'essentiel
+existe (kind `pipeline`, files homogènes, ports déclarés, capacités héritées « le studio est
+aussi une bibliothèque » — §10.4 marche D) ; le manque est du CÂBLAGE à raffiner et quelques
+briques — la première étant l'ÉMETTEUR du manifeste de process depuis une card, et son
+IMPORTEUR (card pré-remplie PENDING).
 
 **Contrats à poser dès la conception (hérités des doctrines en place) :**
 - les entrées sont référencées PAR CHEMIN/identifiant, jamais embarquées — et un manifeste de

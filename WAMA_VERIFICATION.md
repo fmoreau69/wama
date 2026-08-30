@@ -815,11 +815,24 @@ Deux conséquences qu'aucune des deux moitiés ne montrait seule :
 > `rights_matrix` a besoin pour être crédible quand il est vert. Un harnais vert dont on n'a jamais
 > vu la sortie rouge ne prouve rien — deux harnais ont déjà annoncé « 0 FAIL » sur du **vide**.
 
-> 🔚 **Arbitrage attendu (Fabien).** Le trou anonyme se referme dans `wama/accounts/` — périmètre
-> d'une autre instance, et surtout **décision produit** : soit l'anonyme est un tier servi par un
-> **compte anonyme** (c'est ce que suppose le code du décorateur `app_access`), soit les vues
-> reçoivent leur `login_required`. Rien n'a été modifié dans `accounts/` ici : le scénario
-> **mesure et nomme**, il ne tranche pas.
+> ~~🔚 Arbitrage attendu (Fabien).~~ ✅ **TRANCHÉ le 2026-08-30 — et la décision RETOURNE
+> l'attendu du scénario.** Le plan de Fabien : l'anonyme est un VISITEUR GUIDÉ — il arrive sur
+> l'accueil où l'avatar de l'AI-Assistant se présente (phrases d'introduction déjà discutées),
+> il peut **naviguer sur toutes les applications** (l'avatar le suit dans le volet), mais **n'y
+> peut rien FAIRE** — tenter d'ajouter un fichier déclenche le rappel « connectez-vous » de
+> l'avatar — **à l'exception du CONVERTER**, app d'essai proposée par l'avatar (aucune ressource
+> GPU). Conséquences :
+> 1. les **12 pages ouvertes ne sont plus un trou** : la NAVIGATION anonyme est l'état VOULU ;
+> 2. ce que le scénario doit mesurer, ce sont les **ACTIONS** (POST mutants : upload, start,
+>    delete…) — attendu : refusées PARTOUT sauf converter. Le scénario `rights_anonymous` est à
+>    RE-CIBLER sur ce contrat (aujourd'hui il compare des PAGES à l'ancienne doctrine « ne doit
+>    rien pouvoir faire », qui confondait voir et faire) ;
+> 3. ⚠ le garde-fou reste SERVEUR : l'avatar est la couche de COURTOISIE, jamais la garde — un
+>    POST anonyme forgé doit être refusé par la vue/le middleware, pas par un message ;
+> 4. l'anomalie `converter_01` (ouvert en anonyme, FERMÉ connecté) reste un vrai défaut à part.
+> `PROFILES_PERMISSIONS §8` est à amender dans le même geste (« rien pouvoir faire » → « rien
+> pouvoir FAIRE, tout pouvoir VOIR, converter en bac d'essai »). Exécution : avec le chantier
+> avatar/accueil, APRÈS le portage (priorité posée par Fabien le même jour).
 
 > ⚠ **Défaut d'instrument, attrapé avant d'accuser le code mesuré.** Le premier passage a rapporté
 > **19 « REFUS INDUS »** sur des apps parfaitement ouvertes : `urllib` lit `http_proxy` dans

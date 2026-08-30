@@ -1214,8 +1214,17 @@ verbatim, par exemple, n'est pas une sortie qu'on retraduit sans le dire).
 
 C'est le cadre au-dessus des deux frontières : `CLAUDE.md` § « la LANGUE des identifiants » en est
 l'application au code (et son critère « qui doit le lire ? » en découle), et la question des `msgid`
-ci-dessous s'y rattache — un `msgid` est écrit **dans le code source**, ce qui penche pour l'anglais,
-mais l'arbitrage formel reste à poser quand 10.A s'ouvrira, avec son coût.
+ci-dessous s'y rattache — un `msgid` est écrit **dans le code source**, ce qui penche pour l'anglais.
+
+✅ **ARBITRAGE TRANCHÉ (Fabien, 2026-08-30)** : *« J'avais déjà décidé ça. L'anglais est la langue
+de WAMA, même si la doc est en français par commodité. On doit se baser sur la langue
+internationale. Donc `msgid` en anglais. Le français n'en est qu'une traduction. »* Les 16 tags
+existants à `msgid` français (reader, `_download_button`) sont donc À RETOURNER quand le chantier
+s'ouvrira — 16 occurrences, pas une dette. **ET le séquencement est décidé du même geste : la
+traduction ATTEND LA FIN DU PORTAGE** — « on ne peut pas bloquer le portage pour la traduction ;
+terminer le portage est la priorité : ça débloque ensuite le studio et le monde Data (en
+parallèle) + le cam analyzer laissé en suspens ». Ce paragraphe lève le 🔴 ci-dessous en tant que
+DÉCISION ; le chantier lui-même reste fermé jusqu'à la fin du portage.
 
 ### 🔴 CE QUI BLOQUE 10.A n'est pas l'effort, c'est une DÉCISION : la langue des `msgid`
 
