@@ -1038,9 +1038,13 @@ où on le lit, et aucune des deux ne peut céder la place à l'autre sans casser
 **Pourquoi ce n'est PAS un renommage ordinaire — le rayon mesuré :** `MEDIA_CATEGORIES`,
 `normalize_types`, les ports studio **en entrée ET en sortie**, `media_library.TYPE_GROUPS`,
 `derive_category` / `_TEXT_OUTPUTS`, et surtout **`detected_type`, qui est STOCKÉ EN BASE** par le
-reader. Ce dernier point le sort de la méthode `/renommage-api` : ce n'est pas un grep tokenisé,
-c'est une **migration de données** — des lignes existantes portent la valeur ambiguë, et il faut
-décider ce qu'elles deviennent avant de toucher au code.
+**describer** (⚠ rectifié le 2026-08-30 : cette ligne l'attribuait au reader, qui n'en a AUCUNE
+occurrence — mesuré ; le champ est `describer/models.py:90`, écrit par
+`detect_type_from_extension` avec un vocabulaire LOCAL `image/video/audio/pdf/text`, **défaut
+`'text'`**, et les vues du describer branchent dessus). Ce point le sort de la méthode
+`/renommage-api` : ce n'est pas un grep tokenisé, c'est une **migration de données** — des lignes
+existantes portent la valeur ambiguë, et il faut décider ce qu'elles deviennent avant de toucher
+au code.
 
 **Ce qui doit être arbitré, dans l'ordre :**
 1. **Quel des deux sens garde le mot `text`** (l'autre prend un mot neuf — `prompt` existe déjà
