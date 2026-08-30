@@ -543,3 +543,29 @@ dépôt, détection structurelle du contenu, aperçu avant création — le mani
   card PENDING pré-remplie, il ne LANCE rien ;
 - le manifeste cite l'app par son id de catalogue → une jumelle de bac à sable peut rejouer
   le process de sa source (même mécanique `generated_from` que l'importeur filemanager).
+
+**Extension (Fabien, 2026-08-30, même session) — un fichier BATCH de manifestes = une FILE
+D'ATTENTE exportable/partageable.** Une fois le manifeste accepté comme modalité de card, un
+fichier de lot dont les lignes pointent des manifestes (chemins ou URLs) décrit une file
+complète : l'utilisateur exporte sa file préparée, l'envoie (même à quelqu'un qui n'a pas
+encore de compte — l'import se fait à la 1ʳᵉ connexion), ou la partage comme on partage une
+card/un batch. Trois mécanismes existants composent : le formalisme batch (les lignes-URL
+existent), l'import de manifeste (modalité ci-dessus, appliquée N fois), et le scoping F7
+(`ScopedVisibility`) pour le partage interne.
+
+**La question des FICHIERS DE TRAVAIL — la médiathèque est la couche de partage (position
+partagée Fabien/Claude, 2026-08-30) :**
+- fichiers DISTANTS : possible si le montage accompagne le manifeste — mais un montage est
+  PERSONNEL (identifiants, droits) : le « montage qui voyage » est une question de DROITS,
+  pas de formalisme — différée ;
+- fichiers LOCAUX : ils ne voyagent pas. La voie propre : **le manifeste partageable référence
+  des IDENTIFIANTS DE MÉDIATHÈQUE, pas des chemins** — l'actif est promu à la médiathèque
+  (avec son scope : unité/projet), et la résolution à l'import applique les DROITS DU
+  DESTINATAIRE (`visible_to`). Le chemin brut reste la forme du REJEU PERSONNEL ; l'identifiant
+  médiathèque est la forme PARTAGEABLE. ⚠ La promotion des entrées vers la médiathèque est un
+  GESTE au moment du partage (dialogue « partager la file » qui propose de publier les entrées
+  avec un scope), jamais un automatisme — même doctrine que « l'entrée au RAG est un geste » ;
+- **une file importée SANS ses fichiers n'est pas un échec : c'est une FILE-MODÈLE** — les
+  cards naissent PENDING avec leurs slots d'entrée VIDES et marqués, à remplir par les zones
+  de rôle (c'est exactement le flux « remplacer les entrées » de `CARD_DESIGN §11.8`
+  exigence 7). Le partage de process et le partage de données sont deux gestes séparables.

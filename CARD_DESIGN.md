@@ -805,6 +805,55 @@ Trois pièges, tous rencontrés :
   card déclarée), galerie (slot « actif visuel » déclaratif) — sinon les 4 apps resteront
   imprortables vers la v3.5.
 
+### 11.9 SPEC card d'entrée v3.5 (PROPOSITION dérivée des exigences §11.8 — à valider par Fabien)
+
+> Écrite le 2026-08-30 pour que le chantier ait sa cible AVANT l'itération de maquette. Rien
+> d'implémenté. Pilote : `converter_01` (généré), puis confrontation aux 4 apps à extra-zones.
+
+**A. La clé structurante — RÔLES en zones, MODALITÉS par zone.** La maquette actuelle aligne
+des mini-onglets de modalité (📄 📚 🔗 🎙 🗂) À PLAT : c'est un axe unique là où il y en a deux.
+La v3.5 les sépare :
+- **une ZONE par RÔLE déclaré** (générée des ports : travail / référence(s) / prompt — plus
+  le lot, qui est un rôle de la card, pas un port). Libellé du port, accept dérivé, chips des
+  fichiers attachés (retirables, `WamaInputMatch`) ;
+- **les MODALITÉS sont les gestes d'alimentation d'UNE zone** : dépôt/clic, dossier,
+  médiathèque (filtrée par l'accept DU RÔLE — exigence 5), URL, filemanager (D&D par rôle —
+  exigence 1). Chaque zone les offre ; plus de bouton global au rôle implicite ;
+- **3 modalités restent transverses** (elles ne remplissent pas une zone, elles créent) :
+  le LOT et le MANIFESTE DE PROCESS (détection structurelle au dépôt → N cards), et le
+  LIVE 🎙 (session → card RUNNING, résultat dans la preview during — exigence 6).
+
+**B. Anatomie** = les 5 sections de toute card v3 : **Entrée** (les zones de rôle du A) ·
+**Réglages** (chips des défauts persistés `user_settings` ; miroirs rapides DÉCLARÉS —
+l'absorption des extra-zones, D) · **Sortie** (format attendu, ~ETA apprise) · **État**
+(Brouillon) · **Actions** : **⚙** (modale des défauts — exigence 4) + **▶ cycle** (inactif
+tant que les entrées REQUISES manquent — gate `WamaInputMatch`/`onState`, déjà piloté par
+l'imager ; sur les apps `depot_cree='cree'` le dépôt en zone travail crée immédiatement, le ▶
+du brouillon ne vit que sur les apps « attache »).
+
+**C. Le prompt** (apps génératives) : cellule primaire, dépliage au focus (`data-nic-primary`
+acquis) + autosize, max-height — la règle « hauteur constante » vaut pour les bascules de
+modalité, pas pour l'édition (exigence 3). Slots NATIFS sous le prompt : chips de mots-clés
+(`wama-prompt-chips`, plus jamais montées par l'app) et **déclencheur ✨ porté par la brique**
+(`wama-prompt-enrich` gagne son bouton — ferme le défaut « attaché sans déclencheur »).
+
+**D. Absorption des 4 extra-zones par la DÉCLARATION** (le risque de blocage mesuré §11.8) :
+réglages rapides = liste de N params DÉCLARÉS `quick=True` (synthesizer voix/vitesse/titre) ;
+sélecteur de modèle en card = option DÉCLARÉE (imager, avec Auto + `WamaModelHelp`) ; galerie
+d'avatars = slot « actif visuel » déclaratif (modalité médiathèque spécialisée) ; aperçu voix
+= affordance de preview de la zone référence. L'`extra_zone_template` reste le repli des
+spécificités non déclarables — mais chacune de ces quatre a désormais une case.
+
+**E. Génération** : `templates_gen` émet tout le A-D depuis ports + capabilities + params —
+zéro littéral par app. Préalables DÉJÀ livrés le 30/08 : slots par domaine, émission du slot
+référence, importeur filemanager des jumelles. Préalable RESTANT : le contrat d'import par
+rôle (payload `role`, menu « Envoyer vers ‹app› › ‹port› » via `_ports_for_category`).
+
+**F. Itération de maquette à faire AVANT le code** (skill frontend-design chargé à ce
+moment-là) : zones de rôle + les 3 exemples manquants — card en ÉCHEC (due depuis §11), card
+LIVE (REC pulsant + chrono dans la preview), card-modèle aux slots vides (file importée sans
+fichiers, `ARCHITECTURE §8`).
+
 #### Défauts SILENCIEUX relevés par le balayage (à corriger indépendamment de la v3.5)
 
 1. `wama/filemanager/static/filemanager/js/filemanager.js:1780` route l'imager vers l'événement
