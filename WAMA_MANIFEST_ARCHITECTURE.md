@@ -527,7 +527,13 @@ sa place d'application TRANSVERSALE** (cf. `STUDIO_VISION.md`). Diagnostic parta
 existe (kind `pipeline`, files homogènes, ports déclarés, capacités héritées « le studio est
 aussi une bibliothèque » — §10.4 marche D) ; le manque est du CÂBLAGE à raffiner et quelques
 briques — la première étant l'ÉMETTEUR du manifeste de process depuis une card, et son
-IMPORTEUR (card pré-remplie PENDING).
+IMPORTEUR. **Et l'importeur est une MODALITÉ DE LA CARD D'ENTRÉE** (précision Fabien,
+2026-08-30) : au même rang que fichier / URL / médiathèque / lot / live — on DÉPOSE un
+manifeste de process sur la card comme on dépose un fichier de lot, et la card se pré-remplit
+(PENDING, jamais lancée). La barre de détection batch est le précédent exact : même geste de
+dépôt, détection structurelle du contenu, aperçu avant création — le manifeste est un
+« fichier de lot » dont les lignes sont un process complet. Cf. `CARD_DESIGN.md §11.8`
+(charge n°1, la liste des modalités).
 
 **Contrats à poser dès la conception (hérités des doctrines en place) :**
 - les entrées sont référencées PAR CHEMIN/identifiant, jamais embarquées — et un manifeste de

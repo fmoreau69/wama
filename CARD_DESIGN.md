@@ -764,7 +764,7 @@ Trois pièges, tous rencontrés :
 
 | # | Charge | État mesuré | Ancres |
 |---|---|---|---|
-| 1 | **Modalités d'entrée** : dépôt/clic · dossier récursif (8/12) · URL (avec ou sans bouton) · médiathèque (`MediaPicker`) · lot · live/Speak (transcriber seul) · slot référence typé (3/12) | brique commune, la v3.5 change leur PRÉSENTATION (mini-onglets) | `wama/common/templates/common/_new_item_card.html` |
+| 1 | **Modalités d'entrée** : dépôt/clic · dossier récursif (8/12) · URL (avec ou sans bouton) · médiathèque (`MediaPicker`) · lot · live/Speak (transcriber seul) · slot référence typé (3/12) · **manifeste de PROCESS** (à venir — l'importeur du pipeline à 1 nœud est une modalité de la card, précision Fabien 30/08, `WAMA_MANIFEST_ARCHITECTURE.md §8` ; même geste que le fichier de lot : dépôt + détection structurelle + aperçu) | brique commune, la v3.5 change leur PRÉSENTATION (mini-onglets) | `wama/common/templates/common/_new_item_card.html` |
 | 2 | **Prompt** primaire (5/12 : composer, synthesizer, avatarizer, imager ×2) + compteur de mots et zone droppable (avatarizer seul) + **prompt négatif** (imager, en zone d'extension) | doctrine écrite : « dans la CARD, pas dans le volet » | `_new_item_card.html:76-77` |
 | 3 | **Réglages inline** : voix/vitesse/titre + **aperçu SSE de la voix** (synthesizer) ; **sélecteur de modèle avec Auto** + aide `WamaModelHelp` (imager ×2) | via `extra_zone_template`, sans contrat — 2 apps ont DÉJÀ des réglages dans la card, sans ⚙ | `wama/synthesizer/templates/synthesizer/_new_item_extra.html` ; `wama/imager/templates/imager/_model_zone.html` |
 | 4 | **Sélection visuelle d'actif** : galerie d'avatars (grille cliquable) | seul cas du parc | `wama/avatarizer/templates/avatarizer/_new_item_extra.html` |
