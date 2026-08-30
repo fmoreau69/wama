@@ -155,18 +155,17 @@ APP_MODES = {
         ],
     },
 
-    # ── SYNTHESIZER (mono-domaine audio ; prouve le mode TEMPS RÉEL) ──────────
+    # ── SYNTHESIZER (mono-domaine audio) ──────────────────────────────────────
+    # ⚠ Le mode `realtime` est PARTI le 2026-08-30 (tranché Fabien, 2ᵉ confirmation — la 1ʳᵉ
+    # était le 2026-07-25, MODES_QUEUE_UX §5) : « pas de mode temps réel, mais une modalité
+    # dans la card d'entrée gérée via la PREVIEW ». Les deux modes déclarés ici étaient
+    # IDENTIQUES (mêmes inputs, mêmes settings — la définition même de ce qui n'est pas un
+    # mode) et AUCUNE UI ne les consommait (0 WamaModes dans l'app, mesuré). La tension
+    # MODES_QUEUE_UX §5bis est close ; l'aperçu SSE de la card reste l'affordance temps réel.
     'synthesizer': {
         'domains': [
             {'id': 'audio', 'label': 'Audio', 'icon': 'fa-volume-high',
-             'accepts': ('text',), 'modes': [
-                {'id': 'normal', 'label': 'Synthèse', 'icon': 'fa-play',
-                 'inputs': ['prompt', 'reference_voice'],
-                 'settings': ['voice', 'language', 'speed']},
-                {'id': 'realtime', 'label': 'Temps réel', 'icon': 'fa-bolt', 'realtime': True,
-                 'inputs': ['prompt', 'reference_voice'],
-                 'settings': ['voice', 'language', 'speed']},
-            ]},
+             'accepts': ('text',), 'inputs': ['prompt', 'reference_voice'], 'modes': []},
         ],
     },
 
@@ -191,21 +190,18 @@ APP_MODES = {
         ],
     },
 
-    # ── TRANSCRIBER (mono-domaine ; le MODE temps réel = « Speak », normal = fichier) ──
+    # ── TRANSCRIBER (mono-domaine ; Speak = MODALITÉ de la card, pas un mode) ──
+    # ⚠ Le mode `realtime` est PARTI le 2026-08-30 (même décision que le synthesizer
+    # ci-dessus) : Speak est une AFFORDANCE de la card d'entrée (`show_live`), la session
+    # live s'affiche via la preview « during » de la card créée — cf. CARD_DESIGN §11.8
+    # exigence 6. Aucune UI ne consommait ces modes (0 WamaModes dans l'app, mesuré).
     'transcriber': {
         'domains': [
             {'id': 'audio', 'label': 'Transcription', 'icon': 'fa-microphone-lines', 'variant': 'info',
              # la VIDÉO est acceptée : elle est une source audio ici. C'est bien la preuve qu'un
              # domaine n'est pas une nature de fichier — son nom dit le workflow, `accepts` dit
              # ce qu'on peut y déposer.
-             'accepts': ('audio', 'video'), 'modes': [
-                {'id': 'normal', 'label': 'Normal', 'icon': 'fa-file-audio',
-                 'inputs': ['work_file'],
-                 'settings': ['model', 'language', 'diarization', 'summary']},
-                {'id': 'realtime', 'label': 'Temps réel', 'icon': 'fa-microphone', 'realtime': True,
-                 'inputs': [],
-                 'settings': ['language']},
-            ]},
+             'accepts': ('audio', 'video'), 'inputs': ['work_file'], 'modes': []},
         ],
     },
 

@@ -1115,33 +1115,11 @@
           ],
           "icon": "fa-microphone-lines",
           "id": "audio",
-          "label": "Transcription",
-          "modes": [
-            {
-              "icon": "fa-file-audio",
-              "id": "normal",
-              "inputs": [
-                "work_file"
-              ],
-              "label": "Normal",
-              "settings": [
-                "model",
-                "language",
-                "diarization",
-                "summary"
-              ]
-            },
-            {
-              "icon": "fa-microphone",
-              "id": "realtime",
-              "inputs": [],
-              "label": "Temps réel",
-              "realtime": true,
-              "settings": [
-                "language"
-              ]
-            }
+          "inputs": [
+            "work_file"
           ],
+          "label": "Transcription",
+          "modes": [],
           "variant": "info"
         }
       ]

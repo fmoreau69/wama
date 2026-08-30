@@ -816,7 +816,10 @@ APP_CATALOG = {
             multi_format_download=None,  # N/A — early binding per-item (output_format/output_quality)
             cycle_button=True,         # _cycle_button.html (_synthesis_card.html:76)
             status_vocab=True,         # SUCCESS/FAILURE (models.py:20/150)
-            modes=False,               # déclaré APP_MODES (normal/realtime) mais WamaModes non câblé côté UI
+            modes=None,                # N/A depuis le 2026-08-30 — les modes normal/realtime (identiques,
+                                       # jamais câblés) sont PARTIS d'APP_MODES : pas de mode temps réel
+                                       # (tranché Fabien ×2 : 25/07 et 30/08), la modalité vit dans la
+                                       # card via la preview (CARD_DESIGN §11.8.6)
             # Portage 2026-07-11 (suite audit §31) :
             anti_race=True,            # begin_processing sur start (verrou + revoke + reset audio_output)
             processing_time=True,      # ProcessingTimeMixin (migration 0013) + _processing_time.html + worker
@@ -853,8 +856,10 @@ APP_CATALOG = {
                               # GÉNÉRÉS depuis le schéma unique (transcriber/params.py + WamaParams)
             modes=None,       # N/A — Speak (temps réel) = AFFORDANCE de la card (show_live,
                               # _new_item_card), PAS un switch WamaModes (design card-centric
-                              # intentionnel, cf. transcriber/index.html:321,352). À repasser à True
-                              # SI le temps réel devient un vrai mode WamaModes (vision « realtime=mode »).
+                              # intentionnel, cf. transcriber/index.html:321,352). La clause « à
+                              # repasser à True si realtime devient un mode » est MORTE le
+                              # 2026-08-30 : Fabien a retranché — pas de mode temps réel, la
+                              # session live passe par la preview during (CARD_DESIGN §11.8.6).
             layout=True,      # ligne / mosaïque
             model_help=True,  # WamaModelHelp (meta backends via get_backends_info, index.js:1580)
             # Audit empirique 2026-07-10 : ETA 3 niveaux câblés (WamaEta.render index.js:279 ;

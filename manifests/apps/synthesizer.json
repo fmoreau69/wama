@@ -1130,38 +1130,12 @@
           ],
           "icon": "fa-volume-high",
           "id": "audio",
+          "inputs": [
+            "prompt",
+            "reference_voice"
+          ],
           "label": "Audio",
-          "modes": [
-            {
-              "icon": "fa-play",
-              "id": "normal",
-              "inputs": [
-                "prompt",
-                "reference_voice"
-              ],
-              "label": "Synthèse",
-              "settings": [
-                "voice",
-                "language",
-                "speed"
-              ]
-            },
-            {
-              "icon": "fa-bolt",
-              "id": "realtime",
-              "inputs": [
-                "prompt",
-                "reference_voice"
-              ],
-              "label": "Temps réel",
-              "realtime": true,
-              "settings": [
-                "voice",
-                "language",
-                "speed"
-              ]
-            }
-          ]
+          "modes": []
         }
       ]
     },
