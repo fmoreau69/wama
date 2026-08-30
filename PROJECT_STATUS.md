@@ -8830,14 +8830,32 @@ transformerait son lien actif en bouton désactivé.
 
 ### ⑤ `WAMA_APP_GENERATION_ROUTE §S2bis.6` reformulé — **répond au point 3 de Fabien**
 
-🟢 **La card d'entrée commune est FONCTIONNELLE et DÉJÀ TYPÉE PAR SLOT dans les 10 apps**
-(`file_accept` + `reference_accept`). La version précédente se lisait comme un défaut de la card :
-elle n'en est pas un. Ce qui manque est que **ce typage est écrit À LA MAIN dans chaque
-`{% include %}`** — aucune déclaration ne le porte. `inputs[]` n'est déclarable que sur un MODE,
-or **6 apps sur 10 ont `modes: []`**, et `resolve_inputs()` n'a **aucun consommateur**.
-⇒ Le vrai défaut est **côté GÉNÉRATEUR** : une app générée naît **EN DESSOUS** des apps manuelles
-(un seul slot, typé par l'union de toutes les extensions, aucun slot de référence). C'est le
-point **(b) de §S2bis.6**, et c'est un chantier de **DÉCLARATION**, pas de card.
+🟢 **La card d'entrée commune est FONCTIONNELLE dans les 10 apps et SAIT typer par slot**
+(`file_accept` `_new_item_card.html:94` + `reference_accept` `:170`). La version précédente se
+lisait comme un défaut de la card : elle n'en est pas un.
+
+⚠ **RECTIFIÉ dans la foulée — question de Fabien** : *« pourquoi et comment le converter bac à
+sable a bien généré sa card d'entrée, fonctionnelle pour l'import depuis l'explorateur Windows,
+si ses entrées ne sont pas déclarées ? Il y a quelque chose qui cloche. »* Il clochait ma phrase
+« aucune déclaration ne le porte ». **La chaîne est entièrement déclarative et le générateur la
+lit** : `app_registry.py:536` → `manifests/builtin/app.py:212` (`IDENTITY_FIELDS` `:823`) →
+`codegen/templates_gen.py:46` → `file_accept` `:300` → **68 extensions dans
+`converter_01/index.html:31`**. L'import explorateur marche PARCE QUE c'est déclaré.
+
+⚠⚠ **Et la mesure retourne le constat : c'est le littéral MANUEL qui est en défaut.**
+`converter/templates/converter/index.html:447` s'arrête à `.tex,.latex` — **14 extensions
+manquent** (`.zip .tar .gz .tgz .bz2 .tbz2 .xz .txz .7z .rar` + `.fb2 .mobi .azw3 .azw`), alors
+que `input_types` déclare `'archive'` et que `converter/utils/format_router.py:44-49` les
+convertit. **Le sélecteur du converter RÉEL grise des fichiers que l'app sait traiter ; celui de
+la jumelle générée, non.** *Un littéral dérive de sa déclaration ; une génération ne le peut pas.*
+→ **nouveau chantier ①bis** dans la file ci-dessous.
+
+⇒ Ce qui reste vrai, et qui est le SEUL manque : le typage **PAR SLOT** n'est déclaré nulle part
+(`reference_accept`/`show_reference` = littéraux dans **2 gabarits sur 10**, composer et imager) ;
+`inputs[]` n'est déclarable que sur un MODE, or **6 apps sur 10 ont `modes: []`**, et
+`resolve_inputs()` n'a **aucun consommateur**. Le générateur n'émet donc **qu'un slot** — en
+dessous des apps manuelles **sur ce seul point**, et au-dessus sur la fidélité (ci-dessus).
+C'est le point **(b) de §S2bis.6**, et c'est un chantier de **DÉCLARATION**, pas de card.
 
 ### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
 
@@ -8846,6 +8864,13 @@ ci-dessus à traiter **avant** d'aller au-delà du converter.
 
 **File des chantiers ouverts** (ordre) :
 1. **Portage du converter** — non bloqué, c'est le point d'entrée ;
+   **①bis (défaut RÉEL trouvé le 30/08, à traiter dans le même geste)** : le `file_accept` écrit à
+   la main de `converter/templates/converter/index.html:447` a **14 extensions de retard** sur
+   `APP_CATALOG['converter'].input_extensions`. Correctif à faire **par la déclaration, pas par le
+   littéral** — exposer `input_extensions` au contexte de la vue et le passer au lieu d'une liste
+   figée. ⚠ **Chercher les jumeaux avant de corriger** : 9 autres gabarits portent le même genre
+   de littéral, et rien ne les tient synchronisés avec le catalogue (aucun test, aucun critère de
+   grille). Le geste juste est **un contrôle mécanique** (littéral ⊆ déclaration), pas 10 patchs ;
 2. **(b) déclaration d'entrées PAR SLOT au manifeste** + émission par `templates_gen` — à faire
    avant la 2ᵉ app portée, et **avant** de juger la card v3 sur la jumelle ;
 3. `download_all` de **reader** et **describer** : lire `?format=` côté VUE, puis opter au ⬇
@@ -8869,7 +8894,8 @@ pendant la session (PID master 122327) — WAMA relancé par Fabien depuis.
 **Contrôles attendus au prochain /reprise (MESURÉS à cette clôture, 30/08)** :
 - `wama.common.tests_downloads` : **9 tests OK** (dont 6 neufs) ;
 - `check_docs` : **1 CIBLE DISTINCTE** (partial d'onglets assumé) / 8 réf / **0 périmée** sur
-  1185 ; 0 chiffre sans source ;
+  **1196** (34 docs + 14 skills — remesuré APRÈS la rectification ⑤, qui a ajouté 4 références
+  toutes résolvantes) ; 0 chiffre sans source ;
 - 112 gabarits **compilés** ; `check_templates` **0/128** ; grille de conformité **inchangée**.
 
 **Artefacts de session** : `compile_templates.py` au scratchpad (jetable — la recette est dans

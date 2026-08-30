@@ -720,17 +720,43 @@ outillé avant d'ouvrir cette marche.
      (« je ne comprends pas ta formulation ») et **RECADRÉ par la mesure**, car la version
      précédente se lisait comme un défaut de la card d'entrée. Elle n'en est pas un.
 
-     🟢 **Point de départ à ne pas perdre de vue : la card d'entrée commune est FONCTIONNELLE et
-     DÉJÀ TYPÉE PAR SLOT dans les 10 apps.** `common/_new_item_card.html` porte un `file_accept`
-     pour le slot de travail ET un `reference_accept` pour le slot de référence (composer
-     `audio/*` pour la mélodie, imager `image/*` pour l'image de référence), plus les modalités
-     URL / médiathèque / lot / live. **Rien de ce qui suit ne demande de la toucher.**
+     🟢 **Point de départ à ne pas perdre de vue : la card d'entrée commune est FONCTIONNELLE
+     dans les 10 apps, et elle SAIT typer par slot.** `common/_new_item_card.html` porte un
+     `file_accept` pour le slot de travail (`:94`) ET un `reference_accept` pour le slot de
+     référence (`:170`, sous `{% if show_reference %}` `:158` — composer `audio/*` pour la
+     mélodie, imager `image/*` pour l'image de référence), plus les modalités URL / médiathèque
+     / lot / live. **Rien de ce qui suit ne demande de la toucher** — la brique a la case ; ce
+     sont la DÉCLARATION et le GÉNÉRATEUR qui ne la remplissent pas (seuls **2 gabarits sur 10**
+     passent `show_reference`, en littéral).
 
-     - **(a) Le typage par slot existe, mais il est écrit À LA MAIN dans chaque `{% include %}`.**
-       Aucune déclaration ne le porte. Mesuré : **trois** sources décrivent ce qu'une app accepte,
-       et celle qui alimente la card n'est aucune des deux déclaratives —
+     - **(a) ⚠ RECTIFIÉ le 2026-08-30, question de Fabien** — *« pourquoi et comment le converter
+       bac à sable a bien généré sa card d'entrée, qui est fonctionnelle pour l'import depuis
+       l'explorateur Windows, si ses entrées ne sont pas déclarées ? Il y a quelque chose qui
+       cloche. »* Il y avait bien quelque chose qui clochait : **ma phrase.** J'avais écrit
+       « aucune déclaration ne le porte » — c'est FAUX, et la jumelle générée en est la preuve
+       vivante. La chaîne est complète et entièrement déclarative :
+       `APP_CATALOG['converter'].input_extensions` (`app_registry.py:536`) → projeté au manifeste
+       (`manifests/builtin/app.py:212`, champ retenu par `IDENTITY_FIELDS` `:823`) →
+       **LU par le générateur** (`codegen/templates_gen.py:46`,
+       `accept = ','.join(ident['input_extensions'])`) → injecté en `file_accept`
+       (`templates_gen.py:300`) → **68 extensions dans le sélecteur de
+       `converter_01/index.html:31`**. L'import explorateur marche **PARCE QUE** c'est déclaré.
+       ⚠⚠ **Et la mesure RETOURNE le constat que le paragraphe voulait faire.** En comparant la
+       jumelle à sa source, c'est le littéral ÉCRIT À LA MAIN qui est en défaut :
+       `converter/templates/converter/index.html:447` s'arrête à `.tex,.latex` — il **manque 14
+       extensions** que l'app déclare et que le serveur convertit réellement (les 10 archives
+       `.zip .tar .gz .tgz .bz2 .tbz2 .xz .txz .7z .rar`, plus `.fb2 .mobi .azw3 .azw`), alors
+       que `input_types` déclare `'archive'` et que `converter/utils/format_router.py:44-49` en
+       tient la table d'entrée. **Le sélecteur du converter RÉEL grise des fichiers que l'app
+       sait traiter ; celui de la jumelle générée, non.** Un littéral dérive de sa déclaration,
+       une génération ne le peut pas. *La déclaration n'était pas le maillon manquant : elle est
+       le maillon le plus fiable des deux.* (Défaut à corriger côté app source — voir la file
+       des chantiers du §REPRISE.)
+       Ce qui reste vrai, et qui est le SEUL manque : **trois** sources décrivent ce qu'une app
+       accepte, et **aucune ne type PAR SLOT hors d'un mode** —
        1. `APP_CATALOG[app].input_extensions` — une liste **PLATE** par app, toutes entrées
-          confondues (`app_registry.py:686` : imager = `TEXT_EXTENSIONS + IMAGE_EXTENSIONS`) ;
+          confondues (`app_registry.py:686` : imager = `TEXT_EXTENSIONS + IMAGE_EXTENSIONS`) —
+          **déclarative, lue par le générateur, et la seule qui alimente une card générée** ;
        2. `APP_MODES[app].modes[].inputs[]` + `INPUT_TYPES[slot]['accept']` — le **SEUL** endroit
           qui type par slot (`work_image → 'image'`, `reference_voice → 'audio'`,
           `app_modes.py:62-74`). Il n'est déclarable que **sur un mode**, or **6 apps sur 10 ont
@@ -738,16 +764,21 @@ outillé avant d'ouvrir cette marche.
           fichier assume ce choix (`:91-93` : les modes d'imager ont été retirés « au profit d'UNE
           card d'entrée par domaine »). Son accesseur `resolve_inputs()` n'a **aucun consommateur**
           dans tout le dépôt ;
-       3. les valeurs littérales du gabarit d'app — **la seule qui marche aujourd'hui.**
-       ⇒ Le manque n'est pas « la card ne déclare pas ses entrées », c'est **« la déclaration n'a
-       pas de case pour ce que la card fait déjà »** : `inputs` est la seule clé du schéma
+       3. les valeurs littérales du gabarit d'app — **la seule qui type par slot aujourd'hui**
+          (`reference_accept` / `show_reference` : **2 apps sur 10**, composer et imager), et
+          celle qui dérive, cf. les 14 extensions perdues du converter ci-dessus.
+       ⇒ Le manque n'est pas « la card ne déclare pas ses entrées » — elle les déclare, et ça
+       marche jusque dans une app générée. C'est **« la déclaration n'a pas de case pour le SLOT,
+       que la card sait pourtant déjà rendre »** : `inputs` est la seule clé du schéma
        d'`APP_MODES` à ne pas être portée par le DOMAINE, alors que tout le reste l'est
        (`accepts`, `variant`, `route_prefix`, et le routage `domain_for_category`).
      - **(b) Conséquence directe sur le portage — c'est là qu'est le vrai défaut.** Le générateur
-       ne dispose que de la source PLATE : `templates_gen.py:46` fabrique
+       lit la source PLATE, et **rien d'autre** : `templates_gen.py:46` fabrique
        `accept = ','.join(input_extensions)` et `:300` l'injecte en **un seul `file_accept`**, sans
-       jamais émettre `show_reference`. **Une app générée naît donc EN DESSOUS des apps écrites à
-       la main** : un seul slot, typé par l'union de toutes les extensions de l'app. Sur le
+       jamais émettre `show_reference` ni `reference_accept`. Une app générée naît donc avec **un
+       slot unique**, typé par l'union de toutes les extensions de l'app. ⚠ Ce n'est PAS « en
+       dessous des apps écrites à la main » — sur le converter la jumelle est au contraire plus
+       fidèle (a) ; c'est en dessous **sur le nombre de slots**, et sur ce seul point. Sur le
        converter c'est indolore (une seule entrée) ; dès la 2ᵉ app portée, le sélecteur de fichier
        du slot « image de travail » proposerait `.docx` et le slot de référence n'existerait pas.
        ⇒ **Ce qu'il faut réparer avant de porter au-delà du converter** : donner au manifeste une
