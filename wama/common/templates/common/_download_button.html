@@ -10,13 +10,29 @@ dernier parce qu'elle est la seule qui ne soit pas un handler JS : un `<a href>`
 déléguer, donc la divergence ne se voyait ni au clic ni dans un grep de `addEventListener`. Elle
 se voyait dans le GABARIT — trois dropdowns recopiés et deux `<button>`+JS contraires à §6.3.
 
-Paramètres :
-  url        (requis) URL de téléchargement SANS query — `{% templatetag openblock %} url 'app:download' o.id {% templatetag closeblock %}`
-  pret       (requis) booléen : y a-t-il un résultat à télécharger ?
-  formats    (option) liste d'entrées de `common/utils/export_formats.entrees*()`. Vide → lien simple.
-  titre      (option) infobulle du bouton principal (défaut : « Télécharger »)
-  titre_vide (option) infobulle quand rien n'est prêt (défaut : « Pas encore de résultat »)
-  classe     (option) classes du bouton (défaut : `btn-outline-info`, couleur conventionnelle §6.2)
+Paramètres (⚠ renommés en anglais le 2026-08-30, cf. `templatetags/wama_actions.py`) :
+  url         (requis) URL de téléchargement SANS query — `{% templatetag openblock %} url 'app:download' o.id {% templatetag closeblock %}`
+  ready       (requis) booléen : y a-t-il un résultat à télécharger ?
+  formats     (option) liste d'entrées de `common/utils/export_formats.entries*()`. Vide → lien simple.
+  title       (option) infobulle du bouton principal (défaut : « Télécharger »)
+  empty_title (option) infobulle quand rien n'est prêt (défaut : « Pas encore de résultat »)
+  css_class   (option) classes du bouton (défaut : `btn-outline-info`, couleur conventionnelle §6.2)
+  id          (option) id posé sur l'élément INTERACTIF, quelle que soit la branche rendue
+  label       (option) libellé après l'icône (une card n'en a pas ; une BARRE DE FILE en a un)
+  split       (option) `False` → **menu seul** : un unique bouton ▾ au lieu du split button
+
+⚠ AJOUT DU 2026-08-30 — `id` / `label` / `split=False`, et POURQUOI ces trois-là.
+Ce partial était conçu pour une CARD ; c'est ce qui l'a empêché de servir la barre de file, qui a
+donc recopié ses deux premières branches (`_queue_actions.html`) **et sa troisième en JS**
+(`transcriber/js/index.js` : dropdown reconstruit à la main, 4 formats CODÉS EN DUR, URL fabriquée
+par `replace('start_all','download_all')`). Les trois manques étaient exactement : pas d'`id` (le
+JS d'app cible le bouton), pas de `label` (« Télécharger tout »), et une forme SPLIT imposée.
+`split=False` n'est pas un choix esthétique offert aux apps : c'est la forme d'une action de
+BARRE, où il n'y a pas de « format par défaut » à cliquer sans ouvrir le menu.
+⚠ La branche « menu seul » se rend **même quand `ready` est faux** (bouton `disabled`, menu déjà
+en place) : trois apps basculent `disabled` au runtime sur ce bouton, et le menu doit exister
+avant que le JS ne l'active. C'est le seul cas où `ready` ne choisit pas la BRANCHE mais seulement
+l'état du bouton.
 
 ⚠ Le bouton principal pointe `?format=<premier déclaré>` quand il y a plusieurs formats, et
 l'URL NUE quand il n'y en a qu'un. Ce n'est pas un choix : c'est ce que faisaient DÉJÀ les trois
@@ -26,35 +42,55 @@ inventer un comportement au lieu d'en reprendre un. Généraliser, c'est déplac
 pas en profiter pour le changer.
 {% endcomment %}
 {% load i18n %}
-{% if not pret %}
-  <button class="btn btn-sm {{ classe|default:'btn-outline-info' }}" disabled
+{% if split is False and formats %}
+  {# MENU SEUL (barre de file) — un bouton, un ▾ : la rangée d'actions ne s'élargit pas. #}
+  <div class="dropdown d-inline-block">
+    <button type="button"{% if id %} id="{{ id }}"{% endif %}
+            class="btn btn-sm {{ css_class|default:'btn-outline-info' }} dropdown-toggle"
+            data-bs-toggle="dropdown" aria-expanded="false"{% if not ready %} disabled{% endif %}
+            title="{% if ready %}{{ title|default:_('Télécharger') }}{% else %}{{ empty_title|default:_('Pas encore de résultat') }}{% endif %}">
+      <i class="fas fa-download"></i>{% if label %} {{ label }}{% endif %}
+    </button>
+    <ul class="dropdown-menu dropdown-menu-dark">
+      {% for f in formats %}
+        {% if f.separator %}<li><hr class="dropdown-divider"></li>{% endif %}
+        <li>
+          <a class="dropdown-item" href="{{ url }}?format={{ f.value }}">
+            <i class="{{ f.icon }} me-2"></i>{{ f.label }}
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+{% elif not ready %}
+  <button{% if id %} id="{{ id }}"{% endif %} class="btn btn-sm {{ css_class|default:'btn-outline-info' }}" disabled
           aria-disabled="true" tabindex="-1"
-          title="{{ titre_vide|default:_('Pas encore de résultat') }}">
-    <i class="fas fa-download"></i>
+          title="{{ empty_title|default:_('Pas encore de résultat') }}">
+    <i class="fas fa-download"></i>{% if label %} {{ label }}{% endif %}
   </button>
 {% elif not formats %}
-  <a href="{{ url }}" class="btn btn-sm {{ classe|default:'btn-outline-info' }} download-btn"
-     title="{{ titre|default:_('Télécharger') }}">
-    <i class="fas fa-download"></i>
+  <a{% if id %} id="{{ id }}"{% endif %} href="{{ url }}" class="btn btn-sm {{ css_class|default:'btn-outline-info' }} download-btn"
+     title="{{ title|default:_('Télécharger') }}">
+    <i class="fas fa-download"></i>{% if label %} {{ label }}{% endif %}
   </a>
 {% else %}
   <div class="btn-group btn-group-sm">
-    <a href="{{ url }}?format={{ formats.0.valeur }}"
-       class="btn {{ classe|default:'btn-outline-info' }} download-btn"
-       title="{{ titre|default:_('Télécharger') }}">
-      <i class="fas fa-download"></i>
+    <a{% if id %} id="{{ id }}"{% endif %} href="{{ url }}?format={{ formats.0.value }}"
+       class="btn {{ css_class|default:'btn-outline-info' }} download-btn"
+       title="{{ title|default:_('Télécharger') }}">
+      <i class="fas fa-download"></i>{% if label %} {{ label }}{% endif %}
     </a>
     <button type="button"
-            class="btn {{ classe|default:'btn-outline-info' }} dropdown-toggle dropdown-toggle-split"
+            class="btn {{ css_class|default:'btn-outline-info' }} dropdown-toggle dropdown-toggle-split"
             data-bs-toggle="dropdown" aria-expanded="false">
       <span class="visually-hidden">{% trans "Autres formats" %}</span>
     </button>
     <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end">
       {% for f in formats %}
-        {% if f.separateur %}<li><hr class="dropdown-divider"></li>{% endif %}
+        {% if f.separator %}<li><hr class="dropdown-divider"></li>{% endif %}
         <li>
-          <a class="dropdown-item" href="{{ url }}?format={{ f.valeur }}">
-            <i class="{{ f.icone }} me-2"></i>{{ f.label }}
+          <a class="dropdown-item" href="{{ url }}?format={{ f.value }}">
+            <i class="{{ f.icon }} me-2"></i>{{ f.label }}
           </a>
         </li>
       {% endfor %}

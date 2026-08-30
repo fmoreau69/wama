@@ -701,7 +701,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // ── ▶ ⧉ 🗑 du LOT AUDIO : brique commune `queue-actions.js` (2026-08-27) ──────────────
     // Retrait des trois handlers locaux ET pose de `actions_communes=True domain='audio'` sur
     // l'include : un seul geste (sinon double POST). Les URLs `audio_batch_*` sont résolues par
-    // la card mère via `prefixe_routes` — plus aucun `cfg.audioBatch*UrlTemplate` recollé ici.
+    // la card mère via `domain_route_prefix` — plus aucun `cfg.audioBatch*UrlTemplate` recollé ici.
     //
     // DEUX spécificités déclarées, parce qu'elles ne sont PAS décoratives :
     //  • le CORPS — le volet gauche audio est la surface de réglage vivante de cette file, et

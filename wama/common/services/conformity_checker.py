@@ -617,11 +617,11 @@ def _download_wiring(f: _AppFiles):
     trois apps recopiaient le même dropdown à la main, deux rendaient un `<button>`+JS contraire
     à §6.3 (et à leur propre déclaration `export_binding`), une postait un FORMULAIRE.
 
-    Ce qu'on exige : le gabarit appelle `{% bouton_telecharger … %}`, et il ne reste NI dropdown
+    Ce qu'on exige : le gabarit appelle `{% download_button … %}`, et il ne reste NI dropdown
     écrit à la main, NI handler de clic sur `.download-btn`. Le second membre compte autant que le
     premier — adopter la brique en laissant l'ancien markup à côté donnerait deux boutons.
     """
-    brique = f.find_code(TEMPLATES, r'bouton_telecharger')
+    brique = f.find_code(TEMPLATES, r'download_button')
     # Dropdown de formats écrit à la main : la marque en est `?format=` dans un `dropdown-item`.
     manuel = f.find_code(TEMPLATES, r'dropdown-item[^>]*\?format=')
     # Un `<a href>` n'a pas de handler : un clic écouté sur `.download-btn` est le signe d'une
@@ -715,7 +715,7 @@ def _btn_order(f: _AppFiles):
     ⚠ CHAQUE MARQUEUR DOIT ACCEPTER LA FORME COMMUNE AUTANT QUE LA FORME LOCALE, sinon ce
     critère PUNIT l'adoption d'une brique. Vécu deux fois :
       • ▶ : `_cycle_button.html` (include) accepté à côté de `fa-play|fa-redo` ;
-      • ⬇ : `bouton_telecharger` (tag d'inclusion) ajouté le 2026-08-23 — sans lui, les 10 apps
+      • ⬇ : `download_button` (tag d'inclusion) ajouté le 2026-08-23 — sans lui, les 10 apps
         passaient au ROUGE le jour où le bouton de téléchargement a rejoint le commun, alors que
         rien n'avait disparu de l'écran. Le critère ne cherchait plus l'icône au bon endroit :
         elle avait simplement déménagé dans le partial.
@@ -724,7 +724,7 @@ def _btn_order(f: _AppFiles):
     doit suivre le markup quand il se centralise — sinon il transforme un progrès en régression.
     """
     markers = [r'fa-cog|fa-gear', r'_cycle_button\.html|fa-play|fa-redo',
-               r'fa-download|bouton_telecharger',
+               r'fa-download|download_button',
                r'fa-copy|fa-clone', r'fa-trash']
     best = None
     for path in f.glob('templates/**/*card*.html') + f.glob('templates/**/index.html'):

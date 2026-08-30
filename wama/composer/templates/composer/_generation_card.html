@@ -96,7 +96,7 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
         </button>
         {% include 'common/_cycle_button.html' with id=elem.id status=elem.status %}
         {% url 'composer:download' elem.id as url_dl %}
-        {% bouton_telecharger 'composer' url_dl elem.audio_output %}
+        {% download_button 'composer' url_dl elem.audio_output %}
         {% if elem.audio_output %}
         {% if not elem.exported_to_library %}
         <button class="btn btn-sm export-btn" data-id="{{ elem.id }}" title="Exporter vers médiathèque">

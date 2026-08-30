@@ -160,7 +160,7 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                             un changement visible qui n'appartient pas à un portage de brique.
                             Consigné, à trancher séparément.{% endcomment %}
                             {% url 'transcriber:download' elem.id as url_dl %}
-                            {% bouton_telecharger 'transcriber' url_dl True %}
+                            {% download_button 'transcriber' url_dl True %}
                             {% endif %}
 
                             <button class="btn btn-sm btn-outline-warning duplicate-btn"

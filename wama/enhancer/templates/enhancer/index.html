@@ -303,7 +303,7 @@
       audioBatchStatusUrlTemplate: '{% url "enhancer:audio_batch_status" 0 %}',
       audioBatchDownloadUrlTemplate: '{% url "enhancer:audio_batch_download" 0 %}',
       {% comment %}audioBatchDelete/audioBatchDuplicate RETIRÉS le 2026-08-27 : la card mère audio
-      les résout par `prefixe_routes` (domain='audio' → préfixe `audio_`).{% endcomment %}
+      les résout par `domain_route_prefix` (domain='audio' → préfixe `audio_`).{% endcomment %}
     };
 
     {% comment %}

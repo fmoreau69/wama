@@ -104,7 +104,7 @@ Contexte : elem (décoré par _decorate_card → elem.chips), in_batch, user.
         soumission. La route `anonymizer:download` (GET, `download/<pk>/`) a été ajoutée au même
         geste ; `download_media/` délègue au même corps en attendant son retrait.{% endcomment %}
         {% url 'anonymizer:download' elem.id as url_dl %}
-        {% bouton_telecharger 'anonymizer' url_dl elem.processed titre='Télécharger le média traité' %}
+        {% download_button 'anonymizer' url_dl elem.processed title='Télécharger le média traité' %}
         <button type="button" class="btn btn-sm btn-outline-warning duplicate-btn"
                 data-duplicate-url="{% url 'anonymizer:duplicate_media' elem.id %}"
                 title="Dupliquer (tester d'autres paramètres)">

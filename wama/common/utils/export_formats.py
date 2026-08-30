@@ -15,6 +15,13 @@ la règle ni la donnée : c'était le morceau de code qui les relie.
 
 Le relevé des trois dropdowns écrits à la main a montré des icônes et libellés **identiques** pour
 les formats partagés — la table ci-dessous ne tranche donc aucun arbitrage, elle constate.
+
+⚠ RENOMMAGE DU 2026-08-30 (question de Fabien : « je vois encore un nom de fonction en français »).
+`VOCABULAIRE` / `entree` / `entrees` / `entrees_pour_app` et les clés de payload `valeur`/`icone`/
+`groupe`/`separateur` sont passés à l'anglais. Ce module est IMPORTÉ et son tag est lu dans 12
+gabarits : c'est une API, donc la règle de CLAUDE.md s'applique sans exception. Il avait échappé
+à la passe du 29/08 parce que celle-ci visait le model_manager et le JS commun — *un renommage se
+mesure sur un CRITÈRE, jamais sur la liste des fichiers qu'on avait en tête*.
 """
 from __future__ import annotations
 
@@ -24,70 +31,70 @@ from django.utils.translation import gettext_lazy as _
 # reader et transcriber séparaient déjà « formats texte » / « documents » / « brut » — le
 # regroupement REPRODUIT leur mise en forme au lieu de l'aplatir (règle : généraliser sans
 # changer ce que l'utilisateur voit).
-TEXTE, DOCUMENT, BRUT = 'texte', 'document', 'brut'
+TEXT, DOCUMENT, RAW = 'text', 'document', 'raw'
 
-VOCABULAIRE: dict[str, dict] = {
-    'txt':  {'label': 'TXT',        'icone': 'fas fa-file-alt',           'groupe': TEXTE},
-    'md':   {'label': 'Markdown',   'icone': 'fab fa-markdown',           'groupe': TEXTE},
-    'srt':  {'label': 'SRT',        'icone': 'fas fa-closed-captioning',  'groupe': TEXTE},
-    'vtt':  {'label': 'VTT',        'icone': 'fas fa-closed-captioning',  'groupe': TEXTE},
-    'pdf':  {'label': 'PDF',        'icone': 'fas fa-file-pdf text-danger',   'groupe': DOCUMENT},
-    'docx': {'label': 'DOCX',       'icone': 'fas fa-file-word text-primary', 'groupe': DOCUMENT},
-    'json': {'label': _('JSON brut'), 'icone': 'fas fa-code text-warning',    'groupe': BRUT},
+VOCABULARY: dict[str, dict] = {
+    'txt':  {'label': 'TXT',        'icon': 'fas fa-file-alt',           'group': TEXT},
+    'md':   {'label': 'Markdown',   'icon': 'fab fa-markdown',           'group': TEXT},
+    'srt':  {'label': 'SRT',        'icon': 'fas fa-closed-captioning',  'group': TEXT},
+    'vtt':  {'label': 'VTT',        'icon': 'fas fa-closed-captioning',  'group': TEXT},
+    'pdf':  {'label': 'PDF',        'icon': 'fas fa-file-pdf text-danger',   'group': DOCUMENT},
+    'docx': {'label': 'DOCX',       'icon': 'fas fa-file-word text-primary', 'group': DOCUMENT},
+    'json': {'label': _('JSON brut'), 'icon': 'fas fa-code text-warning',    'group': RAW},
 }
 
 # Ordre d'affichage stable, quel que soit l'ordre de déclaration de l'app : le premier format
 # reste le format PAR DÉFAUT du bouton principal, les autres suivent le vocabulaire.
-_ORDRE = list(VOCABULAIRE)
+_ORDER = list(VOCABULARY)
 
 
-def entree(valeur: str) -> dict:
+def entry(value: str) -> dict:
     """Décrit UN format. Un format inconnu du vocabulaire reste affichable (repli neutre) —
     une app ne doit jamais perdre un bouton parce qu'elle a déclaré un format exotique."""
-    v = (valeur or '').lower().lstrip('.')
-    meta = VOCABULAIRE.get(v) or {'label': v.upper(), 'icone': 'fas fa-file', 'groupe': DOCUMENT}
-    return {'valeur': v, **meta}
+    v = (value or '').lower().lstrip('.')
+    meta = VOCABULARY.get(v) or {'label': v.upper(), 'icon': 'fas fa-file', 'group': DOCUMENT}
+    return {'value': v, **meta}
 
 
-def entrees(formats, disponibles=None) -> list[dict]:
+def entries(formats, available=None) -> list[dict]:
     """
     Liste ordonnée d'entrées prêtes pour `common/_download_button.html`.
 
-    `formats`      : ce que l'app DÉCLARE (`APP_CATALOG[app]['conventions']['export_formats']`).
-    `disponibles`  : restriction au niveau de l'ITEM (optionnelle) — reader n'offre `json` que si
-                     l'item porte un `raw_result`. Un format déclaré mais indisponible sur CET
-                     élément ne doit pas s'afficher : la déclaration dit ce que l'app sait faire,
-                     l'item dit ce qu'il a.
-    Chaque entrée porte `separateur=True` quand elle ouvre un nouveau groupe (jamais la première).
+    `formats`   : ce que l'app DÉCLARE (`APP_CATALOG[app]['conventions']['export_formats']`).
+    `available` : restriction au niveau de l'ITEM (optionnelle) — reader n'offre `json` que si
+                  l'item porte un `raw_result`. Un format déclaré mais indisponible sur CET
+                  élément ne doit pas s'afficher : la déclaration dit ce que l'app sait faire,
+                  l'item dit ce qu'il a.
+    Chaque entrée porte `separator=True` quand elle ouvre un nouveau groupe (jamais la première).
     """
     if isinstance(formats, str):
         formats = [f for f in formats.replace(' ', '').split(',') if f]
-    voulus = [f.lower().lstrip('.') for f in (formats or [])]
-    if disponibles is not None:
+    wanted = [f.lower().lstrip('.') for f in (formats or [])]
+    if available is not None:
         # Accepte une CHAÎNE « txt,md,pdf » : un gabarit Django ne sait pas construire une liste
         # sans contorsion (`{% with %}` refuse une expression filtrée), et exiger une property de
         # modèle pour une restriction d'affichage serait faire payer le modèle pour l'UI.
-        if isinstance(disponibles, str):
-            disponibles = [d for d in disponibles.replace(' ', '').split(',') if d]
-        permis = {f.lower().lstrip('.') for f in disponibles}
-        voulus = [f for f in voulus if f in permis]
+        if isinstance(available, str):
+            available = [d for d in available.replace(' ', '').split(',') if d]
+        allowed = {f.lower().lstrip('.') for f in available}
+        wanted = [f for f in wanted if f in allowed]
     # Ordre du vocabulaire, puis les inconnus à la fin (dans l'ordre déclaré).
-    connus = [f for f in _ORDRE if f in voulus]
-    inconnus = [f for f in voulus if f not in VOCABULAIRE]
-    sortie, groupe_precedent = [], None
-    for f in connus + inconnus:
-        e = entree(f)
-        e['separateur'] = groupe_precedent is not None and e['groupe'] != groupe_precedent
-        groupe_precedent = e['groupe']
-        sortie.append(e)
-    return sortie
+    known = [f for f in _ORDER if f in wanted]
+    unknown = [f for f in wanted if f not in VOCABULARY]
+    out, previous_group = [], None
+    for f in known + unknown:
+        e = entry(f)
+        e['separator'] = previous_group is not None and e['group'] != previous_group
+        previous_group = e['group']
+        out.append(e)
+    return out
 
 
-def entrees_pour_app(app_name: str, disponibles=None) -> list[dict]:
+def entries_for_app(app_name: str, available=None) -> list[dict]:
     """Idem, en lisant la déclaration de l'app — l'appelant n'a que son nom à donner."""
     try:
         from wama.common.app_registry import APP_CATALOG
         conv = (APP_CATALOG.get(app_name, {}) or {}).get('conventions', {}) or {}
     except Exception:
         return []
-    return entrees(conv.get('export_formats') or (), disponibles)
+    return entries(conv.get('export_formats') or (), available)

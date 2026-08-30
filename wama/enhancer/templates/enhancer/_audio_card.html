@@ -90,7 +90,7 @@ Contexte : elem (AudioEnhancement, décorée .chips), in_batch (bool).
         </button>
         {% include 'common/_cycle_button.html' with id=elem.id status=elem.status %}
         {% url 'enhancer:audio_download' elem.id as url_dl %}
-        {% bouton_telecharger 'enhancer' url_dl elem.output_file %}
+        {% download_button 'enhancer' url_dl elem.output_file %}
         <button class="btn btn-sm btn-outline-warning duplicate-btn"
                 data-duplicate-url="{% url 'enhancer:audio_duplicate' elem.id %}" title="Dupliquer">
           <i class="fas fa-copy"></i>

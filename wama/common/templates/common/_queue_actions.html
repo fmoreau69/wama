@@ -25,23 +25,34 @@ Les `*_url` servent donc à résorber ces 22 copies, pas à ranimer des boutons 
 la barre câblable par un GABARIT, qui ne peut passer qu'une URL. Une app qui garde son handler par
 id ne passe simplement pas d'URL (sinon le POST partirait DEUX fois).
 
-⚠ Le ⬇ ci-dessous rejoue en petit les deux premières branches de `common/_download_button.html`
-(rien de prêt → `<button disabled>` ; prêt → `<a href>`). Il n'y DÉLÈGUE PAS, à dessein : cette
-brique-là rend un bouton de CARD, sans libellé ni id, et 3 apps basculent `disabled` au runtime
-sur celui-ci. Sa TROISIÈME branche (split button multi-format) est en revanche déjà recopiée à la
-main ici — `transcriber/index.js:833-859` reconstruit un dropdown txt/srt/pdf/docx en JS autour du
-bouton rendu. C'est la duplication qui forcera la fusion : elle se règle en donnant `id`/`label`
+  app          — (option, 2026-08-30) NOM D'APP au catalogue. Fourni AVEC `download_url`, le ⬇
+                 n'est plus rendu ici : il est DÉLÉGUÉ à `common/_download_button.html`, qui
+                 offre alors les formats d'export DÉCLARÉS (`export_formats`) dans un menu ▾.
+                 Sans `app`, le rendu reste identique à l'octet près (aucune app n'a à bouger).
+
+✅ FUSION DU 2026-08-30 — ce paragraphe disait « il n'y DÉLÈGUE PAS, à dessein », en donnant trois
+raisons : la brique rendait un bouton de CARD (sans `id` ni `label`), et 3 apps basculent
+`disabled` au runtime sur celui-ci. Les trois sont levées : la brique accepte `id`/`label`, et sa
+branche `split=False` se rend **même quand `ready` est faux** (bouton `disabled`, menu déjà en
+place) — précisément pour que le basculement JS continue de marcher.
+Ce qui restait est ce qui forçait la fusion : la TROISIÈME branche (multi-format) était recopiée
+**en JS** — `transcriber/js/index.js` reconstruisait un dropdown txt/srt/pdf/docx **codés en dur**
+autour du bouton rendu ici, avec l'URL fabriquée par `replace('start_all','download_all')`. Un
+format ajouté au catalogue n'y serait jamais apparu. C'est réglé en donnant `id`/`label`/`split`
 au partial commun, PAS en ajoutant un second dropdown ici (§S2bis point 10).
 
 Usage :
   {% include 'common/_queue_actions.html' with start_id='transcriber-process-btn' download_id='transcriber-download-all-btn' clear_id='transcriber-clear-btn' show_download=True %}
 {% endcomment %}
+{% load wama_actions %}
 <div class="d-flex gap-2 flex-wrap wama-queue-actions">
     <button id="{{ start_id }}" class="btn btn-success btn-sm"{% if start_url %} data-queue-start-url="{{ start_url }}"{% endif %}>
         <i class="fas fa-play"></i> {{ start_label|default:'Démarrer tout' }}
     </button>
     {% if show_download %}
-    {% if download_url %}
+    {% if app and download_url %}
+    {% download_button app download_url download_ready|default:False title=download_title empty_title=download_empty_title css_class='btn-info' html_id=download_id label=download_label|default:'Télécharger tout' split=False %}
+    {% elif download_url %}
     <a id="{{ download_id }}" class="btn btn-info btn-sm" href="{{ download_url }}">
         <i class="fas fa-download"></i> {{ download_label|default:'Télécharger tout' }}
     </a>

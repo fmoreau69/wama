@@ -90,7 +90,7 @@ principal affiche le fichier d'ENTRÉE (ex. .docx) si présent.
         </button>
         {% include 'common/_cycle_button.html' with id=elem.id status=elem.status %}
         {% url 'synthesizer:download' elem.id as url_dl %}
-        {% bouton_telecharger 'synthesizer' url_dl elem.audio_output %}
+        {% download_button 'synthesizer' url_dl elem.audio_output %}
         <button class="btn btn-sm btn-outline-warning duplicate-btn"
                 data-duplicate-url="{% url 'synthesizer:duplicate' elem.id %}"
                 title="Dupliquer (tester un autre modèle)">

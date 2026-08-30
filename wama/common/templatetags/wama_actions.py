@@ -15,33 +15,47 @@ register = template.Library()
 
 
 @register.inclusion_tag('common/_download_button.html')
-def bouton_telecharger(app, url, pret, disponibles=None, titre=None, titre_vide=None, classe=None):
+def download_button(app, url, ready, available=None, title=None, empty_title=None, css_class=None,
+                    html_id=None, label=None, split=True):
     """Rend le bouton ⬇ de l'app `app` selon `WAMA_APP_CONVENTIONS §6.3`.
 
-    `url`         : URL de téléchargement SANS query (`{% url 'app:download' o.id %}`).
-    `pret`        : y a-t-il un résultat ? (sinon → bouton désactivé, l'action reste VISIBLE).
-    `disponibles` : restriction au niveau de l'ITEM — un format déclaré que CET élément n'a pas
-                    (ex. `json` de reader, qui suppose un `raw_result`) ne doit pas s'afficher.
-                    `None` = tous les formats déclarés. Passer une liste VIDE n'aurait pas le même
-                    sens (aucun format), d'où le défaut à `None` et non à `()`.
+    `url`       : URL de téléchargement SANS query (`{% url 'app:download' o.id %}`).
+    `ready`     : y a-t-il un résultat ? (sinon → bouton désactivé, l'action reste VISIBLE).
+    `available` : restriction au niveau de l'ITEM — un format déclaré que CET élément n'a pas
+                  (ex. `json` de reader, qui suppose un `raw_result`) ne doit pas s'afficher.
+                  `None` = tous les formats déclarés. Passer une liste VIDE n'aurait pas le même
+                  sens (aucun format), d'où le défaut à `None` et non à `()`.
 
     La forme — lien simple ou split ▾ — n'est PAS un paramètre : elle se déduit de
     `export_formats` déclaré au catalogue. Une app ne peut donc pas choisir sa forme au gabarit,
     ce qui est exactement ce qui avait laissé deux apps rendre un `<button>`+JS contraire à §6.3.
+
+    ⚠ `split` n'est pas une exception à ce principe (2026-08-30) : il ne dit pas « avec ou sans
+    formats », il dit à quel NIVEAU on est. `split=False` est la forme d'une action de BARRE DE
+    FILE, où il n'existe pas de « format par défaut » cliquable sans ouvrir le menu — la barre
+    télécharge TOUT, ou rien. Les formats offerts restent, eux, ceux de la DÉCLARATION.
+    `html_id` / `label` existent pour la même raison (le JS d'app cible le bouton de barre par
+    son id, et une barre porte un libellé là où une card n'a qu'une icône).
+
+    ⚠ Renommé le 2026-08-30 (ex-`bouton_telecharger`, params `pret`/`disponibles`/`titre`/
+    `titre_vide`/`classe`) : un tag est lu dans 12 gabarits, donc une API — anglais obligatoire.
     """
-    from wama.common.utils.export_formats import entrees_pour_app
+    from wama.common.utils.export_formats import entries_for_app
     return {
         'url': url,
-        'pret': bool(pret),
-        'formats': entrees_pour_app(app, disponibles),
-        'titre': titre,
-        'titre_vide': titre_vide,
-        'classe': classe,
+        'ready': bool(ready),
+        'formats': entries_for_app(app, available),
+        'title': title,
+        'empty_title': empty_title,
+        'css_class': css_class,
+        'id': html_id,
+        'label': label,
+        'split': bool(split),
     }
 
 
 @register.simple_tag
-def prefixe_routes(app, domain=None):
+def domain_route_prefix(app, domain=None):
     """Préfixe des routes de ce domaine, LU dans la déclaration (`app_modes.route_prefix`).
 
     Remplace le paramètre `batch_ns` que la card mère de lot recevait à la main (2026-08-23).

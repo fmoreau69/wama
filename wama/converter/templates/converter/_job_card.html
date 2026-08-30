@@ -110,9 +110,9 @@ Anatomie (§11) — 5 sections à pistes FIXES partagées, alignées d'une card 
         {% include 'common/_cycle_button.html' with id=job.id status=job.status %}
         {% url 'converter:download' job.id as url_dl %}
         {% if job.status == 'SUCCESS' and job.output_file %}
-          {% bouton_telecharger 'converter' url_dl True %}
+          {% download_button 'converter' url_dl True %}
         {% else %}
-          {% bouton_telecharger 'converter' url_dl False %}
+          {% download_button 'converter' url_dl False %}
         {% endif %}
         <button class="btn btn-sm btn-outline-warning duplicate-btn"
                 title="Dupliquer" data-duplicate-url="{% url 'converter:duplicate' job.id %}">

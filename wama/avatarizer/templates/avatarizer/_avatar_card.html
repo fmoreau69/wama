@@ -111,9 +111,9 @@ pas la variable de gabarit.
         {% include 'common/_cycle_button.html' with id=elem.id status=elem.status %}
         {% url 'avatarizer:download' elem.id as url_dl %}
         {% if elem.status == 'SUCCESS' and elem.output_video %}
-          {% bouton_telecharger 'avatarizer' url_dl True %}
+          {% download_button 'avatarizer' url_dl True %}
         {% else %}
-          {% bouton_telecharger 'avatarizer' url_dl False %}
+          {% download_button 'avatarizer' url_dl False %}
         {% endif %}
         <button class="btn btn-sm btn-outline-warning duplicate-btn"
                 data-job-id="{{ elem.id }}"

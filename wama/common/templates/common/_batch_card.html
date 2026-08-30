@@ -44,7 +44,7 @@ COURANT, or `with` en pousse un nouveau — les variables y seraient mortes au `
 ne pousse rien. Piège vérifié en rendant le partial, pas déduit.{% endcomment %}
 {% load wama_actions %}
 {% if actions_communes %}
-{% prefixe_routes app domain as pfx %}
+{% domain_route_prefix app domain as pfx %}
 {% url app|add:':'|add:pfx|add:'batch_delete' batch_info.obj.id as u_batch_delete %}
 {% url app|add:':'|add:pfx|add:'batch_duplicate' batch_info.obj.id as u_batch_duplicate %}
 {% url app|add:':'|add:pfx|add:'batch_start' batch_info.obj.id as u_batch_start %}

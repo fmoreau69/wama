@@ -716,18 +716,58 @@ outillé avant d'ouvrir cette marche.
      on ne retient qu'un jeton de `MEDIA_CATEGORIES` (repli `accepts` : même filtre + exclusion
      explicite de `text`). 2 tests (12→14 dans `common/tests_codegen_lot.py`), **vérifiés
      DISCRIMINANTS** en rejouant l'ancienne logique sur les mêmes manifestes mutés.
-     ⏳ **Ce qui reste réellement ouvert** (reformulé depuis la fausse alerte) : (a) `inputs[]`
-     n'existe qu'au niveau MODE, jamais au niveau DOMAINE ; (b) `input_extensions` reste plat →
-     le dériver PAR SLOT depuis `INPUT_TYPES[slot].accept` ; (c) **l'homonyme lui-même**, seul
-     vrai arbitrage — rayon mesuré : `MEDIA_CATEGORIES`, `normalize_types`, ports studio (entrées
-     ET sorties), `media_library.TYPE_GROUPS`, `derive_category`/`_TEXT_OUTPUTS`, et le
-     `detected_type` **stocké en base** par reader. Ne pas le trancher au fil d'un autre chantier.
+     ⏳ **Ce qui reste réellement ouvert** — reformulé le 2026-08-30 après une objection de Fabien
+     (« je ne comprends pas ta formulation ») et **RECADRÉ par la mesure**, car la version
+     précédente se lisait comme un défaut de la card d'entrée. Elle n'en est pas un.
+
+     🟢 **Point de départ à ne pas perdre de vue : la card d'entrée commune est FONCTIONNELLE et
+     DÉJÀ TYPÉE PAR SLOT dans les 10 apps.** `common/_new_item_card.html` porte un `file_accept`
+     pour le slot de travail ET un `reference_accept` pour le slot de référence (composer
+     `audio/*` pour la mélodie, imager `image/*` pour l'image de référence), plus les modalités
+     URL / médiathèque / lot / live. **Rien de ce qui suit ne demande de la toucher.**
+
+     - **(a) Le typage par slot existe, mais il est écrit À LA MAIN dans chaque `{% include %}`.**
+       Aucune déclaration ne le porte. Mesuré : **trois** sources décrivent ce qu'une app accepte,
+       et celle qui alimente la card n'est aucune des deux déclaratives —
+       1. `APP_CATALOG[app].input_extensions` — une liste **PLATE** par app, toutes entrées
+          confondues (`app_registry.py:686` : imager = `TEXT_EXTENSIONS + IMAGE_EXTENSIONS`) ;
+       2. `APP_MODES[app].modes[].inputs[]` + `INPUT_TYPES[slot]['accept']` — le **SEUL** endroit
+          qui type par slot (`work_image → 'image'`, `reference_voice → 'audio'`,
+          `app_modes.py:62-74`). Il n'est déclarable que **sur un mode**, or **6 apps sur 10 ont
+          `modes: []`** (imager, avatarizer, converter, composer, reader, describer) — et le
+          fichier assume ce choix (`:91-93` : les modes d'imager ont été retirés « au profit d'UNE
+          card d'entrée par domaine »). Son accesseur `resolve_inputs()` n'a **aucun consommateur**
+          dans tout le dépôt ;
+       3. les valeurs littérales du gabarit d'app — **la seule qui marche aujourd'hui.**
+       ⇒ Le manque n'est pas « la card ne déclare pas ses entrées », c'est **« la déclaration n'a
+       pas de case pour ce que la card fait déjà »** : `inputs` est la seule clé du schéma
+       d'`APP_MODES` à ne pas être portée par le DOMAINE, alors que tout le reste l'est
+       (`accepts`, `variant`, `route_prefix`, et le routage `domain_for_category`).
+     - **(b) Conséquence directe sur le portage — c'est là qu'est le vrai défaut.** Le générateur
+       ne dispose que de la source PLATE : `templates_gen.py:46` fabrique
+       `accept = ','.join(input_extensions)` et `:300` l'injecte en **un seul `file_accept`**, sans
+       jamais émettre `show_reference`. **Une app générée naît donc EN DESSOUS des apps écrites à
+       la main** : un seul slot, typé par l'union de toutes les extensions de l'app. Sur le
+       converter c'est indolore (une seule entrée) ; dès la 2ᵉ app portée, le sélecteur de fichier
+       du slot « image de travail » proposerait `.docx` et le slot de référence n'existerait pas.
+       ⇒ **Ce qu'il faut réparer avant de porter au-delà du converter** : donner au manifeste une
+       déclaration d'entrées PAR SLOT (le vocabulaire existe : `INPUT_TYPES`, cf. amendement ③
+       du point 7) et faire émettre à `templates_gen` les paramètres que les gabarits manuels
+       passent déjà. Ce n'est pas un chantier de card, c'est un chantier de DÉCLARATION.
+     - **(c)** → promu en section propre ci-dessous (`§S2bis.6bis`) : c'est un arbitrage, pas un
+       reste de passe.
   7. **Compatibilité avec l'« intake universel »** (chantier d'une autre instance,
      `WAMA_LLM §Intake universel`) — **mesurée, pas supposée.** Le plan est bon dans sa structure
      (sas `temp/`, rôle = ROUTAGE et non colonne en base, outil de ciblage read-only, dialogue
      porté par le skill) mais ses étapes ⓪/① composent sur **exactement les deux déclarations
      PLATES** ci-dessus. Mesure (composition proposée vs composition par RÔLE) :
-     `notes.txt`/`protocole.md`/`liste.csv` → par nature : avatarizer, composer, imager,
+     `notes.txt` / un `.md` de protocole / `liste.csv` → par nature : avatarizer, composer, imager,
+     <!-- ⚠ ne PAS réécrire « un `.md` de protocole » en nom de fichier inventé : `check_docs` lit
+          tout nom suivi de l'extension Markdown, entre accents graves, comme une RÉFÉRENCE DE
+          DOCUMENT et le compte cassé. Mesuré le 30/08 : l'exemple précédent ouvrait une 2ᵉ CIBLE
+          DISTINCTE, donc franchissait le seuil du /reprise sans qu'aucune doc n'ait bougé — et ma
+          première rédaction de cet avertissement l'a refait, en citant le motif entre accents. -->
+
      synthesizer = **100 % de faux positifs** (par extension jusqu'à 6 apps) ; **par rôle :
      aucune**. `rapport.pdf`/`memo.docx` → l'extension ajoute composer/imager/synthesizer (leurs
      `input_extensions` SONT `TEXT_EXTENSIONS`) ; par rôle : converter, describer, reader (port
@@ -832,14 +872,85 @@ outillé avant d'ouvrir cette marche.
      mesuré » portant des réglages — il l'était **au niveau LOT**, périmètre du relevé du 27/08.
      *Un relevé vaut pour le périmètre où il a été fait ; l'écrire comme une propriété des apps le
      rend faux au premier étage suivant.*
-     ⏳ **PENDING mesuré, non fait** — le ⬇ de file rejoue en petit `common/_download_button.html`
-     (brique du 23/08 : rien de prêt → `<button disabled>` ; prêt → `<a>` ; multi-format → split
-     button). Les deux premières branches sont recopiées ici volontairement (la brique rend un
-     bouton de CARD, sans libellé ni id, et 3 apps basculent `disabled` au runtime dessus), **mais
-     la troisième est déjà dupliquée à la main** :
-     `wama/transcriber/static/transcriber/js/index.js:833` reconstruit en JS
-     un dropdown txt/srt/pdf/docx autour du bouton rendu. La fusion se fera en donnant `id` et
-     `label` au partial commun — **pas** en ajoutant un second dropdown dans `_queue_actions.html`.
+     ✅ **FAIT le 2026-08-30** (ex-pending « le ⬇ de file rejoue en petit
+     `common/_download_button.html` »). La brique reçoit `id` / `label` / `split`, sa branche
+     `split=False` rend **un bouton + un menu ▾** (pas de `dropdown-toggle-split` : la rangée
+     d'actions ne s'élargit pas), et se rend **même quand `ready` est faux** — c'était la
+     condition pour que les 3 apps qui basculent `disabled` au runtime continuent de marcher.
+     `_queue_actions.html` délègue derrière `{% if app and download_url %}` ; **sans `app`, le
+     rendu est inchangé à l'octet près**, donc aucune app n'a eu à bouger.
+     Le dropdown JS du transcriber (4 formats **codés en dur**, URL par
+     `replace('start_all','download_all')`) est SUPPRIMÉ ; les formats viennent du catalogue.
+     Attesté : 46 tests verts (dont 6 neufs, `common/tests_downloads.py`), 112 gabarits compilés,
+     grille inchangée, et **fumée serveur** — les 4 `?format=` sont dans le HTML servi, les 10 apps
+     répondent 200.
+     ⚠ Deux gardes neuves plutôt qu'un commentaire : un test refuse `dropdown-toggle-split` sur la
+     barre, un autre **balaie les JS d'app** à la recherche de `classList.add('dropdown-toggle')`.
+     La duplication résorbée n'était pas un gabarit recopié mais un dropdown **reconstruit en JS** :
+     aucun test de gabarit ne pouvait la voir.
+
+     ⏳ **CE QUI RESTE, ET POURQUOI CE N'EST PAS UN OUBLI** — adoption mesurée le 30/08 : **1 barre
+     sur 12**. Ce n'est pas de la paresse, c'est un BLOCAGE SERVEUR mesuré :
+
+     | | mesuré |
+     |---|---|
+     | barres de file `_queue_toolbar` | **12** (10 apps ; imager et enhancer en ont 2) |
+     | apps exposant une route `download_all` | **10/10** |
+     | apps déclarant PLUSIEURS `export_formats` | **3** — describer `txt/pdf/docx`, reader `txt/md/pdf/docx/json`, transcriber `txt/srt/pdf/docx` |
+     | vues `download_all` qui LISENT `?format=` | **1** — le transcriber SEUL (`wama/transcriber/views.py:1256`) |
+
+     ⚠⚠ **Porter describer et reader aujourd'hui afficherait un menu que le serveur IGNORE** :
+     leur `download_all` construit le ZIP sans regarder la query — le format choisi n'aurait aucun
+     effet. C'est exactement le défaut de la famille « vert d'ADOPTION, faux en FONCTIONNEMENT »
+     (`WAMA_VERIFICATION §Geste 14`). **Le portage de ces deux-là commence côté VUE**, pas côté
+     gabarit. Les 7 autres n'ont qu'un format : y déléguer ne changerait rien à l'écran (c'est
+     tout de même la bonne cible, pour supprimer le markup recopié).
+     ⚠ Le GÉNÉRATEUR n'est volontairement pas opté : il passe `download_url` sans `download_ready`,
+     donc `app=` transformerait son lien toujours actif en bouton désactivé. Une app générée qui
+     veut le menu devra déclarer les deux.
+
+### §S2bis.6bis — 🔴 ARBITRAGE OUVERT : l'homonyme `text` (chantier à part entière)
+
+> Promu de « reste de passe (c) » à section propre le 2026-08-30, sur remarque de Fabien : *« ça
+> semble un chantier à part entière ; une phrase pour une question qui semble complexe et
+> fondamentale, ce n'est pas compréhensible »*. Il a raison, et une ligne dans une liste de restes
+> laissait croire à un nettoyage de vocabulaire. **C'en est un de DONNÉES.**
+
+**Le problème en une phrase :** le jeton `text` désigne **deux choses différentes** selon l'endroit
+où on le lit, et aucune des deux ne peut céder la place à l'autre sans casser l'autre moitié.
+
+| sens | où | exemple |
+|---|---|---|
+| **« texte brut / le prompt »** — une saisie, pas un fichier | `input_types`, `accepts`, `INPUT_TYPES['prompt'].kind` | imager déclare `input_types=('text','image')` = « on saisit un prompt, on joint une image » |
+| **« FICHIER texte »** — une nature de média sur disque | `category_of_path`, `MEDIA_CATEGORIES` | `notes.txt` → catégorie `text` |
+
+**Ce que ça produit déjà, mesuré :**
+- `studio_node_ports` (`app_registry.py:153`) doit écrire `c != 'text'` pour empêcher le prompt
+  d'entrer dans le port de travail, puis **inventer le jeton `'prompt'`, absent de
+  `MEDIA_CATEGORIES` (`:67`)** — le code a fabriqué le mot qui manquait, sans le déclarer ;
+- `common/utils/intake.py:10` consigne que `input_extensions` est « FAUX à 100 % sur
+  `.txt`/`.md`/`.csv` » **pour cette raison précise** ;
+- le repli du vocabulaire d'entrée (point 6 ci-dessus) a dû poser une « exclusion explicite de
+  `text` » — une exception codée en dur, symptôme et non correctif.
+
+**Pourquoi ce n'est PAS un renommage ordinaire — le rayon mesuré :** `MEDIA_CATEGORIES`,
+`normalize_types`, les ports studio **en entrée ET en sortie**, `media_library.TYPE_GROUPS`,
+`derive_category` / `_TEXT_OUTPUTS`, et surtout **`detected_type`, qui est STOCKÉ EN BASE** par le
+reader. Ce dernier point le sort de la méthode `/renommage-api` : ce n'est pas un grep tokenisé,
+c'est une **migration de données** — des lignes existantes portent la valeur ambiguë, et il faut
+décider ce qu'elles deviennent avant de toucher au code.
+
+**Ce qui doit être arbitré, dans l'ordre :**
+1. **Quel des deux sens garde le mot `text`** (l'autre prend un mot neuf — `prompt` existe déjà
+   *de facto* côté ports, ce qui penche pour « `text` = fichier texte, `prompt` = saisie ») ;
+2. **ce que deviennent les valeurs déjà en base** (migration de données : réécrire, ou laisser et
+   interpréter au vol) ;
+3. **où vit la taxonomie qui en découle** — elle est INTER-mondes (`common/catalog/data_types.py`),
+   donc l'arbitrage engage aussi le Lab et le monde Data.
+
+⛔ **Ne pas le trancher au fil d'un autre chantier** — et ne pas le confondre avec (b) ci-dessus,
+qui est réparable sans lui : donner des entrées PAR SLOT au générateur ne demande pas de choisir
+le sens de `text`, seulement de ne plus mélanger les slots.
 
 **Cadrage A0 — la convention RÉELLE, mesurée (2026-08-11, balayage 6 cibles × 10 apps) :**
 - **urls.py** : AUCUNE app ne colle à `STANDARD_ENDPOINTS` — cette liste était une CIBLE que le

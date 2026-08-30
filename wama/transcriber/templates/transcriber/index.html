@@ -246,7 +246,14 @@ window._batchImport = WamaBatchImport({
     <div class="col-12">
         <!-- Titre « File d'attente » RETIRÉ (doublon) : nom + compteur portés par l'ONGLET (base commune). -->
         <!-- Barre d'outils COMMUNE de la file : actions globales à gauche · tri + filtre + disposition à droite. -->
-        {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='transcriber-process-btn' download_id='transcriber-download-all-btn' clear_id='transcriber-clear-btn' show_download=True %}
+        {% comment %}`app` + `download_url` (2026-08-30) : le ⬇ « Télécharger tout » est DÉLÉGUÉ à
+        `common/_download_button.html`, qui rend le menu des formats DÉCLARÉS au catalogue
+        (`export_formats` = txt/srt/pdf/docx). Avant, ce dropdown était reconstruit en JS avec les
+        quatre formats CODÉS EN DUR et l'URL fabriquée par `replace('start_all','download_all')`.
+        Le bouton naît `disabled` (aucun `download_ready`) : `updateDownloadAllState()` l'active
+        dès qu'une transcription réussit — le menu, lui, est déjà en place.{% endcomment %}
+        {% url 'transcriber:download_all' as download_all_url %}
+        {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='transcriber-process-btn' download_id='transcriber-download-all-btn' clear_id='transcriber-clear-btn' show_download=True app='transcriber' download_url=download_all_url %}
 
         <div id="transcriptQueue" class="wama-queue-{{ card_layout }}">
             {% for batch_info in batches_list %}

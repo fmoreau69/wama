@@ -114,17 +114,17 @@ Contexte : elem = ReadingItem décoré par _decorate_card() (.chips, .input_prop
         {% include 'common/_cycle_button.html' with id=elem.id status=elem.status %}
         {% comment %}`json` n'est offert que si l'elem porte un `raw_result` : la DÉCLARATION
         (`export_formats` au catalogue) dit ce que l'app sait EXPORTER, l'ITEM dit ce qu'il A.
-        C'est le rôle du paramètre `disponibles` — sans lui il faudrait soit perdre le
+        C'est le rôle du paramètre `available` — sans lui il faudrait soit perdre le
         conditionnel, soit remettre du markup dans la card.{% endcomment %}
         {% url 'reader:download' elem.id as url_dl %}
         {% if elem.result_text %}
           {% if elem.raw_result %}
-            {% bouton_telecharger 'reader' url_dl True %}
+            {% download_button 'reader' url_dl True %}
           {% else %}
-            {% bouton_telecharger 'reader' url_dl True 'txt,md,pdf,docx' %}
+            {% download_button 'reader' url_dl True 'txt,md,pdf,docx' %}
           {% endif %}
         {% else %}
-          {% bouton_telecharger 'reader' '' False %}
+          {% download_button 'reader' '' False %}
         {% endif %}
         <button class="btn btn-sm btn-outline-warning duplicate-btn"
                 data-duplicate-url="{% url 'reader:duplicate' elem.id %}" title="{% trans "Dupliquer" %}">

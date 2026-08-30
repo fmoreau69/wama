@@ -109,9 +109,9 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
         {% endcomment %}
         {% url 'imager:download' elem.id as url_dl %}
         {% if elem.status == 'SUCCESS' %}
-          {% bouton_telecharger 'imager' url_dl True titre='Télécharger le résultat' %}
+          {% download_button 'imager' url_dl True title='Télécharger le résultat' %}
         {% else %}
-          {% bouton_telecharger 'imager' url_dl False %}
+          {% download_button 'imager' url_dl False %}
         {% endif %}
         <button type="button" class="btn btn-sm btn-outline-warning duplicate-btn"
                 data-duplicate-url="{% url 'imager:duplicate' elem.id %}"
