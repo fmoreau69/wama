@@ -1032,8 +1032,15 @@ outillé avant d'ouvrir cette marche.
 > ligne 3 de la table (saisie = `prompt`, fichiers texte = `document`, `text` RETIRÉ), décidée
 > comme **quick win du monde Médias, à faire tout de suite**, avec l'ajout de la nature
 > `dataset` dans le même geste (plan de compatibilité, item B — le rayon ne se paie qu'une
-> fois). Inventaire exhaustif site-par-site lancé avant le geste ; le reste de cette section
-> devient l'HISTORIQUE de l'arbitrage.
+> fois). ✅ **GESTE EXÉCUTÉ le jour même** (inventaire exhaustif site-par-site AVANT, 32
+> fichiers, double et indivisible : sens prompt séparé PUIS nature basculée) — suite 1221 OK,
+> roundtrip 10/10, grille sans recul (converter/describer/transcriber 100 %), corpus régénéré,
+> `.trip/.wdat/.rec` → `dataset` (poussé par le monde via `register_category_extensions`),
+> `.csv/.txt/.srt/.json` → `document`, describer normalisé À LA LECTURE (pas de migration).
+> Bénéfice mesuré au passage : les 3 écarts `.md` du vocabulaire généré ont DISPARU, et le
+> nœud Sortie du studio gagne `document/dataset/3d` (le `3d` manquait, bug latent). La moitié
+> TRAVAIL de (b) — rétrécir `file_accept` par catégories — est DÉBLOQUÉE (le describer n'est
+> plus le contre-exemple). Le reste de cette section = l'HISTORIQUE de l'arbitrage.
 
 > Promu de « reste de passe (c) » à section propre le 2026-08-30, sur remarque de Fabien : *« ça
 > semble un chantier à part entière ; une phrase pour une question qui semble complexe et
