@@ -8719,3 +8719,30 @@ conversations) APRÈS restart gunicorn — le parc sert l'ancien code d'ici là.
 > s'appelle `wama_sessionid` (jamais `sessionid` en dur) ; `#ragListe` n'existe pas à l'état
 > vide. La revérification repo-wide a par ailleurs recalé **27 citations de symboles** dans
 > ROADMAP/WAMA_LLM/WAMA_MEMORY + 4 proses de code — wama_lab : AUCUN consommateur touché.
+
+### CLÔTURE de l'instance « ASSISTANT/INTAKE/NOMMAGE » (28-30/08, /cloture déroulé) — 🔚
+
+**🔚 POINT D'ENTRÉE SESSION SUIVANTE** : essai conversationnel RÉEL de l'assistant (Discord :
+déposer une photo de plante sans texte → inspecter/demander → `look_at_image` → investigation
+web → réponse sourcée + fichiers rendus) — passes GPU, déclenchement Fabien.
+
+**File des chantiers ouverts de ce périmètre** (aucun bloquant) : ① étape 4 intake
+(`reference_field` 1er adopteur — coordonner ports codegen — · porte d'`ingest()` manifestes ·
+URL de dossier Data) ; ② entrée image UI web + images natives du tour (`_ollama_call` sans
+champ `images`) ; ③ RAG distillats (④ du design) ; arbitrages Fabien : signal `route` de
+l'intake · écriture RAG via assistant · ouverture du chantier juge synthétique (après
+stabilité hôte).
+
+**Contrôles attendus au prochain /reprise (tous MESURÉS à cette clôture, 30/08)** :
+- batterie du périmètre (gateway+intake+web+url_guard) : **48 tests OK** ; suite COMPLÈTE
+  exit 0 post-renommage ; **HEAD en worktree 110/110** ;
+- `check_docs` : **1 cible distincte** (partial d'onglets assumé), 8 réf, 0 périmée,
+  0 chiffre sans source, **14 skills** ;
+- smoke `.ui` : **12/12 apps mesurables** + 2 skips légitimes (rapport
+  `logs/nightly_tests/nightly_20260830_014952.json`) ;
+- ⚠ `doc_facts` : blocs `conformite` et `mecanismes` PÉRIMÉS mais **appartenant à l'instance
+  portage** (son WIP dans l'arbre) — ne pas régénérer avant sa clôture.
+
+**Artefacts de session** : scripts d'inventaire/renommage/sonde au scratchpad (jetables,
+morts avec la session — les rejouables vivent dans les skills) ; captures /tmp/smoke_renommage
+(jetables) ; comptes `intake_test`/`oeil_test*` dans la base de TEST seulement.
