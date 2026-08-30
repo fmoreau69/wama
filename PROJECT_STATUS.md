@@ -8874,8 +8874,14 @@ ci-dessus à traiter **avant** d'aller au-delà du converter.
    tenu à la main : **15 extensions manquaient, pas 14** (`.qt` avait échappé au relevé). Le JS
    converter n'avait pas de jumeau (`EXT_TO_TYPE` dérive de `supportedFormats` serveur). Détail =
    `WAMA_APP_GENERATION_ROUTE §S2bis.6 (a)` ;
-2. **(b) déclaration d'entrées PAR SLOT au manifeste** + émission par `templates_gen` — à faire
-   avant la 2ᵉ app portée, et **avant** de juger la card v3 sur la jumelle ;
+2. ~~**(b) déclaration d'entrées PAR SLOT au manifeste** + émission par `templates_gen`~~
+   ✅ **LIVRÉ le 30/08 (moitié RÉFÉRENCE)** : `inputs[]` au niveau DOMAINE (7 domaines déclarés
+   des cards réelles), `studio_node_ports` lit les deux niveaux (le composer gagne son port
+   mélodie), `templates_gen` émet le slot depuis LE PORT (attache = TROU NOMMÉ, marche B) ;
+   4 tests, corpus régénéré, roundtrip 10/10, suite 1216 OK. 🔴 La moitié TRAVAIL (rétrécir
+   `file_accept` par catégories du port) est **BLOQUÉE par l'homonyme `text`** — démonstration
+   describer (`.txt/.md/.csv` = travail de catégorie `text` sens FICHIER). Détail =
+   `WAMA_APP_GENERATION_ROUTE §S2bis.6 (b)` ;
 3. `download_all` de **reader** et **describer** : lire `?format=` côté VUE, puis opter au ⬇
    commun (2 lignes de gabarit une fois la vue faite) ;
 4. Card d'entrée **v3** sur `converter_01` (dépend de 2).

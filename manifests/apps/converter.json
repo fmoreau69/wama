@@ -841,6 +841,9 @@
           ],
           "icon": "fa-right-left",
           "id": "conversion",
+          "inputs": [
+            "work_file"
+          ],
           "label": "Conversion",
           "modes": [],
           "variant": "info"

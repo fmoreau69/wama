@@ -155,7 +155,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | **Export document** | Génère PDF (fpdf2) / DOCX (python-docx) depuis les résultats d'app | `wama/common/utils/document_export.py` | — | 3 |
 | **Garde des URL sortantes** | Valide toute cible de téléchargement pilotée par une saisie : schéma, identifiants, et adresses privées/bouclage/lien-local — anti-SSRF | `wama/common/utils/url_guard.py` | `PROFILES_PERMISSIONS.md` | 5 |
 | **Ingest de source** | Télécharge une source distante vers le FileField, déclaré par WAMA_INGEST | `wama/common/utils/source_ingest.py` | `WAMA_APP_GENERATION_ROUTE.md` | 12 |
-| **Intake universel de fichiers** | Que peut faire WAMA de ce fichier ? — ports d'app + lot + manifeste + médiathèque + sondes des mondes (outil assistant inspect_user_file) | `wama/common/utils/intake.py` | `WAMA_LLM.md` | 3 |
+| **Intake universel de fichiers** | Que peut faire WAMA de ce fichier ? — ports d'app + lot + manifeste + médiathèque + sondes des mondes (outil assistant inspect_user_file) | `wama/common/utils/intake.py` | `WAMA_LLM.md` | 4 |
 | **Moteur de l'assistant IA** | Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — la vue web et /api/v1/assistant/chat/ en sont des clients | `wama/common/services/assistant_engine.py` | — | 7 |
 | **Pipeline de prompts** | Traduction/enrichissement centralisés, déclarés par PROMPT_TARGETS | `wama/common/utils/prompt_enrichment.py` | `WAMA_LLM.md` | 20 |
 | **Recherche & lecture web** | Recherche internet + page → texte plafonné (octets ET caractères) pour l'investigation de l'assistant (outils search_web/read_web_page) | `wama/common/utils/web_search.py` | `WAMA_LLM.md` | 4 |
@@ -194,7 +194,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 |---|---|---|---|---|
 | **Bouton de cycle** | Bouton commun ▶/⏹/↻ toujours vert — l'icône porte l'action, l'état vit sur la card | `wama/common/static/common/js/wama-cycle-button.js` | — | 23 |
 | **Card v3** | Dimensionnement déclaratif des pistes de card — dépend de l'app, des actions, des libellés | `wama/common/static/common/js/wama-card-v3.js` | `CARD_DESIGN.md §11` | 5 |
-| **Card « Nouvel élément »** | Card d'entrée dépliable commune (dropzones, URL, médiathèque, batch) — auto-init | `wama/common/static/common/js/wama-new-item-card.js` | `MODES_QUEUE_UX.md` | 27 |
+| **Card « Nouvel élément »** | Card d'entrée dépliable commune (dropzones, URL, médiathèque, batch) — auto-init | `wama/common/static/common/js/wama-new-item-card.js` | `MODES_QUEUE_UX.md` | 29 |
 | **Chips méta des cards** | Chips de l'état concis GÉNÉRÉS du schéma params (chip=True) — jamais écrits par app | `wama/common/utils/card_chips.py` | `CARD_DESIGN.md §10.3` | 30 |
 | **Domaines → modes** | Schéma déclaratif des onglets-domaine et modes par app — scope la file | `wama/common/utils/app_modes.py` | `MODES_QUEUE_UX.md` | 14 |
 | **Import de dossier récursif** | Traversée récursive d'un drop/webkitdirectory — brique F2 montée globale (base.html) | `wama/common/static/common/js/wama-folder-import.js` | `WAMA_APP_GENERATION_ROUTE.md` | 2 |

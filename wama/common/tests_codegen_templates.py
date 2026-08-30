@@ -254,3 +254,84 @@ class SourcesDOptionsTest(SimpleTestCase):
             self.assertIn(f'{cle}: function', params,
                           f"options_source « {cle} » ne résout par aucun registre commun — "
                           f'la déclarer dans PAGE_OPTION_SOURCES, ou l\'assumer explicitement')
+
+
+class SlotDeReferenceGenereTest(SimpleTestCase):
+    """Le slot de référence de la card générée : DÉRIVÉ du port `reference` du manifeste.
+
+    §S2bis.6 (b) : `inputs[]` ne se déclarait que sur un MODE, or 6 apps sur 10 n'ont pas de
+    switch — leur typage par slot vivait en littéral dans 2 gabarits d'app, et une app générée
+    naissait avec UN slot unique (le sélecteur du slot « image de travail » aurait proposé
+    `.docx` dès la 2ᵉ app portée). Depuis le 2026-08-30 un domaine sans switch déclare ses
+    `inputs`, `studio_node_ports` en dérive le port, et le gabarit lit LE PORT.
+    Baseline mesurée : `show_reference` était absent du gabarit sur HEAD (0 occurrence).
+    """
+
+    def _rendu(self, manifest):
+        src, raison = render_index(manifest)
+        if isinstance(src, dict):
+            src = src.get('index.html')
+        if not src:
+            self.skipTest(f'index non généré : {raison}')
+        return src
+
+    def _include_card(self, src):
+        for ligne in src.splitlines():
+            if '_new_item_card.html' in ligne:
+                return ligne
+        self.fail('le gabarit ne rend plus la card d\'entrée commune')
+
+    def test_un_port_reference_declare_rend_le_slot_type(self):
+        # Manifeste MUTÉ (pas l'état du jour du converter) : c'est ce qui distingue « dérivé »
+        # de « écrit en dur avec la bonne valeur » (même recette que le vocabulaire d'entrée).
+        from copy import deepcopy
+        manifest = deepcopy(_manifeste(SOURCE))
+        ports = (manifest.get('body') or {}).get('ports') or {}
+        ports.setdefault('inputs', []).append(
+            {'id': 'reference_voice', 'label': 'Voix de référence', 'group': 'reference',
+             'types': ['audio'], 'multi': False})
+        src = self._rendu(manifest)
+        inc = self._include_card(src)
+        self.assertIn('show_reference=True', inc)
+        self.assertIn("reference_accept='audio/*'", inc,
+                      'le slot doit être typé par les catégories du PORT')
+        self.assertIn("reference_label='Voix de référence'", inc)
+        self.assertIn('slot de référence RENDU', src,
+                      "le câblage d'attache non généré doit être un TROU NOMMÉ, pas un silence")
+
+    def test_sans_port_reference_aucun_slot_ne_se_rend(self):
+        # Le converter n'a qu'une entrée de travail : un slot de référence y serait un mensonge
+        # d'écran, symétrique du menu de formats sur une app `early`.
+        inc = self._include_card(self._rendu(_manifeste(SOURCE)))
+        self.assertNotIn('show_reference', inc)
+
+    def test_la_chaine_complete_declare_derive_emet_sur_le_composer(self):
+        """Bout en bout SUR LE VIVANT : domaine sans switch → port → émission.
+
+        C'est le test qui était structurellement rouge avant le chantier (b) : le composer
+        offrait `reference_accept='audio/*'` en littéral de gabarit, sa déclaration
+        l'excluait (`input_extensions = TEXT` seul), et son manifeste n'avait aucun port
+        `reference`. La mélodie a désormais UNE source : `APP_MODES['composer']`,
+        `inputs` du domaine `composition`.
+        """
+        inc = self._include_card(self._rendu(_manifeste('composer')))
+        self.assertIn('show_reference=True', inc)
+        self.assertIn("reference_accept='audio/*'", inc)
+        self.assertIn("reference_label='Mélodie de référence'", inc)
+
+    def test_plusieurs_ports_reference_le_surplus_est_NOMME(self):
+        # La card commune n'a qu'un slot de référence : le 2ᵉ port ne se rend pas, mais il ne
+        # doit JAMAIS disparaître en silence (jamais d'omission silencieuse).
+        from copy import deepcopy
+        manifest = deepcopy(_manifeste(SOURCE))
+        ports = (manifest.get('body') or {}).get('ports') or {}
+        ports.setdefault('inputs', []).extend([
+            {'id': 'reference_image', 'label': 'Image de référence (style)',
+             'group': 'reference', 'types': ['image'], 'multi': False},
+            {'id': 'reference_voice', 'label': 'Voix de référence', 'group': 'reference',
+             'types': ['audio'], 'multi': False},
+        ])
+        src = self._rendu(manifest)
+        inc = self._include_card(src)
+        self.assertIn("reference_accept='image/*'", inc, 'le PREMIER port déclaré se rend')
+        self.assertIn('port de référence supplémentaire NON rendu : `reference_voice`', src)

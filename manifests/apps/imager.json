@@ -1122,6 +1122,11 @@
           ],
           "icon": "fa-image",
           "id": "image",
+          "inputs": [
+            "prompt",
+            "reference_image",
+            "prompt_file"
+          ],
           "label": "Image",
           "modes": [],
           "variant": "primary"
@@ -1133,6 +1138,10 @@
           ],
           "icon": "fa-film",
           "id": "video",
+          "inputs": [
+            "prompt",
+            "reference_image"
+          ],
           "label": "Vidéo",
           "modes": [],
           "variant": "success"
@@ -2053,6 +2062,15 @@
           "multi": false,
           "types": [
             "prompt"
+          ]
+        },
+        {
+          "group": "reference",
+          "id": "reference_image",
+          "label": "Image de référence (style)",
+          "multi": false,
+          "types": [
+            "image"
           ]
         }
       ],

@@ -680,6 +680,11 @@
           ],
           "icon": "fa-music",
           "id": "composition",
+          "inputs": [
+            "prompt",
+            "reference_melody",
+            "prompt_file"
+          ],
           "label": "Composition",
           "modes": []
         }
@@ -980,6 +985,15 @@
           "multi": false,
           "types": [
             "prompt"
+          ]
+        },
+        {
+          "group": "reference",
+          "id": "reference_melody",
+          "label": "Mélodie de référence",
+          "multi": false,
+          "types": [
+            "audio"
           ]
         }
       ],

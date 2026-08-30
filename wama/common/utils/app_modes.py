@@ -48,6 +48,19 @@ de l'époque à deux modes TTS→audio→avatar / audio→avatar) et `convert` r
 style2img selon les entrées fournies et les réglages : c'est une décision de MOTEUR, prise sans
 switch à l'écran. Un workflow backend n'a rien à faire ici.
 
+═══ LES ENTRÉES SE DÉCLARENT AUSSI SANS SWITCH — `inputs` au niveau DOMAINE (2026-08-30) ═════
+
+`inputs[]` ne se déclarait que sur un MODE, or 6 apps sur 10 ont `modes: []` (à raison — un mode
+n'existe que si le comportement diverge). Leurs slots de card d'entrée n'étaient donc déclarables
+NULLE PART : le typage par slot vivait en littéraux dans 2 gabarits sur 10 (`reference_accept` de
+composer et imager), le générateur n'émettait qu'un slot unique, et la déclaration PLATE
+(`input_extensions`) tranchait les slots de référence en sens inverse selon l'app (l'avatarizer
+inclut son image, le composer excluait sa mélodie — d'où un « Envoyer vers… » qui ne proposera
+jamais le composer pour un audio). Règle : **un domaine SANS switch porte ses `inputs`
+lui-même ; un domaine À switch les laisse à ses modes** (c'est précisément ce que le switch fait
+varier). `studio_node_ports` lit LES DEUX niveaux — les ports `reference` du studio, la facette
+`ports` du manifeste, l'intake (`capabilities_for_path`) et l'appariement entrée⇄modèle en
+dérivent sans une ligne par consommateur. Détail : `WAMA_APP_GENERATION_ROUTE.md` §S2bis.6 (b).
 
 Hiérarchie : App → Domaine → Mode → {entrées typées + sections de réglages}. Tout est métadonnée-driven :
 l'UI (onglets, switch de mode, champs, sections) se GÉNÈRE depuis ce schéma (générateur JS `WamaModes`).
@@ -105,9 +118,14 @@ APP_MODES = {
              # accepts = ce que le DOMAINE prend en ENTRÉE (le prompt est du `text`) ; son NOM
              # dit la SORTIE. Les deux domaines acceptent la même chose et diffèrent par ce
              # qu'ils produisent — la preuve qu'un domaine n'est pas une nature de fichier.
-             'accepts': ('text', 'image'), 'modes': []},
+             'accepts': ('text', 'image'),
+             # Slots MESURÉS sur la card réelle (index.html:133) : prompt primaire, image de
+             # référence (`reference_accept='image/*'`), fichier de prompts batch (.txt/.csv).
+             'inputs': ['prompt', 'reference_image', 'prompt_file'], 'modes': []},
             {'id': 'video', 'label': 'Vidéo', 'icon': 'fa-film', 'variant': 'success',
-             'accepts': ('text', 'image'), 'modes': []},
+             'accepts': ('text', 'image'),
+             # Card vidéo (index.html:175) : prompt + image de DÉPART (i2v) — pas de batch file.
+             'inputs': ['prompt', 'reference_image'], 'modes': []},
         ],
     },
 
@@ -162,7 +180,14 @@ APP_MODES = {
             # texte → TTS puis animation), pas comme switch : précédent imager txt2img/img2vid,
             # §2bis. `text` dans accepts = le prompt est une entrée de plein droit.
             {'id': 'avatar', 'label': 'Avatar parlant', 'icon': 'fa-user-astronaut',
-             'accepts': ('image', 'audio', 'text'), 'modes': []},
+             'accepts': ('image', 'audio', 'text'),
+             # Card réelle (index.html:140) : prompt (texte à dire) + voix (input fichier,
+             # politique VOICE_SAMPLE_EXTENSIONS). ⚠ `work_audio`, PAS `reference_voice` :
+             # l'audio EST l'entrée de travail (il pilote l'animation), déjà porté par le port
+             # TRAVAIL via input_types — un slot `reference` créerait un port audio EN DOUBLE.
+             # L'AVATAR (image) passe par la galerie (`extra_zone_template`), pas par un input
+             # fichier — l'image reste au port travail, la galerie est la modalité d'app.
+             'inputs': ['prompt', 'work_audio'], 'modes': []},
         ],
     },
 
@@ -195,7 +220,8 @@ APP_MODES = {
     'converter': {
         'domains': [
             {'id': 'conversion', 'label': 'Conversion', 'icon': 'fa-right-left', 'variant': 'info',
-             'accepts': ('image', 'video', 'audio', 'document', 'archive'), 'modes': []},
+             'accepts': ('image', 'video', 'audio', 'document', 'archive'),
+             'inputs': ['work_file'], 'modes': []},
         ],
     },
 
@@ -224,18 +250,22 @@ APP_MODES = {
     #   mélodie Melody est un SLOT optionnel, pas un mode).
     'composer': {'domains': [
         {'id': 'composition', 'label': 'Composition', 'icon': 'fa-music',
-         'accepts': ('text',), 'modes': []},
+         'accepts': ('text',),
+         # Card réelle (index.html:78) : prompt primaire, mélodie de référence (le littéral
+         # `reference_accept='audio/*'` a enfin sa déclaration — c'est ELLE qui donne au
+         # composer son port audio, absent d'input_extensions), fichier de prompts batch.
+         'inputs': ['prompt', 'reference_melody', 'prompt_file'], 'modes': []},
     ]},
     # reader : un seul geste « lire » ; backend/mode/langue sont des PARAMS, pas des modes.
     'reader': {'domains': [
         {'id': 'lecture', 'label': 'Lecture', 'icon': 'fa-file-lines',
-         'accepts': ('document', 'image'), 'modes': []},
+         'accepts': ('document', 'image'), 'inputs': ['work_file'], 'modes': []},
     ]},
     # describer : mêmes réglages pour image et vidéo (aucune divergence par nature — le
     #   groupement de file par nature est de l'ORGANISATION, pas un mode).
     'describer': {'domains': [
         {'id': 'description', 'label': 'Description', 'icon': 'fa-comment-dots',
-         'accepts': ('image', 'video', 'audio', 'document'), 'modes': []},
+         'accepts': ('image', 'video', 'audio', 'document'), 'inputs': ['work_file'], 'modes': []},
     ]},
 }
 
@@ -293,10 +323,14 @@ def domain_for_category(app: str, categorie: str) -> str | None:
     return None
 
 
-def resolve_inputs(mode: dict) -> list:
-    """Détaille les entrées d'un mode (avec leur définition de type INPUT_TYPES)."""
+def resolve_inputs(porteur: dict) -> list:
+    """Détaille les entrées d'un MODE ou d'un DOMAINE (définitions `INPUT_TYPES`).
+
+    Le porteur est quiconque déclare `inputs[]` : un mode (apps à switch) ou, depuis le
+    2026-08-30, un domaine sans switch (cf. l'encadré du module).
+    """
     out = []
-    for key in mode.get('inputs', []):
+    for key in porteur.get('inputs', []):
         spec = INPUT_TYPES.get(key, {'label': key, 'kind': 'text'})
         out.append({'id': key, **spec})
     return out

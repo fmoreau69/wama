@@ -847,6 +847,9 @@
           ],
           "icon": "fa-comment-dots",
           "id": "description",
+          "inputs": [
+            "work_file"
+          ],
           "label": "Description",
           "modes": []
         }

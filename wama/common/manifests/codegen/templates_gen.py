@@ -267,6 +267,36 @@ def render_index(manifest: dict) -> tuple:
     }}
 '''
 
+    # Slot de RÉFÉRENCE — DÉRIVÉ des ports `group='reference'` du manifeste (§S2bis.6 (b),
+    # 2026-08-30). La card commune sait typer par slot depuis toujours (`reference_accept`,
+    # `_new_item_card.html`) ; ce qui manquait était la DÉCLARATION : `inputs[]` ne se posait
+    # que sur un MODE, or 6 apps sur 10 n'ont pas de switch. Un domaine sans switch les porte
+    # désormais (app_modes), le port `reference` en dérive (studio_node_ports), et ce gabarit
+    # lit LE PORT — jamais un littéral par app.
+    ref_bits = ref_js = ''
+    refs = [p for p in ((body.get('ports') or {}).get('inputs') or [])
+            if p.get('group') == 'reference']
+    if refs:
+        # La card commune n'offre qu'UN slot de référence — vrai aussi des 2 gabarits manuels
+        # qui la paramètrent (composer, imager). Plusieurs ports déclarés : on rend le premier
+        # et on NOMME les autres (trou visible), jamais un slot silencieusement perdu.
+        ref = refs[0]
+        mime = {'image': 'image/*', 'video': 'video/*', 'audio': 'audio/*'}
+        ref_accept = ','.join(mime[c] for c in (ref.get('types') or []) if c in mime) or '*/*'
+        ref_bits = (f" show_reference=True reference_zone_id='{app}RefSlot'"
+                    f" reference_input_id='{app}RefInput' reference_chip_id='{app}RefChip'"
+                    f" reference_accept='{ref_accept}'"
+                    f" reference_label='{ref.get('label') or 'Référence'}'")
+        surplus = ''.join(
+            f"\n    // TROU DE GLU {mark} — port de référence supplémentaire NON rendu : `{p.get('id')}`."
+            for p in refs[1:])
+        ref_js = f'''
+    // TROU DE GLU {mark} — slot de référence RENDU (port `{ref.get('id')}`), câblage d'ATTACHE
+    // non généré : joindre le fichier du slot au POST de création est un geste d'app
+    // (`depot_cree=False`/FormData) que la marche B remplit. Le slot est visible et nommé
+    // plutôt qu'absent — l'écart avec l'app en place EST la mesure.{surplus}
+'''
+
     src = f'''{{% extends '{app}/base.html' %}}
 {{% load static %}}
 {{% load wama_static %}}
@@ -297,7 +327,7 @@ document.addEventListener('DOMContentLoaded', function () {{
     {{% include 'common/_global_progress.html' %}}
 
     {{% url '{app}:batch_template' as batch_tpl_url %}}
-    {{% include 'common/_new_item_card.html' with drop_zone_id='{app}DropZone' file_input_id='{app}FileInput' file_accept='{accept}' formats_label='{label}' show_batch_bar=True show_media_library=True batch_template_url=batch_tpl_url collapsible=True{url_bits} %}}
+    {{% include 'common/_new_item_card.html' with drop_zone_id='{app}DropZone' file_input_id='{app}FileInput' file_accept='{accept}' formats_label='{label}' show_batch_bar=True show_media_library=True batch_template_url=batch_tpl_url collapsible=True{url_bits}{ref_bits} %}}
     <hr class="border-secondary">
 
 {urls_file}    {{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='{app}StartAllBtn' clear_id='{app}ClearAllBtn' download_id='{app}DownloadAllBtn' show_download=True{bits_file} %}}
@@ -359,7 +389,7 @@ document.addEventListener('DOMContentLoaded', function () {{
         fileInputId:    '{app}FileInput',
         batch:          window._batchImport,
     }});
-{url_js}{insp_js}{params_js}}});
+{url_js}{ref_js}{insp_js}{params_js}}});
 </script>
 {{% endblock %}}
 '''

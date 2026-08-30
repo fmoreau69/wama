@@ -772,6 +772,9 @@
           ],
           "icon": "fa-file-lines",
           "id": "lecture",
+          "inputs": [
+            "work_file"
+          ],
           "label": "Lecture",
           "modes": []
         }

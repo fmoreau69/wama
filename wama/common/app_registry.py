@@ -141,7 +141,9 @@ def studio_node_ports(app_id):
     Dérive les PORTS d'un nœud studio pour une app, métadonnée-driven :
       - port « travail » média (entrée) : catégories de input_types (hors 'text'), multi.
       - port « prompt » : si 'text' en entrée (imager/composer…).
-      - ports « référence » : depuis app_modes (reference_image→image, reference_voice→audio).
+      - ports « référence » : depuis app_modes (reference_image→image, reference_voice→audio),
+        déclarés sur un MODE (apps à switch) ou sur le DOMAINE lui-même (apps sans switch —
+        `inputs` de domaine, 2026-08-30, ROUTE §S2bis.6 (b)).
       - sortie : catégories de output_types.
     Retourne {'inputs': [...], 'output': {...}} ou None si app inconnue.
     """
@@ -160,7 +162,8 @@ def studio_node_ports(app_id):
         inputs.append({'id': 'prompt', 'label': 'Prompt', 'group': 'prompt',
                        'types': ['prompt'], 'multi': False})
 
-    # Ports de référence déclarés dans le schéma modes (si l'app y figure).
+    # Ports de référence déclarés dans le schéma modes (si l'app y figure) — portés par un
+    # MODE, ou par le DOMAINE lui-même quand il n'a pas de switch (`inputs` de domaine).
     try:
         from wama.common.utils.app_modes import APP_MODES, INPUT_TYPES
     except Exception:
@@ -168,8 +171,8 @@ def studio_node_ports(app_id):
     schema = APP_MODES.get(app_id) or {}
     seen = set()
     for dom in schema.get('domains', []):
-        for mode in dom.get('modes', []):
-            for kind in mode.get('inputs', []):
+        for porteur in (dom, *dom.get('modes', [])):
+            for kind in porteur.get('inputs', []):
                 spec = INPUT_TYPES.get(kind) or {}
                 if spec.get('port') != 'reference' or kind in seen:
                     continue

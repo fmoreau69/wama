@@ -813,6 +813,10 @@
           ],
           "icon": "fa-user-astronaut",
           "id": "avatar",
+          "inputs": [
+            "prompt",
+            "work_audio"
+          ],
           "label": "Avatar parlant",
           "modes": []
         }

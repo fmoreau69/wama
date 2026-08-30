@@ -809,6 +809,30 @@ outillé avant d'ouvrir cette marche.
        déclaration d'entrées PAR SLOT (le vocabulaire existe : `INPUT_TYPES`, cf. amendement ③
        du point 7) et faire émettre à `templates_gen` les paramètres que les gabarits manuels
        passent déjà. Ce n'est pas un chantier de card, c'est un chantier de DÉCLARATION.
+       ✅ **LIVRÉ le 2026-08-30 — la moitié RÉFÉRENCE, et la frontière de l'autre moitié est
+       MESURÉE.** Le geste suit la clé manquante identifiée ci-dessus : `inputs[]` se déclare
+       désormais **au niveau DOMAINE** pour les apps sans switch (règle écrite dans l'encadré
+       d'`app_modes.py` : un domaine à switch les laisse à ses modes — c'est ce que le switch
+       fait varier). 7 domaines déclarés depuis les cards RÉELLES (composer
+       `prompt+reference_melody+prompt_file`, imager ×2, avatarizer `prompt+work_audio` — PAS
+       `reference_voice` : l'audio y est l'entrée de TRAVAIL, un slot référence aurait créé un
+       port audio EN DOUBLE —, converter/reader/describer `work_file`). `studio_node_ports` lit
+       les deux niveaux (3 lignes) → le composer gagne ENFIN son port `reference_melody` audio
+       (l'incohérence mesurée ci-dessus se résout PAR LA DÉCLARATION : l'intake, le studio et
+       l'appariement le voient sans une ligne), et `templates_gen` émet
+       `show_reference`/`reference_accept`/`reference_label` DEPUIS LE PORT — le câblage
+       d'attache reste un **TROU NOMMÉ** dans le JS généré (marche B), un 2ᵉ port référence non
+       rendu est NOMMÉ aussi. 4 tests (`tests_codegen_templates::SlotDeReferenceGenereTest`,
+       dont la chaîne complète déclare→dérive→émet sur le composer VIVANT — baseline : 0
+       `show_reference` dans le gabarit sur HEAD) ; corpus régénéré (6 manifestes), roundtrip
+       10/10 OK, suite 1216 OK.
+       🔴 **L'autre moitié — typer le slot de TRAVAIL (rétrécir `file_accept` par les catégories
+       du port) — est BLOQUÉE par l'homonyme `text` (§S2bis.6bis), et c'est mesurable** : les
+       `.txt/.md/.csv` du describer sont des fichiers de TRAVAIL de catégorie `text` (sens
+       FICHIER de `category_of_path`), qu'un rétrécissement par les types du port travail
+       (`image/video/audio/document` — sans `text`, sens PROMPT) exclurait à tort. Ne pas
+       tenter ce rétrécissement avant l'arbitrage — c'est la première conséquence CHIFFRABLE
+       de l'homonyme sur la génération.
      - **(c)** → promu en section propre ci-dessous (`§S2bis.6bis`) : c'est un arbitrage, pas un
        reste de passe.
   7. **Compatibilité avec l'« intake universel »** (chantier d'une autre instance,
