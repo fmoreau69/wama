@@ -983,7 +983,7 @@ sens ». Chacun doit être un contrôle exécutable, pas une règle écrite.
 | G4 | **round-trip du `pipeline`** | `extract → verify` comme les autres kinds |
 | G5 | **sortie d'IA = proposition** | tout manifeste généré passe par `verify` et rapporte ses écarts |
 | G6 | **grille de conformité WAMA Data** | mesurée, comme la grille d'apps — sinon l'avancement se raconte |
-| G7 | **cas complet de bout en bout** | ⏳ quand une chaîne WAMA produira un export : rejouer le cas connu. ⚠ nécessite un **échantillon réduit VERSIONNÉ** (le corpus réel est hors dépôt) |
+| G7 | **cas complet de bout en bout** | ⏳ quand une chaîne WAMA produira un export : rejouer le cas connu (l'exemple `.trip`, atteint par son CHEMIN — manifeste `madison-simulateur`). ⚠ « échantillon réduit VERSIONNÉ » (rédaction initiale) est **ABANDONNÉ** : **aucune donnée utilisateur n'entre dans le dépôt WAMA** (doctrine Fabien, 2026-08-29) — l'échantillon de référence vit hors dépôt et le manifeste porte son chemin |
 
 ### 9ter. LE SEGMENTER — spécification tirée des trois sources (passe 6, 2026-08-22)
 
@@ -2713,6 +2713,10 @@ de Fabien du 2026-08-24.
 → « Ajouter ces données » → le contenu s'accumule dans « Votre fichier », réordonnable et
 supprimable → on itère → « présent dans » optionnel → le fichier rejoint la file → format,
 destination, concaténation → **« Exporter Trip réf »** ou **« Exporter Sélection »**.
+
+> ⭐ **La destination d'un export (règle Fabien, 2026-08-29)** : le dossier **CHOISI par
+> l'utilisateur**, ou à défaut **le dossier d'où viennent les données**. Jamais le dépôt WAMA —
+> on ne mélange pas les données utilisateurs avec le dépôt.
 
 ### 11.2 EXPORTER — les quatre trous, mesurés
 
