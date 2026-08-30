@@ -2103,6 +2103,16 @@ Tencent — OK recherche Lescot, à vérifier pour livrables partenaires/valoris
 **Stable Fast 3D / SPAR3D** (Stability community). Mono-image → mesh texturé, VRAM ~6–16 Go
 (passe sur la 4090). Licence+auteur en base comme d'habitude (politique licences).
 
+**Conversions 3D au CONVERTER (intention Fabien, 2026-08-30 — formats À DÉFINIR)** : des
+conversions d'objets 3D pourraient rejoindre le converter média — objets Blender, Unreal
+Engine, formats d'impression 3D, etc. Rien n'est listé ici volontairement (« à définir ») :
+le jour venu, le geste est balisé — la nature `3d` existe (`OBJECT3D_EXTENSIONS`, pivot GLB
+déclaré ci-dessus), ajouter les formats = étendre `SUPPORTED_CONVERSIONS` du `format_router`
+ET son miroir `DOCUMENT_EXTENSIONS`-like (une entrée `'3d'` d'`input_types`/`output_types` du
+converter), la card/le menu « Envoyer vers » suivent PAR DÉRIVATION. ⚠ Le témoin
+hors-vocabulaire de `tests_codegen_lot` est un `.glb` : il devra changer À NOUVEAU quand le
+converter déclarera `3d` (l'invariant survit, pas le témoin — c'est prévu par son docstring).
+
 **⚠ Reconstruction PLAUSIBLE, pas métrique** : les faces occultées sont HALLUCINÉES (un véhicule
 partiellement visible sort complet mais inventé). Parfait pour des props de simulation ; EXCLU
 pour toute reconstruction mesurée. → à déclarer en **métadonnée** du modèle/de la fonction

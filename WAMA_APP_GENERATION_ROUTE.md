@@ -1040,7 +1040,14 @@ outillé avant d'ouvrir cette marche.
 > Bénéfice mesuré au passage : les 3 écarts `.md` du vocabulaire généré ont DISPARU, et le
 > nœud Sortie du studio gagne `document/dataset/3d` (le `3d` manquait, bug latent). La moitié
 > TRAVAIL de (b) — rétrécir `file_accept` par catégories — est DÉBLOQUÉE (le describer n'est
-> plus le contre-exemple). Le reste de cette section = l'HISTORIQUE de l'arbitrage.
+> plus le contre-exemple). **Smoke navigateur ✅ (même soir, parc RELANCÉ par Fabien)** :
+> catalogue `/common/apps/` conforme (blocs Texte/Documents rendus via `prompt`, 201 badges,
+> couleurs d'identité, 0 erreur console) · barres ⬇ reader/describer servent leurs menus
+> `?format=` réels (5 et 3 formats, bouton describer actif) · `accept` du converter DÉRIVÉ vu
+> du navigateur (60 jetons, `.zip` et `.qt` présents) · `wama-studio.js` SERVI au nouveau
+> vocabulaire (`prompt`/`dataset`, ancien motif absent). ⚠ relevé annexe hors geste : 2
+> ressources 403 sur `/reader/` (volet explorateur du compte de test) — à regarder un jour.
+> Le reste de cette section = l'HISTORIQUE de l'arbitrage.
 
 > Promu de « reste de passe (c) » à section propre le 2026-08-30, sur remarque de Fabien : *« ça
 > semble un chantier à part entière ; une phrase pour une question qui semble complexe et
