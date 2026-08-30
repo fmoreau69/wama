@@ -1334,14 +1334,24 @@ def api_import_to_app(request):
 
     # Converter : regroupe les jobs importés par NATURE → 1 batch par nature
     # (batch-of-1 pour un fichier seul). Helper exposé par l'app (découplage).
-    if target_app == 'converter' and results:
+    # ⚠ Une JUMELLE de bac à sable (`generated_from='converter'`) suit la MÊME voie, re-ciblée
+    # sur SES tables via `app_label` — même mécanique que `importer_for()`. Sans ça, l'import
+    # groupé de converter_01 restait en cards unitaires : ce dispatch est une liste écrite à
+    # la main, la 2ᵉ du même fichier à rater les jumelles (mesuré par Fabien, 2026-08-31).
+    _src_consolidation = target_app
+    try:
+        from wama.common.app_registry import APP_CATALOG
+        _src_consolidation = (APP_CATALOG.get(target_app) or {}).get('generated_from') or target_app
+    except Exception:
+        pass
+    if _src_consolidation == 'converter' and results:
         try:
             from wama.converter.views import consolidate_jobs_into_batches
             job_ids = [r['id'] for r in results if r.get('id')]
             if job_ids:
-                consolidate_jobs_into_batches(job_ids, user)
+                consolidate_jobs_into_batches(job_ids, user, app_label=target_app)
         except Exception as e:
-            logger.warning(f"[filemanager] converter batch consolidation failed: {e}")
+            logger.warning(f"[filemanager] {target_app} batch consolidation failed: {e}")
 
     if len(file_paths) == 1:
         # Backward compatibility: single path → return single result

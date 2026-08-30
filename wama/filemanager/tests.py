@@ -92,3 +92,40 @@ class ImporteurDeriveTests(TestCase):
         self.assertEqual(JumelleJob.objects.filter(user=dev).count(), 1)
         self.assertEqual(SourceJob.objects.filter(user=dev).count(), 0,
                          "l'import d'une jumelle ne doit JAMAIS écrire dans sa source")
+
+    def test_l_import_groupe_d_une_jumelle_se_consolide_dans_SES_tables(self):
+        """2 fichiers importés ENSEMBLE → UN lot, dans les tables de la JUMELLE.
+
+        Constat Fabien 2026-08-31 : deux fichiers chargés depuis le filemanager vers
+        converter_01 arrivaient en cards UNITAIRES — le dispatch de consolidation est une
+        2ᵉ liste écrite à la main (`target_app == 'converter'`) qui ratait les jumelles.
+        Le helper est désormais re-ciblé par `app_label` (même mécanique qu'`importer_for`).
+        """
+        import tempfile
+        from django.apps import apps as django_apps
+        from wama.common.app_registry import APP_CATALOG
+        if 'converter_01' not in APP_CATALOG:
+            self.skipTest('jumelle converter_01 non enregistrée sur cette machine')
+
+        from wama.converter.views import consolidate_jobs_into_batches
+        User = get_user_model()
+        dev = User.objects.create_user('dev-filemanager-conso')
+        fn = importer_for('converter_01')
+        ids = []
+        with tempfile.TemporaryDirectory() as d:
+            for nom in ('a.txt', 'b.txt'):
+                src = Path(d) / nom
+                src.write_text('x', encoding='utf-8')
+                ids.append(fn(src, dev)['id'])
+        consolidate_jobs_into_batches(ids, dev, app_label='converter_01')
+
+        JumelleJob = django_apps.get_model('converter_01', 'ConversionJob')
+        JumelleBatch = django_apps.get_model('converter_01', 'ConversionBatch')
+        SourceBatch = django_apps.get_model('converter', 'ConversionBatch')
+        self.assertEqual(JumelleBatch.objects.filter(user=dev).count(), 1,
+                         'les 2 imports groupés doivent former UN lot (même nature)')
+        self.assertEqual(
+            set(JumelleJob.objects.filter(user=dev).values_list('batch_id', flat=True)),
+            set(JumelleBatch.objects.filter(user=dev).values_list('id', flat=True)))
+        self.assertEqual(SourceBatch.objects.filter(user=dev).count(), 0,
+                         'la consolidation ne doit JAMAIS écrire dans la source')

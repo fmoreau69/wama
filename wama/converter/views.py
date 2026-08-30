@@ -78,17 +78,25 @@ def _auto_wrap_orphans(user):
             pass
 
 
-def consolidate_jobs_into_batches(job_ids, user):
+def consolidate_jobs_into_batches(job_ids, user, app_label='converter'):
     """Regroupe des jobs par NATURE → un ConversionBatch par nature.
 
     Les jobs importés sont des orphelins (pas de batch-of-1 préalable), donc on
     crée directement les batchs-of-N. Réglages de sortie communs par batch →
     on ne mélange jamais les natures. Retourne la liste des batchs créés.
+
+    `app_label` : re-cible le helper sur une JUMELLE de bac à sable (`converter_01`) —
+    même mécanique que `import_to_converter` (filemanager). Sans lui, l'import groupé
+    de la jumelle restait en cards unitaires (mesuré par Fabien le 2026-08-31), ou pire
+    aurait consolidé dans les tables de la SOURCE.
     """
-    from .models import ConversionBatch
+    from django.apps import apps as django_apps
     from wama.common.utils.batch_common import group_into_batches_by_nature
 
-    jobs = list(ConversionJob.objects.filter(id__in=job_ids, user=user, ephemeral=False))
+    Job = django_apps.get_model(app_label, 'ConversionJob')
+    ConversionBatch = django_apps.get_model(app_label, 'ConversionBatch')
+
+    jobs = list(Job.objects.filter(id__in=job_ids, user=user, ephemeral=False))
 
     def _link(batch, job, idx):
         job.batch = batch
