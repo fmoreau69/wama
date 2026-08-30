@@ -1058,6 +1058,37 @@ au code.
 qui est réparable sans lui : donner des entrées PAR SLOT au générateur ne demande pas de choisir
 le sens de `text`, seulement de ne plus mélanger les slots.
 
+**🧭🧭 RECADRAGE UNIVERSEL (Fabien, 2026-08-30, 2ᵉ passe — PRIME sur le bloc position
+ci-dessous, jugé « trop étroit » car raisonné sur le cas .txt/.md/.csv) :**
+
+> *« Il faut revenir au global, à l'universel. Comment gère-t-on tous les rôles et tous les
+> types de fichiers média. C'est le seul moyen de trouver une réponse claire et universelle
+> qui ne changera plus à l'avenir. »*
+
+1. **Deux axes ORTHOGONAUX, aucun mot ne porte les deux.** La **NATURE** dit ce que le fichier
+   EST (taxonomie des médias) ; le **RÔLE** dit ce qu'il FAIT dans un process (les ports :
+   travail / référence / saisie / lot / config…). Toute entrée d'un process est un couple
+   (nature, rôle). L'homonyme `text` n'existait que parce qu'un seul mot essayait de porter
+   les deux axes.
+2. **La taxonomie des natures, en langage naturel (Fabien)** : tout fichier est un *document*
+   au sens large (« dès que du texte est enregistré dans un support » — une image aussi est un
+   document). Parmi eux, les **documents textuels**, avec la distinction historique
+   **« mis en forme »** (docx, pdf, tex…) vs **« bruts »** (txt, md, csv). Image, vidéo,
+   audio, archive, 3D : autres natures. La sous-distinction formé/brut reste disponible si un
+   consommateur en a besoin — son consommateur HISTORIQUE (reconnaître les fichiers batch)
+   meurt avec les zones de rôle de la card v3.5.
+3. **Le prompt est un RÔLE, pas une nature — et sa matérialisation est un passage, pas une
+   ambiguïté** : le texte saisi (rôle saisie) DEVIENT un document textuel brut quand il entre
+   en file (pour être exporté avec le résultat). Rôle à l'entrée, nature au stockage : les
+   deux axes se relaient, ils ne se contredisent plus.
+4. **Conséquence dérivée (et non plus « à arbitrer » cas par cas)** : dans le vocabulaire des
+   NATURES, `text` disparaît (les fichiers texte sont des documents, éventuellement
+   sous-typés bruts/formés) ; dans le vocabulaire des RÔLES, la saisie garde son jeton
+   (`prompt`, déjà en place dans les ports). La table « 3 affectations » du bloc ci-dessous
+   devient un DÉTAIL D'EXÉCUTION de ce cadre — sa ligne 3 en est la traduction mécanique.
+   Restent les gestes déjà identifiés : migration `detected_type` (describer) et balayage du
+   rayon mesuré plus haut.
+
 **🧭 POSITION DE FABIEN (2026-08-30, session card v3.5 — une DIRECTION, pas encore le geste) :**
 1. **« Le rôle `text` doit s'appliquer au texte brut et non aux documents texte. »** Donc :
    `text` = la SAISIE (le sens prompt) ; les fichiers `.txt/.md/.csv` sont des **documents**.

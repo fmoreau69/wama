@@ -478,3 +478,51 @@ idempotent ni réversible, il **écrase les patches venv** (`patches/apply_patch
 les pins de la pile GPU. Contrat exigé : `project()` produit un **plan**, exécution sous validation
 humaine, **ré-exécution d'`apply_patches.py` en post-étape obligatoire**, et allowlist façon Hermes
 (PyPI par nom, pin PEP 440, pas de `git+`/`file:`/`--index-url`).
+
+
+---
+
+## 8. PROPOSITION (Fabien, 2026-08-30) — manifeste de PROCESS : la card reproductible par DESCRIPTION
+
+> Venu de la session card v3.5, par comparaison avec le monde Data : *« comme on a un manifeste
+> de pipeline dans le monde Data pour reproduire un process sur un dataset […] chaque card ou
+> batch devrait avoir sa description de process avec ce que contient la card. On a déjà tout,
+> il suffit de l'écrire. »* Statut : PROPOSITION consignée, formalisme à concevoir — rien
+> d'implémenté.
+
+**Le constat** : dans le monde Médias, l'utilisateur importe, règle, lance, récupère, supprime —
+et pour REFAIRE le même traitement il refait tout le schéma à la main. Tout est pourtant
+descriptif dans WAMA : la card N'EST QUE la projection UI d'un process qui n'est écrit nulle
+part comme objet.
+
+**L'idée** : chaque card/batch porte (ou sait émettre) sa **description de process** — app,
+réglages, entrées PAR RÔLE, format de sortie. Trois usages :
+1. **au téléchargement du résultat**, le manifeste part avec (l'utilisateur récupère le
+   COMMENT avec le QUOI) ;
+2. **ré-import** du manifeste → card/batch pré-remplie, où l'utilisateur REMPLACE les entrées
+   (la définition du travail, app comprise, est conservée) — c'est le bouton Dupliquer **par
+   description**, et la direction « autres fichiers, mêmes réglages » qui manque aujourd'hui
+   (CARD_DESIGN §11.8 exigence 7) ;
+3. **voie assistant** : passer le manifeste + de nouveaux fichiers à l'AI-Assistant = « rejoue
+   ce traitement sur ceux-ci » (tool_api sait déjà créer les éléments).
+
+**Ce qui existe déjà (l'inventaire du « on a déjà tout ») :**
+- la card est AUTO-SUFFISANTE : `data-param-<champ>` porte les valeurs, le schéma params
+  déclare champs et sections ; `prompt_trace` conserve l'état de prompt ingéré ;
+- les ENTRÉES PAR RÔLE sont déclarées depuis le 30/08 (ports travail/référence/prompt —
+  `WAMA_APP_GENERATION_ROUTE.md §S2bis.6 (b)`) : le manifeste de process peut citer chaque
+  entrée avec son rôle ;
+- `BATCH_FORMAT.md` (balises `-i/-p/-r/-o`) est l'ANCÊTRE TEXTUEL de cette idée — une ligne de
+  fichier batch décrit déjà un process par rôles ; le manifeste en est la forme structurée ;
+- le kind `pipeline` (studio) couvre le multi-nœuds ; le process mono-app en est le cas
+  dégénéré — À TRANCHER : kind nouveau (`process` ou `run`) ou pipeline à un nœud ;
+- côté monde Data, le manifeste de pipeline joue déjà exactement ce rôle sur les datasets.
+
+**Contrats à poser dès la conception (hérités des doctrines en place) :**
+- les entrées sont référencées PAR CHEMIN/identifiant, jamais embarquées — et un manifeste de
+  process est un ARTEFACT UTILISATEUR (téléchargé avec son résultat), pas une pièce du corpus
+  versionné (`manifests/`) : aucune donnée utilisateur n'entre dans le dépôt (règle G7) ;
+- **jamais d'apply auto** (doctrine manifest_apply) : ré-importer un manifeste CRÉE une
+  card PENDING pré-remplie, il ne LANCE rien ;
+- le manifeste cite l'app par son id de catalogue → une jumelle de bac à sable peut rejouer
+  le process de sa source (même mécanique `generated_from` que l'importeur filemanager).

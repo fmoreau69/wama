@@ -723,21 +723,42 @@ Trois pièges, tous rencontrés :
    ZONE de rôle** (filtré par l'accept du rôle — `media_library_type` existe déjà comme filtre,
    mais il est GLOBAL à la card), jamais un bouton unique au rôle implicite. Même contrat que le
    D&D par rôle de l'exigence 1 — la médiathèque est une modalité comme les autres.
-6. **Le TEMPS RÉEL entre dans la card d'entrée, pas au-dessus de la file** (3ᵉ message, 30/08 :
-   *« un champ temps réel au-dessus de la file ? directement dans la card d'entrée ? »*). La
-   réponse est déjà tranchée DEUX fois : `MODES_QUEUE_UX §5` (Fabien, 2026-07-25 — le temps réel
-   n'est pas un mode, c'est une **affordance de la card**, `show_live`/Speak) et la maquette
-   v3.5 elle-même (🎙 = **modalité de la cellule Entrée**, « comme les autres »). Ce qui reste à
-   dessiner : la surface de la SESSION live — aujourd'hui le transcriber révèle une zone écrite
-   à la main APRÈS la card (`wama/transcriber/templates/transcriber/index.html:224-234`).
-   Position (Claude) : la session vit DANS la card brouillon — activer 🎙 fait de la card
-   d'entrée la surface live (transcript/aperçu en cellule Entrée), et la clôture matérialise le
-   résultat en card normale de la file (le flux « test → ajout file » du §5 historique). Zéro
-   surface de plus, cycle de card respecté. ⚠ Préalable déclaratif = la **tension ouverte de
-   `MODES_QUEUE_UX §5bis`** : `app_modes.py` déclare encore des MODES `realtime`
-   (synthesizer/transcriber) alors que §5 les requalifie en affordance — proposition : un
-   drapeau de DOMAINE (`live`, comme `route_prefix`) remplace ces deux modes, et le générateur
-   émet la modalité 🎙 depuis lui. À trancher avec Fabien (réservé par §5bis) AVANT le code.
+6. **Le TEMPS RÉEL entre dans la card d'entrée — TRANCHÉ le 30/08, via la PREVIEW.** Question
+   de Fabien (*« un champ temps réel au-dessus de la file ? directement dans la card
+   d'entrée ? »*), réponse alignée sur ses deux décisions antérieures (`MODES_QUEUE_UX §5`
+   25/07 : affordance de card, pas un mode ; maquette : 🎙 = modalité) et PRÉCISÉE par lui :
+   **on active la modalité, on parle, et le résultat s'affiche dans la preview « during » de la
+   card** — « quelques infos complémentaires pour expliciter le mode preview, quitte à ce que
+   la zone soit un peu plus haute et sur plusieurs lignes ». Pas de mode temps réel, pas de
+   surface live dédiée, pas de réécriture UI. (La 1ʳᵉ proposition Claude — la card brouillon
+   devenant surface live — est ÉCARTÉE : elle réécrivait une UI que la brique `during` rend
+   inutile.) ⭐ Convergence avec l'existant : le transcriber STREAME DÉJÀ son texte partiel par
+   ce canal (`during_preview=True`, `publish_partial_text` → face `?side=during`, 2026-08-13) —
+   Speak crée la card et la session live emprunte le même tuyau que la transcription de
+   fichier. ✅ La **tension `MODES_QUEUE_UX §5bis` est CLOSE dans la foulée** : les modes
+   `realtime` de synthesizer/transcriber (identiques à leurs jumeaux `normal`, jamais câblés —
+   0 `WamaModes` dans les deux apps, mesuré) sont RETIRÉS d'`app_modes.py` le 30/08, leurs
+   `inputs` remontés au domaine. Le drapeau déclaratif de la modalité 🎙 (remplaçant du
+   littéral `show_live`) s'ajoutera AVEC son lecteur, à l'émission v3.5 — jamais une
+   déclaration sans consommateur.
+7. **Les fichiers injectés d'une card doivent pouvoir se REMPLACER** (4ᵉ message, 30/08) :
+   aujourd'hui on ne peut remplacer ni le fichier de travail ni la référence d'une card
+   existante — dupliquer permet « mêmes entrées, autres réglages » mais JAMAIS « autres
+   entrées, mêmes réglages ». Position (Claude, à valider) : **tant que la card est PENDING,
+   l'entrée est un paramètre du process comme les autres** — remplaçable par les mêmes zones de
+   rôle que la card d'entrée (drop / médiathèque / filemanager sur la zone concernée) ; après
+   exécution, « remplacer l'entrée » = une NOUVELLE passe → c'est la duplication (qui gagne
+   donc ses deux directions) ou le manifeste de PROCESS (`WAMA_MANIFEST_ARCHITECTURE`,
+   proposition du même jour — la duplication PAR DESCRIPTION, où remplacer les entrées est
+   l'usage nominal). Le domicile UI du remplacement est la section Entrée de l'exigence 8.
+8. **Modale ⚙ et inspecteur : sections EXPLICITES Entrée / Réglages / Sortie** (même message),
+   comme les cards v3 — avec accordéons, Entrée et Sortie REPLIÉS par défaut (la place aux
+   réglages), mais rouvrables pour re-modifier. Position (Claude) : oui, et c'est UN geste de
+   brique — la modale est GÉNÉRÉE (`WamaParams.settingsModal`) et le schéma de params déclare
+   DÉJÀ la section champ par champ (`chips_by_section` s'en sert pour les chips de card) : les
+   10 apps héritent d'un coup, aucune modale à réécrire par app. La section Entrée est aussi le
+   domicile du remplacement de fichiers (exigence 7) — même anatomie partout : card, modale,
+   inspecteur disent Entrée/Réglages/Sortie dans le même ordre.
 
 #### Les charges à absorber — ce que les 12 cards portent DÉJÀ
 

@@ -205,11 +205,13 @@ sur briques communes)* ; tout le reste se génère.
 > `realtime` pour synthesizer/transcriber alors que §5 le requalifie en **affordance
 > `show_live`** de la card d'entrée — deux sections ne peuvent pas avoir raison ensemble ;
 > à trancher avec Fabien avant tout code qui s'appuierait sur l'un ou l'autre.
-> **MAJ 2026-08-30** : la question est revenue par la card v3.5 (Fabien : « un champ temps réel
-> au-dessus de la file ? dans la card d'entrée ? ») — cadre de résolution proposé et consigné à
-> `CARD_DESIGN.md §11.8` exigence 6 : modalité 🎙 de la card, session live DANS la card
-> brouillon, et un drapeau de DOMAINE `live` qui remplacerait les deux modes `realtime`
-> (fermant cette tension). Toujours réservé à l'arbitrage de Fabien.
+> ✅ **TRANCHÉ le 2026-08-30 (Fabien, 2ᵉ confirmation — cohérente avec sa décision du 25/07)** :
+> pas de mode temps réel ; **modalité de la card d'entrée, gérée via la PREVIEW « during »**
+> (on active, on parle, le résultat défile dans la preview de la card — zone un peu plus haute,
+> quelques infos de contexte ; zéro surface dédiée). Détail = `CARD_DESIGN.md §11.8` exigence 6.
+> Les modes `realtime` de synthesizer/transcriber (identiques à leurs `normal`, consommés par
+> AUCUNE UI — mesuré) sont RETIRÉS d'`app_modes.py` le même jour, leurs `inputs` remontés au
+> domaine. Cette tension n'existe plus : la déclaration et §5 disent désormais la même chose.
 
 **Lecture** : axe **domaine (onglet)** = Imager/Enhancer/Anonymizer (multi-domaine) uniquement ; axe
 **temps réel** (mode) = Synthesizer/Transcriber/Avatarizer ; axe **pipeline/standalone** = transversal
