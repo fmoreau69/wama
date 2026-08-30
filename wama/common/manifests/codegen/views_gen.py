@@ -648,9 +648,19 @@ def batch_duplicate(request, pk):
     return FileResponse(buf, as_attachment=True, filename=f'{app}_batch_{{b.id}}.zip')'''
                               if d['a_output'] else stub('batch_download', pk=True))
 
+    # Gabarit de lot : par la BRIQUE COMMUNE, avec une LIGNE D'EXEMPLE déposable — un gabarit
+    # fait de seuls commentaires n'est pas déposable (mesuré `converter_01.batch_import`,
+    # 2026-08-30 : la détection structurelle n'y reconnaît rien). L'extension d'exemple est
+    # DÉRIVÉE du vocabulaire d'entrée, jamais écrite au hasard.
+    _EXEMPLES = {'image': '.jpg', 'video': '.mp4', 'audio': '.mp3',
+                 'document': '.pdf', 'archive': '.zip', '3d': '.glb', 'dataset': '.csv'}
+    ext_exemple = _EXEMPLES.get((d.get('types_entree') or ('video',))[0], '.mp4')
     vues['batch_template'] = f'''def batch_template(request):
-    contenu = "# {app} — fichier batch : une ligne par média (chemin local ou URL)\\n"
-    resp = HttpResponse(contenu, content_type='text/plain; charset=utf-8')
+    from wama.common.utils.batch_parsers import build_batch_template
+    texte = build_batch_template(
+        ['fichier'], {{'fichier': 'https://example.com/exemple{ext_exemple}'}},
+        app_label='{app} (un chemin local ou une URL par ligne)')
+    resp = HttpResponse(texte, content_type='text/plain; charset=utf-8')
     resp['Content-Disposition'] = 'attachment; filename="{app}_batch_template.txt"'
     return resp'''
 
