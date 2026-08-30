@@ -112,10 +112,10 @@ MODULES: Tuple[ModuleData, ...] = (
                                 "ajoute une colonne calculée et où l'on voit le résultat",
         "référentiel → vues table/graphe + colonnes calculées",
         briques=('wama_data/frames.py',
-                 'wama_data/vue.py'),
+                 'wama_data/view.py'),
         doc='§7, §9quater.6, §9quater.7',
         bloque_par="CŒUR LIVRÉ le 2026-08-23 — le PONT (`frames.py`, 34 tests) et le VIEW-MODEL "
-                   "(`vue.py`, 31 tests) : une `View` déclare flux/fenêtre/résolution/colonnes "
+                   "(`view.py`, 31 tests) : une `View` déclare flux/fenêtre/résolution/colonnes "
                    "dérivées, est sérialisable en JSON, et rend la règle de §9quater.4 EXÉCUTABLE "
                    "en la dérivant de la `FunctionCategory`. Reste l'UI, et elle seule : "
                    "`wama_data` n'a encore AUCUNE surface Django (ni views, ni urls, ni "
@@ -161,7 +161,7 @@ MODULES: Tuple[ModuleData, ...] = (
         "PAR SEGMENT qu'il adjoint aux segments",
         "signal → signal enrichi · `segments` + signal → colonnes d'indicateurs",
         briques=('wama_data/core/calculation.py',
-                 'wama_data/core/valeurs.py',
+                 'wama_data/core/values.py',
                  'wama_data/functions/temporal/calculation.py'),
         fonctions=('calc_rolling', 'calc_derivative', 'calc_cumulative', 'calc_per_segment'),
         doc='§6.7',

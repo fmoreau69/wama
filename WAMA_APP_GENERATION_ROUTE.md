@@ -1062,8 +1062,15 @@ au code.
    *de facto* côté ports, ce qui penche pour « `text` = fichier texte, `prompt` = saisie ») ;
 2. **ce que deviennent les valeurs déjà en base** (migration de données : réécrire, ou laisser et
    interpréter au vol) ;
-3. **où vit la taxonomie qui en découle** — elle est INTER-mondes (`common/catalog/data_types.py`),
-   donc l'arbitrage engage aussi le Lab et le monde Data.
+3. **où vit la taxonomie qui en découle** — ⚠ **RECTIFIÉ le 2026-08-30 (vérification de
+   compatibilité monde Data, `WAMA_DATA_WORLD.md §compat`)** : cette ligne affirmait qu'elle est
+   inter-mondes (`common/catalog/data_types.py`) et que l'arbitrage engage le Lab et le monde
+   Data. **C'est faux, et mesurable** : `data_types.py` déclare 11 types de DONNÉE
+   (geo_track/timeseries/…), d'**intersection VIDE** avec `MEDIA_CATEGORIES`, sans jeton `text`
+   (0 occurrence taxonomique dans `wama_data/`), et aucun des 7 sites du rayon mesuré ci-dessus
+   n'est hors de `wama/`. La taxonomie des NATURES vit dans `app_registry.py` — **le retrait de
+   `text` est un chantier 100 % monde Médias**. Deux taxonomies parallèles coexistent (natures
+   média / types de donnée) ; leur éventuel axe commun est l'item B du plan de compatibilité.
 
 ⛔ **Ne pas le trancher au fil d'un autre chantier** — et ne pas le confondre avec (b) ci-dessus,
 qui est réparable sans lui : donner des entrées PAR SLOT au générateur ne demande pas de choisir
