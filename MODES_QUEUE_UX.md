@@ -205,6 +205,11 @@ sur briques communes)* ; tout le reste se génère.
 > `realtime` pour synthesizer/transcriber alors que §5 le requalifie en **affordance
 > `show_live`** de la card d'entrée — deux sections ne peuvent pas avoir raison ensemble ;
 > à trancher avec Fabien avant tout code qui s'appuierait sur l'un ou l'autre.
+> **MAJ 2026-08-30** : la question est revenue par la card v3.5 (Fabien : « un champ temps réel
+> au-dessus de la file ? dans la card d'entrée ? ») — cadre de résolution proposé et consigné à
+> `CARD_DESIGN.md §11.8` exigence 6 : modalité 🎙 de la card, session live DANS la card
+> brouillon, et un drapeau de DOMAINE `live` qui remplacerait les deux modes `realtime`
+> (fermant cette tension). Toujours réservé à l'arbitrage de Fabien.
 
 **Lecture** : axe **domaine (onglet)** = Imager/Enhancer/Anonymizer (multi-domaine) uniquement ; axe
 **temps réel** (mode) = Synthesizer/Transcriber/Avatarizer ; axe **pipeline/standalone** = transversal

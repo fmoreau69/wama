@@ -1061,9 +1061,24 @@ le sens de `text`, seulement de ne plus mélanger les slots.
 **🧭 POSITION DE FABIEN (2026-08-30, session card v3.5 — une DIRECTION, pas encore le geste) :**
 1. **« Le rôle `text` doit s'appliquer au texte brut et non aux documents texte. »** Donc :
    `text` = la SAISIE (le sens prompt) ; les fichiers `.txt/.md/.csv` sont des **documents**.
-   ⚠ C'est l'INVERSE du penchant noté au point 1 ci-dessus (le jeton `prompt` fabriqué de facto
-   par les ports semblait pousser vers « `text` = fichier ») — la position de l'arbitre prime, et
-   elle a un argument de fond que le penchant n'avait pas : voir 2.
+   ⚠ Le point 1 « ce qui doit être arbitré » ci-dessus notait un penchant CONTRAIRE — non pas
+   une raison de fond, mais un MOINDRE-EFFORT : le code ayant déjà fabriqué `prompt` pour la
+   saisie, garder `text` aux fichiers semblait le chemin court. La position de Fabien repose,
+   elle, sur le SENS (l'exception de catégorie n'existait que pour le batch — point 2) : c'est
+   elle qui prime. Les trois affectations possibles du mot, posées à plat :
+
+   | option | la saisie s'appelle | `.txt/.md/.csv` sont | le mot `text` |
+   |---|---|---|---|
+   | penchant initial (moindre-effort) | `prompt` | `text` | = fichier |
+   | position Fabien, au pied de la lettre | `text` | `document` | = saisie |
+   | voie sûre (Claude) | `prompt` (inchangé) | `document` | **RETIRÉ** |
+
+   Les deux dernières lignes partagent **LA décision de fond — les fichiers texte deviennent
+   des documents** — et ne diffèrent que sur le MOT qui nomme la saisie. Réaffecter `text`
+   (ligne 2) ferait changer de sens, en silence, tout code qui lit `'text'` aujourd'hui — *un
+   renommage ne casse rien, il rend FAUX* ; le retirer (ligne 3) réalise la même intention sans
+   ce risque : le rôle « texte brut » existe, il s'épelle `prompt`. **Reste à Fabien de trancher
+   entre les lignes 2 et 3.**
 2. **L'origine de l'exception est identifiée** — la catégorie `text` posée sur `.txt/.md/.csv`
    (le `prime sur document` de `_build_cat_of`, `app_registry.py:76-78`) servait à **différencier
    fichiers de travail et fichiers BATCH**. Malgré l'auto-détection, l'unification des deux dans

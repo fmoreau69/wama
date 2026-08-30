@@ -715,6 +715,29 @@ Trois pièges, tous rencontrés :
    ⚙ + cycle. **Mesuré : AUCUNE app n'a aujourd'hui de ⚙ ni de bouton de cycle sur sa card
    d'entrée** (la brique ne rend qu'un `primary_btn_id` ; `WamaCycleButton` n'est câblé que sur
    les conteneurs de FILE, 10 câblages relevés).
+5. **L'import MÉDIATHÈQUE porte le rôle lui aussi** (2ᵉ message, 30/08) : l'idée initiale du
+   bouton médiathèque visait plutôt les fichiers de RÉFÉRENCE — or le picker injecte aujourd'hui
+   le fichier choisi dans l'input de TRAVAIL (`_new_item_card.html:117-121` : `MediaPicker` →
+   `file_input_id`), au rôle donc implicite et parfois faux : *« l'utilisateur ne sait pas le
+   rôle du fichier qu'il importe depuis la médiathèque »*. En v3.5 : un accès médiathèque **par
+   ZONE de rôle** (filtré par l'accept du rôle — `media_library_type` existe déjà comme filtre,
+   mais il est GLOBAL à la card), jamais un bouton unique au rôle implicite. Même contrat que le
+   D&D par rôle de l'exigence 1 — la médiathèque est une modalité comme les autres.
+6. **Le TEMPS RÉEL entre dans la card d'entrée, pas au-dessus de la file** (3ᵉ message, 30/08 :
+   *« un champ temps réel au-dessus de la file ? directement dans la card d'entrée ? »*). La
+   réponse est déjà tranchée DEUX fois : `MODES_QUEUE_UX §5` (Fabien, 2026-07-25 — le temps réel
+   n'est pas un mode, c'est une **affordance de la card**, `show_live`/Speak) et la maquette
+   v3.5 elle-même (🎙 = **modalité de la cellule Entrée**, « comme les autres »). Ce qui reste à
+   dessiner : la surface de la SESSION live — aujourd'hui le transcriber révèle une zone écrite
+   à la main APRÈS la card (`wama/transcriber/templates/transcriber/index.html:224-234`).
+   Position (Claude) : la session vit DANS la card brouillon — activer 🎙 fait de la card
+   d'entrée la surface live (transcript/aperçu en cellule Entrée), et la clôture matérialise le
+   résultat en card normale de la file (le flux « test → ajout file » du §5 historique). Zéro
+   surface de plus, cycle de card respecté. ⚠ Préalable déclaratif = la **tension ouverte de
+   `MODES_QUEUE_UX §5bis`** : `app_modes.py` déclare encore des MODES `realtime`
+   (synthesizer/transcriber) alors que §5 les requalifie en affordance — proposition : un
+   drapeau de DOMAINE (`live`, comme `route_prefix`) remplace ces deux modes, et le générateur
+   émet la modalité 🎙 depuis lui. À trancher avec Fabien (réservé par §5bis) AVANT le code.
 
 #### Les charges à absorber — ce que les 12 cards portent DÉJÀ
 
