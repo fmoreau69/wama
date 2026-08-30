@@ -104,7 +104,7 @@ def _consommateurs_role() -> dict:
     except Exception:
         logger.debug("[skills_catalog] domaines d'assistant indisponibles", exc_info=True)
         return {}
-    return {d.skill: [f"Assistant · domaine « {d.libelle} »"
+    return {d.skill: [f"Assistant · domaine « {d.label} »"
                       + (" · rappel RAG" if d.rag else "")] for d in DOMAINES}
 
 
