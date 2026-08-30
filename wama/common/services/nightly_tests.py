@@ -155,8 +155,9 @@ def get_test_dev_user():
 # nommé `tmp_export.csv` n'est pas à nous et ne doit pas disparaître.
 _MOTIF_TEMOIN = re.compile(r'^(wama_temoin_|tmp[A-Za-z0-9_]{8})')
 # Les comptes de test connus (même liste que `_test_session_key` dans ui_smoke).
-TEST_USERNAMES = (TEST_USERNAME, 'ui_smoke_v3', 'pw_smoke', 'wama_rights_commun',
-                  'wama_rights_communication', 'wama_rights_recherche', 'wama_rights_developpeur')
+TEST_USERNAMES = (TEST_USERNAME, TEST_DEV_USERNAME, 'ui_smoke_v3', 'pw_smoke',
+                  'wama_rights_commun', 'wama_rights_communication', 'wama_rights_recherche',
+                  'wama_rights_developpeur')
 
 
 def sweep_test_witnesses() -> int:

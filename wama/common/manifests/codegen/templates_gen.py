@@ -268,6 +268,15 @@ def render_index(manifest: dict) -> tuple:
         (route_start_all, ' start_url=q_start_url'), (route_clear_all, ' clear_url=q_clear_url'),
         (route_dl_all, ' download_url=q_download_url')) if cle)
 
+    # Actions COMMUNES de la card MÈRE de lot — émises SEULEMENT si les trois routes de lot
+    # existent au manifeste (contrat `_batch_card.html` : l'opt-in fait émettre les
+    # `data-batch-*-url`, `queue-actions.js` prend ▶⧉🗑 en charge). Une app générée n'a AUCUN
+    # handler local de lot : pas de risque de double-fire — c'était même le défaut mesuré
+    # (`converter_01.batch_actions` : card mère aux boutons inertes, 2026-08-30).
+    lot_bits = ''
+    if all(resolve_route(r, noms_routes) for r in ('batch_delete', 'batch_duplicate', 'batch_start')):
+        lot_bits = f" app='{app}' actions_communes=True"
+
     caps = body.get('capabilities') or {}
     url_bits = url_js = ''
     if caps.get('accepts_url') or caps.get('has_url_import'):
@@ -346,7 +355,7 @@ document.addEventListener('DOMContentLoaded', function () {{
     {{% include 'common/_global_progress.html' %}}
 
     {{% url '{app}:batch_template' as batch_tpl_url %}}
-    {{% include 'common/_new_item_card.html' with drop_zone_id='{app}DropZone' file_input_id='{app}FileInput' file_accept='{accept}' formats_label='{label}' show_batch_bar=True show_media_library=True batch_template_url=batch_tpl_url collapsible=True{url_bits}{ref_bits} %}}
+    {{% include 'common/_new_item_card.html' with drop_zone_id='{app}DropZone' file_input_id='{app}FileInput' folder_input_id='{app}FolderInput' file_accept='{accept}' formats_label='{label}' show_batch_bar=True show_media_library=True batch_template_url=batch_tpl_url collapsible=True{url_bits}{ref_bits} %}}
     <hr class="border-secondary">
 
 {urls_file}    {{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='{app}StartAllBtn' clear_id='{app}ClearAllBtn' download_id='{app}DownloadAllBtn' show_download=True{bits_file} %}}
@@ -359,7 +368,7 @@ document.addEventListener('DOMContentLoaded', function () {{
             dans le DOM : l'inspecteur ne pouvait pas le sélectionner et le nettoyage de lot vidé
             de `queue-actions.js` ne le trouvait pas non plus.{{% endcomment %}}
             <div class="batch-group" data-batch-id="{{{{ b.obj.id }}}}">
-            {{% include 'common/_batch_card.html' with batch_info=b eta_ids=b.eta_ids %}}
+            {{% include 'common/_batch_card.html' with batch_info=b eta_ids=b.eta_ids{lot_bits} %}}
             <div class="collapse show" id="batchItems{{{{ b.obj.id }}}}" data-wama-batch-key="{app}-{{{{ b.obj.id }}}}">
                 {{% for item in b.items %}}{{% include '{app}/_generic_card.html' %}}{{% endfor %}}
             </div>
@@ -408,6 +417,15 @@ document.addEventListener('DOMContentLoaded', function () {{
         fileInputId:    '{app}FileInput',
         batch:          window._batchImport,
     }});
+
+    // Import de DOSSIER récursif (F2) — brique GLOBALE WamaFolderImport, contrat MESURÉ sur
+    // converter.js/reader.js : fromInput(files) → files() → la même voie que le dépôt.
+    var fdi = document.getElementById('{app}FolderInput');
+    if (fdi && window.WamaFolderImport) {{
+        fdi.addEventListener('change', function () {{
+            window._import.handleFiles(WamaFolderImport.files(WamaFolderImport.fromInput(fdi.files)));
+        }});
+    }}
 {url_js}{ref_js}{insp_js}{params_js}}});
 </script>
 {{% endblock %}}
