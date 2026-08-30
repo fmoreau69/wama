@@ -319,6 +319,35 @@ class SlotDeReferenceGenereTest(SimpleTestCase):
         self.assertIn("reference_accept='audio/*'", inc)
         self.assertIn("reference_label='Mélodie de référence'", inc)
 
+    def test_le_slot_travail_est_retreci_aux_categories_du_port(self):
+        """Moitié TRAVAIL de §S2bis.6 (b), débloquée par le retrait de l'homonyme `text`.
+
+        Manifeste MUTÉ (port travail réduit à `image`) : l'accept généré ne doit plus offrir
+        `.mp3`, mais doit GARDER les formats de fichier de LOT (le même input les reçoit,
+        détection structurelle). Sur le converter réel (5 catégories), l'accept est inchangé.
+        """
+        from copy import deepcopy
+        manifest = deepcopy(_manifeste(SOURCE))
+        ports = (manifest.get('body') or {}).get('ports') or {}
+        for p in ports.get('inputs') or []:
+            if p.get('group') == 'travail':
+                p['types'] = ['image']
+        src = self._rendu(manifest)
+        m = re.search(r"file_accept='([^']*)'", self._include_card(src))
+        self.assertIsNotNone(m)
+        jetons = m.group(1).split(',')
+        self.assertIn('.jpg', jetons)
+        self.assertNotIn('.mp3', jetons, 'le slot image ne doit plus offrir de l’audio')
+        self.assertIn('.txt', jetons, 'les formats de LOT restent acceptés (détection)')
+
+    def test_sur_le_converter_reel_l_accept_reste_l_union_complete(self):
+        # 5 catégories au port travail → rien à rétrécir : les 60 extensions déclarées passent.
+        m = re.search(r"file_accept='([^']*)'", self._include_card(self._rendu(_manifeste(SOURCE))))
+        jetons = m.group(1).split(',')
+        self.assertIn('.zip', jetons)
+        self.assertIn('.mp3', jetons)
+        self.assertGreater(len(jetons), 50)
+
     def test_plusieurs_ports_reference_le_surplus_est_NOMME(self):
         # La card commune n'a qu'un slot de référence : le 2ᵉ port ne se rend pas, mais il ne
         # doit JAMAIS disparaître en silence (jamais d'omission silencieuse).

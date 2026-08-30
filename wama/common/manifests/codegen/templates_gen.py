@@ -43,7 +43,26 @@ def render_index(manifest: dict) -> tuple:
     body = manifest.get('body') or {}
     ident = body.get('identity') or {}
     label = ident.get('verbose_name') or (manifest.get('name') or app)
-    accept = ','.join(ident.get('input_extensions') or []) or '*/*'
+    # `file_accept` — RÉTRÉCI aux catégories du PORT TRAVAIL (moitié TRAVAIL de §S2bis.6 (b),
+    # débloquée le 2026-08-30 par le retrait de l'homonyme `text` : les .txt/.md/.csv du
+    # describer sont désormais des `document`, donc plus de contre-exemple). L'union PLATE
+    # d'`input_extensions` faisait proposer `.docx` au slot « image de travail » dès la 2ᵉ app
+    # portée. On garde : les extensions dont la nature ∈ types du port travail, PLUS les
+    # formats de FICHIER DE LOT si l'app a le batch (le même input les reçoit — détection
+    # structurelle). Sans port travail (app prompt-primaire) : lot seul, sinon l'union.
+    exts = [str(e) for e in (ident.get('input_extensions') or [])]
+    work = next((p for p in ((body.get('ports') or {}).get('inputs') or [])
+                 if p.get('group') == 'travail'), None)
+    if work and exts:
+        from wama.common.app_registry import category_of_path
+        cats = set(work.get('types') or [])
+        retenues = [e for e in exts if category_of_path('x' + e) in cats]
+        if (body.get('capabilities') or {}).get('has_batch'):
+            from wama.common.utils.batch_parsers import SUPPORTED_BATCH_EXTENSIONS
+            retenues += ['.' + b for b in SUPPORTED_BATCH_EXTENSIONS
+                         if '.' + b not in retenues]
+        exts = retenues or exts
+    accept = ','.join(exts) or '*/*'
     mark = _GEN_MARK.format(app_id=app)
 
     # Import par URL — DÉRIVÉ des capacités du manifeste (2026-08-19). La jumelle converter_01
