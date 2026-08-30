@@ -230,7 +230,7 @@ def check_app_page(app: str, url_path: str, selector: str | None = None):
     # SKIP plutôt que repli anonyme : mesurer une page en visiteur est précisément ce que ce
     # scénario faisait depuis toujours sans le dire (cf. `_exercise_page`). Un repli muet
     # ramènerait le défaut le jour où le compte de test manque.
-    jeton = _session_compte_de_test(app)
+    jeton = _test_session_key(app)
     if not jeton:
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3) "
                            "— une page mesurée en VISITEUR n'est pas la page de l'app")
@@ -522,7 +522,7 @@ def _deplier_autour(page, selecteur: str) -> bool:
     return True
 
 
-def _session_compte_de_test(app: str | None = None):
+def _test_session_key(app: str | None = None):
     """Clé de session d'un compte de TEST existant, ou None.
 
     On ne crée aucun compte ARBITRAIRE : le dépôt a ses comptes déclarés (`wama_nightly_test`,
@@ -648,7 +648,7 @@ def check_app_import(app: str, url_path: str):
     sessions_before = _session_keys()
     # ⚠ Toute lecture ORM doit se faire AVANT `sync_playwright()` : à l'intérieur, Django
     # refuse l'accès synchrone (SynchronousOnlyOperation). Le jeton est donc préparé ici.
-    jeton = _session_compte_de_test(app)
+    jeton = _test_session_key(app)
     if not jeton:
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3) "
                            "— les droits ne sont pas simulables, on ne mesure pas à l'aveugle")
@@ -833,11 +833,11 @@ def check_app_send_to(app: str, url_path: str):
              "l'explorateur, et le menu ne la propose donc pas (VÉRIFIÉ à l'écran) — "
              "geste non câblé, dette ouverte")
 
-    jeton = _session_compte_de_test(app)
+    jeton = _test_session_key(app)
     if not jeton:
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3) "
                            "— les droits ne sont pas simulables, on ne mesure pas à l'aveugle")
-    uid = _id_du_compte_de_test()
+    uid = _test_account_id()
     if not uid:
         raise SkipScenario("id du compte de test illisible — sans lui, aucun dossier à peupler")
 
@@ -1120,11 +1120,11 @@ def check_app_url_import(app: str, url_path: str):
     from wama.common.services.nightly_tests import SkipScenario
     from playwright.sync_api import sync_playwright
 
-    jeton = _session_compte_de_test(app)
+    jeton = _test_session_key(app)
     if not jeton:
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3) "
                            "— les droits ne sont pas simulables, on ne mesure pas à l'aveugle")
-    uid = _id_du_compte_de_test()
+    uid = _test_account_id()
     if not uid:
         raise SkipScenario("id du compte de test illisible — sans lui, aucun témoin à publier")
 
@@ -1497,7 +1497,7 @@ def check_app_folder_import(app: str, url_path: str):
     from wama.common.services.nightly_tests import SkipScenario
     from playwright.sync_api import sync_playwright
 
-    jeton = _session_compte_de_test(app)
+    jeton = _test_session_key(app)
     if not jeton:
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3) "
                            "— les droits ne sont pas simulables, on ne mesure pas à l'aveugle")
@@ -1749,7 +1749,7 @@ def check_app_duplicate_delete(app: str, url_path: str):
             modele = None
 
     sessions_before = _session_keys()
-    jeton = _session_compte_de_test(app)
+    jeton = _test_session_key(app)
     if not jeton:
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3) "
                            "— les droits ne sont pas simulables, on ne mesure pas à l'aveugle")
@@ -1972,7 +1972,7 @@ def check_app_settings(app: str, url_path: str):
             modele = None
 
     sessions_before = _session_keys()
-    jeton = _session_compte_de_test(app)
+    jeton = _test_session_key(app)
     if not jeton:
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3) "
                            "— les droits ne sont pas simulables, on ne mesure pas à l'aveugle")
@@ -2184,7 +2184,7 @@ _GABARIT_DE_LOT = """(async () => {
 })()"""
 
 
-def _id_du_compte_de_test():
+def _test_account_id():
     """L'id du compte de test, lu DEPUIS UN THREAD ORDINAIRE.
 
     ⚠ `sync_playwright` installe une boucle d'événements dans le thread courant : tout accès
@@ -2229,7 +2229,7 @@ def _source_resolvable(app: str, combien: int = 2):
     """
     try:
         from wama.common.utils.media_paths import get_app_media_path
-        uid = _id_du_compte_de_test()
+        uid = _test_account_id()
         if not uid:
             return [], []
         dossier = get_app_media_path(app, uid, 'input')
@@ -2565,7 +2565,7 @@ def check_app_batch_actions(app: str, url_path: str):
                 start: q('batch-start-btn',     'data-batch-start-url')};
     })()"""
 
-    jeton = _session_compte_de_test(app)
+    jeton = _test_session_key(app)
     if not jeton:
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
 
@@ -2679,7 +2679,7 @@ def check_app_batch_import(app: str, url_path: str):
     from playwright.sync_api import sync_playwright
 
     url = f"{BASE_URL.rstrip('/')}{url_path}"
-    jeton = _session_compte_de_test(app)
+    jeton = _test_session_key(app)
     if not jeton:
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
 
@@ -2792,7 +2792,7 @@ def register_batch_actions_scenarios():
 # Le seul geste du catalogue dont l'effet VOULU est destructeur : il n'y a pas de version
 # « qui ne touche que ce que le passage a créé ». On ne peut donc pas l'exercer comme les
 # autres, et ce n'est pas une raison de ne pas le mesurer — c'est une raison de BORNER :
-#   • il ne s'exerce que sous le COMPTE DE TEST (`_session_compte_de_test`, qui ne forge
+#   • il ne s'exerce que sous le COMPTE DE TEST (`_test_session_key`, qui ne forge
 #     jamais de compte) — sans lui, skip, jamais de repli sur un compte réel ;
 #   • les dix vues `clear_all` filtrent toutes sur `user=` (relevé le 2026-08-28, 10/10) :
 #     la portée du geste est donc close par le code, pas par la prudence de l'instrument.
@@ -2838,7 +2838,7 @@ def check_app_clear_all(app: str, url_path: str):
     from playwright.sync_api import sync_playwright
 
     url = f"{BASE_URL.rstrip('/')}{url_path}"
-    jeton = _session_compte_de_test(app)
+    jeton = _test_session_key(app)
     if not jeton:
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
 
@@ -3199,7 +3199,7 @@ def check_app_inspector_actions(app: str, url_path: str):
                 texte: (h.innerText || '').trim().slice(0, 120)};
     }"""
 
-    jeton = _session_compte_de_test(app)
+    jeton = _test_session_key(app)
     if not jeton:
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
 
@@ -3409,7 +3409,7 @@ def check_volet_deselection(app: str, url_path: str):
     sessions_before = _session_keys()
     # ⚠ Lecture ORM AVANT sync_playwright (SynchronousOnlyOperation) — même contrainte
     # que le scénario d'import.
-    jeton = _session_compte_de_test(app)
+    jeton = _test_session_key(app)
     if not jeton:
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3) "
                            "— la page d'app exige une session")
@@ -3507,7 +3507,7 @@ def check_volet_instances(app: str, url_path: str):
 
     url = f"{BASE_URL.rstrip('/')}{url_path}"
     sessions_before = _session_keys()
-    jeton = _session_compte_de_test(app)
+    jeton = _test_session_key(app)
     if not jeton:
         raise SkipScenario("aucun compte de test disponible (wama_nightly_test / ui_smoke_v3)")
     try:
