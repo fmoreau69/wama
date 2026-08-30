@@ -40,6 +40,7 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 TEST_USERNAME = "wama_nightly_test"
+TEST_DEV_USERNAME = "wama_nightly_dev"   # surfaces dev-gated (jumelles) — cf. get_test_dev_user
 
 # Étapes cibles d'un scénario, du plus léger au plus complet.
 # `ui` est à part : ~2 s par app, aucun GPU — à ne pas noyer dans la série lourde à teardown
@@ -116,6 +117,35 @@ def get_test_user():
     for role in ("communication", "recherche"):
         group, _ = Group.objects.get_or_create(name=f"{GROUP_PREFIX}{role}")
         user.groups.add(group)                 # idempotent
+    return user
+
+
+def get_test_dev_user():
+    """Compte de test DÉVELOPPEUR, dédié aux surfaces dev-gated (jumelles de bac à sable).
+
+    ⚠ SÉPARÉ de `get_test_user` À DESSEIN : le compte nocturne standard est SANS tier
+    développeur par décision (2026-08-18, docstring ci-dessus) et la matrice de droits
+    (`rights_matrix`, 68 couples) mesure SES droits — l'élargir fausserait la matrice.
+    Les scénarios des jumelles (`converter_01.*` — gate déclaré `sandbox.py` : rôle
+    `ingenierie` + tier `developpeur`) utilisent CE compte-ci. Mesuré le 2026-08-30 :
+    sans lui, les 11 scénarios de la jumelle skippent (« Accès non autorisé ») et rien
+    de la surface générée n'est éprouvé mécaniquement.
+    Créé déclarativement (reproductible sur toute base, jamais un coup de base à la main).
+    """
+    from django.contrib.auth import get_user_model
+    from django.contrib.auth.models import Group
+    User = get_user_model()
+    user, _ = User.objects.get_or_create(
+        username=TEST_DEV_USERNAME,
+        defaults={"email": "nightly-dev@wama.local", "is_active": True, "is_staff": False},
+    )
+    from wama.accounts.permissions import GROUP_PREFIX
+    group, _ = Group.objects.get_or_create(name=f"{GROUP_PREFIX}ingenierie")
+    user.groups.add(group)                     # idempotent
+    prof = getattr(user, 'profile', None)
+    if prof is not None and getattr(prof, 'account_tier', '') != 'developpeur':
+        prof.account_tier = 'developpeur'
+        prof.save(update_fields=['account_tier'])
     return user
 
 
