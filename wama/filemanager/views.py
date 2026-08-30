@@ -1221,8 +1221,15 @@ def api_import_to_app(request):
     # Validate app name — contre le REGISTRE `IMPORTERS` (bas de ce fichier), qui est aussi
     # le dispatch et aussi ce que le menu client reçoit. Une seule source : plus d'app
     # offerte-puis-refusée (l'ancienne liste écrite à la main en oubliait trois).
-    if target_app not in IMPORTERS:
+    # Une JUMELLE de bac à sable résout par dérivation (`importer_for`) et passe le même
+    # portier que sa page (dev-only) — le menu la filtre déjà, ceci ferme la voie directe.
+    importer = importer_for(target_app)
+    if importer is None:
         return JsonResponse({'error': f'Invalid app: {target_app}'}, status=400)
+    if target_app not in IMPORTERS:
+        from wama.accounts.permissions import accessible
+        if not accessible(user, 'app', target_app):
+            return JsonResponse({'error': 'Access denied'}, status=403)
 
     if file_paths is None:
         # « Envoyer dossier vers… » (2026-08-13) : l'expansion se fait ICI, côté serveur.
@@ -1270,7 +1277,7 @@ def api_import_to_app(request):
             return {'error': 'Source file not found'}
 
         try:
-            return IMPORTERS[target_app](source_path, user)
+            return importer(source_path, user)
         except Exception as e:
             logger.error(f"Error importing {fp} to {target_app}: {e}")
             return {'error': str(e)}
@@ -1623,7 +1630,7 @@ def import_to_reader(source_path, user):
     }
 
 
-def import_to_converter(source_path, user):
+def import_to_converter(source_path, user, app_label='converter'):
     """Import a file to the Converter queue.
 
     Like every other app: COPY the source into converter/<user>/input and
@@ -1631,16 +1638,24 @@ def import_to_converter(source_path, user):
     later removes the app-owned copy, never the user's original). The user
     picks the output format/quality on the Converter page (settings modal).
     The on-the-fly "Conversion rapide" is a separate flow (in-place, no copy).
+
+    `app_label` : re-cible l'importeur sur une JUMELLE de bac à sable (`converter_01`) —
+    même schéma par construction (facette data), tables et dossier d'input SÉPARÉS. C'est
+    ce paramètre que `importer_for()` détecte pour dériver l'importeur d'une jumelle au
+    lieu d'exiger une ligne écrite à la main au registre (une jumelle qui importerait dans
+    sa SOURCE ne mesurerait plus rien).
     """
-    from wama.converter.models import ConversionJob
+    from django.apps import apps as django_apps
     from wama.converter.utils.format_router import detect_media_type
     from wama.common.utils.media_paths import copy_into_app_input
+
+    ConversionJob = django_apps.get_model(app_label, 'ConversionJob')
 
     media_type = detect_media_type(source_path.name)
     if media_type is None:
         raise ValueError(f"Type de fichier non supporté par le Converter : {source_path.suffix}")
 
-    dest_path, relative_path = copy_into_app_input(source_path, 'converter', user.id, 'input')
+    dest_path, relative_path = copy_into_app_input(source_path, app_label, user.id, 'input')
 
     job = ConversionJob.objects.create(
         user=user,
@@ -1654,7 +1669,7 @@ def import_to_converter(source_path, user):
 
     return {
         'imported': True,
-        'app': 'converter',
+        'app': app_label,
         'id': job.id,
         'filename': dest_path.name,
         'path': relative_path,
@@ -1739,11 +1754,12 @@ def import_to_cam_analyzer(source_path, user):
 # alimente le menu (`sidebar.html` → `window.WAMA_FILEMANAGER_IMPORTERS`), donc le menu ne peut
 # plus proposer ce que le serveur refuse : une app sans importeur n'apparaît tout simplement pas.
 #
-# ⏳ Reste dû : les trois apps ci-dessus n'ont toujours PAS d'importeur — elles ne mentent
-# plus, c'est tout. Deux sont prompt-primaires (le fichier y est une RÉFÉRENCE : voix à
-# cloner, mélodie), la troisième est une app GÉNÉRÉE dont l'importeur devrait venir du
-# gabarit, pas d'une ligne écrite à la main ici — même trou de substrat que la rustine
-# `clear_all` de converter_01 (geste 5).
+# ⏳ Reste dû : avatarizer et composer n'ont toujours PAS d'importeur — ils ne mentent
+# plus, c'est tout. Tous deux sont prompt-primaires (le fichier y est une RÉFÉRENCE : voix à
+# cloner, mélodie) : leur importeur attend le contrat d'import PAR RÔLE (`CARD_DESIGN §11.8`).
+# ✅ Le 3ᵉ trou (converter_01, app GÉNÉRÉE) est fermé le 2026-08-30 par la voie que ce
+# commentaire réclamait : l'importeur d'une jumelle est DÉRIVÉ de sa source (`importer_for()`
+# ci-dessous, via `generated_from` + le paramètre `app_label`), jamais une ligne écrite ici.
 IMPORTERS = {
     'anonymizer':    import_to_anonymizer,
     'cam_analyzer':  import_to_cam_analyzer,
@@ -1758,9 +1774,51 @@ IMPORTERS = {
 }
 
 
-def receivable_apps():
-    """Les apps que le gestionnaire de fichiers sait REMPLIR, dans l'ordre alphabétique."""
-    return sorted(IMPORTERS)
+def importer_for(target_app):
+    """L'importeur d'une app — ou celui DÉRIVÉ de sa source pour une jumelle de bac à sable.
+
+    Une jumelle (`APP_CATALOG[...]['generated_from']`) n'écrit jamais sa ligne au registre :
+    elle hérite de l'importeur de sa SOURCE, re-ciblé sur son `app_label` — à condition que
+    cet importeur sache être re-ciblé (paramètre `app_label` dans sa signature). Une source
+    non paramétrable rend None : la jumelle n'apparaît pas au menu, plutôt qu'un import qui
+    écrirait dans la SOURCE (une jumelle qui agit sur son original ne mesure plus rien).
+    """
+    fn = IMPORTERS.get(target_app)
+    if fn is not None:
+        return fn
+    import functools
+    import inspect
+    from wama.common.app_registry import APP_CATALOG
+    source = (APP_CATALOG.get(target_app) or {}).get('generated_from')
+    src_fn = IMPORTERS.get(source or '')
+    if src_fn is not None and 'app_label' in inspect.signature(src_fn).parameters:
+        return functools.partial(src_fn, app_label=target_app)
+    return None
+
+
+def receivable_apps(user=None):
+    """Les apps que le gestionnaire de fichiers sait REMPLIR, dans l'ordre alphabétique.
+
+    Les jumelles de bac à sable s'y ajoutent quand leur importeur se DÉRIVE (`importer_for`).
+    `user` fourni → une jumelle n'est listée que si sa PAGE lui est accessible (dev-only) :
+    le menu suit le même portier que la surface, jamais un cran de plus.
+    """
+    jumelles = []
+    try:
+        from wama.common.app_registry import APP_CATALOG
+        for app, spec in APP_CATALOG.items():
+            if not spec.get('generated_from') or importer_for(app) is None:
+                continue
+            if user is not None:
+                from wama.accounts.permissions import accessible
+                if not accessible(user, 'app', app):
+                    continue
+            jumelles.append(app)
+    except Exception:
+        # Repli SÛR : sans catalogue lisible, les jumelles n'apparaissent pas — les 10 apps
+        # du registre, elles, restent servies.
+        jumelles = []
+    return sorted([*IMPORTERS, *jumelles])
 
 
 # ── Mounted Folders API ────────────────────────────────────────────────────────

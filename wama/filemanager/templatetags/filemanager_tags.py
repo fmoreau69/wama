@@ -15,12 +15,17 @@ from django.utils.safestring import mark_safe
 register = template.Library()
 
 
-@register.simple_tag
-def filemanager_importers_json():
-    """La liste JSON des apps que le gestionnaire de fichiers sait remplir."""
+@register.simple_tag(takes_context=True)
+def filemanager_importers_json(context):
+    """La liste JSON des apps que le gestionnaire de fichiers sait remplir.
+
+    Le contexte fournit l'utilisateur : les JUMELLES de bac à sable (importeur DÉRIVÉ de leur
+    source, cf. `importer_for`) ne sont proposées qu'à qui peut ouvrir leur page (dev-only).
+    """
     try:
         from wama.filemanager.views import receivable_apps
-        apps = receivable_apps()
+        request = context.get('request')
+        apps = receivable_apps(getattr(request, 'user', None))
     except Exception:
         # Repli SÛR = liste VIDE, donc aucun envoi proposé. Le contraire (« tout proposer »)
         # rétablirait exactement le défaut qu'on ferme : mieux vaut un menu absent qu'un
