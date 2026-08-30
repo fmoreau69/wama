@@ -118,12 +118,12 @@ APP_MODES = {
              # accepts = ce que le DOMAINE prend en ENTRÉE (le prompt est du `text`) ; son NOM
              # dit la SORTIE. Les deux domaines acceptent la même chose et diffèrent par ce
              # qu'ils produisent — la preuve qu'un domaine n'est pas une nature de fichier.
-             'accepts': ('text', 'image'),
+             'accepts': ('prompt', 'image'),
              # Slots MESURÉS sur la card réelle (index.html:133) : prompt primaire, image de
              # référence (`reference_accept='image/*'`), fichier de prompts batch (.txt/.csv).
              'inputs': ['prompt', 'reference_image', 'prompt_file'], 'modes': []},
             {'id': 'video', 'label': 'Vidéo', 'icon': 'fa-film', 'variant': 'success',
-             'accepts': ('text', 'image'),
+             'accepts': ('prompt', 'image'),
              # Card vidéo (index.html:175) : prompt + image de DÉPART (i2v) — pas de batch file.
              'inputs': ['prompt', 'reference_image'], 'modes': []},
         ],
@@ -165,7 +165,7 @@ APP_MODES = {
     'synthesizer': {
         'domains': [
             {'id': 'audio', 'label': 'Audio', 'icon': 'fa-volume-high',
-             'accepts': ('text',), 'inputs': ['prompt', 'reference_voice'], 'modes': []},
+             'accepts': ('prompt',), 'inputs': ['prompt', 'reference_voice'], 'modes': []},
         ],
     },
 
@@ -179,7 +179,7 @@ APP_MODES = {
             # texte → TTS puis animation), pas comme switch : précédent imager txt2img/img2vid,
             # §2bis. `text` dans accepts = le prompt est une entrée de plein droit.
             {'id': 'avatar', 'label': 'Avatar parlant', 'icon': 'fa-user-astronaut',
-             'accepts': ('image', 'audio', 'text'),
+             'accepts': ('image', 'audio', 'prompt'),
              # Card réelle (index.html:140) : prompt (texte à dire) + voix (input fichier,
              # politique VOICE_SAMPLE_EXTENSIONS). ⚠ `work_audio`, PAS `reference_voice` :
              # l'audio EST l'entrée de travail (il pilote l'animation), déjà porté par le port
@@ -246,7 +246,7 @@ APP_MODES = {
     #   mélodie Melody est un SLOT optionnel, pas un mode).
     'composer': {'domains': [
         {'id': 'composition', 'label': 'Composition', 'icon': 'fa-music',
-         'accepts': ('text',),
+         'accepts': ('prompt',),
          # Card réelle (index.html:78) : prompt primaire, mélodie de référence (le littéral
          # `reference_accept='audio/*'` a enfin sa déclaration — c'est ELLE qui donne au
          # composer son port audio, absent d'input_extensions), fichier de prompts batch.

@@ -150,6 +150,10 @@ class SourceReader:
     format = ''
     #: Extensions reconnues, en minuscules.
     extensions: tuple = ()
+    #: Nature de MEDIA_CATEGORIES que ce lecteur POSSÈDE (`'dataset'` sur trip/wdat/rec) —
+    #: `None` pour un lecteur OPPORTUNISTE (tabular sait LIRE un .csv sans le posséder : un
+    #: .csv reste un document côté Médias). Poussé au substrat par `apps.py:ready()`.
+    nature = None
     description = ''
 
     def can_read(self, path: Path) -> bool:

@@ -56,6 +56,7 @@ _TYPE_DE_FAMILLE = {'data': DataType.TIMESERIES, 'event': DataType.EVENTS,
 class TripReader(SqliteSourceReader):
     format = 'trip'
     extensions = ('.trip',)
+    nature = 'dataset'
     table_temoin = 'MetaDatas'
     description = "Base SQLite d'expérimentation (flux, événements, segments, médias liés)"
 

@@ -37,6 +37,11 @@ class Description(ProcessingTimeMixin, ScopedVisibility):
         ('image', 'Image'),
         ('video', 'Video'),
         ('audio', 'Audio'),
+        ('document', 'Document'),
+        # 'text' et 'pdf' ont fusionné dans 'document' (2026-08-30, geste taxonomie) — gardés
+        # en CHOICES pour que les lignes historiques restent affichables (lecture tolérante,
+        # normalisation par content_analyzer.normalize_detected_type ; pas de migration : les
+        # migrations sont gitignorées, le correctif vit dans le code).
         ('text', 'Texte'),
         ('pdf', 'PDF'),
         ('auto', 'Detection auto'),
@@ -189,7 +194,7 @@ class Description(ProcessingTimeMixin, ScopedVisibility):
             'image': 'fa-image',
             'video': 'fa-video',
             'audio': 'fa-music',
-            'text': 'fa-file-alt',
+            'document': 'fa-file-alt', 'text': 'fa-file-alt',
             'pdf': 'fa-file-pdf',
         }
         return icons.get(self.detected_type or self.content_type, 'fa-file')

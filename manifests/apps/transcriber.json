@@ -1429,7 +1429,7 @@
           "id": "out",
           "label": "Sortie",
           "types": [
-            "text"
+            "document"
           ]
         }
       ]

@@ -22,7 +22,7 @@
         text_input: {
             label: 'Texte', icon: 'fas fa-keyboard', color: '#f7c46c',
             description: "Source : un texte / prompt saisi dans les paramètres du nœud (inspecteur).",
-            inputs: [], output: { label: 'Texte', types: ['prompt', 'text'] }, builtin: true,
+            inputs: [], output: { label: 'Texte', types: ['prompt'] }, builtin: true,
         },
         prompt_batch: {
             label: 'Batch de prompts', icon: 'fas fa-list-ul', color: '#c4a7fb',
@@ -37,7 +37,7 @@
         studio_output: {
             label: 'Sortie', icon: 'fas fa-flag-checkered', color: '#e78fb3',
             description: "Range le résultat final dans la MÉDIATHÈQUE (nom + type configurables dans l'inspecteur).",
-            inputs: [{ label: 'Média final', types: ['image', 'video', 'audio', 'document', 'text'], group: 'travail' }],
+            inputs: [{ label: 'Média final', types: ['image', 'video', 'audio', 'document', 'dataset', '3d'], group: 'travail' }],
             output: false, builtin: true,
         },
     };

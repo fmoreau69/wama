@@ -64,37 +64,73 @@ OBJECT3D_EXTENSIONS = ('.glb', '.gltf', '.obj', '.fbx', '.stl', '.ply',
 # parfois extensions : 'wav'/'srt'). On ramène tout à un jeu fini de catégories pour que le
 # « typage par connexion » du studio soit cohérent (sortie ∩ entrée sur des catégories).
 # ---------------------------------------------------------------------------
-MEDIA_CATEGORIES = ('image', 'video', 'audio', 'document', 'archive', 'text', '3d')
+# `text` a QUITTÉ ce vocabulaire le 2026-08-30 (arbitrage Fabien, ROUTE §S2bis.6bis) : les
+# fichiers texte sont des DOCUMENTS ; la saisie est un RÔLE (`prompt`, cf. ROLE_TOKENS plus
+# bas). L'ancienne catégorie n'existait que pour reconnaître les fichiers de lot — besoin
+# dissous par les zones de rôle de la card. `dataset` entre dans le même geste (fichiers du
+# monde Data — leurs extensions arrivent par `register_category_extensions`, jamais en dur).
+MEDIA_CATEGORIES = ('image', 'video', 'audio', 'document', 'archive', 'dataset', '3d')
+
+# Formats TEXTE STRUCTURÉ (sous-titres, données sérialisées) : nature 'document', mais AUCUNE
+# app ne les convertit — ils ne rejoignent donc PAS DOCUMENT_EXTENSIONS, qui EST la politique
+# d'acceptation du converter (miroir de format_router.SUPPORTED_CONVERSIONS). Les verser là-bas
+# ferait accepter à l'upload des fichiers que Pandoc ne route pas (échec au traitement au lieu
+# d'un refus à la porte) et les ferait apparaître au menu « Envoyer vers Converter ».
+STRUCTURED_TEXT_EXTENSIONS = ('.srt', '.vtt', '.json', '.csv')
 
 def _build_cat_of():
     m = {}
     for cat, exts in (('image', IMAGE_EXTENSIONS), ('video', VIDEO_EXTENSIONS),
                       ('audio', AUDIO_EXTENSIONS), ('archive', ARCHIVE_EXTENSIONS),
-                      ('document', DOCUMENT_EXTENSIONS), ('3d', OBJECT3D_EXTENSIONS)):
+                      ('document', DOCUMENT_EXTENSIONS + STRUCTURED_TEXT_EXTENSIONS),
+                      ('3d', OBJECT3D_EXTENSIONS)):
         for e in exts:
             m.setdefault(e.lstrip('.').lower(), cat)
-    # Sous-titres / texte / données → 'text' (prime sur 'document' pour ces extensions).
-    for e in ('txt', 'srt', 'vtt', 'json', 'md', 'markdown', 'csv'):
-        m[e] = 'text'
     return m
 
 _CAT_OF = _build_cat_of()
 
 
+def register_category_extensions(category, extensions):
+    """Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
+
+    Même sens que `register_intake_probe` : le monde POUSSE, le registre ne tire jamais (le
+    registre ne connaît pas ses producteurs — CLAUDE.md §mondes). Refuse une nature inconnue,
+    et ne VOLE jamais une extension déjà attribuée (`setdefault`) : le lecteur tabulaire du
+    monde Data sait LIRE un `.csv` sans le posséder — un `.csv` reste un document.
+    ⚠ `_CAT_OF` est muté APRÈS l'import du module (au `ready()` du monde) : ne jamais en
+    prendre de capture-instantané à l'import (`dict(_CAT_OF)`, frozenset…).
+    """
+    if category not in MEDIA_CATEGORIES:
+        raise ValueError(f"nature inconnue : {category!r}")
+    for e in extensions or ():
+        _CAT_OF.setdefault(str(e).lstrip('.').lower(), category)
+
+
 def category_of_path(path):
-    """Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'text'|'3d') d'un chemin
-    d'après son extension. Source UNIQUE (studio, previews, etc.) — défaut 'document'."""
+    """Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d') d'un chemin
+    d'après son extension. Source UNIQUE (studio, previews, etc.) — défaut 'document'.
+    ⚠ Extension seule, par contrat : un `.trip` bidon sera dit `dataset` ici et refusé par la
+    SONDE d'intake (qui atteste par le CONTENU) — divergence acceptée."""
     import os
     ext = os.path.splitext(str(path or ''))[1].lstrip('.').lower()
     return _CAT_OF.get(ext, 'document')
 
 
+#: Jetons de RÔLE admis dans les déclarations d'E/S à côté des natures (arbitrage `text`
+#: tranché le 2026-08-30, ROUTE §S2bis.6bis) : la SAISIE s'appelle `prompt` — ce n'est pas
+#: une nature de fichier, mais `input_types` la déclare (imager/composer/synthesizer/
+#: avatarizer) et `normalize_types` doit la laisser passer, sinon le port prompt s'évapore.
+ROLE_TOKENS = ('prompt',)
+
+
 def normalize_types(types):
-    """['wav','image','srt'] → ['audio','image','text'] (catégories média, dédupliquées, ordre stable)."""
+    """['wav','image','srt'] → ['audio','image','document'] (catégories média + jetons de rôle,
+    dédupliqués, ordre stable)."""
     out = []
     for t in types or []:
         t = str(t).lstrip('.').lower()
-        cat = t if t in MEDIA_CATEGORIES else _CAT_OF.get(t)
+        cat = t if (t in MEDIA_CATEGORIES or t in ROLE_TOKENS) else _CAT_OF.get(t)
         if cat and cat not in out:
             out.append(cat)
     return out
@@ -139,8 +175,8 @@ def app_supports_during_preview(app_id):
 def studio_node_ports(app_id):
     """
     Dérive les PORTS d'un nœud studio pour une app, métadonnée-driven :
-      - port « travail » média (entrée) : catégories de input_types (hors 'text'), multi.
-      - port « prompt » : si 'text' en entrée (imager/composer…).
+      - port « travail » média (entrée) : catégories de input_types (hors 'prompt'), multi.
+      - port « prompt » : si 'prompt' en entrée (imager/composer…).
       - ports « référence » : depuis app_modes (reference_image→image, reference_voice→audio),
         déclarés sur un MODE (apps à switch) ou sur le DOMAINE lui-même (apps sans switch —
         `inputs` de domaine, 2026-08-30, ROUTE §S2bis.6 (b)).
@@ -152,13 +188,13 @@ def studio_node_ports(app_id):
         return None
     in_cats = normalize_types(cat.get('input_types', []))
     out_cats = normalize_types(cat.get('output_types', []))
-    media_in = [c for c in in_cats if c != 'text']
+    media_in = [c for c in in_cats if c != 'prompt']
 
     inputs = []
     if media_in:
         inputs.append({'id': 'work', 'label': 'Entrée', 'group': 'travail',
                        'types': media_in, 'multi': True})
-    if 'text' in in_cats:
+    if 'prompt' in in_cats:
         inputs.append({'id': 'prompt', 'label': 'Prompt', 'group': 'prompt',
                        'types': ['prompt'], 'multi': False})
 
@@ -351,7 +387,7 @@ APP_CATEGORIES = {
 }
 
 #: Sorties « texte » (pour la dérivation de catégorie).
-_TEXT_OUTPUTS = {'txt', 'text', 'markdown', 'md', 'srt', 'vtt', 'json', 'docx', 'pdf'}
+_DOCUMENT_OUTPUTS = {'txt', 'markdown', 'md', 'srt', 'vtt', 'json', 'docx', 'pdf'}
 
 
 def derive_category(entry) -> str:
@@ -360,9 +396,9 @@ def derive_category(entry) -> str:
     qui prend du texte en entrée = Créer ; média→média = Transformer)."""
     outs = {str(t).lower() for t in (entry.get('output_types') or ())}
     ins = {str(t).lower() for t in (entry.get('input_types') or ())}
-    if outs and outs <= _TEXT_OUTPUTS:
+    if outs and outs <= _DOCUMENT_OUTPUTS:
         return 'understand'
-    if 'text' in ins:
+    if 'prompt' in ins:
         return 'create'
     return 'transform'
 
@@ -438,7 +474,7 @@ APP_CATALOG = {
         'url_name':    'avatarizer:index',
         'description': 'Génération de vidéos d\'avatars lip-sync animés par IA (MuseTalk + CodeFormer).',
         'input_extensions': AUDIO_EXTENSIONS + IMAGE_EXTENSIONS,  # audio (standalone) + image (avatar)
-        'input_types': ('audio', 'image', 'text'),  # texte → pipeline TTS→avatar (dérivé, 2026-08-28)
+        'input_types': ('audio', 'image', 'prompt'),  # texte à dire → pipeline TTS→avatar (jeton de RÔLE, arbitrage text 30/08)
         # Corrigé 2026-08-28 (flags mesurés FAUX — le batch unifié `-p "texte" -r avatar.png` /
         # `-i audio.wav` existe depuis parse_unified_batch, et l'URL passe par WAMA_INGEST
         # (source_url, show_url sur la card commune)) :
@@ -491,7 +527,7 @@ APP_CATALOG = {
         'url_name':    'composer:index',
         'description': 'Génération de musique et effets sonores par IA.',
         'input_extensions': TEXT_EXTENSIONS,
-        'input_types': ('text',),
+        'input_types': ('prompt',),
         'batch_type':  'pipe',   # Type B: filename|prompt|model|duration
         'has_batch':   True,
         'has_url_import': False,
@@ -686,8 +722,8 @@ APP_CATALOG = {
         'icon':        'fas fa-image',
         'url_name':    'imager:index',
         'description': 'Génération d\'images et vidéos par IA (Stable Diffusion, Hunyuan, Mochi…).',
-        'input_extensions': TEXT_EXTENSIONS + IMAGE_EXTENSIONS,  # text prompt + image reference
-        'input_types': ('text', 'image'),
+        'input_extensions': TEXT_EXTENSIONS + IMAGE_EXTENSIONS,  # fichier de prompts (lot) + image reference
+        'input_types': ('prompt', 'image'),  # ⚠ l'ordre EST la priorité de résolution (generic_runner)
         # Batch LIVRÉ le 2026-08-06 (`9922f65`) : GenerationBatch(BatchMixin, ScopedVisibility)
         # + GenerationBatchItem, migration 0013, contrat commun `build_batches_list` — c'est un
         # vrai batch unifié, au même titre que ConversionBatch. Le « to be redesigned » et le
@@ -790,7 +826,7 @@ APP_CATALOG = {
         'url_name':    'synthesizer:index',
         'description': 'Synthèse vocale TTS (XTTS, Higgs Audio, Kokoro…).',
         'input_extensions': TEXT_EXTENSIONS,
-        'input_types': ('text',),
+        'input_types': ('prompt',),
         'batch_type':  'pipe',   # Type B: filename|text|voice|speed
         'has_batch':   True,
         'has_url_import': False,

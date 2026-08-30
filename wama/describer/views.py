@@ -366,18 +366,18 @@ def upload(request):
 
 
 def detect_type_from_extension(ext):
-    """Detect content type from file extension (jeux d'extensions : content_analyzer)."""
+    """Detect content type from file extension (jeux d'extensions : content_analyzer).
+
+    Vocabulaire de retour : image/video/audio/document — 'text' et 'pdf' ont fusionné dans
+    'document' (2026-08-30, arbitrage taxonomie ; les deux routaient déjà vers describe_text).
+    """
     if ext in _DESCRIBER_IMG_EXTS:
         return 'image'
     if ext in _DESCRIBER_VID_EXTS:
         return 'video'
     if ext in _DESCRIBER_AUD_EXTS:
         return 'audio'
-    if ext == 'pdf':
-        return 'pdf'
-    if ext in _DESCRIBER_DOC_EXTS or ext in _DESCRIBER_TEXT_LIKE_EXTS:
-        return 'text'
-    return 'text'  # Default to text
+    return 'document'
 
 
 def get_file_properties(description):
@@ -787,7 +787,7 @@ def batch_preview(request):
 
     def _enrich(item):
         ext_item = item['filename'].rsplit('.', 1)[-1].lower() if '.' in item['filename'] else ''
-        item['detected_type'] = detect_type_from_extension(ext_item) if ext_item else 'text'
+        item['detected_type'] = detect_type_from_extension(ext_item) if ext_item else 'document'
 
     return batch_media_list_preview_response(request, item_enricher=_enrich)
 
@@ -816,7 +816,7 @@ def batch_import(request):
         url_or_path = item['path']
         fname = url_or_path.split('/')[-1].split('\\')[-1] or url_or_path
         ext_item = fname.rsplit('.', 1)[-1].lower() if '.' in fname else ''
-        detected_type = detect_type_from_extension(ext_item) if ext_item else 'text'
+        detected_type = detect_type_from_extension(ext_item) if ext_item else 'document'
 
         desc = Description.objects.create(
             user=user,
@@ -876,7 +876,7 @@ def batch_create(request):
         url_or_path = item['path']
         fname = url_or_path.split('/')[-1].split('\\')[-1] or url_or_path
         ext_item = fname.rsplit('.', 1)[-1].lower() if '.' in fname else ''
-        detected_type = detect_type_from_extension(ext_item) if ext_item else 'text'
+        detected_type = detect_type_from_extension(ext_item) if ext_item else 'document'
 
         desc = Description.objects.create(
             user=user,

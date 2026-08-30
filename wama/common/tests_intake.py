@@ -14,11 +14,19 @@ from wama.common.utils import intake
 
 class PortsParCategorieTests(SimpleTestCase):
 
-    def test_un_fichier_texte_n_a_AUCUN_port_fichier(self):
-        # L'homonyme `text`=prompt : la voie à plat rendait 4 apps, toutes fausses.
+    def test_un_fichier_texte_est_un_document_et_n_atteint_aucun_port_prompt(self):
+        # Réécrit le 2026-08-30 (retrait de `text` des natures) : l'invariant n'est plus
+        # « aucun port » mais « les ports DOCUMENT, et jamais un port PROMPT » — un .txt est un
+        # fichier de travail des apps à documents, pas une saisie. L'ancien attendu (`category
+        # 'text'`, ports []) mesurait l'homonyme, pas une propriété voulue.
         caps = intake.capabilities_for_path('notes.txt')
-        self.assertEqual(caps['category'], 'text')
-        self.assertEqual(caps['ports'], [])
+        self.assertEqual(caps['category'], 'document')
+        groupes = {p['group'] for p in caps['ports']}
+        self.assertNotIn('prompt', groupes,
+                         'un FICHIER texte ne doit jamais atteindre un port de SAISIE')
+        cibles = {(p['app'], p['group']) for p in caps['ports']}
+        self.assertIn(('converter', 'travail'), cibles)
+        self.assertIn(('describer', 'travail'), cibles)
 
     def test_un_wav_atteint_le_port_reference_voice_du_synthesizer(self):
         # Le « fichier de référence » que la voie par nature ne voit pas.

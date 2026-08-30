@@ -246,9 +246,15 @@ def build_generic_runner(app_id):
             raise ValueError(f"{app_id} : pas d'adapter detail (contrat) — porter l'app.")
         instance = entry['model'].objects.get(pk=item_id, user=user)
         d = entry['adapter'](instance) or {}
-        is_text = conf.get('output_type') == 'text'
+        # Textualité LUE DU RÉEL, plus déduite de la nature (piège n°1 du retrait de `text`,
+        # 2026-08-30) : `output_type` est DÉRIVÉ des ports et vaut désormais 'document' pour
+        # describer/reader/transcriber — l'ancien `== 'text'` aurait rendu leur sortie VIDE
+        # dans tout pipeline, sans exception ni log. L'adapter detail dit ce qu'il a : un
+        # `result_text` non vide EST la sortie texte ; sinon, le fichier.
+        texte = d.get('result_text') or ''
+        is_text = bool(texte)
         if is_text:
-            result = d.get('result_text') or ''
+            result = texte
         else:
             result = d.get('result_file') or ''
             if result.startswith('/media/'):

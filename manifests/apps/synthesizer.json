@@ -1126,7 +1126,7 @@
       "domains": [
         {
           "accepts": [
-            "text"
+            "prompt"
           ],
           "icon": "fa-volume-high",
           "id": "audio",

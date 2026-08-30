@@ -854,7 +854,7 @@ def _ports_target(manifest: dict) -> dict:
     work = next((p for p in ins if isinstance(p, dict) and p.get('group') == 'travail'), None)
     types = [t for t in ((work or {}).get('types') or []) if t]
     if any(isinstance(p, dict) and p.get('group') == 'prompt' for p in ins):
-        types = types + ['text']
+        types = types + ['prompt']  # jeton de RÔLE (arbitrage `text` 30/08) — plus jamais 'text'
     outs = ports.get('outputs') or []
     out_types = [t for t in (((outs[0] or {}).get('types') if outs else None) or []) if t]
     return {'input_types': types, 'output_types': out_types}
@@ -883,12 +883,12 @@ def _studio_target(manifest: dict) -> dict:
 
 
 def _io_sig(fields: dict) -> dict:
-    """Signature E/S pour comparer en ESPACE DE FACETTE : la position du 'text' dans le tuple
+    """Signature E/S pour comparer en ESPACE DE FACETTE : la position du 'prompt' dans le tuple
     écrit main est une variation d'écriture sans effet (la dérivation des ports sépare médias
     et prompt) — comparer les tuples bruts fabriquerait de fausses dérives."""
     from wama.common.app_registry import normalize_types
     ins = normalize_types(list(fields.get('input_types') or []))
-    return {'media': [t for t in ins if t != 'text'], 'text': 'text' in ins,
+    return {'media': [t for t in ins if t != 'prompt'], 'prompt': 'prompt' in ins,
             'out': normalize_types(list(fields.get('output_types') or []))}
 
 
@@ -919,7 +919,7 @@ def _project_ports(manifest: dict, *, apply: bool) -> dict:
     def deltas(cur):
         sig_t, sig_c = _io_sig(target), _io_sig(cur)
         out = []
-        if (sig_t['media'], sig_t['text']) != (sig_c['media'], sig_c['text']):
+        if (sig_t['media'], sig_t['prompt']) != (sig_c['media'], sig_c['prompt']):
             out.append('input_types')
         if sig_t['out'] != sig_c['out']:
             out.append('output_types')

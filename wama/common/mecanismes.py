@@ -712,10 +712,13 @@ MECANISMES = (
     # carte ne parle pas se fait réinventer — c'est précisément ce que ce registre existe pour
     # empêcher.
     Mecanisme('media_taxonomy', "Taxonomie des natures & vocabulaire d'entrée",
-              "Source UNIQUE des natures de média (image/video/audio/document/archive/text/3d) : "
-              "détecte la nature d'un nom de fichier (`category_of_path`, défaut 'document', "
-              "txt/srt/vtt/json/md/csv forcés en 'text') et normalise un vocabulaire "
-              "(`normalize_types`). Porte AUSSI la déclaration par app de ce qu'elle accepte — "
+              "Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/3d "
+              "— `text` RETIRÉ le 2026-08-30, arbitrage §S2bis.6bis : les fichiers texte sont "
+              "des documents, la saisie est le jeton de RÔLE `prompt`) : détecte la nature d'un "
+              "nom de fichier (`category_of_path`, défaut 'document') et normalise un vocabulaire "
+              "(`normalize_types`) ; un MONDE pousse ses extensions par "
+              "`register_category_extensions` (dataset ← sonde wama_data), jamais en dur. "
+              "Porte AUSSI la déclaration par app de ce qu'elle accepte — "
               "`input_types` (les natures) et `input_extensions` (les extensions) — d'où le "
               "manifeste tire `body.ports.inputs[].types` et `body.identity.input_extensions`, "
               "l'axe UX ses `accepts` de domaine, le gabarit généré son `accept=` de dropzone, "

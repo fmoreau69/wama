@@ -33,6 +33,10 @@ class WamaDataConfig(AppConfig):
             self._register_intake_probe()
         except Exception:
             log.warning('wama_data sonde intake non déclarée', exc_info=True)
+        try:
+            self._register_media_nature()
+        except Exception:
+            log.warning('wama_data nature dataset non déclarée', exc_info=True)
 
     # ──────────────────────────────────────────────────────────────────────────────────────────
     @staticmethod
@@ -51,6 +55,20 @@ class WamaDataConfig(AppConfig):
                     'extensions': sorted(reader.extensions)}
 
         register_intake_probe('data_sources', _probe)
+
+    # ──────────────────────────────────────────────────────────────────────────────────────────
+    @staticmethod
+    def _register_media_nature():
+        """Le monde Data POSSÈDE la nature `dataset` (arbitrage `text`/taxonomie, 2026-08-30) :
+        il pousse les extensions de ses lecteurs marqués `nature='dataset'` (trip/wdat/rec) au
+        substrat — même sens que la sonde ci-dessus, le substrat ne cite jamais `wama_data`.
+        Les lecteurs OPPORTUNISTES (tabular : .csv/.txt/.xlsx) n'ont PAS la marque : ils savent
+        lire ces fichiers sans les posséder — un .csv reste un `document` côté Médias."""
+        from wama.common.app_registry import register_category_extensions
+        from .sources import READERS
+        register_category_extensions('dataset', sorted(
+            {e for r in READERS.values() if getattr(r, 'nature', None) == 'dataset'
+             for e in r.extensions}))
 
     # ──────────────────────────────────────────────────────────────────────────────────────────
     @staticmethod

@@ -113,8 +113,10 @@ def describe_content(self, description_id: int):
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")
 
-        # Detect content type if auto
-        content_type = description.detected_type or description.content_type
+        # Detect content type if auto — valeurs HISTORIQUES ('text'/'pdf' en base d'avant le
+        # 2026-08-30) normalisées À LA LECTURE, jamais par migration (elles sont gitignorées).
+        from .utils.content_analyzer import normalize_detected_type
+        content_type = normalize_detected_type(description.detected_type or description.content_type)
         if content_type == 'auto':
             from .utils.content_analyzer import detect_content_type
             content_type = detect_content_type(file_path)
@@ -137,7 +139,7 @@ def describe_content(self, description_id: int):
             from .utils.audio_describer import describe_audio
             result = describe_audio(description, _set_progress, _set_partial, _console)
 
-        elif content_type in ('text', 'pdf'):
+        elif content_type in ('document', 'text', 'pdf'):  # 'text'/'pdf' = lecture tolérante (base historique)
             from .utils.text_describer import describe_text
             result = describe_text(description, _set_progress, _set_partial, _console)
 

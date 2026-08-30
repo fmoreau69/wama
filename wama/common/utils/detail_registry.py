@@ -19,7 +19,9 @@ _STATUS_ALIAS = {'DONE': 'SUCCESS', 'ERROR': 'FAILURE'}
 # Icône de `source_properties` dérivée du type de média (jamais la vague audio par défaut).
 _PROPS_ICON = {
     'audio': 'fa-wave-square', 'image': 'fa-image', 'video': 'fa-film',
-    'document': 'fa-file-lines', 'pdf': 'fa-file-lines', 'text': 'fa-file-lines',
+    'document': 'fa-file-lines', 'pdf': 'fa-file-lines',
+    # 'text' reste en LECTURE (valeurs historiques en base — describer) ; nature retirée 30/08.
+    'text': 'fa-file-lines', 'dataset': 'fa-table',
     'archive': 'fa-file-zipper', 'zip': 'fa-file-zipper',
 }
 

@@ -51,13 +51,8 @@ _DESCRIBER_EXTS = (
     | _AUDIO_EXTS
     | {'.txt', '.pdf', '.docx', '.md', '.csv'}
 )
-_DESCRIBER_TYPE_MAP = {
-    **{ext: 'image' for ext in _IMAGE_EXTS},
-    **{ext: 'video' for ext in _VIDEO_EXTS},
-    **{ext: 'audio' for ext in _AUDIO_EXTS},
-    '.txt': 'text', '.md': 'text', '.docx': 'text', '.csv': 'text',
-    '.pdf': 'pdf',
-}
+# _DESCRIBER_TYPE_MAP SUPPRIMÉE (2026-08-30, geste taxonomie) : c'était la 4ᵉ classification
+# du même fait — le détecteur unique est `describer.views.detect_type_from_extension`.
 
 # Transcriber: audio + video
 _TRANSCRIBER_EXTS = _AUDIO_EXTS | _VIDEO_EXTS
@@ -1192,7 +1187,8 @@ def add_to_describer(
     if ext not in _DESCRIBER_EXTS:
         return {'error': f'Format non supporté par le Describer : {ext}'}
 
-    detected_type = _DESCRIBER_TYPE_MAP.get(ext, 'auto')
+    from wama.describer.views import detect_type_from_extension
+    detected_type = detect_type_from_extension(ext.lstrip('.'))
 
     try:
         from django.core.files import File

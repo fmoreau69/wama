@@ -787,7 +787,7 @@ def _recursive_import(f: _AppFiles):
     """Import de DOSSIER récursif — PRÉSENCE D'ABORD, non-applicabilité en repli.
 
     Une adoption vaut toujours (le synthesizer importe un dossier de .txt alors que ses
-    `input_types` ne déclarent que 'text' : chaque fichier EST un item). L'exemption ne
+    `input_types` ne déclarent que 'prompt' : chaque fichier EST un item). L'exemption ne
     joue que sur une ABSENCE : app sans aucune entrée média-fichier déclarée (composer —
     ses fichiers sont des DESCRIPTEURS de batch, un dossier n'a pas d'objet). Verdict
     Fabien 2026-08-13."""

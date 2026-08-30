@@ -1117,7 +1117,7 @@
       "domains": [
         {
           "accepts": [
-            "text",
+            "prompt",
             "image"
           ],
           "icon": "fa-image",
@@ -1133,7 +1133,7 @@
         },
         {
           "accepts": [
-            "text",
+            "prompt",
             "image"
           ],
           "icon": "fa-film",

@@ -7,8 +7,10 @@ le 2026-08-29). PURE COMPOSITION de déclarations existantes, aucun vocabulaire 
 
   • la cible n'est jamais « une app » à plat mais « quel PORT de quelle app »
     (`studio_node_ports` — groupe `travail`/`reference`) : composer par `input_types`/
-    `input_extensions` est FAUX à 100 % sur .txt/.md/.csv (l'homonyme `text` y désigne le
-    PROMPT, et les extensions de composer/imager/synthesizer sont des formats de LOT) ;
+    `input_extensions` à plat mêlerait les formats de LOT de composer/imager/synthesizer
+    aux fichiers de travail. (L'homonyme `text` qui aggravait ce point est TRANCHÉ le
+    2026-08-30 : la saisie = jeton de rôle `prompt`, un .txt = `document` — un fichier
+    texte atteint désormais les ports travail des apps à documents, ce qui est VOULU) ;
   • un fichier texte sans port n'est pas « aucune cible » : c'est le déclencheur des
     détecteurs de LOT (`batch_parsers`) et de la question à poser à l'utilisateur ;
   • les jumelles bac à sable sont exclues (`non_sandbox_apps` — `converter_01` remonte

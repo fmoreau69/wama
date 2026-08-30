@@ -809,7 +809,7 @@
           "accepts": [
             "image",
             "audio",
-            "text"
+            "prompt"
           ],
           "icon": "fa-user-astronaut",
           "id": "avatar",

@@ -128,6 +128,7 @@ def _compagnon(rec: Path, composant: str, sortie: str, ext: str) -> Optional[Pat
 class RecReader(SourceReader):
     format = 'rtmaps'
     extensions = ('.rec',)
+    nature = 'dataset'
     description = "Enregistrement RTMaps (.rec) — flux entrelacés, inventaire dans le .idy"
 
     # ── Reconnaissance ────────────────────────────────────────────────────────────────────────

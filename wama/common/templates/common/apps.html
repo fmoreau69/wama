@@ -208,7 +208,7 @@ n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux m
                         {% for ext in spec.input_extensions %}{% if ext == '.mp3' or ext == '.wav' or ext == '.flac' or ext == '.ogg' or ext == '.m4a' or ext == '.aac' or ext == '.opus' or ext == '.wma' %}<span class="ext-badge">{{ ext|slice:"1:" }}</span>{% endif %}{% endfor %}
                     </div>
                     {% endif %}
-                    {% if 'text' in spec.input_types or 'document' in spec.input_types %}
+                    {% if 'prompt' in spec.input_types or 'document' in spec.input_types %}
                     <div class="ext-type-label"><i class="fas fa-file-alt me-1"></i>Texte / Documents</div>
                     <div class="ext-badges">
                         {% for ext in spec.input_extensions %}{% if ext == '.txt' or ext == '.md' or ext == '.csv' or ext == '.pdf' or ext == '.docx' %}<span class="ext-badge">{{ ext|slice:"1:" }}</span>{% endif %}{% endfor %}

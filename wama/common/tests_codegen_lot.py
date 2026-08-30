@@ -335,10 +335,10 @@ class LotBoutEnBoutTest(TestCase):
     def test_une_extension_hors_vocabulaire_le_DIT_au_lieu_de_deviner(self):
         """Une valeur fausse et muette coûte plus cher qu'un champ vide et signalé.
 
-        Le converter accepte `.md` (il le convertit) mais ne déclare pas 'text' parmi ses
-        `input_types` — la taxonomie commune, elle, distingue 'text' de 'document'. Trois
-        extensions sur 60 sont dans ce cas (mesuré). La vue ne comble pas l'écart par un
-        rapprochement plausible : elle laisse le champ vide et l'écrit dans `warnings`.
+        ⚠ Témoin CHANGÉ le 2026-08-30 (retrait de `text` des natures) : l'ancien témoin `.md`
+        est devenu un `document` légitime du converter — les 3 écarts d'alors ont DISPARU,
+        c'était le bénéfice mesurable du geste. Le nouveau témoin est `.glb` (nature `3d`),
+        que le converter ne déclare pas : l'INVARIANT survit au vocabulaire, pas la valeur.
         """
         modele = self._modele_item()
         if modele is None:
@@ -348,9 +348,9 @@ class LotBoutEnBoutTest(TestCase):
         from django.conf import settings as _st
         dossier = os.path.join(_st.MEDIA_ROOT, 'tests_lot')
         os.makedirs(dossier, exist_ok=True)
-        chemin = os.path.join(dossier, 'hors_vocab.md')
+        chemin = os.path.join(dossier, 'hors_vocab.glb')
         with open(chemin, 'wb') as fh:
-            fh.write(b'# titre\n')
+            fh.write(b'glTF fake\n')
         rel = os.path.relpath(chemin, _st.MEDIA_ROOT).replace(os.sep, '/')
         self.addCleanup(lambda: os.path.exists(chemin) and os.remove(chemin))
 

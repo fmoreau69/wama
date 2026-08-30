@@ -53,6 +53,7 @@ DEBUT, FIN, INSTANT = 'start', 'end', 'time'
 class WdatReader(SqliteSourceReader):
     format = 'wdat'
     extensions = ('.wdat',)
+    nature = 'dataset'
     table_temoin = 'WamaStreams'
     description = "Conteneur natif WAMA Data — catalogue complet, unités, pertes, protocole embarqué"
 

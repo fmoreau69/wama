@@ -213,7 +213,7 @@
               "class": "django.db.models.CharField",
               "kwargs": {
                 "choices": {
-                  "expr": "[('image', 'Image'), ('video', 'Video'), ('audio', 'Audio'), ('text', 'Texte'), ('pdf', 'PDF'), ('auto', 'Detection auto')]",
+                  "expr": "[('image', 'Image'), ('video', 'Video'), ('audio', 'Audio'), ('document', 'Document'), ('text', 'Texte'), ('pdf', 'PDF'), ('auto', 'Detection auto')]",
                   "imports": []
                 },
                 "default": {
@@ -1111,7 +1111,7 @@
           "id": "out",
           "label": "Sortie",
           "types": [
-            "text"
+            "document"
           ]
         }
       ]
