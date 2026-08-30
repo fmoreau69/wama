@@ -180,7 +180,7 @@ window._batchImport = WamaBatchImport({
 
 {# ── Main content : queue only ───────────────────────────────────────────── #}
 {% block reader_content %}
-<div class="container-fluid py-2" style="overflow-x: hidden;">
+<div class="container-fluid py-2" style="overflow-x:clip;">
 
     {% comment %}Card d'entrée COMMUNE en tête de file (upload + batch) — alignement T/D/C, 2026-07-07.
     Mêmes IDs dropZone/fileInput → handlers reader.js inchangés ; show_batch_bar inclut la barre.{% endcomment %}

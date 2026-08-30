@@ -341,7 +341,7 @@ document.addEventListener('DOMContentLoaded', function () {{
 {{% endblock %}}
 
 {{% block {app}_content %}}
-<div style="overflow-x:hidden;">
+<div style="overflow-x:clip;">
 
     {{% include 'common/_global_progress.html' %}}
 
