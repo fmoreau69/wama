@@ -423,63 +423,106 @@ document.addEventListener('DOMContentLoaded', function () {{
     attrs_params = ''.join(f''' data-param-{c}="{{{{ item.{c}|default:'' }}}}"'''
                            for c in champs_params)
 
-    card = f'''{{% comment %}}{mark} — _generic_card.html GÉNÉRÉ (templates_gen v1).
-TROU DE GLU RESTANT : les PREVIEWS de la card RÉELLE (miniature/lecteur du média) ne sont pas
-générées. L'écart résiduel reste MESURABLE au Playwright.
-⚠ Les SECTIONS × CHIPS ont quitté cette ligne le 2026-08-29 : la raison écrite — « décoration
-propre à la vue d'app » — était FAUSSE. `card_chips.chips_by_section` est une brique COMMUNE
-appliquée au schéma de params DÉJÀ déclaré au manifeste ; les 10 apps l'appellent à
-l'identique. Ce qui manquait était le point d'attache, et `views_gen` l'émet désormais
-(`_decorer`, posé sur l'index ET sur `card_html` — sinon la card se vide au 1ᵉʳ rafraîchissement).
-Les ACTIONS, elles, ne sont plus un trou : ce sont des CONTRATS COMMUNS à écouteur délégué
-(`queue-actions.js` : `.settings-btn[data-id]`, `.duplicate-btn[data-duplicate-url]`,
-`.delete-btn[data-delete-url]`) plus le partial `_cycle_button.html`. Rien ici n'est propre
-à l'app sauf les URL, et elles sont conventionnelles (ROUTE_TABLE).{{% endcomment %}}
-<div class="card bg-dark border-secondary mb-2 wama-card" data-id="{{{{ item.id }}}}" data-status="{{{{ item.status }}}}"{attrs_params}>
+    # Routes de card LUES au manifeste (jamais supposées — leçon `stop` vs `cancel`).
+    route_download = resolve_route('download', noms_routes)
+    route_duplicate = resolve_route('duplicate', noms_routes)
+    route_delete = resolve_route('delete', noms_routes)
+    bouton_dl = (f'''
+        {{% url '{app}:{route_download}' item.id as url_dl %}}
+        {{% if item.status == 'SUCCESS' %}}{{% download_button '{app}' url_dl True %}}{{% else %}}{{% download_button '{app}' url_dl False %}}{{% endif %}}''' if route_download else f'''
+        {{% comment %}}TROU {mark} — aucune route de téléchargement déclarée au manifeste.{{% endcomment %}}''')
+    bouton_dup = (f'''
+        <button type="button" class="btn btn-sm btn-outline-warning duplicate-btn" title="Dupliquer"
+                data-duplicate-url="{{% url '{app}:{route_duplicate}' item.id %}}"><i class="fas fa-copy"></i></button>''' if route_duplicate else '')
+    bouton_del = (f'''
+        <button type="button" class="btn btn-sm btn-outline-danger delete-btn" title="Supprimer"
+                data-delete-url="{{% url '{app}:{route_delete}' item.id %}}"><i class="fas fa-trash"></i></button>''' if route_delete else '')
+
+    card = f'''{{% load wama_actions %}}{{% comment %}}{mark} — _generic_card.html GÉNÉRÉ.
+CARD v3 « sections × chips » (CARD_DESIGN §11) émise DEPUIS LE MANIFESTE — recadrage Fabien
+2026-08-30 : l'ancienne card squelette était l'INSTRUMENT de mesure d'écart (marche S2) ;
+l'instrument a servi, on ferme l'écart. Blueprint = la card conventionnelle des apps portées
+(5 sections à pistes fixes Entrée/Réglages/Sortie/État/Actions + barre ligne 2 + preview
+unifiée). TOUT est contrat commun (classes wcv3, _card_chips, _cycle_button, download_button,
+_processing_time, unified_preview, queue-actions) ; seuls l'app id, les routes (résolues au
+manifeste) et les noms de champs varient — et chaque champ ABSENT du modèle généré dégrade en
+silence (Django rend '' sur un attribut manquant : la card reste juste, jamais cassée).
+On ne corrige JAMAIS ce fichier dans la jumelle : on corrige le générateur et on RÉGÉNÈRE.{{% endcomment %}}
+<div class="job-card card bg-dark border-secondary wama-card {{% if in_batch %}}mb-1 wcv3--batch-child{{% else %}}mb-2{{% endif %}} {{% if item.status == 'RUNNING' %}}processing{{% elif item.status == 'SUCCESS' %}}success{{% elif item.status == 'FAILURE' %}}error{{% endif %}}"
+     data-id="{{{{ item.id }}}}" data-status="{{{{ item.status }}}}"
+     data-preview-url="{{% url 'common:unified_preview' '{app}' item.id %}}"{attrs_params}>
   <div class="card-body py-2">
-    <div class="d-flex align-items-center gap-2">
-      <strong class="text-light">#{{{{ item.id }}}}</strong>
-      <span class="text-truncate flex-fill">{{{{ item.input_filename|default:item.id }}}}</span>
-      <span class="badge bg-{{% if item.status == 'SUCCESS' %}}success{{% elif item.status == 'FAILURE' %}}danger{{% elif item.status == 'RUNNING' %}}warning text-dark{{% else %}}secondary{{% endif %}}">{{{{ item.status }}}}</span>
-    </div>
-    {{% if item.status != 'PENDING' %}}
-    <div class="wama-progress-track mt-1">
-      <div class="wama-progress-fill{{% if item.status == 'RUNNING' %}} active{{% endif %}}" style="width:{{% if item.status == 'SUCCESS' %}}100{{% else %}}{{{{ item.progress }}}}{{% endif %}}%"></div>
-    </div>
+    <div class="wcv3-head">#{{{{ item.id }}}}<span class="sep">·</span>{{{{ item.created_at|date:"d/m H:i" }}}}</div>
+    <div class="wcv3">
+
+      <div class="wcv3-sec wcv3-sec--input">
+        <span class="wcv3-lbl">Entrée</span>
+        <div class="wcv3-in">
+          <span class="wcv3-thumb"><i class="fas fa-file{{% if item.media_type == 'video' %}}-video{{% elif item.media_type == 'audio' %}}-audio{{% elif item.media_type == 'image' %}}-image{{% endif %}} text-info"></i></span>
+          <div class="wcv3-in-lines">
+            {{% if item.input_file %}}
+            <span role="button" class="wcv3-in-name preview-media-link" title="Aperçu du fichier source"
+                  data-preview-url="/filemanager/api/preview/?path={{{{ item.input_file.name|urlencode }}}}">{{{{ item.input_filename|default:item.id }}}}</span>
+            {{% else %}}
+            <span class="wcv3-in-name">{{{{ item.input_filename|default:item.id }}}}</span>
+            {{% endif %}}
+            <span class="wcv3-in-props">{{{{ item.media_type|default:'—' }}}}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="wcv3-sec wcv3-sec--settings">
+        <span class="wcv3-lbl">Réglages</span>
+        <div class="wcv3-out">{{% include 'common/_card_chips.html' with chips=item.chips.settings %}}</div>
+      </div>
+
+      <div class="wcv3-sec wcv3-sec--output">
+        <span class="wcv3-lbl">Sortie</span>
+        {{% if item.status == 'FAILURE' and item.error_message %}}
+        <span class="wcv3-out-error" title="{{{{ item.error_message|escape }}}}"><i class="fas fa-triangle-exclamation"></i> {{{{ item.error_message|truncatechars:120|escape }}}}</span>
+        {{% else %}}
+        <div class="wcv3-out">
+          {{% include 'common/_card_chips.html' with chips=item.chips.output %}}
+          {{% if item.status == 'RUNNING' %}}<span class="wcv3-out-step"><span class="pct progress-text">{{{{ item.progress }}}}%</span> — en cours…</span>
+          {{% elif item.status == 'SUCCESS' and item.output_filename %}}<span class="wcv3-out-step" title="{{{{ item.output_filename }}}}"><i class="fas fa-check-circle text-success"></i> {{{{ item.output_filename }}}}</span>{{% endif %}}
+        </div>
+        {{% endif %}}
+      </div>
+
+      <div class="wcv3-sec wcv3-sec--state">
+        <span class="wcv3-lbl">État</span>
+        <div class="wcv3-state">
+          <span class="wcv3-state-line"><span class="wama-status-dot" data-s="{{{{ item.status }}}}"></span>
+            <span>{{% if item.status == 'PENDING' %}}En attente{{% elif item.status == 'RUNNING' %}}En cours{{% elif item.status == 'SUCCESS' %}}Terminé{{% elif item.status == 'FAILURE' %}}Échec{{% else %}}{{{{ item.status }}}}{{% endif %}}</span></span>
+          {{% if item.status == 'RUNNING' %}}<span class="wama-eta" data-eta-ids="{{{{ item.id }}}}"></span>{{% endif %}}
+          {{% if item.status == 'SUCCESS' and item.processing_display %}}{{% include 'common/_processing_time.html' with elapsed=item.processing_display %}}{{% endif %}}
+        </div>
+      </div>
+
+      <div class="wcv3-sec wcv3-sec--actions">
+        <span class="wcv3-lbl">Actions</span>
+        <div class="btn-group-actions wcv3-actions">
+        <button type="button" class="btn btn-sm btn-outline-secondary settings-btn" title="Paramètres"
+                data-id="{{{{ item.id }}}}" {{% for k, v in item.gear_data.items %}}data-{{{{ k }}}}="{{{{ v }}}}" {{% endfor %}}><i class="fas fa-cog"></i></button>
+        {{% include 'common/_cycle_button.html' with id=item.id status=item.status %}}{bouton_dl}{bouton_dup}{bouton_del}
+        </div>
+      </div>
+
+      {{% if item.status != 'PENDING' %}}
+      <div class="wcv3-bar" style="grid-column:1/-1;">
+        <div class="wama-progress-track">
+          <div class="wama-progress-fill{{% if item.status == 'RUNNING' %}} active{{% elif item.status == 'FAILURE' %}} is-frozen{{% endif %}}" style="width:{{% if item.status == 'SUCCESS' %}}100{{% else %}}{{{{ item.progress }}}}{{% endif %}}%"></div>
+        </div>
+      </div>
+      {{% endif %}}
+
+    </div>{{# /.wcv3 #}}
+    {{% if item.status == 'SUCCESS' %}}
+    {{% url 'common:unified_preview' '{app}' item.id as pv_out %}}
+    <div class="wcv3-preview" id="preview-row-{{{{ item.id }}}}" data-card-preview="{{{{ pv_out }}}}?side=output" data-player-id="{{{{ item.id }}}}"></div>
+    {{% else %}}
+    <div id="preview-row-{{{{ item.id }}}}"></div>
     {{% endif %}}
-    {{% if item.error_message %}}<div class="small text-danger mt-1">{{{{ item.error_message|truncatechars:120 }}}}</div>{{% endif %}}
-    {{% comment %}}Sections RÉGLAGES / SORTIE — chips GÉNÉRÉS du schéma de params par la brique
-    commune (`card_chips.chips_by_section`, section déclarée champ par champ au manifeste).
-    Rien n'est écrit à la main ici : une app qui ne déclare aucun `chip` ne rend aucune
-    section (le `{{% if %}}` la retire), et un champ qui change de section suit sa
-    déclaration. C'est la règle métadonnée-driven appliquée à la card.{{% endcomment %}}
-    {{% if item.chips.settings %}}
-    <div class="d-flex align-items-center gap-1 mt-1 flex-wrap">
-      <span class="small text-muted me-1">Réglages</span>
-      {{% include 'common/_card_chips.html' with chips=item.chips.settings %}}
-    </div>
-    {{% endif %}}
-    {{% if item.chips.output %}}
-    <div class="d-flex align-items-center gap-1 mt-1 flex-wrap">
-      <span class="small text-muted me-1">Sortie</span>
-      {{% include 'common/_card_chips.html' with chips=item.chips.output %}}
-    </div>
-    {{% endif %}}
-    {{% comment %}}Ordre CONVENTIONNEL imposé (CLAUDE.md) : ⚙ · ▶ cycle · ⬇ · ⧉ · 🗑.
-    `.btn-group-actions` est aussi la source que l'inspecteur CLONE (`cloneActions`) — la
-    classe n'est donc pas décorative : sans elle le volet droit reste vide.
-    Le ⚙ a cessé d'être inerte le 2026-08-29 : son ouvreur est déclaré dans l'index (bloc
-    `params_js`) et l'édition d'un élément n'est plus un 501 (`views_gen`). ⚠ Il fallait les
-    DEUX — un bouton mort se referme des deux côtés ou pas du tout ; câbler le seul ouvreur
-    aurait donné un enregistrement qui échoue, et ouvrir la seule vue n'aurait rien changé
-    à l'écran. Les valeurs courantes voyagent en `data-param-*` sur la card.{{% endcomment %}}
-    <div class="btn-group-actions d-flex gap-1 mt-2">
-      <button type="button" class="btn btn-sm btn-outline-secondary settings-btn" data-id="{{{{ item.id }}}}" title="Paramètres"><i class="fas fa-cog"></i></button>
-      {{% include 'common/_cycle_button.html' with id=item.id status=item.status %}}
-      {{% if item.status == 'SUCCESS' %}}<a class="btn btn-sm btn-outline-info" href="{{% url '{app}:download' item.id %}}" title="Télécharger"><i class="fas fa-download"></i></a>{{% endif %}}
-      <button type="button" class="btn btn-sm btn-outline-warning duplicate-btn" data-duplicate-url="{{% url '{app}:duplicate' item.id %}}" title="Dupliquer"><i class="fas fa-clone"></i></button>
-      <button type="button" class="btn btn-sm btn-outline-danger delete-btn" data-delete-url="{{% url '{app}:delete' item.id %}}" title="Supprimer"><i class="fas fa-trash"></i></button>
-    </div>
   </div>
 </div>
 '''
