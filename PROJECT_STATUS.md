@@ -8863,8 +8863,29 @@ C'est le point **(b) de §S2bis.6**, et c'est un chantier de **DÉCLARATION**, p
 **LE PORTAGE DU CONVERTER** (entrée = `WAMA_APP_GENERATION_ROUTE §S2bis`), avec le point (b)
 ci-dessus à traiter **avant** d'aller au-delà du converter.
 
+**🔴 RECADRAGE FABIEN (30/08 soir, ÉCRAN À L'APPUI — prime sur l'ordre ci-dessous)** :
+**le converter n'est PAS fini de porter — `converter_01` doit être une app régénérée de A à Z
+et PARFAITEMENT FONCTIONNELLE avant toute 2ᵉ app.** Mesuré sur capture (page `/converter_01/`,
+parc relancé du 30/08) :
+- la card est NUE (« #47 », 4 boutons, badge PENDING — aucun nom de fichier, aucune chip,
+  aucune section) et **n'hérite pas des designs v1/v2/v3**. C'était la « card générique
+  minimale » DÉCLARÉE comme instrument de mesure d'écart (marche S2) — l'instrument a servi,
+  Fabien demande maintenant de FERMER l'écart : la card générée hérite du formalisme réel ;
+- le volet droit montre l'ossature générique Médias/Paramètres/Actions **VIDE** (que Fabien
+  croyait retirée — elle l'est sur l'accueil) : elle vient du `base.html` COPIÉ de la source,
+  que le JS d'app du converter réel remplit et que le JS généré ne remplit pas — brancher
+  pour de vrai ou retirer comme sur l'accueil ;
+- la SÉLECTION d'une card est très lente avant que le liseré apparaisse (perf à diagnostiquer) ;
+- Effacer et Tout effacer FONCTIONNENT désormais ; **tous les autres boutons** (file, card…)
+  restent à éprouver un par un ;
+- les TESTS UTILISATEUR sont à COMPLÉTER pour couvrir « l'ensemble des possibilités d'actions
+  utilisateur » (étendre les familles ui_smoke au-delà des 7 existantes — chaque bouton, chaque
+  geste) ; porter au COMMUN ce qui ne l'est pas encore, ajouter la GLUE où il faut ;
+- et la **nouvelle card d'entrée dans la file** (v3.5/v4 — `CARD_DESIGN §11.9/§11.10`) fait
+  partie du même critère de sortie.
+
 **File des chantiers ouverts** (ordre) :
-1. **Portage du converter** — non bloqué, c'est le point d'entrée ;
+1. **Portage du converter → `converter_01` fonctionnel A→Z** (recadré ci-dessus) ;
    ~~**①bis (défaut RÉEL trouvé le 30/08, à traiter dans le même geste)**~~ ✅ **FAIT le 30/08
    (session suivante)** : `file_accept` du converter DÉRIVÉ (`current_app_spec.input_extensions`
    — le context processor accounts l'exposait déjà à toutes les pages, rien à écrire côté vue) ;
