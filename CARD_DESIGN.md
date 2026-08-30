@@ -819,9 +819,18 @@ La v3.5 les sépare :
 - **les MODALITÉS sont les gestes d'alimentation d'UNE zone** : dépôt/clic, dossier,
   médiathèque (filtrée par l'accept DU RÔLE — exigence 5), URL, filemanager (D&D par rôle —
   exigence 1). Chaque zone les offre ; plus de bouton global au rôle implicite ;
-- **3 modalités restent transverses** (elles ne remplissent pas une zone, elles créent) :
-  le LOT et le MANIFESTE DE PROCESS (détection structurelle au dépôt → N cards), et le
-  LIVE 🎙 (session → card RUNNING, résultat dans la preview during — exigence 6).
+- ~~3 modalités transverses « parce qu'elles créent »~~ ⚠ **RECTIFIÉ par Fabien (30/08, 5ᵉ
+  message) — la bonne classification est remplir / créer, et RIEN ne lance** :
+  · le **MANIFESTE DE PROCESS remplit la card** (toutes zones + réglages) — modalité de
+    remplissage, à ceci près qu'elle remplit la card ENTIÈRE et non une zone ; il ne lance
+    jamais (doctrine « jamais d'apply auto », déjà actée) ;
+  · le **LIVE 🎙 remplit aussi** — en **2 TEMPS explicites (décision Fabien)** : le clic
+    AMORCE (card créée/armée, la preview guide : *« effectuez vos réglages, ou réglages par
+    défaut, puis lancez »*) ; c'est **▶ qui démarre réellement** l'enregistrement et la
+    transcription — l'utilisateur peut régler AVANT. Léger coût d'usage, gain d'explicite ;
+  · seul le **LOT crée** (N cards) — et le fichier batch DE MANIFESTES crée N cards remplies.
+  ⇒ **Règle unifiée qui en sort : toute modalité REMPLIT ou CRÉE, aucune ne LANCE — le
+  lancement est toujours le 2ᵉ temps (▶), pour toutes les modalités sans exception.**
 
 **B. Anatomie** = les 5 sections de toute card v3 : **Entrée** (les zones de rôle du A) ·
 **Réglages** (chips des défauts persistés `user_settings` ; miroirs rapides DÉCLARÉS —
@@ -853,6 +862,50 @@ rôle (payload `role`, menu « Envoyer vers ‹app› › ‹port› » via `_po
 moment-là) : zones de rôle + les 3 exemples manquants — card en ÉCHEC (due depuis §11), card
 LIVE (REC pulsant + chrono dans la preview), card-modèle aux slots vides (file importée sans
 fichiers, `ARCHITECTURE §8`).
+
+### 11.10 CARD D'ENTRÉE v4 — la proposition (2026-08-30, demandée par Fabien : « une v4
+prometteuse » ; les cards de FILE restent v1/v2/v3 — v4 ne nomme que la card d'entrée)
+
+> Le problème posé : *« la difficulté n'est plus dans le fonctionnement mais dans la
+> présentation avec toutes les modalités — rendre les choses limpides et explicites. »*
+> La réponse v4 tient en une phrase : **une ligne par rôle, un seul geste, la détection fait
+> le reste** — et on SUPPRIME les mini-onglets de modalité (l'étude v3.5-brouillon mélangeait
+> les deux axes, cf. la rectification du A).
+
+```
+┌─ Nouvel élément ─────────────────────────────────────────────── ⌄ ─┐
+│ [ Décrivez ce que vous voulez générer…                    ✨ ] 🏷   │  ← prompt (apps génér.)
+│ Entrée                                                             │
+│  🎞 Fichier de travail   ⟨glissez, cliquez… ou ✎⟩      📚 🔗 🗂 🎙  │  ← 1 LIGNE = 1 RÔLE
+│  🎼 Mélodie (référence)  ⟨melodie_demo.mp3 ✕⟩          📚 🔗       │     = 1 vraie dropzone
+│ Réglages  ⟨whisper l-v3⟩⟨fr⟩⟨diarisation⟩              Sortie ⟨.docx⟩⟨~ETA⟩ │
+│ État  Brouillon — il manque : fichier de travail       [⚙] [▶ Lancer] │
+└────────────────────────────────────────────────────────────────────┘
+```
+
+1. **Une SLOT-ROW par rôle déclaré** (générée du port) : la ligne EST la dropzone — libellé du
+   port, chip du fichier attaché (✕ retirable) ou invite, et en bout de ligne les modalités DE
+   CETTE zone en icônes discrètes : 📚 médiathèque (ouverte PRÉ-FILTRÉE par l'accept du rôle),
+   🔗 URL, 🗂 dossier, 🎙 live (seulement sur la ligne travail des apps à capacité live). Le
+   D&D filemanager a enfin une cible visuelle PAR PORT ; l'appariement teinte la ligne requise
+   (ambre) / suggérée (cyan) — brique existante.
+2. **Aucune affordance pour lot et manifeste** — c'est ça, la limpidité : on DÉPOSE sur la
+   ligne travail, la détection structurelle reconnaît un fichier de lot ou un manifeste de
+   process (mécanisme batch-detect existant, étendu) et ouvre le bandeau d'aperçu. Un geste
+   unique, expliqué APRÈS coup par l'aperçu, plutôt que N boutons à comprendre AVANT.
+3. **Deux temps partout** (règle du A) : la card d'entrée ne lance jamais rien. La ligne
+   d'État dit toujours OÙ on en est et CE QUI MANQUE (« il manque : fichier de travail » /
+   « armé 🎙 — réglez puis lancez » / « prêt ») ; ▶ est le seul lanceur, inactif tant qu'un
+   requis manque.
+4. **Une seule grammaire visuelle partout** : la même slot-row sert la section Entrée de la
+   MODALE ⚙ et de l'inspecteur (exigence 8) et donc le REMPLACEMENT des fichiers d'une card
+   PENDING (exigence 7), et la card-MODÈLE d'une file importée sans fichiers (slots vides =
+   les mêmes lignes, invites actives). L'utilisateur n'apprend qu'un objet.
+5. **Densités** : la card d'entrée suit v1/v2/v3 comme les autres (sections nommées) ; en
+   Compact les slot-rows se condensent en chips sur une ligne.
+
+⏳ Prochain geste : l'itération de MAQUETTE (F ci-dessus) rend cette proposition jugeable à
+l'œil — c'est elle qui vaut validation, pas ce texte.
 
 #### Défauts SILENCIEUX relevés par le balayage (à corriger indépendamment de la v3.5)
 
