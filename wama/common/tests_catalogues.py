@@ -498,6 +498,26 @@ class CardEntreeConformiteTest(TestCase):
                                 jeton.lower(), declarees,
                                 f"{gabarit} offre une extension absente d'input_extensions")
 
+    def test_aucun_wrapper_de_file_en_overflow_x_hidden(self):
+        """Garde anti-récidive (2026-08-30, constat Fabien sur converter_01, JUMEAU sur 7 apps).
+
+        `overflow-x:hidden` force `overflow-y` en `auto` (spec CSS) : le wrapper devient un
+        conteneur de défilement dont la hauteur suit le contenu, et les menus déroulants de la
+        barre commune (densités Tt) se rognent au bas d'une file COURTE — symptôme
+        intermittent, donc quasi indétectable à l'œil. `overflow-x:clip` rogne pareil SANS
+        conteneur de défilement. Le motif reviendra par copier-coller : ce test le refuse.
+        """
+        base = _base()
+        coupables = []
+        for racine in ('wama', 'wama_lab'):
+            for gabarit in sorted((base / racine).glob('*/templates/*/index.html')):
+                texte = gabarit.read_text(encoding='utf-8')
+                if 'overflow-x:hidden' in texte or 'overflow-x: hidden' in texte:
+                    coupables.append(str(gabarit.relative_to(base)))
+        self.assertEqual(coupables, [],
+                         f'wrappers en overflow-x:hidden (menus rognés sur file courte) : '
+                         f'{coupables} — utiliser overflow-x:clip')
+
     def test_la_card_ne_grise_rien_que_l_app_declare(self):
         from wama.common.app_registry import APP_CATALOG
         familles = self._familles()

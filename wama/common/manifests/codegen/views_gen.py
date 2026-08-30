@@ -433,6 +433,40 @@ def {nom}(request, pk):
     # manifeste (`params.primary`), donc rien ici n'est propre à l'app.
     # Point d'attache UNIQUE (leçon describer, recopiée telle quelle dans converter) : la même
     # décoration sert l'index ET card_html, sinon la card se vide à son premier rafraîchissement.
+    # Idiome de STOCKAGE des réglages hors-colonnes — DÉRIVÉ de deux facettes (le cadrage A0
+    # le listait « params_storage : à déclarer ») : les champs du SCHÉMA de params qui ne sont
+    # PAS des colonnes du modèle item s'écrivent dans son conteneur JSON `options` s'il
+    # existe. Mesuré sur le converter (le « déviant double ») : 3 colonnes + 17 champs de
+    # schéma routés en JSON — sans cette voie, la modale générée s'affichait COMPLÈTE mais
+    # n'ENREGISTRAIT que les 3 colonnes, et le volet PARAMÈTRES restait vide (constats Fabien
+    # 31/08 ; le vide du volet vient aussi de `gear_data`, @property du modèle RÉEL = glu non
+    # sérialisée par la facette data, absente du modèle jumeau — d'où l'aplatissement de
+    # `_decorer` ci-dessous, qui porte les valeurs du conteneur sur l'instance).
+    # ⚠ Glu RESTANTE nommée : le sous-split `cross_app_options` du converter réel (upscale/
+    # denoise/audio_enhance) n'est pas dérivé — ces clés atterrissent dans `options`.
+    body = manifest.get('body') or {}
+    _schemas = (body.get('params') or {}).get('schemas') or {}
+    _schema_prim = _schemas.get((body.get('params') or {}).get('primary') or '') or []
+    _noms_schema = [str(p.get('name')) for p in _schema_prim
+                    if isinstance(p, dict) and p.get('name')]
+    _champs_modeles = {m.get('name'): {f.get('name') for f in (m.get('fields') or [])}
+                       for m in ((body.get('data') or {}).get('models') or [])
+                       if isinstance(m, dict)}
+    _champs_item = _champs_modeles.get(item) or set()
+    hors_colonnes = [n for n in _noms_schema
+                     if n not in _champs_item and n not in d['params_fields']]
+    conteneur_options = 'options' if ('options' in _champs_item and hors_colonnes) else None
+
+    aplat = '' if not conteneur_options else f'''
+    # Valeurs du conteneur JSON portées sur l'instance (transitoire) : la card émet ses
+    # `data-param-*` par `item.<champ>`, le volet et la modale les relisent — mêmes valeurs
+    # que ce que `update` écrit (idiome params_storage dérivé).
+    try:
+        _opts = dict(item.{conteneur_options} or {{}})
+        for _k in {hors_colonnes!r}:
+            setattr(item, _k, _opts.get(_k, ''))
+    except Exception:
+        pass'''
     decorateur = f'''def _decorer(item):
     """Chips de card GÉNÉRÉS du schéma (brique commune) — point d'attache unique index/card_html."""
     try:
@@ -440,7 +474,7 @@ def {nom}(request, pk):
         from .params import {schema_symbole}
         item.chips = chips_by_section(item, {schema_symbole})
     except Exception:
-        item.chips = {{}}
+        item.chips = {{}}{aplat}
     return item'''
 
     vues['card_html'] = f'''def card_html(request, pk):
@@ -554,11 +588,19 @@ def batch_start(request, pk):
     return JsonResponse({{'started': started}})'''
 
     def maj_champs(ind):
-        """Affectation des `params_fields` DÉCLARÉS, à l'indentation demandée."""
+        """Affectation des `params_fields` DÉCLARÉS (+ conteneur JSON dérivé), à l'indentation demandée."""
         p = ' ' * ind
-        return '\n'.join(f'''{p}if '{c}' in donnees:
+        lignes = [f'''{p}if '{c}' in donnees:
 {p}    setattr(item, '{c}', donnees['{c}'])
-{p}    touches.append('{c}')''' for c in d['params_fields'])
+{p}    touches.append('{c}')''' for c in d['params_fields']]
+        if conteneur_options:
+            lignes.append(f'''{p}_extras = {{k: donnees[k] for k in {hors_colonnes!r} if k in donnees}}
+{p}if _extras:
+{p}    _opts = dict(item.{conteneur_options} or {{}})
+{p}    _opts.update(_extras)
+{p}    item.{conteneur_options} = _opts
+{p}    touches.append('{conteneur_options}')''')
+        return '\n'.join(lignes)
 
     lect_donnees = '''    try:
         donnees = json.loads(request.body) if request.body else dict(request.POST)

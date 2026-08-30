@@ -256,6 +256,69 @@ class SourcesDOptionsTest(SimpleTestCase):
                           f'la déclarer dans PAGE_OPTION_SOURCES, ou l\'assumer explicitement')
 
 
+class EmissionsDuGabaritTest(SimpleTestCase):
+    """Les émissions ajoutées au fil du chantier converter_01 (30-31/08) — chacune est née
+    d'un échec ou d'un skip MESURÉ du harnais nocturne ; ces tests empêchent leur retour
+    sans dépendre de l'existence d'une jumelle locale."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        src, raison = render_index(_manifeste(SOURCE))
+        cls.src = src if not isinstance(src, dict) else src.get('index.html')
+        cls.card = '' if not isinstance(src, dict) else (src.get('_generic_card.html') or '')
+        cls.raison = raison
+
+    def setUp(self):
+        if not self.src:
+            self.skipTest(f'index non généré : {self.raison}')
+
+    def test_la_card_generee_est_une_card_v3_complete(self):
+        # Recadrage Fabien 30/08 : la card squelette (instrument de mesure d'écart) a servi,
+        # l'écart est fermé — la card émise porte les 5 sections et les contrats communs.
+        for marqueur in ('wcv3-head', 'wcv3-sec--input', 'wcv3-sec--settings',
+                         'wcv3-sec--output', 'wcv3-sec--state', 'wcv3-sec--actions',
+                         'wcv3-bar', '_cycle_button.html', '_card_chips.html',
+                         'duplicate-btn', 'delete-btn', 'settings-btn',
+                         'unified_preview', 'data-param-'):
+            self.assertIn(marqueur, self.card, f'card générée sans {marqueur}')
+
+    def test_l_import_de_dossier_est_offert(self):
+        # Skip mesuré 30/08 : « folder_input_id non déclaré sur la card d'entrée commune ».
+        self.assertIn("folder_input_id=", self.src)
+        self.assertIn('WamaFolderImport', self.src, 'affordance sans câblage = input mort')
+
+    def test_le_volet_actions_de_l_inspecteur_est_emis(self):
+        # Skip mesuré 30/08 : « pas de volet #inspectorActions sur cette page ».
+        self.assertIn("_inspector_actions.html", self.src)
+
+    def test_la_card_mere_recoit_les_actions_communes_quand_les_routes_existent(self):
+        # Échec mesuré 30/08 : « la card mère n'émet pas [del, dup, start] ».
+        self.assertIn("actions_communes=True", self.src)
+        # Discriminant : sans les routes de lot au manifeste, PAS d'opt-in (un data-batch-*-url
+        # vers une route absente serait un lien mort silencieux).
+        from copy import deepcopy
+        manifest = deepcopy(_manifeste(SOURCE))
+        proc = (manifest.get('body') or {}).get('processing') or {}
+        proc['endpoints'] = [e for e in (proc.get('endpoints') or [])
+                             if e not in ('batch_delete', 'batch_duplicate', 'batch_start')]
+        proc['extra_routes'] = [e for e in (proc.get('extra_routes') or [])
+                                if (e.get('name') or '') not in
+                                ('batch_delete', 'batch_duplicate', 'batch_start')]
+        src2, _ = render_index(manifest)
+        if isinstance(src2, dict):
+            src2 = src2.get('index.html') or ''
+        self.assertNotIn('actions_communes=True', src2 or '')
+
+    def test_les_data_param_couvrent_tout_le_schema(self):
+        # Constat Fabien 31/08 : la modale enregistrait 3 champs sur 20 et le volet était
+        # vide — la card doit porter un data-param-* pour CHAQUE champ du schéma (les valeurs
+        # hors-colonnes sont aplaties par _decorer, idiome params_storage dérivé).
+        self.assertIn('data-param-quality', self.card,
+                      'un champ hors-colonne du schéma doit avoir son data-param')
+        self.assertIn('data-param-output_format', self.card)
+
+
 class SlotDeReferenceGenereTest(SimpleTestCase):
     """Le slot de référence de la card générée : DÉRIVÉ du port `reference` du manifeste.
 

@@ -76,6 +76,47 @@ class CheminDeLotTest(SimpleTestCase):
                        'copy_into_app_input'):
             self.assertIn(brique, corps, f'{brique} : la brique commune n\'est plus utilisée')
 
+    def test_le_gabarit_de_lot_publie_a_une_ligne_d_exemple_deposable(self):
+        # Échec mesuré 30/08 : « le gabarit publié par l'app ne contient que des commentaires —
+        # aucune ligne d'exemple à déposer ». L'exemple passe par la brique commune, avec une
+        # extension DÉRIVÉE du vocabulaire d'entrée.
+        corps = _fonction(self.src, 'batch_template')
+        self.assertIsNotNone(corps)
+        self.assertIn('build_batch_template', corps, 'le gabarit doit passer par la brique')
+        self.assertIn('example.com/exemple', corps, 'aucune ligne d\'exemple émise')
+
+    def test_les_champs_hors_colonnes_s_ecrivent_dans_le_conteneur_options(self):
+        """Idiome `params_storage` DÉRIVÉ (constats Fabien 31/08 : modale complète mais seuls
+        les champs-colonnes s'enregistraient ; volet PARAMÈTRES vide).
+
+        Deux moitiés, même dérivation : `update` route les champs du schéma sans colonne vers
+        le JSONField `options` ; `_decorer` aplatit ces valeurs sur l'instance (data-param-*,
+        volet, pré-remplissage de modale).
+        """
+        corps = _fonction(self.src, 'update')
+        self.assertIsNotNone(corps)
+        self.assertIn('_extras', corps, 'update ne route pas les champs hors-colonnes')
+        self.assertIn("'quality'", corps, 'un champ hors-colonne attendu manque à la liste')
+        deco = _fonction(self.src, '_decorer')
+        self.assertIsNotNone(deco)
+        self.assertIn('_opts', deco, "_decorer n'aplatit pas le conteneur sur l'instance")
+
+    def test_sans_conteneur_json_aucun_routage_invente(self):
+        # Discriminant : un modèle SANS champ `options` ne doit recevoir aucun bloc _extras —
+        # écrire dans un attribut inexistant serait le défaut silencieux type.
+        from copy import deepcopy
+        from wama.common.manifests.ingest import extract
+        from wama.common.manifests.codegen.views_gen import render_views
+        manifest = deepcopy(extract('app', SOURCE))
+        for m in ((manifest.get('body') or {}).get('data') or {}).get('models') or []:
+            if isinstance(m, dict):
+                m['fields'] = [f for f in (m.get('fields') or [])
+                               if f.get('name') != 'options']
+        src, raison = render_views(manifest)
+        self.assertIsNotNone(src, f'génération impossible : {raison}')
+        corps = _fonction(src, 'update')
+        self.assertNotIn('_extras', corps or '')
+
     def test_une_url_n_est_pas_telechargee_dans_la_requete(self):
         """La source est ENREGISTRÉE ; `ensure_local_input` la résout en tête de tâche.
 

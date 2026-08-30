@@ -171,11 +171,18 @@ def render_index(manifest: dict) -> tuple:
     schema_primaire = schemas.get((body.get('params') or {}).get('primary') or '') or []
     sources_dyn = sorted({str(p.get('options_source')) for p in schema_primaire
                           if isinstance(p, dict) and p.get('options_source')})
+    # La card porte un `data-param-*` pour CHAQUE champ du schéma (pas seulement les colonnes) :
+    # les valeurs hors-colonnes sont aplaties sur l'instance par `_decorer` (idiome
+    # params_storage dérivé, views_gen) — c'est ce qui remplit le volet PARAMÈTRES et pré-remplit
+    # la modale avec les MÊMES valeurs que celles que `update` écrit (constats Fabien 31/08).
+    noms_schema = [str(p.get('name')) for p in schema_primaire
+                   if isinstance(p, dict) and p.get('name')]
+    champs_card = list(dict.fromkeys([*champs_params, *noms_schema]))
 
     params_js = ''
     if route_update and champs_params:
         lect = '\n'.join(f"                v['{c}'] = card.getAttribute('data-param-{c}') || '';"
-                         for c in champs_params)
+                         for c in champs_card)
         resolver_js = ('' if not sources_dyn else f'''
                 optionsResolver: function (p) {{
                     // Sources déclarées au schéma de cette app : {', '.join(sources_dyn)}
@@ -446,7 +453,7 @@ document.addEventListener('DOMContentLoaded', function () {{
     # modale les lit sans route de lecture supplémentaire. C'est le même choix que
     # `data-status` pour `autoSync` — la card est auto-suffisante (formalisme CARD_DESIGN).
     attrs_params = ''.join(f''' data-param-{c}="{{{{ item.{c}|default:'' }}}}"'''
-                           for c in champs_params)
+                           for c in champs_card)
 
     # Routes de card LUES au manifeste (jamais supposées — leçon `stop` vs `cancel`).
     route_download = resolve_route('download', noms_routes)
