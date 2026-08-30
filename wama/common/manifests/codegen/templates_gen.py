@@ -349,6 +349,13 @@ document.addEventListener('DOMContentLoaded', function () {{
 </script>
 {{% endblock %}}
 
+{{% block app_right_panel_actions %}}
+{{% comment %}}Hôte d'actions COMMUN de l'inspecteur (ids fixes, contrat WamaInspector) —
+le niveau CARD/BATCH du volet y clone les actions (`cloneActions`). Il manquait au gabarit
+alors que la copie-témoin l'avait : skip `converter_01.inspector_actions` mesuré 30/08.{{% endcomment %}}
+{{% include 'common/_inspector_actions.html' %}}
+{{% endblock %}}
+
 {{% block {app}_content %}}
 <div style="overflow-x:clip;">
 
