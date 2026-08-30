@@ -8901,9 +8901,17 @@ parc relancé du 30/08) :
   différée accepte 2 POST mais ne crée RIEN (0→0 cards : instruire le chemin URL de
   `batch_create` généré) ; ② `send_to` — le témoin déposé dans `users/22/temp` (compte dev
   neuf) n'apparaît pas dans l'arbre du filemanager (instrument/initialisation du dossier temp
-  d'un compte neuf ? à instruire avant d'accuser la jumelle) ; ③ volet `_inspector_actions`
-  non émis ; ④ résidu en base du delete (le comptage inclut-il le montage ? à instruire) ;
-  ⑤ famille settings à étendre (enregistrer/relire) ;
+  d'un compte neuf ? à instruire avant d'accuser la jumelle) ; ③ ~~volet `_inspector_actions`
+  non émis~~ ✅ **9/11 (31/08)** — bloc émis par le gabarit, rejoué VERT : sélection card →
+  5 boutons clonés au volet + ✕ qui vide ; card MÈRE de lot → 4 boutons — **l'inspecteur
+  contextuel est attesté aux niveaux UNITAIRE et BATCH sur la jumelle** (niveau FILE = le
+  panneau WamaParams minimal, dernier morceau) ; ④ résidu en base du delete (le comptage
+  inclut-il le montage ? à instruire) ; ⑤ famille settings à étendre (enregistrer/relire).
+  ⚠ Incident de soirée instructif : la relance de Fabien n'a PAS relancé gunicorn — le garde
+  du script (`pgrep -f "gunicorn wama.wsgi"`) s'auto-correspondait avec les BOUCLES DE SONDE
+  de l'instance Claude (le littéral dans leur ligne de commande) → « déjà lancé », démarrage
+  sauté. Relancé en `--daemon`. *Une sonde qui porte le littéral du garde qu'elle surveille
+  peut neutraliser ce garde* ;
 - et la **nouvelle card d'entrée dans la file** (v3.5/v4 — `CARD_DESIGN §11.9/§11.10`) fait
   partie du même critère de sortie.
 
