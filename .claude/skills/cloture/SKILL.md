@@ -97,6 +97,17 @@ python manage.py test <tes modules>      # ciblé, quelques secondes
   ✅ **Le geste** : nommer la cible en clair (« le partial d'onglets de résultat jamais créé »)
   **sans écrire de chemin résolvable**, et dire POURQUOI, sinon le suivant le rétablira par
   souci de précision.
+- ⚠⚠ **VARIANTE, découverte le 30/08 : un nom de fichier INVENTÉ compte pareil.** Ce n'était pas
+  un chemin cassé qu'on décrit, c'était un **exemple pédagogique** — trois noms illustrant des
+  extensions de texte, dont un en `.md`, entre accents graves. `check_docs` lit tout nom suivi
+  de l'extension Markdown comme une RÉFÉRENCE DE DOCUMENT : **une 2ᵉ CIBLE DISTINCTE ouverte
+  sans qu'aucune doc n'ait bougé**, donc le seuil du `/reprise` franchi pour rien.
+  ⚠ Et **ma première rédaction de l'avertissement l'a refait**, en citant le motif entre accents
+  graves pour l'expliquer. *Un avertissement qui cite son propre déclencheur le déclenche.*
+  ✅ **Le geste** : dans un EXEMPLE, écrire l'extension SEULE (« un `.md` de protocole »), jamais
+  un nom de fichier collé devant elle. Et **relancer `check_docs` après avoir écrit
+  l'avertissement**, pas seulement après la correction — ici il a fallu TROIS passes, la 2ᵉ et
+  la 3ᵉ n'ayant corrigé que le texte de la garde elle-même.
 
 ## 3. Balayage « rien laissé de côté » — chercher, pas se souvenir
 

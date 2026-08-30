@@ -889,25 +889,48 @@ outillé avant d'ouvrir cette marche.
      La duplication résorbée n'était pas un gabarit recopié mais un dropdown **reconstruit en JS** :
      aucun test de gabarit ne pouvait la voir.
 
-     ⏳ **CE QUI RESTE, ET POURQUOI CE N'EST PAS UN OUBLI** — adoption mesurée le 30/08 : **1 barre
-     sur 12**. Ce n'est pas de la paresse, c'est un BLOCAGE SERVEUR mesuré :
+     ⏳ **CE QUI RESTE — et le dénominateur JUSTE n'est pas 12** (rectifié le 2026-08-30, correction
+     de Fabien : *« il y a les applications early binding et les late binding »*).
 
-     | | mesuré |
+     🔴 **Le menu ▾ multi-format ne concerne QUE les apps `export_binding='late'`.** Ce n'est pas
+     une nuance d'implémentation, c'est le sens du geste :
+
+     | | où le format est choisi | ce que ⬇ doit rendre |
+     |---|---|---|
+     | **`early`** (7 apps) | **AVANT le traitement**, dans les paramètres — le fichier produit EST déjà au format voulu | **un bouton simple.** Un menu de formats y serait un mensonge : il n'y a rien à reformater au téléchargement |
+     | **`late`** (3 apps) | **AU TÉLÉCHARGEMENT** — un master est produit, l'export en dérive | **le bouton + le menu ▾** |
+
+     Ma première rédaction disait « les 7 autres n'ont qu'un format, y déléguer ne changerait rien
+     à l'écran ». C'était **le bon écran pour la mauvaise raison** — donc une phrase qui aurait fait
+     porter le menu à la première app early qui gagne un 2ᵉ format. ⚠ **Un critère qui coïncide avec
+     le bon résultat n'est pas pour autant le bon critère** : le nombre de formats est une
+     CONSÉQUENCE, `export_binding` est la CAUSE, et il est DÉCLARÉ (`app_registry.py`, défaut
+     `'early'`) — donc il n'y avait pas à le déduire.
+     ✅ **Rien à durcir dans le code** : l'équivalence `late ⟺ des formats déclarés` est déjà un
+     INVARIANT MÉCANIQUE (`common/tests_catalogues.py:349`), donc `entries_for_app()` rend
+     naturellement une liste vide sur une app `early` et le tag retombe sur le lien simple. Ajouter
+     une garde ici mettrait la même règle à deux endroits. Et `common/utils/export_formats.py`
+     énonce la distinction dès son 1ᵉʳ paragraphe : **c'est ma prose qui avait dérivé, pas le code**
+     — le module que je venais de renommer portait la bonne réponse en tête.
+
+     **Adoption réelle, sur le bon dénominateur : 1 barre sur 3.** Et les deux qui restent sont
+     bloquées CÔTÉ SERVEUR, pas côté gabarit :
+
+     | | mesuré le 30/08 |
      |---|---|
-     | barres de file `_queue_toolbar` | **12** (10 apps ; imager et enhancer en ont 2) |
-     | apps exposant une route `download_all` | **10/10** |
-     | apps déclarant PLUSIEURS `export_formats` | **3** — describer `txt/pdf/docx`, reader `txt/md/pdf/docx/json`, transcriber `txt/srt/pdf/docx` |
-     | vues `download_all` qui LISENT `?format=` | **1** — le transcriber SEUL (`wama/transcriber/views.py:1256`) |
+     | apps `export_binding='late'` | **3** — describer `txt/pdf/docx`, reader `txt/md/pdf/docx/json`, transcriber `txt/srt/pdf/docx` |
+     | dont la vue `download_all` LIT `?format=` | **1** — le transcriber SEUL (`wama/transcriber/views.py:1256`) |
+     | apps `export_binding='early'` (hors périmètre du menu) | **7** |
+     | barres `_queue_toolbar` au total | **12** (imager et enhancer en ont 2) — dénominateur du markup, pas du menu |
 
      ⚠⚠ **Porter describer et reader aujourd'hui afficherait un menu que le serveur IGNORE** :
-     leur `download_all` construit le ZIP sans regarder la query — le format choisi n'aurait aucun
-     effet. C'est exactement le défaut de la famille « vert d'ADOPTION, faux en FONCTIONNEMENT »
-     (`WAMA_VERIFICATION §Geste 14`). **Le portage de ces deux-là commence côté VUE**, pas côté
-     gabarit. Les 7 autres n'ont qu'un format : y déléguer ne changerait rien à l'écran (c'est
-     tout de même la bonne cible, pour supprimer le markup recopié).
+     `?format=` n'y est lu que par le download d'ITEM (`reader/views.py:441`, `describer/views.py:558`) ;
+     leur `download_all` (`reader/views.py:559`, `describer/views.py:737`) construit le ZIP sans
+     regarder la query. C'est exactement la famille « vert d'ADOPTION, faux en FONCTIONNEMENT »
+     (`WAMA_VERIFICATION §Geste 14`). **Le portage de ces deux-là commence côté VUE.**
      ⚠ Le GÉNÉRATEUR n'est volontairement pas opté : il passe `download_url` sans `download_ready`,
-     donc `app=` transformerait son lien toujours actif en bouton désactivé. Une app générée qui
-     veut le menu devra déclarer les deux.
+     donc `app=` transformerait son lien toujours actif en bouton désactivé. Une app générée
+     `late` devra déclarer les deux.
 
 ### §S2bis.6bis — 🔴 ARBITRAGE OUVERT : l'homonyme `text` (chantier à part entière)
 

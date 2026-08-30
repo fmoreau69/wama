@@ -8746,3 +8746,127 @@ stabilité hôte).
 **Artefacts de session** : scripts d'inventaire/renommage/sonde au scratchpad (jetables,
 morts avec la session — les rejouables vivent dans les skills) ; captures /tmp/smoke_renommage
 (jetables) ; comptes `intake_test`/`oeil_test*` dans la base de TEST seulement.
+
+---
+
+## §REPRISE — 2026-08-30, SUITE de l'instance « RENOMMAGE JS + i18n » : ⬇ COMMUN + 4 RECTIFICATIONS (CLOSE) — 🔚 POINT D'ENTRÉE
+
+> Même instance que le §REPRISE « RENOMMAGE JS COMMUN + RECTIFICATION i18n » ci-dessus, reprise
+> après sa clôture sur demande de Fabien. 2 commits : `59400ca0`, `534de393`. **Rien poussé.**
+
+### ① Le ⬇ de file DÉLÈGUE enfin à la brique commune (`534de393`) — le quick win
+
+Pending du 23/08 SOLDÉ. `_queue_actions.html` rejouait `common/_download_button.html` : deux
+branches recopiées **et la troisième reconstruite EN JAVASCRIPT** (`transcriber/js/index.js`
+fabriquait un dropdown autour du bouton rendu, 4 formats **codés en dur**, URL forgée par
+`replace('start_all','download_all')` — un format ajouté au catalogue n'y serait jamais apparu).
+
+Trois manques levés : `html_id` (le JS d'app cible le bouton), `label` (une barre a un libellé,
+pas une card), `split=False` (**un bouton + un ▾**, pas de `dropdown-toggle-split` : la rangée
+d'actions ne s'élargit pas — objection de Fabien).
+⚠ La branche « menu seul » se rend **même quand `ready` est faux** : 3 apps basculent `disabled`
+au runtime, le menu doit exister AVANT que le JS ne l'active. C'était la vraie raison pour
+laquelle la brique ne pouvait pas servir la barre.
+Derrière `{% if app and download_url %}` : **sans `app`, rendu inchangé à l'octet près.**
+
+⭐ **Deux gardes, pas un commentaire** — et la 2ᵉ est celle qui compte :
+`PasDeDropdownReconstruitEnJSTests` balaie les `wama/*/static/*/js/*.js` à la recherche de
+`classList.add('dropdown-toggle')`. **La duplication résorbée n'était pas un gabarit recopié :
+aucun test de gabarit ne pouvait la voir.**
+
+### ② Le renommage de la chaîne ⬇ (dans `534de393`) — déclenché par une remarque de Fabien
+
+*« Je vois encore un nom de fonction en français : `entrees_pour_app`. »* → toute la chaîne passe
+à l'anglais (`entries_for_app`, `entries`, `entry`, `download_button`, `domain_route_prefix`, et
+les kwargs `titre`/`titre_vide`/`classe`), 14 gabarits + `conformity_checker` (sa regex comprise).
+⚠⚠ **Elle avait échappé à la passe du 29/08 parce que celle-ci visait *le model_manager et le JS
+commun* — c'est-à-dire une LISTE DE FICHIERS, pas un CRITÈRE.** Le critère (« Python
+l'importe-t-il ? ») la désignait depuis le premier jour.
+⚠ `parse_bits` valide les kwargs d'un tag d'inclusion **à la compilation** : compiler les 112
+gabarits est la seule attestation mécanique d'un renommage de tag (aucun test n'exerce les 12 cards).
+⚠ gunicorn relit les gabarits sur disque mais garde les **modules de templatetags** chargés au
+démarrage → le site a rendu **500 jusqu'au `kill -HUP`**.
+
+### ③ 🔴 RECTIFICATION DE FABIEN — early binding / late binding (la leçon de la reprise)
+
+J'avais écrit : *« les 7 autres n'ont qu'un format, y déléguer ne changerait rien à l'écran »*.
+**Bon écran, mauvaise raison.** Fabien : *« il y a les applications early binding et les late
+binding »* — les 7 `early` font choisir le format **AVANT le traitement**, le fichier produit EST
+déjà au bon format. Un menu de formats y serait un **mensonge**, pas un no-op.
+
+⚠⚠ **Un critère qui coïncide avec le bon résultat n'est pas pour autant le bon critère.** Le
+nombre de formats est une CONSÉQUENCE ; `export_binding` est la CAUSE — et il est **DÉCLARÉ**
+(`app_registry.py`, défaut `'early'`), donc il n'y avait rien à déduire. Ma formulation aurait
+fait porter le menu à la première app `early` gagnant un 2ᵉ format.
+⚠⚠⚠ **Et `common/utils/export_formats.py` énonce la distinction dès son 1ᵉʳ paragraphe.** J'ai
+re-dérivé en prose un critère écrit en tête du module que je venais de renommer : *une prose
+dérive même quand le code, lui, est juste.*
+✅ **Rien à durcir** : `late ⟺ formats déclarés` est déjà un invariant mécanique
+(`common/tests_catalogues.py:349`), donc `entries_for_app()` rend vide sur une app `early`.
+
+**Adoption sur le BON dénominateur : 1 sur 3** (pas 1/12). Les 2 restantes sont bloquées **côté
+SERVEUR** : `?format=` n'est lu que par leur download d'ITEM (`reader/views.py:441`,
+`describer/views.py:558`) ; leur `download_all` (`reader/views.py:559`, `describer/views.py:737`)
+zippe sans regarder la query. Les porter = « vert d'ADOPTION, faux en FONCTIONNEMENT ».
+⚠ Le GÉNÉRATEUR n'est pas opté : il passe `download_url` sans `download_ready` → `app=`
+transformerait son lien actif en bouton désactivé.
+
+### ④ Les quatre rectifications doc (`59400ca0`)
+
+- **`ROADMAP §10.A`** — `USE_I18N = True` se lisait comme une étape franchie. C'est le **défaut
+  de Django**. Bloc « CE QUI EXISTE DÉJÀ EN CODE » ajouté, en 4 masses très inégales : moteur
+  (Django, rien à écrire) · **cerveau de traduction ÉCRIT** (`common/utils/translator.py` +
+  `lang_routing.py`, déjà en runtime sur la traduction IN) · plomberie de locale (absente,
+  ~1 j) · **LE CORPUS = 95 % du chantier** (2 gabarits taggés sur 128 → 3-6 semaines).
+  ⇒ *le chantier n'est pas « écrire l'i18n », c'est « produire et maintenir le corpus »* — et
+  c'est pourquoi l'arbitrage `msgid` coûte cher. **Répond au point 1 de Fabien** : ne jamais
+  réduire cet état à « rien n'existe ».
+- **`CARD_DESIGN §11.2`** — le TERRAIN D'ESSAI de la card d'entrée v3 (`converter_01`) n'était
+  consigné **nulle part**, alors que la proposition date du 21/08. *Un chantier dont le lieu
+  d'essai n'est pas écrit ne redémarre pas.* C'est ce qui lève l'interdit « ne pas toucher aux
+  cards en place » sans le contredire. **Répond au point 2 de Fabien.**
+- **`/renommage-api`** + **`/smoke`** : corrigés par ce que la session a appris (citations de
+  symboles dans les `.md` ; `settings.SESSION_COOKIE_NAME` jamais `sessionid` en dur).
+
+### ⑤ `WAMA_APP_GENERATION_ROUTE §S2bis.6` reformulé — **répond au point 3 de Fabien**
+
+🟢 **La card d'entrée commune est FONCTIONNELLE et DÉJÀ TYPÉE PAR SLOT dans les 10 apps**
+(`file_accept` + `reference_accept`). La version précédente se lisait comme un défaut de la card :
+elle n'en est pas un. Ce qui manque est que **ce typage est écrit À LA MAIN dans chaque
+`{% include %}`** — aucune déclaration ne le porte. `inputs[]` n'est déclarable que sur un MODE,
+or **6 apps sur 10 ont `modes: []`**, et `resolve_inputs()` n'a **aucun consommateur**.
+⇒ Le vrai défaut est **côté GÉNÉRATEUR** : une app générée naît **EN DESSOUS** des apps manuelles
+(un seul slot, typé par l'union de toutes les extensions, aucun slot de référence). C'est le
+point **(b) de §S2bis.6**, et c'est un chantier de **DÉCLARATION**, pas de card.
+
+### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
+
+**LE PORTAGE DU CONVERTER** (entrée = `WAMA_APP_GENERATION_ROUTE §S2bis`), avec le point (b)
+ci-dessus à traiter **avant** d'aller au-delà du converter.
+
+**File des chantiers ouverts** (ordre) :
+1. **Portage du converter** — non bloqué, c'est le point d'entrée ;
+2. **(b) déclaration d'entrées PAR SLOT au manifeste** + émission par `templates_gen` — à faire
+   avant la 2ᵉ app portée, et **avant** de juger la card v3 sur la jumelle ;
+3. `download_all` de **reader** et **describer** : lire `?format=` côté VUE, puis opter au ⬇
+   commun (2 lignes de gabarit une fois la vue faite) ;
+4. Card d'entrée **v3** sur `converter_01` (dépend de 2).
+
+**🔴 ARBITRAGES BLOQUANTS (Fabien) — la session suivante ne peut pas les commencer sans réponse** :
+- **la langue des `msgid`** (`ROADMAP §10.A`) — elle décide si le corpus se **tague** (FR) ou se
+  **tague ET se traduit deux fois** (EN source). C'est 3-6 semaines de travail derrière ;
+- **l'homonyme `text`** (`§S2bis.6bis`) ;
+- `rights_anonymous` (12/17 surfaces ouvertes au visiteur) et `data-abo-*`/`data-f-<facette>`
+  restent ouverts, hérités des blocs précédents.
+
+**Pendings système** : **~23 commits à pousser** sur `dev` ; **gunicorn a été HUP-rechargé**
+pendant la session (PID master 122327) — WAMA relancé par Fabien depuis.
+
+**Contrôles attendus au prochain /reprise (MESURÉS à cette clôture, 30/08)** :
+- `wama.common.tests_downloads` : **9 tests OK** (dont 6 neufs) ;
+- `check_docs` : **1 CIBLE DISTINCTE** (partial d'onglets assumé) / 8 réf / **0 périmée** sur
+  1185 ; 0 chiffre sans source ;
+- 112 gabarits **compilés** ; `check_templates` **0/128** ; grille de conformité **inchangée**.
+
+**Artefacts de session** : `compile_templates.py` au scratchpad (jetable — la recette est dans
+le commit et dans ce bloc). Aucun compte ni item semé.
