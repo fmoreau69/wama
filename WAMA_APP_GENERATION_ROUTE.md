@@ -745,13 +745,28 @@ outillé avant d'ouvrir cette marche.
        jumelle à sa source, c'est le littéral ÉCRIT À LA MAIN qui est en défaut :
        `converter/templates/converter/index.html:447` s'arrête à `.tex,.latex` — il **manque 14
        extensions** que l'app déclare et que le serveur convertit réellement (les 10 archives
-       `.zip .tar .gz .tgz .bz2 .tbz2 .xz .txz .7z .rar`, plus `.fb2 .mobi .azw3 .azw`), alors
+       `.zip .tar .gz .tgz .bz2 .tbz2 .xz .txz .7z .rar`, plus `.fb2 .mobi .azw3 .azw` — recompte
+       mécanique du 30/08 : **15**, `.qt` avait échappé au relevé manuel), alors
        que `input_types` déclare `'archive'` et que `converter/utils/format_router.py:44-49` en
        tient la table d'entrée. **Le sélecteur du converter RÉEL grise des fichiers que l'app
        sait traiter ; celui de la jumelle générée, non.** Un littéral dérive de sa déclaration,
        une génération ne le peut pas. *La déclaration n'était pas le maillon manquant : elle est
-       le maillon le plus fiable des deux.* (Défaut à corriger côté app source — voir la file
-       des chantiers du §REPRISE.)
+       le maillon le plus fiable des deux.*
+       ✅ **CORRIGÉ le 2026-08-30 (①bis, même journée)** — par la déclaration, pas par le
+       littéral : le gabarit passe `file_accept=current_app_spec.input_extensions|join:','`
+       (`current_app_spec` était DÉJÀ posé sur toutes les pages par le context processor
+       accounts — la route existait, rien à écrire côté vue) ; rendu vérifié : l'accept servi
+       == les 60 extensions déclarées, à l'ensemble près. ⚠ **La mesure mécanique rectifie le
+       compte relevé à la main : 15 extensions manquaient, pas 14** — `.qt` (extension vidéo
+       DÉCLARÉE) manquait aussi au littéral et avait échappé au relevé. *Même un constat de
+       dérive se recompte à l'instrument.* Et le geste demandé (« un contrôle mécanique, pas
+       10 patchs ») est en place : `common/tests_catalogues.py::CardEntreeConformiteTest`
+       confronte les `file_accept` des 12 cards au catalogue **dans les deux sens** (la card
+       n'OFFRE rien d'indéclaré ; ne GRISE rien de déclaré), avec 2 écarts ASSUMÉS à faire
+       décroître — avatarizer (slot voix = politique `VOICE_SAMPLE_EXTENSIONS`, avatar via
+       galerie) et imager (`.md/.pdf/.docx` grisés, ci-dessous). Discriminance prouvée en
+       rejouant le contrôle sur le littéral d'hier (15 manques rendus). Le JS du converter
+       n'avait PAS de jumeau : `EXT_TO_TYPE` dérive déjà de `supportedFormats` serveur.
        Ce qui reste vrai, et qui est le SEUL manque : **trois** sources décrivent ce qu'une app
        accepte, et **aucune ne type PAR SLOT hors d'un mode** —
        1. `APP_CATALOG[app].input_extensions` — une liste **PLATE** par app, toutes entrées
@@ -766,7 +781,7 @@ outillé avant d'ouvrir cette marche.
           dans tout le dépôt ;
        3. les valeurs littérales du gabarit d'app — **la seule qui type par slot aujourd'hui**
           (`reference_accept` / `show_reference` : **2 apps sur 10**, composer et imager), et
-          celle qui dérive, cf. les 14 extensions perdues du converter ci-dessus.
+          celle qui dérive, cf. les 15 extensions perdues du converter ci-dessus (corrigé ①bis).
        ⇒ Le manque n'est pas « la card ne déclare pas ses entrées » — elle les déclare, et ça
        marche jusque dans une app générée. C'est **« la déclaration n'a pas de case pour le SLOT,
        que la card sait pourtant déjà rendre »** : `inputs` est la seule clé du schéma
@@ -781,6 +796,15 @@ outillé avant d'ouvrir cette marche.
        fidèle (a) ; c'est en dessous **sur le nombre de slots**, et sur ce seul point. Sur le
        converter c'est indolore (une seule entrée) ; dès la 2ᵉ app portée, le sélecteur de fichier
        du slot « image de travail » proposerait `.docx` et le slot de référence n'existerait pas.
+       ⚠ **Mesure du 2026-08-30 (relevé des 12 cards, contrôle ①bis) — la déclaration PLATE est
+       INCOHÉRENTE sur les slots de référence, et les deux apps qui en ont tranchent en sens
+       inverse** : l'avatarizer INCLUT son image de référence dans `input_extensions`
+       (`AUDIO + IMAGE`), le composer EXCLUT son audio de mélodie (`TEXT_EXTENSIONS` seul, alors
+       que sa card offre `reference_accept='audio/*'`). Conséquence concrète côté composer : le
+       menu « Envoyer vers… » du filemanager (bâti sur `input_extensions`) ne proposera jamais le
+       composer pour un fichier audio, alors que la card l'accepte. Aucun des deux choix n'est
+       « le bon » : c'est la preuve qu'une liste plate ne peut pas dire « travail » vs
+       « référence » — exactement ce que la déclaration PAR SLOT résout.
        ⇒ **Ce qu'il faut réparer avant de porter au-delà du converter** : donner au manifeste une
        déclaration d'entrées PAR SLOT (le vocabulaire existe : `INPUT_TYPES`, cf. amendement ③
        du point 7) et faire émettre à `templates_gen` les paramètres que les gabarits manuels

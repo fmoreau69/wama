@@ -8844,7 +8844,8 @@ lit** : `app_registry.py:536` → `manifests/builtin/app.py:212` (`IDENTITY_FIEL
 
 ⚠⚠ **Et la mesure retourne le constat : c'est le littéral MANUEL qui est en défaut.**
 `converter/templates/converter/index.html:447` s'arrête à `.tex,.latex` — **14 extensions
-manquent** (`.zip .tar .gz .tgz .bz2 .tbz2 .xz .txz .7z .rar` + `.fb2 .mobi .azw3 .azw`), alors
+manquent** (`.zip .tar .gz .tgz .bz2 .tbz2 .xz .txz .7z .rar` + `.fb2 .mobi .azw3 .azw` ;
+recompte MÉCANIQUE du 30/08 : **15**, `.qt` avait échappé à ce relevé manuel), alors
 que `input_types` déclare `'archive'` et que `converter/utils/format_router.py:44-49` les
 convertit. **Le sélecteur du converter RÉEL grise des fichiers que l'app sait traiter ; celui de
 la jumelle générée, non.** *Un littéral dérive de sa déclaration ; une génération ne le peut pas.*
@@ -8864,13 +8865,15 @@ ci-dessus à traiter **avant** d'aller au-delà du converter.
 
 **File des chantiers ouverts** (ordre) :
 1. **Portage du converter** — non bloqué, c'est le point d'entrée ;
-   **①bis (défaut RÉEL trouvé le 30/08, à traiter dans le même geste)** : le `file_accept` écrit à
-   la main de `converter/templates/converter/index.html:447` a **14 extensions de retard** sur
-   `APP_CATALOG['converter'].input_extensions`. Correctif à faire **par la déclaration, pas par le
-   littéral** — exposer `input_extensions` au contexte de la vue et le passer au lieu d'une liste
-   figée. ⚠ **Chercher les jumeaux avant de corriger** : 9 autres gabarits portent le même genre
-   de littéral, et rien ne les tient synchronisés avec le catalogue (aucun test, aucun critère de
-   grille). Le geste juste est **un contrôle mécanique** (littéral ⊆ déclaration), pas 10 patchs ;
+   ~~**①bis (défaut RÉEL trouvé le 30/08, à traiter dans le même geste)**~~ ✅ **FAIT le 30/08
+   (session suivante)** : `file_accept` du converter DÉRIVÉ (`current_app_spec.input_extensions`
+   — le context processor accounts l'exposait déjà à toutes les pages, rien à écrire côté vue) ;
+   contrôle mécanique `tests_catalogues::CardEntreeConformiteTest` sur les 12 cards, DANS LES
+   DEUX SENS, discriminance prouvée sur le littéral d'hier ; 2 écarts assumés (avatarizer =
+   politique `VOICE_SAMPLE_EXTENSIONS`, imager `.md/.pdf/.docx`). ⚠ La mesure rectifie le compte
+   tenu à la main : **15 extensions manquaient, pas 14** (`.qt` avait échappé au relevé). Le JS
+   converter n'avait pas de jumeau (`EXT_TO_TYPE` dérive de `supportedFormats` serveur). Détail =
+   `WAMA_APP_GENERATION_ROUTE §S2bis.6 (a)` ;
 2. **(b) déclaration d'entrées PAR SLOT au manifeste** + émission par `templates_gen` — à faire
    avant la 2ᵉ app portée, et **avant** de juger la card v3 sur la jumelle ;
 3. `download_all` de **reader** et **describer** : lire `?format=` côté VUE, puis opter au ⬇

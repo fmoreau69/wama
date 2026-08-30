@@ -37,6 +37,7 @@ CE QUE CES CONTRÔLES COUVRENT, ET CE QU'ILS NE COUVRENT PAS
 from __future__ import annotations
 
 import inspect
+import re
 from pathlib import Path
 
 from django.conf import settings
@@ -388,3 +389,134 @@ class AppCatalogConformiteTest(TestCase):
                         reverse(lien['url_name'])
                     except (NoReverseMatch, KeyError):
                         self.fail(f"url_name={lien.get('url_name')!r} ne se résout pas")
+
+
+class CardEntreeConformiteTest(TestCase):
+    """Le `file_accept` des cards d'entrée ⟷ `input_extensions` du catalogue — les deux sens.
+
+    Défaut fondateur (mesuré 2026-08-30, ROUTE §S2bis.6 (a)) : le littéral du converter
+    s'arrêtait à `.tex,.latex` — 14 extensions de retard sur sa déclaration, dont les 10
+    archives que `format_router` convertit réellement. Le sélecteur de fichier GRISAIT des
+    fichiers que l'app sait traiter, et rien ne pouvait le voir : aucun test, aucun critère
+    de grille ne confrontait ces littéraux au catalogue. Le converter est depuis DÉRIVÉ
+    (`current_app_spec.input_extensions` — context processor) ; ce contrôle tient les
+    littéraux restants, dans les deux sens :
+      - la card OFFRE ce que l'app ne déclare pas → promesse fausse (le serveur refusera) ;
+      - la card GRISE ce que l'app déclare → capacité invisible (le défaut du converter).
+
+    ⚠ Un slot peut légitimement RESTREINDRE : la card de l'avatarizer prend la VOIX
+    (politique déclarée `VOICE_SAMPLE_EXTENSIONS`), l'avatar s'importe par la galerie.
+    Ces écarts sont ASSUMÉS dans `_ecarts_assumes()` — un compte à faire DÉCROÎTRE, jamais
+    à relever machinalement ; la vraie case déclarative du slot est le chantier
+    ROUTE §S2bis.6 (b) (déclaration d'entrées PAR SLOT), pas un littéral de plus.
+    """
+
+    # `file_accept='littéral'` OU `file_accept=expression` (dérivé — groupe 1 absent).
+    _RE_ACCEPT = re.compile(r"file_accept=(?:'([^']*)'|(\S+))")
+
+    @staticmethod
+    def _familles():
+        """Jeton MIME générique → extensions de la catégorie (la sémantique voulue de `accept`)."""
+        from wama.common.app_registry import (AUDIO_EXTENSIONS, IMAGE_EXTENSIONS,
+                                              VIDEO_EXTENSIONS)
+        return {'image/*': set(IMAGE_EXTENSIONS), 'video/*': set(VIDEO_EXTENSIONS),
+                'audio/*': set(AUDIO_EXTENSIONS)}
+
+    @staticmethod
+    def _ecarts_assumes():
+        """{app: extensions déclarées mais volontairement absentes de la card} — à faire décroître.
+
+        L'égalité est STRICTE dans les deux sens : une app qui s'aligne doit retirer son
+        entrée ici, sinon le contrôle échoue — c'est ce qui empêche la liste de monter seule
+        (leçon `CIBLES_ASSUMEES`, 2026-08-27).
+        """
+        from wama.common.app_registry import (AUDIO_EXTENSIONS, IMAGE_EXTENSIONS,
+                                              VOICE_SAMPLE_EXTENSIONS)
+        return {
+            # Slot voix : la restriction SUIT la politique déclarée (pas un littéral orphelin) ;
+            # l'avatar (image) n'a pas d'input fichier sur la card (galerie d'avatars).
+            'avatarizer': ((set(AUDIO_EXTENSIONS)
+                            - {'.' + e for e in VOICE_SAMPLE_EXTENSIONS})
+                           | set(IMAGE_EXTENSIONS)),
+            # La card annonce « fichier de prompts .txt/.csv » alors que TEXT_EXTENSIONS est
+            # déclaré en entier et que les parsers batch lisent aussi md/pdf/docx — écart réel,
+            # à trancher avec la déclaration PAR SLOT (§S2bis.6 (b)), pas par un patch de plus.
+            'imager': {'.md', '.pdf', '.docx'},
+        }
+
+    @classmethod
+    def _cards(cls):
+        """{app: [(gabarit relatif, littéral ou None), …]} — None = `file_accept` DÉRIVÉ."""
+        from wama.common.app_registry import APP_CATALOG
+        base = _base()
+        out = {}
+        for app, spec in sorted(APP_CATALOG.items()):
+            if spec.get('generated_from'):
+                continue  # jumelle de bac à sable : gabarits générés, comparés à leur source
+            releves = []
+            for racine in ('wama', 'wama_lab'):
+                dossier = base / racine / app / 'templates'
+                if not dossier.is_dir():
+                    continue
+                for gabarit in sorted(dossier.rglob('*.html')):
+                    for ligne in gabarit.read_text(encoding='utf-8').splitlines():
+                        if '_new_item_card.html' not in ligne:
+                            continue
+                        m = cls._RE_ACCEPT.search(ligne)
+                        if m:
+                            releves.append((str(gabarit.relative_to(base)), m.group(1)))
+            if releves:
+                out[app] = releves
+        return out
+
+    def test_le_releve_trouve_les_cards(self):
+        # Anti « vert sur du vide » : si le parseur ne trouve plus les includes (paramètre
+        # renommé, include éclaté multi-lignes), les deux contrôles suivants mentiraient.
+        cards = self._cards()
+        self.assertGreaterEqual(len(cards), 8, f"relevé quasi vide ({sorted(cards)})")
+        self.assertGreaterEqual(sum(len(v) for v in cards.values()), 10)
+
+    def test_la_card_n_offre_rien_que_l_app_ne_declare(self):
+        from wama.common.app_registry import APP_CATALOG
+        familles = self._familles()
+        for app, releves in self._cards().items():
+            declarees = {e.lower() for e in APP_CATALOG[app].get('input_extensions', ())}
+            for gabarit, litteral in releves:
+                if litteral is None:
+                    continue  # dérivé du catalogue : fidèle par construction
+                for jeton in filter(None, (t.strip() for t in litteral.split(','))):
+                    with self.subTest(app=app, jeton=jeton):
+                        if jeton == '*/*':
+                            continue
+                        if jeton in familles:
+                            self.assertTrue(
+                                declarees & familles[jeton],
+                                f"{gabarit} offre {jeton} mais aucune extension de cette "
+                                f"catégorie n'est déclarée dans input_extensions")
+                        else:
+                            self.assertIn(
+                                jeton.lower(), declarees,
+                                f"{gabarit} offre une extension absente d'input_extensions")
+
+    def test_la_card_ne_grise_rien_que_l_app_declare(self):
+        from wama.common.app_registry import APP_CATALOG
+        familles = self._familles()
+        assumes = self._ecarts_assumes()
+        for app, releves in self._cards().items():
+            declarees = {e.lower() for e in APP_CATALOG[app].get('input_extensions', ())}
+            offertes = set()
+            for _gabarit, litteral in releves:
+                if litteral is None:
+                    offertes |= declarees  # dérivé du catalogue : couvre tout par construction
+                    continue
+                for jeton in filter(None, (t.strip() for t in litteral.split(','))):
+                    if jeton == '*/*':
+                        offertes |= declarees
+                    else:
+                        offertes |= familles.get(jeton, {jeton.lower()})
+            with self.subTest(app=app):
+                self.assertEqual(
+                    declarees - offertes, assumes.get(app, set()),
+                    "extensions déclarées mais grisées par la card (le défaut du converter) — "
+                    "ou écart assumé PÉRIMÉ : si l'app s'est alignée, retirer son entrée "
+                    "de _ecarts_assumes()")
