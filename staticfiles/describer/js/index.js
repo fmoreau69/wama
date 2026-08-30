@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Action buttons
     const startAllBtn = document.getElementById('startAllBtn');
-    const downloadAllBtn = document.getElementById('downloadAllBtn');
+    // (`downloadAllBtn` : const retirée le 2026-08-30 avec son handler — bouton = brique commune.)
     const clearAllBtn = document.getElementById('clearAllBtn');
 
     // Progress tracking
@@ -786,11 +786,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    if (downloadAllBtn) {
-        downloadAllBtn.addEventListener('click', () => {
-            window.location.href = config.urls.downloadAll;
-        });
-    }
+    // ⬇ « Télécharger tout » : PLUS de handler ici (2026-08-30) — bouton rendu par la brique
+    // commune _download_button (menu des formats déclarés, navigation par <a> du menu).
+    // Un window.location au clic détournerait l'OUVERTURE du menu.
 
     if (clearAllBtn) {
         clearAllBtn.addEventListener('click', async () => {

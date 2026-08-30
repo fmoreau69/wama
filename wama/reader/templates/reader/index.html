@@ -192,7 +192,12 @@ window._batchImport = WamaBatchImport({
     {% include 'common/_global_progress.html' %}
 
     {# Barre d'outils commune : tri + filtre + disposition + actions globales (IDs = handlers reader.js) #}
-    {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='reader-process-btn' clear_id='reader-clear-btn' download_id='reader-download-all-btn' show_download=True %}
+    {% comment %}`app` + `download_url` (2026-08-30) : le ⬇ délègue à `common/_download_button.html`
+    — menu des formats DÉCLARÉS (`export_formats` = txt/md/pdf/docx/json), servi par la vue
+    `download_all` qui lit désormais `?format=` (porter le menu AVANT la vue aurait fait un
+    « vert d'ADOPTION, faux en FONCTIONNEMENT »).{% endcomment %}
+    {% url 'reader:download_all' as download_all_url %}
+    {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='reader-process-btn' clear_id='reader-clear-btn' download_id='reader-download-all-btn' show_download=True app='reader' download_url=download_all_url %}
 
     <!-- Queue -->
     <div id="queueContainer" class="wama-queue-{{ card_layout|default:'list' }}">

@@ -735,28 +735,48 @@ def clear_all(request):
 
 @require_GET
 def download_all(request):
-    """Download all results as ZIP."""
+    """ZIP de tous les résultats, au format demandé (`?format=` txt/pdf/docx).
+
+    Lit ENFIN la query que le menu ▾ du ⬇ commun envoie (`export_formats` déclarés) : jusqu'au
+    2026-08-30 seule la vue d'ITEM la lisait — porter le menu sans cette vue aurait produit
+    un « vert d'ADOPTION, faux en FONCTIONNEMENT » (WAMA_VERIFICATION §Geste 14). Idiome du
+    transcriber : un item qui échoue dans un format retombe en txt, jamais un ZIP en erreur.
+    """
     user = get_user(request)
     descriptions = Description.objects.filter(user=user, status='SUCCESS')
 
     if not descriptions.exists():
         return JsonResponse({'error': 'No results available'}, status=400)
 
-    # Create ZIP in memory
+    fmt = (request.GET.get('format') or '').lower()
     buffer = BytesIO()
     with ZipFile(buffer, 'w') as zf:
         for desc in descriptions:
             base_name = desc.filename.rsplit('.', 1)[0] if '.' in desc.filename else desc.filename
 
-            if desc.result_file and os.path.exists(desc.result_file.path):
+            entry = None
+            try:
+                if fmt == 'pdf':
+                    from wama.common.utils.document_export import generate_description_pdf
+                    entry = (f"{base_name}_description.pdf", generate_description_pdf(desc))
+                elif fmt == 'docx':
+                    from wama.common.utils.document_export import generate_description_docx
+                    entry = (f"{base_name}_description.docx", generate_description_docx(desc))
+            except Exception as e:
+                logger.warning(f"[Describer] download_all: {fmt} failed for #{desc.pk} ({e}); falling back to txt")
+                entry = None
+            if entry is not None:
+                zf.writestr(*entry)
+            elif desc.result_file and os.path.exists(desc.result_file.path):
                 zf.write(desc.result_file.path, f"{base_name}_description.txt")
             elif desc.result_text:
                 zf.writestr(f"{base_name}_description.txt", desc.result_text.encode('utf-8'))
 
     buffer.seek(0)
 
+    suffix = f'_{fmt}' if fmt else ''
     response = HttpResponse(buffer.getvalue(), content_type='application/zip')
-    response['Content-Disposition'] = 'attachment; filename="descriptions.zip"'
+    response['Content-Disposition'] = content_disposition_header(True, f'descriptions{suffix}.zip')
     return response
 
 

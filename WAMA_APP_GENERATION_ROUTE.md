@@ -992,8 +992,19 @@ outillé avant d'ouvrir cette marche.
      énonce la distinction dès son 1ᵉʳ paragraphe : **c'est ma prose qui avait dérivé, pas le code**
      — le module que je venais de renommer portait la bonne réponse en tête.
 
-     **Adoption réelle, sur le bon dénominateur : 1 barre sur 3.** Et les deux qui restent sont
-     bloquées CÔTÉ SERVEUR, pas côté gabarit :
+     **Adoption réelle, sur le bon dénominateur : ~~1 barre sur 3~~ ✅ 3/3 (2026-08-30, 2ᵉ
+     session — reader et describer PORTÉS, en commençant côté VUE comme exigé ci-dessous)** :
+     leurs `download_all` lisent `?format=` (idiome transcriber : repli txt par item, jamais un
+     ZIP en erreur ; sans query, comportement historique inchangé), les 2 gabarits passent
+     `app=` + `download_url` (+ `download_ready=True` chez le describer, dont le bouton a
+     toujours été actif — aucun toggle JS, contrairement à reader/transcriber), et les 2
+     handlers JS `window.location` sont RETIRÉS (ils auraient détourné l'OUVERTURE du menu —
+     remplacer, jamais juxtaposer) + `staticfiles/` resynchronisé. Garde attrapée en route :
+     `PasDeRecidiveTests` a refusé mes deux `Content-Disposition` composés en f-string →
+     `content_disposition_header` (la garde a mordu sur son auteur, c'est sa raison d'être).
+     Fumée serveur : les 3 barres late servent EXACTEMENT leurs `export_formats` déclarés
+     (reader txt/md/pdf/docx/json · describer txt/pdf/docx · transcriber txt/srt/pdf/docx).
+     Le tableau ci-dessous reste la photo du 30/08 MATIN (avant portage) :
 
      | | mesuré le 30/08 |
      |---|---|

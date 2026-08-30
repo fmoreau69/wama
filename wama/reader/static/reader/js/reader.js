@@ -394,12 +394,10 @@
             }
         });
 
-        const downloadAllBtn = document.getElementById('reader-download-all-btn');
-        if (downloadAllBtn) {
-            downloadAllBtn.addEventListener('click', () => {
-                window.location.href = urls.downloadAll;
-            });
-        }
+        // ⬇ « Télécharger tout » : PLUS de handler ici (2026-08-30) — le bouton est rendu par
+        // la brique commune _download_button (menu des formats déclarés, navigation par <a>).
+        // Un window.location au clic détournerait l'OUVERTURE du menu. Ne reste côté app que
+        // le bascule d'état updateDownloadAllBtn() ci-dessus (le bouton naît disabled).
 
         document.getElementById('reader-clear-btn')?.addEventListener('click', async () => {
             if (!confirm('Supprimer tous les éléments de la file ?')) return;

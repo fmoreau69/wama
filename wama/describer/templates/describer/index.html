@@ -43,7 +43,13 @@ migré 2026-07-05) ; IDs dropZone/fileInput/media_url conservés → handlers JS
     <div class="col-12">
         <!-- Titre « File d'attente » RETIRÉ (doublon) : nom + compteur portés par l'ONGLET (base commune). -->
         <!-- Barre d'outils COMMUNE : tri + filtre + toggle Ligne/Mosaïque + actions globales. -->
-        {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='startAllBtn' clear_id='clearAllBtn' download_id='downloadAllBtn' show_download=True %}
+        {% comment %}`app` + `download_url` (2026-08-30) : le ⬇ délègue à `common/_download_button.html`
+        — menu des formats DÉCLARÉS (`export_formats` = txt/pdf/docx), servi par la vue
+        `download_all` qui lit désormais `?format=`.{% endcomment %}
+        {% url 'describer:download_all' as download_all_url %}
+        {# `download_ready=True` : ce bouton a TOUJOURS été actif chez le describer (aucun toggle #}
+        {# JS, contrairement au reader/transcriber) — on déplace l'existant, on ne le change pas. #}
+        {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='startAllBtn' clear_id='clearAllBtn' download_id='downloadAllBtn' show_download=True app='describer' download_url=download_all_url download_ready=True %}
 
         <div id="descriptionQueue" class="wama-queue-{{ card_layout|default:'list' }}">
             {% for batch_info in batches_list %}

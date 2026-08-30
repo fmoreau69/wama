@@ -557,23 +557,50 @@ def start_all(request):
 
 
 def download_all(request):
-    """Download a ZIP of all completed OCR results for the current user."""
+    """ZIP de tous les résultats, au format demandé (`?format=` txt/md/pdf/docx/json).
+
+    Lit ENFIN la query que le menu ▾ du ⬇ commun envoie (`export_formats` déclarés) : jusqu'au
+    2026-08-30 seule la vue d'ITEM la lisait — porter le menu sans cette vue aurait produit
+    un « vert d'ADOPTION, faux en FONCTIONNEMENT » (WAMA_VERIFICATION §Geste 14). Idiome du
+    transcriber : un item qui échoue dans un format retombe en txt, jamais un ZIP en erreur.
+    Sans `?format=`, comportement historique inchangé (extension selon `output_format`).
+    """
     from io import BytesIO
     user = _get_user(request)
     items = ReadingItem.objects.filter(user=user, status='SUCCESS')
     if not items.exists():
         return JsonResponse({'error': 'Aucun résultat disponible'}, status=400)
 
+    fmt = (request.GET.get('format') or '').lower()
     buf = BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
         for item in items:
             base = os.path.splitext(item.original_filename)[0] if '.' in (item.original_filename or '') else (item.original_filename or f'item_{item.id}')
-            if item.result_text:
+            entry = None
+            try:
+                if fmt == 'json' and item.raw_result:
+                    entry = (f'{base}_ocr_raw.json', item.raw_result.encode('utf-8'))
+                elif fmt == 'pdf' and item.result_text:
+                    from wama.common.utils.document_export import generate_reader_pdf
+                    entry = (f'{base}_ocr.pdf', generate_reader_pdf(item))
+                elif fmt == 'docx' and item.result_text:
+                    from wama.common.utils.document_export import generate_reader_docx
+                    entry = (f'{base}_ocr.docx', generate_reader_docx(item))
+                elif fmt in ('txt', 'md') and item.result_text:
+                    entry = (f"{base}_ocr.{fmt}",
+                             _extract_natural_text(item.result_text).encode('utf-8'))
+            except Exception as e:
+                logger.warning(f"[Reader] download_all: {fmt} failed for #{item.pk} ({e}); falling back to txt")
+                entry = None
+            if entry is None and item.result_text:
                 ext = '.md' if item.output_format == 'markdown' else '.txt'
-                zf.writestr(f'{base}_ocr{ext}', item.result_text.encode('utf-8'))
+                entry = (f'{base}_ocr{ext}', item.result_text.encode('utf-8'))
+            if entry:
+                zf.writestr(*entry)
     buf.seek(0)
+    suffix = f'_{fmt}' if fmt else ''
     response = HttpResponse(buf.read(), content_type='application/zip')
-    response['Content-Disposition'] = 'attachment; filename="reader_results.zip"'
+    response['Content-Disposition'] = content_disposition_header(True, f'reader_results{suffix}.zip')
     return response
 
 

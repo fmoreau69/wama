@@ -8882,8 +8882,10 @@ ci-dessus à traiter **avant** d'aller au-delà du converter.
    `file_accept` par catégories du port) est **BLOQUÉE par l'homonyme `text`** — démonstration
    describer (`.txt/.md/.csv` = travail de catégorie `text` sens FICHIER). Détail =
    `WAMA_APP_GENERATION_ROUTE §S2bis.6 (b)` ;
-3. `download_all` de **reader** et **describer** : lire `?format=` côté VUE, puis opter au ⬇
-   commun (2 lignes de gabarit une fois la vue faite) ;
+3. ~~`download_all` de **reader** et **describer**~~ ✅ **FAIT le 30/08 (2ᵉ session)** — vues
+   `?format=` (idiome transcriber, repli txt par item) + gabarits optés + handlers JS retirés
+   + staticfiles resynchronisés ; fumée : les 3 barres `late` servent exactement leurs
+   `export_formats`. **Adoption ⬇ commun : 3/3.** Détail = `ROUTE §S2bis.12` ;
 4. Card d'entrée **v3** sur `converter_01` — le préalable (2) est levé, et le préalable de
    Fabien (30/08) est FAIT : **cartographie complète des charges de la card d'entrée +
    exigences v3.5 = `CARD_DESIGN §11.8`** (12 charges mesurées, 3 défauts silencieux relevés —
