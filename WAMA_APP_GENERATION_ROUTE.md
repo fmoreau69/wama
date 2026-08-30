@@ -1022,7 +1022,18 @@ outillé avant d'ouvrir cette marche.
      donc `app=` transformerait son lien toujours actif en bouton désactivé. Une app générée
      `late` devra déclarer les deux.
 
-### §S2bis.6bis — 🔴 ARBITRAGE OUVERT : l'homonyme `text` (chantier à part entière)
+### §S2bis.6bis — ~~🔴 ARBITRAGE OUVERT~~ ✅ TRANCHÉ le 2026-08-30 : l'homonyme `text`
+
+> **CLÔTURE (Fabien, 30/08, dernier message)** : après vérification du cas transcription (le
+> texte brut d'un résultat est un CONTENU en base, qui devient un *document* à l'export via le
+> `?format=` late-binding — jamais besoin d'une nature `text`), Fabien valide : *« text n'a a
+> priori sa place nulle part [dans les natures d'entrée/sortie]. Dans ce cas, on parle de
+> prompt pour une application de traduction, l'imager, le synthesizer, etc. »* — c'est la
+> ligne 3 de la table (saisie = `prompt`, fichiers texte = `document`, `text` RETIRÉ), décidée
+> comme **quick win du monde Médias, à faire tout de suite**, avec l'ajout de la nature
+> `dataset` dans le même geste (plan de compatibilité, item B — le rayon ne se paie qu'une
+> fois). Inventaire exhaustif site-par-site lancé avant le geste ; le reste de cette section
+> devient l'HISTORIQUE de l'arbitrage.
 
 > Promu de « reste de passe (c) » à section propre le 2026-08-30, sur remarque de Fabien : *« ça
 > semble un chantier à part entière ; une phrase pour une question qui semble complexe et
