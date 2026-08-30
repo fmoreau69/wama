@@ -123,11 +123,28 @@ MECANISMES = (
               "Estimation de durée par a-priori puis moyenne mobile, bucketisée par matériel",
               'wama/model_manager/services/eta_estimator.py', 'PROJECT_STATUS.md §10'),
     Mecanisme('nightly_tests', 'Tests nocturnes',
-              "Registre déclaratif de scénarios + runner sérialisé VRAM-aware (wired/ui/consistency/…)",
+              "Registre déclaratif de scénarios + runner sérialisé VRAM-aware (wired/ui/consistency/…). "
+              "DEUX comptes de test déclaratifs : le standard (rôles métier, SANS tier dev — c'est "
+              "LUI que la matrice de droits mesure) et `get_test_dev_user` pour les surfaces "
+              "dev-gated (jumelles de bac à sable), routé par `ui_smoke._test_session_key(app)` "
+              "— sans lui les 11 scénarios d'une jumelle skippent (mesuré 2026-08-30)",
               'wama/common/services/nightly_tests.py', 'PROJECT_STATUS.md §Tests fonctionnels nocturnes',
               annexes=('wama/common/services/ui_smoke.py',
                        'wama/common/services/rights_matrix.py',
                        'wama/common/nightly_scenarios.py')),
+    Mecanisme('filemanager_importers', "Import « Envoyer vers » (registre + dérivation jumelles)",
+              "Le registre `IMPORTERS` EST le dispatch ET la source du menu client (une seule "
+              "liste — plus d'app offerte-puis-refusée) ; une JUMELLE de bac à sable n'y écrit "
+              "jamais sa ligne : son importeur est DÉRIVÉ de sa source (`importer_for`, via "
+              "`generated_from` + paramètre `app_label` — re-ciblé sur SES tables, jamais celles "
+              "de la source), et la CONSOLIDATION en lots de l'import groupé suit la même voie "
+              "(2026-08-30/31, constats Fabien : jumelle absente du menu, puis cards unitaires). "
+              "⏳ avatarizer/composer sans importeur : leur fichier est une RÉFÉRENCE — attend le "
+              "contrat d'import PAR RÔLE (CARD_DESIGN §11.8)",
+              'wama/filemanager/views.py', 'WAMA_APP_GENERATION_ROUTE.md §S2bis',
+              symbole='importer_for',
+              annexes=('wama/filemanager/templatetags/filemanager_tags.py',
+                       'wama/filemanager/tests.py')),
     Mecanisme('system_monitor', 'Moniteur système',
               "Mesure unifiée CPU/RAM/GPU/disque (WSL + hôte Windows) — barre de ressources, model manager",
               'wama/common/services/system_monitor.py', '',
