@@ -8893,6 +8893,13 @@ parc relancé du 30/08) :
   (la card disparaît de l'écran, l'objet reste) · settings ne mesure que l'OUVERTURE de la
   modale (modifier/enregistrer/relire = famille à étendre). C'est la liste de travail du
   générateur ; chaque fix suit le rituel générateur→régénérer→mesurer ;
+  → **7/11 au 30/08 tard** : `folder_import` ✅ (folder_input_id + câblage WamaFolderImport
+  émis) et `batch_actions` ✅ (app+actions_communes émis si les 3 routes de lot résolvent —
+  ⧉🗑 de lot exercés pour de vrai ; le 1ᵉʳ rejeu rouge était un artefact de timing
+  régénération/mesure). **Restent** : batch_import (le gabarit de lot publié n'a AUCUNE ligne
+  d'exemple — émission views_gen) · url_import (2 POST acceptés, 0 card) · send_to (témoin
+  invisible dans l'arbre temp) · volet `_inspector_actions` · résidu en base du delete ·
+  famille settings à étendre (enregistrer/relire) ;
 - et la **nouvelle card d'entrée dans la file** (v3.5/v4 — `CARD_DESIGN §11.9/§11.10`) fait
   partie du même critère de sortie.
 
