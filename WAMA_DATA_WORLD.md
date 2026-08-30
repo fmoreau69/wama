@@ -4453,6 +4453,28 @@ casseraient en silence… sauf le premier, que l'instrument attraperait) :
 > du monde Médias. Aucune décision du 30/08 n'est cassée par le réel Data — mais quatre
 > supposent des pièces qui n'existent pas.** 2 ALIGNÉ · 2 ÉCART · 3 TROU.
 
+> ⚠⚠ **RECADRAGE DE FABIEN (même jour) — LA LECTURE JUSTE DU TABLEAU.** La vérification a
+> statué sur l'EXISTANT ; la question portait sur la compatibilité de la VISION — et les
+> « TROUS » sont **volontaires** : le monde Data est à peine commencé, ses modules AURONT leurs
+> UI (le Data **Analyzer** sera *a priori* une application de forme MÉDIA — ce qui, au passage,
+> oriente l'arbitrage F16 vers la voie (a) au moins pour lui), et tout cela est consigné dans
+> CE document. Un jalon prévu non construit n'est pas un désalignement. **Le seul verdict qui
+> compte : AUCUN BLOCAGE trouvé** — c'était l'objet de la vérification, et il est atteint.
+> Trois précisions de doctrine actées par le même message :
+> 1. **la couche commune du LAB = le registre des FONCTIONS** (déjà au catalogue, déjà
+>    consommées en partie par le Lab) **+ les décisions transverses** (l'import de pipeline) —
+>    pas les briques d'UI en l'état ;
+> 2. **rôles vs ports : la divergence est NORMALE et assumée.** Le terrain commun est le PORT
+>    typé ; le RÔLE (travail/référence) ne se porte peut-être pas au monde Data, et ça
+>    n'empêche pas la compatibilité. L'item C du plan devient une OPTION à instruire, pas un
+>    prérequis ;
+> 3. **G est TRANCHÉ : pas de bibliothèque de fichiers Data.** Les bases d'expérimentation
+>    n'ont RIEN à faire dans WAMA (volumétrie, arborescences par participant/scénario) ; même
+>    un import de quelques CSV vers un `.wdat` choisit son EMPLACEMENT DE STOCKAGE comme dans
+>    tout logiciel de données. Les entrées Data se référencent par CHEMIN choisi par
+>    l'utilisateur ; une file Data partagée voyage en file-MODÈLE (ou avec un montage), et
+>    c'est le fonctionnement voulu — l'option (c) de G, décidée.
+
 | # | axe | verdict | fait décisif |
 |---|---|---|---|
 | 1 | taxonomie nature×rôle | **ALIGNÉ** | DEUX taxonomies parallèles d'intersection VIDE (`data_types.py` 11 types de donnée vs `MEDIA_CATEGORIES` 7 natures) ; `text` ABSENT de Data (0 hit taxonomique) → le retrait de `text` est un chantier 100 % `wama/` (la ligne contraire de `ROUTE §S2bis.6bis` pt 3 est RECTIFIÉE). ⚠ `.trip/.wdat` ne sont dans AUCUNE taxonomie de fichier : `category_of_path` les classe `document` ; seule la SONDE d'intake (`wama_data/apps.py:39-53`) sait dire « monde Data » |
