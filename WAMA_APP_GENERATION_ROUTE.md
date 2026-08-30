@@ -1102,7 +1102,14 @@ ci-dessous, jugé « trop étroit » car raisonné sur le cas .txt/.md/.csv) :**
 4. **Conséquence dérivée (et non plus « à arbitrer » cas par cas)** : dans le vocabulaire des
    NATURES, `text` disparaît (les fichiers texte sont des documents, éventuellement
    sous-typés bruts/formés) ; dans le vocabulaire des RÔLES, la saisie garde son jeton
-   (`prompt`, déjà en place dans les ports). La table « 3 affectations » du bloc ci-dessous
+   (`prompt`, déjà en place dans les ports).
+   ⚠ **« Retirer `text` » retire un JETON de classement, jamais une capacité** (question de
+   Fabien, 30/08 : « et les CSV/TSV/Excel du monde Data ? ») : un `.csv` reste accepté partout
+   où il l'était — il est classé `document` au lieu de `text` côté Médias, et côté Data il ne
+   passe DE TOUTE FAÇON pas par ce vocabulaire : le lecteur tabulaire
+   (`wama_data/sources/tabular.py`) déclare ses propres extensions et produit des types de
+   DONNÉE (`table`, `timeseries`… — `data_types.py`, intouchée). Un `.csv` a deux vies
+   (document-média / source tabulaire-data) ; c'est le GESTE qui départage, pas le jeton. La table « 3 affectations » du bloc ci-dessous
    devient un DÉTAIL D'EXÉCUTION de ce cadre — sa ligne 3 en est la traduction mécanique.
    Restent les gestes déjà identifiés : migration `detected_type` (describer) et balayage du
    rayon mesuré plus haut.
