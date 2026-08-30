@@ -8859,7 +8859,11 @@ ci-dessus à traiter **avant** d'aller au-delà du converter.
 - `rights_anonymous` (12/17 surfaces ouvertes au visiteur) et `data-abo-*`/`data-f-<facette>`
   restent ouverts, hérités des blocs précédents.
 
-**Pendings système** : **~23 commits à pousser** sur `dev` ; **gunicorn a été HUP-rechargé**
+**Pendings système** : **4 commits à pousser** sur `dev` (`59400ca0`, `534de393`, `c41d3263`,
+`dc5f1bf9` — MESURÉ par `git rev-list --count origin/dev..dev`, pas tenu de tête ; j'avais
+d'abord écrit « ~23 » de mémoire, alors qu'une autre instance avait poussé jusqu'à `69313c96`
+à 01:52 — récidive exacte du piège consigné dans la fiche « un relevé par motif ne conclut
+pas ») ; **gunicorn a été HUP-rechargé**
 pendant la session (PID master 122327) — WAMA relancé par Fabien depuis.
 
 **Contrôles attendus au prochain /reprise (MESURÉS à cette clôture, 30/08)** :
