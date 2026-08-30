@@ -95,6 +95,12 @@ le RENDU RÉEL, pas la structure du code.
   (enhancer, contrat cardSettings), `.settings-btn` (transcriber/imager…), `.job-settings-btn`
   (converter), `.btn-settings-job` (avatarizer). Les viser TOUS ; et `closest()` sur la card doit
   inclure `[class*="-card"]`.
+- **Le cookie de session s'appelle `settings.SESSION_COOKIE_NAME`** (`wama_sessionid`) —
+  jamais `sessionid` en dur : une sonde ad hoc qui le code en dur navigue en ANONYME et
+  mesure des droits en croyant mesurer la page (vécu 30/08 ; la brique `ui_smoke` le lit
+  déjà de settings, s'en inspirer). Et un marqueur DOM peut être ABSENT à l'état vide
+  légitime (`#ragListe` sans document) ou injecté par JS conditionnel — vérifier la
+  CONDITION du gabarit avant de conclure, la capture lue tranche.
 - **Le compte smoke doit porter les Groups `user` + `role:*`** sinon @app_access répond 302 vers
   l'accueil — et une page « chargée » peut être L'ACCUEIL après redirect : vérifier un marqueur de
   la page visée, pas le seul code 200 (piège vécu sur `/converter_01/`).

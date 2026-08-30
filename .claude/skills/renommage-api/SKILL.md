@@ -33,7 +33,15 @@ description: Renommer une API française (ou tout renommage d'identifiants multi
   `py_compile` passe sur un import cassé ; seul le grep du nom l'a vu (`_cle_de_rang`).
 - **Les jumeaux PAR CHAÎNE** : routes Celery (`CELERY_TASK_ROUTES` de settings.py),
   noms de tâches (`name='common.…'`), gabarits (`{% tag %}`), JS lisant des clés de
-  payload, copies `staticfiles/`.
+  payload, copies `staticfiles/`, chaînes de MOCK (`patch.object(store, 'fil')`),
+  et une MIGRATION qui sérialise un défaut de champ par chemin (`default=models._x`
+  → alias de transition, jamais éditer la migration).
+- **Les CITATIONS de symboles dans les `.md` de référence et la prose de code HORS
+  périmètre** : inclure `*.md` (+ skills) dans le grep final — le 30/08, la passe
+  « complète » en avait laissé **27** (ROADMAP/WAMA_LLM/WAMA_MEMORY, un commentaire de
+  gabarit, deux docstrings d'une autre app), trouvées seulement à la REVÉRIFICATION
+  demandée par Fabien. Un journal (§REPRISE) garde ses anciens noms — c'est de
+  l'HISTOIRE ; un doc de référence, jamais.
 - **Frontière des données** : ce qui est STOCKÉ/déclaré reste (clés `extra_info`,
   vocabulaire de valeurs), ce qui est CALCULÉ se renomme (payloads éphémères).
   Drapeaux CLI = surface opérateur → français toléré (arbitrage 29/08).

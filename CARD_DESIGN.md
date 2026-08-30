@@ -497,6 +497,25 @@ tranchent une fois sur les briques communes et se propagent. Consignés au fil d
   réintégration en 1re card = chantier ultérieur). La maquette garde la proposition « card v3
   brouillon + mini-onglets de modalité » à titre d'étude ; en mosaïque elle devra avoir la MÊME
   forme que les autres tuiles (pas pleine largeur) + contour pointillé.
+  - 🎯 **TERRAIN D'ESSAI DÉSIGNÉ : la jumelle de bac à sable `converter_01`** (rappelé par Fabien
+    le 2026-08-30 ; **le lien n'était consigné nulle part** avant cette ligne, alors que la
+    proposition l'est depuis le 21/08 — un chantier dont le lieu d'essai n'est pas écrit ne
+    redémarre pas). **C'est ce qui lève l'interdit ci-dessus sans le contredire** : la jumelle est
+    la seule app dont la card d'entrée ne peut mettre AUCUNE app réelle en risque (source jamais
+    modifiée, cf. `WAMA_APP_GENERATION_ROUTE §S2bis`). L'existant reste intouché ; la v3 se juge
+    à côté, sur une app régénérable à volonté.
+  - **Ce qui existe déjà et sert de socle** : la card d'entrée est une **brique COMMUNE**
+    (`common/_new_item_card.html`), fonctionnelle dans les 10 apps, et elle porte **déjà** les
+    modalités que les mini-onglets doivent regrouper — dépôt/dossier, URL, médiathèque, lot
+    (`show_batch_bar`), live (`show_live`), prompt, et un **slot de référence typé**
+    (`reference_accept`). La v3 n'a donc pas à réinventer les modalités : **elle change leur
+    PRÉSENTATION** (une visible à la fois, hauteur constante) — cf. `docs/card_designs/
+    card_v3.5_maquette.html` (état brouillon, liseré cyan pointillé, `.card3.draft`).
+  - ⚠ **Préalable mesuré côté générateur** : l'app générée reçoit aujourd'hui **un seul slot**
+    et **aucun slot de référence** (`templates_gen.py:46/300` compose sur la liste PLATE
+    `input_extensions`). Tant que ce n'est pas réparé, la jumelle est un terrain d'essai **plus
+    pauvre que les apps manuelles** — c'est le point (b) de `§S2bis.6`, à traiter **avant** d'y
+    juger la v3.
 - Choix barre verte vs barre couleur-d'état : tranché vert, à réévaluer après usage.
 
 ### 11.3 PORTAGE PILOTE — Reader (2026-08-01, session d'implémentation)

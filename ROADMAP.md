@@ -1159,7 +1159,7 @@ Middleware active la langue selon UserProfile.preferred_language
 
 | pièce | mesure |
 |---|---|
-| `USE_I18N` | **déjà `True`** (`wama/settings.py`) — la 1ʳᵉ ligne de la table d'étapes est PÉRIMÉE |
+| `USE_I18N` | `True` (`wama/settings.py:478`) — ⚠ **ce n'est PAS une réalisation** : c'est la valeur **par défaut de Django**, l'interrupteur qui *autorise* la machinerie gettext. Avec 0 `.po` et 2 gabarits taggés derrière, il ne traduit **rien**. Il ne rend périmée que la 1ʳᵉ ligne de la table d'étapes, pas le chantier (remarque de Fabien, 2026-08-30 : « j'ai vu passer un `True` en face de i18n, mais il n'est pas réalisé ») |
 | `LANGUAGE_CODE` | `'en-us'` — alors que l'UI rendue est très majoritairement française |
 | `LOCALE_PATHS` + dossier `locale/` de projet | **absents** (les milliers de `.po` du dépôt sont ceux de Django, dans le venv) |
 | `LocaleMiddleware` / `UserLanguageMiddleware` | **aucun des deux installé** → le champ de profil ne pilote PAS la langue de l'**interface Django**. ⚠ Il pilote bien la langue du **contenu** : voir la ligne suivante |
@@ -1167,6 +1167,26 @@ Middleware active la langue selon UserProfile.preferred_language
 | `{% trans %}` dans les gabarits | **16 occurrences, dans 2 fichiers sur 128** : `reader/_item_card.html` (15) et `common/_download_button.html` (1) |
 | `gettext` en Python | 3 fichiers (`anonymizer/models.py`, `common/utils/export_formats.py`, `accounts/custom_validators.py`) |
 | **gabarit GÉNÉRÉ** | `common/manifests/codegen/templates_gen.py` émet **8 libellés français EN DUR** et **zéro `{% trans %}`** — chaque app (re)générée en ajoute autant |
+
+### ✅ CE QUI EXISTE DÉJÀ EN CODE — à lire avant le tableau ⏳, sinon il se lit « rien n'est fait »
+
+> Précision demandée par Fabien (2026-08-30) : *« la traduction de l'UI est à 0, mais il me semble
+> que le code, lui, est opérationnel ; ce qui manque c'est le corpus anglais avec les balises et le
+> corpus traduit »*. **C'est exact pour l'essentiel**, et les ⏳ ci-dessus ne doivent pas laisser
+> croire qu'il faudrait écrire un moteur. Ce qui manque se répartit en trois masses très inégales :
+
+| pièce | état | à écrire |
+|---|---|---|
+| **Moteur de rendu** (lookup `.mo`, `{% trans %}`, `gettext`, `makemessages`/`compilemessages`) | ✅ **fourni par Django** | **rien** — il n'y a jamais eu de code à produire ici |
+| **Cerveau de traduction** (ce qui remplira les `.po`) | ✅ **ÉCRIT** — `common/utils/translator.py` : `TranslatorService` (translategemma:12b via `llm_chat`), cache Django 30 j clé sha256, découpage ~4000 c, **glossaire « ne pas traduire »**, passthrough si source == cible. Plus `common/utils/lang_routing.py` (décideur) | **rien** — il est déjà utilisé en runtime par la traduction IN |
+| **Plomberie de locale** | ⏳ **absente, mais MINUSCULE** : `LOCALE_PATHS` + dossier `locale/`, un middleware qui pose la langue depuis `preferred_language`, et un pilote `translate_po` (aucune commande de ce nom dans `common/management/commands/`) | ~1 j au total (cf. table d'étapes) |
+| **LE CORPUS** — les `{% trans %}` à poser, puis les traductions à produire | ⏳ **c'est 95 % du chantier** : **2 gabarits sur 128** taggés, 3 fichiers Python, et le générateur d'apps qui en fabrique de nouveaux non taggés à chaque régénération | **3-6 semaines** |
+
+⇒ **Le chantier n'est pas « écrire l'i18n », c'est « produire et maintenir le corpus »** — et c'est
+précisément pour ça que la décision bloquante ci-dessous (la langue des `msgid`) coûte cher : elle
+décide si ce corpus se **tague** (FR) ou se **tague ET se traduit deux fois** (EN source).
+*Note de méthode : ne jamais réduire cet état à « rien n'existe » — c'était le glissement de la
+formulation précédente, cf. [[feedback_un_releve_par_motif_ne_conclut_pas]] §corollaire 30/08.*
 
 ### ⚠ TROIS choses distinctes derrière « la langue » — ne pas les confondre (rectifié 2026-08-30)
 
@@ -1225,7 +1245,7 @@ taggées. Sinon le portage en cours fabrique, gabarit après gabarit, la couche 
 
 | Étape | Effort | Fichier / Commande |
 |-------|--------|-------------------|
-| ~~`USE_I18N = True`~~ (FAIT) + `LOCALE_PATHS` dans settings.py | 5 min | `wama/settings.py` |
+| ~~`USE_I18N = True`~~ (**défaut Django, rien à faire — ne pas lire comme une étape franchie**) + `LOCALE_PATHS` + dossier `locale/` | 5 min | `wama/settings.py` |
 | Middleware `UserLanguageMiddleware` | 30 min | `wama/common/middleware.py` |
 | **Tagging strings templates** (`{% trans %}`) | **3-5 semaines** | ~60-80 fichiers HTML |
 | Tagging strings Python (`_()`, `gettext_lazy`) | 1 semaine | models.py, forms.py, views.py |
