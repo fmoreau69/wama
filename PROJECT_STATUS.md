@@ -8881,6 +8881,18 @@ parc relancé du 30/08) :
 - les TESTS UTILISATEUR sont à COMPLÉTER pour couvrir « l'ensemble des possibilités d'actions
   utilisateur » (étendre les familles ui_smoke au-delà des 7 existantes — chaque bouton, chaque
   geste) ; porter au COMMUN ce qui ne l'est pas encore, ajouter la GLUE où il faut ;
+  → **ÉTAT MESURÉ le 30/08 soir (après déblocage du harnais — compte dev dédié
+  `wama_nightly_dev`, les 11 scénarios skippaient tous)** : **5 OK** (ui · import ·
+  duplicate_delete · settings · clear_all — les gestes de base tiennent) ; **4 échecs
+  INSTRUITS** = ① card MÈRE sans actions communes (`actions_communes=True` non émis vers
+  `_batch_card`) ② gabarit de lot publié SANS ligne d'exemple (que des commentaires)
+  ③ `send_to` : le témoin déposé dans temp n'apparaît pas dans l'arbre (à instruire — compte
+  neuf ?) ④ `url_import` : 2 POST acceptés, 0 card (voie différée sans création visible) ;
+  **2 skips motivés** = volet `_inspector_actions.html` non émis · `folder_input_id` non émis
+  sur la card d'entrée ; **2 ⚠ dans les verts** = duplicate_delete laisse UN objet en base
+  (la card disparaît de l'écran, l'objet reste) · settings ne mesure que l'OUVERTURE de la
+  modale (modifier/enregistrer/relire = famille à étendre). C'est la liste de travail du
+  générateur ; chaque fix suit le rituel générateur→régénérer→mesurer ;
 - et la **nouvelle card d'entrée dans la file** (v3.5/v4 — `CARD_DESIGN §11.9/§11.10`) fait
   partie du même critère de sortie.
 
