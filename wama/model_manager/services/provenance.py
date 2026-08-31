@@ -189,8 +189,29 @@ def record_after_install(spec: dict, cles_apparues) -> dict:
 
     cibles = sorted(cles_apparues or ())
     if not cibles:
+        # ⚠ `is_proposed=False` OBLIGATOIRE (2026-08-31) : pendant `install_candidate`, la ligne
+        # CANDIDATE existe encore (elle n'est supprimée qu'après) et porte le même platform_ref —
+        # sans ce filtre, l'identité se posait aussi sur elle et son manifeste partait au corpus,
+        # orphelin dès la suppression du candidat (2 fichiers `proposed__*` constatés).
         ref = identite.get('platform_ref') or ''
-        cibles = sorted(AIModel.objects.filter(platform_ref=ref)
+        cibles = sorted(AIModel.objects.filter(platform_ref=ref, is_proposed=False)
                         .values_list('model_key', flat=True)) if ref else []
+
+    # ⚠ GARDE DE CONCORDANCE (2026-08-31) : `added_keys` liste ce que LE SYNC vient de créer —
+    # pas ce que CETTE installation a installé. Trois installs HF concurrentes l'ont prouvé :
+    # la première finie (Kokoro-ONNX) a synchronisé pendant que les deux autres téléchargeaient,
+    # son sync a découvert LEURS snapshots partiels (added_keys = les 3), et elle a posé SON
+    # identité sur les trois lignes — corpus avec hf_id/author croisés. On ne pose l'identité
+    # que sur une ligne qui la revendique déjà (hf_id posé par la découverte) ou qui n'en a pas.
+    hf_attendu = (identite.get('hf_id') or '').lower()
+    if hf_attendu:
+        ecartees = [c for c in cibles
+                    if (AIModel.objects.filter(model_key=c)
+                        .values_list('hf_id', flat=True).first() or '').lower()
+                    not in ('', hf_attendu)]
+        if ecartees:
+            logger.info("[provenance] %d ligne(s) écartée(s) (hf_id étranger — install "
+                        "concurrente probable) : %s", len(ecartees), ecartees)
+            cibles = [c for c in cibles if c not in ecartees]
 
     return {'identite': identite, 'modeles': [set_identity(c, identite) for c in cibles]}
