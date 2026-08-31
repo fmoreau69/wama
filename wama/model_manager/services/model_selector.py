@@ -377,7 +377,8 @@ def select_model_id(source: str, requires=None, requested: Optional[str] = None,
 def get_registry_models(source: Optional[str] = None, allowed_ids=None,
                         downloaded_only: bool = False,
                         requires=None, modality: Optional[str] = None,
-                        task: Optional[str] = None, available_inputs=None, consumes=None):
+                        task: Optional[str] = None, available_inputs=None, consumes=None,
+                        model_type: Optional[str] = None):
     """
     (choices, info) pour le <select> d'une app, PILOTÉ par le registre AIModel (verrou n°1).
 
@@ -415,6 +416,24 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
         # Une requête par capacité ne doit jamais rendre un CANDIDAT de prospection : il n'a
         # pas de poids sur le disque (`is_proposed` = proposé, pas installé).
         qs = qs.filter(is_proposed=False)
+        # ⚠ ANCRAGE PAR CATÉGORIE (recadrage Fabien, 2026-08-31) — la pièce que j'avais
+        # ratée. `model_type` est la TAXONOMIE du catalogue : renseignée sur **101/101**
+        # modèles (mesuré), y compris ceux du balayage générique, qui la déduisent de leur
+        # dossier. Sans elle, la requête ne s'appuyait que sur `capabilities.task` — or
+        # `matches_inputs` est PERMISSIF par choix (un modèle qui ne déclare rien n'est
+        # jamais exclu) : `LocateAnything-3B` (`model_type='vision'`, `capabilities={}`)
+        # remontait donc dans une demande `text-to-speech`.
+        # La catégorie est le filtre GROSSIER et toujours vrai ; les capacités affinent.
+        # Ensemble, ils rendent le permissif SÛR : un modèle fraîchement installé, pas
+        # encore décrit finement, reste proposable DANS SA CATÉGORIE — jamais ailleurs.
+        mt = model_type
+        if not mt and task:
+            # Table task → model_type DÉJÀ écrite pour la prospection : on la réutilise,
+            # on n'en invente pas une seconde.
+            from .prospector import _TASK_MODEL_TYPE
+            mt = _TASK_MODEL_TYPE.get(task)
+        if mt:
+            qs = qs.filter(model_type=mt)
     if downloaded_only:
         qs = qs.filter(is_downloaded=True)
     qs = qs.order_by('-vram_gb', 'name')
