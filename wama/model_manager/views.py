@@ -1818,6 +1818,39 @@ def api_prospect_assess(request):
 
 @login_required
 @user_passes_test(is_admin_or_dev)
+@require_POST
+def api_sync_benchmarks(request):
+    """Mesure de PERFORMANCE par bancs tiers — bouton distinct de « Évaluer la confiance ».
+
+    ⚠ Ce sont DEUX indicateurs différents, et les confondre a bloqué Fabien des semaines
+    (2026-08-31) : le jury LLM charge un modèle sur l'Ollama hôte (crash connu), alors que
+    cette mesure-ci est **purement réseau** (Artificial Analysis + Arena) et ne touche pas
+    le GPU. Elle n'avait simplement jamais eu de déclencheur d'écran. File `default`.
+    """
+    from wama.common.utils.task_progress import progression_en_cours
+
+    from .tasks import BENCH_CACHE_KEY, sync_benchmarks_task
+    en_cours = progression_en_cours(BENCH_CACHE_KEY)
+    if en_cours:
+        return JsonResponse({'success': True, 'already_running': True, 'progress': en_cours})
+    started = sync_benchmarks_task.delay()
+    return JsonResponse({'success': True, 'started': True, 'task_id': started.id})
+
+
+@login_required
+@user_passes_test(is_admin_or_dev)
+@require_GET
+def api_sync_benchmarks_progress(request):
+    """Avancement de la mesure de performance (cache Redis, écrit par la tâche)."""
+    from django.core.cache import cache
+
+    from .tasks import BENCH_CACHE_KEY
+    progress = cache.get(BENCH_CACHE_KEY)
+    return JsonResponse({'success': True, 'running': bool(progress), 'progress': progress})
+
+
+@login_required
+@user_passes_test(is_admin_or_dev)
 @require_GET
 def api_prospect_assess_progress(request):
     """Avancement de la passe de confiance (cache Redis, écrit par la tâche)."""

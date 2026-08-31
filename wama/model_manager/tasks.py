@@ -265,6 +265,58 @@ def install_catalog_task(self, model_key: str):
     return {k: v for k, v in res.items() if k != 'provenance'}
 
 
+#: Avancement de la mesure de PERFORMANCE (bancs tiers) — pendant de ASSESS_CACHE_KEY.
+BENCH_CACHE_KEY = 'model_manager:sync_benchmarks'
+BENCH_TTL = 6 * 3600
+
+
+@shared_task(bind=True, name='model_manager.sync_benchmarks')
+def sync_benchmarks_task(self):
+    """
+    Mesure de PERFORMANCE du catalogue par bancs TIERS (Artificial Analysis + Arena).
+
+    ⚠ À NE PAS CONFONDRE avec `assess_proposed_task` — c'est la confusion qui a coûté à
+    Fabien des semaines de blocage (2026-08-31) : le seul bouton de l'écran, « Évaluer la
+    confiance », déclenche le JURY LLM, qui charge un modèle sur l'Ollama hôte et fait
+    tomber la machine (montée VRAM, cf. `INFRA_WSL_VS_WINDOWS`). La mesure de performance,
+    elle, n'avait **aucun déclencheur d'écran** — d'où « je n'ai jamais pu compléter une
+    recherche benchmark ». Or elle est **purement RÉSEAU** : API Artificial Analysis + jeu
+    Arena sur HuggingFace, aucun GPU, aucun modèle chargé. D'où la file `default`.
+
+    Les trois indicateurs restent DISTINCTS (cf. `WAMA_APP_GENERATION_ROUTE §F4b`) :
+    confiance de la PROPOSITION (jury), complexité d'INTÉGRATION, performance TIERCE (ici).
+    """
+    from wama.common.utils.task_progress import publier_progression
+
+    from .services.benchmark_sync import SourceIndisponible, synchroniser
+
+    def publier(state: str, payload: dict):
+        publier_progression(BENCH_CACHE_KEY, self.request.id, state, payload, BENCH_TTL)
+
+    publier('RUNNING', {'status': 'interrogation des bancs tiers…'})
+    try:
+        r = synchroniser(dry_run=False)
+    except SourceIndisponible as exc:
+        # Pas un échec : aucune source joignable (clé absente / réseau) — même sémantique
+        # que le code retour 3 de la commande, qui vaut SKIP côté nocturne.
+        publier('SUCCESS', {'status': 'aucune source joignable', 'skipped': True,
+                            'raison': str(exc)})
+        return {'ok': True, 'skipped': True, 'raison': str(exc)}
+    except Exception as exc:
+        logger.exception("[sync_benchmarks] échec")
+        publier('FAILURE', {'error': f"{type(exc).__name__}: {exc}"})
+        raise
+
+    resume = {'ok': True, 'apparies': len(r['apparies']),
+              'non_apparies': len(r['non_apparies']),
+              'inversions': len(r['inversions']),
+              'indisponibles': sorted(r['indisponibles']),
+              'sans_categorie': r['sans_categorie']}
+    publier('SUCCESS', resume)
+    logger.info("[sync_benchmarks] %s", resume)
+    return resume
+
+
 @shared_task(bind=True, name='model_manager.assess_proposed')
 def assess_proposed_task(self, max_assess: int = 10, chainer: bool = True):
     """

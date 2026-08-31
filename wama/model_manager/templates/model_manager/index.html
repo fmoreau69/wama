@@ -765,9 +765,20 @@ qu'attendent WamaInspector (inspectorActions) et le JS de la page : ne pas renom
             </button>
             {% comment %} Passe LLM = action EXPLICITE (jamais auto depuis le crash hôte du
             2026-08-19) : file gpu sérialisée + gouverneur (garde VRAM + réservation). {% endcomment %}
+            {% comment %} DEUX indicateurs, DEUX boutons (2026-08-31). Il n'y en avait qu'un,
+            et la performance n'avait AUCUN déclencheur d'écran : Fabien a cru des semaines
+            que « Évaluer la confiance » lançait la recherche de benchmarks, et que c'était
+            elle qui faisait tomber le PC. C'est le JURY LLM qui charge un modèle sur
+            l'Ollama hôte ; la mesure tierce, elle, est purement réseau. Un libellé qui
+            recouvre deux mécanismes finit par en faire accuser un pour l'autre.
+            Cf. WAMA_APP_GENERATION_ROUTE §F4b. {% endcomment %}
             <button type="button" id="mmAssessBtn" class="btn btn-sm btn-outline-warning py-0"
-                    title="Confronte TOUS les candidats sans confiance à un agent LLM local, par lots enchaînés automatiquement (charge GPU — sérialisée derrière les traitements en cours, la file reprend la main entre deux lots)">
+                    title="Indicateur 1/3 — CONFIANCE DE LA PROPOSITION : confronte les candidats sans verdict à un jury d'agents LLM locaux, par lots enchaînés (⚠ CHARGE GPU — sérialisée derrière les traitements en cours)">
                 <i class="fas fa-scale-balanced me-1"></i>Évaluer la confiance
+            </button>
+            <button type="button" id="mmBenchBtn" class="btn btn-sm btn-outline-info py-0"
+                    title="Indicateur 3/3 — PERFORMANCE MESURÉE par des bancs TIERS (Artificial Analysis + Arena). Purement réseau : aucun GPU, aucun modèle chargé. Alimente le tri du tirage automatique (étage au-dessus de l'a priori).">
+                <i class="fas fa-gauge-high me-1"></i>Mesurer la performance
             </button>
         </span>
     </div>
@@ -1642,6 +1653,65 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // Mesure de PERFORMANCE (bancs tiers) — jumelle de mmRunAssess, mais SANS GPU.
+    async function mmRunBench() {
+        const btn = document.getElementById('mmBenchBtn');
+        const status = document.getElementById('mmProspectStatus');
+        if (btn) btn.disabled = true;
+        if (status) status.textContent = 'Mesure de performance (bancs tiers)…';
+        try {
+            const r = await fetch('{% url "model_manager:api_sync_benchmarks" %}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                body: '{}'
+            });
+            const data = await r.json();
+            if (!data.success) {
+                if (status) status.textContent = 'Échec : ' + (data.error || 'inconnu');
+                if (btn) btn.disabled = false;
+                return;
+            }
+            if (status) status.textContent = data.already_running
+                ? 'Mesure déjà en cours — suivi repris…'
+                : 'Mesure de performance enfilée (réseau seul, aucun GPU)…';
+            let ticks = 0;
+            // Même brique de polling que la passe de confiance (WamaApp.Poller) : un seul
+            // motif de suivi dans cette page.
+            const poller = new WamaApp.Poller({
+                urlTemplate: '{% url "model_manager:api_sync_benchmarks_progress" %}',
+                interval: 3000,
+                onData: function (pid, d) {
+                    const p = d.progress;
+                    if (++ticks > 600) { poller.stop(pid); if (btn) btn.disabled = false; return; }
+                    if (!p) return;
+                    if (p.state === 'SUCCESS') {
+                        poller.stop(pid);
+                        if (btn) btn.disabled = false;
+                        if (status) status.textContent = p.skipped
+                            ? `Aucune source joignable (${p.raison || 'clé ARTIFICIAL_ANALYSIS_API_KEY ou réseau'}).`
+                            : `Performance : ${p.apparies || 0} modèle(s) apparié(s), `
+                              + `${p.non_apparies || 0} sans banc`
+                              + (p.inversions ? ` — ${p.inversions} désaccord(s) AA/Elo à examiner` : '')
+                              + '.';
+                        loadModels(); return;
+                    }
+                    if (p.state === 'FAILURE') {
+                        poller.stop(pid);
+                        if (btn) btn.disabled = false;
+                        if (status) status.textContent = 'Échec : ' + (p.error || 'inconnu');
+                        return;
+                    }
+                    if (status && p.status) status.textContent = p.status;
+                },
+                onGiveUp: function () { if (btn) btn.disabled = false; },
+            });
+            poller.start('bench');
+        } catch (err) {
+            if (status) status.textContent = 'Erreur : ' + err.message;
+            if (btn) btn.disabled = false;
+        }
+    }
+
     function renderModelInspector(host, card) {
         const id = card.dataset.id || card.dataset.modelId;
         mmCurrentId = id;
@@ -1717,6 +1787,8 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         const assessBtn = document.getElementById('mmAssessBtn');
         if (assessBtn) assessBtn.addEventListener('click', mmRunAssess);
+        const benchBtn = document.getElementById('mmBenchBtn');
+        if (benchBtn) benchBtn.addEventListener('click', mmRunBench);
     }
 
     function attachUnloadHandlers() {
