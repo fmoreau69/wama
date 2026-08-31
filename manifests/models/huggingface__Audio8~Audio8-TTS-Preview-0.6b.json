@@ -1,6 +1,30 @@
 {
   "body": {
-    "capabilities": {},
+    "capabilities": {
+      "inputs_optional": [
+        "reference_voice"
+      ],
+      "inputs_required": [
+        "prompt"
+      ],
+      "languages": [
+        "en",
+        "fr",
+        "de",
+        "es",
+        "it",
+        "ja",
+        "ko",
+        "nl",
+        "pl",
+        "zh-cn"
+      ],
+      "modalities": [
+        "audio"
+      ],
+      "supports_cloning": true,
+      "task": "text-to-speech"
+    },
     "composition": {
       "components": [
         {

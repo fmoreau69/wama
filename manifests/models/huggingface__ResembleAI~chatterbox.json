@@ -1,6 +1,18 @@
 {
   "body": {
-    "capabilities": {},
+    "capabilities": {
+      "inputs_optional": [
+        "reference_voice"
+      ],
+      "inputs_required": [
+        "prompt"
+      ],
+      "modalities": [
+        "audio"
+      ],
+      "supports_cloning": true,
+      "task": "text-to-speech"
+    },
     "composition": {
       "runtime": {
         "engine": "chatterbox-tts"

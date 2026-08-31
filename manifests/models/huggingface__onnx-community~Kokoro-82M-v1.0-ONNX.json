@@ -1,6 +1,24 @@
 {
   "body": {
-    "capabilities": {},
+    "capabilities": {
+      "inputs_required": [
+        "prompt"
+      ],
+      "languages": [
+        "fr",
+        "en",
+        "es",
+        "it",
+        "pt",
+        "ja",
+        "zh-cn"
+      ],
+      "modalities": [
+        "audio"
+      ],
+      "supports_cloning": false,
+      "task": "text-to-speech"
+    },
     "composition": {
       "components": [
         {

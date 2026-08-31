@@ -228,6 +228,30 @@ _CHAMPS_PROJETES = [
     ('composition', lambda m, b: b.get('composition') or {}),
 ]
 
+#: Champ projeté SOUS CONDITION — cf. `_capacites_projetables`.
+_CHAMP_CAPACITES = ('capabilities', lambda m, b: b.get('capabilities') or {})
+
+
+def _capacites_projetables(cible) -> bool:
+    """Le manifeste a-t-il autorité pour poser `capabilities` sur CETTE ligne ?
+
+    OUI seulement si personne d'autre ne les produit : un modèle **orphelin de déclaration**,
+    catalogué par le balayage générique des snapshots HF (aucune app ne le déclare, donc la
+    découverte n'a rien à en dire et sa `capabilities` reste vide).
+
+    NON dès qu'une app le déclare : c'est alors la DÉCOUVERTE qui fait autorité — elle lit les
+    flags sur les classes de backend (`supports_cloning`…) et les `languages` du `model_config`.
+    La règle « un modèle se DÉCOUVRE » n'est donc pas entamée : on ne comble qu'un VIDE, on ne
+    conteste jamais un fait.
+
+    Motif (2026-08-31, route F4b) : sans cette porte, un modèle installé par la prospection ne
+    peut JAMAIS acquérir de capacités — donc jamais apparaître dans une app filtrée par capacité.
+    Le sync ne les efface plus (`model_sync` : un `{}` de découverte ne remplace plus un fait).
+    """
+    if getattr(cible, 'backend_ref', ''):
+        return False                     # une app le sert : la découverte parle pour lui
+    return not (getattr(cible, 'capabilities', None) or {})
+
 
 def write_back_model(manifest: dict, *, apply: bool = False) -> dict:
     """
@@ -258,9 +282,17 @@ def write_back_model(manifest: dict, *, apply: bool = False) -> dict:
                 'erreur': "aucun AIModel de cette cle — un modele se decouvre, il ne se cree pas "
                           "depuis un manifeste. Lancer `sync_models` d'abord."}
 
-    actuel = {champ: getattr(cible, champ) for champ, _ in _CHAMPS_PROJETES}
+    # Capacités : projetées UNIQUEMENT sur un modèle orphelin de déclaration (cf. la fonction).
+    champs = list(_CHAMPS_PROJETES)
+    if _capacites_projetables(cible) and (body.get('capabilities') or {}):
+        champs.append(_CHAMP_CAPACITES)
+        voulu[_CHAMP_CAPACITES[0]] = _CHAMP_CAPACITES[1](manifest, body)
+
+    actuel = {champ: getattr(cible, champ) for champ, _ in champs}
     deltas = {c: {'de': actuel.get(c), 'vers': v} for c, v in voulu.items() if actuel.get(c) != v}
-    preserves = ['is_downloaded', 'is_loaded', 'local_path', 'capabilities', 'vram_gb']
+    preserves = ['is_downloaded', 'is_loaded', 'local_path', 'vram_gb']
+    if not any(c == _CHAMP_CAPACITES[0] for c, _ in champs):
+        preserves.append('capabilities')
 
     if not apply:
         return {'model': key, 'would_change': sorted(deltas), 'target': voulu,

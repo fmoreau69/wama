@@ -203,7 +203,6 @@ class ModelSyncService:
             # supports_diarization) et laisse les clés inconnues intactes. Ainsi le catalogue DB est
             # canonique quel que soit ce qu'émet `_discover_*` (résidu source tracé dans REMOVAL_LEDGER
             # R1/R2, à nettoyer en fin de parcours). Cf. common/utils/model_capabilities.py.
-            'capabilities': normalize_capabilities(getattr(model_info, 'capabilities', None) or {}),
             'last_synced_at': timezone.now(),
         }
 
@@ -223,6 +222,21 @@ class ModelSyncService:
         _qualite = getattr(model_info, 'quality_index', None)
         if _qualite:
             defaults['quality_index'] = _qualite
+        # `capabilities` REJOINT cette famille (2026-08-31) — c'était le DERNIER champ que la
+        # découverte effaçait sans avoir rien à dire, et ça bloquait toute la route F4b.
+        # Un modèle installé par la prospection et catalogué par le balayage GÉNÉRIQUE des
+        # snapshots HF n'est déclaré par aucune app : sa découverte émet `{}`. En écrivant ce
+        # `{}` dans `defaults`, chaque sync effaçait les capacités posées par son MANIFESTE —
+        # le modèle restait donc invisible d'un filtre par capacité, à jamais (mesuré le
+        # 2026-08-31 sur Kokoro-ONNX / chatterbox / Audio8 : catalogués, licenciés, avec
+        # `composition`, et sans une seule capacité).
+        # Règle INCHANGÉE pour tout le reste : quand la découverte SAIT (une app déclare le
+        # modèle), elle écrit et fait autorité — c'est elle qui connaît les flags des backends.
+        # Ce qui change : un `{}` ne veut pas dire « aucune capacité », il veut dire « je n'en
+        # sais rien » — et on n'efface pas un fait sur une absence de savoir.
+        _caps = normalize_capabilities(getattr(model_info, 'capabilities', None) or {})
+        if _caps:
+            defaults['capabilities'] = _caps
 
         # Add local_path if available in extra_info
         if model_info.extra_info and 'path' in model_info.extra_info:
