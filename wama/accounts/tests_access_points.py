@@ -147,3 +147,39 @@ class ModelManagerGardeUniqueTests(TestCase):
         self.assertEqual(self.pol.get('min_tier'), 'developpeur',
                          "prémisse du test : la politique exige le tier développeur")
         self.assertTrue(is_admin_or_dev(self._compte('mm_dev2', 'developpeur')))
+
+
+class LeContexteNeMasquePasLeBaremeTests(TestCase):
+    """
+    Un SECOND BARÈME peut aussi arriver par le CONTEXTE DE GABARIT — la variante qui a
+    échappé au balayage du 27/08, parce qu'aucun `is_staff` n'apparaissait dans une garde.
+
+    Mesuré le 2026-08-31 : `views.home` reposait `is_admin` avec `request.user.is_staff`,
+    or le context processor `user_role` le fournit déjà à TOUTES les pages avec le prédicat
+    canonique — et le contexte d'une vue écrase celui d'un processor. Le menu
+    « Users »/« Models » de `header.html` (inclus par `base.html`, donc rendu partout)
+    suivait donc une règle sur `/` et une autre ailleurs. Aucune exception, aucun log : la
+    panne muette habituelle.
+
+    Le compte qui révèle l'écart est celui qui est `is_staff` SANS être superutilisateur ni
+    membre du groupe `admin` — les deux barèmes ne se contredisent que là.
+    """
+
+    def test_is_admin_vaut_le_predicat_canonique_sur_l_accueil(self):
+        from wama.accounts.views import is_admin as predicat
+        user = User.objects.create_user('staff_non_admin', password='x', is_staff=True)
+        self.client.force_login(user)
+        contexte = self.client.get('/').context
+        self.assertFalse(predicat(user), "prémisse : ce compte n'est PAS admin au sens WAMA")
+        self.assertEqual(contexte['is_admin'], predicat(user),
+                         "l'accueil réintroduit un second barème (is_staff) pour is_admin")
+
+    def test_le_menu_admin_est_le_meme_sur_l_accueil_et_ailleurs(self):
+        """La propriété qui compte pour l'utilisateur : le même menu, où qu'il soit."""
+        user = User.objects.create_user('staff_non_admin2', password='x', is_staff=True)
+        self.client.force_login(user)
+        accueil = self.client.get('/').content.decode()
+        ailleurs = self.client.get(reverse('accounts:profile')).content.decode()
+        cible = reverse('accounts:user-management')
+        self.assertEqual(cible in accueil, cible in ailleurs,
+                         "le menu admin diverge entre l'accueil et le reste du site")

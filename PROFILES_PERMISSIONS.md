@@ -628,6 +628,32 @@ conservée (52 décorateurs inchangés) ; seule la **décision** change de domic
 > Les rôles métier (`role:*`) et les tiers le sont. Dette voisine relevée au passage :
 > `accounts/models.py:293 group_required()` n'a **aucun consommateur** dans le dépôt (code mort).
 
+#### 8.9.2bis Défaut 2 — **la variante qui avait échappé au balayage** (mesurée le 2026-08-31)
+
+Le balayage du 27/08 cherchait les barèmes dans les **gardes** (décorateurs, `user_passes_test`).
+Il en restait un, invisible à cette recherche parce qu'il n'y avait **aucune garde** : un second
+barème posé par le **CONTEXTE DE GABARIT**.
+
+`views.home` reposait `is_admin` avec `request.user.is_staff`. Or le context processor `user_role`
+fournit déjà `is_admin` à **toutes** les pages avec le prédicat canonique (`accounts.views.is_admin`
+= superutilisateur ou groupe `admin`) — **et le contexte d'une vue écrase celui d'un processor**.
+Comme `header.html` est inclus par `base.html`, son menu **« Users » / « Models »** suivait donc
+**une règle sur `/` et une autre partout ailleurs**. Le compte qui l'expose est celui qui est
+`is_staff` **sans** être superutilisateur ni membre du groupe `admin` : lui seul voit les deux
+barèmes se contredire — et rien ne le signalait, ni exception ni log.
+
+Corrigé : `views.home` **ne repose plus la clé** (le processor la fournit), et son besoin local
+(`chat_model_options`) passe par le prédicat canonique. Deux tests de PROPRIÉTÉ le verrouillent
+(`accounts/tests_access_points.py`) : `is_admin` de l'accueil == prédicat canonique, et le menu
+admin identique sur `/` et ailleurs.
+
+> ⚠ **La leçon n'est pas « is_staff est mauvais »** — il reste légitime là où il désigne
+> « voir les données d'autrui » (`common/views.py`, `detail_registry`, `preview_registry`). Le
+> défaut était de l'appeler **`is_admin`**, c'est-à-dire de donner à un barème le nom d'un autre.
+> **Corollaire de méthode** : chercher les barèmes concurrents dans les gardes ne suffit pas —
+> une clé de contexte qui masque celle d'un context processor est un point d'application au même
+> titre, et c'est le seul que le balayage précédent ne pouvait pas voir.
+
 #### 8.9.3 ⚠ L'arbitrage qui reste à rendre (mesuré sur la base vive, lecture seule)
 
 Le correctif ferme un droit à **un compte réel**. Mesure sur les 10 comptes : ancien barème → 3

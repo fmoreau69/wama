@@ -80,7 +80,22 @@ def _chat_model_options():
 
 def home(request):
     """Home page view with admin check for AI chat."""
-    is_admin = request.user.is_staff if request.user.is_authenticated else False
+    # ⚠ NE PAS re-poser `is_admin` dans le contexte de cette vue — c'était le cas jusqu'au
+    # 2026-08-31, avec `request.user.is_staff`. Le context processor `user_role` le fournit
+    # DÉJÀ à toutes les pages, avec le prédicat canonique (`accounts.views.is_admin` =
+    # superutilisateur ou groupe `admin`), et le contexte d'une vue ÉCRASE celui d'un
+    # processor : le menu « Users »/« Models » de `header.html` (inclus par `base.html`,
+    # donc rendu partout) suivait donc UNE règle sur `/` et UNE AUTRE sur toutes les autres
+    # pages. Même menu, deux barèmes, selon l'endroit où on se trouve.
+    # C'est exactement le défaut soldé le 27/08 sur le model_manager (S2,
+    # `PROFILES_PERMISSIONS §8.9`, `accounts/tests_access_points.py`) ; celui-ci avait
+    # échappé au balayage parce qu'il masque par le CONTEXTE et non par un décorateur —
+    # aucun `is_staff` n'apparaissait dans une garde. « Deux barèmes pour une même question
+    # ne restent d'accord que par chance. »
+    # `is_staff` reste légitime AILLEURS (voir autrui : common/views, detail_registry…) :
+    # le défaut n'était pas de l'utiliser, mais de l'appeler `is_admin`.
+    from wama.accounts.views import is_admin as _predicat_admin
+    est_admin = _predicat_admin(request.user)
     # Voix de l'assistant DÉRIVÉES de la langue du profil (brique commune) au lieu des 3
     # options écrites en dur dans le gabarit — qui ignoraient `preferred_language` et 13 des
     # 16 voix disponibles. `preferred_language` vient déjà du context processor global, mais
@@ -101,12 +116,12 @@ def home(request):
     # (`claude_code.subscription_allowed`, domicile unique) — c'est un test qui le verrouille.
     from wama.common.services.claude_code import subscription_allowed
     context = {
-        'is_admin': is_admin,
+        # `is_admin` VOLONTAIREMENT ABSENT : il vient du context processor (cf. plus haut).
         'abonnement_visible': subscription_allowed(request.user),
         'accueil_assistant': greeting(request.user),
         # Résolution catalogue à chaque rendu : 5 requêtes DB, uniquement pour l'admin
         # qui voit la surface chat.
-        'chat_model_options': _chat_model_options() if is_admin else [],
+        'chat_model_options': _chat_model_options() if est_admin else [],
         'voix_assistant': choix_voix(langue),
         # Volet = l'AVATAR SEUL, en bloc de tête (`right_panel_top`, home.html). Les trois
         # sections restaient rendues SOUS lui — « Sélectionnez un fichier pour l'aperçu » sur
