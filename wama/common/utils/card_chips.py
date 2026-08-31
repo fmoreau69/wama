@@ -37,27 +37,39 @@ def chips_for(instance, params_json, extra=None, values=None):
             continue
         name = field.get('name')
         value = src[name] if name in src else getattr(instance, name, None)
+        # Normalisation AMONT : les valeurs arrivent aussi en CHAÎNES (conteneur JSON,
+        # data-*) — 'false' passait le filtre booléen et la card affichait un chip « false »
+        # (constat Fabien 31/08) ; 'true' doit suivre la voie du toggle coché.
+        if isinstance(value, str):
+            s = value.strip()
+            if s.lower() == 'false':
+                value = False
+            elif s.lower() == 'true':
+                value = True
+            else:
+                value = s
         if value in (None, '', False):
             continue
-        display = value
+        # chip_label permet un libellé court : « Diarisation » plutôt que « Identifier les
+        # locuteurs », qui tiendrait mal dans une piste. Le libellé complet reste au title.
+        libelle = field.get('chip_label') or field.get('label') or name
         if value is True:
             # Une case cochée s'affiche par son NOM (le réglage est actif) ; décochée, elle ne
             # produit aucun chip (filtré plus haut) — une card ne liste pas ce qui est inactif.
-            # chip_label permet un libellé court : « Diarisation » plutôt que « Identifier les
-            # locuteurs », qui tiendrait mal dans une piste. Le libellé complet reste au title.
-            display = field.get('chip_label') or field.get('label') or name
+            display = libelle
         else:
             # choices Django = [(value, label), …] (schema_to_dicts) ; options = [{value,label}] (fallback).
-            for opt in field.get('choices') or []:
+            for opt in (list(field.get('choices') or []) + list(field.get('options') or [])):
                 ov, ol = (opt if isinstance(opt, (list, tuple)) else (opt.get('value'), opt.get('label')))
                 if str(ov) == str(value):
                     display = ol or value
                     break
             else:
-                for opt in field.get('options') or []:
-                    if str(opt.get('value')) == str(value):
-                        display = opt.get('label') or value
-                        break
+                # Valeur NUE (nombre, texte, select sans option correspondante) : préfixée de
+                # son libellé — « 85 » seul ne dit rien sur une card (constat Fabien 31/08 :
+                # l'inspecteur disait « Qualité 85 », la card disait « 85 »). Une option qui
+                # correspond reste seule : son libellé se suffit (« 90° horaire », « Mono »).
+                display = f"{libelle} {value}"
         chips.append({
             'label': str(display),
             'icon': field.get('icon') or '',
@@ -74,6 +86,34 @@ def chips_for(instance, params_json, extra=None, values=None):
             c.setdefault('section', 'settings')
         chips.extend(extra)
     return chips
+
+
+def input_props_for(instance, file_field='input_file', name=''):
+    """Sous-ligne « propriétés RÉELLES du média » de la section ENTRÉE (CARD_DESIGN §11).
+
+    Extraite du pilote reader (`_input_props`, candidat brique mesuré au balayage du
+    31/08 — constat Fabien : « les propriétés du fichier d'entrée ne sont pas affichées
+    dans la section Entrée des cards » de la jumelle). Relevées sur le FICHIER déposé,
+    jamais dérivées des réglages : extension, poids ; les axes propres à une app (pages,
+    durée…) restent chez elle, en tête de liste via le retour.
+    """
+    import os
+    props = []
+    ext = os.path.splitext(name or '')[1].lstrip('.').lower()
+    if ext:
+        props.append(ext)
+    f = getattr(instance, file_field, None)
+    try:
+        size = f.size if f else 0
+    except (OSError, ValueError):
+        size = 0          # fichier absent du disque (purge, tiering) — la card reste lisible
+    if size >= 1048576:
+        props.append(f"{size / 1048576:.1f} Mo")
+    elif size >= 1024:
+        props.append(f"{size // 1024} Ko")
+    elif size:
+        props.append(f"{size} o")      # sinon un fichier <1 Ko s'affichait « 0 Ko »
+    return props
 
 
 def chips_by_section(instance, params_json, extra=None, values=None):

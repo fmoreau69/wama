@@ -149,10 +149,14 @@ def render_index(manifest: dict) -> tuple:
     // Sans ce rendu, l'apply d'initFromSchema n'a AUCUN champ à remplir : c'était la section
     // PARAMÈTRES vide du volet (constat Fabien 31/08, hôte jamais rendu).
     var ph = document.getElementById('{app}PanelParams');
+    var PANEL_DEFAULTS = {{{{ panel_defaults|default:'{{}}'|safe }}}};
     if (ph && window.WamaParams) {{
-        WamaParams.render(ph, {{{{ params_json|safe }}}}, {{ context: 'panel', values: {{}}{resolver_panel} }});
+        WamaParams.render(ph, {{{{ params_json|safe }}}}, {{ context: 'panel', values: PANEL_DEFAULTS{resolver_panel} }});
     }}
-    function showPanelParams(on) {{ if (ph) ph.classList.toggle('d-none', !on); }}
+    // Hors sélection : l'hôte montre les DÉFAUTS des prochains dépôts (mêmes valeurs que la
+    // cascade serveur du dépôt) ; la sélection y applique la card, la désélection ré-applique
+    // les défauts — un hôte, trois moments (paramètres de FILE, constat Fabien 31/08).
+    function showPanelParams(on) {{ if (ph && !on && window.WamaParams) WamaParams.apply(ph, PANEL_DEFAULTS); }}
 
     // Inspecteur contextuel — DÉRIVÉ de la facette `inspector` du manifeste.
     if (q && window.WamaInspector && WamaInspector.initFromSchema) {{
@@ -461,12 +465,14 @@ valeurs de la card. L'émission précédente (31/08 matin) rendait la zone de co
 passait comme panelContainer un SECOND hôte jamais rendu : section PARAMÈTRES vide à la
 sélection (constat Fabien 31/08) — et rendre les deux hôtes du même schéma dupliquerait
 les ids `wp-panel-*`. Un hôte, deux moments : rendu au chargement, montré à la sélection.{{% endcomment %}}
-<div id="{app}PanelDefaults">
-{{% comment %}}TROU DE GLU {mark} — zone de composition non générée en v1 : l'app réelle y
-écrit MAIN son formulaire de défauts d'upload (posté avec chaque dépôt). La marche B la
-remplit ; vide, elle reste l'ancre de `hideOnInspect`.{{% endcomment %}}
-</div>
-<div class="wama-params d-none" id="{app}PanelParams"></div>
+{{% comment %}}Paramètres de FILE (constat Fabien 31/08 : « les paramètres par défaut ne
+s'affichent pas », volet générique hors sélection) : l'hôte unique joue DEUX rôles — hors
+sélection il montre les DÉFAUTS des prochains dépôts (mêmes valeurs que la cascade serveur,
+et `WamaImport.extraFields` les POSTE avec chaque dépôt) ; à la sélection, les valeurs de la
+card ; à la désélection, les défauts reviennent. Le libellé sert d'ancre `hideOnInspect`.{{% endcomment %}}
+<div id="{app}PanelDefaults" class="small text-muted mb-1">
+  <i class="fas fa-sliders"></i> Défauts des prochains dépôts</div>
+<div class="wama-params" id="{app}PanelParams"></div>
 {{% endblock %}}
 
 {{% block app_right_panel_actions %}}
@@ -548,6 +554,17 @@ document.addEventListener('DOMContentLoaded', function () {{
         dropZoneId:     '{app}DropZone',
         fileInputId:    '{app}FileInput',
         batch:          window._batchImport,
+        // Défauts de FILE postés avec chaque dépôt (hook extraFields de la brique — il
+        // existait, personne ne le passait) : la cascade serveur fait alors POST > défauts,
+        // exactement le geste de l'app réelle (readMainPanelOptions posté par converter.js).
+        extraFields:    function (fd) {{
+            var host = document.getElementById('{app}PanelParams');
+            if (!host || !window.WamaParams) return;
+            var v = WamaParams.read(host);
+            Object.keys(v).forEach(function (k) {{
+                if (v[k] !== '' && v[k] != null) fd.append(k, v[k]);
+            }});
+        }},
     }});
 
     // Import de DOSSIER récursif (F2) — brique GLOBALE WamaFolderImport, contrat MESURÉ sur
@@ -616,7 +633,7 @@ On ne corrige JAMAIS ce fichier dans la jumelle : on corrige le générateur et 
             {{% else %}}
             <span class="wcv3-in-name">{{{{ item.input_filename|default:item.id }}}}</span>
             {{% endif %}}
-            <span class="wcv3-in-props">{{{{ item.media_type|default:'—' }}}}</span>
+            <span class="wcv3-in-props">{{{{ item.media_type|default:'—' }}}}{{% for p in item.input_props %}} · {{{{ p }}}}{{% endfor %}}</span>
           </div>
         </div>
       </div>
@@ -667,16 +684,20 @@ On ne corrige JAMAIS ce fichier dans la jumelle : on corrige le générateur et 
       {{% endif %}}
 
     </div>{{# /.wcv3 #}}
+    {{% comment %}}`wama-card-preview` + `data-preview-url` = le GESTE commun (media-preview.js :
+    double-clic → overlay niveau 3, pattern Reader) ; `data-card-preview` = le CONTENU
+    (hydrateur commun). Sans la classe, la preview s'affichait mais ne s'AGRANDISSAIT pas
+    (constat Fabien 31/08 — câblage manquant, mécanisme déjà en place).{{% endcomment %}}
     {{% if item.status == 'SUCCESS' %}}
     {{% url 'common:unified_preview' '{app}' item.id as pv_out %}}
-    <div class="wcv3-preview" id="preview-row-{{{{ item.id }}}}" data-card-preview="{{{{ pv_out }}}}?side=output" data-player-id="{{{{ item.id }}}}"></div>
+    <div class="wcv3-preview wama-card-preview" id="preview-row-{{{{ item.id }}}}" data-card-preview="{{{{ pv_out }}}}?side=output" data-preview-url="{{{{ pv_out }}}}?side=output" data-id="{{{{ item.id }}}}" data-player-id="{{{{ item.id }}}}"></div>
     {{% else %}}
     {{% comment %}}Preview de la SOURCE en attendant le résultat (demande Fabien 31/08 : « la
     preview n'apparaît pas dans les cards, uniquement dans le volet droit ») — MÊME hydrateur
     commun (hydrateCardPreviews), face input. Les cards réelles n'affichent qu'une icône à ce
     stade : écart voulu jumelle>réel, à porter au parc après validation écran (CARD_DESIGN §11).{{% endcomment %}}
     {{% url 'common:unified_preview' '{app}' item.id as pv_in %}}
-    <div class="wcv3-preview" id="preview-row-{{{{ item.id }}}}" data-card-preview="{{{{ pv_in }}}}?side=input" data-player-id="{{{{ item.id }}}}"></div>
+    <div class="wcv3-preview wama-card-preview" id="preview-row-{{{{ item.id }}}}" data-card-preview="{{{{ pv_in }}}}?side=input" data-preview-url="{{{{ pv_in }}}}?side=input" data-id="{{{{ item.id }}}}" data-player-id="{{{{ item.id }}}}"></div>
     {{% endif %}}
   </div>
 </div>

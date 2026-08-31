@@ -107,18 +107,28 @@ class CheminDeLotTest(SimpleTestCase):
         la section RÉGLAGES de la card et le volet restaient vides jusqu'au premier passage
         par la modale (constat Fabien 31/08 sur la jumelle ; l'app réelle fait ce chemin dans
         converter/views.py::upload)."""
-        corps = _fonction(self.src, 'upload')
-        self.assertIsNotNone(corps)
-        self.assertIn('applicable_defaults', corps, 'les défauts du schéma ne se posent pas')
-        self.assertIn('get_user_app_settings', corps, 'les réglages persistés ne sont pas relus')
-        self.assertIn('save_user_app_settings', corps, 'le POST ne se re-persiste pas')
+        # La cascade vit dans une fonction PARTAGÉE (`_reglages_du_depot`) : elle ne vivait
+        # que dans upload et les filles de LOT naissaient sans valeurs (chips vides,
+        # constat Fabien 31/08).
+        fn = _fonction(self.src, '_reglages_du_depot')
+        self.assertIsNotNone(fn, 'la cascade partagée _reglages_du_depot manque')
+        self.assertIn('applicable_defaults', fn, 'les défauts du schéma ne se posent pas')
+        self.assertIn('get_user_app_settings', fn, 'les réglages persistés ne sont pas relus')
+        self.assertIn('save_user_app_settings', fn, 'le POST ne se re-persiste pas')
         # ⚠ Contrat de la brique : `defaults` définit l'ensemble des clés LUES — un {} figé
         # ici ne relirait jamais rien (piège évité à l'écriture, gardé par ce test).
-        self.assertIn('{n: \'\' for n in _noms}', corps)
+        self.assertIn("{n: '' for n in noms}", fn)
         # La nature détectée prime : elle ne traverse JAMAIS la cascade.
-        self.assertIn("if n != 'media_type'", corps)
-        # Les extras rejoignent le conteneur JSON (idiome params_storage, même voie qu'update).
-        self.assertIn("kwargs['options'] = _opts", corps)
+        self.assertIn("if n != 'media_type'", fn)
+        corps = _fonction(self.src, 'upload')
+        self.assertIn('_reglages_du_depot(user, kwargs.get(\'media_type\', \'\'), request.POST)',
+                      corps, "upload ne déroule pas la cascade")
+        self.assertIn("kwargs['options'] = _extras", corps,
+                      'les extras ne rejoignent pas le conteneur JSON')
+        bc = _fonction(self.src, 'batch_create')
+        self.assertEqual(bc.count("_reglages_du_depot(user, kwargs.get('media_type', ''))"), 2,
+                         'les DEUX branches de batch_create (URL, fichier) doivent dérouler '
+                         'la cascade — les filles de lot naissaient sans valeurs')
 
     def test_la_suppression_est_gardee_par_la_propriete_du_fichier(self):
         """Trou A5 (audit 31/08) : `safe_delete_file` inconditionnel pouvait supprimer un

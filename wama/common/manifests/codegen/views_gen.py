@@ -143,6 +143,10 @@ def render_views(manifest: dict) -> tuple:
     # *Une signature de brique se lit ; devinée, elle rend une vue qui plante à l'usage,
     # pas à la génération — donc invisible à `check` comme aux tests de codegen.*
     champs_fichiers = [d['input_field']] + (['output_file'] if d['a_output'] else [])
+    # Nom de fichier pour les propriétés d'ENTRÉE de la card (input_props_for) : le champ
+    # nom déclaré, sinon le nom du FileField lui-même.
+    nom_pour_props = (f"getattr(item, '{d['name_field']}', '') or ''" if d['name_field']
+                      else f"(item.{d['input_field']}.name if item.{d['input_field']} else '')")
     name_expr = (f'j.{d["name_field"]}' if d['name_field']
                  else f'(j.{d["input_field"]}.name if j.{d["input_field"]} else "")')
 
@@ -239,37 +243,56 @@ def _fichier_de_l_app(item, champ):
     # cascade, la section RÉGLAGES de la card et le volet restaient VIDES jusqu'au premier
     # passage par la modale (constat Fabien 31/08 sur la jumelle). La nature détectée n'est
     # JAMAIS écrasée par la cascade (la détection prime — champ porteur, non sauvegardé).
-    bloc_opts = (f"if _opts:\n            kwargs['{conteneur_options}'] = _opts"
-                 if conteneur_options else
-                 "del _opts  # pas de conteneur JSON déclaré : extras non stockés")
-    up_reglages = '' if not _noms_schema else f'''
+    ligne_opts = (f"kwargs['{conteneur_options}'] = _extras" if conteneur_options
+                  else "pass  # pas de conteneur JSON déclaré : extras non stockés")
+    # FONCTION module-level PARTAGÉE upload/batch_create : la cascade ne vivait que dans
+    # upload — les filles de LOT naissaient sans valeurs (chips vides, constat Fabien 31/08).
+    bloc_reglages = '' if not _noms_schema else f'''
+
+def _reglages_du_depot(user, nature, poste=None):
+    """Cascade des réglages d'un élément NAISSANT (upload ET batch_create) : défauts
+    APPLICABLES du schéma (show_if ⟂ nature détectée) ← user_settings persistés ← poste
+    non vide, re-persisté. → (colonnes, extras) ; la nature n'est jamais écrasée."""
     try:
         from .params import {schema_symbole} as _sch
     except Exception:
-        _sch = []
-    if _sch:
-        from wama.common.utils.param_schema import applicable_defaults
-        from wama.common.utils.user_settings import get_user_app_settings, save_user_app_settings
-        _noms = [n for n in {_noms_schema!r} if n != {nature_champ!r}]
-        _vals = applicable_defaults(_sch, {{{nature_champ!r}: kwargs.get({nature_champ!r}, '')}})
-        _vals.pop({nature_champ!r}, None)
-        # ⚠ `defaults` définit AUSSI l'ensemble des clés LUES (contrat de la brique) — un {{}}
-        # ici ne relirait jamais rien.
-        _vals.update({{k: v for k, v in get_user_app_settings(
-                          user, '{app}', {{n: '' for n in _noms}}).items()
-                      if v not in (None, '')}})
-        _post = {{k: request.POST.get(k) for k in _noms if request.POST.get(k) not in (None, '')}}
-        _vals.update(_post)
-        _opts = {{}}
-        for _k, _v in _vals.items():
-            if _k in {colonnes_schema!r}:
-                kwargs[_k] = _v
-            else:
-                _opts[_k] = _v
-        {bloc_opts}
-        if _post:
-            save_user_app_settings(user, '{app}', _post)
+        return {{}}, {{}}
+    from wama.common.utils.param_schema import applicable_defaults
+    from wama.common.utils.user_settings import get_user_app_settings, save_user_app_settings
+    noms = [n for n in {_noms_schema!r} if n != {nature_champ!r}]
+    vals = applicable_defaults(_sch, {{{nature_champ!r}: nature}})
+    vals.pop({nature_champ!r}, None)
+    # ⚠ `defaults` définit AUSSI l'ensemble des clés LUES (contrat de la brique) — un {{}}
+    # ici ne relirait jamais rien.
+    vals.update({{k: v for k, v in get_user_app_settings(
+                     user, '{app}', {{n: '' for n in noms}}).items()
+                 if v not in (None, '')}})
+    envoye = ({{k: poste.get(k) for k in noms if poste.get(k) not in (None, '')}}
+              if poste is not None else {{}})
+    vals.update(envoye)
+    cols, extras = {{}}, {{}}
+    for k, v in vals.items():
+        (cols if k in {colonnes_schema!r} else extras)[k] = v
+    if envoye:
+        save_user_app_settings(user, '{app}', envoye)
+    return cols, extras
 '''
+    up_reglages = '' if not _noms_schema else f'''
+    _cols, _extras = _reglages_du_depot(user, kwargs.get({nature_champ!r}, ''), request.POST)
+    kwargs.update(_cols)
+    if _extras:
+        {ligne_opts}'''
+    ligne_opts_bc = (f"kwargs['{conteneur_options}'] = _extras" if conteneur_options
+                     else "pass  # pas de conteneur JSON déclaré")
+    # Défauts de FILE pour le volet (index) — même cascade, sans nature ni POST.
+    ligne_defauts = (("_c, _e = _reglages_du_depot(user, '')\n"
+                      "        panel_defaults = json.dumps({**_c, **_e})")
+                     if _noms_schema else "panel_defaults = '{}'")
+    bc_reglages = '' if not _noms_schema else f'''
+                _cols, _extras = _reglages_du_depot(user, kwargs.get({nature_champ!r}, ''))
+                kwargs.update(_cols)
+                if _extras:
+                    {ligne_opts_bc}'''
 
     # ── Corps conventionnels (idiomes MESURÉS, paramétrés) ─────────────────────
     vues = {}
@@ -313,11 +336,16 @@ def _fichier_de_l_app(item, champ):
             params_json = json.dumps({schema_symbole})
         except Exception:
             params_json = '[]'
+        # Défauts des prochains dépôts (paramètres de FILE) : la MÊME cascade que le dépôt
+        # lui-même (défauts du schéma ← user_settings), sans nature ni POST — le volet les
+        # montre hors sélection, WamaImport les POSTE (extraFields), la boucle est fermée.
+        {ligne_defauts}
         # TROU DE GLU {mark} — contexte SPÉCIFIQUE d'app (profils, formats…) non généré :
         # le gabarit ne fournit que le contexte CONVENTIONNEL de file.
         return render(request, '{app}/index.html', {{
             'batches_list': batches_list, 'queue_count': len(jobs),
             'q_sort': q_sort, 'q_filter': q_filter, 'params_json': params_json,
+            'panel_defaults': panel_defaults,
         }})'''
 
     vues['upload'] = f'''@require_POST
@@ -418,7 +446,7 @@ def batch_create(request):
                     continue
                 kwargs[champ_source] = src
                 nom = (ligne.get('filename') or '').strip()
-                {bc_nature_url}
+                {bc_nature_url}{bc_reglages}
                 obj = {item}.objects.create(**kwargs)
                 {bc_nom_url}
             else:
@@ -429,7 +457,7 @@ def batch_create(request):
                     continue
                 _dest, rel = copy_into_app_input(absolu, '{app}', user.id, 'input')
                 {bc_nom_fichier}
-                {bc_nature_fichier}
+                {bc_nature_fichier}{bc_reglages}
                 obj = {item}.objects.create(**kwargs)
                 obj.{d['input_field']}.name = rel
                 obj.save(update_fields=['{d['input_field']}'])
@@ -555,6 +583,14 @@ def {nom}(request, pk):
         item.gear_data = gear_data(item, _sch)
     except Exception:
         item.gear_data = {{}}
+    # Propriétés RÉELLES du fichier d'entrée (extension, poids) — sous-ligne de la section
+    # ENTRÉE (brique commune extraite du pilote reader ; constat Fabien 31/08 : la card ne
+    # montrait que la nature).
+    try:
+        from wama.common.utils.card_chips import input_props_for
+        item.input_props = input_props_for(item, '{d['input_field']}', {nom_pour_props})
+    except Exception:
+        item.input_props = []
     return item'''
 
     vues['card_html'] = f'''def card_html(request, pk):
@@ -908,6 +944,6 @@ def _auto_wrap_orphans(user):
             w.save(update_fields=['{fk}', '{row}'])
         except Exception:
             pass
-{bloc_nature}{bloc_garde}
+{bloc_nature}{bloc_garde}{bloc_reglages}
 '''
     return tete + '\n\n\n'.join(blocs) + '\n', None

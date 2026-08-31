@@ -455,16 +455,20 @@ class VoletParametresGenereTest(SimpleTestCase):
         # Le rendu au chargement vise l'hôte, et panelContainer pointe sur LE MÊME nœud (ph).
         self.assertIn("var ph = document.getElementById('converterPanelParams')", self.src)
         self.assertIn("WamaParams.render(ph,", self.src)
-        self.assertIn("{ context: 'panel', values: {}", self.src)
+        self.assertIn("{ context: 'panel', values: PANEL_DEFAULTS", self.src)
         self.assertIn('panelContainer: ph,', self.src)
 
-    def test_l_hote_nait_masque_et_la_selection_le_bascule(self):
-        # d-none au chargement ; montré à la sélection d'une card, remasqué sur lot et
-        # désélection (même cycle que l'app réelle : showPanelParams).
-        self.assertRegex(self.src, r'class="wama-params d-none" id="converterPanelParams"')
-        self.assertIn('function showPanelParams(on)', self.src)
-        idx_item = self.src.index('renderItemActions')
-        self.assertIn('showPanelParams(true);', self.src[idx_item:idx_item + 300])
+    def test_l_hote_montre_les_defauts_de_file_hors_selection(self):
+        # Constat Fabien 31/08 (« les paramètres par défaut ne s'affichent pas ; au F5 je
+        # retombe sur le template générique ») : l'hôte est VISIBLE au chargement avec les
+        # DÉFAUTS des prochains dépôts (mêmes valeurs que la cascade serveur), la sélection
+        # y applique la card, lot et désélection RÉ-APPLIQUENT les défauts.
+        self.assertRegex(self.src, r'class="wama-params" id="converterPanelParams"')
+        self.assertNotIn('wama-params d-none', self.src,
+                         "l'hôte ne doit plus naître masqué — les défauts de file se voient")
+        self.assertIn('Défauts des prochains dépôts', self.src)
+        self.assertIn('var PANEL_DEFAULTS = {{ panel_defaults|default:', self.src)
+        self.assertIn('WamaParams.apply(ph, PANEL_DEFAULTS)', self.src)
         idx_batch = self.src.index('renderBatchActions')
         self.assertIn('showPanelParams(false);', self.src[idx_batch:idx_batch + 300])
         self.assertIn('onDeselect: function () { showPanelParams(false); }', self.src)
@@ -569,9 +573,15 @@ class CardGearPolymorpheTest(SimpleTestCase):
         ]
         obj = self._Objet()
         obj.output_format = 'webp'          # colonne : getattr suffit
+        obj.flip_h = 'false'                # chaîne du JSON — ne doit produire AUCUN chip
+        params.append({'name': 'flip_h', 'type': 'toggle', 'chip': True,
+                       'label': 'Miroir horizontal', 'chip_label': 'Miroir H'})
         sections = chips_by_section(obj, params, values={'quality': 85, 'upscale': 'x2'})
-        self.assertEqual([c['label'] for c in sections.get('settings') or []], ['85', '×2'])
-        self.assertEqual([c['label'] for c in sections.get('output') or []], ['webp'])
+        # Valeur nue → préfixée de son libellé ; option correspondante → son libellé seul ;
+        # 'false' (chaîne) → rien (constats Fabien 31/08 : « 85 / 0 / false » sur la card).
+        self.assertEqual([c['label'] for c in sections.get('settings') or []],
+                         ['Qualité 85', '×2'])
+        self.assertEqual([c['label'] for c in sections.get('output') or []], ['Format webp'])
 
 
 class DefautsApplicablesTest(SimpleTestCase):

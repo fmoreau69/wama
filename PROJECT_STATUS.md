@@ -9202,6 +9202,30 @@ maquette v4.
   modale de lot OK, zéro erreur console, batterie **11/11 sans skip**, suite **1254 OK
   (skipped=4)**, +9 tests.
 
+### Retours écran Fabien (31/08 après-midi) — 6 constats, tous fermés côté GÉNÉRATION/BRIQUES
+1. **Preview modale au double-clic** : le mécanisme commun existait (`media-preview.js` :
+   dblclick sur `.wama-card-preview` lit `data-preview-url`) — la card générée ne portait ni
+   la classe ni l'attribut. Câblé (rien réinventé), `bound: true` mesuré.
+2. **Chips « 85 / 0 / false » sans libellé** : brique `card_chips` — ① les valeurs arrivent
+   en CHAÎNES du JSON, `'false'` passait le filtre booléen → normalisation amont
+   ('false'→rien, 'true'→voie toggle) ; ② valeur NUE (nombre, select sans option) désormais
+   préfixée de son libellé (« Qualité 85 ») — une option qui correspond reste seule
+   (« 90° horaire »), les pilotes ne bougent pas.
+3. **Filles de lot sans réglages** : la cascade ne vivait que dans `upload` → refactorée en
+   fonction PARTAGÉE `_reglages_du_depot` (module généré), appelée par upload ET les DEUX
+   branches de batch_create.
+4. **Propriétés d'entrée absentes** : brique `input_props_for` EXTRAITE du pilote reader
+   (candidat mesuré au balayage) dans `card_chips.py`, émise par `_decorer` + sous-ligne
+   ENTRÉE de la card (« image · png · 69 o » mesuré).
+5. **Paramètres de FILE invisibles (+ « template générique au F5 »)** : l'hôte unique du
+   volet joue désormais TROIS moments — hors sélection il montre les DÉFAUTS des prochains
+   dépôts (servis par la même cascade, contexte `panel_defaults`), la sélection applique la
+   card, la désélection ré-applique les défauts. Et `WamaImport.extraFields` (le hook
+   existait, personne ne le passait) POSTE ces défauts avec chaque dépôt = le geste exact de
+   l'app réelle. F5 mesuré sain (cards/toolbar/barre présents, zéro erreur console).
+6. Vérifié à la sonde : volet défauts visible (19 champs, quality 85), dblclick armé,
+   previews 2/2 rendues, modale lot OK, batterie **11/11 sans skip**, suite **OK (skipped=4)**.
+
 ### ④+⑤ EXÉCUTÉS le jour même (GO Fabien : « remettre la doc et les mécanismes à jour ») + BALAYAGE des 10 apps
 - **Registre mécanismes** : 109 → **114 entrées** — créées : `codegen` (7 gabarits, était
   HORS carte sans signal possible), `inspector`, `export_formats` (⬇ late-binding),
