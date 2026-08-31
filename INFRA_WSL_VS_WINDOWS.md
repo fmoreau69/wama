@@ -541,7 +541,34 @@ partir d'ici.** ⚠ L'instance WSL courante a démarré à 12:28, AVANT l'instal
 remède OBLIGATOIRE : `wsl --shutdown` puis relance de la stack, sans quoi TOUTE tâche
 CUDA côté WAMA échoue.
 
-### 2026-08-31 ~11:45:09-19 — crash n° suivant : le TUEUR REPRODUCTIBLE frappe SOUS GO HUMAIN,
+### 2026-08-30 ~03:03:25 — crash DÉCOUVERT APRÈS COUP (le 31/08, en archivant rails.csv) :
+### 1ᵉʳ de la série post-616.56, rampe VRAM, rails PROPRES (3ᵉ mort couverte), déclencheur INCONNU
+
+Personne ne l'avait consigné (la session-fleuve converter tournait cette nuit-là). Découvert
+en datant la FIN de `rails.csv` avant relance d'HWiNFO — la mort est la fin du fichier
+(limitation connue d'`analyze_rails`). `lastboot=2026-08-30 03:04:09` (hwlog) = reboot auto
+en ~40 s, signature KP41 classique.
+
+**Chronologie (hwlog)** : repos PLAT à ~30 W / 210 MHz / VRAM 4,66 Go jusqu'à 03:03:02 →
+03:03:13 : **84 W, 2745 MHz, VRAM 12 029 Mo** (+7,4 Go en 1 échantillon) → 03:03:24 :
+30,8 W, 210 MHz, **VRAM 14 811 Mo** (montée continue) → mort ≈ 03:03:25-35 (dernier rail
+03:03:25). **Même profil que le 28/08 11:09** : pic d'allocation puis mort 10-20 s après,
+à basse puissance.
+
+**Rails : PROPRES jusqu'à la dernière ligne** (67 873 échantillons, zéro violation ATX,
+12VHPWR 12,20-12,39 V) — **3ᵉ mort couverte par rails, 3ᵉ fois rien** (23/08 repos, 28/08
+rampe WSL2, 30/08 rampe hôte). L'hypothèse « un rail s'effondre » est morte à 2 s
+d'échantillonnage ; seuls les transitoires µs restent hors de portée. Archivé
+`rails_20260830_0303_crash.csv`.
+
+**Déclencheur NON IDENTIFIÉ — et c'est mesuré, pas négligé** : `sync_models` (CPU) fini à
+03:02:14, une minute AVANT ; aucun run nocturne à cette heure (fichiers 00:40 puis 20:36) ;
+beat de la fenêtre = tâches CPU pures (mirror 02:30, secrets 02:20, backup 03:30) ; **zéro
+requête HTTP** dans les 10 min. La rampe est donc une charge CÔTÉ HÔTE non journalisée
+(Ollama ou autre) — l'aveugle habituel de 40-70 s. À noter pour la série : **la machine
+meurt aussi sans aucun geste WAMA traçable.**
+
+### 2026-08-31 ~11:45:09-19 — crash suivant : le TUEUR REPRODUCTIBLE frappe SOUS GO HUMAIN,
 ### et le pilote 616.56 n'y a rien changé
 
 **Contexte** : passe scout LLM (`run_scout.py`, session Claude, lancée 11:44 sur GO explicite
@@ -559,7 +586,8 @@ HÔTE. **Mort au 1ᵉʳ chargement**, avant toute réponse (zéro sortie scout �
 | 11:46:26 | 28,3 | 210 | 138 Mo | 1ʳᵉ ligne post-reboot (watchdog reparti) |
 
 **Ce que ce crash établit** : ① le pilote **616.56 (posé 28/08 12:40) ne protège PAS** du
-chargement 17-19 Go — 1ᵉʳ crash de la nouvelle série, même signature que les 18-20/08 ;
+chargement 17-19 Go — **2ᵉ crash de la nouvelle série** (le 1ᵉʳ, 30/08 03:03, a été
+découvert après coup — voir ci-dessus), même signature que les 18-20/08 ;
 ② **la gouvernance humaine ne change pas la physique** : GO explicite + séquentiel + un seul
 modèle = mort quand même — la variable n'est pas QUI lance ni COMMENT, c'est LA RAMPE VRAM
 (~16 Go/10 s) ; ③ NON instrumenté côté rails — HWiNFO mort depuis le 28/08 11:09 (7ᵉ
