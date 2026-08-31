@@ -1,9 +1,6 @@
 {
   "body": {
-    "constraints": {
-      "gpu": "extra [gpu] -> onnxruntime-gpu>=1.20.1 (deja present : 1.23.2) ; CPU-only fonctionne aussi",
-      "notes": "Verifie contre venv_linux le 2026-08-31 : numpy 2.3.5 (>=2.0.2 OK), onnxruntime-gpu 1.23.2 (OK), espeakng-loader 0.2.4 deja installe ; seul phonemizer manque. Phonemisation via espeak-ng (charge par espeakng-loader, lib embarquee)."
-    },
+    "constraints": {},
     "dependencies": [
       "espeakng-loader",
       "numpy",
@@ -12,8 +9,8 @@
     ],
     "entry_points": {},
     "identity": {
-      "author": "thewh1teagle",
-      "license": "MIT",
+      "author": "thewh1teagle <61390950+thewh1teagle@users.noreply.github.com>",
+      "license": null,
       "repository": "https://github.com/thewh1teagle/kokoro-onnx",
       "summary": "TTS with kokoro and onnx runtime",
       "version": "0.6.1"
@@ -23,15 +20,15 @@
       "requires_python": "<3.14,>=3.10"
     }
   },
-  "description": "Runtime ONNX du modele Kokoro (TTS) — charge model.onnx + voices, phonemise via espeak-ng. Ecrit A LA MAIN le 2026-08-31 (librarian sans LLM : passes hote interdites apres le crash du 31/08) depuis les faits PyPI (v0.6.1) et GitHub (licence MIT lue a l'API) ; a valider avant install.",
+  "description": "TTS with kokoro and onnx runtime",
   "key": "kokoro-onnx",
   "manifest_kind": "library",
   "name": "kokoro-onnx",
   "projects": [],
   "schema_version": "1.0",
   "source": {
-    "ref": "manual:pypi+github 2026-08-31 (librarian sans LLM)",
-    "type": "manual"
+    "ref": "importlib.metadata:kokoro-onnx==0.6.1",
+    "type": "extract"
   },
   "visibility": "public",
   "world": "transverse"

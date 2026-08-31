@@ -1941,6 +1941,10 @@
       "kind": "model"
     },
     {
+      "key": "kokoro-onnx",
+      "kind": "library"
+    },
+    {
       "key": "librosa",
       "kind": "library"
     },
