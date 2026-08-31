@@ -480,12 +480,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const globalProgressStats = document.getElementById('globalProgressStats');
             const globalStatus = document.getElementById('globalStatus');
 
-            const p = data.overall_progress || data.global_progress || 0;   // contrat commun (31/08), repli legacy
+            const p = data.overall_progress || 0;   // contrat commun (31/08 — repli legacy retiré au nettoyage)
             if (window.WamaEta) WamaEta.render(document.getElementById('globalEta'), WamaEta.aggregateAll());
             if (globalProgressBar) globalProgressBar.style.width = p + '%';
             if (globalProgressText) globalProgressText.textContent = p ? p + '%' : '';
             if (globalProgressStats) {
-                globalProgressStats.textContent = `${data.completed}/${data.total} terminé · ${data.running} en cours${data.failed > 0 ? ` · ${data.failed} échoué` : ''}`;
+                globalProgressStats.textContent = `${data.done}/${data.total} terminé · ${data.running} en cours${data.failed > 0 ? ` · ${data.failed} échoué` : ''}`;
             }
             if (globalStatus) {
                 const active = (data.total || 0) > 0;

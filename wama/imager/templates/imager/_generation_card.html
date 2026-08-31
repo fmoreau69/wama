@@ -11,8 +11,7 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
   .settings-btn[data-id] (COMMUN aux 2 domaines depuis le 2026-08-23) ; .wama-cycle-btn ;
   ⬇ = brique commune `_download_button.html` (plus de .video-download-btn) ;
   .duplicate-btn[data-duplicate-url] ;
-  .delete-btn[data-delete-url] ; .wama-eta ; .wama-progress-fill ;
-  openImagePreview/openVideoPreview (aperçus).
+  .delete-btn[data-delete-url] ; .wama-eta ; .wama-progress-fill.
 {% endcomment %}
 <div class="imager-card synthesis-card card bg-dark border-secondary wama-card {% if in_batch %}mb-1 wcv3--batch-child{% else %}mb-2{% endif %} {% if elem.status == 'RUNNING' %}processing{% elif elem.status == 'SUCCESS' %}success{% elif elem.status == 'FAILURE' %}error{% endif %}"
      data-id="{{ elem.id }}"
@@ -157,11 +156,9 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt.
   était resté « partiel » : `result_file` seul n'aurait montré qu'UNE image sur N.
 
   Ce que le portage RÉPARE au passage : la visionneuse tire sa navigation de la COLLECTION, plus
-  d'un balayage du DOM. `openImagePreview` (index.html:342) collectait `.generated-image-preview
-  img` — un <img> DESCENDANT d'un élément portant la classe — alors que la classe était SUR le
-  <img> ci-dessous : la collecte rendait 0 et la visionneuse retombait sur « image seule, sans
-  navigation ». Les images ne peuvent plus se désaccorder du markup, elles VIENNENT de la donnée.
-  ⚠ `openImagePreview`/`openVideoPreview` n'ont plus d'appelant — candidats REMOVAL_LEDGER.
+  d'un balayage du DOM (`openImagePreview` collectait un sélecteur qui rendait 0 — les images
+  ne peuvent plus se désaccorder du markup, elles VIENNENT de la donnée).
+  `openImagePreview`/`openVideoPreview` RETIRÉES le 31/08 (REMOVAL_LEDGER — 0 appelant).
   ⚠ Garde obligatoire : `?side=output` sans sortie replie sur l'ENTRÉE (mesuré 22/08).{% endcomment %}
   {% if elem.status == 'SUCCESS' %}
     {% if elem.output_video or elem.output_images %}

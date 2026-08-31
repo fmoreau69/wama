@@ -302,68 +302,7 @@ function _mpInjectImage(file, inputId, previewId) {
         transition: transform 0.2s ease;
     }
 </style>
-<script>
-    /**
-     * Open image preview in modal with prev/next navigation.
-     * Collects all visible generated images on the page.
-     */
-    function openImagePreview(url, name) {
-        if (typeof showPreviewModalWithNav === 'function') {
-            // Collect all generated images on the page
-            const allImages = document.querySelectorAll('.generated-image-preview img');
-            const items = [];
-            let currentIndex = 0;
-
-            allImages.forEach(function(img, i) {
-                items.push({
-                    url: img.src,
-                    name: img.alt || 'Image générée',
-                    mime_type: 'image/png'
-                });
-                // Match by URL (normalize both for comparison)
-                if (img.src === url || img.src.endsWith(url) || url.endsWith(new URL(img.src).pathname)) {
-                    currentIndex = i;
-                }
-            });
-
-            if (items.length > 0) {
-                showPreviewModalWithNav(items[currentIndex], items, currentIndex);
-            } else {
-                // Fallback: single image, no navigation
-                showPreviewModalWithNav({
-                    url: url,
-                    name: name || 'Image générée',
-                    mime_type: 'image/png'
-                }, [], -1);
-            }
-        } else if (typeof showPreviewModal === 'function') {
-            showPreviewModal({
-                url: url,
-                name: name || 'Image générée',
-                mime_type: 'image/png'
-            });
-        } else {
-            // Fallback: open in new tab
-            window.open(url, '_blank');
-        }
-    }
-
-    /**
-     * Open video preview in modal
-     */
-    function openVideoPreview(url, name) {
-        if (typeof showPreviewModal === 'function') {
-            showPreviewModal({
-                url: url,
-                name: name || 'Vidéo générée',
-                mime_type: 'video/mp4'
-            });
-        } else {
-            // Fallback: open in new tab
-            window.open(url, '_blank');
-        }
-    }
-</script>
+{% comment %}openImagePreview/openVideoPreview RETIRÉES le 31/08 (REMOVAL_LEDGER) — 0 appelant depuis le portage du mécanisme commun n°30 : la visionneuse tire sa navigation de la COLLECTION (result_files), plus d'un balayage du DOM.{% endcomment %}
 <script>
     // Inject Django URLs and CSRF token into JavaScript
     window.IMAGER_CONFIG = {

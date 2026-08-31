@@ -192,3 +192,29 @@
   + chaîne `audit` re-tirée **Gemma seulement** (mesure du 20/08 : famille Qwen 4/4 en échec tool-use) ;
   ③ derniers noms en dur côté WAMA branchés sur la résolution catalogue (`video_describer.py`
   défaut de signature survivant du refactor 04/08, `llm_gateway_check.py --model` → `modele_par_defaut`).
+
+
+## Nettoyage 2026-08-31 — session audit (GO Fabien : « en profondeur, sans rien casser »)
+
+> Chaque retrait précédé d'un grep exhaustif de consommateurs (outil natif) ; ablations JS
+> par script à ASSERTS (le script s'est refusé DEUX fois lui-même avant écriture — d'abord
+> des coupes qui inséraient au lieu de remplacer, puis mes propres commentaires citant les
+> morts). Mesuré après : batterie converter réel + suite complète.
+
+| # | Élément | Emplacement | Pourquoi résidu | Prérequis avant suppression | Statut |
+|---|---|---|---|---|---|
+| R33 | `buildModalFormHTML` (+`transformsHTML`/`escape` nichées, ~134 l.) | `converter.js` | branche INATTEIGNABLE (wama-params chargé inconditionnellement, APP.schema jamais vide — audit B1) | ✅ grep : unique appel dans l'else mort ; else remplacé par un état d'erreur VISIBLE | ✅ |
+| R34 | `readModalForm` (+ routeur `readCurrentModal` du matin) | `converter.js` | lisait des attributs que WamaParams n'émet pas (bug « Sauver comme profil », audit B2) ; le fork retiré, le routeur n'avait plus d'objet | ✅ les 2 lecteurs = `readModalViaSchema` ; test tient les morts absents | ✅ |
+| R35 | repli `.job-start-btn` | `converter.js` | 0 occurrence dans les gabarits depuis le bouton de cycle commun — repli inerte par construction | ✅ grep gabarits | ✅ |
+| R36 | contexte `jobs`/`profiles`/`supported_formats` + requête `ConversionProfile` par chargement | `converter/views.py::IndexView` | consommés par AUCUN gabarit (audit B6/B7) — profils via AJAX, front lit `supported_formats_json` | ✅ grep templates | ✅ |
+| R37 | `import os` local (download_all) + `from django.views.generic import TemplateView` | `converter/views.py` | redondant depuis l'import module (fix ZIP) / jamais utilisé (audit B5) | ✅ | ✅ |
+| R38 | filtre `compact_preview` (fichier `reader_tags.py` entier) | `reader/templatetags/` | 0 usage gabarit depuis le portage du mécanisme n°30 (le commun compacte) ; la copie serveur `views._compact_preview` RESTE (sert l'API) — trou #27 route | ✅ grep `load reader_tags` + `|compact_preview` = 0 | ✅ |
+| R39 | `openImagePreview`/`openVideoPreview` (bloc script ~60 l.) | `imager/index.html` | 0 appelant depuis le portage n°30 (la visionneuse tire sa navigation de `result_files`) — auto-documenté candidat | ✅ grep wama/imager + staticfiles | ✅ |
+| R40 | clés legacy `global_progress`/`completed`/`pending` | `synthesizer/views.py::global_progress` | contrat commun `overall_progress`/`done` adopté le jour même ; son JS basculé, aucun autre consommateur | ✅ grep repo (tool_api, services, tests) | ✅ |
+| R41 | proxys `_View` (backend→used_backend) | `reader/views.py`, `transcriber/views.py` | duplication P6 de l'audit — remplacés par `chips_by_section(values=)` (brique du jour) | ✅ comportement identique par construction | ✅ |
+| R42 | (note de changelog, pas un retrait) `convert_pt_to_safetensors` collecte désormais RÉCURSIVEMENT (clés aplaties en pointé) | `common/utils/safetensors_utils.py` | un checkpoint mixte produisait un fichier PARTIEL en silence ; le résultat peut différer des conversions antérieures (audit R8) | — | 📝 |
+
+**Écartés du retrait (vérifiés vivants)** : `views._compact_preview` (API reader) ·
+`import os as _os` local restant de `converter/views.py` (utilisé sur place) · le polling de
+`converter.js` (ce qui manque à la jumelle, pas un mort) · dblclick propre de reader/describer
+(convergence `wama:card-expand` = chantier, pas suppression).

@@ -135,17 +135,12 @@ def _chips(reading):
     from wama.common.utils.card_chips import chips_by_section
     from wama.reader.params import PARAMS_JSON
 
-    class _View:
-        # proxy lecture seule : une fois le run fait, le chip moteur montre used_backend
-        def __init__(self, o): self._o = o
-        def __getattr__(self, k):
-            if k == 'backend':
-                return self._o.used_backend or self._o.backend
-            return getattr(self._o, k)
-
     # Le groupement vient du SCHÉMA (section=…), pas d'un tri écrit ici : la vue ne décide pas
-    # où va un chip, elle lit ce que le champ déclare (métadonnée-driven).
-    return chips_by_section(_View(reading), PARAMS_JSON)
+    # où va un chip, elle lit ce que le champ déclare (métadonnée-driven). `values=` (brique,
+    # 31/08) remplace le proxy _View recopié reader/transcriber (nettoyage audit, P6) :
+    # une fois le run fait, le chip moteur montre used_backend.
+    return chips_by_section(reading, PARAMS_JSON,
+                            values={'backend': reading.used_backend or reading.backend})
 
 
 def _input_props(reading):

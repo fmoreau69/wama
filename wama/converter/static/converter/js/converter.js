@@ -411,8 +411,8 @@
     }
 
     queue.addEventListener('click', e => {
-        const startBtn = e.target.closest('.job-start-btn');   // legacy (plus rendu) — repli inerte
-        if (startBtn) { startJob(startBtn.dataset.jobId); return; }
+        // (.job-start-btn legacy RETIRÉ le 31/08 — 0 occurrence dans les gabarits depuis le
+        // bouton de cycle commun ; le repli était inerte par construction. REMOVAL_LEDGER.)
 
         // Suppression d'un ÉLÉMENT : plus de handler ici — la brique commune
         // `queue-actions.js` délègue sur `.delete-btn[data-delete-url]`, confirmation comprise
@@ -526,169 +526,12 @@
 
     // ── Settings modal — dynamic form + apply / restart ───────────────────────
 
-    /**
-     * Build the modal body HTML for editing a job's options.
-     * Uses data-key attributes so we can read values back generically.
-     */
-    function buildModalFormHTML(mediaType, outputFormat, opts) {
-        opts = opts || {};
-        const escape = (s) => String(s).replace(/[&<>"']/g, ch =>
-            ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+    // buildModalFormHTML RETIRÉE le 31/08 (REMOVAL_LEDGER) : branche INATTEIGNABLE —
+    // wama-params.js est chargé inconditionnellement et APP.schema jamais vide (audit B1).
+    // 134 lignes de formulaire maison que WamaParams rend depuis le 06/08.
 
-        // Output format dropdown
-        const formats = (FORMATS[mediaType] || {}).output || [];
-        const fmtOpts = formats.map(f => {
-            const sel = (f === outputFormat) ? ' selected' : '';
-            return `<option value="${escape(f)}"${sel}>.${escape(f.toUpperCase())}</option>`;
-        }).join('');
-
-        let body = `
-            <div class="mb-3">
-                <label class="form-label small fw-bold text-light">
-                    <i class="fas fa-file-export"></i> Format de sortie
-                </label>
-                <select class="form-select form-select-sm" data-key="output_format">${fmtOpts}</select>
-            </div>
-        `;
-
-        const transformsHTML = (mt) => {
-            if (mt !== 'image' && mt !== 'video') return '';
-            const rot = String(opts.rotation || 0);
-            const sel = v => (v === rot ? ' selected' : '');
-            const fh = opts.flip_h ? ' checked' : '';
-            const fv = opts.flip_v ? ' checked' : '';
-            return `
-                <hr class="border-secondary my-2">
-                <div class="mb-2">
-                    <label class="form-label small fw-bold text-light"><i class="fas fa-redo"></i> Rotation</label>
-                    <select class="form-select form-select-sm" data-key="rotation">
-                        <option value="0"${sel('0')}>Aucune</option>
-                        <option value="90"${sel('90')}>90° gauche</option>
-                        <option value="180"${sel('180')}>180° (inversé)</option>
-                        <option value="270"${sel('270')}>90° droite</option>
-                    </select>
-                </div>
-                <div class="row g-1 mb-2">
-                    <div class="col-6">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" data-key="flip_h"${fh}>
-                            <label class="form-check-label small">↔ Miroir H</label>
-                        </div>
-                    </div>
-                    <div class="col-6">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" data-key="flip_v"${fv}>
-                            <label class="form-check-label small">↕ Miroir V</label>
-                        </div>
-                    </div>
-                </div>
-            `;
-        };
-
-        if (mediaType === 'image') {
-            const q = opts.quality != null ? opts.quality : 85;
-            body += `
-                <div class="mb-2">
-                    <label class="form-label small fw-bold text-light">
-                        <i class="fas fa-sliders-h"></i> Qualité (JPG/WebP/AVIF)
-                        <span class="text-muted ms-1" data-display="quality">${escape(q)}</span>
-                    </label>
-                    <input type="range" class="form-range" min="1" max="100" value="${escape(q)}"
-                           data-key="quality"
-                           oninput="this.parentNode.querySelector('[data-display=quality]').textContent=this.value">
-                </div>
-                <div class="row g-1 mb-2">
-                    <div class="col-6">
-                        <label class="form-label small text-muted mb-1">Largeur (px)</label>
-                        <input type="number" class="form-control form-control-sm" data-key="resize_w"
-                               placeholder="0 = auto" min="0" value="${escape(opts.resize_w || '')}">
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label small text-muted mb-1">Hauteur (px)</label>
-                        <input type="number" class="form-control form-control-sm" data-key="resize_h"
-                               placeholder="0 = auto" min="0" value="${escape(opts.resize_h || '')}">
-                    </div>
-                </div>
-            `;
-        } else if (mediaType === 'video') {
-            body += `
-                <div class="mb-2">
-                    <label class="form-label small fw-bold text-light">
-                        <i class="fas fa-film"></i> Qualité vidéo (CRF 0–51)
-                    </label>
-                    <input type="number" class="form-control form-control-sm" data-key="video_quality"
-                           placeholder="23 (défaut)" min="0" max="51"
-                           value="${escape(opts.video_quality != null ? opts.video_quality : '')}">
-                </div>
-                <div class="mb-2">
-                    <label class="form-label small fw-bold text-light">
-                        <i class="fas fa-tachometer-alt"></i> FPS <span class="text-muted">(vide = conserver)</span>
-                    </label>
-                    <input type="number" class="form-control form-control-sm" data-key="fps"
-                           placeholder="25, 30, 60…" min="1" max="120"
-                           value="${escape(opts.fps != null ? opts.fps : '')}">
-                </div>
-            `;
-        } else if (mediaType === 'audio') {
-            const bitrates = ['', '128k', '192k', '256k', '320k'];
-            const labels = { '': 'Auto', '128k': '128 kbps', '192k': '192 kbps',
-                             '256k': '256 kbps', '320k': '320 kbps (MP3 max)' };
-            const brOpts = bitrates.map(b => {
-                const sel = (b === (opts.audio_bitrate || '')) ? ' selected' : '';
-                return `<option value="${escape(b)}"${sel}>${escape(labels[b])}</option>`;
-            }).join('');
-            const normCheck = opts.normalize ? ' checked' : '';
-            body += `
-                <div class="mb-2">
-                    <label class="form-label small fw-bold text-light">
-                        <i class="fas fa-headphones"></i> Débit audio
-                    </label>
-                    <select class="form-select form-select-sm" data-key="audio_bitrate">${brOpts}</select>
-                </div>
-                <div class="form-check mb-2">
-                    <input class="form-check-input" type="checkbox" data-key="normalize"${normCheck}>
-                    <label class="form-check-label small">
-                        Normalisation loudness (EBU R128)
-                    </label>
-                </div>
-            `;
-        } else if (mediaType === 'document') {
-            body += `<div class="text-muted small">Conversion de document (Pandoc / PyMuPDF) — choisissez le format de sortie ci-dessus.</div>`;
-        } else if (mediaType === 'archive') {
-            body += `<div class="text-muted small">Conversion d'archive — choisissez le format de sortie ci-dessus.</div>`;
-        } else {
-            body += `<div class="alert alert-warning small">Type de média inconnu : ${escape(mediaType)}</div>`;
-        }
-
-        body += transformsHTML(mediaType);
-
-        return body;
-    }
-
-    /**
-     * Read values back from the modal form. Returns { output_format, options }.
-     */
-    function readModalForm() {
-        const body = document.getElementById('jobSettingsBody');
-        const outputFormat = body.querySelector('[data-key="output_format"]')?.value || '';
-        const options = {};
-        body.querySelectorAll('[data-key]').forEach(el => {
-            const k = el.dataset.key;
-            if (k === 'output_format') return;
-            if (el.type === 'checkbox') {
-                if (el.checked) options[k] = true;
-            } else if (el.type === 'number' || el.type === 'range') {
-                if (el.value !== '' && el.value !== null) {
-                    const n = el.step && parseFloat(el.step) !== Math.floor(parseFloat(el.step))
-                              ? parseFloat(el.value) : parseInt(el.value);
-                    if (!isNaN(n)) options[k] = n;
-                }
-            } else {
-                if (el.value !== '' && el.value !== null) options[k] = el.value;
-            }
-        });
-        return { output_format: outputFormat, options };
-    }
+    // readModalForm RETIRÉE le 31/08 (REMOVAL_LEDGER) : lisait des attributs maison que
+    // WamaParams n'émet pas (bug « Sauver comme profil », audit B2) — voie schéma seule.
 
     // Lecture SCHÉMA-DRIVEN d'un conteneur WamaParams (modale ⚙ OU volet inspecteur) →
     // {output_format, options} : coercition nombres/toggles + filtre show_if pour ne garder
@@ -789,7 +632,9 @@
                     },
                 });
             } else {
-                body.innerHTML = buildModalFormHTML(data.media_type, data.output_format, data.options);
+                // Jamais un blanc MUET : cet état signifie que wama-params.js a échoué au chargement.
+                body.innerHTML = '<div class="alert alert-warning small">Formulaire indisponible (WamaParams non chargé) — recharger la page.</div>';
+                console.error('[converter] WamaParams absent — modale de réglages non rendue');
             }
 
             // Disable Apply/Start if job is RUNNING
@@ -818,8 +663,7 @@
      * POST update payload for the current modal job. Returns true on success.
      */
     async function applyCurrentModal() {
-        const { output_format, options } = (window.WamaParams && APP.schema)
-            ? readModalViaSchema() : readModalForm();
+        const { output_format, options } = readModalViaSchema();
         if (!output_format) {
             WamaApp.toast('Format de sortie requis.', 'warning');
             return false;
@@ -863,19 +707,10 @@
 
     // ── Save current modal settings as a profile ──────────────────────────────
 
-    // UN SEUL lecteur de la modale, même garde que applyCurrentModal (:822) — deux lecteurs
-    // divergents étaient exactement le chemin parallèle P3 de l'audit 31/08. La branche
-    // legacy (readModalForm) ne sert que si WamaParams manque, comme partout ailleurs.
-    function readCurrentModal() {
-        return (window.WamaParams && APP.schema) ? readModalViaSchema() : readModalForm();
-    }
-
     document.getElementById('jobSettingsSaveProfileBtn')?.addEventListener('click', () => {
-        // ⚠ via le schéma, PAS readModalForm en direct : l'ancienne lisait des [data-key] que
-        // WamaParams n'émet pas (0 occurrence) → output_format toujours vide → toast
-        // « Format de sortie requis » systématique. « Sauver comme profil » était MORT à
-        // l'usage depuis le passage à WamaParams (bug confirmé à l'audit du 2026-08-31).
-        const { output_format, options } = readCurrentModal();
+        // Voie schéma UNIQUE depuis le nettoyage du 31/08 — la voie legacy (cause du
+        // bug « Sauver comme profil ») est RETIRÉE, le fork n'existe plus.
+        const { output_format, options } = readModalViaSchema();
         if (!output_format) {
             WamaApp.toast('Format de sortie requis avant de sauver.', 'warning');
             return;

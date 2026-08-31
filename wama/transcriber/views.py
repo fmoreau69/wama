@@ -875,14 +875,10 @@ def _decorate_card(t):
     from wama.common.utils.card_chips import chips_by_section
     from wama.transcriber.params import PARAMS_JSON
 
-    class _View:
-        def __init__(self, o): self._o = o
-        def __getattr__(self, k):
-            if k == 'backend':
-                return self._o.used_backend or self._o.backend
-            return getattr(self._o, k)
-
-    t.chips = chips_by_section(_View(t), PARAMS_JSON)
+    # `values=` (brique, 31/08) remplace le proxy _View recopié reader/transcriber
+    # (nettoyage de l'audit, P6) : le moteur EFFECTIF prime sur le réglage.
+    t.chips = chips_by_section(t, PARAMS_JSON,
+                               values={'backend': t.used_backend or t.backend})
 
     fallback = bool(t.used_backend and t.backend != 'auto' and t.used_backend != t.backend)
     for chip in t.chips.get('settings', []):

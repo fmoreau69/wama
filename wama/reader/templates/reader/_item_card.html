@@ -162,8 +162,10 @@ Contexte : elem = ReadingItem décoré par _decorate_card() (.chips, .input_prop
   {% comment %}Preview PERMANENTE (§11 : jamais retirée) — récap avant, réel après.
   Clic = développer · double-clic = texte complet (contrats reader.js).{% endcomment %}
   {% comment %}L'extrait vient du mécanisme COMMUN n°30 (portage 2026-08-22) : le rendu texte
-  du commun applique le MÊME compactage markdown que le filtre `compact_preview` de reader
-  (repris étape par étape dans wama-inspector.js::_compacteTexte) et pose lui-même l'ellipsis.
+  du commun applique le compactage markdown (wama-inspector.js::_compacteTexte — le filtre
+  `compact_preview` de reader, sans usage depuis ce portage, est RETIRÉ le 31/08,
+  REMOVAL_LEDGER ; la copie serveur `views._compact_preview` reste, elle sert l'API)
+  et pose lui-même l'ellipsis.
   Les DEUX gestes de reader sont préservés parce qu'ils portent sur l'ÉLÉMENT et non sur son
   contenu : `data-action="expand"` (clic → expandPreview bascule max-height, reader.js:332) et
   le double-clic → texte intégral, lié à `.reader-preview` (reader.js:120 et :706). Le span

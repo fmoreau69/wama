@@ -137,7 +137,8 @@ class IndexView(View):
         # Ephemeral jobs (quick-convert) are never shown in the queue.
         jobs     = (ConversionJob.objects.filter(user=user, ephemeral=False)
                     .select_related('batch').order_by('-created_at'))
-        profiles = ConversionProfile.objects.filter(user=user)
+        # (requête ConversionProfile RETIRÉE le 31/08 — 'profiles' n'était lu par aucun
+        # gabarit, la liste vient de profile_list en AJAX ; audit B6, REMOVAL_LEDGER.)
 
         # Group jobs by batch for the queue UI (batch-of-1 → carte simple,
         # batch-of-N → groupe). Ordre : par batch le plus récent.
@@ -198,11 +199,12 @@ class IndexView(View):
 
         from wama.converter.params import PARAMS_JSON as CONVERTER_PARAMS_JSON
         from wama.converter.params import _ENGINE_BY_TYPE as _ENGINE_HELP_BY_TYPE
+        # Contexte NETTOYÉ le 31/08 (audit B6/B7, REMOVAL_LEDGER) : 'jobs', 'profiles' et
+        # 'supported_formats' n'étaient consommés par AUCUN gabarit (grep) — la liste de
+        # profils vient de profile_list en AJAX, le gabarit itère batches_list, et le front
+        # lit supported_formats_json.
         return render(request, 'converter/index.html', {
-            'jobs':                 jobs,
             'batches_list':         batches_list,
-            'profiles':             profiles,
-            'supported_formats':    SUPPORTED_CONVERSIONS,
             'supported_formats_json': json.dumps(formats_for_js),
             'params_json':          json.dumps(CONVERTER_PARAMS_JSON),  # schéma modale per-job (WamaParams)
             'engine_help_json':     json.dumps(_ENGINE_HELP_BY_TYPE),   # descriptif moteur par TYPE (modale)
@@ -547,7 +549,6 @@ def download_all(request):
     (PROJECT_STATUS §31.5).
     """
     import io
-    import os
     import zipfile
     jobs = (ConversionJob.objects.filter(user=request.user, status='SUCCESS')
             .exclude(output_file=''))
@@ -1066,7 +1067,6 @@ def batch_template(request):
     return response
 
 
-from django.views.generic import TemplateView
 
 
 # ── Manipulation directe de la file (fabrique COMMUNE, variante FK-directe) ──

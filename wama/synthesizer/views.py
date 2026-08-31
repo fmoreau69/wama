@@ -690,13 +690,11 @@ def global_progress(request):
         return JsonResponse({
             # Contrat du composant COMMUN (wama-global-progress.js : total/done/
             # overall_progress) — le synthesizer était la SEULE app sur 10 hors contrat
-            # (audit 31/08). Clés legacy conservées le temps du nettoyage.
+            # (audit 31/08) ; clés legacy RETIRÉES au nettoyage du même jour (son JS
+            # basculé, aucun autre consommateur mesuré — REMOVAL_LEDGER).
             'overall_progress': 0, 'done': 0,
-            'global_progress': 0,
             'total': 0,
-            'completed': 0,
             'running': 0,
-            'pending': 0,
             'failed': 0
         })
 
@@ -724,14 +722,11 @@ def global_progress(request):
     global_progress = int(total_progress / total) if total > 0 else 0
 
     return JsonResponse({
-        # Contrat commun d'abord (audit 31/08) ; clés legacy conservées → nettoyage.
+        # Contrat commun (audit 31/08) ; clés legacy retirées au nettoyage du même jour.
         'overall_progress': global_progress,
         'done': completed,
-        'global_progress': global_progress,
         'total': total,
-        'completed': completed,
         'running': running,
-        'pending': pending,
         'failed': failed
     })
 

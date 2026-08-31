@@ -9178,12 +9178,24 @@ maquette v4.
     l'ordre historique ext·pages·poids du pilote préservé, réserve d'audit levée) ;
   ⑥ synthesizer au contrat commun (`overall_progress`/`done` émis, JS bascule avec repli,
     clés legacy conservées → retrait en phase nettoyage).
-  **Restent pour la phase NETTOYAGE** : ④ `extraFields` + hôte de schéma au converter
-  (remplace `readMainPanelOptions` main, P2) ; ⑤ suppression des 3 resolvers `formats`
-  maison du converter (P1) ; ⑦ proxys `_View` reader/transcriber → `values=` ; ⑧ cascade
-  `applicable_defaults` au parc ; + reader/describer → `wama:card-expand` ; + clés legacy
-  synthesizer ; + `import os` local redondant `converter/views.py` ;
-  `convert_pt_to_safetensors` récursif à nommer au changelog (R8, hors apps médias).
+  **NETTOYAGE N1 EXÉCUTÉ le jour même** (GO « en profondeur, sans rien casser » —
+  registre : `REMOVAL_LEDGER §Nettoyage 2026-08-31`, R33-R42) : modale legacy du converter
+  ABLATÉE (~170 l. : buildModalFormHTML + readModalForm + routeur du matin — le fork qui
+  avait produit le bug « Sauver comme profil » n'existe plus, else = état d'erreur VISIBLE) ;
+  repli `.job-start-btn` ; contexte mort de l'IndexView (jobs/profiles/supported_formats +
+  requête ConversionProfile par chargement) ; imports morts ; filtre `compact_preview`
+  reader (fichier) et bloc `openImage/VideoPreview` imager (trou #27 soldé) ; ⑦ proxys
+  `_View` → `values=` ; clés legacy synthesizer retirées (JS basculé `done`). ⚠ Méthode :
+  ablations par script à ASSERTS — il s'est refusé DEUX fois lui-même avant écriture (coupes
+  qui inséraient, puis mes commentaires citant les morts) : *un script de retrait qui ne
+  s'interdit rien retire autre chose*. Mesuré : batterie converter réel 10/11 + 1 skip
+  DÉLIBÉRÉ préexistant (url_import : garde SSRF loopback ARMÉE sur le témoin local — le bon
+  comportement, consigné dans le skip lui-même), tests ciblés 91 OK, suite complète OK.
+  **Restent (N2/N3)** : ⑤ convergence des 3 resolvers `formats` maison du converter (P1) ;
+  ④ `extraFields` + hôte de schéma au converter (P2, remplace `readMainPanelOptions`) ;
+  colonne `ConversionJob.profile` jamais lue/écrite (B3 — retrait = MIGRATION, à faire des
+  deux côtés) ; reader/describer → `wama:card-expand` ; ⑧ cascade `applicable_defaults` au
+  parc.
 
 ### Suite du même jour (matin, retours ÉCRAN Fabien — volet ✅ validé, 2 constats neufs)
 1. **« La modale du batch ne s'affiche pas »** — pas un z-index : la brique commune tient le
