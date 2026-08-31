@@ -468,13 +468,16 @@ def {nom}(request, pk):
     except Exception:
         pass'''
     decorateur = f'''def _decorer(item):
-    """Chips de card GÉNÉRÉS du schéma (brique commune) — point d'attache unique index/card_html."""
+    """Chips de card GÉNÉRÉS du schéma (brique commune) — point d'attache unique index/card_html."""{aplat}
+    # ⚠ L'aplatissement DOIT précéder les chips : ils lisent les valeurs SUR l'instance —
+    # calculés avant, ils voyaient une instance vide (card sans Réglages, constat Fabien
+    # 31/08 : les chips vivaient au volet mais pas sur la card).
     try:
         from wama.common.utils.card_chips import chips_by_section
         from .params import {schema_symbole}
         item.chips = chips_by_section(item, {schema_symbole})
     except Exception:
-        item.chips = {{}}{aplat}
+        item.chips = {{}}
     # `gear_data` : le VOLET lit les data-* du bouton ⚙ (pas les data-param-* de la card —
     # deux lecteurs, deux sources). Sur le modèle RÉEL c'est une @property (glu non
     # sérialisée) : la brique commune `card_gear` la reconstitue depuis le schéma + les

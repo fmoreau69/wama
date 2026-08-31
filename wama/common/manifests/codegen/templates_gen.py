@@ -121,6 +121,8 @@ def render_index(manifest: dict) -> tuple:
             cardSelector:  '.wama-card[data-id]',
             batchSelector: '.batch-group',
             schema: {{{{ params_json|safe }}}},
+            panelContainer: document.getElementById('{app}ItemParams'),
+            hideOnInspect: ['{app}PanelDefaults'],
             itemLabel:  function (id) {{ return "l'élément #" + id; }},
             batchLabel: function (id) {{ return "le batch #" + id; }},
             renderItemActions: function (host, card) {{
@@ -342,9 +344,15 @@ visuel avec l'app en place est LA mesure (Playwright côte à côte).{{% endcomm
 {{% block title %}}{label} — WAMA{{% endblock %}}
 
 {{% block app_right_panel_settings %}}
-{{% comment %}}TROU DE GLU {mark} — volet réglages d'app non généré : hôte WamaParams
-minimal (le schéma params.py est rendu si présent).{{% endcomment %}}
-<div class="wama-params" id="{app}PanelParams"></div>
+{{% comment %}}DEUX zones, convention MESURÉE sur l'app réelle (converter) : la COMPOSITION
+(défauts des prochains dépôts — masquée pendant l'inspection via `hideOnInspect`) et l'hôte
+des params de l'ÉLÉMENT INSPECTÉ (`panelContainer` d'initFromSchema — c'est LUI qui remplit
+la section PARAMÈTRES du volet à la sélection d'une card ; il manquait : volet sans
+paramètres, constat Fabien 31/08).{{% endcomment %}}
+<div id="{app}PanelDefaults">
+  <div class="wama-params" id="{app}PanelParams"></div>
+</div>
+<div class="wama-params" id="{app}ItemParams"></div>
 <script>
 document.addEventListener('DOMContentLoaded', function () {{
     var host = document.getElementById('{app}PanelParams');
