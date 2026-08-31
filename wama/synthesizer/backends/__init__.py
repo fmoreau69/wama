@@ -14,6 +14,7 @@ from .base import CATALOG_KEYS, TTSBackend
 from .coqui_backend import CoquiBackend
 from .higgs_backend import HiggsAudioBackend
 from .kokoro_backend import KokoroBackend
+from .kokoro_onnx_backend import KokoroOnnxBackend
 
 #: Moteur → classe de backend (vocabulaire `SYNTHESIZER_MODELS[*]['engine']`).
 ENGINE_BACKENDS = {
@@ -21,6 +22,7 @@ ENGINE_BACKENDS = {
     'bark': BarkBackend,
     'higgs': HiggsAudioBackend,
     'kokoro': KokoroBackend,
+    'kokoro-onnx': KokoroOnnxBackend,
 }
 
 
@@ -28,12 +30,14 @@ def engine_for_model(model_name: str) -> str:
     """Nom de moteur pour un modèle UI — repli historique : tenté comme modèle Coqui."""
     if model_name in COQUI_MODEL_MAPPING:
         return 'coqui'
-    if model_name in ('bark', 'higgs-audio', 'kokoro'):
-        return {'bark': 'bark', 'higgs-audio': 'higgs', 'kokoro': 'kokoro'}[model_name]
+    if model_name in ('bark', 'higgs-audio', 'kokoro', 'kokoro-onnx'):
+        return {'bark': 'bark', 'higgs-audio': 'higgs', 'kokoro': 'kokoro',
+                'kokoro-onnx': 'kokoro-onnx'}[model_name]
     return 'coqui'
 
 
 __all__ = [
     'BarkBackend', 'CoquiBackend', 'HiggsAudioBackend', 'KokoroBackend',
-    'TTSBackend', 'ENGINE_BACKENDS', 'CATALOG_KEYS', 'engine_for_model',
+    'KokoroOnnxBackend', 'TTSBackend', 'ENGINE_BACKENDS', 'CATALOG_KEYS',
+    'engine_for_model',
 ]
