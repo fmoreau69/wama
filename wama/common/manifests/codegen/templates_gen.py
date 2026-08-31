@@ -381,10 +381,15 @@ alors que la copie-témoin l'avait : skip `converter_01.inspector_actions` mesur
             de l'app (« l'app garde autour »). Il n'était pas émis — d'où un lot sans identité
             dans le DOM : l'inspecteur ne pouvait pas le sélectionner et le nettoyage de lot vidé
             de `queue-actions.js` ne le trouvait pas non plus.{{% endcomment %}}
-            <div class="batch-group" data-batch-id="{{{{ b.obj.id }}}}">
-            {{% include 'common/_batch_card.html' with batch_info=b eta_ids=b.eta_ids{lot_bits} %}}
-            <div class="collapse show" id="batchItems{{{{ b.obj.id }}}}" data-wama-batch-key="{app}-{{{{ b.obj.id }}}}">
-                {{% for item in b.items %}}{{% include '{app}/_generic_card.html' %}}{{% endfor %}}
+            <div class="batch-group mb-2" data-batch-id="{{{{ b.obj.id }}}}">
+            {{% include 'common/_batch_card.html' with batch_info=b card_class='job-card' eta_ids=b.eta_ids{lot_bits} %}}
+            {{% comment %}}Convention Solitaire MESURÉE sur l'app réelle : filles REPLIÉES par
+            défaut (état persisté par wama-queue.js — pas de `show` codé en dur), conteneur
+            indenté `ps-2 pt-1`, cards filles avec `in_batch=True` (classe wcv3--batch-child =
+            le décalage visuel). Écart relevé par Fabien le 31/08, capture à l'appui : les
+            filles générées étaient pleine largeur, non décalées, toujours dépliées.{{% endcomment %}}
+            <div class="collapse ps-2 pt-1" id="batchItems{{{{ b.obj.id }}}}" data-wama-batch-key="{app}-{{{{ b.obj.id }}}}">
+                {{% for item in b.items %}}{{% include '{app}/_generic_card.html' with in_batch=True %}}{{% endfor %}}
             </div>
             </div>
             {{% else %}}
