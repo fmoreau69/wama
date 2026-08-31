@@ -338,6 +338,64 @@ quelle nouvelle application fonctionne de la même façon dès sa construction �
 effort (enhancer appelé depuis converter, TTS dans avatarizer…) — une passerelle demande une
 capacité, elle n'a aucune liste à tenir.
 
+##### Les TROIS indicateurs d'un modèle — aucun n'a été perdu (vérifié 2026-08-31)
+
+Doute de Fabien : « la confiance était le niveau de confiance de la PROPOSITION ; à côté il y
+avait la complexité d'intégration et la performance issue des benchmarks — j'ai l'impression
+qu'on a mélangé les deux ». **Sa mémoire est juste, et les trois vivent, distincts :**
+
+| Indicateur | Champ | Qui l'écrit | Ce qu'il dit |
+|---|---|---|---|
+| **Confiance de la proposition** | `AIModel.confidence` | bouton « Évaluer la confiance » → `assess_proposed` : un **jury multi-agents LLM** rend `{recommend, confidence 0-1, vram_fit, rationale, concerns}`, consolidé par vote | à quel point le jury croit à SA recommandation |
+| **Complexité d'intégration** | `AIModel.update_complexity` | `write_candidate` à la prospection | install en place vs backend à créer |
+| **Performance / qualité** | `benchmark_index` + `benchmark_meta` (tiers), `quality_index` (a priori) | `manage.py sync_benchmarks` — **Artificial Analysis + Arena** | mesure TIERCE, échelles jamais mélangées |
+
+Le jury **consomme** le benchmark (il lui est donné dans son prompt) mais ne le remplace pas.
+⚠ Ce qui a créé le malentendu est le **libellé du bouton** : « Évaluer la confiance » déclenche
+le jury LLM (indicateur 1), pas la recherche de benchmarks (indicateur 3).
+
+**🔴 Conséquence qui DÉBLOQUE Fabien** : il dit n'avoir « jamais pu compléter une recherche
+benchmark, le PC crashe ». Ce n'est pas la recherche benchmark qui crashe — **`sync_benchmarks`
+est PUREMENT RÉSEAU** (API Artificial Analysis avec clé gratuite + dataset Arena sur HF) :
+**aucun GPU, aucun Ollama, aucun chargement de modèle**. C'est le **jury LLM** qui charge un
+modèle sur l'Ollama hôte, et c'est LUI le déclencheur de crash connu. Les deux mécanismes ont
+été confondus à cause du bouton. → `manage.py sync_benchmarks` peut tourner **sans risque**,
+et il alimente l'étage qui manque au tirage automatique (voir ci-dessous).
+
+##### Le tirage AUTOMATIQUE : ce qui manque n'est pas le mécanisme, c'est la DONNÉE et l'INTENTION
+
+- **La performance est DÉJÀ dans le classement** (`_rank_key`, 4 étages jamais mélangés :
+  sous-indice de domaine → benchmark tiers → a priori → VRAM ; règle de lot — on ne compare
+  que si TOUT le lot porte le signal). Ce n'est donc pas un trou de mécanisme.
+- **Mais le parc TTS n'a aucun indice** → le classement retombe sur `vram_gb`, c'est-à-dire
+  « le plus gros qui tient » : mesuré, une demande TTS nue rend `bark` (4 Go) et non `kokoro`
+  (0,5 Go). Pour une PREVIEW RAPIDE c'est l'inverse du besoin. **Remède immédiat et sans
+  risque : `sync_benchmarks`.**
+- **L'INTENTION manque au contrat commun** — et elle existe déjà dans UNE app : le curseur
+  `precision_level` 0-100 de l'anonymizer (`params.py:107`, « Quick → Balanced → Precise »),
+  aujourd'hui traduit en TAILLE de modèle par une règle propre à l'app
+  (`get_model_size_from_precision`). **À généraliser** : l'intention se déclare, `select_model`
+  l'arbitre — c'est ce qui donne la « preview rapide puis rendu de qualité » demandée par
+  Fabien, sans mécanisme dédié.
+- **Modèles réputés DÉFAILLANTS** (bark saturé, vibevoice-asr « voix au ralenti » — constats
+  de Fabien) : le levier EXISTE et il est déjà documenté comme tel — `is_available=False` est
+  une **décision humaine** que la découverte n'a pas autorité pour écraser (`model_sync`).
+  Un modèle ainsi marqué sort du tirage ET des selects. ⚠ Manque une **raison déclarée**
+  (« rendu saturé, écarté le … ») : sans elle, l'exclusion est muette et personne ne saura
+  pourquoi dans six mois — à ajouter avec le portage.
+
+##### ⚠ INVARIANT À NE PAS CASSER : lister ≠ pouvoir choisir
+
+Rappel de Fabien (31/08), et c'est la règle d'`INPUT_MODEL_MATCHING §2` : le select **affiche
+TOUS** les modèles du domaine — l'utilisateur garde l'information — et seuls les compatibles
+sont **sélectionnables**, les autres étant **grisés AVEC LA RAISON** (« Incompatible avec votre
+fichier de référence »), réversible d'un ✕. **Ne jamais transformer ce grisage en exclusion
+serveur.** Concrètement pour l'étape (c) : la source `catalog` liste par CATÉGORIE + TÂCHE
+(le domaine), **jamais** par `requires`/`available_inputs` — ces derniers restent le travail
+d'affichage de `WamaInputMatch`/`WamaModelCaps`, côté client, sur la liste complète.
+✅ Vérifié ce jour : aucune régression introduite — `input_match.py` et les briques JS n'ont pas
+été touchées, et tous les appels existants passent `source`, donc rendent l'identique.
+
 ##### Avancement du socle (étape ①) et 2 découvertes qui changent la suite
 
 - ✅ **(a) capacités posables par le manifeste, non effaçables par une découverte muette**
