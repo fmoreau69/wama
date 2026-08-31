@@ -1154,6 +1154,58 @@ def api_models_db(request):
 
 
 @login_required
+@require_GET
+def api_model_options(request):
+    """
+    OPTIONS d'un select de modèle, tirées du CATALOGUE — source `catalog` de `WamaParams`.
+
+    C'est la dernière jambe de la route F4b (`WAMA_APP_GENERATION_ROUTE §F4b`) : jusqu'ici
+    une seule app sur dix dérivait sa liste du catalogue, les autres la portaient en dur —
+    donc un modèle installé n'apparaissait nulle part sans édition de code.
+
+    Paramètres de DOMAINE (querystring) : `task`, `model_type`, `modality`, `source`.
+    Réponse : `{groups: [{group?, options: [[valeur, libellé]]}]}` — le contrat que
+    `_bindOptionSources` attend déjà (même forme que `/common/api/voices/`).
+
+    ⚠⚠ INVARIANT — LISTER N'EST PAS POUVOIR CHOISIR (`INPUT_MODEL_MATCHING §2`, rappelé par
+    Fabien le 2026-08-31). Cet endpoint ne prend VOLONTAIREMENT ni `requires` ni
+    `available_inputs` : il rend TOUT le domaine. Restreindre ici transformerait en
+    **exclusion serveur** ce qui doit rester un **grisage expliqué** côté client
+    (`WamaInputMatch`/`WamaModelCaps`) — l'utilisateur perdrait l'information « ce modèle
+    existe mais votre voix de référence l'écarte », et la réversibilité par le ✕ de la chip.
+    Le domaine (catégorie + tâche) borne ; les entrées fournies GRISENT. Jamais l'inverse.
+    """
+    from .services import get_registry_models
+
+    task = request.GET.get('task') or None
+    model_type = request.GET.get('model_type') or None
+    modality = request.GET.get('modality') or None
+    source = request.GET.get('source') or None
+    if not (task or model_type or source):
+        return JsonResponse(
+            {'success': False,
+             'error': "préciser au moins `task`, `model_type` ou `source` — "
+                      "un select sans domaine listerait tout le catalogue"},
+            status=400)
+    try:
+        choices, info = get_registry_models(
+            source, task=task, model_type=model_type, modality=modality)
+    except Exception as e:
+        logger.warning("api_model_options: %s", e, exc_info=True)
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+    # `downloaded` accompagne le libellé : un modèle catalogué mais pas encore tiré reste
+    # PROPOSÉ (découvrabilité — décision du 27/08 sur musicgen-melody), il est seulement dit.
+    par_id = {d['id']: d for d in info}
+    options = []
+    for mid, nom in choices:
+        d = par_id.get(mid) or {}
+        libelle = nom if d.get('downloaded', True) else f"{nom} (à télécharger)"
+        options.append([mid, libelle])
+    return JsonResponse({'success': True, 'groups': [{'options': options}]})
+
+
+@login_required
 @user_passes_test(is_admin_or_dev)
 @require_POST
 def api_sync_models(request):

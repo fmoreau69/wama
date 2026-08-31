@@ -141,6 +141,50 @@ TACHE_VERS_TAGS_PLATEFORMES = {
 }
 PLATEFORMES_DE_REFERENCE = ('huggingface', 'ultralytics', 'ollama', 'roboflow')
 
+
+def tag_plateforme(tache: str, plateforme: str = 'huggingface'):
+    """Tag de `tache` (vocabulaire NÔTRE) chez une plateforme, ou None s'il n'y en a pas.
+
+    Lecture DIRECTE de `TACHE_VERS_TAGS_PLATEFORMES`. `None` n'est pas un trou à combler :
+    `obb`, `lip-sync` et `text-to-music` n'ont volontairement aucun équivalent HF.
+    """
+    try:
+        i = PLATEFORMES_DE_REFERENCE.index(plateforme)
+    except ValueError:
+        return None
+    for t, tags in TACHE_VERS_TAGS_PLATEFORMES.items():
+        if t.value == tache:
+            return tags[i]
+    return None
+
+
+def tache_canonique(tache: str):
+    """Traduit une tâche EXPRIMÉE DANS LE VOCABULAIRE D'UNE PLATEFORME vers le nôtre.
+
+    Rend la valeur `ModelTask` correspondante, ou `tache` inchangée si elle est déjà des
+    nôtres (ou inconnue — on ne devine pas). Lecture INVERSE de la table ci-dessus, donc
+    aucune seconde table à tenir : ajouter une plateforme reste une colonne, pas un
+    dictionnaire de plus.
+
+    ⚠ POURQUOI (mesuré le 2026-08-31, route F4b). Le catalogue parle NOTRE vocabulaire
+    (`transcription`, `segment`, `text-to-music` — volontairement plus fin que HF, cf.
+    l'entête de cette table) ; la prospection et les manifestes parlent souvent celui de
+    HuggingFace. Une requête d'options `task='automatic-speech-recognition'` ne trouvait
+    donc AUCUNE cible — et le repli « liste non filtrée » de `get_registry_models` servait
+    alors TOUTE la catégorie `speech` : un select ASR proposait bark, kokoro et un
+    débruiteur, en silence. *Deux vocabulaires pour un même fait ne divergent pas bruyamment :
+    ils se rejoignent sur un repli qui a l'air de marcher.*
+    """
+    if not tache:
+        return tache
+    connues = {t.value for t in ModelTask}
+    if tache in connues:
+        return tache
+    for t, tags in TACHE_VERS_TAGS_PLATEFORMES.items():
+        if tache in [x for x in tags if x]:
+            return t.value
+    return tache
+
 # Taches portees par des plateformes et ABSENTES de chez nous. Pas un oubli : rien ne les
 # consomme aujourd'hui. Notees pour que la prochaine question << ou est la profondeur ? >> trouve
 # une reponse ecrite. `Gaze Detection` (Roboflow) est a surveiller — un labo qui analyse la

@@ -58,6 +58,9 @@ urlpatterns = [
 
     # API endpoints - Database Catalog (fast)
     path('api/models/db/', views.api_models_db, name='api_models_db'),
+    # Options d'un select, tirées du catalogue (source `catalog` de WamaParams) — la
+    # dernière jambe de la route F4b. Liste par DOMAINE ; le grisage reste au client.
+    path('api/models/options/', views.api_model_options, name='api_model_options'),
     path('api/sync/', views.api_sync_models, name='api_sync_models'),
     path('api/catalog/stats/', views.api_catalog_stats, name='api_catalog_stats'),
     path('api/sync/logs/', views.api_sync_logs, name='api_sync_logs'),

@@ -441,7 +441,11 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
     Une app NOMME ce dont elle dispose ; elle n'écrit aucun filtre par type de média, et
     aucune fonction ne porte de modalité dans son nom.
     """
-    from ..models import AIModel
+    from ..models import AIModel, tache_canonique
+    # Le catalogue parle NOTRE vocabulaire de tâches ; l'appelant (manifeste, prospection,
+    # UI) parle parfois celui de HuggingFace. On traduit AVANT de comparer — sans quoi la
+    # requête ne trouve rien et le repli ci-dessous sert toute la catégorie, en silence.
+    task = tache_canonique(task)
     qs = AIModel.objects.filter(is_available=True)
     if source:
         qs = qs.filter(source=source)
@@ -467,9 +471,12 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
         mt = model_type
         if not mt and task:
             # Table task → model_type DÉJÀ écrite pour la prospection : on la réutilise,
-            # on n'en invente pas une seconde.
+            # on n'en invente pas une seconde. Elle est indexée sur les tags HF : on y
+            # entre donc par la PROJECTION de notre tâche (`TACHE_VERS_TAGS_PLATEFORMES`),
+            # jamais par notre valeur brute — sinon `transcription` n'y trouve rien.
+            from ..models import tag_plateforme
             from .prospector import _TASK_MODEL_TYPE
-            mt = _TASK_MODEL_TYPE.get(task)
+            mt = _TASK_MODEL_TYPE.get(tag_plateforme(task) or task)
         if mt:
             qs = qs.filter(model_type=mt)
     if downloaded_only:

@@ -337,14 +337,42 @@
   // Ex. 'voices' → /common/api/voices/ (peuple les optgroups voix sans markup serveur par app).
   // Surchageable via window.WAMA_OPTION_SOURCES. Si la clé n'est pas connue ici, l'app fournit un
   // optionsResolver synchrone à la place (rétro-compatible).
-  var OPTION_SOURCES = global.WAMA_OPTION_SOURCES || { voices: '/common/api/voices/' };
+  // `catalog` (2026-08-31, route F4b) : les options d'un select de MODÈLE viennent du
+  // CATALOGUE, plus d'une liste écrite dans l'app. Le domaine se déclare au schéma via
+  // `options_query` (cf. ci-dessous) — sans quoi une clé, qui ne porte qu'une URL fixe,
+  // ne saurait pas DE QUOI parler.
+  var OPTION_SOURCES = global.WAMA_OPTION_SOURCES || {
+    voices: '/common/api/voices/',
+    catalog: '/model-manager/api/models/options/',
+  };
   var _optionSourceCache = {};
+
+  // Querystring déclarée au schéma : `options_query: {task: 'text-to-speech'}`.
+  // ⚠ Ce qui a le droit d'y figurer borne le DOMAINE (task / model_type / modality /
+  // source) — jamais les entrées fournies ni les capacités requises : celles-là GRISENT
+  // côté client (WamaInputMatch/WamaModelCaps) sur la liste complète, elles n'excluent
+  // pas côté serveur. Lister n'est pas pouvoir choisir (INPUT_MODEL_MATCHING §2).
+  function _optionQuery(p) {
+    var q = p.options_query;
+    if (!q || typeof q !== 'object') return '';
+    var parts = Object.keys(q).sort().filter(function (k) {
+      return q[k] !== null && q[k] !== undefined && q[k] !== '';
+    }).map(function (k) {
+      return encodeURIComponent(k) + '=' + encodeURIComponent(q[k]);
+    });
+    return parts.length ? ('?' + parts.join('&')) : '';
+  }
+
   function _bindOptionSources(container, schema, ctx) {
     (schema || []).forEach(function (p) {
       if (!typeSupports(p.type, 'optionSources') || !p.options_source) return;
       if (p.contexts && p.contexts.indexOf(ctx) === -1) return;
       var url = OPTION_SOURCES[p.options_source];
       if (!url) return;   // pas d'endpoint connu → l'app gère via optionsResolver (rendu synchrone)
+      // La querystring fait partie de l'URL — donc aussi de la CLÉ DE CACHE : deux domaines
+      // distincts sur la même page (ex. un select TTS et un select ASR) ne doivent pas se
+      // servir mutuellement leur liste.
+      url += _optionQuery(p);
       var sid = perCtx(p.dom_id, ctx) || ('wp-' + ctx + '-' + p.name);
       var sel = document.getElementById(sid);
       if (!sel) return;
